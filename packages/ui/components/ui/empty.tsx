@@ -55,11 +55,16 @@ function EmptyMedia({
   )
 }
 
-function EmptyTitle({ className, ...props }: React.ComponentProps<"h2">) {
+function EmptyTitle({
+  className,
+  as: Heading = "h2",
+  ...props
+}: React.ComponentProps<"h2"> & {
+  /** h3 when the state sits under a section that already has its own h2. */
+  as?: "h2" | "h3"
+}) {
   return (
-    // Content arrives through {...props}; the rule cannot see it.
-    // eslint-disable-next-line jsx-a11y/heading-has-content
-    <h2
+    <Heading
       data-slot="empty-title"
       className={cn(
         "font-heading text-body font-medium tracking-tight",

@@ -32,6 +32,7 @@ import {
 } from "@uniwork/ui/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
 import { useIsMobile } from "@uniwork/ui/hooks/use-mobile";
+import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageHeader } from "../../layout/collection-page";
 import { moduleTone } from "../../layout/module-tones";
 import { useWorkspace } from "../../layout/workspace-context";
@@ -66,6 +67,8 @@ interface TabDef {
   Panel: ComponentType;
   /** Hidden from the nav once the reader is known not to pass it. */
   gate?: Gate;
+  /** A tab whose main content is a multi-column table gets a wider column. */
+  wide?: boolean;
 }
 
 type GroupId = "account" | "organization" | "workspace";
@@ -92,7 +95,7 @@ const GROUPS: readonly { id: GroupId; tabs: readonly TabDef[] }[] = [
       { value: "organization", label: "organization", icon: Building2, Panel: OrganizationTab },
       { value: "departments", label: "departments", icon: Network, Panel: DepartmentsTab },
       { value: "billing", label: "billing", icon: CreditCard, Panel: BillingTab, gate: "billing" },
-      { value: "audit", label: "audit", icon: ScrollText, Panel: AuditTab, gate: "audit" },
+      { value: "audit", label: "audit", icon: ScrollText, Panel: AuditTab, gate: "audit", wide: true },
     ],
   },
   {
@@ -211,7 +214,7 @@ export function SettingsPage() {
                   <div className={index === 0 ? "px-2 pb-1.5" : "px-2 pt-5 pb-1.5"}>
                     <p className="text-caption font-semibold text-muted-foreground">{t(`page.groups.${group.id}`)}</p>
                     {scopeName[group.id] ? (
-                      <p className="truncate text-caption text-faint-foreground" title={scopeName[group.id] ?? undefined}>
+                      <p className="truncate text-caption text-muted-foreground" title={scopeName[group.id] ?? undefined}>
                         {scopeName[group.id]}
                       </p>
                     ) : null}
@@ -229,7 +232,12 @@ export function SettingsPage() {
         )}
 
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-3xl px-4 pt-6 pb-12 sm:px-6 md:px-8 md:pt-8 md:pb-16">
+          <div
+            className={cn(
+              "mx-auto w-full px-4 pt-6 pb-12 sm:px-6 md:px-8 md:pt-8 md:pb-16",
+              ALL_TABS.find((tab) => tab.value === activeTab)?.wide ? "max-w-5xl" : "max-w-3xl",
+            )}
+          >
             {ALL_TABS.map(({ value, Panel }) => (
               <TabsContent key={value} value={value}>
                 {value === DEFAULT_TAB ? (

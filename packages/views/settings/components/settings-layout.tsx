@@ -1,5 +1,9 @@
-import type { ReactNode } from "react";
-import { AlertCircle, Check, Loader2 } from "lucide-react";
+"use client";
+
+import { useId, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import { AlertCircle, Check, Loader2, RotateCw } from "lucide-react";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { Card, CardContent } from "@uniwork/ui/components/ui/card";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -105,6 +109,7 @@ export function SettingsRow({
   className,
   size,
   align = "center",
+  descriptionId,
 }: {
   label: ReactNode;
   description?: ReactNode;
@@ -112,7 +117,14 @@ export function SettingsRow({
   className?: string;
   size?: SettingsControlSize;
   align?: "center" | "start";
+  /**
+   * Id for the description, so the control can point at it with
+   * `aria-describedby` and a screen reader hears the hint with the field.
+   */
+  descriptionId?: string;
 }) {
+  const generatedId = useId();
+  const hintId = descriptionId ?? generatedId;
   return (
     <div
       className={cn(
@@ -124,7 +136,9 @@ export function SettingsRow({
       <div className="min-w-0 flex-1">
         <div className="text-body font-medium">{label}</div>
         {description ? (
-          <div className="mt-0.5 text-caption leading-5 text-pretty text-muted-foreground">{description}</div>
+          <div id={hintId} className="mt-0.5 text-caption leading-5 text-pretty text-muted-foreground">
+            {description}
+          </div>
         ) : null}
       </div>
       <div
@@ -189,15 +203,21 @@ export function SettingsListItem({
   badge?: ReactNode;
   actions?: ReactNode;
   className?: string;
-  /** Dims the identity of an inactive entry while its actions stay readable. */
+  /**
+   * Quiets an inactive entry (deactivated, not shipped yet). Only the glyph is
+   * faded; the text drops to muted-foreground, which still meets AA, where an
+   * opacity on the text would not.
+   */
   muted?: boolean;
 }) {
   return (
     <li className={cn("flex min-h-14 flex-wrap items-center gap-3 px-4 py-2.5 sm:flex-nowrap", className)}>
       {leading ? <div className={cn("shrink-0", muted && "opacity-60")}>{leading}</div> : null}
-      <div className={cn("min-w-0 flex-1", muted && "opacity-60")}>
+      <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-body font-medium text-foreground">{title}</span>
+          <span className={cn("truncate text-body font-medium", muted ? "text-muted-foreground" : "text-foreground")}>
+            {title}
+          </span>
           {badge ? <span className="shrink-0">{badge}</span> : null}
         </div>
         {meta ? <div className="truncate text-caption text-muted-foreground">{meta}</div> : null}
@@ -216,6 +236,41 @@ export function SettingsEmpty({ icon, children }: { icon?: ReactNode; children: 
       {icon ? <span className="shrink-0 [&_svg]:size-4">{icon}</span> : null}
       <span className="text-pretty">{children}</span>
     </div>
+  );
+}
+
+/**
+ * What a card or list says when its data did not load: the failure, not an
+ * empty state that would pass for the truth ("no members yet"). Retry stays
+ * beside the message. It is a status, not an alert — the reader did not act.
+ */
+export function SettingsLoadError({ children, onRetry }: { children?: ReactNode; onRetry?: () => void }) {
+  const { t } = useTranslation(undefined, { keyPrefix: "settings.state" });
+  return (
+    <div role="status" className="flex flex-wrap items-center gap-3 px-4 py-4 text-body">
+      <AlertCircle aria-hidden className="size-4 shrink-0 text-destructive" />
+      <span className="min-w-0 flex-1 text-pretty text-foreground">{children ?? t("load_error")}</span>
+      {onRetry ? (
+        <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+          <RotateCw aria-hidden className="size-3.5" />
+          {t("retry")}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * The inline reason a field was refused, tied to the field by id
+ * (`aria-describedby` + `aria-invalid` on the input). Never colour alone: the
+ * icon and the words carry it.
+ */
+export function SettingsFieldError({ id, children, className }: { id: string; children: ReactNode; className?: string }) {
+  return (
+    <p id={id} className={cn("flex items-start gap-1.5 text-caption text-destructive", className)}>
+      <AlertCircle aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+      <span className="text-pretty">{children}</span>
+    </p>
   );
 }
 

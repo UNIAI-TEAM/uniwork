@@ -249,13 +249,12 @@
       "push_this_browser": "Receive push notifications in this browser",
       "push_denied": "The browser is blocking notifications. Allow them in the site settings and try again.",
       "matrix_section": "By kind",
-      "matrix_description": "The inbox always keeps the record; push and email deliver the same notification.",
+      "matrix_description": "Each kind arrives through the channels you turn on. Turning one off stops only that channel; the others keep delivering.",
       "kind": "Kind",
       "channel_in_app": "Inbox",
       "channel_push": "Push",
       "channel_email": "Email",
       "digest_hint": "One email a day at 08:00 in your time zone, only when something is unread.",
-      "error": "Could not save, try again",
       "kinds": {
         "task_assigned": "Assigned a task",
         "task_status_changed": "Task status changed",
@@ -315,11 +314,11 @@
       "avatarWrongType": "The image must be PNG, JPEG, GIF or WebP.",
       "avatarTooLarge": "The image is over 2 MB. Choose a smaller one.",
       "avatarUploadFailed": "Could not upload the photo. Try again.",
-      "emailHint": "The address you sign in with."
+      "emailHint": "The address you sign in with.",
+      "displayNameRequired": "Display name can't be empty."
     },
     "preferences": {
       "timezone": "Time zone",
-      "toastError": "Could not save, try again",
       "section": "Language and time zone",
       "theme": "Theme",
       "themeLight": "Light",
@@ -328,7 +327,6 @@
       "language": "Language",
       "languageVi": "Tiếng Việt",
       "languageEn": "English",
-      "toastSaved": "Saved",
       "appearance": "Appearance",
       "accent": "Accent",
       "accents": {
@@ -362,7 +360,8 @@
       "url_copied": "Workspace address copied",
       "copy_failed": "Couldn't copy. Select the address and copy it by hand.",
       "organization": "Organization",
-      "organization_hint": "Organization members, departments and billing are managed at the organization level."
+      "organization_hint": "Organization members, departments and billing are managed at the organization level.",
+      "name_required": "The workspace name can't be empty."
     },
     "integrations": {
       "description": "Connect UniWork to the tools you already use. Only what works today and what is on the roadmap is listed.",
@@ -375,9 +374,10 @@
         "meta": "Gmail, Outlook, Yahoo mailboxes via an app password · each person connects their own",
         "connected_one": "You connected {{count}} mailbox",
         "connected_other": "You connected {{count}} mailboxes",
-        "not_connected": "Not connected by you",
+        "not_connected": "You haven't connected a mailbox",
         "open": "Open Email Hub",
-        "connect": "Connect a mailbox"
+        "connect": "Connect a mailbox",
+        "load_error": "Couldn't load"
       },
       "mail_oauth": {
         "title": "Gmail and Microsoft 365",
@@ -394,7 +394,7 @@
       "forbidden_title": "You cannot see billing",
       "forbidden_description": "Only organization owners and admins can see the plan and its limits.",
       "error_title": "Could not load the plan",
-      "error_description": "Try again in a few minutes. If it keeps failing, send the correlation id to the platform admin.",
+      "error_description": "Try again in a few minutes.",
       "retry": "Retry",
       "current_plan": "Current plan",
       "plan": "Plan",
@@ -432,7 +432,6 @@
       "resumed": "Plan resumed",
       "owner_only": "Only the organization owner can change the plan.",
       "usage_of": "{{used}} / {{limit}} {{unit}}",
-      "usage_unbounded": "{{used}} {{unit}} · Unlimited",
       "usage_remaining": "{{n}} left",
       "usage_full": "Limit reached",
       "unlimited": "unlimited",
@@ -465,11 +464,11 @@
       "usage_features": "Features in this plan",
       "usage_features_description": "On or off by plan; no usage is counted.",
       "not_in_plan": "Not in this plan",
-      "cancel_notice": "The plan stops on {{date}}. The organization keeps the full plan until then; resume before that date if you change your mind.",
+      "cancel_notice": "The plan ends on {{date}}. The organization keeps the full plan until then; resume before that date if you change your mind.",
       "checkout_notice": "The checkout page is ready and opens in a new tab.",
-      "cancel_label": "Stop at the end of the period",
-      "cancel_hint": "You can resume any time before the stop date.",
-      "cancel_open": "Stop plan",
+      "cancel_label": "Cancel at the end of the period",
+      "cancel_hint": "You can resume any time before the plan ends.",
+      "cancel_open": "Cancel plan",
       "features": {
         "members_max": "Organization members",
         "workspaces_max": "Workspaces",
@@ -480,7 +479,17 @@
         "ai_tokens": "AI tokens",
         "storage_bytes": "Storage",
         "sso_oidc": "SSO sign-in (OIDC)"
-      }
+      },
+      "action_failed": "The plan could not be changed. Try again in a few minutes.",
+      "plans_error": "The plans could not be loaded.",
+      "plans_empty": "No plans are available yet.",
+      "contact_only": "This plan is priced on request and cannot be bought online.",
+      "past_due_notice": "No payment has been recorded for this period. The organization keeps the full plan through {{date}}; after that, creating anything new is blocked until payment goes through.",
+      "past_due_notice_undated": "No payment has been recorded for this period. After a short grace period, creating anything new is blocked until payment goes through.",
+      "past_due_ask_owner": "Only the organization owner can pay; let them know.",
+      "past_due_pay": "Pay now",
+      "usage_unbounded_unit": "{{used}} {{unit}} · Unlimited",
+      "usage_unbounded_plain": "{{used}} · Unlimited"
     },
     "audit": {
       "title": "Activity log",
@@ -488,7 +497,7 @@
       "empty_title": "No entries match",
       "empty_description": "Widen the filters or pick a longer date range. Every change to data has been recorded since this feature was switched on.",
       "error_title": "The log could not be loaded",
-      "error_description": "Try again in a few minutes. If it keeps failing, send your system administrator the correlation id of the last attempt.",
+      "error_description": "Try again in a few minutes.",
       "forbidden_title": "You cannot read this log",
       "forbidden_description": "Only organization owners and admins can read the audit log.",
       "retry": "Try again",
@@ -540,8 +549,7 @@
         "from": "Before",
         "to": "After",
         "empty": "None",
-        "copy": "Copy",
-        "copied": "Copied"
+        "ip_not_recorded": "Not recorded"
       },
       "retention": {
         "title": "Retention",
@@ -552,11 +560,13 @@
         "owner_only": "Only the organization owner can change this setting.",
         "unit": "days",
         "hint": "Between 30 and 730 days.",
-        "out_of_range": "Enter a whole number between 30 and 730."
+        "out_of_range": "Enter a whole number between 30 and 730.",
+        "load_error": "Retention could not be loaded.",
+        "save_failed": "Retention could not be saved. Try again in a few minutes."
       },
       "export": {
         "title": "Export",
-        "description": "Produce a CSV or JSON Lines file for a date range. One export runs at a time; the download link expires after 24 hours.",
+        "description": "Produce a CSV or JSON Lines file for a date range. One export runs at a time.",
         "format": "Format",
         "from": "From",
         "to": "To",
@@ -577,7 +587,14 @@
         "one_at_a_time": "An export is running. Wait for it to finish before starting another.",
         "hint": "The download link expires after 24 hours.",
         "expires": "Expires",
-        "format_jsonl": "JSON Lines"
+        "format_jsonl": "JSON Lines",
+        "create_failed": "The export could not be created. Try again in a few minutes.",
+        "load_error": "Exports could not be loaded.",
+        "history_label": "Recent exports",
+        "error_range_too_large": "The date range is too large. Split it and export again.",
+        "error_generic": "Export failed.",
+        "announce_done": "The export is ready to download.",
+        "announce_failed": "The export failed."
       },
       "activity": {
         "title": "Activity",
@@ -687,13 +704,16 @@
           "private": "Private"
         }
       },
-      "empty_fresh_title": "No entries yet"
+      "empty_fresh_title": "No entries yet",
+      "log_title": "Entries",
+      "table_label": "Activity log entries",
+      "load_more_error": "More entries could not be loaded."
     },
     "ai": {
       "title": "AI",
       "description": "AI calls made from this workspace over the last 30 days, and the organization's AI token quota.",
       "forbidden_title": "Workspace owners and admins only",
-      "forbidden_description": "AI usage belongs to workspace administration.",
+      "forbidden_description": "Only workspace admins can see AI usage.",
       "error_title": "Could not load AI usage.",
       "empty_title": "No AI calls yet",
       "empty_description": "Open Ask UNI (⌘J) or summarize a meeting and the numbers will show here.",
@@ -736,7 +756,8 @@
       "disabled_title": "AI isn't turned on for this organization",
       "disabled_description": "Ask UNI and meeting summaries need a connected AI provider. Whoever runs UniWork for your organization connects it; it can't be turned on from workspace settings.",
       "capabilities_error": "Couldn't load the AI status.",
-      "retry": "Retry"
+      "retry": "Retry",
+      "access_error": "Couldn't check whether you can see AI usage."
     },
     "shortcuts": {
       "title": "Keyboard shortcuts",
@@ -859,7 +880,7 @@
         "confirm": "Confirm and enable",
         "cancel": "Cancel",
         "recoveryTitle": "Recovery codes",
-        "recoveryHint": "Keep these 8 codes somewhere safe. Each works once if you lose your phone. They are shown only now.",
+        "recoveryHint": "Keep these 8 codes somewhere safe. Each works once if you lose your phone. They are shown only this once.",
         "recoveryDone": "I saved my codes",
         "invalidCode": "Wrong code",
         "toastEnabled": "Two-factor authentication enabled",
@@ -869,13 +890,15 @@
         "recoveryCopy": "Copy",
         "recoveryDownload": "Download (.txt)",
         "recoveryCopied": "Recovery codes copied",
-        "recoveryCopyFailed": "Could not copy. Copy them by hand or download them."
+        "recoveryCopyFailed": "Could not copy. Copy them by hand or download them.",
+        "codeLength_one": "Enter the {{count}} digit the app shows.",
+        "codeLength_other": "Enter all {{count}} digits the app shows.",
+        "disableCodeRequired": "Enter an app code or a recovery code."
       },
       "sessions": {
         "section": "Sessions",
         "description": "Browsers signed in to your account. Revoke one you do not recognise; it loses access within 15 minutes.",
         "error": "Could not load sessions.",
-        "retry": "Retry",
         "unknownBrowser": "Unknown browser",
         "current": "This session",
         "revoke": "Revoke",
@@ -899,7 +922,7 @@
       },
       "delete": {
         "section": "Delete account",
-        "description": "Under Decree 13 you may erase your personal data. Email, name, photo and sign-in are removed; work you created stays under \"Deleted user\".",
+        "description": "Under Decree 13 you may erase your personal data. Email, name, photo and sign-in are removed; work you created stays under “Deleted user”.",
         "label": "Delete permanently",
         "hint": "Cannot be undone. If you own an organization, transfer ownership first.",
         "open": "Delete account",
@@ -913,7 +936,12 @@
         "ownerHint": "An account that owns an organization cannot be deleted until ownership is transferred.",
         "cancel": "Cancel",
         "confirm": "Delete permanently",
-        "failed": "Could not delete the account"
+        "failed": "Could not delete the account",
+        "required": {
+          "password": "Enter your password to confirm.",
+          "code": "Enter your two-factor code to confirm.",
+          "email": "Type your email address to confirm."
+        }
       }
     },
     "members": {
@@ -937,7 +965,22 @@
       "remove_body": "{{name}} will no longer see this workspace's tasks, meetings and chat. Their organization account stays as it is.",
       "leave": "Leave workspace",
       "leave_title": "Leave this workspace?",
-      "leave_body": "You will no longer see this workspace's tasks, meetings and chat until someone invites you again."
+      "leave_body": "You will no longer see this workspace's tasks, meetings and chat until someone invites you again.",
+      "invite_placeholder": "name@company.com, …",
+      "invite_separator_hint": "Separate them with a comma, a space or Enter.",
+      "load_error": "Couldn't load the member list.",
+      "danger_title": "Danger zone",
+      "leave_description": "You lose access to this workspace's tasks, meetings and chat. To come back, someone has to invite you again."
+    },
+    "state": {
+      "load_error": "Couldn't load this section.",
+      "retry": "Try again"
+    },
+    "correlation": {
+      "hint": "If it keeps failing, send this correlation id to your system administrator:",
+      "label": "correlation id",
+      "copy": "Copy {{label}}",
+      "copied": "Copied {{label}}"
     }
   },
   "email_hub": {
@@ -3283,7 +3326,8 @@
       "reactivated": "Member reactivated",
       "status_deactivated": "Deactivated",
       "deactivate_title": "Deactivate {{name}}?",
-      "deactivate_body": "{{name}} will not be able to get into the organization or any workspace in it until reactivated. Everything they created stays."
+      "deactivate_body": "{{name}} will not be able to get into the organization or any workspace in it until reactivated. Everything they created stays.",
+      "load_error": "Couldn't load the members."
     },
     "leave": {
       "title": "Leave this organization",
@@ -3297,18 +3341,21 @@
       "title": "Invite people to the organization",
       "description": "They join the company directly and pick a workspace afterwards.",
       "send": "Send invitations",
-      "sent": "Sent {{count}} invitations",
       "revoke": "Revoke",
       "revoked": "Invitation revoked",
       "role": "Role for the invitees",
       "pending_title": "Pending invitations",
-      "pending_description": "The recipient has not opened the link in the email yet.",
+      "pending_description": "Not answered yet. The link in an expired invitation no longer works.",
       "sent_on": "Sent {{date}}",
       "expires_on": "expires {{date}}",
       "invited_by": "Invited by {{name}}",
       "expired": "Expired",
       "revoke_title": "Revoke the invitation to {{email}}?",
-      "revoke_body": "The link in the email will stop working. You can invite them again later."
+      "revoke_body": "The link in the email will stop working. You can invite them again later.",
+      "sent_one": "Sent {{count}} invitation",
+      "sent_other": "Sent {{count}} invitations",
+      "none_sent": "No invitations sent: the addresses left in the field are already members or not valid.",
+      "load_error": "Couldn't load the invitations."
     },
     "transfer": {
       "title": "Transfer ownership",
@@ -3319,7 +3366,10 @@
       "confirm_hint": "Type “{{name}}” exactly.",
       "password_label": "Your current password",
       "no_candidate": "No active member is available to receive ownership yet.",
-      "done": "Ownership transferred"
+      "done": "Ownership transferred",
+      "confirm_mismatch": "Doesn't match “{{name}}”.",
+      "loading_candidates": "Loading members…",
+      "candidates_error": "Couldn't load the members to choose from."
     },
     "deactivated": {
       "title": "Your account in this organization has been deactivated",
@@ -3959,7 +4009,6 @@
     "title": "Departments",
     "description": "The organization's structure, at most two levels deep.",
     "name": "Department name",
-    "code": "Code",
     "parent": "Parent department",
     "add": "Add department",
     "add_title": "Add a department",
@@ -3968,7 +4017,6 @@
     "created": "Department created",
     "updated": "Department updated",
     "empty": "No departments yet.",
-    "member_count": "{{count}} members",
     "count_one": "{{count}} department",
     "count_other": "{{count}} departments",
     "empty_admin": "No departments yet. Add the first one in the form below.",
@@ -3984,7 +4032,12 @@
     "archive_body_other": "{{count}} members in this department will be unassigned from it. Their profiles stay as they are.",
     "archive_body_empty": "No one is in this department. It will no longer show in lists and filters.",
     "has_children_one": "Has {{count}} sub-department; archive it first.",
-    "has_children_other": "Has {{count}} sub-departments; archive them first."
+    "has_children_other": "Has {{count}} sub-departments; archive them first.",
+    "member_count_one": "{{count}} member",
+    "member_count_other": "{{count}} members",
+    "code_optional": "Code (optional)",
+    "name_required": "Enter a department name.",
+    "load_error": "Couldn't load the departments."
   },
   "projects": {
     "unavailable_title": "Not available yet",
