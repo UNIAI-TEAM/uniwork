@@ -27,6 +27,7 @@
     "./tasks/views/*": "./tasks/views/*.ts",
     "./email-hub/hooks": "./email-hub/hooks.ts",
     "./calendar": "./calendar/hooks.ts",
+    "./calendar/preferences": "./calendar/preferences.ts",
     "./calendar/types": "./calendar/types.ts",
     "./home": "./home/hooks.ts",
     "./home/*": "./home/*.ts",

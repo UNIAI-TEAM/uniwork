@@ -4,6 +4,10 @@ import { useMemo, useState } from "react";
 import { Calendar } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useCalendarEvents, useCalendarSidebar } from "@uniwork/core/calendar";
+import {
+  DEFAULT_CALENDAR_PREFERENCES,
+  type CalendarPreferences,
+} from "@uniwork/core/calendar/preferences";
 import type { CalendarEvent } from "@uniwork/core/calendar/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
@@ -22,19 +26,27 @@ import { NewMeetingDialog } from "../meetings/new-meeting-dialog";
 
 export function CalendarPageView({
   workspaceId,
+  initialPreferences = DEFAULT_CALENDAR_PREFERENCES,
+  onPreferencesChange,
   onOpenTask,
   onOpenMeeting,
 }: {
   workspaceId: string;
+  initialPreferences?: CalendarPreferences;
+  onPreferencesChange?: (next: CalendarPreferences) => void;
   onOpenTask: (id: string) => void;
   onOpenMeeting: (id: string) => void;
 }) {
   const { t, i18n } = useTranslation();
   const [anchorDate, setAnchorDate] = useState(() => new Date());
-  const [mine, setMine] = useState(false);
-  const [showWeekends, setShowWeekends] = useState(true);
-  const [viewMode, setViewMode] = useState<CalendarViewMode>("month");
-  const [range, setRange] = useState(() => rangeForMode("month", new Date()));
+  const [mine, setMine] = useState(initialPreferences.mine);
+  const [showWeekends, setShowWeekends] = useState(initialPreferences.showWeekends);
+  const [viewMode, setViewMode] = useState<CalendarViewMode>(
+    initialPreferences.viewMode,
+  );
+  const [range, setRange] = useState(() =>
+    rangeForMode(initialPreferences.viewMode, new Date()),
+  );
   const [slotMenuOpen, setSlotMenuOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<CalendarSlot | null>(null);
   const [createMeetingOpen, setCreateMeetingOpen] = useState(false);
@@ -64,6 +76,17 @@ export function CalendarPageView({
   const handleViewModeChange = (mode: CalendarViewMode) => {
     setViewMode(mode);
     setRange(rangeForMode(mode, anchorDate));
+    onPreferencesChange?.({ viewMode: mode, mine, showWeekends });
+  };
+
+  const handleMineChange = (next: boolean) => {
+    setMine(next);
+    onPreferencesChange?.({ viewMode, mine: next, showWeekends });
+  };
+
+  const handleShowWeekendsChange = (next: boolean) => {
+    setShowWeekends(next);
+    onPreferencesChange?.({ viewMode, mine, showWeekends: next });
   };
 
   /** FullCalendar fires datesSet on option churn; skip no-op range updates to avoid loops. */
@@ -129,11 +152,11 @@ export function CalendarPageView({
             exportTo={range.to}
             isRefreshing={isRefetching || sidebarQuery.isRefetching}
             onAnchorDateChange={handleAnchorDateChange}
-            onMineChange={setMine}
+            onMineChange={handleMineChange}
             onRefresh={() => {
               void Promise.all([refetch(), sidebarQuery.refetch()]);
             }}
-            onShowWeekendsChange={setShowWeekends}
+            onShowWeekendsChange={handleShowWeekendsChange}
             onViewModeChange={handleViewModeChange}
           />
           {isError ? (

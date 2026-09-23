@@ -173,6 +173,43 @@ describe("CalendarPageView", () => {
     expect(hostProps.current.showWeekends).toBe(false);
   });
 
+  it("starts from URL preferences and reports preference changes", () => {
+    const onPreferencesChange = vi.fn();
+    useCalendarEventsMock.mockClear();
+
+    render(
+      wrap(
+        <CalendarPageView
+          workspaceId="ws1"
+          initialPreferences={{
+            viewMode: "week",
+            mine: true,
+            showWeekends: false,
+          }}
+          onPreferencesChange={onPreferencesChange}
+          onOpenTask={() => {}}
+          onOpenMeeting={() => {}}
+        />,
+      ),
+    );
+
+    expect(hostProps.current.viewMode).toBe("week");
+    expect(hostProps.current.showWeekends).toBe(false);
+    expect(useCalendarEventsMock).toHaveBeenLastCalledWith(
+      "ws1",
+      expect.any(String),
+      expect.any(String),
+      true,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Tháng" }));
+    expect(onPreferencesChange).toHaveBeenLastCalledWith({
+      viewMode: "month",
+      mine: true,
+      showWeekends: false,
+    });
+  });
+
   it("updates the events query range when the toolbar changes month", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date("2026-09-15T12:00:00Z"));
