@@ -101,6 +101,7 @@ export function CalendarPageView({
           sections={sidebarSections}
           isPending={sidebarQuery.isPending}
           isError={sidebarQuery.isError}
+          onRetry={() => void sidebarQuery.refetch()}
           onOpenTask={onOpenTask}
           onOpenMeeting={onOpenMeeting}
           onCreateMeeting={() => setCreateMeetingOpen(true)}

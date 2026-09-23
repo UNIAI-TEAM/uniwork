@@ -32,6 +32,7 @@ describe("CalendarSidebar", () => {
         <CalendarSidebar
           workspaceId="ws1"
           sections={EMPTY_CALENDAR_SIDEBAR}
+          onRetry={() => {}}
           onOpenTask={() => {}}
           onOpenMeeting={() => {}}
           onCreateMeeting={() => {}}
@@ -78,6 +79,7 @@ describe("CalendarSidebar", () => {
               },
             ],
           }}
+          onRetry={() => {}}
           onOpenTask={onOpenTask}
           onOpenMeeting={onOpenMeeting}
           onCreateMeeting={() => {}}
@@ -113,6 +115,7 @@ describe("CalendarSidebar", () => {
               },
             ],
           }}
+          onRetry={() => {}}
           onOpenTask={() => {}}
           onOpenMeeting={() => {}}
           onCreateMeeting={() => {}}
@@ -147,6 +150,7 @@ describe("CalendarSidebar", () => {
         <CalendarSidebar
           workspaceId="ws1"
           sections={EMPTY_CALENDAR_SIDEBAR}
+          onRetry={() => {}}
           onOpenTask={() => {}}
           onOpenMeeting={() => {}}
           onCreateMeeting={onCreateMeeting}
@@ -156,5 +160,30 @@ describe("CalendarSidebar", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Cuộc họp mới" }));
     expect(onCreateMeeting).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows an exclusive retry state when the sidebar request fails", () => {
+    const onRetry = vi.fn();
+    render(
+      wrap(
+        <CalendarSidebar
+          workspaceId="ws1"
+          sections={EMPTY_CALENDAR_SIDEBAR}
+          isError
+          onRetry={onRetry}
+          onOpenTask={() => {}}
+          onOpenMeeting={() => {}}
+          onCreateMeeting={() => {}}
+        />,
+      ),
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Không tải được bảng kế hoạch.",
+    );
+    expect(screen.queryByText("Ưu tiên cao")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
   });
 });
