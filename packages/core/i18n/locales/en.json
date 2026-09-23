@@ -352,9 +352,17 @@
       "timezoneEmpty": "No matching time zone."
     },
     "workspace": {
-      "section": "Workspace",
       "name": "Workspace name",
-      "toastUpdated": "Workspace settings saved"
+      "description": "This workspace's name, address and organization.",
+      "name_hint": "Shown in the sidebar, in invitations and in notification emails.",
+      "name_read_only": "Only workspace owners and admins can rename it.",
+      "url": "Address",
+      "url_hint": "Renaming does not change this address.",
+      "copy_url": "Copy address",
+      "url_copied": "Workspace address copied",
+      "copy_failed": "Couldn't copy. Select the address and copy it by hand.",
+      "organization": "Organization",
+      "organization_hint": "Organization members, departments and billing are managed at the organization level."
     },
     "integrations": {
       "emptyTitle": "No integrations yet",
@@ -812,6 +820,29 @@
         "confirm": "Delete permanently",
         "failed": "Could not delete the account"
       }
+    },
+    "members": {
+      "description": "Who can get into this workspace, and in what role.",
+      "count_one": "{{count}} member",
+      "count_other": "{{count}} members",
+      "count_more": "{{count}}+ members",
+      "search": "Search members",
+      "search_placeholder": "Search name or email",
+      "no_match": "No member matches “{{query}}”.",
+      "no_match_more": "No one loaded so far matches “{{query}}”. Load more to keep looking.",
+      "empty": "No members yet.",
+      "you": "You",
+      "invite_title": "Invite to the workspace",
+      "invite_description": "Invitees get an email and join this workspace directly.",
+      "invite_role": "Role for the invitees",
+      "sending": "Sending…",
+      "sent_title": "Just sent",
+      "sent_description": "Only the invitations you sent since opening this page.",
+      "remove_title": "Remove {{name}} from the workspace?",
+      "remove_body": "{{name}} will no longer see this workspace's tasks, meetings and chat. Their organization account stays as it is.",
+      "leave": "Leave workspace",
+      "leave_title": "Leave this workspace?",
+      "leave_body": "You will no longer see this workspace's tasks, meetings and chat until someone invites you again."
     }
   },
   "email_hub": {
@@ -3155,13 +3186,17 @@
       "deactivated": "Member deactivated",
       "reactivate": "Reactivate",
       "reactivated": "Member reactivated",
-      "status_deactivated": "Deactivated"
+      "status_deactivated": "Deactivated",
+      "deactivate_title": "Deactivate {{name}}?",
+      "deactivate_body": "{{name}} will not be able to get into the organization or any workspace in it until reactivated. Everything they created stays."
     },
     "leave": {
       "title": "Leave this organization",
-      "description": "You lose access to every workspace inside it. The owner must transfer ownership first.",
+      "description": "You lose access to every workspace inside it right away.",
       "action": "Leave organization",
-      "done": "You left the organization"
+      "done": "You left the organization",
+      "confirm_title": "Leave {{name}}?",
+      "confirm_body": "You will lose access to every workspace in {{name}}. To come back, an admin has to invite you again."
     },
     "invitations": {
       "title": "Invite people to the organization",
@@ -3169,7 +3204,16 @@
       "send": "Send invitations",
       "sent": "Sent {{count}} invitations",
       "revoke": "Revoke",
-      "revoked": "Invitation revoked"
+      "revoked": "Invitation revoked",
+      "role": "Role for the invitees",
+      "pending_title": "Pending invitations",
+      "pending_description": "The recipient has not opened the link in the email yet.",
+      "sent_on": "Sent {{date}}",
+      "expires_on": "expires {{date}}",
+      "invited_by": "Invited by {{name}}",
+      "expired": "Expired",
+      "revoke_title": "Revoke the invitation to {{email}}?",
+      "revoke_body": "The link in the email will stop working. You can invite them again later."
     },
     "transfer": {
       "title": "Transfer ownership",
@@ -3186,6 +3230,22 @@
       "title": "Your account in this organization has been deactivated",
       "description": "An organization admin paused your access. Everything you created is still there. Ask an admin to restore it.",
       "workspaces_link": "Go to your other organizations"
+    },
+    "danger": {
+      "title": "Danger zone",
+      "description": "These change who holds the organization, or take you out of it."
+    },
+    "reasons": {
+      "leave_last_owner": "You are the owner. Transfer ownership to someone else before leaving.",
+      "last_owner": "The owner's role only changes by transferring ownership.",
+      "member_deactivated": "Your account in this organization is deactivated.",
+      "not_org_member": "You are no longer a member of this organization.",
+      "not_member": "You are no longer a member of this workspace.",
+      "not_authenticated": "Sign in again to continue.",
+      "not_admin_role": "Only owners and admins can do this.",
+      "not_owner_role": "Only the organization owner can do this.",
+      "not_resource_owner": "You cannot do this to yourself.",
+      "fallback": "You can't do this yet."
     }
   },
   "invitations": {
@@ -3802,7 +3862,7 @@
   },
   "departments": {
     "title": "Departments",
-    "description": "The organization's structure, at most two levels deep. Archiving a department moves its people out of it.",
+    "description": "The organization's structure, at most two levels deep.",
     "name": "Department name",
     "code": "Code",
     "parent": "Parent department",
@@ -3813,7 +3873,23 @@
     "created": "Department created",
     "updated": "Department updated",
     "empty": "No departments yet.",
-    "member_count": "{{count}} members"
+    "member_count": "{{count}} members",
+    "count_one": "{{count}} department",
+    "count_other": "{{count}} departments",
+    "empty_admin": "No departments yet. Add the first one in the form below.",
+    "empty_member": "No departments yet. An organization admin adds them when needed.",
+    "rename": "Rename",
+    "rename_label": "New name for {{name}}",
+    "rename_hint": "Enter to save, Esc to cancel.",
+    "parent_none": "Top level (no parent)",
+    "parent_hint": "A sub-department belongs to one top-level department.",
+    "parent_hint_empty": "There are no top-level departments yet, so this one will be top level.",
+    "archive_title": "Archive {{name}}?",
+    "archive_body_one": "{{count}} member in this department will be unassigned from it. Their profile stays as it is.",
+    "archive_body_other": "{{count}} members in this department will be unassigned from it. Their profiles stay as they are.",
+    "archive_body_empty": "No one is in this department. It will no longer show in lists and filters.",
+    "has_children_one": "Has {{count}} sub-department; archive it first.",
+    "has_children_other": "Has {{count}} sub-departments; archive them first."
   },
   "projects": {
     "unavailable_title": "Not available yet",

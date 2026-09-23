@@ -351,9 +351,17 @@
       "timezoneEmpty": "Không có múi giờ nào khớp."
     },
     "workspace": {
-      "section": "Workspace",
       "name": "Tên workspace",
-      "toastUpdated": "Đã lưu cài đặt workspace"
+      "description": "Tên, địa chỉ và tổ chức của workspace này.",
+      "name_hint": "Hiện ở thanh bên, trong lời mời và email thông báo.",
+      "name_read_only": "Chỉ chủ sở hữu và quản trị workspace đổi được tên.",
+      "url": "Địa chỉ",
+      "url_hint": "Đổi tên không làm đổi địa chỉ này.",
+      "copy_url": "Sao chép địa chỉ",
+      "url_copied": "Đã sao chép địa chỉ workspace",
+      "copy_failed": "Chưa sao chép được. Chọn địa chỉ và sao chép thủ công.",
+      "organization": "Thuộc tổ chức",
+      "organization_hint": "Thành viên tổ chức, phòng ban và thanh toán quản lý ở cấp tổ chức."
     },
     "integrations": {
       "emptyTitle": "Chưa có tích hợp",
@@ -811,6 +819,29 @@
         "confirm": "Xóa vĩnh viễn",
         "failed": "Không xóa được tài khoản"
       }
+    },
+    "members": {
+      "description": "Ai vào được workspace này và với vai trò nào.",
+      "count_one": "{{count}} thành viên",
+      "count_other": "{{count}} thành viên",
+      "count_more": "{{count}}+ thành viên",
+      "search": "Tìm thành viên",
+      "search_placeholder": "Tìm tên hoặc email",
+      "no_match": "Không có thành viên nào khớp “{{query}}”.",
+      "no_match_more": "Chưa có ai khớp “{{query}}” trong danh sách đã tải. Tải thêm để tìm tiếp.",
+      "empty": "Chưa có thành viên nào.",
+      "you": "Bạn",
+      "invite_title": "Mời vào workspace",
+      "invite_description": "Người được mời nhận email và vào thẳng workspace này.",
+      "invite_role": "Vai trò của người được mời",
+      "sending": "Đang gửi…",
+      "sent_title": "Vừa gửi",
+      "sent_description": "Chỉ hiện lời mời bạn gửi trong lần mở trang này.",
+      "remove_title": "Xóa {{name}} khỏi workspace?",
+      "remove_body": "{{name}} sẽ không còn thấy việc, cuộc họp và chat của workspace này. Tài khoản trong tổ chức vẫn giữ nguyên.",
+      "leave": "Rời workspace",
+      "leave_title": "Rời workspace này?",
+      "leave_body": "Bạn sẽ không còn thấy việc, cuộc họp và chat của workspace này cho đến khi được mời lại."
     }
   },
   "email_hub": {
@@ -3153,13 +3184,17 @@
       "deactivated": "Đã vô hiệu hóa thành viên",
       "reactivate": "Kích hoạt lại",
       "reactivated": "Đã kích hoạt lại thành viên",
-      "status_deactivated": "Đã vô hiệu hóa"
+      "status_deactivated": "Đã vô hiệu hóa",
+      "deactivate_title": "Vô hiệu hóa {{name}}?",
+      "deactivate_body": "{{name}} sẽ không vào được tổ chức và mọi workspace trong đó cho đến khi được kích hoạt lại. Những gì họ đã tạo vẫn giữ nguyên."
     },
     "leave": {
       "title": "Rời tổ chức",
-      "description": "Bạn sẽ mất quyền truy cập mọi workspace trong tổ chức này. Chủ sở hữu phải chuyển quyền trước.",
+      "description": "Bạn mất quyền vào mọi workspace trong tổ chức này ngay lập tức.",
       "action": "Rời tổ chức",
-      "done": "Đã rời tổ chức"
+      "done": "Đã rời tổ chức",
+      "confirm_title": "Rời {{name}}?",
+      "confirm_body": "Bạn sẽ mất quyền vào mọi workspace trong {{name}}. Muốn quay lại, bạn cần một quản trị mời lại."
     },
     "invitations": {
       "title": "Mời vào tổ chức",
@@ -3167,7 +3202,16 @@
       "send": "Gửi lời mời",
       "sent": "Đã gửi {{count}} lời mời",
       "revoke": "Thu hồi",
-      "revoked": "Đã thu hồi lời mời"
+      "revoked": "Đã thu hồi lời mời",
+      "role": "Vai trò của người được mời",
+      "pending_title": "Lời mời đang chờ",
+      "pending_description": "Người nhận chưa bấm vào link trong email.",
+      "sent_on": "Gửi {{date}}",
+      "expires_on": "hết hạn {{date}}",
+      "invited_by": "{{name}} mời",
+      "expired": "Đã hết hạn",
+      "revoke_title": "Thu hồi lời mời gửi {{email}}?",
+      "revoke_body": "Link trong email sẽ không dùng được nữa. Bạn có thể mời lại sau."
     },
     "transfer": {
       "title": "Chuyển quyền chủ sở hữu",
@@ -3184,6 +3228,22 @@
       "title": "Tài khoản của bạn đã bị vô hiệu hóa trong tổ chức này",
       "description": "Quản trị tổ chức đã tạm dừng quyền truy cập của bạn. Dữ liệu bạn đã tạo vẫn còn. Liên hệ quản trị để được mở lại.",
       "workspaces_link": "Xem tổ chức khác"
+    },
+    "danger": {
+      "title": "Vùng nguy hiểm",
+      "description": "Những thao tác này đổi người nắm tổ chức hoặc đưa bạn ra khỏi tổ chức."
+    },
+    "reasons": {
+      "leave_last_owner": "Bạn là chủ sở hữu. Chuyển quyền chủ sở hữu cho người khác trước khi rời.",
+      "last_owner": "Quyền của chủ sở hữu chỉ đổi bằng cách chuyển quyền.",
+      "member_deactivated": "Tài khoản của bạn trong tổ chức này đang bị vô hiệu hóa.",
+      "not_org_member": "Bạn không còn là thành viên của tổ chức này.",
+      "not_member": "Bạn không còn là thành viên của workspace này.",
+      "not_authenticated": "Đăng nhập lại để tiếp tục.",
+      "not_admin_role": "Chỉ chủ sở hữu và quản trị thực hiện được thao tác này.",
+      "not_owner_role": "Chỉ chủ sở hữu tổ chức thực hiện được thao tác này.",
+      "not_resource_owner": "Bạn không thực hiện được thao tác này với chính mình.",
+      "fallback": "Bạn chưa thực hiện được thao tác này."
     }
   },
   "invitations": {
@@ -3797,7 +3857,7 @@
   },
   "departments": {
     "title": "Phòng ban",
-    "description": "Cơ cấu của tổ chức, tối đa hai cấp. Lưu trữ một phòng sẽ bỏ gán mọi thành viên trong phòng đó.",
+    "description": "Cơ cấu của tổ chức, tối đa hai cấp.",
     "name": "Tên phòng ban",
     "code": "Mã",
     "parent": "Thuộc phòng",
@@ -3808,7 +3868,23 @@
     "created": "Đã tạo phòng ban",
     "updated": "Đã cập nhật phòng ban",
     "empty": "Chưa có phòng ban nào.",
-    "member_count": "{{count}} thành viên"
+    "member_count": "{{count}} thành viên",
+    "count_one": "{{count}} phòng ban",
+    "count_other": "{{count}} phòng ban",
+    "empty_admin": "Chưa có phòng ban nào. Thêm phòng đầu tiên ở khung bên dưới.",
+    "empty_member": "Chưa có phòng ban nào. Quản trị tổ chức sẽ thêm khi cần.",
+    "rename": "Đổi tên",
+    "rename_label": "Tên mới cho {{name}}",
+    "rename_hint": "Enter để lưu, Esc để hủy.",
+    "parent_none": "Cấp cao nhất (không thuộc phòng nào)",
+    "parent_hint": "Phòng con chỉ thuộc một phòng cấp cao nhất.",
+    "parent_hint_empty": "Chưa có phòng cấp cao nhất nào, nên phòng này sẽ ở cấp cao nhất.",
+    "archive_title": "Lưu trữ {{name}}?",
+    "archive_body_one": "{{count}} thành viên đang thuộc phòng này sẽ được bỏ gán phòng ban. Hồ sơ của họ vẫn giữ nguyên.",
+    "archive_body_other": "{{count}} thành viên đang thuộc phòng này sẽ được bỏ gán phòng ban. Hồ sơ của họ vẫn giữ nguyên.",
+    "archive_body_empty": "Phòng này chưa có thành viên nào. Phòng sẽ không còn hiện trong danh sách và bộ lọc.",
+    "has_children_one": "Có {{count}} phòng con, lưu trữ phòng con trước.",
+    "has_children_other": "Có {{count}} phòng con, lưu trữ phòng con trước."
   },
   "projects": {
     "unavailable_title": "Chưa khả dụng",
