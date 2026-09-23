@@ -28,6 +28,39 @@ function threadDetailKey(wsId: string, accountId: string, threadId: string) {
   return [...emailHubKeys.thread(wsId, accountId, threadId), "detail"] as const;
 }
 
+function emailHubListRefreshKey(wsId: string, accountId: string) {
+  return `${wsId}:${accountId}`;
+}
+
+const emailHubListRefreshPaused = new Set<string>();
+const emailHubPendingListRefresh = new Set<string>();
+
+/** Pause inbox list refetches while a message is open so sync cannot flash unread. */
+export function setEmailHubListRefreshPaused(wsId: string, accountId: string | null, paused: boolean) {
+  if (!accountId) return;
+  const key = emailHubListRefreshKey(wsId, accountId);
+  if (paused) {
+    emailHubListRefreshPaused.add(key);
+    return;
+  }
+  emailHubListRefreshPaused.delete(key);
+}
+
+export function flushEmailHubListRefresh(qc: QueryClient, wsId: string, accountId: string) {
+  const key = emailHubListRefreshKey(wsId, accountId);
+  emailHubListRefreshPaused.delete(key);
+  if (!emailHubPendingListRefresh.has(key)) return;
+  emailHubPendingListRefresh.delete(key);
+  void qc.invalidateQueries({
+    predicate: (q) =>
+      q.queryKey[0] === "email-hub" &&
+      q.queryKey[1] === wsId &&
+      q.queryKey[2] === "threads" &&
+      q.queryKey[3] === accountId,
+    refetchType: "active",
+  });
+}
+
 export function useEmailHubAccounts(wsId: string) {
   return useQuery({
     queryKey: emailHubKeys.accounts(wsId),
@@ -41,6 +74,7 @@ export function useEmailHubThreads(
   accountId: string | null,
   folder = "INBOX",
   filters: EmailHubThreadFilters = {},
+  queryEnabled = true,
 ) {
   return useInfiniteQuery({
     queryKey: emailHubKeys.threads(wsId, accountId ?? "", folder, filters),
@@ -48,7 +82,7 @@ export function useEmailHubThreads(
       api.listEmailHubThreads(wsId, accountId!, folder, filters, pageParam as string | undefined),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.next_cursor || undefined,
-    enabled: !!accountId,
+    enabled: !!accountId && queryEnabled,
     staleTime: 5_000,
     refetchOnWindowFocus: true,
   });
@@ -94,12 +128,16 @@ function emailHubBodyIsPlaceholder(
 }
 
 export function emailHubHasReadableBody(
-  thread: { body_html?: string; body_text?: string; snippet?: string } | null | undefined,
+  thread:
+    | { body_html?: string; body_text?: string; snippet?: string; body_cached?: boolean }
+    | null
+    | undefined,
 ) {
   if (!thread) return false;
   if (thread.body_html?.trim()) return true;
   const text = thread.body_text?.trim() ?? "";
   if (!text) return false;
+  if (thread.body_cached) return true;
   return !emailHubBodyIsPlaceholder(thread);
 }
 
@@ -117,7 +155,9 @@ export function useEmailHubThread(
       api.getEmailHubThread(wsId, accountId!, threadId!, true, true, signal),
     enabled: !!accountId && !!threadId,
     placeholderData: listHint?.id === threadId ? listHint : undefined,
+    // Prefetch caches the same key without mark_read; always refetch on open so read state persists.
     staleTime: 30_000,
+    refetchOnMount: "always",
     retry: false,
   });
   const data = detail.data?.id === threadId ? detail.data : undefined;
@@ -151,13 +191,13 @@ export function prefetchEmailHubThread(
   wsId: string,
   accountId: string,
   threadId: string,
-  fetchBody = true,
+  fetchBody = false,
 ) {
   void qc.prefetchQuery({
     queryKey: threadDetailKey(wsId, accountId, threadId),
     queryFn: ({ signal }) =>
       api.getEmailHubThread(wsId, accountId, threadId, fetchBody, false, signal),
-    staleTime: 60_000,
+    staleTime: 0,
     retry: false,
   });
 }
@@ -170,7 +210,7 @@ export function useConnectEmailHubAccount(wsId: string) {
     onSuccess: (acc) => {
       void qc.invalidateQueries({ queryKey: emailHubKeys.accounts(wsId) });
       if (acc?.id) {
-        void api.syncEmailHub(wsId, acc.id, undefined, true).then(
+        void api.syncEmailHub(wsId, acc.id, undefined, true, false, true).then(
           () => invalidateEmailHubThreads(qc, wsId, acc.id),
           () => {
             /* initial sync is best-effort; connect already succeeded */
@@ -204,8 +244,8 @@ function invalidateEmailHubThreads(qc: ReturnType<typeof useQueryClient>, wsId: 
 export function useSyncEmailHub(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { accountId: string; folder?: string; force?: boolean }) =>
-      api.syncEmailHub(wsId, input.accountId, input.folder, input.force, false),
+    mutationFn: (input: { accountId: string; folder?: string; force?: boolean; reconcile?: boolean }) =>
+      api.syncEmailHub(wsId, input.accountId, input.folder, input.force, false, input.reconcile),
     onSuccess: (result, input) => {
       if (result?.synced) {
         invalidateEmailHubThreadsForAccount(qc, wsId, input.accountId);
@@ -219,15 +259,24 @@ export function useSendEmailHub(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: api.SendEmailHubInput) => api.sendEmailHub(wsId, input),
-    onSuccess: (thread, input) => {
-      if (!thread) return;
-      qc.setQueryData(threadDetailKey(wsId, input.accountId, thread.id), thread);
+    onSuccess: (result, input) => {
+      if (!result) return;
+      if ("scheduled" in result && result.scheduled) {
+        void qc.invalidateQueries({ queryKey: ["email-hub", wsId, "scheduled", input.accountId] });
+        return;
+      }
+      qc.setQueryData(threadDetailKey(wsId, input.accountId, result.id), result);
       invalidateEmailHubThreads(qc, wsId, input.accountId);
     },
   });
 }
 
 export function invalidateEmailHubThreadsForAccount(qc: QueryClient, wsId: string, accountId: string) {
+  const key = emailHubListRefreshKey(wsId, accountId);
+  if (emailHubListRefreshPaused.has(key)) {
+    emailHubPendingListRefresh.add(key);
+    return;
+  }
   void qc.invalidateQueries({
     predicate: (q) =>
       q.queryKey[0] === "email-hub" &&
@@ -272,7 +321,7 @@ export function useEmailHubLiveSync(
     const pullInbox = async () => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
       try {
-        const res = await api.syncEmailHub(wsId, accountId, "INBOX", false, true);
+        const res = await api.syncEmailHub(wsId, accountId, "INBOX", false, true, true);
         refetchIfSynced(res.synced);
       } catch {
         /* retry on next tick */
@@ -325,10 +374,26 @@ export function useMarkEmailHubRead(wsId: string) {
   return useMutation({
     mutationFn: (input: { accountId: string; threadId: string; isRead: boolean }) =>
       api.patchEmailHubThread(wsId, input.threadId, { accountId: input.accountId, isRead: input.isRead }),
+    onMutate: (input) => {
+      patchEmailHubThreadInLists(qc, wsId, input.accountId, input.threadId, { is_read: input.isRead });
+      const key = threadDetailKey(wsId, input.accountId, input.threadId);
+      const prev = qc.getQueryData<EmailHubThread>(key);
+      if (prev) {
+        qc.setQueryData(key, { ...prev, is_read: input.isRead });
+      }
+      return { prev, key };
+    },
+    onError: (_err, input, ctx) => {
+      if (ctx?.prev) {
+        qc.setQueryData(ctx.key, ctx.prev);
+      } else {
+        patchEmailHubThreadInLists(qc, wsId, input.accountId, input.threadId, { is_read: !input.isRead });
+      }
+    },
     onSuccess: (thread, input) => {
       if (!thread) return;
       qc.setQueryData(threadDetailKey(wsId, input.accountId, input.threadId), thread);
-      invalidateEmailHubThreads(qc, wsId, input.accountId);
+      patchEmailHubThreadInLists(qc, wsId, input.accountId, input.threadId, { is_read: thread.is_read });
     },
   });
 }
@@ -365,6 +430,26 @@ export function useToggleEmailHubStar(wsId: string) {
         patchEmailHubThreadInLists(qc, wsId, input.accountId, input.threadId, { is_starred: thread.is_starred });
       }
       invalidateEmailHubThreads(qc, wsId, input.accountId);
+    },
+  });
+}
+
+export function useEmailHubScheduledSends(wsId: string, accountId: string | null) {
+  return useQuery({
+    queryKey: ["email-hub", wsId, "scheduled", accountId ?? ""] as const,
+    queryFn: () => api.listEmailHubScheduledSends(wsId, accountId!),
+    enabled: !!accountId,
+    staleTime: 10_000,
+  });
+}
+
+export function useCancelEmailHubScheduledSend(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { accountId: string; scheduledId: string }) =>
+      api.cancelEmailHubScheduledSend(wsId, input.accountId, input.scheduledId),
+    onSuccess: (_data, input) => {
+      void qc.invalidateQueries({ queryKey: ["email-hub", wsId, "scheduled", input.accountId] });
     },
   });
 }

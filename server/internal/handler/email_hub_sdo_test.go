@@ -18,6 +18,13 @@ func TestToEmailHubSDO(t *testing.T) {
 	if acc.LastSyncAt == "" || acc.ConnectedAt == "" {
 		t.Fatalf("account sdo timestamps: %+v", acc)
 	}
+	noSync := toEmailHubAccountSDO(service.EmailHubAccountView{
+		ID: "acc-2", EmailAddress: "b@b.co", Provider: "gmail",
+		ConnectedAt: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
+	})
+	if noSync.LastSyncAt != "" {
+		t.Fatalf("expected empty last sync: %+v", noSync)
+	}
 
 	thread := toEmailHubThreadSDO(service.EmailHubThreadView{
 		ID: "t1", AccountID: "acc-1", Folder: "INBOX", Subject: "Hi", Snippet: "hello",

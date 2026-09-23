@@ -4,11 +4,13 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/unicomhub/uniwork/server/internal/emailhub"
 	"github.com/unicomhub/uniwork/server/internal/util/secretbox"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -65,6 +67,33 @@ func TestAccountAndThreadViews(t *testing.T) {
 	})
 	if att.Filename != "doc.pdf" || att.SizeBytes != 42 {
 		t.Fatalf("attachment view: %+v", att)
+	}
+}
+
+func TestShouldInvalidateCachedBody(t *testing.T) {
+	t.Parallel()
+	shortSent := EmailHubThreadView{
+		Folder: emailhub.FolderSent, Snippet: "hehe", BodyText: "hehe", BodyCached: true,
+	}
+	if shouldInvalidateCachedBody(shortSent) {
+		t.Fatal("expected sent short body to stay cached")
+	}
+	inboxPlaceholder := EmailHubThreadView{
+		Folder: emailhub.FolderInbox, Snippet: "Hello team", BodyText: "Hello team", BodyCached: true,
+	}
+	if !shouldInvalidateCachedBody(inboxPlaceholder) {
+		t.Fatal("expected inbox snippet placeholder to invalidate")
+	}
+}
+
+func TestSentMessageHTML(t *testing.T) {
+	t.Parallel()
+	got := sentMessageHTML("hehe\nline2")
+	if !strings.Contains(got, "hehe") || !strings.Contains(got, "<br>") {
+		t.Fatalf("expected escaped html body, got %q", got)
+	}
+	if strings.Contains(got, "\n") {
+		t.Fatalf("expected newlines converted, got %q", got)
 	}
 }
 

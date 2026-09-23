@@ -19,13 +19,16 @@ type Credentials struct {
 
 // Message is one outbound mail.
 type Message struct {
-	To         []string
-	Cc         []string
-	Subject    string
-	BodyText   string
-	InReplyTo  string
-	References string
-	MessageID  string
+	To          []string
+	Cc          []string
+	Bcc         []string
+	Subject     string
+	BodyText    string
+	BodyHTML    string
+	Attachments []OutboundAttachment
+	InReplyTo   string
+	References  string
+	MessageID   string
 }
 
 // VerifyLogin checks SMTP credentials without sending a message.
@@ -52,7 +55,7 @@ func Send(ctx context.Context, c Credentials, msg Message) (string, error) {
 	if msgID == "" {
 		msgID = newMessageID(c.Email)
 	}
-	raw := buildRaw(c.Email, to, msg.Cc, msg.Subject, msg.BodyText, msgID, msg.InReplyTo, msg.References)
+	raw := buildRaw(c.Email, to, msg.Cc, msg.Bcc, msg.Subject, msg.BodyText, msg.BodyHTML, msg.Attachments, msgID, msg.InReplyTo, msg.References)
 
 	client, err := authenticate(ctx, c.Host, c.Port, c.Email, c.Password)
 	if err != nil {
@@ -63,7 +66,7 @@ func Send(ctx context.Context, c Credentials, msg Message) (string, error) {
 	if err := client.Mail(c.Email); err != nil {
 		return "", fmt.Errorf("smtp mail from: %w", err)
 	}
-	for _, rcpt := range append(to, cleanAddrs(msg.Cc)...) {
+	for _, rcpt := range append(append(to, cleanAddrs(msg.Cc)...), cleanAddrs(msg.Bcc)...) {
 		if err := client.Rcpt(rcpt); err != nil {
 			return "", fmt.Errorf("smtp rcpt %s: %w", rcpt, err)
 		}
@@ -102,7 +105,10 @@ func newMessageID(fromEmail string) string {
 	return fmt.Sprintf("<%s@%s>", hex.EncodeToString(buf), domain)
 }
 
-func buildRaw(from string, to, cc []string, subject, body, msgID, inReplyTo, references string) string {
+func buildRaw(
+	from string, to, cc, bcc []string, subject, bodyText, bodyHTML string,
+	attachments []OutboundAttachment, msgID, inReplyTo, references string,
+) string {
 	var b strings.Builder
 	now := time.Now().Format(time.RFC1123Z)
 	b.WriteString("From: " + from + "\r\n")
@@ -119,9 +125,12 @@ func buildRaw(from string, to, cc []string, subject, body, msgID, inReplyTo, ref
 	if references != "" {
 		b.WriteString("References: " + references + "\r\n")
 	}
+	contentType, body := buildBodyPart(bodyText, bodyHTML, attachments)
 	b.WriteString("MIME-Version: 1.0\r\n")
-	b.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
-	b.WriteString("Content-Transfer-Encoding: 8bit\r\n")
+	b.WriteString("Content-Type: " + contentType + "\r\n")
+	if !strings.HasPrefix(contentType, "multipart/") {
+		b.WriteString("Content-Transfer-Encoding: 8bit\r\n")
+	}
 	b.WriteString("\r\n")
 	b.WriteString(body)
 	if !strings.HasSuffix(body, "\r\n") {

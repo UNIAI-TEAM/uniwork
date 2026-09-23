@@ -12,4 +12,9 @@ describe("email hub html wrapper", () => {
     expect(wrapped).toContain('width="600"');
     expect(wrapped).toContain("uniwork-email-reset");
   });
+
+  it("keeps table headers on one line", () => {
+    expect(EMAIL_HTML_RESET).toContain("white-space:nowrap");
+    expect(EMAIL_HTML_RESET).not.toContain("overflow-wrap:anywhere");
+  });
 });

@@ -3,7 +3,9 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Mail } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { errorCode } from "@uniwork/core/api/http";
+import type { EmailHubScheduledSend } from "@uniwork/core/api/endpoints/email-hub";
 import { useEmailHubAccounts, useSendEmailHub } from "@uniwork/core/email-hub/hooks";
 import type { EmailHubThread } from "@uniwork/core/types/email-hub";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
@@ -18,12 +20,20 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
 import { moduleTone } from "../layout/module-tones";
-import { ComposeEmailToolbar } from "./compose-email-toolbar";
+import { ComposeEmailToolbar, type ComposeDraftAttachment } from "./compose-email-toolbar";
+import {
+  buildForwardBody,
+  buildReplyAllRecipients,
+  composeModeDescriptionKey,
+  composeModeTitleKey,
+  forwardSubject,
+  replySubject,
+  type ComposeMode,
+} from "./compose-recipients";
+import { buildComposeBodyHtml, readFileAsBase64 } from "./compose-text-helpers";
 
-function replySubject(subject: string) {
-  const trimmed = subject.trim();
-  if (!trimmed) return "";
-  return /^re:/i.test(trimmed) ? trimmed : `Re: ${trimmed}`;
+function isScheduledSend(result: EmailHubThread | EmailHubScheduledSend | null): result is EmailHubScheduledSend {
+  return !!result && "scheduled" in result && result.scheduled === true;
 }
 
 function parseRecipients(raw: string) {
@@ -66,7 +76,8 @@ interface ComposeEmailDialogProps {
   accountId: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  replyTo?: EmailHubThread | null;
+  mode?: ComposeMode;
+  sourceThread?: EmailHubThread | null;
   onSent?: (thread: EmailHubThread) => void;
 }
 
@@ -75,7 +86,8 @@ export function ComposeEmailDialog({
   accountId,
   open,
   onOpenChange,
-  replyTo,
+  mode = "new",
+  sourceThread,
   onSent,
 }: ComposeEmailDialogProps) {
   const { t } = useTranslation();
@@ -83,12 +95,14 @@ export function ComposeEmailDialog({
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const send = useSendEmailHub(wsId);
   const accounts = useEmailHubAccounts(wsId);
-  const isReply = !!replyTo;
   const [to, setTo] = useState("");
   const [cc, setCc] = useState("");
+  const [bcc, setBcc] = useState("");
   const [showCc, setShowCc] = useState(false);
+  const [showBcc, setShowBcc] = useState(false);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  const [attachments, setAttachments] = useState<ComposeDraftAttachment[]>([]);
 
   const fromEmail =
     accounts.data?.accounts.find((account) => account.id === accountId)?.email_address ?? null;
@@ -96,17 +110,36 @@ export function ComposeEmailDialog({
   useEffect(() => {
     if (!open) return;
     setShowCc(false);
+    setShowBcc(false);
     setCc("");
-    if (replyTo) {
-      setTo(replyTo.from_addr);
-      setSubject(replySubject(replyTo.subject));
+    setBcc("");
+    setAttachments([]);
+
+    if (sourceThread && mode === "reply") {
+      setTo(sourceThread.from_addr);
+      setSubject(replySubject(sourceThread.subject));
       setBody("");
-    } else {
-      setTo("");
-      setSubject("");
-      setBody("");
+      return;
     }
-  }, [open, replyTo]);
+    if (sourceThread && mode === "replyAll") {
+      const recipients = buildReplyAllRecipients(sourceThread, fromEmail);
+      setTo(recipients.to);
+      setCc(recipients.cc);
+      setShowCc(!!recipients.cc);
+      setSubject(replySubject(sourceThread.subject));
+      setBody("");
+      return;
+    }
+    if (sourceThread && mode === "forward") {
+      setTo("");
+      setSubject(forwardSubject(sourceThread.subject));
+      setBody(buildForwardBody({ ...sourceThread, body_text: sourceThread.body_text ?? "" }));
+      return;
+    }
+    setTo("");
+    setSubject("");
+    setBody("");
+  }, [open, mode, sourceThread, fromEmail]);
 
   const sendErrorKey = (() => {
     if (!send.isError) return null;
@@ -120,28 +153,63 @@ export function ComposeEmailDialog({
     }
   })();
 
-  const submit = () => {
-    if (!accountId) return;
-    send.mutate(
-      {
-        accountId,
-        to: parseRecipients(to),
-        cc: showCc ? parseRecipients(cc) : undefined,
-        subject: subject.trim(),
-        bodyText: body.trim(),
-        replyToThreadId: replyTo?.id,
-      },
-      {
-        onSuccess: (thread) => {
-          if (thread) onSent?.(thread);
-          onOpenChange(false);
-        },
-      },
-    );
+  const buildPayload = async (sendAt?: string) => {
+    const trimmedBody = body.trim();
+    const files = attachments.map((item) => item.file);
+    const [attachmentInputs, bodyHtml] = await Promise.all([
+      Promise.all(
+        attachments.map(async (item) => ({
+          filename: item.file.name,
+          contentType: item.file.type || undefined,
+          contentBase64: await readFileAsBase64(item.file),
+        })),
+      ),
+      buildComposeBodyHtml(trimmedBody, files),
+    ]);
+    return {
+      accountId: accountId!,
+      to: parseRecipients(to),
+      cc: showCc ? parseRecipients(cc) : undefined,
+      bcc: showBcc ? parseRecipients(bcc) : undefined,
+      subject: subject.trim(),
+      bodyText: trimmedBody,
+      bodyHtml,
+      attachments: attachmentInputs.length ? attachmentInputs : undefined,
+      sendAt,
+      replyToThreadId: mode === "reply" || mode === "replyAll" ? sourceThread?.id : undefined,
+    };
   };
 
+  const handleSendSuccess = (result: EmailHubThread | EmailHubScheduledSend | null) => {
+    if (isScheduledSend(result)) {
+      toast.success(
+        t("email_hub.compose.schedule_success", {
+          time: new Date(result.send_at).toLocaleString(),
+        }),
+      );
+    } else if (result) {
+      onSent?.(result);
+    }
+    onOpenChange(false);
+  };
+
+  const submit = () => {
+    if (!accountId) return;
+    void buildPayload().then((payload) => {
+      send.mutate(payload, { onSuccess: handleSendSuccess });
+    });
+  };
+
+  const scheduleSubmit = (sendAtIso: string) => {
+    if (!accountId) return;
+    void buildPayload(sendAtIso).then((payload) => {
+      send.mutate(payload, { onSuccess: handleSendSuccess });
+    });
+  };
+
+  const isReplyLike = mode === "reply" || mode === "replyAll";
   const canSend =
-    !!accountId && !!to.trim() && !!body.trim() && (isReply || !!subject.trim()) && !send.isPending;
+    !!accountId && !!to.trim() && !!body.trim() && (!isReplyLike && mode !== "forward" ? !!subject.trim() : true) && !send.isPending;
 
   const handleKeyDown = (event: KeyboardEvent) => {
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && canSend) {
@@ -150,9 +218,28 @@ export function ComposeEmailDialog({
     }
   };
 
-  const discard = () => {
-    onOpenChange(false);
-  };
+  const extraFieldToggle = !showCc || !showBcc ? (
+    <div className="flex gap-1">
+      {!showCc ? (
+        <button
+          type="button"
+          className="h-8 px-2 text-caption text-muted-foreground hover:text-foreground"
+          onClick={() => setShowCc(true)}
+        >
+          {t("email_hub.compose.cc")}
+        </button>
+      ) : null}
+      {!showBcc ? (
+        <button
+          type="button"
+          className="h-8 px-2 text-caption text-muted-foreground hover:text-foreground"
+          onClick={() => setShowBcc(true)}
+        >
+          {t("email_hub.compose.bcc")}
+        </button>
+      ) : null}
+    </div>
+  ) : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -160,11 +247,9 @@ export function ComposeEmailDialog({
         <div className="flex items-start gap-3 border-b border-border px-4 py-4">
           <IconTile icon={Mail} tone={moduleTone("email")} size="sm" className="mt-0.5 shrink-0" />
           <DialogHeader className="min-w-0 flex-1 space-y-1 text-left">
-            <DialogTitle className="text-title">
-              {isReply ? t("email_hub.compose.reply_title") : t("email_hub.compose.title")}
-            </DialogTitle>
+            <DialogTitle className="text-title">{t(composeModeTitleKey(mode))}</DialogTitle>
             <DialogDescription className="text-caption text-muted-foreground">
-              {isReply ? t("email_hub.compose.reply_description") : t("email_hub.compose.description")}
+              {t(composeModeDescriptionKey(mode))}
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -174,21 +259,7 @@ export function ComposeEmailDialog({
             <p className="truncate text-body text-foreground">{fromEmail ?? t("email_hub.connect_prompt")}</p>
           </FieldRow>
 
-          <FieldRow
-            label={t("email_hub.compose.to")}
-            htmlFor="email-hub-to"
-            action={
-              !showCc ? (
-                <button
-                  type="button"
-                  className="h-8 px-2 text-caption text-muted-foreground hover:text-foreground"
-                  onClick={() => setShowCc(true)}
-                >
-                  {t("email_hub.compose.cc")}
-                </button>
-              ) : null
-            }
-          >
+          <FieldRow label={t("email_hub.compose.to")} htmlFor="email-hub-to" action={extraFieldToggle}>
             <Input
               id="email-hub-to"
               type="email"
@@ -209,6 +280,20 @@ export function ComposeEmailDialog({
                 value={cc}
                 onChange={(e) => setCc(e.target.value)}
                 placeholder={t("email_hub.compose.cc_placeholder")}
+                className={fieldInputClass}
+              />
+            </FieldRow>
+          ) : null}
+
+          {showBcc ? (
+            <FieldRow label={t("email_hub.compose.bcc")} htmlFor="email-hub-bcc">
+              <Input
+                id="email-hub-bcc"
+                type="email"
+                autoComplete="email"
+                value={bcc}
+                onChange={(e) => setBcc(e.target.value)}
+                placeholder={t("email_hub.compose.bcc_placeholder")}
                 className={fieldInputClass}
               />
             </FieldRow>
@@ -249,10 +334,17 @@ export function ComposeEmailDialog({
           bodyRef={bodyRef}
           body={body}
           onBodyChange={setBody}
+          fromEmail={fromEmail}
+          to={to}
+          cc={showCc ? cc : ""}
+          subject={subject}
+          attachments={attachments}
+          onAttachmentsChange={setAttachments}
           canSend={canSend}
           sending={send.isPending}
           onSend={submit}
-          onDiscard={discard}
+          onScheduleSend={scheduleSubmit}
+          onDiscard={() => onOpenChange(false)}
         />
       </DialogContent>
     </Dialog>

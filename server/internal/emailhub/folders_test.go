@@ -27,10 +27,10 @@ func TestDefaultMailboxMap(t *testing.T) {
 	if len(SyncableFolders()) != 4 || SyncableFolders()[0] != FolderInbox {
 		t.Fatalf("unexpected syncable folders: %v", SyncableFolders())
 	}
-	if !IsMoveableTarget(FolderArchive) || !IsMoveableTarget(FolderTrash) || IsMoveableTarget(FolderInbox) {
+	if !IsMoveableTarget(FolderInbox) || !IsMoveableTarget(FolderArchive) || !IsMoveableTarget(FolderTrash) {
 		t.Fatal("unexpected moveable targets")
 	}
-	if got := MoveableTargets(); len(got) != 2 || got[0] != FolderArchive {
+	if got := MoveableTargets(); len(got) != 3 || got[0] != FolderInbox || got[1] != FolderArchive {
 		t.Fatalf("unexpected move targets: %v", got)
 	}
 }

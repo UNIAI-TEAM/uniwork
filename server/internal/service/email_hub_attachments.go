@@ -3,10 +3,12 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/unicomhub/uniwork/server/internal/emailhub/imapclient"
+	"github.com/unicomhub/uniwork/server/internal/emailhub/smtpclient"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -27,6 +29,33 @@ func attachmentView(r db.EmailHubAttachment) EmailHubAttachmentView {
 		ID: r.ID, ThreadID: r.ThreadID, Filename: r.Filename,
 		MimeType: r.MimeType, SizeBytes: r.SizeBytes, PartID: r.PartID,
 	}
+}
+
+func (s *EmailHubService) replaceOutboundAttachments(
+	ctx context.Context, acc db.EmailHubAccount, threadID string, items []smtpclient.OutboundAttachment,
+) error {
+	if err := s.q.DeleteEmailHubAttachmentsForThread(ctx, threadID); err != nil {
+		return err
+	}
+	for i, att := range items {
+		filename := att.Filename
+		if filename == "" {
+			filename = "attachment"
+		}
+		mimeType := att.ContentType
+		if mimeType == "" {
+			mimeType = "application/octet-stream"
+		}
+		_, err := s.q.CreateEmailHubAttachment(ctx, db.CreateEmailHubAttachmentParams{
+			ID: util.NewID(), ThreadID: threadID, AccountID: acc.ID, OrganizationID: acc.OrganizationID,
+			Filename: filename, MimeType: mimeType, SizeBytes: int64(len(att.Data)),
+			PartID: fmt.Sprintf("sent:%d", i),
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *EmailHubService) replaceThreadAttachments(ctx context.Context, acc db.EmailHubAccount, threadID string, items []imapclient.AttachmentMeta) error {

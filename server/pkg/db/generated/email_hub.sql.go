@@ -11,6 +11,36 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const cancelEmailHubScheduledSend = `-- name: CancelEmailHubScheduledSend :execrows
+UPDATE email_hub_scheduled_sends
+SET status = 'cancelled'
+WHERE id = $1
+  AND workspace_id = $2
+  AND account_id = $3
+  AND user_id = $4
+  AND status = 'pending'
+`
+
+type CancelEmailHubScheduledSendParams struct {
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspace_id"`
+	AccountID   string `json:"account_id"`
+	UserID      string `json:"user_id"`
+}
+
+func (q *Queries) CancelEmailHubScheduledSend(ctx context.Context, arg CancelEmailHubScheduledSendParams) (int64, error) {
+	result, err := q.db.Exec(ctx, cancelEmailHubScheduledSend,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.AccountID,
+		arg.UserID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const countEmailHubStarredThreads = `-- name: CountEmailHubStarredThreads :one
 SELECT
   count(*)::bigint AS total,
@@ -164,6 +194,52 @@ func (q *Queries) CreateEmailHubAttachment(ctx context.Context, arg CreateEmailH
 		&i.SizeBytes,
 		&i.PartID,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const createEmailHubScheduledSend = `-- name: CreateEmailHubScheduledSend :one
+INSERT INTO email_hub_scheduled_sends (
+  id, workspace_id, account_id, organization_id, user_id, payload, send_at
+) VALUES (
+  $1, $2, $3, $4, $5, $6, $7
+)
+RETURNING id, workspace_id, account_id, organization_id, user_id, payload, send_at, status, last_error, created_at, sent_at
+`
+
+type CreateEmailHubScheduledSendParams struct {
+	ID             string             `json:"id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	AccountID      string             `json:"account_id"`
+	OrganizationID string             `json:"organization_id"`
+	UserID         string             `json:"user_id"`
+	Payload        []byte             `json:"payload"`
+	SendAt         pgtype.Timestamptz `json:"send_at"`
+}
+
+func (q *Queries) CreateEmailHubScheduledSend(ctx context.Context, arg CreateEmailHubScheduledSendParams) (EmailHubScheduledSend, error) {
+	row := q.db.QueryRow(ctx, createEmailHubScheduledSend,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.AccountID,
+		arg.OrganizationID,
+		arg.UserID,
+		arg.Payload,
+		arg.SendAt,
+	)
+	var i EmailHubScheduledSend
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.AccountID,
+		&i.OrganizationID,
+		&i.UserID,
+		&i.Payload,
+		&i.SendAt,
+		&i.Status,
+		&i.LastError,
+		&i.CreatedAt,
+		&i.SentAt,
 	)
 	return i, err
 }
@@ -459,6 +535,47 @@ func (q *Queries) InvalidateEmailHubThreadBody(ctx context.Context, id string) e
 	return err
 }
 
+const listDueEmailHubScheduledSends = `-- name: ListDueEmailHubScheduledSends :many
+SELECT id, workspace_id, account_id, organization_id, user_id, payload, send_at, status, last_error, created_at, sent_at
+FROM email_hub_scheduled_sends
+WHERE status = 'pending'
+  AND send_at <= now()
+ORDER BY send_at ASC
+LIMIT $1
+`
+
+func (q *Queries) ListDueEmailHubScheduledSends(ctx context.Context, limit int32) ([]EmailHubScheduledSend, error) {
+	rows, err := q.db.Query(ctx, listDueEmailHubScheduledSends, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EmailHubScheduledSend{}
+	for rows.Next() {
+		var i EmailHubScheduledSend
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.AccountID,
+			&i.OrganizationID,
+			&i.UserID,
+			&i.Payload,
+			&i.SendAt,
+			&i.Status,
+			&i.LastError,
+			&i.CreatedAt,
+			&i.SentAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listEmailHubAccountsByUser = `-- name: ListEmailHubAccountsByUser :many
 SELECT id, user_id, organization_id, email_address, provider, imap_host, imap_port, smtp_host, smtp_port, password_enc, sync_state, created_at, updated_at, disconnected_at
 FROM email_hub_accounts
@@ -585,6 +702,54 @@ func (q *Queries) ListEmailHubAttachments(ctx context.Context, arg ListEmailHubA
 			&i.SizeBytes,
 			&i.PartID,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEmailHubPendingScheduledSends = `-- name: ListEmailHubPendingScheduledSends :many
+SELECT id, workspace_id, account_id, organization_id, user_id, payload, send_at, status, last_error, created_at, sent_at
+FROM email_hub_scheduled_sends
+WHERE workspace_id = $1
+  AND account_id = $2
+  AND user_id = $3
+  AND status = 'pending'
+ORDER BY send_at ASC
+`
+
+type ListEmailHubPendingScheduledSendsParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	AccountID   string `json:"account_id"`
+	UserID      string `json:"user_id"`
+}
+
+func (q *Queries) ListEmailHubPendingScheduledSends(ctx context.Context, arg ListEmailHubPendingScheduledSendsParams) ([]EmailHubScheduledSend, error) {
+	rows, err := q.db.Query(ctx, listEmailHubPendingScheduledSends, arg.WorkspaceID, arg.AccountID, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EmailHubScheduledSend{}
+	for rows.Next() {
+		var i EmailHubScheduledSend
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.AccountID,
+			&i.OrganizationID,
+			&i.UserID,
+			&i.Payload,
+			&i.SendAt,
+			&i.Status,
+			&i.LastError,
+			&i.CreatedAt,
+			&i.SentAt,
 		); err != nil {
 			return nil, err
 		}
@@ -909,6 +1074,36 @@ func (q *Queries) ListEmailHubThreadsPendingBody(ctx context.Context, arg ListEm
 		return nil, err
 	}
 	return items, nil
+}
+
+const markEmailHubScheduledSendFailed = `-- name: MarkEmailHubScheduledSendFailed :exec
+UPDATE email_hub_scheduled_sends
+SET status = 'failed',
+    last_error = $2
+WHERE id = $1
+`
+
+type MarkEmailHubScheduledSendFailedParams struct {
+	ID        string      `json:"id"`
+	LastError pgtype.Text `json:"last_error"`
+}
+
+func (q *Queries) MarkEmailHubScheduledSendFailed(ctx context.Context, arg MarkEmailHubScheduledSendFailedParams) error {
+	_, err := q.db.Exec(ctx, markEmailHubScheduledSendFailed, arg.ID, arg.LastError)
+	return err
+}
+
+const markEmailHubScheduledSendSent = `-- name: MarkEmailHubScheduledSendSent :exec
+UPDATE email_hub_scheduled_sends
+SET status = 'sent',
+    sent_at = now(),
+    last_error = NULL
+WHERE id = $1
+`
+
+func (q *Queries) MarkEmailHubScheduledSendSent(ctx context.Context, id string) error {
+	_, err := q.db.Exec(ctx, markEmailHubScheduledSendSent, id)
+	return err
 }
 
 const patchEmailHubThreadSnippet = `-- name: PatchEmailHubThreadSnippet :exec

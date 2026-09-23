@@ -326,6 +326,9 @@ func Up(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 	defer conn.Exec(ctx, "SELECT pg_advisory_unlock($1)", lockKey)
 
+	if err := reclaimTestSchemaIfNeeded(ctx, conn); err != nil {
+		return err
+	}
 	if _, err := conn.Exec(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
 		version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())`); err != nil {
 		return err

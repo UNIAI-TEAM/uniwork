@@ -175,14 +175,8 @@ func (s *EmailHubService) syncAccountFolderSession(
 		cursor = emailHubFolderSync{}
 	}
 
-	if reconcile && len(result.Items) > 0 {
-		keep := make([]int32, 0, len(result.Items))
-		for _, it := range result.Items {
-			keep = append(keep, int32(it.UID))
-		}
-		if err := s.q.DeleteEmailHubThreadsNotInUIDs(ctx, db.DeleteEmailHubThreadsNotInUIDsParams{
-			AccountID: acc.ID, OrganizationID: acc.OrganizationID, Folder: logicalFolder, Column4: keep,
-		}); err != nil {
+	if reconcile {
+		if err := s.pruneReconciledFolderCache(ctx, acc, logicalFolder, result.Items); err != nil {
 			return state, err
 		}
 	}
@@ -201,6 +195,29 @@ func (s *EmailHubService) syncAccountFolderSession(
 		LastSyncAt:  time.Now().UTC().Format(time.RFC3339),
 	})
 	return state, nil
+}
+
+func emailHubReconcileKeepUIDs(items []imapclient.ThreadMeta) []int32 {
+	keep := make([]int32, 0, len(items))
+	for _, it := range items {
+		keep = append(keep, int32(it.UID))
+	}
+	return keep
+}
+
+// pruneReconciledFolderCache drops cached threads that no longer appear in the IMAP reconcile window.
+func (s *EmailHubService) pruneReconciledFolderCache(
+	ctx context.Context, acc db.EmailHubAccount, logicalFolder string, items []imapclient.ThreadMeta,
+) error {
+	if len(items) == 0 {
+		return s.q.DeleteEmailHubThreadsInFolder(ctx, db.DeleteEmailHubThreadsInFolderParams{
+			AccountID: acc.ID, OrganizationID: acc.OrganizationID, Folder: logicalFolder,
+		})
+	}
+	keep := emailHubReconcileKeepUIDs(items)
+	return s.q.DeleteEmailHubThreadsNotInUIDs(ctx, db.DeleteEmailHubThreadsNotInUIDsParams{
+		AccountID: acc.ID, OrganizationID: acc.OrganizationID, Folder: logicalFolder, Column4: keep,
+	})
 }
 
 func (s *EmailHubService) syncSingleFolder(ctx context.Context, acc db.EmailHubAccount, logicalFolder string, reconcile, force, live bool) (bool, error) {
@@ -370,8 +387,10 @@ func (s *EmailHubService) RunWorkers(ctx context.Context) {
 		"pull", emailHubPullInterval, "reconcile", emailHubReconcileInterval)
 	pullTick := time.NewTicker(emailHubPullInterval)
 	reconTick := time.NewTicker(emailHubReconcileInterval)
+	scheduleTick := time.NewTicker(time.Minute)
 	defer pullTick.Stop()
 	defer reconTick.Stop()
+	defer scheduleTick.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -380,6 +399,8 @@ func (s *EmailHubService) RunWorkers(ctx context.Context) {
 			s.runWorkerBatch(ctx, false)
 		case <-reconTick.C:
 			s.runWorkerBatch(ctx, true)
+		case <-scheduleTick.C:
+			s.runScheduledSendBatch(ctx)
 		}
 	}
 }

@@ -269,3 +269,50 @@ WHERE id = $1
   AND thread_id = $2
   AND account_id = $3
   AND organization_id = $4;
+
+-- name: CreateEmailHubScheduledSend :one
+INSERT INTO email_hub_scheduled_sends (
+  id, workspace_id, account_id, organization_id, user_id, payload, send_at
+) VALUES (
+  $1, $2, $3, $4, $5, $6, $7
+)
+RETURNING *;
+
+-- name: ListDueEmailHubScheduledSends :many
+SELECT *
+FROM email_hub_scheduled_sends
+WHERE status = 'pending'
+  AND send_at <= now()
+ORDER BY send_at ASC
+LIMIT $1;
+
+-- name: MarkEmailHubScheduledSendSent :exec
+UPDATE email_hub_scheduled_sends
+SET status = 'sent',
+    sent_at = now(),
+    last_error = NULL
+WHERE id = $1;
+
+-- name: MarkEmailHubScheduledSendFailed :exec
+UPDATE email_hub_scheduled_sends
+SET status = 'failed',
+    last_error = $2
+WHERE id = $1;
+
+-- name: ListEmailHubPendingScheduledSends :many
+SELECT *
+FROM email_hub_scheduled_sends
+WHERE workspace_id = $1
+  AND account_id = $2
+  AND user_id = $3
+  AND status = 'pending'
+ORDER BY send_at ASC;
+
+-- name: CancelEmailHubScheduledSend :execrows
+UPDATE email_hub_scheduled_sends
+SET status = 'cancelled'
+WHERE id = $1
+  AND workspace_id = $2
+  AND account_id = $3
+  AND user_id = $4
+  AND status = 'pending';

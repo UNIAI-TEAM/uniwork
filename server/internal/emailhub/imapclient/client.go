@@ -332,8 +332,22 @@ func MarkRead(c Credentials, mailbox string, uid uint32) error {
 	return markReadOnClient(cl, mailbox, uid)
 }
 
+// MarkUnread clears \\Seen on one message in the given mailbox.
+func MarkUnread(c Credentials, mailbox string, uid uint32) error {
+	cl, err := dial(c)
+	if err != nil {
+		return err
+	}
+	defer cl.Logout()
+	return markUnreadOnClient(cl, mailbox, uid)
+}
+
 func markReadOnClient(cl *client.Client, mailbox string, uid uint32) error {
 	return storeFlagOnClient(cl, mailbox, uid, imap.AddFlags, imap.SeenFlag)
+}
+
+func markUnreadOnClient(cl *client.Client, mailbox string, uid uint32) error {
+	return storeFlagOnClient(cl, mailbox, uid, imap.RemoveFlags, imap.SeenFlag)
 }
 
 func markStarredOnClient(cl *client.Client, mailbox string, uid uint32, starred bool) error {

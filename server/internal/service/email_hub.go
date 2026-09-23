@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"html"
 	"log/slog"
 	"strings"
 	"time"
@@ -225,8 +226,7 @@ func (s *EmailHubService) GetThread(ctx context.Context, actor Actor, workspaceI
 		return EmailHubThreadView{}, err
 	}
 	view.Attachments = attachments
-	if view.BodyCached && (!imapclient.BodyWorthCaching(view.BodyHTML, view.BodyText) ||
-		imapclient.BodyIsSnippetPlaceholder(view.BodyHTML, view.BodyText, view.Snippet)) {
+	if view.BodyCached && shouldInvalidateCachedBody(view) {
 		_ = s.q.InvalidateEmailHubThreadBody(ctx, threadID)
 		view.BodyCached = false
 		view.BodyText = ""
@@ -287,8 +287,11 @@ type SendEmailHubInput struct {
 	AccountID       string
 	To              []string
 	Cc              []string
+	Bcc             []string
 	Subject         string
 	BodyText        string
+	BodyHTML        string
+	Attachments     []SendEmailHubAttachmentInput
 	ReplyToThreadID string
 }
 
@@ -309,19 +312,27 @@ func (s *EmailHubService) Send(ctx context.Context, actor Actor, workspaceID str
 		}
 		return EmailHubThreadView{}, err
 	}
-	to := cleanEmailList(in.To)
-	if len(to) == 0 {
-		return EmailHubThreadView{}, Invalid("at least one recipient required")
+	if err := validateSendInput(in); err != nil {
+		return EmailHubThreadView{}, err
 	}
+	return s.sendOutboundMail(ctx, acc, ws.OrganizationID, in)
+}
+
+func (s *EmailHubService) sendOutboundMail(
+	ctx context.Context, acc db.EmailHubAccount, organizationID string, in SendEmailHubInput,
+) (EmailHubThreadView, error) {
+	to := cleanEmailList(in.To)
 	subject := strings.TrimSpace(in.Subject)
 	body := strings.TrimSpace(in.BodyText)
-	if body == "" {
-		return EmailHubThreadView{}, Invalid("message body required")
+	bodyHTML := bodyHTMLForSend(body, in.BodyHTML)
+	attachments, err := normalizeSendAttachments(in.Attachments)
+	if err != nil {
+		return EmailHubThreadView{}, err
 	}
 	var inReplyTo, references string
 	if in.ReplyToThreadID != "" {
 		parent, err := s.q.GetEmailHubThread(ctx, db.GetEmailHubThreadParams{
-			ID: in.ReplyToThreadID, AccountID: in.AccountID, OrganizationID: ws.OrganizationID,
+			ID: in.ReplyToThreadID, AccountID: in.AccountID, OrganizationID: organizationID,
 		})
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
@@ -347,37 +358,46 @@ func (s *EmailHubService) Send(ctx context.Context, actor Actor, workspaceID str
 	msgID, err := smtpclient.Send(ctx, smtpclient.Credentials{
 		Host: acc.SmtpHost, Port: int(acc.SmtpPort), Email: acc.EmailAddress, Password: password,
 	}, smtpclient.Message{
-		To: to, Cc: cleanEmailList(in.Cc), Subject: subject, BodyText: body,
-		InReplyTo: inReplyTo, References: references,
+		To: to, Cc: cleanEmailList(in.Cc), Bcc: cleanEmailList(in.Bcc), Subject: subject,
+		BodyText: body, BodyHTML: bodyHTML, Attachments: attachments, InReplyTo: inReplyTo, References: references,
 	})
 	if err != nil {
 		s.log.Warn("email hub send failed", "account_id", acc.ID, "err", err)
 		return EmailHubThreadView{}, fmt.Errorf("%w: %v", ErrEmailHubSendFailed, err)
 	}
 	now := time.Now().UTC()
-	snippet := body
-	if len(snippet) > 200 {
-		snippet = snippet[:200]
-	}
+	snippet := imapclient.CleanSnippet(imapclient.SnippetFromBody(body, bodyHTML))
 	row, err := s.q.UpsertEmailHubThread(ctx, db.UpsertEmailHubThreadParams{
-		ID: util.NewID(), AccountID: acc.ID, OrganizationID: ws.OrganizationID,
+		ID: util.NewID(), AccountID: acc.ID, OrganizationID: organizationID,
 		Folder: emailhub.FolderSent, ImapUid: int32(now.Unix() & 0x7fffffff),
 		MessageID: pgtype.Text{String: msgID, Valid: true},
 		Subject:   subject, Snippet: snippet, FromAddr: acc.EmailAddress,
 		ToAddrs: to, SentAt: pgtype.Timestamptz{Time: now, Valid: true},
-		IsRead: true, IsStarred: false, HasAttachments: false,
+		IsRead: true, IsStarred: false, HasAttachments: len(attachments) > 0,
 	})
 	if err != nil {
 		return EmailHubThreadView{}, err
 	}
 	updated, err := s.q.UpdateEmailHubThreadBody(ctx, db.UpdateEmailHubThreadBodyParams{
 		ID: row.ID, BodyText: pgtype.Text{String: body, Valid: true},
-		BodyHtml: pgtype.Text{},
+		BodyHtml: pgtype.Text{String: bodyHTML, Valid: true},
 	})
 	if err != nil {
 		return threadView(row), nil
 	}
-	return threadView(updated), nil
+	if len(attachments) > 0 {
+		if attachErr := s.replaceOutboundAttachments(ctx, acc, row.ID, attachments); attachErr != nil {
+			s.log.Warn("email hub outbound attachments cache failed", "thread_id", row.ID, "err", attachErr)
+		}
+	}
+	view := threadView(updated)
+	if len(attachments) > 0 {
+		cached, listErr := s.listThreadAttachments(ctx, row.ID, acc.ID, organizationID)
+		if listErr == nil {
+			view.Attachments = cached
+		}
+	}
+	return view, nil
 }
 
 func (s *EmailHubService) MarkThreadRead(ctx context.Context, actor Actor, workspaceID, accountID, threadID string, read bool) (EmailHubThreadView, error) {
@@ -409,10 +429,15 @@ func (s *EmailHubService) MarkThreadRead(ctx context.Context, actor Actor, works
 	if err != nil {
 		return EmailHubThreadView{}, err
 	}
-	if read && !row.IsRead && s.Enabled() {
+	if s.Enabled() {
 		accCopy := acc
 		rowCopy := row
-		go s.syncMarkReadOnIMAP(accCopy, rowCopy, threadID)
+		switch {
+		case read && !row.IsRead:
+			go s.syncMarkReadOnIMAP(accCopy, rowCopy, threadID)
+		case !read && row.IsRead:
+			go s.syncMarkUnreadOnIMAP(accCopy, rowCopy, threadID)
+		}
 	}
 	return threadView(updated), nil
 }
@@ -456,6 +481,23 @@ func (s *EmailHubService) MarkThreadStarred(
 	return threadView(updated), nil
 }
 
+func (s *EmailHubService) syncMarkUnreadOnIMAP(acc db.EmailHubAccount, row db.EmailHubThread, threadID string) {
+	_ = s.gov.withIMAP(acc.ID, func() error {
+		sess, mailboxes, err := s.openIMAPWithMailboxes(acc)
+		if err != nil {
+			s.log.Warn("email hub mark unread imap failed", "thread_id", threadID, "err", err)
+			return err
+		}
+		defer sess.Close()
+		mailbox := mailboxes.Resolve(row.Folder)
+		if imapErr := sess.MarkUnread(mailbox, uint32(row.ImapUid)); imapErr != nil {
+			s.log.Warn("email hub mark unread imap failed", "thread_id", threadID, "err", imapErr)
+			return imapErr
+		}
+		return nil
+	})
+}
+
 func (s *EmailHubService) syncMarkReadOnIMAP(acc db.EmailHubAccount, row db.EmailHubThread, threadID string) {
 	_ = s.gov.withIMAP(acc.ID, func() error {
 		sess, mailboxes, err := s.openIMAPWithMailboxes(acc)
@@ -490,7 +532,9 @@ func (s *EmailHubService) syncMarkStarredOnIMAP(acc db.EmailHubAccount, row db.E
 	})
 }
 
-func (s *EmailHubService) Sync(ctx context.Context, actor Actor, workspaceID, accountID, folder string, force, live bool) (bool, error) {
+func (s *EmailHubService) Sync(
+	ctx context.Context, actor Actor, workspaceID, accountID, folder string, force, live, reconcile bool,
+) (bool, error) {
 	ws, err := s.workspace(ctx, actor, workspaceID)
 	if err != nil {
 		return false, err
@@ -506,9 +550,9 @@ func (s *EmailHubService) Sync(ctx context.Context, actor Actor, workspaceID, ac
 	}
 	folder = normalizeEmailHubFolder(folder)
 	if folder == "" || folder == emailhub.FolderStarred {
-		return s.syncAccount(ctx, acc, false, force)
+		return s.syncAccount(ctx, acc, reconcile, force)
 	}
-	return s.syncSingleFolder(ctx, acc, folder, false, force, live)
+	return s.syncSingleFolder(ctx, acc, folder, reconcile, force, live)
 }
 
 func (s *EmailHubService) openPassword(enc string) (string, error) {
@@ -528,6 +572,24 @@ func accountView(r db.EmailHubAccount) EmailHubAccountView {
 		ID: r.ID, EmailAddress: r.EmailAddress, Provider: r.Provider,
 		ConnectedAt: r.CreatedAt.Time, LastSyncAt: lastSyncFromState(r.SyncState),
 	}
+}
+
+func shouldInvalidateCachedBody(view EmailHubThreadView) bool {
+	if !imapclient.BodyWorthCaching(view.BodyHTML, view.BodyText) {
+		return true
+	}
+	if !imapclient.BodyIsSnippetPlaceholder(view.BodyHTML, view.BodyText, view.Snippet) {
+		return false
+	}
+	// Send() may cache short bodies where body_text equals snippet; IMAP UID is local-only.
+	return view.Folder != emailhub.FolderSent
+}
+
+func sentMessageHTML(body string) string {
+	escaped := html.EscapeString(body)
+	escaped = strings.ReplaceAll(escaped, "\r\n", "\n")
+	escaped = strings.ReplaceAll(escaped, "\n", "<br>")
+	return "<p>" + escaped + "</p>"
 }
 
 func cleanEmailList(addrs []string) []string {

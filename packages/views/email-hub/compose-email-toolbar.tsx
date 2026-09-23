@@ -3,16 +3,16 @@
 import { useRef, useState, type ReactNode, type RefObject } from "react";
 import {
   ChevronDown,
-  HardDrive,
   Image,
   Link2,
-  Lock,
   MoreVertical,
   Paperclip,
   PenLine,
+  Printer,
   Smile,
   Trash2,
   Type,
+  X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -26,9 +26,18 @@ import {
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
 import { cn } from "@uniwork/ui/lib/utils";
-import { insertTextareaAtCursor, wrapTextareaSelection } from "./compose-text-helpers";
+import { DateTimeField } from "../common/datetime-field";
+import { toDateOnly } from "../common/date-field";
+import { insertTextareaAtCursor, printComposeDraft, wrapTextareaSelection } from "./compose-text-helpers";
 
 const QUICK_EMOJIS = ["😀", "😊", "👍", "🙏", "❤️", "🎉", "✅", "🔥", "😂", "🤔", "👋", "💡"];
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+const MAX_ATTACHMENT_COUNT = 10;
+
+export type ComposeDraftAttachment = {
+  id: string;
+  file: File;
+};
 
 function ToolbarIconButton({
   label,
@@ -70,9 +79,16 @@ interface ComposeEmailToolbarProps {
   bodyRef: RefObject<HTMLTextAreaElement | null>;
   body: string;
   onBodyChange: (value: string) => void;
+  fromEmail: string | null;
+  to: string;
+  cc: string;
+  subject: string;
+  attachments: ComposeDraftAttachment[];
+  onAttachmentsChange: (attachments: ComposeDraftAttachment[]) => void;
   canSend: boolean;
   sending: boolean;
   onSend: () => void;
+  onScheduleSend: (sendAtIso: string) => void;
   onDiscard: () => void;
 }
 
@@ -80,9 +96,16 @@ export function ComposeEmailToolbar({
   bodyRef,
   body,
   onBodyChange,
+  fromEmail,
+  to,
+  cc,
+  subject,
+  attachments,
+  onAttachmentsChange,
   canSend,
   sending,
   onSend,
+  onScheduleSend,
   onDiscard,
 }: ComposeEmailToolbarProps) {
   const { t } = useTranslation();
@@ -90,12 +113,12 @@ export function ComposeEmailToolbar({
   const [formatOpen, setFormatOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [linkOpen, setLinkOpen] = useState(false);
+  const [imageOpen, setImageOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const [linkText, setLinkText] = useState("");
   const [linkUrl, setLinkUrl] = useState("");
-
-  const comingSoon = () => {
-    toast.info(t("email_hub.compose.coming_soon"));
-  };
+  const [imageUrl, setImageUrl] = useState("");
+  const [scheduleAt, setScheduleAt] = useState("");
 
   const applyBodyEdit = (next: string, cursor: number, selectStart?: number, selectEnd?: number) => {
     onBodyChange(next);
@@ -150,13 +173,91 @@ export function ComposeEmailToolbar({
     setLinkUrl("");
   };
 
+  const insertImageLink = () => {
+    const url = imageUrl.trim();
+    if (!url) return;
+    insertAtCursor(`\n![](${url})\n`);
+    setImageOpen(false);
+    setImageUrl("");
+  };
+
   const insertEmoji = (emoji: string) => {
     insertAtCursor(emoji);
     setEmojiOpen(false);
   };
 
+  const insertSignature = () => {
+    const email = fromEmail?.trim();
+    if (!email) {
+      toast.error(t("email_hub.connect_prompt"));
+      return;
+    }
+    const block = `\n\n--\n${email}`;
+    insertAtCursor(body.trim() ? block : email);
+  };
+
+  const addAttachments = (files: FileList | null) => {
+    if (!files?.length) return;
+    const next = [...attachments];
+    for (const file of files) {
+      if (next.length >= MAX_ATTACHMENT_COUNT) {
+        toast.error(t("email_hub.compose.attach_limit"));
+        break;
+      }
+      if (file.size > MAX_ATTACHMENT_BYTES) {
+        toast.error(t("email_hub.compose.attach_too_large", { name: file.name }));
+        continue;
+      }
+      next.push({ id: `${file.name}-${file.size}-${file.lastModified}`, file });
+    }
+    onAttachmentsChange(next);
+  };
+
+  const removeAttachment = (id: string) => {
+    onAttachmentsChange(attachments.filter((item) => item.id !== id));
+  };
+
+  const submitSchedule = () => {
+    if (!scheduleAt) return;
+    const sendAt = new Date(scheduleAt);
+    if (Number.isNaN(sendAt.getTime())) {
+      toast.error(t("email_hub.compose.schedule_invalid"));
+      return;
+    }
+    onScheduleSend(sendAt.toISOString());
+    setScheduleOpen(false);
+    setScheduleAt("");
+  };
+
+  const printDraft = () => {
+    if (!fromEmail) return;
+    printComposeDraft({ from: fromEmail, to, cc, subject, body });
+  };
+
   return (
     <>
+      {attachments.length ? (
+        <div className="flex flex-wrap gap-2 border-t border-border px-4 py-2">
+          {attachments.map((item) => (
+            <span
+              key={item.id}
+              className="inline-flex max-w-full items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-caption"
+            >
+              <Paperclip className="size-3 shrink-0" aria-hidden />
+              <span className="truncate">{item.file.name}</span>
+              <button
+                type="button"
+                className="rounded-full p-0.5 hover:bg-background"
+                aria-label={t("email_hub.compose.remove_attachment")}
+                onClick={() => removeAttachment(item.id)}
+              >
+                <X className="size-3" aria-hidden />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
+
       {formatOpen ? (
         <div
           className="flex flex-wrap items-center gap-1 border-t border-border px-3 py-2"
@@ -172,13 +273,7 @@ export function ComposeEmailToolbar({
           <Button type="button" size="sm" variant="ghost" className="h-8 min-w-8 px-2 underline" onClick={() => wrapSelection("<u>", "</u>")}>
             U
           </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className="h-8 gap-1 px-2"
-            onClick={() => handleLinkOpenChange(true)}
-          >
+          <Button type="button" size="sm" variant="ghost" className="h-8 gap-1 px-2" onClick={() => handleLinkOpenChange(true)}>
             <Link2 className="size-3.5" aria-hidden />
             {t("email_hub.compose.link")}
           </Button>
@@ -186,29 +281,41 @@ export function ComposeEmailToolbar({
         </div>
       ) : null}
 
-      <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
+      <div className="flex items-center justify-between gap-2 border-t border-border bg-muted/20 px-3 py-2">
         <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
           <div className="inline-flex shrink-0 overflow-hidden rounded-lg">
-            <Button
-              type="button"
-              size="sm"
-              disabled={!canSend}
-              onClick={onSend}
-              className="rounded-r-none px-4"
-            >
+            <Button type="button" size="sm" disabled={!canSend} onClick={onSend} className="rounded-r-none px-4">
               {sending ? t("email_hub.compose.sending") : t("email_hub.compose.send")}
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="default"
-              disabled={!canSend}
-              onClick={comingSoon}
-              className="rounded-l-none border-l border-primary-foreground/25 px-2"
-              aria-label={t("email_hub.compose.schedule_send")}
-            >
-              <ChevronDown className="size-4" aria-hidden />
-            </Button>
+            <Popover open={scheduleOpen} onOpenChange={setScheduleOpen}>
+              <PopoverTrigger
+                render={
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="default"
+                    disabled={!canSend}
+                    className="rounded-l-none border-l border-primary-foreground/25 px-2"
+                    aria-label={t("email_hub.compose.schedule_send")}
+                  >
+                    <ChevronDown className="size-4" aria-hidden />
+                  </Button>
+                }
+              />
+              <PopoverContent align="start" side="top" className="w-80 space-y-3 p-3">
+                <p className="text-body font-medium">{t("email_hub.compose.schedule_send")}</p>
+                <DateTimeField
+                  value={scheduleAt}
+                  onChange={setScheduleAt}
+                  minDate={toDateOnly(new Date())}
+                  hourLabel={t("common.hour")}
+                  minuteLabel={t("common.minute")}
+                />
+                <Button type="button" size="sm" className="w-full" disabled={!scheduleAt || !canSend} onClick={submitSchedule}>
+                  {t("email_hub.compose.schedule_confirm")}
+                </Button>
+              </PopoverContent>
+            </Popover>
           </div>
 
           <ToolbarIconButton
@@ -277,19 +384,31 @@ export function ComposeEmailToolbar({
             </PopoverContent>
           </Popover>
 
-          <ToolbarIconButton label={t("email_hub.compose.drive")} onClick={comingSoon}>
-            <HardDrive className="size-5" aria-hidden />
-          </ToolbarIconButton>
+          <Popover open={imageOpen} onOpenChange={setImageOpen}>
+            <PopoverTrigger
+              render={
+                <ToolbarIconButton label={t("email_hub.compose.insert_image")}>
+                  <Image className="size-5" aria-hidden />
+                </ToolbarIconButton>
+              }
+            />
+            <PopoverContent align="start" side="top" className="w-80 space-y-3 p-3">
+              <p className="text-body font-medium">{t("email_hub.compose.insert_image")}</p>
+              <p className="text-caption text-muted-foreground">{t("email_hub.compose.image_plain_hint")}</p>
+              <Input
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                placeholder="https://"
+                type="url"
+                aria-label={t("email_hub.compose.image_url_placeholder")}
+              />
+              <Button type="button" size="sm" className="w-full" disabled={!imageUrl.trim()} onClick={insertImageLink}>
+                {t("email_hub.compose.insert_image")}
+              </Button>
+            </PopoverContent>
+          </Popover>
 
-          <ToolbarIconButton label={t("email_hub.compose.insert_image")} onClick={comingSoon}>
-            <Image className="size-5" aria-hidden />
-          </ToolbarIconButton>
-
-          <ToolbarIconButton label={t("email_hub.compose.confidential")} onClick={comingSoon}>
-            <Lock className="size-5" aria-hidden />
-          </ToolbarIconButton>
-
-          <ToolbarIconButton label={t("email_hub.compose.signature")} onClick={comingSoon}>
+          <ToolbarIconButton label={t("email_hub.compose.signature")} onClick={insertSignature}>
             <PenLine className="size-5" aria-hidden />
           </ToolbarIconButton>
 
@@ -302,8 +421,10 @@ export function ComposeEmailToolbar({
               }
             />
             <DropdownMenuContent align="start" side="top">
-              <DropdownMenuItem onClick={comingSoon}>{t("email_hub.compose.plain_text")}</DropdownMenuItem>
-              <DropdownMenuItem onClick={comingSoon}>{t("email_hub.compose.print")}</DropdownMenuItem>
+              <DropdownMenuItem onClick={printDraft}>
+                <Printer className="size-4" aria-hidden />
+                {t("email_hub.compose.print")}
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -320,9 +441,9 @@ export function ComposeEmailToolbar({
         multiple
         aria-hidden
         tabIndex={-1}
-        onChange={() => {
-          if (fileInputRef.current) fileInputRef.current.value = "";
-          comingSoon();
+        onChange={(event) => {
+          addAttachments(event.target.files);
+          event.target.value = "";
         }}
       />
     </>

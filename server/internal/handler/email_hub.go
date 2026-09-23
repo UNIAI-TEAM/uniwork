@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -140,22 +141,65 @@ func (h *handlers) sendEmailHub(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	thread, err := h.EmailHub.Send(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), service.SendEmailHubInput{
-		AccountID: in.AccountID, To: in.To, Cc: in.Cc, Subject: in.Subject,
-		BodyText: in.BodyText, ReplyToThreadID: in.ReplyToThreadID,
-	})
+	attachments, err := parseSendEmailHubAttachments(in.Attachments)
 	if err != nil {
-		switch {
-		case errors.Is(err, service.ErrEmailHubNotConfigured):
-			respondError(w, http.StatusServiceUnavailable, "email_hub_not_configured", "Email Hub is not configured")
-		case errors.Is(err, service.ErrEmailHubSendFailed):
-			respondError(w, http.StatusBadGateway, "email_hub_send_failed", "Could not send the message")
-		default:
-			h.mapServiceError(w, err)
+		respondError(w, http.StatusBadRequest, "invalid_request", err.Error())
+		return
+	}
+	sendInput := service.SendEmailHubInput{
+		AccountID: in.AccountID, To: in.To, Cc: in.Cc, Bcc: in.Bcc, Subject: in.Subject,
+		BodyText: in.BodyText, BodyHTML: in.BodyHTML, Attachments: attachments,
+		ReplyToThreadID: in.ReplyToThreadID,
+	}
+	actor := service.Human(middleware.UserID(r.Context()))
+	wsID := chi.URLParam(r, "workspaceID")
+	if strings.TrimSpace(in.SendAt) != "" {
+		sendAt, err := time.Parse(time.RFC3339, in.SendAt)
+		if err != nil {
+			respondError(w, http.StatusBadRequest, "invalid_request", "send_at must be RFC3339")
+			return
 		}
+		scheduled, err := h.EmailHub.ScheduleSend(r.Context(), actor, wsID, sendInput, sendAt)
+		if err != nil {
+			h.mapEmailHubSendError(w, err)
+			return
+		}
+		respondJSON(w, http.StatusAccepted, sdo.EmailHubScheduledSendSDO{
+			Scheduled: true, ID: scheduled.ID, SendAt: scheduled.SendAt.Format(time.RFC3339),
+			Subject: scheduled.Subject, To: scheduled.To, AccountID: scheduled.AccountID,
+		})
+		return
+	}
+	thread, err := h.EmailHub.Send(r.Context(), actor, wsID, sendInput)
+	if err != nil {
+		h.mapEmailHubSendError(w, err)
 		return
 	}
 	respondJSON(w, http.StatusCreated, toEmailHubThreadSDO(thread))
+}
+
+func (h *handlers) mapEmailHubSendError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, service.ErrEmailHubNotConfigured):
+		respondError(w, http.StatusServiceUnavailable, "email_hub_not_configured", "Email Hub is not configured")
+	case errors.Is(err, service.ErrEmailHubSendFailed):
+		respondError(w, http.StatusBadGateway, "email_hub_send_failed", "Could not send the message")
+	default:
+		h.mapServiceError(w, err)
+	}
+}
+
+func parseSendEmailHubAttachments(items []sdi.SendEmailHubAttachmentSDI) ([]service.SendEmailHubAttachmentInput, error) {
+	if len(items) == 0 {
+		return nil, nil
+	}
+	payload := make([]service.SendEmailHubAttachmentPayload, 0, len(items))
+	for _, item := range items {
+		payload = append(payload, service.SendEmailHubAttachmentPayload{
+			Filename: item.Filename, ContentType: item.ContentType, ContentBase64: item.ContentBase64,
+		})
+	}
+	return service.ParseSendAttachments(payload)
 }
 
 func (h *handlers) patchEmailHubThread(w http.ResponseWriter, r *http.Request) {
@@ -198,9 +242,11 @@ func (h *handlers) patchEmailHubThread(w http.ResponseWriter, r *http.Request) {
 func (h *handlers) syncEmailHub(w http.ResponseWriter, r *http.Request) {
 	force := r.URL.Query().Get("force") == "1" || r.URL.Query().Get("force") == "true"
 	live := r.URL.Query().Get("live") == "1" || r.URL.Query().Get("live") == "true"
+	reconcile := r.URL.Query().Get("reconcile") == "1" || r.URL.Query().Get("reconcile") == "true"
 	synced, err := h.EmailHub.Sync(
 		r.Context(), service.Human(middleware.UserID(r.Context())),
-		chi.URLParam(r, "workspaceID"), r.URL.Query().Get("account_id"), r.URL.Query().Get("folder"), force, live,
+		chi.URLParam(r, "workspaceID"), r.URL.Query().Get("account_id"), r.URL.Query().Get("folder"),
+		force, live, reconcile,
 	)
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -269,6 +315,46 @@ func (h *handlers) unsubscribeEmailHubInboxWatch(w http.ResponseWriter, r *http.
 		return
 	}
 	respondJSON(w, http.StatusOK, sdo.EmailHubInboxWatchSDO{Subscribed: false})
+}
+
+func (h *handlers) listEmailHubScheduledSends(w http.ResponseWriter, r *http.Request) {
+	accountID := r.URL.Query().Get("account_id")
+	if accountID == "" {
+		respondError(w, http.StatusBadRequest, "invalid_request", "account_id is required")
+		return
+	}
+	items, err := h.EmailHub.ListPendingScheduledSends(
+		r.Context(), service.Human(middleware.UserID(r.Context())),
+		chi.URLParam(r, "workspaceID"), accountID,
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := sdo.EmailHubScheduledSendListSDO{Scheduled: make([]sdo.EmailHubScheduledSendItemSDO, 0, len(items))}
+	for _, item := range items {
+		out.Scheduled = append(out.Scheduled, sdo.EmailHubScheduledSendItemSDO{
+			ID: item.ID, SendAt: item.SendAt, Subject: item.Subject, To: item.To, Status: item.Status,
+		})
+	}
+	respondJSON(w, http.StatusOK, out)
+}
+
+func (h *handlers) cancelEmailHubScheduledSend(w http.ResponseWriter, r *http.Request) {
+	accountID := r.URL.Query().Get("account_id")
+	if accountID == "" {
+		respondError(w, http.StatusBadRequest, "invalid_request", "account_id is required")
+		return
+	}
+	err := h.EmailHub.CancelScheduledSend(
+		r.Context(), service.Human(middleware.UserID(r.Context())),
+		chi.URLParam(r, "workspaceID"), accountID, chi.URLParam(r, "scheduledSendID"),
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func toEmailHubAccountSDO(a service.EmailHubAccountView) sdo.EmailHubAccountSDO {

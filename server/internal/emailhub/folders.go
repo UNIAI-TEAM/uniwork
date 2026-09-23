@@ -30,7 +30,7 @@ func DefaultMailboxMap(provider string) map[string]string {
 
 // MoveableTargets are logical folders messages can be moved to via IMAP.
 func MoveableTargets() []string {
-	return []string{FolderArchive, FolderTrash}
+	return []string{FolderInbox, FolderArchive, FolderTrash}
 }
 
 // MailboxName maps a logical folder to the provider-specific IMAP mailbox.
@@ -95,7 +95,7 @@ func yahooMailbox(folder string) string {
 // IsMoveableTarget reports whether folder is a valid move_to value.
 func IsMoveableTarget(folder string) bool {
 	switch folder {
-	case FolderArchive, FolderTrash:
+	case FolderInbox, FolderArchive, FolderTrash:
 		return true
 	default:
 		return false

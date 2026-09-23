@@ -381,6 +381,20 @@ type EmailHubAttachment struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
+type EmailHubScheduledSend struct {
+	ID             string             `json:"id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	AccountID      string             `json:"account_id"`
+	OrganizationID string             `json:"organization_id"`
+	UserID         string             `json:"user_id"`
+	Payload        []byte             `json:"payload"`
+	SendAt         pgtype.Timestamptz `json:"send_at"`
+	Status         string             `json:"status"`
+	LastError      pgtype.Text        `json:"last_error"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	SentAt         pgtype.Timestamptz `json:"sent_at"`
+}
+
 type EmailHubThread struct {
 	ID             string             `json:"id"`
 	AccountID      string             `json:"account_id"`

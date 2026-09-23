@@ -96,6 +96,14 @@ func (s *Session) MarkRead(mailbox string, uid uint32) error {
 	return markReadOnClient(s.cl, mailbox, uid)
 }
 
+// MarkUnread clears \\Seen on one message using this session.
+func (s *Session) MarkUnread(mailbox string, uid uint32) error {
+	if s.cl == nil {
+		return fmt.Errorf("imap: session closed")
+	}
+	return markUnreadOnClient(s.cl, mailbox, uid)
+}
+
 // MarkStarred sets or clears \\Flagged on one message using this session.
 func (s *Session) MarkStarred(mailbox string, uid uint32, starred bool) error {
 	if s.cl == nil {

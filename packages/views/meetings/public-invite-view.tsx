@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ApiError } from "@uniwork/core/api";
@@ -259,8 +259,8 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
   let pageTitle: string;
   if (view === "loading") {
     pageTitle = t("meetings.publicInviteTitle");
-  } else if (state !== "ok") {
-    pageTitle = t(inviteStateCopy(state === "loading" ? "error" : state).title);
+  } else if (state !== "ok" && state !== "loading") {
+    pageTitle = t(inviteStateCopy(state).title);
   } else if (inLobby) {
     const waitingKey = joinFailure === undefined ? waitingTitleKey(lobbyDecision) : undefined;
     pageTitle = waitingKey ? t(waitingKey) : lobbyMessage(t, lobbyDecision, joinFailure, true);
@@ -269,7 +269,7 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
   }
   const meetingPart = title && state === "ok" ? ` · ${title}` : "";
   const documentTitle = `${pageTitle}${meetingPart} · ${wordmark}`;
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.title = documentTitle;
   }, [documentTitle]);
 
