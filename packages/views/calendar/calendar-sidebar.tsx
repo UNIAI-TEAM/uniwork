@@ -17,7 +17,6 @@ import {
 } from "@uniwork/ui/components/ui/collapsible";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
-import { format, parseISO } from "date-fns";
 import { PriorityFlag } from "../tasks/modes/status-pill";
 
 export const EMPTY_CALENDAR_SIDEBAR: CalendarSidebar = {
@@ -30,6 +29,7 @@ export const EMPTY_CALENDAR_SIDEBAR: CalendarSidebar = {
 
 type CalendarSidebarProps = {
   workspaceId: string;
+  viewerTimeZone?: string;
   sections: CalendarSidebar;
   isPending?: boolean;
   isError?: boolean;
@@ -68,18 +68,43 @@ const TASK_SECTIONS: {
   },
 ];
 
-function formatDueLabel(dueDate: string | undefined): string | null {
+function formatDueLabel(dueDate: string | undefined, locale: string): string | null {
   if (!dueDate) return null;
   try {
-    return format(parseISO(dueDate), "d MMM");
+    const [year, month, day] = dueDate.split("-").map(Number);
+    if (!year || !month || !day) return dueDate;
+    const localDate = new Date(year, month - 1, day);
+    if (
+      localDate.getFullYear() !== year ||
+      localDate.getMonth() !== month - 1 ||
+      localDate.getDate() !== day
+    ) {
+      return dueDate;
+    }
+    return new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" }).format(
+      localDate,
+    );
   } catch {
     return dueDate;
   }
 }
 
-function formatMeetingWhen(startsAt: string): string {
+function formatMeetingWhen(startsAt: string, locale: string, timeZone?: string): string {
   try {
-    return format(parseISO(startsAt), "EEE d MMM · HH:mm");
+    const starts = new Date(startsAt);
+    const date = new Intl.DateTimeFormat(locale, {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      timeZone,
+    }).format(starts);
+    const time = new Intl.DateTimeFormat(locale, {
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+      timeZone,
+    }).format(starts);
+    return `${date} · ${time}`;
   } catch {
     return startsAt;
   }
@@ -92,8 +117,8 @@ function SidebarTaskRow({
   task: CalendarSidebarTask;
   onOpen: () => void;
 }) {
-  const { t } = useTranslation();
-  const dueLabel = formatDueLabel(task.dueDate);
+  const { t, i18n } = useTranslation();
+  const dueLabel = formatDueLabel(task.dueDate, i18n.resolvedLanguage ?? i18n.language);
   return (
     <li className="flex min-w-0 items-stretch rounded-md hover:bg-surface-hover">
       <span
@@ -116,7 +141,12 @@ function SidebarTaskRow({
             <PriorityFlag priority={task.priority} className="size-3.5" />
           ) : null}
           {dueLabel ? (
-            <span className="text-caption tabular-nums text-muted-foreground">{dueLabel}</span>
+            <time
+              dateTime={task.dueDate}
+              className="text-caption tabular-nums text-muted-foreground"
+            >
+              {dueLabel}
+            </time>
           ) : null}
         </span>
       </button>
@@ -126,11 +156,14 @@ function SidebarTaskRow({
 
 function SidebarMeetingRow({
   meeting,
+  viewerTimeZone,
   onOpen,
 }: {
   meeting: CalendarSidebarMeeting;
+  viewerTimeZone?: string;
   onOpen: () => void;
 }) {
+  const { i18n } = useTranslation();
   return (
     <li>
       <button
@@ -139,9 +172,16 @@ function SidebarMeetingRow({
         onClick={onOpen}
       >
         <span className="truncate text-body text-foreground">{meeting.title}</span>
-        <span className="text-caption text-muted-foreground">
-          {formatMeetingWhen(meeting.startsAt)}
-        </span>
+        <time
+          dateTime={meeting.startsAt}
+          className="text-caption tabular-nums text-muted-foreground"
+        >
+          {formatMeetingWhen(
+            meeting.startsAt,
+            i18n.resolvedLanguage ?? i18n.language,
+            viewerTimeZone,
+          )}
+        </time>
       </button>
     </li>
   );
@@ -244,6 +284,7 @@ function TaskListSection({
 
 export function CalendarSidebar({
   sections,
+  viewerTimeZone,
   isPending,
   isError,
   onRetry,
@@ -307,6 +348,7 @@ export function CalendarSidebar({
                   <SidebarMeetingRow
                     key={meeting.id}
                     meeting={meeting}
+                    viewerTimeZone={viewerTimeZone}
                     onOpen={() => onOpenMeeting(meeting.id)}
                   />
                 ))}
