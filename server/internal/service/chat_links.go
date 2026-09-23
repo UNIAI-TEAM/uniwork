@@ -293,7 +293,7 @@ func (s *ChatService) ListRoomMessageLinks(
 		return []ChatMessageLinkRow{}, nil
 	}
 	rows, err := s.q.ListChatMessageLinksByRoomMessages(ctx, db.ListChatMessageLinksByRoomMessagesParams{
-		RoomID: roomID, WorkspaceID: workspaceID, MessageIds: ids,
+		RoomID: roomID, MessageIds: ids,
 	})
 	if err != nil {
 		return nil, err
@@ -327,21 +327,25 @@ func (s *ChatService) UnlinkChatMessage(
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	n, err := q.DeleteChatMessageLink(ctx, db.DeleteChatMessageLinkParams{
-		ID: linkID, WorkspaceID: workspaceID, MessageID: msg.ID,
+	targetID, err := q.DeleteChatMessageLink(ctx, db.DeleteChatMessageLinkParams{
+		ID: linkID, RoomID: room.ID, MessageID: msg.ID,
 	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
 	if err != nil {
 		return err
 	}
-	if n == 0 {
-		return ErrNotFound
-	}
+	// Same topic as linking: clients refetch the message's links either way,
+	// so other viewers stop showing the task without waiting for staleTime.
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: roomOrganizationID(room), WorkspaceID: roomAnchorWorkspaceID(room),
 		Actor: Human(userID), Action: audit.ActionChatMessageUnlinked,
 		ResourceType: "chat_message", ResourceID: msg.ID,
 		Metadata: map[string]any{"link_id": linkID},
-	}); err != nil {
+	}, audit.Event{Topic: "chat.message.linked", Payload: map[string]string{
+		"room_id": room.ID, "message_id": msg.ID, "target_id": targetID,
+	}}); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
