@@ -35,6 +35,14 @@ export const MOCK_TOKENS = {
   edge: "--border",
 } as const;
 
+/**
+ * The radio is `sr-only`, so its own focus ring cannot be seen; the tile
+ * draws the same outline the global `:focus-visible` rule gives every other
+ * control (2px `--ring`, offset 2px) while the radio inside has focus.
+ */
+const FOCUS_FROM_RADIO =
+  "has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-ring";
+
 /** One miniature app window: rail on the left, a card with copy lines. */
 function ThemeMock({ tone }: { tone: keyof typeof MOCK }) {
   const c = MOCK[tone];
@@ -127,8 +135,8 @@ export function ThemesPanel() {
             <label
               key={value}
               className={cn(
-                "group min-w-0 cursor-pointer rounded-xl outline-none",
-                "has-focus-visible:ring-3 has-focus-visible:ring-ring/50",
+                "group min-w-0 cursor-pointer rounded-xl",
+                FOCUS_FROM_RADIO,
               )}
             >
               <input
@@ -180,7 +188,7 @@ export function ThemesPanel() {
                 "group flex min-h-9 cursor-pointer items-center gap-2 rounded-full border border-border",
                 "bg-surface py-1 pr-3.5 pl-1.5 transition-colors pointer-coarse:min-h-11",
                 "hover:border-input",
-                "has-focus-visible:ring-3 has-focus-visible:ring-ring/50",
+                FOCUS_FROM_RADIO,
                 "has-checked:border-brand has-checked:bg-surface-selected",
               )}
             >

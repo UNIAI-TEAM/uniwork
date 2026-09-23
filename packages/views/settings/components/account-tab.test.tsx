@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import { requestMock, wrap } from "../../test/api-mock";
@@ -58,6 +59,30 @@ describe("AccountTab", () => {
     expect(toastSuccess).not.toHaveBeenCalled();
   });
 
+  it("says an empty name will not save, sends nothing, and puts the saved name back on blur", async () => {
+    render(wrap(<AccountTab />));
+    const name = screen.getByLabelText("Tên hiển thị");
+    fireEvent.change(name, { target: { value: "   " } });
+    expect(name).toHaveAttribute("aria-invalid", "true");
+    expect(name).toHaveAccessibleDescription("Tên hiển thị không được để trống.");
+    fireEvent.blur(name);
+    expect(name).toHaveValue("Nguyễn Thị Lan");
+    expect(name).not.toHaveAttribute("aria-invalid");
+    expect(screen.queryByText("Tên hiển thị không được để trống.")).toBeNull();
+    await new Promise((r) => setTimeout(r, 700));
+    expect(requestMock).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed name save inline only, with no toast", async () => {
+    requestMock.mockRejectedValue(new ApiError("boom", "internal", 500));
+    render(wrap(<AccountTab />));
+    const name = screen.getByLabelText("Tên hiển thị");
+    fireEvent.change(name, { target: { value: "Lan" } });
+    fireEvent.blur(name);
+    expect(await screen.findByText("Không lưu được")).toBeInTheDocument();
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
   it("refuses a wrong type or an oversized image before uploading", () => {
     render(wrap(<AccountTab />));
     fireEvent.change(fileInput(), { target: { files: [new File(["x"], "a.svg", { type: "image/svg+xml" })] } });
@@ -76,6 +101,24 @@ describe("AccountTab", () => {
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/me/avatar", expect.objectContaining({ method: "POST" })),
     );
-    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Đã cập nhật ảnh đại diện"));
+    // The confirmation is the line under the button, not a toast.
+    expect(await screen.findByText("Đã cập nhật ảnh đại diện")).toBeInTheDocument();
+    expect(toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("says why an upload failed next to the button, in the server's words, and nowhere else", async () => {
+    requestMock.mockRejectedValue(new ApiError("Ảnh bị hỏng.", "invalid_image", 422));
+    render(wrap(<AccountTab />));
+    fireEvent.change(fileInput(), { target: { files: [new File(["x"], "a.png", { type: "image/png" })] } });
+    expect(await screen.findByText("Ảnh bị hỏng.")).toBeInTheDocument();
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it("marks the change-photo button busy while uploading", async () => {
+    requestMock.mockReturnValue(new Promise(() => {}));
+    render(wrap(<AccountTab />));
+    fireEvent.change(fileInput(), { target: { files: [new File(["x"], "a.png", { type: "image/png" })] } });
+    const button = await screen.findByRole("button", { name: "Đang tải ảnh lên…" });
+    expect(button).toHaveAttribute("aria-busy", "true");
   });
 });

@@ -8,18 +8,22 @@ import { toastApiError } from "../../toast-api-error";
 import { useRevokeOtherSessions, useRevokeSession, useSessions } from "@uniwork/core/auth";
 import type { UserSession } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { ConfirmDialog } from "../../common/form-dialog";
+import { cn } from "@uniwork/ui/lib/utils";
 import { describeUserAgent, isLoopbackIp } from "./session-device";
 import {
   SettingsBadge,
   SettingsCard,
-  SettingsCardBody,
   SettingsEmpty,
   SettingsList,
   SettingsListItem,
+  SettingsLoadError,
   SettingsSection,
-  SettingsSkeletonRows,
 } from "./settings-layout";
+
+/** The device glyph's tile, shared with the skeleton so loading and loaded rows line up. */
+const DEVICE_TILE = "flex size-8 items-center justify-center rounded-md";
 
 type PendingRevoke = { kind: "one"; id: string; device: string } | { kind: "others"; count: number } | null;
 
@@ -85,18 +89,11 @@ export function SessionsSection() {
 
   let body;
   if (sessions.isPending) {
-    body = <SettingsSkeletonRows rows={2} withAvatar />;
+    body = <SessionsSkeleton />;
   } else if (sessions.isError) {
     body = (
       <SettingsCard>
-        <SettingsCardBody className="flex items-center justify-between gap-3">
-          <span role="alert" className="text-body">
-            {t("error")}
-          </span>
-          <Button variant="outline" size="sm" onClick={() => void sessions.refetch()}>
-            {t("retry")}
-          </Button>
-        </SettingsCardBody>
+        <SettingsLoadError onRetry={() => void sessions.refetch()}>{t("error")}</SettingsLoadError>
       </SettingsCard>
     );
   } else if (rows.length === 0) {
@@ -115,7 +112,7 @@ export function SessionsSection() {
             <SettingsListItem
               key={s.id}
               leading={
-                <span className="flex size-8 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                <span className={cn(DEVICE_TILE, "bg-muted text-muted-foreground")}>
                   <Icon aria-hidden className="size-4" />
                 </span>
               }
@@ -170,5 +167,22 @@ export function SessionsSection() {
         onConfirm={confirm}
       />
     </SettingsSection>
+  );
+}
+
+/** Loading rows in the list's own shape: a square device tile, not a round avatar. */
+function SessionsSkeleton() {
+  return (
+    <div className="divide-y divide-border rounded-xl border border-surface-border bg-surface" aria-hidden>
+      {Array.from({ length: 2 }, (_, i) => (
+        <div key={i} className="flex min-h-14 items-center gap-3 px-4 py-2.5">
+          <Skeleton className={DEVICE_TILE} />
+          <div className="flex-1 space-y-1.5">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-3 w-56 max-w-full" />
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }

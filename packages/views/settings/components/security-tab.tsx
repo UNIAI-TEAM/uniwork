@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Copy, Download, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { toastApiError } from "../../toast-api-error";
+import { apiErrorMessage } from "@uniwork/core/api";
 import { useAuthStore, useMfaConfirm, useMfaDisable, useMfaSetup, useRefreshSessionUser } from "@uniwork/core/auth";
 import type { MFASetup } from "@uniwork/core/api/endpoints/auth";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Field, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { copyText } from "@uniwork/ui/lib/clipboard";
 import { DeleteAccountDialog } from "./delete-account-dialog";
@@ -17,12 +19,40 @@ import {
   SettingsBadge,
   SettingsCard,
   SettingsDangerZone,
+  SettingsFieldError,
   SettingsRow,
   SettingsSection,
   SettingsTab,
 } from "./settings-layout";
 
 const RECOVERY_FILENAME = "uniwork-recovery-codes.txt";
+const TOTP_LENGTH = 6;
+
+/**
+ * A code field's refusal: shown under the input, tied to it, and focus goes
+ * back to the input so the reader can retype without hunting for it.
+ */
+function useCodeError() {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const errorId = useId();
+  const [error, setError] = useState<string | null>(null);
+  return {
+    inputRef,
+    error,
+    clear: () => setError(null),
+    fail: (message: string) => {
+      setError(message);
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    },
+    inputProps: {
+      ref: inputRef,
+      "aria-invalid": error ? true : undefined,
+      "aria-describedby": error ? errorId : undefined,
+    },
+    message: error ? <SettingsFieldError id={errorId}>{error}</SettingsFieldError> : null,
+  };
+}
 
 function downloadRecoveryCodes(codes: string[]) {
   const url = URL.createObjectURL(new Blob([`${codes.join("\n")}\n`], { type: "text/plain;charset=utf-8" }));
@@ -105,11 +135,17 @@ function RecoveryCodes({ codes }: { codes: string[] }) {
           <Download aria-hidden />
           {t("recoveryDownload")}
         </Button>
-        <Button className="sm:ml-auto" aria-disabled={refresh.isPending || undefined} onClick={() => {
+        {/* No field here, so a failure is a toast (with the server's words). */}
+        <Button
+          className="sm:ml-auto"
+          aria-disabled={refresh.isPending || undefined}
+          aria-busy={refresh.isPending || undefined}
+          onClick={() => {
             if (refresh.isPending) return;
             refresh.mutate(undefined, { onError: (err) => toastApiError(err, t("toastFailed")) });
           }}
         >
+          {refresh.isPending ? <Loader2 aria-hidden className="animate-spin" /> : null}
           {t("recoveryDone")}
         </Button>
       </div>
@@ -126,6 +162,8 @@ function EnrolMfa({ onEnabled }: { onEnabled: () => void }) {
   const [qr, setQr] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [codes, setCodes] = useState<string[] | null>(null);
+  const codeError = useCodeError();
+  const codeId = useId();
 
   useEffect(() => {
     if (!pending) return;
@@ -149,6 +187,7 @@ function EnrolMfa({ onEnabled }: { onEnabled: () => void }) {
         <div className="flex justify-start sm:justify-end">
           <Button
             aria-disabled={setup.isPending || undefined}
+            aria-busy={setup.isPending || undefined}
             onClick={() => {
               if (setup.isPending) return;
               setup.mutate(undefined, {
@@ -171,10 +210,17 @@ function EnrolMfa({ onEnabled }: { onEnabled: () => void }) {
   return (
     <form
       className="flex flex-col gap-4 p-4"
+      noValidate
       onSubmit={(e) => {
         e.preventDefault();
-        if (confirm.isPending || code.trim().length !== 6) return;
-        confirm.mutate(code.trim(), {
+        if (confirm.isPending) return;
+        const value = code.trim();
+        if (!/^\d{6}$/.test(value)) {
+          codeError.fail(t("codeLength", { count: TOTP_LENGTH }));
+          return;
+        }
+        codeError.clear();
+        confirm.mutate(value, {
           onSuccess: (list) => {
             setCodes(list);
             setPending(null);
@@ -182,7 +228,7 @@ function EnrolMfa({ onEnabled }: { onEnabled: () => void }) {
             onEnabled();
             toast.success(t("toastEnabled"));
           },
-          onError: (err) => toastApiError(err, t("invalidCode")),
+          onError: (err) => codeError.fail(apiErrorMessage(err) ?? t("invalidCode")),
         });
       }}
     >
@@ -194,19 +240,25 @@ function EnrolMfa({ onEnabled }: { onEnabled: () => void }) {
           <code className="break-all rounded-md bg-muted px-2 py-1 font-mono text-body">{pending.secret}</code>
         </div>
       </div>
-      <label className="flex flex-col gap-1 text-body">
-        {t("confirmLabel")}
+      <Field className="gap-1.5">
+        <FieldLabel htmlFor={codeId}>{t("confirmLabel")}</FieldLabel>
         <Input
+          {...codeError.inputProps}
+          id={codeId}
           value={code}
-          onChange={(e) => setCode(e.target.value)}
+          onChange={(e) => {
+            setCode(e.target.value);
+            codeError.clear();
+          }}
           autoComplete="one-time-code"
           inputMode="numeric"
-          maxLength={6}
+          maxLength={TOTP_LENGTH}
           className="sm:w-40"
         />
-      </label>
+        {codeError.message}
+      </Field>
       <div className="flex gap-2">
-        <Button type="submit" aria-disabled={confirm.isPending || undefined}>
+        <Button type="submit" aria-disabled={confirm.isPending || undefined} aria-busy={confirm.isPending || undefined}>
           {confirm.isPending ? <Loader2 aria-hidden className="animate-spin" /> : null}
           {t("confirm")}
         </Button>
@@ -222,34 +274,67 @@ function DisableMfa() {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.security.mfa" });
   const disable = useMfaDisable();
   const [code, setCode] = useState("");
+  const codeError = useCodeError();
+  const inputId = useId();
+  const hintId = useId();
   return (
     <form
       className="contents"
+      noValidate
       onSubmit={(e) => {
         e.preventDefault();
-        if (disable.isPending || !code.trim()) return;
+        if (disable.isPending) return;
+        if (!code.trim()) {
+          codeError.fail(t("disableCodeRequired"));
+          return;
+        }
+        codeError.clear();
         disable.mutate(code.trim(), {
           onSuccess: () => {
             setCode("");
             toast.success(t("toastDisabled"));
           },
-          onError: (err) => toastApiError(err, t("invalidCode")),
+          onError: (err) => codeError.fail(apiErrorMessage(err) ?? t("invalidCode")),
         });
       }}
     >
-      <SettingsRow label={t("appLabel")} description={t("disableHint")} size="none">
-        <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-          <Input
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            aria-label={t("disableCodeLabel")}
-            placeholder={t("disableCodeLabel")}
-            autoComplete="one-time-code"
-            className="sm:w-44"
-          />
-          <Button type="submit" variant="outline" aria-disabled={disable.isPending || undefined}>
-            {t("disable")}
-          </Button>
+      <SettingsRow
+        label={<label htmlFor={inputId}>{t("disableCodeLabel")}</label>}
+        description={t("disableHint")}
+        descriptionId={hintId}
+        size="none"
+        align="start"
+      >
+        <div className="flex flex-col gap-1.5 sm:items-end">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {/* Recovery codes are letters and digits (abcde-12345), so the
+                keyboard stays a text one; only the case and spelling helpers go. */}
+            <Input
+              {...codeError.inputProps}
+              id={inputId}
+              aria-describedby={[hintId, codeError.inputProps["aria-describedby"]].filter(Boolean).join(" ")}
+              value={code}
+              onChange={(e) => {
+                setCode(e.target.value);
+                codeError.clear();
+              }}
+              autoComplete="one-time-code"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              className="sm:w-44"
+            />
+            <Button
+              type="submit"
+              variant="outline"
+              aria-disabled={disable.isPending || undefined}
+              aria-busy={disable.isPending || undefined}
+            >
+              {disable.isPending ? <Loader2 aria-hidden className="animate-spin" /> : null}
+              {t("disable")}
+            </Button>
+          </div>
+          {codeError.message}
         </div>
       </SettingsRow>
     </form>

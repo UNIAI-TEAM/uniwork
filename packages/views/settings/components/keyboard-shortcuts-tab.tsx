@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Keyboard, RotateCcw, Search, X } from "lucide-react";
 import {
@@ -24,7 +24,7 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ConfirmDialog } from "../../common/form-dialog";
 import { ShortcutKeycaps } from "../../editor/shortcut-keycaps";
-import { SettingsCard, SettingsRow, SettingsSection, SettingsTab } from "./settings-layout";
+import { SettingsCard, SettingsEmpty, SettingsRow, SettingsSection, SettingsTab } from "./settings-layout";
 
 /**
  * Action ids are not i18n-safe (`ai.askUni` would nest under `ai`), so each
@@ -105,6 +105,12 @@ export function KeyboardShortcutsTab() {
   };
 
   const capture = (actionId: ShortcutActionId, event: KeyboardEvent) => {
+    // Tab and Shift+Tab keep moving focus: a recorder that swallowed them
+    // would trap a keyboard user. Leaving the recorder cancels the recording.
+    if (event.key === "Tab" && !event.ctrlKey && !event.altKey && !event.metaKey) {
+      stopRecording();
+      return;
+    }
     // Keep the key away from GlobalShortcuts (document) and from window
     // listeners such as the sidebar primitive that ignore defaultPrevented.
     event.preventDefault();
@@ -205,9 +211,9 @@ export function KeyboardShortcutsTab() {
       })}
 
       {visibleActions.length === 0 ? (
-        <div className="rounded-lg border border-dashed px-4 py-10 text-center text-body text-muted-foreground">
-          {t("no_results")}
-        </div>
+        <SettingsCard>
+          <SettingsEmpty icon={<Search aria-hidden />}>{t("no_results")}</SettingsEmpty>
+        </SettingsCard>
       ) : null}
 
       <SettingsSection title={t("fixed.title")} description={t("fixed.description")}>
@@ -260,6 +266,8 @@ function ShortcutRow({
   const text = useActionText();
   const label = text.label(action.id);
   const recorderRef = useRef<HTMLButtonElement>(null);
+  const hintId = useId();
+  const errorId = useId();
   let errorText: string | null = null;
   switch (error?.kind) {
     case "reserved":
@@ -292,12 +300,18 @@ function ShortcutRow({
             onKeyDown={recording ? onCapture : undefined}
             onBlur={onCancelRecording}
             className={cn(
-              "inline-flex h-8 min-w-28 items-center justify-center rounded-md border bg-background px-2.5 font-mono text-caption font-medium shadow-xs transition-colors hover:bg-surface-hover pointer-coarse:min-h-11",
-              recording && "border-brand bg-brand/5 text-brand ring-2 ring-brand/20",
+              // border-input like an Input: a bare `border` is currentColor in
+              // Tailwind v4, black in light and glaring white in dark.
+              "inline-flex h-8 min-w-28 items-center justify-center rounded-md border border-input bg-background px-2.5 font-mono text-caption font-medium shadow-xs transition-colors hover:bg-surface-hover pointer-coarse:min-h-11",
+              recording &&
+                "border-brand bg-brand-subtle text-brand-subtle-foreground ring-2 ring-brand/20 hover:bg-brand-subtle",
               error && "border-destructive text-destructive ring-destructive/20",
             )}
             aria-label={t("record_aria", { action: label })}
             aria-pressed={recording}
+            aria-describedby={
+              recording ? (errorText ? `${errorId} ${hintId}` : hintId) : undefined
+            }
           >
             {recording ? (
               <span className="inline-flex items-center gap-1.5 font-sans">
@@ -330,25 +344,37 @@ function ShortcutRow({
           ) : (
             <span aria-hidden className="size-7 shrink-0 pointer-coarse:size-11" />
           )}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={onDisable}
-            aria-disabled={shortcut === null}
-            aria-label={t("disable_action", { action: label })}
-            title={t("disable")}
-          >
-            <X aria-hidden className="size-3.5" />
-          </Button>
+          {/* Nothing to clear on an unassigned row: a same-size placeholder
+              instead of a dead button, as for reset. */}
+          {shortcut ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => {
+                onDisable();
+                // The clear button leaves with the shortcut; keep focus in the row.
+                recorderRef.current?.focus();
+              }}
+              aria-label={t("disable_action", { action: label })}
+              title={t("disable")}
+            >
+              <X aria-hidden className="size-3.5" />
+            </Button>
+          ) : (
+            <span aria-hidden className="size-7 shrink-0 pointer-coarse:size-11" />
+          )}
         </div>
         {errorText ? (
-          <span role="alert" className="max-w-72 text-right text-caption text-destructive">
+          <span id={errorId} role="alert" className="max-w-72 text-right text-caption text-destructive">
             {errorText}
           </span>
-        ) : recording ? (
-          <span className="text-right text-micro text-muted-foreground">{t("record_hint")}</span>
         ) : null}
+        {/* Always mounted: a live region inserted with its first message is
+            not reliably announced, and the hint must be heard as recording starts. */}
+        <span id={hintId} role="status" className="text-right text-micro text-muted-foreground empty:hidden">
+          {recording ? t("record_hint") : null}
+        </span>
       </div>
     </SettingsRow>
   );

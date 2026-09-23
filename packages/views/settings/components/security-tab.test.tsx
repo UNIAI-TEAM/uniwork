@@ -91,7 +91,7 @@ describe("SecurityTab", () => {
     setSessionUser(user);
     requestMock.mockRejectedValue(new ApiError("boom", "internal", 500));
     render(wrapWithNav(<SecurityTab />));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Không tải được danh sách phiên.");
+    expect(await screen.findByText("Không tải được danh sách phiên.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
   });
 
@@ -119,6 +119,74 @@ describe("SecurityTab", () => {
     fireEvent.click(screen.getByRole("button", { name: "Tôi đã lưu mã" }));
     // The refetched user has MFA on, so the card now offers "disable".
     expect(await screen.findByRole("button", { name: "Tắt MFA" })).toBeInTheDocument();
+  });
+
+  it("refuses a short or wrong enrolment code under the field and puts focus back there", async () => {
+    setSessionUser(user);
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/me/mfa/setup") return Promise.resolve({ secret: "JBSWY3DPEHPK3PXP", otpauth_url: "otpauth://totp/x" });
+      if (path === "/api/v1/me/mfa/confirm") return Promise.reject(new ApiError("Mã không khớp.", "invalid_code", 400));
+      return Promise.resolve({ sessions: [] });
+    });
+    render(wrapWithNav(<SecurityTab />));
+    fireEvent.click(await screen.findByRole("button", { name: "Bật MFA" }));
+    const input = await screen.findByLabelText("Mã 6 số từ ứng dụng");
+
+    fireEvent.change(input, { target: { value: "123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Xác nhận và bật" }));
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAccessibleDescription("Nhập đủ 6 chữ số ứng dụng hiện ra.");
+    expect(input).toHaveFocus();
+    expect(requestMock.mock.calls.some(([path]) => path === "/api/v1/me/mfa/confirm")).toBe(false);
+
+    fireEvent.change(input, { target: { value: "123456" } });
+    expect(input).not.toHaveAttribute("aria-invalid");
+    fireEvent.click(screen.getByRole("button", { name: "Xác nhận và bật" }));
+    await waitFor(() => expect(input).toHaveAccessibleDescription("Mã không khớp."));
+    expect(input).toHaveFocus();
+  });
+
+  it("labels the disable-MFA field visibly, keeps a text keyboard for recovery codes, and refuses inline", async () => {
+    setSessionUser({ ...user, mfa_enabled_at: "2026-09-07T00:00:00Z" });
+    requestMock.mockImplementation((path: string) =>
+      path === "/api/v1/me/mfa/disable"
+        ? Promise.reject(new ApiError("Mã không đúng.", "invalid_code", 400))
+        : Promise.resolve({ sessions: [] }),
+    );
+    render(wrapWithNav(<SecurityTab />));
+    const input = await screen.findByLabelText("Mã xác thực");
+    expect(input).not.toHaveAttribute("inputmode", "numeric");
+    expect(input).not.toHaveAttribute("placeholder");
+
+    fireEvent.click(screen.getByRole("button", { name: "Tắt MFA" }));
+    expect(input).toHaveAccessibleDescription(/Nhập mã từ ứng dụng hoặc một mã khôi phục\./);
+    expect(input).toHaveFocus();
+
+    fireEvent.change(input, { target: { value: "abcde-12345" } });
+    fireEvent.click(screen.getByRole("button", { name: "Tắt MFA" }));
+    await waitFor(() => expect(input).toHaveAccessibleDescription(/Mã không đúng\./));
+  });
+
+  it("keeps a refused account deletion under the proof field, not in a toast", async () => {
+    setSessionUser(user);
+    requestMock.mockImplementation((path: string) =>
+      path === "/api/v1/me/delete"
+        ? Promise.reject(new ApiError("Mật khẩu không đúng.", "invalid_password", 400))
+        : Promise.resolve({ sessions: [] }),
+    );
+    render(wrapWithNav(<SecurityTab />));
+    fireEvent.click(await screen.findByRole("button", { name: "Xóa tài khoản" }));
+    const proof = await screen.findByLabelText("Nhập mật khẩu hiện tại để xác nhận");
+
+    fireEvent.click(screen.getByRole("button", { name: "Xóa vĩnh viễn" }));
+    expect(proof).toHaveAttribute("aria-invalid", "true");
+    expect(proof).toHaveAccessibleDescription(/^Nhập mật khẩu để xác nhận\./);
+    expect(proof).toHaveFocus();
+
+    fireEvent.change(proof, { target: { value: "wrong" } });
+    fireEvent.click(screen.getByRole("button", { name: "Xóa vĩnh viễn" }));
+    await waitFor(() => expect(proof).toHaveAccessibleDescription(/^Mật khẩu không đúng\./));
+    expect(proof).toHaveFocus();
   });
 
   it("asks for the password before deleting a password account and signs out after", async () => {

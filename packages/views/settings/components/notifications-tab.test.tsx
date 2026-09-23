@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
 import { registerPushAdapter } from "@uniwork/core/platform";
 import { NOTIFICATION_KINDS } from "@uniwork/core/types/notification";
@@ -125,5 +126,54 @@ describe("NotificationsTab", () => {
         expect.objectContaining({ method: "POST", body: { endpoint: "https://p/x", keys: { p256dh: "p", auth: "a" } } }),
       ),
     );
+  });
+
+  it("shows a load error with retry instead of a guessed matrix, and writes nothing", async () => {
+    let fail = true;
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/notifications/push/config") return Promise.resolve({ enabled: false, public_key: "" });
+      if (path === "/api/v1/me/notification-preferences") {
+        return fail ? Promise.reject(new ApiError("boom", "internal", 500)) : Promise.resolve({ preferences: prefs });
+      }
+      return Promise.resolve({ status: "ok" });
+    });
+    render(wrap(<NotificationsTab />));
+    expect(await screen.findByText("Không tải được phần này.")).toBeInTheDocument();
+    expect(screen.queryByRole("switch")).toBeNull();
+
+    fail = false;
+    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    expect(await screen.findByRole("switch", { name: "Được nhắc đến · Email" })).toHaveAttribute("aria-checked", "false");
+    expect(requestMock.mock.calls.some(([, init]) => (init as { method?: string } | undefined)?.method === "PUT")).toBe(false);
+  });
+
+  it("reports a failed toggle inline only, with no toast", async () => {
+    requestMock.mockImplementation((path: string, init?: { method?: string }) => {
+      if (path === "/api/v1/notifications/push/config") return Promise.resolve({ enabled: false, public_key: "" });
+      if (init?.method === "PUT") return Promise.reject(new ApiError("boom", "internal", 500));
+      return Promise.resolve({ preferences: prefs });
+    });
+    render(wrap(<NotificationsTab />));
+    fireEvent.click(await screen.findByRole("switch", { name: "Được nhắc đến · Email" }));
+    expect(await screen.findByText("Không lưu được")).toBeInTheDocument();
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it("explains a refused browser permission under the switch, not in a toast", async () => {
+    mockApi(true);
+    registerPushAdapter({
+      permission: () => "default",
+      requestPermission: () => Promise.resolve("denied"),
+      current: () => Promise.resolve(null),
+      subscribe: () => Promise.reject(new Error("unreachable")),
+      unsubscribe: () => Promise.resolve(null),
+    });
+    render(wrap(<NotificationsTab />));
+    const browser = await screen.findByRole("switch", { name: "Nhận thông báo đẩy trên trình duyệt này" });
+    await waitFor(() => expect(browser).not.toHaveAttribute("aria-busy"));
+    fireEvent.click(browser);
+    await waitFor(() => expect(browser).toHaveAccessibleDescription(/Trình duyệt đang chặn thông báo/));
+    expect(toastError).not.toHaveBeenCalled();
+    expect(screen.queryByText("Không lưu được")).toBeNull();
   });
 });

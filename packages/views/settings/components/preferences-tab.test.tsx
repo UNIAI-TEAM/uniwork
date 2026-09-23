@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import { ThemeProvider } from "@uniwork/ui/components/common/theme-provider";
@@ -57,17 +58,44 @@ describe("PreferencesTab", () => {
     );
     renderTab();
     const input = screen.getByRole("combobox", { name: "Múi giờ" });
-    expect(input).toHaveValue("(UTC+07:00) Asia/Ho Chi Minh");
+    expect(input).toHaveValue("(UTC+07:00) Hồ Chí Minh · Giờ Đông Dương");
 
     fireEvent.change(input, { target: { value: "Tokyo" } });
     fireEvent.keyDown(input, { key: "ArrowDown" });
     const list = await screen.findByRole("listbox");
-    fireEvent.click(within(list).getByText("(UTC+09:00) Asia/Tokyo"));
+    fireEvent.click(within(list).getByText("(UTC+09:00) Tokyo · Giờ Chuẩn Nhật Bản"));
 
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/me", expect.objectContaining({ method: "PATCH", body: { timezone: "Asia/Tokyo" } })),
     );
     expect(await screen.findByText("Đã lưu")).toBeInTheDocument();
     expect(toastSuccess).not.toHaveBeenCalled();
+  });
+
+  it("finds Vietnam's zone from an unaccented city it does not name", async () => {
+    renderTab();
+    const input = screen.getByRole("combobox", { name: "Múi giờ" });
+    fireEvent.change(input, { target: { value: "ha noi" } });
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    const list = await screen.findByRole("listbox");
+    expect(within(list).getByText("(UTC+07:00) Hồ Chí Minh · Giờ Đông Dương")).toBeInTheDocument();
+  });
+
+  it("reports a refused time zone inline only and shows the saved zone again", async () => {
+    requestMock.mockRejectedValue(new ApiError("boom", "internal", 500));
+    renderTab();
+    const input = screen.getByRole("combobox", { name: "Múi giờ" });
+    fireEvent.change(input, { target: { value: "Tokyo" } });
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    fireEvent.click(within(await screen.findByRole("listbox")).getByText("(UTC+09:00) Tokyo · Giờ Chuẩn Nhật Bản"));
+
+    expect(await screen.findByText("Không lưu được")).toBeInTheDocument();
+    expect(toastError).not.toHaveBeenCalled();
+    await waitFor(() => expect(input).toHaveValue("(UTC+07:00) Hồ Chí Minh · Giờ Đông Dương"));
+  });
+
+  it("gives the language select the same height as the time zone field", () => {
+    renderTab();
+    expect(screen.getByRole("combobox", { name: "Ngôn ngữ" })).toHaveAttribute("data-size", "default");
   });
 });

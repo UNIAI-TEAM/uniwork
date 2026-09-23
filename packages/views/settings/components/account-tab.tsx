@@ -1,23 +1,33 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, Loader2 } from "lucide-react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { Camera, Check, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
-import { toastApiError } from "../../toast-api-error";
+import { apiErrorMessage } from "@uniwork/core/api";
 import { useAuthStore, usePatchMe, useUploadAvatar } from "@uniwork/core/auth";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { initials } from "../../people/actor-chip";
-import { SettingsCard, SettingsRow, SettingsSaveState, SettingsTab, SettingsValue } from "./settings-layout";
+import { cn } from "@uniwork/ui/lib/utils";
+import {
+  SettingsCard,
+  SettingsFieldError,
+  SettingsRow,
+  SettingsSaveState,
+  SettingsTab,
+  SettingsValue,
+} from "./settings-layout";
 import { useAutoSave } from "./use-auto-save";
 
 /** Mirrors `server/internal/handler/avatar.go`: the sniffed types and `maxAvatarBytes` (2 MiB). */
 const AVATAR_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 const AVATAR_MAX_BYTES = 2 << 20;
+/** Mirrors `maxDisplayNameRunes` in `server/internal/service/auth.go`. */
+const DISPLAY_NAME_MAX = 100;
 
-type AvatarError = "type" | "size" | "upload" | null;
+/** What the avatar row last said: a refusal (with the server's words) or the upload landing. */
+type AvatarNotice = { kind: "type" | "size" } | { kind: "upload"; message?: string } | { kind: "done" } | null;
 
 function namesEqual(left: string, right: string) {
   return left === right;
@@ -28,6 +38,8 @@ export function AccountTab() {
   const user = useAuthStore((s) => s.user);
   const patchMe = usePatchMe();
   const [displayName, setDisplayName] = useState(user?.display_name ?? "");
+  const nameErrorId = useId();
+  const nameEmpty = displayName.trim().length === 0;
 
   useEffect(() => {
     setDisplayName(user?.display_name ?? "");
@@ -41,13 +53,13 @@ export function AccountTab() {
     [patchMe, t],
   );
 
-  // Saved state is reported inline beside the title; only a failure toasts.
+  // Success and failure both report inline beside the title, never a toast.
+  // An empty name is not sent: the field says why instead.
   const autoSave = useAutoSave({
     value: displayName,
     savedValue: user?.display_name ?? "",
     onSave: saveProfile,
-    onError: (err) => toastApiError(err, t("profile.toastFailed")),
-    enabled: !!user && displayName.trim().length > 0,
+    enabled: !!user && !nameEmpty,
     isEqual: namesEqual,
   });
 
@@ -66,13 +78,24 @@ export function AccountTab() {
       <SettingsCard>
         <AvatarRow />
         <SettingsRow label={t("profile.displayName")} size="text">
-          <Input
-            value={displayName}
-            autoComplete="name"
-            aria-label={t("profile.displayName")}
-            onChange={(e) => setDisplayName(e.target.value)}
-            onBlur={autoSave.flush}
-          />
+          <div className="flex flex-col gap-1.5">
+            <Input
+              value={displayName}
+              autoComplete="name"
+              maxLength={DISPLAY_NAME_MAX}
+              aria-label={t("profile.displayName")}
+              aria-invalid={nameEmpty || undefined}
+              aria-describedby={nameEmpty ? nameErrorId : undefined}
+              onChange={(e) => setDisplayName(e.target.value)}
+              onBlur={() => {
+                // Leaving the field empty would leave a name that is shown but
+                // never saved; put the saved one back instead.
+                if (nameEmpty) setDisplayName(user?.display_name ?? "");
+                else autoSave.flush();
+              }}
+            />
+            {nameEmpty ? <SettingsFieldError id={nameErrorId}>{t("profile.displayNameRequired")}</SettingsFieldError> : null}
+          </div>
         </SettingsRow>
         <SettingsRow label={t("profile.email")} description={t("profile.emailHint")} size="text">
           <SettingsValue>{user?.email ?? ""}</SettingsValue>
@@ -92,7 +115,7 @@ function AvatarRow() {
   const user = useAuthStore((s) => s.user);
   const uploadAvatar = useUploadAvatar();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [error, setError] = useState<AvatarError>(null);
+  const [notice, setNotice] = useState<AvatarNotice>(null);
   const pending = uploadAvatar.isPending;
   const name = user?.display_name ?? "";
 
@@ -103,31 +126,34 @@ function AvatarRow() {
   const onPicked = async (file: File | undefined) => {
     if (!file) return;
     if (!AVATAR_TYPES.includes(file.type)) {
-      setError("type");
+      setNotice({ kind: "type" });
       return;
     }
     if (file.size > AVATAR_MAX_BYTES) {
-      setError("size");
+      setNotice({ kind: "size" });
       return;
     }
-    setError(null);
+    setNotice(null);
+    // One channel: the line under the button, where the reader acted. The
+    // new photo itself is the success signal; the line only confirms it.
     try {
       await uploadAvatar.mutateAsync(file);
-      toast.success(t("toastAvatarUpdated"));
+      setNotice({ kind: "done" });
     } catch (err) {
-      setError("upload");
-      toastApiError(err, t("avatarUploadFailed"));
+      setNotice({ kind: "upload", message: apiErrorMessage(err) });
     }
   };
 
-  const errorText =
-    error === "type"
+  const noticeText =
+    notice?.kind === "type"
       ? t("avatarWrongType")
-      : error === "size"
+      : notice?.kind === "size"
         ? t("avatarTooLarge")
-        : error === "upload"
-          ? t("avatarUploadFailed")
-          : null;
+        : notice?.kind === "upload"
+          ? (notice.message ?? t("avatarUploadFailed"))
+          : notice?.kind === "done"
+            ? t("toastAvatarUpdated")
+            : null;
 
   return (
     <SettingsRow label={t("avatar")} description={t("avatarHint")} size="none">
@@ -156,12 +182,27 @@ function AvatarRow() {
               <Camera className="size-3" />
             </span>
           </button>
-          <Button variant="outline" size="sm" aria-disabled={pending || undefined} onClick={pick}>
+          <Button
+            variant="outline"
+            size="sm"
+            aria-disabled={pending || undefined}
+            aria-busy={pending || undefined}
+            onClick={pick}
+          >
+            {pending ? <Loader2 aria-hidden className="size-3.5 animate-spin" /> : null}
             {pending ? t("avatarUploading") : t("avatarChange")}
           </Button>
         </div>
-        <span role="status" className="min-h-0 text-caption text-destructive empty:hidden">
-          {errorText}
+        {/* Mounted while empty so the first message is announced. */}
+        <span
+          role="status"
+          className={cn(
+            "flex min-h-0 items-center gap-1.5 text-caption empty:hidden",
+            notice?.kind === "done" ? "text-muted-foreground" : "text-destructive",
+          )}
+        >
+          {notice?.kind === "done" ? <Check aria-hidden className="size-3.5 shrink-0 text-success" /> : null}
+          {noticeText}
         </span>
         <input
           ref={fileRef}
