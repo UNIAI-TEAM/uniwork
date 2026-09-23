@@ -24,6 +24,21 @@ vi.mock("../meetings/new-meeting-dialog", () => ({
 }));
 
 describe("CreateFromSlot", () => {
+  it("uses generic create copy when opened without a selected slot", () => {
+    render(
+      wrap(
+        <CreateFromSlot
+          workspaceId="ws1"
+          open
+          onOpenChange={() => {}}
+          slot={null}
+        />,
+      ),
+    );
+
+    expect(screen.getByRole("heading", { name: "Tạo mục lịch" })).toBeInTheDocument();
+  });
+
   it("opens task dialog with due_date prefill after choosing new task", () => {
     const onOpenChange = vi.fn();
     render(

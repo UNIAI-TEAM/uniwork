@@ -47,6 +47,9 @@ vi.mock("@uniwork/core/calendar", () => ({
 }));
 
 const hostProps = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
+const createFromSlotProps = vi.hoisted(() => ({
+  current: {} as Record<string, unknown>,
+}));
 
 vi.mock("./fullcalendar-host", () => ({
   FullCalendarHost: (props: Record<string, unknown>) => {
@@ -62,7 +65,10 @@ vi.mock("./calendar-mutations", () => ({
 }));
 
 vi.mock("./create-from-slot", () => ({
-  CreateFromSlot: () => <div data-testid="create-from-slot" />,
+  CreateFromSlot: (props: Record<string, unknown>) => {
+    createFromSlotProps.current = props;
+    return <div data-testid="create-from-slot" />;
+  },
 }));
 
 vi.mock("../meetings/new-meeting-dialog", () => ({
@@ -130,6 +136,23 @@ describe("CalendarPageView", () => {
 
     expect(calendarEventsRefetch).toHaveBeenCalledTimes(1);
     expect(calendarSidebarQuery.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens quick create without forcing a calendar slot", () => {
+    render(
+      wrap(
+        <CalendarPageView
+          workspaceId="ws1"
+          onOpenTask={() => {}}
+          onOpenMeeting={() => {}}
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Tạo mục lịch" }));
+
+    expect(createFromSlotProps.current.open).toBe(true);
+    expect(createFromSlotProps.current.slot).toBeNull();
   });
 
   it("updates the events query range when the toolbar changes month", () => {
