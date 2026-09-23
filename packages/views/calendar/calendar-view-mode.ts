@@ -70,8 +70,14 @@ export function fcViewForMode(mode: CalendarViewMode): string {
   }
 }
 
-export function fcHiddenDays(mode: CalendarViewMode): number[] {
-  return mode === "work_week" ? WORK_WEEK_HIDDEN_DAYS : NO_HIDDEN_DAYS;
+export function fcHiddenDays(
+  mode: CalendarViewMode,
+  showWeekends: boolean = true,
+): number[] {
+  if (mode === "day") return NO_HIDDEN_DAYS;
+  return mode === "work_week" || !showWeekends
+    ? WORK_WEEK_HIDDEN_DAYS
+    : NO_HIDDEN_DAYS;
 }
 
 /** Toolbar center label for the visible calendar period. */

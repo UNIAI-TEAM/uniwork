@@ -57,6 +57,7 @@ export function FullCalendarHost(props: {
   events: CalendarEvent[];
   initialDate: string;
   viewMode: CalendarViewMode;
+  showWeekends?: boolean;
   language?: string;
   viewerTimeZone?: string;
   onDatesSet: (range: { from: string; to: string }) => void;
@@ -78,7 +79,8 @@ export function FullCalendarHost(props: {
   );
   const fcEvents = useMemo(() => props.events.map(toFcEvent), [props.events]);
   const initialView = fcViewForMode(props.viewMode);
-  const hiddenDays = fcHiddenDays(props.viewMode);
+  const showWeekends = props.showWeekends !== false;
+  const hiddenDays = fcHiddenDays(props.viewMode, showWeekends);
   const isTimeGrid = props.viewMode !== "month";
   const calendarLocale = props.language?.startsWith("vi")
     ? viCalendarLocale
@@ -211,7 +213,7 @@ export function FullCalendarHost(props: {
         </Button>
       ) : null}
       <FullCalendar
-        key={`${props.viewMode}-${props.initialDate}`}
+        key={`${props.viewMode}-${props.initialDate}-${showWeekends ? "weekends" : "weekdays"}`}
         plugins={FC_PLUGINS}
         initialView={initialView}
         initialDate={props.initialDate}

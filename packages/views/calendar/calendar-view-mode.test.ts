@@ -15,9 +15,13 @@ describe("calendar-view-mode", () => {
     expect(fcViewForMode("week")).toBe("timeGridWeek");
     expect(fcViewForMode("month")).toBe("dayGridMonth");
   });
-  it("hides weekends only for work_week", () => {
-    expect(fcHiddenDays("work_week")).toEqual([0, 6]);
-    expect(fcHiddenDays("week")).toEqual([]);
+  it("hides weekends for work-week and configurable multi-day views", () => {
+    expect(fcHiddenDays("work_week", true)).toEqual([0, 6]);
+    expect(fcHiddenDays("work_week", false)).toEqual([0, 6]);
+    expect(fcHiddenDays("week", true)).toEqual([]);
+    expect(fcHiddenDays("week", false)).toEqual([0, 6]);
+    expect(fcHiddenDays("month", false)).toEqual([0, 6]);
+    expect(fcHiddenDays("day", false)).toEqual([]);
   });
   it("shifts anchor by period", () => {
     const d = new Date("2026-09-15T12:00:00Z");

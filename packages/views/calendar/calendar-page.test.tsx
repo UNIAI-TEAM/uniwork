@@ -101,6 +101,7 @@ describe("CalendarPageView", () => {
     expect(hostProps.current.onSlotSelect).toEqual(expect.any(Function));
     expect(hostProps.current.language).toBe("vi");
     expect(hostProps.current.viewerTimeZone).toEqual(expect.any(String));
+    expect(hostProps.current.showWeekends).toBe(true);
     expect(screen.getByTestId("create-from-slot")).toBeInTheDocument();
   });
 
@@ -153,6 +154,23 @@ describe("CalendarPageView", () => {
 
     expect(createFromSlotProps.current.open).toBe(true);
     expect(createFromSlotProps.current.slot).toBeNull();
+  });
+
+  it("passes the weekend visibility setting to the calendar grid", () => {
+    render(
+      wrap(
+        <CalendarPageView
+          workspaceId="ws1"
+          onOpenTask={() => {}}
+          onOpenMeeting={() => {}}
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Cài đặt lịch" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Hiện cuối tuần" }));
+
+    expect(hostProps.current.showWeekends).toBe(false);
   });
 
   it("updates the events query range when the toolbar changes month", () => {
