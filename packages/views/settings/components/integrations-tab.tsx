@@ -37,10 +37,15 @@ function EmailHubRow() {
   const accounts = useEmailHubAccounts(workspace.id);
   const href = paths.workspace(workspace.organization_slug, workspace.slug).email();
   const count = accounts.data?.accounts.length ?? 0;
+  // Until the list arrives (or when it fails) nothing is known about the
+  // reader's mailboxes, so neither the badge nor the action claims "none".
+  const known = !accounts.isLoading && !accounts.isError;
 
   const badge = accounts.isLoading ? (
     <Skeleton className="h-5 w-24" />
-  ) : accounts.isError ? null : count > 0 ? (
+  ) : accounts.isError ? (
+    <SettingsBadge tone="destructive">{t("email_hub.load_error")}</SettingsBadge>
+  ) : count > 0 ? (
     <SettingsBadge tone="success">{t("email_hub.connected", { count })}</SettingsBadge>
   ) : (
     <SettingsBadge tone="muted">{t("email_hub.not_connected")}</SettingsBadge>
@@ -54,7 +59,7 @@ function EmailHubRow() {
       badge={badge}
       actions={
         <AppLink href={href} className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
-          {count > 0 ? t("email_hub.open") : t("email_hub.connect")}
+          {known && count === 0 ? t("email_hub.connect") : t("email_hub.open")}
         </AppLink>
       }
     />

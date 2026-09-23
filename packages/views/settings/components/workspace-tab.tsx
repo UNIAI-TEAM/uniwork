@@ -1,24 +1,35 @@
 "use client";
 
 import { Copy } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import { useWorkspacePermissions } from "@uniwork/core/permissions";
 import { usePatchWorkspace } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { copyText } from "@uniwork/ui/lib/clipboard";
 import { toast } from "sonner";
 import { useWorkspace } from "../../layout/workspace-context";
 import { useOptionalNavigation } from "../../navigation";
 import { toastApiError } from "../../toast-api-error";
-import { SettingsCard, SettingsRow, SettingsSaveState, SettingsTab, SettingsValue } from "./settings-layout";
+import {
+  SettingsCard,
+  SettingsFieldError,
+  SettingsRow,
+  SettingsSaveState,
+  SettingsTab,
+  SettingsValue,
+} from "./settings-layout";
 import { useAutoSave } from "./use-auto-save";
 
 function namesEqual(left: string, right: string) {
   return left === right;
 }
+
+/** Mirrors maxWorkspaceNameRunes in server/internal/service/workspace.go. */
+const MAX_NAME_LENGTH = 100;
 
 /**
  * What the workspace is called, where it lives and whom it belongs to. The
@@ -34,6 +45,9 @@ export function WorkspaceTab() {
   const patchWorkspace = usePatchWorkspace(workspace.organization_slug, workspace.slug);
   const [name, setName] = useState(workspace.name);
   const canEdit = canUpdateSettings.allowed;
+  const nameEmpty = name.trim().length === 0;
+  const hintId = useId();
+  const errorId = useId();
   const path = paths.workspace(workspace.organization_slug, workspace.slug).root();
   const url = navigation?.getShareableUrl(path) ?? path;
 
@@ -55,9 +69,19 @@ export function WorkspaceTab() {
     savedValue: workspace.name,
     onSave: saveName,
     onError: (err) => toastApiError(err, t("save.error")),
-    enabled: canEdit && name.trim().length > 0,
+    // An empty name is refused by the server; it is flagged inline instead
+    // and put back on blur, never sent.
+    enabled: canEdit && !nameEmpty,
     isEqual: namesEqual,
   });
+
+  const onNameBlur = () => {
+    if (nameEmpty) {
+      setName(workspace.name);
+      return;
+    }
+    autoSave.flush();
+  };
 
   const copyUrl = async () => {
     if (await copyText(url)) {
@@ -86,15 +110,25 @@ export function WorkspaceTab() {
         <SettingsRow
           label={t("workspace.name")}
           description={canEdit || permissionsLoading ? t("workspace.name_hint") : t("workspace.name_read_only")}
+          descriptionId={hintId}
           size="text"
         >
-          {canEdit ? (
-            <Input
-              value={name}
-              aria-label={t("workspace.name")}
-              onChange={(e) => setName(e.target.value)}
-              onBlur={autoSave.flush}
-            />
+          {permissionsLoading ? (
+            // Input-sized, so the row does not jump when the field arrives.
+            <Skeleton aria-hidden className="h-8 w-full" />
+          ) : canEdit ? (
+            <div className="space-y-1.5">
+              <Input
+                value={name}
+                maxLength={MAX_NAME_LENGTH}
+                aria-label={t("workspace.name")}
+                aria-invalid={nameEmpty || undefined}
+                aria-describedby={nameEmpty ? `${errorId} ${hintId}` : hintId}
+                onChange={(e) => setName(e.target.value)}
+                onBlur={onNameBlur}
+              />
+              {nameEmpty ? <SettingsFieldError id={errorId}>{t("workspace.name_required")}</SettingsFieldError> : null}
+            </div>
           ) : (
             <SettingsValue>{workspace.name}</SettingsValue>
           )}

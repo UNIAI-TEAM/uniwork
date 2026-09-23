@@ -36,10 +36,37 @@ export function AiTab() {
       </SettingsTab>
     );
   }
+  // A failed membership lookup says nothing about the reader's role: show the
+  // failure, not the admin-only wall.
+  if (me.isError) {
+    return (
+      <SettingsTab title={t("title")} description={t("description")}>
+        <Notice
+          tone="destructive"
+          icon={AlertCircle}
+          layout="inline"
+          live="assertive"
+          action={
+            <Button type="button" size="sm" variant="outline" onClick={() => void me.refetch()}>
+              {t("retry")}
+            </Button>
+          }
+        >
+          {t("access_error")}
+        </Notice>
+      </SettingsTab>
+    );
+  }
   if (!me.data || !ADMIN_ROLES.has(me.data.role)) {
     return (
       <SettingsTab title={t("title")}>
-        <CollectionPageState icon={ShieldAlert} title={t("forbidden_title")} description={t("forbidden_description")} role="status" />
+        <CollectionPageState
+          icon={ShieldAlert}
+          title={t("forbidden_title")}
+          description={t("forbidden_description")}
+          role="status"
+          headingLevel={3}
+        />
       </SettingsTab>
     );
   }
@@ -81,6 +108,7 @@ export function AiTab() {
             title={t("disabled_title")}
             description={t("disabled_description")}
             role="status"
+            headingLevel={3}
             className="py-10"
           />
         </SettingsCard>

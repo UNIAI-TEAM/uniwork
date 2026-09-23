@@ -65,6 +65,26 @@ describe("MembersView", () => {
     await screen.findByRole("note");
     expect(screen.queryByRole("button", { name: "Mời thành viên" })).not.toBeInTheDocument();
     expect(screen.getByRole("note")).toHaveTextContent(/chủ sở hữu và quản trị viên/);
+    // The reason sits under the section it replaces, not loose on the page.
+    expect(screen.getByRole("heading", { name: "Mời vào workspace" })).toBeInTheDocument();
+  });
+
+  it("says the list failed to load, with a retry, instead of claiming there are no members", async () => {
+    let fail = true;
+    requestMock.mockImplementation((...args: unknown[]) => {
+      const path = String(args[0] ?? "");
+      if (path.endsWith("/me")) return Promise.resolve({ membership: { user_id: "u-me", role: "owner", source: "membership" } });
+      if (path.endsWith("/members")) {
+        return fail ? Promise.reject(new Error("offline")) : Promise.resolve({ members: [memberRow("owner")] });
+      }
+      return Promise.reject(new Error(`unexpected ${path}`));
+    });
+    render(wrap(<MembersView workspaceId="w1" />));
+    expect(await screen.findByText("Không tải được danh sách thành viên.")).toBeInTheDocument();
+    expect(screen.queryByText("Chưa có thành viên nào.")).not.toBeInTheDocument();
+    fail = false;
+    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    expect(await screen.findByText("u-me")).toBeInTheDocument();
   });
 
   it("lets an org admin without a members row invite and manage others", async () => {
@@ -102,10 +122,14 @@ describe("MembersView", () => {
     });
     render(wrap(<MembersView workspaceId="w1" />));
     await screen.findByText("u-owner");
-    // Only self (admin) is removable — not the owner row — and for self the
-    // action reads as leaving.
+    // Only self (admin) is removable — not the owner row — and leaving lives
+    // in the danger zone at the end, not on the reader's own row.
     expect(screen.queryAllByRole("button", { name: "Xóa khỏi workspace" })).toHaveLength(0);
+    expect(within(screen.getByRole("list", { name: "Thành viên" })).queryByRole("button", { name: "Rời workspace" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Vùng nguy hiểm" })).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Rời workspace" })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Rời workspace" }));
+    expect(await screen.findByRole("alertdialog")).toHaveTextContent("Rời workspace này?");
     // The owner's role is translated, never the raw schema value.
     expect(screen.getByText("Chủ sở hữu")).toBeInTheDocument();
     expect(screen.queryByText("owner")).not.toBeInTheDocument();

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
@@ -61,8 +61,25 @@ describe("WorkspaceTab", () => {
     expect(screen.getAllByRole("heading")).toHaveLength(1);
   });
 
-  it("lets an admin edit the name", async () => {
+  it("lets an admin edit the name, with the hint tied to the field and the server's length cap", async () => {
     renderAs("admin");
-    expect(await screen.findByRole("textbox", { name: "Tên workspace" })).toHaveValue("Đội Sản phẩm");
+    const input = await screen.findByRole("textbox", { name: "Tên workspace" });
+    expect(input).toHaveValue("Đội Sản phẩm");
+    expect(input).toHaveAccessibleDescription("Hiện ở thanh bên, trong lời mời và email thông báo.");
+    expect(input).toHaveAttribute("maxLength", "100");
+  });
+
+  it("flags an empty name instead of failing silently, and puts the name back on blur", async () => {
+    renderAs("admin");
+    const input = await screen.findByRole("textbox", { name: "Tên workspace" });
+    fireEvent.change(input, { target: { value: "   " } });
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAccessibleDescription(/Tên workspace không được để trống\./);
+    fireEvent.blur(input);
+    expect(input).toHaveValue("Đội Sản phẩm");
+    expect(input).not.toHaveAttribute("aria-invalid");
+    expect(screen.queryByText("Tên workspace không được để trống.")).toBeNull();
+    const patches = requestMock.mock.calls.filter(([, init]) => (init as { method?: string } | undefined)?.method === "PATCH");
+    expect(patches).toHaveLength(0);
   });
 });

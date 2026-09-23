@@ -34,7 +34,19 @@ describe("AiTab", () => {
   it("is admin-only", async () => {
     mockApi("member", []);
     render(wrap(<WorkspaceProvider workspace={workspace} user={user}><AiTab /></WorkspaceProvider>));
-    expect(await screen.findByText("Chỉ owner/admin workspace xem được")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 3, name: "Chỉ chủ sở hữu và quản trị workspace xem được" })).toBeInTheDocument();
+  });
+
+  it("shows a failed role lookup as an error with a retry, not as admin-only", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/workspaces/ws1/me") return Promise.reject(new Error("offline"));
+      if (path === "/api/v1/workspaces/ws1/ai/capabilities") return Promise.resolve(ENABLED);
+      return Promise.resolve({ from: "", to: "", rows: [] });
+    });
+    render(wrap(<WorkspaceProvider workspace={workspace} user={user}><AiTab /></WorkspaceProvider>));
+    expect(await screen.findByText("Không kiểm tra được quyền xem số liệu AI của bạn.")).toBeInTheDocument();
+    expect(screen.queryByText("Chỉ chủ sở hữu và quản trị workspace xem được")).toBeNull();
+    expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
   });
 
   it("shows the organization's quota as a meter and the empty state", async () => {
@@ -56,7 +68,7 @@ describe("AiTab", () => {
   it("says AI is off and who can turn it on, without inviting a try that would fail", async () => {
     mockApi("owner", [], { enabled: false });
     render(wrap(<WorkspaceProvider workspace={workspace} user={user}><AiTab /></WorkspaceProvider>));
-    expect(await screen.findByText("AI chưa được bật cho tổ chức này")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 3, name: "AI chưa được bật cho tổ chức này" })).toBeInTheDocument();
     expect(screen.getByText(/người vận hành UniWork/)).toBeInTheDocument();
     expect(screen.queryByText(/trên server/)).toBeNull();
     expect(screen.queryByText("Hạn mức của tổ chức")).toBeNull();
@@ -76,7 +88,9 @@ describe("AiTab", () => {
     render(wrap(<WorkspaceProvider workspace={workspace} user={user}><AiTab /></WorkspaceProvider>));
     expect(await screen.findByRole("img", { name: "Token mỗi ngày" })).toBeInTheDocument();
     fireEvent.click(screen.getByText("Token theo ngày"));
-    expect(screen.getByRole("cell", { name: today })).toBeInTheDocument();
+    const todayLabel = new Intl.DateTimeFormat("vi", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${today}T00:00:00Z`));
+    expect(screen.getByRole("cell", { name: todayLabel })).toBeInTheDocument();
+    expect(screen.queryByRole("cell", { name: today })).toBeNull();
     expect(screen.getByText("5")).toBeInTheDocument(); // calls
     expect(screen.getByText("1.400")).toBeInTheDocument(); // tokens in
     const byCapability = screen.getAllByRole("table").at(-1)!;

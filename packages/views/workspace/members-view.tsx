@@ -15,15 +15,18 @@ import { toast } from "sonner";
 import { ConfirmDialog } from "../common/form-dialog";
 import { useOptionalNavigation } from "../navigation";
 import { initials } from "../people/actor-chip";
-import { InviteForm, type InviteRole } from "../settings/components/invite-form";
+import { InviteForm, type InviteRole, type InviteSendResult } from "../settings/components/invite-form";
 import { MemberSearch, matchesMember } from "../settings/components/member-search";
 import { decisionReason } from "../settings/components/permission-reason";
 import {
   SettingsBadge,
-  SettingsCardBody,
+  SettingsCard,
+  SettingsDangerZone,
   SettingsEmpty,
   SettingsList,
   SettingsListItem,
+  SettingsLoadError,
+  SettingsRow,
   SettingsSection,
   SettingsSkeletonRows,
 } from "../settings/components/settings-layout";
@@ -32,13 +35,16 @@ import { toastApiError } from "../toast-api-error";
 /**
  * Workspace membership: who is in, in what role, and the invite form. The
  * API has no list of pending workspace invitations, so "Vừa gửi" shows only
- * what this page sent, and says so.
+ * what this page sent, and says so. Rendered inside Settings → Members, which
+ * owns the page heading. Leaving sits in the danger zone at the end, not on
+ * the reader's own row.
  */
-export function MembersView({ workspaceId, embedded = false }: { workspaceId: string; embedded?: boolean }) {
+export function MembersView({ workspaceId }: { workspaceId: string }) {
   const { t } = useTranslation();
   const { user } = useSession();
   const navigation = useOptionalNavigation();
-  const { data: members, isLoading } = useMembers(workspaceId);
+  const membersQuery = useMembers(workspaceId);
+  const { data: members, isLoading, isError } = membersQuery;
   const invite = useInvite(workspaceId);
   const updateRole = useUpdateMemberRole(workspaceId);
   const removeMember = useRemoveMember(workspaceId);
@@ -50,20 +56,22 @@ export function MembersView({ workspaceId, embedded = false }: { workspaceId: st
   } = useWorkspacePermissions(workspaceId);
   const [query, setQuery] = useState("");
   const [sent, setSent] = useState<string[]>([]);
-  const [skipped, setSkipped] = useState<string[]>([]);
   const [removing, setRemoving] = useState<Member | null>(null);
   const all = members ?? [];
   const shown = all.filter((m) => matchesMember(query, m));
   const removingSelf = removing !== null && removing.user_id === user?.id;
   const removingName = removing?.display_name || removing?.email || "";
+  const self = all.find((m) => m.user_id === user?.id) ?? null;
+  const canLeave = self !== null && decideRemove(self).allowed;
 
-  const send = async (emails: string[], role: InviteRole) => {
+  const send = async (emails: string[], role: InviteRole): Promise<InviteSendResult> => {
     try {
       const d = await invite.mutateAsync({ emails, role });
       setSent((s) => [...s, ...d.invitations.map((i) => i.email).filter((e) => !s.includes(e))]);
-      setSkipped(d.skipped);
-      toast.success(t("workspace.inviteSent", { count: d.invitations.length }));
-      return true;
+      // Every address skipped is not a success: no green toast for "sent 0".
+      if (d.invitations.length === 0) toast.warning(t("org.invitations.none_sent"));
+      else toast.success(t("workspace.inviteSent", { count: d.invitations.length }));
+      return { skipped: d.skipped };
     } catch (err) {
       toastApiError(err, t("common.error"));
       return false;
@@ -97,14 +105,21 @@ export function MembersView({ workspaceId, embedded = false }: { workspaceId: st
   const inviteReason =
     canInvite.reason === "not_admin_role" ? t("workspace.inviteNotAllowed") : decisionReason(t, canInvite);
 
-  const body = (
+  return (
     <div className="space-y-8">
       <SettingsSection
-        title={isLoading ? null : t("settings.members.count", { count: all.length })}
-        action={isLoading || all.length === 0 ? null : <MemberSearch value={query} onChange={setQuery} />}
+        title={isLoading || isError ? null : t("settings.members.count", { count: all.length })}
+        action={isLoading || isError || all.length === 0 ? null : <MemberSearch value={query} onChange={setQuery} />}
       >
         {isLoading ? (
           <SettingsSkeletonRows rows={3} withAvatar />
+        ) : isError ? (
+          // A failed load is not "no members yet".
+          <SettingsCard>
+            <SettingsLoadError onRetry={() => void membersQuery.refetch()}>
+              {t("settings.members.load_error")}
+            </SettingsLoadError>
+          </SettingsCard>
         ) : (
           <SettingsList aria-label={t("workspace.members")}>
             {shown.length === 0 ? (
@@ -118,8 +133,8 @@ export function MembersView({ workspaceId, embedded = false }: { workspaceId: st
             ) : null}
             {shown.map((m) => {
               const canChange = decideChangeRole(m).allowed;
-              const canRemove = decideRemove(m).allowed;
               const isSelf = m.user_id === user?.id;
+              const canRemove = !isSelf && decideRemove(m).allowed;
               const name = m.display_name || m.email;
               return (
                 <SettingsListItem
@@ -157,7 +172,7 @@ export function MembersView({ workspaceId, embedded = false }: { workspaceId: st
                       )}
                       {canRemove ? (
                         <Button type="button" variant="ghost" size="sm" onClick={() => setRemoving(m)}>
-                          {isSelf ? t("settings.members.leave") : t("workspace.removeMember")}
+                          {t("workspace.removeMember")}
                         </Button>
                       ) : null}
                     </>
@@ -179,18 +194,16 @@ export function MembersView({ workspaceId, embedded = false }: { workspaceId: st
             roleLabel={t("settings.members.invite_role")}
             pending={invite.isPending}
             onSend={send}
-          >
-            {skipped.length > 0 ? (
-              <SettingsCardBody className="text-caption text-muted-foreground">
-                {t("workspace.inviteSkipped", { list: skipped.join(", ") })}
-              </SettingsCardBody>
-            ) : null}
-          </InviteForm>
+          />
         </SettingsSection>
       ) : inviteReason ? (
-        <p className="text-body text-muted-foreground" role="note">
-          {inviteReason}
-        </p>
+        <SettingsSection title={t("settings.members.invite_title")}>
+          <SettingsCard>
+            <div role="note">
+              <SettingsEmpty>{inviteReason}</SettingsEmpty>
+            </div>
+          </SettingsCard>
+        </SettingsSection>
       ) : null}
 
       {sent.length > 0 ? (
@@ -208,6 +221,20 @@ export function MembersView({ workspaceId, embedded = false }: { workspaceId: st
         </SettingsSection>
       ) : null}
 
+      {canLeave && self ? (
+        <SettingsDangerZone title={t("settings.members.danger_title")}>
+          <SettingsRow
+            label={t("settings.members.leave")}
+            description={t("settings.members.leave_description")}
+            size="none"
+          >
+            <Button type="button" variant="destructive" onClick={() => setRemoving(self)}>
+              {t("settings.members.leave")}
+            </Button>
+          </SettingsRow>
+        </SettingsDangerZone>
+      ) : null}
+
       <ConfirmDialog
         open={removing !== null}
         onOpenChange={(open) => {
@@ -221,14 +248,6 @@ export function MembersView({ workspaceId, embedded = false }: { workspaceId: st
         onConfirm={confirmRemove}
         pending={removeMember.isPending}
       />
-    </div>
-  );
-
-  if (embedded) return body;
-  return (
-    <div className="mx-auto max-w-2xl p-6">
-      <h1 className="mb-6 text-title font-semibold text-foreground">{t("workspace.members")}</h1>
-      {body}
     </div>
   );
 }

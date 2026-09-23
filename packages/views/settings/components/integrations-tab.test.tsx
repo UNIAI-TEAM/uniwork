@@ -41,6 +41,17 @@ describe("IntegrationsTab", () => {
     expect(screen.getByRole("link", { name: "Mở Email Hub" })).toBeInTheDocument();
   });
 
+  it("says the count failed to load and offers a neutral way in, not \"connect\"", async () => {
+    requestMock.mockImplementation((path: string) =>
+      path === "/api/v1/workspaces/ws1/email-hub/accounts" ? Promise.reject(new Error("offline")) : Promise.resolve({}),
+    );
+    render(wrapWithNav(<WorkspaceProvider workspace={workspace} user={user}><IntegrationsTab /></WorkspaceProvider>));
+    const available = screen.getByRole("list", { name: "Dùng được" });
+    expect(await within(available).findByText("Không tải được")).toBeInTheDocument();
+    expect(within(available).queryByText("Bạn chưa kết nối")).toBeNull();
+    expect(within(available).getByRole("link", { name: "Mở Email Hub" })).toBeInTheDocument();
+  });
+
   it("shows only documented plans, locked, and prints the description once", () => {
     renderTab([]);
     const planned = screen.getByRole("list", { name: "Trong lộ trình" });

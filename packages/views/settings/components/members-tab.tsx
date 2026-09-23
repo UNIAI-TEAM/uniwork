@@ -11,7 +11,7 @@ export function MembersTab() {
 
   return (
     <SettingsTab title={t("page.tabs.members")} description={t("members.description")}>
-      <MembersView workspaceId={workspace.id} embedded />
+      <MembersView workspaceId={workspace.id} />
     </SettingsTab>
   );
 }

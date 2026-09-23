@@ -34,6 +34,15 @@ function dailyTokens(rows: AiUsageRow[], from: Date, days: number): { day: strin
   return out;
 }
 
+/** A UTC calendar day ("2026-09-01") in the reader's locale ("1 thg 9", "Sep 1"). */
+function dayFormatter(locale: string): (day: string) => string {
+  const fmt = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", timeZone: "UTC" });
+  return (day) => {
+    const date = new Date(`${day}T00:00:00Z`);
+    return Number.isNaN(date.getTime()) ? day : fmt.format(date);
+  };
+}
+
 /**
  * One series, so no legend: the title names it. A thin 2px stroke in the
  * text colour, a `<title>` per day for hover, and the table below is the
@@ -45,6 +54,7 @@ function Sparkline({ points, label, locale }: { points: { day: string; tokens: n
   const h = 40;
   const max = Math.max(1, ...points.map((p) => p.tokens));
   const step = points.length > 1 ? w / (points.length - 1) : 0;
+  const formatDay = dayFormatter(locale);
   const d = points.map((p, i) => `${i === 0 ? "M" : "L"}${(i * step).toFixed(1)},${(h - 2 - (p.tokens / max) * (h - 4)).toFixed(1)}`).join(" ");
   return (
     <>
@@ -52,7 +62,7 @@ function Sparkline({ points, label, locale }: { points: { day: string; tokens: n
         <path d={d} fill="none" stroke="currentColor" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
         {points.map((p, i) => (
           <circle key={p.day} cx={(i * step).toFixed(1)} cy={(h - 2 - (p.tokens / max) * (h - 4)).toFixed(1)} r={4} fill="transparent">
-            <title>{`${p.day}: ${p.tokens.toLocaleString(locale)}`}</title>
+            <title>{`${formatDay(p.day)}: ${p.tokens.toLocaleString(locale)}`}</title>
           </circle>
         ))}
       </svg>
@@ -69,7 +79,9 @@ function Sparkline({ points, label, locale }: { points: { day: string; tokens: n
           <tbody>
             {points.filter((p) => p.tokens > 0).map((p) => (
               <tr key={p.day}>
-                <td>{p.day}</td>
+                <td>
+                  <time dateTime={p.day}>{formatDay(p.day)}</time>
+                </td>
                 <td className="text-right">{p.tokens.toLocaleString(locale)}</td>
               </tr>
             ))}
