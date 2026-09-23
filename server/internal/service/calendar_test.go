@@ -121,23 +121,24 @@ func day(y int, m time.Month, d int) time.Time {
 }
 
 func TestTruncateLocalDateUsesLocalWallCalendar(t *testing.T) {
-	// time.Local is fixed at process start; Setenv("TZ") does not reload it on
-	// CI (UTC). Reassign Local for this case so wall-calendar math is covered.
+	// The zone is passed in rather than assigned to time.Local: time.Local is
+	// process-global, and rewriting it races with any goroutine a previous
+	// test left running (go test -race fails the run).
 	loc, err := time.LoadLocation("Asia/Ho_Chi_Minh")
 	if err != nil {
 		t.Fatal(err)
 	}
-	prev := time.Local
-	time.Local = loc
-	t.Cleanup(func() { time.Local = prev })
 
 	// 21:00 UTC is already the next calendar day in UTC+7.
 	utc := time.Date(2026, 9, 21, 21, 0, 0, 0, time.UTC)
 	if got := truncateUTCDate(utc); !got.Equal(day(2026, 9, 21)) {
 		t.Fatalf("UTC truncate: got %s want 2026-09-21", got.Format(time.DateOnly))
 	}
-	if got := truncateLocalDate(utc); !got.Equal(day(2026, 9, 22)) {
+	if got := truncateDateIn(utc, loc); !got.Equal(day(2026, 9, 22)) {
 		t.Fatalf("local truncate: got %s want 2026-09-22 (today_overdue boundary)", got.Format(time.DateOnly))
+	}
+	if got, want := truncateLocalDate(utc), truncateDateIn(utc, time.Local); !got.Equal(want) {
+		t.Fatalf("truncateLocalDate must use the process zone: got %s want %s", got.Format(time.DateOnly), want.Format(time.DateOnly))
 	}
 }
 
