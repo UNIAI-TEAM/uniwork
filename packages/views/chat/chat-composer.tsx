@@ -371,6 +371,8 @@ export function ChatComposer({
 /**
  * The composer of one conversation, with its draft in the chat draft store:
  * a keystroke re-renders this, not the page and the timeline around it.
+ * Keyed by the draft so staged files, a voice clip and mention state never
+ * follow the user into another conversation.
  */
 export function ChatRoomComposer({
   draftKey,
@@ -379,7 +381,7 @@ export function ChatRoomComposer({
   const draft = useChatComposerDraftStore((state) => state.drafts[draftKey] ?? "");
   const setDraft = useChatComposerDraftStore((state) => state.setDraft);
   const onDraftChange = useCallback((value: string) => setDraft(draftKey, value), [draftKey, setDraft]);
-  return <ChatComposer {...props} draft={draft} onDraftChange={onDraftChange} />;
+  return <ChatComposer key={draftKey} {...props} draft={draft} onDraftChange={onDraftChange} />;
 }
 
 export type { ComposerAttachAction } from "./chat-composer-attach-menu";

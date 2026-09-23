@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { useRoomMediaShortcuts } from "../meetings/meeting-room-shortcuts";
 import { useCallDuration } from "./use-call-duration";
@@ -84,10 +84,15 @@ export function ActiveVoiceCallContent({
   });
 
   // A lost connection or a dead device needs the viewer: bring the panel back
-  // from the pill so its notice and retry are on screen.
+  // from the pill so its notice and retry are on screen. Only when the trouble
+  // starts — a viewer who then minimises it again (a blocked camera has no
+  // dismiss) keeps the pill.
   const needsAttention = connectionState === "lost" || deviceError != null;
+  const neededAttentionRef = useRef(false);
   useEffect(() => {
-    if (needsAttention && panelMode === "minimized") onMaximize();
+    const started = needsAttention && !neededAttentionRef.current;
+    neededAttentionRef.current = needsAttention;
+    if (started && panelMode === "minimized") onMaximize();
   }, [needsAttention, panelMode, onMaximize]);
 
   const elapsed = useCallDuration(startedAt != null, startedAt);

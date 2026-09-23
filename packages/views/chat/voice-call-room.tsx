@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { Track, type LocalTrack, type RemoteTrack, type Room } from "livekit-client";
 import { deviceFailureFromError } from "./voice-call-media";
-import type { VoiceCallDeviceError } from "./voice-call-overlay-types";
+import type { VoiceCallDeviceError, VoiceCallDisconnectInfo } from "./voice-call-overlay-types";
 import {
   VoiceCallActionsContext,
   VoiceCallMediaContext,
@@ -31,7 +31,7 @@ export function VoiceCallRoom({
   url: string;
   token: string;
   initialCameraEnabled?: boolean;
-  onDisconnected: () => void;
+  onDisconnected: (info?: VoiceCallDisconnectInfo) => void;
   onConnectFailed?: () => void;
   children: ReactNode;
 }) {

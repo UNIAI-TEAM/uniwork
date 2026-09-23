@@ -12,6 +12,7 @@ import { VoiceCallLabeledAction, type VoiceCallPanelMode } from "./voice-call-fl
 import { PreConnectFloatingCall } from "./voice-call-pre-connect";
 import type {
   VoiceCallDeviceError,
+  VoiceCallDisconnectInfo,
   VoiceCallEndInit,
   VoiceCallOverlayState,
 } from "./voice-call-overlay-types";
@@ -91,7 +92,7 @@ export function VoiceCallOverlay({
   onAccept: () => void;
   onDecline: () => void;
   onLeave: (init?: VoiceCallEndInit) => void;
-  onDisconnected: () => void;
+  onDisconnected: (info?: VoiceCallDisconnectInfo) => void;
   onEndForAll: (init?: VoiceCallEndInit) => void;
   onConnected: () => void;
   onRetryEnded: () => void;

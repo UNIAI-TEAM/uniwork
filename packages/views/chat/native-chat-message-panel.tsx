@@ -106,7 +106,10 @@ export function NativeChatMessagePanel({
   const [loadingAnchor, setLoadingAnchor] = useState(false);
   // A quoted message outside the loaded window opens its context here, the
   // same way a search jump does from the page.
-  const [localAnchorId, setLocalAnchorId] = useState<string | null>(null);
+  // Scoped to its room, so the render that switches rooms cannot ask the new
+  // room for the old room's message before the reset effect runs.
+  const [localAnchor, setLocalAnchor] = useState<{ roomId: string; id: string } | null>(null);
+  const localAnchorId = localAnchor?.roomId === roomId ? localAnchor.id : null;
   const activeAnchorId = anchorMessageId ?? localAnchorId;
   const { data: latestRows = [], isPending: latestPending } = useChatRoomMessages(
     workspaceId,
@@ -178,8 +181,8 @@ export function NativeChatMessagePanel({
       window.requestAnimationFrame(() => setHighlightMessageId(messageId));
       return;
     }
-    setLocalAnchorId(messageId);
-  }, []);
+    setLocalAnchor({ roomId, id: messageId });
+  }, [roomId]);
 
   const { actions, dialogs: actionDialogs } = useNativeChatMessageActions({
     workspaceId,
@@ -230,7 +233,7 @@ export function NativeChatMessagePanel({
     setThreadRoot(null);
     setAnchorMessages(null);
     setHighlightMessageId(null);
-    setLocalAnchorId(null);
+    setLocalAnchor(null);
     onActiveThreadRootIdChange?.(null);
     // One voice player per room: leaving the room stops it.
     return () => stopChatVoicePlayback();
@@ -246,6 +249,7 @@ export function NativeChatMessagePanel({
     if (!activeAnchorId) {
       setAnchorMessages(null);
       setHighlightMessageId(null);
+      setLoadingAnchor(false);
       return;
     }
     let cancelled = false;
@@ -262,14 +266,16 @@ export function NativeChatMessagePanel({
       .catch((err: unknown) => {
         // The message is gone or unreachable: say so instead of doing nothing.
         if (cancelled) return;
-        setLocalAnchorId(null);
+        setLocalAnchor(null);
         toastChatError(err, t, t("chat.message_list.jump_failed"));
       })
       .finally(() => {
         if (!cancelled) setLoadingAnchor(false);
       });
     return () => {
+      // A superseded or cleared request must not leave the spinner behind.
       cancelled = true;
+      setLoadingAnchor(false);
     };
   }, [activeAnchorId, roomId, t, workspaceId]);
 
@@ -392,7 +398,7 @@ export function NativeChatMessagePanel({
   };
 
   const clearAnchor = () => {
-    setLocalAnchorId(null);
+    setLocalAnchor(null);
     if (anchorMessageId) onClearAnchor?.();
   };
 

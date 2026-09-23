@@ -2,7 +2,7 @@
 
 import { Archive, Search, UserPlus } from "lucide-react";
 import { toast } from "sonner";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import {
@@ -76,6 +76,9 @@ export function ChannelSettingsSheet({
   const [busy, setBusy] = useState(false);
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  // What the viewer was heading to when the discard question interrupted:
+  // confirming carries on there instead of just closing the sheet.
+  const afterDiscardRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -106,10 +109,22 @@ export function ChannelSettingsSheet({
   // Closing with unsaved edits asks first; every way out of the sheet goes through here.
   const requestOpenChange = (next: boolean) => {
     if (!next && dirty) {
+      afterDiscardRef.current = null;
       setDiscardConfirmOpen(true);
       return;
     }
     onOpenChange(next);
+  };
+
+  // Leave the sheet for another surface, asking about unsaved edits first.
+  const leaveTo = (action: () => void) => {
+    if (dirty) {
+      afterDiscardRef.current = action;
+      setDiscardConfirmOpen(true);
+      return;
+    }
+    onOpenChange(false);
+    action();
   };
 
   const save = () => {
@@ -179,14 +194,7 @@ export function ChannelSettingsSheet({
               <ChatSettingsMenuRow
                 icon={Search}
                 label={t("chat.search_messages")}
-                onClick={() => {
-                  if (dirty) {
-                    setDiscardConfirmOpen(true);
-                    return;
-                  }
-                  onOpenChange(false);
-                  onOpenSearch();
-                }}
+                onClick={() => leaveTo(onOpenSearch)}
               />
             </section>
           ) : null}
@@ -301,14 +309,7 @@ export function ChannelSettingsSheet({
               <ChatSettingsMenuRow
                 icon={UserPlus}
                 label={t("chat.channel.add_members")}
-                onClick={() => {
-                  if (dirty) {
-                    setDiscardConfirmOpen(true);
-                    return;
-                  }
-                  onOpenChange(false);
-                  onAddMembers();
-                }}
+                onClick={() => leaveTo(onAddMembers)}
               />
             </section>
           ) : null}
@@ -381,9 +382,12 @@ export function ChannelSettingsSheet({
           description={t("chat.channel.discard_confirm_description")}
           confirmLabel={t("chat.channel.discard_changes")}
           onConfirm={() => {
+            const next = afterDiscardRef.current;
+            afterDiscardRef.current = null;
             setDiscardConfirmOpen(false);
             resetForm();
             onOpenChange(false);
+            next?.();
           }}
         />
       </SheetContent>

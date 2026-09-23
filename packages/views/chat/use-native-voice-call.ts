@@ -21,6 +21,7 @@ import {
   VOICE_CALL_ENDED_DISMISS_MS,
   VOICE_CALL_RING_TIMEOUT_MS,
   isInformationalEnd,
+  type VoiceCallDisconnectInfo,
   type VoiceCallEndInit,
   type VoiceCallEndedState,
   type VoiceCallKind,
@@ -155,10 +156,10 @@ export function useNativeVoiceCall({
     [endCallForAll, closeLocal],
   );
 
-  const finalizeCallOnDisconnect = useCallback(() => {
+  const finalizeCallOnDisconnect = useCallback((info?: VoiceCallDisconnectInfo) => {
     const current = stateRef.current;
     if (!isLive(current)) return;
-    if (hangupSentRef.current === current.callId) {
+    if (hangupSentRef.current === current.callId || info?.movedElsewhere) {
       closeLocal();
       return;
     }
@@ -432,6 +433,9 @@ export function useNativeVoiceCall({
       }
       return false;
     }
+    // The caller may have hung up while the accept was in flight.
+    const latest = stateRef.current;
+    if (latest.status !== "connecting" || latest.callId !== callId) return false;
     return connectCall(roomId, callId, peerName, false, callKind, callerName);
   }, [workspaceId, connectCall, failCall, setCallState]);
 

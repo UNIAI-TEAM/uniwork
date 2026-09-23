@@ -30,6 +30,12 @@ export type VoiceCallEndInit = {
   device?: VoiceCallDeviceError;
 };
 
+/** Why the media room let go of us, in terms the call state understands. */
+export type VoiceCallDisconnectInfo = {
+  /** The same user joined from another tab or device and took the seat. */
+  movedElsewhere?: boolean;
+};
+
 export type VoiceCallEndedState = {
   status: "ended";
   reason: VoiceCallEndReason;

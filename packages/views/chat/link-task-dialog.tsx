@@ -85,6 +85,9 @@ export function LinkTaskDialog({
   const search = useDebouncedValue(query.trim(), SEARCH_DEBOUNCE_MS);
   const tasksQuery = useLinkableTasks(workspaceId, search, open);
   const [selectedId, setSelectedId] = useState("");
+  // Kept with the id: a new search may no longer list the chosen task, and
+  // the footer must still name what Submit will link.
+  const [selectedTitle, setSelectedTitle] = useState("");
   const [linkError, setLinkError] = useState<string | null>(null);
 
   const rows = tasksQuery.data?.rows ?? [];
@@ -96,6 +99,7 @@ export function LinkTaskDialog({
   const reset = () => {
     setQuery("");
     setSelectedId("");
+    setSelectedTitle("");
     setLinkError(null);
   };
 
@@ -123,7 +127,6 @@ export function LinkTaskDialog({
   };
 
   const listLabel = t("chat.link.task_list_aria");
-  const selectedTitle = shown.find((task) => task.id === selectedId)?.title;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -176,6 +179,7 @@ export function LinkTaskDialog({
                       }
                       onSelect={() => {
                         setSelectedId(task.id);
+                        setSelectedTitle(task.title);
                         setLinkError(null);
                       }}
                       className="items-start data-[checked=true]:bg-surface-selected data-[checked=true]:text-surface-selected-foreground"

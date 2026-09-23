@@ -14,7 +14,7 @@ import {
   type RemoteParticipant,
 } from "livekit-client";
 import { deviceFailureFromError } from "./voice-call-media";
-import type { VoiceCallDeviceError } from "./voice-call-overlay-types";
+import type { VoiceCallDeviceError, VoiceCallDisconnectInfo } from "./voice-call-overlay-types";
 import type { VoiceCallConnectionState } from "./voice-call-room-context";
 import {
   participantScreenShareKey,
@@ -29,7 +29,7 @@ export type VoiceCallRoomConnectionRefs = {
   remoteScreenShareTrackRef: MutableRefObject<RemoteTrack | null>;
   videoElByIdentityRef: MutableRefObject<Map<string, HTMLVideoElement | null>>;
   videoTrackByIdentityRef: MutableRefObject<Map<string, RemoteTrack | LocalTrack>>;
-  onDisconnectedRef: MutableRefObject<() => void>;
+  onDisconnectedRef: MutableRefObject<(info?: VoiceCallDisconnectInfo) => void>;
   onConnectFailedRef: MutableRefObject<(() => void) | undefined>;
   /**
    * What the person last chose for mic and camera. A manual reconnect builds a
@@ -59,7 +59,6 @@ export type VoiceCallRoomConnectionSetters = {
  */
 const CALL_OVER_REASONS = new Set<DisconnectReason | undefined>([
   DisconnectReason.CLIENT_INITIATED,
-  DisconnectReason.DUPLICATE_IDENTITY,
   DisconnectReason.PARTICIPANT_REMOVED,
   DisconnectReason.ROOM_DELETED,
   DisconnectReason.ROOM_CLOSED,
@@ -284,6 +283,12 @@ export function useVoiceCallRoomConnection(
       clearConnectTimeout();
       if (!everConnected) {
         failConnect();
+        return;
+      }
+      if (reason === DisconnectReason.DUPLICATE_IDENTITY) {
+        // Answered in another tab: that tab owns the call now, so this one
+        // only steps aside — ending it here would hang up on ourselves.
+        refs.onDisconnectedRef.current({ movedElsewhere: true });
         return;
       }
       if (CALL_OVER_REASONS.has(reason)) {
