@@ -2,7 +2,7 @@
 
 import { VoiceCallRoom } from "./voice-call-room";
 import { ActiveVoiceCallContent } from "./voice-call-active-content";
-import type { VoiceCallKind } from "./voice-call-overlay-types";
+import type { VoiceCallEndInit, VoiceCallKind } from "./voice-call-overlay-types";
 import type { VoiceCallPanelMode } from "./voice-call-floating-panel";
 
 export function ActiveVoiceCallSession({
@@ -36,9 +36,9 @@ export function ActiveVoiceCallSession({
   panelMode: VoiceCallPanelMode;
   onMinimize: () => void;
   onMaximize: () => void;
-  onLeave: () => void;
+  onLeave: (init?: VoiceCallEndInit) => void;
   onDisconnected: () => void;
-  onEndForAll: () => void;
+  onEndForAll: (init?: VoiceCallEndInit) => void;
   onConnected: () => void;
   onConnectFailed: () => void;
 }) {
