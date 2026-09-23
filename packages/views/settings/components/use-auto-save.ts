@@ -106,7 +106,9 @@ export function useAutoSave<T>({
       return;
     }
 
-    setStatus("saving");
+    // While the reader is still typing nothing is saving yet, and a "saved"
+    // tick from the previous edit would be a lie about the new text.
+    setStatus("idle");
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
       void runSave(latestValueRef.current);

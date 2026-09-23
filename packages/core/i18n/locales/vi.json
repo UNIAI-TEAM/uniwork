@@ -271,23 +271,27 @@
     },
     "page": {
       "title": "Cài đặt",
-      "my_account": "Tài khoản",
-      "workspace_fallback": "Workspace",
       "tabs": {
         "notifications": "Thông báo",
         "profile": "Hồ sơ",
         "preferences": "Tùy chọn",
-        "general": "Chung",
         "workspace": "Chung",
         "members": "Thành viên",
         "integrations": "Tích hợp",
         "billing": "Thanh toán",
-        "audit": "Bảo mật & Nhật ký",
+        "audit": "Nhật ký hoạt động",
         "ai": "AI",
-        "organization": "Tổ chức",
+        "organization": "Thành viên tổ chức",
         "departments": "Phòng ban",
         "security": "Bảo mật",
         "shortcuts": "Phím tắt"
+      },
+      "nav_label": "Mục cài đặt",
+      "section_picker": "Chọn mục cài đặt",
+      "groups": {
+        "account": "Tài khoản",
+        "organization": "Tổ chức",
+        "workspace": "Workspace"
       }
     },
     "save": {
@@ -655,22 +659,70 @@
         "close_dialog": "Đóng hộp thoại hoặc menu"
       },
       "actions": {
-        "ai_ask_uni": { "label": "Hỏi UNI", "description": "Mở bảng Hỏi UNI, kể cả khi đang gõ." },
-        "open_search": { "label": "Mở tìm kiếm", "description": "Tìm và chạy lệnh từ bất cứ đâu." },
-        "create_task": { "label": "Tạo việc", "description": "Mở hộp tạo việc mới." },
-        "find_in_task": { "label": "Tìm trong việc", "description": "Tìm chữ trong trang chi tiết việc đang mở." },
-        "open_thread_nav": { "label": "Điều hướng luồng", "description": "Mở hoặc ghim bảng điều hướng luồng thảo luận của việc đang mở." },
-        "send": { "label": "Gửi", "description": "Gửi bình luận và trả lời trong ô soạn thảo." },
-        "go_back": { "label": "Quay lại", "description": "Lùi lại trong lịch sử, như trình duyệt." },
-        "go_forward": { "label": "Tiến tới", "description": "Tiến tới trong lịch sử, như trình duyệt." },
-        "go_inbox": { "label": "Tới Hộp việc", "description": "Mở hộp việc của workspace." },
-        "go_tasks": { "label": "Tới Công việc", "description": "Mở danh sách công việc." },
-        "go_my_tasks": { "label": "Tới Việc của tôi", "description": "Mở những việc giao cho bạn." },
-        "go_projects": { "label": "Tới Dự án", "description": "Mở danh sách dự án." },
-        "go_meetings": { "label": "Tới Cuộc họp", "description": "Mở danh sách cuộc họp." },
-        "go_chat": { "label": "Tới Trò chuyện", "description": "Mở trò chuyện của workspace." },
-        "go_people": { "label": "Tới Danh bạ", "description": "Mở danh bạ thành viên." },
-        "go_settings": { "label": "Tới Cài đặt", "description": "Mở cài đặt." }
+        "ai_ask_uni": {
+          "label": "Hỏi UNI",
+          "description": "Mở bảng Hỏi UNI, kể cả khi đang gõ."
+        },
+        "open_search": {
+          "label": "Mở tìm kiếm",
+          "description": "Tìm và chạy lệnh từ bất cứ đâu."
+        },
+        "create_task": {
+          "label": "Tạo việc",
+          "description": "Mở hộp tạo việc mới."
+        },
+        "find_in_task": {
+          "label": "Tìm trong việc",
+          "description": "Tìm chữ trong trang chi tiết việc đang mở."
+        },
+        "open_thread_nav": {
+          "label": "Điều hướng luồng",
+          "description": "Mở hoặc ghim bảng điều hướng luồng thảo luận của việc đang mở."
+        },
+        "send": {
+          "label": "Gửi",
+          "description": "Gửi bình luận và trả lời trong ô soạn thảo."
+        },
+        "go_back": {
+          "label": "Quay lại",
+          "description": "Lùi lại trong lịch sử, như trình duyệt."
+        },
+        "go_forward": {
+          "label": "Tiến tới",
+          "description": "Tiến tới trong lịch sử, như trình duyệt."
+        },
+        "go_inbox": {
+          "label": "Tới Hộp việc",
+          "description": "Mở hộp việc của workspace."
+        },
+        "go_tasks": {
+          "label": "Tới Công việc",
+          "description": "Mở danh sách công việc."
+        },
+        "go_my_tasks": {
+          "label": "Tới Việc của tôi",
+          "description": "Mở những việc giao cho bạn."
+        },
+        "go_projects": {
+          "label": "Tới Dự án",
+          "description": "Mở danh sách dự án."
+        },
+        "go_meetings": {
+          "label": "Tới Cuộc họp",
+          "description": "Mở danh sách cuộc họp."
+        },
+        "go_chat": {
+          "label": "Tới Trò chuyện",
+          "description": "Mở trò chuyện của workspace."
+        },
+        "go_people": {
+          "label": "Tới Danh bạ",
+          "description": "Mở danh bạ thành viên."
+        },
+        "go_settings": {
+          "label": "Tới Cài đặt",
+          "description": "Mở cài đặt."
+        }
       }
     },
     "security": {

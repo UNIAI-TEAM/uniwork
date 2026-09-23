@@ -272,23 +272,27 @@
     },
     "page": {
       "title": "Settings",
-      "my_account": "Account",
-      "workspace_fallback": "Workspace",
       "tabs": {
         "notifications": "Notifications",
         "profile": "Profile",
         "preferences": "Preferences",
-        "general": "General",
         "workspace": "General",
         "members": "Members",
         "integrations": "Integrations",
         "billing": "Billing",
-        "audit": "Security & audit",
+        "audit": "Activity log",
         "ai": "AI",
-        "organization": "Organization",
+        "organization": "Organization members",
         "departments": "Departments",
         "security": "Security",
         "shortcuts": "Keyboard shortcuts"
+      },
+      "nav_label": "Settings sections",
+      "section_picker": "Choose a settings section",
+      "groups": {
+        "account": "Account",
+        "organization": "Organization",
+        "workspace": "Workspace"
       }
     },
     "save": {
@@ -656,22 +660,70 @@
         "close_dialog": "Close dialog or menu"
       },
       "actions": {
-        "ai_ask_uni": { "label": "Ask UNI", "description": "Open the Ask UNI panel, even while typing." },
-        "open_search": { "label": "Open search", "description": "Search and run commands from anywhere." },
-        "create_task": { "label": "Create task", "description": "Open the new task dialog." },
-        "find_in_task": { "label": "Find in task", "description": "Search text on the open task page." },
-        "open_thread_nav": { "label": "Thread navigation", "description": "Open or pin the thread navigation panel on the open task." },
-        "send": { "label": "Send", "description": "Send comments and replies from the editor." },
-        "go_back": { "label": "Go back", "description": "Navigate back through history, like a browser." },
-        "go_forward": { "label": "Go forward", "description": "Navigate forward through history, like a browser." },
-        "go_inbox": { "label": "Go to Inbox", "description": "Open the workspace inbox." },
-        "go_tasks": { "label": "Go to Tasks", "description": "Open the task list." },
-        "go_my_tasks": { "label": "Go to My tasks", "description": "Open the tasks assigned to you." },
-        "go_projects": { "label": "Go to Projects", "description": "Open the project list." },
-        "go_meetings": { "label": "Go to Meetings", "description": "Open the meeting list." },
-        "go_chat": { "label": "Go to Chat", "description": "Open workspace chat." },
-        "go_people": { "label": "Go to People", "description": "Open the member directory." },
-        "go_settings": { "label": "Go to Settings", "description": "Open settings." }
+        "ai_ask_uni": {
+          "label": "Ask UNI",
+          "description": "Open the Ask UNI panel, even while typing."
+        },
+        "open_search": {
+          "label": "Open search",
+          "description": "Search and run commands from anywhere."
+        },
+        "create_task": {
+          "label": "Create task",
+          "description": "Open the new task dialog."
+        },
+        "find_in_task": {
+          "label": "Find in task",
+          "description": "Search text on the open task page."
+        },
+        "open_thread_nav": {
+          "label": "Thread navigation",
+          "description": "Open or pin the thread navigation panel on the open task."
+        },
+        "send": {
+          "label": "Send",
+          "description": "Send comments and replies from the editor."
+        },
+        "go_back": {
+          "label": "Go back",
+          "description": "Navigate back through history, like a browser."
+        },
+        "go_forward": {
+          "label": "Go forward",
+          "description": "Navigate forward through history, like a browser."
+        },
+        "go_inbox": {
+          "label": "Go to Inbox",
+          "description": "Open the workspace inbox."
+        },
+        "go_tasks": {
+          "label": "Go to Tasks",
+          "description": "Open the task list."
+        },
+        "go_my_tasks": {
+          "label": "Go to My tasks",
+          "description": "Open the tasks assigned to you."
+        },
+        "go_projects": {
+          "label": "Go to Projects",
+          "description": "Open the project list."
+        },
+        "go_meetings": {
+          "label": "Go to Meetings",
+          "description": "Open the meeting list."
+        },
+        "go_chat": {
+          "label": "Go to Chat",
+          "description": "Open workspace chat."
+        },
+        "go_people": {
+          "label": "Go to People",
+          "description": "Open the member directory."
+        },
+        "go_settings": {
+          "label": "Go to Settings",
+          "description": "Open settings."
+        }
       }
     },
     "security": {
