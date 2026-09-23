@@ -30,7 +30,7 @@ function buildDeps(overrides: Partial<Parameters<typeof useChatPageActions>[0]> 
     activeRoomId: "room1",
     activeGroup: null,
     activeChannel: null,
-    draft: "hello",
+    getDraft: () => "hello",
     setDraft,
     replyTo: null as ChatMessage | null,
     setReplyTo,

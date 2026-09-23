@@ -17,6 +17,7 @@ import {
   WorkspaceMemberLookupResult,
   WorkspaceMemberPickerList,
   WorkspaceMemberSearchField,
+  useMemberPickerFocus,
   useWorkspaceMemberPicker,
 } from "./workspace-member-picker";
 import { memberToChatContact } from "./workspace-member-picker-utils";
@@ -44,6 +45,7 @@ export function CreateGroupDialog({
   const [searchSubmitted, setSearchSubmitted] = useState(false);
   const [pendingMembers, setPendingMembers] = useState<ChatContact[]>([]);
 
+  const pickerFocus = useMemberPickerFocus();
   const excludeUserIds = useMemo(
     () => new Set(pendingMembers.map((member) => member.user_id)),
     [pendingMembers],
@@ -78,6 +80,8 @@ export function CreateGroupDialog({
     );
     setMemberQuery("");
     setSearchSubmitted(false);
+    // The picked row leaves the list; the search field is where the next pick starts.
+    pickerFocus.focusInput();
   };
 
   const removeMember = (userId: string) => {
@@ -110,7 +114,7 @@ export function CreateGroupDialog({
         <FormDialogBody>
           <div className="space-y-2">
             <Label htmlFor="group-name" className="text-label font-medium">
-              {t("chat.group_name_label")}
+              {t("chat.group_name_optional_label")}
             </Label>
             <Input
               id="group-name"
@@ -124,12 +128,10 @@ export function CreateGroupDialog({
           <SelectedMemberChips
             members={pendingMembers}
             onRemove={removeMember}
+            onRemovedLast={pickerFocus.focusInput}
             title={t("chat.group_selected_members")}
-            summary={
-              missing > 0
-                ? t("chat.group_member_progress", { count: picked, min: MIN_GROUP_MEMBERS })
-                : t("chat.group_member_selected", { count: picked })
-            }
+            // How many are still missing is said once, next to the submit button.
+            summary={t("chat.group_member_selected", { count: picked })}
           />
 
           <WorkspaceMemberSearchField
@@ -143,6 +145,8 @@ export function CreateGroupDialog({
             onSubmit={submitMemberSearch}
             placeholder={t("chat.member_search_placeholder")}
             hint={t("chat.search_member_or_email_hint")}
+            inputRef={pickerFocus.inputRef}
+            onArrowDown={pickerFocus.focusFirstRow}
           />
 
           <WorkspaceMemberLookupResult
@@ -158,6 +162,7 @@ export function CreateGroupDialog({
             query={memberQuery}
             hasOtherMembers={hasOtherMembers}
             onPick={addMember}
+            listRef={pickerFocus.listRef}
           />
         </FormDialogBody>
         <FormDialogFooter

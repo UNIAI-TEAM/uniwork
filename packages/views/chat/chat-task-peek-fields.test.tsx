@@ -45,14 +45,14 @@ const task = {
 
 describe("ChatTaskPeekFields", () => {
   it("names each chip with its field and current value", () => {
-    wrap(<ChatTaskPeekFields workspaceId="ws1" task={task} />);
+    wrap(<ChatTaskPeekFields workspaceId="ws1" task={task} onPatch={vi.fn()} />);
     expect(screen.getByRole("button", { name: "Trạng thái: Cần làm" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Độ ưu tiên: Trung bình" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Project: Ra mắt" })).toBeInTheDocument();
   });
 
   it("marks an agent assignee with the agent badge", () => {
-    wrap(<ChatTaskPeekFields workspaceId="ws1" task={task} />);
+    wrap(<ChatTaskPeekFields workspaceId="ws1" task={task} onPatch={vi.fn()} />);
     const trigger = screen.getByRole("combobox", { name: "Người phụ trách: Trợ lý (Agent)" });
     expect(within(trigger).getByText("Agent")).toBeInTheDocument();
   });

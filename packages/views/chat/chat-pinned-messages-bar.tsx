@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat";
 import { useChatRoomMessages, useToggleChatMessagePin } from "@uniwork/core/chat";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -21,6 +22,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
 import { describeChatMediaBody, type ChatMediaLabels } from "./chat-expression-utils";
 import { CHAT_MESSAGE_INITIAL } from "./chat-messages";
+import { toastChatError } from "./chat-error-message";
 
 function pinnedPreviewText(
   row: ChatMessageRecord,
@@ -101,8 +103,25 @@ export function ChatPinnedMessagesBar({
   const visible = expanded || pinned.length === 1 ? pinned : pinned.slice(0, 1);
   const hiddenCount = pinned.length - 1;
 
-  const handleUnpin = (messageId: string) => {
-    void togglePin.mutateAsync({ roomId, messageId });
+  // Unpinning is one tap away from a mistake, so it says it happened and
+  // offers the way back; a failure says so instead of leaving the pin as is.
+  const handleUnpin = async (messageId: string) => {
+    try {
+      await togglePin.mutateAsync({ roomId, messageId });
+    } catch (err) {
+      toastChatError(err, t, t("chat.message_list.unpin_failed"));
+      return;
+    }
+    toast.success(t("chat.message_list.unpinned"), {
+      action: {
+        label: t("chat.message_list.undo"),
+        onClick: () => {
+          togglePin.mutateAsync({ roomId, messageId }).catch((err: unknown) => {
+            toastChatError(err, t, t("chat.message_list.pin_failed"));
+          });
+        },
+      },
+    });
   };
 
   return (
@@ -133,7 +152,7 @@ export function ChatPinnedMessagesBar({
               className="shrink-0 text-muted-foreground hover:text-foreground"
               aria-label={t("chat.action_unpin")}
               disabled={togglePin.isPending}
-              onClick={() => handleUnpin(item.id)}
+              onClick={() => void handleUnpin(item.id)}
             >
               <X className="size-4" aria-hidden />
             </Button>

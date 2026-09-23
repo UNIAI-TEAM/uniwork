@@ -23,8 +23,11 @@ import { Label } from "@uniwork/ui/components/ui/label";
 import { Switch } from "@uniwork/ui/components/ui/switch";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { DateTimeField } from "../common/datetime-field";
-import { toastApiError } from "../toast-api-error";
+import { toDateOnly } from "../common/date-field";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
+import { chatErrorMessage } from "./chat-error-message";
+import { ChatFormFooterNote } from "./chat-form-parts";
+import { PinToTopRow } from "./chat-pin-to-top-row";
 
 type PollOption = { id: number; value: string };
 
@@ -33,6 +36,7 @@ function createEmptyOptions(count = POLL_MIN_OPTIONS): PollOption[] {
 }
 
 const optionInputId = (id: number) => `poll-option-${id}`;
+const ADD_OPTION_ID = "poll-add-option";
 
 /** Why the deadline cannot be used, or null when it is empty or in the future. */
 function deadlineProblem(value: string, now = Date.now()): "invalid" | "past" | null {
@@ -47,12 +51,15 @@ export function ChatCreatePollDialog({
   onOpenChange,
   workspaceId,
   roomId,
+  canPinToTop,
   onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   workspaceId: string;
   roomId: string;
+  /** Same gate as notes and posts: the server refuses a pinned poll without it. */
+  canPinToTop: boolean;
   onCreated?: () => void;
 }) {
   const { t } = useTranslation();
@@ -63,7 +70,9 @@ export function ChatCreatePollDialog({
   const [deadlineAt, setDeadlineAt] = useState("");
   const [settings, setSettings] = useState<RoomPollSettings>(DEFAULT_ROOM_POLL_SETTINGS);
   const nextOptionId = useRef(POLL_MIN_OPTIONS);
-  const [focusOptionId, setFocusOptionId] = useState<number | null>(null);
+  // Where focus goes after the list changes: a row's input, or the add button.
+  const [focusTarget, setFocusTarget] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) return;
@@ -71,15 +80,17 @@ export function ChatCreatePollDialog({
     setOptions(createEmptyOptions());
     setDeadlineAt("");
     setSettings(DEFAULT_ROOM_POLL_SETTINGS);
+    setSubmitError(null);
     nextOptionId.current = POLL_MIN_OPTIONS;
   }, [open]);
 
-  // A freshly added row takes focus so typing continues without reaching for the mouse.
+  // A freshly added row takes focus so typing continues without reaching for
+  // the mouse; a removed row hands focus to the row above it.
   useEffect(() => {
-    if (focusOptionId === null) return;
-    document.getElementById(optionInputId(focusOptionId))?.focus();
-    setFocusOptionId(null);
-  }, [focusOptionId]);
+    if (focusTarget === null) return;
+    document.getElementById(focusTarget)?.focus();
+    setFocusTarget(null);
+  }, [focusTarget]);
 
   const optionValues = useMemo(() => options.map((option) => option.value), [options]);
   const canCreate = useMemo(() => canSubmitPoll(question, optionValues), [question, optionValues]);
@@ -93,11 +104,16 @@ export function ChatCreatePollDialog({
     if (options.length >= POLL_MAX_OPTIONS) return;
     const id = nextOptionId.current++;
     setOptions((current) => [...current, { id, value: "" }]);
-    setFocusOptionId(id);
+    setFocusTarget(optionInputId(id));
   };
 
   const removeOption = (id: number) => {
-    setOptions((current) => (current.length > POLL_MIN_OPTIONS ? current.filter((entry) => entry.id !== id) : current));
+    if (options.length <= POLL_MIN_OPTIONS) return;
+    const index = options.findIndex((entry) => entry.id === id);
+    const remaining = options.filter((entry) => entry.id !== id);
+    setOptions(remaining);
+    const previous = remaining[Math.max(0, index - 1)];
+    setFocusTarget(previous ? optionInputId(previous.id) : ADD_OPTION_ID);
   };
 
   const toggleSetting = (key: keyof RoomPollSettings, value: boolean) => {
@@ -106,6 +122,7 @@ export function ChatCreatePollDialog({
 
   const handleCreate = () => {
     if (!canCreate || deadlineError || sendMessage.isPending) return;
+    setSubmitError(null);
     const parsedDeadline = parsePollDeadlineInput(deadlineAt);
     void sendMessage
       .mutateAsync({
@@ -115,7 +132,7 @@ export function ChatCreatePollDialog({
           options: optionValues.map((option) => option.trim()).filter(Boolean),
           settings: {
             deadline_at: parsedDeadline,
-            pin_to_top: settings.pinToTop,
+            pin_to_top: settings.pinToTop && canPinToTop,
             allow_multiple: settings.allowMultiple,
             allow_add_options: settings.allowAddOptions,
             hide_results_until_vote: settings.hideResultsUntilVote,
@@ -129,7 +146,7 @@ export function ChatCreatePollDialog({
         onOpenChange(false);
       })
       .catch((err: unknown) => {
-        toastApiError(err, t("chat.poll_create_failed"));
+        setSubmitError(chatErrorMessage(err, t, t("chat.poll_create_failed")));
       });
   };
 
@@ -161,7 +178,11 @@ export function ChatCreatePollDialog({
             <FieldLegend variant="label" className="mb-0">
               {t("chat.poll_options_label")}
             </FieldLegend>
-            <FieldDescription className="text-caption">{t("chat.poll_min_options_hint")}</FieldDescription>
+            <FieldDescription className="text-caption" aria-live="polite">
+              {options.length >= POLL_MAX_OPTIONS
+                ? t("chat.poll_max_options_reached", { max: POLL_MAX_OPTIONS })
+                : t("chat.poll_options_range_hint", { min: POLL_MIN_OPTIONS, max: POLL_MAX_OPTIONS })}
+            </FieldDescription>
             <ul className="space-y-2">
               {options.map((option, index) => {
                 const label = t("chat.poll_option_placeholder", { index: index + 1 });
@@ -192,7 +213,14 @@ export function ChatCreatePollDialog({
               })}
             </ul>
             {options.length < POLL_MAX_OPTIONS ? (
-              <Button type="button" variant="ghost" size="sm" className="self-start" onClick={addOption}>
+              <Button
+                id={ADD_OPTION_ID}
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="self-start"
+                onClick={addOption}
+              >
                 <Plus aria-hidden />
                 {t("chat.poll_add_option")}
               </Button>
@@ -212,6 +240,7 @@ export function ChatCreatePollDialog({
                 id="poll-deadline"
                 value={deadlineAt}
                 onChange={setDeadlineAt}
+                minDate={toDateOnly(new Date())}
                 hourLabel={t("common.hour")}
                 minuteLabel={t("common.minute")}
               />
@@ -231,11 +260,12 @@ export function ChatCreatePollDialog({
             <legend className="mb-0 text-overline text-muted-foreground uppercase">
               {t("chat.poll_advanced_settings")}
             </legend>
-            <PollSettingRow
+            <PinToTopRow
               id="poll-setting-pin"
               label={t("chat.poll_setting_pin_top")}
               checked={settings.pinToTop}
               onCheckedChange={(value) => toggleSetting("pinToTop", value)}
+              disabledReason={canPinToTop ? undefined : t("chat.poll_pin_forbidden")}
             />
             <PollSettingRow
               id="poll-setting-multiple"
@@ -277,6 +307,11 @@ export function ChatCreatePollDialog({
           submitting={sendMessage.isPending}
           submitDisabled={!canCreate || deadlineError !== null}
           onSubmit={handleCreate}
+          leading={
+            submitError || !canCreate ? (
+              <ChatFormFooterNote error={submitError} hint={canCreate ? null : t("chat.poll_submit_hint")} />
+            ) : undefined
+          }
         />
       </FormDialogContent>
     </Dialog>

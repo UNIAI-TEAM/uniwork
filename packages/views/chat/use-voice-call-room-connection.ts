@@ -3,6 +3,7 @@
 import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 import {
   ConnectionState,
+  DisconnectReason,
   Room,
   RoomEvent,
   Track,
@@ -12,30 +13,34 @@ import {
   type RemoteTrackPublication,
   type RemoteParticipant,
 } from "livekit-client";
+import { deviceFailureFromError } from "./voice-call-media";
+import type { VoiceCallDeviceError, VoiceCallDisconnectInfo } from "./voice-call-overlay-types";
+import type { VoiceCallConnectionState } from "./voice-call-room-context";
 import {
   participantScreenShareKey,
   VOICE_CALL_CONNECT_TIMEOUT_MS,
-  type VoiceCallParticipantTile,
 } from "./voice-call-room-types";
 
 export type VoiceCallRoomConnectionRefs = {
   roomRef: MutableRefObject<Room | null>;
-  audioElsRef: MutableRefObject<HTMLMediaElement[]>;
-  localVideoElRef: MutableRefObject<HTMLVideoElement | null>;
   remoteVideoElRef: MutableRefObject<HTMLVideoElement | null>;
-  localScreenShareElRef: MutableRefObject<HTMLVideoElement | null>;
   remoteScreenShareElRef: MutableRefObject<HTMLVideoElement | null>;
   remoteVideoTrackRef: MutableRefObject<RemoteTrack | null>;
   remoteScreenShareTrackRef: MutableRefObject<RemoteTrack | null>;
   videoElByIdentityRef: MutableRefObject<Map<string, HTMLVideoElement | null>>;
   videoTrackByIdentityRef: MutableRefObject<Map<string, RemoteTrack | LocalTrack>>;
-  onDisconnectedRef: MutableRefObject<() => void>;
+  onDisconnectedRef: MutableRefObject<(info?: VoiceCallDisconnectInfo) => void>;
   onConnectFailedRef: MutableRefObject<(() => void) | undefined>;
-  onConnectedRef: MutableRefObject<(() => void) | undefined>;
+  /**
+   * What the person last chose for mic and camera. A manual reconnect builds a
+   * new room; it must come back the way they left it, never unmuted.
+   */
+  micWantedRef: MutableRefObject<boolean>;
+  cameraWantedRef: MutableRefObject<boolean>;
 };
 
 export type VoiceCallRoomConnectionSetters = {
-  setConnected: Dispatch<SetStateAction<boolean>>;
+  setConnectionState: Dispatch<SetStateAction<VoiceCallConnectionState>>;
   setRemoteParticipantCount: Dispatch<SetStateAction<number>>;
   setNeedsAudioUnlock: Dispatch<SetStateAction<boolean>>;
   setMuted: Dispatch<SetStateAction<boolean>>;
@@ -43,13 +48,27 @@ export type VoiceCallRoomConnectionSetters = {
   setRemoteCameraEnabled: Dispatch<SetStateAction<boolean>>;
   setScreenShareEnabled: Dispatch<SetStateAction<boolean>>;
   setRemoteScreenShareEnabled: Dispatch<SetStateAction<boolean>>;
-  setParticipantTiles: Dispatch<SetStateAction<VoiceCallParticipantTile[]>>;
+  setDeviceError: Dispatch<SetStateAction<VoiceCallDeviceError | null>>;
+  clearParticipantTiles: () => void;
 };
+
+/**
+ * Disconnects that mean the call itself is over (someone ended it, we were
+ * removed, we left). Anything else — a dropped signal, a server restart —
+ * is a lost connection the viewer can retry instead of a silent hang-up.
+ */
+const CALL_OVER_REASONS = new Set<DisconnectReason | undefined>([
+  DisconnectReason.CLIENT_INITIATED,
+  DisconnectReason.PARTICIPANT_REMOVED,
+  DisconnectReason.ROOM_DELETED,
+  DisconnectReason.ROOM_CLOSED,
+]);
 
 export function useVoiceCallRoomConnection(
   url: string,
   token: string,
   initialCameraEnabled: boolean,
+  attempt: number,
   refs: VoiceCallRoomConnectionRefs,
   setters: VoiceCallRoomConnectionSetters,
   attachLocalVideo: () => void,
@@ -59,12 +78,16 @@ export function useVoiceCallRoomConnection(
 ): void {
   useEffect(() => {
     let disposed = false;
+    let failed = false;
+    let everConnected = false;
     let connectTimeoutId: ReturnType<typeof setTimeout> | null = null;
     const room = new Room({ adaptiveStream: true, dynacast: true });
     refs.roomRef.current = room;
-    const attachedAudioSids = new Set<string>();
+    // One hidden <audio> per remote audio track, forgotten when the track goes.
+    const audioElsBySid = new Map<string, HTMLMediaElement[]>();
     const videoElByIdentity = refs.videoElByIdentityRef.current;
     const videoTrackByIdentity = refs.videoTrackByIdentityRef.current;
+    setters.setConnectionState("connecting");
 
     const clearConnectTimeout = () => {
       if (connectTimeoutId != null) {
@@ -74,7 +97,8 @@ export function useVoiceCallRoomConnection(
     };
 
     const failConnect = () => {
-      if (disposed) return;
+      if (disposed || failed) return;
+      failed = true;
       clearConnectTimeout();
       void room.disconnect();
       if (refs.onConnectFailedRef.current) {
@@ -91,13 +115,21 @@ export function useVoiceCallRoomConnection(
     ) => {
       if (track.kind !== Track.Kind.Audio) return;
       const sid = track.sid;
-      if (!sid || attachedAudioSids.has(sid)) return;
-      attachedAudioSids.add(sid);
+      if (!sid || audioElsBySid.has(sid)) return;
       const el = track.attach();
       el.style.display = "none";
       document.body.appendChild(el);
-      refs.audioElsRef.current.push(el);
+      audioElsBySid.set(sid, [el]);
       void el.play().catch(() => undefined);
+    };
+
+    const detachAudio = (track: RemoteTrack) => {
+      if (track.kind !== Track.Kind.Audio) return;
+      const detached = track.detach();
+      const sid = track.sid;
+      const owned = sid ? (audioElsBySid.get(sid) ?? []) : [];
+      for (const el of [...detached, ...owned]) el.remove();
+      if (sid) audioElsBySid.delete(sid);
     };
 
     const attachExistingRemoteTracks = () => {
@@ -140,74 +172,61 @@ export function useVoiceCallRoomConnection(
       }
     };
 
-    const detachVideo = (
+    const onTrackUnsubscribed = (
       track: RemoteTrack,
       publication: RemoteTrackPublication,
       participant: RemoteParticipant,
     ) => {
-      if (track.kind !== Track.Kind.Video) return;
-      if (publication.source === Track.Source.Camera) {
-        track.detach();
-        videoTrackByIdentity.delete(participant.identity);
-        const el = videoElByIdentity.get(participant.identity);
-        if (el) el.srcObject = null;
-        if (refs.remoteVideoTrackRef.current === track) {
-          refs.remoteVideoTrackRef.current = null;
-        }
-        syncParticipantTiles();
+      if (track.kind === Track.Kind.Audio) {
+        detachAudio(track);
         return;
       }
-      if (publication.source === Track.Source.ScreenShare) {
-        track.detach();
-        const key = participantScreenShareKey(participant.identity);
-        videoTrackByIdentity.delete(key);
-        const el = videoElByIdentity.get(key);
-        if (el) el.srcObject = null;
-        if (refs.remoteScreenShareTrackRef.current === track) {
-          refs.remoteScreenShareTrackRef.current = null;
-        }
-        syncParticipantTiles();
-      }
+      if (track.kind !== Track.Kind.Video) return;
+      const key =
+        publication.source === Track.Source.ScreenShare
+          ? participantScreenShareKey(participant.identity)
+          : publication.source === Track.Source.Camera
+            ? participant.identity
+            : null;
+      if (!key) return;
+      track.detach();
+      videoTrackByIdentity.delete(key);
+      const el = videoElByIdentity.get(key);
+      if (el) el.srcObject = null;
+      if (refs.remoteVideoTrackRef.current === track) refs.remoteVideoTrackRef.current = null;
+      if (refs.remoteScreenShareTrackRef.current === track) refs.remoteScreenShareTrackRef.current = null;
+      syncParticipantTiles();
     };
 
     const onLocalTrackPublished = (publication: LocalTrackPublication) => {
-      if (publication.source === Track.Source.ScreenShare) {
+      const screen = publication.source === Track.Source.ScreenShare;
+      if (!screen && publication.source !== Track.Source.Camera) return;
+      if (screen) {
         setters.setScreenShareEnabled(true);
         attachLocalScreenShare();
-        const track = publication.track;
-        if (track) {
-          const key = participantScreenShareKey(room.localParticipant.identity);
-          videoTrackByIdentity.set(key, track);
-          const el = videoElByIdentity.get(key);
-          if (el) track.attach(el);
-        }
-        syncParticipantTiles();
-        return;
+      } else {
+        setters.setCameraEnabled(true);
+        attachLocalVideo();
       }
-      if (publication.source !== Track.Source.Camera) return;
-      setters.setCameraEnabled(true);
-      attachLocalVideo();
       const track = publication.track;
       if (track) {
-        videoTrackByIdentity.set(room.localParticipant.identity, track);
-        const el = videoElByIdentity.get(room.localParticipant.identity);
+        const identity = room.localParticipant.identity;
+        const key = screen ? participantScreenShareKey(identity) : identity;
+        videoTrackByIdentity.set(key, track);
+        const el = videoElByIdentity.get(key);
         if (el) track.attach(el);
       }
       syncParticipantTiles();
     };
 
     const onLocalTrackUnpublished = (publication: LocalTrackPublication) => {
-      if (publication.source === Track.Source.ScreenShare) {
-        publication.track?.detach();
-        videoTrackByIdentity.delete(participantScreenShareKey(room.localParticipant.identity));
-        setters.setScreenShareEnabled(false);
-        syncParticipantTiles();
-        return;
-      }
-      if (publication.source !== Track.Source.Camera) return;
+      const screen = publication.source === Track.Source.ScreenShare;
+      if (!screen && publication.source !== Track.Source.Camera) return;
       publication.track?.detach();
-      videoTrackByIdentity.delete(room.localParticipant.identity);
-      setters.setCameraEnabled(false);
+      const identity = room.localParticipant.identity;
+      videoTrackByIdentity.delete(screen ? participantScreenShareKey(identity) : identity);
+      if (screen) setters.setScreenShareEnabled(false);
+      else setters.setCameraEnabled(false);
       syncParticipantTiles();
     };
 
@@ -217,10 +236,16 @@ export function useVoiceCallRoomConnection(
       syncParticipantTiles();
     };
 
+    const reportDevice = (kind: VoiceCallDeviceError["kind"], err: unknown) => {
+      if (disposed) return;
+      setters.setDeviceError({ kind, failure: deviceFailureFromError(err) });
+    };
+
     const onConnectedEvent = () => {
       if (disposed) return;
+      everConnected = true;
       clearConnectTimeout();
-      setters.setConnected(true);
+      setters.setConnectionState("connected");
       syncRemoteCount();
       attachExistingRemoteTracks();
       void (async () => {
@@ -230,47 +255,56 @@ export function useVoiceCallRoomConnection(
           if (!disposed) setters.setNeedsAudioUnlock(true);
         }
         syncAudioPlaybackState(room);
-        try {
-          await room.localParticipant.setMicrophoneEnabled(true);
-          if (!disposed) setters.setMuted(false);
-        } catch {
-          if (!disposed) setters.setMuted(true);
-        }
-        if (initialCameraEnabled) {
+        // The mic state shown is the one LiveKit reports after trying, never
+        // an assumed "on": a blocked mic reads as off, with a notice saying why.
+        if (refs.micWantedRef.current) {
           try {
-            await room.localParticipant.setCameraEnabled(true);
-            if (!disposed) {
-              setters.setCameraEnabled(true);
-              attachLocalVideo();
-            }
-          } catch {
-            if (!disposed) setters.setCameraEnabled(false);
+            await room.localParticipant.setMicrophoneEnabled(true);
+          } catch (err) {
+            reportDevice("audioinput", err);
           }
         }
+        if (!disposed) setters.setMuted(!room.localParticipant.isMicrophoneEnabled);
+        if (refs.cameraWantedRef.current) {
+          try {
+            await room.localParticipant.setCameraEnabled(true);
+            if (!disposed) attachLocalVideo();
+          } catch (err) {
+            reportDevice("videoinput", err);
+          }
+          if (!disposed) setters.setCameraEnabled(room.localParticipant.isCameraEnabled);
+        }
         syncParticipantTiles();
-        refs.onConnectedRef.current?.();
       })();
     };
 
-    const onParticipantChange = () => {
-      syncRemoteCount();
-    };
-
-    const onDisconnectedEvent = () => {
-      if (disposed) return;
+    const onDisconnectedEvent = (reason?: DisconnectReason) => {
+      if (disposed || failed) return;
       clearConnectTimeout();
-      refs.onDisconnectedRef.current();
-    };
-
-    const onConnectionStateChanged = (state: ConnectionState) => {
-      if (disposed) return;
-      if (state === ConnectionState.Connected) {
-        clearConnectTimeout();
+      if (!everConnected) {
+        failConnect();
         return;
       }
-      if (state === ConnectionState.Disconnected) {
-        clearConnectTimeout();
+      if (reason === DisconnectReason.DUPLICATE_IDENTITY) {
+        // Answered in another tab: that tab owns the call now, so this one
+        // only steps aside — ending it here would hang up on ourselves.
+        refs.onDisconnectedRef.current({ movedElsewhere: true });
+        return;
       }
+      if (CALL_OVER_REASONS.has(reason)) {
+        refs.onDisconnectedRef.current();
+        return;
+      }
+      setters.setConnectionState("lost");
+    };
+
+    const onReconnecting = () => {
+      if (!disposed) setters.setConnectionState("reconnecting");
+    };
+    const onReconnected = () => {
+      if (disposed) return;
+      setters.setConnectionState("connected");
+      syncRemoteCount();
     };
 
     const onAudioPlaybackStatusChanged = () => {
@@ -278,28 +312,41 @@ export function useVoiceCallRoomConnection(
       syncAudioPlaybackState(room);
     };
 
-    room.on(RoomEvent.TrackSubscribed, attachAudio);
-    room.on(RoomEvent.TrackSubscribed, attachVideo);
-    room.on(RoomEvent.TrackUnsubscribed, detachVideo);
-    room.on(RoomEvent.LocalTrackPublished, onLocalTrackPublished);
-    room.on(RoomEvent.LocalTrackUnpublished, onLocalTrackUnpublished);
-    room.on(RoomEvent.ParticipantConnected, onParticipantChange);
-    room.on(RoomEvent.ParticipantDisconnected, onParticipantChange);
-    room.on(RoomEvent.Connected, onConnectedEvent);
-    room.on(RoomEvent.Disconnected, onDisconnectedEvent);
-    room.on(RoomEvent.ConnectionStateChanged, onConnectionStateChanged);
-    room.on(RoomEvent.AudioPlaybackStatusChanged, onAudioPlaybackStatusChanged);
-    const onMediaDevicesError = () => {
-      if (!disposed) setters.setMuted(true);
+    const onMediaDevicesError = (error: Error, kind?: MediaDeviceKind) => {
+      const device = kind === "videoinput" ? "videoinput" : "audioinput";
+      reportDevice(device, error);
+      if (disposed) return;
+      if (device === "audioinput") setters.setMuted(!room.localParticipant.isMicrophoneEnabled);
+      else setters.setCameraEnabled(room.localParticipant.isCameraEnabled);
     };
-    room.on(RoomEvent.MediaDevicesError, onMediaDevicesError);
+
     // Who is speaking and whose mic is off live on the tiles.
     const onTileStateChange = () => {
       if (!disposed) syncParticipantTiles();
     };
-    room.on(RoomEvent.ActiveSpeakersChanged, onTileStateChange);
-    room.on(RoomEvent.TrackMuted, onTileStateChange);
-    room.on(RoomEvent.TrackUnmuted, onTileStateChange);
+
+    const handlers = [
+      [RoomEvent.TrackSubscribed, attachAudio],
+      [RoomEvent.TrackSubscribed, attachVideo],
+      [RoomEvent.TrackUnsubscribed, onTrackUnsubscribed],
+      [RoomEvent.LocalTrackPublished, onLocalTrackPublished],
+      [RoomEvent.LocalTrackUnpublished, onLocalTrackUnpublished],
+      [RoomEvent.ParticipantConnected, syncRemoteCount],
+      [RoomEvent.ParticipantDisconnected, syncRemoteCount],
+      [RoomEvent.Connected, onConnectedEvent],
+      [RoomEvent.Disconnected, onDisconnectedEvent],
+      [RoomEvent.Reconnecting, onReconnecting],
+      [RoomEvent.SignalReconnecting, onReconnecting],
+      [RoomEvent.Reconnected, onReconnected],
+      [RoomEvent.AudioPlaybackStatusChanged, onAudioPlaybackStatusChanged],
+      [RoomEvent.MediaDevicesError, onMediaDevicesError],
+      [RoomEvent.ActiveSpeakersChanged, onTileStateChange],
+      [RoomEvent.TrackMuted, onTileStateChange],
+      [RoomEvent.TrackUnmuted, onTileStateChange],
+    ] as const;
+    for (const [event, handler] of handlers) {
+      room.on(event, handler as never);
+    }
 
     connectTimeoutId = setTimeout(() => {
       if (disposed || room.state === ConnectionState.Connected) return;
@@ -313,39 +360,23 @@ export function useVoiceCallRoomConnection(
     return () => {
       disposed = true;
       clearConnectTimeout();
-      room.off(RoomEvent.TrackSubscribed, attachAudio);
-      room.off(RoomEvent.TrackSubscribed, attachVideo);
-      room.off(RoomEvent.TrackUnsubscribed, detachVideo);
-      room.off(RoomEvent.LocalTrackPublished, onLocalTrackPublished);
-      room.off(RoomEvent.LocalTrackUnpublished, onLocalTrackUnpublished);
-      room.off(RoomEvent.ParticipantConnected, onParticipantChange);
-      room.off(RoomEvent.ParticipantDisconnected, onParticipantChange);
-      room.off(RoomEvent.Connected, onConnectedEvent);
-      room.off(RoomEvent.Disconnected, onDisconnectedEvent);
-      room.off(RoomEvent.ConnectionStateChanged, onConnectionStateChanged);
-      room.off(RoomEvent.AudioPlaybackStatusChanged, onAudioPlaybackStatusChanged);
-      room.off(RoomEvent.MediaDevicesError, onMediaDevicesError);
-      room.off(RoomEvent.ActiveSpeakersChanged, onTileStateChange);
-      room.off(RoomEvent.TrackMuted, onTileStateChange);
-      room.off(RoomEvent.TrackUnmuted, onTileStateChange);
-      for (const el of refs.audioElsRef.current) {
-        el.remove();
+      for (const [event, handler] of handlers) {
+        room.off(event, handler as never);
       }
-      refs.audioElsRef.current = [];
-      attachedAudioSids.clear();
+      for (const els of audioElsBySid.values()) {
+        for (const el of els) el.remove();
+      }
+      audioElsBySid.clear();
       refs.remoteVideoTrackRef.current = null;
       refs.remoteScreenShareTrackRef.current = null;
-      refs.localVideoElRef.current = null;
-      refs.remoteVideoElRef.current = null;
-      refs.localScreenShareElRef.current = null;
-      refs.remoteScreenShareElRef.current = null;
-      videoElByIdentity.clear();
+      // The <video> bindings belong to the mounted stage and survive a
+      // reconnect attempt; only the tracks die with this room.
       videoTrackByIdentity.clear();
       void room.disconnect();
       refs.roomRef.current = null;
-      setters.setConnected(false);
+      setters.setConnectionState("connecting");
       setters.setRemoteParticipantCount(0);
-      setters.setParticipantTiles([]);
+      setters.clearParticipantTiles();
       setters.setNeedsAudioUnlock(false);
       setters.setCameraEnabled(false);
       setters.setRemoteCameraEnabled(false);
@@ -357,6 +388,7 @@ export function useVoiceCallRoomConnection(
     url,
     token,
     initialCameraEnabled,
+    attempt,
     attachLocalVideo,
     attachLocalScreenShare,
     syncAudioPlaybackState,

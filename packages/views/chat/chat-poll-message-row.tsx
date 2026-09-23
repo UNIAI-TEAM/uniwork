@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
 import { BarChart3 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ import type { ChatMessage } from "./chat-messages";
 import { ChatCard, ChatCardStatus } from "./chat-card";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 import { ChatPollVotersDialog } from "./chat-poll-voters-dialog";
+import { toastChatError } from "./chat-error-message";
 
 type PollPayload = NonNullable<ChatMessage["poll"]>;
 
@@ -76,9 +77,28 @@ export function ChatPollMessageRow({
   const hideCounts = poll.settings.hide_results_until_vote && !hasVoted;
   const canViewVoters = useMemo(() => canViewPollVoters(poll), [poll]);
 
-  const handleVote = (optionId: string) => {
+  const handleVote = async (optionId: string) => {
     if (expired || votePoll.isPending) return;
-    void votePoll.mutateAsync({ roomId, messageId, optionId });
+    try {
+      await votePoll.mutateAsync({ roomId, messageId, optionId });
+    } catch (err) {
+      toastChatError(err, t, t("chat.message_list.poll_vote_failed"));
+    }
+  };
+
+  const multiple = poll.settings.allow_multiple;
+  const questionId = useId();
+  const hintId = useId();
+  // Arrows move between options like any radio or checkbox group; Space or
+  // Enter votes. Moving never votes on its own.
+  const moveFocus = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight"].includes(event.key)) return;
+    const options = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("[data-poll-option]"));
+    const index = options.indexOf(document.activeElement as HTMLButtonElement);
+    if (index < 0) return;
+    event.preventDefault();
+    const step = event.key === "ArrowDown" || event.key === "ArrowRight" ? 1 : -1;
+    options[(index + step + options.length) % options.length]?.focus();
   };
 
   const openVoters = (optionId?: string) => {
@@ -101,19 +121,30 @@ export function ChatPollMessageRow({
         compactTop={compactTop}
         status={expired ? <ChatCardStatus>{t("chat.poll_closed_status")}</ChatCardStatus> : null}
       >
-        <p className="mb-3 text-body font-semibold text-balance text-foreground">{poll.question}</p>
+        <p id={questionId} className="text-body font-semibold text-balance text-foreground">
+          {poll.question}
+        </p>
+        <p id={hintId} className="mt-0.5 mb-3 text-caption text-muted-foreground">
+          {multiple ? t("chat.message_list.poll_pick_many") : t("chat.message_list.poll_pick_one")}
+        </p>
 
         {/* Each option is a vote button with its share drawn behind it. A
             closed poll keeps full contrast (the result is the point now) and
             only stops taking votes. */}
-        <ul className="space-y-1.5">
+        <div
+          role={multiple ? "group" : "radiogroup"}
+          aria-labelledby={questionId}
+          aria-describedby={hintId}
+          className="space-y-1.5"
+          onKeyDown={moveFocus}
+        >
           {poll.options.map((option) => {
             const selected = userVotes.includes(option.id);
             const ratio = totalVotes > 0 ? option.votes / totalVotes : 0;
             const showVoterCountButton = !hideCounts && canViewVoters && option.votes > 0;
             const locked = expired || votePoll.isPending;
             return (
-              <li key={option.id}>
+              <div key={option.id}>
                 <div
                   className={cn(
                     "relative flex overflow-hidden rounded-lg border transition-colors duration-(--duration-fast)",
@@ -122,14 +153,16 @@ export function ChatPollMessageRow({
                 >
                   <button
                     type="button"
+                    data-poll-option
+                    role={multiple ? "checkbox" : "radio"}
+                    aria-checked={selected}
                     disabled={locked}
-                    aria-pressed={selected}
                     aria-label={
                       hideCounts
                         ? option.label
                         : t("chat.poll_option_aria", { label: option.label, count: option.votes })
                     }
-                    onClick={() => handleVote(option.id)}
+                    onClick={() => void handleVote(option.id)}
                     className={cn(
                       "relative min-h-9 min-w-0 flex-1 px-3 py-2 text-left pointer-coarse:min-h-11",
                       !locked && "hover:bg-surface-hover",
@@ -155,7 +188,10 @@ export function ChatPollMessageRow({
                     showVoterCountButton ? (
                       <button
                         type="button"
-                        aria-label={t("chat.poll_view_voters")}
+                        aria-label={t("chat.message_list.poll_view_option_voters", {
+                          count: option.votes,
+                          label: option.label,
+                        })}
                         onClick={() => openVoters(option.id)}
                         className="relative shrink-0 border-l border-border px-3 py-2 text-caption font-semibold text-brand-subtle-foreground tabular-nums hover:bg-surface-hover"
                       >
@@ -168,10 +204,10 @@ export function ChatPollMessageRow({
                     )
                   ) : null}
                 </div>
-              </li>
+              </div>
             );
           })}
-        </ul>
+        </div>
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
           <p className="text-caption text-muted-foreground tabular-nums">

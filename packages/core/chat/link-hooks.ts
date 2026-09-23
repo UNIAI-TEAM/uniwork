@@ -1,5 +1,5 @@
 "use client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as chat from "../api/endpoints/chat";
 import type {
   CreateChatMessageLinkInput,
@@ -9,25 +9,49 @@ import type {
 import { useAuthStore } from "../auth/store";
 import { taskKeys } from "../tasks/keys";
 import { chatKeys } from "./chat-keys";
+import { groupLinksByMessageId } from "./message-links";
+import { invalidateChatMessageLinks } from "./realtime-cache";
 
 function invalidateMessageLinks(
   qc: ReturnType<typeof useQueryClient>,
   workspaceId: string,
   messageId: string,
 ) {
-  void qc.invalidateQueries({ queryKey: chatKeys.messageLinks(workspaceId, messageId) });
+  invalidateChatMessageLinks(qc, workspaceId, messageId);
 }
 
-export function useChatMessageLinks(
+/** The server caps one batch; a longer timeline asks in slices of this size. */
+const ROOM_LINKS_BATCH = 200;
+
+/**
+ * Links for every message a room timeline shows, in one request per batch
+ * rather than one per message. Keyed by the sorted id list, so a new message
+ * asks again while the previous answer stays on screen.
+ */
+export function useChatRoomMessageLinks(
   workspaceId: string,
-  messageId: string,
+  roomId: string,
+  messageIds: readonly string[],
   enabled = true,
 ) {
   const authReady = useAuthStore((s) => s.status === "authed");
+  const idsKey = [...new Set(messageIds)].sort().join(",");
   return useQuery({
-    queryKey: chatKeys.messageLinks(workspaceId, messageId),
-    queryFn: () => chat.listChatMessageLinks(workspaceId, messageId),
-    enabled: !!workspaceId && !!messageId && authReady && enabled,
+    queryKey: chatKeys.roomMessageLinks(workspaceId, roomId, idsKey),
+    queryFn: async () => {
+      const ids = idsKey ? idsKey.split(",") : [];
+      const batches: string[][] = [];
+      for (let i = 0; i < ids.length; i += ROOM_LINKS_BATCH) {
+        batches.push(ids.slice(i, i + ROOM_LINKS_BATCH));
+      }
+      const results = await Promise.all(
+        batches.map((batch) => chat.listChatRoomMessageLinks(workspaceId, roomId, batch)),
+      );
+      return groupLinksByMessageId(results.flat());
+    },
+    enabled: !!workspaceId && !!roomId && idsKey.length > 0 && authReady && enabled,
+    placeholderData: keepPreviousData,
+    staleTime: 30_000,
   });
 }
 

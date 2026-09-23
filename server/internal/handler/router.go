@@ -422,6 +422,7 @@ func New(d Deps) http.Handler {
 		CreateTaskFromChatMessage:        h.createTaskFromChatMessage,
 		CreateChatMessageLink:            h.createChatMessageLink,
 		ListChatMessageLinks:             h.listChatMessageLinks,
+		ListChatRoomMessageLinks:         h.listChatRoomMessageLinks,
 		DeleteChatMessageLink:            h.deleteChatMessageLink,
 		SyncChatThreadTask:               h.syncChatThreadTask,
 		UnsyncChatThreadTask:             h.unsyncChatThreadTask,

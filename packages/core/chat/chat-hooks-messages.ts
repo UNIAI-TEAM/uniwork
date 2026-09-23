@@ -177,6 +177,55 @@ export function useToggleChatMessagePin(workspaceId: string) {
   });
 }
 
+/** Blobs are immutable per message; keep them while a room is in use. */
+const CHAT_BLOB_GC_MS = 5 * 60_000;
+
+/**
+ * The bytes of a file message (image or PDF preview, reply thumbnail). Keyed
+ * by message, so the timeline rebuilding its rows or the list remounting one
+ * reads the cached Blob instead of downloading it again; callers create
+ * their own object URL from it and revoke it on unmount.
+ */
+export function useChatFileBlob(
+  workspaceId: string,
+  roomId: string,
+  messageId: string,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: chatKeys.fileBlob(workspaceId, roomId, messageId),
+    queryFn: () => chat.loadChatFileBlob(workspaceId, roomId, messageId),
+    enabled: !!workspaceId && !!roomId && !!messageId && enabled,
+    staleTime: Infinity,
+    gcTime: CHAT_BLOB_GC_MS,
+    structuralSharing: false,
+  });
+}
+
+/** Loads a file's bytes through the same cache (download button). */
+export function useChatFileBlobLoader(workspaceId: string, roomId: string) {
+  const qc = useQueryClient();
+  return (messageId: string): Promise<Blob> =>
+    qc.fetchQuery({
+      queryKey: chatKeys.fileBlob(workspaceId, roomId, messageId),
+      queryFn: () => chat.loadChatFileBlob(workspaceId, roomId, messageId),
+      staleTime: Infinity,
+      gcTime: CHAT_BLOB_GC_MS,
+    });
+}
+
+/** Loads a voice message's bytes once per message for the shared player. */
+export function useChatVoiceBlobLoader(workspaceId: string, roomId: string) {
+  const qc = useQueryClient();
+  return (messageId: string): Promise<Blob> =>
+    qc.fetchQuery({
+      queryKey: chatKeys.voiceBlob(workspaceId, roomId, messageId),
+      queryFn: () => chat.loadChatVoiceBlob(workspaceId, roomId, messageId),
+      staleTime: Infinity,
+      gcTime: CHAT_BLOB_GC_MS,
+    });
+}
+
 export function useChatBlockStatus(workspaceId: string, userId: string, enabled: boolean) {
   const authReady = useAuthStore((s) => s.status === "authed");
   return useQuery({

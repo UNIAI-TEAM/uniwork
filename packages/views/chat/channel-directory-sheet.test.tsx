@@ -73,7 +73,7 @@ describe("ChannelDirectorySheet", () => {
     expect(screen.queryByText(t("chat.channel.directory_none_title"))).not.toBeInTheDocument();
   });
 
-  it("shows why a join failed instead of failing silently", async () => {
+  it("says a join failed in its own words, not the server's", async () => {
     requestMock.mockImplementation((path: string) => {
       if (path.endsWith("/join")) return Promise.reject(new ApiError("Kênh đã bị lưu trữ", "gone", 409));
       return Promise.resolve({ rooms: [room("c1", "marketing"), room("c2", "design")] });
@@ -82,9 +82,40 @@ describe("ChannelDirectorySheet", () => {
     renderSheet({ onJoined, memberChannelIds: new Set(["c2"]) });
 
     fireEvent.click(await screen.findByRole("button", { name: t("chat.channel.join_named", { name: "marketing" }) }));
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Kênh đã bị lưu trữ"));
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(t("chat.channel.join_failed", { name: "marketing" })),
+    );
     expect(onJoined).not.toHaveBeenCalled();
-    // A channel you are already in reads as joined, not as a button.
-    expect(screen.getByText(t("chat.channel.joined"))).toBeInTheDocument();
+  });
+
+  it("opens a channel you are already in instead of offering to join it", async () => {
+    requestMock.mockResolvedValue({ rooms: [room("c2", "design")] });
+    const onJoined = vi.fn();
+    renderSheet({ onJoined, memberChannelIds: new Set(["c2"]) });
+
+    fireEvent.click(await screen.findByRole("button", { name: t("chat.channel.open_named", { name: "design" }) }));
+    expect(onJoined).toHaveBeenCalledWith(expect.objectContaining({ id: "c2" }));
+    expect(screen.queryByRole("button", { name: t("chat.channel.join_named", { name: "design" }) })).toBeNull();
+  });
+
+  it("narrows the list accent-insensitively at once and waits for a pause before asking the server", async () => {
+    requestMock.mockResolvedValue({ rooms: [room("c1", "Thiết kế"), room("c3", "Kinh doanh")] });
+    renderSheet();
+    expect(await screen.findByText("Thiết kế")).toBeInTheDocument();
+    const callsBefore = requestMock.mock.calls.length;
+
+    fireEvent.change(screen.getByRole("searchbox"), { target: { value: "thiet" } });
+    expect(await screen.findByText("Thiết kế")).toBeInTheDocument();
+    expect(screen.queryByText("Kinh doanh")).toBeNull();
+    // No request per keystroke: the server query follows ~250ms later.
+    expect(requestMock.mock.calls.length).toBe(callsBefore);
+    await waitFor(() => expect(requestMock.mock.calls.length).toBeGreaterThan(callsBefore));
+    expect(String(requestMock.mock.calls.at(-1)?.[0])).toContain("thiet");
+  });
+
+  it("names its close button", async () => {
+    requestMock.mockResolvedValue({ rooms: [] });
+    renderSheet();
+    expect(await screen.findByRole("button", { name: t("common.close") })).toBeInTheDocument();
   });
 });

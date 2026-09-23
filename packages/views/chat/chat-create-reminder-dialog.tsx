@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { useSendChatRoomMessage } from "@uniwork/core/chat";
 import {
   canSubmitReminder,
-  formatReminderTime,
   isSameCalendarDay,
   isTomorrow,
   parseDatetimeLocalValue,
@@ -24,8 +23,10 @@ import { Select } from "@uniwork/ui/components/ui/select";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
 import { DateTimeField } from "../common/datetime-field";
-import { toastApiError } from "../toast-api-error";
+import { toDateOnly } from "../common/date-field";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
+import { chatErrorMessage } from "./chat-error-message";
+import { ChatCharCounter, ChatFormFooterNote, nearLimit, RequiredMark } from "./chat-form-parts";
 
 const QUICK_PRESETS: ReminderQuickPreset[] = ["15m", "30m", "tomorrow_9", "custom"];
 
@@ -53,6 +54,27 @@ function repeatLabelKey(repeat: ReminderRepeat): string {
   return `chat.reminder_repeat_${repeat}`;
 }
 
+/** The moment a preset or the picked time points at, computed now — a preset is relative to the send, not to the pick. */
+function resolveRemindAt(preset: ReminderQuickPreset, customAt: string, now: Date): Date | null {
+  return preset === "custom" ? parseDatetimeLocalValue(customAt) : remindAtFromPreset(preset, now);
+}
+
+/** "GMT+7" for the viewer's zone in the app locale, so a picked hour is never ambiguous. */
+function timeZoneLabel(date: Date, locale: string): string {
+  try {
+    return (
+      new Intl.DateTimeFormat(locale, { timeZoneName: "short" })
+        .formatToParts(date)
+        .find((part) => part.type === "timeZoneName")?.value ?? ""
+    );
+  } catch {
+    return "";
+  }
+}
+
+/** Presets are relative, so their summary is refreshed while the dialog stays open. */
+const PRESET_REFRESH_MS = 30_000;
+
 export function ChatCreateReminderDialog({
   open,
   onOpenChange,
@@ -73,12 +95,15 @@ export function ChatCreateReminderDialog({
   const [preset, setPreset] = useState<ReminderQuickPreset>("30m");
   const [customAt, setCustomAt] = useState("");
   const [repeat, setRepeat] = useState<ReminderRepeat>("none");
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [now, setNow] = useState(() => new Date());
 
   const resetForm = () => {
     setBody("");
     setPreset("30m");
     setCustomAt("");
     setRepeat("none");
+    setSubmitError(null);
   };
 
   useEffect(() => {
@@ -90,17 +115,19 @@ export function ChatCreateReminderDialog({
     setCustomAt(toDatetimeLocalValue(initial));
   }, [open]);
 
-  const remindAtDate = useMemo(() => {
-    if (preset === "custom") {
-      return parseDatetimeLocalValue(customAt);
-    }
-    return remindAtFromPreset(preset);
-  }, [customAt, preset]);
+  useEffect(() => {
+    if (!open || preset === "custom") return;
+    setNow(new Date());
+    const timer = window.setInterval(() => setNow(new Date()), PRESET_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [open, preset]);
+
+  const remindAtDate = useMemo(() => resolveRemindAt(preset, customAt, now), [customAt, preset, now]);
+  const zone = timeZoneLabel(remindAtDate ?? now, i18n.language);
 
   const scheduleLabel = useMemo(() => {
     if (!remindAtDate) return "";
-    const now = new Date();
-    const time = formatReminderTime(remindAtDate);
+    const time = remindAtDate.toLocaleTimeString(i18n.language, { hour: "2-digit", minute: "2-digit" });
     if (isSameCalendarDay(now, remindAtDate)) {
       return t("chat.reminder_schedule_today", { time });
     }
@@ -109,12 +136,17 @@ export function ChatCreateReminderDialog({
     }
     const date = remindAtDate.toLocaleString(i18n.language, { dateStyle: "medium", timeStyle: "short" });
     return t("chat.reminder_schedule_date", { date });
-  }, [remindAtDate, t, i18n.language]);
+  }, [remindAtDate, now, t, i18n.language]);
 
   const canCreate = canSubmitReminder(body, remindAtDate);
   const showCustomPicker = preset === "custom";
   // Only a hand-picked time can land in the past; say so instead of silently disabling the button.
   const timeInPast = showCustomPicker && remindAtDate !== null && remindAtDate.getTime() <= Date.now();
+  const missingHint = !body.trim()
+    ? t("chat.reminder_submit_hint_body")
+    : !remindAtDate
+      ? t("chat.reminder_submit_hint_time")
+      : null;
 
   const handlePresetChange = (next: ReminderQuickPreset) => {
     setPreset(next);
@@ -125,13 +157,16 @@ export function ChatCreateReminderDialog({
   };
 
   const handleCreate = () => {
-    if (!canCreate || !remindAtDate || sendMessage.isPending) return;
+    // Recompute here: "in 15 minutes" means 15 minutes from the send, however long the dialog sat open.
+    const remindAt = resolveRemindAt(preset, customAt, new Date());
+    if (!remindAt || !canSubmitReminder(body, remindAt) || sendMessage.isPending) return;
+    setSubmitError(null);
     void sendMessage
       .mutateAsync({
         roomId,
         reminder: {
           body: body.trim(),
-          remind_at: remindAtDate.toISOString(),
+          remind_at: remindAt.toISOString(),
           repeat,
         },
       })
@@ -141,7 +176,7 @@ export function ChatCreateReminderDialog({
         onOpenChange(false);
       })
       .catch((err: unknown) => {
-        toastApiError(err, t("chat.reminder_create_failed"));
+        setSubmitError(chatErrorMessage(err, t, t("chat.reminder_create_failed")));
       });
   };
 
@@ -157,14 +192,27 @@ export function ChatCreateReminderDialog({
 
         <FormDialogBody className="space-y-5">
           <div className="space-y-2">
-            <Label htmlFor="reminder-body">{t("chat.reminder_body_label")}</Label>
+            <div className="flex items-baseline justify-between gap-3">
+              <Label htmlFor="reminder-body">
+                {t("chat.reminder_body_label")}
+                <RequiredMark />
+              </Label>
+              <ChatCharCounter id="reminder-body-count" length={body.length} max={REMINDER_BODY_MAX_LENGTH} />
+            </div>
             <Textarea
               id="reminder-body"
               value={body}
               maxLength={REMINDER_BODY_MAX_LENGTH}
               rows={4}
+              aria-required
+              aria-describedby={
+                nearLimit(body.length, REMINDER_BODY_MAX_LENGTH) ? "reminder-body-count" : undefined
+              }
               placeholder={t("chat.reminder_body_placeholder")}
-              onChange={(event) => setBody(event.target.value)}
+              onChange={(event) => {
+                setBody(event.target.value);
+                if (submitError) setSubmitError(null);
+              }}
             />
           </div>
 
@@ -193,15 +241,21 @@ export function ChatCreateReminderDialog({
           {showCustomPicker ? (
             <div className="space-y-2">
               <Label htmlFor="reminder-at">{t("chat.reminder_datetime_label")}</Label>
-              <div role="group" aria-describedby={timeInPast ? "reminder-at-error" : undefined}>
+              <div role="group" aria-describedby={timeInPast ? "reminder-at-error" : zone ? "reminder-at-zone" : undefined}>
                 <DateTimeField
                   id="reminder-at"
                   value={customAt}
                   onChange={setCustomAt}
+                  minDate={toDateOnly(now)}
                   hourLabel={t("common.hour")}
                   minuteLabel={t("common.minute")}
                 />
               </div>
+              {zone ? (
+                <p id="reminder-at-zone" className="text-caption text-muted-foreground">
+                  {t("chat.reminder_time_zone", { zone })}
+                </p>
+              ) : null}
               {timeInPast ? (
                 <p id="reminder-at-error" role="alert" className="text-caption text-destructive">
                   {t("chat.reminder_time_past")}
@@ -219,6 +273,7 @@ export function ChatCreateReminderDialog({
               >
                 <Clock className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                 <span>{scheduleLabel}</span>
+                {zone ? <span className="text-caption text-muted-foreground">{zone}</span> : null}
               </output>
             </div>
           )}
@@ -241,6 +296,9 @@ export function ChatCreateReminderDialog({
           submitting={sendMessage.isPending}
           submitDisabled={!canCreate}
           onSubmit={handleCreate}
+          leading={
+            submitError || missingHint ? <ChatFormFooterNote error={submitError} hint={missingHint} /> : undefined
+          }
         />
       </FormDialogContent>
     </Dialog>

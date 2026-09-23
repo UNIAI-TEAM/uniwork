@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslation } from "react-i18next";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 
@@ -30,11 +31,16 @@ export function ChatMessagesSkeleton({ className }: { className?: string }) {
   );
 }
 
-/** Header, messages and composer: a room that is still being opened. */
+/**
+ * Header, messages and composer: a room that is still being opened. The
+ * shapes are hidden from assistive tech; one status line says what is going on.
+ */
 export function ChatConversationSkeleton() {
+  const { t } = useTranslation();
   return (
-    <div className="flex min-h-0 flex-1 flex-col" aria-busy>
-      <div className="flex items-center gap-3 border-b border-border bg-surface px-4 py-3">
+    <div role="status" className="flex min-h-0 flex-1 flex-col">
+      <span className="sr-only">{t("common.loading")}</span>
+      <div aria-hidden className="flex items-center gap-3 border-b border-border bg-surface px-4 py-3">
         <Skeleton className="size-9 shrink-0 rounded-lg" />
         <div className="flex flex-col gap-1.5">
           <Skeleton className="h-3.5 w-36" />
@@ -42,7 +48,7 @@ export function ChatConversationSkeleton() {
         </div>
       </div>
       <ChatMessagesSkeleton className="min-h-0 flex-1" />
-      <div className="border-t border-border bg-surface px-4 py-3">
+      <div aria-hidden className="border-t border-border bg-surface px-4 py-3">
         <Skeleton className="h-10 w-full rounded-xl" />
       </div>
     </div>

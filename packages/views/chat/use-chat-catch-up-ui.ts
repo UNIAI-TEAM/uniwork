@@ -108,12 +108,14 @@ export function useChatCatchUpUi(workspaceId: string, roomId: string | null, thr
     }
   }, [catchUp, i18n.language, roomId, t, threadRootId]);
 
+  // Closing counts as "caught up" only when a brief was actually shown; a
+  // failed or still-loading summary leaves the unread window for next time.
   const onOpenChange = useCallback(
     (next: boolean) => {
       setOpen(next);
-      if (!next) flushRead(roomId);
+      if (!next && result) flushRead(roomId);
     },
-    [flushRead, roomId],
+    [flushRead, result, roomId],
   );
 
   return {

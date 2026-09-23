@@ -16,6 +16,7 @@ import {
   WorkspaceMemberLookupResult,
   WorkspaceMemberPickerList,
   WorkspaceMemberSearchField,
+  useMemberPickerFocus,
   useWorkspaceMemberPicker,
 } from "./workspace-member-picker";
 import { memberToChatContact } from "./workspace-member-picker-utils";
@@ -54,6 +55,7 @@ export function AddGroupMembersDialog({
   const [pendingMembers, setPendingMembers] = useState<ChatContact[]>([]);
   const isChannel = variant === "channel";
 
+  const pickerFocus = useMemberPickerFocus();
   const existingMemberIds = useMemo(() => new Set(group.member_user_ids), [group.member_user_ids]);
   const excludeUserIds = useMemo(
     () => new Set([...group.member_user_ids, ...pendingMembers.map((member) => member.user_id)]),
@@ -89,6 +91,8 @@ export function AddGroupMembersDialog({
     );
     setMemberQuery("");
     setSearchSubmitted(false);
+    // The picked row leaves the list; the search field is where the next pick starts.
+    pickerFocus.focusInput();
   };
 
   const submitMemberSearch = () => {
@@ -123,6 +127,8 @@ export function AddGroupMembersDialog({
             onSubmit={submitMemberSearch}
             placeholder={t("chat.member_search_placeholder")}
             hint={t("chat.search_member_or_email_hint")}
+            inputRef={pickerFocus.inputRef}
+            onArrowDown={pickerFocus.focusFirstRow}
           />
 
           {pendingMembers.length > 0 ? (
@@ -131,6 +137,7 @@ export function AddGroupMembersDialog({
               onRemove={(userId) =>
                 setPendingMembers((prev) => prev.filter((entry) => entry.user_id !== userId))
               }
+              onRemovedLast={pickerFocus.focusInput}
             />
           ) : null}
 
@@ -151,6 +158,7 @@ export function AddGroupMembersDialog({
               isChannel ? t("chat.channel.add_members_all_in") : t("chat.add_group_members_all_in")
             }
             onPick={addMember}
+            listRef={pickerFocus.listRef}
           />
         </FormDialogBody>
         <FormDialogFooter

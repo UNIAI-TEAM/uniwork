@@ -7,6 +7,7 @@ import {
   WorkspaceMemberLookupResult,
   WorkspaceMemberPickerList,
   WorkspaceMemberSearchField,
+  useMemberPickerFocus,
   useWorkspaceMemberPicker,
 } from "./workspace-member-picker";
 import { renderHook } from "@testing-library/react";
@@ -80,6 +81,51 @@ describe("workspace-member-picker", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Xóa tìm kiếm" }));
     expect(onQueryChange).toHaveBeenCalledWith("");
+    // Clearing hands focus back to the field, not to the page.
+    expect(screen.getByLabelText("Tìm thành viên")).toHaveFocus();
+  });
+
+  it("enters the list from the search field with ↓, and the list is one tab stop", () => {
+    const people = [
+      { workspace_id: "ws1", user_id: "u1", role: "member" as const, email: "a@example.com", display_name: "An" },
+      { workspace_id: "ws1", user_id: "u2", role: "member" as const, email: "b@example.com", display_name: "Binh" },
+    ];
+    function Harness() {
+      const focus = useMemberPickerFocus();
+      return (
+        <>
+          <WorkspaceMemberSearchField
+            id="member-search"
+            label="Tìm thành viên"
+            query=""
+            onQueryChange={vi.fn()}
+            onSubmit={vi.fn()}
+            placeholder="Email"
+            inputRef={focus.inputRef}
+            onArrowDown={focus.focusFirstRow}
+          />
+          <WorkspaceMemberPickerList members={people} onPick={focus.focusInput} listRef={focus.listRef} />
+        </>
+      );
+    }
+    render(wrap(<Harness />));
+    const input = screen.getByLabelText("Tìm thành viên");
+    const an = screen.getByRole("button", { name: /An/ });
+    const binh = screen.getByRole("button", { name: /Binh/ });
+    expect(an).toHaveAttribute("tabindex", "0");
+    expect(binh).toHaveAttribute("tabindex", "-1");
+
+    input.focus();
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(an).toHaveFocus();
+    fireEvent.keyDown(an, { key: "ArrowDown" });
+    expect(binh).toHaveFocus();
+    expect(binh).toHaveAttribute("tabindex", "0");
+    expect(an).toHaveAttribute("tabindex", "-1");
+
+    // A pick sends focus back to the field (here onPick is focusInput).
+    fireEvent.click(binh);
+    expect(input).toHaveFocus();
   });
 
   it("shows loading and empty member lists", () => {

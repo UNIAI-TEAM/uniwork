@@ -27,7 +27,7 @@ export const voiceCallParticipantStripTileClass = "aspect-video w-28 shrink-0 sm
 
 /* The name plate over video: the meeting room's tile tokens (a dark plate
    that reads on any frame), caption size, no blur. */
-const NAME_PLATE =
+export const VOICE_CALL_NAME_PLATE =
   "absolute bottom-1 left-1 flex max-w-[calc(100%-0.5rem)] items-center gap-1 truncate rounded-md bg-meeting-tile-name-bg px-1.5 py-0.5 text-caption font-medium text-meeting-tile-name-foreground";
 
 function VoiceCallParticipantVideoTile({
@@ -78,7 +78,7 @@ function VoiceCallParticipantVideoTile({
           </Avatar>
         </div>
       )}
-      <span className={NAME_PLATE}>
+      <span className={VOICE_CALL_NAME_PLATE}>
         {tile.micMuted ? (
           <>
             <MicOff className="size-3 shrink-0" aria-hidden />
@@ -118,7 +118,7 @@ function VoiceCallScreenShareTile({
     >
       {/* eslint-disable-next-line jsx-a11y/media-has-caption -- LiveKit realtime video has no caption track */}
       <video ref={bindScreenShare} autoPlay playsInline className="size-full object-contain" />
-      <span className={NAME_PLATE}>{label}</span>
+      <span className={VOICE_CALL_NAME_PLATE}>{label}</span>
     </div>
   );
 }
@@ -179,11 +179,12 @@ export function VoiceCallGroupVideoStage({
           ))}
         </div>
         <div
+          role="list"
           className="flex shrink-0 gap-2 overflow-x-auto pb-0.5 pt-1"
           aria-label={t("chat.voice_call_participant_strip")}
         >
           {tiles.map((tile) => (
-            <div key={tile.identity} className={voiceCallParticipantStripTileClass}>
+            <div key={tile.identity} role="listitem" className={voiceCallParticipantStripTileClass}>
               <VoiceCallParticipantVideoTile
                 tile={tile}
                 label={participantLabel(tile)}
@@ -198,6 +199,8 @@ export function VoiceCallGroupVideoStage({
     );
   }
 
+  // More people than the frame holds: the grid scrolls instead of cutting
+  // tiles off, so nobody in the call silently disappears from view.
   return (
     <div
       className={cn(
@@ -205,15 +208,20 @@ export function VoiceCallGroupVideoStage({
         size === "fullscreen" ? "max-h-[min(70vh,720px)]" : "max-h-64",
       )}
     >
-      <div className={cn("grid min-h-0 flex-1 gap-2 auto-rows-fr", gridClass)}>
+      <div
+        role="list"
+        aria-label={t("chat.voice_call_participant_grid")}
+        className={cn("grid min-h-0 flex-1 gap-2 overflow-y-auto", gridClass)}
+      >
         {tiles.map((tile) => (
-          <VoiceCallParticipantVideoTile
-            key={tile.identity}
-            tile={tile}
-            label={participantLabel(tile)}
-            micOffLabel={t("chat.voice_call_mic_off")}
-            bindParticipantVideo={bindParticipantVideo}
-          />
+          <div key={tile.identity} role="listitem" className="min-w-0">
+            <VoiceCallParticipantVideoTile
+              tile={tile}
+              label={participantLabel(tile)}
+              micOffLabel={t("chat.voice_call_mic_off")}
+              bindParticipantVideo={bindParticipantVideo}
+            />
+          </div>
         ))}
       </div>
     </div>

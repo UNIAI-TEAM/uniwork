@@ -72,6 +72,8 @@
     "./chat/user-lookup": "./chat/user-lookup.ts",
     "./chat/voice-call": "./chat/voice-call.ts",
     "./chat/voice-recording-playback-cache": "./chat/voice-recording-playback-cache.ts",
+    "./chat/composer-draft-store": "./chat/composer-draft-store.ts",
+    "./chat/voice-playback-store": "./chat/voice-playback-store.ts",
     "./meetings/room-preferences": "./meetings/room-preferences.ts",
     "./meetings/view-session": "./meetings/view-session.ts",
     "./realtime": "./realtime/index.ts",

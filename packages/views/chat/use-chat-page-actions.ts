@@ -36,7 +36,7 @@ export function useChatPageActions({
   activeRoomId,
   activeGroup,
   activeChannel,
-  draft,
+  getDraft,
   setDraft,
   replyTo,
   setReplyTo,
@@ -70,8 +70,10 @@ export function useChatPageActions({
   activeRoomId: string | null;
   activeGroup: GroupChat | null;
   activeChannel: ChatRoomRecord | null;
-  draft: string;
-  setDraft: React.Dispatch<React.SetStateAction<string>>;
+  /** Reads the composer's draft at send time (it lives in the draft store, not in page state). */
+  getDraft: () => string;
+  /** Writes the draft of the conversation the send started in. */
+  setDraft: (value: string) => void;
   replyTo: ChatMessage | null;
   setReplyTo: React.Dispatch<React.SetStateAction<ChatMessage | null>>;
   activeThreadRootId?: string | null;
@@ -219,13 +221,13 @@ export function useChatPageActions({
 
   const provisionAndSend = useCallback(async () => {
     const text = serializeComposerDraftToMessageBody(
-      draft.trim(),
+      getDraft().trim(),
       mentionCandidates,
       mentionAllLabel,
     );
     if (!text) return;
     await sendMessageBody(text);
-  }, [draft, mentionCandidates, mentionAllLabel, sendMessageBody]);
+  }, [getDraft, mentionCandidates, mentionAllLabel, sendMessageBody]);
 
   const handleCreateGroup = useCallback(
     (members: ChatContact[], name: string) => {

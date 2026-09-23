@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { apiErrorMessage } from "@uniwork/core/api";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import { useCreateChatChannel } from "@uniwork/core/chat";
 import { useProjects } from "@uniwork/core/tasks";
@@ -25,10 +24,12 @@ import {
   FormDialogFooter,
   FormDialogHeader,
 } from "../common/form-dialog";
+import { chatErrorMessage } from "./chat-error-message";
 import { SelectedMemberChips } from "./selected-member-chips";
 import {
   WorkspaceMemberPickerList,
   WorkspaceMemberSearchField,
+  useMemberPickerFocus,
   useWorkspaceMemberPicker,
 } from "./workspace-member-picker";
 import { memberToChatContact } from "./workspace-member-picker-utils";
@@ -64,6 +65,7 @@ export function CreateChannelDialog({
   const [pendingMembers, setPendingMembers] = useState<ChatContact[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  const pickerFocus = useMemberPickerFocus();
   const excludeUserIds = useMemo(
     () => new Set(pendingMembers.map((member) => member.user_id)),
     [pendingMembers],
@@ -101,6 +103,7 @@ export function CreateChannelDialog({
     );
     setMemberQuery("");
     setSearchSubmitted(false);
+    pickerFocus.focusInput();
   };
 
   const removeMember = (userId: string) => {
@@ -137,7 +140,7 @@ export function CreateChannelDialog({
         onCreated?.(room);
       })
       .catch((err: unknown) => {
-        setError(apiErrorMessage(err) ?? t("chat.channel.create_failed"));
+        setError(chatErrorMessage(err, t, t("chat.channel.create_failed")));
       });
   };
 
@@ -278,9 +281,18 @@ export function CreateChannelDialog({
               }}
               onSubmit={submitMemberSearch}
               placeholder={t("chat.member_search_placeholder")}
+              // A channel invites only workspace members (no lookup by email
+              // outside it), so Enter on an unknown email does nothing — say so.
+              hint={t("chat.channel.members_hint")}
+              inputRef={pickerFocus.inputRef}
+              onArrowDown={pickerFocus.focusFirstRow}
             />
             {pendingMembers.length > 0 ? (
-              <SelectedMemberChips members={pendingMembers} onRemove={removeMember} />
+              <SelectedMemberChips
+                members={pendingMembers}
+                onRemove={removeMember}
+                onRemovedLast={pickerFocus.focusInput}
+              />
             ) : null}
             <WorkspaceMemberPickerList
               members={filteredMembers}
@@ -288,6 +300,7 @@ export function CreateChannelDialog({
               query={memberQuery}
               hasOtherMembers={hasOtherMembers}
               onPick={addMember}
+              listRef={pickerFocus.listRef}
             />
           </div>
 

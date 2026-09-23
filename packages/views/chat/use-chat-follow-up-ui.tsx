@@ -10,9 +10,10 @@ import {
   useDeleteChatFollowUp,
   usePatchChatFollowUp,
 } from "@uniwork/core/chat";
-import { toastApiError } from "../toast-api-error";
 import type { ChatMessage } from "./chat-messages";
+import { toastChatError } from "./chat-error-message";
 import { ChatFollowUpsSheet } from "./chat-follow-ups-sheet";
+import { useChatTaskNav } from "./use-chat-task-nav";
 
 /** Follow-up create + list sheet for the message panel / chat page. */
 export function useChatFollowUpUi(
@@ -32,10 +33,12 @@ export function useChatFollowUpUi(
   const patchFollowUp = usePatchChatFollowUp(workspaceId);
   const deleteFollowUp = useDeleteChatFollowUp(workspaceId);
   const convertFollowUp = useConvertChatFollowUpToTask(workspaceId);
+  const { openTaskAction } = useChatTaskNav();
 
-  const track = useCallback((id: string, work: () => Promise<unknown>) => {
+  // Runs one row action; resolves true when it succeeded (the sheet then moves focus on).
+  const track = useCallback((id: string, work: () => Promise<boolean>): Promise<boolean> => {
     setPendingIds((prev) => new Set(prev).add(id));
-    void work().finally(() =>
+    return work().finally(() =>
       setPendingIds((prev) => {
         const next = new Set(prev);
         next.delete(id);
@@ -48,7 +51,7 @@ export function useChatFollowUpUi(
     (message: ChatMessage) => {
       void createFollowUp.mutateAsync({ messageId: message.id }).then(
         () => toast.success(t("chat.follow_up.created")),
-        (err: unknown) => toastApiError(err, t("chat.follow_up.create_failed")),
+        (err: unknown) => toastChatError(err, t, t("chat.follow_up.create_failed")),
       );
     },
     [createFollowUp, t],
@@ -65,7 +68,7 @@ export function useChatFollowUpUi(
       })
       .then(
         () => toast.success(t("chat.follow_up.restored")),
-        (err: unknown) => toastApiError(err, t("chat.follow_up.restore_failed")),
+        (err: unknown) => toastChatError(err, t, t("chat.follow_up.restore_failed")),
       );
   };
 
@@ -85,16 +88,30 @@ export function useChatFollowUpUi(
         onComplete={(id) =>
           track(id, () =>
             patchFollowUp.mutateAsync({ followUpId: id, completed: true }).then(
-              () => toast.success(t("chat.follow_up.completed")),
-              (err: unknown) => toastApiError(err, t("chat.follow_up.update_failed")),
+              () => {
+                toast.success(t("chat.follow_up.completed"));
+                return true;
+              },
+              (err: unknown) => {
+                toastChatError(err, t, t("chat.follow_up.update_failed"));
+                return false;
+              },
             ),
           )
         }
         onConvert={(id) =>
           track(id, () =>
             convertFollowUp.mutateAsync({ followUpId: id }).then(
-              () => toast.success(t("chat.follow_up.converted")),
-              (err: unknown) => toastApiError(err, t("chat.follow_up.convert_failed")),
+              (task) => {
+                toast.success(t("chat.follow_up.converted"), {
+                  action: task?.id ? openTaskAction(task.id) : undefined,
+                });
+                return true;
+              },
+              (err: unknown) => {
+                toastChatError(err, t, t("chat.follow_up.convert_failed"));
+                return false;
+              },
             ),
           )
         }
@@ -104,13 +121,17 @@ export function useChatFollowUpUi(
               (ok) => {
                 if (!ok) {
                   toast.error(t("chat.follow_up.delete_failed"));
-                  return;
+                  return false;
                 }
                 toast.success(t("chat.follow_up.deleted"), {
                   action: { label: t("chat.follow_up.undo"), onClick: () => restore(item) },
                 });
+                return true;
               },
-              (err: unknown) => toastApiError(err, t("chat.follow_up.delete_failed")),
+              (err: unknown) => {
+                toastChatError(err, t, t("chat.follow_up.delete_failed"));
+                return false;
+              },
             ),
           )
         }

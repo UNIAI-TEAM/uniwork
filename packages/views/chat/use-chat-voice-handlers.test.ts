@@ -1,19 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { initI18n } from "@uniwork/core/i18n";
-import { ApiError } from "@uniwork/core/api/http";
-import { toast } from "sonner";
-import { prepareVideoCapture, prepareVoiceCapture } from "./voice-call-media";
+import { describe, expect, it, vi } from "vitest";
 import { useChatVoiceHandlers } from "./use-chat-voice-handlers";
-
-vi.mock("sonner", () => ({
-  toast: { error: vi.fn() },
-}));
-
-vi.mock("./voice-call-media", () => ({
-  prepareVoiceCapture: vi.fn(),
-  prepareVideoCapture: vi.fn(),
-}));
 
 const contact = {
   user_id: "u2",
@@ -21,18 +8,8 @@ const contact = {
   display_name: "Binh",
 };
 
-beforeAll(() => {
-  initI18n();
-});
-
-beforeEach(() => {
-  vi.mocked(prepareVoiceCapture).mockResolvedValue(true);
-  vi.mocked(prepareVideoCapture).mockResolvedValue(true);
-  vi.mocked(toast.error).mockReset();
-});
-
 describe("useChatVoiceHandlers", () => {
-  it("starts a dm voice call when mic access succeeds", async () => {
+  it("starts a dm voice call", async () => {
     const startCall = vi.fn().mockResolvedValue(true);
     const { result } = renderHook(() =>
       useChatVoiceHandlers({
@@ -71,7 +48,6 @@ describe("useChatVoiceHandlers", () => {
       await result.current.handleStartVideoCall();
     });
 
-    expect(prepareVideoCapture).toHaveBeenCalled();
     expect(startCall).toHaveBeenCalledWith("room1", "Binh", "dm", { withCamera: true });
   });
 
@@ -123,13 +99,12 @@ describe("useChatVoiceHandlers", () => {
     expect(startCall).toHaveBeenCalledWith("room-g1", "Design", "group", { withCamera: false });
   });
 
-  it("shows mic denied toast when capture fails", async () => {
-    vi.mocked(prepareVoiceCapture).mockResolvedValue(false);
+  it("does not call without a room", async () => {
     const startCall = vi.fn();
     const { result } = renderHook(() =>
       useChatVoiceHandlers({
         targetKind: "dm",
-        activeRoomId: "room1",
+        activeRoomId: null,
         activeContact: contact,
         activeGroup: null,
         startCall,
@@ -143,11 +118,10 @@ describe("useChatVoiceHandlers", () => {
     });
 
     expect(startCall).not.toHaveBeenCalled();
-    expect(toast.error).toHaveBeenCalled();
   });
 
-  it("maps livekit errors to a toast message on accept", async () => {
-    const acceptCall = vi.fn().mockRejectedValue(new ApiError("not configured", "livekit_not_configured", 503));
+  it("declines rather than leaving the caller ringing when accepting throws", async () => {
+    const acceptCall = vi.fn().mockRejectedValue(new Error("boom"));
     const declineCall = vi.fn();
     const { result } = renderHook(() =>
       useChatVoiceHandlers({
@@ -165,7 +139,6 @@ describe("useChatVoiceHandlers", () => {
       await result.current.handleAcceptVoiceCall();
     });
 
-    expect(toast.error).toHaveBeenCalledWith("Cuộc gọi thoại chưa được cấu hình trên server.");
     expect(declineCall).toHaveBeenCalled();
   });
 });

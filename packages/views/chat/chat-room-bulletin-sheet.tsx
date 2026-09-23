@@ -1,6 +1,16 @@
 "use client";
 
-import { BarChart3, ChevronLeft, Clock, Megaphone, Pin, Plus, StickyNote, type LucideIcon } from "lucide-react";
+import {
+  AlertCircle,
+  BarChart3,
+  ChevronLeft,
+  Clock,
+  Megaphone,
+  Pin,
+  Plus,
+  StickyNote,
+  type LucideIcon,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useChatRoomMessages } from "@uniwork/core/chat";
@@ -23,6 +33,7 @@ import {
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
 import { cn } from "@uniwork/ui/lib/utils";
+import { Notice } from "../common/notice";
 import { ChatCreateNoteDialog } from "./chat-create-note-dialog";
 import { ChatCreatePostDialog } from "./chat-create-post-dialog";
 import { ChatCreatePollDialog } from "./chat-create-poll-dialog";
@@ -34,6 +45,14 @@ import {
   formatBulletinTime,
   type BulletinTab,
 } from "./chat-room-bulletin-utils";
+import { useBulletinOlderMessages } from "./use-bulletin-older-messages";
+
+type LoadMore = {
+  canLoadMore: boolean;
+  loadingMore: boolean;
+  loadMoreFailed: boolean;
+  loadMore: () => void;
+};
 
 const KIND_VISUAL: Record<string, { icon: LucideIcon; tone: IconTileTone }> = {
   note: { icon: StickyNote, tone: "yellow" },
@@ -75,16 +94,47 @@ function BulletinListSkeleton({ label }: { label: string }) {
   );
 }
 
+/** "Load older", its progress, and its failure — the bulletin's way past the loaded window. */
+function BulletinLoadMore({ more }: { more: LoadMore }) {
+  const { t } = useTranslation();
+  if (!more.canLoadMore) return null;
+  return (
+    <div className="flex flex-col items-center gap-2">
+      {more.loadMoreFailed && !more.loadingMore ? (
+        <p role="alert" className="text-caption text-destructive">
+          {t("chat.bulletin_load_more_failed")}
+        </p>
+      ) : null}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={more.loadingMore}
+        aria-busy={more.loadingMore || undefined}
+        onClick={more.loadMore}
+      >
+        {more.loadingMore ? t("chat.bulletin_loading_more") : t("chat.bulletin_load_more")}
+      </Button>
+    </div>
+  );
+}
+
 function BulletinTabPanel({
   tab,
   rows,
   loading,
+  error,
+  onRetry,
+  more,
   onSelectMessage,
   onClose,
 }: {
   tab: BulletinTab;
   rows: ChatMessageRecord[];
   loading: boolean;
+  error: boolean;
+  onRetry: () => void;
+  more: LoadMore;
   onSelectMessage?: (messageId: string) => void;
   onClose: () => void;
 }) {
@@ -93,14 +143,34 @@ function BulletinTabPanel({
   const voiceCallLabel = t("chat.sidebar_voice_call_preview");
   if (loading) return <BulletinListSkeleton label={t("chat.bulletin_loading")} />;
 
+  // A failed read is not an empty room: say it failed and offer the retry.
+  if (error && rows.length === 0) {
+    return (
+      <Notice
+        tone="destructive"
+        icon={AlertCircle}
+        layout="inline"
+        live="assertive"
+        action={
+          <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+            {t("common.retry")}
+          </Button>
+        }
+      >
+        {t("chat.bulletin_load_failed")}
+      </Notice>
+    );
+  }
+
   // There is no pinned/bulletin endpoint: this reads the room's loaded
   // messages only, so every empty sentence names the window it looked at.
   if (filtered.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
+      <div className="flex flex-col items-center justify-center gap-4 px-4 py-12 text-center">
         <p className="max-w-[40ch] text-body text-pretty text-muted-foreground">
           {rows.length === 0 ? t("chat.bulletin_empty_room") : t(EMPTY_KEY[tab], { count: rows.length })}
         </p>
+        <BulletinLoadMore more={more} />
       </div>
     );
   }
@@ -136,11 +206,12 @@ function BulletinTabPanel({
           );
         })}
       </ul>
-      {rows.length >= CHAT_MESSAGE_INITIAL ? (
+      {more.canLoadMore ? (
         <p className="text-center text-caption text-muted-foreground">
           {t("chat.bulletin_window_hint", { count: rows.length })}
         </p>
       ) : null}
+      <BulletinLoadMore more={more} />
     </div>
   );
 }
@@ -175,7 +246,13 @@ export function ChatRoomBulletinSheet({
 }) {
   const { t } = useTranslation();
   const messages = useChatRoomMessages(workspaceId, roomId, CHAT_MESSAGE_INITIAL);
-  const rows = useMemo(() => messages.data ?? [], [messages.data]);
+  const windowRows = useMemo(() => messages.data ?? [], [messages.data]);
+  const { rows, ...more } = useBulletinOlderMessages(
+    workspaceId,
+    roomId,
+    windowRows,
+    windowRows.length >= CHAT_MESSAGE_INITIAL,
+  );
   const [tab, setTab] = useState<BulletinTab>(initialTab);
   const [createNoteOpen, setCreateNoteOpen] = useState(false);
   const [createPostOpen, setCreatePostOpen] = useState(false);
@@ -227,10 +304,10 @@ export function ChatRoomBulletinSheet({
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent
           showCloseButton={false}
+          closeLabel={t("common.close")}
           className="flex h-[100dvh] max-h-[100dvh] w-full max-w-full flex-col gap-0 overflow-hidden rounded-none p-0 sm:h-[min(720px,92vh)] sm:max-w-2xl sm:rounded-xl"
         >
           <DialogHeader className="sr-only">
-            <DialogTitle>{title}</DialogTitle>
             <DialogDescription>{t("chat.bulletin_sheet_description")}</DialogDescription>
           </DialogHeader>
 
@@ -245,9 +322,9 @@ export function ChatRoomBulletinSheet({
             >
               <ChevronLeft className="size-5" aria-hidden />
             </Button>
-            <h2 className="min-w-0 flex-1 truncate text-center text-body font-semibold text-foreground">
+            <DialogTitle className="min-w-0 flex-1 truncate text-center text-body font-semibold text-foreground">
               {title}
-            </h2>
+            </DialogTitle>
             <span className="size-9 shrink-0" aria-hidden />
           </div>
 
@@ -256,23 +333,24 @@ export function ChatRoomBulletinSheet({
             onValueChange={(value) => setTab(value as BulletinTab)}
             className="flex min-h-0 flex-1 flex-col gap-0"
           >
+            {/* Six tabs do not fit a phone: the row scrolls sideways instead of cutting labels. */}
             <TabsList
               variant="line"
-              className="flex h-auto w-full shrink-0 gap-0 rounded-none border-b border-border bg-transparent px-1 sm:px-2"
+              className="flex h-auto w-full shrink-0 justify-start gap-0 overflow-x-auto overscroll-x-contain rounded-none border-b border-border bg-transparent px-1 [scrollbar-width:none] sm:px-2"
             >
               {visibleTabs.map((entry) => (
                 <TabsTrigger
                   key={entry.value}
                   value={entry.value}
                   className={cn(
-                    "min-w-0 flex-1 rounded-none border-x-0 border-t-0 border-b-2 border-solid border-transparent bg-transparent px-1 pb-3 text-caption text-muted-foreground shadow-none -mb-px",
+                    "shrink-0 grow rounded-none border-x-0 border-t-0 border-b-2 border-solid border-transparent bg-transparent px-3 pb-3 text-caption text-muted-foreground shadow-none -mb-px",
                     "data-active:border-x-0 data-active:border-t-0 data-active:border-b-foreground data-active:bg-transparent data-active:font-medium data-active:text-foreground data-active:shadow-none",
                     "dark:data-active:border-x-0 dark:data-active:border-t-0 dark:data-active:border-b-foreground dark:data-active:bg-transparent",
                     "focus-visible:border-x-0 focus-visible:border-t-0",
-                    "after:hidden sm:px-2 sm:text-body",
+                    "after:hidden sm:text-body",
                   )}
                 >
-                  <span className="block truncate">{entry.label}</span>
+                  <span className="block whitespace-nowrap">{entry.label}</span>
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -288,6 +366,9 @@ export function ChatRoomBulletinSheet({
                     tab={entry.value}
                     rows={rows}
                     loading={messages.isPending}
+                    error={messages.isError}
+                    onRetry={() => void messages.refetch()}
+                    more={more}
                     onSelectMessage={onSelectMessage}
                     onClose={() => handleOpenChange(false)}
                   />
@@ -340,6 +421,7 @@ export function ChatRoomBulletinSheet({
           onOpenChange={setCreatePollOpen}
           workspaceId={workspaceId}
           roomId={roomId}
+          canPinToTop={canPinMessages}
         />
       ) : null}
       {showReminders ? (

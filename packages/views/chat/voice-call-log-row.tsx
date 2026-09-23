@@ -89,7 +89,10 @@ export function VoiceCallLogRow({
           )}
         >
           <Icon aria-hidden className="size-3.5 shrink-0" />
-          <span className="truncate font-medium">{label}</span>
+          {/* A long participant list truncates; the full line stays one hover away. */}
+          <span className="truncate font-medium" title={label}>
+            {label}
+          </span>
           <time dateTime={new Date(message.ts).toISOString()} className="shrink-0 tabular-nums">
             · {formatMessageTime(message.ts, i18n.language)}
           </time>
@@ -98,7 +101,7 @@ export function VoiceCallLogRow({
               type="button"
               variant="link"
               size="xs"
-              className="shrink-0 px-1 pointer-coarse:min-h-9"
+              className="shrink-0 px-1"
               onClick={() => setRecordingOpen(true)}
             >
               {t("chat.voice_call_log_recording")}
@@ -106,6 +109,8 @@ export function VoiceCallLogRow({
           ) : message.voiceCall?.recording_status === "PROCESSING" ||
             message.voiceCall?.recording_status === "ACTIVE" ? (
             <span className="shrink-0">{t("chat.voice_call_log_recording_processing")}</span>
+          ) : message.voiceCall?.recording_status === "FAILED" ? (
+            <span className="shrink-0">{t("chat.voice_call_log_recording_failed")}</span>
           ) : null}
         </div>
       </div>

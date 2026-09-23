@@ -12,10 +12,13 @@ import {
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
-import { Switch } from "@uniwork/ui/components/ui/switch";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
-import { toastApiError } from "../toast-api-error";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
+import { chatErrorMessage } from "./chat-error-message";
+import { ChatCharCounter, ChatFormFooterNote, nearLimit, RequiredMark } from "./chat-form-parts";
+import { PinToTopRow } from "./chat-pin-to-top-row";
+
+const FORM_ID = "chat-create-post-form";
 
 export function ChatCreatePostDialog({
   open,
@@ -38,32 +41,35 @@ export function ChatCreatePostDialog({
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [pinToTop, setPinToTop] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const resetForm = () => {
+  useEffect(() => {
+    if (open) return;
     setTitle("");
     setBody("");
     setPinToTop(false);
-  };
-
-  useEffect(() => {
-    if (!open) resetForm();
+    setSubmitError(null);
   }, [open]);
 
   const canCreate = canSubmitPost(title, body);
+  const missingHint = !title.trim()
+    ? !body.trim()
+      ? t("chat.post_submit_hint_both")
+      : t("chat.post_submit_hint_title")
+    : !body.trim()
+      ? t("chat.post_submit_hint_body")
+      : null;
 
   const handleCreate = () => {
     if (!canCreate || sendMessage.isPending) return;
-    if (pinToTop && !canPinToTop) {
-      toast.error(t("chat.post_pin_forbidden"));
-      return;
-    }
+    setSubmitError(null);
     void sendMessage
       .mutateAsync({
         roomId,
         post: {
           title: title.trim(),
           body: body.trim(),
-          pin_to_top: pinToTop,
+          pin_to_top: pinToTop && canPinToTop,
         },
       })
       .then(() => {
@@ -72,8 +78,12 @@ export function ChatCreatePostDialog({
         onOpenChange(false);
       })
       .catch((err: unknown) => {
-        toastApiError(err, t("chat.post_create_failed"));
+        setSubmitError(chatErrorMessage(err, t, t("chat.post_create_failed")));
       });
+  };
+
+  const clearError = () => {
+    if (submitError) setSubmitError(null);
   };
 
   return (
@@ -81,91 +91,89 @@ export function ChatCreatePostDialog({
       <FormDialogContent size="lg">
         <FormDialogHeader title={t("chat.post_create_title")} description={t("chat.post_create_description")} />
 
-        <FormDialogBody className="space-y-5">
-          <div className="space-y-2">
-            <Label htmlFor="post-title">{t("chat.post_title_label")}</Label>
-            <Input
-              id="post-title"
-              value={title}
-              maxLength={POST_TITLE_MAX_LENGTH}
-              placeholder={t("chat.post_title_placeholder")}
-              onChange={(event) => setTitle(event.target.value)}
-            />
-          </div>
+        <form
+          id={FORM_ID}
+          className="contents"
+          onSubmit={(event) => {
+            event.preventDefault();
+            handleCreate();
+          }}
+        >
+          <FormDialogBody className="space-y-5">
+            <div className="space-y-2">
+              <div className="flex items-baseline justify-between gap-3">
+                <Label htmlFor="post-title">
+                  {t("chat.post_title_label")}
+                  <RequiredMark />
+                </Label>
+                <ChatCharCounter id="post-title-count" length={title.length} max={POST_TITLE_MAX_LENGTH} />
+              </div>
+              <Input
+                id="post-title"
+                value={title}
+                maxLength={POST_TITLE_MAX_LENGTH}
+                aria-required
+                aria-describedby={nearLimit(title.length, POST_TITLE_MAX_LENGTH) ? "post-title-count" : undefined}
+                placeholder={t("chat.post_title_placeholder")}
+                onChange={(event) => {
+                  setTitle(event.target.value);
+                  clearError();
+                }}
+                onKeyDown={(event) => {
+                  // Enter that confirms an IME word must not submit the form.
+                  if (event.key === "Enter" && (event.nativeEvent.isComposing || event.keyCode === 229)) {
+                    event.preventDefault();
+                  }
+                }}
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="post-body">{t("chat.post_body_label")}</Label>
-            <Textarea
-              id="post-body"
-              value={body}
-              maxLength={POST_BODY_MAX_LENGTH}
-              rows={8}
-              placeholder={t("chat.post_body_placeholder")}
-              onChange={(event) => setBody(event.target.value)}
-            />
-          </div>
+            <div className="space-y-2">
+              <div className="flex items-baseline justify-between gap-3">
+                <Label htmlFor="post-body">
+                  {t("chat.post_body_label")}
+                  <RequiredMark />
+                </Label>
+                <ChatCharCounter id="post-body-count" length={body.length} max={POST_BODY_MAX_LENGTH} />
+              </div>
+              <Textarea
+                id="post-body"
+                value={body}
+                maxLength={POST_BODY_MAX_LENGTH}
+                rows={8}
+                aria-required
+                aria-describedby={nearLimit(body.length, POST_BODY_MAX_LENGTH) ? "post-body-count" : undefined}
+                placeholder={t("chat.post_body_placeholder")}
+                onChange={(event) => {
+                  setBody(event.target.value);
+                  clearError();
+                }}
+              />
+            </div>
 
-          <PinToTopRow
-            id="post-pin-top"
-            label={t("chat.post_pin_to_top")}
-            checked={pinToTop}
-            onCheckedChange={setPinToTop}
-            disabledReason={canPinToTop ? undefined : t("chat.post_pin_forbidden")}
+            <PinToTopRow
+              id="post-pin-top"
+              label={t("chat.post_pin_to_top")}
+              checked={pinToTop}
+              onCheckedChange={setPinToTop}
+              disabledReason={canPinToTop ? undefined : t("chat.post_pin_forbidden")}
+            />
+          </FormDialogBody>
+
+          <FormDialogFooter
+            onCancel={() => onOpenChange(false)}
+            submitLabel={t("chat.post_create_submit")}
+            submittingLabel={t("chat.post_create_submitting")}
+            submitting={sendMessage.isPending}
+            submitDisabled={!canCreate}
+            submitType="submit"
+            form={FORM_ID}
+            leading={
+              submitError || missingHint ? <ChatFormFooterNote error={submitError} hint={missingHint} /> : undefined
+            }
           />
-        </FormDialogBody>
-
-        <FormDialogFooter
-          onCancel={() => onOpenChange(false)}
-          submitLabel={t("chat.post_create_submit")}
-          submittingLabel={t("chat.post_create_submitting")}
-          submitting={sendMessage.isPending}
-          submitDisabled={!canCreate}
-          onSubmit={handleCreate}
-        />
+        </form>
       </FormDialogContent>
     </Dialog>
-  );
-}
-
-/**
- * The same Switch the poll dialog uses for "pin to top". When the viewer may
- * not pin, the control stays visible but off, and the caption says why.
- */
-function PinToTopRow({
-  id,
-  label,
-  checked,
-  onCheckedChange,
-  disabledReason,
-}: {
-  id: string;
-  label: string;
-  checked: boolean;
-  onCheckedChange: (checked: boolean) => void;
-  disabledReason?: string;
-}) {
-  const labelId = `${id}-label`;
-  const reasonId = `${id}-reason`;
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between gap-3">
-        <Label id={labelId} htmlFor={id} className="font-normal text-body text-foreground">
-          {label}
-        </Label>
-        <Switch
-          id={id}
-          aria-labelledby={labelId}
-          aria-describedby={disabledReason ? reasonId : undefined}
-          checked={checked && !disabledReason}
-          disabled={Boolean(disabledReason)}
-          onCheckedChange={onCheckedChange}
-        />
-      </div>
-      {disabledReason ? (
-        <p id={reasonId} className="text-caption text-muted-foreground">
-          {disabledReason}
-        </p>
-      ) : null}
-    </div>
   );
 }

@@ -1,23 +1,16 @@
 "use client";
 
 import { useCallback } from "react";
-import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
-import { ApiError } from "@uniwork/core/api/http";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
 import type { VoiceCallKind } from "./voice-call-overlay";
-import { prepareVideoCapture, prepareVoiceCapture } from "./voice-call-media";
 
-function voiceCallErrorMessage(err: unknown, t: (key: string) => string): string {
-  if (err instanceof ApiError) {
-    if (err.code === "livekit_not_configured") return t("chat.voice_call_not_configured");
-    if (err.code === "chat_user_blocked") return t("chat.voice_call_blocked");
-  }
-  return t("chat.voice_call_failed");
-}
-
+/**
+ * The chat header's call buttons. Device warm-up and every failure (a
+ * blocked mic, a server that refuses) belong to the call host, which shows
+ * them on the call panel with a retry, so this only names the call.
+ */
 export function useChatVoiceHandlers({
   targetKind,
   activeRoomId,
@@ -40,10 +33,8 @@ export function useChatVoiceHandlers({
     options?: { withCamera?: boolean },
   ) => Promise<boolean>;
   acceptCall: () => Promise<boolean>;
-  declineCall: () => void;
+  declineCall: () => void | Promise<void>;
 }) {
-  const { t } = useTranslation();
-
   const handleStartCall = useCallback(
     async (withCamera: boolean) => {
       if (!activeRoomId) return;
@@ -63,21 +54,9 @@ export function useChatVoiceHandlers({
         callKind = "channel";
       }
       if (!label || !callKind) return;
-      try {
-        const mediaReady = withCamera ? await prepareVideoCapture() : await prepareVoiceCapture();
-        if (!mediaReady) {
-          toast.error(withCamera ? t("chat.voice_call_camera_failed") : t("chat.voice_call_mic_denied"));
-          return;
-        }
-        const ok = await startCall(activeRoomId, label, callKind, { withCamera });
-        if (!ok) {
-          toast.error(t("chat.voice_call_failed"));
-        }
-      } catch (err) {
-        toast.error(voiceCallErrorMessage(err, t));
-      }
+      await startCall(activeRoomId, label, callKind, { withCamera });
     },
-    [targetKind, activeRoomId, activeContact, activeGroup, activeChannel, startCall, t],
+    [targetKind, activeRoomId, activeContact, activeGroup, activeChannel, startCall],
   );
 
   const handleStartVoiceCall = useCallback(async () => {
@@ -90,18 +69,13 @@ export function useChatVoiceHandlers({
 
   const handleAcceptVoiceCall = useCallback(async () => {
     try {
-      const micReady = await prepareVoiceCapture();
-      if (!micReady) {
-        toast.error(t("chat.voice_call_mic_denied"));
-        return;
-      }
-      const ok = await acceptCall();
-      if (!ok) toast.error(t("chat.voice_call_failed"));
-    } catch (err) {
-      toast.error(voiceCallErrorMessage(err, t));
-      void declineCall();
+      await acceptCall();
+    } catch {
+      // The host reports accept failures on the panel; an unexpected throw
+      // must still not leave the caller ringing.
+      await declineCall();
     }
-  }, [acceptCall, declineCall, t]);
+  }, [acceptCall, declineCall]);
 
   return { handleStartVoiceCall, handleStartVideoCall, handleAcceptVoiceCall };
 }

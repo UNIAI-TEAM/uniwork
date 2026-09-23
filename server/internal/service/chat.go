@@ -80,6 +80,7 @@ type ChatMessageRow struct {
 	ThreadUnread      bool
 	CreatedAt         time.Time
 	Reactions         map[string]int
+	MyReactions       []string // emojis the viewer reacted with; empty without a viewer
 	Pinned            bool
 	MentionedUserIDs  []string
 	VoiceCall         *VoiceCallLogInfo
@@ -605,7 +606,7 @@ func (s *ChatService) ToggleChatMessageReaction(
 		return ChatMessageRow{}, err
 	}
 	s.publishChatMessageUpdated(ctx, room, updated.ID)
-	return chatMessageRowFromDB(updated, u.DisplayName), nil
+	return chatMessageRowFromDBForViewer(updated, u.DisplayName, userID), nil
 }
 
 func chatMessageRowFromDB(msg db.ChatMessage, senderDisplayName string) ChatMessageRow {

@@ -8,6 +8,7 @@ import {
 } from "@uniwork/core/chat/room-preferences-store";
 import type { ChatRoomPreview } from "./chat-sidebar-preview";
 import { compareRoomPreviewRecency } from "./chat-sidebar-preview";
+import { foldedIncludes } from "./chat-search-fold";
 
 export type ChatSidebarKindFilter = "all" | "workspace" | "channel" | "group" | "dm";
 
@@ -26,9 +27,9 @@ export function chatSidebarFilterOptions(workHubEnabled: boolean): ChatSidebarKi
   return workHubEnabled ? ["all", "dm", "group", "channel"] : ["all", "dm", "group"];
 }
 
+/** Accent-insensitive: "tuan" finds "Tuấn", "thiet ke" finds "Thiết kế". */
 function matchesText(text: string, filter: string): boolean {
-  if (!filter) return true;
-  return text.toLowerCase().includes(filter);
+  return foldedIncludes(text, filter);
 }
 
 /** Flat conversation list sorted like Zalo/Messages (pin → recent). */

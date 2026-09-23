@@ -8,8 +8,8 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
-import { toastApiError } from "../toast-api-error";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
+import { chatErrorMessage } from "./chat-error-message";
 
 const MAX_NICKNAME_LENGTH = 64;
 
@@ -35,9 +35,12 @@ export function ChatSetNicknameDialog({
   const [nickname, setNicknameValue] = useState(currentNickname);
   // Which of the two writes is running, so only that button says "…ing".
   const [pendingAction, setPendingAction] = useState<"save" | "clear" | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (open) setNicknameValue(currentNickname);
+    if (!open) return;
+    setNicknameValue(currentNickname);
+    setError(null);
   }, [open, currentNickname]);
 
   const handleOpenChange = (next: boolean) => {
@@ -48,6 +51,7 @@ export function ChatSetNicknameDialog({
   const write = (value: string, action: "save" | "clear") => {
     if (setNickname.isPending) return;
     setPendingAction(action);
+    setError(null);
     void setNickname
       .mutateAsync({ userId: targetUserId, nickname: value })
       .then(() => {
@@ -56,7 +60,7 @@ export function ChatSetNicknameDialog({
         onOpenChange(false);
       })
       .catch((err: unknown) => {
-        toastApiError(err, t("chat.nickname_save_failed"));
+        setError(chatErrorMessage(err, t, t("chat.nickname_save_failed")));
       })
       .finally(() => setPendingAction(null));
   };
@@ -82,13 +86,22 @@ export function ChatSetNicknameDialog({
             value={nickname}
             maxLength={MAX_NICKNAME_LENGTH}
             placeholder={targetLabel}
-            aria-describedby="chat-nickname-count"
-            onChange={(event) => setNicknameValue(event.target.value)}
+            aria-describedby={error ? "chat-nickname-count chat-nickname-error" : "chat-nickname-count"}
+            aria-invalid={error ? true : undefined}
+            onChange={(event) => {
+              setNicknameValue(event.target.value);
+              if (error) setError(null);
+            }}
             onKeyDown={(event) => {
               if (event.nativeEvent.isComposing || event.keyCode === 229) return;
               if (event.key === "Enter") handleSave();
             }}
           />
+          {error ? (
+            <p id="chat-nickname-error" role="alert" className="text-caption text-destructive">
+              {error}
+            </p>
+          ) : null}
         </FormDialogBody>
         <FormDialogFooter
           onCancel={() => handleOpenChange(false)}

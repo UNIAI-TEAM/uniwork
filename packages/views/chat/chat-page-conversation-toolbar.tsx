@@ -44,6 +44,7 @@ export function ChatPageConversationToolbar({
   voiceCallDisabled,
   onVideoCall,
   videoCallDisabled,
+  onSearch,
 }: {
   target: ChatSidebarTarget;
   headerTitle: string;
@@ -68,6 +69,8 @@ export function ChatPageConversationToolbar({
   voiceCallDisabled: boolean;
   onVideoCall: () => void;
   videoCallDisabled: boolean;
+  /** Opens message search; the group and channel headers carry it (DM and workspace have it in settings). */
+  onSearch?: () => void;
 }) {
   if (target.kind === "workspace") {
     return (
@@ -101,6 +104,7 @@ export function ChatPageConversationToolbar({
         voiceCallDisabled={voiceCallDisabled}
         onVideoCall={onVideoCall}
         videoCallDisabled={videoCallDisabled}
+        onSearch={onSearch}
       />
     );
   }
@@ -122,6 +126,7 @@ export function ChatPageConversationToolbar({
         voiceCallDisabled={voiceCallDisabled}
         onVideoCall={onVideoCall}
         videoCallDisabled={videoCallDisabled}
+        onSearch={onSearch}
       />
     );
   }

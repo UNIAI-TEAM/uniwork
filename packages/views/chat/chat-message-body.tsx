@@ -1,24 +1,15 @@
 "use client";
 
-import { Fragment, Suspense, lazy, useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatNameContextEntry } from "./chat-page-utils";
-import { messageBodyHasMention } from "./chat-mention-utils";
+import { ChatAnimatedImage, isAnimatedChatImage } from "./chat-animated-image";
 import {
   describeChatMediaBody,
   isChatMediaMessageBody,
   parseChatMediaMessageBody,
 } from "./chat-expression-utils";
-
-// The markdown renderer drags KaTeX, Shiki and the whole unified stack — about
-// 140 KB gzip — into whatever route imports it. Most chat messages are plain
-// text and return before reaching it (see ChatMessageBody), so it loads with
-// the first message that carries a mention, not with the route
-// (scripts/bundle-budget.mjs).
-const Markdown = lazy(() =>
-  import("@uniwork/ui/markdown").then((m) => ({ default: m.Markdown })),
-);
 
 /**
  * A sticker, GIF or image is already parsed to a URL and a name, so it is
@@ -48,6 +39,23 @@ function ChatMediaMessageBody({ body }: { body: string }) {
       </p>
     );
   }
+  const imgClass = cn(
+    "block max-w-full object-contain",
+    // Fixed height (no jump when it loads), natural width: many "stickers"
+    // from GIF services are landscape and would letterbox in a square.
+    isSticker ? "h-32 w-auto max-w-56" : cn("max-h-60 rounded-xl", !loaded && "min-h-32 min-w-48 bg-muted"),
+  );
+  if (isAnimatedChatImage(parsed.url, parsed.alt)) {
+    return (
+      <ChatAnimatedImage
+        src={parsed.url}
+        alt={label}
+        imgClassName={imgClass}
+        onLoad={() => setLoaded(true)}
+        onError={() => setFailed(true)}
+      />
+    );
+  }
   return (
     <img
       src={parsed.url}
@@ -56,14 +64,7 @@ function ChatMediaMessageBody({ body }: { body: string }) {
       decoding="async"
       onLoad={() => setLoaded(true)}
       onError={() => setFailed(true)}
-      className={cn(
-        "block max-w-full object-contain",
-        // Fixed height (no jump when it loads), natural width: many "stickers"
-        // from GIF services are landscape and would letterbox in a square.
-        isSticker
-          ? "h-32 w-auto max-w-56"
-          : cn("max-h-60 rounded-xl", !loaded && "min-h-32 min-w-48 bg-muted"),
-      )}
+      className={imgClass}
     />
   );
 }
@@ -74,20 +75,53 @@ const URL_PATTERN = /\bhttps?:\/\/[^\s<>"']+[^\s<>"'.,;:!?)\]]/g;
  * Plain text with its web addresses made into links. A cheap pass on the
  * common path, so a message with a URL does not pull in the markdown bundle.
  */
-function linkify(text: string, linkClass: string): ReactNode[] {
+function linkify(text: string, linkClass: string, keyPrefix = ""): ReactNode[] {
   const out: ReactNode[] = [];
   let last = 0;
   for (const match of text.matchAll(URL_PATTERN)) {
     const start = match.index ?? 0;
-    if (start > last) out.push(<Fragment key={`t${last}`}>{text.slice(last, start)}</Fragment>);
+    if (start > last) out.push(<Fragment key={`${keyPrefix}t${last}`}>{text.slice(last, start)}</Fragment>);
     out.push(
-      <a key={`a${start}`} href={match[0]} target="_blank" rel="noopener noreferrer" className={linkClass}>
+      <a key={`${keyPrefix}a${start}`} href={match[0]} target="_blank" rel="noopener noreferrer" className={linkClass}>
         {match[0]}
       </a>,
     );
     last = start + match[0].length;
   }
-  if (last < text.length) out.push(<Fragment key={`t${last}`}>{text.slice(last)}</Fragment>);
+  if (last < text.length) out.push(<Fragment key={`${keyPrefix}t${last}`}>{text.slice(last)}</Fragment>);
+  return out;
+}
+
+const MENTION_PATTERN = /\[@([^\]]+)\]\(mention:\/\/(member|all)\/([^)]+)\)/g;
+
+/**
+ * Text with its mentions drawn as chips and its links made clickable. One
+ * path for every message: the same words render the same whether or not
+ * they mention someone. A mention of someone no longer in the room keeps
+ * the name written into the message, never their id.
+ */
+function renderMessageText(
+  body: string,
+  nameContext: ChatNameContextEntry[],
+  classes: { link: string; mention: string },
+  allLabel: string,
+): ReactNode[] {
+  const out: ReactNode[] = [];
+  let last = 0;
+  for (const match of body.matchAll(MENTION_PATTERN)) {
+    const start = match.index ?? 0;
+    if (start > last) out.push(...linkify(body.slice(last, start), classes.link, `s${last}`));
+    const [, label = "", kind, id] = match;
+    const name =
+      kind === "all" ? allLabel : (nameContext.find((entry) => entry.user_id === id)?.display_name?.trim() || label);
+    out.push(
+      <span key={`m${start}`} className={classes.mention}>
+        @{name}
+      </span>,
+    );
+    last = start + match[0].length;
+  }
+  if (last < body.length) out.push(...linkify(body.slice(last), classes.link, `s${last}`));
   return out;
 }
 
@@ -116,37 +150,13 @@ export function ChatMessageBody({
     );
   }
 
-  if (!messageBodyHasMention(body)) {
-    return <p className={textClass}>{linkify(body, linkClass)}</p>;
-  }
-
   const mentionClass = cn(
     "rounded-sm font-semibold text-brand-subtle-foreground",
     isOwn ? "" : "bg-brand-subtle px-0.5",
   );
-
   return (
-    // Until the renderer lands the raw body shows in the same paragraph style a
-    // plain message uses, so the only visible change is the mention becoming a
-    // chip.
-    <Suspense fallback={<p className={textClass}>{body}</p>}>
-      <Markdown
-        mode="minimal"
-        className={cn(textClass, "[&_p]:my-0 [&_p]:leading-relaxed [&_p]:whitespace-pre-wrap")}
-        renderMention={({ type, id }) => {
-          if (type === "all") {
-            return <span className={mentionClass}>@{t("chat.mention_all")}</span>;
-          }
-          if (type === "member") {
-            const entry = nameContext.find((item) => item.user_id === id);
-            const name = entry?.display_name ?? id;
-            return <span className={mentionClass}>@{name}</span>;
-          }
-          return null;
-        }}
-      >
-        {body}
-      </Markdown>
-    </Suspense>
+    <p className={textClass}>
+      {renderMessageText(body, nameContext, { link: linkClass, mention: mentionClass }, t("chat.mention_all"))}
+    </p>
   );
 }

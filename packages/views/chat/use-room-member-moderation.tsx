@@ -3,8 +3,11 @@
 import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useRemoveChatRoomMember, useUpdateChatRoomMember } from "@uniwork/core/chat";
-import { toastApiError } from "../toast-api-error";
 import { ConfirmDialog } from "../common/form-dialog";
+import { toastChatError } from "./chat-error-message";
+
+/** What the remove confirmation says; defaults describe leaving a room. */
+type RemoveCopy = { description?: string; confirmLabel?: string };
 
 /**
  * Promote, demote, mute, unmute and remove for one room — the moderation the
@@ -23,21 +26,23 @@ export function useRoomMemberModeration({
   demote: (userId: string) => void;
   mute: (userId: string) => void;
   unmute: (userId: string) => void;
-  requestRemove: (userId: string, label: string, confirmTitle: string) => void;
+  requestRemove: (userId: string, label: string, confirmTitle: string, copy?: RemoveCopy) => void;
   confirmDialog: ReactNode;
 } {
   const { t } = useTranslation();
   const updateMember = useUpdateChatRoomMember(workspaceId);
   const removeMember = useRemoveChatRoomMember(workspaceId);
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
-  const [pendingRemove, setPendingRemove] = useState<{ userId: string; title: string } | null>(null);
+  const [pendingRemove, setPendingRemove] = useState<
+    ({ userId: string; title: string } & RemoveCopy) | null
+  >(null);
 
   const run = (userId: string, action: () => Promise<unknown>, onDone?: () => void) => {
     if (busyUserId) return;
     setBusyUserId(userId);
     void action()
       .then(onDone)
-      .catch((err: unknown) => toastApiError(err, t("chat.member_action_failed")))
+      .catch((err: unknown) => toastChatError(err, t, t("chat.member_action_failed")))
       .finally(() => setBusyUserId(null));
   };
 
@@ -50,7 +55,7 @@ export function useRoomMemberModeration({
     demote: (userId) => update(userId, { role: "member" }),
     mute: (userId) => update(userId, { send_restricted: true }),
     unmute: (userId) => update(userId, { send_restricted: false }),
-    requestRemove: (userId, _label, confirmTitle) => setPendingRemove({ userId, title: confirmTitle }),
+    requestRemove: (userId, _label, confirmTitle, copy) => setPendingRemove({ userId, title: confirmTitle, ...copy }),
     confirmDialog: (
       <ConfirmDialog
         open={pendingRemove != null}
@@ -58,8 +63,8 @@ export function useRoomMemberModeration({
           if (!open) setPendingRemove(null);
         }}
         title={pendingRemove?.title ?? ""}
-        description={t("chat.remove_member_description")}
-        confirmLabel={t("chat.remove_member_confirm")}
+        description={pendingRemove?.description ?? t("chat.remove_member_description")}
+        confirmLabel={pendingRemove?.confirmLabel ?? t("chat.remove_member_confirm")}
         pending={busyUserId != null}
         onConfirm={() => {
           if (!pendingRemove) return;

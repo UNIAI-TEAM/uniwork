@@ -39,6 +39,12 @@ export function Notice({
   icon: LucideIcon;
   children: ReactNode;
   action?: ReactNode;
+  /**
+   * The notice's own live region. A region mounted together with its text is
+   * not reliably announced; a notice that comes and goes with a flapping
+   * state should pass "off" and let its host keep one persistent status
+   * region whose text changes (see chat-realtime-status-banner).
+   */
   live?: "polite" | "assertive" | "off";
   layout?: keyof typeof LAYOUT;
   className?: string;
@@ -46,7 +52,7 @@ export function Notice({
   return (
     <div
       role={live === "assertive" ? "alert" : live === "off" ? undefined : "status"}
-      aria-live={live}
+      aria-live={live === "off" ? undefined : live}
       className={cn("flex items-center gap-2.5", LAYOUT[layout], TONE[tone], className)}
     >
       <Icon aria-hidden className="size-4 shrink-0" />

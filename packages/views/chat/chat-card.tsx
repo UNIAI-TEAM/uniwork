@@ -1,7 +1,7 @@
 "use client";
 
 import type { LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { IconTile, type IconTileTone } from "@uniwork/ui/components/common/icon-tile";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -42,9 +42,23 @@ export function ChatCard({
   wide?: boolean;
   children: ReactNode;
 }) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const labelId = useId();
   return (
-    <article className={cn("flex w-full max-w-full justify-center", compactTop ? "mt-2" : "mt-4")}>
+    <article
+      aria-labelledby={labelId}
+      tabIndex={-1}
+      className={cn("flex w-full max-w-full justify-center rounded-xl focus-visible:outline-offset-2", compactTop ? "mt-2" : "mt-4")}
+    >
+      <span id={labelId} className="sr-only">
+        {ts
+          ? t("chat.message_list.card_label", {
+              kind: label,
+              sender: senderLabel,
+              time: formatMessageDateTime(ts, i18n.language),
+            })
+          : t("chat.message_list.card_label_no_time", { kind: label, sender: senderLabel })}
+      </span>
       <div
         className={cn(
           "w-full rounded-xl border border-border bg-surface p-3.5",
@@ -53,8 +67,13 @@ export function ChatCard({
       >
         <header className="flex items-center gap-2.5">
           <IconTile icon={icon} tone={tone} size="sm" />
-          <div className="min-w-0 flex-1">
-            <p className="text-overline text-muted-foreground uppercase">{label}</p>
+          <div className="min-w-0 flex-1" aria-hidden>
+            {/* The kind and who made it, always: in a DM nothing else says
+                whether this poll or note is mine or theirs. */}
+            <p className="truncate text-overline text-muted-foreground uppercase">
+              {label}
+              {showSenderName ? null : <span className="normal-case"> · {senderLabel}</span>}
+            </p>
             {showSenderName ? (
               <p
                 className={cn(
@@ -71,6 +90,7 @@ export function ChatCard({
             <time
               dateTime={new Date(ts).toISOString()}
               title={formatMessageDateTime(ts, i18n.language)}
+              aria-hidden
               className="shrink-0 text-micro text-muted-foreground tabular-nums"
             >
               {formatMessageTime(ts, i18n.language)}

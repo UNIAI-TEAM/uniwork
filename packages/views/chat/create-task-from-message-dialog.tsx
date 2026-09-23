@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { titleFromMessageBody } from "@uniwork/core/chat/message-links";
 import { useCreateTaskFromChatMessage } from "@uniwork/core/chat";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
+import { Label } from "@uniwork/ui/components/ui/label";
 import type { AssigneeRef } from "../tasks/pickers";
-import { toastApiError } from "../toast-api-error";
 import {
   FormDialogBody,
   FormDialogContent,
@@ -21,6 +22,11 @@ import {
   ChatTaskProjectField,
   chatTaskTitleInput,
 } from "./chat-task-peek-fields";
+import { chatErrorMessage } from "./chat-error-message";
+import { ChatFormFooterNote, RequiredMark } from "./chat-form-parts";
+import { useChatTaskNav } from "./use-chat-task-nav";
+
+const TITLE_MAX_LENGTH = 200;
 
 /** Create a task from a chat message: big title, property chips, one action. */
 export function CreateTaskFromMessageDialog({
@@ -43,15 +49,18 @@ export function CreateTaskFromMessageDialog({
 }) {
   const { t } = useTranslation();
   const createTask = useCreateTaskFromChatMessage(workspaceId);
+  const { openTaskAction } = useChatTaskNav();
 
   const [title, setTitle] = useState(() => titleFromMessageBody(messageBody));
   const [projectId, setProjectId] = useState("");
   const [assignee, setAssignee] = useState<AssigneeRef | null>(null);
   const [dueDate, setDueDate] = useState("");
   const [syncThread, setSyncThread] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
+    setSubmitError(null);
     setTitle(titleFromMessageBody(messageBody));
     setProjectId("");
     setAssignee(null);
@@ -64,6 +73,7 @@ export function CreateTaskFromMessageDialog({
 
   const submit = () => {
     if (!canSubmit) return;
+    setSubmitError(null);
     void createTask
       .mutateAsync({
         messageId,
@@ -75,11 +85,15 @@ export function CreateTaskFromMessageDialog({
         sync_thread: allowSyncThread ? syncThread : undefined,
       })
       .then((task) => {
-        if (!task?.id) return;
+        if (!task?.id) {
+          setSubmitError(t("chat.link.create_error"));
+          return;
+        }
+        toast.success(t("chat.link.created_toast"), { action: openTaskAction(task.id) });
         onOpenChange(false);
         onCreated?.(task.id);
       })
-      .catch((err: unknown) => toastApiError(err, t("chat.link.create_error")));
+      .catch((err: unknown) => setSubmitError(chatErrorMessage(err, t, t("chat.link.create_error"))));
   };
 
   return (
@@ -91,11 +105,18 @@ export function CreateTaskFromMessageDialog({
         />
 
         <FormDialogBody>
+          <Label htmlFor="chat-task-title" className="-mb-2 px-1 text-caption text-muted-foreground">
+            {t("chat.link.title_label")}
+            <RequiredMark />
+          </Label>
           <Input
             id="chat-task-title"
-            aria-label={t("chat.link.title_label")}
+            aria-required
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              if (submitError) setSubmitError(null);
+            }}
             onKeyDown={(e) => {
               if (e.nativeEvent.isComposing || e.keyCode === 229) return;
               if (e.key === "Enter" && canSubmit) {
@@ -104,7 +125,7 @@ export function CreateTaskFromMessageDialog({
               }
             }}
             autoFocus
-            maxLength={200}
+            maxLength={TITLE_MAX_LENGTH}
             placeholder={t("tasks.detail.title_placeholder")}
             className={chatTaskTitleInput}
           />
@@ -139,6 +160,11 @@ export function CreateTaskFromMessageDialog({
           submitting={createTask.isPending}
           submitDisabled={!trimmed || !messageId}
           onSubmit={submit}
+          leading={
+            submitError || !trimmed ? (
+              <ChatFormFooterNote error={submitError} hint={trimmed ? null : t("chat.link.title_required_hint")} />
+            ) : undefined
+          }
         />
       </FormDialogContent>
     </Dialog>

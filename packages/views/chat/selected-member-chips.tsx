@@ -1,7 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useId } from "react";
+import { useEffect, useId, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
@@ -19,15 +19,41 @@ export function SelectedMemberChips({
   emptyLabel,
   title,
   summary,
+  onRemovedLast,
 }: {
   members: ChatContact[];
   onRemove: (userId: string) => void;
   emptyLabel?: string;
   title?: string;
   summary?: string;
+  /** Focus goes here once no chip is left to take it (the search field). */
+  onRemovedLast?: () => void;
 }) {
   const { t } = useTranslation();
   const titleId = useId();
+  const listRef = useRef<HTMLUListElement>(null);
+  // After a removal, focus the chip that took the removed one's place (or
+  // the one before it), so keyboard users do not fall back to the page.
+  const refocusIndex = useRef<number | null>(null);
+  useEffect(() => {
+    const index = refocusIndex.current;
+    if (index === null) return;
+    refocusIndex.current = null;
+    const buttons = listRef.current?.querySelectorAll<HTMLButtonElement>("[data-chip-remove]");
+    if (buttons && buttons.length > 0) buttons[Math.min(index, buttons.length - 1)]?.focus();
+    else onRemovedLast?.();
+  }, [members, onRemovedLast]);
+
+  const remove = (userId: string, index: number) => {
+    if (members.length <= 1) {
+      // The list (and maybe this whole block) unmounts with the last chip.
+      onRemove(userId);
+      onRemovedLast?.();
+      return;
+    }
+    refocusIndex.current = index;
+    onRemove(userId);
+  };
 
   return (
     <div className="space-y-2">
@@ -51,8 +77,8 @@ export function SelectedMemberChips({
       {members.length === 0 ? (
         emptyLabel ? <p className="py-1 text-caption text-muted-foreground">{emptyLabel}</p> : null
       ) : (
-        <ul className="flex flex-wrap gap-2" aria-labelledby={title ? titleId : undefined}>
-          {members.map((member) => {
+        <ul ref={listRef} className="flex flex-wrap gap-2" aria-labelledby={title ? titleId : undefined}>
+          {members.map((member, index) => {
             const label = displayLabelForChatContact(member);
             return (
               <li
@@ -67,7 +93,8 @@ export function SelectedMemberChips({
                   size="icon-xs"
                   className="rounded-full text-muted-foreground hover:bg-background hover:text-foreground"
                   aria-label={t("chat.unselect_member", { name: label })}
-                  onClick={() => onRemove(member.user_id)}
+                  data-chip-remove=""
+                  onClick={() => remove(member.user_id, index)}
                 >
                   <X aria-hidden />
                 </Button>
