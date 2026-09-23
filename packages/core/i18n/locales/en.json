@@ -2135,6 +2135,8 @@
     "loading": "Loading calendar…",
     "error": "Could not load the calendar.",
     "retry": "Retry",
+    "refresh": "Refresh calendar",
+    "refreshing": "Refreshing calendar…",
     "view_day": "Day",
     "view_work_week": "Work week",
     "view_week": "Week",
