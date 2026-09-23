@@ -38,6 +38,8 @@ export const ChatMessageSchema = z.object({
     .record(z.string(), z.number())
     .nullish()
     .transform((value) => value ?? {}),
+  /** Emojis the caller reacted with; a drifted value reads as "none of mine". */
+  my_reactions: z.array(z.string()).optional().catch(undefined),
   voice_call: z
     .object({
       outcome: z.string(),

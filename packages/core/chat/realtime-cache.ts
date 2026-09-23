@@ -245,6 +245,7 @@ export function invalidateChatMessageLinks(
 ): void {
   if (!messageId) return;
   void qc.invalidateQueries({ queryKey: chatKeys.messageLinks(wsId, messageId) });
+  void qc.invalidateQueries({ queryKey: chatKeys.roomMessageLinksRoot(wsId) });
 }
 
 /** `chat.message.linked` — refresh links for the message; leave message lists alone. */
