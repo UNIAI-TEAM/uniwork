@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type KeyboardEvent } from "react";
+import { useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { Keyboard, RotateCcw, Search, X } from "lucide-react";
 import {
@@ -259,6 +259,7 @@ function ShortcutRow({
   const { t } = useTranslation(undefined, { keyPrefix: "settings.shortcuts" });
   const text = useActionText();
   const label = text.label(action.id);
+  const recorderRef = useRef<HTMLButtonElement>(null);
   let errorText: string | null = null;
   switch (error?.kind) {
     case "reserved":
@@ -285,6 +286,7 @@ function ShortcutRow({
       <div className="flex flex-col items-stretch gap-1.5 sm:items-end">
         <div className="flex items-center justify-end gap-1.5">
           <button
+            ref={recorderRef}
             type="button"
             onClick={onStartRecording}
             onKeyDown={recording ? onCapture : undefined}
@@ -315,7 +317,11 @@ function ShortcutRow({
               type="button"
               variant="ghost"
               size="icon-sm"
-              onClick={onReset}
+              onClick={() => {
+                onReset();
+                // The reset button leaves with the customisation; keep focus in the row.
+                recorderRef.current?.focus();
+              }}
               aria-label={t("reset_action", { action: label })}
               title={t("reset")}
             >

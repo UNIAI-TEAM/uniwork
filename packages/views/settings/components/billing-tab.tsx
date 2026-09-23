@@ -260,6 +260,7 @@ export function BillingTab() {
             title={t("confirm_cancel_title")}
             description={t("confirm_cancel_description")}
             confirmLabel={t("cancel")}
+            cancelLabel={t("confirm_back")}
             pending={cancel.isPending}
             onConfirm={confirmCancel}
           />

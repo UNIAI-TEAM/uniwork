@@ -424,6 +424,7 @@
       "cancel": "Ngừng gói cuối kỳ",
       "confirm_cancel_title": "Ngừng gói vào cuối kỳ?",
       "confirm_cancel_description": "Tổ chức dùng gói này đến hết kỳ rồi chuyển về mức mặc định. Có thể khôi phục bất cứ lúc nào trước đó.",
+      "confirm_back": "Quay lại",
       "resume": "Khôi phục",
       "plan_changed": "Đã chuyển sang gói {{name}}",
       "canceled": "Đã đặt lịch ngừng gói",

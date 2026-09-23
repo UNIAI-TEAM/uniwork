@@ -71,12 +71,6 @@ export function AuditLog({ orgId, workspaceId }: { orgId: string; workspaceId: s
   const labels = useAuditLabels();
   const [filters, setFilters] = useState<AuditFilterValues>(EMPTY_FILTERS);
   const [selected, setSelected] = useState<AuditEvent | null>(null);
-  // Every filter applies as it changes; only the typed actor waits for the
-  // typing to stop, and clearing it applies at once.
-  const typedActor = useDebouncedValue(filters.actor_id.trim(), 300);
-  const applied = toQuery({ ...filters, actor_id: filters.actor_id.trim() ? typedActor : "" });
-
-  const events = useAuditEvents(orgId, applied);
   // Best effort: the log is organization-wide, the member list is this
   // workspace's. A colleague from another workspace still shows as a short id.
   const members = useMembers(workspaceId);
@@ -84,6 +78,22 @@ export function AuditLog({ orgId, workspaceId }: { orgId: string; workspaceId: s
     () => new Map((members.data ?? []).map((m) => [m.user_id, m.display_name])),
     [members.data],
   );
+
+  // Every filter applies as it changes. A picked member applies at once; typed
+  // text waits for the typing to stop, and text that still matches a member's
+  // name is a search in the picker, not an id, so it filters nothing yet.
+  const actor = filters.actor_id.trim();
+  const typedActor = useDebouncedValue(actor, 300);
+  const searchingByName =
+    actor !== "" &&
+    !names.has(actor) &&
+    [...names.values()].some((name) => name.toLowerCase().includes(actor.toLowerCase()));
+  let appliedActor = "";
+  if (names.has(actor)) appliedActor = actor;
+  else if (typedActor === actor && !searchingByName) appliedActor = actor;
+  const applied = toQuery({ ...filters, actor_id: appliedActor });
+
+  const events = useAuditEvents(orgId, applied);
   const actorName = (event: AuditEvent) =>
     event.actor_kind === "system"
       ? labels.actorKind("system")

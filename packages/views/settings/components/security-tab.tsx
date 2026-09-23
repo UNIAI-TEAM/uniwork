@@ -29,8 +29,12 @@ function downloadRecoveryCodes(codes: string[]) {
   const a = document.createElement("a");
   a.href = url;
   a.download = RECOVERY_FILENAME;
+  // Attached, and revoked a tick later: Firefox and Safari drop a detached or
+  // already-revoked blob download.
+  document.body.append(a);
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 export function SecurityTab() {
@@ -101,7 +105,11 @@ function RecoveryCodes({ codes }: { codes: string[] }) {
           <Download aria-hidden />
           {t("recoveryDownload")}
         </Button>
-        <Button className="sm:ml-auto" aria-disabled={refresh.isPending || undefined} onClick={() => refresh.mutate()}>
+        <Button className="sm:ml-auto" aria-disabled={refresh.isPending || undefined} onClick={() => {
+            if (refresh.isPending) return;
+            refresh.mutate(undefined, { onError: (err) => toastApiError(err, t("toastFailed")) });
+          }}
+        >
           {t("recoveryDone")}
         </Button>
       </div>

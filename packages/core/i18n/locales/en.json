@@ -425,6 +425,7 @@
       "cancel": "Cancel at period end",
       "confirm_cancel_title": "Cancel at the end of the period?",
       "confirm_cancel_description": "The organization keeps this plan until the period ends, then moves to the default level. You can resume any time before then.",
+      "confirm_back": "Back",
       "resume": "Resume",
       "plan_changed": "Switched to {{name}}",
       "canceled": "Cancellation scheduled",

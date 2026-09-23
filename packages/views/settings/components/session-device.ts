@@ -40,7 +40,7 @@ export function describeUserAgent(userAgent: string): SessionDevice {
   const ua = userAgent.trim();
   const browser = BROWSERS.find(([pattern]) => pattern.test(ua))?.[1] ?? null;
   const os = SYSTEMS.find(([pattern]) => pattern.test(ua))?.[1] ?? null;
-  const mobile = /\b(?:Mobi|iPhone|iPod|Android)\b/.test(ua) || /\biPad\b/.test(ua);
+  const mobile = /\bMobi/.test(ua) || /\b(?:iPhone|iPod|iPad|Android)\b/.test(ua);
   return { browser, os, platform: mobile ? "mobile" : "desktop" };
 }
 

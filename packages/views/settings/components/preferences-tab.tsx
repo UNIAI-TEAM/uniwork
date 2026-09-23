@@ -126,6 +126,9 @@ export function PreferencesTab() {
               itemToStringValue={(z: ZoneItem) => z.value}
               isItemEqualToValue={(a: ZoneItem, b: ZoneItem) => a.value === b.value}
               onValueChange={handleTimezoneChange}
+              // A pick made while the last one saves would be dropped; hold the
+              // list still (focus stays) until the server answers.
+              readOnly={patchMe.isPending}
             >
               <ComboboxInput
                 className="w-full"

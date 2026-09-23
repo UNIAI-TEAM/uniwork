@@ -87,6 +87,8 @@ export function useRemoveMember(workspaceId: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: workspaceKeys.members(workspaceId) });
       void qc.invalidateQueries({ queryKey: workspaceKeys.me(workspaceId) });
+      // Leaving one's own workspace lands on the picker, which must not offer it.
+      void qc.invalidateQueries({ queryKey: workspaceKeys.list() });
     },
   });
 }
