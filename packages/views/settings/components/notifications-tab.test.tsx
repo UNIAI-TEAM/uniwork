@@ -1,10 +1,14 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { registerPushAdapter } from "@uniwork/core/platform";
 import { NOTIFICATION_KINDS } from "@uniwork/core/types/notification";
 import { requestMock, wrap } from "../../test/api-mock";
 import { NotificationsTab } from "./notifications-tab";
+
+const toastSuccess = vi.hoisted(() => vi.fn());
+const toastError = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError } }));
 
 initI18n();
 
@@ -26,6 +30,8 @@ function mockApi(pushEnabled: boolean) {
 
 beforeEach(() => {
   requestMock.mockReset();
+  toastSuccess.mockReset();
+  toastError.mockReset();
   registerPushAdapter(null);
 });
 
@@ -34,7 +40,9 @@ describe("NotificationsTab", () => {
     mockApi(false);
     render(wrap(<NotificationsTab />));
     expect(await screen.findByRole("rowheader", { name: /Được giao việc/ })).toBeInTheDocument();
-    expect(screen.getAllByRole("rowheader")).toHaveLength(NOTIFICATION_KINDS.length);
+    // One row per kind, plus the "every kind" row that carries the channel toggles.
+    expect(screen.getAllByRole("rowheader")).toHaveLength(NOTIFICATION_KINDS.length + 1);
+    expect(screen.getByRole("rowheader", { name: "Mọi loại" })).toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: "Đẩy" })).toBeNull();
     expect(screen.queryByText("Thông báo đẩy")).toBeNull();
 
@@ -50,6 +58,52 @@ describe("NotificationsTab", () => {
         }),
       ),
     );
+    // Saved state is inline; a toast per switch was noise.
+    expect(await screen.findByText("Đã lưu")).toBeInTheDocument();
+    expect(toastSuccess).not.toHaveBeenCalled();
+    // Without push, one quiet line says why the column is missing.
+    expect(screen.getByText(/Máy chủ này chưa bật thông báo đẩy/)).toBeInTheDocument();
+  });
+
+  it("keeps the rest of the matrix live while one row saves", async () => {
+    mockApi(false);
+    let release: (v: unknown) => void = () => {};
+    requestMock.mockImplementation((path: string, init?: { method?: string }) => {
+      if (path === "/api/v1/notifications/push/config") return Promise.resolve({ enabled: false, public_key: "" });
+      if (init?.method === "PUT") return new Promise((resolve) => (release = resolve));
+      return Promise.resolve({ preferences: prefs });
+    });
+    render(wrap(<NotificationsTab />));
+    const mentionedEmail = await screen.findByRole("switch", { name: "Được nhắc đến · Email" });
+    fireEvent.click(mentionedEmail);
+
+    // The toggled row shows the new value and waits; another row is untouched.
+    await waitFor(() => expect(mentionedEmail).toHaveAttribute("aria-busy", "true"));
+    expect(mentionedEmail).toHaveAttribute("aria-checked", "true");
+    const assignedEmail = screen.getByRole("switch", { name: "Được giao việc · Email" });
+    expect(assignedEmail).not.toHaveAttribute("aria-busy");
+    expect(assignedEmail).not.toHaveAttribute("data-disabled");
+    expect(screen.getByText("Đang lưu…")).toBeInTheDocument();
+
+    release({ preferences: [{ kind: "mentioned", in_app: true, push: true, email: true }] });
+    await waitFor(() => expect(mentionedEmail).not.toHaveAttribute("aria-busy"));
+  });
+
+  it("turns one channel off for every kind in a single request", async () => {
+    mockApi(false);
+    render(wrap(<NotificationsTab />));
+    const allEmail = await screen.findByRole("switch", { name: "Email cho mọi loại" });
+    // "mentioned" has email off, so the channel is not on everywhere yet.
+    expect(allEmail).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(allEmail);
+
+    await waitFor(() => expect(requestMock.mock.calls.filter(([, init]) => (init as { method?: string })?.method === "PUT")).toHaveLength(1));
+    const put = requestMock.mock.calls.find(([, init]) => (init as { method?: string })?.method === "PUT")!;
+    const sent = (put[1] as { body: { preferences: { kind: string; email: boolean }[] } }).body.preferences;
+    // Only the kinds that were off are written, all of them switched on.
+    expect(sent.map((p) => p.kind)).toEqual(["mentioned"]);
+    expect(sent.every((p) => p.email)).toBe(true);
+    expect(await screen.findByRole("switch", { name: "Email cho mọi loại" })).toHaveAttribute("aria-checked", "true");
   });
 
   it("shows the push column and the browser switch when push is available", async () => {

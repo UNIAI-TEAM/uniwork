@@ -248,13 +248,12 @@
       "push_this_browser": "Nhận thông báo đẩy trên trình duyệt này",
       "push_denied": "Trình duyệt đang chặn thông báo. Cho phép trong cài đặt trang rồi thử lại.",
       "matrix_section": "Theo loại",
-      "matrix_description": "Trong ứng dụng luôn là bản gốc; đẩy và email là cách giao cùng một thông báo.",
+      "matrix_description": "Hộp việc luôn giữ bản gốc; đẩy và email là cách giao cùng một thông báo.",
       "kind": "Loại",
-      "channel_in_app": "Trong ứng dụng",
+      "channel_in_app": "Hộp việc",
       "channel_push": "Đẩy",
       "channel_email": "Email",
       "digest_hint": "Email gom một lần mỗi ngày lúc 08:00 theo múi giờ của bạn, chỉ khi có thông báo chưa xem.",
-      "toast_saved": "Đã lưu",
       "error": "Chưa lưu được, thử lại",
       "kinds": {
         "task_assigned": "Được giao việc",
@@ -266,8 +265,12 @@
         "member_added": "Được thêm vào workspace",
         "role_changed": "Vai trò thay đổi",
         "audit_export_ready": "Bản xuất nhật ký sẵn sàng",
-        "chat_follow_up": "Follow-up từ tin nhắn"
-      }
+        "chat_follow_up": "Tin nhắn cần theo dõi"
+      },
+      "all_kinds": "Mọi loại",
+      "channel_all": "{{channel}} cho mọi loại",
+      "push_unavailable_server": "Máy chủ này chưa bật thông báo đẩy, nên thông báo đến hộp việc và email.",
+      "push_unavailable_browser": "Trình duyệt này không nhận được thông báo đẩy, nên thông báo đến hộp việc và email."
     },
     "page": {
       "title": "Cài đặt",
@@ -300,19 +303,23 @@
       "error": "Không lưu được"
     },
     "profile": {
-      "section": "Hồ sơ",
       "avatar": "Ảnh đại diện",
-      "avatarHint": "Nhấn để đổi ảnh",
+      "avatarHint": "PNG, JPEG, GIF hoặc WebP, tối đa 2 MB.",
       "displayName": "Tên hiển thị",
       "email": "Email",
-      "toastUpdated": "Đã cập nhật hồ sơ",
       "toastAvatarUpdated": "Đã cập nhật ảnh đại diện",
-      "toastFailed": "Không cập nhật được hồ sơ"
+      "toastFailed": "Không cập nhật được hồ sơ",
+      "avatarChange": "Đổi ảnh",
+      "avatarUploading": "Đang tải ảnh lên…",
+      "avatarWrongType": "Ảnh phải là PNG, JPEG, GIF hoặc WebP.",
+      "avatarTooLarge": "Ảnh lớn hơn 2 MB. Chọn ảnh nhỏ hơn.",
+      "avatarUploadFailed": "Chưa tải được ảnh lên, thử lại.",
+      "emailHint": "Địa chỉ bạn dùng để đăng nhập."
     },
     "preferences": {
       "timezone": "Múi giờ",
       "toastError": "Chưa lưu được, thử lại",
-      "section": "Chung",
+      "section": "Ngôn ngữ và múi giờ",
       "theme": "Giao diện",
       "themeLight": "Sáng",
       "themeDark": "Tối",
@@ -321,8 +328,6 @@
       "languageVi": "Tiếng Việt",
       "languageEn": "English",
       "toastSaved": "Đã lưu",
-      "themes": "Giao diện",
-      "themesHint": "Chỉ lưu trên thiết bị này. Máy khác của bạn giữ lựa chọn riêng.",
       "appearance": "Chế độ hiển thị",
       "accent": "Màu nhấn",
       "accents": {
@@ -331,13 +336,19 @@
         "purple": "Tím",
         "blue": "Xanh dương",
         "pink": "Hồng",
-        "violet": "Tím violet",
+        "violet": "Mận",
         "indigo": "Chàm",
         "orange": "Cam",
         "teal": "Xanh mòng két",
         "bronze": "Đồng",
         "mint": "Bạc hà"
-      }
+      },
+      "appearanceHint": "Sáng, tối hoặc theo hệ điều hành. Chỉ lưu trên thiết bị này.",
+      "accentHint": "Màu của nút chính, liên kết và mục đang chọn. Chỉ lưu trên thiết bị này.",
+      "languageHint": "Chỉ lưu trên trình duyệt này. Thiết bị khác giữ lựa chọn riêng.",
+      "timezoneHint": "Lưu theo tài khoản, áp dụng trên mọi thiết bị. Email tóm tắt gửi lúc 08:00 theo múi giờ này.",
+      "timezoneSearch": "Tìm thành phố hoặc UTC…",
+      "timezoneEmpty": "Không có múi giờ nào khớp."
     },
     "workspace": {
       "section": "Workspace",
@@ -631,7 +642,6 @@
       "reset_confirm": {
         "title": "Khôi phục mọi phím tắt mặc định?",
         "description": "Mọi phím tắt bạn đã đổi trên thiết bị này sẽ trở về mặc định.",
-        "cancel": "Hủy",
         "confirm": "Khôi phục tất cả"
       },
       "reset": "Đặt lại",
@@ -750,22 +760,38 @@
         "invalidCode": "Mã không đúng",
         "toastEnabled": "Đã bật xác thực hai lớp",
         "toastDisabled": "Đã tắt xác thực hai lớp",
-        "toastFailed": "Không bắt đầu được thiết lập MFA"
+        "toastFailed": "Không bắt đầu được thiết lập MFA",
+        "appLabel": "Ứng dụng xác thực",
+        "recoveryCopy": "Sao chép",
+        "recoveryDownload": "Tải về (.txt)",
+        "recoveryCopied": "Đã sao chép mã khôi phục",
+        "recoveryCopyFailed": "Chưa sao chép được. Chép tay hoặc tải về."
       },
       "sessions": {
         "section": "Phiên đăng nhập",
         "description": "Các trình duyệt đang đăng nhập vào tài khoản của bạn. Thu hồi phiên lạ; phiên đó hết quyền trong tối đa 15 phút.",
-        "loading": "Đang tải phiên…",
         "error": "Không tải được danh sách phiên.",
         "retry": "Thử lại",
         "unknownBrowser": "Trình duyệt không rõ",
         "current": "Phiên này",
-        "meta": "IP {{ip}} · Hoạt động {{at}}",
         "revoke": "Thu hồi",
         "revokeOthers_one": "Thu hồi {{count}} phiên khác",
         "revokeOthers_other": "Thu hồi {{count}} phiên khác",
         "revokedOthers": "Đã thu hồi các phiên khác",
-        "revokeFailed": "Không thu hồi được phiên"
+        "revokeFailed": "Không thu hồi được phiên",
+        "device": "{{browser}} trên {{os}}",
+        "deviceOsOnly": "Trình duyệt trên {{os}}",
+        "localMachine": "Máy cục bộ (localhost)",
+        "ip": "IP {{ip}}",
+        "activeAt": "Hoạt động {{at}}",
+        "empty": "Không có phiên đăng nhập nào.",
+        "revokeAria": "Thu hồi {{device}}",
+        "revokeTitle": "Thu hồi phiên {{device}}?",
+        "revokeBody": "Trình duyệt đó bị đăng xuất và mất quyền truy cập trong tối đa 15 phút.",
+        "revokeOthersTitle_one": "Thu hồi {{count}} phiên khác?",
+        "revokeOthersTitle_other": "Thu hồi {{count}} phiên khác?",
+        "revokeOthersBody": "Mọi trình duyệt khác bị đăng xuất trong tối đa 15 phút. Phiên bạn đang dùng giữ nguyên.",
+        "revokedOne": "Đã thu hồi phiên"
       },
       "delete": {
         "section": "Xóa tài khoản",

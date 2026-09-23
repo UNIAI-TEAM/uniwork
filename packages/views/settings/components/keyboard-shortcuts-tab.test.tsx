@@ -257,7 +257,16 @@ describe("KeyboardShortcutsTab reset", () => {
 
     fireEvent.click(reset);
     expect(getShortcut("send")).toEqual(createShortcutChord("Enter", { primary: true }));
-    expect(screen.getByRole("button", { name: "Đặt lại Gửi" })).toHaveAttribute("aria-disabled", "true");
+    // Back at the default, the row offers no reset at all.
+    expect(screen.queryByRole("button", { name: "Đặt lại Gửi" })).not.toBeInTheDocument();
+  });
+
+  it("offers reset only on customised rows", () => {
+    useShortcutStore.getState().setShortcut("createTask", createShortcutChord("N"));
+    render(wrap(<KeyboardShortcutsTab />));
+    expect(screen.getAllByRole("button", { name: /^Đặt lại / })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Đặt lại Tạo việc" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /^Gỡ phím tắt / })).toHaveLength(SHORTCUT_ACTIONS.length);
   });
 
   it("clears one action with its clear button", () => {

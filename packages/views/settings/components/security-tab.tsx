@@ -1,69 +1,119 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Monitor } from "lucide-react";
+import { Copy, Download, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { toastApiError } from "../../toast-api-error";
-import {
-  useAuthStore,
-  useMfaConfirm,
-  useMfaDisable,
-  useMfaSetup,
-  useRefreshSessionUser,
-  useRevokeOtherSessions,
-  useRevokeSession,
-  useSessions,
-} from "@uniwork/core/auth";
+import { useAuthStore, useMfaConfirm, useMfaDisable, useMfaSetup, useRefreshSessionUser } from "@uniwork/core/auth";
 import type { MFASetup } from "@uniwork/core/api/endpoints/auth";
-import type { UserSession } from "@uniwork/core/types";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
+import { copyText } from "@uniwork/ui/lib/clipboard";
 import { DeleteAccountDialog } from "./delete-account-dialog";
-import { SettingsCard, SettingsRow, SettingsSection, SettingsTab } from "./settings-layout";
+import { SessionsSection } from "./security-sessions";
+import {
+  SettingsBadge,
+  SettingsCard,
+  SettingsDangerZone,
+  SettingsRow,
+  SettingsSection,
+  SettingsTab,
+} from "./settings-layout";
+
+const RECOVERY_FILENAME = "uniwork-recovery-codes.txt";
+
+function downloadRecoveryCodes(codes: string[]) {
+  const url = URL.createObjectURL(new Blob([`${codes.join("\n")}\n`], { type: "text/plain;charset=utf-8" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = RECOVERY_FILENAME;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export function SecurityTab() {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.security" });
   const { t: tPage } = useTranslation(undefined, { keyPrefix: "settings" });
   const user = useAuthStore((s) => s.user);
   const mfaOn = !!user?.mfa_enabled_at;
+  // Confirming enrolment turns MFA on server-side before the recovery codes
+  // are dismissed and the user refetched; the badge follows the server.
+  const [justEnabled, setJustEnabled] = useState(false);
+  useEffect(() => {
+    if (mfaOn) setJustEnabled(false);
+  }, [mfaOn]);
+  const on = mfaOn || justEnabled;
 
   return (
     <SettingsTab title={tPage("page.tabs.security")}>
       {user?.platform_role && !mfaOn ? (
-        <Alert className="mb-6">
+        <Alert>
           <AlertTitle>{t("mfa.platformRequiredTitle")}</AlertTitle>
           <AlertDescription>{t("mfa.platformRequired")}</AlertDescription>
         </Alert>
       ) : null}
-      <SettingsSection title={t("mfa.section")} description={t("mfa.description")}>
-        <SettingsCard>{mfaOn ? <DisableMfa /> : <EnrolMfa />}</SettingsCard>
+      <SettingsSection
+        title={t("mfa.section")}
+        description={t("mfa.description")}
+        action={<SettingsBadge tone={on ? "success" : "muted"}>{on ? t("mfa.statusOn") : t("mfa.statusOff")}</SettingsBadge>}
+      >
+        <SettingsCard>{mfaOn ? <DisableMfa /> : <EnrolMfa onEnabled={() => setJustEnabled(true)} />}</SettingsCard>
       </SettingsSection>
-      <SettingsSection title={t("sessions.section")} description={t("sessions.description")} className="mt-8">
-        <SettingsCard>
-          <SessionsList />
-        </SettingsCard>
-      </SettingsSection>
-      <SettingsSection title={t("delete.section")} description={t("delete.description")} className="mt-8">
-        <SettingsCard>
-          <SettingsRow label={t("delete.label")} description={t("delete.hint")} size="none">
-            <div className="flex justify-start sm:justify-end">
-              <DeleteAccountDialog />
-            </div>
-          </SettingsRow>
-        </SettingsCard>
-      </SettingsSection>
+      <SessionsSection />
+      <SettingsDangerZone title={t("delete.section")} description={t("delete.description")}>
+        <SettingsRow label={t("delete.label")} description={t("delete.hint")} size="none">
+          <div className="flex justify-start sm:justify-end">
+            <DeleteAccountDialog />
+          </div>
+        </SettingsRow>
+      </SettingsDangerZone>
     </SettingsTab>
   );
 }
 
+function RecoveryCodes({ codes }: { codes: string[] }) {
+  const { t } = useTranslation(undefined, { keyPrefix: "settings.security.mfa" });
+  const refresh = useRefreshSessionUser();
+  return (
+    <div className="flex flex-col gap-3 p-4">
+      <p className="text-body font-medium">{t("recoveryTitle")}</p>
+      <p className="text-caption text-muted-foreground">{t("recoveryHint")}</p>
+      <ul className="grid grid-cols-2 gap-1 rounded-md bg-muted p-3 font-mono text-body" aria-label={t("recoveryTitle")}>
+        {codes.map((c) => (
+          <li key={c}>{c}</li>
+        ))}
+      </ul>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          onClick={() =>
+            void copyText(codes.join("\n")).then((ok) =>
+              ok ? toast.success(t("recoveryCopied")) : toast.error(t("recoveryCopyFailed")),
+            )
+          }
+        >
+          <Copy aria-hidden />
+          {t("recoveryCopy")}
+        </Button>
+        <Button variant="outline" onClick={() => downloadRecoveryCodes(codes)}>
+          <Download aria-hidden />
+          {t("recoveryDownload")}
+        </Button>
+        <Button className="sm:ml-auto" aria-disabled={refresh.isPending || undefined} onClick={() => refresh.mutate()}>
+          {t("recoveryDone")}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /** Three screens in one card: start → scan and confirm → recovery codes shown once. */
-function EnrolMfa() {
+function EnrolMfa({ onEnabled }: { onEnabled: () => void }) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.security.mfa" });
   const setup = useMfaSetup();
   const confirm = useMfaConfirm();
-  const refresh = useRefreshSessionUser();
   const [pending, setPending] = useState<MFASetup | null>(null);
   const [qr, setQr] = useState<string | null>(null);
   const [code, setCode] = useState("");
@@ -83,28 +133,11 @@ function EnrolMfa() {
     };
   }, [pending]);
 
-  if (codes) {
-    return (
-      <div className="flex flex-col gap-3 p-4">
-        <p className="text-body font-medium">{t("recoveryTitle")}</p>
-        <p className="text-caption text-muted-foreground">{t("recoveryHint")}</p>
-        <ul className="grid grid-cols-2 gap-1 rounded-md bg-muted p-3 font-mono text-body" aria-label={t("recoveryTitle")}>
-          {codes.map((c) => (
-            <li key={c}>{c}</li>
-          ))}
-        </ul>
-        <div>
-          <Button variant="outline" aria-disabled={refresh.isPending || undefined} onClick={() => refresh.mutate()}>
-            {t("recoveryDone")}
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  if (codes) return <RecoveryCodes codes={codes} />;
 
   if (!pending) {
     return (
-      <SettingsRow label={t("statusOff")} description={t("statusOffHint")} size="none">
+      <SettingsRow label={t("appLabel")} description={t("statusOffHint")} size="none">
         <div className="flex justify-start sm:justify-end">
           <Button
             aria-disabled={setup.isPending || undefined}
@@ -138,6 +171,7 @@ function EnrolMfa() {
             setCodes(list);
             setPending(null);
             setCode("");
+            onEnabled();
             toast.success(t("toastEnabled"));
           },
           onError: (err) => toastApiError(err, t("invalidCode")),
@@ -195,7 +229,7 @@ function DisableMfa() {
         });
       }}
     >
-      <SettingsRow label={t("statusOn")} description={t("disableHint")} size="none">
+      <SettingsRow label={t("appLabel")} description={t("disableHint")} size="none">
         <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
           <Input
             value={code}
@@ -211,80 +245,5 @@ function DisableMfa() {
         </div>
       </SettingsRow>
     </form>
-  );
-}
-
-function SessionsList() {
-  const { t, i18n } = useTranslation(undefined, { keyPrefix: "settings.security.sessions" });
-  const sessions = useSessions();
-  const revoke = useRevokeSession();
-  const revokeOthers = useRevokeOtherSessions();
-  const fmt = (iso: string) => (iso ? new Date(iso).toLocaleString(i18n.language) : "");
-
-  if (sessions.isPending) {
-    return (
-      <p className="flex items-center gap-2 p-4 text-body text-muted-foreground">
-        <Loader2 aria-hidden className="size-4 animate-spin" />
-        {t("loading")}
-      </p>
-    );
-  }
-  if (sessions.isError) {
-    return (
-      <div className="flex items-center justify-between gap-3 p-4" role="alert">
-        <span className="text-body">{t("error")}</span>
-        <Button variant="outline" onClick={() => void sessions.refetch()}>
-          {t("retry")}
-        </Button>
-      </div>
-    );
-  }
-  const rows: UserSession[] = sessions.data;
-  const others = rows.filter((s) => !s.current).length;
-  return (
-    <div className="flex flex-col">
-      <ul className="divide-y divide-border">
-        {rows.map((s) => (
-          <li key={s.id} className="flex items-center gap-3 p-4">
-            <Monitor aria-hidden className="size-5 shrink-0 text-muted-foreground" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-body">
-                {s.user_agent || t("unknownBrowser")}
-                {s.current ? <span className="ml-2 rounded-4xl bg-muted px-2 text-caption text-muted-foreground">{t("current")}</span> : null}
-              </p>
-              <p className="truncate text-caption text-muted-foreground">
-                {t("meta", { ip: s.ip || "—", at: fmt(s.last_seen_at) })}
-              </p>
-            </div>
-            {!s.current ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                aria-disabled={revoke.isPending || undefined}
-                onClick={() => revoke.mutate(s.id, { onError: (err) => toastApiError(err, t("revokeFailed")) })}
-              >
-                {t("revoke")}
-              </Button>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-      {others > 0 ? (
-        <div className="border-t border-border p-4">
-          <Button
-            variant="outline"
-            aria-disabled={revokeOthers.isPending || undefined}
-            onClick={() =>
-              revokeOthers.mutate(undefined, {
-                onSuccess: () => toast.success(t("revokedOthers")),
-                onError: (err) => toastApiError(err, t("revokeFailed")),
-              })
-            }
-          >
-            {t("revokeOthers", { count: others })}
-          </Button>
-        </div>
-      ) : null}
-    </div>
   );
 }

@@ -19,19 +19,10 @@ import {
   type ShortcutChord,
 } from "@uniwork/core/shortcuts";
 import { isImeComposing } from "@uniwork/core/utils";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@uniwork/ui/components/ui/alert-dialog";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { cn } from "@uniwork/ui/lib/utils";
+import { ConfirmDialog } from "../../common/form-dialog";
 import { ShortcutKeycaps } from "../../editor/shortcut-keycaps";
 import { SettingsCard, SettingsRow, SettingsSection, SettingsTab } from "./settings-layout";
 
@@ -226,27 +217,18 @@ export function KeyboardShortcutsTab() {
         </SettingsCard>
       </SettingsSection>
 
-      <AlertDialog open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("reset_confirm.title")}</AlertDialogTitle>
-            <AlertDialogDescription>{t("reset_confirm.description")}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("reset_confirm.cancel")}</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={() => {
-                resetAll();
-                stopRecording();
-                setResetConfirmOpen(false);
-              }}
-            >
-              {t("reset_confirm.confirm")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={resetConfirmOpen}
+        onOpenChange={setResetConfirmOpen}
+        title={t("reset_confirm.title")}
+        description={t("reset_confirm.description")}
+        confirmLabel={t("reset_confirm.confirm")}
+        onConfirm={() => {
+          resetAll();
+          stopRecording();
+          setResetConfirmOpen(false);
+        }}
+      />
     </SettingsTab>
   );
 }
@@ -326,17 +308,22 @@ function ShortcutRow({
               <span className="font-sans font-normal text-muted-foreground">{t("unassigned")}</span>
             )}
           </button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={onReset}
-            aria-disabled={!customized}
-            aria-label={t("reset_action", { action: label })}
-            title={t("reset")}
-          >
-            <RotateCcw aria-hidden className="size-3.5" />
-          </Button>
+          {/* Reset exists only for a customised row. The placeholder keeps
+              every row's recorder and clear button on the same vertical line. */}
+          {customized ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={onReset}
+              aria-label={t("reset_action", { action: label })}
+              title={t("reset")}
+            >
+              <RotateCcw aria-hidden className="size-3.5" />
+            </Button>
+          ) : (
+            <span aria-hidden className="size-7 shrink-0 pointer-coarse:size-11" />
+          )}
           <Button
             type="button"
             variant="ghost"

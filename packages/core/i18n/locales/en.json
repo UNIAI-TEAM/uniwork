@@ -249,13 +249,12 @@
       "push_this_browser": "Receive push notifications in this browser",
       "push_denied": "The browser is blocking notifications. Allow them in the site settings and try again.",
       "matrix_section": "By kind",
-      "matrix_description": "In-app is always the record; push and email are ways of delivering the same notification.",
+      "matrix_description": "The inbox always keeps the record; push and email deliver the same notification.",
       "kind": "Kind",
-      "channel_in_app": "In-app",
+      "channel_in_app": "Inbox",
       "channel_push": "Push",
       "channel_email": "Email",
       "digest_hint": "One email a day at 08:00 in your time zone, only when something is unread.",
-      "toast_saved": "Saved",
       "error": "Could not save, try again",
       "kinds": {
         "task_assigned": "Assigned a task",
@@ -267,8 +266,12 @@
         "member_added": "Added to a workspace",
         "role_changed": "Role changed",
         "audit_export_ready": "Audit export ready",
-        "chat_follow_up": "Message follow-up"
-      }
+        "chat_follow_up": "Message to follow up"
+      },
+      "all_kinds": "All kinds",
+      "channel_all": "{{channel}} for every kind",
+      "push_unavailable_server": "This server has not set up push, so notifications arrive in the inbox and by email.",
+      "push_unavailable_browser": "This browser cannot receive push, so notifications arrive in the inbox and by email."
     },
     "page": {
       "title": "Settings",
@@ -301,19 +304,23 @@
       "error": "Could not save"
     },
     "profile": {
-      "section": "Profile",
       "avatar": "Avatar",
-      "avatarHint": "Click to change",
+      "avatarHint": "PNG, JPEG, GIF or WebP, up to 2 MB.",
       "displayName": "Display name",
       "email": "Email",
-      "toastUpdated": "Profile updated",
       "toastAvatarUpdated": "Avatar updated",
-      "toastFailed": "Could not update profile"
+      "toastFailed": "Could not update profile",
+      "avatarChange": "Change photo",
+      "avatarUploading": "Uploading…",
+      "avatarWrongType": "The image must be PNG, JPEG, GIF or WebP.",
+      "avatarTooLarge": "The image is over 2 MB. Choose a smaller one.",
+      "avatarUploadFailed": "Could not upload the photo. Try again.",
+      "emailHint": "The address you sign in with."
     },
     "preferences": {
       "timezone": "Time zone",
       "toastError": "Could not save, try again",
-      "section": "General",
+      "section": "Language and time zone",
       "theme": "Theme",
       "themeLight": "Light",
       "themeDark": "Dark",
@@ -322,8 +329,6 @@
       "languageVi": "Tiếng Việt",
       "languageEn": "English",
       "toastSaved": "Saved",
-      "themes": "Themes",
-      "themesHint": "Saved on this device only. Your other devices keep their own.",
       "appearance": "Appearance",
       "accent": "Accent",
       "accents": {
@@ -332,13 +337,19 @@
         "purple": "Purple",
         "blue": "Blue",
         "pink": "Pink",
-        "violet": "Violet",
+        "violet": "Plum",
         "indigo": "Indigo",
         "orange": "Orange",
         "teal": "Teal",
         "bronze": "Bronze",
         "mint": "Mint"
-      }
+      },
+      "appearanceHint": "Light, dark or follow the operating system. Saved on this device only.",
+      "accentHint": "The colour of primary buttons, links and the selected item. Saved on this device only.",
+      "languageHint": "Saved in this browser only. Other devices keep their own.",
+      "timezoneHint": "Saved to your account, on every device. The daily email goes out at 08:00 in this zone.",
+      "timezoneSearch": "Search a city or UTC…",
+      "timezoneEmpty": "No matching time zone."
     },
     "workspace": {
       "section": "Workspace",
@@ -632,7 +643,6 @@
       "reset_confirm": {
         "title": "Restore all shortcut defaults?",
         "description": "Every shortcut you changed on this device goes back to its default.",
-        "cancel": "Cancel",
         "confirm": "Restore all defaults"
       },
       "reset": "Reset",
@@ -751,22 +761,38 @@
         "invalidCode": "Wrong code",
         "toastEnabled": "Two-factor authentication enabled",
         "toastDisabled": "Two-factor authentication disabled",
-        "toastFailed": "Could not start MFA setup"
+        "toastFailed": "Could not start MFA setup",
+        "appLabel": "Authenticator app",
+        "recoveryCopy": "Copy",
+        "recoveryDownload": "Download (.txt)",
+        "recoveryCopied": "Recovery codes copied",
+        "recoveryCopyFailed": "Could not copy. Copy them by hand or download them."
       },
       "sessions": {
         "section": "Sessions",
         "description": "Browsers signed in to your account. Revoke one you do not recognise; it loses access within 15 minutes.",
-        "loading": "Loading sessions…",
         "error": "Could not load sessions.",
         "retry": "Retry",
         "unknownBrowser": "Unknown browser",
         "current": "This session",
-        "meta": "IP {{ip}} · Active {{at}}",
         "revoke": "Revoke",
         "revokeOthers_one": "Revoke {{count}} other session",
         "revokeOthers_other": "Revoke {{count}} other sessions",
         "revokedOthers": "Other sessions revoked",
-        "revokeFailed": "Could not revoke the session"
+        "revokeFailed": "Could not revoke the session",
+        "device": "{{browser}} on {{os}}",
+        "deviceOsOnly": "Browser on {{os}}",
+        "localMachine": "This machine (localhost)",
+        "ip": "IP {{ip}}",
+        "activeAt": "Active {{at}}",
+        "empty": "No signed-in sessions.",
+        "revokeAria": "Revoke {{device}}",
+        "revokeTitle": "Revoke the {{device}} session?",
+        "revokeBody": "That browser is signed out and loses access within 15 minutes.",
+        "revokeOthersTitle_one": "Revoke {{count}} other session?",
+        "revokeOthersTitle_other": "Revoke {{count}} other sessions?",
+        "revokeOthersBody": "Every other browser is signed out within 15 minutes. The session you are using stays.",
+        "revokedOne": "Session revoked"
       },
       "delete": {
         "section": "Delete account",
