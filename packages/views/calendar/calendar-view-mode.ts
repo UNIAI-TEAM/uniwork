@@ -10,8 +10,9 @@ import {
   subMonths,
   type Locale,
 } from "date-fns";
+import type { CalendarViewMode } from "@uniwork/core/calendar/preferences";
 
-export type CalendarViewMode = "day" | "work_week" | "week" | "month";
+export type { CalendarViewMode } from "@uniwork/core/calendar/preferences";
 
 export type CalendarFeedRange = { from: string; to: string };
 
