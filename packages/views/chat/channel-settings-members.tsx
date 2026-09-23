@@ -6,7 +6,12 @@ import { useChatRoomMembers } from "@uniwork/core/chat";
 import { useCurrentMember } from "@uniwork/core/permissions";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { ChatRoomMemberActions } from "./chat-room-member-actions";
-import { ChatMemberListSkeleton, ChatMemberRow, ChatSettingsCollapsibleSection } from "./chat-settings-ui";
+import {
+  ChatMemberListError,
+  ChatMemberListSkeleton,
+  ChatMemberRow,
+  ChatSettingsCollapsibleSection,
+} from "./chat-settings-ui";
 import { useResolvedRoomPermissions } from "./use-resolved-room-permissions";
 import { useRoomMemberModeration } from "./use-room-member-moderation";
 import { initialOf } from "./chat-initials";
@@ -25,7 +30,7 @@ export function ChannelSettingsMembers({
   youLabel: string;
 }) {
   const { t } = useTranslation();
-  const { data: members = [], isPending } = useChatRoomMembers(workspaceId, roomId, open);
+  const { data: members = [], isPending, isError, refetch } = useChatRoomMembers(workspaceId, roomId, open);
   const moderation = useRoomMemberModeration({ workspaceId, roomId });
   const currentMember = useCurrentMember(workspaceId);
   const roomPermissions = useResolvedRoomPermissions({
@@ -38,13 +43,15 @@ export function ChannelSettingsMembers({
   return (
     <ChatSettingsCollapsibleSection
       title={t("chat.channel.members_section")}
-      summary={isPending ? undefined : t("chat.channel.member_count", { count: members.length })}
+      summary={isPending || isError ? undefined : t("chat.channel.member_count", { count: members.length })}
       open={membersOpen}
       onOpenChange={setMembersOpen}
       flush
     >
       {isPending ? (
         <ChatMemberListSkeleton label={t("chat.members_loading")} />
+      ) : isError ? (
+        <ChatMemberListError onRetry={() => void refetch()} />
       ) : (
         <ul>
           {members.map((member) => {

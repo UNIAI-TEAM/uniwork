@@ -3,23 +3,20 @@
 import {
   Bell,
   BellOff,
-  Hash,
   Home,
   Pin,
   Search,
   Settings,
   StickyNote,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   useChatRoomMembers,
   useChatRooms,
 } from "@uniwork/core/chat";
-import { useWorkspacePermissions, useCurrentMember } from "@uniwork/core/permissions";
+import { useCurrentMember } from "@uniwork/core/permissions";
 import type { Member } from "@uniwork/core/types/workspace";
-import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
-import { Button } from "@uniwork/ui/components/ui/button";
 import {
   Sheet,
   SheetContent,
@@ -27,10 +24,9 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@uniwork/ui/components/ui/sheet";
-import { ChatRoomMemberActions } from "./chat-room-member-actions";
 import {
+  ChatMemberListError,
   ChatMemberListSkeleton,
-  ChatMemberRow,
   ChatSettingsCollapsibleSection,
   ChatSettingsMenuRow,
   ChatSettingsQuickAction,
@@ -42,14 +38,7 @@ import { ChatRoomBulletinSheet } from "./chat-room-bulletin-sheet";
 import { ChatRoomRenameDialog } from "./chat-room-rename-dialog";
 import { useChatRoomPreferences } from "./use-chat-room-preferences";
 import { useResolvedRoomPermissions } from "./use-resolved-room-permissions";
-import {
-  canDemoteChatMember,
-  canMuteChatMember,
-  canPromoteChatMember,
-  canUnmuteChatMember,
-} from "./chat-room-moderation-utils";
-import { initialOf } from "./chat-initials";
-import { useRoomMemberModeration } from "./use-room-member-moderation";
+import { WorkspaceRoomMemberList } from "./workspace-room-member-list";
 import { ChatConversationToolbar } from "./chat-conversation-toolbar";
 import { ChatRoomMark } from "./chat-room-mark";
 
@@ -75,13 +64,17 @@ export function WorkspaceSettingsSheet({
   onOpenSearch?: () => void;
 }) {
   const { t } = useTranslation();
-  const { data: chatMembers = [], isPending: membersPending } = useChatRoomMembers(workspaceId, roomId, open);
+  const {
+    data: chatMembers = [],
+    isPending: membersPending,
+    isError: membersError,
+    refetch: refetchMembers,
+  } = useChatRoomMembers(workspaceId, roomId, open);
   const { data: rooms = [] } = useChatRooms(workspaceId);
   const roomRecord = useMemo(() => rooms.find((room) => room.id === roomId), [roomId, rooms]);
   const { notificationsMuted, pinned, onToggleMute, onTogglePin } = useChatRoomPreferences(roomId);
   const currentMember = useCurrentMember(workspaceId);
-  const { decideRemove } = useWorkspacePermissions(workspaceId);
-  const moderation = useRoomMemberModeration({ workspaceId, roomId });
+  const manageId = useId();
   const [membersOpen, setMembersOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -98,14 +91,9 @@ export function WorkspaceSettingsSheet({
   });
   const isModerator = roomPermissions.isModerator;
 
-  const wsRoleByUserId = useMemo(
-    () => new Map(workspaceMembers.map((member) => [member.user_id, member])),
-    [workspaceMembers],
-  );
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" showCloseButton={false} className="flex w-full flex-col p-0 sm:max-w-md">
+      <SheetContent side="right" showCloseButton={false} closeLabel={t("common.close")} className="flex w-full flex-col p-0 sm:max-w-md">
         <SheetHeader className="sr-only">
           <SheetTitle>{displayName}</SheetTitle>
           <SheetDescription>{t("chat.workspace_room_settings_description")}</SheetDescription>
@@ -137,11 +125,13 @@ export function WorkspaceSettingsSheet({
               label={t("chat.settings_manage_room")}
               onClick={() => setManageOpen((value) => !value)}
               active={manageOpen}
+              controls={manageId}
             />
           </ChatSettingsQuickActions>
 
           {manageOpen ? (
             <ChatGroupManageSection
+              id={manageId}
               workspaceId={workspaceId}
               roomId={roomId}
               permissions={roomRecord?.member_permissions}
@@ -151,63 +141,27 @@ export function WorkspaceSettingsSheet({
 
           <ChatSettingsCollapsibleSection
             title={t("chat.workspace_members")}
-            summary={membersPending ? undefined : t("chat.group_member_count", { count: chatMembers.length })}
+            summary={
+              membersPending || membersError ? undefined : t("chat.group_member_count", { count: chatMembers.length })
+            }
             open={membersOpen}
             onOpenChange={setMembersOpen}
             flush
           >
             {membersPending ? (
               <ChatMemberListSkeleton label={t("chat.members_loading")} />
+            ) : membersError ? (
+              <ChatMemberListError onRetry={() => void refetchMembers()} />
             ) : (
-              <ul>
-                {chatMembers.map((member) => {
-                  const isSelf = member.user_id === currentUserId;
-                  const label = isSelf
-                    ? youLabel
-                    : member.display_name?.trim() || member.email || member.user_id;
-                  const wsMember = wsRoleByUserId.get(member.user_id);
-                  const detail =
-                    member.role === "admin"
-                      ? t("chat.room_role_admin")
-                      : member.send_restricted
-                        ? t("chat.room_role_muted")
-                        : wsMember?.role === "owner"
-                          ? t("chat.workspace_role_owner")
-                          : member.email;
-                  return (
-                    <ChatMemberRow
-                      key={member.user_id}
-                      avatar={<ActorAvatar name={label} initials={initialOf(label)} size="lg" />}
-                      name={label}
-                      detail={detail}
-                      actions={
-                        !isSelf && isModerator ? (
-                          <ChatRoomMemberActions
-                            label={label}
-                            canPromote={canPromoteChatMember(member, isModerator)}
-                            canDemote={canDemoteChatMember(member, currentUserId, isModerator)}
-                            canMute={canMuteChatMember(member, isModerator)}
-                            canUnmute={canUnmuteChatMember(member, isModerator)}
-                            canKick={wsMember ? decideRemove(wsMember).allowed && member.role !== "admin" : false}
-                            busy={moderation.busyUserId === member.user_id}
-                            onPromote={() => moderation.promote(member.user_id)}
-                            onDemote={() => moderation.demote(member.user_id)}
-                            onMute={() => moderation.mute(member.user_id)}
-                            onUnmute={() => moderation.unmute(member.user_id)}
-                            onKick={() =>
-                              moderation.requestRemove(
-                                member.user_id,
-                                label,
-                                t("workspace.removeConfirm", { name: label }),
-                              )
-                            }
-                          />
-                        ) : null
-                      }
-                    />
-                  );
-                })}
-              </ul>
+              <WorkspaceRoomMemberList
+                workspaceId={workspaceId}
+                roomId={roomId}
+                members={chatMembers}
+                workspaceMembers={workspaceMembers}
+                currentUserId={currentUserId}
+                youLabel={youLabel}
+                isModerator={isModerator}
+              />
             )}
             <p className="px-4 pt-1 text-caption text-muted-foreground">{t("chat.workspace_room_moderation_hint")}</p>
           </ChatSettingsCollapsibleSection>
@@ -252,7 +206,6 @@ export function WorkspaceSettingsSheet({
             canPinMessages={roomPermissions.canPinContent}
           />
         ) : null}
-        {moderation.confirmDialog}
       </SheetContent>
     </Sheet>
   );

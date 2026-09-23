@@ -2,7 +2,8 @@
 
 import { FolderKanban, UserRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useProjects, useUpdateTask } from "@uniwork/core/tasks";
+import type { TaskPatch } from "@uniwork/core/api/endpoints/tasks";
+import { useProjects } from "@uniwork/core/tasks";
 import type { ActorKind, Task, TaskPriority, TaskStatus } from "@uniwork/core/types";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AgentBadge } from "../agents/agent-badge";
@@ -19,7 +20,6 @@ import {
 } from "../tasks/pickers";
 import { EnumFieldPicker } from "../tasks/pickers/enum-field-picker";
 import { usePickerTriggerLabel } from "../tasks/pickers/trigger-label";
-import { toastApiError } from "../toast-api-error";
 
 const NONE = "__none__";
 
@@ -145,23 +145,22 @@ export function ChatTaskDueField({
   );
 }
 
-/** Editable property chips of a task in the peek (PATCH on every change). */
+/**
+ * Editable property chips of a task in the peek. Each change goes to
+ * `onPatch`, which saves it and reports the outcome where the peek shows its
+ * save state — one place for "saved" and "not saved", chips and text alike.
+ */
 export function ChatTaskPeekFields({
   workspaceId,
   task,
+  onPatch,
 }: {
   workspaceId: string;
   task: Task;
+  onPatch: (patch: TaskPatch) => void;
 }) {
   const { t } = useTranslation();
-  const update = useUpdateTask(workspaceId);
-
-  const patch = (next: Parameters<typeof update.mutate>[0]["patch"]) => {
-    update.mutate(
-      { taskId: task.id, patch: next },
-      { onError: (err) => toastApiError(err, t("common.error")) },
-    );
-  };
+  const patch = onPatch;
 
   const assigneeValue: AssigneeRef | null = task.assignee_id
     ? { id: task.assignee_id, kind: task.assignee_kind === "agent" ? "agent" : "human" }

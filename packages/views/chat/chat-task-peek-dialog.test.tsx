@@ -1,18 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import { ApiError } from "@uniwork/core/api";
+import { WorkspaceProvider } from "../layout/workspace-context";
+import { NavigationProvider, type NavigationAdapter } from "../navigation";
 import { ChatTaskPeekDialog } from "./chat-task-peek-dialog";
 
 const taskState = vi.hoisted(() => ({
   current: {} as Record<string, unknown>,
   refetch: vi.fn(),
+  mutate: vi.fn(),
 }));
 
 vi.mock("@uniwork/core/tasks", () => ({
   useTask: () => ({ refetch: taskState.refetch, isFetching: false, ...taskState.current }),
-  useUpdateTask: () => ({ mutate: vi.fn() }),
+  useUpdateTask: () => ({ mutate: taskState.mutate }),
   useProjects: () => ({ data: { projects: [] } }),
 }));
 
@@ -32,7 +35,10 @@ function wrap(ui: ReactElement) {
 const peek = <ChatTaskPeekDialog open onOpenChange={vi.fn()} workspaceId="ws1" taskId="t1" />;
 
 describe("ChatTaskPeekDialog", () => {
-  beforeEach(() => taskState.refetch.mockReset());
+  beforeEach(() => {
+    taskState.refetch.mockReset();
+    taskState.mutate.mockReset();
+  });
 
   it("shows a field-shaped skeleton while loading", () => {
     taskState.current = { data: undefined, isLoading: true, isError: false };
@@ -88,5 +94,53 @@ describe("ChatTaskPeekDialog", () => {
     expect(screen.getByRole("heading", { name: "LUN-2" })).toBeInTheDocument();
     expect(screen.getByLabelText("Tiêu đề")).toHaveValue("long ơi");
     expect(screen.getByRole("button", { name: "Trạng thái: Cần làm" })).toBeInTheDocument();
+  });
+
+  const loadedTask = {
+    data: {
+      id: "t1",
+      identifier: "LUN-2",
+      title: "long ơi",
+      description: "Từ chat",
+      status: "todo",
+      priority: "medium",
+      assignee_id: null,
+      assignee_kind: "human",
+      due_date: null,
+      project_id: null,
+    },
+    isLoading: false,
+    isError: false,
+  };
+
+  it("says a save failed in the peek itself, and says when it saved", () => {
+    taskState.current = loadedTask;
+    wrap(peek);
+    const title = screen.getByLabelText("Tiêu đề");
+    fireEvent.change(title, { target: { value: "Tiêu đề mới" } });
+    fireEvent.blur(title);
+    const [, options] = taskState.mutate.mock.calls[0] as [unknown, { onError: (e: unknown) => void; onSuccess: () => void }];
+    act(() => options.onError(new ApiError("raw", "conflict", 409)));
+    expect(screen.getByRole("alert")).toHaveTextContent("Nội dung đã thay đổi hoặc đã tồn tại. Tải lại rồi thử lại.");
+
+    fireEvent.change(title, { target: { value: "Tiêu đề khác" } });
+    fireEvent.blur(title);
+    const [, again] = taskState.mutate.mock.calls[1] as [unknown, { onSuccess: () => void }];
+    act(() => again.onSuccess());
+    expect(screen.getByRole("status")).toHaveTextContent("Đã lưu");
+  });
+
+  it("links to the full task page inside the workspace", () => {
+    taskState.current = loadedTask;
+    const nav = { push: vi.fn(), replace: vi.fn(), back: vi.fn(), pathname: "/", searchParams: new URLSearchParams() };
+    const workspace = { id: "ws1", slug: "team", name: "Team", organization_slug: "acme" };
+    wrap(
+      <NavigationProvider value={nav as unknown as NavigationAdapter}>
+        <WorkspaceProvider workspace={workspace as never} user={{} as never}>
+          {peek}
+        </WorkspaceProvider>
+      </NavigationProvider>,
+    );
+    expect(screen.getByRole("link", { name: "Mở việc" })).toHaveAttribute("href", "/acme/team/tasks/t1");
   });
 });

@@ -21,9 +21,11 @@ beforeAll(() => {
   initI18n();
 });
 
-function renderDialog() {
+function renderDialog(canPinToTop = true) {
   return render(
-    wrap(<ChatCreatePollDialog open onOpenChange={vi.fn()} workspaceId="ws1" roomId="room1" />),
+    wrap(
+      <ChatCreatePollDialog open onOpenChange={vi.fn()} workspaceId="ws1" roomId="room1" canPinToTop={canPinToTop} />,
+    ),
   );
 }
 
@@ -36,6 +38,7 @@ describe("ChatCreatePollDialog", () => {
           onOpenChange={vi.fn()}
           workspaceId="ws1"
           roomId="room1"
+          canPinToTop
         />,
       ),
     );
@@ -68,6 +71,7 @@ describe("ChatCreatePollDialog", () => {
           onOpenChange={vi.fn()}
           workspaceId="ws1"
           roomId="room1"
+          canPinToTop
         />,
       ),
     );
@@ -96,5 +100,48 @@ describe("ChatCreatePollDialog", () => {
     expect(screen.getByRole("switch", { name: "Ghim lên đầu trò chuyện" })).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Ẩn người bình chọn" })).toBeInTheDocument();
     expect(screen.getByText("Không thời hạn")).toBeInTheDocument();
+  });
+
+  it("keeps the pin switch off and explains it when the viewer may not pin", async () => {
+    mutateAsync.mockClear();
+    renderDialog(false);
+    const pin = screen.getByRole("switch", { name: "Ghim lên đầu trò chuyện" });
+    expect(pin).toHaveAttribute("aria-disabled", "true");
+    expect(pin).toHaveAccessibleDescription("Bạn không có quyền ghim nội dung lên đầu hội thoại.");
+
+    fireEvent.change(screen.getByLabelText("Câu hỏi"), { target: { value: "Q?" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Lựa chọn 1" }), { target: { value: "A" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Lựa chọn 2" }), { target: { value: "B" } });
+    fireEvent.click(screen.getByRole("button", { name: "Tạo bình chọn" }));
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
+    const sent = mutateAsync.mock.calls.at(-1)?.[0] as { poll: { settings: { pin_to_top: boolean } } };
+    expect(sent.poll.settings.pin_to_top).toBe(false);
+  });
+
+  it("hands focus to the option above a removed one", () => {
+    renderDialog();
+    fireEvent.click(screen.getByRole("button", { name: "Thêm lựa chọn" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bỏ lựa chọn 3" }));
+    expect(screen.getByRole("textbox", { name: "Lựa chọn 2" })).toHaveFocus();
+  });
+
+  it("states the option range, and when the maximum is reached", () => {
+    renderDialog();
+    expect(screen.getByText("Từ 2 đến 10 lựa chọn.")).toBeInTheDocument();
+    for (let i = 0; i < 8; i += 1) fireEvent.click(screen.getByRole("button", { name: "Thêm lựa chọn" }));
+    expect(screen.queryByRole("button", { name: "Thêm lựa chọn" })).toBeNull();
+    expect(screen.getByText("Đã đủ 10 lựa chọn, mức tối đa của một bình chọn.")).toBeInTheDocument();
+  });
+
+  it("shows a failed send inline in the dialog", async () => {
+    mutateAsync.mockRejectedValueOnce(new Error("server words"));
+    renderDialog();
+    fireEvent.change(screen.getByLabelText("Câu hỏi"), { target: { value: "Q?" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Lựa chọn 1" }), { target: { value: "A" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Lựa chọn 2" }), { target: { value: "B" } });
+    fireEvent.click(screen.getByRole("button", { name: "Tạo bình chọn" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Không tạo được");
+    expect(alert).not.toHaveTextContent("server words");
   });
 });

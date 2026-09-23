@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { Check } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { apiErrorMessage } from "@uniwork/core/api";
 import { useLinkChatMessage } from "@uniwork/core/chat";
-import { useTasks } from "@uniwork/core/tasks";
+import { useDebouncedValue } from "@uniwork/core/hooks/use-debounced-value";
+import { tableRowsPageBody, tableRowsPageQuery } from "@uniwork/core/tasks/surface/table-query";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   Command,
@@ -15,15 +17,18 @@ import {
 } from "@uniwork/ui/components/ui/command";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { cn } from "@uniwork/ui/lib/utils";
 import {
   FormDialogBody,
   FormDialogContent,
   FormDialogFooter,
   FormDialogHeader,
 } from "../common/form-dialog";
+import { chatErrorMessage } from "./chat-error-message";
 
-/** Rows shown at once; past this the list asks for a narrower search. */
+/** Rows asked of the server per search; past this the list asks for a narrower search. */
 const RESULT_CAP = 40;
+const SEARCH_DEBOUNCE_MS = 250;
 
 function TaskListSkeleton({ label }: { label: string }) {
   return (
@@ -37,6 +42,28 @@ function TaskListSkeleton({ label }: { label: string }) {
       ))}
     </div>
   );
+}
+
+/**
+ * One page of the workspace's tasks matching `search`, searched on the server
+ * (title words, or a task number such as "UNI-12") — the dialog never pulls
+ * the whole workspace into the browser to filter it.
+ */
+function useLinkableTasks(workspaceId: string, search: string, enabled: boolean) {
+  const body = tableRowsPageBody({
+    query: { search },
+    groupBy: "none",
+    hierarchy: false,
+    groupKey: null,
+    parentId: null,
+    cursor: null,
+    limit: RESULT_CAP,
+  });
+  return useQuery({
+    ...tableRowsPageQuery(workspaceId, body),
+    enabled: enabled && Boolean(workspaceId),
+    placeholderData: keepPreviousData,
+  });
 }
 
 export function LinkTaskDialog({
@@ -54,20 +81,17 @@ export function LinkTaskDialog({
 }) {
   const { t } = useTranslation();
   const linkTask = useLinkChatMessage(workspaceId);
-  const { data: tasks = [], isLoading, isError, refetch } = useTasks(workspaceId);
   const [query, setQuery] = useState("");
+  const search = useDebouncedValue(query.trim(), SEARCH_DEBOUNCE_MS);
+  const tasksQuery = useLinkableTasks(workspaceId, search, open);
   const [selectedId, setSelectedId] = useState("");
   const [linkError, setLinkError] = useState<string | null>(null);
 
-  const q = query.trim().toLowerCase();
-  const { shown, capped } = useMemo(() => {
-    const matches = q
-      ? tasks.filter((task) =>
-          `${task.title} ${task.identifier} ${task.id}`.toLowerCase().includes(q),
-        )
-      : tasks;
-    return { shown: matches.slice(0, RESULT_CAP), capped: matches.length > RESULT_CAP };
-  }, [q, tasks]);
+  const rows = tasksQuery.data?.rows ?? [];
+  const shown = rows.map((row) => row.task);
+  const total = tasksQuery.data?.total ?? shown.length;
+  const capped = total > shown.length;
+  const searching = query.trim() !== search || (tasksQuery.isFetching && tasksQuery.isPlaceholderData);
 
   const reset = () => {
     setQuery("");
@@ -90,7 +114,7 @@ export function LinkTaskDialog({
         onOpenChange(false);
         onLinked?.(taskId);
       })
-      .catch((err: unknown) => setLinkError(apiErrorMessage(err) ?? t("chat.link.link_error")));
+      .catch((err: unknown) => setLinkError(chatErrorMessage(err, t, t("chat.link.link_error"))));
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -99,6 +123,7 @@ export function LinkTaskDialog({
   };
 
   const listLabel = t("chat.link.task_list_aria");
+  const selectedTitle = shown.find((task) => task.id === selectedId)?.title;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -121,28 +146,34 @@ export function LinkTaskDialog({
               aria-label={t("chat.link.search_label")}
               autoFocus
             />
-            {isLoading ? (
+            {tasksQuery.isPending ? (
               <TaskListSkeleton label={t("chat.link.loading")} />
-            ) : isError ? (
+            ) : tasksQuery.isError ? (
               <div role="alert" className="flex items-center justify-between gap-3 px-3 py-4">
                 <p className="text-body text-muted-foreground">{t("chat.link.tasks_load_error")}</p>
-                <Button type="button" size="sm" variant="outline" onClick={() => void refetch()}>
+                <Button type="button" size="sm" variant="outline" onClick={() => void tasksQuery.refetch()}>
                   {t("common.retry")}
                 </Button>
               </div>
             ) : (
-              <CommandList aria-label={listLabel} className="max-h-64 p-1">
+              <CommandList aria-label={listLabel} aria-busy={searching || undefined} className="max-h-64 p-1">
                 <CommandEmpty className="py-6 text-body text-muted-foreground">
-                  {tasks.length === 0 ? t("chat.link.empty_workspace") : t("chat.link.empty")}
+                  {search ? t("chat.link.empty") : t("chat.link.empty_workspace")}
                 </CommandEmpty>
                 {shown.map((task) => {
                   const selected = selectedId === task.id;
+                  // cmdk's aria-selected is the keyboard cursor; the picked task
+                  // is a separate fact, said by the visible check and the name.
                   return (
                     <CommandItem
                       key={task.id}
                       value={task.id}
                       data-checked={selected}
-                      aria-checked={selected}
+                      aria-label={
+                        selected
+                          ? t("chat.link.task_option_selected", { title: task.title })
+                          : task.title
+                      }
                       onSelect={() => {
                         setSelectedId(task.id);
                         setLinkError(null);
@@ -155,6 +186,10 @@ export function LinkTaskDialog({
                           {task.identifier || task.id}
                         </span>
                       </span>
+                      <Check
+                        aria-hidden
+                        className={cn("mt-0.5 size-4 shrink-0", selected ? "opacity-100" : "opacity-0")}
+                      />
                     </CommandItem>
                   );
                 })}
@@ -182,6 +217,13 @@ export function LinkTaskDialog({
           submitting={linkTask.isPending}
           submitDisabled={!selectedId || !messageId}
           onSubmit={submit}
+          leading={
+            selectedTitle ? (
+              <span className="line-clamp-1" aria-live="polite">
+                {t("chat.link.selected_task", { title: selectedTitle })}
+              </span>
+            ) : undefined
+          }
         />
       </FormDialogContent>
     </Dialog>

@@ -2,13 +2,14 @@
 
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { BarChart3, ChevronDown, Clock, Pencil, StickyNote, X } from "lucide-react";
+import { AlertCircle, BarChart3, ChevronDown, Clock, Pencil, StickyNote, X } from "lucide-react";
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { SheetClose } from "@uniwork/ui/components/ui/sheet";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
+import { Notice } from "../common/notice";
 
 export function ChatSettingsTitleRow({
   title,
@@ -48,7 +49,7 @@ export function ChatSettingsTitleRow({
               variant="ghost"
               size="icon-sm"
               className="shrink-0 text-muted-foreground hover:text-foreground"
-              aria-label={t("chat.settings_close")}
+              aria-label={t("common.close")}
             />
           }
         >
@@ -67,7 +68,9 @@ export function ChatSettingsQuickActions({ children }: { children: ReactNode }) 
 /**
  * A round toggle with its label under it. `active` is a real pressed state
  * (aria-pressed) and reads as the brand wash; the label says what the button
- * does, so it does not change with the state.
+ * does, so it does not change with the state. A button that shows or hides a
+ * section instead passes `controls` (the section's id): it then reports
+ * aria-expanded, not a pressed state.
  */
 export function ChatSettingsQuickAction({
   icon: Icon,
@@ -75,19 +78,23 @@ export function ChatSettingsQuickAction({
   onClick,
   disabled,
   active,
+  controls,
 }: {
   icon: LucideIcon;
   label: string;
   onClick?: () => void;
   disabled?: boolean;
   active?: boolean;
+  controls?: string;
 }) {
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={onClick}
-      aria-pressed={active}
+      aria-pressed={controls ? undefined : active}
+      aria-expanded={controls ? Boolean(active) : undefined}
+      aria-controls={controls && active ? controls : undefined}
       className="group/qa flex w-20 min-w-0 flex-col items-center gap-1.5 rounded-lg px-1 py-1 text-center disabled:pointer-events-none disabled:opacity-50"
     >
       <span
@@ -160,27 +167,43 @@ export function ChatSettingsCollapsibleSection({
   );
 }
 
-/** A full-width settings row: icon, label, the whole row is the target. */
+/**
+ * A full-width settings row: icon, label, the whole row is the target. A
+ * disabled row carries `disabledReason`, shown under the label and read as
+ * the button's description.
+ */
 export function ChatSettingsMenuRow({
   icon: Icon,
   label,
   onClick,
   disabled,
+  disabledReason,
 }: {
   icon: LucideIcon;
   label: string;
   onClick?: () => void;
   disabled?: boolean;
+  disabledReason?: string;
 }) {
+  const reasonId = useId();
+  const reason = disabled ? disabledReason : undefined;
   return (
     <button
       type="button"
       disabled={disabled}
-      className="flex min-h-10 w-full items-center gap-3 px-4 py-2 text-left transition-colors duration-(--duration-fast) hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent pointer-coarse:min-h-11"
+      aria-describedby={reason ? reasonId : undefined}
+      className="flex min-h-10 w-full items-center gap-3 px-4 py-2 text-left transition-colors duration-(--duration-fast) hover:bg-surface-hover disabled:cursor-not-allowed disabled:hover:bg-transparent pointer-coarse:min-h-11"
       onClick={onClick}
     >
       <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-      <span className="text-body text-foreground">{label}</span>
+      <span className="min-w-0">
+        <span className={cn("block text-body", disabled ? "text-muted-foreground" : "text-foreground")}>{label}</span>
+        {reason ? (
+          <span id={reasonId} className="block text-caption text-muted-foreground">
+            {reason}
+          </span>
+        ) : null}
+      </span>
     </button>
   );
 }
@@ -246,6 +269,27 @@ export function ChatMemberRow({
       </div>
       {actions ? <div className="flex shrink-0 items-center gap-0.5">{actions}</div> : null}
     </li>
+  );
+}
+
+/** Members failed to load: say so and offer a retry — never an empty list or a count. */
+export function ChatMemberListError({ onRetry }: { onRetry: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <Notice
+      tone="destructive"
+      icon={AlertCircle}
+      layout="inline"
+      live="assertive"
+      className="mx-4 my-1"
+      action={
+        <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+          {t("common.retry")}
+        </Button>
+      }
+    >
+      {t("chat.members_load_failed")}
+    </Notice>
   );
 }
 

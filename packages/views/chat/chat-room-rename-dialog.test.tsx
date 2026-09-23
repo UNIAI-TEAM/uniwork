@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@uniwork/core/api";
 import { initI18n } from "@uniwork/core/i18n";
 import { wrap } from "../test/api-mock";
 import { ChatRoomRenameDialog } from "./chat-room-rename-dialog";
@@ -55,5 +56,15 @@ describe("ChatRoomRenameDialog", () => {
     mutateAsync.mockResolvedValueOnce(undefined);
     fireEvent.keyDown(input, { key: "Enter" });
     expect(mutateAsync).toHaveBeenCalledWith({ roomId: "room1", name: "Nhóm mới" });
+  });
+
+  it("caps the name at the server's limit and never shows the server's sentence", async () => {
+    mutateAsync.mockRejectedValueOnce(new ApiError("tên phòng tối đa 80 ký tự", "forbidden", 403));
+    renderDialog();
+    const input = screen.getByLabelText("Tên hiển thị");
+    expect(input).toHaveAttribute("maxLength", "80");
+    fireEvent.change(input, { target: { value: "Nhóm mới" } });
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Bạn không có quyền làm việc này.");
   });
 });

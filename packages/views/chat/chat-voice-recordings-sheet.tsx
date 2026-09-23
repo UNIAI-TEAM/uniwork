@@ -1,7 +1,7 @@
 "use client";
 
 import { AudioLines, Play } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatVoiceRecordingItem } from "@uniwork/core/api/endpoints/chat-voice";
 import { useChatVoiceRecordings } from "@uniwork/core/chat";
@@ -118,6 +118,7 @@ function RecordingRow({
   onPlay: (recordingId: string) => void;
 }) {
   const { t } = useTranslation();
+  const describedById = useId();
   const status = recordingStatus(item.status);
   const startedTs = parseTs(item.started_at);
   const duration = recordingDurationSeconds(item);
@@ -133,7 +134,7 @@ function RecordingRow({
     <li className="rounded-lg border border-border bg-surface px-3 py-2.5 transition-colors duration-(--duration-fast) hover:bg-surface-hover">
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-body font-medium text-foreground tabular-nums">
+          <p id={`${describedById}-when`} className="text-body font-medium text-foreground tabular-nums">
             {startedTs === null ? (
               t("chat.voice_recordings_unknown_time")
             ) : (
@@ -148,7 +149,7 @@ function RecordingRow({
               </time>
             )}
           </p>
-          <p className="mt-0.5 truncate text-caption text-muted-foreground tabular-nums">
+          <p id={`${describedById}-who`} className="mt-0.5 truncate text-caption text-muted-foreground tabular-nums">
             {t("chat.voice_recordings_started_by", { name: who })}
             {duration !== null
               ? ` · ${t("chat.voice_recordings_duration", { duration: formatVoiceCallDuration(duration) })}`
@@ -166,6 +167,7 @@ function RecordingRow({
           variant="outline"
           size="sm"
           className="mt-2.5"
+          aria-describedby={`${describedById}-when ${describedById}-who`}
           onClick={() => onPlay(item.id)}
         >
           <Play aria-hidden className="size-4" />
@@ -226,7 +228,7 @@ export function ChatVoiceRecordingsSheet({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="right" className="flex w-full flex-col p-0 sm:max-w-md">
+        <SheetContent side="right" closeLabel={t("common.close")} className="flex w-full flex-col p-0 sm:max-w-md">
           <SheetHeader className="border-b border-border px-4 py-3">
             <SheetTitle>{t("chat.voice_recordings_title")}</SheetTitle>
             <SheetDescription>{t("chat.voice_recordings_description")}</SheetDescription>

@@ -1,19 +1,10 @@
 "use client";
 
-import { LogOut } from "lucide-react";
+import { EyeOff, LogOut } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@uniwork/ui/components/ui/alert-dialog";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { ConfirmDialog } from "../common/form-dialog";
 
 export function LeaveConversationSection({
   variant,
@@ -28,6 +19,9 @@ export function LeaveConversationSection({
 }) {
   const { t } = useTranslation();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // Leaving a DM only hides it on this side and comes back with the next
+  // message — consequential, not destructive, so it is not painted red.
+  const destructive = variant !== "dm";
 
   const description =
     variant === "channel"
@@ -44,6 +38,7 @@ export function LeaveConversationSection({
         : t("chat.leave_conversation_dm_hint");
 
   const leaveLabel = variant === "channel" ? t("chat.channel.leave") : t("chat.leave_conversation");
+  const Icon = destructive ? LogOut : EyeOff;
 
   const handleConfirm = () => {
     void Promise.resolve(onLeave()).finally(() => {
@@ -57,34 +52,28 @@ export function LeaveConversationSection({
         <p className="text-caption text-muted-foreground">{hint}</p>
         <Button
           type="button"
-          variant="destructive"
+          variant={destructive ? "destructive" : "outline"}
           className="w-full justify-start gap-2"
           disabled={disabled || leaving}
           onClick={() => setConfirmOpen(true)}
         >
-          <LogOut className="size-4" aria-hidden />
+          <Icon className="size-4" aria-hidden />
           {leaving ? t("chat.leaving_conversation") : leaveLabel}
         </Button>
       </div>
 
-      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {variant === "channel"
-                ? t("chat.channel.leave_confirm_title")
-                : t("chat.leave_conversation_confirm_title")}
-            </AlertDialogTitle>
-            <AlertDialogDescription>{description}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={leaving}>{t("common.cancel")}</AlertDialogCancel>
-            <AlertDialogAction variant="destructive" disabled={leaving} onClick={handleConfirm}>
-              {leaving ? t("chat.leaving_conversation") : leaveLabel}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={
+          variant === "channel" ? t("chat.channel.leave_confirm_title") : t("chat.leave_conversation_confirm_title")
+        }
+        description={description}
+        confirmLabel={leaving ? t("chat.leaving_conversation") : leaveLabel}
+        pending={leaving}
+        destructive={destructive}
+        onConfirm={handleConfirm}
+      />
     </>
   );
 }

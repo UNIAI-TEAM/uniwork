@@ -30,6 +30,7 @@ export function ChatRoomMemberActions({
   canMute,
   canUnmute,
   canKick,
+  kickLabel,
   busy,
   onPromote,
   onDemote,
@@ -43,6 +44,8 @@ export function ChatRoomMemberActions({
   canMute: boolean;
   canUnmute: boolean;
   canKick: boolean;
+  /** Menu text for removing; defaults to removing from this room. */
+  kickLabel?: string;
   busy?: boolean;
   onPromote: () => void;
   onDemote: () => void;
@@ -100,7 +103,7 @@ export function ChatRoomMemberActions({
             {canPromote || canDemote || canMute || canUnmute ? <DropdownMenuSeparator /> : null}
             <DropdownMenuItem variant="destructive" onClick={onKick}>
               <UserMinus aria-hidden />
-              {t("chat.remove_member", { name: label })}
+              {kickLabel ?? t("chat.remove_member", { name: label })}
             </DropdownMenuItem>
           </>
         ) : null}

@@ -1,7 +1,7 @@
 "use client";
 
 import { Bell, BellOff, Pin, Search, Settings, StickyNote, Tag, UserPlus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
 import { displayLabelForChatContact, resolveChatNicknameForUser } from "@uniwork/core/chat/contacts-store";
@@ -22,6 +22,7 @@ import {
 import { LeaveConversationSection } from "./leave-conversation-section";
 import { ChatRoomMemberActions } from "./chat-room-member-actions";
 import {
+  ChatMemberListError,
   ChatMemberListSkeleton,
   ChatMemberRow,
   ChatSettingsCollapsibleSection,
@@ -81,11 +82,13 @@ export function GroupSettingsSheet({
   leaveDisabled?: boolean;
 }) {
   const { t } = useTranslation();
-  const { data: chatMembers = [], isPending: membersPending } = useChatRoomMembers(
-    workspaceId,
-    group.room_id,
-    open,
-  );
+  const {
+    data: chatMembers = [],
+    isPending: membersPending,
+    isError: membersError,
+    refetch: refetchMembers,
+  } = useChatRoomMembers(workspaceId, group.room_id, open);
+  const manageId = useId();
   const { data: rooms = [] } = useChatRooms(workspaceId);
   const roomRecord = useMemo(
     () => rooms.find((room) => room.id === group.room_id),
@@ -155,7 +158,7 @@ export function GroupSettingsSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" showCloseButton={false} className="flex w-full flex-col p-0 sm:max-w-md">
+      <SheetContent side="right" showCloseButton={false} closeLabel={t("common.close")} className="flex w-full flex-col p-0 sm:max-w-md">
         <SheetHeader className="sr-only">
           <SheetTitle>{displayName}</SheetTitle>
           <SheetDescription>{t("chat.group_settings_description")}</SheetDescription>
@@ -194,11 +197,13 @@ export function GroupSettingsSheet({
               label={t("chat.settings_manage_group")}
               onClick={() => setManageOpen((value) => !value)}
               active={manageOpen}
+              controls={manageId}
             />
           </ChatSettingsQuickActions>
 
           {manageOpen ? (
             <ChatGroupManageSection
+              id={manageId}
               workspaceId={workspaceId}
               roomId={group.room_id}
               permissions={roomRecord?.member_permissions}
@@ -208,13 +213,17 @@ export function GroupSettingsSheet({
 
           <ChatSettingsCollapsibleSection
             title={t("chat.settings_group_members")}
-            summary={membersPending ? undefined : t("chat.group_member_count", { count: members.length })}
+            summary={
+              membersPending || membersError ? undefined : t("chat.group_member_count", { count: members.length })
+            }
             open={membersOpen}
             onOpenChange={setMembersOpen}
             flush
           >
             {membersPending ? (
               <ChatMemberListSkeleton label={t("chat.members_loading")} />
+            ) : membersError ? (
+              <ChatMemberListError onRetry={() => void refetchMembers()} />
             ) : (
               <ul>
                 {members.map((member) => (

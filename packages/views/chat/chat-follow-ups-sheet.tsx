@@ -1,7 +1,7 @@
 "use client";
 
-import { Bookmark, Check, ListTodo, Trash2 } from "lucide-react";
-import type { ReactNode } from "react";
+import { AlertCircle, Bookmark, Check, ListTodo, Trash2 } from "lucide-react";
+import { useId, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatFollowUpRecord } from "@uniwork/core/api/endpoints/chat";
 import { useChatFollowUps } from "@uniwork/core/chat";
@@ -23,6 +23,7 @@ import {
 } from "@uniwork/ui/components/ui/sheet";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
+import { Notice } from "../common/notice";
 import { moduleTone } from "../layout/module-tones";
 import { formatMessageDateTime, formatMessageTime, messageDayKey } from "./chat-message-time";
 import { describeChatMediaBody } from "./chat-expression-utils";
@@ -150,6 +151,12 @@ function FollowUpListSkeleton({ label }: { label: string }) {
   );
 }
 
+/** The server's page size for this list; there is no cursor, so the sheet says when it is full. */
+const FOLLOW_UP_LIMIT = 50;
+
+/** A row action: resolves true once it succeeded, so focus can move off a row that is about to leave. */
+type RowAction<T> = (arg: T) => Promise<boolean> | void;
+
 /** Personal FollowUps list for the workspace (open items by default). */
 export function ChatFollowUpsSheet({
   open,
@@ -163,31 +170,56 @@ export function ChatFollowUpsSheet({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   workspaceId: string;
-  onComplete: (followUpId: string) => void;
-  onConvert: (followUpId: string) => void;
+  onComplete: RowAction<string>;
+  onConvert: RowAction<string>;
   /** Gets the whole record so the caller can offer an undo that recreates it. */
-  onDelete: (item: ChatFollowUpRecord) => void;
+  onDelete: RowAction<ChatFollowUpRecord>;
   /** Rows with an action in flight; only those rows hold still. */
   pendingIds?: ReadonlySet<string>;
 }) {
   const { t, i18n } = useTranslation();
   const { data: followUps = [], isLoading, isError, refetch } = useChatFollowUps(
     workspaceId,
-    { include_completed: false, limit: 50 },
+    { include_completed: false, limit: FOLLOW_UP_LIMIT },
     open,
   );
+  const idBase = useId();
+  const headingId = `${idBase}-title`;
+  const rowId = (id: string) => `${idBase}-row-${id}`;
+
+  // After a row is done, converted or removed it leaves the list; focus goes
+  // to the row below (or above, at the end), else to the sheet's heading —
+  // never lost on a button that no longer exists.
+  const afterRowAction = (itemId: string, action: Promise<boolean> | void) => {
+    void Promise.resolve(action).then((ok) => {
+      if (!ok) return;
+      const index = followUps.findIndex((entry) => entry.id === itemId);
+      const neighbour = followUps[index + 1] ?? followUps[index - 1];
+      const target = neighbour
+        ? document.getElementById(rowId(neighbour.id))?.querySelector<HTMLElement>("button")
+        : null;
+      (target ?? document.getElementById(headingId))?.focus();
+    });
+  };
 
   let body: ReactNode;
   if (isLoading) {
     body = <FollowUpListSkeleton label={t("chat.follow_up.loading")} />;
   } else if (isError) {
     body = (
-      <div role="alert" className="flex flex-col items-start gap-2 px-1">
-        <p className="text-body text-destructive">{t("chat.follow_up.load_failed")}</p>
-        <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
-          {t("chat.retry")}
-        </Button>
-      </div>
+      <Notice
+        tone="destructive"
+        icon={AlertCircle}
+        layout="inline"
+        live="assertive"
+        action={
+          <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
+            {t("common.retry")}
+          </Button>
+        }
+      >
+        {t("chat.follow_up.load_failed")}
+      </Notice>
     );
   } else if (followUps.length === 0) {
     body = (
@@ -203,6 +235,7 @@ export function ChatFollowUpsSheet({
     );
   } else {
     body = (
+      <>
       <ul className="space-y-2">
         {followUps.map((item) => {
           const roomLabel = followUpRoomLabel(item, t);
@@ -212,6 +245,7 @@ export function ChatFollowUpsSheet({
           return (
             <li
               key={item.id}
+              id={rowId(item.id)}
               aria-busy={pending || undefined}
               className="rounded-lg border border-border bg-surface px-3 py-2.5 transition-colors duration-(--duration-fast) hover:bg-surface-hover"
             >
@@ -234,7 +268,7 @@ export function ChatFollowUpsSheet({
                   size="sm"
                   className="h-8 gap-1 px-2"
                   disabled={pending}
-                  onClick={() => onComplete(item.id)}
+                  onClick={() => afterRowAction(item.id, onComplete(item.id))}
                 >
                   <Check className="size-3.5" aria-hidden />
                   {t("chat.follow_up.complete")}
@@ -245,7 +279,7 @@ export function ChatFollowUpsSheet({
                   size="sm"
                   className="h-8 gap-1 px-2"
                   disabled={pending}
-                  onClick={() => onConvert(item.id)}
+                  onClick={() => afterRowAction(item.id, onConvert(item.id))}
                 >
                   <ListTodo className="size-3.5" aria-hidden />
                   {t("chat.follow_up.convert")}
@@ -256,7 +290,7 @@ export function ChatFollowUpsSheet({
                   size="sm"
                   className="ml-auto h-8 gap-1 px-2 text-destructive hover:text-destructive"
                   disabled={pending}
-                  onClick={() => onDelete(item)}
+                  onClick={() => afterRowAction(item.id, onDelete(item))}
                 >
                   <Trash2 className="size-3.5" aria-hidden />
                   {t("chat.follow_up.delete")}
@@ -266,14 +300,22 @@ export function ChatFollowUpsSheet({
           );
         })}
       </ul>
+      {followUps.length >= FOLLOW_UP_LIMIT ? (
+        <p className="px-1 pt-3 text-caption text-muted-foreground">
+          {t("chat.follow_up.list_capped", { limit: FOLLOW_UP_LIMIT })}
+        </p>
+      ) : null}
+      </>
     );
   }
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex w-full flex-col p-0 sm:max-w-md">
+      <SheetContent side="right" closeLabel={t("common.close")} className="flex w-full flex-col p-0 sm:max-w-md">
         <SheetHeader className="border-b border-border px-4 py-3">
-          <SheetTitle>{t("chat.follow_up.list_title")}</SheetTitle>
+          <SheetTitle id={headingId} tabIndex={-1}>
+            {t("chat.follow_up.list_title")}
+          </SheetTitle>
           <SheetDescription>{t("chat.follow_up.list_description")}</SheetDescription>
         </SheetHeader>
         <div className="min-h-0 flex-1 overflow-y-auto p-3">{body}</div>

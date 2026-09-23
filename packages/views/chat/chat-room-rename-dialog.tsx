@@ -2,12 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { apiErrorMessage } from "@uniwork/core/api";
 import { useUpdateChatRoomSettings } from "@uniwork/core/chat";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
+import { chatErrorMessage } from "./chat-error-message";
+
+/** Mirrors chatRoomNameMaxRunes on the server (UpdateChatRoomSettings). */
+const ROOM_NAME_MAX_LENGTH = 80;
 
 export function ChatRoomRenameDialog({
   open,
@@ -47,7 +50,7 @@ export function ChatRoomRenameDialog({
         onOpenChange(false);
       })
       .catch((err: unknown) => {
-        setError(apiErrorMessage(err) ?? t("chat.room_rename_failed"));
+        setError(chatErrorMessage(err, t, t("chat.room_rename_failed")));
       });
   };
 
@@ -60,6 +63,7 @@ export function ChatRoomRenameDialog({
           <Input
             id="chat-room-rename"
             value={name}
+            maxLength={ROOM_NAME_MAX_LENGTH}
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? "chat-room-rename-error" : undefined}
             onChange={(event) => {

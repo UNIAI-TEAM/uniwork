@@ -109,9 +109,13 @@ export function ChatCatchUpSheet({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-md">
+        <SheetContent
+          side="right"
+          closeLabel={t("common.close")}
+          className="flex w-full flex-col gap-0 p-0 sm:max-w-md"
+        >
           <SheetHeader className="border-b border-border px-4 py-3">
-            <SheetTitle className="flex items-center gap-2 text-title">
+            <SheetTitle className="flex items-center gap-2">
               <History aria-hidden className="size-4 text-muted-foreground" />
               {t("chat.ai.catch_up_title")}
             </SheetTitle>

@@ -122,6 +122,7 @@ export function ChatPageContentDialogs({
           onOpenChange={onCreatePollOpenChange}
           workspaceId={workspaceId}
           roomId={activeRoomId}
+          canPinToTop={canPinMessages}
         />
       ) : null}
       {activeRoomId ? (

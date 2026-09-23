@@ -70,6 +70,9 @@ describe("ChatVoiceRecordingsSheet", () => {
     );
     expect(screen.queryByText("ARCHIVED")).not.toBeInTheDocument();
     expect(document.querySelector('[data-status="unknown"]')).not.toBeNull();
-    expect(screen.getAllByRole("button", { name: t("chat.voice_recordings_play") })).toHaveLength(1);
+    const play = screen.getAllByRole("button", { name: t("chat.voice_recordings_play") });
+    expect(play).toHaveLength(1);
+    // Several "Play" buttons read the same; each is described by its row's time and author.
+    expect(play[0]).toHaveAccessibleDescription(/Ghi bởi/);
   });
 });

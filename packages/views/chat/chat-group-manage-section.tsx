@@ -6,6 +6,7 @@ import type { ChatRoomMemberPermissions } from "@uniwork/core/api/endpoints/chat
 import { useUpdateChatRoomSettings } from "@uniwork/core/chat";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Switch } from "@uniwork/ui/components/ui/switch";
+import { toastChatError } from "./chat-error-message";
 
 const defaultPermissions = (): ChatRoomMemberPermissions => ({
   allow_change_profile: true,
@@ -26,11 +27,14 @@ const permissionKeys: PermissionKey[] = [
 ];
 
 export function ChatGroupManageSection({
+  id,
   workspaceId,
   roomId,
   permissions,
   canManage,
 }: {
+  /** Lets the "Manage" toggle point at this section (aria-controls). */
+  id?: string;
   workspaceId: string;
   roomId: string;
   permissions?: ChatRoomMemberPermissions | null;
@@ -50,15 +54,15 @@ export function ChatGroupManageSection({
       .then(() => {
         toast.success(t("chat.settings_permissions_saved"));
       })
-      .catch(() => {
-        toast.error(t("chat.settings_permissions_save_failed"));
+      .catch((err: unknown) => {
+        toastChatError(err, t, t("chat.settings_permissions_save_failed"));
       });
   };
 
   // Each permission applies the moment it is flipped, so it is a switch, not
   // a checkbox waiting for a Save that does not exist.
   return (
-    <section className="border-b border-border px-4 py-3">
+    <section id={id} className="border-b border-border px-4 py-3">
       <p className="mb-2 text-label font-semibold text-foreground">{t("chat.settings_group_permissions_title")}</p>
       <ul className="divide-y divide-border">
         {permissionKeys.map((key) => (

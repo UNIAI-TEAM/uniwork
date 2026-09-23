@@ -97,7 +97,7 @@ export function DmSettingsSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" showCloseButton={false} className="flex w-full flex-col p-0 sm:max-w-md">
+      <SheetContent side="right" showCloseButton={false} closeLabel={t("common.close")} className="flex w-full flex-col p-0 sm:max-w-md">
         <SheetHeader className="sr-only">
           <SheetTitle>{contactLabel}</SheetTitle>
           <SheetDescription>{t("chat.dm_settings_description")}</SheetDescription>
@@ -175,6 +175,8 @@ export function DmSettingsSheet({
               icon={StickyNote}
               label={t("chat.settings_notes_pins_polls")}
               onClick={() => setBulletinOpen(true)}
+              disabled={!roomId}
+              disabledReason={t("chat.settings_bulletin_needs_room")}
             />
             {onOpenSearch ? (
               <ChatSettingsMenuRow
