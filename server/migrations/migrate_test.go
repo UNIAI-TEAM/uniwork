@@ -2,7 +2,9 @@ package migrations
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,6 +26,116 @@ func testPool(t *testing.T) *pgxpool.Pool {
 	}
 	t.Cleanup(pool.Close)
 	return pool
+}
+
+func TestReclaimTestSchemaSkipsNonTestDatabase(t *testing.T) {
+	base := os.Getenv("TEST_DATABASE_URL")
+	if base == "" {
+		base = "postgres://uniwork:uniwork@localhost:5432/uniwork_test?sslmode=disable"
+	}
+	// Same host/credentials, non-_test database — reclaim must not drop schema.
+	adminURL := strings.Replace(base, "uniwork_test", "postgres", 1)
+	pool, err := pgxpool.New(context.Background(), adminURL)
+	if err != nil {
+		t.Skip("no postgres for reclaim skip test:", err)
+	}
+	if err := pool.Ping(context.Background()); err != nil {
+		t.Skip("no postgres for reclaim skip test:", err)
+	}
+	t.Cleanup(pool.Close)
+	ctx := context.Background()
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reclaimTestSchemaIfNeeded(ctx, conn); err != nil {
+		conn.Release()
+		t.Fatal(err)
+	}
+	conn.Release()
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM pg_catalog.pg_namespace WHERE nspname = 'public'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("public schema should remain on postgres db, n=%d", n)
+	}
+}
+
+func TestReclaimTestSchemaNoOpWhenSlotsAreHealthy(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	lock, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WaitAdvisoryLock(ctx, lock, 727273); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = lock.Exec(ctx, "SELECT pg_advisory_unlock($1)", 727273); lock.Release() })
+	if err := Up(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reclaimTestSchemaIfNeeded(ctx, conn); err != nil {
+		conn.Release()
+		t.Fatal(err)
+	}
+	conn.Release()
+	var n int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM users`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestReclaimTestSchemaWhenDroppedColumnSlotsAccumulate(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	lock, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WaitAdvisoryLock(ctx, lock, 727273); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = lock.Exec(ctx, "SELECT pg_advisory_unlock($1)", 727273); lock.Release() })
+	if err := Up(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `CREATE TABLE column_slot_bloat (base_col int NOT NULL DEFAULT 0)`); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < testSchemaDroppedSlotThreshold+1; i++ {
+		col := fmt.Sprintf("bloat_%d", i)
+		if _, err := pool.Exec(ctx, fmt.Sprintf(`ALTER TABLE column_slot_bloat ADD COLUMN %s int`, col)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(ctx, fmt.Sprintf(`ALTER TABLE column_slot_bloat DROP COLUMN %s`, col)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := reclaimTestSchemaIfNeeded(ctx, conn); err != nil {
+		conn.Release()
+		t.Fatal(err)
+	}
+	conn.Release()
+	var tables int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM information_schema.tables WHERE table_schema='public'`).Scan(&tables); err != nil {
+		t.Fatal(err)
+	}
+	if tables != 0 {
+		t.Fatalf("expected empty public schema after reclaim, got %d tables", tables)
+	}
+	if err := Up(ctx, pool); err != nil {
+		t.Fatal("re-up after reclaim:", err)
+	}
 }
 
 func TestUpIsIdempotent(t *testing.T) {

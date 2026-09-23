@@ -63,6 +63,17 @@ func registerEmailHub(r api, h Routes) {
 		sdo:     sdo.EmailHubThreadSDO{},
 		auth:    true,
 	})
+	r.Get("/workspaces/{workspaceID}/email-hub/scheduled-sends", h.ListEmailHubScheduledSends, apiOp{
+		summary: "List pending scheduled sends",
+		tags:    []string{"email-hub"},
+		sdo:     sdo.EmailHubScheduledSendListSDO{},
+		auth:    true,
+	})
+	r.Delete("/workspaces/{workspaceID}/email-hub/scheduled-sends/{scheduledSendID}", h.CancelEmailHubScheduledSend, apiOp{
+		summary: "Cancel a pending scheduled send",
+		tags:    []string{"email-hub"},
+		auth:    true,
+	})
 	r.Post("/workspaces/{workspaceID}/email-hub/send", h.SendEmailHub, apiOp{
 		summary:     "Send email via SMTP",
 		description: "Delivers through the connected mailbox and caches the message under SENT.",
@@ -72,9 +83,10 @@ func registerEmailHub(r api, h Routes) {
 		auth:        true,
 	})
 	r.Post("/workspaces/{workspaceID}/email-hub/sync", h.SyncEmailHub, apiOp{
-		summary: "Sync mailbox now",
-		tags:    []string{"email-hub"},
-		auth:    true,
+		summary:     "Sync mailbox now",
+		description: "Query: account_id (required), folder, force, live, reconcile (reconcile drops cached threads missing from the IMAP window).",
+		tags:        []string{"email-hub"},
+		auth:        true,
 	})
 	r.Post("/workspaces/{workspaceID}/email-hub/watch", h.WatchEmailHub, apiOp{
 		summary:     "Wait for INBOX changes (IMAP IDLE)",

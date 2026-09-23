@@ -162,6 +162,15 @@ func TestEmailHubEndpointsWhenNotConfigured(t *testing.T) {
 	if res.StatusCode != 400 {
 		t.Fatalf("download missing account_id: %d", res.StatusCode)
 	}
+
+	res, out = doJSON(t, srv, "GET", base+"/scheduled-sends?account_id=acc-1", token, nil)
+	if res.StatusCode != http.StatusServiceUnavailable || errorCode(out) != "email_hub_not_configured" {
+		t.Fatalf("list scheduled not configured: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, srv, "DELETE", base+"/scheduled-sends/01SCHD00000000000000000001?account_id=acc-1", token, nil)
+	if res.StatusCode != http.StatusServiceUnavailable || errorCode(out) != "email_hub_not_configured" {
+		t.Fatalf("cancel scheduled not configured: %d %v", res.StatusCode, out)
+	}
 }
 
 func TestEmailHubConfiguredHTTP(t *testing.T) {
@@ -294,6 +303,65 @@ func TestEmailHubConfiguredHTTP(t *testing.T) {
 	})
 	if res.StatusCode != http.StatusBadGateway || errorCode(out) != "email_hub_send_failed" {
 		t.Fatalf("send without SMTP: %d %v", res.StatusCode, out)
+	}
+
+	sendAt := time.Now().UTC().Add(3 * time.Minute).Format(time.RFC3339)
+	res, out = doJSON(t, srv, "POST", base+"/send", token, map[string]any{
+		"account_id": accID, "to": []string{"later@example.com"}, "subject": "Later", "body_text": "Queued",
+		"send_at": sendAt,
+	})
+	if res.StatusCode != http.StatusAccepted || out["scheduled"] != true {
+		t.Fatalf("schedule send: %d %v", res.StatusCode, out)
+	}
+	scheduledID, _ := out["id"].(string)
+	if scheduledID == "" {
+		t.Fatalf("missing scheduled id: %v", out)
+	}
+
+	res, out = doJSON(t, srv, "GET", base+"/scheduled-sends?account_id="+accID, token, nil)
+	if res.StatusCode != 200 || len(jsonArrayAt(t, out, "scheduled")) != 1 {
+		t.Fatalf("list scheduled: %d %v", res.StatusCode, out)
+	}
+
+	res, _ = doJSON(t, srv, "GET", base+"/scheduled-sends?account_id="+util.NewID(), token, nil)
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("list scheduled unknown account: %d", res.StatusCode)
+	}
+
+	res, _ = doJSON(t, srv, "GET", base+"/scheduled-sends", token, nil)
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("list scheduled missing account_id: %d", res.StatusCode)
+	}
+
+	res, _ = doJSON(t, srv, "DELETE", base+"/scheduled-sends/"+scheduledID+"?account_id="+accID, token, nil)
+	if res.StatusCode != http.StatusNoContent {
+		t.Fatalf("cancel scheduled: %d", res.StatusCode)
+	}
+
+	res, _ = doJSON(t, srv, "DELETE", base+"/scheduled-sends/"+scheduledID+"?account_id="+accID, token, nil)
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("cancel scheduled twice: %d", res.StatusCode)
+	}
+
+	res, _ = doJSON(t, srv, "DELETE", base+"/scheduled-sends/"+util.NewID(), token, nil)
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("cancel scheduled missing account_id: %d", res.StatusCode)
+	}
+
+	res, out = doJSON(t, srv, "POST", base+"/send", token, map[string]any{
+		"account_id": accID, "to": []string{"bad@example.com"}, "subject": "Bad attach", "body_text": "x",
+		"attachments": []map[string]string{{"filename": "a.txt", "content_base64": "!!!"}},
+	})
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("send bad attachment: %d %v", res.StatusCode, out)
+	}
+
+	res, out = doJSON(t, srv, "POST", base+"/send", token, map[string]any{
+		"account_id": accID, "to": []string{"bad@example.com"}, "subject": "Bad time", "body_text": "x",
+		"send_at": "not-rfc3339",
+	})
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("bad send_at: %d %v", res.StatusCode, out)
 	}
 
 	res, _ = doJSON(t, srv, "PATCH", base+"/threads/"+threadID, token, map[string]any{

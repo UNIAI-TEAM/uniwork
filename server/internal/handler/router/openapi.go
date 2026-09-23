@@ -299,6 +299,11 @@ func pathParamSDI(path string) any {
 			ThreadID     string `path:"threadID" description:"ULID email đã cache" example:"01J8X4MAILTHR0N1P2Q3R4S5T6"`
 			AttachmentID string `path:"attachmentID" description:"ULID đính kèm Email Hub" example:"01J8X4ATTN1P2Q3R4S5T6U7"`
 		}{}
+	case "workspaceID,scheduledSendID":
+		return struct {
+			WorkspaceID     string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			ScheduledSendID string `path:"scheduledSendID" description:"ULID email hẹn gửi Email Hub" example:"01J8X4MAILSCH0N1P2Q3R4S5T6"`
+		}{}
 	case "workspaceID,projectID,resourceID":
 		return struct {
 			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`

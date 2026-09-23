@@ -6,6 +6,8 @@ import {
   listEmailHubAccounts,
   listEmailHubThreads,
   patchEmailHubThread,
+  cancelEmailHubScheduledSend,
+  listEmailHubScheduledSends,
   sendEmailHub,
   subscribeEmailHubInboxWatch,
   syncEmailHub,
@@ -56,9 +58,14 @@ describe("email hub endpoints", () => {
       to: ["client@example.com"],
       subject: "Hello",
       bodyText: "Hi there",
+      bodyHtml: "<div>Hi there</div>",
+      attachments: [{ filename: "note.txt", contentBase64: "aGk=" }],
     });
-    expect(sent?.id).toBe("th1");
-    expect(vi.mocked(fetch).mock.calls[0]![1]?.body).toContain("body_text");
+    expect(sent && "id" in sent ? sent.id : null).toBe("th1");
+    const body = String(vi.mocked(fetch).mock.calls[0]![1]?.body);
+    expect(body).toContain("body_text");
+    expect(body).toContain("body_html");
+    expect(body).toContain("content_base64");
 
     vi.mocked(fetch).mockResolvedValueOnce(json({ id: 1 }, 201));
     await expect(
@@ -69,6 +76,38 @@ describe("email hub endpoints", () => {
         bodyText: "Hi",
       }),
     ).resolves.toBeNull();
+  });
+
+  it("sendEmailHub returns scheduled send when server responds with schedule payload", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(
+        {
+          scheduled: true,
+          id: "sch1",
+          send_at: "2026-09-21T10:00:00Z",
+          subject: "Later",
+          to: ["client@example.com"],
+          account_id: "acc1",
+        },
+        202,
+      ),
+    );
+    const scheduled = await sendEmailHub("ws1", {
+      accountId: "acc1",
+      to: ["client@example.com"],
+      subject: "Later",
+      bodyText: "Hi",
+      sendAt: "2026-09-21T10:00:00Z",
+    });
+    expect(scheduled).toEqual({
+      scheduled: true,
+      id: "sch1",
+      send_at: "2026-09-21T10:00:00Z",
+      subject: "Later",
+      to: ["client@example.com"],
+      account_id: "acc1",
+    });
+    expect(String(vi.mocked(fetch).mock.calls[0]![1]?.body)).toContain("send_at");
   });
 
   it("watchEmailHub long-poll response degrades when malformed", async () => {
@@ -117,6 +156,13 @@ describe("email hub endpoints", () => {
     expect(vi.mocked(fetch).mock.calls[0]![0]).toContain("force=1");
   });
 
+  it("syncEmailHub passes reconcile query when requested", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ synced: true }));
+    await syncEmailHub("ws1", "acc1", "INBOX", false, true, true);
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toContain("reconcile=1");
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toContain("live=1");
+  });
+
   it("syncEmailHub degrades when malformed", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ synced: "yes" }));
     await expect(syncEmailHub("ws1", "acc1", "INBOX")).resolves.toEqual({ synced: false });
@@ -142,6 +188,38 @@ describe("email hub endpoints", () => {
 
     vi.mocked(fetch).mockResolvedValueOnce(json({ id: 1 }));
     await expect(patchEmailHubThread("ws1", "th1", { accountId: "acc1", isRead: true })).resolves.toBeNull();
+  });
+
+  it("sendEmailHub includes bcc when provided", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(thread, 201));
+    await sendEmailHub("ws1", {
+      accountId: "acc1",
+      to: ["client@example.com"],
+      bcc: ["hidden@example.com"],
+      subject: "Hello",
+      bodyText: "Hi",
+    });
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]?.body));
+    expect(body.bcc).toEqual(["hidden@example.com"]);
+  });
+
+  it("listEmailHubScheduledSends degrades when malformed", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ scheduled: [{ id: "sch1", send_at: "2026-09-21T10:00:00Z", subject: "Later", to: ["a@b.com"], status: "pending" }] }),
+    );
+    const list = await listEmailHubScheduledSends("ws1", "acc1");
+    expect(list.scheduled).toHaveLength(1);
+    expect(list.scheduled[0]?.id).toBe("sch1");
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ scheduled: [{ id: 1 }] }));
+    await expect(listEmailHubScheduledSends("ws1", "acc1")).resolves.toEqual({ scheduled: [] });
+  });
+
+  it("cancelEmailHubScheduledSend calls DELETE with account_id", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await cancelEmailHubScheduledSend("ws1", "acc1", "sch1");
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toContain("scheduled-sends/sch1");
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toContain("account_id=acc1");
   });
 
   it("patchEmailHubThread toggles starred", async () => {

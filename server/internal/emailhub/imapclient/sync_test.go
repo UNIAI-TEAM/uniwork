@@ -27,3 +27,14 @@ func TestCapIncrementalUIDs(t *testing.T) {
 		t.Fatalf("expected lowest uids first, got %v", got)
 	}
 }
+
+func TestMaxUID(t *testing.T) {
+	t.Parallel()
+	if got := maxUID(nil); got != 0 {
+		t.Fatalf("empty: %d", got)
+	}
+	items := []ThreadMeta{{UID: 3}, {UID: 9}, {UID: 5}}
+	if got := maxUID(items); got != 9 {
+		t.Fatalf("max uid: %d", got)
+	}
+}

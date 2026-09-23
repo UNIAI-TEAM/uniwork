@@ -56,6 +56,27 @@ func TestLoginAuthStartAndNext(t *testing.T) {
 	}
 }
 
+func TestIsLocalhost(t *testing.T) {
+	t.Parallel()
+	for _, host := range []string{"localhost", "127.0.0.1", "::1"} {
+		if !isLocalhost(host) {
+			t.Fatalf("expected local: %q", host)
+		}
+	}
+	if isLocalhost("mail.example.com") {
+		t.Fatal("expected remote")
+	}
+}
+
+func TestSmtpAuthWithFallbackReturnsPlainErrorWhenNotAuthTypeIssue(t *testing.T) {
+	t.Parallel()
+	mock := &mockSMTPAuth{authErr: errors.New("connection reset")}
+	usedLogin, err := smtpAuthWithFallback(mock, "smtp.example.com", "u", "p")
+	if usedLogin || err == nil || err.Error() != "connection reset" {
+		t.Fatalf("want plain err, got usedLogin=%v err=%v", usedLogin, err)
+	}
+}
+
 func TestLoginAuthRejectsPlaintextRemote(t *testing.T) {
 	t.Parallel()
 	auth := &loginAuth{host: "smtp.example.com"}

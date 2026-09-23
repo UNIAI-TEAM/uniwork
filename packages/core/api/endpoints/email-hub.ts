@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   EmailHubAccountListSchema,
   EmailHubAccountSchema,
@@ -131,11 +132,13 @@ export async function syncEmailHub(
   folder?: string,
   force?: boolean,
   live?: boolean,
+  reconcile?: boolean,
 ) {
   const q = new URLSearchParams({ account_id: accountId });
   if (folder) q.set("folder", folder);
   if (force) q.set("force", "1");
   if (live) q.set("live", "1");
+  if (reconcile) q.set("reconcile", "1");
   const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/email-hub/sync?${q}`, { method: "POST" });
   return parseWithFallback(raw, EmailHubSyncSchema, EMPTY_SYNC, {
     endpoint: "POST /api/v1/workspaces/{ws}/email-hub/sync",
@@ -170,14 +173,35 @@ export async function unsubscribeEmailHubInboxWatch(workspaceId: string, account
   });
 }
 
+export interface SendEmailHubAttachmentInput {
+  filename: string;
+  contentType?: string;
+  contentBase64: string;
+}
+
 export interface SendEmailHubInput {
   accountId: string;
   to: string[];
   cc?: string[];
+  bcc?: string[];
   subject: string;
   bodyText: string;
+  bodyHtml?: string;
+  attachments?: SendEmailHubAttachmentInput[];
+  sendAt?: string;
   replyToThreadId?: string;
 }
+
+export const EmailHubScheduledSendSchema = z.object({
+  scheduled: z.literal(true),
+  id: z.string(),
+  send_at: z.string(),
+  subject: z.string(),
+  to: z.array(z.string()),
+  account_id: z.string(),
+});
+
+export type EmailHubScheduledSend = z.infer<typeof EmailHubScheduledSendSchema>;
 
 export async function sendEmailHub(workspaceId: string, input: SendEmailHubInput) {
   const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/email-hub/send`, {
@@ -186,11 +210,26 @@ export async function sendEmailHub(workspaceId: string, input: SendEmailHubInput
       account_id: input.accountId,
       to: input.to,
       cc: input.cc,
+      bcc: input.bcc,
       subject: input.subject,
       body_text: input.bodyText,
+      body_html: input.bodyHtml,
+      attachments: input.attachments?.map((att) => ({
+        filename: att.filename,
+        content_type: att.contentType,
+        content_base64: att.contentBase64,
+      })),
+      send_at: input.sendAt,
       reply_to_thread_id: input.replyToThreadId,
     },
   });
+  const scheduled = parseWithFallback<EmailHubScheduledSend | null>(
+    raw,
+    EmailHubScheduledSendSchema,
+    null,
+    { endpoint: "POST /api/v1/workspaces/{ws}/email-hub/send" },
+  );
+  if (scheduled?.scheduled) return scheduled;
   return parseWithFallback<EmailHubThread | null>(raw, EmailHubThreadSchema, null, {
     endpoint: "POST /api/v1/workspaces/{ws}/email-hub/send",
   });
@@ -219,7 +258,38 @@ export async function patchEmailHubThread(
   });
 }
 
-export type EmailHubMoveTarget = "ARCHIVE" | "TRASH";
+export type EmailHubMoveTarget = "INBOX" | "ARCHIVE" | "TRASH";
+
+export const EmailHubScheduledSendItemSchema = z.object({
+  id: z.string(),
+  send_at: z.string(),
+  subject: z.string(),
+  to: z.array(z.string()),
+  status: z.string(),
+});
+
+export const EmailHubScheduledSendListSchema = z.object({
+  scheduled: z.array(EmailHubScheduledSendItemSchema),
+});
+
+export type EmailHubScheduledSendItem = z.infer<typeof EmailHubScheduledSendItemSchema>;
+
+const EMPTY_SCHEDULED_SENDS: { scheduled: EmailHubScheduledSendItem[] } = { scheduled: [] };
+
+export async function listEmailHubScheduledSends(workspaceId: string, accountId: string) {
+  const q = new URLSearchParams({ account_id: accountId });
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/email-hub/scheduled-sends?${q}`);
+  return parseWithFallback(raw, EmailHubScheduledSendListSchema, EMPTY_SCHEDULED_SENDS, {
+    endpoint: "GET /api/v1/workspaces/{ws}/email-hub/scheduled-sends",
+  });
+}
+
+export async function cancelEmailHubScheduledSend(workspaceId: string, accountId: string, scheduledId: string) {
+  const q = new URLSearchParams({ account_id: accountId });
+  await request(`/api/v1/workspaces/${enc(workspaceId)}/email-hub/scheduled-sends/${enc(scheduledId)}?${q}`, {
+    method: "DELETE",
+  });
+}
 
 export async function moveEmailHubThread(
   workspaceId: string,

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
+
+	"github.com/unicomhub/uniwork/server/internal/emailhub/imapclient"
 )
 
 func TestParseEmailHubSyncState(t *testing.T) {
@@ -40,5 +42,16 @@ func TestParseEmailHubSyncStateEmptyAndInvalid(t *testing.T) {
 	sent := state.folder(emailHubFolderSent)
 	if sent.LastUID != 7 {
 		t.Fatalf("withFolder: %+v", sent)
+	}
+}
+
+func TestEmailHubReconcileKeepUIDs(t *testing.T) {
+	t.Parallel()
+	got := emailHubReconcileKeepUIDs([]imapclient.ThreadMeta{{UID: 10}, {UID: 3}})
+	if len(got) != 2 || got[0] != 10 || got[1] != 3 {
+		t.Fatalf("unexpected keep uids: %v", got)
+	}
+	if len(emailHubReconcileKeepUIDs(nil)) != 0 {
+		t.Fatal("expected empty keep list for no items")
 	}
 }

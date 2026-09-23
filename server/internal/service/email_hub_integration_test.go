@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/emailhub"
@@ -33,7 +34,7 @@ func testEmailHubBox(t *testing.T) *secretbox.Box {
 	return box
 }
 
-func emailHubFixture(t *testing.T) (*EmailHubService, *db.Queries, db.User, db.Workspace) {
+func emailHubFixture(t *testing.T) (*EmailHubService, *db.Queries, db.User, db.Workspace, *pgxpool.Pool) {
 	t.Helper()
 	pool := testutil.DB(t)
 	q := db.New(pool)
@@ -51,7 +52,7 @@ func emailHubFixture(t *testing.T) (*EmailHubService, *db.Queries, db.User, db.W
 		t.Fatal(err)
 	}
 	svc := NewEmailHubService(q, wsSvc, testEmailHubBox(t))
-	return svc, q, user, v.Workspace
+	return svc, q, user, v.Workspace, pool
 }
 
 func seedEmailHubAccount(t *testing.T, q *db.Queries, box *secretbox.Box, userID, orgID string) db.EmailHubAccount {
@@ -88,7 +89,7 @@ func seedEmailHubThread(t *testing.T, q *db.Queries, accountID, orgID string) db
 }
 
 func TestEmailHubConnectValidation(t *testing.T) {
-	svc, _, user, ws := emailHubFixture(t)
+	svc, _, user, ws, _ := emailHubFixture(t)
 	ctx := context.Background()
 	actor := Human(user.ID)
 
@@ -106,7 +107,7 @@ func TestEmailHubConnectValidation(t *testing.T) {
 }
 
 func TestEmailHubListAndThreadLifecycle(t *testing.T) {
-	svc, q, user, ws := emailHubFixture(t)
+	svc, q, user, ws, _ := emailHubFixture(t)
 	ctx := context.Background()
 	actor := Human(user.ID)
 	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
@@ -156,7 +157,7 @@ func TestEmailHubListAndThreadLifecycle(t *testing.T) {
 }
 
 func TestEmailHubWatchSubscribe(t *testing.T) {
-	svc, q, user, ws := emailHubFixture(t)
+	svc, q, user, ws, _ := emailHubFixture(t)
 	ctx := context.Background()
 	actor := Human(user.ID)
 	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
@@ -170,7 +171,7 @@ func TestEmailHubWatchSubscribe(t *testing.T) {
 }
 
 func TestEmailHubUpsertThreadItems(t *testing.T) {
-	svc, q, user, ws := emailHubFixture(t)
+	svc, q, user, ws, _ := emailHubFixture(t)
 	ctx := context.Background()
 	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
 
@@ -202,12 +203,12 @@ func TestEmailHubUpsertThreadItems(t *testing.T) {
 }
 
 func TestEmailHubSyncErrorsWithoutIMAP(t *testing.T) {
-	svc, q, user, ws := emailHubFixture(t)
+	svc, q, user, ws, _ := emailHubFixture(t)
 	ctx := context.Background()
 	actor := Human(user.ID)
 	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
 
-	synced, err := svc.Sync(ctx, actor, ws.ID, acc.ID, emailhub.FolderInbox, true, false)
+	synced, err := svc.Sync(ctx, actor, ws.ID, acc.ID, emailhub.FolderInbox, true, false, false)
 	if err == nil {
 		t.Fatal("expected sync error without reachable IMAP")
 	}
@@ -217,12 +218,12 @@ func TestEmailHubSyncErrorsWithoutIMAP(t *testing.T) {
 }
 
 func TestEmailHubSyncAllFoldersWithoutIMAP(t *testing.T) {
-	svc, q, user, ws := emailHubFixture(t)
+	svc, q, user, ws, _ := emailHubFixture(t)
 	ctx := context.Background()
 	actor := Human(user.ID)
 	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
 
-	synced, err := svc.Sync(ctx, actor, ws.ID, acc.ID, emailhub.FolderStarred, true, false)
+	synced, err := svc.Sync(ctx, actor, ws.ID, acc.ID, emailhub.FolderStarred, true, false, false)
 	if err == nil {
 		t.Fatal("expected full sync error without reachable IMAP")
 	}
@@ -232,7 +233,7 @@ func TestEmailHubSyncAllFoldersWithoutIMAP(t *testing.T) {
 }
 
 func TestEmailHubDisconnectRemovesData(t *testing.T) {
-	svc, q, user, ws := emailHubFixture(t)
+	svc, q, user, ws, _ := emailHubFixture(t)
 	ctx := context.Background()
 	actor := Human(user.ID)
 	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
@@ -254,7 +255,7 @@ func TestEmailHubDisconnectRemovesData(t *testing.T) {
 }
 
 func TestEmailHubGetThreadFetchBodyWithoutIMAP(t *testing.T) {
-	svc, q, user, ws := emailHubFixture(t)
+	svc, q, user, ws, _ := emailHubFixture(t)
 	ctx := context.Background()
 	actor := Human(user.ID)
 	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
@@ -269,8 +270,38 @@ func TestEmailHubGetThreadFetchBodyWithoutIMAP(t *testing.T) {
 	}
 }
 
+func TestEmailHubGetSentThreadShortBodyCached(t *testing.T) {
+	svc, q, user, ws, _ := emailHubFixture(t)
+	ctx := context.Background()
+	actor := Human(user.ID)
+	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
+	row, err := q.UpsertEmailHubThread(ctx, db.UpsertEmailHubThreadParams{
+		ID: util.NewID(), AccountID: acc.ID, OrganizationID: ws.OrganizationID,
+		Folder: emailhub.FolderSent, ImapUid: 99, Subject: "hehe",
+		Snippet: "hehe", FromAddr: acc.EmailAddress, ToAddrs: []string{"dest@example.com"},
+		SentAt: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}, IsRead: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpdateEmailHubThreadBody(ctx, db.UpdateEmailHubThreadBodyParams{
+		ID: row.ID, BodyText: pgtype.Text{String: "hehe", Valid: true},
+		BodyHtml: pgtype.Text{String: sentMessageHTML("hehe"), Valid: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	view, err := svc.GetThread(ctx, actor, ws.ID, acc.ID, row.ID, true, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !view.BodyCached || view.BodyText != "hehe" || view.BodyHTML == "" {
+		t.Fatalf("expected cached sent body to load without IMAP: %+v", view)
+	}
+}
+
 func TestEmailHubListWithQuery(t *testing.T) {
-	svc, q, user, ws := emailHubFixture(t)
+	svc, q, user, ws, _ := emailHubFixture(t)
 	ctx := context.Background()
 	actor := Human(user.ID)
 	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
@@ -285,7 +316,7 @@ func TestEmailHubListWithQuery(t *testing.T) {
 }
 
 func TestEmailHubSendValidation(t *testing.T) {
-	svc, q, user, ws := emailHubFixture(t)
+	svc, q, user, ws, _ := emailHubFixture(t)
 	ctx := context.Background()
 	actor := Human(user.ID)
 	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
@@ -304,7 +335,7 @@ func TestEmailHubSendValidation(t *testing.T) {
 }
 
 func TestEmailHubSendFailsWithoutSMTP(t *testing.T) {
-	svc, q, user, ws := emailHubFixture(t)
+	svc, q, user, ws, _ := emailHubFixture(t)
 	ctx := context.Background()
 	actor := Human(user.ID)
 	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
@@ -318,7 +349,7 @@ func TestEmailHubSendFailsWithoutSMTP(t *testing.T) {
 }
 
 func TestEmailHubGetThreadMarksRead(t *testing.T) {
-	svc, q, user, ws := emailHubFixture(t)
+	svc, q, user, ws, _ := emailHubFixture(t)
 	ctx := context.Background()
 	actor := Human(user.ID)
 	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
@@ -331,7 +362,7 @@ func TestEmailHubGetThreadMarksRead(t *testing.T) {
 }
 
 func TestEmailHubOpenAttachmentNotFound(t *testing.T) {
-	svc, q, user, ws := emailHubFixture(t)
+	svc, q, user, ws, _ := emailHubFixture(t)
 	ctx := context.Background()
 	actor := Human(user.ID)
 	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
@@ -344,7 +375,7 @@ func TestEmailHubOpenAttachmentNotFound(t *testing.T) {
 }
 
 func TestEmailHubListUnreadOnly(t *testing.T) {
-	svc, q, user, ws := emailHubFixture(t)
+	svc, q, user, ws, _ := emailHubFixture(t)
 	ctx := context.Background()
 	actor := Human(user.ID)
 	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
@@ -359,7 +390,7 @@ func TestEmailHubListUnreadOnly(t *testing.T) {
 }
 
 func TestEmailHubStarredFolderListing(t *testing.T) {
-	svc, q, user, ws := emailHubFixture(t)
+	svc, q, user, ws, _ := emailHubFixture(t)
 	ctx := context.Background()
 	actor := Human(user.ID)
 	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
@@ -373,5 +404,43 @@ func TestEmailHubStarredFolderListing(t *testing.T) {
 	})
 	if err != nil || len(page.Threads) != 1 || page.Counts.Total != 1 {
 		t.Fatalf("starred folder: err=%v page=%+v", err, page)
+	}
+}
+
+func TestEmailHubScheduledSendLifecycle(t *testing.T) {
+	svc, q, user, ws, _ := emailHubFixture(t)
+	ctx := context.Background()
+	actor := Human(user.ID)
+	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
+
+	_, err := svc.ScheduleSend(ctx, actor, ws.ID, SendEmailHubInput{AccountID: acc.ID}, time.Now().UTC().Add(time.Minute))
+	if err == nil {
+		t.Fatal("expected validation error for empty schedule")
+	}
+	_, err = svc.ScheduleSend(ctx, actor, ws.ID, SendEmailHubInput{
+		AccountID: acc.ID, To: []string{"dest@example.com"}, Subject: "Later", BodyText: "Hi",
+	}, time.Now().UTC().Add(10*time.Second))
+	if err == nil {
+		t.Fatal("expected schedule too soon error")
+	}
+
+	sendAt := time.Now().UTC().Add(2 * time.Minute)
+	created, err := svc.ScheduleSend(ctx, actor, ws.ID, SendEmailHubInput{
+		AccountID: acc.ID, To: []string{"dest@example.com"}, Subject: "Later", BodyText: "Hi",
+	}, sendAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	list, err := svc.ListPendingScheduledSends(ctx, actor, ws.ID, acc.ID)
+	if err != nil || len(list) != 1 || list[0].ID != created.ID || list[0].Subject != "Later" {
+		t.Fatalf("list scheduled: err=%v list=%+v created=%+v", err, list, created)
+	}
+	if err := svc.CancelScheduledSend(ctx, actor, ws.ID, acc.ID, created.ID); err != nil {
+		t.Fatal(err)
+	}
+	list, err = svc.ListPendingScheduledSends(ctx, actor, ws.ID, acc.ID)
+	if err != nil || len(list) != 0 {
+		t.Fatalf("expected empty after cancel: err=%v list=%+v", err, list)
 	}
 }

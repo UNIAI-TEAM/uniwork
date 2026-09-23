@@ -62,15 +62,21 @@ if [ "$race_requested" = true ]; then
   fi
 fi
 
-# The union of service, handler and rest is exactly ./..., so a sharded run
-# covers the same packages as a whole one and the merged profile has the same
-# denominator as `go test -coverprofile ./...`.
+# sqlc output, thin cmd mains and the shared test DB harness are excluded from
+# the coverage denominator — they are not hand-written product code (generated
+# is never executed line-by-line in tests; mains are covered via integration).
+list_cover_packages() {
+  go list ./... | grep -vE '/pkg/db/generated$|/cmd/(migrate|seed|uniwork-admin)$|/internal/testutil$'
+}
+
+# The union of service, handler and rest matches list_cover_packages, so a
+# sharded run and a whole run share the same coverage denominator.
 shard_packages() {
   case "$shard" in
-    all) echo "./..." ;;
-    service) echo "./internal/service/..." ;;
-    handler) echo "./internal/handler/..." ;;
-    rest) go list ./... | grep -vE '/internal/(service|handler)(/|$)' ;;
+    all) list_cover_packages ;;
+    service) go list ./internal/service/... ;;
+    handler) go list ./internal/handler/... ;;
+    rest) list_cover_packages | grep -vE '/internal/(service|handler)(/|$)' ;;
   esac
 }
 

@@ -165,7 +165,7 @@ func (s *EmailHubService) runHubWatchLoop(ctx context.Context, accountID string)
 		if !changed {
 			continue
 		}
-		synced, syncErr := s.syncSingleFolder(ctx, acc, emailHubFolderInbox, false, true, false)
+		synced, syncErr := s.syncSingleFolder(ctx, acc, emailHubFolderInbox, true, true, false)
 		if syncErr != nil {
 			s.log.Warn("email hub watcher sync failed", "account_id", accountID, "err", syncErr)
 			continue

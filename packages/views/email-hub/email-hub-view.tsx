@@ -2,27 +2,24 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  Archive,
-  Inbox,
-  Mail,
-  MailOpen,
-  Paperclip,
-  RefreshCw,
-  Send,
-  Star,
-  Tag,
-  Trash2,
-} from "lucide-react";
+import { MailOpen, Paperclip, RefreshCw, Search } from "lucide-react";
+import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import {
   emailHubHasReadableBody,
+  emailHubKeys,
+  flushEmailHubListRefresh,
   prefetchEmailHubThread,
+  setEmailHubListRefreshPaused,
+  useCancelEmailHubScheduledSend,
   useEmailHubAccounts,
+  useEmailHubScheduledSends,
   useEmailHubThread,
   useEmailHubThreads,
   useDownloadEmailHubAttachment,
+  useDisconnectEmailHubAccount,
   useEmailHubLiveSync,
+  useMarkEmailHubRead,
   useMoveEmailHubThread,
   useSyncEmailHub,
   useToggleEmailHubStar,
@@ -32,25 +29,23 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
-import { IconTile } from "@uniwork/ui/components/common/icon-tile";
-import { moduleTone } from "../layout/module-tones";
 import { useWorkspace } from "../layout/workspace-context";
 import { ComposeEmailDialog } from "./compose-email-dialog";
+import type { ComposeMode } from "./compose-recipients";
 import { ConnectAccountDialog } from "./connect-account-dialog";
+import { EmailHubAccountsPanel } from "./email-hub-accounts-panel";
+import { EmailHubFolderSidebar, type EmailHubFolderKey } from "./email-hub-folder-sidebar";
+import { useEmailHubAccountPanel } from "./use-email-hub-account-panel";
+import { EmailHubScheduledDetail } from "./email-hub-scheduled-detail";
+import { EmailHubScheduledListItem } from "./email-hub-scheduled-list-item";
 import { EmailHubStatsRail } from "./email-hub-stats-rail";
 import { EmailHubThreadDetail } from "./email-hub-thread-detail";
-import { EmptyPanel, formatWhen } from "./email-hub-view-parts";
+import { EmailHubThreadListItem } from "./email-hub-thread-list-item";
+import { emailHubFilterChipClass } from "./email-hub-ui";
+import { EmptyPanel } from "./email-hub-view-parts";
 
-type FolderKey = "INBOX" | "STARRED" | "SENT" | "DRAFTS" | "ARCHIVE" | "TRASH";
-
-const FOLDERS: { key: FolderKey; icon: typeof Inbox; labelKey: string }[] = [
-  { key: "INBOX", icon: Inbox, labelKey: "email_hub.folders.inbox" },
-  { key: "STARRED", icon: Star, labelKey: "email_hub.folders.important" },
-  { key: "SENT", icon: Send, labelKey: "email_hub.folders.sent" },
-  { key: "DRAFTS", icon: Mail, labelKey: "email_hub.folders.drafts" },
-  { key: "ARCHIVE", icon: Archive, labelKey: "email_hub.folders.archive" },
-  { key: "TRASH", icon: Trash2, labelKey: "email_hub.folders.trash" },
-];
+type FolderKey = EmailHubFolderKey;
+type MailFolderKey = Exclude<FolderKey, "SCHEDULED">;
 
 export function EmailHubView() {
   const { t } = useTranslation();
@@ -67,13 +62,28 @@ export function EmailHubView() {
   const [hasAttachmentsOnly, setHasAttachmentsOnly] = useState(false);
   const [connectOpen, setConnectOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
-  const [replyTo, setReplyTo] = useState<EmailHubThread | null>(null);
+  const [composeMode, setComposeMode] = useState<ComposeMode>("new");
+  const [composeSource, setComposeSource] = useState<EmailHubThread | null>(null);
   const sync = useSyncEmailHub(wsId);
+  const disconnect = useDisconnectEmailHubAccount(wsId);
   const moveThread = useMoveEmailHubThread(wsId);
   const toggleStar = useToggleEmailHubStar(wsId);
+  const markRead = useMarkEmailHubRead(wsId);
   const downloadAttachment = useDownloadEmailHubAttachment(wsId);
+  const isScheduledFolder = folder === "SCHEDULED";
+  const mailFolder: MailFolderKey = isScheduledFolder ? "INBOX" : folder;
+  const scheduled = useEmailHubScheduledSends(wsId, accountId);
+  const cancelScheduled = useCancelEmailHubScheduledSend(wsId);
   const readingEmail = !!selectedId;
-  useEmailHubLiveSync(wsId, accountId, folder === "INBOX" || folder === "STARRED", readingEmail);
+  useEmailHubLiveSync(wsId, accountId, folder === "INBOX" || folder === "STARRED", readingEmail && !isScheduledFolder);
+
+  useEffect(() => {
+    if (!accountId) return;
+    setEmailHubListRefreshPaused(wsId, accountId, readingEmail);
+    if (!readingEmail) {
+      flushEmailHubListRefresh(qc, wsId, accountId);
+    }
+  }, [accountId, qc, readingEmail, wsId]);
 
   const filters = useMemo(
     () => ({
@@ -83,13 +93,43 @@ export function EmailHubView() {
     }),
     [debouncedSearch, unreadOnly, hasAttachmentsOnly],
   );
-  const threads = useEmailHubThreads(wsId, accountId, folder, filters);
+  const threads = useEmailHubThreads(wsId, accountId, mailFolder, filters, !isScheduledFolder);
+  const scheduledRows = useMemo(
+    () => scheduled.data?.scheduled ?? [],
+    [scheduled.data?.scheduled],
+  );
+  const selectedScheduled = useMemo(
+    () => scheduledRows.find((row) => row.id === selectedId) ?? null,
+    [scheduledRows, selectedId],
+  );
   const rows = useMemo(
     () => threads.data?.pages.flatMap((page) => page.threads) ?? [],
     [threads.data],
   );
   const selectedRow = useMemo(() => rows.find((row) => row.id === selectedId) ?? null, [rows, selectedId]);
-  const detail = useEmailHubThread(wsId, accountId, selectedId, selectedRow);
+  const detail = useEmailHubThread(wsId, accountId, isScheduledFolder ? null : selectedId, selectedRow);
+
+  useEffect(() => {
+    if (!selectedId || !accountId || isScheduledFolder) return;
+    if (debouncedSearch || unreadOnly || hasAttachmentsOnly) return;
+    if (threads.isFetching || !threads.isFetched) return;
+    if (rows.some((row) => row.id === selectedId)) return;
+    const goneId = selectedId;
+    setSelectedId(null);
+    void qc.removeQueries({ queryKey: emailHubKeys.thread(wsId, accountId, goneId) });
+  }, [
+    accountId,
+    debouncedSearch,
+    hasAttachmentsOnly,
+    isScheduledFolder,
+    qc,
+    rows,
+    selectedId,
+    threads.isFetched,
+    threads.isFetching,
+    unreadOnly,
+    wsId,
+  ]);
 
   const accountList = useMemo(() => {
     const list = accounts.data?.accounts ?? [];
@@ -113,9 +153,31 @@ export function EmailHubView() {
   const prefetchThread = useCallback(
     (threadId: string) => {
       if (!accountId || threadId === selectedId) return;
-      prefetchEmailHubThread(qc, wsId, accountId, threadId, true);
+      prefetchEmailHubThread(qc, wsId, accountId, threadId);
     },
     [accountId, qc, wsId, selectedId],
+  );
+
+  const openCompose = useCallback((mode: ComposeMode, source?: EmailHubThread | null) => {
+    setComposeMode(mode);
+    setComposeSource(source ?? null);
+    setComposeOpen(true);
+  }, []);
+
+  const selectThread = useCallback(
+    (threadId: string) => {
+      if (!accountId) {
+        setSelectedId(threadId);
+        return;
+      }
+      void qc.cancelQueries({ queryKey: ["email-hub", wsId, "thread", accountId, threadId] });
+      setSelectedId(threadId);
+      const row = rows.find((item) => item.id === threadId);
+      if (row && !row.is_read) {
+        markRead.mutate({ accountId, threadId, isRead: true });
+      }
+    },
+    [accountId, markRead, qc, rows, wsId],
   );
 
   const handleToggleStar = useCallback(
@@ -128,10 +190,9 @@ export function EmailHubView() {
 
   useEffect(() => {
     if (!accountId || rows.length === 0) return;
-    const candidates = rows.slice(0, 5);
-    for (const row of candidates) {
+    for (const row of rows.slice(0, 5)) {
       if (row.id === selectedId) continue;
-      prefetchEmailHubThread(qc, wsId, accountId, row.id, true);
+      prefetchEmailHubThread(qc, wsId, accountId, row.id);
     }
   }, [accountId, rows, qc, wsId, selectedId]);
 
@@ -143,162 +204,143 @@ export function EmailHubView() {
   const bodyLoading = detail.isBodyLoading;
   const bodyLoadFailed = detail.isBodyLoadFailed;
   const activeAccount = accountList.find((acc) => acc.id === accountId);
-  const tone = moduleTone("email");
+
+  const accountPanelProps = useEmailHubAccountPanel(
+    accountList,
+    accountId,
+    setAccountId,
+    setSelectedId,
+    setConnectOpen,
+    disconnect,
+  );
 
   return (
-    <div className="flex h-[calc(100dvh-var(--header-height,3.5rem))] min-h-0 flex-col gap-0 lg:flex-row">
-      {/* Folder rail */}
-      <aside
-        className={cn(
-          "flex w-full shrink-0 flex-col border-b border-border bg-sidebar lg:w-56 lg:border-b-0 lg:border-r",
-          readingEmail && "hidden 2xl:flex",
-        )}
-      >
-        <div className="border-b border-border px-4 py-3">
-          <div className="flex items-center gap-2">
-            <IconTile icon={Mail} tone={tone} size="sm" />
-            <span className="text-title font-medium">{t("email_hub.title")}</span>
-          </div>
-          <p className="mt-1 pl-9 text-caption text-muted-foreground">{t("email_hub.subtitle")}</p>
-        </div>
-        <div className="space-y-2 p-3">
-          <Button
-            className="w-full justify-start gap-2"
-            disabled={!accountId}
-            onClick={() => {
-              setReplyTo(null);
-              setComposeOpen(true);
-            }}
-          >
-            <Mail className="size-4" />
-            {t("email_hub.compose_label")}
-          </Button>
-          <Button variant="outline" className="w-full justify-start gap-2" disabled>
-            <Tag className="size-4" />
-            {t("email_hub.labels_rules")}
-          </Button>
-        </div>
-        <nav className="flex flex-1 flex-col gap-0.5 px-2 pb-3">
-          {FOLDERS.map(({ key, icon: Icon, labelKey }) => (
-            <button
-              key={key}
-              type="button"
-              className={cn(
-                "flex items-center gap-2 rounded-md px-3 py-2 text-body text-muted-foreground hover:bg-sidebar-accent/70",
-                folder === key && "bg-surface-selected text-brand",
-              )}
-              onClick={() => {
-                setFolder(key);
-                setSelectedId(null);
-              }}
-            >
-              <Icon className="size-4 shrink-0" />
-              <span className="flex-1 truncate text-left">{t(labelKey)}</span>
-              {key === "INBOX" ? (
-                <span className="text-caption tabular-nums">{counts.unread}</span>
-              ) : null}
-            </button>
-          ))}
-        </nav>
-        <div className="border-t border-border px-3 py-2">
-          <p className="mb-1 px-1 text-caption font-medium uppercase tracking-wide text-muted-foreground">
-            {t("email_hub.labels_section")}
-          </p>
-          <p className="px-1 text-caption text-muted-foreground">{t("email_hub.no_labels")}</p>
-        </div>
-        <div className="mt-auto border-t border-border p-3">
-          <p className="mb-2 px-1 text-caption font-medium uppercase tracking-wide text-muted-foreground">
-            {t("email_hub.accounts")}
-          </p>
-          {accountList.length ? (
-            <ul className="space-y-1">
-              {accountList.map((acc) => (
-                <li key={acc.id}>
-                  <button
-                    type="button"
-                    className={cn(
-                      "w-full truncate rounded-md px-2 py-1.5 text-left text-caption hover:bg-sidebar-accent/70",
-                      accountId === acc.id && "bg-surface-selected text-brand",
-                    )}
-                    onClick={() => {
-                      setAccountId(acc.id);
-                      setSelectedId(null);
-                    }}
-                  >
-                    {acc.email_address}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="px-1 text-caption text-muted-foreground">{t("email_hub.no_accounts")}</p>
-          )}
-        </div>
-      </aside>
+    <div className="flex h-[calc(100dvh-var(--header-height,3.5rem))] min-h-0 flex-col bg-muted/20 lg:flex-row">
+      <EmailHubFolderSidebar
+        folder={folder}
+        unreadCount={counts.unread}
+        scheduledCount={scheduledRows.length}
+        composeDisabled={!accountId}
+        onFolderChange={(key) => {
+          setFolder(key);
+          setSelectedId(null);
+        }}
+        onCompose={() => openCompose("new")}
+      />
 
-      {/* Thread list — hidden while reading so detail can use the width */}
       <section
         className={cn(
-          "flex w-full min-w-0 flex-col border-b border-border lg:w-64 lg:max-w-[30%] lg:border-b-0 lg:border-r xl:w-72",
+          "flex w-full min-w-0 flex-col border-b border-border bg-background lg:w-72 lg:max-w-[32%] lg:border-b-0 lg:border-r xl:w-80",
           readingEmail && "hidden",
         )}
       >
-        <div className="space-y-2 border-b border-border p-3">
+        <div className="space-y-3 border-b border-border p-3">
+          <div className="border-b border-border pb-3 lg:hidden">
+            <EmailHubAccountsPanel {...accountPanelProps} />
+          </div>
           <div className="flex items-center gap-2">
-          <Input
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder={t("email_hub.search_placeholder")}
-            className="h-9"
-          />
-          <Button
-            variant="outline"
-            size="icon"
-            className="shrink-0"
-            disabled={!accountId || sync.isPending}
-            aria-label={t("email_hub.refresh")}
-            onClick={() =>
-              accountId &&
-              sync.mutate({ accountId, folder: folder === "STARRED" ? undefined : folder, force: true })
-            }
-          >
-            <RefreshCw className={cn("size-4", sync.isPending && "animate-spin")} />
-          </Button>
-          </div>
-          <div className="flex flex-wrap gap-2">
+            {!isScheduledFolder ? (
+              <div className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder={t("email_hub.search_placeholder")}
+                  className="h-10 rounded-lg pl-9"
+                />
+              </div>
+            ) : (
+              <p className="min-w-0 flex-1 px-1 text-body font-medium">{t("email_hub.folders.scheduled")}</p>
+            )}
             <Button
-              variant={unreadOnly ? "default" : "outline"}
-              size="sm"
-              onClick={() => setUnreadOnly((v) => !v)}
+              variant="toolbar"
+              size="icon"
+              className="size-10 shrink-0 rounded-xl shadow-none"
+              disabled={!accountId || (isScheduledFolder ? scheduled.isFetching : sync.isPending)}
+              aria-label={t("email_hub.refresh")}
+              onClick={() => {
+                if (!accountId) return;
+                if (isScheduledFolder) {
+                  void scheduled.refetch();
+                  return;
+                }
+                sync.mutate({
+                  accountId,
+                  folder: folder === "STARRED" ? undefined : mailFolder,
+                  force: true,
+                  reconcile: true,
+                });
+              }}
             >
-              {t("email_hub.filters.unread")}
-            </Button>
-            <Button
-              variant={hasAttachmentsOnly ? "default" : "outline"}
-              size="sm"
-              className="gap-1"
-              onClick={() => setHasAttachmentsOnly((v) => !v)}
-            >
-              <Paperclip className="size-3.5" />
-              {t("email_hub.filters.attachments")}
+              <RefreshCw
+                className={cn(
+                  "size-4",
+                  (isScheduledFolder ? scheduled.isFetching : sync.isPending) && "animate-spin",
+                )}
+              />
             </Button>
           </div>
-          {accountId && !threads.isLoading ? (
+          {!isScheduledFolder ? (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className={emailHubFilterChipClass(unreadOnly)}
+                onClick={() => setUnreadOnly((v) => !v)}
+              >
+                {t("email_hub.filters.unread")}
+              </button>
+              <button
+                type="button"
+                className={emailHubFilterChipClass(hasAttachmentsOnly)}
+                onClick={() => setHasAttachmentsOnly((v) => !v)}
+              >
+                <Paperclip className="size-3.5" aria-hidden />
+                {t("email_hub.filters.attachments")}
+              </button>
+            </div>
+          ) : null}
+          {accountId && !isScheduledFolder && !threads.isLoading ? (
             <p className="text-caption text-muted-foreground">
               {t("email_hub.list_count", { count: counts.total, unread: counts.unread })}
             </p>
           ) : null}
+          {accountId && isScheduledFolder && !scheduled.isLoading ? (
+            <p className="text-caption text-muted-foreground">
+              {t("email_hub.scheduled.list_count", { count: scheduledRows.length })}
+            </p>
+          ) : null}
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto py-2">
           {!accountId ? (
             <EmptyPanel message={t("email_hub.connect_prompt")} />
+          ) : isScheduledFolder ? (
+            scheduled.isLoading && scheduledRows.length === 0 ? (
+              <div className="space-y-2 px-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-[88px] w-full rounded-xl" />
+                ))}
+              </div>
+            ) : scheduledRows.length === 0 ? (
+              <EmptyPanel message={t("email_hub.scheduled.empty")} />
+            ) : (
+              <ul className="space-y-1">
+                {scheduledRows.map((row) => (
+                  <EmailHubScheduledListItem
+                    key={row.id}
+                    row={row}
+                    selected={selectedId === row.id}
+                    onSelect={() => setSelectedId(row.id)}
+                  />
+                ))}
+              </ul>
+            )
           ) : (threads.isLoading || searching) && rows.length === 0 ? (
-            <div className="space-y-2 p-3">
+            <div className="space-y-2 px-3">
               {searching ? (
                 <p className="px-1 py-2 text-body text-muted-foreground">{t("email_hub.search_loading")}</p>
               ) : null}
               {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-16 w-full" />
+                <Skeleton key={i} className="h-[88px] w-full rounded-xl" />
               ))}
             </div>
           ) : rows.length === 0 ? (
@@ -306,76 +348,24 @@ export function EmailHubView() {
               message={debouncedSearch ? t("email_hub.search_empty") : t("email_hub.empty_list")}
             />
           ) : (
-            <ul>
+            <ul className="space-y-1">
               {rows.map((row) => (
-                <li
+                <EmailHubThreadListItem
                   key={row.id}
-                  className={cn(
-                    "flex border-b border-border",
-                    selectedId === row.id && "bg-surface-selected",
-                  )}
-                >
-                  <button
-                    type="button"
-                    className="inline-flex size-11 shrink-0 items-center justify-center self-start hover:bg-muted/60"
-                    aria-label={row.is_starred ? t("email_hub.unstar") : t("email_hub.star")}
-                    onClick={() => handleToggleStar(row.id, row.is_starred)}
-                  >
-                    <Star
-                      className={cn(
-                        "size-4",
-                        row.is_starred ? "fill-brand text-brand" : "text-muted-foreground",
-                      )}
-                      aria-hidden
-                    />
-                  </button>
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    className="flex min-w-0 flex-1 cursor-pointer flex-col gap-1 py-3 pr-3 text-left hover:bg-muted/40"
-                    onClick={() => setSelectedId(row.id)}
-                    onMouseEnter={() => prefetchThread(row.id)}
-                    onFocus={() => prefetchThread(row.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        setSelectedId(row.id);
-                      }
-                    }}
-                  >
-                    <div className="flex items-center gap-2">
-                      {!row.is_read ? (
-                        <Mail className="size-3.5 shrink-0 text-brand" />
-                      ) : (
-                        <MailOpen className="size-3.5 shrink-0 text-muted-foreground" />
-                      )}
-                      <span className={cn("flex-1 truncate text-body", !row.is_read && "font-medium")}>
-                        {row.folder === "SENT" || row.folder === "DRAFTS"
-                          ? row.to_addrs[0] ?? row.from_addr
-                          : row.from_name || row.from_addr}
-                      </span>
-                      <span className="text-caption text-muted-foreground">{formatWhen(row.sent_at)}</span>
-                    </div>
-                    <p className={cn("truncate text-body", !row.is_read && "font-medium")}>{row.subject || t("email_hub.no_subject")}</p>
-                    {row.snippet ? (
-                      <p className="truncate text-caption text-muted-foreground">{row.snippet}</p>
-                    ) : null}
-                    {row.has_attachments ? (
-                      <span className="inline-flex items-center gap-1 text-caption text-muted-foreground">
-                        <Paperclip className="size-3" />
-                        {t("email_hub.has_attachments")}
-                      </span>
-                    ) : null}
-                  </div>
-                </li>
+                  row={row}
+                  selected={selectedId === row.id}
+                  onSelect={() => selectThread(row.id)}
+                  onPrefetch={() => prefetchThread(row.id)}
+                  onToggleStar={() => handleToggleStar(row.id, row.is_starred)}
+                />
               ))}
             </ul>
           )}
-          {threads.hasNextPage && folder !== "STARRED" ? (
+          {!isScheduledFolder && threads.hasNextPage && folder !== "STARRED" ? (
             <div className="p-3">
               <Button
-                variant="outline"
-                className="w-full"
+                variant="toolbar"
+                className="h-10 w-full rounded-xl shadow-none"
                 disabled={threads.isFetchingNextPage}
                 onClick={() => threads.fetchNextPage()}
               >
@@ -386,22 +376,41 @@ export function EmailHubView() {
         </div>
       </section>
 
-      {/* Detail */}
       <section
         className={cn(
-          "min-w-0 flex-1 overflow-y-auto p-4 lg:min-h-0",
-          readingEmail ? "flex w-full min-h-0 flex-1 flex-col" : "hidden min-h-[240px] lg:block",
+          "min-w-0 flex-1 bg-background lg:min-h-0",
+          readingEmail
+            ? "flex h-full w-full min-h-0 flex-1 flex-col overflow-hidden"
+            : "hidden min-h-[240px] overflow-y-auto p-3 lg:block lg:p-5",
         )}
       >
         {!selectedId ? (
           <EmptyPanel message={t("email_hub.empty_detail")} icon={MailOpen} />
+        ) : isScheduledFolder && selectedScheduled && accountId ? (
+          <EmailHubScheduledDetail
+            item={selectedScheduled}
+            cancelPending={cancelScheduled.isPending}
+            onBack={() => setSelectedId(null)}
+            onCancel={() => {
+              cancelScheduled.mutate(
+                { accountId, scheduledId: selectedScheduled.id },
+                {
+                  onSuccess: () => {
+                    toast.success(t("email_hub.scheduled.cancel_success"));
+                    setSelectedId(null);
+                  },
+                  onError: () => toast.error(t("email_hub.scheduled.cancel_error")),
+                },
+              );
+            }}
+          />
         ) : detail.isError && !activeThread ? (
           <EmptyPanel message={t("email_hub.load_error")} />
         ) : !activeThread && detail.isLoading ? (
-          <div className="space-y-3">
-            <Skeleton className="h-6 w-2/3" />
-            <Skeleton className="h-4 w-1/2" />
-            <Skeleton className="h-40 w-full" />
+          <div className="space-y-4 px-4 py-4 lg:px-6">
+            <Skeleton className="h-8 w-2/3 rounded-lg" />
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-64 w-full" />
           </div>
         ) : activeThread && accountId && selectedId ? (
           <EmailHubThreadDetail
@@ -415,12 +424,21 @@ export function EmailHubView() {
             isError={detail.isError}
             starPending={toggleStar.isPending}
             movePending={moveThread.isPending}
+            markReadPending={markRead.isPending}
             downloadPending={downloadAttachment.isPending}
             onBack={() => setSelectedId(null)}
             onToggleStar={() => handleToggleStar(selectedId, activeThread.is_starred)}
-            onReply={() => {
-              setReplyTo(detail.data ?? activeThread);
-              setComposeOpen(true);
+            onReply={() => openCompose("reply", detail.data ?? activeThread)}
+            onReplyAll={() => openCompose("replyAll", detail.data ?? activeThread)}
+            onForward={() => openCompose("forward", detail.data ?? activeThread)}
+            onMarkUnread={() => {
+              markRead.mutate({ accountId, threadId: selectedId, isRead: false });
+            }}
+            onRestoreInbox={() => {
+              moveThread.mutate(
+                { accountId, threadId: selectedId, moveTo: "INBOX" },
+                { onSuccess: () => { setFolder("INBOX"); setSelectedId(null); } },
+              );
             }}
             onArchive={() => {
               moveThread.mutate(
@@ -456,18 +474,7 @@ export function EmailHubView() {
         )}
       </section>
 
-      <EmailHubStatsRail
-        readingEmail={readingEmail}
-        counts={counts}
-        activeAccount={activeAccount}
-        accountList={accountList}
-        accountId={accountId}
-        onSelectAccount={(id) => {
-          setAccountId(id);
-          setSelectedId(null);
-        }}
-        onConnect={() => setConnectOpen(true)}
-      />
+      <EmailHubStatsRail readingEmail={readingEmail} counts={counts} activeAccount={activeAccount} {...accountPanelProps} />
 
       <ConnectAccountDialog
         wsId={wsId}
@@ -484,10 +491,18 @@ export function EmailHubView() {
         accountId={accountId}
         open={composeOpen}
         onOpenChange={setComposeOpen}
-        replyTo={replyTo}
-        onSent={(thread) => {
-          setFolder("SENT");
-          setSelectedId(thread.id);
+        mode={composeMode}
+        sourceThread={composeSource}
+        onSent={(result) => {
+          if (result && "scheduled" in result && result.scheduled) {
+            setFolder("SCHEDULED");
+            setSelectedId(null);
+            return;
+          }
+          if (result && "id" in result) {
+            setFolder("SENT");
+            setSelectedId(result.id);
+          }
         }}
       />
     </div>

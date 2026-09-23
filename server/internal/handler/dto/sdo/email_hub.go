@@ -26,6 +26,30 @@ type EmailHubSyncSDO struct {
 	Synced bool `json:"synced" example:"true"`
 }
 
+// EmailHubScheduledSendItemSDO is one pending scheduled outbound message.
+type EmailHubScheduledSendItemSDO struct {
+	ID      string   `json:"id"`
+	SendAt  string   `json:"send_at" format:"date-time"`
+	Subject string   `json:"subject"`
+	To      []string `json:"to"`
+	Status  string   `json:"status"`
+}
+
+// EmailHubScheduledSendListSDO lists pending scheduled sends for the caller.
+type EmailHubScheduledSendListSDO struct {
+	Scheduled []EmailHubScheduledSendItemSDO `json:"scheduled"`
+}
+
+// EmailHubScheduledSendSDO is POST .../email-hub/send when send_at is in the future.
+type EmailHubScheduledSendSDO struct {
+	Scheduled bool     `json:"scheduled" example:"true"`
+	ID        string   `json:"id" example:"01JABC1234567890ABCDEFGH"`
+	SendAt    string   `json:"send_at" format:"date-time"`
+	Subject   string   `json:"subject" example:"Hello from UniWork"`
+	To        []string `json:"to" example:"[\"client@example.com\"]"`
+	AccountID string   `json:"account_id" example:"01JABC1234567890ABCDEFGH"`
+}
+
 // EmailHubAccountListSDO lists connected mailboxes for the caller.
 type EmailHubAccountListSDO struct {
 	Accounts []EmailHubAccountSDO `json:"accounts"`
