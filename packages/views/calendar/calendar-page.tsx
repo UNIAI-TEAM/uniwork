@@ -77,6 +77,11 @@ export function CalendarPageView({
     setSlotMenuOpen(true);
   };
 
+  const handleQuickCreate = () => {
+    setSelectedSlot(null);
+    setSlotMenuOpen(true);
+  };
+
   const handleExternalTaskReceive = async (input: { taskId: string; dueDate: string }) => {
     const calendarEvent = events.find(
       (ev) => ev.kind === "task" && ev.entityId === input.taskId,
@@ -110,6 +115,7 @@ export function CalendarPageView({
           onOpenTask={onOpenTask}
           onOpenMeeting={onOpenMeeting}
           onCreateMeeting={() => setCreateMeetingOpen(true)}
+          onQuickCreate={handleQuickCreate}
         />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <CalendarToolbar

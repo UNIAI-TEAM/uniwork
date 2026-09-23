@@ -58,7 +58,9 @@ export function CreateFromSlot({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent showCloseButton className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>{t("calendar.create_from_slot_title")}</DialogTitle>
+            <DialogTitle>
+              {t(slot ? "calendar.create_from_slot_title" : "calendar.create_item")}
+            </DialogTitle>
             <DialogDescription>{t("calendar.create_from_slot_description")}</DialogDescription>
           </DialogHeader>
           <DialogFooter className="flex-col gap-2 sm:flex-col">

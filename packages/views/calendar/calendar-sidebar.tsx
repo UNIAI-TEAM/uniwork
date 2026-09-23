@@ -37,6 +37,7 @@ type CalendarSidebarProps = {
   onOpenTask: (id: string) => void;
   onOpenMeeting: (id: string) => void;
   onCreateMeeting: () => void;
+  onQuickCreate: () => void;
 };
 
 type TaskSectionKey = "priorities" | "assigned" | "todayOverdue" | "backlog";
@@ -293,6 +294,7 @@ export function CalendarSidebar({
   onOpenTask,
   onOpenMeeting,
   onCreateMeeting,
+  onQuickCreate,
 }: CalendarSidebarProps) {
   const { t } = useTranslation();
 
@@ -301,6 +303,21 @@ export function CalendarSidebar({
       className="flex w-72 shrink-0 flex-col border-r border-border bg-background"
       aria-label={t("calendar.sidebar_label")}
     >
+      <div className="flex h-11 shrink-0 items-center justify-between border-b border-border px-3">
+        <span className="truncate text-label font-medium text-foreground">
+          {t("calendar.planner_title")}
+        </span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="shrink-0 text-muted-foreground"
+          aria-label={t("calendar.create_item")}
+          onClick={onQuickCreate}
+        >
+          <Plus aria-hidden className="size-4" />
+        </Button>
+      </div>
       <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-3">
         {isPending ? (
           <>

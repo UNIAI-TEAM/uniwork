@@ -2427,6 +2427,8 @@
     "all_day": "All day",
     "expand_all_day": "Expand all-day events",
     "collapse_all_day": "Collapse all-day events",
+    "planner_title": "Planner",
+    "create_item": "Create calendar item",
     "create_from_slot_title": "Create on this slot",
     "create_from_slot_description": "Choose what to add to the calendar.",
     "create_task": "New task",

@@ -26,6 +26,27 @@ import { CalendarSidebar, EMPTY_CALENDAR_SIDEBAR } from "./calendar-sidebar";
 initI18n();
 
 describe("CalendarSidebar", () => {
+  it("offers a quick-create action at the top of the planner", () => {
+    const onQuickCreate = vi.fn();
+    render(
+      wrap(
+        <CalendarSidebar
+          workspaceId="ws1"
+          sections={EMPTY_CALENDAR_SIDEBAR}
+          onRetry={() => {}}
+          onOpenTask={() => {}}
+          onOpenMeeting={() => {}}
+          onCreateMeeting={() => {}}
+          onQuickCreate={onQuickCreate}
+        />,
+      ),
+    );
+
+    expect(screen.getByText("Bảng kế hoạch")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Tạo mục lịch" }));
+    expect(onQuickCreate).toHaveBeenCalledTimes(1);
+  });
+
   it("renders five section headings and empty copy when lists are empty", () => {
     render(
       wrap(
@@ -36,6 +57,7 @@ describe("CalendarSidebar", () => {
           onOpenTask={() => {}}
           onOpenMeeting={() => {}}
           onCreateMeeting={() => {}}
+          onQuickCreate={() => {}}
         />,
       ),
     );
@@ -83,6 +105,7 @@ describe("CalendarSidebar", () => {
           onOpenTask={onOpenTask}
           onOpenMeeting={onOpenMeeting}
           onCreateMeeting={() => {}}
+          onQuickCreate={() => {}}
         />,
       ),
     );
@@ -123,6 +146,7 @@ describe("CalendarSidebar", () => {
           onOpenTask={() => {}}
           onOpenMeeting={() => {}}
           onCreateMeeting={() => {}}
+          onQuickCreate={() => {}}
         />,
       ),
     );
@@ -161,6 +185,7 @@ describe("CalendarSidebar", () => {
           onOpenTask={onOpenTask}
           onOpenMeeting={() => {}}
           onCreateMeeting={() => {}}
+          onQuickCreate={() => {}}
         />,
       ),
     );
@@ -199,6 +224,7 @@ describe("CalendarSidebar", () => {
           onOpenTask={() => {}}
           onOpenMeeting={() => {}}
           onCreateMeeting={onCreateMeeting}
+          onQuickCreate={() => {}}
         />,
       ),
     );
@@ -219,6 +245,7 @@ describe("CalendarSidebar", () => {
           onOpenTask={() => {}}
           onOpenMeeting={() => {}}
           onCreateMeeting={() => {}}
+          onQuickCreate={() => {}}
         />,
       ),
     );
