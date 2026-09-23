@@ -221,6 +221,9 @@ export function FullCalendarHost(props: {
         firstDay={1}
         timeZone="local"
         nowIndicator={isTimeGrid}
+        slotMinTime="00:00:00"
+        slotMaxTime="24:00:00"
+        scrollTime="00:00:00"
         hiddenDays={hiddenDays}
         dayMaxEventRows={isTimeGrid ? (allDayExpanded ? false : 1) : undefined}
         allDayText={isTimeGrid ? "" : undefined}
