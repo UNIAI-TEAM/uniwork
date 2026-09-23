@@ -94,6 +94,47 @@ describe("CalendarSidebar", () => {
     expect(onOpenMeeting).toHaveBeenCalledWith("meet-1");
   });
 
+  it("localizes task dates and meeting times in the viewer time zone", () => {
+    render(
+      wrap(
+        <CalendarSidebar
+          workspaceId="ws1"
+          viewerTimeZone="Asia/Ho_Chi_Minh"
+          sections={{
+            ...EMPTY_CALENDAR_SIDEBAR,
+            priorities: [
+              {
+                id: "task-1",
+                title: "Ngày phát hành",
+                status: "open",
+                dueDate: "2026-09-10",
+              },
+            ],
+            meetWith: [
+              {
+                id: "meet-1",
+                title: "Đồng bộ",
+                startsAt: "2026-09-10T02:00:00Z",
+                endsAt: "2026-09-10T02:30:00Z",
+              },
+            ],
+          }}
+          onRetry={() => {}}
+          onOpenTask={() => {}}
+          onOpenMeeting={() => {}}
+          onCreateMeeting={() => {}}
+        />,
+      ),
+    );
+
+    expect(document.querySelector('time[datetime="2026-09-10"]')).toHaveTextContent(
+      "10 thg 9",
+    );
+    expect(
+      document.querySelector('time[datetime="2026-09-10T02:00:00Z"]'),
+    ).toHaveTextContent("Thứ 5, 10 thg 9 · 09:00");
+  });
+
   it("attaches FullCalendar Draggable to task lists only", () => {
     DraggableMock.mockClear();
     render(

@@ -102,6 +102,7 @@ export function CalendarPageView({
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <CalendarSidebar
           workspaceId={workspaceId}
+          viewerTimeZone={viewerTimeZone}
           sections={sidebarSections}
           isPending={sidebarQuery.isPending}
           isError={sidebarQuery.isError}
