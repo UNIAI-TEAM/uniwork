@@ -2137,6 +2137,8 @@
     "retry": "Retry",
     "refresh": "Refresh calendar",
     "refreshing": "Refreshing calendar…",
+    "settings": "Calendar settings",
+    "show_weekends": "Show weekends",
     "view_day": "Day",
     "view_work_week": "Work week",
     "view_week": "Week",
