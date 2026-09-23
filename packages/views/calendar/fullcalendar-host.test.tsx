@@ -20,6 +20,9 @@ type CapturedFcProps = {
   locale?: { code?: string };
   timeZone?: string;
   nowIndicator?: boolean;
+  slotMinTime?: string;
+  slotMaxTime?: string;
+  scrollTime?: string;
   dayMaxEventRows?: boolean | number;
   allDayText?: string;
   editable?: boolean;
@@ -198,6 +201,22 @@ describe("FullCalendarHost", () => {
       />,
     );
     expect(captured.height).toBe("100%");
+  });
+
+  it("opens time-grid views at midnight with the full 24-hour range", () => {
+    render(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="week"
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+      />,
+    );
+
+    expect(captured.slotMinTime).toBe("00:00:00");
+    expect(captured.slotMaxTime).toBe("24:00:00");
+    expect(captured.scrollTime).toBe("00:00:00");
   });
 
   it("resolves eventClick by id", () => {
