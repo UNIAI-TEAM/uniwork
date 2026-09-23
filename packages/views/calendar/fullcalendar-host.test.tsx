@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { CalendarEvent } from "@uniwork/core/calendar/types";
 import { FullCalendarHost } from "./fullcalendar-host";
@@ -20,6 +20,11 @@ type CapturedFcProps = {
   locale?: { code?: string };
   timeZone?: string;
   nowIndicator?: boolean;
+  slotMinTime?: string;
+  slotMaxTime?: string;
+  scrollTime?: string;
+  dayMaxEventRows?: boolean | number;
+  allDayText?: string;
   editable?: boolean;
   selectable?: boolean;
   selectMirror?: boolean;
@@ -132,6 +137,59 @@ describe("FullCalendarHost", () => {
     expect(screen.queryByText("GMT+7")).not.toBeInTheDocument();
   });
 
+  it("hides weekends in week and month views when configured", () => {
+    const { rerender } = render(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="week"
+        showWeekends={false}
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+      />,
+    );
+    expect(captured.hiddenDays).toEqual([0, 6]);
+
+    rerender(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="day"
+        showWeekends={false}
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+      />,
+    );
+    expect(captured.hiddenDays).toEqual([]);
+  });
+
+  it("collapses and expands all-day events in time-grid views", () => {
+    render(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="week"
+        language="vi"
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+      />,
+    );
+
+    const expand = screen.getByRole("button", {
+      name: "Mở rộng sự kiện cả ngày",
+    });
+    expect(expand).toHaveAttribute("aria-expanded", "false");
+    expect(captured.dayMaxEventRows).toBe(1);
+    expect(captured.allDayText).toBe("");
+
+    fireEvent.click(expand);
+
+    expect(
+      screen.getByRole("button", { name: "Thu gọn sự kiện cả ngày" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(captured.dayMaxEventRows).toBe(false);
+  });
+
   it("fills the host height so time grids scroll internally", () => {
     render(
       <FullCalendarHost
@@ -143,6 +201,22 @@ describe("FullCalendarHost", () => {
       />,
     );
     expect(captured.height).toBe("100%");
+  });
+
+  it("opens time-grid views at midnight with the full 24-hour range", () => {
+    render(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="week"
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+      />,
+    );
+
+    expect(captured.slotMinTime).toBe("00:00:00");
+    expect(captured.slotMaxTime).toBe("24:00:00");
+    expect(captured.scrollTime).toBe("00:00:00");
   });
 
   it("resolves eventClick by id", () => {

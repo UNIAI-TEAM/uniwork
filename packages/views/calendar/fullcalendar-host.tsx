@@ -15,10 +15,13 @@ import interactionPlugin, {
 } from "@fullcalendar/interaction";
 import FullCalendar from "@fullcalendar/react";
 import timeGridPlugin from "@fullcalendar/timegrid";
+import { ChevronDown, ChevronRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { CalendarEvent } from "@uniwork/core/calendar/types";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { addDays, format } from "date-fns";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { dropToPatch, type CalendarDropPatch } from "./calendar-drop-patch";
 import { toFcEvent } from "./calendar-fc-map";
 
@@ -54,6 +57,7 @@ export function FullCalendarHost(props: {
   events: CalendarEvent[];
   initialDate: string;
   viewMode: CalendarViewMode;
+  showWeekends?: boolean;
   language?: string;
   viewerTimeZone?: string;
   onDatesSet: (range: { from: string; to: string }) => void;
@@ -67,13 +71,17 @@ export function FullCalendarHost(props: {
   onSlotSelect?: (slot: CalendarSlot) => void;
   className?: string;
 }) {
+  const { t } = useTranslation();
+  const [allDayExpanded, setAllDayExpanded] = useState(false);
   const eventsById = useMemo(
     () => new Map(props.events.map((ev) => [ev.id, ev])),
     [props.events],
   );
   const fcEvents = useMemo(() => props.events.map(toFcEvent), [props.events]);
   const initialView = fcViewForMode(props.viewMode);
-  const hiddenDays = fcHiddenDays(props.viewMode);
+  const showWeekends = props.showWeekends !== false;
+  const hiddenDays = fcHiddenDays(props.viewMode, showWeekends);
+  const isTimeGrid = props.viewMode !== "month";
   const calendarLocale = props.language?.startsWith("vi")
     ? viCalendarLocale
     : enGbCalendarLocale;
@@ -182,16 +190,43 @@ export function FullCalendarHost(props: {
           {timeZoneLabel}
         </span>
       ) : null}
+      {isTimeGrid ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="absolute left-1 top-8 z-20 h-7 gap-0.5 px-0.5 text-caption font-normal text-muted-foreground pointer-coarse:min-h-11"
+          aria-expanded={allDayExpanded}
+          aria-label={t(
+            allDayExpanded
+              ? "calendar.collapse_all_day"
+              : "calendar.expand_all_day",
+          )}
+          onClick={() => setAllDayExpanded((expanded) => !expanded)}
+        >
+          {allDayExpanded ? (
+            <ChevronDown aria-hidden className="size-3.5" />
+          ) : (
+            <ChevronRight aria-hidden className="size-3.5" />
+          )}
+          {t("calendar.all_day")}
+        </Button>
+      ) : null}
       <FullCalendar
-        key={`${props.viewMode}-${props.initialDate}`}
+        key={`${props.viewMode}-${props.initialDate}-${showWeekends ? "weekends" : "weekdays"}`}
         plugins={FC_PLUGINS}
         initialView={initialView}
         initialDate={props.initialDate}
         locale={calendarLocale}
         firstDay={1}
         timeZone="local"
-        nowIndicator={props.viewMode !== "month"}
+        nowIndicator={isTimeGrid}
+        slotMinTime="00:00:00"
+        slotMaxTime="24:00:00"
+        scrollTime="00:00:00"
         hiddenDays={hiddenDays}
+        dayMaxEventRows={isTimeGrid ? (allDayExpanded ? false : 1) : undefined}
+        allDayText={isTimeGrid ? "" : undefined}
         headerToolbar={false}
         height="100%"
         events={fcEvents}

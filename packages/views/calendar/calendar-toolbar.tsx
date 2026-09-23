@@ -1,8 +1,13 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, RotateCw, Settings2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@uniwork/ui/components/ui/popover";
 import { Switch } from "@uniwork/ui/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -32,23 +37,31 @@ const SEGMENT =
 export function CalendarToolbar({
   anchorDate,
   mine,
+  showWeekends,
   viewMode,
   workspaceId,
   exportFrom,
   exportTo,
+  isRefreshing,
   onAnchorDateChange,
   onMineChange,
+  onRefresh,
+  onShowWeekendsChange,
   onViewModeChange,
   className,
 }: {
   anchorDate: Date;
   mine: boolean;
+  showWeekends: boolean;
   viewMode: CalendarViewMode;
   workspaceId: string;
   exportFrom?: string;
   exportTo?: string;
+  isRefreshing: boolean;
   onAnchorDateChange: (next: Date) => void;
   onMineChange: (next: boolean) => void;
+  onRefresh: () => void;
+  onShowWeekendsChange: (next: boolean) => void;
   onViewModeChange: (mode: CalendarViewMode) => void;
   className?: string;
 }) {
@@ -114,7 +127,47 @@ export function CalendarToolbar({
         </ToggleGroup>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="outline"
+          aria-label={t(isRefreshing ? "calendar.refreshing" : "calendar.refresh")}
+          aria-busy={isRefreshing || undefined}
+          aria-disabled={isRefreshing}
+          onClick={onRefresh}
+        >
+          <RotateCw
+            aria-hidden
+            className={cn("size-4", isRefreshing ? "motion-safe:animate-spin" : undefined)}
+          />
+        </Button>
         <CalendarExportButton workspaceId={workspaceId} from={exportFrom} to={exportTo} />
+        <Popover>
+          <PopoverTrigger
+            render={
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="outline"
+                aria-label={t("calendar.settings")}
+              >
+                <Settings2 aria-hidden className="size-4" />
+              </Button>
+            }
+          />
+          <PopoverContent align="end" className="w-56">
+            <label className="flex cursor-pointer items-center justify-between gap-3">
+              <span className="text-body text-foreground">
+                {t("calendar.show_weekends")}
+              </span>
+              <Switch
+                size="sm"
+                checked={showWeekends}
+                onCheckedChange={onShowWeekendsChange}
+              />
+            </label>
+          </PopoverContent>
+        </Popover>
         <label className="flex cursor-pointer items-center gap-2">
           <Switch checked={mine} onCheckedChange={onMineChange} aria-label={t("calendar.mine")} />
           <span className="text-body text-foreground">{t("calendar.mine")}</span>
