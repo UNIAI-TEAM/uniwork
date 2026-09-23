@@ -7,6 +7,7 @@ import type { ChatSidebarTarget } from "./chat-sidebar";
 import type { ChatRoomPreview } from "./chat-sidebar-preview";
 import type { ChatNameContextEntry, GroupMemberProfile } from "./chat-page-utils";
 import type { ChatMessage } from "./chat-messages";
+import type { ChatMentionCandidate } from "./chat-mention-utils";
 
 export type ChatPageContentProps = {
   target: ChatSidebarTarget;
@@ -41,8 +42,8 @@ export type ChatPageContentProps = {
   onReplyToChange: React.Dispatch<React.SetStateAction<ChatMessage | null>>;
   activeThreadRootId?: string | null;
   onActiveThreadRootIdChange?: (threadRootId: string | null) => void;
-  draft: string;
-  onDraftChange: React.Dispatch<React.SetStateAction<string>>;
+  /** Which conversation's draft the composer edits (chat composer draft store). */
+  composerDraftKey: string;
   composerPriority: ComposerMessagePriority | null;
   onComposerPriorityChange: React.Dispatch<React.SetStateAction<ComposerMessagePriority | null>>;
   onSend: () => void;
@@ -75,6 +76,8 @@ export type ChatPageContentProps = {
   onLeaveDm: () => void;
   onLeaveChannel: () => void;
   groupMemberProfiles: Record<string, GroupMemberProfile>;
+  /** Built once in the page view and shared by the composer and the send path. */
+  mentionCandidates: ChatMentionCandidate[];
   typingLabel: string | null;
   onVoiceCall: () => void;
   voiceCallDisabled: boolean;

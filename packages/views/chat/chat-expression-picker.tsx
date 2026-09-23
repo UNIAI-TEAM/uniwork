@@ -1,6 +1,6 @@
 "use client";
 
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -72,6 +72,37 @@ function MediaThumbnail({
   );
 }
 
+/**
+ * Arrow keys move through a grid of stickers or GIFs, one tab stop for the
+ * whole grid (roving tabindex): Tab enters on the current tile and leaves
+ * the grid, arrows move by one or by a row, Home and End jump to the ends.
+ */
+function onGridKeyDown(event: KeyboardEvent<HTMLUListElement>, columns: number) {
+  const keys = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"];
+  if (!keys.includes(event.key)) return;
+  const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("[data-grid-item]"));
+  const index = items.indexOf(document.activeElement as HTMLButtonElement);
+  if (index < 0) return;
+  event.preventDefault();
+  const last = items.length - 1;
+  const next =
+    event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? last
+        : event.key === "ArrowLeft"
+          ? Math.max(index - 1, 0)
+          : event.key === "ArrowRight"
+            ? Math.min(index + 1, last)
+            : event.key === "ArrowUp"
+              ? index - columns >= 0
+                ? index - columns
+                : index
+              : Math.min(index + columns, last);
+  items.forEach((item, i) => item.setAttribute("tabindex", i === next ? "0" : "-1"));
+  items[next]?.focus();
+}
+
 function PickerEmpty({ label }: { label: string }) {
   return <p className="px-6 py-10 text-center text-caption text-pretty text-muted-foreground">{label}</p>;
 }
@@ -105,11 +136,14 @@ function StickerGrid({
   }
 
   return (
-    <ul className="grid grid-cols-4 gap-2 px-3 pb-3">
-      {visibleStickers.map((sticker) => (
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- arrow keys bubble up from the tile buttons; the list itself takes no focus
+    <ul className="grid grid-cols-4 gap-2 px-3 pb-3" onKeyDown={(event) => onGridKeyDown(event, 4)}>
+      {visibleStickers.map((sticker, index) => (
         <li key={sticker.id}>
           <button
             type="button"
+            data-grid-item
+            tabIndex={index === 0 ? 0 : -1}
             className="flex size-16 items-center justify-center rounded-lg transition-colors duration-(--duration-fast) hover:bg-surface-hover"
             aria-label={sticker.label}
             onClick={() => onSelect(sticker)}
@@ -144,11 +178,14 @@ function GifGrid({
   }
 
   return (
-    <ul className="grid grid-cols-2 gap-2 px-3 pb-3">
-      {visibleItems.map((item) => (
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- arrow keys bubble up from the tile buttons; the list itself takes no focus
+    <ul className="grid grid-cols-2 gap-2 px-3 pb-3" onKeyDown={(event) => onGridKeyDown(event, 2)}>
+      {visibleItems.map((item, index) => (
         <li key={item.id}>
           <button
             type="button"
+            data-grid-item
+            tabIndex={index === 0 ? 0 : -1}
             className="overflow-hidden rounded-lg border border-border bg-muted transition-colors duration-(--duration-fast) hover:border-ring"
             aria-label={item.label}
             onClick={() => onSelect(item)}
@@ -190,22 +227,30 @@ export function ChatExpressionPicker({
   const [activePackIndex, setActivePackIndex] = useState(0);
   const [stickerPacks, setStickerPacks] = useState<ChatStickerPack[]>([]);
   const [stickersLoading, setStickersLoading] = useState(false);
+  const [stickersFailed, setStickersFailed] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedQuery(query), 300);
     return () => window.clearTimeout(timer);
   }, [query]);
 
-  useEffect(() => {
-    if (!open) return;
+  // The emoji sticker packs load with the picker; a failure says so and
+  // offers another try instead of showing an empty grid as if none existed.
+  const loadPacks = useCallback(() => {
     setStickersLoading(true);
+    setStickersFailed(false);
     void loadChatStickerPacks()
       .then((packs) => {
         setStickerPacks(packs);
         setActivePackIndex(0);
       })
+      .catch(() => setStickersFailed(true))
       .finally(() => setStickersLoading(false));
-  }, [open]);
+  }, []);
+
+  useEffect(() => {
+    if (open) loadPacks();
+  }, [loadPacks, open]);
 
   const normalizedQuery = normalizeExpressionSearchQuery(query);
   const emojiPacks = useMemo(
@@ -229,7 +274,12 @@ export function ChatExpressionPicker({
   const activePack = filteredPacks[activePackIndex] ?? filteredPacks[0];
   const visibleStickers = activePack?.stickers ?? [];
 
-  const { data: gifRecords = [], isFetching: gifsLoading } = useChatGifs(
+  const {
+    data: gifRecords = [],
+    isFetching: gifsLoading,
+    isError: gifsFailed,
+    refetch: refetchGifs,
+  } = useChatGifs(
     workspaceId,
     debouncedQuery,
     open && tab === "gif",
@@ -313,7 +363,10 @@ export function ChatExpressionPicker({
         side="top"
         className={cn(
           "flex flex-col overflow-hidden p-0",
-          expanded ? "h-130 w-[min(30rem,calc(100vw-2rem))]" : "h-100 w-[min(22.5rem,calc(100vw-2rem))]",
+          // Never taller than the room the popover has above the composer.
+          expanded
+            ? "h-[min(32.5rem,var(--available-height))] w-[min(30rem,calc(100vw-2rem))]"
+            : "h-[min(25rem,var(--available-height))] w-[min(22.5rem,calc(100vw-2rem))]",
         )}
       >
         {/* Registry tabs: arrow keys between tabs, each panel labelled by its tab. */}
@@ -347,6 +400,15 @@ export function ChatExpressionPicker({
             <div className="min-h-0 flex-1 overflow-y-auto">
               {stickersLoading || tenorStickersLoading ? (
                 <PickerGridSkeleton columns={4} label={t("common.loading")} />
+              ) : stickersFailed && filteredPacks.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 px-6 py-10 text-center" role="alert">
+                  <p className="text-caption text-pretty text-muted-foreground">
+                    {t("chat.message_list.stickers_failed")}
+                  </p>
+                  <Button type="button" variant="outline" size="sm" onClick={loadPacks}>
+                    {t("common.retry")}
+                  </Button>
+                </div>
               ) : (
                 <>
                   <p className="px-3 pt-3 pb-1 text-overline text-muted-foreground uppercase">
@@ -382,7 +444,7 @@ export function ChatExpressionPicker({
                       aria-label={pack.name}
                       aria-pressed={index === activePackIndex}
                       className={cn(
-                        "inline-flex size-9 shrink-0 items-center justify-center rounded-md text-title-sm transition-colors duration-(--duration-fast)",
+                        "inline-flex size-9 shrink-0 items-center justify-center rounded-md text-title-sm transition-colors duration-(--duration-fast) pointer-coarse:size-11",
                         index === activePackIndex ? "bg-surface-selected" : "hover:bg-surface-hover",
                       )}
                       onClick={() => setActivePackIndex(index)}
@@ -424,6 +486,13 @@ export function ChatExpressionPicker({
             <div className="min-h-0 flex-1 overflow-y-auto">
               {gifsLoading ? (
                 <PickerGridSkeleton columns={2} label={t("common.loading")} />
+              ) : gifsFailed ? (
+                <div className="flex flex-col items-center gap-2 px-6 py-10 text-center" role="alert">
+                  <p className="text-caption text-pretty text-muted-foreground">{t("chat.message_list.gifs_failed")}</p>
+                  <Button type="button" variant="outline" size="sm" onClick={() => void refetchGifs()}>
+                    {t("common.retry")}
+                  </Button>
+                </div>
               ) : (
                 <GifGrid items={gifItems} onSelect={sendGif} emptyLabel={t("chat.expression_gifs_empty")} />
               )}

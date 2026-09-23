@@ -35,12 +35,12 @@ export function ChatMentionAutocomplete({
     document.getElementById(mentionOptionId(listId, selectedIndex))?.scrollIntoView?.({ block: "nearest" });
   }, [listId, selectedIndex]);
 
+  // No options is a message, not an empty list: a listbox with nothing in it
+  // reads as broken.
   if (candidates.length === 0) {
     return (
       <div
-        id={listId}
-        role="listbox"
-        aria-label={t("chat.mention_picker_label")}
+        role="status"
         className="absolute bottom-full left-0 z-20 mb-2 w-full max-w-sm rounded-lg bg-surface-raised p-2 shadow-[var(--menu-shadow)] ring-1 ring-surface-border"
       >
         <p className="px-2 py-1.5 text-caption text-muted-foreground">{t("chat.mention_no_results")}</p>

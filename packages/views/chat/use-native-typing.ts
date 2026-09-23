@@ -4,6 +4,7 @@ import { useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/react/shallow";
 import { signalChatTyping } from "@uniwork/core/api/endpoints/chat";
+import { useChatComposerDraftStore } from "@uniwork/core/chat/composer-draft-store";
 import {
   selectSidebarTypingUserIds,
   useSidebarTypingStore,
@@ -17,14 +18,15 @@ export function useNativeTyping({
   roomId,
   currentUserId,
   nameContext,
-  draft,
+  draftKey,
   enabled,
 }: {
   workspaceId: string;
   roomId: string | null;
   currentUserId: string;
   nameContext: Array<{ user_id: string; display_name: string }>;
-  draft: string;
+  /** The composer draft to watch; read from the store, so typing does not re-render the caller. */
+  draftKey: string;
   enabled: boolean;
 }) {
   const { t, i18n } = useTranslation();
@@ -32,13 +34,27 @@ export function useNativeTyping({
     useShallow((state) => selectSidebarTypingUserIds(state, roomId)),
   );
 
+  // Signal "typing" a moment after the draft stops changing, as before, but
+  // by subscribing to the store: the page that calls this does not re-render
+  // on every keystroke.
   useEffect(() => {
-    if (!enabled || !roomId || !draft.trim()) return;
-    const timer = setTimeout(() => {
-      void signalChatTyping(workspaceId, roomId);
-    }, TYPING_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [draft, roomId, workspaceId, enabled]);
+    if (!enabled || !roomId) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const unsubscribe = useChatComposerDraftStore.subscribe((state, previous) => {
+      const next = state.drafts[draftKey] ?? "";
+      if (next === (previous.drafts[draftKey] ?? "")) return;
+      if (timer) clearTimeout(timer);
+      timer = undefined;
+      if (!next.trim()) return;
+      timer = setTimeout(() => {
+        void signalChatTyping(workspaceId, roomId);
+      }, TYPING_DEBOUNCE_MS);
+    });
+    return () => {
+      unsubscribe();
+      if (timer) clearTimeout(timer);
+    };
+  }, [draftKey, roomId, workspaceId, enabled]);
 
   return useMemo(() => {
     if (!enabled || typingUserIds.length === 0) return null;

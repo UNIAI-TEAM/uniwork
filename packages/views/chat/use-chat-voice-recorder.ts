@@ -9,6 +9,40 @@ export type ChatVoiceRecorderState =
   | "ready"
   | "uploading";
 
+/**
+ * Why recording or sending failed, in the terms the person can act on: the
+ * browser said no, there is no microphone, another app holds it, this
+ * browser cannot record, or the clip did not upload.
+ */
+export type ChatVoiceRecorderError = "denied" | "no_device" | "busy" | "unsupported" | "failed" | "upload";
+
+function recorderErrorKind(cause: unknown): ChatVoiceRecorderError {
+  const name = cause instanceof DOMException || cause instanceof Error ? cause.name : "";
+  switch (name) {
+    case "NotAllowedError":
+    case "SecurityError":
+      return "denied";
+    case "NotFoundError":
+    case "OverconstrainedError":
+      return "no_device";
+    case "NotReadableError":
+    case "AbortError":
+      return "busy";
+    case "NotSupportedError":
+      return "unsupported";
+    default:
+      return "failed";
+  }
+}
+
+function canRecord(): boolean {
+  return (
+    typeof navigator !== "undefined" &&
+    typeof navigator.mediaDevices?.getUserMedia === "function" &&
+    typeof MediaRecorder !== "undefined"
+  );
+}
+
 export type ChatVoiceRecording = {
   blob: Blob;
   durationMs: number;
@@ -30,7 +64,7 @@ export function useChatVoiceRecorder() {
   const [state, setState] = useState<ChatVoiceRecorderState>("idle");
   const [elapsedMs, setElapsedMs] = useState(0);
   const [recording, setRecording] = useState<ChatVoiceRecording | null>(null);
-  const [error, setError] = useState<unknown>(null);
+  const [error, setError] = useState<ChatVoiceRecorderError | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -81,6 +115,10 @@ export function useChatVoiceRecorder() {
   const start = useCallback(async () => {
     if (state !== "idle") return;
     const requestId = ++requestIdRef.current;
+    if (!canRecord()) {
+      setError("unsupported");
+      return;
+    }
     setError(null);
     setState("requesting");
     try {
@@ -118,7 +156,8 @@ export function useChatVoiceRecorder() {
       setState("recording");
     } catch (cause) {
       stopTracks();
-      setError(cause);
+      if (requestId !== requestIdRef.current) return;
+      setError(recorderErrorKind(cause));
       setState("idle");
     }
   }, [state, stopTracks]);
@@ -134,8 +173,8 @@ export function useChatVoiceRecorder() {
         clearRecording();
         setElapsedMs(0);
         setState("idle");
-      } catch (cause) {
-        setError(cause);
+      } catch {
+        setError("upload");
         setState("ready");
       }
     },

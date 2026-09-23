@@ -41,7 +41,7 @@ describe("ChatComposer", () => {
     );
 
     expect(screen.getByLabelText("Đính kèm")).toBeInTheDocument();
-    expect(screen.getByLabelText("Tin nhắn thoại")).toBeInTheDocument();
+    expect(screen.getByLabelText("Ghi âm tin nhắn thoại")).toBeInTheDocument();
     expect(screen.queryByLabelText("Thêm")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText("Đính kèm"));
@@ -181,7 +181,7 @@ describe("ChatComposer", () => {
       ),
     );
 
-    fireEvent.click(screen.getByLabelText("Tin nhắn thoại"));
+    fireEvent.click(screen.getByLabelText("Ghi âm tin nhắn thoại"));
     expect(await screen.findByRole("button", { name: "Hủy" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Gửi" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
