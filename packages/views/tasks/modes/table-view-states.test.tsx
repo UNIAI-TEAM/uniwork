@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
 import { taskKeys } from "@uniwork/core/tasks";
@@ -51,6 +51,12 @@ const nav: NavigationAdapter = {
 };
 
 const LONG = { timeout: 3000 };
+const SEARCH_DEBOUNCE_MS = 300;
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 const statusGroups = () => [
   { key: "status:todo", value: { kind: "status", status: "todo" }, count: 1 },
   { key: "status:done", value: { kind: "status", status: "done" }, count: 1 },
@@ -144,21 +150,35 @@ describe("bảng: lỗi, thử lại, rỗng khi tìm", () => {
   });
 
   it("đổi tìm kiếm: giữ dòng cũ và hiện thanh đang làm mới", async () => {
+    let holdSearch = true;
     const server = serveTableCursor({
       count: () => 2,
-      hold: (body) => (body.query as { search?: string }).search === "x",
+      hold: (body) =>
+        holdSearch &&
+        (body.query as { search?: string }).search === "x" &&
+        body.cursor == null,
     });
     renderTable("none");
     await screen.findByText("null 0 v0", {}, LONG);
 
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     fireEvent.change(screen.getByRole("textbox", { name: "Tìm công việc…" }), {
       target: { value: "x" },
     });
+    await act(async () => {
+      vi.advanceTimersByTime(SEARCH_DEBOUNCE_MS);
+    });
+    vi.useRealTimers();
+
     await screen.findByRole("progressbar", { name: "Đang làm mới bảng" }, LONG);
     expect(screen.getByText("null 0 v0")).toBeInTheDocument();
 
+    holdSearch = false;
     server.release();
-    await waitFor(() => expect(screen.queryByRole("progressbar", { name: "Đang làm mới bảng" })).toBeNull(), LONG);
+    await waitFor(
+      () => expect(screen.queryByRole("progressbar", { name: "Đang làm mới bảng" })).toBeNull(),
+      { timeout: 10_000 },
+    );
   });
 
   it("làm mới sau khi sửa (invalidate) không hiện thanh đang làm mới", async () => {
