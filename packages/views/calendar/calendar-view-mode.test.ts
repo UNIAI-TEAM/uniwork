@@ -27,8 +27,8 @@ describe("calendar-view-mode", () => {
   it("builds feed range for each view mode", () => {
     const d = new Date("2026-09-15T12:00:00Z");
     expect(rangeForMode("day", d)).toEqual({ from: "2026-09-15", to: "2026-09-15" });
-    expect(rangeForMode("week", d)).toEqual({ from: "2026-09-13", to: "2026-09-19" });
-    expect(rangeForMode("work_week", d)).toEqual({ from: "2026-09-13", to: "2026-09-19" });
+    expect(rangeForMode("week", d)).toEqual({ from: "2026-09-14", to: "2026-09-20" });
+    expect(rangeForMode("work_week", d)).toEqual({ from: "2026-09-14", to: "2026-09-18" });
     expect(rangeForMode("month", d)).toEqual({ from: "2026-09-01", to: "2026-09-30" });
   });
 
@@ -36,7 +36,7 @@ describe("calendar-view-mode", () => {
     const anchor = new Date("2026-09-15T12:00:00Z");
     expect(formatPeriodLabel("month", anchor, enUS)).toBe("September 2026");
     expect(formatPeriodLabel("day", anchor, enUS)).toBe("September 15th, 2026");
-    expect(formatPeriodLabel("week", anchor, enUS)).toBe("13 – 19 September 2026");
-    expect(formatPeriodLabel("work_week", anchor, enUS)).toBe("13 – 19 September 2026");
+    expect(formatPeriodLabel("week", anchor, enUS)).toBe("14 – 20 September 2026");
+    expect(formatPeriodLabel("work_week", anchor, enUS)).toBe("14 – 18 September 2026");
   });
 });

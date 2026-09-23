@@ -14,6 +14,7 @@ import {
   shiftAnchor,
 } from "./calendar-view-mode";
 import { CalendarExportButton } from "./calendar-export-button";
+import { CalendarPeriodPicker } from "./calendar-period-picker";
 
 const VIEW_MODES: CalendarViewMode[] = ["day", "work_week", "week", "month"];
 
@@ -90,7 +91,11 @@ export function CalendarToolbar({
         >
           {t("calendar.today")}
         </Button>
-        <span className="truncate text-body font-medium tabular-nums">{periodLabel}</span>
+        <CalendarPeriodPicker
+          anchorDate={anchorDate}
+          periodLabel={periodLabel}
+          onChange={onAnchorDateChange}
+        />
         <ToggleGroup
           value={[viewMode]}
           onValueChange={(v) => {

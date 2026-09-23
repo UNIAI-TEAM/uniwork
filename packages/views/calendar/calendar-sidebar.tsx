@@ -17,7 +17,6 @@ import {
 } from "@uniwork/ui/components/ui/collapsible";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
-import { format, parseISO } from "date-fns";
 import { PriorityFlag } from "../tasks/modes/status-pill";
 
 export const EMPTY_CALENDAR_SIDEBAR: CalendarSidebar = {
@@ -30,9 +29,11 @@ export const EMPTY_CALENDAR_SIDEBAR: CalendarSidebar = {
 
 type CalendarSidebarProps = {
   workspaceId: string;
+  viewerTimeZone?: string;
   sections: CalendarSidebar;
   isPending?: boolean;
   isError?: boolean;
+  onRetry: () => void;
   onOpenTask: (id: string) => void;
   onOpenMeeting: (id: string) => void;
   onCreateMeeting: () => void;
@@ -67,18 +68,43 @@ const TASK_SECTIONS: {
   },
 ];
 
-function formatDueLabel(dueDate: string | undefined): string | null {
+function formatDueLabel(dueDate: string | undefined, locale: string): string | null {
   if (!dueDate) return null;
   try {
-    return format(parseISO(dueDate), "d MMM");
+    const [year, month, day] = dueDate.split("-").map(Number);
+    if (!year || !month || !day) return dueDate;
+    const localDate = new Date(year, month - 1, day);
+    if (
+      localDate.getFullYear() !== year ||
+      localDate.getMonth() !== month - 1 ||
+      localDate.getDate() !== day
+    ) {
+      return dueDate;
+    }
+    return new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" }).format(
+      localDate,
+    );
   } catch {
     return dueDate;
   }
 }
 
-function formatMeetingWhen(startsAt: string): string {
+function formatMeetingWhen(startsAt: string, locale: string, timeZone?: string): string {
   try {
-    return format(parseISO(startsAt), "EEE d MMM · HH:mm");
+    const starts = new Date(startsAt);
+    const date = new Intl.DateTimeFormat(locale, {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      timeZone,
+    }).format(starts);
+    const time = new Intl.DateTimeFormat(locale, {
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+      timeZone,
+    }).format(starts);
+    return `${date} · ${time}`;
   } catch {
     return startsAt;
   }
@@ -91,31 +117,38 @@ function SidebarTaskRow({
   task: CalendarSidebarTask;
   onOpen: () => void;
 }) {
-  const { t } = useTranslation();
-  const dueLabel = formatDueLabel(task.dueDate);
+  const { t, i18n } = useTranslation();
+  const dueLabel = formatDueLabel(task.dueDate, i18n.resolvedLanguage ?? i18n.language);
   return (
-    <li className="flex min-w-0 items-stretch rounded-md hover:bg-surface-hover">
-      <span
+    <li className="min-w-0 rounded-md">
+      <button
+        type="button"
         data-calendar-external-task
         data-task-id={task.id}
         data-task-title={task.title}
-        aria-label={t("calendar.sidebar_task_drag_handle", { title: task.title })}
-        className="fc-event flex shrink-0 cursor-grab items-center px-1 py-1.5 text-muted-foreground active:cursor-grabbing [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:min-w-11 [@media(pointer:coarse)]:justify-center"
-      >
-        <GripVertical className="size-3.5" aria-hidden />
-      </span>
-      <button
-        type="button"
-        className="flex min-w-0 flex-1 items-center gap-2 py-1.5 pr-2 text-left text-body"
+        aria-label={t("calendar.sidebar_task_open_to_schedule", {
+          title: task.title,
+        })}
+        title={t("calendar.sidebar_task_drag_handle", { title: task.title })}
+        className="fc-event flex min-h-8 w-full min-w-0 cursor-grab items-center rounded-md px-1 py-1.5 text-left text-body hover:bg-surface-hover active:cursor-grabbing [@media(pointer:coarse)]:min-h-11"
         onClick={onOpen}
       >
+        <GripVertical
+          className="mr-1 size-3.5 shrink-0 text-muted-foreground"
+          aria-hidden
+        />
         <span className="min-w-0 flex-1 truncate text-foreground">{task.title}</span>
         <span className="flex shrink-0 items-center gap-1.5">
           {task.priority ? (
             <PriorityFlag priority={task.priority} className="size-3.5" />
           ) : null}
           {dueLabel ? (
-            <span className="text-caption tabular-nums text-muted-foreground">{dueLabel}</span>
+            <time
+              dateTime={task.dueDate}
+              className="text-caption tabular-nums text-muted-foreground"
+            >
+              {dueLabel}
+            </time>
           ) : null}
         </span>
       </button>
@@ -125,11 +158,14 @@ function SidebarTaskRow({
 
 function SidebarMeetingRow({
   meeting,
+  viewerTimeZone,
   onOpen,
 }: {
   meeting: CalendarSidebarMeeting;
+  viewerTimeZone?: string;
   onOpen: () => void;
 }) {
+  const { i18n } = useTranslation();
   return (
     <li>
       <button
@@ -138,9 +174,16 @@ function SidebarMeetingRow({
         onClick={onOpen}
       >
         <span className="truncate text-body text-foreground">{meeting.title}</span>
-        <span className="text-caption text-muted-foreground">
-          {formatMeetingWhen(meeting.startsAt)}
-        </span>
+        <time
+          dateTime={meeting.startsAt}
+          className="text-caption tabular-nums text-muted-foreground"
+        >
+          {formatMeetingWhen(
+            meeting.startsAt,
+            i18n.resolvedLanguage ?? i18n.language,
+            viewerTimeZone,
+          )}
+        </time>
       </button>
     </li>
   );
@@ -243,8 +286,10 @@ function TaskListSection({
 
 export function CalendarSidebar({
   sections,
+  viewerTimeZone,
   isPending,
   isError,
+  onRetry,
   onOpenTask,
   onOpenMeeting,
   onCreateMeeting,
@@ -266,11 +311,16 @@ export function CalendarSidebar({
           </>
         ) : null}
         {isError ? (
-          <p className="px-2 py-3 text-caption text-muted-foreground" role="status">
-            {t("calendar.sidebar_error")}
-          </p>
+          <div className="flex flex-col items-start gap-3 px-2 py-3" role="alert">
+            <p className="text-caption text-muted-foreground">
+              {t("calendar.sidebar_error")}
+            </p>
+            <Button type="button" size="sm" variant="outline" onClick={onRetry}>
+              {t("calendar.retry")}
+            </Button>
+          </div>
         ) : null}
-        {!isPending ? (
+        {!isPending && !isError ? (
           <>
             <TaskListSection
               titleKey="calendar.sidebar_priorities"
@@ -300,6 +350,7 @@ export function CalendarSidebar({
                   <SidebarMeetingRow
                     key={meeting.id}
                     meeting={meeting}
+                    viewerTimeZone={viewerTimeZone}
                     onOpen={() => onOpenMeeting(meeting.id)}
                   />
                 ))}

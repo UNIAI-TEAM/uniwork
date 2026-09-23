@@ -16,6 +16,10 @@ type DropResizeArg = {
 type CapturedFcProps = {
   initialView?: string;
   hiddenDays?: number[];
+  firstDay?: number;
+  locale?: { code?: string };
+  timeZone?: string;
+  nowIndicator?: boolean;
   editable?: boolean;
   selectable?: boolean;
   selectMirror?: boolean;
@@ -83,18 +87,49 @@ describe("FullCalendarHost", () => {
     expect(onDatesSet).toHaveBeenCalledWith({ from: "2026-09-01", to: "2026-09-29" });
   });
 
-  it("passes FC view and hiddenDays from viewMode", () => {
+  it("localizes the work-week grid and shows the viewer time zone", () => {
+    const onDatesSet = vi.fn();
     render(
       <FullCalendarHost
         events={[sample]}
         initialDate="2026-09-01"
         viewMode="work_week"
-        onDatesSet={vi.fn()}
+        language="vi"
+        viewerTimeZone="Asia/Ho_Chi_Minh"
+        onDatesSet={onDatesSet}
         onEventClick={vi.fn()}
       />,
     );
     expect(captured.initialView).toBe("timeGridWeek");
     expect(captured.hiddenDays).toEqual([0, 6]);
+    expect(captured.firstDay).toBe(1);
+    expect(captured.locale?.code).toBe("vi");
+    expect(captured.timeZone).toBe("local");
+    expect(captured.nowIndicator).toBe(true);
+    expect(screen.getByText("GMT+7")).toHaveAttribute("title", "Asia/Ho_Chi_Minh");
+
+    captured.datesSet?.({
+      start: new Date("2026-09-14T00:00:00"),
+      end: new Date("2026-09-21T00:00:00"),
+    });
+    expect(onDatesSet).toHaveBeenCalledWith({ from: "2026-09-14", to: "2026-09-18" });
+  });
+
+  it("does not show a time-zone axis label or now indicator in month view", () => {
+    render(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="month"
+        language="en"
+        viewerTimeZone="Asia/Ho_Chi_Minh"
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+      />,
+    );
+    expect(captured.locale?.code).toBe("en-gb");
+    expect(captured.nowIndicator).toBe(false);
+    expect(screen.queryByText("GMT+7")).not.toBeInTheDocument();
   });
 
   it("fills the host height so time grids scroll internally", () => {

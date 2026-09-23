@@ -6,6 +6,8 @@ import type {
   EventClickArg,
   EventDropArg,
 } from "@fullcalendar/core";
+import enGbCalendarLocale from "@fullcalendar/core/locales/en-gb";
+import viCalendarLocale from "@fullcalendar/core/locales/vi";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin, {
   type DateClickArg,
@@ -33,10 +35,27 @@ export type { CalendarSlot };
 
 const FC_PLUGINS = [dayGridPlugin, timeGridPlugin, interactionPlugin];
 
+function timeZoneOffsetLabel(timeZone: string, initialDate: string): string {
+  try {
+    const at = new Date(`${initialDate}T12:00:00Z`);
+    const offset = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      timeZoneName: "shortOffset",
+    })
+      .formatToParts(at)
+      .find((part) => part.type === "timeZoneName")?.value;
+    return offset === "GMT" ? "GMT+0" : (offset ?? "GMT+0");
+  } catch {
+    return "GMT+0";
+  }
+}
+
 export function FullCalendarHost(props: {
   events: CalendarEvent[];
   initialDate: string;
   viewMode: CalendarViewMode;
+  language?: string;
+  viewerTimeZone?: string;
   onDatesSet: (range: { from: string; to: string }) => void;
   onEventClick: (event: CalendarEvent) => void;
   editable?: boolean;
@@ -55,11 +74,20 @@ export function FullCalendarHost(props: {
   const fcEvents = useMemo(() => props.events.map(toFcEvent), [props.events]);
   const initialView = fcViewForMode(props.viewMode);
   const hiddenDays = fcHiddenDays(props.viewMode);
+  const calendarLocale = props.language?.startsWith("vi")
+    ? viCalendarLocale
+    : enGbCalendarLocale;
+  const timeZoneLabel = props.viewerTimeZone
+    ? timeZoneOffsetLabel(props.viewerTimeZone, props.initialDate)
+    : null;
 
   const handleDatesSet = (arg: DatesSetArg) => {
+    const inclusiveEnd = props.viewMode === "work_week"
+      ? addDays(arg.start, 4)
+      : addDays(arg.end, -1);
     props.onDatesSet({
       from: format(arg.start, "yyyy-MM-dd"),
-      to: format(addDays(arg.end, -1), "yyyy-MM-dd"),
+      to: format(inclusiveEnd, "yyyy-MM-dd"),
     });
   };
 
@@ -143,13 +171,26 @@ export function FullCalendarHost(props: {
   return (
     <div
       data-testid="calendar-grid"
-      className={cn("uniwork-fc flex min-h-0 flex-1 flex-col", props.className)}
+      lang={props.language}
+      className={cn("uniwork-fc relative flex min-h-0 flex-1 flex-col", props.className)}
     >
+      {props.viewMode !== "month" && timeZoneLabel ? (
+        <span
+          className="pointer-events-none absolute left-2 top-2 z-10 text-caption tabular-nums text-muted-foreground"
+          title={props.viewerTimeZone}
+        >
+          {timeZoneLabel}
+        </span>
+      ) : null}
       <FullCalendar
         key={`${props.viewMode}-${props.initialDate}`}
         plugins={FC_PLUGINS}
         initialView={initialView}
         initialDate={props.initialDate}
+        locale={calendarLocale}
+        firstDay={1}
+        timeZone="local"
+        nowIndicator={props.viewMode !== "month"}
         hiddenDays={hiddenDays}
         headerToolbar={false}
         height="100%"

@@ -2193,6 +2193,8 @@
     "sidebar_empty_today_overdue": "Nothing due today or overdue.",
     "sidebar_empty_backlog": "No backlog tasks.",
     "sidebar_task_drag_handle": "Drag {{title}} onto the calendar",
+    "sidebar_task_open_to_schedule": "Open {{title}} to set a date",
+    "period_picker_label": "Choose display period, currently {{period}}",
     "export_ics": "Export ICS",
     "export_ics_error": "Could not export the calendar."
   },

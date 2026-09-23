@@ -25,19 +25,22 @@ const useCalendarEventsMock = vi.hoisted(() =>
   })),
 );
 
+const calendarSidebarQuery = vi.hoisted(() => ({
+  data: {
+    priorities: [],
+    meetWith: [],
+    assigned: [],
+    todayOverdue: [],
+    backlog: [],
+  },
+  isPending: false,
+  isError: false,
+  refetch: vi.fn(),
+}));
+
 vi.mock("@uniwork/core/calendar", () => ({
   useCalendarEvents: useCalendarEventsMock,
-  useCalendarSidebar: () => ({
-    data: {
-      priorities: [],
-      meetWith: [],
-      assigned: [],
-      todayOverdue: [],
-      backlog: [],
-    },
-    isPending: false,
-    isError: false,
-  }),
+  useCalendarSidebar: () => calendarSidebarQuery,
 }));
 
 const hostProps = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
@@ -66,6 +69,8 @@ vi.mock("../meetings/new-meeting-dialog", () => ({
 describe("CalendarPageView", () => {
   afterEach(() => {
     vi.useRealTimers();
+    calendarSidebarQuery.isError = false;
+    calendarSidebarQuery.refetch.mockClear();
   });
 
   it("shows the calendar title and month grid", () => {
@@ -84,7 +89,26 @@ describe("CalendarPageView", () => {
     expect(screen.getByTestId("calendar-grid")).toBeInTheDocument();
     expect(hostProps.current.onEventDropOrResize).toEqual(expect.any(Function));
     expect(hostProps.current.onSlotSelect).toEqual(expect.any(Function));
+    expect(hostProps.current.language).toBe("vi");
+    expect(hostProps.current.viewerTimeZone).toEqual(expect.any(String));
     expect(screen.getByTestId("create-from-slot")).toBeInTheDocument();
+  });
+
+  it("retries the sidebar query from its error state", () => {
+    calendarSidebarQuery.isError = true;
+
+    render(
+      wrap(
+        <CalendarPageView
+          workspaceId="ws1"
+          onOpenTask={() => {}}
+          onOpenMeeting={() => {}}
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    expect(calendarSidebarQuery.refetch).toHaveBeenCalledTimes(1);
   });
 
   it("updates the events query range when the toolbar changes month", () => {

@@ -32,6 +32,7 @@ describe("CalendarSidebar", () => {
         <CalendarSidebar
           workspaceId="ws1"
           sections={EMPTY_CALENDAR_SIDEBAR}
+          onRetry={() => {}}
           onOpenTask={() => {}}
           onOpenMeeting={() => {}}
           onCreateMeeting={() => {}}
@@ -78,6 +79,7 @@ describe("CalendarSidebar", () => {
               },
             ],
           }}
+          onRetry={() => {}}
           onOpenTask={onOpenTask}
           onOpenMeeting={onOpenMeeting}
           onCreateMeeting={() => {}}
@@ -92,8 +94,50 @@ describe("CalendarSidebar", () => {
     expect(onOpenMeeting).toHaveBeenCalledWith("meet-1");
   });
 
-  it("attaches FullCalendar Draggable to task lists only", () => {
+  it("localizes task dates and meeting times in the viewer time zone", () => {
+    render(
+      wrap(
+        <CalendarSidebar
+          workspaceId="ws1"
+          viewerTimeZone="Asia/Ho_Chi_Minh"
+          sections={{
+            ...EMPTY_CALENDAR_SIDEBAR,
+            priorities: [
+              {
+                id: "task-1",
+                title: "Ngày phát hành",
+                status: "open",
+                dueDate: "2026-09-10",
+              },
+            ],
+            meetWith: [
+              {
+                id: "meet-1",
+                title: "Đồng bộ",
+                startsAt: "2026-09-10T02:00:00Z",
+                endsAt: "2026-09-10T02:30:00Z",
+              },
+            ],
+          }}
+          onRetry={() => {}}
+          onOpenTask={() => {}}
+          onOpenMeeting={() => {}}
+          onCreateMeeting={() => {}}
+        />,
+      ),
+    );
+
+    expect(document.querySelector('time[datetime="2026-09-10"]')).toHaveTextContent(
+      "10 thg 9",
+    );
+    expect(
+      document.querySelector('time[datetime="2026-09-10T02:00:00Z"]'),
+    ).toHaveTextContent("Thứ 5, 10 thg 9 · 09:00");
+  });
+
+  it("makes draggable tasks a single keyboard-accessible control", () => {
     DraggableMock.mockClear();
+    const onOpenTask = vi.fn();
     render(
       wrap(
         <CalendarSidebar
@@ -113,7 +157,8 @@ describe("CalendarSidebar", () => {
               },
             ],
           }}
-          onOpenTask={() => {}}
+          onRetry={() => {}}
+          onOpenTask={onOpenTask}
           onOpenMeeting={() => {}}
           onCreateMeeting={() => {}}
         />,
@@ -129,12 +174,15 @@ describe("CalendarSidebar", () => {
     const handle = document.querySelector(
       "[data-calendar-external-task][data-task-id='task-1']",
     ) as HTMLElement;
-    expect(handle.tagName).toBe("SPAN");
+    expect(handle.tagName).toBe("BUTTON");
+    expect(handle).toHaveAccessibleName("Mở Drag me để đặt ngày");
     expect(firstOpts.eventData?.(handle)).toEqual({
       title: "Drag me",
       duration: { days: 1 },
       extendedProps: { uniworkTaskId: "task-1" },
     });
+    fireEvent.click(handle);
+    expect(onOpenTask).toHaveBeenCalledWith("task-1");
     expect(
       document.querySelector("[data-calendar-external-task][data-task-id='meet-1']"),
     ).toBeNull();
@@ -147,6 +195,7 @@ describe("CalendarSidebar", () => {
         <CalendarSidebar
           workspaceId="ws1"
           sections={EMPTY_CALENDAR_SIDEBAR}
+          onRetry={() => {}}
           onOpenTask={() => {}}
           onOpenMeeting={() => {}}
           onCreateMeeting={onCreateMeeting}
@@ -156,5 +205,30 @@ describe("CalendarSidebar", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Cuộc họp mới" }));
     expect(onCreateMeeting).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows an exclusive retry state when the sidebar request fails", () => {
+    const onRetry = vi.fn();
+    render(
+      wrap(
+        <CalendarSidebar
+          workspaceId="ws1"
+          sections={EMPTY_CALENDAR_SIDEBAR}
+          isError
+          onRetry={onRetry}
+          onOpenTask={() => {}}
+          onOpenMeeting={() => {}}
+          onCreateMeeting={() => {}}
+        />,
+      ),
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Không tải được bảng kế hoạch.",
+    );
+    expect(screen.queryByText("Ưu tiên cao")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
   });
 });
