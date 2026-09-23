@@ -2,22 +2,12 @@
 
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, ChevronDown, ChevronRight, ScrollText, Search, X } from "lucide-react";
+import { AlertCircle, ChevronRight, ScrollText } from "lucide-react";
 import { useAuditEvents, type AuditQuery } from "@uniwork/core/audit";
+import { useDebouncedValue } from "@uniwork/core/hooks/use-debounced-value";
 import type { AuditEvent } from "@uniwork/core/types";
 import { useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Label } from "@uniwork/ui/components/ui/label";
-import { Select } from "@uniwork/ui/components/ui/select";
-import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-} from "@uniwork/ui/components/ui/combobox";
-import { DateField } from "../../common/date-field";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import {
@@ -28,7 +18,6 @@ import {
   TableHeader,
   TableRow,
 } from "@uniwork/ui/components/ui/table";
-import { useIsMobile } from "@uniwork/ui/hooks/use-mobile";
 import { cn } from "@uniwork/ui/lib/utils";
 import {
   ActionIcon,
@@ -40,30 +29,8 @@ import {
 } from "../../audit/event-presenter";
 import { CollectionPageState } from "../../layout/collection-page";
 import { AuditDetailSheet } from "./audit-detail-sheet";
+import { AuditFilters, EMPTY_FILTERS, type AuditFilterValues } from "./audit-filters";
 import { SettingsCard, SettingsSection } from "./settings-layout";
-
-/**
- * The actions the UI knows to offer in the filter. The server may write more
- * (a newer release); those still render in the table under their raw name.
- */
-const KNOWN_ACTIONS = [
-  "auth.login_succeeded", "auth.login_failed", "auth.password_changed",
-  "auth.password_reset_requested", "auth.session_revoked",
-  "organization.created", "organization.updated", "member.invited", "member.joined",
-  "member.removed", "member.role_changed", "workspace.created", "workspace.updated",
-  "workspace_member.added", "workspace_member.removed", "workspace_member.role_changed",
-  "workspace_agent.added", "agent.created", "agent.updated", "task.created", "task.updated",
-  "task.deleted", "task.comment_added", "subscription.changed", "audit.retention_set",
-  "audit.export_requested", "webhook.deliver",
-];
-const KNOWN_RESOURCES = [
-  "task", "task_comment", "workspace", "workspace_member", "workspace_agent_member", "organization",
-  "organization_member", "invitation", "agent", "user", "session", "subscription", "audit", "webhook",
-];
-
-/** Empty strings are dropped by the endpoint, so the draft can stay flat. */
-const EMPTY_FILTERS = { action: "", actor_id: "", resource_type: "", from: "", to: "" };
-type Filters = typeof EMPTY_FILTERS;
 
 /** A day the user picked becomes an instant the server can compare against. */
 export function dayStart(value: string): string {
@@ -74,7 +41,7 @@ export function dayEnd(value: string): string {
   return value ? new Date(`${value}T23:59:59`).toISOString() : "";
 }
 
-function toQuery(filters: Filters): AuditQuery {
+function toQuery(filters: AuditFilterValues): AuditQuery {
   return {
     action: filters.action,
     actor_id: filters.actor_id.trim(),
@@ -102,10 +69,12 @@ function LogSkeleton() {
 export function AuditLog({ orgId, workspaceId }: { orgId: string; workspaceId: string }) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.audit" });
   const labels = useAuditLabels();
-  const isMobile = useIsMobile();
-  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
-  const [applied, setApplied] = useState<AuditQuery>({});
+  const [filters, setFilters] = useState<AuditFilterValues>(EMPTY_FILTERS);
   const [selected, setSelected] = useState<AuditEvent | null>(null);
+  // Every filter applies as it changes; only the typed actor waits for the
+  // typing to stop, and clearing it applies at once.
+  const typedActor = useDebouncedValue(filters.actor_id.trim(), 300);
+  const applied = toQuery({ ...filters, actor_id: filters.actor_id.trim() ? typedActor : "" });
 
   const events = useAuditEvents(orgId, applied);
   // Best effort: the log is organization-wide, the member list is this
@@ -122,110 +91,16 @@ export function AuditLog({ orgId, workspaceId }: { orgId: string; workspaceId: s
 
   const rows = events.data?.pages.flatMap((p) => p.events) ?? [];
   const filtering = Object.values(applied).some(Boolean);
-  const field = (key: keyof Filters) => (value: string) => setFilters({ ...filters, [key]: value });
 
   return (
     <>
       <SettingsSection>
-        {/* On a phone the reader came for the rows, not the form: the filters
-            fold behind one line and open on demand. Wider screens keep them
-            in view, where five fields cost one row. */}
-        <details open={!isMobile} className="group rounded-lg border border-border bg-surface">
-          <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 text-body font-medium md:hidden [&::-webkit-details-marker]:hidden">
-            <Search aria-hidden className="size-4 text-muted-foreground" />
-            {t("filters.legend")}
-            {filtering ? <span className="size-1.5 rounded-full bg-primary" aria-label={t("filters.active")} /> : null}
-            <ChevronDown aria-hidden className="ml-auto size-4 text-muted-foreground transition-transform group-open:rotate-180" />
-          </summary>
-        <form
-          role="search"
-          aria-label={t("filters.legend")}
-          className="grid gap-3 p-3 sm:grid-cols-2 lg:grid-cols-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            setApplied(toQuery(filters));
-          }}
-        >
-          <div className="grid gap-1.5">
-            <Label htmlFor="audit-action">{t("filters.action")}</Label>
-            <Select
-              id="audit-action"
-              value={filters.action}
-              onValueChange={(v) => field("action")(v ?? "")}
-              items={[{ value: "", label: t("filters.any") }, ...KNOWN_ACTIONS.map((a) => ({ value: a, label: labels.action(a) }))]}
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="audit-resource">{t("filters.resource_type")}</Label>
-            <Select
-              id="audit-resource"
-              value={filters.resource_type}
-              onValueChange={(v) => field("resource_type")(v ?? "")}
-              items={[{ value: "", label: t("filters.any") }, ...KNOWN_RESOURCES.map((r) => ({ value: r, label: labels.resource(r) }))]}
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="audit-actor">{t("filters.actor")}</Label>
-            {/* Free text stays allowed: a pasted id of someone outside this
-                workspace is still a valid filter, so typing writes the raw
-                text and picking a member writes their id. */}
-            <Combobox
-              items={members.data ?? []}
-              itemToStringLabel={(m) => m.display_name}
-              itemToStringValue={(m) => m.user_id}
-              value={(members.data ?? []).find((m) => m.user_id === filters.actor_id) ?? null}
-              inputValue={names.get(filters.actor_id) ?? filters.actor_id}
-              onValueChange={(m) => field("actor_id")(m?.user_id ?? "")}
-              onInputValueChange={(text, details) => {
-                if (details.reason === "input-change" || details.reason === "input-clear" || details.reason === "clear-press") field("actor_id")(text);
-              }}
-            >
-              <ComboboxInput id="audit-actor" className="w-full" placeholder={t("filters.actor_placeholder")} showClear />
-              <ComboboxContent>
-                <ComboboxEmpty>{t("filters.actor_placeholder")}</ComboboxEmpty>
-                <ComboboxList>
-                  {(m: { user_id: string; display_name: string }) => (
-                    <ComboboxItem key={m.user_id} value={m}>{m.display_name}</ComboboxItem>
-                  )}
-                </ComboboxList>
-              </ComboboxContent>
-            </Combobox>
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="audit-from">{t("filters.from")}</Label>
-            <DateField id="audit-from" value={filters.from} max={filters.to || undefined} onChange={field("from")} />
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="audit-to">{t("filters.to")}</Label>
-            <DateField id="audit-to" value={filters.to} min={filters.from || undefined} onChange={field("to")} />
-          </div>
-          <div className="flex items-center gap-2 sm:col-span-2 lg:col-span-3">
-            <Button type="submit">
-              <Search data-icon="inline-start" aria-hidden />
-              {t("filters.apply")}
-            </Button>
-            {filtering || Object.values(filters).some(Boolean) ? (
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  setFilters(EMPTY_FILTERS);
-                  setApplied({});
-                }}
-              >
-                <X data-icon="inline-start" aria-hidden />
-                {t("filters.clear")}
-              </Button>
-            ) : null}
-            {events.isFetching && !events.isFetchingNextPage && events.data ? (
-              <span role="status" className="ml-auto inline-flex items-center gap-1.5 text-caption text-muted-foreground">
-                <Spinner className="size-3" aria-label={t("loading")} />
-                {t("loading")}
-              </span>
-            ) : null}
-          </div>
-        </form>
-        </details>
+        <AuditFilters
+          filters={filters}
+          onChange={setFilters}
+          members={members.data ?? []}
+          fetching={events.isFetching && !events.isFetchingNextPage && Boolean(events.data)}
+        />
       </SettingsSection>
 
       <SettingsSection>
@@ -247,12 +122,12 @@ export function AuditLog({ orgId, workspaceId }: { orgId: string; workspaceId: s
         ) : rows.length === 0 ? (
           <CollectionPageState
             icon={ScrollText}
-            title={t("empty_title")}
+            title={filtering ? t("empty_title") : t("empty_fresh_title")}
             description={filtering ? t("empty_description") : t("empty_fresh_description")}
             role="status"
             actions={
               filtering ? (
-                <Button variant="outline" onClick={() => { setFilters(EMPTY_FILTERS); setApplied({}); }}>
+                <Button variant="outline" onClick={() => setFilters(EMPTY_FILTERS)}>
                   {t("filters.clear")}
                 </Button>
               ) : undefined
@@ -289,7 +164,7 @@ export function AuditLog({ orgId, workspaceId }: { orgId: string; workspaceId: s
                           <span className="min-w-0">
                             <span className="block truncate text-body font-medium">{labels.action(event.action)}</span>
                             <span className="block truncate text-caption text-muted-foreground">
-                              {labels.resource(event.resource_type)} · {shortId(event.resource_id)}
+                              {labels.resource(event.resource_type)}
                               <span className="md:hidden"> · {actorName(event)}</span>
                             </span>
                           </span>

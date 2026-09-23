@@ -481,7 +481,7 @@
       }
     },
     "audit": {
-      "title": "Bảo mật & Nhật ký",
+      "title": "Nhật ký hoạt động",
       "description": "Nhật ký bất biến của tổ chức: ai làm gì, lúc nào, từ đâu. Bản ghi không sửa và không xóa được.",
       "empty_title": "Chưa có bản ghi nào khớp",
       "empty_description": "Nới bộ lọc hoặc chọn khoảng thời gian rộng hơn. Mọi thao tác đổi dữ liệu đều được ghi lại từ lúc tính năng này bật.",
@@ -492,19 +492,21 @@
       "retry": "Thử lại",
       "load_more": "Tải thêm",
       "filters": {
-        "legend": "Lọc nhật ký",
+        "legend": "Bộ lọc",
         "action": "Hành động",
-        "action_placeholder": "task.updated",
         "actor": "Người thực hiện",
-        "actor_placeholder": "Chọn hoặc dán mã người dùng",
+        "actor_placeholder": "Người thực hiện",
         "resource_type": "Loại tài nguyên",
-        "resource_type_placeholder": "task",
         "from": "Từ ngày",
         "to": "Đến ngày",
-        "apply": "Áp dụng",
-        "clear": "Xóa lọc",
-        "any": "Tất cả",
-        "active": "Đang lọc"
+        "clear": "Xóa bộ lọc",
+        "any_action": "Mọi hành động",
+        "any_resource": "Mọi tài nguyên",
+        "actor_empty": "Không có thành viên khớp. Dán mã người dùng để lọc.",
+        "from_value": "Từ {{date}}",
+        "to_value": "Đến {{date}}",
+        "active_count_one": "{{count}} bộ lọc",
+        "active_count_other": "{{count}} bộ lọc"
       },
       "table": {
         "time": "Thời điểm",
@@ -541,13 +543,14 @@
       },
       "retention": {
         "title": "Thời gian lưu",
-        "description": "Số ngày tổ chức giữ nhật ký. Từ 30 đến 730 ngày. Chỉ chủ sở hữu tổ chức đổi được.",
+        "description": "Số ngày tổ chức giữ nhật ký. Bản ghi hết hạn chỉ ẩn khỏi màn hình, không bị xóa.",
         "label": "Số ngày",
         "save": "Lưu",
         "saved": "Đã lưu thời gian lưu nhật ký",
         "owner_only": "Chỉ chủ sở hữu tổ chức đổi được thiết lập này.",
         "unit": "ngày",
-        "hint": "Từ 30 đến 730 ngày. Hết hạn chỉ ẩn khỏi màn hình, không xóa."
+        "hint": "Từ 30 đến 730 ngày.",
+        "out_of_range": "Nhập một số nguyên từ 30 đến 730."
       },
       "export": {
         "title": "Xuất nhật ký",
@@ -599,17 +602,17 @@
         "workspace_agent.added": "Thêm agent vào workspace",
         "agent.created": "Tạo agent",
         "agent.updated": "Cập nhật agent",
-        "task.created": "Tạo task",
-        "task.updated": "Cập nhật task",
-        "task.deleted": "Xóa task",
-        "task.comment_added": "Bình luận task",
+        "task.created": "Tạo việc",
+        "task.updated": "Cập nhật việc",
+        "task.deleted": "Xóa việc",
+        "task.comment_added": "Bình luận vào việc",
         "subscription.changed": "Đổi gói dịch vụ",
         "audit.retention_set": "Đổi thời gian lưu nhật ký",
         "audit.export_requested": "Yêu cầu xuất nhật ký",
         "webhook.deliver": "Gửi webhook"
       },
       "resources": {
-        "task": "Task",
+        "task": "Việc",
         "workspace": "Workspace",
         "organization": "Tổ chức",
         "agent": "Agent",
@@ -635,10 +638,54 @@
         "start_date": "Ngày bắt đầu",
         "project_id": "Dự án",
         "parent_task_id": "Công việc cha",
-        "position": "Vị trí"
+        "position": "Vị trí",
+        "role": "Vai trò",
+        "org_role": "Vai trò trong tổ chức",
+        "platform_role": "Vai trò nền tảng",
+        "name": "Tên",
+        "slug": "Định danh",
+        "handle": "Handle",
+        "owner_user_id": "Chủ sở hữu",
+        "stage": "Giai đoạn",
+        "visibility": "Chế độ hiển thị",
+        "topic": "Chủ đề",
+        "kind": "Loại",
+        "code": "Mã",
+        "parent_id": "Phòng ban cha",
+        "department_id": "Phòng ban",
+        "manager_id": "Quản lý trực tiếp",
+        "employee_code": "Mã nhân viên",
+        "location": "Nơi làm việc",
+        "phone_visible": "Hiện số điện thoại",
+        "archived": "Lưu trữ",
+        "revoked": "Thu hồi",
+        "retain_days": "Số ngày lưu",
+        "starts_at": "Bắt đầu",
+        "ends_at": "Kết thúc",
+        "meeting_type": "Loại cuộc họp",
+        "host_user_id": "Người chủ trì",
+        "plan_code": "Gói dịch vụ",
+        "cancel_at": "Hủy vào",
+        "enabled": "Bật",
+        "scope_type": "Phạm vi",
+        "scope_id": "Mã phạm vi",
+        "dependency_added": "Thêm phụ thuộc",
+        "dependency_removed": "Gỡ phụ thuộc"
       },
       "loading": "Đang tải…",
-      "empty_fresh_description": "Mọi thao tác đổi dữ liệu sẽ xuất hiện ở đây ngay khi diễn ra."
+      "empty_fresh_description": "Mọi thao tác đổi dữ liệu sẽ xuất hiện ở đây ngay khi diễn ra.",
+      "values": {
+        "yes": "Có",
+        "no": "Không",
+        "role": {
+          "agent": "Agent"
+        },
+        "visibility": {
+          "public": "Công khai",
+          "private": "Riêng tư"
+        }
+      },
+      "empty_fresh_title": "Chưa có bản ghi nào"
     },
     "ai": {
       "title": "AI",

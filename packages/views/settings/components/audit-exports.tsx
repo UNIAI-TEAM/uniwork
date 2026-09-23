@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertCircle, Check, Download, FileDown } from "lucide-react";
+import { AlertCircle, Check, Download, FileDown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   useAuditExports,
@@ -11,7 +11,6 @@ import {
   useSetAuditRetention,
 } from "@uniwork/core/audit";
 import type { AuditExport } from "@uniwork/core/types";
-import { Badge } from "@uniwork/ui/components/ui/badge";
 import { Button, ButtonLink } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
@@ -20,7 +19,24 @@ import { DateField } from "../../common/date-field";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { EventTime } from "../../audit/event-presenter";
 import { dayEnd, dayStart } from "./audit-log";
-import { SettingsCard, SettingsRow, SettingsSection } from "./settings-layout";
+import {
+  SettingsBadge,
+  type SettingsBadgeTone,
+  SettingsCard,
+  SettingsEmpty,
+  SettingsRow,
+  SettingsSection,
+} from "./settings-layout";
+
+const RETENTION_MIN = 30;
+const RETENTION_MAX = 730;
+
+/** An empty draft is "unchanged"; anything else must be a whole day count in range. */
+function retentionError(draft: string): boolean {
+  if (draft === "") return false;
+  const days = Number(draft);
+  return !Number.isInteger(days) || days < RETENTION_MIN || days > RETENTION_MAX;
+}
 
 export function AuditRetention({ orgId, canManage }: { orgId: string; canManage: boolean }) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.audit" });
@@ -28,14 +44,19 @@ export function AuditRetention({ orgId, canManage }: { orgId: string; canManage:
   const setRetention = useSetAuditRetention(orgId);
   const [draft, setDraft] = useState("");
   const value = draft || String(retention.data ?? "");
+  const invalid = retentionError(draft);
   const dirty = draft !== "" && Number(draft) !== retention.data;
 
+  // Save is explicit (a number is typed digit by digit), so the result is a
+  // toast; the range is said once, and turns into the error when broken.
   return (
     <SettingsSection title={t("retention.title")} description={t("retention.description")}>
       <SettingsCard>
         <form
+          noValidate
           onSubmit={(e) => {
             e.preventDefault();
+            if (invalid || !dirty) return;
             setRetention.mutate(Number(draft), {
               onSuccess: () => {
                 setDraft("");
@@ -47,7 +68,17 @@ export function AuditRetention({ orgId, canManage }: { orgId: string; canManage:
         >
           <SettingsRow
             label={<Label htmlFor="audit-retention">{t("retention.label")}</Label>}
-            description={canManage ? t("retention.hint") : t("retention.owner_only")}
+            description={
+              !canManage ? (
+                t("retention.owner_only")
+              ) : invalid ? (
+                <span id="audit-retention-hint" role="alert" className="text-destructive">
+                  {t("retention.out_of_range")}
+                </span>
+              ) : (
+                <span id="audit-retention-hint">{t("retention.hint")}</span>
+              )
+            }
             size="none"
           >
             <div className="flex items-center gap-2">
@@ -55,15 +86,17 @@ export function AuditRetention({ orgId, canManage }: { orgId: string; canManage:
                 id="audit-retention"
                 type="number"
                 inputMode="numeric"
-                min={30}
-                max={730}
+                min={RETENTION_MIN}
+                max={RETENTION_MAX}
                 className="w-24"
                 value={value}
                 disabled={!canManage}
+                aria-invalid={invalid || undefined}
+                aria-describedby={canManage ? "audit-retention-hint" : undefined}
                 onChange={(e) => setDraft(e.target.value)}
               />
               <span className="text-caption text-muted-foreground">{t("retention.unit")}</span>
-              <Button type="submit" disabled={!canManage || !dirty || setRetention.isPending}>
+              <Button type="submit" disabled={!canManage || !dirty || invalid || setRetention.isPending}>
                 {setRetention.isPending ? <Spinner data-icon="inline-start" aria-label={t("loading")} /> : null}
                 {t("retention.save")}
               </Button>
@@ -75,34 +108,29 @@ export function AuditRetention({ orgId, canManage }: { orgId: string; canManage:
   );
 }
 
+const STATUS_TONE: Record<string, SettingsBadgeTone> = {
+  pending: "info",
+  running: "info",
+  done: "success",
+  failed: "destructive",
+};
+
 function StatusBadge({ status }: { status: string }) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.audit.export.status" });
   const label = t(status, { defaultValue: t("unknown") });
-  if (status === "pending" || status === "running") {
-    return (
-      <Badge variant="outline">
-        <Spinner aria-label={label} />
-        {label}
-      </Badge>
-    );
-  }
-  if (status === "failed") {
-    return (
-      <Badge variant="destructive">
-        <AlertCircle aria-hidden />
-        {label}
-      </Badge>
-    );
-  }
-  if (status === "done") {
-    return (
-      <Badge variant="secondary">
-        <Check aria-hidden />
-        {label}
-      </Badge>
-    );
-  }
-  return <Badge variant="outline">{label}</Badge>;
+  const icon =
+    status === "pending" || status === "running" ? (
+      <Loader2 aria-hidden className="animate-spin" />
+    ) : status === "failed" ? (
+      <AlertCircle aria-hidden />
+    ) : status === "done" ? (
+      <Check aria-hidden />
+    ) : null;
+  return (
+    <SettingsBadge tone={STATUS_TONE[status] ?? "muted"} icon={icon}>
+      {label}
+    </SettingsBadge>
+  );
 }
 
 function ExportRow({ job }: { job: AuditExport }) {
@@ -213,10 +241,10 @@ export function AuditExports({ orgId, canManage }: { orgId: string; canManage: b
             {!canManage ? t("export.owner_only") : running ? t("export.one_at_a_time") : t("export.hint")}
           </p>
         </form>
-        {exports.data && exports.data.length > 0 ? (
+        {exports.isLoading ? null : exports.data && exports.data.length > 0 ? (
           exports.data.map((job) => <ExportRow key={job.id} job={job} />)
         ) : (
-          <p className="px-4 py-3.5 text-caption text-muted-foreground">{t("export.empty")}</p>
+          <SettingsEmpty icon={<FileDown aria-hidden />}>{t("export.empty")}</SettingsEmpty>
         )}
       </SettingsCard>
     </SettingsSection>

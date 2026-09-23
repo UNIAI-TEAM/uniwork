@@ -66,7 +66,7 @@ export function AuditDetailSheet({
   actorName: string;
   onClose: () => void;
 }) {
-  const { t } = useTranslation(undefined, { keyPrefix: "settings.audit" });
+  const { t, i18n } = useTranslation(undefined, { keyPrefix: "settings.audit" });
   const labels = useAuditLabels();
   const changes = event ? changeEntries(event) : [];
 
@@ -97,7 +97,9 @@ export function AuditDetailSheet({
         {event ? (
           <dl className="divide-y divide-border px-4 pb-8">
             <Field label={t("table.time")}>
-              <time dateTime={event.occurred_at}>{new Date(event.occurred_at).toLocaleString()}</time>
+              <time dateTime={event.occurred_at}>
+                {new Date(event.occurred_at).toLocaleString(i18n.language, { dateStyle: "medium", timeStyle: "medium" })}
+              </time>
             </Field>
             <Field label={t("table.actor")}>
               <span className="flex flex-wrap items-center gap-2">
@@ -127,16 +129,20 @@ export function AuditDetailSheet({
                 <ul className="grid gap-2">
                   {changes.map(([field, change]) => (
                     <li key={field} className="grid gap-1 rounded-md bg-muted p-2">
-                      <span className="text-caption font-medium">{field}</span>
+                      <span className="text-caption font-medium" title={field}>{labels.field(field)}</span>
                       <span className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-caption">
                         <span className="min-w-0">
-                          <span className="block text-micro text-muted-foreground uppercase">{t("detail.from")}</span>
-                          <ChangeValue value={change.from} className="text-muted-foreground" full />
+                          <span className="block text-caption font-medium text-muted-foreground">{t("detail.from")}</span>
+                          <ChangeValue
+                            value={labels.value(field, change.from, event.resource_type)}
+                            className="text-muted-foreground"
+                            full
+                          />
                         </span>
                         <ArrowRight aria-hidden className="size-3.5 text-muted-foreground" />
                         <span className="min-w-0">
-                          <span className="block text-micro text-muted-foreground uppercase">{t("detail.to")}</span>
-                          <ChangeValue value={change.to} full />
+                          <span className="block text-caption font-medium text-muted-foreground">{t("detail.to")}</span>
+                          <ChangeValue value={labels.value(field, change.to, event.resource_type)} full />
                         </span>
                       </span>
                     </li>

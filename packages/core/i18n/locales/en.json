@@ -482,7 +482,7 @@
       }
     },
     "audit": {
-      "title": "Security & audit",
+      "title": "Activity log",
       "description": "Your organization's immutable log: who did what, when, and from where. Entries cannot be edited or deleted.",
       "empty_title": "No entries match",
       "empty_description": "Widen the filters or pick a longer date range. Every change to data has been recorded since this feature was switched on.",
@@ -493,19 +493,21 @@
       "retry": "Try again",
       "load_more": "Load more",
       "filters": {
-        "legend": "Filter the log",
+        "legend": "Filters",
         "action": "Action",
-        "action_placeholder": "task.updated",
         "actor": "Actor",
-        "actor_placeholder": "Pick or paste a user id",
+        "actor_placeholder": "Actor",
         "resource_type": "Resource type",
-        "resource_type_placeholder": "task",
         "from": "From",
         "to": "To",
-        "apply": "Apply",
-        "clear": "Clear",
-        "any": "All",
-        "active": "Filters active"
+        "clear": "Clear filters",
+        "any_action": "Any action",
+        "any_resource": "Any resource",
+        "actor_empty": "No member matches. Paste a user id to filter.",
+        "from_value": "From {{date}}",
+        "to_value": "To {{date}}",
+        "active_count_one": "{{count}} filter",
+        "active_count_other": "{{count}} filters"
       },
       "table": {
         "time": "When",
@@ -542,13 +544,14 @@
       },
       "retention": {
         "title": "Retention",
-        "description": "How many days the organization keeps its log. Between 30 and 730 days. Only the organization owner can change it.",
+        "description": "How many days the organization keeps its log. Expired entries leave the screen; nothing is deleted.",
         "label": "Days",
         "save": "Save",
         "saved": "Retention saved",
         "owner_only": "Only the organization owner can change this setting.",
         "unit": "days",
-        "hint": "Between 30 and 730 days. Expired entries leave the screen; nothing is deleted."
+        "hint": "Between 30 and 730 days.",
+        "out_of_range": "Enter a whole number between 30 and 730."
       },
       "export": {
         "title": "Export",
@@ -636,10 +639,54 @@
         "start_date": "Start date",
         "project_id": "Project",
         "parent_task_id": "Parent task",
-        "position": "Position"
+        "position": "Position",
+        "role": "Role",
+        "org_role": "Organization role",
+        "platform_role": "Platform role",
+        "name": "Name",
+        "slug": "Slug",
+        "handle": "Handle",
+        "owner_user_id": "Owner",
+        "stage": "Stage",
+        "visibility": "Visibility",
+        "topic": "Topic",
+        "kind": "Kind",
+        "code": "Code",
+        "parent_id": "Parent department",
+        "department_id": "Department",
+        "manager_id": "Manager",
+        "employee_code": "Employee code",
+        "location": "Location",
+        "phone_visible": "Phone visible",
+        "archived": "Archived",
+        "revoked": "Revoked",
+        "retain_days": "Retention days",
+        "starts_at": "Starts",
+        "ends_at": "Ends",
+        "meeting_type": "Meeting type",
+        "host_user_id": "Host",
+        "plan_code": "Plan",
+        "cancel_at": "Cancels at",
+        "enabled": "Enabled",
+        "scope_type": "Scope",
+        "scope_id": "Scope id",
+        "dependency_added": "Dependency added",
+        "dependency_removed": "Dependency removed"
       },
       "loading": "Loading…",
-      "empty_fresh_description": "Every change to data will appear here as soon as it happens."
+      "empty_fresh_description": "Every change to data will appear here as soon as it happens.",
+      "values": {
+        "yes": "Yes",
+        "no": "No",
+        "role": {
+          "agent": "Agent"
+        },
+        "visibility": {
+          "public": "Public",
+          "private": "Private"
+        }
+      },
+      "empty_fresh_title": "No entries yet"
     },
     "ai": {
       "title": "AI",
