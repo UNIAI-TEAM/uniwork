@@ -2179,6 +2179,8 @@
     "all_day": "Cả ngày",
     "expand_all_day": "Mở rộng sự kiện cả ngày",
     "collapse_all_day": "Thu gọn sự kiện cả ngày",
+    "planner_title": "Bảng kế hoạch",
+    "create_item": "Tạo mục lịch",
     "create_from_slot_title": "Tạo trên ô này",
     "create_from_slot_description": "Chọn nội dung muốn thêm vào lịch.",
     "create_task": "Việc mới",
