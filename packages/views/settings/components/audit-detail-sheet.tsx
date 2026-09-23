@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, Check, Copy } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import type { AuditEvent } from "@uniwork/core/types";
 import { Badge } from "@uniwork/ui/components/ui/badge";
-import { Button } from "@uniwork/ui/components/ui/button";
 import {
   Sheet,
   SheetContent,
@@ -13,7 +12,6 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@uniwork/ui/components/ui/sheet";
-import { copyText } from "@uniwork/ui/lib/clipboard";
 import {
   ActionIcon,
   ActorIcon,
@@ -22,6 +20,7 @@ import {
   EventTime,
   useAuditLabels,
 } from "../../audit/event-presenter";
+import { CopyableId } from "./copyable-id";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -32,46 +31,31 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-/** A monospace id with a copy button; a reader pastes it into the system log search. */
-function CopyableId({ value, label }: { value: string; label: string }) {
-  const { t } = useTranslation(undefined, { keyPrefix: "settings.audit.detail" });
-  const [copied, setCopied] = useState(false);
-  return (
-    <span className="inline-flex max-w-full items-center gap-1">
-      <code className="text-caption break-all">{value}</code>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-xs"
-        aria-label={copied ? t("copied") : `${t("copy")} ${label}`}
-        onClick={async () => {
-          if (await copyText(value)) {
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
-          }
-        }}
-      >
-        {copied ? <Check className="text-success" aria-hidden /> : <Copy aria-hidden />}
-      </Button>
-    </span>
-  );
-}
-
 export function AuditDetailSheet({
-  event,
-  actorName,
+  event: selected,
+  actorName: selectedActorName,
+  canSeeIp,
   onClose,
 }: {
   event: AuditEvent | null;
   actorName: string;
+  /** The server sends IP addresses to the organization owner only. */
+  canSeeIp: boolean;
   onClose: () => void;
 }) {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "settings.audit" });
   const labels = useAuditLabels();
+  // The caller clears the selection the moment the sheet starts closing; keep
+  // drawing the last entry so the content does not collapse mid-animation.
+  const [shown, setShown] = useState({ event: selected, actorName: selectedActorName });
+  if (selected && (selected !== shown.event || selectedActorName !== shown.actorName)) {
+    setShown({ event: selected, actorName: selectedActorName });
+  }
+  const { event, actorName } = shown;
   const changes = event ? changeEntries(event) : [];
 
   return (
-    <Sheet open={event !== null} onOpenChange={(open) => !open && onClose()}>
+    <Sheet open={selected !== null} onOpenChange={(open) => !open && onClose()}>
       <SheetContent className="w-full gap-0 overflow-y-auto sm:max-w-lg">
         <SheetHeader>
           <SheetTitle>
@@ -152,7 +136,13 @@ export function AuditDetailSheet({
             </Field>
             {Object.keys(event.metadata ?? {}).length > 0 ? (
               <Field label={t("detail.metadata")}>
-                <pre className="overflow-x-auto rounded-md bg-muted p-2 text-caption">
+                <pre
+                  // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrollable region must be reachable by keyboard to scroll it (axe scrollable-region-focusable)
+                  tabIndex={0}
+                  role="region"
+                  aria-label={t("detail.metadata")}
+                  className="overflow-x-auto rounded-md bg-muted p-2 text-caption outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
                   {JSON.stringify(event.metadata, null, 2)}
                 </pre>
               </Field>
@@ -161,13 +151,16 @@ export function AuditDetailSheet({
               <CopyableId value={event.correlation_id} label={t("detail.correlation")} />
               <p className="mt-1 text-caption text-muted-foreground">{t("detail.correlation_hint")}</p>
             </Field>
-            {/* The address is absent for an admin by design, and saying so is
-                better than a blank row that looks like missing data. */}
+            {/* The address is withheld from an admin by design, and saying so is
+                better than a blank row that looks like missing data. For the
+                owner a blank means the request carried none. */}
             <Field label={t("detail.ip")}>
               {event.ip_address ? (
                 <code className="text-caption">{event.ip_address}</code>
               ) : (
-                <span className="text-muted-foreground">{t("detail.ip_owner_only")}</span>
+                <span className="text-muted-foreground">
+                  {canSeeIp ? t("detail.ip_not_recorded") : t("detail.ip_owner_only")}
+                </span>
               )}
             </Field>
             {event.user_agent ? (

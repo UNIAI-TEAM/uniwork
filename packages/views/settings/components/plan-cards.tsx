@@ -5,26 +5,50 @@ import { useTranslation } from "react-i18next";
 import { Check } from "lucide-react";
 import type { Entitlement, Plan } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@uniwork/ui/components/ui/card";
+import { Card, CardContent, CardFooter, CardHeader } from "@uniwork/ui/components/ui/card";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ConfirmDialog } from "../../common/form-dialog";
 import { featureLabel } from "./billing-usage";
 import { SettingsBadge } from "./settings-layout";
 
-/** A paid plan needs the provider's checkout; a free one changes in place. */
+/**
+ * A plan with a price goes through the provider's checkout. A plan priced on
+ * request (price_amount null) has nothing to charge, so it is not paid here:
+ * the UI offers no online action for it at all (see isContactOnly).
+ */
 export function isPaid(plan: Plan): boolean {
-  return plan.price_amount === null || plan.price_amount > 0;
+  return plan.price_amount !== null && plan.price_amount > 0;
+}
+
+/** Priced on request: no checkout and no in-place switch. */
+export function isContactOnly(plan: Plan): boolean {
+  return plan.price_amount === null;
+}
+
+/** Currencies whose minor unit is never shown (ISO 4217 exponent 0 in practice). */
+const ZERO_DECIMAL_CURRENCIES = new Set(["VND", "JPY", "KRW", "CLP", "ISK", "UGX", "XAF", "XOF"]);
+
+function formatAmount(amount: number, currency: string, locale: string): string {
+  const code = currency.toUpperCase();
+  const zeroDecimal = ZERO_DECIMAL_CURRENCIES.has(code);
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: code,
+      ...(zeroDecimal ? { maximumFractionDigits: 0 } : {}),
+    }).format(amount);
+  } catch {
+    // An unknown currency code throws RangeError; a price must not take the
+    // whole tab down with it, so show the number and the raw code.
+    return `${amount.toLocaleString(locale)} ${currency}`.trim();
+  }
 }
 
 export function formatPrice(plan: Plan, locale: string, t: (k: string, o?: Record<string, unknown>) => string): string {
   if (plan.price_amount === null) return t("price_contact");
   if (plan.price_amount === 0) return t("price_free");
-  const amount = new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency: plan.price_currency,
-    maximumFractionDigits: 0,
-  }).format(plan.price_amount);
+  const amount = formatAmount(plan.price_amount, plan.price_currency, locale);
   return plan.billing_period === "none"
     ? amount
     : t("price_per", { amount, period: t(`period.${plan.billing_period}`, { defaultValue: plan.billing_period }) });
@@ -96,10 +120,11 @@ export function PlanCards({ plans, currentCode, entitlements, busy, pendingCode,
               data-testid={`plan-card-${plan.code}`}
             >
               <CardHeader className="gap-1.5 px-4">
-                <CardTitle className="flex min-h-6 items-center justify-between gap-2 text-body font-semibold">
-                  <span className="truncate">{plan.name}</span>
+                {/* The section title "Các gói" is the h3; each plan is one level under it. */}
+                <div className="flex min-h-6 items-center justify-between gap-2">
+                  <h4 className="truncate text-body font-semibold">{plan.name}</h4>
                   {current ? <SettingsBadge tone="brand">{t("plan_current")}</SettingsBadge> : null}
-                </CardTitle>
+                </div>
                 <p className="text-title font-semibold tabular-nums">{formatPrice(plan, locale, t)}</p>
                 {describes || plan.description ? (
                   <p className={cn("text-caption text-pretty text-muted-foreground", describes && "line-clamp-2 min-h-10")}>
@@ -117,7 +142,13 @@ export function PlanCards({ plans, currentCode, entitlements, busy, pendingCode,
                   ))}
                 </ul>
               </CardContent>
-              {current ? null : (
+              {current ? null : isContactOnly(plan) ? (
+                // No contact channel exists in the product, so there is no
+                // button to press: the price line already says "contact us".
+                <CardFooter className="mt-auto px-4">
+                  <p className="text-caption text-pretty text-muted-foreground">{t("contact_only")}</p>
+                </CardFooter>
+              ) : (
                 // The current plan is already marked in the header; a second
                 // "current plan" control would only repeat it. The footer sits
                 // at the card's bottom so buttons line up across the row.

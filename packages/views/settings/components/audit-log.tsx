@@ -30,7 +30,8 @@ import {
 import { CollectionPageState } from "../../layout/collection-page";
 import { AuditDetailSheet } from "./audit-detail-sheet";
 import { AuditFilters, EMPTY_FILTERS, type AuditFilterValues } from "./audit-filters";
-import { SettingsCard, SettingsSection } from "./settings-layout";
+import { CorrelationNote } from "./copyable-id";
+import { SettingsCard, SettingsLoadError, SettingsSection } from "./settings-layout";
 
 /** A day the user picked becomes an instant the server can compare against. */
 export function dayStart(value: string): string {
@@ -66,7 +67,16 @@ function LogSkeleton() {
   );
 }
 
-export function AuditLog({ orgId, workspaceId }: { orgId: string; workspaceId: string }) {
+export function AuditLog({
+  orgId,
+  workspaceId,
+  canSeeIp,
+}: {
+  orgId: string;
+  workspaceId: string;
+  /** Whether the server sends this viewer IP addresses (the owner only). */
+  canSeeIp: boolean;
+}) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.audit" });
   const labels = useAuditLabels();
   const [filters, setFilters] = useState<AuditFilterValues>(EMPTY_FILTERS);
@@ -101,6 +111,10 @@ export function AuditLog({ orgId, workspaceId }: { orgId: string; workspaceId: s
 
   const rows = events.data?.pages.flatMap((p) => p.events) ?? [];
   const filtering = Object.values(applied).some(Boolean);
+  // A failed "load more" (or a failed background refetch) keeps what is
+  // already on screen; only a first load with nothing to show is a full error.
+  const failedWithoutData = events.isError && !events.data;
+  const failedWithData = events.isError && Boolean(events.data);
 
   return (
     <>
@@ -113,16 +127,22 @@ export function AuditLog({ orgId, workspaceId }: { orgId: string; workspaceId: s
         />
       </SettingsSection>
 
-      <SettingsSection>
+      <SettingsSection title={t("log_title")}>
         {events.isLoading ? (
           <SettingsCard><LogSkeleton /></SettingsCard>
-        ) : events.isError ? (
+        ) : failedWithoutData ? (
           <CollectionPageState
             icon={AlertCircle}
             tone="destructive"
             role="alert"
+            headingLevel={3}
             title={t("error_title")}
-            description={t("error_description")}
+            description={
+              <>
+                {t("error_description")}
+                <CorrelationNote error={events.error} />
+              </>
+            }
             actions={
               <Button variant="outline" onClick={() => void events.refetch()}>
                 {t("retry")}
@@ -135,6 +155,7 @@ export function AuditLog({ orgId, workspaceId }: { orgId: string; workspaceId: s
             title={filtering ? t("empty_title") : t("empty_fresh_title")}
             description={filtering ? t("empty_description") : t("empty_fresh_description")}
             role="status"
+            headingLevel={3}
             actions={
               filtering ? (
                 <Button variant="outline" onClick={() => setFilters(EMPTY_FILTERS)}>
@@ -148,12 +169,12 @@ export function AuditLog({ orgId, workspaceId }: { orgId: string; workspaceId: s
             {/* A page is capped at 100 rows by the API, so the table renders
                 whole rather than virtualizing; paging is the cursor below. */}
             <div className="overflow-x-auto">
-              <Table className="table-fixed md:min-w-[640px]">
+              <Table aria-label={t("table_label")} className="table-fixed md:min-w-[640px]">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[70%] pl-4 md:w-[34%]">{t("table.action")}</TableHead>
-                    <TableHead className="hidden w-[18%] md:table-cell">{t("table.actor")}</TableHead>
-                    <TableHead className="hidden w-[33%] md:table-cell">{t("table.changes")}</TableHead>
+                    <TableHead className="w-[70%] pl-4 md:w-[32%]">{t("table.action")}</TableHead>
+                    <TableHead className="hidden w-[22%] md:table-cell">{t("table.actor")}</TableHead>
+                    <TableHead className="hidden w-[31%] md:table-cell">{t("table.changes")}</TableHead>
                     <TableHead className="w-[30%] pr-4 text-right md:w-[15%]">{t("table.time")}</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -203,7 +224,15 @@ export function AuditLog({ orgId, workspaceId }: { orgId: string; workspaceId: s
             </div>
           </SettingsCard>
         )}
-        {events.hasNextPage ? (
+        {failedWithData ? (
+          <SettingsCard>
+            <SettingsLoadError
+              onRetry={() => void (events.isFetchNextPageError ? events.fetchNextPage() : events.refetch())}
+            >
+              {events.isFetchNextPageError ? t("load_more_error") : t("error_title")}
+            </SettingsLoadError>
+          </SettingsCard>
+        ) : events.hasNextPage ? (
           <div className="flex justify-center">
             <Button variant="outline" disabled={events.isFetchingNextPage} onClick={() => void events.fetchNextPage()}>
               {events.isFetchingNextPage ? <Spinner data-icon="inline-start" aria-label={t("loading")} /> : null}
@@ -213,7 +242,12 @@ export function AuditLog({ orgId, workspaceId }: { orgId: string; workspaceId: s
         ) : null}
       </SettingsSection>
 
-      <AuditDetailSheet event={selected} actorName={selected ? actorName(selected) : ""} onClose={() => setSelected(null)} />
+      <AuditDetailSheet
+        event={selected}
+        actorName={selected ? actorName(selected) : ""}
+        canSeeIp={canSeeIp}
+        onClose={() => setSelected(null)}
+      />
     </>
   );
 }

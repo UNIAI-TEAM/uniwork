@@ -182,12 +182,19 @@ export function AuditFilters({
             </Button>
           </div>
         ) : null}
-        {fetching ? (
-          <span role="status" className="inline-flex items-center gap-1.5 text-caption text-muted-foreground md:ml-auto">
-            <Spinner className="size-3" aria-hidden />
-            {t("loading")}
-          </span>
-        ) : null}
+        {/* Always mounted: a live region inserted together with its text is
+            not reliably announced, so only its content comes and goes. */}
+        <span
+          role="status"
+          className="inline-flex items-center gap-1.5 text-caption text-muted-foreground md:ml-auto"
+        >
+          {fetching ? (
+            <>
+              <Spinner className="size-3" aria-hidden />
+              {t("loading")}
+            </>
+          ) : null}
+        </span>
       </div>
     </details>
   );

@@ -1,11 +1,13 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
+import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { requestMock, wrap } from "../../test/api-mock";
 import { WorkspaceProvider } from "../../layout/workspace-context";
 import { BillingTab } from "./billing-tab";
+import { formatPrice } from "./plan-cards";
 
 initI18n();
 
@@ -45,7 +47,10 @@ const plans = [
   { id: "p1", code: "starter", name: "Starter", price_amount: 0, features: [] },
   { id: "p2", code: "team", name: "Team", price_amount: 500000, billing_period: "month", features: [{ feature_key: "members.max", enabled: true, quota_limit: 50 }] },
   { id: "p3", code: "team_free", name: "Team Free", price_amount: 0, features: [] },
+  // Priced on request: nothing to charge, so no online action.
+  { id: "p4", code: "enterprise", name: "Enterprise", price_amount: null, features: [] },
 ];
+const paidSubscription = { ...subscription, plan_code: "team", plan_name: "Team", current_period_end: "2026-10-06T00:00:00Z" };
 
 /** `role` is what the organizations list reports — the only thing the gate reads. */
 function mockApi(role: string, sub: Record<string, unknown> = subscription) {
@@ -100,11 +105,23 @@ describe("BillingTab", () => {
     expect(within(screen.getByTestId("plan-card-starter")).getAllByText("Gói hiện tại")).toHaveLength(1);
     expect(screen.queryByRole("button", { name: "Gói hiện tại" })).toBeNull();
     expect(screen.getByRole("button", { name: "Thanh toán" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Ngừng gói" })).toBeInTheDocument();
+    // Plan names are headings under the "Các gói" section.
+    expect(screen.getByRole("heading", { level: 4, name: "Team" })).toBeInTheDocument();
+    // The free default plan cannot be stopped: there is nothing below it.
+    expect(screen.queryByRole("button", { name: "Ngừng gói" })).toBeNull();
+  });
+
+  it("offers no checkout for a plan priced on request", async () => {
+    mockApi("owner");
+    renderTab();
+    const card = await screen.findByTestId("plan-card-enterprise");
+    expect(within(card).getByText("Liên hệ để báo giá")).toBeInTheDocument();
+    expect(within(card).getByText(/không đăng ký trực tuyến/)).toBeInTheDocument();
+    expect(within(card).queryByRole("button")).toBeNull();
   });
 
   it("asks before stopping the plan and only then calls the server", async () => {
-    mockApi("owner");
+    mockApi("owner", paidSubscription);
     renderTab();
     fireEvent.click(await screen.findByRole("button", { name: "Ngừng gói" }));
     expect(await screen.findByText("Ngừng gói vào cuối kỳ?")).toBeInTheDocument();
@@ -116,7 +133,7 @@ describe("BillingTab", () => {
   });
 
   it("shows a scheduled stop as a warning with a way back, and no second stop button", async () => {
-    mockApi("owner", { ...subscription, cancel_at: "2026-10-06T00:00:00Z" });
+    mockApi("owner", { ...paidSubscription, cancel_at: "2026-10-06T00:00:00Z" });
     renderTab();
     expect(await screen.findByText(/Gói ngừng vào/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Khôi phục" })).toBeInTheDocument();
@@ -152,6 +169,40 @@ describe("BillingTab", () => {
     expect(screen.getByText("Chỉ chủ sở hữu tổ chức đổi được gói.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Chọn gói này" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Ngừng gói" })).toBeNull();
+    // What past due means, until when, and who can act on it.
+    expect(screen.getByText(/Chưa ghi nhận thanh toán/)).toHaveTextContent("13/10/2026");
+    expect(screen.getByText(/Chỉ chủ sở hữu tổ chức thanh toán được/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Thanh toán ngay" })).toBeNull();
+  });
+
+  it("lets the owner pay a past-due paid plan from the notice", async () => {
+    mockApi("owner", { ...paidSubscription, status: "past_due" });
+    renderTab();
+    expect(await screen.findByRole("button", { name: "Thanh toán ngay" })).toBeEnabled();
+    expect(screen.queryByText(/Chỉ chủ sở hữu tổ chức thanh toán được/)).toBeNull();
+  });
+
+  it("says the plans could not be loaded, with a retry, instead of an empty grid", async () => {
+    mockApi("owner");
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: string, init?: unknown) =>
+      path === "/api/v1/plans" ? Promise.reject(new Error("boom")) : base(path, init),
+    );
+    renderTab();
+    expect(await screen.findAllByText("Không tải được danh sách gói.", undefined, { timeout: 8_000 })).not.toHaveLength(0);
+    expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
+  });
+
+  it("shows the failed request's correlation id with a way to copy it", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/orgs") {
+        return Promise.resolve({ organizations: [{ id: "o1", slug: "acme", name: "Acme", role: "owner" }] });
+      }
+      return Promise.reject(new ApiError("lỗi máy chủ", "internal", 500, "corr-123"));
+    });
+    renderTab();
+    expect(await screen.findByText("corr-123")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sao chép mã tương quan" })).toBeInTheDocument();
   });
 
   it("tells a plain member why billing is not theirs", async () => {
@@ -170,5 +221,20 @@ describe("BillingTab", () => {
     });
     renderTab();
     expect(await screen.findByText("Không tải được thông tin gói")).toBeInTheDocument();
+  });
+});
+
+describe("formatPrice", () => {
+  const t = (k: string, o?: Record<string, unknown>) => (k === "price_per" ? `${String(o?.amount)} / ${String(o?.period)}` : k);
+  const plan = { id: "p", code: "p", name: "P", description: "", billing_period: "none", is_default: false, features: [] };
+
+  it("keeps cents for a currency that has them and drops them for VND", () => {
+    expect(formatPrice({ ...plan, price_amount: 9.5, price_currency: "USD" }, "en", t)).toContain("9.50");
+    expect(formatPrice({ ...plan, price_amount: 500000, price_currency: "VND" }, "vi", t)).not.toMatch(/,00/);
+  });
+
+  it("does not throw on a currency code Intl does not know", () => {
+    expect(() => formatPrice({ ...plan, price_amount: 10, price_currency: "NOT A CODE" }, "vi", t)).not.toThrow();
+    expect(formatPrice({ ...plan, price_amount: 10, price_currency: "NOT A CODE" }, "vi", t)).toContain("NOT A CODE");
   });
 });

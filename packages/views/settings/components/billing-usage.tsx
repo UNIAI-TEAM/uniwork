@@ -64,7 +64,7 @@ export function BillingUsage({ entitlements }: { entitlements: Entitlement[] }) 
   if (visible.length === 0) {
     return (
       <SettingsSection title={t("usage_quotas")}>
-        <CollectionPageState icon={CreditCard} title={t("no_entitlements")} role="status" />
+        <CollectionPageState icon={CreditCard} title={t("no_entitlements")} role="status" headingLevel={3} />
       </SettingsSection>
     );
   }

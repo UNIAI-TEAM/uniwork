@@ -69,7 +69,9 @@ export function QuotaMeterRow({
     return (
       <SettingsRow label={label} description={description} size="none" className="min-h-12 py-2.5">
         <span className="block text-caption text-muted-foreground tabular-nums sm:text-right">
-          {t("usage_unbounded", { used: u.amount, unit: u.unit }).replace(/\s+·/, " ·")}
+          {u.unit
+            ? t("usage_unbounded_unit", { used: u.amount, unit: u.unit })
+            : t("usage_unbounded_plain", { used: u.amount })}
         </span>
       </SettingsRow>
     );
