@@ -50,6 +50,31 @@ export function formatChatSidebarPreviewText(
   return body;
 }
 
+type SidebarTimeFormat = "time" | "weekday" | "date";
+
+const SIDEBAR_TIME_OPTIONS: Record<SidebarTimeFormat, Intl.DateTimeFormatOptions> = {
+  time: { hour: "2-digit", minute: "2-digit" },
+  weekday: { weekday: "short" },
+  date: { month: "numeric", day: "numeric", year: "numeric" },
+};
+
+/*
+ * Building an Intl.DateTimeFormat is the expensive part of toLocale*String,
+ * and the sidebar formats one time per row on every render. One formatter per
+ * locale and shape is enough.
+ */
+const sidebarTimeFormatters = new Map<string, Intl.DateTimeFormat>();
+
+function sidebarTimeFormatter(locale: string | undefined, format: SidebarTimeFormat): Intl.DateTimeFormat {
+  const key = `${locale ?? ""}|${format}`;
+  let formatter = sidebarTimeFormatters.get(key);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, SIDEBAR_TIME_OPTIONS[format]);
+    sidebarTimeFormatters.set(key, formatter);
+  }
+  return formatter;
+}
+
 export function formatChatSidebarTime(
   iso: string | undefined,
   options: { now?: Date; yesterdayLabel: string; locale?: string },
@@ -65,15 +90,15 @@ export function formatChatSidebarTime(
     (startOfDay(now).getTime() - startOfDay(date).getTime()) / (24 * 60 * 60 * 1000);
 
   if (dayDiff === 0) {
-    return date.toLocaleTimeString(options.locale, { hour: "2-digit", minute: "2-digit" });
+    return sidebarTimeFormatter(options.locale, "time").format(date);
   }
   if (dayDiff === 1) {
     return options.yesterdayLabel;
   }
   if (dayDiff < 7) {
-    return date.toLocaleDateString(options.locale, { weekday: "short" });
+    return sidebarTimeFormatter(options.locale, "weekday").format(date);
   }
-  return date.toLocaleDateString(options.locale, { month: "numeric", day: "numeric", year: "numeric" });
+  return sidebarTimeFormatter(options.locale, "date").format(date);
 }
 
 export function compareRoomPreviewRecency(

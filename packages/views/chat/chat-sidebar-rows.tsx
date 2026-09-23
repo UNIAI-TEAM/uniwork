@@ -1,7 +1,7 @@
 "use client";
 
 import { BellOff, Pin } from "lucide-react";
-import type { ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/react/shallow";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
@@ -19,9 +19,28 @@ import {
 import { formatSidebarTypingPreview } from "./chat-sidebar-typing";
 import { SidebarTypingDots } from "./sidebar-typing-dots";
 
-export function SidebarNavItem({
+export type SidebarPreviewOptions = {
+  currentUserId: string;
+  isGroup: boolean;
+  youLabel: string;
+  voiceCallLabel: string;
+  voiceMessageLabel: string;
+  fileMessageLabel?: string;
+  yesterdayLabel: string;
+  nicknamesByUserId?: Record<string, string>;
+};
+
+/**
+ * One conversation row. Memoised: the sidebar re-renders on every unread
+ * bump and presence change, and a row whose own props did not move should
+ * not rebuild its preview line.
+ */
+export const SidebarNavItem = memo(function SidebarNavItem({
   active,
   onClick,
+  rowIndex,
+  tabIndex,
+  onRowFocus,
   avatar,
   title,
   fallbackSubtitle,
@@ -37,22 +56,18 @@ export function SidebarNavItem({
 }: {
   active: boolean;
   onClick: () => void;
+  /** Position in the list; the list's roving focus finds rows by it. */
+  rowIndex?: number;
+  /** Roving tabindex: only one row of the list is in the tab order. */
+  tabIndex?: number;
+  onRowFocus?: (rowIndex: number) => void;
   avatar: ReactNode;
   title: string;
   fallbackSubtitle?: string;
   preview?: ChatRoomPreview;
   roomId?: string | null;
   contacts?: readonly ChatContact[];
-  previewOptions: {
-    currentUserId: string;
-    isGroup: boolean;
-    youLabel: string;
-    voiceCallLabel: string;
-    voiceMessageLabel: string;
-    fileMessageLabel?: string;
-    yesterdayLabel: string;
-    nicknamesByUserId?: Record<string, string>;
-  };
+  previewOptions: SidebarPreviewOptions;
   unread: number;
   mentionUnread?: number;
   unreadBadgesReady: boolean;
@@ -94,6 +109,9 @@ export function SidebarNavItem({
   return (
     <button
       type="button"
+      data-chat-sidebar-row={rowIndex}
+      tabIndex={tabIndex}
+      onFocus={rowIndex === undefined || !onRowFocus ? undefined : () => onRowFocus(rowIndex)}
       aria-current={active ? "true" : undefined}
       // The row publishes its fill as --row-fill so the presence dot's
       // cut-out ring matches whatever the row is painted with.
@@ -147,7 +165,6 @@ export function SidebarNavItem({
                       ? "font-medium text-foreground"
                       : "text-muted-foreground",
                 )}
-                aria-live={typingPreview ? "polite" : undefined}
               >
                 {typingPreview ? (
                   <>
@@ -178,7 +195,7 @@ export function SidebarNavItem({
       />
     </button>
   );
-}
+});
 
 const BADGE = "h-5 min-w-5 shrink-0 justify-center rounded-full px-1.5 text-micro font-semibold tabular-nums";
 
@@ -214,7 +231,12 @@ function UnreadBadge({
       ) : null}
       {count > 0 ? (
         <Badge
-          className={cn(BADGE, muted ? "bg-muted text-muted-foreground" : "bg-brand text-brand-foreground")}
+          // A muted count sits on the page fill with a hairline: bg-muted is
+          // also the row's hover wash, so it would vanish under the pointer.
+          className={cn(
+            BADGE,
+            muted ? "border border-border bg-background text-muted-foreground" : "bg-brand text-brand-foreground",
+          )}
           aria-label={t("chat.unread_badge_aria", { count })}
         >
           {count > 99 ? "99+" : String(count)}

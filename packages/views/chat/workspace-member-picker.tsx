@@ -1,8 +1,8 @@
 "use client";
 
 import { Search, UserPlus, X } from "lucide-react";
-import type { KeyboardEvent, ReactNode } from "react";
-import { useId, useMemo } from "react";
+import type { KeyboardEvent, ReactNode, RefObject } from "react";
+import { useCallback, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toChatContactFromLookup, useLookupChatUser } from "@uniwork/core/chat";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
@@ -38,6 +38,8 @@ export function WorkspaceMemberSearchField({
   onSubmit,
   placeholder,
   hint,
+  inputRef,
+  onArrowDown,
 }: {
   id: string;
   label: string;
@@ -46,8 +48,14 @@ export function WorkspaceMemberSearchField({
   onSubmit: () => void;
   placeholder: string;
   hint?: string;
+  /** The dialog returns focus here after a pick, a chip removal or a clear. */
+  inputRef?: RefObject<HTMLInputElement | null>;
+  /** ↓ from the field moves into the result list. */
+  onArrowDown?: () => void;
 }) {
   const { t } = useTranslation();
+  const localRef = useRef<HTMLInputElement>(null);
+  const ref = inputRef ?? localRef;
   const hasQuery = query.trim().length > 0;
   const hintId = `${id}-hint`;
 
@@ -68,6 +76,7 @@ export function WorkspaceMemberSearchField({
           className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
         />
         <Input
+          ref={ref}
           id={id}
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
@@ -75,6 +84,10 @@ export function WorkspaceMemberSearchField({
             // Enter that confirms a Telex/VNI syllable must not run the search.
             if (e.key === "Enter" && (e.nativeEvent.isComposing || e.keyCode === 229)) {
               e.preventDefault();
+            }
+            if (e.key === "ArrowDown" && onArrowDown) {
+              e.preventDefault();
+              onArrowDown();
             }
           }}
           placeholder={placeholder}
@@ -90,7 +103,10 @@ export function WorkspaceMemberSearchField({
             size="icon-sm"
             className="absolute right-1 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             aria-label={t("chat.clear_search")}
-            onClick={() => onQueryChange("")}
+            onClick={() => {
+              onQueryChange("");
+              ref.current?.focus();
+            }}
           >
             <X className="size-4" aria-hidden />
           </Button>
@@ -107,12 +123,27 @@ export function WorkspaceMemberSearchField({
 
 const ROW_SELECTOR = "[data-member-picker-row]";
 
-/** Up/Down/Home/End move focus between rows, like a menu. */
-function moveRowFocus(event: KeyboardEvent<HTMLUListElement>) {
+/**
+ * Focus plumbing every "add people" dialog shares: after a pick, a chip
+ * removal or a cleared search, focus goes back to the search field (the row
+ * that was picked is gone); ↓ from the field enters the list.
+ */
+export function useMemberPickerFocus() {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const focusInput = useCallback(() => inputRef.current?.focus(), []);
+  const focusFirstRow = useCallback(() => {
+    listRef.current?.querySelector<HTMLElement>(ROW_SELECTOR)?.focus();
+  }, []);
+  return { inputRef, listRef, focusInput, focusFirstRow };
+}
+
+/** Up/Down/Home/End move focus between rows, like a menu; returns the new row. */
+function moveRowFocus(event: KeyboardEvent<HTMLUListElement>): number | null {
   const keys = ["ArrowDown", "ArrowUp", "Home", "End"];
-  if (!keys.includes(event.key)) return;
+  if (!keys.includes(event.key)) return null;
   const rows = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>(ROW_SELECTOR));
-  if (rows.length === 0) return;
+  if (rows.length === 0) return null;
   event.preventDefault();
   const current = rows.indexOf(document.activeElement as HTMLButtonElement);
   let next = 0;
@@ -120,6 +151,7 @@ function moveRowFocus(event: KeyboardEvent<HTMLUListElement>) {
   else if (event.key === "ArrowDown") next = current < 0 ? 0 : Math.min(current + 1, rows.length - 1);
   else if (event.key === "ArrowUp") next = current < 0 ? 0 : Math.max(current - 1, 0);
   rows[next]?.focus();
+  return next;
 }
 
 function MemberRowSkeleton() {
@@ -144,6 +176,7 @@ export function WorkspaceMemberPickerList({
   allPickedLabel,
   actionIcon,
   onPick,
+  listRef,
 }: {
   members: Member[];
   loading?: boolean;
@@ -158,9 +191,14 @@ export function WorkspaceMemberPickerList({
   allPickedLabel?: string;
   actionIcon?: ReactNode;
   onPick: (contact: ChatContact) => void;
+  /** From useMemberPickerFocus: lets ↓ in the search field reach the rows. */
+  listRef?: RefObject<HTMLDivElement | null>;
 }) {
   const { t } = useTranslation();
   const headingId = useId();
+  // Roving tabindex: the list is one Tab stop; arrows move inside it.
+  const [focusIndex, setFocusIndex] = useState(0);
+  const tabStop = focusIndex < members.length ? focusIndex : 0;
 
   let body: ReactNode;
   if (loading) {
@@ -190,9 +228,12 @@ export function WorkspaceMemberPickerList({
       <ul
         aria-labelledby={headingId}
         className="divide-y divide-border rounded-lg border border-border"
-        onKeyDown={moveRowFocus}
+        onKeyDown={(event) => {
+          const next = moveRowFocus(event);
+          if (next !== null) setFocusIndex(next);
+        }}
       >
-        {members.map((member) => {
+        {members.map((member, index) => {
           const contact = memberToChatContact(member);
           const label = memberDisplayLabel(member);
           return (
@@ -200,6 +241,8 @@ export function WorkspaceMemberPickerList({
               <button
                 type="button"
                 data-member-picker-row=""
+                tabIndex={index === tabStop ? 0 : -1}
+                onFocus={() => setFocusIndex(index)}
                 className="group flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-surface-hover pointer-coarse:min-h-11"
                 onClick={() => onPick(contact)}
               >
@@ -223,7 +266,7 @@ export function WorkspaceMemberPickerList({
   }
 
   return (
-    <div className="space-y-2">
+    <div ref={listRef} className="space-y-2">
       <p id={headingId} className="text-overline uppercase text-muted-foreground">
         {heading ?? t("chat.workspace_members")}
       </p>

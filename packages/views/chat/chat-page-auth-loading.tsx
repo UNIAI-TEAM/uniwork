@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslation } from "react-i18next";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { ChatConversationSkeleton } from "./chat-conversation-skeleton";
 
@@ -8,9 +9,12 @@ import { ChatConversationSkeleton } from "./chat-conversation-skeleton";
  * list column and an opening room — so nothing moves when it arrives.
  */
 export function ChatPageAuthLoading() {
+  const { t } = useTranslation();
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 bg-surface lg:grid lg:grid-cols-[18rem_minmax(0,1fr)] xl:grid-cols-[20rem_minmax(0,1fr)]" aria-busy>
-      <div className="hidden flex-col gap-3 border-r border-border p-3 lg:flex">
+    <div className="flex h-full min-h-0 w-full flex-1 bg-surface lg:grid lg:grid-cols-[18rem_minmax(0,1fr)] xl:grid-cols-[20rem_minmax(0,1fr)]">
+      {/* The page keeps its one h1 while the session is restored. */}
+      <h1 className="sr-only">{t("chat.title")}</h1>
+      <div aria-hidden className="hidden flex-col gap-3 border-r border-border p-3 lg:flex">
         <Skeleton className="h-8 w-full" />
         <div className="flex gap-1">
           <Skeleton className="h-7 w-14" />

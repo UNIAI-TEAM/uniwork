@@ -10,6 +10,7 @@ import {
   MoreHorizontal,
   PanelLeft,
   Phone,
+  Search,
   Video,
   type LucideIcon,
 } from "lucide-react";
@@ -31,6 +32,7 @@ function HeaderAction({
   disabled,
   className,
   expanded,
+  ...rest
 }: {
   icon: LucideIcon;
   label?: string;
@@ -38,6 +40,7 @@ function HeaderAction({
   disabled?: boolean;
   className?: string;
   expanded?: boolean;
+  "data-chat-sidebar-expand"?: string;
 }) {
   return (
     <Tooltip>
@@ -52,10 +55,11 @@ function HeaderAction({
             aria-expanded={expanded}
             disabled={disabled}
             onClick={onClick}
+            {...rest}
           />
         }
       >
-        <Icon className="size-[18px]" aria-hidden />
+        <Icon className="size-4.5" aria-hidden />
       </TooltipTrigger>
       {label ? <TooltipContent>{label}</TooltipContent> : null}
     </Tooltip>
@@ -84,6 +88,8 @@ export function ChatConversationHeader({
   videoCallAriaLabel,
   onVideoCall,
   videoCallDisabled,
+  searchAriaLabel,
+  onSearch,
   className,
 }: {
   avatar: ReactNode;
@@ -107,10 +113,15 @@ export function ChatConversationHeader({
   videoCallAriaLabel?: string;
   onVideoCall?: () => void;
   videoCallDisabled?: boolean;
+  /** Search this conversation: an icon from sm, a menu entry on a phone. */
+  searchAriaLabel?: string;
+  onSearch?: () => void;
   className?: string;
 }) {
   const { t } = useTranslation();
-  const hasSecondary = Boolean(onCatchUp || onOpenRecordings);
+  // Below sm every action but settings folds into one "more" menu — calls
+  // included — so a 360px screen still gives the room name its width.
+  const hasMenu = Boolean(onSearch || onCatchUp || onOpenRecordings || onVideoCall || onVoiceCall);
   return (
     <header
       className={cn(
@@ -131,11 +142,24 @@ export function ChatConversationHeader({
           expanded={false}
           onClick={onToggleSidebar}
           className="hidden lg:inline-flex"
+          data-chat-sidebar-expand=""
         />
       ) : null}
-      <div className="shrink-0">{avatar}</div>
+      {/* 32px on a phone, the full mark from sm: the avatar yields width to the name. */}
+      <div className="flex size-8 shrink-0 items-center justify-center *:shrink-0 max-sm:*:scale-80 sm:size-auto">
+        {avatar}
+      </div>
       <div className="min-w-0 flex-1">
-        <h1 className="truncate text-body-lg leading-tight font-semibold text-foreground">{title}</h1>
+        {/* The page's h1 is "Trò chuyện"; the open room is the section under it.
+            Focus lands here when a conversation opens on a phone. */}
+        <h2
+          tabIndex={-1}
+          data-chat-conversation-title=""
+          title={title}
+          className="truncate text-body-lg leading-tight font-semibold text-foreground focus-visible:outline-offset-2"
+        >
+          {title}
+        </h2>
         {subtitle ? (
           <p className="truncate text-caption leading-tight text-muted-foreground tabular-nums">{subtitle}</p>
         ) : null}
@@ -143,6 +167,9 @@ export function ChatConversationHeader({
       <div className="flex shrink-0 items-center gap-0.5">
         {/* Secondary actions stand in the row from sm; on a phone they fold
             into one "more" menu so the title keeps its width. */}
+        {onSearch ? (
+          <HeaderAction icon={Search} label={searchAriaLabel} onClick={onSearch} className="hidden sm:inline-flex" />
+        ) : null}
         {onCatchUp ? (
           <HeaderAction
             icon={History}
@@ -161,12 +188,24 @@ export function ChatConversationHeader({
           />
         ) : null}
         {onVideoCall ? (
-          <HeaderAction icon={Video} label={videoCallAriaLabel} disabled={videoCallDisabled} onClick={onVideoCall} />
+          <HeaderAction
+            icon={Video}
+            label={videoCallAriaLabel}
+            disabled={videoCallDisabled}
+            onClick={onVideoCall}
+            className="hidden sm:inline-flex"
+          />
         ) : null}
         {onVoiceCall ? (
-          <HeaderAction icon={Phone} label={voiceCallAriaLabel} disabled={voiceCallDisabled} onClick={onVoiceCall} />
+          <HeaderAction
+            icon={Phone}
+            label={voiceCallAriaLabel}
+            disabled={voiceCallDisabled}
+            onClick={onVoiceCall}
+            className="hidden sm:inline-flex"
+          />
         ) : null}
-        {hasSecondary ? (
+        {hasMenu ? (
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
@@ -179,9 +218,27 @@ export function ChatConversationHeader({
                 />
               }
             >
-              <MoreHorizontal className="size-[18px]" aria-hidden />
+              <MoreHorizontal className="size-4.5" aria-hidden />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-48">
+              {onSearch ? (
+                <DropdownMenuItem onClick={onSearch}>
+                  <Search aria-hidden />
+                  {searchAriaLabel}
+                </DropdownMenuItem>
+              ) : null}
+              {onVideoCall ? (
+                <DropdownMenuItem disabled={videoCallDisabled} onClick={onVideoCall}>
+                  <Video aria-hidden />
+                  {videoCallAriaLabel}
+                </DropdownMenuItem>
+              ) : null}
+              {onVoiceCall ? (
+                <DropdownMenuItem disabled={voiceCallDisabled} onClick={onVoiceCall}>
+                  <Phone aria-hidden />
+                  {voiceCallAriaLabel}
+                </DropdownMenuItem>
+              ) : null}
               {onCatchUp ? (
                 <DropdownMenuItem disabled={catchUpDisabled} onClick={onCatchUp}>
                   <History aria-hidden />
