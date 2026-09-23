@@ -134,6 +134,32 @@ describe("FullCalendarHost", () => {
     expect(screen.queryByText("GMT+7")).not.toBeInTheDocument();
   });
 
+  it("hides weekends in week and month views when configured", () => {
+    const { rerender } = render(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="week"
+        showWeekends={false}
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+      />,
+    );
+    expect(captured.hiddenDays).toEqual([0, 6]);
+
+    rerender(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="day"
+        showWeekends={false}
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+      />,
+    );
+    expect(captured.hiddenDays).toEqual([]);
+  });
+
   it("collapses and expands all-day events in time-grid views", () => {
     render(
       <FullCalendarHost

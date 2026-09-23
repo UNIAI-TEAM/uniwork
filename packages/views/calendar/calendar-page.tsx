@@ -32,6 +32,7 @@ export function CalendarPageView({
   const { t, i18n } = useTranslation();
   const [anchorDate, setAnchorDate] = useState(() => new Date());
   const [mine, setMine] = useState(false);
+  const [showWeekends, setShowWeekends] = useState(true);
   const [viewMode, setViewMode] = useState<CalendarViewMode>("month");
   const [range, setRange] = useState(() => rangeForMode("month", new Date()));
   const [slotMenuOpen, setSlotMenuOpen] = useState(false);
@@ -121,6 +122,7 @@ export function CalendarPageView({
           <CalendarToolbar
             anchorDate={anchorDate}
             mine={mine}
+            showWeekends={showWeekends}
             viewMode={viewMode}
             workspaceId={workspaceId}
             exportFrom={range.from}
@@ -131,6 +133,7 @@ export function CalendarPageView({
             onRefresh={() => {
               void Promise.all([refetch(), sidebarQuery.refetch()]);
             }}
+            onShowWeekendsChange={setShowWeekends}
             onViewModeChange={handleViewModeChange}
           />
           {isError ? (
@@ -162,6 +165,7 @@ export function CalendarPageView({
                 events={events}
                 initialDate={initialDate}
                 viewMode={viewMode}
+                showWeekends={showWeekends}
                 language={i18n.resolvedLanguage ?? i18n.language}
                 viewerTimeZone={viewerTimeZone}
                 onDatesSet={handleDatesSet}
