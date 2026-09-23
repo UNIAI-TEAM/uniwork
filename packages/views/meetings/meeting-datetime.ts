@@ -221,7 +221,13 @@ export function formatRemaining(endsAt: string, nowMs = Date.now()): string | nu
   return `${pad2(h)}:${pad2(m)}:${pad2(s)}`;
 }
 
-export function defaultScheduleDraft(): { date: string; start: string; end: string } {
+export type ScheduleDraft = { date: string; start: string; end: string };
+
+export function scheduleDraftFromDefaults(scheduleDefaults?: ScheduleDraft): ScheduleDraft {
+  return scheduleDefaults ?? defaultScheduleDraft();
+}
+
+export function defaultScheduleDraft(): ScheduleDraft {
   const start = new Date();
   start.setMinutes(0, 0, 0);
   start.setHours(start.getHours() + 1);

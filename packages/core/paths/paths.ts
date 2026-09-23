@@ -40,6 +40,7 @@ export const paths = {
       tasks: () => `${base}/tasks`,
       task: (id: string) => `${base}/tasks/${id}`,
       myTasks: () => `${base}/my-tasks`,
+      calendar: () => `${base}/calendar`,
       projects: () => `${base}/projects`,
       project: (id: string) => `${base}/projects/${id}`,
       meetings: () => `${base}/meetings`,

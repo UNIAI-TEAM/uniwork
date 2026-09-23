@@ -2,6 +2,7 @@
 
 import { useId, useRef } from "react";
 import {
+  Calendar,
   CalendarDays,
   ChevronDown,
   FolderKanban,
@@ -57,7 +58,7 @@ import { moduleTone, type ModuleKey } from "./module-tones";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 
 interface NavItem {
-  key: "nav.home" | "nav.inbox" | "nav.email" | "nav.tasks" | "nav.my_tasks" | "nav.projects" | "nav.meetings" | "nav.chat" | "nav.people";
+  key: "nav.home" | "nav.inbox" | "nav.email" | "nav.tasks" | "nav.my_tasks" | "nav.projects" | "nav.calendar" | "nav.meetings" | "nav.chat" | "nav.people";
   module: ModuleKey;
   href: string;
   icon: LucideIcon;
@@ -116,6 +117,7 @@ export function AppSidebar() {
         { key: "nav.tasks", module: "tasks", href: ws.tasks(), icon: SquareCheckBig },
         { key: "nav.my_tasks", module: "my_tasks", href: ws.myTasks(), icon: ListTodo },
         { key: "nav.projects", module: "projects", href: ws.projects(), icon: FolderKanban },
+        { key: "nav.calendar", module: "calendar", href: ws.calendar(), icon: Calendar },
       ],
     },
     {

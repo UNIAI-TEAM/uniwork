@@ -25,7 +25,12 @@ import {
 } from "../common/form-dialog";
 import { Notice } from "../common/notice";
 import { toastApiError } from "../toast-api-error";
-import { defaultScheduleDraft, scheduleWindowIso } from "./meeting-datetime";
+import {
+  defaultScheduleDraft,
+  scheduleDraftFromDefaults,
+  scheduleWindowIso,
+  type ScheduleDraft,
+} from "./meeting-datetime";
 import { MemberMultiPicker } from "./member-multi-picker";
 import { useNow } from "./use-now";
 import {
@@ -40,22 +45,32 @@ export function NewMeetingDialog({
   workspaceId,
   onCreated,
   trigger,
+  scheduleDefaults,
+  open: openProp,
+  onOpenChange,
+  showTrigger = true,
 }: {
   workspaceId: string;
   onCreated?: (id: string) => void;
   trigger?: ReactElement;
+  /** Local wall date/times; same shape as `defaultScheduleDraft`. */
+  scheduleDefaults?: ScheduleDraft;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  showTrigger?: boolean;
 }) {
   const { t } = useTranslation();
   const id = useId();
   const userId = useAuthStore((s) => s.user?.id);
   const create = useCreateMeeting(workspaceId);
-  const draft = defaultScheduleDraft();
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = openProp ?? uncontrolledOpen;
+  const setOpen = onOpenChange ?? setUncontrolledOpen;
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [date, setDate] = useState(draft.date);
-  const [start, setStart] = useState(draft.start);
-  const [end, setEnd] = useState(draft.end);
+  const [date, setDate] = useState(() => scheduleDraftFromDefaults(scheduleDefaults).date);
+  const [start, setStart] = useState(() => scheduleDraftFromDefaults(scheduleDefaults).start);
+  const [end, setEnd] = useState(() => scheduleDraftFromDefaults(scheduleDefaults).end);
   const [attendees, setAttendees] = useState<string[]>([]);
   const [allowJoin, setAllowJoin] = useState(true);
   const [submitted, setSubmitted] = useState(false);
@@ -75,7 +90,14 @@ export function NewMeetingDialog({
 
   const changeOpen = (next: boolean) => {
     setOpen(next);
-    if (!next) reset();
+    if (next) {
+      const draft = scheduleDraftFromDefaults(scheduleDefaults);
+      setDate(draft.date);
+      setStart(draft.start);
+      setEnd(draft.end);
+    } else {
+      reset();
+    }
   };
 
   const titleMissing = !title.trim();
@@ -87,7 +109,9 @@ export function NewMeetingDialog({
 
   return (
     <Dialog open={open} onOpenChange={changeOpen}>
-      <DialogTrigger render={trigger ?? <Button size="sm">{t("meetings.new")}</Button>} />
+      {showTrigger ? (
+        <DialogTrigger render={trigger ?? <Button size="sm">{t("meetings.new")}</Button>} />
+      ) : null}
       <FormDialogContent size="lg">
         <FormDialogHeader title={t("meetings.new")} description={t("meetings.newDescription")} />
         <form

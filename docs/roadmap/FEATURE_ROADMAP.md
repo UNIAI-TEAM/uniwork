@@ -65,7 +65,7 @@ OpenTelemetry, documents, calendar, workflow, knowledge/search toàn cục, insi
 | ID | Tính năng | Bounded context | Trạng thái | Spec | Ưu tiên |
 | --- | --- | --- | --- | --- | --- |
 | C-01 | Documents: soạn thảo cộng tác, phiên bản, chia sẻ, nhật ký truy cập, object storage | Document | CHƯA | `2026-09-08-documents-design.md` (đã duyệt 2026-09-08, UNI-437). **Đã bổ sung §13 (2026-09-16, ADR 0016):** tài liệu thuộc sở hữu của một Kết quả công việc — không đứng trong cây workspace, không chia sẻ riêng, quyền ủy quyền sang Work Product. Thuộc lát cắt 1; điều kiện để C-14 khởi động | P0 |
-| C-02 | Calendar: lịch cá nhân, lịch nhóm, ICS, gộp meeting + task due | Calendar | CHƯA | `(cần viết)` calendar-design | P1 |
+| C-02 | Calendar: lịch nhóm workspace (+ filter Của tôi), ICS, gộp meeting + task due | Calendar | CHƯA | `2026-09-22-calendar-design.md` (đề xuất — chờ duyệt) | P1 |
 | C-03 | Meeting intelligence nâng cao: STT server-side (LiveKit Agents), họp → task có người duyệt qua proposal | Meeting + AI | MỘT PHẦN | mở rộng `2026-08-29-meeting-world-class-design.md` | P0 |
 | C-04 | Billing thật: cổng nội địa + Stripe, hóa đơn, webhook | Tenant & Subscription | CHƯA | phần Billing của spec F-02 | P0 |
 | C-05 | Quota UI cho org admin, cảnh báo ngưỡng | Tenant & Subscription | CHƯA | spec F-02 | P1 |

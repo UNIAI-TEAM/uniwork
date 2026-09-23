@@ -37,13 +37,19 @@
     "./search": "./search/index.ts",
     "./navigation": "./navigation/index.ts",
     "./editor": "./editor/index.ts",
-    "./common/*": "./common/*.tsx"
+    "./common/*": "./common/*.tsx",
+    "./calendar/*": "./calendar/*.tsx"
   },
   "dependencies": {
     "@dnd-kit/core": "catalog:",
     "@dnd-kit/sortable": "catalog:",
     "@dnd-kit/utilities": "catalog:",
     "@emoji-mart/data": "^1.2.1",
+    "@fullcalendar/core": "catalog:",
+    "@fullcalendar/daygrid": "catalog:",
+    "@fullcalendar/interaction": "catalog:",
+    "@fullcalendar/react": "catalog:",
+    "@fullcalendar/timegrid": "catalog:",
     "@floating-ui/dom": "^1.7.6",
     "@livekit/components-react": "^2.9.23",
     "@livekit/components-styles": "^1.2.0",
@@ -74,6 +80,7 @@
     "@tiptap/suggestion": "catalog:",
     "@uniwork/core": "workspace:*",
     "@uniwork/ui": "workspace:*",
+    "date-fns": "catalog:",
     "hast-util-to-html": "^9.0.5",
     "katex": "catalog:",
     "livekit-client": "^2.21.0",

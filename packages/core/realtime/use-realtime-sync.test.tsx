@@ -244,6 +244,46 @@ describe("useRealtimeSync", () => {
     expect(keysCalled(invalidate)).toContain(JSON.stringify(["meetings", "ws1"]));
   });
 
+  it("invalidates calendar queries on task.updated and meeting.created", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "task.updated", payload: { task_id: "t1", workspace_id: "ws1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toContain(JSON.stringify(["calendar", "ws1"]));
+
+    invalidate.mockClear();
+    client.emit({ type: "meeting.created", payload: { meeting_id: "m1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toContain(JSON.stringify(["calendar", "ws1"]));
+  });
+
+  it("invalidates calendar queries on participant.invited", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "participant.invited", payload: { meeting_id: "m1" } });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).toContain(JSON.stringify(["calendar", "ws1"]));
+  });
+
+  it("skips calendar invalidation when frame workspace_id mismatches hook wsId", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({
+      type: "task.updated",
+      payload: { task_id: "t1", workspace_id: "other-ws" },
+    });
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).not.toContain(JSON.stringify(["calendar", "ws1"]));
+  });
+
   it("refreshes join requests on join_request.created", () => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();

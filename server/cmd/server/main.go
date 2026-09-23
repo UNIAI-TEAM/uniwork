@@ -329,6 +329,7 @@ func main() {
 		Onboarding:      service.NewOnboardingService(q, wsSvc, renderer, mailOutbox),
 		Tasks:           taskSvc,
 		Home:            service.NewHomeService(q, wsSvc),
+		Calendar:        service.NewCalendarService(q, wsSvc),
 		EmailHub:        emailHubSvc,
 		Agents:          agentSvc,
 		Actors:          actorSvc,

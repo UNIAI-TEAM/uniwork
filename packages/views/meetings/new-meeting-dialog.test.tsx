@@ -87,6 +87,25 @@ describe("NewMeetingDialog", () => {
     expect(within(dialog).getByRole("group", { name: "Người tham dự" })).toBeInTheDocument();
   });
 
+  it("seeds date and times from scheduleDefaults when opened", () => {
+    requestMock.mockResolvedValue({ members: [] });
+    render(
+      wrapWithNav(
+        <NewMeetingDialog
+          workspaceId="w1"
+          scheduleDefaults={{ date: "2026-09-22", start: "14:00", end: "15:00" }}
+          trigger={<button type="button">Mở</button>}
+        />,
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Mở" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByLabelText("Giờ bắt đầu")).toHaveValue("14");
+    expect(within(dialog).getByLabelText("Phút bắt đầu")).toHaveValue("00");
+    expect(within(dialog).getByLabelText("Giờ kết thúc")).toHaveValue("15");
+    expect(within(dialog).getByLabelText("Phút kết thúc")).toHaveValue("00");
+  });
+
   it("shows the pending label and holds Cancel while creating", async () => {
     requestMock.mockImplementation((path: unknown, init?: { method?: string }) => {
       if (init?.method === "POST") return new Promise(() => {});
