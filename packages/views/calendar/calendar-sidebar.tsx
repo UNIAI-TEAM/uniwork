@@ -33,6 +33,7 @@ type CalendarSidebarProps = {
   sections: CalendarSidebar;
   isPending?: boolean;
   isError?: boolean;
+  onRetry: () => void;
   onOpenTask: (id: string) => void;
   onOpenMeeting: (id: string) => void;
   onCreateMeeting: () => void;
@@ -245,6 +246,7 @@ export function CalendarSidebar({
   sections,
   isPending,
   isError,
+  onRetry,
   onOpenTask,
   onOpenMeeting,
   onCreateMeeting,
@@ -266,11 +268,16 @@ export function CalendarSidebar({
           </>
         ) : null}
         {isError ? (
-          <p className="px-2 py-3 text-caption text-muted-foreground" role="status">
-            {t("calendar.sidebar_error")}
-          </p>
+          <div className="flex flex-col items-start gap-3 px-2 py-3" role="alert">
+            <p className="text-caption text-muted-foreground">
+              {t("calendar.sidebar_error")}
+            </p>
+            <Button type="button" size="sm" variant="outline" onClick={onRetry}>
+              {t("calendar.retry")}
+            </Button>
+          </div>
         ) : null}
-        {!isPending ? (
+        {!isPending && !isError ? (
           <>
             <TaskListSection
               titleKey="calendar.sidebar_priorities"
