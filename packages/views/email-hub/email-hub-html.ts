@@ -18,8 +18,11 @@ export const EMAIL_HTML_RESET = `<meta charset="utf-8"><meta name="color-scheme"
 const BLOCK_REMOTE_CSP =
   `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: cid: blob:; style-src 'unsafe-inline'; font-src data:">`;
 
+// Anything the policy above would block: media attributes (src, srcset, poster)
+// on the elements that fetch, CSS url()/@import, table backgrounds, <link>.
+// The lookbehind keeps data-src and friends out.
 const REMOTE_CONTENT_RE =
-  /<img\b[^>]*\bsrc\s*=\s*["']?\s*(?:https?:)?\/\/|url\(\s*["']?\s*(?:https?:)?\/\/|\bbackground\s*=\s*["']?\s*(?:https?:)?\/\/|<link\b[^>]*\bhref\s*=\s*["']?\s*(?:https?:)?\/\//i;
+  /<(?:img|source|video|audio|input|image)\b[^>]*(?<![\w-])(?:src|srcset|poster)\s*=\s*["']?\s*(?:https?:)?\/\/|url\(\s*["']?\s*(?:https?:)?\/\/|@import\s+["']\s*(?:https?:)?\/\/|(?<![\w-])background\s*=\s*["']?\s*(?:https?:)?\/\/|<link\b[^>]*(?<![\w-])href\s*=\s*["']?\s*(?:https?:)?\/\//i;
 
 /** Whether the body loads anything from another server — images, backgrounds, stylesheets. */
 export function emailHasRemoteContent(html: string) {
@@ -29,10 +32,13 @@ export function emailHasRemoteContent(html: string) {
 export function wrapEmailHtml(html: string, { allowRemote = false }: { allowRemote?: boolean } = {}) {
   const head = `${allowRemote ? "" : BLOCK_REMOTE_CSP}${EMAIL_HTML_RESET}`;
   if (/<html[\s>]/i.test(html)) {
-    if (/<head[\s>]/i.test(html)) {
-      return html.replace(/<head([^>]*)>/i, `<head$1>${head}`);
-    }
-    return html.replace(/<html([^>]*)>/i, `<html$1><head>${head}</head>`);
+    // A CSP <meta> only counts inside the document's real <head>. Matching the
+    // email's own <head> by regex can land in a quoted document, a comment or
+    // <header>; emitting our head before any of the email's markup (after its
+    // doctype, so the rendering mode is unchanged) makes the parser open the
+    // real head for it, and the email's later <html>/<head> tags merge in.
+    const doctype = /^\s*<!doctype[^>]*>/i.exec(html)?.[0] ?? "";
+    return `${doctype}${head}${html.slice(doctype.length)}`;
   }
   return `<!DOCTYPE html><html><head>${head}</head><body>${html}</body></html>`;
 }

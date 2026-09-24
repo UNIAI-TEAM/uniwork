@@ -262,12 +262,23 @@ export function ComposeEmailDialog({
     onOpenChange(false);
   };
 
+  // Reading attachments takes a while before the mutation is pending; without
+  // this a second click or ⌘Enter in that window sent the email twice.
+  const preparingRef = useRef(false);
+  const [preparing, setPreparing] = useState(false);
   const submit = (sendAt?: string) => {
-    if (!fromId) return;
-    void buildPayload(sendAt).then(
-      (payload) => send.mutate(payload, { onSuccess: handleSendSuccess }),
-      () => toast.error(t("email_hub.compose.attach_read_error")),
-    );
+    if (!fromId || preparingRef.current || send.isPending) return;
+    preparingRef.current = true;
+    setPreparing(true);
+    void buildPayload(sendAt)
+      .then(
+        (payload) => send.mutate(payload, { onSuccess: handleSendSuccess }),
+        () => toast.error(t("email_hub.compose.attach_read_error")),
+      )
+      .finally(() => {
+        preparingRef.current = false;
+        setPreparing(false);
+      });
   };
 
   const isReplyLike = mode === "reply" || mode === "replyAll";
@@ -275,7 +286,10 @@ export function ComposeEmailDialog({
   const recipientsValid = draft.to.length > 0 && allRecipients.every((addr) => EMAIL_RE.test(addr));
   const needsSubject = !isReplyLike && mode !== "forward";
   const canSend =
-    !!fromId && recipientsValid && !!draft.body.trim() && (!needsSubject || !!draft.subject.trim()) && !send.isPending;
+    !!fromId && recipientsValid && !!draft.body.trim() && (!needsSubject || !!draft.subject.trim()) && !send.isPending && !preparing;
+  // A reply is threaded by looking its original up in the mailbox it arrived
+  // in, so it cannot leave from another one.
+  const canPickFrom = accountList.length > 1 && !isReplyLike;
   const sendBlockedReason = !recipientsValid
     ? t("email_hub.compose.need_recipient")
     : needsSubject && !draft.subject.trim()
@@ -285,7 +299,12 @@ export function ComposeEmailDialog({
         : null;
 
   const handleKeyDown = (event: KeyboardEvent) => {
-    if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && canSend) {
+    // In a recipient box Enter first turns the typed text into a chip; sending
+    // in the same keystroke would go out without that address.
+    const target = event.target as HTMLElement;
+    const pendingChip =
+      target instanceof HTMLInputElement && !!target.closest('[data-slot="email-chips"]') && !!target.value.trim();
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && canSend && !pendingChip) {
       event.preventDefault();
       submit();
     }
@@ -335,8 +354,8 @@ export function ComposeEmailDialog({
 
           <div className="min-h-0 overflow-y-auto">
             <div className="divide-y divide-border border-b border-border">
-              <FieldRow label={t("email_hub.compose.from")} htmlFor={accountList.length > 1 ? "email-hub-from" : undefined}>
-                {accountList.length > 1 ? (
+              <FieldRow label={t("email_hub.compose.from")} htmlFor={canPickFrom ? "email-hub-from" : undefined}>
+                {canPickFrom ? (
                   <Select
                     items={accountList.map((acc) => ({ value: acc.id, label: acc.email_address }))}
                     value={fromId ?? ""}

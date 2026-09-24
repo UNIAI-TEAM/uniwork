@@ -35,6 +35,7 @@ import type { EmailHubFolderKey, EmailHubMailFolderKey } from "./email-hub-folde
 import { emailHubLocale, formatEmailListDate } from "./email-hub-format";
 import { EmailHubShortcutsDialog } from "./email-hub-shortcuts-dialog";
 import { EmailHubSnoozeDialog } from "./email-hub-snooze-dialog";
+import { emailHubThreadCapabilities } from "./email-hub-thread-toolbar";
 import { EmailHubViewDetailPanel } from "./email-hub-view-detail-panel";
 import { EmailHubViewDialogs } from "./email-hub-view-dialogs";
 import { EmailHubViewListPanel } from "./email-hub-view-list-panel";
@@ -270,7 +271,11 @@ export function EmailHubView() {
     const next = index === -1 ? undefined : rows[index + step];
     if (next) selectThread(next.id);
   };
-  const { actions } = threadActions;
+  const { actions, pending } = threadActions;
+  // The shortcuts offer exactly what the toolbar shows, and wait for a request
+  // in flight like its disabled buttons do: a repeated `e` would move an id
+  // the first move already replaced.
+  const can = activeThread ? emailHubThreadCapabilities(detail.data ?? activeThread, mailFolder) : null;
   useEmailHubShortcuts({
     enabled: shortcutsOn,
     reading: readingEmail && !isScheduledFolder,
@@ -280,13 +285,13 @@ export function EmailHubView() {
     onBack: actions.onBack,
     onNext: () => stepThread(1),
     onPrev: () => stepThread(-1),
-    onArchive: activeThread?.folder === "INBOX" ? actions.onArchive : undefined,
-    onTrash: activeThread?.folder === "INBOX" || activeThread?.folder === "SENT" ? actions.onTrash : undefined,
-    onReply: actions.onReply,
-    onReplyAll: actions.onReplyAll,
-    onForward: actions.onForward,
-    onStar: actions.onToggleStar,
-    onMarkUnread: activeThread?.folder === "INBOX" ? actions.onMarkUnread : undefined,
+    onArchive: can?.canTriage && !pending.move ? actions.onArchive : undefined,
+    onTrash: can?.canTrash && !pending.move ? actions.onTrash : undefined,
+    onReply: can?.canReply ? actions.onReply : undefined,
+    onReplyAll: can?.canReply && can.canReplyAll ? actions.onReplyAll : undefined,
+    onForward: can?.canReply ? actions.onForward : undefined,
+    onStar: pending.star ? undefined : actions.onToggleStar,
+    onMarkUnread: can?.canMarkUnread && !pending.markRead ? actions.onMarkUnread : undefined,
   });
 
   const counts = threads.data?.pages[0]?.counts ?? { total: 0, unread: 0 };

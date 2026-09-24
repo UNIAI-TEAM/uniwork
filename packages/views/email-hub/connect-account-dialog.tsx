@@ -56,6 +56,8 @@ export function ConnectAccountDialog({ wsId, open, onOpenChange, onConnected }: 
     if (!next) {
       connect.reset();
       setEmailInvalid(false);
+      // The dialog stays mounted: a cancelled app password must not wait in state for the next open.
+      setPassword("");
     }
     onOpenChange(next);
   };

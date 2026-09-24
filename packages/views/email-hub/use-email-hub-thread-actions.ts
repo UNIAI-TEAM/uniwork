@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import type { EmailHubMoveTarget } from "@uniwork/core/api/endpoints/email-hub";
@@ -43,7 +43,7 @@ interface Options {
   selectedId: string | null;
   activeThread: EmailHubThread | null;
   detailData: EmailHubThread | null | undefined;
-  setSelectedId: (id: string | null) => void;
+  setSelectedId: Dispatch<SetStateAction<string | null>>;
   setFolder: (folder: EmailHubFolderKey) => void;
   openCompose: (mode: ComposeMode, source?: EmailHubThread | null) => void;
   onToggleAi: () => void;
@@ -53,6 +53,11 @@ interface Options {
 /**
  * Every action on an email, with its feedback. Failures used to vanish: the
  * moves, star, snooze and download mutations had no error handling at all.
+ *
+ * Single actions use `mutateAsync` too: `mutate`'s per-call callbacks fire only
+ * for the latest call, so a second row's action would swallow the first one's
+ * toast. And the reader may have opened another email by the time a request
+ * lands, so success closes only the email the request was about.
  */
 export function useEmailHubThreadActions({
   wsId,
@@ -75,34 +80,35 @@ export function useEmailHubThreadActions({
   const [snoozeDialogOpen, setSnoozeDialogOpen] = useState(false);
 
   const fail = useCallback((err: unknown) => toastApiError(err, t("email_hub.action_error")), [t]);
+  const closeIfOpen = useCallback(
+    (threadId: string) => setSelectedId((cur) => (cur === threadId ? null : cur)),
+    [setSelectedId],
+  );
 
   const move = useCallback(
     (threadId: string, moveTo: EmailHubMoveTarget) => {
       if (!accountId) return;
-      moveThread.mutate(
-        { accountId, threadId, moveTo },
-        {
-          onSuccess: () => {
-            if (threadId === selectedId) setSelectedId(null);
-            const done = MOVE_DONE[moveTo];
-            toast.success(t(done.key), {
-              action:
-                moveTo === "INBOX"
-                  ? undefined
-                  : { label: t("email_hub.moved.open_folder"), onClick: () => setFolder(done.folder) },
-            });
-          },
-          onError: fail,
-        },
-      );
+      moveThread
+        .mutateAsync({ accountId, threadId, moveTo })
+        .then(() => {
+          closeIfOpen(threadId);
+          const done = MOVE_DONE[moveTo];
+          toast.success(t(done.key), {
+            action:
+              moveTo === "INBOX"
+                ? undefined
+                : { label: t("email_hub.moved.open_folder"), onClick: () => setFolder(done.folder) },
+          });
+        })
+        .catch(fail);
     },
-    [accountId, fail, moveThread, selectedId, setFolder, setSelectedId, t],
+    [accountId, closeIfOpen, fail, moveThread, setFolder, t],
   );
 
   const star = useCallback(
     (threadId: string, isStarred: boolean) => {
       if (!accountId) return;
-      toggleStar.mutate({ accountId, threadId, isStarred: !isStarred }, { onError: fail });
+      toggleStar.mutateAsync({ accountId, threadId, isStarred: !isStarred }).catch(fail);
     },
     [accountId, fail, toggleStar],
   );
@@ -110,7 +116,10 @@ export function useEmailHubThreadActions({
   const setRead = useCallback(
     (threadId: string, isRead: boolean, onSuccess?: () => void) => {
       if (!accountId) return;
-      markRead.mutate({ accountId, threadId, isRead }, { onSuccess, onError: fail });
+      markRead
+        .mutateAsync({ accountId, threadId, isRead })
+        .then(() => onSuccess?.())
+        .catch(fail);
     },
     [accountId, fail, markRead],
   );
@@ -118,19 +127,17 @@ export function useEmailHubThreadActions({
   const snoozeUntil = useCallback(
     (when: Date) => {
       if (!accountId || !selectedId) return;
-      snoozeThread.mutate(
-        { accountId, threadId: selectedId, snoozeUntil: emailHubSnoozeToRFC3339(when) },
-        {
-          onSuccess: () => {
-            setSnoozeDialogOpen(false);
-            setSelectedId(null);
-            toast.success(t("email_hub.snooze.done"));
-          },
-          onError: fail,
-        },
-      );
+      const threadId = selectedId;
+      snoozeThread
+        .mutateAsync({ accountId, threadId, snoozeUntil: emailHubSnoozeToRFC3339(when) })
+        .then(() => {
+          setSnoozeDialogOpen(false);
+          closeIfOpen(threadId);
+          toast.success(t("email_hub.snooze.done"));
+        })
+        .catch(fail);
     },
-    [accountId, fail, selectedId, setSelectedId, snoozeThread, t],
+    [accountId, closeIfOpen, fail, selectedId, snoozeThread, t],
   );
 
   /**
@@ -183,7 +190,8 @@ export function useEmailHubThreadActions({
       onReplyAll: () => openCompose("replyAll", source),
       onForward: () => openCompose("forward", source),
       onMarkUnread: () => {
-        if (selectedId) setRead(selectedId, false, () => setSelectedId(null));
+        const threadId = selectedId;
+        if (threadId) setRead(threadId, false, () => closeIfOpen(threadId));
       },
       onRestoreInbox: () => {
         if (selectedId) move(selectedId, "INBOX");
@@ -202,16 +210,14 @@ export function useEmailHubThreadActions({
       },
       onClearSnooze: () => {
         if (!accountId || !selectedId) return;
-        snoozeThread.mutate(
-          { accountId, threadId: selectedId, clearSnooze: true },
-          {
-            onSuccess: () => {
-              setSelectedId(null);
-              toast.success(t("email_hub.snooze.cleared"));
-            },
-            onError: fail,
-          },
-        );
+        const threadId = selectedId;
+        snoozeThread
+          .mutateAsync({ accountId, threadId, clearSnooze: true })
+          .then(() => {
+            closeIfOpen(threadId);
+            toast.success(t("email_hub.snooze.cleared"));
+          })
+          .catch(fail);
       },
       onSnooze: (preset: EmailHubSnoozePreset) => {
         if (preset === "custom") setSnoozeDialogOpen(true);
@@ -243,6 +249,7 @@ export function useEmailHubThreadActions({
     [
       accountId,
       activeThread,
+      closeIfOpen,
       downloadAttachment,
       fail,
       move,

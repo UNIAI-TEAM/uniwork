@@ -32,6 +32,18 @@ describe("useEmailHubShortcuts", () => {
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 
+  it("acts once for a held key, but lets j/k repeat", () => {
+    const onArchive = vi.fn();
+    const onNext = vi.fn();
+    render(<Harness enabled reading onArchive={onArchive} onNext={onNext} />);
+    fireEvent.keyDown(window, { key: "e" });
+    fireEvent.keyDown(window, { key: "e", repeat: true });
+    fireEvent.keyDown(window, { key: "j" });
+    fireEvent.keyDown(window, { key: "j", repeat: true });
+    expect(onArchive).toHaveBeenCalledTimes(1);
+    expect(onNext).toHaveBeenCalledTimes(2);
+  });
+
   it("never fires while typing", () => {
     const onCompose = vi.fn();
     const { getByLabelText } = render(<Harness enabled reading={false} onCompose={onCompose} />);

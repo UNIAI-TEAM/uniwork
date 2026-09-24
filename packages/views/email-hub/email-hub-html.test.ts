@@ -38,6 +38,37 @@ describe("email hub html wrapper", () => {
     expect(wrapped.indexOf("Content-Security-Policy")).toBeLessThan(wrapped.indexOf("x.com/a.css"));
   });
 
+  it("puts the policy in the real head even when the body quotes a whole document", () => {
+    const html =
+      '<div>reply <img src="https://track.example.com/p.gif"></div><blockquote><html><head><title>q</title></head><body>old</body></html></blockquote>';
+    const doc = new DOMParser().parseFromString(wrapEmailHtml(html), "text/html");
+    expect(doc.head.querySelector('meta[http-equiv="Content-Security-Policy"]')).not.toBeNull();
+  });
+
+  it("is not fooled by a commented head or a header element", () => {
+    for (const html of [
+      "<!--<head>--><html><head></head><body><img src='https://t.example/p.gif'></body></html>",
+      "<html><body><header>Hi</header><head></head></body></html>",
+    ]) {
+      const doc = new DOMParser().parseFromString(wrapEmailHtml(html), "text/html");
+      expect(doc.head.querySelector('meta[http-equiv="Content-Security-Policy"]')).not.toBeNull();
+    }
+  });
+
+  it("keeps the email's doctype first", () => {
+    const wrapped = wrapEmailHtml('<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"><html><head></head><body></body></html>');
+    expect(wrapped.startsWith("<!DOCTYPE html PUBLIC")).toBe(true);
+    expect(wrapped).toContain("Content-Security-Policy");
+  });
+
+  it("detects remote srcset, poster and @import, but not data-src", () => {
+    expect(emailHasRemoteContent('<picture><source srcset="https://a.com/x.webp 1x"></picture>')).toBe(true);
+    expect(emailHasRemoteContent('<img srcset="https://a.com/x.png 2x" src="data:image/png;base64,AA">')).toBe(true);
+    expect(emailHasRemoteContent('<video poster="https://a.com/p.jpg"></video>')).toBe(true);
+    expect(emailHasRemoteContent('<style>@import "https://a.com/a.css";</style>')).toBe(true);
+    expect(emailHasRemoteContent('<img data-src="https://a.com/x.png" src="cid:abc">')).toBe(false);
+  });
+
   it("detects remote images, backgrounds and stylesheets", () => {
     expect(emailHasRemoteContent('<img src="https://a.com/x.png">')).toBe(true);
     expect(emailHasRemoteContent("<img src='//a.com/x.png'>")).toBe(true);

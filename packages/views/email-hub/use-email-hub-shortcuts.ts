@@ -59,6 +59,8 @@ export function useEmailHubShortcuts(handlers: EmailHubShortcutHandlers) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+      // A held key repeats; only moving through the list should.
+      if (event.repeat && event.key !== "j" && event.key !== "k") return;
       const h = ref.current;
       if (!h.enabled && event.key !== "Escape") return;
       if (isTyping(event.target) || overlayOpen()) return;
