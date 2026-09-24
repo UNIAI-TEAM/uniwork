@@ -56,6 +56,8 @@ export const TaskSchema = z.object({
   assignee: ActorSchema.optional(),
   due_date: z.string().optional(),
   start_date: z.string().optional(),
+  start_at: z.string().optional(),
+  due_at: z.string().optional(),
   project_id: z.string().nullable().optional(),
   parent_task_id: z.string().nullable().optional(),
   stage: z.number().nullable().optional(),

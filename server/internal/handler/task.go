@@ -57,6 +57,14 @@ func fillLegacyTaskDTOFields(out sdo.TaskDTO, t db.Task) sdo.TaskDTO {
 		s := t.StartDate.Time.Format("2006-01-02")
 		out.StartDate = &s
 	}
+	if t.StartAt.Valid {
+		s := t.StartAt.Time.UTC().Format(time.RFC3339)
+		out.StartAt = &s
+	}
+	if t.DueAt.Valid {
+		s := t.DueAt.Time.UTC().Format(time.RFC3339)
+		out.DueAt = &s
+	}
 	if t.ProjectID.Valid {
 		s := t.ProjectID.String
 		out.ProjectID = &s

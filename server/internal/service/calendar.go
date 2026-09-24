@@ -327,6 +327,15 @@ func truncateDateIn(t time.Time, loc *time.Location) time.Time {
 }
 
 func taskCalendarEvent(t db.ListCalendarTasksInRangeRow) CalendarEvent {
+	if t.StartAt.Valid && t.DueAt.Valid {
+		start := t.StartAt.Time.UTC().Format(time.RFC3339)
+		end := t.DueAt.Time.UTC().Format(time.RFC3339)
+		return CalendarEvent{
+			ID: "task:" + t.ID, Kind: "task", EntityID: t.ID, Title: t.Title,
+			Start: start, End: &end, AllDay: false, Status: calendarStrPtr(t.Status),
+			Priority: calendarStrPtr(t.Priority), ProjectID: util.TextToPtr(t.ProjectID),
+		}
+	}
 	due := t.DueDate.Time.Format(time.DateOnly)
 	start := due
 	if t.StartDate.Valid {

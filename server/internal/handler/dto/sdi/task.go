@@ -1,6 +1,9 @@
 package sdi
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"time"
+)
 
 // CreateTaskSDI is POST /api/v1/workspaces/{workspaceID}/tasks.
 type CreateTaskSDI struct {
@@ -12,6 +15,8 @@ type CreateTaskSDI struct {
 	AssigneeKind   string                     `json:"assignee_kind" description:"human (mặc định) hoặc agent" example:"human"`
 	StartDate      *string                    `json:"start_date" description:"Ngày bắt đầu dạng YYYY-MM-DD" example:"2026-08-25"`
 	DueDate        *string                    `json:"due_date" description:"Hạn chót dạng YYYY-MM-DD" example:"2026-08-28"`
+	StartAt        *time.Time                 `json:"start_at" description:"Thời điểm bắt đầu RFC3339; dùng cùng start_date cho task có giờ" example:"2026-08-25T02:00:00Z"`
+	DueAt          *time.Time                 `json:"due_at" description:"Thời điểm kết thúc RFC3339; dùng cùng due_date cho task có giờ" example:"2026-08-25T03:00:00Z"`
 	ProjectID      *string                    `json:"project_id" description:"Project cùng workspace" example:"01J8X4PROJ0N1P2Q3R4S5T6U7"`
 	ParentTaskID   *string                    `json:"parent_task_id" description:"Task cha cùng workspace" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
 	Stage          *int32                     `json:"stage" description:"Thứ tự giai đoạn, từ 1 trở lên" example:"1"`

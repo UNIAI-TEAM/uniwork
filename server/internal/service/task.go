@@ -53,6 +53,8 @@ type CreateTaskInput struct {
 	AssigneeKind  string // "" or human | agent (ADR 0007)
 	StartDate     *string
 	DueDate       *string
+	StartAt       *time.Time
+	DueAt         *time.Time
 	OriginType    string
 	OriginID      *string
 	ProjectID     *string // optional; must belong to the same workspace
@@ -150,6 +152,13 @@ func optInt4(n *int32) pgtype.Int4 {
 
 func nowTz() pgtype.Timestamptz {
 	return pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}
+}
+
+func optTz(t *time.Time) pgtype.Timestamptz {
+	if t == nil {
+		return pgtype.Timestamptz{}
+	}
+	return pgtype.Timestamptz{Time: t.UTC(), Valid: true}
 }
 
 // normalizedCreatorType maps ADR 0007 actor kinds onto the Tasks foundation
@@ -323,6 +332,12 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 	if err != nil {
 		return db.Task{}, err
 	}
+	if (in.StartAt == nil) != (in.DueAt == nil) {
+		return db.Task{}, Invalid("start_at và due_at phải được đặt cùng nhau")
+	}
+	if in.StartAt != nil && !in.DueAt.After(*in.StartAt) {
+		return db.Task{}, Invalid("due_at phải sau start_at")
+	}
 	if in.Stage != nil && *in.Stage < 1 {
 		return db.Task{}, Invalid("stage phải từ 1 trở lên")
 	}
@@ -372,6 +387,7 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 		Number: number, Title: strings.TrimSpace(in.Title), Description: in.Description,
 		Status: status, Priority: in.Priority, AssigneeID: optText(in.AssigneeID), AssigneeKind: assigneeKind,
 		AssigneeType: normalizedAssigneeType(in.AssigneeID, assigneeKind), StartDate: start, DueDate: due,
+		StartAt: optTz(in.StartAt), DueAt: optTz(in.DueAt),
 		Position: minPos - 1024, CreatedBy: actor.ID, CreatedByKind: string(actor.Kind),
 		CreatorID: actor.ID, CreatorType: normalizedCreatorType(actor.Kind),
 		Revision: 1, LastActivityAt: nowTz(),

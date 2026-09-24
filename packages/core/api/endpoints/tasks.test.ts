@@ -88,6 +88,8 @@ describe("tasks endpoints", () => {
       assignee_kind: "human" as const,
       due_date: "2026-09-30",
       start_date: "2026-09-20",
+      start_at: "2026-09-20T02:00:00Z",
+      due_at: "2026-09-20T03:00:00Z",
       project_id: "p1",
       parent_task_id: "parent-1",
       stage: 2,

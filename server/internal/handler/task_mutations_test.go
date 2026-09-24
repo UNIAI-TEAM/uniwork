@@ -165,6 +165,8 @@ func TestCreateTaskHTTPAcceptsWorkManagementContext(t *testing.T) {
 		"parent_task_id": parentID,
 		"start_date":     "2026-09-17",
 		"due_date":       "2026-09-20",
+		"start_at":       "2026-09-17T02:00:00Z",
+		"due_at":         "2026-09-17T03:30:00Z",
 		"stage":          3,
 		"label_ids":      []string{labelID},
 	})
@@ -174,7 +176,8 @@ func TestCreateTaskHTTPAcceptsWorkManagementContext(t *testing.T) {
 	task := out["task"].(map[string]any)
 	for key, want := range map[string]any{
 		"status": "in_progress", "priority": "none", "parent_task_id": parentID,
-		"start_date": "2026-09-17", "due_date": "2026-09-20", "stage": float64(3),
+		"start_date": "2026-09-17", "due_date": "2026-09-20",
+		"start_at": "2026-09-17T02:00:00Z", "due_at": "2026-09-17T03:30:00Z", "stage": float64(3),
 	} {
 		if task[key] != want {
 			t.Fatalf("%s = %#v, want %#v; task=%v", key, task[key], want, task)
