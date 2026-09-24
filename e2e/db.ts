@@ -99,3 +99,23 @@ export async function assignWorkspaceTasksDueToday(email: string, orgSlug: strin
     return r.rows.map((row) => row.title);
   });
 }
+
+/**
+ * Moves an organization's finished audit exports `hours` into the past, so a
+ * spec can watch the 24h download window lapse instead of waiting a day. The
+ * app reads `completed_at`, so this is the same state the clock would produce.
+ * Returns how many jobs moved.
+ */
+export async function backdateAuditExports(orgSlug: string, hours: number): Promise<number> {
+  return withClient(async (c) => {
+    const r = await c.query(
+      `UPDATE audit_exports ae
+          SET completed_at = ae.completed_at - make_interval(hours => $2::int),
+              expires_at = ae.expires_at - make_interval(hours => $2::int)
+         FROM organizations o
+        WHERE o.slug = $1 AND ae.organization_id = o.id AND ae.completed_at IS NOT NULL`,
+      [orgSlug, hours],
+    );
+    return r.rowCount ?? 0;
+  });
+}

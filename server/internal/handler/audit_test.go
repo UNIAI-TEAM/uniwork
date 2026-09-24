@@ -1,9 +1,15 @@
 package handler
 
 import (
+	"context"
+	"encoding/json"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/unicomhub/uniwork/server/internal/service"
+	"github.com/unicomhub/uniwork/server/internal/storage"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 // auditWorld is a signed-in organization owner with a workspace and one task
@@ -199,5 +205,158 @@ func TestCorrelationHeaderIsEchoed(t *testing.T) {
 	res, _ := doJSON(t, srv, "GET", "/api/v1/orgs", "", nil)
 	if res.Header.Get("X-Correlation-ID") == "" {
 		t.Fatal("every response must carry the correlation id back")
+	}
+}
+
+// runAuditExportWorker finishes a queued export exactly the way the outbox
+// dispatcher does: the same consumer, on the database and storage the server
+// under test is using.
+func runAuditExportWorker(t *testing.T, exportID, orgID string) {
+	t.Helper()
+	payload, err := json.Marshal(map[string]string{"export_id": exportID, "organization_id": orgID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := storage.NewLocalStorageFromEnv()
+	if store == nil {
+		t.Fatal("local storage could not be created for the export")
+	}
+	consumer := service.NewAuditExportConsumer(db.New(testPool), store)
+	if err := consumer.Handle(context.Background(), db.OutboxEvent{
+		ID: "ev-export-" + exportID, Topic: "audit.export_requested", Payload: string(payload),
+	}); err != nil {
+		t.Fatalf("audit export consumer: %v", err)
+	}
+}
+
+// A finished export offers a link for 24 hours and then withdraws it. The
+// handler compares the completion stamp against the window instead of trusting
+// the stored URL, so a URL pasted into a chat yesterday is not a standing
+// grant. T10 keeps this business window when the file moves to FileService.
+func TestAuditExportDownloadLinkStopsAfter24Hours(t *testing.T) {
+	t.Setenv("LOCAL_UPLOAD_DIR", t.TempDir())
+	srv := newTestServer(t)
+	w := buildAuditWorld(t, srv)
+
+	from := time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)
+	to := time.Now().UTC().Format(time.RFC3339)
+	res, out := doJSON(t, srv, "POST", "/api/v1/orgs/"+w.orgID+"/audit/exports", w.token,
+		map[string]string{"format": "csv", "from": from, "to": to})
+	if res.StatusCode != 202 {
+		t.Fatalf("request export: %d %v", res.StatusCode, out)
+	}
+	exportID := out["export"].(map[string]any)["id"].(string)
+	runAuditExportWorker(t, exportID, w.orgID)
+
+	res, out = doJSON(t, srv, "GET", "/api/v1/orgs/"+w.orgID+"/audit/exports/"+exportID, w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("get export: %d %v", res.StatusCode, out)
+	}
+	fresh := out["export"].(map[string]any)
+	if fresh["status"] != "done" || fresh["download_url"] == nil || fresh["expires_at"] == nil {
+		t.Fatalf("a finished export must offer a link and its expiry: %v", fresh)
+	}
+	if fresh["row_count"].(float64) == 0 {
+		t.Fatalf("the export carried no rows from a world with tasks in it: %v", fresh)
+	}
+
+	// A day later, with nothing else touched, the link is gone.
+	if _, err := testPool.Exec(context.Background(), `UPDATE audit_exports
+		SET completed_at = now() - interval '25 hours',
+		    expires_at = now() - interval '1 hour'
+		WHERE id = $1`, exportID); err != nil {
+		t.Fatal(err)
+	}
+	res, out = doJSON(t, srv, "GET", "/api/v1/orgs/"+w.orgID+"/audit/exports/"+exportID, w.token, nil)
+	lapsed := out["export"].(map[string]any)
+	if res.StatusCode != 200 {
+		t.Fatalf("lapsed export read: %d %v", res.StatusCode, lapsed)
+	}
+	if lapsed["download_url"] != nil {
+		t.Fatalf("a lapsed export still hands out a link: %v", lapsed["download_url"])
+	}
+	// The job keeps its record: evidence outlives the link.
+	if lapsed["status"] != "done" || lapsed["row_count"] == float64(0) {
+		t.Fatalf("the lapsed job lost its record: %v", lapsed)
+	}
+}
+
+// The export is organization data behind an id an outsider could be handed by
+// mistake, so an owner of another organization gets a 403 for the job, the list
+// and the queue endpoint without the server saying whether the id exists.
+func TestAuditExportsAreRefusedAcrossOrganizations(t *testing.T) {
+	t.Setenv("LOCAL_UPLOAD_DIR", t.TempDir())
+	srv := newTestServer(t)
+	w := buildAuditWorld(t, srv)
+
+	from := time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)
+	to := time.Now().UTC().Format(time.RFC3339)
+	res, out := doJSON(t, srv, "POST", "/api/v1/orgs/"+w.orgID+"/audit/exports", w.token,
+		map[string]string{"format": "csv", "from": from, "to": to})
+	if res.StatusCode != 202 {
+		t.Fatalf("request export: %d %v", res.StatusCode, out)
+	}
+	exportID := out["export"].(map[string]any)["id"].(string)
+
+	// A real second organization with its own owner and token.
+	res, out = doJSON(t, srv, "POST", "/api/v1/auth/register", "", map[string]string{
+		"email": "audit-owner-b@example.com", "password": "password123", "display_name": "Owner B",
+	})
+	if res.StatusCode != 200 {
+		t.Fatalf("register owner B: %d %v", res.StatusCode, out)
+	}
+	tokenB := out["access_token"].(string)
+	verifyEmail(t, srv, tokenB)
+	res, out = doJSON(t, srv, "POST", "/api/v1/orgs", tokenB,
+		map[string]string{"name": "Other Org", "slug": "other-org"})
+	if res.StatusCode != 201 {
+		t.Fatalf("create org B: %d %v", res.StatusCode, out)
+	}
+
+	res, _ = doJSON(t, srv, "GET", "/api/v1/orgs/"+w.orgID+"/audit/exports/"+exportID, tokenB, nil)
+	if res.StatusCode != 403 {
+		t.Fatalf("another organization's owner read the job: %d", res.StatusCode)
+	}
+	res, _ = doJSON(t, srv, "GET", "/api/v1/orgs/"+w.orgID+"/audit/exports", tokenB, nil)
+	if res.StatusCode != 403 {
+		t.Fatalf("another organization's owner listed the exports: %d", res.StatusCode)
+	}
+	res, _ = doJSON(t, srv, "POST", "/api/v1/orgs/"+w.orgID+"/audit/exports", tokenB,
+		map[string]string{"format": "csv", "from": from, "to": to})
+	if res.StatusCode != 403 {
+		t.Fatalf("another organization's owner queued an export: %d", res.StatusCode)
+	}
+}
+
+// LEGACY (Bước 0, pinned on purpose): the export API hands the browser a direct
+// storage URL - GET /uploads/*, a static route that carries no authorization and
+// re-checks neither the reader's audit permission nor the export's expiry. T10
+// must replace it with a resolve endpoint that does both, so that PR is expected
+// to rewrite this assertion; the lane report carries the finding.
+func TestLegacyExportDownloadIsADirectStorageURL(t *testing.T) {
+	t.Setenv("LOCAL_UPLOAD_DIR", t.TempDir())
+	// A relative URL keeps this assertion independent of the local base URL.
+	t.Setenv("LOCAL_UPLOAD_BASE_URL", "")
+	srv := newTestServer(t)
+	w := buildAuditWorld(t, srv)
+
+	from := time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)
+	to := time.Now().UTC().Format(time.RFC3339)
+	res, out := doJSON(t, srv, "POST", "/api/v1/orgs/"+w.orgID+"/audit/exports", w.token,
+		map[string]string{"format": "csv", "from": from, "to": to})
+	if res.StatusCode != 202 {
+		t.Fatalf("request export: %d %v", res.StatusCode, out)
+	}
+	exportID := out["export"].(map[string]any)["id"].(string)
+	runAuditExportWorker(t, exportID, w.orgID)
+
+	res, out = doJSON(t, srv, "GET", "/api/v1/orgs/"+w.orgID+"/audit/exports/"+exportID, w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("get export: %d %v", res.StatusCode, out)
+	}
+	url, _ := out["export"].(map[string]any)["download_url"].(string)
+	want := "/uploads/audit-exports/" + w.orgID + "/" + exportID + ".csv"
+	if url != want {
+		t.Fatalf("download_url = %q, want the direct storage URL %q", url, want)
 	}
 }
