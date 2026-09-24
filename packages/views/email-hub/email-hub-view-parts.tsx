@@ -1,31 +1,21 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
-import { Mail } from "lucide-react";
+import { Download, FileText, Mail } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { EmailHubAttachment } from "@uniwork/core/types/email-hub";
+import { tintClass } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
+import { identityTint } from "../people/identity-tint";
+import { formatBytes, senderInitial } from "./email-hub-format";
 import { wrapEmailHtml } from "./email-hub-html";
 
-export function formatWhen(iso: string) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-}
-
-export function formatBytes(size: number) {
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-export function senderInitial(fromName?: string, fromAddr?: string) {
-  const source = (fromName?.trim() || fromAddr?.trim() || "?").replace(/[<>"']/g, "");
-  const letter = source.match(/[A-Za-z0-9]/)?.[0];
-  return (letter ?? "?").toUpperCase();
-}
-
+/**
+ * Tinted by the address, so the same sender is the same colour in the list,
+ * the reading pane and every visit — the list reads by colour before it reads
+ * by name. Every avatar used to share one brand wash.
+ */
 export function EmailSenderAvatar({
   fromName,
   fromAddr,
@@ -35,10 +25,12 @@ export function EmailSenderAvatar({
   fromAddr?: string;
   className?: string;
 }) {
+  const tint = identityTint((fromAddr || fromName || "?").toLowerCase());
   return (
     <span
       className={cn(
-        "inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-brand/10 text-body font-semibold text-brand",
+        "inline-flex size-10 shrink-0 items-center justify-center rounded-full text-body font-semibold",
+        tintClass[tint],
         className,
       )}
       aria-hidden
@@ -48,25 +40,49 @@ export function EmailSenderAvatar({
   );
 }
 
+const FRAME_MIN_HEIGHT = 160;
+const FRAME_MAX_HEIGHT = 20_000;
+
+/**
+ * The HTML body. Its height follows the document for as long as it is shown:
+ * measuring once on `load` cut off every email whose images arrived later.
+ */
 export function EmailHtmlFrame({ html, title }: { html: string; title: string }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
     const frame = frameRef.current;
     if (!frame) return;
+    let observer: ResizeObserver | null = null;
     const resize = () => {
       try {
         const doc = frame.contentDocument;
         const height = doc?.documentElement?.scrollHeight ?? doc?.body?.scrollHeight;
         if (height && height > 0) {
-          frame.style.height = `${Math.min(Math.max(height + 16, 240), 6000)}px`;
+          frame.style.height = `${Math.min(Math.max(height, FRAME_MIN_HEIGHT), FRAME_MAX_HEIGHT)}px`;
         }
       } catch {
         frame.style.height = "480px";
       }
     };
-    frame.addEventListener("load", resize);
-    return () => frame.removeEventListener("load", resize);
+    const onLoad = () => {
+      resize();
+      observer?.disconnect();
+      try {
+        const root = frame.contentDocument?.documentElement;
+        if (root && typeof ResizeObserver !== "undefined") {
+          observer = new ResizeObserver(resize);
+          observer.observe(root);
+        }
+      } catch {
+        /* cross-origin document: the load measurement is all we get */
+      }
+    };
+    frame.addEventListener("load", onLoad);
+    return () => {
+      frame.removeEventListener("load", onLoad);
+      observer?.disconnect();
+    };
   }, [html]);
 
   return (
@@ -74,37 +90,40 @@ export function EmailHtmlFrame({ html, title }: { html: string; title: string })
       ref={frameRef}
       title={title}
       sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-      className="block w-full min-w-0 border-0 bg-transparent"
+      className="block w-full min-w-0 border-0"
+      style={{ height: FRAME_MIN_HEIGHT }}
       srcDoc={wrapEmailHtml(html)}
     />
   );
 }
 
-export function EmptyPanel({ message, icon: Icon = Mail }: { message: string; icon?: typeof Mail }) {
+/** An empty or waiting pane: what is going on, and the next step when there is one. */
+export function EmailHubEmptyState({
+  title,
+  message,
+  icon: Icon = Mail,
+  action,
+  className,
+}: {
+  title?: string;
+  message: string;
+  icon?: typeof Mail;
+  action?: ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="flex h-full min-h-[200px] flex-col items-center justify-center gap-4 p-8 text-center">
-      <span className="inline-flex size-14 items-center justify-center rounded-2xl bg-muted/60">
-        <Icon className="size-7 text-muted-foreground" />
+    <div
+      className={cn(
+        "flex h-full min-h-[14rem] flex-col items-center justify-center gap-3 px-6 py-10 text-center",
+        className,
+      )}
+    >
+      <span className="inline-flex size-12 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+        <Icon className="size-6" aria-hidden />
       </span>
-      <p className="max-w-sm text-body leading-relaxed text-muted-foreground">{message}</p>
-    </div>
-  );
-}
-
-export function StatsCard({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="rounded-xl border border-border bg-background p-4 shadow-[var(--surface-shadow)]">
-      <h3 className="mb-3 text-caption font-medium uppercase tracking-wide text-muted-foreground">{title}</h3>
-      <div className="space-y-2">{children}</div>
-    </div>
-  );
-}
-
-export function StatRow({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="flex items-center justify-between gap-3 text-body">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="rounded-full bg-muted/60 px-2.5 py-0.5 tabular-nums text-body font-semibold">{value}</span>
+      {title ? <p className="text-title-sm font-semibold text-balance text-foreground">{title}</p> : null}
+      <p className="max-w-sm text-body text-pretty text-muted-foreground">{message}</p>
+      {action ? <div className="mt-1">{action}</div> : null}
     </div>
   );
 }
@@ -113,39 +132,49 @@ export function AttachmentList({
   attachments,
   downloading,
   onDownload,
-  embedded = false,
 }: {
   attachments: EmailHubAttachment[];
   downloading: boolean;
   onDownload: (att: EmailHubAttachment) => void;
-  embedded?: boolean;
 }) {
   const { t } = useTranslation();
   return (
-    <div className={embedded ? undefined : "rounded-xl border border-border bg-background p-4 shadow-[var(--surface-shadow)]"}>
-      <h3 className="mb-3 text-body font-medium">{t("email_hub.attachments_title")}</h3>
-      <ul className="space-y-2">
-        {attachments.map((att) => (
-          <li
-            key={att.id}
-            className="flex items-center justify-between gap-3 rounded-lg bg-muted/30 px-3 py-2"
-          >
-            <div className="min-w-0">
-              <p className="truncate text-body font-medium">{att.filename || t("email_hub.attachment_untitled")}</p>
-              <p className="text-caption text-muted-foreground">{formatBytes(att.size_bytes)}</p>
-            </div>
-            <Button
-              variant="toolbar"
-              size="sm"
-              className="shrink-0 rounded-lg shadow-none"
-              disabled={downloading}
-              onClick={() => onDownload(att)}
+    <section aria-labelledby="email-hub-attachments-title">
+      <h2 id="email-hub-attachments-title" className="mb-2 text-overline text-muted-foreground">
+        {t("email_hub.attachments_count", { count: attachments.length })}
+      </h2>
+      <ul className="grid gap-2 sm:grid-cols-2">
+        {attachments.map((att) => {
+          const name = att.filename || t("email_hub.attachment_untitled");
+          return (
+            <li
+              key={att.id}
+              className="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5"
             >
-              {t("email_hub.download")}
-            </Button>
-          </li>
-        ))}
+              <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                <FileText className="size-4" aria-hidden />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-body font-medium" title={name}>
+                  {name}
+                </p>
+                <p className="text-caption tabular-nums text-muted-foreground">{formatBytes(att.size_bytes)}</p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="text-muted-foreground hover:text-foreground"
+                disabled={downloading}
+                aria-label={t("email_hub.download_named", { name })}
+                onClick={() => onDownload(att)}
+              >
+                <Download aria-hidden />
+              </Button>
+            </li>
+          );
+        })}
       </ul>
-    </div>
+    </section>
   );
 }

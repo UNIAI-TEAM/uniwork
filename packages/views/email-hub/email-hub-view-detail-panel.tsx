@@ -1,157 +1,103 @@
 "use client";
 
-import { MailOpen } from "lucide-react";
+import { ArrowLeft, RefreshCw, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { EmailHubScheduledSendItem } from "@uniwork/core/api/endpoints/email-hub";
 import type { EmailHubThread } from "@uniwork/core/types/email-hub";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
-import { cn } from "@uniwork/ui/lib/utils";
-import type { ComposeMode } from "./compose-recipients";
+import type { EmailHubMailFolderKey } from "./email-hub-folders";
 import { EmailHubScheduledDetail } from "./email-hub-scheduled-detail";
 import { EmailHubThreadDetail } from "./email-hub-thread-detail";
-import { EmptyPanel } from "./email-hub-view-parts";
-import type { EmailHubFolderKey } from "./email-hub-folder-sidebar";
-
-type MailFolderKey = Exclude<EmailHubFolderKey, "SCHEDULED">;
+import type { EmailHubThreadActions, EmailHubThreadPending } from "./email-hub-thread-toolbar";
+import { EmailHubEmptyState } from "./email-hub-view-parts";
 
 export type EmailHubViewDetailPanelProps = {
-  readingEmail: boolean;
-  selectedId: string | null;
   isScheduledFolder: boolean;
   selectedScheduled: EmailHubScheduledSendItem | null;
-  accountId: string | null;
   cancelScheduledPending: boolean;
-  onClearSelection: () => void;
-  onCancelScheduled: () => void;
+  onCancelScheduled: (onDone: () => void) => void;
   detailError: boolean;
   detailLoading: boolean;
   activeThread: EmailHubThread | null;
-  mailFolder: MailFolderKey;
+  mailFolder: EmailHubMailFolderKey;
   detailData: EmailHubThread | null | undefined;
   readableBody: boolean;
   bodyLoading: boolean;
   bodyLoadFailed: boolean;
-  starPending: boolean;
-  movePending: boolean;
-  markReadPending: boolean;
-  downloadPending: boolean;
-  snoozePending: boolean;
-  openCompose: (mode: ComposeMode, source?: EmailHubThread | null) => void;
-  onToggleStar: () => void;
-  onMarkUnread: () => void;
-  onRestoreInbox: () => void;
-  onNotSpam: () => void;
-  onArchive: () => void;
-  onSpam: () => void;
-  onClearSnooze: () => void;
-  onSnoozeTomorrow: () => void;
-  onSnoozeNextWeek: () => void;
-  onTrash: () => void;
-  onRefetchDetail: () => void;
-  onDownloadAttachment: (att: { id: string; filename?: string }) => void;
+  actions: EmailHubThreadActions;
+  pending: EmailHubThreadPending;
+  aiOpen: boolean;
 };
 
+function DetailSkeleton() {
+  return (
+    <div className="mx-auto w-full max-w-4xl space-y-5 px-4 pt-5 lg:px-8" aria-busy="true">
+      <Skeleton className="h-7 w-2/3" />
+      <div className="flex items-center gap-3">
+        <Skeleton className="size-10 rounded-full" />
+        <div className="flex-1 space-y-2">
+          <Skeleton className="h-3.5 w-1/3" />
+          <Skeleton className="h-3 w-1/4" />
+        </div>
+      </div>
+      <Skeleton className="h-64 w-full rounded-lg" />
+    </div>
+  );
+}
+
+/** The reading pane: one email or one scheduled send. Shown instead of the list, never beside an empty one. */
 export function EmailHubViewDetailPanel(props: EmailHubViewDetailPanelProps) {
   const { t } = useTranslation();
-  const {
-    readingEmail,
-    selectedId,
-    isScheduledFolder,
-    selectedScheduled,
-    accountId,
-    cancelScheduledPending,
-    onClearSelection,
-    onCancelScheduled,
-    detailError,
-    detailLoading,
-    activeThread,
-    mailFolder,
-    detailData,
-    readableBody,
-    bodyLoading,
-    bodyLoadFailed,
-    starPending,
-    movePending,
-    markReadPending,
-    downloadPending,
-    snoozePending,
-    openCompose,
-    onToggleStar,
-    onMarkUnread,
-    onRestoreInbox,
-    onNotSpam,
-    onArchive,
-    onSpam,
-    onClearSnooze,
-    onSnoozeTomorrow,
-    onSnoozeNextWeek,
-    onTrash,
-    onRefetchDetail,
-    onDownloadAttachment,
-  } = props;
+  const { actions } = props;
 
-  return (
-    <section
-      className={cn(
-        "min-w-0 flex-1 bg-background lg:min-h-0",
-        readingEmail
-          ? "flex h-full w-full min-h-0 flex-1 flex-col overflow-hidden"
-          : "hidden min-h-[240px] overflow-y-auto p-3 lg:block lg:p-5",
-      )}
-    >
-      {!selectedId ? (
-        <EmptyPanel message={t("email_hub.empty_detail")} icon={MailOpen} />
-      ) : isScheduledFolder && selectedScheduled && accountId ? (
-        <EmailHubScheduledDetail
-          item={selectedScheduled}
-          cancelPending={cancelScheduledPending}
-          onBack={onClearSelection}
-          onCancel={onCancelScheduled}
-        />
-      ) : detailError && !activeThread ? (
-        <EmptyPanel message={t("email_hub.load_error")} />
-      ) : !activeThread && detailLoading ? (
-        <div className="space-y-4 px-4 py-4 lg:px-6">
-          <Skeleton className="h-8 w-2/3 rounded-lg" />
-          <Skeleton className="h-32 w-full" />
-          <Skeleton className="h-64 w-full" />
-        </div>
-      ) : activeThread && accountId && selectedId ? (
-        <EmailHubThreadDetail
-          activeThread={activeThread}
-          browserFolder={mailFolder}
-          accountId={accountId}
-          selectedId={selectedId}
-          detailData={detailData}
-          readableBody={readableBody}
-          bodyLoading={bodyLoading}
-          bodyLoadFailed={bodyLoadFailed}
-          isError={detailError}
-          starPending={starPending}
-          movePending={movePending}
-          markReadPending={markReadPending}
-          downloadPending={downloadPending}
-          onBack={onClearSelection}
-          onToggleStar={onToggleStar}
-          onReply={() => openCompose("reply", detailData ?? activeThread)}
-          onReplyAll={() => openCompose("replyAll", detailData ?? activeThread)}
-          onForward={() => openCompose("forward", detailData ?? activeThread)}
-          onMarkUnread={onMarkUnread}
-          onRestoreInbox={onRestoreInbox}
-          onNotSpam={onNotSpam}
-          onArchive={onArchive}
-          onSpam={onSpam}
-          snoozePending={snoozePending}
-          onClearSnooze={onClearSnooze}
-          onSnoozeTomorrow={onSnoozeTomorrow}
-          onSnoozeNextWeek={onSnoozeNextWeek}
-          onTrash={onTrash}
-          onRefetch={onRefetchDetail}
-          onDownloadAttachment={onDownloadAttachment}
-        />
-      ) : (
-        <EmptyPanel message={t("email_hub.load_error")} />
-      )}
-    </section>
-  );
+  let content;
+  if (props.isScheduledFolder) {
+    content = props.selectedScheduled ? (
+      <EmailHubScheduledDetail
+        item={props.selectedScheduled}
+        cancelPending={props.cancelScheduledPending}
+        onBack={actions.onBack}
+        onCancel={props.onCancelScheduled}
+      />
+    ) : null;
+  } else if (props.activeThread) {
+    content = (
+      <EmailHubThreadDetail
+        activeThread={props.activeThread}
+        browserFolder={props.mailFolder}
+        detailData={props.detailData}
+        readableBody={props.readableBody}
+        bodyLoading={props.bodyLoading}
+        bodyLoadFailed={props.bodyLoadFailed}
+        isError={props.detailError}
+        actions={actions}
+        pending={props.pending}
+        aiOpen={props.aiOpen}
+      />
+    );
+  } else if (props.detailLoading) {
+    content = <DetailSkeleton />;
+  } else {
+    content = (
+      <EmailHubEmptyState
+        icon={TriangleAlert}
+        message={t("email_hub.load_error")}
+        action={
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={actions.onBack}>
+              <ArrowLeft aria-hidden />
+              {t("email_hub.back_to_list")}
+            </Button>
+            <Button type="button" variant="outline" onClick={actions.onRefetch}>
+              <RefreshCw aria-hidden />
+              {t("common.retry")}
+            </Button>
+          </div>
+        }
+      />
+    );
+  }
+
+  return <section className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">{content}</section>;
 }

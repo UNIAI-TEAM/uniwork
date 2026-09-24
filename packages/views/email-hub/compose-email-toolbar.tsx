@@ -86,6 +86,8 @@ interface ComposeEmailToolbarProps {
   attachments: ComposeDraftAttachment[];
   onAttachmentsChange: (attachments: ComposeDraftAttachment[]) => void;
   canSend: boolean;
+  /** Why Send is off, shown beside it so a greyed button is never a riddle. */
+  sendBlockedReason: string | null;
   sending: boolean;
   onSend: () => void;
   onScheduleSend: (sendAtIso: string) => void;
@@ -103,6 +105,7 @@ export function ComposeEmailToolbar({
   attachments,
   onAttachmentsChange,
   canSend,
+  sendBlockedReason,
   sending,
   onSend,
   onScheduleSend,
@@ -224,6 +227,10 @@ export function ComposeEmailToolbar({
       toast.error(t("email_hub.compose.schedule_invalid"));
       return;
     }
+    if (sendAt.getTime() <= Date.now() + 60_000) {
+      toast.error(t("email_hub.compose.schedule_past"));
+      return;
+    }
     onScheduleSend(sendAt.toISOString());
     setScheduleOpen(false);
     setScheduleAt("");
@@ -264,13 +271,13 @@ export function ComposeEmailToolbar({
           role="toolbar"
           aria-label={t("email_hub.compose.formatting")}
         >
-          <Button type="button" size="sm" variant="ghost" className="h-8 min-w-8 px-2 font-bold" onClick={() => wrapSelection("*", "*")}>
+          <Button type="button" size="sm" variant="ghost" className="h-8 min-w-8 px-2 font-bold" aria-label={t("email_hub.compose.bold")} onClick={() => wrapSelection("*", "*")}>
             B
           </Button>
-          <Button type="button" size="sm" variant="ghost" className="h-8 min-w-8 px-2 italic" onClick={() => wrapSelection("_", "_")}>
+          <Button type="button" size="sm" variant="ghost" className="h-8 min-w-8 px-2 italic" aria-label={t("email_hub.compose.italic")} onClick={() => wrapSelection("_", "_")}>
             I
           </Button>
-          <Button type="button" size="sm" variant="ghost" className="h-8 min-w-8 px-2 underline" onClick={() => wrapSelection("<u>", "</u>")}>
+          <Button type="button" size="sm" variant="ghost" className="h-8 min-w-8 px-2 underline" aria-label={t("email_hub.compose.underline")} onClick={() => wrapSelection("<u>", "</u>")}>
             U
           </Button>
           <Button type="button" size="sm" variant="ghost" className="h-8 gap-1 px-2" onClick={() => handleLinkOpenChange(true)}>
@@ -281,10 +288,29 @@ export function ComposeEmailToolbar({
         </div>
       ) : null}
 
-      <div className="flex items-center justify-between gap-2 border-t border-border bg-muted/20 px-3 py-2">
+      {sendBlockedReason ? (
+        <p id="email-hub-send-blocked" className="border-t border-border px-4 pt-2 text-caption text-muted-foreground">
+          {sendBlockedReason}
+        </p>
+      ) : null}
+      <div
+        className={cn(
+          "flex items-center justify-between gap-2 px-3 py-2",
+          !sendBlockedReason && "border-t border-border",
+        )}
+      >
         <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
-          <div className="inline-flex shrink-0 overflow-hidden rounded-lg">
-            <Button type="button" size="sm" disabled={!canSend} onClick={onSend} className="rounded-r-none px-4">
+          <div className="inline-flex shrink-0 overflow-hidden rounded-control">
+            <Button
+              type="button"
+              variant="brand"
+              size="lg"
+              disabled={!canSend}
+              aria-busy={sending || undefined}
+              aria-describedby={sendBlockedReason ? "email-hub-send-blocked" : undefined}
+              onClick={onSend}
+              className="rounded-r-none px-4"
+            >
               {sending ? t("email_hub.compose.sending") : t("email_hub.compose.send")}
             </Button>
             <Popover open={scheduleOpen} onOpenChange={setScheduleOpen}>
@@ -292,10 +318,10 @@ export function ComposeEmailToolbar({
                 render={
                   <Button
                     type="button"
-                    size="sm"
-                    variant="default"
+                    size="lg"
+                    variant="brand"
                     disabled={!canSend}
-                    className="rounded-l-none border-l border-primary-foreground/25 px-2"
+                    className="rounded-l-none border-l border-l-brand-foreground/30 px-2"
                     aria-label={t("email_hub.compose.schedule_send")}
                   >
                     <ChevronDown className="size-4" aria-hidden />
@@ -304,6 +330,7 @@ export function ComposeEmailToolbar({
               />
               <PopoverContent align="start" side="top" className="w-80 space-y-3 p-3">
                 <p className="text-body font-medium">{t("email_hub.compose.schedule_send")}</p>
+                <p className="text-caption text-muted-foreground">{t("email_hub.compose.schedule_hint")}</p>
                 <DateTimeField
                   value={scheduleAt}
                   onChange={setScheduleAt}

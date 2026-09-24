@@ -13,6 +13,14 @@ describe("email hub html wrapper", () => {
     expect(wrapped).toContain("uniwork-email-reset");
   });
 
+  it("renders the body on its own light page with a sans-serif face and padding", () => {
+    expect(EMAIL_HTML_RESET).toMatch(/html\{background:#ffffff/);
+    expect(EMAIL_HTML_RESET).toContain("color-scheme");
+    expect(EMAIL_HTML_RESET).toMatch(/body\{[^}]*padding:20px/);
+    expect(EMAIL_HTML_RESET).toMatch(/body\{[^}]*font-family:Inter/);
+    expect(EMAIL_HTML_RESET).not.toContain("color:inherit");
+  });
+
   it("keeps table headers on one line", () => {
     expect(EMAIL_HTML_RESET).toContain("white-space:nowrap");
     expect(EMAIL_HTML_RESET).not.toContain("overflow-wrap:anywhere");

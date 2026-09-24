@@ -199,30 +199,26 @@ export function EmailHubAiPanel({
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"
-          size="sm"
-          variant="outline"
-          className="rounded-full"
+          variant={summary ? "outline" : "brandSubtle"}
           disabled={!aiOn || !bodyReady || summarize.isPending}
+          aria-busy={summarize.isPending || undefined}
           onClick={runSummarize}
         >
-          {summarize.isPending ? <Spinner className="size-3.5" /> : <Sparkles className="size-3.5" />}
-          {summary ? t("email_hub.ai.regenerate") : t("email_hub.ai.summarize")}
+          {summarize.isPending ? <Spinner className="size-3.5" /> : <Sparkles aria-hidden />}
+          {summarize.isPending
+            ? t("email_hub.ai.analyzing_short")
+            : summary
+              ? t("email_hub.ai.regenerate")
+              : t("email_hub.ai.summarize")}
         </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          className="rounded-full"
-          disabled={!aiOn}
-          onClick={openAskUni}
-        >
-          <MessageSquare className="size-3.5" />
+        <Button type="button" variant="outline" disabled={!aiOn} onClick={openAskUni}>
+          <MessageSquare aria-hidden />
           {t("email_hub.ai.ask_uni")}
         </Button>
       </div>
 
       {!aiOn ? (
-        <p className="text-caption text-muted-foreground">{t("email_hub.ai.disabled")}</p>
+        <p className="text-caption text-pretty text-muted-foreground">{t("email_hub.ai.disabled")}</p>
       ) : !bodyReady ? (
         <p className="text-caption text-muted-foreground">{t("email_hub.ai.wait_body")}</p>
       ) : cachedLoading && !summary ? (
@@ -234,10 +230,10 @@ export function EmailHubAiPanel({
 
       {summary ? (
         <div className="space-y-3">
-          {summary.cached ? (
-            <p className="text-caption text-muted-foreground">{t("email_hub.ai.cached_hint")}</p>
-          ) : null}
           <EmailHubAiSummaryDetail summary={summary} />
+          {summary.cached ? (
+            <p className="text-caption text-pretty text-muted-foreground">{t("email_hub.ai.cached_hint")}</p>
+          ) : null}
           <EmailHubAiActionItemsCard
             locale={locale}
             actionItems={actionItems}

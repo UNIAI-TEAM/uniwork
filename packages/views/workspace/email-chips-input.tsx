@@ -36,12 +36,15 @@ export function EmailChipsInput({
   onChange,
   disabled,
   placeholder,
+  className,
 }: {
   id: string;
   value: string[];
   onChange: (v: string[]) => void;
   disabled?: boolean;
   placeholder?: string;
+  /** Frame overrides, e.g. the borderless field rows of the email composer. */
+  className?: string;
 }) {
   const { t } = useTranslation();
   const [draft, setDraft] = useState("");
@@ -102,6 +105,7 @@ export function EmailChipsInput({
         // this to the draft input, the only direct <input> child.
         "has-[>input:focus-visible]:border-ring has-[>input:focus-visible]:ring-3 has-[>input:focus-visible]:ring-ring/50",
         disabled && "opacity-60",
+        className,
       )}
       onClick={() => document.getElementById(id)?.focus()}
     >

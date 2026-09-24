@@ -29,11 +29,9 @@ function GuideStep({
   visual: ReactNode;
 }) {
   return (
-    <li className="grid gap-3 rounded-lg border border-border bg-muted/20 p-4 sm:grid-cols-[minmax(0,1fr)_180px] sm:items-start">
+    <li className="grid gap-3 rounded-lg border border-border p-4 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-start">
       <div className="space-y-2">
-        <p className="text-caption font-medium text-brand">
-          {step.toString().padStart(2, "0")}
-        </p>
+        <p className="text-overline text-muted-foreground">{step.toString().padStart(2, "0")}</p>
         <h3 className="text-body font-medium text-foreground">{title}</h3>
         <div className="space-y-2 text-caption text-muted-foreground">{children}</div>
       </div>
@@ -64,7 +62,7 @@ function MockToggle({ on }: { on: boolean }) {
 function MockSecurityRow({ label, active }: { label: string; active?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-2 rounded-md border border-border bg-background px-3 py-2 text-caption">
-      <span className="truncate text-foreground">{label}</span>
+      <span className="min-w-0 text-foreground">{label}</span>
       {active ? <MockToggle on /> : <span className="text-muted-foreground">›</span>}
     </div>
   );
@@ -76,10 +74,10 @@ function MockAppPasswordForm({ mailLabel, deviceLabel, passwordSample }: {
   passwordSample: string;
 }) {
   return (
-    <div aria-hidden className="w-full max-w-[180px] space-y-2 rounded-lg border border-border bg-background p-3 shadow-sm">
+    <div aria-hidden className="w-full max-w-[12rem] space-y-2 rounded-lg border border-border bg-background p-3">
       <div className="rounded-md border border-border px-2 py-1.5 text-caption text-muted-foreground">{mailLabel}</div>
       <div className="rounded-md border border-border px-2 py-1.5 text-caption text-muted-foreground">{deviceLabel}</div>
-      <div className="rounded-md bg-brand/10 px-2 py-1.5 text-center text-caption font-medium tracking-widest text-brand">
+      <div className="rounded-md bg-brand-subtle px-2 py-1.5 text-center font-mono text-caption font-medium tracking-wider text-brand-subtle-foreground">
         {passwordSample}
       </div>
     </div>
@@ -96,7 +94,7 @@ export function ConnectAppPasswordGuideDialog({ open, onOpenChange }: ConnectApp
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-2xl">
+      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-2xl" closeLabel={t("common.close")}>
         <DialogHeader className="space-y-2 border-b border-border px-4 py-4 text-left">
           <DialogTitle>{t("email_hub.connect.guide.title")}</DialogTitle>
           <DialogDescription>{t("email_hub.connect.guide.description")}</DialogDescription>
@@ -107,7 +105,7 @@ export function ConnectAppPasswordGuideDialog({ open, onOpenChange }: ConnectApp
             step={1}
             title={t("email_hub.connect.guide.step1_title")}
             visual={
-              <div className="w-full max-w-[180px] space-y-2 rounded-lg border border-border bg-background p-3 shadow-sm">
+              <div className="w-full max-w-[12rem] space-y-2 rounded-lg border border-border bg-background p-3">
                 <MockSecurityRow label={t("email_hub.connect.guide.mock_2sv")} active />
               </div>
             }
@@ -128,7 +126,7 @@ export function ConnectAppPasswordGuideDialog({ open, onOpenChange }: ConnectApp
             step={2}
             title={t("email_hub.connect.guide.step2_title")}
             visual={
-              <div className="flex size-16 items-center justify-center rounded-xl bg-brand/10 text-brand">
+              <div className="flex size-16 items-center justify-center rounded-lg bg-brand-subtle text-brand-subtle-foreground">
                 <ShieldCheck className="size-8" aria-hidden />
               </div>
             }
@@ -163,7 +161,7 @@ export function ConnectAppPasswordGuideDialog({ open, onOpenChange }: ConnectApp
             step={4}
             title={t("email_hub.connect.guide.step4_title")}
             visual={
-              <div className="flex size-16 items-center justify-center rounded-xl bg-success-soft text-success-soft-foreground">
+              <div className="flex size-16 items-center justify-center rounded-lg bg-success-soft text-success-soft-foreground">
                 <Copy className="size-7" aria-hidden />
               </div>
             }

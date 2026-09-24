@@ -19,21 +19,24 @@ export function MeetingAssigneeSelect({
   suggestedOwner,
   onChange,
   className,
+  unassignedLabel,
 }: {
   workspaceId: string;
   value?: string;
   suggestedOwner?: string;
   onChange: (userId: string | undefined) => void;
   className?: string;
+  /** Overrides "Unassigned (AI suggestion)" where the suggestion is already shown beside the field. */
+  unassignedLabel?: string;
 }) {
   const { t } = useTranslation();
   const { data: members } = useMembers(workspaceId);
   const items = useMemo(
     () => [
-      { value: UNASSIGNED, label: t("meetings.assignTaskUnassigned") },
+      { value: UNASSIGNED, label: unassignedLabel ?? t("meetings.assignTaskUnassigned") },
       ...(members ?? []).map((m) => ({ value: m.user_id, label: m.display_name })),
     ],
-    [members, t],
+    [members, t, unassignedLabel],
   );
   const selectValue = value ?? UNASSIGNED;
   const active = items.find((item) => item.value === selectValue);
