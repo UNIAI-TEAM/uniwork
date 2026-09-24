@@ -420,3 +420,32 @@ func TestTaskFoundationQueriesCarryTenantScope(t *testing.T) {
 		}
 	}
 }
+
+// FileService's contract package stays a leaf and is called from one tier
+// (FS-C1 section 2). internal/files holds the types, enums, the purpose
+// registry and the interfaces a consumer codes against, so it must not reach
+// up into the service or handler tier - importing it would otherwise drag in
+// the whole service graph. Only internal/service may hold a files.Service: a
+// handler that held one would decide scope itself, and the gate that decides
+// who may touch a file is the module service's permission check.
+func TestFilesContractIsALeafCalledOnlyFromTheServiceTier(t *testing.T) {
+	graph := directImports(t)
+	for pkg, imports := range graph {
+		for _, imp := range imports {
+			if !strings.HasPrefix(imp, module+"internal/files") {
+				continue
+			}
+			if strings.HasPrefix(pkg, "internal/files") {
+				for _, forbidden := range []string{module + "internal/service", module + "internal/handler"} {
+					if strings.HasPrefix(imp, forbidden) {
+						t.Errorf("%s imports %s; internal/files must not depend on the service or handler tier (FS-C1 section 2)", pkg, imp)
+					}
+				}
+				continue
+			}
+			if !strings.HasPrefix(pkg, "internal/service") {
+				t.Errorf("%s imports %s; only internal/service calls files.Service (FS-C1 section 2)", pkg, imp)
+			}
+		}
+	}
+}
