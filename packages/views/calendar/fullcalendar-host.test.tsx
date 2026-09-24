@@ -359,6 +359,50 @@ describe("FullCalendarHost", () => {
     expect(revert).not.toHaveBeenCalled();
   });
 
+  it("eventResize updates a timed task duration instead of reverting", async () => {
+    const onEventDropOrResize = vi.fn();
+    const revert = vi.fn();
+    const timedTask: CalendarEvent = {
+      ...sample,
+      start: "2026-09-10T07:00:00.000Z",
+      end: "2026-09-10T08:00:00.000Z",
+      allDay: false,
+    };
+    render(
+      <FullCalendarHost
+        events={[timedTask]}
+        initialDate="2026-09-01"
+        viewMode="week"
+        onDatesSet={vi.fn()}
+        onSlotSelect={vi.fn()}
+        onEventClick={vi.fn()}
+        onEventDropOrResize={onEventDropOrResize}
+      />,
+    );
+
+    await captured.eventResize?.({
+      event: {
+        id: "ev-1",
+        start: new Date("2026-09-10T07:00:00.000Z"),
+        end: new Date("2026-09-10T09:30:00.000Z"),
+        allDay: false,
+      },
+      revert,
+    });
+
+    expect(onEventDropOrResize).toHaveBeenCalledWith({
+      kind: "task",
+      entityId: "task-1",
+      patch: {
+        start_date: "2026-09-10",
+        due_date: "2026-09-10",
+        start_at: "2026-09-10T07:00:00.000Z",
+        due_at: "2026-09-10T09:30:00.000Z",
+      },
+    });
+    expect(revert).not.toHaveBeenCalled();
+  });
+
   it("enables selectable and forwards dateClick to onSlotSelect", () => {
     const onSlotSelect = vi.fn();
     render(

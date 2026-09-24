@@ -155,6 +155,36 @@ describe("dropToPatch", () => {
     });
   });
 
+  it("clears exact instants when a timed task moves to the all-day row", () => {
+    const event: CalendarEvent = {
+      id: "task:t5",
+      kind: "task",
+      entityId: "t5",
+      title: "Focus",
+      start: "2026-09-10T07:00:00.000Z",
+      end: "2026-09-10T08:00:00.000Z",
+      allDay: false,
+    };
+
+    expect(
+      dropToPatch({
+        event,
+        start: new Date(2026, 8, 12),
+        end: new Date(2026, 8, 13),
+        allDay: true,
+      }),
+    ).toEqual({
+      kind: "task",
+      entityId: "t5",
+      patch: {
+        start_date: "2026-09-12",
+        due_date: "2026-09-12",
+        start_at: null,
+        due_at: null,
+      },
+    });
+  });
+
   it("returns null for unmappable meeting forced all-day", () => {
     const event: CalendarEvent = {
       id: "meeting:m2",

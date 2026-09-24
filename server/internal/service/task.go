@@ -67,7 +67,7 @@ type CreateTaskInput struct {
 	AllowDuplicate bool
 }
 
-// UpdateTaskInput: con trỏ nil = không đổi; với AssigneeID/StartDate/DueDate/ProjectID
+// UpdateTaskInput: con trỏ nil = không đổi; với AssigneeID/StartDate/DueDate/StartAt/DueAt/ProjectID
 // con trỏ kép — con trỏ tới nil = xóa giá trị.
 type UpdateTaskInput struct {
 	Title        *string
@@ -79,6 +79,8 @@ type UpdateTaskInput struct {
 	AssigneeKind string // read only when AssigneeID is set; "" means human
 	StartDate    **string
 	DueDate      **string
+	StartAt      **time.Time
+	DueAt        **time.Time
 	ProjectID    **string
 }
 
@@ -199,11 +201,20 @@ func taskAuditFields(t db.Task) map[string]any {
 		"assignee_kind":  t.AssigneeKind,
 		"start_date":     dateOrNil(t.StartDate),
 		"due_date":       dateOrNil(t.DueDate),
+		"start_at":       timeOrNil(t.StartAt),
+		"due_at":         timeOrNil(t.DueAt),
 		"position":       t.Position,
 		"project_id":     audit.Text(t.ProjectID.Valid, t.ProjectID.String),
 		"parent_task_id": audit.Text(t.ParentTaskID.Valid, t.ParentTaskID.String),
 		"stage":          int4OrNil(t.Stage),
 	}
+}
+
+func timeOrNil(t pgtype.Timestamptz) any {
+	if !t.Valid {
+		return nil
+	}
+	return t.Time.UTC().Format(time.RFC3339)
 }
 
 func dateOrNil(d pgtype.Date) any {
@@ -626,6 +637,17 @@ func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor A
 	if in.Title != nil && strings.TrimSpace(*in.Title) == "" {
 		return db.Task{}, Invalid("tiêu đề không được để trống")
 	}
+	if (in.StartAt == nil) != (in.DueAt == nil) {
+		return db.Task{}, Invalid("start_at và due_at phải được đặt cùng nhau")
+	}
+	if in.StartAt != nil {
+		if (*in.StartAt == nil) != (*in.DueAt == nil) {
+			return db.Task{}, Invalid("start_at và due_at phải cùng có giá trị hoặc cùng null")
+		}
+		if *in.StartAt != nil && !(*in.DueAt).After(**in.StartAt) {
+			return db.Task{}, Invalid("due_at phải sau start_at")
+		}
+	}
 	task, err := q.UpdateTask(ctx, db.UpdateTaskParams{
 		ID: before.ID, OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
 		Title: optText(in.Title), Description: optText(in.Description),
@@ -673,6 +695,15 @@ func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor A
 		}
 		task, err = q.SetTaskDueDate(ctx, db.SetTaskDueDateParams{
 			ID: before.ID, DueDate: due,
+			OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
+		})
+		if err != nil {
+			return db.Task{}, err
+		}
+	}
+	if in.StartAt != nil {
+		task, err = q.SetTaskScheduleTimes(ctx, db.SetTaskScheduleTimesParams{
+			ID: before.ID, StartAt: optTz(*in.StartAt), DueAt: optTz(*in.DueAt),
 			OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
 		})
 		if err != nil {

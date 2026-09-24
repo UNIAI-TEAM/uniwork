@@ -1605,6 +1605,76 @@ func (q *Queries) SetTaskProjectID(ctx context.Context, arg SetTaskProjectIDPara
 	return i, err
 }
 
+const setTaskScheduleTimes = `-- name: SetTaskScheduleTimes :one
+UPDATE tasks SET
+  start_at = $1,
+  due_at = $2,
+  revision = revision + 1,
+  updated_at = now(),
+  last_activity_at = now()
+WHERE id = $3
+  AND organization_id = $4
+  AND workspace_id = $5
+RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at
+`
+
+type SetTaskScheduleTimesParams struct {
+	StartAt        pgtype.Timestamptz `json:"start_at"`
+	DueAt          pgtype.Timestamptz `json:"due_at"`
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+}
+
+func (q *Queries) SetTaskScheduleTimes(ctx context.Context, arg SetTaskScheduleTimesParams) (Task, error) {
+	row := q.db.QueryRow(ctx, setTaskScheduleTimes,
+		arg.StartAt,
+		arg.DueAt,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+	)
+	var i Task
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Description,
+		&i.Status,
+		&i.Priority,
+		&i.AssigneeID,
+		&i.DueDate,
+		&i.Position,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Kind,
+		&i.CreatedByKind,
+		&i.AssigneeKind,
+		&i.OrganizationID,
+		&i.Number,
+		&i.ProjectID,
+		&i.ParentTaskID,
+		&i.AssigneeType,
+		&i.CreatorType,
+		&i.CreatorID,
+		&i.AcceptanceCriteria,
+		&i.ContextRefs,
+		&i.Metadata,
+		&i.Properties,
+		&i.StartDate,
+		&i.Stage,
+		&i.OriginType,
+		&i.OriginID,
+		&i.FirstExecutedAt,
+		&i.Revision,
+		&i.LastActivityAt,
+		&i.StartAt,
+		&i.DueAt,
+	)
+	return i, err
+}
+
 const setTaskStartDate = `-- name: SetTaskStartDate :one
 UPDATE tasks SET
   start_date = $2,

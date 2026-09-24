@@ -88,6 +88,18 @@ WHERE id = $1
   AND workspace_id = $4
 RETURNING *;
 
+-- name: SetTaskScheduleTimes :one
+UPDATE tasks SET
+  start_at = sqlc.narg('start_at'),
+  due_at = sqlc.narg('due_at'),
+  revision = revision + 1,
+  updated_at = now(),
+  last_activity_at = now()
+WHERE id = sqlc.arg('id')
+  AND organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
+RETURNING *;
+
 -- name: SetTaskProjectID :one
 UPDATE tasks SET
   project_id = $2,

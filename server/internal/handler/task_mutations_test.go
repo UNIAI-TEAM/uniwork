@@ -162,6 +162,34 @@ func TestPatchTaskHTTPScheduleTimes(t *testing.T) {
 	if task["start_at"] != "2026-09-21T07:30:00Z" || task["due_at"] != "2026-09-21T09:00:00Z" {
 		t.Fatalf("schedule = %v/%v, want updated instants; task=%v", task["start_at"], task["due_at"], task)
 	}
+
+	res, out = doJSON(t, srv, "PATCH", "/api/v1/tasks/"+taskID, token, map[string]any{
+		"start_at": nil, "due_at": nil,
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("clear timed task: %d %v", res.StatusCode, out)
+	}
+	task = out["task"].(map[string]any)
+	if _, ok := task["start_at"]; ok {
+		t.Fatalf("start_at should be absent after clear: %v", task)
+	}
+	if _, ok := task["due_at"]; ok {
+		t.Fatalf("due_at should be absent after clear: %v", task)
+	}
+
+	res, out = doJSON(t, srv, "PATCH", "/api/v1/tasks/"+taskID, token, map[string]any{
+		"start_at": "2026-09-21T07:30:00Z",
+	})
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("single schedule bound: %d %v", res.StatusCode, out)
+	}
+
+	res, out = doJSON(t, srv, "PATCH", "/api/v1/tasks/"+taskID, token, map[string]any{
+		"start_at": "2026-09-21T09:00:00Z", "due_at": "2026-09-21T07:30:00Z",
+	})
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("reversed schedule: %d %v", res.StatusCode, out)
+	}
 }
 
 func TestCreateTaskHTTPAcceptsWorkManagementContext(t *testing.T) {
