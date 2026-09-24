@@ -167,22 +167,27 @@ func (s *PeopleService) Search(ctx context.Context, actorID, orgID string, f Peo
 	if err != nil {
 		return PeoplePage{}, err
 	}
-	matched, err := s.q.CountPeople(ctx, db.CountPeopleParams{
-		OrganizationID: orgID,
-		Status:         f.Status,
-		Query:          query,
-		DepartmentID:   departmentID,
-		ManagerID:      managerID,
-		Role:           role,
-	})
-	if err != nil {
-		return PeoplePage{}, err
+	page := PeoplePage{People: make([]PersonView, 0, len(rows))}
+	// The counts span every page, so only the first page pays for them: each
+	// one sorts and scans the whole organization, and a later page's would
+	// only repeat the first's.
+	if f.Cursor == "" {
+		page.Total, err = s.q.CountPeople(ctx, db.CountPeopleParams{
+			OrganizationID: orgID,
+			Status:         f.Status,
+			Query:          query,
+			DepartmentID:   departmentID,
+			ManagerID:      managerID,
+			Role:           role,
+		})
+		if err != nil {
+			return PeoplePage{}, err
+		}
+		page.TotalActive, err = s.q.CountActivePeople(ctx, orgID)
+		if err != nil {
+			return PeoplePage{}, err
+		}
 	}
-	total, err := s.q.CountActivePeople(ctx, orgID)
-	if err != nil {
-		return PeoplePage{}, err
-	}
-	page := PeoplePage{Total: matched, TotalActive: total, People: make([]PersonView, 0, len(rows))}
 	if int32(len(rows)) > limit {
 		last := rows[limit-1]
 		page.NextCursor = encodeMemberCursor(last.DisplayName, last.UserID)
@@ -346,9 +351,13 @@ func (s *PeopleService) updateParams(ctx context.Context, orgID, targetID string
 			if id == targetID {
 				return p, Invalid("không thể đặt chính mình làm quản lý")
 			}
-			if _, err := s.q.GetPerson(ctx, db.GetPersonParams{OrganizationID: orgID, UserID: id}); errors.Is(err, pgx.ErrNoRows) {
+			manager, err := s.q.GetPerson(ctx, db.GetPersonParams{OrganizationID: orgID, UserID: id})
+			if errors.Is(err, pgx.ErrNoRows) {
 				return p, Invalid("người quản lý phải là thành viên của tổ chức")
 			} else if err != nil {
+				return p, err
+			}
+			if err := s.rejectReportingLoop(ctx, orgID, targetID, manager); err != nil {
 				return p, err
 			}
 			p.ManagerID = pgtype.Text{String: id, Valid: true}
@@ -360,6 +369,33 @@ func (s *PeopleService) updateParams(ctx context.Context, orgID, targetID string
 	}
 	p.SearchText = pgtype.Text{String: buildSearchText(before.DisplayName, before.Email, title, departmentName), Valid: true}
 	return p, nil
+}
+
+// maxReportingDepth bounds the walk up a manager chain, so a loop already in
+// the data cannot hang an edit.
+const maxReportingDepth = 64
+
+// rejectReportingLoop refuses a manager who already reports, directly or up
+// the chain, to the person being edited: the org chart would loop forever.
+func (s *PeopleService) rejectReportingLoop(ctx context.Context, orgID, targetID string, manager db.GetPersonRow) error {
+	next := manager.ManagerID
+	for range maxReportingDepth {
+		if !next.Valid || next.String == "" {
+			return nil
+		}
+		if next.String == targetID {
+			return Invalid("người quản lý đang báo cáo cho người này, không thể tạo vòng quản lý")
+		}
+		row, err := s.q.GetPerson(ctx, db.GetPersonParams{OrganizationID: orgID, UserID: next.String})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		next = row.ManagerID
+	}
+	return nil
 }
 
 // RefreshSearchText rebuilds the folded search column for every profile that

@@ -242,6 +242,35 @@ func TestManagerAndReports(t *testing.T) {
 	}
 }
 
+// A manager who already reports to the person, directly or further up the
+// chain, would make the org chart loop forever.
+func TestManagerCannotCloseAReportingLoop(t *testing.T) {
+	f := newPeopleFixture(t)
+	lead := f.addPeopleMember(t, "lead@example.com", "Trần Văn Dũng")
+	set := func(userID, managerID string) error {
+		_, err := f.people.UpdateProfile(f.ctx, f.owner.ID, f.org.ID, userID, ProfileInput{ManagerID: &managerID})
+		return err
+	}
+	// member → lead → owner
+	if err := set(f.member.ID, lead.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := set(lead.ID, f.owner.ID); err != nil {
+		t.Fatal(err)
+	}
+	var invalid ValidationError
+	if err := set(lead.ID, f.member.ID); !errors.As(err, &invalid) {
+		t.Fatalf("direct loop: got %v, want a validation error", err)
+	}
+	if err := set(f.owner.ID, f.member.ID); !errors.As(err, &invalid) {
+		t.Fatalf("loop two levels up: got %v, want a validation error", err)
+	}
+	// Moving someone sideways in the chain is still allowed.
+	if err := set(f.member.ID, f.owner.ID); err != nil {
+		t.Fatalf("re-pointing to a manager higher up: %v", err)
+	}
+}
+
 func strptr(s string) *string { return &s }
 func boolptr(b bool) *bool    { return &b }
 
@@ -388,7 +417,7 @@ func TestSearchOrdersByVietnameseGivenName(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if page.Total != int64(len(want)) {
+		if cursor == "" && page.Total != int64(len(want)) {
 			t.Fatalf("total %d, want %d", page.Total, len(want))
 		}
 		got = append(got, personNames(page.People)...)
