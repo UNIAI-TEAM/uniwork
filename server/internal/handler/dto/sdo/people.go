@@ -76,6 +76,7 @@ type PersonSDO struct {
 type PeopleListSDO struct {
 	People      []PersonDTO `json:"people"`
 	NextCursor  string      `json:"next_cursor,omitempty" description:"Con trỏ trang kế tiếp, rỗng khi đã hết" example:"TmfDtG4AMDFK"`
+	Total       int64       `json:"total" description:"Số người khớp bộ lọc hiện tại, trên mọi trang" example:"42"`
 	TotalActive int64       `json:"total_active" description:"Số thành viên đang hoạt động của tổ chức" example:"128"`
 }
 

@@ -74,6 +74,10 @@ func TestPeopleDirectoryEndToEnd(t *testing.T) {
 	if res.StatusCode != 200 || len(out["people"].([]any)) != 1 {
 		t.Fatalf("department filter: %d %v", res.StatusCode, out)
 	}
+	// total counts what the filter matched; total_active is the headcount.
+	if out["total"] != float64(1) || out["total_active"] != float64(2) {
+		t.Fatalf("department filter totals: %v / %v", out["total"], out["total_active"])
+	}
 
 	// A member may not set the fields the company owns.
 	res, _ = doJSON(t, srv, "PATCH", "/api/v1/orgs/unicom/people/"+memberID+"/profile", memberToken,
@@ -110,6 +114,39 @@ func TestPeopleDirectoryEndToEnd(t *testing.T) {
 	if len(body) < 3 || body[0] != 0xEF || !strings.Contains(string(body), "Nguyễn Văn Ân") {
 		t.Fatalf("csv body: %q", string(body))
 	}
+
+	// The export takes the list's filters: the department holds only the member.
+	csvRes, body = getCSV(t, srv, "/api/v1/orgs/unicom/people.csv?department_id="+deptID+"&status=active", ownerToken)
+	if csvRes.StatusCode != 200 || !strings.Contains(string(body), "Nguyễn Văn Ân") || strings.Contains(string(body), "chu@example.com") {
+		t.Fatalf("filtered export: %d %q", csvRes.StatusCode, string(body))
+	}
+	// A bad filter is a 400 with a JSON body, not a half-written CSV; a member
+	// still gets 403 whatever the filter says.
+	csvRes, body = getCSV(t, srv, "/api/v1/orgs/unicom/people.csv?status=gone", ownerToken)
+	if csvRes.StatusCode != 400 || strings.HasPrefix(csvRes.Header.Get("Content-Type"), "text/csv") {
+		t.Fatalf("bad status export: %d %s %q", csvRes.StatusCode, csvRes.Header.Get("Content-Type"), string(body))
+	}
+	if csvRes, _ = getCSV(t, srv, "/api/v1/orgs/unicom/people.csv?role=boss", memberToken); csvRes.StatusCode != 403 {
+		t.Fatalf("member export with a bad filter: %d", csvRes.StatusCode)
+	}
+}
+
+func getCSV(t *testing.T, srv *httptest.Server, path, token string) (*http.Response, []byte) {
+	t.Helper()
+	req, err := http.NewRequest("GET", srv.URL+path, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	res, err := srv.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := readAll(res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return res, body
 }
 
 func TestOrganizationMemberAdministrationEndToEnd(t *testing.T) {

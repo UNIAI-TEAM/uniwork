@@ -39,11 +39,12 @@ describe("people endpoints", () => {
   });
 
   it("listPeople puts every filter in the query string and defaults the optional fields", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(json({ people: [validPerson], total_active: 1 }));
+    vi.mocked(fetch).mockResolvedValueOnce(json({ people: [validPerson], total: 1, total_active: 3 }));
     const page = await listPeople("acme", { q: "an", department_id: "d1", status: "" }, "cur");
     expect(page.people[0]!.title).toBe("");
     expect(page.people[0]!.phone_visible).toBe(false);
-    expect(page.total_active).toBe(1);
+    expect(page.total).toBe(1);
+    expect(page.total_active).toBe(3);
     const url = String(vi.mocked(fetch).mock.calls[0]![0]);
     expect(url).toContain("/api/v1/orgs/acme/people?");
     expect(url).toContain("q=an");
@@ -55,7 +56,18 @@ describe("people endpoints", () => {
 
   it("listPeople degrades to an empty page on a malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ people: [{ user_id: 7 }] }));
-    await expect(listPeople("acme", {})).resolves.toEqual({ people: [], total_active: 0 });
+    await expect(listPeople("acme", {})).resolves.toEqual({ people: [], total: 0, total_active: 0 });
+  });
+
+  it("listPeople defaults a missing total to 0 and degrades on a non-numeric one", async () => {
+    // An older server sends no total: keep the page, count 0.
+    vi.mocked(fetch).mockResolvedValueOnce(json({ people: [validPerson], total_active: 1 }));
+    const page = await listPeople("acme", {});
+    expect(page.people).toHaveLength(1);
+    expect(page.total).toBe(0);
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ people: [validPerson], total: "many", total_active: 1 }));
+    await expect(listPeople("acme", {})).resolves.toEqual({ people: [], total: 0, total_active: 0 });
   });
 
   it("listPeople lets an unknown role or status through", async () => {
@@ -91,6 +103,21 @@ describe("people endpoints", () => {
 
   it("exportPeopleUrl is a plain URL the browser can navigate to", () => {
     expect(exportPeopleUrl("acme", "http://api.test")).toBe("http://api.test/api/v1/orgs/acme/people.csv");
+    expect(exportPeopleUrl("acme", "http://api.test", {})).toBe("http://api.test/api/v1/orgs/acme/people.csv");
+  });
+
+  it("exportPeopleUrl carries only the filters that are set", () => {
+    const url = new URL(
+      exportPeopleUrl("acme", "http://api.test", {
+        q: "Nguyễn An",
+        department_id: "d1",
+        manager_id: "",
+        role: "member",
+        status: undefined,
+      }),
+    );
+    expect(url.pathname).toBe("/api/v1/orgs/acme/people.csv");
+    expect(Object.fromEntries(url.searchParams)).toEqual({ q: "Nguyễn An", department_id: "d1", role: "member" });
   });
 
   it("listDepartments returns [] on a malformed response and defaults member_count", async () => {

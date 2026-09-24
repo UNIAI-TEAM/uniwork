@@ -44,8 +44,15 @@ LEFT JOIN departments d ON d.id = p.department_id
 WHERE m.organization_id = $1 AND m.user_id = $2;
 
 -- name: SearchPeople :many
--- Keyset paged on (display_name, user_id): the directory is a live list and an
--- offset would skip or repeat a row the moment somebody is renamed.
+-- Directory order is the Vietnamese one: given name first (the last word of the
+-- display name), then the full name, then user_id as the tie-break, all under
+-- the ICU Vietnamese collation so Đ sorts right after D instead of after Z.
+-- Keyset paged on that same tuple: the directory is a live list and an offset
+-- would skip or repeat a row the moment somebody is renamed. The cursor only
+-- carries (display_name, user_id); the given name is derived from it here with
+-- the exact expression the ORDER BY uses, so the comparison and the order can
+-- never disagree. ListPeopleForExport and ListDirectReports repeat the ORDER BY,
+-- and ListPeopleForExport and CountPeople repeat the WHERE; keep them in step.
 SELECT m.user_id, m.role, m.deactivated_at, m.created_at,
        u.email, u.display_name, u.avatar_url, u.timezone,
        p.title, p.department_id, p.manager_id, p.employee_code, p.phone, p.phone_visible,
@@ -66,9 +73,33 @@ WHERE m.organization_id = sqlc.arg(organization_id)
   AND (sqlc.narg(manager_id)::text IS NULL OR p.manager_id = sqlc.narg(manager_id)::text)
   AND (sqlc.narg(role)::text IS NULL OR m.role = sqlc.narg(role)::text)
   AND (sqlc.narg(cursor_name)::text IS NULL
-       OR (u.display_name, m.user_id) > (sqlc.narg(cursor_name)::text, sqlc.narg(cursor_user_id)::text))
-ORDER BY u.display_name, m.user_id
+       OR (regexp_replace(btrim(u.display_name), '^.*\s', '') COLLATE "vi-x-icu",
+           u.display_name COLLATE "vi-x-icu",
+           m.user_id COLLATE "vi-x-icu")
+        > (regexp_replace(btrim(sqlc.narg(cursor_name)::text), '^.*\s', '') COLLATE "vi-x-icu",
+           sqlc.narg(cursor_name)::text COLLATE "vi-x-icu",
+           sqlc.narg(cursor_user_id)::text COLLATE "vi-x-icu"))
+ORDER BY regexp_replace(btrim(u.display_name), '^.*\s', '') COLLATE "vi-x-icu",
+         u.display_name COLLATE "vi-x-icu",
+         m.user_id COLLATE "vi-x-icu"
 LIMIT sqlc.arg(row_limit);
+
+-- name: CountPeople :one
+-- The size of the filtered directory: SearchPeople's WHERE without the cursor,
+-- so "showing N of M" counts what the filters match, not the whole company.
+SELECT count(*)
+FROM organization_members m
+LEFT JOIN organization_member_profiles p ON p.organization_id = m.organization_id AND p.user_id = m.user_id
+WHERE m.organization_id = sqlc.arg(organization_id)
+  AND (
+    sqlc.arg(status)::text = 'all'
+    OR (sqlc.arg(status)::text = 'active' AND m.deactivated_at IS NULL)
+    OR (sqlc.arg(status)::text = 'deactivated' AND m.deactivated_at IS NOT NULL)
+  )
+  AND (sqlc.narg(query)::text IS NULL OR p.search_text LIKE '%' || sqlc.narg(query)::text || '%')
+  AND (sqlc.narg(department_id)::text IS NULL OR p.department_id = sqlc.narg(department_id)::text)
+  AND (sqlc.narg(manager_id)::text IS NULL OR p.manager_id = sqlc.narg(manager_id)::text)
+  AND (sqlc.narg(role)::text IS NULL OR m.role = sqlc.narg(role)::text);
 
 -- name: ListDirectReports :many
 SELECT m.user_id, u.display_name, u.avatar_url
@@ -76,7 +107,9 @@ FROM organization_member_profiles p
 JOIN organization_members m ON m.organization_id = p.organization_id AND m.user_id = p.user_id
 JOIN users u ON u.id = p.user_id
 WHERE p.organization_id = $1 AND p.manager_id = $2 AND m.deactivated_at IS NULL
-ORDER BY u.display_name;
+ORDER BY regexp_replace(btrim(u.display_name), '^.*\s', '') COLLATE "vi-x-icu",
+         u.display_name COLLATE "vi-x-icu",
+         m.user_id COLLATE "vi-x-icu";
 
 -- name: ListProfileSearchSources :many
 -- The columns search_text is folded from, for the two commands that have to
@@ -94,7 +127,8 @@ SELECT count(*) FROM organization_members
 WHERE organization_id = $1 AND deactivated_at IS NULL;
 
 -- name: ListPeopleForExport :many
--- The CSV is a full snapshot in directory order, capped by the caller.
+-- The CSV is a snapshot of the directory in directory order, narrowed by the
+-- same filters as SearchPeople and capped by the caller.
 SELECT m.user_id, m.role, m.deactivated_at,
        u.email, u.display_name,
        p.title, p.employee_code, p.phone, p.location, p.joined_on,
@@ -105,6 +139,17 @@ JOIN users u ON u.id = m.user_id
 LEFT JOIN organization_member_profiles p ON p.organization_id = m.organization_id AND p.user_id = m.user_id
 LEFT JOIN departments d ON d.id = p.department_id
 LEFT JOIN users mu ON mu.id = p.manager_id
-WHERE m.organization_id = $1
-ORDER BY u.display_name, m.user_id
-LIMIT $2;
+WHERE m.organization_id = sqlc.arg(organization_id)
+  AND (
+    sqlc.arg(status)::text = 'all'
+    OR (sqlc.arg(status)::text = 'active' AND m.deactivated_at IS NULL)
+    OR (sqlc.arg(status)::text = 'deactivated' AND m.deactivated_at IS NOT NULL)
+  )
+  AND (sqlc.narg(query)::text IS NULL OR p.search_text LIKE '%' || sqlc.narg(query)::text || '%')
+  AND (sqlc.narg(department_id)::text IS NULL OR p.department_id = sqlc.narg(department_id)::text)
+  AND (sqlc.narg(manager_id)::text IS NULL OR p.manager_id = sqlc.narg(manager_id)::text)
+  AND (sqlc.narg(role)::text IS NULL OR m.role = sqlc.narg(role)::text)
+ORDER BY regexp_replace(btrim(u.display_name), '^.*\s', '') COLLATE "vi-x-icu",
+         u.display_name COLLATE "vi-x-icu",
+         m.user_id COLLATE "vi-x-icu"
+LIMIT sqlc.arg(row_limit);

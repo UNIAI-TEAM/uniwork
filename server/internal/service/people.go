@@ -74,10 +74,13 @@ type PeopleFilter struct {
 	Limit        int32
 }
 
-// PeoplePage is one keyset page plus the headline count the screen shows.
+// PeoplePage is one keyset page plus the counts the screen shows: Total is
+// how many people the filters match across every page, TotalActive the
+// organization's active headcount whatever the filters say.
 type PeoplePage struct {
 	People      []PersonView
 	NextCursor  string
+	Total       int64
 	TotalActive int64
 }
 
@@ -102,21 +105,38 @@ func (in ProfileInput) adminOnly() bool {
 	return in.DepartmentID != nil || in.ManagerID != nil || in.EmployeeCode != nil || in.JoinedOn != nil
 }
 
+// normalizePeopleFilter validates the filter fields shared by the directory
+// and its export. An empty status becomes emptyStatus: the directory defaults
+// to the active members, the export to everyone.
+func normalizePeopleFilter(f PeopleFilter, emptyStatus string) (PeopleFilter, error) {
+	switch f.Status {
+	case "":
+		f.Status = emptyStatus
+	case MemberStatusActive, MemberStatusDeactivated, MemberStatusAll:
+	default:
+		return f, Invalid("status phải là active, deactivated hoặc all")
+	}
+	if f.Role != "" && f.Role != OrgRoleOwner && f.Role != OrgRoleAdmin && f.Role != OrgRoleMember {
+		return f, Invalid("role phải là owner, admin hoặc member")
+	}
+	return f, nil
+}
+
+// searchQuery folds the free-text query, or leaves it NULL when it is too
+// short to be a search.
+func (f PeopleFilter) searchQuery() pgtype.Text {
+	return nullTextIf(foldForSearch(f.Query), len([]rune(strings.TrimSpace(f.Query))) >= minSearchQuery)
+}
+
 // Search is the directory. Every member of the organization may read it.
 func (s *PeopleService) Search(ctx context.Context, actorID, orgID string, f PeopleFilter) (PeoplePage, error) {
 	m, err := s.orgs.RequireMember(ctx, orgID, actorID)
 	if err != nil {
 		return PeoplePage{}, err
 	}
-	switch f.Status {
-	case "":
-		f.Status = MemberStatusActive
-	case MemberStatusActive, MemberStatusDeactivated, MemberStatusAll:
-	default:
-		return PeoplePage{}, Invalid("status phải là active, deactivated hoặc all")
-	}
-	if f.Role != "" && f.Role != OrgRoleOwner && f.Role != OrgRoleAdmin && f.Role != OrgRoleMember {
-		return PeoplePage{}, Invalid("role phải là owner, admin hoặc member")
+	f, err = normalizePeopleFilter(f, MemberStatusActive)
+	if err != nil {
+		return PeoplePage{}, err
 	}
 	limit := f.Limit
 	if limit <= 0 {
@@ -129,16 +149,31 @@ func (s *PeopleService) Search(ctx context.Context, actorID, orgID string, f Peo
 	if err != nil {
 		return PeoplePage{}, err
 	}
+	query := f.searchQuery()
+	departmentID := nullTextIf(f.DepartmentID, f.DepartmentID != "")
+	managerID := nullTextIf(f.ManagerID, f.ManagerID != "")
+	role := nullTextIf(f.Role, f.Role != "")
 	rows, err := s.q.SearchPeople(ctx, db.SearchPeopleParams{
 		OrganizationID: orgID,
 		Status:         f.Status,
-		Query:          nullTextIf(foldForSearch(f.Query), len([]rune(strings.TrimSpace(f.Query))) >= minSearchQuery),
-		DepartmentID:   nullTextIf(f.DepartmentID, f.DepartmentID != ""),
-		ManagerID:      nullTextIf(f.ManagerID, f.ManagerID != ""),
-		Role:           nullTextIf(f.Role, f.Role != ""),
+		Query:          query,
+		DepartmentID:   departmentID,
+		ManagerID:      managerID,
+		Role:           role,
 		CursorName:     name,
 		CursorUserID:   userID,
 		RowLimit:       limit + 1,
+	})
+	if err != nil {
+		return PeoplePage{}, err
+	}
+	matched, err := s.q.CountPeople(ctx, db.CountPeopleParams{
+		OrganizationID: orgID,
+		Status:         f.Status,
+		Query:          query,
+		DepartmentID:   departmentID,
+		ManagerID:      managerID,
+		Role:           role,
 	})
 	if err != nil {
 		return PeoplePage{}, err
@@ -147,7 +182,7 @@ func (s *PeopleService) Search(ctx context.Context, actorID, orgID string, f Peo
 	if err != nil {
 		return PeoplePage{}, err
 	}
-	page := PeoplePage{TotalActive: total, People: make([]PersonView, 0, len(rows))}
+	page := PeoplePage{Total: matched, TotalActive: total, People: make([]PersonView, 0, len(rows))}
 	if int32(len(rows)) > limit {
 		last := rows[limit-1]
 		page.NextCursor = encodeMemberCursor(last.DisplayName, last.UserID)
@@ -451,8 +486,10 @@ func profileSnapshotAfter(r db.GetPersonRow, in ProfileInput) map[string]any {
 }
 
 // RequireExporter is the export gate on its own, so the handler can refuse
-// before it writes the 200 header a stream cannot take back.
-func (s *PeopleService) RequireExporter(ctx context.Context, actorID, orgID string) error {
+// before it writes the 200 header a stream cannot take back. It checks the
+// caller first and the filter second, so a malformed filter tells a
+// non-exporter nothing.
+func (s *PeopleService) RequireExporter(ctx context.Context, actorID, orgID string, f PeopleFilter) error {
 	m, err := s.orgs.RequireMember(ctx, orgID, actorID)
 	if err != nil {
 		return err
@@ -460,7 +497,8 @@ func (s *PeopleService) RequireExporter(ctx context.Context, actorID, orgID stri
 	if m.Role != OrgRoleOwner && m.Role != OrgRoleAdmin {
 		return ErrForbidden
 	}
-	return nil
+	_, err = normalizePeopleFilter(f, MemberStatusAll)
+	return err
 }
 
 // UpdateProfileAndRead applies the edit and returns the profile with its
@@ -472,14 +510,28 @@ func (s *PeopleService) UpdateProfileAndRead(ctx context.Context, actorID, orgID
 	return s.Get(ctx, actorID, orgID, targetID)
 }
 
-// ExportCSV streams the directory as CSV for an owner or admin. It writes a
-// UTF-8 BOM first: Excel on a Vietnamese Windows reads a BOM-less UTF-8 file as
-// Windows-1252 and turns every accented name into mojibake.
-func (s *PeopleService) ExportCSV(ctx context.Context, actorID, orgID string, w io.Writer) (int, error) {
-	if err := s.RequireExporter(ctx, actorID, orgID); err != nil {
+// ExportCSV streams the directory as CSV for an owner or admin, narrowed by
+// the same filters as Search (Cursor and Limit are ignored). With no status
+// it exports everyone, active and deactivated. It writes a UTF-8 BOM first:
+// Excel on a Vietnamese Windows reads a BOM-less UTF-8 file as Windows-1252
+// and turns every accented name into mojibake.
+func (s *PeopleService) ExportCSV(ctx context.Context, actorID, orgID string, f PeopleFilter, w io.Writer) (int, error) {
+	if err := s.RequireExporter(ctx, actorID, orgID, f); err != nil {
 		return 0, err
 	}
-	rows, err := s.q.ListPeopleForExport(ctx, db.ListPeopleForExportParams{OrganizationID: orgID, Limit: maxExportRows})
+	f, err := normalizePeopleFilter(f, MemberStatusAll)
+	if err != nil {
+		return 0, err
+	}
+	rows, err := s.q.ListPeopleForExport(ctx, db.ListPeopleForExportParams{
+		OrganizationID: orgID,
+		Status:         f.Status,
+		Query:          f.searchQuery(),
+		DepartmentID:   nullTextIf(f.DepartmentID, f.DepartmentID != ""),
+		ManagerID:      nullTextIf(f.ManagerID, f.ManagerID != ""),
+		Role:           nullTextIf(f.Role, f.Role != ""),
+		RowLimit:       maxExportRows,
+	})
 	if err != nil {
 		return 0, err
 	}
@@ -526,11 +578,26 @@ func (s *PeopleService) ExportCSV(ctx context.Context, actorID, orgID string, w 
 		Actor:          audit.User(actorID),
 		Action:         audit.ActionPeopleExported,
 		ResourceType:   "organization", ResourceID: orgID,
-		Metadata: map[string]any{"row_count": len(rows)},
+		Metadata: map[string]any{"row_count": len(rows), "filters": exportFilterMetadata(f)},
 	}, audit.Event{Topic: "people.exported", Payload: map[string]string{
 		"organization_id": orgID, "user_id": actorID,
 	}}); err != nil {
 		return len(rows), err
 	}
 	return len(rows), tx.Commit(ctx)
+}
+
+// exportFilterMetadata is the filter an export applied, as the audit row
+// records it: the status always, the rest only when set.
+func exportFilterMetadata(f PeopleFilter) map[string]any {
+	out := map[string]any{"status": f.Status}
+	for key, v := range map[string]string{
+		"q": strings.TrimSpace(f.Query), "department_id": f.DepartmentID,
+		"manager_id": f.ManagerID, "role": f.Role,
+	} {
+		if v != "" {
+			out[key] = v
+		}
+	}
+	return out
 }

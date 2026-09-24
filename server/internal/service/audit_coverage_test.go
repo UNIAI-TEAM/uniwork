@@ -110,7 +110,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		},
 		audit.ActionPeopleExported: func(t *testing.T, f *auditFixture) {
 			f.build(t)
-			if _, err := f.people.ExportCSV(f.ctx, f.owner.ID, f.orgID, io.Discard); err != nil {
+			if _, err := f.people.ExportCSV(f.ctx, f.owner.ID, f.orgID, PeopleFilter{}, io.Discard); err != nil {
 				t.Fatal(err)
 			}
 		},

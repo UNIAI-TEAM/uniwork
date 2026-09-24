@@ -16,6 +16,7 @@ import { parseWithFallback } from "../schema";
 const PeopleListResponse = z.object({
   people: z.array(PersonSchema),
   next_cursor: z.string().optional(),
+  total: z.number().default(0),
   total_active: z.number().default(0),
 });
 const PersonResponse = z.object({ person: PersonSchema, reports: z.array(ActorSchema).default([]) });
@@ -25,6 +26,9 @@ const DepartmentResponse = z.object({ department: DepartmentSchema });
 export interface PeoplePage {
   people: Person[];
   next_cursor?: string;
+  /** How many people the current filters match, across every page. */
+  total: number;
+  /** The organization's active headcount, whatever the filters say. */
   total_active: number;
 }
 
@@ -33,9 +37,9 @@ export interface PersonDetail {
   reports: Actor[];
 }
 
-const EMPTY_PAGE: PeoplePage = { people: [], total_active: 0 };
+const EMPTY_PAGE: PeoplePage = { people: [], total: 0, total_active: 0 };
 
-function peopleQuery(filters: PeopleFilters, cursor?: string): string {
+function peopleQuery(filters: PeopleFilters = {}, cursor?: string): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(filters)) {
     if (value) params.set(key, value);
@@ -80,10 +84,12 @@ export async function updateProfile(
 /**
  * The CSV export is a browser navigation, not a fetch: the response is a file
  * the browser saves, and the session cookie travels with it. Callers put this
- * on an `<a href>` rather than reading it into memory.
+ * on an `<a href>` rather than reading it into memory. The filters are the
+ * directory's, so the file holds what the list shows; with no status the
+ * server exports everyone, active and deactivated.
  */
-export function exportPeopleUrl(orgSlug: string, apiUrl: string): string {
-  return `${apiUrl}/api/v1/orgs/${encodeURIComponent(orgSlug)}/people.csv`;
+export function exportPeopleUrl(orgSlug: string, apiUrl: string, filters?: PeopleFilters): string {
+  return `${apiUrl}/api/v1/orgs/${encodeURIComponent(orgSlug)}/people.csv${peopleQuery(filters)}`;
 }
 
 export async function listDepartments(orgSlug: string, includeArchived = false): Promise<Department[]> {

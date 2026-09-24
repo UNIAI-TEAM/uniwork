@@ -100,4 +100,31 @@ func TestSwaggerSpecFollowsChiRoutesAndSDI(t *testing.T) {
 	if !strings.Contains(string(loginSDI), "an@acme.vn") {
 		t.Fatalf("login SDI missing example: %s", loginSDI)
 	}
+
+	// The directory and its CSV export share their filter query params.
+	for route, want := range map[string][]string{
+		"/api/v1/orgs/{org}/people":     {"q", "department_id", "manager_id", "role", "status", "cursor", "limit"},
+		"/api/v1/orgs/{org}/people.csv": {"q", "department_id", "manager_id", "role", "status"},
+	} {
+		var ops map[string]struct {
+			Parameters []struct {
+				Name string `json:"name"`
+				In   string `json:"in"`
+			} `json:"parameters"`
+		}
+		if err := json.Unmarshal(spec.Paths[route], &ops); err != nil {
+			t.Fatalf("%s: %v", route, err)
+		}
+		got := map[string]bool{}
+		for _, p := range ops["get"].Parameters {
+			if p.In == "query" {
+				got[p.Name] = true
+			}
+		}
+		for _, name := range want {
+			if !got[name] {
+				t.Errorf("GET %s: query param %q missing from the spec", route, name)
+			}
+		}
+	}
 }
