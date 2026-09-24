@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { apiErrorMessage, errorCode } from "@uniwork/core/api";
 import { usePeoplePermissions } from "@uniwork/core/permissions";
@@ -29,6 +29,8 @@ import { formatJoinedOn } from "./person-facts";
 /** The server rejects a longer bio (`maxBioLength` in server/internal/service). */
 const MAX_BIO = 500;
 const FORM_ID = "profile-edit-form";
+/** The fields the company owns; only someone who may set employment sends them. */
+const EMPLOYMENT_FIELDS = new Set<keyof ProfileInput>(["department_id", "manager_id", "employee_code", "joined_on"]);
 
 function initialForm(person: Person): ProfileInput {
   return {
@@ -102,7 +104,9 @@ export function ProfileEditDialog({
   const { canEditEmployment } = usePeoplePermissions(orgSlug);
   const { data: departments } = useDepartments(orgSlug);
   const update = useUpdateProfile(orgSlug);
-  const initial = useMemo(() => initialForm(person), [person]);
+  // Taken once, when the dialog opens. A refetch while it is open (someone
+  // else saving this profile) must not mark untouched fields as changed.
+  const [initial] = useState(() => initialForm(person));
   const [form, setForm] = useState<ProfileInput>(initial);
   const [manager, setManager] = useState<Actor | null>(person.manager ?? null);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
@@ -127,7 +131,10 @@ export function ProfileEditDialog({
 
   /** Every way out of the dialog lands here: Cancel, Escape, the X, the overlay. */
   const requestOpenChange = (next: boolean) => {
-    if (!next && dirty && !update.isPending) {
+    // Closing mid-save would unmount the dialog before the save reports back,
+    // so a failure would look like it went through.
+    if (!next && update.isPending) return;
+    if (!next && dirty) {
       setConfirmDiscard(true);
       return;
     }
@@ -137,17 +144,16 @@ export function ProfileEditDialog({
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     if (blocked) return;
-    // The company-owned fields are only sent when this caller may set them;
-    // sending them otherwise would turn a read-only value into a 403.
-    const input: ProfileInput = canEditEmployment.allowed
-      ? form
-      : {
-          title: form.title,
-          phone: form.phone,
-          phone_visible: form.phone_visible,
-          location: form.location,
-          bio: form.bio,
-        };
+    // Only the fields this editor changed are sent: sending the rest would
+    // write back the values the dialog opened with over anyone else's newer
+    // save. The company-owned fields are only sent when this caller may set
+    // them; sending them otherwise would turn a read-only value into a 403.
+    const input: ProfileInput = {};
+    for (const key of Object.keys(initial) as Array<keyof ProfileInput>) {
+      if (form[key] === initial[key]) continue;
+      if (EMPLOYMENT_FIELDS.has(key) && !canEditEmployment.allowed) continue;
+      Object.assign(input, { [key]: form[key] });
+    }
     update.mutate(
       { userId: person.user_id, input },
       {

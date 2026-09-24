@@ -190,6 +190,20 @@ describe("ProfileForm validation", () => {
     expect(saveButton()).toHaveAttribute("aria-disabled", "true");
   });
 
+  it("sends only the fields that changed, so it never writes back stale company values", async () => {
+    mockApi("owner", () => Promise.resolve({ person }));
+    renderForm();
+    fireEvent.change(await screen.findByLabelText("Nơi làm việc"), { target: { value: "Đà Nẵng" } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/orgs/acme/people/u1/profile",
+        expect.objectContaining({ method: "PATCH", body: { location: "Đà Nẵng" } }),
+      ),
+    );
+  });
+
   it("puts a rejected employee code on its own field, not only in a toast", async () => {
     mockApi("owner", () =>
       Promise.reject(
