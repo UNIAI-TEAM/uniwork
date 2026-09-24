@@ -40,6 +40,7 @@ bash D:/.Vietants_Project/uniwork-workspace/.uniwork-dev/file-service/reports/t9
 | cmd6 | `rg -n --no-heading -g '!**/*.test.*' 'storage\.Storage\|PresignGet\|GetReader\|KeyFromURL\|DeleteObject\(\|\.ObjectURL\(' packages/ apps/web/ e2e/` | **0** | frontend và e2e không có callsite storage nào |
 | cmd6b | `rg -n --no-heading -g '!**/*.test.*' 'URL\.createObjectURL\|URL\.revokeObjectURL' packages/` | **38** | 38 chỗ frontend dựng blob URL của trình duyệt (khác hẳn object key/URL của storage) |
 | cmd7 | `rg -n --no-heading -g '**/*_test.go' 'storage\.Storage\|DeleteObject\(\|\.ObjectURL\(\|GetReader\(\|KeyFromURL\(\|PresignGet' server/` | **42** | callsite phía test (fake/harness) — không nằm trong bảng §3 vì không phải đường chạy production |
+| cmd8 | `rg -n --no-heading -g '!**/*_test.go' 'ObjectSize\(\|GetReaderRange\(\|UploadStream\(\|UploadFromReader\(\|NormalizeObjectURL\(' server/` | **12** | method riêng của S3, lớp stream/reader và helper chuẩn hoá URL ghi locator (bổ sung sau vòng tester; §3.4) |
 
 Tổng hợp theo file cho cmd1 + cmd2 (26 + 5 = **31 dòng**, 11 file, tất cả trong `server/`):
 
@@ -57,11 +58,13 @@ Tổng hợp theo file cho cmd1 + cmd2 (26 + 5 = **31 dòng**, 11 file, tất c�
 | `server/internal/handler/audit.go` | 1 | URL tải audit export |
 | `server/internal/service/audit_export.go` | 1 | outbox ghi file audit export |
 
-Ghi chú đếm: cmd1 dùng nhóm method có tên riêng; `Upload` chỉ xuất hiện ở 5 chỗ production (`task_attachments.go:186`, `audit_export.go:83`, `avatar.go:73`, `chat_file_message.go:120`, `chat_voice_message.go:112`) cộng 2 chỗ nội bộ storage (`s3.go:333`-tương đương `local.go:333`, và lớp `UploadStream`). `Delete` (best-effort, không trả lỗi) chỉ có 5 chỗ production, đều là nhánh dọn dẹp khi bước sau thất bại.
+Ghi chú đếm: cmd1 dùng nhóm method có tên riêng; `Upload` xuất hiện ở 5 chỗ production (`task_attachments.go:186`, `audit_export.go:83`, `avatar.go:73`, `chat_file_message.go:120`, `chat_voice_message.go:112`) cộng 1 chỗ nội bộ storage (`local.go:333`, nằm trong `UploadFromReader`). `Delete` (best-effort, không trả lỗi) chỉ có 5 chỗ production, đều là nhánh dọn dẹp khi bước sau thất bại. cmd1 không bắt các method riêng của `*storage.S3Storage` (`ObjectSize`, `GetReaderRange`), lớp `UploadStream`/`UploadFromReader` hay helper `storage.NormalizeObjectURL`; chúng nằm ở cmd8 và được liệt kê đủ ở §3.4.
 
-## 3. Callsite storage trên HEAD (31 dòng production)
+## 3. Callsite storage trên HEAD (36 dòng production: 31 từ cmd1+cmd2, 5 từ cmd8)
 
 Cột "Purpose (FS-C1)" là purpose sẽ thay thế đường này khi chuyển sang `files.Service`; cột "Cleanup hiện tại" mô tả đúng những gì code đang làm hôm nay, không phải điều mong muốn.
+
+Phạm vi §3: (a) mọi lời gọi method của interface `storage.Storage`/`Presigner` trong production (cmd1 + cmd2); (b) method chỉ có trên `*storage.S3Storage` mà đường đọc recording dùng (`ObjectSize`, `GetReaderRange`) — cmd8; (c) helper package `storage.NormalizeObjectURL` có tham gia ghi locator — cmd8; (d) lời gọi nội bộ trong chính package storage (§3.1).
 
 ### 3.1 Adapter và nội bộ package `internal/storage`
 
@@ -71,7 +74,7 @@ Cột "Purpose (FS-C1)" là purpose sẽ thay thế đường này khi chuyển 
 | 2 | `server/internal/storage/s3.go:387` | `DeleteObject` (từ `Delete`) | mọi purpose (dọn) | không ghi DB | `S3_BUCKET` | log lỗi, không trả lỗi cho caller |
 | 3 | `server/internal/storage/s3.go:398` | `client.DeleteObject` (SDK) | – | – | `S3_BUCKET` | trả lỗi cho `DeleteObject` |
 | 4 | `server/internal/storage/local.go:114` | `DeleteObject` (từ `Delete`) | mọi purpose (dọn) | không ghi DB | `LOCAL_UPLOAD_DIR` | xoá file + `.meta.json` + file tạm, idempotent |
-| 5 | `server/internal/storage/local.go:333` | `Upload` (từ `UploadStream`) | – | – | `LOCAL_UPLOAD_DIR` | không |
+| 5 | `server/internal/storage/local.go:333` | `Upload` (từ `UploadFromReader`, khai báo `local.go:327`) | – | – | `LOCAL_UPLOAD_DIR` | không |
 
 Hai adapter đều thoả `storage.Storage`; `S3Storage` thêm `Presigner`/`DownloadPresigner`/`ObjectSize`/`GetReaderRange`, còn `LocalStorage` **không** implement presigner — đây là lý do handler recording có nhánh `h.Storage.(storage.DownloadPresigner)` và nhánh fallback blob (§5).
 
@@ -113,11 +116,21 @@ Hai adapter đều thoả `storage.Storage`; `S3Storage` thêm `Presigner`/`Down
 
 Ghi chú quan trọng cho bảng trên:
 
-- **Ba purpose task gộp thành một đường hôm nay.** Cùng endpoint/flow `task_attachments.go` phục vụ đính kèm task, đính kèm comment và ảnh mô tả; row luôn có `task_id` (không có query nào set `comment_id` — `server/pkg/db/queries/attachments.sql` chỉ có `BindAttachmentsToTask`), nên hôm nay chỉ tồn tại `TaskAttachment`. Việc tách purpose theo ngữ cảnh bind là của FS-C1/T6, không phải hành vi hiện có.
+- **Ba purpose task gộp thành một đường hôm nay.** Cùng endpoint/flow `task_attachments.go` phục vụ đính kèm task, đính kèm comment và ảnh mô tả; row đã bind luôn có `task_id` — row staged thì `task_id` và `comment_id` đều NULL kèm `expires_at` (§4 #3, `task_attachments_test.go:122`); không có query nào set `comment_id` (`server/pkg/db/queries/attachments.sql` chỉ có `BindAttachmentsToTask`), nên hôm nay chỉ tồn tại `TaskAttachment`. Việc tách purpose theo ngữ cảnh bind là của FS-C1/T6, không phải hành vi hiện có.
 - **Upload task ghi object trước, ghi DB sau** (`Upload` ở dòng 186 rồi mở transaction). Bốn nhánh lỗi gọi `DeleteObject`; nếu process crash giữa hai bước thì object nằm lại vĩnh viễn (không có reconciler cho prefix này).
 - **Chat file/voice ghi object trước, message sau**; `Storage.Delete` là best-effort nên crash giữa hai bước để lại object mồ côi. Ngoài ra `DeleteChatMessage` (`server/internal/service/chat_actions.go:55`) chỉ soft-delete row — **không** xoá bytes (xem §10).
 - **Recording không đi qua `storage.Upload`**: LiveKit Egress ghi trực tiếp vào bucket recording rồi webhook ghi URL vào `file_url`; app chỉ đọc lại key bằng `KeyFromURL` (§6, §9).
 - **Audit export** là consumer duy nhất ghi key do mình tự dựng với tiền tố `audit-exports/` và ghi `object_key` vào row sau khi upload xong.
+### 3.4 Method riêng của S3 và helper package (bổ sung sau vòng tester)
+
+| # | file:line | Module | Gọi | Purpose (FS-C1) | Lưu ở đâu | Bucket / prefix | Cleanup hiện tại |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 32 | `server/internal/handler/recording_playback.go:40` | Recording dùng chung | `(*storage.S3Storage).ObjectSize` (HEAD) | MeetingRecording + ChatCallRecording | – | key do caller truyền vào | đọc size để phục vụ Range |
+| 33 | `server/internal/handler/recording_playback.go:51` | Recording dùng chung | `(*storage.S3Storage).GetReaderRange` | MeetingRecording + ChatCallRecording | – | key do caller truyền vào | `defer reader.Close()`; đây là đường S3 thật của `/content` |
+| 34 | `server/internal/service/meeting_ai.go:453` | Meeting recording | `storage.NormalizeObjectURL` | MeetingRecording | ghi vào `meeting_recordings.file_url` | URL LiveKit trả về (`meetings/...`) | không (chuẩn hoá URL méo trước khi lưu) |
+| 35 | `server/internal/service/chat_voice_recording.go:162` | Chat call recording | `storage.NormalizeObjectURL` | ChatCallRecording | ghi vào `chat_voice_recordings.file_url` | URL LiveKit trả về (`chat-voice/...`) | không |
+| 36 | `server/internal/storage/s3.go:312` | Adapter | `GetReaderRange` (từ `GetReader`) | mọi purpose (đọc) | – | `S3_BUCKET` | caller đóng reader |
+
 ## 4. Nơi lưu key/URL: cột DB, JSON và Markdown
 
 Bảng dưới liệt kê mọi chỗ đã tìm thấy đang giữ locator (object key hoặc URL). Cột "Dạng" phân biệt key trần, URL đầy đủ, hay ref nằm trong nội dung.
@@ -129,7 +142,7 @@ Bảng dưới liệt kê mọi chỗ đã tìm thấy đang giữ locator (obje
 | 3 | `attachments.expires_at` | `192_attachment_staging.up.sql` | – | `task_attachments.go:213` | staged row (`task_id`/`comment_id` NULL) sống 24h; bind xoá về NULL |
 | 4 | `users.avatar_url` | `001_init.up.sql:6` | URL đầy đủ | `auth.go:286` (`UpdateAvatar`), `googleauth.go:45/53/65` | upload avatar ghi URL storage; **Google sign-in ghi URL của Google** (ảnh ngoài, không phải object của mình) |
 | 5 | `agents.avatar_url` | `066_agents.up.sql:10` | URL ngoài do client gửi | `service/agent.go:85/166` | không đi qua storage; không phải locator của mình |
-| 6 | `chat_messages.metadata` (JSONB) | `046_chat_core.up.sql:36` (+ `159`, `160`, `181` cho `kind`) | key trong JSON | `chat_file_message.go:170-175`, `chat_voice_message.go:170-175` | `{"filename","object_key","content_type","size_bytes"}` cho `kind='file'`/`'voice'`; DTO bỏ `object_key` |
+| 6 | `chat_messages.metadata` (JSONB) | `046_chat_core.up.sql:38` (``metadata``; dòng 36 là ``kind``; `159`/`160`/`181` mở rộng ``kind``) | key trong JSON | `chat_file_message.go:170-175`, `chat_voice_message.go:170-175` | `{"filename","object_key","content_type","size_bytes"}` cho `kind='file'`/`'voice'`; DTO bỏ `object_key` |
 | 7 | `chat_messages.metadata` (`voice_call_log`) | như trên | URL trong JSON (`recording_url`) | `chat_voice_recording.go:210-214` | bản sao locator của `chat_voice_recordings.file_url` (cùng object, hai nơi) |
 | 8 | `meeting_recordings.file_url` | `037_meeting_ai.up.sql:30` | URL đầy đủ | `meeting_ai.go:453` (`NormalizeObjectURL` từ webhook) | LiveKit ghi trực tiếp; app đọc key bằng `KeyFromURL` |
 | 9 | `chat_voice_recordings.file_url` | `189_chat_voice_recordings.up.sql:12` | URL đầy đủ | `chat_voice_recording.go:162` | như trên, prefix `chat-voice/` |
@@ -224,7 +237,7 @@ Mỗi mục là một hành vi đang chạy trên HEAD, kèm test đang giữ n�
 | U744-7 | Tải/preview nội dung: `/content` inline, `/download` ép `Content-Disposition: attachment`, `Cache-Control: private, no-store`, `Content-Type`/`Content-Length` theo row | `handler/task_attachments_test.go:46`; `service/task_attachments_test.go:15` |
 | U744-8 | Xoá: xoá row + audit `attachment_deleted` + outbox `attachment.deleted`, sau đó best-effort xoá object; API trả 204 | `service/task_attachments_test.go:15`; `packages/core/api/endpoints/task-attachments.test.ts:79`; `views/tasks/detail/components/attachments-section.test.tsx:240` |
 | U744-9 | Quyền: non-member bị 403/404; staged chỉ uploader; `task_id`/`comment_id` đều NULL chỉ hợp lệ khi còn `expires_at` | `service/task_attachments_test.go:168`; `handler/task_attachments_test.go` |
-| U744-10 | Avatar: multipart cap 2 MiB, chỉ nhận PNG/JPEG/GIF/WebP theo sniff nội dung, key `avatars/<userID>/<ulid>.<ext>`, `users.avatar_url` nhận URL storage; lỗi update row thì xoá object best-effort | `server/internal/handler/avatar_test.go:64,109,122,135` |
+| U744-10 | Avatar: multipart cap 2 MiB, chỉ nhận PNG/JPEG/GIF/WebP theo sniff nội dung, key `avatars/<userID>/<ulid>.<ext>`, `users.avatar_url` nhận URL storage; lỗi update row thì xoá object best-effort | `server/internal/handler/avatar_test.go:64,109,122,135` — **test chưa phủ** nhánh xoá object khi `UpdateAvatar` lỗi (`avatar.go:84`), T6 bổ sung khi viết test Bước 0 |
 | U744-11 | FE: URL CDN/CDN-signed và URL blob không bao giờ bị persist vào markdown (`isObjectURL`, `attachmentIdFromDownloadURL`) | `core/types/attachment-url.test.ts:10,25`; `views/editor/attachment.tsx` (nhánh persist) |
 
 ### 8.2 UNI-745 — chat file, voice
@@ -234,7 +247,7 @@ Mỗi mục là một hành vi đang chạy trên HEAD, kèm test đang giữ n�
 | U745-1 | Gửi file: multipart, cap 25 MiB, sniff jpeg/png/gif/webp/pdf/text, key `chat/files/<orgID>/<roomID>/<ulid>.<ext>`, metadata JSON giữ `object_key` + filename + content_type + size_bytes, `kind='file'` | `server/internal/handler/chat_file_message_test.go:14,41,91`; `server/internal/service/chat_file_message_test.go:28,114` |
 | U745-2 | Idempotency: cùng `client_msg_id` trả message cũ và **xoá** bản upload thứ hai (không nhân đôi object/message) | `handler/chat_file_message.go:131-133`; `service/chat_file_message_test.go:114` |
 | U745-3 | Hiển thị: DTO bỏ `object_key` (chỉ filename/content_type/size_bytes) | `handler/chat_file_message_test.go:41 TestToChatMessageDTOMapsFileWithoutObjectKey`; `views/chat/chat-file-message-row.test.tsx:21,72,278` |
-| U745-4 | Tải/stream: `GET …/messages/{id}/content` kiểm quyền phòng rồi stream từ storage; ảnh inline, file khác attachment; `Cache-Control: private, no-store` | `handler/chat_file_message_test.go:91 TestSendAndStreamChatFileMessage` |
+| U745-4 | Tải/stream: `GET …/messages/{id}/content` kiểm quyền phòng rồi stream từ storage; ảnh inline, file khác attachment (`chat_file_message.go:161-169`) | `handler/chat_file_message_test.go:91 TestSendAndStreamChatFileMessage` (phủ quyền + bytes + DTO; **test chưa phủ** phần `Content-Disposition`/`Cache-Control`) |
 | U745-5 | Voice note: multipart cap 4 MiB, sniff WebM/Ogg/MP4 audio, `duration_ms` bắt buộc, key `chat/voice/<orgID>/<roomID>/<ulid>.<ext>`, `kind='voice'`, metadata cùng shape | `service/chat_voice_message_test.go:9,39`; `handler/chat_voice_message_test.go:9,31`; `views/chat/chat-voice-message-row.test.tsx:10` |
 | U745-6 | Phát voice: FE tải blob qua `/content`, cache theo message, dựng/thu hồi object URL theo vòng đời mount | `views/chat/use-chat-file-object-url.ts`; `core/chat/voice-playback-store.test.ts`; `views/chat/use-chat-media-send.test.tsx` |
 | U745-7 | Quyền: người ngoài phòng không lấy được metadata lẫn bytes (`GetFileMessage`/`GetVoiceMessage` đi qua gate phòng) | `service/chat_file_message_test.go:114`; `service/chat_voice_message_test.go` |
@@ -244,12 +257,12 @@ Mỗi mục là một hành vi đang chạy trên HEAD, kèm test đang giữ n�
 
 | # | Hành vi hiện tại | Test giữ |
 | --- | --- | --- |
-| U746-1 | Bắt đầu ghi: host/admin + feature flag + meeting `IN_PROGRESS`; egress dùng prefix `meetings/<workspaceID>/<meetingID>`, row `meeting_recordings` ghi `egress_id` **sau** khi provider trả về; đang có recording active thì 409 | `service/meeting_ai_test.go:165 TestRecordingLifecycle`; `service/chat_voice_recording_test.go:35` |
+| U746-1 | Bắt đầu ghi **cuộc họp**: host/admin + feature flag + meeting `IN_PROGRESS`; egress dùng prefix `meetings/<workspaceID>/<meetingID>`, row `meeting_recordings` ghi `egress_id` **sau** khi provider trả về; đang có recording active thì **409** | `service/meeting_ai_test.go:165 TestRecordingLifecycle` (409, chỉ đúng cho meeting); đường chat idempotent — xem U746-6 |
 | U746-2 | Dừng ghi: gọi provider stop rồi chuyển row sang `PROCESSING`; webhook kết thúc điền `file_url` (qua `NormalizeObjectURL`) và `COMPLETE`/`FAILED` | `service/meeting_ai_test.go:165`; `service/chat_voice_recording_test.go:188 TestFinishVoiceRecordingByEgressFailed` |
 | U746-3 | Playback URL: chỉ khi row `COMPLETE` + có `file_url`; trả `playback_url` presigned TTL 15 phút + `expires_at`; storage không phải presigner → 501 từ handler | `handler/chat_voice_recording_test.go:33 TestPresignRecordingPlaybackURL`, `:206 TestMeetingRecordingHTTP`; `service/meeting_ai_test.go:209 TestMeetingRecordingForPlayback` |
-| U746-4 | Stream `/content`: S3 dùng HEAD + Range (`206`, `Content-Range`, `Accept-Ranges`), storage khác đọc full; range sai → 416; `Content-Type: video/mp4`, `Cache-Control: private, max-age=300` | `handler/chat_voice_recording_test.go:302 TestParseByteRange`, `:59 TestStreamRecordingObjectLocalStorage`, `:339 TestStreamRecordingObjectFullMissingFile` |
+| U746-4 | Stream `/content`: S3 dùng HEAD + Range (`206`, `Content-Range`, `Accept-Ranges`), storage khác đọc full; range sai → 416; `Content-Type: video/mp4`, `Cache-Control: private, max-age=300` | `handler/chat_voice_recording_test.go:302 TestParseByteRange`, `:59 TestStreamRecordingObjectLocalStorage`, `:339 TestStreamRecordingObjectFullMissingFile` — **test chưa phủ** đường S3 (`ObjectSize` + `GetReaderRange`, `206`/`Content-Range`/`Accept-Ranges`) |
 | U746-5 | Quyền: người ngoài cuộc họp/khách không có `file_url` bị chặn; danh sách cho khách ẩn recording chưa có file | `service/meeting_ai_test.go:209`; `service/chat_voice_recording_test.go:140 TestChatVoiceRecordingGuards`; `handler/chat_voice_recording_test.go:115,206` |
-| U746-6 | Ghi âm cuộc gọi chat: một egress cho mỗi call, prefix `chat-voice/<orgID>/<roomID>/<callID>`, hangup tự dừng egress, call-log message mang `recording_id`/`recording_status`/`recording_url` | `service/chat_voice_recording_test.go:35,90`; `chat_voice_recording.go:193-216` |
+| U746-6 | Ghi âm cuộc gọi chat: một egress cho mỗi call, prefix `chat-voice/<orgID>/<roomID>/<callID>`, hangup tự dừng egress, call-log message mang `recording_id`/`recording_status`/`recording_url`; gọi start lần hai trên cùng call trả **cùng** recording (idempotent, không 409) | `service/chat_voice_recording_test.go:35,90`; `chat_voice_recording.go:193-216` |
 | U746-7 | FE phát lại: ưu tiên URL presigned, lỗi thì tải blob qua `/content`, cache theo 30 giây trước hạn, `<video onError>` chuyển sang blob | `views/meetings/meeting-recording-dialog.test.tsx:18,26`; `core/api/endpoints/meetings.test.ts:273`; `core/api/endpoints/chat-voice.test.ts:79`; `core/meetings/recording-playback-cache.ts` |
 
 ### 8.4 UNI-749 — audit export
@@ -311,7 +324,23 @@ Chưa có bảng `files`/`file_id` trên HEAD (Gate A0 chưa merge), nên "đíc
 
 ## 11. Bằng chứng và acceptance
 
-- Lệnh và số đếm AC-1: §2; script tái chạy được: `ac1-greps.sh`, `ac1-greps-extra.sh`; output thô: `ac1-cmd1..cmd7*.txt` trong `D:/.Vietants_Project/uniwork-workspace/.uniwork-dev/file-service/reports/t9a-inventory/`.
+- Lệnh và số đếm AC-1: §2; script tái chạy được: `ac1-greps.sh`, `ac1-greps-extra.sh`; output thô: `ac1-cmd1..cmd8*.txt` (gồm `ac1-cmd8-s3-methods.txt`) trong `D:/.Vietants_Project/uniwork-workspace/.uniwork-dev/file-service/reports/t9a-inventory/`.
 - Test bắt buộc của task tài liệu này: `node --test scripts/governance.test.mjs` — chạy trên chính revision chứa tài liệu này; smoke/e2e không áp dụng (tài liệu chỉ đọc, không đổi runtime) và điều đó được ghi rõ trong PR body.
 - Revision và PR: xem PR "UNI-747: …" nhắm `feature/UNI-726-shared-file-service`; reviewer BE soi bảng §3/§4 và các câu "verified/derived/unresolved" ở §9.
 - Việc này không tự chốt cutover: mọi kết luận ở §9/§10 là đầu vào cho T9b (backfill + rehearsal) và T9c (cutover), dưới Gate D như plan §4 T9.
+## 12. Đính chính sau vòng tester + reviewer (4105de9c)
+
+Vòng kiểm tra độc lập trên revision `4105de9c` (Tester: `reports/t9a-inventory/tester-report.md`, BE Reviewer: `reports/t9a-inventory/reviewer-report.md`) mở lại tài liệu này và tìm ra các lỗi sau; tất cả đã được sửa trong chính tài liệu này (revision kế tiếp của cùng PR), không có code hay migration nào bị chạm.
+
+| # | Nguồn | Lỗi đã tìm thấy | Sửa trong tài liệu |
+| --- | --- | --- | --- |
+| 1 | Tester | §3 thiếu hai lời gọi method riêng của S3 trên đường đọc recording: `recording_playback.go:40` (`ObjectSize`) và `:51` (`GetReaderRange`) | thêm §3.4 (dòng 32–33) + cmd8 ở §2 |
+| 2 | Tester | §3 thiếu helper ghi locator `storage.NormalizeObjectURL` ở `meeting_ai.go:453` và `chat_voice_recording.go:162` | thêm §3.4 (dòng 34–35); nêu rõ phạm vi §3 |
+| 3 | Tester + Reviewer (F1) | §3.1 dòng 5 gọi `local.go:333` là "từ `UploadStream`" — thực tế là `UploadFromReader` (`local.go:327`); footnote §2 còn trỏ sai `s3.go:333` | sửa dòng 5 và footnote §2; bỏ khẳng định sai về `s3.go:333` |
+| 4 | Tester + Reviewer (F2) | §4 dòng 6 trỏ `046_chat_core.up.sql:36` (cột `kind`) thay vì `:38` (`metadata`) | sửa thành `:38` kèm ghi chú dòng 36 là `kind` |
+| 5 | Tester | Ghi chú §3.2 nói row đính kèm "luôn có `task_id`" — row staged thì không | viết lại: row đã bind có `task_id`, row staged có cả hai NULL + `expires_at` |
+| 6 | Tester | U745-4 và U746-4 viện dẫn test không phủ hết hành vi được khẳng định (header `Content-Disposition`/`Cache-Control`; đường Range S3) | ghi rõ phần code giữ hành vi và đánh dấu **test chưa phủ** để T7/T8 bổ sung |
+| 7 | Tester | U744-10 không có test cho nhánh xoá object best-effort khi `UpdateAvatar` lỗi | đánh dấu **test chưa phủ** (`avatar.go:84`) |
+| 8 | Reviewer (F3) | U746-1 gộp "409 khi đang ghi" cho cả meeting và chat; thực tế đường chat **idempotent** (trả cùng recording) | tách khẳng định: 409 chỉ cho meeting; thêm câu idempotent vào U746-6 |
+
+Hai vòng kiểm tra đều tái lập đúng tám số đếm AC-1 (26/5/39/14/81/0/38/42) và `node --test scripts/governance.test.mjs` (15/15 pass) trên `4105de9c`; vòng sau (re-test + re-review) chạy trên revision chứa mục §12 này, và kết quả được ghi ở PR body + acceptance packet.
