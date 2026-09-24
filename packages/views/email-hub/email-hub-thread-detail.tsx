@@ -80,7 +80,7 @@ export function EmailHubThreadDetail({
           type="button"
           variant="ghost"
           size="sm"
-          className="-ml-2 w-fit gap-1.5 rounded-xl text-muted-foreground"
+          className="-ml-2 w-fit gap-1.5 text-muted-foreground"
           onClick={onBack}
         >
           <ArrowLeft className="size-4" />
@@ -109,7 +109,7 @@ export function EmailHubThreadDetail({
                   type="button"
                   variant={activeThread.is_starred ? "brandSubtle" : "toolbar"}
                   size="sm"
-                  className="gap-1.5 rounded-lg shadow-none"
+                  className="gap-1.5 shadow-none"
                   aria-label={activeThread.is_starred ? t("email_hub.unstar") : t("email_hub.star")}
                   disabled={starPending}
                   onClick={onToggleStar}
@@ -126,17 +126,17 @@ export function EmailHubThreadDetail({
               ) : null}
               {canReply ? (
                 <>
-                  <Button variant="brand" size="sm" className="gap-1.5 rounded-lg shadow-none" onClick={onReply}>
+                  <Button variant="brand" size="sm" className="gap-1.5 shadow-none" onClick={onReply}>
                     <Reply className="size-3.5" />
                     {t("email_hub.reply")}
                   </Button>
                   {folder === "INBOX" ? (
-                    <Button variant="toolbar" size="sm" className="gap-1.5 rounded-lg shadow-none" onClick={onReplyAll}>
+                    <Button variant="toolbar" size="sm" className="gap-1.5 shadow-none" onClick={onReplyAll}>
                       <ReplyAll className="size-3.5" />
                       {t("email_hub.reply_all")}
                     </Button>
                   ) : null}
-                  <Button variant="toolbar" size="sm" className="gap-1.5 rounded-lg shadow-none" onClick={onForward}>
+                  <Button variant="toolbar" size="sm" className="gap-1.5 shadow-none" onClick={onForward}>
                     <Forward className="size-3.5" />
                     {t("email_hub.forward")}
                   </Button>
@@ -146,7 +146,7 @@ export function EmailHubThreadDetail({
                 <Button
                   variant="toolbar"
                   size="sm"
-                  className="gap-1.5 rounded-lg shadow-none"
+                  className="gap-1.5 shadow-none"
                   disabled={markReadPending}
                   onClick={onMarkUnread}
                 >
@@ -158,7 +158,7 @@ export function EmailHubThreadDetail({
                 <Button
                   variant="brand"
                   size="sm"
-                  className="gap-1.5 rounded-lg shadow-none"
+                  className="gap-1.5 shadow-none"
                   disabled={movePending}
                   onClick={onRestoreInbox}
                 >
@@ -171,7 +171,7 @@ export function EmailHubThreadDetail({
                   <Button
                     variant="toolbar"
                     size="sm"
-                    className="gap-1.5 rounded-lg shadow-none"
+                    className="gap-1.5 shadow-none"
                     disabled={movePending}
                     onClick={onArchive}
                   >
@@ -181,7 +181,7 @@ export function EmailHubThreadDetail({
                   <Button
                     variant="destructive"
                     size="sm"
-                    className="gap-1.5 rounded-lg shadow-none"
+                    className="gap-1.5 shadow-none"
                     disabled={movePending}
                     onClick={onTrash}
                   >
@@ -194,7 +194,7 @@ export function EmailHubThreadDetail({
                 <Button
                   variant="destructive"
                   size="sm"
-                  className="gap-1.5 rounded-lg shadow-none"
+                  className="gap-1.5 shadow-none"
                   disabled={movePending}
                   onClick={onTrash}
                 >
@@ -224,7 +224,7 @@ export function EmailHubThreadDetail({
           ) : bodyLoadFailed || isError ? (
             <div className="flex flex-col items-center gap-3 px-4 py-10 text-center lg:px-6">
               <p className="text-body text-destructive">{t("email_hub.load_error")}</p>
-              <Button type="button" variant="toolbar" size="sm" className="rounded-xl shadow-none" onClick={onRefetch}>
+              <Button type="button" variant="toolbar" size="sm" className="shadow-none" onClick={onRefetch}>
                 {t("common.retry")}
               </Button>
             </div>

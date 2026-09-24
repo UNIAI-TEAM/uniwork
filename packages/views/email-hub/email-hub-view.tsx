@@ -246,7 +246,7 @@ export function EmailHubView() {
                   value={searchInput}
                   onChange={(e) => setSearchInput(e.target.value)}
                   placeholder={t("email_hub.search_placeholder")}
-                  className="h-10 rounded-lg pl-9"
+                  className="h-10 pl-9"
                 />
               </div>
             ) : (
@@ -255,7 +255,7 @@ export function EmailHubView() {
             <Button
               variant="toolbar"
               size="icon"
-              className="size-10 shrink-0 rounded-xl shadow-none"
+              className="size-10 shrink-0 shadow-none"
               disabled={!accountId || (isScheduledFolder ? scheduled.isFetching : sync.isPending)}
               aria-label={t("email_hub.refresh")}
               onClick={() => {
@@ -365,7 +365,7 @@ export function EmailHubView() {
             <div className="p-3">
               <Button
                 variant="toolbar"
-                className="h-10 w-full rounded-xl shadow-none"
+                className="h-10 w-full shadow-none"
                 disabled={threads.isFetchingNextPage}
                 onClick={() => threads.fetchNextPage()}
               >

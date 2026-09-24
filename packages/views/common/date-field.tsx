@@ -111,7 +111,7 @@ export function DateField({
           triggerRender
             ? undefined
             : cn(
-                "flex h-8 w-full min-w-0 items-center gap-2 pointer-coarse:min-h-11 rounded-lg border border-input bg-transparent px-2.5 py-1 text-left text-body transition-colors outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30",
+                "flex h-8 w-full min-w-0 items-center gap-2 pointer-coarse:min-h-11 rounded-control border border-input bg-transparent px-2.5 py-1 text-left text-body transition-colors outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 dark:bg-surface-hover/60",
                 !selected && "text-muted-foreground",
                 className,
               )
