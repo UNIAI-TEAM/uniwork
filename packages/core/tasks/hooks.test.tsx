@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TableFilter, TableGroupsResult, TableRowsResult } from "../api/endpoints/tasks-table";
 import { setAccessToken } from "../api/session";
 import { resetAuthStoreForTests, useAuthStore } from "../auth/store";
+import { calendarKeys } from "../calendar/keys";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 import type { Task } from "../types/task";
 import type { User } from "../types/user";
@@ -123,6 +124,7 @@ describe("useCreateTask", () => {
       taskKeys.queryRoot(WS),
       taskKeys.myTasks(WS),
       taskKeys.tableRoot(WS),
+      calendarKeys.all(WS),
     ];
     for (const key of roots) qc.setQueryData(key, { seeded: true });
     const { result } = renderHook(() => useCreateTask(WS), {
