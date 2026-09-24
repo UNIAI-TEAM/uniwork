@@ -206,8 +206,21 @@ export function useNotificationPreferences() {
 export function useSetNotificationPreferences() {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: notificationKeys.prefs(),
     mutationFn: (prefs: NotificationPreference[]) => api.setPreferences(prefs),
-    onSuccess: (prefs) => qc.setQueryData(notificationKeys.prefs(), prefs),
+    // Each answer is a full snapshot and overlapping writes (one per row) can
+    // answer out of order. While another write is pending, only mark the entry
+    // stale; the last write to settle refetches if anything overlapped it.
+    onSuccess: (prefs) => {
+      const key = notificationKeys.prefs();
+      if (qc.isMutating({ mutationKey: key }) > 1) {
+        void qc.invalidateQueries({ queryKey: key, refetchType: "none" });
+      } else if (qc.getQueryState(key)?.isInvalidated) {
+        void qc.invalidateQueries({ queryKey: key });
+      } else {
+        qc.setQueryData(key, prefs);
+      }
+    },
   });
 }
 

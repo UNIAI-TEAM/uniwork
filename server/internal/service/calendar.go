@@ -315,7 +315,14 @@ func truncateUTCDate(t time.Time) time.Time {
 
 // truncateLocalDate is midnight UTC on the Y-M-D of t in the process local zone.
 func truncateLocalDate(t time.Time) time.Time {
-	l := t.Local()
+	return truncateDateIn(t, time.Local)
+}
+
+// truncateDateIn is midnight UTC on the Y-M-D of t in loc. Split out so a test
+// can exercise the wall-calendar boundary without reassigning time.Local,
+// which races with every goroutine that formats a time.
+func truncateDateIn(t time.Time, loc *time.Location) time.Time {
+	l := t.In(loc)
 	return time.Date(l.Year(), l.Month(), l.Day(), 0, 0, 0, 0, time.UTC)
 }
 

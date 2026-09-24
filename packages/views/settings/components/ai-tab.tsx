@@ -1,47 +1,119 @@
 "use client";
 
-import { ShieldAlert } from "lucide-react";
+import { AlertCircle, ShieldAlert, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAiCapabilities } from "@uniwork/core/ai";
 import { useMyMembership } from "@uniwork/core/workspaces";
-import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { AiUsageSection } from "../../ai/ai-usage-section";
+import { Notice } from "../../common/notice";
 import { CollectionPageState } from "../../layout/collection-page";
 import { useWorkspace } from "../../layout/workspace-context";
-import { SettingsTab } from "./settings-layout";
+import { QuotaMeterRow } from "./quota-meter";
+import { SettingsCard, SettingsSection, SettingsSkeletonRows, SettingsTab } from "./settings-layout";
 
 const ADMIN_ROLES = new Set(["owner", "admin"]);
 
-/** Settings → AI: usage of this workspace (spec F-09 §6). Mirrors AskUNIService.WorkspaceUsage (owner/admin). */
+/**
+ * Settings → AI: calls made from this workspace (spec F-09 §6), plus the
+ * organization's token quota they draw on. Mirrors AskUNIService.Capabilities
+ * and WorkspaceUsage (owner/admin).
+ *
+ * `enabled` is the deployment's gateway (AI_PROVIDER in .env.example): no
+ * organization setting turns it on, so the off state names who can.
+ */
 export function AiTab() {
-  const { t, i18n } = useTranslation(undefined, { keyPrefix: "settings.ai" });
+  const { t } = useTranslation(undefined, { keyPrefix: "settings.ai" });
   const { workspace } = useWorkspace();
   const me = useMyMembership(workspace.id);
   const caps = useAiCapabilities(workspace.id);
 
-  if (me.isLoading) {
+  if (me.isLoading || caps.isLoading) {
     return (
       <SettingsTab title={t("title")} description={t("description")}>
-        <Skeleton className="h-48 w-full" />
+        <SettingsSkeletonRows rows={1} />
+        <SettingsSkeletonRows rows={2} />
+      </SettingsTab>
+    );
+  }
+  // A failed membership lookup says nothing about the reader's role: show the
+  // failure, not the admin-only wall.
+  if (me.isError) {
+    return (
+      <SettingsTab title={t("title")} description={t("description")}>
+        <Notice
+          tone="destructive"
+          icon={AlertCircle}
+          layout="inline"
+          live="assertive"
+          action={
+            <Button type="button" size="sm" variant="outline" onClick={() => void me.refetch()}>
+              {t("retry")}
+            </Button>
+          }
+        >
+          {t("access_error")}
+        </Notice>
       </SettingsTab>
     );
   }
   if (!me.data || !ADMIN_ROLES.has(me.data.role)) {
     return (
       <SettingsTab title={t("title")}>
-        <CollectionPageState icon={ShieldAlert} title={t("forbidden_title")} description={t("forbidden_description")} role="status" />
+        <CollectionPageState
+          icon={ShieldAlert}
+          title={t("forbidden_title")}
+          description={t("forbidden_description")}
+          role="status"
+          headingLevel={3}
+        />
       </SettingsTab>
     );
   }
+
+  const enabled = caps.data?.enabled === true;
   const quota = caps.data?.quota;
-  const quotaLine = caps.data?.enabled
-    ? quota?.limit_tokens != null
-      ? t("quota_line", { used: quota.used_tokens.toLocaleString(i18n.language), limit: quota.limit_tokens.toLocaleString(i18n.language) })
-      : t("quota_unbounded", { used: (quota?.used_tokens ?? 0).toLocaleString(i18n.language) })
-    : t("disabled");
+
   return (
-    <SettingsTab title={t("title")} description={quotaLine}>
-      <AiUsageSection workspaceId={workspace.id} />
+    <SettingsTab title={t("title")} description={t("description")}>
+      {caps.isError ? (
+        <Notice
+          tone="destructive"
+          icon={AlertCircle}
+          layout="inline"
+          live="assertive"
+          action={
+            <Button type="button" size="sm" variant="outline" onClick={() => void caps.refetch()}>
+              {t("retry")}
+            </Button>
+          }
+        >
+          {t("capabilities_error")}
+        </Notice>
+      ) : enabled ? (
+        <SettingsSection title={t("quota_title")} description={t("quota_description")}>
+          <SettingsCard>
+            <QuotaMeterRow
+              label={t("quota_label")}
+              used={quota?.used_tokens ?? 0}
+              limit={quota?.limit_tokens ?? null}
+              unit="tokens"
+            />
+          </SettingsCard>
+        </SettingsSection>
+      ) : (
+        <SettingsCard>
+          <CollectionPageState
+            icon={Sparkles}
+            title={t("disabled_title")}
+            description={t("disabled_description")}
+            role="status"
+            headingLevel={3}
+            className="py-10"
+          />
+        </SettingsCard>
+      )}
+      <AiUsageSection workspaceId={workspace.id} aiEnabled={enabled} />
     </SettingsTab>
   );
 }

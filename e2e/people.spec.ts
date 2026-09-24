@@ -114,6 +114,8 @@ test("directory, department, accent-insensitive search, then deactivation", asyn
     .filter({ hasText: memberEmail })
     .getByRole("button", { name: "Vô hiệu hóa" })
     .click();
+  // Deactivation locks the person out, so it goes through a confirmation.
+  await owner.getByRole("alertdialog").getByRole("button", { name: "Vô hiệu hóa" }).click();
   await expect(owner.getByText("Đã vô hiệu hóa thành viên")).toBeVisible({ timeout: 15_000 });
 
   await member.goto(`/${orgSlug}/doi-danh-ba/tasks`);

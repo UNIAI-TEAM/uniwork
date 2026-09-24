@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
@@ -17,12 +17,12 @@ const workspace: Workspace = {
   id: "ws1", slug: "team", name: "Team", organization_id: "o1", organization_slug: "acme", organization_name: "Acme",
 };
 
-function mockApi(role: string, rows: unknown[]) {
+const ENABLED = { enabled: true, ask_uni: true, meeting_summary: true, quota: { used_tokens: 1234, limit_tokens: 500000 } };
+
+function mockApi(role: string, rows: unknown[], caps: Record<string, unknown> = ENABLED) {
   requestMock.mockImplementation((path: string) => {
     if (path === "/api/v1/workspaces/ws1/me") return Promise.resolve({ membership: { workspace_id: "ws1", user_id: "u1", role, source: "workspace" } });
-    if (path === "/api/v1/workspaces/ws1/ai/capabilities") {
-      return Promise.resolve({ enabled: true, ask_uni: true, meeting_summary: true, quota: { used_tokens: 1234, limit_tokens: 500000 } });
-    }
+    if (path === "/api/v1/workspaces/ws1/ai/capabilities") return Promise.resolve(caps);
     if (typeof path === "string" && path.startsWith("/api/v1/workspaces/ws1/ai/usage")) return Promise.resolve({ from: "", to: "", rows });
     return Promise.resolve({});
   });
@@ -34,14 +34,48 @@ describe("AiTab", () => {
   it("is admin-only", async () => {
     mockApi("member", []);
     render(wrap(<WorkspaceProvider workspace={workspace} user={user}><AiTab /></WorkspaceProvider>));
-    expect(await screen.findByText("Chỉ owner/admin workspace xem được")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 3, name: "Chỉ chủ sở hữu và quản trị workspace xem được" })).toBeInTheDocument();
   });
 
-  it("shows the quota line and the empty state", async () => {
+  it("shows a failed role lookup as an error with a retry, not as admin-only", async () => {
+    requestMock.mockImplementation((path: string) => {
+      if (path === "/api/v1/workspaces/ws1/me") return Promise.reject(new Error("offline"));
+      if (path === "/api/v1/workspaces/ws1/ai/capabilities") return Promise.resolve(ENABLED);
+      return Promise.resolve({ from: "", to: "", rows: [] });
+    });
+    render(wrap(<WorkspaceProvider workspace={workspace} user={user}><AiTab /></WorkspaceProvider>));
+    expect(await screen.findByText("Không kiểm tra được quyền xem số liệu AI của bạn.")).toBeInTheDocument();
+    expect(screen.queryByText("Chỉ chủ sở hữu và quản trị workspace xem được")).toBeNull();
+    expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
+  });
+
+  it("shows the organization's quota as a meter and the empty state", async () => {
     mockApi("admin", []);
     render(wrap(<WorkspaceProvider workspace={workspace} user={user}><AiTab /></WorkspaceProvider>));
     expect(await screen.findByText("Chưa có lượt gọi AI nào")).toBeInTheDocument();
-    expect(await screen.findByText(/1.234 \/ 500.000 token/)).toBeInTheDocument();
+    expect(screen.getByText("Hạn mức của tổ chức")).toBeInTheDocument();
+    expect(screen.getByText("1.234 / 500.000 token")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Token AI" })).toHaveAttribute("aria-valuenow", "0");
+  });
+
+  it("reads an unbounded quota as Không giới hạn", async () => {
+    mockApi("admin", [], { ...ENABLED, quota: { used_tokens: 42, limit_tokens: null } });
+    render(wrap(<WorkspaceProvider workspace={workspace} user={user}><AiTab /></WorkspaceProvider>));
+    expect(await screen.findByText("42 token · Không giới hạn")).toBeInTheDocument();
+    expect(screen.queryByRole("progressbar")).toBeNull();
+  });
+
+  it("says AI is off and who can turn it on, without inviting a try that would fail", async () => {
+    mockApi("owner", [], { enabled: false });
+    render(wrap(<WorkspaceProvider workspace={workspace} user={user}><AiTab /></WorkspaceProvider>));
+    expect(await screen.findByRole("heading", { level: 3, name: "AI chưa được bật cho tổ chức này" })).toBeInTheDocument();
+    expect(screen.getByText(/người vận hành UniWork/)).toBeInTheDocument();
+    expect(screen.queryByText(/trên server/)).toBeNull();
+    expect(screen.queryByText("Hạn mức của tổ chức")).toBeNull();
+    // The usage query settles empty; nothing suggests opening Hỏi UNI.
+    await waitFor(() => expect(requestMock.mock.calls.some(([p]) => String(p).includes("/ai/usage"))).toBe(true));
+    await waitFor(() => expect(screen.queryByText("Chưa có lượt gọi AI nào")).toBeNull());
+    expect(screen.queryByText(/Hỏi UNI \(⌘J\)/)).toBeNull();
   });
 
   it("totals the rows, draws the sparkline and groups by capability", async () => {
@@ -54,7 +88,9 @@ describe("AiTab", () => {
     render(wrap(<WorkspaceProvider workspace={workspace} user={user}><AiTab /></WorkspaceProvider>));
     expect(await screen.findByRole("img", { name: "Token mỗi ngày" })).toBeInTheDocument();
     fireEvent.click(screen.getByText("Token theo ngày"));
-    expect(screen.getByRole("cell", { name: today })).toBeInTheDocument();
+    const todayLabel = new Intl.DateTimeFormat("vi", { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${today}T00:00:00Z`));
+    expect(screen.getByRole("cell", { name: todayLabel })).toBeInTheDocument();
+    expect(screen.queryByRole("cell", { name: today })).toBeNull();
     expect(screen.getByText("5")).toBeInTheDocument(); // calls
     expect(screen.getByText("1.400")).toBeInTheDocument(); // tokens in
     const byCapability = screen.getAllByRole("table").at(-1)!;

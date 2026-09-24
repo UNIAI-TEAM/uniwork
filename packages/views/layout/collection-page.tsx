@@ -134,6 +134,8 @@ interface CollectionPageStateProps {
   /** A module tint for an empty state, a signal tone for an error state. */
   tone?: IconTileTone;
   role?: "alert" | "status";
+  /** 3 inside a screen whose own title is already the h2 (a settings tab). */
+  headingLevel?: 2 | 3;
   className?: string;
 }
 
@@ -141,12 +143,12 @@ interface CollectionPageStateProps {
  * Centered empty / error / not-found state for a list screen. Truthful by
  * design: it says what is missing and offers the next step — never mock rows.
  */
-export function CollectionPageState({ icon: Icon, title, description, actions, tone = "muted", role, className }: CollectionPageStateProps) {
+export function CollectionPageState({ icon: Icon, title, description, actions, tone = "muted", role, headingLevel = 2, className }: CollectionPageStateProps) {
   return (
     <Empty role={role} className={cn("rounded-none border-0 px-6 py-16", className)}>
       <EmptyHeader>
         <IconTile icon={Icon} size="lg" tone={tone} />
-        <EmptyTitle>{title}</EmptyTitle>
+        <EmptyTitle as={headingLevel === 3 ? "h3" : "h2"}>{title}</EmptyTitle>
         {description ? <EmptyDescription className="max-w-md">{description}</EmptyDescription> : null}
       </EmptyHeader>
       {actions ? <EmptyContent className="mt-1 flex-row justify-center">{actions}</EmptyContent> : null}

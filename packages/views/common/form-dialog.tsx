@@ -130,6 +130,7 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel,
+  cancelLabel,
   onConfirm,
   pending = false,
   destructive = true,
@@ -139,6 +140,8 @@ export function ConfirmDialog({
   title: string;
   description?: string;
   confirmLabel: string;
+  /** When the action itself is a "cancel" (a subscription), dismissing must not read the same. */
+  cancelLabel?: string;
   onConfirm: () => void;
   pending?: boolean;
   /** False for a consequential but non-destructive step (hand over the host role). */
@@ -153,7 +156,7 @@ export function ConfirmDialog({
           {description ? <AlertDialogDescription>{description}</AlertDialogDescription> : null}
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={pending}>{t("common.cancel")}</AlertDialogCancel>
+          <AlertDialogCancel disabled={pending}>{cancelLabel ?? t("common.cancel")}</AlertDialogCancel>
           <AlertDialogAction
             variant={destructive ? "destructive" : "default"}
             disabled={pending}
