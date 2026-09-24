@@ -315,11 +315,27 @@ func truncateUTCDate(t time.Time) time.Time {
 
 // truncateLocalDate is midnight UTC on the Y-M-D of t in the process local zone.
 func truncateLocalDate(t time.Time) time.Time {
-	l := t.Local()
+	return truncateDateIn(t, time.Local)
+}
+
+// truncateDateIn is midnight UTC on the Y-M-D of t in loc. Split out so a test
+// can exercise the wall-calendar boundary without reassigning time.Local,
+// which races with every goroutine that formats a time.
+func truncateDateIn(t time.Time, loc *time.Location) time.Time {
+	l := t.In(loc)
 	return time.Date(l.Year(), l.Month(), l.Day(), 0, 0, 0, 0, time.UTC)
 }
 
 func taskCalendarEvent(t db.ListCalendarTasksInRangeRow) CalendarEvent {
+	if t.StartAt.Valid && t.DueAt.Valid {
+		start := t.StartAt.Time.UTC().Format(time.RFC3339)
+		end := t.DueAt.Time.UTC().Format(time.RFC3339)
+		return CalendarEvent{
+			ID: "task:" + t.ID, Kind: "task", EntityID: t.ID, Title: t.Title,
+			Start: start, End: &end, AllDay: false, Status: calendarStrPtr(t.Status),
+			Priority: calendarStrPtr(t.Priority), ProjectID: util.TextToPtr(t.ProjectID),
+		}
+	}
 	due := t.DueDate.Time.Format(time.DateOnly)
 	start := due
 	if t.StartDate.Valid {

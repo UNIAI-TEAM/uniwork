@@ -4,6 +4,10 @@ import { useMemo, useState } from "react";
 import { Calendar } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useCalendarEvents, useCalendarSidebar } from "@uniwork/core/calendar";
+import {
+  DEFAULT_CALENDAR_PREFERENCES,
+  type CalendarPreferences,
+} from "@uniwork/core/calendar/preferences";
 import type { CalendarEvent } from "@uniwork/core/calendar/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
@@ -22,25 +26,38 @@ import { NewMeetingDialog } from "../meetings/new-meeting-dialog";
 
 export function CalendarPageView({
   workspaceId,
+  initialPreferences = DEFAULT_CALENDAR_PREFERENCES,
+  onPreferencesChange,
   onOpenTask,
   onOpenMeeting,
 }: {
   workspaceId: string;
+  initialPreferences?: CalendarPreferences;
+  onPreferencesChange?: (next: CalendarPreferences) => void;
   onOpenTask: (id: string) => void;
   onOpenMeeting: (id: string) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [anchorDate, setAnchorDate] = useState(() => new Date());
-  const [mine, setMine] = useState(false);
-  const [viewMode, setViewMode] = useState<CalendarViewMode>("month");
-  const [range, setRange] = useState(() => rangeForMode("month", new Date()));
+  const [mine, setMine] = useState(initialPreferences.mine);
+  const [showWeekends, setShowWeekends] = useState(initialPreferences.showWeekends);
+  const [viewMode, setViewMode] = useState<CalendarViewMode>(
+    initialPreferences.viewMode,
+  );
+  const [range, setRange] = useState(() =>
+    rangeForMode(initialPreferences.viewMode, new Date()),
+  );
   const [slotMenuOpen, setSlotMenuOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<CalendarSlot | null>(null);
   const [createMeetingOpen, setCreateMeetingOpen] = useState(false);
+  const viewerTimeZone = useMemo(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+    [],
+  );
 
   const initialDate = format(anchorDate, "yyyy-MM-dd");
 
-  const { data, isError, isPending, refetch } = useCalendarEvents(
+  const { data, isError, isPending, isRefetching, refetch } = useCalendarEvents(
     workspaceId,
     range.from,
     range.to,
@@ -59,6 +76,17 @@ export function CalendarPageView({
   const handleViewModeChange = (mode: CalendarViewMode) => {
     setViewMode(mode);
     setRange(rangeForMode(mode, anchorDate));
+    onPreferencesChange?.({ viewMode: mode, mine, showWeekends });
+  };
+
+  const handleMineChange = (next: boolean) => {
+    setMine(next);
+    onPreferencesChange?.({ viewMode, mine: next, showWeekends });
+  };
+
+  const handleShowWeekendsChange = (next: boolean) => {
+    setShowWeekends(next);
+    onPreferencesChange?.({ viewMode, mine, showWeekends: next });
   };
 
   /** FullCalendar fires datesSet on option churn; skip no-op range updates to avoid loops. */
@@ -70,6 +98,11 @@ export function CalendarPageView({
 
   const handleSlotSelect = (slot: CalendarSlot) => {
     setSelectedSlot(slot);
+    setSlotMenuOpen(true);
+  };
+
+  const handleQuickCreate = () => {
+    setSelectedSlot(null);
     setSlotMenuOpen(true);
   };
 
@@ -98,23 +131,32 @@ export function CalendarPageView({
       <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <CalendarSidebar
           workspaceId={workspaceId}
+          viewerTimeZone={viewerTimeZone}
           sections={sidebarSections}
           isPending={sidebarQuery.isPending}
           isError={sidebarQuery.isError}
+          onRetry={() => void sidebarQuery.refetch()}
           onOpenTask={onOpenTask}
           onOpenMeeting={onOpenMeeting}
           onCreateMeeting={() => setCreateMeetingOpen(true)}
+          onQuickCreate={handleQuickCreate}
         />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <CalendarToolbar
             anchorDate={anchorDate}
             mine={mine}
+            showWeekends={showWeekends}
             viewMode={viewMode}
             workspaceId={workspaceId}
             exportFrom={range.from}
             exportTo={range.to}
+            isRefreshing={isRefetching || sidebarQuery.isRefetching}
             onAnchorDateChange={handleAnchorDateChange}
-            onMineChange={setMine}
+            onMineChange={handleMineChange}
+            onRefresh={() => {
+              void Promise.all([refetch(), sidebarQuery.refetch()]);
+            }}
+            onShowWeekendsChange={handleShowWeekendsChange}
             onViewModeChange={handleViewModeChange}
           />
           {isError ? (
@@ -146,6 +188,9 @@ export function CalendarPageView({
                 events={events}
                 initialDate={initialDate}
                 viewMode={viewMode}
+                showWeekends={showWeekends}
+                language={i18n.resolvedLanguage ?? i18n.language}
+                viewerTimeZone={viewerTimeZone}
                 onDatesSet={handleDatesSet}
                 onEventClick={handleEventClick}
                 onEventDropOrResize={applyDropPatch}

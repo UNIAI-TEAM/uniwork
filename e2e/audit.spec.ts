@@ -48,16 +48,20 @@ test("a task edit shows up in the organization's audit log", async ({ page }) =>
   });
 
   await page.goto(`/${orgSlug}/doi-audit/settings?tab=audit`);
-  await expect(page.getByRole("heading", { name: "Bảo mật & Nhật ký" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Nhật ký hoạt động" })).toBeVisible();
 
   // The founder is the organization owner, so the log is theirs to read, and
   // the entry names the field that moved rather than the whole row.
-  await expect(page.getByRole("cell", { name: /Cập nhật task/ }).first()).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole("cell", { name: /title/ }).first()).toBeVisible();
+  await expect(page.getByRole("cell", { name: /Cập nhật việc/ }).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("cell", { name: /Tiêu đề/ }).first()).toBeVisible();
 
   // Filtering to something nobody did leaves an honest empty state, not rows.
+  // The filter applies as it is picked; there is no submit button.
   await page.getByLabel("Hành động").click();
   await page.getByRole("option", { name: "Thu hồi phiên" }).click();
-  await page.getByRole("button", { name: "Áp dụng" }).click();
   await expect(page.getByText("Chưa có bản ghi nào khớp")).toBeVisible({ timeout: 15_000 });
+
+  // Clearing brings the entries back without another click.
+  await page.getByRole("button", { name: "Xóa bộ lọc" }).first().click();
+  await expect(page.getByRole("cell", { name: /Cập nhật việc/ }).first()).toBeVisible({ timeout: 15_000 });
 });

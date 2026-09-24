@@ -249,14 +249,12 @@
       "push_this_browser": "Receive push notifications in this browser",
       "push_denied": "The browser is blocking notifications. Allow them in the site settings and try again.",
       "matrix_section": "By kind",
-      "matrix_description": "In-app is always the record; push and email are ways of delivering the same notification.",
+      "matrix_description": "Each kind arrives through the channels you turn on. Turning one off stops only that channel; the others keep delivering.",
       "kind": "Kind",
-      "channel_in_app": "In-app",
+      "channel_in_app": "Inbox",
       "channel_push": "Push",
       "channel_email": "Email",
       "digest_hint": "One email a day at 08:00 in your time zone, only when something is unread.",
-      "toast_saved": "Saved",
-      "error": "Could not save, try again",
       "kinds": {
         "task_assigned": "Assigned a task",
         "task_status_changed": "Task status changed",
@@ -267,29 +265,37 @@
         "member_added": "Added to a workspace",
         "role_changed": "Role changed",
         "audit_export_ready": "Audit export ready",
-        "chat_follow_up": "Message follow-up",
+        "chat_follow_up": "Message to follow up",
         "email_hub_new_mail": "New mail (Email Hub)"
-      }
+      },
+      "all_kinds": "All kinds",
+      "channel_all": "{{channel}} for every kind",
+      "push_unavailable_server": "This server has not set up push, so notifications arrive in the inbox and by email.",
+      "push_unavailable_browser": "This browser cannot receive push, so notifications arrive in the inbox and by email."
     },
     "page": {
       "title": "Settings",
-      "my_account": "Account",
-      "workspace_fallback": "Workspace",
       "tabs": {
         "notifications": "Notifications",
         "profile": "Profile",
         "preferences": "Preferences",
-        "general": "General",
         "workspace": "General",
         "members": "Members",
         "integrations": "Integrations",
         "billing": "Billing",
-        "audit": "Security & audit",
+        "audit": "Activity log",
         "ai": "AI",
-        "organization": "Organization",
+        "organization": "Organization members",
         "departments": "Departments",
         "security": "Security",
         "shortcuts": "Keyboard shortcuts"
+      },
+      "nav_label": "Settings sections",
+      "section_picker": "Choose a settings section",
+      "groups": {
+        "account": "Account",
+        "organization": "Organization",
+        "workspace": "Workspace"
       }
     },
     "save": {
@@ -298,19 +304,23 @@
       "error": "Could not save"
     },
     "profile": {
-      "section": "Profile",
       "avatar": "Avatar",
-      "avatarHint": "Click to change",
+      "avatarHint": "PNG, JPEG, GIF or WebP, up to 2 MB.",
       "displayName": "Display name",
       "email": "Email",
-      "toastUpdated": "Profile updated",
       "toastAvatarUpdated": "Avatar updated",
-      "toastFailed": "Could not update profile"
+      "toastFailed": "Could not update profile",
+      "avatarChange": "Change photo",
+      "avatarUploading": "Uploading…",
+      "avatarWrongType": "The image must be PNG, JPEG, GIF or WebP.",
+      "avatarTooLarge": "The image is over 2 MB. Choose a smaller one.",
+      "avatarUploadFailed": "Could not upload the photo. Try again.",
+      "emailHint": "The address you sign in with.",
+      "displayNameRequired": "Display name can't be empty."
     },
     "preferences": {
       "timezone": "Time zone",
-      "toastError": "Could not save, try again",
-      "section": "General",
+      "section": "Language and time zone",
       "theme": "Theme",
       "themeLight": "Light",
       "themeDark": "Dark",
@@ -318,9 +328,6 @@
       "language": "Language",
       "languageVi": "Tiếng Việt",
       "languageEn": "English",
-      "toastSaved": "Saved",
-      "themes": "Themes",
-      "themesHint": "Saved on this device only. Your other devices keep their own.",
       "appearance": "Appearance",
       "accent": "Accent",
       "accents": {
@@ -329,22 +336,58 @@
         "purple": "Purple",
         "blue": "Blue",
         "pink": "Pink",
-        "violet": "Violet",
+        "violet": "Plum",
         "indigo": "Indigo",
         "orange": "Orange",
         "teal": "Teal",
         "bronze": "Bronze",
         "mint": "Mint"
-      }
+      },
+      "appearanceHint": "Light, dark or follow the operating system. Saved on this device only.",
+      "accentHint": "The colour of primary buttons, links and the selected item. Saved on this device only.",
+      "languageHint": "Saved in this browser only. Other devices keep their own.",
+      "timezoneHint": "Saved to your account, on every device. The daily email goes out at 08:00 in this zone.",
+      "timezoneSearch": "Search a city or UTC…",
+      "timezoneEmpty": "No matching time zone."
     },
     "workspace": {
-      "section": "Workspace",
       "name": "Workspace name",
-      "toastUpdated": "Workspace settings saved"
+      "description": "This workspace's name, address and organization.",
+      "name_hint": "Shown in the sidebar, in invitations and in notification emails.",
+      "name_read_only": "Only workspace owners and admins can rename it.",
+      "url": "Address",
+      "url_hint": "Renaming does not change this address.",
+      "copy_url": "Copy address",
+      "url_copied": "Workspace address copied",
+      "copy_failed": "Couldn't copy. Select the address and copy it by hand.",
+      "organization": "Organization",
+      "organization_hint": "Organization members, departments and billing are managed at the organization level.",
+      "name_required": "The workspace name can't be empty."
     },
     "integrations": {
-      "emptyTitle": "No integrations yet",
-      "emptyDescription": "External tool connections will appear here when UniWork is ready."
+      "description": "Connect UniWork to the tools you already use. Only what works today and what is on the roadmap is listed.",
+      "available": "Available",
+      "planned": "On the roadmap",
+      "planned_description": "Planned for the product, not available yet.",
+      "coming_soon": "Coming soon",
+      "email_hub": {
+        "title": "Email Hub",
+        "meta": "Gmail, Outlook, Yahoo mailboxes via an app password · each person connects their own",
+        "connected_one": "You connected {{count}} mailbox",
+        "connected_other": "You connected {{count}} mailboxes",
+        "not_connected": "You haven't connected a mailbox",
+        "open": "Open Email Hub",
+        "connect": "Connect a mailbox",
+        "load_error": "Couldn't load"
+      },
+      "mail_oauth": {
+        "title": "Gmail and Microsoft 365",
+        "meta": "Sign in with a Google or Microsoft account and attach email threads to tasks and projects"
+      },
+      "webhooks": {
+        "title": "Webhooks",
+        "meta": "Send UniWork events to your own systems, signed so you can verify the sender"
+      }
     },
     "billing": {
       "title": "Billing",
@@ -352,7 +395,7 @@
       "forbidden_title": "You cannot see billing",
       "forbidden_description": "Only organization owners and admins can see the plan and its limits.",
       "error_title": "Could not load the plan",
-      "error_description": "Try again in a few minutes. If it keeps failing, send the correlation id to the platform admin.",
+      "error_description": "Try again in a few minutes.",
       "retry": "Retry",
       "current_plan": "Current plan",
       "plan": "Plan",
@@ -367,8 +410,6 @@
         "none": "no term"
       },
       "period_end": "Period ends",
-      "cancel_at": "Ends on",
-      "cancel_at_hint": "The plan stays active until this date. Changed your mind? Resume before then.",
       "plans": "Plans",
       "plans_description": "Compare, then choose. A free plan applies right after you confirm; a paid plan opens the payment page.",
       "plan_current": "Current plan",
@@ -380,21 +421,18 @@
       "confirm_change_title": "Switch to {{name}}?",
       "confirm_change_description": "The new limits apply immediately. If the organization already exceeds a limit of the new plan, the change is refused and the current plan stays.",
       "confirm_change_action": "Switch plan",
-      "confirm_back": "Back",
       "cancel_section": "Cancel plan",
       "cancel_description": "The plan ends at the close of the current period; data stays, only creating more is limited by the default plan.",
       "cancel": "Cancel at period end",
       "confirm_cancel_title": "Cancel at the end of the period?",
       "confirm_cancel_description": "The organization keeps this plan until the period ends, then moves to the default level. You can resume any time before then.",
+      "confirm_back": "Back",
       "resume": "Resume",
       "plan_changed": "Switched to {{name}}",
       "canceled": "Cancellation scheduled",
       "resumed": "Plan resumed",
       "owner_only": "Only the organization owner can change the plan.",
-      "usage": "Limits and features",
-      "usage_description": "Usage in this period. At a limit, creating more is refused; the right column shows what is left.",
       "usage_of": "{{used}} / {{limit}} {{unit}}",
-      "usage_unbounded": "{{used}} {{unit}} · unlimited",
       "usage_remaining": "{{n}} left",
       "usage_full": "Limit reached",
       "unlimited": "unlimited",
@@ -402,11 +440,18 @@
       "flag_off": "Off",
       "no_entitlements": "This plan declares no features yet",
       "units": {
-        "members": "members",
-        "workspaces": "workspaces",
-        "minutes": "minutes",
-        "tokens": "tokens",
-        "bytes": "bytes"
+        "members_one": "member",
+        "members_other": "members",
+        "workspaces_one": "workspace",
+        "workspaces_other": "workspaces",
+        "tasks_one": "task",
+        "tasks_other": "tasks",
+        "minutes_one": "minute",
+        "minutes_other": "minutes",
+        "tokens_one": "token",
+        "tokens_other": "tokens",
+        "bytes_one": "byte",
+        "bytes_other": "bytes"
       },
       "status": {
         "trialing": "Trial",
@@ -414,33 +459,66 @@
         "past_due": "Past due",
         "suspended": "Suspended",
         "canceled": "Canceled"
-      }
+      },
+      "usage_quotas": "Quotas",
+      "usage_quotas_description": "Usage in the current period. At a limit, creating more is refused.",
+      "usage_features": "Features in this plan",
+      "usage_features_description": "On or off by plan; no usage is counted.",
+      "not_in_plan": "Not in this plan",
+      "cancel_notice": "The plan ends on {{date}}. The organization keeps the full plan until then; resume before that date if you change your mind.",
+      "checkout_notice": "The checkout page is ready and opens in a new tab.",
+      "cancel_label": "Cancel at the end of the period",
+      "cancel_hint": "You can resume any time before the plan ends.",
+      "cancel_open": "Cancel plan",
+      "features": {
+        "members_max": "Organization members",
+        "workspaces_max": "Workspaces",
+        "tasks_max": "Tasks",
+        "meeting_participant_minutes": "Meeting participant minutes",
+        "meeting_recording": "Meeting recording",
+        "meeting_ai_summary": "AI meeting summaries",
+        "ai_tokens": "AI tokens",
+        "storage_bytes": "Storage",
+        "sso_oidc": "SSO sign-in (OIDC)"
+      },
+      "action_failed": "The plan could not be changed. Try again in a few minutes.",
+      "plans_error": "The plans could not be loaded.",
+      "plans_empty": "No plans are available yet.",
+      "contact_only": "This plan is priced on request and cannot be bought online.",
+      "past_due_notice": "No payment has been recorded for this period. The organization keeps the full plan through {{date}}; after that, creating anything new is blocked until payment goes through.",
+      "past_due_notice_undated": "No payment has been recorded for this period. After a short grace period, creating anything new is blocked until payment goes through.",
+      "past_due_ask_owner": "Only the organization owner can pay; let them know.",
+      "past_due_pay": "Pay now",
+      "usage_unbounded_unit": "{{used}} {{unit}} · Unlimited",
+      "usage_unbounded_plain": "{{used}} · Unlimited"
     },
     "audit": {
-      "title": "Security & audit",
+      "title": "Activity log",
       "description": "Your organization's immutable log: who did what, when, and from where. Entries cannot be edited or deleted.",
       "empty_title": "No entries match",
       "empty_description": "Widen the filters or pick a longer date range. Every change to data has been recorded since this feature was switched on.",
       "error_title": "The log could not be loaded",
-      "error_description": "Try again in a few minutes. If it keeps failing, send your system administrator the correlation id of the last attempt.",
+      "error_description": "Try again in a few minutes.",
       "forbidden_title": "You cannot read this log",
       "forbidden_description": "Only organization owners and admins can read the audit log.",
       "retry": "Try again",
       "load_more": "Load more",
       "filters": {
-        "legend": "Filter the log",
+        "legend": "Filters",
         "action": "Action",
-        "action_placeholder": "task.updated",
         "actor": "Actor",
-        "actor_placeholder": "Pick or paste a user id",
+        "actor_placeholder": "Actor",
         "resource_type": "Resource type",
-        "resource_type_placeholder": "task",
         "from": "From",
         "to": "To",
-        "apply": "Apply",
-        "clear": "Clear",
-        "any": "All",
-        "active": "Filters active"
+        "clear": "Clear filters",
+        "any_action": "Any action",
+        "any_resource": "Any resource",
+        "actor_empty": "No member matches. Paste a user id to filter.",
+        "from_value": "From {{date}}",
+        "to_value": "To {{date}}",
+        "active_count_one": "{{count}} filter",
+        "active_count_other": "{{count}} filters"
       },
       "table": {
         "time": "When",
@@ -472,22 +550,24 @@
         "from": "Before",
         "to": "After",
         "empty": "None",
-        "copy": "Copy",
-        "copied": "Copied"
+        "ip_not_recorded": "Not recorded"
       },
       "retention": {
         "title": "Retention",
-        "description": "How many days the organization keeps its log. Between 30 and 730 days. Only the organization owner can change it.",
+        "description": "How many days the organization keeps its log. Expired entries leave the screen; nothing is deleted.",
         "label": "Days",
         "save": "Save",
         "saved": "Retention saved",
         "owner_only": "Only the organization owner can change this setting.",
         "unit": "days",
-        "hint": "Between 30 and 730 days. Expired entries leave the screen; nothing is deleted."
+        "hint": "Between 30 and 730 days.",
+        "out_of_range": "Enter a whole number between 30 and 730.",
+        "load_error": "Retention could not be loaded.",
+        "save_failed": "Retention could not be saved. Try again in a few minutes."
       },
       "export": {
         "title": "Export",
-        "description": "Produce a CSV or JSON Lines file for a date range. One export runs at a time; the download link expires after 24 hours.",
+        "description": "Produce a CSV or JSON Lines file for a date range. One export runs at a time.",
         "format": "Format",
         "from": "From",
         "to": "To",
@@ -508,7 +588,14 @@
         "one_at_a_time": "An export is running. Wait for it to finish before starting another.",
         "hint": "The download link expires after 24 hours.",
         "expires": "Expires",
-        "format_jsonl": "JSON Lines"
+        "format_jsonl": "JSON Lines",
+        "create_failed": "The export could not be created. Try again in a few minutes.",
+        "load_error": "Exports could not be loaded.",
+        "history_label": "Recent exports",
+        "error_range_too_large": "The date range is too large. Split it and export again.",
+        "error_generic": "Export failed.",
+        "announce_done": "The export is ready to download.",
+        "announce_failed": "The export failed."
       },
       "activity": {
         "title": "Activity",
@@ -571,19 +658,63 @@
         "start_date": "Start date",
         "project_id": "Project",
         "parent_task_id": "Parent task",
-        "position": "Position"
+        "position": "Position",
+        "role": "Role",
+        "org_role": "Organization role",
+        "platform_role": "Platform role",
+        "name": "Name",
+        "slug": "Slug",
+        "handle": "Handle",
+        "owner_user_id": "Owner",
+        "stage": "Stage",
+        "visibility": "Visibility",
+        "topic": "Topic",
+        "kind": "Kind",
+        "code": "Code",
+        "parent_id": "Parent department",
+        "department_id": "Department",
+        "manager_id": "Manager",
+        "employee_code": "Employee code",
+        "location": "Location",
+        "phone_visible": "Phone visible",
+        "archived": "Archived",
+        "revoked": "Revoked",
+        "retain_days": "Retention days",
+        "starts_at": "Starts",
+        "ends_at": "Ends",
+        "meeting_type": "Meeting type",
+        "host_user_id": "Host",
+        "plan_code": "Plan",
+        "cancel_at": "Cancels at",
+        "enabled": "Enabled",
+        "scope_type": "Scope",
+        "scope_id": "Scope id",
+        "dependency_added": "Dependency added",
+        "dependency_removed": "Dependency removed"
       },
       "loading": "Loading…",
-      "empty_fresh_description": "Every change to data will appear here as soon as it happens."
+      "empty_fresh_description": "Every change to data will appear here as soon as it happens.",
+      "values": {
+        "yes": "Yes",
+        "no": "No",
+        "role": {
+          "agent": "Agent"
+        },
+        "visibility": {
+          "public": "Public",
+          "private": "Private"
+        }
+      },
+      "empty_fresh_title": "No entries yet",
+      "log_title": "Entries",
+      "table_label": "Activity log entries",
+      "load_more_error": "More entries could not be loaded."
     },
     "ai": {
       "title": "AI",
-      "description": "AI calls made from this workspace.",
-      "disabled": "AI is not configured on this server.",
-      "quota_line": "The organization has used {{used}} / {{limit}} tokens this month.",
-      "quota_unbounded": "The organization has used {{used}} tokens this month.",
+      "description": "AI calls made from this workspace over the last 30 days, and the organization's AI token quota.",
       "forbidden_title": "Workspace owners and admins only",
-      "forbidden_description": "AI usage belongs to workspace administration.",
+      "forbidden_description": "Only workspace admins can see AI usage.",
       "error_title": "Could not load AI usage.",
       "empty_title": "No AI calls yet",
       "empty_description": "Open Ask UNI (⌘J) or summarize a meeting and the numbers will show here.",
@@ -619,7 +750,15 @@
         "agent": "Agent",
         "system": "System"
       },
-      "tokens_by_day": "Tokens by day"
+      "tokens_by_day": "Tokens by day",
+      "quota_title": "Organization quota",
+      "quota_description": "Shared by every workspace in the organization, counted over the plan's current period.",
+      "quota_label": "AI tokens",
+      "disabled_title": "AI isn't turned on for this organization",
+      "disabled_description": "Ask UNI and meeting summaries need a connected AI provider. Whoever runs UniWork for your organization connects it; it can't be turned on from workspace settings.",
+      "capabilities_error": "Couldn't load the AI status.",
+      "retry": "Retry",
+      "access_error": "Couldn't check whether you can see AI usage."
     },
     "shortcuts": {
       "title": "Keyboard shortcuts",
@@ -629,7 +768,6 @@
       "reset_confirm": {
         "title": "Restore all shortcut defaults?",
         "description": "Every shortcut you changed on this device goes back to its default.",
-        "cancel": "Cancel",
         "confirm": "Restore all defaults"
       },
       "reset": "Reset",
@@ -657,22 +795,70 @@
         "close_dialog": "Close dialog or menu"
       },
       "actions": {
-        "ai_ask_uni": { "label": "Ask UNI", "description": "Open the Ask UNI panel, even while typing." },
-        "open_search": { "label": "Open search", "description": "Search and run commands from anywhere." },
-        "create_task": { "label": "Create task", "description": "Open the new task dialog." },
-        "find_in_task": { "label": "Find in task", "description": "Search text on the open task page." },
-        "open_thread_nav": { "label": "Thread navigation", "description": "Open or pin the thread navigation panel on the open task." },
-        "send": { "label": "Send", "description": "Send comments and replies from the editor." },
-        "go_back": { "label": "Go back", "description": "Navigate back through history, like a browser." },
-        "go_forward": { "label": "Go forward", "description": "Navigate forward through history, like a browser." },
-        "go_inbox": { "label": "Go to Inbox", "description": "Open the workspace inbox." },
-        "go_tasks": { "label": "Go to Tasks", "description": "Open the task list." },
-        "go_my_tasks": { "label": "Go to My tasks", "description": "Open the tasks assigned to you." },
-        "go_projects": { "label": "Go to Projects", "description": "Open the project list." },
-        "go_meetings": { "label": "Go to Meetings", "description": "Open the meeting list." },
-        "go_chat": { "label": "Go to Chat", "description": "Open workspace chat." },
-        "go_people": { "label": "Go to People", "description": "Open the member directory." },
-        "go_settings": { "label": "Go to Settings", "description": "Open settings." }
+        "ai_ask_uni": {
+          "label": "Ask UNI",
+          "description": "Open the Ask UNI panel, even while typing."
+        },
+        "open_search": {
+          "label": "Open search",
+          "description": "Search and run commands from anywhere."
+        },
+        "create_task": {
+          "label": "Create task",
+          "description": "Open the new task dialog."
+        },
+        "find_in_task": {
+          "label": "Find in task",
+          "description": "Search text on the open task page."
+        },
+        "open_thread_nav": {
+          "label": "Thread navigation",
+          "description": "Open or pin the thread navigation panel on the open task."
+        },
+        "send": {
+          "label": "Send",
+          "description": "Send comments and replies from the editor."
+        },
+        "go_back": {
+          "label": "Go back",
+          "description": "Navigate back through history, like a browser."
+        },
+        "go_forward": {
+          "label": "Go forward",
+          "description": "Navigate forward through history, like a browser."
+        },
+        "go_inbox": {
+          "label": "Go to Inbox",
+          "description": "Open the workspace inbox."
+        },
+        "go_tasks": {
+          "label": "Go to Tasks",
+          "description": "Open the task list."
+        },
+        "go_my_tasks": {
+          "label": "Go to My tasks",
+          "description": "Open the tasks assigned to you."
+        },
+        "go_projects": {
+          "label": "Go to Projects",
+          "description": "Open the project list."
+        },
+        "go_meetings": {
+          "label": "Go to Meetings",
+          "description": "Open the meeting list."
+        },
+        "go_chat": {
+          "label": "Go to Chat",
+          "description": "Open workspace chat."
+        },
+        "go_people": {
+          "label": "Go to People",
+          "description": "Open the member directory."
+        },
+        "go_settings": {
+          "label": "Go to Settings",
+          "description": "Open settings."
+        }
       }
     },
     "security": {
@@ -695,31 +881,49 @@
         "confirm": "Confirm and enable",
         "cancel": "Cancel",
         "recoveryTitle": "Recovery codes",
-        "recoveryHint": "Keep these 8 codes somewhere safe. Each works once if you lose your phone. They are shown only now.",
+        "recoveryHint": "Keep these 8 codes somewhere safe. Each works once if you lose your phone. They are shown only this once.",
         "recoveryDone": "I saved my codes",
         "invalidCode": "Wrong code",
         "toastEnabled": "Two-factor authentication enabled",
         "toastDisabled": "Two-factor authentication disabled",
-        "toastFailed": "Could not start MFA setup"
+        "toastFailed": "Could not start MFA setup",
+        "appLabel": "Authenticator app",
+        "recoveryCopy": "Copy",
+        "recoveryDownload": "Download (.txt)",
+        "recoveryCopied": "Recovery codes copied",
+        "recoveryCopyFailed": "Could not copy. Copy them by hand or download them.",
+        "codeLength_one": "Enter the {{count}} digit the app shows.",
+        "codeLength_other": "Enter all {{count}} digits the app shows.",
+        "disableCodeRequired": "Enter an app code or a recovery code."
       },
       "sessions": {
         "section": "Sessions",
         "description": "Browsers signed in to your account. Revoke one you do not recognise; it loses access within 15 minutes.",
-        "loading": "Loading sessions…",
         "error": "Could not load sessions.",
-        "retry": "Retry",
         "unknownBrowser": "Unknown browser",
         "current": "This session",
-        "meta": "IP {{ip}} · Active {{at}}",
         "revoke": "Revoke",
         "revokeOthers_one": "Revoke {{count}} other session",
         "revokeOthers_other": "Revoke {{count}} other sessions",
         "revokedOthers": "Other sessions revoked",
-        "revokeFailed": "Could not revoke the session"
+        "revokeFailed": "Could not revoke the session",
+        "device": "{{browser}} on {{os}}",
+        "deviceOsOnly": "Browser on {{os}}",
+        "localMachine": "This machine (localhost)",
+        "ip": "IP {{ip}}",
+        "activeAt": "Active {{at}}",
+        "empty": "No signed-in sessions.",
+        "revokeAria": "Revoke {{device}}",
+        "revokeTitle": "Revoke the {{device}} session?",
+        "revokeBody": "That browser is signed out and loses access within 15 minutes.",
+        "revokeOthersTitle_one": "Revoke {{count}} other session?",
+        "revokeOthersTitle_other": "Revoke {{count}} other sessions?",
+        "revokeOthersBody": "Every other browser is signed out within 15 minutes. The session you are using stays.",
+        "revokedOne": "Session revoked"
       },
       "delete": {
         "section": "Delete account",
-        "description": "Under Decree 13 you may erase your personal data. Email, name, photo and sign-in are removed; work you created stays under \"Deleted user\".",
+        "description": "Under Decree 13 you may erase your personal data. Email, name, photo and sign-in are removed; work you created stays under “Deleted user”.",
         "label": "Delete permanently",
         "hint": "Cannot be undone. If you own an organization, transfer ownership first.",
         "open": "Delete account",
@@ -733,8 +937,51 @@
         "ownerHint": "An account that owns an organization cannot be deleted until ownership is transferred.",
         "cancel": "Cancel",
         "confirm": "Delete permanently",
-        "failed": "Could not delete the account"
+        "failed": "Could not delete the account",
+        "required": {
+          "password": "Enter your password to confirm.",
+          "code": "Enter your two-factor code to confirm.",
+          "email": "Type your email address to confirm."
+        }
       }
+    },
+    "members": {
+      "description": "Who can get into this workspace, and in what role.",
+      "count_one": "{{count}} member",
+      "count_other": "{{count}} members",
+      "count_more": "{{count}}+ members",
+      "search": "Search members",
+      "search_placeholder": "Search name or email",
+      "no_match": "No member matches “{{query}}”.",
+      "no_match_more": "No one loaded so far matches “{{query}}”. Load more to keep looking.",
+      "empty": "No members yet.",
+      "you": "You",
+      "invite_title": "Invite to the workspace",
+      "invite_description": "Invitees get an email and join this workspace directly.",
+      "invite_role": "Role for the invitees",
+      "sending": "Sending…",
+      "sent_title": "Just sent",
+      "sent_description": "Only the invitations you sent since opening this page.",
+      "remove_title": "Remove {{name}} from the workspace?",
+      "remove_body": "{{name}} will no longer see this workspace's tasks, meetings and chat. Their organization account stays as it is.",
+      "leave": "Leave workspace",
+      "leave_title": "Leave this workspace?",
+      "leave_body": "You will no longer see this workspace's tasks, meetings and chat until someone invites you again.",
+      "invite_placeholder": "name@company.com, …",
+      "invite_separator_hint": "Separate them with a comma, a space or Enter.",
+      "load_error": "Couldn't load the member list.",
+      "danger_title": "Danger zone",
+      "leave_description": "You lose access to this workspace's tasks, meetings and chat. To come back, someone has to invite you again."
+    },
+    "state": {
+      "load_error": "Couldn't load this section.",
+      "retry": "Try again"
+    },
+    "correlation": {
+      "hint": "If it keeps failing, send this correlation id to your system administrator:",
+      "label": "correlation id",
+      "copy": "Copy {{label}}",
+      "copied": "Copied {{label}}"
     }
   },
   "email_hub": {
@@ -2219,6 +2466,10 @@
     "loading": "Loading calendar…",
     "error": "Could not load the calendar.",
     "retry": "Retry",
+    "refresh": "Refresh calendar",
+    "refreshing": "Refreshing calendar…",
+    "settings": "Calendar settings",
+    "show_weekends": "Show weekends",
     "view_day": "Day",
     "view_work_week": "Work week",
     "view_week": "Week",
@@ -2226,6 +2477,11 @@
     "view_mode": "View mode",
     "prev_period": "Previous period",
     "next_period": "Next period",
+    "all_day": "All day",
+    "expand_all_day": "Expand all-day events",
+    "collapse_all_day": "Collapse all-day events",
+    "planner_title": "Planner",
+    "create_item": "Create calendar item",
     "create_from_slot_title": "Create on this slot",
     "create_from_slot_description": "Choose what to add to the calendar.",
     "create_task": "New task",
@@ -2244,6 +2500,8 @@
     "sidebar_empty_today_overdue": "Nothing due today or overdue.",
     "sidebar_empty_backlog": "No backlog tasks.",
     "sidebar_task_drag_handle": "Drag {{title}} onto the calendar",
+    "sidebar_task_open_to_schedule": "Open {{title}} to set a date",
+    "period_picker_label": "Choose display period, currently {{period}}",
     "export_ics": "Export ICS",
     "export_ics_error": "Could not export the calendar."
   },
@@ -3126,21 +3384,38 @@
       "deactivated": "Member deactivated",
       "reactivate": "Reactivate",
       "reactivated": "Member reactivated",
-      "status_deactivated": "Deactivated"
+      "status_deactivated": "Deactivated",
+      "deactivate_title": "Deactivate {{name}}?",
+      "deactivate_body": "{{name}} will not be able to get into the organization or any workspace in it until reactivated. Everything they created stays.",
+      "load_error": "Couldn't load the members."
     },
     "leave": {
       "title": "Leave this organization",
-      "description": "You lose access to every workspace inside it. The owner must transfer ownership first.",
+      "description": "You lose access to every workspace inside it right away.",
       "action": "Leave organization",
-      "done": "You left the organization"
+      "done": "You left the organization",
+      "confirm_title": "Leave {{name}}?",
+      "confirm_body": "You will lose access to every workspace in {{name}}. To come back, an admin has to invite you again."
     },
     "invitations": {
       "title": "Invite people to the organization",
       "description": "They join the company directly and pick a workspace afterwards.",
       "send": "Send invitations",
-      "sent": "Sent {{count}} invitations",
       "revoke": "Revoke",
-      "revoked": "Invitation revoked"
+      "revoked": "Invitation revoked",
+      "role": "Role for the invitees",
+      "pending_title": "Pending invitations",
+      "pending_description": "Not answered yet. The link in an expired invitation no longer works.",
+      "sent_on": "Sent {{date}}",
+      "expires_on": "expires {{date}}",
+      "invited_by": "Invited by {{name}}",
+      "expired": "Expired",
+      "revoke_title": "Revoke the invitation to {{email}}?",
+      "revoke_body": "The link in the email will stop working. You can invite them again later.",
+      "sent_one": "Sent {{count}} invitation",
+      "sent_other": "Sent {{count}} invitations",
+      "none_sent": "No invitations sent: the addresses left in the field are already members or not valid.",
+      "load_error": "Couldn't load the invitations."
     },
     "transfer": {
       "title": "Transfer ownership",
@@ -3151,12 +3426,31 @@
       "confirm_hint": "Type “{{name}}” exactly.",
       "password_label": "Your current password",
       "no_candidate": "No active member is available to receive ownership yet.",
-      "done": "Ownership transferred"
+      "done": "Ownership transferred",
+      "confirm_mismatch": "Doesn't match “{{name}}”.",
+      "loading_candidates": "Loading members…",
+      "candidates_error": "Couldn't load the members to choose from."
     },
     "deactivated": {
       "title": "Your account in this organization has been deactivated",
       "description": "An organization admin paused your access. Everything you created is still there. Ask an admin to restore it.",
       "workspaces_link": "Go to your other organizations"
+    },
+    "danger": {
+      "title": "Danger zone",
+      "description": "These change who holds the organization, or take you out of it."
+    },
+    "reasons": {
+      "leave_last_owner": "You are the owner. Transfer ownership to someone else before leaving.",
+      "last_owner": "The owner's role only changes by transferring ownership.",
+      "member_deactivated": "Your account in this organization is deactivated.",
+      "not_org_member": "You are no longer a member of this organization.",
+      "not_member": "You are no longer a member of this workspace.",
+      "not_authenticated": "Sign in again to continue.",
+      "not_admin_role": "Only owners and admins can do this.",
+      "not_owner_role": "Only the organization owner can do this.",
+      "not_resource_owner": "You cannot do this to yourself.",
+      "fallback": "You can't do this yet."
     }
   },
   "invitations": {
@@ -3703,14 +3997,9 @@
     "title": "People",
     "search": "Search people",
     "search_placeholder": "Name, email or job title",
-    "filter_department": "Filter by department",
-    "filter_role": "Filter by role",
-    "filter_status": "Filter by status",
     "filter": "Filter",
     "filter_active_one": "{{count}} filter",
     "filter_active_other": "{{count}} filters",
-    "filter_clear": "Clear filters",
-    "result_count": "Showing {{shown}} of {{total}} people",
     "display": "Display",
     "columns": "Columns",
     "view": "View",
@@ -3734,20 +4023,16 @@
     "status_all": "All",
     "agent_badge": "Agent",
     "export": "Export CSV",
-    "load_more": "Load more",
     "edit_profile": "Edit profile",
     "profile_saved": "Profile saved",
     "field_title": "Job title",
     "field_employee_code": "Employee code",
     "field_phone": "Phone",
-    "field_phone_hint": "Colleagues only see it once you turn on the switch below.",
     "field_phone_visible": "Let colleagues see my phone number",
     "field_location": "Location",
     "field_joined_on": "Start date",
     "field_bio": "About",
     "field_timezone": "Time zone",
-    "empty_title": "You are the only person here",
-    "empty_description": "Invite colleagues to fill the directory.",
     "empty_filtered_title": "Nobody matches these filters",
     "empty_filtered_description": "Try removing a filter or changing the search term.",
     "error_title": "The directory did not load",
@@ -3761,7 +4046,6 @@
     "email_person": "Email {{name}}",
     "call_person": "Call {{name}}",
     "group_personal": "Personal details",
-    "group_personal_hint": "You manage these yourself.",
     "group_company": "Company details",
     "group_company_locked": "Only an organization owner or admin can edit this group.",
     "bio_counter": "{{used}}/{{max}}",
@@ -3770,13 +4054,71 @@
     "discard_description": "What you just edited will not be saved.",
     "discard_confirm": "Discard changes",
     "discard_keep": "Keep editing",
-    "edit_profile_description": "Update this person's details. The lower group needs organization admin rights."
+    "result_count_one": "{{count}} match",
+    "result_count_other": "{{count}} matches",
+    "you": "You",
+    "title_missing": "No job title",
+    "department_missing": "No department",
+    "value_missing": "Not set",
+    "department_child_of": ", in {{parent}}",
+    "department_count_one": "{{count}} person",
+    "department_count_other": "{{count}} people",
+    "search_clear": "Clear search",
+    "filter_remove": "Remove {{name}} filter",
+    "filter_clear_all": "Clear filters",
+    "export_filtered": "Export filtered CSV",
+    "empty_search_title": "Nobody matches “{{query}}”",
+    "empty_search_description": "Try a name without accents, an email or a job title.",
+    "alone_title": "You are the only one here.",
+    "alone_description_admin": "Invite colleagues to fill the directory.",
+    "alone_description": "Ask an organization admin to invite colleagues.",
+    "alone_invite": "Invite colleagues",
+    "chat": "Message",
+    "chat_person": "Message {{name}}",
+    "send_email": "Email",
+    "call": "Call",
+    "copy_email": "Copy email",
+    "copy_phone": "Copy phone number",
+    "copy_failed": "Couldn't copy",
+    "edit_my_profile": "Edit your profile",
+    "edit_profile_of": "Edit {{name}}'s profile",
+    "edit_profile_description_self": "Colleagues see this in the directory.",
+    "edit_profile_description_other": "Changes show in the organization's directory right away.",
+    "group_personal_hint_self": "You manage these yourself.",
+    "group_personal_hint_other": "Usually filled in by {{name}}.",
+    "field_phone_hint_self": "Only colleagues see it, and only once you turn on sharing below.",
+    "field_phone_hint_other": "Only colleagues see it, and only once sharing is on below.",
+    "change_photo": "Change photo",
+    "back_to_directory": "Back to the directory",
+    "reactivate": "Reactivate",
+    "reactivated": "{{name}} reactivated",
+    "deactivated_since": "This account was deactivated on {{date}}. They can no longer sign in to the organization.",
+    "deactivated_notice": "This account is deactivated. They can no longer sign in to the organization.",
+    "manager_none": "No direct manager",
+    "manager_assign": "Assign a manager",
+    "manager_placeholder": "Search by name",
+    "manager_empty": "Nobody matches",
+    "reports_none": "Nobody yet",
+    "phone_hidden": "Phone number not shared.",
+    "phone_hidden_self": "Your phone number is hidden from colleagues.",
+    "local_time": "It's {{time}} there now",
+    "profile_saved_other": "Saved {{name}}'s profile",
+    "no_changes": "No changes yet",
+    "saving": "Saving…",
+    "load_more": "Load more",
+    "empty_title": "Nobody in the directory yet",
+    "empty_description": "Colleagues show up here once they join the organization.",
+    "export_failed": "Couldn't export the directory",
+    "load_error_title": "Couldn't load this profile",
+    "load_error_description": "Something went wrong loading this profile. Try again in a moment.",
+    "reactivate_confirm_title": "Reactivate {{name}}?",
+    "reactivate_confirm_description": "They will be able to sign in and use the organization again.",
+    "bio_limit": "Up to {{max}} characters."
   },
   "departments": {
     "title": "Departments",
-    "description": "The organization's structure, at most two levels deep. Archiving a department moves its people out of it.",
+    "description": "The organization's structure, at most two levels deep.",
     "name": "Department name",
-    "code": "Code",
     "parent": "Parent department",
     "add": "Add department",
     "add_title": "Add a department",
@@ -3785,7 +4127,27 @@
     "created": "Department created",
     "updated": "Department updated",
     "empty": "No departments yet.",
-    "member_count": "{{count}} members"
+    "count_one": "{{count}} department",
+    "count_other": "{{count}} departments",
+    "empty_admin": "No departments yet. Add the first one in the form below.",
+    "empty_member": "No departments yet. An organization admin adds them when needed.",
+    "rename": "Rename",
+    "rename_label": "New name for {{name}}",
+    "rename_hint": "Enter to save, Esc to cancel.",
+    "parent_none": "Top level (no parent)",
+    "parent_hint": "A sub-department belongs to one top-level department.",
+    "parent_hint_empty": "There are no top-level departments yet, so this one will be top level.",
+    "archive_title": "Archive {{name}}?",
+    "archive_body_one": "{{count}} member in this department will be unassigned from it. Their profile stays as it is.",
+    "archive_body_other": "{{count}} members in this department will be unassigned from it. Their profiles stay as they are.",
+    "archive_body_empty": "No one is in this department. It will no longer show in lists and filters.",
+    "has_children_one": "Has {{count}} sub-department; archive it first.",
+    "has_children_other": "Has {{count}} sub-departments; archive them first.",
+    "member_count_one": "{{count}} member",
+    "member_count_other": "{{count}} members",
+    "code_optional": "Code (optional)",
+    "name_required": "Enter a department name.",
+    "load_error": "Couldn't load the departments."
   },
   "projects": {
     "unavailable_title": "Not available yet",

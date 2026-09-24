@@ -3,8 +3,10 @@
 import { Bot } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Actor } from "@uniwork/core/types/people";
+import { tintClass } from "@uniwork/ui/components/common/icon-tile";
 import { Avatar, AvatarFallback, AvatarImage } from "@uniwork/ui/components/ui/avatar";
 import { cn } from "@uniwork/ui/lib/utils";
+import { identityTint } from "./identity-tint";
 
 /**
  * One actor, drawn the same way everywhere: avatar and name for a person, a
@@ -24,7 +26,9 @@ export function ActorChip({ actor, className }: { actor: Actor; className?: stri
       ) : (
         <Avatar className="size-5 shrink-0">
           {actor.avatar_url ? <AvatarImage src={actor.avatar_url} alt="" /> : null}
-          <AvatarFallback className="text-caption">{initials(actor.display_name)}</AvatarFallback>
+          <AvatarFallback className={cn("text-micro font-semibold", tintClass[identityTint(actor.id)])}>
+            {initials(actor.display_name)}
+          </AvatarFallback>
         </Avatar>
       )}
       <span className="truncate text-body">{actor.display_name}</span>

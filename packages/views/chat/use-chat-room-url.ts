@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 import { useOptionalNavigation } from "../navigation";
 
 const ROOM_PARAM = "room";
+/** Opens a one-to-one conversation by person, from outside Chat (the directory). */
+export const DM_PARAM = "dm";
 /** The list and the conversation sit side by side from lg; below it they swap. */
 const WIDE_QUERY = "(min-width: 1024px)";
 
@@ -51,6 +53,7 @@ export function useChatRoomUrl({
   const nav = useOptionalNavigation();
   const [localRoom, setLocalRoom] = useState<string | null>(null);
   const roomParam = nav ? nav.searchParams.get(ROOM_PARAM) : localRoom;
+  const deepLinked = Boolean(nav?.searchParams.get(DM_PARAM));
   // A DM without a room yet: the conversation opens now, the URL follows
   // when the room id arrives.
   const [pendingOpen, setPendingOpen] = useState(false);
@@ -60,13 +63,18 @@ export function useChatRoomUrl({
   const pushedRef = useRef(false);
 
   const write = useCallback(
-    (roomId: string | null, mode: "push" | "replace") => {
+    (roomId: string | null, mode: "push" | "replace", keepDeepLink = false) => {
       handledRef.current = roomId;
       if (!nav) {
         setLocalRoom(roomId);
         return;
       }
       const params = new URLSearchParams(nav.searchParams);
+      // A `?dm=` deep link (see use-chat-dm-deep-link) stays while its own DM
+      // is what is open — that DM has no message yet, so it is not in the room
+      // list and `?room=` alone cannot bring it back after a remount. Any
+      // other room the reader moves to drops it.
+      if (!keepDeepLink) params.delete(DM_PARAM);
       if (roomId) params.set(ROOM_PARAM, roomId);
       else params.delete(ROOM_PARAM);
       const qs = params.toString();
@@ -95,6 +103,9 @@ export function useChatRoomUrl({
       handledRef.current = roomParam;
       return;
     }
+    // The deep link opens its DM itself; an empty DM is not a known room, and
+    // resolving it here would drop it as gone.
+    if (deepLinked) return;
     if (resolveRef.current(roomParam)) {
       handledRef.current = roomParam;
     } else if (roomsReady) {
@@ -104,7 +115,7 @@ export function useChatRoomUrl({
     // activeRoomId is read, not followed: a click changes it before the URL
     // catches up, and following it here would undo the click.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomParam, roomsReady, write]);
+  }, [roomParam, roomsReady, deepLinked, write]);
 
   // Conversation → URL for changes that did not start at the URL or a click:
   // a DM room that just resolved, a group just created, a room left.
@@ -119,14 +130,14 @@ export function useChatRoomUrl({
     const fromList = !wide && !roomParam;
     if (pendingOpen) {
       setPendingOpen(false);
-      write(activeRoomId, fromList ? "push" : "replace");
+      write(activeRoomId, fromList ? "push" : "replace", deepLinked);
       return;
     }
     // The first room to appear (the workspace room on load) is a default,
     // not a navigation: the phone keeps its list, the URL stays clean.
     if (prev === null || prev === activeRoomId) return;
     write(activeRoomId, fromList ? "push" : "replace");
-  }, [activeRoomId, pendingOpen, roomParam, wide, write]);
+  }, [activeRoomId, deepLinked, pendingOpen, roomParam, wide, write]);
 
   /** A row was chosen: show that room (and on a phone, its screen). */
   const openRoom = useCallback(

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { CalendarEvent } from "@uniwork/core/calendar/types";
 import { FullCalendarHost } from "./fullcalendar-host";
@@ -16,6 +16,15 @@ type DropResizeArg = {
 type CapturedFcProps = {
   initialView?: string;
   hiddenDays?: number[];
+  firstDay?: number;
+  locale?: { code?: string };
+  timeZone?: string;
+  nowIndicator?: boolean;
+  slotMinTime?: string;
+  slotMaxTime?: string;
+  scrollTime?: string;
+  dayMaxEventRows?: boolean | number;
+  allDayText?: string;
   editable?: boolean;
   selectable?: boolean;
   selectMirror?: boolean;
@@ -83,18 +92,102 @@ describe("FullCalendarHost", () => {
     expect(onDatesSet).toHaveBeenCalledWith({ from: "2026-09-01", to: "2026-09-29" });
   });
 
-  it("passes FC view and hiddenDays from viewMode", () => {
+  it("localizes the work-week grid and shows the viewer time zone", () => {
+    const onDatesSet = vi.fn();
     render(
       <FullCalendarHost
         events={[sample]}
         initialDate="2026-09-01"
         viewMode="work_week"
-        onDatesSet={vi.fn()}
+        language="vi"
+        viewerTimeZone="Asia/Ho_Chi_Minh"
+        onDatesSet={onDatesSet}
         onEventClick={vi.fn()}
       />,
     );
     expect(captured.initialView).toBe("timeGridWeek");
     expect(captured.hiddenDays).toEqual([0, 6]);
+    expect(captured.firstDay).toBe(1);
+    expect(captured.locale?.code).toBe("vi");
+    expect(captured.timeZone).toBe("local");
+    expect(captured.nowIndicator).toBe(true);
+    expect(screen.getByText("GMT+7")).toHaveAttribute("title", "Asia/Ho_Chi_Minh");
+
+    captured.datesSet?.({
+      start: new Date("2026-09-14T00:00:00"),
+      end: new Date("2026-09-21T00:00:00"),
+    });
+    expect(onDatesSet).toHaveBeenCalledWith({ from: "2026-09-14", to: "2026-09-18" });
+  });
+
+  it("does not show a time-zone axis label or now indicator in month view", () => {
+    render(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="month"
+        language="en"
+        viewerTimeZone="Asia/Ho_Chi_Minh"
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+      />,
+    );
+    expect(captured.locale?.code).toBe("en-gb");
+    expect(captured.nowIndicator).toBe(false);
+    expect(screen.queryByText("GMT+7")).not.toBeInTheDocument();
+  });
+
+  it("hides weekends in week and month views when configured", () => {
+    const { rerender } = render(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="week"
+        showWeekends={false}
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+      />,
+    );
+    expect(captured.hiddenDays).toEqual([0, 6]);
+
+    rerender(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="day"
+        showWeekends={false}
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+      />,
+    );
+    expect(captured.hiddenDays).toEqual([]);
+  });
+
+  it("collapses and expands all-day events in time-grid views", () => {
+    render(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="week"
+        language="vi"
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+      />,
+    );
+
+    const expand = screen.getByRole("button", {
+      name: "Mở rộng sự kiện cả ngày",
+    });
+    expect(expand).toHaveAttribute("aria-expanded", "false");
+    expect(captured.dayMaxEventRows).toBe(1);
+    expect(captured.allDayText).toBe("");
+
+    fireEvent.click(expand);
+
+    expect(
+      screen.getByRole("button", { name: "Thu gọn sự kiện cả ngày" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(captured.dayMaxEventRows).toBe(false);
   });
 
   it("fills the host height so time grids scroll internally", () => {
@@ -108,6 +201,22 @@ describe("FullCalendarHost", () => {
       />,
     );
     expect(captured.height).toBe("100%");
+  });
+
+  it("opens time-grid views at midnight with the full 24-hour range", () => {
+    render(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="week"
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+      />,
+    );
+
+    expect(captured.slotMinTime).toBe("00:00:00");
+    expect(captured.slotMaxTime).toBe("24:00:00");
+    expect(captured.scrollTime).toBe("00:00:00");
   });
 
   it("resolves eventClick by id", () => {
@@ -209,12 +318,18 @@ describe("FullCalendarHost", () => {
     expect(revert).not.toHaveBeenCalled();
   });
 
-  it("eventDrop reverts when patch is null (timed task)", async () => {
+  it("eventDrop updates a timed task instead of reverting", async () => {
     const onEventDropOrResize = vi.fn();
     const revert = vi.fn();
+    const timedTask: CalendarEvent = {
+      ...sample,
+      start: "2026-09-10T07:00:00.000Z",
+      end: "2026-09-10T08:00:00.000Z",
+      allDay: false,
+    };
     render(
       <FullCalendarHost
-        events={[sample]}
+        events={[timedTask]}
         initialDate="2026-09-01"
         viewMode="month"
         onDatesSet={vi.fn()}
@@ -231,8 +346,61 @@ describe("FullCalendarHost", () => {
       },
       revert,
     });
-    expect(onEventDropOrResize).not.toHaveBeenCalled();
-    expect(revert).toHaveBeenCalled();
+    expect(onEventDropOrResize).toHaveBeenCalledWith({
+      kind: "task",
+      entityId: "task-1",
+      patch: {
+        start_date: "2026-09-11",
+        due_date: "2026-09-11",
+        start_at: "2026-09-11T12:00:00.000Z",
+        due_at: "2026-09-11T13:00:00.000Z",
+      },
+    });
+    expect(revert).not.toHaveBeenCalled();
+  });
+
+  it("eventResize updates a timed task duration instead of reverting", async () => {
+    const onEventDropOrResize = vi.fn();
+    const revert = vi.fn();
+    const timedTask: CalendarEvent = {
+      ...sample,
+      start: "2026-09-10T07:00:00.000Z",
+      end: "2026-09-10T08:00:00.000Z",
+      allDay: false,
+    };
+    render(
+      <FullCalendarHost
+        events={[timedTask]}
+        initialDate="2026-09-01"
+        viewMode="week"
+        onDatesSet={vi.fn()}
+        onSlotSelect={vi.fn()}
+        onEventClick={vi.fn()}
+        onEventDropOrResize={onEventDropOrResize}
+      />,
+    );
+
+    await captured.eventResize?.({
+      event: {
+        id: "ev-1",
+        start: new Date("2026-09-10T07:00:00.000Z"),
+        end: new Date("2026-09-10T09:30:00.000Z"),
+        allDay: false,
+      },
+      revert,
+    });
+
+    expect(onEventDropOrResize).toHaveBeenCalledWith({
+      kind: "task",
+      entityId: "task-1",
+      patch: {
+        start_date: "2026-09-10",
+        due_date: "2026-09-10",
+        start_at: "2026-09-10T07:00:00.000Z",
+        due_at: "2026-09-10T09:30:00.000Z",
+      },
+    });
+    expect(revert).not.toHaveBeenCalled();
   });
 
   it("enables selectable and forwards dateClick to onSlotSelect", () => {

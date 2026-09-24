@@ -24,6 +24,21 @@ vi.mock("../meetings/new-meeting-dialog", () => ({
 }));
 
 describe("CreateFromSlot", () => {
+  it("uses generic create copy when opened without a selected slot", () => {
+    render(
+      wrap(
+        <CreateFromSlot
+          workspaceId="ws1"
+          open
+          onOpenChange={() => {}}
+          slot={null}
+        />,
+      ),
+    );
+
+    expect(screen.getByRole("heading", { name: "Tạo mục lịch" })).toBeInTheDocument();
+  });
+
   it("opens task dialog with due_date prefill after choosing new task", () => {
     const onOpenChange = vi.fn();
     render(
@@ -45,6 +60,29 @@ describe("CreateFromSlot", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(screen.getByTestId("create-task-dialog")).toBeInTheDocument();
     expect(taskDialogProps.current.defaults).toEqual({ due_date: "2026-09-10" });
+  });
+
+  it("keeps a dragged hour range when opening the task dialog", () => {
+    const start = new Date("2026-09-10T14:00:00");
+    const end = new Date("2026-09-10T15:00:00");
+    render(
+      wrap(
+        <CreateFromSlot
+          workspaceId="ws1"
+          open
+          onOpenChange={() => {}}
+          slot={{ start, end, allDay: false }}
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Việc mới" }));
+    expect(taskDialogProps.current.defaults).toEqual({
+      start_date: "2026-09-10",
+      due_date: "2026-09-10",
+      start_at: start.toISOString(),
+      due_at: end.toISOString(),
+    });
   });
 
   it("opens meeting dialog with schedule prefill after choosing new meeting", () => {

@@ -37,9 +37,11 @@ export function CalendarExportButton({
   return (
     <Button
       type="button"
-      size="sm"
-      variant="outline"
+      size="icon-sm"
+      variant="toolbar"
       className={className}
+      aria-label={t("calendar.export_ics")}
+      title={t("calendar.export_ics")}
       disabled={pending}
       onClick={() => {
         setPending(true);
@@ -53,7 +55,6 @@ export function CalendarExportButton({
       }}
     >
       <Download aria-hidden className="size-4" />
-      {t("calendar.export_ics")}
     </Button>
   );
 }

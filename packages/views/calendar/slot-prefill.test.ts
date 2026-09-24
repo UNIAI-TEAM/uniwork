@@ -22,14 +22,21 @@ describe("taskDefaultsFromSlot", () => {
     ).toEqual({ start_date: "2026-09-10", due_date: "2026-09-12" });
   });
 
-  it("timed slot sets due_date from local day", () => {
+  it("timed slot keeps its local day and exact time range", () => {
+    const start = new Date("2026-09-10T14:30:00");
+    const end = new Date("2026-09-10T15:30:00");
     expect(
       taskDefaultsFromSlot({
-        start: new Date("2026-09-10T14:30:00"),
-        end: new Date("2026-09-10T15:30:00"),
+        start,
+        end,
         allDay: false,
       }),
-    ).toEqual({ due_date: "2026-09-10" });
+    ).toEqual({
+      start_date: "2026-09-10",
+      due_date: "2026-09-10",
+      start_at: start.toISOString(),
+      due_at: end.toISOString(),
+    });
   });
 });
 

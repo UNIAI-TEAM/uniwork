@@ -33,7 +33,13 @@ export function taskDefaultsFromSlot(slot: CalendarSlot): Partial<CreateTaskBody
     }
     return { start_date: startYmd, due_date: dueYmd };
   }
-  return { due_date: startYmd };
+  const end = slot.end ?? addHours(slot.start, 1);
+  return {
+    start_date: startYmd,
+    due_date: ymdLocal(end),
+    start_at: slot.start.toISOString(),
+    due_at: end.toISOString(),
+  };
 }
 
 export function meetingScheduleFromSlot(slot: CalendarSlot): ScheduleDraft {

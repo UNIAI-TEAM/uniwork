@@ -127,10 +127,12 @@ test("the commit-msg hook accepts this repo's whole history", () => {
   // A rule that would have rejected the commits already in the tree is not a
   // rule, it is a trap for the next person who writes a correct message.
   //
-  // e88a055 landed on develop via PR #62 without a conventional prefix; rewriting
-  // shared history is not an option, so keep the subject here and nowhere else.
+  // e88a055 landed on develop via PR #62 and c416bc6 was pushed straight to
+  // develop, both without a conventional prefix; rewriting shared history is
+  // not an option, so keep the subjects here and nowhere else.
   const historicalExceptions = new Set([
     "Enhance UI components with transition classes and improve localization",
+    "add env",
   ]);
   const subjects = execFileSync("git", ["log", "--format=%s"], { cwd: root, encoding: "utf8" })
     .split("\n")

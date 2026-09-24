@@ -1,8 +1,13 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, RotateCw, Settings2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@uniwork/ui/components/ui/popover";
 import { Switch } from "@uniwork/ui/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -14,6 +19,7 @@ import {
   shiftAnchor,
 } from "./calendar-view-mode";
 import { CalendarExportButton } from "./calendar-export-button";
+import { CalendarPeriodPicker } from "./calendar-period-picker";
 
 const VIEW_MODES: CalendarViewMode[] = ["day", "work_week", "week", "month"];
 
@@ -26,28 +32,36 @@ const VIEW_MODE_I18N: Record<CalendarViewMode, string> = {
 
 const SEGMENT =
   "h-7 gap-1.5 rounded-md border border-transparent px-2.5 text-label font-medium text-muted-foreground pointer-coarse:h-10 " +
-  "hover:bg-transparent hover:text-foreground aria-pressed:border-border aria-pressed:bg-surface aria-pressed:text-foreground aria-pressed:shadow-[var(--surface-shadow)] aria-pressed:hover:bg-surface";
+  "hover:bg-transparent hover:text-foreground aria-pressed:border-transparent aria-pressed:bg-surface-hover aria-pressed:text-foreground aria-pressed:hover:bg-surface-hover";
 
 export function CalendarToolbar({
   anchorDate,
   mine,
+  showWeekends,
   viewMode,
   workspaceId,
   exportFrom,
   exportTo,
+  isRefreshing,
   onAnchorDateChange,
   onMineChange,
+  onRefresh,
+  onShowWeekendsChange,
   onViewModeChange,
   className,
 }: {
   anchorDate: Date;
   mine: boolean;
+  showWeekends: boolean;
   viewMode: CalendarViewMode;
   workspaceId: string;
   exportFrom?: string;
   exportTo?: string;
+  isRefreshing: boolean;
   onAnchorDateChange: (next: Date) => void;
   onMineChange: (next: boolean) => void;
+  onRefresh: () => void;
+  onShowWeekendsChange: (next: boolean) => void;
   onViewModeChange: (mode: CalendarViewMode) => void;
   className?: string;
 }) {
@@ -67,7 +81,7 @@ export function CalendarToolbar({
         <Button
           type="button"
           size="icon-sm"
-          variant="outline"
+          variant="toolbar"
           aria-label={t("calendar.prev_period")}
           onClick={() => onAnchorDateChange(shiftAnchor(viewMode, anchorDate, -1))}
         >
@@ -76,7 +90,7 @@ export function CalendarToolbar({
         <Button
           type="button"
           size="icon-sm"
-          variant="outline"
+          variant="toolbar"
           aria-label={t("calendar.next_period")}
           onClick={() => onAnchorDateChange(shiftAnchor(viewMode, anchorDate, 1))}
         >
@@ -85,12 +99,16 @@ export function CalendarToolbar({
         <Button
           type="button"
           size="sm"
-          variant="outline"
+          variant="toolbar"
           onClick={() => onAnchorDateChange(new Date())}
         >
           {t("calendar.today")}
         </Button>
-        <span className="truncate text-body font-medium tabular-nums">{periodLabel}</span>
+        <CalendarPeriodPicker
+          anchorDate={anchorDate}
+          periodLabel={periodLabel}
+          onChange={onAnchorDateChange}
+        />
         <ToggleGroup
           value={[viewMode]}
           onValueChange={(v) => {
@@ -109,9 +127,49 @@ export function CalendarToolbar({
         </ToggleGroup>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="toolbar"
+          aria-label={t(isRefreshing ? "calendar.refreshing" : "calendar.refresh")}
+          aria-busy={isRefreshing || undefined}
+          aria-disabled={isRefreshing}
+          onClick={onRefresh}
+        >
+          <RotateCw
+            aria-hidden
+            className={cn("size-4", isRefreshing ? "motion-safe:animate-spin" : undefined)}
+          />
+        </Button>
         <CalendarExportButton workspaceId={workspaceId} from={exportFrom} to={exportTo} />
+        <Popover>
+          <PopoverTrigger
+            render={
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="toolbar"
+                aria-label={t("calendar.settings")}
+              >
+                <Settings2 aria-hidden className="size-4" />
+              </Button>
+            }
+          />
+          <PopoverContent align="end" className="w-56">
+            <label className="flex cursor-pointer items-center justify-between gap-3">
+              <span className="text-body text-foreground">
+                {t("calendar.show_weekends")}
+              </span>
+              <Switch
+                size="sm"
+                checked={showWeekends}
+                onCheckedChange={onShowWeekendsChange}
+              />
+            </label>
+          </PopoverContent>
+        </Popover>
         <label className="flex cursor-pointer items-center gap-2">
-          <Switch checked={mine} onCheckedChange={onMineChange} aria-label={t("calendar.mine")} />
+          <Switch checked={mine} onCheckedChange={onMineChange} />
           <span className="text-body text-foreground">{t("calendar.mine")}</span>
         </label>
       </div>

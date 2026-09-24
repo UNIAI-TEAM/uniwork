@@ -4,6 +4,7 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import type { ChatSidebarTarget } from "./chat-sidebar-types";
 import { ChatPageEmptyConversation } from "./chat-page-empty-conversation";
+import { wrap } from "../test/api-mock";
 import { useChatPagePanels } from "./use-chat-page-panels";
 
 const group = { id: "g1", name: "Design", room_id: "room-g1", member_user_ids: ["u3"] };
@@ -88,7 +89,7 @@ afterEach(() => {
 describe("useChatPagePanels", () => {
   it("on a phone, opening a room shows it and focuses its title; back returns focus to the row", () => {
     window.innerWidth = 375;
-    render(<Frame />);
+    render(wrap(<Frame />));
     expect(screen.getByTestId("list")).toHaveAttribute("data-visible", "true");
     expect(screen.getByTestId("conversation")).toHaveAttribute("data-visible", "false");
 
@@ -102,7 +103,7 @@ describe("useChatPagePanels", () => {
   });
 
   it("on a wide screen, hiding the list focuses the way back, and showing it focuses the hide control", () => {
-    render(<Frame />);
+    render(wrap(<Frame />));
     fireEvent.click(screen.getByRole("button", { name: "Ẩn" }));
     const show = screen.getByRole("button", { name: "Hiện danh sách trò chuyện" });
     expect(show).toHaveFocus();

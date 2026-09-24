@@ -101,7 +101,15 @@ spec:
                   key: {{ .key }}
                   optional: true
             {{- end }}
-            {{- with .Values.be.secrets.openai }}
+            {{- with .Values.be.secrets.emailHub }}
+            - name: EMAIL_HUB_CREDENTIAL_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .name }}
+                  key: {{ .key }}
+                  optional: true
+            {{- end }}
+            {{- with .Values.be.secrets.openAPIKey }}
             - name: OPENAI_API_KEY
               valueFrom:
                 secretKeyRef:

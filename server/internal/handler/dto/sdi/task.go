@@ -1,6 +1,9 @@
 package sdi
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"time"
+)
 
 // CreateTaskSDI is POST /api/v1/workspaces/{workspaceID}/tasks.
 type CreateTaskSDI struct {
@@ -12,6 +15,8 @@ type CreateTaskSDI struct {
 	AssigneeKind   string                     `json:"assignee_kind" description:"human (mặc định) hoặc agent" example:"human"`
 	StartDate      *string                    `json:"start_date" description:"Ngày bắt đầu dạng YYYY-MM-DD" example:"2026-08-25"`
 	DueDate        *string                    `json:"due_date" description:"Hạn chót dạng YYYY-MM-DD" example:"2026-08-28"`
+	StartAt        *time.Time                 `json:"start_at" description:"Thời điểm bắt đầu RFC3339; dùng cùng start_date cho task có giờ" example:"2026-08-25T02:00:00Z"`
+	DueAt          *time.Time                 `json:"due_at" description:"Thời điểm kết thúc RFC3339; dùng cùng due_date cho task có giờ" example:"2026-08-25T03:00:00Z"`
 	ProjectID      *string                    `json:"project_id" description:"Project cùng workspace" example:"01J8X4PROJ0N1P2Q3R4S5T6U7"`
 	ParentTaskID   *string                    `json:"parent_task_id" description:"Task cha cùng workspace" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
 	Stage          *int32                     `json:"stage" description:"Thứ tự giai đoạn, từ 1 trở lên" example:"1"`
@@ -23,18 +28,20 @@ type CreateTaskSDI struct {
 
 // PatchTaskSDI documents PATCH /api/v1/tasks/{taskID}. The handler still
 // decodes map[string]json.RawMessage so a missing field stays unchanged and
-// a JSON null clears assignee_id / start_date / due_date.
+// a JSON null clears assignee_id / start_date / due_date / start_at / due_at.
 type PatchTaskSDI struct {
-	Title        *string  `json:"title" description:"Tiêu đề mới" example:"Chuẩn bị standup"`
-	Description  *string  `json:"description" example:"Agenda và ghi chú"`
-	Status       *string  `json:"status" description:"backlog, todo, in_progress, in_review, done, blocked hoặc cancelled" example:"in_progress"`
-	Priority     *string  `json:"priority" example:"high"`
-	Position     *float64 `json:"position" description:"Thứ tự trên bảng; số lớn hơn nằm sau" example:"1"`
-	AssigneeID   *string  `json:"assignee_id" description:"Gán thành viên hoặc agent, hoặc gửi null để bỏ giao" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	AssigneeKind *string  `json:"assignee_kind" description:"human (mặc định) hoặc agent; đọc cùng assignee_id" example:"agent"`
-	StartDate    *string  `json:"start_date" description:"Đặt YYYY-MM-DD, hoặc gửi null để xóa ngày bắt đầu" example:"2026-08-25"`
-	DueDate      *string  `json:"due_date" description:"Đặt YYYY-MM-DD, hoặc gửi null để xóa hạn" example:"2026-08-28"`
-	ProjectID    *string  `json:"project_id" description:"Gắn project ULID, hoặc gửi null để gỡ" example:"01J8X4PROJ0N1P2Q3R4S5T6U7"`
+	Title        *string    `json:"title" description:"Tiêu đề mới" example:"Chuẩn bị standup"`
+	Description  *string    `json:"description" example:"Agenda và ghi chú"`
+	Status       *string    `json:"status" description:"backlog, todo, in_progress, in_review, done, blocked hoặc cancelled" example:"in_progress"`
+	Priority     *string    `json:"priority" example:"high"`
+	Position     *float64   `json:"position" description:"Thứ tự trên bảng; số lớn hơn nằm sau" example:"1"`
+	AssigneeID   *string    `json:"assignee_id" description:"Gán thành viên hoặc agent, hoặc gửi null để bỏ giao" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	AssigneeKind *string    `json:"assignee_kind" description:"human (mặc định) hoặc agent; đọc cùng assignee_id" example:"agent"`
+	StartDate    *string    `json:"start_date" description:"Đặt YYYY-MM-DD, hoặc gửi null để xóa ngày bắt đầu" example:"2026-08-25"`
+	DueDate      *string    `json:"due_date" description:"Đặt YYYY-MM-DD, hoặc gửi null để xóa hạn" example:"2026-08-28"`
+	StartAt      *time.Time `json:"start_at" description:"Đặt thời điểm bắt đầu RFC3339 cùng due_at, hoặc gửi cả hai là null để xóa lịch giờ" example:"2026-08-25T02:00:00Z"`
+	DueAt        *time.Time `json:"due_at" description:"Đặt thời điểm kết thúc RFC3339 cùng start_at, hoặc gửi cả hai là null để xóa lịch giờ" example:"2026-08-25T03:00:00Z"`
+	ProjectID    *string    `json:"project_id" description:"Gắn project ULID, hoặc gửi null để gỡ" example:"01J8X4PROJ0N1P2Q3R4S5T6U7"`
 }
 
 // QueryTasksSDI is POST /api/v1/workspaces/{workspaceID}/tasks/query (flagged suite).

@@ -28,6 +28,8 @@ type TaskDTO struct {
 	Assignee      *ActorDTO         `json:"assignee,omitempty"`
 	StartDate     *string           `json:"start_date,omitempty" example:"2026-08-25"`
 	DueDate       *string           `json:"due_date,omitempty" example:"2026-08-28"`
+	StartAt       *string           `json:"start_at,omitempty" example:"2026-08-25T02:00:00Z"`
+	DueAt         *string           `json:"due_at,omitempty" example:"2026-08-25T03:00:00Z"`
 	ProjectID     *string           `json:"project_id,omitempty" description:"Project ULID khi task thuộc một project" example:"01J8X4PROJ0N1P2Q3R4S5T6U7"`
 	ParentTaskID  *string           `json:"parent_task_id,omitempty" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
 	Stage         *int32            `json:"stage,omitempty" description:"Thứ tự giai đoạn của task" example:"1"`

@@ -121,23 +121,24 @@ func day(y int, m time.Month, d int) time.Time {
 }
 
 func TestTruncateLocalDateUsesLocalWallCalendar(t *testing.T) {
-	// time.Local is fixed at process start; Setenv("TZ") does not reload it on
-	// CI (UTC). Reassign Local for this case so wall-calendar math is covered.
+	// The zone is passed in rather than assigned to time.Local: time.Local is
+	// process-global, and rewriting it races with any goroutine a previous
+	// test left running (go test -race fails the run).
 	loc, err := time.LoadLocation("Asia/Ho_Chi_Minh")
 	if err != nil {
 		t.Fatal(err)
 	}
-	prev := time.Local
-	time.Local = loc
-	t.Cleanup(func() { time.Local = prev })
 
 	// 21:00 UTC is already the next calendar day in UTC+7.
 	utc := time.Date(2026, 9, 21, 21, 0, 0, 0, time.UTC)
 	if got := truncateUTCDate(utc); !got.Equal(day(2026, 9, 21)) {
 		t.Fatalf("UTC truncate: got %s want 2026-09-21", got.Format(time.DateOnly))
 	}
-	if got := truncateLocalDate(utc); !got.Equal(day(2026, 9, 22)) {
+	if got := truncateDateIn(utc, loc); !got.Equal(day(2026, 9, 22)) {
 		t.Fatalf("local truncate: got %s want 2026-09-22 (today_overdue boundary)", got.Format(time.DateOnly))
+	}
+	if got, want := truncateLocalDate(utc), truncateDateIn(utc, time.Local); !got.Equal(want) {
+		t.Fatalf("truncateLocalDate must use the process zone: got %s want %s", got.Format(time.DateOnly), want.Format(time.DateOnly))
 	}
 }
 
@@ -155,6 +156,16 @@ func TestCalendarListEventsInRange(t *testing.T) {
 	from, to := day(2026, 9, 1), day(2026, 9, 30)
 
 	inRange := f.task(t, "due-mid", "2026-09-15", &f.a.ID)
+	timedStart := time.Date(2026, 9, 16, 7, 30, 0, 0, time.UTC)
+	timedEnd := timedStart.Add(time.Hour)
+	timedDue := "2026-09-16"
+	timedTask, err := f.tasks.Create(ctx, Human(f.a.ID), f.w.ID, CreateTaskInput{
+		Title: "timed", StartDate: &timedDue, DueDate: &timedDue,
+		StartAt: &timedStart, DueAt: &timedEnd, AssigneeID: &f.a.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	f.task(t, "outside", "2026-10-05", &f.a.ID)
 	f.meeting(t, "m-in", f.a.ID, "SCHEDULED", time.Date(2026, 9, 10, 3, 0, 0, 0, time.UTC))
 	f.meeting(t, "m-out", f.a.ID, "SCHEDULED", time.Date(2026, 10, 5, 3, 0, 0, 0, time.UTC))
@@ -188,6 +199,16 @@ func TestCalendarListEventsInRange(t *testing.T) {
 	if taskEv == nil || !taskEv.AllDay || taskEv.Start != "2026-09-15" || taskEv.End == nil || *taskEv.End != "2026-09-16" {
 		t.Fatalf("task event shape: %+v", taskEv)
 	}
+	for i := range got {
+		if got[i].ID != "task:"+timedTask.ID {
+			continue
+		}
+		if got[i].AllDay || got[i].Start != timedStart.Format(time.RFC3339) || got[i].End == nil || *got[i].End != timedEnd.Format(time.RFC3339) {
+			t.Fatalf("timed task event shape: %+v", got[i])
+		}
+		return
+	}
+	t.Fatal("missing timed task event")
 }
 
 func TestCalendarListEventsIsolatesWorkspaces(t *testing.T) {

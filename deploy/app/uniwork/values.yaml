@@ -45,8 +45,9 @@ be:
     mail: { name: uniwork-mail, key: SMTP_PASSWORD }
     s3: { name: uniwork-s3, accessKey: AWS_ACCESS_KEY_ID, secretKey: AWS_SECRET_ACCESS_KEY }
     google: { name: uniwork-google, key: GOOGLE_CLIENT_SECRET }
+    emailHub: { name: uniwork-email-hub, key: EMAIL_HUB_CREDENTIAL_KEY }
     # OpenRouter / OpenAI-compatible key (Email Hub AI, Ask UNI, meeting summary).
-    openai: { name: uniwork-openai, key: OPENAI_API_KEY }
+    openAPIKey: { name: uniwork-open-api-key, key: OPENAI_API_KEY }
 
 fe:
   replicaCount: 1

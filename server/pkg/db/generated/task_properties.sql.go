@@ -97,7 +97,7 @@ SET properties = properties - $1::text,
 WHERE id = $2
   AND organization_id = $3
   AND workspace_id = $4
-RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at
+RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at
 `
 
 type DeleteTaskPropertyValueParams struct {
@@ -149,6 +149,8 @@ func (q *Queries) DeleteTaskPropertyValue(ctx context.Context, arg DeleteTaskPro
 		&i.FirstExecutedAt,
 		&i.Revision,
 		&i.LastActivityAt,
+		&i.StartAt,
+		&i.DueAt,
 	)
 	return i, err
 }
@@ -294,7 +296,7 @@ SET properties = jsonb_set(properties, ARRAY[$1::text], $2::jsonb, true),
 WHERE id = $3
   AND organization_id = $4
   AND workspace_id = $5
-RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at
+RETURNING id, workspace_id, title, description, status, priority, assignee_id, due_date, position, created_by, created_at, updated_at, kind, created_by_kind, assignee_kind, organization_id, number, project_id, parent_task_id, assignee_type, creator_type, creator_id, acceptance_criteria, context_refs, metadata, properties, start_date, stage, origin_type, origin_id, first_executed_at, revision, last_activity_at, start_at, due_at
 `
 
 type SetTaskPropertyValueParams struct {
@@ -348,6 +350,8 @@ func (q *Queries) SetTaskPropertyValue(ctx context.Context, arg SetTaskPropertyV
 		&i.FirstExecutedAt,
 		&i.Revision,
 		&i.LastActivityAt,
+		&i.StartAt,
+		&i.DueAt,
 	)
 	return i, err
 }

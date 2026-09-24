@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import en from "@uniwork/core/i18n/locales/en.json";
@@ -257,14 +257,50 @@ describe("KeyboardShortcutsTab reset", () => {
 
     fireEvent.click(reset);
     expect(getShortcut("send")).toEqual(createShortcutChord("Enter", { primary: true }));
-    expect(screen.getByRole("button", { name: "Đặt lại Gửi" })).toHaveAttribute("aria-disabled", "true");
+    // Back at the default, the row offers no reset at all.
+    expect(screen.queryByRole("button", { name: "Đặt lại Gửi" })).not.toBeInTheDocument();
+  });
+
+  it("offers reset only on customised rows", () => {
+    useShortcutStore.getState().setShortcut("createTask", createShortcutChord("N"));
+    render(wrap(<KeyboardShortcutsTab />));
+    expect(screen.getAllByRole("button", { name: /^Đặt lại / })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Đặt lại Tạo việc" })).toBeInTheDocument();
+    // Only a row with a chord offers to clear it.
+    const assigned = SHORTCUT_ACTIONS.filter((a) => getShortcut(a.id) !== null);
+    expect(screen.getAllByRole("button", { name: /^Gỡ phím tắt / })).toHaveLength(assigned.length);
   });
 
   it("clears one action with its clear button", () => {
     render(wrap(<KeyboardShortcutsTab />));
     fireEvent.click(screen.getByRole("button", { name: "Gỡ phím tắt Tạo việc" }));
     expect(getShortcut("createTask")).toBeNull();
-    expect(screen.getByRole("button", { name: "Gỡ phím tắt Tạo việc" })).toHaveAttribute("aria-disabled", "true");
+    // Nothing left to clear: the button gives way to a placeholder, and focus
+    // stays in the row on the recorder instead of falling to the page.
+    expect(screen.queryByRole("button", { name: "Gỡ phím tắt Tạo việc" })).not.toBeInTheDocument();
+    expect(recorder("Tạo việc")).toHaveFocus();
+  });
+
+  it("lets Tab leave a recording recorder, cancelling it", () => {
+    render(wrap(<KeyboardShortcutsTab />));
+    const button = recorder("Tạo việc");
+    fireEvent.click(button);
+    const tab = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
+    act(() => {
+      button.dispatchEvent(tab);
+    });
+    // Not swallowed: the browser still moves focus.
+    expect(tab.defaultPrevented).toBe(false);
+    expect(button).toHaveAttribute("aria-pressed", "false");
+    expect(getShortcut("createTask")).toEqual(createShortcutChord("C"));
+  });
+
+  it("ties the Esc/Delete hint to the recorder while it records", () => {
+    render(wrap(<KeyboardShortcutsTab />));
+    const button = recorder("Tạo việc");
+    expect(button).not.toHaveAttribute("aria-describedby");
+    fireEvent.click(button);
+    expect(button).toHaveAccessibleDescription("Esc để hủy · Delete để gỡ");
   });
 
   it("keeps restore-defaults focusable but inert while nothing is customised", () => {

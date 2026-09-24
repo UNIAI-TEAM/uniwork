@@ -1,5 +1,6 @@
 -- name: ListCalendarTasksInRange :many
-SELECT id, title, status, priority, project_id, start_date, due_date, assignee_id, assignee_kind
+SELECT id, title, status, priority, project_id, start_date, due_date, start_at, due_at,
+  assignee_id, assignee_kind
 FROM tasks
 WHERE organization_id = sqlc.arg('organization_id')
   AND workspace_id = sqlc.arg('workspace_id')
