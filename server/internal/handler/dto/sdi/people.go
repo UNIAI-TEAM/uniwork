@@ -7,6 +7,23 @@ type OrgMemberRoleSDI struct {
 	Role string `json:"role" enum:"admin,member" description:"Vai trò mới trong tổ chức" example:"admin"`
 }
 
+// PeopleFilterSDI documents the filter query params GET .../people and
+// GET .../people.csv share.
+type PeopleFilterSDI struct {
+	Q            string `query:"q" description:"Tìm theo tên/email/chức danh/phòng ban, không dấu cũng khớp; dưới 2 ký tự thì bỏ qua" example:"nguyen van an"`
+	DepartmentID string `query:"department_id" description:"ULID phòng ban" example:"01J8X4DEPT0N1P2Q3R4S5T6U"`
+	ManagerID    string `query:"manager_id" description:"ULID người quản lý trực tiếp" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	Role         string `query:"role" enum:"owner,admin,member" description:"Vai trò trong tổ chức" example:"member"`
+	Status       string `query:"status" enum:"active,deactivated,all" description:"Trạng thái thành viên; bỏ trống = active ở danh sách, all ở file CSV" example:"active"`
+}
+
+// PeopleListSDI documents GET /api/v1/orgs/{org}/people query params.
+type PeopleListSDI struct {
+	PeopleFilterSDI
+	Cursor string `query:"cursor" description:"next_cursor của trang trước; bỏ trống = trang đầu" example:"TmfDtG4AMDFK"`
+	Limit  int32  `query:"limit" description:"Kích thước trang (mặc định 50, tối đa 100)" example:"50"`
+}
+
 // ProfileSDI is PATCH /api/v1/orgs/{org}/people/{userID}/profile. Every field
 // is optional; an absent field is left alone. department_id, manager_id,
 // employee_code and joined_on need an owner or admin — sending one as a plain

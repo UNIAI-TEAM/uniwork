@@ -6,6 +6,7 @@ import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
 import type { ChatSidebarTarget } from "./chat-sidebar-types";
 import { useChatRoomUrl, useChatWideLayout } from "./use-chat-room-url";
+import { useChatDmDeepLink } from "./use-chat-dm-deep-link";
 
 const TITLE_SELECTOR = "[data-chat-conversation-title]";
 const EXPAND_SELECTOR = "[data-chat-sidebar-expand]";
@@ -107,6 +108,8 @@ export function useChatPagePanels({
     },
     [openRoom, setTarget, wide, workspaceRoomId],
   );
+  // `?dm=<userId>` from outside Chat opens like a row chosen here.
+  useChatDmDeepLink(handleTargetChange, roomsReady);
 
   const handleBackToConversationList = useCallback(() => {
     focusRowPending.current = true;
