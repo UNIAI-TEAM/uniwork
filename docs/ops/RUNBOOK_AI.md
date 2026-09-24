@@ -15,7 +15,7 @@ chạy trong request.
 | --- | --- |
 | `AI_PROVIDER` | `anthropic` / `openai` / `ollama` / `fake`. Rỗng = suy từ key có sẵn (Anthropic trước). Không có gì = tắt: `capabilities.enabled=false`, client ẩn nút, không lỗi 500 |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | Anthropic; `ANTHROPIC_MODEL` là override kiểu cũ, phải nằm trong allowlist |
-| `OPENAI_BASE_URL`, `OPENAI_API_KEY` | OpenAI-compatible (OpenAI, Gemini OpenAI-compat, vLLM…) |
+| `OPENAI_BASE_URL`, `OPENAI_API_KEY` | OpenAI-compatible (OpenAI, **OpenRouter** `https://openrouter.ai/api/v1`, Gemini OpenAI-compat, vLLM…) |
 | `OLLAMA_BASE_URL` | Ollama local/on-prem, không cần key |
 | `AI_MODEL_<CAPABILITY>` | Override model cho một capability (`AI_MODEL_COPILOT_ANSWER=claude-sonnet-5`); ngoài allowlist → dùng mặc định + log warn |
 | `AI_MODEL_ALLOW` | Mở rộng allowlist (csv) cho model self-host |
@@ -23,6 +23,14 @@ chạy trong request.
 
 `AI_PROVIDER=fake` cho dev và E2E: trả lời deterministic, cite mọi nguồn, không
 ra mạng.
+
+### OpenRouter (thay OpenAI trực tiếp)
+
+1. Secret: `OPENAI_API_KEY=sk-or-v1-…` (rotate nếu key từng lộ).
+2. ConfigMap `uniwork-be.env`: `AI_PROVIDER=openai`, `OPENAI_BASE_URL=https://openrouter.ai/api/v1`.
+3. Model: slug dạng `openai/gpt-4o-mini` — khai báo trong `AI_MODEL_ALLOW` và
+   `AI_MODEL_<CAPABILITY>` (Email Hub dùng `AI_MODEL_EMAIL_THREAD_SUMMARY`).
+4. Restart `uniwork-be`; kiểm `GET …/ai/capabilities` → `enabled: true`.
 
 ## Số cần nhìn
 

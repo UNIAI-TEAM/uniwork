@@ -21,6 +21,7 @@ const thread = {
   has_attachments: false,
   body_text: "Hello team",
   body_cached: true,
+  imap_labels: [],
 };
 
 describe("compose recipients", () => {

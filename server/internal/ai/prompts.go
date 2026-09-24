@@ -8,10 +8,11 @@ import (
 
 // Prompt keys used by callers.
 const (
-	PromptMeetingSummary  = "meeting_summary@1"
-	PromptCopilotAnswer   = "copilot_answer@1"
-	PromptChatCatchUp     = "chat_catchup@1"
-	PromptChatCallSummary = "chat_call_summary@1"
+	PromptMeetingSummary     = "meeting_summary@1"
+	PromptCopilotAnswer      = "copilot_answer@1"
+	PromptChatCatchUp        = "chat_catchup@1"
+	PromptChatCallSummary    = "chat_call_summary@1"
+	PromptEmailThreadSummary = "email_thread_summary@1"
 )
 
 type TranscriptLine struct {
@@ -139,6 +140,30 @@ Respond with a single JSON object and nothing else, shaped exactly as:
 			} else {
 				b.WriteString("Sources: (none)\n")
 			}
+			return b.String()
+		},
+	})
+
+	register(Prompt{
+		ID: "email_thread_summary", Version: 1,
+		System: `You summarize one email thread for a Vietnamese work team.
+Respond with a single JSON object and nothing else, shaped exactly as:
+{"summary": string, "key_points": string[], "action_items": [{"title": string, "owner": string, "due": string}], "needs_reply": boolean, "reply_hint": string}
+- "summary": 2-4 sentences on what the thread is about and the current state.
+- "key_points": concrete facts, requests, or decisions; empty array if none.
+- "action_items": tasks someone should do; "title" is imperative; "owner" is a name as written or ""; "due" is a date or relative time as written or "".
+- "needs_reply": whether the reader likely owes a reply.
+- "reply_hint": one short sentence on what to answer if needs_reply is true, else "".
+- Write every string in the language named by the caller.
+` + UntrustedFooter,
+		OutputSchema: json.RawMessage(`{"type":"object","properties":{"summary":{"type":"string"},"key_points":{"type":"array","items":{"type":"string"}},"action_items":{"type":"array","items":{"type":"object","properties":{"title":{"type":"string"},"owner":{"type":"string"},"due":{"type":"string"}},"required":["title","owner","due"],"additionalProperties":false}},"needs_reply":{"type":"boolean"},"reply_hint":{"type":"string"}},"required":["summary","key_points","action_items","needs_reply","reply_hint"],"additionalProperties":false}`),
+		Render: func(vars map[string]any) string {
+			var b strings.Builder
+			fmt.Fprintf(&b, "Output language: %s\nSubject: %s\nFrom: %s\nTo: %s\nSent: %s\n\n",
+				language(str(vars, "locale")), str(vars, "subject"), str(vars, "from"), str(vars, "to"), str(vars, "sent_at"))
+			b.WriteString("Body:\n<untrusted source=\"email_body\">\n")
+			b.WriteString(str(vars, "body"))
+			b.WriteString("\n</untrusted>\n")
 			return b.String()
 		},
 	})

@@ -17,6 +17,34 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/service"
 )
 
+func (h *handlers) listEmailHubImapLabels(w http.ResponseWriter, r *http.Request) {
+	accountID := r.URL.Query().Get("account_id")
+	if accountID == "" {
+		respondError(w, http.StatusBadRequest, "invalid_request", "account_id is required")
+		return
+	}
+	labels, err := h.EmailHub.ListImapLabels(
+		r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), accountID,
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	if labels == nil {
+		labels = []string{}
+	}
+	respondJSON(w, http.StatusOK, sdo.EmailHubImapLabelListSDO{Labels: labels})
+}
+
+func (h *handlers) getEmailHubUnreadCount(w http.ResponseWriter, r *http.Request) {
+	n, err := h.EmailHub.InboxUnreadTotal(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.EmailHubUnreadSDO{Unread: n})
+}
+
 func (h *handlers) listEmailHubAccounts(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.EmailHub.ListAccounts(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"))
 	if err != nil {
@@ -75,6 +103,7 @@ func (h *handlers) listEmailHubThreads(w http.ResponseWriter, r *http.Request) {
 			AccountID: q.Get("account_id"), Folder: q.Get("folder"), Limit: limit,
 			Query: q.Get("q"), FromFilter: q.Get("from"), BeforeID: q.Get("before"),
 			UnreadOnly: q.Get("unread") == "1", HasAttachmentsOnly: q.Get("has_attachments") == "1",
+			LabelFilter: q.Get("label"),
 		},
 	)
 	if err != nil {
@@ -227,8 +256,32 @@ func (h *handlers) patchEmailHubThread(w http.ResponseWriter, r *http.Request) {
 		respondJSON(w, http.StatusOK, toEmailHubThreadSDO(thread))
 		return
 	}
+	if (in.ClearSnooze != nil && *in.ClearSnooze) ||
+		(in.SnoozeUntil != nil && strings.TrimSpace(*in.SnoozeUntil) != "") {
+		var until *time.Time
+		if in.ClearSnooze != nil && *in.ClearSnooze {
+			until = nil
+		} else if in.SnoozeUntil != nil && strings.TrimSpace(*in.SnoozeUntil) != "" {
+			parsed, parseErr := time.Parse(time.RFC3339, strings.TrimSpace(*in.SnoozeUntil))
+			if parseErr != nil {
+				respondError(w, http.StatusBadRequest, "invalid_request", "snooze_until must be RFC3339")
+				return
+			}
+			until = &parsed
+		} else {
+			respondError(w, http.StatusBadRequest, "invalid_request", "snooze_until or clear_snooze is required")
+			return
+		}
+		thread, err := h.EmailHub.SetThreadSnooze(r.Context(), actor, wsID, in.AccountID, threadID, until)
+		if err != nil {
+			h.mapServiceError(w, err)
+			return
+		}
+		respondJSON(w, http.StatusOK, toEmailHubThreadSDO(thread))
+		return
+	}
 	if in.IsRead == nil {
-		respondError(w, http.StatusBadRequest, "invalid_request", "is_read, is_starred or move_to is required")
+		respondError(w, http.StatusBadRequest, "invalid_request", "is_read, is_starred, move_to, or snooze is required")
 		return
 	}
 	thread, err := h.EmailHub.MarkThreadRead(r.Context(), actor, wsID, in.AccountID, threadID, *in.IsRead)
@@ -373,7 +426,10 @@ func toEmailHubThreadSDO(t service.EmailHubThreadView) sdo.EmailHubThreadSDO {
 		ID: t.ID, AccountID: t.AccountID, Folder: t.Folder, Subject: t.Subject, Snippet: t.Snippet,
 		FromAddr: t.FromAddr, FromName: t.FromName, ToAddrs: t.ToAddrs, SentAt: t.SentAt.Format(time.RFC3339),
 		IsRead: t.IsRead, IsStarred: t.IsStarred, HasAttachments: t.HasAttachments,
-		BodyText: t.BodyText, BodyHTML: t.BodyHTML, BodyCached: t.BodyCached,
+		BodyText: t.BodyText, BodyHTML: t.BodyHTML, BodyCached: t.BodyCached, ImapLabels: t.ImapLabels,
+	}
+	if t.SnoozedUntil != nil {
+		out.SnoozedUntil = t.SnoozedUntil.Format(time.RFC3339)
 	}
 	if len(t.Attachments) > 0 {
 		out.Attachments = make([]sdo.EmailHubAttachmentSDO, 0, len(t.Attachments))

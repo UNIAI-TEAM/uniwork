@@ -50,6 +50,29 @@ func BodyWorthCaching(bodyHTML, bodyText string) bool {
 	return !looksLikeCSSOnly(text)
 }
 
+const maxPlainBodyRunes = 12000
+
+// PlainBodyForAI returns readable plain text for LLM context from cached body fields.
+func PlainBodyForAI(html, text, snippet string) string {
+	var body string
+	if t := strings.TrimSpace(text); t != "" && !BodyIsSnippetPlaceholder(html, text, snippet) {
+		body = t
+	} else if h := strings.TrimSpace(html); h != "" {
+		body = stripHTML(h)
+	} else {
+		body = CleanSnippet(snippet)
+	}
+	body = strings.TrimSpace(body)
+	if body == "" {
+		return ""
+	}
+	r := []rune(body)
+	if len(r) > maxPlainBodyRunes {
+		body = string(r[:maxPlainBodyRunes])
+	}
+	return body
+}
+
 // CleanSnippet hides CSS/code noise stored from older sync passes.
 func CleanSnippet(snippet string) string {
 	s := strings.TrimSpace(snippet)

@@ -151,10 +151,15 @@ type Routes struct {
 	WorkspaceCalendar   http.HandlerFunc
 
 	ListEmailHubAccounts          http.HandlerFunc
+	GetEmailHubUnreadCount        http.HandlerFunc
 	ConnectEmailHubAccount        http.HandlerFunc
 	DisconnectEmailHubAccount     http.HandlerFunc
+	ListEmailHubImapLabels        http.HandlerFunc
 	ListEmailHubThreads           http.HandlerFunc
 	GetEmailHubThread             http.HandlerFunc
+	GetEmailHubThreadSummary      http.HandlerFunc
+	SummarizeEmailHubThread       http.HandlerFunc
+	CreateEmailHubSummaryTasks    http.HandlerFunc
 	DownloadEmailHubAttachment    http.HandlerFunc
 	PatchEmailHubThread           http.HandlerFunc
 	SendEmailHub                  http.HandlerFunc

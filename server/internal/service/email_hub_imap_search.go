@@ -20,9 +20,11 @@ func (s *EmailHubService) indexSearchResults(
 		return nil
 	}
 
-	return s.gov.withIMAP(acc.ID, func() error {
+	var searchErr error
+	if !s.gov.tryWithIMAP(acc.ID, func() error {
 		sess, mailboxes, err := s.openIMAPInteractive(acc)
 		if err != nil {
+			searchErr = err
 			return err
 		}
 		defer sess.Close()
@@ -35,13 +37,18 @@ func (s *EmailHubService) indexSearchResults(
 
 		result, err := sess.SearchFolder(mailbox, query, opts)
 		if err != nil {
+			searchErr = err
 			return err
 		}
 		if len(result.Items) == 0 {
 			return nil
 		}
-		return s.upsertThreadItems(ctx, acc, cacheFolder, result.Items)
-	})
+		searchErr = s.upsertThreadItems(ctx, acc, cacheFolder, result.Items)
+		return searchErr
+	}) {
+		return nil
+	}
+	return searchErr
 }
 
 func searchFolderPlan(folder string) (searchFolder, cacheFolder string, opts imapclient.SearchOptions) {

@@ -22,6 +22,7 @@ const KIND_CATEGORY: Record<NotificationKind, InboxCategory> = {
   member_added: "workspace",
   role_changed: "workspace",
   audit_export_ready: "workspace",
+  email_hub_new_mail: "updates",
 };
 
 export function inboxCategory(kind: string): InboxCategory {

@@ -47,6 +47,7 @@ type ThreadMeta struct {
 	IsStarred      bool
 	HasAttachments bool
 	Attachments    []AttachmentMeta
+	ImapLabels     []string
 }
 
 // ThreadBody is fetched on demand when the user opens a thread.
@@ -182,6 +183,7 @@ func messageMeta(cl *client.Client, msg *imap.Message, section *imap.BodySection
 	}
 	meta.Snippet = sanitizeUTF8(meta.Snippet)
 	meta.ToAddrs = sanitizeAddrs(meta.ToAddrs)
+	meta.ImapLabels = parseGmailLabels(msg)
 	return meta
 }
 

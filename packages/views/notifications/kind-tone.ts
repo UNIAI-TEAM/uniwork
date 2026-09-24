@@ -20,6 +20,7 @@ const KIND_TONES: Record<NotificationKind, Tint> = {
   member_added: moduleTone("people"),
   role_changed: moduleTone("people"),
   audit_export_ready: "gray",
+  email_hub_new_mail: moduleTone("email"),
 };
 
 export function kindTone(kind: string): Tint {

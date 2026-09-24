@@ -415,6 +415,27 @@ type EmailHubThread struct {
 	BodyHtml       pgtype.Text        `json:"body_html"`
 	BodyCached     bool               `json:"body_cached"`
 	SyncedAt       pgtype.Timestamptz `json:"synced_at"`
+	ImapLabels     []string           `json:"imap_labels"`
+	SnoozedUntil   pgtype.Timestamptz `json:"snoozed_until"`
+}
+
+type EmailHubThreadAiSummary struct {
+	ID                string             `json:"id"`
+	OrganizationID    string             `json:"organization_id"`
+	ThreadID          string             `json:"thread_id"`
+	AccountID         string             `json:"account_id"`
+	Locale            string             `json:"locale"`
+	SourceFingerprint string             `json:"source_fingerprint"`
+	Summary           string             `json:"summary"`
+	KeyPoints         []byte             `json:"key_points"`
+	ActionItems       []byte             `json:"action_items"`
+	NeedsReply        bool               `json:"needs_reply"`
+	ReplyHint         string             `json:"reply_hint"`
+	Model             string             `json:"model"`
+	CreatedBy         string             `json:"created_by"`
+	CreatedByKind     string             `json:"created_by_kind"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
 
 type EmailVerificationCode struct {

@@ -21,6 +21,7 @@ type ListEmailHubThreadsInput struct {
 	BeforeID           string
 	UnreadOnly         bool
 	HasAttachmentsOnly bool
+	LabelFilter        string
 }
 
 type ListEmailHubThreadsResult struct {
@@ -53,9 +54,11 @@ func (s *EmailHubService) ListThreads(
 
 	query := strings.TrimSpace(in.Query)
 	if query != "" && in.BeforeID == "" {
-		if indexErr := s.indexSearchResults(ctx, acc, folder, query); indexErr != nil {
-			s.log.Warn("email hub imap search failed",
-				"account_id", acc.ID, "folder", folder, "err", indexErr)
+		for _, searchFolder := range searchScopeFolders(folder) {
+			if indexErr := s.indexSearchResults(ctx, acc, searchFolder, query); indexErr != nil {
+				s.log.Warn("email hub imap search failed",
+					"account_id", acc.ID, "folder", searchFolder, "err", indexErr)
+			}
 		}
 	}
 
@@ -103,7 +106,18 @@ func (s *EmailHubService) ListThreads(
 
 	var total, unread int64
 	if in.BeforeID == "" {
-		if folder == emailhub.FolderStarred {
+		if query != "" && folder != emailhub.FolderStarred {
+			n, err := s.q.CountEmailHubThreadsSearch(ctx, db.CountEmailHubThreadsSearchParams{
+				AccountID: in.AccountID, OrganizationID: ws.OrganizationID,
+				Folders: searchScopeFolders(folder), Query: pgtype.Text{String: query, Valid: true},
+				FromFilter: strings.TrimSpace(in.FromFilter), UnreadOnly: in.UnreadOnly,
+				HasAttachmentsOnly: in.HasAttachmentsOnly,
+			})
+			if err != nil {
+				return ListEmailHubThreadsResult{}, err
+			}
+			total = n
+		} else if folder == emailhub.FolderStarred {
 			counts, err := s.q.CountEmailHubStarredThreads(ctx, db.CountEmailHubStarredThreadsParams{
 				AccountID: in.AccountID, OrganizationID: ws.OrganizationID,
 			})
@@ -114,6 +128,7 @@ func (s *EmailHubService) ListThreads(
 		} else {
 			counts, err := s.q.CountEmailHubThreads(ctx, db.CountEmailHubThreadsParams{
 				AccountID: in.AccountID, OrganizationID: ws.OrganizationID, Folder: folder,
+				LabelFilter: strings.TrimSpace(in.LabelFilter),
 			})
 			if err != nil {
 				return ListEmailHubThreadsResult{}, err
@@ -144,11 +159,22 @@ func (s *EmailHubService) listThreadRows(
 	beforeID string,
 	limit int32,
 ) ([]db.EmailHubThread, error) {
+	query := strings.TrimSpace(in.Query)
+	if query != "" && folder != emailhub.FolderStarred {
+		return s.q.ListEmailHubThreadsSearchPage(ctx, db.ListEmailHubThreadsSearchPageParams{
+			AccountID: in.AccountID, OrganizationID: organizationID,
+			Folders: searchScopeFolders(folder), Query: pgtype.Text{String: query, Valid: true},
+			UnreadOnly: in.UnreadOnly, HasAttachmentsOnly: in.HasAttachmentsOnly,
+			FromFilter:   strings.TrimSpace(in.FromFilter),
+			BeforeSentAt: beforeSent, BeforeID: beforeID, LimitVal: limit,
+		})
+	}
 	return s.q.ListEmailHubThreadsPage(ctx, db.ListEmailHubThreadsPageParams{
 		AccountID: in.AccountID, OrganizationID: organizationID, Folder: folder,
-		UnreadOnly: in.UnreadOnly, HasAttachmentsOnly: in.HasAttachmentsOnly,
+		LabelFilter: strings.TrimSpace(in.LabelFilter),
+		UnreadOnly:  in.UnreadOnly, HasAttachmentsOnly: in.HasAttachmentsOnly,
 		FromFilter:   strings.TrimSpace(in.FromFilter),
-		Query:        strings.TrimSpace(in.Query),
+		Query:        query,
 		BeforeSentAt: beforeSent, BeforeID: beforeID, LimitVal: limit,
 	})
 }

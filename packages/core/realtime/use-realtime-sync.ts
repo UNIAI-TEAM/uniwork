@@ -10,7 +10,7 @@ import { aiKeys } from "../ai/hooks";
 import { auditKeys } from "../audit/hooks";
 import { billingKeys } from "../billing/hooks";
 import { chatKeys } from "../chat/hooks";
-import { invalidateEmailHubThreadsForAccount } from "../email-hub/hooks";
+import { invalidateEmailHubThreadsForAccount, invalidateEmailHubUnread } from "../email-hub/hooks";
 import { homeKeys } from "../home/hooks";
 import { meetingKeys } from "../meetings/hooks";
 import { notificationKeys } from "../notifications/hooks";
@@ -381,8 +381,12 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
         }
         return;
       }
-      if (eventType === "email_hub.inbox_changed" && payload.account_id) {
+      if (
+        (eventType === "email_hub.inbox_changed" || eventType === "email_hub.new_mail") &&
+        payload.account_id
+      ) {
         invalidateEmailHubThreadsForAccount(qc, wsId, payload.account_id);
+        invalidateEmailHubUnread(qc, wsId);
         return;
       }
       for (const queryKey of keysFor(wsId, eventType, payload, qc)) {

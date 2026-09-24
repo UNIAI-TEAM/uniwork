@@ -51,6 +51,7 @@ func (s *EmailHubService) cacheThreadBodyIMAP(
 	if err != nil {
 		return imapclient.ThreadBody{}, err
 	}
+	s.invalidateEmailHubThreadAiSummaries(ctx, row.ID)
 	if snip := imapclient.CleanSnippet(imapclient.SnippetFromBody(body.Text, body.HTML)); snip != "" {
 		_ = s.q.PatchEmailHubThreadSnippet(ctx, db.PatchEmailHubThreadSnippetParams{
 			ID: row.ID, Snippet: snip,

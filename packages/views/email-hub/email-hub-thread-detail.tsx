@@ -1,9 +1,28 @@
 "use client";
 
-import { Archive, ArrowLeft, Forward, Inbox, MailOpen, Reply, ReplyAll, Send, Star, Trash2 } from "lucide-react";
+import {
+  Archive,
+  ArrowLeft,
+  Forward,
+  Inbox,
+  MailOpen,
+  Reply,
+  ReplyAll,
+  Clock,
+  Send,
+  ShieldAlert,
+  Star,
+  Trash2,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { EmailHubAttachment, EmailHubThread } from "@uniwork/core/types/email-hub";
 import { Button } from "@uniwork/ui/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@uniwork/ui/components/ui/dropdown-menu";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import {
@@ -16,6 +35,8 @@ import { emailHubToolbarShellClass } from "./email-hub-ui";
 
 interface EmailHubThreadDetailProps {
   activeThread: EmailHubThread;
+  /** Sidebar folder the user is browsing (may differ from cached thread.folder briefly). */
+  browserFolder: string;
   accountId: string;
   selectedId: string;
   detailData?: EmailHubThread | null;
@@ -25,6 +46,7 @@ interface EmailHubThreadDetailProps {
   isError: boolean;
   starPending: boolean;
   movePending: boolean;
+  snoozePending: boolean;
   markReadPending: boolean;
   downloadPending: boolean;
   onBack: () => void;
@@ -34,7 +56,12 @@ interface EmailHubThreadDetailProps {
   onForward: () => void;
   onMarkUnread: () => void;
   onRestoreInbox: () => void;
+  onNotSpam: () => void;
   onArchive: () => void;
+  onSpam: () => void;
+  onSnoozeTomorrow: () => void;
+  onSnoozeNextWeek: () => void;
+  onClearSnooze: () => void;
   onTrash: () => void;
   onRefetch: () => void;
   onDownloadAttachment: (att: EmailHubAttachment) => void;
@@ -42,6 +69,7 @@ interface EmailHubThreadDetailProps {
 
 export function EmailHubThreadDetail({
   activeThread,
+  browserFolder,
   accountId,
   selectedId,
   detailData,
@@ -51,6 +79,7 @@ export function EmailHubThreadDetail({
   isError,
   starPending,
   movePending,
+  snoozePending,
   markReadPending,
   downloadPending,
   onBack,
@@ -60,7 +89,12 @@ export function EmailHubThreadDetail({
   onForward,
   onMarkUnread,
   onRestoreInbox,
+  onNotSpam,
   onArchive,
+  onSpam,
+  onSnoozeTomorrow,
+  onSnoozeNextWeek,
+  onClearSnooze,
   onTrash,
   onRefetch,
   onDownloadAttachment,
@@ -70,8 +104,10 @@ export function EmailHubThreadDetail({
     ? `${activeThread.from_name} <${activeThread.from_addr}>`
     : activeThread.from_addr;
   const folder = activeThread.folder;
+  const inSpamView = browserFolder === "SPAM" || folder === "SPAM";
   const canReply = folder === "INBOX" || folder === "SENT";
   const canRestore = folder === "TRASH" || folder === "ARCHIVE";
+  const labelChips = activeThread.imap_labels?.slice(0, 4) ?? [];
 
   return (
     <article className="flex h-full w-full min-w-0 flex-col">
@@ -101,6 +137,18 @@ export function EmailHubThreadDetail({
                   {t("email_hub.from")}: <span className="text-foreground">{senderLabel}</span>
                 </p>
                 <p className="text-caption text-muted-foreground">{formatWhen(activeThread.sent_at)}</p>
+                {labelChips.length > 0 ? (
+                  <ul className="flex flex-wrap gap-1 pt-1">
+                    {labelChips.map((label) => (
+                      <li
+                        key={label}
+                        className="rounded-full border border-border/80 bg-muted/40 px-2 py-0.5 text-caption text-muted-foreground"
+                      >
+                        {label}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </div>
             </div>
             <div className={emailHubToolbarShellClass}>
@@ -154,6 +202,30 @@ export function EmailHubThreadDetail({
                   {t("email_hub.mark_unread")}
                 </Button>
               ) : null}
+              {inSpamView ? (
+                <Button
+                  variant="brand"
+                  size="sm"
+                  className="gap-1.5 rounded-lg shadow-none"
+                  disabled={movePending}
+                  onClick={onNotSpam}
+                >
+                  <Inbox className="size-3.5" aria-hidden />
+                  {t("email_hub.not_spam")}
+                </Button>
+              ) : null}
+              {folder === "SNOOZED" || activeThread.snoozed_until ? (
+                <Button
+                  variant="brand"
+                  size="sm"
+                  className="gap-1.5 rounded-lg shadow-none"
+                  disabled={snoozePending}
+                  onClick={onClearSnooze}
+                >
+                  <Inbox className="size-3.5" />
+                  {t("email_hub.snooze.unsnooze")}
+                </Button>
+              ) : null}
               {canRestore ? (
                 <Button
                   variant="brand"
@@ -168,6 +240,21 @@ export function EmailHubThreadDetail({
               ) : null}
               {folder === "INBOX" ? (
                 <>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      disabled={snoozePending}
+                      render={
+                        <Button variant="toolbar" size="sm" className="gap-1.5 rounded-lg shadow-none" />
+                      }
+                    >
+                      <Clock className="size-3.5" aria-hidden />
+                      {t("email_hub.snooze.action")}
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-44">
+                      <DropdownMenuItem onClick={onSnoozeTomorrow}>{t("email_hub.snooze.tomorrow")}</DropdownMenuItem>
+                      <DropdownMenuItem onClick={onSnoozeNextWeek}>{t("email_hub.snooze.next_week")}</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   <Button
                     variant="toolbar"
                     size="sm"
@@ -177,6 +264,16 @@ export function EmailHubThreadDetail({
                   >
                     <Archive className="size-3.5" />
                     {t("email_hub.archive")}
+                  </Button>
+                  <Button
+                    variant="toolbar"
+                    size="sm"
+                    className="gap-1.5 rounded-lg shadow-none"
+                    disabled={movePending}
+                    onClick={onSpam}
+                  >
+                    <ShieldAlert className="size-3.5" />
+                    {t("email_hub.report_spam")}
                   </Button>
                   <Button
                     variant="destructive"

@@ -16,7 +16,7 @@ func listAllowsBackfill(in ListEmailHubThreadsInput) bool {
 }
 
 func backfillSupportedFolder(folder string) bool {
-	return folder != emailhub.FolderStarred
+	return folder != emailhub.FolderStarred && folder != emailHubFolderSnoozed
 }
 
 func backfillMailboxFolder(folder string) string {

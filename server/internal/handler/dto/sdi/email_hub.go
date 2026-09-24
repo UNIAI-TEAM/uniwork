@@ -27,10 +27,25 @@ type SendEmailHubSDI struct {
 	ReplyToThreadID string                      `json:"reply_to_thread_id,omitempty" example:"01JABC1234567890ABCDEFGH"`
 }
 
+// SummarizeEmailHubThreadSDI is POST .../email-hub/threads/{threadID}/ai/summarize.
+type SummarizeEmailHubThreadSDI struct {
+	AccountID string `json:"account_id" minLength:"1" example:"01JABC1234567890ABCDEFGH"`
+	Locale    string `json:"locale" description:"vi hoặc en; mặc định vi" example:"vi"`
+	Force     bool   `json:"force" description:"true = bỏ cache và gọi AI lại"`
+}
+
+// EmailHubSummaryTasksSDI is POST .../email-hub/threads/{threadID}/ai/summary/tasks.
+type EmailHubSummaryTasksSDI struct {
+	AccountID string               `json:"account_id" minLength:"1" example:"01JABC1234567890ABCDEFGH"`
+	Items     []SummaryTaskItemSDI `json:"items"`
+}
+
 // PatchEmailHubThreadSDI is PATCH /api/v1/workspaces/{workspaceID}/email-hub/threads/{threadID}.
 type PatchEmailHubThreadSDI struct {
-	AccountID string `json:"account_id" minLength:"1" example:"01JABC1234567890ABCDEFGH"`
-	IsRead    *bool  `json:"is_read,omitempty" example:"true"`
-	IsStarred *bool  `json:"is_starred,omitempty" example:"true"`
-	MoveTo    string `json:"move_to,omitempty" enum:"INBOX,ARCHIVE,TRASH" example:"ARCHIVE"`
+	AccountID   string  `json:"account_id" minLength:"1" example:"01JABC1234567890ABCDEFGH"`
+	IsRead      *bool   `json:"is_read,omitempty" example:"true"`
+	IsStarred   *bool   `json:"is_starred,omitempty" example:"true"`
+	MoveTo      string  `json:"move_to,omitempty" enum:"INBOX,ARCHIVE,TRASH,SPAM" example:"ARCHIVE"`
+	SnoozeUntil *string `json:"snooze_until,omitempty" format:"date-time" example:"2026-09-25T09:00:00Z"`
+	ClearSnooze *bool   `json:"clear_snooze,omitempty" example:"true"`
 }

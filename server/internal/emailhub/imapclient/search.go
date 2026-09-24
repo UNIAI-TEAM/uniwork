@@ -53,7 +53,7 @@ func searchFolderWithClient(cl *client.Client, mailbox, query string, opts Searc
 	}
 
 	uids = capSearchUIDs(uids)
-	items, err := fetchUIDs(cl, uids)
+	items, err := fetchUIDs(cl, uids, ClientSupportsGmailLabels(cl))
 	if err != nil {
 		return SyncResult{}, err
 	}

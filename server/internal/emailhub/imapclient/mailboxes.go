@@ -37,6 +37,8 @@ func ListMailboxMap(cl *client.Client, defaults MailboxMap) (MailboxMap, error) 
 				out["DRAFTS"] = info.Name
 			case imap.AllAttr, imap.ArchiveAttr:
 				out["ARCHIVE"] = info.Name
+			case imap.JunkAttr:
+				out["SPAM"] = info.Name
 			}
 		}
 	}

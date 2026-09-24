@@ -3,12 +3,15 @@ import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { setAccessToken } from "../session";
 import {
   getEmailHubThread,
+  getEmailHubUnreadCount,
   listEmailHubAccounts,
   listEmailHubThreads,
   patchEmailHubThread,
   cancelEmailHubScheduledSend,
   listEmailHubScheduledSends,
   sendEmailHub,
+  getEmailHubThreadSummary,
+  summarizeEmailHubThread,
   subscribeEmailHubInboxWatch,
   syncEmailHub,
   unsubscribeEmailHubInboxWatch,
@@ -49,6 +52,15 @@ describe("email hub endpoints", () => {
   it("listEmailHubAccounts degrades to empty list when malformed", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ accounts: [{ id: 1 }] }));
     await expect(listEmailHubAccounts("ws1")).resolves.toEqual({ accounts: [] });
+  });
+
+  it("getEmailHubUnreadCount parses count and degrades when malformed", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ unread: 3 }));
+    await expect(getEmailHubUnreadCount("ws1")).resolves.toEqual({ unread: 3 });
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toContain("email-hub/unread-count");
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ unread: "many" }));
+    await expect(getEmailHubUnreadCount("ws1")).resolves.toEqual({ unread: 0 });
   });
 
   it("sendEmailHub posts the payload and degrades when malformed", async () => {
@@ -220,6 +232,60 @@ describe("email hub endpoints", () => {
     await cancelEmailHubScheduledSend("ws1", "acc1", "sch1");
     expect(vi.mocked(fetch).mock.calls[0]![0]).toContain("scheduled-sends/sch1");
     expect(vi.mocked(fetch).mock.calls[0]![0]).toContain("account_id=acc1");
+  });
+
+  it("getEmailHubThreadSummary returns null on 404 and parses cache payload", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 404 }));
+    const missing = await getEmailHubThreadSummary("ws1", "acc1", "th1", "vi");
+    expect(missing).toBeNull();
+
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        summary: "Cached",
+        key_points: [],
+        action_items: [],
+        needs_reply: false,
+        reply_hint: "",
+        model: "fake",
+        cached: true,
+        summarized_at: "2026-01-01T00:00:00Z",
+      }),
+    );
+    const hit = await getEmailHubThreadSummary("ws1", "acc1", "th1", "vi");
+    expect(hit?.summary).toBe("Cached");
+    expect(hit?.cached).toBe(true);
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: true }));
+    const bad = await getEmailHubThreadSummary("ws1", "acc1", "th1", "vi");
+    expect(bad?.summary).toBe("");
+  });
+
+  it("summarizeEmailHubThread parses and degrades malformed payloads", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        summary: "Tóm tắt",
+        key_points: ["Điểm 1"],
+        action_items: [{ title: "Việc A", owner: "", due: "" }],
+        needs_reply: false,
+        reply_hint: "",
+        model: "fake",
+      }),
+    );
+    const sum = await summarizeEmailHubThread("ws1", "acc1", "th1", "vi");
+    expect(sum.summary).toBe("Tóm tắt");
+    expect(sum.key_points).toEqual(["Điểm 1"]);
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: 1 }));
+    const bad = await summarizeEmailHubThread("ws1", "acc1", "th1", "vi");
+    expect(bad.summary).toBe("");
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ summary: "Fresh", key_points: [], action_items: [] }));
+    await summarizeEmailHubThread("ws1", "acc1", "th1", "vi", { force: true });
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls.at(-1)?.[1]?.body))).toMatchObject({
+      account_id: "acc1",
+      locale: "vi",
+      force: true,
+    });
   });
 
   it("patchEmailHubThread toggles starred", async () => {
