@@ -1,5 +1,16 @@
+import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { register, verifyEmail } from "./auth-nav";
+import { seedCompletedMeetingRecording, writeLocalObject } from "./db";
+import {
+  createInstantMeeting,
+  createRecordingAccount,
+  endMeeting,
+  joinWorkspaceAsMember,
+  loginViaUi,
+  recordingContentUrl,
+  registerApiUser,
+} from "./meeting-recording-fixture";
 
 // Meeting lifecycle without LiveKit: tạo → bắt đầu → panel tóm tắt AI hiện
 // (kèm trạng thái AI tắt) → tải .ics → kết thúc → ENDED. Yêu cầu `make dev`.
@@ -49,4 +60,74 @@ test("meeting: create → start → summary panel → ics → end", async ({ pag
   await page.getByRole("button", { name: "Kết thúc" }).click();
   await page.getByRole("button", { name: /Kết thúc/ }).last().click();
   await expect(page.getByText("Đã kết thúc").first()).toBeVisible({ timeout: 10_000 });
+});
+
+// ---- Recording (UNI-746) ---------------------------------------------------
+
+/**
+ * The provider path (LiveKit Egress start/stop and the signed webhook) runs in
+ * meetings-livekit.spec.ts behind E2E_LIVEKIT=1 plus a recording bucket. This
+ * case pins the rest of the lane on the real app with no provider in the loop:
+ * a finished recording is listed, the player opens it, the proxy streams
+ * exactly the bytes the provider wrote, a workspace member may read it and
+ * another organization may not. Run it with E2E_RECORDING_S3=1 when the app
+ * uses MinIO/S3 to also assert the seek path: the local backend has no byte
+ * ranges and answers with the whole object.
+ */
+test("recording playback: listed, exact bytes, member reads, other org blocked @files-smoke", async ({ page }) => {
+  const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+  const seed = await createRecordingAccount(page, api, "rec-host");
+  const meeting = await createInstantMeeting(page, api, seed.token, seed.wsId, `Bản ghi ${seed.wsId}`);
+  await endMeeting(page, api, seed.token, meeting.id);
+
+  // What a finished egress leaves behind: the MP4 in storage and its COMPLETE
+  // row - the webhook's own job, which the LiveKit spec exercises for real.
+  const key = `meetings/${seed.wsId}/${meeting.id}-e2e.mp4`;
+  const bytes = readFileSync(new URL("./fixtures/meeting-recording.mp4", import.meta.url));
+  await writeLocalObject(key, bytes);
+  const recordingId = await seedCompletedMeetingRecording(meeting.id, `${api}/uploads/${key}`);
+
+  // The session a viewer signs in with; the API token above still drives the
+  // seeding and the isolation cases.
+  await loginViaUi(page, seed.email);
+  await page.goto(`/${seed.orgSlug}/${seed.wsSlug}/meetings`);
+  const rewatch = page.getByRole("button", { name: "Xem lại" }).first();
+  await expect(rewatch).toBeVisible({ timeout: 20_000 });
+
+  // Download: byte for byte, then the Range behaviour of this backend.
+  const content = recordingContentUrl(api, meeting.id, recordingId);
+  const full = await page.request.get(content, { headers: { authorization: `Bearer ${seed.token}` } });
+  expect(full.status()).toBe(200);
+  expect(Buffer.compare(await full.body(), bytes)).toBe(0);
+
+  const ranged = await page.request.get(content, {
+    headers: { authorization: `Bearer ${seed.token}`, range: "bytes=0-9" },
+  });
+  if (process.env.E2E_RECORDING_S3 === "1") {
+    expect(ranged.status()).toBe(206);
+    expect(ranged.headers()["content-range"]).toBe(`bytes 0-9/${bytes.length}`);
+    expect((await ranged.body()).length).toBe(10);
+  } else {
+    expect(ranged.status()).toBe(200);
+    expect((await ranged.body()).length).toBe(bytes.length);
+  }
+
+  // Play: the dialog decodes the recording in the browser.
+  await rewatch.click();
+  const video = page.locator("video");
+  await expect(video).toBeVisible({ timeout: 20_000 });
+  await expect
+    .poll(async () => video.evaluate((el) => (el as HTMLVideoElement).duration), { timeout: 20_000 })
+    .toBeGreaterThan(0);
+
+  // A workspace member who never joined the room may still read it...
+  const member = await registerApiUser(page, api, "rec-member");
+  await joinWorkspaceAsMember(page, api, seed.token, seed.wsId, member);
+  const asMember = await page.request.get(content, { headers: { authorization: `Bearer ${member.token}` } });
+  expect(asMember.status()).toBe(200);
+
+  // ...and a user from another organization who guessed the ids is refused.
+  const outsider = await registerApiUser(page, api, "rec-outsider");
+  const asOutsider = await page.request.get(content, { headers: { authorization: `Bearer ${outsider.token}` } });
+  expect(asOutsider.status()).toBe(403);
 });
