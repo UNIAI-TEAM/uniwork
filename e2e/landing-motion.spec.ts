@@ -69,20 +69,18 @@ test("hero keeps one conversion action and one product control system", async ({
   await expect(page.locator(".landing-product-story > section")).toHaveCount(3);
 });
 
-test("Starter and FAQ signals animate only while visible and respect reduced motion", async ({ page }) => {
+test("compact Starter stays still and FAQ signals respect reduced motion", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/");
   const pricing = page.locator("#bang-gia");
   const faq = page.locator(".landing-faq");
   await pricing.scrollIntoViewIfNeeded();
   await expect(pricing).toHaveAttribute("data-motion-visible", "true");
-  await expect(pricing.locator(".pricing-plan-diagram")).toBeVisible();
-  await expect.poll(() => pricing.locator(".pricing-diagram-lines path").first().evaluate(element => getComputedStyle(element).animationPlayState)).toBe("running");
-  await expect.poll(() => pricing.locator(".pricing-diagram-lines path").first().evaluate(element => getComputedStyle(element).animationIterationCount)).toBe("1");
+  await expect(pricing.locator(".starter-summary")).toBeVisible();
+  await expect(pricing.locator(".pricing-plan-diagram")).toHaveCount(0);
+  await expect(pricing.locator(".pricing-details")).not.toHaveAttribute("open");
 
-  await faq.scrollIntoViewIfNeeded();
-  await expect(pricing).toHaveAttribute("data-motion-visible", "false");
-  await expect.poll(() => pricing.locator(".pricing-diagram-lines path").first().evaluate(element => getComputedStyle(element).animationName)).toBe("none");
+  await faq.evaluate(node => node.scrollIntoView({ behavior: "instant", block: "start" }));
   await expect(faq).toHaveAttribute("data-motion-visible", "true");
   await expect(faq.locator(".faq-story-wiring path")).toHaveCount(3);
   await expect.poll(() => faq.locator(".faq-story-wiring path").first().evaluate(element => getComputedStyle(element).animationPlayState)).toBe("running");

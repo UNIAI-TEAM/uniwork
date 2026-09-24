@@ -1,0 +1,51 @@
+/* One compact offer. Plan, price and action lead; metering is optional detail. */
+.pricing-section { padding-block: 56px; }
+.landing-conversion-story > .pricing-section { background: var(--landing-stage-soft); }
+.pricing-intro { max-width: 800px; }
+.landing-site .pricing-section h2 { max-width: none; font-size: var(--text-hero-sm); line-height: 1.2; letter-spacing: -.03em; }
+.pricing-intro > p { margin-top: 12px; max-width: 65ch; color: var(--muted-foreground); font-size: var(--text-body-lg); line-height: 1.7; }
+.pricing-offer { margin-top: 28px; background: var(--landing-paper); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+.starter-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 32px; padding: 28px 32px 20px; }
+.starter-identity { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.starter-identity > svg { flex-shrink: 0; }
+.starter-identity h3 { font-size: var(--text-title-lg); font-weight: 650; line-height: 1.4; }
+.starter-identity p { margin-top: 4px; color: var(--muted-foreground); font-size: var(--text-body-lg); line-height: 1.6; }
+.starter-price { font-size: var(--text-hero-sm); font-weight: 650; line-height: 1.1; letter-spacing: -.03em; }
+.starter-action { min-width: 168px; min-height: 48px; }
+.pricing-status { margin: 0 32px; padding-bottom: 24px; max-width: 90ch; color: var(--muted-foreground); font-size: var(--text-body); line-height: 1.7; }
+.pricing-details { border-top: 1px solid var(--border); }
+.pricing-details > summary { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 16px 32px; font-size: var(--text-body-lg); font-weight: 500; cursor: pointer; list-style: none; }
+.pricing-details > summary::-webkit-details-marker { display: none; }
+.pricing-details > summary > svg { width: 20px; height: 20px; flex-shrink: 0; color: var(--brand); }
+.pricing-details > summary > svg:last-child { margin-left: auto; width: 16px; height: 16px; color: var(--muted-foreground); }
+.pricing-details[open] > summary > svg:last-child { rotate: 180deg; }
+.pricing-details > summary:hover { background: var(--landing-stage-soft); }
+.pricing-details > summary:focus-visible { outline: 2px solid var(--brand); outline-offset: -4px; }
+.pricing-quotas { padding: 0 32px 24px; }
+.pricing-quotas > ul { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 24px; }
+.pricing-quotas li { padding-block: 12px; border-bottom: 1px solid var(--border); font-size: var(--text-body-lg); line-height: 1.6; }
+.pricing-meter-note { margin-top: 16px; color: var(--muted-foreground); font-size: var(--text-body); line-height: 1.7; }
+.pricing-next { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
+.pricing-next h4 { font-size: var(--text-body-lg); font-weight: 600; }
+.pricing-next p { margin-top: 8px; color: var(--muted-foreground); font-size: var(--text-body); line-height: 1.7; max-width: 75ch; }
+.pricing-next .revision-text-link { margin-top: 8px; }
+@media (max-width: 1100px) {
+  .starter-summary { gap: 24px; }
+  .pricing-quotas > ul { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 767px) {
+  .pricing-section { padding-block: 32px; }
+  .landing-site .pricing-section h2 { font-size: var(--text-display-sm); }
+  .pricing-offer { margin-top: 24px; }
+  .starter-summary { grid-template-columns: minmax(0, 1fr) auto; gap: 20px 12px; padding: 24px 20px 16px; }
+  .starter-identity { gap: 12px; }
+  .starter-identity > svg { width: 28px; height: 28px; }
+  .starter-identity h3 { font-size: var(--text-title); }
+  .starter-identity p { font-size: var(--text-body); }
+  .starter-price { font-size: var(--text-title-lg); }
+  .starter-action { grid-column: 1 / -1; }
+  .pricing-status { margin-inline: 20px; padding-bottom: 20px; }
+  .pricing-details > summary { padding: 16px 20px; }
+  .pricing-quotas { padding: 0 20px 20px; }
+  .pricing-quotas > ul { grid-template-columns: 1fr; }
+}

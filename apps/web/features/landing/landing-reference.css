@@ -137,15 +137,6 @@
 .roadmap-section .roadmap-phases [data-slot=accordion-trigger] { gap: 16px; }
 .roadmap-section .roadmap-phase-name { font-size: var(--text-title-sm); gap: 16px; }
 .roadmap-section .roadmap-count { display: none; }
-.landing-site .pricing-section { background: var(--landing-paper); border: 1px solid var(--border); }
-.pricing-section > div > div:first-child { max-width: 740px; }
-.landing-site .pricing-offer { gap: 0; border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
-.landing-site .pricing-plan { border-radius: 0; box-shadow: none; background: var(--landing-stage-soft); padding: 36px; }
-.landing-site .pricing-plan-mark { width: 48px; height: 48px; background: var(--landing-violet); box-shadow: none; margin-bottom: 24px; }
-.landing-site .pricing-quotas { border: 0; border-radius: 0; background: var(--landing-paper); padding: 36px; }
-.landing-site .pricing-quota-heading > span { background: none; width: 28px; }
-.landing-site .pricing-check { background: none; width: 22px; }
-.landing-site .pricing-quotas > ul { gap: 20px 28px; }
 .landing-faq .faq-heading-mark { background: none; box-shadow: none; color: var(--brand); place-items: start; width: auto; height: auto; }
 .landing-faq .faq-heading-mark svg { width: 42px; height: 42px; }
 .landing-site .landing-faq [data-slot=accordion-item] { border: 0; border-bottom: 1px solid var(--border); border-radius: 0; padding: 0; margin: 0; background: transparent; }
@@ -222,8 +213,6 @@
   .roadmap-section > div { display: block; }
   .roadmap-section > div > .roadmap-phases { margin-top: 32px; }
   .roadmap-section > div > p { margin-top: 24px; }
-  .landing-site .pricing-plan, .landing-site .pricing-quotas { padding: 24px; }
-  .landing-site .pricing-quotas > ul { grid-template-columns: 1fr; gap: 16px; }
   .landing-site .landing-faq .faq-question-label { gap: 12px; }
   .landing-site .landing-faq [data-slot=accordion-content] p { margin-left: 56px; }
   .landing-conversion-story .final-section { padding-block: 32px; }

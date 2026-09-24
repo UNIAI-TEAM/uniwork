@@ -164,16 +164,6 @@
     radial-gradient(ellipse 36% 76% at 90% 44%, color-mix(in srgb, var(--brand-accent) 20%, transparent), transparent 76%),
     var(--landing-deep);
 }
-.landing-site .pricing-section { background: linear-gradient(145deg, var(--landing-cyan), var(--background) 44%, var(--landing-violet)); }
-.pricing-plan { position: relative; overflow: hidden; background: linear-gradient(145deg, var(--landing-cyan), var(--landing-stage)); box-shadow: 0 22px 42px -32px var(--brand); }
-.pricing-plan-mark { display: grid; place-items: center; width: 60px; height: 60px; margin-bottom: 28px; border-radius: 14px; color: var(--brand-accent); background: linear-gradient(145deg, var(--landing-paper), var(--landing-violet)); box-shadow: 0 16px 30px -24px var(--brand-accent); }
-.pricing-plan-mark svg { width: 28px; height: 28px; }
-.pricing-quotas { border-color: color-mix(in srgb, var(--success) 28%, var(--border)); background: color-mix(in srgb, var(--landing-lime) 72%, var(--landing-paper)); }
-.pricing-quota-heading { display: flex; align-items: center; gap: 14px; }
-.pricing-quota-heading > span { display: grid; place-items: center; width: 48px; height: 48px; flex-shrink: 0; border-radius: 14px; color: var(--success); background: var(--landing-paper); }
-.pricing-quota-heading svg { width: 23px; height: 23px; }
-.pricing-check { display: grid; place-items: center; width: 28px; height: 28px; flex-shrink: 0; border-radius: 8px; color: var(--success); background: color-mix(in srgb, var(--landing-paper) 76%, transparent); }
-.pricing-check svg { width: 15px; height: 15px; stroke-width: 2.5; }
 .landing-faq > div { max-width: 1100px; }
 .landing-faq h2 { font-size: var(--text-hero); line-height: 1.25; letter-spacing: -.03em; margin-bottom: 40px; }
 .landing-faq { background: linear-gradient(145deg, var(--background), var(--landing-coral) 46%, var(--landing-stage-soft)); }

@@ -73,14 +73,13 @@ test("decision sections use prominent semantic icon anchors", async ({ page }) =
   await expect(page.locator("#security .security-mechanism-icon")).toHaveCount(3);
   await page.locator("#work-products [data-slot=accordion-trigger]").click();
   await expect(page.locator("#work-products .work-product-icon")).toHaveCount(4);
-  await expect(page.locator("#bang-gia .pricing-plan-mark")).toHaveCount(1);
-  await expect(page.locator("#bang-gia .pricing-check")).toHaveCount(8);
+  await expect(page.locator("#bang-gia .starter-identity > svg")).toHaveCount(1);
+  await expect(page.locator("#bang-gia .pricing-quotas li")).toHaveCount(8);
   await expect(page.locator(".landing-faq .faq-heading-mark")).toHaveCount(1);
   await expect(page.locator(".landing-faq .faq-question-icon:visible")).toHaveCount(5);
   for (const selector of [
     "#security .security-mechanism-icon",
     "#work-products .work-product-icon",
-    "#bang-gia .pricing-plan-mark",
     ".landing-faq .faq-question-icon",
   ]) {
     const box = await page.locator(selector).first().boundingBox();

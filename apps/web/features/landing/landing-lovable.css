@@ -5,6 +5,10 @@
 .unified-workspace[data-presentation=watch] .preview-topbar { min-height: 54px; padding: 8px 14px; }
 .unified-workspace[data-presentation=watch] .preview-brand { display: none; }
 .unified-workspace[data-presentation=watch] .preview-illustration { margin-right: auto; }
+@media (min-width: 901px) {
+  /* The fitted app determines the row height; a long feature menu scrolls independently. */
+  .unified-workspace[data-presentation=watch] .workspace-selector { contain: size; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--input) transparent; }
+}
 .lovable-preview-tools { min-height: 54px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 14px; border-bottom: 1px solid var(--border); }
 .lovable-preview-tools > span { font-size: var(--text-caption); font-weight: 600; }
 .lovable-preview-tools small { font-weight: 400; color: var(--muted-foreground); margin-left: 10px; }
