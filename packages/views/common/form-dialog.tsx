@@ -134,6 +134,7 @@ export function ConfirmDialog({
   onConfirm,
   pending = false,
   destructive = true,
+  nested = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -146,11 +147,13 @@ export function ConfirmDialog({
   pending?: boolean;
   /** False for a consequential but non-destructive step (hand over the host role). */
   destructive?: boolean;
+  /** Asked from inside another dialog (discard a form's edits): dims that dialog too. */
+  nested?: boolean;
 }) {
   const { t } = useTranslation();
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
+      <AlertDialogContent nested={nested}>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           {description ? <AlertDialogDescription>{description}</AlertDialogDescription> : null}

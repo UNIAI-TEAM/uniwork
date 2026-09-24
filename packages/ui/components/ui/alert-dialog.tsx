@@ -46,13 +46,20 @@ function AlertDialogOverlay({
 function AlertDialogContent({
   className,
   size = "default",
+  nested = false,
   ...props
 }: AlertDialogPrimitive.Popup.Props & {
   size?: "default" | "sm"
+  /**
+   * Opened over another dialog. Base UI leaves a nested backdrop out, so a
+   * confirmation floated over the form with nothing dimmed behind it; force
+   * it, so the step that needs an answer is the only thing in focus.
+   */
+  nested?: boolean
 }) {
   return (
     <AlertDialogPortal>
-      <AlertDialogOverlay />
+      <AlertDialogOverlay forceRender={nested || undefined} />
       <AlertDialogPrimitive.Popup
         data-slot="alert-dialog-content"
         data-size={size}
