@@ -34,6 +34,23 @@ describe("taskToCalendarEvent", () => {
     expect(ev?.allDay).toBe(true);
     expect(ev?.priority).toBe("high");
   });
+
+  it("maps a task with an exact range as a timed event", () => {
+    expect(
+      taskToCalendarEvent({
+        id: "t1",
+        title: "Focus",
+        start_date: "2026-09-10",
+        due_date: "2026-09-10",
+        start_at: "2026-09-10T07:30:00Z",
+        due_at: "2026-09-10T08:30:00Z",
+      }),
+    ).toMatchObject({
+      start: "2026-09-10T07:30:00Z",
+      end: "2026-09-10T08:30:00Z",
+      allDay: false,
+    });
+  });
 });
 
 describe("meetingToCalendarEvent", () => {
