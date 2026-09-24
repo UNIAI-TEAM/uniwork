@@ -192,15 +192,16 @@ export function PeopleTable({
 
 /**
  * A hidden column still occupies its track, collapsed to zero width, so the
- * header and every row keep counting the same tracks.
+ * header and every row keep counting the same tracks. It is hidden from
+ * assistive tech, which would otherwise announce it as an empty column.
  */
 function OptionalHeaderCell({ shown, children }: { shown: boolean; children: React.ReactNode }) {
-  if (!shown) return <ListGridHeaderCell className="hidden px-0 @2xl:flex" />;
+  if (!shown) return <ListGridHeaderCell aria-hidden className="hidden px-0 @2xl:flex" />;
   return <ListGridHeaderCell className="hidden @2xl:flex">{children}</ListGridHeaderCell>;
 }
 
 function OptionalCell({ shown, children }: { shown: boolean; children: React.ReactNode }) {
-  if (!shown) return <ListGridCell className="hidden px-0 @2xl:flex" />;
+  if (!shown) return <ListGridCell aria-hidden className="hidden px-0 @2xl:flex" />;
   return <ListGridCell className="hidden @2xl:flex">{children}</ListGridCell>;
 }
 

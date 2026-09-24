@@ -31,6 +31,8 @@ import {
 import { useStartChat } from "./use-start-chat";
 
 const SEARCH_DEBOUNCE_MS = 250;
+/** The server ignores a shorter query (`minSearchQuery` in server/internal/service). */
+const MIN_SEARCH_LENGTH = 2;
 
 /** Hand a fetched file to the browser to save. */
 function saveFile(blob: Blob, filename: string) {
@@ -78,7 +80,12 @@ export function PeopleView() {
   const startChat = useStartChat();
 
   useEffect(() => {
-    const id = setTimeout(() => setQuery(rawQuery.trim()), SEARCH_DEBOUNCE_MS);
+    // A query the server would ignore is no search here either: it would
+    // otherwise count as a filter, reset the list and relabel the export.
+    const id = setTimeout(() => {
+      const trimmed = rawQuery.trim();
+      setQuery([...trimmed].length >= MIN_SEARCH_LENGTH ? trimmed : "");
+    }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(id);
   }, [rawQuery]);
 
