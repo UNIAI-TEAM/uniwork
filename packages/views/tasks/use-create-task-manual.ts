@@ -59,6 +59,8 @@ export function draftFromDefaults(
       : settings?.stage,
     startDate: defaults?.start_date ?? undefined,
     dueDate: defaults?.due_date ?? undefined,
+    startAt: defaults?.start_at ?? undefined,
+    dueAt: defaults?.due_at ?? undefined,
     labelIds: defaults?.label_ids,
     properties: defaults?.properties,
     idempotencyKey: createSafeId(),
@@ -218,6 +220,8 @@ export function useCreateTaskManualState({
         })(),
         start_date: currentDraft.startDate || null,
         due_date: currentDraft.dueDate || null,
+        start_at: currentDraft.startAt || null,
+        due_at: currentDraft.dueAt || null,
         label_ids: currentDraft.labelIds,
         attachment_ids: currentDraft.attachments
           ?.filter((attachment) =>

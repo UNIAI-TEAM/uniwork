@@ -88,6 +88,8 @@ describe("tasks endpoints", () => {
       assignee_kind: "human" as const,
       due_date: "2026-09-30",
       start_date: "2026-09-20",
+      start_at: "2026-09-20T02:00:00Z",
+      due_at: "2026-09-20T03:00:00Z",
       project_id: "p1",
       parent_task_id: "parent-1",
       stage: 2,
@@ -114,6 +116,20 @@ describe("tasks endpoints", () => {
       .mockResolvedValueOnce(json({ task: { ...validTask, title: "Sửa" } }));
     const updated = await updateTask("t1", { title: "Sửa" });
     expect(updated?.title).toBe("Sửa");
+  });
+
+  it("updateTask sends an exact task schedule", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ task: validTask }));
+    const schedule = {
+      start_date: "2026-09-20",
+      due_date: "2026-09-20",
+      start_at: "2026-09-20T02:00:00Z",
+      due_at: "2026-09-20T03:30:00Z",
+    };
+
+    await updateTask("t1", schedule);
+
+    expect(JSON.parse(vi.mocked(fetch).mock.calls[0]![1]!.body as string)).toEqual(schedule);
   });
 
   it("deleteTask resolves with no body", async () => {

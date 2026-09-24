@@ -156,6 +156,16 @@ func TestCalendarListEventsInRange(t *testing.T) {
 	from, to := day(2026, 9, 1), day(2026, 9, 30)
 
 	inRange := f.task(t, "due-mid", "2026-09-15", &f.a.ID)
+	timedStart := time.Date(2026, 9, 16, 7, 30, 0, 0, time.UTC)
+	timedEnd := timedStart.Add(time.Hour)
+	timedDue := "2026-09-16"
+	timedTask, err := f.tasks.Create(ctx, Human(f.a.ID), f.w.ID, CreateTaskInput{
+		Title: "timed", StartDate: &timedDue, DueDate: &timedDue,
+		StartAt: &timedStart, DueAt: &timedEnd, AssigneeID: &f.a.ID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	f.task(t, "outside", "2026-10-05", &f.a.ID)
 	f.meeting(t, "m-in", f.a.ID, "SCHEDULED", time.Date(2026, 9, 10, 3, 0, 0, 0, time.UTC))
 	f.meeting(t, "m-out", f.a.ID, "SCHEDULED", time.Date(2026, 10, 5, 3, 0, 0, 0, time.UTC))
@@ -189,6 +199,16 @@ func TestCalendarListEventsInRange(t *testing.T) {
 	if taskEv == nil || !taskEv.AllDay || taskEv.Start != "2026-09-15" || taskEv.End == nil || *taskEv.End != "2026-09-16" {
 		t.Fatalf("task event shape: %+v", taskEv)
 	}
+	for i := range got {
+		if got[i].ID != "task:"+timedTask.ID {
+			continue
+		}
+		if got[i].AllDay || got[i].Start != timedStart.Format(time.RFC3339) || got[i].End == nil || *got[i].End != timedEnd.Format(time.RFC3339) {
+			t.Fatalf("timed task event shape: %+v", got[i])
+		}
+		return
+	}
+	t.Fatal("missing timed task event")
 }
 
 func TestCalendarListEventsIsolatesWorkspaces(t *testing.T) {

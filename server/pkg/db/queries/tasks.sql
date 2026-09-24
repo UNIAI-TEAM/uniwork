@@ -8,14 +8,15 @@ RETURNING task_counter;
 -- name: CreateTask :one
 INSERT INTO tasks (
   id, organization_id, workspace_id, number, title, description, status, priority,
-  assignee_id, assignee_kind, assignee_type, start_date, due_date, position,
+  assignee_id, assignee_kind, assignee_type, start_date, due_date, start_at, due_at, position,
   created_by, created_by_kind, creator_id, creator_type, revision, last_activity_at,
   origin_type, origin_id, project_id, parent_task_id, stage, properties
 ) VALUES (
   sqlc.arg('id'), sqlc.arg('organization_id'), sqlc.arg('workspace_id'), sqlc.arg('number'),
   sqlc.arg('title'), sqlc.arg('description'), sqlc.arg('status'), sqlc.arg('priority'),
   sqlc.narg('assignee_id'), sqlc.arg('assignee_kind'), sqlc.narg('assignee_type'),
-  sqlc.narg('start_date'), sqlc.narg('due_date'), sqlc.arg('position'),
+  sqlc.narg('start_date'), sqlc.narg('due_date'), sqlc.narg('start_at'), sqlc.narg('due_at'),
+  sqlc.arg('position'),
   sqlc.arg('created_by'), sqlc.arg('created_by_kind'), sqlc.arg('creator_id'),
   sqlc.arg('creator_type'), sqlc.arg('revision'), sqlc.arg('last_activity_at'),
   sqlc.narg('origin_type'), sqlc.narg('origin_id'), sqlc.narg('project_id'),
@@ -85,6 +86,18 @@ UPDATE tasks SET
 WHERE id = $1
   AND organization_id = $3
   AND workspace_id = $4
+RETURNING *;
+
+-- name: SetTaskScheduleTimes :one
+UPDATE tasks SET
+  start_at = sqlc.narg('start_at'),
+  due_at = sqlc.narg('due_at'),
+  revision = revision + 1,
+  updated_at = now(),
+  last_activity_at = now()
+WHERE id = sqlc.arg('id')
+  AND organization_id = sqlc.arg('organization_id')
+  AND workspace_id = sqlc.arg('workspace_id')
 RETURNING *;
 
 -- name: SetTaskProjectID :one

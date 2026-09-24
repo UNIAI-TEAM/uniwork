@@ -365,7 +365,8 @@ func (q *Queries) ListCalendarSidebarTodayOverdue(ctx context.Context, arg ListC
 }
 
 const listCalendarTasksInRange = `-- name: ListCalendarTasksInRange :many
-SELECT id, title, status, priority, project_id, start_date, due_date, assignee_id, assignee_kind
+SELECT id, title, status, priority, project_id, start_date, due_date, start_at, due_at,
+  assignee_id, assignee_kind
 FROM tasks
 WHERE organization_id = $1
   AND workspace_id = $2
@@ -388,15 +389,17 @@ type ListCalendarTasksInRangeParams struct {
 }
 
 type ListCalendarTasksInRangeRow struct {
-	ID           string      `json:"id"`
-	Title        string      `json:"title"`
-	Status       string      `json:"status"`
-	Priority     string      `json:"priority"`
-	ProjectID    pgtype.Text `json:"project_id"`
-	StartDate    pgtype.Date `json:"start_date"`
-	DueDate      pgtype.Date `json:"due_date"`
-	AssigneeID   pgtype.Text `json:"assignee_id"`
-	AssigneeKind string      `json:"assignee_kind"`
+	ID           string             `json:"id"`
+	Title        string             `json:"title"`
+	Status       string             `json:"status"`
+	Priority     string             `json:"priority"`
+	ProjectID    pgtype.Text        `json:"project_id"`
+	StartDate    pgtype.Date        `json:"start_date"`
+	DueDate      pgtype.Date        `json:"due_date"`
+	StartAt      pgtype.Timestamptz `json:"start_at"`
+	DueAt        pgtype.Timestamptz `json:"due_at"`
+	AssigneeID   pgtype.Text        `json:"assignee_id"`
+	AssigneeKind string             `json:"assignee_kind"`
 }
 
 func (q *Queries) ListCalendarTasksInRange(ctx context.Context, arg ListCalendarTasksInRangeParams) ([]ListCalendarTasksInRangeRow, error) {
@@ -423,6 +426,8 @@ func (q *Queries) ListCalendarTasksInRange(ctx context.Context, arg ListCalendar
 			&i.ProjectID,
 			&i.StartDate,
 			&i.DueDate,
+			&i.StartAt,
+			&i.DueAt,
 			&i.AssigneeID,
 			&i.AssigneeKind,
 		); err != nil {

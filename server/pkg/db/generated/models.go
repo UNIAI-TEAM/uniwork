@@ -975,6 +975,8 @@ type Task struct {
 	FirstExecutedAt    pgtype.Timestamptz `json:"first_executed_at"`
 	Revision           int64              `json:"revision"`
 	LastActivityAt     pgtype.Timestamptz `json:"last_activity_at"`
+	StartAt            pgtype.Timestamptz `json:"start_at"`
+	DueAt              pgtype.Timestamptz `json:"due_at"`
 }
 
 type TaskComment struct {

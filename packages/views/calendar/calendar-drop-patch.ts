@@ -5,7 +5,12 @@ export type CalendarDropPatch =
   | {
       kind: "task";
       entityId: string;
-      patch: { due_date?: string | null; start_date?: string | null };
+      patch: {
+        due_date?: string | null;
+        start_date?: string | null;
+        due_at?: string | null;
+        start_at?: string | null;
+      };
     }
   | { kind: "meeting"; entityId: string; body: { starts_at: string; ends_at: string } };
 
@@ -46,26 +51,27 @@ function mapTaskAllDay(
 
   const startDate = ymdFromDate(start);
   const dueDate = inclusiveEndFromExclusiveEnd(end);
+  const clearTimedSchedule = event.allDay ? {} : { start_at: null, due_at: null };
 
   if (isDueOnlyTask(event)) {
     if (startDate !== dueDate) {
       return {
         kind: "task",
         entityId: event.entityId,
-        patch: { start_date: startDate, due_date: dueDate },
+        patch: { start_date: startDate, due_date: dueDate, ...clearTimedSchedule },
       };
     }
     return {
       kind: "task",
       entityId: event.entityId,
-      patch: { due_date: dueDate },
+      patch: { due_date: dueDate, ...clearTimedSchedule },
     };
   }
 
   return {
     kind: "task",
     entityId: event.entityId,
-    patch: { start_date: startDate, due_date: dueDate },
+    patch: { start_date: startDate, due_date: dueDate, ...clearTimedSchedule },
   };
 }
 
@@ -85,6 +91,27 @@ function mapMeetingTimed(
   };
 }
 
+function mapTaskTimed(
+  event: CalendarEvent,
+  start: Date,
+  end: Date | null,
+): CalendarDropPatch | null {
+  if (!end) {
+    return null;
+  }
+
+  return {
+    kind: "task",
+    entityId: event.entityId,
+    patch: {
+      start_date: ymdFromDate(start),
+      due_date: ymdFromDate(end),
+      start_at: start.toISOString(),
+      due_at: end.toISOString(),
+    },
+  };
+}
+
 /** Input is already decoded from FC (no FC imports in this module). */
 export function dropToPatch(input: {
   event: CalendarEvent;
@@ -95,10 +122,7 @@ export function dropToPatch(input: {
   const { event, start, end, allDay } = input;
 
   if (event.kind === "task") {
-    if (!allDay) {
-      return null;
-    }
-    return mapTaskAllDay(event, start, end);
+    return allDay ? mapTaskAllDay(event, start, end) : mapTaskTimed(event, start, end);
   }
 
   if (event.kind === "meeting") {

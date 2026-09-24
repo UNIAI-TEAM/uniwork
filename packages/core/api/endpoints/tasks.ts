@@ -27,6 +27,8 @@ export interface TaskPatch {
   assignee_kind?: ActorKind;
   start_date?: string | null;
   due_date?: string | null;
+  start_at?: string | null;
+  due_at?: string | null;
   project_id?: string | null;
 }
 
@@ -40,6 +42,8 @@ export interface CreateTaskBody {
   assignee_kind?: ActorKind;
   due_date?: string | null;
   start_date?: string | null;
+  start_at?: string | null;
+  due_at?: string | null;
   project_id?: string | null;
   parent_task_id?: string | null;
   stage?: number | null;

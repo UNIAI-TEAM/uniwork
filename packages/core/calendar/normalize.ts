@@ -19,6 +19,8 @@ export function taskToCalendarEvent(task: {
   title: string;
   start_date?: string | null;
   due_date?: string | null;
+  start_at?: string | null;
+  due_at?: string | null;
   status?: string;
   priority?: string;
   project_id?: string | null;
@@ -26,6 +28,23 @@ export function taskToCalendarEvent(task: {
   const due = task.due_date?.trim();
   if (!due) {
     return null;
+  }
+
+  const startAt = task.start_at?.trim();
+  const dueAt = task.due_at?.trim();
+  if (startAt && dueAt) {
+    return {
+      id: `task:${task.id}`,
+      kind: "task",
+      entityId: task.id,
+      title: task.title,
+      start: startAt,
+      end: dueAt,
+      allDay: false,
+      status: task.status,
+      priority: task.priority,
+      projectId: task.project_id,
+    };
   }
 
   const start = task.start_date?.trim() || due;
