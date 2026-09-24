@@ -138,9 +138,18 @@ function repoRoot(): string {
  * checkout is used, which is what init-worktree-env.sh gives each worktree.
  */
 export function localUploadDir(): string {
-  const override = process.env.E2E_UPLOAD_DIR ?? process.env.LOCAL_UPLOAD_DIR;
-  if (override) return isAbsolute(override) ? override : resolve(repoRoot(), override);
+  const configured = process.env.E2E_UPLOAD_DIR ?? process.env.LOCAL_UPLOAD_DIR;
   const root = repoRoot();
+  if (configured) {
+    // `make start` runs the server from <root>/server, so a relative
+    // LOCAL_UPLOAD_DIR (server/data/...) lands under server/server/data; a
+    // binary started from the repo root keeps it under server/data. Prefer the
+    // directory that exists, which is the one the app is writing to.
+    const candidates = isAbsolute(configured)
+      ? [configured]
+      : [resolve(join(root, "server"), configured), resolve(root, configured)];
+    return candidates.find((dir) => existsSync(dir)) ?? candidates[0];
+  }
   // The dev server runs from <root>/server, so its relative LOCAL_UPLOAD_DIR
   // (server/data/...) lands in server/server/data; a binary started from the
   // repo root keeps it in server/data.

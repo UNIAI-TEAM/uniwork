@@ -75,6 +75,9 @@ test("meeting: create → start → summary panel → ics → end", async ({ pag
  * ranges and answers with the whole object.
  */
 test("recording playback: listed, exact bytes, member reads, other org blocked @files-smoke", async ({ page }) => {
+  // The first visit to a workspace route compiles it under `next dev`; on a
+  // loaded shared host that alone can outlast the 60s default.
+  test.slow();
   const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
   const seed = await createRecordingAccount(page, api, "rec-host");
   const meeting = await createInstantMeeting(page, api, seed.token, seed.wsId, `Bản ghi ${seed.wsId}`);

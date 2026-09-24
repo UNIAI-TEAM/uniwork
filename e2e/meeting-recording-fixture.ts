@@ -65,7 +65,7 @@ export async function createRecordingAccount(page: Page, api: string, tag: strin
 
   const completed = await page.request.post(`${api}/api/v1/me/onboarding/complete`, {
     headers: authHeader(token),
-    data: { completion_path: "create_workspace", workspace_id: wsId },
+    data: { completion_path: "full", workspace_id: wsId },
   });
   expect(completed.ok(), `complete onboarding: HTTP ${completed.status()} ${await completed.text()}`).toBeTruthy();
 
