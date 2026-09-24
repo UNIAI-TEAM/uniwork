@@ -27,6 +27,9 @@ var (
 	ErrEmailHubUnsupported   = errors.New("unsupported email provider")
 	ErrEmailHubConnectFailed = errors.New("imap connection failed")
 	ErrEmailHubSendFailed    = errors.New("smtp send failed")
+	// errEmailHubSentNotCached wraps failures after SMTP accepted the mail: the
+	// recipient has it, only our Sent copy is missing, so it must not be retried.
+	errEmailHubSentNotCached = errors.New("sent but not cached")
 )
 
 // EmailHubService syncs IMAP mailboxes for workspace members.
@@ -383,7 +386,7 @@ func (s *EmailHubService) sendOutboundMail(
 		IsRead: true, IsStarred: false, HasAttachments: len(attachments) > 0, ImapLabels: []string{},
 	})
 	if err != nil {
-		return EmailHubThreadView{}, err
+		return EmailHubThreadView{}, fmt.Errorf("%w: %w", errEmailHubSentNotCached, err)
 	}
 	updated, err := s.q.UpdateEmailHubThreadBody(ctx, db.UpdateEmailHubThreadBodyParams{
 		ID: row.ID, BodyText: pgtype.Text{String: body, Valid: true},

@@ -157,6 +157,17 @@ export function useCancelEmailHubScheduledSend(wsId: string) {
   });
 }
 
+export function useRetryEmailHubScheduledSend(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { accountId: string; scheduledId: string }) =>
+      api.retryEmailHubScheduledSend(wsId, input.accountId, input.scheduledId),
+    onSuccess: (_data, input) => {
+      void qc.invalidateQueries({ queryKey: ["email-hub", wsId, "scheduled", input.accountId] });
+    },
+  });
+}
+
 export function useDownloadEmailHubAttachment(wsId: string) {
   return useMutation({
     mutationFn: (input: { accountId: string; threadId: string; attachmentId: string }) =>

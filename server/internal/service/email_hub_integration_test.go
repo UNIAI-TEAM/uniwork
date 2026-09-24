@@ -434,14 +434,14 @@ func TestEmailHubScheduledSendLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	list, err := svc.ListPendingScheduledSends(ctx, actor, ws.ID, acc.ID)
+	list, err := svc.ListScheduledSends(ctx, actor, ws.ID, acc.ID)
 	if err != nil || len(list) != 1 || list[0].ID != created.ID || list[0].Subject != "Later" {
 		t.Fatalf("list scheduled: err=%v list=%+v created=%+v", err, list, created)
 	}
 	if err := svc.CancelScheduledSend(ctx, actor, ws.ID, acc.ID, created.ID); err != nil {
 		t.Fatal(err)
 	}
-	list, err = svc.ListPendingScheduledSends(ctx, actor, ws.ID, acc.ID)
+	list, err = svc.ListScheduledSends(ctx, actor, ws.ID, acc.ID)
 	if err != nil || len(list) != 0 {
 		t.Fatalf("expected empty after cancel: err=%v list=%+v", err, list)
 	}

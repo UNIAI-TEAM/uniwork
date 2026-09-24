@@ -18,12 +18,21 @@ import {
   FormDialogFooter,
   FormDialogHeader,
 } from "../common/form-dialog";
-import { CreateTaskPriorityField } from "../tasks/pickers/create-task-property-fields";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@uniwork/ui/components/ui/select";
+import { PriorityIcon } from "../tasks/icons/priority-icon";
 import { MeetingAssigneeSelect } from "../meetings/meeting-assignee-select";
 import { dueHintToDateInput } from "./email-hub-summary-task-due";
 import { EmailHubTaskProjectSelect } from "./email-hub-task-project-select";
 
-export type EmailHubSummaryTaskDraft = {
+const FIELD_CLASS = "h-9 w-full max-w-none";
+
+type EmailHubSummaryTaskDraft = {
   assigneeId?: string;
   priority: TaskPriority;
   dueDate?: string;
@@ -84,31 +93,26 @@ function SummaryTaskEditorCard({
   const dueId = `email-task-due-${index}`;
 
   return (
-    <li
-      className={cn(
-        "relative overflow-hidden rounded-xl border border-border/80 bg-surface shadow-sm",
-        "before:pointer-events-none before:absolute before:inset-y-3 before:left-0 before:w-1 before:rounded-r-full before:bg-brand",
-      )}
-    >
-      <div className="space-y-4 p-4 pl-4">
+    <li className="rounded-lg border border-border bg-surface">
+      <div className="space-y-4 p-4">
         <div className="flex items-start gap-3">
           {total > 1 ? (
             <span
-              className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-brand-subtle text-caption font-semibold tabular-nums text-brand-subtle-foreground"
+              className="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-caption font-semibold tabular-nums text-muted-foreground"
               aria-hidden
             >
               {position}
             </span>
           ) : (
-            <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-brand-subtle text-brand">
+            <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
               <ListChecks className="size-3.5" aria-hidden />
             </span>
           )}
           <div className="min-w-0 flex-1 space-y-1.5">
             <p className="text-body font-semibold leading-snug text-foreground">{item.title}</p>
             {item.owner ? (
-              <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-muted/50 px-2 py-0.5 text-caption text-muted-foreground">
-                <Sparkles className="size-3 shrink-0 text-brand" aria-hidden />
+              <span className="inline-flex max-w-full items-center gap-1 rounded-md bg-brand-subtle px-1.5 py-0.5 text-caption text-brand-subtle-foreground">
+                <Sparkles className="size-3 shrink-0" aria-hidden />
                 {t("email_hub.ai.suggested_owner", { name: item.owner })}
               </span>
             ) : null}
@@ -119,25 +123,42 @@ function SummaryTaskEditorCard({
           <MeetingAssigneeSelect
             workspaceId={wsId}
             value={assigneeId}
-            suggestedOwner={item.owner}
             onChange={onAssigneeChange}
-            className="h-10 w-full max-w-none rounded-lg border-border/80 bg-background shadow-none"
+            unassignedLabel={t("email_hub.ai.unassigned")}
+            className={FIELD_CLASS}
           />
         </FieldBlock>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <FieldBlock icon={Flag} label={t("tasks.priority")}>
-            <CreateTaskPriorityField
+            <Select
               items={priorityItems}
               value={draft.priority}
-              onChange={onPriorityChange}
-            />
+              onValueChange={(next) => {
+                if (next) onPriorityChange(next as TaskPriority);
+              }}
+            >
+              <SelectTrigger size="sm" className={FIELD_CLASS} aria-label={t("tasks.priority")}>
+                <SelectValue>
+                  <PriorityIcon priority={draft.priority} className="shrink-0" />
+                  {priorityItems.find((p) => p.value === draft.priority)?.label}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {priorityItems.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>
+                    <PriorityIcon priority={p.value as TaskPriority} className="shrink-0" />
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </FieldBlock>
           <FieldBlock icon={CalendarDays} label={t("tasks.dueDate")} htmlFor={dueId}>
             <DateField
               id={dueId}
               modal={false}
-              className="h-10 w-full rounded-lg border-border/80 bg-background shadow-none"
+              className={FIELD_CLASS}
               value={draft.dueDate ?? ""}
               onChange={(v) => onDueChange(v || undefined)}
             />
@@ -206,25 +227,18 @@ export function EmailHubCreateSummaryTasksDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <FormDialogContent size="lg" className="sm:max-w-xl">
         <FormDialogHeader
-          title={
-            <span className="flex items-center gap-2.5">
-              <span className="inline-flex size-9 items-center justify-center rounded-xl bg-brand-subtle text-brand shadow-sm">
-                <ListChecks className="size-4" aria-hidden />
-              </span>
-              {t("email_hub.ai.create_dialog_title")}
-            </span>
-          }
+          title={t("email_hub.ai.create_dialog_title")}
           description={t("email_hub.ai.create_dialog_description", { count })}
         />
 
         <FormDialogBody className="space-y-5">
-          <section className="rounded-xl border border-border/70 bg-muted/25 p-4">
+          <section>
             <FieldBlock icon={FolderKanban} label={t("email_hub.ai.project_label")}>
               <EmailHubTaskProjectSelect
                 workspaceId={wsId}
                 value={projectId}
                 onChange={setProjectId}
-                className="h-10 w-full max-w-none rounded-lg border-border/80 bg-background shadow-none"
+                className={FIELD_CLASS}
               />
             </FieldBlock>
           </section>

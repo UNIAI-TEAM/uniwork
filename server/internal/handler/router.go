@@ -221,6 +221,7 @@ func New(d Deps) http.Handler {
 		SendEmailHub:                  h.sendEmailHub,
 		ListEmailHubScheduledSends:    h.listEmailHubScheduledSends,
 		CancelEmailHubScheduledSend:   h.cancelEmailHubScheduledSend,
+		RetryEmailHubScheduledSend:    h.retryEmailHubScheduledSend,
 		SyncEmailHub:                  h.syncEmailHub,
 		WatchEmailHub:                 h.watchEmailHub,
 		SubscribeEmailHubInboxWatch:   h.subscribeEmailHubInboxWatch,

@@ -4,9 +4,6 @@ import type { EmailHubThread } from "@uniwork/core/types/email-hub";
 import { ComposeEmailDialog } from "./compose-email-dialog";
 import type { ComposeMode } from "./compose-recipients";
 import { ConnectAccountDialog } from "./connect-account-dialog";
-import type { EmailHubFolderKey } from "./email-hub-folder-sidebar";
-
-type FolderKey = EmailHubFolderKey;
 
 export function EmailHubViewDialogs({
   wsId,
@@ -18,7 +15,7 @@ export function EmailHubViewDialogs({
   onComposeOpenChange,
   composeMode,
   composeSource,
-  onSent,
+  onOpenScheduled,
 }: {
   wsId: string;
   accountId: string | null;
@@ -29,16 +26,11 @@ export function EmailHubViewDialogs({
   onComposeOpenChange: (open: boolean) => void;
   composeMode: ComposeMode;
   composeSource: EmailHubThread | null;
-  onSent: (result: EmailHubThread | { scheduled: true; send_at: string } | null) => void;
+  onOpenScheduled: () => void;
 }) {
   return (
     <>
-      <ConnectAccountDialog
-        wsId={wsId}
-        open={connectOpen}
-        onOpenChange={onConnectOpenChange}
-        onConnected={onConnected}
-      />
+      <ConnectAccountDialog wsId={wsId} open={connectOpen} onOpenChange={onConnectOpenChange} onConnected={onConnected} />
       <ComposeEmailDialog
         wsId={wsId}
         accountId={accountId}
@@ -46,10 +38,8 @@ export function EmailHubViewDialogs({
         onOpenChange={onComposeOpenChange}
         mode={composeMode}
         sourceThread={composeSource}
-        onSent={onSent}
+        onOpenScheduled={onOpenScheduled}
       />
     </>
   );
 }
-
-export type { FolderKey };

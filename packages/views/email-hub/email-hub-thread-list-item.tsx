@@ -3,16 +3,21 @@
 import { Inbox, Paperclip, Sparkles, Star } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { EmailHubThread } from "@uniwork/core/types/email-hub";
+import { tintClass } from "@uniwork/ui/components/common/icon-tile";
+import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
+import { identityTint } from "../people/identity-tint";
 import { EmailHubListAiSummary } from "./email-hub-ai-insight";
-import { EmailSenderAvatar, formatWhen } from "./email-hub-view-parts";
-import { emailHubIconActionClass } from "./email-hub-ui";
+import { emailHubLocale, formatEmailFullDate, formatEmailListDate, senderDisplayName } from "./email-hub-format";
+import { EmailSenderAvatar } from "./email-hub-view-parts";
 
 interface EmailHubThreadListItemProps {
   row: EmailHubThread;
   listFolder?: string;
-  selected: boolean;
+  checked: boolean;
+  selectionMode: boolean;
+  onCheckedChange: (checked: boolean) => void;
   onSelect: () => void;
   onPrefetch: () => void;
   onToggleStar: () => void;
@@ -23,10 +28,21 @@ interface EmailHubThreadListItemProps {
   onNotSpam?: () => void;
 }
 
+const hoverActionClass =
+  "inline-flex size-8 shrink-0 items-center justify-center rounded-control text-muted-foreground transition-colors duration-(--duration-fast) hover:bg-muted hover:text-foreground disabled:opacity-50 pointer-coarse:size-11";
+
+/**
+ * One conversation in the list. The list is a container: below ~48rem a row
+ * stacks sender / subject / snippet, above it the row is a single scannable
+ * line (sender, subject — snippet, labels, date) like every mail client. The
+ * old fixed 18rem column truncated senders to three letters.
+ */
 export function EmailHubThreadListItem({
   row,
   listFolder = "INBOX",
-  selected,
+  checked,
+  selectionMode,
+  onCheckedChange,
   onSelect,
   onPrefetch,
   onToggleStar,
@@ -36,50 +52,84 @@ export function EmailHubThreadListItem({
   onAnalyze,
   onNotSpam,
 }: EmailHubThreadListItemProps) {
-  const { t } = useTranslation();
-  const displayName =
-    row.folder === "SENT" || row.folder === "DRAFTS"
-      ? (row.to_addrs[0] ?? row.from_addr)
-      : (row.from_name || row.from_addr);
+  const { t, i18n } = useTranslation();
+  const locale = emailHubLocale(i18n.language);
+  const outgoing = row.folder === "SENT" || row.folder === "DRAFTS";
+  const displayName = outgoing
+    ? t("email_hub.to_recipient", { name: row.to_addrs[0] ?? row.from_addr })
+    : senderDisplayName(row.from_name, row.from_addr);
   const subject = row.subject || t("email_hub.no_subject");
   const snippet = row.snippet?.trim();
-  const showAiInsight = Boolean(analyzing || listSummary);
-  const showSnippet = Boolean(snippet && snippet !== subject && !showAiInsight);
+  const showSnippet = Boolean(snippet && snippet !== subject);
+  const unread = !row.is_read;
+  const labels = row.imap_labels?.slice(0, 2) ?? [];
+  const spamAction = listFolder === "SPAM" && !!onNotSpam;
+  const aiAction = aiEnabled && !!onAnalyze;
+  const hasActions = spamAction || aiAction;
 
   return (
     <li
       className={cn(
-        "group mx-2 rounded-xl border transition-colors",
-        selected
-          ? "border-brand/30 bg-surface-selected shadow-sm"
-          : "border-transparent hover:border-border/80 hover:bg-muted/25",
+        "group/row relative border-b border-border/70 transition-colors duration-(--duration-fast)",
+        checked ? "bg-brand-subtle/60" : "hover:bg-muted/60 focus-within:bg-muted/60",
       )}
     >
-      <div className="flex min-w-0 items-start gap-0.5 px-1.5 py-2 sm:px-2">
+      <div className="flex min-w-0 items-start gap-2 px-3 py-2.5 @3xl:items-center @3xl:py-2 lg:px-4">
+        <div className="relative mt-0.5 flex size-9 shrink-0 items-center justify-center @3xl:mt-0">
+          <EmailSenderAvatar
+            fromName={outgoing ? undefined : row.from_name}
+            fromAddr={outgoing ? row.to_addrs[0] : row.from_addr}
+            className={cn(
+              "size-9 text-caption transition-opacity duration-(--duration-fast)",
+              (selectionMode || checked) && "opacity-0",
+              "group-hover/row:opacity-0 group-has-[[data-slot=checkbox]:focus-visible]/row:opacity-0",
+            )}
+          />
+          {/*
+            Touch has no hover, so the checkbox sits on the avatar's corner and
+            its 44px hit area covers the avatar: tapping the sender selects the
+            row, the way mail apps on phones do.
+          */}
+          <Checkbox
+            className={cn(
+              "absolute opacity-0 transition-[opacity,translate] duration-(--duration-fast) group-hover/row:opacity-100 focus-visible:opacity-100",
+              "pointer-coarse:translate-x-3 pointer-coarse:translate-y-3 pointer-coarse:bg-background pointer-coarse:opacity-100 pointer-coarse:after:-inset-3.5",
+              (selectionMode || checked) && "opacity-100 pointer-coarse:translate-x-0 pointer-coarse:translate-y-0",
+            )}
+            checked={checked}
+            onCheckedChange={(value) => onCheckedChange(value === true)}
+            aria-label={t("email_hub.select_thread", { subject })}
+          />
+        </div>
+
         <button
           type="button"
           className={cn(
-            emailHubIconActionClass,
-            "mt-0.5 size-9 shrink-0 rounded-lg",
-            row.is_starred && "text-brand hover:text-brand",
+            hoverActionClass,
+            "mt-0.5 @3xl:mt-0",
+            row.is_starred ? "text-warning hover:text-warning" : "text-muted-foreground/70",
           )}
           aria-label={row.is_starred ? t("email_hub.unstar") : t("email_hub.star")}
           aria-pressed={row.is_starred}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleStar();
-          }}
+          onClick={onToggleStar}
         >
-          <Star
-            className={cn("size-4", row.is_starred ? "fill-brand text-brand" : "text-muted-foreground/65")}
-            aria-hidden
-          />
+          <Star className={cn("size-4", row.is_starred && "fill-current")} aria-hidden />
         </button>
 
         <div
           role="button"
           tabIndex={0}
-          className="flex min-w-0 flex-1 cursor-pointer gap-2.5 py-0.5 pr-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-lg"
+          data-thread-row={row.id}
+          aria-label={[
+            unread ? t("email_hub.filters.unread") : null,
+            displayName,
+            subject,
+            formatEmailFullDate(row.sent_at, locale),
+            row.has_attachments ? t("email_hub.has_attachments") : null,
+          ]
+            .filter(Boolean)
+            .join(", ")}
+          className="flex min-w-0 flex-1 cursor-pointer flex-col gap-0.5 rounded-control @3xl:flex-row @3xl:items-center @3xl:gap-3"
           onClick={onSelect}
           onMouseEnter={onPrefetch}
           onFocus={onPrefetch}
@@ -90,119 +140,115 @@ export function EmailHubThreadListItem({
             }
           }}
         >
-          <div className="relative shrink-0">
-            <EmailSenderAvatar fromName={row.from_name} fromAddr={row.from_addr} className="size-8 text-caption" />
-            {!row.is_read ? (
-              <span
-                className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full border-2 border-background bg-brand"
-                aria-hidden
-              />
-            ) : null}
-          </div>
-
-          <div className="min-w-0 flex-1">
-            {!row.is_read ? <span className="sr-only">{t("email_hub.filters.unread")}</span> : null}
-            <div className="flex items-center gap-2">
-              <span
-                className={cn(
-                  "min-w-0 flex-1 truncate text-body leading-tight",
-                  !row.is_read ? "font-semibold text-foreground" : "font-medium text-foreground/90",
-                )}
-              >
-                {displayName}
-              </span>
-              <div className="flex shrink-0 items-center gap-0.5">
-                {row.has_attachments ? (
-                  <span
-                    className="inline-flex size-7 items-center justify-center text-muted-foreground"
-                    title={t("email_hub.has_attachments")}
-                  >
-                    <Paperclip className="size-3.5" aria-hidden />
-                    <span className="sr-only">{t("email_hub.has_attachments")}</span>
-                  </span>
-                ) : null}
-                {listFolder === "SPAM" && onNotSpam ? (
-                  <button
-                    type="button"
-                    className={cn(
-                      emailHubIconActionClass,
-                      "size-8 rounded-lg text-brand opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100",
-                    )}
-                    aria-label={t("email_hub.not_spam")}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onNotSpam();
-                    }}
-                  >
-                    <Inbox className="size-3.5" aria-hidden />
-                  </button>
-                ) : null}
-                {aiEnabled && onAnalyze ? (
-                  <button
-                    type="button"
-                    className={cn(
-                      emailHubIconActionClass,
-                      "size-8 rounded-lg",
-                      analyzing && "bg-brand-subtle text-brand",
-                      !analyzing &&
-                        "opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100",
-                    )}
-                    aria-label={t("email_hub.ai.summarize")}
-                    aria-busy={analyzing}
-                    disabled={analyzing}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAnalyze();
-                    }}
-                  >
-                    {analyzing ? <Spinner className="size-3.5" /> : <Sparkles className="size-3.5" aria-hidden />}
-                  </button>
-                ) : null}
-                <time
-                  dateTime={row.sent_at}
-                  className="min-w-[4.25rem] pl-0.5 text-right text-caption tabular-nums leading-none text-muted-foreground"
-                >
-                  {formatWhen(row.sent_at)}
-                </time>
-              </div>
-            </div>
-
-            <p
+          <div className="flex min-w-0 items-center gap-2 @3xl:w-52 @3xl:shrink-0">
+            {unread ? <span className="size-2 shrink-0 rounded-full bg-brand" aria-hidden /> : null}
+            <span
               className={cn(
-                "mt-0.5 truncate text-body leading-snug",
-                !row.is_read ? "font-semibold text-foreground" : "text-foreground/95",
+                "min-w-0 flex-1 truncate text-body",
+                unread ? "font-semibold text-foreground" : "text-foreground/80",
               )}
             >
-              {subject}
-            </p>
-
-            {showSnippet ? (
-              <p className="mt-0.5 truncate text-caption leading-snug text-muted-foreground">{snippet}</p>
-            ) : null}
-
-            {listFolder === "SNOOZED" && row.snoozed_until ? (
-              <p className="mt-0.5 text-caption text-muted-foreground">
-                {t("email_hub.snooze.until", { when: formatWhen(row.snoozed_until) })}
-              </p>
-            ) : null}
-
-            {row.imap_labels && row.imap_labels.length > 0 ? (
-              <ul className="mt-1 flex flex-wrap gap-1">
-                {row.imap_labels.slice(0, 2).map((label) => (
-                  <li
-                    key={label}
-                    className="max-w-[8rem] truncate rounded-md bg-muted/50 px-1.5 py-0.5 text-caption text-muted-foreground"
-                  >
-                    {label}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-
-            <EmailHubListAiSummary analyzing={analyzing} listSummary={listSummary} />
+              {displayName}
+            </span>
+            <time
+              dateTime={row.sent_at}
+              title={formatEmailFullDate(row.sent_at, locale)}
+              className={cn(
+                "shrink-0 text-caption tabular-nums @3xl:hidden",
+                unread ? "font-semibold text-foreground" : "text-muted-foreground",
+              )}
+            >
+              {formatEmailListDate(row.sent_at, locale)}
+            </time>
           </div>
+
+          <p className="min-w-0 flex-1 truncate text-body">
+            <span className={cn(unread ? "font-semibold text-foreground" : "text-foreground/90")}>{subject}</span>
+            {showSnippet ? (
+              <>
+                <span className="hidden text-muted-foreground @3xl:inline"> — </span>
+                <span className="hidden text-muted-foreground @3xl:inline">{snippet}</span>
+              </>
+            ) : null}
+          </p>
+          {showSnippet ? <p className="truncate text-caption text-muted-foreground @3xl:hidden">{snippet}</p> : null}
+
+          {listFolder === "SNOOZED" && row.snoozed_until ? (
+            <p className="text-caption text-muted-foreground @3xl:shrink-0">
+              {t("email_hub.snooze.until", { when: formatEmailListDate(row.snoozed_until, locale) })}
+            </p>
+          ) : null}
+
+          {labels.length > 0 || row.has_attachments ? (
+            <div className="mt-1 flex min-w-0 items-center gap-1 @3xl:mt-0 @3xl:shrink-0">
+              {row.has_attachments ? (
+                <span className="inline-flex text-muted-foreground" title={t("email_hub.has_attachments")}>
+                  <Paperclip className="size-3.5" aria-hidden />
+                  <span className="sr-only">{t("email_hub.has_attachments")}</span>
+                </span>
+              ) : null}
+              {labels.map((label) => (
+                <span
+                  key={label}
+                  className={cn(
+                    "max-w-[8rem] truncate rounded-md px-1.5 py-0.5 text-caption",
+                    tintClass[identityTint(label.toLowerCase())],
+                  )}
+                >
+                  {label}
+                </span>
+              ))}
+            </div>
+          ) : null}
+
+          <time
+            dateTime={row.sent_at}
+            title={formatEmailFullDate(row.sent_at, locale)}
+            className={cn(
+              "hidden w-20 shrink-0 text-right text-caption tabular-nums @3xl:block",
+              hasActions && "@3xl:group-hover/row:invisible @3xl:group-focus-within/row:invisible",
+              unread ? "font-semibold text-foreground" : "text-muted-foreground",
+            )}
+          >
+            {formatEmailListDate(row.sent_at, locale)}
+          </time>
         </div>
+
+        {hasActions ? (
+          <div
+            className={cn(
+              "flex shrink-0 items-center gap-0.5",
+              "@3xl:absolute @3xl:top-1/2 @3xl:right-3 @3xl:-translate-y-1/2 lg:@3xl:right-4",
+              analyzing
+                ? "@3xl:flex"
+                : cn(
+                    "md:opacity-0 md:group-hover/row:opacity-100 md:group-focus-within/row:opacity-100 @3xl:hidden @3xl:group-hover/row:flex @3xl:group-focus-within/row:flex",
+                    !spamAction && "max-md:hidden",
+                  ),
+            )}
+          >
+            {spamAction ? (
+              <button type="button" className={hoverActionClass} aria-label={t("email_hub.not_spam")} onClick={onNotSpam}>
+                <Inbox className="size-4" aria-hidden />
+              </button>
+            ) : null}
+            {aiAction ? (
+              <button
+                type="button"
+                className={cn(hoverActionClass, analyzing && "bg-brand-subtle text-brand-subtle-foreground")}
+                aria-label={t("email_hub.ai.summarize_in_list", { subject })}
+                aria-busy={analyzing}
+                disabled={analyzing}
+                onClick={onAnalyze}
+              >
+                {analyzing ? <Spinner className="size-4" /> : <Sparkles className="size-4" aria-hidden />}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
+
+      <EmailHubListAiSummary analyzing={analyzing} listSummary={listSummary} />
     </li>
   );
 }
