@@ -1,5 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
+import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
@@ -43,6 +44,15 @@ const an = {
   joined_on: "2024-03-18",
   timezone: "Asia/Ho_Chi_Minh",
 };
+
+/** The detail endpoint failing with `err`, for the two ways a profile can fail to show. */
+function mockFailure(err: Error) {
+  requestMock.mockImplementation((path: string) => {
+    if (path === "/api/v1/orgs/acme/members/me") return Promise.resolve({ role: "owner" });
+    if (path.startsWith("/api/v1/orgs/acme/people/")) return Promise.reject(err);
+    return Promise.resolve({});
+  });
+}
 
 /** The detail endpoint plus the membership call every people screen makes. */
 function mockApi(person: Record<string, unknown>, reports: unknown[] = []) {
@@ -136,5 +146,28 @@ describe("PersonDetailView", () => {
     mockApi(an);
     renderView();
     expect(await screen.findByText(/^Bây giờ ở đó là \d{2}:\d{2}$/)).toBeInTheDocument();
+  });
+
+  it("says a person is not here only when the server says so", async () => {
+    mockFailure(new ApiError("not found", "not_found", 404));
+    renderView();
+    expect(await screen.findByRole("heading", { name: "Không tìm thấy người này" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Thử lại" })).toBeNull();
+  });
+
+  it("offers a failed load again instead of calling the person gone", async () => {
+    mockFailure(new ApiError("boom", "internal", 500));
+    renderView();
+    expect(await screen.findByRole("heading", { name: "Không tải được hồ sơ" })).toBeInTheDocument();
+    expect(screen.queryByText("Không tìm thấy người này")).toBeNull();
+    expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
+  });
+
+  it("asks before reactivating a deactivated account", async () => {
+    mockApi({ ...an, status: "deactivated" });
+    renderView();
+    fireEvent.click(await screen.findByRole("button", { name: "Kích hoạt lại" }));
+    expect(await screen.findByRole("alertdialog", { name: "Kích hoạt lại Nguyễn Văn Ân?" })).toBeInTheDocument();
+    expect(requestMock.mock.calls.some(([path]) => String(path).includes("reactivate"))).toBe(false);
   });
 });

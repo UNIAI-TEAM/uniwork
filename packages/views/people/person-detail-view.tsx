@@ -1,9 +1,10 @@
 "use client";
 
-import { Ban, ChevronRight, Copy, IdCard, Mail, Pencil, Phone, UserRound, Users } from "lucide-react";
+import { Ban, ChevronRight, Copy, IdCard, Mail, Pencil, Phone, RotateCw, UserRound, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ApiError } from "@uniwork/core/api";
 import { useReactivateOrgMember } from "@uniwork/core/organizations";
 import { paths } from "@uniwork/core/paths";
 import { usePeoplePermissions } from "@uniwork/core/permissions";
@@ -13,11 +14,14 @@ import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { toast } from "sonner";
+import { ConfirmDialog } from "../common/form-dialog";
 import { Notice } from "../common/notice";
 import { PanelCard } from "../common/panel-card";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import { CollectionPageHeaderAction, CollectionPageState } from "../layout/collection-page";
+import { moduleTone } from "../layout/module-tones";
 import { useWorkspace } from "../layout/workspace-context";
+import { useNow } from "../meetings/use-now";
 import { AppLink } from "../navigation";
 import { toastApiError } from "../toast-api-error";
 import { ActorChip } from "./actor-chip";
@@ -66,7 +70,7 @@ function PersonRow({ href, actor }: { href: string; actor: Actor }) {
       <ActorChip actor={actor} className="min-w-0 flex-1" />
       <ChevronRight
         aria-hidden="true"
-        className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+        className="size-4 shrink-0 text-muted-foreground motion-safe:transition-transform motion-safe:group-hover:translate-x-0.5"
       />
     </AppLink>
   );
@@ -94,8 +98,13 @@ function ContactRow({
 }) {
   const { t } = useTranslation();
   const copy = () => {
-    void navigator.clipboard
-      ?.writeText(value)
+    // No clipboard outside a secure context: say so rather than do nothing.
+    if (!navigator.clipboard) {
+      toast.error(t("people.copy_failed"));
+      return;
+    }
+    navigator.clipboard
+      .writeText(value)
       .then(() => toast.success(t("common.copied")))
       .catch(() => toast.error(t("people.copy_failed")));
   };
@@ -127,11 +136,14 @@ export function PersonDetailView({ userId }: { userId: string }) {
   const { workspace } = useWorkspace();
   const orgSlug = workspace.organization_slug;
   const wsPaths = paths.workspace(orgSlug, workspace.slug);
-  const { data, isLoading, isError } = usePerson(orgSlug, userId);
+  const { data, isLoading, isError, error, refetch, isRefetching } = usePerson(orgSlug, userId);
   const { decideEditProfile, decideDeactivate, canEditEmployment } = usePeoplePermissions(orgSlug);
   const reactivate = useReactivateOrgMember(orgSlug);
   const startChat = useStartChat();
   const [editing, setEditing] = useState(false);
+  const [confirmReactivate, setConfirmReactivate] = useState(false);
+  // Ticks each minute, so "it is 14:05 there" stays true on a page left open.
+  const now = useNow();
   const person = data?.person ?? null;
 
   const header = (leaf: React.ReactNode, actions?: React.ReactNode) => (
@@ -157,14 +169,36 @@ export function PersonDetailView({ userId }: { userId: string }) {
       </div>
     );
   }
-  if (isError || !person) {
+  // A failure to load is not an absence: only a 404 says the person is not
+  // here. Anything else is offered again, not reported as "left the company".
+  const missing = !person && (!isError || (error instanceof ApiError && error.status === 404));
+  if (!missing && !person) {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        {header(t("people.load_error_title"))}
+        <CollectionPageState
+          icon={UserRound}
+          tone="destructive"
+          role="alert"
+          title={t("people.load_error_title")}
+          description={t("people.load_error_description")}
+          actions={
+            <Button variant="outline" onClick={() => void refetch()} aria-busy={isRefetching || undefined}>
+              <RotateCw aria-hidden="true" className={isRefetching ? "motion-safe:animate-spin" : undefined} />
+              {t("common.retry")}
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
+  if (!person) {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
         {header(t("people.not_found_title"))}
         <CollectionPageState
           icon={UserRound}
-          tone="destructive"
-          role="alert"
+          tone={moduleTone("people")}
           title={t("people.not_found_title")}
           description={t("people.not_found_description")}
           actions={
@@ -181,13 +215,16 @@ export function PersonDetailView({ userId }: { userId: string }) {
   const canReactivate = decideDeactivate({ user_id: person.user_id, role: person.org_role });
   const deactivated = person.status === "deactivated";
   const reports = data?.reports ?? [];
-  const facts = employmentFacts(person, t, i18n.language);
+  const facts = employmentFacts(person, t, i18n.language, new Date(now));
   const settingsHref = `${wsPaths.settings()}?tab=profile`;
   const openEdit = canEdit.allowed ? () => setEditing(true) : undefined;
 
   const runReactivate = () =>
     reactivate.mutate(person.user_id, {
-      onSuccess: () => toast.success(t("people.reactivated", { name: person.display_name })),
+      onSuccess: () => {
+        setConfirmReactivate(false);
+        toast.success(t("people.reactivated", { name: person.display_name }));
+      },
       onError: (err) => toastApiError(err, t("common.error")),
     });
 
@@ -218,13 +255,7 @@ export function PersonDetailView({ userId }: { userId: string }) {
               live="off"
               action={
                 canReactivate.allowed ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={runReactivate}
-                    disabled={reactivate.isPending}
-                    aria-busy={reactivate.isPending || undefined}
-                  >
+                  <Button size="sm" variant="outline" onClick={() => setConfirmReactivate(true)}>
                     {t("people.reactivate")}
                   </Button>
                 ) : null
@@ -235,6 +266,20 @@ export function PersonDetailView({ userId }: { userId: string }) {
                 : t("people.deactivated_notice")}
             </Notice>
           ) : null}
+
+          {/* Reactivating gives the account its way back into the
+              organization, so it is asked once — not destructive, but not
+              something a stray click should do. */}
+          <ConfirmDialog
+            open={confirmReactivate}
+            onOpenChange={setConfirmReactivate}
+            title={t("people.reactivate_confirm_title", { name: person.display_name })}
+            description={t("people.reactivate_confirm_description")}
+            confirmLabel={t("people.reactivate")}
+            destructive={false}
+            pending={reactivate.isPending}
+            onConfirm={runReactivate}
+          />
 
           <PersonDetailHero
             person={person}
@@ -356,8 +401,9 @@ function employmentFacts(
   person: Person,
   t: (key: string, options?: Record<string, unknown>) => string,
   language: string,
+  now: Date,
 ): FactRow[] {
-  const localTime = localTimeIn(person.timezone, language);
+  const localTime = localTimeIn(person.timezone, language, now);
   const rows: FactRow[] = [
     { label: t("people.field_employee_code"), value: person.employee_code ?? "" },
     { label: t("people.field_joined_on"), value: formatJoinedOn(person.joined_on ?? "", language) },
