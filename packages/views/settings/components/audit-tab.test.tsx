@@ -97,22 +97,26 @@ describe("AuditTab", () => {
   it("shows the log to an organization admin in words, not identifiers", async () => {
     mockApi("admin");
     renderTab();
-    // The change summary shows the field and both sides of the move.
-    expect(await screen.findByText("todo")).toBeInTheDocument();
-    expect(screen.getByText("status")).toBeInTheDocument();
-    expect(screen.getByText("Cập nhật task")).toBeInTheDocument();
+    // The change summary shows the translated field label and both sides of
+    // the move, each value in words rather than its schema identifier.
+    expect(await screen.findByText("Cần làm")).toBeInTheDocument();
+    expect(screen.getByText("Trạng thái")).toBeInTheDocument();
+    expect(screen.getByText("Cập nhật việc")).toBeInTheDocument();
     // The actor is a name when the workspace knows them, never a bare ULID.
     expect(await screen.findByTitle("u1")).toHaveTextContent("An");
-    expect(screen.getByText("done")).toBeInTheDocument();
+    expect(screen.getByText("Hoàn thành")).toBeInTheDocument();
+    expect(screen.queryByText("todo")).toBeNull();
+    // The row names the resource; its id is for the detail sheet only.
+    expect(screen.queryByText(/t1/)).toBeNull();
   });
 
   it("appends the next page under the first instead of replacing it", async () => {
     mockApi("admin");
     renderTab();
-    await screen.findByText("todo");
+    await screen.findByText("Cần làm");
     fireEvent.click(screen.getByRole("button", { name: "Tải thêm" }));
-    await waitFor(() => expect(screen.getByText("Xóa task")).toBeInTheDocument());
-    expect(screen.getByText("Cập nhật task")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Xóa việc")).toBeInTheDocument());
+    expect(screen.getByText("Cập nhật việc")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Tải thêm" })).toBeNull();
   });
 
@@ -128,19 +132,50 @@ describe("AuditTab", () => {
     mockApi("member");
     renderTab();
     expect(await screen.findByText("Bạn không xem được nhật ký này")).toBeInTheDocument();
-    expect(screen.queryByText("todo")).toBeNull();
+    expect(screen.queryByText("Cần làm")).toBeNull();
   });
 
-  it("offers the next step when nothing matches instead of rendering rows nobody asked for", async () => {
+  it("says the log is empty without implying a filter nobody set", async () => {
     mockApi("owner", { events: { events: [], next_before: "" } });
     renderTab();
+    expect(await screen.findByText("Chưa có bản ghi nào")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Xóa bộ lọc" })).toBeNull();
+  });
+
+  it("applies a filter as it is typed, without a submit, and offers to clear it", async () => {
+    mockApi("owner");
+    renderTab();
+    await screen.findByText("Cần làm");
+    expect(screen.queryByRole("button", { name: "Áp dụng" })).toBeNull();
+    fireEvent.change(screen.getByLabelText("Người thực hiện"), { target: { value: "u9" } });
+    // The count and the way out appear at once; the request waits for typing to stop.
+    expect(screen.getAllByText("1 bộ lọc").length).toBeGreaterThan(0);
+    await waitFor(() =>
+      expect(requestMock.mock.calls.some(([path]) => String(path).includes("actor_id=u9"))).toBe(true),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Xóa bộ lọc" }));
+    expect(screen.queryByText("1 bộ lọc")).toBeNull();
+  });
+
+  it("offers the next step when a filter matches nothing", async () => {
+    requestMock.mockReset();
+    mockApi("owner");
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: string) =>
+      path.includes("actor_id=")
+        ? Promise.resolve({ events: [], next_before: "" })
+        : base(path),
+    );
+    renderTab();
+    await screen.findByText("Cần làm");
+    fireEvent.change(screen.getByLabelText("Người thực hiện"), { target: { value: "nobody" } });
     expect(await screen.findByText("Chưa có bản ghi nào khớp")).toBeInTheDocument();
   });
 
   it("reserves retention and export for the owner", async () => {
     mockApi("admin");
     renderTab();
-    await screen.findByText("todo");
+    await screen.findByText("Cần làm");
     expect(screen.getByLabelText("Số ngày")).toBeDisabled();
     expect(screen.getByText("Chỉ chủ sở hữu tổ chức đổi được thiết lập này.")).toBeInTheDocument();
     expect(screen.getByText("Chỉ chủ sở hữu tổ chức xuất được nhật ký.")).toBeInTheDocument();
@@ -149,12 +184,107 @@ describe("AuditTab", () => {
   it("lets the owner edit retention", async () => {
     mockApi("owner");
     renderTab();
-    await screen.findByText("todo");
+    await screen.findByText("Cần làm");
     await waitFor(() => expect(screen.getByLabelText("Số ngày")).not.toBeDisabled());
     // Nothing to save until the number actually changes.
     expect(screen.getByRole("button", { name: "Lưu" })).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Số ngày"), { target: { value: "120" } });
     expect(screen.getByRole("button", { name: "Lưu" })).not.toBeDisabled();
+    expect(screen.getByLabelText("Số ngày")).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("waits for the reader to leave the retention field before calling a number wrong", async () => {
+    mockApi("owner");
+    renderTab();
+    await screen.findByText("Cần làm");
+    const input = await screen.findByLabelText("Số ngày");
+    await waitFor(() => expect(input).not.toBeDisabled());
+    // The range is stated once, as the row hint.
+    expect(screen.getAllByText(/30 đến 730/)).toHaveLength(1);
+    // "3" on the way to "365" is not a mistake yet.
+    fireEvent.change(input, { target: { value: "3" } });
+    expect(screen.queryByText("Nhập một số nguyên từ 30 đến 730.")).toBeNull();
+    expect(input).not.toHaveAttribute("aria-invalid");
+    fireEvent.blur(input);
+    expect(screen.getByText("Nhập một số nguyên từ 30 đến 730.")).toBeInTheDocument();
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input.getAttribute("aria-describedby")).toContain("audit-retention-error");
+    // Saving an out-of-range number sends nothing.
+    fireEvent.click(screen.getByRole("button", { name: "Lưu" }));
+    expect(requestMock.mock.calls.some(([, init]) => (init as { method?: string } | undefined)?.method === "PUT")).toBe(false);
+    fireEvent.change(input, { target: { value: "730" } });
+    expect(screen.queryByText("Nhập một số nguyên từ 30 đến 730.")).toBeNull();
+    expect(screen.getByRole("button", { name: "Lưu" })).not.toBeDisabled();
+  });
+
+  it("keeps the loaded rows when loading more fails, with a retry under them", async () => {
+    mockApi("admin");
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: string, init?: unknown) =>
+      path.includes("before=") ? Promise.reject(new Error("boom")) : base(path, init),
+    );
+    renderTab();
+    await screen.findByText("Cần làm");
+    fireEvent.click(screen.getByRole("button", { name: "Tải thêm" }));
+    expect(await screen.findByText("Không tải thêm được bản ghi.")).toBeInTheDocument();
+    expect(screen.getByText("Cập nhật việc")).toBeInTheDocument();
+    expect(screen.queryByText("Không tải được nhật ký")).toBeNull();
+    expect(screen.getByRole("table", { name: "Bản ghi nhật ký hoạt động" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
+  });
+
+  it("says an absent IP address was not recorded to the owner, and why it is hidden to an admin", async () => {
+    mockApi("owner");
+    const { unmount } = renderTab();
+    const [row] = await screen.findAllByRole("button", { name: /Xem chi tiết bản ghi/ });
+    fireEvent.click(row!);
+    expect(await screen.findByText("Không ghi nhận")).toBeInTheDocument();
+    unmount();
+
+    mockApi("admin");
+    renderTab();
+    const [adminRow] = await screen.findAllByRole("button", { name: /Xem chi tiết bản ghi/ });
+    fireEvent.click(adminRow!);
+    expect(await screen.findByText("Chỉ chủ sở hữu tổ chức nhìn thấy")).toBeInTheDocument();
+  });
+
+  it("says the export history could not be loaded instead of claiming there is none", async () => {
+    mockApi("owner");
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: string, init?: unknown) =>
+      path.includes("/audit/exports") ? Promise.reject(new Error("boom")) : base(path, init),
+    );
+    renderTab();
+    expect(await screen.findByText("Không tải được danh sách bản xuất.")).toBeInTheDocument();
+    expect(screen.queryByText("Chưa có bản xuất nào.")).toBeNull();
+  });
+
+  it("names a failed export in words, not the worker's raw reason", async () => {
+    mockApi("owner");
+    const base = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: string, init?: unknown) =>
+      path.includes("/audit/exports")
+        ? Promise.resolve({
+            exports: [
+              {
+                id: "e1", format: "csv", from_at: "2026-09-01T00:00:00Z", to_at: "2026-09-02T00:00:00Z",
+                status: "failed", row_count: 0, error: "worker exploded", created_at: "2026-09-03T00:00:00Z",
+              },
+            ],
+          })
+        : base(path, init),
+    );
+    renderTab();
+    const list = await screen.findByRole("list", { name: "Các bản xuất gần đây" });
+    expect(list).toHaveTextContent("Xuất thất bại.");
+    expect(list).not.toHaveTextContent("worker exploded");
+  });
+
+  it("names the tab after what it holds and shows an empty export list as a line", async () => {
+    mockApi("owner");
+    renderTab();
+    expect(await screen.findByRole("heading", { name: "Nhật ký hoạt động" })).toBeInTheDocument();
+    expect(await screen.findByText("Chưa có bản xuất nào.")).toBeInTheDocument();
   });
 
   it("says the log could not be loaded rather than blanking the screen", async () => {

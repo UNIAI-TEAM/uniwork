@@ -8,6 +8,7 @@ import type { User } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@uniwork/ui/components/ui/input-otp";
+import { AUTH_PILL } from "./auth-controls";
 import { AuthShell } from "./auth-shell";
 
 const CODE_LENGTH = 6;
@@ -100,7 +101,14 @@ export function VerifyEmailView({ onSuccess }: { onSuccess: (user: User) => void
             </InputOTP>
           </Field>
           <FieldError id={errorId}>{errorMsg}</FieldError>
-          {resent && !errorMsg ? (
+          {/* The code check reports here, next to the boxes it is reading,
+              not on the resend button below. */}
+          {verify.isPending ? (
+            <p role="status" className="flex items-center gap-2 text-label text-muted-foreground">
+              <Loader2 aria-hidden className="size-3.5 animate-spin" />
+              {t("auth.verify.verifying")}
+            </p>
+          ) : resent && !errorMsg ? (
             <p role="status" className="text-label text-muted-foreground">
               {t("auth.verify.resent")}
             </p>
@@ -112,14 +120,18 @@ export function VerifyEmailView({ onSuccess }: { onSuccess: (user: User) => void
             type="button"
             variant="outline"
             size="lg"
-            className="w-full"
+            className={AUTH_PILL}
             onClick={onResend}
             aria-disabled={cooldown > 0 || resend.isPending || undefined}
           >
-            {verify.isPending ? (
+            {/* This button resends; it reports the resend. The code check has
+                its own status under the field (and `aria-busy`, read-only boxes) and
+                used to borrow this label, so "Verifying…" sat on a button
+                whose click sends a new code. */}
+            {resend.isPending ? (
               <>
                 <Loader2 aria-hidden className="animate-spin" />
-                {t("auth.verify.verifying")}
+                {t("auth.verify.resending")}
               </>
             ) : cooldown > 0 ? (
               t("auth.verify.resendIn", { seconds: cooldown })

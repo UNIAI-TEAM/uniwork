@@ -17,8 +17,10 @@ vi.mock("./chat-sticker-packs", () => ({
 }));
 
 vi.mock("sonner", () => ({
-  toast: { info: vi.fn() },
+  toast: { info: vi.fn(), error: vi.fn() },
 }));
+
+import { toast } from "sonner";
 
 describe("ChatComposer", () => {
   it("renders composer toolbar and opens attach menu", async () => {
@@ -39,12 +41,13 @@ describe("ChatComposer", () => {
     );
 
     expect(screen.getByLabelText("Đính kèm")).toBeInTheDocument();
-    expect(screen.getByLabelText("Tin nhắn thoại")).toBeInTheDocument();
+    expect(screen.getByLabelText("Ghi âm tin nhắn thoại")).toBeInTheDocument();
     expect(screen.queryByLabelText("Thêm")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText("Đính kèm"));
     expect(await screen.findByRole("menuitem", { name: "Tạo bình chọn" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Tạo nhắc hẹn" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Đính kèm tệp" })).toBeInTheDocument();
   });
 
   it("hides create poll in dm conversations", async () => {
@@ -178,10 +181,89 @@ describe("ChatComposer", () => {
       ),
     );
 
-    fireEvent.click(screen.getByLabelText("Tin nhắn thoại"));
+    fireEvent.click(screen.getByLabelText("Ghi âm tin nhắn thoại"));
     expect(await screen.findByRole("button", { name: "Hủy" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Gửi" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
     await waitFor(() => expect(stopTrack).toHaveBeenCalled());
+  });
+
+  it("pastes an accepted image into onSendFile", () => {
+    const onSendFile = vi.fn();
+    render(
+      wrap(
+        <ChatComposer
+          workspaceId="ws1"
+          draft=""
+          onDraftChange={vi.fn()}
+          onSend={vi.fn()}
+          onSendFile={onSendFile}
+          placeholder="Nhập tin nhắn…"
+          sendLabel="Gửi"
+        />,
+      ),
+    );
+
+    const file = new File(["png"], "shot.png", { type: "image/png" });
+    fireEvent.paste(screen.getByLabelText("Nhập tin nhắn…"), {
+      clipboardData: { files: [file] },
+    });
+    // A pasted file waits in the composer until the message is sent.
+    expect(onSendFile).not.toHaveBeenCalled();
+    expect(screen.getByText("shot.png")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Gửi" }));
+    expect(onSendFile).toHaveBeenCalledWith(file);
+    expect(screen.queryByText("shot.png")).not.toBeInTheDocument();
+  });
+
+  it("lets a staged file be removed before sending", () => {
+    const onSendFile = vi.fn();
+    render(
+      wrap(
+        <ChatComposer
+          workspaceId="ws1"
+          draft=""
+          onDraftChange={vi.fn()}
+          onSend={vi.fn()}
+          onSendFile={onSendFile}
+          placeholder="Nhập tin nhắn…"
+          sendLabel="Gửi"
+        />,
+      ),
+    );
+
+    const file = new File(["pdf"], "bao-cao.pdf", { type: "application/pdf" });
+    fireEvent.paste(screen.getByLabelText("Nhập tin nhắn…"), {
+      clipboardData: { files: [file] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Gỡ bao-cao.pdf" }));
+    expect(screen.queryByText("bao-cao.pdf")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Gửi" })).not.toBeInTheDocument();
+    expect(onSendFile).not.toHaveBeenCalled();
+  });
+
+  it("rejects unsupported paste types", () => {
+    const onSendFile = vi.fn();
+    render(
+      wrap(
+        <ChatComposer
+          workspaceId="ws1"
+          draft=""
+          onDraftChange={vi.fn()}
+          onSend={vi.fn()}
+          onSendFile={onSendFile}
+          placeholder="Nhập tin nhắn…"
+          sendLabel="Gửi"
+        />,
+      ),
+    );
+
+    fireEvent.paste(screen.getByLabelText("Nhập tin nhắn…"), {
+      clipboardData: {
+        files: [new File(["x"], "virus.exe", { type: "application/octet-stream" })],
+      },
+    });
+    expect(onSendFile).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalled();
   });
 });

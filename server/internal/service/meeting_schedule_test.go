@@ -73,6 +73,11 @@ func TestAutoEndOverdueAtScheduledEnd(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if _, err := s.q.UpdateConferenceSessionStatus(ctx, db.UpdateConferenceSessionStatusParams{
+		ID: sess.ID, Status: strText("ACTIVE"),
+	}); err != nil {
+		t.Fatal(err)
+	}
 	p, _ := s.q.GetActiveUserParticipant(ctx, db.GetActiveUserParticipantParams{MeetingID: m.ID, UserID: strText(ua.ID)})
 	_, err = s.q.OpenAttendanceSession(ctx, db.OpenAttendanceSessionParams{
 		ID: "att-schedule", MeetingID: m.ID, ConferenceSessionID: sess.ID, ParticipantID: p.ID,
@@ -83,11 +88,11 @@ func TestAutoEndOverdueAtScheduledEnd(t *testing.T) {
 	}
 
 	n, err := s.AutoEndOverdue(ctx, time.Now())
-	if err != nil || n != 1 {
-		t.Fatalf("auto end: %d %v", n, err)
+	if err != nil || n != 0 {
+		t.Fatalf("auto end live room: %d %v", n, err)
 	}
 	got, _ := s.Get(ctx, ua.ID, m.ID)
-	if got.Status != MeetingEnded {
+	if got.Status != MeetingInProgress {
 		t.Fatalf("status %s", got.Status)
 	}
 }

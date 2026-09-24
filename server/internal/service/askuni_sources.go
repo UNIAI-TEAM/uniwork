@@ -74,6 +74,8 @@ func (s *AskUNIService) Sources(ctx context.Context, in ai.SourceQuery) ([]ai.So
 			fn = s.taskContext
 		case "meeting":
 			fn = s.meetingContext
+		case "email_thread":
+			fn = s.emailThreadContext
 		}
 		if fn != nil {
 			focus, err := fn(ctx, tc, in.Focus.ID)

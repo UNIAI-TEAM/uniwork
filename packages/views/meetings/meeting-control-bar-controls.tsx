@@ -17,17 +17,16 @@ import {
 } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingAdjustViewDialog } from "./meeting-adjust-view-dialog";
-import { MEETING_DARK_BAR_CHIP } from "./meeting-dark-bar";
 import { MeetingDevicesDialog } from "./meeting-devices-dialog";
-import { REACTIONS } from "./meeting-signals";
+import { REACTIONS, reactionLabelKey } from "./meeting-signals";
 import { useMeetingSignals } from "./use-meeting-signals";
 
-/** Filled destructive on the dark bar. */
-export const SOLID_DESTRUCTIVE =
-  "border-destructive !bg-destructive text-brand-foreground hover:!bg-destructive/90 focus-visible:border-destructive focus-visible:ring-destructive/30";
+/** Size and shape of a chip on the dark bar; colour comes from the Button variant. */
+export const MEETING_CHIP = "size-11 shrink-0 rounded-xl";
 
 export function IconControl({
   label,
+  tooltip,
   pressed,
   tone,
   onClick,
@@ -35,8 +34,11 @@ export function IconControl({
   children,
 }: {
   label: string;
+  /** What a click does next, when that is more than the name (a toggle, a shortcut). */
+  tooltip?: string;
   pressed?: boolean;
-  tone?: "off" | "active" | "copilot";
+  /** `active` = a device or mode that is on; `off` = a device the viewer turned off. */
+  tone?: "off" | "active";
   onClick?: MouseEventHandler<HTMLButtonElement>;
   disabled?: boolean;
   children: ReactNode;
@@ -48,35 +50,18 @@ export function IconControl({
           <Button
             type="button"
             size="icon-lg"
-            variant={
-              tone === "off"
-                ? "outline"
-                : tone === "active"
-                  ? "brand"
-                  : tone === "copilot"
-                    ? "brand"
-                    : pressed
-                      ? "secondary"
-                      : "outline"
-            }
+            variant={tone === "off" ? "destructiveSolid" : tone === "active" ? "brand" : "meetingChip"}
             aria-label={label}
             aria-pressed={pressed}
             disabled={disabled}
             onClick={onClick}
-            className={cn(
-              MEETING_DARK_BAR_CHIP,
-              tone === "off" && SOLID_DESTRUCTIVE,
-              tone === "active" && "!border-brand !bg-brand !text-brand-foreground hover:!bg-brand/90",
-              tone === "copilot" && "!border-brand !bg-brand !text-brand-foreground hover:!bg-brand/90",
-              !tone && !pressed && "border-meeting-bar-border",
-              pressed && !tone && "!bg-meeting-bar-chip-hover",
-            )}
+            className={MEETING_CHIP}
           />
         }
       >
         {children}
       </TooltipTrigger>
-      <TooltipContent side="top">{label}</TooltipContent>
+      <TooltipContent side="top">{tooltip ?? label}</TooltipContent>
     </Tooltip>
   );
 }
@@ -146,9 +131,9 @@ export function DeviceSettingsControl({ inMenu = false }: { inMenu?: boolean }) 
                   <Button
                     type="button"
                     size="icon-lg"
-                    variant="outline"
+                    variant="meetingChip"
                     aria-label={label}
-                    className={MEETING_DARK_BAR_CHIP}
+                    className={MEETING_CHIP}
                   />
                 }
               />
@@ -200,9 +185,9 @@ export function AdjustViewControl({ inMenu = false }: { inMenu?: boolean }) {
                   <Button
                     type="button"
                     size="icon-lg"
-                    variant="outline"
+                    variant="meetingChip"
                     aria-label={label}
-                    className={MEETING_DARK_BAR_CHIP}
+                    className={MEETING_CHIP}
                   />
                 }
               />
@@ -240,22 +225,23 @@ export function ReactionsControl({ inMenu = false }: { inMenu?: boolean }) {
             <Button
               type="button"
               size="icon-lg"
-              variant="outline"
+              variant="meetingChip"
               aria-label={label}
-              className={MEETING_DARK_BAR_CHIP}
+              className={MEETING_CHIP}
             />
           }
         >
           <SmilePlus aria-hidden />
         </PopoverTrigger>
       )}
-      <PopoverContent side="top" className="flex w-auto gap-1 p-1.5">
+      {/* `dark`: the popup portals to <body>, away from the dark stage it belongs to. */}
+      <PopoverContent side="top" className="dark flex w-auto gap-1 p-1.5">
         {REACTIONS.map((r) => (
           <button
             key={r}
             type="button"
-            aria-label={r}
-            className="flex size-10 items-center justify-center rounded-full text-title hover:bg-muted"
+            aria-label={t(reactionLabelKey(r) ?? "meetings.react")}
+            className="flex size-11 items-center justify-center rounded-full text-title hover:bg-muted"
             onClick={() => {
               react(r);
               setOpen(false);

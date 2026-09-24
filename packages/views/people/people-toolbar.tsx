@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useRef } from "react";
 import { LayoutGrid, ListFilter, Rows3, Search, Settings2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -8,7 +8,6 @@ import {
   type PeopleColumnKey,
   type PeopleViewMode,
 } from "@uniwork/core/people/view-store";
-import type { Department } from "@uniwork/core/types/people";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
@@ -32,13 +31,14 @@ import { cn } from "@uniwork/ui/lib/utils";
 
 /**
  * One row of controls above the directory: search on the left, and on the
- * right the three menus that shape what is shown — filter, display, view.
+ * right the menus that shape what is shown — filter, display, view.
  *
- * The three filter dimensions are single-valued because the server takes one
- * value each, so they are radio groups rather than the checkboxes a
- * client-side filter would use. Status carries a default of "active": it only
- * counts as an active filter once it leaves that default, or the toolbar would
- * claim a filter nobody set.
+ * Department is not in the filter menu: it is the filter people reach for
+ * most, so it has its own chip row (`PeopleDepartmentBar`). Role and status
+ * stay here as single-valued radio groups, because the server takes one
+ * value each. Status carries a default of "active": it only counts as a set
+ * filter once it leaves that default, or the toolbar would claim a filter
+ * nobody set.
  */
 
 /** The sentinel a radio group needs for "no value", which is not a value. */
@@ -57,22 +57,24 @@ export const EMPTY_PEOPLE_FILTERS: PeopleFilterState = {
   status: DEFAULT_STATUS,
 };
 
-export function countActiveFilters(filters: PeopleFilterState): number {
+/** Filters that live in the menu — the department row counts for itself. */
+export function countMenuFilters(filters: PeopleFilterState): number {
   let count = 0;
-  if (filters.departmentId !== "") count += 1;
   if (filters.role !== "") count += 1;
   if (filters.status !== DEFAULT_STATUS) count += 1;
   return count;
 }
 
-const TOOLBAR_BUTTON = "h-8 w-8 gap-1 px-0 text-muted-foreground md:w-auto md:px-2.5";
+export function countActiveFilters(filters: PeopleFilterState): number {
+  return countMenuFilters(filters) + (filters.departmentId !== "" ? 1 : 0);
+}
+
+const TOOLBAR_BUTTON = "h-8 w-8 gap-1 px-0 md:w-auto md:px-2.5";
 
 export function PeopleToolbar({
   search,
   onSearchChange,
-  shown,
-  total,
-  departments,
+  matching,
   filters,
   onFiltersChange,
   viewMode,
@@ -82,9 +84,8 @@ export function PeopleToolbar({
 }: {
   search: string;
   onSearchChange: (next: string) => void;
-  shown: number;
-  total: number;
-  departments: Department[];
+  /** How many people match the search and filters, when either is set; null otherwise. */
+  matching: number | null;
   filters: PeopleFilterState;
   onFiltersChange: (next: PeopleFilterState) => void;
   viewMode: PeopleViewMode;
@@ -93,90 +94,115 @@ export function PeopleToolbar({
   onToggleColumn: (key: PeopleColumnKey) => void;
 }) {
   const { t } = useTranslation();
-  const activeCount = countActiveFilters(filters);
-  const hasFilters = activeCount > 0;
+  const menuCount = countMenuFilters(filters);
+  const hasMenuFilters = menuCount > 0;
   const isTable = viewMode === "table";
+  const searchRef = useRef<HTMLInputElement>(null);
 
-  const departmentItems = useMemo(() => flattenDepartments(departments), [departments]);
+  // "/" jumps to search, as it does in most directories — unless the reader
+  // is already typing somewhere, where "/" is just a character.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable='true'], [role='dialog']")) return;
+      event.preventDefault();
+      searchRef.current?.focus();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
 
   return (
-    <div className="flex h-12 shrink-0 items-center justify-between gap-2 px-4">
+    <div className="flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-x-2 gap-y-1.5 px-4 py-2">
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        <div className="relative w-full max-w-56">
+        <div className="relative w-full max-w-72">
           <Search
             aria-hidden="true"
             className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
           />
           <Input
+            ref={searchRef}
+            variant="subtle"
+            type="search"
             aria-label={t("people.search")}
-            className="h-8 pl-8 text-body"
+            aria-keyshortcuts="/"
+            className="h-8 pr-8 pl-8 text-body [&::-webkit-search-cancel-button]:hidden"
             placeholder={t("people.search_placeholder")}
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && search !== "") {
+                e.preventDefault();
+                onSearchChange("");
+              }
+            }}
           />
+          {search !== "" ? (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label={t("people.search_clear")}
+              className="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground"
+              onClick={() => {
+                onSearchChange("");
+                searchRef.current?.focus();
+              }}
+            >
+              <X aria-hidden="true" />
+            </Button>
+          ) : null}
         </div>
-        {hasFilters || search.trim() !== "" ? (
-          <span className="hidden shrink-0 text-caption tabular-nums text-muted-foreground md:inline">
-            {t("people.result_count", { shown, total })}
-          </span>
-        ) : null}
+        {/* Always mounted, so the count is announced when it appears rather
+            than arriving with the region; on phones it is only visually
+            hidden, so a screen reader there still hears it. */}
+        <span role="status" className="shrink-0 text-caption tabular-nums text-muted-foreground max-sm:sr-only">
+          {matching !== null ? t("people.result_count", { count: matching }) : ""}
+        </span>
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
+        {filters.role !== "" ? (
+          <FilterChip
+            label={`${t("people.column_role")}: ${t(`people.role_${filters.role}`, { defaultValue: filters.role })}`}
+            removeLabel={t("people.filter_remove", { name: t("people.column_role") })}
+            onRemove={() => onFiltersChange({ ...filters, role: "" })}
+          />
+        ) : null}
+        {filters.status !== DEFAULT_STATUS ? (
+          <FilterChip
+            label={`${t("people.column_status")}: ${t(`people.status_${filters.status}`, { defaultValue: filters.status })}`}
+            removeLabel={t("people.filter_remove", { name: t("people.column_status") })}
+            onRemove={() => onFiltersChange({ ...filters, status: DEFAULT_STATUS })}
+          />
+        ) : null}
+
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
               <Button
-                variant={hasFilters ? "default" : "outline"}
+                variant={hasMenuFilters ? "brandSubtle" : "toolbar"}
                 size="sm"
-                className={
-                  hasFilters
-                    ? "h-8 w-8 gap-1 bg-brand px-0 text-brand-foreground hover:bg-brand/90 md:w-auto md:px-2.5"
-                    : TOOLBAR_BUTTON
-                }
+                className={TOOLBAR_BUTTON}
               >
                 <ListFilter aria-hidden="true" className="size-3.5" />
                 {/* The label is never dropped from the tree, only hidden
                     visually, so the button's accessible name always contains
                     what a sighted user reads on it (WCAG 2.5.3). */}
                 <span className="max-md:sr-only">
-                  {hasFilters
-                    ? t("people.filter_active", { count: activeCount })
+                  {hasMenuFilters
+                    ? t("people.filter_active", { count: menuCount })
                     : t("people.filter")}
                 </span>
-                {hasFilters ? (
+                {hasMenuFilters ? (
                   <span aria-hidden="true" className="tabular-nums md:hidden">
-                    {activeCount}
+                    {menuCount}
                   </span>
                 ) : null}
               </Button>
             }
           />
           <DropdownMenuContent align="end" className="w-auto min-w-44">
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>{t("people.department")}</DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="max-h-72 w-auto min-w-48 overflow-y-auto">
-                <DropdownMenuRadioGroup
-                  value={filters.departmentId === "" ? ANY : filters.departmentId}
-                  onValueChange={(value) =>
-                    onFiltersChange({
-                      ...filters,
-                      departmentId: value === ANY ? "" : String(value),
-                    })
-                  }
-                >
-                  <DropdownMenuRadioItem value={ANY}>
-                    {t("people.department_any")}
-                  </DropdownMenuRadioItem>
-                  {departmentItems.map((item) => (
-                    <DropdownMenuRadioItem key={item.value} value={item.value}>
-                      {item.label}
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>{t("people.column_role")}</DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="w-auto min-w-44">
@@ -224,33 +250,18 @@ export function PeopleToolbar({
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Kept in the tree with its space reserved when there is nothing to
-            clear: a control that appears and disappears shifts every button
-            to its right, under the cursor that just clicked one.
-            `visibility: hidden` takes it out of the tab order and out of the
-            accessibility tree on its own. Below md the buttons are icon-only
-            and the row is tight, so there the slot is dropped rather than
-            held: a blank 44px is worse on a phone than a small shift. */}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          disabled={!hasFilters}
-          aria-hidden={!hasFilters}
-          aria-label={t("people.filter_clear")}
-          className={cn("text-muted-foreground", !hasFilters && "invisible max-md:hidden")}
-          onClick={() => onFiltersChange(EMPTY_PEOPLE_FILTERS)}
-        >
-          <X aria-hidden="true" className="size-3.5" />
-        </Button>
-
-        {/* Columns are the table's own affordance and the card view has none,
-            but the slot stays: switching views must not move the view button
-            the user is about to click again. */}
+        {/* Columns are the table's own affordance and the card view has none.
+            It sits to the left of the view button in a flush-right group, so
+            switching views never moves the view button the user just clicked —
+            only the controls left of it slide over. Below the table's wide
+            zone only name and title render and the switches would do nothing,
+            so the button is not offered there (the `people` container is the
+            directory's own pane, the same width the table measures). */}
         {isTable ? (
           <Popover>
             <PopoverTrigger
               render={
-                <Button variant="outline" size="sm" className={TOOLBAR_BUTTON}>
+                <Button variant="toolbar" size="sm" className={cn(TOOLBAR_BUTTON, "hidden @2xl/people:inline-flex")}>
                   <Settings2 aria-hidden="true" className="size-3.5" />
                   <span className="max-md:sr-only">{t("people.display")}</span>
                 </Button>
@@ -276,25 +287,12 @@ export function PeopleToolbar({
               </div>
             </PopoverContent>
           </Popover>
-        ) : (
-          // The same button, held open as empty space: identical markup is the
-          // only way the two views measure the same.
-          <Button
-            variant="outline"
-            size="sm"
-            disabled
-            aria-hidden="true"
-            className={cn(TOOLBAR_BUTTON, "invisible max-md:hidden")}
-          >
-            <Settings2 aria-hidden="true" className="size-3.5" />
-            <span className="max-md:sr-only">{t("people.display")}</span>
-          </Button>
-        )}
+        ) : null}
 
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <Button variant="outline" size="sm" className={TOOLBAR_BUTTON}>
+              <Button variant="toolbar" size="sm" className={TOOLBAR_BUTTON}>
                 {isTable ? (
                   <Rows3 aria-hidden="true" className="size-3.5" />
                 ) : (
@@ -333,6 +331,24 @@ export function PeopleToolbar({
   );
 }
 
+/** One set filter, said in words and removable on its own. Hidden on phones, where the menu count carries it. */
+function FilterChip({ label, removeLabel, onRemove }: { label: string; removeLabel: string; onRemove: () => void }) {
+  return (
+    <span className="hidden h-7 items-center gap-0.5 rounded-full bg-brand-subtle pr-0.5 pl-2.5 text-label text-brand-subtle-foreground md:inline-flex">
+      {label}
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        aria-label={removeLabel}
+        className="rounded-full text-current hover:bg-brand/10"
+        onClick={onRemove}
+      >
+        <X aria-hidden="true" />
+      </Button>
+    </span>
+  );
+}
+
 const COLUMN_LABEL_KEYS: Record<PeopleColumnKey, string> = {
   department: "people.department",
   email: "people.column_email",
@@ -340,18 +356,3 @@ const COLUMN_LABEL_KEYS: Record<PeopleColumnKey, string> = {
   role: "people.column_role",
   status: "people.column_status",
 };
-
-/**
- * The department tree is at most two levels, so a child is shown by indenting
- * its label rather than by a tree widget nobody needs at this depth — the same
- * shape `DepartmentPicker` uses in the profile form.
- */
-function flattenDepartments(departments: Department[]): { value: string; label: string }[] {
-  const roots = departments.filter((d) => !d.parent_id);
-  return roots.flatMap((root) => [
-    { value: root.id, label: root.name },
-    ...departments
-      .filter((d) => d.parent_id === root.id)
-      .map((child) => ({ value: child.id, label: `— ${child.name}` })),
-  ]);
-}

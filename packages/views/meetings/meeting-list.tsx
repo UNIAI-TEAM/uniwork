@@ -1,40 +1,37 @@
 "use client";
 import { Video } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { displayMeetingStatus, isScheduledMeetingLive } from "@uniwork/core/meetings";
 import { paths } from "@uniwork/core/paths";
 import type { Meeting } from "@uniwork/core/types";
 import { useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { cn } from "@uniwork/ui/lib/utils";
 import { useWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
-import { cn } from "@uniwork/ui/lib/utils";
-import {
-  MeetingCardRow,
-  MeetingCardRowActions,
-  MeetingCardRowMain,
-  MeetingCardRowTime,
-} from "./meeting-card-row";
-import {
-  formatMeetingDay,
-  formatMeetingTimes,
-  meetingDayKey,
-  meetingLocale,
-} from "./meeting-datetime";
-import { MeetingStatusBadge } from "./meeting-status-badge";
+import { formatMeetingDay, formatMeetingTimes, meetingDayKey, meetingLocale } from "./meeting-datetime";
+import { MeetingListRecordingButton } from "./meeting-list-recording-button";
 import { MeetingPersonAvatar } from "./meeting-person";
+import { formatRelativeTime } from "./meeting-relative-time";
+import { MEETING_STATUS_TONE, MeetingStatusBadge, ToneBadge } from "./meeting-status-badge";
+import { useNow } from "./use-now";
 
-/** Newest-created first; falls back to ULID id when created_at is absent. */
-function meetingCreatedSortKey(m: Meeting): string {
-  return m.created_at ?? m.id;
+function startMs(m: Meeting): number {
+  const t = Date.parse(m.starts_at);
+  return Number.isFinite(t) ? t : 0;
 }
 
 /**
- * Rows grouped by the viewer's calendar day. Days keep the server's order
- * (created_at descending); within a day, rows also run newest-created-first.
+ * Rows grouped by the viewer's calendar day, in the order a person reads a
+ * calendar: today and the days ahead first, soonest first; then the days
+ * already behind, most recent first. Within a day, rows run by start time
+ * (id breaks a tie so a refetch never reshuffles them). The list API's
+ * `sort=starts_at` pages in this same order, so paging never scatters a day.
  */
 export function groupMeetingsByDay(
   meetings: readonly Meeting[],
+  today: string = meetingDayKey(new Date().toISOString()),
 ): { day: string; items: Meeting[] }[] {
   const byDay = new Map<string, Meeting[]>();
   for (const m of meetings) {
@@ -43,162 +40,168 @@ export function groupMeetingsByDay(
     if (items) items.push(m);
     else byDay.set(day, [m]);
   }
-  return [...byDay].map(([day, items]) => ({
+  const days = [...byDay.keys()];
+  const ahead = days.filter((d) => d >= today).sort();
+  const behind = days.filter((d) => d < today).sort().reverse();
+  return [...ahead, ...behind].map((day) => ({
     day,
-    items: items.sort((a, b) =>
-      meetingCreatedSortKey(b).localeCompare(meetingCreatedSortKey(a)),
-    ),
+    items: byDay.get(day)!.sort((a, b) => startMs(a) - startMs(b) || a.id.localeCompare(b.id)),
   }));
 }
 
-const MOBILE_ROW =
-  "grid grid-cols-[4.75rem_minmax(0,1fr)_auto] items-center gap-x-3 py-2.5 sm:grid-cols-[5rem_minmax(0,1fr)_auto]";
+/** The calendar day `n` days from `dayKey` ("2026-08-28" → "2026-08-29"). */
+function shiftDay(dayKey: string, n: number): string {
+  const d = new Date(`${dayKey}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return "";
+  d.setDate(d.getDate() + n);
+  return meetingDayKey(d.toISOString());
+}
 
-export function MeetingListSkeleton() {
+/** Wall-clock time in the viewer's zone, the same clock `formatMeetingTimes` reads. */
+function clock(iso: string, locale: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d);
+}
+
+/** A relative start is worth a chip only while it is close enough to plan the day around. */
+const SOON_MS = 12 * 3_600_000;
+
+/**
+ * One row, the same at every width: time, a rail, the host, the title with a
+ * line of meta, and the state on the right. The title link stretches over the
+ * whole row; the join and rewatch buttons sit above that overlay.
+ */
+const ROW =
+  "relative flex min-h-12 items-center gap-3 px-3 py-1.5 transition-colors duration-micro hover:bg-surface-hover focus-within:bg-surface-selected";
+
+/**
+ * The rail repeats the badge's signal (upcoming info, live success, overtime
+ * warning) so the two never disagree; what is over, missed or canceled goes
+ * quiet. A state is a signal, never the meetings tint.
+ */
+function railClass(display: string): string {
+  switch (MEETING_STATUS_TONE[display]) {
+    case "info":
+      return "bg-info";
+    case "success":
+      return "bg-success";
+    case "warning":
+      return "bg-warning";
+    default:
+      return "bg-border";
+  }
+}
+
+function MeetingRow({
+  meeting: m,
+  host,
+  href,
+  locale,
+  nowMs,
+  onOpenRoom,
+}: {
+  meeting: Meeting;
+  host: { name: string; avatarUrl?: unknown };
+  href: string;
+  locale: string;
+  nowMs: number;
+  onOpenRoom: (id: string) => void;
+}) {
+  const { t } = useTranslation();
+  const display = displayMeetingStatus(m, nowMs);
+  const live = isScheduledMeetingLive(m, nowMs);
+  const rewatch = m.status === "ENDED" && m.has_playable_recording === true;
+  const untilStart = startMs(m) - nowMs;
+  const soon = display === "SCHEDULED" && untilStart > 0 && untilStart < SOON_MS;
+  const instant = m.meeting_type === "INSTANT";
+
   return (
-    <div aria-hidden className="space-y-6">
+    <li className={ROW}>
+      {/* The time column is for the eye; the link carries the same span as text. */}
+      <span aria-hidden className="flex w-11 shrink-0 flex-col text-right tabular-nums">
+        <span className="text-label font-semibold text-foreground">{clock(m.starts_at, locale)}</span>
+        <span className="text-caption text-muted-foreground">{clock(m.ends_at, locale)}</span>
+      </span>
+      <span aria-hidden className={cn("w-1 self-stretch rounded-full", railClass(display))} />
+      <MeetingPersonAvatar name={host.name} avatarUrl={host.avatarUrl} className="max-sm:hidden" />
+      <div className="min-w-0 flex-1">
+        {/* Two lines on a phone so a long title is still readable; one from sm, where the row is wide. */}
+        <AppLink
+          href={href}
+          title={m.title}
+          className="block rounded-sm text-body font-medium text-foreground after:absolute after:inset-0 max-sm:line-clamp-2 max-sm:break-words sm:truncate"
+        >
+          {m.title}
+          <span className="sr-only">, {formatMeetingTimes(m.starts_at, m.ends_at, locale)}</span>
+        </AppLink>
+        <p className="flex min-w-0 items-center gap-1.5 text-caption text-muted-foreground">
+          <span className="truncate">{host.name}</span>
+          {instant ? (
+            <>
+              <span aria-hidden>·</span>
+              <span className="shrink-0">{t("meetings.type_INSTANT")}</span>
+            </>
+          ) : null}
+          {soon ? (
+            <ToneBadge tone="info" className="shrink-0">
+              {formatRelativeTime(m.starts_at, locale, nowMs)}
+            </ToneBadge>
+          ) : null}
+        </p>
+      </div>
+      <div className="relative z-10 flex shrink-0 items-center gap-2">
+        <MeetingStatusBadge status={display} className={cn(live && "max-sm:hidden")} />
+        {rewatch ? <MeetingListRecordingButton meetingId={m.id} /> : null}
+        {live ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="brand"
+            className="max-sm:w-7 max-sm:px-0"
+            onClick={() => onOpenRoom(m.id)}
+          >
+            <Video aria-hidden />
+            <span className="max-sm:sr-only">{t("meetings.joinNow")}</span>
+          </Button>
+        ) : null}
+      </div>
+    </li>
+  );
+}
+
+/** The loading shape is the row's shape: a day heading, then framed rows of time, rail, face, title and state. */
+export function MeetingListSkeleton() {
+  const { t } = useTranslation();
+  const widths = ["w-2/3", "w-1/2", "w-3/5"];
+  return (
+    <div role="status" className="space-y-4">
+      <span className="sr-only">{t("meetings.listLoading")}</span>
       {[3, 2].map((rows, g) => (
-        <div key={g} className="space-y-2">
-          <Skeleton className="h-4 w-44" />
-          <div className="overflow-hidden rounded-lg border border-border bg-surface">
-            <div className="hidden border-b border-border lg:block">
-              <div className="flex gap-3 py-2 text-caption">
-                <Skeleton className="ml-4 h-3 w-8" />
-                <Skeleton className="h-3 w-16" />
-                <Skeleton className="h-3 w-12" />
-                <Skeleton className="h-3 w-14" />
-              </div>
-            </div>
-            <div className="divide-y divide-border">
-              {Array.from({ length: rows }, (_, i) => (
-                <div key={i} className={MOBILE_ROW}>
-                  <Skeleton className="ml-4 h-4 w-16" />
-                  <Skeleton className="h-4 w-48 max-w-full" />
-                  <Skeleton className="mr-4 h-5 w-16 rounded-full" />
+        <div key={g} aria-hidden>
+          <div className="py-1.5">
+            <Skeleton className="h-4 w-40" />
+          </div>
+          <div className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface">
+            {Array.from({ length: rows }, (_, i) => (
+              <div key={i} className="flex min-h-12 items-center gap-3 px-3 py-1.5">
+                <div className="flex w-11 shrink-0 flex-col items-end gap-1">
+                  <Skeleton className="h-3.5 w-9" />
+                  <Skeleton className="h-3 w-8" />
                 </div>
-              ))}
-            </div>
+                <Skeleton className="w-1 self-stretch rounded-full" />
+                <Skeleton className="size-6 shrink-0 rounded-full max-sm:hidden" />
+                <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                  <Skeleton className={cn("h-3.5 max-w-full", widths[(g + i) % widths.length])} />
+                  <Skeleton className="h-3 w-20" />
+                </div>
+                <Skeleton className="h-5 w-20 shrink-0 rounded-full" />
+              </div>
+            ))}
           </div>
         </div>
       ))}
     </div>
-  );
-}
-
-function MeetingDayCards({
-  items,
-  hostName,
-  ws,
-  locale,
-  onOpenRoom,
-  t,
-}: {
-  items: Meeting[];
-  hostName: (id?: string) => string;
-  ws: ReturnType<typeof paths.workspace>;
-  locale: string;
-  onOpenRoom: (id: string) => void;
-  t: ReturnType<typeof useTranslation>["t"];
-}) {
-  return (
-    <ul className="hidden space-y-2 lg:block">
-      {items.map((m) => {
-        const host = hostName(m.host_user_id ?? m.created_by);
-        const live = m.status === "IN_PROGRESS";
-        return (
-          <li key={m.id}>
-            <MeetingCardRow
-              className={cn(live && "border-brand/30 bg-brand/5")}
-            >
-              <MeetingCardRowTime>{formatMeetingTimes(m.starts_at, m.ends_at, locale)}</MeetingCardRowTime>
-              <MeetingCardRowMain>
-                <AppLink
-                  href={ws.meeting(m.id)}
-                  className="block truncate text-body font-medium text-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                >
-                  {m.title}
-                </AppLink>
-                <div className="mt-1 flex items-center gap-2">
-                  <MeetingPersonAvatar name={host} size="sm" className="size-6" />
-                  <span className="truncate text-caption text-muted-foreground">{host}</span>
-                </div>
-              </MeetingCardRowMain>
-              <MeetingCardRowActions>
-                <MeetingStatusBadge status={m.status} />
-                {live ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="brand"
-                    aria-label={t("meetings.joinNow")}
-                    className="h-8 px-2.5"
-                    onClick={() => onOpenRoom(m.id)}
-                  >
-                    <Video aria-hidden className="size-3.5" />
-                    <span>{t("meetings.joinNow")}</span>
-                  </Button>
-                ) : null}
-              </MeetingCardRowActions>
-            </MeetingCardRow>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-function MeetingDayMobileList({
-  items,
-  hostName,
-  ws,
-  locale,
-  onOpenRoom,
-  t,
-}: {
-  items: Meeting[];
-  hostName: (id?: string) => string;
-  ws: ReturnType<typeof paths.workspace>;
-  locale: string;
-  onOpenRoom: (id: string) => void;
-  t: ReturnType<typeof useTranslation>["t"];
-}) {
-  return (
-    <ul className="space-y-2 lg:hidden">
-      {items.map((m) => {
-        const host = hostName(m.host_user_id ?? m.created_by);
-        const live = m.status === "IN_PROGRESS";
-        return (
-          <li key={m.id}>
-            <MeetingCardRow className={cn(live && "border-brand/30 bg-brand/5")}>
-              <MeetingCardRowTime>{formatMeetingTimes(m.starts_at, m.ends_at, locale)}</MeetingCardRowTime>
-              <MeetingCardRowMain>
-                <AppLink href={ws.meeting(m.id)} className="min-w-0 outline-none">
-                  <span className="block truncate text-body font-medium text-foreground">{m.title}</span>
-                  <span className="mt-0.5 block truncate text-caption text-muted-foreground">{host}</span>
-                </AppLink>
-              </MeetingCardRowMain>
-              <MeetingCardRowActions>
-                {live ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="brand"
-                    aria-label={t("meetings.joinNow")}
-                    className="size-11 px-0 sm:h-8 sm:w-auto sm:px-2.5"
-                    onClick={() => onOpenRoom(m.id)}
-                  >
-                    <Video aria-hidden className="size-4 sm:size-3.5" />
-                    <span className="hidden sm:inline">{t("meetings.joinNow")}</span>
-                  </Button>
-                ) : (
-                  <MeetingStatusBadge status={m.status} />
-                )}
-              </MeetingCardRowActions>
-            </MeetingCardRow>
-          </li>
-        );
-      })}
-    </ul>
   );
 }
 
@@ -218,49 +221,58 @@ export function MeetingList({
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
   const locale = meetingLocale(i18n.language);
   const { data: members } = useMembers(workspaceId);
-  const hostName = (id?: string) =>
-    members?.find((m) => m.user_id === id)?.display_name ??
-    t("meetings.hostUnknown");
-  const today = meetingDayKey(new Date().toISOString());
+  const hostOf = (id?: string) => {
+    const member = members?.find((m) => m.user_id === id);
+    return { name: member?.display_name ?? t("meetings.hostUnknown"), avatarUrl: member?.avatar_url };
+  };
+  const nowMs = useNow();
+  const today = meetingDayKey(new Date(nowMs).toISOString());
+  const relative: Record<string, string> = {
+    [today]: t("meetings.today"),
+    [shiftDay(today, 1)]: t("meetings.tomorrow"),
+    [shiftDay(today, -1)]: t("meetings.yesterday"),
+  };
 
   return (
-    <div className={cn("space-y-6", className)}>
-      {groupMeetingsByDay(meetings).map((group) => (
-        <section key={group.day} aria-labelledby={`meeting-day-${group.day}`}>
-          <div className="mb-2 flex items-baseline gap-2">
+    <div className={cn("space-y-4", className)}>
+      {groupMeetingsByDay(meetings, today).map((group) => {
+        const date = formatMeetingDay(group.day, locale);
+        const near = relative[group.day];
+        return (
+          <section key={group.day} aria-labelledby={`meeting-day-${group.day}`}>
             <h2
               id={`meeting-day-${group.day}`}
-              className="shrink-0 text-label font-semibold text-foreground"
+              className="sticky top-0 z-20 flex items-center gap-2 bg-background py-1.5 text-overline text-muted-foreground"
             >
-              {formatMeetingDay(group.day, locale)}
-            </h2>
-            {group.day === today ? (
-              <span className="shrink-0 rounded-full bg-brand/10 px-2 py-0.5 text-caption font-medium text-brand">
-                {t("meetings.today")}
+              {near ? (
+                <>
+                  <span className="text-foreground">{near}</span>
+                  <span>{date}</span>
+                </>
+              ) : (
+                <span>{date}</span>
+              )}
+              <span aria-hidden className="min-w-5 rounded-sm bg-muted px-1 text-center tabular-nums">
+                {group.items.length}
               </span>
-            ) : null}
-            <div aria-hidden className="h-px min-w-6 flex-1 bg-border" />
-          </div>
-          <div className="space-y-2 p-2 sm:p-3">
-            <MeetingDayCards
-              items={group.items}
-              hostName={hostName}
-              ws={ws}
-              locale={locale}
-              onOpenRoom={onOpenRoom}
-              t={t}
-            />
-            <MeetingDayMobileList
-              items={group.items}
-              hostName={hostName}
-              ws={ws}
-              locale={locale}
-              onOpenRoom={onOpenRoom}
-              t={t}
-            />
-          </div>
-        </section>
-      ))}
+              <span className="sr-only">{t("meetings.dayCount", { count: group.items.length })}</span>
+            </h2>
+            <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-surface">
+              {group.items.map((m) => (
+                <MeetingRow
+                  key={m.id}
+                  meeting={m}
+                  host={hostOf(m.host_user_id ?? m.created_by)}
+                  href={ws.meeting(m.id)}
+                  locale={locale}
+                  nowMs={nowMs}
+                  onOpenRoom={onOpenRoom}
+                />
+              ))}
+            </ul>
+          </section>
+        );
+      })}
     </div>
   );
 }

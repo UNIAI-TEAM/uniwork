@@ -1,0 +1,55 @@
+package emailhub
+
+import "testing"
+
+func TestMailboxName(t *testing.T) {
+	t.Parallel()
+	if got := MailboxName("gmail", FolderSent); got != "[Gmail]/Sent Mail" {
+		t.Fatalf("gmail sent: %q", got)
+	}
+	if got := MailboxName("outlook", FolderTrash); got != "Deleted Items" {
+		t.Fatalf("outlook trash: %q", got)
+	}
+	if got := MailboxName("yahoo", FolderDrafts); got != "Draft" {
+		t.Fatalf("yahoo drafts: %q", got)
+	}
+	if got := MailboxName("unknown", FolderArchive); got != FolderArchive {
+		t.Fatalf("unknown provider keeps logical name: %q", got)
+	}
+}
+
+func TestDefaultMailboxMap(t *testing.T) {
+	t.Parallel()
+	m := DefaultMailboxMap("gmail")
+	if m[FolderInbox] != FolderInbox || m[FolderSent] != "[Gmail]/Sent Mail" {
+		t.Fatalf("unexpected gmail map: %v", m)
+	}
+	if len(SyncableFolders()) != 4 || SyncableFolders()[0] != FolderInbox {
+		t.Fatalf("unexpected syncable folders: %v", SyncableFolders())
+	}
+	if !IsMoveableTarget(FolderInbox) || !IsMoveableTarget(FolderArchive) || !IsMoveableTarget(FolderTrash) || !IsMoveableTarget(FolderSpam) {
+		t.Fatal("unexpected moveable targets")
+	}
+	if got := MoveableTargets(); len(got) != 4 || got[0] != FolderInbox || got[3] != FolderSpam {
+		t.Fatalf("unexpected move targets: %v", got)
+	}
+}
+
+func TestProviderMailboxDefaults(t *testing.T) {
+	t.Parallel()
+	if got := MailboxName("gmail", FolderInbox); got != FolderInbox {
+		t.Fatalf("gmail inbox default: %q", got)
+	}
+	if got := MailboxName("outlook", FolderInbox); got != FolderInbox {
+		t.Fatalf("outlook inbox default: %q", got)
+	}
+	if got := MailboxName("yahoo", FolderInbox); got != FolderInbox {
+		t.Fatalf("yahoo inbox default: %q", got)
+	}
+	if got := MailboxName("outlook", FolderSent); got != "Sent Items" {
+		t.Fatalf("outlook sent: %q", got)
+	}
+	if got := MailboxName("yahoo", FolderArchive); got != "Archive" {
+		t.Fatalf("yahoo archive: %q", got)
+	}
+}

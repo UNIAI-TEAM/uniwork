@@ -40,6 +40,33 @@ describe("DmSettingsSheet", () => {
     expect(screen.getByRole("button", { name: "Đặt biệt danh" })).toBeInTheDocument();
   });
 
+  it("opens message search from settings and closes the sheet", () => {
+    const onOpenChange = vi.fn();
+    const onOpenSearch = vi.fn();
+    render(
+      wrap(
+        <DmSettingsSheet
+          open
+          onOpenChange={onOpenChange}
+          workspaceId="ws1"
+          currentUserId="u1"
+          contact={contact}
+          youLabel="Bạn"
+          onLeave={vi.fn()}
+          blockedByMe={false}
+          blockedMe={false}
+          onBlock={vi.fn()}
+          onUnblock={vi.fn()}
+          onOpenSearch={onOpenSearch}
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Tìm tin nhắn trong cuộc trò chuyện" }));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(onOpenSearch).toHaveBeenCalled();
+  });
+
   it("shows nickname in heading when set", () => {
     render(
       wrap(
@@ -88,5 +115,29 @@ describe("DmSettingsSheet", () => {
     fireEvent.click(screen.getByRole("button", { name: "Rời cuộc trò chuyện" }));
     fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Rời cuộc trò chuyện" }));
     expect(onLeave).toHaveBeenCalled();
+  });
+
+  it("disables notes, pins and polls until the conversation exists, and says why", () => {
+    render(
+      wrap(
+        <DmSettingsSheet
+          open
+          onOpenChange={vi.fn()}
+          workspaceId="ws1"
+          roomId={null}
+          currentUserId="u1"
+          contact={contact}
+          youLabel="Bạn"
+          onLeave={vi.fn()}
+          blockedByMe={false}
+          blockedMe={false}
+          onBlock={vi.fn()}
+          onUnblock={vi.fn()}
+        />,
+      ),
+    );
+    const row = screen.getByRole("button", { name: /Ghi chú, ghim, bình chọn/ });
+    expect(row).toBeDisabled();
+    expect(row).toHaveAccessibleDescription("Có sau tin nhắn đầu tiên trong cuộc trò chuyện");
   });
 });

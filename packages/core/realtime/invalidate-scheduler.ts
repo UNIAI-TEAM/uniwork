@@ -5,9 +5,10 @@ import type { Meeting } from "../types/meeting";
 import { meetingKeys } from "../meetings/hooks";
 
 const DEBOUNCE_MS = 250;
+export const TRANSCRIPT_INVALIDATE_MS = 1500;
 
 /** Debounced, coalesced query invalidation for WS bursts. */
-export function createInvalidateScheduler(qc: QueryClient) {
+export function createInvalidateScheduler(qc: QueryClient, debounceMs = DEBOUNCE_MS) {
   const pending = new Map<string, QueryKey>();
   let timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -23,7 +24,7 @@ export function createInvalidateScheduler(qc: QueryClient) {
     schedule(queryKey: QueryKey) {
       pending.set(JSON.stringify(queryKey), queryKey);
       if (timer != null) return;
-      timer = setTimeout(flush, DEBOUNCE_MS);
+      timer = setTimeout(flush, debounceMs);
     },
     dispose() {
       if (timer != null) clearTimeout(timer);

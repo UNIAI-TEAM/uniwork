@@ -22,6 +22,9 @@ RETURNING *;
 -- name: ListMeetingRecordings :many
 SELECT * FROM meeting_recordings WHERE meeting_id = $1 ORDER BY started_at DESC;
 
+-- name: GetMeetingRecordingByID :one
+SELECT * FROM meeting_recordings WHERE id = $1 AND meeting_id = $2;
+
 -- name: GetActiveMeetingRecording :one
 SELECT * FROM meeting_recordings WHERE meeting_id = $1 AND status = 'ACTIVE' ORDER BY started_at DESC LIMIT 1;
 
@@ -38,7 +41,17 @@ WHERE egress_id = $1 AND status IN ('ACTIVE', 'PROCESSING')
 RETURNING *;
 
 -- name: ListOverdueInProgressMeetings :many
+-- Empty/idle rooms past ends_at, or ACTIVE rooms past the overtime cutoff
+-- (now − 2h). Live = session status ACTIVE only; IDLE does not keep the row.
 SELECT m.* FROM meetings m
 WHERE m.status = 'IN_PROGRESS'
-  AND m.ends_at < $1
+  AND m.ends_at < sqlc.arg('now')
+  AND (
+    NOT EXISTS (
+      SELECT 1 FROM meeting_conference_sessions s
+      WHERE s.meeting_id = m.id
+        AND s.status = 'ACTIVE'
+    )
+    OR m.ends_at < sqlc.arg('overtime_cutoff')
+  )
 LIMIT 50;

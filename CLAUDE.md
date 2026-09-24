@@ -33,13 +33,14 @@ Product intent and design principles live in `PRODUCT.md`.
 - `apps/web/` — Next.js App Router. `apps/web/platform/` is the only place
   Next.js APIs (router, env) are touched.
 - `packages/core/` — headless logic: API endpoints, React Query hooks,
-  Zustand stores, realtime sync, permissions, paths, i18n. Five modules came
+  Zustand stores, realtime sync, permissions, paths, i18n. Four modules came
   over with the port and no host reaches them yet: `packages/core/analytics/`,
-  `packages/core/constants/`, `packages/core/diagnostics/`,
-  `packages/core/modals/`, `packages/core/navigation/`. They import each
-  other, not the app (the shortcuts module left this list with F-09: ⌘J opens
-  Ask UNI; feature-flags with F-11: `GET /api/v1/config` feeds
-  `FeatureFlagsProvider`). Wire one before relying on it;
+  `packages/core/diagnostics/`, `packages/core/modals/`,
+  `packages/core/navigation/`. They import each other, not the app (the
+  shortcuts module left this list with F-09: ⌘J opens Ask UNI; feature-flags
+  with F-11: `GET /api/v1/config` feeds `FeatureFlagsProvider`; inbox, labels,
+  task-views and constants left when they were wired or removed — constants
+  with UNI-505 TipTap catalog). Wire one before relying on it;
   `scripts/governance.test.mjs` recomputes the list and fails after
   2026-09-30 unless it is empty — wire or delete by then.
 - `packages/ui/` — atomic primitives (shadcn/Base UI registry) and design tokens.
@@ -71,8 +72,30 @@ Keep server state and client state separate.
 - Only the auth store and `api/endpoints/*` talk to the transport. Every
   other server interaction is a query or a mutation.
 - WebSocket events invalidate Query keys (`packages/core/realtime/use-realtime-sync.ts`).
-  The frame payload is never written into a query or a store — the cache is
-  refreshed from the API. `packages/core/realtime/use-realtime-sync.test.tsx` pins this.
+  The frame payload is never written into a store, and into a query only
+  through one exception (ADR 0015): the fields the `task.updated` catalogue row
+  lists in `Patch` patch a cached record of the task, and only when ALL hold —
+  the frame has at least one `Patch` key and no content key outside `Patch`
+  (any key besides `task_id`, `workspace_id`, the revision pair and `Patch`
+  fields, such as a field a later ADR adds to `Patch`, makes the whole frame
+  ids-only, so opening a new field only makes deployed clients refetch); every
+  `Patch` value in it decodes (a string, and `due_date` empty or
+  `YYYY-MM-DD`; one value that does not makes the whole frame ids-only);
+  `revision_before` and `revision` are
+  both digit strings that are safe integers, with `revision > revision_before`;
+  the record already exists (the detail entry, or the task's row in a list,
+  query, my-tasks or table-rows entry) and its `revision` equals
+  `revision_before`; and its entry is not already due a refetch — a detail
+  entry with a fetch under way (even paused) or already invalidated, and a
+  list-style entry that is idle and already invalidated, are not patched, and
+  their invalidation stays. A patched record takes the frame's `revision`; a
+  patched detail entry skips that frame's refetch, otherwise the detail key
+  invalidates as for any frame. List roots always invalidate, rows never move
+  between groups or pages, and a frame never adds an entry or a row.
+  `packages/core/realtime/use-realtime-sync.test.tsx` and
+  `packages/core/tasks/realtime-task-patch.test.ts` pin this;
+  `scripts/events-catalogue.test.mjs` fails when the client's field list and
+  the catalogue's `Patch` differ.
 - Optimistic updates only when ALL hold: the outcome is locally predictable,
   the user stays on the same screen, failure is rare, rollback is a cache
   restore. Canonical: task status/position on the board
@@ -82,7 +105,9 @@ Keep server state and client state separate.
 
 ## Package Boundaries
 
-These are lint errors (`pnpm lint`), not conventions:
+These are lint errors (`pnpm lint`), not conventions — and at `GATE_LEVEL=fast`
+`scripts/lint-gate.sh` prints them without failing the run (ADR 0014), so read
+the output rather than the exit code:
 
 - `packages/core/` — no `react-dom`, no `localStorage` / `sessionStorage` (use
   `StorageAdapter` from `packages/core/platform/`), no `process.env`. Endpoint
@@ -116,7 +141,7 @@ If logic would be needed by a second host, extract it now:
 
 ```bash
 make dev              # bootstrap this checkout and start everything
-make start            # app processes (migrates first); make stop leaves Postgres/Redis up
+make start            # app + local LiveKit (migrates first); make stop leaves Postgres/Redis/LiveKit up
 make check            # typecheck → lint → unit + contract tests → Go tests → E2E (E2E above GATE_LEVEL=fast)
 make check-full       # the same at strict, E2E included, whatever GATE_LEVEL says
 make gate             # current gate level and what it changes
@@ -206,6 +231,11 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
   trigger that raises on both, so the rule holds even where the app owns the
   schema (ADR 0012). Retention never deletes; a wrong row is answered with
   another row. `TestAuditEventsAreAppendOnly` proves it.
+- Table-view SQL is built only in `server/pkg/db/tablequery` (ADR 0020):
+  values are always `$n` parameters, every statement starts with the
+  organization/workspace clause, and only `internal/service/task_table*.go`
+  imports it — `TestTableQueryOnlyFromTaskTableService` and the builder tests
+  in that package hold it.
 
 ## Audit and Events
 
@@ -225,10 +255,17 @@ Every command that changes business state writes an `audit_events` row and its
   losing it costs nobody anything (typing, voice signalling, a transcript line
   the next one supersedes). `docs/events/CATALOGUE.md` marks each one.
 - Event names are `<entity>.<verb>`; the version is the `event_version` column,
-  never part of the name; payloads carry ids only. The catalogue exists three
-  times — that file, `server/internal/outbox/catalogue.go`,
+  never part of the name. Client-visible payloads carry ids only, except on a
+  catalogue row that lists fields in `Patch` — today only `task.updated`
+  (ADR 0015) — whose frame may also carry those fields and the
+  `revision_before` / `revision` pair that guards them. The catalogue exists
+  three times — that file, `server/internal/outbox/catalogue.go`,
   `packages/core/types/events.ts` — and `scripts/events-catalogue.test.mjs`
-  fails when they disagree.
+  fails when the three disagree, when a client-visible row declares a key that
+  is neither an id nor a revision key, when any row carries a revision key
+  without `Patch`, when a row with `Patch` lacks either revision key, when the
+  patchable field set changes, or when any row but `task.updated` declares
+  `Patch`.
 - Every request carries a `correlation_id` (`middleware.Correlation`), and it
   reaches the audit row, the events and the access log. `docs/ops/RUNBOOK_OUTBOX.md`
   is the runbook.
@@ -287,9 +324,12 @@ behind its own gate and never reaches content.
   in `make check`. Test-only helpers are not exported unless a test imports
   them.
 - Coverage only goes up. Each package's vitest config carries integer
-  `thresholds` and a drop fails `pnpm test`; Go has `server/coverage.floor`,
-  checked by `scripts/test-go.sh`. Raise the floor by hand, with the change
-  that earned it — the numbers never go down.
+  `thresholds`; Go has `server/coverage.floor`, checked by
+  `scripts/go-cover-floor.sh` — over the whole profile locally, over the merged
+  shard profiles in CI. Raise the floor by hand, with the change that earned it
+  — the numbers never go down. At `GATE_LEVEL=fast` a TypeScript package under
+  its thresholds prints the summary and passes instead of failing `pnpm test`
+  (`scripts/coverage-gate.ts`, ADR 0014); the Go floor blocks at every level.
 - Code comments in English. Specs and plans (`docs/superpowers/`) are in
   Vietnamese and carry a `> **Trạng thái:**` line (shipped / in-progress /
   superseded / abandoned) under the title.
@@ -454,8 +494,10 @@ The process gates tighten or loosen with one word in `GATE_LEVEL` at the repo
 root: `fast`, `standard` or `strict`; anything else reads as `strict`.
 `docs/engineering/GATE_LEVELS.md` is the table of what each level changes and
 when to move. What it does not change: everything under Database and
-Migration Rules, Audit and Events, secrets scanning, coverage floors and the
-`commit-msg` hook — those are data safety, not process. Change the level with
+Migration Rules, Audit and Events, secrets scanning, the coverage numbers
+themselves and the `commit-msg` hook — those are data safety, not process.
+(ADR 0014 is the one loosening of that list: at `fast` a TypeScript coverage
+drop and a lint error report instead of failing. The thresholds do not move.) Change the level with
 a PR that edits the file and says why in the commit body; `make gate` shows
 the current one. `scripts/governance.test.mjs` checks the file, the readers
 and this section agree.
@@ -509,7 +551,9 @@ Conventional prefixes: `feat(scope)`, `fix(scope)`, `refactor(scope)`,
 `test(scope)`, `docs`, `chore(scope)`, `ci`, `style(scope)`. Atomic, grouped by
 intent; the body carries the reason and what was deliberately left out.
 `.githooks/commit-msg` rejects anything else, and `scripts/governance.test.mjs`
-fails if that hook's list and this line stop agreeing.
+fails if that hook's list and this line stop agreeing. GitHub squash-merge of
+a UniAI PR keeps the PR title (`UNI-nnn: …`); the hook accepts that subject
+the same way it accepts Merge and Revert.
 
 ## Domain Reminders
 
@@ -520,5 +564,8 @@ fails if that hook's list and this line stop agreeing.
   WebSocket handshake carry the pair (`/{orgSlug}/{wsSlug}`, `workspace_slug=org/ws`).
 - `onboarded_at` on the user is the single source of truth for "may enter a
   workspace"; never infer it from the workspace count.
-- Realtime event names are `<entity>.<verb>` with id-only payloads
-  (`packages/core/types/events.ts`, published from `server/internal/service`).
+- Realtime event names are `<entity>.<verb>`, listed in
+  `packages/core/types/events.ts` and published from `server/internal/service`;
+  client-visible payloads carry ids only, except the fields a catalogue row
+  lists in `Patch` and the `revision_before` / `revision` pair that guards them
+  (ADR 0015, held by `scripts/events-catalogue.test.mjs`).

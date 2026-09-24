@@ -1,9 +1,11 @@
 "use client";
 
 import { AddGroupMembersDialog } from "./add-group-members-dialog";
+import { ChannelSettingsSheet } from "./channel-settings-sheet";
 import { ChatCreatePollDialog } from "./chat-create-poll-dialog";
 import { ChatCreateReminderDialog } from "./chat-create-reminder-dialog";
 import { ChatCreateNoteDialog } from "./chat-create-note-dialog";
+import { ChatCreatePostDialog } from "./chat-create-post-dialog";
 import { DmSettingsSheet } from "./dm-settings-sheet";
 import { GroupSettingsSheet } from "./group-settings-sheet";
 import { WorkspaceSettingsSheet } from "./workspace-settings-sheet";
@@ -17,6 +19,7 @@ type ChatPageContentDialogsProps = Pick<
   | "contacts"
   | "activeContact"
   | "activeGroup"
+  | "activeChannel"
   | "currentUserId"
   | "workspaceRoomId"
   | "nicknamesByUserId"
@@ -25,6 +28,10 @@ type ChatPageContentDialogsProps = Pick<
   | "onGroupSettingsOpenChange"
   | "dmSettingsOpen"
   | "onDmSettingsOpenChange"
+  | "channelSettingsOpen"
+  | "onChannelSettingsOpenChange"
+  | "workHubEnabled"
+  | "setTarget"
   | "dmBlockedByMe"
   | "dmBlockedMe"
   | "onBlockContact"
@@ -38,12 +45,14 @@ type ChatPageContentDialogsProps = Pick<
   | "leavingConversation"
   | "onLeaveGroup"
   | "onLeaveDm"
+  | "onLeaveChannel"
   | "workspaceMembers"
   | "workspaceSettingsOpen"
   | "onWorkspaceSettingsOpenChange"
   | "activeRoomId"
   | "canPinMessages"
   | "t"
+  | "onMessageSearchOpenChange"
 > & {
   createPollOpen: boolean;
   onCreatePollOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
@@ -51,6 +60,8 @@ type ChatPageContentDialogsProps = Pick<
   onCreateReminderOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
   createNoteOpen: boolean;
   onCreateNoteOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
+  createPostOpen: boolean;
+  onCreatePostOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
 export function ChatPageContentDialogs({
@@ -60,6 +71,7 @@ export function ChatPageContentDialogs({
   contacts,
   activeContact,
   activeGroup,
+  activeChannel,
   currentUserId,
   workspaceRoomId,
   nicknamesByUserId,
@@ -68,6 +80,10 @@ export function ChatPageContentDialogs({
   onGroupSettingsOpenChange,
   dmSettingsOpen,
   onDmSettingsOpenChange,
+  channelSettingsOpen,
+  onChannelSettingsOpenChange,
+  workHubEnabled,
+  setTarget,
   dmBlockedByMe,
   dmBlockedMe,
   onBlockContact,
@@ -81,18 +97,22 @@ export function ChatPageContentDialogs({
   leavingConversation,
   onLeaveGroup,
   onLeaveDm,
+  onLeaveChannel,
   workspaceMembers,
   workspaceSettingsOpen,
   onWorkspaceSettingsOpenChange,
   activeRoomId,
   canPinMessages,
   t,
+  onMessageSearchOpenChange,
   createPollOpen,
   onCreatePollOpenChange,
   createReminderOpen,
   onCreateReminderOpenChange,
   createNoteOpen,
   onCreateNoteOpenChange,
+  createPostOpen,
+  onCreatePostOpenChange,
 }: ChatPageContentDialogsProps) {
   return (
     <>
@@ -102,6 +122,7 @@ export function ChatPageContentDialogs({
           onOpenChange={onCreatePollOpenChange}
           workspaceId={workspaceId}
           roomId={activeRoomId}
+          canPinToTop={canPinMessages}
         />
       ) : null}
       {activeRoomId ? (
@@ -121,6 +142,15 @@ export function ChatPageContentDialogs({
           canPinToTop={canPinMessages}
         />
       ) : null}
+      {activeRoomId ? (
+        <ChatCreatePostDialog
+          open={createPostOpen}
+          onOpenChange={onCreatePostOpenChange}
+          workspaceId={workspaceId}
+          roomId={activeRoomId}
+          canPinToTop={canPinMessages}
+        />
+      ) : null}
       {target.kind === "workspace" && workspaceRoomId ? (
         <WorkspaceSettingsSheet
           open={workspaceSettingsOpen}
@@ -131,6 +161,7 @@ export function ChatPageContentDialogs({
           workspaceMembers={workspaceMembers}
           currentUserId={currentUserId}
           youLabel={t("chat.you")}
+          onOpenSearch={() => onMessageSearchOpenChange(true)}
         />
       ) : null}
       {target.kind === "group" && activeGroup ? (
@@ -148,6 +179,7 @@ export function ChatPageContentDialogs({
             leaving={leavingConversation}
             leaveDisabled={!activeRoomId}
             onLeave={onLeaveGroup}
+            onOpenSearch={() => onMessageSearchOpenChange(true)}
           />
           <AddGroupMembersDialog
             open={addMembersOpen}
@@ -182,7 +214,46 @@ export function ChatPageContentDialogs({
           onUnblock={onUnblockContact}
           blocking={blockingContact}
           unblocking={unblockingContact}
+          onOpenSearch={() => onMessageSearchOpenChange(true)}
         />
+      ) : null}
+      {workHubEnabled && activeChannel ? (
+        <>
+          <ChannelSettingsSheet
+            open={channelSettingsOpen}
+            onOpenChange={onChannelSettingsOpenChange}
+            workspaceId={workspaceId}
+            channel={activeChannel}
+            currentUserId={currentUserId}
+            youLabel={t("chat.you")}
+            onArchived={() => setTarget({ kind: "workspace" })}
+            onAddMembers={
+              activeChannel.is_default ? undefined : () => onAddMembersOpenChange(true)
+            }
+            onLeave={activeChannel.is_default ? undefined : onLeaveChannel}
+            leaving={leavingConversation}
+            leaveDisabled={!activeRoomId}
+            onOpenSearch={() => onMessageSearchOpenChange(true)}
+          />
+          {!activeChannel.is_default ? (
+            <AddGroupMembersDialog
+              open={addMembersOpen}
+              onOpenChange={onAddMembersOpenChange}
+              workspaceId={workspaceId}
+              group={{
+                id: activeChannel.id,
+                name: activeChannel.name,
+                room_id: activeChannel.id,
+                member_user_ids: activeChannel.member_user_ids,
+              }}
+              currentUserId={currentUserId}
+              contacts={contacts}
+              inviting={invitingMembers}
+              onInvite={onAddGroupMembers}
+              variant="channel"
+            />
+          ) : null}
+        </>
       ) : null}
     </>
   );

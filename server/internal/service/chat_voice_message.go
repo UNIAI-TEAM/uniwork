@@ -213,7 +213,7 @@ func (s *ChatService) publishCreatedChatMessage(ctx context.Context, room db.Cha
 			"message_id": messageID,
 		},
 	}
-	if room.Kind == chatRoomKindWorkspace {
+	if isWorkspaceDefaultRoom(room) {
 		s.pub.Publish(ctx, anchorWS, ev)
 		return
 	}

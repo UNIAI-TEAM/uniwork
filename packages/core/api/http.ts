@@ -22,6 +22,12 @@ export class ApiError extends Error {
      * one string support needs to find the whole chain.
      */
     public correlationId?: string,
+    /**
+     * Machine-readable detail from ErrorSDO.fields (quota meters, duplicate
+     * task refs, …). Optional; absent when the server sent none or the body
+     * could not be parsed.
+     */
+    public fields?: Record<string, unknown>,
   ) {
     super(message);
     this.name = "ApiError";
@@ -45,6 +51,13 @@ export function errorCode(err: unknown): string | undefined {
  */
 export function correlationIdOf(err: unknown): string | undefined {
   return err instanceof ApiError ? err.correlationId : undefined;
+}
+
+/**
+ * Machine-readable ErrorSDO.fields from a failed API call, when present.
+ */
+export function errorFields(err: unknown): Record<string, unknown> | undefined {
+  return err instanceof ApiError ? err.fields : undefined;
 }
 
 /**
@@ -76,6 +89,10 @@ export interface RequestOpts {
    * Content-Type are still owned by the transport.
    */
   headers?: Record<string, string>;
+  /** Keep the request alive across page unload (presence offline, etc.). */
+  keepalive?: boolean;
+  /** Aborts the request, e.g. the `signal` TanStack hands a query function it may cancel. */
+  signal?: AbortSignal;
 }
 
 function baseUrl(): string {
@@ -128,7 +145,29 @@ async function rawFetch(path: string, opts: RequestOpts): Promise<Response> {
     headers,
     credentials: "include",
     body,
+    keepalive: opts.keepalive,
+    signal: opts.signal,
   });
+}
+
+async function throwFromFailedResponse(res: Response): Promise<never> {
+  let code = "internal";
+  let message = res.statusText;
+  let fields: Record<string, unknown> | undefined;
+  try {
+    const body = (await res.json()) as {
+      error?: { code: string; message: string; fields?: Record<string, unknown> };
+    };
+    if (body.error) {
+      ({ code, message } = body.error);
+      if (body.error.fields && typeof body.error.fields === "object" && !Array.isArray(body.error.fields)) {
+        fields = body.error.fields;
+      }
+    }
+  } catch {
+    /* body is not JSON */
+  }
+  throw new ApiError(message, code, res.status, res.headers.get(CORRELATION_HEADER) ?? undefined, fields);
 }
 
 /**
@@ -143,15 +182,7 @@ export async function request(path: string, opts: RequestOpts = {}): Promise<unk
     if (refreshed) res = await rawFetch(path, opts);
   }
   if (!res.ok) {
-    let code = "internal";
-    let message = res.statusText;
-    try {
-      const body = (await res.json()) as { error?: { code: string; message: string } };
-      if (body.error) ({ code, message } = body.error);
-    } catch {
-      /* body is not JSON */
-    }
-    throw new ApiError(message, code, res.status, res.headers.get(CORRELATION_HEADER) ?? undefined);
+    await throwFromFailedResponse(res);
   }
   if (res.status === 204) return undefined;
   return res.json();
@@ -177,24 +208,20 @@ export async function requestText(path: string): Promise<string> {
  * Fetch an authenticated binary response. Native media elements cannot attach
  * the bearer token, so callers create a short-lived object URL from this blob.
  */
-export async function requestBlob(path: string): Promise<Blob> {
-  let res = await rawFetch(path, {});
+export async function requestBlob(path: string, opts: Pick<RequestOpts, "signal"> = {}): Promise<Blob> {
+  let res = await rawFetch(path, opts);
   if (res.status === 401 && getAccessToken()) {
     const refreshed = await refreshSession();
-    if (refreshed) res = await rawFetch(path, {});
+    if (refreshed) res = await rawFetch(path, opts);
   }
   if (!res.ok) {
-    let code = "internal";
-    let message = res.statusText;
-    try {
-      const body = (await res.json()) as { error?: { code: string; message: string } };
-      if (body.error) ({ code, message } = body.error);
-    } catch {
-      /* body is not JSON */
-    }
-    throw new ApiError(message, code, res.status, res.headers.get(CORRELATION_HEADER) ?? undefined);
+    await throwFromFailedResponse(res);
   }
-  return res.blob();
+  // Prefer arrayBuffer → Blob: jsdom's Response.blob() yields a Blob without
+  // readable bytes / .text(), which breaks authenticated media object URLs in tests.
+  const type = res.headers.get("Content-Type") ?? "";
+  const buffer = await res.arrayBuffer();
+  return new Blob([buffer], { type });
 }
 
 // Refresh tokens rotate: two refreshes racing (StrictMode double mount,
@@ -209,15 +236,24 @@ let refreshInFlight: Promise<SessionResponse | null> | null = null;
  */
 export function refreshSession(): Promise<SessionResponse | null> {
   refreshInFlight ??= (async () => {
+    const tokenBefore = getAccessToken();
     try {
       const raw = await request("/api/v1/auth/refresh", { method: "POST", skipRefresh: true });
       const sess = parseWithFallback<SessionResponse | null>(raw, SessionResponseSchema, null, {
         endpoint: "POST /api/v1/auth/refresh",
       });
+      // Login/register may set a newer token while this refresh was in flight.
+      const tokenNow = getAccessToken();
+      if (tokenNow !== null && tokenNow !== tokenBefore) {
+        return sess;
+      }
       setAccessToken(sess?.access_token ?? null);
       return sess;
     } catch {
-      setAccessToken(null);
+      // Do not wipe a token that arrived (e.g. login) after this call started.
+      if (getAccessToken() === tokenBefore) {
+        setAccessToken(null);
+      }
       return null;
     } finally {
       refreshInFlight = null;

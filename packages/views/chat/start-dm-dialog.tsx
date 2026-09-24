@@ -1,25 +1,23 @@
 "use client";
 
+import { MessageCircle } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
-import { Button } from "@uniwork/ui/components/ui/button";
+import { Dialog } from "@uniwork/ui/components/ui/dialog";
+import { FormDialogBody, FormDialogContent, FormDialogHeader } from "../common/form-dialog";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@uniwork/ui/components/ui/dialog";
-import {
-  ExternalMemberLookupRow,
+  WorkspaceMemberLookupResult,
   WorkspaceMemberPickerList,
   WorkspaceMemberSearchField,
   useWorkspaceMemberPicker,
 } from "./workspace-member-picker";
 import { memberToChatContact } from "./workspace-member-picker-utils";
 
+/*
+ * Picking a person is the action: a row click opens the conversation, so the
+ * dialog has no Cancel/primary footer — the close button and Esc dismiss it.
+ */
 export function StartDmDialog({
   open,
   onOpenChange,
@@ -39,7 +37,7 @@ export function StartDmDialog({
   const [query, setQuery] = useState("");
   const [searchSubmitted, setSearchSubmitted] = useState(false);
 
-  const { filteredMembers, isLoading, lookup, lookupEnabled, workspaceEmailMatch } =
+  const { filteredMembers, hasOtherMembers, isLoading, lookup, lookupEnabled, workspaceEmailMatch } =
     useWorkspaceMemberPicker({
       workspaceId,
       currentUserId,
@@ -66,73 +64,51 @@ export function StartDmDialog({
 
   const submitSearch = () => {
     setSearchSubmitted(true);
-    const emailMatch = workspaceEmailMatch;
-    if (emailMatch) {
-      pickContact(memberToChatContact(emailMatch));
+    if (workspaceEmailMatch) {
+      pickContact(memberToChatContact(workspaceEmailMatch));
     }
   };
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md" showCloseButton>
-        <DialogHeader className="space-y-1 border-b border-border bg-muted/20 px-5 py-4">
-          <DialogTitle>{t("chat.start_dm_title")}</DialogTitle>
-          <DialogDescription>{t("chat.start_dm_description")}</DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4 px-5 py-4">
+      <FormDialogContent size="md">
+        <FormDialogHeader title={t("chat.start_dm_title")} description={t("chat.start_dm_description")} />
+        <FormDialogBody>
           <WorkspaceMemberSearchField
             id="start-dm-search"
-            label={t("chat.search_member_or_email")}
+            label={t("chat.member_search_label")}
             query={query}
             onQueryChange={(value) => {
               setQuery(value);
               setSearchSubmitted(false);
             }}
             onSubmit={submitSearch}
-            placeholder={t("chat.search_member_or_email")}
+            placeholder={t("chat.member_search_placeholder")}
+            hint={t("chat.search_member_or_email_hint")}
           />
-          <p className="text-caption text-muted-foreground">{t("chat.search_member_or_email_hint")}</p>
 
-          <div className="space-y-2">
-            <p className="text-label font-medium text-foreground">{t("chat.workspace_members")}</p>
-            <WorkspaceMemberPickerList
-              members={filteredMembers}
-              loading={isLoading}
-              emptyLabel={t("chat.workspace_members_empty")}
-              onPick={pickContact}
-            />
-          </div>
+          <WorkspaceMemberLookupResult
+            enabled={lookupEnabled}
+            lookup={lookup}
+            onPick={pickContact}
+            actionLabel={t("chat.start_dm")}
+          />
 
-          {lookupEnabled && lookup.isFetching ? (
-            <p className="text-caption text-muted-foreground">{t("chat.searching")}</p>
-          ) : null}
-
-          {lookupEnabled && !lookup.isFetching && lookup.isFetched && !lookup.data ? (
-            <p className="text-caption text-muted-foreground">{t("chat.user_not_found")}</p>
-          ) : null}
-
-          {lookupEnabled && lookup.data ? (
-            <ExternalMemberLookupRow
-              lookup={lookup.data}
-              onPick={pickContact}
-              actionLabel={t("chat.start_dm")}
-              hint={t("chat.external_member_found")}
-            />
-          ) : null}
-        </div>
-
-        <DialogFooter className="border-t border-border bg-muted/10 px-5 py-4">
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full rounded-full sm:w-auto"
-            onClick={() => handleOpenChange(false)}
-          >
-            {t("chat.cancel_group")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+          <WorkspaceMemberPickerList
+            members={filteredMembers}
+            loading={isLoading}
+            query={query}
+            hasOtherMembers={hasOtherMembers}
+            actionIcon={
+              <MessageCircle
+                className="size-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground"
+                aria-hidden
+              />
+            }
+            onPick={pickContact}
+          />
+        </FormDialogBody>
+      </FormDialogContent>
     </Dialog>
   );
 }

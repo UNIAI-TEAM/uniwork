@@ -79,7 +79,7 @@ func (s *ChatService) UpdateChatRoomMember(
 		return err
 	}
 	targetWS := db.WorkspaceMember{WorkspaceID: workspaceID, UserID: targetUserID}
-	if room.Kind == chatRoomKindWorkspace {
+	if isWorkspaceDefaultRoom(room) {
 		targetWS, err = s.ws.RequireMember(ctx, workspaceID, targetUserID)
 		if err != nil {
 			return ErrNotFound
@@ -126,7 +126,7 @@ func (s *ChatService) UpdateChatRoomMember(
 	return nil
 }
 
-// RemoveChatRoomMember kicks a member from a group or removes them from the workspace room.
+// RemoveChatRoomMember kicks a member from a group/channel or removes them from the default workspace room.
 func (s *ChatService) RemoveChatRoomMember(
 	ctx context.Context, actorID, workspaceID, roomID, targetUserID string,
 ) error {
@@ -137,6 +137,11 @@ func (s *ChatService) RemoveChatRoomMember(
 	switch room.Kind {
 	case chatRoomKindWorkspace:
 		return s.RemoveWorkspaceRoomMember(ctx, actorID, workspaceID, roomID, targetUserID)
+	case chatRoomKindChannel:
+		if room.IsDefault {
+			return s.RemoveWorkspaceRoomMember(ctx, actorID, workspaceID, roomID, targetUserID)
+		}
+		return s.removeGroupRoomMember(ctx, actorID, workspaceID, room, targetUserID)
 	case chatRoomKindGroup:
 		return s.removeGroupRoomMember(ctx, actorID, workspaceID, room, targetUserID)
 	default:
@@ -207,10 +212,13 @@ func canModerateChatRoom(
 	if actorMember.Role == "admin" {
 		return true
 	}
-	if room.Kind == chatRoomKindWorkspace && adminLikeRole(wsMember.Role) {
+	if isWorkspaceDefaultRoom(room) && adminLikeRole(wsMember.Role) {
 		return true
 	}
 	if room.Kind == chatRoomKindGroup && room.CreatedBy == actorID {
+		return true
+	}
+	if room.Kind == chatRoomKindChannel && !room.IsDefault && room.CreatedBy == actorID {
 		return true
 	}
 	return false
@@ -239,7 +247,7 @@ func canRestrictChatTarget(room db.ChatRoom, target db.GetActiveChatRoomMemberRo
 	if room.Kind == chatRoomKindGroup && target.UserID == room.CreatedBy {
 		return false
 	}
-	if room.Kind == chatRoomKindWorkspace && targetWS.Role == "owner" {
+	if isWorkspaceDefaultRoom(room) && targetWS.Role == "owner" {
 		return false
 	}
 	return true

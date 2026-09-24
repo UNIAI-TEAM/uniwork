@@ -1,46 +1,9 @@
 package handler
 
 import (
-	"encoding/json"
 	"net/http"
 	"testing"
 )
-
-func TestSuiteCollaborationRoutes404WhenFlagOff(t *testing.T) {
-	srv := newTestServer(t)
-	res, out := doJSON(t, srv, "POST", "/api/v1/auth/register", "", map[string]string{
-		"email": "collab-flag@example.com", "password": "password123", "display_name": "Collab",
-	})
-	if res.StatusCode != 200 {
-		t.Fatalf("register: %d %v", res.StatusCode, out)
-	}
-	token := out["access_token"].(string)
-	verifyEmail(t, srv, token)
-
-	const fakeTask = "01J8X4TASKN1P2Q3R4S5T6U7"
-	const fakeComment = "01J8X4CMTN1P2Q3R4S5T6U7V"
-	paths := []struct {
-		method, path string
-		body         any
-	}{
-		{http.MethodGet, "/api/v1/tasks/" + fakeTask + "/subscribers", nil},
-		{http.MethodPost, "/api/v1/tasks/" + fakeTask + "/subscribe", map[string]any{}},
-		{http.MethodPost, "/api/v1/comments/" + fakeComment + "/resolve", nil},
-		{http.MethodGet, "/api/v1/tasks/" + fakeTask + "/timeline", nil},
-		{http.MethodGet, "/api/v1/tasks/" + fakeTask + "/attachments", nil},
-	}
-	for _, p := range paths {
-		res, body := doJSON(t, srv, p.method, p.path, token, p.body)
-		if res.StatusCode != http.StatusNotFound {
-			t.Fatalf("%s %s status = %d, want 404; body=%v", p.method, p.path, res.StatusCode, body)
-		}
-		errObj, _ := body["error"].(map[string]any)
-		if errObj["code"] != "feature_disabled" {
-			raw, _ := json.Marshal(body)
-			t.Fatalf("%s %s body = %s, want feature_disabled", p.method, p.path, raw)
-		}
-	}
-}
 
 func TestCollaborationHTTPRoundTrip(t *testing.T) {
 	srv, token, wsID, _ := suiteMutationWorld(t)
@@ -120,6 +83,22 @@ func TestCollaborationHTTPRoundTrip(t *testing.T) {
 		t.Fatalf("reaction: %d %v", res.StatusCode, body)
 	}
 
+	res, body = doJSON(t, srv, "POST", "/api/v1/tasks/"+taskID+"/reactions", token, map[string]any{
+		"emoji": "❤️",
+	})
+	if res.StatusCode != 200 {
+		t.Fatalf("task reaction: %d %v", res.StatusCode, body)
+	}
+	res, body = doJSON(t, srv, "GET", "/api/v1/tasks/"+taskID, token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("get task with reactions: %d %v", res.StatusCode, body)
+	}
+	task, _ := body["task"].(map[string]any)
+	reactions, _ := task["reactions"].([]any)
+	if len(reactions) != 1 {
+		t.Fatalf("task reactions = %v", task["reactions"])
+	}
+
 	res, body = doJSON(t, srv, "POST", "/api/v1/tasks/"+taskID+"/subscribe", token, map[string]any{})
 	if res.StatusCode != 200 {
 		t.Fatalf("subscribe: %d %v", res.StatusCode, body)
@@ -133,30 +112,27 @@ func TestCollaborationHTTPRoundTrip(t *testing.T) {
 		t.Fatalf("subscribers = %v", body)
 	}
 
-	res, body = doJSON(t, srv, "GET", "/api/v1/tasks/"+taskID+"/timeline", token, nil)
-	if res.StatusCode != 422 {
-		t.Fatalf("timeline stub status = %d %v", res.StatusCode, body)
-	}
-	errObj, _ := body["error"].(map[string]any)
-	if errObj["code"] != "capability_unavailable" {
-		t.Fatalf("timeline code = %v", body)
-	}
-
 	res, body = doJSON(t, srv, "GET", "/api/v1/tasks/"+taskID+"/attachments", token, nil)
-	if res.StatusCode != 422 {
-		t.Fatalf("attachments stub status = %d %v", res.StatusCode, body)
+	if res.StatusCode != 200 {
+		t.Fatalf("attachments list status = %d %v", res.StatusCode, body)
 	}
-	errObj, _ = body["error"].(map[string]any)
-	if errObj["code"] != "capability_unavailable" {
-		t.Fatalf("attachments code = %v", body)
+	atts, _ := body["attachments"].([]any)
+	if len(atts) != 0 {
+		t.Fatalf("attachments list = %v", body)
 	}
 
 	const fakeAttachment = "01J8X4ATTN1P2Q3R4S5T6U7V8"
+	res, body = doJSON(t, srv, http.MethodGet, "/api/v1/attachments/"+fakeAttachment, token, nil)
+	if res.StatusCode != 404 {
+		t.Fatalf("get missing attachment status = %d %v", res.StatusCode, body)
+	}
+	res, body = doJSON(t, srv, http.MethodDelete, "/api/v1/attachments/"+fakeAttachment, token, nil)
+	if res.StatusCode != 404 {
+		t.Fatalf("delete missing attachment status = %d %v", res.StatusCode, body)
+	}
 	for _, p := range []struct {
 		method, path string
 	}{
-		{http.MethodGet, "/api/v1/attachments/" + fakeAttachment},
-		{http.MethodDelete, "/api/v1/attachments/" + fakeAttachment},
 		{http.MethodGet, "/api/v1/comments/" + parentID + "/sub-task-preview"},
 		{http.MethodPost, "/api/v1/comments/" + parentID + "/sub-tasks"},
 		{http.MethodPost, "/api/v1/tasks/" + taskID + "/comments/trigger-preview"},
@@ -165,9 +141,101 @@ func TestCollaborationHTTPRoundTrip(t *testing.T) {
 		if res.StatusCode != 422 {
 			t.Fatalf("%s %s status = %d %v", p.method, p.path, res.StatusCode, body)
 		}
-		errObj, _ = body["error"].(map[string]any)
+		errObj, _ := body["error"].(map[string]any)
 		if errObj["code"] != "capability_unavailable" {
 			t.Fatalf("%s %s code = %v", p.method, p.path, body)
 		}
+	}
+}
+
+func TestListCommentsEmbedsReactions(t *testing.T) {
+	srv, token, wsID, _ := suiteMutationWorld(t)
+
+	res, body := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/tasks", token, map[string]any{
+		"title": "Reaction HTTP",
+	})
+	if res.StatusCode != 200 && res.StatusCode != 201 {
+		t.Fatalf("create task: %d %v", res.StatusCode, body)
+	}
+	taskID, _ := body["task"].(map[string]any)["id"].(string)
+
+	res, body = doJSON(t, srv, "POST", "/api/v1/tasks/"+taskID+"/comments", token, map[string]any{
+		"body": "một",
+	})
+	if res.StatusCode != 200 {
+		t.Fatalf("create comment: %d %v", res.StatusCode, body)
+	}
+	commentID, _ := body["comment"].(map[string]any)["id"].(string)
+
+	res, body = doJSON(t, srv, "POST", "/api/v1/comments/"+commentID+"/reactions", token, map[string]any{
+		"emoji": "👍",
+	})
+	if res.StatusCode != 200 {
+		t.Fatalf("add reaction: %d %v", res.StatusCode, body)
+	}
+
+	res, body = doJSON(t, srv, "GET", "/api/v1/tasks/"+taskID+"/comments", token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("list comments: %d %v", res.StatusCode, body)
+	}
+	comments, _ := body["comments"].([]any)
+	if len(comments) != 1 {
+		t.Fatalf("comments = %v", body)
+	}
+	first, _ := comments[0].(map[string]any)
+	reactions, ok := first["reactions"].([]any)
+	if !ok {
+		t.Fatalf("reactions thiếu hoặc null: %v", first)
+	}
+	if len(reactions) != 1 {
+		t.Fatalf("reactions = %v, want 1", reactions)
+	}
+	if reactions[0].(map[string]any)["emoji"] != "👍" {
+		t.Fatalf("emoji = %v", reactions[0])
+	}
+}
+
+func TestListCommentsWithoutReactionsReturnsEmptyArrayNotNull(t *testing.T) {
+	srv, token, wsID, _ := suiteMutationWorld(t)
+
+	_, body := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/tasks", token, map[string]any{
+		"title": "No reaction",
+	})
+	taskID, _ := body["task"].(map[string]any)["id"].(string)
+	doJSON(t, srv, "POST", "/api/v1/tasks/"+taskID+"/comments", token, map[string]any{"body": "một"})
+
+	_, body = doJSON(t, srv, "GET", "/api/v1/tasks/"+taskID+"/comments", token, nil)
+	comments, _ := body["comments"].([]any)
+	first, _ := comments[0].(map[string]any)
+	reactions, ok := first["reactions"].([]any)
+	if !ok {
+		t.Fatalf("reactions phải là mảng rỗng, không phải null: %v", first)
+	}
+	if len(reactions) != 0 {
+		t.Fatalf("reactions = %v, want rỗng", reactions)
+	}
+}
+
+func TestCreateCommentReactionsIsEmptyArrayNotNull(t *testing.T) {
+	srv, token, wsID, _ := suiteMutationWorld(t)
+
+	_, body := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/tasks", token, map[string]any{
+		"title": "Create path reactions",
+	})
+	taskID, _ := body["task"].(map[string]any)["id"].(string)
+
+	res, body := doJSON(t, srv, "POST", "/api/v1/tasks/"+taskID+"/comments", token, map[string]any{
+		"body": "một",
+	})
+	if res.StatusCode != 200 {
+		t.Fatalf("create comment: %d %v", res.StatusCode, body)
+	}
+	comment, _ := body["comment"].(map[string]any)
+	reactions, ok := comment["reactions"].([]any)
+	if !ok {
+		t.Fatalf("reactions phải là mảng rỗng, không phải null: %v", comment)
+	}
+	if len(reactions) != 0 {
+		t.Fatalf("reactions = %v, want rỗng", reactions)
 	}
 }

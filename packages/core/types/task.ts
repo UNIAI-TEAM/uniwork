@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ActorSchema } from "./actor";
+import { CommentReactionSchema, TaskReactionSchema } from "./task-collaboration";
 
 // The closed vocabularies the UI reasons about. Used to type requests and
 // UI state; response schemas below deliberately do NOT use them.
@@ -18,7 +19,7 @@ export type TaskStatus = (typeof TASK_STATUSES)[number];
 export type TaskStatusCategory = TaskStatus;
 export const TaskStatusSchema = z.enum(TASK_STATUSES);
 
-export const TASK_PRIORITIES = ["low", "medium", "high", "urgent"] as const;
+export const TASK_PRIORITIES = ["none", "low", "medium", "high", "urgent"] as const;
 export type TaskPriority = (typeof TASK_PRIORITIES)[number];
 export const TaskPrioritySchema = z.enum(TASK_PRIORITIES);
 
@@ -55,19 +56,33 @@ export const TaskSchema = z.object({
   assignee: ActorSchema.optional(),
   due_date: z.string().optional(),
   start_date: z.string().optional(),
+  start_at: z.string().optional(),
+  due_at: z.string().optional(),
   project_id: z.string().nullable().optional(),
   parent_task_id: z.string().nullable().optional(),
+  stage: z.number().nullable().optional(),
+  properties: z.record(z.string(), z.unknown()).optional().default({}),
   position: z.number(),
   kind: z.string().optional().default("normal"),
   created_by: z.string(),
   created_by_kind: z.string().optional().default("human"),
   created_at: z.string(),
   updated_at: z.string(),
+  reactions: z
+    .array(TaskReactionSchema)
+    .catch([])
+    .nullish()
+    .transform((v) => v ?? []),
 });
-export type Task = Omit<z.infer<typeof TaskSchema>, "status" | "priority" | "kind"> & {
+export type Task = Omit<
+  z.infer<typeof TaskSchema>,
+  "status" | "priority" | "kind" | "properties" | "reactions"
+> & {
   status: TaskStatus;
   priority: TaskPriority;
   kind: TaskKind;
+  properties?: Record<string, unknown>;
+  reactions?: z.infer<typeof TaskReactionSchema>[];
 };
 
 // Comments come straight off the sqlc row (snake_case); only the fields the
@@ -85,6 +100,14 @@ export const TaskCommentSchema = z.object({
   resolved_at: z.string().optional(),
   display_name: z.string().optional(),
   avatar_url: z.string().optional(),
+  // A malformed reaction row costs the reactions, never the comment: the list
+  // endpoint parses with a `{ comments: [] }` fallback, so a strict nested
+  // schema would throw the whole thread away over one bad row.
+  reactions: z
+    .array(CommentReactionSchema)
+    .catch([])
+    .nullish()
+    .transform((v) => v ?? []),
   created_at: z.string().optional(),
   updated_at: z.string().optional(),
 });

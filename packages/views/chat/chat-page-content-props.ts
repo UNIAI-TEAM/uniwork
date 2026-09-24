@@ -1,11 +1,13 @@
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
+import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
 import type { Member } from "@uniwork/core/types/workspace";
 import type { ChatSidebarTarget } from "./chat-sidebar";
 import type { ChatRoomPreview } from "./chat-sidebar-preview";
 import type { ChatNameContextEntry, GroupMemberProfile } from "./chat-page-utils";
 import type { ChatMessage } from "./chat-messages";
+import type { ChatMentionCandidate } from "./chat-mention-utils";
 
 export type ChatPageContentProps = {
   target: ChatSidebarTarget;
@@ -14,8 +16,11 @@ export type ChatPageContentProps = {
   headerTitle: string;
   contacts: ChatContact[];
   groups: GroupChat[];
+  channels: ChatRoomRecord[];
+  workHubEnabled: boolean;
   activeContact: ChatContact | null;
   activeGroup: GroupChat | null;
+  activeChannel: ChatRoomRecord | null;
   workspaceId: string;
   messageRefreshKey?: number;
   activeRoomId: string | null;
@@ -29,17 +34,22 @@ export type ChatPageContentProps = {
   mentionUnreadByRoomId: Record<string, number>;
   roomPreviewsByRoomId: Record<string, ChatRoomPreview>;
   unreadBadgesReady: boolean;
+  /** The workspace room's display name ("Chung" until renamed). */
+  workspaceRoomTitle: string;
   nicknamesByUserId: Record<string, string>;
   nameContext: ChatNameContextEntry[];
   replyTo: ChatMessage | null;
   onReplyToChange: React.Dispatch<React.SetStateAction<ChatMessage | null>>;
-  draft: string;
-  onDraftChange: React.Dispatch<React.SetStateAction<string>>;
+  activeThreadRootId?: string | null;
+  onActiveThreadRootIdChange?: (threadRootId: string | null) => void;
+  /** Which conversation's draft the composer edits (chat composer draft store). */
+  composerDraftKey: string;
   composerPriority: ComposerMessagePriority | null;
   onComposerPriorityChange: React.Dispatch<React.SetStateAction<ComposerMessagePriority | null>>;
   onSend: () => void;
   onSendMedia: (body: string) => void | Promise<void>;
   onSendVoice: (recording: { blob: Blob; durationMs: number }) => Promise<void>;
+  onSendFile: (file: File) => Promise<void>;
   groupSettingsOpen: boolean;
   onGroupSettingsOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
   dmSettingsOpen: boolean;
@@ -55,6 +65,8 @@ export type ChatPageContentProps = {
   onAddMembersOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
   createGroupOpen: boolean;
   onCreateGroupOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
+  channelSettingsOpen: boolean;
+  onChannelSettingsOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
   creatingGroup: boolean;
   onCreateGroup: (members: ChatContact[], name: string) => void;
   invitingMembers: boolean;
@@ -62,7 +74,10 @@ export type ChatPageContentProps = {
   leavingConversation: boolean;
   onLeaveGroup: () => void;
   onLeaveDm: () => void;
+  onLeaveChannel: () => void;
   groupMemberProfiles: Record<string, GroupMemberProfile>;
+  /** Built once in the page view and shared by the composer and the send path. */
+  mentionCandidates: ChatMentionCandidate[];
   typingLabel: string | null;
   onVoiceCall: () => void;
   voiceCallDisabled: boolean;
@@ -80,5 +95,6 @@ export type ChatPageContentProps = {
   canPinMessages: boolean;
   canCreatePolls: boolean;
   canCreateNotes: boolean;
+  peerLastReadAt?: string | null;
   t: (key: string, options?: Record<string, string | number>) => string;
 };

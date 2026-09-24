@@ -94,8 +94,9 @@ Routes registered through `apiOp` + SDI/SDO. New path params:
 
 ## 13. Local LiveKit
 
-`docker-compose.livekit.yml` + `livekit.dev.yaml`. Env knobs in `.env.example`.
-Production sample: `livekit.production.yaml.example`.
+`docker-compose.livekit.yml` + `livekit.dev.yaml`. `make start` / `make dev`
+runs `scripts/ensure-livekit.sh` and streams container logs. Env knobs in
+`.env.example`. Production sample: `livekit.production.yaml.example`.
 
 ## 14. Tests
 

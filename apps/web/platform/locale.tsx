@@ -1,47 +1,29 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { I18nextProvider } from "react-i18next";
 import { api } from "@uniwork/core";
 import { useAuthStore } from "@uniwork/core/auth";
-import {
-  bundledDictionary,
-  createBrowserCookieLocaleAdapter,
-  initI18n,
-  syncI18nResources,
-  type SupportedLocale,
-} from "@uniwork/core/i18n";
-import { createI18n, LocaleAdapterProvider } from "@uniwork/core/i18n/react";
+import { createBrowserCookieLocaleAdapter, type SupportedLocale } from "@uniwork/core/i18n";
+import { syncRequestLocale } from "@uniwork/core/i18n/sync-request-locale";
+import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
 
 /**
- * Cookie-backed locale adapter for the web host, plus the i18next instance the
- * tree renders from.
+ * Cookie-backed locale adapter for the web host. `initialLocale` comes from
+ * the server (resolveRequestLocale) and is applied during render on both
+ * sides, so server HTML and the first client render agree; switching later
+ * (the settings page) goes through the adapter and i18n.changeLanguage.
  *
- * Two different instances on purpose, and the difference is the whole point of
- * this file. The browser has one visitor and keeps the shared instance, so the
- * language menus can switch it and every subscriber re-renders. The server has
- * every visitor at once and gets a fresh instance per render: i18next is a
- * module singleton, `changeLanguage` is async, and the earlier arrangement
- * fired it without awaiting during render. The switch landed after that render
- * and applied to the NEXT one, so each request was served the previous
- * visitor's language while `<html lang>` said otherwise — Vietnamese copy under
- * `lang="en"`, which is a WCAG 3.1.1 failure as well as a wrong page. Six
- * alternating requests reproduced it every time.
- *
- * Both branches render the same locale from the same dictionary, so the markup
- * is identical and hydration has nothing to reconcile.
+ * `initialDictionary` is the English resource bag when the request locale is
+ * `en` — loaded only on the server so `en.json` stays out of the shared
+ * client chunk (see sync-request-locale.ts).
  */
 export function WebLocaleProvider({
   initialLocale,
-  initialMessages,
+  initialDictionary,
   children,
 }: {
   initialLocale: SupportedLocale;
-  /**
-   * The dictionary for a locale that is not in the JS bundle, read on the
-   * server. Null when the bundle already carries it — see `loadDictionary`.
-   */
-  initialMessages: Record<string, unknown> | null;
+  initialDictionary?: object;
   children: ReactNode;
 }) {
   const [adapter] = useState(() => {
@@ -56,31 +38,14 @@ export function WebLocaleProvider({
       },
     };
   });
-
-  const [instance] = useState(() => {
-    const dictionary = bundledDictionary(initialLocale) ?? initialMessages;
-    return typeof window === "undefined"
-      ? createI18n(initialLocale, dictionary ? { [initialLocale]: { translation: dictionary } } : {})
-      : initI18n(initialLocale, initialMessages);
+  const [applied] = useState(() => {
+    syncRequestLocale(initialLocale, initialDictionary);
+    return initialLocale;
   });
-  const fallbackMessages = bundledDictionary("vi");
 
   useEffect(() => {
-    document.documentElement.lang = initialLocale;
-  }, [initialLocale]);
+    document.documentElement.lang = applied;
+  }, [applied]);
 
-  useEffect(() => {
-    // Fast Refresh preserves the singleton and useState. Refresh its resources
-    // as well as server copy without resetting the user's selected language.
-    syncI18nResources(instance, {
-      vi: fallbackMessages,
-      ...(initialMessages ? { [initialLocale]: initialMessages } : {}),
-    });
-  }, [instance, initialLocale, initialMessages, fallbackMessages]);
-
-  return (
-    <I18nextProvider i18n={instance}>
-      <LocaleAdapterProvider adapter={adapter}>{children}</LocaleAdapterProvider>
-    </I18nextProvider>
-  );
+  return <LocaleAdapterProvider adapter={adapter}>{children}</LocaleAdapterProvider>;
 }

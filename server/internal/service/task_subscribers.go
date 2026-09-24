@@ -8,23 +8,22 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-func (s *TaskService) resolveSubscriberTarget(ctx context.Context, actor Actor, task db.Task, in SubscribeTaskInput) (actorType, actorID string, err error) {
+func resolveSubscriberTarget(actor Actor, in SubscribeTaskInput) (actorType, actorID string, err error) {
 	actorType = "member"
-	actorID = actor.ID
-	if strings.TrimSpace(in.UserID) != "" {
-		actorID = strings.TrimSpace(in.UserID)
-		if strings.TrimSpace(in.UserType) == "agent" {
-			actorType = "agent"
-			if _, err := s.ws.RequireAgentMember(ctx, task.WorkspaceID, actorID); err != nil {
-				return "", "", err
-			}
-		} else {
-			if _, err := s.ws.RequireMember(ctx, task.WorkspaceID, actorID); err != nil {
-				return "", "", err
-			}
-		}
-	} else if actor.Kind == audit.KindAgent {
+	if actor.Kind == audit.KindAgent {
 		actorType = "agent"
+	}
+	actorID = actor.ID
+	requestedID := strings.TrimSpace(in.UserID)
+	if requestedID == "" {
+		return actorType, actorID, nil
+	}
+	requestedType := strings.TrimSpace(in.UserType)
+	if requestedType == "" {
+		requestedType = actorType
+	}
+	if requestedID != actorID || requestedType != actorType {
+		return "", "", ErrForbidden
 	}
 	return actorType, actorID, nil
 }
@@ -40,26 +39,40 @@ func (s *TaskService) ListTaskSubscribers(ctx context.Context, actor Actor, task
 	})
 }
 
+// autoSubscribeTaskAssignee follows the task for its current direct assignee.
+// Automatic rules never revive an explicit opt-out; only SubscribeTask may do
+// that. The caller owns q's transaction so assignment and subscription commit
+// together.
+func autoSubscribeTaskAssignee(ctx context.Context, q *db.Queries, task db.Task) (bool, error) {
+	if !task.AssigneeID.Valid || !task.AssigneeType.Valid {
+		return false, nil
+	}
+	n, err := q.AutoSubscribeTaskActor(ctx, db.AutoSubscribeTaskActorParams{
+		OrganizationID: task.OrganizationID,
+		WorkspaceID:    task.WorkspaceID,
+		TaskID:         task.ID,
+		ActorType:      task.AssigneeType.String,
+		ActorID:        task.AssigneeID.String,
+		Reason:         "assignee",
+	})
+	return n > 0, err
+}
+
+func taskSubscriptionEvent(task db.Task) audit.Event {
+	return audit.Event{Topic: "task.subscribed", Payload: map[string]string{
+		"task_id": task.ID, "workspace_id": task.WorkspaceID,
+	}}
+}
+
 // SubscribeTask adds a manual subscriber.
 func (s *TaskService) SubscribeTask(ctx context.Context, actor Actor, taskID string, in SubscribeTaskInput) error {
 	task, err := s.authorizeActor(ctx, actor, taskID)
 	if err != nil {
 		return err
 	}
-	actorType, actorID, err := s.resolveSubscriberTarget(ctx, actor, task, in)
+	actorType, actorID, err := resolveSubscriberTarget(actor, in)
 	if err != nil {
 		return err
-	}
-	existing, err := s.q.ListTaskSubscribers(ctx, db.ListTaskSubscribersParams{
-		TaskID: taskID, OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
-	})
-	if err != nil {
-		return err
-	}
-	for _, sub := range existing {
-		if sub.ActorType == actorType && sub.ActorID == actorID && sub.Reason == "manual" {
-			return nil // already subscribed — skip audit/outbox
-		}
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -67,11 +80,15 @@ func (s *TaskService) SubscribeTask(ctx context.Context, actor Actor, taskID str
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	if _, err := q.UpsertTaskSubscriber(ctx, db.UpsertTaskSubscriberParams{
+	n, err := q.SubscribeToTaskExplicitly(ctx, db.SubscribeToTaskExplicitlyParams{
 		OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID, TaskID: taskID,
 		ActorType: actorType, ActorID: actorID, Reason: "manual",
-	}); err != nil {
+	})
+	if err != nil {
 		return err
+	}
+	if n == 0 {
+		return tx.Commit(ctx)
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
@@ -92,7 +109,7 @@ func (s *TaskService) UnsubscribeTask(ctx context.Context, actor Actor, taskID s
 	if err != nil {
 		return err
 	}
-	actorType, actorID, err := s.resolveSubscriberTarget(ctx, actor, task, in)
+	actorType, actorID, err := resolveSubscriberTarget(actor, in)
 	if err != nil {
 		return err
 	}
@@ -101,16 +118,16 @@ func (s *TaskService) UnsubscribeTask(ctx context.Context, actor Actor, taskID s
 		return err
 	}
 	defer tx.Rollback(ctx)
-	if err := s.unsubscribeOneTx(ctx, s.q.WithTx(tx), actor, task, taskID, actorType, actorID); err != nil {
+	if err := s.unsubscribeOneTx(ctx, s.q.WithTx(tx), actor, task, taskID, actorType, actorID, "task"); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
 }
 
-func (s *TaskService) unsubscribeOneTx(ctx context.Context, q *db.Queries, actor Actor, task db.Task, taskID, actorType, actorID string) error {
-	n, err := q.DeleteTaskSubscriber(ctx, db.DeleteTaskSubscriberParams{
+func (s *TaskService) unsubscribeOneTx(ctx context.Context, q *db.Queries, actor Actor, task db.Task, taskID, actorType, actorID, scope string) error {
+	n, err := q.OptOutTaskSubscriber(ctx, db.OptOutTaskSubscriberParams{
 		TaskID: taskID, OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
-		ActorType: actorType, ActorID: actorID,
+		ActorType: actorType, ActorID: actorID, OptOutScope: optText(&scope),
 	})
 	if err != nil {
 		return err
@@ -134,7 +151,7 @@ func (s *TaskService) UnsubscribeTaskSubtree(ctx context.Context, actor Actor, t
 	if err != nil {
 		return err
 	}
-	actorType, actorID, err := s.resolveSubscriberTarget(ctx, actor, task, in)
+	actorType, actorID, err := resolveSubscriberTarget(actor, in)
 	if err != nil {
 		return err
 	}
@@ -151,43 +168,11 @@ func (s *TaskService) UnsubscribeTaskSubtree(ctx context.Context, actor Actor, t
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 	for _, id := range ids {
-		if err := s.unsubscribeOneTx(ctx, q, actor, task, id, actorType, actorID); err != nil {
+		if err := s.unsubscribeOneTx(ctx, q, actor, task, id, actorType, actorID, "subtree"); err != nil {
 			return err
 		}
 	}
 	return tx.Commit(ctx)
-}
-
-// ListTaskAttachments is stubbed until object storage is wired.
-func (s *TaskService) ListTaskAttachments(ctx context.Context, actor Actor, taskID string) error {
-	if _, err := s.authorizeActor(ctx, actor, taskID); err != nil {
-		return err
-	}
-	return collaborationUnavailable("attachment_storage_missing", "đính kèm chưa khả dụng")
-}
-
-// GetAttachment is stubbed until object storage is wired.
-func (s *TaskService) GetAttachment(ctx context.Context, actor Actor, attachmentID string) error {
-	_ = actor
-	_ = attachmentID
-	_ = ctx
-	return collaborationUnavailable("attachment_storage_missing", "đính kèm chưa khả dụng")
-}
-
-// DeleteAttachment is stubbed until object storage is wired.
-func (s *TaskService) DeleteAttachment(ctx context.Context, actor Actor, attachmentID string) error {
-	_ = actor
-	_ = attachmentID
-	_ = ctx
-	return collaborationUnavailable("attachment_storage_missing", "đính kèm chưa khả dụng")
-}
-
-// GetTaskTimeline is stubbed until activity projection is ported.
-func (s *TaskService) GetTaskTimeline(ctx context.Context, actor Actor, taskID string) error {
-	if _, err := s.authorizeActor(ctx, actor, taskID); err != nil {
-		return err
-	}
-	return collaborationUnavailable("timeline_not_ready", "timeline chưa khả dụng")
 }
 
 // CommentSubTaskPreview is stubbed (source-context / agent surface).

@@ -1,6 +1,9 @@
 package config
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func setRequired(t *testing.T) {
 	t.Helper()
@@ -163,5 +166,48 @@ func TestGoogleEnabledNeedsBothCredentials(t *testing.T) {
 	}
 	if got := c.GoogleRedirectURL(); got != "http://localhost:8080/api/v1/auth/google/callback" {
 		t.Fatalf("GoogleRedirectURL() = %q", got)
+	}
+}
+
+func TestPushEnabledNeedsBothVAPIDKeys(t *testing.T) {
+	setRequired(t)
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.PushEnabled() {
+		t.Fatal("enabled without VAPID")
+	}
+	t.Setenv("VAPID_PUBLIC_KEY", "pub")
+	t.Setenv("VAPID_PRIVATE_KEY", "")
+	c, _ = Load()
+	if c.PushEnabled() {
+		t.Fatal("enabled without private")
+	}
+	t.Setenv("VAPID_PRIVATE_KEY", "priv")
+	c, _ = Load()
+	if !c.PushEnabled() {
+		t.Fatal("not enabled with both")
+	}
+}
+
+func TestParseHelpersFallback(t *testing.T) {
+	if parseDuration("", time.Second) != time.Second || parseDuration("nope", time.Second) != time.Second || parseDuration("0s", time.Second) != time.Second {
+		t.Fatal("parseDuration fallback")
+	}
+	if parseDuration("2s", time.Second) != 2*time.Second {
+		t.Fatal("parseDuration ok")
+	}
+	if parseRatio("", 0.5) != 0.5 || parseRatio("x", 0.5) != 0.5 || parseRatio("2", 0.5) != 0.5 || parseRatio("-0.1", 0.5) != 0.5 {
+		t.Fatal("parseRatio fallback")
+	}
+	if parseRatio("0.25", 0.5) != 0.25 {
+		t.Fatal("parseRatio ok")
+	}
+	if parseInt32("", 7) != 7 || parseInt32("x", 7) != 7 || parseInt32("0", 7) != 7 || parseInt32("-1", 7) != 7 {
+		t.Fatal("parseInt32 fallback")
+	}
+	if parseInt32("9", 7) != 9 {
+		t.Fatal("parseInt32 ok")
 	}
 }

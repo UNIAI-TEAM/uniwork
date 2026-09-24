@@ -19,9 +19,11 @@ const idempotencyScopeCommentCreate = "tasks.comment_create"
 
 // AddCommentInput is a threaded comment create (optional parent).
 type AddCommentInput struct {
-	Body        string
-	ParentID    *string
-	CommentType string
+	Body          string
+	ParentID      *string
+	CommentType   string
+	Origin        string  // e.g. "chat" when mirrored from a thread reply
+	ChatMessageID *string // set when the comment mirrors a chat message
 }
 
 // UpdateCommentInput edits comment body (revision bump).
@@ -29,7 +31,9 @@ type UpdateCommentInput struct {
 	Body string
 }
 
-// SubscribeTaskInput targets a subscriber; empty UserID means the caller.
+// SubscribeTaskInput identifies the caller; empty UserID means the caller.
+// A non-empty target must still match the caller so one member cannot change
+// another member's notification preferences.
 type SubscribeTaskInput struct {
 	UserID   string
 	UserType string // member|agent; default member for humans
@@ -49,6 +53,14 @@ func validateReactionEmoji(emoji string) (string, error) {
 
 func (s *TaskService) commentActorType(kind audit.Kind) string {
 	return normalizedCreatorType(kind)
+}
+
+func commentOrigin(origin string) pgtype.Text {
+	origin = strings.TrimSpace(origin)
+	if origin == "" {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: origin, Valid: true}
 }
 
 func (s *TaskService) loadComment(ctx context.Context, actor Actor, commentID string) (db.TaskComment, error) {
@@ -130,9 +142,19 @@ func (s *TaskService) AddCommentSuite(ctx context.Context, actor Actor, taskID s
 	c, err := q.CreateTaskCommentThreaded(ctx, db.CreateTaskCommentThreadedParams{
 		ID: util.NewID(), OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
 		TaskID: taskID, AuthorID: actor.ID, AuthorKind: string(actor.Kind), Body: body,
-		ParentCommentID: parentText, CommentType: commentType,
+		Origin: commentOrigin(in.Origin), ParentCommentID: parentText, CommentType: commentType,
+		ChatMessageID: optText(in.ChatMessageID),
 	})
 	if err != nil {
+		if in.ChatMessageID != nil && isUniqueViolation(err) {
+			existing, lookupErr := s.q.GetTaskCommentByChatMessageID(ctx, pgtype.Text{
+				String: strings.TrimSpace(*in.ChatMessageID), Valid: true,
+			})
+			if lookupErr != nil {
+				return db.TaskComment{}, lookupErr
+			}
+			return existing, nil
+		}
 		return db.TaskComment{}, err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
@@ -158,13 +180,31 @@ func (s *TaskService) AddCommentSuite(ctx context.Context, actor Actor, taskID s
 	return c, nil
 }
 
-// UpdateComment edits body; author only (or workspace admin via RequireMember is enough for MVP suite — author check).
+func (s *TaskService) canManageComment(ctx context.Context, actor Actor, comment db.TaskComment) (bool, error) {
+	if comment.AuthorID == actor.ID && comment.AuthorKind == string(actor.Kind) {
+		return true, nil
+	}
+	if actor.Kind != audit.KindHuman {
+		return false, nil
+	}
+	member, err := s.ws.RequireMember(ctx, comment.WorkspaceID, actor.ID)
+	if err != nil {
+		return false, err
+	}
+	return member.Role == "owner" || member.Role == "admin", nil
+}
+
+// UpdateComment edits body; authors and workspace moderators may edit.
 func (s *TaskService) UpdateComment(ctx context.Context, actor Actor, commentID string, in UpdateCommentInput) (db.TaskComment, error) {
 	before, err := s.loadComment(ctx, actor, commentID)
 	if err != nil {
 		return db.TaskComment{}, err
 	}
-	if before.AuthorID != actor.ID || before.AuthorKind != string(actor.Kind) {
+	allowed, err := s.canManageComment(ctx, actor, before)
+	if err != nil {
+		return db.TaskComment{}, err
+	}
+	if !allowed {
 		return db.TaskComment{}, ErrForbidden
 	}
 	body := strings.TrimSpace(in.Body)
@@ -199,13 +239,17 @@ func (s *TaskService) UpdateComment(ctx context.Context, actor Actor, commentID 
 	return c, nil
 }
 
-// DeleteComment removes a comment; author only.
+// DeleteComment removes a comment; authors and workspace moderators may delete.
 func (s *TaskService) DeleteComment(ctx context.Context, actor Actor, commentID string) error {
 	before, err := s.loadComment(ctx, actor, commentID)
 	if err != nil {
 		return err
 	}
-	if before.AuthorID != actor.ID || before.AuthorKind != string(actor.Kind) {
+	allowed, err := s.canManageComment(ctx, actor, before)
+	if err != nil {
+		return err
+	}
+	if !allowed {
 		return ErrForbidden
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -460,6 +504,17 @@ func (s *TaskService) AddTaskReaction(ctx context.Context, actor Actor, taskID, 
 		return db.TaskReaction{}, err
 	}
 	return row, nil
+}
+
+// TaskReactions returns every reaction after applying the task visibility gate.
+func (s *TaskService) TaskReactions(ctx context.Context, actor Actor, taskID string) ([]db.TaskReaction, error) {
+	task, err := s.authorizeActor(ctx, actor, taskID)
+	if err != nil {
+		return nil, err
+	}
+	return s.q.ListTaskReactions(ctx, db.ListTaskReactionsParams{
+		TaskID: taskID, OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
+	})
 }
 
 // RemoveTaskReaction deletes the caller's emoji on a task.

@@ -1,16 +1,17 @@
 "use client";
-import type { ComponentProps } from "react";
-import { useRef, useState } from "react";
+import type { ComponentProps, PointerEvent as ReactPointerEvent, RefObject } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import {
   isTrackReference,
+  useConnectionQualityIndicator,
   useIsMuted,
   useIsSpeaking,
   VideoTrack,
   type TrackReferenceOrPlaceholder,
 } from "@livekit/components-react";
 import type { Participant } from "livekit-client";
-import { Track } from "livekit-client";
-import { EyeOff, Hand, MicOff, MoreVertical, Pin, PinOff, Volume2 } from "lucide-react";
+import { ConnectionQuality, Track } from "livekit-client";
+import { Eye, EyeOff, Hand, MicOff, MoreVertical, Pin, PinOff, Volume2, WifiLow, WifiOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
@@ -22,8 +23,21 @@ import {
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
-import { useMeetingSignals } from "./use-meeting-signals";
+import { tileRingTone, type TileRingTone } from "./conference-layout";
+import { useParticipantSignal, useRequestMute } from "./use-meeting-signals";
 import { MeetingPersonAvatar } from "./meeting-person";
+import { MeetingRoleChip } from "./meeting-role-chip";
+import type { MeetingParticipantRole } from "./meeting-signals";
+
+/** How long a tap keeps a tile's controls up before they step aside again. */
+const TOUCH_REVEAL_MS = 4000;
+
+const RING: Record<TileRingTone, string> = {
+  hand: "ring-2 ring-inset ring-warning",
+  speaking: "ring-2 ring-inset ring-success",
+  pinned: "ring-2 ring-inset ring-brand",
+  idle: "ring-1 ring-inset ring-surface-border",
+};
 
 function displayName(participant: Participant): string {
   return participant.name || participant.identity;
@@ -34,37 +48,64 @@ function hasPlayableVideo(track: TrackReferenceOrPlaceholder | undefined): boole
   return Boolean(track.publication.track) && !track.publication.isMuted;
 }
 
+function StatusBadge({ className, ...props }: ComponentProps<"span">) {
+  return (
+    <span
+      role="img"
+      className={cn("flex size-6 shrink-0 items-center justify-center rounded-full", className)}
+      {...props}
+    />
+  );
+}
+
 function MicStatusBadge({ muted, speaking }: { muted: boolean; speaking: boolean }) {
+  const { t } = useTranslation();
   if (muted) {
     return (
-      <span className="flex size-6 shrink-0 items-center justify-center rounded-full border border-destructive/30 bg-destructive/10 text-destructive">
+      <StatusBadge aria-label={t("meetings.micIsOff")} className="bg-destructive-solid text-on-solid">
         <MicOff aria-hidden className="size-3.5" />
-      </span>
+      </StatusBadge>
     );
   }
   if (speaking) {
     return (
-      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-success/20 text-success">
+      <StatusBadge aria-label={t("meetings.speaking")} className="bg-success-solid text-on-solid">
         <Volume2 aria-hidden className="size-3.5" />
-      </span>
+      </StatusBadge>
     );
   }
   return null;
 }
 
-function TileActionButton({
-  compact,
-  className,
-  ...props
-}: ComponentProps<typeof Button> & { compact?: boolean }) {
+/** Only a weak or lost link earns a badge; a healthy one is the default and says nothing. */
+function ConnectionQualityBadge({ participant }: { participant: Participant }) {
+  const { t } = useTranslation();
+  const { quality } = useConnectionQualityIndicator({ participant });
+  if (quality === ConnectionQuality.Poor) {
+    return (
+      <StatusBadge aria-label={t("meetings.connectionPoor")} className="bg-warning-solid text-on-solid">
+        <WifiLow aria-hidden className="size-3.5" />
+      </StatusBadge>
+    );
+  }
+  if (quality === ConnectionQuality.Lost) {
+    return (
+      <StatusBadge aria-label={t("meetings.connectionQualityLost")} className="bg-destructive-solid text-on-solid">
+        <WifiOff aria-hidden className="size-3.5" />
+      </StatusBadge>
+    );
+  }
+  return null;
+}
+
+function TileActionButton({ className, ...props }: ComponentProps<typeof Button>) {
   return (
     <Button
       type="button"
       size="icon"
       variant="ghost"
       className={cn(
-        "rounded-full text-meeting-bar-foreground hover:bg-meeting-bar-chip-hover",
-        compact ? "size-7" : "size-8",
+        "size-8 rounded-full text-meeting-bar-foreground hover:bg-meeting-bar-chip-hover hover:text-meeting-bar-foreground",
         className,
       )}
       {...props}
@@ -72,7 +113,7 @@ function TileActionButton({
   );
 }
 
-function MeetingTileHoverActions({
+function MeetingTileActions({
   participant,
   name,
   pinned,
@@ -94,103 +135,131 @@ function MeetingTileHoverActions({
   onPin: () => void;
 }) {
   const { t } = useTranslation();
-  const { requestMute } = useMeetingSignals();
+  const requestMute = useRequestMute();
   const toggleHidden = useMeetingViewSessionStore((s) => s.toggleHidden);
   const isHidden = useMeetingViewSessionStore((s) => s.isHidden(participant.identity));
   const showHostMute = canHost && !participant.isLocal && !micMuted;
 
+  // The controls sit in a corner on their own chip, so the face stays visible
+  // and the dark wash is only behind the buttons. A thumbnail is too narrow
+  // for three touch targets: it keeps the menu, which holds every action.
   return (
     <div
+      data-tile-controls
       className={cn(
-        "absolute inset-0 z-30 flex items-center justify-center transition-opacity motion-reduce:transition-none",
-        visible ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
+        "absolute z-30 flex items-center gap-0.5 rounded-full bg-meeting-bar-bg p-0.5 ring-1 ring-meeting-bar-border transition-opacity duration-fast motion-reduce:transition-none",
+        compact ? "right-1 bottom-1" : "right-2 bottom-2 sm:right-3 sm:bottom-3",
+        visible
+          ? "pointer-events-auto opacity-100"
+          : "pointer-events-none opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100",
       )}
-      aria-hidden={!visible}
     >
-      <div
-        aria-hidden
-        className="absolute inset-0 bg-black/35 motion-reduce:transition-none motion-safe:transition-opacity"
-      />
-      <div
-        className={cn(
-          "relative flex items-center gap-0.5 rounded-full bg-meeting-bar-bg/95 p-0.5 ring-1 ring-meeting-bar-border backdrop-blur-sm",
-          compact && "gap-0",
-        )}
-      >
+      {!compact ? (
         <TileActionButton
-          compact={compact}
           aria-label={pinned ? t("meetings.unpinFromScreen") : t("meetings.pinToScreen")}
           aria-pressed={pinned}
           onClick={onPin}
         >
-          {pinned ? (
-            <PinOff aria-hidden className={compact ? "size-3.5" : "size-4"} />
-          ) : (
-            <Pin aria-hidden className={compact ? "size-3.5" : "size-4"} />
-          )}
+          {pinned ? <PinOff aria-hidden className="size-4" /> : <Pin aria-hidden className="size-4" />}
         </TileActionButton>
+      ) : null}
 
-        {showHostMute ? (
-          <TileActionButton
-            compact={compact}
-            aria-label={t("meetings.muteParticipant", { name })}
-            onClick={() => requestMute(participant.identity)}
-          >
-            <MicOff aria-hidden className={compact ? "size-3.5" : "size-4"} />
-          </TileActionButton>
-        ) : null}
+      {!compact && showHostMute ? (
+        <TileActionButton
+          aria-label={t("meetings.muteParticipant", { name })}
+          onClick={() => requestMute(participant.identity)}
+        >
+          <MicOff aria-hidden className="size-4" />
+        </TileActionButton>
+      ) : null}
 
-        <DropdownMenu onOpenChange={onMenuOpenChange}>
-          <DropdownMenuTrigger
-            render={
-              <TileActionButton
-                compact={compact}
-                aria-label={t("meetings.participantActions", { name })}
-                className="data-popup-open:bg-meeting-bar-chip-hover"
-              />
-            }
-          >
-            <MoreVertical aria-hidden className={compact ? "size-3.5" : "size-4"} />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="center" className="min-w-44">
-            <DropdownMenuItem onClick={onPin}>
-              {pinned ? (
-                <PinOff aria-hidden className="size-4" />
-              ) : (
-                <Pin aria-hidden className="size-4" />
-              )}
-              {pinned ? t("meetings.unpinFromScreen") : t("meetings.pinToScreen")}
+      <DropdownMenu onOpenChange={onMenuOpenChange}>
+        <DropdownMenuTrigger
+          render={
+            <TileActionButton
+              aria-label={t("meetings.participantActions", { name })}
+              className={cn("data-popup-open:bg-meeting-bar-chip-hover", compact && "size-7")}
+            />
+          }
+        >
+          <MoreVertical aria-hidden className={compact ? "size-3.5" : "size-4"} />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-44">
+          <DropdownMenuItem onClick={onPin}>
+            {pinned ? <PinOff aria-hidden className="size-4" /> : <Pin aria-hidden className="size-4" />}
+            {pinned ? t("meetings.unpinFromScreen") : t("meetings.pinToScreen")}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => toggleHidden(participant.identity)}>
+            {isHidden ? <Eye aria-hidden className="size-4" /> : <EyeOff aria-hidden className="size-4" />}
+            {isHidden ? t("meetings.watchParticipant") : t("meetings.dontWatch")}
+          </DropdownMenuItem>
+          {showHostMute ? (
+            <DropdownMenuItem onClick={() => requestMute(participant.identity)}>
+              <MicOff aria-hidden className="size-4" />
+              {t("meetings.muteParticipant", { name })}
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => toggleHidden(participant.identity)}>
-              <EyeOff aria-hidden className="size-4" />
-              {isHidden ? t("meetings.watchParticipant") : t("meetings.dontWatch")}
-            </DropdownMenuItem>
-            {showHostMute ? (
-              <DropdownMenuItem onClick={() => requestMute(participant.identity)}>
-                <MicOff aria-hidden className="size-4" />
-                {t("meetings.muteParticipant", { name })}
-              </DropdownMenuItem>
-            ) : null}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
 
-export function MeetingParticipantTile({
-  participant,
-  track,
-  compact = false,
-  expanded = false,
-  canHost = false,
-}: {
+/**
+ * Touch has no hover: a tap on the tile toggles its controls, and they step
+ * aside again after a few seconds or on a tap anywhere else. A tap on a
+ * control itself is left to that control.
+ */
+function useTouchReveal(tileRef: RefObject<HTMLDivElement | null>, hold: boolean) {
+  const [revealed, setRevealed] = useState(false);
+
+  useEffect(() => {
+    if (!revealed || hold) return;
+    const timer = window.setTimeout(() => setRevealed(false), TOUCH_REVEAL_MS);
+    const onPointerDown = (event: PointerEvent) => {
+      if (!tileRef.current?.contains(event.target as Node)) setRevealed(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("pointerdown", onPointerDown, true);
+    };
+  }, [revealed, hold, tileRef]);
+
+  const onTilePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== "touch") return;
+    if ((event.target as Element).closest("[data-tile-controls]")) return;
+    setRevealed((v) => !v);
+  };
+
+  return { revealed, onTilePointerDown };
+}
+
+type MeetingParticipantTileProps = {
   participant: Participant;
   track?: TrackReferenceOrPlaceholder;
   compact?: boolean;
   expanded?: boolean;
   canHost?: boolean;
-}) {
+  roleChip?: MeetingParticipantRole | null;
+  /**
+   * The media track and whether it plays, read by the parent at its render.
+   * The publication object is mutated in place, so the memo compares these
+   * snapshots rather than the publication.
+   */
+  videoTrack?: unknown;
+  videoOn?: boolean;
+};
+
+function MeetingParticipantTileImpl({
+  participant,
+  track,
+  compact = false,
+  expanded = false,
+  canHost = false,
+  roleChip = null,
+  videoOn,
+}: MeetingParticipantTileProps) {
   const { t } = useTranslation();
   const mirrorCamera = useMeetingRoomPreferencesStore((s) => s.mirrorCamera);
   const showExpandedLabels = useMeetingRoomPreferencesStore((s) => s.showExpandedLabels);
@@ -199,42 +268,46 @@ export function MeetingParticipantTile({
   const pinned = pinnedIdentity === participant.identity;
   const speaking = useIsSpeaking(participant);
   const micMuted = useIsMuted({ participant, source: Track.Source.Microphone });
-  const { hands, reactions } = useMeetingSignals();
-  const handRaised = hands.includes(participant.identity);
-  const reaction = reactions.filter((r) => r.identity === participant.identity).at(-1);
+  const { handRaised, reaction } = useParticipantSignal(participant.identity);
   const name = displayName(participant);
   const label = participant.isLocal ? t("meetings.youSuffix", { name }) : name;
   const isScreenShare =
     track && isTrackReference(track) && track.source === Track.Source.ScreenShare;
-  const showVideo = !compact && hasPlayableVideo(track);
+  // Thumbnails play video too: adaptive stream subscribes them at the small
+  // simulcast layer, so the avatar only stands in when the camera is off.
+  const showVideo = videoOn ?? hasPlayableVideo(track);
   const isLocalCamera =
     participant.isLocal && track && isTrackReference(track) && track.source === Track.Source.Camera;
   const showNameLabel = !expanded || showExpandedLabels;
   const handlePin = () => pinParticipant(pinned ? null : participant.identity);
   const tileRef = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const showHoverActions = hovered || menuOpen;
-
-  const handleMouseLeave = () => {
-    setHovered(false);
-    const tile = tileRef.current;
-    if (
-      tile &&
-      document.activeElement instanceof HTMLElement &&
-      tile.contains(document.activeElement)
-    ) {
-      document.activeElement.blur();
-    }
-  };
+  const touch = useTouchReveal(tileRef, menuOpen);
+  const showActions = hovered || focused || menuOpen || touch.revealed;
+  const ring = tileRingTone({ handRaised, speaking, pinned });
 
   return (
     <div
       ref={tileRef}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={handleMouseLeave}
+      // Pointer (not mouse) events: a tap fires compatibility mouseenter with
+      // no mouseleave, which used to leave the controls stuck over the face.
+      onPointerEnter={(e) => {
+        if (e.pointerType === "mouse") setHovered(true);
+      }}
+      onPointerLeave={(e) => {
+        if (e.pointerType === "mouse") setHovered(false);
+      }}
+      onPointerDown={touch.onTilePointerDown}
+      onFocusCapture={() => setFocused(true)}
+      onBlurCapture={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+          setFocused(false);
+        }
+      }}
       className={cn(
-        "relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-muted motion-safe:transition-[width,height,flex-grow] motion-safe:duration-300 motion-safe:ease-out motion-reduce:transition-none",
+        "group relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-muted",
         compact ? "aspect-[4/3] rounded-2xl" : "h-full rounded-3xl",
       )}
       data-hand-raised={handRaised || undefined}
@@ -246,22 +319,17 @@ export function MeetingParticipantTile({
         className={cn(
           "pointer-events-none absolute inset-0 z-20",
           compact ? "rounded-2xl" : "rounded-3xl",
-          pinned && "ring-2 ring-inset ring-brand",
-          speaking &&
-            !pinned &&
-            "ring-2 ring-inset ring-success motion-safe:animate-pulse motion-reduce:animate-none",
-          handRaised && !pinned && "ring-2 ring-inset ring-warning",
-          !pinned && !speaking && !handRaised && "ring-1 ring-inset ring-surface-border",
+          RING[ring],
         )}
       />
-      <MeetingTileHoverActions
+      <MeetingTileActions
         participant={participant}
         name={name}
         pinned={pinned}
         compact={compact}
         canHost={canHost}
         micMuted={micMuted}
-        visible={showHoverActions}
+        visible={showActions}
         onMenuOpenChange={setMenuOpen}
         onPin={handlePin}
       />
@@ -272,16 +340,14 @@ export function MeetingParticipantTile({
         )}
       >
         {handRaised ? (
-          <span
+          <StatusBadge
             aria-label={t("meetings.handRaised")}
-            className={cn(
-              "flex items-center justify-center rounded-full bg-warning text-background",
-              compact ? "size-6" : "size-7",
-            )}
+            className={cn("bg-warning-solid text-on-solid", !compact && "size-7")}
           >
             <Hand aria-hidden className={compact ? "size-3.5" : "size-4"} />
-          </span>
+          </StatusBadge>
         ) : null}
+        <ConnectionQualityBadge participant={participant} />
         <MicStatusBadge muted={micMuted} speaking={speaking} />
       </div>
       {reaction ? (
@@ -298,7 +364,7 @@ export function MeetingParticipantTile({
           trackRef={track}
           className={cn(
             "absolute inset-0 size-full",
-            isScreenShare ? "object-contain bg-muted" : "object-cover",
+            isScreenShare ? "bg-meeting-video-bg object-contain" : "object-cover",
             isLocalCamera && mirrorCamera && "scale-x-[-1]",
           )}
         />
@@ -306,22 +372,48 @@ export function MeetingParticipantTile({
         <div className="flex min-h-0 flex-1 items-center justify-center">
           <MeetingPersonAvatar
             name={name}
-            size={compact ? "sm" : "default"}
-            className={cn(compact ? "size-10" : "size-16", "ring-2 ring-brand/30")}
+            size={compact ? "lg" : "xl"}
+            className="ring-2 ring-meeting-bar-border"
           />
         </div>
       )}
       {showNameLabel ? (
         <span
           className={cn(
-            "pointer-events-none absolute z-10 max-w-[calc(100%-2.5rem)] truncate rounded-full px-2.5 py-0.5 text-caption backdrop-blur-sm",
+            "pointer-events-none absolute z-10 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-caption",
             "bg-meeting-tile-name-bg text-meeting-tile-name-foreground",
-            compact ? "bottom-1.5 left-1.5" : "bottom-2 left-2 sm:bottom-3 sm:left-3",
+            // Leave the bottom-right corner to the tile controls.
+            compact
+              ? "bottom-1.5 left-1.5 max-w-[calc(100%-0.75rem)]"
+              : "bottom-2 left-2 max-w-[calc(100%-8rem)] sm:bottom-3 sm:left-3",
+            // A thumbnail is too narrow for the name and the controls at once.
+            compact && showActions && "opacity-0",
           )}
         >
-          {label}
+          <span className="min-w-0 truncate">{label}</span>
+          {roleChip ? <MeetingRoleChip role={roleChip} /> : null}
         </span>
-      ) : null}
+      ) : (
+        // The label is hidden for a clean full view; the name still reaches assistive tech.
+        <span className="sr-only">{label}</span>
+      )}
     </div>
   );
 }
+
+/**
+ * useTracks hands out fresh track objects on every room event; compare what a
+ * tile draws, so a speaker change repaints the tiles it touches, not all.
+ */
+export const MeetingParticipantTile = memo(
+  MeetingParticipantTileImpl,
+  (a, b) =>
+    a.participant === b.participant &&
+    a.track?.source === b.track?.source &&
+    a.videoTrack === b.videoTrack &&
+    a.videoOn === b.videoOn &&
+    a.compact === b.compact &&
+    a.expanded === b.expanded &&
+    a.canHost === b.canHost &&
+    a.roleChip === b.roleChip,
+);

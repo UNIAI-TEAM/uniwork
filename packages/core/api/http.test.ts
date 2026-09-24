@@ -51,12 +51,39 @@ describe("request", () => {
     expect(() => new ApiError("x", "c", 1)).not.toThrow();
   });
 
+  it("attaches ErrorSDO fields when the server sends them", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      okJson(
+        {
+          error: {
+            code: "active_duplicate_task",
+            message: "trùng",
+            fields: { task_id: "t1", identifier: "UNI-1", title: "Bug" },
+          },
+        },
+        409,
+      ),
+    );
+    await expect(request("/api/v1/x")).rejects.toMatchObject({
+      code: "active_duplicate_task",
+      status: 409,
+      fields: { task_id: "t1", identifier: "UNI-1", title: "Bug" },
+    });
+  });
+
   it("extracts the server message from ApiError", () => {
     expect(apiErrorMessage(new ApiError("thao tác không hợp lệ", "invalid_meeting_state", 409))).toBe(
       "thao tác không hợp lệ",
     );
     expect(apiErrorMessage(new Error("network down"))).toBe("network down");
     expect(apiErrorMessage("nope")).toBeUndefined();
+  });
+
+  it("hands the caller's abort signal to fetch, so a cancelled query stops its request", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(okJson({ ok: true }));
+    const controller = new AbortController();
+    await request("/api/v1/x", { signal: controller.signal });
+    expect(vi.mocked(fetch).mock.calls[0]![1]!.signal).toBe(controller.signal);
   });
 
   it("returns undefined for an empty 204", async () => {

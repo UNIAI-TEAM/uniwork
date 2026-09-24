@@ -145,6 +145,13 @@ func (s *ChatService) SendPollMessage(
 	}); err != nil {
 		return ChatMessageRow{}, err
 	}
+	if in.Settings.PinToTop {
+		if err := s.memberCanPerformRoomAction(ctx, userID, room.ID, room, func(p ChatRoomMemberPermissions) bool {
+			return p.AllowPinContent
+		}); err != nil {
+			return ChatMessageRow{}, err
+		}
+	}
 
 	settings := in.Settings
 	if settings.DeadlineAt != nil {
@@ -202,7 +209,7 @@ func (s *ChatService) SendPollMessage(
 		},
 	}
 	switch room.Kind {
-	case chatRoomKindWorkspace:
+	case chatRoomKindWorkspace, chatRoomKindChannel:
 		s.pub.Publish(ctx, anchorWS, ev)
 	default:
 		s.publishChatRoomEvent(ctx, room.ID, ev)

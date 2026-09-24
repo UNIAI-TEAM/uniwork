@@ -286,7 +286,8 @@
     {
       "source_path": "packages/views/issues/utils/filter.ts",
       "target_path": "packages/views/tasks/utils/filter.ts",
-      "disposition": "port"
+      "disposition": "port",
+      "evidence_path": "packages/views/tasks/utils/filter.ts"
     },
     {
       "source_path": "packages/views/issues/utils/filter.test.ts",

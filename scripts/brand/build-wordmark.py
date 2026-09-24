@@ -1,38 +1,46 @@
 """Outline the UniWork wordmark and the lockups.
 
-The wordmark is Inter SemiBold at -2% tracking, converted to paths so the SVG
-does not depend on a font being available wherever it renders (favicons, OG
-images, e-mail, print). Glyph positions come from measure-text.mjs, which lets
-the browser do the OpenType shaping rather than reimplementing kerning here.
+The wordmark is "uni", the mark, "ork": the mark stands in for the w. The
+letters are Plus Jakarta Sans ExtraBold (the product's display face), lower
+case, converted to paths so the SVG does not depend on a font being available
+wherever it renders (favicons, OG images, e-mail, print). Glyph positions come
+from measure-text.mjs, which lets the browser do the OpenType shaping rather
+than reimplementing kerning here.
 
-One glyph is not Inter's: the W's two V-bottoms are rounded, so the letter's
-feet echo the valleys of the mark's wave. Everything else is the typeface as
-drawn - a wordmark that quietly redraws a whole alphabet is a worse wordmark.
+The mark is sized off the letters, not eyeballed: its top sits on the
+ascender of the k, its bottom on the baseline less the round letters'
+overshoot, so it stands exactly as tall as the tallest letter beside it. The
+space either side of it is the letters' own sidebearings plus one fixed gap,
+so it reads as a letter of the word rather than an icon placed next to one.
 
 Usage:
-  node scripts/brand/measure-text.mjs <Inter-SemiBold.ttf> UniWork -0.02 > /tmp/m.json
-  python3 scripts/brand/build-wordmark.py <Inter-SemiBold.ttf> /tmp/m.json
+  node scripts/brand/measure-text.mjs <PlusJakartaSans.ttf> uni 0 > /tmp/uni.json
+  node scripts/brand/measure-text.mjs <PlusJakartaSans.ttf> ork 0 > /tmp/ork.json
+  python3 scripts/brand/build-wordmark.py <PlusJakartaSans.ttf> /tmp/uni.json /tmp/ork.json
+
+A variable font is accepted: it is instanced at WEIGHT first.
 """
 
 import json
 import os
-import subprocess
 import sys
 
+from fontTools.pens.boundsPen import BoundsPen
 from fontTools.pens.recordingPen import DecomposingRecordingPen
 from fontTools.ttLib import TTFont
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from geometry import Mark, W as MARK_W, H as MARK_H
 
-TEXT = "UniWork"
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..",
                    "packages", "ui", "brand", "svg")
 
-# Fraction of the apex tangent used as the fillet handle. 0.62 rounds the V
-# bottoms enough to read at 24px without softening the letter into a different
-# typeface.
-FILLET = 0.62
+WEIGHT = 800
+# Extra space either side of the mark, in font units, on top of the letters'
+# own sidebearings. Measured against the reference artwork at 40px and 120px.
+MARK_GAP = 24
+# Stacked lockup: the word runs 1.5 marks wide under the mark.
+STACK_WORD_W = MARK_W * 1.5
 
 
 def _n(v):
@@ -41,37 +49,17 @@ def _n(v):
 
 
 def _s(v):
-    """Scale factors, not coordinates. Two decimals would round 0.0619 to 0.06
-    and shrink the wordmark by 3% inside every lockup."""
+    """Scale factors, not coordinates: two decimals would visibly resize."""
     s = f"{v:.6f}".rstrip("0").rstrip(".")
     return "0" if s in ("-0", "") else s
 
 
-def round_apexes(ops):
-    """Replace the W's two flat V-bottoms with tangent-continuous fillets.
-
-    Inter cuts a very acute apex with a short backwards flat (it travels right
-    to left between the two strokes). That flat is the anchor: the incoming and
-    outgoing stroke tangents either side of it define a cubic that bulges below
-    the old baseline of the flat and lands smoothly on both strokes.
-    """
-    out = []
-    for i, (op, args) in enumerate(ops):
-        if (op == "lineTo" and i > 0 and i + 1 < len(ops)
-                and ops[i - 1][0] == "qCurveTo" and ops[i + 1][0] == "qCurveTo"):
-            p0 = ops[i - 1][1][-1]
-            p3 = args[0]
-            if abs(p0[1] - p3[1]) < 1 and p3[0] < p0[0] and p0[1] < 400:
-                ctrl_in = ops[i - 1][1][-2]
-                ctrl_out = ops[i + 1][1][0]
-                t_in = (p0[0] - ctrl_in[0], p0[1] - ctrl_in[1])
-                t_out = (ctrl_out[0] - p3[0], ctrl_out[1] - p3[1])
-                c1 = (p0[0] + FILLET * t_in[0], p0[1] + FILLET * t_in[1])
-                c2 = (p3[0] - FILLET * t_out[0], p3[1] - FILLET * t_out[1])
-                out.append(("curveTo", [c1, c2, p3]))
-                continue
-        out.append((op, args))
-    return out
+def load_font(path):
+    font = TTFont(path)
+    if "fvar" in font:
+        from fontTools.varLib import instancer
+        font = instancer.instantiateVariableFont(font, {"wght": WEIGHT})
+    return font
 
 
 def glyph_path(ops, scale, dx, dy):
@@ -89,7 +77,6 @@ def glyph_path(ops, scale, dx, dy):
             d.append("C" + " ".join(pt(p) for p in args))
         elif op == "qCurveTo":
             pts = list(args)
-            # TrueType: consecutive off-curve points imply an on-curve midpoint.
             last_on = pts[-1]
             offs = pts[:-1]
             for j, c in enumerate(offs):
@@ -103,152 +90,136 @@ def glyph_path(ops, scale, dx, dy):
     return "".join(d)
 
 
-def bbox(ops_list):
-    xs, ys = [], []
-    for ops in ops_list:
-        for op, args in ops:
-            for p in args or []:
-                xs.append(p[0]); ys.append(p[1])
-    return min(xs), min(ys), max(xs), max(ys)
-
-
-def build(font_path, measure):
-    font = TTFont(font_path)
-    upem = font["head"].unitsPerEm
+def build(font, uni, ork):
     gs = font.getGlyphSet()
     cmap = font.getBestCmap()
-    size = measure["size"]
-    scale = size / upem
+    hmtx = font["hmtx"]
 
-    placed = []
-    for ch, x in zip(TEXT, measure["x"]):
-        # Decomposing: 'i' is a composite of dotlessi + dot, and a plain
-        # recording pen would hand back component references, not outlines.
+    def glyph(ch):
+        return gs[cmap[ord(ch)]]
+
+    def bounds(ch):
+        pen = BoundsPen(gs)
+        glyph(ch).draw(pen)
+        return pen.bounds
+
+    def outline(ch):
+        # Decomposing: 'i' is a composite of dotlessi + dot.
         pen = DecomposingRecordingPen(gs)
-        gs[cmap[ord(ch)]].draw(pen)
-        ops = round_apexes(pen.value) if ch == "W" else pen.value
-        placed.append((ops, x))
+        glyph(ch).draw(pen)
+        return pen.value
 
-    # Ink box in output units, so the file's viewBox is the wordmark itself.
-    xs, ys = [], []
-    for ops, x in placed:
-        for op, args in ops:
-            for p in args or []:
-                xs.append(x + p[0] * scale)
-                ys.append(p[1] * scale)
-    x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
-    w, h = x1 - x0, y1 - y0
+    top = bounds("k")[3]
+    bottom = min(bounds("o")[1], bounds("u")[1])  # overshoot of the rounds
+    em_h = top - bottom
+    # Output space: the mark at its native 92 units tall, so the lockup needs
+    # no scale on the mark and the letters take one factor.
+    k = MARK_H / em_h
+    mark_w_em = MARK_W / k
 
-    d = "".join(glyph_path(ops, scale, x - x0, y1) for ops, x in placed)
-    svg = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {_n(w)} {_n(h)}" '
-           f'fill="currentColor"><path d="{d}"/></svg>\n')
-    return svg, w, h
+    uni_x = [x - uni["left"] for x in uni["x"]]
+    i_rsb = hmtx[cmap[ord("i")]][0] - bounds("i")[2]
+    uni_end = uni_x[-1] + hmtx[cmap[ord("i")]][0]
+    mark_x_em = uni_end - i_rsb + MARK_GAP
+    ork_start = mark_x_em + mark_w_em + MARK_GAP - bounds("o")[0]
+    ork_x = [ork_start + x - ork["left"] for x in ork["x"]]
 
+    left = bounds("u")[0]
+    placed = list(zip("uni", uni_x)) + list(zip("ork", ork_x))
+    right = ork_x[-1] + bounds("k")[2]
 
-def lockups(word_svg, word_w, word_h):
-    """Mark + wordmark. The wordmark is set to the cap height of the mark's
-    body, and the gap is one head radius - both derived from the mark rather
-    than eyeballed, so the lockup rebuilds correctly if the mark changes."""
-    m = Mark()
-    inner = word_svg.split("><path", 1)[1]
-    word_d = inner.split('d="', 1)[1].split('"', 1)[0]
-
-    # Horizontal: the wordmark's ink height is 52% of the mark's, and the gap is
-    # the head diameter. Both are read off the mark, so the lockup re-derives
-    # itself if the mark's proportions ever change.
-    wh = MARK_H * 0.52
-    k = wh / word_h
-    gap = m.head_r * 1.5
-    total_w = MARK_W + gap + word_w * k
-    ty = (MARK_H - wh) / 2
-    horiz = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {_n(total_w)} {_n(MARK_H)}" '
-             f'fill="none"><g>__MARK__</g>'
-             f'<g transform="translate({_n(MARK_W + gap)} {_n(ty)}) scale({_s(k)})" '
-             f'fill="currentColor"><path d="{word_d}"/></g></svg>\n')
-
-    # Stacked: size by WIDTH, not height - the wordmark is 5.4x as wide as it is
-    # tall, so matching heights would make it overhang the mark by 60%.
-    ww2 = MARK_W
-    k2 = ww2 / word_w
-    wh2 = word_h * k2
-    gap2 = m.head_r * 0.75
-    total_w2 = max(MARK_W, ww2)
-    total_h2 = MARK_H + gap2 + wh2
-    stacked = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {_n(total_w2)} {_n(total_h2)}" '
-               f'fill="none"><g transform="translate({_n((total_w2 - MARK_W) / 2)} 0)">__MARK__</g>'
-               f'<g transform="translate({_n((total_w2 - ww2) / 2)} {_n(MARK_H + gap2)}) scale({_s(k2)})" '
-               f'fill="currentColor"><path d="{word_d}"/></g></svg>\n')
-    return horiz, stacked
+    d = "".join(glyph_path(outline(ch), k, (x - left) * k, top * k) for ch, x in placed)
+    width = (right - left) * k
+    return {
+        "path": d,
+        "width": width,
+        "height": MARK_H,
+        "markX": (mark_x_em - left) * k,
+    }
 
 
-def art_ts(word_d, word_w, word_h):
-    """Emit the wordmark outline and both lockup layouts as typed data.
+def inline_svg(word, mark_inner, letters_fill="currentColor"):
+    return (f'<g transform="translate({_n(word["markX"])} 0)">{mark_inner}</g>'
+            f'<path d="{word["path"]}" fill="{letters_fill}"/>')
 
-    The layout numbers live here rather than in logo.tsx so the SVG files and
-    the React component cannot drift: one generator, two outputs.
-    """
-    m = Mark()
-    wh = MARK_H * 0.52
-    k = wh / word_h
-    gap = m.head_r * 1.5
-    h_total = MARK_W + gap + word_w * k
 
-    ww2 = MARK_W
-    k2 = ww2 / word_w
-    wh2 = word_h * k2
-    gap2 = m.head_r * 0.75
+def stacked_layout(word):
+    ws = STACK_WORD_W / word["width"]
+    gap = Mark().head_r * 0.75
+    return {
+        "width": STACK_WORD_W,
+        "height": MARK_H + gap + word["height"] * ws,
+        "markX": (STACK_WORD_W - MARK_W) / 2,
+        "wordX": 0,
+        "wordY": MARK_H + gap,
+        "wordScale": ws,
+    }
 
+
+def svgs(word, mark_inner, mono_inner):
+    vb = f'0 0 {_n(word["width"])} {_n(word["height"])}'
+    head = f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{vb}" fill="none">'
+    lockup = head + inline_svg(word, mark_inner) + "</svg>\n"
+    mono = head + inline_svg(word, mono_inner) + "</svg>\n"
+
+    st = stacked_layout(word)
+    stacked = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {_n(st["width"])} {_n(st["height"])}" '
+               f'fill="none"><g transform="translate({_n(st["markX"])} 0)">{mark_inner}</g>'
+               f'<g transform="translate({_n(st["wordX"])} {_n(st["wordY"])}) scale({_s(st["wordScale"])})">'
+               + inline_svg(word, mark_inner) + "</g></svg>\n")
+    return {
+        # The standalone wordmark is single-ink: letters and mark both take
+        # the text colour.
+        "wordmark.svg": mono,
+        "lockup-horizontal.svg": lockup,
+        "lockup-horizontal-mono.svg": mono,
+        "lockup-stacked.svg": stacked,
+    }
+
+
+def art_ts(word):
+    st = stacked_layout(word)
     return (
         "// Generated by scripts/brand/build-wordmark.py. Do not edit.\n"
-        "// Run `pnpm brand:build` (needs Inter SemiBold; see brand/README.md).\n\n"
+        "// Run `pnpm brand:build` (needs Plus Jakarta Sans; see brand/README.md).\n\n"
         "export type Lockup = {\n"
         "  readonly width: number;\n  readonly height: number;\n"
         "  readonly markX: number;\n  readonly wordX: number;\n"
         "  readonly wordY: number;\n  readonly wordScale: number;\n};\n\n"
-        "/** Inter SemiBold, -2% tracking, outlined. The W's two V-bottoms are\n"
-        " *  filleted so the letter's feet echo the valleys of the mark's wave. */\n"
+        "/** \"uni\" + the mark + \"ork\": Plus Jakarta Sans ExtraBold, lower case,\n"
+        " *  outlined. `path` is the six letters; the mark stands in for the w at\n"
+        " *  `markX`, at its native 128x92, top on the k's ascender and bottom on\n"
+        " *  the baseline. */\n"
         "export const WORDMARK = {\n"
-        f'  viewBox: "0 0 {_n(word_w)} {_n(word_h)}",\n'
-        f"  width: {_n(word_w)},\n  height: {_n(word_h)},\n"
-        f'  path:\n    "{word_d}",\n'
+        f'  viewBox: "0 0 {_n(word["width"])} {_n(word["height"])}",\n'
+        f'  width: {_n(word["width"])},\n  height: {_n(word["height"])},\n'
+        f'  markX: {_n(word["markX"])},\n'
+        f'  path:\n    "{word["path"]}",\n'
         "} as const;\n\n"
-        "export const LOCKUP_HORIZONTAL: Lockup = {\n"
-        f"  width: {_n(h_total)},\n  height: {_n(MARK_H)},\n"
-        f"  markX: 0,\n  wordX: {_n(MARK_W + gap)},\n"
-        f"  wordY: {_n((MARK_H - wh) / 2)},\n  wordScale: {_s(k)},\n"
-        "};\n\n"
+        "/** The mark centred above the wordmark, the word 1.5 marks wide. */\n"
         "export const LOCKUP_STACKED: Lockup = {\n"
-        f"  width: {_n(ww2)},\n  height: {_n(MARK_H + gap2 + wh2)},\n"
-        f"  markX: 0,\n  wordX: 0,\n"
-        f"  wordY: {_n(MARK_H + gap2)},\n  wordScale: {_s(k2)},\n"
+        f'  width: {_n(st["width"])},\n  height: {_n(st["height"])},\n'
+        f'  markX: {_n(st["markX"])},\n  wordX: {_n(st["wordX"])},\n'
+        f'  wordY: {_n(st["wordY"])},\n  wordScale: {_s(st["wordScale"])},\n'
         "};\n"
     )
 
 
 def main():
-    font_path, measure_path = sys.argv[1], sys.argv[2]
-    measure = json.load(open(measure_path))
-    word_svg, w, h = build(font_path, measure)
-    horiz, stacked = lockups(word_svg, w, h)
+    font_path, uni_path, ork_path = sys.argv[1], sys.argv[2], sys.argv[3]
+    font = load_font(font_path)
+    word = build(font, json.load(open(uni_path)), json.load(open(ork_path)))
 
-    mark_inner = open(os.path.join(OUT, "mark.svg")).read()
-    mark_inner = mark_inner.split(">", 1)[1].rsplit("</svg>", 1)[0]
-    mono_inner = open(os.path.join(OUT, "mark-mono.svg")).read()
-    mono_inner = mono_inner.split(">", 1)[1].rsplit("</svg>", 1)[0]
+    def inner(name):
+        s = open(os.path.join(OUT, name)).read()
+        return s.split(">", 1)[1].rsplit("</svg>", 1)[0]
 
-    files = {
-        "wordmark.svg": word_svg,
-        "lockup-horizontal.svg": horiz.replace("__MARK__", mark_inner),
-        "lockup-stacked.svg": stacked.replace("__MARK__", mark_inner),
-        "lockup-horizontal-mono.svg": horiz.replace("__MARK__", mono_inner),
-    }
-    for name, content in files.items():
+    for name, content in svgs(word, inner("mark.svg"), inner("mark-mono.svg")).items():
         open(os.path.join(OUT, name), "w").write(content)
         print(f"{name:28s} {len(content):6d} bytes")
 
-    word_d = word_svg.split('d="', 1)[1].split('"', 1)[0]
     ts = os.path.join(OUT, "..", "wordmark.generated.ts")
-    open(ts, "w").write(art_ts(word_d, w, h))
+    open(ts, "w").write(art_ts(word))
     print(f"{'wordmark.generated.ts':28s} {os.path.getsize(ts):6d} bytes")
 
 

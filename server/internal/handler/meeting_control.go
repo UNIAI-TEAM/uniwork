@@ -102,6 +102,19 @@ func (h *handlers) removeParticipant(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, map[string]string{"status": "ok"})
 }
 
+func (h *handlers) setParticipantPublish(w http.ResponseWriter, r *http.Request) {
+	var in sdi.SetParticipantPublishSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	if err := h.Meetings.SetParticipantPublish(r.Context(), middleware.UserID(r.Context()),
+		chi.URLParam(r, "meetingID"), chi.URLParam(r, "participantID"), in.Enabled); err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, 200, map[string]string{"status": "ok"})
+}
+
 func toLinkDTO(l db.MeetingInviteLink, secret string) sdo.InviteLinkDTO {
 	d := sdo.InviteLinkDTO{
 		ID: l.ID, MeetingID: l.MeetingID, Name: l.Name, AccessMode: l.AccessMode,
@@ -159,13 +172,15 @@ func (h *handlers) resolveInviteLink(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
-	v, err := h.Meetings.ResolveInviteLink(r.Context(), in.LinkID, in.Secret)
+	userID, guestID := h.meetingActor(r)
+	v, err := h.Meetings.ResolveInviteLink(r.Context(), in.LinkID, in.Secret,
+		service.AdmissionContext{UserID: userID, GuestID: guestID})
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
 	guestSession := ""
-	if middleware.UserID(r.Context()) == "" {
+	if userID == "" {
 		var err error
 		guestSession, err = h.Meetings.EnsureGuestCookie(r.Context(), w, r, h.Cfg.SecureCookies)
 		if err != nil {
@@ -176,6 +191,7 @@ func (h *handlers) resolveInviteLink(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, sdo.PublicInviteLinkSDO{
 		LinkID: v.LinkID, MeetingID: v.MeetingID, Title: v.Title, StartsAt: v.StartsAt.UTC().Format(time.RFC3339),
 		AccessMode: v.AccessMode, Expired: v.Expired, GuestSession: guestSession,
+		LinkState: v.LinkState, MeetingState: v.MeetingState,
 	})
 }
 
@@ -314,6 +330,7 @@ func (h *handlers) joinMeeting(w http.ResponseWriter, r *http.Request) {
 	dec, err := h.Meetings.Join(r.Context(), service.AdmissionContext{
 		MeetingID: chi.URLParam(r, "meetingID"), UserID: userID, GuestID: guestID,
 		DisplayName: display, InviteLinkID: in.InviteLinkID, InviteSecret: in.Secret,
+		RequestAgain: in.RequestAgain,
 	})
 	if err != nil && dec.Decision == "" {
 		h.mapServiceError(w, err)

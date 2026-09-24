@@ -61,6 +61,8 @@ const (
 	ActionTaskReactionRemoved    = "task.reaction_removed"
 	ActionTaskSubscribed         = "task.subscribed"
 	ActionTaskUnsubscribed       = "task.unsubscribed"
+	ActionAttachmentUploaded     = "attachment.uploaded"
+	ActionAttachmentDeleted      = "attachment.deleted"
 
 	ActionTaskStatusCreated   = "task_status.created"
 	ActionTaskStatusUpdated   = "task_status.updated"
@@ -100,6 +102,15 @@ const (
 	ActionChatRoomCreated       = "chat.room.created"
 	ActionChatRoomMemberAdded   = "chat.room.member_added"
 	ActionChatRoomMemberRemoved = "chat.room.member_removed"
+	ActionChatChannelUpdated    = "chat.channel.updated"
+	ActionChatChannelArchived   = "chat.channel.archived"
+	ActionChatMessageLinked     = "chat.message.linked"
+	ActionChatMessageUnlinked   = "chat.message.unlinked"
+	ActionChatThreadTaskLinked  = "chat.thread.task_linked"
+	ActionChatFollowUpCreated   = "chat.follow_up.created"
+	ActionChatFollowUpUpdated   = "chat.follow_up.updated"
+	ActionChatFollowUpCompleted = "chat.follow_up.completed"
+	ActionChatFollowUpDeleted   = "chat.follow_up.deleted"
 
 	ActionSubscriptionChanged = "subscription.changed"
 

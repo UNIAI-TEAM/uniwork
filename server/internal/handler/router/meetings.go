@@ -9,7 +9,7 @@ import (
 
 func registerMeetings(r api, h Routes) {
 	r.Get("/workspaces/{workspaceID}/meetings", h.ListMeetings, apiOp{
-		summary: "List meetings", tags: []string{"meetings"}, sdo: sdo.MeetingListSDO{}, auth: true,
+		summary: "List meetings", tags: []string{"meetings"}, sdi: sdi.ListMeetingsSDI{}, sdo: sdo.MeetingListSDO{}, auth: true,
 	})
 	r.Get("/workspaces/{workspaceID}/meeting-statistics", h.MeetingStatistics, apiOp{
 		summary: "Meeting statistics", tags: []string{"meetings"}, sdo: sdo.MeetingStatisticsSDO{}, auth: true,
@@ -37,6 +37,10 @@ func registerMeetings(r api, h Routes) {
 	})
 	r.Post("/meetings/{meetingID}/end", h.EndMeeting, apiOp{
 		summary: "End meeting", tags: []string{"meetings"}, sdo: sdo.MeetingSDO{}, auth: true,
+	})
+	r.Post("/meetings/{meetingID}/extend", h.ExtendMeeting, apiOp{
+		summary: "Extend scheduled end while in progress", tags: []string{"meetings"},
+		sdi: sdi.ExtendMeetingSDI{}, sdo: sdo.MeetingSDO{}, auth: true,
 	})
 	r.Post("/meetings/{meetingID}/cancel", h.CancelMeeting, apiOp{
 		summary: "Cancel scheduled meeting", tags: []string{"meetings"},
@@ -68,6 +72,10 @@ func registerMeetings(r api, h Routes) {
 	})
 	r.Delete("/meetings/{meetingID}/participants/{participantID}", h.RemoveParticipant, apiOp{
 		summary: "Remove participant", tags: []string{"meetings"}, sdo: sdo.StatusSDO{}, auth: true,
+	})
+	r.Post("/meetings/{meetingID}/participants/{participantID}/publish", h.SetParticipantPublish, apiOp{
+		summary: "Enable or revoke participant media publish (host)", tags: []string{"meetings"},
+		sdi: sdi.SetParticipantPublishSDI{}, sdo: sdo.StatusSDO{}, auth: true,
 	})
 	r.Get("/meetings/{meetingID}/invite-links", h.ListInviteLinks, apiOp{
 		summary: "List invite links", tags: []string{"meetings"}, sdo: sdo.InviteLinkListSDO{}, auth: true,
@@ -152,8 +160,23 @@ func registerPublicMeetings(r api, h Routes, credentialLimit, joinLimit, lobbyWS
 		summary: "Send an in-room chat message (member or active guest)", tags: []string{"meetings"},
 		sdi: sdi.AppendChatSDI{}, sdo: sdo.MeetingChatMessageSDO{},
 	})
+	r.With(joinLimit).Post("/meetings/{meetingID}/transcript/agent", h.AppendAgentTranscript, apiOp{
+		summary: "Append transcript from LiveKit Agents worker (secret header)", tags: []string{"meetings"},
+		sdi: sdi.AppendAgentTranscriptSDI{}, sdo: sdo.TranscriptSegmentSDO{},
+	})
 	r.With(credentialLimit).Get("/meetings/{meetingID}/recordings", h.ListRecordings, apiOp{
 		summary: "List shared recordings (member or active guest)", tags: []string{"meetings"}, sdo: sdo.RecordingListSDO{},
+	})
+	r.With(credentialLimit).Get("/meetings/{meetingID}/recordings/{recordingID}/playback-url", h.GetMeetingRecordingPlaybackURL, apiOp{
+		summary:     "Get meeting recording playback URL",
+		description: "URL presigned ngắn hạn để phát MP4 trực tiếp (stream/seek) thay vì tải qua proxy.",
+		tags:        []string{"meetings"},
+		sdo:         sdo.MeetingRecordingPlaybackSDO{},
+	})
+	r.With(credentialLimit).Get("/meetings/{meetingID}/recordings/{recordingID}/content", h.StreamMeetingRecording, apiOp{
+		summary:     "Stream meeting recording",
+		description: "Phát bản ghi cuộc họp (MP4) qua proxy S3 cho thành viên hoặc khách đang tham gia.",
+		tags:        []string{"meetings"},
 	})
 	r.Post("/integrations/livekit/webhook", h.LiveKitWebhook, apiOp{
 		summary: "LiveKit webhook (signature required)", tags: []string{"integrations"},

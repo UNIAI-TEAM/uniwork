@@ -19,6 +19,8 @@ export const MeetingSchema = z.object({
   actual_start_at: z.string().optional(),
   actual_end_at: z.string().optional(),
   version: z.number().optional(),
+  /** List rows only: a recording with a file exists, so the row can offer a rewatch. */
+  has_playable_recording: z.boolean().optional(),
 });
 export type Meeting = z.infer<typeof MeetingSchema>;
 
@@ -28,6 +30,8 @@ export const MeetingNoteSchema = z.object({
   author_id: z.string(),
   body: z.string(),
   display_name: z.string().optional(),
+  avatar_url: z.string().nullish(),
+  created_at: z.string().nullish(),
 });
 export type MeetingNote = z.infer<typeof MeetingNoteSchema>;
 
@@ -174,5 +178,6 @@ export type MeetingRecording = z.infer<typeof RecordingSchema>;
 export const MeetingCapabilitiesSchema = z.object({
   ai_summary: z.boolean().optional(),
   recording: z.boolean().optional(),
+  server_stt: z.boolean().optional(),
 });
 export type MeetingCapabilities = z.infer<typeof MeetingCapabilitiesSchema>;

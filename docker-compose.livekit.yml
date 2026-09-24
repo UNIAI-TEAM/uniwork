@@ -1,12 +1,12 @@
 # Local LiveKit for meeting rooms. Does not replace Postgres/Redis in docker-compose.yml.
 #
-#   docker compose -f docker-compose.livekit.yml up
+# Started automatically by `make start` / `make dev` (scripts/ensure-livekit.sh).
+# Manual: `make livekit-up` or `docker compose -f docker-compose.livekit.yml up`.
 #
-# Then in .env:
+# Then in .env (or leave blank — make start fills local defaults):
 #   LIVEKIT_URL=ws://localhost:7880
 #   LIVEKIT_API_KEY=devkey
 #   LIVEKIT_API_SECRET=secret_must_be_at_least_32_chars
-# Restart the API (`make start`).
 name: uniwork-livekit
 services:
   livekit:
@@ -17,5 +17,32 @@ services:
       - "7880:7880"
       - "7881:7881"
       - "7882:7882/udp"
+    extra_hosts:
+      # Linux Docker: webhook to the API on the host. Docker Desktop already provides this.
+      - "host.docker.internal:host-gateway"
     volumes:
-      - ./livekit.dev.yaml:/etc/livekit.yaml:ro
+      # Written by scripts/ensure-livekit.sh from livekit.dev.yaml (webhook PORT).
+      - ./livekit.dev.yaml.local:/etc/livekit.yaml:ro
+
+  # Room composite recording (meetings + chat voice). Started when LIVEKIT_RECORDING_BUCKET is set.
+  egress:
+    image: livekit/egress:v1.9.0
+    restart: unless-stopped
+    environment:
+      EGRESS_CONFIG_FILE: /etc/egress.yaml
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./egress.yaml:/etc/egress.yaml:ro
+    cap_add:
+      - SYS_ADMIN
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - livekit
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8081/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s

@@ -20,6 +20,9 @@ const FONT_SIZES = [
   "hero-sm", "hero", "hero-lg",
 ] as const;
 
+/* Semantic radius roles declared beside the numeric ramp in tokens.css. */
+const RADII = ["control"] as const;
+
 /* Mirrors the `--color-*` aliases in packages/ui/styles/tokens.css. */
 const COLORS = [
   "background", "foreground", "app-shell", "page-canvas",
@@ -45,6 +48,7 @@ const twMerge = extendTailwindMerge({
     classGroups: {
       "font-size": [{ text: [...FONT_SIZES] }],
       "text-color": [{ text: [...COLORS] }],
+      rounded: [{ rounded: [...RADII] }],
     },
   },
 });

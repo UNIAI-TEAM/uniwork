@@ -1,14 +1,17 @@
 "use client";
 
+import { ChevronRight } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import type { Department } from "@uniwork/core/types/people";
 import { Select } from "@uniwork/ui/components/ui/select";
 
 /**
- * Department chooser, used by both the profile form and the directory filter.
- * The tree is at most two levels, so nesting is shown by indenting the child
- * label rather than by a tree widget nobody needs at this depth.
+ * Department chooser for the profile form. The tree is at most two levels, so
+ * a child is named with its parent ("Kỹ thuật › Frontend") rather than drawn
+ * in a tree widget nobody needs at this depth — and not by a dash typed into
+ * the label, which a screen reader reads out. Order is the organization's
+ * own, the same as the directory's chip row.
  */
 export function DepartmentPicker({
   departments,
@@ -29,11 +32,21 @@ export function DepartmentPicker({
 }) {
   const { t } = useTranslation();
   const items = useMemo(() => {
-    const roots = departments.filter((d) => !d.parent_id);
-    const childrenOf = (parentId: string) => departments.filter((d) => d.parent_id === parentId);
+    const bySort = (a: Department, b: Department) => a.sort_order - b.sort_order || a.name.localeCompare(b.name, "vi");
+    const roots = departments.filter((d) => !d.parent_id).sort(bySort);
+    const childrenOf = (parentId: string) => departments.filter((d) => d.parent_id === parentId).sort(bySort);
     const rows = roots.flatMap((root) => [
-      { value: root.id, label: root.name },
-      ...childrenOf(root.id).map((child) => ({ value: child.id, label: `— ${child.name}` })),
+      { value: root.id, label: root.name as React.ReactNode },
+      ...childrenOf(root.id).map((child) => ({
+        value: child.id,
+        label: (
+          <span className="inline-flex min-w-0 items-center gap-1">
+            <span className="text-muted-foreground">{root.name}</span>
+            <ChevronRight aria-hidden="true" className="size-3 text-muted-foreground" />
+            <span className="truncate">{child.name}</span>
+          </span>
+        ),
+      })),
     ]);
     return allowNone ? [{ value: NONE, label: t("people.department_none") }, ...rows] : rows;
   }, [allowNone, departments, t]);

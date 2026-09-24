@@ -55,7 +55,7 @@ func DB(t *testing.T) *pgxpool.Pool {
 		workspaces, workspace_members, invitations, refresh_tokens,
 		project_resources, projects, idempotency_keys, feature_flag_overrides,
 		task_source_contexts, attachments, task_reactions, comment_reactions,
-		task_view_preferences, task_views, task_pins, task_subscribers,
+		home_preferences, task_view_preferences, task_views, task_pins, task_subscribers,
 		task_dependencies, task_label_links, task_properties, task_labels, task_statuses,
 		tasks, task_comments,
 		meetings, meeting_attendees, meeting_notes,
@@ -64,6 +64,7 @@ func DB(t *testing.T) *pgxpool.Pool {
 		meeting_attendance_sessions, meeting_audit_logs, outbox_events,
 		meeting_guests, meeting_provider_events, webhook_inbox,
 		ai_usage_events, ai_conversations, ai_messages,
+		chat_voice_recordings,
 		meeting_transcript_segments, meeting_summaries, meeting_recordings,
 		meeting_chat_messages,
 		chat_messages, chat_room_members, chat_blocks, chat_rooms,
@@ -71,7 +72,8 @@ func DB(t *testing.T) *pgxpool.Pool {
 		audit_events, audit_retention_policies, audit_exports,
 		agents, workspace_agent_members,
 		notifications, notification_preferences, push_subscriptions, notification_deliveries,
-		subscriptions, usage_events, usage_counters, invoices CASCADE`)
+		subscriptions, usage_events, usage_counters, invoices,
+		email_hub_attachments, email_hub_threads, email_hub_accounts CASCADE`)
 	if err != nil {
 		t.Fatal("truncate:", err)
 	}

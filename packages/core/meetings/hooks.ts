@@ -2,7 +2,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as meetings from "../api/endpoints/meetings";
 import { taskKeys } from "../tasks/hooks";
-import type { Meeting, MeetingChatMessage } from "../types/meeting";
+import type { Meeting, MeetingChatMessage, MeetingTranscriptSegment } from "../types/meeting";
 
 export type {
   CreateMeetingBody,
@@ -13,7 +13,15 @@ export type {
 } from "../api/endpoints/meetings";
 export { activityLabelKey, inviteLinkStatus, isJoinAdmitted } from "./status";
 export type { InviteLinkUiStatus } from "./status";
-export { canEnterScheduledMeeting, isPastScheduledEnd, msUntilScheduledEnd, SCHEDULE_WARN_1_MIN_MS, SCHEDULE_WARN_5_MIN_MS } from "./schedule";
+export {
+  canEnterScheduledMeeting,
+  displayMeetingStatus,
+  isPastScheduledEnd,
+  isScheduledMeetingLive,
+  msUntilScheduledEnd,
+  SCHEDULE_WARN_1_MIN_MS,
+  SCHEDULE_WARN_5_MIN_MS,
+} from "./schedule";
 
 const JOIN_REQUESTS_ROOT = ["meeting-join-requests"] as const;
 
@@ -137,6 +145,7 @@ export function useJoinMeeting() {
         invite_link_id: args.invite_link_id,
         secret: args.secret,
         display_name: args.display_name,
+        ...(args.request_again ? { request_again: true } : {}),
       }),
   });
 }
@@ -160,6 +169,14 @@ export function useEndMeeting(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (meetingId: string) => meetings.endMeeting(meetingId),
+    onSuccess: (_d, meetingId) => invalidateMeeting(qc, workspaceId, meetingId),
+  });
+}
+
+export function useExtendMeeting(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (meetingId: string) => meetings.extendMeeting(meetingId),
     onSuccess: (_d, meetingId) => invalidateMeeting(qc, workspaceId, meetingId),
   });
 }
@@ -243,6 +260,13 @@ export function useRemoveParticipant(meetingId: string) {
   return useMutation({
     mutationFn: (participantId: string) => meetings.removeParticipant(meetingId, participantId),
     onSuccess: () => void qc.invalidateQueries({ queryKey: meetingKeys.participants(meetingId) }),
+  });
+}
+
+export function useSetParticipantPublish(meetingId: string) {
+  return useMutation({
+    mutationFn: (args: { participantId: string; enabled: boolean }) =>
+      meetings.setParticipantPublish(meetingId, args.participantId, args.enabled),
   });
 }
 
@@ -331,7 +355,20 @@ export function useTranscript(meetingId: string, enabled = true) {
     queryKey: meetingKeys.transcript(meetingId),
     queryFn: () => meetings.listTranscript(meetingId),
     enabled: !!meetingId && enabled,
+    placeholderData: keepPreviousData,
+    refetchOnWindowFocus: false,
   });
+}
+
+export function upsertMeetingTranscriptSegment(
+  prev: MeetingTranscriptSegment[] | undefined,
+  saved: MeetingTranscriptSegment,
+): MeetingTranscriptSegment[] {
+  const list = prev ?? [];
+  if (list.some((s) => s.id === saved.id)) return list;
+  return [...list, saved].sort(
+    (a, b) => Date.parse(a.spoken_at) - Date.parse(b.spoken_at) || a.id.localeCompare(b.id),
+  );
 }
 
 export function useAppendTranscript(meetingId: string) {
@@ -339,7 +376,12 @@ export function useAppendTranscript(meetingId: string) {
   return useMutation({
     mutationFn: (args: { text: string; spokenAt?: string }) =>
       meetings.appendTranscript(meetingId, args.text, args.spokenAt),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: meetingKeys.transcript(meetingId) }),
+    onSuccess: (saved) => {
+      if (!saved) return;
+      qc.setQueryData<MeetingTranscriptSegment[]>(meetingKeys.transcript(meetingId), (prev) =>
+        upsertMeetingTranscriptSegment(prev, saved),
+      );
+    },
   });
 }
 

@@ -1,9 +1,13 @@
 /** Backoff steps for lobby join when WebSocket is unavailable (not a fixed 4s poll). */
 const LOBBY_RETRY_DELAYS_MS = [10_000, 20_000, 30_000, 60_000] as const;
 
+/** Every signal that ends a lobby wait: admitted, declined, or the meeting closing. */
 const LOBBY_JOIN_WS_EVENTS = [
   "meeting.started",
+  "meeting.ended",
+  "meeting.canceled",
   "join_request.approved",
+  "join_request.rejected",
   "conference.session_ready",
 ] as const;
 

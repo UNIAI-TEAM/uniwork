@@ -77,13 +77,47 @@ export function ActorIcon({ kind, className }: { kind: string; className?: strin
   return <Icon aria-hidden className={className} />;
 }
 
-/** Translated action / resource names; the raw token is the fallback so nothing goes blank. */
+const ROLE_FIELDS = new Set(["role", "org_role", "platform_role"]);
+
+/**
+ * Where a stored enum value already has words in the product. A `status` means
+ * a different thing on a task, a meeting and a member, so the resource picks
+ * the family first; an unknown resource tries each in turn.
+ */
+function valueKeys(field: string, value: string, resourceType?: string): string[] {
+  if (ROLE_FIELDS.has(field)) return [`people.role_${value}`, `settings.audit.values.role.${value}`];
+  if (field === "priority") return [`tasks.priority_${value}`];
+  if (field === "assignee_kind") return [`settings.audit.actor_kind.${value}`];
+  if (field === "visibility") return [`settings.audit.values.visibility.${value}`];
+  if (field !== "status") return [];
+  const task = `tasks.status_${value}`;
+  const meeting = `meetings.status_${value}`;
+  const member = `people.status_${value}`;
+  if (resourceType === "task") return [task];
+  if (resourceType === "meeting") return [meeting];
+  if (resourceType === "organization_member") return [member];
+  return [task, meeting, member];
+}
+
+/**
+ * Translated action / resource / field names and known enum values; the raw
+ * token is the fallback so nothing goes blank and a newer server still reads.
+ */
 export function useAuditLabels() {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.audit" });
+  const { t: tRoot } = useTranslation();
   return {
     action: (action: string) => t(`actions.${action}`, { defaultValue: action }),
     resource: (type: string) => t(`resources.${type}`, { defaultValue: type }),
     actorKind: (kind: string) => t(`actor_kind.${kind}`, { defaultValue: t("actor_kind.unknown") }),
+    field: (field: string) => t(`fields.${field}`, { defaultValue: field }),
+    /** A value as a reader says it (`owner` → "Chủ sở hữu"); anything unknown passes through untouched. */
+    value: (field: string, value: unknown, resourceType?: string): unknown => {
+      if (typeof value === "boolean") return t(value ? "values.yes" : "values.no");
+      if (typeof value !== "string" || value === "") return value;
+      const keys = valueKeys(field, value, resourceType);
+      return keys.length === 0 ? value : tRoot(keys, { defaultValue: value });
+    },
   };
 }
 
@@ -152,11 +186,12 @@ export function ChangeSummary({
   max = 2,
   empty,
 }: {
-  event: Pick<AuditEvent, "changes">;
+  event: Pick<AuditEvent, "changes"> & Partial<Pick<AuditEvent, "resource_type">>;
   max?: number;
   empty: ReactNode;
 }) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.audit.table" });
+  const labels = useAuditLabels();
   const entries = changeEntries(event);
   if (entries.length === 0) return <span className="text-muted-foreground">{empty}</span>;
   const shown = entries.slice(0, max);
@@ -165,14 +200,17 @@ export function ChangeSummary({
     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
       {shown.map(([field, change]) => (
         <span key={field} className="inline-flex max-w-full items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-caption whitespace-nowrap">
-          <span className="font-medium">{field}</span>
+          <span className="font-medium">{labels.field(field)}</span>
           {hasValue(change.from) ? (
             <>
-              <ChangeValue value={change.from} className="text-muted-foreground line-through" />
+              <ChangeValue
+                value={labels.value(field, change.from, event.resource_type)}
+                className="text-muted-foreground line-through"
+              />
               <ArrowRight aria-hidden className="size-3 shrink-0 text-muted-foreground" />
             </>
           ) : null}
-          <ChangeValue value={change.to} />
+          <ChangeValue value={labels.value(field, change.to, event.resource_type)} />
         </span>
       ))}
       {rest > 0 ? <span className="text-caption text-muted-foreground">{t("more_fields", { count: rest })}</span> : null}

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setAccessToken } from "../api/session";
+import { getCurrentSlug, getCurrentWsId, setCurrentWorkspace } from "../platform/workspace-storage";
 import type { User } from "../types/user";
 
 // The store calls the auth endpoints; mock that module so no fetch happens.
@@ -23,7 +24,10 @@ describe("auth store", () => {
     vi.mocked(auth.refreshSession).mockReset();
     vi.mocked(auth.logout).mockReset();
   });
-  afterEach(() => setAccessToken(null));
+  afterEach(() => {
+    setAccessToken(null);
+    setCurrentWorkspace(null, null);
+  });
 
   it("starts loading and becomes authed when the refresh cookie yields a session", async () => {
     vi.mocked(auth.refreshSession).mockResolvedValueOnce({ user, access_token: "tok" });
@@ -62,6 +66,23 @@ describe("auth store", () => {
     expect(onLogout).toHaveBeenCalledTimes(1);
   });
 
+  it("logout clears the workspace scope so the next user starts outside any workspace", async () => {
+    setAccessToken("tok");
+    useAuthStore.getState().setUser(user);
+    setCurrentWorkspace("acme/team", "ws1");
+    await useAuthStore.getState().logout();
+    expect(getCurrentSlug()).toBeNull();
+    expect(getCurrentWsId()).toBeNull();
+  });
+
+  it("losing the session clears the workspace scope too", () => {
+    setAccessToken("tok");
+    useAuthStore.getState().setUser(user);
+    setCurrentWorkspace("acme/team", "ws1");
+    setAccessToken(null);
+    expect(getCurrentSlug()).toBeNull();
+  });
+
   it("drops to anon when the access token is cleared underneath it", () => {
     // A failed refresh in the transport clears the token; the store must
     // notice without being told, or the UI keeps rendering a stale session.
@@ -69,6 +90,16 @@ describe("auth store", () => {
     useAuthStore.getState().setUser(user);
     setAccessToken(null);
     expect(useAuthStore.getState()).toMatchObject({ user: null, status: "anon" });
+  });
+
+  it("does not run logout cleanup when the token is cleared without calling logout", () => {
+    const onLogout = vi.fn();
+    useAuthStore.getState().setOnLogout(onLogout);
+    setAccessToken("tok");
+    useAuthStore.getState().setUser(user);
+    setAccessToken(null);
+    expect(useAuthStore.getState()).toMatchObject({ user: null, status: "anon" });
+    expect(onLogout).not.toHaveBeenCalled();
   });
 
   it("does not downgrade authed session when a stale refresh completes", async () => {

@@ -4,20 +4,29 @@ import { type QueryClient, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 import type { WSClient } from "../api/ws-client";
 import type { WSMessage } from "../api/ws-types";
+import { calendarKeys } from "../calendar/keys";
 import { agentKeys } from "../agents/hooks";
 import { aiKeys } from "../ai/hooks";
 import { auditKeys } from "../audit/hooks";
 import { billingKeys } from "../billing/hooks";
 import { chatKeys } from "../chat/hooks";
+import { invalidateEmailHubThreadsForAccount, invalidateEmailHubUnread } from "../email-hub/hooks";
+import { homeKeys } from "../home/hooks";
 import { meetingKeys } from "../meetings/hooks";
 import { notificationKeys } from "../notifications/hooks";
 import { orgMemberRootKey } from "../organizations/hooks";
 import { peopleRootKey } from "../people/hooks";
 import { planCacheUpdate } from "../tasks/cache-coordinator";
 import { taskKeys } from "../tasks/hooks";
+import { applyTaskPatchFrame } from "../tasks/realtime-task-patch";
 import type { WSEventType } from "../types/events";
 import { createChatRealtimePatchScheduler } from "./chat-realtime-patch-scheduler";
-import { createInvalidateScheduler, shouldInvalidateMeetingDetail } from "./invalidate-scheduler";
+import {
+  createInvalidateScheduler,
+  shouldInvalidateMeetingDetail,
+  TRANSCRIPT_INVALIDATE_MS,
+} from "./invalidate-scheduler";
+import { shouldInvalidateCalendar } from "./should-invalidate-calendar";
 
 /**
  * Central WS → cache sync for one workspace.
@@ -28,8 +37,25 @@ import { createInvalidateScheduler, shouldInvalidateMeetingDetail } from "./inva
  * event version. Bursts coalesce into one debounced wave per ~250ms.
  *
  * Work Management events go through `planCacheUpdate` (invalidate + refetch).
- * Frames carry ids only — never write the payload into query data or Zustand.
+ * Frames are never written into Zustand, and into query data only through the
+ * one exception ADR 0015 allows: a `task.updated` frame's Patch fields patch
+ * the task's cached records that already sit at the frame's `revision_before`
+ * — the detail entry and the task's rows in list-style caches
+ * (`applyTaskPatchFrame`, applied here before the keys are returned). When the
+ * detail entry was patched the frame skips the detail key; list roots and
+ * every other key still invalidate, so row order and placement come from the API.
  */
+function calendarKeyForFrame(
+  wsId: string,
+  type: WSEventType,
+  payload: Record<string, string>,
+): readonly unknown[] | null {
+  if (!shouldInvalidateCalendar(type)) return null;
+  const frameWs = payload.workspace_id;
+  if (frameWs && frameWs !== wsId) return null;
+  return calendarKeys.all(frameWs ?? wsId);
+}
+
 function keysFor(
   wsId: string,
   type: WSEventType,
@@ -38,10 +64,21 @@ function keysFor(
 ) {
   const keys: readonly unknown[][] = [];
   const push = (k: readonly unknown[]) => (keys as unknown[][]).push([...k]);
+  const pushCalendar = () => {
+    const cal = calendarKeyForFrame(wsId, type, payload);
+    if (cal) push(cal);
+  };
 
   const workMgmt = planCacheUpdate(wsId, { type, payload });
   if (workMgmt.keys.length > 0) {
-    for (const k of workMgmt.keys) push(k);
+    const patchedDetail =
+      workMgmt.patch && applyTaskPatchFrame(qc, wsId, workMgmt.patch).detailPatched
+        ? JSON.stringify(taskKeys.detail(workMgmt.patch.taskId))
+        : null;
+    for (const k of workMgmt.keys) {
+      if (patchedDetail !== null && JSON.stringify(k) === patchedDetail) continue;
+      push(k);
+    }
     // Activity tab is the audit slice of this task; keep it in sync with
     // task/comment mutations that the coordinator maps.
     if (
@@ -57,6 +94,12 @@ function keysFor(
     ) {
       push(auditKeys.history(wsId, "task", payload.task_id));
     }
+    // The home summary lists open work assigned to the viewer; any task
+    // lifecycle event can change it.
+    if (type === "task.created" || type === "task.updated" || type === "task.deleted") {
+      push(homeKeys.summary(wsId));
+    }
+    pushCalendar();
     return keys;
   }
 
@@ -71,6 +114,7 @@ function keysFor(
       // comes back from the API.
       push(notificationKeys.lists());
       push(notificationKeys.unreadCount());
+      push(homeKeys.summary(wsId));
       break;
     }
     case "ai.usage.updated": {
@@ -97,6 +141,20 @@ function keysFor(
       }
       break;
     }
+    case "chat.voice.recording.started":
+    case "chat.voice.recording.stopped": {
+      if (payload.room_id) {
+        push(chatKeys.voiceRecordings(wsId, payload.room_id));
+      }
+      break;
+    }
+    case "chat.follow_up.created":
+    case "chat.follow_up.updated":
+    case "chat.follow_up.completed":
+    case "chat.follow_up.deleted": {
+      push(chatKeys.followUps(wsId));
+      break;
+    }
     case "meeting.created":
     case "meeting.updated":
     case "meeting.deleted":
@@ -104,23 +162,27 @@ function keysFor(
     case "meeting.ended":
     case "meeting.canceled":
     case "host.transferred": {
+      push(homeKeys.summary(wsId));
       push(meetingKeys.list(wsId));
       push(meetingKeys.stats(wsId));
       if (payload.meeting_id) {
         push(meetingKeys.activity(payload.meeting_id));
         push(meetingKeys.detail(payload.meeting_id));
       }
+      pushCalendar();
       break;
     }
     case "participant.invited":
     case "participant.removed":
     case "invitation.responded": {
+      push(homeKeys.summary(wsId));
       if (payload.meeting_id) {
         push(meetingKeys.participants(payload.meeting_id));
         push(meetingKeys.invitations(payload.meeting_id));
         push(meetingKeys.activity(payload.meeting_id));
         push(meetingKeys.detail(payload.meeting_id));
       }
+      pushCalendar();
       break;
     }
     case "join_request.created":
@@ -203,7 +265,8 @@ function handleChatRealtimeEvent(
   const messageId = payload.message_id;
   switch (type) {
     case "chat.message.created":
-    case "chat.message.updated": {
+    case "chat.message.updated":
+    case "chat.thread.replied": {
       if (roomId && messageId) {
         chatScheduler.scheduleUpsert(roomId, messageId);
         return true;
@@ -228,6 +291,21 @@ function handleChatRealtimeEvent(
     case "chat.room.activity": {
       chatScheduler.scheduleRoomActivity();
       return true;
+    }
+    case "chat.message.linked": {
+      if (messageId) {
+        chatScheduler.scheduleMessageLinked(roomId ?? "", messageId);
+        return true;
+      }
+      return false;
+    }
+    case "chat.thread.linked": {
+      const threadRootId = payload.thread_root_id;
+      if (threadRootId) {
+        chatScheduler.scheduleThreadLinked(roomId ?? "", threadRootId);
+        return true;
+      }
+      return false;
     }
     default:
       return false;
@@ -260,8 +338,13 @@ function allWorkspaceKeys(wsId: string) {
     taskKeys.projects(wsId),
     chatKeys.rooms(wsId),
     chatKeys.room(wsId),
+    // Open conversations go stale while the socket is down (BE restart).
+    chatKeys.roomMessagesRoot(wsId),
+    chatKeys.messages(wsId),
+    chatKeys.threadMessagesRoot(wsId),
     meetingKeys.list(wsId),
     meetingKeys.stats(wsId),
+    calendarKeys.all(wsId),
     meetingKeys.joinRequestsRoot,
     notificationKeys.lists(),
     notificationKeys.unreadCount(),
@@ -272,6 +355,10 @@ function isMeetingDetailKey(queryKey: readonly unknown[]): boolean {
   return Array.isArray(queryKey) && queryKey[0] === "meeting" && typeof queryKey[1] === "string";
 }
 
+function isTranscriptKey(queryKey: readonly unknown[]): boolean {
+  return Array.isArray(queryKey) && queryKey[0] === "meeting-transcript";
+}
+
 export function useRealtimeSync(client: WSClient | null, wsId: string): void {
   const qc = useQueryClient();
 
@@ -279,12 +366,27 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
     if (!client || !wsId) return;
 
     const scheduler = createInvalidateScheduler(qc);
+    const transcriptScheduler = createInvalidateScheduler(qc, TRANSCRIPT_INVALIDATE_MS);
     const chatScheduler = createChatRealtimePatchScheduler(qc, wsId);
 
     const offAny = client.onAny((msg: WSMessage) => {
       const payload = (msg.payload ?? {}) as Record<string, string>;
       const eventType = RENAMED_EVENTS[msg.type] ?? (msg.type as WSEventType);
       if (handleChatRealtimeEvent(chatScheduler, eventType, payload)) {
+        if (
+          payload.room_id &&
+          (eventType === "chat.message.created" || eventType === "chat.message.updated")
+        ) {
+          scheduler.schedule(chatKeys.voiceRecordings(wsId, payload.room_id));
+        }
+        return;
+      }
+      if (
+        (eventType === "email_hub.inbox_changed" || eventType === "email_hub.new_mail") &&
+        payload.account_id
+      ) {
+        invalidateEmailHubThreadsForAccount(qc, wsId, payload.account_id);
+        invalidateEmailHubUnread(qc, wsId);
         return;
       }
       for (const queryKey of keysFor(wsId, eventType, payload, qc)) {
@@ -293,6 +395,10 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
           payload.meeting_id &&
           !shouldInvalidateMeetingDetail(qc, payload.meeting_id, payload.version)
         ) {
+          continue;
+        }
+        if (isTranscriptKey(queryKey)) {
+          transcriptScheduler.schedule(queryKey);
           continue;
         }
         scheduler.schedule(queryKey);
@@ -305,6 +411,7 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
       offAny();
       offReconnect();
       scheduler.dispose();
+      transcriptScheduler.dispose();
       void chatScheduler.dispose();
     };
   }, [client, wsId, qc]);

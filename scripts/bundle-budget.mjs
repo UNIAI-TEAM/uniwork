@@ -1,30 +1,26 @@
 #!/usr/bin/env node
-// Bundle size budget (spec F-11 §6.6, Vision §6.3): what a visitor actually
-// downloads for a route — the shared chunks plus that route's own — ≤ 400 KB
-// gzip. Routes that already exceed it are ratcheted in
+// Bundle size budget (spec F-11 §6.6, Vision §6.3): initial client JS — the
+// chunks every route loads — ≤ 250 KB gzip, and each route's own chunks
+// ≤ 150 KB gzip. Routes that already exceed it are ratcheted in
 // scripts/bundle-budget.json: a ceiling at their current size, so a
 // regression still fails and the number can only go down. Reads the
 // artefacts of `pnpm --filter @uniwork/web build` (Turbopack); nothing
 // beyond node.
 //
-// The budget is a TOTAL, not "own chunks", because "shared" is not a property
-// of the code — it is the intersection over every route, and it moves when one
-// route legitimately stops sharing. An earlier arrangement mounted the app
-// providers under an `(app)` route group so the public landing page could skip
-// them; that dropped the intersection from 245 KB to 42 KB and pushed the same
-// unchanged bytes into every route's own column, which the old metric read as
-// a 200 KB regression on twenty routes that had not changed at all. That group
-// has since been rolled back, but the lesson stands: a total cannot be gamed
-// by moving a mount point, so the metric stays a total.
+// At GATE_LEVEL=fast the numbers are reported, annotated and written to the
+// job summary but do not fail the build (--warn-only, passed by ci.yml);
+// standard and above enforce them. docs/engineering/GATE_LEVELS.md says why.
 //
-//   node scripts/bundle-budget.mjs            # check
-//   node scripts/bundle-budget.mjs --print    # list every route
+//   node scripts/bundle-budget.mjs              # check
+//   node scripts/bundle-budget.mjs --print      # list every route
+//   node scripts/bundle-budget.mjs --warn-only  # report, never fail
 import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { gzipSync } from "node:zlib";
 
-const ROUTE_KB = 400;
+const INITIAL_KB = 250;
+const ROUTE_KB = 150;
 const root = path.resolve(import.meta.dirname, "..");
 const next = path.join(root, "apps/web/.next");
 const buildManifest = path.join(next, "build-manifest.json");
@@ -74,22 +70,51 @@ for (const [route, files] of routes) {
 shared ??= new Set();
 const initial = sum([...shared]);
 const failures = [];
+if (initial > INITIAL_KB) failures.push(`initial JS ${initial.toFixed(1)} KB > ${INITIAL_KB} KB`);
 const rows = [];
 for (const [route, files] of routes) {
-  const total = sum([...files]);
+  const own = sum([...files].filter((f) => !shared.has(f)));
   const ceiling = ceilings[route] ?? ROUTE_KB;
-  rows.push([route, total, ceiling]);
-  if (total > ceiling) failures.push(`${route} ${total.toFixed(1)} KB > ${ceiling} KB${ceilings[route] ? " (ratchet in scripts/bundle-budget.json)" : ""}`);
+  rows.push([route, own, ceiling]);
+  if (own > ceiling) failures.push(`${route} ${own.toFixed(1)} KB > ${ceiling} KB${ceilings[route] ? " (ratchet in scripts/bundle-budget.json)" : ""}`);
 }
 
+rows.sort((a, b) => b[1] - a[1]);
 if (process.argv.includes("--print")) {
-  console.log(`shared across every route: ${initial.toFixed(1)} KB gzip`);
-  for (const [route, kb, ceiling] of rows.sort((a, b) => b[1] - a[1])) {
+  console.log(`initial JS: ${initial.toFixed(1)} KB gzip`);
+  for (const [route, kb, ceiling] of rows) {
     console.log(`${kb.toFixed(1).padStart(7)} KB / ${String(ceiling).padStart(3)}  ${route}`);
   }
 }
+
+// A budget nobody can see is a budget nobody defends. When the gate only
+// warns, the run page is the one place the drift is still legible, so the
+// table goes there whether or not this run is enforcing.
+if (process.env.GITHUB_STEP_SUMMARY) {
+  const pct = (kb, ceiling) => ((kb / ceiling) * 100).toFixed(0);
+  const md = [
+    `### Bundle size (gzip)`,
+    ``,
+    `Initial JS **${initial.toFixed(1)} KB** / ${INITIAL_KB} KB (${pct(initial, INITIAL_KB)}%)`,
+    ``,
+    `| Route | KB | Ceiling | Used |`,
+    `| --- | ---: | ---: | ---: |`,
+    ...rows.map(([route, kb, ceiling]) =>
+      `| \`${route}\` | ${kb.toFixed(1)} | ${ceiling} | ${pct(kb, ceiling)}% |`),
+    ``,
+  ].join("\n");
+  fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, md);
+}
+
 if (failures.length) {
-  console.error("bundle-budget: over budget\n  " + failures.join("\n  "));
+  const report = "bundle-budget: over budget\n  " + failures.join("\n  ");
+  if (process.argv.includes("--warn-only")) {
+    console.warn(report);
+    for (const f of failures) console.log(`::warning title=Bundle size budget::${f}`);
+    console.warn("bundle-budget: reported, not enforced — GATE_LEVEL=fast. This fails the build at standard.");
+    process.exit(0);
+  }
+  console.error(report);
   process.exit(1);
 }
-console.log(`bundle-budget: ok — ${rows.length} routes within budget (${ROUTE_KB} KB gzip each, shared ${initial.toFixed(1)} KB)`);
+console.log(`bundle-budget: ok — initial ${initial.toFixed(1)} KB ≤ ${INITIAL_KB} KB, ${rows.length} routes ≤ ${ROUTE_KB} KB`);

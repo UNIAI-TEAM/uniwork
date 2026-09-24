@@ -61,11 +61,18 @@ export function roomPreviewMapFromRooms(rooms: ChatRoomRecord[]): Record<string,
   return out;
 }
 
+function isDefaultWorkspaceChannel(room: ChatRoomRecord): boolean {
+  return room.kind === "workspace" || (room.kind === "channel" && Boolean(room.is_default));
+}
+
 export function sidebarFromChatRooms(rooms: ChatRoomRecord[]) {
   return {
-    workspaceRoom: rooms.find((room) => room.kind === "workspace") ?? null,
+    // Migration 165 turns workspace rooms into default channels; keep both shapes.
+    workspaceRoom: rooms.find(isDefaultWorkspaceChannel) ?? null,
     contacts: dedupeDmContacts(rooms.filter((room) => room.kind === "dm").map(chatRoomToContact)),
     groups: rooms.filter((room) => room.kind === "group").map(chatRoomToGroup),
+    // Non-default channels stay in their own sidebar section (grouped by project in the view).
+    channels: rooms.filter((room) => room.kind === "channel" && !room.is_default),
   };
 }
 

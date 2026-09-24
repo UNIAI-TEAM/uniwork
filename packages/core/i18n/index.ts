@@ -1,7 +1,7 @@
 import i18next, { type i18n } from "i18next";
 import { initReactI18next } from "react-i18next";
+import vi from "./locales/vi.json";
 import type { SupportedLocale } from "./types";
-import { loaders, vi } from "./dictionaries";
 
 /**
  * Chỉ nạp locale nào THẬT SỰ có chuỗi. Đăng ký một file rỗng khiến i18next báo
@@ -18,59 +18,68 @@ function withContent(resources: Record<string, object>) {
   );
 }
 
-/** Locales whose dictionary is already registered on the shared instance. */
-const loaded = new Set<string>(["vi"]);
-
-/**
- * The browser's one i18next, initialised at the locale the server already
- * rendered rather than at `vi` and switched a tick later.
- *
- * `seed` carries the dictionary for a locale that is not in the bundle; the
- * host reads it out of the server payload, so the first client render has the
- * same strings the server used and hydration has nothing to reconcile.
- * `initAsync: false` is what makes that first render synchronous — without it
- * i18next defers, and the tree paints once in the fallback language.
- */
-export function initI18n(locale: SupportedLocale = "vi", seed?: Record<string, unknown> | null) {
+export function initI18n() {
   if (!i18next.isInitialized) {
-    if (seed) loaded.add(locale);
     void i18next.use(initReactI18next).init({
-      lng: locale,
+      lng: "vi",
       fallbackLng: "vi",
-      resources: withContent({ vi, ...(seed ? { [locale]: seed } : {}) }),
+      resources: withContent({ vi }),
       interpolation: { escapeValue: false },
       compatibilityJSON: "v4",
       initAsync: false,
+      react: { useSuspense: false },
     });
   }
   return i18next;
 }
 
-/** Refresh an already-mounted host after a dictionary/payload update. Call in
- * an effect, never during render: existing consumers must be notified too. */
-export function syncI18nResources(instance: i18n, dictionaries: Record<string, object | null>) {
+/**
+ * Vietnamese is the default and the fallback, so it is the only dictionary in
+ * the initial bundle; every other locale arrives on demand. Nothing is
+ * translated on the server (`./server.ts` is the only entry a server component
+ * may import, and it resolves the locale without rendering a string), so a
+ * locale that lands a tick after the first paint cannot mismatch server HTML.
+ * Shipping every dictionary to every route instead would put the whole set in
+ * the shared chunk — see scripts/bundle-budget.mjs.
+ */
+const loaders: Record<Exclude<SupportedLocale, "vi">, () => Promise<{ default: object }>> = {
+  en: () => import("./locales/en.json"),
+};
+
+const loaded = new Set<string>(["vi"]);
+
+export function registerLocaleBundle(locale: SupportedLocale, dict: object): void {
+  if (loaded.has(locale)) return;
+  if (Object.keys(dict).length > 0) {
+    i18next.addResourceBundle(locale, "translation", dict, true, true);
+  }
+  loaded.add(locale);
+}
+
+export function applyLocaleSync(locale: SupportedLocale): void {
+  initI18n();
+  if (i18next.language !== locale) {
+    // initAsync: false — language and bundles are applied before render continues.
+    void i18next.changeLanguage(locale);
+  }
+}
+
+/** Refresh dictionaries in a mounted host without switching its language. */
+export function syncI18nResources(instance: i18n, dictionaries: Record<string, object | null>): void {
   for (const [locale, dictionary] of Object.entries(dictionaries)) {
-    if (dictionary && Object.keys(dictionary).length) {
+    if (dictionary && Object.keys(dictionary).length > 0) {
       instance.addResourceBundle(locale, "translation", dictionary, true, true);
     }
   }
   instance.emit("languageChanged", instance.language);
 }
 
-/**
- * Registers a locale's strings on the shared instance, fetching them the first
- * time. Idempotent and additive: it never changes the active language, so it
- * is safe to call from anywhere.
- */
 export async function ensureLocale(locale: SupportedLocale): Promise<void> {
   if (loaded.has(locale)) return;
   const load = loaders[locale as Exclude<SupportedLocale, "vi">];
   if (!load) return;
   const dict = (await load()).default;
-  if (Object.keys(dict).length > 0) {
-    i18next.addResourceBundle(locale, "translation", dict, true, true);
-  }
-  loaded.add(locale);
+  registerLocaleBundle(locale, dict);
 }
 
 /**
@@ -94,4 +103,3 @@ export type {
 export { SUPPORTED_LOCALES, DEFAULT_LOCALE } from "./types";
 export { matchLocale, parseAcceptLanguage, pickLocale } from "./pick-locale";
 export { createBrowserCookieLocaleAdapter, LOCALE_COOKIE } from "./browser-cookie-adapter";
-export { BUNDLED_LOCALES, bundledDictionary, loadDictionary } from "./dictionaries";

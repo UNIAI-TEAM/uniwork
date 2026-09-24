@@ -10,8 +10,10 @@ import (
 type FakeProvider struct {
 	EnsureCalls int
 	RemoveCalls int
+	UpdateCalls int
 	EndCalls    int
 	LastRemove  RemoveProviderParticipantRequest
+	LastUpdate  UpdateProviderParticipantRequest
 	LastEnd     EndProviderSessionRequest
 	EnsureErr   error
 	RemoveErr   error
@@ -67,7 +69,9 @@ func (f *FakeProvider) RemoveParticipant(_ context.Context, req RemoveProviderPa
 	return f.RemoveErr
 }
 
-func (f *FakeProvider) UpdateParticipant(context.Context, UpdateProviderParticipantRequest) error {
+func (f *FakeProvider) UpdateParticipant(_ context.Context, req UpdateProviderParticipantRequest) error {
+	f.UpdateCalls++
+	f.LastUpdate = req
 	return nil
 }
 

@@ -133,6 +133,82 @@ func TestJoinDoesNotReEnsureIdleSession(t *testing.T) {
 	}
 }
 
+// A room the provider closed on its own empty timeout leaves the session IDLE
+// while the meeting is still IN_PROGRESS, and nobody can join a room that no
+// longer exists. Join must not wait for the reconcile tick to notice: it
+// enqueues the re-ensure itself, once per idle episode.
+func TestJoinRequeuesEnsureForIdleSession(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	ctx := context.Background()
+	m, err := s.CreateInstant(ctx, ua.ID, w.ID, "Idle requeue")
+	if err != nil {
+		t.Fatal(err)
+	}
+	drainOutbox(t, s)
+	sess, err := s.q.GetOpenConferenceSession(ctx, m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.q.UpdateConferenceSessionStatus(ctx, db.UpdateConferenceSessionStatusParams{
+		ID: sess.ID, ProviderSyncStatus: strText("SYNCED"), Status: strText("IDLE"),
+		EndedAt: optTimestamptz(ptrTime(time.Now())),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	dec, err := s.Join(ctx, AdmissionContext{MeetingID: m.ID, UserID: ua.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dec.Decision != DecisionWaitingForProvider {
+		t.Fatalf("decision = %q, want WAITING_FOR_PROVIDER", dec.Decision)
+	}
+	if n := pendingEnsureForSession(t, s, sess.ID); n != 1 {
+		t.Fatalf("pending ensure rows = %d, want 1", n)
+	}
+
+	// The lobby retries join every few seconds; that must not pile up rows.
+	if _, err := s.Join(ctx, AdmissionContext{MeetingID: m.ID, UserID: ua.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if n := pendingEnsureForSession(t, s, sess.ID); n != 1 {
+		t.Fatalf("pending ensure rows after retry = %d, want 1", n)
+	}
+
+	drainOutbox(t, s)
+	admitted, err := s.Join(ctx, AdmissionContext{MeetingID: m.ID, UserID: ua.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if admitted.Decision != DecisionAdmit || admitted.Credential == nil {
+		t.Fatalf("decision after re-ensure = %q, credential nil = %t", admitted.Decision, admitted.Credential == nil)
+	}
+}
+
+// pendingEnsureForSession counts queued provider.ensure_session rows naming
+// this conference session.
+func pendingEnsureForSession(t *testing.T, s *MeetingService, sessionID string) int {
+	t.Helper()
+	rows, err := s.q.ListPendingOutbox(context.Background(), 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, row := range rows {
+		if row.Topic != "provider.ensure_session" {
+			continue
+		}
+		var p map[string]string
+		if err := json.Unmarshal([]byte(row.Payload), &p); err != nil {
+			t.Fatal(err)
+		}
+		if p["session_id"] == sessionID {
+			n++
+		}
+	}
+	return n
+}
+
 func TestOutboxRetryBackoffDeadLetter(t *testing.T) {
 	s, ua, _, w := meetingFixture(t)
 	ctx := context.Background()

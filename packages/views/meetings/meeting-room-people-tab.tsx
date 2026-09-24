@@ -6,7 +6,7 @@ import type { Participant } from "livekit-client";
 import { ChevronDown, Hand, Plus, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Meeting } from "@uniwork/core/types";
-import { useParticipants, useRemoveParticipant } from "@uniwork/core/meetings";
+import { useParticipants, useRemoveParticipant, useSetParticipantPublish } from "@uniwork/core/meetings";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -16,13 +16,13 @@ import {
 } from "@uniwork/ui/components/ui/collapsible";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@uniwork/ui/components/ui/input-group";
 import { cn } from "@uniwork/ui/lib/utils";
+import { ConfirmDialog } from "../common/form-dialog";
 import { toastApiError } from "../toast-api-error";
 import { AddMeetingParticipantsDialog } from "./add-meeting-participants-dialog";
 import { MeetingJoinRequestsSection } from "./meeting-join-requests-section";
 import { MeetingParticipantRow } from "./meeting-participant-row";
+import { guestIdentities, PARTICIPANT_IDENTITY_PREFIX, participantRole } from "./meeting-signals";
 import { useMeetingSignals } from "./use-meeting-signals";
-
-const PARTICIPANT_IDENTITY_PREFIX = "uw_participant_";
 
 function participantIdFromIdentity(identity: string): string | null {
   return identity.startsWith(PARTICIPANT_IDENTITY_PREFIX)
@@ -68,9 +68,11 @@ export function MeetingRoomPeopleTab({
   const pinnedIdentity = useMeetingViewSessionStore((s) => s.pinnedIdentity);
   const { data: apiParticipants } = useParticipants(meetingId ?? "");
   const remove = useRemoveParticipant(meetingId ?? "");
+  const setPublish = useSetParticipantPublish(meetingId ?? "");
   const [search, setSearch] = useState("");
   const [contributorsOpen, setContributorsOpen] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [removing, setRemoving] = useState<Participant | null>(null);
 
   const hostUserId = meeting?.host_user_id;
   const excludeUserIds = [
@@ -99,6 +101,7 @@ export function MeetingRoomPeopleTab({
     return byIdentity;
   }, [apiParticipants, hostUserId]);
 
+  const guests = useMemo(() => guestIdentities(apiParticipants ?? []), [apiParticipants]);
   const ordered = orderParticipants(liveParticipants, hands, pinnedIdentity);
   const needle = search.trim().toLowerCase();
   const filtered = needle
@@ -118,16 +121,36 @@ export function MeetingRoomPeopleTab({
       ?? participantIdFromIdentity(participant.identity);
     if (!participantId || !meetingId) return;
     remove.mutate(participantId, {
+      onSuccess: () => setRemoving(null),
       onError: (err) => toastApiError(err, t("common.error")),
     });
   }
 
+  function participantIdFor(participant: Participant): string | null {
+    return participantMeta.get(participant.identity)?.participantId
+      ?? participantIdFromIdentity(participant.identity);
+  }
+
+  function handleRevokeSpeaking(participant: Participant) {
+    const participantId = participantIdFor(participant);
+    if (!participantId) return;
+    setPublish.mutate(
+      { participantId, enabled: false },
+      { onError: (err) => toastApiError(err, t("common.error")) },
+    );
+  }
+
+  function handleAllowSpeaking(participant: Participant) {
+    const participantId = participantIdFor(participant);
+    if (!participantId) return;
+    setPublish.mutate(
+      { participantId, enabled: true },
+      { onError: (err) => toastApiError(err, t("common.error")) },
+    );
+  }
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="mb-3 shrink-0">
-        <h2 className="text-title-sm font-semibold text-foreground">{t("meetings.people")}</h2>
-      </div>
-
       {canHost && meetingId ? (
         <MeetingJoinRequestsSection meetingId={meetingId} />
       ) : null}
@@ -135,7 +158,8 @@ export function MeetingRoomPeopleTab({
       {canHost && meetingId && workspaceId && !guestMode ? (
         <Button
           type="button"
-          className="mb-3 h-9 w-full shrink-0 rounded-xl bg-brand text-brand-foreground hover:bg-brand/90"
+          variant="brand"
+          className="mb-3 h-9 w-full shrink-0 rounded-xl"
           onClick={() => setInviteOpen(true)}
         >
           <Plus aria-hidden className="size-4" />
@@ -143,7 +167,7 @@ export function MeetingRoomPeopleTab({
         </Button>
       ) : null}
 
-      <InputGroup className="mb-4 h-9 shrink-0 rounded-xl bg-muted/30">
+      <InputGroup className="mb-4 h-9 shrink-0 rounded-xl bg-surface-hover">
         <InputGroupAddon align="inline-start">
           <Search aria-hidden className="size-4" />
         </InputGroupAddon>
@@ -157,21 +181,21 @@ export function MeetingRoomPeopleTab({
       </InputGroup>
 
       {hands.length > 0 ? (
-        <p className="mb-3 flex shrink-0 items-center gap-1.5 rounded-xl bg-surface-selected px-3 py-2 text-label text-brand">
+        <p className="mb-3 flex shrink-0 items-center gap-1.5 rounded-xl bg-warning-soft px-3 py-2 text-label font-medium text-warning-soft-foreground">
           <Hand aria-hidden className="size-3.5 shrink-0" />
           {t("meetings.handsRaised", { count: hands.length })}
         </p>
       ) : null}
 
-      <p className="mb-2 shrink-0 text-caption font-semibold tracking-wide text-muted-foreground uppercase">
+      <p className="mb-2 shrink-0 text-overline text-muted-foreground">
         {t("meetings.inTheMeeting")}
       </p>
 
       <Collapsible open={contributorsOpen} onOpenChange={setContributorsOpen} className="min-h-0 flex-1">
-        <CollapsibleTrigger className="mb-2 flex w-full shrink-0 items-center gap-2 rounded-lg px-1 py-1 text-left text-body font-medium text-foreground hover:bg-muted/40">
+        <CollapsibleTrigger className="mb-2 flex w-full shrink-0 items-center gap-2 rounded-lg px-1 py-1 text-left text-body font-medium text-foreground hover:bg-surface-hover">
           <ChevronDown
             aria-hidden
-            className={cn("size-4 shrink-0 text-muted-foreground transition-transform", !contributorsOpen && "-rotate-90")}
+            className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-fast motion-reduce:transition-none", !contributorsOpen && "-rotate-90")}
           />
           <span className="min-w-0 flex-1">{t("meetings.contributors")}</span>
           <span className="text-caption tabular-nums text-muted-foreground">{filtered.length}</span>
@@ -189,11 +213,22 @@ export function MeetingRoomPeopleTab({
                   <MeetingParticipantRow
                     participant={participant}
                     subtitle={rowSubtitle(participant)}
+                    roleChip={participantRole(participant, guests)}
                     canHost={canHost}
                     pinned={pinnedIdentity === participant.identity}
                     onRemove={
                       canHost && !participant.isLocal && meetingId
-                        ? () => handleRemove(participant)
+                        ? () => setRemoving(participant)
+                        : undefined
+                    }
+                    onRevokeSpeaking={
+                      canHost && !participant.isLocal && meetingId
+                        ? () => handleRevokeSpeaking(participant)
+                        : undefined
+                    }
+                    onAllowSpeaking={
+                      canHost && !participant.isLocal && meetingId
+                        ? () => handleAllowSpeaking(participant)
                         : undefined
                     }
                   />
@@ -203,6 +238,16 @@ export function MeetingRoomPeopleTab({
           )}
         </CollapsibleContent>
       </Collapsible>
+
+      <ConfirmDialog
+        open={removing !== null}
+        onOpenChange={(open) => !open && setRemoving(null)}
+        title={t("meetings.removeFromCallTitle", { name: removing ? displayName(removing) : "" })}
+        description={t("meetings.removeFromCallHint")}
+        confirmLabel={t("meetings.removeFromCall")}
+        pending={remove.isPending}
+        onConfirm={() => removing && handleRemove(removing)}
+      />
 
       {canHost && meetingId && workspaceId && !guestMode ? (
         <AddMeetingParticipantsDialog

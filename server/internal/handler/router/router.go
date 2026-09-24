@@ -30,8 +30,8 @@ type Deps struct {
 	// PlatformRoles resolves users.platform_role for /api/v1/admin; nil
 	// (tests without an admin service) makes every admin route 404.
 	PlatformRoles mw.PlatformRoleSource
-	// FeatureFlags gates the Work Management suite; nil keeps every suite
-	// route closed (RequireFeatureFlag falls through to catalogue defaults).
+	// FeatureFlags feeds GET /api/v1/config and other flag readers; nil
+	// evaluates every catalogue key at its declared default.
 	FeatureFlags *featureflag.Service
 }
 
@@ -70,9 +70,20 @@ func New(d Deps, h Routes) http.Handler {
 	joinLimit := mw.RateLimit(d.Redis, 120, time.Minute, proxies)
 	lobbyWSLimit := mw.RateLimit(d.Redis, 30, time.Minute, proxies)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{d.Cfg.FrontendOrigin},
-		AllowedMethods:   []string{"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Authorization", "Content-Type", mw.CorrelationHeader, telemetry.DebugTraceHeader, meetings.GuestSessionHeader},
+		AllowedOrigins: []string{d.Cfg.FrontendOrigin},
+		AllowedMethods: []string{"GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"},
+		// Idempotency-Key / If-Match are sent by create and suite mutations from
+		// the browser; omitting them fails the CORS preflight and the fetch never
+		// leaves the page (create-task E2E hangs on waitForResponse).
+		AllowedHeaders: []string{
+			"Authorization",
+			"Content-Type",
+			"Idempotency-Key",
+			"If-Match",
+			mw.CorrelationHeader,
+			telemetry.DebugTraceHeader,
+			meetings.GuestSessionHeader,
+		},
 		ExposedHeaders:   []string{mw.CorrelationHeader, telemetry.TraceHeader},
 		AllowCredentials: true,
 	}))
@@ -100,12 +111,19 @@ func New(d Deps, h Routes) http.Handler {
 			registerAI(authed, h)
 			registerOnboarding(authed, h)
 			registerTasks(authed, h)
-			registerTasksSuite(authed, h, mw.RequireFeatureFlag(d.FeatureFlags, "tasks_work_management_parity"))
+			registerTasksSuite(authed, h)
+			registerHome(authed, h)
+			registerCalendar(authed, h)
+			registerEmailHub(authed, h)
 			registerAudit(authed, h)
 			registerMeetings(authed, h)
 			chatWriteLimit := mw.RateLimit(d.Redis, 120, time.Minute, proxies)
 			chatTypingLimit := mw.RateLimit(d.Redis, 30, time.Minute, proxies)
 			registerChat(authed, h, chatWriteLimit, chatTypingLimit)
+			registerChatChannels(authed, h, mw.RequireFeatureFlag(d.FeatureFlags, "chat_work_hub"), chatWriteLimit)
+			registerChatThreads(authed, h, mw.RequireFeatureFlag(d.FeatureFlags, "chat_work_hub"), chatWriteLimit)
+			registerChatLinks(authed, h, mw.RequireFeatureFlag(d.FeatureFlags, "chat_work_hub"), chatWriteLimit)
+			registerChatFollowUps(authed, h, mw.RequireFeatureFlag(d.FeatureFlags, "chat_work_hub"), chatWriteLimit)
 			if d.PlatformRoles != nil {
 				adminLimit := mw.RateLimit(d.Redis, d.Cfg.AdminRateLimitPerMin, time.Minute, proxies)
 				registerAdmin(authed, h, adminLimit,

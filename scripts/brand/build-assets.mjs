@@ -33,12 +33,12 @@ const sha = (s) => createHash("sha256").update(s).digest("hex").slice(0, 16);
 /** [file, [{ out, size | width+height, source, transparent }]] */
 const PNGS = [
   // Transactional mail header. Mail clients drop inline SVG, so the lockup
-  // ships as a hosted PNG at 2x of its 137x32 display size; transparent so it
+  // ships as a hosted PNG at 2x of its 169x32 display size; transparent so it
   // sits on the mail's own ground.
   {
     out: path.join(PUBLIC, "brand", "email-lockup.png"),
     source: "lockup-horizontal.svg",
-    width: 274,
+    width: 338,
     height: 64,
     transparent: true,
   },

@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { errorCode } from "@uniwork/core/api";
+import { apiErrorMessage, errorCode } from "@uniwork/core/api";
 import { newChatClientMsgId } from "@uniwork/core/chat/client-msg-id";
 import {
   outboxEntryFromPayload,
@@ -15,6 +15,7 @@ import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priori
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
+import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import type {
   useCreateChatGroup,
   useInviteChatGroupMembers,
@@ -34,12 +35,16 @@ export function useChatPageActions({
   setTarget,
   activeRoomId,
   activeGroup,
-  draft,
+  activeChannel,
+  getDraft,
   setDraft,
   replyTo,
   setReplyTo,
+  activeThreadRootId = null,
+  workHubEnabled = false,
   ensureRoom,
   sendRoomMessage,
+  sendThreadMessage,
   resolveDM,
   createGroup,
   inviteMembers,
@@ -64,12 +69,25 @@ export function useChatPageActions({
   setTarget: React.Dispatch<React.SetStateAction<ChatSidebarTarget>>;
   activeRoomId: string | null;
   activeGroup: GroupChat | null;
-  draft: string;
-  setDraft: React.Dispatch<React.SetStateAction<string>>;
+  activeChannel: ChatRoomRecord | null;
+  /** Reads the composer's draft at send time (it lives in the draft store, not in page state). */
+  getDraft: () => string;
+  /** Writes the draft of the conversation the send started in. */
+  setDraft: (value: string) => void;
   replyTo: ChatMessage | null;
   setReplyTo: React.Dispatch<React.SetStateAction<ChatMessage | null>>;
+  activeThreadRootId?: string | null;
+  workHubEnabled?: boolean;
   ensureRoom: { mutateAsync: () => Promise<{ room_id?: string | null }> };
   sendRoomMessage: Pick<ReturnType<typeof useSendChatRoomMessage>, "mutateAsync">;
+  sendThreadMessage?: {
+    mutateAsync: (input: {
+      threadRootId: string;
+      body: string;
+      client_msg_id?: string;
+      priority?: string;
+    }) => Promise<unknown>;
+  };
   resolveDM: Pick<ReturnType<typeof useResolveDMRoom>, "mutateAsync">;
   createGroup: Pick<ReturnType<typeof useCreateChatGroup>, "mutateAsync">;
   inviteMembers: Pick<ReturnType<typeof useInviteChatGroupMembers>, "mutateAsync">;
@@ -106,17 +124,23 @@ export function useChatPageActions({
       }
       if (!roomId) return;
 
+      const threadsAllowed =
+        target.kind === "channel" || target.kind === "group" || target.kind === "workspace";
+      const sendingInThread = Boolean(
+        workHubEnabled && threadsAllowed && activeThreadRootId && sendThreadMessage,
+      );
+
       const payload: ChatTextSendPayload = {
         roomId,
         body: trimmed,
         client_msg_id: newChatClientMsgId(),
-        ...(replyTo ? { reply_to_message_id: replyTo.id } : {}),
+        ...(replyTo && !sendingInThread ? { reply_to_message_id: replyTo.id } : {}),
         ...(composerPriority ? { priority: composerPriority } : {}),
       };
 
       const queueForLater = () => {
         usePendingChatMessagesStore.getState().remove(payload.client_msg_id);
-        useChatSendOutboxStore.getState().enqueue(outboxEntryFromPayload(workspaceId, payload));
+        useChatSendOutboxStore.getState().enqueue(outboxEntryFromPayload(workspaceId, currentUserId, payload));
         setReplyTo(null);
         setDraft("");
         setComposerPriority?.(null);
@@ -124,6 +148,10 @@ export function useChatPageActions({
       };
 
       if (typeof navigator !== "undefined" && !navigator.onLine) {
+        if (sendingInThread) {
+          setConnectError(t("chat.send_queued_offline"));
+          return;
+        }
         queueForLater();
         return;
       }
@@ -136,12 +164,24 @@ export function useChatPageActions({
         senderId: currentUserId,
         createdAt: Date.now(),
         reply_to_message_id: payload.reply_to_message_id,
+        ...(sendingInThread && activeThreadRootId
+          ? { thread_root_id: activeThreadRootId }
+          : {}),
         priority: payload.priority,
         status: "sending",
       });
 
       try {
-        await sendRoomMessage.mutateAsync(payload);
+        if (sendingInThread && activeThreadRootId && sendThreadMessage) {
+          await sendThreadMessage.mutateAsync({
+            threadRootId: activeThreadRootId,
+            body: payload.body,
+            client_msg_id: payload.client_msg_id,
+            priority: payload.priority,
+          });
+        } else {
+          await sendRoomMessage.mutateAsync(payload);
+        }
         setReplyTo(null);
         setDraft("");
         setComposerPriority?.(null);
@@ -154,7 +194,7 @@ export function useChatPageActions({
           queueForLater();
         } else {
           usePendingChatMessagesStore.getState().remove(payload.client_msg_id);
-          setConnectError(err instanceof Error ? err.message : "send_failed");
+          setConnectError(apiErrorMessage(err) ?? t("chat.send_failed"));
         }
       }
     },
@@ -166,8 +206,11 @@ export function useChatPageActions({
       ensureRoom,
       resolveDM,
       sendRoomMessage,
+      sendThreadMessage,
       replyTo,
       setReplyTo,
+      activeThreadRootId,
+      workHubEnabled,
       setDraft,
       setConnectError,
       composerPriority,
@@ -178,13 +221,13 @@ export function useChatPageActions({
 
   const provisionAndSend = useCallback(async () => {
     const text = serializeComposerDraftToMessageBody(
-      draft.trim(),
+      getDraft().trim(),
       mentionCandidates,
       mentionAllLabel,
     );
     if (!text) return;
     await sendMessageBody(text);
-  }, [draft, mentionCandidates, mentionAllLabel, sendMessageBody]);
+  }, [getDraft, mentionCandidates, mentionAllLabel, sendMessageBody]);
 
   const handleCreateGroup = useCallback(
     (members: ChatContact[], name: string) => {
@@ -211,27 +254,33 @@ export function useChatPageActions({
           setCreateGroupOpen(false);
         })
         .catch((err: unknown) => {
-          setConnectError(err instanceof Error ? err.message : "group_failed");
+          setConnectError(apiErrorMessage(err) ?? t("chat.group_failed"));
         })
         .finally(() => {
           setCreatingGroup(false);
         });
     },
-    [createGroup, setTarget, setCreateGroupOpen, setConnectError, setCreatingGroup],
+    [createGroup, setTarget, setCreateGroupOpen, setConnectError, setCreatingGroup, t],
   );
 
   const handleAddGroupMembers = useCallback(
     (members: ChatContact[]) => {
-      if (!activeGroup || members.length === 0) return;
+      const inviteRoomId =
+        target.kind === "channel"
+          ? activeChannel?.id
+          : target.kind === "group"
+            ? activeGroup?.room_id
+            : null;
+      if (!inviteRoomId || members.length === 0) return;
       setInvitingMembers(true);
       setConnectError(null);
       void inviteMembers
         .mutateAsync({
-          roomId: activeGroup.room_id,
+          roomId: inviteRoomId,
           memberUserIds: members.map((member) => member.user_id),
         })
         .then((room) => {
-          if (room && activeGroup) {
+          if (room && target.kind === "group" && activeGroup) {
             setTarget({
               kind: "group",
               group: {
@@ -242,16 +291,36 @@ export function useChatPageActions({
               },
             });
           }
+          if (room && target.kind === "channel" && activeChannel) {
+            setTarget({
+              kind: "channel",
+              channel: {
+                ...activeChannel,
+                ...room,
+                member_user_ids: room.member_user_ids,
+              },
+            });
+          }
           setAddMembersOpen(false);
         })
         .catch((err: unknown) => {
-          setConnectError(err instanceof Error ? err.message : "group_invite_failed");
+          setConnectError(apiErrorMessage(err) ?? t("chat.group_invite_failed"));
         })
         .finally(() => {
           setInvitingMembers(false);
         });
     },
-    [activeGroup, inviteMembers, setTarget, setAddMembersOpen, setConnectError, setInvitingMembers],
+    [
+      t,
+      target.kind,
+      activeChannel,
+      activeGroup,
+      inviteMembers,
+      setTarget,
+      setAddMembersOpen,
+      setConnectError,
+      setInvitingMembers,
+    ],
   );
 
   const handleLeaveConversation = useCallback(
@@ -267,7 +336,7 @@ export function useChatPageActions({
         setGroupSettingsOpen(false);
         clearGroupMemberProfiles();
       } catch (err: unknown) {
-        setConnectError(err instanceof Error ? err.message : t("chat.leave_conversation_failed"));
+        setConnectError(apiErrorMessage(err) ?? t("chat.leave_conversation_failed"));
       } finally {
         setLeavingConversation(false);
       }

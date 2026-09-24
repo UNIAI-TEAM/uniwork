@@ -1,13 +1,13 @@
 {{define "preheader"}}Workspace {{.Data.WorkspaceName}} đã sẵn sàng · ba việc để bắt đầu{{end}}
 {{define "content"}}
-<tr><td style="padding-bottom:8px"><h1 style="margin:0;font-size:22px;line-height:30px;font-weight:600;letter-spacing:-0.02em;color:#18181b">Chào {{.Data.DisplayName}}, bạn đã sẵn sàng</h1></td></tr>
-<tr><td style="padding-bottom:20px;font-size:15px;line-height:24px;color:#52525b">Workspace <strong style="color:#18181b;font-weight:600">{{.Data.WorkspaceName}}</strong> của bạn đã được tạo. Ba việc để bắt đầu:</td></tr>
+<tr><td style="padding-bottom:8px"><h1 style="margin:0;font-size:22px;line-height:30px;font-weight:600;letter-spacing:-0.02em;color:#202020">Chào {{.Data.DisplayName}}, bạn đã sẵn sàng</h1></td></tr>
+<tr><td style="padding-bottom:20px;font-size:15px;line-height:24px;color:#646464">Workspace <strong style="color:#202020;font-weight:600">{{.Data.WorkspaceName}}</strong> của bạn đã được tạo. Ba việc để bắt đầu:</td></tr>
 <tr><td style="padding-bottom:12px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
-  <tr><td valign="top" width="28" style="width:28px;padding-bottom:12px;font-size:15px;line-height:24px;color:#71717a;font-variant-numeric:tabular-nums">1.</td><td valign="top" style="padding-bottom:12px;font-size:15px;line-height:24px;color:#52525b">Tạo công việc đầu tiên và giao cho một người.</td></tr>
-  <tr><td valign="top" width="28" style="width:28px;padding-bottom:12px;font-size:15px;line-height:24px;color:#71717a;font-variant-numeric:tabular-nums">2.</td><td valign="top" style="padding-bottom:12px;font-size:15px;line-height:24px;color:#52525b">Mời đồng nghiệp ở trang Thành viên.</td></tr>
-  <tr><td valign="top" width="28" style="width:28px;padding-bottom:12px;font-size:15px;line-height:24px;color:#71717a;font-variant-numeric:tabular-nums">3.</td><td valign="top" style="padding-bottom:12px;font-size:15px;line-height:24px;color:#52525b">Lên lịch một cuộc họp và ghi chú ngay trong UniWork.</td></tr>
+  <tr><td valign="top" width="28" style="width:28px;padding-bottom:12px;font-size:15px;line-height:24px;color:#71717a;font-variant-numeric:tabular-nums">1.</td><td valign="top" style="padding-bottom:12px;font-size:15px;line-height:24px;color:#646464">Tạo công việc đầu tiên và giao cho một người.</td></tr>
+  <tr><td valign="top" width="28" style="width:28px;padding-bottom:12px;font-size:15px;line-height:24px;color:#71717a;font-variant-numeric:tabular-nums">2.</td><td valign="top" style="padding-bottom:12px;font-size:15px;line-height:24px;color:#646464">Mời đồng nghiệp ở trang Thành viên.</td></tr>
+  <tr><td valign="top" width="28" style="width:28px;padding-bottom:12px;font-size:15px;line-height:24px;color:#71717a;font-variant-numeric:tabular-nums">3.</td><td valign="top" style="padding-bottom:12px;font-size:15px;line-height:24px;color:#646464">Lên lịch một cuộc họp và ghi chú ngay trong UniWork.</td></tr>
 </table></td></tr>
 <tr><td style="padding-bottom:24px">{{button .Data.WorkspaceURL "Vào workspace"}}</td></tr>
-<tr><td style="border-top:1px solid #e4e4e7;padding-top:20px;font-size:12px;line-height:18px;color:#71717a">Nút không hoạt động? Sao chép liên kết này vào trình duyệt:<br><a href="{{.Data.WorkspaceURL}}" style="display:inline-block;padding:8px 0;color:#52525b;text-decoration:underline;word-break:break-all">{{.Data.WorkspaceURL}}</a></td></tr>
+<tr><td style="border-top:1px solid #cfcfcf;padding-top:20px;font-size:12px;line-height:18px;color:#71717a">Nút không hoạt động? Sao chép liên kết này vào trình duyệt:<br><a href="{{.Data.WorkspaceURL}}" style="display:inline-block;padding:8px 0;color:#646464;text-decoration:underline;word-break:break-all">{{.Data.WorkspaceURL}}</a></td></tr>
 {{end}}
 {{define "footer"}}Bạn nhận email này vì vừa hoàn tất thiết lập UniWork.{{end}}

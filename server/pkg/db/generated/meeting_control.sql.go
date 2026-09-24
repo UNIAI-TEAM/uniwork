@@ -821,6 +821,70 @@ func (q *Queries) GetJoinRequest(ctx context.Context, id string) (MeetingJoinReq
 	return i, err
 }
 
+const getLatestJoinRequestForGuest = `-- name: GetLatestJoinRequestForGuest :one
+SELECT id, meeting_id, requester_user_id, requester_guest_id, display_name_snapshot, invite_link_id, status, requested_at, reviewed_by, reviewed_at, decision_reason, expires_at FROM meeting_join_requests
+WHERE meeting_id = $1 AND requester_guest_id = $2
+ORDER BY requested_at DESC, id DESC
+LIMIT 1
+`
+
+type GetLatestJoinRequestForGuestParams struct {
+	MeetingID        string      `json:"meeting_id"`
+	RequesterGuestID pgtype.Text `json:"requester_guest_id"`
+}
+
+func (q *Queries) GetLatestJoinRequestForGuest(ctx context.Context, arg GetLatestJoinRequestForGuestParams) (MeetingJoinRequest, error) {
+	row := q.db.QueryRow(ctx, getLatestJoinRequestForGuest, arg.MeetingID, arg.RequesterGuestID)
+	var i MeetingJoinRequest
+	err := row.Scan(
+		&i.ID,
+		&i.MeetingID,
+		&i.RequesterUserID,
+		&i.RequesterGuestID,
+		&i.DisplayNameSnapshot,
+		&i.InviteLinkID,
+		&i.Status,
+		&i.RequestedAt,
+		&i.ReviewedBy,
+		&i.ReviewedAt,
+		&i.DecisionReason,
+		&i.ExpiresAt,
+	)
+	return i, err
+}
+
+const getLatestJoinRequestForUser = `-- name: GetLatestJoinRequestForUser :one
+SELECT id, meeting_id, requester_user_id, requester_guest_id, display_name_snapshot, invite_link_id, status, requested_at, reviewed_by, reviewed_at, decision_reason, expires_at FROM meeting_join_requests
+WHERE meeting_id = $1 AND requester_user_id = $2
+ORDER BY requested_at DESC, id DESC
+LIMIT 1
+`
+
+type GetLatestJoinRequestForUserParams struct {
+	MeetingID       string      `json:"meeting_id"`
+	RequesterUserID pgtype.Text `json:"requester_user_id"`
+}
+
+func (q *Queries) GetLatestJoinRequestForUser(ctx context.Context, arg GetLatestJoinRequestForUserParams) (MeetingJoinRequest, error) {
+	row := q.db.QueryRow(ctx, getLatestJoinRequestForUser, arg.MeetingID, arg.RequesterUserID)
+	var i MeetingJoinRequest
+	err := row.Scan(
+		&i.ID,
+		&i.MeetingID,
+		&i.RequesterUserID,
+		&i.RequesterGuestID,
+		&i.DisplayNameSnapshot,
+		&i.InviteLinkID,
+		&i.Status,
+		&i.RequestedAt,
+		&i.ReviewedBy,
+		&i.ReviewedAt,
+		&i.DecisionReason,
+		&i.ExpiresAt,
+	)
+	return i, err
+}
+
 const getMeetingGuest = `-- name: GetMeetingGuest :one
 SELECT id, created_at FROM meeting_guests WHERE id = $1
 `
@@ -1588,6 +1652,36 @@ func (q *Queries) ListPendingOutbox(ctx context.Context, limit int32) ([]OutboxE
 		return nil, err
 	}
 	return items, nil
+}
+
+const markConferenceSessionResyncing = `-- name: MarkConferenceSessionResyncing :one
+UPDATE meeting_conference_sessions SET
+  provider_sync_status = 'PENDING',
+  updated_at = now()
+WHERE id = $1 AND status = 'IDLE' AND provider_sync_status = 'SYNCED'
+RETURNING id, meeting_id, provider_key, provider_room_name, provider_room_sid, status, provider_sync_status, started_at, ended_at, provider_metadata, created_at, updated_at
+`
+
+// Claims an IDLE session for one re-ensure. The WHERE clause is the lock that
+// keeps concurrent joins from queueing the same instruction twice.
+func (q *Queries) MarkConferenceSessionResyncing(ctx context.Context, id string) (MeetingConferenceSession, error) {
+	row := q.db.QueryRow(ctx, markConferenceSessionResyncing, id)
+	var i MeetingConferenceSession
+	err := row.Scan(
+		&i.ID,
+		&i.MeetingID,
+		&i.ProviderKey,
+		&i.ProviderRoomName,
+		&i.ProviderRoomSid,
+		&i.Status,
+		&i.ProviderSyncStatus,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.ProviderMetadata,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const markOutboxDone = `-- name: MarkOutboxDone :exec

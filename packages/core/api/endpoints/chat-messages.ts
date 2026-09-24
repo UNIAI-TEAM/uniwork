@@ -7,11 +7,13 @@ import type { ChatMessageRecord } from "./chat-schemas";
 export async function listChatRoomMessages(
   workspaceId: string,
   roomId: string,
-  options?: { before?: string; limit?: number },
+  options?: { before?: string; limit?: number; mark_read?: boolean },
 ): Promise<ChatMessageRecord[]> {
   const params = new URLSearchParams();
   if (options?.before) params.set("before", options.before);
   if (options?.limit) params.set("limit", String(options.limit));
+  // Default true (omit param). mark_read=0 preserves last_read for CatchUp.
+  if (options?.mark_read === false) params.set("mark_read", "0");
   const qs = params.toString();
   const raw = await request(
     `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/messages${qs ? `?${qs}` : ""}`,
@@ -20,6 +22,17 @@ export async function listChatRoomMessages(
     endpoint: "GET /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages",
   });
   return parsed.messages ?? [];
+}
+
+export async function markChatRoomRead(workspaceId: string, roomId: string): Promise<boolean> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/read`,
+    { method: "POST", body: {} },
+  );
+  const parsed = parseWithFallback(raw, z.object({ status: z.string().optional() }), { status: "" }, {
+    endpoint: "POST .../chat/rooms/{roomID}/read",
+  });
+  return parsed.status === "ok";
 }
 
 export async function getChatRoomMessage(
@@ -100,6 +113,11 @@ export async function sendChatRoomMessage(
       body: string;
       pin_to_top?: boolean;
     };
+    post?: {
+      title: string;
+      body: string;
+      pin_to_top?: boolean;
+    };
     priority?: "important" | "urgent";
   },
 ): Promise<ChatMessageRecord | null> {
@@ -147,6 +165,42 @@ export function loadChatVoiceBlob(
 ): Promise<Blob> {
   return requestBlob(
     `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/messages/${enc(messageId)}/voice`,
+  );
+}
+
+export async function sendChatFileMessage(
+  workspaceId: string,
+  roomId: string,
+  input: {
+    file: Blob;
+    filename: string;
+    client_msg_id: string;
+    reply_to_message_id?: string;
+  },
+): Promise<ChatMessageRecord | null> {
+  const form = new FormData();
+  form.set("file", input.file, input.filename);
+  form.set("client_msg_id", input.client_msg_id);
+  if (input.reply_to_message_id) {
+    form.set("reply_to_message_id", input.reply_to_message_id);
+  }
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/messages/file`,
+    { method: "POST", body: form },
+  );
+  const parsed = parseWithFallback(raw, ChatMessageEnvelopeSchema, { message: undefined }, {
+    endpoint: "POST /api/v1/workspaces/{ws}/chat/rooms/{roomID}/messages/file",
+  });
+  return parsed.message ?? null;
+}
+
+export function loadChatFileBlob(
+  workspaceId: string,
+  roomId: string,
+  messageId: string,
+): Promise<Blob> {
+  return requestBlob(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/messages/${enc(messageId)}/file`,
   );
 }
 

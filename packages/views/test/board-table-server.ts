@@ -1,0 +1,155 @@
+// Fake table API behind the mocked transport, for board tests: groups and rows
+// per status column (`group_key` `status:<status>`), paged by `cursor` as the
+// real server pages them. The cursor is base64 of the offset string — for this
+// fake only; the client never reads it. Pages are named `status:<status>@<offset>`.
+import { ApiError } from "@uniwork/core/api/http";
+import { requestMock } from "./request-mock";
+
+/** Requests one failed attempt makes: the request and the table queries' one automatic retry. */
+export const FAILED_ATTEMPT_REQUESTS = 2;
+
+const STATUS_PREFIX = "status:";
+const encodeCursor = (offset: number) => btoa(String(offset));
+const decodeCursor = (cursor: unknown) => (typeof cursor === "string" ? Number(atob(cursor)) : 0);
+
+type Params = Record<string, unknown>;
+
+export function boardTask(status: string, index: number, over: Params = {}): Params {
+  return {
+    id: `${status}-${index}`,
+    workspace_id: "w1",
+    title: `${status} ${index}`,
+    description: "",
+    status,
+    priority: "medium",
+    position: index,
+    created_by: "u1",
+    created_at: "2026-09-06T00:00:00Z",
+    updated_at: "2026-09-06T00:00:00Z",
+    ...over,
+  };
+}
+
+interface BoardTableServerOptions {
+  /** Tasks per status behind the table API; a status at 0 is absent from groups, as on the server. */
+  counts: Record<string, number>;
+  /** What groups and rows pages claim as a status total, when it differs from the rows served. */
+  claimed?: Record<string, number>;
+  /** Rows pages after the first start this many rows early, repeating ids across the boundary. */
+  overlap?: number;
+  /**
+   * `status:<status>@offset` pages whose first attempt fails with a 503: the
+   * request and the one automatic retry the table queries make (see
+   * `tableQueryRetry`); the next request, a user's retry, succeeds.
+   */
+  failOnce?: string[];
+  /** The first groups attempt (the request and its automatic retry) fails with a 503. */
+  failGroupsOnce?: boolean;
+  /** `status:<status>@offset` page held until `release()`. */
+  hold?: string;
+  /** Hold only this request of the `hold` page, counting from 1; by default every one waits. */
+  holdNth?: number;
+  /** Tasks behind `/my-tasks`, spread over backlog / todo / in_progress. */
+  myTasks?: number;
+  row?: (status: string, index: number) => Params;
+}
+
+export function serveBoardTable(options: BoardTableServerOptions) {
+  const rowBodies: Params[] = [];
+  const groupBodies: Params[] = [];
+  const paths: string[] = [];
+  const requestsPerPage = new Map<string, number>();
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const row = options.row ?? ((status: string, index: number) => boardTask(status, index));
+  const statuses = Object.keys(options.counts);
+  const served = (status: string) => options.counts[status] ?? 0;
+  const claimed = (status: string) => options.claimed?.[status] ?? served(status);
+  const claimedTotal = () => statuses.reduce((sum, status) => sum + claimed(status), 0);
+
+  requestMock.mockReset();
+  requestMock.mockImplementation(async (path: string, init?: { body?: unknown }) => {
+    paths.push(path);
+    const body: Params = { ...(init?.body as Params | undefined) };
+    if (path.includes("/tasks/table/groups")) {
+      groupBodies.push(body);
+      if (options.failGroupsOnce && groupBodies.length <= FAILED_ATTEMPT_REQUESTS) {
+        throw new ApiError("groups failed", "internal", 503);
+      }
+      return {
+        query_fingerprint: "fp-groups",
+        total: claimedTotal(),
+        groups: statuses
+          .filter((status) => served(status) > 0)
+          .map((status) => ({
+            key: `${STATUS_PREFIX}${status}`,
+            value: { kind: "status", status },
+            count: claimed(status),
+          })),
+        next_cursor: null,
+      };
+    }
+    if (path.includes("/tasks/table/rows")) {
+      rowBodies.push(body);
+      const groupKey = typeof body.group_key === "string" ? body.group_key : null;
+      const status =
+        groupKey?.startsWith(STATUS_PREFIX) ? groupKey.slice(STATUS_PREFIX.length) : groupKey;
+      const offset = decodeCursor(body.cursor);
+      const limit = Number(body.limit ?? 50);
+      const page = `${String(groupKey)}@${offset}`;
+      const nth = (requestsPerPage.get(page) ?? 0) + 1;
+      requestsPerPage.set(page, nth);
+      if (options.hold === page && (options.holdNth === undefined || options.holdNth === nth)) {
+        await held;
+      }
+      if (options.failOnce?.includes(page) && nth <= FAILED_ATTEMPT_REQUESTS) {
+        throw new ApiError("page failed", "internal", 503);
+      }
+      // Without a group key the server pages every status as one branch.
+      const branchStatuses = status === null ? statuses : [status];
+      const branch = branchStatuses.flatMap((status) =>
+        Array.from({ length: served(status) }, (_, index) => row(status, index)),
+      );
+      const start = offset > 0 ? Math.max(0, offset - (options.overlap ?? 0)) : 0;
+      const end = Math.min(branch.length, start + limit);
+      const pageRows = branch.slice(start, end);
+      return {
+        query_fingerprint: "fp-rows",
+        group_key: groupKey,
+        parent_id: null,
+        total: status === null ? claimedTotal() : claimed(status),
+        rows: pageRows.map((task) => ({ task, direct_child_count: 0, labels: [] })),
+        next_cursor: end < branch.length ? encodeCursor(end) : null,
+      };
+    }
+    if (path.includes("/my-tasks")) {
+      const params = Object.fromEntries(new URL(path, "http://test").searchParams);
+      const offset = Number(params.offset ?? 0);
+      const limit = Number(params.limit ?? 50);
+      const total = options.myTasks ?? 0;
+      const count = Math.max(0, Math.min(limit, total - offset));
+      const spread = ["backlog", "todo", "in_progress"];
+      return {
+        tasks: Array.from({ length: count }, (_, k) =>
+          row(spread[(offset + k) % spread.length]!, offset + k),
+        ),
+        total,
+        limit,
+        offset,
+      };
+    }
+    return { tasks: [], total: 0, limit: 50, offset: 0 };
+  });
+
+  return {
+    /** Every rows request as `group_key@offset` (the cursor decoded), in order. */
+    rowRequests: () =>
+      rowBodies.map((body) => `${String(body.group_key)}@${decodeCursor(body.cursor)}`),
+    rowBodies,
+    groupBodies,
+    paths,
+    release: () => release(),
+  };
+}

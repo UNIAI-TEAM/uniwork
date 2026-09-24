@@ -11,30 +11,34 @@ export function useMeetingLobbySync(meetingId: string, enabled = true) {
   const lobby = useOptionalMeetingLobbyWS();
 
   useEffect(() => {
-    if (!enabled || !meetingId || !lobby?.client) return;
+    const client = lobby?.client;
+    if (!enabled || !meetingId || !client) return;
     const invalidateIfMatch = (payload: unknown, key: readonly unknown[]) => {
       const p = payload as Record<string, string>;
       if (p.meeting_id === meetingId) {
         void qc.invalidateQueries({ queryKey: key });
       }
     };
-    const offChat = lobby.client.on("chat.message", (payload) => {
+    const offChat = client.on("chat.message", (payload) => {
       invalidateIfMatch(payload, meetingKeys.chat(meetingId));
     });
-    const offParticipantInvited = lobby.client.on("participant.invited", (payload) => {
+    const offParticipantInvited = client.on("participant.invited", (payload) => {
       invalidateIfMatch(payload, meetingKeys.participants(meetingId));
     });
-    const offParticipantRemoved = lobby.client.on("participant.removed", (payload) => {
+    const offParticipantRemoved = client.on("participant.removed", (payload) => {
       invalidateIfMatch(payload, meetingKeys.participants(meetingId));
     });
-    const offRecordingReady = lobby.client.on("recording.ready", (payload) => {
-      invalidateIfMatch(payload, meetingKeys.recordings(meetingId));
-    });
+    // started/stopped drive the REC badge for guests, who have no workspace socket.
+    const offRecording = (["recording.started", "recording.stopped", "recording.ready"] as const).map((event) =>
+      client.on(event, (payload) => {
+        invalidateIfMatch(payload, meetingKeys.recordings(meetingId));
+      }),
+    );
     return () => {
       offChat();
       offParticipantInvited();
       offParticipantRemoved();
-      offRecordingReady();
+      for (const off of offRecording) off();
     };
   }, [enabled, lobby?.client, meetingId, qc]);
 }

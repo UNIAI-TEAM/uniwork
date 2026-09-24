@@ -9,24 +9,32 @@ export function useNativeGroupMemberProfiles({
   workspaceId,
   targetKind,
   activeGroup,
+  activeChannel = null,
 }: {
   workspaceId: string;
-  targetKind: "workspace" | "dm" | "group";
+  targetKind: "workspace" | "dm" | "group" | "channel";
   activeGroup: GroupChat | null;
+  activeChannel?: { member_user_ids: string[] } | null;
 }) {
   const [groupMemberProfiles, setGroupMemberProfiles] = useState<
     Record<string, GroupMemberProfile>
   >({});
 
   useEffect(() => {
-    if (targetKind !== "group" || !activeGroup) {
+    const memberIds =
+      targetKind === "group"
+        ? activeGroup?.member_user_ids
+        : targetKind === "channel"
+          ? activeChannel?.member_user_ids
+          : undefined;
+    if (!memberIds) {
       setGroupMemberProfiles((prev) => (Object.keys(prev).length === 0 ? prev : {}));
       return;
     }
 
     let cancelled = false;
     void Promise.all(
-      activeGroup.member_user_ids.map(async (userId) => fetchChatUserById(workspaceId, userId)),
+      memberIds.map(async (userId) => fetchChatUserById(workspaceId, userId)),
     ).then((users) => {
       if (cancelled) return;
       const next: Record<string, GroupMemberProfile> = {};
@@ -44,7 +52,7 @@ export function useNativeGroupMemberProfiles({
     return () => {
       cancelled = true;
     };
-  }, [workspaceId, targetKind, activeGroup]);
+  }, [workspaceId, targetKind, activeGroup, activeChannel]);
 
   const clearGroupMemberProfiles = useCallback(() => {
     setGroupMemberProfiles({});

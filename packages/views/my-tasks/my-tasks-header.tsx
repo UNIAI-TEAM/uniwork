@@ -8,6 +8,8 @@ import { useAuthStore } from "@uniwork/core/auth";
 import { capabilityState } from "@uniwork/core/capabilities";
 import { usePublicConfig } from "@uniwork/core/feature-flags";
 import type { MyTasksScope } from "@uniwork/core/tasks/stores/my-tasks-view-store";
+import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
+import { baselineFromQuery } from "@uniwork/core/tasks/views/baseline";
 import { useActiveTaskView } from "@uniwork/core/tasks/views/use-active-view";
 import type { Task } from "@uniwork/core/types";
 import type { TaskView } from "@uniwork/core/types/task-view";
@@ -60,6 +62,8 @@ export function MyTasksHeader({
   isRefreshing = false,
   scope,
   onScopeChange,
+  projectGroupingDisabled = true,
+  projectGroupingReasonKey,
 }: {
   workspaceId: string;
   modes: TaskSurfaceMode[];
@@ -67,9 +71,10 @@ export function MyTasksHeader({
   isRefreshing?: boolean;
   scope: MyTasksScope;
   onScopeChange: (scope: MyTasksScope) => void;
+  projectGroupingDisabled?: boolean;
+  projectGroupingReasonKey?: string;
 }) {
   const { t } = useTranslation();
-  void scopedTasks;
   const [saveViewOpen, setSaveViewOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<{
     view: TaskView;
@@ -94,6 +99,17 @@ export function MyTasksHeader({
   const currentUserId = useAuthStore((s) => s.user?.id ?? null);
   const isViewOwner = !!activeView && activeView.owner_id === currentUserId;
 
+  const viewBaseline = useMemo(() => {
+    const query = activeView?.query;
+    if (!query || typeof query !== "object" || Array.isArray(query)) {
+      return undefined;
+    }
+    return baselineFromQuery(query as Record<string, unknown>);
+  }, [activeView]);
+
+  const dateFilter = useViewStore((s) => s.dateFilter);
+  const setDateFilter = useViewStore((s) => s.setDateFilter);
+
   const { data: publicConfig } = usePublicConfig();
   const agentCapability = capabilityState(
     publicConfig ?? EMPTY_CONFIG,
@@ -103,6 +119,20 @@ export function MyTasksHeader({
   const involvedReason = t(
     agentCapability.explanation_key || "capabilities.unknown",
   );
+  const saveLabel = activeView
+    ? isViewOwner
+      ? t("tasks.filters.chip_edit")
+      : t("tasks.filters.chip_save_as")
+    : t("tasks.filters.chip_save");
+
+  const openSaveView = () => {
+    setEditTarget(
+      activeView && isViewOwner
+        ? { view: activeView, fromDefinition: false }
+        : null,
+    );
+    setSaveViewOpen(true);
+  };
 
   const scopeMeta = useMemo(
     () =>
@@ -180,7 +210,7 @@ export function MyTasksHeader({
             <DropdownMenuTrigger
               render={
                 <Button
-                  variant="outline"
+                  variant="toolbar"
                   size="sm"
                   className="shrink-0 gap-1 text-muted-foreground md:hidden"
                 />
@@ -212,27 +242,28 @@ export function MyTasksHeader({
           </DropdownMenu>
 
           <div className="flex shrink-0 items-center gap-1">
-            <TaskDisplayControls modes={modes} isRefreshing={isRefreshing} />
+            <TaskDisplayControls
+              modes={modes}
+              isRefreshing={isRefreshing}
+              workspaceId={workspaceId}
+              scopedTasks={scopedTasks}
+              projectGroupingDisabled={projectGroupingDisabled}
+              projectGroupingReasonKey={projectGroupingReasonKey}
+              viewBaseline={viewBaseline}
+              dateFilter={dateFilter}
+              onDateFilterChange={setDateFilter}
+            />
           </div>
         </div>
       </div>
 
       <FilterChipsBar
-        onSave={() => {
-          setEditTarget(
-            activeView && isViewOwner
-              ? { view: activeView, fromDefinition: false }
-              : null,
-          );
-          setSaveViewOpen(true);
-        }}
-        saveLabel={
-          activeView
-            ? isViewOwner
-              ? t("tasks.filters.chip_edit")
-              : t("tasks.filters.chip_save_as")
-            : t("tasks.filters.chip_save")
-        }
+        workspaceId={workspaceId}
+        dateFilter={dateFilter}
+        onDateFilterChange={setDateFilter}
+        viewBaseline={viewBaseline}
+        onSave={openSaveView}
+        saveLabel={saveLabel}
       />
 
       <SaveViewDialog

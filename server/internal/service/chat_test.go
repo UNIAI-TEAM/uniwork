@@ -659,6 +659,19 @@ func TestVoiceCallLogCompleted(t *testing.T) {
 		if msg.VoiceCall.CallerID != ua.ID {
 			t.Fatalf("caller: %+v", msg.VoiceCall)
 		}
+		if len(msg.VoiceCall.Participants) != 2 {
+			t.Fatalf("participants: %+v", msg.VoiceCall.Participants)
+		}
+		participantIDs := map[string]bool{}
+		for _, p := range msg.VoiceCall.Participants {
+			participantIDs[p.UserID] = true
+			if strings.TrimSpace(p.DisplayName) == "" {
+				t.Fatalf("participant name empty: %+v", p)
+			}
+		}
+		if !participantIDs[ua.ID] || !participantIDs[ub.ID] {
+			t.Fatalf("participant ids: %+v", participantIDs)
+		}
 	}
 	if !found {
 		t.Fatal("voice call log message missing")
@@ -672,6 +685,157 @@ func TestVoiceCallLogCompleted(t *testing.T) {
 	}
 	if !logPublished {
 		t.Fatalf("publish log: %+v", pub.events)
+	}
+}
+
+func TestChannelVoiceCall(t *testing.T) {
+	s, pub, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "voice-pub", Visibility: chatVisibilityPublic,
+	})
+	if err != nil {
+		t.Fatalf("create channel: %v", err)
+	}
+	if _, err := s.JoinChannel(ctx, ub.ID, w.ID, ch.ID); err != nil {
+		t.Fatalf("join channel: %v", err)
+	}
+	pub.events = nil
+
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, ch.ID, "channel-call-1"); err != nil {
+		t.Fatalf("invite: %v", err)
+	}
+	last := pub.events[len(pub.events)-1]
+	if last.Type != "chat.voice.invite" {
+		t.Fatalf("invite event: %+v", last)
+	}
+	if last.Payload["call_kind"] != chatRoomKindChannel {
+		t.Fatalf("call_kind: %+v", last.Payload)
+	}
+	if last.Payload["room_name"] != "voice-pub" {
+		t.Fatalf("room_name: %+v", last.Payload)
+	}
+
+	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, ch.ID, "channel-call-1"); err != nil {
+		t.Fatalf("accept: %v", err)
+	}
+	if _, err := s.MintVoiceTokenRoom(ctx, ub.ID, ch.ID, "channel-call-1"); err != nil {
+		t.Fatalf("token: %v", err)
+	}
+
+	if err := s.SignalVoiceHangup(ctx, ub.ID, w.ID, ch.ID, "channel-call-1", nil); err != ErrForbidden {
+		t.Fatalf("member hangup for all: %v", err)
+	}
+	duration := 55
+	if err := s.SignalVoiceHangup(ctx, ua.ID, w.ID, ch.ID, "channel-call-1", &duration); err != nil {
+		t.Fatalf("caller hangup: %v", err)
+	}
+	msgs, err := s.ListRoomMessages(ctx, ua.ID, w.ID, ch.ID, ListChatMessagesInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, msg := range msgs {
+		if msg.Kind != "voice_call_log" || msg.VoiceCall == nil {
+			continue
+		}
+		found = true
+		if len(msg.VoiceCall.Participants) != 2 {
+			t.Fatalf("participants: %+v", msg.VoiceCall.Participants)
+		}
+	}
+	if !found {
+		t.Fatal("voice call log message missing")
+	}
+}
+
+func TestChannelVoiceCallRequiresMember(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	ch, err := s.CreateChannel(ctx, ua.ID, w.ID, CreateChannelInput{
+		Name: "voice-member", Visibility: chatVisibilityPublic,
+	})
+	if err != nil {
+		t.Fatalf("create channel: %v", err)
+	}
+	if err := s.SignalVoiceInvite(ctx, ub.ID, w.ID, ch.ID, "channel-no-join"); !codedIs(err, "chat_not_member") {
+		t.Fatalf("invite before join: want chat_not_member, got %v", err)
+	}
+}
+
+func TestDefaultChannelVoiceBlocked(t *testing.T) {
+	s, _, _, ua, _, w := chatFixture(t)
+	ctx := context.Background()
+	defaultRoom, err := s.EnsureWorkspaceRoom(ctx, ua.ID, w.ID)
+	if err != nil {
+		t.Fatalf("default channel: %v", err)
+	}
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, defaultRoom.RoomID, "default-call"); err == nil {
+		t.Fatal("expected voice invite blocked on default channel")
+	}
+}
+
+func TestGroupVoiceCallLogParticipants(t *testing.T) {
+	s, _, q, ua, ub, w, pool := chatFixtureWithPool(t)
+	ctx := context.Background()
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	uc := registerVerified(t, q, as, "chat-group-log-c@example.com", "C")
+	addOrgMember(t, q, w.OrganizationID, uc.ID)
+	addWorkspaceMember(t, q, w.ID, uc.ID)
+
+	group, err := s.CreateGroup(ctx, ua.ID, w.ID, CreateGroupInput{
+		Name: "Log group", MemberUserIDs: []string{ub.ID, uc.ID},
+	})
+	if err != nil {
+		t.Fatalf("create group: %v", err)
+	}
+	if err := s.SignalVoiceInvite(ctx, ua.ID, w.ID, group.ID, "group-log-1"); err != nil {
+		t.Fatalf("invite: %v", err)
+	}
+	if err := s.SignalVoiceAccept(ctx, ub.ID, w.ID, group.ID, "group-log-1"); err != nil {
+		t.Fatalf("accept ub: %v", err)
+	}
+	if err := s.SignalVoiceAccept(ctx, uc.ID, w.ID, group.ID, "group-log-1"); err != nil {
+		t.Fatalf("accept uc: %v", err)
+	}
+	duration := 90
+	if err := s.SignalVoiceHangup(ctx, ua.ID, w.ID, group.ID, "group-log-1", &duration); err != nil {
+		t.Fatalf("hangup: %v", err)
+	}
+	msgs, err := s.ListRoomMessages(ctx, ua.ID, w.ID, group.ID, ListChatMessagesInput{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, msg := range msgs {
+		if msg.Kind != "voice_call_log" || msg.VoiceCall == nil {
+			continue
+		}
+		found = true
+		if len(msg.VoiceCall.Participants) != 3 {
+			t.Fatalf("participants: %+v", msg.VoiceCall.Participants)
+		}
+		participantIDs := map[string]bool{}
+		for _, p := range msg.VoiceCall.Participants {
+			participantIDs[p.UserID] = true
+		}
+		for _, id := range []string{ua.ID, ub.ID, uc.ID} {
+			if !participantIDs[id] {
+				t.Fatalf("missing participant %s: %+v", id, msg.VoiceCall.Participants)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("voice call log message missing")
 	}
 }
 

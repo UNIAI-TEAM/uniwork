@@ -39,7 +39,7 @@ func newAuditServiceFixture(t *testing.T) *auditServiceFixture {
 	ws := NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
 
 	f := &auditServiceFixture{ctx: ctx, q: q, ws: ws,
-		svc: NewAuditService(pool, q, orgs, ws), tasks: NewTaskService(pool, q, ws)}
+		svc: NewAuditService(pool, q, orgs, ws), tasks: NewTaskService(pool, q, ws, nil)}
 
 	f.ownerA = registerVerified(t, q, auth, "aud-owner-a@example.com", "Owner A")
 	f.adminA = registerVerified(t, q, auth, "aud-admin-a@example.com", "Admin A")
@@ -157,7 +157,7 @@ func TestOnlyTheOwnerSeesTheIPAddress(t *testing.T) {
 func TestAuditFilterAndCursor(t *testing.T) {
 	f := newAuditServiceFixture(t)
 	for i := range 3 {
-		if _, err := f.tasks.Create(f.ctx, Human(f.ownerA.ID), f.wsA.ID, CreateTaskInput{Title: "Việc"}); err != nil {
+		if _, err := f.tasks.Create(f.ctx, Human(f.ownerA.ID), f.wsA.ID, CreateTaskInput{Title: "Việc", AllowDuplicate: true}); err != nil {
 			t.Fatalf("create %d: %v", i, err)
 		}
 	}

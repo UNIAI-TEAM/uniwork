@@ -21,18 +21,33 @@ const SCOPES = {
   None: "-",
 };
 
+const quoted = (list) => [...(list ?? "").matchAll(/"([^"]+)"/g)].map((p) => p[1]);
+
+/**
+ * `server/internal/outbox/catalogue.go` with its comments removed, so every
+ * reader of the Go table sees what the compiler sees: a commented-out row is
+ * gone and a comment quoting a row is not one. One left-to-right pass, so the
+ * comment that opens first wins, as in Go. The file has no string literal
+ * holding a line-comment or block-comment marker (topics and keys are
+ * identifiers). One such string usually cuts a real row and fails the
+ * Go-vs-Markdown test, but a crafted pair (a string opening a block comment in
+ * one row, a string closing it in a later row) can hide the rows between them,
+ * so keep catalogue strings to identifiers.
+ */
+const goSource = () => read("server/internal/outbox/catalogue.go").replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
+
 /** Rows of `server/internal/outbox/catalogue.go`, the machine source of truth. */
 function goCatalogue() {
-  const src = read("server/internal/outbox/catalogue.go");
   const rowPattern =
-    /\{Topic: "([^"]+)", Version: (\d+), Payload: \[\]string\{([^}]*)\}, Scope: Scope(\w+), Delivery: Delivery(\w+)\},/g;
+    /\{Topic: "([^"]+)", Version: (\d+), Payload: \[\]string\{([^}]*)\}(?:, Patch: \[\]string\{([^}]*)\})?, Scope: Scope(\w+), Delivery: Delivery(\w+)\},/g;
   const rows = [];
-  for (const m of src.matchAll(rowPattern)) {
-    const [, topic, version, payload, scope, delivery] = m;
+  for (const m of goSource().matchAll(rowPattern)) {
+    const [, topic, version, payload, patch, scope, delivery] = m;
     rows.push({
       topic,
       version: Number(version),
-      payload: [...payload.matchAll(/"([^"]+)"/g)].map((p) => p[1]),
+      payload: quoted(payload),
+      patch: quoted(patch),
       scope: SCOPES[scope],
       delivery: delivery.toLowerCase(),
     });
@@ -43,6 +58,7 @@ function goCatalogue() {
 /** Rows of the table in `docs/events/CATALOGUE.md`. */
 function docCatalogue() {
   const lines = read("docs/events/CATALOGUE.md").split("\n");
+  const keys = (cell) => (cell === "—" ? [] : cell.split(",").map((k) => k.trim().replaceAll("`", "")));
   return lines
     .filter((l) => l.startsWith("| `"))
     .map((l) => {
@@ -50,9 +66,10 @@ function docCatalogue() {
       return {
         topic: cells[1].replaceAll("`", ""),
         version: Number(cells[2]),
-        payload: cells[3] === "—" ? [] : cells[3].split(",").map((k) => k.trim().replaceAll("`", "")),
-        scope: cells[4],
-        delivery: cells[5],
+        payload: keys(cells[3]),
+        patch: keys(cells[4]),
+        scope: cells[5],
+        delivery: cells[6],
       };
     })
     .sort((a, b) => a.topic.localeCompare(b.topic));
@@ -73,6 +90,21 @@ test("the Go catalogue and the documented table agree", () => {
   );
 });
 
+test("every catalogue row has the one-line shape this file parses", () => {
+  // goCatalogue() reads rows with a one-line regex, so a row in any other shape
+  // (fields reordered, gofmt's multi-line form) would be invisible to every rule
+  // in this file. Each row has exactly one Topic key: count them in the same
+  // comment-free source goCatalogue() parses, so a comment can neither add a row
+  // to one side of this count nor hide one from the other, and so cannot
+  // balance a row the parser missed. A row commented out is gone from both, and
+  // the Go-vs-Markdown test reports it.
+  assert.equal(
+    goCatalogue().length,
+    (goSource().match(/\bTopic:/g) ?? []).length,
+    "a row in server/internal/outbox/catalogue.go is not in the one-line shape goCatalogue() parses",
+  );
+});
+
 test("the client knows every event that has a realtime audience", () => {
   // Events with no scope (provider.*, webhook.deliver) are infrastructure: they
   // belong to the catalogue because they share the outbox, but nothing on the
@@ -89,22 +121,69 @@ test("the client knows every event that has a realtime audience", () => {
 });
 
 test("event names follow <entity>.<verb> and carry no version", () => {
-  for (const { topic, payload, scope } of goCatalogue()) {
+  for (const { topic } of goCatalogue()) {
     assert.match(topic, /^[a-z][a-z_]*(\.[a-z][a-z_]*)+$/, `${topic} is not <entity>.<verb>`);
     assert.doesNotMatch(topic, /\.v\d+$/, `${topic} carries a version in its name; use the event_version column`);
-    // Payload keys are ids, for events a client can receive. A key that is not
-    // an id is content, and content in an event is a field somebody was not
-    // supposed to see. Infrastructure topics are exempt: provider.* addresses a
+  }
+});
+
+const REVISION_KEYS = new Set(["revision", "revision_before"]);
+
+test("payload keys are ids or revisions; content travels only through Patch", () => {
+  // A payload key that is not an id is content, and content in an event is a
+  // field somebody may not be allowed to see. ADR 0015 lets exactly one row
+  // carry content, and only the fields it names in Patch: task.updated, whose
+  // readers are every member of the workspace it fans out to. The revision pair
+  // exists only to guard a patch. Both rules are checked before the
+  // infrastructure exemption below, so no row — scoped or not — can open a
+  // second content channel or carry a revision key without Patch.
+  for (const { topic, payload, patch, scope } of goCatalogue()) {
+    if (patch.length > 0) {
+      assert.equal(topic, "task.updated", `${topic} declares Patch; only task.updated may (ADR 0015)`);
+      assert.ok(
+        payload.includes("revision_before") && payload.includes("revision"),
+        `${topic} declares Patch without revision_before and revision`,
+      );
+    }
+    for (const key of payload.filter((k) => REVISION_KEYS.has(k))) {
+      assert.ok(
+        patch.length > 0,
+        `${topic} carries payload key "${key}" without Patch; the revision pair only guards a patch (ADR 0015)`,
+      );
+    }
+    // Infrastructure topics are exempt from the id rule: provider.* addresses a
     // conference room by the provider's own name for it, which is not our id.
     if (scope === "-") continue;
     for (const key of payload) {
-      assert.match(
-        key,
-        /(_id|^version$)$/,
-        `${topic} carries payload key "${key}"; payloads are ids only, consumers refetch`,
-      );
+      if (REVISION_KEYS.has(key)) continue;
+      assert.match(key, /(_id|^version$)$/, `${topic} carries payload key "${key}"; payloads are ids (ADR 0015)`);
     }
   }
+});
+
+test("the patchable task fields are exactly the ones ADR 0015 accepted", () => {
+  const row = goCatalogue().find((r) => r.topic === "task.updated");
+  assert.ok(row, "task.updated is missing from server/internal/outbox/catalogue.go");
+  assert.deepEqual([...row.patch].sort(), ["due_date", "priority", "status", "title"]);
+});
+
+test("the client decodes exactly the fields task.updated lists in Patch", () => {
+  // packages/core/tasks/realtime-task-patch.ts will not patch from a frame with a
+  // key outside this list, the ids and the revision pair, so a field added to
+  // Patch on the server but not here loses no data: every frame carrying it
+  // silently falls back to a refetch instead, and the patch the catalogue
+  // promises never happens. Comments are stripped first, as for the Go side, so
+  // a commented-out list cannot stand in for the real one.
+  const client = read("packages/core/tasks/realtime-task-patch.ts").replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, "");
+  const lists = [...client.matchAll(/const TASK_PATCH_FIELDS = \[([^\]]*)\] as const;/g)];
+  assert.equal(lists.length, 1, "packages/core/tasks/realtime-task-patch.ts must declare `const TASK_PATCH_FIELDS = [...] as const;` exactly once");
+  const row = goCatalogue().find((r) => r.topic === "task.updated");
+  assert.ok(row, "task.updated is missing from server/internal/outbox/catalogue.go");
+  assert.deepEqual(
+    quoted(lists[0][1]).sort(),
+    [...row.patch].sort(),
+    "packages/core/tasks/realtime-task-patch.ts TASK_PATCH_FIELDS and the task.updated Patch list disagree",
+  );
 });
 
 test("every event has a scope or is explicitly infrastructure", () => {

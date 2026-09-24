@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 	"time"
+
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 // SignalVoiceInvite notifies organization members of an outgoing voice call.
@@ -16,11 +18,11 @@ func (s *ChatService) SignalVoiceInvite(ctx context.Context, userID, workspaceID
 	if err != nil {
 		return err
 	}
-	if room.Kind == chatRoomKindWorkspace {
+	if isWorkspaceDefaultRoom(room) {
 		return Invalid("cuộc gọi thoại không khả dụng trong phòng workspace")
 	}
-	if room.Kind != chatRoomKindDM && room.Kind != chatRoomKindGroup {
-		return Invalid("cuộc gọi thoại chỉ khả dụng trong tin nhắn trực tiếp hoặc nhóm")
+	if room.Kind != chatRoomKindDM && !voiceCallMultiPartyKind(room.Kind) {
+		return Invalid("cuộc gọi thoại chỉ khả dụng trong tin nhắn trực tiếp, nhóm hoặc kênh")
 	}
 	u, err := s.q.GetUserByID(ctx, userID)
 	if err != nil {
@@ -55,6 +57,7 @@ func (s *ChatService) SignalVoiceAccept(ctx context.Context, userID, workspaceID
 		return err
 	}
 	s.trackVoiceCallAccept(roomID, callID)
+	s.trackVoiceCallParticipant(roomID, callID, userID)
 	ev := Event{
 		Type: "chat.voice.accept",
 		Payload: map[string]string{
@@ -79,7 +82,7 @@ func (s *ChatService) SignalVoiceHangup(
 	if err := s.requireVoiceCallActor(ctx, room, userID, false); err != nil {
 		return err
 	}
-	if room.Kind == chatRoomKindGroup {
+	if voiceCallMultiPartyKind(room.Kind) {
 		key := voiceCallSessionKey(roomID, callID)
 		raw, ok := voiceCallSessions.Load(key)
 		if !ok {
@@ -90,6 +93,8 @@ func (s *ChatService) SignalVoiceHangup(
 			return ErrForbidden
 		}
 	}
+	s.trackVoiceCallParticipant(roomID, callID, userID)
+	s.stopVoiceRecordingOnHangup(ctx, room, callID, userID)
 	if logErr := s.finalizeVoiceCall(ctx, room, userID, callID, durationSeconds); logErr != nil {
 		return logErr
 	}
@@ -124,10 +129,56 @@ func (s *ChatService) SignalTyping(ctx context.Context, userID, workspaceID, roo
 		},
 	}
 	switch room.Kind {
-	case chatRoomKindWorkspace:
+	case chatRoomKindWorkspace, chatRoomKindChannel:
 		s.pub.Publish(ctx, workspaceID, ev)
 	default:
 		s.publishChatRoomEvent(ctx, roomID, ev)
 	}
 	return nil
+}
+
+// SignalPresence broadcasts that the caller is online or offline in the workspace.
+func (s *ChatService) SignalPresence(ctx context.Context, userID, workspaceID, state string) error {
+	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
+		return err
+	}
+	normalized := strings.ToLower(strings.TrimSpace(state))
+	if normalized == "" {
+		normalized = "online"
+	}
+	if normalized != "online" && normalized != "offline" {
+		return Invalid("state must be online or offline")
+	}
+	topic := "user.presence"
+	if normalized == "online" {
+		if !shouldPublishPresence(userID, time.Now()) {
+			return nil
+		}
+	} else {
+		clearPresenceThrottle(userID)
+		topic = "user.offline"
+	}
+	s.pub.Publish(ctx, workspaceID, Event{
+		Type: topic,
+		Payload: map[string]string{
+			"user_id": userID,
+		},
+	})
+	return nil
+}
+
+func (s *ChatService) publishChatRoomRead(ctx context.Context, room db.ChatRoom, userID string) {
+	ev := Event{
+		Type: "chat.room.read",
+		Payload: map[string]string{
+			"room_id": room.ID,
+			"user_id": userID,
+		},
+	}
+	switch room.Kind {
+	case chatRoomKindWorkspace, chatRoomKindChannel:
+		s.pub.Publish(ctx, roomAnchorWorkspaceID(room), ev)
+	default:
+		s.publishChatRoomEvent(ctx, room.ID, ev)
+	}
 }

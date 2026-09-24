@@ -23,6 +23,9 @@ type AdmissionContext struct {
 	DisplayName  string
 	InviteLinkID string
 	InviteSecret string
+	// RequestAgain files a new join request even though the requester's last
+	// one was rejected; automatic re-joins leave it false so a rejection sticks.
+	RequestAgain bool
 }
 
 type AdmissionDecision struct {
@@ -55,6 +58,7 @@ func (s *MeetingService) Join(ctx context.Context, in AdmissionContext) (Admissi
 		return AdmissionDecision{}, err
 	}
 	if !conferenceSessionReady(sess) {
+		s.requeueIdleProviderSession(ctx, dec.Meeting, sess)
 		return AdmissionDecision{
 			Decision:            DecisionWaitingForProvider,
 			Reason:              "PROVIDER_NOT_READY",
@@ -140,6 +144,40 @@ func (s *MeetingService) decisionForStatus(m db.Meeting, p db.MeetingParticipant
 		return AdmissionDecision{Decision: DecisionWaitingForHost, Reason: "MEETING_NOT_STARTED", Meeting: m, Participant: p}, nil
 	}
 	return AdmissionDecision{Decision: DecisionAdmit, Meeting: m, Participant: p}, nil
+}
+
+// requeueIdleProviderSession re-queues the room of a session the provider
+// closed behind UniWork's back — LiveKit's empty timeout is the usual cause,
+// and nobody can join a room that no longer exists. The outbox worker owns the
+// provider call, so join stays off the provider's critical path; the claim in
+// MarkConferenceSessionResyncing is what keeps the lobby's retries from
+// queueing the same instruction over and over. ReconcileProviderDesync stays
+// the backstop for the case where the queued row dies.
+func (s *MeetingService) requeueIdleProviderSession(ctx context.Context, m db.Meeting, sess db.MeetingConferenceSession) {
+	if sess.Status != "IDLE" || sess.ProviderSyncStatus != "SYNCED" {
+		return
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	if _, err := q.MarkConferenceSessionResyncing(ctx, sess.ID); err != nil {
+		return
+	}
+	if err := s.enqueue(ctx, q, m.WorkspaceID, "provider.ensure_session", map[string]string{
+		"meeting_id": m.ID, "session_id": sess.ID, "room_name": sess.ProviderRoomName,
+	}); err != nil {
+		return
+	}
+	_ = s.writeAudit(ctx, q, m.ID, "PROVIDER_ROOM_IDLE_DESYNC", "", m.Status, "IDLE", "{}")
+	if err := tx.Commit(ctx); err != nil {
+		return
+	}
+	if s.metrics != nil {
+		s.metrics.IncProviderDesync()
+	}
 }
 
 func conferenceSessionReady(sess db.MeetingConferenceSession) bool {
@@ -299,6 +337,11 @@ func (s *MeetingService) ensureJoinRequestTx(ctx context.Context, q *db.Queries,
 			return db.MeetingJoinRequest{}, err
 		}
 	}
+	if !in.RequestAgain {
+		if err := latestJoinRequestRejected(ctx, q, m.ID, in); err != nil {
+			return db.MeetingJoinRequest{}, err
+		}
+	}
 	jr, err := q.CreateJoinRequest(ctx, db.CreateJoinRequestParams{
 		ID: util.NewID(), MeetingID: m.ID, RequesterUserID: strText(in.UserID),
 		RequesterGuestID: strText(in.GuestID), DisplayNameSnapshot: in.DisplayName,
@@ -330,7 +373,36 @@ func (s *MeetingService) RequestJoin(ctx context.Context, in AdmissionContext) (
 	if meetingPastScheduledEnd(m, time.Now().UTC()) {
 		return db.MeetingJoinRequest{}, errMeetingPastScheduledEnd()
 	}
+	in.RequestAgain = true
 	return s.ensureJoinRequest(ctx, m, in)
+}
+
+// latestJoinRequestRejected refuses to re-file a request whose last answer was
+// a rejection: a lobby retry would otherwise put the requester straight back
+// in the host's queue and leave them waiting on a decision already made.
+func latestJoinRequestRejected(ctx context.Context, q *db.Queries, meetingID string, in AdmissionContext) error {
+	var (
+		last db.MeetingJoinRequest
+		err  error
+	)
+	switch {
+	case in.UserID != "":
+		last, err = q.GetLatestJoinRequestForUser(ctx, db.GetLatestJoinRequestForUserParams{MeetingID: meetingID, RequesterUserID: strText(in.UserID)})
+	case in.GuestID != "":
+		last, err = q.GetLatestJoinRequestForGuest(ctx, db.GetLatestJoinRequestForGuestParams{MeetingID: meetingID, RequesterGuestID: strText(in.GuestID)})
+	default:
+		return nil
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if last.Status == JoinRejected {
+		return coded(http.StatusForbidden, "join_request_rejected", "người chủ trì đã từ chối yêu cầu vào phòng")
+	}
+	return nil
 }
 
 func (s *MeetingService) ListJoinRequests(ctx context.Context, userID, meetingID string) ([]db.MeetingJoinRequest, error) {

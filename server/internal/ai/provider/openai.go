@@ -57,11 +57,17 @@ func (o *OpenAI) Complete(ctx context.Context, req CompletionRequest) (Completio
 	body["messages"] = msgs
 	if len(req.JSONSchema) > 0 {
 		body["response_format"] = map[string]any{
-			"type":        "json_schema",
-			"json_schema": map[string]any{"name": "output", "schema": json.RawMessage(req.JSONSchema)},
+			"type": "json_schema",
+			"json_schema": map[string]any{
+				"name":   "output",
+				"strict": true,
+				"schema": json.RawMessage(req.JSONSchema),
+			},
 		}
 	}
-	if len(req.Tools) > 0 {
+	// Tools + json_schema together are rejected by OpenAI; gateway already omits
+	// tools when a schema is set. Keep this guard for direct callers.
+	if len(req.Tools) > 0 && len(req.JSONSchema) == 0 {
 		tools := make([]map[string]any, 0, len(req.Tools))
 		for _, t := range req.Tools {
 			tools = append(tools, map[string]any{"type": "function", "function": map[string]any{

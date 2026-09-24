@@ -48,12 +48,14 @@ type env struct {
 type rule func(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error)
 
 var rules = map[string]rule{
-	"task.updated":        ruleTaskUpdated,
-	"task.comment_added":  ruleTaskCommentAdded,
-	"participant.invited": ruleParticipantInvited,
-	"member.joined":       ruleMemberJoined,
-	"member.role_changed": ruleRoleChanged,
-	"audit.exported":      ruleAuditExported,
+	"task.updated":           ruleTaskUpdated,
+	"task.comment_added":     ruleTaskCommentAdded,
+	"participant.invited":    ruleParticipantInvited,
+	"member.joined":          ruleMemberJoined,
+	"member.role_changed":    ruleRoleChanged,
+	"audit.exported":         ruleAuditExported,
+	"chat.follow_up.created": ruleChatFollowUpCreated,
+	"email_hub.new_mail":     ruleEmailHubNewMail,
 }
 
 // snippetRunes bounds what of a comment body lands in params: enough to
@@ -371,6 +373,74 @@ func ruleAuditExported(ctx context.Context, e env, ev outbox.Row, p map[string]s
 		UserID: p["user_id"], OrganizationID: p["organization_id"],
 		Kind: KindAuditExportReady, GroupKey: "export:" + p["export_id"],
 		ResourceType: "audit_export", ResourceID: p["export_id"],
+		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: map[string]string{},
+	}}, nil
+}
+
+func ruleEmailHubNewMail(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	if p["user_id"] == "" || p["account_id"] == "" {
+		return nil, nil
+	}
+	acc, err := e.q.GetEmailHubAccountByID(ctx, p["account_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if acc.UserID != p["user_id"] {
+		return nil, nil
+	}
+	counts, err := e.q.CountEmailHubThreads(ctx, db.CountEmailHubThreadsParams{
+		AccountID: acc.ID, OrganizationID: acc.OrganizationID, Folder: "INBOX", LabelFilter: "",
+	})
+	if err != nil {
+		return nil, err
+	}
+	if counts.Unread == 0 {
+		return nil, nil
+	}
+	wsID := p["workspace_id"]
+	if wsID == "" {
+		workspaces, lerr := e.q.ListWorkspacesForUser(ctx, p["user_id"])
+		if lerr != nil {
+			return nil, lerr
+		}
+		for _, w := range workspaces {
+			if w.OrganizationID == acc.OrganizationID {
+				wsID = w.ID
+				break
+			}
+		}
+	}
+	params := map[string]string{
+		"mailbox": acc.EmailAddress,
+		"count":   fmt.Sprintf("%d", counts.Unread),
+	}
+	return []Draft{{
+		UserID: p["user_id"], OrganizationID: acc.OrganizationID, WorkspaceID: wsID,
+		Kind: KindEmailHubNewMail, GroupKey: "email_hub:" + acc.ID + ":mail",
+		ResourceType: "email_account", ResourceID: acc.ID,
+		ActorKind: string(audit.KindSystem), ActorID: "", Params: params,
+	}}, nil
+}
+
+func ruleChatFollowUpCreated(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	if p["user_id"] == "" || p["follow_up_id"] == "" || p["workspace_id"] == "" || p["message_id"] == "" {
+		return nil, nil
+	}
+	ws, err := e.q.GetWorkspaceByID(ctx, p["workspace_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	// Personal reminder: the creator is the recipient even when they are the actor.
+	return []Draft{{
+		UserID: p["user_id"], OrganizationID: ws.OrganizationID, WorkspaceID: p["workspace_id"],
+		Kind: KindChatFollowUp, GroupKey: "chat_follow_up:" + p["follow_up_id"],
+		ResourceType: "chat_message", ResourceID: p["message_id"],
 		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: map[string]string{},
 	}}, nil
 }

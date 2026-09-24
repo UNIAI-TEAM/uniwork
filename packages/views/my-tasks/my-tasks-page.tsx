@@ -6,6 +6,7 @@ import { useStore } from "zustand";
 import { myTasksViewStore } from "@uniwork/core/tasks/stores/my-tasks-view-store";
 import { taskScopeKey } from "@uniwork/core/tasks/surface/scope";
 import { CollectionPageState } from "../layout/collection-page";
+import { moduleTone } from "../layout/module-tones";
 import { PageHeader } from "../layout/page-header";
 import { TaskSurface } from "../tasks/surface/task-surface";
 import type { TaskSurfaceMode } from "../tasks/surface/types";
@@ -14,10 +15,7 @@ import { MyTasksHeader } from "./my-tasks-header";
 /** Table omitted: workspace `/tasks/table/*` has no my-relation filter yet. */
 const MY_TASKS_MODES: TaskSurfaceMode[] = ["board", "list", "swimlane"];
 
-/**
- * Flag-on `/my-tasks` host body: my-scoped TaskSurface with four relation tabs.
- * Flag-off hosts render {@link MyTasksUnavailable} instead.
- */
+/** `/my-tasks` host body: my-scoped TaskSurface with four relation tabs. */
 export function MyTasksPageView({
   workspaceId,
   userId,
@@ -58,11 +56,14 @@ export function MyTasksPageView({
             isRefreshing={controller.isRefreshing}
             scope={scope}
             onScopeChange={setScope}
+            projectGroupingDisabled={controller.projectGroupingDisabled}
+            projectGroupingReasonKey={controller.projectGroupingReasonKey}
           />
         )}
         renderEmpty={() => (
           <CollectionPageState
             icon={ListTodo}
+            tone={moduleTone("my_tasks")}
             title={t("myTasks.page.empty_title")}
             description={t("myTasks.page.empty_description")}
           />

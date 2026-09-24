@@ -12,12 +12,20 @@ type SendChatMessageSDI struct {
 	Poll             *CreateChatPollSDI     `json:"poll,omitempty" description:"Create a poll message instead of plain text"`
 	Reminder         *CreateChatReminderSDI `json:"reminder,omitempty" description:"Create a reminder message instead of plain text"`
 	Note             *CreateChatNoteSDI     `json:"note,omitempty" description:"Create a note message instead of plain text"`
+	Post             *CreateChatPostSDI     `json:"post,omitempty" description:"Create a channel post (announcement) instead of plain text"`
 }
 
 // SendChatVoiceMessageSDI is multipart POST .../messages/voice.
 type SendChatVoiceMessageSDI struct {
 	File             []byte  `formData:"file" description:"Voice audio file (WebM, Ogg, or MP4; max 4 MiB)"`
 	DurationMS       int     `formData:"duration_ms" description:"Recording duration in milliseconds (1..120000)" example:"12500"`
+	ClientMsgID      string  `formData:"client_msg_id" description:"Client-generated id for idempotent retries" example:"550e8400-e29b-41d4-a716-446655440000"`
+	ReplyToMessageID *string `formData:"reply_to_message_id" description:"Optional message id to reply to" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+}
+
+// SendChatFileMessageSDI is multipart POST .../messages/file.
+type SendChatFileMessageSDI struct {
+	File             []byte  `formData:"file" description:"Attachment (JPEG, PNG, GIF, WebP, PDF, or plain text; max 25 MiB)"`
 	ClientMsgID      string  `formData:"client_msg_id" description:"Client-generated id for idempotent retries" example:"550e8400-e29b-41d4-a716-446655440000"`
 	ReplyToMessageID *string `formData:"reply_to_message_id" description:"Optional message id to reply to" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
 }
@@ -57,6 +65,13 @@ type CreateChatNoteSDI struct {
 	PinToTop bool   `json:"pin_to_top,omitempty" description:"Pin note to top of chat" example:"false"`
 }
 
+// CreateChatPostSDI creates an announcement post in a chat room.
+type CreateChatPostSDI struct {
+	Title    string `json:"title" description:"Post title" example:"Lịch nghỉ lễ 2/9"`
+	Body     string `json:"body" description:"Post body (markdown-friendly plain text)" example:"Đăng ký nghỉ trước 20/8."`
+	PinToTop bool   `json:"pin_to_top,omitempty" description:"Pin post to top of chat" example:"false"`
+}
+
 // CreateGroupSDI is POST /workspaces/{workspaceID}/chat/groups.
 type CreateGroupSDI struct {
 	Name          string   `json:"name" description:"Group display name" example:"Team Alpha"`
@@ -85,6 +100,11 @@ type VoiceSignalSDI struct {
 	DurationSeconds *int   `json:"duration_seconds,omitempty" description:"Connected call duration in seconds (hangup only)" example:"125"`
 }
 
+// ChatPresenceSDI is POST .../chat/presence.
+type ChatPresenceSDI struct {
+	State string `json:"state,omitempty" description:"online (default) or offline" example:"online"`
+}
+
 // ToggleChatReactionSDI is POST .../messages/{messageID}/reactions.
 type ToggleChatReactionSDI struct {
 	Emoji string `json:"emoji" description:"Emoji to toggle" example:"👍"`
@@ -105,6 +125,24 @@ type PatchChatRoomMemberSDI struct {
 type PatchChatRoomSDI struct {
 	Name              *string                       `json:"name,omitempty" description:"Group or workspace room display name" example:"Team Alpha"`
 	MemberPermissions *ChatRoomMemberPermissionsSDI `json:"member_permissions,omitempty" description:"Permissions granted to regular members"`
+}
+
+// CreateChatChannelSDI is POST .../chat/channels.
+type CreateChatChannelSDI struct {
+	Name          string   `json:"name" description:"Channel name (1–80 chars)" example:"marketing"`
+	Visibility    string   `json:"visibility" description:"public or private" example:"public"`
+	Topic         string   `json:"topic,omitempty" description:"One-line topic ≤280 chars" example:"Chiến dịch Q3"`
+	ProjectID     string   `json:"project_id,omitempty" description:"Optional project to attach" example:"01J8X4PROJ0N1P2Q3R4S5T6U7V8"`
+	MemberUserIDs []string `json:"member_user_ids,omitempty" description:"Initial members (creator always included)"`
+}
+
+// UpdateChatChannelSDI is PATCH .../chat/channels/{roomID}.
+// ProjectID uses a pointer so null clears the link.
+type UpdateChatChannelSDI struct {
+	Name       *string `json:"name,omitempty" description:"Channel name" example:"marketing"`
+	Topic      *string `json:"topic,omitempty" description:"One-line topic"`
+	Visibility *string `json:"visibility,omitempty" description:"public or private"`
+	ProjectID  *string `json:"project_id,omitempty" description:"Project id; null clears the link"`
 }
 
 // ChatRoomMemberPermissionsSDI configures what non-admin members may do.

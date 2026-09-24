@@ -37,7 +37,7 @@ export function MeetingJoinRequestRow({
 
   if (variant === "overlay") {
     return (
-      <div className="flex items-center gap-3 rounded-xl bg-muted/40 px-3 py-2.5">
+      <div className="flex items-center gap-3 rounded-xl bg-surface-hover px-3 py-2.5">
         <MeetingPersonAvatar name={name} size="default" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-body font-medium text-foreground">{name}</p>
@@ -52,10 +52,24 @@ export function MeetingJoinRequestRow({
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface px-3 py-2">
         <span className="min-w-0 truncate text-body">{name}</span>
         <div className="flex shrink-0 gap-2">
-          <Button type="button" size="sm" disabled={approving} onClick={onApprove}>
+          <Button
+            type="button"
+            size="sm"
+            variant="successSolid"
+            disabled={approving}
+            aria-label={t("meetings.approveName", { name })}
+            onClick={onApprove}
+          >
             {t("meetings.approve")}
           </Button>
-          <Button type="button" size="sm" variant="outline" disabled={rejecting} onClick={onReject}>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={rejecting}
+            aria-label={t("meetings.rejectName", { name })}
+            onClick={onReject}
+          >
             {t("meetings.reject")}
           </Button>
         </div>
@@ -64,7 +78,7 @@ export function MeetingJoinRequestRow({
   }
 
   return (
-    <div className="flex items-center gap-2 rounded-lg px-1 py-1.5 hover:bg-muted/40">
+    <div className="flex items-center gap-2 rounded-lg px-1 py-1.5 hover:bg-surface-hover">
       <MeetingPersonAvatar name={name} size="sm" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-body text-foreground">{name}</p>
@@ -75,6 +89,7 @@ export function MeetingJoinRequestRow({
         variant="outline"
         className={cn("h-8 shrink-0 rounded-lg px-3")}
         disabled={approving}
+        aria-label={t("meetings.approveName", { name })}
         onClick={onApprove}
       >
         {t("meetings.approve")}
@@ -94,7 +109,7 @@ export function MeetingJoinRequestRow({
           <MoreVertical aria-hidden className="size-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem disabled={rejecting} onClick={onReject}>
+          <DropdownMenuItem disabled={rejecting} aria-label={t("meetings.rejectName", { name })} onClick={onReject}>
             {t("meetings.reject")}
           </DropdownMenuItem>
         </DropdownMenuContent>

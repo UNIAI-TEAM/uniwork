@@ -253,6 +253,85 @@ func TestInviteLinkRequestApprovalAdmitsAfterApprove(t *testing.T) {
 	}
 }
 
+// A rejected requester stays rejected on automatic re-joins (lobby retries,
+// reconnects); only an explicit ask files a new request for the host.
+func TestInviteLinkRejectedGuestStaysRejectedUntilAskingAgain(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	ctx := context.Background()
+	start := time.Now().Add(-time.Minute)
+	m, err := s.Create(ctx, ua.ID, w.ID, CreateMeetingInput{Title: "Reject link", StartsAt: start, EndsAt: start.Add(time.Hour)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Start(ctx, ua.ID, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	created, err := s.CreateInviteLink(ctx, ua.ID, m.ID, "guest", LinkRequestApproval, time.Now().Add(time.Hour), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	guestID := util.NewID()
+	if _, err := s.q.CreateMeetingGuest(ctx, guestID); err != nil {
+		t.Fatal(err)
+	}
+	in := AdmissionContext{
+		MeetingID: m.ID, GuestID: guestID, DisplayName: "Guest",
+		InviteLinkID: created.Link.ID, InviteSecret: created.RawSecret,
+	}
+	dec, err := s.Evaluate(ctx, in)
+	if err != nil || dec.Decision != DecisionWaitingApproval {
+		t.Fatalf("first evaluate: %+v %v", dec, err)
+	}
+	if err := s.RejectJoinRequest(ctx, ua.ID, dec.JoinRequestID, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	var ce CodedError
+	if _, err := s.Evaluate(ctx, in); !errors.As(err, &ce) || ce.Code != "join_request_rejected" {
+		t.Fatalf("retry after reject: want join_request_rejected, got %v", err)
+	}
+	pending, _ := s.q.ListPendingJoinRequests(ctx, m.ID)
+	if len(pending) != 0 {
+		t.Fatalf("automatic retry filed %d new request(s)", len(pending))
+	}
+
+	in.RequestAgain = true
+	again, err := s.Evaluate(ctx, in)
+	if err != nil || again.Decision != DecisionWaitingApproval || again.JoinRequestID == dec.JoinRequestID {
+		t.Fatalf("ask again: %+v %v", again, err)
+	}
+}
+
+func TestRejectedMemberStaysRejectedUntilAskingAgain(t *testing.T) {
+	s, ua, ub, w := meetingFixture(t)
+	addMember(t, s, w.ID, ub.ID)
+	ctx := context.Background()
+	start := time.Now().Add(-time.Minute)
+	allow := true
+	m, err := s.Create(ctx, ua.ID, w.ID, CreateMeetingInput{
+		Title: "Reject member", StartsAt: start, EndsAt: start.Add(time.Hour), AllowJoinRequest: &allow,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := AdmissionContext{MeetingID: m.ID, UserID: ub.ID, DisplayName: "B"}
+	dec, err := s.Evaluate(ctx, in)
+	if err != nil || dec.Decision != DecisionWaitingApproval {
+		t.Fatalf("first evaluate: %+v %v", dec, err)
+	}
+	if err := s.RejectJoinRequest(ctx, ua.ID, dec.JoinRequestID, ""); err != nil {
+		t.Fatal(err)
+	}
+	var ce CodedError
+	if _, err := s.Evaluate(ctx, in); !errors.As(err, &ce) || ce.Code != "join_request_rejected" {
+		t.Fatalf("retry after reject: want join_request_rejected, got %v", err)
+	}
+	jr, err := s.RequestJoin(ctx, in)
+	if err != nil || jr.ID == dec.JoinRequestID || jr.Status != JoinPending {
+		t.Fatalf("explicit request after reject: %+v %v", jr, err)
+	}
+}
+
 func TestInviteLinkHashAndRevoke(t *testing.T) {
 	s, ua, _, w := meetingFixture(t)
 	ctx := context.Background()
@@ -274,11 +353,11 @@ func TestInviteLinkHashAndRevoke(t *testing.T) {
 			t.Fatal("secret in audit")
 		}
 	}
-	v, err := s.ResolveInviteLink(ctx, created.Link.ID, created.RawSecret)
+	v, err := s.ResolveInviteLink(ctx, created.Link.ID, created.RawSecret, AdmissionContext{})
 	if err != nil || v.Expired {
 		t.Fatalf("resolve %v %+v", err, v)
 	}
-	if _, err := s.ResolveInviteLink(ctx, created.Link.ID, "wrong"); err == nil {
+	if _, err := s.ResolveInviteLink(ctx, created.Link.ID, "wrong", AdmissionContext{}); err == nil {
 		t.Fatal("wrong secret")
 	}
 	if err := s.RevokeInviteLink(ctx, ua.ID, m.ID, created.Link.ID); err != nil {
@@ -346,6 +425,39 @@ func TestWebhookDoesNotChangeMeetingStatus(t *testing.T) {
 		Type: "conference.room_finished", RoomName: meetings.RoomNameForMeeting(m.ID), ProviderEventID: "e1",
 	}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestWebhookEndsOverdueEmptyRoom(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	ctx := context.Background()
+	pastStart := time.Now().Add(-2 * time.Hour)
+	pastEnd := time.Now().Add(-5 * time.Minute)
+	m, err := s.Create(ctx, ua.ID, w.ID, CreateMeetingInput{
+		Title: "Overdue empty", StartsAt: pastStart, EndsAt: pastEnd,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.q.StartMeeting(ctx, db.StartMeetingParams{
+		UpdatedBy: strText(ua.ID), ID: m.ID, Version: m.Version,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.q.CreateConferenceSession(ctx, db.CreateConferenceSessionParams{
+		ID: util.NewID(), MeetingID: m.ID, ProviderKey: s.rt.ProviderKey,
+		ProviderRoomName: meetings.RoomNameForMeeting(m.ID),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.HandleProviderEvent(ctx, ProviderNeutralEvent{
+		Type: "conference.room_finished", RoomName: meetings.RoomNameForMeeting(m.ID), ProviderEventID: "e-overdue",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := s.Get(ctx, ua.ID, m.ID)
+	if got.Status != MeetingEnded {
+		t.Fatalf("status %s", got.Status)
 	}
 }
 

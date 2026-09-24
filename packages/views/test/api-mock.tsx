@@ -16,7 +16,7 @@ export const localeAdapter = {
 export function wrap(ui: React.ReactElement) {
   return (
     <QueryClientProvider
-      client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}
+      client={new QueryClient({ defaultOptions: { queries: { retry: false, retryDelay: 0 }, mutations: { retry: false } } })}
     >
       <LocaleAdapterProvider adapter={localeAdapter}>{ui}</LocaleAdapterProvider>
     </QueryClientProvider>

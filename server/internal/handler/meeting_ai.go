@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/service"
+	"github.com/unicomhub/uniwork/server/internal/storage"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -46,6 +48,7 @@ func toRecordingDTO(r db.MeetingRecording, redactHostFields bool) sdo.RecordingD
 func (h *handlers) meetingCapabilities(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, 200, sdo.MeetingCapabilitiesSDO{
 		AISummary: h.Meetings.AIEnabled(), Recording: h.Meetings.RecordingEnabled(r.Context()),
+		ServerSTT: h.Meetings.STTAgentEnabled(),
 	})
 }
 
@@ -55,6 +58,27 @@ func (h *handlers) appendTranscript(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	seg, err := h.Meetings.AppendTranscript(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), in.Text, in.SpokenAt)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, 200, sdo.TranscriptSegmentSDO{Segment: toTranscriptDTO(seg)})
+}
+
+const meetingSTTAgentSecretHeader = "X-Meeting-Agent-Secret"
+
+func (h *handlers) appendAgentTranscript(w http.ResponseWriter, r *http.Request) {
+	secret := strings.TrimSpace(r.Header.Get(meetingSTTAgentSecretHeader))
+	if secret == "" || !h.Meetings.STTAgentEnabled() || secret != h.Cfg.MeetingSTTAgentSecret {
+		respondError(w, http.StatusUnauthorized, "unauthorized", "agent secret không hợp lệ")
+		return
+	}
+	var in sdi.AppendAgentTranscriptSDI
+	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	seg, err := h.Meetings.AppendTranscriptFromAgent(r.Context(), chi.URLParam(r, "meetingID"),
+		strings.TrimSpace(in.ParticipantIdentity), strings.TrimSpace(in.SpeakerName), in.Text, in.SpokenAt)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
@@ -114,7 +138,10 @@ func (h *handlers) createSummaryTasks(w http.ResponseWriter, r *http.Request) {
 	}
 	items := make([]service.SummaryTaskItem, 0, len(in.Items))
 	for _, it := range in.Items {
-		items = append(items, service.SummaryTaskItem{Title: it.Title, Description: it.Description, AssigneeID: it.AssigneeID, DueDate: it.DueDate})
+		items = append(items, service.SummaryTaskItem{
+			Title: it.Title, Description: it.Description, AssigneeID: it.AssigneeID, ProjectID: it.ProjectID,
+			Priority: it.Priority, DueDate: it.DueDate, Owner: it.Owner, DueSpoken: it.DueSpoken,
+		})
 	}
 	tasks, err := h.Meetings.CreateTasksFromSummary(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), items)
 	if err != nil {
@@ -165,6 +192,64 @@ func (h *handlers) listRecordings(w http.ResponseWriter, r *http.Request) {
 		out = append(out, toRecordingDTO(rec, guestID != ""))
 	}
 	respondJSON(w, 200, sdo.RecordingListSDO{Recordings: out})
+}
+
+func (h *handlers) getMeetingRecordingPlaybackURL(w http.ResponseWriter, r *http.Request) {
+	presigner, ok := h.Storage.(storage.DownloadPresigner)
+	if !ok {
+		respondError(w, http.StatusNotImplemented, "storage_unavailable", "file storage is not configured")
+		return
+	}
+	userID, guestID := h.meetingActor(r)
+	if userID == "" && guestID == "" {
+		respondError(w, http.StatusUnauthorized, "unauthorized", "cần đăng nhập hoặc phiên khách")
+		return
+	}
+	meetingID := chi.URLParam(r, "meetingID")
+	rec, err := h.Meetings.GetMeetingRecordingForPlayback(
+		r.Context(), userID, guestID, meetingID, chi.URLParam(r, "recordingID"),
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	key := h.Storage.KeyFromURL(rec.FileUrl.String)
+	if key == "" {
+		respondError(w, http.StatusNotFound, "not_found", "recording file not found")
+		return
+	}
+	playbackURL, expiresAt, err := presignRecordingPlaybackURL(r.Context(), presigner, key)
+	if err != nil {
+		h.Log.Error("meeting recording presign", "err", err, "recording_id", rec.ID)
+		respondError(w, http.StatusNotFound, "not_found", "recording file not found")
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.MeetingRecordingPlaybackSDO{
+		PlaybackURL: playbackURL,
+		ExpiresAt:   expiresAt.Format(time.RFC3339),
+	})
+}
+
+func (h *handlers) streamMeetingRecording(w http.ResponseWriter, r *http.Request) {
+	userID, guestID := h.meetingActor(r)
+	if userID == "" && guestID == "" {
+		respondError(w, http.StatusUnauthorized, "unauthorized", "cần đăng nhập hoặc phiên khách")
+		return
+	}
+	meetingID := chi.URLParam(r, "meetingID")
+	rec, err := h.Meetings.GetMeetingRecordingForPlayback(
+		r.Context(), userID, guestID, meetingID, chi.URLParam(r, "recordingID"),
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	key := h.Storage.KeyFromURL(rec.FileUrl.String)
+	if key == "" {
+		respondError(w, http.StatusNotFound, "not_found", "recording file not found")
+		return
+	}
+	h.streamRecordingObject(w, r, key, rec.ID)
 }
 
 func (h *handlers) meetingCalendar(w http.ResponseWriter, r *http.Request) {

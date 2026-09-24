@@ -1,14 +1,29 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 // Before `metadata` is evaluated: it reads the public origin from the runtime
 // config, and this module is the only place that config is populated.
 import "../platform/runtime-config";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
-import { resolveRequestLocale, resolveRequestMessages } from "../platform/locale-server";
+import { accentBootScript } from "@uniwork/ui/lib/accent";
+import { resolveRequestLocale } from "../platform/locale-server";
 import { Providers } from "./providers";
 
 const inter = Inter({ subsets: ["latin", "vietnamese"], variable: "--font-inter", display: "swap" });
+// Ba họ chữ theo hệ ClickUp (tokens.css): Plus Jakarta Sans cho tiêu đề — cần
+// italic cho <em> trong h1 onboarding; JetBrains Mono cho nhãn phân loại
+// (Sometype Mono của ClickUp không có subset tiếng Việt).
+const plusJakarta = Plus_Jakarta_Sans({
+  subsets: ["latin", "vietnamese"],
+  style: ["normal", "italic"],
+  variable: "--font-plus-jakarta",
+  display: "swap",
+});
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin", "vietnamese"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
+});
 
 const DESCRIPTION =
   "Work OS thuần AI cho đội ngũ Việt: công việc, cuộc họp, tài liệu và quy trình " +
@@ -41,8 +56,8 @@ function siteOrigin(): URL {
  */
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fafafa" },
-    { media: "(prefers-color-scheme: dark)", color: "#111113" },
+    { media: "(prefers-color-scheme: light)", color: "#f8f9fa" },
+    { media: "(prefers-color-scheme: dark)", color: "#111111" },
   ],
 };
 
@@ -66,26 +81,19 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title: "UniWork", description: DESCRIPTION },
 };
 
-/**
- * The application runtime is mounted here, for every route including the
- * public marketing page at `/`. There is no route group that opts out: the
- * `(app)` / `(landing)` split was rolled back deliberately, so the landing
- * page pays for the query cache, the auth store and the feature-flag fetch
- * like every other page.
- *
- * The editorial serif is the one thing still loaded per group, by
- * `(auth)/layout.tsx` — the only screens that render `font-serif` are the auth
- * shell and the onboarding welcome step.
- */
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await resolveRequestLocale();
-  // Read on the server so the browser renders the same strings on its first
-  // frame; null whenever the JS bundle already carries them.
-  const messages = await resolveRequestMessages(locale);
+  // English only: keep `en.json` off the shared client chunk (bundle-budget).
+  const initialDictionary =
+    locale === "en" ? (await import("@uniwork/core/i18n/locales/en.json")).default : undefined;
   return (
-    <html lang={locale} suppressHydrationWarning className={inter.variable}>
+    <html lang={locale} suppressHydrationWarning className={`${inter.variable} ${plusJakarta.variable} ${jetbrainsMono.variable}`}>
       <body className="font-sans">
-        <Providers initialLocale={locale} initialMessages={messages}>
+        {/* Applies the stored accent theme before first paint, the way
+            next-themes applies `.dark`. Without it the app paints one
+            frame of the default violet and then repaints. */}
+        <script dangerouslySetInnerHTML={{ __html: accentBootScript() }} />
+        <Providers initialLocale={locale} initialDictionary={initialDictionary}>
           {children}
         </Providers>
       </body>

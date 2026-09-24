@@ -69,7 +69,24 @@ func taskFixture(t *testing.T) (*TaskService, *outboxCapture, db.User, db.User, 
 	org, _ := orgs.Create(ctx, ua.ID, "Org", "org-alpha")
 	v, _ := ws.CreateInOrg(ctx, ua.ID, org.ID, "Alpha", "alpha")
 	w := v.Workspace
-	return NewTaskService(pool, q, ws), newOutboxCapture(pool, q), ua, ub, w
+	return NewTaskService(pool, q, ws, newMemStorage()), newOutboxCapture(pool, q), ua, ub, w
+}
+
+func taskFixtureWithStorage(t *testing.T) (*TaskService, *memStorage, *outboxCapture, db.User, db.User, db.Workspace) {
+	t.Helper()
+	pool := testutil.DB(t)
+	q := db.New(pool)
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	orgs := NewOrganizationService(pool, q)
+	ws := NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
+	ctx := context.Background()
+	ua := registerVerified(t, q, as, "a@example.com", "A")
+	ub := registerVerified(t, q, as, "b@example.com", "B")
+	org, _ := orgs.Create(ctx, ua.ID, "Org", "org-alpha")
+	v, _ := ws.CreateInOrg(ctx, ua.ID, org.ID, "Alpha", "alpha")
+	w := v.Workspace
+	store := newMemStorage()
+	return NewTaskService(pool, q, ws, store), store, newOutboxCapture(pool, q), ua, ub, w
 }
 
 func TestTaskCRUD(t *testing.T) {
@@ -171,6 +188,86 @@ func TestTaskCRUD(t *testing.T) {
 	}
 }
 
+func TestTaskUpdateAcceptsRemainingBuiltInBoardStatuses(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+
+	for _, status := range []string{"backlog", "in_review", "blocked"} {
+		t.Run(status, func(t *testing.T) {
+			task, err := s.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Move to " + status})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			updated, err := s.Update(ctx, Human(ua.ID), task.ID, UpdateTaskInput{Status: &status})
+			if err != nil {
+				t.Fatalf("update status to %q: %v", status, err)
+			}
+			if updated.Status != status {
+				t.Fatalf("status = %q, want %q", updated.Status, status)
+			}
+		})
+	}
+}
+
+// start_date follows the due_date pattern exactly (ADR 0015 keeps it out of
+// task.updated's Patch list; see TestRealtimePatchCarriesOnlyAWholeChange for
+// that half): PATCH sets it, revision +1, one audit row lands, null clears
+// it, and a malformed value is rejected before any query runs.
+func TestTaskUpdateStartDate(t *testing.T) {
+	s, _, ua, _, w := taskFixture(t)
+	ctx := context.Background()
+
+	task, err := s.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Đặt ngày bắt đầu"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sd := "2026-09-20"
+	sdp := &sd
+	set, err := s.Update(ctx, Human(ua.ID), task.ID, UpdateTaskInput{StartDate: &sdp})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !set.StartDate.Valid || set.StartDate.Time.Format("2006-01-02") != sd {
+		t.Fatalf("start_date = %+v, want %s", set.StartDate, sd)
+	}
+	if set.Revision != task.Revision+2 {
+		t.Fatalf("set start_date revision: got %d want %d", set.Revision, task.Revision+2)
+	}
+
+	var n int
+	if err := s.pool.QueryRow(ctx,
+		`SELECT count(*) FROM audit_events WHERE resource_type = 'task' AND resource_id = $1 AND action = 'task.updated'`,
+		task.ID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("task.updated audit rows: %d, want 1", n)
+	}
+
+	var nilStr *string
+	cleared, err := s.Update(ctx, Human(ua.ID), task.ID, UpdateTaskInput{StartDate: &nilStr})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cleared.StartDate.Valid {
+		t.Fatal("start_date not cleared")
+	}
+
+	bad := "not-a-date"
+	badp := &bad
+	_, err = s.Update(ctx, Human(ua.ID), task.ID, UpdateTaskInput{StartDate: &badp})
+	var verr ValidationError
+	if !errors.As(err, &verr) || verr.Msg != "start_date phải dạng YYYY-MM-DD" {
+		t.Fatalf("malformed start_date: got %v, want a validation error naming start_date", err)
+	}
+	_, err = s.Update(ctx, Human(ua.ID), task.ID, UpdateTaskInput{DueDate: &badp})
+	if !errors.As(err, &verr) || verr.Msg != "due_date phải dạng YYYY-MM-DD" {
+		t.Fatalf("malformed due_date: got %v, want a validation error naming due_date", err)
+	}
+}
+
 func TestTaskNumbersAreAtomicPerWorkspace(t *testing.T) {
 	s, _, ua, ub, w := taskFixture(t)
 	ctx := context.Background()
@@ -216,7 +313,7 @@ func TestTaskFoundationTenantIsolation(t *testing.T) {
 	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
 	orgs := NewOrganizationService(pool, q)
 	ws := NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
-	tasks := NewTaskService(pool, q, ws)
+	tasks := NewTaskService(pool, q, ws, nil)
 	ctx := context.Background()
 
 	ua := registerVerified(t, q, as, "iso-a@example.com", "A")

@@ -1,5 +1,5 @@
 FROM node:22-alpine AS build
-RUN corepack enable
+RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
 WORKDIR /repo
 
 # Next inlines NEXT_PUBLIC_* into the client bundle by literal substitution at
@@ -18,8 +18,13 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @uniwork/web build
 
 FROM node:22-alpine
-RUN corepack enable
+# Prepare pnpm as root so runtime (uid 1001) does not need to write /.cache.
+RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
 WORKDIR /repo
 COPY --from=build /repo .
+# Belt-and-suspenders for any tool that still respects HOME.
+ENV HOME=/tmp \
+    COREPACK_HOME=/tmp/corepack \
+    XDG_CACHE_HOME=/tmp/cache
 EXPOSE 3000
 CMD ["pnpm", "--filter", "@uniwork/web", "start"]

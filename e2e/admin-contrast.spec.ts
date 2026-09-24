@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { expect, test, type Page } from "@playwright/test";
 import { registerVerified } from "./auth-nav";
 import { auditText } from "./contrast";
+import { enableMfaForE2E } from "./db";
 
 /**
  * Tương phản chữ của console /admin ở cả hai chế độ. Phép đo ở `./contrast`.
@@ -42,6 +43,7 @@ async function reachConsole(page: Page, tag: string, stamp: number) {
   await page.getByRole("button", { name: "Bỏ qua, mời sau" }).click();
   await expect(page).toHaveURL(/\/tasks$/, { timeout: 15_000 });
   grantPlatformAdmin(email);
+  await enableMfaForE2E(email);
 }
 
 for (const mode of ["light", "dark"] as const) {

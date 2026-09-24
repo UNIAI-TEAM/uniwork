@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { UI_EASE_OUT, UI_EASE_SETTLE, UI_MOTION_DURATION } from "../lib/motion";
 
 // Resolved from the package root rather than `import.meta.url`: the jsdom
 // environment rewrites module URLs to a non-file scheme, and vitest always runs
@@ -28,7 +29,10 @@ function block(selector: string): string {
 /** Tên mọi custom property được ĐỊNH NGHĨA trong một khối. */
 function definedVars(source: string): Set<string> {
   const names = new Set<string>();
-  for (const match of source.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gm)) {
+  // Anchored at a line start OR after a `;`: the type scale packs several
+  // declarations on one line so the size, leading and tracking of a step
+  // read together.
+  for (const match of source.matchAll(/(?:^|;)\s*(--[a-z0-9-]+)\s*:/gm)) {
     const [, name] = match;
     if (name) names.add(name);
   }
@@ -85,6 +89,7 @@ function contrast(a: string, b: string): number {
   const [hi, lo] = x >= y ? [x, y] : [y, x];
   return (hi + 0.05) / (lo + 0.05);
 }
+const TINTS = ["violet", "blue", "pink", "orange", "green", "yellow", "teal", "gray", "red"] as const;
 
 describe("token contract", () => {
   it("declares the Tailwind theme mapping inside the ui package", () => {
@@ -112,6 +117,134 @@ describe("token contract", () => {
     ]) {
       expect(definedVars(theme), `missing type step ${step}`).toContain(step);
     }
+  });
+
+  it("carries leading and tracking on every title, display and hero step", () => {
+    // The ClickUp-derived scale tracks headings negatively; a step that only
+    // sets a size renders with Tailwind's default tracking and reads looser
+    // than its neighbours. Body steps deliberately keep default tracking.
+    const theme = definedVars(block("@theme inline"));
+    for (const step of [
+      "title-sm", "title", "title-lg", "display-sm", "display",
+      "hero-sm", "hero", "hero-lg",
+    ]) {
+      expect(theme, `missing line-height for ${step}`).toContain(`--text-${step}--line-height`);
+      expect(theme, `missing letter-spacing for ${step}`).toContain(`--text-${step}--letter-spacing`);
+    }
+  });
+
+  it("exposes the three families and no serif", () => {
+    // Plus Jakarta Sans carries headings, Inter carries copy and controls,
+    // JetBrains Mono carries taxonomy labels (Sometype Mono ships no
+    // Vietnamese subset). Source Serif was retired with the ClickUp rework;
+    // a surviving alias means a view still asks for it.
+    const theme = definedVars(block("@theme inline"));
+    expect(theme).toContain("--font-sans");
+    expect(theme).toContain("--font-display");
+    expect(theme).toContain("--font-mono");
+    expect(theme).not.toContain("--font-serif");
+    expect(css).not.toMatch(/source-serif/);
+  });
+
+  it("pins the radius ramp to explicit values", () => {
+    // Compact controls use md 8; default controls have the softer 10px role;
+    // cards start at lg 12. A calc() ramp off one base drifts every step when
+    // the base moves; explicit stops do not.
+    const theme = block("@theme inline");
+    for (const [step, px] of [
+      ["sm", "6px"], ["md", "8px"], ["lg", "12px"],
+      ["xl", "16px"], ["2xl", "20px"], ["3xl", "32px"],
+    ]) {
+      expect(theme).toMatch(new RegExp(`--radius-${step}:\\s*${px};`));
+    }
+    expect(theme).toMatch(/--radius-control:\s*10px;/);
+  });
+
+  it("makes headings take the display family without touching views", () => {
+    // 57 call sites use text-title*/text-display*/text-hero*; the family
+    // rides on the utility so none of them has to add font-display.
+    for (const cls of ["text-title-sm", "text-title", "text-title-lg",
+      "text-display-sm", "text-display", "text-hero-sm", "text-hero", "text-hero-lg"]) {
+      expect(css, `${cls} not bound to --font-display`).toMatch(
+        new RegExp(`\\.${cls.replace(/-/g, "-")}\\b[^{]*\\{[^}]*font-family:\\s*var\\(--font-display\\)`),
+      );
+    }
+  });
+
+  it("defines the nine tints as fill + foreground + solid triples", () => {
+    // Tints identify modules (tasks, meetings, chat…); signal colours report
+    // state. A tint without its foreground forces a view to pick a glyph
+    // colour by hand, which is how contrast drifts.
+    const light = definedVars(block(":root"));
+    const theme = definedVars(block("@theme inline"));
+    for (const hue of TINTS) {
+      expect(light, `missing --tint-${hue}`).toContain(`--tint-${hue}`);
+      expect(light, `missing --tint-${hue}-foreground`).toContain(`--tint-${hue}-foreground`);
+      expect(theme, `no Tailwind alias for tint-${hue}`).toContain(`--color-tint-${hue}`);
+      expect(theme, `no Tailwind alias for tint-${hue}-foreground`).toContain(`--color-tint-${hue}-foreground`);
+      expect(light, `missing --tint-${hue}-solid`).toContain(`--tint-${hue}-solid`);
+      expect(theme, `no Tailwind alias for tint-${hue}-solid`).toContain(`--color-tint-${hue}-solid`);
+    }
+    expect(light).toContain("--on-solid");
+    expect(theme).toContain("--color-on-solid");
+  });
+
+  it("defines every signal as a text / soft / solid triple", () => {
+    // A signal without its soft pair sends a view back to `bg-success/10`,
+    // an alpha that measures differently on every surface it lands on.
+    const light = definedVars(block(":root"));
+    const dark = definedVars(block(".dark"));
+    const theme = definedVars(block("@theme inline"));
+    for (const signal of ["destructive", "success", "warning", "info"]) {
+      for (const suffix of ["", "-soft", "-soft-foreground", "-solid"]) {
+        const name = `--${signal}${suffix}`;
+        expect(light, `missing ${name}`).toContain(name);
+        expect(dark, `missing ${name} in .dark`).toContain(name);
+        expect(theme, `no Tailwind alias for ${name}`).toContain(`--color-${signal}${suffix}`);
+      }
+    }
+    for (const name of ["--brand-subtle", "--brand-subtle-foreground"]) {
+      expect(light).toContain(name);
+      expect(dark).toContain(name);
+      expect(theme).toContain(`--color${name.slice(1)}`);
+    }
+  });
+
+  it("keeps --primary equal to --brand in both themes and under every accent", () => {
+    // The CTA, the unread count and the selected dot are the brand fill.
+    // Two slots can only stay one colour if every block that moves one
+    // moves the other.
+    for (const selector of [":root", ".dark"]) {
+      const b = block(selector);
+      const primary = /--primary:\s*([^;]+);/.exec(b)?.[1];
+      const brand = /--brand:\s*([^;]+);/.exec(b)?.[1];
+      expect(primary, `${selector} primary`).toBe(brand);
+    }
+    for (const selector of ["html:not(.dark)[data-accent]", ":where([data-accent]) .dark,\nhtml.dark[data-accent]"]) {
+      const b = block(selector);
+      expect(b, `${selector} does not re-derive --primary`).toMatch(/--primary:\s*var\(--brand\);/);
+      expect(b, `${selector} does not re-derive --primary-foreground`).toMatch(/--primary-foreground:\s*var\(--brand-foreground\);/);
+    }
+  });
+
+  it("holds the CSS motion set to lib/motion.ts", () => {
+    // base.css animates with these; motion/react animates with the JS
+    // constants. Equal numbers or the two halves of the app move at
+    // different speeds.
+    const theme = block("@theme inline");
+    for (const [name, seconds] of Object.entries(UI_MOTION_DURATION)) {
+      expect(theme).toMatch(new RegExp(`--duration-${name}:\\s*${Math.round(seconds * 1000)}ms;`));
+    }
+    expect(theme).toContain(`--ease-out-quart: cubic-bezier(${UI_EASE_OUT.join(", ")});`);
+    expect(theme).toContain(`--ease-settle: cubic-bezier(${UI_EASE_SETTLE.join(", ")});`);
+  });
+
+  it("binds the overline role to case, weight and the mono family", () => {
+    const theme = definedVars(block("@theme inline"));
+    expect(theme).toContain("--text-overline");
+    expect(theme).toContain("--text-overline--letter-spacing");
+    expect(css).toMatch(/\.text-overline\s*\{[^}]*font-family:\s*var\(--font-mono\)/);
+    expect(css).toMatch(/\.text-overline\s*\{[^}]*text-transform:\s*uppercase/);
   });
 
   it("defines every semantic slot the shadcn primitives consume", () => {

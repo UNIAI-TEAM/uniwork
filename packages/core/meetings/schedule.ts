@@ -22,3 +22,27 @@ export function canEnterScheduledMeeting(
   if (meeting.status === "ENDED" || meeting.status === "CANCELED") return false;
   return !isPastScheduledEnd(meeting.ends_at, nowMs);
 }
+
+/** IN_PROGRESS and still inside the scheduled window — the list join affordance. */
+export function isScheduledMeetingLive(
+  meeting: { ends_at: string; status?: string },
+  nowMs = Date.now(),
+): boolean {
+  return meeting.status === "IN_PROGRESS" && canEnterScheduledMeeting(meeting, nowMs);
+}
+
+/**
+ * Status the list and detail badge should show. IN_PROGRESS past ends_at is
+ * overtime (join closed, host may extend or end). A scheduled window that
+ * passed without the meeting ever starting is MISSED — it did not end, it did
+ * not happen, and the host still has to reschedule or cancel it.
+ */
+export function displayMeetingStatus(
+  meeting: { ends_at: string; status?: string },
+  nowMs = Date.now(),
+): string {
+  const status = meeting.status || "SCHEDULED";
+  if (status === "ENDED" || status === "CANCELED") return status;
+  if (!isPastScheduledEnd(meeting.ends_at, nowMs)) return status;
+  return status === "IN_PROGRESS" ? "OVERTIME" : "MISSED";
+}

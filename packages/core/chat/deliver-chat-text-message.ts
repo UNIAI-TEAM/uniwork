@@ -21,10 +21,12 @@ export async function deliverChatTextMessage(workspaceId: string, payload: ChatT
 
 export function outboxEntryFromPayload(
   workspaceId: string,
+  senderId: string,
   payload: ChatTextSendPayload,
 ): ChatSendOutboxEntry {
   return {
     workspaceId,
+    senderId,
     roomId: payload.roomId,
     body: payload.body,
     client_msg_id: payload.client_msg_id,
@@ -49,8 +51,11 @@ export async function flushChatSendOutbox(
   senderId: string,
   onDeliver: (payload: ChatTextSendPayload) => Promise<unknown>,
 ): Promise<{ sent: number; failed: number }> {
+  // Expired entries are dropped rather than sent; another user's entries are
+  // left alone — they are theirs to deliver when they sign back in.
+  useChatSendOutboxStore.getState().pruneStale();
   const { listForWorkspace, remove } = useChatSendOutboxStore.getState();
-  const pending = listForWorkspace(workspaceId);
+  const pending = listForWorkspace(workspaceId, senderId);
   let sent = 0;
   let failed = 0;
 

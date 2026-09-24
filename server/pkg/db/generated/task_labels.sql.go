@@ -60,6 +60,41 @@ func (q *Queries) AttachTaskLabel(ctx context.Context, arg AttachTaskLabelParams
 	return label_id, err
 }
 
+const attachTaskLabelOnCreate = `-- name: AttachTaskLabelOnCreate :one
+INSERT INTO task_label_links (organization_id, workspace_id, task_id, label_id)
+SELECT $1, $2, $3, $4
+WHERE EXISTS (
+  SELECT 1 FROM tasks t
+  WHERE t.id = $3 AND t.organization_id = $1 AND t.workspace_id = $2
+)
+AND EXISTS (
+  SELECT 1 FROM task_labels l
+  WHERE l.id = $4 AND l.organization_id = $1 AND l.workspace_id = $2
+    AND l.archived_at IS NULL
+)
+ON CONFLICT DO NOTHING
+RETURNING label_id
+`
+
+type AttachTaskLabelOnCreateParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	TaskID         string `json:"task_id"`
+	LabelID        string `json:"label_id"`
+}
+
+func (q *Queries) AttachTaskLabelOnCreate(ctx context.Context, arg AttachTaskLabelOnCreateParams) (string, error) {
+	row := q.db.QueryRow(ctx, attachTaskLabelOnCreate,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.TaskID,
+		arg.LabelID,
+	)
+	var label_id string
+	err := row.Scan(&label_id)
+	return label_id, err
+}
+
 const createTaskLabel = `-- name: CreateTaskLabel :one
 INSERT INTO task_labels (
   id, organization_id, workspace_id, name, color, description,
@@ -208,6 +243,53 @@ func (q *Queries) GetTaskLabelByID(ctx context.Context, arg GetTaskLabelByIDPara
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const listLabelsForTasks = `-- name: ListLabelsForTasks :many
+SELECT l.task_id, lb.id, lb.name, lb.color
+FROM task_label_links l
+JOIN task_labels lb ON lb.organization_id = l.organization_id AND lb.workspace_id = l.workspace_id AND lb.id = l.label_id
+WHERE l.organization_id = $1 AND l.workspace_id = $2 AND l.task_id = ANY($3::text[])
+  AND lb.archived_at IS NULL
+ORDER BY l.task_id, LOWER(lb.name), lb.id
+`
+
+type ListLabelsForTasksParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	TaskIds        []string `json:"task_ids"`
+}
+
+type ListLabelsForTasksRow struct {
+	TaskID string `json:"task_id"`
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Color  string `json:"color"`
+}
+
+func (q *Queries) ListLabelsForTasks(ctx context.Context, arg ListLabelsForTasksParams) ([]ListLabelsForTasksRow, error) {
+	rows, err := q.db.Query(ctx, listLabelsForTasks, arg.OrganizationID, arg.WorkspaceID, arg.TaskIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLabelsForTasksRow{}
+	for rows.Next() {
+		var i ListLabelsForTasksRow
+		if err := rows.Scan(
+			&i.TaskID,
+			&i.ID,
+			&i.Name,
+			&i.Color,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listTaskLabelLinks = `-- name: ListTaskLabelLinks :many

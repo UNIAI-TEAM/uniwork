@@ -1,20 +1,69 @@
 "use client";
 import { useTranslation } from "react-i18next";
-import { Field, FieldError, FieldLabel } from "@uniwork/ui/components/ui/field";
+import { Field, FieldDescription, FieldError, FieldLabel } from "@uniwork/ui/components/ui/field";
 import { TimeInput } from "@uniwork/ui/components/ui/time-input";
 import { DateField } from "../common/date-field";
-import { meetingDayKey } from "./meeting-datetime";
+import { scheduleWindowIso, splitIsoLocal } from "./meeting-datetime";
+import { useNow } from "./use-now";
 
-/** "HH:MM" strings compare as times; the window is valid only when it has length. */
+/**
+ * "HH:MM" strings compare as times. An end before the start runs into the
+ * next day (see `scheduleWindowIso`), so only a window with no length is
+ * invalid.
+ */
 export function scheduleValid(start: string, end: string): boolean {
-  return end > start;
+  return /^\d{2}:\d{2}$/.test(start) && /^\d{2}:\d{2}$/.test(end) && end !== start;
+}
+
+export type ScheduleProblems = { startPassed: boolean; endInvalid: boolean };
+
+/**
+ * What is wrong with a typed window. `checkPast` is off for a meeting whose
+ * start the viewer has not touched: rescheduling a missed meeting's title
+ * must not be blocked by the start it already had.
+ */
+export function scheduleProblems({
+  date,
+  start,
+  end,
+  timeZone,
+  nowMs,
+  checkPast = true,
+}: {
+  date: string;
+  start: string;
+  end: string;
+  timeZone?: string;
+  nowMs: number;
+  checkPast?: boolean;
+}): ScheduleProblems {
+  const endInvalid = !scheduleValid(start, end);
+  const startPassed =
+    checkPast && Boolean(date) && /^\d{2}:\d{2}$/.test(start)
+      ? Date.parse(scheduleWindowIso(date, start, end, timeZone).starts_at) < nowMs
+      : false;
+  return { startPassed, endInvalid };
+}
+
+/** True when the form may be sent. */
+export function scheduleReady(date: string, problems: ScheduleProblems): boolean {
+  return Boolean(date) && !problems.startPassed && !problems.endInvalid;
+}
+
+/** Moves focus to the first schedule field that needs fixing. */
+export function focusScheduleProblem(idPrefix: string, problems: ScheduleProblems): void {
+  const target = problems.startPassed ? `${idPrefix}-start` : problems.endInvalid ? `${idPrefix}-end` : null;
+  if (!target) return;
+  document.getElementById(target)?.querySelector<HTMLInputElement>("input")?.focus();
 }
 
 function plusMinutes(hhmm: string, minutes: number): string {
   const [h = 0, m = 0] = hhmm
     .split(":")
     .map((x) => Number.parseInt(x, 10) || 0);
-  const total = Math.min(h * 60 + m + minutes, 23 * 60 + 59);
+  // Wraps past midnight: the end then reads as the next day, never a sliver
+  // clamped to 23:59.
+  const total = (((h * 60 + m + minutes) % 1440) + 1440) % 1440;
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
 }
 
@@ -29,8 +78,9 @@ export function browserTimeZone(): string {
 
 /**
  * Date + start/end window shared by the create and edit dialogs. Validation
- * is inline: the end hour cannot be arrowed before the start, and a typed
- * end at or before the start shows an error on the field itself.
+ * is inline and tied to the field it is about: a start that already passed,
+ * an end equal to the start. An end earlier than the start is the next day,
+ * and says so.
  */
 export function MeetingScheduleFields({
   idPrefix,
@@ -40,7 +90,11 @@ export function MeetingScheduleFields({
   onDate,
   onStart,
   onEnd,
+  minDate,
+  timeZone,
+  checkPast = true,
 }: {
+  /** Unique per form (useId): the date input and the two time labels hang off it. */
   idPrefix: string;
   date: string;
   start: string;
@@ -48,12 +102,22 @@ export function MeetingScheduleFields({
   onDate: (v: string) => void;
   onStart: (v: string) => void;
   onEnd: (v: string) => void;
+  /** Earliest pickable day; null for no floor (editing a meeting already dated). */
+  minDate?: string | null;
+  /** IANA zone the times are typed in; the browser's when omitted. */
+  timeZone?: string;
+  /** Flag a start that already passed (off while editing an untouched start). */
+  checkPast?: boolean;
 }) {
   const { t } = useTranslation();
-  const invalid = !scheduleValid(start, end);
-  const startHour = Number.parseInt(start.slice(0, 2), 10) || 0;
-  // Moving the start past the end would leave the end field clamped on screen
-  // but stale in state; carry the end along instead, keeping a 30-minute window.
+  const nowMs = useNow();
+  const floor = minDate === undefined ? splitIsoLocal(new Date(nowMs).toISOString(), timeZone).date : minDate;
+  const problems = scheduleProblems({ date, start, end, timeZone, nowMs, checkPast });
+  const overnight = !problems.endInvalid && end < start;
+  const startErrorId = `${idPrefix}-start-error`;
+  const endHintId = `${idPrefix}-end-hint`;
+  // Moving the start onto the end would leave a window with no length; carry
+  // the end along instead, keeping a 30-minute window.
   const moveStart = (next: string) => {
     onStart(next);
     if (!scheduleValid(next, end)) onEnd(plusMinutes(next, 30));
@@ -66,14 +130,21 @@ export function MeetingScheduleFields({
         </FieldLabel>
         <DateField
           id={`${idPrefix}-date`}
-          min={meetingDayKey(new Date().toISOString())}
+          min={floor ?? undefined}
           value={date}
           onChange={onDate}
         />
       </Field>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field className="min-w-0">
-          <FieldLabel>{t("meetings.startsAt")}</FieldLabel>
+        <Field
+          id={`${idPrefix}-start`}
+          className="min-w-0"
+          aria-labelledby={`${idPrefix}-start-label`}
+          aria-describedby={problems.startPassed ? startErrorId : undefined}
+          aria-invalid={problems.startPassed || undefined}
+          data-invalid={problems.startPassed || undefined}
+        >
+          <FieldLabel id={`${idPrefix}-start-label`}>{t("meetings.startsAt")}</FieldLabel>
           <TimeInput
             className="w-full max-w-full"
             value={start}
@@ -81,19 +152,28 @@ export function MeetingScheduleFields({
             hourLabel={t("meetings.startHour")}
             minuteLabel={t("meetings.startMinute")}
           />
+          {problems.startPassed ? <FieldError id={startErrorId}>{t("meetings.startInPast")}</FieldError> : null}
         </Field>
-        <Field className="min-w-0" data-invalid={invalid || undefined}>
-          <FieldLabel>{t("meetings.endsAt")}</FieldLabel>
+        <Field
+          id={`${idPrefix}-end`}
+          className="min-w-0"
+          aria-labelledby={`${idPrefix}-end-label`}
+          aria-describedby={problems.endInvalid || overnight ? endHintId : undefined}
+          aria-invalid={problems.endInvalid || undefined}
+          data-invalid={problems.endInvalid || undefined}
+        >
+          <FieldLabel id={`${idPrefix}-end-label`}>{t("meetings.endsAt")}</FieldLabel>
           <TimeInput
             className="w-full max-w-full"
             value={end}
             onChange={onEnd}
-            hourMin={startHour}
             hourLabel={t("meetings.endHour")}
             minuteLabel={t("meetings.endMinute")}
           />
-          {invalid ? (
-            <FieldError>{t("meetings.endBeforeStart")}</FieldError>
+          {problems.endInvalid ? (
+            <FieldError id={endHintId}>{t("meetings.endSameAsStart")}</FieldError>
+          ) : overnight ? (
+            <FieldDescription id={endHintId}>{t("meetings.endsNextDay")}</FieldDescription>
           ) : null}
         </Field>
       </div>

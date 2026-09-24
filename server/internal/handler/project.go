@@ -126,6 +126,7 @@ func (h *handlers) createProject(w http.ResponseWriter, r *http.Request) {
 		Title: in.Title, Description: in.Description, Icon: in.Icon,
 		Status: in.Status, Priority: in.Priority, LeadType: in.LeadType, LeadID: in.LeadID,
 		StartDate: in.StartDate, DueDate: in.DueDate, Resources: resources,
+		CreateChannel: in.CreateChannel,
 	})
 	if err != nil {
 		h.mapServiceError(w, err)

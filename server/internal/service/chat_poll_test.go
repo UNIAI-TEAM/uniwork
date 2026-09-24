@@ -630,3 +630,33 @@ func TestChatPollVoteForbiddenAndCorrupt(t *testing.T) {
 	_, err := s.VoteChatPollMessage(ctx, ua.ID, w.ID, roomID, poll.ID, poll.Poll.Options[0].ID)
 	requireValidationError(t, err, "corrupt poll data")
 }
+
+func TestChatPollPinToTopRequiresPinPermission(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+	roomID := mustPollRoom(t, s, ctx, ua.ID, w.ID)
+
+	noPin := defaultChatRoomMemberPermissions()
+	noPin.AllowPinContent = false
+	if _, err := s.UpdateChatRoomSettings(ctx, ua.ID, w.ID, roomID, UpdateChatRoomSettingsInput{
+		MemberPermissions: &noPin,
+	}); err != nil {
+		t.Fatalf("disable pin: %v", err)
+	}
+	pinned := SendPollMessageInput{
+		Question: "Ghim?", Options: []string{"A", "B"}, Settings: ChatPollSettings{PinToTop: true},
+	}
+	if _, err := s.SendPollMessage(ctx, ub.ID, w.ID, roomID, pinned); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("pin without permission: want ErrForbidden, got %v", err)
+	}
+	if _, err := s.SendPollMessage(ctx, ub.ID, w.ID, roomID, SendPollMessageInput{
+		Question: "Không ghim?", Options: []string{"A", "B"},
+	}); err != nil {
+		t.Fatalf("plain poll should still pass: %v", err)
+	}
+	if _, err := s.SendPollMessage(ctx, ua.ID, w.ID, roomID, pinned); err != nil {
+		t.Fatalf("admin pin poll: %v", err)
+	}
+}

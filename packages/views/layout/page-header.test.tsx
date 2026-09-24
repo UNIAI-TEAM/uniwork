@@ -1,11 +1,12 @@
-import { ListTodo, Plus, SquareCheckBig } from "lucide-react";
+import { Download, ListTodo, Plus, SquareCheckBig } from "lucide-react";
 import { render, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { SidebarProvider } from "@uniwork/ui/components/ui/sidebar";
 import {
   CollectionPageHeader,
   CollectionPageHeaderAction,
+  CollectionPageHeaderLinkAction,
 } from "./collection-page";
 import { CollapsedNavTrigger, PAGE_GUTTER, PageHeader } from "./page-header";
 
@@ -110,5 +111,52 @@ describe("PageHeader base chrome", () => {
   it("renders nothing when no sidebar is mounted", () => {
     const { container } = render(<CollapsedNavTrigger />);
     expect(container.querySelector("[data-slot='sidebar-trigger']")).toBeNull();
+  });
+});
+
+describe("CollectionPageHeaderLinkAction", () => {
+  it("keeps the icon and the responsive label a header action gets", () => {
+    const header = renderHeader(
+      <CollectionPageHeader
+        icon={SquareCheckBig}
+        title="Danh bạ"
+        actions={
+          <CollectionPageHeaderLinkAction
+            icon={Download}
+            label="Xuất danh bạ"
+            href="/export"
+            download
+          />
+        }
+      />,
+    );
+
+    const link = within(header).getByRole("link", { name: "Xuất danh bạ" });
+    expect(link.querySelector("svg")).not.toBeNull();
+    expect(link.querySelector("span")).toHaveClass("hidden", "md:inline");
+  });
+
+  it("stays a link and renders without the Base UI native-button assertion", () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const header = renderHeader(
+      <CollectionPageHeader
+        icon={SquareCheckBig}
+        title="Danh bạ"
+        actions={
+          <CollectionPageHeaderLinkAction
+            icon={Download}
+            label="Xuất danh bạ"
+            href="/export"
+            download
+          />
+        }
+      />,
+    );
+
+    const link = within(header).getByRole("link", { name: "Xuất danh bạ" });
+    expect(link).not.toHaveAttribute("role");
+    expect(link).not.toHaveAttribute("type");
+    expect(errors).not.toHaveBeenCalled();
+    errors.mockRestore();
   });
 });

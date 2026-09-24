@@ -51,7 +51,7 @@ func newFixture(t *testing.T) *fixture {
 	orgs := service.NewOrganizationService(pool, q)
 	ws := service.NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
 	f := &fixture{ctx: ctx, pool: pool, q: q, ws: ws,
-		tasks:    service.NewTaskService(pool, q, ws),
+		tasks:    service.NewTaskService(pool, q, ws, nil),
 		meetings: service.NewMeetingService(pool, q, ws, service.NopPublisher{}, nil, service.MeetingRuntime{}),
 		consumer: NewConsumer(pool, q, ws),
 	}

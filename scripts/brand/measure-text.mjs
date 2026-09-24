@@ -1,7 +1,7 @@
 /**
  * Measure per-glyph advances for the wordmark.
  *
- * Kerning lives in Inter's GPOS table; rather than reimplement OpenType shaping
+ * Kerning lives in the font's GPOS table; rather than reimplement OpenType shaping
  * here, the browser shapes the string and reports where each glyph landed.
  * build-wordmark.py then draws the real outlines at those positions.
  *

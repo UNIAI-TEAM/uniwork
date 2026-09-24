@@ -1,186 +1,77 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
-import {
-  CalendarDays,
-  CircleDot,
-  SignalHigh,
-  User,
-  X,
-} from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
+import { X } from "lucide-react";
 import type {
   FilterDimension,
-  FilterSnapshot,
   TaskDateFilter,
 } from "@uniwork/core/tasks/stores/view-store-types";
+import type { TaskViewBaseline } from "@uniwork/core/tasks/views/baseline";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
+import type { ReactNode } from "react";
 import { PAGE_GUTTER } from "../../layout/page-header";
+import { useFilterChips, type FilterChip } from "./use-filter-chips";
 
-interface FilterChip {
-  key: string;
-  icon: ReactNode;
-  label: string;
-  value: string;
-  onRemove?: () => void;
-}
-
-const CHIP_ICON = "size-3 shrink-0 text-muted-foreground";
-
-function getActiveFilterCount(
-  snapshot: FilterSnapshot,
-  dateFilter: TaskDateFilter | null,
-  lockProjectFilter: boolean,
-): number {
-  let n = 0;
-  if (snapshot.statusFilters.length) n += 1;
-  if (snapshot.priorityFilters.length) n += 1;
-  if (snapshot.assigneeFilters.length || snapshot.includeNoAssignee) n += 1;
-  if (snapshot.creatorFilters.length) n += 1;
-  // Project scope already filters server-side — do not count/clear that chip.
-  if (
-    !lockProjectFilter &&
-    (snapshot.projectFilters.length || snapshot.includeNoProject)
-  ) {
-    n += 1;
-  }
-  if (snapshot.labelFilters.length) n += 1;
-  n += Object.values(snapshot.propertyFilters).filter((v) => v.length > 0)
-    .length;
-  if (dateFilter) n += 1;
-  return n;
+function ChipSpan({ chip }: { chip: FilterChip }) {
+  const { t } = useTranslation();
+  return (
+    <span className="flex h-6 max-w-72 items-center gap-1.5 rounded-md border border-border bg-muted/40 pl-2 pr-1 text-caption">
+      <span className="flex shrink-0 items-center gap-1 text-muted-foreground">
+        {chip.icon}
+        <span>{chip.label}</span>
+      </span>
+      <span className="flex min-w-0 items-center gap-1">
+        {chip.preview}
+        <span className="truncate font-medium">{chip.value}</span>
+      </span>
+      <button
+        type="button"
+        onClick={chip.onRemove}
+        className="flex size-4 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+        aria-label={t("tasks.filters.remove_chip", { label: chip.label })}
+      >
+        <X className="size-3" aria-hidden />
+      </button>
+    </span>
+  );
 }
 
 export function FilterChipsBar({
+  workspaceId,
   dateFilter = null,
   onDateFilterChange,
-  onSave,
-  saveLabel,
   filterMenu,
   lockProjectFilter = false,
+  onSave,
+  saveLabel,
+  viewBaseline,
 }: {
+  workspaceId: string;
   dateFilter?: TaskDateFilter | null;
   onDateFilterChange?: (filter: TaskDateFilter | null) => void;
-  onSave?: () => void;
-  saveLabel?: string;
   filterMenu?: ReactNode;
   /** When true, project filter is server-scoped — hide from count/clear. */
   lockProjectFilter?: boolean;
+  onSave?: () => void;
+  saveLabel?: string;
+  /** Open saved view: chips show only the user's additions on top of it. */
+  viewBaseline?: TaskViewBaseline;
 }) {
   const { t } = useTranslation();
-  const statusFilters = useViewStore((s) => s.statusFilters);
-  const priorityFilters = useViewStore((s) => s.priorityFilters);
-  const assigneeFilters = useViewStore((s) => s.assigneeFilters);
-  const includeNoAssignee = useViewStore((s) => s.includeNoAssignee);
-  const creatorFilters = useViewStore((s) => s.creatorFilters);
-  const projectFilters = useViewStore((s) => s.projectFilters);
-  const includeNoProject = useViewStore((s) => s.includeNoProject);
-  const labelFilters = useViewStore((s) => s.labelFilters);
-  const propertyFilters = useViewStore((s) => s.propertyFilters);
-  const clearFilters = useViewStore((s) => s.clearFilters);
-  const clearFilterDimension = useViewStore((s) => s.clearFilterDimension);
-  const setDateFilter = useViewStore((s) => s.setDateFilter);
-
-  const snapshot: FilterSnapshot = useMemo(
-    () => ({
-      statusFilters,
-      priorityFilters,
-      assigneeFilters,
-      includeNoAssignee,
-      creatorFilters,
-      projectFilters,
-      includeNoProject,
-      labelFilters,
-      propertyFilters,
-    }),
-    [
-      statusFilters,
-      priorityFilters,
-      assigneeFilters,
-      includeNoAssignee,
-      creatorFilters,
-      projectFilters,
-      includeNoProject,
-      labelFilters,
-      propertyFilters,
-    ],
-  );
-
-  const chips: FilterChip[] = useMemo(() => {
-    const next: FilterChip[] = [];
-    if (statusFilters.length > 0) {
-      next.push({
-        key: "status",
-        icon: <CircleDot className={CHIP_ICON} aria-hidden />,
-        label: t("tasks.filters.status"),
-        value:
-          statusFilters.length === 1
-            ? t(`tasks.status_${statusFilters[0]}`)
-            : t("tasks.filters.count_values", { count: statusFilters.length }),
-        onRemove: () => clearFilterDimension("status"),
-      });
-    }
-    if (priorityFilters.length > 0) {
-      next.push({
-        key: "priority",
-        icon: <SignalHigh className={CHIP_ICON} aria-hidden />,
-        label: t("tasks.filters.priority"),
-        value:
-          priorityFilters.length === 1
-            ? t(`tasks.priority_${priorityFilters[0]}`)
-            : t("tasks.filters.count_values", { count: priorityFilters.length }),
-        onRemove: () => clearFilterDimension("priority"),
-      });
-    }
-    if (assigneeFilters.length > 0 || includeNoAssignee) {
-      next.push({
-        key: "assignee",
-        icon: <User className={CHIP_ICON} aria-hidden />,
-        label: t("tasks.filters.assignee"),
-        value: includeNoAssignee
-          ? t("tasks.unassigned")
-          : t("tasks.filters.count_values", { count: assigneeFilters.length }),
-        onRemove: () => clearFilterDimension("assignee"),
-      });
-    }
-    if (dateFilter) {
-      next.push({
-        key: "date",
-        icon: <CalendarDays className={CHIP_ICON} aria-hidden />,
-        label: t("tasks.filters.date"),
-        value: `${dateFilter.from} – ${dateFilter.to}`,
-        onRemove: () => {
-          setDateFilter(null);
-          onDateFilterChange?.(null);
-        },
-      });
-    }
-    return next;
-  }, [
-    assigneeFilters.length,
-    clearFilterDimension,
+  const { chips, activeCount, clearAll } = useFilterChips(
+    workspaceId,
     dateFilter,
-    includeNoAssignee,
     onDateFilterChange,
-    priorityFilters,
-    setDateFilter,
-    statusFilters,
-    t,
-  ]);
-
-  const activeCount = getActiveFilterCount(
-    snapshot,
-    dateFilter,
+    viewBaseline,
     lockProjectFilter,
   );
-  // Filter entry lives in TaskDisplayControls; chips bar only shows active
-  // chips / clear / save (plus an optional working filterMenu if a host passes one).
-  if (activeCount === 0 && !filterMenu && !onSave) return null;
+
+  if (activeCount === 0 && !filterMenu) return null;
 
   return (
     <div
+      data-testid="tasks-filter-chips"
       className={cn(
         "flex min-h-9 shrink-0 flex-wrap items-center gap-1.5 py-1.5",
         PAGE_GUTTER,
@@ -188,42 +79,19 @@ export function FilterChipsBar({
     >
       {filterMenu}
       {chips.map((chip) => (
-        <span
-          key={chip.key}
-          className="inline-flex max-w-full items-center gap-1 rounded-md border border-border bg-muted/40 px-2 py-1 text-caption"
-        >
-          {chip.icon}
-          <span className="text-muted-foreground">{chip.label}</span>
-          <span className="truncate font-medium">{chip.value}</span>
-          {chip.onRemove ? (
-            <button
-              type="button"
-              onClick={chip.onRemove}
-              className="rounded p-0.5 hover:bg-accent"
-              aria-label={t("tasks.filters.remove_chip", { label: chip.label })}
-            >
-              <X className="size-3" aria-hidden />
-            </button>
-          ) : null}
-        </span>
+        <ChipSpan key={chip.key} chip={chip} />
       ))}
       {activeCount > 0 ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            clearFilters();
-            onDateFilterChange?.(null);
-          }}
-        >
-          {t("tasks.filters.clear")}
-        </Button>
-      ) : null}
-      {onSave ? (
-        <Button type="button" variant="outline" size="sm" onClick={onSave}>
-          {saveLabel ?? t("tasks.filters.chip_save")}
-        </Button>
+        <>
+          <Button type="button" variant="ghost" size="sm" onClick={clearAll}>
+            {t("tasks.filters.clear")}
+          </Button>
+          {onSave && saveLabel ? (
+            <Button type="button" variant="outline" size="sm" onClick={onSave}>
+              {saveLabel}
+            </Button>
+          ) : null}
+        </>
       ) : null}
     </div>
   );

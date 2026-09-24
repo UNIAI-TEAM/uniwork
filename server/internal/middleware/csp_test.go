@@ -61,8 +61,8 @@ func TestContentSecurityPolicyAllowsSameOriginAttachmentPreviews(t *testing.T) {
 	}))
 
 	for _, path := range []string{
-		"/api/attachments/019f0dae-0315-79b7-b653-f55d6af90403/download",
-		"/api/attachments/019f0dae-0315-79b7-b653-f55d6af90403/content",
+		"/api/v1/attachments/019f0dae-0315-79b7-b653-f55d6af90403/download",
+		"/api/v1/attachments/019f0dae-0315-79b7-b653-f55d6af90403/content",
 	} {
 		t.Run(path, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, path, nil)

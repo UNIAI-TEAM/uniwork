@@ -1,0 +1,135 @@
+import {
+  addDays,
+  addMonths,
+  endOfMonth,
+  endOfWeek,
+  format,
+  startOfMonth,
+  startOfWeek,
+  subDays,
+  subMonths,
+  type Locale,
+} from "date-fns";
+import type { CalendarViewMode } from "@uniwork/core/calendar/preferences";
+
+export type { CalendarViewMode } from "@uniwork/core/calendar/preferences";
+
+export type CalendarFeedRange = { from: string; to: string };
+
+/** Vietnamese teams and the planner grid use Monday as the first day of the week. */
+const FC_WEEK_STARTS_ON = 1 as const;
+
+const WORK_WEEK_HIDDEN_DAYS: number[] = [0, 6];
+const NO_HIDDEN_DAYS: number[] = [];
+
+export function rangeForMode(mode: CalendarViewMode, anchor: Date): CalendarFeedRange {
+  switch (mode) {
+    case "day": {
+      const day = format(anchor, "yyyy-MM-dd");
+      return { from: day, to: day };
+    }
+    case "week": {
+      const start = startOfWeek(anchor, { weekStartsOn: FC_WEEK_STARTS_ON });
+      const end = endOfWeek(anchor, { weekStartsOn: FC_WEEK_STARTS_ON });
+      return {
+        from: format(start, "yyyy-MM-dd"),
+        to: format(end, "yyyy-MM-dd"),
+      };
+    }
+    case "work_week": {
+      const start = startOfWeek(anchor, { weekStartsOn: FC_WEEK_STARTS_ON });
+      return {
+        from: format(start, "yyyy-MM-dd"),
+        to: format(addDays(start, 4), "yyyy-MM-dd"),
+      };
+    }
+    case "month":
+      return {
+        from: format(startOfMonth(anchor), "yyyy-MM-dd"),
+        to: format(endOfMonth(anchor), "yyyy-MM-dd"),
+      };
+    default: {
+      const _exhaustive: never = mode;
+      return _exhaustive;
+    }
+  }
+}
+
+export function fcViewForMode(mode: CalendarViewMode): string {
+  switch (mode) {
+    case "day":
+      return "timeGridDay";
+    case "work_week":
+    case "week":
+      return "timeGridWeek";
+    case "month":
+      return "dayGridMonth";
+    default: {
+      const _exhaustive: never = mode;
+      return _exhaustive;
+    }
+  }
+}
+
+export function fcHiddenDays(
+  mode: CalendarViewMode,
+  showWeekends: boolean = true,
+): number[] {
+  if (mode === "day") return NO_HIDDEN_DAYS;
+  return mode === "work_week" || !showWeekends
+    ? WORK_WEEK_HIDDEN_DAYS
+    : NO_HIDDEN_DAYS;
+}
+
+/** Toolbar center label for the visible calendar period. */
+export function formatPeriodLabel(mode: CalendarViewMode, anchor: Date, locale: Locale): string {
+  switch (mode) {
+    case "day":
+      return format(anchor, "PPP", { locale });
+    case "week": {
+      const start = startOfWeek(anchor, { weekStartsOn: FC_WEEK_STARTS_ON });
+      const end = endOfWeek(anchor, { weekStartsOn: FC_WEEK_STARTS_ON });
+      if (start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth()) {
+        return `${format(start, "d", { locale })} – ${format(end, "d MMMM yyyy", { locale })}`;
+      }
+      if (start.getFullYear() === end.getFullYear()) {
+        return `${format(start, "d MMMM", { locale })} – ${format(end, "d MMMM yyyy", { locale })}`;
+      }
+      return `${format(start, "PPP", { locale })} – ${format(end, "PPP", { locale })}`;
+    }
+    case "work_week": {
+      const start = startOfWeek(anchor, { weekStartsOn: FC_WEEK_STARTS_ON });
+      const end = addDays(start, 4);
+      if (start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth()) {
+        return `${format(start, "d", { locale })} – ${format(end, "d MMMM yyyy", { locale })}`;
+      }
+      if (start.getFullYear() === end.getFullYear()) {
+        return `${format(start, "d MMMM", { locale })} – ${format(end, "d MMMM yyyy", { locale })}`;
+      }
+      return `${format(start, "PPP", { locale })} – ${format(end, "PPP", { locale })}`;
+    }
+    case "month":
+      return format(anchor, "LLLL yyyy", { locale });
+    default: {
+      const _exhaustive: never = mode;
+      return _exhaustive;
+    }
+  }
+}
+
+export function shiftAnchor(mode: CalendarViewMode, anchor: Date, dir: -1 | 1): Date {
+  const step = dir === 1 ? 1 : -1;
+  switch (mode) {
+    case "day":
+      return step === 1 ? addDays(anchor, 1) : subDays(anchor, 1);
+    case "week":
+    case "work_week":
+      return step === 1 ? addDays(anchor, 7) : subDays(anchor, 7);
+    case "month":
+      return step === 1 ? addMonths(anchor, 1) : subMonths(anchor, 1);
+    default: {
+      const _exhaustive: never = mode;
+      return _exhaustive;
+    }
+  }
+}

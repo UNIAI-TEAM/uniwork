@@ -117,12 +117,10 @@ export function useRevokeOtherSessions() {
 }
 
 export function useDeleteAccount() {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: auth.DeleteAccountBody) => auth.deleteAccount(body),
     onSuccess: async () => {
       await useAuthStore.getState().logout();
-      qc.clear();
     },
   });
 }
@@ -143,10 +141,8 @@ export function useRegister() {
 }
 
 export function useLogout() {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: () => useAuthStore.getState().logout(),
-    onSuccess: () => qc.clear(),
   });
 }
 

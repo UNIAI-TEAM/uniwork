@@ -1,29 +1,31 @@
 "use client";
 
-import { Search, UserPlus, X } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toChatContactFromLookup, useLookupChatUser } from "@uniwork/core/chat";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
-import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
-import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
-import { Button } from "@uniwork/ui/components/ui/button";
+import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@uniwork/ui/components/ui/dialog";
-import { Input } from "@uniwork/ui/components/ui/input";
-import { Label } from "@uniwork/ui/components/ui/label";
+  FormDialogBody,
+  FormDialogContent,
+  FormDialogFooter,
+  FormDialogHeader,
+} from "../common/form-dialog";
+import { SelectedMemberChips } from "./selected-member-chips";
+import {
+  WorkspaceMemberLookupResult,
+  WorkspaceMemberPickerList,
+  WorkspaceMemberSearchField,
+  useMemberPickerFocus,
+  useWorkspaceMemberPicker,
+} from "./workspace-member-picker";
+import { memberToChatContact } from "./workspace-member-picker-utils";
 
-function initialOf(name: string): string {
-  return name.trim().slice(0, 1).toUpperCase() || "?";
-}
-
+/*
+ * Same picker as creating a group: workspace members by name or email, and
+ * an exact email reaches people outside the workspace. People already in the
+ * room never appear in the list.
+ */
 export function AddGroupMembersDialog({
   open,
   onOpenChange,
@@ -33,32 +35,46 @@ export function AddGroupMembersDialog({
   contacts,
   inviting = false,
   onInvite,
+  variant = "group",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   workspaceId: string;
   group: GroupChat;
   currentUserId: string;
+  /** Known chat contacts: a picked person reuses their contact record when there is one. */
   contacts: ChatContact[];
   inviting?: boolean;
   onInvite: (members: ChatContact[]) => void;
+  /** Channel reuses the same invite API/dialog copy with channel-specific strings. */
+  variant?: "group" | "channel";
 }) {
   const { t } = useTranslation();
   const [memberQuery, setMemberQuery] = useState("");
-  const [searchActive, setSearchActive] = useState(false);
+  const [searchSubmitted, setSearchSubmitted] = useState(false);
   const [pendingMembers, setPendingMembers] = useState<ChatContact[]>([]);
+  const isChannel = variant === "channel";
 
-  const normalized = memberQuery.trim().toLowerCase();
-  const lookup = useLookupChatUser(
-    workspaceId,
-    normalized,
-    open && searchActive && normalized.includes("@"),
+  const pickerFocus = useMemberPickerFocus();
+  const existingMemberIds = useMemo(() => new Set(group.member_user_ids), [group.member_user_ids]);
+  const excludeUserIds = useMemo(
+    () => new Set([...group.member_user_ids, ...pendingMembers.map((member) => member.user_id)]),
+    [group.member_user_ids, pendingMembers],
   );
-  const existingMemberIds = new Set(group.member_user_ids);
+
+  const { filteredMembers, hasOtherMembers, isLoading, lookup, lookupEnabled, workspaceEmailMatch } =
+    useWorkspaceMemberPicker({
+      workspaceId,
+      currentUserId,
+      open,
+      query: memberQuery,
+      searchSubmitted,
+      excludeUserIds,
+    });
 
   const resetForm = () => {
     setMemberQuery("");
-    setSearchActive(false);
+    setSearchSubmitted(false);
     setPendingMembers([]);
   };
 
@@ -67,167 +83,94 @@ export function AddGroupMembersDialog({
     onOpenChange(next);
   };
 
-  const addMember = (contact: ChatContact) => {
-    if (contact.user_id === currentUserId || existingMemberIds.has(contact.user_id)) return;
+  const addMember = (picked: ChatContact) => {
+    if (picked.user_id === currentUserId || existingMemberIds.has(picked.user_id)) return;
+    const contact = contacts.find((entry) => entry.user_id === picked.user_id) ?? picked;
     setPendingMembers((prev) =>
       prev.some((member) => member.user_id === contact.user_id) ? prev : [...prev, contact],
     );
     setMemberQuery("");
-    setSearchActive(false);
+    setSearchSubmitted(false);
+    // The picked row leaves the list; the search field is where the next pick starts.
+    pickerFocus.focusInput();
   };
 
-  const addFromSearch = () => {
-    if (!lookup.data) return;
-    addMember(toChatContactFromLookup(lookup.data));
+  const submitMemberSearch = () => {
+    setSearchSubmitted(true);
+    if (workspaceEmailMatch && !excludeUserIds.has(workspaceEmailMatch.user_id)) {
+      addMember(memberToChatContact(workspaceEmailMatch));
+    }
   };
 
-  const pickableContacts = contacts.filter(
-    (contact) =>
-      contact.user_id !== currentUserId &&
-      !existingMemberIds.has(contact.user_id) &&
-      !pendingMembers.some((member) => member.user_id === contact.user_id),
-  );
+  const alreadyInLabel = isChannel ? t("chat.channel.already_member") : t("chat.already_in_group");
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="gap-0 p-0 sm:max-w-md" showCloseButton>
-        <DialogHeader className="border-b border-border px-4 py-4">
-          <DialogTitle>{t("chat.add_group_members_title")}</DialogTitle>
-          <DialogDescription>
-            {t("chat.add_group_members_description", { name: group.name })}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4 px-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="add-group-member-search">{t("chat.group_members_label")}</Label>
-            <form
-              className="flex gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!normalized.includes("@")) return;
-                setSearchActive(true);
-              }}
-            >
-              <Input
-                id="add-group-member-search"
-                value={memberQuery}
-                onChange={(e) => {
-                  setMemberQuery(e.target.value);
-                  setSearchActive(false);
-                }}
-                placeholder={t("chat.search_email_group")}
-                type="email"
-                autoComplete="off"
-              />
-              <Button type="submit" variant="outline" size="icon" aria-label={t("chat.search_action")}>
-                <Search className="size-4" aria-hidden />
-              </Button>
-            </form>
-
-            {searchActive && lookup.isFetching ? (
-              <p className="text-caption text-muted-foreground">{t("chat.searching")}</p>
-            ) : null}
-
-            {searchActive && !lookup.isFetching && lookup.isFetched && !lookup.data ? (
-              <p className="text-caption text-muted-foreground">{t("chat.user_not_found")}</p>
-            ) : null}
-
-            {searchActive && lookup.data ? (
-              <div className="flex items-center gap-2 rounded-md border border-border px-3 py-2">
-                <ActorAvatar
-                  name={lookup.data.display_name}
-                  initials={initialOf(lookup.data.display_name)}
-                  size="sm"
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-body font-medium text-foreground">{lookup.data.display_name}</p>
-                  <p className="truncate text-caption text-muted-foreground">{lookup.data.email}</p>
-                </div>
-                {existingMemberIds.has(lookup.data.user_id) ? (
-                  <span className="text-caption text-muted-foreground">{t("chat.already_in_group")}</span>
-                ) : (
-                  <Button type="button" size="sm" onClick={addFromSearch}>
-                    {t("chat.add_to_group")}
-                  </Button>
-                )}
-              </div>
-            ) : null}
-
-            {pickableContacts.length > 0 ? (
-              <div className="space-y-2">
-                <p className="text-caption text-muted-foreground">{t("chat.group_from_contacts")}</p>
-                <ul className="max-h-28 space-y-1 overflow-y-auto rounded-md border border-border p-1">
-                  {pickableContacts.map((contact) => (
-                    <li key={contact.user_id}>
-                      <button
-                        type="button"
-                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted"
-                        onClick={() => addMember(contact)}
-                      >
-                        <ActorAvatar
-                          name={contact.display_name}
-                          initials={initialOf(contact.display_name)}
-                          size="sm"
-                        />
-                        <span className="min-w-0 flex-1 truncate text-body text-foreground">
-                          {displayLabelForChatContact(contact)}
-                        </span>
-                        <UserPlus className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-          </div>
+      <FormDialogContent size="md">
+        <FormDialogHeader
+          title={isChannel ? t("chat.channel.add_members_title") : t("chat.add_group_members_title")}
+          description={
+            isChannel
+              ? t("chat.channel.add_members_description", { name: group.name })
+              : t("chat.add_group_members_description", { name: group.name })
+          }
+        />
+        <FormDialogBody>
+          <WorkspaceMemberSearchField
+            id="add-group-member-search"
+            label={t("chat.group_members_label")}
+            query={memberQuery}
+            onQueryChange={(value) => {
+              setMemberQuery(value);
+              setSearchSubmitted(false);
+            }}
+            onSubmit={submitMemberSearch}
+            placeholder={t("chat.member_search_placeholder")}
+            hint={t("chat.search_member_or_email_hint")}
+            inputRef={pickerFocus.inputRef}
+            onArrowDown={pickerFocus.focusFirstRow}
+          />
 
           {pendingMembers.length > 0 ? (
-            <ul className="space-y-1 rounded-md border border-border p-2">
-              {pendingMembers.map((member) => (
-                <li key={member.user_id} className="flex items-center gap-2 rounded-md px-1 py-1">
-                  <ActorAvatar
-                    name={member.display_name}
-                    initials={initialOf(member.display_name)}
-                    size="sm"
-                  />
-                  <span className="min-w-0 flex-1 truncate text-body text-foreground">
-                    {displayLabelForChatContact(member)}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t("chat.remove_member", {
-                      name: displayLabelForChatContact(member),
-                    })}
-                    onClick={() =>
-                      setPendingMembers((prev) => prev.filter((entry) => entry.user_id !== member.user_id))
-                    }
-                  >
-                    <X className="size-4" aria-hidden />
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-caption text-muted-foreground">{t("chat.add_group_members_hint")}</p>
-          )}
-        </div>
+            <SelectedMemberChips
+              members={pendingMembers}
+              onRemove={(userId) =>
+                setPendingMembers((prev) => prev.filter((entry) => entry.user_id !== userId))
+              }
+              onRemovedLast={pickerFocus.focusInput}
+            />
+          ) : null}
 
-        <DialogFooter className="border-t border-border px-4 py-4 sm:justify-between">
-          <Button type="button" variant="outline" disabled={inviting} onClick={() => handleOpenChange(false)}>
-            {t("chat.cancel_group")}
-          </Button>
-          <Button
-            type="button"
-            disabled={pendingMembers.length === 0 || inviting}
-            onClick={() => onInvite(pendingMembers)}
-          >
-            {inviting ? t("chat.inviting_members") : t("chat.invite_members")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+          <WorkspaceMemberLookupResult
+            enabled={lookupEnabled}
+            lookup={lookup}
+            onPick={addMember}
+            actionLabel={isChannel ? t("chat.channel.add_to_channel") : t("chat.add_to_group")}
+            unavailableLabel={(userId) => (existingMemberIds.has(userId) ? alreadyInLabel : undefined)}
+          />
+
+          <WorkspaceMemberPickerList
+            members={filteredMembers}
+            loading={isLoading}
+            query={memberQuery}
+            hasOtherMembers={hasOtherMembers}
+            allPickedLabel={
+              isChannel ? t("chat.channel.add_members_all_in") : t("chat.add_group_members_all_in")
+            }
+            onPick={addMember}
+            listRef={pickerFocus.listRef}
+          />
+        </FormDialogBody>
+        <FormDialogFooter
+          onCancel={() => handleOpenChange(false)}
+          submitLabel={isChannel ? t("chat.channel.invite_members") : t("chat.invite_members")}
+          submittingLabel={t("chat.inviting_members")}
+          submitting={inviting}
+          submitDisabled={pendingMembers.length === 0}
+          onSubmit={() => onInvite(pendingMembers)}
+          leading={pendingMembers.length === 0 ? t("chat.add_group_members_hint") : undefined}
+        />
+      </FormDialogContent>
     </Dialog>
   );
 }

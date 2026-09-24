@@ -26,7 +26,7 @@ async function onboardOwner(page: Page) {
   await page.getByRole("button", { name: "Tạo Đội Inbox" }).click();
   await page.getByRole("button", { name: "Bỏ qua, mời sau" }).click();
   await expect(page).toHaveURL(new RegExp(`/${orgSlug}/${wsSlug}/tasks$`), { timeout: 15_000 });
-  await page.getByRole("button", { name: "Đã hiểu" }).click({ timeout: 15_000 });
+  await page.getByRole("button", { name: "Để sau" }).click({ timeout: 15_000 });
 }
 
 test("assigning a task lights the assignee's inbox badge without a reload", async ({ browser, page: owner }) => {
@@ -60,7 +60,7 @@ test("assigning a task lights the assignee's inbox badge without a reload", asyn
 
   // A: create a task and hand it to B.
   await owner.goto(`/${orgSlug}/${wsSlug}/tasks`);
-  await owner.getByRole("button", { name: "Việc mới" }).click();
+  await owner.getByRole("button", { name: "Tạo việc" }).click();
   await owner.getByLabel("Tiêu đề").fill(`Việc cho B ${stamp}`);
   await owner.getByRole("button", { name: "Tạo", exact: true }).click();
   await owner.getByText(`Việc cho B ${stamp}`).click();

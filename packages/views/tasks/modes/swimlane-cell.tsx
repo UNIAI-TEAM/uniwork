@@ -7,7 +7,7 @@ import { Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Task, TaskStatus } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { DraggableBoardCard } from "./board-card";
+import { DraggableBoardCard, type BoardCardMeta } from "./board-card";
 import { statusColumnBg } from "./status-config";
 import type { LaneGroup } from "./swimlane-lanes";
 import type { TaskGroupPageState } from "../surface/use-task-group-branches";
@@ -16,6 +16,7 @@ export const SwimLaneCell = memo(function SwimLaneCell({
   cellId: cId,
   taskIds,
   taskMap,
+  cardMeta,
   status,
   lane,
   onCreateTask,
@@ -26,6 +27,7 @@ export const SwimLaneCell = memo(function SwimLaneCell({
   cellId: string;
   taskIds: string[];
   taskMap: Map<string, Task>;
+  cardMeta?: ReadonlyMap<string, BoardCardMeta>;
   status: TaskStatus;
   lane: LaneGroup;
   onCreateTask?: (defaults: Record<string, unknown>) => void;
@@ -66,6 +68,7 @@ export const SwimLaneCell = memo(function SwimLaneCell({
             <DraggableBoardCard
               key={task.id}
               task={task}
+              meta={cardMeta?.get(task.id)}
               onOpen={onOpenTask}
             />
           ))}

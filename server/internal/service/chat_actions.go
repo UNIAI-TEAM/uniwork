@@ -126,7 +126,7 @@ func (s *ChatService) publishChatMessageUpdated(ctx context.Context, room db.Cha
 		},
 	}
 	switch room.Kind {
-	case chatRoomKindWorkspace:
+	case chatRoomKindWorkspace, chatRoomKindChannel:
 		s.pub.Publish(ctx, anchorWS, ev)
 	default:
 		s.publishChatRoomEvent(ctx, room.ID, ev)
@@ -144,7 +144,7 @@ func (s *ChatService) publishChatMessageDeleted(ctx context.Context, room db.Cha
 		},
 	}
 	switch room.Kind {
-	case chatRoomKindWorkspace:
+	case chatRoomKindWorkspace, chatRoomKindChannel:
 		s.pub.Publish(ctx, anchorWS, ev)
 	default:
 		s.publishChatRoomEvent(ctx, room.ID, ev)

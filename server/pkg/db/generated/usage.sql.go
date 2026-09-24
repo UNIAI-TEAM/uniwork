@@ -64,6 +64,17 @@ func (q *Queries) CountOrganizationMembers(ctx context.Context, organizationID s
 	return count, err
 }
 
+const countTasksInOrganization = `-- name: CountTasksInOrganization :one
+SELECT count(*)::bigint FROM tasks WHERE organization_id = $1
+`
+
+func (q *Queries) CountTasksInOrganization(ctx context.Context, organizationID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countTasksInOrganization, organizationID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countWorkspacesInOrganization = `-- name: CountWorkspacesInOrganization :one
 SELECT count(*) FROM workspaces WHERE organization_id = $1
 `

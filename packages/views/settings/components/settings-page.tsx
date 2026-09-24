@@ -1,91 +1,151 @@
 "use client";
 
-import { Bell, Building2, CreditCard, Network, Plug, ScrollText, Settings, ShieldCheck, SlidersHorizontal, Sparkles, User, Users } from "lucide-react";
-import { Suspense, lazy, useMemo } from "react";
+import {
+  Bell,
+  Building2,
+  CreditCard,
+  Keyboard,
+  Network,
+  Plug,
+  ScrollText,
+  Settings,
+  ShieldCheck,
+  SlidersHorizontal,
+  Sparkles,
+  User,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
+import { Suspense, lazy, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
+import { useAuditPermissions, useBillingPermissions } from "@uniwork/core/permissions";
+import { useMyMembership } from "@uniwork/core/workspaces";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "@uniwork/ui/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
 import { useIsMobile } from "@uniwork/ui/hooks/use-mobile";
-import { CollapsedNavTrigger } from "../../layout/page-header";
+import { cn } from "@uniwork/ui/lib/utils";
+import { CollectionPageHeader } from "../../layout/collection-page";
+import { moduleTone } from "../../layout/module-tones";
 import { useWorkspace } from "../../layout/workspace-context";
 import { useNavigation } from "../../navigation";
 import { AccountTab } from "./account-tab";
-import { AiTab } from "./ai-tab";
-import { AuditTab } from "./audit-tab";
-import { BillingTab } from "./billing-tab";
-import { DepartmentsTab } from "./departments-tab";
-import { IntegrationsTab } from "./integrations-tab";
-import { MembersTab } from "./members-tab";
-import { NotificationsTab } from "./notifications-tab";
-import { OrganizationTab } from "./organization-tab";
-import { PreferencesTab } from "./preferences-tab";
+import { SettingsTabSkeleton } from "./settings-layout";
 
-// The security tab (MFA enrolment, sessions, deletion) loads when opened so
-// the settings route stays inside its bundle ceiling.
+// Only the open panel is mounted, so every tab but the default one is a
+// chunk fetched on the click that reveals it; the settings route stays inside
+// its bundle ceiling.
 const SecurityTab = lazy(() => import("./security-tab").then((m) => ({ default: m.SecurityTab })));
-import { WorkspaceTab } from "./workspace-tab";
+const AiTab = lazy(() => import("./ai-tab").then((m) => ({ default: m.AiTab })));
+const AuditTab = lazy(() => import("./audit-tab").then((m) => ({ default: m.AuditTab })));
+const BillingTab = lazy(() => import("./billing-tab").then((m) => ({ default: m.BillingTab })));
+const DepartmentsTab = lazy(() => import("./departments-tab").then((m) => ({ default: m.DepartmentsTab })));
+const KeyboardShortcutsTab = lazy(() => import("./keyboard-shortcuts-tab").then((m) => ({ default: m.KeyboardShortcutsTab })));
+const IntegrationsTab = lazy(() => import("./integrations-tab").then((m) => ({ default: m.IntegrationsTab })));
+const MembersTab = lazy(() => import("./members-tab").then((m) => ({ default: m.MembersTab })));
+const NotificationsTab = lazy(() => import("./notifications-tab").then((m) => ({ default: m.NotificationsTab })));
+const OrganizationTab = lazy(() => import("./organization-tab").then((m) => ({ default: m.OrganizationTab })));
+const PreferencesTab = lazy(() => import("./preferences-tab").then((m) => ({ default: m.PreferencesTab })));
+const WorkspaceTab = lazy(() => import("./workspace-tab").then((m) => ({ default: m.WorkspaceTab })));
 
-const ACCOUNT_TAB_KEYS = ["profile", "security", "preferences", "notifications"] as const;
-const ACCOUNT_TAB_ICONS = {
-  profile: User,
-  security: ShieldCheck,
-  preferences: SlidersHorizontal,
-  notifications: Bell,
-} as const;
+type Gate = "billing" | "audit" | "workspace_admin";
 
-const WORKSPACE_TAB_KEYS = ["general", "members", "integrations", "billing", "ai", "audit"] as const;
-const WORKSPACE_TAB_VALUES = {
-  general: "workspace",
-  members: "members",
-  integrations: "integrations",
-  billing: "billing",
-  ai: "ai",
-  audit: "audit",
-} as const;
-const WORKSPACE_TAB_ICONS = {
-  general: Settings,
-  members: Users,
-  integrations: Plug,
-  billing: CreditCard,
-  ai: Sparkles,
-  audit: ScrollText,
-} as const;
+interface TabDef {
+  /** The `?tab=` value; links and e2e specs point at these, so they never change. */
+  value: string;
+  /** Key under `settings.page.tabs`. */
+  label: string;
+  icon: LucideIcon;
+  Panel: ComponentType;
+  /** Hidden from the nav once the reader is known not to pass it. */
+  gate?: Gate;
+  /** A tab whose main content is a multi-column table gets a wider column. */
+  wide?: boolean;
+}
 
-// The organization group is a third tier beside "my account" and the current
-// workspace: departments and org-level membership belong to the company, not
-// to one workspace (F-03).
-const ORGANIZATION_TAB_KEYS = ["organization", "departments"] as const;
-const ORGANIZATION_TAB_ICONS = {
-  organization: Building2,
-  departments: Network,
-} as const;
+type GroupId = "account" | "organization" | "workspace";
 
+/**
+ * Three tiers, each holding only what belongs to it: the person, the company
+ * (members, structure, the plan it pays for, its audit trail — all keyed by
+ * organization), and the one workspace in view.
+ */
+const GROUPS: readonly { id: GroupId; tabs: readonly TabDef[] }[] = [
+  {
+    id: "account",
+    tabs: [
+      { value: "profile", label: "profile", icon: User, Panel: AccountTab },
+      { value: "security", label: "security", icon: ShieldCheck, Panel: SecurityTab },
+      { value: "preferences", label: "preferences", icon: SlidersHorizontal, Panel: PreferencesTab },
+      { value: "notifications", label: "notifications", icon: Bell, Panel: NotificationsTab },
+      { value: "shortcuts", label: "shortcuts", icon: Keyboard, Panel: KeyboardShortcutsTab },
+    ],
+  },
+  {
+    id: "organization",
+    tabs: [
+      { value: "organization", label: "organization", icon: Building2, Panel: OrganizationTab },
+      { value: "departments", label: "departments", icon: Network, Panel: DepartmentsTab },
+      { value: "billing", label: "billing", icon: CreditCard, Panel: BillingTab, gate: "billing" },
+      { value: "audit", label: "audit", icon: ScrollText, Panel: AuditTab, gate: "audit", wide: true },
+    ],
+  },
+  {
+    id: "workspace",
+    tabs: [
+      { value: "workspace", label: "workspace", icon: Settings, Panel: WorkspaceTab },
+      { value: "members", label: "members", icon: Users, Panel: MembersTab },
+      { value: "integrations", label: "integrations", icon: Plug, Panel: IntegrationsTab },
+      { value: "ai", label: "ai", icon: Sparkles, Panel: AiTab, gate: "workspace_admin" },
+    ],
+  },
+];
+
+const ALL_TABS = GROUPS.flatMap((group) => group.tabs);
+const VALID_TABS = new Set(ALL_TABS.map((tab) => tab.value));
 const DEFAULT_TAB = "profile";
 const TAB_QUERY_KEY = "tab";
+const ADMIN_ROLES = new Set(["owner", "admin"]);
 
 // Line-variant TabsTrigger zeroes active background; force surface-selected
 // so the active item reads as a pill in the settings nav.
 const SETTINGS_TAB_TRIGGER_CLASS =
-  "h-8 shrink-0 justify-start px-2.5 hover:bg-surface-hover data-active:!bg-surface-selected data-active:!text-surface-selected-foreground data-active:hover:!bg-surface-selected md:!w-full md:px-2 md:after:hidden";
+  "h-8 w-full shrink-0 justify-start px-2 hover:bg-surface-hover data-active:!bg-surface-selected data-active:!text-surface-selected-foreground data-active:hover:!bg-surface-selected after:hidden";
+
+/**
+ * Which gated tabs to hide. A tab stays listed while its permission is still
+ * loading, so the nav never loses an item the reader turns out to have; a tab
+ * reached by URL still renders its own forbidden state.
+ */
+function useHiddenGates(): Set<Gate> {
+  const { workspace } = useWorkspace();
+  const billing = useBillingPermissions(workspace.organization_id);
+  const audit = useAuditPermissions(workspace.organization_id);
+  const me = useMyMembership(workspace.id);
+  const hidden = new Set<Gate>();
+  if (!billing.isLoading && !billing.canView.allowed) hidden.add("billing");
+  if (!audit.isLoading && !audit.canRead.allowed) hidden.add("audit");
+  if (!me.isLoading && me.data && !ADMIN_ROLES.has(me.data.role)) hidden.add("workspace_admin");
+  return hidden;
+}
 
 export function SettingsPage() {
   const { t } = useTranslation(undefined, { keyPrefix: "settings" });
   const { workspace } = useWorkspace();
   const navigation = useNavigation();
   const isMobile = useIsMobile();
-
-  const validTabs = useMemo(
-    () =>
-      new Set<string>([
-        ...ACCOUNT_TAB_KEYS,
-        ...ORGANIZATION_TAB_KEYS,
-        ...WORKSPACE_TAB_KEYS.map((key) => WORKSPACE_TAB_VALUES[key]),
-      ]),
-    [],
-  );
+  const hidden = useHiddenGates();
 
   const tabFromUrl = navigation.searchParams.get(TAB_QUERY_KEY);
-  const activeTab =
-    tabFromUrl && validTabs.has(tabFromUrl) ? tabFromUrl : DEFAULT_TAB;
+  const activeTab = tabFromUrl && VALID_TABS.has(tabFromUrl) ? tabFromUrl : DEFAULT_TAB;
 
   const handleTabChange = (next: string) => {
     const params = new URLSearchParams(navigation.searchParams);
@@ -93,109 +153,105 @@ export function SettingsPage() {
     navigation.replace(`${navigation.pathname}?${params.toString()}`);
   };
 
+  // The open tab is always listed, even when its gate would hide it: the
+  // reader came here by URL and the nav should say where they are.
+  const groups = GROUPS.map((group) => ({
+    ...group,
+    tabs: group.tabs.filter((tab) => !tab.gate || !hidden.has(tab.gate) || tab.value === activeTab),
+  }));
+
+  const scopeName: Record<GroupId, string | null> = {
+    account: null,
+    organization: workspace.organization_name,
+    workspace: workspace.name,
+  };
+
   return (
-    <Tabs
-      value={activeTab}
-      onValueChange={handleTabChange}
-      orientation={isMobile ? "horizontal" : "vertical"}
-      className="flex min-h-0 flex-1 flex-col gap-0 overflow-y-auto md:flex-row md:overflow-hidden"
-    >
-      <div className="shrink-0 overflow-x-auto border-b border-border p-2 md:w-56 md:overflow-y-auto md:border-r md:border-b-0 md:p-4">
-        <div className="flex items-center md:mb-4">
-          <CollapsedNavTrigger />
-          <h1 className="sr-only text-body font-semibold md:not-sr-only md:px-2">{t("page.title")}</h1>
+    <div className="flex min-h-0 flex-1 flex-col">
+      <CollectionPageHeader icon={Settings} tone={moduleTone("settings")} title={t("page.title")} />
+      <Tabs
+        value={activeTab}
+        onValueChange={handleTabChange}
+        orientation="vertical"
+        className="flex min-h-0 flex-1 flex-col gap-0 md:flex-row"
+      >
+        {isMobile ? (
+          <div className="shrink-0 border-b border-border px-4 py-2.5">
+            <Select
+              items={ALL_TABS.map((tab) => ({ value: tab.value, label: t(`page.tabs.${tab.label}`) }))}
+              value={activeTab}
+              onValueChange={(next) => {
+                if (typeof next === "string") handleTabChange(next);
+              }}
+            >
+              <SelectTrigger className="w-full" aria-label={t("page.section_picker")}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {groups.map((group, index) => (
+                  <SelectGroup key={group.id}>
+                    {index > 0 ? <SelectSeparator /> : null}
+                    <SelectLabel>{t(`page.groups.${group.id}`)}</SelectLabel>
+                    {group.tabs.map((tab) => (
+                      <SelectItem key={tab.value} value={tab.value}>
+                        <tab.icon aria-hidden className="text-muted-foreground" />
+                        {t(`page.tabs.${tab.label}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : (
+          <nav
+            aria-label={t("page.nav_label")}
+            className="w-60 shrink-0 overflow-y-auto border-r border-border px-3 py-4"
+          >
+            <TabsList variant="line" className="flex w-full flex-col items-stretch gap-0.5 p-0">
+              {groups.map((group, index) => (
+                <div key={group.id} className="contents">
+                  <div className={index === 0 ? "px-2 pb-1.5" : "px-2 pt-5 pb-1.5"}>
+                    <p className="text-caption font-semibold text-muted-foreground">{t(`page.groups.${group.id}`)}</p>
+                    {scopeName[group.id] ? (
+                      <p className="truncate text-caption text-muted-foreground" title={scopeName[group.id] ?? undefined}>
+                        {scopeName[group.id]}
+                      </p>
+                    ) : null}
+                  </div>
+                  {group.tabs.map((tab) => (
+                    <TabsTrigger key={tab.value} value={tab.value} className={SETTINGS_TAB_TRIGGER_CLASS}>
+                      <tab.icon className="size-4" aria-hidden />
+                      {t(`page.tabs.${tab.label}`)}
+                    </TabsTrigger>
+                  ))}
+                </div>
+              ))}
+            </TabsList>
+          </nav>
+        )}
+
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+          <div
+            className={cn(
+              "mx-auto w-full px-4 pt-6 pb-12 sm:px-6 md:px-8 md:pt-8 md:pb-16",
+              ALL_TABS.find((tab) => tab.value === activeTab)?.wide ? "max-w-5xl" : "max-w-3xl",
+            )}
+          >
+            {ALL_TABS.map(({ value, Panel }) => (
+              <TabsContent key={value} value={value}>
+                {value === DEFAULT_TAB ? (
+                  <Panel />
+                ) : (
+                  <Suspense fallback={<SettingsTabSkeleton />}>
+                    <Panel />
+                  </Suspense>
+                )}
+              </TabsContent>
+            ))}
+          </div>
         </div>
-        <TabsList
-          variant="line"
-          className="flex w-max min-w-full flex-row items-center gap-1 p-0 md:w-full md:flex-col md:items-stretch"
-        >
-          <span className="hidden px-2 pt-2 pb-1 text-caption font-medium text-muted-foreground md:block">
-            {t("page.my_account")}
-          </span>
-          {ACCOUNT_TAB_KEYS.map((key) => {
-            const Icon = ACCOUNT_TAB_ICONS[key];
-            return (
-              <TabsTrigger key={key} value={key} className={SETTINGS_TAB_TRIGGER_CLASS}>
-                <Icon className="h-4 w-4" aria-hidden />
-                {t(`page.tabs.${key}`)}
-              </TabsTrigger>
-            );
-          })}
-
-          <span className="hidden truncate px-2 pt-4 pb-1 text-caption font-medium text-muted-foreground md:block">
-            {workspace.organization_name}
-          </span>
-          {ORGANIZATION_TAB_KEYS.map((key) => {
-            const Icon = ORGANIZATION_TAB_ICONS[key];
-            return (
-              <TabsTrigger key={key} value={key} className={SETTINGS_TAB_TRIGGER_CLASS}>
-                <Icon className="h-4 w-4" aria-hidden />
-                {t(`page.tabs.${key}`)}
-              </TabsTrigger>
-            );
-          })}
-
-          <span className="hidden truncate px-2 pt-4 pb-1 text-caption font-medium text-muted-foreground md:block">
-            {workspace.name}
-          </span>
-          {WORKSPACE_TAB_KEYS.map((key) => {
-            const Icon = WORKSPACE_TAB_ICONS[key];
-            return (
-              <TabsTrigger
-                key={key}
-                value={WORKSPACE_TAB_VALUES[key]}
-                className={SETTINGS_TAB_TRIGGER_CLASS}
-              >
-                <Icon className="h-4 w-4" aria-hidden />
-                {t(`page.tabs.${key}`)}
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
-      </div>
-
-      <div className="min-w-0 flex-1 md:overflow-y-auto">
-        <div className="mx-auto w-full max-w-3xl p-4 sm:p-6 md:p-8">
-          <TabsContent value="profile">
-            <AccountTab />
-          </TabsContent>
-          <TabsContent value="security">
-            <Suspense fallback={<div className="h-72" aria-hidden />}>
-              <SecurityTab />
-            </Suspense>
-          </TabsContent>
-          <TabsContent value="preferences">
-            <PreferencesTab />
-          </TabsContent>
-          <TabsContent value="notifications">
-            <NotificationsTab />
-          </TabsContent>
-          <TabsContent value="organization">
-            <OrganizationTab />
-          </TabsContent>
-          <TabsContent value="departments">
-            <DepartmentsTab />
-          </TabsContent>
-          <TabsContent value="workspace">
-            <WorkspaceTab />
-          </TabsContent>
-          <TabsContent value="members">
-            <MembersTab />
-          </TabsContent>
-          <TabsContent value="integrations">
-            <IntegrationsTab />
-          </TabsContent>
-          <TabsContent value="billing">
-            <BillingTab />
-          </TabsContent>
-          <TabsContent value="ai">
-            <AiTab />
-          </TabsContent>
-          <TabsContent value="audit">
-            <AuditTab />
-          </TabsContent>
-        </div>
-      </div>
-    </Tabs>
+      </Tabs>
+    </div>
   );
 }

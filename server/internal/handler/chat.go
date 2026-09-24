@@ -27,8 +27,23 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 	if m.ReplyToMessageID != nil {
 		out.ReplyToMessageID = m.ReplyToMessageID
 	}
+	if m.ThreadRootID != nil {
+		out.ThreadRootID = m.ThreadRootID
+	}
+	if m.ReplyCount > 0 {
+		out.ReplyCount = m.ReplyCount
+	}
+	if m.LastReplyAt != nil {
+		out.LastReplyAt = m.LastReplyAt.Format(time.RFC3339)
+	}
+	if m.ThreadUnread {
+		out.ThreadUnread = true
+	}
 	if len(m.Reactions) > 0 {
 		out.Reactions = m.Reactions
+	}
+	if len(m.MyReactions) > 0 {
+		out.MyReactions = m.MyReactions
 	}
 	if len(m.MentionedUserIDs) > 0 {
 		out.MentionedUserIDs = m.MentionedUserIDs
@@ -46,10 +61,35 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 		out.EditedAt = m.EditedAt.Format(time.RFC3339)
 	}
 	if m.VoiceCall != nil {
+		participants := make([]sdo.VoiceCallParticipantDTO, 0, len(m.VoiceCall.Participants))
+		for _, p := range m.VoiceCall.Participants {
+			participants = append(participants, sdo.VoiceCallParticipantDTO{
+				UserID: p.UserID, DisplayName: p.DisplayName,
+			})
+		}
 		out.VoiceCall = &sdo.VoiceCallLogDTO{
 			Outcome:         m.VoiceCall.Outcome,
 			DurationSeconds: m.VoiceCall.DurationSeconds,
 			CallerID:        m.VoiceCall.CallerID,
+			Participants:    participants,
+			RecordingID:     m.VoiceCall.RecordingID,
+			RecordingStatus: m.VoiceCall.RecordingStatus,
+			RecordingURL:    m.VoiceCall.RecordingURL,
+		}
+	}
+	if m.VoiceCallSummary != nil {
+		items := make([]sdo.VoiceCallSummaryActionItemDTO, 0, len(m.VoiceCallSummary.ActionItems))
+		for _, item := range m.VoiceCallSummary.ActionItems {
+			items = append(items, sdo.VoiceCallSummaryActionItemDTO{
+				Title: item.Title, Owner: item.Owner, Due: item.Due, SourceMessageID: item.SourceMessageID,
+			})
+		}
+		out.VoiceCallSummary = &sdo.VoiceCallSummaryDTO{
+			CallID:           m.VoiceCallSummary.CallID,
+			CallLogMessageID: m.VoiceCallSummary.CallLogMessageID,
+			Summary:          m.VoiceCallSummary.Summary,
+			Highlights:       m.VoiceCallSummary.Highlights,
+			ActionItems:      items,
 		}
 	}
 	if m.Voice != nil {
@@ -57,6 +97,13 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 			DurationMS:  m.Voice.DurationMS,
 			ContentType: m.Voice.ContentType,
 			SizeBytes:   m.Voice.SizeBytes,
+		}
+	}
+	if m.File != nil {
+		out.File = &sdo.FileMessageDTO{
+			Filename:    m.File.Filename,
+			ContentType: m.File.ContentType,
+			SizeBytes:   m.File.SizeBytes,
 		}
 	}
 	if m.Poll != nil {
@@ -94,6 +141,13 @@ func toChatMessageDTO(m service.ChatMessageRow) sdo.ChatMessageDTO {
 			PinToTop: m.Note.PinToTop,
 		}
 	}
+	if m.Post != nil {
+		out.Post = &sdo.ChatPostDTO{
+			Title:    m.Post.Title,
+			Body:     m.Post.Body,
+			PinToTop: m.Post.PinToTop,
+		}
+	}
 	return out
 }
 
@@ -118,6 +172,10 @@ func toChatRoomDTO(r service.ChatRoomSummary) sdo.ChatRoomDTO {
 		PeerUserID: r.PeerUserID, PeerEmail: r.PeerEmail, PeerDisplayName: r.PeerDisplayName,
 		LastMessageBody: r.LastMessageBody, LastMessageKind: r.LastMessageKind,
 		LastMessageSenderID: r.LastMessageSenderID, LastMessageSenderName: r.LastMessageSenderName,
+		Visibility: r.Visibility, ProjectID: r.ProjectID, Topic: r.Topic, IsDefault: r.IsDefault,
+	}
+	if r.PeerLastReadAt != nil {
+		out.PeerLastReadAt = r.PeerLastReadAt.Format(time.RFC3339)
 	}
 	if r.LastMessageAt != nil {
 		out.LastMessageAt = r.LastMessageAt.Format(time.RFC3339)
@@ -143,7 +201,9 @@ func parseChatMessageListQuery(r *http.Request) (service.ListChatMessagesInput, 
 		}
 		before = &t
 	}
-	return service.ListChatMessagesInput{Before: before, Limit: limit}, nil
+	// mark_read=0 keeps last_read_at so CatchUp still sees unread after open.
+	skipMarkRead := strings.TrimSpace(r.URL.Query().Get("mark_read")) == "0"
+	return service.ListChatMessagesInput{Before: before, Limit: limit, SkipMarkRead: skipMarkRead}, nil
 }
 
 func (h *handlers) getWorkspaceChatRoom(w http.ResponseWriter, r *http.Request) {
@@ -303,6 +363,17 @@ func (h *handlers) inviteChatGroupMembers(w http.ResponseWriter, r *http.Request
 
 func (h *handlers) leaveChatRoom(w http.ResponseWriter, r *http.Request) {
 	err := h.Chat.LeaveChatRoom(
+		r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"),
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.StatusSDO{Status: "ok"})
+}
+
+func (h *handlers) markChatRoomRead(w http.ResponseWriter, r *http.Request) {
+	err := h.Chat.MarkRoomRead(
 		r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"),
 	)
 	if err != nil {
@@ -514,6 +585,19 @@ func (h *handlers) sendChatRoomMessage(w http.ResponseWriter, r *http.Request) {
 			service.SendNoteMessageInput{
 				Body:             in.Note.Body,
 				PinToTop:         in.Note.PinToTop,
+				ReplyToMessageID: in.ReplyToMessageID,
+			},
+		)
+	} else if in.Post != nil {
+		msg, err = h.Chat.SendPostMessage(
+			r.Context(),
+			userID,
+			workspaceID,
+			roomID,
+			service.SendPostMessageInput{
+				Title:            in.Post.Title,
+				Body:             in.Post.Body,
+				PinToTop:         in.Post.PinToTop,
 				ReplyToMessageID: in.ReplyToMessageID,
 			},
 		)

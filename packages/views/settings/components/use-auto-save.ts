@@ -74,7 +74,8 @@ export function useAutoSave<T>({
         if (queued && !isEqual(queued, persistedRef.current)) {
           void runSave(queued);
         } else if (succeeded && mountedRef.current) {
-          setStatus("saved");
+          // A newer edit still waiting on its debounce is not saved yet.
+          setStatus(timerRef.current === null ? "saved" : "idle");
           onSuccess?.(next);
         }
       }
@@ -106,7 +107,10 @@ export function useAutoSave<T>({
       return;
     }
 
-    setStatus("saving");
+    // While the reader is still typing nothing is saving yet, and a "saved"
+    // tick from the previous edit would be a lie about the new text. A save
+    // already in flight keeps "saving" until it settles.
+    if (!savingRef.current) setStatus("idle");
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
       void runSave(latestValueRef.current);

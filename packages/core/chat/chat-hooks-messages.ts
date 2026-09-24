@@ -1,13 +1,14 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import * as chat from "../api/endpoints/chat";
-import type { ChatUserLookup } from "../api/endpoints/chat";
+import type { ChatMessageRecord, ChatRoomRecord, ChatUserLookup } from "../api/endpoints/chat";
 import { ApiError } from "../api/http";
 import { runWithChatSendRetry } from "./send-retry";
 import { usePendingChatMessagesStore } from "./pending-messages-store";
 import { lookupChatUserCached } from "./user-lookup";
 import { useAuthStore } from "../auth/store";
 import { chatKeys } from "./chat-keys";
+import { mergeMessageIntoList, patchRoomSidebarFromMessage } from "./realtime-cache";
 
 export function useSendChatRoomMessage(workspaceId: string) {
   const qc = useQueryClient();
@@ -38,17 +39,32 @@ export function useSendChatRoomMessage(workspaceId: string) {
         body: string;
         pin_to_top?: boolean;
       };
+      post?: {
+        title: string;
+        body: string;
+        pin_to_top?: boolean;
+      };
       priority?: "important" | "urgent";
     }) => runWithChatSendRetry(() => chat.sendChatRoomMessage(workspaceId, input.roomId, input)),
-    onSuccess: (_data, variables) => {
+    onSuccess: (data, variables) => {
       if (variables.client_msg_id) {
         usePendingChatMessagesStore.getState().remove(variables.client_msg_id);
       }
-      void qc.invalidateQueries({
-        queryKey: chatKeys.roomMessages(workspaceId, variables.roomId),
-      });
+      if (data) {
+        qc.setQueryData<ChatMessageRecord[]>(
+          chatKeys.roomMessages(workspaceId, variables.roomId),
+          (old) => mergeMessageIntoList(old, data),
+        );
+        qc.setQueryData<ChatRoomRecord[]>(chatKeys.rooms(workspaceId), (old) =>
+          patchRoomSidebarFromMessage(old, variables.roomId, data),
+        );
+      } else {
+        void qc.invalidateQueries({
+          queryKey: chatKeys.roomMessages(workspaceId, variables.roomId),
+        });
+        void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
+      }
       void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
-      void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
     },
   });
 }
@@ -63,6 +79,26 @@ export function useSendChatVoiceMessage(workspaceId: string) {
       client_msg_id: string;
       reply_to_message_id?: string;
     }) => chat.sendChatVoiceMessage(workspaceId, input.roomId, input),
+    onSuccess: (_data, variables) => {
+      void qc.invalidateQueries({
+        queryKey: chatKeys.roomMessages(workspaceId, variables.roomId),
+      });
+      void qc.invalidateQueries({ queryKey: chatKeys.messages(workspaceId) });
+      void qc.invalidateQueries({ queryKey: chatKeys.rooms(workspaceId) });
+    },
+  });
+}
+
+export function useSendChatFileMessage(workspaceId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      roomId: string;
+      file: Blob;
+      filename: string;
+      client_msg_id: string;
+      reply_to_message_id?: string;
+    }) => chat.sendChatFileMessage(workspaceId, input.roomId, input),
     onSuccess: (_data, variables) => {
       void qc.invalidateQueries({
         queryKey: chatKeys.roomMessages(workspaceId, variables.roomId),
@@ -139,6 +175,55 @@ export function useToggleChatMessagePin(workspaceId: string) {
       });
     },
   });
+}
+
+/** Blobs are immutable per message; keep them while a room is in use. */
+const CHAT_BLOB_GC_MS = 5 * 60_000;
+
+/**
+ * The bytes of a file message (image or PDF preview, reply thumbnail). Keyed
+ * by message, so the timeline rebuilding its rows or the list remounting one
+ * reads the cached Blob instead of downloading it again; callers create
+ * their own object URL from it and revoke it on unmount.
+ */
+export function useChatFileBlob(
+  workspaceId: string,
+  roomId: string,
+  messageId: string,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: chatKeys.fileBlob(workspaceId, roomId, messageId),
+    queryFn: () => chat.loadChatFileBlob(workspaceId, roomId, messageId),
+    enabled: !!workspaceId && !!roomId && !!messageId && enabled,
+    staleTime: Infinity,
+    gcTime: CHAT_BLOB_GC_MS,
+    structuralSharing: false,
+  });
+}
+
+/** Loads a file's bytes through the same cache (download button). */
+export function useChatFileBlobLoader(workspaceId: string, roomId: string) {
+  const qc = useQueryClient();
+  return (messageId: string): Promise<Blob> =>
+    qc.fetchQuery({
+      queryKey: chatKeys.fileBlob(workspaceId, roomId, messageId),
+      queryFn: () => chat.loadChatFileBlob(workspaceId, roomId, messageId),
+      staleTime: Infinity,
+      gcTime: CHAT_BLOB_GC_MS,
+    });
+}
+
+/** Loads a voice message's bytes once per message for the shared player. */
+export function useChatVoiceBlobLoader(workspaceId: string, roomId: string) {
+  const qc = useQueryClient();
+  return (messageId: string): Promise<Blob> =>
+    qc.fetchQuery({
+      queryKey: chatKeys.voiceBlob(workspaceId, roomId, messageId),
+      queryFn: () => chat.loadChatVoiceBlob(workspaceId, roomId, messageId),
+      staleTime: Infinity,
+      gcTime: CHAT_BLOB_GC_MS,
+    });
 }
 
 export function useChatBlockStatus(workspaceId: string, userId: string, enabled: boolean) {

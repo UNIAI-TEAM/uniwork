@@ -17,9 +17,60 @@ describe("planCacheUpdate", () => {
         taskKeys.tableRoot("ws1"),
         taskKeys.detail("t1"),
         taskKeys.children("t1"),
+        taskKeys.subscribers("t1"),
       ]),
     );
   });
+
+  it("attaches the decoded patch to a task.updated frame and still lists every key", () => {
+    const plan = planCacheUpdate("ws1", {
+      type: "task.updated",
+      payload: {
+        task_id: "t1",
+        workspace_id: "ws1",
+        revision_before: "5",
+        revision: "7",
+        status: "done",
+      },
+    });
+    expect(plan.patch).toEqual({
+      taskId: "t1",
+      revisionBefore: 5,
+      revision: 7,
+      fields: { status: "done" },
+    });
+    expect(plan.keys).toEqual([
+      taskKeys.list("ws1"),
+      taskKeys.myTasks("ws1"),
+      taskKeys.queryRoot("ws1"),
+      taskKeys.tableRoot("ws1"),
+      taskKeys.detail("t1"),
+      taskKeys.children("t1"),
+      taskKeys.subscribers("t1"),
+    ]);
+  });
+
+  it("attaches no patch to an ids-only task.updated or to a frame with revisions but no Patch field", () => {
+    expect(planCacheUpdate("ws1", { type: "task.updated", payload: { task_id: "t1" } }).patch).toBeUndefined();
+    expect(
+      planCacheUpdate("ws1", {
+        type: "task.updated",
+        payload: { task_id: "t1", workspace_id: "ws1", revision_before: "5", revision: "7" },
+      }).patch,
+    ).toBeUndefined();
+  });
+
+  it.each(["task.created", "task.deleted", "task.subscribed", "task.reaction_added"])(
+    "attaches no patch to %s, whose catalogue row has no Patch",
+    (type) => {
+      expect(
+        planCacheUpdate("ws1", {
+          type,
+          payload: { task_id: "t1", revision_before: "5", revision: "7", title: "smuggled" },
+        }).patch,
+      ).toBeUndefined();
+    },
+  );
 
   it("invalidates comments on task.comment_added", () => {
     const plan = planCacheUpdate("ws1", {
@@ -30,6 +81,21 @@ describe("planCacheUpdate", () => {
       type: "invalidate",
       keys: [taskKeys.comments("t1")],
     });
+  });
+
+  it("invalidates attachments on attachment.uploaded / deleted", () => {
+    expect(
+      planCacheUpdate("ws1", {
+        type: "attachment.uploaded",
+        payload: { task_id: "t1", attachment_id: "a1", workspace_id: "ws1" },
+      }).keys,
+    ).toEqual([taskKeys.attachments("ws1", "t1")]);
+    expect(
+      planCacheUpdate("ws1", {
+        type: "attachment.deleted",
+        payload: { task_id: "t1", attachment_id: "a1", workspace_id: "ws1" },
+      }).keys,
+    ).toEqual([taskKeys.attachments("ws1", "t1")]);
   });
 
   it("invalidates catalog keys for status/label events", () => {

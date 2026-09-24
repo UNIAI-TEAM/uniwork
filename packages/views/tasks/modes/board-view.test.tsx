@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
 import { ViewStoreProvider } from "@uniwork/core/tasks/stores/view-store-context";
@@ -8,6 +8,25 @@ import { wrap } from "../../test/api-mock";
 import { BoardView } from "./board-view";
 
 initI18n();
+
+const publicConfigState = vi.hoisted(() => ({
+  data: {
+    flags: {} as Record<string, boolean>,
+    rum_sample_rate: 0,
+    work_management_capabilities: {} as Record<
+      string,
+      {
+        status: "available" | "unavailable";
+        reason_code: string;
+        explanation_key: string;
+      }
+    >,
+  },
+}));
+
+vi.mock("@uniwork/core/feature-flags", () => ({
+  usePublicConfig: () => ({ data: publicConfigState.data }),
+}));
 
 const sample: Task = {
   id: "t1",
@@ -29,6 +48,25 @@ const sample: Task = {
   updated_at: "2026-09-06T00:00:00Z",
 };
 
+beforeEach(() => {
+  publicConfigState.data = {
+    flags: {},
+    rum_sample_rate: 0,
+    work_management_capabilities: {
+      "tasks.agent_runs": {
+        status: "unavailable",
+        reason_code: "agent_runtime_missing",
+        explanation_key: "capabilities.agent_runtime_missing",
+      },
+      "tasks.squads": {
+        status: "unavailable",
+        reason_code: "squad_directory_missing",
+        explanation_key: "capabilities.squad_directory_missing",
+      },
+    },
+  };
+});
+
 describe("modes/BoardView", () => {
   it("renders backlog through cancelled columns from catalog", async () => {
     const store = getTaskSurfaceViewStore("board-view-test");
@@ -38,8 +76,6 @@ describe("modes/BoardView", () => {
           <BoardView
             categories={[...TASK_STATUSES]}
             tasks={[sample]}
-            projectGroupingDisabled
-            projectGroupingReasonKey="capabilities.unknown"
           />
         </ViewStoreProvider>,
       ),
@@ -56,5 +92,59 @@ describe("modes/BoardView", () => {
     expect(screen.getByTestId("board-column-backlog")).toBeInTheDocument();
     expect(screen.getByTestId("board-column-in_review")).toBeInTheDocument();
     expect(screen.getByTestId("board-column-blocked")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Nhóm theo dự án" }),
+    ).toBeNull();
+  });
+
+  it("does not mount board agent trigger or squad assign chrome", async () => {
+    const store = getTaskSurfaceViewStore("board-view-gates");
+    render(
+      wrap(
+        <ViewStoreProvider store={store}>
+          <BoardView
+            categories={[...TASK_STATUSES]}
+            tasks={[sample]}
+          />
+        </ViewStoreProvider>,
+      ),
+    );
+
+    expect(await screen.findByText("Suite card")).toBeInTheDocument();
+    expect(screen.queryByTestId("board-agent-trigger")).toBeNull();
+    expect(screen.queryByTestId("board-squad-assign")).toBeNull();
+  });
+
+  it("rebuilds columns when grouping by assignee", async () => {
+    const store = getTaskSurfaceViewStore("board-view-assignee-grouping");
+    store.getState().setGrouping("assignee");
+    const assigned = {
+      ...sample,
+      assignee_id: "u2",
+      assignee: {
+        kind: "human" as const,
+        id: "u2",
+        display_name: "Bình",
+      },
+    };
+    const unassigned = { ...sample, id: "t2", title: "No owner" };
+
+    render(
+      wrap(
+        <ViewStoreProvider store={store}>
+          <BoardView
+            categories={[...TASK_STATUSES]}
+            tasks={[assigned, unassigned]}
+          />
+        </ViewStoreProvider>,
+      ),
+    );
+
+    expect(
+      await screen.findByTestId("board-column-assignee:human:u2"),
+    ).toBeInTheDocument();
+    expect(screen.getByTitle("Bình")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Chưa giao, 1" })).toBeInTheDocument();
+    expect(screen.queryByTestId("board-column-todo")).toBeNull();
   });
 });

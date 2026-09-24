@@ -4,6 +4,8 @@ import { SquareCheckBig } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { taskScopeKey } from "@uniwork/core/tasks/surface/scope";
 import { CollectionPageState } from "../layout/collection-page";
+import { moduleTone } from "../layout/module-tones";
+import { PageHeader } from "../layout/page-header";
 import { TaskSurface } from "./surface/task-surface";
 import type { TaskSurfaceMode } from "./surface/types";
 
@@ -17,10 +19,7 @@ const WORKSPACE_MODES: TaskSurfaceMode[] = [
 
 const WORKSPACE_SCOPE = { type: "workspace" as const };
 
-/**
- * Flag-on `/tasks` host: workspace-scoped TaskSurface with the five suite modes.
- * Flag-off keeps {@link TasksPageView} (MVP board/list only).
- */
+/** Workspace-scoped `/tasks` host: TaskSurface with the five suite modes. */
 export function TaskSurfacePage({
   workspaceId,
   onOpenTask,
@@ -32,6 +31,11 @@ export function TaskSurfacePage({
 
   return (
     <div className="flex h-full flex-col">
+      <PageHeader>
+        <SquareCheckBig className="size-4 text-muted-foreground" aria-hidden />
+        <h1 className="text-body font-medium">{t("tasks.title")}</h1>
+      </PageHeader>
+
       <TaskSurface
         workspaceId={workspaceId}
         scope={WORKSPACE_SCOPE}
@@ -42,6 +46,7 @@ export function TaskSurfacePage({
         renderEmpty={() => (
           <CollectionPageState
             icon={SquareCheckBig}
+            tone={moduleTone("tasks")}
             title={t("tasks.empty_title")}
             description={t("tasks.empty_description")}
           />

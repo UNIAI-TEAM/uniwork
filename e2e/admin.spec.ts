@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { expect, test } from "@playwright/test";
 import { verifyEmail } from "./auth-nav";
+import { enableMfaForE2E } from "./db";
 
 // The golden path for F-11: a platform admin (granted by the CLI, the only
 // way there is) suspends an organization from /admin, its member is shut
@@ -47,6 +48,7 @@ test("a platform admin suspends and unsuspends an organization from /admin", asy
   await expect(page).not.toHaveURL(/\/admin/, { timeout: 15_000 });
 
   grantPlatformAdmin(email);
+  await enableMfaForE2E(email);
 
   await page.goto("/admin");
   // The console opens on platform health, and the nav is the way to the tenants.

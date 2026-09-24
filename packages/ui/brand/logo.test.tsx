@@ -3,6 +3,7 @@ import { cleanup, render } from "@testing-library/react";
 
 import { Logo, type LogoTone, type LogoVariant } from "./logo";
 import { COMPACT_MAX_SIZE, MARK, MARK_COMPACT } from "./mark.generated";
+import { WORDMARK } from "./wordmark.generated";
 
 afterEach(cleanup);
 
@@ -116,22 +117,35 @@ describe("Logo", () => {
     expect(svg.getAttribute("aria-hidden")).toBeNull();
   });
 
-  it("keeps the lockup's wordmark on the text colour, never the mark's gradient", () => {
+  it("keeps the lockup's letters on the text colour, never the mark's gradient", () => {
     // The mark's gradient is declared in user space across the mark's own 128
-    // units. The wordmark sits past that, so filling it with the same gradient
-    // clamps it to the last stop and the word comes out aqua.
+    // units. The letters sit either side of it, so filling them with the same
+    // gradient clamps them to the end stops and the word comes out blue and aqua.
     const { container } = render(<Logo variant="lockup" tone="gradient" />);
     const paths = [...svgOf(container).querySelectorAll("path")];
-    const wordmark = paths.at(-1);
-    expect(wordmark?.getAttribute("fill")).toBe("currentColor");
+    const letters = paths.at(-1);
+    expect(letters?.getAttribute("fill")).toBe("currentColor");
+    expect(svgOf(container).querySelector("g[fill^='url(']")).not.toBeNull();
   });
 
-  it("gives the standalone wordmark the text colour in every tone", () => {
+  it("sets the mark inside the word, between 'uni' and 'ork'", () => {
+    const { container } = render(<Logo variant="lockup" size={92} />);
+    const svg = svgOf(container);
+    expect(Number(svg.getAttribute("width"))).toBeCloseTo(WORDMARK.width, 5);
+    const markGroup = svg.querySelector("g[transform]");
+    expect(markGroup?.getAttribute("transform")).toBe(`translate(${WORDMARK.markX} 0)`);
+    expect(WORDMARK.markX).toBeGreaterThan(0);
+    expect(WORDMARK.markX + MARK.width).toBeLessThan(WORDMARK.width);
+  });
+
+  it("gives the standalone wordmark the text colour in every tone, mark included", () => {
     for (const tone of TONES) {
       const { container } = render(<Logo variant="wordmark" tone={tone} />);
-      expect(svgOf(container).querySelector("path")?.getAttribute("fill")).toBe(
-        "currentColor",
-      );
+      const fills = [...svgOf(container).querySelectorAll("[fill]")]
+        .map((n) => n.getAttribute("fill"))
+        .filter((f) => f !== "none");
+      expect(fills.length).toBeGreaterThan(0);
+      expect(new Set(fills)).toEqual(new Set(["currentColor"]));
       expect(svgOf(container).querySelector("linearGradient")).toBeNull();
       cleanup();
     }

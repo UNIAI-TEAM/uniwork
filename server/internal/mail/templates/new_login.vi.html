@@ -1,9 +1,9 @@
 {{define "preheader"}}Có đăng nhập mới vào tài khoản UniWork của bạn{{end}}
 {{define "content"}}
-<tr><td style="padding-bottom:8px"><h1 style="margin:0;font-size:22px;line-height:30px;font-weight:600;letter-spacing:-0.02em;color:#18181b">Đăng nhập từ thiết bị mới</h1></td></tr>
-<tr><td style="padding-bottom:16px;font-size:15px;line-height:24px;color:#52525b">Tài khoản UniWork của bạn vừa được đăng nhập từ một trình duyệt chưa dùng trước đây.</td></tr>
-<tr><td style="padding-bottom:20px;font-size:14px;line-height:22px;color:#52525b">Trình duyệt: <strong style="color:#18181b;font-weight:600">{{.Data.UserAgent}}</strong><br>Địa chỉ IP: <strong style="color:#18181b;font-weight:600">{{.Data.IP}}</strong><br>Thời điểm: <strong style="color:#18181b;font-weight:600">{{.Data.At.Format "02/01/2006 15:04 MST"}}</strong></td></tr>
+<tr><td style="padding-bottom:8px"><h1 style="margin:0;font-size:22px;line-height:30px;font-weight:600;letter-spacing:-0.02em;color:#202020">Đăng nhập từ thiết bị mới</h1></td></tr>
+<tr><td style="padding-bottom:16px;font-size:15px;line-height:24px;color:#646464">Tài khoản UniWork của bạn vừa được đăng nhập từ một trình duyệt chưa dùng trước đây.</td></tr>
+<tr><td style="padding-bottom:20px;font-size:14px;line-height:22px;color:#646464">Trình duyệt: <strong style="color:#202020;font-weight:600">{{.Data.UserAgent}}</strong><br>Địa chỉ IP: <strong style="color:#202020;font-weight:600">{{.Data.IP}}</strong><br>Thời điểm: <strong style="color:#202020;font-weight:600">{{.Data.At.Format "02/01/2006 15:04 MST"}}</strong></td></tr>
 <tr><td style="padding-bottom:24px">{{button .Data.SessionsURL "Xem các phiên đang mở"}}</td></tr>
-<tr><td style="border-top:1px solid #e4e4e7;padding-top:20px;font-size:13px;line-height:20px;color:#52525b">Nếu đó là bạn, không cần làm gì. Nếu không, hãy thu hồi phiên lạ trong Cài đặt → Bảo mật và đổi mật khẩu ngay.</td></tr>
+<tr><td style="border-top:1px solid #cfcfcf;padding-top:20px;font-size:13px;line-height:20px;color:#646464">Nếu đó là bạn, không cần làm gì. Nếu không, hãy thu hồi phiên lạ trong Cài đặt → Bảo mật và đổi mật khẩu ngay.</td></tr>
 {{end}}
 {{define "footer"}}Bạn nhận email này vì tài khoản UniWork của bạn vừa có đăng nhập từ thiết bị mới.{{end}}

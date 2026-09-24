@@ -25,6 +25,13 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0011](0011-mobile-la-app-expo-doc-lap.md) | Mobile là app Expo / React Native độc lập, không PWA, không tái dùng `views` |
 | [0012](0012-audit-bat-bien-bang-quyen-db-va-trigger.md) | `audit_events` bất biến bằng quyền DB và trigger; ghi qua đúng một package |
 | [0013](0013-man-tong-quan-la-cua-vao-console-admin.md) | Console `/admin` mở bằng màn Tổng quan; trần màn hình lên 7 |
+| [0014](0014-coverage-va-lint-la-canh-bao-o-gate-level-fast.md) | Coverage TypeScript và lint là cảnh báo ở `GATE_LEVEL=fast`; các con số không giảm |
+| [0015](0015-va-cache-tu-frame-realtime-theo-catalogue.md) | Vá cache từ frame realtime chỉ với trường catalogue khai ở `Patch`; guard `revision_before`/`revision` |
+| [0016](0016-work-product-la-bounded-context-tai-lieu-la-kho-duy-nhat.md) | Work Product là bounded context riêng; Document là kho duy nhất, không có bảng artifact riêng |
+| [0017](0017-mot-bang-execution-cho-nguoi-va-ai.md) | Một bảng execution cho người và AI; nguồn gốc là bảng nối, cấm suy diễn; hai cổng duyệt tách |
+| [0018](0018-engine-office-chay-o-sidecar-node.md) | Engine Office chạy ở sidecar Node dùng chung với UniWork Office; chỉ DOCX |
+| [0019](0019-do-thi-cong-viec-la-projection.md) | Đồ thị công việc là projection qua outbox; cấm suy diễn quan hệ |
+| [0020](0020-truy-van-bang-cong-viec-dung-sql-dong-trong-tablequery.md) | View Bảng dựng SQL động trong `pkg/db/tablequery` (whitelist, tham số hóa, luôn lọc tenant); sqlc vẫn là mặc định |
 
 ## Bản nháp
 

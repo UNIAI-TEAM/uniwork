@@ -5,7 +5,6 @@ import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view
 import { myTasksViewStore } from "@uniwork/core/tasks/stores/my-tasks-view-store";
 import { requestMock, wrap } from "../test/api-mock";
 import { MyTasksPageView } from "./my-tasks-page";
-import { MyTasksUnavailable } from "./my-tasks-unavailable";
 
 initI18n();
 
@@ -144,12 +143,5 @@ describe("MyTasksPageView", () => {
           typeof path === "string" && path.includes("/tasks/table/groups"),
       ),
     ).toBe(false);
-  });
-});
-
-describe("MyTasksUnavailable", () => {
-  it("renders an unavailable state without crashing", () => {
-    render(wrap(<MyTasksUnavailable />));
-    expect(screen.getByRole("status")).toHaveTextContent(/Chưa khả dụng|Not available/i);
   });
 });

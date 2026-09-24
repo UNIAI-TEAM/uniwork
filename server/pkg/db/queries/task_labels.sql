@@ -86,6 +86,21 @@ WITH inserted AS (
 )
 SELECT inserted.label_id FROM inserted;
 
+-- name: AttachTaskLabelOnCreate :one
+INSERT INTO task_label_links (organization_id, workspace_id, task_id, label_id)
+SELECT $1, $2, $3, $4
+WHERE EXISTS (
+  SELECT 1 FROM tasks t
+  WHERE t.id = $3 AND t.organization_id = $1 AND t.workspace_id = $2
+)
+AND EXISTS (
+  SELECT 1 FROM task_labels l
+  WHERE l.id = $4 AND l.organization_id = $1 AND l.workspace_id = $2
+    AND l.archived_at IS NULL
+)
+ON CONFLICT DO NOTHING
+RETURNING label_id;
+
 -- name: DetachTaskLabel :one
 WITH deleted AS (
   DELETE FROM task_label_links AS x
@@ -103,3 +118,11 @@ WITH deleted AS (
   RETURNING id
 )
 SELECT deleted.label_id FROM deleted;
+
+-- name: ListLabelsForTasks :many
+SELECT l.task_id, lb.id, lb.name, lb.color
+FROM task_label_links l
+JOIN task_labels lb ON lb.organization_id = l.organization_id AND lb.workspace_id = l.workspace_id AND lb.id = l.label_id
+WHERE l.organization_id = $1 AND l.workspace_id = $2 AND l.task_id = ANY(sqlc.arg('task_ids')::text[])
+  AND lb.archived_at IS NULL
+ORDER BY l.task_id, LOWER(lb.name), lb.id;

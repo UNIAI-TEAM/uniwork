@@ -34,3 +34,13 @@ describe("caret-blink", () => {
     expect(styles).toMatch(/\.animate-caret-blink\s*\{/);
   });
 });
+
+describe("border-beam", () => {
+  it("defines the agent-mode border animation and reduced-motion fallback", () => {
+    expect(styles).toMatch(/@keyframes border-beam-rotate/);
+    expect(styles).toMatch(/\.border-beam::before\s*\{/);
+    expect(styles).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.border-beam::before \{ animation: none; \}/,
+    );
+  });
+});

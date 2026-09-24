@@ -57,6 +57,57 @@ var chatMigrationRenumbers = map[string]string{
 	"066_chat_messages_client_msg_id_uidx":      "151_chat_messages_client_msg_id_uidx",
 }
 
+// followUpMigrationRenumbers records Follow-ups DDL that briefly used 181–183
+// on the UNI-512 branch before Posts claimed 181 on develop; existing DBs keep
+// the table/indexes and only need the schema_migrations rows renamed.
+var followUpMigrationRenumbers = map[string]string{
+	"181_chat_message_follow_ups":                    "182_chat_message_follow_ups",
+	"182_chat_message_follow_ups_user_message_uidx":  "183_chat_message_follow_ups_user_message_uidx",
+	"183_chat_message_follow_ups_workspace_user_idx": "184_chat_message_follow_ups_workspace_user_idx",
+}
+
+// voiceRecordingMigrationRenumbers records chat_voice_recordings DDL that briefly
+// used 186–188 on the UNI-513 branch before develop took 186 for
+// task_subscriber_opt_out; existing DBs only need schema_migrations rows renamed.
+var voiceRecordingMigrationRenumbers = map[string]string{
+	"186_chat_voice_recordings":             "189_chat_voice_recordings",
+	"187_chat_voice_recordings_egress_uidx": "190_chat_voice_recordings_egress_uidx",
+	"188_chat_voice_recordings_call_idx":    "191_chat_voice_recordings_call_idx",
+}
+
+// emailHubMigrationRenumbers records Email Hub DDL that briefly used 193–199 on
+// the feature branch before develop took 193 for tasks.max quota; existing DBs
+// keep the tables/indexes and only need schema_migrations rows renamed.
+var emailHubMigrationRenumbers = map[string]string{
+	"193_email_hub_accounts":                        "200_email_hub_accounts",
+	"194_email_hub_threads":                         "201_email_hub_threads",
+	"195_email_hub_threads_account_folder_uid_uidx": "202_email_hub_threads_account_folder_uid_uidx",
+	"196_email_hub_threads_inbox_idx":               "203_email_hub_threads_inbox_idx",
+	"197_email_hub_attachments":                     "204_email_hub_attachments",
+	"198_email_hub_threads_page_idx":                "205_email_hub_threads_page_idx",
+	"199_email_hub_threads_pending_body_idx":        "206_email_hub_threads_pending_body_idx",
+}
+
+// emailHubFeatureMigrationRenumbers records Email Hub AI/snooze/labels DDL that
+// briefly used 209–212 on UNI-706 before develop took 209 for task schedule
+// times; existing DBs keep the objects and only need schema_migrations renamed.
+var emailHubFeatureMigrationRenumbers = map[string]string{
+	"209_email_hub_thread_ai_summaries":                    "210_email_hub_thread_ai_summaries",
+	"210_email_hub_thread_ai_summaries_thread_locale_uidx": "211_email_hub_thread_ai_summaries_thread_locale_uidx",
+	"211_email_hub_threads_imap_labels":                    "212_email_hub_threads_imap_labels",
+	"212_email_hub_threads_snoozed_until":                  "213_email_hub_threads_snoozed_until",
+}
+
+var emailHubMigrationVersions = []string{
+	"200_email_hub_accounts",
+	"201_email_hub_threads",
+	"202_email_hub_threads_account_folder_uid_uidx",
+	"203_email_hub_threads_inbox_idx",
+	"204_email_hub_attachments",
+	"205_email_hub_threads_page_idx",
+	"206_email_hub_threads_pending_body_idx",
+}
+
 func renameMigrationVersions(ctx context.Context, conn *pgxpool.Conn, renames map[string]string) error {
 	for oldV, newV := range renames {
 		if _, err := conn.Exec(ctx, `
@@ -80,7 +131,204 @@ func reconcileRenamedMigrations(ctx context.Context, conn *pgxpool.Conn) error {
 	if err := renameMigrationVersions(ctx, conn, chatMigrationRenames); err != nil {
 		return err
 	}
-	return renameMigrationVersions(ctx, conn, chatMigrationRenumbers)
+	if err := renameMigrationVersions(ctx, conn, chatMigrationRenumbers); err != nil {
+		return err
+	}
+	if err := renameMigrationVersions(ctx, conn, followUpMigrationRenumbers); err != nil {
+		return err
+	}
+	if err := renameMigrationVersions(ctx, conn, voiceRecordingMigrationRenumbers); err != nil {
+		return err
+	}
+	if err := renameMigrationVersions(ctx, conn, emailHubMigrationRenumbers); err != nil {
+		return err
+	}
+	if err := renameMigrationVersions(ctx, conn, emailHubFeatureMigrationRenumbers); err != nil {
+		return err
+	}
+	if err := backfillFollowUpMigrationsIfPresent(ctx, conn); err != nil {
+		return err
+	}
+	if err := backfillVoiceRecordingMigrationsIfPresent(ctx, conn); err != nil {
+		return err
+	}
+	if err := backfillEmailHubMigrationsIfPresent(ctx, conn); err != nil {
+		return err
+	}
+	return backfillEmailHubFeatureMigrationsIfPresent(ctx, conn)
+}
+
+// backfillFollowUpMigrationsIfPresent marks Follow-ups versions applied when
+// the matching objects already exist but schema_migrations has no row (dev/test
+// DBs that created them under the temporary 181–183 names, then lost the rows).
+func backfillFollowUpMigrationsIfPresent(ctx context.Context, conn *pgxpool.Conn) error {
+	checks := []struct {
+		version string
+		sql     string
+	}{
+		{
+			"182_chat_message_follow_ups",
+			`SELECT EXISTS (
+				SELECT 1 FROM information_schema.tables
+				WHERE table_schema = 'public' AND table_name = 'chat_message_follow_ups')`,
+		},
+		{
+			"183_chat_message_follow_ups_user_message_uidx",
+			`SELECT EXISTS (
+				SELECT 1 FROM pg_class c
+				JOIN pg_namespace n ON n.oid = c.relnamespace
+				WHERE n.nspname = 'public' AND c.relname = 'uidx_chat_message_follow_ups_user_message')`,
+		},
+		{
+			"184_chat_message_follow_ups_workspace_user_idx",
+			`SELECT EXISTS (
+				SELECT 1 FROM pg_class c
+				JOIN pg_namespace n ON n.oid = c.relnamespace
+				WHERE n.nspname = 'public' AND c.relname = 'idx_chat_message_follow_ups_workspace_user')`,
+		},
+	}
+	for _, check := range checks {
+		var present bool
+		if err := conn.QueryRow(ctx, check.sql).Scan(&present); err != nil {
+			return err
+		}
+		if !present {
+			continue
+		}
+		if _, err := conn.Exec(ctx, `
+			INSERT INTO schema_migrations (version)
+			SELECT $1 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`,
+			check.version); err != nil {
+			return fmt.Errorf("backfill follow-up migration version %s: %w", check.version, err)
+		}
+	}
+	return nil
+}
+
+// backfillVoiceRecordingMigrationsIfPresent marks voice-recording versions
+// applied when the matching objects already exist but schema_migrations has no
+// row (dev/test DBs that applied the temporary 186–188 names).
+func backfillVoiceRecordingMigrationsIfPresent(ctx context.Context, conn *pgxpool.Conn) error {
+	checks := []struct {
+		version string
+		sql     string
+	}{
+		{
+			"189_chat_voice_recordings",
+			`SELECT EXISTS (
+				SELECT 1 FROM information_schema.tables
+				WHERE table_schema = 'public' AND table_name = 'chat_voice_recordings')`,
+		},
+		{
+			"190_chat_voice_recordings_egress_uidx",
+			`SELECT EXISTS (
+				SELECT 1 FROM pg_class c
+				JOIN pg_namespace n ON n.oid = c.relnamespace
+				WHERE n.nspname = 'public' AND c.relname = 'idx_chat_voice_recordings_egress')`,
+		},
+		{
+			"191_chat_voice_recordings_call_idx",
+			`SELECT EXISTS (
+				SELECT 1 FROM pg_class c
+				JOIN pg_namespace n ON n.oid = c.relnamespace
+				WHERE n.nspname = 'public' AND c.relname = 'idx_chat_voice_recordings_call')`,
+		},
+	}
+	for _, check := range checks {
+		var present bool
+		if err := conn.QueryRow(ctx, check.sql).Scan(&present); err != nil {
+			return err
+		}
+		if !present {
+			continue
+		}
+		if _, err := conn.Exec(ctx, `
+			INSERT INTO schema_migrations (version)
+			SELECT $1 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`,
+			check.version); err != nil {
+			return fmt.Errorf("backfill voice-recording migration version %s: %w", check.version, err)
+		}
+	}
+	return nil
+}
+
+// backfillEmailHubMigrationsIfPresent marks Email Hub versions applied when the
+// matching objects already exist but schema_migrations has no row (dev DBs that
+// applied the temporary 193–199 names before the renumber to 200–206).
+func backfillEmailHubMigrationsIfPresent(ctx context.Context, conn *pgxpool.Conn) error {
+	var accounts bool
+	if err := conn.QueryRow(ctx, `SELECT EXISTS (
+		SELECT 1 FROM information_schema.tables
+		WHERE table_schema = 'public' AND table_name = 'email_hub_accounts'
+	)`).Scan(&accounts); err != nil {
+		return err
+	}
+	if !accounts {
+		return nil
+	}
+	for _, v := range emailHubMigrationVersions {
+		if _, err := conn.Exec(ctx, `
+			INSERT INTO schema_migrations (version)
+			SELECT $1 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`,
+			v); err != nil {
+			return fmt.Errorf("backfill email hub migration version %s: %w", v, err)
+		}
+	}
+	return nil
+}
+
+// backfillEmailHubFeatureMigrationsIfPresent marks UNI-706 Email Hub feature
+// versions applied when matching objects exist but schema_migrations has no row
+// (dev DBs that applied the temporary 209–212 names before the renumber).
+func backfillEmailHubFeatureMigrationsIfPresent(ctx context.Context, conn *pgxpool.Conn) error {
+	checks := []struct {
+		version string
+		sql     string
+	}{
+		{
+			"210_email_hub_thread_ai_summaries",
+			`SELECT EXISTS (
+				SELECT 1 FROM information_schema.tables
+				WHERE table_schema = 'public' AND table_name = 'email_hub_thread_ai_summaries')`,
+		},
+		{
+			"211_email_hub_thread_ai_summaries_thread_locale_uidx",
+			`SELECT EXISTS (
+				SELECT 1 FROM pg_class c
+				JOIN pg_namespace n ON n.oid = c.relnamespace
+				WHERE n.nspname = 'public' AND c.relname = 'email_hub_thread_ai_summaries_thread_locale_uidx')`,
+		},
+		{
+			"212_email_hub_threads_imap_labels",
+			`SELECT EXISTS (
+				SELECT 1 FROM information_schema.columns
+				WHERE table_schema = 'public' AND table_name = 'email_hub_threads'
+				  AND column_name = 'imap_labels')`,
+		},
+		{
+			"213_email_hub_threads_snoozed_until",
+			`SELECT EXISTS (
+				SELECT 1 FROM information_schema.columns
+				WHERE table_schema = 'public' AND table_name = 'email_hub_threads'
+				  AND column_name = 'snoozed_until')`,
+		},
+	}
+	for _, check := range checks {
+		var ok bool
+		if err := conn.QueryRow(ctx, check.sql).Scan(&ok); err != nil {
+			return err
+		}
+		if !ok {
+			continue
+		}
+		if _, err := conn.Exec(ctx, `
+			INSERT INTO schema_migrations (version)
+			SELECT $1 WHERE NOT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`,
+			check.version); err != nil {
+			return fmt.Errorf("backfill email hub feature migration version %s: %w", check.version, err)
+		}
+	}
+	return nil
 }
 
 func renamedChatVersions() []string {
@@ -148,6 +396,9 @@ func Up(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 	defer conn.Exec(ctx, "SELECT pg_advisory_unlock($1)", lockKey)
 
+	if err := reclaimTestSchemaIfNeeded(ctx, conn); err != nil {
+		return err
+	}
 	if _, err := conn.Exec(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
 		version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())`); err != nil {
 		return err

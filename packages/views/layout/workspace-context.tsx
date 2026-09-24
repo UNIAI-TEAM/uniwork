@@ -33,6 +33,11 @@ export function useWorkspace(): WorkspaceContextValue {
   return ctx;
 }
 
+/** Null outside DashboardLayout — for shared surfaces (e.g. editor) that also mount in tests. */
+export function useOptionalWorkspace(): WorkspaceContextValue | null {
+  return use(WorkspaceContext);
+}
+
 export function useWorkspaceId(): string {
   return useWorkspace().workspace.id;
 }

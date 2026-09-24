@@ -27,6 +27,30 @@ describe("planSurfaceQuery", () => {
     expect(plan.kind).toBe("my_tasks");
     expect(plan.tableBody).toBeUndefined();
   });
+
+  it("puts statusFilters into tableBody.filter.statuses", () => {
+    const plan = planSurfaceQuery({
+      scope: { type: "workspace" },
+      viewMode: "table",
+      filter: { statuses: ["todo", "in_progress"] },
+    });
+    expect(plan).toMatchObject({
+      kind: "table",
+      tableBody: { filter: { statuses: ["todo", "in_progress"] } },
+    });
+  });
+
+  it("merges store filter with project_ids on project table scope", () => {
+    const plan = planSurfaceQuery({
+      scope: { type: "project", projectId: "p1" },
+      viewMode: "table",
+      filter: { statuses: ["todo"], project_ids: ["ignored"] },
+    });
+    expect(plan.tableBody?.filter).toEqual({
+      statuses: ["todo"],
+      project_ids: ["p1"],
+    });
+  });
 });
 
 describe("project scope", () => {

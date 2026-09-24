@@ -1,22 +1,58 @@
 "use client";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { Meeting } from "@uniwork/core/types";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
 import { cn } from "@uniwork/ui/lib/utils";
-import { Badge } from "@uniwork/ui/components/ui/badge";
-import { Sparkles } from "lucide-react";
 import { MeetingRoomChatTab } from "./meeting-room-chat-tab";
 import { MeetingRoomCopilotTab } from "./meeting-room-copilot-tab";
 import { MeetingRoomFilesTab } from "./meeting-room-files-tab";
 import { MeetingRoomPeopleTab } from "./meeting-room-people-tab";
+import { MeetingUnderlineTabBadge, MeetingUnderlineTabs } from "./meeting-underline-tabs";
 import { usePendingJoinRequests } from "./use-pending-join-requests";
 
-export type MeetingSidebarTab = "copilot" | "chat" | "participants" | "files";
+export type MeetingSidebarTab = "copilot" | "chat" | "participants" | "recordings";
 
-const SIDEBAR_TABS: MeetingSidebarTab[] = ["copilot", "chat", "participants", "files"];
+const SIDEBAR_TABS: MeetingSidebarTab[] = ["copilot", "chat", "participants", "recordings"];
 
-const MEETING_SIDEBAR_TAB_TRIGGER =
-  "relative flex min-h-10 items-center justify-center overflow-hidden rounded-none border-0 border-b-2 border-transparent bg-transparent px-1 py-2 shadow-none after:!hidden h-auto flex-none text-caption font-medium leading-tight whitespace-normal text-center transition-[color,border-color] duration-200 data-active:!border-brand data-active:!bg-transparent data-active:!font-semibold data-active:!text-brand data-active:!shadow-none dark:data-active:!border-brand dark:data-active:!bg-transparent hover:text-foreground text-muted-foreground";
+const PANEL_CLASS = "mt-0 flex min-h-0 flex-1 flex-col overflow-hidden px-3 pt-2 pb-3";
+
+/**
+ * The wide-screen dock around the side panel. Closed, it stays mounted (the
+ * chat draft and scroll survive) but leaves the page: `hidden` drops it from
+ * layout at once, with no width animation reflowing the video grid, and
+ * `inert` keeps its controls out of the tab order. Opened by the viewer, it
+ * hands focus to the active tab so the keyboard lands where the eye does.
+ */
+export function MeetingSidebarDock({
+  open,
+  className,
+  children,
+}: {
+  open: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const wasOpen = useRef(open);
+
+  useEffect(() => {
+    if (open && !wasOpen.current) {
+      ref.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus();
+    }
+    wasOpen.current = open;
+  }, [open]);
+
+  return (
+    <div
+      ref={ref}
+      inert={!open}
+      data-testid="meeting-sidebar-dock"
+      className={cn(open ? "flex" : "hidden", className)}
+    >
+      {children}
+    </div>
+  );
+}
 
 export function MeetingRoomSidebar({
   meetingId,
@@ -27,6 +63,7 @@ export function MeetingRoomSidebar({
   className,
   tab,
   onTabChange,
+  chatUnread = 0,
 }: {
   meetingId?: string;
   meeting?: Meeting;
@@ -36,8 +73,11 @@ export function MeetingRoomSidebar({
   className?: string;
   tab: MeetingSidebarTab;
   onTabChange: (tab: MeetingSidebarTab) => void;
+  /** Messages from others that arrived while the chat was off screen. */
+  chatUnread?: number;
 }) {
   const { t } = useTranslation();
+  const baseId = useId();
   const { count: pendingJoinCount } = usePendingJoinRequests(
     canHost && meetingId ? meetingId : undefined,
   );
@@ -50,85 +90,33 @@ export function MeetingRoomSidebar({
         return t("meetings.chat");
       case "participants":
         return t("meetings.people");
-      case "files":
-        return t("meetings.filesTab");
+      case "recordings":
+        return t("meetings.recordingsTab");
     }
   }
 
+  const panelId = (id: MeetingSidebarTab) => `${baseId}-panel-${id}`;
   const sidebarTabs = guestMode
     ? SIDEBAR_TABS.filter((id) => id !== "copilot")
     : SIDEBAR_TABS;
+  const activeTab = sidebarTabs.includes(tab) ? tab : (sidebarTabs[0] ?? "chat");
 
-  return (
-    <aside
-      className={cn(
-        "flex min-h-0 min-w-0 w-full flex-col bg-surface",
-        className,
-      )}
-    >
-      <Tabs
-        value={tab}
-        onValueChange={(value) => onTabChange(value as MeetingSidebarTab)}
-        className="flex min-h-0 flex-1 flex-col"
-      >
-        <div className="shrink-0 overflow-hidden border-b border-border px-2 pt-3 pb-0">
-          {!guestMode ? (
-            <div className="mb-2 flex items-center gap-2 px-1">
-              <Sparkles aria-hidden className="size-4 text-brand" />
-              <span className="text-label font-semibold text-foreground">{t("meetings.uniworkAi")}</span>
-            </div>
-          ) : null}
-          <TabsList
-            variant="line"
-            className={cn(
-              "grid h-auto w-full gap-0 overflow-hidden rounded-none bg-transparent p-0",
-              sidebarTabs.length === 3 ? "grid-cols-3" : "grid-cols-4",
-            )}
-          >
-            {sidebarTabs.map((id) => (
-              <TabsTrigger
-                key={id}
-                value={id}
-                title={tabLabel(id)}
-                className={MEETING_SIDEBAR_TAB_TRIGGER}
-              >
-                <span className="inline-flex min-w-0 flex-col items-center gap-0.5 px-0.5">
-                  <span className="line-clamp-2">{tabLabel(id)}</span>
-                  {id === "participants" && pendingJoinCount > 0 ? (
-                    <Badge
-                      variant="destructive"
-                      className="h-4 min-w-4 shrink-0 px-1 tabular-nums"
-                      aria-label={t("meetings.joinRequestsPendingTitle", { count: pendingJoinCount })}
-                    >
-                      {pendingJoinCount > 9 ? "9+" : pendingJoinCount}
-                    </Badge>
-                  ) : null}
-                </span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </div>
-
-        <TabsContent value="copilot" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden px-3 py-3">
-          {meetingId ? (
-            <MeetingRoomCopilotTab
-              meetingId={meetingId}
-              workspaceId={guestMode ? undefined : workspaceId}
-              canHost={canHost === true}
-            />
-          ) : (
-            <p className="text-label text-muted-foreground">{t("meetings.aiUnavailable")}</p>
-          )}
-        </TabsContent>
-
-        <TabsContent value="chat" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden px-3 py-3">
-          <MeetingRoomChatTab meetingId={meetingId} guestMode={guestMode} />
-        </TabsContent>
-
-        <TabsContent
-          value="participants"
-          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden px-3 py-3"
-        >
+  function panelContent(id: MeetingSidebarTab): ReactNode {
+    switch (id) {
+      case "copilot":
+        return meetingId ? (
+          <MeetingRoomCopilotTab
+            meetingId={meetingId}
+            workspaceId={guestMode ? undefined : workspaceId}
+            canHost={canHost === true}
+          />
+        ) : (
+          <p className="text-label text-muted-foreground">{t("meetings.aiUnavailable")}</p>
+        );
+      case "chat":
+        return <MeetingRoomChatTab meetingId={meetingId} />;
+      case "participants":
+        return (
           <MeetingRoomPeopleTab
             meetingId={meetingId}
             meeting={meeting}
@@ -136,18 +124,51 @@ export function MeetingRoomSidebar({
             canHost={canHost}
             guestMode={guestMode}
           />
-        </TabsContent>
+        );
+      case "recordings":
+        return meetingId ? (
+          <MeetingRoomFilesTab meetingId={meetingId} />
+        ) : (
+          <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface-hover px-4 py-8 text-center">
+            <p className="text-label text-pretty text-muted-foreground">{t("meetings.recordingsEmpty")}</p>
+          </div>
+        );
+    }
+  }
 
-        <TabsContent value="files" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden px-3 py-3">
-          {meetingId ? (
-            <MeetingRoomFilesTab meetingId={meetingId} />
-          ) : (
-            <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center">
-              <p className="text-label text-muted-foreground">{t("meetings.filesEmpty")}</p>
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+  return (
+    <aside className={cn("flex min-h-0 min-w-0 w-full flex-col bg-surface", className)}>
+      <div className="relative z-10 shrink-0 px-2 pt-2 pb-0">
+        <MeetingUnderlineTabs
+          tabs={sidebarTabs}
+          value={activeTab}
+          onChange={onTabChange}
+          label={tabLabel}
+          panelId={panelId}
+          badge={(id) =>
+            id === "participants" && pendingJoinCount > 0 ? (
+              <MeetingUnderlineTabBadge
+                aria-label={t("meetings.joinRequestsPendingTitle", { count: pendingJoinCount })}
+              >
+                {pendingJoinCount > 9 ? "9+" : pendingJoinCount}
+              </MeetingUnderlineTabBadge>
+            ) : id === "chat" && chatUnread > 0 ? (
+              <MeetingUnderlineTabBadge aria-label={t("meetings.chatUnread", { count: chatUnread })}>
+                {chatUnread > 9 ? "9+" : chatUnread}
+              </MeetingUnderlineTabBadge>
+            ) : null
+          }
+        />
+      </div>
+
+      <div
+        role="tabpanel"
+        id={panelId(activeTab)}
+        aria-label={tabLabel(activeTab)}
+        className={PANEL_CLASS}
+      >
+        {panelContent(activeTab)}
+      </div>
     </aside>
   );
 }

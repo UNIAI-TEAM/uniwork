@@ -23,6 +23,10 @@ export const ChatMessageSchema = z.object({
   kind: z.string().optional().default("text"),
   body: z.string(),
   reply_to_message_id: z.string().optional(),
+  thread_root_id: z.string().optional(),
+  reply_count: z.number().optional().default(0),
+  last_reply_at: z.string().optional(),
+  thread_unread: z.boolean().optional().default(false),
   created_at: z.string(),
   edited_at: z.string().optional(),
   pinned: z.boolean().optional().default(false),
@@ -34,16 +38,58 @@ export const ChatMessageSchema = z.object({
     .record(z.string(), z.number())
     .nullish()
     .transform((value) => value ?? {}),
+  /** Emojis the caller reacted with; a drifted value reads as "none of mine". */
+  my_reactions: z.array(z.string()).optional().catch(undefined),
   voice_call: z
     .object({
       outcome: z.string(),
       duration_seconds: z.number().optional(),
       caller_id: z.string(),
+      participants: z
+        .array(
+          z.object({
+            user_id: z.string(),
+            display_name: z.string().optional().default(""),
+          }),
+        )
+        .optional(),
+      recording_id: z.string().optional(),
+      recording_status: z.string().optional(),
+      recording_url: z.string().optional(),
+    })
+    .optional(),
+  voice_call_summary: z
+    .object({
+      call_id: z.string(),
+      call_log_message_id: z.string(),
+      summary: z.string().optional().default(""),
+      highlights: z
+        .array(z.string())
+        .nullish()
+        .transform((value) => value ?? []),
+      action_items: z
+        .array(
+          z.object({
+            title: z.string(),
+            owner: z.string().optional().default(""),
+            due: z.string().optional().default(""),
+            source_message_id: z.string().optional().default(""),
+          }),
+        )
+        .nullish()
+        .transform((value) => value ?? []),
     })
     .optional(),
   voice: z
     .object({
       duration_ms: z.number().optional().default(0),
+      content_type: z.string().optional().default(""),
+      size_bytes: z.number().optional().default(0),
+    })
+    .optional(),
+  file: z
+    .object({
+      filename: z.string().optional().default(""),
       content_type: z.string().optional().default(""),
       size_bytes: z.number().optional().default(0),
     })
@@ -99,6 +145,13 @@ export const ChatMessageSchema = z.object({
       pin_to_top: z.boolean().optional().default(false),
     })
     .optional(),
+  post: z
+    .object({
+      title: z.string(),
+      body: z.string(),
+      pin_to_top: z.boolean().optional().default(false),
+    })
+    .optional(),
   priority: z.enum(["important", "urgent"]).optional(),
   // Echo of the sender's idempotency key; a client drops its own queued copy
   // when this comes back, instead of guessing from body and timestamp.
@@ -106,8 +159,21 @@ export const ChatMessageSchema = z.object({
 });
 export type ChatMessageRecord = z.infer<typeof ChatMessageSchema>;
 
+/** Keep valid rows when one item drifts — a single bad message must not empty the timeline. */
+function lenientMessageList(items: unknown[]): ChatMessageRecord[] {
+  const out: ChatMessageRecord[] = [];
+  for (const item of items) {
+    const parsed = ChatMessageSchema.safeParse(item);
+    if (parsed.success) out.push(parsed.data);
+  }
+  return out;
+}
+
 export const ChatMessagesListSchema = z.object({
-  messages: z.array(ChatMessageSchema).optional().default([]),
+  messages: z
+    .array(z.unknown())
+    .nullish()
+    .transform((items) => lenientMessageList(items ?? [])),
 });
 
 export const ChatMessageEnvelopeSchema = z.object({
@@ -125,7 +191,7 @@ export type ChatRoomMemberPermissions = z.infer<typeof ChatRoomMemberPermissions
 
 export const ChatRoomSchema = z.object({
   id: z.string(),
-  kind: z.enum(["workspace", "dm", "group"]),
+  kind: z.enum(["workspace", "dm", "group", "channel"]),
   name: z.string(),
   workspace_id: z.string(),
   // Go encodes nil slices as JSON null; treat null like [] so one bad field does not drop the whole list.
@@ -138,17 +204,35 @@ export const ChatRoomSchema = z.object({
   peer_user_id: z.string().optional(),
   peer_email: z.string().optional(),
   peer_display_name: z.string().optional(),
+  peer_last_read_at: z.string().optional(),
   last_message_body: z.string().optional(),
   last_message_kind: z.string().optional(),
   last_message_sender_id: z.string().optional(),
   last_message_sender_name: z.string().optional(),
   last_message_at: z.string().optional(),
   member_permissions: ChatRoomMemberPermissionsSchema.optional(),
+  visibility: z.string().optional(),
+  project_id: z.string().optional(),
+  topic: z.string().optional(),
+  is_default: z.boolean().optional(),
 });
 export type ChatRoomRecord = z.infer<typeof ChatRoomSchema>;
 
+/** Keep valid rooms when one row drifts — a single bad room must not empty the sidebar. */
+function lenientRoomList(items: unknown[]): ChatRoomRecord[] {
+  const out: ChatRoomRecord[] = [];
+  for (const item of items) {
+    const parsed = ChatRoomSchema.safeParse(item);
+    if (parsed.success) out.push(parsed.data);
+  }
+  return out;
+}
+
 export const ChatRoomsListSchema = z.object({
-  rooms: z.array(ChatRoomSchema).optional().default([]),
+  rooms: z
+    .array(z.unknown())
+    .nullish()
+    .transform((items) => lenientRoomList(items ?? [])),
 });
 
 export const ChatRoomEnvelopeSchema = z.object({

@@ -7,11 +7,66 @@ type WorkspaceChatRoomSDO struct {
 	Enabled     bool   `json:"enabled" description:"true when native chat is available" example:"true"`
 }
 
+// VoiceCallParticipantDTO is one person on a voice call log.
+type VoiceCallParticipantDTO struct {
+	UserID      string `json:"user_id" description:"Participant user id" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
+	DisplayName string `json:"display_name" description:"Display name at call end" example:"Tran Hoang Long"`
+}
+
+// VoiceCallSummaryActionItemDTO is one suggested follow-up on a call summary message.
+type VoiceCallSummaryActionItemDTO struct {
+	Title           string `json:"title" description:"Suggested task title" example:"Gửi báo cáo sprint"`
+	Owner           string `json:"owner,omitempty" description:"Suggested owner display name" example:"Nguyen Van A"`
+	Due             string `json:"due,omitempty" description:"Suggested due date as spoken" example:"Thứ Sáu"`
+	SourceMessageID string `json:"source_message_id,omitempty" description:"Chat message id that motivated the item" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+}
+
+// VoiceCallSummaryDTO is AI summary metadata on a text message after a voice call.
+type VoiceCallSummaryDTO struct {
+	CallID           string                          `json:"call_id" description:"Voice call id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	CallLogMessageID string                          `json:"call_log_message_id" description:"Call log message id" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	Summary          string                          `json:"summary,omitempty" description:"AI summary text" example:"Đã chốt ship vào thứ Sáu."`
+	Highlights       []string                        `json:"highlights,omitempty" description:"Key points from the call"`
+	ActionItems      []VoiceCallSummaryActionItemDTO `json:"action_items,omitempty" description:"Suggested follow-ups"`
+}
+
 // VoiceCallLogDTO is metadata for a voice call log message.
 type VoiceCallLogDTO struct {
-	Outcome         string `json:"outcome" description:"completed, unanswered, or declined" example:"completed"`
-	DurationSeconds int    `json:"duration_seconds,omitempty" description:"Call length in seconds when completed" example:"125"`
-	CallerID        string `json:"caller_id" description:"User id of the caller" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
+	Outcome         string                    `json:"outcome" description:"completed, unanswered, or declined" example:"completed"`
+	DurationSeconds int                       `json:"duration_seconds,omitempty" description:"Call length in seconds when completed" example:"125"`
+	CallerID        string                    `json:"caller_id" description:"User id of the caller" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
+	Participants    []VoiceCallParticipantDTO `json:"participants,omitempty" description:"People involved in the call"`
+	RecordingID     string                    `json:"recording_id,omitempty" description:"Chat voice recording id when present" example:"01J8X4REC0N1P2Q3R4S5T6U7V8"`
+	RecordingStatus string                    `json:"recording_status,omitempty" description:"ACTIVE, PROCESSING, COMPLETE, or FAILED" example:"COMPLETE"`
+	RecordingURL    string                    `json:"recording_url,omitempty" description:"Playback URL when recording is complete" example:"https://s3.example/chat-voice/rec.mp4"`
+}
+
+// ChatVoiceRecordingDTO is a LiveKit egress row for a chat voice call.
+type ChatVoiceRecordingDTO struct {
+	ID        string `json:"id" example:"01J8X4REC0N1P2Q3R4S5T6U7V8"`
+	RoomID    string `json:"room_id" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
+	CallID    string `json:"call_id" example:"550e8400-e29b-41d4-a716-446655440000"`
+	Status    string `json:"status" example:"ACTIVE"`
+	FileURL   string `json:"file_url,omitempty"`
+	StartedBy string `json:"started_by" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
+	StartedAt string `json:"started_at" example:"2026-09-14T10:00:00Z"`
+	EndedAt   string `json:"ended_at,omitempty"`
+}
+
+// ChatVoiceRecordingSDO wraps a chat voice recording.
+type ChatVoiceRecordingSDO struct {
+	Recording ChatVoiceRecordingDTO `json:"recording"`
+}
+
+// ChatVoiceRecordingListSDO lists call recordings in a chat room.
+type ChatVoiceRecordingListSDO struct {
+	Recordings []ChatVoiceRecordingDTO `json:"recordings"`
+}
+
+// ChatVoiceRecordingPlaybackSDO is a short-lived direct playback URL (S3 presigned).
+type ChatVoiceRecordingPlaybackSDO struct {
+	PlaybackURL string `json:"playback_url" description:"Presigned URL for inline MP4 playback" example:"https://s3.example/chat-voice/rec.mp4?X-Amz-Signature=…"`
+	ExpiresAt   string `json:"expires_at" description:"RFC3339 expiry of playback_url" example:"2026-09-15T11:00:00Z"`
 }
 
 // VoiceMessageDTO is metadata for private voice-message content.
@@ -19,6 +74,13 @@ type VoiceMessageDTO struct {
 	DurationMS  int    `json:"duration_ms" description:"Recording duration in milliseconds" example:"12500"`
 	ContentType string `json:"content_type" description:"Sniffed audio MIME type" example:"audio/webm"`
 	SizeBytes   int64  `json:"size_bytes" description:"Stored audio size in bytes" example:"184320"`
+}
+
+// FileMessageDTO is metadata for private chat-file content (object_key stays server-side).
+type FileMessageDTO struct {
+	Filename    string `json:"filename" description:"Original filename" example:"sprint.pdf"`
+	ContentType string `json:"content_type" description:"Sniffed MIME type" example:"application/pdf"`
+	SizeBytes   int64  `json:"size_bytes" description:"Stored file size in bytes" example:"204800"`
 }
 
 // ChatPollOptionDTO is one poll choice with vote count.
@@ -60,35 +122,50 @@ type ChatNoteDTO struct {
 	PinToTop bool   `json:"pin_to_top" description:"Whether the note is pinned to top" example:"false"`
 }
 
-// ChatMessageDTO is a stored chat message.
-type ChatMessageDTO struct {
-	ID                string           `json:"id" description:"Message id" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
-	RoomID            string           `json:"room_id" description:"Chat room id" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
-	WorkspaceID       string           `json:"workspace_id" description:"Workspace id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	SenderID          string           `json:"sender_id" description:"Author user id" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
-	SenderDisplayName string           `json:"sender_display_name" description:"Author display name" example:"Nguyen Van A"`
-	Kind              string           `json:"kind,omitempty" description:"text or voice_call_log" example:"text"`
-	Body              string           `json:"body" description:"Message text" example:"Xin chào team!"`
-	ReplyToMessageID  *string          `json:"reply_to_message_id,omitempty" description:"Replied message id" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
-	CreatedAt         string           `json:"created_at" description:"RFC3339 timestamp" example:"2026-03-26T10:00:00Z"`
-	EditedAt          string           `json:"edited_at,omitempty" description:"RFC3339 timestamp when the message was last edited" example:"2026-03-26T10:05:00Z"`
-	Pinned            bool             `json:"pinned,omitempty" description:"true when pinned in the room" example:"true"`
-	MentionedUserIDs  []string         `json:"mentioned_user_ids,omitempty" description:"User ids notified by @mention in this message" example:"[\"01J8X4USR0N1P2Q3R4S5T6U7V8\"]"`
-	Reactions         map[string]int   `json:"reactions,omitempty" description:"Emoji reaction counts keyed by emoji" example:"{\"👍\":2}"`
-	VoiceCall         *VoiceCallLogDTO `json:"voice_call,omitempty" description:"Voice call log metadata when kind is voice_call_log"`
-	Voice             *VoiceMessageDTO `json:"voice,omitempty" description:"Voice recording metadata when kind is voice"`
-	Poll              *ChatPollDTO     `json:"poll,omitempty" description:"Poll payload when kind is poll"`
-	Reminder          *ChatReminderDTO `json:"reminder,omitempty" description:"Reminder payload when kind is reminder"`
-	Note              *ChatNoteDTO     `json:"note,omitempty" description:"Note payload when kind is note"`
-	Priority          string           `json:"priority,omitempty" description:"important or urgent message flag" example:"important"`
-	ClientMsgID       string           `json:"client_msg_id,omitempty" description:"Idempotency key the sender supplied, so a client can drop its own queued copy" example:"550e8400-e29b-41d4-a716-446655440000"`
+// ChatPostDTO is announcement metadata attached to a post message.
+type ChatPostDTO struct {
+	Title    string `json:"title" description:"Post title" example:"Lịch nghỉ lễ 2/9"`
+	Body     string `json:"body" description:"Post body" example:"Đăng ký nghỉ trước 20/8."`
+	PinToTop bool   `json:"pin_to_top" description:"Whether the post is pinned to top" example:"false"`
 }
 
-// ChatRoomDTO is a dm or group chat room.
+// ChatMessageDTO is a stored chat message.
+type ChatMessageDTO struct {
+	ID                string               `json:"id" description:"Message id" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	RoomID            string               `json:"room_id" description:"Chat room id" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
+	WorkspaceID       string               `json:"workspace_id" description:"Workspace id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	SenderID          string               `json:"sender_id" description:"Author user id" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
+	SenderDisplayName string               `json:"sender_display_name" description:"Author display name" example:"Nguyen Van A"`
+	Kind              string               `json:"kind,omitempty" description:"text or voice_call_log" example:"text"`
+	Body              string               `json:"body" description:"Message text" example:"Xin chào team!"`
+	ReplyToMessageID  *string              `json:"reply_to_message_id,omitempty" description:"Replied message id" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	ThreadRootID      *string              `json:"thread_root_id,omitempty" description:"Thread root message id when this is a reply" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	ReplyCount        int                  `json:"reply_count,omitempty" description:"Reply count on a thread root" example:"3"`
+	LastReplyAt       string               `json:"last_reply_at,omitempty" description:"RFC3339 of latest reply on a thread root"`
+	ThreadUnread      bool                 `json:"thread_unread,omitempty" description:"Caller has unread replies in this thread"`
+	CreatedAt         string               `json:"created_at" description:"RFC3339 timestamp" example:"2026-03-26T10:00:00Z"`
+	EditedAt          string               `json:"edited_at,omitempty" description:"RFC3339 timestamp when the message was last edited" example:"2026-03-26T10:05:00Z"`
+	Pinned            bool                 `json:"pinned,omitempty" description:"true when pinned in the room" example:"true"`
+	MentionedUserIDs  []string             `json:"mentioned_user_ids,omitempty" description:"User ids notified by @mention in this message" example:"[\"01J8X4USR0N1P2Q3R4S5T6U7V8\"]"`
+	Reactions         map[string]int       `json:"reactions,omitempty" description:"Emoji reaction counts keyed by emoji" example:"{\"👍\":2}"`
+	MyReactions       []string             `json:"my_reactions,omitempty" description:"Emojis the caller reacted with" example:"[\"👍\"]"`
+	VoiceCall         *VoiceCallLogDTO     `json:"voice_call,omitempty" description:"Voice call log metadata when kind is voice_call_log"`
+	VoiceCallSummary  *VoiceCallSummaryDTO `json:"voice_call_summary,omitempty" description:"AI call summary metadata when kind is text"`
+	Voice             *VoiceMessageDTO     `json:"voice,omitempty" description:"Voice recording metadata when kind is voice"`
+	File              *FileMessageDTO      `json:"file,omitempty" description:"File attachment metadata when kind is file"`
+	Poll              *ChatPollDTO         `json:"poll,omitempty" description:"Poll payload when kind is poll"`
+	Reminder          *ChatReminderDTO     `json:"reminder,omitempty" description:"Reminder payload when kind is reminder"`
+	Note              *ChatNoteDTO         `json:"note,omitempty" description:"Note payload when kind is note"`
+	Post              *ChatPostDTO         `json:"post,omitempty" description:"Post payload when kind is post"`
+	Priority          string               `json:"priority,omitempty" description:"important or urgent message flag" example:"important"`
+	ClientMsgID       string               `json:"client_msg_id,omitempty" description:"Idempotency key the sender supplied, so a client can drop its own queued copy" example:"550e8400-e29b-41d4-a716-446655440000"`
+}
+
+// ChatRoomDTO is a dm, group, or channel chat room.
 type ChatRoomDTO struct {
 	ID                    string                        `json:"id" description:"Chat room id" example:"01J8X4ROOM0N1P2Q3R4S5T6U7V8"`
-	Kind                  string                        `json:"kind" description:"dm or group" example:"dm"`
-	Name                  string                        `json:"name" description:"Room display name" example:"Nguyen Van A"`
+	Kind                  string                        `json:"kind" description:"dm, group, or channel" example:"channel"`
+	Name                  string                        `json:"name" description:"Room display name" example:"marketing"`
 	WorkspaceID           string                        `json:"workspace_id" description:"Workspace id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	MemberUserIDs         []string                      `json:"member_user_ids" description:"Other member user ids" example:"[\"01J8X4USR0N1P2Q3R4S5T6U7V8\"]"`
 	MentionUnreadCount    int                           `json:"mention_unread_count" description:"Unread messages that mention the caller" example:"1"`
@@ -96,12 +173,41 @@ type ChatRoomDTO struct {
 	PeerUserID            string                        `json:"peer_user_id,omitempty" description:"DM peer user id" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
 	PeerEmail             string                        `json:"peer_email,omitempty" description:"DM peer email" example:"peer@example.com"`
 	PeerDisplayName       string                        `json:"peer_display_name,omitempty" description:"DM peer display name" example:"Nguyen Van A"`
+	PeerLastReadAt        string                        `json:"peer_last_read_at,omitempty" description:"RFC3339 DM peer read cursor" example:"2026-03-26T10:00:00Z"`
 	LastMessageBody       string                        `json:"last_message_body,omitempty" description:"Plain-text preview of the latest message" example:"@Binh check this"`
 	LastMessageKind       string                        `json:"last_message_kind,omitempty" description:"Kind of the latest message" example:"text"`
 	LastMessageSenderID   string                        `json:"last_message_sender_id,omitempty" description:"Author of the latest message" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
 	LastMessageSenderName string                        `json:"last_message_sender_name,omitempty" description:"Display name of the latest message author" example:"Nguyen Van A"`
 	LastMessageAt         string                        `json:"last_message_at,omitempty" description:"RFC3339 timestamp of the latest message" example:"2026-03-26T10:00:00Z"`
-	MemberPermissions     *ChatRoomMemberPermissionsDTO `json:"member_permissions,omitempty" description:"Permissions for regular members in group/workspace rooms"`
+	MemberPermissions     *ChatRoomMemberPermissionsDTO `json:"member_permissions,omitempty" description:"Permissions for regular members in group/channel rooms"`
+	Visibility            string                        `json:"visibility,omitempty" description:"public or private (channels)" example:"public"`
+	ProjectID             string                        `json:"project_id,omitempty" description:"Linked project id when set"`
+	Topic                 string                        `json:"topic,omitempty" description:"Channel topic"`
+	IsDefault             bool                          `json:"is_default,omitempty" description:"Default workspace channel"`
+}
+
+// ChatChannelListSDO is GET .../chat/channels.
+type ChatChannelListSDO struct {
+	Rooms []ChatRoomDTO `json:"rooms"`
+}
+
+// ChatThreadDTO is one followed thread summary.
+type ChatThreadDTO struct {
+	ThreadRootID string `json:"thread_root_id" description:"Root message id" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	RoomID       string `json:"room_id" description:"Chat room id"`
+	WorkspaceID  string `json:"workspace_id" description:"Workspace id"`
+	RootBody     string `json:"root_body" description:"Root message body preview"`
+	RootSenderID string `json:"root_sender_id" description:"Root author user id"`
+	ReplyCount   int    `json:"reply_count" description:"Number of replies" example:"3"`
+	LastReplyAt  string `json:"last_reply_at,omitempty" description:"RFC3339 of latest reply"`
+	RootCreated  string `json:"root_created_at" description:"RFC3339 of root message"`
+	Unread       bool   `json:"unread" description:"Caller has unread replies"`
+	Reason       string `json:"reason,omitempty" description:"Why the caller follows: author|replied|mentioned|manual"`
+}
+
+// ChatThreadListSDO is GET .../chat/threads.
+type ChatThreadListSDO struct {
+	Threads []ChatThreadDTO `json:"threads"`
 }
 
 // ChatRoomMemberPermissionsDTO configures what non-admin members may do.
@@ -172,4 +278,21 @@ type ChatRoomMemberDTO struct {
 // ChatRoomMemberListSDO is GET .../rooms/{roomID}/members.
 type ChatRoomMemberListSDO struct {
 	Members []ChatRoomMemberDTO `json:"members"`
+}
+
+// ChatMessageLinkDTO is one link from a chat message to another entity.
+type ChatMessageLinkDTO struct {
+	ID         string `json:"id" description:"Link id" example:"01J8X4LNK0N1P2Q3R4S5T6U7V8"`
+	MessageID  string `json:"message_id" description:"Chat message id" example:"01J8X4MSG0N1P2Q3R4S5T6U7V8"`
+	TargetType string `json:"target_type" description:"task in this release" example:"task"`
+	TargetID   string `json:"target_id" description:"Target entity id" example:"01J8X4TSK0N1P2Q3R4S5T6U7V8"`
+	Relation   string `json:"relation" description:"created_from or mentions" example:"mentions"`
+	CreatedBy  string `json:"created_by" description:"User who created the link" example:"01J8X4USR0N1P2Q3R4S5T6U7V8"`
+	CreatedAt  string `json:"created_at" description:"RFC3339 timestamp" example:"2026-09-10T10:00:00Z"`
+}
+
+// ChatMessageLinkListSDO is GET .../chat/messages/{messageID}/links and
+// GET .../chat/rooms/{roomID}/message-links.
+type ChatMessageLinkListSDO struct {
+	Links []ChatMessageLinkDTO `json:"links"`
 }

@@ -7,7 +7,11 @@ import {
   outboxEntryFromPayload,
   payloadFromOutboxEntry,
 } from "./deliver-chat-text-message";
-import { resetChatSendOutboxForTests, useChatSendOutboxStore } from "./send-outbox-store";
+import {
+  CHAT_SEND_OUTBOX_TTL_MS,
+  resetChatSendOutboxForTests,
+  useChatSendOutboxStore,
+} from "./send-outbox-store";
 import { resetPendingChatMessagesForTests, usePendingChatMessagesStore } from "./pending-messages-store";
 
 vi.mock("../api/endpoints/chat", () => ({
@@ -38,7 +42,7 @@ describe("deliverChatTextMessage", () => {
 
 describe("outboxEntryFromPayload", () => {
   it("maps payload fields into an outbox entry", () => {
-    const entry = outboxEntryFromPayload("ws1", {
+    const entry = outboxEntryFromPayload("ws1", "u1", {
       roomId: "room1",
       body: "hi",
       client_msg_id: "cmid-1",
@@ -47,6 +51,7 @@ describe("outboxEntryFromPayload", () => {
     });
     expect(entry).toMatchObject({
       workspaceId: "ws1",
+      senderId: "u1",
       roomId: "room1",
       body: "hi",
       client_msg_id: "cmid-1",
@@ -57,7 +62,7 @@ describe("outboxEntryFromPayload", () => {
   });
 
   it("round-trips through payloadFromOutboxEntry", () => {
-    const entry = outboxEntryFromPayload("ws1", {
+    const entry = outboxEntryFromPayload("ws1", "u1", {
       roomId: "room1",
       body: "hi",
       client_msg_id: "cmid-1",
@@ -79,14 +84,15 @@ describe("flushChatSendOutbox", () => {
       workspaceId: "ws1",
       roomId: "room1",
       body: "queued",
+      senderId: "u1",
       client_msg_id: "cmid-queued",
-      queued_at: "2026-09-05T00:00:00Z",
+      queued_at: new Date().toISOString(),
     });
 
     const deliver = vi.fn().mockResolvedValue({ id: "m1" });
     const result = await flushChatSendOutbox("ws1", "u1", deliver);
     expect(result).toEqual({ sent: 1, failed: 0 });
-    expect(useChatSendOutboxStore.getState().listForWorkspace("ws1")).toEqual([]);
+    expect(useChatSendOutboxStore.getState().listForWorkspace("ws1", "u1")).toEqual([]);
   });
 
   it("counts failed deliveries and clears the pending indicator", async () => {
@@ -96,14 +102,57 @@ describe("flushChatSendOutbox", () => {
       workspaceId: "ws1",
       roomId: "room1",
       body: "queued",
+      senderId: "u1",
       client_msg_id: "cmid-fail",
-      queued_at: "2026-09-05T00:00:00Z",
+      queued_at: new Date().toISOString(),
     });
 
     const deliver = vi.fn().mockRejectedValue(new Error("down"));
     const result = await flushChatSendOutbox("ws1", "u1", deliver);
     expect(result).toEqual({ sent: 0, failed: 1 });
-    expect(useChatSendOutboxStore.getState().listForWorkspace("ws1")).toHaveLength(1);
+    expect(useChatSendOutboxStore.getState().listForWorkspace("ws1", "u1")).toHaveLength(1);
     expect(usePendingChatMessagesStore.getState().listForRoom("ws1", "room1")).toEqual([]);
+  });
+
+  it("never sends another user's queued entries", async () => {
+    resetChatSendOutboxForTests();
+    resetPendingChatMessagesForTests();
+    const { enqueue } = useChatSendOutboxStore.getState();
+    enqueue({
+      workspaceId: "ws1",
+      senderId: "u-a",
+      roomId: "room1",
+      body: "from A",
+      client_msg_id: "cmid-a",
+      queued_at: new Date().toISOString(),
+    });
+
+    const deliver = vi.fn().mockResolvedValue({ id: "m1" });
+    const result = await flushChatSendOutbox("ws1", "u-b", deliver);
+
+    expect(result).toEqual({ sent: 0, failed: 0 });
+    expect(deliver).not.toHaveBeenCalled();
+    expect(usePendingChatMessagesStore.getState().listForRoom("ws1", "room1")).toEqual([]);
+    expect(useChatSendOutboxStore.getState().listForWorkspace("ws1", "u-a")).toHaveLength(1);
+  });
+
+  it("drops entries older than the TTL instead of sending them", async () => {
+    resetChatSendOutboxForTests();
+    resetPendingChatMessagesForTests();
+    useChatSendOutboxStore.getState().enqueue({
+      workspaceId: "ws1",
+      senderId: "u1",
+      roomId: "room1",
+      body: "yesterday",
+      client_msg_id: "cmid-stale",
+      queued_at: new Date(Date.now() - CHAT_SEND_OUTBOX_TTL_MS - 60_000).toISOString(),
+    });
+
+    const deliver = vi.fn().mockResolvedValue({ id: "m1" });
+    const result = await flushChatSendOutbox("ws1", "u1", deliver);
+
+    expect(result).toEqual({ sent: 0, failed: 0 });
+    expect(deliver).not.toHaveBeenCalled();
+    expect(useChatSendOutboxStore.getState().entries).toEqual([]);
   });
 });

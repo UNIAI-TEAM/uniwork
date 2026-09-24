@@ -1,13 +1,13 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
 import type { User, Workspace } from "@uniwork/core/types";
 import { ThemeProvider } from "@uniwork/ui/components/common/theme-provider";
 import { SidebarProvider } from "@uniwork/ui/components/ui/sidebar";
-import { wrapWithNav } from "../test/api-mock";
+import { requestMock, wrapWithNav } from "../test/api-mock";
 import { WorkspaceProvider } from "./workspace-context";
-import { WorkspaceTopBar } from "./workspace-top-bar";
+import { WorkspaceChrome, WorkspaceTopBar } from "./workspace-top-bar";
 
 initI18n();
 
@@ -54,13 +54,41 @@ function renderTopBar() {
   );
 }
 
+describe("WorkspaceChrome", () => {
+  it("opens the new task dialog when C is pressed on the page", async () => {
+    requestMock.mockReset();
+    requestMock.mockResolvedValue({});
+    render(
+      wrapWithNav(
+        <ThemeProvider>
+          <LocaleAdapterProvider adapter={localeAdapter}>
+            <WorkspaceProvider workspace={workspace} user={user}>
+              <SidebarProvider hasExternalTrigger>
+                <WorkspaceChrome>
+                  <p>page</p>
+                </WorkspaceChrome>
+              </SidebarProvider>
+            </WorkspaceProvider>
+          </LocaleAdapterProvider>
+        </ThemeProvider>,
+      ),
+    );
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.keyDown(document.body, { key: "c" });
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+});
+
 describe("WorkspaceTopBar", () => {
-  it("renders create task, theme and language controls without the search pill", () => {
+  it("renders compact create with separate theme and language menus", () => {
     renderTopBar();
     expect(screen.queryByRole("button", { name: /tìm kiếm/i })).toBeNull();
-    expect(screen.getByRole("button", { name: /tạo việc/i })).toBeInTheDocument();
+    const create = screen.getByRole("button", { name: /tạo việc/i });
+    expect(create).toHaveTextContent("");
+    expect(create).toHaveClass("h-8", "w-8");
     expect(screen.getByLabelText(/giao diện/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/ngôn ngữ/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /tùy chọn/i })).toBeNull();
     expect(screen.getByRole("button", { name: /ẩn\/hiện thanh bên|toggle sidebar/i })).toBeInTheDocument();
   });
 });

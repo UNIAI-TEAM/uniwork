@@ -2,8 +2,13 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"maps"
 	"net/http"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -12,38 +17,58 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/outbox"
+	"github.com/unicomhub/uniwork/server/internal/storage"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-var validStatus = map[string]bool{"todo": true, "in_progress": true, "done": true, "cancelled": true}
-var validPriority = map[string]bool{"low": true, "medium": true, "high": true, "urgent": true}
+var validPriority = map[string]bool{"none": true, "low": true, "medium": true, "high": true, "urgent": true}
 
 // TaskService owns task commands. Each one runs in a transaction that also
 // carries its audit row and the events it publishes (ADR 0009), which is why
 // the service holds a pool and no longer holds an EventPublisher: realtime
 // reaches the client from the outbox, not from here.
 type TaskService struct {
-	pool *pgxpool.Pool
-	q    *db.Queries
-	ws   *WorkspaceService
+	pool    *pgxpool.Pool
+	q       *db.Queries
+	ws      *WorkspaceService
+	storage storage.Storage
+	// ent is the quota gate (F-02); built here so create can never skip it.
+	ent *EntitlementService
+	// Chat is optional; when set, CreateProject can provision a linked channel.
+	Chat *ChatService
 }
 
-func NewTaskService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService) *TaskService {
-	return &TaskService{pool: pool, q: q, ws: ws}
+func NewTaskService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, store storage.Storage) *TaskService {
+	return &TaskService{pool: pool, q: q, ws: ws, storage: store, ent: NewEntitlementService(pool, q)}
 }
 
 type CreateTaskInput struct {
-	Title        string
-	Description  string
-	Priority     string
-	AssigneeID   *string
-	AssigneeKind string // "" or human | agent (ADR 0007)
-	DueDate      *string
+	Title         string
+	Description   string
+	Status        string
+	Priority      string
+	AssigneeID    *string
+	AssigneeKind  string // "" or human | agent (ADR 0007)
+	StartDate     *string
+	DueDate       *string
+	StartAt       *time.Time
+	DueAt         *time.Time
+	OriginType    string
+	OriginID      *string
+	ProjectID     *string // optional; must belong to the same workspace
+	ParentTaskID  *string // optional; must belong to the same workspace
+	Stage         *int32
+	LabelIDs      []string
+	AttachmentIDs []string
+	Properties    map[string]json.RawMessage
+	// AllowDuplicate skips the active-title guard (CLI / explicit override).
+	AllowDuplicate bool
 }
 
-// UpdateTaskInput: con trỏ nil = không đổi; với AssigneeID/DueDate con trỏ
-// kép — con trỏ tới nil = xóa giá trị.
+// UpdateTaskInput: con trỏ nil = không đổi; với AssigneeID/StartDate/DueDate/StartAt/DueAt/ProjectID
+// con trỏ kép — con trỏ tới nil = xóa giá trị.
 type UpdateTaskInput struct {
 	Title        *string
 	Description  *string
@@ -52,7 +77,11 @@ type UpdateTaskInput struct {
 	Position     *float64
 	AssigneeID   **string
 	AssigneeKind string // read only when AssigneeID is set; "" means human
+	StartDate    **string
 	DueDate      **string
+	StartAt      **time.Time
+	DueAt        **time.Time
+	ProjectID    **string
 }
 
 // assigneeKind validates the assignee pair: humans and agents must already be
@@ -101,6 +130,14 @@ func optText(s *string) pgtype.Text {
 	return pgtype.Text{String: *s, Valid: true}
 }
 
+func originTypeText(s string) pgtype.Text {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: s, Valid: true}
+}
+
 func optFloat(f *float64) pgtype.Float8 {
 	if f == nil {
 		return pgtype.Float8{}
@@ -108,8 +145,22 @@ func optFloat(f *float64) pgtype.Float8 {
 	return pgtype.Float8{Float64: *f, Valid: true}
 }
 
+func optInt4(n *int32) pgtype.Int4 {
+	if n == nil {
+		return pgtype.Int4{}
+	}
+	return pgtype.Int4{Int32: *n, Valid: true}
+}
+
 func nowTz() pgtype.Timestamptz {
 	return pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}
+}
+
+func optTz(t *time.Time) pgtype.Timestamptz {
+	if t == nil {
+		return pgtype.Timestamptz{}
+	}
+	return pgtype.Timestamptz{Time: t.UTC(), Valid: true}
 }
 
 // normalizedCreatorType maps ADR 0007 actor kinds onto the Tasks foundation
@@ -143,14 +194,27 @@ func normalizedAssigneeType(assigneeID *string, kind string) pgtype.Text {
 // makes the set a reviewer reads rather than infers.
 func taskAuditFields(t db.Task) map[string]any {
 	return map[string]any{
-		"title":         t.Title,
-		"status":        t.Status,
-		"priority":      t.Priority,
-		"assignee_id":   audit.Text(t.AssigneeID.Valid, t.AssigneeID.String),
-		"assignee_kind": t.AssigneeKind,
-		"due_date":      dateOrNil(t.DueDate),
-		"position":      t.Position,
+		"title":          t.Title,
+		"status":         t.Status,
+		"priority":       t.Priority,
+		"assignee_id":    audit.Text(t.AssigneeID.Valid, t.AssigneeID.String),
+		"assignee_kind":  t.AssigneeKind,
+		"start_date":     dateOrNil(t.StartDate),
+		"due_date":       dateOrNil(t.DueDate),
+		"start_at":       timeOrNil(t.StartAt),
+		"due_at":         timeOrNil(t.DueAt),
+		"position":       t.Position,
+		"project_id":     audit.Text(t.ProjectID.Valid, t.ProjectID.String),
+		"parent_task_id": audit.Text(t.ParentTaskID.Valid, t.ParentTaskID.String),
+		"stage":          int4OrNil(t.Stage),
 	}
+}
+
+func timeOrNil(t pgtype.Timestamptz) any {
+	if !t.Valid {
+		return nil
+	}
+	return t.Time.UTC().Format(time.RFC3339)
 }
 
 func dateOrNil(d pgtype.Date) any {
@@ -158,6 +222,79 @@ func dateOrNil(d pgtype.Date) any {
 		return nil
 	}
 	return d.Time.Format("2006-01-02")
+}
+
+func int4OrNil(n pgtype.Int4) any {
+	if !n.Valid {
+		return nil
+	}
+	return n.Int32
+}
+
+// taskUpdatedPayload is the task.updated frame of one updateTaskInTx call
+// (ADR 0015). revision is the task right after the call (the row the last
+// query returned) and revisionBefore the task right before it, as measured
+// inside the call under the row lock; never before.Revision, which was read
+// before the lock.
+//
+// The catalogue's Patch fields ride along only when every field the input
+// carries is one of them, and the revision pair rides along only beside them:
+// a pair without a patch field would let a client take the new revision while
+// a field it cannot patch stays stale, so a mixed or empty input sends ids
+// only. A field in the input counts as changed even when its value matches
+// before: that copy was read before the lock, a concurrent writer may have
+// committed in between, and comparing against it could hide a change this
+// call made. Values come from the row the last query returned under the lock,
+// so each is the task's value at revision.
+func taskUpdatedPayload(task db.Task, in UpdateTaskInput, revisionBefore int64) map[string]string {
+	payload := map[string]string{"task_id": task.ID, "workspace_id": task.WorkspaceID}
+	def, ok := outbox.Lookup("task.updated")
+	if !ok || len(def.Patch) == 0 {
+		return payload
+	}
+
+	// How a field goes on the wire. A Patch field not encoded here is never
+	// sent: the frame falls back to ids, and clients refetch.
+	due := ""
+	if task.DueDate.Valid {
+		due = task.DueDate.Time.Format("2006-01-02")
+	}
+	// Fail closed. Each field is cleared from rest where it is encoded, so
+	// anything left over, a field UpdateTaskInput has today or gains later,
+	// makes the frame ids-only. A hand-kept list of the other fields could miss
+	// one with every test green, and the frame would then carry the revision
+	// pair while that field stays stale in other caches. A slice or map field
+	// would stop the comparison compiling, which forces that choice.
+	rest := in
+	patch := make(map[string]string, len(def.Patch))
+	if in.Title != nil {
+		patch["title"] = task.Title
+		rest.Title = nil
+	}
+	if in.Status != nil {
+		patch["status"] = task.Status
+		rest.Status = nil
+	}
+	if in.Priority != nil {
+		patch["priority"] = task.Priority
+		rest.Priority = nil
+	}
+	if in.DueDate != nil {
+		patch["due_date"] = due
+		rest.DueDate = nil
+	}
+	if rest != (UpdateTaskInput{}) || len(patch) == 0 {
+		return payload
+	}
+	for field := range patch {
+		if !slices.Contains(def.Patch, field) {
+			return payload
+		}
+	}
+	payload["revision_before"] = strconv.FormatInt(revisionBefore, 10)
+	payload["revision"] = strconv.FormatInt(task.Revision, 10)
+	maps.Copy(payload, patch)
+	return payload
 }
 
 func (s *TaskService) Create(ctx context.Context, actor Actor, workspaceID string, in CreateTaskInput) (db.Task, error) {
@@ -188,22 +325,64 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 	if strings.TrimSpace(in.Title) == "" {
 		return db.Task{}, Invalid("tiêu đề không được để trống")
 	}
+	status, err := normalizeCreateTaskStatus(ctx, q, ws.OrganizationID, workspaceID, in.Status)
+	if err != nil {
+		return db.Task{}, err
+	}
 	if in.Priority == "" {
-		in.Priority = "medium"
+		in.Priority = "none"
 	}
 	if !validPriority[in.Priority] {
 		return db.Task{}, Invalid("priority không hợp lệ")
 	}
-	due, err := parseDate(in.DueDate)
+	start, err := parseDate("start_date", in.StartDate)
 	if err != nil {
 		return db.Task{}, err
+	}
+	due, err := parseDate("due_date", in.DueDate)
+	if err != nil {
+		return db.Task{}, err
+	}
+	if (in.StartAt == nil) != (in.DueAt == nil) {
+		return db.Task{}, Invalid("start_at và due_at phải được đặt cùng nhau")
+	}
+	if in.StartAt != nil && !in.DueAt.After(*in.StartAt) {
+		return db.Task{}, Invalid("due_at phải sau start_at")
+	}
+	if in.Stage != nil && *in.Stage < 1 {
+		return db.Task{}, Invalid("stage phải từ 1 trở lên")
 	}
 	assigneeKind, err := s.assigneeKind(ctx, workspaceID, in.AssigneeID, in.AssigneeKind)
 	if err != nil {
 		return db.Task{}, err
 	}
-	maxPos, err := q.MaxTaskPosition(ctx, db.MaxTaskPositionParams{
-		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, Status: "todo",
+	projectID, err := s.normalizeProjectID(ctx, q, ws.OrganizationID, workspaceID, in.ProjectID)
+	if err != nil {
+		return db.Task{}, err
+	}
+	parentTaskID, err := normalizeParentTaskID(ctx, q, ws.OrganizationID, workspaceID, in.ParentTaskID)
+	if err != nil {
+		return db.Task{}, err
+	}
+	labelIDs, err := normalizeCreateTaskLabelIDs(ctx, q, ws.OrganizationID, workspaceID, in.LabelIDs)
+	if err != nil {
+		return db.Task{}, err
+	}
+	properties, err := normalizeCreateTaskProperties(ctx, q, ws.OrganizationID, workspaceID, in.Properties)
+	if err != nil {
+		return db.Task{}, err
+	}
+	if err := s.guardActiveDuplicateTask(ctx, q, ws, projectID, parentTaskID, in.Title, in.AllowDuplicate); err != nil {
+		return db.Task{}, err
+	}
+	if err := s.ent.Consume(ctx, q, ConsumeInput{
+		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+		Meter: FeatureTasksMax, Delta: 1, Actor: actor,
+	}); err != nil {
+		return db.Task{}, err
+	}
+	minPos, err := q.MinTaskPosition(ctx, db.MinTaskPositionParams{
+		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, Status: status,
 	})
 	if err != nil {
 		return db.Task{}, err
@@ -217,14 +396,67 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 	task, err := q.CreateTask(ctx, db.CreateTaskParams{
 		ID: util.NewID(), OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
 		Number: number, Title: strings.TrimSpace(in.Title), Description: in.Description,
-		Priority: in.Priority, AssigneeID: optText(in.AssigneeID), AssigneeKind: assigneeKind,
-		AssigneeType: normalizedAssigneeType(in.AssigneeID, assigneeKind), DueDate: due,
-		Position: maxPos + 1024, CreatedBy: actor.ID, CreatedByKind: string(actor.Kind),
+		Status: status, Priority: in.Priority, AssigneeID: optText(in.AssigneeID), AssigneeKind: assigneeKind,
+		AssigneeType: normalizedAssigneeType(in.AssigneeID, assigneeKind), StartDate: start, DueDate: due,
+		StartAt: optTz(in.StartAt), DueAt: optTz(in.DueAt),
+		Position: minPos - 1024, CreatedBy: actor.ID, CreatedByKind: string(actor.Kind),
 		CreatorID: actor.ID, CreatorType: normalizedCreatorType(actor.Kind),
 		Revision: 1, LastActivityAt: nowTz(),
+		OriginType: originTypeText(in.OriginType), OriginID: optText(in.OriginID),
+		ProjectID: projectID, ParentTaskID: parentTaskID, Stage: optInt4(in.Stage), Properties: properties,
 	})
 	if err != nil {
 		return db.Task{}, err
+	}
+	for _, labelID := range labelIDs {
+		if _, err := q.AttachTaskLabelOnCreate(ctx, db.AttachTaskLabelOnCreateParams{
+			OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, TaskID: task.ID, LabelID: labelID,
+		}); err != nil {
+			return db.Task{}, err
+		}
+	}
+	attachmentIDs := make([]string, 0, len(in.AttachmentIDs))
+	seenAttachmentIDs := make(map[string]struct{}, len(in.AttachmentIDs))
+	for _, id := range in.AttachmentIDs {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if _, exists := seenAttachmentIDs[id]; exists {
+			continue
+		}
+		seenAttachmentIDs[id] = struct{}{}
+		attachmentIDs = append(attachmentIDs, id)
+	}
+	if len(attachmentIDs) > 20 {
+		return db.Task{}, Invalid("attachment_ids tối đa 20")
+	}
+	if len(attachmentIDs) > 0 {
+		bound, err := q.BindAttachmentsToTask(ctx, db.BindAttachmentsToTaskParams{
+			TaskID: pgtype.Text{String: task.ID, Valid: true}, OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+			UploaderType: s.commentActorType(actor.Kind), UploaderID: actor.ID, AttachmentIds: attachmentIDs,
+		})
+		if err != nil {
+			return db.Task{}, err
+		}
+		if len(bound) != len(attachmentIDs) {
+			return db.Task{}, coded(http.StatusUnprocessableEntity, "attachment_not_available", "đính kèm không tồn tại, đã hết hạn hoặc đã được sử dụng")
+		}
+	}
+	autoSubscribed, err := autoSubscribeTaskAssignee(ctx, q, task)
+	if err != nil {
+		return db.Task{}, err
+	}
+	emit := []audit.Event{{Topic: "task.created", Payload: map[string]string{
+		"task_id": task.ID, "workspace_id": workspaceID,
+	}}}
+	for _, attachmentID := range attachmentIDs {
+		emit = append(emit, audit.Event{Topic: "attachment.uploaded", Payload: map[string]string{
+			"attachment_id": attachmentID, "task_id": task.ID, "workspace_id": workspaceID,
+		}})
+	}
+	if autoSubscribed {
+		emit = append(emit, taskSubscriptionEvent(task))
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
@@ -232,12 +464,105 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 		Action:       audit.ActionTaskCreated,
 		ResourceType: "task", ResourceID: task.ID,
 		Changes: audit.Diff(nil, taskAuditFields(task)),
-	}, audit.Event{Topic: "task.created", Payload: map[string]string{
-		"task_id": task.ID, "workspace_id": workspaceID,
-	}}); err != nil {
+	}, emit...); err != nil {
 		return db.Task{}, err
 	}
 	return task, nil
+}
+
+func normalizeTaskTitle(title string) string {
+	return strings.ToLower(strings.Join(strings.Fields(title), " "))
+}
+
+// guardActiveDuplicateTask serializes creates that share the same normalized
+// title under one workspace/project/parent and refuses a second active row
+// unless AllowDuplicate is set (active duplicate-task parity).
+func (s *TaskService) guardActiveDuplicateTask(
+	ctx context.Context,
+	q *db.Queries,
+	ws db.Workspace,
+	projectID, parentTaskID pgtype.Text,
+	title string,
+	allowDuplicate bool,
+) error {
+	normalized := normalizeTaskTitle(title)
+	if normalized == "" {
+		return nil
+	}
+	lockKey := strings.Join([]string{
+		"task-active-duplicate",
+		ws.OrganizationID,
+		ws.ID,
+		projectID.String,
+		parentTaskID.String,
+		normalized,
+	}, "|")
+	if err := q.LockTaskDuplicateKey(ctx, lockKey); err != nil {
+		return err
+	}
+	if allowDuplicate {
+		return nil
+	}
+	dup, err := q.FindActiveDuplicateTask(ctx, db.FindActiveDuplicateTaskParams{
+		OrganizationID:  ws.OrganizationID,
+		WorkspaceID:     ws.ID,
+		ProjectID:       projectID,
+		ParentTaskID:    parentTaskID,
+		NormalizedTitle: normalized,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return CodedError{
+		Code:   "active_duplicate_task",
+		Status: http.StatusConflict,
+		Msg:    fmt.Sprintf("đã có task đang mở với tiêu đề này: %s-%d – %s", ws.TaskPrefix, dup.Number, dup.Title),
+		Err:    ErrConflict,
+		Fields: map[string]any{
+			"task_id":    dup.ID,
+			"identifier": fmt.Sprintf("%s-%d", ws.TaskPrefix, dup.Number),
+			"title":      dup.Title,
+		},
+	}
+}
+
+func normalizeCreateTaskProperties(
+	ctx context.Context,
+	q *db.Queries,
+	organizationID, workspaceID string,
+	values map[string]json.RawMessage,
+) ([]byte, error) {
+	if len(values) > maxActivePropertiesPerWorkspace {
+		return nil, Invalid("properties tối đa 20")
+	}
+	normalized := make(map[string]json.RawMessage, len(values))
+	for rawID, value := range values {
+		propertyID := strings.TrimSpace(rawID)
+		if propertyID == "" || len(value) == 0 || !json.Valid(value) {
+			return nil, Invalid("properties không hợp lệ")
+		}
+		property, err := q.GetTaskPropertyByID(ctx, db.GetTaskPropertyByIDParams{
+			OrganizationID: organizationID, WorkspaceID: workspaceID, ID: propertyID,
+		})
+		if errors.Is(err, pgx.ErrNoRows) || (err == nil && property.ArchivedAt.Valid) {
+			return nil, coded(http.StatusUnprocessableEntity, "property_not_available", "thuộc tính không tồn tại hoặc đã lưu trữ")
+		}
+		if err != nil {
+			return nil, err
+		}
+		normalized[propertyID] = value
+	}
+	encoded, err := json.Marshal(normalized)
+	if err != nil {
+		return nil, Invalid("properties không hợp lệ")
+	}
+	if len(encoded) > 16*1024 {
+		return nil, Invalid("properties vượt quá giới hạn 16 KiB")
+	}
+	return encoded, nil
 }
 
 func (s *TaskService) List(ctx context.Context, userID, workspaceID string) ([]db.Task, error) {
@@ -303,7 +628,7 @@ func (s *TaskService) Update(ctx context.Context, actor Actor, taskID string, in
 
 // updateTaskInTx applies fields and audit/outbox using q (caller owns the tx).
 func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor Actor, before db.Task, ws db.Workspace, in UpdateTaskInput) (db.Task, error) {
-	if in.Status != nil && !validStatus[*in.Status] {
+	if in.Status != nil && !isBuiltInStatusKey(*in.Status) {
 		return db.Task{}, Invalid("status không hợp lệ")
 	}
 	if in.Priority != nil && !validPriority[*in.Priority] {
@@ -311,6 +636,17 @@ func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor A
 	}
 	if in.Title != nil && strings.TrimSpace(*in.Title) == "" {
 		return db.Task{}, Invalid("tiêu đề không được để trống")
+	}
+	if (in.StartAt == nil) != (in.DueAt == nil) {
+		return db.Task{}, Invalid("start_at và due_at phải được đặt cùng nhau")
+	}
+	if in.StartAt != nil {
+		if (*in.StartAt == nil) != (*in.DueAt == nil) {
+			return db.Task{}, Invalid("start_at và due_at phải cùng có giá trị hoặc cùng null")
+		}
+		if *in.StartAt != nil && !(*in.DueAt).After(**in.StartAt) {
+			return db.Task{}, Invalid("due_at phải sau start_at")
+		}
 	}
 	task, err := q.UpdateTask(ctx, db.UpdateTaskParams{
 		ID: before.ID, OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
@@ -320,6 +656,11 @@ func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor A
 	if err != nil {
 		return db.Task{}, err
 	}
+	// UpdateTask always runs, takes the row lock and bumps revision by exactly
+	// one, so the row it returns minus one is where this call started, and the
+	// lock keeps it that way until commit. Counting the queries below instead
+	// would break silently the day one of them bumps conditionally.
+	revisionBefore := task.Revision - 1
 	if in.AssigneeID != nil {
 		kind, kerr := s.assigneeKind(ctx, before.WorkspaceID, *in.AssigneeID, in.AssigneeKind)
 		if kerr != nil {
@@ -334,8 +675,21 @@ func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor A
 			return db.Task{}, err
 		}
 	}
+	if in.StartDate != nil {
+		start, serr := parseDate("start_date", *in.StartDate)
+		if serr != nil {
+			return db.Task{}, serr
+		}
+		task, err = q.SetTaskStartDate(ctx, db.SetTaskStartDateParams{
+			ID: before.ID, StartDate: start,
+			OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
+		})
+		if err != nil {
+			return db.Task{}, err
+		}
+	}
 	if in.DueDate != nil {
-		due, derr := parseDate(*in.DueDate)
+		due, derr := parseDate("due_date", *in.DueDate)
 		if derr != nil {
 			return db.Task{}, derr
 		}
@@ -347,15 +701,43 @@ func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor A
 			return db.Task{}, err
 		}
 	}
+	if in.StartAt != nil {
+		task, err = q.SetTaskScheduleTimes(ctx, db.SetTaskScheduleTimesParams{
+			ID: before.ID, StartAt: optTz(*in.StartAt), DueAt: optTz(*in.DueAt),
+			OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
+		})
+		if err != nil {
+			return db.Task{}, err
+		}
+	}
+	if in.ProjectID != nil {
+		projectID, perr := s.normalizeProjectID(ctx, q, before.OrganizationID, before.WorkspaceID, *in.ProjectID)
+		if perr != nil {
+			return db.Task{}, perr
+		}
+		task, err = q.SetTaskProjectID(ctx, db.SetTaskProjectIDParams{
+			ID: before.ID, ProjectID: projectID,
+			OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
+		})
+		if err != nil {
+			return db.Task{}, err
+		}
+	}
+	autoSubscribed, err := autoSubscribeTaskAssignee(ctx, q, task)
+	if err != nil {
+		return db.Task{}, err
+	}
+	emit := []audit.Event{{Topic: "task.updated", Payload: taskUpdatedPayload(task, in, revisionBefore)}}
+	if autoSubscribed {
+		emit = append(emit, taskSubscriptionEvent(task))
+	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: ws.OrganizationID, WorkspaceID: task.WorkspaceID,
 		Actor:        actor,
 		Action:       audit.ActionTaskUpdated,
 		ResourceType: "task", ResourceID: task.ID,
 		Changes: audit.Diff(taskAuditFields(before), taskAuditFields(task)),
-	}, audit.Event{Topic: "task.updated", Payload: map[string]string{
-		"task_id": task.ID, "workspace_id": task.WorkspaceID,
-	}}); err != nil {
+	}, emit...); err != nil {
 		return db.Task{}, err
 	}
 	return task, nil
@@ -418,13 +800,118 @@ func (s *TaskService) Comments(ctx context.Context, userID, taskID string) ([]db
 	})
 }
 
-func parseDate(s *string) (pgtype.Date, error) {
+// CommentReactionsForTask returns every reaction on every comment of the task
+// in one round trip. Comments stays untouched: six callers depend on its
+// signature, and only the detail screen needs the reactions.
+func (s *TaskService) CommentReactionsForTask(ctx context.Context, userID, taskID string) ([]db.CommentReaction, error) {
+	task, err := s.authorize(ctx, userID, taskID)
+	if err != nil {
+		return nil, err
+	}
+	return s.q.ListTaskCommentReactions(ctx, db.ListTaskCommentReactionsParams{
+		TaskID: taskID, OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
+	})
+}
+
+// parseDate reads an optional YYYY-MM-DD value; field names it in the error.
+func parseDate(field string, s *string) (pgtype.Date, error) {
 	if s == nil || *s == "" {
 		return pgtype.Date{}, nil
 	}
 	t, err := time.Parse("2006-01-02", *s)
 	if err != nil {
-		return pgtype.Date{}, Invalid("due_date phải dạng YYYY-MM-DD")
+		return pgtype.Date{}, Invalid(field + " phải dạng YYYY-MM-DD")
 	}
 	return pgtype.Date{Time: t, Valid: true}, nil
+}
+
+// normalizeProjectID returns a nullable project id after checking it belongs
+// to the workspace. A nil / empty input clears (Valid=false).
+func (s *TaskService) normalizeProjectID(
+	ctx context.Context, q *db.Queries, organizationID, workspaceID string, projectID *string,
+) (pgtype.Text, error) {
+	if projectID == nil {
+		return pgtype.Text{}, nil
+	}
+	id := strings.TrimSpace(*projectID)
+	if id == "" {
+		return pgtype.Text{}, nil
+	}
+	if _, err := q.GetProject(ctx, db.GetProjectParams{
+		ID: id, OrganizationID: organizationID, WorkspaceID: workspaceID,
+	}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return pgtype.Text{}, ErrNotFound
+		}
+		return pgtype.Text{}, err
+	}
+	return pgtype.Text{String: id, Valid: true}, nil
+}
+
+func normalizeCreateTaskStatus(
+	ctx context.Context, q *db.Queries, organizationID, workspaceID, raw string,
+) (string, error) {
+	status := strings.TrimSpace(raw)
+	if status == "" {
+		status = "todo"
+	}
+	entry, err := q.GetTaskStatusByKey(ctx, db.GetTaskStatusByKeyParams{
+		OrganizationID: organizationID, WorkspaceID: workspaceID, Key: status,
+	})
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && entry.ArchivedAt.Valid) {
+		return "", Invalid("status không hợp lệ")
+	}
+	if err != nil {
+		return "", err
+	}
+	return status, nil
+}
+
+func normalizeParentTaskID(
+	ctx context.Context, q *db.Queries, organizationID, workspaceID string, parentTaskID *string,
+) (pgtype.Text, error) {
+	if parentTaskID == nil {
+		return pgtype.Text{}, nil
+	}
+	id := strings.TrimSpace(*parentTaskID)
+	if id == "" {
+		return pgtype.Text{}, nil
+	}
+	if _, err := q.GetTaskInWorkspace(ctx, db.GetTaskInWorkspaceParams{
+		ID: id, OrganizationID: organizationID, WorkspaceID: workspaceID,
+	}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return pgtype.Text{}, ErrNotFound
+		}
+		return pgtype.Text{}, err
+	}
+	return pgtype.Text{String: id, Valid: true}, nil
+}
+
+func normalizeCreateTaskLabelIDs(
+	ctx context.Context, q *db.Queries, organizationID, workspaceID string, raw []string,
+) ([]string, error) {
+	seen := make(map[string]struct{}, len(raw))
+	ids := make([]string, 0, len(raw))
+	for _, value := range raw {
+		id := strings.TrimSpace(value)
+		if id == "" {
+			return nil, Invalid("label_id không hợp lệ")
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		label, err := q.GetTaskLabelByID(ctx, db.GetTaskLabelByIDParams{
+			OrganizationID: organizationID, WorkspaceID: workspaceID, ID: id,
+		})
+		if errors.Is(err, pgx.ErrNoRows) || (err == nil && label.ArchivedAt.Valid) {
+			return nil, Invalid("label không hợp lệ")
+		}
+		if err != nil {
+			return nil, err
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	return ids, nil
 }

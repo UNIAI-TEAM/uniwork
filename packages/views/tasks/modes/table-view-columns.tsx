@@ -1,53 +1,56 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useMemo, type SyntheticEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { Plus } from "lucide-react";
 import type { ColumnDef, Table as TanstackTable } from "@tanstack/react-table";
-import type {
-  SortDirection,
-  SortField,
-  TableColumnKey,
-  TableSystemColumnKey,
-} from "@uniwork/core/tasks/stores/view-store";
-import { propertyIdFromViewKey } from "@uniwork/core/tasks/stores/view-store";
+import type { TableColumnKey } from "@uniwork/core/tasks/stores/view-store";
+import type { Task } from "@uniwork/core/types";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
-import { cn } from "@uniwork/ui/lib/utils";
-import { AgentBadge } from "../../agents/agent-badge";
-import { InlineTitle } from "./table-inline-title";
 import type { TaskTableDisplayRow } from "./table-view-model";
+import { TableColumnPicker } from "./table-column-picker";
+import {
+  TableHeaderSortMenu,
+  sortFieldForColumn,
+} from "./table-header-sort-menu";
+import { TaskCellContent } from "./table-task-cell";
+import { getTableViewMeta } from "./table-view-meta";
+import {
+  useIsTaskSelected,
+  useSelectionSummary,
+} from "../surface/selection-context";
+import {
+  RowActionsDropdown,
+  RowDeleteDialog,
+  useRowActionModel,
+} from "../row-actions-menu";
 
-export type TableViewMeta = {
-  visibleTaskIds: string[];
-  editingDisabled: boolean;
-  editingDisabledReason?: string;
-  hierarchyDisabled: boolean;
-  hierarchyDisabledReason?: string;
-  columnLabel: (key: TableColumnKey) => string;
-  sortBy: SortField;
-  sortDirection: SortDirection;
-  onSort: (field: SortField, direction: SortDirection) => void;
-  handleTaskSelection: (taskId: string, shiftKey: boolean) => void;
-  selectAllVisible: () => void;
-  clearVisibleSelection: () => void;
-  selectedIds: Set<string>;
+// Wide enough that the common values of each kind fit untruncated inside the
+// cell's px-4, measured in the browser: "Trung bình" and "Không ưu tiên" need
+// 152px, a full date ("30 thg 9, 2026") 152px, "Chưa giao" with its avatar and
+// chevron 176px. The user can still resize any of them.
+const DEFAULT_COLUMN_WIDTHS: Partial<Record<TableColumnKey, number>> = {
+  title: 360,
+  identifier: 96,
+  status: 148,
+  priority: 152,
+  assignee: 176,
+  labels: 180,
+  project: 168,
+  start_date: 152,
+  due_date: 152,
+  created_at: 152,
+  updated_at: 152,
 };
+const DEFAULT_PROPERTY_COLUMN_WIDTH = 160;
+const DEFAULT_COLUMN_WIDTH = 140;
 
-export function getTableViewMeta(
-  table: TanstackTable<TaskTableDisplayRow>,
-): TableViewMeta {
-  return table.options.meta as unknown as TableViewMeta;
+function defaultColumnWidth(columnKey: TableColumnKey): number {
+  if (columnKey.startsWith("property:")) return DEFAULT_PROPERTY_COLUMN_WIDTH;
+  return DEFAULT_COLUMN_WIDTHS[columnKey] ?? DEFAULT_COLUMN_WIDTH;
 }
 
-const SORTABLE_COLUMNS: Partial<Record<TableSystemColumnKey, SortField>> = {
-  title: "title",
-  status: "status",
-  priority: "priority",
-  due_date: "due_date",
-  created_at: "created_at",
-  updated_at: "updated_at",
-};
-
-function stopRowNavigation(event: React.SyntheticEvent) {
+function stopRowNavigation(event: SyntheticEvent) {
   event.stopPropagation();
 }
 
@@ -58,15 +61,15 @@ function SelectHeader({
 }) {
   const { t } = useTranslation();
   const meta = getTableViewMeta(table);
-  const ids = meta.visibleTaskIds;
-  const selectedCount = ids.filter((id) => meta.selectedIds.has(id)).length;
-  const checked = ids.length > 0 && selectedCount === ids.length;
-  const indeterminate = selectedCount > 0 && selectedCount < ids.length;
+  const summary = useSelectionSummary(meta.visibleTaskIds);
+  const checked = meta.visibleTaskIds.length > 0 && summary === "all";
+  const indeterminate = summary === "some";
 
   return (
     <input
       type="checkbox"
-      className="size-4 accent-primary"
+      // Block, not inline: on the baseline the line's descent grows the header row.
+      className="block size-4 accent-primary"
       checked={checked}
       ref={(node) => {
         if (node) node.indeterminate = indeterminate;
@@ -90,11 +93,12 @@ function SelectCell({
 }) {
   const { t } = useTranslation();
   const meta = getTableViewMeta(table);
+  const selected = useIsTaskSelected(row.task.id);
   return (
     <input
       type="checkbox"
       className="size-4 accent-primary"
-      checked={meta.selectedIds.has(row.task.id)}
+      checked={selected}
       aria-label={t("tasks.table.select_row")}
       onChange={(event) => {
         const native = event.nativeEvent as MouseEvent;
@@ -113,127 +117,46 @@ function HeaderLabel({
   table: TanstackTable<TaskTableDisplayRow>;
 }) {
   const meta = getTableViewMeta(table);
-  const sortField = !propertyIdFromViewKey(columnKey)
-    ? SORTABLE_COLUMNS[columnKey as TableSystemColumnKey]
-    : undefined;
-  const active = sortField && meta.sortBy === sortField;
   return (
-    <button
-      type="button"
-      className={cn(
-        "flex w-full items-center gap-1 text-left text-caption font-medium",
-        sortField ? "hover:text-foreground" : "cursor-default",
-      )}
-      disabled={!sortField}
-      onClick={() => {
-        if (!sortField) return;
-        const next: SortDirection =
-          active && meta.sortDirection === "asc" ? "desc" : "asc";
-        meta.onSort(sortField, next);
-      }}
-    >
-      <span className="truncate">{meta.columnLabel(columnKey)}</span>
-      {active ? (
-        <span className="text-muted-foreground" aria-hidden>
-          {meta.sortDirection === "asc" ? "↑" : "↓"}
-        </span>
-      ) : null}
-    </button>
+    <TableHeaderSortMenu
+      columnKey={columnKey}
+      label={meta.columnLabel(columnKey)}
+      sortField={sortFieldForColumn(columnKey, meta.properties)}
+      sortBy={meta.sortBy}
+      sortDirection={meta.sortDirection}
+      onSort={meta.onSort}
+      onHide={meta.toggleTableColumn}
+    />
   );
 }
 
-function TaskCellContent({
-  columnKey,
-  row,
+function AddColumnHeader({
   table,
 }: {
-  columnKey: TableColumnKey;
-  row: Extract<TaskTableDisplayRow, { kind: "task" }>;
   table: TanstackTable<TaskTableDisplayRow>;
-}): ReactNode {
+}) {
   const { t } = useTranslation();
   const meta = getTableViewMeta(table);
-  const task = row.task;
-
-  switch (columnKey) {
-    case "title":
-      return (
-        <InlineTitle
-          title={task.title}
-          depth={row.depth}
-          hasChildren={row.hasChildren}
-          collapsed={row.collapsed}
-          hierarchyDisabled={meta.hierarchyDisabled}
-          hierarchyDisabledReason={meta.hierarchyDisabledReason}
-          editingDisabled={meta.editingDisabled}
-          editingDisabledReason={meta.editingDisabledReason}
-        />
-      );
-    case "identifier":
-      return (
-        <span className="text-caption text-muted-foreground">
-          {task.identifier || "—"}
-        </span>
-      );
-    case "status":
-      return (
-        <span className="text-caption">
-          {t(`tasks.status_${task.status}`, { defaultValue: task.status })}
-        </span>
-      );
-    case "priority":
-      return (
-        <span className="text-caption">
-          {t(`tasks.priority_${task.priority}`, {
-            defaultValue: task.priority,
-          })}
-        </span>
-      );
-    case "assignee":
-      return (
-        <span className="inline-flex items-center gap-1.5 text-caption text-muted-foreground">
-          {task.assignee?.display_name ?? t("tasks.unassigned")}
-          {task.assignee?.kind === "agent" ? <AgentBadge /> : null}
-        </span>
-      );
-    case "due_date":
-      return (
-        <span className="text-caption text-muted-foreground">
-          {task.due_date ?? "—"}
-        </span>
-      );
-    case "created_at":
-    case "updated_at":
-      return (
-        <span className="text-caption text-muted-foreground">
-          {task[columnKey] ?? "—"}
-        </span>
-      );
-    case "creator":
-      return (
-        <span className="text-caption text-muted-foreground">
-          {task.created_by}
-        </span>
-      );
-    case "labels":
-    case "project":
-    case "start_date":
-    case "child_progress":
-      return (
-        <span
-          className="text-caption text-muted-foreground"
-          title={meta.editingDisabledReason ?? t("capabilities.unknown")}
+  return (
+    <TableColumnPicker
+      properties={meta.properties}
+      propertiesDisabled={meta.propertiesDisabled}
+      propertiesDisabledReason={meta.propertiesDisabledReason}
+      trigger={
+        <button
+          type="button"
+          aria-label={t("tasks.table.columns.add")}
+          // Block-level (flex): an inline-block sits on the text baseline and
+          // the line's descent grows the header row. -my-1 keeps the 22px
+          // button to the 16px content box, overflowing into the cell's
+          // unclipped py-2.
+          className="-my-1 flex rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
         >
-          {t("tasks.table.unavailable_cell")}
-        </span>
-      );
-    default:
-      return (
-        <span className="text-caption text-muted-foreground">
-          {t("tasks.table.unavailable_cell")}
-        </span>
-      );
-  }
+          <Plus className="size-3.5" aria-hidden />
+        </button>
+      }
+    />
+  );
 }
 
 export function useTableColumnDefs(
@@ -258,14 +181,20 @@ export function useTableColumnDefs(
       (columnKey) => ({
         id: columnKey,
         accessorFn: () => columnKey,
-        size: columnKey === "title" ? 360 : 140,
+        size: defaultColumnWidth(columnKey),
         minSize: 80,
         header: ({ table }) => (
           <HeaderLabel columnKey={columnKey} table={table} />
         ),
         cell: ({ row, table }) => {
           if (row.original.kind === "skeleton") {
-            return <Skeleton className="h-4 w-3/4" />;
+            // A child branch's placeholder sits at its depth, like its rows will.
+            const depth = columnKey === "title" ? (row.original.depth ?? 0) : 0;
+            return (
+              <div style={depth ? { paddingLeft: depth * 16 } : undefined}>
+                <Skeleton className="h-4 w-3/4" />
+              </div>
+            );
           }
           if (row.original.kind !== "task") return null;
           return (
@@ -282,6 +211,48 @@ export function useTableColumnDefs(
       }),
     );
 
-    return [selectCol, ...dataCols];
+    const addColumn: ColumnDef<TaskTableDisplayRow> = {
+      id: "__add",
+      size: 48,
+      minSize: 48,
+      maxSize: 48,
+      enableResizing: false,
+      header: ({ table }) => <AddColumnHeader table={table} />,
+      // Row actions sit in the fixed trailing column: no new column key, and
+      // the cell is already outside every editable cell. The table gets only
+      // the dropdown; see task-5 report for why there is no context menu here.
+      cell: ({ row, table }) => {
+        if (row.original.kind !== "task") return null;
+        return (
+          <TableRowActions
+            task={row.original.task}
+            onOpenTask={getTableViewMeta(table).openTask}
+          />
+        );
+      },
+    };
+
+    return [selectCol, ...dataCols, addColumn];
   }, [columnKeys]);
+}
+
+/** The table row's actions cell: one model, its dropdown and its one dialog. */
+function TableRowActions({
+  task,
+  onOpenTask,
+}: {
+  task: Task;
+  onOpenTask?: (id: string) => void;
+}) {
+  const rowActions = useRowActionModel(task, onOpenTask);
+  return (
+    <>
+      <RowActionsDropdown
+        model={rowActions}
+        className="-mx-4 justify-center"
+        triggerClassName="group-hover:opacity-100 group-focus-within:opacity-100"
+      />
+      <RowDeleteDialog model={rowActions} />
+    </>
+  );
 }

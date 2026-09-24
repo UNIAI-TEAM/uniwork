@@ -6,70 +6,60 @@ import {
   msUntilScheduledEnd,
   SCHEDULE_WARN_1_MIN_MS,
   SCHEDULE_WARN_5_MIN_MS,
-  useEndMeeting,
 } from "@uniwork/core/meetings";
 
 const TOAST_5_MIN = "meeting-schedule-5min";
 const TOAST_1_MIN = "meeting-schedule-1min";
-const TOAST_ENDED = "meeting-schedule-ended";
+const TOAST_OVERTIME = "meeting-schedule-overtime";
 
 /**
- * Live countdown inside the room: warn before ends_at, then leave (host ends
- * the meeting on the server so status flips to ENDED for everyone).
+ * Live countdown inside the room: warn before ends_at, then stay in overtime.
+ * The room closes only when status is ENDED or CANCELED (host or system), and
+ * through `onClosed`: the room says why before anyone is sent away.
  */
 export function useMeetingScheduleDeadline({
   endsAt,
   status,
   admitted,
-  isHost,
-  meetingId,
-  workspaceId,
-  onLeave,
+  onClosed,
 }: {
   endsAt?: string;
   status?: string;
   admitted: boolean;
-  isHost: boolean;
-  meetingId: string;
-  workspaceId?: string;
-  onLeave: () => void;
+  onClosed: (reason: "ended" | "canceled") => void;
 }) {
   const { t } = useTranslation();
-  const end = useEndMeeting(workspaceId ?? "");
   const warnedRef = useRef(new Set<string>());
-  const expiredRef = useRef(false);
-  const onLeaveRef = useRef(onLeave);
-  onLeaveRef.current = onLeave;
+  const overtimeRef = useRef(false);
+  const onClosedRef = useRef(onClosed);
+  onClosedRef.current = onClosed;
 
   useEffect(() => {
     warnedRef.current = new Set();
-    expiredRef.current = false;
-  }, [endsAt, meetingId]);
+    overtimeRef.current = false;
+  }, [endsAt]);
 
   useEffect(() => {
-    if (!endsAt || !admitted) return;
+    if (!admitted) return;
     if (status === "ENDED" || status === "CANCELED") {
-      onLeaveRef.current();
+      onClosedRef.current(status === "CANCELED" ? "canceled" : "ended");
       return;
     }
+    if (!endsAt) return;
 
-    const expire = () => {
-      if (expiredRef.current) return;
-      expiredRef.current = true;
+    const enterOvertime = () => {
+      if (overtimeRef.current) return;
+      overtimeRef.current = true;
       toast.dismiss(TOAST_5_MIN);
       toast.dismiss(TOAST_1_MIN);
-      toast.info(t("meetings.scheduleEndedAutoLeave"), { id: TOAST_ENDED, duration: 8000 });
-      if (isHost && workspaceId && meetingId) {
-        end.mutate(meetingId);
-      }
-      onLeaveRef.current();
+      toast.info(t("meetings.scheduleOvertimeToast"), { id: TOAST_OVERTIME, duration: 8000 });
     };
 
     const tick = () => {
       const ms = msUntilScheduledEnd(endsAt);
       if (ms == null) return;
       if (ms <= 0) {
-        expire();
+        enterOvertime();
         return;
       }
       if (ms <= SCHEDULE_WARN_1_MIN_MS) {
@@ -92,5 +82,5 @@ export function useMeetingScheduleDeadline({
       toast.dismiss(TOAST_5_MIN);
       toast.dismiss(TOAST_1_MIN);
     };
-  }, [endsAt, admitted, status, isHost, meetingId, workspaceId, end, t]);
+  }, [endsAt, admitted, status, t]);
 }

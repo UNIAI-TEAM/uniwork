@@ -64,7 +64,7 @@ test("directory, department, accent-insensitive search, then deactivation", asyn
   await owner.getByRole("button", { name: "Gửi lời mời" }).click();
   await owner.getByRole("button", { name: "Hoàn tất" }).click();
   await expect(owner).toHaveURL(new RegExp(`/${orgSlug}/doi-danh-ba/tasks$`), { timeout: 15_000 });
-  await owner.getByRole("button", { name: "Đã hiểu" }).click();
+  await owner.getByRole("button", { name: "Để sau" }).click();
 
   const memberContext = await browser.newContext();
   const member = await memberContext.newPage();
@@ -80,7 +80,7 @@ test("directory, department, accent-insensitive search, then deactivation", asyn
   await expect(owner.getByText("1 thành viên", { exact: false })).toHaveCount(0);
 
   await owner.goto(`/${orgSlug}/doi-danh-ba/people`);
-  await owner.getByRole("link", { name: /Nguyễn Văn Ân/ }).click();
+  await owner.getByRole("link", { name: "Nguyễn Văn Ân", exact: true }).click();
   await owner.getByRole("button", { name: "Sửa hồ sơ" }).click();
   await owner.getByLabel("Chức danh").fill("Trưởng nhóm");
   await owner.getByLabel("Phòng ban").click();
@@ -90,10 +90,16 @@ test("directory, department, accent-insensitive search, then deactivation", asyn
 
   // The colleague finds them without typing a single diacritic.
   await member.goto(`/${orgSlug}/doi-danh-ba/people`);
-  await member.getByRole("textbox", { name: "Tìm người" }).fill("nguyen van an");
+  await member.getByRole("searchbox", { name: "Tìm người" }).fill("nguyen van an");
   // The card carries the job title and the department as separate lines; only
   // the name is the link, so the card itself is the list item around it.
-  const card = member.getByRole("listitem").filter({ hasText: "Nguyễn Văn Ân" });
+  // Scoped to the content region: the sidebar's account menu is a list item
+  // carrying this same name, because the person reading the page is the person
+  // being looked up.
+  const card = member
+    .locator("#main-content")
+    .getByRole("listitem")
+    .filter({ hasText: "Nguyễn Văn Ân" });
   await expect(card).toBeVisible({ timeout: 15_000 });
   await expect(card.getByText("Trưởng nhóm")).toBeVisible();
   await expect(card.getByText("Kỹ thuật")).toBeVisible();
@@ -108,6 +114,8 @@ test("directory, department, accent-insensitive search, then deactivation", asyn
     .filter({ hasText: memberEmail })
     .getByRole("button", { name: "Vô hiệu hóa" })
     .click();
+  // Deactivation locks the person out, so it goes through a confirmation.
+  await owner.getByRole("alertdialog").getByRole("button", { name: "Vô hiệu hóa" }).click();
   await expect(owner.getByText("Đã vô hiệu hóa thành viên")).toBeVisible({ timeout: 15_000 });
 
   await member.goto(`/${orgSlug}/doi-danh-ba/tasks`);

@@ -10,7 +10,9 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -22,11 +24,20 @@ const (
 	maxChatMessageLimit     = 100
 )
 
+// isWorkspaceDefaultRoom is the legacy "phòng chung" (kind=workspace or
+// migrated channel with is_default).
+func isWorkspaceDefaultRoom(room db.ChatRoom) bool {
+	return room.Kind == chatRoomKindWorkspace || (room.Kind == chatRoomKindChannel && room.IsDefault)
+}
+
 type ChatService struct {
 	pool        *pgxpool.Pool
 	q           *db.Queries
 	ws          *WorkspaceService
 	pub         EventPublisher
+	tasks       *TaskService
+	conference  meetings.ConferenceProvider
+	ai          *ai.Gateway
 	TenorAPIKey string
 }
 
@@ -63,15 +74,23 @@ type ChatMessageRow struct {
 	Body              string
 	Kind              string
 	ReplyToMessageID  *string
+	ThreadRootID      *string
+	ReplyCount        int
+	LastReplyAt       *time.Time
+	ThreadUnread      bool
 	CreatedAt         time.Time
 	Reactions         map[string]int
+	MyReactions       []string // emojis the viewer reacted with; empty without a viewer
 	Pinned            bool
 	MentionedUserIDs  []string
 	VoiceCall         *VoiceCallLogInfo
+	VoiceCallSummary  *VoiceCallSummaryInfo
 	Voice             *VoiceMessageInfo
+	File              *FileMessageInfo
 	Poll              *ChatPollInfo
 	Reminder          *ChatReminderInfo
 	Note              *ChatNoteInfo
+	Post              *ChatPostInfo
 	Priority          string
 	EditedAt          *time.Time
 	// ClientMsgID is the sender's idempotency key, echoed so a client can drop
@@ -82,6 +101,10 @@ type ChatMessageRow struct {
 type ListChatMessagesInput struct {
 	Before *time.Time
 	Limit  int
+	// SkipMarkRead leaves last_read_at alone so CatchUp can still summarise
+	// the unread window after the client opens the room. Pagination (Before
+	// set) never marks read either.
+	SkipMarkRead bool
 }
 
 type SendChatMessageInput struct {
@@ -123,13 +146,18 @@ func (s *ChatService) EnsureWorkspaceRoom(ctx context.Context, userID, workspace
 		roomID := util.NewID()
 		room, err = s.q.CreateChatRoom(ctx, db.CreateChatRoomParams{
 			ID:              roomID,
-			Kind:            chatRoomKindWorkspace,
+			Kind:            chatRoomKindChannel,
 			WorkspaceID:     pgtype.Text{String: workspaceID, Valid: true},
 			OrganizationID:  pgtype.Text{String: w.OrganizationID, Valid: true},
 			Name:            w.Name,
 			MemberSetKey:    pgtype.Text{},
 			LivekitRoomName: liveKitRoomFromChatID(roomID),
 			CreatedBy:       userID,
+			CreatedByKind:   string(audit.KindHuman),
+			Visibility:      chatVisibilityPublic,
+			ProjectID:       pgtype.Text{},
+			Topic:           "",
+			IsDefault:       true,
 		})
 		if err != nil {
 			return WorkspaceChat{}, err
@@ -262,18 +290,18 @@ func (s *ChatService) authorizeWorkspaceRoom(ctx context.Context, userID, worksp
 func (s *ChatService) ListRoomMessages(
 	ctx context.Context, userID, workspaceID, roomID string, in ListChatMessagesInput,
 ) ([]ChatMessageRow, error) {
-	room, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
+	room, err := s.authorizeRoomRead(ctx, userID, workspaceID, roomID)
 	if err != nil {
 		return nil, err
 	}
-	return s.listMessages(ctx, userID, roomAnchorWorkspaceID(room), roomID, in)
+	return s.listMessages(ctx, userID, room, in)
 }
 
 // GetRoomMessage returns one message in a room the caller may access.
 func (s *ChatService) GetRoomMessage(
 	ctx context.Context, userID, workspaceID, roomID, messageID string,
 ) (ChatMessageRow, error) {
-	room, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
+	room, err := s.authorizeRoomRead(ctx, userID, workspaceID, roomID)
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
@@ -301,7 +329,7 @@ func (s *ChatService) SendRoomMessage(
 	if err := validateChatMessageBody(in.Body); err != nil {
 		return ChatMessageRow{}, err
 	}
-	room, err := s.authorizeRoom(ctx, userID, workspaceID, roomID)
+	room, err := s.authorizeRoomMember(ctx, userID, workspaceID, roomID)
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
@@ -330,12 +358,14 @@ func (s *ChatService) ListWorkspaceMessages(
 		}
 		return nil, err
 	}
-	return s.listMessages(ctx, userID, workspaceID, room.ID, in)
+	return s.listMessages(ctx, userID, room, in)
 }
 
 func (s *ChatService) listMessages(
-	ctx context.Context, userID, workspaceID, roomID string, in ListChatMessagesInput,
+	ctx context.Context, userID string, room db.ChatRoom, in ListChatMessagesInput,
 ) ([]ChatMessageRow, error) {
+	workspaceID := roomAnchorWorkspaceID(room)
+	roomID := room.ID
 	limit := in.Limit
 	if limit <= 0 {
 		limit = defaultChatMessageLimit
@@ -360,13 +390,41 @@ func (s *ChatService) listMessages(
 	for i := len(rows) - 1; i >= 0; i-- {
 		out = append(out, chatMessageRowFromListRow(rows[i], userID))
 	}
-	if len(out) > 0 {
+	// Only the latest page may bump the read cursor — loading older history
+	// must not rewind last_read_at. CatchUp needs the pre-open cursor when
+	// SkipMarkRead is set (unread room open).
+	if !in.SkipMarkRead && in.Before == nil && len(out) > 0 {
 		last := out[len(out)-1]
 		_ = s.q.UpdateChatRoomMemberLastRead(ctx, db.UpdateChatRoomMemberLastReadParams{
 			RoomID: roomID, UserID: userID, LastReadAt: pgtype.Timestamptz{Time: last.CreatedAt, Valid: true},
 		})
+		s.publishChatRoomRead(ctx, room, userID)
 	}
 	return out, nil
+}
+
+// MarkRoomRead advances the caller's last_read_at to the newest message in the room.
+// Used after an unread open that loaded messages with SkipMarkRead so CatchUp still worked.
+func (s *ChatService) MarkRoomRead(ctx context.Context, userID, workspaceID, roomID string) error {
+	room, err := s.authorizeRoomRead(ctx, userID, workspaceID, roomID)
+	if err != nil {
+		return err
+	}
+	anchorWS := roomAnchorWorkspaceID(room)
+	preview, err := s.q.GetLatestChatMessageByRoom(ctx, db.GetLatestChatMessageByRoomParams{
+		RoomID: room.ID, WorkspaceID: anchorWS,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	_ = s.q.UpdateChatRoomMemberLastRead(ctx, db.UpdateChatRoomMemberLastReadParams{
+		RoomID: room.ID, UserID: userID, LastReadAt: preview.CreatedAt,
+	})
+	s.publishChatRoomRead(ctx, room, userID)
+	return nil
 }
 
 // SendWorkspaceMessage posts a text message to the workspace channel.
@@ -548,7 +606,7 @@ func (s *ChatService) ToggleChatMessageReaction(
 		return ChatMessageRow{}, err
 	}
 	s.publishChatMessageUpdated(ctx, room, updated.ID)
-	return chatMessageRowFromDB(updated, u.DisplayName), nil
+	return chatMessageRowFromDBForViewer(updated, u.DisplayName, userID), nil
 }
 
 func chatMessageRowFromDB(msg db.ChatMessage, senderDisplayName string) ChatMessageRow {
@@ -561,6 +619,7 @@ func chatMessageRowFromDBForViewer(msg db.ChatMessage, senderDisplayName, viewer
 		msg.Kind, msg.Body, msg.Metadata, msg.ReplyToMessageID, msg.EditedAt, msg.CreatedAt, viewerID,
 	)
 	out.ClientMsgID = msg.ClientMsgID.String
+	applyThreadFields(&out, msg.ThreadRootID, msg.ReplyCount, msg.LastReplyAt)
 	return out
 }
 

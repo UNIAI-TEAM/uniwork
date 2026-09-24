@@ -1,316 +1,285 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useQueries } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  tableRows,
-  type TableFilter,
-  type TableGroupsResult,
-  type TableRowsResult,
+import { toast } from "sonner";
+import type {
+  TableFilter,
+  TableGroupsResult,
+  TableQuery,
 } from "@uniwork/core/api/endpoints/tasks-table";
-import { taskKeys, useTableGroups } from "@uniwork/core/tasks";
+import { ApiError } from "@uniwork/core/api/http";
+import { useTableGroups } from "@uniwork/core/tasks";
+import { normalizeTableQuery, tableGroupsBody } from "@uniwork/core/tasks/surface/table-query";
 import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
-import type { Task } from "@uniwork/core/types";
+import type { Task, TaskProperty } from "@uniwork/core/types";
+import { propertyOptions } from "../properties/property-value";
+import { useCursorBranches } from "../surface/use-cursor-branches";
+import {
+  buildDisplayRows,
+  expandedParentsInView,
+  planBranches,
+  tableBranchKey,
+  tableGroupByParam,
+  tableParentsSignature,
+  type TableParentRef,
+} from "./table-branches";
 import {
   TABLE_PAGE_SIZE,
   groupLabelFromDescriptor,
-  sortTasksForTable,
-  tableGroupBy,
   type TaskTableDisplayRow,
 } from "./table-view-model";
+import { useDebouncedValue } from "./use-debounced-value";
 
-const EMPTY_GROUPS: TableGroupsResult["groups"] = [];
+const EMPTY_TASKS: Task[] = [];
+const NO_PARENTS: TableParentRef[] = [];
+const SEARCH_DEBOUNCE_MS = 300;
+const UNSUPPORTED_GROUP = "unsupported_group";
 
 export interface UseTableViewDataResult {
+  /** Changes only when sort, debounced search, filter or grouping change. */
+  queryIdentity: string;
   displayRows: TaskTableDisplayRow[];
   loadedTasks: Task[];
   total: number;
   isLoading: boolean;
   isRefreshing: boolean;
+  /** Rows or groups on screen are the previous query's, while a changed query loads. */
+  isShowingPrevious: boolean;
   isEmpty: boolean;
+  /** The search the shown rows answer, trimmed; empty when there is none. */
+  search: string;
   groupBy: string;
+  /** The table has nothing to show because its groups (or its only branch) failed. */
   groupsError: boolean;
+  /** Asks the failed groups, or the failed ungrouped table, again. */
+  retry: () => void;
 }
 
-type PageQuery = {
-  groupKey: string;
-  pageIndex: number;
-};
-
+/**
+ * Table data on the cursor table API: the server filters, searches, sorts and
+ * groups. Each open group (or the whole table, ungrouped) is a root branch, and
+ * each expanded parent on screen a child branch under the same query, paged
+ * through `useCursorBranches`. Parents start closed; the store lists the open
+ * ones. With sub-tasks hidden the table asks `hierarchy: false` and lists every
+ * matching task flat.
+ */
 export function useTableViewData({
   workspaceId,
   filter,
-  projectsAvailable = false,
   search = "",
+  assigneeNames,
+  properties,
 }: {
   workspaceId: string;
   filter?: TableFilter;
-  projectsAvailable?: boolean;
   search?: string;
+  assigneeNames?: ReadonlyMap<string, string>;
+  /** The property catalog by id; a select property's groups take their option colour. */
+  properties?: ReadonlyMap<string, TaskProperty>;
 }): UseTableViewDataResult {
   const { t } = useTranslation();
   const tableGrouping = useViewStore((s) => s.tableGrouping);
+  const setTableGrouping = useViewStore((s) => s.setTableGrouping);
   const tableCollapsedGroups = useViewStore((s) => s.tableCollapsedGroups);
+  const tableExpandedParents = useViewStore((s) => s.tableExpandedParents);
+  const hierarchy = useViewStore((s) => s.showSubTasks);
   const sortBy = useViewStore((s) => s.sortBy);
   const sortDirection = useViewStore((s) => s.sortDirection);
+  const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS);
 
-  const groupBy = tableGroupBy(tableGrouping, { projectsAvailable });
-  const tableColumns = useViewStore((s) => s.tableColumns);
-  const columns = useMemo(
-    () => tableColumns.map((column) => column.key),
-    [tableColumns],
+  const groupBy = tableGroupByParam(tableGrouping);
+  const grouped = groupBy !== "none";
+
+  const query = useMemo<TableQuery>(
+    () =>
+      normalizeTableQuery({
+        filter,
+        search: debouncedSearch,
+        sort: { field: sortBy, direction: sortDirection },
+      }),
+    [debouncedSearch, filter, sortBy, sortDirection],
   );
 
-  const groupsBody = useMemo(
-    () => ({
-      filter,
-      group_by: groupBy,
-      columns,
-      limit: TABLE_PAGE_SIZE,
-      offset: 0,
-    }),
-    [columns, filter, groupBy],
+  // What the reader asked for: sort, debounced search, filter and grouping.
+  // Refetches, edits, expanded parents and loaded pages leave it unchanged.
+  const queryIdentity = useMemo(
+    () => JSON.stringify({ query, groupBy }),
+    [groupBy, query],
   );
 
-  const groupsQuery = useTableGroups(workspaceId, groupsBody);
-  const groups = groupsQuery.data?.groups ?? EMPTY_GROUPS;
-  const collapsed = useMemo(
-    () => new Set(tableCollapsedGroups),
-    [tableCollapsedGroups],
+  const groupsQuery = useTableGroups(
+    workspaceId,
+    grouped ? tableGroupsBody({ query, groupBy }) : null,
+    { keepPrevious: true },
   );
+  const unsupportedGroup =
+    groupsQuery.error instanceof ApiError && groupsQuery.error.code === UNSUPPORTED_GROUP;
+  const groups: TableGroupsResult["groups"] | undefined = grouped
+    ? groupsQuery.data?.groups
+    : undefined;
 
-  const [pagesByGroup, setPagesByGroup] = useState<Record<string, number>>({});
-
+  // The server cannot group by this (an archived or retyped property): fall
+  // back to no grouping, and say so once for this failure.
+  const handledGroupErrors = useRef(new WeakSet<object>());
   useEffect(() => {
-    setPagesByGroup({});
-  }, [workspaceId, groupBy, columns, filter]);
+    const error = groupsQuery.error;
+    if (!(error instanceof ApiError) || error.code !== UNSUPPORTED_GROUP) return;
+    if (handledGroupErrors.current.has(error)) return;
+    handledGroupErrors.current.add(error);
+    setTableGrouping("none");
+    toast.info(t("tasks.table.grouping_reset"));
+  }, [groupsQuery.error, setTableGrouping, t]);
 
-  const pageQueries = useMemo((): PageQuery[] => {
-    const list: PageQuery[] = [];
-    for (const group of groups) {
-      if (collapsed.has(group.key)) continue;
-      const pages = pagesByGroup[group.key] ?? 1;
-      for (let pageIndex = 0; pageIndex < pages; pageIndex += 1) {
-        list.push({ groupKey: group.key, pageIndex });
-      }
-    }
-    return list;
-  }, [collapsed, groups, pagesByGroup]);
+  const collapsedGroups = useMemo(() => new Set(tableCollapsedGroups), [tableCollapsedGroups]);
+  const expandedIds = useMemo(() => new Set(tableExpandedParents), [tableExpandedParents]);
 
-  const rowQueries = useQueries({
-    queries: pageQueries.map(({ groupKey, pageIndex }) => ({
-      queryKey: taskKeys.tableRows(
-        workspaceId,
-        JSON.stringify({
-          filter,
-          group_by: groupBy,
-          group_key: groupKey,
-          columns,
-          limit: TABLE_PAGE_SIZE,
-          offset: pageIndex * TABLE_PAGE_SIZE,
-        }),
-      ),
-      queryFn: () =>
-        tableRows(workspaceId, {
-          filter,
-          group_by: groupBy,
-          group_key: groupKey,
-          columns,
-          limit: TABLE_PAGE_SIZE,
-          offset: pageIndex * TABLE_PAGE_SIZE,
-        }),
-      enabled: !!workspaceId,
-    })),
+  // Child branches need the group each open parent sits in, which only the
+  // loaded rows know: the walk below finds them, and a changed list plans again.
+  const [parentsInView, setParentsInView] = useState<TableParentRef[]>(NO_PARENTS);
+
+  const branches = planBranches({
+    groupBy,
+    groups,
+    collapsedGroups,
+    hierarchy,
+    expandedParents: parentsInView,
+    baseBody: { query, group_by: groupBy, hierarchy, limit: TABLE_PAGE_SIZE },
+  });
+  const {
+    byKey,
+    isRefreshing: branchesRefreshing,
+    isShowingPrevious: branchesShowingPrevious,
+  } = useCursorBranches(workspaceId, branches, {
+    keepPreviousFirstPage: true,
   });
 
-  const loadMore = useCallback((groupKey: string) => {
-    setPagesByGroup((prev) => ({
-      ...prev,
-      [groupKey]: (prev[groupKey] ?? 1) + 1,
-    }));
-  }, []);
-
-  const translateStatus = useCallback(
-    (status: string) => {
-      const key = `tasks.status_${status}`;
-      const translated = t(key);
-      return translated === key ? status : translated;
-    },
-    [t],
+  const walkInput = useMemo(
+    () => ({ groupBy, groups, branches: byKey, collapsedGroups, hierarchy, expandedParents: expandedIds }),
+    [byKey, collapsedGroups, expandedIds, groupBy, groups, hierarchy],
   );
-  const translatePriority = useCallback(
-    (priority: string) => {
-      const key = `tasks.priority_${priority}`;
-      const translated = t(key);
-      return translated === key ? priority : translated;
-    },
-    [t],
+  const nextParents = useMemo(
+    () => keepPendingParents(expandedParentsInView(walkInput), parentsInView, walkInput),
+    [walkInput, parentsInView],
   );
+  if (tableParentsSignature(nextParents) !== tableParentsSignature(parentsInView)) {
+    setParentsInView(nextParents.length > 0 ? nextParents : NO_PARENTS);
+  }
 
-  const pagesForGroup = useCallback(
-    (groupKey: string) => {
-      const pages: Array<{
-        data?: TableRowsResult;
-        isLoading: boolean;
-        isError: boolean;
-        isFetching: boolean;
-      }> = [];
-      pageQueries.forEach((page, index) => {
-        if (page.groupKey !== groupKey) return;
-        const query = rowQueries[index];
-        if (!query) return;
-        pages.push({
-          data: query.data as TableRowsResult | undefined,
-          isLoading: query.isLoading,
-          isError: query.isError,
-          isFetching: query.isFetching,
-        });
+  const groupLabel = useCallback(
+    (group: TableGroupsResult["groups"][number]) => {
+      const translated = (key: string, fallback: string) => {
+        const text = t(key);
+        return text === key ? fallback : text;
+      };
+      return groupLabelFromDescriptor(group.key, group.value, {
+        translateStatus: (status) => translated(`tasks.status_${status}`, status),
+        translatePriority: (priority) => translated(`tasks.priority_${priority}`, priority),
+        unassigned: t("tasks.unassigned"),
+        noProject: t("tasks.table.no_project"),
+        noValue: t("tasks.table.no_value"),
+        checked: t("tasks.table.checked"),
+        unchecked: t("tasks.table.unchecked"),
+        resolveAssignee: (id) => assigneeNames?.get(id),
       });
-      return pages;
     },
-    [pageQueries, rowQueries],
+    [assigneeNames, t],
   );
 
-  const displayRows = useMemo(() => {
-    const rows: TaskTableDisplayRow[] = [];
-    const needle = search.trim().toLocaleLowerCase();
+  const groupColor = useCallback(
+    (group: TableGroupsResult["groups"][number]) => {
+      const { property_id: propertyId, option } = group.value;
+      if (group.value.kind !== "property" || !propertyId || !option) return undefined;
+      const property = properties?.get(propertyId);
+      if (property?.type !== "select") return undefined;
+      return propertyOptions(property).find((candidate) => candidate.id === option)?.color;
+    },
+    [properties],
+  );
 
-    if (groupsQuery.isLoading && groups.length === 0) {
-      for (let i = 0; i < 8; i += 1) {
-        rows.push({ kind: "skeleton", key: `skeleton:${i}` });
-      }
-      return rows;
-    }
-
-    for (const group of groups) {
-      const isCollapsed = collapsed.has(group.key);
-      rows.push({
-        kind: "group",
-        key: group.key,
-        label: groupLabelFromDescriptor(
-          group.key,
-          group.value,
-          translateStatus,
-          translatePriority,
-          t("tasks.unassigned"),
-        ),
-        count: group.count,
-        collapsed: isCollapsed,
-      });
-
-      if (isCollapsed) continue;
-
-      const pages = pagesForGroup(group.key);
-      const anyLoading = pages.some((page) => page.isLoading && !page.data);
-      if (pages.length === 0 || anyLoading) {
-        for (let i = 0; i < Math.min(group.count, 3); i += 1) {
-          rows.push({
-            kind: "skeleton",
-            key: `skeleton:${group.key}:${i}`,
-          });
-        }
-        continue;
-      }
-
-      const accumulated: Array<{ task: Task; direct_child_count: number }> = [];
-      let groupTotal = group.count;
-      let lastError = false;
-      let fetchingMore = false;
-      for (const page of pages) {
-        if (page.isError && !page.data) lastError = true;
-        if (page.isFetching && page.data) fetchingMore = true;
-        if (page.data) {
-          groupTotal = page.data.total;
-          accumulated.push(...page.data.rows);
-        }
-      }
-
-      const tasks = sortTasksForTable(
-        accumulated.map((row) => row.task),
-        sortBy,
-        sortDirection,
-      );
-      const childCountById = new Map(
-        accumulated.map((row) => [row.task.id, row.direct_child_count]),
-      );
-
-      for (const task of tasks) {
-        if (
-          needle &&
-          !task.title.toLocaleLowerCase().includes(needle) &&
-          !(task.identifier ?? "").toLocaleLowerCase().includes(needle)
-        ) {
-          continue;
-        }
-        rows.push({
-          kind: "task",
-          key: task.id,
-          task,
-          depth: 0,
-          hasChildren: (childCountById.get(task.id) ?? 0) > 0,
-          collapsed: false,
-        });
-      }
-
-      if (accumulated.length < groupTotal) {
-        rows.push({
-          kind: "load_more",
-          key: `load_more:${group.key}`,
-          state: lastError
-            ? "error"
-            : fetchingMore
-              ? "loading"
-              : "has_more",
-          total: groupTotal,
-          loadedCount: accumulated.length,
-          onLoad: () => loadMore(group.key),
-        });
-      }
-    }
-
-    return rows;
-  }, [
-    collapsed,
-    groups,
-    groupsQuery.isLoading,
-    loadMore,
-    pagesForGroup,
-    search,
-    sortBy,
-    sortDirection,
-    t,
-    translatePriority,
-    translateStatus,
-  ]);
+  const displayRows = useMemo(
+    () => buildDisplayRows({ ...walkInput, groupLabel, groupColor }),
+    [groupColor, groupLabel, walkInput],
+  );
 
   const loadedTasks = useMemo(() => {
     const byId = new Map<string, Task>();
-    for (const query of rowQueries) {
-      const page = query.data as TableRowsResult | undefined;
-      for (const row of page?.rows ?? []) byId.set(row.task.id, row.task);
+    for (const branch of byKey.values()) {
+      for (const row of branch.rows) {
+        if (!byId.has(row.task.id)) byId.set(row.task.id, row.task);
+      }
     }
-    return [...byId.values()];
-  }, [rowQueries]);
+    return byId.size > 0 ? [...byId.values()] : EMPTY_TASKS;
+  }, [byKey]);
 
-  const isLoading =
-    groupsQuery.isLoading ||
-    (groups.length > 0 &&
-      rowQueries.some((query) => query.isLoading && !query.data));
+  const ungrouped = grouped ? undefined : byKey.get(tableBranchKey(null, null));
+  const rootsLoading = (groups ?? []).some(
+    (group) => byKey.get(tableBranchKey(group.key, null))?.isLoading,
+  );
+  const isLoading = grouped
+    ? groupsQuery.isLoading || rootsLoading
+    : !ungrouped || ungrouped.isLoading;
   const isRefreshing =
-    (groupsQuery.isFetching && !groupsQuery.isLoading) ||
-    rowQueries.some((query) => query.isFetching && !query.isLoading);
-  const total = groupsQuery.data?.total ?? loadedTasks.length;
+    !isLoading &&
+    ((grouped && groupsQuery.isFetching && !groupsQuery.isLoading) || branchesRefreshing);
+  const total = grouped
+    ? (groupsQuery.data?.total ?? loadedTasks.length)
+    : (ungrouped?.total ?? loadedTasks.length);
   const isEmpty = !isLoading && total === 0;
 
+  const refetchGroups = groupsQuery.refetch;
+  const retryUngrouped = ungrouped?.retry;
+  const retry = useCallback(() => {
+    if (grouped) void refetchGroups();
+    else retryUngrouped?.();
+  }, [grouped, refetchGroups, retryUngrouped]);
+
   return {
+    queryIdentity,
     displayRows,
     loadedTasks,
     total,
     isLoading,
     isRefreshing,
+    isShowingPrevious: (grouped && groupsQuery.isPlaceholderData) || branchesShowingPrevious,
     isEmpty,
+    search: query.search ?? "",
     groupBy,
-    groupsError: groupsQuery.isError,
+    groupsError: grouped
+      ? // A failed background refetch keeps the groups it had: rows stay on screen.
+        groupsQuery.isError && !groupsQuery.data && !unsupportedGroup
+      : !!ungrouped?.isError && ungrouped.rows.length === 0,
+    retry,
   };
+}
+
+/**
+ * The walk only sees parents under roots that have rows. While a root is still
+ * on its way (its groups, or its first page, not there yet), the parents it
+ * showed before stay planned — if still open — so their children are asked with
+ * the roots, not one level after another once the roots arrive.
+ */
+function keepPendingParents(
+  next: TableParentRef[],
+  previous: TableParentRef[],
+  walk: {
+    groupBy: string;
+    groups: TableGroupsResult["groups"] | undefined;
+    branches: ReadonlyMap<string, { isLoading: boolean }>;
+    expandedParents: ReadonlySet<string>;
+  },
+): TableParentRef[] {
+  const rootPending = (groupKey: string | null) => {
+    if (walk.groupBy !== "none" && !walk.groups) return true;
+    const root = walk.branches.get(tableBranchKey(groupKey, null));
+    return !root || root.isLoading;
+  };
+  const planned = new Set(next.map((parent) => tableBranchKey(parent.groupKey, parent.parentId)));
+  const kept = previous.filter(
+    (parent) =>
+      walk.expandedParents.has(parent.parentId) &&
+      !planned.has(tableBranchKey(parent.groupKey, parent.parentId)) &&
+      rootPending(parent.groupKey),
+  );
+  return kept.length > 0 ? [...next, ...kept] : next;
 }

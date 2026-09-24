@@ -57,6 +57,6 @@ func isSwaggerPath(path string) bool {
 }
 
 func isAttachmentPreviewDocumentPath(path string) bool {
-	return strings.HasPrefix(path, "/api/attachments/") &&
+	return strings.HasPrefix(path, "/api/v1/attachments/") &&
 		(strings.HasSuffix(path, "/download") || strings.HasSuffix(path, "/content"))
 }

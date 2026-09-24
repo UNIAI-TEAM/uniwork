@@ -26,16 +26,17 @@ var (
 )
 
 type CreateProjectInput struct {
-	Title       string
-	Description *string
-	Icon        *string
-	Status      string
-	Priority    string
-	LeadType    *string
-	LeadID      *string
-	StartDate   *string
-	DueDate     *string
-	Resources   []CreateProjectResourceInput
+	Title         string
+	Description   *string
+	Icon          *string
+	Status        string
+	Priority      string
+	LeadType      *string
+	LeadID        *string
+	StartDate     *string
+	DueDate       *string
+	Resources     []CreateProjectResourceInput
+	CreateChannel bool
 }
 
 // UpdateProjectInput: nil pointer = omit; for Lead*/dates, outer nil = omit,
@@ -170,6 +171,11 @@ func (s *TaskService) CreateProject(ctx context.Context, actor Actor, workspaceI
 		"project_id": project.ID, "workspace_id": workspaceID,
 	}}); err != nil {
 		return db.Project{}, err
+	}
+	if in.CreateChannel && s.Chat != nil && actor.Kind == audit.KindHuman {
+		if _, err := s.Chat.CreateChannelForProject(ctx, q, actor.ID, ws.OrganizationID, workspaceID, project.ID, title); err != nil {
+			return db.Project{}, err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return db.Project{}, err

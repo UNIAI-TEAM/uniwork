@@ -19,9 +19,12 @@ import { STATUS_CONFIG } from "./status-config";
 export function HiddenColumnsPanel({
   hiddenStatuses,
   taskCounts,
+  countIsPartial = false,
 }: {
   hiddenStatuses: readonly string[];
   taskCounts?: Record<string, number>;
+  /** The counts cover only the tasks loaded so far, so each says "N loaded", not a total. */
+  countIsPartial?: boolean;
 }) {
   const { t } = useTranslation();
   return (
@@ -37,6 +40,7 @@ export function HiddenColumnsPanel({
             key={status}
             status={status}
             total={taskCounts?.[status]}
+            countIsPartial={countIsPartial}
           />
         ))}
       </div>
@@ -47,9 +51,11 @@ export function HiddenColumnsPanel({
 function HiddenColumnRow({
   status,
   total,
+  countIsPartial,
 }: {
   status: string;
   total?: number;
+  countIsPartial: boolean;
 }) {
   const { t } = useTranslation();
   const viewStoreApi = useViewStoreApi();
@@ -69,7 +75,14 @@ function HiddenColumnRow({
       </div>
       <div className="flex items-center gap-1.5">
         {total !== undefined ? (
-          <span className="text-caption text-muted-foreground">{total}</span>
+          <span className="text-caption text-muted-foreground">
+            <span aria-hidden={countIsPartial || undefined}>{total}</span>
+            {countIsPartial ? (
+              <span className="sr-only">
+                {t("tasks.surface.loaded_count", { count: total })}
+              </span>
+            ) : null}
+          </span>
         ) : null}
         <DropdownMenu>
           <DropdownMenuTrigger

@@ -16,13 +16,13 @@ test("meeting: create → start → summary panel → ics → end", async ({ pag
   await page.getByRole("button", { name: `Tạo Đội M ${stamp}` }).click();
   await page.getByRole("button", { name: "Bỏ qua, mời sau" }).click();
   await expect(page).toHaveURL(new RegExp(`/org-m-${stamp}/doi-m-${stamp}/tasks`), { timeout: 15_000 });
-  await page.getByRole("button", { name: "Đã hiểu" }).click({ timeout: 15_000 });
+  await page.getByRole("button", { name: "Để sau" }).click({ timeout: 15_000 });
 
   await page.goto(`/org-m-${stamp}/doi-m-${stamp}/meetings`);
   // Header action and the empty-state CTA share the label; either opens the dialog.
   await page.getByRole("button", { name: "Tạo cuộc họp" }).first().click();
   await page.getByLabel("Tiêu đề").fill("Họp AI e2e");
-  await page.getByRole("button", { name: "Tạo", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Tạo cuộc họp", exact: true }).click();
   // Creating navigates to the detail page. 15s: under `next dev` the first
   // visit compiles /meetings/[meetingId], which alone can take longer than
   // the 5s default.
@@ -43,7 +43,7 @@ test("meeting: create → start → summary panel → ics → end", async ({ pag
   // Without ANTHROPIC_API_KEY the panel explains that AI is off (or shows the
   // empty transcript hint when the key is set): either is a valid server state.
   await expect(
-    page.getByText("Tóm tắt AI chưa được bật trên máy chủ này.").or(page.getByText(/Chưa có transcript/)).first(),
+    page.getByText("Tóm tắt AI chưa được bật trên máy chủ này.").or(page.getByText(/Chưa có bản ghi lời thoại/)).first(),
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Kết thúc" }).click();

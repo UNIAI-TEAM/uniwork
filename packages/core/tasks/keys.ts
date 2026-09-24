@@ -11,18 +11,47 @@ export const taskKeys = {
   comments: (taskId: string) => ["comments", taskId] as const,
   queryRoot: (wsId: string) => ["tasks-query", wsId] as const,
   query: (wsId: string, filterHash: string) => ["tasks-query", wsId, filterHash] as const,
+  /**
+   * Infinite variant under `queryRoot`. The "infinite" segment keeps it off the
+   * plain `query` entry for the same hash: an infinite query caches
+   * `{ pages, pageParams }`, a plain one a single page, and one shared entry
+   * would hand both hooks the wrong shape. The `queryRoot` / `myTasks` roots
+   * therefore hold both plain entries (`TaskQueryPage`) and infinite ones
+   * (`{ pages, pageParams }`), so anything reading or writing across a root
+   * (`getQueriesData` / `setQueriesData`) must branch on
+   * `data && "pages" in data`: `getQueriesData` also returns entries whose data
+   * is `undefined` (a query that has not loaded yet), and `in` throws on those.
+   */
+  queryInfinite: (wsId: string, filterHash: string) =>
+    ["tasks-query", wsId, "infinite", filterHash] as const,
   groupedRoot: (wsId: string) => ["tasks-grouped", wsId] as const,
   grouped: (wsId: string, filterHash: string) => ["tasks-grouped", wsId, filterHash] as const,
   /** 2-segment root — invalidate all my-tasks variants for the workspace. */
   myTasks: (wsId: string) => ["my-tasks", wsId] as const,
   myTasksFiltered: (wsId: string, filterHash: string) => ["my-tasks", wsId, filterHash] as const,
+  /** Infinite variant under `myTasks`; separate segment for the same reason as `queryInfinite`. */
+  myTasksInfinite: (wsId: string, filterHash: string) =>
+    ["my-tasks", wsId, "infinite", filterHash] as const,
   children: (taskId: string) => ["task-children", taskId] as const,
   childrenByParents: (wsId: string, parentHash: string) =>
     ["task-children-by-parents", wsId, parentHash] as const,
   childProgress: (wsId: string) => ["task-child-progress", wsId] as const,
   tableRoot: (wsId: string) => ["tasks-table", wsId] as const,
   tableGroups: (wsId: string, filterHash: string) => ["tasks-table", wsId, "groups", filterHash] as const,
-  tableRows: (wsId: string, filterHash: string) => ["tasks-table", wsId, "rows", filterHash] as const,
+  /**
+   * `bodyHash` is the JSON of the request body without `cursor`, so every
+   * page of one branch shares the 4-segment prefix `["tasks-table", wsId,
+   * "rows", bodyHash]` (`tableRowsBranchPrefix`); one page appends `cursor`
+   * (`""` for page 0) as a 5th segment. Called with 2 args (`cursor`
+   * omitted), it stays that 4-segment branch key —
+   * `realtime-task-patch.ts` relies on `.slice(0, -1)` of that (called with
+   * `bodyHash: ""`) landing on the 3-segment root `["tasks-table", wsId,
+   * "rows"]`, which prefix-matches every page of every branch.
+   */
+  tableRows: (wsId: string, bodyHash: string, cursor?: string) =>
+    cursor === undefined
+      ? (["tasks-table", wsId, "rows", bodyHash] as const)
+      : (["tasks-table", wsId, "rows", bodyHash, cursor] as const),
   tableFacets: (wsId: string, filterHash: string) => ["tasks-table", wsId, "facets", filterHash] as const,
   statuses: (wsId: string) => ["task-statuses", wsId] as const,
   labels: (wsId: string) => ["task-labels", wsId] as const,
@@ -44,4 +73,5 @@ export const taskKeys = {
   projectResources: (wsId: string, projectId: string) =>
     ["project-resources", wsId, projectId] as const,
   subscribers: (taskId: string) => ["task-subscribers", taskId] as const,
+  attachments: (wsId: string, taskId: string) => ["task-attachments", wsId, taskId] as const,
 };

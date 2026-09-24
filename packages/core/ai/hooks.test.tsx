@@ -26,7 +26,7 @@ describe("ai hooks", () => {
     vi.unstubAllGlobals();
     resetRuntimeConfig();
     setAccessToken(null);
-    useAiPanelStore.setState({ open: false, conversationId: null });
+    useAiPanelStore.setState({ open: false, conversationId: null, pendingFocus: null });
   });
 
   it("useAskUni waits for the server, then refreshes messages, list, quota and usage", async () => {

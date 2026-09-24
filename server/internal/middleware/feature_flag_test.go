@@ -12,7 +12,7 @@ import (
 )
 
 func TestRequireFeatureFlagReturns404WhenDisabled(t *testing.T) {
-	const flagKey = "tasks_work_management_parity"
+	const flagKey = "agents_assignee"
 	flag, ok := featureflags.Lookup(flagKey)
 	if !ok {
 		t.Fatalf("flag %q must be declared", flagKey)
@@ -23,12 +23,12 @@ func TestRequireFeatureFlagReturns404WhenDisabled(t *testing.T) {
 	svc := featureflag.NewService(provider)
 
 	r := chi.NewRouter()
-	r.With(RequireFeatureFlag(svc, flagKey)).Get("/api/v1/workspaces/{workspaceID}/task-views", func(w http.ResponseWriter, _ *http.Request) {
+	r.With(RequireFeatureFlag(svc, flagKey)).Get("/api/v1/workspaces/{workspaceID}/agents", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"ok":true}`))
 	})
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/workspaces/ws_1/task-views", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/workspaces/ws_1/agents", nil)
 	rec := httptest.NewRecorder()
 	r.ServeHTTP(rec, req)
 
@@ -45,7 +45,7 @@ func TestRequireFeatureFlagReturns404WhenDisabled(t *testing.T) {
 	}
 
 	provider.Set(flagKey, featureflag.Rule{Default: true})
-	req2 := httptest.NewRequest(http.MethodGet, "/api/v1/workspaces/ws_1/task-views", nil)
+	req2 := httptest.NewRequest(http.MethodGet, "/api/v1/workspaces/ws_1/agents", nil)
 	rec2 := httptest.NewRecorder()
 	r.ServeHTTP(rec2, req2)
 	if rec2.Code != http.StatusOK {

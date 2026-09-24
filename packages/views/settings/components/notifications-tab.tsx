@@ -1,126 +1,135 @@
 "use client";
 
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { BellRing } from "lucide-react";
-import { toast } from "sonner";
-import { useNotificationPreferences, useSetNotificationPreferences } from "@uniwork/core/notifications";
+import { BellOff, BellRing, TriangleAlert } from "lucide-react";
+import { usePushConfig } from "@uniwork/core/notifications";
 import { usePush } from "@uniwork/core/notifications/push";
-import { NOTIFICATION_KINDS, type NotificationPreference } from "@uniwork/core/types";
-import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Switch } from "@uniwork/ui/components/ui/switch";
-import { KindIcon } from "../../notifications/kind-icon";
-import { SettingsCard, SettingsRow, SettingsSection, SettingsTab } from "./settings-layout";
-
-type Channel = "in_app" | "push" | "email";
+import { NotificationsMatrix, type Channel } from "./notifications-matrix";
+import {
+  SettingsCard,
+  SettingsCardBody,
+  SettingsRow,
+  SettingsSaveState,
+  SettingsSection,
+  SettingsTab,
+  type SettingsSaveStatus,
+} from "./settings-layout";
 
 /**
- * Kind × channel matrix. Every switch saves on its own: there is no form
- * to submit, and a setting that needs a Save button is a setting nobody
- * changes. The push column exists only when the server can push and this
- * browser is subscribed.
+ * The push switch for this browser, then the kind × channel matrix. The push
+ * column exists only when the server can push and this browser can receive;
+ * when it cannot, one quiet footnote under the matrix says which is missing.
  */
 export function NotificationsTab() {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.notifications" });
-  const { t: tk } = useTranslation();
-  const prefs = useNotificationPreferences();
-  const save = useSetNotificationPreferences();
+  const { t: tSave } = useTranslation(undefined, { keyPrefix: "settings.save" });
   const push = usePush();
+  const pushConfig = usePushConfig();
+  const [pushStatus, setPushStatus] = useState<SettingsSaveStatus>("idle");
+  // The browser refused this session even if it still reports "default" (a
+  // dismissed prompt), so the reason is remembered, not only read.
+  const [refused, setRefused] = useState(false);
+  const deniedId = useId();
+  const denied = push.permission === "denied" || refused;
 
-  const rows: NotificationPreference[] = NOTIFICATION_KINDS.map(
-    (kind) => prefs.data?.find((p) => p.kind === kind) ?? { kind, in_app: true, push: false, email: true },
-  );
   const channels: Channel[] = push.available ? ["in_app", "push", "email"] : ["in_app", "email"];
-
-  const toggle = (row: NotificationPreference, channel: Channel, value: boolean) => {
-    save.mutate([{ ...row, [channel]: value }], {
-      onSuccess: () => toast.success(t("toast_saved"), { id: "settings-auto-save" }),
-      onError: () => toast.error(t("error")),
-    });
-  };
+  // Only say why once the config has answered; a guess would be a small lie.
+  const pushMissing =
+    push.available || pushConfig.isLoading
+      ? null
+      : !pushConfig.data?.enabled
+        ? t("push_unavailable_server")
+        : t("push_unavailable_browser");
 
   const togglePush = async (on: boolean) => {
+    if (push.isPending || push.isLoading) return;
+    setPushStatus("saving");
+    setRefused(false);
+    // One channel per failure: a refusal is explained by the notice under the
+    // switch (it is the reason, and it lasts); anything else is the inline
+    // save state. Never a toast on top.
     try {
       if (on) await push.enable();
       else await push.disable();
-      toast.success(t("toast_saved"), { id: "settings-auto-save" });
+      setPushStatus("saved");
     } catch (err) {
       const code = err instanceof Error ? err.message : "";
-      toast.error(code === "push_denied" ? t("push_denied") : t("error"));
+      if (code === "push_denied") {
+        setRefused(true);
+        setPushStatus("idle");
+      } else {
+        setPushStatus("error");
+      }
     }
   };
+
+  const footnotes = (
+    <ul className="space-y-1.5 text-caption leading-5 text-muted-foreground">
+      <li className="flex items-start gap-2">
+        <BellRing aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+        <span className="text-pretty">{t("digest_hint")}</span>
+      </li>
+      {pushMissing ? (
+        <li className="flex items-start gap-2">
+          <BellOff aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+          <span className="text-pretty">{pushMissing}</span>
+        </li>
+      ) : null}
+    </ul>
+  );
 
   return (
     <SettingsTab title={t("title")} description={t("description")}>
       {push.available ? (
-        <SettingsSection title={t("push_section")} description={t("push_description")}>
+        <SettingsSection
+          title={t("push_section")}
+          description={t("push_description")}
+          action={
+            <SettingsSaveState
+              status={pushStatus}
+              savingLabel={tSave("saving")}
+              savedLabel={tSave("saved")}
+              errorLabel={tSave("error")}
+            />
+          }
+        >
           <SettingsCard>
             <SettingsRow label={t("push_this_browser")} size="none">
               <Switch
                 aria-label={t("push_this_browser")}
+                aria-describedby={denied ? deniedId : undefined}
                 checked={push.subscribed}
-                disabled={push.isPending || push.isLoading || push.permission === "denied"}
+                // Busy, not disabled, while a change runs: disabling would drop
+                // focus from the switch the reader just pressed.
+                aria-busy={push.isPending || push.isLoading || undefined}
+                // 44px to a finger: the thumb stays small, the hit area grows.
+                className="aria-busy:opacity-60 pointer-coarse:after:-inset-y-[13px]"
+                disabled={push.permission === "denied"}
                 onCheckedChange={(v) => void togglePush(v)}
               />
             </SettingsRow>
-            {push.permission === "denied" ? (
-              <p className="px-4 pb-3 text-caption text-warning">{t("push_denied")}</p>
-            ) : null}
+            {/* Always mounted (hidden while empty) so a refusal that happens
+                on a click is announced, not only shown. */}
+            <div role="status" className="empty:hidden">
+              {denied ? (
+                <SettingsCardBody>
+                  <p
+                    id={deniedId}
+                    className="flex items-start gap-2 rounded-md bg-warning-soft px-3 py-2 text-caption leading-5 text-warning-soft-foreground"
+                  >
+                    <TriangleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+                    <span className="text-pretty">{t("push_denied")}</span>
+                  </p>
+                </SettingsCardBody>
+              ) : null}
+            </div>
           </SettingsCard>
         </SettingsSection>
       ) : null}
 
-      <SettingsSection title={t("matrix_section")} description={t("matrix_description")}>
-        <SettingsCard>
-          {prefs.isLoading ? (
-            <div className="space-y-2 p-4" aria-busy>
-              <Skeleton className="h-8 w-full" />
-              <Skeleton className="h-8 w-full" />
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-body">
-                <thead>
-                  <tr className="text-left text-caption text-muted-foreground">
-                    <th scope="col" className="px-4 py-2 font-medium">
-                      {t("kind")}
-                    </th>
-                    {channels.map((c) => (
-                      <th key={c} scope="col" className="px-3 py-2 text-center font-medium">
-                        {t(`channel_${c}`)}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => (
-                    <tr key={row.kind} className="border-t border-border">
-                      <th scope="row" className="flex min-h-11 items-center gap-2 px-4 py-2 text-left font-normal">
-                        <KindIcon kind={row.kind} className="size-4 shrink-0 text-muted-foreground" />
-                        <span>{tk(`settings.notifications.kinds.${row.kind}`)}</span>
-                      </th>
-                      {channels.map((c) => (
-                        <td key={c} className="px-3 py-2 text-center">
-                          <Switch
-                            size="sm"
-                            aria-label={`${tk(`settings.notifications.kinds.${row.kind}`)} · ${t(`channel_${c}`)}`}
-                            checked={row[c]}
-                            disabled={save.isPending}
-                            onCheckedChange={(v) => toggle(row, c, v)}
-                          />
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </SettingsCard>
-        <p className="flex items-center gap-2 px-1 text-caption text-muted-foreground">
-          <BellRing aria-hidden className="size-3.5" />
-          {t("digest_hint")}
-        </p>
-      </SettingsSection>
+      <NotificationsMatrix channels={channels} footnotes={footnotes} />
     </SettingsTab>
   );
 }

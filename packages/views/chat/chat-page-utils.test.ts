@@ -81,6 +81,45 @@ describe("buildChatNameContext", () => {
 
     expect(context).toEqual([{ user_id: "u3", display_name: "Bob" }]);
   });
+
+  it("resolves group members from contacts and nicknames when profile missing", () => {
+    const group: GroupChat = {
+      id: "g1",
+      name: "hehe",
+      room_id: "r1",
+      member_user_ids: ["u4", "u5", "u4"],
+    };
+    const contacts = [contact("u4", "Four", "four@example.com")];
+    const context = buildChatNameContext(contacts, null, group, {}, [], {
+      u4: "Tư",
+    });
+    expect(context).toEqual([{ user_id: "u4", display_name: "Tư" }]);
+
+    const withProfileNick = buildChatNameContext(
+      [],
+      null,
+      { ...group, member_user_ids: ["u6"] },
+      { u6: { user_id: "u6", display_name: "Six", email: "six@example.com" } },
+      [],
+      { u6: "Sáu" },
+    );
+    expect(withProfileNick).toEqual([{ user_id: "u6", display_name: "Sáu" }]);
+  });
+
+  it("includes active contact and falls back to user_id for blank workspace labels", () => {
+    const active = contact("u9", "Active", "a@x.com");
+    const context = buildChatNameContext(
+      [],
+      active,
+      null,
+      {},
+      [{ user_id: "u10", display_name: "  ", email: "  " }],
+    );
+    expect(context).toEqual([
+      { user_id: "u9", display_name: "Active" },
+      { user_id: "u10", display_name: "u10" },
+    ]);
+  });
 });
 
 describe("chatHeaderTitle", () => {
@@ -95,6 +134,13 @@ describe("chatHeaderTitle", () => {
     expect(
       chatHeaderTitle({ kind: "group", group }, [], [group], "General", ({ name }) => name),
     ).toBe("Team");
+  });
+
+  it("falls back to target group name when sidebar list misses it", () => {
+    const group: GroupChat = { id: "g1", name: "Local", room_id: "r1", member_user_ids: [] };
+    expect(
+      chatHeaderTitle({ kind: "group", group }, [], [], "General", ({ name }) => name),
+    ).toBe("Local");
   });
 
   it("formats dm header with contact label", () => {
@@ -116,5 +162,18 @@ describe("chatHeaderTitle", () => {
         { u1: "Long" },
       ),
     ).toBe("Chat with Long");
+  });
+
+  it("formats dm from target contact when contacts list misses them", () => {
+    const dm = contact("u1", "Solo", "solo@example.com");
+    expect(
+      chatHeaderTitle(
+        { kind: "dm", contact: dm },
+        [],
+        [],
+        "General",
+        ({ name }) => `Chat with ${name}`,
+      ),
+    ).toBe("Chat with Solo");
   });
 });

@@ -10,6 +10,7 @@ import {
   listChatRoomMembers,
   patchChatRoomMember,
   listChatRoomMessages,
+  markChatRoomRead,
   searchChatRoomMessages,
   listChatRoomMessagesAround,
   listChatRooms,
@@ -19,7 +20,9 @@ import {
   resolveDMRoom,
   sendChatRoomMessage,
   sendChatVoiceMessage,
+  sendChatFileMessage,
   loadChatVoiceBlob,
+  loadChatFileBlob,
   sendWorkspaceChatMessage,
   signalChatTyping,
   signalChatVoiceAccept,
@@ -146,6 +149,88 @@ describe("chat endpoints", () => {
     expect(await createChatGroup("ws1", { name: "G", member_user_ids: ["a", "b"] })).toBeNull();
   });
 
+  it("listChatRooms keeps valid rooms when one row is malformed", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        rooms: [
+          {
+            id: "room-dm",
+            kind: "dm",
+            name: "Peer",
+            workspace_id: "ws1",
+            member_user_ids: [],
+            peer_user_id: "user-b",
+          },
+          { id: "broken", kind: "not-a-kind", name: "X", workspace_id: "ws1" },
+        ],
+      }),
+    );
+    const rooms = await listChatRooms("ws1");
+    expect(rooms).toHaveLength(1);
+    expect(rooms[0]?.id).toBe("room-dm");
+  });
+
+  it("listChatRoomMessages keeps valid messages when one row is malformed", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        messages: [
+          {
+            id: "m1",
+            room_id: "room1",
+            workspace_id: "ws1",
+            sender_id: "u1",
+            sender_display_name: "A",
+            body: "hi",
+            created_at: "2026-09-05T00:00:00Z",
+          },
+          { id: "bad", body: "missing fields" },
+        ],
+      }),
+    );
+    const messages = await listChatRoomMessages("ws1", "room1");
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.id).toBe("m1");
+  });
+
+  it("listChatRoomMessages reads my_reactions and degrades a drifted value to none", async () => {
+    const base = {
+      room_id: "room1",
+      workspace_id: "ws1",
+      sender_id: "u1",
+      sender_display_name: "A",
+      body: "hi",
+      created_at: "2026-09-05T00:00:00Z",
+      reactions: { "👍": 2 },
+    };
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        messages: [
+          { ...base, id: "m1", my_reactions: ["👍"] },
+          { ...base, id: "m2", my_reactions: "👍" },
+          { ...base, id: "m3" },
+        ],
+      }),
+    );
+    const messages = await listChatRoomMessages("ws1", "room1");
+    expect(messages.map((m) => m.my_reactions)).toEqual([["👍"], undefined, undefined]);
+  });
+
+  it("listChatRoomMessages sends mark_read=0 when mark_read is false", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ messages: [] }));
+    await listChatRoomMessages("ws1", "room1", { mark_read: false, limit: 20 });
+    const url = String(vi.mocked(fetch).mock.calls[0]?.[0]);
+    expect(url).toContain("mark_read=0");
+    expect(url).toContain("limit=20");
+  });
+
+  it("markChatRoomRead posts to the room read endpoint", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
+    expect(await markChatRoomRead("ws1", "room1")).toBe(true);
+    expect(vi.mocked(fetch).mock.calls[0]?.[0]).toEqual(
+      expect.stringContaining("/chat/rooms/room1/read"),
+    );
+  });
+
   it("listChatRoomMessages degrades on malformed response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
     expect(await listChatRoomMessages("ws1", "room1")).toEqual([]);
@@ -228,13 +313,58 @@ describe("chat endpoints", () => {
     expect(new Headers(init?.headers).has("Content-Type")).toBe(false);
   });
 
+  it("sendChatFileMessage sends multipart fields and degrades on malformed response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    const file = new Blob(["%PDF-1.7"], { type: "application/pdf" });
+    expect(
+      await sendChatFileMessage("ws1", "room1", {
+        file,
+        filename: "sprint.pdf",
+        client_msg_id: "client-file-1",
+        reply_to_message_id: "reply-1",
+      }),
+    ).toBeNull();
+    const [, init] = vi.mocked(fetch).mock.calls[0] ?? [];
+    expect(init?.body).toBeInstanceOf(FormData);
+    const form = init?.body as FormData;
+    expect(form.get("client_msg_id")).toBe("client-file-1");
+    expect(form.get("reply_to_message_id")).toBe("reply-1");
+    expect(form.get("file")).toBeInstanceOf(Blob);
+  });
+
+  it("sendChatFileMessage omits reply_to when not provided", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    await sendChatFileMessage("ws1", "room1", {
+      file: new Blob(["x"], { type: "text/plain" }),
+      filename: "note.txt",
+      client_msg_id: "client-file-2",
+    });
+    const form = vi.mocked(fetch).mock.calls[0]?.[1]?.body as FormData;
+    expect(form.get("reply_to_message_id")).toBeNull();
+  });
+
+  it("loadChatFileBlob returns authenticated binary response", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response("%PDF", { headers: { "Content-Type": "application/pdf" } }),
+    );
+    const blob = await loadChatFileBlob("ws1", "room1", "message1");
+    expect(blob.type).toBe("application/pdf");
+  });
+
   it("loadChatVoiceBlob returns authenticated binary response", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       new Response("voice", { headers: { "Content-Type": "audio/webm" } }),
     );
     const blob = await loadChatVoiceBlob("ws1", "room1", "message1");
     expect(blob.type).toBe("audio/webm");
-    expect(await blob.text()).toBe("voice");
+    // jsdom Blob has size/type but no .text()/.arrayBuffer(); FileReader still works.
+    const text = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error ?? new Error("read failed"));
+      reader.readAsText(blob);
+    });
+    expect(text).toBe("voice");
   });
 
   it("leaveChatRoom degrades on malformed response", async () => {

@@ -4,7 +4,10 @@ import * as React from "react"
 import { Select as SelectPrimitive } from "@base-ui/react/select"
 
 import { cn } from "@uniwork/ui/lib/utils"
+import { UI_FLOATING_TRANSITION_CLASS } from "@uniwork/ui/lib/motion"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
+
+type SelectTriggerVariant = "default" | "subtle"
 
 type SelectProps<
   Value,
@@ -14,6 +17,8 @@ type SelectProps<
   /** Accessible name for the default trigger: pair with `<FieldLabel htmlFor>`. */
   id?: string
   "aria-label"?: string
+  /** Visual treatment for the generated trigger when `children` are omitted. */
+  triggerVariant?: SelectTriggerVariant
 }
 
 /**
@@ -24,6 +29,7 @@ function Select<Value, Multiple extends boolean | undefined = false>({
   children,
   id,
   "aria-label": ariaLabel,
+  triggerVariant = "default",
   ...props
 }: SelectProps<Value, Multiple>) {
   // Without children Base UI mounts nothing visible; a bare `<Select items />`
@@ -33,7 +39,12 @@ function Select<Value, Multiple extends boolean | undefined = false>({
     children ??
     (Array.isArray(items) ? (
       <>
-        <SelectTrigger id={id} aria-label={ariaLabel} className="w-full">
+        <SelectTrigger
+          id={id}
+          aria-label={ariaLabel}
+          variant={triggerVariant}
+          className="w-full"
+        >
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -71,10 +82,12 @@ function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
 function SelectTrigger({
   className,
   size = "default",
+  variant = "default",
   children,
   ...props
 }: SelectPrimitive.Trigger.Props & {
   size?: "sm" | "default"
+  variant?: SelectTriggerVariant
 }) {
   return (
     <SelectPrimitive.Trigger
@@ -87,7 +100,10 @@ function SelectTrigger({
         // could not lift this off 32px however it tried. `min-height` wins over
         // `height` no matter the specificity, which is also how `Button` holds
         // its own 44px floor.
-        "flex w-fit items-center justify-between gap-1.5 rounded-lg border border-input bg-transparent py-2 pr-2 pl-2.5 text-body whitespace-nowrap transition-colors outline-none select-none pointer-coarse:min-h-11 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground data-[size=default]:h-8 data-[size=sm]:h-7 data-[size=sm]:rounded-[min(var(--radius-md),10px)] *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 dark:bg-input/30 dark:hover:bg-input/50 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "flex w-fit items-center justify-between gap-1.5 rounded-control border py-2 pr-2 pl-2.5 text-body whitespace-nowrap transition-colors outline-none select-none pointer-coarse:min-h-11 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground data-[size=default]:h-8 data-[size=sm]:h-7 data-[size=sm]:rounded-md *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        variant === "default"
+          ? "border-input bg-transparent dark:bg-surface-hover/60 dark:hover:bg-surface-hover"
+          : "border-transparent bg-surface-hover/60 hover:bg-surface-hover",
         className
       )}
       {...props}
@@ -129,7 +145,11 @@ function SelectContent({
         <SelectPrimitive.Popup
           data-slot="select-content"
           data-align-trigger={alignItemWithTrigger}
-          className={cn("relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-lg bg-surface-raised text-popover-foreground shadow-[var(--menu-shadow)] ring-1 ring-surface-border duration-100 data-[align-trigger=true]:animate-none data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95", className )}
+          className={cn(
+            "relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 overflow-x-hidden overflow-y-auto rounded-lg bg-surface-raised text-popover-foreground shadow-[var(--menu-shadow)] ring-1 ring-surface-border",
+            UI_FLOATING_TRANSITION_CLASS,
+            className
+          )}
           {...props}
         >
           <SelectScrollUpButton />

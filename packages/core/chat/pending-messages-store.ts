@@ -13,6 +13,8 @@ export type PendingChatMessage = {
   senderId: string;
   createdAt: number;
   reply_to_message_id?: string;
+  /** When set, the optimistic bubble belongs in a thread panel, not the main timeline. */
+  thread_root_id?: string;
   priority?: ComposerMessagePriority;
   status: PendingChatDeliveryStatus;
 };

@@ -1,6 +1,6 @@
 # Bản đồ tham chiếu bản cũ (`unidigiwork`)
 
-> **Trạng thái:** in-progress · **Repo cũ:** `../unidigiwork` (Lovable, TanStack Start + Supabase). **Chỉ dùng để xem hành vi và tri thức. Không port mã.**
+> **Trạng thái:** in-progress · **Cập nhật:** 2026-09-16 (bản nháp tại commit `9f07c85a`) · **Repo cũ:** `../unidigiwork` (Lovable, TanStack Start + Supabase). **Chỉ dùng để xem hành vi và tri thức. Không port mã.** Bảng đối chiếu theo tính năng: `docs/DRAFT_MAPPING.md`.
 
 Luật khi tham chiếu:
 
@@ -45,9 +45,14 @@ Luật khi tham chiếu:
 | C-08 | Mobile (app Expo, ADR 0011) | `_authenticated/m.tsx`, `m/*`, `public/manifest`, `src/components/mobile/*` | `push-client.ts` | `docs/product/UNIWORK_INFORMATION_ARCHITECTURE_V2.md` §3, `.lovable/plan/uniwork-mobile-pwa-*.md` | Chỉ kế thừa IA 5 tab và trang More; `/m/*`, service worker, push client **không** mang sang. Kiến trúc lấy từ `../usf/apps/mobile` |
 | A-03 | Workflows | `workflows*.tsx`, `src/components/workflow/*` | `workflows.functions.ts`, `workflow-agents.functions.ts`, `src/domain/workflow-agents` | — | Trigger/step/run có dữ liệu thật (12 run) |
 | A-04 | Knowledge / Search | `knowledge*.tsx`, `_authenticated/search.tsx`, `src/components/work-graph/*` | `search-universal.*`, `knowledge.functions.ts`, `work-graph.*`, `src/domain/work-graph` | `docs/search/UNIVERSAL_SEARCH_V2.md` | Work graph nodes/edges, search scope |
-| A-05 | Insights / Work economics | `_authenticated/dashboard.tsx`, `reports*.tsx`, `admin.economics.tsx`, `admin.cohorts.tsx`, `admin.proof.tsx` | `home-brief.*`, `dashboard.*`, `reports*.`, `work-economics.*`, `sell-work-*.functions.ts`, `src/domain/work-economics`, `sell-work` | `docs/architecture/work-economics/*`, `SWP1_SELL_WORK_PRODUCTIZATION.md`, `tests/integration/11_we3_economics_guards.sql`, `12_harden_sellwork1_guards.sql` | Rate có phiên bản, độ tin cậy số liệu, ngưỡng cohort; home brief "không có dữ liệu" thay vì 0 |
+| A-05 | Insights / Work economics | `_authenticated/dashboard.tsx`, `reports*.tsx`, `admin.economics.tsx`, `admin.cohorts.tsx`, `admin.proof.tsx` | `home-brief.*`, `dashboard.*`, `reports*.`, `work-economics.*`, `sell-work-*.functions.ts`, `src/domain/work-economics`, `sell-work` | `docs/architecture/work-economics/*`, `SWP1_SELL_WORK_PRODUCTIZATION.md`, `tests/integration/11_we3_economics_guards.sql`, `12_harden_sellwork1_guards.sql` | Rate có phiên bản, độ tin cậy số liệu, ngưỡng cohort; home brief "không có dữ liệu" thay vì 0. Home V2 (`_authenticated/home.tsx`, `src/components/home/*`, `src/lib/home-prefs.ts`, `home.server.ts`, `home-brief.server.ts`) đã viết lại theo `2026-09-14-home-trang-chu-design.md` |
 | A-06 | SSO | — | — | Blueprint §13.2 (Keycloak) | Chỉ yêu cầu |
 | E-* | On-premise | — | `src/platform/adapters/*` (identity/storage/realtime) | Blueprint §4, §15, §16, §23 | Adapter pattern đã có trong UniWork qua `packages/core/platform` |
+| C-14 | Kết quả công việc | `_authenticated/work-products.tsx`, `work-products_.$id.tsx`, `m/work-products.*` | `work-products-*.functions.ts`, `work-deliverables.*`, `work-product-semantics.*`, `src/domain/work-product-semantics` | `.lovable/plan/work-products-kết-quả-công-việc-mvp-2026-09-09.md` | Thêm 2026-09-16. Kế thừa **mô hình nghiệp vụ**: loại tách khỏi định dạng, phiên bản có ảnh chụp nguồn gốc, bảng chọn nguồn ngữ cảnh AI. **Không** kế thừa bảng artifact riêng — Document là kho duy nhất (ADR 0016) |
+| C-15 | Nhập DOCX, sửa an toàn | `src/components/work-products/docx-roundtrip-panel.tsx` | `docx-import.server.ts`, `docx-profile.server.ts`, `office-engine.server.ts`, `office-genoffice.server.ts` | `.lovable/plan/work-products-nhập-tài-liệu-word-…-phase-2-2026-09-09.md`, `docs/audit/WORK_PRODUCTS_DOCX_ROUNDTRIP_ACCEPTANCE.md` | Thêm 2026-09-16. Kế thừa **bất biến**: không bao giờ ghi đè bản gốc; vá đúng chỗ chứ không dựng lại; vá không an toàn được thì dừng và nói thật. Phạm vi web thu hẹp (ADR 0018) |
+| C-16 | Office Bridge | `routes/api/office/*`, `src/lib/office-launch.ts` | `office-bridge.server.ts`, `drizzle/migrations/0008_go2c_office_bridge.sql` | `docs/go2c/GO2C_ACCEPTANCE_REPORT.md` | Thêm 2026-09-16. Kế thừa **hợp đồng phiên**: tạo phiên → đổi token → tải xuống → chuẩn bị lưu → tải lên → hoàn tất; khóa chống lặp; 409 khi lệch phiên bản; thu quyền giữa chừng thì chặn ở bước hoàn tất |
+| A-11 | CEO Command Center | `_authenticated/ceo.tsx`, `ceo_.standup.tsx`, `ceo_.kpi-history.tsx`, `ceo_.proposal-tracking.tsx`, `ceo_.task-tracking.tsx` | `ceo.server.ts`, `ceo-standup-daily.server.ts`, `ceo-weekly*.server.ts`, `kpi-snapshot.server.ts`, `weekly-report-xlsx.server.ts` | `.lovable/plan/ceo-command-center-đánh-giá-và-phương-án-2026-09-11.md` | Thêm 2026-09-16. Kế thừa **cách đặt câu hỏi** (4 câu hỏi của CEO, so kỳ trước, drill-down, vấn đề tự phát hiện) và **thái độ trung thực** (từ chối dựng doanh thu giả). **Không** kế thừa hệ số quy đổi giờ người — xem A-11 trong `docs/DEVELOPMENT_PLAN.md` |
+| A-12 | Bộ não AI | `_authenticated/ai-brain.tsx`, `ai-brain_.skills.tsx`, `ai-brain_.tracking.tsx` | `ai-brain.functions.ts`, `ai-skills.functions.ts`, `ai-actions.functions.ts` | `.lovable/plan/ai-brain-super-agent-kế-hoạch-chi-tiết-2026-09-10.md` | Thêm 2026-09-16. Kế thừa **ranh giới tự đặt của bản nháp**: không tạo hệ AI thứ hai, không đổi quyền, AI không bao giờ tự thực thi; kỹ năng rủi ro cao khóa "bắt buộc người duyệt", không chuyển sang tự động được |
 
 ## Cái gì tuyệt đối không mang sang
 
@@ -57,3 +62,7 @@ Luật khi tham chiếu:
 - 312 hàm PL/pgSQL và 212 policy RLS: nghiệp vụ viết lại trong Go service.
 - `admin.trace.tsx` như một khối 4.387 dòng.
 - Bất kỳ số liệu mock nào (`src/lib/coming-soon.ts`, `notifyComingSoon`).
+- `src/vendor/genoffice/` như một bản sao trong mã UniWork. Engine chạy ở sidecar Node
+  (ADR 0018); vỏ Electron, giao diện và thư mục `/ee` của thượng nguồn đều không lấy.
+- Hệ số quy đổi giờ người (`HUMAN_HOURS_PER_TASK`) và mọi hằng số ước tính chôn trong mã.
+- Bảng artifact riêng của Work Product, và mọi đường ghi tệp thứ hai bên cạnh Document.

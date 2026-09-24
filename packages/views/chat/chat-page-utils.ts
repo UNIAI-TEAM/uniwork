@@ -1,6 +1,7 @@
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { displayLabelForChatContact, resolveChatNicknameForUser } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
+import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 
 export type GroupMemberProfile = {
   user_id: string;
@@ -40,15 +41,41 @@ function pushNameEntry(
   });
 }
 
+/**
+ * The workspace room's name as people see it. The server names the room
+ * after the workspace; until someone renames it, it reads as the generic
+ * "Chung" everywhere (list, header, settings). Once renamed, the new name
+ * shows in all three.
+ */
+export function workspaceRoomTitle(
+  roomName: string | null | undefined,
+  workspaceName: string | null | undefined,
+  defaultLabel: string,
+): string {
+  const name = roomName?.trim();
+  if (!name || name === workspaceName?.trim()) return defaultLabel;
+  return name;
+}
+
 export function chatHeaderTitle(
-  target: { kind: "workspace" } | { kind: "dm"; contact: ChatContact } | { kind: "group"; group: GroupChat },
+  target:
+    | { kind: "workspace" }
+    | { kind: "dm"; contact: ChatContact }
+    | { kind: "group"; group: GroupChat }
+    | { kind: "channel"; channel: ChatRoomRecord },
   contacts: ChatContact[],
   groups: GroupChat[],
   workspaceTitle: string,
   dmWithLabel: (params: { name: string }) => string,
   nicknamesByUserId: Readonly<Record<string, string>> = {},
+  channels: ChatRoomRecord[] = [],
 ): string {
   if (target.kind === "workspace") return workspaceTitle;
+  if (target.kind === "channel") {
+    const live = channels.find((channel) => channel.id === target.channel.id);
+    const name = live?.name ?? target.channel.name;
+    return `#${name}`;
+  }
   if (target.kind === "group") {
     return groups.find((group) => group.id === target.group.id)?.name ?? target.group.name;
   }

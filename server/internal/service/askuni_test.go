@@ -21,7 +21,7 @@ func askFixture(t *testing.T) (*AskUNIService, *provider.Fake, db.User, db.User,
 	fake := &provider.Fake{Reply: ai.FakeReply}
 	gw := ai.NewGateway(ms.q, fake, NewAIQuota(ms.ent), nil, ai.Options{})
 	ms.AI = gw
-	tasks := NewTaskService(ms.pool, ms.q, ms.ws)
+	tasks := NewTaskService(ms.pool, ms.q, ms.ws, nil)
 	chat := NewChatService(ms.pool, ms.q, ms.ws, NopPublisher{})
 	orgs := NewOrganizationService(ms.pool, ms.q)
 	s := NewAskUNIService(ms.pool, ms.q, ms.ws, orgs, tasks, ms, chat, gw, nil)

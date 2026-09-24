@@ -20,7 +20,8 @@ describe("useAutoSave", () => {
     );
 
     rerender({ value: "draft" });
-    expect(result.current.status).toBe("saving");
+    // Debouncing is not saving: the status only says "saving" once a request runs.
+    expect(result.current.status).toBe("idle");
 
     await waitFor(
       () => {

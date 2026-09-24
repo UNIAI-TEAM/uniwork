@@ -19,6 +19,15 @@ type ReactionSDI struct {
 
 // SubscribeTaskSDI is POST .../subscribe|unsubscribe|unsubscribe/subtree.
 type SubscribeTaskSDI struct {
-	UserID   string `json:"user_id" description:"ULID đích; bỏ trống = người gọi" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	UserType string `json:"user_type" description:"member hoặc agent" example:"member"`
+	UserID   string `json:"user_id" description:"ULID người gọi; bỏ trống để tự nhận diện" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	UserType string `json:"user_type" description:"Loại của người gọi: member hoặc agent" example:"member"`
+}
+
+// UploadTaskAttachmentSDI is multipart POST .../tasks/{taskID}/attachments.
+type UploadTaskAttachmentSDI struct {
+	File []byte `formData:"file" description:"Tệp đính kèm (field file); tối đa 25 MiB; MIME allowlist (ảnh, PDF, markdown/plain, Office phổ biến)"`
+}
+
+type UploadWorkspaceAttachmentSDI struct {
+	File []byte `formData:"file" description:"Tệp tạm trước khi tạo task; tối đa 25 MiB"`
 }

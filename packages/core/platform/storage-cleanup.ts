@@ -1,7 +1,7 @@
 import type { StorageAdapter } from "../types/storage";
 import { clearRegisteredWorkspaceDrafts } from "../drafts/cleanup-registry";
 // Ensure every module-level draft store has registered its key before cleanup
-// runs, so the registry is never partially populated at logout/delete time.
+// runs, so the registry is never partially populated when this is called.
 import "../drafts/register-all-drafts";
 
 /**
@@ -13,14 +13,19 @@ import "../drafts/register-all-drafts";
  * view/navigation keys that are not drafts.
  *
  * IMPORTANT: When adding a new non-draft workspace-scoped persist store, add
- * its key here; for draft stores, prefer `createDraftStore` (auto-registers)
- * or call `registerDraftCleanup` directly.
+ * its key here; for a draft store, call `registerDraftCleanup` at module load
+ * and import the store from `drafts/register-all-drafts`.
  */
 const WORKSPACE_SCOPED_KEYS = [
   "uniwork_navigation",
 ];
 
-/** Remove all workspace-scoped storage entries for the given workspace slug. */
+/**
+ * Remove all workspace-scoped storage entries for the given workspace slug.
+ *
+ * No app path calls this yet, only tests: workspace delete/leave and logout
+ * both leave these keys in place (logout clears global draft keys only).
+ */
 export function clearWorkspaceStorage(
   adapter: StorageAdapter,
   slug: string,

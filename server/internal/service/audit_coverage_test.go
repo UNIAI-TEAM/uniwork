@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -109,7 +110,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		},
 		audit.ActionPeopleExported: func(t *testing.T, f *auditFixture) {
 			f.build(t)
-			if _, err := f.people.ExportCSV(f.ctx, f.owner.ID, f.orgID, io.Discard); err != nil {
+			if _, err := f.people.ExportCSV(f.ctx, f.owner.ID, f.orgID, PeopleFilter{}, io.Discard); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -292,6 +293,24 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 			if err := f.tasks.UnsubscribeTask(f.ctx, Human(f.owner.ID), task.ID, SubscribeTaskInput{}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionAttachmentUploaded: func(t *testing.T, f *auditFixture) {
+			task := f.newTask(t)
+			body := []byte("# note\n")
+			if _, err := f.tasks.UploadTaskAttachment(f.ctx, Human(f.owner.ID), task.ID, "note.md", "text/markdown", int64(len(body)), bytes.NewReader(body)); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionAttachmentDeleted: func(t *testing.T, f *auditFixture) {
+			task := f.newTask(t)
+			body := []byte("# note\n")
+			att, err := f.tasks.UploadTaskAttachment(f.ctx, Human(f.owner.ID), task.ID, "note.md", "text/markdown", int64(len(body)), bytes.NewReader(body))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.tasks.DeleteAttachment(f.ctx, Human(f.owner.ID), att.ID); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -609,6 +628,166 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionChatChannelUpdated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			ch, err := f.chat.CreateChannel(f.ctx, f.owner.ID, w.ID, CreateChannelInput{
+				Name: "audit-ch", Visibility: "public",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			topic := "updated"
+			if _, err := f.chat.UpdateChannel(f.ctx, f.owner.ID, w.ID, ch.ID, UpdateChannelInput{Topic: &topic}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatChannelArchived: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			ch, err := f.chat.CreateChannel(f.ctx, f.owner.ID, w.ID, CreateChannelInput{
+				Name: "audit-arch", Visibility: "private",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.chat.ArchiveChannel(f.ctx, f.owner.ID, w.ID, ch.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatMessageLinked: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			room, err := f.chat.EnsureWorkspaceRoom(f.ctx, f.owner.ID, w.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			msg, err := f.chat.SendRoomMessage(f.ctx, f.owner.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "link me"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			task, err := f.tasks.Create(f.ctx, Human(f.owner.ID), w.ID, CreateTaskInput{Title: "from chat"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.chat.LinkChatMessage(f.ctx, f.owner.ID, w.ID, msg.ID, CreateChatMessageLinkInput{
+				TargetType: "task", TargetID: task.ID,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatMessageUnlinked: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			room, err := f.chat.EnsureWorkspaceRoom(f.ctx, f.owner.ID, w.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			msg, err := f.chat.SendRoomMessage(f.ctx, f.owner.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "unlink me"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			task, err := f.tasks.Create(f.ctx, Human(f.owner.ID), w.ID, CreateTaskInput{Title: "from chat"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			link, err := f.chat.LinkChatMessage(f.ctx, f.owner.ID, w.ID, msg.ID, CreateChatMessageLinkInput{
+				TargetType: "task", TargetID: task.ID,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.chat.UnlinkChatMessage(f.ctx, f.owner.ID, w.ID, msg.ID, link.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatThreadTaskLinked: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			ch, err := f.chat.CreateChannel(f.ctx, f.owner.ID, w.ID, CreateChannelInput{
+				Name: "audit-sync", Visibility: "public",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			root, err := f.chat.SendRoomMessage(f.ctx, f.owner.ID, w.ID, ch.ID, SendChatMessageInput{Body: "root"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			task, err := f.tasks.Create(f.ctx, Human(f.owner.ID), w.ID, CreateTaskInput{Title: "synced"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.chat.SyncThreadTask(f.ctx, f.owner.ID, w.ID, root.ID, SyncThreadTaskInput{
+				TaskID: task.ID, Direction: "both",
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatFollowUpCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			room, err := f.chat.EnsureWorkspaceRoom(f.ctx, f.owner.ID, w.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			msg, err := f.chat.SendRoomMessage(f.ctx, f.owner.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "follow me"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.chat.CreateFollowUp(f.ctx, f.owner.ID, w.ID, msg.ID, "later", nil); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatFollowUpUpdated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			room, err := f.chat.EnsureWorkspaceRoom(f.ctx, f.owner.ID, w.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			msg, err := f.chat.SendRoomMessage(f.ctx, f.owner.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "patch me"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			fu, err := f.chat.CreateFollowUp(f.ctx, f.owner.ID, w.ID, msg.ID, "", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			note := "updated note"
+			if _, err := f.chat.PatchFollowUp(f.ctx, f.owner.ID, w.ID, fu.ID, PatchFollowUpInput{Note: &note}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatFollowUpCompleted: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			room, err := f.chat.EnsureWorkspaceRoom(f.ctx, f.owner.ID, w.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			msg, err := f.chat.SendRoomMessage(f.ctx, f.owner.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "done me"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			fu, err := f.chat.CreateFollowUp(f.ctx, f.owner.ID, w.ID, msg.ID, "", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.chat.CompleteFollowUp(f.ctx, f.owner.ID, w.ID, fu.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionChatFollowUpDeleted: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			room, err := f.chat.EnsureWorkspaceRoom(f.ctx, f.owner.ID, w.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			msg, err := f.chat.SendRoomMessage(f.ctx, f.owner.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "delete me"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			fu, err := f.chat.CreateFollowUp(f.ctx, f.owner.ID, w.ID, msg.ID, "", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.chat.DeleteFollowUp(f.ctx, f.owner.ID, w.ID, fu.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
 	}
 
 	for _, action := range auditActions() {
@@ -673,6 +852,8 @@ func auditActions() []string {
 		audit.ActionTaskReactionRemoved,
 		audit.ActionTaskSubscribed,
 		audit.ActionTaskUnsubscribed,
+		audit.ActionAttachmentUploaded,
+		audit.ActionAttachmentDeleted,
 		audit.ActionAuthLoginSucceeded,
 		audit.ActionAuthLoginFailed,
 		audit.ActionAuthPasswordResetRequested,
@@ -684,6 +865,15 @@ func auditActions() []string {
 		audit.ActionChatRoomCreated,
 		audit.ActionChatRoomMemberAdded,
 		audit.ActionChatRoomMemberRemoved,
+		audit.ActionChatChannelUpdated,
+		audit.ActionChatChannelArchived,
+		audit.ActionChatMessageLinked,
+		audit.ActionChatMessageUnlinked,
+		audit.ActionChatThreadTaskLinked,
+		audit.ActionChatFollowUpCreated,
+		audit.ActionChatFollowUpUpdated,
+		audit.ActionChatFollowUpCompleted,
+		audit.ActionChatFollowUpDeleted,
 		audit.ActionAuditExportRequested,
 		audit.ActionAuditRetentionSet,
 		audit.ActionSubscriptionChanged,
@@ -728,14 +918,17 @@ func newAuditFixture(t *testing.T) *auditFixture {
 	ws := NewWorkspaceService(pool, q, orgs, renderer, &fakeOutbox{})
 	orgMembers := NewOrganizationMemberService(pool, q, orgs)
 	orgMembers.SetMail(renderer, &fakeOutbox{})
+	tasks := NewTaskService(pool, q, ws, newMemStorage())
+	chat := NewChatService(pool, q, ws, NopPublisher{})
+	chat.SetTasks(tasks)
 	return &auditFixture{
 		ctx: context.Background(), pool: pool, q: q,
 		auth: auth, orgs: orgs, orgMem: orgMembers,
 		people: NewPeopleService(pool, q, orgs), depts: NewDepartmentService(pool, q, orgs), ws: ws,
-		tasks:   NewTaskService(pool, q, ws),
+		tasks:   tasks,
 		agents:  NewAgentService(pool, q, orgs, ws),
 		billing: NewBillingService(pool, q, orgs, nil),
-		chat:    NewChatService(pool, q, ws, NopPublisher{}),
+		chat:    chat,
 		reset:   NewPasswordResetService(pool, q, auth, renderer, &fakeOutbox{}),
 		admin:   NewAdminService(pool, q, NewBillingService(pool, q, orgs, nil), NewEntitlementService(pool, q)),
 	}

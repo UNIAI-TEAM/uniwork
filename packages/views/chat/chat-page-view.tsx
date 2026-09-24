@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MessageSquare } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useOptionalWorkspace } from "../layout/workspace-context";
 import {
   mergeActiveDmContact,
   sidebarFromChatRooms,
@@ -13,7 +13,6 @@ import {
   useBlockChatUser,
   useChatBlockStatus,
   useChatRooms,
-  useChatVoiceToken,
   useCreateChatGroup,
   useEnsureWorkspaceChatRoom,
   useInviteChatGroupMembers,
@@ -22,37 +21,51 @@ import {
   useChatNicknames,
   useResolveDMRoom,
   useSendChatRoomMessage,
+  useSendChatThreadMessage,
   useSendChatVoiceMessage,
+  useSendChatFileMessage,
   useUnblockChatUser,
   useChatSendOutboxFlush,
   useChatSendOutboxCount,
+  useSyncChatRoomsOnAuth,
 } from "@uniwork/core/chat";
-import { newChatClientMsgId } from "@uniwork/core/chat/client-msg-id";
 import { useActiveChatRoomStore } from "@uniwork/core/chat/active-chat-room-store";
-import { useChatTypingSync } from "@uniwork/core/chat/use-chat-typing-sync";
 import { useAuthStore } from "@uniwork/core/auth";
+import { useFlag } from "@uniwork/core/feature-flags";
 import { useChatRoomScopes } from "@uniwork/core/realtime";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { useCurrentMember } from "@uniwork/core/permissions";
-import { CollectionPageHeader, CollectionPageState } from "../layout/collection-page";
 import type { ChatSidebarTarget } from "./chat-sidebar";
 import type { ChatMessage } from "./chat-messages";
 import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
 import { toggleComposerPriority } from "@uniwork/core/chat/composer-priority";
 import { useChatReminderNotifications } from "./use-chat-reminder-notify";
-import { buildChatNameContext, chatHeaderTitle } from "./chat-page-utils";
+import { chatErrorMessage } from "./chat-error-message";
+import { buildChatNameContext, chatHeaderTitle, workspaceRoomTitle } from "./chat-page-utils";
 import { buildChatMentionCandidates } from "./chat-mention-utils";
 import { memberDisplayLabel } from "./workspace-member-picker-utils";
+import { ChatPageAuthLoading } from "./chat-page-auth-loading";
 import { ChatPageContent } from "./chat-page-content";
 import { useChatPageActions } from "./use-chat-page-actions";
 import { useChatMentionNotify } from "./use-chat-mention-notify";
+import { useChatMediaSend } from "./use-chat-media-send";
+import { useChatPageSignals } from "./use-chat-page-signals";
+import { useChatVoiceCall } from "./chat-voice-call-host";
 import { useChatVoiceHandlers } from "./use-chat-voice-handlers";
 import { useNativeGroupMemberProfiles } from "./use-native-group-member-profiles";
 import { useNativeTyping } from "./use-native-typing";
-import { useNativeVoiceCall } from "./use-native-voice-call";
+import { chatComposerDraftKey } from "./chat-composer-draft-key";
+import { readChatComposerDraft, useChatComposerDraftStore } from "@uniwork/core/chat/composer-draft-store";
 import { useMembers } from "@uniwork/core/workspaces";
 import { useResolvedRoomPermissions } from "./use-resolved-room-permissions";
-import { VoiceCallOverlay } from "./voice-call-overlay";
+import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
+import type { Member } from "@uniwork/core/types/workspace";
+
+/* Stable fallbacks while queries load: a fresh `[]` / `{}` per render would
+   change every memo downstream (and re-render the memoised sidebar). */
+const NO_ROOMS: ChatRoomRecord[] = [];
+const NO_NICKNAMES: Record<string, string> = {};
+const NO_MEMBERS: Member[] = [];
 
 export function ChatPageView({
   workspaceId,
@@ -62,11 +75,14 @@ export function ChatPageView({
   currentUserId: string;
 }) {
   const { t } = useTranslation();
+  const workspaceName = useOptionalWorkspace()?.workspace.name;
   useChatReminderNotifications(workspaceId);
+  const workHubEnabled = useFlag("chat_work_hub", false);
   const authReady = useAuthStore((s) => s.status === "authed");
-  const { data: rooms = [], isError, refetch, isSuccess: roomsLoaded } = useChatRooms(workspaceId);
-  const { data: nicknamesByUserId = {} } = useChatNicknames(workspaceId);
-  const { data: workspaceMembers = [] } = useMembers(workspaceId);
+  const { data: rooms = NO_ROOMS, isError, refetch, isSuccess: roomsLoaded } = useChatRooms(workspaceId);
+  const { data: nicknamesByUserId = NO_NICKNAMES } = useChatNicknames(workspaceId);
+  const { data: workspaceMembers = NO_MEMBERS } = useMembers(workspaceId);
+  const refetchRooms = useCallback(() => void refetch(), [refetch]);
   const ensureRoom = useEnsureWorkspaceChatRoom(workspaceId);
   const resolveDM = useResolveDMRoom(workspaceId);
   const resolveDMRef = useRef(resolveDM);
@@ -76,17 +92,19 @@ export function ChatPageView({
   const leaveRoom = useLeaveChatRoom(workspaceId);
   const sendRoomMessage = useSendChatRoomMessage(workspaceId);
   const sendVoiceMessage = useSendChatVoiceMessage(workspaceId);
+  const sendFileMessage = useSendChatFileMessage(workspaceId);
   useChatSendOutboxFlush(workspaceId, currentUserId);
-  const pendingOutboxCount = useChatSendOutboxCount(workspaceId);
+  const pendingOutboxCount = useChatSendOutboxCount(workspaceId, currentUserId);
   const blockUser = useBlockChatUser(workspaceId);
   const unblockUser = useUnblockChatUser(workspaceId);
 
-  const { workspaceRoom, contacts: roomContacts, groups } = useMemo(
+  const { workspaceRoom, contacts: roomContacts, groups, channels } = useMemo(
     () => sidebarFromChatRooms(rooms),
     [rooms],
   );
 
   const workspaceRoomId = workspaceRoom?.id ?? ensureRoom.data?.room_id ?? null;
+  const workspaceRoomName = workspaceRoomTitle(workspaceRoom?.name, workspaceName, t("chat.workspace_room"));
   const unreadByRoomId = useMemo(() => unreadMapFromRooms(rooms), [rooms]);
   const mentionUnreadByRoomId = useMemo(() => mentionUnreadMapFromRooms(rooms), [rooms]);
   const roomPreviewsByRoomId = useMemo(() => roomPreviewMapFromRooms(rooms), [rooms]);
@@ -96,6 +114,7 @@ export function ChatPageView({
   const [resolvedDmRoomId, setResolvedDmRoomId] = useState<string | null>(null);
   const [creatingGroup, setCreatingGroup] = useState(false);
   const [createGroupOpen, setCreateGroupOpen] = useState(false);
+  const [channelSettingsOpen, setChannelSettingsOpen] = useState(false);
   const [addMembersOpen, setAddMembersOpen] = useState(false);
   const [groupSettingsOpen, setGroupSettingsOpen] = useState(false);
   const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
@@ -104,13 +123,12 @@ export function ChatPageView({
   const [blockingContact, setBlockingContact] = useState(false);
   const [unblockingContact, setUnblockingContact] = useState(false);
   const [invitingMembers, setInvitingMembers] = useState(false);
-  const [draft, setDraft] = useState("");
   const [composerPriority, setComposerPriority] = useState<ComposerMessagePriority | null>(null);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
+  const [activeThreadRootId, setActiveThreadRootId] = useState<string | null>(null);
   const [messageSearchOpen, setMessageSearchOpen] = useState(false);
   const [jumpToMessageId, setJumpToMessageId] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
-  const syncedRef = useRef(false);
 
   const currentMember = useCurrentMember(workspaceId);
 
@@ -119,6 +137,10 @@ export function ChatPageView({
     if (target.kind !== "group") return null;
     return groups.find((group) => group.id === target.group.id) ?? target.group;
   }, [groups, target]);
+  const activeChannel = useMemo(() => {
+    if (target.kind !== "channel") return null;
+    return channels.find((channel) => channel.id === target.channel.id) ?? target.channel;
+  }, [channels, target]);
   const dmPeerUserId = activeContact?.user_id ?? null;
   const dmContactRoomId = activeContact?.dm_room_id ?? null;
   const { data: blockStatus } = useChatBlockStatus(
@@ -158,25 +180,29 @@ export function ChatPageView({
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          setConnectError(err instanceof Error ? err.message : "dm_failed");
+          setConnectError(chatErrorMessage(err, t, t("chat.dm_failed")));
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [dmPeerUserId, dmContactRoomId]);
+  }, [dmPeerUserId, dmContactRoomId, t]);
 
   const activeRoomId =
     target.kind === "workspace"
       ? workspaceRoomId
       : target.kind === "dm"
         ? (resolvedDmRoomId ?? activeContact?.dm_room_id ?? null)
-        : (activeGroup?.room_id ?? null);
+        : target.kind === "channel"
+          ? (activeChannel?.id ?? null)
+          : (activeGroup?.room_id ?? null);
+  const sendThreadMessage = useSendChatThreadMessage(workspaceId, activeRoomId ?? "");
 
   useEffect(() => {
     setMessageSearchOpen(false);
     setJumpToMessageId(null);
     setComposerPriority(null);
+    setActiveThreadRootId(null);
   }, [activeRoomId]);
 
   useEffect(() => {
@@ -209,16 +235,6 @@ export function ChatPageView({
   const canCreatePolls = roomPermissions.canCreatePolls;
   const canCreateNotes = roomPermissions.canCreateNotes;
 
-  const voiceAllowedRoomIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const room of rooms) {
-      if (room.kind === "dm" || room.kind === "group") {
-        ids.add(room.id);
-      }
-    }
-    return ids;
-  }, [rooms]);
-
   const chatScopeRoomIds = useMemo(
     () =>
       selectLazyChatScopeRoomIds({
@@ -229,18 +245,23 @@ export function ChatPageView({
     [rooms, activeRoomId, target.kind],
   );
   useChatRoomScopes(chatScopeRoomIds);
-  useChatTypingSync(currentUserId);
+  useChatPageSignals(workspaceId, currentUserId, authReady);
+
+  const peerLastReadAt =
+    target.kind === "dm" ? (activeRoomRecord?.peer_last_read_at ?? null) : null;
 
   const showLoading =
     !authReady ||
     (target.kind === "workspace" && ensureRoom.isPending && !workspaceRoomId) ||
     (target.kind === "dm" && !activeRoomId && (resolveDM.isPending || !roomsLoaded)) ||
-    (target.kind === "group" && !activeRoomId);
+    (target.kind === "group" && !activeRoomId) ||
+    (target.kind === "channel" && !activeRoomId);
 
   const { groupMemberProfiles, clearGroupMemberProfiles } = useNativeGroupMemberProfiles({
     workspaceId,
     targetKind: target.kind,
     activeGroup,
+    activeChannel,
   });
 
   const mentionCandidates = useMemo(
@@ -255,6 +276,14 @@ export function ChatPageView({
     [currentUserId, groupMemberProfiles, target.kind, workspaceMembers],
   );
   const mentionAllLabel = t("chat.mention_all");
+  // The draft lives in the composer's store, keyed by conversation: typing
+  // re-renders the composer, not this page and its sidebar.
+  const composerDraftKey = chatComposerDraftKey(workspaceId, target);
+  const readComposerDraft = useCallback(() => readChatComposerDraft(composerDraftKey), [composerDraftKey]);
+  const writeComposerDraft = useCallback(
+    (value: string) => useChatComposerDraftStore.getState().setDraft(composerDraftKey, value),
+    [composerDraftKey],
+  );
 
   const { provisionAndSend, sendMessageBody, handleCreateGroup, handleAddGroupMembers, handleLeaveConversation } =
     useChatPageActions({
@@ -264,12 +293,16 @@ export function ChatPageView({
       setTarget,
       activeRoomId,
       activeGroup,
-      draft,
-      setDraft,
+      activeChannel,
+      getDraft: readComposerDraft,
+      setDraft: writeComposerDraft,
       replyTo,
       setReplyTo,
+      activeThreadRootId,
+      workHubEnabled,
       ensureRoom,
       sendRoomMessage,
+      sendThreadMessage,
       resolveDM,
       createGroup,
       inviteMembers,
@@ -289,24 +322,16 @@ export function ChatPageView({
       setComposerPriority,
     });
 
-  useEffect(() => {
-    if (!authReady || syncedRef.current) return;
-    syncedRef.current = true;
-    void ensureRoom.mutate();
-  }, [authReady, ensureRoom]);
-
-  useEffect(() => {
-    if (!authReady) return;
-    void refetch();
-  }, [authReady, refetch]);
+  useSyncChatRoomsOnAuth(workspaceId, ensureRoom);
 
   const headerTitle = chatHeaderTitle(
     target,
     contacts,
     groups,
-    t("chat.title"),
+    workspaceRoomName,
     (params) => t("chat.dm_with", params),
     nicknamesByUserId,
+    channels,
   );
   const nameContext = useMemo(
     () =>
@@ -321,22 +346,13 @@ export function ChatPageView({
     [contacts, activeContact, activeGroup, groupMemberProfiles, workspaceMembers, nicknamesByUserId],
   );
 
-  const chatVoiceToken = useChatVoiceToken();
-  const mintVoiceToken = useCallback(
-    async (roomId: string, callId: string) => chatVoiceToken.mutateAsync({ roomId, callId }),
-    [chatVoiceToken],
-  );
-  const { voiceCall, startCall, acceptCall, declineCall, leaveCall, endCallForAll, markVoiceConnected, inCall } = useNativeVoiceCall({
-    workspaceId,
-    currentUserId,
-    mintToken: mintVoiceToken,
-    allowedRoomIds: voiceAllowedRoomIds,
-  });
-  const { handleStartVoiceCall, handleStartVideoCall, handleAcceptVoiceCall } = useChatVoiceHandlers({
+  const { startCall, acceptCall, declineCall, inCall } = useChatVoiceCall();
+  const { handleStartVoiceCall, handleStartVideoCall } = useChatVoiceHandlers({
     targetKind: target.kind,
     activeRoomId,
     activeContact,
     activeGroup,
+    activeChannel,
     startCall,
     acceptCall,
     declineCall,
@@ -346,7 +362,7 @@ export function ChatPageView({
     roomId: activeRoomId,
     currentUserId,
     nameContext,
-    draft,
+    draftKey: composerDraftKey,
     enabled: Boolean(activeRoomId) && !showLoading && !dmBlocked,
   });
 
@@ -360,7 +376,7 @@ export function ChatPageView({
       setResolvedDmRoomId(null);
       setDmSettingsOpen(false);
     } catch (err: unknown) {
-      setConnectError(err instanceof Error ? err.message : t("chat.block_failed"));
+      setConnectError(chatErrorMessage(err, t, t("chat.block_failed")));
     } finally {
       setBlockingContact(false);
     }
@@ -373,44 +389,35 @@ export function ChatPageView({
     try {
       await unblockUser.mutateAsync(activeContact.user_id);
     } catch (err: unknown) {
-      setConnectError(err instanceof Error ? err.message : t("chat.unblock_failed"));
+      setConnectError(chatErrorMessage(err, t, t("chat.unblock_failed")));
     } finally {
       setUnblockingContact(false);
     }
   }, [activeContact, unblockUser, t]);
 
-  const handleSendVoice = useCallback(
-    async ({ blob, durationMs }: { blob: Blob; durationMs: number }) => {
-      let roomId = activeRoomId;
-      if (!roomId && target.kind === "workspace") {
-        const room = await ensureRoom.mutateAsync();
-        roomId = room?.room_id ?? null;
-      }
-      if (!roomId) throw new Error(t("chat.room_load_failed"));
-      await sendVoiceMessage.mutateAsync({
-        roomId,
-        file: blob,
-        duration_ms: durationMs,
-        client_msg_id: newChatClientMsgId(),
-        reply_to_message_id: replyTo?.id,
-      });
-      setReplyTo(null);
-    },
-    [activeRoomId, ensureRoom, replyTo?.id, sendVoiceMessage, t, target.kind],
-  );
+  const { handleSendVoice, handleSendFile } = useChatMediaSend({
+    activeRoomId,
+    targetKind: target.kind,
+    replyToId: replyTo?.id,
+    ensureRoom,
+    sendVoiceMessage,
+    sendFileMessage,
+    clearReply: () => setReplyTo(null),
+  });
 
   if (!authReady) {
-    return (
-      <div className="flex h-full flex-col">
-        <CollectionPageHeader icon={MessageSquare} title={t("chat.title")} />
-        <CollectionPageState
-          icon={MessageSquare}
-          title={t("chat.loading")}
-          description={t("chat.group_description")}
-        />
-      </div>
-    );
+    return <ChatPageAuthLoading />;
   }
+
+  const callControlsDisabled =
+    !activeRoomId || inCall || (target.kind === "dm" && dmBlocked);
+  const leaveRoomAnd = (cleanup: () => void) => {
+    if (activeRoomId) void handleLeaveConversation(activeRoomId, cleanup);
+  };
+  const messageRefreshKey = Math.max(
+    sendRoomMessage.isSuccess ? sendRoomMessage.submittedAt : 0,
+    sendVoiceMessage.isSuccess ? sendVoiceMessage.submittedAt : 0,
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -419,21 +426,22 @@ export function ChatPageView({
         setTarget={setTarget}
         currentUserId={currentUserId}
         headerTitle={headerTitle}
+        workspaceRoomTitle={workspaceRoomName}
         contacts={contacts}
         groups={groups}
+        channels={channels}
+        workHubEnabled={workHubEnabled}
         activeContact={activeContact}
         activeGroup={activeGroup}
+        activeChannel={activeChannel}
         workspaceId={workspaceId}
-        messageRefreshKey={Math.max(
-          sendRoomMessage.isSuccess ? sendRoomMessage.submittedAt : 0,
-          sendVoiceMessage.isSuccess ? sendVoiceMessage.submittedAt : 0,
-        )}
+        messageRefreshKey={messageRefreshKey}
         activeRoomId={activeRoomId}
         showLoading={showLoading}
         connectError={connectError}
         pendingOutboxCount={pendingOutboxCount}
         isWorkspaceError={isError}
-        onRefetchWorkspace={() => void refetch()}
+        onRefetchWorkspace={refetchRooms}
         workspaceRoomId={workspaceRoomId}
         unreadByRoomId={unreadByRoomId}
         mentionUnreadByRoomId={mentionUnreadByRoomId}
@@ -443,13 +451,15 @@ export function ChatPageView({
         nameContext={nameContext}
         replyTo={replyTo}
         onReplyToChange={setReplyTo}
-        draft={draft}
-        onDraftChange={setDraft}
+        activeThreadRootId={activeThreadRootId}
+        onActiveThreadRootIdChange={setActiveThreadRootId}
+        composerDraftKey={composerDraftKey}
         composerPriority={composerPriority}
         onComposerPriorityChange={setComposerPriority}
         onSend={() => void provisionAndSend()}
         onSendMedia={(body) => void sendMessageBody(body)}
         onSendVoice={handleSendVoice}
+        onSendFile={handleSendFile}
         groupSettingsOpen={groupSettingsOpen}
         onGroupSettingsOpenChange={setGroupSettingsOpen}
         dmSettingsOpen={dmSettingsOpen}
@@ -465,41 +475,23 @@ export function ChatPageView({
         onAddMembersOpenChange={setAddMembersOpen}
         createGroupOpen={createGroupOpen}
         onCreateGroupOpenChange={setCreateGroupOpen}
+        channelSettingsOpen={channelSettingsOpen}
+        onChannelSettingsOpenChange={setChannelSettingsOpen}
         creatingGroup={creatingGroup}
         onCreateGroup={handleCreateGroup}
         invitingMembers={invitingMembers}
         onAddGroupMembers={handleAddGroupMembers}
         leavingConversation={leavingConversation}
-        onLeaveGroup={() => {
-          if (activeRoomId) {
-            void handleLeaveConversation(activeRoomId, () => {
-              setResolvedDmRoomId(null);
-            });
-          }
-        }}
-        onLeaveDm={() => {
-          if (activeRoomId) {
-            void handleLeaveConversation(activeRoomId, () => {
-              setResolvedDmRoomId(null);
-            });
-          }
-        }}
+        onLeaveGroup={() => leaveRoomAnd(() => setResolvedDmRoomId(null))}
+        onLeaveDm={() => leaveRoomAnd(() => setResolvedDmRoomId(null))}
+        onLeaveChannel={() => leaveRoomAnd(() => setChannelSettingsOpen(false))}
         groupMemberProfiles={groupMemberProfiles}
+        mentionCandidates={mentionCandidates}
         typingLabel={typingLabel}
         onVoiceCall={() => void handleStartVoiceCall()}
-        voiceCallDisabled={
-          !activeRoomId ||
-          inCall ||
-          chatVoiceToken.isPending ||
-          (target.kind === "dm" && dmBlocked)
-        }
+        voiceCallDisabled={callControlsDisabled}
         onVideoCall={() => void handleStartVideoCall()}
-        videoCallDisabled={
-          !activeRoomId ||
-          inCall ||
-          chatVoiceToken.isPending ||
-          (target.kind === "dm" && dmBlocked)
-        }
+        videoCallDisabled={callControlsDisabled}
         workspaceMembers={workspaceMembers}
         workspaceSettingsOpen={workspaceSettingsOpen}
         onWorkspaceSettingsOpenChange={setWorkspaceSettingsOpen}
@@ -512,15 +504,8 @@ export function ChatPageView({
         canPinMessages={canPinMessages}
         canCreatePolls={canCreatePolls}
         canCreateNotes={canCreateNotes}
+        peerLastReadAt={peerLastReadAt}
         t={t}
-      />
-      <VoiceCallOverlay
-        state={voiceCall}
-        onAccept={() => void handleAcceptVoiceCall()}
-        onDecline={() => void declineCall()}
-        onLeave={leaveCall}
-        onEndForAll={() => void endCallForAll()}
-        onConnected={markVoiceConnected}
       />
     </div>
   );

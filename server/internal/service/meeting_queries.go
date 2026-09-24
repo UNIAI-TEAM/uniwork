@@ -64,6 +64,7 @@ func (s *MeetingService) HandleProviderEvent(ctx context.Context, ev ProviderNeu
 		_ = s.q.CloseOpenAttendanceForConference(ctx, db.CloseOpenAttendanceForConferenceParams{
 			ConferenceSessionID: sess.ID, LeaveReason: strText("room_finished"),
 		})
+		s.endIfOverdueEmpty(ctx, sess.MeetingID)
 	case "conference.participant_joined":
 		pid := strings.TrimPrefix(ev.Identity, "uw_participant_")
 		if pid == ev.Identity || pid == "" {
@@ -204,10 +205,14 @@ type MeetingListFilter struct {
 	Status, MeetingType, HostUserID, ProjectID, Q string
 	From, To                                      *time.Time
 	Limit, Offset                                 int32
-	Sort                                          string
+	// Sort is "" (newest created first), "actual_start_at" or "starts_at"
+	// (calendar order around the viewer's today); the handler whitelists it.
+	Sort string
+	// Location is the viewer's zone for Sort "starts_at"; nil means UTC.
+	Location *time.Location
 }
 
-func (s *MeetingService) ListFiltered(ctx context.Context, userID, workspaceID string, f MeetingListFilter) ([]db.Meeting, int64, error) {
+func (s *MeetingService) ListFiltered(ctx context.Context, userID, workspaceID string, f MeetingListFilter) ([]db.ListMeetingsByWorkspaceFilteredRow, int64, error) {
 	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
 		return nil, 0, err
 	}
@@ -219,6 +224,15 @@ func (s *MeetingService) ListFiltered(ctx context.Context, userID, workspaceID s
 		HostUserID: strText(f.HostUserID), ProjectID: strText(f.ProjectID), Q: strText(f.Q),
 		LimitN: f.Limit, OffsetN: f.Offset, Sort: f.Sort,
 	}
+	// The zone decides which calendar day "today" is and which day each
+	// meeting falls on, so the pages cut the same day groups the client draws.
+	loc := f.Location
+	if loc == nil {
+		loc = time.UTC
+	}
+	today := time.Now().In(loc)
+	params.Tz = loc.String()
+	params.Today = pgtype.Date{Time: time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.UTC), Valid: true}
 	if f.From != nil {
 		params.FromAt = optTimestamptz(f.From)
 	}

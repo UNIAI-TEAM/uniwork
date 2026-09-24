@@ -126,13 +126,24 @@ test("the commit-msg hook enforces exactly the prefixes CLAUDE.md documents", ()
 test("the commit-msg hook accepts this repo's whole history", () => {
   // A rule that would have rejected the commits already in the tree is not a
   // rule, it is a trap for the next person who writes a correct message.
+  //
+  // e88a055 landed on develop via PR #62 and c416bc6 was pushed straight to
+  // develop, both without a conventional prefix; rewriting shared history is
+  // not an option, so keep the subjects here and nowhere else.
+  const historicalExceptions = new Set([
+    "Enhance UI components with transition classes and improve localization",
+    "add env",
+  ]);
   const subjects = execFileSync("git", ["log", "--format=%s"], { cwd: root, encoding: "utf8" })
     .split("\n")
     .filter(Boolean);
   const types = read(".githooks/commit-msg").match(/^TYPES="([^"]+)"/m)[1];
   const re = new RegExp(`^(${types})(\\([a-z0-9._/-]+\\))?: .+`);
   const rejected = subjects.filter(
-    (s) => !re.test(s) && !/^(Merge|Revert|fixup!|squash!|amend!|UNI-\d+:)/.test(s),
+    (s) =>
+      !historicalExceptions.has(s) &&
+      !re.test(s) &&
+      !/^(Merge|Revert|fixup!|squash!|amend!|UNI-\d+:)/.test(s),
   );
   assert.deepEqual(rejected, [], "commit-msg would reject commits already in history");
 });
@@ -171,7 +182,8 @@ test("GATE_LEVEL is one word and every gate that claims to read it does", () => 
   assert.ok(["fast", "standard", "strict"].includes(level), `GATE_LEVEL is "${level}"; expected fast | standard | strict`);
   for (const f of [".githooks/pre-commit", "scripts/check.sh", ".github/workflows/ci.yml",
                    ".github/workflows/uniai-link.yml", "docs/engineering/DEFINITION_OF_DONE.md",
-                   "docs/engineering/FEATURE_WORKFLOW.md"]) {
+                   "docs/engineering/FEATURE_WORKFLOW.md",
+                   "scripts/coverage-gate.ts", "scripts/lint-gate.sh"]) {
     assert.match(read(f), /GATE_LEVEL/, `${f} is listed in GATE_LEVELS.md as a reader but never mentions GATE_LEVEL`);
     assert.ok(read("docs/engineering/GATE_LEVELS.md").includes(`\`${f}\``), `GATE_LEVELS.md does not list ${f}`);
   }
@@ -344,6 +356,11 @@ test("the UniAI tracking glue is wired: script, hook, workflow, rules", () => {
   assert.match(read(".github/workflows/uniai-link.yml"), /UNI-\[0-9\]\+/, "uniai-link must grep for UNI-nnn");
   // No issue, no code, at every level: fast must not turn a missing key into a warning.
   assert.doesNotMatch(read(".github/workflows/uniai-link.yml"), /=\s*fast\b/, "uniai-link must not special-case fast");
+  assert.match(
+    read(".githooks/commit-msg"),
+    /UNI-\[0-9\]\*:/,
+    "commit-msg must accept squash-merged UniAI PR titles (UNI-nnn: …)",
+  );
   assert.match(read(".githooks/prepare-commit-msg"), /Refs: /, "prepare-commit-msg must add the Refs trailer");
   assert.match(read("CLAUDE.md"), /\n## Project Tracking \(UniAI\)\n/, "CLAUDE.md needs a Project Tracking (UniAI) section");
   for (const t of ["issue-start", "issue-pr", "issue-done", "issue-mine"]) {

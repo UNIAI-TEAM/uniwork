@@ -25,7 +25,7 @@ async function onboard(page: Page, tag: string, orgName: string, wsName: string)
   await page.getByRole("button", { name: `Tạo ${wsName}` }).click();
   await page.getByRole("button", { name: "Bỏ qua, mời sau" }).click();
   await expect(page).toHaveURL(/\/tasks$/, { timeout: 15_000 });
-  await page.getByRole("button", { name: "Đã hiểu" }).click({ timeout: 15_000 });
+  await page.getByRole("button", { name: "Để sau" }).click({ timeout: 15_000 });
 }
 
 async function ask(page: Page, question: string) {
@@ -43,7 +43,7 @@ test("⌘J answers from the asker's own workspace only", async ({ browser, page:
   test.skip(!(await askButton.isVisible().catch(() => false)), "AI provider not configured on this server");
 
   const title = `Việc cho UNI ${stamp}`;
-  await a.getByRole("button", { name: "Việc mới" }).click();
+  await a.getByRole("button", { name: "Tạo việc" }).click();
   await a.getByLabel("Tiêu đề").fill(title);
   await a.getByRole("button", { name: "Tạo", exact: true }).click();
   await expect(a.getByText(title)).toBeVisible();

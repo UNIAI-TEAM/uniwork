@@ -143,6 +143,18 @@ WHERE meeting_id = $1 AND requester_user_id = $2 AND status = 'PENDING';
 SELECT * FROM meeting_join_requests
 WHERE meeting_id = $1 AND requester_guest_id = $2 AND status = 'PENDING';
 
+-- name: GetLatestJoinRequestForUser :one
+SELECT * FROM meeting_join_requests
+WHERE meeting_id = $1 AND requester_user_id = $2
+ORDER BY requested_at DESC, id DESC
+LIMIT 1;
+
+-- name: GetLatestJoinRequestForGuest :one
+SELECT * FROM meeting_join_requests
+WHERE meeting_id = $1 AND requester_guest_id = $2
+ORDER BY requested_at DESC, id DESC
+LIMIT 1;
+
 -- name: ListJoinRequests :many
 SELECT * FROM meeting_join_requests WHERE meeting_id = $1 ORDER BY requested_at DESC;
 
@@ -193,6 +205,15 @@ UPDATE meeting_conference_sessions SET
   ended_at = COALESCE(sqlc.narg('ended_at'), ended_at),
   updated_at = now()
 WHERE id = sqlc.arg('id')
+RETURNING *;
+
+-- name: MarkConferenceSessionResyncing :one
+-- Claims an IDLE session for one re-ensure. The WHERE clause is the lock that
+-- keeps concurrent joins from queueing the same instruction twice.
+UPDATE meeting_conference_sessions SET
+  provider_sync_status = 'PENDING',
+  updated_at = now()
+WHERE id = $1 AND status = 'IDLE' AND provider_sync_status = 'SYNCED'
 RETURNING *;
 
 -- name: EndConferenceSession :one

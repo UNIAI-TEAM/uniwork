@@ -12,20 +12,15 @@ import {
   MARK_SHADE_CLASS,
   type MarkArt,
 } from "./mark.generated";
-import {
-  LOCKUP_HORIZONTAL,
-  LOCKUP_STACKED,
-  WORDMARK,
-  type Lockup,
-} from "./wordmark.generated";
+import { LOCKUP_STACKED, WORDMARK } from "./wordmark.generated";
 
 export type LogoVariant = "mark" | "wordmark" | "lockup" | "lockup-stacked";
 
 /**
- * How the MARK is filled. The wordmark is type, and type takes the text colour
- * - it is always `currentColor`, in every tone and every variant. A wordmark
- * carrying the mark's gradient reads as decoration, and PRODUCT.md keeps colour
- * for signal.
+ * How the MARK is filled. The wordmark is "uni", the mark, "ork": the letters
+ * are type, and type takes the text colour - always `currentColor`, in every
+ * tone and every variant. Only the mark standing in for the w carries the tone.
+ * `wordmark` is the single-ink version: its mark takes the text colour too.
  *
  * `gradient` is the mark as drawn. `flat` is the single brand hue, for one-ink
  * printing and for surfaces where a gradient would compete. `mono` inherits
@@ -52,7 +47,7 @@ const DEFAULT_SIZE: Record<LogoVariant, number> = {
   mark: 24,
   wordmark: 20,
   lockup: 28,
-  "lockup-stacked": 48,
+  "lockup-stacked": 64,
 };
 
 /**
@@ -64,14 +59,14 @@ export const LOGO_SAFE_ZONE_RATIO = 14 / 92;
 
 /**
  * Below these heights the artwork stops being itself: the mark loses its head
- * gap, the wordmark's counters fill in, the lockup's wordmark turns to texture.
- * `lockup` at 22px is about 94px wide.
+ * gap, the letters' counters fill in, the word turns to texture. `lockup` at
+ * 16px is about 84px wide.
  */
 export const LOGO_MIN_SIZE: Record<LogoVariant, number> = {
   mark: 16,
-  wordmark: 12,
-  lockup: 22,
-  "lockup-stacked": 32,
+  wordmark: 16,
+  lockup: 16,
+  "lockup-stacked": 40,
 };
 
 function Mark({ art, fill }: { art: MarkArt; fill: string }) {
@@ -113,19 +108,17 @@ function Mark({ art, fill }: { art: MarkArt; fill: string }) {
   );
 }
 
-function Wordmark() {
-  return <path d={WORDMARK.path} fill="currentColor" />;
-}
-
-function LockupArt({ art, fill, layout }: { art: MarkArt; fill: string; layout: Lockup }) {
+/**
+ * The word with the mark set in it. Letters are drawn after the mark so the
+ * last path is always type, on the text colour.
+ */
+function WordmarkArt({ art, fill }: { art: MarkArt; fill: string }) {
   return (
     <>
-      <g transform={`translate(${layout.markX} 0)`}>
+      <g transform={`translate(${WORDMARK.markX} 0)`}>
         <Mark art={art} fill={fill} />
       </g>
-      <g transform={`translate(${layout.wordX} ${layout.wordY}) scale(${layout.wordScale})`}>
-        <Wordmark />
-      </g>
+      <path d={WORDMARK.path} fill="currentColor" />
     </>
   );
 }
@@ -147,8 +140,10 @@ export function Logo({
 }: LogoProps) {
   const gradientId = useId();
   const height = size ?? DEFAULT_SIZE[variant];
-  const useCompact = variant === "mark" && height <= COMPACT_MAX_SIZE;
-  const art = useCompact ? MARK_COMPACT : MARK;
+  // The compact artwork is chosen by the height the MARK itself renders at,
+  // which in the stacked lockup is only its share of the whole.
+  const markHeight = variant === "lockup-stacked" ? (height * MARK.height) / LOCKUP_STACKED.height : height;
+  const art = markHeight <= COMPACT_MAX_SIZE ? MARK_COMPACT : MARK;
 
   const fill =
     tone === "mono"
@@ -163,15 +158,24 @@ export function Logo({
   let viewBox: string;
   let content: React.ReactNode;
 
-  if (variant === "wordmark") {
+  if (variant === "wordmark" || variant === "lockup") {
     width = (WORDMARK.width / WORDMARK.height) * height;
     viewBox = WORDMARK.viewBox;
-    content = <Wordmark />;
-  } else if (variant === "lockup" || variant === "lockup-stacked") {
-    const layout = variant === "lockup" ? LOCKUP_HORIZONTAL : LOCKUP_STACKED;
+    content = <WordmarkArt art={art} fill={variant === "wordmark" ? "currentColor" : fill} />;
+  } else if (variant === "lockup-stacked") {
+    const layout = LOCKUP_STACKED;
     width = (layout.width / layout.height) * height;
     viewBox = `0 0 ${layout.width} ${layout.height}`;
-    content = <LockupArt art={MARK} fill={fill} layout={layout} />;
+    content = (
+      <>
+        <g transform={`translate(${layout.markX} 0)`}>
+          <Mark art={art} fill={fill} />
+        </g>
+        <g transform={`translate(${layout.wordX} ${layout.wordY}) scale(${layout.wordScale})`}>
+          <WordmarkArt art={markHeight * layout.wordScale <= COMPACT_MAX_SIZE ? MARK_COMPACT : MARK} fill={fill} />
+        </g>
+      </>
+    );
   } else {
     width = (art.width / art.height) * height;
     viewBox = art.viewBox;

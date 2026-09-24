@@ -1,13 +1,18 @@
 "use client";
 
-import { useMemo, type ComponentType } from "react";
-import { Monitor, Moon, Sun } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES, setLocale, type SupportedLocale } from "@uniwork/core/i18n";
 import { useLocaleAdapter } from "@uniwork/core/i18n/react";
 import { usePatchMe, useSession } from "@uniwork/core/auth";
-import { useTheme } from "@uniwork/ui/components/common/theme-provider";
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@uniwork/ui/components/ui/combobox";
 import {
   Select,
   SelectContent,
@@ -15,102 +20,98 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@uniwork/ui/components/ui/select";
-import { SettingsCard, SettingsRow, SettingsSection, SettingsTab } from "./settings-layout";
+import {
+  SettingsCard,
+  SettingsRow,
+  SettingsSaveState,
+  SettingsSection,
+  SettingsTab,
+} from "./settings-layout";
+import { ThemesPanel } from "./themes-panel";
+import { matchesTimezone, timezoneItems, type TimezoneItem } from "./timezone-options";
+import { useAutoSave } from "./use-auto-save";
 
-type ThemeValue = "light" | "dark" | "system";
+const DEFAULT_TIMEZONE = "Asia/Ho_Chi_Minh";
 
-const THEME_ICONS: Record<ThemeValue, ComponentType<{ className?: string }>> = {
-  light: Sun,
-  dark: Moon,
-  system: Monitor,
-};
+type ZoneItem = TimezoneItem;
 
-function ThemeOptionLabel({
-  value,
-  label,
-}: {
-  value: ThemeValue;
-  label: string;
-}) {
-  const Icon = THEME_ICONS[value];
-  return (
-    <span className="inline-flex items-center gap-1.5">
-      <Icon className="size-4 text-muted-foreground" aria-hidden />
-      {label}
-    </span>
-  );
+function sameZone(left: string, right: string) {
+  return left === right;
 }
 
 export function PreferencesTab() {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "settings" });
-  const { theme, setTheme } = useTheme();
   const localeAdapter = useLocaleAdapter();
   const { user } = useSession();
   const patchMe = usePatchMe();
-  const timezone = user?.timezone ?? DEFAULT_TIMEZONE;
-  // timezoneOptions enumerates ~600 IANA zones; build the item list once per zone.
-  const zoneItems = useMemo(() => timezoneOptions(timezone).map((z) => ({ value: z, label: z })), [timezone]);
+  const timezone = user?.timezone || DEFAULT_TIMEZONE;
+  // The zone picked, shown at once; the account follows when the save lands.
+  const [zoneDraft, setZoneDraft] = useState(timezone);
+  useEffect(() => setZoneDraft(timezone), [timezone]);
 
   const currentLocale: SupportedLocale = SUPPORTED_LOCALES.includes(i18n.language as SupportedLocale)
     ? (i18n.language as SupportedLocale)
     : DEFAULT_LOCALE;
+  const zones = useMemo(() => timezoneItems(zoneDraft, currentLocale), [zoneDraft, currentLocale]);
+  const selectedZone = zones.find((z) => z.value === zoneDraft) ?? null;
 
-  // next-themes returns undefined until mounted — keep a stable Select value.
-  const themeValue: ThemeValue =
-    theme === "light" || theme === "dark" || theme === "system" ? theme : "system";
-
-  const themeOptions: { value: ThemeValue; label: string }[] = [
-    { value: "light", label: t("preferences.themeLight") },
-    { value: "dark", label: t("preferences.themeDark") },
-    { value: "system", label: t("preferences.themeSystem") },
-  ];
+  const saveTimezone = useCallback(
+    async (next: string) => {
+      await patchMe.mutateAsync({ timezone: next });
+    },
+    [patchMe],
+  );
+  // A refused zone goes back to the saved one, so picking it again retries.
+  const revertTimezone = useCallback(() => setZoneDraft(timezone), [timezone]);
+  // The same inline state as every autosaved field: no toast either way.
+  const zoneSave = useAutoSave({
+    value: zoneDraft,
+    savedValue: timezone,
+    onSave: saveTimezone,
+    onError: revertTimezone,
+    enabled: !!user,
+    delay: 0,
+    isEqual: sameZone,
+  });
 
   const languageOptions: { value: SupportedLocale; label: string }[] = [
     { value: "vi", label: t("preferences.languageVi") },
     { value: "en", label: t("preferences.languageEn") },
   ];
 
-  const activeTheme = themeOptions.find((option) => option.value === themeValue);
-
+  // Like the theme and the accent, the language is kept on this browser and
+  // shows itself: the page turns into it. There is no save to report.
   const handleLanguageChange = (next: SupportedLocale) => {
     if (next === currentLocale) return;
+    // The adapter keeps the choice on this browser (a cookie on web), so the
+    // server renders the next page in it; the account's locale is untouched.
     localeAdapter.persist(next);
     void setLocale(next);
     document.documentElement.lang = next;
-    toast.success(t("preferences.toastSaved"), { id: "settings-auto-save" });
+  };
+
+  const zoneSaving = zoneSave.status === "saving";
+  const handleTimezoneChange = (next: ZoneItem | null) => {
+    if (!next || next.value === zoneDraft || zoneSaving) return;
+    setZoneDraft(next.value);
   };
 
   return (
     <SettingsTab title={t("page.tabs.preferences")}>
-      <SettingsSection title={t("preferences.section")}>
+      <ThemesPanel />
+      <SettingsSection
+        title={t("preferences.section")}
+        action={
+          <SettingsSaveState
+            status={zoneSave.status}
+            savingLabel={t("save.saving")}
+            savedLabel={t("save.saved")}
+            errorLabel={t("save.error")}
+          />
+        }
+      >
         <SettingsCard>
-          <SettingsRow label={t("preferences.theme")} size="select">
-            <Select
-              items={themeOptions}
-              value={themeValue}
-              onValueChange={(next) => {
-                if (!next || next === themeValue) return;
-                setTheme(next as ThemeValue);
-                toast.success(t("preferences.toastSaved"), { id: "settings-auto-save" });
-              }}
-            >
-              <SelectTrigger size="sm" className="w-full" aria-label={t("preferences.theme")}>
-                <SelectValue>
-                  {activeTheme ? (
-                    <ThemeOptionLabel value={activeTheme.value} label={activeTheme.label} />
-                  ) : null}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent align="end">
-                {themeOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    <ThemeOptionLabel value={option.value} label={option.label} />
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </SettingsRow>
-          <SettingsRow label={t("preferences.language")} size="select">
+          <SettingsRow label={t("preferences.language")} description={t("preferences.languageHint")} size="select">
             <Select
               items={languageOptions}
               value={currentLocale}
@@ -119,7 +120,7 @@ export function PreferencesTab() {
                 handleLanguageChange(next as SupportedLocale);
               }}
             >
-              <SelectTrigger size="sm" className="w-full" aria-label={t("preferences.language")}>
+              <SelectTrigger className="w-full" aria-label={t("preferences.language")}>
                 <SelectValue>
                   {languageOptions.find((option) => option.value === currentLocale)?.label}
                 </SelectValue>
@@ -133,35 +134,40 @@ export function PreferencesTab() {
               </SelectContent>
             </Select>
           </SettingsRow>
-          <SettingsRow label={t("preferences.timezone")} size="select">
-            <Select
-              aria-label={t("preferences.timezone")}
-              value={timezone}
-              disabled={patchMe.isPending}
-              items={zoneItems}
-              onValueChange={(next) => {
-                if (!next || next === timezone) return;
-                patchMe.mutate(
-                  { timezone: next },
-                  {
-                    onSuccess: () => toast.success(t("preferences.toastSaved"), { id: "settings-auto-save" }),
-                    onError: () => toast.error(t("preferences.toastError")),
-                  },
-                );
-              }}
-            />
+          <SettingsRow label={t("preferences.timezone")} description={t("preferences.timezoneHint")} size="text">
+            <Combobox
+              items={zones}
+              value={selectedZone}
+              itemToStringLabel={(z: ZoneItem) => z.label}
+              itemToStringValue={(z: ZoneItem) => z.value}
+              isItemEqualToValue={(a: ZoneItem, b: ZoneItem) => a.value === b.value}
+              // Accent- and case-blind, over the label, the IANA id and city
+              // aliases: "ha noi" finds Vietnam's zone.
+              filter={(z: ZoneItem, query: string) => matchesTimezone(z, query)}
+              onValueChange={handleTimezoneChange}
+              // A pick made while the last one saves would be dropped; hold the
+              // list still (focus stays) until the server answers.
+              readOnly={zoneSaving}
+            >
+              <ComboboxInput
+                className="w-full"
+                aria-label={t("preferences.timezone")}
+                placeholder={t("preferences.timezoneSearch")}
+              />
+              <ComboboxContent align="end">
+                <ComboboxEmpty>{t("preferences.timezoneEmpty")}</ComboboxEmpty>
+                <ComboboxList>
+                  {(z: ZoneItem) => (
+                    <ComboboxItem key={z.value} value={z}>
+                      {z.label}
+                    </ComboboxItem>
+                  )}
+                </ComboboxList>
+              </ComboboxContent>
+            </Combobox>
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
     </SettingsTab>
   );
-}
-
-const DEFAULT_TIMEZONE = "Asia/Ho_Chi_Minh";
-
-/** Every IANA zone the engine knows, or a short list where Intl cannot say. */
-function timezoneOptions(current: string): string[] {
-  const intl = Intl as unknown as { supportedValuesOf?: (k: string) => string[] };
-  const all = intl.supportedValuesOf ? intl.supportedValuesOf("timeZone") : ["Asia/Ho_Chi_Minh", "Asia/Bangkok", "Asia/Singapore", "Asia/Tokyo", "UTC"];
-  return all.includes(current) ? all : [current, ...all];
 }

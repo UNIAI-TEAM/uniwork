@@ -93,18 +93,29 @@ func newTestServerWithOutbox(t *testing.T, google GoogleExchanger, out mail.Enqu
 // drop its cache the way the flag.updated consumer does in production.
 var testFlagOverrides *featureflags.DBProvider
 
+// testPool is the pool of the last newTestDeps. testutil.DB takes a
+// session-level advisory lock for the life of the test, so a helper that
+// opens a second pool inside the same test waits on its own lock forever;
+// helpers that need SQL after the server is up read this instead.
+var testPool *pgxpool.Pool
+
 func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps, *pgxpool.Pool) {
 	t.Helper()
 	pool := testutil.DB(t)
+	testPool = pool
 	q := db.New(pool)
 	minter := auth.TokenMinter{Secret: []byte("test"), TTL: time.Minute}
 	orgs := service.NewOrganizationService(pool, q)
 	ws := service.NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{})
 	verification := service.NewVerificationService(q, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{}, testDevCode)
 	authSvc := service.NewAuthService(pool, q, minter, time.Hour, verification)
-	tasks := service.NewTaskService(pool, q, ws)
-	meetingSvc := service.NewMeetingService(pool, q, ws, service.NopPublisher{}, &meetingspkg.FakeProvider{}, service.MeetingRuntime{HMACKey: []byte("test")})
+	store := storage.NewLocalStorageFromEnv()
+	tasks := service.NewTaskService(pool, q, ws, store)
+	fp := &meetingspkg.FakeProvider{RecordingEnabled: true}
+	meetingSvc := service.NewMeetingService(pool, q, ws, service.NopPublisher{}, fp, service.MeetingRuntime{HMACKey: []byte("test")})
 	chatSvc := service.NewChatService(pool, q, ws, service.NopPublisher{})
+	chatSvc.SetConference(fp)
+	chatSvc.SetTasks(tasks)
 	// AI_PROVIDER=fake in the test env turns the gateway on with the
 	// deterministic provider; unset leaves it disabled, as in production
 	// without a key.
@@ -136,6 +147,9 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 		Workspaces:    ws,
 		Onboarding:    service.NewOnboardingService(q, ws, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{}),
 		Tasks:         tasks,
+		Home:          service.NewHomeService(q, ws),
+		Calendar:      service.NewCalendarService(q, ws),
+		EmailHub:      service.NewEmailHubService(q, ws, nil),
 		Agents:        service.NewAgentService(pool, q, orgs, ws),
 		Actors:        service.NewActorService(q),
 		Audit:         service.NewAuditService(pool, q, orgs, ws),
@@ -147,7 +161,7 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 		Chat:          chatSvc,
 		Hub:           realtime.NewHub(),
 		// LOCAL_UPLOAD_DIR is set per test to a temp dir by the tests that upload.
-		Storage:       storage.NewLocalStorageFromEnv(),
+		Storage:       store,
 		Notifications: notification.NewService(q, notification.PushConfig{}),
 		AskUNI:        service.NewAskUNIService(pool, q, ws, orgs, tasks, meetingSvc, chatSvc, gateway, nil),
 	}

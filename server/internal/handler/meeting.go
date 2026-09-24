@@ -41,6 +41,21 @@ func (h *handlers) listMeetings(w http.ResponseWriter, r *http.Request) {
 		Status: q.Get("status"), MeetingType: q.Get("meeting_type"), HostUserID: q.Get("host_user_id"),
 		ProjectID: q.Get("project_id"), Q: q.Get("q"), Sort: q.Get("sort"), Limit: int32(limit), Offset: int32(offset),
 	}
+	switch f.Sort {
+	case "", "actual_start_at", "starts_at":
+	default:
+		respondError(w, http.StatusBadRequest, "invalid_request", "sort phải là actual_start_at hoặc starts_at")
+		return
+	}
+	if tz := q.Get("tz"); tz != "" {
+		// "Local" would mean the server's zone, and Postgres would not know it by that name.
+		loc, err := time.LoadLocation(tz)
+		if err != nil || tz == "Local" {
+			respondError(w, http.StatusBadRequest, "invalid_request", "tz phải là múi giờ IANA, ví dụ Asia/Ho_Chi_Minh")
+			return
+		}
+		f.Location = loc
+	}
 	if s := q.Get("from"); s != "" {
 		if t, err := time.Parse(time.RFC3339, s); err == nil {
 			f.From = &t
@@ -56,11 +71,11 @@ func (h *handlers) listMeetings(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	out := make([]sdo.MeetingDTO, 0, len(ms))
-	for _, m := range ms {
-		out = append(out, toMeetingDTO(m))
+	out := make([]sdo.MeetingListItemDTO, 0, len(ms))
+	for _, row := range ms {
+		out = append(out, sdo.MeetingListItemDTO{MeetingDTO: toMeetingDTO(row.Meeting), HasPlayableRecording: row.HasPlayableRecording})
 	}
-	respondJSON(w, 200, map[string]any{"meetings": out, "total": total})
+	respondJSON(w, 200, sdo.MeetingListSDO{Meetings: out, Total: total})
 }
 
 func (h *handlers) createMeeting(w http.ResponseWriter, r *http.Request) {
@@ -139,6 +154,19 @@ func (h *handlers) startMeeting(w http.ResponseWriter, r *http.Request) {
 
 func (h *handlers) endMeeting(w http.ResponseWriter, r *http.Request) {
 	m, err := h.Meetings.End(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, 200, map[string]any{"meeting": toMeetingDTO(m)})
+}
+
+func (h *handlers) extendMeeting(w http.ResponseWriter, r *http.Request) {
+	var in sdi.ExtendMeetingSDI
+	if r.ContentLength > 0 && !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	m, err := h.Meetings.Extend(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), in.Minutes)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
