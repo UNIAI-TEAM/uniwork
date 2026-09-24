@@ -44,6 +44,40 @@ describe("CalendarToolbar", () => {
     expect(selectedView.className).not.toContain("aria-pressed:shadow-");
   });
 
+  it("keeps text controls while icon actions navigate, switch views, and filter mine", () => {
+    const onAnchorDateChange = vi.fn();
+    const onMineChange = vi.fn();
+    const onViewModeChange = vi.fn();
+    render(
+      wrapWithNav(
+        <CalendarToolbar
+          anchorDate={anchor}
+          mine={false}
+          showWeekends
+          viewMode="week"
+          workspaceId="ws1"
+          isRefreshing={false}
+          onAnchorDateChange={onAnchorDateChange}
+          onMineChange={onMineChange}
+          onRefresh={noop}
+          onShowWeekendsChange={noop}
+          onViewModeChange={onViewModeChange}
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Kỳ trước" }));
+    fireEvent.click(screen.getByRole("button", { name: "Kỳ sau" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hôm nay" }));
+    expect(onAnchorDateChange).toHaveBeenCalledTimes(3);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ngày" }));
+    expect(onViewModeChange).toHaveBeenCalledWith("day");
+
+    fireEvent.click(screen.getByRole("switch", { name: "Của tôi" }));
+    expect(onMineChange.mock.calls[0]?.[0]).toBe(true);
+  });
+
   it("shows period-aware center label for each view mode", () => {
     const { rerender } = render(
       wrapWithNav(

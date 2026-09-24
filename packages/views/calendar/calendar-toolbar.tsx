@@ -169,7 +169,7 @@ export function CalendarToolbar({
           </PopoverContent>
         </Popover>
         <label className="flex cursor-pointer items-center gap-2">
-          <Switch checked={mine} onCheckedChange={onMineChange} aria-label={t("calendar.mine")} />
+          <Switch checked={mine} onCheckedChange={onMineChange} />
           <span className="text-body text-foreground">{t("calendar.mine")}</span>
         </label>
       </div>
