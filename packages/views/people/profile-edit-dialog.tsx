@@ -45,22 +45,27 @@ function initialForm(person: Person): ProfileInput {
 }
 
 /**
- * A titled run of fields. Sentence case in the body weight: the tracked
- * capitals it used to be in read stiffly with Vietnamese diacritics.
+ * A titled run of fields. Sentence case — the tracked capitals it used to be
+ * in read stiffly with Vietnamese diacritics — one step above the field
+ * labels, and a later section ruled off from the one before, so the split
+ * between what a person says and what the company records reads while
+ * scrolling.
  */
 function FormSection({
   title,
   hint,
+  divided = false,
   children,
 }: {
   title: string;
   hint?: string;
+  divided?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <section className="space-y-3">
+    <section className={divided ? "space-y-3 border-t border-border pt-6" : "space-y-3"}>
       <div>
-        <h3 className="text-body font-semibold text-foreground">{title}</h3>
+        <h3 className="text-title-sm font-semibold text-foreground">{title}</h3>
         {hint ? <p className="mt-0.5 text-caption text-muted-foreground">{hint}</p> : null}
       </div>
       {children}
@@ -243,12 +248,17 @@ export function ProfileEditDialog({
                   </div>
                   {/* No `maxLength`: a hard stop at 500 leaves someone who pasted a
                       long paragraph with a silently truncated one. The count and the
-                      blocked Save say what happened instead. */}
+                      blocked Save say what happened instead. The visible counter
+                      would be read out on every keystroke, so the limit is told to
+                      a screen reader once, up front. */}
+                  <span id="profile-bio-limit" className="sr-only">
+                    {t("people.bio_limit", { max: MAX_BIO })}
+                  </span>
                   <Textarea
                     id="profile-bio"
                     rows={4}
                     aria-invalid={bioTooLong || undefined}
-                    aria-describedby={bioTooLong ? "profile-bio-error" : undefined}
+                    aria-describedby={bioTooLong ? "profile-bio-limit profile-bio-error" : "profile-bio-limit"}
                     value={form.bio ?? ""}
                     onChange={(e) => set("bio", e.target.value)}
                     disabled={pending}
@@ -263,6 +273,7 @@ export function ProfileEditDialog({
             </FormSection>
 
             <FormSection
+              divided
               title={t("people.group_company")}
               hint={locked ? t("people.group_company_locked") : undefined}
             >

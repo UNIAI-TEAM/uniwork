@@ -28,7 +28,9 @@ interface ManagerOption {
  * to the server, which folds diacritics ("nguyen" finds "Nguyễn"), so the
  * combobox does no filtering of its own — it would drop exactly the matches
  * the server folded in. The person being edited is never offered as their own
- * manager (the server refuses that too).
+ * manager (the server refuses that too). The list pages like the directory:
+ * scrolling to its end loads the next page, so a large company is reachable
+ * without knowing to search.
  */
 export function ManagerPicker({
   id,
@@ -60,7 +62,15 @@ export function ManagerPicker({
   // While the field still shows the chosen name, list everyone rather than
   // only that one name.
   const search = value && query === value.display_name ? "" : query;
-  const { data, isFetching } = usePeople(orgSlug, { q: search, status: "active" });
+  const { data, isFetching, hasNextPage, isFetchingNextPage, fetchNextPage } = usePeople(orgSlug, {
+    q: search,
+    status: "active",
+  });
+  const loadMoreAtEnd = (event: React.UIEvent<HTMLDivElement>) => {
+    const list = event.currentTarget;
+    if (!hasNextPage || isFetchingNextPage) return;
+    if (list.scrollTop + list.clientHeight >= list.scrollHeight - 48) void fetchNextPage();
+  };
   const options = useMemo<ManagerOption[]>(
     () =>
       (data?.pages ?? [])
@@ -97,7 +107,7 @@ export function ManagerPicker({
       />
       <ComboboxContent>
         <ComboboxEmpty>{isFetching ? t("common.loading") : t("people.manager_empty")}</ComboboxEmpty>
-        <ComboboxList>
+        <ComboboxList onScroll={loadMoreAtEnd}>
           {(o: ManagerOption) => (
             <ComboboxItem key={o.id} value={o}>
               <PersonAvatar id={o.id} name={o.name} avatarUrl={o.avatarUrl} size="xs" />
@@ -106,6 +116,11 @@ export function ManagerPicker({
             </ComboboxItem>
           )}
         </ComboboxList>
+        {isFetchingNextPage ? (
+          <p role="status" className="px-3 py-2 text-caption text-muted-foreground">
+            {t("common.loading")}
+          </p>
+        ) : null}
       </ComboboxContent>
     </Combobox>
   );
