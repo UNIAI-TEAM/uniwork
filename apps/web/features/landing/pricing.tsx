@@ -1,5 +1,5 @@
 "use client";
-import { Check, Gauge, Sparkles, UsersRound, Video } from "lucide-react";
+import { ArrowRight, Gauge, Sparkles, UsersRound, Video } from "lucide-react";
 import Link from "next/link";
 import { useRef } from "react";
 import { useTranslation } from "react-i18next";
@@ -91,14 +91,16 @@ export function Pricing() {
             <ul className="mt-6 grid gap-x-8 gap-y-3 sm:grid-cols-2">
               {QUOTAS.map((key) => (
                 <li key={key} className="flex items-center gap-2.5 text-body-lg">
-                  <span className="pricing-check" aria-hidden><Check /></span>
+                  <span className="pricing-meter" aria-hidden><Gauge /></span>
                   {t(`landing.pricing.${key}`)}
                 </li>
               ))}
             </ul>
+            <p className="pricing-meter-note">{t("landing.revision.pricingNote")}</p>
             <p className="mt-8 max-w-prose border-t border-border pt-6 text-body-lg leading-relaxed text-muted-foreground">
               {t("landing.pricing.status")}
             </p>
+            <div className="pricing-next"><h4>{t("landing.revision.pricingNext")}</h4><p>{t("landing.revision.pricingSetup")}</p><Link className="revision-text-link" href={`${paths.learn()}#setup`}>{t("landing.revision.readiness.cta")}<ArrowRight aria-hidden /></Link></div>
           </div>
         </div>
       </Container>

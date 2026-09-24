@@ -2380,6 +2380,101 @@
     }
   },
   "landing": {
+    "revision": {
+      "interactive": "Interactive",
+      "illustration": "Illustration",
+      "referenceScope": "Based on the Lovable product demo. This page uses sample data; actual availability depends on your version, permissions and deployment configuration.",
+      "viewReference": "View illustration",
+      "mobileLabel": "Focused preview",
+      "mobileNote": "A summary for smaller screens, not a mobile app interface.",
+      "mobileSteps": "Choose a preview detail",
+      "intelligence": {
+        "overview": "Content illustration, not an operational screen",
+        "pending": "Pending approval", "approved": "Approved", "activity": "Activity", "source": "Proposal source", "review": "Check the source and scope before confirming", "permission": "Data changes require human approval",
+        "people": "AI teammates", "assignments": "Assignments", "contracts": "Work contracts", "skills": "Skills", "workspaces": "Workspaces", "roles": ["Project coordination", "Knowledge management", "Meeting assistant", "Data analysis", "Human resources", "Compliance"],
+        "submitted": "Submitted version", "current": "Current version", "stale": "The version has changed. Resubmit it for review.", "reviewVersion": "Review the correct version", "noRealAction": "Decisions shown here are illustrative only."
+      },
+      "workflowTitle": "Where this fits in the work",
+      "questionTitle": "Before you use it",
+      "scopeQuestion": "Does the demo match my deployment?",
+      "scopeAnswer": "Not necessarily. Product illustrations follow the Lovable demo; interactions on this landing page only change sample data in your browser. Check your deployed version, member permissions and connected services before using real data.",
+      "journey": {
+        "eyebrow": "ONE CONNECTED WORKFLOW",
+        "title": "From meeting to reviewed result.",
+        "description": "Keep the source, owner and decision connected as work moves forward.",
+        "sample": "Illustrative scenario · no real data changes",
+        "source": "Work source",
+        "owner": "Owner",
+        "output": "Result",
+        "open": "Explore this step",
+        "steps": [
+          { "label": "Meeting", "title": "Agree on the launch goal", "description": "The team meeting sets the context: prepare a launch plan and make the open questions explicit.", "result": "Team meeting notes · 09:30", "status": "Source preserved" },
+          { "label": "AI proposal", "title": "Review before acting", "description": "AI Brain brings together proposed next steps. An authorized person checks the source, content and scope before confirming.", "result": "Proposal: prepare the launch plan", "status": "Awaiting human confirmation" },
+          { "label": "Assignment", "title": "One task. An accountable owner.", "description": "Agree on an owner and the expected output. Follow progress alongside the meeting source; assigning work does not complete it.", "result": "UW-102 · Hoàng Anh · in_progress", "status": "Clear responsibility" },
+          { "label": "Review", "title": "Review the version that was submitted", "description": "Launch plan v2 is submitted for review. If the content changes, check and resubmit the new version instead of approving an outdated one.", "result": "Launch plan · v2 · pending", "status": "Check the version before approval" }
+        ]
+      },
+      "ai": {
+        "title": "AI proposes. People decide.",
+        "description": "From sourced answers to AI teammates with clear roles, skills and expected outcomes.",
+        "layers": [
+          { "title": "Ask UNI · find the context", "description": "Look up information within permitted scope and return to the source to check an answer." },
+          { "title": "AI Brain · review before action", "description": "Inspect proposals, status and activity. Data changes in the demo workflow require human approval." },
+          { "title": "AI Workforce · delegate with criteria", "description": "Connect roles, enabled skills and work contracts: inputs, allowed actions, quality criteria and outputs." }
+        ],
+        "cta": "Explore AI Brain"
+      },
+      "readiness": {
+        "title": "Understand the product. Prepare your rollout.",
+        "description": "The demo shows the workflow. Your environment determines what is ready to use.",
+        "items": [
+          { "title": "Explore the product", "description": "Discover work, calendar, conversations, knowledge, AI and results through the Lovable demo direction. This landing page uses sample data, not your organization's records." },
+          { "title": "Configure before use", "description": "Confirm workspace access, connected email, meeting and recording services, storage, AI providers and enabled skills. Test approval boundaries with sample data." },
+          { "title": "Confirm separately", "description": "Commercial limits, SLAs, data locations, private deployment and extended integrations require confirmation for each environment. No committed release dates are published." }
+        ],
+        "cta": "Read the getting-started guide"
+      },
+      "pricingNote": "These are usage-metering categories, not a list of included features or unlimited allowances.",
+      "pricingNext": "Before bringing your team in",
+      "pricingSetup": "Check permissions, required service connections and the limits that apply to your environment.",
+      "contactPending": "Deployment contact: to be added",
+      "learn": {
+        "prerequisite": "Before you start: a signed-in account and permission to create a workspace, or an invitation to an existing one. Use sample data first.",
+        "steps": [
+          { "instructions": ["Open Workspaces and select one you can access, or create one if your role allows it.", "Add the people who need to collaborate and check both organization and workspace permissions."], "outcome": "Result: your team sees the appropriate scope of work." },
+          { "instructions": ["Open Tasks, create a task with a concrete expected output and choose its owner.", "Open the detail to check context; update status when actual progress changes."], "outcome": "Result: a task with an accountable owner and a clear next step." },
+          { "instructions": ["Keep the conversation or meeting notes with the work. If AI proposes an action, check its source and permissions before confirming.", "In Work Products, check the output version. Submit it for review and compare the version under review before accepting it."], "outcome": "Result: a traceable path from the conversation to the output and the reviewer's decision." }
+        ],
+        "setupTitle": "Check configuration before you start",
+        "setupDescription": "Email requires a connected account. Recording and summaries need the relevant meeting, storage and AI services. Administrators choose enabled AI skills; permissions and limits can differ between environments.",
+        "try": "Try with sample data"
+      },
+      "groups": {
+        "work": { "input": "Start with a goal, meeting or team request.", "action": "Agree on ownership, priority and timing inside the project.", "output": "Follow progress, then hand over a result that can be reviewed.", "question": "Where should a team with existing work begin?", "answer": "Choose one project and an owner for each task. Agree on statuses in a board or list first, then compare them with the calendar and reports. You do not need to move every process at once." },
+        "communication": { "input": "A conversation carries a request and its participants.", "action": "Keep the source, clarify decisions and confirm the next step.", "output": "Connect the conversation to work instead of leaving actions in messages.", "question": "What does the team need before collaborating?", "answer": "Members need access to the correct workspace. Email needs a connected account; meetings, recording and summaries depend on deployed services. Landing-page actions are illustrations or local sample interactions." },
+        "results": { "input": "Collect the output together with its source and owner.", "action": "Compare content, acceptance criteria and the version under review.", "output": "Record feedback or a decision against the correct result.", "question": "What if an output changes during review?", "answer": "Compare the submitted version with the current one. The approval demo warns about stale versions; resubmit the updated version so a reviewer does not approve outdated content." },
+        "knowledge": { "input": "Start with the team's SOPs, playbooks, wiki or policies.", "action": "Organize content and check access boundaries.", "output": "Use knowledge as context for work and AI answers.", "question": "Do we need to import every document at once?", "answer": "No. Start with a reviewed collection that is safe to share. The demo has a knowledge area, but this does not mean your content has already been imported or indexed." },
+        "ai": { "input": "Provide the request, source context and scope of work.", "action": "Check enabled skills, permitted actions and the AI proposal.", "output": "People confirm; outputs and decisions leave a trail for review.", "question": "Can AI change data without asking?", "answer": "Distinguish Ask UNI's lookup experience from AI Brain's proposal workflow. The AI Brain demo requires human approval for data changes. Check permissions, skills and approval boundaries for each deployed action; an illustration is not proof of autonomous execution." },
+        "organization": { "input": "Define teams, roles and data boundaries.", "action": "Follow activity and read metrics within the appropriate access scope.", "output": "See who acted and which areas of work need attention.", "question": "Are reports and activity logs the same thing?", "answer": "Reports summarize progress and activity. Logs help trace the actor, action and time of a change. Read both within the relevant access scope and time period." }
+      },
+      "features": {
+        "calendar": { "title": "One calendar for your working rhythm.", "description": "See meetings, tasks and deadlines in a shared view of time.", "detailTitle": "Time, with the context attached.", "points": ["Explore month and week views in the demo.", "Filter meetings, tasks and deadlines to focus your view.", "Read schedules alongside work; calendar export depends on your deployment."] },
+        "workflows": { "title": "Clear steps. Clear handoffs.", "description": "Connect inputs, processing steps and handoff conditions in a workflow.", "detailTitle": "Read the flow before it runs.", "points": ["Inspect workflows, status and run history.", "Separate editing, publishing and execution permissions.", "Confirm configuration and access before running with real data."] },
+        "outputs": { "title": "Beyond done. Know what was delivered.", "description": "Work Products brings together outputs, work sources, versions and accountable owners.", "detailTitle": "Results you can review and hand over.", "points": ["Distinguish each output's type, status and project.", "Follow versions, ownership and the source of content.", "Send the correct version for review and approval."] },
+        "documents": { "title": "Documents closer to the work.", "description": "Read and organize content in the context of a project and workspace.", "detailTitle": "Keep content with its context.", "points": ["Bring together the content a project needs.", "Return to reference documents during discussion and handoff.", "Distinguish working documents from output versions submitted for review."] },
+        "approvals": { "title": "The right result. The right version. The right reviewer.", "description": "Inspect pending approvals, feedback and the output version being reviewed.", "detailTitle": "Do not approve an outdated version.", "points": ["Compare the submitted version with the current version.", "Read feedback before accepting or requesting changes.", "Resubmit for review when an output changes while approval is pending."] },
+        "knowledge": { "title": "Knowledge beyond one person's memory.", "description": "A place to organize the team's SOPs, playbooks, wiki and policies.", "detailTitle": "Start with a trustworthy source.", "points": ["Organize content by topic and purpose.", "Search within the workspace knowledge area.", "Check permissions and source content before using it with AI."] },
+        "agents": { "title": "Delegate to AI as part of the team.", "description": "AI Workforce connects AI teammates, assignments, work contracts, skills and workspaces.", "detailTitle": "Clear roles. Clear outcomes.", "points": ["Explore specialist roles such as project, knowledge and meeting assistants.", "Match assignments to skills and granted scope.", "Evaluate outputs against work criteria, with people retaining review control."] },
+        "automation": { "title": "Automation within granted boundaries.", "description": "Connect agents to workflow steps, conditions and control points.", "detailTitle": "Understand access before execution.", "points": ["Define inputs and conditions for the work.", "Check the skills, permissions and configuration required.", "Keep approval steps and history to review what happened."] },
+        "ai-brain": { "label": "AI Brain", "title": "Turn context into proposals you can inspect.", "description": "See AI proposals, processing status, role delegation and activity together.", "detailTitle": "People at the decision point.", "points": ["Identify proposals from meetings, tasks or documents.", "Inspect content and sources before confirming changes.", "Follow pending proposals, approved items and related activity."] },
+        "skills": { "label": "Skill Hub", "title": "Use only the skills you allow.", "description": "An AI skill directory gives administrators control over which capabilities are enabled.", "detailTitle": "Capability comes with permission.", "points": ["Inspect the skill directory and status.", "Distinguish viewing access from administrator configuration rights.", "Match enabled skills to the requirements of each assignment."] },
+        "work-catalog": { "label": "Work Catalog", "title": "Agree on the outcome before delegating.", "description": "Versioned work contracts define inputs, context, allowed actions and acceptance criteria.", "detailTitle": "A shared definition of good work.", "points": ["Identify the inputs and context to provide.", "Clarify allowed actions and quality thresholds.", "Compare outputs against the contract version; sample SLAs are not service commitments."] },
+        "decisions": { "label": "Decision review", "title": "Do not leave decisions buried in conversation.", "description": "Review proposed decisions with their source, content and work links.", "detailTitle": "Confirm before it becomes shared context.", "points": ["Separate pending decisions from confirmed ones.", "Inspect sources before confirming, rejecting or superseding.", "Only confirmed decisions and links enter the demo's graph."] },
+        "decision-history": { "label": "Decision history", "title": "Keep the reasoning behind the direction.", "description": "Explore the decision-history area in the demo's navigation.", "detailTitle": "Read decisions with their origins.", "points": ["Distinguish work decisions from technical activity logs.", "Return to decision review to inspect sources and confirmation status.", "This page introduces the area's role; history actions are not simulated here."] },
+        "ai-market": { "label": "AI Market", "title": "Explore UniWork's AI ecosystem.", "description": "AI Market is an area in the demo navigation, alongside AI teammates and the skill directory.", "detailTitle": "Explore first. Confirm before use.", "points": ["Understand its relationship to AI Workforce and Skill Hub.", "Check which capabilities are enabled in your environment.", "Purchasing, installation and service pricing are not presented without confirmed scope."] },
+        "reports": { "label": "Reports", "title": "Read progress. Find what needs attention.", "description": "Explore overview, project, team, productivity, collaboration and workflow reports.", "detailTitle": "Metrics need context.", "points": ["Select the scope and time period before comparing.", "Read work distribution alongside progress and activity.", "The demo shows CSV/PDF export and beta AI insights; verify actual behavior in your deployment."] }
+      }
+    },
     "productPages": {
       "product": "Product",
       "learn": "Learn",
@@ -3710,7 +3805,7 @@
       "i2Title": "Trace every change",
       "i2Desc": "One identifier follows each request through events and logs, helping operations find the right context.",
       "i3Title": "AI within its permissions",
-      "i3Desc": "Ask UNI only reads permitted data. Autonomous agent execution with human approval is on the roadmap.",
+      "i3Desc": "Ask UNI looks up permitted data. The AI Brain demo puts people at the change-approval boundary; execution permissions and skills must be confirmed in each environment.",
       "i4Title": "Organization and workspace access",
       "i4Desc": "Membership determines access. Data is scoped to the relevant organization and workspace.",
       "i5Title": "Usage under control",
@@ -3776,9 +3871,9 @@
     "faq": {
       "title": "What your team will ask",
       "q1": "How is this different from the tools we already use?",
-      "a1": "UniWork brings tasks, online meetings, chat and email into one workspace. Ask UNI helps read data within granted access. Feature availability and service connection requirements are noted in each section.",
+      "a1": "UniWork connects tasks, meetings, conversations, knowledge and AI to versioned outputs and review steps. This landing page follows the Lovable demo; actual scope depends on your version, permissions and configured services.",
       "q2": "Can AI change my work on its own?",
-      "a2": "Ask UNI is currently read-only. For task suggestions from a meeting, you choose an owner and confirm before creation. An autonomous agent runtime is still on the roadmap; undo support depends on the action, not every change.",
+      "a2": "Distinguish Ask UNI's lookup experience from AI Brain's proposal review. The AI Brain demo requires human approval for data changes. Check permissions, enabled skills and approval boundaries in your deployment; do not assume every action can be undone.",
       "q3": "Who can see what?",
       "a3": "Access is managed at organization and workspace level. Membership and role determine what you can access; Ask UNI only reads within granted permissions.",
       "q4": "Where does our data live?",
@@ -3788,11 +3883,11 @@
       "q6": "Which languages does the product ship in?",
       "a6": "The interface is available in Vietnamese and English. Additional languages are on the roadmap.",
       "q7": "Has UniWork launched?",
-      "a7": "UniWork is in pre-launch. This page separates current capabilities from the roadmap; some features need configuration or a connected service before use.",
+      "a7": "UniWork is pre-launch. This page introduces the Lovable demo experience, not a certification that every feature runs in every environment. Confirm your version, permissions and connected services before use.",
       "q8": "What does it cost?",
       "a8": "Starter is free at this stage. Commercial plans and limits are still being finalized; this is not a promise of unlimited free use forever.",
       "q9": "Can it run on our own infrastructure?",
-      "a9": "Not today. An on-premise install through Docker Compose or Helm is on the roadmap, along with any OIDC provider, MinIO storage and models running in house.",
+      "a9": "Private deployment requires agreement on scope, infrastructure, data processing, AI services and operational responsibilities. No committed on-premise package, SLA or delivery date has been announced; the demo alone does not establish availability.",
       "q10": "Is there an API?",
       "a10": "Yes. The server builds its OpenAPI specification at start-up from the routing table itself, so the specification cannot drift from the code. HMAC-signed webhooks and a TypeScript SDK are on the roadmap."
     },

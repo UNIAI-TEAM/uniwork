@@ -1,5 +1,5 @@
-import type { Metadata } from "next";
+import { marketingMetadata } from "../../platform/feature-metadata";
 import { EnterprisePage } from "../../features/landing/marketing-overview-pages";
 
-export const metadata: Metadata = { title: "UniWork cho doanh nghiệp", description: "Tìm hiểu cấu trúc tổ chức, phân quyền và nhật ký hoạt động.", alternates: { canonical: "/enterprise" } };
+export function generateMetadata() { return marketingMetadata("enterprise", "/enterprise"); }
 export default function Page() { return <EnterprisePage />; }

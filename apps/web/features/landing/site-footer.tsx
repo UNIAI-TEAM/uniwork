@@ -76,7 +76,7 @@ export function SiteFooter() {
             </li>
             <li>
               <a className={LINK} href={href(ANCHORS.roadmap)}>
-                {t("landing.footer.roadmap")}
+                {t("landing.revision.readiness.items.1.title")}
               </a>
             </li>
             <li>
@@ -91,9 +91,7 @@ export function SiteFooter() {
           <h2 className="text-body font-semibold">{t("landing.footer.company")}</h2>
           <ul className="mt-3 grid gap-2">
             <li>
-              <a className={LINK} href={href(ANCHORS.contact)}>
-                {t("landing.nav.contact")}
-              </a>
+              <span className="text-body text-muted-foreground">{t("landing.revision.contactPending")}</span>
             </li>
             <li>
               <Link className={LINK} href={paths.login()}>

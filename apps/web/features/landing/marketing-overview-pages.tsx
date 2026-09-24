@@ -23,10 +23,12 @@ export function SolutionsPage() {
 
 export function LearnPage() {
   const { t } = useTranslation();
-  const destinations = [paths.feature("organization"), paths.feature("tasks"), paths.feature("ask")];
+  const destinations = [paths.feature("organization"), paths.feature("tasks"), paths.feature("approvals")];
   return <MarketingShell>
     <section className="marketing-intro"><h1>{t("landing.productPages.learnTitle")}</h1><p>{t("landing.productPages.learnDescription")}</p><div className="marketing-actions"><Link href={paths.register()} className={buttonVariants({ variant: "brand", size: "lg" })}>{t("landing.cta.start")}<ArrowRight aria-hidden /></Link></div></section>
-    <ol className="marketing-learning-path">{destinations.map((to, index) => <li key={to}><span className="learning-step" aria-hidden>{index + 1}</span><div><h2>{t(`landing.productPages.learnSteps.${index}.title`)}</h2><p>{t(`landing.productPages.learnSteps.${index}.description`)}</p><Link href={to}>{t("landing.productPages.learnCta")}<ChevronRight aria-hidden /></Link></div></li>)}</ol>
+    <p className="learning-prerequisite">{t("landing.revision.learn.prerequisite")}</p>
+    <ol className="marketing-learning-path">{destinations.map((to, index) => <li key={to}><span className="learning-step" aria-hidden>{index + 1}</span><div><h2>{t(`landing.productPages.learnSteps.${index}.title`)}</h2><ol className="learning-instructions">{[0, 1].map(step => <li key={step}>{t(`landing.revision.learn.steps.${index}.instructions.${step}`)}</li>)}</ol><p className="learning-outcome">{t(`landing.revision.learn.steps.${index}.outcome`)}</p><Link href={to}>{t("landing.productPages.learnCta")}<ChevronRight aria-hidden /></Link><Link className="learning-sample-link" href={`/#${["to-chuc", "du-an", "phe-duyet"][index]}`}>{t("landing.revision.learn.try")}<ArrowRight aria-hidden /></Link></div></li>)}</ol>
+    <section id="setup" className="learning-setup"><h2>{t("landing.revision.learn.setupTitle")}</h2><p>{t("landing.revision.learn.setupDescription")}</p><small>{t("landing.revision.contactPending")}</small></section>
     <div id="questions" className="marketing-questions"><Faq namespace="landing.faq" count={10} initialCount={5} title="landing.productPages.faqTitle" /></div>
   </MarketingShell>;
 }

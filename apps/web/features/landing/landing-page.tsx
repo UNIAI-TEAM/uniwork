@@ -9,6 +9,7 @@ import { Hero } from "./hero";
 import { MarketGapTeaser } from "./market-gap-teaser";
 import { Pricing } from "./pricing";
 import { Roadmap } from "./roadmap";
+import { WorkJourney } from "./work-journey";
 import { Security } from "./security";
 import { SiteFooter } from "./site-footer";
 import { SiteHeader } from "./site-header";
@@ -31,18 +32,19 @@ import "./landing-action-motion.css";
 import "./landing-lovable.css";
 import "./landing-decisions.css";
 import "./landing-ai-stage.css";
+import "./landing-v2.css";
 import trustStyles from "./landing-trust.module.css";
 
 /**
- * THESIS: One shared product stage covers six families and eighteen entries,
- * distinguishing usable scopes, partial foundations and planned concepts.
+ * THESIS: One shared product stage covers six families and twenty-five entries,
+ * distinguishing interactive samples from reference illustrations.
  * Reference UI follows the user's Lovable screenshots, not a released-app claim.
  * OWN-WORLD: Bright studio, cobalt ink, Be Vietnam Pro; large framed scenes
  * with clear gutters, spacious type and dark trust/closing passages.
  * STORY: Watch a short action sequence or explore the shared workspace, meet UNI,
- * then inspect governance and planned work before creating an account.
+ * then inspect governance and deployment conditions before creating an account.
  * REFERENCE: User-supplied ClickUp feature-rail composition; claims checked
- * against develop 26e56c4b. Demos stay local, with configuration caveats.
+ * against the Lovable demo on 2026-09-24. Demos stay local; deployment is separate.
  * FIRST VIEWPORT: A floating navigation dock above a compact, naturally wrapped
  * headline and one CTA. A small live work core connects four concise context labels.
  * Feature disclosure opens a compact directory; mobile keeps a native link menu.
@@ -66,6 +68,7 @@ export function LandingPage() {
         <Hero />
         <div className="landing-product-story">
           <Capabilities />
+          <WorkJourney />
           <SolutionsTeaser />
           <AiWorkforce />
         </div>

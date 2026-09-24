@@ -6,14 +6,15 @@ import { LovableControl, LovableFrame, LovablePageHeading, usePreviewLabels } fr
 import { LovableDashboard, LovableMySpace } from "./lovable-overviews";
 import { CalendarReference } from "./reference-previews";
 import { AuditPreview } from "./catalog-previews";
-import { LovableAgents, LovablePeople } from "./lovable-secondary";
+import { LovablePeople } from "./lovable-secondary";
+import { LovableIntelligence } from "./lovable-intelligence";
 
 /** Static UI references share the exact same desktop canvas as the action films. */
 export function LovableReference({ feature }: { feature: ProductFeature }) {
   const { t } = useTranslation();
   const item = PRODUCT_FEATURES.find(value => value.key === feature)!;
   return <LovableFrame feature={feature} label={`${t(item.label)} — ${t("landing.lovable.sample")}`}>
-    {feature === "dashboard" ? <LovableDashboard /> : feature === "today" ? <LovableMySpace /> : feature === "calendar" ? <LovableCalendar /> : feature === "projects" ? <LovableProjects /> : feature === "documents" ? <LovableDocuments /> : feature === "workflows" || feature === "automation" ? <LovableWorkflows /> : ["outputs", "approvals", "knowledge"].includes(feature) ? <LovableLibrary feature={feature} /> : feature === "organization" ? <LovablePeople /> : feature === "agents" ? <LovableAgents /> : <div className="lovable-page"><AuditPreview /></div>}
+    {feature === "dashboard" ? <LovableDashboard /> : feature === "today" ? <LovableMySpace /> : feature === "calendar" ? <LovableCalendar /> : feature === "projects" ? <LovableProjects /> : feature === "documents" ? <LovableDocuments /> : feature === "workflows" || feature === "automation" ? <LovableWorkflows /> : ["outputs", "approvals", "knowledge"].includes(feature) ? <LovableLibrary feature={feature} /> : feature === "organization" ? <LovablePeople /> : feature === "audit" ? <div className="lovable-page"><AuditPreview /></div> : <LovableIntelligence feature={feature} />}
   </LovableFrame>;
 }
 
@@ -51,6 +52,7 @@ function LovableWorkflows() {
 }
 
 function LovableLibrary({ feature }: { feature: string }) {
+  const { t } = useTranslation();
   const copy = usePreviewLabels();
   const isApproval = feature === "approvals";
   const isKnowledge = feature === "knowledge";
@@ -59,5 +61,6 @@ function LovableLibrary({ feature }: { feature: string }) {
     {isApproval ? <div className="lovable-view-tabs">{["pending", "myApprovals", "processed"].map((key, i) => <span key={key} data-active={i === 0}>{copy(key)}</span>)}</div> : <div className="lovable-list-filter"><div className="lovable-search-field"><Search />{copy(isKnowledge ? "searchArticles" : "searchTitle")}</div>{["allProjects", "allTypes", "allStatuses"].slice(0, isKnowledge ? 1 : 3).map(key => <LovableControl key={key}>{copy(key)}<ChevronDown /></LovableControl>)}</div>}
     {!isApproval && !isKnowledge && <section className="lovable-card lovable-weekly-report"><header><h3>{copy("weeklyReport")}</h3><span>{copy("lastWeek")}</span><span>DOCX · XLSX · PPTX · PDF</span><LovableControl><ArrowDownToLine />{copy("export")}</LovableControl></header><p>{copy("reportSample")}</p></section>}
     <div className="lovable-library-list">{["launchBrief", "designGuide", "meetingNotes"].map((key, i) => <div key={key}><span className="lovable-file-icon">{isKnowledge ? <BookOpen /> : isApproval ? <CircleCheck /> : <FileText />}</span><div><h3>{copy(key)}</h3><p>{copy("launch")} · General · v{[2,1,3][i]}</p></div><span className="lovable-tag">{isApproval ? "pending" : "draft"}</span><span>24/09/2026</span><MoreHorizontal /></div>)}</div>
+    {isApproval && <section className="lovable-card lovable-version-review"><h3><ShieldCheck />{t("landing.revision.intelligence.reviewVersion")}</h3><dl><div><dt>{t("landing.revision.intelligence.submitted")}</dt><dd>v2</dd></div><ArrowRight /><div><dt>{t("landing.revision.intelligence.current")}</dt><dd>v3</dd></div></dl><p>{t("landing.revision.intelligence.stale")}</p></section>}
   </div>;
 }

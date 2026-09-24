@@ -2376,6 +2376,101 @@
     }
   },
   "landing": {
+    "revision": {
+      "interactive": "Tương tác",
+      "illustration": "Minh họa",
+      "referenceScope": "Giới thiệu theo bản demo Lovable. Dữ liệu trên trang là minh họa; phạm vi sử dụng thực tế tùy phiên bản, quyền và cấu hình triển khai.",
+      "viewReference": "Xem minh họa",
+      "mobileLabel": "Bản xem tập trung",
+      "mobileNote": "Tóm lược để đọc trên màn hình nhỏ, không phải giao diện ứng dụng mobile.",
+      "mobileSteps": "Chọn nội dung xem trước",
+      "intelligence": {
+        "overview": "Minh họa nội dung, không phải màn hình thao tác",
+        "pending": "Chờ phê duyệt", "approved": "Đã phê duyệt", "activity": "Hoạt động", "source": "Nguồn đề xuất", "review": "Kiểm tra nguồn và phạm vi trước khi xác nhận", "permission": "Thay đổi dữ liệu cần con người phê duyệt",
+        "people": "Nhân sự AI", "assignments": "Nhiệm vụ", "contracts": "Hợp đồng công việc", "skills": "Kỹ năng", "workspaces": "Workspaces", "roles": ["Điều phối dự án", "Quản lý tri thức", "Trợ lý cuộc họp", "Phân tích dữ liệu", "Nhân sự", "Tuân thủ"],
+        "submitted": "Phiên bản gửi duyệt", "current": "Phiên bản hiện tại", "stale": "Phiên bản đã thay đổi. Cần gửi lại để xem xét.", "reviewVersion": "Xem xét đúng phiên bản", "noRealAction": "Các quyết định trong hình chỉ là minh họa."
+      },
+      "workflowTitle": "Đặt tính năng vào luồng công việc",
+      "questionTitle": "Trước khi sử dụng",
+      "scopeQuestion": "Bản demo có đồng nghĩa với bản triển khai của tôi không?",
+      "scopeAnswer": "Không. Các màn hình giới thiệu dựa trên demo Lovable; thao tác thử trên landing chỉ thay đổi dữ liệu mẫu trong trình duyệt. Hãy kiểm tra phiên bản triển khai, quyền của thành viên và dịch vụ đã kết nối trước khi dùng dữ liệu thật.",
+      "journey": {
+        "eyebrow": "MỘT LUỒNG CÔNG VIỆC",
+        "title": "Từ cuộc họp đến kết quả được duyệt.",
+        "description": "Giữ nguồn gốc, người phụ trách và quyết định trong cùng một mạch công việc.",
+        "sample": "Tình huống minh họa · không thay đổi dữ liệu thật",
+        "source": "Nguồn công việc",
+        "owner": "Người phụ trách",
+        "output": "Kết quả",
+        "open": "Tìm hiểu bước này",
+        "steps": [
+          { "label": "Cuộc họp", "title": "Thống nhất mục tiêu ra mắt", "description": "Cuộc họp nhóm tạo ngữ cảnh: cần chuẩn bị bản kế hoạch ra mắt và nêu rõ các việc còn mở.", "result": "Biên bản họp nhóm · 09:30", "status": "Nguồn được giữ lại" },
+          { "label": "AI đề xuất", "title": "Đọc đề xuất trước khi thực thi", "description": "AI Brain tổng hợp bước tiếp theo từ ngữ cảnh. Người có quyền kiểm tra nguồn, nội dung và phạm vi trước khi xác nhận.", "result": "Đề xuất: chuẩn bị kế hoạch ra mắt", "status": "Chờ con người xác nhận" },
+          { "label": "Giao việc", "title": "Một công việc, một người phụ trách", "description": "Chốt người phụ trách và yêu cầu đầu ra. Nhóm theo dõi tiến độ cùng nguồn cuộc họp; giao việc không có nghĩa là hoàn thành.", "result": "UW-102 · Hoàng Anh · in_progress", "status": "Trách nhiệm rõ ràng" },
+          { "label": "Duyệt kết quả", "title": "Duyệt đúng phiên bản đã bàn giao", "description": "Bản kế hoạch v2 được gửi để xem xét. Nếu nội dung đổi sang phiên bản mới, cần kiểm tra và gửi duyệt lại thay vì duyệt nhầm bản cũ.", "result": "Kế hoạch ra mắt · v2 · pending", "status": "Kiểm tra phiên bản trước khi duyệt" }
+        ]
+      },
+      "ai": {
+        "title": "AI đề xuất. Con người quyết định.",
+        "description": "Từ câu trả lời có nguồn đến nhân sự AI có vai trò, kỹ năng và yêu cầu đầu ra rõ ràng.",
+        "layers": [
+          { "title": "Ask UNI · tìm đúng ngữ cảnh", "description": "Tra cứu trong phạm vi được phép và quay lại nguồn để kiểm tra câu trả lời." },
+          { "title": "AI Brain · xem xét trước khi hành động", "description": "Xem đề xuất, trạng thái và lịch sử hoạt động. Những thay đổi dữ liệu trong luồng demo cần con người phê duyệt." },
+          { "title": "AI Workforce · giao việc có tiêu chí", "description": "Kết nối vai trò, kỹ năng được bật và hợp đồng công việc: đầu vào, quyền hành động, tiêu chí chất lượng và đầu ra." }
+        ],
+        "cta": "Khám phá AI Brain"
+      },
+      "readiness": {
+        "title": "Hiểu sản phẩm. Chuẩn bị triển khai.",
+        "description": "Bản demo cho thấy cách làm việc. Môi trường của bạn quyết định tính năng nào sẵn sàng sử dụng.",
+        "items": [
+          { "title": "Trải nghiệm sản phẩm", "description": "Khám phá công việc, lịch, trao đổi, tri thức, AI và đầu ra theo bản demo Lovable. Landing sử dụng dữ liệu mẫu, không kết nối dữ liệu tổ chức của bạn." },
+          { "title": "Cần cấu hình trước khi dùng", "description": "Xác nhận quyền trong workspace, tài khoản email, dịch vụ họp và ghi âm, lưu trữ, nhà cung cấp AI và kỹ năng được bật. Kiểm tra luồng phê duyệt bằng dữ liệu thử." },
+          { "title": "Cần thống nhất riêng", "description": "Hạn mức thương mại, SLA, vị trí dữ liệu, triển khai riêng và các tích hợp mở rộng cần được xác nhận cho từng môi trường; chưa công bố lịch phát hành cam kết." }
+        ],
+        "cta": "Xem hướng dẫn bắt đầu"
+      },
+      "pricingNote": "Đây là các nhóm đo lường sử dụng, không phải danh sách tính năng đã bao gồm hoặc hạn mức không giới hạn.",
+      "pricingNext": "Trước khi đưa nhóm vào sử dụng",
+      "pricingSetup": "Kiểm tra quyền, dịch vụ cần kết nối và hạn mức được áp dụng cho môi trường của bạn.",
+      "contactPending": "Liên hệ triển khai: sẽ cập nhật",
+      "learn": {
+        "prerequisite": "Chuẩn bị: tài khoản đăng nhập, quyền tạo workspace hoặc lời mời vào workspace có sẵn. Hãy dùng dữ liệu thử trước.",
+        "steps": [
+          { "instructions": ["Mở Workspaces, chọn workspace đã được cấp quyền hoặc tạo mới nếu vai trò cho phép.", "Thêm thành viên cần cộng tác và kiểm tra quyền ở cả tổ chức lẫn workspace."], "outcome": "Kết quả: nhóm cùng nhìn thấy đúng phạm vi công việc." },
+          { "instructions": ["Mở Tasks, tạo một công việc với yêu cầu đầu ra cụ thể và chọn người phụ trách.", "Mở chi tiết để kiểm tra ngữ cảnh; thay đổi trạng thái khi tiến độ thực sự thay đổi."], "outcome": "Kết quả: một công việc có người phụ trách và bước tiếp theo rõ ràng." },
+          { "instructions": ["Giữ trao đổi hoặc ghi chú họp bên cạnh công việc. Nếu AI đưa đề xuất, kiểm tra nguồn và quyền trước khi xác nhận.", "Trong Work Products, kiểm tra phiên bản đầu ra. Gửi duyệt và đối chiếu phiên bản đang được xem xét trước khi chấp thuận."], "outcome": "Kết quả: có thể lần từ cuộc trao đổi đến kết quả và quyết định của người duyệt." }
+        ],
+        "setupTitle": "Kiểm tra cấu hình trước khi bắt đầu",
+        "setupDescription": "Email cần tài khoản kết nối. Ghi âm và tóm tắt cần dịch vụ họp, lưu trữ và AI tương ứng. Quản trị viên quyết định kỹ năng AI được bật; quyền và hạn mức có thể khác giữa các môi trường.",
+        "try": "Thử với dữ liệu mẫu"
+      },
+      "groups": {
+        "work": { "input": "Bắt đầu từ mục tiêu, cuộc họp hoặc yêu cầu của nhóm.", "action": "Chốt người phụ trách, ưu tiên và thời hạn trong dự án.", "output": "Theo dõi tiến độ rồi bàn giao kết quả có thể kiểm tra.", "question": "Bắt đầu từ đâu khi nhóm đã có nhiều công việc?", "answer": "Chọn một dự án và một người phụ trách cho mỗi việc. Dùng board hoặc list để thống nhất trạng thái trước, sau đó đối chiếu với lịch và báo cáo. Không cần chuyển toàn bộ quy trình trong lần đầu." },
+        "communication": { "input": "Một cuộc trao đổi mang theo yêu cầu và người tham gia.", "action": "Giữ nguồn, làm rõ quyết định và xác nhận bước tiếp theo.", "output": "Liên kết trao đổi với công việc thay vì để hành động chỉ nằm trong tin nhắn.", "question": "Cần chuẩn bị gì để trao đổi cùng nhóm?", "answer": "Thành viên cần quyền vào đúng workspace. Email cần tài khoản được kết nối; họp, ghi âm và tóm tắt phụ thuộc dịch vụ triển khai. Các thao tác trên landing chỉ là minh họa hoặc sandbox cục bộ." },
+        "results": { "input": "Tập hợp đầu ra từ công việc cùng nguồn và người phụ trách.", "action": "Đối chiếu nội dung, tiêu chí chấp nhận và phiên bản đang được xem xét.", "output": "Ghi nhận phản hồi hoặc quyết định gắn với đúng kết quả.", "question": "Nếu đầu ra thay đổi trong khi chờ duyệt thì sao?", "answer": "Đối chiếu phiên bản đã gửi với phiên bản hiện tại. Bản demo phê duyệt cảnh báo khi phiên bản cũ; cần gửi lại bản mới để người duyệt không chấp thuận nhầm nội dung." },
+        "knowledge": { "input": "Bắt đầu từ SOP, playbook, wiki hoặc chính sách của nhóm.", "action": "Tổ chức nội dung và kiểm tra phạm vi truy cập.", "output": "Dùng tri thức làm ngữ cảnh cho công việc và câu trả lời AI.", "question": "Có cần đưa toàn bộ tài liệu vào ngay không?", "answer": "Không. Bắt đầu bằng một nhóm tài liệu được phép chia sẻ và đã kiểm tra nội dung. Bản demo có khu vực tri thức nhưng không chứng minh dữ liệu của bạn đã được nhập hoặc lập chỉ mục." },
+        "ai": { "input": "Cung cấp yêu cầu, nguồn ngữ cảnh và phạm vi công việc.", "action": "Kiểm tra kỹ năng được bật, quyền hành động và đề xuất của AI.", "output": "Con người xác nhận; đầu ra và quyết định giữ được dấu vết để xem lại.", "question": "AI có tự ý thay đổi dữ liệu không?", "answer": "Phân biệt Ask UNI dùng để tra cứu với luồng đề xuất của AI Brain. Bản demo AI Brain yêu cầu con người phê duyệt thay đổi dữ liệu. Khi triển khai, cần kiểm tra quyền, kỹ năng và điểm phê duyệt cho từng hành động; không suy ra khả năng tự động từ hình minh họa." },
+        "organization": { "input": "Xác định nhóm, vai trò và phạm vi dữ liệu.", "action": "Theo dõi hoạt động và đối chiếu chỉ số trong đúng quyền truy cập.", "output": "Nhìn được ai đã hành động và phần việc nào cần chú ý.", "question": "Báo cáo và nhật ký có hiển thị cùng một thứ không?", "answer": "Báo cáo tổng hợp tiến độ và hoạt động. Nhật ký giúp truy vết tác nhân, hành động và thời điểm. Cả hai cần được đọc trong phạm vi quyền và kỳ thời gian phù hợp." }
+      },
+      "features": {
+        "calendar": { "title": "Một lịch chung cho nhịp làm việc.", "description": "Đặt cuộc họp, công việc và hạn chót vào cùng góc nhìn thời gian.", "detailTitle": "Thời gian đi cùng ngữ cảnh.", "points": ["Chuyển giữa góc nhìn tháng và tuần trong bản demo.", "Lọc cuộc họp, công việc và hạn chót theo nhu cầu.", "Xem lịch cùng dữ liệu công việc; xuất lịch phụ thuộc môi trường triển khai."] },
+        "workflows": { "title": "Rõ từng bước. Rõ người tiếp nhận.", "description": "Kết nối đầu vào, các bước xử lý và điều kiện bàn giao trong quy trình.", "detailTitle": "Đọc luồng trước khi chạy.", "points": ["Xem quy trình, trạng thái và lịch sử chạy.", "Tách quyền chỉnh sửa, xuất bản và thực thi.", "Xác nhận cấu hình và quyền trước khi chạy với dữ liệu thật."] },
+        "outputs": { "title": "Không chỉ hoàn thành. Còn có kết quả.", "description": "Work Products tập hợp đầu ra, nguồn công việc, phiên bản và người phụ trách.", "detailTitle": "Kết quả để kiểm tra và bàn giao.", "points": ["Phân biệt loại, trạng thái và dự án của từng đầu ra.", "Theo dõi phiên bản, người phụ trách và nguồn tạo nội dung.", "Đưa đúng phiên bản sang bước xem xét và phê duyệt."] },
+        "documents": { "title": "Tài liệu ở ngay cạnh công việc.", "description": "Đọc và tổ chức nội dung trong ngữ cảnh dự án và workspace.", "detailTitle": "Giữ nội dung cùng ngữ cảnh.", "points": ["Tập hợp nội dung cần cho dự án.", "Quay lại tài liệu tham chiếu khi trao đổi và bàn giao.", "Phân biệt tài liệu làm việc với phiên bản đầu ra gửi duyệt."] },
+        "approvals": { "title": "Đúng kết quả. Đúng phiên bản. Đúng người duyệt.", "description": "Xem hàng chờ phê duyệt, phản hồi và phiên bản đầu ra đang được xem xét.", "detailTitle": "Không duyệt nhầm một phiên bản cũ.", "points": ["So sánh phiên bản đã gửi với phiên bản hiện tại.", "Đọc phản hồi trước khi chấp thuận hoặc yêu cầu sửa đổi.", "Gửi lại để xem xét nếu đầu ra thay đổi trong khi chờ duyệt."] },
+        "knowledge": { "title": "Tri thức không nằm trong trí nhớ của một người.", "description": "Một nơi để tổ chức SOP, playbook, wiki và chính sách của nhóm.", "detailTitle": "Bắt đầu từ nguồn đáng tin cậy.", "points": ["Tổ chức nội dung theo chủ đề và mục đích sử dụng.", "Tra cứu trong khu vực tri thức của workspace.", "Kiểm tra quyền và nội dung nguồn trước khi dùng cho AI."] },
+        "agents": { "title": "Giao việc cho AI như một phần của nhóm.", "description": "AI Workforce kết nối nhân sự AI, nhiệm vụ, hợp đồng công việc, kỹ năng và workspace.", "detailTitle": "Vai trò rõ. Đầu ra rõ.", "points": ["Khám phá vai trò chuyên biệt như điều phối dự án, tri thức và trợ lý họp.", "Đối chiếu nhiệm vụ với kỹ năng và phạm vi được cấp.", "Theo dõi đầu ra theo tiêu chí công việc; con người giữ quyền xem xét."] },
+        "automation": { "title": "Tự động hóa trong phạm vi được cấp.", "description": "Kết nối agent với các bước quy trình, điều kiện và điểm kiểm soát.", "detailTitle": "Hiểu quyền trước khi thực thi.", "points": ["Xác định đầu vào và điều kiện chạy của công việc.", "Kiểm tra kỹ năng, quyền và cấu hình cần thiết.", "Giữ các bước phê duyệt và lịch sử để kiểm tra hành động."] },
+        "ai-brain": { "label": "AI Brain", "title": "Từ ngữ cảnh đến đề xuất có thể kiểm tra.", "description": "Xem đề xuất AI, trạng thái xử lý, phân công vai trò và hoạt động trong cùng một nơi.", "detailTitle": "Con người ở điểm quyết định.", "points": ["Nhận diện đề xuất từ cuộc họp, công việc hoặc tài liệu.", "Xem nội dung và nguồn trước khi xác nhận thay đổi.", "Theo dõi đề xuất chờ duyệt, đã duyệt và hoạt động liên quan."] },
+        "skills": { "label": "Skill Hub", "title": "Chỉ dùng những kỹ năng được cho phép.", "description": "Danh mục kỹ năng AI giúp quản trị viên kiểm soát khả năng nào được bật.", "detailTitle": "Khả năng đi cùng quyền.", "points": ["Xem danh mục và trạng thái kỹ năng.", "Phân biệt quyền xem với quyền cấu hình của quản trị viên.", "Đối chiếu kỹ năng được bật với yêu cầu của từng công việc."] },
+        "work-catalog": { "label": "Work Catalog", "title": "Thống nhất đầu ra trước khi giao việc.", "description": "Hợp đồng công việc có phiên bản mô tả đầu vào, ngữ cảnh, quyền hành động và tiêu chí chấp nhận.", "detailTitle": "Một định nghĩa chung cho công việc tốt.", "points": ["Xác định đầu vào và ngữ cảnh cần cung cấp.", "Làm rõ hành động được phép và ngưỡng chất lượng.", "Đối chiếu đầu ra với phiên bản hợp đồng; SLA mẫu không phải cam kết dịch vụ."] },
+        "decisions": { "label": "Duyệt quyết định", "title": "Đừng để quyết định trôi trong hội thoại.", "description": "Xem quyết định được đề xuất cùng nguồn, nội dung và liên kết công việc.", "detailTitle": "Xác nhận rồi mới trở thành ngữ cảnh chung.", "points": ["Tách quyết định chờ xem xét khỏi quyết định đã xác nhận.", "Kiểm tra nguồn trước khi xác nhận, từ chối hoặc thay thế.", "Chỉ quyết định và liên kết đã xác nhận mới xuất hiện trong đồ thị của demo."] },
+        "decision-history": { "label": "Lịch sử quyết định", "title": "Giữ lại lý do phía sau hướng đi.", "description": "Khám phá khu vực lịch sử quyết định trong hệ thống điều hướng của bản demo.", "detailTitle": "Đọc quyết định cùng nguồn gốc.", "points": ["Phân biệt quyết định công việc với nhật ký thay đổi kỹ thuật.", "Quay lại khu vực duyệt để kiểm tra nguồn và trạng thái xác nhận.", "Trang này giới thiệu vai trò của khu vực; chưa mô phỏng các thao tác lịch sử."] },
+        "ai-market": { "label": "AI Market", "title": "Khám phá hệ sinh thái AI của UniWork.", "description": "AI Market là một khu vực trong điều hướng demo, bên cạnh nhân sự AI và kho kỹ năng.", "detailTitle": "Khám phá trước. Xác nhận trước khi sử dụng.", "points": ["Tìm hiểu mối liên hệ với AI Workforce và Skill Hub.", "Kiểm tra khả năng được bật trong môi trường của bạn.", "Chưa giới thiệu mua bán, cài đặt hoặc giá dịch vụ khi chưa xác nhận phạm vi."] },
+        "reports": { "label": "Báo cáo", "title": "Đọc tiến độ. Tìm đúng điểm cần chú ý.", "description": "Khám phá báo cáo tổng quan, dự án, nhóm, năng suất, cộng tác và quy trình.", "detailTitle": "Chỉ số luôn cần ngữ cảnh.", "points": ["Chọn phạm vi và kỳ thời gian trước khi so sánh.", "Đọc phân bổ công việc cùng tiến độ và hoạt động.", "Demo có tùy chọn xuất CSV/PDF và AI insights beta; khả năng thực tế cần kiểm tra khi triển khai."] }
+      }
+    },
     "productPages": {
       "product": "Sản phẩm",
       "learn": "Tìm hiểu",
@@ -3705,7 +3800,7 @@
       "i2Title": "Truy được từng thay đổi",
       "i2Desc": "Cùng một mã theo suốt yêu cầu, sự kiện và nhật ký để đội vận hành tìm đúng bối cảnh.",
       "i3Title": "AI trong giới hạn được giao",
-      "i3Desc": "Hỏi UNI chỉ đọc dữ liệu được cấp quyền. Luồng agent tự thực thi có người duyệt nằm trên lộ trình.",
+      "i3Desc": "Hỏi UNI tra cứu trong phạm vi được cấp. AI Brain trong demo đặt con người ở bước duyệt thay đổi; quyền thực thi và kỹ năng cần được xác nhận trong từng môi trường.",
       "i4Title": "Quyền theo tổ chức và workspace",
       "i4Desc": "Tư cách thành viên quyết định quyền truy cập. Dữ liệu được giới hạn trong đúng tổ chức và workspace.",
       "i5Title": "Hạn mức có kiểm soát",
@@ -3771,9 +3866,9 @@
     "faq": {
       "title": "Những điều đội của bạn sẽ hỏi",
       "q1": "UniWork khác gì với công cụ đội tôi đang dùng?",
-      "a1": "UniWork đưa công việc, họp trực tuyến, chat và email về cùng workspace. Hỏi UNI hỗ trợ đọc dữ liệu được cấp quyền. Điều kiện bật tính năng và kết nối dịch vụ được ghi ở từng phần trên trang.",
+      "a1": "UniWork kết nối công việc, họp, trao đổi, tri thức và AI với đầu ra có phiên bản và bước phê duyệt. Landing giới thiệu theo bản demo Lovable; phạm vi sử dụng thực tế tùy phiên bản, quyền và dịch vụ được cấu hình.",
       "q2": "AI có tự thay đổi công việc không?",
-      "a2": "Hỏi UNI hiện chỉ đọc dữ liệu. Với đề xuất công việc từ cuộc họp, bạn chọn người phụ trách và xác nhận trước khi tạo. Bộ chạy agent tự thực thi còn trên lộ trình; hoàn tác phụ thuộc từng thao tác, không phải mọi thay đổi.",
+      "a2": "Phân biệt Hỏi UNI dùng để tra cứu với AI Brain dùng để xem xét đề xuất. Luồng AI Brain trong demo yêu cầu con người duyệt thay đổi dữ liệu. Kiểm tra quyền, kỹ năng được bật và điểm phê duyệt trong môi trường triển khai; không mặc định mọi thao tác đều có thể hoàn tác.",
       "q3": "Ai nhìn thấy được gì?",
       "a3": "Quyền được quản lý theo tổ chức và workspace. Tư cách thành viên cùng vai trò quyết định phạm vi truy cập; Hỏi UNI chỉ đọc trong phạm vi được cấp quyền.",
       "q4": "Dữ liệu của chúng tôi nằm ở đâu?",
@@ -3783,11 +3878,11 @@
       "q6": "Sản phẩm có những ngôn ngữ nào?",
       "a6": "Giao diện có tiếng Việt và tiếng Anh. Các ngôn ngữ khác nằm trên lộ trình.",
       "q7": "UniWork đã phát hành chưa?",
-      "a7": "UniWork đang trong giai đoạn trước phát hành rộng. Trang tách riêng chức năng hiện có và lộ trình; một số chức năng cần bật cấu hình hoặc kết nối dịch vụ trước khi sử dụng.",
+      "a7": "UniWork đang trong giai đoạn trước phát hành rộng. Trang này giới thiệu trải nghiệm theo demo Lovable, không phải danh sách chứng nhận tính năng đã chạy trên mọi môi trường. Trước khi sử dụng, xác nhận phiên bản, quyền và các dịch vụ cần kết nối.",
       "q8": "Bao nhiêu tiền?",
       "a8": "Starter là gói miễn phí trong giai đoạn hiện tại. Các gói thương mại và hạn mức đang được hoàn thiện; đây không phải cam kết miễn phí không giới hạn lâu dài.",
       "q9": "Chạy trên hạ tầng của chúng tôi được không?",
-      "a9": "Chưa được hôm nay. Bản cài on-premise bằng Docker Compose hoặc Helm nằm trong lộ trình, cùng với OIDC bất kỳ, lưu trữ MinIO và mô hình chạy nội bộ.",
+      "a9": "Triển khai riêng cần xác nhận phạm vi, hạ tầng, nơi xử lý dữ liệu, dịch vụ AI và trách nhiệm vận hành. Chưa công bố gói on-premise, SLA hoặc lịch cung cấp cam kết; không nên suy ra khả năng này chỉ từ bản demo.",
       "q10": "Có API không?",
       "a10": "Có. Máy chủ dựng đặc tả OpenAPI ngay lúc khởi động từ chính bảng định tuyến, nên đặc tả không lệch khỏi mã. Webhook ký HMAC và SDK TypeScript nằm trong lộ trình."
     },

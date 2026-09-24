@@ -421,3 +421,17 @@ There is no scroll hijacking, pinning, page-edge signal or new page-wide loop. R
 - Don't imply that WorkProducts or autonomous agent actions are shipped capabilities.
 - Don't replace the actual brand mark with a generated approximation.
 - Don't redraw or replace the approved horse with a procedural approximation; do not describe its 2.5D image animation as a matching 3D reconstruction.
+
+## Landing V2 refinement — 2026-09-24
+
+These scoped rules supersede the earlier landing roadmap, mobile canvas and quota-check descriptions above. The approved studio, typography, hero, mascot, trust chapter and closing artwork remain the incumbent world.
+
+- Product storytelling follows the owner-approved Lovable reference. A preview label describes **interactive sample** versus **illustration**, not production readiness. Configuration, access and commercial terms have a separate compact readiness section. Never equate a visible demo control with a verified backend capability.
+- Twenty-five introduction routes include AI Brain, Skill Hub, Work Catalog, decision review/history, AI Market and reports. Navigation-only evidence gets a content overview, not fabricated operational controls. No copied customer evidence, marketplace prices or invented integrations.
+- The four-step connected-work story replaces disconnected feature claims with meeting → proposal → ownership → version-specific review. Its selected result changes with a short 240ms transition; reduced motion is still. It never auto-approves work.
+- Dedicated feature pages include a three-step workflow explanation and two disclosures: a group-specific practical question and the reference/deployment boundary. Readiness and Learn provide concrete setup guidance, not repeated marketing links alone.
+- Below 768px, instructional previews become an explicitly labelled focused summary with 16px body copy and 44px controls. Desktop application geometry remains intact above that breakpoint. Decorative closing posters are exempt: they remain noninteractive artwork. Expanded mobile previews must not require two-axis scrolling, and hidden desktop films must not keep advancing.
+- Pricing uses metering glyphs instead of benefit checkmarks. Starter's provisional terms and service prerequisites stay visible. The deployment-contact destination is intentionally unset at the owner's request; no false CTA is supplied.
+- All new prose has Vietnamese/English parity. Server metadata follows the request locale and refreshes when the visitor changes language. Schema status values remain untranslated by convention.
+
+Refinement evidence: the prior 2026-09-24 landing critique, direct demo observations recorded in `docs/landing-develop-sync.md`, and desktop/mobile browser verification. No raster assets or brand geometry were changed in this revision.

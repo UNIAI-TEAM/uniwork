@@ -1,10 +1,8 @@
 "use client";
-import { ArrowRight, Bot, Check, Clock3, FileText, FolderKanban, GitBranch, LockKeyhole, ScrollText, Users } from "lucide-react";
+import { ArrowRight, Check, FileText, FolderKanban, LockKeyhole, ScrollText, Users } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
-import { PRODUCT_FEATURES, type ProductFeature } from "./showcase";
-import { CalendarReference } from "./reference-previews";
 
 export function ProjectsPreview({ completed, total, onTasks }: { completed: number; total: number; onTasks: () => void }) {
   const { t } = useTranslation();
@@ -42,31 +40,5 @@ export function AuditPreview() {
     <div className="catalog-event-list">{events.map((item, index) => <button type="button" key={item.name} aria-pressed={selected === index} onClick={() => setSelected(index)}><time>{item.time}</time><strong>{item.name}</strong><span>{item.actor}</span><ArrowRight aria-hidden /></button>)}</div>
     <dl className="catalog-properties audit-example-detail" aria-live="polite"><div><dt>{t("landing.catalog.event")}</dt><dd>{event.name}</dd></div><div><dt>{t("landing.catalog.actor")}</dt><dd>{event.actor} · human</dd></div><div><dt>{t("landing.catalog.trace")}</dt><dd>demo-trace-0{selected + 1}</dd></div></dl>
     <p className="catalog-note">{t("landing.catalog.auditNote")}</p>
-  </div>;
-}
-
-export function AgentsPreview() {
-  const { t } = useTranslation();
-  return <div className="catalog-preview">
-    <div className="catalog-heading"><Bot aria-hidden /><div><h2>{t("landing.catalog.features.agents.label")}</h2><p>{t("landing.catalog.features.agents.description")}</p></div></div>
-    <div className="agent-identity-example"><span className="agent-avatar">UNI</span><div><h3>{t("landing.catalog.agentIdentity")}</h3><p>{t("landing.catalog.agentIdentityNote")}</p></div></div>
-    <dl className="catalog-properties"><div><dt>{t("landing.catalog.actor")}</dt><dd>agent</dd></div><div><dt>{t("landing.catalog.lead")}</dt><dd>Hoàng Anh</dd></div><div><dt>{t("landing.catalog.scope")}</dt><dd>{t("landing.studio.productTeam")}</dd></div></dl>
-    <div className="planned-notice"><Clock3 aria-hidden /><p>{t("landing.catalog.agentLimit")}</p></div>
-  </div>;
-}
-
-/** These are concept outlines, never working controls for unshipped modules. */
-export function PlannedPreview({ featureKey }: { featureKey: ProductFeature }) {
-  const { t } = useTranslation();
-  const feature = PRODUCT_FEATURES.find(item => item.key === featureKey)!;
-  const Icon = feature.icon;
-  return <div className="catalog-preview planned-preview" data-concept={featureKey}>
-    <div className="catalog-heading"><Icon aria-hidden /><div><h2>{t(feature.label)}</h2><p>{t(feature.description)}</p></div></div>
-    <div className="planned-notice"><Clock3 aria-hidden /><p>{t("landing.catalog.plannedNotice")}</p></div>
-    {featureKey === "calendar" ? <CalendarReference /> : <div className="concept-outline">
-      <h3>{t("landing.catalog.concept")}</h3>
-      <ol>{[1, 2, 3].map(index => <li key={index}><span className="concept-node">{featureKey === "documents" || featureKey === "outputs" ? <FileText aria-hidden /> : <GitBranch aria-hidden />}</span><div><strong>{t(`landing.catalog.features.${featureKey}.step${index}`)}</strong><p>{t(`landing.catalog.features.${featureKey}.detail${index}`)}</p></div>{index < 3 && <ArrowRight className="concept-next" aria-hidden />}</li>)}</ol>
-    </div>}
-    <a className="catalog-roadmap-link" href="#lo-trinh">{t("landing.catalog.viewRoadmap")}<ArrowRight aria-hidden /></a>
   </div>;
 }

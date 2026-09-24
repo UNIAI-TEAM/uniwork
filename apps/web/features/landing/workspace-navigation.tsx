@@ -1,5 +1,5 @@
 "use client";
-import { ChevronDown, Clock3 } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
 import { PRODUCT_FEATURES, PRODUCT_GROUPS, type ProductFeature } from "./showcase";
@@ -20,7 +20,7 @@ export function WorkspaceNavigation({ mode, onSelect }: { mode: ProductFeature; 
           {active && <TabsList id={`workspace-group-${key}`} className="workspace-tabs" aria-label={label} activateOnFocus={false}>
             {items.map(({ key: itemKey, icon: ItemIcon, label: itemLabel, status }) => <TabsTrigger key={itemKey} value={itemKey} data-feature={itemKey}>
               <ItemIcon aria-hidden /><span>{t(itemLabel)}</span>
-              {status !== "demo" && <span className="workspace-item-status"><Clock3 aria-hidden /><span className="sr-only">{t(`landing.catalog.status.${status}`)}</span></span>}
+              <span className="workspace-preview-kind">{t(`landing.revision.${status}`)}</span>
             </TabsTrigger>)}
           </TabsList>}
         </div>;

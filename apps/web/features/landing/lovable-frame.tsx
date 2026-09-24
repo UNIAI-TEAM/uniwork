@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@uniwork/
 import { PRODUCT_FEATURES, PRODUCT_GROUPS, type ProductFeature } from "./showcase";
 import { LovableAssistant } from "./lovable-overviews";
 import { LovableMeetings } from "./lovable-secondary";
+import { MobileFeatureStory, useCompactPreview } from "./feature-context";
 
 export function usePreviewLabels() {
   const { t } = useTranslation();
@@ -18,15 +19,16 @@ export function usePreviewLabels() {
 export function LovableFrame({ feature, children, label, completed = false, playback, onSceneVisibilityChange }: { feature: ProductFeature; children: ReactNode; label: string; completed?: boolean; playback?: { running: boolean; reduced: boolean; pressing: boolean; control: ReactNode }; onSceneVisibilityChange?: (visible: boolean) => void }) {
   const [expanded, setExpanded] = useState(false);
   const [meetingList, setMeetingList] = useState(false);
+  const compact = useCompactPreview();
   const copy = usePreviewLabels();
   const content = <FittedViewport feature={feature} label={meetingList ? copy("meetingList") : label} expanded={expanded} completed={completed}>{meetingList ? <LovableMeetings /> : children}</FittedViewport>;
   return <div className="lovable-preview">
-    <div className="lovable-preview-tools"><span>{copy("reference")}<small>{copy("sample")}</small></span><div className="lovable-preview-actions">{!expanded && !meetingList && playback?.control}<Button size="sm" variant="ghost" data-action="expand-preview" onClick={() => setExpanded(true)}><Maximize2 aria-hidden />{copy("expand")}</Button></div></div>
+    <div className="lovable-preview-tools"><span>{copy("reference")}<small>{copy("sample")}</small></span><div className="lovable-preview-actions">{!compact && !expanded && !meetingList && playback?.control}<Button size="sm" variant="ghost" data-action="expand-preview" onClick={() => setExpanded(true)}><Maximize2 aria-hidden />{copy("expand")}</Button></div></div>
     {feature === "meetings" && <div className="lovable-meeting-view-switch">{[true, false].map(list => <Button key={String(list)} size="sm" variant={meetingList === list ? "secondary" : "ghost"} aria-pressed={meetingList === list} onClick={() => { setMeetingList(list); onSceneVisibilityChange?.(!list); }}>{copy(list ? "meetingList" : "meetingRoom")}</Button>)}</div>}
     {!expanded && content}
     <Dialog open={expanded} onOpenChange={setExpanded}>
       <DialogContent className={`lovable-dialog${playback ? " product-playback" : ""}`} data-running={playback?.running} data-reduced={playback?.reduced} data-pressing={playback?.pressing} showCloseButton={false} style={{ width: "calc(100vw - 32px)", maxWidth: 1840, maxHeight: "calc(100dvh - 32px)" }}>
-        <div className="lovable-dialog-heading"><div><DialogTitle>{copy("reference")}</DialogTitle><DialogDescription>{copy("sample")}</DialogDescription></div>{!meetingList && playback?.control}<Button variant="outline" size="icon" onClick={() => setExpanded(false)} aria-label={copy("close")}><X aria-hidden /></Button></div>
+        <div className="lovable-dialog-heading"><div><DialogTitle>{copy("reference")}</DialogTitle><DialogDescription>{copy("sample")}</DialogDescription></div>{!compact && !meetingList && playback?.control}<Button variant="outline" size="icon" onClick={() => setExpanded(false)} aria-label={copy("close")}><X aria-hidden /></Button></div>
         {expanded && content}
       </DialogContent>
     </Dialog>
@@ -35,13 +37,14 @@ export function LovableFrame({ feature, children, label, completed = false, play
 
 /** A static marketing illustration shares the app geometry without playback or dialogs. */
 export function LovablePoster({ feature, children, label, completed = false }: { feature: ProductFeature; children: ReactNode; label: string; completed?: boolean }) {
-  return <FittedViewport feature={feature} label={label} expanded={false} completed={completed}>{children}</FittedViewport>;
+  return <FittedViewport feature={feature} label={label} expanded={false} completed={completed} focused={false}>{children}</FittedViewport>;
 }
 
-function FittedViewport({ feature, children, label, expanded, completed }: { feature: ProductFeature; children: ReactNode; label: string; expanded: boolean; completed: boolean }) {
+function FittedViewport({ feature, children, label, expanded, completed, focused = true }: { feature: ProductFeature; children: ReactNode; label: string; expanded: boolean; completed: boolean; focused?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
   const [detail, setDetail] = useState(false);
+  const compact = useCompactPreview() && focused;
   const copy = usePreviewLabels();
   useEffect(() => {
     const node = host.current;
@@ -50,8 +53,9 @@ function FittedViewport({ feature, children, label, expanded, completed }: { fea
     setWidth(node.clientWidth);
     observer.observe(node);
     return () => observer.disconnect();
-  }, []);
+  }, [compact]);
   const scale = Math.min(1, (detail ? Math.max(width, 1200) : width) / 1760);
+  if (compact) return <MobileFeatureStory key={feature} feature={feature} />;
   return <>
     {expanded && <Button className="lovable-detail-toggle" size="sm" variant="outline" aria-pressed={detail} onClick={() => setDetail(value => !value)}>{copy(detail ? "fit" : "detail")}</Button>}
     <div ref={host} className="lovable-viewport" data-detail={detail} style={{ "--preview-scale": scale || .55 } as CSSProperties}>

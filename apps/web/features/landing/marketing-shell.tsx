@@ -18,6 +18,7 @@ import "./landing-lovable.css";
 import "./landing-focus.css";
 import "./landing-decisions.css";
 import "./marketing-pages.css";
+import "./landing-v2.css";
 
 /**
  * THESIS: Understand a feature before entering its demo.

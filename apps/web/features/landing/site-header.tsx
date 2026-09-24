@@ -11,6 +11,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { ScrollTrigger, useGSAP } from "./animation/register-gsap";
 import { Container } from "./layout-primitives";
 import { HeaderDirectory, type HeaderDirectoryKey } from "./header-directory";
+import { useMarketingLocaleRefresh } from "../../platform/marketing-locale";
 import "./landing-opening.css";
 import "./header-directory.css";
 
@@ -27,6 +28,7 @@ const LINKS = [
 
 export function SiteHeader() {
   const { t } = useTranslation();
+  const refreshLocale = useMarketingLocaleRefresh();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [directory, setDirectory] = useState<HeaderDirectoryKey | null>(null);
   const header = useRef<HTMLElement>(null);
@@ -69,7 +71,7 @@ export function SiteHeader() {
         {LINKS.map(item => <Link key={item.to} className="header-nav-link" href={item.to} onClick={close}>{t(item.label)}</Link>)}
       </nav>
       <div className="header-actions">
-        <div className="header-preferences"><ThemeMenu size="icon-lg" /><LocaleMenu size="icon-lg" /></div>
+        <div className="header-preferences"><ThemeMenu size="icon-lg" /><LocaleMenu size="icon-lg" onChanged={refreshLocale} /></div>
         <Link href={paths.login()} className={cn(buttonVariants({ variant: "ghost", size: "lg" }), "header-login")}>{t("landing.nav.login")}</Link>
         <Link href={paths.register()} className={cn(buttonVariants({ variant: "brand", size: "lg" }), "header-start")}>{t("landing.cta.start")}<ArrowRight aria-hidden /></Link>
         <Button ref={mobileButton} className="header-mobile-toggle" variant="ghost" size="icon-lg" aria-label={t(mobileOpen ? "landing.nav.closeMenu" : "landing.nav.openMenu")} aria-expanded={mobileOpen} aria-controls="landing-mobile-menu" onClick={() => setMobileOpen(current => !current)}>{mobileOpen ? <X aria-hidden /> : <Menu aria-hidden />}</Button>

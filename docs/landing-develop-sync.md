@@ -1,5 +1,22 @@
 # Landing: đối chiếu develop và bản Lovable
 
+## Bản V2 — 2026-09-24
+
+- Đã lưu và push bản trước tại `5d93fd0a` trên `feature/UNI-504-trang-cong-khai-landing-page-dai-tin-cay`. Bản mới nằm trên `codex/UNI-504-landing-v2-complete-story`, không thay đổi backend hoặc dữ liệu demo nguồn.
+- Theo lựa chọn của người dùng, **nội dung giới thiệu lấy demo Lovable làm chuẩn sản phẩm**, không lấy snapshot develop cũ làm danh sách khả năng tương lai. Phạm vi triển khai, quyền, cấu hình và hạn mức được giải thích riêng; không chứng nhận hành động đã hoạt động trên môi trường sản xuất.
+- Danh mục tăng từ 18 lên 25 mục: bổ sung AI Brain, Skill Hub, Work Catalog, duyệt quyết định, lịch sử quyết định, AI Market và Reports. Lịch sử quyết định và AI Market mới xác nhận qua điều hướng, nên chỉ giới thiệu phạm vi, không dựng thao tác mua bán/cài đặt hoặc lịch sử giả.
+- Phân biệt năm demo tương tác với các minh họa. Không dùng nhãn “chưa phát triển” cho Calendar, Knowledge, Work Products hoặc Approvals chỉ vì snapshot develop cũ chưa có chúng.
+- Thêm câu chuyện bốn bước: họp → AI đề xuất → người phụ trách → đầu ra đúng phiên bản để duyệt. Đây là tình huống giải thích có chủ ý, không phải thử nghiệm tự động end-to-end với backend.
+- Bổ sung ngữ cảnh quy trình và câu hỏi theo nhóm trên mọi trang tính năng; mở rộng phần AI thành Ask UNI / Brain / Workforce. Phê duyệt minh họa phiên bản gửi v2 so với bản hiện tại v3 và yêu cầu gửi lại.
+- Mobile dùng bản xem tập trung, chữ nội dung tối thiểu 16px và nút chọn ≥44px. Không trình bày canvas desktop 1760px như một ứng dụng mobile; bản desktop đầy đủ và mở rộng vẫn được giữ. Film ngừng chạy ở chế độ xem mobile.
+- Starter giữ giá của giai đoạn thử nghiệm, không thêm giá/hạn mức chưa được xác nhận. Thay dấu check bằng biểu tượng đo lường và giải thích rõ nhóm hạn mức không phải quyền lợi đã bao gồm. Trang Learn có hướng dẫn thao tác, kết quả mong đợi và điều kiện cấu hình.
+- Người dùng yêu cầu để trống địa chỉ liên hệ, cập nhật sau: chỉ hiển thị thông báo chờ cập nhật, không gắn email/URL hoặc dẫn nhầm tới đăng ký.
+- Metadata theo ngôn ngữ request; đổi ngôn ngữ qua menu làm mới metadata mà không xóa trạng thái demo. Các giá trị trạng thái như `in_progress`, `pending` tiếp tục tuân theo quy ước định danh trong repo.
+- Xác minh V2: một lượt 16/16 E2E đạt trên Edge (ba suite `landing-v2`, `landing-product-pages`, `landing-lovable`), 14/14 kiểm thử nội dung/ảnh/chuyển động, 4/4 kiểm thử parity i18n, TypeScript, ESLint phần sửa và `git diff --check` đạt. Đã xem trực quan desktop và mobile 390px. Bài test cuộc họp cuộn khung vào màn hình trước khi giả lập thời gian để không nhầm cơ chế dừng ngoài viewport với lỗi phát.
+- Giới hạn môi trường: `make check` chưa chạy được vì Windows thiếu `make`; kiểm thử token dùng `grep` không chạy được trong shell mặc định, nhưng phép quét tương đương bằng `rg` không có kết quả vi phạm. Không chứng nhận gate toàn repo, build production hoặc backend. UniAI CLI chưa truy cập được để cập nhật issue; không tự đổi trạng thái issue hay triển khai.
+
+Các mục dưới đây là **lịch sử đối chiếu trước V2**, không phải hợp đồng nội dung của bản hiện tại.
+
 > **Trạng thái:** đã cập nhật và xác minh landing cục bộ; chưa merge develop vào nhánh landing, chưa kiểm thử backend develop đang chạy.
 
 ## Mốc đối chiếu

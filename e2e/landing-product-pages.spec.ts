@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-const features = ["dashboard", "tasks", "projects", "today", "calendar", "workflows", "meetings", "chat", "email", "outputs", "documents", "approvals", "knowledge", "ask", "agents", "automation", "organization", "audit"];
+const features = ["dashboard", "tasks", "projects", "today", "calendar", "workflows", "meetings", "chat", "email", "outputs", "documents", "approvals", "knowledge", "ask", "agents", "automation", "organization", "audit", "ai-brain", "skills", "work-catalog", "decisions", "decision-history", "ai-market", "reports"];
 
 test("product menu opens real introduction routes, with demo explicitly separate", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
@@ -10,7 +10,7 @@ test("product menu opens real introduction routes, with demo explicitly separate
   await product.click();
   const menu = page.locator("#header-directory-products");
   await expect(menu).toBeVisible();
-  await expect(menu.locator('a[href^="/features/"]')).toHaveCount(18);
+  await expect(menu.locator('a[href^="/features/"]')).toHaveCount(features.length);
   await expect(menu.locator('a[href="/#platform"]')).toHaveText(/Xem demo/);
   await page.screenshot({ path: ".impeccable/review/product-menu-desktop.png", animations: "disabled" });
   await page.keyboard.press("Escape");

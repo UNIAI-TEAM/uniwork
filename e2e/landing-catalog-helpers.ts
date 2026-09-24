@@ -3,10 +3,10 @@ import type { Page } from "@playwright/test";
 export const workspaceGroups = {
   work: ["dashboard", "tasks", "projects", "today", "calendar", "workflows"],
   communication: ["meetings", "chat", "email"],
-  results: ["outputs", "documents", "approvals"],
+  results: ["outputs", "documents", "approvals", "decisions", "decision-history"],
   knowledge: ["knowledge"],
-  ai: ["ask", "agents", "automation"],
-  organization: ["organization", "audit"],
+  ai: ["ask", "agents", "automation", "ai-brain", "skills", "work-catalog", "ai-market"],
+  organization: ["organization", "audit", "reports"],
 } as const;
 
 export async function openManualPreview(page: Page) {
