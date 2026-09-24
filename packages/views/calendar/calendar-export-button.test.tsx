@@ -35,7 +35,11 @@ describe("CalendarExportButton", () => {
         <CalendarExportButton workspaceId="ws1" from="2026-09-01" to="2026-09-30" />,
       ),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Xuất ICS" }));
+    const exportButton = screen.getByRole("button", { name: "Xuất ICS" });
+    expect(exportButton.textContent).toBe("");
+    expect(exportButton).toHaveClass("border-transparent");
+    expect(exportButton).not.toHaveClass("border-input");
+    fireEvent.click(exportButton);
 
     await waitFor(() => expect(anchors.at(-1)?.download).toBe("uniwork-calendar.ics"));
     expect(toast.success).toHaveBeenCalled();

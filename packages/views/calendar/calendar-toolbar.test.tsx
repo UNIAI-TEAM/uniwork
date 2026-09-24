@@ -13,6 +13,37 @@ const anchor = new Date("2026-09-15T12:00:00Z");
 const noop = () => {};
 
 describe("CalendarToolbar", () => {
+  it("keeps dense toolbar actions flat and the selected view edge-free", () => {
+    render(
+      wrapWithNav(
+        <CalendarToolbar
+          anchorDate={anchor}
+          mine={false}
+          showWeekends
+          viewMode="week"
+          workspaceId="ws1"
+          isRefreshing={false}
+          onAnchorDateChange={noop}
+          onMineChange={noop}
+          onRefresh={noop}
+          onShowWeekendsChange={noop}
+          onViewModeChange={noop}
+        />,
+      ),
+    );
+
+    for (const name of ["Kỳ trước", "Kỳ sau", "Hôm nay", "Làm mới lịch", "Cài đặt lịch"]) {
+      const control = screen.getByRole("button", { name });
+      expect(control).toHaveClass("border-transparent");
+      expect(control).not.toHaveClass("border-input");
+    }
+
+    const selectedView = screen.getByRole("button", { name: "Tuần" });
+    expect(selectedView).toHaveClass("aria-pressed:border-transparent");
+    expect(selectedView).not.toHaveClass("aria-pressed:border-border");
+    expect(selectedView.className).not.toContain("aria-pressed:shadow-");
+  });
+
   it("shows period-aware center label for each view mode", () => {
     const { rerender } = render(
       wrapWithNav(
