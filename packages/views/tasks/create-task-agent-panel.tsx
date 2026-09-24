@@ -23,10 +23,10 @@ import { ContentEditor, FileDropOverlay, useFileDropZone, useUploadGate, type Co
 import { useOptionalWorkspace } from "../layout/workspace-context";
 import { CreateTaskSubmitButton } from "./create-task-submit-button";
 import { PriorityIcon } from "./icons/priority-icon";
+import { CreateTaskDateField } from "./pickers/create-task-overflow-fields";
 import { CreateTaskPriorityField } from "./pickers/create-task-property-fields";
 import { CreateTaskProjectField } from "./pickers/create-task-project-fields";
 import { PickerEmpty, PickerItem, PickerSection, PropertyPicker } from "./pickers/property-picker";
-import { TaskScheduleField } from "./task-schedule-field";
 import { draftFromDefaults } from "./use-create-task-manual";
 
 export type CreateTaskAgentPanelProps = {
@@ -222,29 +222,7 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
       <div className="flex shrink-0 flex-wrap items-center gap-1.5 px-4 pb-2">
         <CreateTaskProjectField items={projectItems} value={draft.projectId} noneLabel={t("tasks.create.project_none")} searchPlaceholder={t("tasks.create.project_search_placeholder")} noResultsLabel={t("tasks.create.options_no_results")} clearLabel={t("common.delete")} onChange={(projectId) => updateDraft({ projectId })} />
         {showPriority ? <CreateTaskPriorityField items={priorityItems} value={(draft.priority ?? "none") as NonNullable<CreateTaskDraft["priority"]>} onChange={(priority) => updateDraft({ priority })} /> : null}
-        {showDueDate ? (
-          <TaskScheduleField
-            value={{
-              start_date: draft.startDate,
-              due_date: draft.dueDate,
-              start_at: draft.startAt,
-              due_at: draft.dueAt,
-            }}
-            label={t("tasks.dueDate")}
-            kind="due"
-            compact
-            open={dueDateOpen}
-            onOpenChange={setDueDateOpen}
-            onChange={(value) =>
-              updateDraft({
-                startDate: value.start_date ?? undefined,
-                dueDate: value.due_date ?? undefined,
-                startAt: value.start_at ?? undefined,
-                dueAt: value.due_at ?? undefined,
-              })
-            }
-          />
-        ) : null}
+        {showDueDate ? <CreateTaskDateField value={draft.dueDate} label={t("tasks.dueDate")} kind="due" open={dueDateOpen} onOpenChange={setDueDateOpen} onChange={(dueDate) => updateDraft({ dueDate })} /> : null}
         {!showPriority || !showDueDate ? (
           <DropdownMenu>
             <DropdownMenuTrigger render={<PillButton aria-label={t("tasks.create.more_fields")} />}><MoreHorizontal className="size-3.5" aria-hidden /></DropdownMenuTrigger>

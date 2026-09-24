@@ -31,9 +31,7 @@ describe("DateTimeField", () => {
         minuteLabel="Phút"
       />,
     );
-    fireEvent.click(screen.getByRole("button"));
-    // The hour segment is driven by keydown, not by a native change event, and
-    // lives inside the same popover as the calendar.
+    // The hour segment is driven by keydown, not by a native change event.
     fireEvent.keyDown(screen.getByLabelText("Giờ"), { key: "ArrowUp" });
     expect(onChange).toHaveBeenCalledWith("2026-09-06T15:30");
   });
@@ -41,7 +39,6 @@ describe("DateTimeField", () => {
   it("holds a time set before any day instead of inventing today", () => {
     const onChange = vi.fn();
     render(<DateTimeField id="dt" value="" onChange={onChange} hourLabel="Giờ" minuteLabel="Phút" />);
-    fireEvent.click(screen.getByRole("button"));
     fireEvent.keyDown(screen.getByLabelText("Giờ"), { key: "ArrowUp" });
     expect(onChange).not.toHaveBeenCalled();
     expect(screen.getByLabelText("Giờ")).toHaveValue("10");

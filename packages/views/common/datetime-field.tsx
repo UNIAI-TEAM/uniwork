@@ -1,6 +1,9 @@
 "use client";
 
-import { DateTimePicker } from "./date-time-picker";
+import { useState } from "react";
+import { TimeInput } from "@uniwork/ui/components/ui/time-input";
+import { cn } from "@uniwork/ui/lib/utils";
+import { DateField } from "./date-field";
 
 const DEFAULT_TIME = "09:00";
 
@@ -48,20 +51,34 @@ export function DateTimeField({
   hourLabel,
   minuteLabel,
 }: DateTimeFieldProps) {
+  const { date, time } = splitDateTimeLocal(value);
+  // The time of day typed while the day is still empty; the value cannot carry it yet.
+  const [pendingTime, setPendingTime] = useState("");
+  const shownTime = time || pendingTime || DEFAULT_TIME;
   return (
-    <DateTimePicker
-      id={id}
-      value={value}
-      onChange={(next) => {
-        const { date, time } = splitDateTimeLocal(next);
-        onChange(joinDateTimeLocal(date, time));
-      }}
-      min={minDate}
-      disabled={disabled}
-      className={className}
-      timeMode="required"
-      hourLabel={hourLabel}
-      minuteLabel={minuteLabel}
-    />
+    <div className={cn("grid grid-cols-1 gap-2 sm:grid-cols-2", className)}>
+      <DateField
+        id={id}
+        value={date}
+        min={minDate}
+        disabled={disabled}
+        onChange={(next) => {
+          // Clearing the day keeps the time shown, so picking a day again restores it.
+          if (!next && time) setPendingTime(time);
+          onChange(joinDateTimeLocal(next, time || pendingTime));
+        }}
+      />
+      <TimeInput
+        className="w-full max-w-full"
+        value={shownTime}
+        disabled={disabled}
+        hourLabel={hourLabel}
+        minuteLabel={minuteLabel}
+        onChange={(next) => {
+          if (date) onChange(joinDateTimeLocal(date, next));
+          else setPendingTime(next);
+        }}
+      />
+    </div>
   );
 }

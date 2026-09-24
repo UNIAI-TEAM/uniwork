@@ -12,9 +12,8 @@ import {
 import { PillButton } from "../common/pill-button";
 import { CreateTaskCustomProperties } from "./create-task-custom-properties";
 import { PropertyIcon } from "./icons/property-icon";
-import { CreateTaskStageField } from "./pickers/create-task-overflow-fields";
+import { CreateTaskDateField, CreateTaskStageField } from "./pickers/create-task-overflow-fields";
 import { CreateTaskParentField } from "./pickers/create-task-project-fields";
-import { TaskScheduleField, type TaskScheduleValue } from "./task-schedule-field";
 
 export type OverflowFieldKey =
   | "parent"
@@ -50,10 +49,9 @@ type CreateTaskManualOverflowProps = {
   maxSiblingStage: number;
   onStageChange: (value: string | undefined) => void;
   startDate: string | undefined;
+  onStartDateChange: (value: string | undefined) => void;
   dueDate: string | undefined;
-  startAt: string | undefined;
-  dueAt: string | undefined;
-  onScheduleChange: (value: TaskScheduleValue) => void;
+  onDueDateChange: (value: string | undefined) => void;
   properties: TaskProperty[];
   propertyValues: Record<string, unknown>;
   onPropertyChange: (propertyId: string, value: unknown | undefined) => void;
@@ -80,10 +78,9 @@ export function CreateTaskManualOverflow({
   maxSiblingStage,
   onStageChange,
   startDate,
+  onStartDateChange,
   dueDate,
-  startAt,
-  dueAt,
-  onScheduleChange,
+  onDueDateChange,
   properties,
   propertyValues,
   onPropertyChange,
@@ -141,25 +138,23 @@ export function CreateTaskManualOverflow({
         />
       ) : null}
       {revealed.has("start_date") ? (
-        <TaskScheduleField
-          value={{ start_date: startDate, due_date: dueDate, start_at: startAt, due_at: dueAt }}
+        <CreateTaskDateField
+          value={startDate}
           label={startDateLabel}
           kind="start"
-          compact
           open={activePicker === "start_date"}
           onOpenChange={(open) => setActivePicker(open ? "start_date" : null)}
-          onChange={onScheduleChange}
+          onChange={onStartDateChange}
         />
       ) : null}
       {revealed.has("due_date") ? (
-        <TaskScheduleField
-          value={{ start_date: startDate, due_date: dueDate, start_at: startAt, due_at: dueAt }}
+        <CreateTaskDateField
+          value={dueDate}
           label={dueDateLabel}
           kind="due"
-          compact
           open={activePicker === "due_date"}
           onOpenChange={(open) => setActivePicker(open ? "due_date" : null)}
-          onChange={onScheduleChange}
+          onChange={onDueDateChange}
         />
       ) : null}
       {revealedProperties.length > 0 ? (
