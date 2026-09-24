@@ -26,6 +26,13 @@ describe("task schedule transport", () => {
     ).toBe("2026-09-10T09:30");
   });
 
+  it("falls back to each date-only value when its instant is absent or invalid", () => {
+    expect(taskScheduleLocalValue({ start_date: "2026-09-08" }, "start")).toBe("2026-09-08");
+    expect(
+      taskScheduleLocalValue({ due_date: "2026-09-12", due_at: "not-an-instant" }, "due"),
+    ).toBe("2026-09-12");
+  });
+
   it("adds the missing end one hour after a newly timed start", () => {
     expect(
       updateTaskSchedule(
@@ -56,6 +63,50 @@ describe("task schedule transport", () => {
     });
   });
 
+  it("keeps an existing valid opposite bound", () => {
+    const startAt = localIso("2026-09-10T09:00");
+    const dueAt = localIso("2026-09-10T12:00");
+
+    expect(
+      updateTaskSchedule(
+        { start_date: "2026-09-10", due_date: "2026-09-10", due_at: dueAt },
+        "start",
+        "2026-09-10T10:00",
+      ).due_at,
+    ).toBe(dueAt);
+    expect(
+      updateTaskSchedule(
+        { start_date: "2026-09-10", due_date: "2026-09-10", start_at: startAt },
+        "due",
+        "2026-09-10T11:00",
+      ).start_at,
+    ).toBe(startAt);
+  });
+
+  it("repairs an opposite bound that would invert the range", () => {
+    const movedStart = updateTaskSchedule(
+      {
+        start_date: "2026-09-10",
+        due_date: "2026-09-10",
+        due_at: localIso("2026-09-10T09:00"),
+      },
+      "start",
+      "2026-09-10T10:00",
+    );
+    expect(movedStart.due_at).toBe(localIso("2026-09-10T11:00"));
+
+    const movedDue = updateTaskSchedule(
+      {
+        start_date: "2026-09-10",
+        due_date: "2026-09-10",
+        start_at: localIso("2026-09-10T12:00"),
+      },
+      "due",
+      "2026-09-10T10:00",
+    );
+    expect(movedDue.start_at).toBe(localIso("2026-09-10T09:00"));
+  });
+
   it("returns to all-day dates when either time is removed", () => {
     expect(
       updateTaskSchedule(
@@ -75,6 +126,26 @@ describe("task schedule transport", () => {
       due_at: undefined,
     });
   });
+
+  it("clears one date and both instants when the field is cleared", () => {
+    expect(
+      updateTaskSchedule(
+        {
+          start_date: "2026-09-10",
+          due_date: "2026-09-11",
+          start_at: localIso("2026-09-10T09:30"),
+          due_at: localIso("2026-09-11T10:30"),
+        },
+        "start",
+        "",
+      ),
+    ).toEqual({
+      start_date: undefined,
+      due_date: "2026-09-11",
+      start_at: undefined,
+      due_at: undefined,
+    });
+  });
 });
 
 describe("TaskScheduleField", () => {
@@ -89,15 +160,41 @@ describe("TaskScheduleField", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Thêm giờ" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Hạn chót: Thêm giờ" })).toBeEnabled();
     expect(onChange).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Thêm giờ" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hạn chót: Thêm giờ" }));
 
     expect(onChange).toHaveBeenCalledWith({
       start_date: "2026-09-10",
       due_date: "2026-09-10",
       start_at: localIso("2026-09-10T08:00"),
       due_at: localIso("2026-09-10T09:00"),
+    });
+  });
+
+  it("removes both instants through the contextual remove-time action", () => {
+    const onChange = vi.fn();
+    render(
+      <TaskScheduleField
+        kind="start"
+        label="Ngày bắt đầu"
+        compact
+        value={{
+          start_date: "2026-09-10",
+          due_date: "2026-09-10",
+          start_at: localIso("2026-09-10T09:00"),
+          due_at: localIso("2026-09-10T10:00"),
+        }}
+        onChange={onChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Ngày bắt đầu: Bỏ giờ" }));
+    expect(onChange).toHaveBeenCalledWith({
+      start_date: "2026-09-10",
+      due_date: "2026-09-10",
+      start_at: undefined,
+      due_at: undefined,
     });
   });
 });

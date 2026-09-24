@@ -242,9 +242,17 @@ export function CreateTaskManualPanel({
             maxSiblingStage={maxSiblingStage}
             onStageChange={(value) => updateDraft({ stage: value })}
             startDate={draft.startDate}
-            onStartDateChange={(value) => updateDraft({ startDate: value })}
             dueDate={draft.dueDate}
-            onDueDateChange={(value) => updateDraft({ dueDate: value })}
+            startAt={draft.startAt}
+            dueAt={draft.dueAt}
+            onScheduleChange={(value) =>
+              updateDraft({
+                startDate: value.start_date ?? undefined,
+                dueDate: value.due_date ?? undefined,
+                startAt: value.start_at ?? undefined,
+                dueAt: value.due_at ?? undefined,
+              })
+            }
             properties={propertyList?.properties ?? []}
             propertyValues={draft.properties ?? {}}
             onPropertyChange={setProperty}

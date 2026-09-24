@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { TimeInput } from "@uniwork/ui/components/ui/time-input";
+import { Button } from "@uniwork/ui/components/ui/button";
+import { X } from "lucide-react";
 import { cn } from "@uniwork/ui/lib/utils";
-import { DateField } from "./date-field";
+import { DateField, type DateFieldProps } from "./date-field";
 
 const DEFAULT_TIME = "09:00";
 
@@ -20,7 +22,7 @@ export function joinDateTimeLocal(date: string, time: string): string {
   return `${date}T${time || DEFAULT_TIME}`;
 }
 
-interface DateTimeFieldProps {
+export interface DateTimeFieldProps {
   id?: string;
   /** "YYYY-MM-DDTHH:mm" or "" when unset — the `datetime-local` transport. */
   value: string;
@@ -32,6 +34,13 @@ interface DateTimeFieldProps {
   /** Accessible names for the hour and minute segments. */
   hourLabel: string;
   minuteLabel: string;
+  /** Keep a picked day date-only until the user explicitly adds a time. */
+  allowDateOnly?: boolean;
+  addTimeLabel?: string;
+  addTimeAriaLabel?: string;
+  removeTimeLabel?: string;
+  dateFieldProps?: Omit<DateFieldProps, "id" | "value" | "onChange" | "min" | "disabled">;
+  timeClassName?: string;
 }
 
 /**
@@ -50,8 +59,17 @@ export function DateTimeField({
   className,
   hourLabel,
   minuteLabel,
+  allowDateOnly = false,
+  addTimeLabel,
+  addTimeAriaLabel,
+  removeTimeLabel,
+  dateFieldProps,
+  timeClassName,
 }: DateTimeFieldProps) {
-  const { date, time } = splitDateTimeLocal(value);
+  const split = splitDateTimeLocal(value);
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
+  const date = split.date || dateOnly;
+  const time = split.time;
   // The time of day typed while the day is still empty; the value cannot carry it yet.
   const [pendingTime, setPendingTime] = useState("");
   const shownTime = time || pendingTime || DEFAULT_TIME;
@@ -62,23 +80,59 @@ export function DateTimeField({
         value={date}
         min={minDate}
         disabled={disabled}
+        {...dateFieldProps}
         onChange={(next) => {
           // Clearing the day keeps the time shown, so picking a day again restores it.
           if (!next && time) setPendingTime(time);
-          onChange(joinDateTimeLocal(next, time || pendingTime));
+          if (allowDateOnly && !time) {
+            onChange(next);
+          } else {
+            onChange(joinDateTimeLocal(next, time || pendingTime));
+          }
         }}
       />
-      <TimeInput
-        className="w-full max-w-full"
-        value={shownTime}
-        disabled={disabled}
-        hourLabel={hourLabel}
-        minuteLabel={minuteLabel}
-        onChange={(next) => {
-          if (date) onChange(joinDateTimeLocal(date, next));
-          else setPendingTime(next);
-        }}
-      />
+      {allowDateOnly && !time ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={disabled || !date}
+          aria-label={addTimeAriaLabel}
+          className="justify-start text-muted-foreground"
+          onClick={() => onChange(joinDateTimeLocal(date, pendingTime))}
+        >
+          {addTimeLabel}
+        </Button>
+      ) : (
+        <div className="flex min-w-0 items-center gap-1">
+          <TimeInput
+            className={cn("w-full max-w-full", timeClassName)}
+            value={shownTime}
+            disabled={disabled}
+            hourLabel={hourLabel}
+            minuteLabel={minuteLabel}
+            onChange={(next) => {
+              if (date) onChange(joinDateTimeLocal(date, next));
+              else setPendingTime(next);
+            }}
+          />
+          {allowDateOnly ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              disabled={disabled}
+              aria-label={removeTimeLabel}
+              onClick={() => {
+                setPendingTime(time);
+                onChange(date);
+              }}
+            >
+              <X aria-hidden className="size-3.5" />
+            </Button>
+          ) : null}
+        </div>
+      )}
     </div>
   );
 }

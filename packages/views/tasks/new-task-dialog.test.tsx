@@ -257,6 +257,8 @@ describe("NewTaskDialog", () => {
             project_id: "p1",
             start_date: "2026-09-20",
             due_date: "2026-09-30",
+            start_at: "2026-09-20T02:00:00Z",
+            due_at: "2026-09-20T03:30:00Z",
             label_ids: ["label-1"],
           }}
         />,
@@ -288,6 +290,8 @@ describe("NewTaskDialog", () => {
             project_id: "p1",
             start_date: "2026-09-20",
             due_date: "2026-09-30",
+            start_at: "2026-09-20T02:00:00Z",
+            due_at: "2026-09-20T03:30:00Z",
             label_ids: ["label-1"],
           }),
           headers: expect.objectContaining({ "Idempotency-Key": expect.any(String) }),

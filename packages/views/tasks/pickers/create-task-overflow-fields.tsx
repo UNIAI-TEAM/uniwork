@@ -1,7 +1,6 @@
 "use client";
 
-import { CalendarClock, CalendarDays, Milestone } from "lucide-react";
-import { DateField } from "../../common/date-field";
+import { Milestone } from "lucide-react";
 import { PillButton } from "../../common/pill-button";
 import { PickerItem, PropertyPicker } from "./property-picker";
 
@@ -75,38 +74,5 @@ export function CreateTaskStageField({
         </PickerItem>
       ))}
     </PropertyPicker>
-  );
-}
-
-export function CreateTaskDateField({
-  value,
-  label,
-  kind,
-  open,
-  onOpenChange,
-  onChange,
-}: {
-  value: string | undefined;
-  label: string;
-  kind: "start" | "due";
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onChange: (value: string | undefined) => void;
-}) {
-  const Icon = kind === "start" ? CalendarClock : CalendarDays;
-
-  return (
-    <DateField
-      value={value ?? ""}
-      onChange={(next) => onChange(next || undefined)}
-      modal={false}
-      ariaLabel={label}
-      placeholder={label}
-      formatOptions={{ day: "numeric", month: "short" }}
-      triggerRender={<PillButton />}
-      icon={<Icon className="size-3.5 shrink-0" aria-hidden />}
-      open={open}
-      onOpenChange={onOpenChange}
-    />
   );
 }

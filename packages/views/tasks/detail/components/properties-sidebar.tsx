@@ -30,7 +30,6 @@ import {
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { AgentBadge } from "../../../agents/agent-badge";
-import { DateField } from "../../../common/date-field";
 import { PAGE_GUTTER } from "../../../layout/page-header";
 import { useWorkspace } from "../../../layout/workspace-context";
 import { AppLink } from "../../../navigation";
@@ -38,6 +37,7 @@ import { toastApiError } from "../../../toast-api-error";
 import { cn } from "@uniwork/ui/lib/utils";
 import { TaskDetailMetadata } from "./task-detail-metadata";
 import { TaskActorAvatar } from "./task-actor-avatar";
+import { TaskScheduleField, type TaskScheduleValue } from "../../task-schedule-field";
 import {
   AssigneePicker,
   LabelPicker,
@@ -172,6 +172,15 @@ export function TaskDetailPropertiesSidebar({
         onError: (err) => toastApiError(err, t("common.error")),
       },
     );
+  };
+
+  const patchSchedule = (value: TaskScheduleValue) => {
+    patchField({
+      start_date: value.start_date ?? null,
+      due_date: value.due_date ?? null,
+      start_at: value.start_at ?? null,
+      due_at: value.due_at ?? null,
+    });
   };
 
   const parentHref = parentTask
@@ -323,23 +332,24 @@ export function TaskDetailPropertiesSidebar({
         </PropRow>
         ) : null}
 
-        {task.start_date || optionalOpen ? (
+        {task.start_date || task.start_at || optionalOpen ? (
         <PropRow label={<Label>{t("tasks.detail.prop_start_date")}</Label>}>
-          <div title={surfaceNotReady}>
-            <DateField
-              value={task.start_date ?? ""}
-              onChange={() => {}}
-              disabled
-            />
-          </div>
+          <TaskScheduleField
+            kind="start"
+            label={t("tasks.detail.prop_start_date")}
+            value={task}
+            onChange={patchSchedule}
+          />
         </PropRow>
         ) : null}
 
-        {task.due_date || optionalOpen ? (
+        {task.due_date || task.due_at || optionalOpen ? (
         <PropRow label={<Label>{t("tasks.dueDate")}</Label>}>
-          <DateField
-            value={task.due_date ?? ""}
-            onChange={(v) => patchField({ due_date: v || null })}
+          <TaskScheduleField
+            kind="due"
+            label={t("tasks.dueDate")}
+            value={task}
+            onChange={patchSchedule}
           />
         </PropRow>
         ) : null}

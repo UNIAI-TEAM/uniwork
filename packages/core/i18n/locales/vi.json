@@ -18,6 +18,8 @@
     "close": "Đóng",
     "date_pick": "Chọn ngày",
     "date_clear": "Bỏ chọn ngày",
+    "time_add": "Thêm giờ",
+    "time_remove": "Bỏ giờ",
     "hour": "Giờ",
     "minute": "Phút"
   },

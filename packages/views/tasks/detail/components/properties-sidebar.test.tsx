@@ -334,6 +334,31 @@ describe("TaskDetailPropertiesSidebar", () => {
     expect(screen.queryByText("p1")).not.toBeInTheDocument();
   });
 
+  it("adds a paired timeline from the shared due-date picker", async () => {
+    render(
+      shell(
+        <TaskDetailPropertiesSidebar
+          workspaceId="w1"
+          task={{ ...task, start_date: "2026-09-10", due_date: "2026-09-10" }}
+          onRefetch={() => {}}
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Hạn: Thêm giờ" }));
+
+    await waitFor(() => expect(updateMutate).toHaveBeenCalledTimes(1));
+    expect(updateMutate.mock.calls[0]?.[0]).toEqual({
+      taskId: "t1",
+      patch: {
+        start_date: "2026-09-10",
+        due_date: "2026-09-10",
+        start_at: new Date("2026-09-10T08:00").toISOString(),
+        due_at: new Date("2026-09-10T09:00").toISOString(),
+      },
+    });
+  });
+
   it("disables custom properties when the catalog is empty", () => {
     render(
       shell(

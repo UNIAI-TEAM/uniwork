@@ -28,7 +28,7 @@ export function toDateOnly(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-interface DateFieldProps {
+export interface DateFieldProps {
   id?: string;
   /** Calendar day "YYYY-MM-DD" or "" when unset. */
   value: string;
