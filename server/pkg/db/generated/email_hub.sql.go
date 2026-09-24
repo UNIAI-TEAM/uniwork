@@ -18,7 +18,7 @@ WHERE id = $1
   AND workspace_id = $2
   AND account_id = $3
   AND user_id = $4
-  AND status = 'pending'
+  AND status IN ('pending', 'failed')
 `
 
 type CancelEmailHubScheduledSendParams struct {
@@ -881,24 +881,26 @@ func (q *Queries) ListEmailHubDistinctImapLabels(ctx context.Context, arg ListEm
 	return items, nil
 }
 
-const listEmailHubPendingScheduledSends = `-- name: ListEmailHubPendingScheduledSends :many
+const listEmailHubOpenScheduledSends = `-- name: ListEmailHubOpenScheduledSends :many
 SELECT id, workspace_id, account_id, organization_id, user_id, payload, send_at, status, last_error, created_at, sent_at
 FROM email_hub_scheduled_sends
 WHERE workspace_id = $1
   AND account_id = $2
   AND user_id = $3
-  AND status = 'pending'
-ORDER BY send_at ASC
+  AND status IN ('pending', 'failed')
+ORDER BY (status = 'failed') DESC, send_at ASC
 `
 
-type ListEmailHubPendingScheduledSendsParams struct {
+type ListEmailHubOpenScheduledSendsParams struct {
 	WorkspaceID string `json:"workspace_id"`
 	AccountID   string `json:"account_id"`
 	UserID      string `json:"user_id"`
 }
 
-func (q *Queries) ListEmailHubPendingScheduledSends(ctx context.Context, arg ListEmailHubPendingScheduledSendsParams) ([]EmailHubScheduledSend, error) {
-	rows, err := q.db.Query(ctx, listEmailHubPendingScheduledSends, arg.WorkspaceID, arg.AccountID, arg.UserID)
+// Open = still the user's concern: pending (waiting to go out) or failed (the
+// worker gave up; the user must retry or dismiss). Failed rows come first.
+func (q *Queries) ListEmailHubOpenScheduledSends(ctx context.Context, arg ListEmailHubOpenScheduledSendsParams) ([]EmailHubScheduledSend, error) {
+	rows, err := q.db.Query(ctx, listEmailHubOpenScheduledSends, arg.WorkspaceID, arg.AccountID, arg.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -1419,6 +1421,36 @@ type PatchEmailHubThreadSnippetParams struct {
 func (q *Queries) PatchEmailHubThreadSnippet(ctx context.Context, arg PatchEmailHubThreadSnippetParams) error {
 	_, err := q.db.Exec(ctx, patchEmailHubThreadSnippet, arg.ID, arg.Snippet)
 	return err
+}
+
+const retryEmailHubScheduledSend = `-- name: RetryEmailHubScheduledSend :execrows
+UPDATE email_hub_scheduled_sends
+SET status = 'pending', send_at = now(), last_error = NULL
+WHERE id = $1
+  AND workspace_id = $2
+  AND account_id = $3
+  AND user_id = $4
+  AND status = 'failed'
+`
+
+type RetryEmailHubScheduledSendParams struct {
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspace_id"`
+	AccountID   string `json:"account_id"`
+	UserID      string `json:"user_id"`
+}
+
+func (q *Queries) RetryEmailHubScheduledSend(ctx context.Context, arg RetryEmailHubScheduledSendParams) (int64, error) {
+	result, err := q.db.Exec(ctx, retryEmailHubScheduledSend,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.AccountID,
+		arg.UserID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const sumEmailHubInboxUnreadByUser = `-- name: SumEmailHubInboxUnreadByUser :one

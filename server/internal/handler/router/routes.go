@@ -165,6 +165,7 @@ type Routes struct {
 	SendEmailHub                  http.HandlerFunc
 	ListEmailHubScheduledSends    http.HandlerFunc
 	CancelEmailHubScheduledSend   http.HandlerFunc
+	RetryEmailHubScheduledSend    http.HandlerFunc
 	SyncEmailHub                  http.HandlerFunc
 	WatchEmailHub                 http.HandlerFunc
 	SubscribeEmailHubInboxWatch   http.HandlerFunc

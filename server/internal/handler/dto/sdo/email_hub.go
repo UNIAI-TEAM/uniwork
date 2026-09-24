@@ -31,16 +31,19 @@ type EmailHubUnreadSDO struct {
 	Unread int64 `json:"unread" example:"3"`
 }
 
-// EmailHubScheduledSendItemSDO is one pending scheduled outbound message.
+// EmailHubScheduledSendItemSDO is one open scheduled outbound message: pending
+// (waiting to go out) or failed (delivery gave up; retry or dismiss). The
+// failure reason is not exposed.
 type EmailHubScheduledSendItemSDO struct {
 	ID      string   `json:"id"`
 	SendAt  string   `json:"send_at" format:"date-time"`
 	Subject string   `json:"subject"`
 	To      []string `json:"to"`
-	Status  string   `json:"status"`
+	Status  string   `json:"status" enum:"pending,failed" example:"pending"`
 }
 
-// EmailHubScheduledSendListSDO lists pending scheduled sends for the caller.
+// EmailHubScheduledSendListSDO lists the caller's open scheduled sends,
+// failed ones first, then by send_at ascending.
 type EmailHubScheduledSendListSDO struct {
 	Scheduled []EmailHubScheduledSendItemSDO `json:"scheduled"`
 }

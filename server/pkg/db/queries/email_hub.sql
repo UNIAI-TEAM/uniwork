@@ -429,14 +429,16 @@ SET status = 'failed',
     last_error = $2
 WHERE id = $1;
 
--- name: ListEmailHubPendingScheduledSends :many
+-- name: ListEmailHubOpenScheduledSends :many
+-- Open = still the user's concern: pending (waiting to go out) or failed (the
+-- worker gave up; the user must retry or dismiss). Failed rows come first.
 SELECT *
 FROM email_hub_scheduled_sends
 WHERE workspace_id = $1
   AND account_id = $2
   AND user_id = $3
-  AND status = 'pending'
-ORDER BY send_at ASC;
+  AND status IN ('pending', 'failed')
+ORDER BY (status = 'failed') DESC, send_at ASC;
 
 -- name: CancelEmailHubScheduledSend :execrows
 UPDATE email_hub_scheduled_sends
@@ -445,7 +447,16 @@ WHERE id = $1
   AND workspace_id = $2
   AND account_id = $3
   AND user_id = $4
-  AND status = 'pending';
+  AND status IN ('pending', 'failed');
+
+-- name: RetryEmailHubScheduledSend :execrows
+UPDATE email_hub_scheduled_sends
+SET status = 'pending', send_at = now(), last_error = NULL
+WHERE id = $1
+  AND workspace_id = $2
+  AND account_id = $3
+  AND user_id = $4
+  AND status = 'failed';
 
 -- name: GetEmailHubThreadAiSummary :one
 SELECT *

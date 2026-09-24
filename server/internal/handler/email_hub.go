@@ -376,7 +376,7 @@ func (h *handlers) listEmailHubScheduledSends(w http.ResponseWriter, r *http.Req
 		respondError(w, http.StatusBadRequest, "invalid_request", "account_id is required")
 		return
 	}
-	items, err := h.EmailHub.ListPendingScheduledSends(
+	items, err := h.EmailHub.ListScheduledSends(
 		r.Context(), service.Human(middleware.UserID(r.Context())),
 		chi.URLParam(r, "workspaceID"), accountID,
 	)
@@ -400,6 +400,23 @@ func (h *handlers) cancelEmailHubScheduledSend(w http.ResponseWriter, r *http.Re
 		return
 	}
 	err := h.EmailHub.CancelScheduledSend(
+		r.Context(), service.Human(middleware.UserID(r.Context())),
+		chi.URLParam(r, "workspaceID"), accountID, chi.URLParam(r, "scheduledSendID"),
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *handlers) retryEmailHubScheduledSend(w http.ResponseWriter, r *http.Request) {
+	accountID := r.URL.Query().Get("account_id")
+	if accountID == "" {
+		respondError(w, http.StatusBadRequest, "invalid_request", "account_id is required")
+		return
+	}
+	err := h.EmailHub.RetryScheduledSend(
 		r.Context(), service.Human(middleware.UserID(r.Context())),
 		chi.URLParam(r, "workspaceID"), accountID, chi.URLParam(r, "scheduledSendID"),
 	)
