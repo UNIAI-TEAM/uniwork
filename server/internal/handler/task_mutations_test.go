@@ -140,6 +140,30 @@ func TestPatchTaskHTTPStartDate(t *testing.T) {
 	}
 }
 
+func TestPatchTaskHTTPScheduleTimes(t *testing.T) {
+	srv, token, wsID, _ := suiteMutationWorld(t)
+	res, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/tasks", token, map[string]any{
+		"title": "Timed task", "start_date": "2026-09-20", "due_date": "2026-09-20",
+		"start_at": "2026-09-20T02:00:00Z", "due_at": "2026-09-20T03:00:00Z",
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("create timed task: %d %v", res.StatusCode, out)
+	}
+	taskID := out["task"].(map[string]any)["id"].(string)
+
+	res, out = doJSON(t, srv, "PATCH", "/api/v1/tasks/"+taskID, token, map[string]any{
+		"start_date": "2026-09-21", "due_date": "2026-09-21",
+		"start_at": "2026-09-21T07:30:00Z", "due_at": "2026-09-21T09:00:00Z",
+	})
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("patch timed task: %d %v", res.StatusCode, out)
+	}
+	task := out["task"].(map[string]any)
+	if task["start_at"] != "2026-09-21T07:30:00Z" || task["due_at"] != "2026-09-21T09:00:00Z" {
+		t.Fatalf("schedule = %v/%v, want updated instants; task=%v", task["start_at"], task["due_at"], task)
+	}
+}
+
 func TestCreateTaskHTTPAcceptsWorkManagementContext(t *testing.T) {
 	srv, token, wsID, _ := suiteMutationWorld(t)
 	res, labelOut := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/task-labels", token, map[string]any{
