@@ -83,7 +83,7 @@ describe("ProfileForm layout", () => {
     renderForm();
     const editor = await screen.findByRole("dialog");
 
-    expect(within(editor).getByRole("heading", { name: "Sửa hồ sơ" })).toBeInTheDocument();
+    expect(within(editor).getByRole("heading", { name: /^Sửa hồ sơ/ })).toBeInTheDocument();
     expect(within(editor).getByLabelText("Chức danh")).toBeInTheDocument();
   });
 
@@ -99,9 +99,11 @@ describe("ProfileForm layout", () => {
     requestMock.mockReset();
     mockApi("member");
     renderForm();
-    await screen.findByLabelText("Mã nhân viên");
+    await screen.findByLabelText("Chức danh");
 
-    expect(within(dialog()).getByLabelText("Mã nhân viên")).toBeDisabled();
+    // Fields the reader may not set are read, not greyed-out inputs.
+    expect(within(dialog()).queryByLabelText("Mã nhân viên")).toBeNull();
+    expect(within(dialog()).getByText("Mã nhân viên")).toBeInTheDocument();
     // One reason for the group, rather than a reason attached to one field
     // while its two locked neighbours say nothing.
     expect(within(dialog()).getAllByText(/quản trị/i).length).toBeGreaterThan(0);

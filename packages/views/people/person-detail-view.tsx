@@ -1,22 +1,30 @@
 "use client";
 
-import { ChevronRight, IdCard, Mail, Pencil, Phone, UserRound, Users } from "lucide-react";
+import { Ban, ChevronRight, Copy, IdCard, Mail, Pencil, Phone, UserRound, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { lazy, Suspense, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useReactivateOrgMember } from "@uniwork/core/organizations";
 import { paths } from "@uniwork/core/paths";
 import { usePeoplePermissions } from "@uniwork/core/permissions";
 import { usePerson } from "@uniwork/core/people";
 import type { Actor, Person } from "@uniwork/core/types/people";
+import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { cn } from "@uniwork/ui/lib/utils";
+import { toast } from "sonner";
+import { Notice } from "../common/notice";
+import { PanelCard } from "../common/panel-card";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import { CollectionPageHeaderAction, CollectionPageState } from "../layout/collection-page";
-import { PanelCard } from "../common/panel-card";
 import { useWorkspace } from "../layout/workspace-context";
 import { AppLink } from "../navigation";
+import { toastApiError } from "../toast-api-error";
 import { ActorChip } from "./actor-chip";
 import { PersonDetailHero } from "./person-detail-hero";
 import { PersonDetailSkeleton } from "./person-detail-skeleton";
-import { formatJoinedOn, formatTimezone } from "./person-facts";
+import { formatInstantDate, formatJoinedOn, formatTimezone, localTimeIn } from "./person-facts";
+import { useStartChat } from "./use-start-chat";
 
 /**
  * Nobody sees the edit dialog until they ask for it, and it drags a date
@@ -28,12 +36,18 @@ const ProfileEditDialog = lazy(() =>
   import("./profile-edit-dialog").then((m) => ({ default: m.ProfileEditDialog })),
 );
 
-/** One label/value pair of the fact list. */
-function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+/**
+ * One fact, its label above its value. Side by side across a wide panel the
+ * eye had to cross most of the page to pair them.
+ */
+function Fact({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 py-2.5">
-      <dt className="shrink-0 text-label text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 text-right text-body text-foreground">{children}</dd>
+    <div className="min-w-0">
+      <dt className="text-label text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 text-body font-medium break-words text-foreground">
+        {children}
+        {hint ? <span className="mt-0.5 block text-caption font-normal text-muted-foreground">{hint}</span> : null}
+      </dd>
     </div>
   );
 }
@@ -52,42 +66,58 @@ function PersonRow({ href, actor }: { href: string; actor: Actor }) {
       <ActorChip actor={actor} className="min-w-0 flex-1" />
       <ChevronRight
         aria-hidden="true"
-        className="size-4 shrink-0 text-faint-foreground transition-colors group-hover:text-muted-foreground"
+        className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
       />
     </AppLink>
   );
 }
 
 /**
- * One way to reach this person, as a row that is entirely the action. The
- * value sits under its label rather than beside it: an address is long, and
- * squeezing it into the right half of a narrow card broke it mid-word.
+ * One way to reach this person, as a row that is entirely the action, with a
+ * copy button beside it for the times the address is wanted elsewhere. Its
+ * name is its label and value ("Email an@…"), distinct from the hero's
+ * "Gửi email cho …" beside the same target. The value sits under its label: an address is long, and squeezing it into the
+ * right half of a narrow card broke it mid-word.
  */
 function ContactRow({
   icon: Icon,
   label,
   value,
   href,
-  ariaLabel,
+  copyLabel,
 }: {
   icon: LucideIcon;
   label: string;
   value: string;
   href: string;
-  ariaLabel: string;
+  copyLabel: string;
 }) {
+  const { t } = useTranslation();
+  const copy = () => {
+    void navigator.clipboard
+      ?.writeText(value)
+      .then(() => toast.success(t("common.copied")))
+      .catch(() => toast.error(t("people.copy_failed")));
+  };
   return (
-    <a
-      href={href}
-      aria-label={ariaLabel}
-      className="flex min-h-11 items-start gap-3 px-4 py-2.5 transition-colors hover:bg-surface-hover"
-    >
-      <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-faint-foreground" />
-      <span className="min-w-0">
-        <span className="block text-label text-muted-foreground">{label}</span>
-        <span className="block break-words text-body text-foreground">{value}</span>
-      </span>
-    </a>
+    <div className="group flex items-stretch transition-colors hover:bg-surface-hover">
+      <a href={href} className="flex min-h-11 min-w-0 flex-1 items-start gap-3 py-2.5 pl-4">
+        <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+        <span className="min-w-0">
+          <span className="block text-label text-muted-foreground">{label}</span>
+          <span className="block text-body break-all text-foreground">{value}</span>
+        </span>
+      </a>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        aria-label={copyLabel}
+        className="my-auto mr-2 text-muted-foreground"
+        onClick={copy}
+      >
+        <Copy aria-hidden="true" />
+      </Button>
+    </div>
   );
 }
 
@@ -98,7 +128,9 @@ export function PersonDetailView({ userId }: { userId: string }) {
   const orgSlug = workspace.organization_slug;
   const wsPaths = paths.workspace(orgSlug, workspace.slug);
   const { data, isLoading, isError } = usePerson(orgSlug, userId);
-  const { decideEditProfile } = usePeoplePermissions(orgSlug);
+  const { decideEditProfile, decideDeactivate, canEditEmployment } = usePeoplePermissions(orgSlug);
+  const reactivate = useReactivateOrgMember(orgSlug);
+  const startChat = useStartChat();
   const [editing, setEditing] = useState(false);
   const person = data?.person ?? null;
 
@@ -115,37 +147,58 @@ export function PersonDetailView({ userId }: { userId: string }) {
     // them: the page lands in its final shape instead of jumping into it.
     return (
       <div className="flex min-h-0 flex-1 flex-col">
-        {header(t("common.loading"))}
+        {header(
+          <>
+            <Skeleton aria-hidden="true" className="inline-block h-4 w-32 align-middle" />
+            <span className="sr-only">{t("common.loading")}</span>
+          </>,
+        )}
         <PersonDetailSkeleton />
       </div>
     );
   }
   if (isError || !person) {
     return (
-      <CollectionPageState
-        icon={UserRound}
-        tone="destructive"
-        role="alert"
-        title={t("people.not_found_title")}
-        description={t("people.not_found_description")}
-      />
+      <div className="flex min-h-0 flex-1 flex-col">
+        {header(t("people.not_found_title"))}
+        <CollectionPageState
+          icon={UserRound}
+          tone="destructive"
+          role="alert"
+          title={t("people.not_found_title")}
+          description={t("people.not_found_description")}
+          actions={
+            <AppLink href={wsPaths.people()} className={cn(buttonVariants({ variant: "outline" }))}>
+              {t("people.back_to_directory")}
+            </AppLink>
+          }
+        />
+      </div>
     );
   }
 
   const canEdit = decideEditProfile({ user_id: person.user_id });
+  const canReactivate = decideDeactivate({ user_id: person.user_id, role: person.org_role });
+  const deactivated = person.status === "deactivated";
   const reports = data?.reports ?? [];
   const facts = employmentFacts(person, t, i18n.language);
+  const settingsHref = `${wsPaths.settings()}?tab=profile`;
+  const openEdit = canEdit.allowed ? () => setEditing(true) : undefined;
+
+  const runReactivate = () =>
+    reactivate.mutate(person.user_id, {
+      onSuccess: () => toast.success(t("people.reactivated", { name: person.display_name })),
+      onError: (err) => toastApiError(err, t("common.error")),
+    });
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {header(
         person.display_name,
-        canEdit.allowed ? (
-          <CollectionPageHeaderAction
-            icon={Pencil}
-            label={t("people.edit_profile")}
-            onClick={() => setEditing(true)}
-          />
+        // The reader's own profile carries its edit button in the hero, beside
+        // the photo it goes with; the header only repeats it for someone else.
+        canEdit.allowed && !person.is_self ? (
+          <CollectionPageHeaderAction icon={Pencil} label={t("people.edit_profile")} onClick={() => setEditing(true)} />
         ) : null,
       )}
       {/* Mounted only once asked for, so the lazy chunk above is fetched on the
@@ -156,63 +209,78 @@ export function PersonDetailView({ userId }: { userId: string }) {
         </Suspense>
       ) : null}
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-4 sm:p-6 lg:p-8">
-          <PersonDetailHero person={person} />
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 sm:p-6 lg:p-8">
+          {deactivated ? (
+            <Notice
+              tone="muted"
+              layout="inline"
+              icon={Ban}
+              live="off"
+              action={
+                canReactivate.allowed ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={runReactivate}
+                    disabled={reactivate.isPending}
+                    aria-busy={reactivate.isPending || undefined}
+                  >
+                    {t("people.reactivate")}
+                  </Button>
+                ) : null
+              }
+            >
+              {formatInstantDate(person.deactivated_at, i18n.language)
+                ? t("people.deactivated_since", { date: formatInstantDate(person.deactivated_at, i18n.language) })
+                : t("people.deactivated_notice")}
+            </Notice>
+          ) : null}
+
+          <PersonDetailHero
+            person={person}
+            onChat={() => startChat(person.user_id)}
+            onEdit={openEdit}
+            settingsHref={settingsHref}
+          />
 
           <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
-            <PanelCard id="person-details" icon={IdCard} title={t("people.details")}>
-              {facts.length === 0 ? (
-                <p className="text-body text-muted-foreground">{t("people.details_empty")}</p>
-              ) : (
-                <dl className="-my-2.5 divide-y divide-border">
-                  {facts.map(([label, value]) => (
-                    <Fact key={label} label={label}>
-                      {value}
-                    </Fact>
-                  ))}
-                </dl>
-              )}
-            </PanelCard>
-
             <div className="flex min-w-0 flex-col gap-4">
-              {/* A directory exists to start a conversation, so the address
-                  is the action rather than a string to copy out. */}
-              <PanelCard id="person-contact" icon={Mail} title={t("people.contact")} flush>
-                <div className="divide-y divide-border">
-                  <ContactRow
-                    icon={Mail}
-                    label={t("people.column_email")}
-                    value={person.email}
-                    href={`mailto:${person.email}`}
-                    ariaLabel={t("people.email_person", { name: person.display_name })}
-                  />
-                  {person.phone ? (
-                    <ContactRow
-                      icon={Phone}
-                      label={t("people.field_phone")}
-                      value={person.phone}
-                      href={`tel:${person.phone.replace(/\s+/g, "")}`}
-                      ariaLabel={t("people.call_person", { name: person.display_name })}
-                    />
-                  ) : null}
-                </div>
+              <PanelCard id="person-details" icon={IdCard} title={t("people.details")}>
+                {facts.length === 0 ? (
+                  <p className="text-body text-muted-foreground">{t("people.details_empty")}</p>
+                ) : (
+                  <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+                    {facts.map((fact) => (
+                      <Fact key={fact.label} label={fact.label} hint={fact.hint}>
+                        {fact.value}
+                      </Fact>
+                    ))}
+                  </dl>
+                )}
               </PanelCard>
 
-              {person.manager || reports.length > 0 ? (
-                <PanelCard id="person-reporting" icon={Users} title={t("people.reporting")} flush>
-                  {person.manager ? (
-                    <div className={reports.length > 0 ? "border-b border-border" : undefined}>
-                      <p className="px-4 pt-3 text-label text-muted-foreground">
-                        {t("people.manager")}
-                      </p>
+              <PanelCard id="person-reporting" icon={Users} title={t("people.reporting")} flush>
+                <div className="grid sm:grid-cols-2 sm:divide-x sm:divide-border">
+                  <div className="min-w-0 border-b border-border sm:border-b-0">
+                    <p className="px-4 pt-3 text-label text-muted-foreground">{t("people.manager")}</p>
+                    {person.manager ? (
                       <PersonRow href={wsPaths.person(person.manager.id)} actor={person.manager} />
-                    </div>
-                  ) : null}
-                  {reports.length > 0 ? (
-                    <div>
-                      <p className="px-4 pt-3 text-label text-muted-foreground">
-                        {t("people.reports")}
-                      </p>
+                    ) : (
+                      <EmptyRelation
+                        text={t("people.manager_none")}
+                        actionLabel={canEditEmployment.allowed && openEdit ? t("people.manager_assign") : undefined}
+                        onAction={openEdit}
+                      />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="px-4 pt-3 text-label text-muted-foreground">
+                      {t("people.reports")}
+                      {reports.length > 0 ? (
+                        <span className="ml-1.5 tabular-nums">{reports.length}</span>
+                      ) : null}
+                    </p>
+                    {reports.length > 0 ? (
                       <ul className="divide-y divide-border">
                         {reports.map((report) => (
                           <li key={report.id}>
@@ -220,16 +288,62 @@ export function PersonDetailView({ userId }: { userId: string }) {
                           </li>
                         ))}
                       </ul>
-                    </div>
-                  ) : null}
-                </PanelCard>
-              ) : null}
+                    ) : (
+                      <EmptyRelation text={t("people.reports_none")} />
+                    )}
+                  </div>
+                </div>
+              </PanelCard>
             </div>
+
+            <PanelCard id="person-contact" icon={Mail} title={t("people.contact")} flush>
+              <div className="divide-y divide-border">
+                <ContactRow
+                  icon={Mail}
+                  label={t("people.column_email")}
+                  value={person.email}
+                  href={`mailto:${person.email}`}
+                  copyLabel={t("people.copy_email")}
+                />
+                {person.phone ? (
+                  <ContactRow
+                    icon={Phone}
+                    label={t("people.field_phone")}
+                    value={person.phone}
+                    href={`tel:${person.phone.replace(/\s+/g, "")}`}
+                    copyLabel={t("people.copy_phone")}
+                  />
+                ) : (
+                  <p className="px-4 py-3 text-caption text-muted-foreground">
+                    {person.is_self ? t("people.phone_hidden_self") : t("people.phone_hidden")}
+                  </p>
+                )}
+              </div>
+            </PanelCard>
           </div>
         </div>
       </div>
     </div>
   );
+}
+
+function EmptyRelation({ text, actionLabel, onAction }: { text: string; actionLabel?: string; onAction?: () => void }) {
+  return (
+    <div className="flex min-h-11 items-center justify-between gap-2 px-4 pt-1 pb-3">
+      <span className="text-body text-muted-foreground">{text}</span>
+      {actionLabel && onAction ? (
+        <Button variant="link" size="sm" className="h-auto px-0" onClick={onAction}>
+          {actionLabel}
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+interface FactRow {
+  label: string;
+  value: string;
+  hint?: string;
 }
 
 /**
@@ -240,14 +354,19 @@ export function PersonDetailView({ userId }: { userId: string }) {
  */
 function employmentFacts(
   person: Person,
-  t: (key: string) => string,
+  t: (key: string, options?: Record<string, unknown>) => string,
   language: string,
-): Array<[string, string]> {
-  const rows: Array<[string, string]> = [
-    [t("people.field_employee_code"), person.employee_code ?? ""],
-    [t("people.field_joined_on"), formatJoinedOn(person.joined_on ?? "", language)],
-    [t("people.field_location"), person.location ?? ""],
-    [t("people.field_timezone"), formatTimezone(person.timezone, language)],
+): FactRow[] {
+  const localTime = localTimeIn(person.timezone, language);
+  const rows: FactRow[] = [
+    { label: t("people.field_employee_code"), value: person.employee_code ?? "" },
+    { label: t("people.field_joined_on"), value: formatJoinedOn(person.joined_on ?? "", language) },
+    { label: t("people.field_location"), value: person.location ?? "" },
+    {
+      label: t("people.field_timezone"),
+      value: formatTimezone(person.timezone, language),
+      hint: localTime ? t("people.local_time", { time: localTime }) : undefined,
+    },
   ];
-  return rows.filter(([, value]) => value !== "");
+  return rows.filter((row) => row.value !== "");
 }

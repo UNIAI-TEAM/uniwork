@@ -58,15 +58,15 @@ function isLastControl(button: HTMLElement): boolean {
 }
 
 /** Records every people request so the test can assert what the screen asked for. */
-function mockApi(role: string, people: unknown[] = [an]) {
+function mockApi(role: string, people: unknown[] = [an], total = people.length) {
   const peopleCalls: string[] = [];
   requestMock.mockImplementation((path: string) => {
     if (path.startsWith("/api/v1/orgs/acme/people")) {
       peopleCalls.push(path);
-      return Promise.resolve({ people, total_active: people.length });
+      return Promise.resolve({ people, total_active: people.length, total });
     }
     if (path.startsWith("/api/v1/orgs/acme/departments")) {
-      return Promise.resolve({ departments: [{ id: "d1", name: "Kỹ thuật" }] });
+      return Promise.resolve({ departments: [{ id: "d1", name: "Kỹ thuật", member_count: 1 }] });
     }
     if (path === "/api/v1/orgs/acme/members/me") return Promise.resolve({ role });
     return Promise.resolve({});
@@ -94,13 +94,18 @@ describe("PeopleView", () => {
     vi.useRealTimers();
   });
 
-  it("opens on the card view, with the title, department and email of each person", async () => {
+  it("opens on the card view, with the title, department and ways to reach each person", async () => {
     mockApi("member");
     renderView();
     expect(await screen.findByText("Nguyễn Văn Ân")).toBeInTheDocument();
     expect(screen.getByText("Trưởng nhóm")).toBeInTheDocument();
-    expect(screen.getByText("Kỹ thuật")).toBeInTheDocument();
-    expect(screen.getByText("an@acme.vn")).toBeInTheDocument();
+    const card = screen.getByRole("listitem");
+    expect(card).toHaveTextContent("Kỹ thuật");
+    expect(screen.getByRole("link", { name: "Gửi email cho Nguyễn Văn Ân" })).toHaveAttribute(
+      "href",
+      "mailto:an@acme.vn",
+    );
+    expect(screen.getByRole("button", { name: "Nhắn tin cho Nguyễn Văn Ân" })).toBeInTheDocument();
     // A card view has no column headers.
     expect(screen.queryByRole("columnheader")).toBeNull();
   });
@@ -156,19 +161,33 @@ describe("PeopleView", () => {
     expect(group.querySelectorAll(".invisible")).toHaveLength(0);
   });
 
-  it("shows the clear button only while a filter is set", async () => {
+  it("says a set filter in words, removable on its own, left of the view button", async () => {
     mockApi("member");
     renderView();
     await screen.findByText("Nguyễn Văn Ân");
-    expect(screen.queryByRole("button", { name: "Xóa bộ lọc" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Bỏ lọc Trạng thái" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Bộ lọc" }));
     fireEvent.click(await screen.findByText("Trạng thái"));
     fireEvent.click(await screen.findByRole("menuitemradio", { name: "Tất cả" }));
 
-    // It arrives to the left of the view button, so that button does not move.
-    await screen.findByRole("button", { name: "Xóa bộ lọc" });
+    expect(await screen.findByText("Trạng thái: Tất cả")).toBeInTheDocument();
+    await screen.findByRole("button", { name: "Bỏ lọc Trạng thái" });
     expect(isLastControl(viewButton())).toBe(true);
+  });
+
+  it("counts the matches the server reports, not the rows loaded so far", async () => {
+    mockApi("member", [an], 37);
+    renderView();
+    await screen.findByText("Nguyễn Văn Ân");
+    // Unfiltered, the header already counts the organization.
+    expect(screen.queryByText(/người khớp/)).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Bộ lọc" }));
+    fireEvent.click(await screen.findByText("Trạng thái"));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Tất cả" }));
+
+    expect(await screen.findByText("37 người khớp")).toBeInTheDocument();
   });
 
   it("shows skeletons rather than a spinner while the first page loads", () => {
@@ -190,20 +209,22 @@ describe("PeopleView", () => {
     expect(usePeopleViewStore.getState().hiddenColumns).toContain("email");
   });
 
-  it("sends the department chosen in the filter menu to the server", async () => {
+  it("filters by department in one click from the department row", async () => {
     const calls = mockApi("member");
     renderView();
     await screen.findByText("Nguyễn Văn Ân");
 
-    fireEvent.click(screen.getByRole("button", { name: "Bộ lọc" }));
-    fireEvent.click(await screen.findByText("Phòng ban"));
-    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Kỹ thuật" }));
+    const chip = screen.getByRole("button", { name: /^Kỹ thuật/ });
+    expect(chip).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(chip);
 
     await waitFor(() => expect(calls.some((c) => c.includes("department_id=d1"))).toBe(true));
-    expect(screen.getByRole("button", { name: "1 bộ lọc" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Kỹ thuật/ })).toHaveAttribute("aria-pressed", "true");
+    // The menu counts only what it holds; the department row shows its own state.
+    expect(screen.getByRole("button", { name: "Bộ lọc" })).toBeInTheDocument();
   });
 
-  it("clears every filter at once", async () => {
+  it("removes one filter from its chip", async () => {
     const calls = mockApi("member");
     renderView();
     await screen.findByText("Nguyễn Văn Ân");
@@ -213,9 +234,9 @@ describe("PeopleView", () => {
     fireEvent.click(await screen.findByRole("menuitemradio", { name: "Tất cả" }));
     await waitFor(() => expect(calls.some((c) => c.includes("status=all"))).toBe(true));
 
-    fireEvent.click(screen.getByRole("button", { name: "Xóa bộ lọc" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bỏ lọc Trạng thái" }));
     await waitFor(() => expect(calls.some((c) => c.includes("status=active"))).toBe(true));
-    expect(screen.queryByRole("button", { name: "Xóa bộ lọc" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Bỏ lọc Trạng thái" })).toBeNull();
   });
 
   it("debounces the search box into one request rather than one per keystroke", async () => {
@@ -223,7 +244,7 @@ describe("PeopleView", () => {
     renderView();
     await screen.findByText("Nguyễn Văn Ân");
     const initial = calls.length;
-    const box = screen.getByRole("textbox", { name: "Tìm người" });
+    const box = screen.getByRole("searchbox", { name: "Tìm người" });
     fireEvent.change(box, { target: { value: "n" } });
     fireEvent.change(box, { target: { value: "ng" } });
     fireEvent.change(box, { target: { value: "nguyen" } });
@@ -248,19 +269,58 @@ describe("PeopleView", () => {
     );
   });
 
+  it("exports what is on screen: the CSV link carries the current filters", async () => {
+    mockApi("owner");
+    renderView();
+    await screen.findByText("Nguyễn Văn Ân");
+    fireEvent.click(screen.getByRole("button", { name: /^Kỹ thuật/ }));
+    const link = await screen.findByRole("link", { name: "Xuất CSV theo bộ lọc" });
+    expect(link).toHaveAttribute("href", expect.stringContaining("department_id=d1"));
+  });
+
+  it("invites colleagues when the reader is the only person in it", async () => {
+    mockApi("owner", [{ ...an, user_id: "u1", display_name: "Đỗ Thị Hà", is_self: true }]);
+    renderView();
+    expect(await screen.findByText("Chỉ có bạn trong tổ chức.")).toBeInTheDocument();
+    // The reader's own card is still there, marked as theirs.
+    expect(screen.getByText("Bạn")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Mời đồng nghiệp" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("/settings?tab=organization"),
+    );
+  });
+
   it("says the directory is empty rather than showing placeholder cards", async () => {
     mockApi("owner", []);
     renderView();
-    expect(await screen.findByText("Chỉ có bạn trong tổ chức")).toBeInTheDocument();
+    expect(await screen.findByText("Chưa có ai trong danh bạ")).toBeInTheDocument();
   });
 
-  it("tells the difference between an empty directory and an empty filter", async () => {
+  it("tells a search with no match apart from filters with no match, and offers the way back", async () => {
     mockApi("owner", []);
     renderView();
-    await screen.findByText("Chỉ có bạn trong tổ chức");
-    fireEvent.change(screen.getByRole("textbox", { name: "Tìm người" }), {
+    await screen.findByText("Chưa có ai trong danh bạ");
+    fireEvent.change(screen.getByRole("searchbox", { name: "Tìm người" }), {
       target: { value: "khong-co-ai" },
     });
-    expect(await screen.findByText("Không có ai khớp bộ lọc")).toBeInTheDocument();
+    expect(await screen.findByText("Không tìm thấy ai khớp “khong-co-ai”")).toBeInTheDocument();
+    const clear = screen.getAllByRole("button", { name: "Xóa tìm kiếm" });
+    fireEvent.click(clear[clear.length - 1]!);
+    expect(await screen.findByText("Chưa có ai trong danh bạ")).toBeInTheDocument();
+  });
+
+  it("offers a retry when the directory cannot be loaded", async () => {
+    let fail = true;
+    requestMock.mockImplementation((path: string) => {
+      if (path.startsWith("/api/v1/orgs/acme/people")) {
+        return fail ? Promise.reject(new Error("down")) : Promise.resolve({ people: [an], total_active: 1, total: 1 });
+      }
+      return Promise.resolve({});
+    });
+    renderView();
+    const retry = await screen.findByRole("button", { name: "Thử lại" }, { timeout: 5000 });
+    fail = false;
+    fireEvent.click(retry);
+    expect(await screen.findByText("Nguyễn Văn Ân")).toBeInTheDocument();
   });
 });

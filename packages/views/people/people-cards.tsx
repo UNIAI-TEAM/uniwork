@@ -45,12 +45,14 @@ export function PeopleCards({
   hasNextPage,
   isFetchingNextPage,
   onLoadMore,
+  onChat,
 }: {
   people: Person[];
   hrefFor: (userId: string) => string;
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   onLoadMore: () => void;
+  onChat: (userId: string) => void;
 }) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -96,6 +98,7 @@ export function PeopleCards({
                 href={hrefFor(person.user_id)}
                 position={row * columns + offset + 1}
                 total={people.length}
+                onChat={onChat}
               />
             </div>
           )),

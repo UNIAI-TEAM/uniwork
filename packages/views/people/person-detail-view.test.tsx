@@ -116,10 +116,25 @@ describe("PersonDetailView", () => {
     expect(await screen.findByText("Chưa có thông tin nào.")).toBeInTheDocument();
   });
 
-  it("drops the reporting panel when the person has neither side of it", async () => {
+  it("keeps the reporting panel and says plainly when there is nobody on either side", async () => {
     mockApi({ ...an, manager: null });
     renderView();
     await screen.findByRole("heading", { level: 1 });
-    expect(screen.queryByText("Quan hệ báo cáo")).toBeNull();
+    expect(screen.getByText("Chưa có quản lý trực tiếp")).toBeInTheDocument();
+    expect(screen.getByText("Chưa có ai")).toBeInTheDocument();
+  });
+
+  it("puts the ways to reach the person under their name, chat first", async () => {
+    mockApi(an);
+    renderView();
+    await screen.findByRole("heading", { level: 1 });
+    expect(screen.getByRole("button", { name: "Nhắn tin" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sao chép email" })).toBeInTheDocument();
+  });
+
+  it("shows the time where the person is, not only their zone", async () => {
+    mockApi(an);
+    renderView();
+    expect(await screen.findByText(/^Bây giờ ở đó là \d{2}:\d{2}$/)).toBeInTheDocument();
   });
 });

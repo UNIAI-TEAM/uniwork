@@ -17,17 +17,17 @@ const CARD_GAP = 12;
 function CardShape() {
   return (
     <div style={{ height: PERSON_CARD_HEIGHT + CARD_GAP, paddingBottom: CARD_GAP }}>
-      <div className="flex h-full flex-col rounded-md border border-border bg-card">
-        <div className="flex items-center gap-3 p-3">
+      <div className="flex h-full flex-col rounded-xl border border-surface-border bg-surface">
+        <div className="flex flex-1 items-start gap-3 px-3.5 pt-3.5">
           <Skeleton className="size-10 shrink-0 rounded-full" />
-          <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="min-w-0 flex-1 space-y-2 pt-0.5">
             <Skeleton className="h-3.5 w-2/3" />
-            <Skeleton className="h-3 w-1/3" />
+            <Skeleton className="h-3 w-1/2" />
           </div>
         </div>
-        <div className="mt-auto flex items-center gap-2 border-t border-border px-3 py-2">
-          <Skeleton className="h-3 w-1/4" />
-          <Skeleton className="h-3 w-2/5" />
+        <div className="flex h-11 items-center gap-2 px-3.5">
+          <Skeleton className="size-2 rounded-full" />
+          <Skeleton className="h-3 w-1/3" />
         </div>
       </div>
     </div>
@@ -82,8 +82,9 @@ export function PeopleRowsSkeleton({
       {Array.from({ length: count }, (_, i) => (
         <div key={i} className="flex h-12 items-center gap-3">
           <Skeleton className="size-6 shrink-0 rounded-full" />
-          <Skeleton className="h-3.5 w-48" />
-          <Skeleton className="hidden h-3 w-32 @2xl:block" />
+          <Skeleton className="h-3.5 w-[min(12rem,38%)]" />
+          <Skeleton className="h-3 w-[min(8rem,28%)]" />
+          <Skeleton className="hidden h-3 w-24 @2xl:block" />
           <Skeleton className="hidden h-3 w-40 @2xl:block" />
         </div>
       ))}
