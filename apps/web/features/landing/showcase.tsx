@@ -1,6 +1,7 @@
 "use client";
 import { BookOpen, Bot, Building2, CalendarDays, CircleCheck, ClipboardCheck, Columns3, FileText, FolderKanban, House, Mail, MessageSquare, ScrollText, Sparkles, Video, Workflow, Zap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { featureCopyPrefix, previewKind } from "./feature-page-catalog";
 
 export const PRODUCT_GROUPS = [
   { key: "work", icon: FolderKanban },
@@ -36,4 +37,23 @@ export const PRODUCT_FEATURES = [
   catalogItem("organization", "organization", Building2, "to-chuc", "demo"),
   catalogItem("audit", "organization", ScrollText, "nhat-ky", "demo"),
 ] as const;
-export type ProductFeature = (typeof PRODUCT_FEATURES)[number]["key"];
+
+/** Keep the original public directory while synchronizing the complete V2 demo. */
+const PREVIEW_FEATURES = [
+  ...PRODUCT_FEATURES,
+  catalogItem("ai-brain", "ai", Sparkles, "ai-brain", "planned"),
+  catalogItem("skills", "ai", Zap, "ky-nang-ai", "planned"),
+  catalogItem("work-catalog", "ai", ClipboardCheck, "work-catalog", "planned"),
+  catalogItem("decisions", "results", CircleCheck, "quyet-dinh", "planned"),
+  catalogItem("decision-history", "results", ScrollText, "lich-su-quyet-dinh", "planned"),
+  catalogItem("ai-market", "ai", Bot, "ai-market", "planned"),
+  catalogItem("reports", "organization", Columns3, "bao-cao", "planned"),
+] as const;
+export const DEMO_FEATURES = PREVIEW_FEATURES.map(item => ({
+  ...item,
+  label: ["ai-brain", "skills", "work-catalog", "decisions", "decision-history", "ai-market", "reports"].includes(item.key) ? `landing.revision.features.${item.key}.label` : item.label,
+  description: `${featureCopyPrefix(item.key)}.description`,
+  availability: "landing.revision.referenceScope",
+  status: previewKind(item.key),
+}));
+export type ProductFeature = (typeof DEMO_FEATURES)[number]["key"];

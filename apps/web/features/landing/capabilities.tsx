@@ -4,7 +4,7 @@ import { ANCHORS } from "./anchors";
 import { Container } from "./layout-primitives";
 
 import { ProductPreview } from "./product-preview";
-import { PRODUCT_FEATURES } from "./showcase";
+import { DEMO_FEATURES as PRODUCT_FEATURES } from "./showcase";
 
 export function Capabilities() {
   const { t } = useTranslation();

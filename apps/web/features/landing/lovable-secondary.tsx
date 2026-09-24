@@ -1,5 +1,5 @@
 "use client";
-import { ArrowDownToLine, Bot, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock3, FileText, Grid2X2, History, Link, List, MoreHorizontal, Plus, Search, ShieldCheck, Sparkles, Upload, Users, Video } from "lucide-react";
+import { ArrowDownToLine, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock3, Grid2X2, Link, List, MoreHorizontal, Plus, Search, Upload, Users, Video } from "lucide-react";
 import { LovableControl, LovablePageHeading, usePreviewLabels } from "./lovable-frame";
 
 export function LovablePeople() {
@@ -7,10 +7,6 @@ export function LovablePeople() {
   return <div className="lovable-page"><LovablePageHeading title={copy("peopleDirectory")} subtitle={copy("peopleSub")}><LovableControl><Upload />{copy("import")}</LovableControl><LovableControl><ArrowDownToLine />{copy("export")}</LovableControl><LovableControl primary><Plus />{copy("addPerson")}</LovableControl></LovablePageHeading><div className="lovable-list-filter"><div className="lovable-search-field"><Search />{copy("searchPeople")}</div>{["department", "role", "location", "moreFilters"].map(key => <LovableControl key={key}>{copy(key)}<ChevronDown /></LovableControl>)}<LovableControl><Grid2X2 />{copy("grid")}<List />{copy("list")}</LovableControl></div><div className="lovable-project-tabs">{["allPeople", "teams", "departments", "positions", "skills", "orgChart"].map((key, i) => <span key={key} data-active={i === 0}>{copy(key)}</span>)}</div><div className="lovable-people-grid">{["Minh Linh", "Hoàng Anh", "Thanh Ngân", "Lê Tùng"].map((name, i) => <section className="lovable-card" key={name}><span className="action-avatar" data-person={["ML","HA","TN","LT"][i]}>{["ML","HA","TN","LT"][i]}</span><h3>{name}</h3><p>{["owner","admin","member","member"][i]}</p><div className="lovable-key-value"><span>{copy("department")}</span><strong>{copy(i > 1 ? "operations" : "productTeam")}</strong></div><footer><Users />General<MoreHorizontal /></footer></section>)}</div></div>;
 }
 
-export function LovableAgents() {
-  const copy = usePreviewLabels();
-  return <div className="lovable-page"><LovablePageHeading title="Agent Builder" subtitle={copy("agentSub")}><LovableControl>General<ChevronDown /></LovableControl><LovableControl primary><Plus />{copy("createAgent")}</LovableControl></LovablePageHeading><div className="lovable-agent-safety"><ShieldCheck />{copy("agentSafety")}</div><div className="lovable-agent-grid"><div className="lovable-card"><header><Bot /><h3>{copy("projectAnalyst")}</h3><span className="lovable-tag">draft</span></header><p>{copy("agentExample")}</p><div className="lovable-key-value"><span>{copy("scope")}</span><strong>General</strong></div><div className="lovable-key-value"><span>{copy("role")}</span><strong>{copy("proposalOnly")}</strong></div></div><aside><section className="lovable-card"><header><Sparkles /><h3>Skill Hub</h3></header><p>{copy("skillHubNote")}</p><div className="lovable-bottom-entry"><FileText />{copy("reportAnalysis")}</div></section><section className="lovable-card"><header><History /><h3>{copy("agentHistory")}</h3></header><p>{copy("noRuns")}</p></section></aside></div></div>;
-}
 
 export function LovableMeetings() {
   const copy = usePreviewLabels();

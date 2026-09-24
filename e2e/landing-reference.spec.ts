@@ -23,23 +23,32 @@ for (const width of [1440, 390]) {
       await page.mouse.move(0, 0);
       if (process.env.LANDING_CAPTURE === "1") await region.screenshot({ path: resolve(dir, `reference-${name}-${width}.png`), style: ".site-header { visibility: hidden !important; } nextjs-portal { display: none !important; }" });
     };
-    await expect(page.locator(".action-kanban")).toBeVisible();
-    const bounds = await page.locator(".action-stage").boundingBox();
-    for (const card of await page.locator(".action-board-card:visible").all()) {
-      const box = await card.boundingBox();
-      expect(box!.y + box!.height).toBeLessThanOrEqual(bounds!.y + bounds!.height);
+    if (width >= 768) {
+      const player = page.locator("#product-preview .product-playback");
+      await expect(player.locator(".action-kanban")).toBeVisible();
+      const bounds = await player.locator(".action-stage").boundingBox();
+      for (const card of await player.locator(".action-board-card:visible").all()) {
+        const box = await card.boundingBox();
+        expect(box!.y + box!.height).toBeLessThanOrEqual(bounds!.y + bounds!.height);
+      }
+    } else {
+      await expect(page.locator('[data-mobile-feature="tasks"]')).toBeVisible();
     }
     await capture(".product-playback", "tasks");
     await selectWorkspaceFeature(page, "meetings", false);
-    await expect(page.locator(".action-meeting.dark")).toBeVisible();
-    await expect(page.locator(".action-meeting-chat")).toBeAttached();
+    if (width >= 768) {
+      await expect(page.locator(".action-meeting.dark")).toBeVisible();
+      await expect(page.locator(".action-meeting-chat")).toBeAttached();
+    } else {
+      await expect(page.locator('[data-mobile-feature="meetings"]')).toBeVisible();
+    }
     await capture(".product-playback", "meetings");
     await selectWorkspaceFeature(page, "email", false);
-    await expect(page.locator(".action-mail-folders")).toBeVisible();
+    await expect(page.locator(width >= 768 ? ".action-mail-folders" : '[data-mobile-feature="email"]')).toBeVisible();
     await capture(".product-playback", "email");
     await selectWorkspaceFeature(page, "calendar");
-    await expect(page.locator(".reference-calendar")).toBeVisible();
-    await expect(page.locator('[role=tabpanel]:visible .planned-notice')).toContainText("Chưa triển khai");
+    await expect(page.locator(width >= 768 ? ".reference-calendar" : '[data-mobile-feature="calendar"]')).toBeVisible();
+    await expect(page.locator('[data-feature="calendar"] .workspace-preview-kind')).toHaveText("Minh họa");
     await capture('[role=tabpanel]:visible', "calendar");
     await selectWorkspaceFeature(page, "today");
     await expect(page.locator(".today-work-grid")).toBeVisible();
@@ -59,6 +68,7 @@ for (const width of [1440, 390]) test(`Today rows and counts share completion, r
   await page.setViewportSize({ width, height: 960 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/#daily-tools");
+  await selectWorkspaceFeature(page, "today");
   await page.locator(".today-task-panel button").first().click();
   await page.locator(".preview-detail-actions button").first().click();
   await selectWorkspaceFeature(page, "today");

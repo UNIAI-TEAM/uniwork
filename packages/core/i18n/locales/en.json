@@ -2380,6 +2380,219 @@
     }
   },
   "landing": {
+    "revision": {
+      "interactive": "Interactive",
+      "illustration": "Illustration",
+      "referenceScope": "Based on the Lovable product demo. This page uses sample data; actual availability depends on your version, permissions and deployment configuration.",
+      "mobileLabel": "Focused preview",
+      "mobileNote": "A summary for smaller screens, not a mobile app interface.",
+      "mobileSteps": "Choose a preview detail",
+      "intelligence": {
+        "overview": "Content illustration, not an operational screen",
+        "pending": "Pending approval",
+        "approved": "Approved",
+        "activity": "Activity",
+        "source": "Proposal source",
+        "review": "Check the source and scope before confirming",
+        "permission": "Data changes require human approval",
+        "people": "AI teammates",
+        "assignments": "Assignments",
+        "contracts": "Work contracts",
+        "skills": "Skills",
+        "workspaces": "Workspaces",
+        "roles": [
+          "Project coordination",
+          "Knowledge management",
+          "Meeting assistant",
+          "Data analysis",
+          "Human resources",
+          "Compliance"
+        ],
+        "submitted": "Submitted version",
+        "current": "Current version",
+        "stale": "The version has changed. Resubmit it for review.",
+        "reviewVersion": "Review the correct version",
+        "noRealAction": "Decisions shown here are illustrative only."
+      },
+      "features": {
+        "calendar": {
+          "title": "One calendar for your working rhythm.",
+          "description": "See meetings, tasks and deadlines in a shared view of time.",
+          "detailTitle": "Time, with the context attached.",
+          "points": [
+            "Explore month and week views in the demo.",
+            "Filter meetings, tasks and deadlines to focus your view.",
+            "Read schedules alongside work; calendar export depends on your deployment."
+          ]
+        },
+        "workflows": {
+          "title": "Clear steps. Clear handoffs.",
+          "description": "Connect inputs, processing steps and handoff conditions in a workflow.",
+          "detailTitle": "Read the flow before it runs.",
+          "points": [
+            "Inspect workflows, status and run history.",
+            "Separate editing, publishing and execution permissions.",
+            "Confirm configuration and access before running with real data."
+          ]
+        },
+        "outputs": {
+          "title": "Beyond done. Know what was delivered.",
+          "description": "Work Products brings together outputs, work sources, versions and accountable owners.",
+          "detailTitle": "Results you can review and hand over.",
+          "points": [
+            "Distinguish each output's type, status and project.",
+            "Follow versions, ownership and the source of content.",
+            "Send the correct version for review and approval."
+          ]
+        },
+        "documents": {
+          "title": "Documents closer to the work.",
+          "description": "Read and organize content in the context of a project and workspace.",
+          "detailTitle": "Keep content with its context.",
+          "points": [
+            "Bring together the content a project needs.",
+            "Return to reference documents during discussion and handoff.",
+            "Distinguish working documents from output versions submitted for review."
+          ]
+        },
+        "approvals": {
+          "title": "The right result. The right version. The right reviewer.",
+          "description": "Inspect pending approvals, feedback and the output version being reviewed.",
+          "detailTitle": "Do not approve an outdated version.",
+          "points": [
+            "Compare the submitted version with the current version.",
+            "Read feedback before accepting or requesting changes.",
+            "Resubmit for review when an output changes while approval is pending."
+          ]
+        },
+        "knowledge": {
+          "title": "Knowledge beyond one person's memory.",
+          "description": "A place to organize the team's SOPs, playbooks, wiki and policies.",
+          "detailTitle": "Start with a trustworthy source.",
+          "points": [
+            "Organize content by topic and purpose.",
+            "Search within the workspace knowledge area.",
+            "Check permissions and source content before using it with AI."
+          ]
+        },
+        "agents": {
+          "title": "Delegate to AI as part of the team.",
+          "description": "AI Workforce connects AI teammates, assignments, work contracts, skills and workspaces.",
+          "detailTitle": "Clear roles. Clear outcomes.",
+          "points": [
+            "Explore specialist roles such as project, knowledge and meeting assistants.",
+            "Match assignments to skills and granted scope.",
+            "Evaluate outputs against work criteria, with people retaining review control."
+          ]
+        },
+        "automation": {
+          "title": "Automation within granted boundaries.",
+          "description": "Connect agents to workflow steps, conditions and control points.",
+          "detailTitle": "Understand access before execution.",
+          "points": [
+            "Define inputs and conditions for the work.",
+            "Check the skills, permissions and configuration required.",
+            "Keep approval steps and history to review what happened."
+          ]
+        },
+        "ai-brain": {
+          "label": "AI Brain",
+          "title": "Turn context into proposals you can inspect.",
+          "description": "See AI proposals, processing status, role delegation and activity together.",
+          "detailTitle": "People at the decision point.",
+          "points": [
+            "Identify proposals from meetings, tasks or documents.",
+            "Inspect content and sources before confirming changes.",
+            "Follow pending proposals, approved items and related activity."
+          ]
+        },
+        "skills": {
+          "label": "Skill Hub",
+          "title": "Use only the skills you allow.",
+          "description": "An AI skill directory gives administrators control over which capabilities are enabled.",
+          "detailTitle": "Capability comes with permission.",
+          "points": [
+            "Inspect the skill directory and status.",
+            "Distinguish viewing access from administrator configuration rights.",
+            "Match enabled skills to the requirements of each assignment."
+          ]
+        },
+        "work-catalog": {
+          "label": "Work Catalog",
+          "title": "Agree on the outcome before delegating.",
+          "description": "Versioned work contracts define inputs, context, allowed actions and acceptance criteria.",
+          "detailTitle": "A shared definition of good work.",
+          "points": [
+            "Identify the inputs and context to provide.",
+            "Clarify allowed actions and quality thresholds.",
+            "Compare outputs against the contract version; sample SLAs are not service commitments."
+          ]
+        },
+        "decisions": {
+          "label": "Decision review",
+          "title": "Do not leave decisions buried in conversation.",
+          "description": "Review proposed decisions with their source, content and work links.",
+          "detailTitle": "Confirm before it becomes shared context.",
+          "points": [
+            "Separate pending decisions from confirmed ones.",
+            "Inspect sources before confirming, rejecting or superseding.",
+            "Only confirmed decisions and links enter the demo's graph."
+          ]
+        },
+        "decision-history": {
+          "label": "Decision history",
+          "title": "Keep the reasoning behind the direction.",
+          "description": "Explore the decision-history area in the demo's navigation.",
+          "detailTitle": "Read decisions with their origins.",
+          "points": [
+            "Distinguish work decisions from technical activity logs.",
+            "Return to decision review to inspect sources and confirmation status.",
+            "This page introduces the area's role; history actions are not simulated here."
+          ]
+        },
+        "ai-market": {
+          "label": "AI Market",
+          "title": "Explore UniWork's AI ecosystem.",
+          "description": "AI Market is an area in the demo navigation, alongside AI teammates and the skill directory.",
+          "detailTitle": "Explore first. Confirm before use.",
+          "points": [
+            "Understand its relationship to AI Workforce and Skill Hub.",
+            "Check which capabilities are enabled in your environment.",
+            "Purchasing, installation and service pricing are not presented without confirmed scope."
+          ]
+        },
+        "reports": {
+          "label": "Reports",
+          "title": "Read progress. Find what needs attention.",
+          "description": "Explore overview, project, team, productivity, collaboration and workflow reports.",
+          "detailTitle": "Metrics need context.",
+          "points": [
+            "Select the scope and time period before comparing.",
+            "Read work distribution alongside progress and activity.",
+            "The demo shows CSV/PDF export and beta AI insights; verify actual behavior in your deployment."
+          ]
+        }
+      },
+      "groups": {
+        "ai": {
+          "action": "Check enabled skills, permitted actions and the AI proposal."
+        }
+      },
+      "journey": {
+        "owner": "Owner",
+        "source": "Work source",
+        "output": "Result",
+        "steps": {
+          "0": {
+            "result": "Team meeting notes · 09:30"
+          },
+          "1": {
+            "result": "Proposal: prepare the launch plan",
+            "description": "AI Brain brings together proposed next steps. An authorized person checks the source, content and scope before confirming."
+          }
+        }
+      }
+    },
     "productPages": {
       "product": "Product",
       "learn": "Learn",

@@ -9,6 +9,7 @@ import { usePreviewPlayback } from "./animation/use-preview-playback";
 import { useDemoItemMotion } from "./animation/use-demo-item-motion";
 import { LovableControl, LovableFrame, LovablePageHeading, LovablePoster, usePreviewLabels } from "./lovable-frame";
 import { LovableTaskHeading, LovableChatChannels } from "./lovable-reference";
+import { useCompactPreview } from "./mobile-feature-story";
 
 const PLAYBACK_FEATURES = ["tasks", "meetings", "chat", "email", "ask"] as const;
 type PlaybackFeature = typeof PLAYBACK_FEATURES[number];
@@ -37,7 +38,8 @@ export function ProductPlayback({ featureKey }: { featureKey: PlaybackFeature })
   const cursor = useRef<HTMLDivElement>(null);
   const beatCount = TARGETS[featureKey].length;
   const [sceneVisible, setSceneVisible] = useState(true);
-  const { step, playing, running, reduced, pressing, toggle } = usePreviewPlayback(host, beatCount, sceneVisible);
+  const compact = useCompactPreview();
+  const { step, playing, running, reduced, pressing, toggle } = usePreviewPlayback(host, beatCount, sceneVisible && !compact);
   useDemoItemMotion(stage, step, running && !reduced);
   useEffect(() => {
     const pointer = cursor.current;

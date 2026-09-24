@@ -176,6 +176,10 @@ Closing-component sources: `features/landing/final-cta.tsx`, `landing-closing.cs
 
 ## Colors
 
+### Demo-only V2 sync on the original landing branch
+
+The product demo reuses the V2 reference from `c0f4508b`: 25 destinations, AI Workforce and decision/version-review illustrations, and a readable three-step summary below 768px. Five interactive demos retain playback and local exploration. The desktop menu scrolls independently so it cannot stretch the fitted application frame into an empty lower strip. These changes live in the existing Lovable modules, `mobile-feature-story.tsx` and `landing-lovable.css`; they do not import the V2 landing story or its pricing styles. The public directory retains its original 18 introduction routes, derived separately from the demo catalogue, and the hero, UNI story, trust chapter, roadmap and Starter offer remain unchanged.
+
 Cobalt carries the strongest action emphasis; broader color lives in soft supporting planes. Light mode feels luminous and optimistic, while theme-paired teal, violet, warm coral, olive-lime and navy create a composed dark atmosphere. The palette separates connection/technology, human conversation, AI/context and progress without turning each region into a competing action.
 
 The hero retains its cyan field. The product stage separates the external feature selector from a full application illustration. Scoped `preview-*` theme tokens reproduce the observed Lovable white/near-black canvas, neutral panels and violet controls. Marketing colors and brand artwork remain unchanged; manual exploration retains the navy rail. Later sections keep cyan for UNI, navy for trust and paper for pricing. The shared closing component uses the user-pinned blue-to-violet field with cyan bottom light; this scoped conversion composition does not change the broader scarce-cobalt palette strategy.

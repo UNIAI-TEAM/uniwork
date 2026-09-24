@@ -1,27 +1,24 @@
-import { openManualPreview } from "./landing-catalog-helpers";
+import { openManualPreview, workspaceGroups } from "./landing-catalog-helpers";
 import { expect, test } from "@playwright/test";
 
-test("catalog covers the six product families without implying planned modules are shipped", async ({ page }) => {
+test("catalog covers 25 reference entries without implying illustrations are working modules", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/#platform");
   const stage = page.locator("#product-preview");
   await openManualPreview(page);
   await expect(stage.locator(".workspace-group-button")).toHaveCount(6);
-  const groups = [
-    { key: "work", features: ["dashboard", "tasks", "projects", "today", "calendar", "workflows"] },
-    { key: "communication", features: ["meetings", "chat", "email"] },
-    { key: "results", features: ["outputs", "documents", "approvals"] },
-    { key: "knowledge", features: ["knowledge"] },
-    { key: "ai", features: ["ask", "agents", "automation"] },
-    { key: "organization", features: ["organization", "audit"] },
-  ];
-  const planned = ["calendar", "workflows", "outputs", "documents", "approvals", "knowledge", "automation"];
-  for (const group of groups) {
-    await stage.locator(`[data-feature-group="${group.key}"]`).click();
-    for (const key of group.features) {
+  expect(Object.values(workspaceGroups).flat()).toHaveLength(25);
+  const illustrations = ["calendar", "workflows", "outputs", "documents", "approvals", "knowledge", "automation", "agents", "ai-brain", "skills", "work-catalog", "decisions", "decision-history", "ai-market", "reports"];
+  for (const [group, features] of Object.entries(workspaceGroups)) {
+    await stage.locator(`[data-feature-group="${group}"]`).click();
+    for (const key of features) {
       await stage.locator(`[role=tab][data-feature="${key}"]`).click();
       await expect(stage.getByRole("tabpanel")).toHaveCount(1);
-      if (planned.includes(key)) await expect(stage.getByRole("tabpanel").locator(".planned-notice")).toContainText("Chưa triển khai");
+      if (illustrations.includes(key)) {
+        await expect(stage.locator(`[data-feature="${key}"] .workspace-preview-kind`)).toHaveText("Minh họa");
+        await expect(stage.getByRole("tabpanel").locator(".lovable-preview-tools")).toContainText("Không thay đổi dữ liệu thật");
+        await expect(stage.locator(".product-playback")).toHaveCount(0);
+      }
       await expect(page.locator("body")).not.toContainText(/landing\.[a-zA-Z][\w.]+/);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     }

@@ -2376,6 +2376,219 @@
     }
   },
   "landing": {
+    "revision": {
+      "interactive": "Tương tác",
+      "illustration": "Minh họa",
+      "referenceScope": "Giới thiệu theo bản demo Lovable. Dữ liệu trên trang là minh họa; phạm vi sử dụng thực tế tùy phiên bản, quyền và cấu hình triển khai.",
+      "mobileLabel": "Bản xem tập trung",
+      "mobileNote": "Tóm lược để đọc trên màn hình nhỏ, không phải giao diện ứng dụng mobile.",
+      "mobileSteps": "Chọn nội dung xem trước",
+      "intelligence": {
+        "overview": "Minh họa nội dung, không phải màn hình thao tác",
+        "pending": "Chờ phê duyệt",
+        "approved": "Đã phê duyệt",
+        "activity": "Hoạt động",
+        "source": "Nguồn đề xuất",
+        "review": "Kiểm tra nguồn và phạm vi trước khi xác nhận",
+        "permission": "Thay đổi dữ liệu cần con người phê duyệt",
+        "people": "Nhân sự AI",
+        "assignments": "Nhiệm vụ",
+        "contracts": "Hợp đồng công việc",
+        "skills": "Kỹ năng",
+        "workspaces": "Workspaces",
+        "roles": [
+          "Điều phối dự án",
+          "Quản lý tri thức",
+          "Trợ lý cuộc họp",
+          "Phân tích dữ liệu",
+          "Nhân sự",
+          "Tuân thủ"
+        ],
+        "submitted": "Phiên bản gửi duyệt",
+        "current": "Phiên bản hiện tại",
+        "stale": "Phiên bản đã thay đổi. Cần gửi lại để xem xét.",
+        "reviewVersion": "Xem xét đúng phiên bản",
+        "noRealAction": "Các quyết định trong hình chỉ là minh họa."
+      },
+      "features": {
+        "calendar": {
+          "title": "Một lịch chung cho nhịp làm việc.",
+          "description": "Đặt cuộc họp, công việc và hạn chót vào cùng góc nhìn thời gian.",
+          "detailTitle": "Thời gian đi cùng ngữ cảnh.",
+          "points": [
+            "Chuyển giữa góc nhìn tháng và tuần trong bản demo.",
+            "Lọc cuộc họp, công việc và hạn chót theo nhu cầu.",
+            "Xem lịch cùng dữ liệu công việc; xuất lịch phụ thuộc môi trường triển khai."
+          ]
+        },
+        "workflows": {
+          "title": "Rõ từng bước. Rõ người tiếp nhận.",
+          "description": "Kết nối đầu vào, các bước xử lý và điều kiện bàn giao trong quy trình.",
+          "detailTitle": "Đọc luồng trước khi chạy.",
+          "points": [
+            "Xem quy trình, trạng thái và lịch sử chạy.",
+            "Tách quyền chỉnh sửa, xuất bản và thực thi.",
+            "Xác nhận cấu hình và quyền trước khi chạy với dữ liệu thật."
+          ]
+        },
+        "outputs": {
+          "title": "Không chỉ hoàn thành. Còn có kết quả.",
+          "description": "Work Products tập hợp đầu ra, nguồn công việc, phiên bản và người phụ trách.",
+          "detailTitle": "Kết quả để kiểm tra và bàn giao.",
+          "points": [
+            "Phân biệt loại, trạng thái và dự án của từng đầu ra.",
+            "Theo dõi phiên bản, người phụ trách và nguồn tạo nội dung.",
+            "Đưa đúng phiên bản sang bước xem xét và phê duyệt."
+          ]
+        },
+        "documents": {
+          "title": "Tài liệu ở ngay cạnh công việc.",
+          "description": "Đọc và tổ chức nội dung trong ngữ cảnh dự án và workspace.",
+          "detailTitle": "Giữ nội dung cùng ngữ cảnh.",
+          "points": [
+            "Tập hợp nội dung cần cho dự án.",
+            "Quay lại tài liệu tham chiếu khi trao đổi và bàn giao.",
+            "Phân biệt tài liệu làm việc với phiên bản đầu ra gửi duyệt."
+          ]
+        },
+        "approvals": {
+          "title": "Đúng kết quả. Đúng phiên bản. Đúng người duyệt.",
+          "description": "Xem hàng chờ phê duyệt, phản hồi và phiên bản đầu ra đang được xem xét.",
+          "detailTitle": "Không duyệt nhầm một phiên bản cũ.",
+          "points": [
+            "So sánh phiên bản đã gửi với phiên bản hiện tại.",
+            "Đọc phản hồi trước khi chấp thuận hoặc yêu cầu sửa đổi.",
+            "Gửi lại để xem xét nếu đầu ra thay đổi trong khi chờ duyệt."
+          ]
+        },
+        "knowledge": {
+          "title": "Tri thức không nằm trong trí nhớ của một người.",
+          "description": "Một nơi để tổ chức SOP, playbook, wiki và chính sách của nhóm.",
+          "detailTitle": "Bắt đầu từ nguồn đáng tin cậy.",
+          "points": [
+            "Tổ chức nội dung theo chủ đề và mục đích sử dụng.",
+            "Tra cứu trong khu vực tri thức của workspace.",
+            "Kiểm tra quyền và nội dung nguồn trước khi dùng cho AI."
+          ]
+        },
+        "agents": {
+          "title": "Giao việc cho AI như một phần của nhóm.",
+          "description": "AI Workforce kết nối nhân sự AI, nhiệm vụ, hợp đồng công việc, kỹ năng và workspace.",
+          "detailTitle": "Vai trò rõ. Đầu ra rõ.",
+          "points": [
+            "Khám phá vai trò chuyên biệt như điều phối dự án, tri thức và trợ lý họp.",
+            "Đối chiếu nhiệm vụ với kỹ năng và phạm vi được cấp.",
+            "Theo dõi đầu ra theo tiêu chí công việc; con người giữ quyền xem xét."
+          ]
+        },
+        "automation": {
+          "title": "Tự động hóa trong phạm vi được cấp.",
+          "description": "Kết nối agent với các bước quy trình, điều kiện và điểm kiểm soát.",
+          "detailTitle": "Hiểu quyền trước khi thực thi.",
+          "points": [
+            "Xác định đầu vào và điều kiện chạy của công việc.",
+            "Kiểm tra kỹ năng, quyền và cấu hình cần thiết.",
+            "Giữ các bước phê duyệt và lịch sử để kiểm tra hành động."
+          ]
+        },
+        "ai-brain": {
+          "label": "AI Brain",
+          "title": "Từ ngữ cảnh đến đề xuất có thể kiểm tra.",
+          "description": "Xem đề xuất AI, trạng thái xử lý, phân công vai trò và hoạt động trong cùng một nơi.",
+          "detailTitle": "Con người ở điểm quyết định.",
+          "points": [
+            "Nhận diện đề xuất từ cuộc họp, công việc hoặc tài liệu.",
+            "Xem nội dung và nguồn trước khi xác nhận thay đổi.",
+            "Theo dõi đề xuất chờ duyệt, đã duyệt và hoạt động liên quan."
+          ]
+        },
+        "skills": {
+          "label": "Skill Hub",
+          "title": "Chỉ dùng những kỹ năng được cho phép.",
+          "description": "Danh mục kỹ năng AI giúp quản trị viên kiểm soát khả năng nào được bật.",
+          "detailTitle": "Khả năng đi cùng quyền.",
+          "points": [
+            "Xem danh mục và trạng thái kỹ năng.",
+            "Phân biệt quyền xem với quyền cấu hình của quản trị viên.",
+            "Đối chiếu kỹ năng được bật với yêu cầu của từng công việc."
+          ]
+        },
+        "work-catalog": {
+          "label": "Work Catalog",
+          "title": "Thống nhất đầu ra trước khi giao việc.",
+          "description": "Hợp đồng công việc có phiên bản mô tả đầu vào, ngữ cảnh, quyền hành động và tiêu chí chấp nhận.",
+          "detailTitle": "Một định nghĩa chung cho công việc tốt.",
+          "points": [
+            "Xác định đầu vào và ngữ cảnh cần cung cấp.",
+            "Làm rõ hành động được phép và ngưỡng chất lượng.",
+            "Đối chiếu đầu ra với phiên bản hợp đồng; SLA mẫu không phải cam kết dịch vụ."
+          ]
+        },
+        "decisions": {
+          "label": "Duyệt quyết định",
+          "title": "Đừng để quyết định trôi trong hội thoại.",
+          "description": "Xem quyết định được đề xuất cùng nguồn, nội dung và liên kết công việc.",
+          "detailTitle": "Xác nhận rồi mới trở thành ngữ cảnh chung.",
+          "points": [
+            "Tách quyết định chờ xem xét khỏi quyết định đã xác nhận.",
+            "Kiểm tra nguồn trước khi xác nhận, từ chối hoặc thay thế.",
+            "Chỉ quyết định và liên kết đã xác nhận mới xuất hiện trong đồ thị của demo."
+          ]
+        },
+        "decision-history": {
+          "label": "Lịch sử quyết định",
+          "title": "Giữ lại lý do phía sau hướng đi.",
+          "description": "Khám phá khu vực lịch sử quyết định trong hệ thống điều hướng của bản demo.",
+          "detailTitle": "Đọc quyết định cùng nguồn gốc.",
+          "points": [
+            "Phân biệt quyết định công việc với nhật ký thay đổi kỹ thuật.",
+            "Quay lại khu vực duyệt để kiểm tra nguồn và trạng thái xác nhận.",
+            "Trang này giới thiệu vai trò của khu vực; chưa mô phỏng các thao tác lịch sử."
+          ]
+        },
+        "ai-market": {
+          "label": "AI Market",
+          "title": "Khám phá hệ sinh thái AI của UniWork.",
+          "description": "AI Market là một khu vực trong điều hướng demo, bên cạnh nhân sự AI và kho kỹ năng.",
+          "detailTitle": "Khám phá trước. Xác nhận trước khi sử dụng.",
+          "points": [
+            "Tìm hiểu mối liên hệ với AI Workforce và Skill Hub.",
+            "Kiểm tra khả năng được bật trong môi trường của bạn.",
+            "Chưa giới thiệu mua bán, cài đặt hoặc giá dịch vụ khi chưa xác nhận phạm vi."
+          ]
+        },
+        "reports": {
+          "label": "Báo cáo",
+          "title": "Đọc tiến độ. Tìm đúng điểm cần chú ý.",
+          "description": "Khám phá báo cáo tổng quan, dự án, nhóm, năng suất, cộng tác và quy trình.",
+          "detailTitle": "Chỉ số luôn cần ngữ cảnh.",
+          "points": [
+            "Chọn phạm vi và kỳ thời gian trước khi so sánh.",
+            "Đọc phân bổ công việc cùng tiến độ và hoạt động.",
+            "Demo có tùy chọn xuất CSV/PDF và AI insights beta; khả năng thực tế cần kiểm tra khi triển khai."
+          ]
+        }
+      },
+      "groups": {
+        "ai": {
+          "action": "Kiểm tra kỹ năng được bật, quyền hành động và đề xuất của AI."
+        }
+      },
+      "journey": {
+        "owner": "Người phụ trách",
+        "source": "Nguồn công việc",
+        "output": "Kết quả",
+        "steps": {
+          "0": {
+            "result": "Biên bản họp nhóm · 09:30"
+          },
+          "1": {
+            "result": "Đề xuất: chuẩn bị kế hoạch ra mắt",
+            "description": "AI Brain tổng hợp bước tiếp theo từ ngữ cảnh. Người có quyền kiểm tra nguồn, nội dung và phạm vi trước khi xác nhận."
+          }
+        }
+      }
+    },
     "productPages": {
       "product": "Sản phẩm",
       "learn": "Tìm hiểu",

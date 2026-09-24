@@ -9,10 +9,10 @@ import { Tabs, TabsContent } from "@uniwork/ui/components/ui/tabs";
 import { EmailDemo } from "./product-updates";
 import { MeetingPreview } from "./product-band";
 import { TodayPreview } from "./today-preview";
-import { PRODUCT_FEATURES, type ProductFeature } from "./showcase";
+import { DEMO_FEATURES as PRODUCT_FEATURES, type ProductFeature } from "./showcase";
 import { WorkspaceNavigation } from "./workspace-navigation";
 import { WorkspaceAppNavigation } from "./workspace-app-navigation";
-import { AgentsPreview, AuditPreview, OrganizationPreview, PlannedPreview, ProjectsPreview } from "./catalog-previews";
+import { AuditPreview, OrganizationPreview, ProjectsPreview } from "./catalog-previews";
 import { hasPlayback, ProductPlayback } from "./product-playback";
 import { LovableReference } from "./lovable-reference";
 
@@ -85,8 +85,7 @@ export function ProductPreview() {
       case "projects": return <ProjectsPreview completed={tasks.filter(task => task.state === "done").length} total={tasks.length} onTasks={() => showTask()} />;
       case "organization": return <OrganizationPreview />;
       case "audit": return <AuditPreview />;
-      case "agents": return <AgentsPreview />;
-      default: return <PlannedPreview featureKey={key} />;
+      default: return !watch && mode === key ? <LovableReference feature={key} /> : null;
     }
   };
   return <div ref={root} id="product-preview" className="product-preview unified-workspace" data-presentation={cinematic ? "watch" : "explore"}>
@@ -99,7 +98,7 @@ export function ProductPreview() {
             {!cinematic && mode === "tasks" && <div className="preview-search"><Search aria-hidden /><Input type="search" aria-label={t("landing.demo.search")} placeholder={t("landing.demo.search")} value={query} onChange={event => setQuery(event.target.value)} /></div>}
             <span className="preview-illustration">{t("landing.studio.illustration")}</span>
             {!cinematic && <Button variant="ghost" size="icon" data-action="reset-preview" onClick={reset} aria-label={t("landing.demo.reset")}><RotateCcw aria-hidden /></Button>}
-            <Button className="preview-presentation-toggle" variant="outline" size="sm" data-action="toggle-presentation" onClick={() => setWatch(value => !value)}>{t(watch ? "landing.playback.explore" : "landing.playback.watch")}</Button>
+            {hasPlayback(mode) && <Button className="preview-presentation-toggle" variant="outline" size="sm" data-action="toggle-presentation" onClick={() => setWatch(value => !value)}>{t(watch ? "landing.playback.explore" : "landing.playback.watch")}</Button>}
           </div>
           <div className="workspace-app-body">
             {!cinematic && <WorkspaceAppNavigation mode={mode} onSelect={key => selectFeature(key)} />}

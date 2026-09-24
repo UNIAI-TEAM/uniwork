@@ -1,7 +1,7 @@
 "use client";
 import { BookOpen, Building2, House, Layers, MessageSquare, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { PRODUCT_FEATURES, type ProductFeature } from "./showcase";
+import { DEMO_FEATURES as PRODUCT_FEATURES, type ProductFeature } from "./showcase";
 
 const APP_SECTIONS = [
   { key: "home", icon: House, target: "today" },

@@ -361,3 +361,59 @@
   .lovable-canvas .action-viewbar > span:nth-child(3) { display: inline; }
   .lovable-canvas .action-ask-sheet { border-left: 1px solid var(--preview-line); }
 }
+
+/* Demo parity with the V2 reference; surrounding marketing sections stay unchanged. */
+.workspace-preview-kind { display: block; font-size: var(--text-caption); font-weight: 400; color: var(--muted-foreground); }
+.workspace-tabs [role=tab] { flex-wrap: wrap; }
+.workspace-preview-kind { flex-basis: 100%; padding-left: 28px; text-align: left; font-size: 11px; line-height: 1.4; }
+.mobile-feature-story { padding: 24px 20px; background: var(--background); font-size: 16px; line-height: 1.65; }
+.mobile-feature-story header { display: flex; align-items: center; gap: 14px; }
+.mobile-feature-story header > svg { width: 28px; height: 28px; color: var(--brand); flex-shrink: 0; }
+.mobile-feature-story header strong, .mobile-feature-story header small { display: block; }
+.mobile-feature-story header small, .mobile-feature-story > small { font-size: 13px; color: var(--muted-foreground); line-height: 1.6; }
+.mobile-feature-story > p { margin-top: 20px; }
+.mobile-story-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-block: 20px; }
+.mobile-story-steps button { min-height: 44px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+.mobile-story-steps button[aria-pressed=true] { background: var(--brand); color: var(--brand-foreground); border-color: var(--brand); }
+.mobile-story-detail { display: flex; align-items: flex-start; gap: 12px; min-height: 146px; background: var(--landing-stage-soft); padding: 20px 16px; margin-bottom: 16px; border-radius: 12px; }
+.mobile-story-detail > svg { color: var(--brand); width: 22px; height: 22px; flex-shrink: 0; margin-top: 3px; }
+.lovable-intelligence-notice { padding: 28px; border-left: 3px solid var(--brand); margin-top: 32px; line-height: 1.8; color: var(--muted-foreground); }
+.lovable-intelligence-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 32px; }
+.lovable-intelligence-grid .lovable-card { padding: 28px; min-height: 240px; }
+.lovable-intelligence-grid h3 { font-size: 20px; margin-bottom: 24px; display: flex; gap: 14px; align-items: center; }
+.lovable-intelligence-grid h3 svg { width: 24px; height: 24px; color: var(--brand); }
+.lovable-intelligence-grid p { font-size: 18px; line-height: 1.8; color: var(--muted-foreground); }
+.lovable-workforce-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 28px; }
+.lovable-workforce-grid section { padding: 24px; }
+.lovable-workforce-grid header, .lovable-proposal header, .lovable-version-review h3 { display: flex; align-items: center; gap: 16px; }
+.lovable-workforce-grid header svg, .lovable-proposal header svg, .lovable-version-review h3 svg { color: var(--brand); width: 28px; height: 28px; }
+.lovable-workforce-grid h3 { font-size: 20px; margin-block: 20px 12px; }
+.lovable-workforce-grid p { line-height: 1.7; color: var(--muted-foreground); }
+.lovable-workforce-grid footer { display: flex; justify-content: space-between; margin-top: 20px; border-top: 1px solid var(--border); padding-top: 16px; }
+.lovable-proposal { margin-top: 28px; padding: 32px; }
+.lovable-proposal header h3 { flex: 1; font-size: 24px; }
+.lovable-proposal > p { margin-block: 28px; font-size: 20px; line-height: 1.8; max-width: 70ch; }
+.lovable-proposal dl { display: grid; grid-template-columns: 2fr 1fr; gap: 32px; padding-block: 24px; border-block: 1px solid var(--border); }
+.lovable-proposal dt, .lovable-version-review dt { color: var(--muted-foreground); margin-bottom: 12px; }
+.lovable-proposal dd, .lovable-proposal footer { display: flex; align-items: center; gap: 12px; }
+.lovable-proposal footer { margin-top: 24px; color: var(--brand); }
+.lovable-version-review { margin-top: 28px; padding: 28px; }
+.lovable-version-review dl { display: flex; align-items: center; gap: 48px; padding-block: 24px; }
+.lovable-version-review dd { font-size: 24px; font-weight: 650; }
+.lovable-version-review > p { border-top: 1px solid var(--border); padding-top: 20px; color: var(--warning); }
+.mobile-feature-story button:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; }
+@media (min-width: 901px) {
+  /* The fitted app determines the row height; a long feature menu scrolls independently. */
+  .unified-workspace[data-presentation=watch] .workspace-selector { contain: size; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--input) transparent; }
+}
+@media (max-width: 900px) {
+  .workspace-preview-kind { padding-left: 0; font-size: 12px; }
+  .workspace-tabs [role=tab] { min-height: 56px; }
+}
+@media (max-width: 767px) {
+  .lovable-meeting-view-switch { display: none; }
+  .lovable-dialog .mobile-feature-story { overflow-y: auto; max-height: calc(100dvh - 180px); }
+  .lovable-preview-tools { flex-wrap: wrap; gap: 8px; }
+  .lovable-preview-tools > span small { display: block; margin-left: 0; }
+  .preview-topbar .preview-presentation-toggle { min-height: 44px; }
+}

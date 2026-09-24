@@ -13,6 +13,15 @@ for (const sample of [{ width: 1440, theme: "light", locale: "vi" }, { width: 14
     for (const feature of Object.values(workspaceGroups).flat()) {
       await selectWorkspaceFeature(page, feature, false);
       const canvas = workspace.locator(`.lovable-canvas[data-lovable-screen="${feature}"]`);
+      if (sample.width === 390) {
+        const focused = workspace.locator(`.mobile-feature-story[data-mobile-feature="${feature}"]`);
+        await expect(focused).toBeVisible();
+        await expect(canvas).toBeHidden();
+        expect(await focused.innerText()).not.toContain("landing.");
+        expect(await focused.locator(".mobile-story-detail p").evaluate(node => parseFloat(getComputedStyle(node).fontSize))).toBeGreaterThanOrEqual(16);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
+        continue;
+      }
       await expect(canvas).toBeVisible();
       await expect(canvas.locator(".lovable-sidebar")).toHaveCount(1);
       await expect(canvas.locator(".lovable-toolbar")).toHaveCount(1);
@@ -33,9 +42,14 @@ for (const sample of [{ width: 1440, theme: "light", locale: "vi" }, { width: 14
     await workspace.locator("[data-action='expand-preview']").click();
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
-    await expect(dialog.locator(".lovable-canvas")).toBeVisible();
-    await dialog.locator(".lovable-detail-toggle").click();
-    await expect(dialog.locator(".lovable-viewport")).toHaveAttribute("data-detail", "true");
+    if (sample.width === 390) {
+      await expect(dialog.locator(".mobile-feature-story")).toBeVisible();
+      await expect(dialog.locator(".lovable-detail-toggle")).toHaveCount(0);
+    } else {
+      await expect(dialog.locator(".lovable-canvas")).toBeVisible();
+      await dialog.locator(".lovable-detail-toggle").click();
+      await expect(dialog.locator(".lovable-viewport")).toHaveAttribute("data-detail", "true");
+    }
     await page.keyboard.press("Escape");
     await expect(dialog).not.toBeVisible();
     await expect(workspace.locator("[data-action='expand-preview']")).toBeFocused();
@@ -96,11 +110,13 @@ test("meeting listing pauses the film and returning to the room restores it", as
   const player = page.locator(".product-playback");
   await expect(async () => {
     await expect(player).toHaveAttribute("data-feature-preview", "meetings");
-    await player.scrollIntoViewIfNeeded();
-    await expect(player).toBeInViewport();
+    await player.evaluate(node => node.scrollIntoView({ behavior: "instant", block: "center" }));
+    await expect(player).toBeInViewport({ ratio: .5 });
   }).toPass({ timeout: 10000 });
-  await page.clock.install();
   await player.locator("[data-action='toggle-playback']").click();
+  await player.evaluate(node => node.scrollIntoView({ behavior: "instant", block: "center" }));
+  await expect(player).toHaveAttribute("data-running", "true");
+  await page.clock.install();
   await page.clock.runFor(2600);
   await expect(player).toHaveAttribute("data-step", "1");
   await player.locator(".lovable-meeting-view-switch button").first().click();

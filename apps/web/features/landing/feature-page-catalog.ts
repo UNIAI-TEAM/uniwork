@@ -4,3 +4,14 @@ export type FeaturePageKey = typeof FEATURE_PAGE_KEYS[number];
 export function isFeaturePageKey(value: string): value is FeaturePageKey {
   return FEATURE_PAGE_KEYS.some(key => key === value);
 }
+
+type PreviewFeatureKey = FeaturePageKey | "ai-brain" | "skills" | "work-catalog" | "decisions" | "decision-history" | "ai-market" | "reports";
+const REFERENCE_COPY = new Set<string>(["calendar", "workflows", "outputs", "documents", "approvals", "knowledge", "agents", "automation", "ai-brain", "skills", "work-catalog", "decisions", "decision-history", "ai-market", "reports"]);
+/** Product storytelling follows the approved reference, not a release checklist. */
+export function featureCopyPrefix(key: PreviewFeatureKey) {
+  return `${REFERENCE_COPY.has(key) ? "landing.revision.features" : "landing.productPages.features"}.${key}`;
+}
+
+export function previewKind(key: PreviewFeatureKey) {
+  return ["tasks", "meetings", "chat", "email", "ask"].includes(key) ? "interactive" : "illustration";
+}

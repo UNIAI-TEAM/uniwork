@@ -1,8 +1,8 @@
 "use client";
-import { ChevronDown, Clock3 } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
-import { PRODUCT_FEATURES, PRODUCT_GROUPS, type ProductFeature } from "./showcase";
+import { DEMO_FEATURES as PRODUCT_FEATURES, PRODUCT_GROUPS, type ProductFeature } from "./showcase";
 
 export function WorkspaceNavigation({ mode, onSelect }: { mode: ProductFeature; onSelect: (key: ProductFeature) => void }) {
   const { t } = useTranslation();
@@ -18,9 +18,9 @@ export function WorkspaceNavigation({ mode, onSelect }: { mode: ProductFeature; 
             <Icon aria-hidden /><span>{label}</span><ChevronDown aria-hidden />
           </button>
           {active && <TabsList id={`workspace-group-${key}`} className="workspace-tabs" aria-label={label} activateOnFocus={false}>
-            {items.map(({ key: itemKey, icon: ItemIcon, label: itemLabel, status }) => <TabsTrigger key={itemKey} value={itemKey} data-feature={itemKey}>
+            {items.map(({ key: itemKey, icon: ItemIcon, label: itemLabel, status }) => <TabsTrigger key={itemKey} value={itemKey} data-feature={itemKey} aria-label={t(itemLabel)} aria-describedby={`preview-kind-${itemKey}`}>
               <ItemIcon aria-hidden /><span>{t(itemLabel)}</span>
-              {status !== "demo" && <span className="workspace-item-status"><Clock3 aria-hidden /><span className="sr-only">{t(`landing.catalog.status.${status}`)}</span></span>}
+              <span id={`preview-kind-${itemKey}`} className="workspace-preview-kind">{t(`landing.revision.${status}`)}</span>
             </TabsTrigger>)}
           </TabsList>}
         </div>;
