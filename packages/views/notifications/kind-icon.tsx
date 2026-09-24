@@ -5,6 +5,7 @@ import {
   CalendarClock,
   CalendarPlus,
   FileDown,
+  Mail,
   MessageSquare,
   RefreshCw,
   ShieldCheck,
@@ -25,6 +26,7 @@ const ICONS: Record<NotificationKind, LucideIcon> = {
   role_changed: ShieldCheck,
   audit_export_ready: FileDown,
   chat_follow_up: Bookmark,
+  email_hub_new_mail: Mail,
 };
 
 /** One glyph per kind; an unknown kind from a newer server gets the bell. */

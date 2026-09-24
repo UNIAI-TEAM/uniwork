@@ -45,6 +45,21 @@ func TestParseEmailHubSyncStateEmptyAndInvalid(t *testing.T) {
 	}
 }
 
+func TestFolderSyncRecentlySynced(t *testing.T) {
+	t.Parallel()
+	if folderSyncRecentlySynced(emailHubFolderSync{}, time.Minute) {
+		t.Fatal("empty LastSyncAt should not count as recent")
+	}
+	recent := emailHubFolderSync{LastSyncAt: time.Now().UTC().Add(-10 * time.Second).Format(time.RFC3339)}
+	if !folderSyncRecentlySynced(recent, time.Minute) {
+		t.Fatal("expected recent folder sync")
+	}
+	old := emailHubFolderSync{LastSyncAt: time.Now().UTC().Add(-2 * time.Minute).Format(time.RFC3339)}
+	if folderSyncRecentlySynced(old, time.Minute) {
+		t.Fatal("expected stale folder sync")
+	}
+}
+
 func TestEmailHubReconcileKeepUIDs(t *testing.T) {
 	t.Parallel()
 	got := emailHubReconcileKeepUIDs([]imapclient.ThreadMeta{{UID: 10}, {UID: 3}})

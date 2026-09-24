@@ -312,6 +312,9 @@ func main() {
 		log.Warn("email hub disabled", "err", err)
 	}
 	emailHubSvc := service.NewEmailHubService(q, wsSvc, emailHubBox)
+	emailHubSvc.AI = gateway
+	emailHubSvc.Tasks = taskSvc
+	askUNI.SetEmailHub(emailHubSvc)
 	go emailHubSvc.RunWorkers(runCtx)
 	go emailHubSvc.RunHubWatchers(runCtx)
 	h := handler.New(handler.Deps{

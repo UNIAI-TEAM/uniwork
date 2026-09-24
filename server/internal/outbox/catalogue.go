@@ -140,6 +140,7 @@ var catalogue = []EventDef{
 	{Topic: "department.updated", Version: 1, Payload: []string{"organization_id", "department_id"}, Scope: ScopeOrganization, Delivery: DeliveryOutbox},
 	{Topic: "department.archived", Version: 1, Payload: []string{"organization_id", "department_id"}, Scope: ScopeOrganization, Delivery: DeliveryOutbox},
 	{Topic: "email_hub.inbox_changed", Version: 1, Payload: []string{"account_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "email_hub.new_mail", Version: 1, Payload: []string{"account_id", "user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	// Exporting the directory is an audited act with nothing to redraw.
 	{Topic: "people.exported", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "workspace.created", Version: 1, Payload: []string{"workspace_id", "organization_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},

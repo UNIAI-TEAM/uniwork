@@ -21,6 +21,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { useLogout } from "@uniwork/core/auth";
 import { HOME_PAGE_FLAG, useFlag } from "@uniwork/core/feature-flags";
+import { useEmailHubUnreadCount } from "@uniwork/core/email-hub/hooks";
 import { useUnreadCount } from "@uniwork/core/notifications";
 import { paths } from "@uniwork/core/paths";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
@@ -98,6 +99,8 @@ export function AppSidebar() {
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
   const unread = useUnreadCount();
   const unreadHere = unread.data?.by_workspace[workspace.id] ?? 0;
+  const emailUnread = useEmailHubUnreadCount(workspace.id);
+  const emailUnreadHere = emailUnread.data?.unread ?? 0;
   const homeEnabled = useFlag(HOME_PAGE_FLAG, false);
   const labelId = useId();
   const reduceMotion = useReducedMotion() ?? false;
@@ -124,7 +127,13 @@ export function AppSidebar() {
       id: "communication",
       label: "nav.group_communication",
       items: [
-        { key: "nav.email", module: "email", href: ws.email(), icon: Mail },
+        {
+          key: "nav.email",
+          module: "email",
+          href: ws.email(),
+          icon: Mail,
+          badge: emailUnreadHere > 0 ? emailUnreadHere : undefined,
+        },
         { key: "nav.meetings", module: "meetings", href: ws.meetings(), icon: CalendarDays },
         { key: "nav.chat", module: "chat", href: ws.chat(), icon: MessageSquare },
         { key: "nav.people", module: "people", href: ws.people(), icon: Users },

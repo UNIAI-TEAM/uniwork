@@ -21,3 +21,16 @@ helm upgrade --install uniwork deploy/app/uniwork \
 ```
 
 `ci/scripts/rollout-uniwork.sh` passes the same `--set-file` flags.
+
+### OpenRouter (AI gateway)
+
+ConfigMap `uniwork-be.env` ships `AI_PROVIDER=openai`, `OPENAI_BASE_URL=https://openrouter.ai/api/v1`,
+and model overrides. Create the API key secret before rollout:
+
+```bash
+kubectl -n uniwork create secret generic uniwork-openai \
+  --from-literal=OPENAI_API_KEY='sk-or-v1-…' \
+  --dry-run=client -o yaml | kubectl apply -f -
+```
+
+Rotate the key on OpenRouter if it was ever exposed; update the secret and restart `uniwork-be`.

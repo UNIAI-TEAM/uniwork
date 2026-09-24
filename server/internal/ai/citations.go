@@ -63,6 +63,14 @@ type MeetingSummary struct {
 	ActionItems []ActionItem `json:"action_items"`
 }
 
+type EmailThreadSummary struct {
+	Summary     string       `json:"summary"`
+	KeyPoints   []string     `json:"key_points"`
+	ActionItems []ActionItem `json:"action_items"`
+	NeedsReply  bool         `json:"needs_reply"`
+	ReplyHint   string       `json:"reply_hint"`
+}
+
 // CatchUpActionItem is one suggested follow-up from unread chat (C-13.7).
 // SourceID is optional and must match a pack source when present.
 type CatchUpActionItem struct {
@@ -113,6 +121,28 @@ func ParseCatchUpJSON(s string, pack []Source) (CatchUp, error) {
 		kept = append(kept, item)
 	}
 	out.ActionItems = kept
+	return out, nil
+}
+
+// ParseEmailThreadSummaryJSON parses email_thread_summary model output.
+func ParseEmailThreadSummaryJSON(s string) (EmailThreadSummary, error) {
+	raw, err := extractJSON(s)
+	if err != nil {
+		return EmailThreadSummary{}, err
+	}
+	var out EmailThreadSummary
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return EmailThreadSummary{}, fmt.Errorf("ai: parse email summary: %w", err)
+	}
+	if strings.TrimSpace(out.Summary) == "" {
+		return EmailThreadSummary{}, errors.New("ai: empty summary")
+	}
+	if out.KeyPoints == nil {
+		out.KeyPoints = []string{}
+	}
+	if out.ActionItems == nil {
+		out.ActionItems = []ActionItem{}
+	}
 	return out, nil
 }
 

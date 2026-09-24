@@ -266,7 +266,8 @@
         "member_added": "Được thêm vào workspace",
         "role_changed": "Vai trò thay đổi",
         "audit_export_ready": "Bản xuất nhật ký sẵn sàng",
-        "chat_follow_up": "Follow-up từ tin nhắn"
+        "chat_follow_up": "Follow-up từ tin nhắn",
+        "email_hub_new_mail": "Thư mới (Email Hub)"
       }
     },
     "page": {
@@ -742,6 +743,15 @@
     "labels_rules": "Nhãn & Quy tắc tự động",
     "labels_section": "Nhãn",
     "no_labels": "Chưa có nhãn",
+    "labels_sync_hint": "Nhãn Gmail hiện sau khi đồng bộ thư (chỉ xem, chưa gán/bỏ trên UniWork).",
+    "report_spam": "Báo spam",
+    "not_spam": "Không phải spam",
+    "not_spam_done": "Đã chuyển thư về Hộp đến",
+    "spam": {
+      "empty": "UniWork chưa cache thư rác. Bấm nút làm mới (↻) để kéo từ Gmail, hoặc dùng Báo spam từ Hộp đến — thư báo spam sẽ vào đây sau khi sync.",
+      "syncing": "Đang đồng bộ thư rác từ Gmail…"
+    },
+    "folder_syncing": "Đang đồng bộ thư mục từ Gmail… Lưu trữ (All Mail) có thể mất vài phút.",
     "accounts": "Tài khoản",
     "no_accounts": "Chưa kết nối tài khoản",
     "connect_section": "Kết nối tài khoản",
@@ -782,6 +792,35 @@
     "archive": "Lưu trữ",
     "trash": "Xóa",
     "ai_title": "Trợ lý Email AI",
+    "ai": {
+      "summarize": "Phân tích email",
+      "regenerate": "Phân tích lại",
+      "ask_uni": "Hỏi UNI về email này",
+      "disabled": "Bật AI Gateway trên server để dùng tóm tắt và Hỏi UNI.",
+      "wait_body": "Đang tải nội dung email…",
+      "loading_cached": "Đang tải tóm tắt đã lưu…",
+      "cached_hint": "Tóm tắt đã lưu — bấm Phân tích lại nếu nội dung email đã đổi.",
+      "nothing_to_summarize": "Chưa có nội dung đủ để phân tích.",
+      "action_items": "Việc cần làm (gợi ý)",
+      "project_label": "Dự án (áp dụng cho mọi việc tạo)",
+      "project_none": "Không gắn dự án",
+      "task_pick_hint": "Chọn việc cần tạo, rồi bấm nút bên dưới để mở cửa sổ gán người, dự án và độ ưu tiên.",
+      "create_dialog_title": "Tạo việc từ email",
+      "create_dialog_description": "Chỉnh {{count}} việc trước khi thêm vào workspace.",
+      "create_tasks_confirm": "Tạo {{count}} việc",
+      "suggested_owner": "AI gợi ý: {{name}}",
+      "create_tasks": "Tạo task đã chọn",
+      "tasks_created": "Đã tạo {{count}} task từ email.",
+      "list_badge": "Tóm tắt",
+      "list_attribution": "UNI · Email Hub",
+      "action_items_count": "{{count}} việc gợi ý bên dưới",
+      "analyzing": "UNI đang đọc email…",
+      "list_expand": "Xem thêm",
+      "list_collapse": "Thu gọn",
+      "list_hide_card": "Ẩn tóm tắt",
+      "list_show_card": "Hiện tóm tắt",
+      "list_open_for_full": "Mở email để xem đầy đủ, gợi ý việc và Hỏi UNI ở cột bên phải."
+    },
     "compose": {
       "title": "Soạn email mới",
       "description": "Người nhận sẽ nhận email từ tài khoản bạn đã kết nối.",
@@ -853,8 +892,20 @@
       "drafts": "Bản nháp",
       "archive": "Lưu trữ",
       "trash": "Đã xóa",
-      "scheduled": "Đã lên lịch"
+      "scheduled": "Đã lên lịch",
+      "spam": "Thư rác",
+      "snoozed": "Tạm hoãn",
+      "more": "Thêm"
     },
+    "snooze": {
+      "action": "Tạm hoãn",
+      "tomorrow": "Ngày mai (9:00)",
+      "next_week": "Tuần sau (9:00)",
+      "unsnooze": "Hiện lại trong Hộp đến",
+      "until": "Hiện lại lúc {{when}}"
+    },
+    "labels_show_more": "Thêm {{count}} nhãn",
+    "labels_show_less": "Thu gọn nhãn",
     "stats": {
       "summary": "Tóm tắt nhanh",
       "total": "Tổng email",
@@ -3362,7 +3413,8 @@
       "member_added": "{{actor}} đã thêm bạn vào workspace {{workspace}}",
       "role_changed": "{{actor}} đã đổi vai trò của bạn thành {{role}}",
       "audit_export_ready": "Bản xuất nhật ký của bạn đã sẵn sàng",
-      "chat_follow_up": "Bạn đã gắn Follow-up cho một tin nhắn"
+      "chat_follow_up": "Bạn đã gắn Follow-up cho một tin nhắn",
+      "email_hub_new_mail": "Bạn có {{count}} thư chưa đọc · {{mailbox}}"
     }
   },
   "ai": {

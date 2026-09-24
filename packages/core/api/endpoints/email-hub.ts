@@ -3,18 +3,22 @@ import {
   EmailHubAccountListSchema,
   EmailHubAccountSchema,
   EmailHubSyncSchema,
+  EmailHubUnreadSchema,
   EmailHubThreadListSchema,
   EmailHubThreadSchema,
+  EmailHubThreadSummarySchema,
   EmailHubInboxWatchSchema,
+  EmailHubImapLabelListSchema,
   EmailHubWatchSchema,
   type EmailHubAccount,
+  type EmailHubThreadSummary,
   type EmailHubInboxWatch,
   type EmailHubSync,
   type EmailHubThread,
   type EmailHubThreadFilters,
   type EmailHubWatch,
 } from "../../types/email-hub";
-import { request, requestBlob } from "../http";
+import { ApiError, request, requestBlob } from "../http";
 import { parseWithFallback } from "../schema";
 
 const enc = encodeURIComponent;
@@ -24,6 +28,14 @@ const EMPTY_THREADS = { threads: [] as EmailHubThread[], counts: { total: 0, unr
 const EMPTY_WATCH: EmailHubWatch = { changed: false, synced: false, at: "" };
 const EMPTY_INBOX_WATCH: EmailHubInboxWatch = { subscribed: false };
 const EMPTY_SYNC: EmailHubSync = { synced: false };
+const EMPTY_UNREAD = { unread: 0 };
+
+export async function getEmailHubUnreadCount(workspaceId: string) {
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/email-hub/unread-count`);
+  return parseWithFallback(raw, EmailHubUnreadSchema, EMPTY_UNREAD, {
+    endpoint: "GET /api/v1/workspaces/{ws}/email-hub/unread-count",
+  });
+}
 
 export async function listEmailHubAccounts(workspaceId: string) {
   const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/email-hub/accounts`);
@@ -61,6 +73,7 @@ export async function listEmailHubThreads(
   if (filters.from) q.set("from", filters.from);
   if (filters.unreadOnly) q.set("unread", "1");
   if (filters.hasAttachmentsOnly) q.set("has_attachments", "1");
+  if (filters.label) q.set("label", filters.label);
   if (before) q.set("before", before);
   const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/email-hub/threads?${q}`);
   return parseWithFallback(raw, EmailHubThreadListSchema, EMPTY_THREADS, {
@@ -239,6 +252,8 @@ export type PatchEmailHubThreadInput = {
   accountId: string;
   isRead?: boolean;
   isStarred?: boolean;
+  snoozeUntil?: string;
+  clearSnooze?: boolean;
 };
 
 export async function patchEmailHubThread(
@@ -249,6 +264,8 @@ export async function patchEmailHubThread(
   const body: Record<string, unknown> = { account_id: input.accountId };
   if (input.isRead !== undefined) body.is_read = input.isRead;
   if (input.isStarred !== undefined) body.is_starred = input.isStarred;
+  if (input.clearSnooze) body.clear_snooze = true;
+  else if (input.snoozeUntil) body.snooze_until = input.snoozeUntil;
   const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/email-hub/threads/${enc(threadId)}`, {
     method: "PATCH",
     body,
@@ -258,7 +275,17 @@ export async function patchEmailHubThread(
   });
 }
 
-export type EmailHubMoveTarget = "INBOX" | "ARCHIVE" | "TRASH";
+export type EmailHubMoveTarget = "INBOX" | "ARCHIVE" | "TRASH" | "SPAM";
+
+const EMPTY_IMAP_LABELS = { labels: [] as string[] };
+
+export async function listEmailHubImapLabels(workspaceId: string, accountId: string) {
+  const q = new URLSearchParams({ account_id: accountId });
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/email-hub/labels?${q}`);
+  return parseWithFallback(raw, EmailHubImapLabelListSchema, EMPTY_IMAP_LABELS, {
+    endpoint: "GET /api/v1/workspaces/{ws}/email-hub/labels",
+  });
+}
 
 export const EmailHubScheduledSendItemSchema = z.object({
   id: z.string(),
@@ -289,6 +316,86 @@ export async function cancelEmailHubScheduledSend(workspaceId: string, accountId
   await request(`/api/v1/workspaces/${enc(workspaceId)}/email-hub/scheduled-sends/${enc(scheduledId)}?${q}`, {
     method: "DELETE",
   });
+}
+
+const EMPTY_EMAIL_SUMMARY: EmailHubThreadSummary = {
+  summary: "",
+  key_points: [],
+  action_items: [],
+  needs_reply: false,
+  reply_hint: "",
+  model: "",
+  cached: false,
+  summarized_at: "",
+};
+
+export async function getEmailHubThreadSummary(
+  workspaceId: string,
+  accountId: string,
+  threadId: string,
+  locale: string,
+): Promise<EmailHubThreadSummary | null> {
+  const q = new URLSearchParams({ account_id: accountId, locale });
+  try {
+    const raw = await request(
+      `/api/v1/workspaces/${enc(workspaceId)}/email-hub/threads/${enc(threadId)}/ai/summary?${q}`,
+    );
+    return parseWithFallback(raw, EmailHubThreadSummarySchema, EMPTY_EMAIL_SUMMARY, {
+      endpoint: "GET /api/v1/workspaces/{ws}/email-hub/threads/{id}/ai/summary",
+    });
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) {
+      return null;
+    }
+    throw err;
+  }
+}
+
+export async function summarizeEmailHubThread(
+  workspaceId: string,
+  accountId: string,
+  threadId: string,
+  locale: string,
+  options?: { force?: boolean },
+) {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/email-hub/threads/${enc(threadId)}/ai/summarize`,
+    {
+      method: "POST",
+      body: { account_id: accountId, locale, ...(options?.force ? { force: true } : {}) },
+    },
+  );
+  return parseWithFallback(raw, EmailHubThreadSummarySchema, EMPTY_EMAIL_SUMMARY, {
+    endpoint: "POST /api/v1/workspaces/{ws}/email-hub/threads/{id}/ai/summarize",
+  });
+}
+
+export type EmailHubSummaryTaskItem = {
+  title: string;
+  description?: string;
+  assignee_id?: string;
+  project_id?: string;
+  priority?: string;
+  due_date?: string;
+  owner?: string;
+  due_spoken?: string;
+};
+
+export async function createEmailHubSummaryTasks(
+  workspaceId: string,
+  accountId: string,
+  threadId: string,
+  items: EmailHubSummaryTaskItem[],
+) {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/email-hub/threads/${enc(threadId)}/ai/summary/tasks`,
+    { method: "POST", body: { account_id: accountId, items } },
+  );
+  const schema = z.object({ task_ids: z.array(z.string()).optional().default([]) });
+  const parsed = parseWithFallback(raw, schema, { task_ids: [] }, {
+    endpoint: "POST /api/v1/workspaces/{ws}/email-hub/threads/{id}/ai/summary/tasks",
+  });
+  return parsed.task_ids;
 }
 
 export async function moveEmailHubThread(

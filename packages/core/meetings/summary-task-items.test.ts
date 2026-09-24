@@ -20,6 +20,11 @@ describe("buildSummaryTaskItems", () => {
       },
     ]);
   });
+
+  it("includes project_id when a default project is chosen", () => {
+    const items = buildSummaryTaskItems([{ title: "Ship" }], [0], undefined, "proj-1");
+    expect(items[0]?.project_id).toBe("proj-1");
+  });
 });
 
 describe("previewAssigneeId", () => {

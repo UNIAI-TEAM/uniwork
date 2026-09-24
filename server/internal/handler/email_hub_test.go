@@ -227,7 +227,8 @@ func TestEmailHubConfiguredHTTP(t *testing.T) {
 		ID: threadID, AccountID: accID, OrganizationID: orgID,
 		Folder: emailhub.FolderInbox, ImapUid: 7, Subject: "Hi", Snippet: "hi",
 		FromAddr: "a@b.co", ToAddrs: []string{"seed@gmail.com"},
-		SentAt: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+		SentAt:     pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+		ImapLabels: []string{},
 	}); err != nil {
 		t.Fatal(err)
 	}

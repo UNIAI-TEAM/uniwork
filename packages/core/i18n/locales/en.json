@@ -267,7 +267,8 @@
         "member_added": "Added to a workspace",
         "role_changed": "Role changed",
         "audit_export_ready": "Audit export ready",
-        "chat_follow_up": "Message follow-up"
+        "chat_follow_up": "Message follow-up",
+        "email_hub_new_mail": "New mail (Email Hub)"
       }
     },
     "page": {
@@ -743,6 +744,15 @@
     "labels_rules": "Labels & auto rules",
     "labels_section": "Labels",
     "no_labels": "No labels yet",
+    "labels_sync_hint": "Gmail labels appear after mail sync (read-only in UniWork).",
+    "report_spam": "Report spam",
+    "not_spam": "Not spam",
+    "not_spam_done": "Moved back to Inbox",
+    "spam": {
+      "empty": "No spam cached in UniWork yet. Tap refresh (↻) to pull from Gmail, or use Report spam from Inbox — those messages appear here after sync.",
+      "syncing": "Syncing spam from Gmail…"
+    },
+    "folder_syncing": "Syncing this folder from Gmail… This can take a minute for Archive (All Mail).",
     "accounts": "Accounts",
     "no_accounts": "No account connected",
     "connect_section": "Connect account",
@@ -783,6 +793,35 @@
     "archive": "Archive",
     "trash": "Delete",
     "ai_title": "AI Email Assistant",
+    "ai": {
+      "summarize": "Analyze email",
+      "regenerate": "Analyze again",
+      "ask_uni": "Ask UNI about this email",
+      "disabled": "Enable the AI Gateway on the server to summarize and ask UNI.",
+      "wait_body": "Loading email content…",
+      "loading_cached": "Loading saved summary…",
+      "cached_hint": "Saved summary — use Analyze again if the email changed.",
+      "nothing_to_summarize": "Not enough content to analyze yet.",
+      "action_items": "Suggested action items",
+      "project_label": "Project (applies to all tasks created)",
+      "project_none": "No project",
+      "task_pick_hint": "Select items, then open the dialog to set assignee, project, and priority.",
+      "create_dialog_title": "Create tasks from email",
+      "create_dialog_description": "Review {{count}} item(s) before adding them to the workspace.",
+      "create_tasks_confirm": "Create {{count}} task(s)",
+      "suggested_owner": "AI suggested: {{name}}",
+      "create_tasks": "Create selected tasks",
+      "tasks_created": "Created {{count}} task(s) from this email.",
+      "list_badge": "Summary",
+      "list_attribution": "UNI · Email Hub",
+      "action_items_count": "{{count}} suggested task(s) below",
+      "analyzing": "UNI is reading this email…",
+      "list_expand": "Show more",
+      "list_collapse": "Show less",
+      "list_hide_card": "Hide summary",
+      "list_show_card": "Show summary",
+      "list_open_for_full": "Open the email for the full summary, suggested tasks, and Ask UNI in the right panel."
+    },
     "compose": {
       "title": "New message",
       "description": "Recipients receive this from your connected mailbox.",
@@ -854,8 +893,20 @@
       "drafts": "Drafts",
       "archive": "Archive",
       "trash": "Trash",
-      "scheduled": "Scheduled"
+      "scheduled": "Scheduled",
+      "spam": "Spam",
+      "snoozed": "Snoozed",
+      "more": "More"
     },
+    "snooze": {
+      "action": "Snooze",
+      "tomorrow": "Tomorrow (9:00 AM)",
+      "next_week": "Next week (9:00 AM)",
+      "unsnooze": "Return to Inbox",
+      "until": "Returns {{when}}"
+    },
+    "labels_show_more": "{{count}} more labels",
+    "labels_show_less": "Show fewer labels",
     "stats": {
       "summary": "Quick summary",
       "total": "Total",
@@ -3367,7 +3418,8 @@
       "member_added": "{{actor}} added you to workspace {{workspace}}",
       "role_changed": "{{actor}} changed your role to {{role}}",
       "audit_export_ready": "Your audit export is ready",
-      "chat_follow_up": "You saved a follow-up on a message"
+      "chat_follow_up": "You saved a follow-up on a message",
+      "email_hub_new_mail": "You have {{count}} unread message(s) · {{mailbox}}"
     }
   },
   "ai": {

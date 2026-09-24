@@ -80,7 +80,8 @@ func seedEmailHubThread(t *testing.T, q *db.Queries, accountID, orgID string) db
 		ID: util.NewID(), AccountID: accountID, OrganizationID: orgID,
 		Folder: emailhub.FolderInbox, ImapUid: 42, Subject: "Hello",
 		Snippet: "hello", FromAddr: "a@b.co", ToAddrs: []string{"seed@gmail.com"},
-		SentAt: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+		SentAt:     pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
+		ImapLabels: []string{},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -280,6 +281,7 @@ func TestEmailHubGetSentThreadShortBodyCached(t *testing.T) {
 		Folder: emailhub.FolderSent, ImapUid: 99, Subject: "hehe",
 		Snippet: "hehe", FromAddr: acc.EmailAddress, ToAddrs: []string{"dest@example.com"},
 		SentAt: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}, IsRead: true,
+		ImapLabels: []string{},
 	})
 	if err != nil {
 		t.Fatal(err)

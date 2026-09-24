@@ -133,6 +133,8 @@ func ResourceURL(ctx context.Context, q *db.Queries, origin string, n db.Notific
 		return base + "/settings?tab=audit", nil
 	case "chat_message":
 		return base + "/chat", nil
+	case "email_account":
+		return base + "/email", nil
 	default:
 		return base + "/inbox", nil
 	}
