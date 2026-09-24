@@ -52,7 +52,7 @@ func backfillFolderWithClient(cl *client.Client, mailbox string, beforeUID uint3
 	}
 
 	uids = capNewestUIDs(uids, BackfillBatchSize)
-	items, err := fetchUIDs(cl, uids)
+	items, err := fetchUIDs(cl, uids, ClientSupportsGmailLabels(cl))
 	if err != nil {
 		return SyncResult{}, err
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -18,6 +19,7 @@ const (
 	emailHubPullInterval      = 10 * time.Minute
 	emailHubReconcileInterval = 30 * time.Minute
 	emailHubWorkerBatch       = 20
+	emailHubWorkerParallel    = 6
 	emailHubWatchTimeout      = 45 * time.Second
 )
 
@@ -67,16 +69,29 @@ func lastSyncFromState(raw []byte) *time.Time {
 	return &t
 }
 
-func (s *EmailHubService) syncAccount(ctx context.Context, acc db.EmailHubAccount, reconcile, force bool) (bool, error) {
+func countNewUnreadInboxItems(items []imapclient.ThreadMeta, logicalFolder string, lastUID uint32, reconcile bool) int {
+	if logicalFolder != emailHubFolderInbox || reconcile || lastUID == 0 {
+		return 0
+	}
+	n := 0
+	for _, it := range items {
+		if it.UID > lastUID && !it.IsRead {
+			n++
+		}
+	}
+	return n
+}
+
+func (s *EmailHubService) syncAccount(ctx context.Context, acc db.EmailHubAccount, reconcile, force bool) (bool, int, error) {
 	release, ok := s.gov.trySync(acc.ID, force, false, emailHubSyncModeFull)
 	if !ok {
 		s.log.Debug("email hub sync skipped", "account_id", acc.ID, "reason", "debounced")
-		return false, nil
+		return false, 0, nil
 	}
 	defer release()
 
 	if !s.Enabled() {
-		return false, ErrEmailHubNotConfigured
+		return false, 0, ErrEmailHubNotConfigured
 	}
 	if force {
 		if err := s.q.InvalidateEmailHubEmptyBodies(ctx, db.InvalidateEmailHubEmptyBodiesParams{
@@ -88,6 +103,7 @@ func (s *EmailHubService) syncAccount(ctx context.Context, acc db.EmailHubAccoun
 	state := parseEmailHubSyncState(acc.SyncState)
 	var lastErr error
 	inboxOK := false
+	newUnread := 0
 	if err := s.gov.withIMAP(acc.ID, func() error {
 		creds, _, err := s.accountCredentials(acc)
 		if err != nil {
@@ -109,7 +125,8 @@ func (s *EmailHubService) syncAccount(ctx context.Context, acc db.EmailHubAccoun
 
 		for _, folder := range emailhub.SyncableFolders() {
 			var folderErr error
-			state, folderErr = s.syncAccountFolderSession(ctx, acc, folder, state, reconcile, sess, mailboxes)
+			var folderNewUnread int
+			state, folderNewUnread, folderErr = s.syncAccountFolderSession(ctx, acc, folder, state, reconcile, sess, mailboxes)
 			if folderErr != nil {
 				s.log.Warn("email hub folder sync failed", "account_id", acc.ID, "folder", folder, "err", folderErr)
 				lastErr = folderErr
@@ -117,43 +134,47 @@ func (s *EmailHubService) syncAccount(ctx context.Context, acc db.EmailHubAccoun
 			}
 			if folder == emailHubFolderInbox {
 				inboxOK = true
+				newUnread += folderNewUnread
 			}
 		}
 		return nil
 	}); err != nil {
-		return false, err
+		return false, 0, err
 	}
 	if !inboxOK {
-		return false, lastErr
+		return false, 0, lastErr
 	}
 	raw, err := json.Marshal(state)
 	if err != nil {
-		return false, err
+		return false, 0, err
 	}
 	if err := s.q.UpdateEmailHubAccountSyncState(ctx, db.UpdateEmailHubAccountSyncStateParams{
 		ID: acc.ID, SyncState: raw,
 	}); err != nil {
-		return false, err
+		return false, 0, err
 	}
 	s.scheduleBodyPrefetch(acc, emailHubFolderInbox)
 	s.scheduleBodyPrefetch(acc, emailHubFolderSent)
-	return true, nil
+	return true, newUnread, nil
 }
 
+// reconcileAccount refreshes INBOX only. Full multi-folder reconcile is reserved for
+// explicit user refresh — background workers must not scan SENT/TRASH on every tick.
 func (s *EmailHubService) reconcileAccount(ctx context.Context, acc db.EmailHubAccount) error {
-	_, err := s.syncAccount(ctx, acc, true, false)
+	_, _, err := s.syncSingleFolder(ctx, acc, emailHubFolderInbox, true, false, false, true)
 	return err
 }
 
 func (s *EmailHubService) syncAccountFolderSession(
 	ctx context.Context, acc db.EmailHubAccount, logicalFolder string, state emailHubSyncState, reconcile bool,
 	sess *imapclient.Session, mailboxes imapclient.MailboxMap,
-) (emailHubSyncState, error) {
+) (emailHubSyncState, int, error) {
 	mailbox := mailboxes.Resolve(logicalFolder)
 	if mailbox == "" {
 		mailbox = emailhub.MailboxName(acc.Provider, logicalFolder)
 	}
 	cursor := state.folder(logicalFolder)
+	prevLastUID := cursor.LastUID
 
 	var result imapclient.SyncResult
 	var err error
@@ -163,26 +184,28 @@ func (s *EmailHubService) syncAccountFolderSession(
 		result, err = sess.SyncFolder(mailbox, cursor.LastUID, cursor.UIDValidity, false)
 	}
 	if err != nil {
-		return state, err
+		return state, 0, err
 	}
+
+	newUnread := countNewUnreadInboxItems(result.Items, logicalFolder, prevLastUID, reconcile)
 
 	if cursor.UIDValidity != 0 && result.UIDValidity != 0 && cursor.UIDValidity != result.UIDValidity {
 		if err := s.q.DeleteEmailHubThreadsInFolder(ctx, db.DeleteEmailHubThreadsInFolderParams{
 			AccountID: acc.ID, OrganizationID: acc.OrganizationID, Folder: logicalFolder,
 		}); err != nil {
-			return state, err
+			return state, 0, err
 		}
 		cursor = emailHubFolderSync{}
 	}
 
 	if reconcile {
 		if err := s.pruneReconciledFolderCache(ctx, acc, logicalFolder, result.Items); err != nil {
-			return state, err
+			return state, 0, err
 		}
 	}
 
 	if err := s.upsertThreadItems(ctx, acc, logicalFolder, result.Items); err != nil {
-		return state, err
+		return state, 0, err
 	}
 
 	nextUID := cursor.LastUID
@@ -194,7 +217,7 @@ func (s *EmailHubService) syncAccountFolderSession(
 		LastUID:     nextUID,
 		LastSyncAt:  time.Now().UTC().Format(time.RFC3339),
 	})
-	return state, nil
+	return state, newUnread, nil
 }
 
 func emailHubReconcileKeepUIDs(items []imapclient.ThreadMeta) []int32 {
@@ -220,20 +243,43 @@ func (s *EmailHubService) pruneReconciledFolderCache(
 	})
 }
 
-func (s *EmailHubService) syncSingleFolder(ctx context.Context, acc db.EmailHubAccount, logicalFolder string, reconcile, force, live bool) (bool, error) {
+func folderSyncRecentlySynced(cursor emailHubFolderSync, within time.Duration) bool {
+	if cursor.LastSyncAt == "" {
+		return false
+	}
+	t, err := time.Parse(time.RFC3339, cursor.LastSyncAt)
+	if err != nil {
+		return false
+	}
+	return time.Since(t) < within
+}
+
+func (s *EmailHubService) syncSingleFolder(
+	ctx context.Context, acc db.EmailHubAccount, logicalFolder string, reconcile, force, live, blockIMAP bool,
+) (bool, int, error) {
 	mode := emailHubSyncModeFull
 	if logicalFolder == emailHubFolderInbox {
 		mode = emailHubSyncModeInbox
 	}
-	release, ok := s.gov.trySync(acc.ID, force, live, mode)
+	state := parseEmailHubSyncState(acc.SyncState)
+	cursor := state.folder(logicalFolder)
+	effectiveForce := force
+	if !force && cursor.LastSyncAt == "" {
+		effectiveForce = true
+	}
+	if !effectiveForce && !reconcile && folderSyncRecentlySynced(cursor, emailHubFullSyncInterval) {
+		s.log.Debug("email hub sync skipped", "account_id", acc.ID, "folder", logicalFolder, "reason", "folder_recent")
+		return false, 0, nil
+	}
+	release, ok := s.gov.trySync(acc.ID, effectiveForce, live, mode)
 	if !ok {
 		s.log.Debug("email hub sync skipped", "account_id", acc.ID, "folder", logicalFolder, "reason", "debounced")
-		return false, nil
+		return false, 0, nil
 	}
 	defer release()
 
-	state := parseEmailHubSyncState(acc.SyncState)
-	if err := s.gov.withIMAP(acc.ID, func() error {
+	newUnread := 0
+	runSync := func() error {
 		creds, _, err := s.accountCredentials(acc)
 		if err != nil {
 			return err
@@ -244,33 +290,45 @@ func (s *EmailHubService) syncSingleFolder(ctx context.Context, acc db.EmailHubA
 		}
 		defer sess.Close()
 
-		defaults := imapclient.MailboxMap(emailhub.DefaultMailboxMap(acc.Provider))
-		mailboxes, listErr := sess.MailboxMap(defaults)
-		if listErr != nil {
-			s.log.Warn("email hub list mailboxes failed", "account_id", acc.ID, "err", listErr)
-			mailboxes = defaults
+		mailboxes, ok := s.gov.mailboxes(acc.ID)
+		if !ok {
+			defaults := imapclient.MailboxMap(emailhub.DefaultMailboxMap(acc.Provider))
+			var listErr error
+			mailboxes, listErr = sess.MailboxMap(defaults)
+			if listErr != nil {
+				s.log.Warn("email hub list mailboxes failed", "account_id", acc.ID, "err", listErr)
+				mailboxes = defaults
+			}
+			s.gov.setMailboxes(acc.ID, mailboxes)
 		}
-		s.gov.setMailboxes(acc.ID, mailboxes)
 
 		var syncErr error
-		state, syncErr = s.syncAccountFolderSession(ctx, acc, logicalFolder, state, reconcile, sess, mailboxes)
+		state, newUnread, syncErr = s.syncAccountFolderSession(ctx, acc, logicalFolder, state, reconcile, sess, mailboxes)
 		return syncErr
-	}); err != nil {
-		return false, err
+	}
+	var err error
+	if blockIMAP {
+		err = s.gov.withIMAP(acc.ID, runSync)
+	} else if !s.gov.tryWithIMAP(acc.ID, func() error { err = runSync(); return err }) {
+		s.log.Debug("email hub sync deferred", "account_id", acc.ID, "folder", logicalFolder, "reason", "imap_busy")
+		return false, 0, nil
+	}
+	if err != nil {
+		return false, 0, err
 	}
 	raw, err := json.Marshal(state)
 	if err != nil {
-		return false, err
+		return false, 0, err
 	}
 	if err := s.q.UpdateEmailHubAccountSyncState(ctx, db.UpdateEmailHubAccountSyncStateParams{
 		ID: acc.ID, SyncState: raw,
 	}); err != nil {
-		return false, err
+		return false, 0, err
 	}
 	if logicalFolder == emailHubFolderInbox {
 		s.scheduleBodyPrefetch(acc, emailHubFolderInbox)
 	}
-	return true, nil
+	return true, newUnread, nil
 }
 
 func (s *EmailHubService) upsertThreadItems(ctx context.Context, acc db.EmailHubAccount, logicalFolder string, items []imapclient.ThreadMeta) error {
@@ -287,6 +345,7 @@ func (s *EmailHubService) upsertThreadItems(ctx context.Context, acc db.EmailHub
 			FromName: pgtype.Text{String: it.FromName, Valid: it.FromName != ""},
 			ToAddrs:  toAddrs, SentAt: pgtype.Timestamptz{Time: it.SentAt, Valid: true},
 			IsRead: it.IsRead, IsStarred: it.IsStarred, HasAttachments: it.HasAttachments,
+			ImapLabels: emailhub.UserVisibleImapLabels(it.ImapLabels),
 		})
 		if err != nil {
 			s.log.Warn("email hub thread upsert failed",
@@ -361,7 +420,7 @@ func (s *EmailHubService) WatchInbox(ctx context.Context, actor Actor, workspace
 	}
 	defer release()
 
-	state, err := s.syncAccountFolderSession(ctx, acc, emailHubFolderInbox, parseEmailHubSyncState(acc.SyncState), false, sess, mailboxes)
+	state, _, err := s.syncAccountFolderSession(ctx, acc, emailHubFolderInbox, parseEmailHubSyncState(acc.SyncState), false, sess, mailboxes)
 	if err != nil {
 		return false, err
 	}
@@ -411,6 +470,8 @@ func (s *EmailHubService) runWorkerBatch(ctx context.Context, reconcile bool) {
 		s.log.Warn("email hub worker list accounts", "err", err)
 		return
 	}
+	sem := make(chan struct{}, emailHubWorkerParallel)
+	var wg sync.WaitGroup
 	for _, acc := range rows {
 		if s.gov.isWatching(acc.ID) {
 			s.log.Debug("email hub worker skipped", "account_id", acc.ID, "reason", "idle_active")
@@ -420,14 +481,35 @@ func (s *EmailHubService) runWorkerBatch(ctx context.Context, reconcile bool) {
 			s.log.Debug("email hub worker skipped", "account_id", acc.ID, "reason", "interactive_active")
 			continue
 		}
-		var syncErr error
-		if reconcile {
-			syncErr = s.reconcileAccount(ctx, acc)
-		} else {
-			_, syncErr = s.syncSingleFolder(ctx, acc, emailHubFolderInbox, false, false, false)
-		}
-		if syncErr != nil {
-			s.log.Warn("email hub worker sync failed", "account_id", acc.ID, "reconcile", reconcile, "err", syncErr)
-		}
+		wg.Add(1)
+		acc := acc
+		go func() {
+			defer wg.Done()
+			select {
+			case sem <- struct{}{}:
+				defer func() { <-sem }()
+			case <-ctx.Done():
+				return
+			}
+			var syncErr error
+			if reconcile {
+				syncErr = s.reconcileAccount(ctx, acc)
+			} else {
+				beforeUnread := s.inboxUnreadForAccount(ctx, acc)
+				var synced bool
+				var newUnread int
+				synced, newUnread, syncErr = s.syncSingleFolder(ctx, acc, emailHubFolderInbox, false, false, false, true)
+				if syncErr == nil && synced {
+					s.emitInboxChanged(ctx, acc)
+					if newUnread > 0 || s.inboxUnreadForAccount(ctx, acc) > beforeUnread {
+						s.emitEmailHubNewMail(ctx, acc, "")
+					}
+				}
+			}
+			if syncErr != nil {
+				s.log.Warn("email hub worker sync failed", "account_id", acc.ID, "reconcile", reconcile, "err", syncErr)
+			}
+		}()
 	}
+	wg.Wait()
 }

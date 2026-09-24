@@ -63,7 +63,7 @@ func WatchINBOX(ctx context.Context, c Credentials) (bool, error) {
 	return WatchFolder(ctx, c, "INBOX")
 }
 
-func syncFolderWithClient(cl *client.Client, mailbox string, sinceUID, storedUIDValidity uint32, reconcile bool) (SyncResult, error) {
+func syncFolderWithClient(cl *client.Client, mailbox string, sinceUID, storedUIDValidity uint32, reconcile, gmailLabels bool) (SyncResult, error) {
 	mbox, err := cl.Select(mailbox, false)
 	if err != nil {
 		return SyncResult{}, fmt.Errorf("imap select %s: %w", mailbox, err)
@@ -72,7 +72,7 @@ func syncFolderWithClient(cl *client.Client, mailbox string, sinceUID, storedUID
 		return SyncResult{UIDValidity: mbox.UidValidity}, nil
 	}
 	if reconcile || sinceUID == 0 || (storedUIDValidity != 0 && mbox.UidValidity != storedUIDValidity) {
-		items, err := syncLatest(cl, mbox)
+		items, err := syncLatest(cl, mbox, gmailLabels)
 		if err != nil {
 			return SyncResult{}, err
 		}
@@ -90,36 +90,39 @@ func syncFolderWithClient(cl *client.Client, mailbox string, sinceUID, storedUID
 		return SyncResult{UIDValidity: mbox.UidValidity, HighestUID: sinceUID}, nil
 	}
 	uids = capIncrementalUIDs(uids)
-	items, err := fetchUIDs(cl, uids)
+	items, err := fetchUIDs(cl, uids, gmailLabels)
 	if err != nil {
 		return SyncResult{}, err
 	}
 	return SyncResult{Items: items, UIDValidity: mbox.UidValidity, HighestUID: maxUID(items)}, nil
 }
 
-func syncLatest(cl *client.Client, mbox *imap.MailboxStatus) ([]ThreadMeta, error) {
+func syncLatest(cl *client.Client, mbox *imap.MailboxStatus, gmailLabels bool) ([]ThreadMeta, error) {
 	from := uint32(1)
 	if mbox.Messages > initialSyncLimit {
 		from = mbox.Messages - initialSyncLimit + 1
 	}
 	seqset := new(imap.SeqSet)
 	seqset.AddRange(from, mbox.Messages)
-	return fetchMessages(cl, seqset, false, false)
+	return fetchMessages(cl, seqset, false, false, gmailLabels)
 }
 
-func fetchUIDs(cl *client.Client, uids []uint32) ([]ThreadMeta, error) {
+func fetchUIDs(cl *client.Client, uids []uint32, gmailLabels bool) ([]ThreadMeta, error) {
 	seqset := new(imap.SeqSet)
 	for _, uid := range uids {
 		seqset.AddNum(uid)
 	}
-	return fetchMessages(cl, seqset, true, false)
+	return fetchMessages(cl, seqset, true, false, gmailLabels)
 }
 
-func fetchMessages(cl *client.Client, seqset *imap.SeqSet, byUID bool, withBody bool) ([]ThreadMeta, error) {
+func fetchMessages(cl *client.Client, seqset *imap.SeqSet, byUID bool, withBody, gmailLabels bool) ([]ThreadMeta, error) {
 	var section *imap.BodySectionName
 	items := []imap.FetchItem{
 		imap.FetchUid, imap.FetchFlags, imap.FetchEnvelope,
 		imap.FetchInternalDate, imap.FetchBodyStructure,
+	}
+	if gmailLabels {
+		items = append(items, fetchGmailLabels)
 	}
 	if withBody {
 		section = &imap.BodySectionName{Peek: true}

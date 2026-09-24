@@ -26,6 +26,11 @@ type EmailHubSyncSDO struct {
 	Synced bool `json:"synced" example:"true"`
 }
 
+// EmailHubUnreadSDO is GET .../email-hub/unread-count.
+type EmailHubUnreadSDO struct {
+	Unread int64 `json:"unread" example:"3"`
+}
+
 // EmailHubScheduledSendItemSDO is one pending scheduled outbound message.
 type EmailHubScheduledSendItemSDO struct {
 	ID      string   `json:"id"`
@@ -81,6 +86,13 @@ type EmailHubThreadSDO struct {
 	BodyText       string                  `json:"body_text,omitempty"`
 	BodyHTML       string                  `json:"body_html,omitempty"`
 	BodyCached     bool                    `json:"body_cached"`
+	ImapLabels     []string                `json:"imap_labels,omitempty"`
+	SnoozedUntil   string                  `json:"snoozed_until,omitempty" format:"date-time"`
+}
+
+// EmailHubImapLabelListSDO lists distinct user-visible IMAP labels on cached threads.
+type EmailHubImapLabelListSDO struct {
+	Labels []string `json:"labels"`
 }
 
 // EmailHubThreadListSDO is a folder listing with counts.
@@ -94,4 +106,16 @@ type EmailHubThreadListSDO struct {
 type EmailHubCountsSDO struct {
 	Total  int64 `json:"total"`
 	Unread int64 `json:"unread"`
+}
+
+// EmailHubThreadSummarySDO is POST .../email-hub/threads/{threadID}/ai/summarize.
+type EmailHubThreadSummarySDO struct {
+	Summary      string                 `json:"summary"`
+	KeyPoints    []string               `json:"key_points"`
+	ActionItems  []SummaryActionItemDTO `json:"action_items"`
+	NeedsReply   bool                   `json:"needs_reply"`
+	ReplyHint    string                 `json:"reply_hint,omitempty"`
+	Model        string                 `json:"model,omitempty"`
+	Cached       bool                   `json:"cached"`
+	SummarizedAt string                 `json:"summarized_at,omitempty" format:"date-time"`
 }

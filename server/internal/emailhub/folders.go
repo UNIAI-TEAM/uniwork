@@ -8,6 +8,7 @@ const (
 	FolderDrafts  = "DRAFTS"
 	FolderTrash   = "TRASH"
 	FolderArchive = "ARCHIVE"
+	FolderSpam    = "SPAM"
 	FolderStarred = "STARRED"
 )
 
@@ -25,12 +26,13 @@ func DefaultMailboxMap(provider string) map[string]string {
 		}
 	}
 	out[FolderArchive] = MailboxName(provider, FolderArchive)
+	out[FolderSpam] = MailboxName(provider, FolderSpam)
 	return out
 }
 
 // MoveableTargets are logical folders messages can be moved to via IMAP.
 func MoveableTargets() []string {
-	return []string{FolderInbox, FolderArchive, FolderTrash}
+	return []string{FolderInbox, FolderArchive, FolderTrash, FolderSpam}
 }
 
 // MailboxName maps a logical folder to the provider-specific IMAP mailbox.
@@ -57,6 +59,8 @@ func gmailMailbox(folder string) string {
 		return "[Gmail]/Trash"
 	case FolderArchive:
 		return "[Gmail]/All Mail"
+	case FolderSpam:
+		return "[Gmail]/Spam"
 	default:
 		return FolderInbox
 	}
@@ -72,6 +76,8 @@ func outlookMailbox(folder string) string {
 		return "Deleted Items"
 	case FolderArchive:
 		return "Archive"
+	case FolderSpam:
+		return "Junk Email"
 	default:
 		return FolderInbox
 	}
@@ -87,6 +93,8 @@ func yahooMailbox(folder string) string {
 		return "Trash"
 	case FolderArchive:
 		return "Archive"
+	case FolderSpam:
+		return "Bulk Mail"
 	default:
 		return FolderInbox
 	}
@@ -95,7 +103,7 @@ func yahooMailbox(folder string) string {
 // IsMoveableTarget reports whether folder is a valid move_to value.
 func IsMoveableTarget(folder string) bool {
 	switch folder {
-	case FolderInbox, FolderArchive, FolderTrash:
+	case FolderInbox, FolderArchive, FolderTrash, FolderSpam:
 		return true
 	default:
 		return false

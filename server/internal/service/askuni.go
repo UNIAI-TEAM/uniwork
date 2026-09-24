@@ -29,10 +29,16 @@ type AskUNIService struct {
 	tasks    *TaskService
 	meetings *MeetingService
 	chat     *ChatService
+	emailHub *EmailHubService
 	gw       *ai.Gateway
 	ent      *EntitlementService
 	rdb      *redis.Client
 	now      func() time.Time
+}
+
+// SetEmailHub wires Email Hub for focus reads (optional; set from main after construction).
+func (s *AskUNIService) SetEmailHub(hub *EmailHubService) {
+	s.emailHub = hub
 }
 
 // taskRow is what the source reader renders; it is the sqlc row.

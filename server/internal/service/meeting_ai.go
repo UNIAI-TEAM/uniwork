@@ -255,6 +255,8 @@ type SummaryTaskItem struct {
 	Title       string
 	Description string
 	AssigneeID  *string
+	ProjectID   *string
+	Priority    string
 	DueDate     *string
 	Owner       string
 	DueSpoken   string
@@ -313,9 +315,10 @@ func (s *MeetingService) CreateTasksFromSummary(ctx context.Context, userID, mee
 		} else {
 			desc = desc + "\n\n" + origin
 		}
+		priority := strings.TrimSpace(it.Priority)
 		t, err := s.Tasks.Create(ctx, Human(userID), m.WorkspaceID, CreateTaskInput{
-			Title: it.Title, Description: desc, AssigneeID: assigneeID, DueDate: dueDate,
-			OriginType: "meeting", OriginID: &meetingOrigin,
+			Title: it.Title, Description: desc, AssigneeID: assigneeID, DueDate: dueDate, ProjectID: it.ProjectID,
+			Priority: priority, OriginType: "meeting", OriginID: &meetingOrigin,
 		})
 		if err != nil {
 			return out, err

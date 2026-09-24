@@ -2,7 +2,7 @@ package sdi
 
 // AskUniFocusSDI names the object the question is about (optional).
 type AskUniFocusSDI struct {
-	Kind string `json:"kind" description:"task, meeting, room, thread hoặc message" example:"room"`
+	Kind string `json:"kind" description:"task, meeting, email_thread, room, thread hoặc message" example:"room"`
 	ID   string `json:"id" example:"01J8X4K2M0N1P2Q3R4S5T6U7VA"`
 }
 

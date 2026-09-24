@@ -454,6 +454,8 @@ export interface SummaryTaskItem {
   title: string;
   description?: string;
   assignee_id?: string;
+  project_id?: string;
+  priority?: string;
   due_date?: string;
   owner?: string;
   due_spoken?: string;

@@ -98,7 +98,7 @@ export function AskUniPanel() {
   const { workspace } = useWorkspace();
   const caps = useAiCapabilities(workspace.id);
   const enabled = !!caps.data?.enabled;
-  const { open, setOpen, conversationId, select } = useAiPanelStore();
+  const { open, setOpen, conversationId, select, pendingFocus, clearPendingFocus } = useAiPanelStore();
   const conversations = useAiConversations(workspace.id, open && enabled);
   const messages = useAiMessages(conversationId);
   const ask = useAskUni(workspace.id);
@@ -119,10 +119,19 @@ export function AskUniPanel() {
     if (!q || ask.isPending) return;
     setPendingQuestion(q);
     setQuestion("");
+    const focus = pendingFocus ?? undefined;
     ask.mutate(
-      { question: q, conversation_id: conversationId ?? undefined, locale: i18n.language },
       {
-        onSuccess: (res) => select(res.conversation_id),
+        question: q,
+        conversation_id: conversationId ?? undefined,
+        locale: i18n.language,
+        focus: focus ? { kind: focus.kind, id: focus.id } : undefined,
+      },
+      {
+        onSuccess: (res) => {
+          select(res.conversation_id);
+          if (focus) clearPendingFocus();
+        },
         onSettled: () => setPendingQuestion(null),
         onError: () => setQuestion(q),
       },

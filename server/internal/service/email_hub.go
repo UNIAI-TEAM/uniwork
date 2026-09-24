@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/emailhub"
 	"github.com/unicomhub/uniwork/server/internal/emailhub/imapclient"
 	"github.com/unicomhub/uniwork/server/internal/emailhub/smtpclient"
@@ -36,6 +37,9 @@ type EmailHubService struct {
 	log      *slog.Logger
 	gov      *emailHubGovernor
 	hubWatch *emailHubHubWatcher
+	// AI and Tasks are wired from main after construction; nil disables summarize → task.
+	AI    *ai.Gateway
+	Tasks *TaskService
 }
 
 func NewEmailHubService(q *db.Queries, ws *WorkspaceService, box *secretbox.Box) *EmailHubService {
@@ -69,6 +73,8 @@ type EmailHubThreadView struct {
 	IsRead         bool
 	IsStarred      bool
 	HasAttachments bool
+	ImapLabels     []string
+	SnoozedUntil   *time.Time
 	Attachments    []EmailHubAttachmentView
 	BodyText       string
 	BodyHTML       string
@@ -170,7 +176,7 @@ func (s *EmailHubService) Connect(ctx context.Context, actor Actor, workspaceID 
 	if err != nil {
 		return EmailHubAccountView{}, err
 	}
-	if _, syncErr := s.syncAccount(ctx, row, false, true); syncErr != nil {
+	if _, _, syncErr := s.syncAccount(ctx, row, false, true); syncErr != nil {
 		s.log.Warn("email hub initial sync failed", "account_id", id, "err", syncErr)
 	}
 	updated, err := s.q.GetEmailHubAccount(ctx, db.GetEmailHubAccountParams{
@@ -194,6 +200,7 @@ func (s *EmailHubService) Disconnect(ctx context.Context, actor Actor, workspace
 	}
 	s.hubWatch.forceStop(accountID)
 	_ = s.q.DeleteEmailHubAttachmentsForAccount(ctx, accountID)
+	_ = s.q.DeleteEmailHubThreadAiSummariesForAccount(ctx, accountID)
 	return s.q.DeleteEmailHubThreadsForAccount(ctx, accountID)
 }
 
@@ -373,7 +380,7 @@ func (s *EmailHubService) sendOutboundMail(
 		MessageID: pgtype.Text{String: msgID, Valid: true},
 		Subject:   subject, Snippet: snippet, FromAddr: acc.EmailAddress,
 		ToAddrs: to, SentAt: pgtype.Timestamptz{Time: now, Valid: true},
-		IsRead: true, IsStarred: false, HasAttachments: len(attachments) > 0,
+		IsRead: true, IsStarred: false, HasAttachments: len(attachments) > 0, ImapLabels: []string{},
 	})
 	if err != nil {
 		return EmailHubThreadView{}, err
@@ -549,10 +556,51 @@ func (s *EmailHubService) Sync(
 		return false, err
 	}
 	folder = normalizeEmailHubFolder(folder)
+	beforeUnread := s.inboxUnreadForAccount(ctx, acc)
+	var synced bool
+	var newUnread int
+	var syncErr error
 	if folder == "" || folder == emailhub.FolderStarred {
-		return s.syncAccount(ctx, acc, reconcile, force)
+		synced, newUnread, syncErr = s.syncAccount(ctx, acc, reconcile, force)
+	} else {
+		synced, newUnread, syncErr = s.syncSingleFolder(ctx, acc, folder, reconcile, force, live, false)
 	}
-	return s.syncSingleFolder(ctx, acc, folder, reconcile, force, live)
+	if syncErr != nil {
+		return false, syncErr
+	}
+	if synced {
+		s.emitInboxChanged(ctx, acc)
+		afterUnread := s.inboxUnreadForAccount(ctx, acc)
+		if newUnread > 0 || afterUnread > beforeUnread {
+			s.emitEmailHubNewMail(ctx, acc, workspaceID)
+		}
+	}
+	return synced, nil
+}
+
+func (s *EmailHubService) inboxUnreadForAccount(ctx context.Context, acc db.EmailHubAccount) int64 {
+	counts, err := s.q.CountEmailHubThreads(ctx, db.CountEmailHubThreadsParams{
+		AccountID: acc.ID, OrganizationID: acc.OrganizationID, Folder: emailHubFolderInbox, LabelFilter: "",
+	})
+	if err != nil {
+		return 0
+	}
+	return counts.Unread
+}
+
+// InboxUnreadTotal is the sum of unread INBOX threads across the user's connected mailboxes in the org.
+func (s *EmailHubService) InboxUnreadTotal(ctx context.Context, actor Actor, workspaceID string) (int64, error) {
+	ws, err := s.workspace(ctx, actor, workspaceID)
+	if err != nil {
+		return 0, err
+	}
+	n, err := s.q.SumEmailHubInboxUnreadByUser(ctx, db.SumEmailHubInboxUnreadByUserParams{
+		UserID: actor.ID, OrganizationID: ws.OrganizationID,
+	})
+	if err != nil {
+		return 0, err
+	}
+	return n, nil
 }
 
 func (s *EmailHubService) openPassword(enc string) (string, error) {
@@ -617,6 +665,11 @@ func threadView(r db.EmailHubThread) EmailHubThreadView {
 		Snippet:  imapclient.CleanSnippet(r.Snippet),
 		FromAddr: r.FromAddr, ToAddrs: r.ToAddrs, SentAt: r.SentAt.Time,
 		IsRead: r.IsRead, IsStarred: r.IsStarred, HasAttachments: r.HasAttachments, BodyCached: r.BodyCached,
+		ImapLabels: append([]string(nil), r.ImapLabels...),
+	}
+	if r.SnoozedUntil.Valid {
+		t := r.SnoozedUntil.Time
+		v.SnoozedUntil = &t
 	}
 	if r.FromName.Valid {
 		v.FromName = r.FromName.String

@@ -55,6 +55,7 @@ var rules = map[string]rule{
 	"member.role_changed":    ruleRoleChanged,
 	"audit.exported":         ruleAuditExported,
 	"chat.follow_up.created": ruleChatFollowUpCreated,
+	"email_hub.new_mail":     ruleEmailHubNewMail,
 }
 
 // snippetRunes bounds what of a comment body lands in params: enough to
@@ -373,6 +374,54 @@ func ruleAuditExported(ctx context.Context, e env, ev outbox.Row, p map[string]s
 		Kind: KindAuditExportReady, GroupKey: "export:" + p["export_id"],
 		ResourceType: "audit_export", ResourceID: p["export_id"],
 		ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: map[string]string{},
+	}}, nil
+}
+
+func ruleEmailHubNewMail(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	if p["user_id"] == "" || p["account_id"] == "" {
+		return nil, nil
+	}
+	acc, err := e.q.GetEmailHubAccountByID(ctx, p["account_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if acc.UserID != p["user_id"] {
+		return nil, nil
+	}
+	counts, err := e.q.CountEmailHubThreads(ctx, db.CountEmailHubThreadsParams{
+		AccountID: acc.ID, OrganizationID: acc.OrganizationID, Folder: "INBOX", LabelFilter: "",
+	})
+	if err != nil {
+		return nil, err
+	}
+	if counts.Unread == 0 {
+		return nil, nil
+	}
+	wsID := p["workspace_id"]
+	if wsID == "" {
+		workspaces, lerr := e.q.ListWorkspacesForUser(ctx, p["user_id"])
+		if lerr != nil {
+			return nil, lerr
+		}
+		for _, w := range workspaces {
+			if w.OrganizationID == acc.OrganizationID {
+				wsID = w.ID
+				break
+			}
+		}
+	}
+	params := map[string]string{
+		"mailbox": acc.EmailAddress,
+		"count":   fmt.Sprintf("%d", counts.Unread),
+	}
+	return []Draft{{
+		UserID: p["user_id"], OrganizationID: acc.OrganizationID, WorkspaceID: wsID,
+		Kind: KindEmailHubNewMail, GroupKey: "email_hub:" + acc.ID + ":mail",
+		ResourceType: "email_account", ResourceID: acc.ID,
+		ActorKind: string(audit.KindSystem), ActorID: "", Params: params,
 	}}, nil
 }
 

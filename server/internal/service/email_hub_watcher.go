@@ -165,13 +165,17 @@ func (s *EmailHubService) runHubWatchLoop(ctx context.Context, accountID string)
 		if !changed {
 			continue
 		}
-		synced, syncErr := s.syncSingleFolder(ctx, acc, emailHubFolderInbox, true, true, false)
+		beforeUnread := s.inboxUnreadForAccount(ctx, acc)
+		synced, newUnread, syncErr := s.syncSingleFolder(ctx, acc, emailHubFolderInbox, false, true, false, true)
 		if syncErr != nil {
 			s.log.Warn("email hub watcher sync failed", "account_id", accountID, "err", syncErr)
 			continue
 		}
 		if synced {
 			s.emitInboxChanged(ctx, acc)
+			if newUnread > 0 || s.inboxUnreadForAccount(ctx, acc) > beforeUnread {
+				s.emitEmailHubNewMail(ctx, acc, "")
+			}
 		}
 	}
 }
@@ -209,5 +213,24 @@ func (s *EmailHubService) emitInboxChanged(ctx context.Context, acc db.EmailHubA
 		},
 	}); err != nil {
 		s.log.Warn("email hub inbox_changed emit failed", "account_id", acc.ID, "err", err)
+	}
+}
+
+func (s *EmailHubService) emitEmailHubNewMail(ctx context.Context, acc db.EmailHubAccount, workspaceID string) {
+	emitCtx := audit.WithRequest(ctx, audit.RequestInfo{CorrelationID: util.NewID()})
+	payload := map[string]string{
+		"account_id": acc.ID,
+		"user_id":    acc.UserID,
+	}
+	if workspaceID != "" {
+		payload["workspace_id"] = workspaceID
+	}
+	if err := auditRecorder.Emit(emitCtx, s.q, audit.System("email-hub"), audit.Event{
+		Topic:          "email_hub.new_mail",
+		Version:        1,
+		OrganizationID: acc.OrganizationID,
+		Payload:        payload,
+	}); err != nil {
+		s.log.Warn("email hub new_mail emit failed", "account_id", acc.ID, "err", err)
 	}
 }

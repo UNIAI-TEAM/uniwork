@@ -77,7 +77,7 @@ func (s *Session) SyncFolder(mailbox string, sinceUID, storedUIDValidity uint32,
 	if s.cl == nil {
 		return SyncResult{}, fmt.Errorf("imap: session closed")
 	}
-	return syncFolderWithClient(s.cl, mailbox, sinceUID, storedUIDValidity, reconcile)
+	return syncFolderWithClient(s.cl, mailbox, sinceUID, storedUIDValidity, reconcile, ClientSupportsGmailLabels(s.cl))
 }
 
 // FetchBody loads the plain/HTML body for one UID using this session.

@@ -132,6 +132,6 @@ func (s *EmailHubService) MoveThread(
 	}); err != nil {
 		return err
 	}
-	_, err = s.syncSingleFolder(ctx, acc, targetFolder, false, true, false)
+	_, _, err = s.syncSingleFolder(ctx, acc, targetFolder, false, true, false, true)
 	return err
 }

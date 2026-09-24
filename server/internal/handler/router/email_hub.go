@@ -26,6 +26,13 @@ func registerEmailHub(r api, h Routes) {
 		sdo:     sdo.EmailHubAccountListSDO{},
 		auth:    true,
 	})
+	r.Get("/workspaces/{workspaceID}/email-hub/unread-count", h.GetEmailHubUnreadCount, apiOp{
+		summary:     "Unread INBOX count for connected mailboxes",
+		description: "Sum of unread cached INBOX threads across the caller's mailboxes in this organization.",
+		tags:        []string{"email-hub"},
+		sdo:         sdo.EmailHubUnreadSDO{},
+		auth:        true,
+	})
 	r.Post("/workspaces/{workspaceID}/email-hub/accounts", h.ConnectEmailHubAccount, apiOp{
 		summary:     "Connect IMAP mailbox",
 		description: "Verifies IMAP login with an App Password, stores encrypted credentials, and runs an initial INBOX sync.",
@@ -39,6 +46,13 @@ func registerEmailHub(r api, h Routes) {
 		tags:    []string{"email-hub"},
 		auth:    true,
 	})
+	r.Get("/workspaces/{workspaceID}/email-hub/labels", h.ListEmailHubImapLabels, apiOp{
+		summary:     "List IMAP labels on cached threads",
+		description: "Query: account_id (required). User-visible Gmail labels from sync; read-only.",
+		tags:        []string{"email-hub"},
+		sdo:         sdo.EmailHubImapLabelListSDO{},
+		auth:        true,
+	})
 	r.Get("/workspaces/{workspaceID}/email-hub/threads", h.ListEmailHubThreads, apiOp{
 		summary: "List cached threads",
 		tags:    []string{"email-hub"},
@@ -49,6 +63,28 @@ func registerEmailHub(r api, h Routes) {
 		summary: "Get thread (lazy-load body)",
 		tags:    []string{"email-hub"},
 		sdo:     sdo.EmailHubThreadSDO{},
+		auth:    true,
+	})
+	r.Get("/workspaces/{workspaceID}/email-hub/threads/{threadID}/ai/summary", h.GetEmailHubThreadSummary, apiOp{
+		summary:     "Get cached AI summary for an email thread",
+		description: "Returns 404 when no cache or email content changed since last summarize.",
+		tags:        []string{"email-hub"},
+		sdo:         sdo.EmailHubThreadSummarySDO{},
+		auth:        true,
+	})
+	r.Post("/workspaces/{workspaceID}/email-hub/threads/{threadID}/ai/summarize", h.SummarizeEmailHubThread, apiOp{
+		summary:     "Summarize email thread with AI",
+		description: "Reads the cached or fetched body and returns key points and suggested action items.",
+		tags:        []string{"email-hub"},
+		sdi:         sdi.SummarizeEmailHubThreadSDI{},
+		sdo:         sdo.EmailHubThreadSummarySDO{},
+		auth:        true,
+	})
+	r.Post("/workspaces/{workspaceID}/email-hub/threads/{threadID}/ai/summary/tasks", h.CreateEmailHubSummaryTasks, apiOp{
+		summary: "Create tasks from email summary action items",
+		tags:    []string{"email-hub"},
+		sdi:     sdi.EmailHubSummaryTasksSDI{},
+		sdo:     sdo.TaskIDListSDO{},
 		auth:    true,
 	})
 	r.Get("/workspaces/{workspaceID}/email-hub/threads/{threadID}/attachments/{attachmentID}", h.DownloadEmailHubAttachment, apiOp{

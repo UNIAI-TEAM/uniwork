@@ -129,6 +129,11 @@ func TestPromptSnapshots(t *testing.T) {
 				{ID: "S2", Kind: "chat", Title: "An · 09:00", Excerpt: "Chốt demo thứ Sáu"},
 			}),
 		},
+		PromptEmailThreadSummary: {
+			"locale": "vi", "subject": "Demo F-09", "from": "an@example.com",
+			"to": "team@example.com", "sent_at": "2026-09-06T10:00:00Z",
+			"body": "Chốt demo thứ Sáu.",
+		},
 	}
 	for _, k := range PromptKeys() {
 		p, _ := LookupPrompt(k)
@@ -183,6 +188,17 @@ func TestParseAnswerDropsUnknownCitations(t *testing.T) {
 	}
 	if _, err := ParseAnswer(`{"answer":""}`, pack); !errors.Is(err, ErrOutputInvalid) {
 		t.Fatalf("%v", err)
+	}
+}
+
+func TestParseEmailThreadSummaryJSON(t *testing.T) {
+	in := `{"summary":"Tóm tắt","key_points":["a"],"action_items":[{"title":"Làm X","owner":"","due":""}],"needs_reply":true,"reply_hint":"Trả lời hạn"}`
+	out, err := ParseEmailThreadSummaryJSON(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Summary != "Tóm tắt" || !out.NeedsReply || len(out.KeyPoints) != 1 {
+		t.Fatalf("unexpected: %+v", out)
 	}
 }
 

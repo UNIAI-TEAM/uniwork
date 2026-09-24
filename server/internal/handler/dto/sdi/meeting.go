@@ -124,6 +124,8 @@ type SummaryTaskItemSDI struct {
 	Title       string  `json:"title" minLength:"1" example:"Gửi báo cáo sprint"`
 	Description string  `json:"description"`
 	AssigneeID  *string `json:"assignee_id"`
+	ProjectID   *string `json:"project_id" description:"Dự án workspace; tùy chọn"`
+	Priority    string  `json:"priority,omitempty" description:"none | low | medium | high | urgent"`
 	DueDate     *string `json:"due_date" description:"YYYY-MM-DD" example:"2026-09-05"`
 	Owner       string  `json:"owner" description:"Tên người phụ trách do AI gợi ý; server resolve sang assignee_id"`
 	DueSpoken   string  `json:"due_spoken" description:"Hạn nói trong họp; server parse sang due_date"`
