@@ -1,25 +1,27 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { House, RefreshCw, SlidersHorizontal, TriangleAlert } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
+import { House, LayoutDashboard, SlidersHorizontal, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { buildHomeBrief, overdueDays } from "@uniwork/core/home/brief";
+import { buildHomeHeadline, overdueDays } from "@uniwork/core/home/brief";
 import { useHomePrefs, useHomeSummary } from "@uniwork/core/home";
 import { visibleSections, type HomeSectionKey } from "@uniwork/core/home/prefs";
 import type { HomeSummary } from "@uniwork/core/types/home";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageHeader, CollectionPageHeaderAction, CollectionPageState } from "../layout/collection-page";
 import { moduleTone } from "../layout/module-tones";
 import { useWorkspace } from "../layout/workspace-context";
 import { formatMeetingDay, meetingDayKey, meetingLocale } from "../meetings/meeting-datetime";
-import { HomeBrief } from "./home-brief";
 import { HomeCustomizePanel } from "./home-customize-panel";
 import { HomeInbox } from "./home-inbox";
 import { homeBalancedBands, homeGridClass, homeSpanClass } from "./home-layout";
 import { HomeMyWork } from "./home-my-work";
+import { HomeStart } from "./home-start";
 import { HomeStats, type HomeWorkStat } from "./home-stats";
+import { clock, hourIn } from "./home-time";
 import { HomeUpcoming } from "./home-upcoming";
 
 function greetingKey(hour: number): "morning" | "noon" | "afternoon" | "evening" {
@@ -29,32 +31,54 @@ function greetingKey(hour: number): "morning" | "noon" | "afternoon" | "evening"
   return "evening";
 }
 
-function HomeGreeting({ name, summary }: { name: string; summary: HomeSummary | undefined }) {
+/**
+ * The day, a greeting on the person's own clock, and one sentence naming what
+ * to look at first — a title or a time the tiles below cannot show.
+ */
+function HomeGreeting({ name, summary, loading }: { name: string; summary: HomeSummary | undefined; loading: boolean }) {
   const { t, i18n } = useTranslation();
-  const attention = summary ? summary.counts.overdue + summary.counts.due_today + summary.counts.meetings_today : 0;
-  const subtitle = !summary
-    ? t("home.subtitle.loading")
-    : attention > 0
-      ? t("home.subtitle.attention", { count: attention })
-      : t("home.subtitle.clear");
+  const locale = meetingLocale(i18n.language);
+  const headline = summary ? buildHomeHeadline(summary) : null;
   // The server's "today" is in the person's zone; before it arrives, the browser's day.
-  const day = formatMeetingDay(summary?.today ?? meetingDayKey(new Date().toISOString()), meetingLocale(i18n.language));
+  const day = formatMeetingDay(summary?.today ?? meetingDayKey(new Date().toISOString()), locale);
   return (
-    <div className="pt-1">
-      <p className="text-overline text-muted-foreground">{day}</p>
-      <h2 className="mt-1.5 text-display-sm font-semibold text-balance text-foreground">
-        {t(`home.greeting.${greetingKey(new Date().getHours())}`, { name })}
+    <div>
+      <p className="text-label text-muted-foreground first-letter:uppercase">{day}</p>
+      <h2 className="mt-1 text-display-sm font-semibold text-balance text-foreground">
+        {t(`home.greeting.${greetingKey(hourIn(summary?.timezone))}`, { name })}
       </h2>
-      <p className="mt-1 max-w-prose text-body-lg text-pretty text-muted-foreground">{subtitle}</p>
+      {headline ? (
+        <p className="mt-1 max-w-prose text-body-lg text-pretty text-muted-foreground">
+          {t(headline.key, {
+            ...headline.params,
+            ...(headline.at ? { time: clock(headline.at, locale, summary?.timezone) } : {}),
+          })}
+        </p>
+      ) : loading ? (
+        <Skeleton className="mt-2 h-5 w-72 max-w-full" />
+      ) : null}
     </div>
   );
 }
 
+/** Nothing assigned, scheduled or unread, and every source answered. */
+function isQuiet(summary: HomeSummary): boolean {
+  const { counts } = summary;
+  return (
+    summary.partial.length === 0 &&
+    summary.my_work.length === 0 &&
+    summary.upcoming_meetings.length === 0 &&
+    summary.inbox.length === 0 &&
+    counts.open + counts.overdue + counts.due_today + counts.meetings_today + counts.unread === 0
+  );
+}
+
 /**
- * The workspace home: today at a glance, the viewer's open work, meetings,
- * unread notifications and a brief, arranged by the viewer's own layout.
- * One request feeds every section; a failed source is labelled in its section
- * while the others keep working.
+ * The workspace home: today at a glance, the viewer's open work, meetings and
+ * unread notifications, arranged by the viewer's own layout. One request
+ * feeds every section; a failed source is labelled where it shows while the
+ * others keep working. A workspace with nothing waiting gets first steps
+ * instead of empty lists.
  */
 export function HomeView() {
   const { t } = useTranslation();
@@ -72,10 +96,16 @@ export function HomeView() {
   const retrying = summaryQuery.isFetching;
   const retry = () => void summaryQuery.refetch();
   const unusable = summaryQuery.isError || summaryQuery.data === null;
-  const briefLines = useMemo(() => (summary ? buildHomeBrief(summary) : []), [summary]);
-  // A brief with nothing to say is absent, so the layout never keeps a hole for it.
-  const enabled = visibleSections(prefs);
-  const visible = enabled.filter((key) => key !== "brief" || briefLines.length > 0);
+  const visible = visibleSections(prefs);
+  const lists = visible.some((key) => key !== "stats");
+  const quiet = summary !== undefined && lists && isQuiet(summary);
+  const compact = prefs.layout === "compact";
+
+  const resetLayout = () => {
+    const before = prefs;
+    reset();
+    toast(t("home.customize.reset_done"), { action: { label: t("home.customize.undo"), onClick: () => update(before) } });
+  };
 
   // Overdue and due today have no filtered list elsewhere to land on, so they
   // land on the first such task in My work here.
@@ -90,11 +120,10 @@ export function HomeView() {
 
   const sectionProps = { summary, loading, retrying, onRetry: retry };
   const sections: Record<HomeSectionKey, ReactNode> = {
-    stats: <HomeStats counts={summary?.counts} loading={loading} onShowWork={visible.includes("mywork") ? showWork : undefined} />,
+    stats: <HomeStats summary={summary} loading={loading} onShowWork={visible.includes("mywork") ? showWork : undefined} />,
     mywork: <HomeMyWork {...sectionProps} />,
     upcoming: <HomeUpcoming {...sectionProps} />,
     inbox: <HomeInbox {...sectionProps} />,
-    brief: <HomeBrief lines={briefLines} />,
   };
 
   const layout = prefs.layout;
@@ -140,48 +169,63 @@ export function HomeView() {
         tone={moduleTone("home")}
         title={t("home.title")}
         actions={
-          <>
-            <CollectionPageHeaderAction
-              icon={SlidersHorizontal}
-              label={t("home.actions.customize")}
-              aria-expanded={customizing}
-              aria-controls={customizing ? "home-customize" : undefined}
-              onClick={() => setCustomizing((open) => !open)}
-            />
-            <CollectionPageHeaderAction icon={RefreshCw} label={t("home.actions.refresh")} disabled={retrying} onClick={retry} />
-          </>
+          <CollectionPageHeaderAction
+            icon={SlidersHorizontal}
+            label={t("home.actions.customize")}
+            aria-haspopup="dialog"
+            aria-expanded={customizing}
+            onClick={() => setCustomizing(true)}
+          />
         }
       />
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-7xl space-y-5 px-4 pt-6 pb-10 md:px-6">
-          <HomeGreeting name={user.display_name} summary={summary} />
-          {customizing ? (
-            <HomeCustomizePanel prefs={prefs} saving={saving} onChange={update} onReset={reset} onClose={() => setCustomizing(false)} />
-          ) : null}
+        <div className={cn("mx-auto w-full space-y-5 px-4 pt-5 pb-10 md:px-6", compact ? "max-w-3xl" : "max-w-7xl")}>
+          <HomeGreeting name={user.display_name} summary={summary} loading={loading} />
           {unusable ? (
-            <CollectionPageState
-              role="alert"
-              icon={TriangleAlert}
-              title={t("home.error.title")}
-              description={t("home.error.description")}
-              actions={
-                <Button type="button" variant="outline" size="sm" disabled={retrying} onClick={retry}>
-                  {t("home.error.retry")}
-                </Button>
-              }
-            />
-          ) : enabled.length === 0 ? (
-            <div role="status" className="flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-border p-6 text-body text-muted-foreground">
-              <span>{t("home.customize.all_hidden")}</span>
-              <Button type="button" variant="outline" size="sm" onClick={() => setCustomizing(true)}>
-                {t("home.customize.open")}
-              </Button>
+            <div className="rounded-xl border border-surface-border bg-surface">
+              <CollectionPageState
+                role="alert"
+                icon={TriangleAlert}
+                tone="destructive"
+                title={t("home.error.title")}
+                description={t("home.error.description")}
+                className="py-12"
+                actions={
+                  <Button type="button" variant="outline" size="sm" disabled={retrying} onClick={retry}>
+                    {t("home.error.retry")}
+                  </Button>
+                }
+              />
             </div>
+          ) : visible.length === 0 ? (
+            <div role="status" className="rounded-xl border border-dashed border-border">
+              <CollectionPageState
+                icon={LayoutDashboard}
+                title={t("home.customize.all_hidden")}
+                description={t("home.customize.all_hidden_hint")}
+                className="py-12"
+                actions={
+                  <Button type="button" variant="outline" size="sm" onClick={() => setCustomizing(true)}>
+                    {t("home.customize.open")}
+                  </Button>
+                }
+              />
+            </div>
+          ) : quiet ? (
+            <HomeStart />
           ) : (
             <div className="space-y-4">{grid}</div>
           )}
         </div>
       </div>
+      <HomeCustomizePanel
+        open={customizing}
+        prefs={prefs}
+        saving={saving}
+        onChange={update}
+        onReset={resetLayout}
+        onClose={() => setCustomizing(false)}
+      />
     </div>
   );
 }

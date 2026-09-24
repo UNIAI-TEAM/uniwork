@@ -9,7 +9,7 @@ initI18n();
 
 function renderPanel() {
   const props = { onChange: vi.fn(), onReset: vi.fn(), onClose: vi.fn() };
-  render(wrap(<HomeCustomizePanel prefs={DEFAULT_HOME_PREFS} saving={false} {...props} />));
+  render(wrap(<HomeCustomizePanel open prefs={DEFAULT_HOME_PREFS} saving={false} {...props} />));
   return props;
 }
 
@@ -23,9 +23,9 @@ describe("HomeCustomizePanel", () => {
   it("moves a section and cannot move past either end", () => {
     const { onChange } = renderPanel();
     expect(screen.getByRole("button", { name: "Đưa Tổng quan hôm nay lên" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Đưa Tóm tắt hôm nay xuống" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Đưa Hộp việc xuống" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Đưa Sắp tới lên" }));
-    expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_HOME_PREFS, order: ["stats", "upcoming", "mywork", "inbox", "brief"] });
+    expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_HOME_PREFS, order: ["stats", "upcoming", "mywork", "inbox"] });
   });
 
   it("marks the current density and switches it", () => {
@@ -37,6 +37,7 @@ describe("HomeCustomizePanel", () => {
 
   it("applies a preset, resets and closes", () => {
     const { onChange, onReset, onClose } = renderPanel();
+    expect(screen.getByRole("button", { name: /Tối giản/ })).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(screen.getByRole("button", { name: /Tối giản/ }));
     expect(onChange).toHaveBeenCalledWith(HOME_PRESETS.find((p) => p.key === "minimal")!.prefs);
     fireEvent.click(screen.getByRole("button", { name: "Đặt lại" }));
@@ -44,4 +45,10 @@ describe("HomeCustomizePanel", () => {
     expect(onReset).toHaveBeenCalled();
     expect(onClose).toHaveBeenCalled();
   });
+});
+
+it("marks the preset the current layout matches", () => {
+  const doer = HOME_PRESETS.find((p) => p.key === "doer")!.prefs;
+  render(wrap(<HomeCustomizePanel open prefs={doer} saving={false} onChange={vi.fn()} onReset={vi.fn()} onClose={vi.fn()} />));
+  expect(screen.getByRole("button", { name: /Người thực thi/ })).toHaveAttribute("aria-pressed", "true");
 });

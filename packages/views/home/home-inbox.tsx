@@ -7,7 +7,6 @@ import { useArchive } from "@uniwork/core/notifications";
 import { paths } from "@uniwork/core/paths";
 import type { HomeSummary } from "@uniwork/core/types/home";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
-import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { PanelCard } from "../common/panel-card";
 import { CollectionPageState } from "../layout/collection-page";
@@ -17,10 +16,11 @@ import { AppLink } from "../navigation";
 import { NotificationRow } from "../notifications/notification-row";
 import { resourceHref } from "../notifications/resource-href";
 import { HomePartialNotice } from "./home-partial-notice";
+import { HomeInboxRowsSkeleton } from "./home-skeletons";
 
 /**
  * The newest unread notifications of this workspace, in the same rows the
- * inbox uses. Opening one marks it read and follows it to its resource.
+ * inbox uses, without the unread bar that every row here would carry. Opening one marks it read and follows it to its resource.
  */
 export function HomeInbox({
   summary,
@@ -39,6 +39,7 @@ export function HomeInbox({
   const read = useReadHomeNotification(workspace.id);
   const archive = useArchive();
   const items = summary?.inbox ?? [];
+  const failed = summary?.partial.includes("notifications") ?? false;
 
   return (
     <PanelCard
@@ -47,7 +48,7 @@ export function HomeInbox({
       icon={Inbox}
       iconTone={moduleTone("inbox")}
       flush
-      className="h-full"
+      className="shadow-none"
       action={
         <AppLink href={ws.inbox()} className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
           {t("home.inbox.view_all")}
@@ -55,16 +56,10 @@ export function HomeInbox({
         </AppLink>
       }
     >
-      {summary?.partial.includes("notifications") ? (
-        <HomePartialNotice source="notifications" onRetry={onRetry} retrying={retrying} />
-      ) : null}
+      {failed ? <HomePartialNotice source="notifications" onRetry={onRetry} retrying={retrying} /> : null}
       {loading ? (
-        <div className="space-y-2 p-4">
-          {[0, 1, 2].map((i) => (
-            <Skeleton key={i} className="h-10 w-full" />
-          ))}
-        </div>
-      ) : items.length === 0 ? (
+        <HomeInboxRowsSkeleton />
+      ) : failed && items.length === 0 ? null : items.length === 0 ? (
         <CollectionPageState
           className="py-6"
           icon={Inbox}
@@ -85,6 +80,8 @@ export function HomeInbox({
               notification={n}
               href={resourceHref(n, workspace)}
               compact
+              // Every row here is unread, so the unread bar would mark them all.
+              unreadBar={false}
               onOpen={(row) => {
                 if (!row.read_at) read(row.id);
               }}

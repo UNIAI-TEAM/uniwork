@@ -1896,15 +1896,22 @@
       "afternoon": "Chào buổi chiều, {{name}}",
       "evening": "Chào buổi tối, {{name}}"
     },
-    "subtitle": {
-      "loading": "Đây là công việc của bạn hôm nay",
-      "attention_one": "Hôm nay có {{count}} việc cần bạn chú ý",
-      "attention_other": "Hôm nay có {{count}} việc cần bạn chú ý",
-      "clear": "Hôm nay bạn không có việc gấp"
+    "headline": {
+      "partial": "Một phần dữ liệu chưa tải được, số liệu dưới đây có thể thiếu.",
+      "overdue_one": "Nên xử lý trước: “{{title}}”, đã quá hạn {{count}} ngày.",
+      "overdue_other": "Nên xử lý trước: “{{title}}”, đã quá hạn {{count}} ngày.",
+      "overdue_plain_one": "{{count}} việc đang quá hạn, bắt đầu từ việc cũ nhất.",
+      "overdue_plain_other": "{{count}} việc đang quá hạn, bắt đầu từ việc cũ nhất.",
+      "live": "“{{title}}” đang diễn ra.",
+      "meeting": "Cuộc họp kế tiếp lúc {{time}}: “{{title}}”.",
+      "due_today_one": "{{count}} việc đến hạn hôm nay, chưa có việc nào quá hạn.",
+      "due_today_other": "{{count}} việc đến hạn hôm nay, chưa có việc nào quá hạn.",
+      "unread_one": "Không có việc gấp. {{count}} thông báo đang chờ bạn đọc.",
+      "unread_other": "Không có việc gấp. {{count}} thông báo đang chờ bạn đọc.",
+      "clear": "Hôm nay bạn không có việc gấp."
     },
     "actions": {
-      "customize": "Tuỳ chỉnh",
-      "refresh": "Làm mới"
+      "customize": "Tuỳ chỉnh"
     },
     "stats": {
       "label": "Tổng quan hôm nay",
@@ -1912,7 +1919,13 @@
       "overdue": "quá hạn",
       "meetings_today": "cuộc họp hôm nay",
       "unread": "chưa đọc",
-      "item": "{{count}} {{label}}"
+      "item": "{{count}} {{label}}",
+      "failed": "Chưa tải được",
+      "failed_item": "{{label}}: chưa tải được",
+      "oldest_one": "Lâu nhất {{count}} ngày",
+      "oldest_other": "Lâu nhất {{count}} ngày",
+      "next": "Kế tiếp {{time}}",
+      "live": "Đang diễn ra"
     },
     "section": {
       "stats": "Tổng quan hôm nay",
@@ -1922,9 +1935,7 @@
       "upcoming": "Sắp tới",
       "upcoming_description": "Cuộc họp đang diễn ra, hôm nay và ngày mai",
       "inbox": "Hộp việc",
-      "inbox_description": "Thông báo chưa đọc của workspace này",
-      "brief": "Tóm tắt hôm nay",
-      "brief_description": "Vài câu rút từ chính số liệu trên"
+      "inbox_description": "Thông báo chưa đọc của workspace này"
     },
     "mywork": {
       "view_all": "Xem tất cả",
@@ -1951,7 +1962,15 @@
       "no_due": "Chưa đặt hạn",
       "empty_title": "Không có việc cần xử lý",
       "empty_description": "Không có việc mở nào được giao cho bạn. Việc được giao sẽ hiện ở đây, gấp nhất trước.",
-      "empty_action": "Mở danh sách công việc"
+      "empty_action": "Mở danh sách công việc",
+      "group": {
+        "overdue": "Quá hạn",
+        "today": "Hôm nay",
+        "later": "Sắp tới",
+        "none": "Chưa đặt hạn"
+      },
+      "more_one": "Còn {{count}} việc nữa",
+      "more_other": "Còn {{count}} việc nữa"
     },
     "upcoming": {
       "view_all": "Xem tất cả",
@@ -1959,32 +1978,20 @@
       "tomorrow": "Ngày mai",
       "live": "Đang diễn ra",
       "join": "Vào họp",
-      "open": "Mở",
       "empty_title": "Không có cuộc họp",
       "empty_description": "Bạn không có cuộc họp nào hôm nay và ngày mai.",
-      "empty_action": "Mở cuộc họp"
+      "empty_action": "Mở cuộc họp",
+      "minutes_one": "{{count}} phút",
+      "minutes_other": "{{count}} phút",
+      "hours_one": "{{count}} giờ",
+      "hours_other": "{{count}} giờ",
+      "hours_minutes": "{{hours}} giờ {{minutes}} phút"
     },
     "inbox": {
       "view_all": "Xem tất cả",
       "empty_title": "Hộp việc trống",
       "empty_description": "Không có thông báo nào đang chờ bạn trong workspace này.",
       "empty_action": "Mở hộp việc"
-    },
-    "brief": {
-      "title": "Tóm tắt hôm nay",
-      "badge": "Từ dữ liệu thật",
-      "overdue_one": "{{count}} việc đang quá hạn, cũ nhất là “{{title}}” (quá hạn {{days}} ngày).",
-      "overdue_other": "{{count}} việc đang quá hạn, cũ nhất là “{{title}}” (quá hạn {{days}} ngày).",
-      "overdue_plain_one": "{{count}} việc đang quá hạn.",
-      "overdue_plain_other": "{{count}} việc đang quá hạn.",
-      "meetings_one": "{{count}} cuộc họp còn lại hôm nay, gần nhất là “{{title}}”.",
-      "meetings_other": "{{count}} cuộc họp còn lại hôm nay, gần nhất là “{{title}}”.",
-      "meetings_plain_one": "{{count}} cuộc họp còn lại hôm nay.",
-      "meetings_plain_other": "{{count}} cuộc họp còn lại hôm nay.",
-      "due_today_one": "{{count}} việc đến hạn hôm nay.",
-      "due_today_other": "{{count}} việc đến hạn hôm nay.",
-      "unread_one": "{{count}} thông báo chưa đọc.",
-      "unread_other": "{{count}} thông báo chưa đọc."
     },
     "partial": {
       "tasks": "Không tải được danh sách công việc.",
@@ -1994,7 +2001,7 @@
     },
     "error": {
       "title": "Không tải được trang chủ",
-      "description": "Kết nối tới máy chủ đang có vấn đề. Thử lại sau giây lát.",
+      "description": "Máy chủ chưa trả được dữ liệu trang chủ. Thử lại sau giây lát.",
       "retry": "Thử lại"
     },
     "customize": {
@@ -2002,7 +2009,7 @@
       "description": "Bật hoặc tắt khối, đổi thứ tự và chọn mật độ. Thay đổi được lưu theo tài khoản.",
       "sections": "Khối hiển thị",
       "layout": "Mật độ bố cục",
-      "presets": "Preset nhanh",
+      "presets": "Mẫu có sẵn",
       "reset": "Đặt lại",
       "close": "Đóng",
       "saving": "Đang lưu…",
@@ -2010,7 +2017,10 @@
       "move_up": "Đưa {{section}} lên",
       "move_down": "Đưa {{section}} xuống",
       "all_hidden": "Bạn đã ẩn mọi khối trên trang chủ.",
-      "open": "Mở tuỳ chỉnh"
+      "open": "Mở tuỳ chỉnh",
+      "reset_done": "Đã đặt lại trang chủ về mặc định.",
+      "undo": "Hoàn tác",
+      "all_hidden_hint": "Bật lại khối cần xem trong Tuỳ chỉnh."
     },
     "layout": {
       "compact": "Gọn",
@@ -2022,11 +2032,21 @@
     },
     "preset": {
       "executive": "Điều hành",
-      "executive_description": "Số liệu, tóm tắt và hộp việc lên trước",
+      "executive_description": "Số liệu và hộp việc lên trước, ẩn lịch họp",
       "doer": "Người thực thi",
-      "doer_description": "Ưu tiên việc cần làm và lịch sắp tới",
+      "doer_description": "Việc cần làm và lịch sắp tới, ẩn hộp việc",
       "minimal": "Tối giản",
       "minimal_description": "Chỉ việc của tôi"
+    },
+    "start": {
+      "title": "Hôm nay chưa có gì chờ bạn",
+      "description": "Việc được giao, cuộc họp và thông báo của workspace sẽ hiện ở đây. Bắt đầu bằng một trong ba việc dưới.",
+      "create_task": "Tạo việc",
+      "create_task_hint": "Ghi lại việc cần làm, giao cho mình hoặc đồng đội",
+      "meeting": "Lên lịch họp",
+      "meeting_hint": "Hẹn giờ, mời người tham gia",
+      "invite": "Mời đồng đội",
+      "invite_hint": "Xem danh bạ và thêm người vào workspace"
     }
   },
   "capabilities": {

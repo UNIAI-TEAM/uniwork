@@ -4,8 +4,8 @@ import { assignWorkspaceTasksDueToday, clearE2EFlagOverride, setE2EFlagOverride 
 
 // Golden path for the home screen (spec 2026-09-14-home-trang-chu §7): with
 // home_page on, the workspace root is Home and the sidebar leads with it; work
-// assigned to me and due today is listed, and completing it from Home empties
-// the list. Requires `make dev`.
+// assigned to me and due today is listed, and completing it from Home takes
+// the row away. Requires `make dev`.
 const stamp = Date.now();
 const email = `home-${stamp}@example.com`;
 const orgSlug = `trang-chu-${stamp}`;
@@ -57,5 +57,7 @@ test("home lists my work due today and completes it", async ({ page }) => {
   await expect(list.getByText("Hạn hôm nay")).toBeVisible();
 
   await page.getByRole("button", { name: `Hoàn thành: ${title}` }).click();
-  await expect(page.getByText("Không có việc cần xử lý")).toBeVisible({ timeout: 15_000 });
+  // With nothing left the page shows either My work's empty state or, when
+  // nothing else is waiting either, the first-steps panel; the row is gone in both.
+  await expect(page.getByRole("button", { name: `Hoàn thành: ${title}` })).toHaveCount(0, { timeout: 15_000 });
 });

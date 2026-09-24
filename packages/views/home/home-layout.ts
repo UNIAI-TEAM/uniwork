@@ -6,21 +6,28 @@ import type { HomeLayout, HomeSectionKey } from "@uniwork/core/home/prefs";
  * `homeBalancedBands`.
  */
 export function homeGridClass(layout: Exclude<HomeLayout, "balanced">): string {
-  return layout === "compact" ? "mx-auto grid w-full max-w-3xl grid-cols-1 gap-4" : "grid grid-cols-1 gap-4 xl:grid-cols-3";
+  return layout === "compact"
+    ? "grid w-full grid-cols-1 gap-4"
+    : "grid grid-cols-1 gap-4 xl:grid-cols-4 xl:items-start";
 }
 
-/** Stats and brief always run full width; in wide every other section takes one column. */
+/**
+ * Wide runs on four tracks so the sections below line up with the four stat
+ * tiles: the stats span all four, my work takes two, upcoming and inbox one
+ * each.
+ */
 export function homeSpanClass(key: HomeSectionKey, layout: Exclude<HomeLayout, "balanced">): string {
   if (layout === "compact") return "min-w-0";
-  if (key === "stats" || key === "brief") return "min-w-0 xl:col-span-3";
+  if (key === "stats") return "min-w-0 xl:col-span-4";
+  if (key === "mywork") return "min-w-0 xl:col-span-2";
   return "min-w-0";
 }
 
-/** The short sections: they sit beside the long lists instead of stretching to match them. */
-const ASIDE_SECTIONS: ReadonlySet<HomeSectionKey> = new Set(["upcoming", "brief"]);
+/** The companion sections: they sit beside my work instead of below it. */
+const ASIDE_SECTIONS: ReadonlySet<HomeSectionKey> = new Set(["upcoming", "inbox"]);
 
-/** Spelled out so Tailwind sees every class; there are five sections at most. */
-const ORDER_CLASS = ["order-1", "order-2", "order-3", "order-4", "order-5"] as const;
+/** Spelled out so Tailwind sees every class; there are four sections at most. */
+const ORDER_CLASS = ["order-1", "order-2", "order-3", "order-4"] as const;
 
 export interface HomePlaced {
   key: HomeSectionKey;
@@ -32,9 +39,9 @@ export type HomeBand = { kind: "row"; key: HomeSectionKey } | { kind: "split"; m
 
 /**
  * Balanced density. The day's figures run full width; the sections between
- * them split into a main column (my work, inbox) and an aside (upcoming,
- * brief), so a three-row meeting list never stretches beside an eight-row task
- * list. A run with nothing for one side stays a single column. Below `xl` the
+ * them split into a main column (my work) and an aside (upcoming, inbox), so
+ * the two short lists stack beside the long one instead of the inbox falling
+ * below the fold. A run with nothing for one side stays a single column. Below `xl` the
  * columns dissolve and each section's order class restores the saved order.
  */
 export function homeBalancedBands(keys: readonly HomeSectionKey[]): HomeBand[] {

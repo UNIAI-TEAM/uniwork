@@ -1,25 +1,39 @@
 "use client";
 
-import { ArrowDown, ArrowUp, RotateCcw, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { HOME_LAYOUTS, HOME_PRESETS, moveSection, type HomePrefs } from "@uniwork/core/home/prefs";
+import { HOME_LAYOUTS, HOME_PRESETS, activePreset, moveSection, type HomePrefs } from "@uniwork/core/home/prefs";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@uniwork/ui/components/ui/sheet";
 import { Switch } from "@uniwork/ui/components/ui/switch";
 import { cn } from "@uniwork/ui/lib/utils";
 
-const OPTION_CLASS = "h-auto flex-col items-start gap-0.5 whitespace-normal px-3 py-2 text-left";
+const OPTION_CLASS = "h-auto w-full justify-between gap-3 whitespace-normal px-3 py-2 text-left";
+
+function OptionText({ title, hint }: { title: string; hint: string }) {
+  return (
+    <span className="flex min-w-0 flex-col items-start gap-0.5">
+      <span className="text-body font-medium">{title}</span>
+      <span className="text-caption text-muted-foreground">{hint}</span>
+    </span>
+  );
+}
 
 /**
- * Show or hide sections, move them up or down, pick a density or a preset.
- * Every change is saved at once; there is no apply step to forget.
+ * Show or hide sections, move them up or down, pick a density or a preset,
+ * in a panel beside the page so the page itself stays where it was and every
+ * change shows behind it. Every change is saved at once; there is no apply
+ * step to forget. Reset is undoable from its toast (see HomeView).
  */
 export function HomeCustomizePanel({
+  open,
   prefs,
   saving,
   onChange,
   onReset,
   onClose,
 }: {
+  open: boolean;
   prefs: HomePrefs;
   saving: boolean;
   onChange: (next: HomePrefs) => void;
@@ -27,113 +41,122 @@ export function HomeCustomizePanel({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
+  const preset = activePreset(prefs);
 
   return (
-    <section
-      id="home-customize"
-      aria-labelledby="home-customize-title"
-      className="rounded-xl border border-surface-border bg-surface p-4 shadow-[var(--surface-shadow)]"
-    >
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 id="home-customize-title" className="text-body font-semibold text-foreground">
-            {t("home.customize.title")}
-          </h2>
-          <p className="mt-0.5 text-caption text-muted-foreground">{t("home.customize.description")}</p>
+    <Sheet open={open} onOpenChange={(next) => !next && onClose()}>
+      <SheetContent id="home-customize" closeLabel={t("home.customize.close")} className="w-full gap-0 sm:max-w-md">
+        <SheetHeader className="border-b border-border pr-12">
+          <SheetTitle>{t("home.customize.title")}</SheetTitle>
+          <SheetDescription className="text-caption">{t("home.customize.description")}</SheetDescription>
+        </SheetHeader>
+
+        <div className="min-h-0 flex-1 space-y-6 overflow-y-auto p-4">
+          <section aria-labelledby="home-customize-sections">
+            <h3 id="home-customize-sections" className="text-label font-medium text-foreground">
+              {t("home.customize.sections")}
+            </h3>
+            <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
+              {prefs.order.map((key, idx) => {
+                const label = t(`home.section.${key}`);
+                return (
+                  <li key={key} className="flex items-center gap-3 px-3 py-2">
+                    <Switch
+                      checked={prefs.enabled[key]}
+                      onCheckedChange={(value) => onChange({ ...prefs, enabled: { ...prefs.enabled, [key]: value } })}
+                      aria-label={label}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className={cn("block text-body", prefs.enabled[key] ? "text-foreground" : "text-muted-foreground")}>
+                        {label}
+                      </span>
+                      <span className="block text-caption text-pretty text-muted-foreground">{t(`home.section.${key}_description`)}</span>
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={idx === 0}
+                      onClick={() => onChange({ ...prefs, order: moveSection(prefs.order, key, -1) })}
+                      aria-label={t("home.customize.move_up", { section: label })}
+                    >
+                      <ArrowUp aria-hidden />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={idx === prefs.order.length - 1}
+                      onClick={() => onChange({ ...prefs, order: moveSection(prefs.order, key, 1) })}
+                      aria-label={t("home.customize.move_down", { section: label })}
+                    >
+                      <ArrowDown aria-hidden />
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+
+          <section aria-labelledby="home-customize-layout">
+            <h3 id="home-customize-layout" className="text-label font-medium text-foreground">
+              {t("home.customize.layout")}
+            </h3>
+            <div className="mt-2 grid gap-2">
+              {HOME_LAYOUTS.map((layout) => {
+                const current = prefs.layout === layout;
+                return (
+                  <Button
+                    key={layout}
+                    type="button"
+                    variant={current ? "brandSubtle" : "outline"}
+                    aria-pressed={current}
+                    onClick={() => onChange({ ...prefs, layout })}
+                    className={OPTION_CLASS}
+                  >
+                    <OptionText title={t(`home.layout.${layout}`)} hint={t(`home.layout.${layout}_hint`)} />
+                    {current ? <Check aria-hidden className="shrink-0" /> : null}
+                  </Button>
+                );
+              })}
+            </div>
+          </section>
+
+          <section aria-labelledby="home-customize-presets">
+            <h3 id="home-customize-presets" className="text-label font-medium text-foreground">
+              {t("home.customize.presets")}
+            </h3>
+            <div className="mt-2 grid gap-2">
+              {HOME_PRESETS.map(({ key, prefs: next }) => {
+                const current = preset === key;
+                return (
+                  <Button
+                    key={key}
+                    type="button"
+                    variant={current ? "brandSubtle" : "outline"}
+                    aria-pressed={current}
+                    onClick={() => onChange(next)}
+                    className={OPTION_CLASS}
+                  >
+                    <OptionText title={t(`home.preset.${key}`)} hint={t(`home.preset.${key}_description`)} />
+                    {current ? <Check aria-hidden className="shrink-0" /> : null}
+                  </Button>
+                );
+              })}
+            </div>
+          </section>
         </div>
-        <div className="flex items-center gap-2">
-          {saving ? (
-            <span role="status" className="text-caption text-muted-foreground">
-              {t("home.customize.saving")}
-            </span>
-          ) : null}
+
+        <SheetFooter className="flex-row items-center justify-between border-t border-border">
+          <span role="status" className="text-caption text-muted-foreground">
+            {saving ? t("home.customize.saving") : null}
+          </span>
           <Button type="button" variant="outline" size="sm" onClick={onReset}>
             <RotateCcw aria-hidden />
             {t("home.customize.reset")}
           </Button>
-          <Button type="button" variant="ghost" size="icon-sm" onClick={onClose} aria-label={t("home.customize.close")}>
-            <X aria-hidden />
-          </Button>
-        </div>
-      </div>
-
-      <div className="mt-4 grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <div>
-          <h3 className="text-caption font-medium text-muted-foreground">{t("home.customize.sections")}</h3>
-          <ul className="mt-2 divide-y divide-border rounded-lg border border-border">
-            {prefs.order.map((key, idx) => {
-              const label = t(`home.section.${key}`);
-              return (
-                <li key={key} className="flex items-center gap-3 px-3 py-2">
-                  <Switch
-                    checked={prefs.enabled[key]}
-                    onCheckedChange={(value) => onChange({ ...prefs, enabled: { ...prefs.enabled, [key]: value } })}
-                    aria-label={label}
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className={cn("block truncate text-body", prefs.enabled[key] ? "text-foreground" : "text-muted-foreground")}>
-                      {label}
-                    </span>
-                    <span className="block truncate text-caption text-muted-foreground">{t(`home.section.${key}_description`)}</span>
-                  </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    disabled={idx === 0}
-                    onClick={() => onChange({ ...prefs, order: moveSection(prefs.order, key, -1) })}
-                    aria-label={t("home.customize.move_up", { section: label })}
-                  >
-                    <ArrowUp aria-hidden />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    disabled={idx === prefs.order.length - 1}
-                    onClick={() => onChange({ ...prefs, order: moveSection(prefs.order, key, 1) })}
-                    aria-label={t("home.customize.move_down", { section: label })}
-                  >
-                    <ArrowDown aria-hidden />
-                  </Button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-
-        <div className="space-y-5">
-          <div>
-            <h3 className="text-caption font-medium text-muted-foreground">{t("home.customize.layout")}</h3>
-            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-              {HOME_LAYOUTS.map((layout) => (
-                <Button
-                  key={layout}
-                  type="button"
-                  variant={prefs.layout === layout ? "brandSubtle" : "outline"}
-                  aria-pressed={prefs.layout === layout}
-                  onClick={() => onChange({ ...prefs, layout })}
-                  className={OPTION_CLASS}
-                >
-                  <span className="text-body font-medium">{t(`home.layout.${layout}`)}</span>
-                  <span className="text-caption text-muted-foreground">{t(`home.layout.${layout}_hint`)}</span>
-                </Button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <h3 className="text-caption font-medium text-muted-foreground">{t("home.customize.presets")}</h3>
-            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-              {HOME_PRESETS.map((preset) => (
-                <Button key={preset.key} type="button" variant="outline" onClick={() => onChange(preset.prefs)} className={OPTION_CLASS}>
-                  <span className="text-body font-medium">{t(`home.preset.${preset.key}`)}</span>
-                  <span className="text-caption text-muted-foreground">{t(`home.preset.${preset.key}_description`)}</span>
-                </Button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }
