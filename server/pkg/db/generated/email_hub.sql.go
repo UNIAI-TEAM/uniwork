@@ -1381,6 +1381,9 @@ UPDATE email_hub_scheduled_sends
 SET status = 'failed',
     last_error = $2
 WHERE id = $1
+  -- A user cancel that lands mid-send stays cancelled; it must not resurface
+  -- as a retryable failure.
+  AND status = 'pending'
 `
 
 type MarkEmailHubScheduledSendFailedParams struct {

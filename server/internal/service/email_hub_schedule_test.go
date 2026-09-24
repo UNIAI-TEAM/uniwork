@@ -322,3 +322,33 @@ func TestEmailHubRetryScheduledSend(t *testing.T) {
 		t.Fatalf("retry unconfigured: %v", err)
 	}
 }
+
+// A cancel that lands while the worker is mid-send must stay cancelled: a late
+// failure report cannot turn it into a retryable failed row.
+func TestEmailHubScheduledSendFailureKeepsCancelled(t *testing.T) {
+	svc, q, user, ws, pool := emailHubFixture(t)
+	ctx := context.Background()
+	actor := Human(user.ID)
+	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
+	sent, err := svc.ScheduleSend(ctx, actor, ws.ID, SendEmailHubInput{
+		AccountID: acc.ID, To: []string{"dest@example.com"}, Subject: "Soon", BodyText: "Hi",
+	}, time.Now().UTC().Add(2*time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.CancelScheduledSend(ctx, actor, ws.ID, acc.ID, sent.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.MarkEmailHubScheduledSendFailed(ctx, db.MarkEmailHubScheduledSendFailedParams{
+		ID: sent.ID, LastError: pgtype.Text{String: "smtp: timeout", Valid: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var status string
+	if err := pool.QueryRow(ctx, `SELECT status FROM email_hub_scheduled_sends WHERE id=$1`, sent.ID).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != "cancelled" {
+		t.Fatalf("status = %q, want cancelled", status)
+	}
+}

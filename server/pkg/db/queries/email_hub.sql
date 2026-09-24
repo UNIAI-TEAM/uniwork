@@ -427,7 +427,10 @@ WHERE id = $1;
 UPDATE email_hub_scheduled_sends
 SET status = 'failed',
     last_error = $2
-WHERE id = $1;
+WHERE id = $1
+  -- A user cancel that lands mid-send stays cancelled; it must not resurface
+  -- as a retryable failure.
+  AND status = 'pending';
 
 -- name: ListEmailHubOpenScheduledSends :many
 -- Open = still the user's concern: pending (waiting to go out) or failed (the
