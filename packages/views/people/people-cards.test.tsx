@@ -26,6 +26,7 @@ const many = Array.from({ length: 500 }, (_, i) => person(i));
 
 function renderCards({
   people = [person(1)],
+  total = undefined as number | undefined,
   hasNextPage = false,
   onLoadMore = vi.fn(),
 }) {
@@ -33,6 +34,7 @@ function renderCards({
     wrapWithNav(
       <PeopleCards
         people={people}
+        total={total ?? people.length}
         hrefFor={(id) => `/acme/doi/people/${id}`}
         hasNextPage={hasNextPage}
         isFetchingNextPage={false}
@@ -93,6 +95,7 @@ describe("PeopleCards", () => {
       wrapWithNav(
         <PeopleCards
           people={[person(1), { ...person(2), is_self: true }, { ...person(3), status: "deactivated" }]}
+          total={3}
           hrefFor={(id) => `/acme/doi/people/${id}`}
           hasNextPage={false}
           isFetchingNextPage={false}
@@ -127,11 +130,17 @@ describe("PeopleCards", () => {
     expect(first).toHaveAttribute("aria-setsize", "500");
   });
 
+  it("states the directory's size as the server counts it, not the page loaded", () => {
+    renderCards({ people: [person(1), person(2)], total: 240, hasNextPage: true });
+    expect(screen.getAllByRole("listitem")[0]).toHaveAttribute("aria-setsize", "240");
+  });
+
   it("shows card-shaped placeholders while the next page loads", () => {
     render(
       wrapWithNav(
         <PeopleCards
           people={[person(1)]}
+          total={1}
           hrefFor={(id) => `/acme/doi/people/${id}`}
           hasNextPage
           isFetchingNextPage

@@ -1,7 +1,7 @@
 "use client";
 
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
-import { PERSON_CARD_HEIGHT } from "./person-card";
+import { CARD_GAP_REM, PERSON_CARD_HEIGHT_REM } from "./person-card";
 
 /**
  * What the directory shows while it is loading, in both views.
@@ -12,11 +12,11 @@ import { PERSON_CARD_HEIGHT } from "./person-card";
  * is what keeps them honest — they are not decorative bars.
  */
 
-const CARD_GAP = 12;
+const CARD_GAP = `${CARD_GAP_REM}rem`;
 
 function CardShape() {
   return (
-    <div style={{ height: PERSON_CARD_HEIGHT + CARD_GAP, paddingBottom: CARD_GAP }}>
+    <div style={{ height: `${PERSON_CARD_HEIGHT_REM + CARD_GAP_REM}rem`, paddingBottom: CARD_GAP }}>
       <div className="flex h-full flex-col rounded-xl border border-surface-border bg-surface">
         <div className="flex flex-1 items-start gap-3 px-3.5 pt-3.5">
           <Skeleton className="size-10 shrink-0 rounded-full" />

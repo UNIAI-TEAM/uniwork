@@ -27,6 +27,7 @@ import {
   PopoverTrigger,
 } from "@uniwork/ui/components/ui/popover";
 import { Switch } from "@uniwork/ui/components/ui/switch";
+import { cn } from "@uniwork/ui/lib/utils";
 
 /**
  * One row of controls above the directory: search on the left, and on the
@@ -152,14 +153,12 @@ export function PeopleToolbar({
             </Button>
           ) : null}
         </div>
-        {matching !== null ? (
-          <span
-            role="status"
-            className="hidden shrink-0 text-caption tabular-nums text-muted-foreground sm:inline"
-          >
-            {t("people.result_count", { count: matching })}
-          </span>
-        ) : null}
+        {/* Always mounted, so the count is announced when it appears rather
+            than arriving with the region; on phones it is only visually
+            hidden, so a screen reader there still hears it. */}
+        <span role="status" className="shrink-0 text-caption tabular-nums text-muted-foreground max-sm:sr-only">
+          {matching !== null ? t("people.result_count", { count: matching }) : ""}
+        </span>
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
@@ -254,12 +253,15 @@ export function PeopleToolbar({
         {/* Columns are the table's own affordance and the card view has none.
             It sits to the left of the view button in a flush-right group, so
             switching views never moves the view button the user just clicked —
-            only the controls left of it slide over. */}
+            only the controls left of it slide over. Below the table's wide
+            zone only name and title render and the switches would do nothing,
+            so the button is not offered there (the `people` container is the
+            directory's own pane, the same width the table measures). */}
         {isTable ? (
           <Popover>
             <PopoverTrigger
               render={
-                <Button variant="toolbar" size="sm" className={TOOLBAR_BUTTON}>
+                <Button variant="toolbar" size="sm" className={cn(TOOLBAR_BUTTON, "hidden @2xl/people:inline-flex")}>
                   <Settings2 aria-hidden="true" className="size-3.5" />
                   <span className="max-md:sr-only">{t("people.display")}</span>
                 </Button>

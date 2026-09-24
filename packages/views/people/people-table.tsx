@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { useRef, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import type { PeopleColumnKey } from "@uniwork/core/people/view-store";
 import type { Person } from "@uniwork/core/types/people";
@@ -17,6 +17,7 @@ import {
 } from "@uniwork/ui/components/ui/list-grid";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink, useNavigation } from "../navigation";
+import { EdgeFades, useHorizontalOverflow } from "./edge-fades";
 import { DeactivatedBadge, RoleBadge, SelfTag } from "./person-badges";
 import { PersonAvatar } from "./person-avatar";
 import { PeopleRowsSkeleton } from "./people-skeleton";
@@ -26,6 +27,7 @@ import {
   useScrollViewport,
   useWindowedRows,
 } from "./use-people-virtualizer";
+import { useRemPx } from "./use-rem-px";
 
 /**
  * The dense view: one person a row, one fact a column.
@@ -38,52 +40,60 @@ import {
  * edge that has more says so, because a clipped column with no cue reads as
  * the end of the table.
  *
- * Only a band of rows is in the DOM at any time, so the table states its true
- * row count and each row its own index: a screen reader must not be told the
- * window is the directory.
+ * Only a band of rows is in the DOM at any time, so the table states the
+ * directory's row count (as the server counts it, not the rows loaded so far)
+ * and each row its own index: a screen reader must not be told the window is
+ * the directory.
+ *
+ * Widths and the row height are in rem, so the table grows with the reader's
+ * text size; the windowing converts the row height at that size.
  */
 
-const ROW_HEIGHT = 48;
+/** The row's `h-12`, in rem. */
+const ROW_HEIGHT_REM = 3;
 
 // Sized so name, title and every optional column fit a 1440px window with the
 // sidebar open; below that the pane scrolls.
-const COLUMN_WIDTHS: Record<PeopleColumnKey, number> = {
-  department: 152,
-  email: 212,
-  phone: 124,
-  role: 112,
-  status: 120,
+const COLUMN_WIDTHS_REM: Record<PeopleColumnKey, number> = {
+  department: 9.5,
+  email: 13.25,
+  phone: 7.75,
+  role: 7,
+  status: 7.5,
 };
 
-// Fixed tracks: edges 20 + 20, name min 184, title min 128 = 352, plus the
-// eight gap-x-3 gaps between the wide template's nine tracks.
-const FIXED_TRACKS_WIDTH = 352 + 8 * 12;
+// Fixed tracks: edges 1.25 + 1.25, name min 11.5, title min 8 = 22, plus the
+// eight gap-x-3 (0.75rem) gaps between the wide template's nine tracks.
+const FIXED_TRACKS_WIDTH_REM = 22 + 8 * 0.75;
 
 // Render/track order: name, title, department, email, phone, role, status.
 // MUST be a literal string — Tailwind cannot see an interpolated
 // `grid-cols-[...]`, and an interpolated width silently drops the whole
-// template, collapsing the grid to one column.
+// template, collapsing the grid to one column. Name and title share the
+// spare width evenly: names are short, and the title is what was being cut.
 const GRID_COLS =
-  "grid-cols-[1.25rem_minmax(140px,1.4fr)_minmax(96px,1fr)_1.25rem] " +
-  "@2xl:grid-cols-[1.25rem_minmax(184px,1.4fr)_minmax(128px,1fr)_var(--pc-department)_var(--pc-email)_var(--pc-phone)_var(--pc-role)_var(--pc-status)_1.25rem]";
+  "grid-cols-[1.25rem_minmax(8.75rem,1.4fr)_minmax(6rem,1fr)_1.25rem] " +
+  "@2xl:grid-cols-[1.25rem_minmax(11.5rem,1fr)_minmax(8rem,1fr)_var(--pc-department)_var(--pc-email)_var(--pc-phone)_var(--pc-role)_var(--pc-status)_1.25rem]";
 
 function columnTrackVars(isVisible: (key: PeopleColumnKey) => boolean): CSSProperties {
-  const keys = Object.keys(COLUMN_WIDTHS) as PeopleColumnKey[];
+  const keys = Object.keys(COLUMN_WIDTHS_REM) as PeopleColumnKey[];
   const minWidth =
-    FIXED_TRACKS_WIDTH +
-    keys.reduce((sum, key) => sum + (isVisible(key) ? COLUMN_WIDTHS[key] : 0), 0);
+    FIXED_TRACKS_WIDTH_REM +
+    keys.reduce((sum, key) => sum + (isVisible(key) ? COLUMN_WIDTHS_REM[key] : 0), 0);
+  const track = (key: PeopleColumnKey) => (isVisible(key) ? `${COLUMN_WIDTHS_REM[key]}rem` : "0px");
   return {
-    "--pc-department": isVisible("department") ? `${COLUMN_WIDTHS.department}px` : "0px",
-    "--pc-email": isVisible("email") ? `${COLUMN_WIDTHS.email}px` : "0px",
-    "--pc-phone": isVisible("phone") ? `${COLUMN_WIDTHS.phone}px` : "0px",
-    "--pc-role": isVisible("role") ? `${COLUMN_WIDTHS.role}px` : "0px",
-    "--pc-status": isVisible("status") ? `${COLUMN_WIDTHS.status}px` : "0px",
-    "--pc-minw": `${minWidth}px`,
+    "--pc-department": track("department"),
+    "--pc-email": track("email"),
+    "--pc-phone": track("phone"),
+    "--pc-role": track("role"),
+    "--pc-status": track("status"),
+    "--pc-minw": `${minWidth}rem`,
   } as CSSProperties;
 }
 
 export function PeopleTable({
   people,
+  total,
   hrefFor,
   hiddenColumns,
   hasNextPage,
@@ -91,6 +101,8 @@ export function PeopleTable({
   onLoadMore,
 }: {
   people: Person[];
+  /** How many people the whole directory (under the current filters) holds. */
+  total: number;
   hrefFor: (userId: string) => string;
   hiddenColumns: PeopleColumnKey[];
   hasNextPage: boolean;
@@ -100,12 +112,14 @@ export function PeopleTable({
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const viewport = useScrollViewport(scrollRef);
+  const remPx = useRemPx();
   const rows = useWindowedRows({
     rowCount: people.length,
-    rowHeight: ROW_HEIGHT,
+    rowHeight: ROW_HEIGHT_REM * remPx,
     scrollRef,
     viewport,
-    scrollMargin: LIST_GRID_HEADER_HEIGHT,
+    // The header's height is given in pixels at the default 16px rem.
+    scrollMargin: (LIST_GRID_HEADER_HEIGHT * remPx) / 16,
   });
   useLoadMoreWhenAtEnd({
     lastRendered: rows.lastRendered,
@@ -122,12 +136,14 @@ export function PeopleTable({
       <div ref={scrollRef} className="@container min-h-0 flex-1 overflow-auto">
         <ListGrid
           aria-label={t("people.title")}
-          aria-rowcount={people.length + 1}
+          aria-rowcount={Math.max(total, people.length) + 1}
           className={`${GRID_COLS} @2xl:min-w-[var(--pc-minw)]`}
           style={columnTrackVars(isVisible)}
         >
           <ListGridHeader aria-rowindex={1}>
-            <ListGridHeaderCell>{t("people.column_name")}</ListGridHeaderCell>
+            {/* The server returns the directory in name order; saying so lets a
+                screen reader know where a name will be. */}
+            <ListGridHeaderCell aria-sort="ascending">{t("people.column_name")}</ListGridHeaderCell>
             <ListGridHeaderCell>{t("people.field_title")}</ListGridHeaderCell>
             <OptionalHeaderCell shown={isVisible("department")}>
               {t("people.department")}
@@ -168,45 +184,10 @@ export function PeopleTable({
         </ListGrid>
         {isFetchingNextPage ? <PeopleRowsSkeleton count={3} className="px-5" /> : null}
       </div>
-      {/* The edge that has more columns behind it fades, so a cut-off column
-          reads as "scroll for more" rather than as the table's end. */}
-      <div
-        aria-hidden="true"
-        className={cn(
-          "pointer-events-none absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-background to-transparent transition-opacity duration-[var(--duration-fast)]",
-          overflow.left ? "opacity-100" : "opacity-0",
-        )}
-      />
-      <div
-        aria-hidden="true"
-        className={cn(
-          "pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-background to-transparent transition-opacity duration-[var(--duration-fast)]",
-          overflow.right ? "opacity-100" : "opacity-0",
-        )}
-      />
+      {/* A cut-off column reads as "scroll for more", not as the table's end. */}
+      <EdgeFades overflow={overflow} />
     </div>
   );
-}
-
-/** Whether the scroller has content hidden past its left and right edges. */
-function useHorizontalOverflow(
-  ref: RefObject<HTMLDivElement | null>,
-  layoutKey: string,
-): { left: boolean; right: boolean } {
-  const [state, setState] = useState({ left: false, right: false });
-  useEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-    const measure = () => {
-      const max = element.scrollWidth - element.clientWidth;
-      const next = { left: element.scrollLeft > 1, right: max - element.scrollLeft > 1 };
-      setState((prev) => (prev.left === next.left && prev.right === next.right ? prev : next));
-    };
-    measure();
-    element.addEventListener("scroll", measure, { passive: true });
-    return () => element.removeEventListener("scroll", measure);
-  }, [ref, layoutKey]);
-  return state;
 }
 
 /**

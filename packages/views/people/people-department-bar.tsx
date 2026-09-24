@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import type { Department } from "@uniwork/core/types/people";
 import { tintForegroundClass } from "@uniwork/ui/components/common/icon-tile";
 import { cn } from "@uniwork/ui/lib/utils";
+import { EdgeFades, useHorizontalOverflow } from "./edge-fades";
 import { useDepartmentTint } from "./use-department-tint";
 
 /**
@@ -13,42 +14,56 @@ import { useDepartmentTint } from "./use-department-tint";
  * how many people are behind it before it is pressed.
  *
  * The tree is at most two levels. A child follows its parent and is named
- * with its parent for assistive tech, not by a dash drawn into the text. Archived departments are left out: nobody is filed under them any
- * more.
+ * with its parent for assistive tech, not by a dash drawn into the text.
+ * Archived departments are left out: nobody is filed under them any more.
+ *
+ * The counts are the server's active members, so they are shown only while
+ * the directory lists active people; beside a "deactivated" or "everyone"
+ * list they would contradict the rows under them. The row scrolls sideways
+ * on a narrow pane, and the edge with more chips behind it fades.
  */
 export function PeopleDepartmentBar({
   departments,
   value,
   onChange,
+  showCounts = true,
 }: {
   departments: Department[];
   value: string;
   onChange: (departmentId: string) => void;
+  /** Whether the per-department counts (active members) match the list shown. */
+  showCounts?: boolean;
 }) {
   const { t } = useTranslation();
   const items = useMemo(() => orderDepartments(departments), [departments]);
   const tintFor = useDepartmentTint();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const overflow = useHorizontalOverflow(scrollRef, `${items.length}|${showCounts}`);
   if (items.length === 0) return null;
 
   return (
-    <div
-      role="group"
-      aria-label={t("people.department")}
-      className="flex shrink-0 gap-1.5 overflow-x-auto px-4 pb-2 [scrollbar-width:none]"
-    >
-      <Chip selected={value === ""} onSelect={() => onChange("")} label={t("people.department_any")} />
-      {items.map(({ department, parentName }) => (
-        <Chip
-          key={department.id}
-          selected={value === department.id}
-          onSelect={() => onChange(value === department.id ? "" : department.id)}
-          label={department.name}
-          context={parentName ? t("people.department_child_of", { parent: parentName }) : undefined}
-          count={department.member_count}
-          countLabel={t("people.department_count", { count: department.member_count })}
-          dotClass={tintForegroundClass[tintFor(department.id)]}
-        />
-      ))}
+    <div className="relative shrink-0">
+      <div
+        ref={scrollRef}
+        role="group"
+        aria-label={t("people.department")}
+        className="flex gap-1.5 overflow-x-auto px-4 pb-2 [scrollbar-width:none]"
+      >
+        <Chip selected={value === ""} onSelect={() => onChange("")} label={t("people.department_any")} />
+        {items.map(({ department, parentName }) => (
+          <Chip
+            key={department.id}
+            selected={value === department.id}
+            onSelect={() => onChange(value === department.id ? "" : department.id)}
+            label={department.name}
+            context={parentName ? t("people.department_child_of", { parent: parentName }) : undefined}
+            count={showCounts ? department.member_count : undefined}
+            countLabel={t("people.department_count", { count: department.member_count })}
+            dotClass={tintForegroundClass[tintFor(department.id)]}
+          />
+        ))}
+      </div>
+      <EdgeFades overflow={overflow} className="bottom-2" />
     </div>
   );
 }
@@ -77,7 +92,7 @@ function Chip({
       aria-pressed={selected}
       onClick={onSelect}
       className={cn(
-        "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-label whitespace-nowrap transition-colors duration-[var(--duration-fast)] pointer-coarse:min-h-11 active:scale-[0.98]",
+        "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-label whitespace-nowrap transition-colors duration-[var(--duration-fast)] pointer-coarse:min-h-11 motion-safe:active:scale-[0.98]",
         selected
           ? "border-transparent bg-brand-subtle font-medium text-brand-subtle-foreground"
           : "border-border text-muted-foreground hover:bg-surface-hover hover:text-foreground",

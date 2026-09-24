@@ -4,7 +4,7 @@ import { setAccessToken } from "../session";
 import {
   archiveDepartment,
   createDepartment,
-  exportPeopleUrl,
+  exportPeopleCsv,
   getPerson,
   listDepartments,
   listPeople,
@@ -101,23 +101,24 @@ describe("people endpoints", () => {
     expect(vi.mocked(fetch).mock.calls[0]![1]).toMatchObject({ method: "PATCH" });
   });
 
-  it("exportPeopleUrl is a plain URL the browser can navigate to", () => {
-    expect(exportPeopleUrl("acme", "http://api.test")).toBe("http://api.test/api/v1/orgs/acme/people.csv");
-    expect(exportPeopleUrl("acme", "http://api.test", {})).toBe("http://api.test/api/v1/orgs/acme/people.csv");
-  });
-
-  it("exportPeopleUrl carries only the filters that are set", () => {
-    const url = new URL(
-      exportPeopleUrl("acme", "http://api.test", {
-        q: "Nguyễn An",
-        department_id: "d1",
-        manager_id: "",
-        role: "member",
-        status: undefined,
-      }),
-    );
+  it("exportPeopleCsv fetches the file with the reader's filters, only those that are set", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response("name\n", { status: 200, headers: { "Content-Type": "text/csv" } }));
+    const blob = await exportPeopleCsv("acme", {
+      q: "Nguyễn An",
+      department_id: "d1",
+      manager_id: "",
+      role: "member",
+      status: undefined,
+    });
+    expect(blob.type).toBe("text/csv");
+    const url = new URL(String(vi.mocked(fetch).mock.calls[0]![0]));
     expect(url.pathname).toBe("/api/v1/orgs/acme/people.csv");
     expect(Object.fromEntries(url.searchParams)).toEqual({ q: "Nguyễn An", department_id: "d1", role: "member" });
+  });
+
+  it("exportPeopleCsv throws on a refused export instead of saving the error body", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ error: { code: "forbidden", message: "no" } }, 403));
+    await expect(exportPeopleCsv("acme")).rejects.toMatchObject({ status: 403 });
   });
 
   it("listDepartments returns [] on a malformed response and defaults member_count", async () => {

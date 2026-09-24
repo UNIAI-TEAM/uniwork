@@ -10,8 +10,13 @@ import { PersonAvatar } from "./person-avatar";
 import { PersonQuickActions } from "./person-quick-actions";
 import { useDepartmentTint } from "./use-department-tint";
 
-/** Fixed card height in pixels — what lets the card grid be windowed honestly. */
-export const PERSON_CARD_HEIGHT = 112;
+/**
+ * Fixed card height — what lets the card grid be windowed honestly. In rem, so
+ * the card grows with the reader's text size instead of spilling out of it.
+ */
+export const PERSON_CARD_HEIGHT_REM = 7;
+/** Space between cards, across and down; paid as padding so windowing stays exact. */
+export const CARD_GAP_REM = 0.75;
 
 /**
  * One person, drawn as a card. The head is what people scan for — face, name,
@@ -23,7 +28,9 @@ export const PERSON_CARD_HEIGHT = 112;
  * Only the name is the link; it covers the card through a stretched
  * pseudo-element. That keeps the whole card clickable while the accessible
  * name of the link stays the person's name, instead of the four lines a
- * card-sized anchor would read out. The quick actions sit above it.
+ * card-sized anchor would read out. The quick actions sit above it. The
+ * link's focus ring is drawn on that pseudo-element, so a keyboard reader
+ * sees the whole card selected rather than a box around the name.
  */
 export function PersonCard({
   person,
@@ -47,7 +54,7 @@ export function PersonCard({
       aria-posinset={position}
       aria-setsize={total}
       className={cn(
-        "group/card relative flex h-full flex-col rounded-xl border border-surface-border bg-surface shadow-[var(--surface-shadow)] transition-[border-color,box-shadow] duration-[var(--duration-fast)] hover:border-brand/40 hover:shadow-[var(--menu-shadow)] focus-within:border-brand/40",
+        "group/card relative flex h-full flex-col rounded-xl border border-surface-border bg-surface shadow-[var(--surface-shadow)] transition-[border-color,box-shadow] duration-[var(--duration-fast)] hover:border-brand/40 hover:shadow-[var(--menu-shadow)]",
         deactivated && "bg-muted/40 shadow-none",
       )}
     >
@@ -63,7 +70,7 @@ export function PersonCard({
             <AppLink
               href={href}
               className={cn(
-                "truncate text-body font-semibold text-foreground after:absolute after:inset-0 after:rounded-xl after:content-['']",
+                "truncate text-body font-semibold text-foreground outline-none after:absolute after:inset-0 after:rounded-xl after:content-[''] focus-visible:after:outline-2 focus-visible:after:outline-offset-2 focus-visible:after:outline-ring",
                 deactivated && "text-muted-foreground",
               )}
             >

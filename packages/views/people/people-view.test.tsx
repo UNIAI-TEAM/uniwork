@@ -8,6 +8,12 @@ import { WorkspaceProvider } from "../layout/workspace-context";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { PeopleView } from "./people-view";
 
+const exportMock = vi.hoisted(() => vi.fn());
+vi.mock("@uniwork/core/api/endpoints/people", async (orig) => ({
+  ...(await orig<typeof import("@uniwork/core/api/endpoints/people")>()),
+  exportPeopleCsv: (...a: unknown[]) => exportMock(...a),
+}));
+
 initI18n();
 
 const user: User = {
@@ -258,24 +264,42 @@ describe("PeopleView", () => {
     mockApi("member");
     const { unmount } = renderView();
     await screen.findByText("Nguyễn Văn Ân");
-    expect(screen.queryByRole("link", { name: "Xuất CSV" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Xuất CSV" })).toBeNull();
     unmount();
 
     mockApi("owner");
     renderView();
-    expect(await screen.findByRole("link", { name: "Xuất CSV" })).toHaveAttribute(
-      "href",
-      expect.stringContaining("/api/v1/orgs/acme/people.csv"),
-    );
+    expect(await screen.findByRole("button", { name: "Xuất CSV" })).toBeInTheDocument();
   });
 
-  it("exports what is on screen: the CSV link carries the current filters", async () => {
+  it("exports what is on screen: the CSV carries the current filters and is saved as a file", async () => {
+    const createObjectURL = vi.fn(() => "blob:people");
+    Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() });
+    // jsdom cannot follow the download link; the save is what is asserted.
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    exportMock.mockReset().mockResolvedValue(new Blob(["name\n"], { type: "text/csv" }));
     mockApi("owner");
     renderView();
     await screen.findByText("Nguyễn Văn Ân");
     fireEvent.click(screen.getByRole("button", { name: /^Kỹ thuật/ }));
-    const link = await screen.findByRole("link", { name: "Xuất CSV theo bộ lọc" });
-    expect(link).toHaveAttribute("href", expect.stringContaining("department_id=d1"));
+    fireEvent.click(await screen.findByRole("button", { name: "Xuất CSV theo bộ lọc" }));
+    await waitFor(() => expect(createObjectURL).toHaveBeenCalled());
+    expect(exportMock).toHaveBeenCalledWith("acme", expect.objectContaining({ department_id: "d1" }));
+    expect(click).toHaveBeenCalled();
+    click.mockRestore();
+  });
+
+  it("stays in the app when the export is refused, and saves nothing", async () => {
+    const createObjectURL = vi.fn(() => "blob:people");
+    Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() });
+    exportMock.mockReset().mockRejectedValue(new Error("forbidden"));
+    mockApi("owner");
+    renderView();
+    const button = await screen.findByRole("button", { name: "Xuất CSV" });
+    fireEvent.click(button);
+    await waitFor(() => expect(button).not.toBeDisabled());
+    expect(exportMock).toHaveBeenCalled();
+    expect(createObjectURL).not.toHaveBeenCalled();
   });
 
   it("invites colleagues when the reader is the only person in it", async () => {

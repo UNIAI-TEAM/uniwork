@@ -10,7 +10,7 @@ import {
   type Person,
   type ProfileInput,
 } from "../../types/people";
-import { request } from "../http";
+import { request, requestBlob } from "../http";
 import { parseWithFallback } from "../schema";
 
 const PeopleListResponse = z.object({
@@ -82,14 +82,14 @@ export async function updateProfile(
 }
 
 /**
- * The CSV export is a browser navigation, not a fetch: the response is a file
- * the browser saves, and the session cookie travels with it. Callers put this
- * on an `<a href>` rather than reading it into memory. The filters are the
+ * The CSV export, fetched with the reader's token rather than opened as a
+ * navigation: a navigation that fails lands the browser on the server's JSON
+ * error instead of the app, and cannot say why. The filters are the
  * directory's, so the file holds what the list shows; with no status the
  * server exports everyone, active and deactivated.
  */
-export function exportPeopleUrl(orgSlug: string, apiUrl: string, filters?: PeopleFilters): string {
-  return `${apiUrl}/api/v1/orgs/${encodeURIComponent(orgSlug)}/people.csv${peopleQuery(filters)}`;
+export function exportPeopleCsv(orgSlug: string, filters?: PeopleFilters): Promise<Blob> {
+  return requestBlob(`/api/v1/orgs/${encodeURIComponent(orgSlug)}/people.csv${peopleQuery(filters)}`);
 }
 
 export async function listDepartments(orgSlug: string, includeArchived = false): Promise<Department[]> {
