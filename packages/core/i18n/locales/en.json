@@ -348,7 +348,8 @@
       "languageHint": "Saved in this browser only. Other devices keep their own.",
       "timezoneHint": "Saved to your account, on every device. The daily email goes out at 08:00 in this zone.",
       "timezoneSearch": "Search a city or UTC…",
-      "timezoneEmpty": "No matching time zone."
+      "timezoneEmpty": "No matching time zone.",
+      "toastSaved": "Saved"
     },
     "workspace": {
       "name": "Workspace name",

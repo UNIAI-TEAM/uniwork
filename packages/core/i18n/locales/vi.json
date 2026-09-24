@@ -347,7 +347,8 @@
       "languageHint": "Chỉ lưu trên trình duyệt này. Thiết bị khác giữ lựa chọn riêng.",
       "timezoneHint": "Lưu theo tài khoản, áp dụng trên mọi thiết bị. Email tóm tắt gửi lúc 08:00 theo múi giờ này.",
       "timezoneSearch": "Tìm thành phố hoặc UTC…",
-      "timezoneEmpty": "Không có múi giờ nào khớp."
+      "timezoneEmpty": "Không có múi giờ nào khớp.",
+      "toastSaved": "Đã lưu"
     },
     "workspace": {
       "name": "Tên workspace",
