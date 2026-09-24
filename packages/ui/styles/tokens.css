@@ -657,12 +657,15 @@ html.dark[data-accent] {
    57 existing call sites of text-title* / text-display* / text-hero* switch
    without edits and a new one cannot forget. Family only: weight stays with
    the view (font-medium / font-semibold) because it is set per role there.
-   Declared in the utilities layer so an explicit `font-sans` beside the
-   role class still wins by order. */
+   An explicit `font-sans` beside the role class opts out: fields use
+   text-title-sm for its 16px (no iOS focus zoom), not for the heading face.
+   Being in the utilities layer was meant to let `font-sans` win by order, but
+   this block lands after the generated utilities, so the display face won and
+   typed text in inputs rendered in the heading family. */
 @layer utilities {
-  .text-title-sm, .text-title, .text-title-lg,
+  :where(.text-title-sm, .text-title, .text-title-lg,
   .text-display-sm, .text-display,
-  .text-hero-sm, .text-hero, .text-hero-lg {
+  .text-hero-sm, .text-hero, .text-hero-lg):not(.font-sans) {
     font-family: var(--font-display);
   }
   /* The overline is a complete role: family, case and weight travel with
