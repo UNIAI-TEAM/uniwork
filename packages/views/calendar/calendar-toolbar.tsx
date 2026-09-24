@@ -32,7 +32,7 @@ const VIEW_MODE_I18N: Record<CalendarViewMode, string> = {
 
 const SEGMENT =
   "h-7 gap-1.5 rounded-md border border-transparent px-2.5 text-label font-medium text-muted-foreground pointer-coarse:h-10 " +
-  "hover:bg-transparent hover:text-foreground aria-pressed:border-border aria-pressed:bg-surface aria-pressed:text-foreground aria-pressed:shadow-[var(--surface-shadow)] aria-pressed:hover:bg-surface";
+  "hover:bg-transparent hover:text-foreground aria-pressed:border-transparent aria-pressed:bg-surface-hover aria-pressed:text-foreground aria-pressed:hover:bg-surface-hover";
 
 export function CalendarToolbar({
   anchorDate,
@@ -81,7 +81,7 @@ export function CalendarToolbar({
         <Button
           type="button"
           size="icon-sm"
-          variant="outline"
+          variant="toolbar"
           aria-label={t("calendar.prev_period")}
           onClick={() => onAnchorDateChange(shiftAnchor(viewMode, anchorDate, -1))}
         >
@@ -90,7 +90,7 @@ export function CalendarToolbar({
         <Button
           type="button"
           size="icon-sm"
-          variant="outline"
+          variant="toolbar"
           aria-label={t("calendar.next_period")}
           onClick={() => onAnchorDateChange(shiftAnchor(viewMode, anchorDate, 1))}
         >
@@ -99,7 +99,7 @@ export function CalendarToolbar({
         <Button
           type="button"
           size="sm"
-          variant="outline"
+          variant="toolbar"
           onClick={() => onAnchorDateChange(new Date())}
         >
           {t("calendar.today")}
@@ -130,7 +130,7 @@ export function CalendarToolbar({
         <Button
           type="button"
           size="icon-sm"
-          variant="outline"
+          variant="toolbar"
           aria-label={t(isRefreshing ? "calendar.refreshing" : "calendar.refresh")}
           aria-busy={isRefreshing || undefined}
           aria-disabled={isRefreshing}
@@ -148,7 +148,7 @@ export function CalendarToolbar({
               <Button
                 type="button"
                 size="icon-sm"
-                variant="outline"
+                variant="toolbar"
                 aria-label={t("calendar.settings")}
               >
                 <Settings2 aria-hidden className="size-4" />
