@@ -1,4 +1,4 @@
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { NavigationProvider, type NavigationAdapter } from "../navigation";
@@ -38,6 +38,33 @@ function setup(nav: NavigationAdapter, initial: Props, resolveRoom = vi.fn(() =>
 }
 
 describe("useChatRoomUrl", () => {
+  it("keeps a ?dm= deep link while its DM opens, and leaves the room it names alone", () => {
+    const nav = makeNav("dm=U2");
+    const resolveRoom = vi.fn(() => false);
+    const h = setup(nav, { activeRoomId: "ws-room", wide: true, roomsReady: true }, resolveRoom);
+    // The deep link opens a DM that has no room yet: the target moves off the
+    // workspace room in the same render, then the DM's room resolves.
+    act(() => {
+      h.result.current.openRoom(null);
+      h.rerender({ activeRoomId: null, wide: true, roomsReady: true });
+    });
+    h.rerender({ activeRoomId: "r-dm", wide: true, roomsReady: true });
+    expect(nav.replace).toHaveBeenCalledWith("/acme/team/chat?dm=U2&room=r-dm");
+
+    // After a remount the empty DM is no known room; it must not be dropped.
+    h.navigate("dm=U2&room=r-dm", { activeRoomId: null, wide: true, roomsReady: true });
+    expect(resolveRoom).not.toHaveBeenCalled();
+    expect(nav.replace).not.toHaveBeenCalledWith("/acme/team/chat");
+  });
+
+  it("drops the ?dm= deep link once the reader picks another room", () => {
+    const nav = makeNav("dm=U2&room=r-dm");
+    const h = setup(nav, { activeRoomId: "r-dm", wide: true, roomsReady: true });
+    h.result.current.openRoom("r-other");
+    expect(nav.replace).toHaveBeenCalledWith("/acme/team/chat?room=r-other");
+  });
+
+
   it("on a phone, opening a room pushes history and Back returns to the list", () => {
     const nav = makeNav();
     const h = setup(nav, { activeRoomId: "ws-room", wide: false, roomsReady: true });
