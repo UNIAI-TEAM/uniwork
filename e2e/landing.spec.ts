@@ -53,29 +53,45 @@ test.describe("landing", () => {
     // tác nhóm route (app); nếu landing lại có runtime riêng, bỏ dòng này đi.
     await page.waitForLoadState("networkidle");
 
-    // Dải tin cậy: ba mô hình được nêu tên và ba cam kết.
+    // Nhà cung cấp tách biệt với cơ chế bảo mật, không lặp cam kết.
     await expect(page.getByText("Chạy trên mô hình bạn chọn")).toBeVisible();
     await expect(page.getByText("Ollama (tự vận hành)")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Dữ liệu đặt tại Việt Nam" })).toBeVisible();
+    const access = page.getByRole("button", { name: "Quyền truy cập & AI", exact: true });
+    await expect(access).toBeVisible();
+    await access.scrollIntoViewIfNeeded();
+    await expect(page.locator('#security > div')).toHaveAttribute('data-scroll-reveal', 'ready');
+    await access.click();
+    await expect(page.locator('#security').getByRole('heading', { name: "Quyền theo tổ chức và workspace", exact: true })).toBeVisible();
+    await access.click();
 
     // Section nêu vấn đề đứng trước lưới năng lực.
     await expect(
-      page.getByRole("heading", { name: "Công việc của một đội đang nằm ở bốn nơi khác nhau" }),
+      page.locator('[data-feature-group="communication"]'),
     ).toBeVisible();
 
-    // Work Products: tiêu đề, luận điểm và dòng thời gian đều có mặt.
-    const wp = page.getByRole("heading", { name: "Từ bối cảnh công việc đến kết quả thực tế" });
+    // Product vision is one disclosure inside the roadmap, not a shipped band.
+    const wp = page.locator("#work-products [data-slot=accordion-trigger]");
     await wp.scrollIntoViewIfNeeded();
-    await expect(wp).toBeVisible();
-    await expect(page.getByText("Chúng ta không làm một Microsoft Office mới")).toBeVisible();
+    await expect(wp).toContainText("Work Products & Work Graph");
+    await wp.click();
     await expect(page.getByText("Đây là kế hoạch nội bộ, không phải cam kết phát hành.")).toBeVisible();
 
     // FAQ: accordion đóng lúc đầu, mở ra mới thấy câu trả lời.
     const question = page.getByRole("button", { name: "Dữ liệu của chúng tôi nằm ở đâu?" });
     await question.scrollIntoViewIfNeeded();
-    await expect(page.getByText("Trên hạ tầng đặt tại Việt Nam", { exact: false })).toBeHidden();
+    await expect(page.getByText("Vị trí lưu trữ phụ thuộc cấu hình triển khai", { exact: false })).toBeHidden();
     await question.click();
-    await expect(page.getByText("Trên hạ tầng đặt tại Việt Nam", { exact: false })).toBeVisible();
+    await expect(page.getByText("Vị trí lưu trữ phụ thuộc cấu hình triển khai", { exact: false })).toBeVisible();
+
+    // The audience selector must replace its illustrative product view without
+    // changing the authenticated app or navigating away from the landing.
+    const audiencePreview = page.locator("#solution-preview");
+    await page.getByRole("button", { name: /Nhóm vận hành/ }).click();
+    await expect(audiencePreview).toHaveAttribute("data-audience", "operations");
+    await expect(audiencePreview.locator(".solution-screen-flow")).toBeVisible();
+    await page.getByRole("button", { name: /Nhóm sản phẩm/ }).click();
+    await expect(audiencePreview).toHaveAttribute("data-audience", "product");
+    await expect(audiencePreview.locator(".solution-screen-thread")).toBeVisible();
 
     // Từ khối giải pháp sang trang phòng ban, rồi quay lại.
     await page.getByRole("link", { name: /Nhóm sản phẩm/ }).first().click();
@@ -122,11 +138,11 @@ test.describe("landing", () => {
     // Ngôn ngữ: nhãn nút vẫn là tiếng Việt lúc này, vì đó là ngôn ngữ đang bật.
     await header.getByRole("button", { name: "Ngôn ngữ", exact: true }).click();
     await page.getByRole("menuitemradio", { name: "English" }).click();
-    await expect(header.getByRole("link", { name: "Features" })).toBeVisible();
+    await expect(header.getByRole("button", { name: "Product", exact: true })).toBeVisible();
     // Lựa chọn phải sống qua một lần tải lại, nếu không nó chỉ là hiệu ứng.
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
     await page.reload();
-    await expect(header.getByRole("link", { name: "Features" })).toBeVisible();
+    await expect(header.getByRole("button", { name: "Product", exact: true })).toBeVisible();
 
     // Chế độ sáng tối: nhãn bây giờ là tiếng Anh, theo đúng lựa chọn ở trên.
     await header.getByRole("button", { name: "Theme", exact: true }).click();

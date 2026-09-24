@@ -1,124 +1,39 @@
 "use client";
-import { Bell, Check, Sparkles, UsersRound } from "lucide-react";
-import { useRef } from "react";
-import { useTranslation } from "react-i18next";
-import { Kbd } from "@uniwork/ui/components/ui/kbd";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@uniwork/ui/components/ui/tabs";
-import { cn } from "@uniwork/ui/lib/utils";
-import { gsap, useGSAP } from "./animation/register-gsap";
-import { revealFrom, withMotionPreference } from "./animation/reveal";
-import { Container, SectionTitle } from "./layout-primitives";
+import { BookOpen, Bot, Building2, CalendarDays, CircleCheck, ClipboardCheck, Columns3, FileText, FolderKanban, House, Mail, MessageSquare, ScrollText, Sparkles, Video, Workflow, Zap } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
-/**
- * Three capabilities that shipped after the page was last written and that no
- * band covers: Ask UNI, the notification inbox, and the people directory.
- *
- * They share a section rather than taking three of their own for one reason:
- * none of them has a photograph, and three consecutive image-less bands would
- * be the same empty column three times. A tab strip also puts the reader in
- * charge of which one they read, which is the honest shape for three things
- * that do not rank against each other.
- *
- * The keyboard hint is a real one. Ask UNI opens on the same chord in the
- * product (packages/core shortcuts, F-09), so it is a fact about the software
- * rather than a decoration.
- */
-const PANELS = [
-  {
-    value: "askuni",
-    icon: Sparkles,
-    ns: "landing.askuni",
-    ink: "text-brand",
-    tint: "bg-brand/5",
-    chord: true,
-  },
-  { value: "inbox", icon: Bell, ns: "landing.inbox", ink: "text-warning", tint: "bg-warning/5" },
-  { value: "people", icon: UsersRound, ns: "landing.people", ink: "text-brand-accent", tint: "bg-brand-accent/5" },
+export const PRODUCT_GROUPS = [
+  { key: "work", icon: FolderKanban },
+  { key: "communication", icon: MessageSquare },
+  { key: "results", icon: ClipboardCheck },
+  { key: "knowledge", icon: BookOpen },
+  { key: "ai", icon: Sparkles },
+  { key: "organization", icon: Building2 },
 ] as const;
-
-const POINTS = ["point1", "point2", "point3"] as const;
-
-export function Showcase() {
-  const { t } = useTranslation();
-  const root = useRef<HTMLElement>(null);
-  const body = useRef<HTMLDivElement>(null);
-
-  useGSAP(
-    () =>
-      withMotionPreference(root.current, (motion) => {
-        const parts = body.current ? Array.from(body.current.children) : [];
-        if (!motion || !root.current) {
-          gsap.set(parts, { clearProps: "all" });
-          return;
-        }
-        revealFrom(parts, root.current, 0.08);
-      }),
-    { scope: root },
-  );
-
-  return (
-    <section ref={root} aria-labelledby="landing-showcase-title" className="bg-surface py-24 sm:py-32">
-      <Container ref={body}>
-        <div className="max-w-3xl">
-          <SectionTitle className="mt-0">
-            <span id="landing-showcase-title">{t("landing.showcase.title")}</span>
-          </SectionTitle>
-          <p className="mt-4 max-w-prose text-title-sm text-pretty text-muted-foreground">{t("landing.showcase.sub")}</p>
-        </div>
-
-        <Tabs defaultValue={PANELS[0].value} className="mt-10 gap-8">
-          <TabsList className="h-auto flex-wrap justify-start gap-2 bg-transparent p-0">
-            {PANELS.map((panel) => (
-              <TabsTrigger
-                key={panel.value}
-                value={panel.value}
-                className="gap-2 rounded-full border border-border px-4 py-2 text-body font-medium data-[state=active]:border-brand data-[state=active]:bg-brand/10"
-              >
-                <panel.icon className={cn("size-4", panel.ink)} />
-                {t(`${panel.ns}.tab`)}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-
-          {PANELS.map((panel) => (
-            <TabsContent key={panel.value} value={panel.value}>
-              <div
-                className={cn(
-                  "grid gap-10 rounded-xl p-8 sm:p-12 lg:grid-cols-[1.1fr_1fr] lg:gap-16",
-                  panel.tint,
-                )}
-              >
-                <div>
-                  <panel.icon className={cn("size-8", panel.ink)} />
-                  <h3 className="mt-6 font-heading text-display-sm font-bold leading-snug sm:text-display">
-                    {t(`${panel.ns}.title`)}
-                  </h3>
-                  <p className="mt-4 max-w-prose text-title-sm leading-relaxed text-muted-foreground">
-                    {t(`${panel.ns}.desc`)}
-                  </p>
-                  {"chord" in panel && panel.chord ? (
-                    <p className="mt-6 flex items-center gap-2 text-body text-muted-foreground">
-                      <Kbd>⌘</Kbd>
-                      <Kbd>J</Kbd>
-                    </p>
-                  ) : null}
-                </div>
-
-                <ul className="grid content-start gap-4">
-                  {POINTS.map((key) => (
-                    <li key={key} className="flex items-start gap-3 rounded-lg bg-surface p-4 text-body-lg">
-                      <span className={cn("mt-px flex size-6 shrink-0 items-center justify-center rounded-full bg-background", panel.ink)}>
-                        <Check className="size-3.5" />
-                      </span>
-                      {t(`${panel.ns}.${key}`)}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </TabsContent>
-          ))}
-        </Tabs>
-      </Container>
-    </section>
-  );
+type FeatureGroup = (typeof PRODUCT_GROUPS)[number]["key"];
+function catalogItem<const Key extends string>(key: Key, group: FeatureGroup, icon: LucideIcon, anchor: string, status: "demo" | "partial" | "planned") {
+  return { key, group, icon, anchor, status, label: `landing.catalog.features.${key}.label`, description: `landing.catalog.features.${key}.description`, availability: `landing.catalog.features.${key}.availability` };
 }
+
+/** Navigation breadth follows the reference; availability follows verified source. */
+export const PRODUCT_FEATURES = [
+  { key: "dashboard", group: "work", status: "demo", icon: House, label: "landing.lovable.dashboard", anchor: "tong-quan", description: "landing.lovable.dashboardSub", availability: "landing.lovable.sample" },
+  { key: "tasks", group: "work", status: "demo", icon: Columns3, label: "landing.explorer.tasks", anchor: "du-an", description: "landing.workspace.tasksDescription", availability: "landing.discovery.search" },
+  catalogItem("projects", "work", FolderKanban, "du-an-tong-quan", "demo"),
+  { key: "today", group: "work", status: "demo", icon: House, label: "landing.updates.homeTab", anchor: "daily-tools", description: "landing.workspace.todayDescription", availability: "landing.updates.homeAvailability" },
+  catalogItem("calendar", "work", CalendarDays, "lich-lam-viec", "planned"),
+  catalogItem("workflows", "work", Workflow, "quy-trinh", "planned"),
+  { key: "meetings", group: "communication", status: "demo", icon: Video, label: "landing.meeting.online", anchor: "hop", description: "landing.workspace.meetingsDescription", availability: "landing.updates.meetingAvailability" },
+  { key: "chat", group: "communication", status: "demo", icon: MessageSquare, label: "landing.explorer.chat", anchor: "trao-doi", description: "landing.workspace.chatDescription", availability: "landing.updates.chatAvailability" },
+  { key: "email", group: "communication", status: "demo", icon: Mail, label: "landing.updates.emailTab", anchor: "email", description: "landing.workspace.emailDescription", availability: "landing.updates.emailAvailability" },
+  catalogItem("outputs", "results", ClipboardCheck, "ket-qua", "planned"),
+  catalogItem("documents", "results", FileText, "tai-lieu", "planned"),
+  catalogItem("approvals", "results", CircleCheck, "phe-duyet", "planned"),
+  catalogItem("knowledge", "knowledge", BookOpen, "tri-thuc", "planned"),
+  { key: "ask", group: "ai", status: "demo", icon: Sparkles, label: "landing.studio.askTab", anchor: "hoi-uni", description: "landing.workspace.askDescription", availability: "landing.studio.askGuardrail" },
+  catalogItem("agents", "ai", Bot, "quan-ly-agent", "partial"),
+  catalogItem("automation", "ai", Zap, "tu-dong-hoa", "planned"),
+  catalogItem("organization", "organization", Building2, "to-chuc", "demo"),
+  catalogItem("audit", "organization", ScrollText, "nhat-ky", "demo"),
+] as const;
+export type ProductFeature = (typeof PRODUCT_FEATURES)[number]["key"];

@@ -106,6 +106,9 @@ describe("token contract", () => {
       "--text-title-lg",
       "--text-display-sm",
       "--text-display",
+      "--text-hero-opening",
+      "--text-hero-opening-tablet",
+      "--text-hero-opening-mobile",
     ]) {
       expect(definedVars(theme), `missing type step ${step}`).toContain(step);
     }
@@ -220,6 +223,19 @@ describe("token contract", () => {
   // file cannot see opacity, a stacked overlay or an image behind the text —
   // e2e/onboarding-contrast.spec.ts measures the rendered page and stays the
   // authority. This one fails in milliseconds when a value is edited blind.
+  describe("fitted product illustration", () => {
+    for (const selector of [":root", ".dark"]) {
+      it(`keeps the reference text readable in ${selector}`, () => {
+        for (const foreground of ["--preview-ink", "--preview-muted", "--preview-accent"]) {
+          for (const background of ["--preview-canvas", "--preview-panel", "--preview-soft"]) {
+            expect(contrast(value(selector, foreground), value(selector, background)), `${foreground} on ${background}`).toBeGreaterThanOrEqual(4.5);
+          }
+        }
+        expect(contrast(value(selector, "--preview-on-accent"), value(selector, "--preview-accent"))).toBeGreaterThanOrEqual(4.5);
+      });
+    }
+  });
+
   describe("emphasis band", () => {
     const bandLight = value(":root", "--surface-emphasis");
     const bandDark = value(".dark", "--surface-emphasis");

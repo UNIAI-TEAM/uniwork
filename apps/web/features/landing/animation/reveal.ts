@@ -8,15 +8,13 @@ import { gsap } from "./register-gsap";
  * Only `transform` and `opacity` are ever animated. Nothing here touches
  * width, height, top, margin or clip-path, so no tween can force layout.
  */
-export const DURATION = 0.5;
-export const EASE = "power2.out";
+const DURATION = 0.5;
+const EASE = "power2.out";
 /** Vertical travel for an entrance, in px. Small on purpose. */
-export const RISE = 14;
-/** Seconds between items in a staggered group. */
-export const STAGGER = 0.07;
+const RISE = 14;
 
 /** Where a section starts animating: a little before its top clears the fold. */
-export const START = "top 82%";
+const START = "top 82%";
 
 /**
  * Runs `build` under two media conditions and hands it whether motion is
@@ -37,7 +35,9 @@ export function withMotionPreference(
   mm.add(
     { reduce: "(prefers-reduced-motion: reduce)", motion: "(prefers-reduced-motion: no-preference)" },
     (context) => {
-      build(context.conditions?.motion === true);
+      // The redesigned home owns one CSS entrance on the hero. Keep its
+      // subsequent sections visible; secondary marketing routes retain motion.
+      build(!scope?.closest("[data-design-contract]") && context.conditions?.motion === true);
     },
     scope ?? undefined,
   );

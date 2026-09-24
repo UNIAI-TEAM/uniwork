@@ -25,9 +25,12 @@ const ARTWORK = {
   "email-hub": true,
   "ai-workforce": true,
   "work-products": true,
+  // Text-free artwork authored for the studio redesign, shared by both locales.
+  "studio/connected-work": false,
+  "studio/team-session": false,
 } as const satisfies Record<string, boolean>;
 
-export type ArtworkName = keyof typeof ARTWORK;
+type ArtworkName = keyof typeof ARTWORK;
 
 /** `i18n.language` can arrive as a full tag ("vi-VN"); the files are "vi"/"en". */
 function toLocale(language: string | undefined): SupportedLocale {

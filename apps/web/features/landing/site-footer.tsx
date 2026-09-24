@@ -36,19 +36,19 @@ export function SiteFooter() {
           <h2 className="text-body font-semibold">{t("landing.footer.product")}</h2>
           <ul className="mt-3 grid gap-2">
             <li>
-              <a className={LINK} href={href(ANCHORS.platform)}>
+              <Link className={LINK} href={paths.features()}>
                 {t("landing.nav.features")}
-              </a>
+              </Link>
             </li>
             <li>
-              <a className={LINK} href={href(ANCHORS.meetings)}>
+              <Link className={LINK} href={paths.feature("meetings")}>
                 {t("landing.meetings.eyebrow")}
-              </a>
+              </Link>
             </li>
             <li>
-              <a className={LINK} href={href(ANCHORS.workforce)}>
+              <Link className={LINK} href={paths.feature("agents")}>
                 {t("landing.workforce.badge")}
-              </a>
+              </Link>
             </li>
           </ul>
         </nav>
@@ -80,9 +80,9 @@ export function SiteFooter() {
               </a>
             </li>
             <li>
-              <a className={LINK} href={href(ANCHORS.pricing)}>
+              <Link className={LINK} href={paths.pricing()}>
                 {t("landing.footer.pricing")}
-              </a>
+              </Link>
             </li>
           </ul>
         </nav>

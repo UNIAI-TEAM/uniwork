@@ -1,4 +1,4 @@
-import i18next from "i18next";
+import i18next, { type i18n } from "i18next";
 import { initReactI18next } from "react-i18next";
 import type { SupportedLocale } from "./types";
 import { loaders, vi } from "./dictionaries";
@@ -44,6 +44,17 @@ export function initI18n(locale: SupportedLocale = "vi", seed?: Record<string, u
     });
   }
   return i18next;
+}
+
+/** Refresh an already-mounted host after a dictionary/payload update. Call in
+ * an effect, never during render: existing consumers must be notified too. */
+export function syncI18nResources(instance: i18n, dictionaries: Record<string, object | null>) {
+  for (const [locale, dictionary] of Object.entries(dictionaries)) {
+    if (dictionary && Object.keys(dictionary).length) {
+      instance.addResourceBundle(locale, "translation", dictionary, true, true);
+    }
+  }
+  instance.emit("languageChanged", instance.language);
 }
 
 /**

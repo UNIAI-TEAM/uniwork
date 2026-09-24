@@ -1,12 +1,13 @@
 "use client";
-import { Check } from "lucide-react";
+import { Check, Gauge, Sparkles, UsersRound, Video } from "lucide-react";
 import Link from "next/link";
 import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
-import { ANCHORS, href } from "./anchors";
+import { Logo } from "@uniwork/ui/brand";
+import { ANCHORS } from "./anchors";
 import { gsap, useGSAP } from "./animation/register-gsap";
 import { revealFrom, withMotionPreference } from "./animation/reveal";
 import { Container, SectionTitle } from "./layout-primitives";
@@ -50,7 +51,7 @@ export function Pricing() {
       ref={root}
       id={ANCHORS.pricing}
       aria-labelledby="landing-pricing-title"
-      className="scroll-mt-16 bg-surface py-24 sm:scroll-mt-18 sm:py-32"
+      className="pricing-section scroll-mt-16 bg-surface py-24 sm:scroll-mt-18 sm:py-32"
     >
       <Container ref={body}>
         <div className="max-w-3xl">
@@ -60,8 +61,20 @@ export function Pricing() {
           <p className="mt-4 max-w-prose text-title-sm leading-relaxed text-pretty text-muted-foreground">{t("landing.pricing.sub")}</p>
         </div>
 
-        <div className="mt-12 grid gap-6 lg:grid-cols-[minmax(0,22rem)_1fr] lg:gap-10">
-          <div className="rounded-xl bg-brand/5 p-8">
+        <div className="pricing-offer mt-12 grid gap-6 lg:grid-cols-[minmax(0,22rem)_1fr] lg:gap-10">
+          <div className="pricing-plan rounded-xl bg-brand/5 p-8">
+            <span className="pricing-plan-mark" aria-hidden><Logo variant="mark" size={36} decorative /></span>
+            <div className="pricing-plan-diagram" aria-hidden>
+              <svg className="pricing-diagram-lines" viewBox="0 0 210 190" fill="none">
+                <path d="M105 94C78 72 57 57 36 38" />
+                <path d="M105 94C132 63 158 51 181 39" />
+                <path d="M105 94C132 119 151 141 176 159" />
+              </svg>
+              <span className="pricing-diagram-core"><Gauge /></span>
+              <span className="pricing-diagram-node pricing-diagram-people"><UsersRound /></span>
+              <span className="pricing-diagram-node pricing-diagram-meeting"><Video /></span>
+              <span className="pricing-diagram-node pricing-diagram-ai"><Sparkles /></span>
+            </div>
             <h3 className="font-heading text-title font-bold">{t("landing.pricing.planName")}</h3>
             <p className="mt-4 font-heading text-hero-sm font-bold text-brand">{t("landing.pricing.planPrice")}</p>
             <p className="mt-3 text-body-lg leading-relaxed text-muted-foreground">{t("landing.pricing.planDesc")}</p>
@@ -73,12 +86,12 @@ export function Pricing() {
             </Link>
           </div>
 
-          <div className="rounded-xl border border-border p-8">
-            <h3 className="text-body font-semibold">{t("landing.pricing.quotasLabel")}</h3>
+          <div className="pricing-quotas rounded-xl border border-border p-8">
+            <h3 className="pricing-quota-heading text-body font-semibold"><span aria-hidden><Gauge /></span>{t("landing.pricing.quotasLabel")}</h3>
             <ul className="mt-6 grid gap-x-8 gap-y-3 sm:grid-cols-2">
               {QUOTAS.map((key) => (
                 <li key={key} className="flex items-center gap-2.5 text-body-lg">
-                  <Check className="size-4 shrink-0 text-success" />
+                  <span className="pricing-check" aria-hidden><Check /></span>
                   {t(`landing.pricing.${key}`)}
                 </li>
               ))}
@@ -86,12 +99,6 @@ export function Pricing() {
             <p className="mt-8 max-w-prose border-t border-border pt-6 text-body-lg leading-relaxed text-muted-foreground">
               {t("landing.pricing.status")}
             </p>
-            <a
-              href={href(ANCHORS.contact)}
-              className={cn(buttonVariants({ variant: "outline", size: "lg" }), "mt-5 h-11")}
-            >
-              {t("landing.pricing.cta")}
-            </a>
           </div>
         </div>
       </Container>

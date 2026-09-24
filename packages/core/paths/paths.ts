@@ -29,9 +29,15 @@ export const paths = {
    * (docs/conventions.md §Routes).
    */
   solutions: {
+    root: () => "/solutions",
     product: () => "/solutions/product",
     operations: () => "/solutions/operations",
   },
+  features: () => "/features",
+  feature: (slug: string) => `/features/${encodeURIComponent(slug)}`,
+  learn: () => "/learn",
+  pricing: () => "/pricing",
+  enterprise: () => "/enterprise",
   /**
    * Positioning page: what the platforms a buyer already owns do not cover.
    * Hyphenated root, the third after forgot-password and reset-password; the

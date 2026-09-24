@@ -7,6 +7,33 @@
    silently carries its light value into every dark subtree; the token
    contract test (tokens.test.ts) fails when the two blocks drift. */
 :root {
+  /* Lovable demo reference surfaces, isolated to landing illustrations. */
+  --preview-canvas: #ffffff;
+  --preview-panel: #f8f9fb;
+  --preview-soft: #f0f0f9;
+  --preview-ink: #1e1e1e;
+  --preview-muted: #606060;
+  --preview-line: #cacaca;
+  --preview-accent: #6858cd;
+  --preview-on-accent: #ffffff;
+  --preview-selected: #eaf2ff;
+  /* Marketing stage: scoped consumers, shared theme contract. */
+  --landing-stage: #edf2ff;
+  --landing-stage-soft: #f3f6fc;
+  --landing-ink: #13254b;
+  --landing-paper: #ffffff;
+  --landing-mint: #ddf7eb;
+  --landing-violet: #ede7ff;
+  --landing-cyan: #dcf6ff;
+  --landing-lime: #eef8cf;
+  --landing-coral: #fff0e8;
+  --landing-deep: #101f42;
+  --landing-model-shell: #f4f7ff;
+  --landing-model-light: #b9eaff;
+  --landing-close-start: #0754d8;
+  --landing-close-end: #8731c5;
+  --landing-close-light: #15aede;
+  --landing-close-foreground: #ffffff;
   /* Shell and canvas. */
   --app-shell: #f4f4f5;
   --page-canvas: #fafafa;
@@ -146,6 +173,31 @@
 }
 
 .dark {
+  --preview-canvas: #090a0c;
+  --preview-panel: #121417;
+  --preview-soft: #1d1d24;
+  --preview-ink: #edeef0;
+  --preview-muted: #a1a5ad;
+  --preview-line: #ffffff1f;
+  --preview-accent: #9088f0;
+  --preview-on-accent: #151423;
+  --preview-selected: #1b2531;
+  --landing-stage: #192741;
+  --landing-stage-soft: #172132;
+  --landing-ink: #e2ebff;
+  --landing-paper: #1c2638;
+  --landing-mint: #17352c;
+  --landing-violet: #30264b;
+  --landing-cyan: #123747;
+  --landing-lime: #2b3619;
+  --landing-coral: #3c2721;
+  --landing-deep: #101f42;
+  --landing-model-shell: #f4f7ff;
+  --landing-model-light: #b9eaff;
+  --landing-close-start: #0754d8;
+  --landing-close-end: #8731c5;
+  --landing-close-light: #15aede;
+  --landing-close-foreground: #ffffff;
   --app-shell: #232326;
   --page-canvas: #111113;
   --background: #111113;
@@ -352,4 +404,8 @@
   --text-hero: 48px;       --text-hero--line-height: 50px;     --text-hero--letter-spacing: -0.025em;
   --text-hero-lg: 60px;    --text-hero-lg--line-height: 62px;  --text-hero-lg--letter-spacing: -0.03em;
   --text-hero-xl: 72px;    --text-hero-xl--line-height: 74px;  --text-hero-xl--letter-spacing: -0.035em;
+  /* Fluid opening roles; component breakpoints select the appropriate scale. */
+  --text-hero-opening: clamp(36px, 4vw, 52px);
+  --text-hero-opening-tablet: clamp(34px, 4.6vw, 46px);
+  --text-hero-opening-mobile: clamp(32px, 7vw, 36px);
 }

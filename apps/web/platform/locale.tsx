@@ -8,6 +8,7 @@ import {
   bundledDictionary,
   createBrowserCookieLocaleAdapter,
   initI18n,
+  syncI18nResources,
   type SupportedLocale,
 } from "@uniwork/core/i18n";
 import { createI18n, LocaleAdapterProvider } from "@uniwork/core/i18n/react";
@@ -62,10 +63,20 @@ export function WebLocaleProvider({
       ? createI18n(initialLocale, dictionary ? { [initialLocale]: { translation: dictionary } } : {})
       : initI18n(initialLocale, initialMessages);
   });
+  const fallbackMessages = bundledDictionary("vi");
 
   useEffect(() => {
     document.documentElement.lang = initialLocale;
   }, [initialLocale]);
+
+  useEffect(() => {
+    // Fast Refresh preserves the singleton and useState. Refresh its resources
+    // as well as server copy without resetting the user's selected language.
+    syncI18nResources(instance, {
+      vi: fallbackMessages,
+      ...(initialMessages ? { [initialLocale]: initialMessages } : {}),
+    });
+  }, [instance, initialLocale, initialMessages, fallbackMessages]);
 
   return (
     <I18nextProvider i18n={instance}>

@@ -15,6 +15,9 @@ import { SiteFooter } from "./site-footer";
 import { SiteHeader } from "./site-header";
 import { SOLUTIONS, type SolutionKey } from "./solutions";
 import { TrustBand } from "./trust-band";
+import "./landing-playback.css";
+import "./landing-reference.css";
+import "./landing-lovable.css";
 
 const SCENARIOS = ["s1", "s2", "s3"] as const;
 const REASONS = ["w1", "w2", "w3"] as const;
