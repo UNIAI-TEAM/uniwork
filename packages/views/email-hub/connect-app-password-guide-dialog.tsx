@@ -119,6 +119,7 @@ export function ConnectAppPasswordGuideDialog({ open, onOpenChange }: ConnectApp
             >
               {t("email_hub.connect.guide.open_2sv")}
               <ExternalLink className="size-3.5" aria-hidden />
+              <span className="sr-only">{t("common.opens_new_tab")}</span>
             </a>
           </GuideStep>
 
@@ -154,6 +155,7 @@ export function ConnectAppPasswordGuideDialog({ open, onOpenChange }: ConnectApp
             >
               {t("email_hub.connect.guide.open_app_passwords")}
               <ExternalLink className="size-3.5" aria-hidden />
+              <span className="sr-only">{t("common.opens_new_tab")}</span>
             </a>
           </GuideStep>
 
@@ -179,6 +181,7 @@ export function ConnectAppPasswordGuideDialog({ open, onOpenChange }: ConnectApp
             <ButtonLink href={GOOGLE_APP_PASSWORDS_URL} target="_blank" rel="noopener noreferrer" variant="outline">
               <Mail className="size-4" aria-hidden />
               {t("email_hub.connect.guide.open_app_passwords")}
+              <span className="sr-only">{t("common.opens_new_tab")}</span>
             </ButtonLink>
             <Button type="button" onClick={() => onOpenChange(false)}>
               {t("email_hub.connect.guide.done")}

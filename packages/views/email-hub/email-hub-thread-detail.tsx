@@ -1,12 +1,16 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { Forward, RefreshCw, Reply, ReplyAll } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Forward, ImageOff, RefreshCw, Reply, ReplyAll } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { EmailHubThread } from "@uniwork/core/types/email-hub";
+import { tintClass } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { cn } from "@uniwork/ui/lib/utils";
+import { identityTint } from "../people/identity-tint";
 import { emailHubLocale, formatEmailFullDate, senderDisplayName } from "./email-hub-format";
+import { emailHasRemoteContent } from "./email-hub-html";
 import {
   emailHubThreadCapabilities,
   EmailHubThreadToolbar,
@@ -65,6 +69,10 @@ export function EmailHubThreadDetail({
   const labels = thread.imap_labels ?? [];
   const recipients = thread.to_addrs.join(", ");
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const [remoteAllowedFor, setRemoteAllowedFor] = useState<string | null>(null);
+  const allowRemote = remoteAllowedFor === activeThread.id;
+  const bodyHtml = readableBody ? detailData?.body_html : undefined;
+  const remoteBlocked = !!bodyHtml && !allowRemote && emailHasRemoteContent(bodyHtml);
 
   // Opening an email removes the row that had focus; move it to the subject so
   // a keyboard or screen-reader user lands on what they opened, not on <body>.
@@ -97,7 +105,10 @@ export function EmailHubThreadDetail({
               {labels.length > 0 ? (
                 <ul className="flex flex-wrap gap-1" aria-label={t("email_hub.labels_section")}>
                   {labels.map((label) => (
-                    <li key={label} className="rounded-md bg-muted px-1.5 py-0.5 text-caption text-muted-foreground">
+                    <li
+                      key={label}
+                      className={cn("rounded-md px-1.5 py-0.5 text-caption", tintClass[identityTint(label.toLowerCase())])}
+                    >
                       {label}
                     </li>
                   ))}
@@ -133,9 +144,20 @@ export function EmailHubThreadDetail({
 
           {bodyLoading ? (
             <BodySkeleton />
-          ) : readableBody && detailData?.body_html ? (
-            <div className="overflow-hidden rounded-lg border border-border">
-              <EmailHtmlFrame html={detailData.body_html} title={subject} />
+          ) : bodyHtml ? (
+            <div className="space-y-2">
+              {remoteBlocked ? (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-muted px-3 py-2 text-caption text-muted-foreground">
+                  <ImageOff className="size-4 shrink-0" aria-hidden />
+                  <span className="min-w-0 flex-1 text-pretty">{t("email_hub.remote_blocked")}</span>
+                  <Button type="button" variant="outline" size="sm" onClick={() => setRemoteAllowedFor(activeThread.id)}>
+                    {t("email_hub.remote_show")}
+                  </Button>
+                </div>
+              ) : null}
+              <div className="overflow-hidden rounded-lg border border-border">
+                <EmailHtmlFrame html={bodyHtml} title={subject} allowRemote={allowRemote} />
+              </div>
             </div>
           ) : readableBody && detailData?.body_text?.trim() ? (
             <div className="rounded-lg border border-border bg-surface px-5 py-4">

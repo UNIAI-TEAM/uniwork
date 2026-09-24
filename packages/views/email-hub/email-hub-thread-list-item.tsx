@@ -3,9 +3,11 @@
 import { Inbox, Paperclip, Sparkles, Star } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { EmailHubThread } from "@uniwork/core/types/email-hub";
+import { tintClass } from "@uniwork/ui/components/common/icon-tile";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
 import { cn } from "@uniwork/ui/lib/utils";
+import { identityTint } from "../people/identity-tint";
 import { EmailHubListAiSummary } from "./email-hub-ai-insight";
 import { emailHubLocale, formatEmailFullDate, formatEmailListDate, senderDisplayName } from "./email-hub-format";
 import { EmailSenderAvatar } from "./email-hub-view-parts";
@@ -83,10 +85,16 @@ export function EmailHubThreadListItem({
               "group-hover/row:opacity-0 group-has-[[data-slot=checkbox]:focus-visible]/row:opacity-0",
             )}
           />
+          {/*
+            Touch has no hover, so the checkbox sits on the avatar's corner and
+            its 44px hit area covers the avatar: tapping the sender selects the
+            row, the way mail apps on phones do.
+          */}
           <Checkbox
             className={cn(
-              "absolute opacity-0 transition-opacity duration-(--duration-fast) group-hover/row:opacity-100 focus-visible:opacity-100",
-              (selectionMode || checked) && "opacity-100",
+              "absolute opacity-0 transition-[opacity,translate] duration-(--duration-fast) group-hover/row:opacity-100 focus-visible:opacity-100",
+              "pointer-coarse:translate-x-3 pointer-coarse:translate-y-3 pointer-coarse:bg-background pointer-coarse:opacity-100 pointer-coarse:after:-inset-3.5",
+              (selectionMode || checked) && "opacity-100 pointer-coarse:translate-x-0 pointer-coarse:translate-y-0",
             )}
             checked={checked}
             onCheckedChange={(value) => onCheckedChange(value === true)}
@@ -112,7 +120,15 @@ export function EmailHubThreadListItem({
           role="button"
           tabIndex={0}
           data-thread-row={row.id}
-          aria-label={[unread ? t("email_hub.filters.unread") : null, displayName, subject].filter(Boolean).join(", ")}
+          aria-label={[
+            unread ? t("email_hub.filters.unread") : null,
+            displayName,
+            subject,
+            formatEmailFullDate(row.sent_at, locale),
+            row.has_attachments ? t("email_hub.has_attachments") : null,
+          ]
+            .filter(Boolean)
+            .join(", ")}
           className="flex min-w-0 flex-1 cursor-pointer flex-col gap-0.5 rounded-control @3xl:flex-row @3xl:items-center @3xl:gap-3"
           onClick={onSelect}
           onMouseEnter={onPrefetch}
@@ -174,7 +190,10 @@ export function EmailHubThreadListItem({
               {labels.map((label) => (
                 <span
                   key={label}
-                  className="max-w-[8rem] truncate rounded-md bg-muted px-1.5 py-0.5 text-caption text-muted-foreground"
+                  className={cn(
+                    "max-w-[8rem] truncate rounded-md px-1.5 py-0.5 text-caption",
+                    tintClass[identityTint(label.toLowerCase())],
+                  )}
                 >
                   {label}
                 </span>

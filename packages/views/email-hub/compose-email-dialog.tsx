@@ -10,6 +10,7 @@ import { useEmailHubAccounts, useSendEmailHub } from "@uniwork/core/email-hub/ho
 import type { EmailHubThread } from "@uniwork/core/types/email-hub";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@uniwork/ui/components/ui/select";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ConfirmDialog } from "../common/form-dialog";
@@ -23,8 +24,9 @@ import {
   forwardSubject,
   replySubject,
   type ComposeMode,
+  type ForwardLabels,
 } from "./compose-recipients";
-import { buildComposeBodyHtml, readFileAsBase64 } from "./compose-text-helpers";
+import { plainTextToHtml, readFileAsBase64 } from "./compose-text-helpers";
 import { emailHubLocale, formatEmailFullDate, senderDisplayName } from "./email-hub-format";
 
 function isScheduledSend(result: EmailHubThread | EmailHubScheduledSend | null): result is EmailHubScheduledSend {
@@ -59,7 +61,12 @@ const chipsFrameClass =
 
 type Draft = { to: string[]; cc: string[]; bcc: string[]; subject: string; body: string };
 
-function initialDraft(mode: ComposeMode, source: EmailHubThread | null | undefined, fromEmail: string | null): Draft {
+function initialDraft(
+  mode: ComposeMode,
+  source: EmailHubThread | null | undefined,
+  fromEmail: string | null,
+  forwardLabels: ForwardLabels | null,
+): Draft {
   if (source && mode === "reply") {
     return { to: [source.from_addr], cc: [], bcc: [], subject: replySubject(source.subject), body: "" };
   }
@@ -73,13 +80,13 @@ function initialDraft(mode: ComposeMode, source: EmailHubThread | null | undefin
       body: "",
     };
   }
-  if (source && mode === "forward") {
+  if (source && mode === "forward" && forwardLabels) {
     return {
       to: [],
       cc: [],
       bcc: [],
       subject: forwardSubject(source.subject),
-      body: buildForwardBody({ ...source, body_text: source.body_text ?? "" }),
+      body: buildForwardBody(source, forwardLabels),
     };
   }
   return { to: [], cc: [], bcc: [], subject: "", body: "" };
@@ -143,9 +150,28 @@ export function ComposeEmailDialog({
   const send = useSendEmailHub(wsId);
   const { reset: resetSend } = send;
   const accounts = useEmailHubAccounts(wsId);
-  const fromEmail = accounts.data?.accounts.find((account) => account.id === accountId)?.email_address ?? null;
+  const accountList = useMemo(() => accounts.data?.accounts ?? [], [accounts.data?.accounts]);
+  // A reply leaves from the mailbox the email arrived in; anything else from the one in view.
+  const defaultFromId = (sourceThread && mode !== "new" ? sourceThread.account_id : null) || accountId;
+  const [fromId, setFromId] = useState<string | null>(defaultFromId);
+  const fromEmail = accountList.find((account) => account.id === fromId)?.email_address ?? null;
+  const defaultFromEmail = accountList.find((account) => account.id === defaultFromId)?.email_address ?? null;
+  const locale = emailHubLocale(i18n.language);
+  const forwardLabels = useMemo<ForwardLabels | null>(
+    () =>
+      sourceThread
+        ? {
+            header: t("email_hub.compose.forward_header"),
+            from: t("email_hub.compose.from"),
+            date: t("email_hub.compose.date"),
+            subject: t("email_hub.compose.subject"),
+            when: formatEmailFullDate(sourceThread.sent_at, locale),
+          }
+        : null,
+    [locale, sourceThread, t],
+  );
 
-  const [draft, setDraft] = useState<Draft>(() => initialDraft(mode, sourceThread, fromEmail));
+  const [draft, setDraft] = useState<Draft>(() => initialDraft(mode, sourceThread, defaultFromEmail, forwardLabels));
   const [initial, setInitial] = useState<Draft>(draft);
   const [showCc, setShowCc] = useState(false);
   const [showBcc, setShowBcc] = useState(false);
@@ -154,8 +180,12 @@ export function ComposeEmailDialog({
   const patch = (next: Partial<Draft>) => setDraft((prev) => ({ ...prev, ...next }));
 
   useEffect(() => {
+    if (open) setFromId(defaultFromId);
+  }, [open, defaultFromId]);
+
+  useEffect(() => {
     if (!open) return;
-    const next = initialDraft(mode, sourceThread, fromEmail);
+    const next = initialDraft(mode, sourceThread, defaultFromEmail, forwardLabels);
     setDraft(next);
     setInitial(next);
     setShowCc(next.cc.length > 0);
@@ -164,7 +194,7 @@ export function ComposeEmailDialog({
     setConfirmDiscard(false);
     // Each opening starts clean: the previous attempt's error is not this draft's.
     resetSend();
-  }, [open, mode, sourceThread, fromEmail, resetSend]);
+  }, [open, mode, sourceThread, defaultFromEmail, forwardLabels, resetSend]);
 
   const dirty = useMemo(
     () =>
@@ -199,25 +229,21 @@ export function ComposeEmailDialog({
 
   const buildPayload = async (sendAt?: string) => {
     const trimmedBody = draft.body.trim();
-    const files = attachments.map((item) => item.file);
-    const [attachmentInputs, bodyHtml] = await Promise.all([
-      Promise.all(
-        attachments.map(async (item) => ({
-          filename: item.file.name,
-          contentType: item.file.type || undefined,
-          contentBase64: await readFileAsBase64(item.file),
-        })),
-      ),
-      buildComposeBodyHtml(trimmedBody, files),
-    ]);
+    const attachmentInputs = await Promise.all(
+      attachments.map(async (item) => ({
+        filename: item.file.name,
+        contentType: item.file.type || undefined,
+        contentBase64: await readFileAsBase64(item.file),
+      })),
+    );
     return {
-      accountId: accountId!,
+      accountId: fromId!,
       to: draft.to,
       cc: showCc && draft.cc.length ? draft.cc : undefined,
       bcc: showBcc && draft.bcc.length ? draft.bcc : undefined,
       subject: draft.subject.trim(),
       bodyText: trimmedBody,
-      bodyHtml,
+      bodyHtml: plainTextToHtml(trimmedBody),
       attachments: attachmentInputs.length ? attachmentInputs : undefined,
       sendAt,
       replyToThreadId: mode === "reply" || mode === "replyAll" ? sourceThread?.id : undefined,
@@ -227,7 +253,7 @@ export function ComposeEmailDialog({
   const handleSendSuccess = (result: EmailHubThread | EmailHubScheduledSend | null) => {
     if (isScheduledSend(result)) {
       toast.success(
-        t("email_hub.compose.schedule_success", { time: formatEmailFullDate(result.send_at, emailHubLocale(i18n.language)) }),
+        t("email_hub.compose.schedule_success", { time: formatEmailFullDate(result.send_at, locale) }),
         onOpenScheduled ? { action: { label: t("email_hub.compose.view_scheduled"), onClick: onOpenScheduled } } : undefined,
       );
     } else {
@@ -237,10 +263,11 @@ export function ComposeEmailDialog({
   };
 
   const submit = (sendAt?: string) => {
-    if (!accountId) return;
-    void buildPayload(sendAt).then((payload) => {
-      send.mutate(payload, { onSuccess: handleSendSuccess });
-    });
+    if (!fromId) return;
+    void buildPayload(sendAt).then(
+      (payload) => send.mutate(payload, { onSuccess: handleSendSuccess }),
+      () => toast.error(t("email_hub.compose.attach_read_error")),
+    );
   };
 
   const isReplyLike = mode === "reply" || mode === "replyAll";
@@ -248,7 +275,7 @@ export function ComposeEmailDialog({
   const recipientsValid = draft.to.length > 0 && allRecipients.every((addr) => EMAIL_RE.test(addr));
   const needsSubject = !isReplyLike && mode !== "forward";
   const canSend =
-    !!accountId && recipientsValid && !!draft.body.trim() && (!needsSubject || !!draft.subject.trim()) && !send.isPending;
+    !!fromId && recipientsValid && !!draft.body.trim() && (!needsSubject || !!draft.subject.trim()) && !send.isPending;
   const sendBlockedReason = !recipientsValid
     ? t("email_hub.compose.need_recipient")
     : needsSubject && !draft.subject.trim()
@@ -269,7 +296,7 @@ export function ComposeEmailDialog({
       {!showCc ? (
         <button
           type="button"
-          className="h-8 rounded-control px-2 text-caption text-muted-foreground hover:bg-muted hover:text-foreground pointer-coarse:min-h-11"
+          className="h-8 rounded-control px-2 text-caption text-muted-foreground hover:bg-muted hover:text-foreground pointer-coarse:min-h-11 pointer-coarse:min-w-11"
           onClick={() => setShowCc(true)}
         >
           {t("email_hub.compose.cc")}
@@ -278,7 +305,7 @@ export function ComposeEmailDialog({
       {!showBcc ? (
         <button
           type="button"
-          className="h-8 rounded-control px-2 text-caption text-muted-foreground hover:bg-muted hover:text-foreground pointer-coarse:min-h-11"
+          className="h-8 rounded-control px-2 text-caption text-muted-foreground hover:bg-muted hover:text-foreground pointer-coarse:min-h-11 pointer-coarse:min-w-11"
           onClick={() => setShowBcc(true)}
         >
           {t("email_hub.compose.bcc")}
@@ -297,7 +324,7 @@ export function ComposeEmailDialog({
         }}
       >
         <DialogContent
-          className="max-h-[calc(100dvh-2rem)] gap-0 overflow-hidden p-0 sm:max-w-2xl"
+          className="max-h-[calc(100dvh-2rem)] grid-cols-[minmax(0,1fr)] gap-0 overflow-hidden p-0 sm:max-w-2xl"
           onKeyDown={handleKeyDown}
           closeLabel={t("common.close")}
         >
@@ -308,8 +335,29 @@ export function ComposeEmailDialog({
 
           <div className="min-h-0 overflow-y-auto">
             <div className="divide-y divide-border border-b border-border">
-              <FieldRow label={t("email_hub.compose.from")}>
-                <p className="truncate text-body text-foreground">{fromEmail ?? t("email_hub.connect_prompt")}</p>
+              <FieldRow label={t("email_hub.compose.from")} htmlFor={accountList.length > 1 ? "email-hub-from" : undefined}>
+                {accountList.length > 1 ? (
+                  <Select
+                    items={accountList.map((acc) => ({ value: acc.id, label: acc.email_address }))}
+                    value={fromId ?? ""}
+                    onValueChange={(next) => {
+                      if (typeof next === "string" && next) setFromId(next);
+                    }}
+                  >
+                    <SelectTrigger id="email-hub-from" size="sm" className="h-9 w-full max-w-none border-0 px-0 shadow-none">
+                      <SelectValue>{fromEmail}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {accountList.map((acc) => (
+                        <SelectItem key={acc.id} value={acc.id}>
+                          {acc.email_address}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <p className="truncate text-body text-foreground">{fromEmail ?? t("email_hub.connect_prompt")}</p>
+                )}
               </FieldRow>
               <FieldRow label={t("email_hub.compose.to")} htmlFor="email-hub-to" action={extraFieldToggle}>
                 <EmailChipsInput

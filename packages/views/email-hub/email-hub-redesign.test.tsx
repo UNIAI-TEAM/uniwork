@@ -67,8 +67,10 @@ describe("EmailHubScheduledDetail", () => {
       <EmailHubScheduledDetail
         item={{ id: "s1", send_at: "2026-09-25T02:00:00Z", subject: "Báo cáo tuần 39", to: ["bgd@example.com"], status: "pending" }}
         cancelPending={false}
+        retryPending={false}
         onBack={() => {}}
         onCancel={onCancel}
+        onRetry={() => {}}
       />,
     );
     expect(screen.getByText("Đang chờ gửi")).toBeInTheDocument();
@@ -86,11 +88,40 @@ describe("EmailHubScheduledDetail", () => {
       <EmailHubScheduledDetail
         item={{ id: "s1", send_at: "2026-09-25T02:00:00Z", subject: "", to: [], status: "queued_retry" }}
         cancelPending={false}
+        retryPending={false}
         onBack={() => {}}
         onCancel={() => {}}
+        onRetry={() => {}}
       />,
     );
     expect(screen.getByText("queued_retry")).toBeInTheDocument();
+  });
+
+  it("says a failed send was not sent and offers to send it again or drop it", async () => {
+    const onRetry = vi.fn();
+    const onCancel = vi.fn();
+    render(
+      <EmailHubScheduledDetail
+        item={{ id: "s1", send_at: "2026-09-25T02:00:00Z", subject: "Hợp đồng", to: ["a@example.com"], status: "failed" }}
+        cancelPending={false}
+        retryPending={false}
+        onBack={() => {}}
+        onCancel={onCancel}
+        onRetry={onRetry}
+      />,
+    );
+    expect(screen.getByText("Gửi không thành công")).toBeInTheDocument();
+    expect(screen.getByText(/chưa được gửi/)).toBeInTheDocument();
+    expect(screen.queryByText(/sẽ được gửi tự động/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Hủy lịch gửi" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Gửi lại ngay" }));
+    expect(onRetry).toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Bỏ email này" }));
+    const dialog = await screen.findByRole("alertdialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Bỏ email này" }));
+    await waitFor(() => expect(onCancel).toHaveBeenCalled());
   });
 });
 
@@ -126,6 +157,8 @@ describe("EmailHubFolderSidebar", () => {
         onLabelChange={() => {}}
         composeDisabled={false}
         onCompose={() => {}}
+        shortcutsOn
+        onOpenShortcuts={() => {}}
         accountMenu={{
           accounts: [account],
           activeAccountId: "acc1",

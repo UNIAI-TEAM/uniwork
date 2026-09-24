@@ -1,7 +1,7 @@
 "use client";
 
 import type { Ref } from "react";
-import { Archive, MailOpen, Mail, Paperclip, PenSquare, RefreshCw, Search, Trash2, X } from "lucide-react";
+import { Archive, Keyboard, MailOpen, Mail, Paperclip, PenSquare, RefreshCw, Search, Trash2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
@@ -127,6 +127,8 @@ export interface EmailHubListHeaderProps {
   lastSyncText: string | null;
   composeDisabled: boolean;
   onCompose: () => void;
+  onOpenShortcuts: () => void;
+  shortcutsOn: boolean;
   bulk: EmailHubBulkActions | null;
   searchRef?: Ref<HTMLInputElement>;
 }
@@ -137,22 +139,24 @@ export interface EmailHubListHeaderProps {
  * compose, which the sidebar holds on larger screens.
  */
 export function EmailHubListHeader({
-    nav,
-    accountMenu,
-    isScheduledFolder,
-    searchInput,
-    onSearchInputChange,
-    refreshDisabled,
-    refreshing,
-    onRefresh,
-    unreadOnly,
-    onToggleUnreadOnly,
-    hasAttachmentsOnly,
-    onToggleAttachmentsOnly,
-    countText,
-    lastSyncText,
-    composeDisabled,
-    onCompose,
+  nav,
+  accountMenu,
+  isScheduledFolder,
+  searchInput,
+  onSearchInputChange,
+  refreshDisabled,
+  refreshing,
+  onRefresh,
+  unreadOnly,
+  onToggleUnreadOnly,
+  hasAttachmentsOnly,
+  onToggleAttachmentsOnly,
+  countText,
+  lastSyncText,
+  composeDisabled,
+  onCompose,
+  onOpenShortcuts,
+  shortcutsOn,
   bulk,
   searchRef,
 }: EmailHubListHeaderProps) {
@@ -165,7 +169,8 @@ export function EmailHubListHeader({
         <div className="min-w-0 lg:hidden">
           <EmailHubFolderMenu {...nav} />
         </div>
-        <h2 className="hidden min-w-0 truncate px-1 text-title font-semibold lg:block">{folderLabel}</h2>
+        {/* Below `lg` the folder menu shows the name; the heading stays for screen readers. */}
+        <h1 className="sr-only min-w-0 truncate px-1 text-title font-semibold lg:not-sr-only">{folderLabel}</h1>
         {countText ? (
           <span className="hidden shrink-0 px-1 text-caption tabular-nums text-muted-foreground sm:inline">
             {countText}
@@ -178,6 +183,12 @@ export function EmailHubListHeader({
             disabled={refreshDisabled}
             spinning={refreshing}
             onClick={onRefresh}
+          />
+          <EmailHubIconAction
+            icon={Keyboard}
+            label={t("email_hub.shortcuts.open_button")}
+            className="hidden md:inline-flex lg:hidden"
+            onClick={onOpenShortcuts}
           />
           <div className="lg:hidden">
             <EmailHubAccountMenu {...accountMenu} compact />
@@ -221,20 +232,20 @@ export function EmailHubListHeader({
                 }
               }}
               placeholder={t("email_hub.search_placeholder")}
-              className="h-9 pr-9 pl-9 [&::-webkit-search-cancel-button]:hidden"
+              className="h-9 pr-9 pl-9 pointer-coarse:pr-12 [&::-webkit-search-cancel-button]:hidden"
             />
             {searchInput ? (
               <button
                 type="button"
-                className="absolute top-1/2 right-1.5 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded-control text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="absolute top-1/2 right-1.5 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded-control text-muted-foreground hover:bg-muted hover:text-foreground pointer-coarse:right-0 pointer-coarse:size-11"
                 aria-label={t("email_hub.search_clear")}
                 onClick={() => onSearchInputChange("")}
               >
                 <X className="size-4" aria-hidden />
               </button>
-            ) : (
+            ) : shortcutsOn ? (
               <Kbd className="pointer-events-none absolute top-1/2 right-2.5 hidden -translate-y-1/2 sm:inline-flex">/</Kbd>
-            )}
+            ) : null}
           </div>
           <div className="flex items-center gap-2">
             <button

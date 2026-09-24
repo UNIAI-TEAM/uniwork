@@ -25,10 +25,18 @@ import {
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import { DateTimeField } from "../common/datetime-field";
 import { toDateOnly } from "../common/date-field";
 import { insertTextareaAtCursor, printComposeDraft, wrapTextareaSelection } from "./compose-text-helpers";
+import { emailHubLocale, formatBytes } from "./email-hub-format";
+
+/** "⌘ Enter" on a Mac, "Ctrl Enter" elsewhere — the key that sends from the body. */
+function sendShortcutLabel() {
+  const mac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+  return mac ? "⌘ Enter" : "Ctrl Enter";
+}
 
 const QUICK_EMOJIS = ["😀", "😊", "👍", "🙏", "❤️", "🎉", "✅", "🔥", "😂", "🤔", "👋", "💡"];
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
@@ -111,7 +119,8 @@ export function ComposeEmailToolbar({
   onScheduleSend,
   onDiscard,
 }: ComposeEmailToolbarProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = emailHubLocale(i18n.language);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formatOpen, setFormatOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -211,7 +220,9 @@ export function ComposeEmailToolbar({
         toast.error(t("email_hub.compose.attach_too_large", { name: file.name }));
         continue;
       }
-      next.push({ id: `${file.name}-${file.size}-${file.lastModified}`, file });
+      const id = `${file.name}-${file.size}-${file.lastModified}`;
+      // The same file picked twice is one attachment, not a duplicate row with a clashing key.
+      if (!next.some((item) => item.id === id)) next.push({ id, file });
     }
     onAttachmentsChange(next);
   };
@@ -238,7 +249,16 @@ export function ComposeEmailToolbar({
 
   const printDraft = () => {
     if (!fromEmail) return;
-    printComposeDraft({ from: fromEmail, to, cc, subject, body });
+    const printed = printComposeDraft(
+      { from: fromEmail, to, cc, subject, body },
+      {
+        from: t("email_hub.compose.from"),
+        to: t("email_hub.compose.to"),
+        cc: t("email_hub.compose.cc"),
+        subject: t("email_hub.compose.subject"),
+      },
+    );
+    if (!printed) toast.error(t("email_hub.compose.print_blocked"));
   };
 
   return (
@@ -252,10 +272,11 @@ export function ComposeEmailToolbar({
             >
               <Paperclip className="size-3 shrink-0" aria-hidden />
               <span className="truncate">{item.file.name}</span>
+              <span className="shrink-0 tabular-nums text-muted-foreground">{formatBytes(item.file.size, locale)}</span>
               <button
                 type="button"
-                className="rounded-full p-0.5 hover:bg-background"
-                aria-label={t("email_hub.compose.remove_attachment")}
+                className="-mr-1 inline-flex size-6 shrink-0 items-center justify-center rounded-full hover:bg-background pointer-coarse:size-11"
+                aria-label={t("email_hub.compose.remove_attachment_named", { name: item.file.name })}
                 onClick={() => removeAttachment(item.id)}
               >
                 <X className="size-3" aria-hidden />
@@ -301,18 +322,26 @@ export function ComposeEmailToolbar({
       >
         <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
           <div className="inline-flex shrink-0 overflow-hidden rounded-control">
-            <Button
-              type="button"
-              variant="brand"
-              size="lg"
-              disabled={!canSend}
-              aria-busy={sending || undefined}
-              aria-describedby={sendBlockedReason ? "email-hub-send-blocked" : undefined}
-              onClick={onSend}
-              className="rounded-r-none px-4"
-            >
-              {sending ? t("email_hub.compose.sending") : t("email_hub.compose.send")}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="brand"
+                    size="lg"
+                    disabled={!canSend}
+                    aria-busy={sending || undefined}
+                    aria-describedby={sendBlockedReason ? "email-hub-send-blocked" : undefined}
+                    aria-keyshortcuts="Control+Enter Meta+Enter"
+                    onClick={onSend}
+                    className="rounded-r-none px-4"
+                  />
+                }
+              >
+                {sending ? t("email_hub.compose.sending") : t("email_hub.compose.send")}
+              </TooltipTrigger>
+              <TooltipContent>{t("email_hub.compose.send_shortcut", { keys: sendShortcutLabel() })}</TooltipContent>
+            </Tooltip>
             <Popover open={scheduleOpen} onOpenChange={setScheduleOpen}>
               <PopoverTrigger
                 render={
@@ -401,7 +430,7 @@ export function ComposeEmailToolbar({
                     key={emoji}
                     type="button"
                     aria-label={emoji}
-                    className="flex size-9 items-center justify-center rounded-md text-lg hover:bg-muted"
+                    className="flex size-9 items-center justify-center rounded-md text-title-sm hover:bg-muted pointer-coarse:size-11"
                     onClick={() => insertEmoji(emoji)}
                   >
                     {emoji}

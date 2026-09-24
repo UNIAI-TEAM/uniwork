@@ -74,7 +74,7 @@ export function EmailHubListAiSummary({
     <div className="px-3 pb-2.5 lg:px-4">
     <div
       className={cn(
-        "ml-21 flex gap-2 rounded-lg border border-border bg-surface px-2.5 py-2",
+        "ml-21 flex gap-2 pointer-coarse:ml-24 rounded-lg border border-border bg-surface px-2.5 py-2",
         analyzing && !listSummary && "border-dashed",
       )}
       role={analyzing && !listSummary ? "status" : undefined}
@@ -109,8 +109,21 @@ export function EmailHubListAiSummary({
   );
 }
 
+/** "18:59, 24 thg 9" — when UNI wrote this, so a stale summary reads as stale. */
+function generatedAt(iso: string, language: string) {
+  const d = new Date(iso);
+  if (!iso || Number.isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat(language.startsWith("en") ? "en-US" : "vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    day: "numeric",
+    month: "short",
+  }).format(d);
+}
+
 export function EmailHubAiSummaryDetail({ summary }: { summary: EmailHubThreadSummary }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const when = generatedAt(summary.summarized_at, i18n.language);
   const actionCount = summary.action_items.length;
   const [cardOpen, setCardOpen] = useState(true);
 
@@ -119,6 +132,9 @@ export function EmailHubAiSummaryDetail({ summary }: { summary: EmailHubThreadSu
       <EmailHubAiInsightHeader cardOpen={cardOpen} onToggleCard={() => setCardOpen((v) => !v)} />
       {cardOpen ? (
         <>
+          <p className="mb-2 text-caption text-muted-foreground">
+            {when ? t("email_hub.ai.generated_at", { when }) : t("email_hub.ai.generated_by")}
+          </p>
           <p className="text-body leading-relaxed text-foreground">{summary.summary}</p>
           {summary.key_points.length > 0 ? (
             <ul className="mt-3 space-y-2 border-t border-border pt-3">

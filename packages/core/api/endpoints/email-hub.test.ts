@@ -8,6 +8,7 @@ import {
   listEmailHubThreads,
   patchEmailHubThread,
   cancelEmailHubScheduledSend,
+  retryEmailHubScheduledSend,
   listEmailHubScheduledSends,
   sendEmailHub,
   getEmailHubThreadSummary,
@@ -232,6 +233,15 @@ describe("email hub endpoints", () => {
     await cancelEmailHubScheduledSend("ws1", "acc1", "sch1");
     expect(vi.mocked(fetch).mock.calls[0]![0]).toContain("scheduled-sends/sch1");
     expect(vi.mocked(fetch).mock.calls[0]![0]).toContain("account_id=acc1");
+  });
+
+  it("retryEmailHubScheduledSend POSTs to the retry path with account_id", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 204 }));
+    await retryEmailHubScheduledSend("ws1", "acc1", "sch1");
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(url).toContain("scheduled-sends/sch1/retry");
+    expect(url).toContain("account_id=acc1");
+    expect((init as RequestInit).method).toBe("POST");
   });
 
   it("getEmailHubThreadSummary returns null on 404 and parses cache payload", async () => {

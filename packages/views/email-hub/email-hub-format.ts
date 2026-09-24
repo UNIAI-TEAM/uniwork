@@ -41,10 +41,12 @@ export function formatEmailFullDate(iso: string, locale: string): string {
   return `${date} · ${time}`;
 }
 
-export function formatBytes(size: number) {
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+/** "470,8 KB" in Vietnamese, "470.8 KB" in English. */
+export function formatBytes(size: number, locale: string) {
+  const num = (value: number) => value.toLocaleString(locale, { maximumFractionDigits: 1 });
+  if (size < 1024) return `${num(size)} B`;
+  if (size < 1024 * 1024) return `${num(size / 1024)} KB`;
+  return `${num(size / (1024 * 1024))} MB`;
 }
 
 /**

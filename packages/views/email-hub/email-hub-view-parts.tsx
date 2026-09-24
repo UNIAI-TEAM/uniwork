@@ -8,7 +8,7 @@ import { tintClass } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { identityTint } from "../people/identity-tint";
-import { formatBytes, senderInitial } from "./email-hub-format";
+import { emailHubLocale, formatBytes, senderInitial } from "./email-hub-format";
 import { wrapEmailHtml } from "./email-hub-html";
 
 /**
@@ -47,7 +47,7 @@ const FRAME_MAX_HEIGHT = 20_000;
  * The HTML body. Its height follows the document for as long as it is shown:
  * measuring once on `load` cut off every email whose images arrived later.
  */
-export function EmailHtmlFrame({ html, title }: { html: string; title: string }) {
+export function EmailHtmlFrame({ html, title, allowRemote }: { html: string; title: string; allowRemote: boolean }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -83,7 +83,7 @@ export function EmailHtmlFrame({ html, title }: { html: string; title: string })
       frame.removeEventListener("load", onLoad);
       observer?.disconnect();
     };
-  }, [html]);
+  }, [html, allowRemote]);
 
   return (
     <iframe
@@ -92,7 +92,7 @@ export function EmailHtmlFrame({ html, title }: { html: string; title: string })
       sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
       className="block w-full min-w-0 border-0"
       style={{ height: FRAME_MIN_HEIGHT }}
-      srcDoc={wrapEmailHtml(html)}
+      srcDoc={wrapEmailHtml(html, { allowRemote })}
     />
   );
 }
@@ -137,7 +137,8 @@ export function AttachmentList({
   downloading: boolean;
   onDownload: (att: EmailHubAttachment) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = emailHubLocale(i18n.language);
   return (
     <section aria-labelledby="email-hub-attachments-title">
       <h2 id="email-hub-attachments-title" className="mb-2 text-overline text-muted-foreground">
@@ -158,7 +159,7 @@ export function AttachmentList({
                 <p className="truncate text-body font-medium" title={name}>
                   {name}
                 </p>
-                <p className="text-caption tabular-nums text-muted-foreground">{formatBytes(att.size_bytes)}</p>
+                <p className="text-caption tabular-nums text-muted-foreground">{formatBytes(att.size_bytes, locale)}</p>
               </div>
               <Button
                 type="button"

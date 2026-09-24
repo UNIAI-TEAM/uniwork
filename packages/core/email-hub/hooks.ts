@@ -38,6 +38,7 @@ export {
   useDownloadEmailHubAttachment,
   useMarkEmailHubRead,
   useMoveEmailHubThread,
+  useRetryEmailHubScheduledSend,
   useSendEmailHub,
   useSnoozeEmailHubThread,
   useSummarizeEmailHubThread,

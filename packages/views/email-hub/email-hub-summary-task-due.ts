@@ -22,6 +22,12 @@ export function formatActionDueHint(due: string | undefined, locale: string): st
       return raw;
     }
   }
-  if (dateOnly) return dateOnly;
+  if (dateOnly) {
+    // A bare date is a calendar day: build it locally so no timezone shifts it a day back.
+    const [y, m, d] = dateOnly.split("-").map(Number);
+    return new Intl.DateTimeFormat(locale.startsWith("en") ? "en-US" : "vi-VN", { dateStyle: "medium" }).format(
+      new Date(y!, m! - 1, d!),
+    );
+  }
   return raw;
 }

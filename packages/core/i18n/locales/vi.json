@@ -19,7 +19,8 @@
     "date_pick": "Chọn ngày",
     "date_clear": "Bỏ chọn ngày",
     "hour": "Giờ",
-    "minute": "Phút"
+    "minute": "Phút",
+    "opens_new_tab": " (mở tab mới)"
   },
   "errors": {
     "not_found_title": "Không tìm thấy trang",
@@ -1060,7 +1061,12 @@
       "tasks_created_one": "Đã tạo {{count}} việc từ email.",
       "tasks_created_other": "Đã tạo {{count}} việc từ email.",
       "create_tasks_confirm_one": "Tạo {{count}} việc",
-      "create_tasks_confirm_other": "Tạo {{count}} việc"
+      "create_tasks_confirm_other": "Tạo {{count}} việc",
+      "generated_at": "UNI tạo lúc {{when}} · có thể sai, hãy đối chiếu email",
+      "generated_by": "Do UNI tạo · có thể sai, hãy đối chiếu email",
+      "create_tasks_error": "Không tạo được việc. Thử lại.",
+      "view_tasks_one": "Mở việc",
+      "view_tasks_other": "Xem việc"
     },
     "compose": {
       "title": "Soạn email mới",
@@ -1120,7 +1126,13 @@
       "schedule_past": "Chọn một thời điểm trong tương lai.",
       "bold": "In đậm",
       "italic": "In nghiêng",
-      "underline": "Gạch chân"
+      "underline": "Gạch chân",
+      "forward_header": "Email chuyển tiếp",
+      "date": "Ngày",
+      "attach_read_error": "Không đọc được tệp đính kèm. Gỡ tệp đó rồi thử lại.",
+      "print_blocked": "Trình duyệt đã chặn tab in. Cho phép cửa sổ bật lên rồi thử lại.",
+      "remove_attachment_named": "Gỡ tệp {{name}}",
+      "send_shortcut": "Gửi · {{keys}}"
     },
     "scheduled": {
       "cancel": "Hủy lịch gửi",
@@ -1139,7 +1151,18 @@
         "sent": "Đã gửi",
         "failed": "Gửi không thành công",
         "cancelled": "Đã hủy"
-      }
+      },
+      "failed_body": "Email này chưa được gửi: lần gửi lúc {{when}} không thành công. Hộp thư có thể cần kết nối lại, hoặc có địa chỉ người nhận không hợp lệ.",
+      "tried_at_label": "Thử gửi lúc",
+      "retry": "Gửi lại ngay",
+      "retrying": "Đang xếp lại…",
+      "retry_success": "Đã xếp email vào hàng gửi lại. Email sẽ đi trong ít phút.",
+      "retry_error": "Không gửi lại được. Thử lại sau ít phút.",
+      "dismiss": "Bỏ email này",
+      "dismiss_confirm_title": "Bỏ email chưa gửi này?",
+      "dismiss_confirm_body": "\"{{subject}}\" sẽ không được gửi và biến mất khỏi danh sách. Nội dung không được lưu lại thành bản nháp.",
+      "dismiss_success": "Đã bỏ email chưa gửi.",
+      "keep_unsent": "Giữ lại"
     },
     "folders": {
       "inbox": "Hộp đến",
@@ -1281,7 +1304,27 @@
       "point_schedule": "Hẹn giờ gửi và theo dõi thư đã lên lịch.",
       "point_ai": "UNI tóm tắt email và gợi ý việc cần làm để tạo nhanh.",
       "connect": "Kết nối hộp thư"
-    }
+    },
+    "more_actions": "Thêm thao tác",
+    "shortcuts": {
+      "title": "Phím tắt",
+      "description": "Các phím giống Gmail. Không chạy khi bạn đang gõ trong ô nhập.",
+      "toggle": "Bật phím tắt một ký tự",
+      "toggle_hint": "Tắt nếu bạn dùng nhập liệu bằng giọng nói hoặc hay bấm nhầm. Chỉ áp dụng trên thiết bị này.",
+      "open_button": "Phím tắt",
+      "group_list": "Trong danh sách",
+      "group_reading": "Khi đang đọc email",
+      "compose": "Soạn email mới",
+      "search": "Tìm kiếm",
+      "move": "Xuống / lên một email",
+      "open": "Mở email đang chọn",
+      "help": "Mở danh sách phím tắt",
+      "back": "Quay lại danh sách",
+      "step": "Email sau / trước",
+      "star": "Gắn sao / bỏ sao"
+    },
+    "remote_blocked": "Ảnh từ máy chủ bên ngoài đang tắt, để người gửi không biết bạn đã mở email này.",
+    "remote_show": "Hiện ảnh"
   },
   "tasks": {
     "title": "Công việc",

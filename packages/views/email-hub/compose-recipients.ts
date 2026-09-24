@@ -38,11 +38,23 @@ export function buildReplyAllRecipients(thread: EmailHubThread, fromEmail: strin
   return { to: to.join(", "), cc: cc.join(", ") };
 }
 
-export function buildForwardBody(thread: Pick<EmailHubThread, "from_addr" | "from_name" | "sent_at" | "subject" | "body_text">) {
+/** The quoted header of a forward, in the app's language (it used to be hardcoded English). */
+export interface ForwardLabels {
+  header: string;
+  from: string;
+  date: string;
+  subject: string;
+  /** The original's date, already formatted in the app's locale. */
+  when: string;
+}
+
+export function buildForwardBody(
+  thread: Pick<EmailHubThread, "from_addr" | "from_name" | "subject" | "body_text">,
+  labels: ForwardLabels,
+) {
   const from = thread.from_name ? `${thread.from_name} <${thread.from_addr}>` : thread.from_addr;
-  const when = new Date(thread.sent_at).toLocaleString();
   const quoted = thread.body_text?.trim() ?? "";
-  return `\n\n---------- Forwarded message ----------\nFrom: ${from}\nDate: ${when}\nSubject: ${thread.subject}\n\n${quoted}`;
+  return `\n\n---------- ${labels.header} ----------\n${labels.from}: ${from}\n${labels.date}: ${labels.when}\n${labels.subject}: ${thread.subject}\n\n${quoted}`;
 }
 
 export function composeModeTitleKey(mode: ComposeMode) {

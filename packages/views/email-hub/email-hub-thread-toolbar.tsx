@@ -7,6 +7,7 @@ import {
   Clock,
   Inbox,
   MailOpen,
+  MoreHorizontal,
   Reply,
   ShieldAlert,
   Sparkles,
@@ -19,7 +20,9 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
@@ -78,6 +81,87 @@ function ToolbarDivider() {
 }
 
 /**
+ * Below `sm` the triage actions live in one "more" menu: nine 44px targets
+ * do not fit a 375px phone, and the overflow pushed Reply and the AI toggle
+ * off the screen.
+ */
+function TriageOverflowMenu({
+  can,
+  actions,
+  pending,
+}: {
+  can: ReturnType<typeof emailHubThreadCapabilities>;
+  actions: EmailHubThreadActions;
+  pending: EmailHubThreadPending;
+}) {
+  const { t } = useTranslation();
+  if (!can.canTriage && !can.canTrash) return null;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-lg"
+            className="text-muted-foreground hover:text-foreground sm:hidden"
+            aria-label={t("email_hub.more_actions")}
+          />
+        }
+      >
+        <MoreHorizontal className="size-4.5" aria-hidden />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-56">
+        {can.canTriage ? (
+          <DropdownMenuItem disabled={pending.move} onClick={actions.onArchive}>
+            <Archive aria-hidden />
+            {t("email_hub.archive")}
+          </DropdownMenuItem>
+        ) : null}
+        {can.canTriage ? (
+          <DropdownMenuItem disabled={pending.move} onClick={actions.onSpam}>
+            <ShieldAlert aria-hidden />
+            {t("email_hub.report_spam")}
+          </DropdownMenuItem>
+        ) : null}
+        {can.canTrash ? (
+          <DropdownMenuItem variant="destructive" disabled={pending.move} onClick={actions.onTrash}>
+            <Trash2 aria-hidden />
+            {t("email_hub.trash")}
+          </DropdownMenuItem>
+        ) : null}
+        {can.canMarkUnread ? (
+          <DropdownMenuItem disabled={pending.markRead} onClick={actions.onMarkUnread}>
+            <MailOpen aria-hidden />
+            {t("email_hub.bulk.mark_unread")}
+          </DropdownMenuItem>
+        ) : null}
+        {can.canTriage ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>{t("email_hub.snooze.action")}</DropdownMenuLabel>
+              <DropdownMenuItem disabled={pending.snooze} onClick={() => actions.onSnooze("tomorrow")}>
+                <Clock aria-hidden />
+                {t("email_hub.snooze.tomorrow")}
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={pending.snooze} onClick={() => actions.onSnooze("next_week")}>
+                <Clock aria-hidden />
+                {t("email_hub.snooze.next_week")}
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled={pending.snooze} onClick={() => actions.onSnooze("custom")}>
+                <CalendarClock aria-hidden />
+                {t("email_hub.snooze.custom")}
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/**
  * The reading pane's action bar. Eleven labelled buttons used to wrap into four
  * rows beside the subject and squeeze it into a narrow column; the triage
  * actions are now icons with names and shortcuts in their tooltips, and the
@@ -117,82 +201,85 @@ export function EmailHubThreadToolbar({
     >
       <EmailHubIconAction icon={ArrowLeft} label={t("email_hub.back_to_list_shortcut")} onClick={actions.onBack} />
       <ToolbarDivider />
+      <TriageOverflowMenu can={can} actions={actions} pending={pending} />
 
-      {can.canTriage ? (
-        <>
-          <EmailHubIconAction
-            icon={Archive}
-            label={t("email_hub.archive_shortcut")}
-            disabled={pending.move}
-            onClick={actions.onArchive}
-          />
-          <EmailHubIconAction
-            icon={ShieldAlert}
-            label={t("email_hub.report_spam")}
-            disabled={pending.move}
-            onClick={actions.onSpam}
-          />
-        </>
-      ) : null}
-      {can.canTrash ? (
-        <EmailHubIconAction
-          icon={Trash2}
-          label={t("email_hub.trash_shortcut")}
-          disabled={pending.move}
-          className="hover:text-destructive"
-          onClick={actions.onTrash}
-        />
-      ) : null}
-      {can.canTriage ? (
-        <>
-          <ToolbarDivider />
-          {can.canMarkUnread ? (
+      <div className="hidden items-center gap-0.5 sm:flex">
+        {can.canTriage ? (
+          <>
             <EmailHubIconAction
-              icon={MailOpen}
-              label={t("email_hub.mark_unread_shortcut")}
-              disabled={pending.markRead}
-              onClick={actions.onMarkUnread}
+              icon={Archive}
+              label={t("email_hub.archive_shortcut")}
+              disabled={pending.move}
+              onClick={actions.onArchive}
             />
-          ) : null}
-          <DropdownMenu>
-            <Tooltip>
-              <DropdownMenuTrigger
-                disabled={pending.snooze}
-                render={
-                  <TooltipTrigger
-                    render={
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-lg"
-                        className="text-muted-foreground hover:text-foreground"
-                        aria-haspopup="menu"
-                        aria-label={t("email_hub.snooze.action")}
-                      />
-                    }
-                  />
-                }
-              >
-                <Clock className="size-4.5" aria-hidden />
-              </DropdownMenuTrigger>
-              <TooltipContent>{t("email_hub.snooze.action")}</TooltipContent>
-            </Tooltip>
-            <DropdownMenuContent align="start" className="min-w-52">
-              <DropdownMenuItem onClick={() => actions.onSnooze("tomorrow")}>
-                {t("email_hub.snooze.tomorrow")}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => actions.onSnooze("next_week")}>
-                {t("email_hub.snooze.next_week")}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => actions.onSnooze("custom")}>
-                <CalendarClock aria-hidden />
-                {t("email_hub.snooze.custom")}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </>
-      ) : null}
+            <EmailHubIconAction
+              icon={ShieldAlert}
+              label={t("email_hub.report_spam")}
+              disabled={pending.move}
+              onClick={actions.onSpam}
+            />
+          </>
+        ) : null}
+        {can.canTrash ? (
+          <EmailHubIconAction
+            icon={Trash2}
+            label={t("email_hub.trash_shortcut")}
+            disabled={pending.move}
+            className="hover:text-destructive"
+            onClick={actions.onTrash}
+          />
+        ) : null}
+        {can.canTriage ? (
+          <>
+            <ToolbarDivider />
+            {can.canMarkUnread ? (
+              <EmailHubIconAction
+                icon={MailOpen}
+                label={t("email_hub.mark_unread_shortcut")}
+                disabled={pending.markRead}
+                onClick={actions.onMarkUnread}
+              />
+            ) : null}
+            <DropdownMenu>
+              <Tooltip>
+                <DropdownMenuTrigger
+                  disabled={pending.snooze}
+                  render={
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-lg"
+                          className="text-muted-foreground hover:text-foreground"
+                          aria-haspopup="menu"
+                          aria-label={t("email_hub.snooze.action")}
+                        />
+                      }
+                    />
+                  }
+                >
+                  <Clock className="size-4.5" aria-hidden />
+                </DropdownMenuTrigger>
+                <TooltipContent>{t("email_hub.snooze.action")}</TooltipContent>
+              </Tooltip>
+              <DropdownMenuContent align="start" className="min-w-52">
+                <DropdownMenuItem onClick={() => actions.onSnooze("tomorrow")}>
+                  {t("email_hub.snooze.tomorrow")}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => actions.onSnooze("next_week")}>
+                  {t("email_hub.snooze.next_week")}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => actions.onSnooze("custom")}>
+                  <CalendarClock aria-hidden />
+                  {t("email_hub.snooze.custom")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        ) : null}
+      </div>
 
       <div className="ml-auto flex items-center gap-0.5">
         <Tooltip>

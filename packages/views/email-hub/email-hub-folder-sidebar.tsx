@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, Lock, Mail, PenSquare, Tag } from "lucide-react";
+import { ChevronDown, Keyboard, Lock, Mail, PenSquare, Tag } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -76,10 +76,14 @@ export function EmailHubFolderSidebar({
   composeDisabled,
   onCompose,
   accountMenu,
+  shortcutsOn,
+  onOpenShortcuts,
 }: EmailHubFolderNavProps & {
   composeDisabled: boolean;
   onCompose: () => void;
   accountMenu: EmailHubAccountMenuProps;
+  shortcutsOn: boolean;
+  onOpenShortcuts: () => void;
 }) {
   const { t } = useTranslation();
   const inMore = EMAIL_HUB_MORE_FOLDERS.some((f) => f.key === folder);
@@ -93,12 +97,16 @@ export function EmailHubFolderSidebar({
   };
 
   return (
-    <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-sidebar lg:flex">
+    <aside
+      className="hidden w-60 shrink-0 flex-col border-r border-border bg-sidebar lg:flex"
+      aria-label={t("email_hub.title")}
+    >
       <div className="space-y-3 px-3 pt-4 pb-3">
-        <h1 className="flex items-center gap-2.5 px-1 text-title font-semibold">
+        {/* The page's h1 is the folder (list) or the subject (reading); this is the module name. */}
+        <p className="flex items-center gap-2.5 px-1 text-title font-semibold">
           <IconTile icon={Mail} tone={moduleTone("email")} size="sm" />
           {t("email_hub.title")}
-        </h1>
+        </p>
         <EmailHubAccountMenu {...accountMenu} />
         <Button
           variant="brand"
@@ -109,7 +117,7 @@ export function EmailHubFolderSidebar({
         >
           <PenSquare aria-hidden />
           {t("email_hub.compose_label")}
-          <Kbd className="ml-auto bg-brand-foreground/15 text-brand-foreground">C</Kbd>
+          {shortcutsOn ? <Kbd className="ml-auto bg-brand-foreground/15 text-brand-foreground">C</Kbd> : null}
         </Button>
       </div>
 
@@ -198,7 +206,14 @@ export function EmailHubFolderSidebar({
         )}
       </nav>
 
-      <div className="flex items-center gap-2.5 border-t border-border px-5 py-3 text-caption text-muted-foreground">
+      <div className="border-t border-border px-3 pt-2">
+        <button type="button" className={cn(emailHubNavItemClass(false), "text-caption")} onClick={onOpenShortcuts}>
+          <Keyboard className="size-4 shrink-0" aria-hidden />
+          <span className="flex-1 truncate text-left">{t("email_hub.shortcuts.open_button")}</span>
+          {shortcutsOn ? <Kbd>?</Kbd> : null}
+        </button>
+      </div>
+      <div className="flex items-center gap-2.5 px-5 pt-1 pb-3 text-caption text-muted-foreground">
         <Tag className="size-4 shrink-0" aria-hidden />
         <span className="min-w-0 flex-1 truncate">{t("email_hub.labels_rules")}</span>
         <span className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 font-medium">

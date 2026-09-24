@@ -18,6 +18,17 @@ import type { EmailHubFolderKey } from "./email-hub-folders";
 import { emailHubSnoozeNextWeekMorning, emailHubSnoozeToRFC3339, emailHubSnoozeTomorrowMorning } from "./email-hub-snooze";
 import type { EmailHubSnoozePreset, EmailHubThreadActions, EmailHubThreadPending } from "./email-hub-thread-toolbar";
 
+/** At most this many requests at once: fifty checked rows used to fire fifty moves together. */
+const BULK_CONCURRENCY = 4;
+
+async function settleInBatches(ids: string[], run: (id: string) => Promise<unknown>) {
+  const results: PromiseSettledResult<unknown>[] = [];
+  for (let i = 0; i < ids.length; i += BULK_CONCURRENCY) {
+    results.push(...(await Promise.allSettled(ids.slice(i, i + BULK_CONCURRENCY).map(run))));
+  }
+  return results;
+}
+
 /** Where a moved email went, and how to get to it: a move deletes and re-syncs the row, so there is no undo by id. */
 const MOVE_DONE: Record<EmailHubMoveTarget, { key: string; folder: EmailHubFolderKey }> = {
   ARCHIVE: { key: "email_hub.moved.archive", folder: "ARCHIVE" },
@@ -132,7 +143,7 @@ export function useEmailHubThreadActions({
     async (ids: string[], run: (threadId: string) => Promise<unknown>, doneKey: string) => {
       if (!accountId || ids.length === 0) return;
       setBulkPending(true);
-      const results = await Promise.allSettled(ids.map(run));
+      const results = await settleInBatches(ids, run);
       setBulkPending(false);
       const failed = results.filter((r) => r.status === "rejected").length;
       if (failed > 0) toast.error(t("email_hub.bulk.partial_error", { count: failed }));

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { emailHubLocale, formatEmailListDate, senderInitial } from "./email-hub-format";
+import { emailHubLocale, formatBytes, formatEmailListDate, senderInitial } from "./email-hub-format";
 
 describe("senderInitial", () => {
   it("takes the first letter of a Vietnamese name, diacritics included", () => {
@@ -37,5 +37,14 @@ describe("emailHubLocale", () => {
     expect(emailHubLocale("en")).toBe("en-US");
     expect(emailHubLocale("vi")).toBe("vi-VN");
     expect(emailHubLocale(undefined)).toBe("vi-VN");
+  });
+});
+
+describe("formatBytes", () => {
+  it("uses the app language's decimal separator", () => {
+    expect(formatBytes(482_133, "vi-VN")).toBe("470,8 KB");
+    expect(formatBytes(482_133, "en-US")).toBe("470.8 KB");
+    expect(formatBytes(900, "vi-VN")).toBe("900 B");
+    expect(formatBytes(3 * 1024 * 1024, "vi-VN")).toBe("3 MB");
   });
 });

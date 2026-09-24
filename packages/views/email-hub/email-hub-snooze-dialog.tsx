@@ -41,7 +41,11 @@ export function EmailHubSnoozeDialog({
             hourLabel={t("common.hour")}
             minuteLabel={t("common.minute")}
           />
-          {past ? <p className="text-caption text-destructive">{t("email_hub.snooze.custom_past")}</p> : null}
+          {past ? (
+            <p className="text-caption text-destructive" role="alert">
+              {t("email_hub.snooze.custom_past")}
+            </p>
+          ) : null}
         </FormDialogBody>
         <FormDialogFooter
           onCancel={() => onOpenChange(false)}

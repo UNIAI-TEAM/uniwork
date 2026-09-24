@@ -318,6 +318,14 @@ export async function cancelEmailHubScheduledSend(workspaceId: string, accountId
   });
 }
 
+/** Puts a failed scheduled send back in the queue, due now. 404 unless it is `failed`. */
+export async function retryEmailHubScheduledSend(workspaceId: string, accountId: string, scheduledId: string) {
+  const q = new URLSearchParams({ account_id: accountId });
+  await request(`/api/v1/workspaces/${enc(workspaceId)}/email-hub/scheduled-sends/${enc(scheduledId)}/retry?${q}`, {
+    method: "POST",
+  });
+}
+
 const EMPTY_EMAIL_SUMMARY: EmailHubThreadSummary = {
   summary: "",
   key_points: [],

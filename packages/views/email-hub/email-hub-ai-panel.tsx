@@ -17,9 +17,12 @@ import {
   previewAssigneeId,
   type SummaryTaskFieldOverrides,
 } from "@uniwork/core/meetings/summary-task-items";
+import { paths } from "@uniwork/core/paths";
 import { useMembers } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
+import { useWorkspace } from "../layout/workspace-context";
+import { useNavigation } from "../navigation";
 import { toastApiError } from "../toast-api-error";
 import { EmailHubAiActionItemsCard } from "./email-hub-ai-action-items-card";
 import { EmailHubAiSummaryDetail } from "./email-hub-ai-insight";
@@ -49,6 +52,8 @@ export function EmailHubAiPanel({
   onSummaryChange?: (summary: EmailHubThreadSummary) => void;
 }) {
   const { t, i18n } = useTranslation();
+  const nav = useNavigation();
+  const { workspace } = useWorkspace();
   const { data: caps } = useAiCapabilities(wsId);
   const { data: members } = useMembers(wsId);
   const aiOn = caps?.enabled ?? false;
@@ -142,7 +147,7 @@ export function EmailHubAiPanel({
             toast.error(t("email_hub.ai.nothing_to_summarize"));
             return;
           }
-          toastApiError(err, t("email_hub.load_error"));
+          toastApiError(err, t("email_hub.ai.summarize_error"));
         },
       },
     );
@@ -177,12 +182,19 @@ export function EmailHubAiPanel({
       },
       {
         onSuccess: (ids) => {
-          toast.success(t("email_hub.ai.tasks_created", { count: ids.length }));
+          const wsPaths = paths.workspace(workspace.organization_slug, workspace.slug);
+          const only = ids.length === 1 ? ids[0] : undefined;
+          toast.success(t("email_hub.ai.tasks_created", { count: ids.length }), {
+            action: {
+              label: t("email_hub.ai.view_tasks", { count: ids.length }),
+              onClick: () => nav.push(only ? wsPaths.task(only) : wsPaths.tasks()),
+            },
+          });
           setCreateDialogOpen(false);
           setPicked(new Set());
           setAssigneeOverrides({});
         },
-        onError: (err) => toastApiError(err, t("email_hub.load_error")),
+        onError: (err) => toastApiError(err, t("email_hub.ai.create_tasks_error")),
       },
     );
   };

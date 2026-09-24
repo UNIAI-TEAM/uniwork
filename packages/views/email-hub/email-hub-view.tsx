@@ -12,7 +12,6 @@ import {
   flushEmailHubListRefresh,
   prefetchEmailHubThread,
   setEmailHubListRefreshPaused,
-  useCancelEmailHubScheduledSend,
   useDisconnectEmailHubAccount,
   useEmailHubAccounts,
   useEmailHubImapLabels,
@@ -34,12 +33,15 @@ import { EmailHubConnectEmpty, EmailHubShellSkeleton } from "./email-hub-connect
 import { EmailHubFolderSidebar } from "./email-hub-folder-sidebar";
 import type { EmailHubFolderKey, EmailHubMailFolderKey } from "./email-hub-folders";
 import { emailHubLocale, formatEmailListDate } from "./email-hub-format";
+import { EmailHubShortcutsDialog } from "./email-hub-shortcuts-dialog";
 import { EmailHubSnoozeDialog } from "./email-hub-snooze-dialog";
 import { EmailHubViewDetailPanel } from "./email-hub-view-detail-panel";
 import { EmailHubViewDialogs } from "./email-hub-view-dialogs";
 import { EmailHubViewListPanel } from "./email-hub-view-list-panel";
 import { useEmailHubAccountPanel } from "./use-email-hub-account-panel";
+import { useEmailHubScheduledActions } from "./use-email-hub-scheduled-actions";
 import { useEmailHubShortcuts } from "./use-email-hub-shortcuts";
+import { useEmailHubShortcutsPref } from "./use-email-hub-shortcuts-pref";
 import { useEmailHubThreadActions } from "./use-email-hub-thread-actions";
 
 export function EmailHubView() {
@@ -64,6 +66,9 @@ export function EmailHubView() {
   const [composeSource, setComposeSource] = useState<EmailHubThread | null>(null);
   const [aiRailOpen, setAiRailOpen] = useState(true);
   const [aiSheetOpen, setAiSheetOpen] = useState(false);
+  const [shortcutsOn, setShortcutsOn] = useEmailHubShortcutsPref();
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const openShortcuts = useCallback(() => setShortcutsOpen(true), []);
   const wideAi = useMediaQuery(EMAIL_HUB_AI_WIDE_QUERY);
   const searchRef = useRef<HTMLInputElement>(null);
   const lastOpenedRef = useRef<string | null>(null);
@@ -80,7 +85,6 @@ export function EmailHubView() {
   const sync = useSyncEmailHub(wsId);
   const disconnect = useDisconnectEmailHubAccount(wsId);
   const summarizeThread = useSummarizeEmailHubThread(wsId);
-  const cancelScheduled = useCancelEmailHubScheduledSend(wsId);
   const { data: aiCaps } = useAiCapabilities(wsId);
   const aiEnabled = !!aiCaps?.enabled;
   const [threadAiSummaries, setThreadAiSummaries] = useState<Record<string, EmailHubThreadSummary>>({});
@@ -144,6 +148,7 @@ export function EmailHubView() {
   );
   const rows = useMemo(() => threads.data?.pages.flatMap((page) => page.threads) ?? [], [threads.data]);
   const selectedRow = useMemo(() => rows.find((row) => row.id === selectedId) ?? null, [rows, selectedId]);
+  const scheduledActions = useEmailHubScheduledActions(wsId, accountId, selectedScheduled, setSelectedId);
   const detail = useEmailHubThread(wsId, accountId, isScheduledFolder ? null : selectedId, selectedRow);
 
   useEffect(() => {
@@ -267,7 +272,9 @@ export function EmailHubView() {
   };
   const { actions } = threadActions;
   useEmailHubShortcuts({
+    enabled: shortcutsOn,
     reading: readingEmail && !isScheduledFolder,
+    onHelp: openShortcuts,
     onCompose: accountId ? () => openCompose("new") : undefined,
     onFocusSearch: () => searchRef.current?.focus(),
     onBack: actions.onBack,
@@ -340,27 +347,18 @@ export function EmailHubView() {
         composeDisabled={!accountId}
         onCompose={() => openCompose("new")}
         accountMenu={accountMenu}
+        shortcutsOn={shortcutsOn}
+        onOpenShortcuts={openShortcuts}
       />
 
       {readingEmail ? (
         <EmailHubViewDetailPanel
           isScheduledFolder={isScheduledFolder}
           selectedScheduled={selectedScheduled}
-          cancelScheduledPending={cancelScheduled.isPending}
-          onCancelScheduled={(onDone) => {
-            if (!accountId || !selectedScheduled) return;
-            cancelScheduled.mutate(
-              { accountId, scheduledId: selectedScheduled.id },
-              {
-                onSuccess: () => {
-                  toast.success(t("email_hub.scheduled.cancel_success"));
-                  setSelectedId(null);
-                },
-                onError: (err) => toastApiError(err, t("email_hub.scheduled.cancel_error")),
-                onSettled: onDone,
-              },
-            );
-          }}
+          cancelScheduledPending={scheduledActions.cancelPending}
+          retryScheduledPending={scheduledActions.retryPending}
+          onRetryScheduled={scheduledActions.retry}
+          onCancelScheduled={scheduledActions.cancel}
           detailError={detail.isError}
           detailLoading={detail.isLoading}
           activeThread={activeThread}
@@ -401,6 +399,8 @@ export function EmailHubView() {
               : null,
             composeDisabled: !accountId,
             onCompose: () => openCompose("new"),
+            onOpenShortcuts: openShortcuts,
+            shortcutsOn,
             searchRef,
             bulk: isScheduledFolder
               ? null
@@ -485,6 +485,12 @@ export function EmailHubView() {
       ) : null}
 
       <EmailHubSnoozeDialog {...threadActions.snoozeDialog} />
+      <EmailHubShortcutsDialog
+        open={shortcutsOpen}
+        onOpenChange={setShortcutsOpen}
+        enabled={shortcutsOn}
+        onEnabledChange={setShortcutsOn}
+      />
       {dialogs}
     </div>
   );

@@ -3,7 +3,10 @@
 import { useEffect, useRef } from "react";
 
 export interface EmailHubShortcutHandlers {
+  /** Off switches every key, "?" included (WCAG 2.1.4). */
+  enabled: boolean;
   reading: boolean;
+  onHelp?: () => void;
   onCompose?: () => void;
   onFocusSearch?: () => void;
   onBack?: () => void;
@@ -43,8 +46,9 @@ function focusRow(step: 1 | -1) {
 /**
  * The mail-client keys people already know (Gmail's set): c compose, / search,
  * j/k next/previous, e archive, # delete, r/a/f reply/all/forward, s star,
- * Shift+U unread, Esc or u back to the list. None of them fire while typing or
- * while an overlay is open.
+ * Shift+U unread, Esc or u back to the list, ? the list of keys. None of them
+ * fire while typing, while an overlay is open, or once the reader turned them
+ * off in that list.
  */
 export function useEmailHubShortcuts(handlers: EmailHubShortcutHandlers) {
   const ref = useRef(handlers);
@@ -55,14 +59,17 @@ export function useEmailHubShortcuts(handlers: EmailHubShortcutHandlers) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
-      if (isTyping(event.target) || overlayOpen()) return;
       const h = ref.current;
+      if (!h.enabled && event.key !== "Escape") return;
+      if (isTyping(event.target) || overlayOpen()) return;
       const run = (fn?: () => void) => {
         if (!fn) return;
         event.preventDefault();
         fn();
       };
       switch (event.key) {
+        case "?":
+          return run(h.enabled ? h.onHelp : undefined);
         case "c":
           return run(h.onCompose);
         case "/":

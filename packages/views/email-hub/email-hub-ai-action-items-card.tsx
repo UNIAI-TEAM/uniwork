@@ -44,7 +44,8 @@ export function EmailHubAiActionItemsCard({
               picked.has(index) && "bg-brand-subtle/50",
             )}
           >
-            <div className="flex items-start gap-3">
+            {/* The whole line is the label: the title is the target, not only the 16px box. */}
+            <label className="flex cursor-pointer items-start gap-3">
               <Checkbox
                 className="mt-0.5"
                 checked={picked.has(index)}
@@ -54,7 +55,6 @@ export function EmailHubAiActionItemsCard({
                   else next.delete(index);
                   onPickedChange(next);
                 }}
-                aria-label={item.title}
               />
               <span className="min-w-0 flex-1 text-body leading-snug text-foreground">
                 {item.title}
@@ -64,7 +64,7 @@ export function EmailHubAiActionItemsCard({
                   </span>
                 ) : null}
               </span>
-            </div>
+            </label>
           </li>
         ))}
       </ul>

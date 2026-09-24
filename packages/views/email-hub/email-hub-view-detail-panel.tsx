@@ -17,6 +17,8 @@ export type EmailHubViewDetailPanelProps = {
   selectedScheduled: EmailHubScheduledSendItem | null;
   cancelScheduledPending: boolean;
   onCancelScheduled: (onDone: () => void) => void;
+  retryScheduledPending: boolean;
+  onRetryScheduled: () => void;
   detailError: boolean;
   detailLoading: boolean;
   activeThread: EmailHubThread | null;
@@ -57,8 +59,10 @@ export function EmailHubViewDetailPanel(props: EmailHubViewDetailPanelProps) {
       <EmailHubScheduledDetail
         item={props.selectedScheduled}
         cancelPending={props.cancelScheduledPending}
+        retryPending={props.retryScheduledPending}
         onBack={actions.onBack}
         onCancel={props.onCancelScheduled}
+        onRetry={props.onRetryScheduled}
       />
     ) : null;
   } else if (props.activeThread) {

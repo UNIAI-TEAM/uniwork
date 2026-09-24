@@ -19,7 +19,8 @@
     "date_pick": "Pick a date",
     "date_clear": "No date",
     "hour": "Hour",
-    "minute": "Minute"
+    "minute": "Minute",
+    "opens_new_tab": " (opens in a new tab)"
   },
   "errors": {
     "not_found_title": "Page not found",
@@ -1061,7 +1062,12 @@
       "tasks_created_one": "Created {{count}} task from this email.",
       "tasks_created_other": "Created {{count}} tasks from this email.",
       "create_tasks_confirm_one": "Create {{count}} task",
-      "create_tasks_confirm_other": "Create {{count}} tasks"
+      "create_tasks_confirm_other": "Create {{count}} tasks",
+      "generated_at": "Written by UNI at {{when}} · may be wrong, check the email",
+      "generated_by": "Written by UNI · may be wrong, check the email",
+      "create_tasks_error": "Couldn't create the tasks. Try again.",
+      "view_tasks_one": "Open task",
+      "view_tasks_other": "View tasks"
     },
     "compose": {
       "title": "New message",
@@ -1121,7 +1127,13 @@
       "schedule_past": "Pick a time in the future.",
       "bold": "Bold",
       "italic": "Italic",
-      "underline": "Underline"
+      "underline": "Underline",
+      "forward_header": "Forwarded message",
+      "date": "Date",
+      "attach_read_error": "Couldn't read an attachment. Remove it and try again.",
+      "print_blocked": "The browser blocked the print tab. Allow pop-ups and try again.",
+      "remove_attachment_named": "Remove {{name}}",
+      "send_shortcut": "Send · {{keys}}"
     },
     "scheduled": {
       "cancel": "Cancel scheduled send",
@@ -1140,7 +1152,18 @@
         "sent": "Sent",
         "failed": "Failed to send",
         "cancelled": "Cancelled"
-      }
+      },
+      "failed_body": "This email wasn't sent: the attempt at {{when}} failed. The mailbox may need reconnecting, or a recipient address may be invalid.",
+      "tried_at_label": "Tried at",
+      "retry": "Send now",
+      "retrying": "Queueing…",
+      "retry_success": "Queued again. It goes out within a few minutes.",
+      "retry_error": "Couldn't queue it again. Try again in a few minutes.",
+      "dismiss": "Discard",
+      "dismiss_confirm_title": "Discard this unsent email?",
+      "dismiss_confirm_body": "\"{{subject}}\" won't be sent and leaves this list. Its content isn't kept as a draft.",
+      "dismiss_success": "Unsent email discarded.",
+      "keep_unsent": "Keep it"
     },
     "folders": {
       "inbox": "Inbox",
@@ -1282,7 +1305,27 @@
       "point_schedule": "Schedule sends and keep track of what is queued.",
       "point_ai": "UNI summarizes email and suggests tasks you can create in one step.",
       "connect": "Connect a mailbox"
-    }
+    },
+    "more_actions": "More actions",
+    "shortcuts": {
+      "title": "Keyboard shortcuts",
+      "description": "The same keys as Gmail. They never fire while you're typing in a field.",
+      "toggle": "Single-key shortcuts",
+      "toggle_hint": "Turn off if you use voice input or keep pressing them by accident. Applies to this device only.",
+      "open_button": "Keyboard shortcuts",
+      "group_list": "In the list",
+      "group_reading": "While reading an email",
+      "compose": "Compose",
+      "search": "Search",
+      "move": "Next / previous email",
+      "open": "Open the selected email",
+      "help": "Show keyboard shortcuts",
+      "back": "Back to the list",
+      "step": "Next / previous email",
+      "star": "Star / unstar"
+    },
+    "remote_blocked": "Images from outside servers are off, so the sender can't tell you opened this email.",
+    "remote_show": "Show images"
   },
   "tasks": {
     "title": "Tasks",
