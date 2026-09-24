@@ -18,8 +18,10 @@
     "close": "Close",
     "date_pick": "Pick a date",
     "date_clear": "No date",
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "all_day": "All day",
     "time_add": "Add time",
-    "time_remove": "Remove time",
     "hour": "Hour",
     "minute": "Minute"
   },

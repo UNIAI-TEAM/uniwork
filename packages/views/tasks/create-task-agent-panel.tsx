@@ -26,8 +26,8 @@ import { PriorityIcon } from "./icons/priority-icon";
 import { CreateTaskPriorityField } from "./pickers/create-task-property-fields";
 import { CreateTaskProjectField } from "./pickers/create-task-project-fields";
 import { PickerEmpty, PickerItem, PickerSection, PropertyPicker } from "./pickers/property-picker";
-import { draftFromDefaults } from "./use-create-task-manual";
 import { TaskScheduleField } from "./task-schedule-field";
+import { draftFromDefaults } from "./use-create-task-manual";
 
 export type CreateTaskAgentPanelProps = {
   workspaceId: string;
@@ -224,18 +224,25 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
         {showPriority ? <CreateTaskPriorityField items={priorityItems} value={(draft.priority ?? "none") as NonNullable<CreateTaskDraft["priority"]>} onChange={(priority) => updateDraft({ priority })} /> : null}
         {showDueDate ? (
           <TaskScheduleField
-            value={{ start_date: draft.startDate, due_date: draft.dueDate, start_at: draft.startAt, due_at: draft.dueAt }}
+            value={{
+              start_date: draft.startDate,
+              due_date: draft.dueDate,
+              start_at: draft.startAt,
+              due_at: draft.dueAt,
+            }}
             label={t("tasks.dueDate")}
             kind="due"
             compact
             open={dueDateOpen}
             onOpenChange={setDueDateOpen}
-            onChange={(value) => updateDraft({
-              startDate: value.start_date ?? undefined,
-              dueDate: value.due_date ?? undefined,
-              startAt: value.start_at ?? undefined,
-              dueAt: value.due_at ?? undefined,
-            })}
+            onChange={(value) =>
+              updateDraft({
+                startDate: value.start_date ?? undefined,
+                dueDate: value.due_date ?? undefined,
+                startAt: value.start_at ?? undefined,
+                dueAt: value.due_at ?? undefined,
+              })
+            }
           />
         ) : null}
         {!showPriority || !showDueDate ? (

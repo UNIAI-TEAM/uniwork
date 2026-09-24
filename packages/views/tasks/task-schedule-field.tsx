@@ -1,9 +1,9 @@
 "use client";
 
 import { CalendarClock, CalendarDays } from "lucide-react";
-import { useTranslation } from "react-i18next";
 import type { ReactElement } from "react";
-import { DateTimeField } from "../common/datetime-field";
+import { useTranslation } from "react-i18next";
+import { DateTimePicker } from "../common/date-time-picker";
 import { toDateOnly } from "../common/date-field";
 import { PillButton } from "../common/pill-button";
 
@@ -18,9 +18,9 @@ type ScheduleKind = "start" | "due";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 
-function localTime(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${toDateOnly(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+function localTime(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${toDateOnly(date)}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function validInstant(value: string | null | undefined): Date | null {
@@ -107,31 +107,20 @@ export function TaskScheduleField({
   const trigger = compact ? (<PillButton /> as ReactElement<Record<string, unknown>>) : undefined;
 
   return (
-    <DateTimeField
+    <DateTimePicker
       value={taskScheduleLocalValue(value, kind)}
       onChange={(next) => onChange(updateTaskSchedule(value, kind, next))}
+      timeMode="optional"
+      ariaLabel={label}
+      placeholder={label}
       hourLabel={`${label}: ${t("common.hour")}`}
       minuteLabel={`${label}: ${t("common.minute")}`}
-      allowDateOnly
-      addTimeLabel={t("common.time_add")}
-      addTimeAriaLabel={`${label}: ${t("common.time_add")}`}
-      removeTimeLabel={`${label}: ${t("common.time_remove")}`}
-      className={compact ? "flex items-center gap-1" : undefined}
-      timeClassName={compact ? "w-auto" : undefined}
-      dateFieldProps={{
-        modal: !compact,
-        ariaLabel: label,
-        placeholder: label,
-        icon: <Icon className="size-3.5 shrink-0" aria-hidden />,
-        ...(compact
-          ? {
-              formatOptions: { day: "numeric", month: "short" },
-              triggerRender: trigger,
-              open,
-              onOpenChange,
-            }
-          : {}),
-      }}
+      icon={<Icon className="size-3.5 shrink-0" aria-hidden="true" />}
+      modal={!compact}
+      formatOptions={compact ? { day: "numeric", month: "short" } : undefined}
+      triggerRender={trigger}
+      open={open}
+      onOpenChange={onOpenChange}
     />
   );
 }

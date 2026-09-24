@@ -74,4 +74,17 @@ describe("DateTimePicker", () => {
     expect(onChange).toHaveBeenLastCalledWith("2026-09-24");
     expect(screen.queryByLabelText("Giờ")).not.toBeInTheDocument();
   });
+
+  it("keeps the time visible when a compact date format is requested", () => {
+    render(
+      <DateTimePicker
+        value="2026-09-24T14:30"
+        onChange={() => {}}
+        ariaLabel="Hạn chót"
+        formatOptions={{ day: "numeric", month: "short" }}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Hạn chót" })).toHaveTextContent("14:30");
+  });
 });

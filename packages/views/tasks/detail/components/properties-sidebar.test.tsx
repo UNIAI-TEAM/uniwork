@@ -345,7 +345,8 @@ describe("TaskDetailPropertiesSidebar", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Hạn: Thêm giờ" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hạn" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Thêm giờ" }));
 
     await waitFor(() => expect(updateMutate).toHaveBeenCalledTimes(1));
     expect(updateMutate.mock.calls[0]?.[0]).toEqual({
