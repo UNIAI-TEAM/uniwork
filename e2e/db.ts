@@ -99,3 +99,34 @@ export async function assignWorkspaceTasksDueToday(email: string, orgSlug: strin
     return r.rows.map((row) => row.title);
   });
 }
+
+export interface ChatFileMessageRef {
+  roomId: string;
+  messageId: string;
+  filename: string;
+}
+
+/**
+ * The newest file message of a workspace, straight from the database: the ids
+ * an attacker would have to know to guess a download URL. Used by the
+ * two-organization case in files-chat.spec.ts to prove the ids alone are not
+ * enough.
+ */
+export async function latestChatFileMessage(orgSlug: string, wsSlug: string): Promise<ChatFileMessageRef> {
+  return withClient(async (c) => {
+    const r = await c.query<{ room_id: string; message_id: string; filename: string }>(
+      `SELECT m.room_id, m.id AS message_id, COALESCE(m.metadata->>'filename', '') AS filename
+         FROM chat_messages m
+         JOIN workspaces w ON w.id = m.workspace_id
+         JOIN organizations o ON o.id = w.organization_id
+        WHERE o.slug = $1 AND w.slug = $2 AND m.kind = 'file' AND m.deleted_at IS NULL
+        ORDER BY m.created_at DESC
+        LIMIT 1`,
+      [orgSlug, wsSlug],
+    );
+    const row = r.rows[0];
+    return row
+      ? { roomId: row.room_id, messageId: row.message_id, filename: row.filename }
+      : { roomId: "", messageId: "", filename: "" };
+  });
+}
