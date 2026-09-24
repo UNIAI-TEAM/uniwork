@@ -210,9 +210,9 @@ export function TimeInput({
         }
       }}
       className={cn(
-        "flex h-8 items-center gap-1 rounded-lg border border-input bg-transparent px-2.5 text-body transition-colors pointer-coarse:min-h-11",
+        "flex h-8 items-center gap-1 rounded-control border border-input bg-transparent px-2.5 text-body transition-colors pointer-coarse:min-h-11",
         "focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30",
-        "dark:bg-input/30",
+        "dark:bg-surface-hover/60",
         disabled && "pointer-events-none cursor-not-allowed opacity-50",
         className,
       )}

@@ -94,8 +94,9 @@ describe("token contract", () => {
   });
 
   it("pins the radius ramp to explicit values", () => {
-    // sm 6 / md 8 / lg 12 / xl 16 / 2xl 20 / 3xl 32. A calc() ramp off one
-    // base drifts every step when the base moves; explicit stops do not.
+    // Compact controls use md 8; default controls have the softer 10px role;
+    // cards start at lg 12. A calc() ramp off one base drifts every step when
+    // the base moves; explicit stops do not.
     const theme = block("@theme inline");
     for (const [step, px] of [
       ["sm", "6px"], ["md", "8px"], ["lg", "12px"],
@@ -103,6 +104,7 @@ describe("token contract", () => {
     ]) {
       expect(theme).toMatch(new RegExp(`--radius-${step}:\\s*${px};`));
     }
+    expect(theme).toMatch(/--radius-control:\s*10px;/);
   });
 
   it("makes headings take the display family without touching views", () => {

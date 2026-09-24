@@ -81,7 +81,7 @@ function Turn({ message }: { message: Pick<AiMessage, "id" | "role" | "content" 
       <span className="px-1 text-caption font-medium text-muted-foreground">{mine ? t("you") : t("uni")}</span>
       <div
         className={cn(
-          "max-w-[94%] whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-body leading-6",
+          "max-w-[94%] whitespace-pre-wrap rounded-lg px-3.5 py-2.5 text-body leading-6",
           mine ? "bg-surface-selected text-surface-selected-foreground" : "border border-border bg-surface text-foreground",
         )}
       >
@@ -246,7 +246,6 @@ export function AskUniPanel() {
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="rounded-full"
                     disabled={ask.isPending}
                     onClick={() => askQuestion(t(key))}
                   >
@@ -262,7 +261,7 @@ export function AskUniPanel() {
                       <li key={c.id}>
                         <button
                           type="button"
-                          className="flex w-full items-center gap-2 rounded-lg border border-transparent px-3 py-2.5 text-left text-body hover:border-border hover:bg-surface-hover pointer-coarse:min-h-11"
+                          className="flex w-full items-center gap-2 rounded-control border border-transparent px-3 py-2.5 text-left text-body hover:border-border hover:bg-surface-hover pointer-coarse:min-h-11"
                           onClick={() => select(c.id)}
                         >
                           <span className="min-w-0 flex-1 truncate">{c.title || t("untitled")}</span>
@@ -289,7 +288,7 @@ export function AskUniPanel() {
           {ask.isError ? (
             <p
               role="alert"
-              className="mt-4 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-caption text-destructive"
+              className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-caption text-destructive"
             >
               {t(`errors.${resolveErrorKey(ask.error)}`)}
             </p>
@@ -302,7 +301,7 @@ export function AskUniPanel() {
         </div>
 
         <form onSubmit={submit} className="border-t border-border bg-surface/60 p-3">
-          <div className="rounded-2xl border border-border bg-background p-2 shadow-sm focus-within:ring-2 focus-within:ring-ring/40">
+          <div className="rounded-lg border border-border bg-background p-2 shadow-sm focus-within:ring-2 focus-within:ring-ring/40">
             <Textarea
               aria-label={t("placeholder")}
               aria-describedby="ask-uni-hint"
@@ -318,7 +317,7 @@ export function AskUniPanel() {
               <p id="ask-uni-hint" className="text-caption text-muted-foreground">
                 <Kbd>{t("key_enter")}</Kbd> {t("hint_send")}
               </p>
-              <Button type="submit" size="sm" className="rounded-full px-4" disabled={!question.trim() || ask.isPending}>
+              <Button type="submit" size="sm" className="px-4" disabled={!question.trim() || ask.isPending}>
                 {ask.isPending ? <Spinner className="size-3.5" /> : null}
                 {t("ask")}
               </Button>

@@ -204,7 +204,7 @@ export function EmailHubFolderSidebar({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="mt-1 h-8 w-full justify-start rounded-lg px-2 text-caption text-muted-foreground"
+                className="mt-1 h-8 w-full justify-start px-2 text-caption text-muted-foreground"
                 onClick={() => setLabelsExpanded((v) => !v)}
               >
                 {labelsExpanded

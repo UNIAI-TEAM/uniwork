@@ -12,6 +12,12 @@ describe("cn", () => {
     const enabled = false as boolean;
     expect(cn("a", enabled && "b", undefined, "c")).toBe("a c");
   });
+
+  it("lets call sites override the semantic control radius", () => {
+    expect(cn("rounded-control", "rounded-full")).toBe("rounded-full");
+    expect(cn("rounded-full", "rounded-control")).toBe("rounded-control");
+    expect(cn("rounded-control", "rounded-md")).toBe("rounded-md");
+  });
 });
 
 /**

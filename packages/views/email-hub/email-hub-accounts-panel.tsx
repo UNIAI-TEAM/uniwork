@@ -59,7 +59,7 @@ export function EmailHubAccountsPanel({
       ) : (
         <p className="px-1 text-caption text-muted-foreground">{t("email_hub.no_accounts")}</p>
       )}
-      <Button variant="toolbar" className="h-9 w-full gap-1.5 rounded-xl text-caption shadow-none" onClick={onAddAccount}>
+      <Button variant="toolbar" className="h-9 w-full gap-1.5 text-caption shadow-none" onClick={onAddAccount}>
         <Plus className="size-3.5" aria-hidden />
         {t("email_hub.add_account")}
       </Button>
