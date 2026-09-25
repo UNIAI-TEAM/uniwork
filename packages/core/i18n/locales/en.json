@@ -4253,10 +4253,18 @@
     }
   },
   "landing": {
+    "meta": {
+      "home": { "title": "UniWork: People + AI agents", "description": "One platform where people and AI agents talk, plan, execute and turn knowledge into results." },
+      "features": { "title": "UniWork features", "description": "Explore tasks, meetings, chat, knowledge and AI in one workspace." },
+      "solutions": { "title": "UniWork solutions", "description": "Explore UniWork for product and operations teams." },
+      "learn": { "title": "Get started with UniWork", "description": "Get to know workspaces, tasks and conversations in UniWork." },
+      "pricing": { "title": "UniWork pricing", "description": "The Starter plan and UniWork's usage categories." },
+      "enterprise": { "title": "UniWork for enterprises", "description": "Explore organization structure, permissions and the activity log." }
+    },
     "revision": {
       "interactive": "Interactive",
       "illustration": "Illustration",
-      "referenceScope": "Based on the Lovable product demo. This page uses sample data; actual availability depends on your version, permissions and deployment configuration.",
+      "referenceScope": "Illustrative preview. This page uses sample data; actual availability depends on your version, permissions and deployment configuration.",
       "mobileLabel": "Focused preview",
       "mobileNote": "A summary for smaller screens, not a mobile app interface.",
       "mobileSteps": "Choose a preview detail",
@@ -5615,6 +5623,7 @@
       "prelaunch": "UniWork is currently in pre-launch."
     },
     "nav": {
+      "main": "Main navigation",
       "features": "Features",
       "contact": "Contact",
       "login": "Sign in",
@@ -5809,7 +5818,7 @@
       "sub": "These are illustrations, not screenshots. UniWork has no customers to quote yet, and we do not invent testimonials."
     },
     "roadmap": {
-      "title": "Clear today. A direction for tomorrow.",
+      "title": "Clear today.\nA direction for tomorrow.",
       "sub": "What is being built and planned, separate from the features available today. UniWork is currently pre-launch.",
       "note": "These items do not yet have committed release dates.",
       "nowName": "Being built",

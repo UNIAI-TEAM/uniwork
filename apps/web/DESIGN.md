@@ -88,10 +88,97 @@ typography:
     fontFamily: "Be Vietnam Pro, sans-serif"
     fontSize: "12px"
     fontWeight: 600
+  # Scoped roles recorded from the implementation. Sizes of 8–11px, 26–30px and the
+  # glyph sizes belong to scaled product illustrations and decorative art only.
+  illustration-micro:
+    fontFamily: "Be Vietnam Pro, sans-serif"
+    fontSize: "8px"
+  illustration-caption:
+    fontFamily: "Be Vietnam Pro, sans-serif"
+    fontSize: "9px"
+  illustration-label:
+    fontFamily: "Be Vietnam Pro, sans-serif"
+    fontSize: "10px"
+  illustration-body:
+    fontFamily: "Be Vietnam Pro, sans-serif"
+    fontSize: "11px"
+  label-sm:
+    fontFamily: "Be Vietnam Pro, sans-serif"
+    fontSize: "13px"
+    fontWeight: 500
+  body-sm:
+    fontFamily: "Be Vietnam Pro, sans-serif"
+    fontSize: "14px"
+  title-lg:
+    fontFamily: "Be Vietnam Pro, sans-serif"
+    fontSize: "20px"
+    fontWeight: 600
+  feature-title:
+    fontFamily: "Be Vietnam Pro, sans-serif"
+    fontSize: "22px"
+    fontWeight: 650
+  display-sm:
+    fontFamily: "Be Vietnam Pro, sans-serif"
+    fontSize: "24px"
+    fontWeight: 650
+  section-title:
+    fontFamily: "Be Vietnam Pro, sans-serif"
+    fontSize: "clamp(25px, 2.5vw, 36px)"
+    fontWeight: 650
+  illustration-title:
+    fontFamily: "Be Vietnam Pro, sans-serif"
+    fontSize: "26px"
+    fontWeight: 650
+  illustration-title-lg:
+    fontFamily: "Be Vietnam Pro, sans-serif"
+    fontSize: "27px"
+    fontWeight: 650
+  illustration-heading:
+    fontFamily: "Be Vietnam Pro, sans-serif"
+    fontSize: "30px"
+    fontWeight: 650
+  page-title:
+    fontFamily: "Be Vietnam Pro, sans-serif"
+    fontSize: "clamp(34px, 3.8vw, 58px)"
+    fontWeight: 650
+  display:
+    fontFamily: "Be Vietnam Pro, sans-serif"
+    fontSize: "36px"
+    fontWeight: 700
+  chapter-title-min:
+    fontFamily: "Be Vietnam Pro, sans-serif"
+    fontSize: "38px"
+    fontWeight: 700
+  decorative-glyph-sm:
+    fontFamily: "Be Vietnam Pro, sans-serif"
+    fontSize: "135px"
+    fontWeight: 800
+  decorative-glyph:
+    fontFamily: "Be Vietnam Pro, sans-serif"
+    fontSize: "215px"
+    fontWeight: 800
 rounded:
+  # Scoped shapes recorded from the implementation; 2–11px and 13/23px values are
+  # illustration detail or local plates, not a general UI radius scale.
+  hairline: "2px"
+  micro: "4px"
+  tag: "5px"
+  field: "6px"
+  chip: "7px"
   control: "8px"
+  chip-lg: "9px"
+  compact: "10px"
+  tag-lg: "11px"
   card: "12px"
+  faq-answer: "13px"
   media: "14px"
+  panel: "16px"
+  dock: "18px"
+  plate: "20px"
+  offer: "22px"
+  faq-story: "23px"
+  scene-mobile: "24px"
+  scene-tablet: "28px"
   scene: "36px"
 spacing:
   compact: "12px"
@@ -170,7 +257,7 @@ This document records the public marketing implementation under `features/landin
 
 Extraction sources: `features/landing/landing.css`, `landing-motion.css`, `landing-explorer.css`, `landing-stages.css`, `landing-workspace.css`, `landing-playback.css`, `landing-reference.css`, `landing-highlight.css`, `landing-focus.css`, `landing-decisions.css`, `landing-ai-stage.css`, `landing-opening.css`, `landing-dual-navigation.css`, `workspace-app-navigation.tsx`, `site-header.tsx`, `hero.tsx`, `showcase.tsx`, `capabilities.tsx`, `today-preview.tsx`, `reference-previews.tsx`, `trust-band.tsx`, the landing disclosure sections, `product-preview.tsx`, `product-playback.tsx`, `animation/use-preview-playback.ts`, `interactive-scene.tsx`, `horse-mascot.tsx`, `workflow-film.tsx`, `animation/scene-models.ts`, `animation/scene-renderer.ts`, `animation/mascot-renderer.ts`, `animation/landing-motion.tsx`, `platform/landing-font.ts`, and `../../packages/ui/styles/tokens.css`. Durable product context is `../../PRODUCT.md`; identity rules are in `../../packages/ui/brand/README.md`. The implementation remains the source of truth; this is its scoped reference.
 
-Dedicated-page sources: `features/landing/header-directory.tsx`, `header-directory.css`, `marketing-shell.tsx`, `marketing-pages.css`, `feature-page.tsx` and `marketing-overview-pages.tsx`.
+Dedicated-page sources (the Why and department Solution pages also render inside `MarketingShell`, so they inherit the landing face, skip link and single `main`): `features/landing/header-directory.tsx`, `header-directory.css`, `marketing-shell.tsx`, `marketing-pages.css`, `feature-page.tsx` and `marketing-overview-pages.tsx`.
 
 Closing-component sources: `features/landing/final-cta.tsx`, `landing-closing.css`, `lovable-frame.tsx` and `product-playback.tsx`; `marketing-shell.tsx` also appends the shared closing component to dedicated pages.
 
@@ -224,7 +311,7 @@ One family carries Vietnamese and English with weight contrast and generous lead
 ### Hierarchy
 
 - **Display:** the centered hero reads `--text-hero-opening`, then `--text-hero-opening-tablet` below 1100px and `--text-hero-opening-mobile` below 768px. These roles live in the shared token stylesheet and map to the three frontmatter display entries; the local opening stylesheet supplies their final leading and tracking.
-- **Headline:** section headings read `--text-hero`; they reduce to `--text-hero-sm` below 1024px. The composed AI and Security sections use `--text-hero-sm`, reducing to `--text-display-sm` below 768px for AI and 600px for Security. The closing heading uses the existing hero-lg / hero / hero-sm roles (60px / 48px / 36px) at desktop / below 1024px / below 768px, with 1.12 leading (1.18 on mobile), -0.035em tracking and a 28ch / 22ch / 17ch maximum measure. These are scoped uses of existing type roles.
+- **Headline:** section headings read `--text-hero`; they reduce to `--text-hero-sm` below 1024px. Roadmap, Pricing and the homepage FAQ story use the same `--text-hero` role (48px, 1.12 leading), stepping to `--text-hero-sm` below 1024px/768px; the roadmap title breaks by sentence. The composed AI and Security sections use `--text-hero-sm`, reducing to `--text-display-sm` below 768px for AI and 600px for Security. The closing heading uses the existing hero-lg / hero / hero-sm roles (60px / 48px / 36px) at desktop / below 1024px / below 768px, with 1.12 leading (1.18 on mobile), -0.035em tracking and a 28ch / 22ch / 17ch maximum measure. These are scoped uses of existing type roles.
 - **Title:** compact headings use the existing title roles. Explorer descriptions use `--text-display-sm` (24px), dropping to `--text-title-lg` (20px) below 1024px; workflow labels use `--text-title-sm` (16px).
 - **Body / Body intro:** detailed copy uses `--text-body-lg`; section introductions use `--text-title` with a maximum measure of 60ch, reducing to `--text-title-sm` on mobile. The compact centered hero introduction uses `--text-body-lg`, 1.6 leading and a 760px maximum measure (34ch on mobile).
 - **Control / Label:** principal actions use `--text-title-sm`; preview annotations and status labels use `--text-caption`. Preview task names and navigation use `--text-body` (14px).
@@ -233,11 +320,13 @@ The frontmatter records final landing declarations, including local leading/trac
 
 Dedicated introductions retain the same family, with locally fitted page titles (`clamp(34px, 3.8vw, 58px)`, 1.16 leading) and section headings (`clamp(25px, 2.5vw, 36px)`, 1.25 leading). Their requested 650 weight remains an implementation detail of the existing font loader, not an additional font weight or an authenticated-app type rule.
 
+`.landing-site` rebinds `--font-display` to the landing face, because the app's title/display/hero utilities read that slot (Plus Jakarta Sans in the authenticated app); the fitted illustration canvas rebinds it to its native UI stack.
+
 **The Vietnamese Coverage Rule.** Marketing headings and body use the same Vietnamese-capable family; hierarchy comes from role, weight and spacing.
 
 ## Layout
 
-The shared container remains 1280px wide with 16px side padding (24px from 640px); the 1400px opening and hero are unchanged. The product stage has a 204px external selector, narrowing to 176px below 1100px and stacking above the preview at ≤900px. Watch mode uniformly fits a complete desktop illustration. Only manual mode retains the 76px app rail (68px below 1100px, horizontal at ≤600px) and 560px desktop / 540px mobile body minimum. The Solutions introduction groups its heading and description on the same left edge, above the existing audience selector and preview. Its heading measure is 24ch; supporting copy is at most 64ch in the body-lg role. Their gap is 16px, followed by 32px before the selector (12px and 24px below 768px). Section padding is 64px above and 48px below, reducing to 40px and 32px on mobile.
+The shared container remains 1280px wide with 16px side padding (24px from 640px); the 1400px opening and hero are unchanged. The product stage has a 204px external selector, narrowing to 176px below 1100px and stacking above the preview at ≤900px. Watch mode uniformly fits a complete desktop illustration. Only manual mode retains the 76px app rail (68px below 1100px, horizontal at ≤600px) and 560px desktop / 540px mobile body minimum. The Solutions introduction groups its heading and description on the same left edge, above the existing audience selector and preview. Its heading measure is 24ch; supporting copy is at most 64ch in the body-lg role. Their gap is 16px, followed by 32px before the selector (12px and 24px below 768px). Section padding is 64px above and 48px below, reducing to 40px and 32px on mobile. Below 1024px the audience selector stacks above the preview instead of narrowing below 250px.
 
 The frontmatter section spacing remains the base rhythm. Framed scenes, including the homepage product stage, are at most 1400px wide, with 32px desktop, 20px tablet and 12px mobile minimum outer gutters. Scene corners are 36px, 28px and 24px respectively; these are large stage boundaries, not the card-radius system. The workspace's application frame has 16px corners. The product stage retains 12px inner side padding on desktop and none below 768px; it no longer expands independently to the viewport edges. The visible section heading and description are removed, retaining a screen-reader section heading. Vertical padding is 16px desktop / 12px mobile. Other content sections generally use 80–112px desktop and 64px mobile spacing. Native page scrolling remains unchanged; only sandbox boards can scroll locally.
 
@@ -249,15 +338,15 @@ The homepage trust chapter is owned by `landing-trust.module.css`, avoiding conf
 
 Within this chapter only, TrustBand uses 20px vertical padding, with its body-sized heading beside three unboxed provider labels. At 900px the heading moves above a wrapping list; labels do not become full-width cards. The concluding market teaser uses 24px vertical padding and title-sm copy beside the analysis link, stacking at 900px with an 8px gap. Provider and teaser content remain subordinate to the governance example. TrustBand on the other marketing routes retains its existing standalone styling.
 
-Six product families form the external navigation on desktop. At ≤900px the family controls become a three-column, two-row selector followed by the active family's child tabs. Fitted watch illustrations preserve their full desktop topology on mobile; expansion and detail scrolling allow closer inspection. Manual task boards scroll only within their stage. Security, FAQ, Work Products and other landing sections retain their existing responsive behavior.
+Six product families form the external navigation on desktop. From 901px the feature selector is size-contained in both watch and explore modes, so the app (fitted or manual) sets the row height and a long menu scrolls on its own instead of leaving an empty strip under the app. At ≤900px the family controls become a three-column, two-row selector followed by the active family's child tabs. Fitted watch illustrations preserve their full desktop topology on mobile; expansion and detail scrolling allow closer inspection. Manual task boards scroll only within their stage. Security, FAQ, Work Products and other landing sections retain their existing responsive behavior.
 
-Dedicated feature introductions use a left-aligned promise and actions beside one fitted product illustration inside a 1600px maximum-width hero. The two columns stack at ≤1100px; below 768px the visual padding narrows and benefits, related links and directory entries stack. The shared header independently switches to its mobile menu below 1200px. Introductory directories use readable grouped rows with quiet separators; product pages follow with one detail section, three benefits and related routes. These are page-level compositions within Bright Studio, not changes to the homepage sandbox geometry.
+Dedicated feature introductions use a left-aligned promise and actions beside one fitted product illustration. Hero, detail and related-route blocks share one 1360px width and one inline gutter (32px, 24px below 1100px, 16px below 768px), so their left edges align. The two columns stack at ≤1100px; below 768px the visual padding narrows and benefits, related links and directory entries stack. The shared header independently switches to its mobile menu below 1200px. Introductory directories use readable grouped rows with quiet separators; product pages follow with one detail section, three benefits and related routes. These are page-level compositions within Bright Studio, not changes to the homepage sandbox geometry.
 
 The opening core canvas is 230px high and occupies 64% of its frame on desktop, 68% below 1100px, then the full width at 200px high below 768px. Its context labels remain outside the canvas. The media footer and caption are removed; a quiet pause/play control overlays the artwork without adding a row. Inside the cyan/violet AI frame, the horse stage is 600px high on desktop, 470px at widths up to 1100px and 380px below 768px. The original square cutout keeps its proportions and has headroom for a small foreleg wave. The same image remains visible when rendering is unavailable. The AI stage is two columns on desktop and one on mobile, with copy preceding the horse. The film retains its 3:2 frame.
 
-Roadmap pairs large introductory copy with a dark illustrative Work Graph scene. WorkProducts then spans a full-width disclosure above three phase disclosures; the graph and phases stack below 768px. Its no-release-date notice stays outside the accordion. Pricing joins the navy Starter plan and eight metered-category rows inside one elevated 22px frame; the plan holds its single registration action and retains the free-use caveat. The left panel pairs the official UniWork mark with a small members–meetings–AI signal diagram; the right is a compact two-column ledger on paper, stacking on mobile. The diagram is decorative and makes no additional plan or limit claim. The homepage FAQ replaces its oversized question-mark art with an illustrative Tasks–Ask UNI–Documents network around the shared mark; the question cards retain their real answers and disclosure behavior. Existing section spacing and heading helpers remain local to each section. A short-desktop-height adjustment applies at heights up to 740px.
+Roadmap pairs large introductory copy with a dark illustrative Work Graph scene. WorkProducts then spans a full-width disclosure above three phase disclosures; the copy, graph and phases stack below 1024px, as does the homepage FAQ (story panel above the questions). Graph connectors run under the centre card so they meet its edge at every width. Phase summaries use a darker caption ink so they hold 4.5:1 on the tinted cards; each phase heading names the phase only, with its summary attached as the trigger's description. Its no-release-date notice stays outside the accordion. Pricing joins the navy Starter plan and eight metered-category rows inside one elevated 22px frame; the plan holds its single registration action and retains the free-use caveat. The left panel pairs the official UniWork mark with a small members–meetings–AI signal diagram; the right is a compact two-column ledger on paper, stacking on mobile. The diagram is decorative and makes no additional plan or limit claim. The homepage FAQ replaces its oversized question-mark art with an illustrative Tasks–Ask UNI–Documents network around the shared mark; the question cards retain their real answers and disclosure behavior. Existing section spacing and heading helpers remain local to each section. A short-desktop-height adjustment applies at heights up to 740px.
 
-The shared closing frame centers the official mark, existing invitation and single registration action above a static task poster. It is at most 1400px wide with 32px / 20px / 12px minimum outer gutters at desktop / below 1024px / below 768px, a 32px top margin and 24px bottom margin. Top padding is 48px, reducing to 32px on mobile; copy gaps are 24px / 20px. The poster wrapper is at most 1180px wide with a 528px desktop height; below 1024px it is 380px high around a centered minimum-720px window, while mobile removes that minimum and fits the complete 1760×1000 desktop illustration to the available width with automatic height. The frame clips the poster at its lower edge. The current geometry is owned by `landing-closing.css`.
+The shared closing frame centers the official mark, existing invitation and single registration action above a static task poster. It is at most 1400px wide with 32px / 20px / 12px minimum outer gutters at desktop / below 1024px / below 768px, a 32px top margin and 24px bottom margin. Top padding is 48px, reducing to 32px on mobile; copy gaps are 24px / 20px. The poster wrapper is at most 1180px wide with a 528px desktop height; below 1024px it is 380px high around a centered minimum-720px window, while mobile keeps a 560px-minimum window anchored to the left edge inside a 320px-high crop, so the board stays legible instead of shrinking the whole 1760×1000 canvas to about 20%. The frame clips the poster at its lower edge. The current geometry is owned by `landing-closing.css`.
 
 ## Elevation & Depth
 
@@ -316,7 +405,7 @@ The shared fixed header is an opaque paper dock, inset 20px from the sides and 1
 
 At 1200px and above, Product, Solutions and Learn are labelled disclosure buttons; AI agents, Pricing and Enterprise are direct route links. The product directory has six columns and eighteen entries leading to `/features/[slug]`, plus an all-features link to `/features` and an explicit Watch demo link to `/#platform`. Solutions and Learn use three descriptive links with a directory footer. Their destinations include `/solutions`, `/learn`, `/learn#questions`, `/pricing`, `/enterprise` and the existing `/solutions/product`, `/solutions/operations` and `/why-uniwork` pages. AI agents in both header and footer leads to `/features/agents`. Below 1200px an expandable menu presents the three groups with native details/summary disclosures; below 768px the header sign-in and registration actions move inside it. Homepage demo anchors are reserved for explicitly labelled demo links in this navigation.
 
-Both menus follow ordinary Tab order, close when keyboard focus leaves the header or on outside pointer input, and close after a navigation selection. ArrowDown opens a desktop directory and focuses its first link. Escape closes the active menu and restores focus to its trigger; crossing the 1200px breakpoint closes both. Controls retain visible focus and at least 44px touch footprints. The page also exposes a focus-revealed skip link. The directory and mobile menu arrive once over 180ms only when motion is allowed.
+The footer mirrors the header's reach: Features, Meetings and AI agents; both department pages, Enterprise and All solutions; Learn, Why UniWork, Roadmap and Pricing; Contact and Sign in. Public marketing routes skip the start-up session refresh (`CoreProvider initializeAuth`), so an anonymous visit issues no 401. Both menus follow ordinary Tab order, close when keyboard focus leaves the header or on outside pointer input, and close after a navigation selection. ArrowDown opens a desktop directory and focuses its first link. Escape closes the active menu and restores focus to its trigger; crossing the 1200px breakpoint closes both. Controls retain visible focus and at least 44px touch footprints. The page also exposes a focus-revealed skip link. The directory and mobile menu arrive once over 180ms only when motion is allowed.
 
 ### Dedicated product introductions
 

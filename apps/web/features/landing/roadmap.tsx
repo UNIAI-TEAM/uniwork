@@ -79,12 +79,14 @@ export function Roadmap() {
           <div className="roadmap-hero-copy">
             <SectionTitle className="mt-0"><span id="landing-roadmap-title">{t("landing.roadmap.title")}</span></SectionTitle>
             <p>{t("landing.roadmap.sub")}</p>
-            <span className="roadmap-hero-note">{t("landing.roadmap.note")}</span>
+            <span className="roadmap-hero-note"><CalendarDays aria-hidden />{t("landing.roadmap.note")}</span>
           </div>
           <div className="roadmap-visual" role="img" aria-label={`${t("landing.discovery.workProducts")}: ${t("landing.studio.workProductsShort")}`}>
             <div className="roadmap-visual-bar"><Logo variant="mark" size={25} decorative /><span>{t("landing.studio.demoWorkspace")}</span><span aria-hidden className="roadmap-visual-dots"><i /><i /><i /></span></div>
             <div className="roadmap-visual-body">
-              <svg className="roadmap-graph-lines" viewBox="0 0 600 300" preserveAspectRatio="none" aria-hidden><path d="M135 72 C205 72 202 154 292 154 M121 222 C205 222 219 174 292 174 M469 102 C410 102 410 154 385 154" /><circle cx="292" cy="154" r="5" /><circle cx="292" cy="174" r="5" /><circle cx="385" cy="154" r="5" /></svg>
+              <svg className="roadmap-graph-lines" viewBox="0 0 600 300" preserveAspectRatio="none" aria-hidden>{/* Every line runs under the centre card (painted after the SVG), so it meets the
+                  card edge at any breakpoint instead of stopping short of it. */}
+                <path d="M135 72 C205 72 202 150 280 150 M121 222 C205 222 219 150 280 150 M469 102 C400 102 380 150 280 150" /></svg>
               <div className="roadmap-visual-node roadmap-node-meeting"><CalendarDays aria-hidden /><span>{t("landing.reference.meeting")}</span></div>
               <div className="roadmap-visual-node roadmap-node-task"><Network aria-hidden /><span>{t("landing.reference.task")}</span></div>
               <div className="roadmap-visual-center"><span className="roadmap-visual-halo"><FileStack aria-hidden /></span><strong>{t("landing.discovery.workProducts")}</strong><small>{t("landing.studio.workProductsNote")}</small></div>
@@ -97,7 +99,9 @@ export function Roadmap() {
           <WorkProducts />
           {PHASES.map((phase) => (
             <AccordionItem key={phase.key} value={phase.key}>
-              <AccordionTrigger><span className="roadmap-phase-name"><phase.icon className={cn("size-6", phase.ink)} /><span>{t(`landing.roadmap.${phase.key}Name`)}<small>{t(`landing.roadmap.${phase.key}Desc`)}</small></span></span><span className="roadmap-count">{t("landing.explorer.plannedCount", { count: phase.items.length })}</span></AccordionTrigger>
+              {/* The heading names the phase only; its summary and count stay visible
+                  but reach assistive tech as the trigger's description. */}
+              <AccordionTrigger aria-describedby={`roadmap-${phase.key}-desc roadmap-${phase.key}-count`}><span className="roadmap-phase-name"><phase.icon aria-hidden className={cn("size-6", phase.ink)} /><span>{t(`landing.roadmap.${phase.key}Name`)}<small id={`roadmap-${phase.key}-desc`} aria-hidden>{t(`landing.roadmap.${phase.key}Desc`)}</small></span></span><span id={`roadmap-${phase.key}-count`} aria-hidden className="roadmap-count">{t("landing.explorer.plannedCount", { count: phase.items.length })}</span></AccordionTrigger>
               <AccordionContent><ul className="roadmap-items">
                 {phase.items.map((n) => (
                   <li key={n} className="flex gap-3 text-body-lg leading-relaxed">

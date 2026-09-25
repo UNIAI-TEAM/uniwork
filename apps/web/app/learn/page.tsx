@@ -1,5 +1,5 @@
-import type { Metadata } from "next";
 import { LearnPage } from "../../features/landing/marketing-overview-pages";
+import { marketingMetadata } from "../../platform/feature-metadata";
 
-export const metadata: Metadata = { title: "Bắt đầu với UniWork", description: "Làm quen với workspace, công việc và trao đổi trong UniWork.", alternates: { canonical: "/learn" } };
+export function generateMetadata() { return marketingMetadata("learn", "/learn"); }
 export default function Page() { return <LearnPage />; }

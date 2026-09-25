@@ -42,7 +42,7 @@
 }
 .landing-conversion-story .pricing-section > div { max-width: 1260px; }
 .landing-site .pricing-section > div > div:first-child { max-width: 960px; }
-.landing-site .pricing-section h2 { max-width: 18ch; font-size: var(--text-hero-xl); line-height: 1.1; letter-spacing: -.035em; }
+.landing-site .pricing-section h2 { max-width: 18ch; font-size: var(--text-hero); line-height: 1.12; letter-spacing: -.035em; }
 .landing-site .pricing-section > div > div:first-child > p { max-width: 55ch; }
 .landing-site .pricing-offer {
   grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr);
@@ -102,7 +102,7 @@
   .landing-product-story .platform-section .studio-title { font-size: var(--text-hero-sm); }
   .landing-product-story .unified-workspace .workspace-explorer { grid-template-columns: 196px minmax(0, 1fr); }
   .landing-product-story .workspace-display .preview-main { padding: 22px; }
-  .landing-site .pricing-section h2 { font-size: var(--text-hero); }
+  .landing-site .pricing-section h2 { font-size: var(--text-hero-sm); }
   .landing-site .pricing-plan > p:nth-of-type(1) { font-size: var(--text-hero-lg); }
 }
 @media (max-width: 900px) {

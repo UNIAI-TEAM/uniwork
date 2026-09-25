@@ -21,7 +21,6 @@
 .landing-product-story > .ai-section { width: 100%; padding: 48px 0 0; background: var(--background); }
 .ai-section > div { max-width: none; padding-inline: 0; }
 .ai-intro { padding: 32px 24px 64px; max-width: 960px; }
-.landing-site .ai-intro .studio-title { font-size: var(--text-hero-lg); line-height: 1.15; letter-spacing: -.04em; }
 .ai-intro .studio-description { max-width: 54ch; margin: 24px auto; }
 .ai-stage {
   width: min(var(--landing-scene-width), calc(100% - var(--landing-scene-gutter) * 2));
@@ -61,7 +60,6 @@
   .landing-site { --landing-scene-gutter: 12px; --landing-scene-radius: 24px; }
   .landing-product-story > .studio-section { padding-block: 64px; }
   .landing-product-story > .ai-section { padding-block: 16px 0; }
-  .landing-site .ai-intro .studio-title { font-size: var(--text-hero-sm); line-height: 1.2; }
   .ai-intro { padding: 32px 24px 40px; }
   .ai-stage { grid-template-columns: 1fr; }
   .ai-stage-copy { padding: 32px 24px 0; }

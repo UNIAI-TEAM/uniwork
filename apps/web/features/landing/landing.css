@@ -1,7 +1,10 @@
 /* Public-home visual contract: product clarity, Vietnamese-first typography,
    cobalt studio surfaces. All colors inherit the shared dual-theme tokens. */
 .landing-site {
+  /* The app's title/hero utilities bind --font-display (Plus Jakarta); inside
+     marketing they must resolve to the Vietnamese-first landing face. */
   --font-heading: var(--font-landing), sans-serif;
+  --font-display: var(--font-landing), sans-serif;
   font-family: var(--font-landing), sans-serif;
   font-size: var(--text-title-sm);
   overflow-x: clip;
@@ -14,6 +17,10 @@
 .landing-site svg { flex-shrink: 0; }
 .landing-site h1, .landing-site h2, .landing-site h3 { text-wrap: balance; }
 .landing-site p { text-wrap: pretty; }
+/* The registry trigger top-aligns for multi-line labels; landing disclosures are
+   single-line labels beside an icon, so the chevron centres on them. Roadmap
+   phases (name + summary) keep top alignment in landing-highlight.css. */
+.landing-site [data-slot=accordion-trigger] { align-items: center; }
 .landing-site .studio-title { margin: 0; font-size: var(--text-hero); font-weight: 700; line-height: 1.25; letter-spacing: -.03em; white-space: pre-line; }
 .landing-site .studio-description { margin-top: 24px; max-width: 60ch; font-size: var(--text-title); line-height: 1.8; color: var(--muted-foreground); }
 .studio-section { padding-block: 100px; }

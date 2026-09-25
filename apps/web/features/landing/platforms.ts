@@ -3,15 +3,15 @@
  * argues them: the office suite first because it is the one nearly everyone
  * has, then the three that each solved one side of the same problem.
  *
- * The ink colours are semantic tokens, not brand colours. Using each vendor's
- * own brand colour would read as an endorsement badge, and none of them is in
- * this repo's palette anyway.
+ * All four share one neutral treatment. A vendor's own brand colour would read
+ * as an endorsement badge, and a signal colour (warning, info) would claim a
+ * state the page cannot back — signals report state, they never decorate.
  */
 export const PLATFORMS = {
-  ms365: { ns: "landing.why.ms365", ink: "text-info" },
-  notion: { ns: "landing.why.notion", ink: "text-foreground" },
-  clickup: { ns: "landing.why.clickup", ink: "text-warning" },
-  coda: { ns: "landing.why.coda", ink: "text-brand-accent" },
+  ms365: { ns: "landing.why.ms365" },
+  notion: { ns: "landing.why.notion" },
+  clickup: { ns: "landing.why.clickup" },
+  coda: { ns: "landing.why.coda" },
 } as const;
 
 export type PlatformKey = keyof typeof PLATFORMS;

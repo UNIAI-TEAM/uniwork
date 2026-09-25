@@ -59,7 +59,7 @@ export function SiteHeader() {
   return <header ref={header} className="site-header fixed inset-x-0 top-0 z-50" onBlur={event => { if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget as Node)) close(); }}>
     <Container className="header-shell">
       <Link href={paths.root()} className="header-logo" aria-label="UniWork"><Logo variant="lockup" size={26} /></Link>
-      <nav className="header-navigation" aria-label={t("landing.productPages.product")}>
+      <nav className="header-navigation" aria-label={t("landing.nav.main")}>
         {GROUPS.map(item => <div className="header-nav-item" key={item.key}><button ref={node => { groupButtons.current[item.key] = node; }} className="header-nav-link header-directory-toggle" type="button" aria-expanded={directory === item.key} aria-controls={`header-directory-${item.key}`} onClick={() => setDirectory(current => current === item.key ? null : item.key)} onKeyDown={event => {
           if (event.key !== "ArrowDown") return;
           event.preventDefault();
@@ -76,7 +76,7 @@ export function SiteHeader() {
       </div>
     </Container>
     {directory && <div id={`header-directory-${directory}`} className="header-directory"><HeaderDirectory kind={directory} onNavigate={close} /></div>}
-    {mobileOpen && <nav id="landing-mobile-menu" className="header-mobile-menu" aria-label={t("landing.nav.openMenu")}>
+    {mobileOpen && <nav id="landing-mobile-menu" className="header-mobile-menu" aria-label={t("landing.nav.main")}>
       {GROUPS.map(group => <details key={group.key}><summary>{t(group.label)}<ChevronDown aria-hidden /></summary><HeaderDirectory kind={group.key} onNavigate={close} /></details>)}
       {LINKS.map(item => <Link className="mobile-route-link" key={item.to} href={item.to} onClick={close}>{t(item.label)}<ArrowRight aria-hidden /></Link>)}
       <Link className="mobile-route-link" href={paths.login()} onClick={close}>{t("landing.nav.login")}</Link>

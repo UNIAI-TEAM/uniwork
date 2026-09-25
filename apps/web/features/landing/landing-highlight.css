@@ -72,7 +72,7 @@
 .solution-select-copy small { color: var(--muted-foreground); font-size: var(--text-body); line-height: 1.45; }
 .solution-chevron { width: 17px; height: 17px; flex: 0 0 auto; margin: 9px 0 0 auto; color: var(--muted-foreground); transition: transform .25s; }
 .solution-card[data-active=true] .solution-chevron { color: var(--brand); transform: rotate(90deg); }
-.solution-link { display: inline-flex; align-items: center; gap: 7px; align-self: start; margin: auto 20px 19px 78px; color: color-mix(in srgb, var(--brand) 80%, var(--foreground)); font-size: var(--text-body); font-weight: 700; }
+.solution-link { display: inline-flex; align-items: center; gap: 7px; align-self: start; min-height: 32px; margin: auto 20px 13px 78px; color: color-mix(in srgb, var(--brand) 80%, var(--foreground)); font-size: var(--text-body); font-weight: 700; }
 .solution-link svg { width: 16px; height: 16px; transition: transform .2s; }
 .solution-link:hover svg { transform: translate(3px,-3px); }
 .solution-select:focus-visible, .solution-link:focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; border-radius: 8px; }
@@ -150,29 +150,43 @@
 /* An explicit future-facing chapter: one visual idea, then scannable phases. */
 .landing-site .roadmap-section { border: 0; background: transparent; padding-block: 88px; }
 .landing-site .roadmap-section > div { display: block; }
-.roadmap-hero { display: grid; grid-template-columns: minmax(270px,.55fr) minmax(0,1fr); gap: clamp(32px,5vw,70px); align-items: center; }
+.roadmap-hero { display: grid; grid-template-columns: minmax(300px,.7fr) minmax(0,1fr); gap: clamp(32px,5vw,70px); align-items: center; }
 .roadmap-hero-copy { align-self: center; }
-.roadmap-hero-copy h2 { max-width: 13ch; font-size: clamp(38px,4.5vw,66px); letter-spacing: -.045em; line-height: 1.08; }
+.roadmap-hero-copy h2 { max-width: 20ch; white-space: pre-line; font-size: var(--text-hero); letter-spacing: -.035em; line-height: 1.12; }
 .roadmap-hero-copy > p { max-width: 34ch; margin-top: 22px; color: var(--muted-foreground); font-size: var(--text-body-lg); line-height: 1.65; }
-.roadmap-hero-note { display: inline-block; max-width: 45ch; margin-top: 26px; padding-left: 13px; border-left: 1px solid var(--brand-accent); color: var(--muted-foreground); font-size: var(--text-caption); line-height: 1.55; }
+.roadmap-hero-note { display: inline-flex; align-items: flex-start; gap: 8px; max-width: 45ch; margin-top: 26px; color: var(--muted-foreground); font-size: var(--text-caption); line-height: 1.55; }
+.roadmap-hero-note svg { width: 16px; height: 16px; margin-top: 1px; color: var(--brand-accent); }
+/* The roadmap graph and FAQ story sit on constant navy in both themes; their
+   supporting inks derive from the fixed landing slots instead of loose hex. */
+.roadmap-visual, .faq-story {
+  --story-paper: var(--landing-close-foreground);
+  --story-ink: var(--landing-deep);
+  --story-muted: color-mix(in srgb, var(--story-paper) 78%, var(--landing-close-start));
+  --story-soft: color-mix(in srgb, var(--landing-model-light) 45%, var(--story-paper));
+  --story-accent: color-mix(in srgb, var(--landing-close-start) 42%, var(--story-paper));
+  --story-violet: color-mix(in srgb, var(--landing-close-end) 35%, var(--story-paper));
+  --story-line: color-mix(in srgb, var(--story-paper) 14%, transparent);
+  --story-node: color-mix(in srgb, var(--landing-deep) 85%, var(--landing-model-light));
+  --story-raised: color-mix(in srgb, color-mix(in srgb, var(--landing-deep) 80%, var(--landing-close-start)) 88%, var(--story-paper));
+  --story-shadow: color-mix(in srgb, var(--landing-deep) 70%, black);
+}
 .roadmap-visual { overflow: hidden; border-radius: 22px; background: var(--landing-deep); box-shadow: 0 28px 56px -38px var(--landing-deep); color: white; }
-.roadmap-visual-bar { display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 20px; border-bottom: 1px solid rgba(255,255,255,.14); color: #d7e7ff; font-size: 12px; }
-.roadmap-visual-dots i { background: #d7e7ff; }
-.roadmap-visual-body { position: relative; height: 300px; overflow: hidden; background: radial-gradient(circle at 53% 51%, rgba(38,115,255,.26), transparent 34%), radial-gradient(circle at 91% 90%, rgba(202,76,231,.15),transparent 40%); }
+.roadmap-visual-bar { display: flex; align-items: center; gap: 10px; height: 48px; padding: 0 20px; border-bottom: 1px solid var(--story-line); color: var(--story-soft); font-size: 12px; }
+.roadmap-visual-dots i { background: var(--story-soft); }
+.roadmap-visual-body { position: relative; height: 300px; overflow: hidden; background: radial-gradient(circle at 53% 51%, color-mix(in srgb, var(--landing-close-start) 26%, transparent), transparent 34%), radial-gradient(circle at 91% 90%, color-mix(in srgb, var(--landing-close-end) 18%, transparent), transparent 40%); }
 .roadmap-graph-lines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.roadmap-graph-lines path { fill: none; stroke: #72a4ff; stroke-width: 2; stroke-dasharray: 5 7; opacity: .7; }
-.roadmap-graph-lines circle { fill: #91bbff; }
-.roadmap-visual-node { position: absolute; display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 7px 11px; border: 1px solid rgba(255,255,255,.25); border-radius: 10px; background: #22365b; box-shadow: 0 12px 30px -18px #000; color: white; font-size: 11px; font-weight: 600; }
-.roadmap-visual-node svg { width: 16px; height: 16px; color: #8dbaff; }
+.roadmap-graph-lines path { fill: none; stroke: var(--story-accent); stroke-width: 2; stroke-dasharray: 5 7; opacity: .7; }
+.roadmap-visual-node { position: absolute; display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 7px 11px; border: 1px solid color-mix(in srgb, var(--story-paper) 25%, transparent); border-radius: 10px; background: var(--story-node); box-shadow: 0 12px 30px -18px var(--story-shadow); color: var(--story-paper); font-size: 11px; font-weight: 600; }
+.roadmap-visual-node svg { width: 16px; height: 16px; color: var(--story-accent); }
 .roadmap-node-meeting { left: 7%; top: 15%; }
 .roadmap-node-task { left: 7%; bottom: 15%; }
 .roadmap-node-ai { right: 6%; top: 26%; }
-.roadmap-node-ai svg { color: #f0adff; }
-.roadmap-visual-center { position: absolute; display: grid; justify-items: center; gap: 7px; left: 45%; top: 50%; width: 29%; min-width: 150px; padding: 19px 12px; transform: translate(-50%,-50%); border: 1px solid #6e99e8; border-radius: 16px; background: #253f73; box-shadow: 0 16px 36px -18px #07112b; text-align: center; }
-.roadmap-visual-halo { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: #daf2ff; color: var(--brand); }
+.roadmap-node-ai svg { color: var(--story-violet); }
+.roadmap-visual-center { position: absolute; display: grid; justify-items: center; gap: 7px; left: 45%; top: 50%; width: 29%; min-width: 150px; padding: 19px 12px; transform: translate(-50%,-50%); border: 1px solid color-mix(in srgb, var(--landing-close-start) 55%, var(--story-paper)); border-radius: 16px; background: var(--story-raised); box-shadow: 0 16px 36px -18px var(--story-shadow); text-align: center; }
+.roadmap-visual-halo { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; background: color-mix(in srgb, var(--landing-model-light) 55%, var(--story-paper)); color: var(--landing-close-start); }
 .roadmap-visual-halo svg { width: 19px; height: 19px; }
 .roadmap-visual-center strong { font-size: 13px; line-height: 1.25; }
-.roadmap-visual-center small { color: #c9d8ef; font-size: 10px; line-height: 1.3; }
+.roadmap-visual-center small { color: var(--story-muted); font-size: 10px; line-height: 1.3; }
 .landing-site .roadmap-section .roadmap-phases { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; margin-top: 24px; }
 .roadmap-phases > [data-slot=accordion-item] { min-width: 0; border: 1px solid var(--border); border-radius: 16px; background: var(--landing-paper); }
 .roadmap-phases > [data-slot=accordion-item]:first-child { grid-column: 1 / -1; border-color: color-mix(in srgb,var(--brand) 27%,var(--border)); background: var(--landing-cyan); }
@@ -180,9 +194,11 @@
 .roadmap-phases > [data-slot=accordion-item]:nth-child(4) { background: var(--landing-mint); }
 .landing-site .roadmap-phases [data-slot=accordion-trigger] { min-height: 105px; padding: 20px; gap: 8px; align-items: flex-start; }
 .landing-site .roadmap-phases [data-slot=accordion-trigger]:hover { text-decoration: none; }
+.landing-site .roadmap-phases [data-slot=accordion-trigger-icon] { margin-top: 3px; }
 .landing-site .roadmap-phase-name { gap: 12px; align-items: flex-start; font-size: var(--text-body-lg); line-height: 1.28; }
 .roadmap-phase-name > svg { flex: none; }
-.landing-site .roadmap-phase-name small { margin-top: 6px; font-size: var(--text-caption); line-height: 1.4; }
+/* Plain muted text falls below 4.5:1 on the tinted phase cards. */
+.landing-site .roadmap-phase-name small { margin-top: 6px; font-size: var(--text-caption); line-height: 1.4; color: color-mix(in srgb, var(--foreground) 72%, var(--muted-foreground)); }
 .landing-site .roadmap-count { display: none; }
 .roadmap-phases [data-slot=accordion-content] { padding-inline: 20px; }
 .roadmap-phases .planned-products { padding-bottom: 20px; }
@@ -193,15 +209,15 @@
 .landing-site .landing-faq { background: var(--background); padding-block: 88px; }
 .landing-site .landing-faq > .faq-layout { display: grid; grid-template-columns: minmax(300px,.8fr) minmax(0,1fr); gap: 24px; align-items: stretch; max-width: 1280px; }
 .landing-site .landing-faq > .faq-layout > * { grid-column: auto; grid-row: auto; }
-.faq-story { position: relative; min-height: 585px; overflow: hidden; padding: clamp(28px,3vw,48px); border-radius: 23px; background: var(--landing-deep); color: #fff; isolation: isolate; }
-.landing-site .landing-faq .faq-story .faq-heading-mark { display: grid; place-items: center; width: 50px; height: 50px; margin-bottom: 28px; border-radius: 14px; background: #274275; color: #9ac7ff; }
+.faq-story { position: relative; min-height: 585px; overflow: hidden; padding: clamp(28px,3vw,48px); border-radius: 23px; background: var(--landing-deep); color: var(--story-paper); isolation: isolate; }
+.landing-site .landing-faq .faq-story .faq-heading-mark { display: grid; place-items: center; width: 50px; height: 50px; margin-bottom: 28px; border-radius: 14px; background: var(--story-raised); color: var(--story-accent); }
 .landing-site .landing-faq .faq-story .faq-heading-mark svg { width: 28px; height: 28px; }
-.landing-site .landing-faq .faq-story h2 { max-width: 13ch; margin: 0; color: #fff; font-size: clamp(38px,4vw,62px); line-height: 1.08; letter-spacing: -.04em; }
-.faq-story > p { max-width: 30ch; margin-top: 18px; color: #cedbf2; font-size: var(--text-body-lg); line-height: 1.6; }
-.faq-story-art { position: absolute; left: 6%; right: 6%; bottom: -8%; height: 285px; border-radius: 50% 50% 0 0; background: radial-gradient(circle at 50% 45%,#395eb2,#19315e 65%,transparent 70%); }
-.faq-story-mark { position: absolute; display: grid; place-items: center; left: 48%; top: 15%; width: 64px; height: 64px; transform: translateX(-50%) rotate(-12deg); border-radius: 18px; background: #e8faff; box-shadow: 0 16px 40px -18px #05132d; }
-.faq-story-art::before { content: "?"; position: absolute; left: 39%; top: 15%; color: rgba(255,255,255,.12); font-size: 215px; font-weight: 800; line-height: 1; }
-.faq-story-topic { position: absolute; display: flex; align-items: center; gap: 7px; min-height: 35px; padding: 7px 10px; border-radius: 9px; background: #fff; color: #172341; box-shadow: 0 16px 30px -20px #000; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.landing-site .landing-faq .faq-story h2 { max-width: 13ch; margin: 0; color: var(--story-paper); font-size: var(--text-hero); line-height: 1.12; letter-spacing: -.035em; }
+.faq-story > p { max-width: 30ch; margin-top: 18px; color: var(--story-muted); font-size: var(--text-body-lg); line-height: 1.6; }
+.faq-story-art { position: absolute; left: 6%; right: 6%; bottom: -8%; height: 285px; border-radius: 50% 50% 0 0; background: radial-gradient(circle at 50% 45%, color-mix(in srgb, var(--landing-close-start) 55%, var(--landing-deep)), color-mix(in srgb, var(--landing-deep) 85%, var(--landing-close-start)) 65%, transparent 70%); }
+.faq-story-mark { position: absolute; display: grid; place-items: center; left: 48%; top: 15%; width: 64px; height: 64px; transform: translateX(-50%) rotate(-12deg); border-radius: 18px; background: color-mix(in srgb, var(--landing-model-light) 30%, var(--story-paper)); box-shadow: 0 16px 40px -18px var(--story-shadow); }
+.faq-story-art::before { content: "?"; position: absolute; left: 39%; top: 15%; color: color-mix(in srgb, var(--story-paper) 12%, transparent); font-size: 215px; font-weight: 800; line-height: 1; }
+.faq-story-topic { position: absolute; display: flex; align-items: center; gap: 7px; min-height: 35px; padding: 7px 10px; border-radius: 9px; background: var(--story-paper); color: var(--story-ink); box-shadow: 0 16px 30px -20px var(--story-shadow); font-size: 11px; font-weight: 700; white-space: nowrap; }
 .faq-story-topic svg { width: 14px; height: 14px; }
 .faq-story-topic-one { top: 30%; left: 0; transform: rotate(-6deg); }
 .faq-story-topic-one svg { color: var(--brand); }
@@ -226,38 +242,42 @@
 .landing-site .landing-faq .faq-more { min-height: 44px; margin-top: 12px; border-radius: 10px; }
 
 @media (max-width: 1023px) {
-  .solution-showcase { grid-template-columns: minmax(245px,.45fr) minmax(0,1fr); }
+  .landing-site .landing-faq .faq-story h2 { font-size: var(--text-hero-sm); }
+  /* Below 1024px the selector column drops under 250px and wraps every line; stack it above the preview. */
+  .solution-showcase { grid-template-columns: 1fr; }
+  .landing-site .solution-card, .landing-site .solution-card:nth-child(2), .landing-site .solution-card:nth-child(3) { min-height: 0; }
+  .solution-link { margin-top: 4px; }
   .solution-preview { padding: 25px; }
   .solution-screen-content { padding: 18px; }
-  .roadmap-hero { grid-template-columns: minmax(240px,.6fr) minmax(0,1fr); gap: 24px; }
-  .landing-site .landing-faq > .faq-layout { grid-template-columns: minmax(260px,.8fr) minmax(0,1fr); }
+  /* Two columns leave the 36px chapter headings about 240px and break them word by word; stack both chapters like Solutions. */
+  .roadmap-hero { grid-template-columns: 1fr; gap: 26px; }
+  .landing-site .roadmap-section .roadmap-phases { grid-template-columns: 1fr; }
+  .roadmap-phases > [data-slot=accordion-item]:first-child { grid-column: auto; }
+  .landing-site .landing-faq > .faq-layout { grid-template-columns: 1fr; }
+  .faq-story { min-height: 440px; }
+  .faq-story > p { max-width: 48ch; }
 }
 @media (max-width: 767px) {
   .landing-site .landing-product-story > .solutions-section { padding-block: 40px 32px; }
   .landing-site .solutions-section .studio-heading-row { gap: 12px; margin-bottom: 24px; }
   .solution-showcase { grid-template-columns: 1fr; }
   .landing-site .solution-cards { grid-template-columns: 1fr; }
-  .landing-site .solution-card, .landing-site .solution-card:nth-child(2), .landing-site .solution-card:nth-child(3) { min-height: 0; }
   .solution-select { min-height: 78px; padding: 14px 16px 6px; }
   .landing-site .solution-icon { width: 37px; height: 37px; flex-basis: 37px; }
-  .solution-link { margin: 0 16px 13px 69px; }
+  .solution-link { min-height: 44px; margin: 0 16px 6px 69px; }
   .solution-preview { min-height: 365px; padding: 24px 16px; }
   .solution-screen { min-height: 294px; }
   .solution-screen-content { min-height: 246px; padding: 15px; }
   .solution-screen-flow > div { padding: 9px; }
   .landing-site .roadmap-section { padding-block: 64px; }
-  .roadmap-hero { grid-template-columns: 1fr; gap: 26px; }
-  .roadmap-hero-copy h2 { max-width: 14ch; }
+  .roadmap-hero-copy h2 { font-size: var(--text-hero-sm); }
   .roadmap-visual-body { height: 260px; }
   .roadmap-visual-center { left: 51%; width: 40%; min-width: 135px; }
   .roadmap-node-meeting { left: 3%; }
   .roadmap-node-task { left: 3%; }
   .roadmap-node-ai { right: 3%; }
-  .landing-site .roadmap-section .roadmap-phases { grid-template-columns: 1fr; }
-  .roadmap-phases > [data-slot=accordion-item]:first-child { grid-column: auto; }
   .landing-site .roadmap-phases [data-slot=accordion-trigger] { min-height: 86px; }
   .landing-site .landing-faq { padding-block: 64px; }
-  .landing-site .landing-faq > .faq-layout { display: grid; grid-template-columns: 1fr; }
   .landing-site .landing-faq [data-slot=accordion-content] p { margin-left: 56px; }
   .faq-story { min-height: 480px; }
   .faq-story-art { bottom: 0; height: 170px; }

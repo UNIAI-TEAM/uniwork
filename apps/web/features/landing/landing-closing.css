@@ -100,9 +100,11 @@
   .final-brand { width: 68px; height: 68px; border-radius: 20px; }
   .final-brand svg { width: auto; height: 38px; }
   .landing-site.final-section.final-showcase-section .studio-title { max-width: 17ch; font-size: var(--text-hero-sm); line-height: 1.18; }
-  .final-showcase { width: calc(100% - 32px); height: auto; margin-top: 28px; padding-top: 48px; }
+  /* Fitting the whole 1760px canvas into a phone leaves ~20% scale and no legible detail;
+     keep a larger, centered crop of the board instead, clipped by the frame like tablet. */
+  .final-showcase { width: calc(100% - 32px); height: 320px; margin-top: 28px; padding-top: 48px; }
   .final-showcase > figcaption { max-width: 32ch; margin-inline: auto; }
-  .final-product-window { min-width: 0; left: auto; transform: none; padding: 4px; border-radius: 12px 12px 0 0; }
+  .final-product-window { min-width: 560px; left: 0; transform: none; padding: 4px; border-radius: 12px 12px 0 0; }
   .final-product-window .lovable-viewport { border-radius: 8px 8px 0 0; }
 }
 @media (prefers-reduced-motion: reduce) {

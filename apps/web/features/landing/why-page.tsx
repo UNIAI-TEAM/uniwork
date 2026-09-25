@@ -1,25 +1,20 @@
 "use client";
-import { AlertCircle, Boxes, Brain, FileCheck2, Server } from "lucide-react";
+import { AlertCircle, Boxes, Brain, FileCheck2, Info, Server } from "lucide-react";
 import { useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { cn } from "@uniwork/ui/lib/utils";
 import { gsap, useGSAP } from "./animation/register-gsap";
 import { revealFrom, withMotionPreference } from "./animation/reveal";
-import { FinalCta } from "./final-cta";
-import "./landing-playback.css";
-import "./landing-reference.css";
-import "./landing-lovable.css";
 import { Container, EmphasisSection, Eyebrow, SectionTitle } from "./layout-primitives";
+import { MarketingShell } from "./marketing-shell";
 import { PLATFORM_ISSUES, PLATFORM_KEYS, PLATFORMS } from "./platforms";
-import { SiteFooter } from "./site-footer";
-import { SiteHeader } from "./site-header";
 import { TrustBand } from "./trust-band";
 
+// One brand ink: these are topics, not states, so no signal colour applies.
 const PILLARS = [
-  { icon: Boxes, key: "pillar1", ink: "text-brand" },
-  { icon: Brain, key: "pillar2", ink: "text-brand-accent" },
-  { icon: FileCheck2, key: "pillar3", ink: "text-info" },
-  { icon: Server, key: "pillar4", ink: "text-warning" },
+  { icon: Boxes, key: "pillar1" },
+  { icon: Brain, key: "pillar2" },
+  { icon: FileCheck2, key: "pillar3" },
+  { icon: Server, key: "pillar4" },
 ] as const;
 
 /**
@@ -38,18 +33,13 @@ const PILLARS = [
  */
 export function WhyPage() {
   return (
-    <div className="min-h-dvh overflow-x-hidden bg-background text-foreground">
-      <SiteHeader />
-      <main>
-        <WhyHero />
-        <Platforms />
-        <MarketGap />
-        <Pillars />
-        <TrustBand />
-        <FinalCta />
-      </main>
-      <SiteFooter />
-    </div>
+    <MarketingShell>
+      <WhyHero />
+      <Platforms />
+      <MarketGap />
+      <Pillars />
+      <TrustBand />
+    </MarketingShell>
   );
 }
 
@@ -72,13 +62,11 @@ function WhyHero() {
   );
 
   return (
-    <section ref={root} aria-labelledby="why-title" className="bg-background pt-28 pb-16 sm:pt-32 sm:pb-20">
+    <section ref={root} aria-labelledby="why-title" className="bg-background pb-16 sm:pb-20">
       <Container>
         <div ref={body} className="max-w-3xl">
           <Eyebrow className="text-brand">{t("landing.why.eyebrow")}</Eyebrow>
-          <SectionTitle>
-            <span id="why-title">{t("landing.why.title")}</span>
-          </SectionTitle>
+          <h1 id="why-title" className="mt-3">{t("landing.why.title")}</h1>
           <p className="mt-4 max-w-prose text-title-sm leading-relaxed text-pretty text-muted-foreground">
             {t("landing.why.sub")}
           </p>
@@ -87,7 +75,8 @@ function WhyHero() {
           </p>
           {/* In the hero, not the footer: a reader who acts on a comparison
               needs to know how old it is before they act, not after. */}
-          <p className="mt-8 max-w-prose border-l-2 border-border pl-4 text-caption leading-relaxed text-muted-foreground">
+          <p className="mt-8 flex max-w-prose gap-2 text-body leading-relaxed text-muted-foreground">
+            <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
             {t("landing.why.disclaimer")}
           </p>
         </div>
@@ -115,29 +104,29 @@ function Platforms() {
   );
 
   return (
-    <section ref={root} aria-label={t("landing.why.title")} className="bg-surface py-20 sm:py-24">
+    <section ref={root} aria-label={t("landing.why.issuesLabel")} className="bg-surface py-20 sm:py-24">
       <Container>
         <ul ref={list} className="grid gap-10 lg:grid-cols-2 lg:gap-x-14 lg:gap-y-16">
           {PLATFORM_KEYS.map((key) => {
-            const { ns, ink } = PLATFORMS[key];
+            const { ns } = PLATFORMS[key];
             return (
               <li key={key}>
-                <h2 className={cn("font-heading text-title font-bold leading-snug", ink)}>{t(`${ns}.name`)}</h2>
-                <p className="mt-1 text-caption font-medium tracking-wide text-muted-foreground">
+                <h2 className="font-heading text-title font-bold leading-snug">{t(`${ns}.name`)}</h2>
+                <p className="mt-1 text-body font-medium text-muted-foreground">
                   {t(`${ns}.tagline`)}
                 </p>
                 <p className="mt-4 max-w-prose text-body-lg leading-relaxed text-muted-foreground">
                   {t(`${ns}.desc`)}
                 </p>
 
-                <h3 className="mt-8 text-label font-semibold">{t("landing.why.issuesLabel")}</h3>
+                <h3 className="mt-8 text-body font-semibold">{t("landing.why.issuesLabel")}</h3>
                 <ul className="mt-4 grid gap-4">
                   {PLATFORM_ISSUES.map((issue) => (
                     <li key={issue} className="flex gap-3">
-                      <AlertCircle className={cn("mt-0.5 size-4 shrink-0", ink)} aria-hidden />
+                      <AlertCircle className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
                       <div>
-                        <p className="text-body font-semibold">{t(`${ns}.${issue}Title`)}</p>
-                        <p className="mt-1 max-w-prose text-body leading-relaxed text-muted-foreground">
+                        <p className="text-body-lg font-semibold">{t(`${ns}.${issue}Title`)}</p>
+                        <p className="mt-1 max-w-prose text-body-lg leading-relaxed text-muted-foreground">
                           {t(`${ns}.${issue}Desc`)}
                         </p>
                       </div>
@@ -148,7 +137,7 @@ function Platforms() {
                 {/* Deliberately not a blockquote and deliberately unquoted:
                     this is our own reading, not something anyone said. */}
                 <div className="mt-8 rounded-lg bg-muted p-5">
-                  <p className="text-label font-semibold text-muted-foreground">{t("landing.why.summaryLabel")}</p>
+                  <p className="text-body font-semibold text-muted-foreground">{t("landing.why.summaryLabel")}</p>
                   <p className="mt-2 max-w-prose text-body-lg leading-relaxed">{t(`${ns}.summary`)}</p>
                 </div>
               </li>
@@ -203,11 +192,11 @@ function Pillars() {
           <span id="why-pillars-title">{t("landing.why.pillarsTitle")}</span>
         </SectionTitle>
         <ul ref={list} className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-10">
-          {PILLARS.map(({ icon: Icon, key, ink }) => (
+          {PILLARS.map(({ icon: Icon, key }) => (
             <li key={key}>
-              <Icon className={cn("size-6", ink)} aria-hidden />
-              <h3 className="mt-4 font-heading text-body-lg font-bold leading-snug">{t(`landing.why.${key}Title`)}</h3>
-              <p className="mt-2 max-w-prose text-body leading-relaxed text-muted-foreground">
+              <Icon className="size-6 text-brand" aria-hidden />
+              <h3 className="mt-4 font-heading text-title-sm font-bold leading-snug">{t(`landing.why.${key}Title`)}</h3>
+              <p className="mt-2 max-w-prose text-body-lg leading-relaxed text-muted-foreground">
                 {t(`landing.why.${key}Desc`)}
               </p>
             </li>

@@ -1,5 +1,5 @@
-import type { Metadata } from "next";
 import { PricingPage } from "../../features/landing/marketing-overview-pages";
+import { marketingMetadata } from "../../platform/feature-metadata";
 
-export const metadata: Metadata = { title: "Bảng giá UniWork", description: "Thông tin gói Starter và các nhóm hạn mức của UniWork.", alternates: { canonical: "/pricing" } };
+export function generateMetadata() { return marketingMetadata("pricing", "/pricing"); }
 export default function Page() { return <PricingPage />; }

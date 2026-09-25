@@ -13,7 +13,7 @@ import { SOLUTIONS, SOLUTION_KEYS } from "./solutions";
  * column's visual rhythm while the hit area grows to 44px on touch.
  */
 const LINK =
-  "inline-flex items-center text-body text-muted-foreground transition-colors hover:text-foreground pointer-coarse:min-h-11 pointer-coarse:-my-2.5";
+  "inline-flex min-h-8 -my-1.5 items-center text-body text-muted-foreground transition-colors hover:text-foreground pointer-coarse:min-h-11 pointer-coarse:-my-2.5";
 
 export function SiteFooter() {
   const { t } = useTranslation();
@@ -63,12 +63,27 @@ export function SiteFooter() {
                 </Link>
               </li>
             ))}
+            <li>
+              <Link className={LINK} href={paths.enterprise()}>
+                {t("landing.productPages.enterprise")}
+              </Link>
+            </li>
+            <li>
+              <Link className={LINK} href={paths.solutions.root()}>
+                {t("landing.productPages.allSolutions")}
+              </Link>
+            </li>
           </ul>
         </nav>
 
         <nav aria-label={t("landing.footer.resources")}>
           <h2 className="text-body font-semibold">{t("landing.footer.resources")}</h2>
           <ul className="mt-3 grid gap-2">
+            <li>
+              <Link className={LINK} href={paths.learn()}>
+                {t("landing.productPages.learn")}
+              </Link>
+            </li>
             <li>
               <Link className={LINK} href={paths.whyUniwork()}>
                 {t("landing.footer.why")}

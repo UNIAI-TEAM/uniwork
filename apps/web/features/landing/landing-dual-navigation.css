@@ -11,7 +11,9 @@
 .landing-product-story .workspace-group-button { color: var(--foreground); padding-inline: 10px; }
 .landing-product-story .workspace-group-button > svg,
 .landing-product-story .workspace-group-button > svg:last-child { color: var(--muted-foreground); }
-.landing-product-story .workspace-group-button[aria-expanded=true],
+/* Pure brand text sits at 4.35:1 on the dark stage gradient; mixing toward the
+   foreground darkens it in light mode and lightens it in dark, clearing AA in both. */
+.landing-product-story .workspace-group-button[aria-expanded=true] { color: color-mix(in srgb, var(--brand) 78%, var(--foreground)); }
 .landing-product-story .workspace-group-button[aria-expanded=true] > svg:first-child { color: var(--brand); }
 .landing-product-story .workspace-group-button:hover,
 .landing-product-story .workspace-tabs [role=tab]:hover { background: var(--landing-stage-soft); color: var(--foreground); }

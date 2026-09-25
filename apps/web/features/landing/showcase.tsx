@@ -1,5 +1,5 @@
 "use client";
-import { BookOpen, Bot, Building2, CalendarDays, CircleCheck, ClipboardCheck, Columns3, FileText, FolderKanban, House, Mail, MessageSquare, ScrollText, Sparkles, Video, Workflow, Zap } from "lucide-react";
+import { BookOpen, Bot, Building2, CalendarDays, CircleCheck, ClipboardCheck, Columns3, FileText, FolderKanban, House, LayoutDashboard, Mail, MessageSquare, ScrollText, Sparkles, Video, Workflow, Zap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { featureCopyPrefix, previewKind } from "./feature-page-catalog";
 
@@ -18,7 +18,7 @@ function catalogItem<const Key extends string>(key: Key, group: FeatureGroup, ic
 
 /** Navigation breadth follows the reference; availability follows verified source. */
 export const PRODUCT_FEATURES = [
-  { key: "dashboard", group: "work", status: "demo", icon: House, label: "landing.lovable.dashboard", anchor: "tong-quan", description: "landing.lovable.dashboardSub", availability: "landing.lovable.sample" },
+  { key: "dashboard", group: "work", status: "demo", icon: LayoutDashboard, label: "landing.lovable.dashboard", anchor: "tong-quan", description: "landing.lovable.dashboardSub", availability: "landing.lovable.sample" },
   { key: "tasks", group: "work", status: "demo", icon: Columns3, label: "landing.explorer.tasks", anchor: "du-an", description: "landing.workspace.tasksDescription", availability: "landing.discovery.search" },
   catalogItem("projects", "work", FolderKanban, "du-an-tong-quan", "demo"),
   { key: "today", group: "work", status: "demo", icon: House, label: "landing.updates.homeTab", anchor: "daily-tools", description: "landing.workspace.todayDescription", availability: "landing.updates.homeAvailability" },

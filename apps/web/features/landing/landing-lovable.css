@@ -12,7 +12,7 @@
 .lovable-preview-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .lovable-viewport { width: 100%; overflow: auto; overscroll-behavior: contain; background: var(--preview-canvas); }
 .lovable-viewport-spacer { position: relative; width: calc(1760px * var(--preview-scale)); height: calc(1000px * var(--preview-scale)); }
-.lovable-canvas { width: 1760px; height: 1000px; position: absolute; inset: 0 auto auto 0; transform: scale(var(--preview-scale)); transform-origin: top left; display: grid; grid-template-columns: 260px minmax(0,1fr); grid-template-rows: 72px minmax(0,1fr); background: var(--preview-canvas); color: var(--preview-ink); font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; isolation: isolate; overflow: hidden; pointer-events: none; user-select: none;
+.lovable-canvas { width: 1760px; height: 1000px; position: absolute; inset: 0 auto auto 0; transform: scale(var(--preview-scale)); transform-origin: top left; display: grid; grid-template-columns: 260px minmax(0,1fr); grid-template-rows: 72px minmax(0,1fr); background: var(--preview-canvas); color: var(--preview-ink); font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; --font-display: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; isolation: isolate; overflow: hidden; pointer-events: none; user-select: none;
   --foreground: var(--preview-ink); --muted-foreground: var(--preview-muted); --border: var(--preview-line); --landing-paper: var(--preview-canvas); --landing-stage-soft: var(--preview-panel); --landing-violet: var(--preview-soft); --surface: var(--preview-panel); --background: var(--preview-canvas); --muted: var(--preview-soft); --text-caption: 12px; --text-body: 14px; --text-body-lg: 16px; --text-title: 20px; --text-title-lg: 26px;
 }
 .lovable-canvas :is(h2,h3,p) { margin: 0; letter-spacing: normal; }
@@ -377,7 +377,7 @@
 .mobile-story-steps button[aria-pressed=true] { background: var(--brand); color: var(--brand-foreground); border-color: var(--brand); }
 .mobile-story-detail { display: flex; align-items: flex-start; gap: 12px; min-height: 146px; background: var(--landing-stage-soft); padding: 20px 16px; margin-bottom: 16px; border-radius: 12px; }
 .mobile-story-detail > svg { color: var(--brand); width: 22px; height: 22px; flex-shrink: 0; margin-top: 3px; }
-.lovable-intelligence-notice { padding: 28px; border-left: 3px solid var(--brand); margin-top: 32px; line-height: 1.8; color: var(--muted-foreground); }
+.lovable-intelligence-notice { padding: 24px 28px; border-radius: 12px; background: var(--landing-stage-soft); margin-top: 32px; line-height: 1.8; color: var(--muted-foreground); }
 .lovable-intelligence-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 32px; }
 .lovable-intelligence-grid .lovable-card { padding: 28px; min-height: 240px; }
 .lovable-intelligence-grid h3 { font-size: 20px; margin-bottom: 24px; display: flex; gap: 14px; align-items: center; }
@@ -403,8 +403,9 @@
 .lovable-version-review > p { border-top: 1px solid var(--border); padding-top: 20px; color: var(--warning); }
 .mobile-feature-story button:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; }
 @media (min-width: 901px) {
-  /* The fitted app determines the row height; a long feature menu scrolls independently. */
-  .unified-workspace[data-presentation=watch] .workspace-selector { contain: size; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--input) transparent; }
+  /* The app (fitted in watch, manual in explore) determines the row height; a long
+     feature menu scrolls independently instead of leaving an empty strip under the app. */
+  .unified-workspace .workspace-selector { contain: size; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--input) transparent; }
 }
 @media (max-width: 900px) {
   .workspace-preview-kind { padding-left: 0; font-size: 12px; }
@@ -417,3 +418,6 @@
   .lovable-preview-tools > span small { display: block; margin-left: 0; }
   .preview-topbar .preview-presentation-toggle { min-height: 44px; }
 }
+/* On phones the focused story card already opens with the feature description;
+   the selector's copy of the same sentence right above it is dropped. */
+.unified-workspace:has(.mobile-feature-story) .workspace-feature-description { display: none; }

@@ -10,7 +10,7 @@ const VALUES = [Network, Sparkles, FileCheck2, FileStack] as const;
 export function WorkProducts() {
   const { t } = useTranslation();
   return <AccordionItem id={ANCHORS.workProducts} value="work-products">
-    <AccordionTrigger><span className="roadmap-phase-name"><FileStack className="size-6 text-brand" aria-hidden /><span>{t("landing.discovery.workProducts")}<small>{t("landing.studio.workProductsNote")}</small></span></span></AccordionTrigger>
+    <AccordionTrigger aria-describedby="roadmap-work-products-desc"><span className="roadmap-phase-name"><FileStack className="size-6 text-brand" aria-hidden /><span>{t("landing.discovery.workProducts")}<small id="roadmap-work-products-desc" aria-hidden>{t("landing.studio.workProductsNote")}</small></span></span></AccordionTrigger>
     <AccordionContent>
       <ul className="planned-products">{VALUES.map((Icon, i) => <li key={i}>
         <span className="work-product-icon" aria-hidden><Icon /></span>

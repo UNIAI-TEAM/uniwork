@@ -1,5 +1,5 @@
-import type { Metadata } from "next";
 import { SolutionsPage } from "../../features/landing/marketing-overview-pages";
+import { marketingMetadata } from "../../platform/feature-metadata";
 
-export const metadata: Metadata = { title: "Giải pháp UniWork", description: "Khám phá UniWork cho nhóm sản phẩm và vận hành.", alternates: { canonical: "/solutions" } };
+export function generateMetadata() { return marketingMetadata("solutions", "/solutions"); }
 export default function Page() { return <SolutionsPage />; }

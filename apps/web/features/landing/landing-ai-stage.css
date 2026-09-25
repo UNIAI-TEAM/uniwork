@@ -7,7 +7,7 @@
     linear-gradient(125deg, var(--landing-cyan), color-mix(in srgb, var(--landing-violet) 48%, var(--landing-cyan)));
 }
 .landing-site .ai-stage-copy { padding-right: clamp(20px, 3.5vw, 54px); }
-.landing-site .ai-intro .studio-title { max-width: 14ch; }
+.landing-site .ai-intro .studio-title { max-width: 26ch; }
 .landing-site .ai-intro .studio-description { margin-top: 26px; max-width: 45ch; }
 .landing-site .ai-stage .ai-benefits {
   max-width: 520px;
@@ -44,7 +44,7 @@
 }
 @media (max-width: 767px) {
   .landing-site .ai-stage-copy { padding-right: 24px; }
-  .landing-site .ai-intro .studio-title { max-width: 16ch; }
+  .landing-site .ai-intro .studio-title { max-width: none; }
   .landing-site .ai-stage .ai-benefits { margin-top: 24px; }
   .landing-site .ai-stage .ai-visual { margin-top: 14px; }
   .landing-site .ai-stage .mascot-stage::before { top: 11%; width: min(67%, 280px); box-shadow: 0 0 0 22px color-mix(in srgb, var(--landing-paper) 27%, transparent), 0 0 0 23px color-mix(in srgb, var(--brand) 8%, transparent); }
