@@ -216,3 +216,38 @@ export function Logo({
     </svg>
   );
 }
+
+export type LogoLoaderProps = {
+  /**
+   * What a screen reader hears. Required because the loader shows no text and
+   * a primitive cannot know the page's language — pass `t("common.loading")`.
+   */
+  label: string;
+  /** Fill the viewport, for gates that render instead of the whole page. */
+  fullScreen?: boolean;
+  /** Height of the mark in px. */
+  size?: number;
+  className?: string;
+};
+
+/**
+ * The product's loading state: the mark, pulsing, and nothing else. In
+ * UniWork a softly beating mark means "loading" — no caption under it, so
+ * every full-page wait reads the same. The label is for assistive tech only.
+ */
+export function LogoLoader({ label, fullScreen = false, size = 32, className }: LogoLoaderProps) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className={cn(
+        "flex items-center justify-center",
+        fullScreen && "h-svh w-full bg-background",
+        className,
+      )}
+    >
+      <Logo variant="mark" size={size} decorative className="animate-pulse" />
+      <span className="sr-only">{label}</span>
+    </div>
+  );
+}
