@@ -43,8 +43,9 @@ describe("CalendarSidebar", () => {
     );
 
     expect(screen.getByText("Bảng kế hoạch")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Tạo mục lịch" }));
-    expect(onQuickCreate).toHaveBeenCalledTimes(1);
+    const createButton = screen.getByRole("button", { name: "Tạo mục lịch" });
+    fireEvent.click(createButton);
+    expect(onQuickCreate).toHaveBeenCalledWith(createButton);
   });
 
   it("renders five section headings and empty copy when lists are empty", () => {

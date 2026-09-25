@@ -23,7 +23,7 @@ import type { CalendarEvent } from "@uniwork/core/calendar/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { addDays, format } from "date-fns";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { dropToPatch, type CalendarDropPatch } from "./calendar-drop-patch";
 import { toFcEvent } from "./calendar-fc-map";
 
@@ -74,10 +74,11 @@ export function FullCalendarHost(props: {
     taskId: string;
     dueDate: string;
   }) => void | Promise<void>;
-  onSlotSelect?: (slot: CalendarSlot) => void;
+  onSlotSelect?: (slot: CalendarSlot, source?: HTMLElement) => void;
   className?: string;
 }) {
   const { t } = useTranslation();
+  const hostRef = useRef<HTMLDivElement>(null);
   const [allDayExpanded, setAllDayExpanded] = useState(false);
   const eventsById = useMemo(
     () => new Map(props.events.map((ev) => [ev.id, ev])),
@@ -167,14 +168,17 @@ export function FullCalendarHost(props: {
     target.setAttribute("role", "button");
     target.setAttribute(
       "aria-label",
-      t("calendar.create_task_on_date", { date: dateLabel }),
+      t("calendar.create_item_on_date", { date: dateLabel }),
     );
     target.tabIndex = 0;
     const handler: EventListener = (event) => {
       const keyboardEvent = event as KeyboardEvent;
       if (keyboardEvent.key !== "Enter" && keyboardEvent.key !== " ") return;
       keyboardEvent.preventDefault();
-      props.onSlotSelect?.({ start: info.date, end: null, allDay: true });
+      props.onSlotSelect?.(
+        { start: info.date, end: null, allDay: true },
+        target,
+      );
     };
     target.addEventListener("keydown", handler);
     dayCellKeyHandlers.set(info.el, { target, handler });
@@ -210,23 +214,31 @@ export function FullCalendarHost(props: {
   };
 
   const handleDateClick = (info: DateClickArg) => {
-    props.onSlotSelect?.({
-      start: info.date,
-      end: null,
-      allDay: info.allDay,
-    });
+    props.onSlotSelect?.(
+      {
+        start: info.date,
+        end: null,
+        allDay: info.allDay,
+      },
+      info.dayEl,
+    );
   };
 
   const handleSelect = (info: DateSelectArg) => {
-    props.onSlotSelect?.({
-      start: info.start,
-      end: info.end,
-      allDay: info.allDay,
-    });
+    const eventTarget = info.jsEvent?.target;
+    props.onSlotSelect?.(
+      {
+        start: info.start,
+        end: info.end,
+        allDay: info.allDay,
+      },
+      eventTarget instanceof HTMLElement ? eventTarget : (hostRef.current ?? undefined),
+    );
   };
 
   return (
     <div
+      ref={hostRef}
       data-testid="calendar-grid"
       lang={props.language}
       className={cn("uniwork-fc relative flex min-h-0 flex-1 flex-col", props.className)}

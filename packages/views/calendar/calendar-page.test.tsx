@@ -197,9 +197,10 @@ describe("CalendarPageView", () => {
 
     expect(createFromSlotProps.current.open).toBe(true);
     expect(createFromSlotProps.current.slot).toBeNull();
+    expect(createFromSlotProps.current.anchor).toBeInstanceOf(HTMLElement);
   });
 
-  it("opens the calendar composer with the selected slot", () => {
+  it("opens the calendar create menu at the selected slot", () => {
     render(
       wrap(
         <CalendarPageView
@@ -214,14 +215,19 @@ describe("CalendarPageView", () => {
       end: new Date("2026-09-10T15:00:00"),
       allDay: false,
     };
+    const anchor = document.createElement("div");
 
     act(() => {
-      const onSlotSelect = hostProps.current.onSlotSelect as (selected: typeof slot) => void;
-      onSlotSelect(slot);
+      const onSlotSelect = hostProps.current.onSlotSelect as (
+        selected: typeof slot,
+        source: HTMLElement,
+      ) => void;
+      onSlotSelect(slot, anchor);
     });
 
     expect(createFromSlotProps.current.open).toBe(true);
     expect(createFromSlotProps.current.slot).toBe(slot);
+    expect(createFromSlotProps.current.anchor).toBe(anchor);
   });
 
   it("keeps the calendar mounted while a clicked task opens in the detail panel", () => {

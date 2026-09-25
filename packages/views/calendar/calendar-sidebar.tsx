@@ -37,7 +37,7 @@ type CalendarSidebarProps = {
   onOpenTask: (id: string, source?: HTMLElement) => void;
   onOpenMeeting: (id: string, source?: HTMLElement) => void;
   onCreateMeeting: () => void;
-  onQuickCreate: () => void;
+  onQuickCreate: (source: HTMLElement) => void;
 };
 
 type TaskSectionKey = "priorities" | "assigned" | "todayOverdue" | "backlog";
@@ -317,7 +317,7 @@ export function CalendarSidebar({
           size="icon-sm"
           className="shrink-0 text-muted-foreground"
           aria-label={t("calendar.create_item")}
-          onClick={onQuickCreate}
+          onClick={(event) => onQuickCreate(event.currentTarget)}
         >
           <Plus aria-hidden className="size-4" />
         </Button>

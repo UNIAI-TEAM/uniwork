@@ -53,6 +53,7 @@ export function CalendarPageView({
   );
   const [slotMenuOpen, setSlotMenuOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<CalendarSlot | null>(null);
+  const [slotAnchor, setSlotAnchor] = useState<HTMLElement | null>(null);
   const [createMeetingOpen, setCreateMeetingOpen] = useState(false);
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [openMeetingId, setOpenMeetingId] = useState<string | null>(null);
@@ -104,13 +105,15 @@ export function CalendarPageView({
     );
   };
 
-  const handleSlotSelect = (slot: CalendarSlot) => {
+  const handleSlotSelect = (slot: CalendarSlot, source?: HTMLElement) => {
     setSelectedSlot(slot);
+    setSlotAnchor(source ?? null);
     setSlotMenuOpen(true);
   };
 
-  const handleQuickCreate = () => {
+  const handleQuickCreate = (source: HTMLElement) => {
     setSelectedSlot(null);
+    setSlotAnchor(source);
     setSlotMenuOpen(true);
   };
 
@@ -180,7 +183,7 @@ export function CalendarPageView({
           onCreateMeeting={() => setCreateMeetingOpen(true)}
           onQuickCreate={handleQuickCreate}
         />
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <CalendarToolbar
             anchorDate={anchorDate}
             mine={mine}
@@ -241,6 +244,7 @@ export function CalendarPageView({
                 open={slotMenuOpen}
                 onOpenChange={setSlotMenuOpen}
                 slot={selectedSlot}
+                anchor={slotAnchor}
               />
             </div>
           )}

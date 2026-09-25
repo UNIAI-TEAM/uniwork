@@ -28,8 +28,10 @@ describe("CreateFromSlot", () => {
     meetingDialogProps.current = {};
   });
 
-  it("opens a non-modal composer and focuses the first creation action", () => {
+  it("opens an anchored creation menu with both item types", () => {
     const onOpenChange = vi.fn();
+    const anchor = document.createElement("button");
+    document.body.append(anchor);
     render(
       wrap(
         <CreateFromSlot
@@ -37,14 +39,14 @@ describe("CreateFromSlot", () => {
           open
           onOpenChange={onOpenChange}
           slot={null}
+          anchor={anchor}
         />,
       ),
     );
 
-    const composer = screen.getByRole("dialog", { name: "Tạo mục lịch" });
-    expect(composer).toHaveAttribute("aria-modal", "false");
-    expect(screen.getByRole("button", { name: "Việc mới" })).toHaveFocus();
-    expect(screen.getByRole("button", { name: "Cuộc họp mới" })).toBeInTheDocument();
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Việc mới/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Cuộc họp mới/ })).toBeInTheDocument();
     expect(screen.queryByTestId("create-task-dialog")).not.toBeInTheDocument();
     expect(screen.queryByTestId("create-meeting-dialog")).not.toBeInTheDocument();
     expect(taskDialogProps.current).toEqual({});
@@ -64,11 +66,12 @@ describe("CreateFromSlot", () => {
             end: null,
             allDay: true,
           }}
+          anchor={document.body}
         />,
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Việc mới" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Việc mới/ }));
     expect(onOpenChange).toHaveBeenCalledWith(false);
     expect(screen.getByTestId("create-task-dialog")).toBeInTheDocument();
     expect(taskDialogProps.current.defaults).toEqual({ due_date: "2026-09-10" });
@@ -84,11 +87,12 @@ describe("CreateFromSlot", () => {
           open
           onOpenChange={() => {}}
           slot={{ start, end, allDay: false }}
+          anchor={document.body}
         />,
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Việc mới" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Việc mới/ }));
     expect(taskDialogProps.current.defaults).toEqual({
       start_date: "2026-09-10",
       due_date: "2026-09-10",
@@ -109,11 +113,12 @@ describe("CreateFromSlot", () => {
             end: new Date("2026-09-10T15:00:00"),
             allDay: false,
           }}
+          anchor={document.body}
         />,
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Cuộc họp mới" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Cuộc họp mới/ }));
     expect(screen.getByTestId("create-meeting-dialog")).toBeInTheDocument();
     expect(meetingDialogProps.current.scheduleDefaults).toEqual({
       date: "2026-09-10",
@@ -131,13 +136,14 @@ describe("CreateFromSlot", () => {
           open
           onOpenChange={onOpenChange}
           slot={null}
+          anchor={document.body}
         />,
       ),
     );
 
-    fireEvent.keyDown(screen.getByRole("dialog", { name: "Tạo mục lịch" }), {
+    fireEvent.keyDown(screen.getByRole("menu"), {
       key: "Escape",
     });
-    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(onOpenChange).toHaveBeenCalledWith(false, expect.any(Object));
   });
 });

@@ -33,8 +33,13 @@ type CapturedFcProps = {
   eventClick?: (arg: { event: { id: string }; el?: HTMLElement }) => void;
   eventDrop?: (arg: DropResizeArg) => void | Promise<void>;
   eventResize?: (arg: DropResizeArg) => void | Promise<void>;
-  dateClick?: (arg: { date: Date; allDay: boolean }) => void;
-  select?: (arg: { start: Date; end: Date; allDay: boolean }) => void;
+  dateClick?: (arg: { date: Date; allDay: boolean; dayEl: HTMLElement }) => void;
+  select?: (arg: {
+    start: Date;
+    end: Date;
+    allDay: boolean;
+    jsEvent: MouseEvent | null;
+  }) => void;
   dayCellContent?: (arg: {
     date: Date;
     dayNumberText: string;
@@ -182,14 +187,14 @@ describe("FullCalendarHost", () => {
     const mountArg = { date, el: cell, view: { type: "dayGridMonth" } };
     captured.dayCellDidMount?.(mountArg);
     expect(dayNumber).toHaveAttribute("role", "button");
-    expect(dayNumber).toHaveAttribute("aria-label", "Tạo việc ngày 10/09/2026");
+    expect(dayNumber).toHaveAttribute("aria-label", "Tạo mục ngày 10/09/2026");
     fireEvent.keyDown(dayNumber, { key: "Enter" });
 
     expect(onSlotSelect).toHaveBeenCalledWith({
       start: date,
       end: null,
       allDay: true,
-    });
+    }, dayNumber);
     captured.dayCellWillUnmount?.(mountArg);
   });
 
@@ -475,12 +480,16 @@ describe("FullCalendarHost", () => {
     expect(captured.selectable).toBe(true);
     expect(captured.selectMirror).toBe(true);
     const start = new Date("2026-09-10T00:00:00");
-    captured.dateClick?.({ date: start, allDay: true });
-    expect(onSlotSelect).toHaveBeenCalledWith({
-      start,
-      end: null,
-      allDay: true,
-    });
+    const dayEl = document.createElement("td");
+    captured.dateClick?.({ date: start, allDay: true, dayEl });
+    expect(onSlotSelect).toHaveBeenCalledWith(
+      {
+        start,
+        end: null,
+        allDay: true,
+      },
+      dayEl,
+    );
   });
 
   it("forwards select range to onSlotSelect", () => {
@@ -497,8 +506,14 @@ describe("FullCalendarHost", () => {
     );
     const start = new Date("2026-09-10T00:00:00");
     const end = new Date("2026-09-13T00:00:00");
-    captured.select?.({ start, end, allDay: true });
-    expect(onSlotSelect).toHaveBeenCalledWith({ start, end, allDay: true });
+    const source = document.createElement("div");
+    captured.select?.({
+      start,
+      end,
+      allDay: true,
+      jsEvent: { target: source } as unknown as MouseEvent,
+    });
+    expect(onSlotSelect).toHaveBeenCalledWith({ start, end, allDay: true }, source);
   });
 
   it("does not enable selectable without onSlotSelect", () => {
