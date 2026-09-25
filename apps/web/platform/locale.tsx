@@ -13,8 +13,8 @@ import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
  * sides, so server HTML and the first client render agree; switching later
  * (the settings page) goes through the adapter and i18n.changeLanguage.
  *
- * `initialDictionary` is the English resource bag when the request locale is
- * `en` — loaded only on the server so `en.json` stays out of the shared
+ * `initialDictionary` is the Vietnamese resource bag when the request locale is
+ * `vi` — loaded only on the server so `vi.json` stays out of the shared
  * client chunk (see sync-request-locale.ts).
  */
 export function WebLocaleProvider({

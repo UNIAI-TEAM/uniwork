@@ -37,11 +37,13 @@ function holdAnimationFrames() {
 function Harness({
   showLayout,
   onController,
+  defaultOpen = true,
 }: {
   showLayout: boolean;
   onController?: (controller: AnimatedRightSidebarController) => void;
+  defaultOpen?: boolean;
 }) {
-  const controller = useAnimatedRightSidebar(true);
+  const controller = useAnimatedRightSidebar(defaultOpen);
   onController?.(controller);
   return (
     <div>
@@ -72,6 +74,14 @@ describe("useAnimatedRightSidebar", () => {
     expect(screen.getByTestId("sidebar").firstElementChild).toHaveClass(
       "!overflow-hidden",
     );
+  });
+
+  it("removes a visually collapsed sidebar from focus and the accessibility tree", () => {
+    render(<Harness showLayout defaultOpen={false} />);
+
+    const hiddenSidebar = screen.getByText("sidebar").parentElement;
+    expect(hiddenSidebar).toHaveAttribute("aria-hidden", "true");
+    expect(hiddenSidebar).toHaveAttribute("inert");
   });
 
   it("a toggle whose frame lands after the page unmounted does not throw", () => {

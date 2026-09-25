@@ -60,28 +60,6 @@ async function withClient<T>(fn: (c: Client) => Promise<T>): Promise<T> {
 }
 
 /**
- * Turns a flag on or off for everyone, tagged `e2e` so cleanup removes only
- * what a spec wrote. The server caches overrides for up to 30 s, so a spec
- * waits for the effect rather than assuming it.
- */
-export async function setE2EFlagOverride(flag: string, enabled: boolean): Promise<void> {
-  await withClient(async (c) => {
-    await c.query("DELETE FROM feature_flag_overrides WHERE flag_key = $1 AND scope_type = 'global' AND note = 'e2e'", [flag]);
-    await c.query(
-      `INSERT INTO feature_flag_overrides (id, flag_key, scope_type, scope_id, enabled, note, created_by)
-       VALUES ($1, $2, 'global', '', $3, 'e2e', 'e2e') ON CONFLICT DO NOTHING`,
-      [`e2e-${flag}-${Date.now()}`, flag, enabled],
-    );
-  });
-}
-
-export async function clearE2EFlagOverride(flag: string): Promise<void> {
-  await withClient((c) =>
-    c.query("DELETE FROM feature_flag_overrides WHERE flag_key = $1 AND scope_type = 'global' AND note = 'e2e'", [flag]),
-  );
-}
-
-/**
  * Hands every task of a workspace to the given person, due today in their own
  * time zone, and returns the titles. Fixture setup only: it skips the task
  * command and its audit row on purpose.

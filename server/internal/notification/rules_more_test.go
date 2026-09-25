@@ -167,4 +167,45 @@ func TestRuleChatFollowUpCreated(t *testing.T) {
 	if len(f.inbox(t, f.owner.ID)) != 1 {
 		t.Fatal("incomplete payload created a row")
 	}
+
+	// msg1 does not exist: the row is flagged gone and links to Chat itself.
+	svc := NewService(f.q, PushConfig{})
+	items, err := svc.List(f.ctx, f.owner.ID, ListInput{WorkspaceID: f.wsID})
+	if err != nil || len(items) != 1 || !items[0].ResourceDeleted || items[0].ResourceParentID != "" {
+		t.Fatalf("missing message item = %+v err=%v", items, err)
+	}
+	if u, err := ResourceURL(f.ctx, f.q, "http://app", got[0]); err != nil || u != "http://app/notif-org/notif-ws/chat" {
+		t.Fatalf("missing message url = %q err=%v", u, err)
+	}
+
+	// A real message resolves to its room, and the link opens on it.
+	room, err := f.q.CreateChatRoom(f.ctx, db.CreateChatRoomParams{
+		ID: "room-fu", Kind: "channel", WorkspaceID: pgtype.Text{String: f.wsID, Valid: true},
+		OrganizationID: pgtype.Text{String: f.orgID, Valid: true}, Name: "Chung", LivekitRoomName: "lk-room-fu",
+		CreatedBy: f.owner.ID, CreatedByKind: "human", Visibility: "public",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg, err := f.q.CreateChatMessage(f.ctx, db.CreateChatMessageParams{
+		ID: "msg-fu", RoomID: room.ID, WorkspaceID: f.wsID, SenderID: f.owner.ID, SenderKind: "human", Body: "nhắc tôi",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.consumer.Handle(f.ctx, db.OutboxEvent{
+		ID: "ev-fu-2", Topic: "chat.follow_up.created",
+		Payload:   `{"follow_up_id":"fu2","workspace_id":"` + f.wsID + `","user_id":"` + f.owner.ID + `","message_id":"` + msg.ID + `"}`,
+		ActorKind: pgtype.Text{String: "human", Valid: true}, ActorID: pgtype.Text{String: f.owner.ID, Valid: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	items, err = svc.List(f.ctx, f.owner.ID, ListInput{WorkspaceID: f.wsID})
+	if err != nil || len(items) != 2 || items[0].ResourceDeleted || items[0].ResourceParentID != room.ID {
+		t.Fatalf("live message item = %+v err=%v", items, err)
+	}
+	if u, err := ResourceURL(f.ctx, f.q, "http://app", items[0].Notification); err != nil ||
+		u != "http://app/notif-org/notif-ws/chat?room=room-fu&message=msg-fu" {
+		t.Fatalf("live message url = %q err=%v", u, err)
+	}
 }

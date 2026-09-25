@@ -22,6 +22,10 @@ import { Logo } from "@uniwork/ui/brand";
 <Logo variant="mark" size={16} decorative />       // aria-hidden
 ```
 
+**Loading.** A full-page wait is `<LogoLoader label={t("common.loading")} fullScreen />`:
+the mark pulsing, no caption. The label reaches screen readers only. Don't
+put "Loading…" text under the mark — the pulse already says it.
+
 Set a `size`, not a drawing. At 24px and below the component swaps in the
 compact artwork by itself — wider head gap, thicker band, no depth crescent.
 

@@ -7,15 +7,16 @@ import { paths } from "@uniwork/core/paths";
 import type { Meeting } from "@uniwork/core/types";
 import type { HomeSummary } from "@uniwork/core/types/home";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
-import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { PanelCard } from "../common/panel-card";
-import { CollectionPageState } from "../layout/collection-page";
 import { moduleTone } from "../layout/module-tones";
 import { useWorkspace } from "../layout/workspace-context";
 import { formatMeetingDay, formatMeetingTimes, meetingLocale } from "../meetings/meeting-datetime";
 import { AppLink } from "../navigation";
 import { HomePartialNotice } from "./home-partial-notice";
+import { HomeQuietNote } from "./home-quiet-note";
+import { HomeMeetingRowsSkeleton } from "./home-skeletons";
+import { clock, minutesBetween } from "./home-time";
 
 function nextDay(day: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day);
@@ -23,40 +24,54 @@ function nextDay(day: string): string {
   return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + 1)).toISOString().slice(0, 10);
 }
 
-/** Wall-clock time in the viewer's zone, the same clock `formatMeetingTimes` reads. */
-function clock(iso: string, locale: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(d);
+function useDuration(): (minutes: number) => string {
+  const { t } = useTranslation();
+  return (minutes) => {
+    if (minutes < 60) return t("home.upcoming.minutes", { count: minutes });
+    const hours = Math.floor(minutes / 60);
+    const rest = minutes % 60;
+    return rest === 0 ? t("home.upcoming.hours", { count: hours }) : t("home.upcoming.hours_minutes", { hours, minutes: rest });
+  };
 }
 
-function MeetingRow({ meeting, href, roomHref }: { meeting: Meeting; href: string; roomHref: string }) {
+function MeetingRow({ meeting, href, roomHref, timeZone }: { meeting: Meeting; href: string; roomHref: string; timeZone?: string }) {
   const { t, i18n } = useTranslation();
   const locale = meetingLocale(i18n.language);
+  const duration = useDuration();
   const live = meeting.status === "IN_PROGRESS";
+  const minutes = minutesBetween(meeting.starts_at, meeting.ends_at);
 
   return (
     <li className="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors duration-150 hover:bg-surface-hover focus-within:bg-surface-selected">
       {/* The time column is for the eye; the link below carries the same span as text. */}
-      <span aria-hidden className="flex w-11 shrink-0 flex-col text-right tabular-nums">
-        <span className="text-body font-semibold text-foreground">{clock(meeting.starts_at, locale)}</span>
-        <span className="text-caption text-muted-foreground">{clock(meeting.ends_at, locale)}</span>
+      <span aria-hidden className="flex w-11 shrink-0 flex-col self-start pt-0.5 text-right tabular-nums">
+        <span className="text-body font-semibold text-foreground">{clock(meeting.starts_at, locale, timeZone)}</span>
+        <span className="text-caption text-muted-foreground">{clock(meeting.ends_at, locale, timeZone)}</span>
       </span>
-      <span aria-hidden className={cn("w-1 self-stretch rounded-full", live ? "bg-success" : "bg-tint-violet-solid")} />
-      <AppLink href={href} className="min-w-0 flex-1 rounded-sm">
-        <span className="block truncate text-body font-medium text-foreground">{meeting.title}</span>
-        <span className="flex flex-wrap items-center gap-x-2 text-caption text-muted-foreground">
-          {live ? (
-            <span className="inline-flex items-center gap-1.5 font-medium text-success">
-              <span aria-hidden className="size-1.5 rounded-full bg-success" />
-              {t("home.upcoming.live")}
-            </span>
-          ) : null}
-          <span className="sr-only">{formatMeetingTimes(meeting.starts_at, meeting.ends_at, locale)}</span>
-        </span>
-      </AppLink>
+      <span aria-hidden className={cn("w-0.5 self-stretch rounded-full", live ? "bg-success" : "bg-tint-violet-solid")} />
+      <div className="min-w-0 flex-1">
+        <AppLink href={href} className="block rounded-sm">
+          <span className="line-clamp-2 text-body font-medium text-pretty text-foreground">{meeting.title}</span>
+          <span className="flex flex-wrap items-center gap-x-2 text-caption text-muted-foreground">
+            {live ? (
+              <span className="inline-flex items-center gap-1.5 font-medium whitespace-nowrap text-success">
+                <span aria-hidden className="size-1.5 rounded-full bg-success" />
+                {t("home.upcoming.live")}
+              </span>
+            ) : null}
+            {minutes > 0 ? <span aria-hidden className="whitespace-nowrap">{duration(minutes)}</span> : null}
+            <span className="sr-only">{formatMeetingTimes(meeting.starts_at, meeting.ends_at, locale, timeZone || undefined)}</span>
+          </span>
+        </AppLink>
+        {/* A narrow column (the wide density's third track) puts join under the title instead of squeezing it. */}
+        {live ? (
+          <AppLink href={roomHref} className={cn(buttonVariants({ size: "xs" }), "mt-1.5 @xs/upcoming:hidden")}>
+            {t("home.upcoming.join")}
+          </AppLink>
+        ) : null}
+      </div>
       {live ? (
-        <AppLink href={roomHref} className={cn(buttonVariants({ size: "sm" }))}>
+        <AppLink href={roomHref} className={cn(buttonVariants({ size: "sm" }), "hidden @xs/upcoming:inline-flex")}>
           {t("home.upcoming.join")}
         </AppLink>
       ) : null}
@@ -85,6 +100,7 @@ export function HomeUpcoming({
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
   const meetings = summary?.upcoming_meetings ?? [];
   const locale = meetingLocale(i18n.language);
+  const failed = summary?.partial.includes("meetings") ?? false;
 
   const days: { key: string; label: string; meetings: Meeting[] }[] = [];
   if (summary) {
@@ -112,7 +128,7 @@ export function HomeUpcoming({
       icon={CalendarDays}
       iconTone={moduleTone("meetings")}
       flush
-      className="h-full"
+      className="@container/upcoming shadow-none"
       action={
         <AppLink href={ws.meetings()} className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
           {t("home.upcoming.view_all")}
@@ -120,34 +136,25 @@ export function HomeUpcoming({
         </AppLink>
       }
     >
-      {summary?.partial.includes("meetings") ? <HomePartialNotice source="meetings" onRetry={onRetry} retrying={retrying} /> : null}
+      {failed ? <HomePartialNotice source="meetings" onRetry={onRetry} retrying={retrying} /> : null}
       {loading ? (
-        <div className="space-y-2 p-4">
-          {[0, 1, 2].map((i) => (
-            <Skeleton key={i} className="h-10 w-full" />
-          ))}
-        </div>
-      ) : !summary || meetings.length === 0 ? (
-        <CollectionPageState
-          className="py-6"
-          icon={CalendarDays}
-          tone={moduleTone("meetings")}
-          title={t("home.upcoming.empty_title")}
-          description={t("home.upcoming.empty_description")}
-          actions={
-            <AppLink href={ws.meetings()} className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
-              {t("home.upcoming.empty_action")}
-            </AppLink>
-          }
-        />
+        <HomeMeetingRowsSkeleton />
+      ) : failed && meetings.length === 0 ? null : !summary || meetings.length === 0 ? (
+        <HomeQuietNote>{t("home.upcoming.empty_description")}</HomeQuietNote>
       ) : (
-        <div className="divide-y divide-border">
+        <div className="py-1">
           {days.map((day) => (
-            <div key={day.key} className="py-1">
-              <h3 className="px-4 pt-2 pb-1 text-overline text-muted-foreground">{day.label}</h3>
+            <div key={day.key}>
+              <h3 className="px-4 pt-3 pb-1 text-caption font-medium text-muted-foreground first-letter:uppercase">{day.label}</h3>
               <ul aria-label={day.label}>
                 {day.meetings.map((meeting) => (
-                  <MeetingRow key={meeting.id} meeting={meeting} href={ws.meeting(meeting.id)} roomHref={ws.room(meeting.id)} />
+                  <MeetingRow
+                    key={meeting.id}
+                    meeting={meeting}
+                    href={ws.meeting(meeting.id)}
+                    roomHref={ws.room(meeting.id)}
+                    timeZone={summary?.timezone}
+                  />
                 ))}
               </ul>
             </div>

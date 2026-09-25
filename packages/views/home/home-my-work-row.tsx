@@ -33,7 +33,9 @@ export interface HomeMyWorkRowProps {
 
 /**
  * One open task: select box, title linking to the task, identifier, due state
- * and priority, and a complete button. A plain list item: the keyboard model
+ * and priority, and a complete button that stays out of sight until the row
+ * is hovered or focused. A selected row takes the selection tint. A plain
+ * list item: the keyboard model
  * lives on the list and moves real focus to this row's link, so every control
  * here keeps its own role. A row completed here stays, dimmed, until the
  * summary refetch takes it away.
@@ -55,7 +57,8 @@ export function HomeMyWorkRow({ task, today, href, checked, completing, onChecke
     <li
       data-task-id={task.id}
       className={cn(
-        "flex min-h-14 items-center gap-3 border-b border-border px-4 py-2 transition-colors duration-150 last:border-b-0 hover:bg-surface-hover focus-within:bg-surface-selected",
+        "group/row flex min-h-14 items-center gap-3 border-b border-border px-4 py-2 transition-colors duration-150 last:border-b-0",
+        checked ? "bg-brand-subtle" : "hover:bg-surface-hover focus-within:bg-surface-selected",
         (done || completing) && "opacity-60",
       )}
     >
@@ -66,7 +69,7 @@ export function HomeMyWorkRow({ task, today, href, checked, completing, onChecke
         aria-label={t("home.mywork.select_task", { title: task.title })}
       />
       <AppLink href={href} className="min-w-0 flex-1 rounded-sm">
-        <span className={cn("block truncate text-body font-medium text-foreground", done && "text-muted-foreground line-through")}>
+        <span className={cn("line-clamp-2 text-body font-medium text-pretty text-foreground", done && "text-muted-foreground line-through")}>
           {task.title}
         </span>
         <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-caption text-muted-foreground">
@@ -97,7 +100,12 @@ export function HomeMyWorkRow({ task, today, href, checked, completing, onChecke
         disabled={done || completing}
         onClick={() => onComplete(task)}
         aria-label={done ? t("home.mywork.completed") : t("home.mywork.complete_task", { title: task.title })}
-        className="text-muted-foreground hover:bg-success-soft hover:text-success-soft-foreground"
+        // One quiet control per row instead of a column of repeated labels: it
+        // shows on hover or focus with a fine pointer, always on touch.
+        className={cn(
+          "text-muted-foreground transition-opacity duration-150 hover:bg-success-soft hover:text-success-soft-foreground",
+          !done && "opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 pointer-coarse:opacity-100",
+        )}
       >
         <CircleCheck aria-hidden />
         <span className="hidden @xl:inline">{done ? t("home.mywork.completed") : t("home.mywork.complete")}</span>

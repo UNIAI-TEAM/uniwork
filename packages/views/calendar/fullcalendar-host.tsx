@@ -3,6 +3,8 @@
 import type {
   DateSelectArg,
   DatesSetArg,
+  DayCellContentArg,
+  DayCellMountArg,
   EventClickArg,
   EventDropArg,
 } from "@fullcalendar/core";
@@ -15,13 +17,13 @@ import interactionPlugin, {
 } from "@fullcalendar/interaction";
 import FullCalendar from "@fullcalendar/react";
 import timeGridPlugin from "@fullcalendar/timegrid";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { CalendarEvent } from "@uniwork/core/calendar/types";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { addDays, format } from "date-fns";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { dropToPatch, type CalendarDropPatch } from "./calendar-drop-patch";
 import { toFcEvent } from "./calendar-fc-map";
 
@@ -37,6 +39,10 @@ import "./fullcalendar-theme.css";
 export type { CalendarSlot };
 
 const FC_PLUGINS = [dayGridPlugin, timeGridPlugin, interactionPlugin];
+const dayCellKeyHandlers = new WeakMap<
+  HTMLElement,
+  { target: HTMLElement; handler: EventListener }
+>();
 
 function timeZoneOffsetLabel(timeZone: string, initialDate: string): string {
   try {
@@ -61,17 +67,18 @@ export function FullCalendarHost(props: {
   language?: string;
   viewerTimeZone?: string;
   onDatesSet: (range: { from: string; to: string }) => void;
-  onEventClick: (event: CalendarEvent) => void;
+  onEventClick: (event: CalendarEvent, source?: HTMLElement) => void;
   editable?: boolean;
   onEventDropOrResize?: (patch: CalendarDropPatch) => void | Promise<void>;
   onExternalTaskReceive?: (input: {
     taskId: string;
     dueDate: string;
   }) => void | Promise<void>;
-  onSlotSelect?: (slot: CalendarSlot) => void;
+  onSlotSelect?: (slot: CalendarSlot, source?: HTMLElement) => void;
   className?: string;
 }) {
   const { t } = useTranslation();
+  const hostRef = useRef<HTMLDivElement>(null);
   const [allDayExpanded, setAllDayExpanded] = useState(false);
   const eventsById = useMemo(
     () => new Map(props.events.map((ev) => [ev.id, ev])),
@@ -103,7 +110,7 @@ export function FullCalendarHost(props: {
     const id = info.event.id;
     const match = eventsById.get(id);
     if (match) {
-      props.onEventClick(match);
+      props.onEventClick(match, info.el);
     }
   };
 
@@ -138,6 +145,52 @@ export function FullCalendarHost(props: {
   const slotSelectEnabled = Boolean(props.onSlotSelect);
   const externalDropEnabled = Boolean(props.onExternalTaskReceive);
 
+  const renderDayCellContent = (info: DayCellContentArg) => {
+    if (!slotSelectEnabled || info.view.type !== "dayGridMonth") {
+      return info.dayNumberText;
+    }
+    return (
+      <span className="flex w-full items-center justify-end gap-0.5">
+        <span>{info.dayNumberText}</span>
+        <Plus
+          aria-hidden
+          className="calendar-day-create size-3.5 text-muted-foreground"
+        />
+      </span>
+    );
+  };
+
+  const enhanceMonthDayCell = (info: DayCellMountArg) => {
+    if (!slotSelectEnabled || info.view.type !== "dayGridMonth") return;
+    const target = info.el.querySelector<HTMLElement>(".fc-daygrid-day-number");
+    if (!target) return;
+    const dateLabel = format(info.date, "dd/MM/yyyy");
+    target.setAttribute("role", "button");
+    target.setAttribute(
+      "aria-label",
+      t("calendar.create_item_on_date", { date: dateLabel }),
+    );
+    target.tabIndex = 0;
+    const handler: EventListener = (event) => {
+      const keyboardEvent = event as KeyboardEvent;
+      if (keyboardEvent.key !== "Enter" && keyboardEvent.key !== " ") return;
+      keyboardEvent.preventDefault();
+      props.onSlotSelect?.(
+        { start: info.date, end: null, allDay: true },
+        target,
+      );
+    };
+    target.addEventListener("keydown", handler);
+    dayCellKeyHandlers.set(info.el, { target, handler });
+  };
+
+  const cleanupMonthDayCell = (info: DayCellMountArg) => {
+    const registered = dayCellKeyHandlers.get(info.el);
+    if (!registered) return;
+    registered.target.removeEventListener("keydown", registered.handler);
+    dayCellKeyHandlers.delete(info.el);
+  };
+
   const handleEventReceive = async (info: {
     event: {
       start: Date | null;
@@ -161,23 +214,53 @@ export function FullCalendarHost(props: {
   };
 
   const handleDateClick = (info: DateClickArg) => {
-    props.onSlotSelect?.({
-      start: info.date,
-      end: null,
-      allDay: info.allDay,
-    });
+    props.onSlotSelect?.(
+      {
+        start: info.date,
+        end: null,
+        allDay: info.allDay,
+      },
+      info.dayEl,
+    );
   };
 
   const handleSelect = (info: DateSelectArg) => {
-    props.onSlotSelect?.({
-      start: info.start,
-      end: info.end,
-      allDay: info.allDay,
-    });
+    const eventTarget = info.jsEvent?.target;
+    let source: HTMLElement | undefined;
+
+    if (props.viewMode === "month") {
+      const targetCell = eventTarget instanceof Element
+        ? eventTarget.closest<HTMLElement>(".fc-daygrid-day")
+        : null;
+      const fallbackDate = format(addDays(info.end, -1), "yyyy-MM-dd");
+      const stableCell = targetCell && hostRef.current?.contains(targetCell)
+        ? targetCell
+        : hostRef.current?.querySelector<HTMLElement>(
+            `.fc-daygrid-day[data-date="${fallbackDate}"]`,
+          );
+      source = stableCell?.querySelector<HTMLElement>(".fc-daygrid-day-number")
+        ?? stableCell
+        ?? hostRef.current
+        ?? undefined;
+    } else {
+      source = eventTarget instanceof HTMLElement && eventTarget.isConnected
+        ? eventTarget
+        : (hostRef.current ?? undefined);
+    }
+
+    props.onSlotSelect?.(
+      {
+        start: info.start,
+        end: info.end,
+        allDay: info.allDay,
+      },
+      source,
+    );
   };
 
   return (
     <div
+      ref={hostRef}
       data-testid="calendar-grid"
       lang={props.language}
       className={cn("uniwork-fc relative flex min-h-0 flex-1 flex-col", props.className)}
@@ -239,6 +322,9 @@ export function FullCalendarHost(props: {
         eventResize={handleEventDropOrResize}
         selectable={slotSelectEnabled}
         selectMirror={slotSelectEnabled}
+        dayCellContent={props.viewMode === "month" ? renderDayCellContent : undefined}
+        dayCellDidMount={props.viewMode === "month" ? enhanceMonthDayCell : undefined}
+        dayCellWillUnmount={props.viewMode === "month" ? cleanupMonthDayCell : undefined}
         dateClick={slotSelectEnabled ? handleDateClick : undefined}
         select={slotSelectEnabled ? handleSelect : undefined}
       />

@@ -14,6 +14,7 @@ import (
 //	POST   /api/v1/me/notifications/read
 //	POST   /api/v1/me/notifications/unread
 //	POST   /api/v1/me/notifications/archive
+//	POST   /api/v1/me/notifications/unarchive
 //	GET    /api/v1/me/notification-preferences
 //	PUT    /api/v1/me/notification-preferences
 //	GET    /api/v1/notifications/push/config
@@ -36,10 +37,10 @@ func registerNotifications(r api, h Routes) {
 	})
 	r.Post("/me/notifications/read", h.MarkNotificationsRead, apiOp{
 		summary:     "Mark read",
-		description: "ids hoặc all=true (tùy chọn workspace_id). Id của người khác → 404, không đổi gì.",
+		description: "ids hoặc all=true (tùy chọn workspace_id). Với all=true trả về ids vừa đọc để hoàn tác qua /unread. Id của người khác → 404, không đổi gì.",
 		tags:        []string{"notifications"},
 		sdi:         sdi.NotificationIDsSDI{},
-		sdo:         sdo.StatusSDO{},
+		sdo:         sdo.NotificationsReadSDO{},
 		auth:        true,
 	})
 	r.Post("/me/notifications/unread", h.MarkNotificationsUnread, apiOp{
@@ -52,7 +53,15 @@ func registerNotifications(r api, h Routes) {
 	})
 	r.Post("/me/notifications/archive", h.ArchiveNotifications, apiOp{
 		summary:     "Archive",
-		description: "Ẩn khỏi hộp việc. Không có xóa.",
+		description: "Ẩn khỏi hộp việc. Không có xóa; hoàn tác qua /unarchive.",
+		tags:        []string{"notifications"},
+		sdi:         sdi.NotificationIDsSDI{},
+		sdo:         sdo.StatusSDO{},
+		auth:        true,
+	})
+	r.Post("/me/notifications/unarchive", h.UnarchiveNotifications, apiOp{
+		summary:     "Unarchive",
+		description: "Đưa thông báo đã lưu trữ trở lại hộp việc (hoàn tác lưu trữ).",
 		tags:        []string{"notifications"},
 		sdi:         sdi.NotificationIDsSDI{},
 		sdo:         sdo.StatusSDO{},

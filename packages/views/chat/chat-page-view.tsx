@@ -34,6 +34,7 @@ import { useAuthStore } from "@uniwork/core/auth";
 import { useChatRoomScopes } from "@uniwork/core/realtime";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { useCurrentMember } from "@uniwork/core/permissions";
+import { useChatMessageDeepLink } from "./use-chat-message-deep-link";
 import type { ChatSidebarTarget } from "./chat-sidebar";
 import type { ChatMessage } from "./chat-messages";
 import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
@@ -208,6 +209,8 @@ export function ChatPageView({
     setComposerPriority(null);
     setActiveThreadRootId(null);
   }, [activeRoomId]);
+  // After the reset above: a notification's `?message=` jumps once its room is open.
+  useChatMessageDeepLink({ activeRoomId, roomsReady: unreadBadgesReady, onJump: setJumpToMessageId });
 
   useEffect(() => {
     useActiveChatRoomStore.getState().setActiveRoom(workspaceId, activeRoomId);

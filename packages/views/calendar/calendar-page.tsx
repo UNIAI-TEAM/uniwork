@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Calendar } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useCalendarEvents, useCalendarSidebar } from "@uniwork/core/calendar";
@@ -17,6 +17,8 @@ import { CollectionPageHeader, CollectionPageState } from "../layout/collection-
 import { moduleTone } from "../layout/module-tones";
 import { PAGE_GUTTER } from "../layout/page-header";
 import { CalendarToolbar } from "./calendar-toolbar";
+import { CalendarMeetingPanel } from "./calendar-meeting-panel";
+import { CalendarTaskPanel } from "./calendar-task-panel";
 import { type CalendarViewMode, rangeForMode } from "./calendar-view-mode";
 import { useCalendarMutations } from "./calendar-mutations";
 import { CreateFromSlot } from "./create-from-slot";
@@ -30,12 +32,14 @@ export function CalendarPageView({
   onPreferencesChange,
   onOpenTask,
   onOpenMeeting,
+  onJoinMeeting,
 }: {
   workspaceId: string;
   initialPreferences?: CalendarPreferences;
   onPreferencesChange?: (next: CalendarPreferences) => void;
   onOpenTask: (id: string) => void;
   onOpenMeeting: (id: string) => void;
+  onJoinMeeting?: (id: string) => void;
 }) {
   const { t, i18n } = useTranslation();
   const [anchorDate, setAnchorDate] = useState(() => new Date());
@@ -49,7 +53,12 @@ export function CalendarPageView({
   );
   const [slotMenuOpen, setSlotMenuOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<CalendarSlot | null>(null);
+  const [slotAnchor, setSlotAnchor] = useState<HTMLElement | null>(null);
   const [createMeetingOpen, setCreateMeetingOpen] = useState(false);
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
+  const [openMeetingId, setOpenMeetingId] = useState<string | null>(null);
+  const taskTriggerRef = useRef<HTMLElement | null>(null);
+  const meetingTriggerRef = useRef<HTMLElement | null>(null);
   const viewerTimeZone = useMemo(
     () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     [],
@@ -96,15 +105,48 @@ export function CalendarPageView({
     );
   };
 
-  const handleSlotSelect = (slot: CalendarSlot) => {
+  const handleSlotSelect = (slot: CalendarSlot, source?: HTMLElement) => {
     setSelectedSlot(slot);
+    setSlotAnchor(source ?? null);
     setSlotMenuOpen(true);
   };
 
-  const handleQuickCreate = () => {
+  const handleQuickCreate = (source: HTMLElement) => {
     setSelectedSlot(null);
+    setSlotAnchor(source);
     setSlotMenuOpen(true);
   };
+
+  const handleTaskOpen = useCallback((taskId: string, source?: HTMLElement) => {
+    const activeElement = document.activeElement;
+    const trigger = source ?? (activeElement instanceof HTMLElement ? activeElement : null);
+    if (trigger && trigger.tabIndex < 0) trigger.tabIndex = -1;
+    taskTriggerRef.current = trigger;
+    setOpenMeetingId(null);
+    setOpenTaskId(taskId);
+  }, []);
+
+  const handleMeetingOpen = useCallback((meetingId: string, source?: HTMLElement) => {
+    const activeElement = document.activeElement;
+    const trigger = source ?? (activeElement instanceof HTMLElement ? activeElement : null);
+    meetingTriggerRef.current = trigger;
+    setOpenTaskId(null);
+    setOpenMeetingId(meetingId);
+  }, []);
+
+  const handleTaskPanelClose = useCallback(() => {
+    const trigger = taskTriggerRef.current;
+    taskTriggerRef.current = null;
+    setOpenTaskId(null);
+    if (trigger?.isConnected) trigger.focus();
+  }, []);
+
+  const handleMeetingPanelClose = useCallback(() => {
+    const trigger = meetingTriggerRef.current;
+    meetingTriggerRef.current = null;
+    setOpenMeetingId(null);
+    if (trigger?.isConnected) trigger.focus();
+  }, []);
 
   const handleExternalTaskReceive = async (input: { taskId: string; dueDate: string }) => {
     const calendarEvent = events.find(
@@ -113,12 +155,12 @@ export function CalendarPageView({
     await applyExternalTaskDue({ ...input, calendarEvent });
   };
 
-  const handleEventClick = (event: CalendarEvent) => {
+  const handleEventClick = (event: CalendarEvent, source?: HTMLElement) => {
     if (event.kind === "task") {
-      onOpenTask(event.entityId);
+      handleTaskOpen(event.entityId, source);
       return;
     }
-    onOpenMeeting(event.entityId);
+    handleMeetingOpen(event.entityId, source);
   };
 
   return (
@@ -128,7 +170,7 @@ export function CalendarPageView({
         tone={moduleTone("calendar")}
         title={t("calendar.title")}
       />
-      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+      <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <CalendarSidebar
           workspaceId={workspaceId}
           viewerTimeZone={viewerTimeZone}
@@ -136,8 +178,8 @@ export function CalendarPageView({
           isPending={sidebarQuery.isPending}
           isError={sidebarQuery.isError}
           onRetry={() => void sidebarQuery.refetch()}
-          onOpenTask={onOpenTask}
-          onOpenMeeting={onOpenMeeting}
+          onOpenTask={handleTaskOpen}
+          onOpenMeeting={handleMeetingOpen}
           onCreateMeeting={() => setCreateMeetingOpen(true)}
           onQuickCreate={handleQuickCreate}
         />
@@ -202,10 +244,28 @@ export function CalendarPageView({
                 open={slotMenuOpen}
                 onOpenChange={setSlotMenuOpen}
                 slot={selectedSlot}
+                anchor={slotAnchor}
               />
             </div>
           )}
         </div>
+        {openTaskId ? (
+          <CalendarTaskPanel
+            workspaceId={workspaceId}
+            taskId={openTaskId}
+            onClose={handleTaskPanelClose}
+            onOpenFullPage={onOpenTask}
+          />
+        ) : null}
+        {openMeetingId ? (
+          <CalendarMeetingPanel
+            workspaceId={workspaceId}
+            meetingId={openMeetingId}
+            onClose={handleMeetingPanelClose}
+            onJoin={(meetingId) => (onJoinMeeting ?? onOpenMeeting)(meetingId)}
+            onOpenFullPage={onOpenMeeting}
+          />
+        ) : null}
       </div>
       <NewMeetingDialog
         workspaceId={workspaceId}

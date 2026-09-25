@@ -43,8 +43,9 @@ describe("CalendarSidebar", () => {
     );
 
     expect(screen.getByText("Bảng kế hoạch")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Tạo mục lịch" }));
-    expect(onQuickCreate).toHaveBeenCalledTimes(1);
+    const createButton = screen.getByRole("button", { name: "Tạo mục lịch" });
+    fireEvent.click(createButton);
+    expect(onQuickCreate).toHaveBeenCalledWith(createButton);
   });
 
   it("renders five section headings and empty copy when lists are empty", () => {
@@ -113,8 +114,8 @@ describe("CalendarSidebar", () => {
     fireEvent.click(screen.getByRole("button", { name: /Fix sidebar/ }));
     fireEvent.click(screen.getByRole("button", { name: /Standup/ }));
 
-    expect(onOpenTask).toHaveBeenCalledWith("task-1");
-    expect(onOpenMeeting).toHaveBeenCalledWith("meet-1");
+    expect(onOpenTask).toHaveBeenCalledWith("task-1", expect.any(HTMLElement));
+    expect(onOpenMeeting).toHaveBeenCalledWith("meet-1", expect.any(HTMLElement));
   });
 
   it("localizes task dates and meeting times in the viewer time zone", () => {
@@ -207,7 +208,7 @@ describe("CalendarSidebar", () => {
       extendedProps: { uniworkTaskId: "task-1" },
     });
     fireEvent.click(handle);
-    expect(onOpenTask).toHaveBeenCalledWith("task-1");
+    expect(onOpenTask).toHaveBeenCalledWith("task-1", handle);
     expect(
       document.querySelector("[data-calendar-external-task][data-task-id='meet-1']"),
     ).toBeNull();

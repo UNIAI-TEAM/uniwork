@@ -127,6 +127,40 @@ describe("MeetingDetailView", () => {
     expect(screen.queryByRole("button", { name: /Chuyển chủ trì/ })).not.toBeInTheDocument();
   });
 
+  it("uses a single-column detail layout inside a contextual panel", async () => {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/me")) {
+        return Promise.resolve({ membership: { user_id: "u-host", role: "owner", source: "membership" } });
+      }
+      if (p.endsWith("/members")) return Promise.resolve({ members: [] });
+      if (p === "/api/v1/meetings/m1") return Promise.resolve({ meeting });
+      if (p.endsWith("/notes")) return Promise.resolve({ notes: [] });
+      if (p.endsWith("/invitations")) return Promise.resolve({ invitations: [] });
+      if (p.endsWith("/participants")) return Promise.resolve({ participants: [] });
+      if (p.endsWith("/join-requests")) return Promise.resolve({ join_requests: [] });
+      if (p.endsWith("/invite-links")) return Promise.resolve({ invite_links: [] });
+      if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
+      return Promise.resolve({});
+    });
+    render(
+      shell(
+        <MeetingDetailView
+          workspaceId="w1"
+          meetingId="m1"
+          layout="panel"
+          headerActions={<button type="button">Panel action</button>}
+          onJoin={() => {}}
+          onDeleted={() => {}}
+        />,
+      ),
+    );
+
+    expect(await screen.findByRole("button", { name: "Panel action" })).toBeInTheDocument();
+    expect(screen.getByTestId("meeting-detail-content")).toHaveClass("max-w-none");
+    expect(screen.getByTestId("meeting-detail-sections")).not.toHaveClass("lg:grid");
+  });
+
   it("says the meeting is gone instead of loading forever", async () => {
     requestMock.mockImplementation((path: unknown) => {
       if (String(path) === "/api/v1/meetings/m1") {

@@ -80,6 +80,40 @@ export function initialRevealed(draft: CreateTaskDraft): Set<OverflowFieldKey> {
   return next;
 }
 
+export function draftWithDefaults(
+  draft: CreateTaskDraft,
+  defaults?: Partial<CreateTaskBody>,
+): CreateTaskDraft {
+  if (!defaults) return draft;
+  const next = { ...draft };
+  if ("title" in defaults) next.title = defaults.title ?? "";
+  if ("description" in defaults) next.description = defaults.description;
+  if ("status" in defaults) next.status = defaults.status ?? "todo";
+  if ("priority" in defaults) next.priority = defaults.priority ?? "none";
+  if ("assignee_id" in defaults) {
+    next.assigneeId = defaults.assignee_id ?? undefined;
+    next.assigneeKind = defaults.assignee_id
+      ? defaults.assignee_kind === "agent"
+        ? "agent"
+        : "human"
+      : undefined;
+  }
+  if ("project_id" in defaults) next.projectId = defaults.project_id ?? undefined;
+  if ("parent_task_id" in defaults) {
+    next.parentTaskId = defaults.parent_task_id ?? undefined;
+  }
+  if ("stage" in defaults) {
+    next.stage = defaults.stage == null ? undefined : String(defaults.stage);
+  }
+  if ("start_date" in defaults) next.startDate = defaults.start_date ?? undefined;
+  if ("due_date" in defaults) next.dueDate = defaults.due_date ?? undefined;
+  if ("start_at" in defaults) next.startAt = defaults.start_at ?? undefined;
+  if ("due_at" in defaults) next.dueAt = defaults.due_at ?? undefined;
+  if ("label_ids" in defaults) next.labelIds = defaults.label_ids;
+  if ("properties" in defaults) next.properties = defaults.properties;
+  return next;
+}
+
 export function useCreateTaskManualState({
   workspaceId,
   defaults,
@@ -111,19 +145,26 @@ export function useCreateTaskManualState({
   const clearDraft = useCreateTaskDraftStore((state) => state.clearDraft);
   const orgId = workspaceContext?.workspace.organization_id ?? "";
   const { canView: canViewBillingDecision } = useBillingPermissions(orgId);
-  const [draft, setDraftState] = useState<CreateTaskDraft>(() =>
-    draftFor(workspaceId) ?? draftFromDefaults(defaults, settingsFor(workspaceId)),
-  );
+  const initialDraft = () => {
+    const stored = draftFor(workspaceId);
+    return stored
+      ? draftWithDefaults(stored, defaults)
+      : draftFromDefaults(defaults, settingsFor(workspaceId));
+  };
+  const [draft, setDraftState] = useState<CreateTaskDraft>(initialDraft);
   const draftRef = useRef(draft);
   const uploadCountRef = useRef(0);
   const carryAppliedRef = useRef<Record<string, unknown> | null>(null);
   const [uploadCount, setUploadCount] = useState(0);
   const [revealed, setRevealed] = useState<Set<OverflowFieldKey>>(() =>
-    initialRevealed(draftFromDefaults(defaults, settingsFor(workspaceId))),
+    initialRevealed(initialDraft()),
   );
 
   useEffect(() => {
-    const next = draftFor(workspaceId) ?? draftFromDefaults(defaults, settingsFor(workspaceId));
+    const stored = draftFor(workspaceId);
+    const next = stored
+      ? draftWithDefaults(stored, defaults)
+      : draftFromDefaults(defaults, settingsFor(workspaceId));
     draftRef.current = next;
     setDraftState(next);
     setRevealed(initialRevealed(next));

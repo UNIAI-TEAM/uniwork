@@ -20,7 +20,6 @@ import {
 import { motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { useLogout } from "@uniwork/core/auth";
-import { HOME_PAGE_FLAG, useFlag } from "@uniwork/core/feature-flags";
 import { useEmailHubUnreadCount } from "@uniwork/core/email-hub/hooks";
 import { useUnreadCount } from "@uniwork/core/notifications";
 import { paths } from "@uniwork/core/paths";
@@ -101,7 +100,6 @@ export function AppSidebar() {
   const unreadHere = unread.data?.by_workspace[workspace.id] ?? 0;
   const emailUnread = useEmailHubUnreadCount(workspace.id);
   const emailUnreadHere = emailUnread.data?.unread ?? 0;
-  const homeEnabled = useFlag(HOME_PAGE_FLAG, false);
   const labelId = useId();
   const reduceMotion = useReducedMotion() ?? false;
 
@@ -109,7 +107,7 @@ export function AppSidebar() {
     {
       id: "lead",
       items: [
-        ...(homeEnabled ? [{ key: "nav.home", module: "home", href: ws.root(), icon: House, exact: true } satisfies NavItem] : []),
+        { key: "nav.home", module: "home", href: ws.root(), icon: House, exact: true },
         { key: "nav.inbox", module: "inbox", href: ws.inbox(), icon: Inbox, badge: unreadHere },
       ],
     },

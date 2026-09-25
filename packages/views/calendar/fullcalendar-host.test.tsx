@@ -30,11 +30,31 @@ type CapturedFcProps = {
   selectMirror?: boolean;
   height?: string | number;
   datesSet?: (arg: { start: Date; end: Date }) => void;
-  eventClick?: (arg: { event: { id: string } }) => void;
+  eventClick?: (arg: { event: { id: string }; el?: HTMLElement }) => void;
   eventDrop?: (arg: DropResizeArg) => void | Promise<void>;
   eventResize?: (arg: DropResizeArg) => void | Promise<void>;
-  dateClick?: (arg: { date: Date; allDay: boolean }) => void;
-  select?: (arg: { start: Date; end: Date; allDay: boolean }) => void;
+  dateClick?: (arg: { date: Date; allDay: boolean; dayEl: HTMLElement }) => void;
+  select?: (arg: {
+    start: Date;
+    end: Date;
+    allDay: boolean;
+    jsEvent: MouseEvent | null;
+  }) => void;
+  dayCellContent?: (arg: {
+    date: Date;
+    dayNumberText: string;
+    view: { type: string };
+  }) => React.ReactNode;
+  dayCellDidMount?: (arg: {
+    date: Date;
+    el: HTMLElement;
+    view: { type: string };
+  }) => void;
+  dayCellWillUnmount?: (arg: {
+    date: Date;
+    el: HTMLElement;
+    view: { type: string };
+  }) => void;
   droppable?: boolean;
   eventReceive?: (arg: {
     event: { start: Date | null; extendedProps: Record<string, unknown> };
@@ -137,6 +157,47 @@ describe("FullCalendarHost", () => {
     expect(screen.queryByText("GMT+7")).not.toBeInTheDocument();
   });
 
+  it("offers a direct task action on month day cells", () => {
+    const onSlotSelect = vi.fn();
+    render(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="month"
+        language="vi"
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+        onSlotSelect={onSlotSelect}
+      />,
+    );
+    const date = new Date("2026-09-10T00:00:00");
+    const content = captured.dayCellContent?.({
+      date,
+      dayNumberText: "10",
+      view: { type: "dayGridMonth" },
+    });
+    const { container } = render(<>{content}</>);
+    expect(container.querySelector(".calendar-day-create")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+
+    const cell = document.createElement("td");
+    const dayNumber = document.createElement("a");
+    dayNumber.className = "fc-daygrid-day-number";
+    cell.append(dayNumber);
+    const mountArg = { date, el: cell, view: { type: "dayGridMonth" } };
+    captured.dayCellDidMount?.(mountArg);
+    expect(dayNumber).toHaveAttribute("role", "button");
+    expect(dayNumber).toHaveAttribute("aria-label", "Tạo mục ngày 10/09/2026");
+    fireEvent.keyDown(dayNumber, { key: "Enter" });
+
+    expect(onSlotSelect).toHaveBeenCalledWith({
+      start: date,
+      end: null,
+      allDay: true,
+    }, dayNumber);
+    captured.dayCellWillUnmount?.(mountArg);
+  });
+
   it("hides weekends in week and month views when configured", () => {
     const { rerender } = render(
       <FullCalendarHost
@@ -221,6 +282,7 @@ describe("FullCalendarHost", () => {
 
   it("resolves eventClick by id", () => {
     const onEventClick = vi.fn();
+    const source = document.createElement("a");
     render(
       <FullCalendarHost
         events={[sample]}
@@ -230,8 +292,8 @@ describe("FullCalendarHost", () => {
         onEventClick={onEventClick}
       />,
     );
-    captured.eventClick?.({ event: { id: "ev-1" } });
-    expect(onEventClick).toHaveBeenCalledWith(sample);
+    captured.eventClick?.({ event: { id: "ev-1" }, el: source });
+    expect(onEventClick).toHaveBeenCalledWith(sample, source);
   });
 
   it("defaults editable to true on FullCalendar", () => {
@@ -418,15 +480,19 @@ describe("FullCalendarHost", () => {
     expect(captured.selectable).toBe(true);
     expect(captured.selectMirror).toBe(true);
     const start = new Date("2026-09-10T00:00:00");
-    captured.dateClick?.({ date: start, allDay: true });
-    expect(onSlotSelect).toHaveBeenCalledWith({
-      start,
-      end: null,
-      allDay: true,
-    });
+    const dayEl = document.createElement("td");
+    captured.dateClick?.({ date: start, allDay: true, dayEl });
+    expect(onSlotSelect).toHaveBeenCalledWith(
+      {
+        start,
+        end: null,
+        allDay: true,
+      },
+      dayEl,
+    );
   });
 
-  it("forwards select range to onSlotSelect", () => {
+  it("anchors a month range selection to a stable day element", () => {
     const onSlotSelect = vi.fn();
     render(
       <FullCalendarHost
@@ -440,8 +506,24 @@ describe("FullCalendarHost", () => {
     );
     const start = new Date("2026-09-10T00:00:00");
     const end = new Date("2026-09-13T00:00:00");
-    captured.select?.({ start, end, allDay: true });
-    expect(onSlotSelect).toHaveBeenCalledWith({ start, end, allDay: true });
+    const endCell = document.createElement("td");
+    endCell.className = "fc-daygrid-day";
+    endCell.dataset.date = "2026-09-12";
+    const dayNumber = document.createElement("a");
+    dayNumber.className = "fc-daygrid-day-number";
+    endCell.append(dayNumber);
+    screen.getByTestId("calendar-grid").append(endCell);
+
+    // FullCalendar may report its temporary selection mirror as the event target.
+    // That node is removed before the menu positions itself, so it is not a safe anchor.
+    const transientSelectionMirror = document.createElement("div");
+    captured.select?.({
+      start,
+      end,
+      allDay: true,
+      jsEvent: { target: transientSelectionMirror } as unknown as MouseEvent,
+    });
+    expect(onSlotSelect).toHaveBeenCalledWith({ start, end, allDay: true }, dayNumber);
   });
 
   it("does not enable selectable without onSlotSelect", () => {

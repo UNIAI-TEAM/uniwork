@@ -1899,15 +1899,22 @@
       "afternoon": "Good afternoon, {{name}}",
       "evening": "Good evening, {{name}}"
     },
-    "subtitle": {
-      "loading": "Here is your work for today",
-      "attention_one": "{{count}} thing needs your attention today",
-      "attention_other": "{{count}} things need your attention today",
-      "clear": "Nothing urgent today"
+    "headline": {
+      "partial": "Part of your data did not load, so the figures below may be incomplete.",
+      "overdue_one": "Start with “{{title}}”, {{count}} day overdue.",
+      "overdue_other": "Start with “{{title}}”, {{count}} days overdue.",
+      "overdue_plain_one": "{{count}} task is overdue; start with the oldest.",
+      "overdue_plain_other": "{{count}} tasks are overdue; start with the oldest.",
+      "live": "“{{title}}” is in progress.",
+      "meeting": "Next meeting at {{time}}: “{{title}}”.",
+      "due_today_one": "{{count}} task is due today and nothing is overdue.",
+      "due_today_other": "{{count}} tasks are due today and nothing is overdue.",
+      "unread_one": "Nothing urgent. {{count}} notification is waiting for you.",
+      "unread_other": "Nothing urgent. {{count}} notifications are waiting for you.",
+      "clear": "Nothing urgent today."
     },
     "actions": {
-      "customize": "Customize",
-      "refresh": "Refresh"
+      "customize": "Customize"
     },
     "stats": {
       "label": "Today at a glance",
@@ -1915,19 +1922,23 @@
       "overdue": "overdue",
       "meetings_today": "meetings today",
       "unread": "unread",
-      "item": "{{count}} {{label}}"
+      "item": "{{count}} {{label}}",
+      "failed": "Did not load",
+      "failed_item": "{{label}}: did not load",
+      "oldest_one": "Oldest {{count}} day",
+      "oldest_other": "Oldest {{count}} days",
+      "next": "Next at {{time}}",
+      "live": "In progress"
     },
     "section": {
       "stats": "Today at a glance",
       "stats_description": "Overdue, due today, meetings and unread counts",
       "mywork": "My work",
       "mywork_description": "Open work assigned to you, most urgent first",
-      "upcoming": "Upcoming",
+      "upcoming": "Meetings",
       "upcoming_description": "Meetings in progress, today and tomorrow",
       "inbox": "Inbox",
-      "inbox_description": "Unread notifications in this workspace",
-      "brief": "Today's brief",
-      "brief_description": "A few lines drawn from the numbers above"
+      "inbox_description": "Unread notifications in this workspace"
     },
     "mywork": {
       "view_all": "View all",
@@ -1947,6 +1958,8 @@
       "completed_toast_one": "Completed {{count}} task",
       "completed_toast_other": "Completed {{count}} tasks",
       "complete_failed": "Couldn't update the task. The change was undone.",
+      "undo": "Undo",
+      "undo_failed": "Couldn't reopen the task. Open it to change its status.",
       "overdue_one": "{{count}} day overdue",
       "overdue_other": "{{count}} days overdue",
       "due_today": "Due today",
@@ -1954,7 +1967,15 @@
       "no_due": "No due date",
       "empty_title": "Nothing to do",
       "empty_description": "No open work is assigned to you. Assigned work shows here, most urgent first.",
-      "empty_action": "Open tasks"
+      "empty_action": "Open tasks",
+      "group": {
+        "overdue": "Overdue",
+        "today": "Today",
+        "later": "Upcoming",
+        "none": "No due date"
+      },
+      "more_one": "{{count}} more task",
+      "more_other": "{{count}} more tasks"
     },
     "upcoming": {
       "view_all": "View all",
@@ -1962,32 +1983,16 @@
       "tomorrow": "Tomorrow",
       "live": "In progress",
       "join": "Join",
-      "open": "Open",
-      "empty_title": "No meetings",
       "empty_description": "You have no meetings today or tomorrow.",
-      "empty_action": "Open meetings"
+      "minutes_one": "{{count}} min",
+      "minutes_other": "{{count}} min",
+      "hours_one": "{{count}} h",
+      "hours_other": "{{count}} h",
+      "hours_minutes": "{{hours}} h {{minutes}} min"
     },
     "inbox": {
       "view_all": "View all",
-      "empty_title": "Inbox is clear",
-      "empty_description": "Nothing is waiting for you in this workspace.",
-      "empty_action": "Open inbox"
-    },
-    "brief": {
-      "title": "Today's brief",
-      "badge": "From your data",
-      "overdue_one": "{{count}} task is overdue: “{{title}}” ({{days}} days).",
-      "overdue_other": "{{count}} tasks are overdue, the oldest is “{{title}}” ({{days}} days).",
-      "overdue_plain_one": "{{count}} task is overdue.",
-      "overdue_plain_other": "{{count}} tasks are overdue.",
-      "meetings_one": "{{count}} meeting left today: “{{title}}”.",
-      "meetings_other": "{{count}} meetings left today, next is “{{title}}”.",
-      "meetings_plain_one": "{{count}} meeting left today.",
-      "meetings_plain_other": "{{count}} meetings left today.",
-      "due_today_one": "{{count}} task is due today.",
-      "due_today_other": "{{count}} tasks are due today.",
-      "unread_one": "{{count}} unread notification.",
-      "unread_other": "{{count}} unread notifications."
+      "empty_description": "Nothing is waiting for you in this workspace."
     },
     "partial": {
       "tasks": "Couldn't load your tasks.",
@@ -1997,12 +2002,12 @@
     },
     "error": {
       "title": "Couldn't load home",
-      "description": "The server can't be reached right now. Try again in a moment.",
+      "description": "The server did not return your home data. Try again in a moment.",
       "retry": "Retry"
     },
     "customize": {
       "title": "Customize home",
-      "description": "Show or hide sections, reorder them and pick a density. Saved to your account.",
+      "description": "Show or hide sections, reorder them and pick a density. Saved for you in this workspace.",
       "sections": "Sections",
       "layout": "Density",
       "presets": "Presets",
@@ -2013,7 +2018,10 @@
       "move_up": "Move {{section}} up",
       "move_down": "Move {{section}} down",
       "all_hidden": "Every section on your home is hidden.",
-      "open": "Open customize"
+      "open": "Open customize",
+      "reset_done": "Home is back to the default layout.",
+      "undo": "Undo",
+      "all_hidden_hint": "Turn a section back on in Customize."
     },
     "layout": {
       "compact": "Compact",
@@ -2021,15 +2029,25 @@
       "balanced": "Balanced",
       "balanced_hint": "Two columns, the default",
       "wide": "Wide",
-      "wide_hint": "Three columns on large screens"
+      "wide_hint": "A column per section on large screens"
     },
     "preset": {
       "executive": "Lead",
-      "executive_description": "Numbers, brief and inbox first",
+      "executive_description": "Figures and inbox first, meetings hidden",
       "doer": "Maker",
-      "doer_description": "Your work and upcoming meetings first",
+      "doer_description": "Work and upcoming meetings, inbox hidden",
       "minimal": "Minimal",
       "minimal_description": "Only my work"
+    },
+    "start": {
+      "title": "Nothing is waiting for you today",
+      "description": "Assigned tasks, meetings and notifications for this workspace show up here. Start with one of these.",
+      "create_task": "Create a task",
+      "create_task_hint": "Write down what needs doing and assign it",
+      "meeting": "Schedule a meeting",
+      "meeting_hint": "Pick a time and invite people",
+      "invite": "Invite teammates",
+      "invite_hint": "Open people and add someone to the workspace"
     }
   },
   "capabilities": {
@@ -2612,10 +2630,12 @@
     "collapse_all_day": "Collapse all-day events",
     "planner_title": "Planner",
     "create_item": "Create calendar item",
-    "create_from_slot_title": "Create on this slot",
-    "create_from_slot_description": "Choose what to add to the calendar.",
     "create_task": "New task",
+    "create_item_on_date": "Create an item on {{date}}",
     "create_meeting": "New meeting",
+    "create_menu_no_time": "Choose an item type to continue",
+    "create_task_hint": "Add a task due in this time slot",
+    "create_meeting_hint": "Schedule a meeting in this time slot",
     "sidebar_label": "Calendar planner panel",
     "sidebar_loading": "Loading planner panel…",
     "sidebar_error": "Could not load the planner panel.",
@@ -2631,6 +2651,10 @@
     "sidebar_empty_backlog": "No backlog tasks.",
     "sidebar_task_drag_handle": "Drag {{title}} onto the calendar",
     "sidebar_task_open_to_schedule": "Open {{title}} to set a date",
+    "task_panel_label": "Task details",
+    "open_task_full_page": "Open full page",
+    "meeting_panel_label": "Meeting details",
+    "open_meeting_full_page": "Open meeting full page",
     "period_picker_label": "Choose display period, currently {{period}}",
     "export_ics": "Export ICS",
     "export_ics_error": "Could not export the calendar."
@@ -3844,7 +3868,16 @@
       "audit_export_ready": "Your audit export is ready",
       "chat_follow_up": "You saved a follow-up on a message",
       "email_hub_new_mail": "You have {{count}} unread message(s) · {{mailbox}}"
-    }
+    },
+    "archived_one": "Archived {{count}} notification",
+    "archived_other": "Archived {{count}} notifications",
+    "marked_all_one": "Marked {{count}} notification as read",
+    "marked_all_other": "Marked {{count}} notifications as read",
+    "undo": "Undo",
+    "undo_failed": "Could not undo, try again",
+    "loading": "Loading notifications",
+    "group_count_one": "{{count}} notification",
+    "group_count_other": "{{count}} notifications"
   },
   "ai": {
     "title": "Ask UNI",
