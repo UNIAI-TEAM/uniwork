@@ -3860,7 +3860,16 @@
       "audit_export_ready": "Your audit export is ready",
       "chat_follow_up": "You saved a follow-up on a message",
       "email_hub_new_mail": "You have {{count}} unread message(s) · {{mailbox}}"
-    }
+    },
+    "archived_one": "Archived {{count}} notification",
+    "archived_other": "Archived {{count}} notifications",
+    "marked_all_one": "Marked {{count}} notification as read",
+    "marked_all_other": "Marked {{count}} notifications as read",
+    "undo": "Undo",
+    "undo_failed": "Could not undo, try again",
+    "loading": "Loading notifications",
+    "group_count_one": "{{count}} notification",
+    "group_count_other": "{{count}} notifications"
   },
   "ai": {
     "title": "Ask UNI",

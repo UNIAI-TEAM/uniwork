@@ -2,7 +2,7 @@
 
 import { ArrowRight, Inbox } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useArchiveHomeNotification, useReadHomeNotification } from "@uniwork/core/home";
+import { useReadHomeNotification } from "@uniwork/core/home";
 import { paths } from "@uniwork/core/paths";
 import type { HomeSummary } from "@uniwork/core/types/home";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
@@ -20,8 +20,8 @@ import { HomeInboxRowsSkeleton } from "./home-skeletons";
 /**
  * The newest unread notifications of this workspace, in the same rows the
  * inbox uses, without the unread bar that every row here would carry. Opening
- * one marks it read and follows it to its resource; reading or archiving one
- * takes it off this list at once.
+ * one marks it read, which takes it off this list at once, and follows it to
+ * its resource. Triage (read, archive) lives in the inbox, one link away.
  */
 export function HomeInbox({
   summary,
@@ -38,7 +38,6 @@ export function HomeInbox({
   const { workspace } = useWorkspace();
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
   const read = useReadHomeNotification(workspace.id);
-  const archive = useArchiveHomeNotification(workspace.id);
   const items = summary?.inbox ?? [];
   const failed = summary?.partial.includes("notifications") ?? false;
 
@@ -75,8 +74,6 @@ export function HomeInbox({
               onOpen={(row) => {
                 if (!row.read_at) read(row.id);
               }}
-              onToggleRead={(row) => read(row.id)}
-              onArchive={(row) => archive(row.id)}
             />
           ))}
         </ul>

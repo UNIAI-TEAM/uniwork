@@ -209,6 +209,19 @@ export function useArchive() {
   });
 }
 
+/**
+ * The undo of archive. Not optimistic: the archived rows left every cache,
+ * so there is nothing local to put back; the lists refetch and the rows
+ * return in their place.
+ */
+export function useUnarchive() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ids: string[]) => api.unarchive(ids),
+    onSettled: () => settle(qc),
+  });
+}
+
 export function useNotificationPreferences() {
   return useQuery({ queryKey: notificationKeys.prefs(), queryFn: api.getPreferences });
 }

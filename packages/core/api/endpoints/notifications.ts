@@ -18,6 +18,7 @@ const ListResponse = z.object({
   next_before: z.string().optional().default(""),
 });
 const PreferencesResponse = z.object({ preferences: z.array(NotificationPreferenceSchema) });
+const ReadResponse = z.object({ ids: z.array(z.string()).optional().default([]) });
 
 export interface NotificationPage {
   notifications: Notification[];
@@ -58,12 +59,19 @@ export async function markRead(ids: string[]): Promise<void> {
   await request("/api/v1/me/notifications/read", { method: "POST", body: { ids } });
 }
 
-/** Everything open, optionally only one workspace. */
-export async function markAllRead(workspaceId?: string): Promise<void> {
-  await request("/api/v1/me/notifications/read", {
+/**
+ * Everything open, optionally only one workspace. Resolves to the ids it
+ * read, so the caller can undo it with `markUnread`; an older server that
+ * does not send them resolves to [] and the undo simply has nothing to do.
+ */
+export async function markAllRead(workspaceId?: string): Promise<string[]> {
+  const raw = await request("/api/v1/me/notifications/read", {
     method: "POST",
     body: { all: true, ...(workspaceId ? { workspace_id: workspaceId } : {}) },
   });
+  return parseWithFallback<{ ids: string[] }>(raw, ReadResponse, { ids: [] }, {
+    endpoint: "POST /api/v1/me/notifications/read",
+  }).ids;
 }
 
 export async function markUnread(ids: string[]): Promise<void> {
@@ -72,6 +80,11 @@ export async function markUnread(ids: string[]): Promise<void> {
 
 export async function archive(ids: string[]): Promise<void> {
   await request("/api/v1/me/notifications/archive", { method: "POST", body: { ids } });
+}
+
+/** Puts archived rows back in the inbox: the undo of `archive`. */
+export async function unarchive(ids: string[]): Promise<void> {
+  await request("/api/v1/me/notifications/unarchive", { method: "POST", body: { ids } });
 }
 
 export async function getPreferences(): Promise<NotificationPreference[]> {
