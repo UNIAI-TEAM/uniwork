@@ -35,6 +35,21 @@ type CapturedFcProps = {
   eventResize?: (arg: DropResizeArg) => void | Promise<void>;
   dateClick?: (arg: { date: Date; allDay: boolean }) => void;
   select?: (arg: { start: Date; end: Date; allDay: boolean }) => void;
+  dayCellContent?: (arg: {
+    date: Date;
+    dayNumberText: string;
+    view: { type: string };
+  }) => React.ReactNode;
+  dayCellDidMount?: (arg: {
+    date: Date;
+    el: HTMLElement;
+    view: { type: string };
+  }) => void;
+  dayCellWillUnmount?: (arg: {
+    date: Date;
+    el: HTMLElement;
+    view: { type: string };
+  }) => void;
   droppable?: boolean;
   eventReceive?: (arg: {
     event: { start: Date | null; extendedProps: Record<string, unknown> };
@@ -135,6 +150,47 @@ describe("FullCalendarHost", () => {
     expect(captured.locale?.code).toBe("en-gb");
     expect(captured.nowIndicator).toBe(false);
     expect(screen.queryByText("GMT+7")).not.toBeInTheDocument();
+  });
+
+  it("offers a direct task action on month day cells", () => {
+    const onSlotSelect = vi.fn();
+    render(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-01"
+        viewMode="month"
+        language="vi"
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+        onSlotSelect={onSlotSelect}
+      />,
+    );
+    const date = new Date("2026-09-10T00:00:00");
+    const content = captured.dayCellContent?.({
+      date,
+      dayNumberText: "10",
+      view: { type: "dayGridMonth" },
+    });
+    const { container } = render(<>{content}</>);
+    expect(container.querySelector(".calendar-day-create")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+
+    const cell = document.createElement("td");
+    const dayNumber = document.createElement("a");
+    dayNumber.className = "fc-daygrid-day-number";
+    cell.append(dayNumber);
+    const mountArg = { date, el: cell, view: { type: "dayGridMonth" } };
+    captured.dayCellDidMount?.(mountArg);
+    expect(dayNumber).toHaveAttribute("role", "button");
+    expect(dayNumber).toHaveAttribute("aria-label", "Tạo việc ngày 10/09/2026");
+    fireEvent.keyDown(dayNumber, { key: "Enter" });
+
+    expect(onSlotSelect).toHaveBeenCalledWith({
+      start: date,
+      end: null,
+      allDay: true,
+    });
+    captured.dayCellWillUnmount?.(mountArg);
   });
 
   it("hides weekends in week and month views when configured", () => {

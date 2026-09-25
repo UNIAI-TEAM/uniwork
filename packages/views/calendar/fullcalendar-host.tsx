@@ -3,6 +3,8 @@
 import type {
   DateSelectArg,
   DatesSetArg,
+  DayCellContentArg,
+  DayCellMountArg,
   EventClickArg,
   EventDropArg,
 } from "@fullcalendar/core";
@@ -15,7 +17,7 @@ import interactionPlugin, {
 } from "@fullcalendar/interaction";
 import FullCalendar from "@fullcalendar/react";
 import timeGridPlugin from "@fullcalendar/timegrid";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { CalendarEvent } from "@uniwork/core/calendar/types";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -37,6 +39,10 @@ import "./fullcalendar-theme.css";
 export type { CalendarSlot };
 
 const FC_PLUGINS = [dayGridPlugin, timeGridPlugin, interactionPlugin];
+const dayCellKeyHandlers = new WeakMap<
+  HTMLElement,
+  { target: HTMLElement; handler: EventListener }
+>();
 
 function timeZoneOffsetLabel(timeZone: string, initialDate: string): string {
   try {
@@ -137,6 +143,49 @@ export function FullCalendarHost(props: {
   const editable = props.editable !== false;
   const slotSelectEnabled = Boolean(props.onSlotSelect);
   const externalDropEnabled = Boolean(props.onExternalTaskReceive);
+
+  const renderDayCellContent = (info: DayCellContentArg) => {
+    if (!slotSelectEnabled || info.view.type !== "dayGridMonth") {
+      return info.dayNumberText;
+    }
+    return (
+      <span className="flex w-full items-center justify-end gap-0.5">
+        <span>{info.dayNumberText}</span>
+        <Plus
+          aria-hidden
+          className="calendar-day-create size-3.5 text-muted-foreground"
+        />
+      </span>
+    );
+  };
+
+  const enhanceMonthDayCell = (info: DayCellMountArg) => {
+    if (!slotSelectEnabled || info.view.type !== "dayGridMonth") return;
+    const target = info.el.querySelector<HTMLElement>(".fc-daygrid-day-number");
+    if (!target) return;
+    const dateLabel = format(info.date, "dd/MM/yyyy");
+    target.setAttribute("role", "button");
+    target.setAttribute(
+      "aria-label",
+      t("calendar.create_task_on_date", { date: dateLabel }),
+    );
+    target.tabIndex = 0;
+    const handler: EventListener = (event) => {
+      const keyboardEvent = event as KeyboardEvent;
+      if (keyboardEvent.key !== "Enter" && keyboardEvent.key !== " ") return;
+      keyboardEvent.preventDefault();
+      props.onSlotSelect?.({ start: info.date, end: null, allDay: true });
+    };
+    target.addEventListener("keydown", handler);
+    dayCellKeyHandlers.set(info.el, { target, handler });
+  };
+
+  const cleanupMonthDayCell = (info: DayCellMountArg) => {
+    const registered = dayCellKeyHandlers.get(info.el);
+    if (!registered) return;
+    registered.target.removeEventListener("keydown", registered.handler);
+    dayCellKeyHandlers.delete(info.el);
+  };
 
   const handleEventReceive = async (info: {
     event: {
@@ -239,6 +288,9 @@ export function FullCalendarHost(props: {
         eventResize={handleEventDropOrResize}
         selectable={slotSelectEnabled}
         selectMirror={slotSelectEnabled}
+        dayCellContent={props.viewMode === "month" ? renderDayCellContent : undefined}
+        dayCellDidMount={props.viewMode === "month" ? enhanceMonthDayCell : undefined}
+        dayCellWillUnmount={props.viewMode === "month" ? cleanupMonthDayCell : undefined}
         dateClick={slotSelectEnabled ? handleDateClick : undefined}
         select={slotSelectEnabled ? handleSelect : undefined}
       />

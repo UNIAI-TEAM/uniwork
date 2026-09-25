@@ -1,6 +1,5 @@
 import type { CreateTaskBody } from "@uniwork/core/tasks";
 import { addHours, format, subDays } from "date-fns";
-import type { ScheduleDraft } from "../meetings/meeting-datetime";
 
 export type CalendarSlot = {
   start: Date;
@@ -10,10 +9,6 @@ export type CalendarSlot = {
 
 function ymdLocal(d: Date): string {
   return format(d, "yyyy-MM-dd");
-}
-
-function hmLocal(d: Date): string {
-  return format(d, "HH:mm");
 }
 
 /** FC all-day `end` is exclusive; task due_date is the last inclusive day. */
@@ -39,18 +34,5 @@ export function taskDefaultsFromSlot(slot: CalendarSlot): Partial<CreateTaskBody
     due_date: ymdLocal(end),
     start_at: slot.start.toISOString(),
     due_at: end.toISOString(),
-  };
-}
-
-export function meetingScheduleFromSlot(slot: CalendarSlot): ScheduleDraft {
-  if (slot.allDay) {
-    const date = ymdLocal(slot.start);
-    return { date, start: "09:00", end: "10:00" };
-  }
-  const end = slot.end ?? addHours(slot.start, 1);
-  return {
-    date: ymdLocal(slot.start),
-    start: hmLocal(slot.start),
-    end: hmLocal(end),
   };
 }

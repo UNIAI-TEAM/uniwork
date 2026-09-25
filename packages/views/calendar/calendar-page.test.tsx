@@ -171,6 +171,31 @@ describe("CalendarPageView", () => {
     expect(createFromSlotProps.current.slot).toBeNull();
   });
 
+  it("opens task creation directly with the selected calendar slot", () => {
+    render(
+      wrap(
+        <CalendarPageView
+          workspaceId="ws1"
+          onOpenTask={() => {}}
+          onOpenMeeting={() => {}}
+        />,
+      ),
+    );
+    const slot = {
+      start: new Date("2026-09-10T14:00:00"),
+      end: new Date("2026-09-10T15:00:00"),
+      allDay: false,
+    };
+
+    act(() => {
+      const onSlotSelect = hostProps.current.onSlotSelect as (selected: typeof slot) => void;
+      onSlotSelect(slot);
+    });
+
+    expect(createFromSlotProps.current.open).toBe(true);
+    expect(createFromSlotProps.current.slot).toBe(slot);
+  });
+
   it("keeps the calendar mounted while a clicked task opens in the detail panel", () => {
     const onOpenTask = vi.fn();
     render(
