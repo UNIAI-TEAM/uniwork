@@ -4,7 +4,7 @@ import { VERIFICATION_CODE, verifyEmail } from "./auth-nav";
 
 // The golden path for F-09 (spec §8): A creates a task, opens Ask UNI with
 // ⌘J and asks about it; the answer cites [S1] as a link to that task. B, in a
-// different organization, asks the same thing and gets no source at all —
+// different organization, asks the same thing and gets none of A's sources —
 // the context builder only ever reads as the asker.
 //
 // Requires `make dev` with AI_PROVIDER=fake (or a real key). Without a
@@ -33,8 +33,8 @@ async function ask(page: Page, question: string) {
   await page.keyboard.press("ControlOrMeta+j");
   const dialog = page.getByRole("dialog", { name: "Hỏi UNI" });
   await expect(dialog).toBeVisible();
-  await dialog.getByRole("textbox", { name: "Hỏi UNI…" }).fill(question);
-  await dialog.getByRole("button", { name: "Hỏi" }).click();
+  await dialog.getByRole("textbox", { name: "Hỏi UNI về công việc…" }).fill(question);
+  await dialog.getByRole("button", { name: "Gửi" }).click();
   return dialog;
 }
 
@@ -53,14 +53,19 @@ test("⌘J answers from the asker's own workspace only", async ({ browser, page:
   const source = dialog.getByRole("link", { name: /\[S1\]/ });
   await expect(source).toBeVisible({ timeout: 15_000 });
   await expect(source).toHaveAttribute("href", /\/tasks\/[0-9A-Z]+$/);
-  await expect(dialog.getByText(/token vào/)).toBeVisible();
+  await expect(dialog.getByText(/\d+ vào · \d+ ra/)).toBeVisible();
 
   // B: own organization, same question, nothing of A's comes back.
   const ctx = await browser.newContext({ locale: "vi-VN", storageState: VI_LOCALE_STATE });
   const b = await ctx.newPage();
   await onboard(b, "Người Khác", `Beta ${stamp}`, "Đội Beta");
   const dialogB = await ask(b, `việc cho UNI ${stamp} thế nào?`);
-  await expect(dialogB.getByText("Chưa đủ dữ liệu trong workspace để trả lời.")).toBeVisible({ timeout: 15_000 });
-  await expect(dialogB.getByRole("link", { name: /\[S1\]/ })).toHaveCount(0);
+  // B's workspace has its own guide task, so UNI may cite that; A's task never comes back.
+  await expect(dialogB.getByText(/\d+ vào · \d+ ra/)).toBeVisible({ timeout: 15_000 });
+  await expect(dialogB.getByRole("link", { name: title })).toHaveCount(0);
+  const sourcesB = await dialogB.getByRole("list", { name: "Nguồn" }).getByRole("link").all();
+  for (const link of sourcesB) {
+    await expect(link).toHaveAttribute("href", new RegExp(`^/beta-${stamp}/`));
+  }
   await ctx.close();
 });
