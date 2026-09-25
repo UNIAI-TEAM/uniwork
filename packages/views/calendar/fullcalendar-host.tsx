@@ -226,13 +226,35 @@ export function FullCalendarHost(props: {
 
   const handleSelect = (info: DateSelectArg) => {
     const eventTarget = info.jsEvent?.target;
+    let source: HTMLElement | undefined;
+
+    if (props.viewMode === "month") {
+      const targetCell = eventTarget instanceof Element
+        ? eventTarget.closest<HTMLElement>(".fc-daygrid-day")
+        : null;
+      const fallbackDate = format(addDays(info.end, -1), "yyyy-MM-dd");
+      const stableCell = targetCell && hostRef.current?.contains(targetCell)
+        ? targetCell
+        : hostRef.current?.querySelector<HTMLElement>(
+            `.fc-daygrid-day[data-date="${fallbackDate}"]`,
+          );
+      source = stableCell?.querySelector<HTMLElement>(".fc-daygrid-day-number")
+        ?? stableCell
+        ?? hostRef.current
+        ?? undefined;
+    } else {
+      source = eventTarget instanceof HTMLElement && eventTarget.isConnected
+        ? eventTarget
+        : (hostRef.current ?? undefined);
+    }
+
     props.onSlotSelect?.(
       {
         start: info.start,
         end: info.end,
         allDay: info.allDay,
       },
-      eventTarget instanceof HTMLElement ? eventTarget : (hostRef.current ?? undefined),
+      source,
     );
   };
 

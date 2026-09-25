@@ -492,7 +492,7 @@ describe("FullCalendarHost", () => {
     );
   });
 
-  it("forwards select range to onSlotSelect", () => {
+  it("anchors a month range selection to a stable day element", () => {
     const onSlotSelect = vi.fn();
     render(
       <FullCalendarHost
@@ -506,14 +506,24 @@ describe("FullCalendarHost", () => {
     );
     const start = new Date("2026-09-10T00:00:00");
     const end = new Date("2026-09-13T00:00:00");
-    const source = document.createElement("div");
+    const endCell = document.createElement("td");
+    endCell.className = "fc-daygrid-day";
+    endCell.dataset.date = "2026-09-12";
+    const dayNumber = document.createElement("a");
+    dayNumber.className = "fc-daygrid-day-number";
+    endCell.append(dayNumber);
+    screen.getByTestId("calendar-grid").append(endCell);
+
+    // FullCalendar may report its temporary selection mirror as the event target.
+    // That node is removed before the menu positions itself, so it is not a safe anchor.
+    const transientSelectionMirror = document.createElement("div");
     captured.select?.({
       start,
       end,
       allDay: true,
-      jsEvent: { target: source } as unknown as MouseEvent,
+      jsEvent: { target: transientSelectionMirror } as unknown as MouseEvent,
     });
-    expect(onSlotSelect).toHaveBeenCalledWith({ start, end, allDay: true }, source);
+    expect(onSlotSelect).toHaveBeenCalledWith({ start, end, allDay: true }, dayNumber);
   });
 
   it("does not enable selectable without onSlotSelect", () => {
