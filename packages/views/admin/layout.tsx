@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { AlertCircle, ShieldCheck } from "lucide-react";
 import { useAdminMe } from "@uniwork/core/admin";
 import { ApiError } from "@uniwork/core/api";
+import { useSession } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -32,19 +33,22 @@ function isActive(pathname: string, href: string): boolean {
  * workspace sidebar — the console sits outside every organization. The gate
  * is GET /admin/me: 404 means "no platform role" (the server does not admit
  * the route exists) and sends the visitor home; 401 sends them to login.
+ * It is asked only once the session is restored: a reload starts without an
+ * access token, and asking then would read as 401 and log a platform admin out.
  */
 export function AdminLayout({ children }: { children: ReactNode }) {
   const { t } = useTranslation(undefined, { keyPrefix: "admin" });
   const { pathname, replace } = useNavigation();
-  const me = useAdminMe();
-  const status = me.error instanceof ApiError ? me.error.status : 0;
+  const { status: session } = useSession();
+  const me = useAdminMe(session === "authed");
+  const status = session === "anon" ? 401 : me.error instanceof ApiError ? me.error.status : 0;
 
   useEffect(() => {
     if (status === 404) replace(paths.workspaces());
     if (status === 401) replace(`${paths.login()}?next=${encodeURIComponent(pathname)}`);
   }, [status, replace, pathname]);
 
-  if (me.isPending || status === 404 || status === 401) return <WorkspaceLoader />;
+  if (session !== "authed" || me.isPending || status === 404 || status === 401) return <WorkspaceLoader />;
   // A platform role without MFA is refused at the gate (F-01): say what to
   // turn on, and where, instead of a generic failure.
   if (me.error instanceof ApiError && me.error.code === "mfa_required") {
