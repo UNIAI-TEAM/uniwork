@@ -1,0 +1,2316 @@
+{
+  "schemaVersion": 1,
+  "kind": "uniwork-office-fixture-manifest",
+  "issue": "UNI-666",
+  "parentIssue": "UNI-656",
+  "doc": "docs/office/g0/README.md",
+  "sourceManifest": "docs/office/g0/source-manifest.json",
+  "capabilityInventory": "docs/office/g0/capabilities.json",
+  "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+  "generator": "scripts/office-g0/generate-fixtures.mjs",
+  "verifier": "scripts/office-g0/verify-manifest.mjs",
+  "prepareSource": "scripts/office-g0/prepare-source.mjs",
+  "statusVocabulary": {
+    "chưa thử": "no run has been observed for this fixture; every fixture ships in this state",
+    "đạt có bằng chứng": "a run exists whose artifact, command and environment are recorded in the evidence register",
+    "đạt có giới hạn": "a run exists and a named limitation was observed and recorded",
+    "không hỗ trợ": "no implementation path exists at the pinned commit; the product must not claim the capability"
+  },
+  "rules": [
+    "Every fixture declares an expected result and an oracle before any run happens; a fixture that cannot state both is marked pending instead.",
+    "Generated fixtures are deterministic: fixed ids, fixed compression level, no timestamps, no host-dependent bytes.",
+    "Fixtures copied from upstream keep their origin, their commit and their third-party notice; their bytes are never edited in place.",
+    "A macro-bearing fixture is opened to check preservation only; no macro is ever executed.",
+    "Capability rows and fixtures reference each other in both directions; an orphan on either side fails the verifier.",
+    "Large-band fixtures live in the shared lab root, not in Git, and are recorded with the size they were generated at.",
+    "Nothing under an upstream ee/ path is copied, referenced or repackaged."
+  ],
+  "expectedResultRequired": true,
+  "status": "chưa thử",
+  "fixtures": [
+    {
+      "id": "F-DOCX-SIMPLE",
+      "path": "docs/docx-simple.docx",
+      "format": "docx",
+      "bytes": 2156,
+      "sha256": "640B513E1F7FDCE3CE7FBB18A123B5486541B7425CCBC02FB4859DE97BFF8D85",
+      "license": "Apache-2.0 (GenOffice upstream, Copyright 2026 Mainfunc, Inc.)",
+      "source": {
+        "kind": "upstream-copy",
+        "upstreamPath": "apps/docs/tests/pagination-corpus/docx/simple.docx",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "provenance": "GenOffice pagination corpus; built by the upstream docx-engine fixture tooling",
+        "thirdPartyNotice": null
+      },
+      "generation": {
+        "method": "copied"
+      },
+      "capabilities": [
+        "docx-open",
+        "mcp-agent-drive",
+        "cli-headless-convert"
+      ],
+      "expected": {
+        "result": "opens with one heading and one body paragraph; saving without edits keeps the paragraph text and the page setup",
+        "oracle": "text and paragraph order compared after reopen; byte-identity is not required because the editor may rewrite the package"
+      },
+      "tags": [
+        "baseline"
+      ]
+    },
+    {
+      "id": "F-DOCX-KITCHEN",
+      "path": "docs/docx-kitchen-sink.docx",
+      "format": "docx",
+      "bytes": 3415,
+      "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+      "license": "Apache-2.0 (GenOffice upstream, Copyright 2026 Mainfunc, Inc.)",
+      "source": {
+        "kind": "upstream-copy",
+        "upstreamPath": "apps/docs/tests/pagination-corpus/docx/kitchen-sink.docx",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "provenance": "GenOffice pagination corpus kitchen sink; exercises the widest paragraph and style surface in the corpus",
+        "thirdPartyNotice": null
+      },
+      "generation": {
+        "method": "copied"
+      },
+      "capabilities": [
+        "docx-open",
+        "docx-edit-text",
+        "docx-save-docx",
+        "docx-export-pdf",
+        "docx-content-headings-lists",
+        "docx-pagination-fidelity",
+        "docx-text-extract",
+        "cli-headless-convert",
+        "docx-convert-to-md",
+        "docx-convert-to-html"
+      ],
+      "expected": {
+        "result": "all blocks visible after open; editing one paragraph leaves every other paragraph, style and page setup intact; export produces a PDF with the same paragraph count",
+        "oracle": "paragraph count and order plus per-paragraph text, compared against the pre-edit snapshot"
+      },
+      "tags": [
+        "baseline",
+        "combination"
+      ]
+    },
+    {
+      "id": "F-DOCX-FR-JUSTIFY",
+      "path": "docs/docx-justify-pagegap-fr.docx",
+      "format": "docx",
+      "bytes": 6051,
+      "sha256": "1A5ED11335BA94C727D07400F47533A8451E74C5AC5F35B3678B6F1C19736038",
+      "license": "Apache-2.0 (GenOffice upstream, Copyright 2026 Mainfunc, Inc.)",
+      "source": {
+        "kind": "upstream-copy",
+        "upstreamPath": "e2e/assets/justify-pagegap-fr.docx",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "provenance": "GenOffice e2e asset for justified-text page-gap behaviour",
+        "thirdPartyNotice": null
+      },
+      "generation": {
+        "method": "copied"
+      },
+      "capabilities": [
+        "docx-export-pdf",
+        "docx-pagination-fidelity"
+      ],
+      "expected": {
+        "result": "justified text reproduces the upstream page-gap behaviour; a pagination regression shows as a different page count or a different last-line position",
+        "oracle": "page count plus last-line vertical position compared with apps/docs/tests/pagination-corpus/baseline-word.json"
+      },
+      "tags": [
+        "baseline",
+        "boundary"
+      ]
+    },
+    {
+      "id": "F-DOCX-CAPTABLE-FLOAT",
+      "path": "docs/docx-visual-captable-float.docx",
+      "format": "docx",
+      "bytes": 2551,
+      "sha256": "9252D1D6990A6A017540980882FFAE49BD476335040E46831E9E6766EDF8D6B6",
+      "license": "Apache-2.0 (GenOffice upstream, Copyright 2026 Mainfunc, Inc.)",
+      "source": {
+        "kind": "upstream-copy",
+        "upstreamPath": "fixtures/generated/visual-captable-float.docx",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "provenance": "GenOffice tracked generated fixture (fixtures/generated/visual-captable-float.docx) for a floating captioned table; the inline and page-anchor variants at the same pinned path are not yet cased",
+        "thirdPartyNotice": null
+      },
+      "generation": {
+        "method": "copied"
+      },
+      "capabilities": [
+        "docx-content-drawing-anchors"
+      ],
+      "expected": {
+        "result": "the floating table stays anchored to its paragraph after an unrelated text edit, and its wrap mode is preserved",
+        "oracle": "anchor element position and wrap attributes compared after reopen"
+      },
+      "tags": [
+        "boundary"
+      ]
+    },
+    {
+      "id": "F-DOCX-PWD-STANDARD",
+      "path": "docs/docx-password-standard.docx",
+      "format": "docx",
+      "bytes": 7168,
+      "sha256": "D265DCF02F7D552486229B8C67A627EF3752FE6802B02FD2D2D485FCFBBAC5DE",
+      "license": "Apache-2.0 (GenOffice upstream, Copyright 2026 Mainfunc, Inc.)",
+      "source": {
+        "kind": "upstream-copy",
+        "upstreamPath": "apps/docs/tests/encrypted-fixtures/office-standard-password.docx",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "provenance": "GenOffice encrypted fixture, standard encryption",
+        "thirdPartyNotice": "apps/docs/tests/encrypted-fixtures/LICENSE-msoffcrypto-tool.txt"
+      },
+      "generation": {
+        "method": "copied"
+      },
+      "capabilities": [
+        "docx-encrypted-open"
+      ],
+      "expected": {
+        "result": "opening prompts for the password; the correct password decrypts and shows the document; a wrong password is refused with a specific error and no partial content",
+        "oracle": "prompt shown, document text matches the sibling plain fixture, and the wrong-password path surfaces an error rather than empty content"
+      },
+      "tags": [
+        "password",
+        "failure-case"
+      ]
+    },
+    {
+      "id": "F-DOCX-PWD-AGILE",
+      "path": "docs/docx-password-agile.docx",
+      "format": "docx",
+      "bytes": 18432,
+      "sha256": "0605624697328060FDC75CA9929EA20B9D63EBED9387FF1A97AAF9979757234A",
+      "license": "Apache-2.0 (GenOffice upstream, Copyright 2026 Mainfunc, Inc.)",
+      "source": {
+        "kind": "upstream-copy",
+        "upstreamPath": "apps/docs/tests/encrypted-fixtures/office-agile-password.docx",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "provenance": "GenOffice encrypted fixture, agile encryption",
+        "thirdPartyNotice": "apps/docs/tests/encrypted-fixtures/LICENSE-msoffcrypto-tool.txt"
+      },
+      "generation": {
+        "method": "copied"
+      },
+      "capabilities": [
+        "docx-encrypted-open"
+      ],
+      "expected": {
+        "result": "same as the standard-encryption case; agile encryption must not take a different code path that silently fails",
+        "oracle": "document text after unlock compared with F-DOCX-PWD-AGILE-PLAIN"
+      },
+      "tags": [
+        "password",
+        "failure-case",
+        "combination"
+      ]
+    },
+    {
+      "id": "F-DOCX-PWD-AGILE-PLAIN",
+      "path": "docs/docx-password-agile-plain.docx",
+      "format": "docx",
+      "bytes": 11995,
+      "sha256": "8C8212DB6E624BFC69286E94D09B7E68C753EE86B6826E51427A33C841F133D1",
+      "license": "Apache-2.0 (GenOffice upstream, Copyright 2026 Mainfunc, Inc.)",
+      "source": {
+        "kind": "upstream-copy",
+        "upstreamPath": "apps/docs/tests/encrypted-fixtures/office-agile-plain.docx",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "provenance": "GenOffice plain counterpart used as the oracle for the agile-encrypted fixture",
+        "thirdPartyNotice": "apps/docs/tests/encrypted-fixtures/LICENSE-msoffcrypto-tool.txt"
+      },
+      "generation": {
+        "method": "copied"
+      },
+      "capabilities": [
+        "docx-encrypted-open"
+      ],
+      "expected": {
+        "result": "opens without a password; its text is the expected content for the encrypted sibling",
+        "oracle": "text equality with the decrypted F-DOCX-PWD-AGILE output"
+      },
+      "tags": [
+        "baseline"
+      ]
+    },
+    {
+      "id": "F-DOCX-VI",
+      "path": "docs/docx-vietnamese.docx",
+      "format": "docx",
+      "bytes": 6004,
+      "sha256": "EEF496600861F7AEAD5FACAF43384AB72339C442FE2D1F3596E36DD6E52E0AB7",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "docx-open",
+        "docx-edit-text",
+        "docx-content-headings-lists",
+        "docx-content-footnotes"
+      ],
+      "expected": {
+        "result": "Vietnamese diacritics, the D and d pair and the u o a e combinations render with correct glyphs; editing a Vietnamese word keeps the remaining text intact; the footnote marker stays attached to its paragraph",
+        "oracle": "exact text comparison of every paragraph plus the footnote body, checked after reopen"
+      },
+      "tags": [
+        "vietnamese",
+        "unicode",
+        "font"
+      ]
+    },
+    {
+      "id": "F-DOCX-TABLE-IMG",
+      "path": "docs/docx-table-image.docx",
+      "format": "docx",
+      "bytes": 5939,
+      "sha256": "A3C8BADFA6ECF153039E0F2ED3B333C17EE06BE5706099BE3AD0FFD9BBC33F0D",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "docx-edit-table-image",
+        "docx-save-docx"
+      ],
+      "expected": {
+        "result": "the table and the inline PNG are both present after open; editing a cell and replacing the image both survive a save and reopen; the image keeps its stated extent",
+        "oracle": "cell text comparison plus image part presence and wp:extent values after reopen"
+      },
+      "tags": [
+        "table",
+        "image",
+        "combination"
+      ]
+    },
+    {
+      "id": "F-DOCX-LONGTABLE",
+      "path": "docs/docx-long-table.docx",
+      "format": "docx",
+      "bytes": 6558,
+      "sha256": "D16461F4026EFBF2F9C904DCDFE2FA289466718FC04621FCD816531E5FC79DE6",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "docx-edit-table-image",
+        "docx-pagination-fidelity"
+      ],
+      "expected": {
+        "result": "a 61-row table repeats its header row across pages and does not lose rows; editing row 30 keeps rows 1 and 61 unchanged",
+        "oracle": "row count and per-row text after reopen, plus the repeat-header flag on the first row"
+      },
+      "tags": [
+        "table",
+        "boundary",
+        "pagination"
+      ]
+    },
+    {
+      "id": "F-DOCX-FOOTNOTES",
+      "path": "docs/docx-footnotes.docx",
+      "format": "docx",
+      "bytes": 5754,
+      "sha256": "DCDAFB1A9348015613D53492714F827F2CD16BCD5392F8FCF0C1B31A738CD864",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "docx-content-footnotes"
+      ],
+      "expected": {
+        "result": "the footnote reference number in the body and the footnote text at the foot of the page stay linked after a save",
+        "oracle": "footnote part text plus the reference run position after reopen"
+      },
+      "tags": [
+        "footnotes"
+      ]
+    },
+    {
+      "id": "F-DOCX-NUMBERED-LIST",
+      "path": "docs/docx-numbered-list.docx",
+      "format": "docx",
+      "bytes": 5806,
+      "sha256": "7C2E2AA8532289F72D222A352238D9F543C6F90538301D3E45F744DCA7E0196A",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "docx-content-headings-lists"
+      ],
+      "expected": {
+        "result": "the three list items keep decimal numbering after a save, including a restart when an item is deleted",
+        "oracle": "rendered marker text 1. 2. 3. after reopen and after deleting the second item, expecting 1. 2."
+      },
+      "tags": [
+        "list",
+        "boundary"
+      ]
+    },
+    {
+      "id": "F-DOCX-2COL",
+      "path": "docs/docx-two-columns.docx",
+      "format": "docx",
+      "bytes": 6002,
+      "sha256": "DAAFEF71923CE2FF2710759B9CEE7DBC97E11499E5368DEA8E874645F0145C54",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "docx-content-sections-columns",
+        "docx-pagination-fidelity"
+      ],
+      "expected": {
+        "result": "the section keeps two columns with the stated gap; text flows into the second column instead of widening the page",
+        "oracle": "sectPr w:cols num and space plus the line-break position after a save and reopen"
+      },
+      "tags": [
+        "layout",
+        "boundary"
+      ]
+    },
+    {
+      "id": "F-DOCX-THEME",
+      "path": "docs/docx-theme.docx",
+      "format": "docx",
+      "bytes": 6221,
+      "sha256": "22B33733A9CC84EE0CB3DD712F2963FC261DC118614E8E9692CA625688054A61",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "docx-content-sections-columns",
+        "docx-save-docx"
+      ],
+      "expected": {
+        "result": "theme colours and fonts resolve from the embedded theme; changing the application chrome theme does not change the document bytes",
+        "oracle": "document.xml and theme1.xml comparison before and after a chrome theme switch, then a save"
+      },
+      "tags": [
+        "theme",
+        "brand-check"
+      ]
+    },
+    {
+      "id": "F-DOCX-EMPTY",
+      "path": "docs/docx-empty.docx",
+      "format": "docx",
+      "bytes": 4792,
+      "sha256": "C40276FA662645EA988FA246AF30F50B2A0991109576547D9B9A0DC884A34660",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "docx-create-blank"
+      ],
+      "expected": {
+        "result": "a new blank document has an A4 page, default margins and no body content; saving and reopening yields one empty paragraph, not a corrupt package",
+        "oracle": "parts present, sectPr page size and a single empty w:p after reopen"
+      },
+      "tags": [
+        "empty-state"
+      ]
+    },
+    {
+      "id": "F-DOCX-CHART",
+      "path": "docs/docx-chart.docx",
+      "format": "docx",
+      "bytes": 5857,
+      "sha256": "CA08FC5E6D940E3F2F163F35C00670DB132F2B4BA31529A5D162947509733A3A",
+      "license": "Apache-2.0 (synthetic content; GenOffice engine-generated package, Copyright 2026 Mainfunc, Inc.)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-advanced-docx-fixtures.mjs",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "upstreamPaths": [
+          "packages/docx-engine/src/blank.ts",
+          "packages/docx-engine/src/patch.ts",
+          "packages/docx-engine/src/chart.ts"
+        ],
+        "provenance": "Synthetic public fixture inputs serialized by the unmodified pinned engine; no external user documents or embedded fonts.",
+        "thirdPartyNotice": null
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-advanced-docx-fixtures.mjs",
+        "generatorSha256": "21DF06B229775247089808789998E22E33DF33E148CA1AB86FB9446DB4AF4816",
+        "inputs": "scripts/office-g0/advanced-docx-inputs.json",
+        "inputsSha256": "E426B6E03032BFB66D9C38652179EA5D4551C6EA9CF758D26C92BB03AD94748B",
+        "engineBundleSha256": "A810C1BED087036EF317F09BCA8C253BC298B18A73A1D33FAD0219CE738BF708",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "dependencyLockSha256": "DE782E49A1006FAC7287A41C748C696EFD9FB3C3038EAE893EF82DFCA57F9FE5",
+        "savedAt": "2000-01-01T00:00:00.000Z",
+        "normalization": "ZIP entry order and timestamp fixed recursively, including embedded XLSX; XML and other part payloads unmodified."
+      },
+      "capabilities": [
+        "docx-content-charts"
+      ],
+      "expected": {
+        "result": "the chart renders with its series and keeps its embedded workbook after a save; editing a category label updates the chart",
+        "oracle": "chart part series names and cached values plus a rendered-page comparison",
+        "content": {
+          "body": [
+            "Chart fixture",
+            "Before chart sentinel 314159",
+            "After chart sentinel 271828"
+          ],
+          "title": "Quarterly volume",
+          "kind": "bar",
+          "categories": [
+            "Q1",
+            "Q2",
+            "Q3"
+          ],
+          "series": [
+            {
+              "name": "North",
+              "values": [
+                12,
+                18,
+                15
+              ]
+            },
+            {
+              "name": "South",
+              "values": [
+                7,
+                11,
+                9
+              ]
+            }
+          ],
+          "extentPx": {
+            "w": 480,
+            "h": 288
+          },
+          "embeddedSheet": "Sheet1"
+        },
+        "fixtureOracle": "Compatible engine parse/save/reopen and independent Python ZIP/XML relationship/content oracle; editor appearance and interaction remain unproven."
+      },
+      "tags": [
+        "chart",
+        "embedded-workbook",
+        "engine-generated"
+      ]
+    },
+    {
+      "id": "F-DOCX-WATERMARK",
+      "path": "docs/docx-watermark.docx",
+      "format": "docx",
+      "bytes": 3870,
+      "sha256": "C877C44680DED6964D7FD86CE6339AC7BA2FC099F1164E2C64A22A550E22FBE4",
+      "license": "Apache-2.0 (synthetic content; GenOffice engine-generated package, Copyright 2026 Mainfunc, Inc.)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-advanced-docx-fixtures.mjs",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "upstreamPaths": [
+          "packages/docx-engine/src/blank.ts",
+          "packages/docx-engine/src/patch.ts",
+          "packages/docx-engine/src/watermark.ts"
+        ],
+        "provenance": "Synthetic public fixture inputs serialized by the unmodified pinned engine; no external user documents or embedded fonts.",
+        "thirdPartyNotice": null
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-advanced-docx-fixtures.mjs",
+        "generatorSha256": "21DF06B229775247089808789998E22E33DF33E148CA1AB86FB9446DB4AF4816",
+        "inputs": "scripts/office-g0/advanced-docx-inputs.json",
+        "inputsSha256": "E426B6E03032BFB66D9C38652179EA5D4551C6EA9CF758D26C92BB03AD94748B",
+        "engineBundleSha256": "A810C1BED087036EF317F09BCA8C253BC298B18A73A1D33FAD0219CE738BF708",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "dependencyLockSha256": "DE782E49A1006FAC7287A41C748C696EFD9FB3C3038EAE893EF82DFCA57F9FE5",
+        "savedAt": "2000-01-01T00:00:00.000Z",
+        "normalization": "ZIP entry order and timestamp fixed recursively, including embedded XLSX; XML and other part payloads unmodified."
+      },
+      "capabilities": [
+        "docx-content-watermark"
+      ],
+      "expected": {
+        "result": "the diagonal watermark text appears behind body text on every page and survives a save",
+        "oracle": "header part XML after reopen plus a rendered-page comparison",
+        "content": {
+          "body": [
+            "Watermark fixture",
+            "First page sentinel 314159",
+            "Second page",
+            "Second page sentinel 271828"
+          ],
+          "text": "UNIWORK FIXTURE",
+          "fontFamily": "Calibri",
+          "colorHex": "808080",
+          "opacity": 0.25,
+          "diagonalDegrees": 315,
+          "behindText": true,
+          "defaultHeader": true,
+          "explicitPageBreaks": 1
+        },
+        "fixtureOracle": "Compatible engine parse/save/reopen and independent Python ZIP/XML relationship/content oracle; editor appearance and interaction remain unproven."
+      },
+      "tags": [
+        "watermark",
+        "engine-generated",
+        "page-break"
+      ]
+    },
+    {
+      "id": "F-DOCX-TOC",
+      "path": "docs/docx-toc.docx",
+      "format": "docx",
+      "bytes": null,
+      "sha256": null,
+      "license": "pending - must be settled when the fixture is produced",
+      "source": {
+        "kind": "pending",
+        "reason": "a table of contents only has a meaningful expected result once real heading pagination exists; a static field result would encode this script own assumptions"
+      },
+      "generation": {
+        "method": "pending",
+        "blocker": "a table of contents only has a meaningful expected result once real heading pagination exists; a static field result would encode this script own assumptions",
+        "owner": "DOC-003 (task 3)"
+      },
+      "capabilities": [
+        "docx-content-fields-toc"
+      ],
+      "expected": {
+        "result": "the TOC lists every heading with its correct page number; adding a heading shifts the numbers after refresh",
+        "oracle": "field result text compared with the heading order and the page numbers observed in the editor"
+      },
+      "tags": [
+        "pending-generation"
+      ]
+    },
+    {
+      "id": "F-DOCX-EQUATION",
+      "path": "docs/docx-equation.docx",
+      "format": "docx",
+      "bytes": 2941,
+      "sha256": "3E5128D08372E1BADC3D2F4E89CDA7E3FCE40B37A6D4E9A24587BEA19C49AB06",
+      "license": "Apache-2.0 (synthetic content; GenOffice engine-generated package, Copyright 2026 Mainfunc, Inc.)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-equation-protection-fixtures.mjs",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "upstreamPaths": [
+          "packages/docx-engine/src/blank.ts",
+          "packages/docx-engine/src/parse.ts",
+          "packages/docx-engine/src/patch.ts",
+          "packages/docx-engine/src/math.ts"
+        ],
+        "provenance": "Synthetic public inputs serialized by the unmodified pinned engine; source, LICENSE, NOTICE and dependency hashes retained in the UNI-666 fixture packet.",
+        "thirdPartyNotice": null
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-equation-protection-fixtures.mjs",
+        "generatorSha256": "6EE4CD36516729DCEFD1A0AAB31A83CA0276FBC8376830E75357F1CC7AB1DFCA",
+        "inputs": "scripts/office-g0/equation-protection-inputs.json",
+        "inputsSha256": "BEFF6747E84A5B2F619C3A91D230A3342DB8B7417F4C089F05E31F09A305A01B",
+        "engineBundleSha256": "42B1E1E5A63CF599415E56940E02B2C3495008442E9150C9C8EEA56AA74F05D4",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "dependencyLockSha256": "DE782E49A1006FAC7287A41C748C696EFD9FB3C3038EAE893EF82DFCA57F9FE5",
+        "savedAt": "2026-09-22T00:00:00.000Z",
+        "normalization": "ZIP entry order and timestamps only; engine-written XML payloads are unmodified."
+      },
+      "capabilities": [
+        "docx-content-equations"
+      ],
+      "expected": {
+        "result": "the equation renders as a native formula, remains editable as OMML, and survives a save with variable names intact",
+        "oracle": "ommlToLatex output equality before and after reopen",
+        "content": {
+          "body": [
+            "Equation fixture",
+            "Before equation sentinel 314159",
+            "After equation sentinel 271828"
+          ],
+          "inputLatex": "\\frac{x^{2}+1}{y_{1}}=\\sqrt{z}",
+          "canonicalLatex": "\\frac{{x}^{2}+1}{{y}_{1}}=\\sqrt{z}",
+          "ommlStructure": "One centered oMathPara: fraction (x squared + 1)/(y subscript 1) equals square root z."
+        },
+        "fixtureOracle": "Real engine parse/save/reopen, unrelated text and formula edits; independent ZIP/XML math structure and wrong/missing math controls. Native formula rendering and editor interactions remain unproven."
+      },
+      "tags": [
+        "omml-equation",
+        "engine-generated",
+        "structurally-verified"
+      ]
+    },
+    {
+      "id": "F-DOCX-REVISIONS",
+      "path": "docs/docx-revisions.docx",
+      "format": "docx",
+      "bytes": 3100,
+      "sha256": "2744D7F03B06493DC70A34EC69E9B1D015098B2E6C75E853FBBE62EC6DAE12C2",
+      "license": "Apache-2.0 (synthetic content; GenOffice engine-generated package, Copyright 2026 Mainfunc, Inc.)",
+      "source": {
+        "kind": "generated",
+        "generator": ".uniwork-dev/remaining-fixtures-g49/generate-remaining.mts",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "upstreamPaths": [
+          "packages/docx-engine/src/blank.ts",
+          "packages/docx-engine/src/parse.ts",
+          "packages/docx-engine/src/patch.ts",
+          "packages/docx-engine/src/generate.ts"
+        ],
+        "provenance": "Synthetic public sentinels serialized by saveDocx on a buildBlankDocx package. Accept keeps the insertion and drops the deletion. Reject does the opposite. Both outcomes were saved again through saveDocx.",
+        "thirdPartyNotice": null
+      },
+      "generation": {
+        "method": "generated",
+        "tool": ".uniwork-dev/remaining-fixtures-g49/generate-remaining.mts",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "savedAt": "2026-01-01T00:00:00.000Z",
+        "normalization": "ZIP entry order and timestamps only; engine-written XML payloads are unmodified."
+      },
+      "capabilities": [
+        "docx-content-comments-revisions"
+      ],
+      "expected": {
+        "result": "the insertion and deletion marks appear as tracked changes, and accept-all and reject-all both produce the expected final text",
+        "oracle": "final text after accept and after reject, each compared with an explicit expected string",
+        "content": {
+          "acceptText": "Kept sentinel 314159 inserted sentinel 161803 tail sentinel 141421",
+          "rejectText": "Kept sentinel 314159 deleted sentinel 271828 tail sentinel 141421"
+        },
+        "fixtureOracle": "Engine parse/save accept and reject round-trip plus an independent ZIP/XML check. Editor chrome is unproven."
+      },
+      "tags": [
+        "tracked-changes",
+        "engine-generated"
+      ]
+    },
+    {
+      "id": "F-DOCX-EMBEDDED-FONT",
+      "path": "docs/docx-embedded-font.docx",
+      "format": "docx",
+      "bytes": 214549,
+      "sha256": "C1F95746288C43DBD12B3F8CB2047FE0D695A2B0CD23B48878223B645283CB83",
+      "license": "SIL Open Font License 1.1 (Liberation Sans Regular, bundled in pinned GenOffice; licence text shipped with fixture)",
+      "source": {
+        "kind": "generated",
+        "generator": ".uniwork-dev/orca-recovery-g60/fixtures-docx/generate-embedded-font.mts",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "upstreamPaths": [
+          "packages/docx-engine/src/blank.ts",
+          "packages/docx-engine/src/parse.ts",
+          "packages/docx-engine/src/patch.ts",
+          "packages/docx-engine/src/font-table.ts",
+          "apps/docs/src/renderer/fonts/LiberationSans-Regular.ttf",
+          "apps/docs/src/renderer/fonts/LICENSE-OFL.txt"
+        ],
+        "provenance": "Pinned engine saveDocx writes the document paragraph. The fixed source font is obfuscated using the ECMA-376 inverse of the pinned engine decoder, with OOXML font table/relationships and content types added to the package.",
+        "thirdPartyNotice": "docs/office/g0/fixtures/licenses/LiberationSans-OFL.txt",
+        "sourceFontSha256": "76D04C18EA243F426B7DE1F3AD208E927008F961DC5945E5AAD352D0DFDE8EE8",
+        "licenseSha256": "992656DF2B40E317EA54B4D3B7CA47A48EEC11C2EAAF46BD74EFFD600714841A"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": ".uniwork-dev/orca-recovery-g60/fixtures-docx/generate-embedded-font.mts",
+        "inputs": ".uniwork-dev/orca-recovery-g60/fixtures-docx/oracle.json",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "savedAt": "2000-01-01T00:00:00.000Z",
+        "normalization": "ZIP entry names and timestamps fixed; the engine-written document XML and font bytes apart from the specified 32-byte obfuscation are unchanged."
+      },
+      "capabilities": [
+        "docx-content-embedded-fonts"
+      ],
+      "expected": {
+        "result": "the embedded font is used for rendering even when it is not installed on the host",
+        "oracle": "font-table entry present plus identical glyph advances with and without the host font installed",
+        "content": {
+          "family": "Liberation Sans",
+          "text": "Liberation Sans embedded font sentinel 314159",
+          "sourceFontSha256": "76D04C18EA243F426B7DE1F3AD208E927008F961DC5945E5AAD352D0DFDE8EE8",
+          "fontKey": "{AB6E25B2-8B6E-48E9-B1AF-D7B7CFCD6E9F}"
+        },
+        "fixtureOracle": "Pinned GenOffice parseDocx returns exactly one embedded Liberation Sans regular face identical to the licensed TTF, the package has a complete internal OOXML relationship chain, the on-disk font bytes are obfuscated, and the document text requests that family; host-font-off rendering and glyph advances remain unproven."
+      },
+      "tags": [
+        "embedded-font",
+        "OFL-1.1",
+        "engine-generated"
+      ]
+    },
+    {
+      "id": "F-DOCX-PROTECTED",
+      "path": "docs/docx-protected.docx",
+      "format": "docx",
+      "bytes": 3278,
+      "sha256": "4D693671597CDFF7EE3FD2F7F3CA55A48A0D574D851648E4D38F71216FBF9006",
+      "license": "Apache-2.0 (synthetic content; GenOffice engine-generated package, Copyright 2026 Mainfunc, Inc.)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-equation-protection-fixtures.mjs",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "upstreamPaths": [
+          "packages/docx-engine/src/blank.ts",
+          "packages/docx-engine/src/parse.ts",
+          "packages/docx-engine/src/patch.ts",
+          "packages/docx-engine/src/protection.ts"
+        ],
+        "provenance": "Synthetic public inputs serialized by the unmodified pinned engine; source, LICENSE, NOTICE and dependency hashes retained in the UNI-666 fixture packet.",
+        "thirdPartyNotice": null
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-equation-protection-fixtures.mjs",
+        "generatorSha256": "6EE4CD36516729DCEFD1A0AAB31A83CA0276FBC8376830E75357F1CC7AB1DFCA",
+        "inputs": "scripts/office-g0/equation-protection-inputs.json",
+        "inputsSha256": "BEFF6747E84A5B2F619C3A91D230A3342DB8B7417F4C089F05E31F09A305A01B",
+        "engineBundleSha256": "42B1E1E5A63CF599415E56940E02B2C3495008442E9150C9C8EEA56AA74F05D4",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "dependencyLockSha256": "DE782E49A1006FAC7287A41C748C696EFD9FB3C3038EAE893EF82DFCA57F9FE5",
+        "savedAt": "2026-09-22T00:00:00.000Z",
+        "normalization": "ZIP entry order and timestamps only; engine-written XML payloads are unmodified.",
+        "randomness": "One genuine random salt and its hash are retained as explicit public test input; fresh password hashing is intentionally nondeterministic."
+      },
+      "capabilities": [
+        "docx-protection"
+      ],
+      "expected": {
+        "result": "opening shows a protected document; editing is refused until the password is entered, and the refusal names the protection rather than failing generically",
+        "oracle": "edit attempt blocked, unlock with the fixture password succeeds, wrong password stays blocked",
+        "content": {
+          "body": [
+            "Protected fixture",
+            "Before protection sentinel 161803",
+            "After protection sentinel 141421"
+          ],
+          "edit": "readOnly",
+          "enforced": true,
+          "algorithmSid": 14,
+          "algorithm": "SHA-512",
+          "spinCount": 100000,
+          "password": "UniWork-Fixture-Only-2026!",
+          "wrongPassword": "UniWork-Fixture-Wrong-2026!",
+          "salt": "als0xQxeO+qUSwC8t2gcIQ==",
+          "hash": "n2VmGB0nVd7UFhtU8xkZA8NJk21j1aGiUqEJKXNnbxbYHKqP3wzNG3CJaQwYzwso5HQh5/ONAipHoLEPU7l8GQ==",
+          "passwordClassification": "Public synthetic test password; never a user secret."
+        },
+        "fixtureOracle": "Real engine password hash verification and parse/save/reopen; independent ZIP/XML parameters and Python hashlib correct/wrong-password checks with missing/corrupted controls. Editor edit refusal/unlock and product authorization remain unproven."
+      },
+      "tags": [
+        "edit-protection",
+        "engine-generated",
+        "structurally-verified"
+      ]
+    },
+    {
+      "id": "F-XLSX-VI",
+      "path": "sheets/xlsx-vietnamese.xlsx",
+      "format": "xlsx",
+      "bytes": 4953,
+      "sha256": "940CDB88AB3738A2662422582E44FFABDE72E1BEAC7909AD16E09C5867D83F56",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "xlsx-open",
+        "xlsx-edit-cells",
+        "xlsx-recalculate",
+        "xlsx-cross-sheet-formulas",
+        "xlsx-charts"
+      ],
+      "expected": {
+        "result": "Vietnamese labels and number formats display correctly; B5 and C5 recalculate from B2:C4; the PhuLuc sheet pulls Data values through a defined name; the chart references Data and repaints after the edit",
+        "oracle": "cached values after recalculation equal the expected sums; PhuLuc!B2 equals the Data total; chart series formula unchanged"
+      },
+      "tags": [
+        "vietnamese",
+        "formula",
+        "chart",
+        "cross-sheet",
+        "combination"
+      ]
+    },
+    {
+      "id": "F-XLSX-KITCHEN",
+      "path": "sheets/xlsx-kitchen-sink.xlsx",
+      "format": "xlsx",
+      "bytes": 5046,
+      "sha256": "BF69B9DBC4F6B8FC485BAF6255494ED490EE6C53A3051CB4CE6F967F34FE4BC6",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "xlsx-open",
+        "xlsx-edit-cells",
+        "xlsx-charts",
+        "xlsx-conditional-formatting",
+        "xlsx-data-validation"
+      ],
+      "expected": {
+        "result": "the workbook opens with two sheets, a chart part, a conditional-formatting rule, a data-validation list and a styled header; a single cell edit changes only its own sheet part",
+        "oracle": "archive entry list compared before and after the edit, expecting exactly the edited worksheet to differ"
+      },
+      "tags": [
+        "combination",
+        "preservation"
+      ]
+    },
+    {
+      "id": "F-XLSX-BASIC",
+      "path": "sheets/xlsx-compatibility-basic.xlsx",
+      "format": "xlsx",
+      "bytes": 4110,
+      "sha256": "E76CC7C4435F55FCA7882EE22C2B99FC36B310BA04CB0C5C769E4E8095633AD2",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "xlsx-open",
+        "xlsx-recalculate",
+        "xlsx-export-pdf",
+        "xlsx-text-extract",
+        "xlsx-convert-to-csv",
+        "xlsx-convert-external-to-xlsx",
+        "xlsx-native-sidecar-build",
+        "office-engine-service-placement",
+        "mcp-agent-drive",
+        "cli-headless-convert"
+      ],
+      "expected": {
+        "result": "a workbook with a formula, a custom number format and a customXml marker opens and recalculates; a cell edit preserves the customXml part byte-identically",
+        "oracle": "customXml part bytes unchanged; formula result matches the cached value after recalculation"
+      },
+      "tags": [
+        "preservation",
+        "baseline"
+      ]
+    },
+    {
+      "id": "F-XLSX-EDIT",
+      "path": "sheets/xlsx-compatibility-edit.xlsx",
+      "format": "xlsx",
+      "bytes": 3340,
+      "sha256": "2C2D3A09543A0AB83E4449F7224C0B81810C1071DBB87BBC59F398B12DCEF687",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "xlsx-edit-cells",
+        "xlsx-save"
+      ],
+      "expected": {
+        "result": "shared strings, styled cells, sparse rows, a self-closing row and a cached formula all survive a targeted edit",
+        "oracle": "the edited sheet part changes as expected; every other archive entry is byte-identical"
+      },
+      "tags": [
+        "preservation"
+      ]
+    },
+    {
+      "id": "F-XLSX-SHEETS",
+      "path": "sheets/xlsx-satellite-sheets.xlsx",
+      "format": "xlsx",
+      "bytes": 3933,
+      "sha256": "8ACC6D23D924ED8CD3AD97FC73DD7A374400A113F7A1A65A3FCA2015EDE0AE17",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "xlsx-cross-sheet-formulas",
+        "xlsx-edit-cells"
+      ],
+      "expected": {
+        "result": "a formula on a satellite sheet referencing the main sheet recalculates after an edit to the referenced cell",
+        "oracle": "satellite cell value equals the new referenced value after recalculation"
+      },
+      "tags": [
+        "cross-sheet",
+        "formula"
+      ]
+    },
+    {
+      "id": "F-XLSX-STRUCT",
+      "path": "sheets/xlsx-compatibility-structure.xlsx",
+      "format": "xlsx",
+      "bytes": 5029,
+      "sha256": "BBDE82788120B694540C330924D30C723F0BE22B86FABE25483774E958CA69E9",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "xlsx-save",
+        "xlsx-conditional-formatting",
+        "xlsx-data-validation"
+      ],
+      "expected": {
+        "result": "structure-level parts (conditional formatting, data validation, sheet protection, defined names) survive an edit to an unrelated cell",
+        "oracle": "each structure part present and unchanged after the edit; the rule still applies in the editor"
+      },
+      "tags": [
+        "preservation"
+      ]
+    },
+    {
+      "id": "F-XLSX-CHART",
+      "path": "sheets/xlsx-chart.xlsx",
+      "format": "xlsx",
+      "bytes": 4440,
+      "sha256": "BA50DCAB1FE11949556523E2E76B706515C00862A80A3E07858D77CEC6B4956A",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "xlsx-charts"
+      ],
+      "expected": {
+        "result": "the chart renders with its title and one series; editing a plotted value repaints the chart without dropping the series",
+        "oracle": "chart part series and cached values after the edit, plus a rendered comparison"
+      },
+      "tags": [
+        "chart"
+      ]
+    },
+    {
+      "id": "F-XLSX-MACRO",
+      "path": "sheets/xlsx-macro.xlsm",
+      "format": "xlsm",
+      "bytes": 3912,
+      "sha256": "EBC669740482A78B4B1E97276560CF21679DFA8967BC6B832B9C7E9F337D7EAA",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "xlsx-macro-preserve-not-execute"
+      ],
+      "expected": {
+        "result": "the workbook opens as a macro-enabled file; the vbaProject part is preserved byte-identically after a save and no macro is executed at any point",
+        "oracle": "xl/vbaProject.bin sha256 unchanged after save; the process must not report running macro code"
+      },
+      "tags": [
+        "macro",
+        "safety",
+        "failure-case"
+      ]
+    },
+    {
+      "id": "F-XLSX-PROTECTED",
+      "path": "sheets/xlsx-protected.xlsx",
+      "format": "xlsx",
+      "bytes": 3489,
+      "sha256": "6AC87F1DF7AF916E4F0CED0A153F7A0A36A6EE4C5EDDA62BDB9CFF946E00643E",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "xlsx-protection"
+      ],
+      "expected": {
+        "result": "the protected sheet refuses edits outside the allowed ranges and reports the protection instead of silently discarding input",
+        "oracle": "an edit attempt outside the range is blocked; an edit inside the range is accepted; the sheetProtection element survives a save"
+      },
+      "tags": [
+        "protection",
+        "failure-case"
+      ]
+    },
+    {
+      "id": "F-XLSX-PIVOT",
+      "path": "sheets/xlsx-pivot.xlsx",
+      "format": "xlsx",
+      "bytes": 6880,
+      "sha256": "2F3ECD3D82567D4AFC4E392194FED06A4B634B5C4DE483B950F3ED5AC6DF1C82",
+      "license": "Apache-2.0 (synthetic content; GenOffice engine-generated package, Copyright 2026 Mainfunc, Inc.)",
+      "source": {
+        "kind": "generated",
+        "generator": ".uniwork-dev/remaining-fixtures-g49/generate-remaining.mts",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "upstreamPaths": [
+          "packages/xlsx-gateway/src/gateway/xlsx-pivot-add.ts",
+          "packages/xlsx-gateway/src/gateway/csv-import.ts"
+        ],
+        "provenance": "Source rows are synthetic public values. pivotCache definition and records come from applyPivotAdditions.",
+        "thirdPartyNotice": null
+      },
+      "generation": {
+        "method": "generated",
+        "tool": ".uniwork-dev/remaining-fixtures-g49/generate-remaining.mts",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "savedAt": "2026-01-01T00:00:00.000Z",
+        "normalization": "ZIP entry order and timestamps only."
+      },
+      "capabilities": [
+        "xlsx-pivot"
+      ],
+      "expected": {
+        "result": "the pivot renders with the expected row and value fields; refreshing after changing a source cell updates the totals",
+        "oracle": "pivot cache field names and aggregated totals compared with explicit expected numbers",
+        "content": {
+          "source": [
+            [
+              "Region",
+              "Amount"
+            ],
+            [
+              "North",
+              10
+            ],
+            [
+              "South",
+              25
+            ],
+            [
+              "North",
+              5
+            ]
+          ],
+          "pivotName": "FixturePivot"
+        },
+        "fixtureOracle": "Independent ZIP check for pivot relationships, cache field names, and cache record values 10, 25, and 5. Editor refresh after a source-cell change is unproven."
+      },
+      "tags": [
+        "pivot",
+        "engine-generated"
+      ]
+    },
+    {
+      "id": "F-LEGACY-XLS",
+      "path": "sheets/legacy-xls.xls",
+      "format": "xls",
+      "bytes": 13824,
+      "sha256": "2B5EC8298BACFFDCA61C50F6F7607DA0A4E63CF76FA011C62F203E6A66BC072A",
+      "license": "Apache-2.0 (Apache POI test-data corpus)",
+      "source": {
+        "kind": "upstream-copy",
+        "upstreamRepository": "https://github.com/apache/poi",
+        "upstreamCommit": "3b299acbf0195299f4cca3ba4207dd36b66d3210",
+        "upstreamPath": "test-data/spreadsheet/Simple.xls",
+        "downloadUrl": "https://raw.githubusercontent.com/apache/poi/3b299acbf0195299f4cca3ba4207dd36b66d3210/test-data/spreadsheet/Simple.xls",
+        "provenance": "Apache POI tracked test-data/spreadsheet/Simple.xls; unmodified BIFF8 workbook, 3 sheets; Sheet1!A1 is replaceMe.",
+        "licenseFile": "docs/office/g0/fixtures/upstream-license/LICENSE-Apache-POI.txt",
+        "thirdPartyNotice": "docs/office/g0/fixtures/upstream-license/NOTICE-Apache-POI.txt"
+      },
+      "generation": {
+        "method": "copied"
+      },
+      "capabilities": [
+        "editor-open-xls"
+      ],
+      "expected": {
+        "result": "the legacy workbook opens in the sheets editor and converts to xlsx without losing sheet names or cell values",
+        "oracle": "compare BIFF8 source snapshot (three sheet names, Sheet1!A1='replaceMe', and two empty sheets) with all sheet names and populated cell values in converted XLSX after reopen; no conversion run yet",
+        "content": {
+          "biffVersion": 8,
+          "sheets": [
+            "Sheet1",
+            "Sheet2",
+            "Sheet3"
+          ],
+          "cells": {
+            "Sheet1!A1": "replaceMe"
+          },
+          "emptySheets": [
+            "Sheet2",
+            "Sheet3"
+          ]
+        }
+      },
+      "tags": [
+        "licensed-upstream-copy"
+      ]
+    },
+    {
+      "id": "F-PPTX-STD",
+      "path": "slides/pptx-standard-business.pptx",
+      "format": "pptx",
+      "bytes": 32396,
+      "sha256": "FADDC03270215218E78720F1C8F6E3AA862891A432F71E7EC9F3D13EA7902048",
+      "license": "Apache-2.0 (GenOffice upstream, Copyright 2026 Mainfunc, Inc.)",
+      "source": {
+        "kind": "upstream-copy",
+        "upstreamPath": "packages/pptx-engine/tests/fixtures/01_standard_business.pptx",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "provenance": "GenOffice pptx-engine fixture built by the upstream python-pptx helper script",
+        "thirdPartyNotice": "packages/pptx-engine/tests/fixtures/LICENSE-python-pptx.txt"
+      },
+      "generation": {
+        "method": "copied"
+      },
+      "capabilities": [
+        "pptx-open",
+        "pptx-edit-text",
+        "pptx-save",
+        "pptx-export-pdf",
+        "pptx-masters-layouts",
+        "pptx-comments",
+        "pptx-text-extract",
+        "pptx-audit",
+        "mcp-agent-drive",
+        "cli-headless-convert"
+      ],
+      "expected": {
+        "result": "the deck opens with its master and layouts; editing one text frame leaves the other slides, the layout references and the theme intact; export produces the same slide count",
+        "oracle": "slide count, per-slide shape list and master/layout relationship ids compared before and after the edit"
+      },
+      "tags": [
+        "baseline",
+        "combination"
+      ]
+    },
+    {
+      "id": "F-PPTX-VI",
+      "path": "slides/pptx-vietnamese.pptx",
+      "format": "pptx",
+      "bytes": 10049,
+      "sha256": "755BE7AE0F3BA1A1E22076F0731BF1E57FE73EC8E42E083C8B6228FBD5961223",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "pptx-edit-text",
+        "pptx-edit-shape-image",
+        "pptx-save",
+        "pptx-render-fidelity"
+      ],
+      "expected": {
+        "result": "Vietnamese diacritics render with correct glyphs and line breaking; editing a text frame and moving a shape are both preserved by a save",
+        "oracle": "text runs and shape transforms compared after reopen, plus a rendered-page comparison for the diacritics"
+      },
+      "tags": [
+        "vietnamese",
+        "render"
+      ]
+    },
+    {
+      "id": "F-PPTX-UNICODE",
+      "path": "slides/pptx-unicode-cjk-emoji.pptx",
+      "format": "pptx",
+      "bytes": 6774,
+      "sha256": "37913C2BC018BB0F2A07BADE39539891C958FE66AF3FA32EAA480099DB17A15F",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "pptx-open",
+        "pptx-render-fidelity"
+      ],
+      "expected": {
+        "result": "CJK and emoji text keeps its code points through open and save and is not replaced by fallback boxes when the host has a suitable font",
+        "oracle": "text run code points compared before and after reopen, plus a rendered-page comparison against the recorded baseline"
+      },
+      "tags": [
+        "unicode",
+        "boundary",
+        "render"
+      ]
+    },
+    {
+      "id": "F-PPTX-NOTES",
+      "path": "slides/pptx-notes.pptx",
+      "format": "pptx",
+      "bytes": 7942,
+      "sha256": "2D417DD379209D6035A678E1C606F161F08FDA6DA6F0C0EBD96F956A7896F7AB",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "pptx-notes"
+      ],
+      "expected": {
+        "result": "the speaker notes of the first slide appear in the notes pane and survive a save",
+        "oracle": "notesSlide part text after reopen compared with the fixture notes string"
+      },
+      "tags": [
+        "notes"
+      ]
+    },
+    {
+      "id": "F-PPTX-TABLE",
+      "path": "slides/pptx-table.pptx",
+      "format": "pptx",
+      "bytes": 8065,
+      "sha256": "01A5471555F0519E084AF2B870FE0F0418BBE41510514345DD76ABC295CE2C22",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "pptx-tables"
+      ],
+      "expected": {
+        "result": "the table renders with all rows and columns; editing a cell keeps the other cells and the table geometry",
+        "oracle": "table row and column counts plus every cell text after reopen"
+      },
+      "tags": [
+        "table"
+      ]
+    },
+    {
+      "id": "F-PPTX-CHART",
+      "path": "slides/pptx-chart.pptx",
+      "format": "pptx",
+      "bytes": 8374,
+      "sha256": "D942B8307E42F1A5CE8AD7B4BBE9C56AADBCC73C9F370D33C111DA25B0C515EA",
+      "license": "Apache-2.0 (synthetic content; GenOffice engine-generated package, Copyright 2026 Mainfunc, Inc.)",
+      "source": {
+        "kind": "generated",
+        "generator": ".uniwork-dev/orca-recovery-g104/pptx-chart-workbook/generate-chart.mts",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "upstreamPaths": [
+          "packages/pptx-engine/src/blank.ts",
+          "packages/pptx-engine/src/chart-insert.ts",
+          "packages/pptx-engine/src/index.ts"
+        ],
+        "provenance": "addChart writes ppt/embeddings/Microsoft_Excel_Worksheet1.xlsx, the chart rels package relationship, the content-type Override and c:externalData; the workbook XML parts are byte-identical to docx-engine's buildChartWorkbookXlsxBase64 at the pinned commit. The candidate slice adds packages/pptx-engine/src/chart-workbook.ts and the chart-insert.ts/index.ts wiring.",
+        "thirdPartyNotice": null
+      },
+      "generation": {
+        "method": "generated",
+        "tool": ".uniwork-dev/orca-recovery-g104/pptx-chart-workbook/generate-chart.mts",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "savedAt": "2026-01-01T00:00:00.000Z",
+        "normalization": "ZIP entry order and timestamps only. Engine-minted a16 creation GUIDs are replaced with a fixed sequence; the embedded workbook is a stored-entry ZIP with fixed DOS timestamps; XML is otherwise unmodified."
+      },
+      "capabilities": [
+        "pptx-charts"
+      ],
+      "expected": {
+        "result": "the chart renders with its series and keeps the embedded workbook; editing a plotted value repaints the chart",
+        "oracle": "chart part series values plus a rendered-page comparison",
+        "fixtureOracle": "Independent ZIP check: chart caches equal the workbook cells reached through c:externalData and the chart rels package relationship; workbook XML parts byte-identical to docx-engine's buildChartWorkbookXlsxBase64 at the pinned commit. A headless editChartElement save moves the cache and the cell together and the pinned pptx-render chart primitives change with it; a painted page in the real editor/browser is unproven (depends on doc003-browser-gate)."
+      },
+      "tags": [
+        "chart",
+        "engine-generated"
+      ]
+    },
+    {
+      "id": "F-PPTX-ANIM",
+      "path": "slides/pptx-animations.pptx",
+      "format": "pptx",
+      "bytes": 6146,
+      "sha256": "E1E7CC4B23F8B3D3AB79C7FCC63375FB3714104EE8D888C196BEFAAA97B28FFF",
+      "license": "Apache-2.0 (synthetic content; GenOffice engine-generated package, Copyright 2026 Mainfunc, Inc.)",
+      "source": {
+        "kind": "generated",
+        "generator": ".uniwork-dev/remaining-fixtures-g49/generate-remaining.mts",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "upstreamPaths": [
+          "packages/pptx-engine/src/blank.ts",
+          "packages/pptx-engine/src/animation.ts"
+        ],
+        "provenance": "Timing tree written by setSlideAnimations and read back with getSlideAnimations before save.",
+        "thirdPartyNotice": null
+      },
+      "generation": {
+        "method": "generated",
+        "tool": ".uniwork-dev/remaining-fixtures-g49/generate-remaining.mts",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "savedAt": "2026-01-01T00:00:00.000Z",
+        "normalization": "ZIP entry order and timestamps only. Random a16 creation ids minted by the engine are replaced with a fixed sequence; timing XML is otherwise unmodified."
+      },
+      "capabilities": [
+        "pptx-animations"
+      ],
+      "expected": {
+        "result": "the entrance animation plays in the expected order and its timing survives a save",
+        "oracle": "timing tree comparison after reopen plus an observed playback order",
+        "fixtureOracle": "Independent ZIP check that entrance timing target spid 2 matches shape id 2 and the effect duration is 500. Pinned engine open/save/reopen preserves the same effect, trigger, target and 500 ms duration; playback order in a real editor is unproven."
+      },
+      "tags": [
+        "animation",
+        "engine-generated"
+      ]
+    },
+    {
+      "id": "F-PPTX-EMBEDDED-FONT",
+      "path": "slides/pptx-embedded-font.pptx",
+      "format": "pptx",
+      "bytes": 216929,
+      "sha256": "F718635327C902B439C8717AE0A08F8C6516F8294BD74327BA4415CBCEB3C71F",
+      "license": "SIL Open Font License 1.1 (Liberation Sans Regular, bundled in pinned GenOffice; licence text shipped with fixture)",
+      "source": {
+        "kind": "generated",
+        "generator": ".uniwork-dev/orca-recovery-g104/pptx-embedded-font/generate-embedded-font.mts",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "upstreamPaths": [
+          "packages/pptx-engine/src/blank.ts",
+          "packages/pptx-engine/src/embedded-fonts.ts",
+          "packages/pptx-engine/src/generate.ts",
+          "packages/pptx-engine/src/identity.ts",
+          "packages/pptx-engine/src/index.ts",
+          "packages/pptx-engine/src/insert.ts",
+          "apps/docs/src/renderer/fonts/LiberationSans-Regular.ttf",
+          "apps/docs/src/renderer/fonts/LICENSE-OFL.txt"
+        ],
+        "provenance": "Pinned engine createBlankPptx/addElement write the slide; the added embedded-font writer packages the licensed TTF as an obfuscated EOT fntdata part with p:embeddedFontLst, presentation relationship and content types.",
+        "thirdPartyNotice": "docs/office/g0/fixtures/licenses/LiberationSans-OFL.txt",
+        "sourceFontSha256": "76D04C18EA243F426B7DE1F3AD208E927008F961DC5945E5AAD352D0DFDE8EE8",
+        "licenseSha256": "992656DF2B40E317EA54B4D3B7CA47A48EEC11C2EAAF46BD74EFFD600714841A"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": ".uniwork-dev/orca-recovery-g104/pptx-embedded-font/generate-embedded-font.mts",
+        "inputs": ".uniwork-dev/orca-recovery-g104/pptx-embedded-font/expected-embedded-font.json",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "savedAt": "2000-01-01T00:00:00.000Z",
+        "normalization": "ZIP entry order and timestamps fixed; random a16 creation ids replaced with a fixed sequence; engine-written XML and the EOT-wrapped font bytes unchanged."
+      },
+      "capabilities": [
+        "pptx-embedded-fonts"
+      ],
+      "expected": {
+        "result": "the embedded font renders on a host that does not have it installed",
+        "oracle": "font part present plus identical glyph advances with and without the host font",
+        "content": {
+          "family": "Liberation Sans",
+          "text": "Liberation Sans embedded font sentinel 271828",
+          "sourceFontSha256": "76D04C18EA243F426B7DE1F3AD208E927008F961DC5945E5AAD352D0DFDE8EE8",
+          "fontPartPath": "ppt/fonts/font1.fntdata"
+        },
+        "fixtureOracle": "Pinned GenOffice listEmbeddedFonts recovers exactly one Liberation Sans regular face identical to the licensed TTF from the EOT part; the package has p:embeddedFontLst with the typeface and font relationship, the fntdata content type, embedTrueTypeFonts=\"1\"/saveSubsetFonts=\"0\", the stored bytes are XOR-obfuscated per the EOT spec, and the slide requests the family. Byte identity makes advances identical by construction, but host-font-off rendering and measured glyph advances remain unproven without the pinned pptx-render package."
+      },
+      "tags": [
+        "embedded-font",
+        "OFL-1.1",
+        "engine-generated"
+      ]
+    },
+    {
+      "id": "F-PDF-TEXT",
+      "path": "pdf/pdf-text-editable.pdf",
+      "format": "pdf",
+      "bytes": 3059,
+      "sha256": "22E3B04F3AD92C22EDF1D3A0E02E30F3B778B1834B1022788272A8009F162FA9",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "pdf-open-view",
+        "pdf-edit-text-in-place",
+        "pdf-save",
+        "pdf-export-docx",
+        "pdf-export-pptx",
+        "pdf-annotations-stamps",
+        "pdf-signature",
+        "pdf-page-ops",
+        "pdf-metadata",
+        "pdf-text-extract",
+        "pdf-print",
+        "mcp-agent-drive",
+        "office-engine-service-placement"
+      ],
+      "expected": {
+        "result": "two pages open with selectable text; an in-place text edit is saved into the same page, and every export keeps the text and the page count",
+        "oracle": "text extraction before and after the edit, page count, and the document title and author metadata"
+      },
+      "tags": [
+        "baseline",
+        "combination"
+      ]
+    },
+    {
+      "id": "F-PDF-IMAGE",
+      "path": "pdf/pdf-image.pdf",
+      "format": "pdf",
+      "bytes": 2111,
+      "sha256": "A4A34DA5447E4529469D3C6A6D79F72507AAB5C77FA46502501C4320E75913AF",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "pdf-edit-image"
+      ],
+      "expected": {
+        "result": "the embedded image is selectable and movable as a content object; moving it and saving keeps the new position",
+        "oracle": "image transform read back after reopen compared with the value written"
+      },
+      "tags": [
+        "render"
+      ]
+    },
+    {
+      "id": "F-PDF-TABLE",
+      "path": "pdf/pdf-table.pdf",
+      "format": "pdf",
+      "bytes": 2201,
+      "sha256": "572E111185A9C6DC6BABBF457C729FF98C8B61F53D99204AE9EE479D527D489D",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "pdf-export-xlsx"
+      ],
+      "expected": {
+        "result": "the three-column table converts to a workbook whose cells match the visible table text and row order",
+        "oracle": "per-cell values of the produced xlsx compared with the fixture table rows"
+      },
+      "tags": [
+        "table",
+        "conversion"
+      ]
+    },
+    {
+      "id": "F-PDF-SCAN",
+      "path": "pdf/pdf-scanned-page.pdf",
+      "format": "pdf",
+      "bytes": 1971,
+      "sha256": "6FBB30D74A64B3BC9C7C2DB75CD1D51A625C5B2D1B42F68B14B01D7F06B82538",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "pdf-ocr-scan"
+      ],
+      "expected": {
+        "result": "the image-only page has no text layer, so the viewer offers OCR; after OCR the page carries recognisable text",
+        "oracle": "an empty text extraction before OCR and a non-empty one containing the expected words after OCR"
+      },
+      "tags": [
+        "ocr",
+        "boundary"
+      ]
+    },
+    {
+      "id": "F-PDF-PWD4SP",
+      "path": "pdf/pdf-password-4spaces.pdf",
+      "format": "pdf",
+      "bytes": 18285,
+      "sha256": "D5A2E3FD2AAA7A94B7C2E1BB28F64C01D34CE416654B67D45A66E57C8BF6412D",
+      "license": "Apache-2.0 (GenOffice upstream, Copyright 2026 Mainfunc, Inc.)",
+      "source": {
+        "kind": "upstream-copy",
+        "upstreamPath": "apps/shell/tests/fixtures/testPassword4Spaces.pdf",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "provenance": "GenOffice shell test fixture; the user password is exactly four space characters, which is the boundary this case exists for",
+        "thirdPartyNotice": null
+      },
+      "generation": {
+        "method": "copied"
+      },
+      "capabilities": [
+        "pdf-password-open"
+      ],
+      "expected": {
+        "result": "opening prompts for a password; four spaces unlock the document, and an empty or differently spaced entry stays locked with a specific error",
+        "oracle": "page count after the four-space unlock plus an error rather than empty content for a wrong entry"
+      },
+      "tags": [
+        "password",
+        "boundary",
+        "failure-case"
+      ]
+    },
+    {
+      "id": "F-PDF-CERT",
+      "path": "pdf/pdf-cert-encrypted.pdf",
+      "format": "pdf",
+      "bytes": 18885,
+      "sha256": "998E95A72DB2AE5C89DCEC07BE00530CC4AD75DF1AE82E27357F8CE735BE690F",
+      "license": "Apache-2.0 (GenOffice upstream, Copyright 2026 Mainfunc, Inc.)",
+      "source": {
+        "kind": "upstream-copy",
+        "upstreamPath": "apps/shell/tests/fixtures/certEncrypted.pdf",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "provenance": "GenOffice shell test fixture encrypted for a certificate rather than a password",
+        "thirdPartyNotice": null
+      },
+      "generation": {
+        "method": "copied"
+      },
+      "capabilities": [
+        "pdf-password-open"
+      ],
+      "expected": {
+        "result": "opening reports that the document needs a certificate rather than a password and does not silently show an empty viewer",
+        "oracle": "a named certificate-required error path, with no document content shown"
+      },
+      "tags": [
+        "password",
+        "failure-case"
+      ]
+    },
+    {
+      "id": "F-PDF-CORRUPT",
+      "path": "pdf/pdf-corrupt.pdf",
+      "format": "pdf",
+      "bytes": 21420,
+      "sha256": "070D35DB701F6CCB5ED5E15DE2048FE4AD6F4F97CCC7BDFD8687AF362377B6AB",
+      "license": "Apache-2.0 (GenOffice upstream, Copyright 2026 Mainfunc, Inc.)",
+      "source": {
+        "kind": "upstream-copy",
+        "upstreamPath": "apps/shell/tests/fixtures/corruptExample.pdf",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "provenance": "GenOffice shell test fixture with a deliberately damaged structure",
+        "thirdPartyNotice": null
+      },
+      "generation": {
+        "method": "copied"
+      },
+      "capabilities": [
+        "pdf-open-view",
+        "pdf-corrupt-handling"
+      ],
+      "expected": {
+        "result": "opening a damaged file surfaces a specific parse error and leaves the app usable; no partial page is rendered as if it were valid",
+        "oracle": "a named error message instead of an empty viewer, and a following valid open still succeeding"
+      },
+      "tags": [
+        "failure-case",
+        "boundary"
+      ]
+    },
+    {
+      "id": "F-PDF-FORM",
+      "path": "pdf/pdf-acroform.pdf",
+      "format": "pdf",
+      "bytes": 7771,
+      "sha256": "1FE658A3068F516D4B47A70D6768141B954A4BCAB1387674C54E6DD4F0B98732",
+      "license": "Apache-2.0 (Apache PDFBox example resources)",
+      "source": {
+        "kind": "upstream-copy",
+        "upstreamRepository": "https://github.com/apache/pdfbox",
+        "upstreamCommit": "b10e543e49fe5f51021e931ec9092e4119567a1c",
+        "upstreamPath": "examples/src/main/resources/org/apache/pdfbox/examples/interactive/form/FillFormField.pdf",
+        "downloadUrl": "https://raw.githubusercontent.com/apache/pdfbox/b10e543e49fe5f51021e931ec9092e4119567a1c/examples/src/main/resources/org/apache/pdfbox/examples/interactive/form/FillFormField.pdf",
+        "provenance": "Apache PDFBox tracked FillFormField.pdf example; unmodified one-page AcroForm with two Widget annotations and nested field.",
+        "licenseFile": "docs/office/g0/fixtures/upstream-license/LICENSE-Apache-PDFBox.txt",
+        "thirdPartyNotice": "docs/office/g0/fixtures/upstream-license/NOTICE-Apache-PDFBox.txt"
+      },
+      "generation": {
+        "method": "copied"
+      },
+      "capabilities": [
+        "pdf-forms"
+      ],
+      "expected": {
+        "result": "the form fields render with their types and existing values; filling a field and saving keeps the new value readable by the same viewer",
+        "oracle": "compare both field names, text types, initial values and Widget count against this immutable PDF; fill sampleField then save and reopen to verify the new value and unchanged nested field; no editor run yet",
+        "content": {
+          "pages": 1,
+          "fields": [
+            "sampleField",
+            "fieldsContainer.nestedSampleField"
+          ],
+          "fieldType": "Tx",
+          "sampleFieldInitialValue": "Text",
+          "widgetCount": 2
+        }
+      },
+      "tags": [
+        "licensed-upstream-copy"
+      ]
+    },
+    {
+      "id": "F-MD-VI",
+      "path": "text/markdown-vietnamese.md",
+      "format": "md",
+      "bytes": 618,
+      "sha256": "F3678CA09470FEEEDE2439DB676F398E51EE1CF598BCA759F519E0D2D75B869E",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "md-open",
+        "md-save",
+        "md-content-blocks",
+        "md-export-docx",
+        "md-export-pdf",
+        "md-export-html"
+      ],
+      "expected": {
+        "result": "the document renders Vietnamese headings, lists and a table; an edit is saved back as Markdown, and each export keeps the heading order and the table rows",
+        "oracle": "heading order and table rows compared after reopen and after each export"
+      },
+      "tags": [
+        "vietnamese",
+        "combination"
+      ]
+    },
+    {
+      "id": "F-MD-FULL",
+      "path": "text/markdown-kitchen-sink.md",
+      "format": "md",
+      "bytes": 1122,
+      "sha256": "7CC9530F628B38BF70FD350F7DB0342091796C743205A63962541ABB3754F828",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "md-open",
+        "md-save",
+        "md-content-blocks",
+        "md-content-math-mermaid"
+      ],
+      "expected": {
+        "result": "math and mermaid blocks render as their rendered form while the source keeps the original block text; a save does not rewrite the fenced block",
+        "oracle": "the fenced block body is byte-identical after reopen, and the rendered output is non-empty"
+      },
+      "tags": [
+        "combination",
+        "preservation"
+      ]
+    },
+    {
+      "id": "F-MD-FRONTMATTER",
+      "path": "text/markdown-frontmatter.md",
+      "format": "md",
+      "bytes": 301,
+      "sha256": "6CB9E90E58B08B5B3B71E26227FFF85C30CBAFAA5BC0AB9AB7AA6A944835DE4C",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "md-content-frontmatter"
+      ],
+      "expected": {
+        "result": "the YAML front matter is recognised as metadata rather than rendered as body text, and it survives a save",
+        "oracle": "the front matter block is unchanged after reopen and is not present in the rendered body"
+      },
+      "tags": [
+        "boundary",
+        "preservation"
+      ]
+    },
+    {
+      "id": "F-MD-ASSET",
+      "path": "text/markdown-local-asset.md",
+      "format": "md",
+      "bytes": 220,
+      "sha256": "A8B64F39156E3A8D3E4D882D0DC9DFA2F1C50A5F3DCBA3A47946BB32100705C1",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "md-content-local-assets"
+      ],
+      "expected": {
+        "result": "the relative image renders in the preview when the sibling asset file exists and degrades to a named placeholder when it is missing",
+        "oracle": "image element resolved with the asset present and a placeholder with the asset renamed away"
+      },
+      "tags": [
+        "asset",
+        "failure-case"
+      ]
+    },
+    {
+      "id": "F-HTML-VI",
+      "path": "text/html-vietnamese.html",
+      "format": "html",
+      "bytes": 1066,
+      "sha256": "3582DABEDD59ADD0224CC85ADC86BDBE1FF7D356F1B4E1F82FA37FD8DD79BE81",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "html-open",
+        "html-save",
+        "html-content-blocks",
+        "html-export-pdf",
+        "html-export-docx",
+        "html2docx-browser-driver"
+      ],
+      "expected": {
+        "result": "the page renders its Vietnamese blocks and a local image; saving keeps the markup, and both exports keep the heading order",
+        "oracle": "heading order and image reference compared after reopen and after each export"
+      },
+      "tags": [
+        "vietnamese",
+        "combination"
+      ]
+    },
+    {
+      "id": "F-HTML-SINGLE",
+      "path": "text/html-single-file.html",
+      "format": "html",
+      "bytes": 502,
+      "sha256": "AD36B1CFA0EA2831D335E219D3EE1D44C35267BD724B5886166AF3798F665392",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "html-content-assets"
+      ],
+      "expected": {
+        "result": "a page with no external references opens without a missing-asset placeholder",
+        "oracle": "no unresolved asset request is reported while the page is open"
+      },
+      "tags": [
+        "baseline"
+      ]
+    },
+    {
+      "id": "F-HTML-ASSET",
+      "path": "text/html-local-asset.html",
+      "format": "html",
+      "bytes": 530,
+      "sha256": "36EA1FD51144387BFCA2BDE62B93BADB26B48963385427E6AE745F5B14844455",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "html-save",
+        "html-content-assets"
+      ],
+      "expected": {
+        "result": "the local image and stylesheet resolve relative to the file; after the asset is renamed away the page reports the missing reference instead of rendering blank",
+        "oracle": "the asset request resolves with the asset present and is reported as missing once it is renamed"
+      },
+      "tags": [
+        "asset",
+        "failure-case"
+      ]
+    },
+    {
+      "id": "F-HTML-SCRIPT",
+      "path": "text/html-script-isolation.html",
+      "format": "html",
+      "bytes": 575,
+      "sha256": "E78E4BC08227013D403CF9D03E3525722E3D55075D010BC3F9165929BEC834A2",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "html-preview-isolation"
+      ],
+      "expected": {
+        "result": "the inline script runs inside the preview sandbox but cannot read the application session, and the page content still renders",
+        "oracle": "the script reports its own execution while a session read attempt is refused and no application API is reachable"
+      },
+      "tags": [
+        "security",
+        "failure-case"
+      ]
+    },
+    {
+      "id": "F-UNSUPPORTED-ODT",
+      "path": "legacy/unsupported-sample.odt",
+      "format": "odt",
+      "bytes": 995,
+      "sha256": "98329F94C061579B9C9752E56CC202F7ADCD9E0802FBD4C07E68F1519B42D0E7",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "editor-open-unsupported"
+      ],
+      "expected": {
+        "result": "the file is recognised as ODF text and the app shows its explicit not-supported dialog instead of a blank editor or a silent failure",
+        "oracle": "the not-supported dialog is shown and no editor window is created for this file"
+      },
+      "tags": [
+        "failure-case",
+        "unsupported"
+      ]
+    },
+    {
+      "id": "F-UNSUPPORTED-ODS",
+      "path": "legacy/unsupported-sample.ods",
+      "format": "ods",
+      "bytes": 941,
+      "sha256": "AA1AC1E479F84EEDD288684F46138602F8F0E15B56BE75109F199EEC3A95C96C",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "editor-open-unsupported"
+      ],
+      "expected": {
+        "result": "the file is recognised as ODF spreadsheet and the app shows its explicit not-supported dialog naming the format",
+        "oracle": "the dialog names the format and no editor window is created"
+      },
+      "tags": [
+        "failure-case",
+        "unsupported"
+      ]
+    },
+    {
+      "id": "F-UNSUPPORTED-RTF",
+      "path": "legacy/unsupported-sample.rtf",
+      "format": "rtf",
+      "bytes": 405,
+      "sha256": "BC20C769CEF47AA74A2B7D2587A23DF12F264CBEA533F0010B87AD8C81ED189A",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "editor-open-unsupported"
+      ],
+      "expected": {
+        "result": "the rich-text file is not treated as a supported document; the app either opens it as text or reports it as unsupported, but must not fail silently",
+        "oracle": "a defined outcome for the file with no silent empty editor"
+      },
+      "tags": [
+        "failure-case",
+        "unsupported"
+      ]
+    },
+    {
+      "id": "F-UNSUPPORTED-XLSB",
+      "path": "legacy/unsupported-sample.xlsb",
+      "format": "xlsb",
+      "bytes": 48,
+      "sha256": "D5F30AC2616646F1EBEA2828BECEF2C8FEC3003D715D7D781D372042E523F06E",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "editor-open-unsupported"
+      ],
+      "expected": {
+        "result": "a file whose name claims xlsb but whose bytes are not a real package must produce a parse error, not an empty workbook",
+        "oracle": "a named parse error and no workbook shown"
+      },
+      "tags": [
+        "failure-case",
+        "unsupported",
+        "corrupt"
+      ]
+    },
+    {
+      "id": "F-IMG-SMALL",
+      "path": "assets/fixture-image.png",
+      "format": "png",
+      "bytes": 163,
+      "sha256": "76C0BCBA0C41FDCE8A9B8939D470001CFA4EAFED2375D4C5B0DD1498A0ACC976",
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "capabilities": [
+        "file-parse-image-multimodal"
+      ],
+      "expected": {
+        "result": "the image is classified as multimodal input rather than being text-extracted or rejected",
+        "oracle": "the parse result marks the file as an image with its dimensions, and no text extraction is attempted"
+      },
+      "tags": [
+        "asset"
+      ]
+    },
+    {
+      "id": "F-LEGACY-DOC",
+      "path": "legacy/legacy-sample.doc",
+      "format": "doc",
+      "bytes": 9728,
+      "sha256": "A3D925B2E31FB364FB77989CB560D49E94BE88A3728ECAFB1851293D8D34C0E9",
+      "license": "Apache-2.0 (GenOffice upstream, Copyright 2026 Mainfunc, Inc.)",
+      "source": {
+        "kind": "upstream-copy",
+        "upstreamPath": "packages/file-parse/tests/fixtures/legacy-sample.doc",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "provenance": "GenOffice file-parse fixture for the word-extractor legacy path",
+        "thirdPartyNotice": null
+      },
+      "generation": {
+        "method": "copied"
+      },
+      "capabilities": [
+        "text-extract-legacy-doc"
+      ],
+      "expected": {
+        "result": "plain text is extracted from the binary Word file without a full editor; the extractor is not bypassed by the legacy binary format",
+        "oracle": "the extracted text contains the expected first line and paragraph count recorded for this fixture"
+      },
+      "tags": [
+        "legacy"
+      ]
+    },
+    {
+      "id": "F-LEGACY-PPT",
+      "path": "legacy/legacy-sample.ppt",
+      "format": "ppt",
+      "bytes": 461824,
+      "sha256": "EB988018BA5E239021EBEBCC8BC74E9B52A1EB66068BDB42AA97731DCFF290A2",
+      "license": "Apache-2.0 (GenOffice upstream, Copyright 2026 Mainfunc, Inc.)",
+      "source": {
+        "kind": "upstream-copy",
+        "upstreamPath": "packages/file-parse/tests/fixtures/legacy-sample.ppt",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "provenance": "GenOffice file-parse fixture for the ppt-to-text legacy path",
+        "thirdPartyNotice": null
+      },
+      "generation": {
+        "method": "copied"
+      },
+      "capabilities": [
+        "text-extract-legacy-ppt"
+      ],
+      "expected": {
+        "result": "plain text is extracted from the binary PowerPoint file without a full editor",
+        "oracle": "the extracted text contains the expected slide titles recorded for this fixture"
+      },
+      "tags": [
+        "legacy"
+      ]
+    },
+    {
+      "id": "F-LARGE-DOCX",
+      "path": "fixtures/large/large-document.docx",
+      "format": "docx",
+      "bytes": null,
+      "sha256": null,
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "lab-large",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "production": {
+        "labPath": "fixtures/large/large-document.docx",
+        "defaultBytes": 48234496
+      },
+      "capabilities": [
+        "docx-open",
+        "docx-pagination-fidelity",
+        "office-engine-service-placement"
+      ],
+      "expected": {
+        "result": "a document near the 50 MiB band opens without the UI freezing, pages through its content, and a small edit still saves within the recorded time budget",
+        "oracle": "open and save both complete under the recorded time budget and the edited paragraph is present after reopen"
+      },
+      "tags": [
+        "q9-band",
+        "performance",
+        "lab-only"
+      ]
+    },
+    {
+      "id": "F-LARGE-XLSX",
+      "path": "fixtures/large/large-workbook.xlsx",
+      "format": "xlsx",
+      "bytes": null,
+      "sha256": null,
+      "license": "Apache-2.0 (generated by this repository; contains no upstream bytes)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "generation": {
+        "method": "lab-large",
+        "tool": "scripts/office-g0/generate-fixtures.mjs"
+      },
+      "production": {
+        "labPath": "fixtures/large/large-workbook.xlsx",
+        "defaultBytes": 48234496
+      },
+      "capabilities": [
+        "xlsx-open",
+        "xlsx-edit-cells",
+        "xlsx-export-pdf",
+        "office-engine-service-placement"
+      ],
+      "expected": {
+        "result": "a workbook near the 50 MiB band opens, scrolls to its last row, and a single cell edit does not rewrite the whole archive",
+        "oracle": "open completes under the recorded budget, the edit changes only its own sheet part, and the export produces every sheet"
+      },
+      "tags": [
+        "q9-band",
+        "performance",
+        "lab-only"
+      ]
+    }
+  ],
+  "licenseBundle": {
+    "path": "docs/office/g0/fixtures/upstream-license/",
+    "reason": "Apache-2.0 section 4 and the third-party notices require the licence and notice text to travel with the redistributed bytes. These files are verbatim copies from the pinned upstream commit and are never edited. Apache POI and Apache PDFBox third-party fixtures additionally carry their own pinned LICENSE and NOTICE texts.",
+    "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+    "files": [
+      {
+        "file": "LICENSE.txt",
+        "upstreamPath": "LICENSE",
+        "bytes": 11345,
+        "sha256": "68E32334DF324EF4FC79FAD3A26487E5ABAC36055A484BB6C8D7ECF9D8350885"
+      },
+      {
+        "file": "NOTICE.txt",
+        "upstreamPath": "NOTICE",
+        "bytes": 1385,
+        "sha256": "285CA4B6F4D5A54FEACA5EDD8CA31C99FE2D0ABCCAF586B0929B945970A63EEC"
+      },
+      {
+        "file": "LICENSE-UNICODE.txt",
+        "upstreamPath": "LICENSE-UNICODE.txt",
+        "bytes": 1995,
+        "sha256": "4F3A46C1907819C08F5C8689AC38EA5C594C602B1DA71E4A43EBAC40E7C9540A"
+      },
+      {
+        "file": "LICENSE-msoffcrypto-tool.txt",
+        "upstreamPath": "apps/docs/tests/encrypted-fixtures/LICENSE-msoffcrypto-tool.txt",
+        "bytes": 2324,
+        "sha256": "06F075D36BBA29E3B1A107C5C47B2DF0EEF0372502908F770E67E9E03AE910D7"
+      },
+      {
+        "file": "LICENSE-python-pptx.txt",
+        "upstreamPath": "packages/pptx-engine/tests/fixtures/LICENSE-python-pptx.txt",
+        "bytes": 1117,
+        "sha256": "BF6863BDE622BE2E29582028C438FBF2D7F90A27CEE01F95EC5383983081511C"
+      },
+      {
+        "file": "LICENSE-Apache-POI.txt",
+        "upstreamRepository": "https://github.com/apache/poi",
+        "upstreamCommit": "3b299acbf0195299f4cca3ba4207dd36b66d3210",
+        "upstreamPath": "legal/LICENSE",
+        "downloadUrl": "https://raw.githubusercontent.com/apache/poi/3b299acbf0195299f4cca3ba4207dd36b66d3210/legal/LICENSE",
+        "bytes": 14416,
+        "sha256": "6E7C918E5A49F677C1B85A9EB2D035CD85C217FC42AF6B4A336964A434001A9C"
+      },
+      {
+        "file": "NOTICE-Apache-POI.txt",
+        "upstreamRepository": "https://github.com/apache/poi",
+        "upstreamCommit": "3b299acbf0195299f4cca3ba4207dd36b66d3210",
+        "upstreamPath": "legal/NOTICE",
+        "downloadUrl": "https://raw.githubusercontent.com/apache/poi/3b299acbf0195299f4cca3ba4207dd36b66d3210/legal/NOTICE",
+        "bytes": 1571,
+        "sha256": "A89FF8B670BCACD3E98EBEE64979E0569181C7942E9AD795F4222B25E5637A61"
+      },
+      {
+        "file": "LICENSE-Apache-PDFBox.txt",
+        "upstreamRepository": "https://github.com/apache/pdfbox",
+        "upstreamCommit": "b10e543e49fe5f51021e931ec9092e4119567a1c",
+        "upstreamPath": "LICENSE.txt",
+        "downloadUrl": "https://raw.githubusercontent.com/apache/pdfbox/b10e543e49fe5f51021e931ec9092e4119567a1c/LICENSE.txt",
+        "bytes": 18741,
+        "sha256": "1301D8415A4868D82AEEEC594849CF7679F1EAD4636A9603DC46875F5713157E"
+      },
+      {
+        "file": "NOTICE-Apache-PDFBox.txt",
+        "upstreamRepository": "https://github.com/apache/pdfbox",
+        "upstreamCommit": "b10e543e49fe5f51021e931ec9092e4119567a1c",
+        "upstreamPath": "NOTICE.txt",
+        "downloadUrl": "https://raw.githubusercontent.com/apache/pdfbox/b10e543e49fe5f51021e931ec9092e4119567a1c/NOTICE.txt",
+        "bytes": 650,
+        "sha256": "40741B4AB76D77BA4FBC5E8759277169FB0CE281859D273075DE6FD3A3588458"
+      }
+    ]
+  }
+}

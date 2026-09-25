@@ -1,0 +1,1047 @@
+{
+  "schema_version": 1,
+  "kind": "uniwork-office-module-runtime-map",
+  "issue": "UNI-668",
+  "parent_issue": "UNI-656",
+  "roadmap": "C-01",
+  "task": "DOC-004 (G0 task 4) - engine/editor/storage contract, runtime placement and per-operation evidence",
+  "owner_doc": "docs/office/g0/engine-contract.md",
+  "contract_harness": "scripts/office-g0/engine-contract.mjs",
+  "contract_doc_test": "scripts/office-g0/engine-contract.test.mjs",
+  "wire_format": "snake_case",
+  "status": "in-progress",
+  "read_before_quoting": [
+    "This file is not proof that any engine executes in any runtime. Every row carries its own evidence_level and every format summary repeats its counts, so a claimed runtime cannot be read as proven by adjacency.",
+    "The DOC-003 six-browser open/edit/save/reopen flows are still not accepted as a whole. UNI-667 owns them. Scoped subordinate cycles in scoped_editor_cycles are real and must not be denied, but they do not raise a preferred-runtime row to proven and do not set runtime_chosen. The 11-case adapter run is real DOC-003 engine-host behavior over loopback and the six canonical fault cases use real DOCX/HTTP engine behavior with modeled Go/storage/commit. Neither is product browser, production service, or placement proof; neither changes evidence_level or runtime_chosen.",
+    "Entries marked proposed_g0_output are new G0 design decisions, not existing deployed resources, directories or feed URLs.",
+    "A pending row is a blocker with an owner, never a silent downgrade to unsupported. Per Q1-B an upstream capability the web build cannot run yet stays in the requirement set."
+  ],
+  "product": {
+    "display_name": "UniWork Office",
+    "technical_slug": "uniwork-office",
+    "brand_rule_doc": "docs/office/g0/uniwork-office-integration-brand.md",
+    "rule": "GenOffice is the upstream source name in provenance, LICENSE and NOTICE only; it is never a user-visible product name."
+  },
+  "upstream": {
+    "name": "GenOffice",
+    "repository": "https://github.com/genspark-ai/genoffice.git",
+    "pinned_commit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+    "pinned_tree": "b743f03ab1f1de8f0ba1913b7bd9c06edef8f884",
+    "package_lock_path": "package-lock.json",
+    "package_lock_sha256": "DE782E49A1006FAC7287A41C748C696EFD9FB3C3038EAE893EF82DFCA57F9FE5",
+    "license_identifier": "Apache-2.0",
+    "license_holder": "Copyright 2026 Mainfunc, Inc.",
+    "source_manifest": "docs/office/g0/source-manifest.json",
+    "source_manifest_issue": "UNI-666",
+    "excluded_paths": [
+      "ee/**"
+    ],
+    "attribution_rule": "LICENSE, NOTICE, the fork commit and internal @genoffice package names are preserved for provenance; only user-visible strings change."
+  },
+  "evidence_levels": {
+    "proven": "A run exists whose command, environment, fixture and artifact are recorded and repeatable.",
+    "source_read": "Source at the pinned commit was read and the symbol exists as written. This proves a symbol, never behaviour.",
+    "pending": "No implementation path is proven: a dependency is missing, an adapter must be written, or no run exists. Must not be presented as working."
+  },
+  "counting_rule": "evidence_level is per operation. A format with one proven operation and five pending operations has one proven row, not a proven runtime. No format in this map is proven end to end.",
+  "runtime_kinds": {
+    "browser": "The UniWork web page behind an injected host adapter.",
+    "worker": "Off-main-thread context in the browser host.",
+    "native_desktop": "A process the desktop host owns. Filesystem and native handles stay in that host and never reach the browser API.",
+    "internal_service": "The private Office Engine Service beside UniWork, reached only by Go, never by a browser.",
+    "none": "No engine: file I/O, text handling or host UI only."
+  },
+  "evidence_refs": {
+    "pdf_text_apply_verify": ".uniwork-dev/office-g0/main-pdf-text-probe.json (main, in-memory upstream text apply plus independent extraction only)",
+    "doc003_reviews": [
+      ".uniwork-dev/office-g0/cursor-doc003-review-r1.md",
+      ".uniwork-dev/office-g0/cursor-doc003-engine-contract-review.md"
+    ],
+    "source_manifest": "docs/office/g0/source-manifest.json",
+    "fixture_manifest": "docs/office/g0/fixtures/manifest.json",
+    "plan": "docs/superpowers/plans/2026-09-16-documents-office-g0.md (uncommitted; read from the main checkout)"
+  },
+  "source_layout_direction": {
+    "rule": "Selected upstream modules are ported as pinned source inside the UniWork monorepo. After the port, a clean checkout must build without ../genoffice, without a symlink to a user checkout and without a private registry.",
+    "verified_here": false,
+    "build_closure": {
+      "clean_standalone_production_build": false,
+      "reason": "Prepared bootstrap-source, its node_modules, tsx and esbuild remain external inputs. source-manifest runtime.node.requiredRange is >=22.12.0 and usedForChecks is 22.23.2. A clean checkout build without ../genoffice was not demonstrated.",
+      "import_check_2026_09_22": "apps/pdf/src/main/image-edit.ts line 1 imports nativeImage from electron in both the genoffice checkout and bootstrap-source, 19325 bytes each. A non-recursive scan of packages/docx-engine/src/*.ts found no electron import. Neither check chooses a runtime."
+    },
+    "target_roles": [
+      {
+        "role": "upstream-source-area",
+        "direction": "packages/office-upstream/** or equivalent pinned area inside the monorepo",
+        "owner": "G2",
+        "evidence_level": "pending",
+        "note": "final package names follow the DOC-002 dependency inventory"
+      },
+      {
+        "role": "host-independent engine/contract module",
+        "direction": "shared types plus parser/serializer modules with browser and node entry points separated",
+        "owner": "G2",
+        "evidence_level": "pending"
+      },
+      {
+        "role": "editor UI",
+        "direction": "packages/views/ for screens, packages/core/ for logic and endpoints, packages/ui/ for primitives",
+        "owner": "G3",
+        "evidence_level": "source_read",
+        "note": "dependency direction views -> core + ui is enforced by lint today"
+      },
+      {
+        "role": "browser and native entry points",
+        "direction": "apps/web/platform/ and the desktop host inject a host adapter; the browser build must not pull node, electron or native modules",
+        "owner": "G3/G4",
+        "evidence_level": "pending"
+      },
+      {
+        "role": "Go adapter to the engine service",
+        "direction": "server/ calls the internal engine over a private transport; the engine is not linked into the Go binary",
+        "owner": "G1/G2",
+        "evidence_level": "pending"
+      },
+      {
+        "role": "native sidecar",
+        "direction": "a separately built and deployed process inside the on-premise bundle",
+        "owner": "G2/G7",
+        "evidence_level": "pending"
+      }
+    ],
+    "catalog_conflict": {
+      "react": {
+        "uniwork": "19.2.3",
+        "upstream_docs": "19.2.4",
+        "status": "pending",
+        "prove_later": "a ported build must compile against the UniWork catalog version without raising the shared catalog; measured at G2/G3, not waived here"
+      },
+      "tiptap": {
+        "uniwork_override": "3.30.6",
+        "upstream_docs": "3.31.0",
+        "status": "pending",
+        "prove_later": "the docx/markdown editor must be re-verified against 3.30.6 in a browser; a version bump of the whole product catalog is not an acceptable G0 fix"
+      }
+    }
+  },
+  "formats": {
+    "docx": {
+      "upstream_engine": {
+        "package": "@genoffice/docx-engine",
+        "entry": "packages/docx-engine/src/index.ts",
+        "exports": [
+          "parseDocx",
+          "saveDocx"
+        ],
+        "host_coupling": "none in src/ - the consuming editor is Electron-bound"
+      },
+      "operations": [
+        {
+          "operation": "open",
+          "runtime": "worker",
+          "evidence_level": "pending",
+          "dependency": "no dependency",
+          "blocker": "the preferred worker runtime is unproved. A scoped installed Windows Chrome and Edge cycle edited one existing A1 table cell, saved through the pinned docs renderer, and reopened the persisted bytes in a distinct view. That is browser UI plus the renderer, not a worker and not whole DOC-003. The loopback host load is a separate fact.",
+          "placement_assessment": {
+            "state": "blocked_unproven",
+            "proposed_runtime": "worker",
+            "runtime_selected": false,
+            "owner": "UNI-658 G2 owns engine port; UNI-659 G3 owns editor/browser adoption",
+            "bounded_engine_cases": [],
+            "case_evidence_scope": "A named loopback case is bounded engine-host evidence only; it does not select this operation runtime, prove UniWork product placement, or change the operation evidence_level/format summary.",
+            "blocker": "the preferred worker runtime is unproved. A scoped installed Windows Chrome and Edge cycle edited one existing A1 table cell, saved through the pinned docs renderer, and reopened the persisted bytes in a distinct view. That is browser UI plus the renderer, not a worker and not whole DOC-003. The loopback host load is a separate fact.",
+            "failure_behavior": "Keep the current document version unchanged and refuse before creating a product job with unsupported_operation (501) until this operation has its required runtime proof. If a proven operation later fails at runtime, surface its typed engine error and preserve the current version."
+          }
+        },
+        {
+          "operation": "edit",
+          "runtime": "worker",
+          "evidence_level": "source_read",
+          "dependency": "no dependency",
+          "blocker": "the renderer performs parse/save in-process today (apps/docs/src/renderer/file-actions.ts); an injected adapter must replace the Electron bridge before this is a web flow",
+          "placement_assessment": {
+            "state": "source_hypothesis_only",
+            "proposed_runtime": "worker",
+            "runtime_selected": false,
+            "owner": "UNI-658 G2 owns engine port; UNI-659 G3 owns editor/browser adoption",
+            "bounded_engine_cases": [
+              "adapter-real-docx-edit-roundtrip-persists"
+            ],
+            "case_evidence_scope": "A named loopback case is bounded engine-host evidence only; it does not select this operation runtime, prove UniWork product placement, or change the operation evidence_level/format summary.",
+            "blocker": "the renderer performs parse/save in-process today (apps/docs/src/renderer/file-actions.ts); an injected adapter must replace the Electron bridge before this is a web flow",
+            "failure_behavior": "Keep the current document version unchanged and refuse before creating a product job with unsupported_operation (501) until this operation has its required runtime proof. If a proven operation later fails at runtime, surface its typed engine error and preserve the current version."
+          }
+        },
+        {
+          "operation": "serialize",
+          "runtime": "worker",
+          "evidence_level": "source_read",
+          "dependency": "jszip, fast-xml-parser, utif2",
+          "blocker": "saveDocx(parsed, SaveBlock[]) is read as written; no round trip was executed in this task",
+          "placement_assessment": {
+            "state": "source_hypothesis_only",
+            "proposed_runtime": "worker",
+            "runtime_selected": false,
+            "owner": "UNI-658 G2 owns engine port; UNI-659 G3 owns editor/browser adoption",
+            "bounded_engine_cases": [
+              "adapter-real-docx-edit-roundtrip-persists"
+            ],
+            "case_evidence_scope": "A named loopback case is bounded engine-host evidence only; it does not select this operation runtime, prove UniWork product placement, or change the operation evidence_level/format summary.",
+            "blocker": "saveDocx(parsed, SaveBlock[]) is read as written; no round trip was executed in this task",
+            "failure_behavior": "Keep the current document version unchanged and refuse before creating a product job with unsupported_operation (501) until this operation has its required runtime proof. If a proven operation later fails at runtime, surface its typed engine error and preserve the current version."
+          }
+        },
+        {
+          "operation": "convert",
+          "runtime": "internal_service",
+          "evidence_level": "pending",
+          "dependency": "packages/html2docx (docx 9.7.1) needs a real DOM",
+          "blocker": "DOM extraction drivers are Playwright or Electron based",
+          "placement_assessment": {
+            "state": "blocked_unproven",
+            "proposed_runtime": "internal_service",
+            "runtime_selected": false,
+            "owner": "UNI-658 G2 owns engine port; UNI-659 G3 owns editor/browser adoption",
+            "bounded_engine_cases": [],
+            "case_evidence_scope": "A named loopback case is bounded engine-host evidence only; it does not select this operation runtime, prove UniWork product placement, or change the operation evidence_level/format summary.",
+            "blocker": "DOM extraction drivers are Playwright or Electron based",
+            "failure_behavior": "Keep the current document version unchanged and refuse before creating a product job with unsupported_operation (501) until this operation has its required runtime proof. If a proven operation later fails at runtime, surface its typed engine error and preserve the current version."
+          }
+        },
+        {
+          "operation": "export",
+          "runtime": "internal_service",
+          "evidence_level": "pending",
+          "dependency": "PDF export path",
+          "blocker": "exportPdf currently has no working lab channel (fake app:ok-true)",
+          "placement_assessment": {
+            "state": "blocked_unproven",
+            "proposed_runtime": "internal_service",
+            "runtime_selected": false,
+            "owner": "UNI-658 G2 owns engine port; UNI-659 G3 owns editor/browser adoption",
+            "bounded_engine_cases": [],
+            "case_evidence_scope": "A named loopback case is bounded engine-host evidence only; it does not select this operation runtime, prove UniWork product placement, or change the operation evidence_level/format summary.",
+            "blocker": "exportPdf currently has no working lab channel (fake app:ok-true)",
+            "failure_behavior": "Keep the current document version unchanged and refuse before creating a product job with unsupported_operation (501) until this operation has its required runtime proof. If a proven operation later fails at runtime, surface its typed engine error and preserve the current version."
+          }
+        }
+      ],
+      "mode": "browser with a worker engine behind an injected adapter; native only as fallback",
+      "int01_delta": "none - matches the preferred model"
+    },
+    "xlsx": {
+      "upstream_engine": {
+        "package": "@genoffice/xlsx-gateway plus the Rust crate xlsx-sidecar",
+        "entry": "packages/xlsx-gateway/src/gateway/xlsx-gateway.ts (applyCellEditsToXlsx, writeXlsxAtomically)",
+        "sidecar": "apps/sheets/native/xlsx-engine, class XlsxSidecarClient (apps/sheets/src/main/xlsx-sidecar-client.ts)",
+        "host_coupling": "the gateway is Electron-free and browser-safe; recalculation is a native process"
+      },
+      "operations": [
+        {
+          "operation": "open",
+          "runtime": "worker",
+          "evidence_level": "pending",
+          "dependency": "jszip, numfmt, zod",
+          "blocker": "the preferred worker runtime is unproved, and the historical DOC-003 lab sheets channel is not this evidence. A scoped native Orca cycle edited Data!C1 from 5 to 9, saved real XLSX bytes, and reopened those bytes in a distinct view. Native Orca is not installed Chrome or Edge and is not a browser worker.",
+          "placement_assessment": {
+            "state": "blocked_unproven",
+            "proposed_runtime": "worker",
+            "runtime_selected": false,
+            "owner": "UNI-658 G2 owns engine and native recalculation; UNI-659 G3 owns editor/browser adoption",
+            "bounded_engine_cases": [],
+            "case_evidence_scope": "A named loopback case is bounded engine-host evidence only; it does not select this operation runtime, prove UniWork product placement, or change the operation evidence_level/format summary.",
+            "blocker": "the preferred worker runtime is unproved, and the historical DOC-003 lab sheets channel is not this evidence. A scoped native Orca cycle edited Data!C1 from 5 to 9, saved real XLSX bytes, and reopened those bytes in a distinct view. Native Orca is not installed Chrome or Edge and is not a browser worker.",
+            "failure_behavior": "Keep the current document version unchanged and refuse before creating a product job with unsupported_operation (501) until this operation has its required runtime proof. If a proven operation later fails at runtime, surface its typed engine error and preserve the current version."
+          }
+        },
+        {
+          "operation": "edit",
+          "runtime": "worker",
+          "evidence_level": "source_read",
+          "dependency": "jszip",
+          "blocker": "applyCellEditsToXlsx(buffer, CellEdit[]) is a source read; Univer is not involved in this path",
+          "placement_assessment": {
+            "state": "source_hypothesis_only",
+            "proposed_runtime": "worker",
+            "runtime_selected": false,
+            "owner": "UNI-658 G2 owns engine and native recalculation; UNI-659 G3 owns editor/browser adoption",
+            "bounded_engine_cases": [],
+            "case_evidence_scope": "A named loopback case is bounded engine-host evidence only; it does not select this operation runtime, prove UniWork product placement, or change the operation evidence_level/format summary.",
+            "blocker": "applyCellEditsToXlsx(buffer, CellEdit[]) is a source read; Univer is not involved in this path",
+            "failure_behavior": "Keep the current document version unchanged and refuse before creating a product job with unsupported_operation (501) until this operation has its required runtime proof. If a proven operation later fails at runtime, surface its typed engine error and preserve the current version."
+          }
+        },
+        {
+          "operation": "serialize",
+          "runtime": "worker",
+          "evidence_level": "source_read",
+          "dependency": "jszip",
+          "blocker": "writeXlsxAtomically(path, buffer) writes to a path, which a worker cannot do; the browser host must hand the buffer to Go",
+          "placement_assessment": {
+            "state": "source_hypothesis_only",
+            "proposed_runtime": "worker",
+            "runtime_selected": false,
+            "owner": "UNI-658 G2 owns engine and native recalculation; UNI-659 G3 owns editor/browser adoption",
+            "bounded_engine_cases": [],
+            "case_evidence_scope": "A named loopback case is bounded engine-host evidence only; it does not select this operation runtime, prove UniWork product placement, or change the operation evidence_level/format summary.",
+            "blocker": "writeXlsxAtomically(path, buffer) writes to a path, which a worker cannot do; the browser host must hand the buffer to Go",
+            "failure_behavior": "Keep the current document version unchanged and refuse before creating a product job with unsupported_operation (501) until this operation has its required runtime proof. If a proven operation later fails at runtime, surface its typed engine error and preserve the current version."
+          }
+        },
+        {
+          "operation": "recalculate",
+          "runtime": "internal_service",
+          "evidence_level": "pending",
+          "dependency": "built Rust sidecar (Cargo, edition 2024, ironcalc)",
+          "blocker": "an internal-service deployment is unproved. The same native Orca cycle recalculated B3=SUM(C1:C2) to 9 through the native sidecar. That observation is not a WASM inference, not a browser worker, and not a product service. A JS-only save still does not prove recalc.",
+          "placement_assessment": {
+            "state": "blocked_unproven",
+            "proposed_runtime": "internal_service",
+            "runtime_selected": false,
+            "owner": "UNI-658 G2 owns engine and native recalculation; UNI-659 G3 owns editor/browser adoption",
+            "bounded_engine_cases": [],
+            "case_evidence_scope": "A named loopback case is bounded engine-host evidence only; it does not select this operation runtime, prove UniWork product placement, or change the operation evidence_level/format summary.",
+            "blocker": "an internal-service deployment is unproved. The same native Orca cycle recalculated B3=SUM(C1:C2) to 9 through the native sidecar. That observation is not a WASM inference, not a browser worker, and not a product service. A JS-only save still does not prove recalc.",
+            "failure_behavior": "Keep the current document version unchanged and refuse before creating a product job with unsupported_operation (501) until this operation has its required runtime proof. If a proven operation later fails at runtime, surface its typed engine error and preserve the current version."
+          }
+        },
+        {
+          "operation": "export",
+          "runtime": "internal_service",
+          "evidence_level": "pending",
+          "dependency": "PDF export path",
+          "blocker": "no export channel exists in the lab",
+          "placement_assessment": {
+            "state": "blocked_unproven",
+            "proposed_runtime": "internal_service",
+            "runtime_selected": false,
+            "owner": "UNI-658 G2 owns engine and native recalculation; UNI-659 G3 owns editor/browser adoption",
+            "bounded_engine_cases": [],
+            "case_evidence_scope": "A named loopback case is bounded engine-host evidence only; it does not select this operation runtime, prove UniWork product placement, or change the operation evidence_level/format summary.",
+            "blocker": "no export channel exists in the lab",
+            "failure_behavior": "Keep the current document version unchanged and refuse before creating a product job with unsupported_operation (501) until this operation has its required runtime proof. If a proven operation later fails at runtime, surface its typed engine error and preserve the current version."
+          }
+        }
+      ],
+      "mode": "browser/worker for package mutation; native sidecar in the internal service for recalculation",
+      "int01_delta": "recalculation is a native process, not a browser engine: it cannot be a WASM assumption and it cannot live in the client bundle"
+    },
+    "pptx": {
+      "upstream_engine": {
+        "packages": [
+          "@genoffice/pptx-engine",
+          "@genoffice/pptx-ops",
+          "@genoffice/pptx-render"
+        ],
+        "entry": "packages/pptx-engine/src/index.ts (openPptx, savePptx)",
+        "ops_entry": "packages/pptx-ops/src/index.ts (runTxn, op field is op, the setText payload field is paragraphs)",
+        "host_coupling": "the engine is pure; rendering needs canvas and font shaping"
+      },
+      "operations": [
+        {
+          "operation": "open",
+          "runtime": "worker",
+          "evidence_level": "pending",
+          "dependency": "jszip, fast-xml-parser",
+          "blocker": "the preferred worker runtime is unproved. An accepted scoped cycle opened a deck, replaced an existing picture, saved, and reopened it in a distinct view on installed Windows Chrome and Edge. That is browser UI on the pinned lab, not a worker open, and it does not by itself prove every historical slides route.",
+          "placement_assessment": {
+            "state": "blocked_unproven",
+            "proposed_runtime": "worker",
+            "runtime_selected": false,
+            "owner": "UNI-658 G2 owns engine and operations; UNI-659 G3 owns editor/browser adoption",
+            "bounded_engine_cases": [
+              "adapter-real-pptx-open-and-close-cycle"
+            ],
+            "case_evidence_scope": "A named loopback case is bounded engine-host evidence only; it does not select this operation runtime, prove UniWork product placement, or change the operation evidence_level/format summary.",
+            "blocker": "the preferred worker runtime is unproved. An accepted scoped cycle opened a deck, replaced an existing picture, saved, and reopened it in a distinct view on installed Windows Chrome and Edge. That is browser UI on the pinned lab, not a worker open, and it does not by itself prove every historical slides route.",
+            "failure_behavior": "Keep the current document version unchanged and refuse before creating a product job with unsupported_operation (501) until this operation has its required runtime proof. If a proven operation later fails at runtime, surface its typed engine error and preserve the current version."
+          }
+        },
+        {
+          "operation": "edit",
+          "runtime": "worker",
+          "evidence_level": "pending",
+          "dependency": "prebundled pptx-ops (the ?raw markdown imports break tsx)",
+          "blocker": "text edit via pptx.setText is still not an export; the correct text call remains runTxn with op setText, and that text path is not the accepted cycle. The accepted cycle is existing-image Replace Picture, Save, and distinct-view reopen in Windows Chrome and Edge, which is not a worker runtime.",
+          "placement_assessment": {
+            "state": "blocked_unproven",
+            "proposed_runtime": "worker",
+            "runtime_selected": false,
+            "owner": "UNI-658 G2 owns engine and operations; UNI-659 G3 owns editor/browser adoption",
+            "bounded_engine_cases": [],
+            "case_evidence_scope": "A named loopback case is bounded engine-host evidence only; it does not select this operation runtime, prove UniWork product placement, or change the operation evidence_level/format summary.",
+            "blocker": "text edit via pptx.setText is still not an export; the correct text call remains runTxn with op setText, and that text path is not the accepted cycle. The accepted cycle is existing-image Replace Picture, Save, and distinct-view reopen in Windows Chrome and Edge, which is not a worker runtime.",
+            "failure_behavior": "Keep the current document version unchanged and refuse before creating a product job with unsupported_operation (501) until this operation has its required runtime proof. If a proven operation later fails at runtime, surface its typed engine error and preserve the current version."
+          }
+        },
+        {
+          "operation": "serialize",
+          "runtime": "worker",
+          "evidence_level": "source_read",
+          "dependency": "jszip",
+          "blocker": "savePptx(opened) is a source read, not a run",
+          "placement_assessment": {
+            "state": "source_hypothesis_only",
+            "proposed_runtime": "worker",
+            "runtime_selected": false,
+            "owner": "UNI-658 G2 owns engine and operations; UNI-659 G3 owns editor/browser adoption",
+            "bounded_engine_cases": [],
+            "case_evidence_scope": "A named loopback case is bounded engine-host evidence only; it does not select this operation runtime, prove UniWork product placement, or change the operation evidence_level/format summary.",
+            "blocker": "savePptx(opened) is a source read, not a run",
+            "failure_behavior": "Keep the current document version unchanged and refuse before creating a product job with unsupported_operation (501) until this operation has its required runtime proof. If a proven operation later fails at runtime, surface its typed engine error and preserve the current version."
+          }
+        },
+        {
+          "operation": "render_preview",
+          "runtime": "browser",
+          "evidence_level": "pending",
+          "dependency": "opentype.js, bidi-js, bundled fonts",
+          "blocker": "web font shaping differs per host and is unmeasured",
+          "placement_assessment": {
+            "state": "blocked_unproven",
+            "proposed_runtime": "browser",
+            "runtime_selected": false,
+            "owner": "UNI-658 G2 owns engine and operations; UNI-659 G3 owns editor/browser adoption",
+            "bounded_engine_cases": [],
+            "case_evidence_scope": "A named loopback case is bounded engine-host evidence only; it does not select this operation runtime, prove UniWork product placement, or change the operation evidence_level/format summary.",
+            "blocker": "web font shaping differs per host and is unmeasured",
+            "failure_behavior": "Keep the current document version unchanged and refuse before creating a product job with unsupported_operation (501) until this operation has its required runtime proof. If a proven operation later fails at runtime, surface its typed engine error and preserve the current version."
+          }
+        }
+      ],
+      "mode": "browser with a worker engine behind an injected adapter",
+      "int01_delta": "the prebundle is a build-time device (raw markdown imports), not a runtime choice"
+    },
+    "pdf": {
+      "upstream_engine": {
+        "text": "apps/pdf/src/main/text-edit.ts (applyTextEdits, validateTextEdits, verifyTextEdits)",
+        "save_pipeline": "apps/pdf/src/main/save-pdf.ts (applySaveRequest, savePdfToPath)",
+        "existing_image": "apps/pdf/src/main/image-edit.ts (applyImageEdits, listPageImages, verifyImageEdits, replaceImage, transformImage, deleteImage)",
+        "host_coupling": "image-edit.ts statically imports Electron nativeImage; text-edit.ts is Node-safe if pdfium wasm and fonts resolve"
+      },
+      "operations": [
+        {
+          "operation": "open",
+          "runtime": "browser",
+          "evidence_level": "pending",
+          "dependency": "pdfjs-dist",
+          "blocker": "the lab readFile shape mismatch can still block that particular lab channel. It is not true that PDF cannot open. Two scoped runs are accepted: Orca embedded Chromium ASCII text edit, renderer Save, and distinct-view reopen; and native Orca current-view repeated Save with automatic recovery. Neither is installed Chrome or Edge, a product save, or the whole PDF editor. Manual Retry, image edit, and full platform remain open.",
+          "placement_assessment": {
+            "state": "blocked_unproven",
+            "proposed_runtime": "browser",
+            "runtime_selected": false,
+            "owner": "UNI-658 G2 owns engine adapter; DOC-003 current lead owns shared PDF host/browser fixes",
+            "bounded_engine_cases": [
+              "adapter-real-pdf-text-read-returns-fixture-text"
+            ],
+            "case_evidence_scope": "A named loopback case is bounded engine-host evidence only; it does not select this operation runtime, prove UniWork product placement, or change the operation evidence_level/format summary.",
+            "blocker": "the lab readFile shape mismatch can still block that particular lab channel. It is not true that PDF cannot open. Two scoped runs are accepted: Orca embedded Chromium ASCII text edit, renderer Save, and distinct-view reopen; and native Orca current-view repeated Save with automatic recovery. Neither is installed Chrome or Edge, a product save, or the whole PDF editor. Manual Retry, image edit, and full platform remain open.",
+            "failure_behavior": "Keep the current document version unchanged and refuse before creating a product job with unsupported_operation (501) until this operation has its required runtime proof. If a proven operation later fails at runtime, surface its typed engine error and preserve the current version."
+          }
+        },
+        {
+          "operation": "edit_text",
+          "runtime": "internal_service",
+          "evidence_level": "proven",
+          "dependency": "@embedpdf/pdfium + pdfium.wasm, font metrics, harfbuzzjs for subsetting, system fallback fonts",
+          "blocker": null,
+          "evidence": "in-memory upstream applyTextEdits + verifyTextEdits on g0-text.pdf, confirmed by independent pdf.js text extraction; the original bytes are unchanged. Evidence: .uniwork-dev/office-g0/main-pdf-text-probe.json",
+          "limitation": "this probe is in-memory only: no persisted output, no browser, no render fidelity and no browser save. Separate scoped editor saves are recorded on open and serialize and are not this probe.",
+          "placement_assessment": {
+            "state": "bounded_probe_only",
+            "proposed_runtime": "internal_service",
+            "runtime_selected": false,
+            "owner": "UNI-658 G2 owns engine adapter; DOC-003 current lead owns shared PDF host/browser fixes",
+            "bounded_engine_cases": [],
+            "case_evidence_scope": "A named loopback case is bounded engine-host evidence only; it does not select this operation runtime, prove UniWork product placement, or change the operation evidence_level/format summary.",
+            "blocker": "No operation-specific blocker is recorded; this probe is in-memory only and does not establish a product path.",
+            "failure_behavior": "Keep the current document version unchanged and refuse before creating a product job with unsupported_operation (501) until this operation has its required runtime proof. If a proven operation later fails at runtime, surface its typed engine error and preserve the current version."
+          }
+        },
+        {
+          "operation": "edit_existing_image",
+          "runtime": "native_desktop",
+          "evidence_level": "pending",
+          "dependency": "Electron nativeImage or a Node image-decode rewrite",
+          "blocker": "image-edit.ts imports electron at module scope, so it cannot load in a non-Electron host; the current fixture has no image XObject to match",
+          "placement_assessment": {
+            "state": "blocked_unproven",
+            "proposed_runtime": "native_desktop",
+            "runtime_selected": false,
+            "owner": "UNI-658 G2 owns engine adapter; DOC-003 current lead owns shared PDF host/browser fixes",
+            "bounded_engine_cases": [],
+            "case_evidence_scope": "A named loopback case is bounded engine-host evidence only; it does not select this operation runtime, prove UniWork product placement, or change the operation evidence_level/format summary.",
+            "blocker": "image-edit.ts imports electron at module scope, so it cannot load in a non-Electron host; the current fixture has no image XObject to match",
+            "failure_behavior": "Keep the current document version unchanged and refuse before creating a product job with unsupported_operation (501) until this operation has its required runtime proof. If a proven operation later fails at runtime, surface its typed engine error and preserve the current version."
+          }
+        },
+        {
+          "operation": "serialize",
+          "runtime": "internal_service",
+          "evidence_level": "pending",
+          "dependency": "pdf-lib, atomic write",
+          "blocker": "no product Go save path is wired, and writePdfAtomically still takes a filesystem path a browser host does not have. Native Orca repeated Save and the embedded Chromium renderer Save are scoped editor saves, not this internal_service row and not a Documents commit.",
+          "placement_assessment": {
+            "state": "blocked_unproven",
+            "proposed_runtime": "internal_service",
+            "runtime_selected": false,
+            "owner": "UNI-658 G2 owns engine adapter; DOC-003 current lead owns shared PDF host/browser fixes",
+            "bounded_engine_cases": [],
+            "case_evidence_scope": "A named loopback case is bounded engine-host evidence only; it does not select this operation runtime, prove UniWork product placement, or change the operation evidence_level/format summary.",
+            "blocker": "no product Go save path is wired, and writePdfAtomically still takes a filesystem path a browser host does not have. Native Orca repeated Save and the embedded Chromium renderer Save are scoped editor saves, not this internal_service row and not a Documents commit.",
+            "failure_behavior": "Keep the current document version unchanged and refuse before creating a product job with unsupported_operation (501) until this operation has its required runtime proof. If a proven operation later fails at runtime, surface its typed engine error and preserve the current version."
+          }
+        },
+        {
+          "operation": "ocr",
+          "runtime": "internal_service",
+          "evidence_level": "pending",
+          "dependency": "a native OCR helper",
+          "blocker": "explicitly out of the M1 scope by Q2-A; recorded so it is not mistaken for supported",
+          "placement_assessment": {
+            "state": "blocked_unproven",
+            "proposed_runtime": "internal_service",
+            "runtime_selected": false,
+            "owner": "UNI-658 G2 owns engine adapter; DOC-003 current lead owns shared PDF host/browser fixes",
+            "bounded_engine_cases": [],
+            "case_evidence_scope": "A named loopback case is bounded engine-host evidence only; it does not select this operation runtime, prove UniWork product placement, or change the operation evidence_level/format summary.",
+            "blocker": "explicitly out of the M1 scope by Q2-A; recorded so it is not mistaken for supported",
+            "failure_behavior": "Keep the current document version unchanged and refuse before creating a product job with unsupported_operation (501) until this operation has its required runtime proof. If a proven operation later fails at runtime, surface its typed engine error and preserve the current version."
+          }
+        }
+      ],
+      "mode": "text edit in the internal service today; existing-image edit needs a desktop/Electron host or an adapter that removes the static Electron import",
+      "int01_delta": "the existing-image path is Electron-bound today; a node-safe decode adapter must be written or the operation stays desktop-only. It is not proven on any runtime."
+    },
+    "md": {
+      "upstream_engine": {
+        "entry": "apps/markdown (TipTap markdown extensions)",
+        "save_request": "SaveMarkdownRequest { text, imageSources, mode, suggestedName } in apps/markdown/src/shared/ipc.ts",
+        "host_coupling": "none for the basic cycle"
+      },
+      "operations": [
+        {
+          "operation": "open",
+          "runtime": "browser",
+          "evidence_level": "pending",
+          "dependency": "TipTap catalog (3.30.6 in UniWork vs 3.31.0 upstream)",
+          "blocker": "the lab has no session bind for text editors; readImage returns null so a relative asset cannot load",
+          "placement_assessment": {
+            "state": "blocked_unproven",
+            "proposed_runtime": "browser",
+            "runtime_selected": false,
+            "owner": "DOC-003 current lead owns shared Markdown host/browser fixes; UNI-659 G3 owns later editor adoption",
+            "bounded_engine_cases": [],
+            "case_evidence_scope": "A named loopback case is bounded engine-host evidence only; it does not select this operation runtime, prove UniWork product placement, or change the operation evidence_level/format summary.",
+            "blocker": "the lab has no session bind for text editors; readImage returns null so a relative asset cannot load",
+            "failure_behavior": "Keep the current document version unchanged and refuse before creating a product job with unsupported_operation (501) until this operation has its required runtime proof. If a proven operation later fails at runtime, surface its typed engine error and preserve the current version."
+          }
+        },
+        {
+          "operation": "edit",
+          "runtime": "browser",
+          "evidence_level": "pending",
+          "dependency": "TipTap 3.30.6",
+          "blocker": "no flow was executed in a browser",
+          "placement_assessment": {
+            "state": "blocked_unproven",
+            "proposed_runtime": "browser",
+            "runtime_selected": false,
+            "owner": "DOC-003 current lead owns shared Markdown host/browser fixes; UNI-659 G3 owns later editor adoption",
+            "bounded_engine_cases": [],
+            "case_evidence_scope": "A named loopback case is bounded engine-host evidence only; it does not select this operation runtime, prove UniWork product placement, or change the operation evidence_level/format summary.",
+            "blocker": "no flow was executed in a browser",
+            "failure_behavior": "Keep the current document version unchanged and refuse before creating a product job with unsupported_operation (501) until this operation has its required runtime proof. If a proven operation later fails at runtime, surface its typed engine error and preserve the current version."
+          }
+        },
+        {
+          "operation": "serialize",
+          "runtime": "browser",
+          "evidence_level": "pending",
+          "dependency": "none",
+          "blocker": "the renderer holds the text, but text:save is only reachable once a session is bound",
+          "placement_assessment": {
+            "state": "blocked_unproven",
+            "proposed_runtime": "browser",
+            "runtime_selected": false,
+            "owner": "DOC-003 current lead owns shared Markdown host/browser fixes; UNI-659 G3 owns later editor adoption",
+            "bounded_engine_cases": [],
+            "case_evidence_scope": "A named loopback case is bounded engine-host evidence only; it does not select this operation runtime, prove UniWork product placement, or change the operation evidence_level/format summary.",
+            "blocker": "the renderer holds the text, but text:save is only reachable once a session is bound",
+            "failure_behavior": "Keep the current document version unchanged and refuse before creating a product job with unsupported_operation (501) until this operation has its required runtime proof. If a proven operation later fails at runtime, surface its typed engine error and preserve the current version."
+          }
+        }
+      ],
+      "mode": "browser with file I/O through the host adapter; no engine",
+      "int01_delta": "none - matches the preferred model"
+    },
+    "html": {
+      "upstream_engine": {
+        "entry": "apps/html (buildPreviewDocument, previewUrlFor in apps/html/src/main/preview-document.ts)",
+        "host_coupling": "preview isolation relies on an Electron protocol handler today"
+      },
+      "operations": [
+        {
+          "operation": "open",
+          "runtime": "browser",
+          "evidence_level": "pending",
+          "dependency": "none",
+          "blocker": "same session-bind gap as markdown",
+          "placement_assessment": {
+            "state": "blocked_unproven",
+            "proposed_runtime": "browser",
+            "runtime_selected": false,
+            "owner": "DOC-003 current lead owns shared HTML host/browser fixes; UNI-659 G3 owns later editor adoption",
+            "bounded_engine_cases": [],
+            "case_evidence_scope": "A named loopback case is bounded engine-host evidence only; it does not select this operation runtime, prove UniWork product placement, or change the operation evidence_level/format summary.",
+            "blocker": "same session-bind gap as markdown",
+            "failure_behavior": "Keep the current document version unchanged and refuse before creating a product job with unsupported_operation (501) until this operation has its required runtime proof. If a proven operation later fails at runtime, surface its typed engine error and preserve the current version."
+          }
+        },
+        {
+          "operation": "edit",
+          "runtime": "browser",
+          "evidence_level": "pending",
+          "dependency": "none",
+          "blocker": "no browser run",
+          "placement_assessment": {
+            "state": "blocked_unproven",
+            "proposed_runtime": "browser",
+            "runtime_selected": false,
+            "owner": "DOC-003 current lead owns shared HTML host/browser fixes; UNI-659 G3 owns later editor adoption",
+            "bounded_engine_cases": [],
+            "case_evidence_scope": "A named loopback case is bounded engine-host evidence only; it does not select this operation runtime, prove UniWork product placement, or change the operation evidence_level/format summary.",
+            "blocker": "no browser run",
+            "failure_behavior": "Keep the current document version unchanged and refuse before creating a product job with unsupported_operation (501) until this operation has its required runtime proof. If a proven operation later fails at runtime, surface its typed engine error and preserve the current version."
+          }
+        },
+        {
+          "operation": "serialize",
+          "runtime": "browser",
+          "evidence_level": "pending",
+          "dependency": "none",
+          "blocker": "text:save is reachable only after a session bind",
+          "placement_assessment": {
+            "state": "blocked_unproven",
+            "proposed_runtime": "browser",
+            "runtime_selected": false,
+            "owner": "DOC-003 current lead owns shared HTML host/browser fixes; UNI-659 G3 owns later editor adoption",
+            "bounded_engine_cases": [],
+            "case_evidence_scope": "A named loopback case is bounded engine-host evidence only; it does not select this operation runtime, prove UniWork product placement, or change the operation evidence_level/format summary.",
+            "blocker": "text:save is reachable only after a session bind",
+            "failure_behavior": "Keep the current document version unchanged and refuse before creating a product job with unsupported_operation (501) until this operation has its required runtime proof. If a proven operation later fails at runtime, surface its typed engine error and preserve the current version."
+          }
+        },
+        {
+          "operation": "preview_isolation",
+          "runtime": "browser",
+          "evidence_level": "pending",
+          "dependency": "a sandboxed iframe origin",
+          "blocker": "the lab strips the renderer CSP and serves the preview from the same origin as the adapter, so the isolation oracle cannot pass or fail honestly; a non-app origin or a sandboxed srcdoc script-stripped document is required",
+          "placement_assessment": {
+            "state": "blocked_unproven",
+            "proposed_runtime": "browser",
+            "runtime_selected": false,
+            "owner": "DOC-003 current lead owns shared HTML host/browser fixes; UNI-659 G3 owns later editor adoption",
+            "bounded_engine_cases": [],
+            "case_evidence_scope": "A named loopback case is bounded engine-host evidence only; it does not select this operation runtime, prove UniWork product placement, or change the operation evidence_level/format summary.",
+            "blocker": "the lab strips the renderer CSP and serves the preview from the same origin as the adapter, so the isolation oracle cannot pass or fail honestly; a non-app origin or a sandboxed srcdoc script-stripped document is required",
+            "failure_behavior": "Keep the current document version unchanged and refuse before creating a product job with unsupported_operation (501) until this operation has its required runtime proof. If a proven operation later fails at runtime, surface its typed engine error and preserve the current version."
+          }
+        }
+      ],
+      "mode": "browser with an isolated preview; no engine",
+      "int01_delta": "the preview origin must be re-homed off the Electron scheme, which is a real piece of work, not a rename"
+    }
+  },
+  "format_summary": {
+    "docx": {
+      "proven": 0,
+      "source_read": 2,
+      "pending": 3,
+      "runtime_chosen": false,
+      "note": "a scoped Windows Chrome and Edge A1 cell edit/save/distinct-view reopen exists and is not a worker, so these counts stay unchanged. Loopback lab persistence in engine-contract.md section 12.3 is a separate fact. An injected web adapter is still required before this is the preferred worker flow."
+    },
+    "xlsx": {
+      "proven": 0,
+      "source_read": 2,
+      "pending": 3,
+      "runtime_chosen": false,
+      "note": "a scoped native Orca edit, sidecar recalc of B3 to 9, Save, and distinct-view reopen exists. It is not installed Chrome or Edge, not a browser worker, and not an internal-service deployment, so these counts stay unchanged."
+    },
+    "pptx": {
+      "proven": 0,
+      "source_read": 1,
+      "pending": 3,
+      "runtime_chosen": false,
+      "note": "text edit via pptx.setText is still not an export. The accepted existing-image Replace Picture, Save, and distinct-view reopen in Windows Chrome and Edge is scoped browser-UI evidence, not a worker runtime, so these counts stay unchanged."
+    },
+    "pdf": {
+      "proven": 1,
+      "source_read": 0,
+      "pending": 4,
+      "runtime_chosen": false,
+      "note": "the only proven row remains the in-memory text-edit probe. Scoped embedded-Chromium ASCII save/reopen and native Orca current-view repeated Save with automatic recovery exist and do not promote open or serialize. Existing-image edit stays Electron-bound and is not the accepted F1 cycle."
+    },
+    "md": {
+      "proven": 0,
+      "source_read": 0,
+      "pending": 3,
+      "runtime_chosen": false,
+      "note": "file I/O is possible; no session bind and no browser run"
+    },
+    "html": {
+      "proven": 0,
+      "source_read": 0,
+      "pending": 4,
+      "runtime_chosen": false,
+      "note": "preview isolation is not implemented off the Electron scheme"
+    }
+  },
+  "scoped_editor_cycles": [
+    {
+      "id": "UNI667-docx-table-cycle-r7",
+      "format": "docx",
+      "scope": "one existing A1 table cell edit, renderer Save, distinct-view reopen of persisted bytes",
+      "host": "installed Windows Chrome and Edge, pinned docs renderer",
+      "not_this": "worker runtime, whole DOC-003, product Go store",
+      "evidence": ".uniwork-dev/office-g0/advisor-automation/accepted-features-01a0c335-d693-79e3-a6b0-742018df3468/docx/evidence/report.md"
+    },
+    {
+      "id": "UNI667-xlsx-native-edit-save-reopen",
+      "format": "xlsx",
+      "scope": "Data!C1 edited from 5 to 9, B3 recalculated to 9, real XLSX Save, distinct-view reopen",
+      "host": "native Orca, not installed Chrome or Edge",
+      "not_this": "browser worker, internal-service deployment, large workbook fidelity, product storage",
+      "evidence": ".uniwork-dev/office-g0/advisor-automation/xlsx-acceptance-g48-scheduled5.md"
+    },
+    {
+      "id": "UNI667-pptx-image-cycle-r4",
+      "format": "pptx",
+      "scope": "existing-image Replace Picture, normal Save, distinct-view reopen",
+      "host": "installed Windows Chrome and Edge on the pinned lab",
+      "not_this": "worker runtime, text edit via setText, whole DOC-003, Safari or Mac",
+      "evidence": ".uniwork-dev/office-g0/advisor-automation/pptx-acceptance-g48-scheduled2.md"
+    },
+    {
+      "id": "UNI667-pdf-embedded-reopen",
+      "format": "pdf",
+      "scope": "one ASCII text edit on page 1, renderer Save, distinct-view reopen of persisted bytes",
+      "host": "Orca embedded Chromium on Windows",
+      "not_this": "installed Chrome or Edge, product save, image edit, whole PDF editor",
+      "evidence": ".uniwork-dev/office-g0/advisor-automation/pdf-acceptance-01a0c275-3666-7713-8e57-11a8735463c3.md"
+    },
+    {
+      "id": "UNI667-pdf-f1-current-view-recovery",
+      "format": "pdf",
+      "scope": "native current-view repeated Save and automatic recovery",
+      "host": "native Orca",
+      "not_this": "manual Retry, image edit, installed Chrome or Edge, full platform, product Documents commit",
+      "evidence": ".uniwork-dev/office-g0/advisor-automation/acceptance-g48-scheduled10.md"
+    }
+  ],
+  "runtime_selection_verdict": {
+    "chosen": false,
+    "reason": "Task 4.1 may only choose a runtime per capability from a proof or record the blocker. Accepted loopback adapter runs are not browser or desktop proof, so no capability is chosen. The table records preferred placement and blockers. It must not be read as a chosen runtime.",
+    "next_step": "G2 and G3 still have to prove each operation in the runtime its row names. Accepted loopback adapter runs do not fill those columns and do not close DOC-004."
+  },
+  "packaging_and_namespace": {
+    "rule": "Every value below is a proposed G0 output (BRAND-01, task 4.6). None of them exists as a deployed resource today, and none is a rename of a shipped GenOffice surface.",
+    "proposed_g0_output": true,
+    "app_id": {
+      "value": "com.uniwork.office",
+      "owner": "G4",
+      "evidence_level": "pending",
+      "check": "install beside GenOffice; both apps survive and neither overwrites the other"
+    },
+    "executable_name": {
+      "value": "uniwork-office",
+      "owner": "G4",
+      "evidence_level": "pending",
+      "note": "must keep the X11 desktop-name and StartupWMClass pairing intact so the taskbar matches the window class"
+    },
+    "installer_artifact": {
+      "value": "uniwork-office_<version>_<arch>",
+      "owner": "G4/G7",
+      "evidence_level": "pending",
+      "note": "deb, rpm, nsis and dmg names derive from the same slug"
+    },
+    "user_facing_scheme": {
+      "value": "uniwork-office",
+      "owner": "G4/G5",
+      "evidence_level": "pending",
+      "note": "the desktop login callback uniwork-office://auth/callback is a DOC-005 dependency; scheme value here is aligned with that contract"
+    },
+    "internal_schemes": {
+      "value": "uniwork-office-app, uniwork-office-preview, uniwork-office-asset",
+      "owner": "G3/G4",
+      "evidence_level": "pending",
+      "note": "the preview scheme is the isolation boundary the HTML capability depends on; renaming the Electron scheme is not enough, the preview must be re-homed"
+    },
+    "user_data_namespace": {
+      "value": "uniwork-office",
+      "owner": "G4/G5",
+      "evidence_level": "pending",
+      "note": "launcher, control channel, cache and token store must be separate from GenOffice"
+    },
+    "update_feed": {
+      "value": "a UniWork Office channel owned by UniWork; never the upstream GenOffice feed",
+      "owner": "G4/G7",
+      "evidence_level": "pending",
+      "note": "GENOFFICE_UPDATE_URL and publish.url must not survive; no binary may be accepted from the upstream feed"
+    },
+    "coexistence_with_genoffice": {
+      "rule": "the two products share no app id, scheme, data directory, control channel or update feed; installing one must never modify the other",
+      "owner": "G4",
+      "evidence_level": "pending"
+    },
+    "license_and_attribution": {
+      "rule": "LICENSE, NOTICE and the fork commit stay in the fork; any release regenerates the bundled third-party notices and ships them",
+      "owner": "G2/G7",
+      "evidence_level": "pending"
+    },
+    "theme_rule": "rebranding changes editor chrome only. It must never change authored document bytes: no colour, font, logo or content inside a user file changes because of a theme switch. Task 3 pins this with a before/after byte comparison on a theme-bearing fixture."
+  },
+  "versioning_and_rollout": {
+    "negotiation": "The client advertises contract_version, protocol_version and its engine build. Go compares them against the stored document_versions.engine_* columns before a job is created. A mismatch is a typed refusal (engine_incompatible, protocol_mismatch or contract_mismatch), never a silent downgrade.",
+    "rolling_update": "An older engine keeps serving documents whose recorded engine version it can still read; a new engine version is introduced behind a flag. A run against an incompatible engine is refused before bytes are written, so the stored current version never moves.",
+    "rollback": "Rolling back to the previous engine build must still read every draft and every committed version. Drafts are preserved in the account draft store independently of the engine build, so a rollback cannot lose a draft; a base-version mismatch on recovery surfaces as a conflict, never as silent overwrite (DOC-005 owns the recovery path).",
+    "fixture_replay": "Every engine, adapter or protocol version change reruns the DOC-003 fixtures and the DOC-005 fault harness before rollout. The replay is the gate, not the version bump.",
+    "ownership": {
+      "G1": "version rows, commit transaction, engine_* columns",
+      "G2": "engine build, adapter, module layout",
+      "G3": "editor version handshake in the UI",
+      "G4": "desktop packaging and update feed",
+      "G7": "release process and fixture replay"
+    }
+  },
+  "ownership_map": {
+    "G1": {
+      "issue": "UNI-657",
+      "scope": "Documents store, commit transaction, audit/outbox, orphan ledger and cleanup reconciler",
+      "migration_order": 1
+    },
+    "G2": {
+      "issue": "UNI-658",
+      "scope": "engine module port, source layout, internal engine service, native sidecar, Go adapter",
+      "migration_order": 2
+    },
+    "G3": {
+      "issue": "UNI-659",
+      "scope": "editor integration, host adapters, editor chrome and theme",
+      "migration_order": 3
+    },
+    "G4": {
+      "issue": "UNI-636",
+      "scope": "desktop host, login, packaging, namespace and update feed",
+      "migration_order": 4
+    },
+    "G7": {
+      "issue": "UNI-661",
+      "scope": "release, brand scan on real binaries, fixture replay",
+      "migration_order": 5
+    },
+    "shared": {
+      "issue": "UNI-660",
+      "phase": "G5",
+      "scope": "sync, offline queue and full draft recovery exercise the DOC-005 protocol on top of this boundary"
+    },
+    "rule": "Migration order is the dependency order: the store and its ledger exist before the engine writes into it; the adapter exists before the editor consumes it; the desktop host exists before packaging; release last."
+  },
+  "open_items": [
+    {
+      "id": "RT-01",
+      "item": "DOC-003 six-browser flows",
+      "owner": "UNI-667",
+      "status": "pending",
+      "why": "the six whole-editor flows are not accepted. Scoped DOCX, PPTX, PDF, and XLSX cycles in scoped_editor_cycles do not close DOC-003."
+    },
+    {
+      "id": "RT-02",
+      "item": "real adapter wiring against this boundary (task 4.4)",
+      "owner": "UNI-668 candidate evidence; Advisor retains criterion acceptance",
+      "status": "bounded_evidence_present",
+      "why": "11/11 real DOC-003 loopback adapter cases plus a separate prior six-case real-adapter fault run are pinned below; product Go/storage/ACL, durable job state, all-format runtime choice, and clean production build remain open."
+    },
+    {
+      "id": "RT-03",
+      "item": "native sidecar build and recalculation proof",
+      "owner": "G2",
+      "status": "pending",
+      "why": "one native Orca cycle recalculated B3 to 9. An internal-service sidecar build and deployment remain unproved."
+    },
+    {
+      "id": "RT-04",
+      "item": "PDF existing-image decode adapter",
+      "owner": "G2/G3",
+      "status": "pending"
+    },
+    {
+      "id": "RT-05",
+      "item": "React and TipTap catalog coexistence",
+      "owner": "G2/G3",
+      "status": "pending"
+    },
+    {
+      "id": "RT-06",
+      "item": "desktop packaging, installer and update feed proof",
+      "owner": "G4/G7",
+      "status": "pending"
+    },
+    {
+      "id": "RT-07",
+      "item": "macOS and Safari real-device evidence",
+      "owner": "UNI-671",
+      "status": "backlog"
+    }
+  ],
+  "machine_checks": {
+    "json_valid": "must parse with JSON.parse; the DOC-004 test suite reads this file and asserts the shape, the per-format counts and that no format claims runtime_chosen true",
+    "snake_case_wire": "every key in this file is snake_case, matching the wire convention, so a reader does not have to learn a second casing for the contract",
+    "no_absolute_paths_of_the_authoring_machine": "the only absolute-looking values are the pinned commit and tree, which are repository objects, not filesystem paths"
+  },
+  "rt02_reconciliation": {
+    "status": "bounded_evidence_present",
+    "decision": "Replace pending-as-no-evidence with bounded-evidence-present. Do not close DOC-004 criterion 4.4 as a whole and do not choose any format runtime.",
+    "real_engine_run": {
+      "artifact": "docs/office/g0/RT02-adapter-evidence.json",
+      "acquisition_origin_read_only": "../.uniwork-dev/worktrees/UNI-668-office-engine-contracts/.office-g0-adapter-lab/adapter-evidence.json",
+      "sha256": "2a9a5830f3489aef1959c9c5551d205be2694c08ae7636b22f4d0bb4b92d4d05",
+      "bytes": 9353,
+      "generated_at": "2026-09-20T20:02:09.963Z",
+      "evidence_kind": "real_engine_evidence",
+      "contract_version": "uniwork-office-engine-contract/1",
+      "transport": "loopback-http-post",
+      "base_url": "http://127.0.0.1:5392",
+      "runtime": "v22.23.2",
+      "platform": "win32",
+      "total": 11,
+      "passed": 11,
+      "failed": 0,
+      "unavailable": 0,
+      "oracle_digest": "bae36e364475441967d8bf092e1c34b43d11a14c5239745be6bc08b8de0f5cad",
+      "cases": [
+        "adapter-unreachable-host-maps-to-engine-crashed",
+        "adapter-method-not-allowed-is-a-caller-fault",
+        "adapter-bad-json-is-a-caller-fault",
+        "adapter-unknown-route-is-a-typed-refusal",
+        "adapter-view-traversal-refused-before-work",
+        "adapter-outside-lab-path-refused",
+        "adapter-malformed-engine-input-is-typed",
+        "adapter-missing-required-input-is-refused",
+        "adapter-real-docx-edit-roundtrip-persists",
+        "adapter-real-pdf-text-read-returns-fixture-text",
+        "adapter-real-pptx-open-and-close-cycle"
+      ],
+      "bounded_scope": "A pinned real DOC-003 engine host answered loopback adapter requests. The three document-engine cases cover DOCX edit persistence, PDF text read, and PPTX open/close. The other eight cover HTTP/transport, containment, and typed input/error behavior.",
+      "not_proven": "This run is not a UniWork Go service, database/object store, tenant ACL, durable job-map restart, product browser flow, all-format runtime decision, or clean production build."
+    },
+    "separate_six_fault_run": {
+      "artifact": "docs/office/g0/RT02-six-fault-evidence.json",
+      "acquisition_origin_read_only": "../.uniwork-dev/worktrees/UNI-668-office-engine-contracts/.uniwork-dev/real-adapter-faults-g48/lab/run-31PlNx/evidence.json",
+      "sha256": "d237c15d54ccf95f11502e3f2b14a48b747efd80fe06c2aed84ef8eb7119ff8f",
+      "bytes": 762007,
+      "canonical_cases": [
+        "type-version-mismatch",
+        "checksum-mismatch",
+        "timeout",
+        "cancel-complete-race",
+        "crash-restart",
+        "metadata-access-engine-down"
+      ],
+      "source_report": "../.uniwork-dev/worktrees/UNI-668-office-engine-contracts/.uniwork-dev/real-adapter-faults-g48/REPORT.md",
+      "status": "previously independently tested/reviewed six-case run; reused and reconciled to individually pinned register artifacts",
+      "limitation": "Real DOCX/HTTP and engine responses; authorization, object storage, commit, and catalogue are modeled. Parent job state remains in the parent process; staged bytes may remain after cancellation/deadline."
+    },
+    "case_sets_are_distinct": true,
+    "modeled_33_case_table_is_not_either_real_engine_run": true,
+    "register_status": "six_canonical_faults_case_bound_real_engine_modeled_business",
+    "register_ref": "docs/office/g0/evidence-register.json",
+    "register_case_count": 6,
+    "register_scope": "Real pinned DOCX engine and loopback HTTP; Go authorization, object storage, version commit and document catalogue are modeled. Engine process restart is observed, while parent job-map persistence, product ACL and staging-byte cleanup remain unproven.",
+    "source_docs": [
+      {
+        "path": "docs/office/g0/engine-contract.md",
+        "sha256": "0d2bf778081bb2eefd66f396b978ce9e9f1f0c3e847db656667da5e46d95d3f0",
+        "bytes": 61786
+      },
+      {
+        "path": "docs/office/g0/engine-contract-lab-runtime.md",
+        "sha256": "3d195b118aa14b407c18273def5f03f15e231c1e4d7ffa62659aae68888f1ecf",
+        "bytes": 19012
+      },
+      {
+        "path": "docs/office/g0/engine-contract-adapter-checksum.md",
+        "sha256": "8cab37775d9a9968123fba6241089c417cadebe9798a05a3fafde5d680f0386d",
+        "bytes": 7952
+      }
+    ]
+  },
+  "g1_g2_handoff": {
+    "status": "g0_contract_output_only",
+    "placement_rule": "No operation is enabled for users by this document. Source reads remain hypotheses; the in-memory pdf/edit_text probe remains bounded; pending rows fail closed.",
+    "source_and_patch": {
+      "proposed_layout": [
+        "packages/office-contracts/ holds versioned request/result/error schemas and fixture-independent types only.",
+        "packages/office-engine-upstream/<module>/ holds selected pinned upstream source, patches, LICENSE and NOTICE inside this monorepo; no sibling checkout, symlink, private registry, or ../genoffice dependency.",
+        "packages/office-engine-browser/ exposes browser-safe worker entry points; packages/office-engine-node/ contains Node/native-only entry points. Do not re-export Node, Electron, canvas, or native bindings through the browser entry.",
+        "services/office-engine/ owns the private engine service and native sidecars; server/internal/officeengine/ is the Go transport client; server/internal/service/documents/ owns authorization, version, quota, and commit orchestration.",
+        "apps/web/platform/ injects host adapters; packages/views/ may depend on @uniwork/core and @uniwork/ui, while core/ui do not import the engine package or app host."
+      ],
+      "patch_source_of_truth": "Pin upstream commit and source-manifest hashes; store the reviewed patch series beside the vendored module and verify clean-checkout replay. G0 has no tested final package names or patch replay.",
+      "public_entry": "Export only typed document operations and versioned protocol contracts from the browser-safe package facade; keep internal service, storage path, Node, Electron, and sidecar APIs private.",
+      "dependency_direction": "views -> core + ui; web platform -> injected adapter; Go document service -> private engine client -> private engine service. The engine receives bounded bytes and operation input, never authority to choose a tenant, user path, object key, or database mutation."
+    },
+    "version_and_catalog": {
+      "uniwork_react": "19.2.3",
+      "upstream_docs_react": "19.2.4",
+      "uniwork_tiptap": "3.30.6",
+      "upstream_docs_tiptap": "3.31.0",
+      "rule": "Keep the shared UniWork catalog versions. Prove compatibility at G2/G3 with clean install, typecheck, build, and browser fixtures; no G0 catalog bump or duplicate React/TipTap tree.",
+      "evidence_level": "pending"
+    },
+    "private_service_job_resource_cleanup": {
+      "authority": "Go owns authentication, workspace/organization authorization, quota, idempotency, deadline, and document-version checks before job creation; the engine service is private and receives a scoped operation grant plus bounded bytes.",
+      "job": "Persist job/idempotency and terminal state in G1-owned storage; transitions are accepted -> running -> completed|failed|timed_out|cancelled. A retry with the same key/payload replays; a changed payload conflicts; incompatible contract/protocol/engine refuses before job creation.",
+      "resource": "Enforce input/output byte caps, operation allowlists, bounded concurrency, deadline, memory/temp quotas, and per-job isolated staging. The engine cannot access arbitrary host paths, network destinations, or business tables.",
+      "commit": "Engine output remains staged. Go recomputes the output digest and length, writes the immutable object before the database transaction, then commits version, audit/outbox, and idempotency state atomically; an uncommitted object is tracked for reconciliation.",
+      "cleanup": "Cancellation/timeout/crash must not advance current_version. G1 reconciles service-owned staged objects/orphan ledger; G2 must prove process/temp-tree cleanup. Current evidence cannot guarantee removal of engine-local staged bytes after cancel/deadline or durable job state after parent restart.",
+      "failure": "Return stable typed errors. Preserve original and current version on engine-down, timeout, malformed output, checksum/length mismatch, or cleanup uncertainty; no silent fallback, overwrite, or version downgrade."
+    },
+    "upgrade_rollback": {
+      "rollout": "Introduce new engine build behind a disabled-by-default flag and explicit supported contract/protocol range; replay the exact DOC-003 fixture and DOC-005 failure suites before routing any job.",
+      "migration": "G1 stores engine build and protocol metadata per immutable version; never rewrite existing bytes during engine upgrade.",
+      "rollback": "Keep the prior service/build able to read committed and draft versions. Disable the new flag and route compatible jobs to the previous build; if it cannot read a version, refuse with typed incompatibility and preserve the stored bytes/draft.",
+      "proof": "No product upgrade, rollback, multi-version reader, or feature-flag path is implemented by this G0 candidate."
+    },
+    "phase_owners": {
+      "G1_UNI657": "Documents store, authorization boundary, version rows, transaction, audit/outbox, idempotency/orphan ledger, and cleanup reconciler.",
+      "G2_UNI658": "Pinned source/patch replay, browser-safe and Node/native entry separation, internal engine service, sidecar build, typed Go adapter, process/resource lifecycle, and clean-checkout build proof.",
+      "G3_UNI659": "Editor and web host integration, host adapter, React/TipTap compatibility, browser fixture runs, and user-visible failure states.",
+      "G4_UNI636": "Desktop host, login, packaging, namespace, installer, and update feed.",
+      "G5_UNI660": "Offline queue, sync, and draft recovery over DOC-005.",
+      "G7_UNI661": "Release, real-binary brand scan, upgrade/rollback rollout, and fixture replay."
+    },
+    "local_replica_proof": "The guarded document package and tests run from an isolated copy of the recorded preimage with no sibling GenOffice dependency. No product engine source/build was imported, so this does not satisfy clean-checkout engine-build evidence.",
+    "build_closure": {
+      "clean_standalone_production_build": false,
+      "evidence_level": "pending",
+      "owner": "UNI-658 G2",
+      "blocker": "No final ported module, package manifest, public entry, or private service binary exists in this G0 candidate."
+    }
+  },
+  "candidate_criterion_decisions": {
+    "4.1": {
+      "decision": "partial_correction_only",
+      "reason": "Every operation now has an explicit candidate placement, evidence scope, owner, and fail-closed behavior. DOC-003 whole browser flows are still not accepted; every runtime_chosen remains false."
+    },
+    "4.4": {
+      "decision": "bounded_evidence_present_whole_criterion_open",
+      "reason": "The 11-case real-engine adapter run and separate six-fault run are reconciled to exact artifact hashes and case IDs. Production Go/storage/ACL, durable parent-job restart, local staged-byte cleanup, and product adapter integration remain unproven."
+    },
+    "4.7": {
+      "decision": "handoff_contract_present_build_proof_open",
+      "reason": "The G1/G2 layout and interface contract is implementable, but no clean-checkout build, React/TipTap compatibility, service binary, or production runtime was built here."
+    }
+  }
+}

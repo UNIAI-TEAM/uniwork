@@ -1,0 +1,1975 @@
+{
+  "schemaVersion": 1,
+  "kind": "uniwork-office-capability-inventory",
+  "issue": "UNI-666",
+  "parentIssue": "UNI-656",
+  "doc": "docs/office/g0/capability-matrix.md",
+  "sourceManifest": "docs/office/g0/source-manifest.json",
+  "fixtureManifest": "docs/office/g0/fixtures/manifest.json",
+  "surveyedCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+  "surveyKind": "source read at the pinned commit; no editor, browser, Electron or native process was executed for this inventory",
+  "statusVocabulary": {
+    "chưa thử": "no run has been observed for this row; the default state for every row in this file",
+    "đạt có bằng chứng": "a run exists whose artifact, command and environment are recorded in the evidence register",
+    "đạt có giới hạn": "a run exists and a named limitation was observed and recorded",
+    "không hỗ trợ": "no implementation path exists at the pinned commit; the product must not claim the capability"
+  },
+  "columns": {
+    "upstreamHas": "upstream có",
+    "mustPort": "phải port",
+    "webProven": "web đã chứng minh",
+    "desktopProven": "desktop đã chứng minh"
+  },
+  "rules": [
+    "A UI button, a menu entry, a dialog filter or a route table is upstream-has evidence only. It is never a proven result.",
+    "webProven and desktopProven start at 'chưa thử' for every row and may only change when the evidence register names a command, artifact, environment and fixture.",
+    "mustPort is true only for rows inside the Q1-B pilot scope. OCR and AI assistance are tagged and excluded from M1.",
+    "Every mustPort row must name at least one fixture id that exists in fixtures/manifest.json with an expected result."
+  ],
+  "tags": {
+    "Q1-B": "pilot requires the whole upstream capability to be inventoried and verified on web and desktop",
+    "OCR": "Q2-A: PDF text-layer editing is required for M1; scanned-page OCR is deferred",
+    "ADV-002": "advanced scope extension with its own issue; not part of the M1 pilot hand-off"
+  },
+  "rows": [
+    {
+      "id": "docx-open",
+      "family": "docx",
+      "format": "docx",
+      "op": "open in editor",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-DOCX-SIMPLE",
+        "F-DOCX-KITCHEN",
+        "F-DOCX-VI",
+        "F-LARGE-DOCX"
+      ],
+      "evidence": [
+        "apps/shell/src/main/index.ts DOCX_RE routing",
+        "apps/docs/src/main/docs-main.ts",
+        "apps/docs/src/renderer/editor/extensions.ts"
+      ],
+      "note": "Ca dải lớn phải sinh trước bằng generate-fixtures.mjs --large; checksum của nó không nằm trong manifest đã commit mà ở lab-record.json cạnh file."
+    },
+    {
+      "id": "docx-edit-text",
+      "family": "docx",
+      "format": "docx",
+      "op": "edit text",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-DOCX-KITCHEN",
+        "F-DOCX-VI"
+      ],
+      "evidence": [
+        "apps/docs/src/renderer/editor/extensions.ts",
+        "packages/docx-engine/src/text-patch.ts"
+      ]
+    },
+    {
+      "id": "docx-edit-table-image",
+      "family": "docx",
+      "format": "docx",
+      "op": "edit table and image",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-DOCX-TABLE-IMG",
+        "F-DOCX-LONGTABLE"
+      ],
+      "evidence": [
+        "packages/docx-engine/src/generate.ts table and image patch builders",
+        "apps/docs/src/renderer/editor/table-properties.ts"
+      ]
+    },
+    {
+      "id": "docx-save-docx",
+      "family": "docx",
+      "format": "docx",
+      "op": "save docx",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-DOCX-KITCHEN",
+        "F-DOCX-TABLE-IMG",
+        "F-DOCX-THEME"
+      ],
+      "evidence": [
+        "packages/docx-engine/src/patch.ts saveDocx",
+        "apps/docs/src/main/atomic-write.ts"
+      ]
+    },
+    {
+      "id": "docx-export-pdf",
+      "family": "docx",
+      "format": "docx",
+      "op": "export to pdf",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-DOCX-KITCHEN",
+        "F-DOCX-FR-JUSTIFY"
+      ],
+      "evidence": [
+        "apps/shell/src/main/mcp/tools/formats.ts docx editorExport",
+        "docs/headless-pdf-export.md"
+      ]
+    },
+    {
+      "id": "docx-create-blank",
+      "family": "docx",
+      "format": "docx",
+      "op": "create blank document",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [],
+      "fixtures": [
+        "F-DOCX-EMPTY"
+      ],
+      "evidence": [
+        "packages/docx-engine/src/blank.ts buildBlankDocx"
+      ]
+    },
+    {
+      "id": "docx-convert-to-md",
+      "family": "docx",
+      "format": "docx",
+      "op": "convert docx to md",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [],
+      "fixtures": [
+        "F-DOCX-KITCHEN"
+      ],
+      "evidence": [
+        "packages/cli/src/commands/convert.ts NODE_ROUTES docx -> md"
+      ]
+    },
+    {
+      "id": "docx-convert-to-html",
+      "family": "docx",
+      "format": "docx",
+      "op": "convert docx to html",
+      "upstreamHas": true,
+      "mustPort": false,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [],
+      "fixtures": [
+        "F-DOCX-KITCHEN"
+      ],
+      "evidence": [
+        "packages/cli/src/commands/convert.ts APP_ROUTES docx -> html"
+      ]
+    },
+    {
+      "id": "docx-content-headings-lists",
+      "family": "docx",
+      "format": "docx",
+      "op": "content: headings and list numbering",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-DOCX-KITCHEN",
+        "F-DOCX-NUMBERED-LIST",
+        "F-DOCX-VI"
+      ],
+      "evidence": [
+        "packages/docx-engine/src/list-markers.ts",
+        "apps/docs/tests/pagination-corpus/docx/16-numbered-list.docx"
+      ]
+    },
+    {
+      "id": "docx-content-footnotes",
+      "family": "docx",
+      "format": "docx",
+      "op": "content: footnotes and endnotes",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-DOCX-FOOTNOTES",
+        "F-DOCX-VI"
+      ],
+      "evidence": [
+        "packages/docx-engine/src/notes.ts",
+        "apps/docs/tests/pagination-corpus/docx/06-with-footnotes.docx"
+      ]
+    },
+    {
+      "id": "docx-content-comments-revisions",
+      "family": "docx",
+      "format": "docx",
+      "op": "content: comments and tracked changes",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-DOCX-REVISIONS"
+      ],
+      "evidence": [
+        "apps/docs/src/renderer/editor/comments.ts",
+        "apps/docs/src/renderer/editor/revisions.ts"
+      ]
+    },
+    {
+      "id": "docx-content-equations",
+      "family": "docx",
+      "format": "docx",
+      "op": "content: equations (OMML)",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-DOCX-EQUATION"
+      ],
+      "evidence": [
+        "packages/docx-engine/src/math.ts",
+        "apps/docs/src/renderer/components/EquationModal.tsx"
+      ]
+    },
+    {
+      "id": "docx-content-fields-toc",
+      "family": "docx",
+      "format": "docx",
+      "op": "content: fields and table of contents",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-DOCX-TOC"
+      ],
+      "evidence": [
+        "packages/docx-engine/src/parse-fields.ts",
+        "apps/docs/src/renderer/editor/toc-refresh.ts"
+      ]
+    },
+    {
+      "id": "docx-content-charts",
+      "family": "docx",
+      "format": "docx",
+      "op": "content: charts",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-DOCX-CHART"
+      ],
+      "evidence": [
+        "packages/docx-engine/src/chart.ts",
+        "apps/docs/src/renderer/components/ribbon-insert-tab.tsx"
+      ]
+    },
+    {
+      "id": "docx-content-watermark",
+      "family": "docx",
+      "format": "docx",
+      "op": "content: watermark",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-DOCX-WATERMARK"
+      ],
+      "evidence": [
+        "packages/docx-engine/src/watermark.ts"
+      ]
+    },
+    {
+      "id": "docx-content-sections-columns",
+      "family": "docx",
+      "format": "docx",
+      "op": "content: sections, columns and page colour",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-DOCX-2COL",
+        "F-DOCX-THEME"
+      ],
+      "evidence": [
+        "packages/docx-engine/src/section.ts",
+        "apps/docs/tests/pagination-corpus/docx/22-two-columns.docx"
+      ]
+    },
+    {
+      "id": "docx-content-drawing-anchors",
+      "family": "docx",
+      "format": "docx",
+      "op": "content: float (captioned table); inline and page-anchor exist upstream but are not yet cased",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-DOCX-CAPTABLE-FLOAT"
+      ],
+      "evidence": [
+        "packages/docx-engine/src/parse-drawing-geometry.ts",
+        "fixtures/generated/visual-captable-float.docx"
+      ]
+    },
+    {
+      "id": "docx-content-embedded-fonts",
+      "family": "docx",
+      "format": "docx",
+      "op": "content: embedded fonts",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-DOCX-EMBEDDED-FONT"
+      ],
+      "evidence": [
+        "packages/docx-engine/src/font-table.ts",
+        "apps/docs/src/renderer/embedded-fonts.ts"
+      ]
+    },
+    {
+      "id": "docx-protection",
+      "family": "docx",
+      "format": "docx",
+      "op": "edit protection with password",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-DOCX-PROTECTED"
+      ],
+      "evidence": [
+        "packages/docx-engine/src/protection.ts",
+        "apps/docs/src/renderer/components/ProtectDialog.tsx"
+      ]
+    },
+    {
+      "id": "docx-encrypted-open",
+      "family": "docx",
+      "format": "docx",
+      "op": "open password-encrypted docx",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-DOCX-PWD-STANDARD",
+        "F-DOCX-PWD-AGILE",
+        "F-DOCX-PWD-AGILE-PLAIN"
+      ],
+      "evidence": [
+        "apps/docs/src/main/docx-encryption.ts",
+        "apps/docs/tests/encrypted-fixtures/ (password Password1234_)"
+      ]
+    },
+    {
+      "id": "docx-text-extract",
+      "family": "docx",
+      "format": "docx",
+      "op": "extract plain text",
+      "upstreamHas": true,
+      "mustPort": false,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [],
+      "fixtures": [
+        "F-DOCX-KITCHEN"
+      ],
+      "evidence": [
+        "packages/file-parse/src/docx.ts"
+      ],
+      "note": "not part of the interactive pilot; used by attachments"
+    },
+    {
+      "id": "docx-pagination-fidelity",
+      "family": "docx",
+      "format": "docx",
+      "op": "pagination and layout fidelity",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-DOCX-FR-JUSTIFY",
+        "F-DOCX-LONGTABLE",
+        "F-DOCX-KITCHEN",
+        "F-LARGE-DOCX",
+        "F-DOCX-2COL"
+      ],
+      "evidence": [
+        "apps/docs/src/renderer/pagination.ts",
+        "apps/docs/tests/pagination-corpus/baseline-word.json",
+        "apps/docs/tests/pagination-corpus/baseline-lo.json"
+      ],
+      "note": "Ca dải lớn phải sinh trước bằng generate-fixtures.mjs --large; checksum của nó không nằm trong manifest đã commit mà ở lab-record.json cạnh file."
+    },
+    {
+      "id": "xlsx-open",
+      "family": "xlsx",
+      "format": "xlsx, xlsm, xls, csv",
+      "op": "open in editor",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-XLSX-BASIC",
+        "F-XLSX-KITCHEN",
+        "F-XLSX-VI",
+        "F-LARGE-XLSX"
+      ],
+      "evidence": [
+        "apps/shell/src/main/index.ts XLSX_RE and OPEN_DIALOG_EXTENSIONS",
+        "apps/sheets/src/main/sheets-main.ts"
+      ],
+      "note": "Ca dải lớn phải sinh trước bằng generate-fixtures.mjs --large; checksum của nó không nằm trong manifest đã commit mà ở lab-record.json cạnh file."
+    },
+    {
+      "id": "xlsx-edit-cells",
+      "family": "xlsx",
+      "format": "xlsx",
+      "op": "edit cells",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-XLSX-EDIT",
+        "F-XLSX-VI",
+        "F-LARGE-XLSX",
+        "F-XLSX-KITCHEN",
+        "F-XLSX-SHEETS"
+      ],
+      "evidence": [
+        "apps/sheets/src/renderer/save-actions.ts",
+        "apps/sheets/scripts/verify-compatibility.ts"
+      ],
+      "note": "Ca dải lớn phải sinh trước bằng generate-fixtures.mjs --large; checksum của nó không nằm trong manifest đã commit mà ở lab-record.json cạnh file."
+    },
+    {
+      "id": "xlsx-save",
+      "family": "xlsx",
+      "format": "xlsx, xlsm, csv",
+      "op": "save",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-XLSX-EDIT",
+        "F-XLSX-STRUCT"
+      ],
+      "evidence": [
+        "packages/xlsx-gateway/src/gateway/xlsx-gateway.ts applyCellEditsToXlsx",
+        "apps/sheets/src/main/save-edits-transfer.ts"
+      ],
+      "note": "the MCP save path still forces .xlsx although the interactive Save As offers xlsm and csv"
+    },
+    {
+      "id": "xlsx-recalculate",
+      "family": "xlsx",
+      "format": "xlsx, xlsm",
+      "op": "recalculate formulas",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-XLSX-VI",
+        "F-XLSX-BASIC"
+      ],
+      "evidence": [
+        "apps/sheets/native/xlsx-engine (crate xlsx-sidecar, ironcalc plus calamine)",
+        "apps/sheets/src/main/xlsx-sidecar-client.ts"
+      ],
+      "note": "missing recalculation is a blocker per the plan's Task 3 table"
+    },
+    {
+      "id": "xlsx-cross-sheet-formulas",
+      "family": "xlsx",
+      "format": "xlsx",
+      "op": "cross-sheet and defined-name formulas",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-XLSX-VI",
+        "F-XLSX-SHEETS"
+      ],
+      "evidence": [
+        "apps/sheets/tests/fixture-builder.ts buildSatelliteSheetFixture",
+        "apps/sheets/src/renderer/formula-closure.ts"
+      ]
+    },
+    {
+      "id": "xlsx-charts",
+      "family": "xlsx",
+      "format": "xlsx",
+      "op": "charts",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-XLSX-CHART",
+        "F-XLSX-VI",
+        "F-XLSX-KITCHEN"
+      ],
+      "evidence": [
+        "packages/xlsx-gateway/src/gateway/xlsx-chart.ts",
+        "apps/sheets/src/renderer/ChartPanels.tsx"
+      ]
+    },
+    {
+      "id": "xlsx-conditional-formatting",
+      "family": "xlsx",
+      "format": "xlsx",
+      "op": "conditional formatting",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-XLSX-STRUCT",
+        "F-XLSX-KITCHEN"
+      ],
+      "evidence": [
+        "packages/xlsx-gateway/src/gateway/xlsx-cf.ts"
+      ]
+    },
+    {
+      "id": "xlsx-data-validation",
+      "family": "xlsx",
+      "format": "xlsx",
+      "op": "data validation",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-XLSX-STRUCT",
+        "F-XLSX-KITCHEN"
+      ],
+      "evidence": [
+        "packages/xlsx-gateway/src/gateway/xlsx-dv.ts"
+      ]
+    },
+    {
+      "id": "xlsx-pivot",
+      "family": "xlsx",
+      "format": "xlsx",
+      "op": "pivot tables",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-XLSX-PIVOT"
+      ],
+      "evidence": [
+        "packages/xlsx-gateway/src/gateway/xlsx-pivot.ts and domain/pivot-*.ts"
+      ]
+    },
+    {
+      "id": "xlsx-protection",
+      "family": "xlsx",
+      "format": "xlsx",
+      "op": "sheet and range protection",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-XLSX-PROTECTED"
+      ],
+      "evidence": [
+        "packages/xlsx-gateway/src/gateway/xlsx-protection.ts",
+        "apps/sheets/src/renderer/protected-ranges.ts"
+      ]
+    },
+    {
+      "id": "xlsx-export-pdf",
+      "family": "xlsx",
+      "format": "xlsx, xlsm",
+      "op": "export to pdf",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-XLSX-BASIC",
+        "F-LARGE-XLSX"
+      ],
+      "evidence": [
+        "apps/sheets/src/main/pdf-export.ts",
+        "packages/cli/src/commands/convert.ts APP_ROUTES xlsx -> pdf"
+      ],
+      "note": "Ca dải lớn phải sinh trước bằng generate-fixtures.mjs --large; checksum của nó không nằm trong manifest đã commit mà ở lab-record.json cạnh file."
+    },
+    {
+      "id": "xlsx-convert-external-to-xlsx",
+      "family": "xlsx",
+      "format": "csv, xls, xlsb, ods",
+      "op": "convert external format to xlsx",
+      "upstreamHas": true,
+      "mustPort": false,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [],
+      "fixtures": [
+        "F-XLSX-BASIC"
+      ],
+      "evidence": [
+        "packages/cli/src/commands/convert.ts NODE_ROUTES csv/xls/xlsb/ods -> xlsx"
+      ]
+    },
+    {
+      "id": "xlsx-convert-to-csv",
+      "family": "xlsx",
+      "format": "xlsx, xlsm",
+      "op": "convert to csv",
+      "upstreamHas": true,
+      "mustPort": false,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [],
+      "fixtures": [
+        "F-XLSX-BASIC"
+      ],
+      "evidence": [
+        "packages/cli/src/commands/convert.ts NODE_ROUTES xlsx/xlsm -> csv"
+      ]
+    },
+    {
+      "id": "xlsx-macro-preserve-not-execute",
+      "family": "xlsx",
+      "format": "xlsm",
+      "op": "preserve macros without executing them",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-XLSX-MACRO"
+      ],
+      "evidence": [
+        "apps/sheets/tests/fixture-builder.ts buildMacroFixture and macroVbaProjectPayload"
+      ],
+      "note": "the harness never runs a macro; the vbaProject part must survive a save byte-identical"
+    },
+    {
+      "id": "xlsx-text-extract",
+      "family": "xlsx",
+      "format": "xlsx, xlsm",
+      "op": "extract plain text",
+      "upstreamHas": true,
+      "mustPort": false,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [],
+      "fixtures": [
+        "F-XLSX-BASIC"
+      ],
+      "evidence": [
+        "packages/file-parse/src/xlsx.ts"
+      ],
+      "note": "file-parse has no .xls, .ods or .xlsb branch"
+    },
+    {
+      "id": "xlsx-native-sidecar-build",
+      "family": "xlsx",
+      "format": "n/a",
+      "op": "build the Rust recalculation sidecar",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-XLSX-BASIC"
+      ],
+      "evidence": [
+        "apps/sheets/native/xlsx-engine/Cargo.lock",
+        "apps/sheets/package.json native:build scripts",
+        "apps/sheets/native/xlsx-engine/.cargo/config.toml CRT static link"
+      ]
+    },
+    {
+      "id": "pptx-open",
+      "family": "pptx",
+      "format": "pptx",
+      "op": "open in editor",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-PPTX-STD",
+        "F-PPTX-UNICODE"
+      ],
+      "evidence": [
+        "apps/shell/src/main/index.ts PPTX_RE",
+        "apps/slides/src/main/slides-main.ts"
+      ]
+    },
+    {
+      "id": "pptx-edit-text",
+      "family": "pptx",
+      "format": "pptx",
+      "op": "edit text",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-PPTX-STD",
+        "F-PPTX-VI"
+      ],
+      "evidence": [
+        "packages/pptx-ops/src/ops/text-ops.ts",
+        "apps/slides/src/renderer/TextEditOverlay.tsx"
+      ]
+    },
+    {
+      "id": "pptx-edit-shape-image",
+      "family": "pptx",
+      "format": "pptx",
+      "op": "edit shapes and images",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-PPTX-VI"
+      ],
+      "evidence": [
+        "packages/pptx-ops/src/ops/element-ops.ts",
+        "packages/pptx-engine/src/media-insert.ts"
+      ]
+    },
+    {
+      "id": "pptx-save",
+      "family": "pptx",
+      "format": "pptx",
+      "op": "save",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-PPTX-STD",
+        "F-PPTX-VI"
+      ],
+      "evidence": [
+        "apps/slides/src/renderer/file-actions.ts",
+        "packages/pptx-engine/src/zip.ts"
+      ]
+    },
+    {
+      "id": "pptx-export-pdf",
+      "family": "pptx",
+      "format": "pptx",
+      "op": "export to pdf",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-PPTX-STD"
+      ],
+      "evidence": [
+        "apps/slides/src/main/pdf-export.ts",
+        "packages/cli/src/commands/convert.ts APP_ROUTES pptx -> pdf"
+      ]
+    },
+    {
+      "id": "pptx-notes",
+      "family": "pptx",
+      "format": "pptx",
+      "op": "speaker notes",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-PPTX-NOTES"
+      ],
+      "evidence": [
+        "packages/pptx-engine/src/notes.ts"
+      ]
+    },
+    {
+      "id": "pptx-masters-layouts",
+      "family": "pptx",
+      "format": "pptx",
+      "op": "masters and layouts",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-PPTX-STD"
+      ],
+      "evidence": [
+        "packages/pptx-engine/src/master-edit.ts",
+        "apps/slides/src/renderer/MasterView.tsx"
+      ]
+    },
+    {
+      "id": "pptx-animations",
+      "family": "pptx",
+      "format": "pptx",
+      "op": "animations and transitions",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-PPTX-ANIM"
+      ],
+      "evidence": [
+        "packages/pptx-engine/src/animation.ts",
+        "apps/slides/src/renderer/components/AnimationPane.tsx"
+      ]
+    },
+    {
+      "id": "pptx-charts",
+      "family": "pptx",
+      "format": "pptx",
+      "op": "charts",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-PPTX-CHART"
+      ],
+      "evidence": [
+        "packages/pptx-engine/src/chart.ts",
+        "apps/slides/src/renderer/components/ChartTypeDialog.tsx"
+      ]
+    },
+    {
+      "id": "pptx-tables",
+      "family": "pptx",
+      "format": "pptx",
+      "op": "tables",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-PPTX-TABLE"
+      ],
+      "evidence": [
+        "packages/pptx-engine/src/table-edit.ts",
+        "packages/pptx-engine/src/table-grid.ts"
+      ]
+    },
+    {
+      "id": "pptx-embedded-fonts",
+      "family": "pptx",
+      "format": "pptx",
+      "op": "embedded fonts",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-PPTX-EMBEDDED-FONT"
+      ],
+      "evidence": [
+        "packages/pptx-engine/src/embedded-fonts.ts"
+      ]
+    },
+    {
+      "id": "pptx-comments",
+      "family": "pptx",
+      "format": "pptx",
+      "op": "comments",
+      "upstreamHas": true,
+      "mustPort": false,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [],
+      "fixtures": [
+        "F-PPTX-STD"
+      ],
+      "evidence": [
+        "packages/pptx-engine/src/comments.ts"
+      ]
+    },
+    {
+      "id": "pptx-render-fidelity",
+      "family": "pptx",
+      "format": "pptx",
+      "op": "render tree and text shaping fidelity",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-PPTX-UNICODE",
+        "F-PPTX-VI"
+      ],
+      "evidence": [
+        "packages/pptx-render/src/text-layout.ts",
+        "packages/pptx-render/src/metrics.ts (opentype.js)",
+        "apps/slides/src/renderer/konva-adapter.ts"
+      ]
+    },
+    {
+      "id": "pptx-text-extract",
+      "family": "pptx",
+      "format": "pptx",
+      "op": "extract plain text",
+      "upstreamHas": true,
+      "mustPort": false,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [],
+      "fixtures": [
+        "F-PPTX-STD"
+      ],
+      "evidence": [
+        "packages/file-parse/src/pptx.ts"
+      ]
+    },
+    {
+      "id": "pptx-audit",
+      "family": "pptx",
+      "format": "pptx",
+      "op": "deck audit and QC",
+      "upstreamHas": true,
+      "mustPort": false,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "ADV-002"
+      ],
+      "fixtures": [
+        "F-PPTX-STD"
+      ],
+      "evidence": [
+        "packages/pipelines/src/slides/layout-audit.ts",
+        "packages/cli/src/commands/slides.ts"
+      ]
+    },
+    {
+      "id": "pdf-open-view",
+      "family": "pdf",
+      "format": "pdf",
+      "op": "open and view",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-PDF-TEXT",
+        "F-PDF-CORRUPT"
+      ],
+      "evidence": [
+        "apps/pdf/src/renderer/PdfPage.tsx",
+        "apps/pdf/src/main/pdf-main.ts"
+      ]
+    },
+    {
+      "id": "pdf-edit-text-in-place",
+      "family": "pdf",
+      "format": "pdf",
+      "op": "edit existing text in the content stream",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-PDF-TEXT"
+      ],
+      "evidence": [
+        "apps/pdf/src/main/text-edit.ts (TextEditInput)",
+        "apps/pdf/src/shared/op-docs.ts"
+      ],
+      "note": "MCP formats.ts calls the pdf app a viewer with read-only text extraction; the IPC and main-process implementations contradict that comment, and the plan forbids concluding from the package description"
+    },
+    {
+      "id": "pdf-edit-image",
+      "family": "pdf",
+      "format": "pdf",
+      "op": "edit and replace images",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-PDF-IMAGE"
+      ],
+      "evidence": [
+        "apps/pdf/src/main/image-edit.ts",
+        "apps/pdf/src/renderer/ImageEditLayer.tsx"
+      ]
+    },
+    {
+      "id": "pdf-save",
+      "family": "pdf",
+      "format": "pdf",
+      "op": "save",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-PDF-TEXT"
+      ],
+      "evidence": [
+        "apps/pdf/src/main/save-pdf.ts",
+        "apps/pdf/src/renderer/useAutosave.ts"
+      ]
+    },
+    {
+      "id": "pdf-export-docx",
+      "family": "pdf",
+      "format": "pdf",
+      "op": "convert to docx",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-PDF-TEXT"
+      ],
+      "evidence": [
+        "packages/pdf2docx/src/pipeline.ts",
+        "packages/cli/src/commands/convert.ts NODE_ROUTES pdf -> docx"
+      ]
+    },
+    {
+      "id": "pdf-export-xlsx",
+      "family": "pdf",
+      "format": "pdf",
+      "op": "convert to xlsx",
+      "upstreamHas": true,
+      "mustPort": false,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [],
+      "fixtures": [
+        "F-PDF-TABLE"
+      ],
+      "evidence": [
+        "packages/pdf2docx/src/rebuild-xlsx/",
+        "packages/cli/src/commands/convert.ts NODE_ROUTES pdf -> xlsx"
+      ]
+    },
+    {
+      "id": "pdf-export-pptx",
+      "family": "pdf",
+      "format": "pdf",
+      "op": "convert to pptx",
+      "upstreamHas": true,
+      "mustPort": false,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [],
+      "fixtures": [
+        "F-PDF-TEXT"
+      ],
+      "evidence": [
+        "packages/pdf2docx/src/rebuild-pptx/",
+        "packages/cli/src/commands/convert.ts NODE_ROUTES pdf -> pptx"
+      ]
+    },
+    {
+      "id": "pdf-annotations-stamps",
+      "family": "pdf",
+      "format": "pdf",
+      "op": "annotations, stamps and ink",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-PDF-TEXT"
+      ],
+      "evidence": [
+        "apps/pdf/src/renderer/annotations.ts",
+        "apps/pdf/src/renderer/stamps.ts",
+        "apps/pdf/src/renderer/DrawLayer.tsx"
+      ]
+    },
+    {
+      "id": "pdf-forms",
+      "family": "pdf",
+      "format": "pdf",
+      "op": "form fields",
+      "upstreamHas": true,
+      "mustPort": false,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [],
+      "fixtures": [
+        "F-PDF-FORM"
+      ],
+      "evidence": [
+        "apps/pdf/src/renderer/FormLayer.tsx",
+        "apps/pdf/src/renderer/static-form-fill.ts"
+      ]
+    },
+    {
+      "id": "pdf-signature",
+      "family": "pdf",
+      "format": "pdf",
+      "op": "signature placement",
+      "upstreamHas": true,
+      "mustPort": false,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [],
+      "fixtures": [
+        "F-PDF-TEXT"
+      ],
+      "evidence": [
+        "apps/pdf/src/main/signature-store.ts",
+        "apps/pdf/src/renderer/signature-field.ts"
+      ]
+    },
+    {
+      "id": "pdf-page-ops",
+      "family": "pdf",
+      "format": "pdf",
+      "op": "page operations (insert, delete, rotate, reorder, extract, merge)",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-PDF-TEXT"
+      ],
+      "evidence": [
+        "apps/pdf/src/shared/op-docs.ts",
+        "apps/pdf/src/main/blank-pdf.ts"
+      ]
+    },
+    {
+      "id": "pdf-metadata",
+      "family": "pdf",
+      "format": "pdf",
+      "op": "document metadata and properties",
+      "upstreamHas": true,
+      "mustPort": false,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [],
+      "fixtures": [
+        "F-PDF-TEXT"
+      ],
+      "evidence": [
+        "apps/pdf/src/shared/op-docs.ts setMetadata",
+        "apps/pdf/src/renderer/PropertiesDialog.tsx"
+      ]
+    },
+    {
+      "id": "pdf-password-open",
+      "family": "pdf",
+      "format": "pdf",
+      "op": "open a password-protected pdf",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-PDF-PWD4SP",
+        "F-PDF-CERT"
+      ],
+      "evidence": [
+        "apps/pdf/src/renderer/PasswordDialog.tsx",
+        "apps/shell/tests/fixtures/testPassword4Spaces.pdf (user password is four spaces)",
+        "apps/shell/tests/fixtures/certEncrypted.pdf"
+      ]
+    },
+    {
+      "id": "pdf-corrupt-handling",
+      "family": "pdf",
+      "format": "pdf",
+      "op": "reject a corrupt file with a clear error",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-PDF-CORRUPT"
+      ],
+      "evidence": [
+        "apps/shell/tests/fixtures/corruptExample.pdf"
+      ],
+      "note": "the failure must be reported as a specific error, never a generic one"
+    },
+    {
+      "id": "pdf-ocr-scan",
+      "family": "pdf",
+      "format": "pdf",
+      "op": "OCR a scanned page",
+      "upstreamHas": true,
+      "mustPort": false,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "OCR"
+      ],
+      "fixtures": [
+        "F-PDF-SCAN"
+      ],
+      "evidence": [
+        "packages/pdf2docx/src/ocr.ts",
+        "packages/pdf2docx/ocr-helper/ (vision-ocr swift, win-ocr.exe)"
+      ],
+      "note": "Q2-A: OCR is deferred past M1; overlay annotations do not satisfy the text-edit requirement"
+    },
+    {
+      "id": "pdf-text-extract",
+      "family": "pdf",
+      "format": "pdf",
+      "op": "extract plain text",
+      "upstreamHas": true,
+      "mustPort": false,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [],
+      "fixtures": [
+        "F-PDF-TEXT"
+      ],
+      "evidence": [
+        "packages/file-parse/src/pdf.ts",
+        "apps/pdf/src/main/read-text.ts"
+      ]
+    },
+    {
+      "id": "pdf-print",
+      "family": "pdf",
+      "format": "pdf",
+      "op": "print",
+      "upstreamHas": true,
+      "mustPort": false,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [],
+      "fixtures": [
+        "F-PDF-TEXT"
+      ],
+      "evidence": [
+        "apps/pdf/src/renderer/print.ts"
+      ]
+    },
+    {
+      "id": "md-open",
+      "family": "md",
+      "format": "md, markdown",
+      "op": "open in editor",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-MD-VI",
+        "F-MD-FULL"
+      ],
+      "evidence": [
+        "apps/shell/src/main/index.ts MD_RE",
+        "apps/markdown/src/main/markdown-main.ts"
+      ]
+    },
+    {
+      "id": "md-save",
+      "family": "md",
+      "format": "md, markdown",
+      "op": "save source",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-MD-VI",
+        "F-MD-FULL"
+      ],
+      "evidence": [
+        "apps/markdown/src/main/markdown-main.ts",
+        "apps/markdown/src/renderer/editor/markdownEscape.ts"
+      ]
+    },
+    {
+      "id": "md-content-blocks",
+      "family": "md",
+      "format": "md",
+      "op": "content: tables, code blocks, Unicode",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-MD-FULL",
+        "F-MD-VI"
+      ],
+      "evidence": [
+        "apps/markdown/src/renderer/editor/extensions.ts",
+        "apps/markdown/src/renderer/components/TableMenu.tsx"
+      ]
+    },
+    {
+      "id": "md-content-math-mermaid",
+      "family": "md",
+      "format": "md",
+      "op": "content: math and mermaid diagrams",
+      "upstreamHas": true,
+      "mustPort": false,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [],
+      "fixtures": [
+        "F-MD-FULL"
+      ],
+      "evidence": [
+        "apps/markdown/src/renderer/editor/math.ts",
+        "apps/markdown/src/renderer/editor/mermaid.ts"
+      ]
+    },
+    {
+      "id": "md-content-frontmatter",
+      "family": "md",
+      "format": "md",
+      "op": "content: YAML frontmatter",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-MD-FRONTMATTER"
+      ],
+      "evidence": [
+        "apps/markdown/src/renderer/components/FrontmatterPanel.tsx"
+      ]
+    },
+    {
+      "id": "md-content-local-assets",
+      "family": "md",
+      "format": "md",
+      "op": "relative image and asset links",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-MD-ASSET"
+      ],
+      "evidence": [
+        "apps/markdown/src/main/asset-lifecycle.ts",
+        "apps/markdown/src/renderer/editor/localImage.ts"
+      ]
+    },
+    {
+      "id": "md-export-docx",
+      "family": "md",
+      "format": "md",
+      "op": "export to docx",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-MD-VI"
+      ],
+      "evidence": [
+        "apps/markdown/src/renderer/export/docxExport.ts",
+        "packages/cli/src/commands/convert.ts NODE_ROUTES md -> docx"
+      ]
+    },
+    {
+      "id": "md-export-pdf",
+      "family": "md",
+      "format": "md",
+      "op": "export to pdf",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-MD-VI"
+      ],
+      "evidence": [
+        "packages/cli/src/commands/convert.ts APP_ROUTES md -> pdf"
+      ]
+    },
+    {
+      "id": "md-export-html",
+      "family": "md",
+      "format": "md",
+      "op": "convert to html",
+      "upstreamHas": true,
+      "mustPort": false,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [],
+      "fixtures": [
+        "F-MD-VI"
+      ],
+      "evidence": [
+        "packages/cli/src/commands/convert.ts NODE_ROUTES md -> html"
+      ]
+    },
+    {
+      "id": "html-open",
+      "family": "html",
+      "format": "html, htm",
+      "op": "open in editor",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-HTML-VI"
+      ],
+      "evidence": [
+        "apps/shell/src/main/index.ts HTML_RE",
+        "apps/html/src/main/html-main.ts"
+      ]
+    },
+    {
+      "id": "html-save",
+      "family": "html",
+      "format": "html, htm",
+      "op": "save source",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-HTML-VI",
+        "F-HTML-ASSET"
+      ],
+      "evidence": [
+        "apps/html/src/main/html-main.ts",
+        "apps/html/src/main/atomic-write.ts"
+      ]
+    },
+    {
+      "id": "html-preview-isolation",
+      "family": "html",
+      "format": "html, htm",
+      "op": "isolated preview",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-HTML-SCRIPT"
+      ],
+      "evidence": [
+        "apps/html/src/main/preview-protocol.ts",
+        "apps/html/src/main/preview-document.ts",
+        "apps/html/src/renderer/preview/PreviewFrame.tsx"
+      ],
+      "note": "content must not read the app session or escape its origin"
+    },
+    {
+      "id": "html-content-assets",
+      "family": "html",
+      "format": "html, htm",
+      "op": "assets and single-file html",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-HTML-ASSET",
+        "F-HTML-SINGLE"
+      ],
+      "evidence": [
+        "apps/html/src/main/asset-lifecycle.ts",
+        "apps/html/src/main/single-file-html.ts"
+      ]
+    },
+    {
+      "id": "html-content-blocks",
+      "family": "html",
+      "format": "html, htm",
+      "op": "content: text, image, background and float",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-HTML-VI"
+      ],
+      "evidence": [
+        "apps/html/src/renderer/document/ops.ts",
+        "apps/html/src/renderer/document/background-style.ts",
+        "apps/html/src/renderer/document/float-position.ts"
+      ]
+    },
+    {
+      "id": "html-export-pdf",
+      "family": "html",
+      "format": "html, htm",
+      "op": "export to pdf",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-HTML-VI"
+      ],
+      "evidence": [
+        "packages/cli/src/commands/convert.ts APP_ROUTES html/htm -> pdf",
+        "packages/electron-utils/src/print-html-pdf.ts"
+      ]
+    },
+    {
+      "id": "html-export-docx",
+      "family": "html",
+      "format": "html, htm",
+      "op": "convert to docx",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-HTML-VI"
+      ],
+      "evidence": [
+        "packages/html2docx/src/convert.ts",
+        "packages/cli/src/commands/convert.ts APP_ROUTES html -> docx"
+      ]
+    },
+    {
+      "id": "html2docx-browser-driver",
+      "family": "html",
+      "format": "n/a",
+      "op": "DOM extraction via a browser driver",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-HTML-VI"
+      ],
+      "evidence": [
+        "packages/html2docx/src/drivers/playwright.ts",
+        "packages/html2docx/src/drivers/electron.ts",
+        "packages/html2docx/src/browser/ (injected page scripts)"
+      ],
+      "note": "needs a real DOM and a script-injection channel; a UniWork host must provide both"
+    },
+    {
+      "id": "editor-open-unsupported",
+      "family": "legacy",
+      "format": "doc, rtf, odt, ppt, pps, odp, ods, xlsb, pages, key, numbers",
+      "op": "open in an editor",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-UNSUPPORTED-ODT",
+        "F-UNSUPPORTED-ODS",
+        "F-UNSUPPORTED-XLSB",
+        "F-UNSUPPORTED-RTF"
+      ],
+      "evidence": [
+        "apps/shell/src/main/index.ts UNSUPPORTED_DOC_RE raises an explicit not-supported dialog"
+      ],
+      "note": "the dialog is the expected result, not a silent failure"
+    },
+    {
+      "id": "editor-open-xls",
+      "family": "legacy",
+      "format": "xls",
+      "op": "open in an editor",
+      "upstreamHas": true,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-LEGACY-XLS"
+      ],
+      "evidence": [
+        "apps/shell/src/main/index.ts XLSX_RE includes xls and OPEN_DIALOG_EXTENSIONS lists it"
+      ],
+      "note": "asymmetry: .xls opens in the editor but file-parse has no .xls text branch"
+    },
+    {
+      "id": "text-extract-legacy-doc",
+      "family": "legacy",
+      "format": "doc",
+      "op": "extract plain text",
+      "upstreamHas": true,
+      "mustPort": false,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [],
+      "fixtures": [
+        "F-LEGACY-DOC"
+      ],
+      "evidence": [
+        "packages/file-parse/src/doc.ts (word-extractor)"
+      ]
+    },
+    {
+      "id": "text-extract-legacy-ppt",
+      "family": "legacy",
+      "format": "ppt",
+      "op": "extract plain text",
+      "upstreamHas": true,
+      "mustPort": false,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [],
+      "fixtures": [
+        "F-LEGACY-PPT"
+      ],
+      "evidence": [
+        "packages/file-parse/src/ppt.ts (ppt-to-text)"
+      ]
+    },
+    {
+      "id": "file-parse-image-multimodal",
+      "family": "legacy",
+      "format": "png, jpg, gif, webp",
+      "op": "flag an image as multimodal input",
+      "upstreamHas": true,
+      "mustPort": false,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "ADV-002"
+      ],
+      "fixtures": [
+        "F-IMG-SMALL"
+      ],
+      "evidence": [
+        "packages/file-parse/src/parse.ts IMAGE_MIMES branch"
+      ]
+    },
+    {
+      "id": "mcp-agent-drive",
+      "family": "cross",
+      "format": "docx, xlsx, pptx, pdf",
+      "op": "drive editors through the MCP server",
+      "upstreamHas": true,
+      "mustPort": false,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "ADV-002"
+      ],
+      "fixtures": [
+        "F-DOCX-SIMPLE",
+        "F-XLSX-BASIC",
+        "F-PPTX-STD",
+        "F-PDF-TEXT"
+      ],
+      "evidence": [
+        "apps/shell/src/main/mcp/tools/formats.ts",
+        "apps/shell/src/main/mcp/app-mcp.ts"
+      ],
+      "note": "MCP exposure is a documented subset of the editor matrix and is not evidence that the editor matrix works"
+    },
+    {
+      "id": "cli-headless-convert",
+      "family": "cross",
+      "format": "docx, xlsx, pptx, pdf, md, html, csv, xls",
+      "op": "headless conversion and audit",
+      "upstreamHas": true,
+      "mustPort": false,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "ADV-002"
+      ],
+      "fixtures": [
+        "F-DOCX-SIMPLE",
+        "F-XLSX-BASIC",
+        "F-PPTX-STD",
+        "F-DOCX-KITCHEN"
+      ],
+      "evidence": [
+        "packages/cli/src/commands/convert.ts",
+        "docs/headless-pdf-export.md",
+        "packages/cli/README.md"
+      ],
+      "note": "source read only; no CLI command was executed because the trial source has no built CLI"
+    },
+    {
+      "id": "office-engine-service-placement",
+      "family": "cross",
+      "format": "n/a",
+      "op": "run an engine outside the browser or desktop host",
+      "upstreamHas": false,
+      "mustPort": true,
+      "webProven": "chưa thử",
+      "desktopProven": "chưa thử",
+      "tags": [
+        "Q1-B"
+      ],
+      "fixtures": [
+        "F-XLSX-BASIC",
+        "F-PDF-TEXT",
+        "F-LARGE-DOCX",
+        "F-LARGE-XLSX"
+      ],
+      "evidence": [
+        "INT-01 candidate, not an upstream capability",
+        "apps/sheets/native/xlsx-engine is the only native engine today; a UniWork Office Engine Service does not exist yet and is a task 4 decision"
+      ],
+      "note": "Ca dải lớn phải sinh trước bằng generate-fixtures.mjs --large; checksum của nó không nằm trong manifest đã commit mà ở lab-record.json cạnh file."
+    }
+  ],
+  "unsupportedByDesign": [
+    {
+      "format": "doc, rtf, odt, ppt, pps, odp, ods, xlsb, pages, key, numbers",
+      "reason": "no editor implementation at the pinned commit; the shell shows an explicit not-supported dialog",
+      "mustNotClaim": "the product must not describe these as editable"
+    },
+    {
+      "format": "macros in docx, xlsx, pptx",
+      "reason": "macros are preserved but never executed by the harness or the lab",
+      "mustNotClaim": "macro execution or calculation"
+    }
+  ],
+  "coverageRule": "A row is claimed when mustPort is true. Every claimed row must list at least one fixture id present in fixtures/manifest.json, and every such fixture must declare an expected result and list this capability id back in its capabilities array. verify-manifest.mjs fails when either direction is missing.",
+  "knownGaps": [
+    "webProven and desktopProven are 'chưa thử' for every row: no editor was executed. Separate upstream test and build baselines exist outside this lane and are prerequisites, not editor evidence.",
+    "macOS and Safari are deferred (QA-01, UNI-671).",
+    "The AI-assisted authoring surfaces (packages/pipelines, packages/agent-core, packages/ai-provider, packages/ai-search) are inventoried only where a task-3 row needs them; a full AI capability matrix is not an M1 requirement.",
+    "packages/ai-search depends on the closed @genspark/cli; its licence and provenance are unresolved and are handed to task 4."
+  ]
+}

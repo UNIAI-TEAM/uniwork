@@ -38,4 +38,6 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 không được governance test đếm. Khi chấp nhận: chuyển ra thư mục này, đổi trạng thái
 `accepted`, thêm vào bảng trên, thêm luật vào `CLAUDE.md` kèm tên test giữ luật.
 
-(Hiện không có bản nháp.)
+(Hiện có một bản nháp: `drafts/documents-office-runtime.md` — runtime đa định dạng cho
+UniWork Office, đề xuất ở DOC-001/UNI-665, chờ bằng chứng DOC-003/004 và số ADR cấp lúc
+chấp nhận.)

@@ -1,0 +1,1122 @@
+{
+  "schemaVersion": 1,
+  "kind": "uniwork-office-source-manifest",
+  "doc": "docs/office/g0/README.md",
+  "issue": "UNI-666",
+  "parentIssue": "UNI-656",
+  "task": "DOC-002 (G0 task 2) - pin upstream source, license, provenance and trial-source preparation",
+  "generatedAt": "2026-09-16T15:40:00Z",
+  "generatedFrom": "read-only inventory of the user-provided GenOffice checkout; no GenOffice install, build or browser run was performed for this manifest",
+  "upstream": {
+    "name": "GenOffice",
+    "upstreamRole": "upstream source name; not a product name (BRAND-01)",
+    "productDisplayName": "UniWork Office",
+    "productSlug": "uniwork-office",
+    "repository": "https://github.com/genspark-ai/genoffice.git",
+    "defaultBranch": "main",
+    "pinnedCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+    "pinnedCommitDate": "2026-09-16T19:21:03+08:00",
+    "pinnedCommitSubject": "let MCP agents work with the open documents (#445)",
+    "pinnedTree": "b743f03ab1f1de8f0ba1913b7bd9c06edef8f884",
+    "pinnedCommitSource": "git -C ../genoffice rev-parse HEAD; worktree clean (0 modified or untracked tracked-file changes)",
+    "pinnedWithoutLatestTag": true,
+    "rootPackageName": "genoffice",
+    "rootPackageVersion": "0.1.0",
+    "rootPackagePrivate": true,
+    "licenseIdentifier": "Apache-2.0",
+    "licenseHolder": "Copyright 2026 Mainfunc, Inc.",
+    "trackedFileCount": 3137,
+    "priorSurvey": {
+      "commit": "a4d8e1a0a3a232685e8f430339b58ea153467ad1",
+      "date": "2026-09-16T14:41:54+08:00",
+      "subject": "let MCP agents drive the visible Sheets grid (#432)",
+      "usedFor": "historical survey recorded in the G0 plan section 2; not the pinned commit",
+      "note": "Results from the prior survey are not carried forward; rows in capabilities.json are re-derived from the pinned commit."
+    },
+    "unDigitalAdapterRef": {
+      "commit": "d24c964a3e693a52d9fece4fef03a4de34d0d853",
+      "usedFor": "recorded in the G0 plan as an earlier adapter candidate; not evaluated here"
+    }
+  },
+  "runtime": {
+    "node": {
+      "requiredRange": ">=22.12.0",
+      "requiredRangeSource": "package.json engines",
+      "nvmrc": "22",
+      "usedForChecks": "22.23.2",
+      "usedForChecksPath": ".uniwork-dev/tools/node-v22.23.2-win-x64/node.exe",
+      "notIntended": "the host-global Node (v25.x) is not the intended runtime for repeatable trial checks"
+    },
+    "npm": {
+      "requiredRange": ">=10",
+      "usedForChecks": "npm bundled with workspace Node 22.23.2",
+      "installStrategy": "reproducible install from the pinned package-lock.json (npm ci) inside the trial copy only"
+    },
+    "rust": {
+      "edition": "2024",
+      "crate": "xlsx-sidecar 0.1.0",
+      "crateLicense": "Apache-2.0",
+      "manifest": "apps/sheets/native/xlsx-engine/Cargo.toml",
+      "lockfile": "apps/sheets/native/xlsx-engine/Cargo.lock",
+      "toolchainUsed": "1.98.1",
+      "targets": [
+        "x86_64-pc-windows-msvc",
+        "aarch64-pc-windows-msvc",
+        "host-native"
+      ],
+      "crtPolicy": "MSVC CRT statically linked via .cargo/config.toml, which must be passed with --config because the build runs from apps/sheets"
+    },
+    "make": {
+      "toolchainUsed": "4.4.1",
+      "purpose": "upstream build scripts that shell out to make"
+    },
+    "python": {
+      "toolchainUsed": "3.12.14",
+      "purpose": "local commit hook only; not an engine dependency"
+    },
+    "electron": {
+      "declared": "^43.3.0",
+      "binaryDownload": "skipped in the lab (ELECTRON_SKIP_BINARY_DOWNLOAD=1); packaging and any GUI run stay unproven"
+    },
+    "nativeToolchains": [
+      {
+        "name": "MSVC Build Tools 2022",
+        "required": true,
+        "purpose": "Rust sidecar and native helpers on Windows",
+        "verified": "available on the development host"
+      },
+      {
+        "name": "swiftc + lipo",
+        "required": true,
+        "purpose": "macOS vision-ocr helper compiled on demand by apps/shell/electron-builder.cjs",
+        "verified": "not available on this host; macOS stays unproven (QA-01)"
+      },
+      {
+        "name": "in-box .NET Framework csc",
+        "required": true,
+        "purpose": "Windows win-ocr.exe helper compiled by packages/pdf2docx/ocr-helper/build-win.mjs",
+        "verified": "not exercised in this task"
+      }
+    ],
+    "fonts": {
+      "bundled": "apps/docs/src/renderer/fonts/ (Liberation, Carlito/Caladea, Noto CJK/Arabic/Naskh subsets, GenOffice-branded Korean/Tamil/Poppins/PUA subsets)",
+      "license": "apps/docs/src/renderer/fonts/LICENSE-OFL.txt (SIL OFL) plus per-family notes in apps/docs/src/renderer/fonts/README.md",
+      "vietnameseGap": "no bundled Vietnamese-tuned family; Vietnamese fixtures rely on system or substituted fonts. Font substitution is itself a fidelity risk recorded in fixtures/manifest.json."
+    },
+    "rendererPrerequisites": [
+      {
+        "engine": "docs",
+        "prerequisites": "React 19 + TipTap 3.31.0, browser DOM, bundled fonts",
+        "hostRisk": "UniWork pins React 19.2.3 and TipTap 3.30.6; coexistence is unproven (task 3)"
+      },
+      {
+        "engine": "sheets",
+        "prerequisites": "Univer renderer, canvas, Rust xlsx-sidecar process for recalculation",
+        "hostRisk": "the sidecar is a native process; a browser entry point has no recalc until proven"
+      },
+      {
+        "engine": "slides",
+        "prerequisites": "Konva canvas, harfbuzzjs, opentype.js, bundled theme fonts",
+        "hostRisk": "web fonts and text shaping differ per host"
+      },
+      {
+        "engine": "pdf",
+        "prerequisites": "pdfjs-dist, pdf-lib, @embedpdf/pdfium wasm, harfbuzzjs, platform OCR helpers",
+        "hostRisk": "wasm paths and OCR helpers are resolved by the Electron main process today"
+      },
+      {
+        "engine": "markdown",
+        "prerequisites": "TipTap markdown extensions, browser DOM",
+        "hostRisk": "low"
+      },
+      {
+        "engine": "html",
+        "prerequisites": "isolated preview iframe plus origin, parse5 (electron-utils)",
+        "hostRisk": "preview isolation relies on the Electron protocol handler"
+      }
+    ]
+  },
+  "lockfile": {
+    "path": "package-lock.json",
+    "bytes": 575180,
+    "lockfileVersion": 3,
+    "sha256": "DE782E49A1006FAC7287A41C748C696EFD9FB3C3038EAE893EF82DFCA57F9FE5",
+    "hashAlgorithm": "sha256",
+    "sha256Lower": "de782e49a1006fac7287a41c748c696efd9fb3c3038eae893ef82dfca57f9fe5"
+  },
+  "allowlist": {
+    "mode": "include-only",
+    "reason": "Task 2.1: only source and dependencies that can be reused are copied. /ee and unlicensed material never enter the reusable trial.",
+    "include": [
+      "apps/docs",
+      "apps/sheets",
+      "apps/slides",
+      "apps/pdf",
+      "apps/markdown",
+      "apps/html",
+      "apps/shell",
+      "packages/agent-core",
+      "packages/ai-provider",
+      "packages/ai-search",
+      "packages/cli",
+      "packages/docx-engine",
+      "packages/electron-utils",
+      "packages/file-parse",
+      "packages/font-metrics",
+      "packages/html2docx",
+      "packages/i18n",
+      "packages/pdf2docx",
+      "packages/pipelines",
+      "packages/pptx-engine",
+      "packages/pptx-ops",
+      "packages/pptx-render",
+      "packages/project-store",
+      "packages/ui",
+      "packages/xlsx-gateway",
+      "e2e",
+      "fixtures",
+      "skills",
+      "tools",
+      "scripts",
+      "docs",
+      "CLAUDE.md",
+      "CODE_OF_CONDUCT.md",
+      "CONTRIBUTING.md",
+      "LICENSE",
+      "LICENSE-UNICODE.txt",
+      "NOTICE",
+      "PRIVACY.md",
+      "README.md",
+      "SECURITY.md",
+      ".gitattributes",
+      ".gitignore",
+      ".nvmrc",
+      ".prettierignore",
+      ".prettierrc.json",
+      "eslint.config.mjs",
+      "package.json",
+      "package-lock.json",
+      "tsconfig.base.json",
+      "vitest.config.ts"
+    ],
+    "exclude": [
+      ".git",
+      "node_modules",
+      "**/node_modules",
+      "**/target",
+      "**/out",
+      "**/dist",
+      "**/.turbo",
+      "**/*.tsbuildinfo",
+      "ee",
+      "ee/**",
+      "apps/*/release",
+      "**/fixtures/generated",
+      "**/.env*"
+    ],
+    "excludedSets": [
+      {
+        "path": "ee/",
+        "presentInUpstream": true,
+        "upstreamContents": [
+          "ee/LICENSE",
+          "ee/README.md"
+        ],
+        "upstreamLicense": "GenOffice Enterprise License (separate from the Apache-2.0 root licence)",
+        "reason": "Task 2.1: /ee and unlicensed code must not enter the reusable trial. At the pinned commit the directory holds only a licence and a README, so no enterprise code is lost; the exclusion exists so a future commit cannot silently drag it in.",
+        "enforcement": "prepare-source.mjs refuses an allowlisted path that resolves inside ee/; verify-manifest.mjs fails when 'ee' appears in the manifest allowlist, and prepare-source.mjs fails when an ee/ directory is found in the produced trial copy."
+      },
+      {
+        "path": "**/fixtures/generated",
+        "presentInUpstream": true,
+        "reason": "Generated upstream fixtures are tracked build output at the pinned commit (six files). They are excluded so the trial copies task-2-owned fixtures instead; task 2 keeps its own copy of the float captioned-table fixture with its own checksum and provenance.",
+        "upstreamContents": [
+          "fixtures/generated/kitchen-sink.docx",
+          "fixtures/generated/simple.docx",
+          "fixtures/generated/visual-captable-float.docx",
+          "fixtures/generated/visual-captable-inline.docx",
+          "fixtures/generated/visual-captable-page-anchor.docx",
+          "fixtures/generated/visual-captable-pct.docx"
+        ]
+      },
+      {
+        "path": ".github/",
+        "presentInUpstream": true,
+        "upstreamContents": [
+          ".github/CODEOWNERS",
+          ".github/pull_request_template.md",
+          ".github/ISSUE_TEMPLATE/*",
+          ".github/workflows/ci.yml"
+        ],
+        "reason": "Upstream CI, issue templates and code-owner metadata belong to the upstream repository, not to the UniWork Office trial. They publish and release GenOffice artifacts and name upstream owners, so they are not reusable source.",
+        "enforcement": "prepare-source.mjs only copies paths inside allowlist.include, so this set stays out of the trial by construction; the prepare record lists the exclusion."
+      }
+    ],
+    "neverCopy": [
+      {
+        "path": "node_modules",
+        "reason": "1.4 GB of installed packages; the trial reinstalls from the pinned lockfile"
+      },
+      {
+        "path": "**/target",
+        "reason": "Rust build output; rebuilt from Cargo.lock in the trial"
+      },
+      {
+        "path": "**/.env*",
+        "reason": "may hold credentials; the lab must never inherit secrets from the user checkout"
+      }
+    ]
+  },
+  "sourceClosure": {
+    "apps": [
+      {
+        "path": "apps/docs",
+        "packageName": "@genoffice/docs",
+        "version": "0.1.0",
+        "role": "DOCX editor (TipTap based)",
+        "dependencyClosure": "runtime dependencies at the pin: @genoffice/electron-utils, @genoffice/font-metrics, @genoffice/pptx-render, electron-updater, pdf-lib, pdfjs-dist; of which workspace packages: @genoffice/electron-utils, @genoffice/font-metrics, @genoffice/pptx-render; of which third-party: electron-updater, pdf-lib, pdfjs-dist; workspace packages referenced only from devDependencies (build/test-time, not a runtime closure): @genoffice/agent-core, @genoffice/ai-provider, @genoffice/ai-search, @genoffice/docx-engine, @genoffice/file-parse, @genoffice/i18n, @genoffice/project-store, @genoffice/ui",
+        "runtimeDependencies": [
+          {
+            "name": "@genoffice/electron-utils",
+            "kind": "workspace"
+          },
+          {
+            "name": "@genoffice/font-metrics",
+            "kind": "workspace"
+          },
+          {
+            "name": "@genoffice/pptx-render",
+            "kind": "workspace"
+          },
+          {
+            "name": "electron-updater",
+            "kind": "third-party"
+          },
+          {
+            "name": "pdf-lib",
+            "kind": "third-party"
+          },
+          {
+            "name": "pdfjs-dist",
+            "kind": "third-party"
+          }
+        ]
+      },
+      {
+        "path": "apps/sheets",
+        "packageName": "@genoffice/sheets",
+        "version": "0.1.0",
+        "role": "XLSX editor (Univer plus Rust sidecar)",
+        "dependencyClosure": "runtime dependencies at the pin: @fluentui/react-icons, @genoffice/agent-core, @genoffice/ai-provider, @genoffice/ai-search, @genoffice/docx-engine, @genoffice/electron-utils, @genoffice/file-parse, @genoffice/i18n, @genoffice/pptx-render, @genoffice/ui, @genoffice/xlsx-gateway, @univerjs/core, @univerjs/data-validation, @univerjs/engine-render, @univerjs/find-replace, @univerjs/preset-sheets-conditional-formatting, @univerjs/preset-sheets-core, @univerjs/preset-sheets-data-validation, @univerjs/preset-sheets-drawing, @univerjs/preset-sheets-filter, @univerjs/preset-sheets-find-replace, @univerjs/preset-sheets-note, @univerjs/preset-sheets-sort, @univerjs/preset-sheets-table, @univerjs/sheets-filter, @univerjs/themes, fast-xml-parser, jszip, pdf-lib, react, react-dom, rxjs, zod; of which workspace packages: @genoffice/agent-core, @genoffice/ai-provider, @genoffice/ai-search, @genoffice/docx-engine, @genoffice/electron-utils, @genoffice/file-parse, @genoffice/i18n, @genoffice/pptx-render, @genoffice/ui, @genoffice/xlsx-gateway; of which third-party: @fluentui/react-icons, @univerjs/core, @univerjs/data-validation, @univerjs/engine-render, @univerjs/find-replace, @univerjs/preset-sheets-conditional-formatting, @univerjs/preset-sheets-core, @univerjs/preset-sheets-data-validation, @univerjs/preset-sheets-drawing, @univerjs/preset-sheets-filter, @univerjs/preset-sheets-find-replace, @univerjs/preset-sheets-note, @univerjs/preset-sheets-sort, @univerjs/preset-sheets-table, @univerjs/sheets-filter, @univerjs/themes, fast-xml-parser, jszip, pdf-lib, react, react-dom, rxjs, zod; workspace packages referenced only from devDependencies (build/test-time, not a runtime closure): @genoffice/project-store",
+        "runtimeDependencies": [
+          {
+            "name": "@fluentui/react-icons",
+            "kind": "third-party"
+          },
+          {
+            "name": "@genoffice/agent-core",
+            "kind": "workspace"
+          },
+          {
+            "name": "@genoffice/ai-provider",
+            "kind": "workspace"
+          },
+          {
+            "name": "@genoffice/ai-search",
+            "kind": "workspace"
+          },
+          {
+            "name": "@genoffice/docx-engine",
+            "kind": "workspace"
+          },
+          {
+            "name": "@genoffice/electron-utils",
+            "kind": "workspace"
+          },
+          {
+            "name": "@genoffice/file-parse",
+            "kind": "workspace"
+          },
+          {
+            "name": "@genoffice/i18n",
+            "kind": "workspace"
+          },
+          {
+            "name": "@genoffice/pptx-render",
+            "kind": "workspace"
+          },
+          {
+            "name": "@genoffice/ui",
+            "kind": "workspace"
+          },
+          {
+            "name": "@genoffice/xlsx-gateway",
+            "kind": "workspace"
+          },
+          {
+            "name": "@univerjs/core",
+            "kind": "third-party"
+          },
+          {
+            "name": "@univerjs/data-validation",
+            "kind": "third-party"
+          },
+          {
+            "name": "@univerjs/engine-render",
+            "kind": "third-party"
+          },
+          {
+            "name": "@univerjs/find-replace",
+            "kind": "third-party"
+          },
+          {
+            "name": "@univerjs/preset-sheets-conditional-formatting",
+            "kind": "third-party"
+          },
+          {
+            "name": "@univerjs/preset-sheets-core",
+            "kind": "third-party"
+          },
+          {
+            "name": "@univerjs/preset-sheets-data-validation",
+            "kind": "third-party"
+          },
+          {
+            "name": "@univerjs/preset-sheets-drawing",
+            "kind": "third-party"
+          },
+          {
+            "name": "@univerjs/preset-sheets-filter",
+            "kind": "third-party"
+          },
+          {
+            "name": "@univerjs/preset-sheets-find-replace",
+            "kind": "third-party"
+          },
+          {
+            "name": "@univerjs/preset-sheets-note",
+            "kind": "third-party"
+          },
+          {
+            "name": "@univerjs/preset-sheets-sort",
+            "kind": "third-party"
+          },
+          {
+            "name": "@univerjs/preset-sheets-table",
+            "kind": "third-party"
+          },
+          {
+            "name": "@univerjs/sheets-filter",
+            "kind": "third-party"
+          },
+          {
+            "name": "@univerjs/themes",
+            "kind": "third-party"
+          },
+          {
+            "name": "fast-xml-parser",
+            "kind": "third-party"
+          },
+          {
+            "name": "jszip",
+            "kind": "third-party"
+          },
+          {
+            "name": "pdf-lib",
+            "kind": "third-party"
+          },
+          {
+            "name": "react",
+            "kind": "third-party"
+          },
+          {
+            "name": "react-dom",
+            "kind": "third-party"
+          },
+          {
+            "name": "rxjs",
+            "kind": "third-party"
+          },
+          {
+            "name": "zod",
+            "kind": "third-party"
+          }
+        ]
+      },
+      {
+        "path": "apps/slides",
+        "packageName": "@genoffice/slides",
+        "version": "0.1.0",
+        "role": "PPTX editor (Konva plus pptx-engine)",
+        "dependencyClosure": "runtime dependencies at the pin: @genoffice/electron-utils, acorn, harfbuzzjs, pngjs, utif2; of which workspace packages: @genoffice/electron-utils; of which third-party: acorn, harfbuzzjs, pngjs, utif2; workspace packages referenced only from devDependencies (build/test-time, not a runtime closure): @genoffice/agent-core, @genoffice/ai-provider, @genoffice/ai-search, @genoffice/file-parse, @genoffice/i18n, @genoffice/pptx-engine, @genoffice/pptx-ops, @genoffice/pptx-render, @genoffice/project-store, @genoffice/ui",
+        "runtimeDependencies": [
+          {
+            "name": "@genoffice/electron-utils",
+            "kind": "workspace"
+          },
+          {
+            "name": "acorn",
+            "kind": "third-party"
+          },
+          {
+            "name": "harfbuzzjs",
+            "kind": "third-party"
+          },
+          {
+            "name": "pngjs",
+            "kind": "third-party"
+          },
+          {
+            "name": "utif2",
+            "kind": "third-party"
+          }
+        ]
+      },
+      {
+        "path": "apps/pdf",
+        "packageName": "@genoffice/pdf",
+        "version": "0.1.0",
+        "role": "PDF editor, viewer and converter",
+        "dependencyClosure": "runtime dependencies at the pin: none; workspace packages referenced only from devDependencies (build/test-time, not a runtime closure): @genoffice/agent-core, @genoffice/ai-provider, @genoffice/ai-search, @genoffice/electron-utils, @genoffice/font-metrics, @genoffice/i18n, @genoffice/ui",
+        "runtimeDependencies": []
+      },
+      {
+        "path": "apps/markdown",
+        "packageName": "@genoffice/markdown",
+        "version": "0.1.0",
+        "role": "Markdown block editor",
+        "dependencyClosure": "runtime dependencies at the pin: @tiptap/extension-mathematics, katex, mermaid; of which third-party: @tiptap/extension-mathematics, katex, mermaid; workspace packages referenced only from devDependencies (build/test-time, not a runtime closure): @genoffice/agent-core, @genoffice/ai-provider, @genoffice/ai-search, @genoffice/docx-engine, @genoffice/electron-utils, @genoffice/i18n, @genoffice/project-store, @genoffice/ui",
+        "runtimeDependencies": [
+          {
+            "name": "@tiptap/extension-mathematics",
+            "kind": "third-party"
+          },
+          {
+            "name": "katex",
+            "kind": "third-party"
+          },
+          {
+            "name": "mermaid",
+            "kind": "third-party"
+          }
+        ]
+      },
+      {
+        "path": "apps/html",
+        "packageName": "@genoffice/html",
+        "version": "0.1.0",
+        "role": "HTML page builder",
+        "dependencyClosure": "runtime dependencies at the pin: none; workspace packages referenced only from devDependencies (build/test-time, not a runtime closure): @genoffice/agent-core, @genoffice/ai-provider, @genoffice/ai-search, @genoffice/electron-utils, @genoffice/file-parse, @genoffice/i18n, @genoffice/project-store, @genoffice/ui",
+        "runtimeDependencies": []
+      },
+      {
+        "path": "apps/shell",
+        "packageName": "@genoffice/shell",
+        "version": "0.10.0",
+        "role": "Electron host, document routing, MCP server, updater, packaging",
+        "dependencyClosure": "runtime dependencies at the pin: none; workspace packages referenced only from devDependencies (build/test-time, not a runtime closure): @genoffice/agent-core, @genoffice/ai-provider, @genoffice/ai-search, @genoffice/cli, @genoffice/docs, @genoffice/docx-engine, @genoffice/electron-utils, @genoffice/i18n, @genoffice/pipelines, @genoffice/pptx-engine, @genoffice/pptx-render, @genoffice/sheets, @genoffice/slides, @genoffice/ui, @genoffice/xlsx-gateway",
+        "runtimeDependencies": []
+      }
+    ],
+    "packages": [
+      {
+        "path": "packages/docx-engine",
+        "name": "@genoffice/docx-engine",
+        "entry": "src/index.ts (exports: ., ./math, ./metafile)",
+        "externalDeps": [
+          "fast-xml-parser ^5.3.4",
+          "jszip ^3.10.1",
+          "utif2 ^4.1.0"
+        ],
+        "int01Role": "engine module candidate; pure JS, no Electron import in src/",
+        "runtimeWorkspaceDependencies": [
+          "@genoffice/pptx-engine"
+        ]
+      },
+      {
+        "path": "packages/pptx-engine",
+        "name": "@genoffice/pptx-engine",
+        "entry": "src/index.ts",
+        "externalDeps": [
+          "fast-xml-parser ^5.3.4",
+          "jszip ^3.10.1"
+        ],
+        "int01Role": "engine module candidate; pure JS"
+      },
+      {
+        "path": "packages/pptx-ops",
+        "name": "@genoffice/pptx-ops",
+        "entry": "src/index.ts (exports: ., ./op-docs, ./font-size)",
+        "externalDeps": [],
+        "int01Role": "operation catalogue over pptx-engine",
+        "runtimeWorkspaceDependencies": [
+          "@genoffice/docx-engine",
+          "@genoffice/pptx-engine"
+        ]
+      },
+      {
+        "path": "packages/pptx-render",
+        "name": "@genoffice/pptx-render",
+        "entry": "src/index.ts",
+        "externalDeps": [
+          "opentype.js ^2.0.0",
+          "bidi-js ^1.0.3"
+        ],
+        "int01Role": "render-tree builder; browser-capable",
+        "runtimeWorkspaceDependencies": [
+          "@genoffice/pptx-engine"
+        ]
+      },
+      {
+        "path": "packages/xlsx-gateway",
+        "name": "@genoffice/xlsx-gateway",
+        "entry": "src/*.ts (exports: ./*)",
+        "externalDeps": [
+          "jszip ^3.10.1",
+          "numfmt ^3.2.6",
+          "zod ^4.3.6"
+        ],
+        "int01Role": "package mutation gateway; pure JS"
+      },
+      {
+        "path": "packages/file-parse",
+        "name": "@genoffice/file-parse",
+        "entry": "src/index.ts",
+        "externalDeps": [
+          "cfb ^1.2.2",
+          "fast-xml-parser ^5.3.4",
+          "jszip ^3.10.1",
+          "pdfjs-dist ^6.2.108",
+          "ppt-to-text ^1.0.1",
+          "word-extractor ^1.0.4"
+        ],
+        "int01Role": "text extraction; word-extractor and ppt-to-text are Node-oriented",
+        "runtimeWorkspaceDependencies": [
+          "@genoffice/docx-engine"
+        ]
+      },
+      {
+        "path": "packages/pdf2docx",
+        "name": "@genoffice/pdf2docx",
+        "entry": "src/index.ts",
+        "externalDeps": [
+          "@embedpdf/pdfium ^2.15.0",
+          "bidi-js ^1.0.3",
+          "jszip ^3.10.1"
+        ],
+        "int01Role": "PDF analysis and rebuild pipeline; needs a wasm host",
+        "runtimeWorkspaceDependencies": [
+          "@genoffice/docx-engine",
+          "@genoffice/font-metrics",
+          "@genoffice/pptx-engine"
+        ]
+      },
+      {
+        "path": "packages/html2docx",
+        "name": "@genoffice/html2docx",
+        "entry": "src/index.ts",
+        "externalDeps": [
+          "docx ^9.7.1"
+        ],
+        "int01Role": "HTML to DOCX conversion; also ships Playwright/Electron drivers for DOM extraction"
+      },
+      {
+        "path": "packages/font-metrics",
+        "name": "@genoffice/font-metrics",
+        "entry": "src/index.ts",
+        "externalDeps": [],
+        "int01Role": "font advance metrics; no deps"
+      },
+      {
+        "path": "packages/i18n",
+        "name": "@genoffice/i18n",
+        "entry": "src/index.ts",
+        "externalDeps": [],
+        "int01Role": "19-locale dictionaries; UniWork keeps its own vi/en locale layer"
+      },
+      {
+        "path": "packages/ui",
+        "name": "@genoffice/ui",
+        "entry": "src/index.ts plus css subpaths",
+        "externalDeps": [],
+        "int01Role": "shared Office UI primitives; overlaps UniWork packages/ui and is not the UniWork design system",
+        "runtimeWorkspaceDependencies": [
+          "@genoffice/i18n",
+          "@genoffice/pptx-render"
+        ]
+      },
+      {
+        "path": "packages/project-store",
+        "name": "@genoffice/project-store",
+        "entry": "src/index.ts",
+        "externalDeps": [],
+        "int01Role": "local project store; must not become a second document store (ADR 0016)"
+      },
+      {
+        "path": "packages/pipelines",
+        "name": "@genoffice/pipelines",
+        "entry": "src/index.ts (exports: ., ./slides, ./slides/layout-audit)",
+        "externalDeps": [],
+        "int01Role": "AI generation pipelines; out of the M1 pilot scope",
+        "runtimeWorkspaceDependencies": [
+          "@genoffice/pptx-engine",
+          "@genoffice/pptx-render"
+        ]
+      },
+      {
+        "path": "packages/cli",
+        "name": "@genoffice/cli",
+        "entry": "src/index.ts; bundled to dist/genoffice.cjs",
+        "externalDeps": [
+          "@modelcontextprotocol/sdk",
+          "@tiptap/core",
+          "jsdom",
+          "jszip",
+          "numfmt",
+          "pngjs",
+          "undici",
+          "zod"
+        ],
+        "int01Role": "headless conversion and audit surface; drives the apps through --headless-export",
+        "runtimeWorkspaceDependencies": [
+          "@genoffice/ai-provider",
+          "@genoffice/ai-search",
+          "@genoffice/docx-engine",
+          "@genoffice/pdf2docx",
+          "@genoffice/pipelines",
+          "@genoffice/pptx-engine",
+          "@genoffice/pptx-ops",
+          "@genoffice/pptx-render",
+          "@genoffice/xlsx-gateway"
+        ]
+      },
+      {
+        "path": "packages/electron-utils",
+        "name": "@genoffice/electron-utils",
+        "entry": "src/index.ts plus subpaths",
+        "externalDeps": [
+          "parse5 ^8.0.1"
+        ],
+        "int01Role": "Electron host helpers; explicitly host-side, not a browser module"
+      },
+      {
+        "path": "packages/agent-core",
+        "name": "@genoffice/agent-core",
+        "entry": "src/index.ts",
+        "externalDeps": [],
+        "int01Role": "AI agent core; out of pilot scope"
+      },
+      {
+        "path": "packages/ai-provider",
+        "name": "@genoffice/ai-provider",
+        "entry": "src/index.ts",
+        "externalDeps": [],
+        "int01Role": "AI provider abstraction; Q4-A forbids sending documents to third-party endpoints, so it is not ported unchanged",
+        "runtimeWorkspaceDependencies": [
+          "@genoffice/agent-core"
+        ]
+      },
+      {
+        "path": "packages/ai-search",
+        "name": "@genoffice/ai-search",
+        "entry": "src/index.ts",
+        "externalDeps": [
+          "@genspark/cli"
+        ],
+        "int01Role": "AI search; depends on the closed @genspark/cli and is excluded from the port scope pending a licence review",
+        "runtimeWorkspaceDependencies": [
+          "@genoffice/ai-provider",
+          "@genoffice/electron-utils"
+        ]
+      },
+      {
+        "path": "apps/sheets/native/xlsx-engine",
+        "name": "xlsx-sidecar",
+        "entry": "crate lib plus bin protocol",
+        "externalDeps": [
+          "calamine 0.36.0",
+          "ironcalc 0.7.1",
+          "quick-xml 0.38",
+          "roxmltree 0.21.1",
+          "serde 1",
+          "serde_json 1",
+          "uuid 1",
+          "zip 4",
+          "base64 0.22.1"
+        ],
+        "int01Role": "native recalculation; a service or native placement, not a browser module"
+      }
+    ],
+    "thirdPartyRuntimeDepsOfInterest": [
+      {
+        "name": "pptxgenjs",
+        "version": "4.0.1",
+        "license": "MIT",
+        "scope": "test and dev only - imported by packages/pptx-engine tests to build fixtures, not by shipped engine code",
+        "lockfileEntry": "node_modules/pptxgenjs"
+      },
+      {
+        "name": "docx",
+        "version": "9.7.1",
+        "license": "MIT",
+        "scope": "runtime - packages/html2docx generation"
+      },
+      {
+        "name": "@genspark/cli",
+        "version": "closed source, bundled from node_modules",
+        "license": "not determined in this task",
+        "scope": "bundled gsk CLI in the installer and imported by packages/ai-search; flagged for task 4 licence and provenance review"
+      },
+      {
+        "name": "exceljs",
+        "version": "absent from the pinned lockfile",
+        "license": "n/a",
+        "scope": "not a dependency at the pinned commit; recorded so a future fixture generator does not assume it"
+      }
+    ],
+    "transitiveDependencyPolicy": {
+      "recordedBy": "package-lock.json at the pinned commit (lockfileVersion 3, sha256 in lockfile.sha256)",
+      "installedInLab": "the disposable bootstrap snapshot installs from the pinned lockfile with npm ci; the pinned lockfile records 1187 package entries (1160 under node_modules/), and no count of the snapshot is asserted here because the snapshot is machine-local and disposable",
+      "rule": "the trial copy installs from the lockfile; no dependency is added, upgraded or hoisted by hand"
+    },
+    "int01EntryPoints": [
+      {
+        "module": "packages/docx-engine",
+        "browserSafeEntry": "src/index.ts",
+        "hostCoupling": "none in src/; the editor consuming it is Electron-bound",
+        "placement": "candidate: browser or worker engine module"
+      },
+      {
+        "module": "packages/xlsx-gateway",
+        "browserSafeEntry": "src/gateway/xlsx-package-io.ts, src/gateway/xlsx-gateway.ts",
+        "hostCoupling": "none in src/; recalculation lives in the Rust sidecar",
+        "placement": "candidate: browser or worker for package mutation, service or native for recalculation"
+      },
+      {
+        "module": "packages/pptx-engine plus pptx-ops plus pptx-render",
+        "browserSafeEntry": "src/index.ts of each",
+        "hostCoupling": "renderer needs canvas and font shaping; the engine itself is pure",
+        "placement": "candidate: browser or worker engine module"
+      },
+      {
+        "module": "packages/pdf2docx",
+        "browserSafeEntry": "src/index.ts",
+        "hostCoupling": "wasm resolution and OCR helpers are Electron-main concerns (apps/pdf/src/main/wasm-path.ts)",
+        "placement": "candidate: worker plus internal service; OCR is out of M1 (Q2-A)"
+      },
+      {
+        "module": "packages/html2docx",
+        "browserSafeEntry": "src/index.ts",
+        "hostCoupling": "DOM extraction drivers are Playwright or Electron based",
+        "placement": "candidate: internal service (needs a real DOM)"
+      },
+      {
+        "module": "apps/sheets/native/xlsx-engine",
+        "browserSafeEntry": "none",
+        "hostCoupling": "native process, spawned by apps/sheets/src/main/xlsx-sidecar-client.ts",
+        "placement": "candidate: internal Office Engine Service"
+      }
+    ]
+  },
+  "licenses": {
+    "rootLicense": "LICENSE",
+    "noticeFile": "NOTICE",
+    "obligations": [
+      "Keep LICENSE, NOTICE and the Mainfunc, Inc. copyright notice with any redistributed source or binary (Apache-2.0 section 4).",
+      "State significant modifications. UniWork Office is a modified fork; the patch list in trialSource.patches and each port commit are that record.",
+      "Keep the upstream name only where provenance requires it (LICENSE, NOTICE, package and provenance metadata). Product UI must not show GenOffice or Genspark branding (BRAND-01).",
+      "Do not send documents to upstream GenOffice or Genspark endpoints (Q4-A)."
+    ],
+    "licenseFiles": [
+      {
+        "path": "LICENSE",
+        "bytes": 11345,
+        "sha256": "68E32334DF324EF4FC79FAD3A26487E5ABAC36055A484BB6C8D7ECF9D8350885",
+        "license": "Apache-2.0"
+      },
+      {
+        "path": "NOTICE",
+        "bytes": 1385,
+        "sha256": "285CA4B6F4D5A54FEACA5EDD8CA31C99FE2D0ABCCAF586B0929B945970A63EEC",
+        "license": "Apache-2.0 notice"
+      },
+      {
+        "path": "LICENSE-UNICODE.txt",
+        "bytes": 1995,
+        "sha256": "4F3A46C1907819C08F5C8689AC38EA5C594C602B1DA71E4A43EBAC40E7C9540A",
+        "license": "Unicode License v3",
+        "obligation": "apps/pdf/src/shared/radicals.ts is generated from UCD 17.0.0 EquivalentUnifiedIdeograph.txt and ships in the product"
+      },
+      {
+        "path": "ee/LICENSE",
+        "bytes": 1356,
+        "sha256": "BB4B26103FDE4B2FF7249CBF6696B641721AD17D117349DDF4F93F50C4548E25",
+        "license": "GenOffice Enterprise License",
+        "inTrial": false
+      },
+      {
+        "path": "ee/README.md",
+        "bytes": 790,
+        "sha256": "9EBC6EA7F19987330A21BB82E6FC55C5A5383EB31A97C514BAE0D5B3CB6C417F",
+        "inTrial": false
+      },
+      {
+        "path": "apps/docs/src/renderer/fonts/LICENSE-OFL.txt",
+        "bytes": 5154,
+        "sha256": "992656DF2B40E317EA54B4D3B7CA47A48EEC11C2EAAF46BD74EFFD600714841A",
+        "license": "SIL Open Font License"
+      },
+      {
+        "path": "apps/docs/src/renderer/fonts/README.md",
+        "bytes": 12728,
+        "sha256": "405747CFC0A805198D1DB8F4ADD78C6575ABA2044AFE4B5C2F357D2F6FAF1AE2",
+        "license": "font provenance documentation"
+      },
+      {
+        "path": "packages/docx-engine/src/vendor/emf-converter/LICENSE",
+        "bytes": 11363,
+        "sha256": "2C27550900D2CABF83527A04600BA8042E3BA89E70EC077FF220AFA48C8230A7",
+        "license": "vendored third party"
+      },
+      {
+        "path": "packages/pptx-engine/src/vendor/mtx/LICENSE",
+        "bytes": 17184,
+        "sha256": "D44B19B3E36225A706B3DE2ED7210685C37EEE2BDF1D813E1C1EDFE1595818FF",
+        "license": "vendored third party"
+      },
+      {
+        "path": "packages/pptx-engine/tests/fixtures/LICENSE-python-pptx.txt",
+        "bytes": 1117,
+        "sha256": "BF6863BDE622BE2E29582028C438FBF2D7F90A27CEE01F95EC5383983081511C",
+        "license": "fixture provenance"
+      },
+      {
+        "path": "apps/docs/tests/encrypted-fixtures/LICENSE-msoffcrypto-tool.txt",
+        "bytes": 2324,
+        "sha256": "06F075D36BBA29E3B1A107C5C47B2DF0EEF0372502908F770E67E9E03AE910D7",
+        "license": "fixture provenance"
+      }
+    ],
+    "thirdPartyNotices": {
+      "generatedBy": "tools/gen-third-party-notices.mjs",
+      "checkedIn": false,
+      "shippedAs": "THIRD-PARTY-NOTICES.txt inside the packaged bundle (Contents/Resources on macOS, resources/ on Windows)",
+      "taskRule": "any UniWork Office release must run the equivalent generator and ship the result; a release without it violates the bundled-component notices"
+    },
+    "excludedFromReuse": [
+      {
+        "path": "ee/**",
+        "reason": "separate enterprise licence"
+      },
+      {
+        "path": "packages/ai-search (@genspark/cli dependency)",
+        "reason": "closed-source bundled dependency with unverified licensing; excluded from port scope until task 4 resolves provenance"
+      },
+      {
+        "path": "tools/ooxml-validate/schemas (ISO/IEC 29500-4:2016 schemas)",
+        "reason": "tests and dev tooling only, not shipped; the allowlist keeps tools/ for reproducibility but a UniWork release must not ship the schemas"
+      }
+    ]
+  },
+  "trialSource": {
+    "workspaceRoot": "D:/.Vietants_Project/uniwork-workspace",
+    "labDir": "../.uniwork-dev/office-g0",
+    "producedDirName": "trial-source",
+    "existingSnapshot": {
+      "path": "../.uniwork-dev/office-g0/bootstrap-source",
+      "createdBefore": "this manifest",
+      "purpose": "disposable bootstrap snapshot used to measure build prerequisites (npm ci, Rust release build, renderer builds, upstream test baselines); those baselines were measured outside this worktree and are not committed here",
+      "status": "kept for reference; trial-source is the manifest-driven copy"
+    },
+    "environmentScript": "../.uniwork-dev/office-g0/environment.ps1",
+    "environmentProvides": [
+      "RUSTUP_HOME/CARGO_HOME under the lab",
+      "toolchains/bin",
+      "GNU make",
+      "cargo/bin",
+      "ELECTRON_SKIP_BINARY_DOWNLOAD=1"
+    ],
+    "cachePolicy": "npm, Electron, Rust and browser caches plus all build output stay inside the lab directory under the workspace root; never in the product monorepo and never in the user checkout",
+    "distinguishesLabFromProduction": "the lab copy is a survey and build sandbox; production source is a pinned copy inside the monorepo build (task 4), and no machine may require ../genoffice or a symlink to the user checkout",
+    "reproducibilityRule": "preparation must succeed in a clean directory without global dependencies and without symlinking the source checkout",
+    "patches": [],
+    "patchPolicy": "Task 3 records every spike patch in ../.uniwork-dev/office-g0/patches/ as a numbered .patch file plus a checksum, and adds an entry here. Zero entries at task-2 time is correct: no spike has run.",
+    "preparationRecordPath": "../.uniwork-dev/office-g0/trial-source/prepare-record.json"
+  },
+  "commands": {
+    "prepare": "node scripts/office-g0/prepare-source.mjs --source ..\\..\\..\\genoffice --work-dir ..\\..\\..\\.uniwork-dev\\office-g0\\trial-source-r1",
+    "verify": "node scripts/office-g0/verify-manifest.mjs --source ..\\..\\..\\genoffice",
+    "verifySelfTest": "node --test scripts/office-g0/manifest.test.mjs",
+    "governance": "node --test scripts/governance.test.mjs",
+    "installInTrial": "npm ci --ignore-scripts --no-audit --no-fund (inside the trial copy, Node 22)",
+    "nativeSidecarBuild": "cargo test or build --release --locked --manifest-path native/xlsx-engine/Cargo.toml --config native/xlsx-engine/.cargo/config.toml (from apps/sheets in the trial copy)",
+    "fixtureGeneration": "node scripts/office-g0/generate-fixtures.mjs --deps-dir <trial copy>/node_modules"
+  },
+  "unproven": [
+    "No GenOffice dependency install, build, browser run, editor round trip, performance measurement or platform check was performed for this task; the bootstrap baselines that were measured outside this lane are a build prerequisite, not editor evidence.",
+    "Coexistence with the UniWork React 19.2.3 and TipTap 3.30.6 catalog is unproven.",
+    "macOS and Safari (QA-01) are deferred to UNI-671 and are not a passing platform result.",
+    "Electron packaging, code signing, OCR helpers and the update feed were not exercised.",
+    "No spike patch exists yet, so the patch and checksum replay path is exercised only by the prepare and verify scripts, not by a real patch set."
+  ],
+  "brandAndIntegration": {
+    "task": "DOC-002 2.7",
+    "readAtCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+    "method": "source read only: manifest, packaging config, renderer assets, updater, i18n and host files were read; no build, installer or app was run",
+    "ownedBy": "the replacement matrix and its acceptance checks live in docs/office/g0/uniwork-office-integration-brand.md (DOC-001, UNI-665); this section is the task-2 evidence for its rows",
+    "surfaces": [
+      {
+        "id": "BR-01",
+        "surface": "package identity",
+        "upstreamValue": "name @genoffice/shell, version 0.10.0, productName 'GenOffice'",
+        "replaceWith": "UniWork Office product name; the internal package name may keep its provenance name",
+        "portIn": "DOC-004 packaging decision",
+        "check": "read the built manifest and the About surface on a real installer",
+        "sourcePaths": [
+          "apps/shell/package.json"
+        ]
+      },
+      {
+        "id": "BR-02",
+        "surface": "application id",
+        "upstreamValue": "appId: 'com.genoffice.app'",
+        "replaceWith": "a uniwork-office id that does not collide with an installed GenOffice build",
+        "portIn": "DOC-004 packaging decision",
+        "check": "install beside GenOffice; both apps survive and neither overwrites the other",
+        "sourcePaths": [
+          "apps/shell/electron-builder.cjs"
+        ]
+      },
+      {
+        "id": "BR-03",
+        "surface": "linux executable and package name",
+        "upstreamValue": "executableName 'genoffice', packageName 'genoffice', and deb/rpm artifact names built from the same slug",
+        "replaceWith": "the same uniwork-office slug used for the app id, so X11 desktop-name and package names agree",
+        "portIn": "DOC-004 packaging decision",
+        "check": "inspect the produced packages and the taskbar link on a real desktop",
+        "note": "the upstream comment records that StartupWMClass falls back to productName and would not match the actual WM_CLASS; whatever name is chosen must keep that pairing intact",
+        "sourcePaths": [
+          "apps/shell/electron-builder.cjs"
+        ]
+      },
+      {
+        "id": "BR-04",
+        "surface": "file associations",
+        "upstreamValue": "eleven associations - docx, xlsx, xlsm, pptx, xls, csv, pdf, md, markdown, html, htm - each with a name, role Editor, an icon key and a MIME type",
+        "replaceWith": "keep the supported formats and register them under the new application id",
+        "portIn": "DOC-004 packaging decision",
+        "check": "open a file of each extension from the operating-system file manager and confirm it reaches UniWork Office",
+        "sourcePaths": [
+          "apps/shell/electron-builder.cjs"
+        ]
+      },
+      {
+        "id": "BR-05",
+        "surface": "per-format icons and installer art",
+        "upstreamValue": "build/ holds docx, xlsx, pptx, pdf, md and html icon pairs plus icon.ico, icon.icns, icon.png, installer.nsh and the linux install/remove scripts; renderer assets hold app-icon.png, genoffice-logo.svg and six file-type svgs",
+        "replaceWith": "UniWork Office icons and file-type marks; the file-type marks may keep a neutral document shape",
+        "portIn": "G3 design, G4 packaging",
+        "check": "screenshot the taskbar, Dock, installer and file-manager icons on real builds",
+        "sourcePaths": [
+          "apps/shell/build",
+          "apps/shell/src/renderer/src/assets"
+        ]
+      },
+      {
+        "id": "BR-06",
+        "surface": "update feed and manual download link",
+        "upstreamValue": "GENOFFICE_UPDATE_URL is injected at package time; the channel map is stable->latest and beta->beta; the last-resort manual link is https://github.com/genspark-ai/genoffice/releases/latest",
+        "replaceWith": "a UniWork Office channel that must never accept an upstream GenOffice binary, and a manual link that points at UniWork releases",
+        "portIn": "DOC-004 packaging decision",
+        "check": "run an update from a build older than the published one; confirm the payload is a UniWork artifact and that an upstream feed cannot be reached",
+        "planeBoundary": "Q4-A forbids sending documents to upstream endpoints; the update path must not become an exception",
+        "sourcePaths": [
+          "apps/shell/src/main/updater.ts",
+          "apps/shell/electron-builder.cjs"
+        ]
+      },
+      {
+        "id": "BR-07",
+        "surface": "internal Electron schemes (not user-facing deep links)",
+        "upstreamValue": "RENDERER_SCHEME 'genoffice-app', PREVIEW_SCHEME 'html-preview', ASSET_SCHEME 'html-asset' - all registered as privileged standard/secure schemes at process start",
+        "replaceWith": "names owned by UniWork; the preview scheme is the isolation boundary the HTML capability rows depend on",
+        "portIn": "DOC-003 spike, DOC-004 contract",
+        "check": "a fixture HTML that tries to read the host session is refused while its own script still runs",
+        "note": "no custom user-facing deep-link scheme was found at the pinned commit; file associations are the only operating-system entry point",
+        "sourcePaths": [
+          "packages/electron-utils/src/renderer-scheme.ts",
+          "apps/html/src/main/preview-document.ts"
+        ]
+      },
+      {
+        "id": "BR-08",
+        "surface": "on-disk state namespace",
+        "upstreamValue": "launcher file at ~/.genoffice/launcher (or GENOFFICE_AUTH_DIR), markdown asset manifest .genoffice-assets.json beside the document, and a per-user control channel named genoffice-control-<hash>",
+        "replaceWith": "a UniWork namespace for the launcher and the control channel; the markdown asset manifest name is a document-side artefact and needs a decision before it is changed",
+        "portIn": "DOC-004 contract, DOC-005 session",
+        "check": "install beside GenOffice and confirm the two do not share launcher, control channel or user data",
+        "sourcePaths": [
+          "apps/shell/src/main/cli-link.ts",
+          "apps/shell/src/main/folder-tree.ts",
+          "apps/shell/src/main/control-server.ts"
+        ]
+      },
+      {
+        "id": "BR-09",
+        "surface": "anonymous analytics",
+        "upstreamValue": "GA4 Measurement Protocol with the id and secret injected at package time via extraMetadata; source builds get a no-op tracker; events carry a random install id and the OS locale country only, never document content, names or paths; there is a user opt-out setting",
+        "replaceWith": "UniWork policy decides whether any reporting exists at all; the upstream credential path must not be reused as-is",
+        "portIn": "DOC-004 or the product policy owner",
+        "check": "confirm no request leaves for an upstream endpoint, and that a source build without credentials reports nothing",
+        "planeBoundary": "Q4-A and the privacy rule are non-negotiable; this row is evidence, not approval to keep analytics",
+        "sourcePaths": [
+          "apps/shell/src/main/analytics.ts"
+        ]
+      },
+      {
+        "id": "BR-10",
+        "surface": "account and cloud project surfaces",
+        "upstreamValue": "GENSPARK_ORIGIN https://www.genspark.ai with the upstream API key used to list a signed-in account's cloud projects",
+        "replaceWith": "UniWork accounts and Projects through the UniWork API; the upstream origin must not be reachable from the product",
+        "portIn": "DOC-005 protocol, G5",
+        "check": "sign in with a UniWork account and confirm no request goes to the upstream origin",
+        "sourcePaths": [
+          "apps/shell/src/main/cloud-projects.ts",
+          "apps/shell/src/main/index.ts",
+          "apps/shell/src/renderer/src/Home.tsx"
+        ]
+      },
+      {
+        "id": "BR-11",
+        "surface": "locales",
+        "upstreamValue": "nineteen locales - zh, en, ja, ko, fr, de, es, th, id, ru, ar, pt, it, pl, cs, nl, ms, he, hi - with twenty per-app files including zh-TW",
+        "replaceWith": "UniWork keeps its own vi/en locale layer; an Office locale set is a product decision, not a port default",
+        "portIn": "G3",
+        "check": "vi/en parity on every Office surface; no upstream-brand string reaches a user-visible string",
+        "sourcePaths": [
+          "packages/i18n/src/index.ts",
+          "apps/docs/src/renderer/i18n/app",
+          "apps/sheets/src/renderer/i18n/app"
+        ]
+      },
+      {
+        "id": "BR-12",
+        "surface": "bundled fonts",
+        "upstreamValue": "thirty-three files: Liberation and Carlito/Caladea families, Noto CJK/Arabic/Naskh subsets, and GenOffice-branded Korean, Tamil, Japanese-kana, Poppins and PUA subsets",
+        "replaceWith": "keep the OFL families and their licence; the GenOffice-branded subset filenames and any brand-bearing family are replaced, and a Vietnamese-tuned family is a gap to close rather than a silent substitution",
+        "portIn": "G3, G4",
+        "check": "render the Vietnamese fixtures on a host without the family installed and compare glyph advances, not only the page image",
+        "note": "LICENSE-OFL.txt and the fonts README stay with the fonts",
+        "sourcePaths": [
+          "apps/docs/src/renderer/fonts"
+        ]
+      }
+    ],
+    "openQuestions": [
+      "The product name, app id, executable name and update feed are recorded here as upstream values with the port owner; none of them is decided at task 2.",
+      "Whether any usage reporting exists in UniWork Office is a product-policy decision, not a packaging detail.",
+      "The markdown asset manifest filename is written into documents; renaming it is a compatibility decision for DOC-004, not a styling change.",
+      "The bundled-font set has no Vietnamese-tuned family, so Vietnamese fidelity currently rests on host fonts; task 3 must measure that rather than assume it."
+    ]
+  }
+}
