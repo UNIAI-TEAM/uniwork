@@ -1,4 +1,5 @@
 import { type Browser, expect, type Locator, type Page, test } from "@playwright/test";
+import { VI_LOCALE_STATE } from "./locale-state";
 import { registerVerified } from "./auth-nav";
 import {
   captureAuth,
@@ -30,7 +31,7 @@ let seeded: SeededTask[];
 test.describe.configure({ mode: "serial" });
 
 async function openSharedPage(browser: Browser, baseURL: string | undefined) {
-  const context = await browser.newContext({ baseURL, locale: "vi-VN" });
+  const context = await browser.newContext({ baseURL, locale: "vi-VN", storageState: VI_LOCALE_STATE });
   return context.newPage();
 }
 
