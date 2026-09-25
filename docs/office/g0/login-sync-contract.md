@@ -542,6 +542,22 @@ tỏ fixture/ca thực sự bắt được defect chứ không luôn xanh:
 | `orphan-deleted-on-refused-commit` | `failed-commit-keeps-current`, `orphans-measured-before-retry` |
 | `revoke-fans-out-to-everyone` | `grant-targeted-revoke-id-only` |
 
+### 8.6 Nghiệm thu G0 (Advisor g118, 2026-09-25)
+
+DOC-005 được nghiệm thu ở mức G0 đã công bố (model tham chiếu + byte store thật cho nháp):
+
+- 17 dòng `E-DOC005-*` trong register đều PASS và đóng gate `G0-DOC005-MANDATORY`; mỗi ca bắt
+  buộc của plan có expected state, quyền và cách phục hồi trong oracle của transcript.
+- Nguồn gốc: các dòng trỏ tới `b88a439c` trên `feature/UNI-669-office-sync-contracts` (commit
+  cục bộ, chưa push), chứa đúng các file protocol/2 đã chạy; `32432e53` cũ chỉ có protocol/1.
+  Chạy lại sạch từ `b88a439c`: 41/41 ca; 135 test trên mười file (gồm ba ca feed mới cho
+  rename/move/archive/restore, §5).
+- Thứ tự migration/rollout client: §9.1.
+
+Giới hạn không đổi (§8.2): ủy quyền, tenancy và lớp protocol vẫn là **model**; không có Go
+service, không có E2E web-server-desktop (G7) và không chứng nhận cách ly tenant cho mã sản
+phẩm chưa viết. Các việc ở §9 vẫn thuộc G1/G2/G4/G5.
+
 ## 9. Việc tiếp theo
 
 | Việc | Giai đoạn | Ghi chú |
