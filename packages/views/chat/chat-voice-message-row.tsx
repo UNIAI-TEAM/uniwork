@@ -98,6 +98,7 @@ function ChatVoiceMessageRowImpl({
   roomId,
   message,
   senderLabel,
+  senderAvatarUrl,
   isOwn,
   showSenderName,
   compactTop,
@@ -112,12 +113,12 @@ function ChatVoiceMessageRowImpl({
   onCreateTask,
   onLinkTask,
   onFollowUp,
-  workHubEnabled = false,
 }: {
   workspaceId: string;
   roomId: string;
   message: ChatMessage;
   senderLabel: string;
+  senderAvatarUrl?: string;
   isOwn: boolean;
   showSenderName: boolean;
   compactTop: boolean;
@@ -132,7 +133,6 @@ function ChatVoiceMessageRowImpl({
   onCreateTask?: (message: ChatMessage) => void;
   onLinkTask?: (message: ChatMessage) => void;
   onFollowUp?: (message: ChatMessage) => void;
-  workHubEnabled?: boolean;
 }) {
   const reveal = useMessageActionsReveal();
 
@@ -151,7 +151,13 @@ function ChatVoiceMessageRowImpl({
       {!isOwn ? (
         <div className="w-8 shrink-0" aria-hidden>
           {showAvatar ? (
-            <ActorAvatar name={senderLabel} initials={initialOf(senderLabel)} size="lg" className="shrink-0" />
+            <ActorAvatar
+              name={senderLabel}
+              initials={initialOf(senderLabel)}
+              avatarUrl={senderAvatarUrl}
+              size="lg"
+              className="shrink-0"
+            />
           ) : null}
         </div>
       ) : null}
@@ -189,9 +195,9 @@ function ChatVoiceMessageRowImpl({
           onPin={onPin}
           onCopy={onCopy}
           onDelete={onDelete}
-          onCreateTask={workHubEnabled ? onCreateTask : undefined}
-          onLinkTask={workHubEnabled ? onLinkTask : undefined}
-          onFollowUp={workHubEnabled ? onFollowUp : undefined}
+          onCreateTask={onCreateTask}
+          onLinkTask={onLinkTask}
+          onFollowUp={onFollowUp}
           canEdit={false}
           forceOpen={reveal.open}
         />

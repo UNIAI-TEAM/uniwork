@@ -11,19 +11,22 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { AppLink } from "../navigation";
 import { NotificationMark } from "./notification-mark";
 import { NotificationTitle } from "./notification-title";
-import { relativeTime } from "./relative-time";
+import { absoluteTime, relativeTime } from "./relative-time";
 import { useNow } from "./use-now";
 
 export interface NotificationRowProps {
   notification: Notification;
   href: string;
   onOpen: (n: Notification) => void;
-  onToggleRead: (n: Notification) => void;
-  onArchive: (n: Notification) => void;
-  /** Compact rows for the bell popover and Home: no row actions. */
+  /** With `onArchive`, the row's two actions; a host that passes neither (the bell, Home) shows none. */
+  onToggleRead?: (n: Notification) => void;
+  onArchive?: (n: Notification) => void;
+  /** Compact rows for the bell popover and Home: tighter, never with actions. */
   compact?: boolean;
   /** The inbox's mail keys (j/k/r/e), attached to the row's link. */
   onKeyDown?: (e: KeyboardEvent<HTMLElement>) => void;
+  /** Off where every row is unread (Home), so the bar would tell nothing apart. */
+  unreadBar?: boolean;
 }
 
 /**
@@ -34,12 +37,6 @@ export interface NotificationRowProps {
  */
 export const ROW_FOCUS_SELECTOR = "[data-row-focus]";
 
-function absoluteTime(iso: string, locale: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return new Intl.DateTimeFormat(locale, { dateStyle: "full", timeStyle: "short" }).format(d);
-}
-
 /**
  * One inbox line, read left to right the way a person triages: who (the
  * actor's face, the kind pinned to its corner in the module's tint), what
@@ -47,7 +44,8 @@ function absoluteTime(iso: string, locale: string): string {
  * out, up to two lines so the task name is never cut to "Rà soát hợ…"), and
  * when. Unread rows carry a brand bar on the leading edge and full-strength
  * type; read rows step back to muted. A deleted resource is still a row (the
- * person was told something) but is dimmed and not a link.
+ * person was told something) but is not a link: its mark fades and it says
+ * "deleted", while its text keeps AA contrast.
  *
  * The actions float over the row's trailing edge on the row's own fill
  * instead of pushing the text aside, so hovering never reflows the list.
@@ -57,16 +55,26 @@ function absoluteTime(iso: string, locale: string): string {
  * focusable elements in the tab order. A listbox would hide them from
  * assistive tech (option children are presentational) and from Tab.
  */
-export function NotificationRow({ notification: n, href, onOpen, onToggleRead, onArchive, compact, onKeyDown }: NotificationRowProps) {
+export function NotificationRow({
+  notification: n,
+  href,
+  onOpen,
+  onToggleRead,
+  onArchive,
+  compact,
+  onKeyDown,
+  unreadBar = true,
+}: NotificationRowProps) {
   const { t, i18n } = useTranslation();
   const now = useNow();
   const reduceMotion = useReducedMotion() ?? false;
   const unread = !n.read_at;
   const merged = n.count > 1 ? t("notifications.merged_other", { count: n.count - 1 }) : "";
+  const actions = !compact && onToggleRead && onArchive ? { onToggleRead, onArchive } : null;
 
   const body = (
     <>
-      <NotificationMark notification={n} dimmed={!unread} />
+      <NotificationMark notification={n} dimmed={!unread || n.resource_deleted} />
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className={cn("line-clamp-2 text-body text-pretty", unread ? "text-foreground" : "text-muted-foreground")}>
           {unread ? <span className="sr-only">{`${t("notifications.unread_dot")}: `}</span> : null}
@@ -99,11 +107,10 @@ export function NotificationRow({ notification: n, href, onOpen, onToggleRead, o
     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
     "group-hover:bg-surface-hover group-focus-within:bg-surface-selected",
     // Under a finger the actions never hide, so the text never runs under them.
-    !compact && "pointer-coarse:pr-26",
+    actions && "pointer-coarse:pr-26",
     // The unread bar: 3px of brand on the leading edge, inside the row so
     // it scrolls with it and follows the row's rounded corners.
-    unread && "before:absolute before:inset-y-3 before:left-0 before:w-[3px] before:rounded-r-full before:bg-primary",
-    n.resource_deleted && "opacity-60",
+    unread && unreadBar && "before:absolute before:inset-y-3 before:left-0 before:w-0.75 before:rounded-r-full before:bg-primary",
   );
 
   return (
@@ -142,7 +149,7 @@ export function NotificationRow({ notification: n, href, onOpen, onToggleRead, o
           {body}
         </AppLink>
       )}
-      {compact ? null : (
+      {actions ? (
         <div
           className={cn(
             "absolute top-1.5 right-1.5 hidden items-center gap-0.5 rounded-md bg-[var(--row-fill,var(--background))] pl-1",
@@ -156,7 +163,7 @@ export function NotificationRow({ notification: n, href, onOpen, onToggleRead, o
             className="text-muted-foreground hover:text-foreground pointer-coarse:size-11"
             aria-label={unread ? t("notifications.mark_read") : t("notifications.mark_unread")}
             title={unread ? t("notifications.mark_read") : t("notifications.mark_unread")}
-            onClick={() => onToggleRead(n)}
+            onClick={() => actions.onToggleRead(n)}
           >
             {unread ? <MailOpen aria-hidden className="size-4" /> : <Mail aria-hidden className="size-4" />}
           </Button>
@@ -167,12 +174,12 @@ export function NotificationRow({ notification: n, href, onOpen, onToggleRead, o
             className="text-muted-foreground hover:text-foreground pointer-coarse:size-11"
             aria-label={t("notifications.archive")}
             title={t("notifications.archive")}
-            onClick={() => onArchive(n)}
+            onClick={() => actions.onArchive(n)}
           >
             <Archive aria-hidden className="size-4" />
           </Button>
         </div>
-      )}
+      ) : null}
     </motion.li>
   );
 }

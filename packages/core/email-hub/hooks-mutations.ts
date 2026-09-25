@@ -40,6 +40,14 @@ export function useSendEmailHub(wsId: string) {
       }
       qc.setQueryData(threadDetailKey(wsId, input.accountId, result.id), result);
       invalidateEmailHubThreads(qc, wsId, input.accountId);
+      if (input.replyToThreadId) {
+        void qc.invalidateQueries({
+          queryKey: emailHubKeys.conversation(wsId, input.accountId, input.replyToThreadId),
+        });
+      }
+      void qc.invalidateQueries({
+        queryKey: emailHubKeys.conversation(wsId, input.accountId, result.id),
+      });
     },
   });
 }
@@ -151,6 +159,17 @@ export function useCancelEmailHubScheduledSend(wsId: string) {
   return useMutation({
     mutationFn: (input: { accountId: string; scheduledId: string }) =>
       api.cancelEmailHubScheduledSend(wsId, input.accountId, input.scheduledId),
+    onSuccess: (_data, input) => {
+      void qc.invalidateQueries({ queryKey: ["email-hub", wsId, "scheduled", input.accountId] });
+    },
+  });
+}
+
+export function useRetryEmailHubScheduledSend(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { accountId: string; scheduledId: string }) =>
+      api.retryEmailHubScheduledSend(wsId, input.accountId, input.scheduledId),
     onSuccess: (_data, input) => {
       void qc.invalidateQueries({ queryKey: ["email-hub", wsId, "scheduled", input.accountId] });
     },

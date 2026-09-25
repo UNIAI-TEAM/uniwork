@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { bundledDictionary, loadDictionary, type SupportedLocale } from "@uniwork/core/i18n/server";
+import { loadDictionary, type SupportedLocale } from "@uniwork/core/i18n/server";
 import { paths } from "@uniwork/core/paths";
 import type { FeaturePageKey } from "../features/landing/feature-page-catalog";
 import { resolveRequestLocale } from "./locale-server";
@@ -14,7 +14,7 @@ type LandingDictionary = {
   };
 };
 
-type MarketingPageKey = "home" | "features" | "solutions" | "learn" | "pricing" | "enterprise";
+type MarketingPageKey = "home" | "features" | "solutions" | "learn" | "pricing" | "enterprise"; // plan-literal-ok: page keys
 
 /**
  * The public pages switch language with the visitor, so the tab title and
@@ -23,7 +23,7 @@ type MarketingPageKey = "home" | "features" | "solutions" | "learn" | "pricing" 
  */
 async function landingCopy(): Promise<LandingDictionary["landing"]> {
   const locale: SupportedLocale = await resolveRequestLocale();
-  const dictionary = (bundledDictionary(locale) ?? (await loadDictionary(locale)) ?? bundledDictionary("vi")) as LandingDictionary;
+  const dictionary = (await loadDictionary(locale)) as LandingDictionary;
   return dictionary.landing;
 }
 

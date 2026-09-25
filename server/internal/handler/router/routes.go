@@ -157,6 +157,7 @@ type Routes struct {
 	ListEmailHubImapLabels        http.HandlerFunc
 	ListEmailHubThreads           http.HandlerFunc
 	GetEmailHubThread             http.HandlerFunc
+	ListEmailHubConversation      http.HandlerFunc
 	GetEmailHubThreadSummary      http.HandlerFunc
 	SummarizeEmailHubThread       http.HandlerFunc
 	CreateEmailHubSummaryTasks    http.HandlerFunc
@@ -165,6 +166,7 @@ type Routes struct {
 	SendEmailHub                  http.HandlerFunc
 	ListEmailHubScheduledSends    http.HandlerFunc
 	CancelEmailHubScheduledSend   http.HandlerFunc
+	RetryEmailHubScheduledSend    http.HandlerFunc
 	SyncEmailHub                  http.HandlerFunc
 	WatchEmailHub                 http.HandlerFunc
 	SubscribeEmailHubInboxWatch   http.HandlerFunc
@@ -216,6 +218,7 @@ type Routes struct {
 	MarkNotificationsRead      http.HandlerFunc
 	MarkNotificationsUnread    http.HandlerFunc
 	ArchiveNotifications       http.HandlerFunc
+	UnarchiveNotifications     http.HandlerFunc
 	GetNotificationPreferences http.HandlerFunc
 	PutNotificationPreferences http.HandlerFunc
 	PushConfig                 http.HandlerFunc

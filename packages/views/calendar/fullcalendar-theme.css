@@ -31,6 +31,16 @@
   color: var(--muted-foreground);
 }
 
+.uniwork-fc .calendar-day-create {
+  opacity: 0;
+}
+
+.uniwork-fc .fc-daygrid-day:hover .calendar-day-create,
+.uniwork-fc .fc-daygrid-day:focus-within .calendar-day-create,
+.uniwork-fc .calendar-day-create:focus-visible {
+  opacity: 1;
+}
+
 /* Opaque sticky chrome so internal FC scroll does not bleed time slots under headers. */
 .uniwork-fc .fc-col-header-cell,
 .uniwork-fc .fc-timegrid-axis,

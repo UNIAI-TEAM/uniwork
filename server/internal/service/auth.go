@@ -107,11 +107,12 @@ type Session struct {
 func (s Session) MFAPending() bool { return s.MFAToken != "" }
 
 // NormalizeLocale maps any tag to a mail locale we have templates for.
+// English is the default: only a tag that asks for Vietnamese gets it.
 func NormalizeLocale(s string) string {
-	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(s)), "en") {
-		return "en"
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(s)), "vi") {
+		return "vi"
 	}
-	return "vi"
+	return "en"
 }
 
 // validatePassword is the one password-strength rule, shared by

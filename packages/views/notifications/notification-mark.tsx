@@ -61,7 +61,7 @@ export function NotificationMark({ notification: n, dimmed }: { notification: No
           // The ring cuts the badge out of the avatar in the colour behind
           // it: the row sets --row-fill for its hover and focus fills, and a
           // host list on another surface (a card, a popover) sets its own.
-          "absolute -right-1 -bottom-1 flex size-[18px] items-center justify-center rounded-full ring-2 ring-[var(--row-fill,var(--background))] [&_svg]:size-2.5",
+          "absolute -right-1 -bottom-1 flex size-4.5 items-center justify-center rounded-full ring-2 ring-[var(--row-fill,var(--background))] [&_svg]:size-2.5",
           tintSolidClass[tone],
         )}
       >

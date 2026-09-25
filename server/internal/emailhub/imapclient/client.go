@@ -35,6 +35,7 @@ type Credentials struct {
 type ThreadMeta struct {
 	UID            uint32
 	MessageID      string
+	InReplyTo      string
 	Subject        string
 	Snippet        string
 	BodyText       string
@@ -148,6 +149,7 @@ func messageMeta(cl *client.Client, msg *imap.Message, section *imap.BodySection
 	if msg.Envelope != nil {
 		meta.Subject = sanitizeUTF8(msg.Envelope.Subject)
 		meta.MessageID = sanitizeUTF8(msg.Envelope.MessageId)
+		meta.InReplyTo = sanitizeUTF8(msg.Envelope.InReplyTo)
 		if !msg.Envelope.Date.IsZero() {
 			meta.SentAt = msg.Envelope.Date
 		} else if !msg.InternalDate.IsZero() {

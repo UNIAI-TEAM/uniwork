@@ -25,10 +25,18 @@ import {
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@uniwork/ui/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import { DateTimeField } from "../common/datetime-field";
 import { toDateOnly } from "../common/date-field";
 import { insertTextareaAtCursor, printComposeDraft, wrapTextareaSelection } from "./compose-text-helpers";
+import { emailHubLocale, formatBytes } from "./email-hub-format";
+
+/** "⌘ Enter" on a Mac, "Ctrl Enter" elsewhere — the key that sends from the body. */
+function sendShortcutLabel() {
+  const mac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+  return mac ? "⌘ Enter" : "Ctrl Enter";
+}
 
 const QUICK_EMOJIS = ["😀", "😊", "👍", "🙏", "❤️", "🎉", "✅", "🔥", "😂", "🤔", "👋", "💡"];
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
@@ -86,6 +94,8 @@ interface ComposeEmailToolbarProps {
   attachments: ComposeDraftAttachment[];
   onAttachmentsChange: (attachments: ComposeDraftAttachment[]) => void;
   canSend: boolean;
+  /** Why Send is off, shown beside it so a greyed button is never a riddle. */
+  sendBlockedReason: string | null;
   sending: boolean;
   onSend: () => void;
   onScheduleSend: (sendAtIso: string) => void;
@@ -103,12 +113,14 @@ export function ComposeEmailToolbar({
   attachments,
   onAttachmentsChange,
   canSend,
+  sendBlockedReason,
   sending,
   onSend,
   onScheduleSend,
   onDiscard,
 }: ComposeEmailToolbarProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const locale = emailHubLocale(i18n.language);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formatOpen, setFormatOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -208,7 +220,9 @@ export function ComposeEmailToolbar({
         toast.error(t("email_hub.compose.attach_too_large", { name: file.name }));
         continue;
       }
-      next.push({ id: `${file.name}-${file.size}-${file.lastModified}`, file });
+      const id = `${file.name}-${file.size}-${file.lastModified}`;
+      // The same file picked twice is one attachment, not a duplicate row with a clashing key.
+      if (!next.some((item) => item.id === id)) next.push({ id, file });
     }
     onAttachmentsChange(next);
   };
@@ -224,6 +238,10 @@ export function ComposeEmailToolbar({
       toast.error(t("email_hub.compose.schedule_invalid"));
       return;
     }
+    if (sendAt.getTime() <= Date.now() + 60_000) {
+      toast.error(t("email_hub.compose.schedule_past"));
+      return;
+    }
     onScheduleSend(sendAt.toISOString());
     setScheduleOpen(false);
     setScheduleAt("");
@@ -231,7 +249,16 @@ export function ComposeEmailToolbar({
 
   const printDraft = () => {
     if (!fromEmail) return;
-    printComposeDraft({ from: fromEmail, to, cc, subject, body });
+    const printed = printComposeDraft(
+      { from: fromEmail, to, cc, subject, body },
+      {
+        from: t("email_hub.compose.from"),
+        to: t("email_hub.compose.to"),
+        cc: t("email_hub.compose.cc"),
+        subject: t("email_hub.compose.subject"),
+      },
+    );
+    if (!printed) toast.error(t("email_hub.compose.print_blocked"));
   };
 
   return (
@@ -245,10 +272,11 @@ export function ComposeEmailToolbar({
             >
               <Paperclip className="size-3 shrink-0" aria-hidden />
               <span className="truncate">{item.file.name}</span>
+              <span className="shrink-0 tabular-nums text-muted-foreground">{formatBytes(item.file.size, locale)}</span>
               <button
                 type="button"
-                className="rounded-full p-0.5 hover:bg-background"
-                aria-label={t("email_hub.compose.remove_attachment")}
+                className="-mr-1 inline-flex size-6 shrink-0 items-center justify-center rounded-full hover:bg-background pointer-coarse:size-11"
+                aria-label={t("email_hub.compose.remove_attachment_named", { name: item.file.name })}
                 onClick={() => removeAttachment(item.id)}
               >
                 <X className="size-3" aria-hidden />
@@ -264,13 +292,13 @@ export function ComposeEmailToolbar({
           role="toolbar"
           aria-label={t("email_hub.compose.formatting")}
         >
-          <Button type="button" size="sm" variant="ghost" className="h-8 min-w-8 px-2 font-bold" onClick={() => wrapSelection("*", "*")}>
+          <Button type="button" size="sm" variant="ghost" className="h-8 min-w-8 px-2 font-bold" aria-label={t("email_hub.compose.bold")} onClick={() => wrapSelection("*", "*")}>
             B
           </Button>
-          <Button type="button" size="sm" variant="ghost" className="h-8 min-w-8 px-2 italic" onClick={() => wrapSelection("_", "_")}>
+          <Button type="button" size="sm" variant="ghost" className="h-8 min-w-8 px-2 italic" aria-label={t("email_hub.compose.italic")} onClick={() => wrapSelection("_", "_")}>
             I
           </Button>
-          <Button type="button" size="sm" variant="ghost" className="h-8 min-w-8 px-2 underline" onClick={() => wrapSelection("<u>", "</u>")}>
+          <Button type="button" size="sm" variant="ghost" className="h-8 min-w-8 px-2 underline" aria-label={t("email_hub.compose.underline")} onClick={() => wrapSelection("<u>", "</u>")}>
             U
           </Button>
           <Button type="button" size="sm" variant="ghost" className="h-8 gap-1 px-2" onClick={() => handleLinkOpenChange(true)}>
@@ -281,21 +309,48 @@ export function ComposeEmailToolbar({
         </div>
       ) : null}
 
-      <div className="flex items-center justify-between gap-2 border-t border-border bg-muted/20 px-3 py-2">
+      {sendBlockedReason ? (
+        <p id="email-hub-send-blocked" className="border-t border-border px-4 pt-2 text-caption text-muted-foreground">
+          {sendBlockedReason}
+        </p>
+      ) : null}
+      <div
+        className={cn(
+          "flex items-center justify-between gap-2 px-3 py-2",
+          !sendBlockedReason && "border-t border-border",
+        )}
+      >
         <div className="flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto">
-          <div className="inline-flex shrink-0 overflow-hidden rounded-lg">
-            <Button type="button" size="sm" disabled={!canSend} onClick={onSend} className="rounded-r-none px-4">
-              {sending ? t("email_hub.compose.sending") : t("email_hub.compose.send")}
-            </Button>
+          <div className="inline-flex shrink-0 overflow-hidden rounded-control">
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="brand"
+                    size="lg"
+                    disabled={!canSend}
+                    aria-busy={sending || undefined}
+                    aria-describedby={sendBlockedReason ? "email-hub-send-blocked" : undefined}
+                    aria-keyshortcuts="Control+Enter Meta+Enter"
+                    onClick={onSend}
+                    className="rounded-r-none px-4"
+                  />
+                }
+              >
+                {sending ? t("email_hub.compose.sending") : t("email_hub.compose.send")}
+              </TooltipTrigger>
+              <TooltipContent>{t("email_hub.compose.send_shortcut", { keys: sendShortcutLabel() })}</TooltipContent>
+            </Tooltip>
             <Popover open={scheduleOpen} onOpenChange={setScheduleOpen}>
               <PopoverTrigger
                 render={
                   <Button
                     type="button"
-                    size="sm"
-                    variant="default"
+                    size="lg"
+                    variant="brand"
                     disabled={!canSend}
-                    className="rounded-l-none border-l border-primary-foreground/25 px-2"
+                    className="rounded-l-none border-l border-l-brand-foreground/30 px-2"
                     aria-label={t("email_hub.compose.schedule_send")}
                   >
                     <ChevronDown className="size-4" aria-hidden />
@@ -304,6 +359,7 @@ export function ComposeEmailToolbar({
               />
               <PopoverContent align="start" side="top" className="w-80 space-y-3 p-3">
                 <p className="text-body font-medium">{t("email_hub.compose.schedule_send")}</p>
+                <p className="text-caption text-muted-foreground">{t("email_hub.compose.schedule_hint")}</p>
                 <DateTimeField
                   value={scheduleAt}
                   onChange={setScheduleAt}
@@ -374,7 +430,7 @@ export function ComposeEmailToolbar({
                     key={emoji}
                     type="button"
                     aria-label={emoji}
-                    className="flex size-9 items-center justify-center rounded-md text-lg hover:bg-muted"
+                    className="flex size-9 items-center justify-center rounded-md text-title-sm hover:bg-muted pointer-coarse:size-11"
                     onClick={() => insertEmoji(emoji)}
                   >
                     {emoji}

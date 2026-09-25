@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 
-import { Logo, type LogoTone, type LogoVariant } from "./logo";
+import { Logo, LogoLoader, type LogoTone, type LogoVariant } from "./logo";
 import { COMPACT_MAX_SIZE, MARK, MARK_COMPACT } from "./mark.generated";
 import { WORDMARK } from "./wordmark.generated";
 
@@ -156,5 +156,18 @@ describe("Logo", () => {
     const svg = svgOf(container);
     expect(svg.getAttribute("aria-hidden")).toBe("true");
     expect(svg.getAttribute("role")).toBeNull();
+  });
+});
+
+describe("LogoLoader", () => {
+  it("shows only the pulsing mark; the label is for screen readers", () => {
+    const { getByRole } = render(<LogoLoader label="Đang tải…" />);
+    const status = getByRole("status");
+    expect(status.querySelector("svg")?.getAttribute("class")).toContain("animate-pulse");
+    expect(status.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+    const label = status.querySelector("span");
+    expect(label?.textContent).toBe("Đang tải…");
+    expect(label?.className).toContain("sr-only");
+    expect(status.querySelectorAll("p").length).toBe(0);
   });
 });

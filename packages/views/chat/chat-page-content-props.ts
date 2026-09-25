@@ -3,6 +3,7 @@ import type { GroupChat } from "@uniwork/core/chat/groups-store";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
 import type { Member } from "@uniwork/core/types/workspace";
+import type { MemberAvatarUrlMap } from "./chat-member-avatar";
 import type { ChatSidebarTarget } from "./chat-sidebar";
 import type { ChatRoomPreview } from "./chat-sidebar-preview";
 import type { ChatNameContextEntry, GroupMemberProfile } from "./chat-page-utils";
@@ -17,7 +18,6 @@ export type ChatPageContentProps = {
   contacts: ChatContact[];
   groups: GroupChat[];
   channels: ChatRoomRecord[];
-  workHubEnabled: boolean;
   activeContact: ChatContact | null;
   activeGroup: GroupChat | null;
   activeChannel: ChatRoomRecord | null;
@@ -84,6 +84,7 @@ export type ChatPageContentProps = {
   onVideoCall: () => void;
   videoCallDisabled: boolean;
   workspaceMembers: Member[];
+  memberAvatarByUserId: MemberAvatarUrlMap;
   workspaceSettingsOpen: boolean;
   onWorkspaceSettingsOpenChange: React.Dispatch<React.SetStateAction<boolean>>;
   messageSearchOpen: boolean;

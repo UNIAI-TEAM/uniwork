@@ -27,6 +27,7 @@ import { ConfirmDialog } from "../common/form-dialog";
 import { toastChatError } from "./chat-error-message";
 import { isChatRoomModerator } from "./chat-room-moderation-utils";
 import { LeaveConversationSection } from "./leave-conversation-section";
+import type { MemberAvatarUrlMap } from "./chat-member-avatar";
 
 export function ChannelSettingsSheet({
   open,
@@ -41,6 +42,7 @@ export function ChannelSettingsSheet({
   leaving,
   leaveDisabled,
   onOpenSearch,
+  memberAvatarByUserId = {},
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -48,6 +50,7 @@ export function ChannelSettingsSheet({
   channel: ChatRoomRecord;
   currentUserId: string;
   youLabel: string;
+  memberAvatarByUserId?: MemberAvatarUrlMap;
   onArchived?: () => void;
   onAddMembers?: () => void;
   onLeave?: () => void | Promise<void>;
@@ -321,6 +324,7 @@ export function ChannelSettingsSheet({
               roomId={channel.id}
               currentUserId={currentUserId}
               youLabel={youLabel}
+              memberAvatarByUserId={memberAvatarByUserId}
             />
           ) : null}
 

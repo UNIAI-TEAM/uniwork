@@ -41,7 +41,7 @@ describe("taskDefaultsFromSlot", () => {
 });
 
 describe("meetingScheduleFromSlot", () => {
-  it("all-day slot uses a one-hour block on that date", () => {
+  it("uses a one-hour morning block for an all-day slot", () => {
     expect(
       meetingScheduleFromSlot({
         start: new Date("2026-09-10T00:00:00"),
@@ -51,7 +51,7 @@ describe("meetingScheduleFromSlot", () => {
     ).toEqual({ date: "2026-09-10", start: "09:00", end: "10:00" });
   });
 
-  it("timed slot uses local wall times", () => {
+  it("keeps the local wall-time range for a timed slot", () => {
     expect(
       meetingScheduleFromSlot({
         start: new Date("2026-09-10T14:00:00"),

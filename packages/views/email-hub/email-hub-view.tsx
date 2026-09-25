@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
@@ -12,147 +12,132 @@ import {
   flushEmailHubListRefresh,
   prefetchEmailHubThread,
   setEmailHubListRefreshPaused,
-  useCancelEmailHubScheduledSend,
+  useDisconnectEmailHubAccount,
   useEmailHubAccounts,
   useEmailHubImapLabels,
+  useEmailHubLazyFolderSync,
+  useEmailHubLiveSync,
   useEmailHubScheduledSends,
   useEmailHubThread,
   useEmailHubThreads,
-  useDownloadEmailHubAttachment,
-  useDisconnectEmailHubAccount,
-  useEmailHubLazyFolderSync,
-  useEmailHubLiveSync,
-  useMarkEmailHubRead,
-  useSnoozeEmailHubThread,
-  useMoveEmailHubThread,
-  useSyncEmailHub,
   useSummarizeEmailHubThread,
-  useToggleEmailHubStar,
+  useSyncEmailHub,
 } from "@uniwork/core/email-hub/hooks";
-import type { EmailHubThread, EmailHubThreadSummary } from "@uniwork/core/types/email-hub";
+import type { EmailHubAccount, EmailHubThread, EmailHubThreadSummary } from "@uniwork/core/types/email-hub";
+import { useMediaQuery } from "@uniwork/ui/hooks/use-media-query";
 import { toastApiError } from "../toast-api-error";
 import { useWorkspace } from "../layout/workspace-context";
 import type { ComposeMode } from "./compose-recipients";
-import { EmailHubViewDialogs } from "./email-hub-view-dialogs";
-import { EmailHubFolderSidebar, type EmailHubFolderKey } from "./email-hub-folder-sidebar";
-import { useEmailHubAccountPanel } from "./use-email-hub-account-panel";
-import { EmailHubStatsRail } from "./email-hub-stats-rail";
-import { emailHubSnoozeNextWeekMorning, emailHubSnoozeToRFC3339, emailHubSnoozeTomorrowMorning } from "./email-hub-snooze";
+import { EMAIL_HUB_AI_WIDE_QUERY, EmailHubAiRail } from "./email-hub-ai-rail";
+import { EmailHubConnectEmpty, EmailHubShellSkeleton } from "./email-hub-connect-empty";
+import { EmailHubFolderSidebar } from "./email-hub-folder-sidebar";
+import type { EmailHubFolderKey, EmailHubMailFolderKey } from "./email-hub-folders";
+import { emailHubLocale, formatEmailListDate } from "./email-hub-format";
+import { EmailHubShortcutsDialog } from "./email-hub-shortcuts-dialog";
+import { EmailHubSnoozeDialog } from "./email-hub-snooze-dialog";
+import { emailHubThreadCapabilities } from "./email-hub-thread-toolbar";
 import { EmailHubViewDetailPanel } from "./email-hub-view-detail-panel";
+import { EmailHubViewDialogs } from "./email-hub-view-dialogs";
 import { EmailHubViewListPanel } from "./email-hub-view-list-panel";
-
-type FolderKey = EmailHubFolderKey;
-type MailFolderKey = Exclude<FolderKey, "SCHEDULED">;
+import { useEmailHubAccountPanel } from "./use-email-hub-account-panel";
+import { useEmailHubScheduledActions } from "./use-email-hub-scheduled-actions";
+import { useEmailHubShortcuts } from "./use-email-hub-shortcuts";
+import { useEmailHubShortcutsPref } from "./use-email-hub-shortcuts-pref";
+import { useEmailHubThreadActions } from "./use-email-hub-thread-actions";
+import { EmailHubSenderAvatarProvider } from "./email-hub-sender-avatar-context";
 
 export function EmailHubView() {
   const { t, i18n } = useTranslation();
+  const locale = emailHubLocale(i18n.language);
   const { workspace } = useWorkspace();
   const wsId = workspace.id;
   const qc = useQueryClient();
   const accounts = useEmailHubAccounts(wsId);
   const [accountId, setAccountId] = useState<string | null>(null);
-  const [folder, setFolder] = useState<FolderKey>("INBOX");
+  const [folder, setFolderState] = useState<EmailHubFolderKey>("INBOX");
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [hasAttachmentsOnly, setHasAttachmentsOnly] = useState(false);
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(() => new Set());
   const [connectOpen, setConnectOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeMode, setComposeMode] = useState<ComposeMode>("new");
   const [composeSource, setComposeSource] = useState<EmailHubThread | null>(null);
+  const [aiRailOpen, setAiRailOpen] = useState(true);
+  const [aiSheetOpen, setAiSheetOpen] = useState(false);
+  const [shortcutsOn, setShortcutsOn] = useEmailHubShortcutsPref();
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const openShortcuts = useCallback(() => setShortcutsOpen(true), []);
+  const wideAi = useMediaQuery(EMAIL_HUB_AI_WIDE_QUERY);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const lastOpenedRef = useRef<string | null>(null);
+  if (selectedId) lastOpenedRef.current = selectedId;
+
+  const setFolder = useCallback((next: EmailHubFolderKey) => {
+    setFolderState(next);
+    setSelectedId(null);
+    setCheckedIds(new Set());
+  }, []);
+
   const imapLabelsQuery = useEmailHubImapLabels(wsId, accountId);
   const imapLabels = useMemo(() => imapLabelsQuery.data?.labels ?? [], [imapLabelsQuery.data?.labels]);
   const sync = useSyncEmailHub(wsId);
   const disconnect = useDisconnectEmailHubAccount(wsId);
-  const moveThread = useMoveEmailHubThread(wsId);
-  const toggleStar = useToggleEmailHubStar(wsId);
-  const markRead = useMarkEmailHubRead(wsId);
-  const snoozeThread = useSnoozeEmailHubThread(wsId);
-  const downloadAttachment = useDownloadEmailHubAttachment(wsId);
   const summarizeThread = useSummarizeEmailHubThread(wsId);
   const { data: aiCaps } = useAiCapabilities(wsId);
   const aiEnabled = !!aiCaps?.enabled;
   const [threadAiSummaries, setThreadAiSummaries] = useState<Record<string, EmailHubThreadSummary>>({});
   const [analyzingThreadId, setAnalyzingThreadId] = useState<string | null>(null);
+
   const isScheduledFolder = folder === "SCHEDULED";
-  const mailFolder: MailFolderKey = isScheduledFolder ? "INBOX" : folder;
+  const mailFolder: EmailHubMailFolderKey = isScheduledFolder ? "INBOX" : folder;
   const scheduled = useEmailHubScheduledSends(wsId, accountId);
-  const cancelScheduled = useCancelEmailHubScheduledSend(wsId);
   const readingEmail = !!selectedId;
   useEmailHubLiveSync(wsId, accountId, folder === "INBOX" || folder === "STARRED", readingEmail && !isScheduledFolder);
   const snoozedMeta = useEmailHubThreads(wsId, accountId, "SNOOZED", {}, !!accountId, {
     staleTime: 120_000,
     refetchOnWindowFocus: false,
   });
-  const snoozedCount = snoozedMeta.data?.pages[0]?.counts.total ?? 0;
+  const inboxMeta = useEmailHubThreads(wsId, accountId, "INBOX", {}, !!accountId && folder !== "INBOX", {
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
 
-  const analyzeFromList = useCallback(
-    (threadId: string) => {
-      if (!accountId || !aiEnabled) return;
-      setAnalyzingThreadId(threadId);
-      const locale = i18n.language.startsWith("en") ? "en" : "vi";
-      summarizeThread.mutate(
-        { accountId, threadId, locale },
-        {
-          onSuccess: (data) => {
-            if (data.summary) {
-              setThreadAiSummaries((prev) => ({ ...prev, [threadId]: data }));
-            }
-          },
-          onError: (err) => {
-            if (errorCode(err) === "nothing_to_summarize") {
-              toast.error(t("email_hub.ai.nothing_to_summarize"));
-              return;
-            }
-            toastApiError(err, t("email_hub.load_error"));
-          },
-          onSettled: () => setAnalyzingThreadId(null),
-        },
-      );
-    },
-    [accountId, aiEnabled, i18n.language, summarizeThread, t],
-  );
+  const accountList = useMemo(() => {
+    const byEmail = new Map<string, EmailHubAccount>();
+    for (const acc of accounts.data?.accounts ?? []) byEmail.set(acc.email_address, acc);
+    return [...byEmail.values()];
+  }, [accounts.data]);
 
-  const handleThreadAiSummary = useCallback(
-    (data: EmailHubThreadSummary) => {
-      if (!selectedId) return;
-      setThreadAiSummaries((prev) => {
-        const cur = prev[selectedId];
-        if (
-          cur?.summary === data.summary &&
-          cur?.cached === data.cached &&
-          cur?.summarized_at === data.summarized_at
-        ) {
-          return prev;
-        }
-        return { ...prev, [selectedId]: data };
-      });
-    },
-    [selectedId],
-  );
+  useEffect(() => {
+    const latest = accountList.at(-1)?.id;
+    if (latest && !accountId) setAccountId(latest);
+  }, [accountList, accountId]);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setDebouncedSearch(searchInput.trim()), 400);
+    return () => window.clearTimeout(id);
+  }, [searchInput]);
+
+  useEffect(() => {
+    setCheckedIds(new Set());
+  }, [accountId, debouncedSearch, unreadOnly, hasAttachmentsOnly, selectedLabel]);
 
   useEffect(() => {
     if (!accountId) return;
     setEmailHubListRefreshPaused(wsId, accountId, readingEmail);
-    if (!readingEmail) {
-      flushEmailHubListRefresh(qc, wsId, accountId);
-    }
+    if (!readingEmail) flushEmailHubListRefresh(qc, wsId, accountId);
   }, [accountId, qc, readingEmail, wsId]);
 
   const filters = useMemo(
-    () => ({
-      q: debouncedSearch || undefined,
-      label: selectedLabel || undefined,
-      unreadOnly,
-      hasAttachmentsOnly,
-    }),
+    () => ({ q: debouncedSearch || undefined, label: selectedLabel || undefined, unreadOnly, hasAttachmentsOnly }),
     [debouncedSearch, selectedLabel, unreadOnly, hasAttachmentsOnly],
   );
   const threads = useEmailHubThreads(wsId, accountId, mailFolder, filters, !isScheduledFolder);
-  const lazyMailFolder =
-    isScheduledFolder || folder === "STARRED" || folder === "SNOOZED" ? "" : mailFolder;
+  const lazyMailFolder = isScheduledFolder || folder === "STARRED" || folder === "SNOOZED" ? "" : mailFolder;
   const folderSyncing = useEmailHubLazyFolderSync(wsId, accountId, lazyMailFolder, {
     listFetched: threads.isFetched,
     listTotal: threads.data?.pages[0]?.counts.total ?? 0,
@@ -165,6 +150,7 @@ export function EmailHubView() {
   );
   const rows = useMemo(() => threads.data?.pages.flatMap((page) => page.threads) ?? [], [threads.data]);
   const selectedRow = useMemo(() => rows.find((row) => row.id === selectedId) ?? null, [rows, selectedId]);
+  const scheduledActions = useEmailHubScheduledActions(wsId, accountId, selectedScheduled, setSelectedId);
   const detail = useEmailHubThread(wsId, accountId, isScheduledFolder ? null : selectedId, selectedRow);
 
   useEffect(() => {
@@ -175,46 +161,14 @@ export function EmailHubView() {
     const goneId = selectedId;
     setSelectedId(null);
     void qc.removeQueries({ queryKey: emailHubKeys.thread(wsId, accountId, goneId) });
-  }, [
-    accountId,
-    debouncedSearch,
-    hasAttachmentsOnly,
-    isScheduledFolder,
-    qc,
-    rows,
-    selectedId,
-    threads.isFetched,
-    threads.isFetching,
-    unreadOnly,
-    wsId,
-  ]);
+  }, [accountId, debouncedSearch, hasAttachmentsOnly, isScheduledFolder, qc, rows, selectedId, threads.isFetched, threads.isFetching, unreadOnly, wsId]);
 
-  const accountList = useMemo(() => {
-    const list = accounts.data?.accounts ?? [];
-    const byEmail = new Map<string, (typeof list)[number]>();
-    for (const acc of list) {
-      byEmail.set(acc.email_address, acc);
+  useEffect(() => {
+    if (!accountId || rows.length === 0) return;
+    for (const row of rows.slice(0, 5)) {
+      if (row.id !== selectedId) prefetchEmailHubThread(qc, wsId, accountId, row.id);
     }
-    return [...byEmail.values()];
-  }, [accounts.data]);
-
-  useEffect(() => {
-    const id = window.setTimeout(() => setDebouncedSearch(searchInput.trim()), 500);
-    return () => window.clearTimeout(id);
-  }, [searchInput]);
-
-  useEffect(() => {
-    const latest = accountList.at(-1)?.id;
-    if (latest && !accountId) setAccountId(latest);
-  }, [accountList, accountId]);
-
-  const prefetchThread = useCallback(
-    (threadId: string) => {
-      if (!accountId || threadId === selectedId) return;
-      prefetchEmailHubThread(qc, wsId, accountId, threadId);
-    },
-    [accountId, qc, wsId, selectedId],
-  );
+  }, [accountId, rows, qc, wsId, selectedId]);
 
   const openCompose = useCallback((mode: ComposeMode, source?: EmailHubThread | null) => {
     setComposeMode(mode);
@@ -222,70 +176,83 @@ export function EmailHubView() {
     setComposeOpen(true);
   }, []);
 
-  const selectThread = useCallback(
-    (threadId: string) => {
-      if (!accountId) {
-        setSelectedId(threadId);
-        return;
-      }
-      void qc.cancelQueries({ queryKey: ["email-hub", wsId, "thread", accountId, threadId] });
-      setSelectedId(threadId);
-      const row = rows.find((item) => item.id === threadId);
-      if (row && !row.is_read) {
-        markRead.mutate({ accountId, threadId, isRead: true });
-      }
-    },
-    [accountId, markRead, qc, rows, wsId],
-  );
-
-  const handleToggleStar = useCallback(
-    (threadId: string, isStarred: boolean) => {
-      if (!accountId) return;
-      toggleStar.mutate({ accountId, threadId, isStarred: !isStarred });
-    },
-    [accountId, toggleStar],
-  );
-
-  const onNotSpamFromList = useCallback(
-    (threadId: string) => {
-      if (!accountId) return;
-      moveThread.mutate(
-        { accountId, threadId, moveTo: "INBOX" },
-        {
-          onSuccess: () => {
-            if (selectedId === threadId) setSelectedId(null);
-            toast.success(t("email_hub.not_spam_done"));
-          },
-        },
-      );
-    },
-    [accountId, moveThread, selectedId, t],
-  );
-
-  useEffect(() => {
-    if (!accountId || rows.length === 0) return;
-    for (const row of rows.slice(0, 5)) {
-      if (row.id === selectedId) continue;
-      prefetchEmailHubThread(qc, wsId, accountId, row.id);
-    }
-  }, [accountId, rows, qc, wsId, selectedId]);
-
-  const counts = threads.data?.pages[0]?.counts ?? { total: 0, unread: 0 };
-  const searching = !!debouncedSearch && threads.isFetching && !threads.isFetchingNextPage;
   const activeThread =
     detail.data?.id === selectedId ? detail.data : selectedRow?.id === selectedId ? selectedRow : null;
   const readableBody = emailHubHasReadableBody(detail.data);
-  const bodyLoading = detail.isBodyLoading;
-  const bodyLoadFailed = detail.isBodyLoadFailed;
   const activeAccount = accountList.find((acc) => acc.id === accountId);
+  const aiOpen = wideAi ? aiRailOpen : aiSheetOpen;
+  const toggleAi = useCallback(
+    () => (wideAi ? setAiRailOpen((v) => !v) : setAiSheetOpen((v) => !v)),
+    [wideAi],
+  );
 
-  const accountPanelProps = useEmailHubAccountPanel(
+  const threadActions = useEmailHubThreadActions({
+    wsId,
+    accountId,
+    selectedId,
+    activeThread,
+    detailData: detail.data,
+    setSelectedId,
+    setFolder,
+    openCompose,
+    onToggleAi: toggleAi,
+    refetchDetail: () => void detail.refetch(),
+  });
+
+  const selectThread = useCallback(
+    (threadId: string) => {
+      setSelectedId(threadId);
+      if (!accountId) return;
+      void qc.cancelQueries({ queryKey: emailHubKeys.thread(wsId, accountId, threadId) });
+      const row = rows.find((item) => item.id === threadId);
+      if (row && !row.is_read) threadActions.setRead(threadId, true);
+    },
+    [accountId, qc, rows, threadActions, wsId],
+  );
+
+  const analyzeFromList = useCallback(
+    (threadId: string) => {
+      if (!accountId || !aiEnabled) return;
+      setAnalyzingThreadId(threadId);
+      summarizeThread.mutate(
+        { accountId, threadId, locale: locale === "en-US" ? "en" : "vi" },
+        {
+          onSuccess: (data) => {
+            if (data.summary) setThreadAiSummaries((prev) => ({ ...prev, [threadId]: data }));
+          },
+          onError: (err) => {
+            if (errorCode(err) === "nothing_to_summarize") toast.error(t("email_hub.ai.nothing_to_summarize"));
+            else toastApiError(err, t("email_hub.ai.summarize_error"));
+          },
+          onSettled: () => setAnalyzingThreadId(null),
+        },
+      );
+    },
+    [accountId, aiEnabled, locale, summarizeThread, t],
+  );
+
+  const handleThreadAiSummary = useCallback(
+    (data: EmailHubThreadSummary) => {
+      if (!selectedId) return;
+      setThreadAiSummaries((prev) => {
+        const cur = prev[selectedId];
+        if (cur?.summary === data.summary && cur?.cached === data.cached && cur?.summarized_at === data.summarized_at) {
+          return prev;
+        }
+        return { ...prev, [selectedId]: data };
+      });
+    },
+    [selectedId],
+  );
+
+  const accountMenu = useEmailHubAccountPanel(
     accountList,
     accountId,
     setAccountId,
     setSelectedId,
     setConnectOpen,
     disconnect,
+    useCallback((err: unknown) => toastApiError(err, t("email_hub.disconnect_error")), [t]),
   );
 
   const handleRefresh = useCallback(() => {
@@ -294,229 +261,247 @@ export function EmailHubView() {
       void scheduled.refetch();
       return;
     }
-    sync.mutate({
-      accountId,
-      folder: folder === "STARRED" ? undefined : mailFolder,
-      force: true,
-      reconcile: folder === "INBOX",
-    });
-  }, [accountId, folder, isScheduledFolder, mailFolder, scheduled, sync]);
+    sync.mutate(
+      { accountId, folder: folder === "STARRED" ? undefined : mailFolder, force: true, reconcile: folder === "INBOX" },
+      { onError: (err) => toastApiError(err, t("email_hub.sync_error")) },
+    );
+  }, [accountId, folder, isScheduledFolder, mailFolder, scheduled, sync, t]);
+
+  const stepThread = (step: 1 | -1) => {
+    const index = rows.findIndex((row) => row.id === selectedId);
+    const next = index === -1 ? undefined : rows[index + step];
+    if (next) selectThread(next.id);
+  };
+  const { actions, pending } = threadActions;
+  // The shortcuts offer exactly what the toolbar shows, and wait for a request
+  // in flight like its disabled buttons do: a repeated `e` would move an id
+  // the first move already replaced.
+  const can = activeThread ? emailHubThreadCapabilities(detail.data ?? activeThread, mailFolder) : null;
+  useEmailHubShortcuts({
+    enabled: shortcutsOn,
+    reading: readingEmail && !isScheduledFolder,
+    onHelp: openShortcuts,
+    onCompose: accountId ? () => openCompose("new") : undefined,
+    onFocusSearch: () => searchRef.current?.focus(),
+    onBack: actions.onBack,
+    onNext: () => stepThread(1),
+    onPrev: () => stepThread(-1),
+    onArchive: can?.canTriage && !pending.move ? actions.onArchive : undefined,
+    onTrash: can?.canTrash && !pending.move ? actions.onTrash : undefined,
+    onReply: can?.canReply ? actions.onReply : undefined,
+    onReplyAll: can?.canReply && can.canReplyAll ? actions.onReplyAll : undefined,
+    onForward: can?.canReply ? actions.onForward : undefined,
+    onStar: pending.star ? undefined : actions.onToggleStar,
+    onMarkUnread: can?.canMarkUnread && !pending.markRead ? actions.onMarkUnread : undefined,
+  });
+
+  const counts = threads.data?.pages[0]?.counts ?? { total: 0, unread: 0 };
+  const inboxUnread = folder === "INBOX" ? counts.unread : (inboxMeta.data?.pages[0]?.counts.unread ?? 0);
+  const nav = {
+    folder,
+    selectedLabel,
+    imapLabels,
+    counts: {
+      inboxUnread,
+      scheduled: scheduledRows.length,
+      snoozed: snoozedMeta.data?.pages[0]?.counts.total ?? 0,
+    },
+    onFolderChange: setFolder,
+    onLabelChange: setSelectedLabel,
+  };
+  const checkedList = rows.filter((row) => checkedIds.has(row.id)).map((row) => row.id);
+  const clearChecked = () => setCheckedIds(new Set());
+  const dialogs = (
+    <EmailHubViewDialogs
+      wsId={wsId}
+      accountId={accountId}
+      connectOpen={connectOpen}
+      onConnectOpenChange={setConnectOpen}
+      onConnected={(id) => {
+        setAccountId(id);
+        setFolder("INBOX");
+      }}
+      composeOpen={composeOpen}
+      onComposeOpenChange={setComposeOpen}
+      composeMode={composeMode}
+      composeSource={composeSource}
+      onOpenScheduled={() => setFolder("SCHEDULED")}
+    />
+  );
+  const frame = "flex h-[calc(100dvh-var(--header-height,3.5rem))] min-h-0 bg-background";
+
+  if (accounts.isLoading) {
+    return (
+      <div className={frame}>
+        <EmailHubShellSkeleton />
+      </div>
+    );
+  }
+  if (accountList.length === 0) {
+    return (
+      <div className={frame}>
+        <EmailHubConnectEmpty aiEnabled={aiEnabled} onConnect={() => setConnectOpen(true)} />
+        {dialogs}
+      </div>
+    );
+  }
 
   return (
-    <div className="flex h-[calc(100dvh-var(--header-height,3.5rem))] min-h-0 flex-col bg-muted/20 lg:flex-row">
-      <EmailHubFolderSidebar
-        folder={folder}
-        selectedLabel={selectedLabel}
-        imapLabels={imapLabels}
-        unreadCount={counts.unread}
-        scheduledCount={scheduledRows.length}
-        snoozedCount={snoozedCount}
-        composeDisabled={!accountId}
-        onFolderChange={(key) => {
-          setFolder(key);
-          setSelectedId(null);
-        }}
-        onLabelChange={setSelectedLabel}
-        onCompose={() => openCompose("new")}
-      />
+    <EmailHubSenderAvatarProvider workspaceId={wsId}>
+      <div className={frame}>
+        <EmailHubFolderSidebar
+          {...nav}
+          composeDisabled={!accountId}
+          onCompose={() => openCompose("new")}
+          accountMenu={accountMenu}
+          shortcutsOn={shortcutsOn}
+          onOpenShortcuts={openShortcuts}
+        />
 
-      <EmailHubViewListPanel
-        readingEmail={readingEmail}
-        accountPanelProps={accountPanelProps}
-        isScheduledFolder={isScheduledFolder}
-        searchInput={searchInput}
-        onSearchInputChange={setSearchInput}
-        accountId={accountId}
-        syncPending={sync.isPending}
-        scheduledFetching={scheduled.isFetching}
-        onRefresh={handleRefresh}
-        unreadOnly={unreadOnly}
-        onToggleUnreadOnly={() => setUnreadOnly((v) => !v)}
-        hasAttachmentsOnly={hasAttachmentsOnly}
-        onToggleAttachmentsOnly={() => setHasAttachmentsOnly((v) => !v)}
-        counts={counts}
-        threadsLoading={threads.isLoading}
-        scheduledLoading={scheduled.isLoading}
-        scheduledRows={scheduledRows}
-        threads={threads}
-        searching={searching}
-        rows={rows}
-        mailFolder={mailFolder}
-        folderSyncing={folderSyncing}
-        debouncedSearch={debouncedSearch}
-        folder={folder}
-        selectedId={selectedId}
-        onSelectScheduled={setSelectedId}
-        selectThread={selectThread}
-        prefetchThread={prefetchThread}
-        handleToggleStar={handleToggleStar}
-        aiEnabled={aiEnabled}
-        analyzingThreadId={analyzingThreadId}
-        threadAiSummaries={threadAiSummaries}
-        analyzeFromList={analyzeFromList}
-        onNotSpamFromList={onNotSpamFromList}
-      />
+        {readingEmail ? (
+        <EmailHubViewDetailPanel
+          wsId={wsId}
+          accountId={accountId ?? ""}
+          isScheduledFolder={isScheduledFolder}
+          selectedScheduled={selectedScheduled}
+          cancelScheduledPending={scheduledActions.cancelPending}
+          retryScheduledPending={scheduledActions.retryPending}
+          onRetryScheduled={scheduledActions.retry}
+          onCancelScheduled={scheduledActions.cancel}
+          detailError={detail.isError}
+          detailLoading={detail.isLoading}
+          activeThread={activeThread}
+          mailFolder={mailFolder}
+          detailData={detail.data}
+          readableBody={readableBody}
+          bodyLoading={detail.isBodyLoading}
+          bodyLoadFailed={detail.isBodyLoadFailed}
+          actions={actions}
+          pending={threadActions.pending}
+          aiOpen={aiOpen}
+        />
+      ) : (
+        <EmailHubViewListPanel
+          returnFocusId={lastOpenedRef.current}
+          header={{
+            nav,
+            accountMenu,
+            isScheduledFolder,
+            searchInput,
+            onSearchInputChange: setSearchInput,
+            refreshDisabled: !accountId || (isScheduledFolder ? scheduled.isFetching : sync.isPending),
+            refreshing: isScheduledFolder ? scheduled.isFetching : sync.isPending,
+            onRefresh: handleRefresh,
+            unreadOnly,
+            onToggleUnreadOnly: () => setUnreadOnly((v) => !v),
+            hasAttachmentsOnly,
+            onToggleAttachmentsOnly: () => setHasAttachmentsOnly((v) => !v),
+            countText: isScheduledFolder
+              ? scheduled.isLoading
+                ? null
+                : t("email_hub.scheduled.list_count", { count: scheduledRows.length })
+              : threads.isLoading
+                ? null
+                : t("email_hub.list_count", { count: counts.total, unread: counts.unread }),
+            lastSyncText: activeAccount?.last_sync_at
+              ? t("email_hub.last_sync", { when: formatEmailListDate(activeAccount.last_sync_at, locale) })
+              : null,
+            composeDisabled: !accountId,
+            onCompose: () => openCompose("new"),
+            onOpenShortcuts: openShortcuts,
+            shortcutsOn,
+            searchRef,
+            bulk: isScheduledFolder
+              ? null
+              : {
+                  count: checkedList.length,
+                  allChecked: checkedList.length === rows.length,
+                  onToggleAll: (all) => setCheckedIds(all ? new Set(rows.map((row) => row.id)) : new Set()),
+                  onClear: clearChecked,
+                  onMarkRead: (read) => void threadActions.bulkRead(checkedList, read).then(clearChecked),
+                  onArchive:
+                    mailFolder === "INBOX"
+                      ? () => void threadActions.bulkMove(checkedList, "ARCHIVE").then(clearChecked)
+                      : undefined,
+                  onTrash:
+                    mailFolder === "INBOX" || mailFolder === "SENT"
+                      ? () => void threadActions.bulkMove(checkedList, "TRASH").then(clearChecked)
+                      : undefined,
+                  pending: threadActions.bulkPending,
+                },
+          }}
+          state={{
+            folder,
+            mailFolder,
+            isScheduledFolder,
+            loading: isScheduledFolder ? scheduled.isLoading : threads.isLoading,
+            error: threads.isError,
+            onRetry: () => void threads.refetch(),
+            syncing: folderSyncing || sync.isPending || threads.isFetching,
+            searching: !!debouncedSearch && threads.isFetching && !threads.isFetchingNextPage,
+            searchQuery: debouncedSearch,
+            filtersActive: unreadOnly || hasAttachmentsOnly || !!selectedLabel,
+            onClearSearch: () => setSearchInput(""),
+            onClearFilters: () => {
+              setUnreadOnly(false);
+              setHasAttachmentsOnly(false);
+              setSelectedLabel(null);
+            },
+            rows,
+            scheduledRows,
+            hasNextPage: !!threads.hasNextPage,
+            fetchingNextPage: threads.isFetchingNextPage,
+            onLoadMore: () => {
+              if (threads.hasNextPage && !threads.isFetchingNextPage) void threads.fetchNextPage();
+            },
+          }}
+          handlers={{
+            checkedIds,
+            onCheckedChange: (id, checked) =>
+              setCheckedIds((prev) => {
+                const next = new Set(prev);
+                if (checked) next.add(id);
+                else next.delete(id);
+                return next;
+              }),
+            onSelectThread: selectThread,
+            onSelectScheduled: setSelectedId,
+            onPrefetch: (id) => {
+              if (accountId && id !== selectedId) prefetchEmailHubThread(qc, wsId, accountId, id);
+            },
+            onToggleStar: threadActions.star,
+            aiEnabled,
+            analyzingThreadId,
+            threadAiSummaries,
+            onAnalyze: analyzeFromList,
+            onNotSpam: (id) => threadActions.move(id, "INBOX"),
+          }}
+        />
+      )}
 
-      <EmailHubViewDetailPanel
-        readingEmail={readingEmail}
-        selectedId={selectedId}
-        isScheduledFolder={isScheduledFolder}
-        selectedScheduled={selectedScheduled}
-        accountId={accountId}
-        cancelScheduledPending={cancelScheduled.isPending}
-        onClearSelection={() => setSelectedId(null)}
-        onCancelScheduled={() => {
-          if (!accountId || !selectedScheduled) return;
-          cancelScheduled.mutate(
-            { accountId, scheduledId: selectedScheduled.id },
-            {
-              onSuccess: () => {
-                toast.success(t("email_hub.scheduled.cancel_success"));
-                setSelectedId(null);
-              },
-              onError: () => toast.error(t("email_hub.scheduled.cancel_error")),
-            },
-          );
-        }}
-        detailError={detail.isError}
-        detailLoading={detail.isLoading}
-        activeThread={activeThread}
-        mailFolder={mailFolder}
-        detailData={detail.data}
-        readableBody={readableBody}
-        bodyLoading={bodyLoading}
-        bodyLoadFailed={bodyLoadFailed}
-        starPending={toggleStar.isPending}
-        movePending={moveThread.isPending}
-        markReadPending={markRead.isPending}
-        downloadPending={downloadAttachment.isPending}
-        snoozePending={snoozeThread.isPending}
-        openCompose={openCompose}
-        onToggleStar={() => selectedId && activeThread && handleToggleStar(selectedId, activeThread.is_starred)}
-        onMarkUnread={() => accountId && selectedId && markRead.mutate({ accountId, threadId: selectedId, isRead: false })}
-        onRestoreInbox={() =>
-          accountId &&
-          selectedId &&
-          moveThread.mutate(
-            { accountId, threadId: selectedId, moveTo: "INBOX" },
-            { onSuccess: () => { setFolder("INBOX"); setSelectedId(null); } },
-          )
-        }
-        onNotSpam={() =>
-          accountId &&
-          selectedId &&
-          moveThread.mutate(
-            { accountId, threadId: selectedId, moveTo: "INBOX" },
-            {
-              onSuccess: () => {
-                setFolder("INBOX");
-                setSelectedId(null);
-                toast.success(t("email_hub.not_spam_done"));
-              },
-            },
-          )
-        }
-        onArchive={() =>
-          accountId &&
-          selectedId &&
-          moveThread.mutate({ accountId, threadId: selectedId, moveTo: "ARCHIVE" }, { onSuccess: () => setSelectedId(null) })
-        }
-        onSpam={() =>
-          accountId &&
-          selectedId &&
-          moveThread.mutate({ accountId, threadId: selectedId, moveTo: "SPAM" }, { onSuccess: () => setSelectedId(null) })
-        }
-        onClearSnooze={() =>
-          accountId &&
-          selectedId &&
-          snoozeThread.mutate({ accountId, threadId: selectedId, clearSnooze: true }, { onSuccess: () => setSelectedId(null) })
-        }
-        onSnoozeTomorrow={() =>
-          accountId &&
-          selectedId &&
-          snoozeThread.mutate(
-            {
-              accountId,
-              threadId: selectedId,
-              snoozeUntil: emailHubSnoozeToRFC3339(emailHubSnoozeTomorrowMorning()),
-            },
-            { onSuccess: () => setSelectedId(null) },
-          )
-        }
-        onSnoozeNextWeek={() =>
-          accountId &&
-          selectedId &&
-          snoozeThread.mutate(
-            {
-              accountId,
-              threadId: selectedId,
-              snoozeUntil: emailHubSnoozeToRFC3339(emailHubSnoozeNextWeekMorning()),
-            },
-            { onSuccess: () => setSelectedId(null) },
-          )
-        }
-        onTrash={() =>
-          accountId &&
-          selectedId &&
-          moveThread.mutate({ accountId, threadId: selectedId, moveTo: "TRASH" }, { onSuccess: () => setSelectedId(null) })
-        }
-        onRefetchDetail={() => void detail.refetch()}
-        onDownloadAttachment={(att) => {
-          if (!accountId || !selectedId) return;
-          downloadAttachment.mutate(
-            { accountId, threadId: selectedId, attachmentId: att.id },
-            {
-              onSuccess: (blob) => {
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = att.filename || "attachment";
-                a.click();
-                URL.revokeObjectURL(url);
-              },
-            },
-          );
-        }}
-      />
+      {readingEmail && !isScheduledFolder && selectedId && accountId ? (
+        <EmailHubAiRail
+          wide={wideAi}
+          open={aiOpen}
+          onOpenChange={wideAi ? setAiRailOpen : setAiSheetOpen}
+          wsId={wsId}
+          accountId={accountId}
+          threadId={selectedId}
+          bodyReady={readableBody || !!activeThread?.snippet || !!activeThread?.subject}
+          initialSummary={threadAiSummaries[selectedId]}
+          onSummaryChange={handleThreadAiSummary}
+        />
+      ) : null}
 
-      <EmailHubStatsRail
-        wsId={wsId}
-        threadId={selectedId}
-        threadAiSummary={selectedId ? threadAiSummaries[selectedId] : undefined}
-        onThreadAiSummary={handleThreadAiSummary}
-        bodyReady={readableBody || !!activeThread?.snippet || !!activeThread?.subject}
-        readingEmail={readingEmail}
-        counts={counts}
-        activeAccount={activeAccount}
-        {...accountPanelProps}
+      <EmailHubSnoozeDialog {...threadActions.snoozeDialog} />
+      <EmailHubShortcutsDialog
+        open={shortcutsOpen}
+        onOpenChange={setShortcutsOpen}
+        enabled={shortcutsOn}
+        onEnabledChange={setShortcutsOn}
       />
-
-      <EmailHubViewDialogs
-        wsId={wsId}
-        accountId={accountId}
-        connectOpen={connectOpen}
-        onConnectOpenChange={setConnectOpen}
-        onConnected={(id) => {
-          setAccountId(id);
-          setSelectedId(null);
-          setFolder("INBOX");
-        }}
-        composeOpen={composeOpen}
-        onComposeOpenChange={setComposeOpen}
-        composeMode={composeMode}
-        composeSource={composeSource}
-        onSent={(result) => {
-          if (result && "scheduled" in result && result.scheduled) {
-            setFolder("SCHEDULED");
-            setSelectedId(null);
-            return;
-          }
-          if (result && "id" in result) {
-            setFolder("SENT");
-            setSelectedId(result.id);
-          }
-        }}
-      />
-    </div>
+        {dialogs}
+      </div>
+    </EmailHubSenderAvatarProvider>
   );
 }

@@ -1,4 +1,5 @@
 import { defineConfig } from "@playwright/test";
+import { VI_LOCALE_STATE } from "./locale-state";
 
 const outputDir =
   process.env.PLAYWRIGHT_OUTPUT_DIR ?? "test-results";
@@ -13,9 +14,11 @@ export default defineConfig({
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://localhost:3000",
     channel: process.env.PLAYWRIGHT_CHANNEL,
-    // The specs are written against the Vietnamese product; the app now
-    // follows the browser's language, and Chromium's default is en-US.
+    // The specs are written against the Vietnamese product. The app shows
+    // English until the locale cookie says otherwise (see locale-state.ts);
+    // `locale` keeps dates and number formats Vietnamese too.
     locale: "vi-VN",
+    storageState: VI_LOCALE_STATE,
     trace: "retain-on-failure",
   },
 });

@@ -15,6 +15,7 @@ import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import type { ChatSidebarTarget } from "./chat-sidebar";
+import type { MemberAvatarUrlMap } from "./chat-member-avatar";
 import { DmChatToolbar } from "./dm-settings-sheet";
 import { GroupChatToolbar } from "./chat-conversation-toolbar";
 import { WorkspaceChatToolbar } from "./workspace-settings-sheet";
@@ -29,6 +30,7 @@ export function ChatPageConversationToolbar({
   activeChannel,
   workspaceMembersCount,
   nicknamesByUserId,
+  memberAvatarByUserId,
   backToListLabel,
   sidebarCollapsed,
   onBack,
@@ -54,6 +56,7 @@ export function ChatPageConversationToolbar({
   activeChannel: ChatRoomRecord | null;
   workspaceMembersCount: number;
   nicknamesByUserId: Record<string, string>;
+  memberAvatarByUserId: MemberAvatarUrlMap;
   backToListLabel: string;
   sidebarCollapsed: boolean;
   onBack: () => void;
@@ -138,6 +141,7 @@ export function ChatPageConversationToolbar({
           activeContact
         }
         nicknamesByUserId={nicknamesByUserId}
+        memberAvatarByUserId={memberAvatarByUserId}
         backAriaLabel={backToListLabel}
         onBack={onBack}
         sidebarCollapsed={sidebarCollapsed}

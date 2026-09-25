@@ -11,6 +11,7 @@ import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Progress } from "@uniwork/ui/components/ui/progress";
 import { FormDialogBody, FormDialogContent, FormDialogHeader } from "../common/form-dialog";
+import { resolveAvatarUrlFromNameContext } from "./chat-member-avatar";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 
 type PollOption = { id: string; label: string; votes: number };
@@ -42,7 +43,12 @@ function PollVoterList({ voterIds, names }: { voterIds: string[]; names: VoterNa
         );
         return (
           <li key={userId} className="flex min-w-0 items-center gap-2">
-            <ActorAvatar name={label} initials={voterInitial(label)} size="sm" />
+            <ActorAvatar
+              name={label}
+              initials={voterInitial(label)}
+              avatarUrl={resolveAvatarUrlFromNameContext(names.nameContext, userId)}
+              size="sm"
+            />
             <span className="truncate text-body text-foreground">{label}</span>
           </li>
         );

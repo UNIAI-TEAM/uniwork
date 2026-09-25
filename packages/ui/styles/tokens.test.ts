@@ -171,6 +171,12 @@ describe("token contract", () => {
     }
   });
 
+  it("lets an explicit font-sans opt a field out of the display family", () => {
+    // Inputs use text-title-sm for its 16px (no iOS focus zoom) and add
+    // font-sans; without the opt-out typed text rendered in the heading face.
+    expect(css).toMatch(/\.text-title-sm[^{]*\):not\(\.font-sans\)\s*\{[^}]*font-family:\s*var\(--font-display\)/);
+  });
+
   it("defines the nine tints as fill + foreground + solid triples", () => {
     // Tints identify modules (tasks, meetings, chat…); signal colours report
     // state. A tint without its foreground forces a view to pick a glyph

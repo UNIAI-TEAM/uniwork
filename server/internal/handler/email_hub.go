@@ -151,6 +151,27 @@ func (h *handlers) downloadEmailHubAttachment(w http.ResponseWriter, r *http.Req
 	}
 }
 
+func (h *handlers) listEmailHubConversation(w http.ResponseWriter, r *http.Request) {
+	accountID := r.URL.Query().Get("account_id")
+	if accountID == "" {
+		respondError(w, http.StatusBadRequest, "invalid_request", "account_id is required")
+		return
+	}
+	rows, err := h.EmailHub.ListConversationMessages(
+		r.Context(), service.Human(middleware.UserID(r.Context())),
+		chi.URLParam(r, "workspaceID"), accountID, chi.URLParam(r, "threadID"),
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := sdo.EmailHubConversationSDO{Messages: make([]sdo.EmailHubThreadSDO, 0, len(rows))}
+	for _, t := range rows {
+		out.Messages = append(out.Messages, toEmailHubThreadSDO(t))
+	}
+	respondJSON(w, http.StatusOK, out)
+}
+
 func (h *handlers) getEmailHubThread(w http.ResponseWriter, r *http.Request) {
 	thread, err := h.EmailHub.GetThread(
 		r.Context(), service.Human(middleware.UserID(r.Context())),
@@ -376,7 +397,7 @@ func (h *handlers) listEmailHubScheduledSends(w http.ResponseWriter, r *http.Req
 		respondError(w, http.StatusBadRequest, "invalid_request", "account_id is required")
 		return
 	}
-	items, err := h.EmailHub.ListPendingScheduledSends(
+	items, err := h.EmailHub.ListScheduledSends(
 		r.Context(), service.Human(middleware.UserID(r.Context())),
 		chi.URLParam(r, "workspaceID"), accountID,
 	)
@@ -410,6 +431,23 @@ func (h *handlers) cancelEmailHubScheduledSend(w http.ResponseWriter, r *http.Re
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *handlers) retryEmailHubScheduledSend(w http.ResponseWriter, r *http.Request) {
+	accountID := r.URL.Query().Get("account_id")
+	if accountID == "" {
+		respondError(w, http.StatusBadRequest, "invalid_request", "account_id is required")
+		return
+	}
+	err := h.EmailHub.RetryScheduledSend(
+		r.Context(), service.Human(middleware.UserID(r.Context())),
+		chi.URLParam(r, "workspaceID"), accountID, chi.URLParam(r, "scheduledSendID"),
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func toEmailHubAccountSDO(a service.EmailHubAccountView) sdo.EmailHubAccountSDO {
 	out := sdo.EmailHubAccountSDO{
 		ID: a.ID, EmailAddress: a.EmailAddress, Provider: a.Provider,
@@ -427,6 +465,7 @@ func toEmailHubThreadSDO(t service.EmailHubThreadView) sdo.EmailHubThreadSDO {
 		FromAddr: t.FromAddr, FromName: t.FromName, ToAddrs: t.ToAddrs, SentAt: t.SentAt.Format(time.RFC3339),
 		IsRead: t.IsRead, IsStarred: t.IsStarred, HasAttachments: t.HasAttachments,
 		BodyText: t.BodyText, BodyHTML: t.BodyHTML, BodyCached: t.BodyCached, ImapLabels: t.ImapLabels,
+		ConversationMessageCount: t.ConversationMessageCount,
 	}
 	if t.SnoozedUntil != nil {
 		out.SnoozedUntil = t.SnoozedUntil.Format(time.RFC3339)

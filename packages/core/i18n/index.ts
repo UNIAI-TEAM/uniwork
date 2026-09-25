@@ -1,12 +1,12 @@
 import i18next, { type i18n } from "i18next";
 import { initReactI18next } from "react-i18next";
-import vi from "./locales/vi.json";
+import en from "./locales/en.json";
 import type { SupportedLocale } from "./types";
 
 /**
  * Chỉ nạp locale nào THẬT SỰ có chuỗi. Đăng ký một file rỗng khiến i18next báo
  * có ngôn ngữ đó trong khi mọi chuỗi đều rơi về tiếng Việt — đổi `lng` là ra một
- * app "tiếng Anh" nói tiếng Việt. `vi` và `en` hiện đã ngang nhau (xem
+ * app "tiếng Việt" nói tiếng Anh. `vi` và `en` hiện đã ngang nhau (xem
  * `parity.test.ts`); thêm locale mới chỉ cần đổ nội dung vào file, không phải
  * sửa gì ở đây.
  */
@@ -21,9 +21,9 @@ function withContent(resources: Record<string, object>) {
 export function initI18n() {
   if (!i18next.isInitialized) {
     void i18next.use(initReactI18next).init({
-      lng: "vi",
-      fallbackLng: "vi",
-      resources: withContent({ vi }),
+      lng: "en",
+      fallbackLng: "en",
+      resources: withContent({ en }),
       interpolation: { escapeValue: false },
       compatibilityJSON: "v4",
       initAsync: false,
@@ -34,7 +34,7 @@ export function initI18n() {
 }
 
 /**
- * Vietnamese is the default and the fallback, so it is the only dictionary in
+ * English is the default and the fallback, so it is the only dictionary in
  * the initial bundle; every other locale arrives on demand. Nothing is
  * translated on the server (`./server.ts` is the only entry a server component
  * may import, and it resolves the locale without rendering a string), so a
@@ -42,11 +42,11 @@ export function initI18n() {
  * Shipping every dictionary to every route instead would put the whole set in
  * the shared chunk — see scripts/bundle-budget.mjs.
  */
-const loaders: Record<Exclude<SupportedLocale, "vi">, () => Promise<{ default: object }>> = {
-  en: () => import("./locales/en.json"),
+const loaders: Record<Exclude<SupportedLocale, "en">, () => Promise<{ default: object }>> = {
+  vi: () => import("./locales/vi.json"),
 };
 
-const loaded = new Set<string>(["vi"]);
+const loaded = new Set<string>(["en"]);
 
 export function registerLocaleBundle(locale: SupportedLocale, dict: object): void {
   if (loaded.has(locale)) return;
@@ -76,7 +76,7 @@ export function syncI18nResources(instance: i18n, dictionaries: Record<string, o
 
 export async function ensureLocale(locale: SupportedLocale): Promise<void> {
   if (loaded.has(locale)) return;
-  const load = loaders[locale as Exclude<SupportedLocale, "vi">];
+  const load = loaders[locale as Exclude<SupportedLocale, "en">];
   if (!load) return;
   const dict = (await load()).default;
   registerLocaleBundle(locale, dict);

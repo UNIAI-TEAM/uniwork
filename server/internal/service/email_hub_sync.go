@@ -338,6 +338,7 @@ func (s *EmailHubService) upsertThreadItems(ctx context.Context, acc db.EmailHub
 		if toAddrs == nil {
 			toAddrs = []string{}
 		}
+		convKey := emailhub.ConversationKey(acc.ID, it.Subject, it.MessageID, it.InReplyTo)
 		row, err := s.q.UpsertEmailHubThread(ctx, db.UpsertEmailHubThreadParams{
 			ID: util.NewID(), AccountID: acc.ID, OrganizationID: acc.OrganizationID,
 			Folder: logicalFolder, ImapUid: int32(it.UID), MessageID: pgtype.Text{String: it.MessageID, Valid: it.MessageID != ""},
@@ -345,7 +346,7 @@ func (s *EmailHubService) upsertThreadItems(ctx context.Context, acc db.EmailHub
 			FromName: pgtype.Text{String: it.FromName, Valid: it.FromName != ""},
 			ToAddrs:  toAddrs, SentAt: pgtype.Timestamptz{Time: it.SentAt, Valid: true},
 			IsRead: it.IsRead, IsStarred: it.IsStarred, HasAttachments: it.HasAttachments,
-			ImapLabels: emailhub.UserVisibleImapLabels(it.ImapLabels),
+			ImapLabels: emailhub.UserVisibleImapLabels(it.ImapLabels), ConversationKey: convKey,
 		})
 		if err != nil {
 			s.log.Warn("email hub thread upsert failed",

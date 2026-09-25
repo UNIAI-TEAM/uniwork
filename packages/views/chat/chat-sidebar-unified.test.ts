@@ -52,7 +52,6 @@ describe("buildUnifiedSidebarEntries", () => {
       pinnedByRoomId: {
         "g-room": { pinned: true, notificationsMuted: false, pinnedAt: Date.parse("2026-09-01T00:00:00.000Z") },
       },
-      workHubEnabled: false,
     });
 
     expect(entries.map((e) => e.key)).toEqual(["group:g1", "dm:u2", "workspace"]);
@@ -84,7 +83,6 @@ describe("buildUnifiedSidebarEntries", () => {
       nicknamesByUserId: {},
       roomPreviewsByRoomId: {},
       pinnedByRoomId: {},
-      workHubEnabled: false,
     });
 
     expect(entries).toHaveLength(1);

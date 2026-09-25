@@ -38,6 +38,7 @@ export {
   useDownloadEmailHubAttachment,
   useMarkEmailHubRead,
   useMoveEmailHubThread,
+  useRetryEmailHubScheduledSend,
   useSendEmailHub,
   useSnoozeEmailHubThread,
   useSummarizeEmailHubThread,
@@ -120,6 +121,19 @@ export function emailHubHasReadableBody(
 }
 
 /** One request on open (meta + body + mark read) for minimum latency. */
+export function useEmailHubConversation(
+  wsId: string,
+  accountId: string | null,
+  threadId: string | null,
+) {
+  return useQuery({
+    queryKey: emailHubKeys.conversation(wsId, accountId ?? "", threadId ?? ""),
+    queryFn: ({ signal }) => api.getEmailHubConversation(wsId, accountId!, threadId!, signal),
+    enabled: !!accountId && !!threadId,
+    staleTime: 10_000,
+  });
+}
+
 export function useEmailHubThread(
   wsId: string,
   accountId: string | null,
