@@ -38,7 +38,19 @@ function AuthInitializer() {
   return null;
 }
 
-export function CoreProvider({ children }: { children: ReactNode }) {
+export function CoreProvider({
+  children,
+  initializeAuth = true,
+}: {
+  children: ReactNode;
+  /**
+   * False on pages that never read the session (public marketing): refreshing
+   * there only costs every anonymous visitor a 401. Screens that need the
+   * session still resolve it through `useSession()`, and flipping this back to
+   * true after a client-side navigation resolves it once.
+   */
+  initializeAuth?: boolean;
+}) {
   const [queryClient] = useState(createQueryClient);
   const [ready] = useState(() => {
     // The default instance, for a host that resolves no locale of its own.
@@ -68,7 +80,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthInitializer />
+      {initializeAuth ? <AuthInitializer /> : null}
       <QuerySessionSync queryClient={queryClient} />
       {children}
     </QueryClientProvider>
