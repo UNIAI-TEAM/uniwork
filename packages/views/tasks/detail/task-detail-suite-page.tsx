@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import { useTask } from "@uniwork/core/tasks";
@@ -29,8 +29,10 @@ export function TaskDetailSuitePage(props: {
   taskId: string;
   /** Wired when the actions menu lands (Task 7+). */
   onDeleted?: () => void;
+  /** Host-level actions such as closing a contextual detail panel. */
+  headerActions?: ReactNode;
 }) {
-  const { workspaceId, taskId, onDeleted } = props;
+  const { workspaceId, taskId, onDeleted, headerActions } = props;
   const { t } = useTranslation();
   const { workspace } = useWorkspace();
   const { data: task, isLoading, isError, error, refetch } = useTask(taskId);
@@ -62,7 +64,11 @@ export function TaskDetailSuitePage(props: {
   if (isLoading) {
     return (
       <div className="flex h-full min-h-0 flex-col">
-        <BreadcrumbHeader segments={segments} leaf={t("common.loading")} />
+        <BreadcrumbHeader
+          segments={segments}
+          leaf={t("common.loading")}
+          actions={headerActions}
+        />
       </div>
     );
   }
@@ -70,7 +76,11 @@ export function TaskDetailSuitePage(props: {
   if (isError || !task) {
     return (
       <div className="flex h-full min-h-0 flex-col">
-        <BreadcrumbHeader segments={segments} leaf={t("tasks.detail.not_found")} />
+        <BreadcrumbHeader
+          segments={segments}
+          leaf={t("tasks.detail.not_found")}
+          actions={headerActions}
+        />
       </div>
     );
   }
@@ -107,6 +117,7 @@ export function TaskDetailSuitePage(props: {
                       controller={sidebarController}
                       label={t("tasks.detail.sidebar_toggle")}
                     />
+                    {headerActions}
                   </>
                 }
               />

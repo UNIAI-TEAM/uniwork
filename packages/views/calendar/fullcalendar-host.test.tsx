@@ -221,6 +221,7 @@ describe("FullCalendarHost", () => {
 
   it("resolves eventClick by id", () => {
     const onEventClick = vi.fn();
+    const source = document.createElement("a");
     render(
       <FullCalendarHost
         events={[sample]}
@@ -230,8 +231,8 @@ describe("FullCalendarHost", () => {
         onEventClick={onEventClick}
       />,
     );
-    captured.eventClick?.({ event: { id: "ev-1" } });
-    expect(onEventClick).toHaveBeenCalledWith(sample);
+    captured.eventClick?.({ event: { id: "ev-1" }, el: source });
+    expect(onEventClick).toHaveBeenCalledWith(sample, source);
   });
 
   it("defaults editable to true on FullCalendar", () => {

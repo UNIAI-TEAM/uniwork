@@ -75,6 +75,21 @@ vi.mock("../meetings/new-meeting-dialog", () => ({
   NewMeetingDialog: () => null,
 }));
 
+vi.mock("../tasks/detail", () => ({
+  TaskDetailSuitePage: ({
+    taskId,
+    headerActions,
+  }: {
+    taskId: string;
+    headerActions?: React.ReactNode;
+  }) => (
+    <div data-testid="task-detail-suite">
+      <span>{taskId}</span>
+      {headerActions}
+    </div>
+  ),
+}));
+
 describe("CalendarPageView", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -154,6 +169,63 @@ describe("CalendarPageView", () => {
 
     expect(createFromSlotProps.current.open).toBe(true);
     expect(createFromSlotProps.current.slot).toBeNull();
+  });
+
+  it("keeps the calendar mounted while a clicked task opens in the detail panel", () => {
+    const onOpenTask = vi.fn();
+    render(
+      wrap(
+        <CalendarPageView
+          workspaceId="ws1"
+          onOpenTask={onOpenTask}
+          onOpenMeeting={() => {}}
+        />,
+      ),
+    );
+
+    act(() => {
+      const onEventClick = hostProps.current.onEventClick as (
+        event: CalendarEvent,
+      ) => void;
+      onEventClick(taskEvent);
+    });
+
+    expect(screen.getByTestId("calendar-grid")).toBeInTheDocument();
+    expect(screen.getByTestId("task-detail-suite")).toHaveTextContent("task-1");
+    expect(onOpenTask).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mở toàn trang" }));
+    expect(onOpenTask).toHaveBeenCalledWith("task-1");
+  });
+
+  it("closes the task detail panel and restores focus to the source control", () => {
+    const source = document.createElement("button");
+    source.textContent = "Task source";
+    document.body.append(source);
+    source.focus();
+
+    render(
+      wrap(
+        <CalendarPageView
+          workspaceId="ws1"
+          onOpenTask={() => {}}
+          onOpenMeeting={() => {}}
+        />,
+      ),
+    );
+
+    act(() => {
+      const onEventClick = hostProps.current.onEventClick as (
+        event: CalendarEvent,
+      ) => void;
+      onEventClick(taskEvent);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
+
+    expect(screen.queryByTestId("task-detail-suite")).not.toBeInTheDocument();
+    expect(source).toHaveFocus();
+    source.remove();
   });
 
   it("passes the weekend visibility setting to the calendar grid", () => {

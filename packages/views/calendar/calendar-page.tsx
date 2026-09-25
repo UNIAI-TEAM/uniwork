@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Calendar } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useCalendarEvents, useCalendarSidebar } from "@uniwork/core/calendar";
@@ -17,6 +17,7 @@ import { CollectionPageHeader, CollectionPageState } from "../layout/collection-
 import { moduleTone } from "../layout/module-tones";
 import { PAGE_GUTTER } from "../layout/page-header";
 import { CalendarToolbar } from "./calendar-toolbar";
+import { CalendarTaskPanel } from "./calendar-task-panel";
 import { type CalendarViewMode, rangeForMode } from "./calendar-view-mode";
 import { useCalendarMutations } from "./calendar-mutations";
 import { CreateFromSlot } from "./create-from-slot";
@@ -50,6 +51,8 @@ export function CalendarPageView({
   const [slotMenuOpen, setSlotMenuOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<CalendarSlot | null>(null);
   const [createMeetingOpen, setCreateMeetingOpen] = useState(false);
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
+  const taskTriggerRef = useRef<HTMLElement | null>(null);
   const viewerTimeZone = useMemo(
     () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     [],
@@ -106,6 +109,21 @@ export function CalendarPageView({
     setSlotMenuOpen(true);
   };
 
+  const handleTaskOpen = useCallback((taskId: string, source?: HTMLElement) => {
+    const activeElement = document.activeElement;
+    const trigger = source ?? (activeElement instanceof HTMLElement ? activeElement : null);
+    if (trigger && trigger.tabIndex < 0) trigger.tabIndex = -1;
+    taskTriggerRef.current = trigger;
+    setOpenTaskId(taskId);
+  }, []);
+
+  const handleTaskPanelClose = useCallback(() => {
+    const trigger = taskTriggerRef.current;
+    taskTriggerRef.current = null;
+    setOpenTaskId(null);
+    if (trigger?.isConnected) trigger.focus();
+  }, []);
+
   const handleExternalTaskReceive = async (input: { taskId: string; dueDate: string }) => {
     const calendarEvent = events.find(
       (ev) => ev.kind === "task" && ev.entityId === input.taskId,
@@ -113,9 +131,9 @@ export function CalendarPageView({
     await applyExternalTaskDue({ ...input, calendarEvent });
   };
 
-  const handleEventClick = (event: CalendarEvent) => {
+  const handleEventClick = (event: CalendarEvent, source?: HTMLElement) => {
     if (event.kind === "task") {
-      onOpenTask(event.entityId);
+      handleTaskOpen(event.entityId, source);
       return;
     }
     onOpenMeeting(event.entityId);
@@ -128,7 +146,7 @@ export function CalendarPageView({
         tone={moduleTone("calendar")}
         title={t("calendar.title")}
       />
-      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+      <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
         <CalendarSidebar
           workspaceId={workspaceId}
           viewerTimeZone={viewerTimeZone}
@@ -136,7 +154,7 @@ export function CalendarPageView({
           isPending={sidebarQuery.isPending}
           isError={sidebarQuery.isError}
           onRetry={() => void sidebarQuery.refetch()}
-          onOpenTask={onOpenTask}
+          onOpenTask={handleTaskOpen}
           onOpenMeeting={onOpenMeeting}
           onCreateMeeting={() => setCreateMeetingOpen(true)}
           onQuickCreate={handleQuickCreate}
@@ -206,6 +224,14 @@ export function CalendarPageView({
             </div>
           )}
         </div>
+        {openTaskId ? (
+          <CalendarTaskPanel
+            workspaceId={workspaceId}
+            taskId={openTaskId}
+            onClose={handleTaskPanelClose}
+            onOpenFullPage={onOpenTask}
+          />
+        ) : null}
       </div>
       <NewMeetingDialog
         workspaceId={workspaceId}

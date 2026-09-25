@@ -2646,6 +2646,8 @@
     "sidebar_empty_backlog": "Không có việc tồn đọng.",
     "sidebar_task_drag_handle": "Kéo {{title}} vào lịch",
     "sidebar_task_open_to_schedule": "Mở {{title}} để đặt ngày",
+    "task_panel_label": "Chi tiết công việc",
+    "open_task_full_page": "Mở toàn trang",
     "period_picker_label": "Chọn kỳ hiển thị, hiện tại {{period}}",
     "export_ics": "Xuất ICS",
     "export_ics_error": "Không xuất được lịch."

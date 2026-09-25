@@ -34,7 +34,7 @@ type CalendarSidebarProps = {
   isPending?: boolean;
   isError?: boolean;
   onRetry: () => void;
-  onOpenTask: (id: string) => void;
+  onOpenTask: (id: string, source?: HTMLElement) => void;
   onOpenMeeting: (id: string) => void;
   onCreateMeeting: () => void;
   onQuickCreate: () => void;
@@ -116,7 +116,7 @@ function SidebarTaskRow({
   onOpen,
 }: {
   task: CalendarSidebarTask;
-  onOpen: () => void;
+  onOpen: (source: HTMLElement) => void;
 }) {
   const { t, i18n } = useTranslation();
   const dueLabel = formatDueLabel(task.dueDate, i18n.resolvedLanguage ?? i18n.language);
@@ -132,7 +132,7 @@ function SidebarTaskRow({
         })}
         title={t("calendar.sidebar_task_drag_handle", { title: task.title })}
         className="fc-event flex min-h-8 w-full min-w-0 cursor-grab items-center rounded-md px-1 py-1.5 text-left text-body hover:bg-surface-hover active:cursor-grabbing [@media(pointer:coarse)]:min-h-11"
-        onClick={onOpen}
+        onClick={(event) => onOpen(event.currentTarget)}
       >
         <GripVertical
           className="mr-1 size-3.5 shrink-0 text-muted-foreground"
@@ -245,7 +245,7 @@ function TaskListSection({
   titleKey: string;
   emptyKey: string;
   tasks: CalendarSidebarTask[];
-  onOpenTask: (id: string) => void;
+  onOpenTask: (id: string, source?: HTMLElement) => void;
 }) {
   const { t } = useTranslation();
   const listRef = useRef<HTMLUListElement>(null);
@@ -278,7 +278,11 @@ function TaskListSection({
     <SidebarSection title={t(titleKey)} count={tasks.length} emptyCopy={t(emptyKey)}>
       <ul ref={listRef} className="space-y-0.5">
         {tasks.map((task) => (
-          <SidebarTaskRow key={task.id} task={task} onOpen={() => onOpenTask(task.id)} />
+          <SidebarTaskRow
+            key={task.id}
+            task={task}
+            onOpen={(source) => onOpenTask(task.id, source)}
+          />
         ))}
       </ul>
     </SidebarSection>

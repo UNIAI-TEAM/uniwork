@@ -113,7 +113,7 @@ describe("CalendarSidebar", () => {
     fireEvent.click(screen.getByRole("button", { name: /Fix sidebar/ }));
     fireEvent.click(screen.getByRole("button", { name: /Standup/ }));
 
-    expect(onOpenTask).toHaveBeenCalledWith("task-1");
+    expect(onOpenTask).toHaveBeenCalledWith("task-1", expect.any(HTMLElement));
     expect(onOpenMeeting).toHaveBeenCalledWith("meet-1");
   });
 
@@ -207,7 +207,7 @@ describe("CalendarSidebar", () => {
       extendedProps: { uniworkTaskId: "task-1" },
     });
     fireEvent.click(handle);
-    expect(onOpenTask).toHaveBeenCalledWith("task-1");
+    expect(onOpenTask).toHaveBeenCalledWith("task-1", handle);
     expect(
       document.querySelector("[data-calendar-external-task][data-task-id='meet-1']"),
     ).toBeNull();

@@ -61,7 +61,7 @@ export function FullCalendarHost(props: {
   language?: string;
   viewerTimeZone?: string;
   onDatesSet: (range: { from: string; to: string }) => void;
-  onEventClick: (event: CalendarEvent) => void;
+  onEventClick: (event: CalendarEvent, source?: HTMLElement) => void;
   editable?: boolean;
   onEventDropOrResize?: (patch: CalendarDropPatch) => void | Promise<void>;
   onExternalTaskReceive?: (input: {
@@ -103,7 +103,7 @@ export function FullCalendarHost(props: {
     const id = info.event.id;
     const match = eventsById.get(id);
     if (match) {
-      props.onEventClick(match);
+      props.onEventClick(match, info.el);
     }
   };
 
