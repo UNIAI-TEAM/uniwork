@@ -5,6 +5,8 @@ export interface HomeHeadline {
   key: string;
   params: Record<string, string | number>;
   at?: string;
+  /** A meeting in progress, which the greeting offers to join. */
+  liveMeetingId?: string;
 }
 
 const DAY_MS = 86_400_000;
@@ -38,22 +40,22 @@ export function localDay(iso: string, timeZone: string): string {
 /**
  * The one sentence under the greeting: the thing to look at first, derived
  * from the summary the page already has. A failed source comes first, because
- * its zeros are not true; then the oldest overdue task, the next meeting
- * starting today, what is due today, what is unread, and otherwise a clear
- * day. It names what the stat tiles cannot (a title, a time) rather than
+ * its zeros are not true; then a meeting in progress (it is urgent by the
+ * minute), the oldest overdue task, the next meeting starting today, what is
+ * due today, what is unread, and otherwise a clear day. It names what the stat tiles cannot (a title, a time) rather than
  * repeating their numbers. `at` is a meeting start for the view to format.
  */
 export function buildHomeHeadline(summary: HomeSummary): HomeHeadline {
   const { counts, today } = summary;
   if (summary.partial.length > 0) return { key: "home.headline.partial", params: {} };
+  const live = summary.upcoming_meetings.find((m) => m.status === "IN_PROGRESS");
+  if (live) return { key: "home.headline.live", params: { title: live.title }, liveMeetingId: live.id };
   if (counts.overdue > 0) {
     const oldest = summary.my_work.find((t) => overdueDays(today, t.due_date) > 0);
     return oldest
       ? { key: "home.headline.overdue", params: { title: oldest.title, count: overdueDays(today, oldest.due_date) } }
       : { key: "home.headline.overdue_plain", params: { count: counts.overdue } };
   }
-  const live = summary.upcoming_meetings.find((m) => m.status === "IN_PROGRESS");
-  if (live) return { key: "home.headline.live", params: { title: live.title } };
   if (counts.meetings_today > 0) {
     const next = nextMeetingToday(summary);
     if (next) return { key: "home.headline.meeting", params: { title: next.title }, at: next.starts_at };

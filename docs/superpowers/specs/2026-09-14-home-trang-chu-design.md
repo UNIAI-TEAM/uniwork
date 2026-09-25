@@ -374,3 +374,35 @@ workspace mới, cột phụ lệch ở cả ba mật độ. Thay đổi — cá
   và `HOME_PAGE_FLAG` rời `packages/core/feature-flags`; hàng override `home_page` còn trong DB bị
   bỏ qua như mọi khoá không có trong catalogue. Câu hỏi §11 #6 không còn.
 
+
+## Audit impeccable 2026-09-25
+
+Audit `/impeccable audit` (15/20) sau đợt làm lại ở trên. Các mục dưới đây thay chỗ tương ứng:
+
+- **Thứ tự câu dưới lời chào**: cuộc họp **đang diễn ra** lên trước việc quá hạn (gấp theo phút),
+  kèm nút "Vào họp" ngay cạnh câu (`HomeHeadline.liveMeetingId`).
+- **Lời chào gọi tên**, không gọi cả họ tên: `greetingName` lấy chữ cuối khi chữ đầu là họ Việt
+  phổ biến (có hay không dấu), còn lại lấy chữ đầu.
+- **Bố cục theo bề rộng trang, không theo viewport**: nội dung là container `@container/home`;
+  Cân bằng và Rộng chia cột từ `@5xl/home` (64rem), nên thu sidebar cũng được tính.
+  DOM luôn giữ đúng thứ tự người dùng lưu (thứ tự đọc/Tab = thứ tự đã chọn); Cân bằng dùng
+  lưới hai cột với Việc của tôi `row-span-full` ở cột chính, không còn `order-*`.
+  Rộng: mỗi khối đang hiện một cột, Việc của tôi 2fr, không còn ô trống khi ẩn khối;
+  mật độ Rộng được dùng tới `max-w-[100rem]`.
+- **Chờ prefs trước khi vẽ**: trong lúc prefs tải, trang hiện khung chờ thay vì vẽ Cân bằng rồi nhảy.
+- **Ô số**: số cỡ `title-lg` (nhỏ hơn lời chào); 4 cột và icon theo bề rộng khối; nhãn xuống dòng
+  thay vì cắt; mũi tên luôn hiện trên màn cảm ứng.
+- **Lịch họp**: khối "Sắp tới" đổi tên thành **"Lịch họp"** (en "Meetings") để không trùng nhóm
+  hạn "Sắp tới" trong Việc của tôi. Cột hẹp (< 20rem) đưa "Vào họp" xuống dưới tiêu đề.
+- **Khối phụ trống** (Lịch họp, Hộp việc): một dòng chữ, không icon, không nút — tiêu đề khối đã
+  có "Xem tất cả".
+- **Hoàn tác khi hoàn thành việc**: mọi lần hoàn thành (nút, chọn nhiều, phím C) có toast Hoàn tác,
+  trả mỗi việc về trạng thái cũ (`useReopenHomeTasks`). Footer "Còn N việc nữa" đếm theo việc còn mở
+  và ẩn khi nguồn việc lỗi.
+- **Thông báo**: đọc/bỏ đọc/đọc hết/lưu trữ ở bất kỳ đâu đều làm mới mọi summary Trang chủ
+  (`isHomeSummary`, `home/keys.ts` tách riêng để tránh vòng import).
+- **Màn bắt đầu**: "Lên lịch họp" mở dialog tạo họp tại chỗ (nạp lười), "Mời đồng đội" chỉ hiện
+  với người có `canManageMembers`.
+- **Tuỳ chỉnh**: đưa khối lên đầu/xuống cuối giữ focus ở mũi tên còn lại của hàng; Mật độ và Mẫu có
+  sẵn là nhóm radio thật (fieldset + input radio); công tắc có `aria-describedby` tới mô tả;
+  mô tả sửa thành "Lưu riêng cho bạn trong workspace này".

@@ -1,6 +1,7 @@
 "use client";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import * as api from "../api/endpoints/notifications";
+import { isHomeSummary } from "../home/keys";
 import type { Notification, NotificationPreference, UnreadCount } from "../types/notification";
 
 export type { ListNotificationsQuery, NotificationPage } from "../api/endpoints/notifications";
@@ -105,6 +106,15 @@ function adjustUnread(qc: ReturnType<typeof useQueryClient>, delta: (n: Notifica
   return prev;
 }
 
+/**
+ * After any read, unread or archive: the lists and the badge refetch, and so
+ * does every home summary, which carries its own unread rows and count.
+ */
+function settle(qc: ReturnType<typeof useQueryClient>) {
+  void qc.invalidateQueries({ predicate: isHomeSummary });
+  return qc.invalidateQueries({ queryKey: notificationKeys.all });
+}
+
 function cachedRows(qc: ReturnType<typeof useQueryClient>, ids: string[]): Notification[] {
   const seen = new Map<string, Notification>();
   for (const [, data] of qc.getQueriesData<Cached>({ queryKey: notificationKeys.lists() })) {
@@ -137,7 +147,7 @@ function useReadMutation(read: boolean) {
       for (const [key, page] of ctx?.lists ?? []) qc.setQueryData(key, page);
       if (ctx?.count) qc.setQueryData(notificationKeys.unreadCount(), ctx.count);
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: notificationKeys.all }),
+    onSettled: () => settle(qc),
   });
 }
 
@@ -175,7 +185,7 @@ export function useMarkAllRead() {
       for (const [key, page] of ctx?.lists ?? []) qc.setQueryData(key, page);
       if (ctx?.count) qc.setQueryData(notificationKeys.unreadCount(), ctx.count);
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: notificationKeys.all }),
+    onSettled: () => settle(qc),
   });
 }
 
@@ -195,7 +205,7 @@ export function useArchive() {
       for (const [key, page] of ctx?.lists ?? []) qc.setQueryData(key, page);
       if (ctx?.count) qc.setQueryData(notificationKeys.unreadCount(), ctx.count);
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: notificationKeys.all }),
+    onSettled: () => settle(qc),
   });
 }
 

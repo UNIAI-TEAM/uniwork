@@ -1933,7 +1933,7 @@
       "stats_description": "Overdue, due today, meetings and unread counts",
       "mywork": "My work",
       "mywork_description": "Open work assigned to you, most urgent first",
-      "upcoming": "Upcoming",
+      "upcoming": "Meetings",
       "upcoming_description": "Meetings in progress, today and tomorrow",
       "inbox": "Inbox",
       "inbox_description": "Unread notifications in this workspace"
@@ -1956,6 +1956,8 @@
       "completed_toast_one": "Completed {{count}} task",
       "completed_toast_other": "Completed {{count}} tasks",
       "complete_failed": "Couldn't update the task. The change was undone.",
+      "undo": "Undo",
+      "undo_failed": "Couldn't reopen the task. Open it to change its status.",
       "overdue_one": "{{count}} day overdue",
       "overdue_other": "{{count}} days overdue",
       "due_today": "Due today",
@@ -1979,9 +1981,7 @@
       "tomorrow": "Tomorrow",
       "live": "In progress",
       "join": "Join",
-      "empty_title": "No meetings",
       "empty_description": "You have no meetings today or tomorrow.",
-      "empty_action": "Open meetings",
       "minutes_one": "{{count}} min",
       "minutes_other": "{{count}} min",
       "hours_one": "{{count}} h",
@@ -1990,9 +1990,7 @@
     },
     "inbox": {
       "view_all": "View all",
-      "empty_title": "Inbox is clear",
-      "empty_description": "Nothing is waiting for you in this workspace.",
-      "empty_action": "Open inbox"
+      "empty_description": "Nothing is waiting for you in this workspace."
     },
     "partial": {
       "tasks": "Couldn't load your tasks.",
@@ -2007,7 +2005,7 @@
     },
     "customize": {
       "title": "Customize home",
-      "description": "Show or hide sections, reorder them and pick a density. Saved to your account.",
+      "description": "Show or hide sections, reorder them and pick a density. Saved for you in this workspace.",
       "sections": "Sections",
       "layout": "Density",
       "presets": "Presets",
@@ -2029,7 +2027,7 @@
       "balanced": "Balanced",
       "balanced_hint": "Two columns, the default",
       "wide": "Wide",
-      "wide_hint": "Three columns on large screens"
+      "wide_hint": "A column per section on large screens"
     },
     "preset": {
       "executive": "Lead",

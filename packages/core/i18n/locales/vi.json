@@ -1932,7 +1932,7 @@
       "stats_description": "Số việc quá hạn, đến hạn, cuộc họp và thông báo chưa đọc",
       "mywork": "Công việc của tôi",
       "mywork_description": "Việc mở được giao cho bạn, gấp nhất trước",
-      "upcoming": "Sắp tới",
+      "upcoming": "Lịch họp",
       "upcoming_description": "Cuộc họp đang diễn ra, hôm nay và ngày mai",
       "inbox": "Hộp việc",
       "inbox_description": "Thông báo chưa đọc của workspace này"
@@ -1955,6 +1955,8 @@
       "completed_toast_one": "Đã hoàn thành {{count}} việc",
       "completed_toast_other": "Đã hoàn thành {{count}} việc",
       "complete_failed": "Không cập nhật được công việc. Đã hoàn tác thay đổi.",
+      "undo": "Hoàn tác",
+      "undo_failed": "Không mở lại được việc. Mở việc đó để đổi trạng thái.",
       "overdue_one": "Quá hạn {{count}} ngày",
       "overdue_other": "Quá hạn {{count}} ngày",
       "due_today": "Hạn hôm nay",
@@ -1978,9 +1980,7 @@
       "tomorrow": "Ngày mai",
       "live": "Đang diễn ra",
       "join": "Vào họp",
-      "empty_title": "Không có cuộc họp",
       "empty_description": "Bạn không có cuộc họp nào hôm nay và ngày mai.",
-      "empty_action": "Mở cuộc họp",
       "minutes_one": "{{count}} phút",
       "minutes_other": "{{count}} phút",
       "hours_one": "{{count}} giờ",
@@ -1989,9 +1989,7 @@
     },
     "inbox": {
       "view_all": "Xem tất cả",
-      "empty_title": "Hộp việc trống",
-      "empty_description": "Không có thông báo nào đang chờ bạn trong workspace này.",
-      "empty_action": "Mở hộp việc"
+      "empty_description": "Không có thông báo nào đang chờ bạn trong workspace này."
     },
     "partial": {
       "tasks": "Không tải được danh sách công việc.",
@@ -2006,7 +2004,7 @@
     },
     "customize": {
       "title": "Tuỳ chỉnh trang chủ",
-      "description": "Bật hoặc tắt khối, đổi thứ tự và chọn mật độ. Thay đổi được lưu theo tài khoản.",
+      "description": "Bật hoặc tắt khối, đổi thứ tự và chọn mật độ. Lưu riêng cho bạn trong workspace này.",
       "sections": "Khối hiển thị",
       "layout": "Mật độ bố cục",
       "presets": "Mẫu có sẵn",
@@ -2028,7 +2026,7 @@
       "balanced": "Cân bằng",
       "balanced_hint": "Hai cột, mặc định",
       "wide": "Rộng",
-      "wide_hint": "Ba cột trên màn hình lớn"
+      "wide_hint": "Mỗi khối một cột trên màn hình lớn"
     },
     "preset": {
       "executive": "Điều hành",
@@ -2040,7 +2038,7 @@
     },
     "start": {
       "title": "Hôm nay chưa có gì chờ bạn",
-      "description": "Việc được giao, cuộc họp và thông báo của workspace sẽ hiện ở đây. Bắt đầu bằng một trong ba việc dưới.",
+      "description": "Việc được giao, cuộc họp và thông báo của workspace sẽ hiện ở đây. Bắt đầu từ một việc dưới đây.",
       "create_task": "Tạo việc",
       "create_task_hint": "Ghi lại việc cần làm, giao cho mình hoặc đồng đội",
       "meeting": "Lên lịch họp",

@@ -1,48 +1,45 @@
 import { describe, expect, it } from "vitest";
-import { homeBalancedBands, homeGridClass, homeSpanClass } from "./home-layout";
+import { homeBands } from "./home-layout";
 
-describe("home layout classes", () => {
-  it("compact is one narrow column where every section spans it", () => {
-    expect(homeGridClass("compact")).toContain("grid-cols-1");
-    expect(homeGridClass("compact")).not.toContain("xl:grid-cols-4");
-    for (const key of ["stats", "mywork", "upcoming", "inbox"] as const) {
-      expect(homeSpanClass(key, "compact")).toBe("min-w-0");
-    }
+const ALL = ["stats", "mywork", "upcoming", "inbox"] as const;
+
+describe("homeBands", () => {
+  it("compact stacks every section in one column", () => {
+    expect(homeBands(ALL, "compact")).toEqual(ALL.map((key) => ({ kind: "row", key })));
   });
 
-  it("wide lines my work, upcoming and inbox up with the four stat tiles", () => {
-    expect(homeGridClass("wide")).toContain("xl:grid-cols-4");
-    expect(homeSpanClass("mywork", "wide")).toContain("xl:col-span-2");
-    expect(homeSpanClass("inbox", "wide")).toBe("min-w-0");
-    expect(homeSpanClass("stats", "wide")).toContain("xl:col-span-4");
-  });
-});
-
-describe("homeBalancedBands", () => {
-  it("puts my work in the main column and the short lists beside it", () => {
-    expect(homeBalancedBands(["stats", "mywork", "upcoming", "inbox"])).toEqual([
+  it("balanced puts my work beside the short lists, in the saved order", () => {
+    expect(homeBands(["stats", "upcoming", "mywork", "inbox"], "balanced")).toEqual([
       { kind: "row", key: "stats" },
-      {
-        kind: "split",
-        main: [{ key: "mywork", orderClass: "order-1" }],
-        aside: [
-          { key: "upcoming", orderClass: "order-2" },
-          { key: "inbox", orderClass: "order-3" },
-        ],
-      },
+      { kind: "split", keys: ["upcoming", "mywork", "inbox"], asideRows: 2 },
     ]);
   });
 
   it("lets the stats break the columns where the person placed them", () => {
-    const bands = homeBalancedBands(["mywork", "upcoming", "stats", "inbox"]);
-    expect(bands.map((b) => (b.kind === "row" ? b.key : "split"))).toEqual(["split", "stats", "inbox"]);
+    const bands = homeBands(["mywork", "upcoming", "stats", "inbox"], "balanced");
+    expect(bands.map((b) => b.kind)).toEqual(["split", "row", "row"]);
   });
 
   it("keeps a run with one side empty as single full-width rows", () => {
-    expect(homeBalancedBands(["stats", "upcoming", "inbox"])).toEqual([
+    expect(homeBands(["stats", "upcoming", "inbox"], "balanced")).toEqual([
       { kind: "row", key: "stats" },
       { kind: "row", key: "upcoming" },
       { kind: "row", key: "inbox" },
+    ]);
+  });
+
+  it("wide gives each visible section a column, my work twice as wide, and leaves no empty track", () => {
+    expect(homeBands(ALL, "wide")).toEqual([
+      { kind: "row", key: "stats" },
+      { kind: "columns", keys: ["mywork", "upcoming", "inbox"], template: "minmax(0,2fr) minmax(0,1fr) minmax(0,1fr)" },
+    ]);
+    expect(homeBands(["stats", "upcoming", "inbox"], "wide")).toEqual([
+      { kind: "row", key: "stats" },
+      { kind: "columns", keys: ["upcoming", "inbox"], template: "minmax(0,1fr) minmax(0,1fr)" },
+    ]);
+    expect(homeBands(["mywork", "stats"], "wide")).toEqual([
+      { kind: "row", key: "mywork" },
+      { kind: "row", key: "stats" },
     ]);
   });
 });

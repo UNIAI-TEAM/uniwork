@@ -78,10 +78,11 @@ export function HomeStats({
   ];
 
   return (
-    // A size container: in the compact density the tiles get half the width
-    // at the same viewport, so the row of four waits for room, not for lg.
+    // A size container: the row of four and the icon tiles wait for room in
+    // the section itself, so the compact density keeps one row of four slim
+    // tiles instead of a tall two-by-two block.
     <section aria-label={t("home.stats.label")} className="@container">
-      <ul className="grid grid-cols-2 gap-2 sm:gap-3 @3xl:grid-cols-4">
+      <ul className="grid grid-cols-2 gap-2 sm:gap-3 @2xl:grid-cols-4">
         {items.map(({ key, href }) => {
           const failed = summary?.partial.includes(SOURCE[key]) ?? false;
           const value = counts?.[key] ?? 0;
@@ -97,23 +98,23 @@ export function HomeStats({
               <IconTile
                 icon={HOME_MARKS[key].icon}
                 tone={loading || failed ? "muted" : homeMarkTone(key, value)}
-                className="hidden sm:flex"
+                className="hidden @4xl:flex"
               />
               <span className="flex min-w-0 flex-1 flex-col">
                 {loading ? (
-                  <Skeleton className="my-1 h-6 w-10" />
+                  <Skeleton className="my-0.5 h-6 w-10" />
                 ) : (
                   <span
                     data-testid={`home-stat-${key}`}
                     className={cn(
-                      "text-display-sm font-semibold tabular-nums",
+                      "text-title-lg font-semibold tabular-nums",
                       failed ? "text-muted-foreground" : key === "overdue" && value > 0 ? "text-destructive" : "text-foreground",
                     )}
                   >
                     {failed ? "—" : value}
                   </span>
                 )}
-                <span className="truncate text-label text-muted-foreground first-letter:uppercase">{label}</span>
+                <span className="text-label text-pretty text-muted-foreground first-letter:uppercase">{label}</span>
                 {note && !loading ? (
                   <span className={cn("truncate text-caption", failed ? "text-destructive" : "text-muted-foreground")}>{note}</span>
                 ) : null}
@@ -121,7 +122,7 @@ export function HomeStats({
               {interactive ? (
                 <Arrow
                   aria-hidden
-                  className="size-4 shrink-0 self-start text-muted-foreground opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
+                  className="size-4 shrink-0 self-start text-muted-foreground opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100 pointer-coarse:opacity-100"
                 />
               ) : null}
             </>

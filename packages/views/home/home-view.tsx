@@ -1,23 +1,26 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { House, LayoutDashboard, SlidersHorizontal, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { buildHomeHeadline, overdueDays } from "@uniwork/core/home/brief";
 import { useHomePrefs, useHomeSummary } from "@uniwork/core/home";
-import { visibleSections, type HomeSectionKey } from "@uniwork/core/home/prefs";
+import { greetingName } from "@uniwork/core/home/greeting";
+import { visibleSections, type HomeLayout, type HomeSectionKey } from "@uniwork/core/home/prefs";
+import { paths } from "@uniwork/core/paths";
 import type { HomeSummary } from "@uniwork/core/types/home";
-import { Button } from "@uniwork/ui/components/ui/button";
+import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageHeader, CollectionPageHeaderAction, CollectionPageState } from "../layout/collection-page";
 import { moduleTone } from "../layout/module-tones";
 import { useWorkspace } from "../layout/workspace-context";
 import { formatMeetingDay, meetingDayKey, meetingLocale } from "../meetings/meeting-datetime";
+import { AppLink } from "../navigation";
 import { HomeCustomizePanel } from "./home-customize-panel";
 import { HomeInbox } from "./home-inbox";
-import { homeBalancedBands, homeGridClass, homeSpanClass } from "./home-layout";
+import { homeBands, isHomeAside } from "./home-layout";
 import { HomeMyWork } from "./home-my-work";
 import { HomeStart } from "./home-start";
 import { HomeStats, type HomeWorkStat } from "./home-stats";
@@ -33,30 +36,63 @@ function greetingKey(hour: number): "morning" | "noon" | "afternoon" | "evening"
 
 /**
  * The day, a greeting on the person's own clock, and one sentence naming what
- * to look at first — a title or a time the tiles below cannot show.
+ * to look at first — a title or a time the tiles below cannot show. A meeting
+ * in progress gets its join link right here, where the eye lands first.
  */
 function HomeGreeting({ name, summary, loading }: { name: string; summary: HomeSummary | undefined; loading: boolean }) {
   const { t, i18n } = useTranslation();
+  const { workspace } = useWorkspace();
   const locale = meetingLocale(i18n.language);
   const headline = summary ? buildHomeHeadline(summary) : null;
   // The server's "today" is in the person's zone; before it arrives, the browser's day.
   const day = formatMeetingDay(summary?.today ?? meetingDayKey(new Date().toISOString()), locale);
+  const roomHref = headline?.liveMeetingId
+    ? paths.workspace(workspace.organization_slug, workspace.slug).room(headline.liveMeetingId)
+    : undefined;
   return (
     <div>
       <p className="text-label text-muted-foreground first-letter:uppercase">{day}</p>
       <h2 className="mt-1 text-display-sm font-semibold text-balance text-foreground">
-        {t(`home.greeting.${greetingKey(hourIn(summary?.timezone))}`, { name })}
+        {t(`home.greeting.${greetingKey(hourIn(summary?.timezone))}`, { name: greetingName(name) })}
       </h2>
       {headline ? (
-        <p className="mt-1 max-w-prose text-body-lg text-pretty text-muted-foreground">
-          {t(headline.key, {
-            ...headline.params,
-            ...(headline.at ? { time: clock(headline.at, locale, summary?.timezone) } : {}),
-          })}
-        </p>
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <p className="max-w-prose text-body-lg text-pretty text-muted-foreground">
+            {t(headline.key, {
+              ...headline.params,
+              ...(headline.at ? { time: clock(headline.at, locale, summary?.timezone) } : {}),
+            })}
+          </p>
+          {roomHref ? (
+            <AppLink href={roomHref} className={cn(buttonVariants({ size: "sm" }))}>
+              {t("home.upcoming.join")}
+            </AppLink>
+          ) : null}
+        </div>
       ) : loading ? (
         <Skeleton className="mt-2 h-5 w-72 max-w-full" />
       ) : null}
+    </div>
+  );
+}
+
+/** The page's reading width per density: wide is for big screens, so it may use them. */
+const MAX_WIDTH: Record<HomeLayout, string> = {
+  compact: "max-w-3xl",
+  balanced: "max-w-7xl",
+  wide: "max-w-[100rem]",
+};
+
+/**
+ * Stand-in while the saved layout loads, so the page does not draw the
+ * default density and then jump to the person's own.
+ */
+function HomeLayoutPending() {
+  return (
+    <div aria-hidden className="space-y-4">
+      <Skeleton className="h-8 w-72 max-w-full" />
+      <Skeleton className="h-24 w-full rounded-xl" />
+      <Skeleton className="h-72 w-full rounded-xl" />
     </div>
   );
 }
@@ -84,7 +120,7 @@ export function HomeView() {
   const { t } = useTranslation();
   const { workspace, user } = useWorkspace();
   const summaryQuery = useHomeSummary(workspace.id);
-  const { prefs, saving, failed, update, reset } = useHomePrefs(workspace.id);
+  const { prefs, loading: prefsLoading, saving, failed, update, reset } = useHomePrefs(workspace.id);
   const [customizing, setCustomizing] = useState(false);
 
   useEffect(() => {
@@ -99,7 +135,6 @@ export function HomeView() {
   const visible = visibleSections(prefs);
   const lists = visible.some((key) => key !== "stats");
   const quiet = summary !== undefined && lists && isQuiet(summary);
-  const compact = prefs.layout === "compact";
 
   const resetLayout = () => {
     const before = prefs;
@@ -126,41 +161,48 @@ export function HomeView() {
     inbox: <HomeInbox {...sectionProps} />,
   };
 
-  const layout = prefs.layout;
-  const grid =
-    layout === "balanced" ? (
-      homeBalancedBands(visible).map((band, index) =>
-        band.kind === "row" ? (
-          <div key={band.key} className="min-w-0">
-            {sections[band.key]}
-          </div>
-        ) : (
-          <div
-            key={`split-${index}`}
-            className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)] xl:items-start"
-          >
-            {[band.main, band.aside].map((column, i) => (
-              // Below xl the column dissolves and its sections join the band's own flow.
-              <div key={i} className="contents xl:flex xl:min-w-0 xl:flex-col xl:gap-4">
-                {column.map(({ key, orderClass }) => (
-                  <div key={key} className={cn("min-w-0 xl:order-none", orderClass)}>
-                    {sections[key]}
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        ),
-      )
-    ) : (
-      <div className={homeGridClass(layout)}>
-        {visible.map((key) => (
-          <div key={key} className={homeSpanClass(key, layout)}>
+  // Every band keeps the saved order in the DOM; the columns appear once the
+  // page itself (not the viewport) has room, so a collapsed sidebar counts.
+  const grid = homeBands(visible, prefs.layout).map((band) => {
+    if (band.kind === "row") {
+      return (
+        <div key={band.key} className="min-w-0">
+          {sections[band.key]}
+        </div>
+      );
+    }
+    if (band.kind === "split") {
+      return (
+        <div
+          key={`split-${band.keys[0]}`}
+          style={{ "--home-aside-rows": band.asideRows } as CSSProperties}
+          className="grid gap-4 @5xl/home:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)] @5xl/home:grid-rows-[repeat(var(--home-aside-rows),auto)_1fr] @5xl/home:items-start"
+        >
+          {band.keys.map((key) => (
+            <div
+              key={key}
+              className={cn("min-w-0", isHomeAside(key) ? "@5xl/home:col-start-2" : "@5xl/home:col-start-1 @5xl/home:row-span-full")}
+            >
+              {sections[key]}
+            </div>
+          ))}
+        </div>
+      );
+    }
+    return (
+      <div
+        key={`columns-${band.keys[0]}`}
+        style={{ "--home-columns": band.template } as CSSProperties}
+        className="grid gap-4 @5xl/home:grid-cols-[var(--home-columns)] @5xl/home:items-start"
+      >
+        {band.keys.map((key) => (
+          <div key={key} className="min-w-0">
             {sections[key]}
           </div>
         ))}
       </div>
     );
+  });
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -179,9 +221,13 @@ export function HomeView() {
         }
       />
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className={cn("mx-auto w-full space-y-5 px-4 pt-5 pb-10 md:px-6", compact ? "max-w-3xl" : "max-w-7xl")}>
-          <HomeGreeting name={user.display_name} summary={summary} loading={loading} />
-          {unusable ? (
+        <div className={cn("@container/home mx-auto w-full space-y-5 px-4 pt-5 pb-10 md:px-6", MAX_WIDTH[prefs.layout])}>
+          {prefsLoading ? (
+            <HomeLayoutPending />
+          ) : (
+            <HomeGreeting name={user.display_name} summary={summary} loading={loading} />
+          )}
+          {prefsLoading ? null : unusable ? (
             <div className="rounded-xl border border-surface-border bg-surface">
               <CollectionPageState
                 role="alert"

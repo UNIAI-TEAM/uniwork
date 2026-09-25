@@ -24,21 +24,21 @@ describe("HomeCustomizePanel", () => {
     const { onChange } = renderPanel();
     expect(screen.getByRole("button", { name: "Đưa Tổng quan hôm nay lên" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Đưa Hộp việc xuống" })).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "Đưa Sắp tới lên" }));
+    fireEvent.click(screen.getByRole("button", { name: "Đưa Lịch họp lên" }));
     expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_HOME_PREFS, order: ["stats", "upcoming", "mywork", "inbox"] });
   });
 
   it("marks the current density and switches it", () => {
     const { onChange } = renderPanel();
-    expect(screen.getByRole("button", { name: /Cân bằng/ })).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(screen.getByRole("button", { name: /^Gọn/ }));
+    expect(screen.getByRole("radio", { name: /Cân bằng/ })).toBeChecked();
+    fireEvent.click(screen.getByRole("radio", { name: /^Gọn/ }));
     expect(onChange).toHaveBeenCalledWith({ ...DEFAULT_HOME_PREFS, layout: "compact" });
   });
 
   it("applies a preset, resets and closes", () => {
     const { onChange, onReset, onClose } = renderPanel();
-    expect(screen.getByRole("button", { name: /Tối giản/ })).toHaveAttribute("aria-pressed", "false");
-    fireEvent.click(screen.getByRole("button", { name: /Tối giản/ }));
+    expect(screen.getByRole("radio", { name: /Tối giản/ })).not.toBeChecked();
+    fireEvent.click(screen.getByRole("radio", { name: /Tối giản/ }));
     expect(onChange).toHaveBeenCalledWith(HOME_PRESETS.find((p) => p.key === "minimal")!.prefs);
     fireEvent.click(screen.getByRole("button", { name: "Đặt lại" }));
     fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
@@ -50,5 +50,19 @@ describe("HomeCustomizePanel", () => {
 it("marks the preset the current layout matches", () => {
   const doer = HOME_PRESETS.find((p) => p.key === "doer")!.prefs;
   render(wrap(<HomeCustomizePanel open prefs={doer} saving={false} onChange={vi.fn()} onReset={vi.fn()} onClose={vi.fn()} />));
-  expect(screen.getByRole("button", { name: /Người thực thi/ })).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByRole("radio", { name: /Người thực thi/ })).toBeChecked();
+});
+
+it("keeps focus on the row when a section reaches the top", () => {
+  const onChange = vi.fn();
+  const { rerender } = render(
+    wrap(<HomeCustomizePanel open prefs={DEFAULT_HOME_PREFS} saving={false} onChange={onChange} onReset={vi.fn()} onClose={vi.fn()} />),
+  );
+  const up = screen.getByRole("button", { name: "Đưa Công việc của tôi lên" });
+  up.focus();
+  fireEvent.click(up);
+  const moved = onChange.mock.calls[0]![0];
+  rerender(wrap(<HomeCustomizePanel open prefs={moved} saving={false} onChange={onChange} onReset={vi.fn()} onClose={vi.fn()} />));
+  expect(screen.getByRole("button", { name: "Đưa Công việc của tôi lên" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Đưa Công việc của tôi xuống" })).toHaveFocus();
 });

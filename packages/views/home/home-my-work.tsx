@@ -4,7 +4,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type KeyboardEvent } fr
 import { ArrowRight, ListTodo } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { useCompleteHomeTasks } from "@uniwork/core/home";
+import { useCompleteHomeTasks, useReopenHomeTasks } from "@uniwork/core/home";
 import { overdueDays } from "@uniwork/core/home/brief";
 import { paths } from "@uniwork/core/paths";
 import type { Task } from "@uniwork/core/types";
@@ -56,13 +56,13 @@ const KEY_HINTS: [string, string][] = [
 /**
  * Open work assigned to the viewer. With focus anywhere in a row, J/K or the
  * arrows move focus to the next or previous task, X selects it, C completes it
- * and O opens it (Enter already follows the focused link). The keys are read on
- * the list, not the window, so they never fight a shortcut elsewhere; the list
- * stays a plain list so the checkbox, link and button in each row keep their
- * own roles for screen readers. Rows sit under a due heading when there is
- * more than one kind of due; the key hints show while focus is in the card.
- * The server sends at most a page of work, so a footer says how much more
- * there is and where it lives.
+ * (undoable from the toast) and O opens it (Enter already follows the focused
+ * link). The keys are read on the list, not the window, so they never fight a
+ * shortcut elsewhere; the list stays a plain list so the checkbox, link and
+ * button in each row keep their own roles for screen readers. Rows sit under a
+ * due heading when there is more than one kind of due; the key hints show
+ * while focus is in the card. The server sends at most a page of work, so a
+ * footer says how much more there is and where it lives.
  */
 export function HomeMyWork({
   summary,
@@ -80,6 +80,7 @@ export function HomeMyWork({
   const { push } = useNavigation();
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
   const complete = useCompleteHomeTasks(workspace.id);
+  const reopen = useReopenHomeTasks(workspace.id);
   const listRef = useRef<HTMLUListElement>(null);
   const [checked, setChecked] = useState<string[]>([]);
   const [completing, setCompleting] = useState<string[]>([]);
@@ -88,8 +89,10 @@ export function HomeMyWork({
   const today = summary?.today ?? "";
   const runs = useMemo(() => groupRuns(tasks, today), [tasks, today]);
   const failed = summary?.partial.includes("tasks") ?? false;
-  const more = Math.max(0, (summary?.counts.open ?? 0) - tasks.length);
   const open = useMemo(() => tasks.filter((task) => task.status !== "done"), [tasks]);
+  // Open work the page does not list. Counted against the open rows, so a row
+  // just completed here (still shown, dimmed) does not shift the number.
+  const more = failed ? 0 : Math.max(0, (summary?.counts.open ?? 0) - open.length);
 
   useEffect(() => {
     setChecked((prev) => {
@@ -98,12 +101,20 @@ export function HomeMyWork({
     });
   }, [open]);
 
+  // Completing is one key or one click away, so every completion can be undone
+  // from its toast: each task goes back to the status it had.
   const run = (ids: string[]) => {
     if (ids.length === 0) return;
+    const previous = tasks.filter((task) => ids.includes(task.id)).map(({ id, status }) => ({ id, status }));
     setCompleting((prev) => [...prev, ...ids]);
     complete.mutate(ids, {
       onSuccess: () => {
-        toast.success(t("home.mywork.completed_toast", { count: ids.length }));
+        toast.success(t("home.mywork.completed_toast", { count: ids.length }), {
+          action: {
+            label: t("home.mywork.undo"),
+            onClick: () => reopen.mutate(previous, { onError: () => toast.error(t("home.mywork.undo_failed")) }),
+          },
+        });
         setChecked((prev) => prev.filter((id) => !ids.includes(id)));
       },
       onError: () => toast.error(t("home.mywork.complete_failed")),

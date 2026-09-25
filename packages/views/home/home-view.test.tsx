@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
+import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
@@ -52,9 +53,10 @@ const empty = {
 
 type Opts = { method?: string; body?: { prefs?: unknown } };
 
-function serve({ home = summary as unknown, prefs = {} as Record<string, unknown> } = {}) {
+function serve({ home = summary as unknown, prefs = {} as Record<string, unknown>, role = "member" } = {}) {
   requestMock.mockReset();
   requestMock.mockImplementation(async (path: string, opts?: Opts) => {
+    if (path === "/api/v1/orgs/acme/members/me") return { role };
     if (path.endsWith("/home/preferences")) {
       return opts?.method === "PUT" ? { prefs: opts.body?.prefs, updated_at: "t" } : { prefs, updated_at: "" };
     }
@@ -76,7 +78,11 @@ function renderHome() {
   );
 }
 
-beforeEach(() => serve());
+beforeEach(() => {
+  resetAuthStoreForTests();
+  setSessionUser(user);
+  serve();
+});
 
 describe("HomeView", () => {
   it("renders every section from the one home request", async () => {
@@ -118,18 +124,35 @@ describe("HomeView", () => {
     renderHome();
     expect(await screen.findByRole("heading", { name: "Hôm nay chưa có gì chờ bạn" })).toBeInTheDocument();
     expect(screen.getByText("Hôm nay bạn không có việc gấp.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Tạo việc/ })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Lên lịch họp/ })).toHaveAttribute("href", "/acme/team/meetings");
-    expect(screen.getByRole("link", { name: /Mời đồng đội/ })).toHaveAttribute("href", "/acme/team/people");
+    expect(screen.getByRole("button", { name: /Tạo việc/ })).toHaveAttribute("aria-haspopup", "dialog");
+    expect(screen.getByRole("button", { name: /Lên lịch họp/ })).toHaveAttribute("aria-haspopup", "dialog");
+    // A member cannot add people, so the step is not offered.
+    expect(screen.queryByRole("link", { name: /Mời đồng đội/ })).toBeNull();
     expect(screen.queryByText("Không có việc cần xử lý")).toBeNull();
     expect(screen.queryByTestId("home-stat-overdue")).toBeNull();
   });
+
+  it("offers inviting teammates to someone who may add members", async () => {
+    serve({ home: empty, role: "admin" });
+    renderHome();
+    expect(await screen.findByRole("link", { name: /Mời đồng đội/ })).toHaveAttribute("href", "/acme/team/people");
+  });
+
+  it("leads with a meeting in progress and offers to join it", async () => {
+    const live = { ...summary.upcoming_meetings[0]!, status: "IN_PROGRESS" };
+    serve({ home: { ...summary, upcoming_meetings: [live] } });
+    renderHome();
+    expect(await screen.findByText("“Standup” đang diễn ra.")).toBeInTheDocument();
+    const joins = screen.getAllByRole("link", { name: "Vào họp" });
+    expect(joins[0]).toHaveAttribute("href", "/acme/team/meetings/m1/room");
+  });
+
 
   it("keeps a section's own empty state while the others have something", async () => {
     serve({ home: { ...empty, counts: { ...empty.counts, unread: 1 }, inbox: summary.inbox } });
     renderHome();
     expect(await screen.findByText("Không có việc cần xử lý")).toBeInTheDocument();
-    expect(screen.getByText("Không có cuộc họp")).toBeInTheDocument();
+    expect(screen.getByText("Bạn không có cuộc họp nào hôm nay và ngày mai.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Mở danh sách công việc" })).toHaveAttribute("href", "/acme/team/tasks");
   });
 
@@ -150,7 +173,7 @@ describe("HomeView", () => {
     renderHome();
     expect(await screen.findByText("Không tải được lịch họp.")).toBeInTheDocument();
     expect(screen.getByText("Chuẩn bị demo")).toBeInTheDocument();
-    expect(screen.queryByText("Không có cuộc họp")).toBeNull();
+    expect(screen.queryByText("Bạn không có cuộc họp nào hôm nay và ngày mai.")).toBeNull();
     expect(screen.getByTestId("home-stat-meetings_today")).toHaveTextContent("—");
     expect(screen.queryByRole("link", { name: /cuộc họp hôm nay/ })).toBeNull();
     expect(screen.getByText("Một phần dữ liệu chưa tải được, số liệu dưới đây có thể thiếu.")).toBeInTheDocument();

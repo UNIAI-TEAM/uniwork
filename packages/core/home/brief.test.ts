@@ -52,7 +52,15 @@ describe("buildHomeHeadline", () => {
     expect(buildHomeHeadline(summary({
       counts: { ...zero, meetings_today: 2 },
       upcoming_meetings: [meeting("Đang họp", "2026-09-14T01:00:00Z", "IN_PROGRESS"), meeting("Chiều nay", "2026-09-14T07:00:00Z")],
-    }))).toEqual({ key: "home.headline.live", params: { title: "Đang họp" } });
+    }))).toEqual({ key: "home.headline.live", params: { title: "Đang họp" }, liveMeetingId: "Đang họp" });
+  });
+
+  it("puts a meeting in progress before overdue work, because it is urgent by the minute", () => {
+    expect(buildHomeHeadline(summary({
+      counts: { ...zero, overdue: 1, meetings_today: 1 },
+      my_work: [task("Cũ nhất", "2026-09-01")],
+      upcoming_meetings: [meeting("Đang họp", "2026-09-14T01:00:00Z", "IN_PROGRESS")],
+    })).key).toBe("home.headline.live");
   });
 
   it("names the next meeting starting today, not tomorrow's, with its start", () => {

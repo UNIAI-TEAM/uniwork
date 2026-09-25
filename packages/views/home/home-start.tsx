@@ -1,14 +1,19 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { lazy, Suspense, useState, type ReactNode } from "react";
 import { CalendarPlus, ChevronRight, ListPlus, UserPlus, type LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
+import { usePeoplePermissions } from "@uniwork/core/permissions";
 import { IconTile, type IconTileTone } from "@uniwork/ui/components/common/icon-tile";
 import { useWorkspace } from "../layout/workspace-context";
 import { moduleTone } from "../layout/module-tones";
-import { AppLink } from "../navigation";
+import { AppLink, useNavigation } from "../navigation";
 import { NewTaskDialog } from "../tasks/new-task-dialog";
+
+// The task dialog already ships with the top bar's "+ New"; the meeting one
+// does not, so it loads only when someone asks for it.
+const NewMeetingDialog = lazy(() => import("../meetings/new-meeting-dialog").then((m) => ({ default: m.NewMeetingDialog })));
 
 const ROW =
   "group flex w-full items-center gap-3 px-4 py-3 text-left transition-colors duration-150 hover:bg-surface-hover active:bg-surface-selected";
@@ -31,14 +36,25 @@ function StartRow({ icon, tone, title, hint }: { icon: LucideIcon; tone: IconTil
 
 /**
  * What a new or quiet workspace shows instead of three empty lists: one
- * surface that says nothing is waiting and offers the three first steps —
- * write a task, schedule a meeting, bring people in.
+ * surface that says nothing is waiting and offers the first steps — write a
+ * task, schedule a meeting (both open their create dialog right here) and,
+ * for people who may add members, bring people in.
  */
 export function HomeStart() {
   const { t } = useTranslation();
   const { workspace } = useWorkspace();
+  const { push } = useNavigation();
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
+  const { canManageMembers } = usePeoplePermissions(workspace.organization_slug);
   const [creating, setCreating] = useState(false);
+  const [scheduling, setScheduling] = useState(false);
+  // Mounted from the first open on, so the dialog can animate out.
+  const [meetingLoaded, setMeetingLoaded] = useState(false);
+
+  const schedule = () => {
+    setMeetingLoaded(true);
+    setScheduling(true);
+  };
 
   return (
     <section
@@ -53,22 +69,35 @@ export function HomeStart() {
       </div>
       <ul className="divide-y divide-border">
         <li>
-          <button type="button" className={ROW} onClick={() => setCreating(true)}>
+          <button type="button" className={ROW} aria-haspopup="dialog" onClick={() => setCreating(true)}>
             <StartRow icon={ListPlus} tone={moduleTone("tasks")} title={t("home.start.create_task")} hint={t("home.start.create_task_hint")} />
           </button>
         </li>
         <li>
-          <AppLink href={ws.meetings()} className={ROW}>
+          <button type="button" className={ROW} aria-haspopup="dialog" onClick={schedule}>
             <StartRow icon={CalendarPlus} tone={moduleTone("meetings")} title={t("home.start.meeting")} hint={t("home.start.meeting_hint")} />
-          </AppLink>
+          </button>
         </li>
-        <li>
-          <AppLink href={ws.people()} className={ROW}>
-            <StartRow icon={UserPlus} tone={moduleTone("people")} title={t("home.start.invite")} hint={t("home.start.invite_hint")} />
-          </AppLink>
-        </li>
+        {canManageMembers.allowed ? (
+          <li>
+            <AppLink href={ws.people()} className={ROW}>
+              <StartRow icon={UserPlus} tone={moduleTone("people")} title={t("home.start.invite")} hint={t("home.start.invite_hint")} />
+            </AppLink>
+          </li>
+        ) : null}
       </ul>
       <NewTaskDialog workspaceId={workspace.id} open={creating} onOpenChange={setCreating} showTrigger={false} />
+      {meetingLoaded ? (
+        <Suspense fallback={null}>
+          <NewMeetingDialog
+            workspaceId={workspace.id}
+            open={scheduling}
+            onOpenChange={setScheduling}
+            showTrigger={false}
+            onCreated={(id) => push(ws.meeting(id))}
+          />
+        </Suspense>
+      ) : null}
     </section>
   );
 }

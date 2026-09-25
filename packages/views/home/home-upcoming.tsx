@@ -9,12 +9,12 @@ import type { HomeSummary } from "@uniwork/core/types/home";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import { PanelCard } from "../common/panel-card";
-import { CollectionPageState } from "../layout/collection-page";
 import { moduleTone } from "../layout/module-tones";
 import { useWorkspace } from "../layout/workspace-context";
 import { formatMeetingDay, formatMeetingTimes, meetingLocale } from "../meetings/meeting-datetime";
 import { AppLink } from "../navigation";
 import { HomePartialNotice } from "./home-partial-notice";
+import { HomeQuietNote } from "./home-quiet-note";
 import { HomeMeetingRowsSkeleton } from "./home-skeletons";
 import { clock, minutesBetween } from "./home-time";
 
@@ -44,26 +44,34 @@ function MeetingRow({ meeting, href, roomHref, timeZone }: { meeting: Meeting; h
   return (
     <li className="flex min-h-14 items-center gap-3 px-4 py-2 transition-colors duration-150 hover:bg-surface-hover focus-within:bg-surface-selected">
       {/* The time column is for the eye; the link below carries the same span as text. */}
-      <span aria-hidden className="flex w-11 shrink-0 flex-col text-right tabular-nums">
+      <span aria-hidden className="flex w-11 shrink-0 flex-col self-start pt-0.5 text-right tabular-nums">
         <span className="text-body font-semibold text-foreground">{clock(meeting.starts_at, locale, timeZone)}</span>
         <span className="text-caption text-muted-foreground">{clock(meeting.ends_at, locale, timeZone)}</span>
       </span>
       <span aria-hidden className={cn("w-0.5 self-stretch rounded-full", live ? "bg-success" : "bg-tint-violet-solid")} />
-      <AppLink href={href} className="min-w-0 flex-1 rounded-sm">
-        <span className="line-clamp-2 text-body font-medium text-pretty text-foreground">{meeting.title}</span>
-        <span className="flex flex-wrap items-center gap-x-2 text-caption text-muted-foreground">
-          {live ? (
-            <span className="inline-flex items-center gap-1.5 font-medium text-success">
-              <span aria-hidden className="size-1.5 rounded-full bg-success" />
-              {t("home.upcoming.live")}
-            </span>
-          ) : null}
-          {minutes > 0 ? <span aria-hidden>{duration(minutes)}</span> : null}
-          <span className="sr-only">{formatMeetingTimes(meeting.starts_at, meeting.ends_at, locale, timeZone || undefined)}</span>
-        </span>
-      </AppLink>
+      <div className="min-w-0 flex-1">
+        <AppLink href={href} className="block rounded-sm">
+          <span className="line-clamp-2 text-body font-medium text-pretty text-foreground">{meeting.title}</span>
+          <span className="flex flex-wrap items-center gap-x-2 text-caption text-muted-foreground">
+            {live ? (
+              <span className="inline-flex items-center gap-1.5 font-medium whitespace-nowrap text-success">
+                <span aria-hidden className="size-1.5 rounded-full bg-success" />
+                {t("home.upcoming.live")}
+              </span>
+            ) : null}
+            {minutes > 0 ? <span aria-hidden className="whitespace-nowrap">{duration(minutes)}</span> : null}
+            <span className="sr-only">{formatMeetingTimes(meeting.starts_at, meeting.ends_at, locale, timeZone || undefined)}</span>
+          </span>
+        </AppLink>
+        {/* A narrow column (the wide density's third track) puts join under the title instead of squeezing it. */}
+        {live ? (
+          <AppLink href={roomHref} className={cn(buttonVariants({ size: "xs" }), "mt-1.5 @xs/upcoming:hidden")}>
+            {t("home.upcoming.join")}
+          </AppLink>
+        ) : null}
+      </div>
       {live ? (
-        <AppLink href={roomHref} className={cn(buttonVariants({ size: "sm" }))}>
+        <AppLink href={roomHref} className={cn(buttonVariants({ size: "sm" }), "hidden @xs/upcoming:inline-flex")}>
           {t("home.upcoming.join")}
         </AppLink>
       ) : null}
@@ -120,7 +128,7 @@ export function HomeUpcoming({
       icon={CalendarDays}
       iconTone={moduleTone("meetings")}
       flush
-      className="shadow-none"
+      className="@container/upcoming shadow-none"
       action={
         <AppLink href={ws.meetings()} className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}>
           {t("home.upcoming.view_all")}
@@ -132,18 +140,7 @@ export function HomeUpcoming({
       {loading ? (
         <HomeMeetingRowsSkeleton />
       ) : failed && meetings.length === 0 ? null : !summary || meetings.length === 0 ? (
-        <CollectionPageState
-          className="py-6"
-          icon={CalendarDays}
-          tone={moduleTone("meetings")}
-          title={t("home.upcoming.empty_title")}
-          description={t("home.upcoming.empty_description")}
-          actions={
-            <AppLink href={ws.meetings()} className={cn(buttonVariants({ variant: "outline", size: "sm" }))}>
-              {t("home.upcoming.empty_action")}
-            </AppLink>
-          }
-        />
+        <HomeQuietNote>{t("home.upcoming.empty_description")}</HomeQuietNote>
       ) : (
         <div className="py-1">
           {days.map((day) => (
