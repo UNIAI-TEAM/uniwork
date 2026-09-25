@@ -1,0 +1,143 @@
+/* Product-led chapters: a single hands-on workspace and one honest Starter plan. */
+.landing-product-story > .platform-section {
+  background:
+    radial-gradient(ellipse 55% 55% at 88% 1%, color-mix(in srgb, var(--landing-cyan) 82%, transparent), transparent 82%),
+    radial-gradient(ellipse 48% 48% at 3% 90%, color-mix(in srgb, var(--landing-violet) 78%, transparent), transparent 84%),
+    linear-gradient(145deg, var(--landing-stage-soft), var(--landing-paper) 48%, var(--landing-cyan));
+  padding: clamp(42px, 5.4vw, 76px) clamp(20px, 4.8vw, 68px) 42px;
+}
+.landing-product-story .platform-section > div { max-width: 1320px; }
+.landing-product-story .platform-section .studio-heading-centered { grid-template-columns: 1.05fr .85fr; gap: 32px; align-items: center; padding-inline: 0; }
+.landing-product-story .platform-section .studio-title { max-width: 15ch; font-size: var(--text-hero-lg); line-height: 1.08; letter-spacing: -.035em; }
+.landing-product-story .platform-section .studio-description { justify-self: end; max-width: 33ch; font-size: var(--text-title-sm); line-height: 1.55; color: var(--foreground); }
+.landing-product-story .unified-workspace { margin-top: 42px; }
+.landing-product-story .unified-workspace .workspace-explorer {
+  grid-template-columns: 232px minmax(0, 1fr);
+  border: 0;
+  border-radius: 22px;
+  box-shadow: 0 34px 64px -42px color-mix(in srgb, var(--landing-deep) 56%, transparent), 0 10px 28px -20px color-mix(in srgb, var(--landing-deep) 28%, transparent);
+}
+.landing-product-story .workspace-selector { background: var(--landing-deep); border-right: 0; padding: 20px 12px 22px; color: white; }
+.landing-product-story .workspace-feature-groups { gap: 4px; }
+.landing-product-story .workspace-group-button { color: color-mix(in srgb, white 78%, var(--landing-deep)); border-radius: var(--radius-lg); }
+.landing-product-story .workspace-group-button > svg,
+.landing-product-story .workspace-group-button > svg:last-child { color: color-mix(in srgb, white 65%, var(--landing-deep)); }
+.landing-product-story .workspace-group-button:hover { background: color-mix(in srgb, white 9%, transparent); color: white; }
+.landing-product-story .workspace-group-button[aria-expanded=true],
+.landing-product-story .workspace-group-button[aria-expanded=true] > svg:first-child { color: var(--landing-model-light); }
+.landing-product-story .workspace-tabs [role=tab] { color: color-mix(in srgb, white 82%, var(--landing-deep)); }
+.landing-product-story .workspace-tabs [role=tab]:hover { background: color-mix(in srgb, white 9%, transparent); color: white; }
+.landing-product-story .workspace-tabs [role=tab][data-active] { background: white; color: var(--landing-deep); box-shadow: 0 12px 22px -15px color-mix(in srgb, var(--landing-deep) 45%, transparent); }
+.landing-product-story .workspace-feature-description { margin-top: 30px; padding: 18px 10px 0; border-top: 1px solid color-mix(in srgb, white 16%, transparent); color: color-mix(in srgb, white 80%, var(--landing-deep)); }
+.landing-product-story .workspace-display { background: var(--landing-paper); }
+.landing-product-story .workspace-display .preview-topbar { background: linear-gradient(98deg, var(--landing-paper), var(--landing-cyan) 52%, var(--landing-lime)); }
+.landing-product-story .workspace-display .preview-main { padding: 30px; }
+
+.landing-site .landing-conversion-story > .pricing-section {
+  background:
+    radial-gradient(ellipse 42% 90% at 100% 0, color-mix(in srgb, var(--landing-cyan) 84%, transparent), transparent 82%),
+    linear-gradient(130deg, var(--landing-paper), var(--landing-stage-soft) 67%, var(--landing-violet));
+  border: 0;
+  padding-block: clamp(64px, 7vw, 104px);
+}
+.landing-conversion-story .pricing-section > div { max-width: 1260px; }
+.landing-site .pricing-section > div > div:first-child { max-width: 960px; }
+.landing-site .pricing-section h2 { max-width: 18ch; font-size: var(--text-hero); line-height: 1.12; letter-spacing: -.035em; }
+.landing-site .pricing-section > div > div:first-child > p { max-width: 55ch; }
+.landing-site .pricing-offer {
+  grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr);
+  margin-top: 44px;
+  border: 0;
+  border-radius: 22px;
+  box-shadow: 0 28px 55px -43px color-mix(in srgb, var(--landing-deep) 43%, transparent);
+}
+.landing-site .pricing-plan {
+  min-height: 470px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  background: var(--landing-deep);
+  color: white;
+  padding: clamp(32px, 4.5vw, 60px);
+  isolation: isolate;
+}
+.landing-site .pricing-plan::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: 400px;
+  height: 400px;
+  right: -170px;
+  top: -190px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--landing-model-light) 44%, transparent), transparent 70%);
+  pointer-events: none;
+}
+.landing-site .pricing-plan-mark {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 28px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 14px 27px -17px color-mix(in srgb, var(--landing-deep) 60%, transparent);
+}
+.landing-site .pricing-plan-mark svg { width: auto; height: 36px; }
+.landing-site .pricing-plan h3 { font-size: var(--text-title-lg); }
+.landing-site .pricing-plan > p:nth-of-type(1) { margin-top: 12px; color: white; font-size: var(--text-hero-xl); line-height: 1.1; letter-spacing: -.035em; }
+.landing-site .pricing-plan > p:nth-of-type(2) { color: color-mix(in srgb, white 82%, var(--landing-deep)); }
+.landing-site .pricing-plan > a { margin-top: auto; width: min(100%, 320px); }
+.landing-site .pricing-quotas { padding: clamp(32px, 4.5vw, 60px); }
+.landing-site .pricing-quota-heading { align-items: center; gap: 14px; font-size: var(--text-title-sm); }
+.landing-site .pricing-quota-heading > span { display: grid; place-items: center; flex: none; width: 44px; height: 44px; background: var(--landing-violet); border-radius: 12px; }
+.landing-site .pricing-quota-heading > span svg { width: 22px; height: 22px; color: var(--brand); }
+.landing-site .pricing-quotas > ul { margin-top: 32px; gap: 0 28px; }
+.landing-site .pricing-quotas li { min-height: 55px; padding-block: 12px; border-bottom: 1px solid var(--border); }
+.landing-site .pricing-check { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: var(--radius-lg); background: var(--landing-mint); color: var(--success); }
+.landing-site .pricing-check svg { width: 15px; height: 15px; }
+.landing-site .pricing-quotas > p { margin-top: 28px; padding-top: 24px; font-size: var(--text-body); }
+
+@media (max-width: 1100px) {
+  .landing-product-story .platform-section .studio-title { font-size: var(--text-hero-sm); }
+  .landing-product-story .unified-workspace .workspace-explorer { grid-template-columns: 196px minmax(0, 1fr); }
+  .landing-product-story .workspace-display .preview-main { padding: 22px; }
+  .landing-site .pricing-section h2 { font-size: var(--text-hero-sm); }
+  .landing-site .pricing-plan > p:nth-of-type(1) { font-size: var(--text-hero-lg); }
+}
+@media (max-width: 900px) {
+  .landing-product-story .unified-workspace .workspace-explorer { grid-template-columns: 1fr; }
+  .landing-product-story .workspace-selector { border-right: 0; padding: 14px; }
+  .landing-product-story .workspace-feature-groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+  .landing-product-story .workspace-group-button { min-height: 56px; justify-content: center; font-size: var(--text-caption); }
+  .landing-product-story .workspace-selector .workspace-tabs { display: grid; grid-column: 1 / -1; grid-template-columns: repeat(3, minmax(0, 1fr)); order: 1; border-top: 1px solid color-mix(in srgb, white 18%, transparent); margin-top: 8px; padding-top: 12px; }
+  .landing-product-story .workspace-feature-description { margin-top: 10px; padding-top: 12px; }
+  .landing-site .pricing-offer { grid-template-columns: 1fr; }
+  .landing-site .pricing-plan { min-height: 350px; }
+  .landing-site .pricing-plan > a { margin-top: 30px; }
+}
+@media (max-width: 767px) {
+  .landing-product-story > .platform-section { padding: 42px 12px 24px; }
+  .landing-product-story .platform-section .studio-heading-centered { grid-template-columns: 1fr; gap: 14px; padding-inline: 8px; }
+  .landing-product-story .platform-section .studio-title { font-size: var(--text-hero-sm); }
+  .landing-product-story .platform-section .studio-description { justify-self: start; font-size: var(--text-body-lg); }
+  .landing-product-story .unified-workspace { margin-top: 26px; }
+  .landing-product-story .unified-workspace .workspace-explorer { grid-template-columns: 1fr; border-radius: var(--radius-2xl); }
+  .landing-product-story .workspace-selector { padding: 12px; border-bottom: 0; }
+  .landing-product-story .workspace-group-button[aria-expanded=true] { background: color-mix(in srgb, white 12%, transparent); }
+  .landing-product-story .workspace-selector .workspace-tabs { border-top-color: color-mix(in srgb, white 18%, transparent); }
+  .landing-product-story .workspace-feature-description { margin-top: 8px; padding-top: 10px; }
+  .landing-product-story .workspace-display .preview-main { padding: 18px 12px; }
+  .landing-site .landing-conversion-story > .pricing-section { padding: 56px 20px; }
+  .landing-site .pricing-section h2 { font-size: var(--text-hero-sm); }
+  .landing-site .pricing-offer { grid-template-columns: 1fr; margin-top: 32px; border-radius: var(--radius-2xl); }
+  .landing-site .pricing-plan > p:nth-of-type(1) { font-size: var(--text-hero); }
+  .landing-site .pricing-plan { min-height: 360px; padding: 30px; }
+  .landing-site .pricing-plan > a { margin-top: 30px; }
+  .landing-site .pricing-quotas { padding: 30px; }
+  .landing-site .pricing-quotas > ul { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .landing-product-story .workspace-group-button,
+  .landing-product-story .workspace-tabs [role=tab] { transition: background-color .2s ease, color .2s ease, box-shadow .2s ease; }
+}

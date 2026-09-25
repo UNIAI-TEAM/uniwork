@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import en from "./locales/en.json";
 import vi from "./locales/vi.json";
 
-type Dict = { [k: string]: string | Dict };
+type Entry = string | Entry[] | { [k: string]: Entry };
+type Dict = { [k: string]: Entry };
 
-function flatten(obj: Dict, prefix = "", out: Record<string, string> = {}) {
+function flatten(obj: Dict | Entry[], prefix = "", out: Record<string, string> = {}) {
   for (const [k, v] of Object.entries(obj)) {
     const key = prefix ? `${prefix}.${k}` : k;
     if (typeof v === "string") out[key] = v;

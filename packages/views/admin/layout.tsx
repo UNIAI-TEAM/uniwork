@@ -40,7 +40,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const status = me.error instanceof ApiError ? me.error.status : 0;
 
   useEffect(() => {
-    if (status === 404) replace(paths.root());
+    if (status === 404) replace(paths.workspaces());
     if (status === 401) replace(`${paths.login()}?next=${encodeURIComponent(pathname)}`);
   }, [status, replace, pathname]);
 
@@ -55,7 +55,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         title={t("guard.mfa_title")}
         description={t("guard.mfa_description")}
         actions={
-          <AppLink href={paths.root()} className={buttonVariants({ variant: "outline" })}>
+          <AppLink href={paths.workspaces()} className={buttonVariants({ variant: "outline" })}>
             {t("guard.mfa_action")}
           </AppLink>
         }

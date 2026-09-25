@@ -5,6 +5,7 @@
   ],
   "workspaces": {
     ".": {
+      "ignore": ["scripts/landing-film/**"],
       "entry": [
         "scripts/**/*.mjs",
         "scripts/load/*.k6.js"
@@ -12,7 +13,8 @@
       "ignoreDependencies": [
         "@playwright/test",
         "playwright-core",
-        "k6"
+        "k6",
+        "sharp"
       ]
     },
     "apps/web": {

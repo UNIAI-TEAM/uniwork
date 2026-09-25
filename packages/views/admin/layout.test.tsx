@@ -30,7 +30,7 @@ describe("AdminLayout", () => {
     requestMock.mockRejectedValue(new ApiError("not found", "not_found", 404));
     const adapter = nav();
     render(wrapWithNav(<AdminLayout><p>secret</p></AdminLayout>, adapter));
-    await waitFor(() => expect(adapter.replace).toHaveBeenCalledWith("/"));
+    await waitFor(() => expect(adapter.replace).toHaveBeenCalledWith("/workspaces"));
     expect(screen.queryByText("secret")).not.toBeInTheDocument();
   });
 

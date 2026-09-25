@@ -1,0 +1,138 @@
+/* One scoped composition owns the trust chapter, independent of route CSS order. */
+.chapter {
+  --trust-inset: 48px;
+}
+
+.chapter :global(.security-section) { padding-block: 48px 32px; }
+.chapter :global(.security-layout) {
+  display: grid;
+  grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr);
+  gap: 64px;
+  align-items: start;
+}
+.chapter > section > div { max-width: none; padding-inline: var(--trust-inset); }
+.chapter :global(.security-copy) { min-width: 0; padding-top: 12px; }
+.chapter :global(.security-copy .studio-title) {
+  max-width: 17ch;
+  font-size: var(--text-hero-sm);
+  line-height: 1.18;
+  letter-spacing: -.035em;
+  text-wrap: balance;
+}
+.chapter :global(.security-copy .studio-description) {
+  margin: 12px 0 0;
+  font-size: var(--text-body);
+  line-height: 1.6;
+  color: color-mix(in srgb, var(--landing-model-light) 72%, var(--foreground));
+}
+.chapter :global(.security-mechanisms) { display: flex; flex-direction: column; gap: 4px; margin-top: 28px; }
+.chapter :global(.security-mechanism) { min-width: 0; border: 0; border-bottom: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent); }
+.chapter :global(.security-mechanism:last-child) { border-bottom: 0; }
+.chapter :global(.security-mechanisms [data-slot=accordion-trigger]) {
+  align-items: center;
+  min-height: 56px;
+  padding: 8px 12px;
+  gap: 16px;
+  font-size: var(--text-body);
+  border-radius: 8px;
+  text-decoration: none;
+}
+.chapter :global(.security-mechanisms [data-slot=accordion-trigger]:hover),
+.chapter :global(.security-mechanisms [data-slot=accordion-trigger][aria-expanded=true]) { background: color-mix(in srgb, var(--brand) 12%, transparent); }
+.chapter :global(.security-mechanism-label) { display: flex; align-items: center; gap: 16px; }
+.chapter :global(.security-mechanism-icon) { display: grid; place-items: center; color: var(--landing-model-light); }
+.chapter :global(.security-mechanism-icon svg) { width: 20px; height: 20px; }
+.chapter :global(.security-detail) { display: grid; gap: 16px; padding: 12px 12px 12px 48px; }
+.chapter :global(.security-detail h4) { font-size: var(--text-body); font-weight: 600; line-height: 1.5; }
+.chapter :global(.security-detail p) { margin: 4px 0 0; font-size: var(--text-body); line-height: 1.65; color: color-mix(in srgb, var(--landing-model-light) 72%, var(--foreground)); }
+
+.chapter :global(.security-record) {
+  min-width: 0;
+  margin: 0;
+  padding: 24px 28px 16px;
+  border: 1px solid color-mix(in srgb, var(--landing-model-light) 22%, transparent);
+  border-radius: 16px;
+  background: var(--landing-stage-soft);
+  font-size: var(--text-body);
+}
+.chapter :global(.security-record figcaption) { display: flex; align-items: center; gap: 8px; color: var(--landing-model-light); font-size: var(--text-caption); }
+.chapter :global(.security-record figcaption svg) { width: 16px; height: 16px; flex-shrink: 0; }
+.chapter :global(.security-record h3) { margin-top: 20px; font-size: var(--text-title); font-weight: 600; line-height: 1.45; text-wrap: balance; }
+.chapter :global(.security-record-heading) { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+.chapter :global(.security-record-heading strong) { font-size: var(--text-body); font-weight: 500; }
+.chapter :global(.security-record-heading small) { display: block; margin-top: 4px; color: color-mix(in srgb, var(--landing-model-light) 72%, var(--foreground)); font-size: var(--text-caption); }
+.chapter :global(.security-record .preview-avatar) { flex-shrink: 0; width: 32px; height: 32px; background: var(--landing-violet); color: var(--foreground); font-size: var(--text-caption); }
+.chapter :global(.security-record-diff) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  margin-block: 20px;
+  padding-block: 16px;
+  border-block: 1px solid color-mix(in srgb, var(--landing-model-light) 16%, transparent);
+}
+.chapter :global(.security-record-diff small) { display: block; margin-bottom: 8px; font-size: var(--text-caption); color: color-mix(in srgb, var(--landing-model-light) 72%, var(--foreground)); }
+.chapter :global(.security-record-diff > div > span) { display: flex; align-items: center; gap: 8px; min-height: 32px; }
+.chapter :global(.security-record-diff > div:last-child > span) { color: var(--landing-model-light); }
+.chapter :global(.security-record-diff .preview-avatar) { background: var(--landing-cyan); color: var(--landing-model-light); }
+.chapter :global(.security-record-diff > svg) { align-self: center; width: 20px; height: 20px; color: var(--landing-model-light); }
+.chapter :global(.security-record dl) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.chapter :global(.security-record dt) { color: color-mix(in srgb, var(--landing-model-light) 72%, var(--foreground)); font-size: var(--text-caption); }
+.chapter :global(.security-record dd) { margin-top: 4px; font-size: var(--text-caption); line-height: 1.6; overflow-wrap: anywhere; }
+.chapter :global(.security-explore) { display: inline-flex; align-items: center; gap: 12px; min-height: 44px; margin-top: 12px; font-size: var(--text-body); color: var(--landing-model-light); text-underline-offset: 4px; }
+.chapter :global(.security-explore svg) { width: 16px; height: 16px; }
+.chapter :global(.security-explore:hover) { text-decoration: underline; }
+
+/* Providers are a quiet supporting rail, not an endorsement or a row of cards. */
+.chapter :global(.trust-band) { padding-block: 20px; background: none; border-block: 1px solid color-mix(in srgb, var(--foreground) 12%, transparent); }
+.chapter :global(.trust-models) { display: flex; justify-content: space-between; gap: 24px; }
+.chapter :global(.trust-model-heading h2) { max-width: none; font-size: var(--text-body); font-weight: 500; line-height: 1.5; letter-spacing: 0; color: color-mix(in srgb, var(--landing-model-light) 72%, var(--foreground)); }
+.chapter :global(.trust-model-signal) { display: none; }
+.chapter :global(.trust-models ul)::before { display: none; content: none; }
+.chapter :global(.trust-models ul) { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px 32px; }
+.chapter :global(.trust-models ul li) { min-height: 32px; padding: 0; gap: 8px; border-radius: 0; background: none; box-shadow: none; color: var(--landing-model-light); }
+.chapter :global(.trust-provider-mark) { width: 28px; height: 28px; background: none; border-radius: 0; }
+.chapter :global(.trust-provider-mark svg) { width: 22px; height: 22px; }
+.chapter :global(.trust-models li strong) { font-size: var(--text-body); font-weight: 500; }
+.chapter :global(.market-section) { padding-block: 24px; border: 0; }
+.chapter :global(.market-layout) { display: flex; gap: 24px; }
+.chapter :global(.market-layout h2) { max-width: 46ch; font-size: var(--text-title-sm); font-weight: 500; line-height: 1.5; text-wrap: balance; }
+.chapter :global(.market-layout a) { gap: 12px; margin-top: 0; font-weight: 500; color: var(--landing-model-light); text-underline-offset: 4px; }
+.chapter :global(.market-layout a:hover) { text-decoration: underline; }
+.chapter :global(.market-layout a svg) { width: 18px; height: 18px; }
+
+@media (max-width: 1100px) {
+  .chapter { --trust-inset: 32px; }
+  .chapter :global(.security-layout) { gap: 32px; }
+  .chapter :global(.security-record) { padding: 24px 20px 16px; }
+  .chapter :global(.trust-models ul) { gap: 12px 20px; }
+}
+@media (max-width: 900px) {
+  .chapter :global(.security-layout) { grid-template-columns: 1fr; }
+  .chapter :global(.security-copy) { padding-top: 0; }
+  .chapter :global(.security-copy .studio-title) { max-width: 24ch; }
+  .chapter :global(.security-mechanisms) { margin-top: 20px; }
+  .chapter :global(.trust-models) { flex-direction: column; align-items: flex-start; gap: 16px; }
+  .chapter :global(.trust-model-heading h2) { max-width: none; }
+  .chapter :global(.trust-models ul) { justify-content: flex-start; }
+  .chapter :global(.market-layout) { flex-direction: column; align-items: flex-start; gap: 8px; }
+}
+@media (max-width: 600px) {
+  .chapter { --trust-inset: 20px; }
+  .chapter :global(.security-section) { padding-block: 32px 24px; }
+  .chapter :global(.security-layout) { gap: 24px; }
+  .chapter :global(.security-copy .studio-title) { max-width: 18ch; font-size: var(--text-display-sm); }
+  .chapter :global(.security-mechanisms [data-slot=accordion-trigger]) { padding-inline: 8px; }
+  .chapter :global(.security-detail) { padding-left: 8px; }
+  .chapter :global(.security-record) { padding: 20px 16px 12px; }
+  .chapter :global(.security-record h3) { font-size: var(--text-title-sm); }
+  .chapter :global(.security-record-diff) { gap: 8px; }
+  .chapter :global(.security-record-diff .preview-avatar) { display: none; }
+  .chapter :global(.security-record dl) { grid-template-columns: 1fr; gap: 12px; }
+  .chapter :global(.trust-band) { padding-block: 20px; }
+  .chapter :global(.market-section) { padding-block: 20px 24px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chapter :global([data-slot=accordion-trigger]),
+  .chapter :global([data-slot=accordion-content]) { animation: none; transition: none; }
+}

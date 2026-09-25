@@ -1,0 +1,70 @@
+{
+  "_": "Prompts for the landing artwork. `pnpm landing:gen` renders these through the OpenAI Images API and writes WebP into apps/web/public/landing. Outputs are committed; nothing here needs a network fetch at build time.",
+  "__text": "Interface lettering is taken from packages/core/i18n/locales/*.json so a picture of the product uses the product's own words: statuses are Cần làm / Đang làm / Hoàn thành (tasks.status_*), never invented synonyms. Card and message content is plausible work for a team that has agents as members. Names are Vietnamese and the same in both locales, because a screenshot of one workspace with the interface language toggled is the honest reading.",
+  "model": "gpt-image-2",
+  "quality": "high",
+  "style": "Soft 3D character render, matte clay-like surfaces, rounded friendly forms, gentle studio lighting with soft shadows. Every character wears a wide wraparound visor with a smooth blue-to-magenta gradient, and the visor lens is TRANSLUCENT: each character's two simple round black dot eyes, and their eyebrows, are clearly visible THROUGH the lens, sitting behind the tinted glass with a soft highlight over them. Both eyes always visible, never one. The visor must read as transparent eyewear that you can see eyes through, and must never read as an opaque blindfold, a solid band, or a mask that hides the eyes. Palette: electric blue #0b5bf5, magenta accent, pastel lavender and warm cream backgrounds. Interface panels are clean and modern with generous padding and crisp, sharp, perfectly legible lettering. No watermark, no logo, no signature, no border.",
+  "images": {
+    "hero": {
+      "size": "1536x1024",
+      "localized": false,
+      "prompt": "Wide horizontal composition. Two colleagues stand together in the RIGHT THIRD of the frame, shown from the chest up with clear headroom above their hair so nothing is cropped. Three-quarter view, warm and confident, looking slightly off camera. One has dark curly hair, the other bright blue hair. Both wear the gradient visor. On the left end of each visor, small and subtle, the word 'UniWork' is printed in clean white lowercase-and-capital lettering, spelled exactly UniWork with a capital U and a capital W, sitting flat on the curved surface and following its curve. The LEFT TWO THIRDS of the frame is empty pastel background with a soft pink to lavender gradient and no objects in it at all, because page headline text is placed over that area. No other text, no handwriting, no UI panels anywhere in the image."
+    },
+    "meetings": {
+      "size": "1024x1024",
+      "localized": true,
+      "prompt": "A floating video-call interface panel seen straight on, filling most of the frame. A title bar across the top. Below it a two-by-two grid of participant tiles showing stylised 3D characters, each tile with a small name label in its lower-left corner. The top-left tile has a blue speaking ring and a small pill badge. A control bar along the bottom holds three round buttons with mic, camera and hang-up glyphs, and a labelled button at the right. Soft lavender background. All lettering crisp and perfectly legible.",
+      "text": {
+        "vi": "Exact lettering, spelled precisely: panel title 'Review sprint tuần 12'; a small grey line under it reading '4 người tham dự'; the speaking badge reads 'Đang nói'; the four tile name labels read 'Minh Anh', 'Quốc Bảo', 'Thu Hà', 'Lan Vy'; the button at the right of the control bar reads 'Ghi hình'. No other words anywhere.",
+        "en": "Exact lettering, spelled precisely: panel title 'Sprint review, week 12'; a small grey line under it reading '4 participants'; the speaking badge reads 'Speaking'; the four tile name labels read 'Minh Anh', 'Quốc Bảo', 'Thu Hà', 'Lan Vy'; the button at the right of the control bar reads 'Record'. No other words anywhere."
+      }
+    },
+    "projects-tasks": {
+      "size": "1536x1024",
+      "localized": true,
+      "prompt": "A floating kanban board interface seen straight on and very slightly angled, filling the left three quarters of the frame. Three columns, each with a heading pill at the top and a small count. Each column holds two or three soft rounded task cards. Every card shows a title line, a small circular avatar of a stylised 3D character, and a small coloured priority chip. One card in the middle column carries a small blue robot avatar instead of a person, marking a task an agent owns. A friendly 3D character in a gradient visor stands at the lower right, smaller than the board, gesturing toward it. Warm cream background. All lettering crisp and perfectly legible.",
+      "text": {
+        "vi": "Exact lettering, spelled precisely. Column headings: 'Cần làm', 'Đang làm', 'Hoàn thành'. Cards under 'Cần làm': 'Chuẩn bị họp review sprint' and 'Rà soát phân quyền workspace'. Cards under 'Đang làm': 'Tổng hợp tiến độ tuần' on the card with the robot avatar, and 'Viết tài liệu API'. Cards under 'Hoàn thành': 'Chốt lịch họp với khách'. Priority chips read 'Cao' or 'Trung bình'. No other words anywhere.",
+        "en": "Exact lettering, spelled precisely. Column headings: 'To do', 'In progress', 'Done'. Cards under 'To do': 'Prepare the sprint review' and 'Audit workspace permissions'. Cards under 'In progress': 'Summarise weekly progress' on the card with the robot avatar, and 'Write the API guide'. Cards under 'Done': 'Confirm the client meeting'. Priority chips read 'High' or 'Medium'. No other words anywhere."
+      }
+    },
+    "chat-tasks": {
+      "size": "1536x1024",
+      "localized": true,
+      "prompt": "A floating chat interface panel on the left and a smaller task card on the right, connected by a thin blue arrow to show a message becoming a task. The chat panel has a channel name at the top and four message bubbles, each with a small circular avatar and a short line of readable text; two bubbles are blue and right-aligned, two are pale grey and left-aligned. The task card on the right shows a title line, two small grey metadata lines and a wide gradient button at the bottom. A stylised 3D character in a gradient visor peeks in from the left edge. Pastel lavender background. All lettering crisp and perfectly legible.",
+      "text": {
+        "vi": "Exact lettering, spelled precisely. Channel name at the top of the chat panel: 'Dự án Alpha'. The four message bubbles read, top to bottom: 'Bản demo chốt thứ Năm nhé', 'Mình cần thêm một ngày', 'Vậy dời sang thứ Sáu', 'Ok, để mình tạo việc'. The task card title reads 'Chuẩn bị bản demo'; under it two small lines read 'Hạn: Thứ Sáu' and 'Phụ trách: Minh Anh'; the button reads 'Tạo việc'. No other words anywhere.",
+        "en": "Exact lettering, spelled precisely. Channel name at the top of the chat panel: 'Project Alpha'. The four message bubbles read, top to bottom: 'Demo is locked for Thursday', 'I need one more day', 'Move it to Friday then', 'Ok, I will create the task'. The task card title reads 'Prepare the demo'; under it two small lines read 'Due: Friday' and 'Assignee: Minh Anh'; the button reads 'Create task'. No other words anywhere."
+      }
+    },
+    "email-hub": {
+      "size": "1024x1024",
+      "localized": true,
+      "prompt": "A floating unified inbox interface seen straight on, filling most of the frame. A title at the top with a small unread count pill beside it. Below, a vertical list of five soft rounded message rows. Each row shows a small circular avatar, a sender name in medium weight, a subject line under it in lighter grey, and a short time on the right. Two rows carry a small blue sparkle glyph and a tiny label marking them as summarised by AI. A stylised 3D character in a gradient visor sits at the lower left, smaller than the panel. Warm cream background. All lettering crisp and perfectly legible.",
+      "text": {
+        "vi": "Exact lettering, spelled precisely. Title 'Hộp thư' with a pill reading '5 mới'. The five rows, top to bottom, each sender then subject: 'Minh Anh' / 'Báo giá gói doanh nghiệp'; 'Thu Hà' / 'Biên bản họp thứ Ba'; 'Quốc Bảo' / 'Hợp đồng đã ký'; 'Lan Vy' / 'Lịch onboarding tuần tới'; 'Đăng Khoa' / 'Phản hồi từ khách hàng'. Times on the right: '09:12', '08:40', 'Hôm qua', 'Hôm qua', 'Thứ Hai'. The two AI-marked rows carry the label 'Đã tóm tắt'. No other words anywhere.",
+        "en": "Exact lettering, spelled precisely. Title 'Inbox' with a pill reading '5 new'. The five rows, top to bottom, each sender then subject: 'Minh Anh' / 'Enterprise plan quote'; 'Thu Hà' / 'Tuesday meeting notes'; 'Quốc Bảo' / 'Signed contract'; 'Lan Vy' / 'Onboarding schedule next week'; 'Đăng Khoa' / 'Customer feedback'. Times on the right: '09:12', '08:40', 'Yesterday', 'Yesterday', 'Monday'. The two AI-marked rows carry the label 'Summarised'. No other words anywhere."
+      }
+    },
+    "ai-workforce": {
+      "size": "1536x1024",
+      "localized": true,
+      "prompt": "Three stylised 3D characters and one friendly blue robot stand together as equal members of a team in the lower half of the frame, evenly spaced, all facing camera, the robot among them and the same height. The humans wear gradient visors. Behind and above them a large soft rounded roster panel shows a heading and four rows; each row has a small circular avatar, a name in medium weight, a lighter role line beneath, and a small rounded status chip on the right. The fourth row's avatar is the blue robot, so it reads as one member among the people. Pastel lavender and cream background. All lettering crisp and perfectly legible.",
+      "text": {
+        "vi": "Exact lettering, spelled precisely. Panel heading 'Thành viên'. The four rows, name then role then chip: 'Minh Anh' / 'Quản lý sản phẩm' / 'Đang hoạt động'; 'Quốc Bảo' / 'Kỹ sư' / 'Đang hoạt động'; 'Thu Hà' / 'Vận hành' / 'Đang hoạt động'; 'UNI' / 'Nhân sự AI' / 'Đang chạy'. No other words anywhere.",
+        "en": "Exact lettering, spelled precisely. Panel heading 'Members'. The four rows, name then role then chip: 'Minh Anh' / 'Product manager' / 'Active'; 'Quốc Bảo' / 'Engineer' / 'Active'; 'Thu Hà' / 'Operations' / 'Active'; 'UNI' / 'AI staff' / 'Running'. No other words anywhere."
+      }
+    },
+    "work-products": {
+      "size": "1536x1024",
+      "localized": true,
+      "prompt": "A wide floating document workspace interface seen straight on, filling the frame. Three columns. The LEFT column is a narrow list of documents, each row showing a small coloured format badge, a title line, a date line, and a small status pill; the first row is highlighted as selected. The MIDDLE column is a document editor: a slim toolbar across the top, then a page of a business proposal with a heading, a short paragraph, a tinted callout box, and a bulleted list. The RIGHT column is an assistant panel: a small robot avatar at the top, a bubble containing a short bulleted list of what it can do, then four rounded suggestion chips below it, and at the bottom a small list of related items each with a coloured square icon and two lines of text. Clean modern panels, generous padding, soft shadows, warm cream background. All lettering crisp and perfectly legible.",
+      "text": {
+        "vi": "Exact lettering, spelled precisely. Left column format badges: 'W', 'X', 'P', 'PDF', 'MD'. Left column titles top to bottom: 'Đề xuất ACME v1.2', 'Phân tích tài chính Q3', 'Slide họp ban lãnh đạo', 'Hợp đồng Mytel', 'Kế hoạch marketing 2026'. The five date lines, top to bottom, read exactly '21/11/2025', '18/11/2025', '15/11/2025', '12/11/2025', '05/11/2025'. Status pills: 'Đang duyệt', 'Bản nháp', 'Bản cuối', 'Đã ký'. Editor heading: 'Đề xuất cho Công ty ACME'; the line under it reads 'Hệ điều hành công việc có AI'; the callout box heading reads 'Mục tiêu của chúng tôi'; the bulleted list heading reads 'Tóm tắt'. Assistant panel title: 'Trợ lý AI'; the four chips read 'Tóm tắt tài liệu', 'Viết thuyết phục hơn', 'Trích xuất điều khoản', 'Tạo công việc'; the bottom list heading reads 'Liên quan tới tài liệu này' and its two rows read 'Dự án ACME' and 'Họp bán hàng ACME'. No other words anywhere.",
+        "en": "Exact lettering, spelled precisely. Left column format badges: 'W', 'X', 'P', 'PDF', 'MD'. Left column titles top to bottom: 'ACME Proposal v1.2', 'Q3 Financial Analysis', 'Board Meeting Deck', 'Mytel Agreement', 'Marketing Plan 2026'. The five date lines, top to bottom, read exactly '21 Nov 2025', '18 Nov 2025', '15 Nov 2025', '12 Nov 2025', '5 Nov 2025'. Status pills: 'In review', 'Draft', 'Final', 'Signed'. Editor heading: 'Proposal for ACME Corporation'; the line under it reads 'AI-Powered Work Operating System'; the callout box heading reads 'Our mission'; the bulleted list heading reads 'Executive Summary'. Assistant panel title: 'AI Assistant'; the four chips read 'Summarize this document', 'Make it more persuasive', 'Extract key terms', 'Create action items'; the bottom list heading reads 'Related to this document' and its two rows read 'ACME Project' and 'Sales Meeting ACME'. No other words anywhere."
+      }
+    }
+  },
+  "__wordmark": "The visor lettering is the only place the brand name is drawn rather than rendered by the Logo component. packages/ui/brand/README.md forbids retyping the wordmark because the W's feet are custom, so treat this as set dressing on a fictional headset, not as a logo placement: it is never the official mark and nothing may crop it out of a render and reuse it.",
+  "__eyes": "The visor is translucent on purpose. An opaque band over both eyes reads as a blindfold, which is the opposite of what the page says about people and agents working in the open, so the rule lives in the shared style string rather than in one prompt: every character in every image has to have visible eyes."
+}

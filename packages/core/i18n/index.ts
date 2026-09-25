@@ -1,4 +1,4 @@
-import i18next from "i18next";
+import i18next, { type i18n } from "i18next";
 import { initReactI18next } from "react-i18next";
 import en from "./locales/en.json";
 import type { SupportedLocale } from "./types";
@@ -62,6 +62,16 @@ export function applyLocaleSync(locale: SupportedLocale): void {
     // initAsync: false — language and bundles are applied before render continues.
     void i18next.changeLanguage(locale);
   }
+}
+
+/** Refresh dictionaries in a mounted host without switching its language. */
+export function syncI18nResources(instance: i18n, dictionaries: Record<string, object | null>): void {
+  for (const [locale, dictionary] of Object.entries(dictionaries)) {
+    if (dictionary && Object.keys(dictionary).length > 0) {
+      instance.addResourceBundle(locale, "translation", dictionary, true, true);
+    }
+  }
+  instance.emit("languageChanged", instance.language);
 }
 
 export async function ensureLocale(locale: SupportedLocale): Promise<void> {

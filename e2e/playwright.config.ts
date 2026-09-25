@@ -13,6 +13,7 @@ export default defineConfig({
   workers: process.env.CI ? undefined : 1,
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://localhost:3000",
+    channel: process.env.PLAYWRIGHT_CHANNEL,
     // The specs are written against the Vietnamese product. The app shows
     // English until the locale cookie says otherwise (see locale-state.ts);
     // `locale` keeps dates and number formats Vietnamese too.

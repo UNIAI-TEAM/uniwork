@@ -46,6 +46,33 @@
    contract test (tokens.test.ts) fails when the two blocks drift. Every
    colour pair carries its measured WCAG ratio in the comment beside it. */
 :root {
+  /* Lovable demo reference surfaces, isolated to landing illustrations. */
+  --preview-canvas: #ffffff;
+  --preview-panel: #f8f9fb;
+  --preview-soft: #f0f0f9;
+  --preview-ink: #1e1e1e;
+  --preview-muted: #606060;
+  --preview-line: #cacaca;
+  --preview-accent: #6858cd;
+  --preview-on-accent: #ffffff;
+  --preview-selected: #eaf2ff;
+  /* Marketing stage: scoped consumers, shared theme contract. */
+  --landing-stage: #edf2ff;
+  --landing-stage-soft: #f3f6fc;
+  --landing-ink: #13254b;
+  --landing-paper: #ffffff;
+  --landing-mint: #ddf7eb;
+  --landing-violet: #ede7ff;
+  --landing-cyan: #dcf6ff;
+  --landing-lime: #eef8cf;
+  --landing-coral: #fff0e8;
+  --landing-deep: #101f42;
+  --landing-model-shell: #f4f7ff;
+  --landing-model-light: #b9eaff;
+  --landing-close-start: #0754d8;
+  --landing-close-end: #8731c5;
+  --landing-close-light: #15aede;
+  --landing-close-foreground: #ffffff;
   /* Planes. The shell is the one grey plane (#F4F4F8, ClickUp's utility
      grey pulled one step lighter so the gutter between sidebar and page
      reads as a gap, 1.09:1 on white, not as a band). Sidebar, page and
@@ -64,6 +91,15 @@
   --surface-selected: #e4edff;
   --surface-selected-foreground: #202020;
   --surface-border: #cfcfcf;
+
+  /* The emphasis band: a content plane whose polarity is flipped against the
+     page, used to break the rhythm of a long scroll (landing product bands,
+     the Work Graph section). Its CONTENT is wrapped in `.dark` so foreground,
+     brand and ring resolve from the dark palette; the background is painted by
+     the parent so this slot still tracks the page theme. Unlike --rail, which
+     is one value in both themes, this one is restated below.
+     Light: 17.59 against --background. */
+  --surface-emphasis: oklch(0.20 0.08 278);
 
   --card: #ffffff;
   --card-foreground: #202020;
@@ -104,6 +140,10 @@
      white. */
   --brand: #0a52e6;
   --brand-foreground: #ffffff;
+  /* Second brand hue, carried over from the marketing palette. Text and icons
+     only — it has no --brand-accent-foreground because nothing paints a
+     surface with it. 4.99 on --surface, 4.78 on --background. */
+  --brand-accent: oklch(0.58 0.27 325);
   /* The brand as a wash: selected nav row, the AI entry point, a chip that
      is ON. Brand text on the wash: 5.33. The accent blocks derive the fill
      as an 11% mix of the brand into white, the same recipe as
@@ -265,6 +305,31 @@
 }
 
 .dark {
+  --preview-canvas: #090a0c;
+  --preview-panel: #121417;
+  --preview-soft: #1d1d24;
+  --preview-ink: #edeef0;
+  --preview-muted: #a1a5ad;
+  --preview-line: #ffffff1f;
+  --preview-accent: #9088f0;
+  --preview-on-accent: #151423;
+  --preview-selected: #1b2531;
+  --landing-stage: #192741;
+  --landing-stage-soft: #172132;
+  --landing-ink: #e2ebff;
+  --landing-paper: #1c2638;
+  --landing-mint: #17352c;
+  --landing-violet: #30264b;
+  --landing-cyan: #123747;
+  --landing-lime: #2b3619;
+  --landing-coral: #3c2721;
+  --landing-deep: #101f42;
+  --landing-model-shell: #f4f7ff;
+  --landing-model-light: #b9eaff;
+  --landing-close-start: #0754d8;
+  --landing-close-end: #8731c5;
+  --landing-close-light: #15aede;
+  --landing-close-foreground: #ffffff;
   /* Same plane order as light: shell deepest (#0a0a0a), sidebar = page on
      dark-footer #111111, cards one step up (#181818), menus and dialogs on
      the deep-panel grey. The old dark shell sat ABOVE the page (#1E1E1E on
@@ -281,6 +346,11 @@
   --surface-selected: #222e42;
   --surface-selected-foreground: #f8f9fa;
   --surface-border: #2e2e2e;
+
+  /* Lifted above the dark --background so the band still reads as a band when
+     the whole page is dark; the light value would sink below it. The step is
+     1.27, the same order as --surface over --background (1.06). */
+  --surface-emphasis: oklch(0.28 0.07 278);
 
   --card: #181818;
   --card-foreground: #f8f9fa;
@@ -308,6 +378,10 @@
      brand fill). */
   --brand: #5a96ff;
   --brand-foreground: #0d1220;
+  /* Lightened the way --brand is, keeping hue 325 and easing chroma so it does
+     not glare on a dark ground. 6.37 on --background, 5.98 on --surface, and
+     6.20 inside the emphasis band. */
+  --brand-accent: oklch(0.70 0.22 325);
   /* 4.73 on the wash; derived as a 24% mix into #111111 under an accent. */
   --brand-subtle: #222e42;
   --brand-subtle-foreground: #5a96ff;
@@ -507,6 +581,8 @@ html.dark[data-accent] {
   --color-muted-foreground: var(--muted-foreground);
   --color-faint-foreground: var(--faint-foreground);
   --color-brand: var(--brand);
+  --color-brand-accent: var(--brand-accent);
+  --color-surface-emphasis: var(--surface-emphasis);
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-subtle: var(--brand-subtle);
   --color-brand-subtle-foreground: var(--brand-subtle-foreground);
@@ -651,6 +727,11 @@ html.dark[data-accent] {
   --text-hero-sm: 36px;    --text-hero-sm--line-height: 40px;  --text-hero-sm--letter-spacing: -0.035em;
   --text-hero: 48px;       --text-hero--line-height: 53px;     --text-hero--letter-spacing: -0.035em;
   --text-hero-lg: 60px;    --text-hero-lg--line-height: 66px;  --text-hero-lg--letter-spacing: -0.035em;
+  --text-hero-xl: 72px;    --text-hero-xl--line-height: 79px;  --text-hero-xl--letter-spacing: -0.035em;
+  /* Fluid opening roles for the landing hero. */
+  --text-hero-opening: clamp(36px, 4vw, 52px);
+  --text-hero-opening-tablet: clamp(34px, 4.6vw, 46px);
+  --text-hero-opening-mobile: clamp(32px, 7vw, 36px);
 }
 
 /* Headings take the display family through the type utility itself, so the
