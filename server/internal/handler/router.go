@@ -308,6 +308,7 @@ func New(d Deps) http.Handler {
 		MarkNotificationsRead:      h.markNotificationsRead,
 		MarkNotificationsUnread:    h.markNotificationsUnread,
 		ArchiveNotifications:       h.archiveNotifications,
+		UnarchiveNotifications:     h.unarchiveNotifications,
 		GetNotificationPreferences: h.getNotificationPreferences,
 		PutNotificationPreferences: h.putNotificationPreferences,
 		PushConfig:                 h.pushConfig,

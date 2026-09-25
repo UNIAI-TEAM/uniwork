@@ -3855,7 +3855,16 @@
       "audit_export_ready": "Bản xuất nhật ký của bạn đã sẵn sàng",
       "chat_follow_up": "Bạn đã gắn Follow-up cho một tin nhắn",
       "email_hub_new_mail": "Bạn có {{count}} thư chưa đọc · {{mailbox}}"
-    }
+    },
+    "archived_one": "Đã lưu trữ {{count}} thông báo",
+    "archived_other": "Đã lưu trữ {{count}} thông báo",
+    "marked_all_one": "Đã đánh dấu {{count}} thông báo là đã đọc",
+    "marked_all_other": "Đã đánh dấu {{count}} thông báo là đã đọc",
+    "undo": "Hoàn tác",
+    "undo_failed": "Không hoàn tác được, thử lại",
+    "loading": "Đang tải thông báo",
+    "group_count_one": "{{count}} thông báo",
+    "group_count_other": "{{count}} thông báo"
   },
   "ai": {
     "title": "Hỏi UNI",

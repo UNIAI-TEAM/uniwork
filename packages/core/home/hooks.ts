@@ -5,7 +5,7 @@ import { useCallback, useMemo } from "react";
 import * as api from "../api/endpoints/home";
 import { updateTask } from "../api/endpoints/tasks";
 import { batchUpdateTasks } from "../api/endpoints/tasks-suite";
-import { useArchive, useMarkRead } from "../notifications/hooks";
+import { useMarkRead } from "../notifications/hooks";
 import { taskKeys } from "../tasks/keys";
 import type { TaskStatus } from "../types/task";
 import type { HomePreference, HomeSummary } from "../types/home";
@@ -153,22 +153,6 @@ function dropNotification(summary: HomeSummary | null | undefined, id: string): 
 export function useReadHomeNotification(wsId: string) {
   const qc = useQueryClient();
   const { mutate } = useMarkRead();
-  return useCallback(
-    (id: string) => {
-      qc.setQueryData<HomeSummary | null>(homeKeys.summary(wsId), (summary) => dropNotification(summary, id));
-      mutate([id]);
-    },
-    [mutate, qc, wsId],
-  );
-}
-
-/**
- * Archiving from home takes the row off the summary the same way; a failed
- * archive refetches the summary so the row comes back.
- */
-export function useArchiveHomeNotification(wsId: string) {
-  const qc = useQueryClient();
-  const { mutate } = useArchive();
   return useCallback(
     (id: string) => {
       qc.setQueryData<HomeSummary | null>(homeKeys.summary(wsId), (summary) => dropNotification(summary, id));

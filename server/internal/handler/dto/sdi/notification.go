@@ -1,6 +1,6 @@
 package sdi
 
-// NotificationIDsSDI is the body of POST /api/v1/me/notifications/{read,unread,archive}.
+// NotificationIDsSDI is the body of POST /api/v1/me/notifications/{read,unread,archive,unarchive}.
 type NotificationIDsSDI struct {
 	IDs         []string `json:"ids" description:"Id thông báo của chính người gọi; id của người khác trả 404" example:"[\"01K4NOTIF00000000000000001\"]"`
 	All         bool     `json:"all" description:"Chỉ với /read: đánh dấu tất cả đã đọc, bỏ qua ids" example:"false"`

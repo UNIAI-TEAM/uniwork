@@ -217,6 +217,7 @@ type Routes struct {
 	MarkNotificationsRead      http.HandlerFunc
 	MarkNotificationsUnread    http.HandlerFunc
 	ArchiveNotifications       http.HandlerFunc
+	UnarchiveNotifications     http.HandlerFunc
 	GetNotificationPreferences http.HandlerFunc
 	PutNotificationPreferences http.HandlerFunc
 	PushConfig                 http.HandlerFunc
