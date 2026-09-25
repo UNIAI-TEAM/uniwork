@@ -17,6 +17,7 @@ import { CollectionPageHeader, CollectionPageState } from "../layout/collection-
 import { moduleTone } from "../layout/module-tones";
 import { PAGE_GUTTER } from "../layout/page-header";
 import { CalendarToolbar } from "./calendar-toolbar";
+import { CalendarMeetingPanel } from "./calendar-meeting-panel";
 import { CalendarTaskPanel } from "./calendar-task-panel";
 import { type CalendarViewMode, rangeForMode } from "./calendar-view-mode";
 import { useCalendarMutations } from "./calendar-mutations";
@@ -31,12 +32,14 @@ export function CalendarPageView({
   onPreferencesChange,
   onOpenTask,
   onOpenMeeting,
+  onJoinMeeting,
 }: {
   workspaceId: string;
   initialPreferences?: CalendarPreferences;
   onPreferencesChange?: (next: CalendarPreferences) => void;
   onOpenTask: (id: string) => void;
   onOpenMeeting: (id: string) => void;
+  onJoinMeeting?: (id: string) => void;
 }) {
   const { t, i18n } = useTranslation();
   const [anchorDate, setAnchorDate] = useState(() => new Date());
@@ -52,7 +55,9 @@ export function CalendarPageView({
   const [selectedSlot, setSelectedSlot] = useState<CalendarSlot | null>(null);
   const [createMeetingOpen, setCreateMeetingOpen] = useState(false);
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
+  const [openMeetingId, setOpenMeetingId] = useState<string | null>(null);
   const taskTriggerRef = useRef<HTMLElement | null>(null);
+  const meetingTriggerRef = useRef<HTMLElement | null>(null);
   const viewerTimeZone = useMemo(
     () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
     [],
@@ -114,13 +119,29 @@ export function CalendarPageView({
     const trigger = source ?? (activeElement instanceof HTMLElement ? activeElement : null);
     if (trigger && trigger.tabIndex < 0) trigger.tabIndex = -1;
     taskTriggerRef.current = trigger;
+    setOpenMeetingId(null);
     setOpenTaskId(taskId);
+  }, []);
+
+  const handleMeetingOpen = useCallback((meetingId: string, source?: HTMLElement) => {
+    const activeElement = document.activeElement;
+    const trigger = source ?? (activeElement instanceof HTMLElement ? activeElement : null);
+    meetingTriggerRef.current = trigger;
+    setOpenTaskId(null);
+    setOpenMeetingId(meetingId);
   }, []);
 
   const handleTaskPanelClose = useCallback(() => {
     const trigger = taskTriggerRef.current;
     taskTriggerRef.current = null;
     setOpenTaskId(null);
+    if (trigger?.isConnected) trigger.focus();
+  }, []);
+
+  const handleMeetingPanelClose = useCallback(() => {
+    const trigger = meetingTriggerRef.current;
+    meetingTriggerRef.current = null;
+    setOpenMeetingId(null);
     if (trigger?.isConnected) trigger.focus();
   }, []);
 
@@ -136,7 +157,7 @@ export function CalendarPageView({
       handleTaskOpen(event.entityId, source);
       return;
     }
-    onOpenMeeting(event.entityId);
+    handleMeetingOpen(event.entityId, source);
   };
 
   return (
@@ -155,7 +176,7 @@ export function CalendarPageView({
           isError={sidebarQuery.isError}
           onRetry={() => void sidebarQuery.refetch()}
           onOpenTask={handleTaskOpen}
-          onOpenMeeting={onOpenMeeting}
+          onOpenMeeting={handleMeetingOpen}
           onCreateMeeting={() => setCreateMeetingOpen(true)}
           onQuickCreate={handleQuickCreate}
         />
@@ -230,6 +251,15 @@ export function CalendarPageView({
             taskId={openTaskId}
             onClose={handleTaskPanelClose}
             onOpenFullPage={onOpenTask}
+          />
+        ) : null}
+        {openMeetingId ? (
+          <CalendarMeetingPanel
+            workspaceId={workspaceId}
+            meetingId={openMeetingId}
+            onClose={handleMeetingPanelClose}
+            onJoin={(meetingId) => (onJoinMeeting ?? onOpenMeeting)(meetingId)}
+            onOpenFullPage={onOpenMeeting}
           />
         ) : null}
       </div>

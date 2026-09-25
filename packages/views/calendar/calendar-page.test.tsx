@@ -16,6 +16,16 @@ const taskEvent: CalendarEvent = {
   allDay: true,
 };
 
+const meetingEvent: CalendarEvent = {
+  id: "cal-meeting-1",
+  kind: "meeting",
+  entityId: "meeting-1",
+  title: "Weekly sync",
+  start: "2026-09-10T14:00:00Z",
+  end: "2026-09-10T14:30:00Z",
+  allDay: false,
+};
+
 const calendarEventsRefetch = vi.hoisted(() => vi.fn());
 const useCalendarEventsMock = vi.hoisted(() =>
   vi.fn((..._args: unknown[]) => ({
@@ -73,6 +83,24 @@ vi.mock("./create-from-slot", () => ({
 
 vi.mock("../meetings/new-meeting-dialog", () => ({
   NewMeetingDialog: () => null,
+}));
+
+vi.mock("../meetings/meeting-detail-view", () => ({
+  MeetingDetailView: ({
+    meetingId,
+    headerActions,
+    onJoin,
+  }: {
+    meetingId: string;
+    headerActions?: React.ReactNode;
+    onJoin: () => void;
+  }) => (
+    <div data-testid="meeting-detail-view">
+      <span>{meetingId}</span>
+      <button type="button" onClick={onJoin}>Join mocked meeting</button>
+      {headerActions}
+    </div>
+  ),
 }));
 
 vi.mock("../tasks/detail", () => ({
@@ -221,6 +249,67 @@ describe("CalendarPageView", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Mở toàn trang" }));
     expect(onOpenTask).toHaveBeenCalledWith("task-1");
+  });
+
+  it("keeps the calendar mounted while a clicked meeting opens in the detail panel", () => {
+    const onOpenMeeting = vi.fn();
+    const onJoinMeeting = vi.fn();
+    render(
+      wrap(
+        <CalendarPageView
+          workspaceId="ws1"
+          onOpenTask={() => {}}
+          onOpenMeeting={onOpenMeeting}
+          onJoinMeeting={onJoinMeeting}
+        />,
+      ),
+    );
+
+    act(() => {
+      const onEventClick = hostProps.current.onEventClick as (
+        event: CalendarEvent,
+      ) => void;
+      onEventClick(meetingEvent);
+    });
+
+    expect(screen.getByTestId("calendar-grid")).toBeInTheDocument();
+    expect(screen.getByTestId("meeting-detail-view")).toHaveTextContent("meeting-1");
+    expect(onOpenMeeting).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Join mocked meeting" }));
+    expect(onJoinMeeting).toHaveBeenCalledWith("meeting-1");
+
+    fireEvent.click(screen.getByRole("button", { name: "Mở cuộc họp toàn trang" }));
+    expect(onOpenMeeting).toHaveBeenCalledWith("meeting-1");
+  });
+
+  it("restores focus after closing a meeting detail panel", () => {
+    const source = document.createElement("button");
+    source.textContent = "Meeting source";
+    document.body.append(source);
+    source.focus();
+    render(
+      wrap(
+        <CalendarPageView
+          workspaceId="ws1"
+          onOpenTask={() => {}}
+          onOpenMeeting={() => {}}
+        />,
+      ),
+    );
+
+    act(() => {
+      const onEventClick = hostProps.current.onEventClick as (
+        event: CalendarEvent,
+        trigger: HTMLElement,
+      ) => void;
+      onEventClick(meetingEvent, source);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
+
+    expect(screen.queryByTestId("meeting-detail-view")).not.toBeInTheDocument();
+    expect(source).toHaveFocus();
+    source.remove();
   });
 
   it("closes the task detail panel and restores focus to the source control", () => {

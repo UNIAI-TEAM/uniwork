@@ -2648,6 +2648,8 @@
     "sidebar_task_open_to_schedule": "Open {{title}} to set a date",
     "task_panel_label": "Task details",
     "open_task_full_page": "Open full page",
+    "meeting_panel_label": "Meeting details",
+    "open_meeting_full_page": "Open meeting full page",
     "period_picker_label": "Choose display period, currently {{period}}",
     "export_ics": "Export ICS",
     "export_ics_error": "Could not export the calendar."

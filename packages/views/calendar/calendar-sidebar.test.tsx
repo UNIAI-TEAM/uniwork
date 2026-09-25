@@ -114,7 +114,7 @@ describe("CalendarSidebar", () => {
     fireEvent.click(screen.getByRole("button", { name: /Standup/ }));
 
     expect(onOpenTask).toHaveBeenCalledWith("task-1", expect.any(HTMLElement));
-    expect(onOpenMeeting).toHaveBeenCalledWith("meet-1");
+    expect(onOpenMeeting).toHaveBeenCalledWith("meet-1", expect.any(HTMLElement));
   });
 
   it("localizes task dates and meeting times in the viewer time zone", () => {

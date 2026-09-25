@@ -35,7 +35,7 @@ type CalendarSidebarProps = {
   isError?: boolean;
   onRetry: () => void;
   onOpenTask: (id: string, source?: HTMLElement) => void;
-  onOpenMeeting: (id: string) => void;
+  onOpenMeeting: (id: string, source?: HTMLElement) => void;
   onCreateMeeting: () => void;
   onQuickCreate: () => void;
 };
@@ -164,7 +164,7 @@ function SidebarMeetingRow({
 }: {
   meeting: CalendarSidebarMeeting;
   viewerTimeZone?: string;
-  onOpen: () => void;
+  onOpen: (source: HTMLElement) => void;
 }) {
   const { i18n } = useTranslation();
   return (
@@ -172,7 +172,7 @@ function SidebarMeetingRow({
       <button
         type="button"
         className="flex w-full min-w-0 flex-col gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-surface-hover"
-        onClick={onOpen}
+        onClick={(event) => onOpen(event.currentTarget)}
       >
         <span className="truncate text-body text-foreground">{meeting.title}</span>
         <time
@@ -372,7 +372,7 @@ export function CalendarSidebar({
                     key={meeting.id}
                     meeting={meeting}
                     viewerTimeZone={viewerTimeZone}
-                    onOpen={() => onOpenMeeting(meeting.id)}
+                    onOpen={(source) => onOpenMeeting(meeting.id, source)}
                   />
                 ))}
               </ul>
