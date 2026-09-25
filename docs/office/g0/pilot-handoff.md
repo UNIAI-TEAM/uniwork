@@ -4,7 +4,11 @@
 > integrated register (section 3). This is a G0 feasibility result, **not** pilot
 > acceptance and **not** whole-task acceptance of DOC-001..006 (see the ledger
 > reconciliation in section 3). This file started as the DOC-006 worker's hand-off
-> scaffold (UNI-670); DOC-006 itself stays open until 6.2/6.3 below are done. Subordinate acceptances are pinned below;
+> scaffold (UNI-670); the g119 slice delivers DOC-006 6.2/6.3/6.5/6.6 in three companion files (r2 refresh,
+> 2026-09-26): the measured thresholds and the still-open render-tolerance decision in
+> [acceptance-thresholds.md](acceptance-thresholds.md),
+> the costed M1/M2 estimate in [m1-m2-estimate.md](m1-m2-estimate.md) (it replaces section 4 below), and the
+> per-group receive/acceptance/open-decision map in [handoff-map.md](handoff-map.md). Subordinate acceptances are pinned below;
 > Advisor integrates this packet and the human reviewer decides full acceptance. Product display name is **UniWork Office**; the technical
 > slug is **uniwork-office**. GenOffice stays an upstream source name only.
 
@@ -103,6 +107,12 @@ minimum table:
 | PDF | existing text change, image change, independent pre/post extraction and pre/post render, annotation not substituted, page structure preserved |
 | Markdown | source change, assets resolve, unrendered table preserved, fresh-session reopen |
 | HTML | source change, assets resolve, preview isolated, session read refused, fresh-session reopen |
+
+The measured envelopes behind these assertions (per format and per machine, with sample counts - r2 adds the
+XLSX/PPTX/PDF/Markdown/HTML cold+warm open envelopes and the independent tester-r2b check) and the list of
+values that are still `chua do` live in [acceptance-thresholds.md](acceptance-thresholds.md). A format whose
+budget is not measured yet may pass its correctness assertions; it may not claim a performance or fidelity
+threshold.
 
 ## 2. What G0 requires, and what it does not
 
@@ -377,27 +387,26 @@ provenance; this is not a main354claim. Historical failed commands remain in the
 copied receipts. No installation or product/test source change was needed for
 compiler resolution, and no full make check was run.
 
-## 4. Estimate structure and dependencies (unmeasured)
+## 4. Estimate: M1/M2, costed with stated assumptions
 
-No calendar estimate is asserted here. The prior 8-12 day G0 and 12-18 week
-pilot figures are **not** carried forward: current evidence does not support
-them. The structure below lists the work packages a future estimate must cost;
-every magnitude column stays **unmeasured** until the gates above are accepted.
+The withdrawn figures stay withdrawn: the old 8-12 day G0 and 12-18 week pilot numbers are **not** carried
+forward. The delivered estimate is [m1-m2-estimate.md](m1-m2-estimate.md), written in engineer-weeks with
+every assumption stated next to the arithmetic it feeds. Its measured inputs are counts only (87 six-format
+capability rows: 30 proven, 1 candidate, 56 blocked; 16 blocked operations; 95 inventory rows with 72
+must-port and 26 proven on web in the r2 candidate matrix; 17 accepted DOC-005 cases; 18 brand surfaces;
+2 host OS targets); **no measured effort exists**
+anywhere in G0, so the per-row and per-package rates are labelled assumptions to be recalibrated after the
+first G1/G2 sprint. The r2 refresh names - without changing the totals - the five upstream-behaviour
+port items (P1-P5, owners G3/G2) and the exact Q7 blocker (no conversion engine exists today).
 
-| Work package | Depends on | Magnitude | Note |
-| --- | --- | --- | --- |
-| Browser adapter per format | Accepted DOC-003 cycles | unmeasured | Only after a cycle exists per format |
-| Engine placement (browser/worker/service/native) | DOC-003 + DOC-004 | unmeasured | Rust sidecar browser path is unproven |
-| DOC-004 engine/storage contract | DOC-003 results | unmeasured | Fault cases must have terminal states |
-| DOC-005 auth/sync/draft protocol | DOC-004 contract | unmeasured | Real service isolation and tenant scope unproven |
-| Desktop login, deep link, identity namespace | DOC-005 + branding decisions | unmeasured | GenOffice coexistence untested |
-| Brand assets, installer, update feed | DOC-001 matrix | unmeasured | Check string scan plus real UI screenshots |
-| Platform matrix Windows/macOS, Chrome/Edge/Safari | UNI-671 Mac devices | unmeasured | Mac rows stay unaccepted until UNI-671 |
-| Q1-B port coverage (95 capabilities, web + desktop) | Accepted core cycles | unmeasured | Pilot gate, not G0 gate |
-| Review, security, releases (signing, notarization) | Above | unmeasured | Not costed at G0 |
+| Milestone | Scope | Estimate (engineer-weeks) |
+| --- | --- | --- |
+| M1 | Q1-B verified upstream capability (OCR deferred), Q3-B platforms, Q5 online, Q7/Q8 mandatory | ~82 low / ~149 expected / ~265 high |
+| M2 | M1 plus the full offline desktop library and durable queue (Q5-A) | +~20 / +~35 / +~62 |
 
-Estimating rule: measure first. Cost a work package only after the evidence it
-depends on is accepted, and keep measured results separate from estimates.
+Dependency order, resource roles, the parameterised calendar and the risk exposures are in the same file.
+Estimating rule: measure first. A work package is costed only after the evidence it depends on is accepted,
+and measured results stay separate from estimates.
 
 ## 5. Downstream ownership map
 
@@ -422,7 +431,10 @@ service; documents never go to a third-party Office or OCR endpoint (Q4-A).
 Milestone shape to confirm, not a promise: M1 = q1-B verified capabilities
 online, with the Q7 conversion-copy path and Q8 draft protection; M2 requires
 the full offline desktop library from G5 first (Q5-A); OCR for scanned PDF
-stays a later milestone (Q2-A).
+stays a later milestone (Q2-A). What each group receives, the acceptance criteria
+it inherits and the decisions that are still open are itemised per group in
+[handoff-map.md](handoff-map.md), including the two tracker items the coordinator
+must confirm (the G1-G7 mapping line and the unowned ADV-002 rows).
 
 ## 6. Reviewer and human acceptance action
 
@@ -447,9 +459,13 @@ open. The remaining human actions:
    satisfied), but the declared human decision is never silently rewritten.
 4. Accept or reject each row as reviewer. Only a human sets the issue done
    state after merge and the definition of done.
-5. Decide the unresolved visual tolerance: the acceptable layout or render
-   difference outside the edited region is **not** defined by measurement yet.
-   This needs measured evidence per format and a named reviewer decision before
-   any fidelity claim can be accepted.
+5. Close the unresolved visual tolerance under its own id: `DEC-RENDER-TOLERANCE`
+   in [acceptance-thresholds.md](acceptance-thresholds.md) section 4, recorded exactly
+   as decided (user decision 2026-09-25): **OPEN, owned by G3 UNI-659** - G3
+   measures the per-format pixel diffs, then a named human reviewer signs. The
+   evidence it needs is one pixel-diff per format per fixture with the edited
+   region masked (fixed viewport and DPR, machine `WIN-ORCA-1.4.209`); until it is
+   signed, a row may claim only what its part/object oracle proves, and G0 keeps
+   only the rule that differences outside the edited region must be explained.
 
 No full G0, pilot completion or issue-done claim is made by this scaffold.

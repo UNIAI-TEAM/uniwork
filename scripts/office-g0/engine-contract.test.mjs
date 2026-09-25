@@ -388,36 +388,64 @@ test("the engine can be injected, which is the seam task 4.4 wires", () => {
 });
 
 test("the runtime map cannot claim a proven runtime it has not earned", () => {
+  // g119 (DOC-004 accepted): the map places every operation. An operation is "proven" only when an
+  // accepted (PASS) evidence-register row backs it; every other operation carries a candidate runtime,
+  // a blocker, the test that would prove it and a defined failure behaviour, and never claims selection.
+  const register = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, "docs/office/g0/evidence-register.json"), "utf8"));
+  const acceptedRows = new Set(register.rows.filter((row) => row.status === "PASS").map((row) => row.id));
+  const STATUSES = new Set(["proven", "candidate", "blocked"]);
+  const LEVELS = new Set(["proven", "candidate", "pending", "source_read"]);
   assert.equal(runtimeMap.wire_format, "snake_case");
   assert.equal(runtimeMap.product.technical_slug, "uniwork-office");
   assert.equal(runtimeMap.upstream.pinned_commit, "09485f884dc845cf3bf27fb7edfe489f9d457aad");
   assert.equal(runtimeMap.upstream.package_lock_sha256, "DE782E49A1006FAC7287A41C748C696EFD9FB3C3038EAE893EF82DFCA57F9FE5");
-  assert.equal(runtimeMap.runtime_selection_verdict.chosen, false);
+  const verdict = runtimeMap.runtime_selection_verdict;
+  assert.equal(typeof verdict.chosen, "boolean", "runtime_selection_verdict.chosen must be a boolean");
+  if (verdict.chosen) {
+    assert.ok(verdict.scope, "a chosen verdict must state its scope");
+    const rows = Object.values(verdict.evidence ?? {});
+    assert.ok(rows.length > 0, "a chosen verdict must cite its evidence");
+    for (const row of rows) assert.ok(acceptedRows.has(row), "a chosen verdict may only cite accepted register rows: " + row);
+  }
+  const proven = [];
   for (const format of FORMATS) {
     const entry = runtimeMap.formats[format];
     assert.ok(entry, "runtime map is missing format " + format);
     assert.ok(entry.operations.length >= 3, format + " has too few operations");
     for (const op of entry.operations) {
-      assert.ok(["proven", "source_read", "pending"].includes(op.evidence_level), format + "/" + op.operation + " has an unknown evidence level");
+      const label = format + "/" + op.operation;
+      assert.ok(op.runtime, label + " has no runtime");
+      assert.ok(STATUSES.has(op.status), label + " has an unknown status: " + op.status);
+      assert.ok(LEVELS.has(op.evidence_level), label + " has an unknown evidence level: " + op.evidence_level);
+      assert.ok(op.failure_behavior, label + " has no failure behaviour");
+      if (op.evidence_level === "proven" || op.status === "proven") {
+        const row = op.proving_evidence?.register_row;
+        assert.ok(row && acceptedRows.has(row), label + " is proven but does not cite an accepted register row");
+        assert.equal(op.runtime_selected, true, label + " is proven but does not mark its runtime selected");
+        proven.push(label);
+      } else {
+        assert.equal(op.runtime_selected, false, label + " must not mark a candidate/blocked runtime as selected");
+        assert.ok(op.blocker, label + " must carry a blocker");
+        assert.ok(op.test_that_would_prove, label + " must carry the test that would prove it");
+        if (op.evidence_level === "candidate") assert.ok(op.supporting_evidence, label + " is a candidate but carries no supporting evidence");
+      }
     }
   }
-  // Exactly one proven row in the whole map, and it must be the PDF text-edit probe.
-  const proven = [];
+  // The six editor cycles are proven, and only register-backed operations may be.
   for (const format of FORMATS) {
-    for (const op of runtimeMap.formats[format].operations) {
-      if (op.evidence_level === "proven") proven.push(format + "/" + op.operation);
-    }
+    const cycle = runtimeMap.formats[format].operations[0].operation;
+    assert.ok(proven.includes(format + "/" + cycle), format + " editor cycle is not proven");
   }
-  assert.deepEqual(proven, ["pdf/edit_text"]);
-  // Every format summary must agree with its own operation list.
   for (const format of FORMATS) {
     const summary = runtimeMap.format_summary[format];
-    const counts = { proven: 0, source_read: 0, pending: 0 };
-    for (const op of runtimeMap.formats[format].operations) counts[op.evidence_level] += 1;
+    const ops = runtimeMap.formats[format].operations;
+    const counts = { proven: 0, candidate: 0, pending: 0 };
+    for (const op of ops) if (op.evidence_level in counts) counts[op.evidence_level] += 1;
     assert.equal(summary.proven, counts.proven, format + " summary proven count drifted");
-    assert.equal(summary.source_read, counts.source_read, format + " summary source_read count drifted");
+    assert.equal(summary.candidate, counts.candidate, format + " summary candidate count drifted");
     assert.equal(summary.pending, counts.pending, format + " summary pending count drifted");
-    assert.equal(summary.runtime_chosen, false, format + " must not claim a chosen runtime");
+    assert.equal(summary.runtime_selected_operations, ops.filter((op) => op.runtime_selected).length, format + " summary runtime_selected_operations drifted");
+    assert.equal(summary.editor_cycle_proven, true, format + " editor cycle must be marked proven");
   }
 });
 

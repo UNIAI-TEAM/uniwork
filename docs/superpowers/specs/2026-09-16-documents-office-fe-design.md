@@ -76,8 +76,7 @@ Mỗi hàng: một mệnh đề còn hiệu lực trái phạm vi mới → yêu
 | R-09 | "Trần tệp 50 MiB" và không preview (C-01 §2 #11, §12.7) | **Giữ nguyên** trần upload ≤50 MiB/file và quota `storage.bytes` hiện có; quota lưu trữ không được mặc định thành 50 MiB (C-01 §2 #11 vẫn áp cho multipart và file), **không** thay bằng dải đo; tách hẳn khỏi "dải đo ban đầu chủ yếu dưới 50 MiB" (Q9-A) và khỏi giới hạn engine đo được ở DOC-003/004. Ca biên phải có lỗi rõ và giữ bản gốc/bản sửa | Q9-A | C-01 §12.7 (giữ trần), DOC-074 | G1, G7 (UNI-661) |
 | R-10 | C-01 §13: tài liệu thuộc Work Product ủy quyền quyền, không chia sẻ riêng | **Giữ nguyên**, không nới. C-15/C-16 tạo bản sao/chuyển đổi cho tài liệu thuộc sở hữu phải qua cơ chế chủ sở hữu, không sinh bản sao có chia sẻ rộng hơn | C-01 §13; ADR 0016 | C-01 §13 (chỉ tham chiếu, không sửa luật) | G1, G6, G4 |
 
-Ghi chú: R-01…R-10 là nội dung 1b sẽ ghi vào C-01/roadmap/ADR. Ở 1a, chúng chỉ là
-đầu vào thiết kế; chưa thay thế tài liệu chính thức.
+Ghi chú: R-01…R-10 là nội dung 1b ghi vào C-01/roadmap/ADR. **Cập nhật 2026-09-25 (candidate 1b, DOC-001):** ADR [0021](../../adr/0021-runtime-engine-office-da-dinh-dang.md) đã được ban hành (0018 chuyển `superseded by 0021`), roadmap C-15/C-16 cùng dòng ngoài phạm vi đã sửa, C-01 đã có luật HTML, và §4.3/§7 dưới đây đã đối chiếu với DOC-004 (runtime theo thao tác) và DOC-005 (trạng thái/lỗi).
 
 ---
 
@@ -244,10 +243,19 @@ lệch tên. Tên ở cột DOC-005 là **yêu cầu** (DOC-005 đã nghiệm th
 | `conflict` | `conflict` | `revision_conflict` + `document_version_conflict`, cùng `errorClass` |
 | `readonly` | `blocked` | Còn `view` thì chỉ hiển/tải bản server đã commit; nháp chưa gửi riêng rẽ vẫn bị bảo vệ khi mất `edit`; không copy/xuất/clipboard payload nháp. `manage` bao gồm `edit`; Work Product theo quyền owner. |
 | `revoked` | `blocked` | Tài liệu còn tồn tại bị từ chối (403) không phải là deleted: ẩn byte đã commit, giữ nháp gắn với tài khoản không thể truy cập. 404 bảo toàn riêng tư vẫn là `not_found`, không xác nhận tồn tại. |
-| `save_error` | `quota-blocked` (413) | lỗi mạng/5xx không có tên riêng ở DOC-005; quota thì có |
+| `save_error` | — / `quota-blocked` (413) | lỗi mạng/5xx không có tên riêng ở DOC-005 (vẫn là `save_error`, retry sau khi kiểm lại `edit`); `quota_exceeded` 413 (`errorClass = quota`) map thành `quota-blocked` |
 | `error` | `not_found` / `deleted` / `blocked` | 404 `not_found` không lộ tồn tại; 410 `document_deleted` map thành `deleted`; 403 `forbidden` map thành blocked access. Không suy ra deleted từ 403 hay lộ hơn phản hồi của server. |
 | `recovery` | — | khôi phục nháp, DOC-005 §6 (§4.1 không có dòng riêng) |
 | `empty` | — | trạng thái thư viện/cây, ngoài phạm vi bảng editor của DOC-005 |
+
+**Lỗi → trạng thái, một đường duy nhất (DOC-005 §4, đã nghiệm thu ở mức G0 ngày 2026-09-25).** Client đọc
+`errorClass` chứ không đọc mã HTTP hay text thông báo: `conflict` (`revision_conflict` 422,
+`document_version_conflict`/`idempotency_*`/`owner_requires_copy`/`copy_consent_required`/`draft_recovery_locked` 409)
+→ `conflict`; `quota` (`quota_exceeded` 413) → `quota-blocked`; `permission` (`forbidden` 403) → `blocked`/`readonly`;
+`incompatible` (`engine_incompatible` 409) → `incompatible`; `gone` (`document_deleted` 410, `change_cursor_expired`
+410) → `deleted`/`resyncing`; `session` (`token_expired` 401, `authorization_code_*` 400) → giữ nháp và làm mới phiên;
+`missing` (`not_found` 404) → `error` không xác nhận tồn tại. Ba bất biến của DOC-005 §4.1 vẫn giữ: không trạng thái
+nào tự xoá nội dung người dùng, không báo "đã lưu" khi server chưa commit, `blocked` không có đường xuất.
 
 **Còn thiếu ở §4.2, phải bổ sung khi vào G3/G5** (DOC-005 §4.1 có, bản 1a chưa có):
 
@@ -440,17 +448,16 @@ kết quả dữ liệu — không chỉ tên màn hình.
 
 ## 7. Khác biệt cần thiết giữa sáu editor (1a.3)
 
-Phần chung đã chốt ở §4. Dưới đây chỉ ghi phần **khác** phải có, và điều phải giữ
-giống. Cột "Bằng chứng cần" nối sang DOC-003.
+Phần chung đã chốt ở §4. Dưới đây chỉ ghi phần **khác** phải có, và điều phải giữ giống. Cột "Bằng chứng cần" nối sang DOC-003; cột runtime theo DOC-004 (ADR [0021](../../adr/0021-runtime-engine-office-da-dinh-dang.md)) — chỉ sáu chu trình `E-*-CYCLE` được gọi là `proven`, mọi thao tác khác có runtime candidate + hành vi G0 từ chối + tên test.
 
-| Định dạng | Toolbar/canvas khác | Trạng thái riêng | Bằng chứng cần (DOC-003) |
-| --- | --- | --- | --- |
-| DOCX | Trang theo trang (page canvas), đầu/chân trang, bảng; ruler tùy chọn | Cảnh báo thành phần chưa bảo toàn (VML, metafile, field) | Sửa đoạn/bảng/ảnh; phần không sửa + đầu/chân trang/font đối chiếu sau mở lại |
-| XLSX | Lưới ô, thanh công thức, sheet tab, vùng chọn | Tính lại công thức: hiển thị kết quả expected, thiếu recalculation là blocker | Sửa ô, công thức liên sheet đúng sau mở lại; giữ sheet/định dạng |
-| PPTX | Slide canvas, panel slide, hình/shape, trình chiếu | Cảnh báo bố cục/đối tượng có thể đổi | Sửa chữ/ảnh/shape, mở lại/trình chiếu, so bố cục |
-| PDF | Trang, lớp chữ, thao tác trang | **Chỉ sửa nội dung có lớp chữ** (Q2-A); scan = xem/quản lý, OCR ở mốc sau | Thay chữ/ảnh có sẵn trong nội dung; extraction/render chứng minh; annotation **không** đủ |
-| Markdown | Source ⇄ preview, bảng/code/Unicode | Asset và liên kết tương đối phải còn dùng được | Source đúng sau save; preview cách ly |
-| HTML | Source ⇄ preview cách ly | Preview **không** đọc được phiên app và không thoát origin | Source/asset đúng; kiểm cách ly script |
+| Định dạng | Toolbar/canvas khác | Trạng thái riêng | Bằng chứng cần (DOC-003) | Runtime (DOC-004) |
+| --- | --- | --- | --- | --- |
+| DOCX | Trang theo trang (page canvas), đầu/chân trang, bảng; ruler tùy chọn | Cảnh báo thành phần chưa bảo toàn (VML, metafile, field) | Sửa đoạn/bảng/ảnh; phần không sửa + đầu/chân trang/font đối chiếu sau mở lại | Editor ở trang host (renderer thật) + adapter tiêm; engine chỉ chạy ngoài trang khi có hàng chứng minh |
+| XLSX | Lưới ô, thanh công thức, sheet tab, vùng chọn | Tính lại công thức: hiển thị kết quả expected, thiếu recalculation là blocker | Sửa ô, công thức liên sheet đúng sau mở lại; giữ sheet/định dạng | Editor ở trang host; **recalc là tiến trình native trong service nội bộ**, không phải WASM |
+| PPTX | Slide canvas, panel slide, hình/shape, trình chiếu | Cảnh báo bố cục/đối tượng có thể đổi | Sửa chữ/ảnh/shape, mở lại/trình chiếu, so bố cục | Editor ở trang host + engine ở service nội bộ; gesture shape cần channel `host:slides-edit-transform` |
+| PDF | Trang, lớp chữ, thao tác trang | **Chỉ sửa nội dung có lớp chữ** (Q2-A); scan = xem/quản lý, OCR ở mốc sau | Thay chữ/ảnh có sẵn trong nội dung; extraction/render chứng minh; annotation **không** đủ | Editor ở trang host qua adapter tiêm cho chữ/ảnh có sẵn; ảnh phụ thuộc Electron ở upstream → G2/G4 |
+| Markdown | Source ⇄ preview, bảng/code/Unicode | Asset và liên kết tương đối phải còn dùng được | Source đúng sau save; preview cách ly | Không engine: editor giữ source, adapter chỉ I/O file |
+| HTML | Source ⇄ preview cách ly | Preview **không** đọc được phiên app và không thoát origin | Source/asset đúng; kiểm cách ly script | Không engine: editor giữ source; preview **chỉ** trong iframe sandbox không `allow-same-origin` trên host khác |
 
 **Phải giống nhau ở cả sáu:** một vị trí trạng thái lưu, một ngữ nghĩa conflict, một
 đường tải về, một panel phiên bản/nhật ký, một bộ phím tắt cơ bản, và cùng bộ lối
@@ -498,18 +505,14 @@ thuộc DOC-004/005 và task 2 (inventory) — tài liệu này không tự ch�
 | Q8-A | Giữ nháp chưa sync theo tài khoản sau logout; khôi phục cần đúng tài khoản/quyền/base | Q8-A |
 | Q9-A | Dải đo ban đầu chủ yếu dưới 50 MiB/file; không tự đổi trần/quota | Q9-A |
 
-### 9.2 ADR draft (không đóng dấu accepted)
+### 9.2 ADR runtime (đã chấp nhận)
 
-Đề xuất thay thế ADR 0018 nằm ở
-[`docs/adr/drafts/documents-office-runtime.md`](../../adr/drafts/documents-office-runtime.md),
-trạng thái `proposed`. Nó dùng INT-01 làm **hướng thử**, ghi rõ runtime còn chờ bằng
-chứng DOC-003/004. Bước **1b.1** mới lấy số ADR trống, đổi 0018 thành
-`superseded by NNNN` khi quyết định được chấp nhận, và thêm chỉ mục.
-
-Ở 1a này **không** sửa ADR 0018. Bước 1a **có** thêm một dòng trỏ tới **bản nháp**
-trong `docs/adr/README.md` (mục "Hiện có một bản nháp") để tài liệu không lạc hậu;
-việc **cấp số ADR, chuyển `accepted` và thêm vào bảng chỉ mục chính thức vẫn thuộc
-1b.1**, sau khi DOC-003/004 có bằng chứng.
+Bản nháp `docs/adr/drafts/documents-office-runtime.md` đã được chấp nhận thành
+[`docs/adr/0021-runtime-engine-office-da-dinh-dang.md`](../../adr/0021-runtime-engine-office-da-dinh-dang.md)
+ngày 2026-09-25 (DOC-001 bước 1b.1): 0018 chuyển `superseded by 0021` và `docs/adr/README.md`
+có dòng chỉ mục 0021. Runtime theo từng thao tác nằm ở bảng của 0021 và
+`docs/office/g0/module-runtime-map.json`; thao tác chưa chứng minh giữ `blocker` + tên test
+và **không** được gọi là "đã chọn".
 
 ---
 
@@ -525,10 +528,11 @@ việc **cấp số ADR, chuyển `accepted` và thêm vào bảng chỉ mục c
 | BRAND-01 có ma trận riêng, gồm desktop packaging | File brand riêng, cột owner + phép kiểm | Đạt ở mức tài liệu 1a |
 | Link/ADR number/status/plan status | `node --test scripts/governance.test.mjs` | 15/15 pass tại commit 1a; chạy lại khi mở PR |
 | Checklist workspace không bị tick trước | Không sửa `DOCUMENTS_OFFICE_CHECKLIST.md` ở 1a | Đạt |
+| ADR 0021 hợp lệ và được chỉ mục | `node --test scripts/governance.test.mjs` trên replica có patch 1b | 15/15 pass, exit 0 (2026-09-25, Node 25.8.0) |
 | Link tương đối của spec/plan nguồn | `git ls-tree`/`git log --all` trên branch này | **Không phân giải được ở branch này** — spec/plan G0 nằm ở workspace tổng; đã ghi rõ đường dẫn thật ở đầu tài liệu thay vì link chết |
 | Tên mã lỗi khớp DOC-005 | `git grep stale_base` + DOC-005 §4 | `stale_base` bị bỏ (không tồn tại trong DOC-005/C-01); dùng `revision_conflict` / `document_version_conflict` |
 | Bảng trạng thái khớp DOC-005 §4.1 | §4.3 ánh xạ từng dòng | Đã thêm §4.3; các trạng thái còn thiếu được liệt kê kèm pha |
-| Câu trích DOC-004 còn đúng | Đọc lại §1.1/§12.2 theo tên section trước khi mở PR | Bản 2026-09-21: `real_engine_evidence.status` = `present` (con trỏ, không phải pass), `runtime_chosen: false`; đã sửa câu trích cũ nói "chưa có mục nào" |
+| Câu trích DOC-004 còn đúng | Đọc lại `RUNTIME-CONCLUSION.md` / `module-runtime-map.json` theo tên section trước khi mở PR | 2026-09-25: DOC-004 đã được nghiệm thu — 87/87 thao tác có runtime + hành vi khi chưa chứng minh; `chosen: true` **chỉ** cho sáu chu trình `E-*-CYCLE`; bảng runtime của ADR 0021 lấy từ đây |
 
 **Không đòi:** test UI runtime cho wireframe chưa có code; bằng chứng chạy editor; tick
 DOC-001..006.
@@ -539,25 +543,23 @@ DOC-001..006.
 
 Đã viết: bảng thay thế yêu cầu (1a.1), screen map + yêu cầu FE theo bề mặt (1a.2),
 wireframe/state map + khác biệt sáu editor (1a.3), phạm vi pilot + ADR draft (1a.4),
-brand FE (1a.5). Chưa làm, thuộc 1b và các task khác: ADR thay thế chính thức +
-`docs/adr/README.md`, sửa C-01/roadmap, đồng bộ issue UNI-635/UNI-636, và mọi
-bằng chứng runtime. DOC-001 chỉ đóng khi 1b xong.
+brand FE (1a.5). **Cập nhật 2026-09-25 (candidate 1b):** ADR 0021 + dòng chỉ mục `docs/adr/README.md` + `0018 superseded by 0021` đã có; C-01 và roadmap đã sửa; đồng bộ issue UNI-635/UNI-636 cùng mapping G1–G7 nằm ở `COORDINATOR-SYNC.md` của slice doc001-adr (đề xuất — coordinator áp dụng và xác nhận). DOC-001 chỉ đóng khi Advisor nghiệm thu 1b.
 
 Nhánh `docs/UNI-665-office-scope-fe` đã đẩy lên `origin`. Bản 1a trước ghi "máy này
 không có `gh`"; kiểm lại 2026-09-21 thì `gh` **có** và đã đăng nhập (`gh auth status`),
 nên câu đó không còn đúng — PR do người sở hữu hoặc worker mở được.
 Theo dõi ở UNI-665; chỉ người mới đặt `done`.
 
-### 11.1 Phụ thuộc chặn 1b (ghi rõ, không suy diễn)
+### 11.1 Trạng thái phụ thuộc 1b (cập nhật 2026-09-25)
 
-`DOC-001b` (ADR thay thế + C-01/roadmap) **chỉ mở** khi có bằng chứng thật từ:
+`DOC-001b` (ADR thay thế + C-01/roadmap) không còn chờ bằng chứng DOC-003/004/005; trạng thái hiện tại:
 
-| Việc 1b cần | Chờ | Trạng thái bằng chứng hiện có |
-| --- | --- | --- |
-| Số ADR trống, `superseded by NNNN` cho 0018, bảng chỉ mục | DOC-003 spike + DOC-004 contract | DOC-004/005 **in-progress**; chưa final |
-| Runtime cuối cho từng định dạng/thao tác (O-01..O-03) | DOC-003/004 | DOC-004: **chưa** chọn runtime nào (`runtime_chosen: false`); nhiều thao tác còn `pending`. `real_engine_evidence.status` nay là `present` nhưng chỉ là **con trỏ** tới một lần chạy adapter qua loopback (task 4.4), **không** phải pass và **không** chốt runtime |
-| Hợp đồng login desktop + đơn vị version/xung đột (O-04) | DOC-005 | Bảng lỗi + state map đã có dạng yêu cầu; harness là **model**, không phải auth sản phẩm |
-| Sửa C-01/roadmap C-15/C-16 + đồng bộ UNI-635/UNI-636 | 1b.2 | Roadmap C-15/C-16 vẫn ở văn bản cũ (DOCX-only) |
+| Việc 1b cần | Trạng thái bằng chứng hiện có |
+| --- | --- |
+| Số ADR trống, `superseded by NNNN` cho 0018, bảng chỉ mục | **Xong ở mức candidate:** 0021 là số trống kế tiếp tại HEAD 232634fc; 0018 → `superseded by 0021`; README có dòng 0021; governance test 15/15 trên replica |
+| Runtime cuối cho từng định dạng/thao tác (O-01..O-03) | **Đã trả lời cho sáu chu trình `E-*-CYCLE`**; mọi thao tác khác có runtime candidate + blocker + tên test trong `docs/office/g0/module-runtime-map.json` (DOC-004 nghiệm thu g119) |
+| Hợp đồng login desktop + đơn vị version/xung đột (O-04) | **Đã nghiệm thu ở mức G0**: `docs/office/g0/login-sync-contract.md` §4/§4.1; auth/device thật thuộc G4 UNI-636 |
+| Sửa C-01/roadmap C-15/C-16 + đồng bộ UNI-635/UNI-636 | C-01/roadmap **đã sửa trong candidate 1b**; readback issue + mapping G1–G7 ở `COORDINATOR-SYNC.md` (chờ coordinator áp dụng và xác nhận) |
 
 **Giới hạn đọc bằng chứng (không được nâng cấp).** Các kết quả đã được nghiệm thu trong
 E/ đều **bounded**, và không cái nào chống lưng cho claim runtime/pilot:

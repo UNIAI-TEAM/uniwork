@@ -277,10 +277,11 @@ export function saveFormulaLane(input: SaveFormulaLaneInput): SaveFormulaLane {
 /**
  * UNI-667: is this rejection the sidecar telling us its (serialized) recalc slot
  * is already held? The native engine answers a concurrent recalculation with
- * `recalc_busy` / "Formula engine is busy with another recalculation." The lab
- * host collapses that phrase to the code `engine_error` before the renderer
- * sees it, so this predicate does not match on this host and the wait is not
- * verified here. It matches only when that English phrase is actually on
+ * `recalc_busy` / "Formula engine is busy with another recalculation." Since
+ * DOC-003 r2 the lab transport keeps the server message beside the code
+ * (`lab channel host:sheets-recalc failed: engine_error: engine rejected ...`),
+ * as the desktop IPC does, so the phrase reaches this predicate on the lab host
+ * too. It matches only when that English phrase is actually on
  * `Error.message`. Any other error, including the lab channel code, is a real
  * failure and must not be retried as a busy signal.
  */
@@ -292,9 +293,9 @@ export function isRecalcBusy(error: unknown): boolean {
 
 /**
  * UNI-667: retry a save consult only while the error carries the English
- * sidecar busy phrase and the deadline has not been reached. On the lab host
- * the phrase is collapsed, so this returns false and the caller surfaces the
- * error at once. A reached deadline also returns false, so the loop cannot
+ * sidecar busy phrase and the deadline has not been reached. A lab refusal that
+ * carries only a code, or any other engine message, returns false and the
+ * caller surfaces the error at once. A reached deadline also returns false, so the loop cannot
  * hang.
  */
 export function retryBusySlot(error: unknown, now: number, deadline: number): boolean {

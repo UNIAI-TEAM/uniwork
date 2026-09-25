@@ -364,12 +364,19 @@ test('T18 the sidecar busy rejection is recognised, and only that one', () => {
   assert.equal(isRecalcBusy(undefined), false, 'undefined is not busy')
 })
 
-test('T20 the lab channel code is not busy, and the wait stops at the deadline', () => {
-  // The lab host delivers `engine_error`, not the English sidecar phrase, so a
-  // busy slot fails at once on this host. The wait is not verified here.
+test('T20 a bare lab channel code is not busy, and the wait stops at the deadline', () => {
+  // A lab refusal that carries only the code (no server message) is never a busy signal.
   const lab = new Error('lab channel host:sheets-recalc failed: engine_error')
-  assert.equal(isRecalcBusy(lab), false, 'the collapsed lab code is not the English phrase')
+  assert.equal(isRecalcBusy(lab), false, 'the bare lab code is not the English phrase')
   assert.equal(retryBusySlot(lab, 1_000, 2_000), false, 'engine_error is not retried')
+  // DOC-003 r2: the lab transport now keeps the server message (host-adapter.mjs createLabTransport),
+  // exactly as the lab engine proxy words a sidecar busy rejection (lab-engine.mjs engine_error).
+  const labBusy = new Error('lab channel host:sheets-recalc failed: engine_error: engine rejected "xlsx-recalc": Formula engine is busy with another recalculation.')
+  assert.equal(isRecalcBusy(labBusy), true, 'the lab busy rejection with its message is busy')
+  assert.equal(retryBusySlot(labBusy, 1_000, 2_000), true, 'it retries before the deadline')
+  assert.equal(retryBusySlot(labBusy, 2_000, 2_000), false, 'and stops at the deadline')
+  const labOther = new Error('lab channel host:sheets-recalc failed: engine_error: engine rejected "xlsx-recalc": Worksheet has no sheetData element')
+  assert.equal(retryBusySlot(labOther, 1_000, 2_000), false, 'any other named engine error is not retried')
   const busy = new Error('Formula engine is busy with another recalculation.')
   assert.equal(retryBusySlot(busy, 1_000, 2_000), true, 'the English phrase retries before the deadline')
   assert.equal(retryBusySlot(busy, 2_000, 2_000), false, 'the deadline itself is not retried')

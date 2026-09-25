@@ -388,3 +388,21 @@ Danh sách này là một phần của bàn giao:
   `browserSafeEntry`, `hostCoupling`, `placement` là ứng viên, chưa chốt.
 - **DOC-005** dùng cùng allowlist/lab này cho contract login/sync/draft.
 - **DOC-006** tổng hợp sau cùng, dùng §8 làm danh sách giới hạn ban đầu.
+
+## 10. Bàn giao DOC-006 (g119)
+
+Ba tài liệu dưới đây là đầu ra của plan Task 6 (DOC-006, UNI-670) trong nhánh g119; chúng chỉ mô tả
+ngưỡng, ước lượng và bàn giao, **không** thay đổi phán quyết G0 = GO trong `evidence-register.json`.
+
+- [`acceptance-thresholds.md`](acceptance-thresholds.md) - ngưỡng nghiệm thu đo được của 6.2: quy tắc nội dung/cấu trúc
+  không mất, các mốc thời gian/bộ nhớ/kích thước/độ phức tạp theo định dạng và theo máy (kèm số mẫu), danh sách
+  giá trị còn `chưa đo`, và quyết định người `DEC-RENDER-TOLERANCE` đang **mở** (chưa có phép đo sai khác bố cục).
+- [`m1-m2-estimate.md`](m1-m2-estimate.md) - ước lượng M1/M2 của 6.3: các con số đo được chỉ là số đếm (56 hàng
+  capability bị chặn, 16 thao tác bị chặn, 95 hàng kiểm kê với 72 hàng must-port); mọi đơn giá công là giả định
+  có ghi rõ và phải được hiệu chỉnh sau sprint G1/G2 đầu tiên. Hai mốc cũ 8-12 ngày và 12-18 tuần không còn dùng.
+- [`handoff-map.md`](handoff-map.md) - bàn giao 6.5/6.6: mỗi nhóm G1-G7 (cùng UNI-662, UNI-671, ADV-002) nhận
+  artifact nào, tiêu chí nghiệm thu nào, quyết định nào còn mở; kèm tiêu chí brand và hai việc cần coordinator
+  xác nhận (dòng mapping G1-G7 chưa có trong UniAI; bốn hàng ADV-002 chưa có issue).
+
+Giới hạn cần đọc trước khi trích dẫn: chưa có phép đo nào về nỗ lực/công sức, chưa có pixel-diff cho bất kỳ định
+dạng nào, và các mốc thời gian chỉ hợp lệ cho đúng build đã phục vụ với định danh trong `acceptance-thresholds.md`.

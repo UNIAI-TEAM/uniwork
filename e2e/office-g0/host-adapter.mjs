@@ -205,7 +205,10 @@ export function createLabTransport({ baseUrl = '', fetchImpl } = {}) {
       throw new LabChannelError(channel, 'the lab returned a non-JSON body (HTTP ' + response.status + ')');
     }
     if (!response.ok || !parsed || parsed.ok !== true) {
-      throw new LabChannelError(channel, (parsed && parsed.error) || 'HTTP ' + response.status);
+      const code = (parsed && parsed.error) || 'HTTP ' + response.status;
+      // DOC-003 r2 named refusal: keep the server's named detail beside the code.
+      const detail = parsed && typeof parsed.message === 'string' && parsed.message.length > 0 ? code + ': ' + parsed.message : code;
+      throw new LabChannelError(channel, detail);
     }
     return decodePayload(parsed.result);
   };
@@ -616,6 +619,13 @@ function buildImplementations({ app, call, send, state, view, reports, sessionId
 
   const docsEntry = (result, channel) => {
     if (!result) return null;
+    // DOC-003 r2 password: an encrypted package comes back as the desktop OpenDocxResult
+    // { needsPassword, path, name }; loadFile then opens the renderer password prompt.
+    if (result.needsPassword === true) {
+      view.path = result.path;
+      view.name = result.name ?? null;
+      return { needsPassword: true, path: result.path, name: result.name };
+    }
     if (typeof result.dataBase64 !== 'string') {
       throw new LabChannelError(channel, 'the docs entry needs dataBase64');
     }
@@ -656,6 +666,17 @@ function buildImplementations({ app, call, send, state, view, reports, sessionId
             darkCanvas: state?.darkCanvas === true,
           };
           send('host:view-menu-state', reports.viewMenuState);
+        },
+        // DOC-003 r2 password: decrypt-and-open for the renderer prompt (App.tsx submitDocPwd). The
+        // server answers the desktop DecryptOpenResult; a refusal is passed through, never retried.
+        openDocxDecrypt: async (path, password) => {
+          const res = await call('host:docs-open-decrypt', { path: String(path ?? ''), password: String(password ?? '') });
+          if (res && res.ok === true) return { ok: true, result: docsEntry(res.result, 'host:docs-open-decrypt') };
+          if (res && res.ok === false) {
+            const reason = res.reason === 'wrong-password' || res.reason === 'unsupported' ? res.reason : 'error';
+            return { ok: false, reason, error: String(res.error ?? '') };
+          }
+          throw new LabChannelError('host:docs-open-decrypt', 'expected a DecryptOpenResult');
         },
         docPasswordIntentRevision: async () => 0,
         discardDocPasswordIntents: async () => ({ ok: true }),

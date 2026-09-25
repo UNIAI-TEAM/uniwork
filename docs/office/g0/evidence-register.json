@@ -4699,6 +4699,1518 @@
           "ref": "xlsx-native-input-scoped/xlsx/edit-input-recalculate-save-distinct-reopen"
         }
       ]
+    },
+    {
+      "status": "PASS",
+      "result": "pass",
+      "level": "browser-real",
+      "provides": [
+        "editor-cycle"
+      ],
+      "operationEvidence": "byte-verified-operation",
+      "adapter": "real",
+      "uiKind": "real-editor",
+      "source": {
+        "kind": "upstream-commit",
+        "id": "upstream-genoffice",
+        "commit": "09485f884dc845cf3bf27fb7edfe489f9d457aad"
+      },
+      "id": "E-DOC3-DOCX-HEADER-PRESERVE-CYCLE",
+      "kind": "scoped-browser-cycle",
+      "capability": "docx-content-watermark",
+      "format": "docx",
+      "operation": "open F-DOCX-WATERMARK in the Orca embedded browser, type a marker into the first body paragraph after a same-page focus proof, save with the renderer own Save control, close, and reopen the persisted bytes in a fresh session, then compare the header-bearing parts",
+      "operationId": "edit-body-preserve-header-save-reopen",
+      "fixture": "F-DOCX-WATERMARK",
+      "platform": {
+        "os": "windows",
+        "browser": "orca",
+        "browserVersion": "150.0.7871.250",
+        "orcaVersion": "1.4.209",
+        "embeddedBrowser": "orca",
+        "servedBuild": "orca-recovery-g104/uniwork-office-brand/lab-builds/r7/builds (manifest b8d0abed367164012d8a54ee7df960095ebdaee848c0102253c77931e137237c)"
+      },
+      "runtime": {
+        "node": "22.23.2"
+      },
+      "engine": {
+        "name": "@genoffice/docx-engine",
+        "version": "0.1.0"
+      },
+      "protocolVersion": null,
+      "servedBuild": {
+        "buildManifestSha256": "b8d0abed367164012d8a54ee7df960095ebdaee848c0102253c77931e137237c",
+        "docsMainJsSha256": "0c4e9ead6ab61a9ad4e50862ebcf88f06bc71a1fa070986af4ed87e2458a41c"
+      },
+      "command": "\"D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\tools\\node-v22.23.2-win-x64\\node.exe\" lab/run-lab-v1.mjs start --tag a1 --workspace recon/replica --lab-dir lab/labroot-a1 --builds ../orca-recovery-g104/uniwork-office-brand/lab-builds/r7/builds ; orca tab create http://127.0.0.1:5700/docs/?fixture=F-DOCX-WATERMARK then focus-proof eval (receipts/tester-a1/41-watermark-focus-proof.json), type \" DOC003-WM-B1\", click Save (Ctrl+S) ; then \"D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\tools\\node-v22.23.2-win-x64\\node.exe\" oracle/docx-parts-diff.mjs --input lab/labroot-a1/fixtures/manifest/docs/docx-watermark.docx --output lab/labroot-a1/views/view-3741f3c2-1bbd-48b0-ae59-b0a49f80bd06/input/docx-watermark.docx --marker DOC003-WM-B1 --expect-changed word/document.xml --expect-unchanged word/header1.xml,word/styles.xml,word/numbering.xml --input-sha c877c44680ded6964d7fd86ce6339ac7ba2fc099f1164e2c64a22a550e22fbe4 --input-bytes 3870 ; and the same with --reopened lab/labroot-a1/views/view-6130c49a-d8fe-4c40-887a-52f2d4b1dea1/input/docx-watermark.docx",
+      "cwd": "D:/.Vietants_Project/uniwork-workspace/dev-uniwork/.uniwork-dev/orca-recovery-g119/doc003-evidence",
+      "expected": {
+        "result": "the body marker persists and the document header part, styles, numbering, fonts and section layout keep their exact bytes, with the header still rendered after reopen",
+        "oracle": "oracle/docx-parts-diff.mjs changed-set assertion (only word/document.xml may change) plus the reopened DOM header-render proof"
+      },
+      "actual": "Tester A1 (independent lab, own isolated Orca profile): input F-DOCX-WATERMARK 3870 B c877c446...; persisted and reopened 4154 B sha256 11bd745f84c788b879e815d9e131bc00097acad3f6dec8e8a52a256ed7f591fa (views view-3741f3c2-1bbd-48b0-ae59-b0a49f80bd06 and view-6130c49a-d8fe-4c40-887a-52f2d4b1dea1); the part oracle exited 0 with the changed set exactly {word/document.xml} and word/header1.xml preserved at sha256 1e06df86fe9f8d135e763c087605f83e1c4c05dc47d09a52d5acc0071a858ddd; the reopened DOM showed the body marker plus two rendered header nodes with the text UNIWORK FIXTURE (receipts/tester-a1/50-watermark-reopen-header-dom.json); one POST /lab/host:docs-save answered 200 with an empty error list.",
+      "assertions": [
+        {
+          "id": "body-marker-persisted",
+          "status": "passed"
+        },
+        {
+          "id": "changed-parts-exactly-as-declared",
+          "status": "passed"
+        },
+        {
+          "id": "header-part-preserved",
+          "status": "passed"
+        },
+        {
+          "id": "styles-and-numbering-preserved",
+          "status": "passed"
+        },
+        {
+          "id": "layout-signature-unchanged",
+          "status": "passed"
+        },
+        {
+          "id": "header-rendered-after-reopen",
+          "status": "passed"
+        },
+        {
+          "id": "reopen-fresh-session",
+          "status": "passed"
+        }
+      ],
+      "artifacts": [
+        {
+          "role": "immutable-input",
+          "path": "orca-recovery-g119/doc003-evidence/lab/labroot-a1/fixtures/manifest/docs/docx-watermark.docx",
+          "bytes": 3870,
+          "sha256": "c877c44680ded6964d7fd86ce6339ac7ba2fc099f1164e2c64a22a550e22fbe4",
+          "ref": "F-DOCX-WATERMARK/docx/edit-body-preserve-header-save-reopen"
+        },
+        {
+          "role": "persisted-output",
+          "path": "orca-recovery-g119/doc003-evidence/lab/labroot-a1/views/view-3741f3c2-1bbd-48b0-ae59-b0a49f80bd06/input/docx-watermark.docx",
+          "bytes": 4154,
+          "sha256": "11bd745f84c788b879e815d9e131bc00097acad3f6dec8e8a52a256ed7f591fa",
+          "ref": "F-DOCX-WATERMARK/docx/edit-body-preserve-header-save-reopen"
+        },
+        {
+          "role": "reopened-output",
+          "path": "orca-recovery-g119/doc003-evidence/lab/labroot-a1/views/view-6130c49a-d8fe-4c40-887a-52f2d4b1dea1/input/docx-watermark.docx",
+          "bytes": 4154,
+          "sha256": "11bd745f84c788b879e815d9e131bc00097acad3f6dec8e8a52a256ed7f591fa",
+          "ref": "F-DOCX-WATERMARK/docx/edit-body-preserve-header-save-reopen"
+        },
+        {
+          "role": "extraction-evidence",
+          "path": "orca-recovery-g119/doc003-evidence/receipts/tester-a1/docx-watermark-reopen-parts-diff.json",
+          "bytes": 5663,
+          "sha256": "c2eac8d155b570b56d3316ee32808ed4bccbd837df2c69cab1773e1ad9181943",
+          "ref": "F-DOCX-WATERMARK/docx/edit-body-preserve-header-save-reopen",
+          "note": "oracle parts-diff: ok=true, changed set exactly {word/document.xml}"
+        },
+        {
+          "role": "render-evidence",
+          "path": "orca-recovery-g119/doc003-evidence/receipts/tester-a1/50-watermark-reopen-screenshot.png",
+          "bytes": 91451,
+          "sha256": "03ec1974a145c6a8187875615c548011f4f2759ff7659046f649586df4847de7",
+          "ref": "F-DOCX-WATERMARK/docx/edit-body-preserve-header-save-reopen"
+        }
+      ],
+      "receipts": [
+        "orca-recovery-g119/doc003-evidence/receipts/tester-a1/41-watermark-focus-proof.json",
+        "orca-recovery-g119/doc003-evidence/receipts/tester-a1/50-watermark-reopen-header-dom.json",
+        "orca-recovery-g119/doc003-evidence/receipts/tester-a1/docx-watermark-reopen-parts-diff.json"
+      ],
+      "scope": "one body paragraph edit of F-DOCX-WATERMARK with the header-bearing part compared byte-for-byte before and after, in the Orca embedded browser",
+      "limitations": [
+        "the fixture carries no table and no picture, so this row proves header preservation and unedited-body-part preservation only; it does not claim watermark authoring",
+        "the row records that the header still renders after reopen; it does not claim a pixel-level watermark comparison against a reference viewer",
+        "the docs save path performs no engine-host operation and protocolVersion stays null, so this row supplements E-DOCX-CYCLE for plan 3.3 rather than satisfying a core-cycle gate",
+        "installed Chrome/Edge and macOS/Safari are out of G0 scope (UNI-671)"
+      ],
+      "round": "r1"
+    },
+    {
+      "status": "PASS",
+      "result": "pass",
+      "level": "browser-real",
+      "provides": [
+        "editor-cycle"
+      ],
+      "operationEvidence": "byte-verified-operation",
+      "adapter": "real",
+      "uiKind": "real-editor",
+      "source": {
+        "kind": "upstream-commit",
+        "id": "upstream-genoffice",
+        "commit": "09485f884dc845cf3bf27fb7edfe489f9d457aad"
+      },
+      "id": "E-DOC3-DOCX-TABLE-IMAGE-CYCLE",
+      "kind": "scoped-browser-cycle",
+      "capability": "docx-edit-table-image",
+      "format": "docx",
+      "operation": "open F-DOCX-TABLE-IMG in the Orca embedded browser, edit one existing table data cell with real keyboard input (after a same-page focus proof), rotate the embedded picture 90 degrees with the renderer own Picture Format control, save with the renderer own Save control, close, and reopen the persisted bytes in a fresh session",
+      "operationId": "edit-table-cell-and-image-save-reopen",
+      "fixture": "F-DOCX-TABLE-IMG",
+      "platform": {
+        "os": "windows",
+        "browser": "orca",
+        "browserVersion": "150.0.7871.250",
+        "orcaVersion": "1.4.209",
+        "embeddedBrowser": "orca",
+        "servedBuild": "orca-recovery-g104/uniwork-office-brand/lab-builds/r7/builds (manifest b8d0abed367164012d8a54ee7df960095ebdaee848c0102253c77931e137237c)"
+      },
+      "runtime": {
+        "node": "22.23.2"
+      },
+      "engine": {
+        "name": "@genoffice/docx-engine",
+        "version": "0.1.0"
+      },
+      "protocolVersion": null,
+      "servedBuild": {
+        "buildManifest": "orca-recovery-g104/uniwork-office-brand/lab-builds/r7/builds/host-build-manifest.json",
+        "buildManifestSha256": "b8d0abed367164012d8a54ee7df960095ebdaee848c0102253c77931e137237c",
+        "docsMainJs": {
+          "path": "docs/assets/main-DHF4Zrxj.js",
+          "sha256": "0c4e9ead6ab61a9ad4e50862ebcf88f06bc71a1fa070986af4ed87e2458a41c"
+        },
+        "docsCss": {
+          "path": "docs/assets/main-DfYp6EVk.css",
+          "sha256": "a4e202b40a6660b16e8d2cc2f684b6de61cdc0cb8bf6b1d528ccadfd87e80fc2"
+        }
+      },
+      "labConfiguration": {
+        "runner": "orca-recovery-g119/doc003-evidence/lab/run-lab-v1.mjs",
+        "ports": {
+          "app": 5700,
+          "preview": 5701,
+          "engine": 5702
+        },
+        "labServerSha256": "386dc21290325a06da0915f116f7a86eacc6ab4c21b44708a4df5a75739bada7",
+        "hostAdapterSha256": "434f7571c481d87f1dd8015dcee4dc79191267f5210366c6569f960f8d6ef8ed",
+        "declaredExtensions": [
+          "host:image-pick (docs-scoped lab stand-in for the native OS picture dialog; not reachable from the frozen build - see limitations)"
+        ]
+      },
+      "command": "\"D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\tools\\node-v22.23.2-win-x64\\node.exe\" lab/run-lab-v1.mjs start --tag a1 --workspace recon/replica --lab-dir lab/labroot-a1 --builds ../orca-recovery-g104/uniwork-office-brand/lab-builds/r7/builds ; then the Orca embedded browser cycle in receipts/tester-a1/16..33 (tab create, snapshot warm-up, click image, click Rotate Right 90, focus-proof eval, click table cell, type \" DOC003-TABLE-B1\", click Save (Ctrl+S)) ; then \"D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\tools\\node-v22.23.2-win-x64\\node.exe\" oracle/docx-parts-diff.mjs --input lab/labroot-a1/fixtures/manifest/docs/docx-table-image.docx --output lab/labroot-a1/views/view-c68342d1-a2f5-43c4-ae2d-56328c03ba43/input/docx-table-image.docx --marker DOC003-TABLE-B1 --expect-rot 5400000 --expect-changed docProps/core.xml,word/document.xml --expect-table-cell-change --input-sha a3c8badfa6ecf153039e0f2ed3b333c17ee06be5706099be3ad0ffd9bbc33f0d --input-bytes 5939 ; and the same command with --reopened lab/labroot-a1/views/view-5914a887-ed53-4754-a5cb-ddf627113b9f/input/docx-table-image.docx",
+      "cwd": "D:/.Vietants_Project/uniwork-workspace/dev-uniwork/.uniwork-dev/orca-recovery-g119/doc003-evidence",
+      "expected": {
+        "result": "the edited table cell text and the rotated image are present when the persisted package is reopened in a fresh session, while every unedited part, the media bytes, the theme, styles, numbering, fonts and the section layout keep their oracle identity",
+        "oracle": "oracle/docx-parts-diff.mjs part-hash comparison against the manifest fixture plus DOM and screenshot evidence of the reopened editor"
+      },
+      "actual": "Tester A1 (independent lab, own isolated Orca profile): focus proof before typing returned activeTag=DIV editable=true anchorInEditor=true (receipts/tester-a1/23-table-focus-proof.json); marker confirmed in the cell (25-table-marker-proof.json); Save became enabled and the persisted package was written to lab/labroot-a1/views/view-c68342d1-a2f5-43c4-ae2d-56328c03ba43/input/docx-table-image.docx 6003 B sha256 8b904eb28d667605c5d7f3bb6640ba92704f756ab26660defa233fc7197ad117 from the 5939 B fixture a3c8badf...; the durable save receipt names input F-DOCX-TABLE-IMG byteEqualToManifest true and output 6003 B; the part oracle exited 0 with the changed set exactly {docProps/core.xml (dcterms:modified only), word/document.xml}, an a:xfrm rot=5400000 present only in the output, media bytes identical, layout signature and font list identical; a fresh-session reopen (view-5914a887-ed53-4754-a5cb-ddf627113b9f) returned the same 6003 B sha256 and the DOM showed the marker and rotate(90deg).",
+      "assertions": [
+        {
+          "id": "table-cell-text-changed",
+          "status": "passed"
+        },
+        {
+          "id": "image-rotation-applied",
+          "status": "passed"
+        },
+        {
+          "id": "changed-parts-exactly-as-declared",
+          "status": "passed"
+        },
+        {
+          "id": "media-bytes-unchanged",
+          "status": "passed"
+        },
+        {
+          "id": "layout-signature-unchanged",
+          "status": "passed"
+        },
+        {
+          "id": "fonts-unchanged",
+          "status": "passed"
+        },
+        {
+          "id": "reopen-fresh-session",
+          "status": "passed"
+        }
+      ],
+      "artifacts": [
+        {
+          "role": "immutable-input",
+          "path": "orca-recovery-g119/doc003-evidence/lab/labroot-a1/fixtures/manifest/docs/docx-table-image.docx",
+          "bytes": 5939,
+          "sha256": "a3c8badfa6ecf153039e0f2ed3b333c17ee06be5706099be3ad0ffd9bbc33f0d",
+          "ref": "F-DOCX-TABLE-IMG/docx/edit-table-cell-and-image-save-reopen"
+        },
+        {
+          "role": "persisted-output",
+          "path": "orca-recovery-g119/doc003-evidence/lab/labroot-a1/views/view-c68342d1-a2f5-43c4-ae2d-56328c03ba43/input/docx-table-image.docx",
+          "bytes": 6003,
+          "sha256": "8b904eb28d667605c5d7f3bb6640ba92704f756ab26660defa233fc7197ad117",
+          "ref": "F-DOCX-TABLE-IMG/docx/edit-table-cell-and-image-save-reopen"
+        },
+        {
+          "role": "reopened-output",
+          "path": "orca-recovery-g119/doc003-evidence/lab/labroot-a1/views/view-5914a887-ed53-4754-a5cb-ddf627113b9f/input/docx-table-image.docx",
+          "bytes": 6003,
+          "sha256": "8b904eb28d667605c5d7f3bb6640ba92704f756ab26660defa233fc7197ad117",
+          "ref": "F-DOCX-TABLE-IMG/docx/edit-table-cell-and-image-save-reopen"
+        },
+        {
+          "role": "extraction-evidence",
+          "path": "orca-recovery-g119/doc003-evidence/receipts/tester-a1/docx-table-image-reopen-parts-diff.json",
+          "bytes": 8035,
+          "sha256": "085846cb7afc823c4677adbf62699911e6c0ee400c9d65bf54b9aa55fca36ffc",
+          "ref": "F-DOCX-TABLE-IMG/docx/edit-table-cell-and-image-save-reopen",
+          "note": "oracle parts-diff: ok=true, changed set exactly {docProps/core.xml, word/document.xml} with a:xfrm rot=5400000 added"
+        },
+        {
+          "role": "render-evidence",
+          "path": "orca-recovery-g119/doc003-evidence/receipts/tester-a1/16-table-img-before-edit.png",
+          "bytes": 75624,
+          "sha256": "ef436db34bafb8b7208e24acb5ffda4e8b07ba80a0cba7c6b76d2eb5caf32855",
+          "ref": "F-DOCX-TABLE-IMG/docx/edit-table-cell-and-image-save-reopen"
+        },
+        {
+          "role": "render-evidence",
+          "path": "orca-recovery-g119/doc003-evidence/receipts/tester-a1/28-table-img-after-save.png",
+          "bytes": 82968,
+          "sha256": "656a256dc0986078fd8595c60d5c1259255fd45fb1ca035859c2e8638842db77",
+          "ref": "F-DOCX-TABLE-IMG/docx/edit-table-cell-and-image-save-reopen"
+        },
+        {
+          "role": "render-evidence",
+          "path": "orca-recovery-g119/doc003-evidence/receipts/tester-a1/33-table-img-reopen-screenshot.png",
+          "bytes": 76216,
+          "sha256": "7925eefd196d75f9a5f0015f140bc7e8a32000724382ef2730bd76a0e487ea48",
+          "ref": "F-DOCX-TABLE-IMG/docx/edit-table-cell-and-image-save-reopen"
+        }
+      ],
+      "receipts": [
+        "orca-recovery-g119/doc003-evidence/receipts/tester-a1/23-table-focus-proof.json",
+        "orca-recovery-g119/doc003-evidence/receipts/tester-a1/25-table-marker-proof.json",
+        "orca-recovery-g119/doc003-evidence/receipts/tester-a1/docx-table-image-reopen-parts-diff.json"
+      ],
+      "scope": "one existing top-level table cell and the one embedded picture of F-DOCX-TABLE-IMG in the Orca embedded browser, one renderer save and one fresh-session reopen",
+      "limitations": [
+        "the image edit is the renderer own 90-degree picture rotation: the DrawingML transform changed while word/media/image1.png kept its exact bytes, so this row does not claim a picture file replacement",
+        "Native Insert > Picture and Picture Format > Replace Picture need the host OS picture dialog; the frozen build bundles the host adapter and therefore cannot use the S-owned host:image-pick lab channel without a rebuild, so those two controls were not exercised (receipts/patch-docs-image-pick.json records the patch, its selftest and its reach limit)",
+        "F-DOCX-TABLE-IMG carries no header/footer part, so header/footer preservation is covered by the separate E-DOC3-DOCX-HEADER-PRESERVE-CYCLE row; no single-file DOCX pass is claimed",
+        "the docs save path performs no engine-host operation (the renderer serialises the package); protocolVersion stays null, so this row supplements E-DOCX-CYCLE for plan 3.3 and does not by itself satisfy a core-cycle gate",
+        "installed Chrome/Edge and macOS/Safari are out of G0 scope (UNI-671)"
+      ],
+      "round": "r1"
+    },
+    {
+      "status": "PASS",
+      "result": "pass",
+      "level": "browser-real",
+      "provides": [
+        "editor-cycle"
+      ],
+      "operationEvidence": "byte-verified-operation",
+      "adapter": "real",
+      "uiKind": "real-editor",
+      "source": {
+        "kind": "upstream-commit",
+        "id": "upstream-genoffice",
+        "commit": "09485f884dc845cf3bf27fb7edfe489f9d457aad"
+      },
+      "id": "E-DOC3-FAIL-PASSWORD-DOCX",
+      "kind": "failure-run",
+      "capability": "docx-encrypted-open",
+      "format": "docx",
+      "operation": "open a password-protected DOCX: prompt, wrong password refused, right password opens, save refused by name",
+      "operationId": "open-password-docx",
+      "fixture": "F-DOCX-PWD-STANDARD",
+      "supportingFixture": "F-DOCX-PWD-AGILE",
+      "platform": {
+        "os": "windows",
+        "browser": "orca",
+        "browserVersion": "150.0.7871.250",
+        "orcaVersion": "1.4.209",
+        "embeddedBrowser": "orca",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) orca/1.4.209 Chrome/150.0.7871.250 Electron/43.7.0 Safari/537.36",
+        "servedBuild": "orca-recovery-g119/doc003-evidence/r2/lab-build/builds (host-build-manifest.json ee2b86a0e97982de7d2d536925bc38d0fa78f39d178bee3c737ceee5a99a1dd8)"
+      },
+      "runtime": {
+        "node": "22.23.2"
+      },
+      "engine": {
+        "name": "@genoffice/docx-engine",
+        "version": "0.1.0"
+      },
+      "protocolVersion": null,
+      "command": "\"D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\tools\\node-v22.23.2-win-x64\\node.exe\" r2/lab/run-lab-v2.mjs start --tag tester --app-port 5720 --preview-port 5721 --engine-port 5722 --xlsx-engine-port 5723 (run 2026-09-25T15-42-52-380Z) ; orca tab create http://127.0.0.1:5720/docs/?fixture=F-DOCX-PWD-STANDARD (and F-DOCX-PWD-AGILE); focus-proof eval before every typed entry; wrong password, submit; Password1234_, submit; edit; Save",
+      "cwd": "D:/.Vietants_Project/uniwork-workspace/dev-uniwork/.uniwork-dev/orca-recovery-g119/doc003-evidence",
+      "expected": {
+        "result": "the renderer password prompt names the file; a wrong password stays locked with an error and no content; the right password shows the document (agile text equal to its plain sibling); a save that cannot re-encrypt is an explicit named refusal, never a plaintext write",
+        "oracle": "manifest fixture expectations plus tester snapshot/DOM/source-hash receipts; the agile text must equal F-DOCX-PWD-AGILE-PLAIN"
+      },
+      "actual": "Tester r2 (independent, Orca browser): both fixtures showed the renderer dialog \"Password Protected\" naming the file (no blank Untitled.docx); a wrong password kept the dialog with its error; Password1234_ opened the documents (standard \"lorem ipsum\"; agile \"Lorem ipsum\", equal to F-DOCX-PWD-AGILE-PLAIN); edit + Save showed \"Save failed: LabChannelError: lab channel host:docs-save failed: encrypted_save_unsupported: this document was opened from a password-protected package; the lab host does not re-encrypt, so saving would write it as plaintext\"; source sha256 unchanged (D265DCF0... standard, 06056246... agile). Standard: reload + Cancel landed on a blank Untitled.docx (upstream cancelDocPwd, PORT-ITEMS P3).",
+      "assertions": [
+        {
+          "id": "prompt-names-file",
+          "status": "passed"
+        },
+        {
+          "id": "wrong-password-refused-with-error",
+          "status": "passed"
+        },
+        {
+          "id": "correct-password-opens-document",
+          "status": "passed"
+        },
+        {
+          "id": "agile-text-equals-plain-sibling",
+          "status": "passed"
+        },
+        {
+          "id": "save-refused-by-name-no-plaintext-write",
+          "status": "passed"
+        },
+        {
+          "id": "source-bytes-unchanged",
+          "status": "passed"
+        },
+        {
+          "id": "standard-cancel-lands-blank-document",
+          "status": "passed"
+        }
+      ],
+      "artifacts": [
+        {
+          "role": "immutable-input",
+          "path": "docs/office/g0/fixtures/files/docs/docx-password-standard.docx",
+          "bytes": 7168,
+          "sha256": "d265dcf02f7d552486229b8c67a627ef3752fe6802b02fd2d2d485fcfbbac5de",
+          "ref": "F-DOCX-PWD-STANDARD/docx/open-password-docx"
+        },
+        {
+          "role": "immutable-input",
+          "path": "docs/office/g0/fixtures/files/docs/docx-password-agile.docx",
+          "bytes": 18432,
+          "sha256": "0605624697328060fdc75ca9929ea20b9d63ebed9387ff1a97aaf9979757234a",
+          "ref": "F-DOCX-PWD-STANDARD/docx/open-password-docx"
+        },
+        {
+          "role": "immutable-input",
+          "path": "docs/office/g0/fixtures/files/docs/docx-password-agile-plain.docx",
+          "bytes": 11995,
+          "sha256": "8c8212db6e624bfc69286e94d09b7e68c753ee86b6826e51427a33c841f133d1",
+          "ref": "F-DOCX-PWD-STANDARD/docx/open-password-docx",
+          "note": "the plain-text oracle sibling of the agile fixture"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/snapshot-doc-pwd-standard-dialog.json",
+          "bytes": 23072,
+          "sha256": "252b3d2e4817185e4d0504d2871b180505a154cae32ce63aaafe1a3fa8bda5cc",
+          "ref": "F-DOCX-PWD-STANDARD/docx/open-password-docx"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/snapshot-doc-pwd-standard-wrong-submitted.json",
+          "bytes": 23230,
+          "sha256": "f088b87278b29936c24a9d977b7a4036dd192b108e0507a8dcad235c1370b690",
+          "ref": "F-DOCX-PWD-STANDARD/docx/open-password-docx"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/snapshot-doc-pwd-standard-opened.json",
+          "bytes": 26072,
+          "sha256": "b7395304c83191cf1cbaf79c53fac91680b63932fafe19424f7e94b080d41c8b",
+          "ref": "F-DOCX-PWD-STANDARD/docx/open-password-docx"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/snapshot-doc-pwd-standard-save-refusal.json",
+          "bytes": 26292,
+          "sha256": "5df93566dbb9b0f2f0dc40017b9fe08d17fab990fff960f4cde7f5c37cfcac1b",
+          "ref": "F-DOCX-PWD-STANDARD/docx/open-password-docx"
+        },
+        {
+          "role": "extraction-evidence",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/doc-pwd-standard-source-after-save.json",
+          "bytes": 2580,
+          "sha256": "3e4b1e9f9e4e348a3fb914193dca6c6b8274f9608388ee5f112b306b7e2ade04",
+          "ref": "F-DOCX-PWD-STANDARD/docx/open-password-docx"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/snapshot-doc-pwd-agile-prompt.json",
+          "bytes": 486,
+          "sha256": "2dc539abd7fcd99fb592be5e636195bfed785b078ebfe5977d129b9e78a2d573",
+          "ref": "F-DOCX-PWD-STANDARD/docx/open-password-docx"
+        },
+        {
+          "role": "extraction-evidence",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/text-doc-pwd-agile-open.json",
+          "bytes": 562,
+          "sha256": "5db3e9cfef0ef1a2d4f40c68325027e662dcf9150f333bcb0f6d4f76f58c145d",
+          "ref": "F-DOCX-PWD-STANDARD/docx/open-password-docx"
+        },
+        {
+          "role": "extraction-evidence",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/doc-pwd-agile-source-after-save.json",
+          "bytes": 1724,
+          "sha256": "de63c5b5e190b1c287a6ae6fe2f02ff1aebd6651ee882369866c5f44b97f048d",
+          "ref": "F-DOCX-PWD-STANDARD/docx/open-password-docx"
+        }
+      ],
+      "receipts": [
+        "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/doc-pwd-standard-source-before-save.json",
+        "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/snapshot-doc-pwd-standard-cancelled.json",
+        "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/text-doc-pwd-agile-plain.json",
+        "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/doc-pwd-agile-source-before-save.json",
+        "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/blocked-agile-reload-cancel.json",
+        "orca-recovery-g119/doc003-evidence/r2/receipts/test-docx-password-served.txt",
+        "orca-recovery-g119/doc003-evidence/r2/receipts/test-docx-password-canonical.txt",
+        "orca-recovery-g119/doc003-evidence/r2/receipts/test-docx-password-baseline-unpatched.txt"
+      ],
+      "limitations": [
+        "lab host behaviour after the r2 G0 fix (r2/ROOT-CAUSE.md D1); decryption uses the pinned officecrypto-tool 0.0.19 of the prepared source; the lab does not re-encrypt, so saving an opened encrypted document is refused (product answer: PORT-ITEMS P5, G2 UNI-658)",
+        "the agile Cancel observation is BLOCKED (orca snapshot runtime_unavailable); the standard Cancel was observed. Not a product-permission claim",
+        "installed Chrome/Edge and macOS/Safari are out of G0 scope (UNI-671)"
+      ],
+      "round": "r2",
+      "supersedes": "r1 row E-DOC3-FAIL-PASSWORD-DOCX (FAIL)"
+    },
+    {
+      "status": "PASS",
+      "result": "pass",
+      "level": "browser-real",
+      "provides": [
+        "editor-cycle"
+      ],
+      "operationEvidence": "byte-verified-operation",
+      "adapter": "real",
+      "uiKind": "real-editor",
+      "source": {
+        "kind": "upstream-commit",
+        "id": "upstream-genoffice",
+        "commit": "09485f884dc845cf3bf27fb7edfe489f9d457aad"
+      },
+      "id": "E-DOC3-FAIL-MISSING-FONT-EMBEDDED",
+      "kind": "failure-run",
+      "format": "docx",
+      "operation": "open a DOCX with an embedded font",
+      "operationId": "open-embedded-font",
+      "fixture": "F-DOCX-EMBEDDED-FONT",
+      "supportingFixture": "F-DOCX-KITCHEN",
+      "platform": {
+        "os": "windows",
+        "browser": "orca",
+        "browserVersion": "150.0.7871.250",
+        "orcaVersion": "1.4.209",
+        "embeddedBrowser": "orca",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) orca/1.4.209 Chrome/150.0.7871.250 Electron/43.7.0 Safari/537.36",
+        "servedBuild": "orca-recovery-g119/doc003-evidence/r2/lab-build/builds (host-build-manifest.json ee2b86a0e97982de7d2d536925bc38d0fa78f39d178bee3c737ceee5a99a1dd8)"
+      },
+      "runtime": {
+        "node": "22.23.2"
+      },
+      "engine": {
+        "name": "@genoffice/docx-engine",
+        "version": "0.1.0"
+      },
+      "protocolVersion": null,
+      "command": "\"D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\tools\\node-v22.23.2-win-x64\\node.exe\" r2/lab/run-lab-v2.mjs start --tag tester --app-port 5720 --preview-port 5721 --engine-port 5722 --xlsx-engine-port 5723 (run 2026-09-25T15-42-52-380Z) ; orca tab create http://127.0.0.1:5720/docs/?fixture=F-DOCX-EMBEDDED-FONT and ?fixture=F-DOCX-KITCHEN; eval of document.fonts",
+      "cwd": "D:/.Vietants_Project/uniwork-workspace/dev-uniwork/.uniwork-dev/orca-recovery-g119/doc003-evidence",
+      "expected": {
+        "result": "the document renders and its embedded face is adopted",
+        "oracle": "document.fonts eval comparing the embedded-font fixture against the F-DOCX-KITCHEN baseline plus the DOM text observation"
+      },
+      "actual": "Tester r2 (independent, Orca browser): the body shows \"Liberation Sans embedded font sentinel 314159\"; document.fonts has one LOADED Liberation Sans face (400 normal) against zero loaded on the F-DOCX-KITCHEN baseline, i.e. the embedded face was adopted; the status line \"Missing document fonts: Liberation Sans (substitutes shown)\" is an upstream false positive for bundled families (ROOT-CAUSE D4). The r1 row said FAIL from a stale attempt; the r1 Tester A2 raw receipts already showed the document rendered.",
+      "assertions": [
+        {
+          "id": "document-rendered",
+          "status": "passed"
+        },
+        {
+          "id": "embedded-face-loaded",
+          "status": "passed"
+        },
+        {
+          "id": "baseline-has-no-loaded-face",
+          "status": "passed"
+        }
+      ],
+      "artifacts": [
+        {
+          "role": "immutable-input",
+          "path": "docs/office/g0/fixtures/files/docs/docx-embedded-font.docx",
+          "bytes": 214549,
+          "sha256": "c1f95746288c43dbd12b3f8cb2047fe0d695a2b0cd23b48878223b645283cb83",
+          "ref": "F-DOCX-EMBEDDED-FONT/docx/open-embedded-font"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/dom-docx-embedded-font.json",
+          "bytes": 2020,
+          "sha256": "0cbf24e94ebb0e0d59bc9a70d06b64592c777cacbac0270b05e794065d65062e",
+          "ref": "F-DOCX-EMBEDDED-FONT/docx/open-embedded-font"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/dom-docx-kitchen-baseline.json",
+          "bytes": 2148,
+          "sha256": "c4c7235fd9ab5cad3fb8491a8d2830f750bfcbf7043e8c8cc55b227955a63c9c",
+          "ref": "F-DOCX-EMBEDDED-FONT/docx/open-embedded-font"
+        },
+        {
+          "role": "extraction-evidence",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/identity-docx-embedded-font.json",
+          "bytes": 547,
+          "sha256": "3f6e7488a63c510fc360a831f6d2d475efbfb9e2132d42b28401b7fdfe48126a",
+          "ref": "F-DOCX-EMBEDDED-FONT/docx/open-embedded-font"
+        },
+        {
+          "role": "extraction-evidence",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/identity-docx-kitchen-baseline.json",
+          "bytes": 541,
+          "sha256": "7a0115263905a875d83de25fcd6c5e3da3ba549d6c7ce4d3741b2c19c6099f8a",
+          "ref": "F-DOCX-EMBEDDED-FONT/docx/open-embedded-font"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/receipts/tester-a2/failure-3-embedded-font-snapshot-2.json",
+          "bytes": 13116,
+          "sha256": "7b413cb6f187ba76d71131a5645aa66c0b95109342b4f3ba18857600928ba206",
+          "ref": "F-DOCX-EMBEDDED-FONT/docx/open-embedded-font"
+        }
+      ],
+      "limitations": [
+        "adoption, not glyph provenance: the fixture embeds a family the renderer also bundles, so embedded-vs-bundled rendering cannot be told apart (fixture item F1, DOC-002); the false missing-font message is port item P2 (G3 UNI-659)",
+        "installed Chrome/Edge and macOS/Safari are out of G0 scope (UNI-671)"
+      ],
+      "round": "r2",
+      "supersedes": "r1 row E-DOC3-FAIL-MISSING-FONT-EMBEDDED (FAIL)"
+    },
+    {
+      "status": "PASS",
+      "result": "pass",
+      "level": "browser-real",
+      "provides": [
+        "editor-cycle"
+      ],
+      "operationEvidence": "byte-verified-operation",
+      "adapter": "real",
+      "uiKind": "real-editor",
+      "source": {
+        "kind": "upstream-commit",
+        "id": "upstream-genoffice",
+        "commit": "09485f884dc845cf3bf27fb7edfe489f9d457aad"
+      },
+      "id": "E-DOC3-FAIL-MISSING-FONT-FALLBACK",
+      "kind": "failure-run",
+      "format": "docx",
+      "operation": "open the French/justify fixture whose fonts are not installed and record the fallback",
+      "operationId": "open-missing-font",
+      "fixture": "F-DOCX-FR-JUSTIFY",
+      "platform": {
+        "os": "windows",
+        "browser": "orca",
+        "browserVersion": "150.0.7871.250",
+        "orcaVersion": "1.4.209",
+        "embeddedBrowser": "orca",
+        "servedBuild": "orca-recovery-g104/uniwork-office-brand/lab-builds/r7/builds (manifest b8d0abed367164012d8a54ee7df960095ebdaee848c0102253c77931e137237c)"
+      },
+      "runtime": {
+        "node": "22.23.2"
+      },
+      "engine": {
+        "name": "@genoffice/docx-engine",
+        "version": "0.1.0"
+      },
+      "protocolVersion": null,
+      "command": "\"D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\tools\\node-v22.23.2-win-x64\\node.exe\" lab/run-lab-v1.mjs start --tag a2 --lab-dir lab/labroot-a2 --builds ../orca-recovery-g104/uniwork-office-brand/lab-builds/r7/builds ; orca tab create http://127.0.0.1:5700/docs/?fixture=F-DOCX-FR-JUSTIFY; snapshot; eval computed font stack and console",
+      "cwd": "D:/.Vietants_Project/uniwork-workspace/dev-uniwork/.uniwork-dev/orca-recovery-g119/doc003-evidence",
+      "expected": {
+        "result": "the document opens with a named metric-compatible fallback and no error",
+        "oracle": "tester snapshot plus computed-font-stack eval of the rendered document"
+      },
+      "actual": "Tester A2 (independent lab, own isolated Orca profile): 2,345 words rendered; computed ProseMirror stack \"Calibri, \\\"Carlito GO\\\", \\\"Noto Sans CJK SC\\\", sans-serif\"; console empty.",
+      "assertions": [
+        {
+          "id": "document-opened",
+          "status": "passed"
+        },
+        {
+          "id": "named-metric-compatible-fallback",
+          "status": "passed"
+        },
+        {
+          "id": "no-console-error",
+          "status": "passed"
+        }
+      ],
+      "artifacts": [
+        {
+          "role": "immutable-input",
+          "path": "docs/office/g0/fixtures/files/docs/docx-justify-pagegap-fr.docx",
+          "bytes": 6051,
+          "sha256": "1a5ed11335ba94c727d07400f47533a8451e74c5ac5f35b3678b6f1c19736038",
+          "ref": "F-DOCX-FR-JUSTIFY/docx/open-missing-font"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/receipts/tester-a2/failure-3-fr-justify-snapshot-2.json",
+          "bytes": 47652,
+          "sha256": "6469c6ad4702b8715645f7a09fb863cb1a2b1a0b36c4b6707ba226e48d444360",
+          "ref": "F-DOCX-FR-JUSTIFY/docx/open-missing-font"
+        },
+        {
+          "role": "extraction-evidence",
+          "path": "orca-recovery-g119/doc003-evidence/receipts/tester-a2/failure-3-fr-justify-dom-font-v2.json",
+          "bytes": 1276,
+          "sha256": "9efdf1c635bc54e6b9b7ac919cec520efd470e083c348b2ea8a684ba3891c0ec",
+          "ref": "F-DOCX-FR-JUSTIFY/docx/open-missing-font"
+        }
+      ],
+      "limitations": [
+        "the fallback is recorded, not pixel-compared against Word",
+        "installed Chrome/Edge and macOS/Safari are out of G0 scope (UNI-671)"
+      ],
+      "round": "r1"
+    },
+    {
+      "status": "PASS",
+      "result": "pass",
+      "level": "browser-real",
+      "provides": [
+        "editor-cycle"
+      ],
+      "operationEvidence": "byte-verified-operation",
+      "adapter": "real",
+      "uiKind": "real-editor",
+      "source": {
+        "kind": "upstream-commit",
+        "id": "upstream-genoffice",
+        "commit": "09485f884dc845cf3bf27fb7edfe489f9d457aad"
+      },
+      "id": "E-DOC3-FAIL-TIMEOUT-CANCEL-PDF",
+      "kind": "failure-run",
+      "format": "pdf",
+      "operation": "open the PDF Insert-text dialog and cancel it",
+      "operationId": "cancel-pdf-edit",
+      "fixture": "F-PDF-TEXT",
+      "platform": {
+        "os": "windows",
+        "browser": "orca",
+        "browserVersion": "150.0.7871.250",
+        "orcaVersion": "1.4.209",
+        "embeddedBrowser": "orca",
+        "servedBuild": "orca-recovery-g104/uniwork-office-brand/lab-builds/r7/builds (manifest b8d0abed367164012d8a54ee7df960095ebdaee848c0102253c77931e137237c)"
+      },
+      "runtime": {
+        "node": "22.23.2"
+      },
+      "engine": {
+        "name": "@genoffice/pdf",
+        "version": "0.1.0"
+      },
+      "protocolVersion": null,
+      "command": "\"D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\tools\\node-v22.23.2-win-x64\\node.exe\" lab/run-lab-v1.mjs start --tag a2 --lab-dir lab/labroot-a2 --builds ../orca-recovery-g104/uniwork-office-brand/lab-builds/r7/builds ; orca tab create http://127.0.0.1:5700/pdf/?fixture=F-PDF-TEXT; open Insert text; Cancel; snapshot; network and file delta",
+      "cwd": "D:/.Vietants_Project/uniwork-workspace/dev-uniwork/.uniwork-dev/orca-recovery-g119/doc003-evidence",
+      "expected": {
+        "result": "cancel leaves the document unchanged, Save disabled, no output",
+        "oracle": "after-cancel snapshot plus network-delta and file-delta receipts"
+      },
+      "actual": "Tester A2: original text unchanged, Save stayed disabled, network delta and file delta both empty.",
+      "assertions": [
+        {
+          "id": "document-unchanged-after-cancel",
+          "status": "passed"
+        },
+        {
+          "id": "save-stayed-disabled",
+          "status": "passed"
+        },
+        {
+          "id": "no-output-written",
+          "status": "passed"
+        }
+      ],
+      "artifacts": [
+        {
+          "role": "immutable-input",
+          "path": "docs/office/g0/fixtures/files/pdf/pdf-text-editable.pdf",
+          "bytes": 3059,
+          "sha256": "22e3b04f3ad92c22edf1d3a0e02e30f3b778b1834b1022788272a8009f162fa9",
+          "ref": "F-PDF-TEXT/pdf/cancel-pdf-edit"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/receipts/tester-a2/failure-4-after-cancel-snapshot.json",
+          "bytes": 7225,
+          "sha256": "7ac728a0fa30ed261d43a5b1dc7904d4709ed9b4d719f4674b6b6750cdb8a1aa",
+          "ref": "F-PDF-TEXT/pdf/cancel-pdf-edit"
+        },
+        {
+          "role": "extraction-evidence",
+          "path": "orca-recovery-g119/doc003-evidence/receipts/tester-a2/failure-4-network-delta.json",
+          "bytes": 126,
+          "sha256": "e3045ad253703af1a2ed91b7e64ce823b7a345cd0f1e5ed59b18754b3048b691",
+          "ref": "F-PDF-TEXT/pdf/cancel-pdf-edit"
+        },
+        {
+          "role": "extraction-evidence",
+          "path": "orca-recovery-g119/doc003-evidence/receipts/tester-a2/failure-4-file-delta.json",
+          "bytes": 86,
+          "sha256": "616f6e20075606d3caa04d4339247c2141b4f790e8216c4805bacd4c6a0e7813",
+          "ref": "F-PDF-TEXT/pdf/cancel-pdf-edit"
+        }
+      ],
+      "limitations": [
+        "cancel behaviour only; the timeout path itself is not driven because the lab answers immediately",
+        "installed Chrome/Edge and macOS/Safari are out of G0 scope (UNI-671)"
+      ],
+      "round": "r1"
+    },
+    {
+      "status": "PASS",
+      "result": "pass",
+      "level": "browser-real",
+      "provides": [
+        "editor-cycle"
+      ],
+      "operationEvidence": "byte-verified-operation",
+      "adapter": "real",
+      "uiKind": "real-editor",
+      "source": {
+        "kind": "upstream-commit",
+        "id": "upstream-genoffice",
+        "commit": "09485f884dc845cf3bf27fb7edfe489f9d457aad"
+      },
+      "id": "E-DOC3-FAIL-SAVE-ERROR-OFFLINE",
+      "kind": "failure-run",
+      "format": "docx",
+      "operation": "edit a document and press Save while the page is offline",
+      "operationId": "save-error-surfaced",
+      "fixture": "F-DOCX-KITCHEN",
+      "platform": {
+        "os": "windows",
+        "browser": "orca",
+        "browserVersion": "150.0.7871.250",
+        "orcaVersion": "1.4.209",
+        "embeddedBrowser": "orca",
+        "servedBuild": "orca-recovery-g104/uniwork-office-brand/lab-builds/r7/builds (manifest b8d0abed367164012d8a54ee7df960095ebdaee848c0102253c77931e137237c)"
+      },
+      "runtime": {
+        "node": "22.23.2"
+      },
+      "engine": {
+        "name": "@genoffice/docx-engine",
+        "version": "0.1.0"
+      },
+      "protocolVersion": null,
+      "command": "\"D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\tools\\node-v22.23.2-win-x64\\node.exe\" lab/run-lab-v1.mjs start --tag a2 --lab-dir lab/labroot-a2 --builds ../orca-recovery-g104/uniwork-office-brand/lab-builds/r7/builds ; orca tab create http://127.0.0.1:5700/docs/?fixture=F-DOCX-KITCHEN; edit; orca set offline; Save; snapshot + file delta; unset offline; reload",
+      "cwd": "D:/.Vietants_Project/uniwork-workspace/dev-uniwork/.uniwork-dev/orca-recovery-g119/doc003-evidence",
+      "expected": {
+        "result": "a surfaced error, no success report and no output file",
+        "oracle": "final save snapshot, file-delta receipt and the online reload observation"
+      },
+      "actual": "Tester A2: UI showed \"Save failed: TypeError: Failed to fetch\"; no success status; file delta empty; after offline was turned off the page reloaded and worked.",
+      "assertions": [
+        {
+          "id": "error-surfaced-in-ui",
+          "status": "passed"
+        },
+        {
+          "id": "no-success-report",
+          "status": "passed"
+        },
+        {
+          "id": "no-output-file",
+          "status": "passed"
+        },
+        {
+          "id": "page-recovered-after-reload",
+          "status": "passed"
+        }
+      ],
+      "artifacts": [
+        {
+          "role": "immutable-input",
+          "path": "docs/office/g0/fixtures/files/docs/docx-kitchen-sink.docx",
+          "bytes": 3415,
+          "sha256": "f86c8d90b44a265945b4918dc1f857ebd835f28e3bdf3199f24e66f7fc8ab00b",
+          "ref": "F-DOCX-KITCHEN/docx/save-error-surfaced"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/receipts/tester-a2/failure-5-final-save-snapshot.json",
+          "bytes": 16359,
+          "sha256": "550b58f334f317d6992448029b3829f1150141f5bc47c1e1d51cad95f3705997",
+          "ref": "F-DOCX-KITCHEN/docx/save-error-surfaced"
+        },
+        {
+          "role": "extraction-evidence",
+          "path": "orca-recovery-g119/doc003-evidence/receipts/tester-a2/failure-5-final-file-delta.json",
+          "bytes": 35,
+          "sha256": "e8fd1a070e9030c84dfe66907c1cac56ea900d6475d28a1547c64a31a335bc39",
+          "ref": "F-DOCX-KITCHEN/docx/save-error-surfaced"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/receipts/tester-a2/failure-5-online-reload-snapshot.json",
+          "bytes": 16233,
+          "sha256": "814e15549abeac53cb2de67d010645c2359e7166750e2e0de063ee74ff028e56",
+          "ref": "F-DOCX-KITCHEN/docx/save-error-surfaced"
+        }
+      ],
+      "limitations": [
+        "the surfaced error is the renderer generic fetch failure, not a typed save error; product error wording is a port item",
+        "installed Chrome/Edge and macOS/Safari are out of G0 scope (UNI-671)"
+      ],
+      "round": "r1"
+    },
+    {
+      "status": "PASS",
+      "result": "pass",
+      "level": "browser-real",
+      "provides": [
+        "editor-cycle"
+      ],
+      "operationEvidence": "byte-verified-operation",
+      "adapter": "real",
+      "uiKind": "real-editor",
+      "source": {
+        "kind": "upstream-commit",
+        "id": "upstream-genoffice",
+        "commit": "09485f884dc845cf3bf27fb7edfe489f9d457aad"
+      },
+      "id": "E-DOC3-FAIL-RESTART-PERSISTENCE",
+      "kind": "failure-run",
+      "format": "docx",
+      "operation": "save a document, restart the owned lab, and reopen the persisted bytes",
+      "operationId": "restart-persistence",
+      "fixture": "F-DOCX-KITCHEN",
+      "platform": {
+        "os": "windows",
+        "browser": "orca",
+        "browserVersion": "150.0.7871.250",
+        "orcaVersion": "1.4.209",
+        "embeddedBrowser": "orca",
+        "servedBuild": "orca-recovery-g104/uniwork-office-brand/lab-builds/r7/builds (manifest b8d0abed367164012d8a54ee7df960095ebdaee848c0102253c77931e137237c)"
+      },
+      "runtime": {
+        "node": "22.23.2"
+      },
+      "engine": {
+        "name": "@genoffice/docx-engine",
+        "version": "0.1.0"
+      },
+      "protocolVersion": null,
+      "command": "\"D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\tools\\node-v22.23.2-win-x64\\node.exe\" lab/run-lab-v1.mjs start --tag a2 --lab-dir lab/labroot-a2 --builds ../orca-recovery-g104/uniwork-office-brand/lab-builds/r7/builds ; orca tab create http://127.0.0.1:5700/docs/?fixture=F-DOCX-KITCHEN; type marker; Save; stop + start the same lab; reopen the persisted view",
+      "cwd": "D:/.Vietants_Project/uniwork-workspace/dev-uniwork/.uniwork-dev/orca-recovery-g119/doc003-evidence",
+      "expected": {
+        "result": "the persisted bytes and content come back after a lab restart",
+        "oracle": "saved-bytes receipt, reopened file hash and the reopened DOM snapshot"
+      },
+      "actual": "Tester A2: saved 3446 B sha256 bcf4a272e40cb9ea6a3ff79773ee7988de7357e9f28953e4cb7839b3c31be349; after stop+start the reopened DOM contained A2-RESTART-PERSISTED-MARKER and the file kept the same sha256.",
+      "assertions": [
+        {
+          "id": "persisted-bytes-saved",
+          "status": "passed"
+        },
+        {
+          "id": "reopened-bytes-identical-after-restart",
+          "status": "passed"
+        },
+        {
+          "id": "marker-visible-after-restart",
+          "status": "passed"
+        }
+      ],
+      "artifacts": [
+        {
+          "role": "immutable-input",
+          "path": "docs/office/g0/fixtures/files/docs/docx-kitchen-sink.docx",
+          "bytes": 3415,
+          "sha256": "f86c8d90b44a265945b4918dc1f857ebd835f28e3bdf3199f24e66f7fc8ab00b",
+          "ref": "F-DOCX-KITCHEN/docx/restart-persistence"
+        },
+        {
+          "role": "persisted-output",
+          "path": "orca-recovery-g119/doc003-evidence/lab/labroot-a2/views/view-37fcb96e-c151-4035-af2f-b27d35651436/input/docx-kitchen-sink.docx",
+          "bytes": 3446,
+          "sha256": "bcf4a272e40cb9ea6a3ff79773ee7988de7357e9f28953e4cb7839b3c31be349",
+          "ref": "F-DOCX-KITCHEN/docx/restart-persistence"
+        },
+        {
+          "role": "reopened-output",
+          "path": "orca-recovery-g119/doc003-evidence/lab/labroot-a2/views/view-89b5926e-3a10-454c-90f2-c17ae687bdd7/input/docx-kitchen-sink.docx",
+          "bytes": 3446,
+          "sha256": "bcf4a272e40cb9ea6a3ff79773ee7988de7357e9f28953e4cb7839b3c31be349",
+          "ref": "F-DOCX-KITCHEN/docx/restart-persistence"
+        },
+        {
+          "role": "extraction-evidence",
+          "path": "orca-recovery-g119/doc003-evidence/receipts/tester-a2/restart-seed-saved-bytes-before-restart.json",
+          "bytes": 782,
+          "sha256": "8a26e38b76e583da1381c9c1ee8b7132b54bf27a89f6e242f2c97864d9d59850",
+          "ref": "F-DOCX-KITCHEN/docx/restart-persistence"
+        },
+        {
+          "role": "extraction-evidence",
+          "path": "orca-recovery-g119/doc003-evidence/receipts/tester-a2/failure-6-reopened-file-hash.json",
+          "bytes": 555,
+          "sha256": "727ba96bb962dee3d4d967471a2517df1c97bfc7e323c79412c9fa6a048d7021",
+          "ref": "F-DOCX-KITCHEN/docx/restart-persistence"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/receipts/tester-a2/failure-6-reopen-snapshot-retry.json",
+          "bytes": 16491,
+          "sha256": "54d5c871b17869c02dbf8710feb729f4ad6be53382b5eaf320af455e41fd3d1e",
+          "ref": "F-DOCX-KITCHEN/docx/restart-persistence"
+        }
+      ],
+      "limitations": [
+        "persistence is the lab view store, not a product backend; the lab restart is a process restart, not a machine reboot",
+        "installed Chrome/Edge and macOS/Safari are out of G0 scope (UNI-671)"
+      ],
+      "round": "r1"
+    },
+    {
+      "status": "PASS",
+      "result": "pass",
+      "level": "browser-real",
+      "provides": [
+        "editor-cycle"
+      ],
+      "operationEvidence": "byte-verified-operation",
+      "adapter": "real",
+      "uiKind": "real-editor",
+      "source": {
+        "kind": "upstream-commit",
+        "id": "upstream-genoffice",
+        "commit": "09485f884dc845cf3bf27fb7edfe489f9d457aad"
+      },
+      "id": "E-DOC3-FAIL-STATE-LEAK-BETWEEN-FILES",
+      "kind": "failure-run",
+      "format": "docx",
+      "operation": "keep an unsaved edit open in one tab and open a second document in the same profile",
+      "operationId": "no-state-leak-between-files",
+      "fixture": "F-DOCX-KITCHEN",
+      "supportingFixture": "F-DOCX-VI",
+      "platform": {
+        "os": "windows",
+        "browser": "orca",
+        "browserVersion": "150.0.7871.250",
+        "orcaVersion": "1.4.209",
+        "embeddedBrowser": "orca",
+        "servedBuild": "orca-recovery-g104/uniwork-office-brand/lab-builds/r7/builds (manifest b8d0abed367164012d8a54ee7df960095ebdaee848c0102253c77931e137237c)"
+      },
+      "runtime": {
+        "node": "22.23.2"
+      },
+      "engine": {
+        "name": "@genoffice/docx-engine",
+        "version": "0.1.0"
+      },
+      "protocolVersion": null,
+      "command": "\"D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\tools\\node-v22.23.2-win-x64\\node.exe\" lab/run-lab-v1.mjs start --tag a2 --lab-dir lab/labroot-a2 --builds ../orca-recovery-g104/uniwork-office-brand/lab-builds/r7/builds ; orca tab create http://127.0.0.1:5700/docs/?fixture=F-DOCX-KITCHEN; type unsaved marker; second tab ?fixture=F-DOCX-VI; eval both DOMs; save tab 2",
+      "cwd": "D:/.Vietants_Project/uniwork-workspace/dev-uniwork/.uniwork-dev/orca-recovery-g119/doc003-evidence",
+      "expected": {
+        "result": "the second document contains none of the first tab's unsaved edits and saves only its own marker",
+        "oracle": "tab-1 and tab-2 DOM evals plus the tab-2 saved document.xml content check"
+      },
+      "actual": "Tester A2: tab 2 DOM had none of tab 1's unsaved marker; its saved word/document.xml carried only the tab-2 marker.",
+      "assertions": [
+        {
+          "id": "tab2-free-of-tab1-unsaved-edits",
+          "status": "passed"
+        },
+        {
+          "id": "tab2-saved-only-own-marker",
+          "status": "passed"
+        }
+      ],
+      "artifacts": [
+        {
+          "role": "immutable-input",
+          "path": "docs/office/g0/fixtures/files/docs/docx-kitchen-sink.docx",
+          "bytes": 3415,
+          "sha256": "f86c8d90b44a265945b4918dc1f857ebd835f28e3bdf3199f24e66f7fc8ab00b",
+          "ref": "F-DOCX-KITCHEN/docx/no-state-leak-between-files"
+        },
+        {
+          "role": "immutable-input",
+          "path": "docs/office/g0/fixtures/files/docs/docx-vietnamese.docx",
+          "bytes": 6004,
+          "sha256": "eef496600861f7aead5facaf43384ab72339c442fe2d1f3596e36dd6e52e0ab7",
+          "ref": "F-DOCX-KITCHEN/docx/no-state-leak-between-files"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/receipts/tester-a2/failure-7-tab1-dom-after-marker.json",
+          "bytes": 665,
+          "sha256": "4909db213bfac2e42b8eaa6d4edd4b678aa32b20573362663d463110e6fe4382",
+          "ref": "F-DOCX-KITCHEN/docx/no-state-leak-between-files"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/receipts/tester-a2/failure-7-tab2-direct-eval.json",
+          "bytes": 660,
+          "sha256": "83c0dd659ac44e706929e9bda9866dba288a0e58d2519b4c268945f0d864958d",
+          "ref": "F-DOCX-KITCHEN/docx/no-state-leak-between-files"
+        },
+        {
+          "role": "extraction-evidence",
+          "path": "orca-recovery-g119/doc003-evidence/receipts/tester-a2/failure-7-saved-docx-content.json",
+          "bytes": 867,
+          "sha256": "8176c99ae5e6fa4e091bf9c3076b43eedfbdcb88e9a663b137f6c444d765e065",
+          "ref": "F-DOCX-KITCHEN/docx/no-state-leak-between-files"
+        }
+      ],
+      "limitations": [
+        "two tabs in one profile; cross-profile and cross-workspace leakage are not covered",
+        "installed Chrome/Edge and macOS/Safari are out of G0 scope (UNI-671)"
+      ],
+      "round": "r1"
+    },
+    {
+      "status": "PASS",
+      "result": "pass",
+      "level": "browser-real",
+      "provides": [
+        "editor-cycle"
+      ],
+      "operationEvidence": "byte-verified-operation",
+      "adapter": "real",
+      "uiKind": "real-editor",
+      "source": {
+        "kind": "upstream-commit",
+        "id": "upstream-genoffice",
+        "commit": "09485f884dc845cf3bf27fb7edfe489f9d457aad"
+      },
+      "id": "E-DOC3-FAIL-CORRUPT-XLSB",
+      "kind": "failure-run",
+      "format": "xlsb",
+      "operation": "open a file named .xlsb whose bytes are not a package",
+      "operationId": "open-corrupt-file",
+      "fixture": "F-UNSUPPORTED-XLSB",
+      "platform": {
+        "os": "windows",
+        "browser": "orca",
+        "browserVersion": "150.0.7871.250",
+        "orcaVersion": "1.4.209",
+        "embeddedBrowser": "orca",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) orca/1.4.209 Chrome/150.0.7871.250 Electron/43.7.0 Safari/537.36",
+        "servedBuild": "orca-recovery-g119/doc003-evidence/r2/lab-build/builds (host-build-manifest.json ee2b86a0e97982de7d2d536925bc38d0fa78f39d178bee3c737ceee5a99a1dd8)"
+      },
+      "runtime": {
+        "node": "22.23.2"
+      },
+      "engine": {
+        "name": "@genoffice/sheets",
+        "version": "0.1.0"
+      },
+      "protocolVersion": null,
+      "command": "\"D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\tools\\node-v22.23.2-win-x64\\node.exe\" r2/lab/run-lab-v2.mjs start --tag tester --app-port 5720 --preview-port 5721 --engine-port 5722 --xlsx-engine-port 5723 (run 2026-09-25T15-42-52-380Z) ; orca tab create http://127.0.0.1:5720/sheets/?fixture=F-UNSUPPORTED-XLSB, snapshot, console; then ?fixture=F-XLSX-KITCHEN",
+      "cwd": "D:/.Vietants_Project/uniwork-workspace/dev-uniwork/.uniwork-dev/orca-recovery-g119/doc003-evidence",
+      "expected": {
+        "result": "a named parse error and no workbook shown (manifest oracle)",
+        "oracle": "tester snapshot and console receipts plus source sha256 check; the manifest fixture declares the not-a-package oracle"
+      },
+      "actual": "Tester r2 (independent, Orca browser): the sheets page showed \"lab channel host:sheets-select-workbook failed: engine_error: [office-g0-xlsx] engine /engine/xlsx-open refused: invalid Zip archive: Could not find EOCD\"; only an empty Sheet1 shell, no workbook data; source sha256 unchanged (D5F30AC2...); F-XLSX-KITCHEN then opened in the same profile (Data, PhuLuc, \"Workbook fully loaded\").",
+      "assertions": [
+        {
+          "id": "named-parse-error-shown",
+          "status": "passed"
+        },
+        {
+          "id": "no-workbook-rendered",
+          "status": "passed"
+        },
+        {
+          "id": "source-bytes-unchanged",
+          "status": "passed"
+        },
+        {
+          "id": "next-valid-open-succeeds",
+          "status": "passed"
+        }
+      ],
+      "artifacts": [
+        {
+          "role": "immutable-input",
+          "path": "docs/office/g0/fixtures/files/legacy/unsupported-sample.xlsb",
+          "bytes": 48,
+          "sha256": "d5f30ac2616646f1ebea2828becef2c8fec3003d715d7d781d372042e523f06e",
+          "ref": "F-UNSUPPORTED-XLSB/xlsb/open-corrupt-file"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/snapshot-sheets-xlsb-retry.json",
+          "bytes": 38660,
+          "sha256": "90823a1c1498376540f0d10ded01448cefbabb611744d4f37a2625a197f61d4d",
+          "ref": "F-UNSUPPORTED-XLSB/xlsb/open-corrupt-file"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/console-sheets-xlsb.json",
+          "bytes": 376,
+          "sha256": "d345e7219e6c743ba7f36ba24197672d930961d9a1ffa9dd8faea15397fcb9e8",
+          "ref": "F-UNSUPPORTED-XLSB/xlsb/open-corrupt-file"
+        },
+        {
+          "role": "extraction-evidence",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/source-xlsb-after.json",
+          "bytes": 1700,
+          "sha256": "c6a4d75250d61d8170f4e5abf3a366d39c498e4c0e3e08dfc76523351a228c66",
+          "ref": "F-UNSUPPORTED-XLSB/xlsb/open-corrupt-file"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/snapshot-sheets-xlsx-kitchen-final.json",
+          "bytes": 19252,
+          "sha256": "1b88e5852f2c5098b04f2beb77fef75b8b834424a88e0e11bb9921ddd87c755d",
+          "ref": "F-UNSUPPORTED-XLSB/xlsb/open-corrupt-file"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/author-probe-http.json",
+          "bytes": 6677,
+          "sha256": "5bf8d0d07616803a71fa8d75ac746157f84504e0e05f8e7ff52d8597100d22fa",
+          "ref": "F-UNSUPPORTED-XLSB/xlsb/open-corrupt-file"
+        }
+      ],
+      "limitations": [
+        "the error is the real xlsx engine (accepted sidecar a498cbd7...) reached through the r2 lab wiring (D2) and the r2 transport keeping the server message; the empty shell around the message is upstream (PORT-ITEMS P4)",
+        "installed Chrome/Edge and macOS/Safari are out of G0 scope (UNI-671)"
+      ],
+      "round": "r2"
+    },
+    {
+      "id": "E-DOC3-FAIL-CORRUPT-PDF",
+      "kind": "failure-run",
+      "format": "pdf",
+      "operation": "open a damaged PDF",
+      "operationId": "open-corrupt-file",
+      "status": "FAIL",
+      "result": "fail",
+      "level": "browser-real",
+      "provides": [
+        "editor-cycle"
+      ],
+      "operationEvidence": "byte-verified-operation",
+      "adapter": "real",
+      "uiKind": "real-editor",
+      "source": {
+        "kind": "upstream-commit",
+        "id": "upstream-genoffice",
+        "commit": "09485f884dc845cf3bf27fb7edfe489f9d457aad"
+      },
+      "fixture": "F-PDF-CORRUPT",
+      "platform": {
+        "os": "windows",
+        "browser": "orca",
+        "browserVersion": "150.0.7871.250",
+        "orcaVersion": "1.4.209",
+        "embeddedBrowser": "orca",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) orca/1.4.209 Chrome/150.0.7871.250 Electron/43.7.0 Safari/537.36",
+        "servedBuild": "orca-recovery-g119/doc003-evidence/r2/lab-build/builds (host-build-manifest.json ee2b86a0e97982de7d2d536925bc38d0fa78f39d178bee3c737ceee5a99a1dd8)"
+      },
+      "runtime": {
+        "node": "22.23.2"
+      },
+      "engine": {
+        "name": "@genoffice/pdf",
+        "version": "0.1.0"
+      },
+      "protocolVersion": null,
+      "command": "\"D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\tools\\node-v22.23.2-win-x64\\node.exe\" r2/lab/run-lab-v2.mjs start --tag tester --app-port 5720 --preview-port 5721 --engine-port 5722 --xlsx-engine-port 5723 (run 2026-09-25T15-42-52-380Z) ; orca tab create http://127.0.0.1:5720/pdf/?fixture=F-PDF-CORRUPT, snapshot/eval; then ?fixture=F-PDF-TEXT",
+      "cwd": "D:/.Vietants_Project/uniwork-workspace/dev-uniwork/.uniwork-dev/orca-recovery-g119/doc003-evidence",
+      "expected": {
+        "result": "a specific parse error in the UI; no partial page; the next valid open succeeds",
+        "oracle": "manifest fixture expectation plus tester DOM and console receipts"
+      },
+      "actual": "Tester r2 (independent, Orca browser): the UI shows only \"Failed to open file\"; no page rendered; source sha256 unchanged (070D35DB...); F-PDF-TEXT then opened (page 1 of 2, fixture text). The r1 console named InvalidPDFException: Invalid PDF structure (the r2 console capture is BLOCKED, runtime_unavailable).",
+      "assertions": [
+        {
+          "id": "specific-parse-error-shown",
+          "status": "failed",
+          "note": "the UI shows the generic \"Failed to open file\" string instead of a parse error naming the damage"
+        },
+        {
+          "id": "no-partial-page-rendered",
+          "status": "passed"
+        },
+        {
+          "id": "source-bytes-unchanged",
+          "status": "passed"
+        },
+        {
+          "id": "next-valid-open-succeeds",
+          "status": "passed"
+        }
+      ],
+      "artifacts": [
+        {
+          "role": "immutable-input",
+          "path": "docs/office/g0/fixtures/files/pdf/pdf-corrupt.pdf",
+          "bytes": 21420,
+          "sha256": "070d35db701f6ccb5ed5e15de2048fe4ad6f4f97ccc7bdfd8687af362377b6ab",
+          "ref": "F-PDF-CORRUPT/pdf/open-corrupt-file"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/dom-pdf-corrupt.json",
+          "bytes": 512,
+          "sha256": "f0167c634f64fba7efbb63c73e4bbaa4e1330c7fdc1b2995bd02f10e6c897f29",
+          "ref": "F-PDF-CORRUPT/pdf/open-corrupt-file"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/console-pdf-corrupt.json",
+          "bytes": 245,
+          "sha256": "c248038a364c0bc36a89b3186498a602ceca317f953de353f9016d07b8fdea7f",
+          "ref": "F-PDF-CORRUPT/pdf/open-corrupt-file"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/console-pdf-corrupt-retry.json",
+          "bytes": 245,
+          "sha256": "c248038a364c0bc36a89b3186498a602ceca317f953de353f9016d07b8fdea7f",
+          "ref": "F-PDF-CORRUPT/pdf/open-corrupt-file"
+        },
+        {
+          "role": "extraction-evidence",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/source-pdf-after.json",
+          "bytes": 2790,
+          "sha256": "dea5d21460c12ac5249d3f1615a019e2c31bdd9ef49a53a3164b01e09b3ba36b",
+          "ref": "F-PDF-CORRUPT/pdf/open-corrupt-file"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/dom-pdf-text.json",
+          "bytes": 1381,
+          "sha256": "d98a9f54dfcd36368c8b7a457d7dab6522869ff1f2734f3072fe7ffa7c34d918",
+          "ref": "F-PDF-CORRUPT/pdf/open-corrupt-file"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/receipts/tester-a2/failure-1-corrupt-pdf-console.json",
+          "bytes": 1350,
+          "sha256": "6ceb700b9e7fba149d6fd6f5c0612e3c08e92e0bc20485876b9c3afaa0c92075",
+          "ref": "F-PDF-CORRUPT/pdf/open-corrupt-file"
+        }
+      ],
+      "limitations": [
+        "frozen upstream renderer behaviour (apps/pdf/src/renderer/App.tsx:1234-1244, fixed loadError string): port item P1, owner G3 UNI-659. No lab code on this path",
+        "installed Chrome/Edge and macOS/Safari are out of G0 scope (UNI-671)"
+      ],
+      "round": "r2"
+    },
+    {
+      "status": "PASS",
+      "result": "pass",
+      "level": "browser-real",
+      "provides": [
+        "editor-cycle"
+      ],
+      "operationEvidence": "byte-verified-operation",
+      "adapter": "real",
+      "uiKind": "real-editor",
+      "source": {
+        "kind": "upstream-commit",
+        "id": "upstream-genoffice",
+        "commit": "09485f884dc845cf3bf27fb7edfe489f9d457aad"
+      },
+      "id": "E-DOC3-FAIL-PASSWORD-PDF",
+      "kind": "failure-run",
+      "format": "pdf",
+      "operation": "open a password-protected PDF",
+      "operationId": "open-password-pdf",
+      "fixture": "F-PDF-PWD4SP",
+      "platform": {
+        "os": "windows",
+        "browser": "orca",
+        "browserVersion": "150.0.7871.250",
+        "orcaVersion": "1.4.209",
+        "embeddedBrowser": "orca",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) orca/1.4.209 Chrome/150.0.7871.250 Electron/43.7.0 Safari/537.36",
+        "servedBuild": "orca-recovery-g119/doc003-evidence/r2/lab-build/builds (host-build-manifest.json ee2b86a0e97982de7d2d536925bc38d0fa78f39d178bee3c737ceee5a99a1dd8)"
+      },
+      "runtime": {
+        "node": "22.23.2"
+      },
+      "engine": {
+        "name": "@genoffice/pdf",
+        "version": "0.1.0"
+      },
+      "protocolVersion": null,
+      "command": "\"D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\tools\\node-v22.23.2-win-x64\\node.exe\" r2/lab/run-lab-v2.mjs start --tag tester --app-port 5720 --preview-port 5721 --engine-port 5722 --xlsx-engine-port 5723 (run 2026-09-25T15-42-52-380Z) ; orca tab create http://127.0.0.1:5720/pdf/?fixture=F-PDF-PWD4SP; focus proofs; wrong entry; four spaces",
+      "cwd": "D:/.Vietants_Project/uniwork-workspace/dev-uniwork/.uniwork-dev/orca-recovery-g119/doc003-evidence",
+      "expected": {
+        "result": "a password prompt; a wrong entry stays locked with an error; exactly four spaces unlock",
+        "oracle": "manifest fixture expectation plus tester snapshot/focus-proof/DOM receipts"
+      },
+      "actual": "Tester r2 (independent, Orca browser): the prompt named pdf-password-4spaces.pdf; \"wrong\" stayed locked with \"Incorrect password, try again\"; the accepted entry was exactly four U+0020 code points (DOM-proven); the document opened to page 1 of 1. r1 was BLOCKED (runtime_unavailable).",
+      "assertions": [
+        {
+          "id": "prompt-names-file",
+          "status": "passed"
+        },
+        {
+          "id": "wrong-entry-stays-locked-with-error",
+          "status": "passed"
+        },
+        {
+          "id": "four-spaces-entry-unlocks",
+          "status": "passed"
+        },
+        {
+          "id": "document-opens",
+          "status": "passed"
+        }
+      ],
+      "artifacts": [
+        {
+          "role": "immutable-input",
+          "path": "docs/office/g0/fixtures/files/pdf/pdf-password-4spaces.pdf",
+          "bytes": 18285,
+          "sha256": "d5a2e3fd2aaa7a94b7c2e1bb28f64c01d34ce416654b67d45a66e57c8bf6412d",
+          "ref": "F-PDF-PWD4SP/pdf/open-password-pdf"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/snapshot-pdf-pwd4sp-prompt.json",
+          "bytes": 1300,
+          "sha256": "0962da878cd71aa9c3c691a83cd5b68c27720b8ab072049c5356686a462d8521",
+          "ref": "F-PDF-PWD4SP/pdf/open-password-pdf"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/snapshot-pdf-pwd4sp-wrong-submitted.json",
+          "bytes": 1371,
+          "sha256": "f5d524cda09db03edce7a9d7e550520ee9bd10a6779db2e53ce1a9be86f2785e",
+          "ref": "F-PDF-PWD4SP/pdf/open-password-pdf"
+        },
+        {
+          "role": "extraction-evidence",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/focus-proof-pdf-pwd4sp-wrong.json",
+          "bytes": 354,
+          "sha256": "c2bf2b1bc8057a481d8857d6e91a99bc2fdca2f40db6f452a3fa8e5580316940",
+          "ref": "F-PDF-PWD4SP/pdf/open-password-pdf"
+        },
+        {
+          "role": "extraction-evidence",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/focus-proof-pdf-pwd4sp-correct2.json",
+          "bytes": 311,
+          "sha256": "4a081ae39c5a358a8bda40c736032a4191df400645e17414bfdb8b9566cb8c04",
+          "ref": "F-PDF-PWD4SP/pdf/open-password-pdf"
+        },
+        {
+          "role": "extraction-evidence",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/dom-pdf-pwd4sp-correct-filled.json",
+          "bytes": 449,
+          "sha256": "1b9021389fcbac4918a3b2539da96d441310326294a0a5e18b2eae62dcd17a28",
+          "ref": "F-PDF-PWD4SP/pdf/open-password-pdf"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/snapshot-pdf-pwd4sp-unlocked.json",
+          "bytes": 6611,
+          "sha256": "fd0fcc4e29949e1190671a8076fbcc626a5fb462c219993fcc43f17ba55cd6cb",
+          "ref": "F-PDF-PWD4SP/pdf/open-password-pdf"
+        },
+        {
+          "role": "extraction-evidence",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/source-pdf-after.json",
+          "bytes": 2790,
+          "sha256": "dea5d21460c12ac5249d3f1615a019e2c31bdd9ef49a53a3164b01e09b3ba36b",
+          "ref": "F-PDF-PWD4SP/pdf/open-password-pdf"
+        }
+      ],
+      "limitations": [
+        "upstream pdf.js password path, unchanged by r2; the empty-entry case was not separately reported by the Tester",
+        "installed Chrome/Edge and macOS/Safari are out of G0 scope (UNI-671)"
+      ],
+      "round": "r2"
+    },
+    {
+      "id": "E-DOC3-Q7-LEGACY-XLS",
+      "kind": "q7",
+      "format": "xls",
+      "operation": "open a legacy BIFF8 workbook that needs conversion",
+      "operationId": "q7-beyond-preservation",
+      "status": "BLOCKED",
+      "result": "blocked",
+      "level": "browser-real",
+      "provides": [
+        "editor-cycle"
+      ],
+      "operationEvidence": "byte-verified-operation",
+      "adapter": "real",
+      "uiKind": "real-editor",
+      "source": {
+        "kind": "upstream-commit",
+        "id": "upstream-genoffice",
+        "commit": "09485f884dc845cf3bf27fb7edfe489f9d457aad"
+      },
+      "fixture": "F-LEGACY-XLS",
+      "platform": {
+        "os": "windows",
+        "browser": "orca",
+        "browserVersion": "150.0.7871.250",
+        "orcaVersion": "1.4.209",
+        "embeddedBrowser": "orca",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) orca/1.4.209 Chrome/150.0.7871.250 Electron/43.7.0 Safari/537.36",
+        "servedBuild": "orca-recovery-g119/doc003-evidence/r2/lab-build/builds (host-build-manifest.json ee2b86a0e97982de7d2d536925bc38d0fa78f39d178bee3c737ceee5a99a1dd8)"
+      },
+      "runtime": {
+        "node": "22.23.2"
+      },
+      "engine": {
+        "name": "@genoffice/sheets",
+        "version": "0.1.0"
+      },
+      "protocolVersion": null,
+      "reason": "no conversion engine and no warning/cancel/accept surface exist in the frozen build: opening F-LEGACY-XLS yields the named engine refusal \"engine /engine/xlsx-open refused: invalid Zip archive: Could not find EOCD\" and an empty Sheet1 shell, so the Q7 beyond-preservation triangle (warning text, cancel writes nothing, accept writes a provenance copy) cannot be exercised - conversion engine (G2 UNI-658 / DOC-004), warning UI (G3 UNI-659), provenance/history (DOC-005, plan 5.4); closing test in r2/Q7-BLOCKER.md",
+      "command": "\"D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\tools\\node-v22.23.2-win-x64\\node.exe\" r2/lab/run-lab-v2.mjs start --tag tester --app-port 5720 --preview-port 5721 --engine-port 5722 --xlsx-engine-port 5723 (run 2026-09-25T15-42-52-380Z) ; orca tab create http://127.0.0.1:5720/sheets/?fixture=F-LEGACY-XLS",
+      "cwd": "D:/.Vietants_Project/uniwork-workspace/dev-uniwork/.uniwork-dev/orca-recovery-g119/doc003-evidence",
+      "expected": {
+        "result": "warning names what changes; cancel creates no output; accept creates a copy with provenance; source and history unchanged",
+        "oracle": "manifest fixture expectation plus the Q7 observation receipts"
+      },
+      "actual": "Tester r2 (independent, Orca browser): named refusal \"lab channel host:sheets-select-workbook failed: engine_error: [office-g0-xlsx] engine /engine/xlsx-open refused: invalid Zip archive: Could not find EOCD\"; empty Sheet1 shell; source sha256 unchanged (2B5EC829..., equal to the manifest). No conversion engine and no warning/cancel/accept surface exist (r2/Q7-BLOCKER.md).",
+      "artifacts": [
+        {
+          "role": "immutable-input",
+          "path": "docs/office/g0/fixtures/files/sheets/legacy-xls.xls",
+          "bytes": 13824,
+          "sha256": "2b5ec8298bacffdca61c50f6f7607da0a4e63cf76fa011c62f203e6a66bc072a",
+          "ref": "F-LEGACY-XLS/xls/q7-beyond-preservation"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/snapshot-sheets-legacy-xls.json",
+          "bytes": 19334,
+          "sha256": "27cb9c2a08e332bdfaf0c26def3fb8562dfa4c1ad59dea80846863e9509e22af",
+          "ref": "F-LEGACY-XLS/xls/q7-beyond-preservation"
+        },
+        {
+          "role": "transcript",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/console-sheets-legacy-xls.json",
+          "bytes": 190,
+          "sha256": "72867ec700fd1a94f750a1fc9fb5ace3c864e168063ebd153a7227f8a40f220a",
+          "ref": "F-LEGACY-XLS/xls/q7-beyond-preservation"
+        },
+        {
+          "role": "extraction-evidence",
+          "path": "orca-recovery-g119/doc003-evidence/r2/receipts/tester-r2/source-legacy-xls-after.json",
+          "bytes": 840,
+          "sha256": "abaf6cff7a82865e5125f85779c3f49444acd158e041deb5d81f0d3328795be6",
+          "ref": "F-LEGACY-XLS/xls/q7-beyond-preservation"
+        }
+      ],
+      "limitations": [
+        "blocker, not a pass: conversion engine (G2 UNI-658 / DOC-004), warning UI (G3 UNI-659), provenance/history (DOC-005, plan 5.4). Closing test in r2/Q7-BLOCKER.md",
+        "installed Chrome/Edge and macOS/Safari are out of G0 scope (UNI-671)"
+      ],
+      "round": "r2"
     }
   ],
   "gates": [

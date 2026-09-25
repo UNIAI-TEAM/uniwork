@@ -33,6 +33,27 @@ const GENERATION_METHODS = ['copied', 'generated', 'pending', 'lab-large'];
 const SHA256_RE = /^[0-9A-F]{64}$/;
 const COMMIT_RE = /^[0-9a-f]{40}$/;
 const FIXTURE_ID_RE = /^F-[A-Z0-9]+(-[A-Z0-9]+)*$/;
+/** Q9-A: a large-band fixture stays under 50 MiB on disk, whatever its content target says. */
+const Q9_DISK_CAP_BYTES = 50 * 1024 * 1024;
+
+/** Any numeric page field inside expected.content would be a fabricated TOC page number. */
+export function findNumericPageField(value, trail = 'expected.content') {
+  if (Array.isArray(value)) {
+    for (let i = 0; i < value.length; i += 1) {
+      const hit = findNumericPageField(value[i], trail + '[' + i + ']');
+      if (hit) return hit;
+    }
+    return null;
+  }
+  if (!value || typeof value !== 'object') return null;
+  for (const [key, entry] of Object.entries(value)) {
+    const here = trail + '.' + key;
+    if (/^page(no|number|numbers?)$/i.test(key) && typeof entry === 'number') return here;
+    const hit = findNumericPageField(entry, here);
+    if (hit) return hit;
+  }
+  return null;
+}
 
 const FAMILY_LABELS = { docx: 'DOCX', xlsx: 'XLSX', pptx: 'PPTX', pdf: 'PDF', md: 'Markdown', html: 'HTML', legacy: 'Legacy và định dạng dùng chung', cross: 'Cross-format' };
 const FAMILY_ORDER = ['docx', 'xlsx', 'pptx', 'pdf', 'md', 'html', 'legacy', 'cross'];
@@ -116,7 +137,7 @@ export function renderMatrix(manifest, capabilities, generatedAt) {
 }
 
 function parseArgs(argv) {
-  const out = { source: null, manifest: DEFAULT_MANIFEST, capabilities: DEFAULT_CAPABILITIES, sourceManifest: DEFAULT_SOURCE_MANIFEST, selfTest: false, verbose: false, help: false };
+  const out = { source: null, manifest: DEFAULT_MANIFEST, capabilities: DEFAULT_CAPABILITIES, sourceManifest: DEFAULT_SOURCE_MANIFEST, labRecord: null, labRoot: null, selfTest: false, verbose: false, help: false };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--source') out.source = argv[++i];
@@ -124,6 +145,8 @@ function parseArgs(argv) {
     else if (a === '--capabilities') out.capabilities = path.resolve(argv[++i]);
     else if (a === '--source-manifest') out.sourceManifest = path.resolve(argv[++i]);
     else if (a === '--self-test') out.selfTest = true;
+    else if (a === '--lab-record') out.labRecord = path.resolve(argv[++i]);
+    else if (a === '--lab-root') out.labRoot = path.resolve(argv[++i]);
     else if (a === '--write-matrix') out.writeMatrix = true;
     else if (a === '--verbose') out.verbose = true;
     else if (a === '--help' || a === '-h') out.help = true;
@@ -263,6 +286,10 @@ export function validateLabRecord(labRecord, manifest, labRoot) {
       } else if (requested < floor) {
         failures.push('lab-record: ' + entry.id + ' was generated at ' + requested + ' requested bytes, below 80% of the ' + defaultBytes + '-byte default; this is not a Q9-band generation');
       }
+    }
+    const diskBand = f.production && f.production.onDiskBandBytes;
+    if (diskBand && typeof entry.bytes === 'number' && (entry.bytes < diskBand.min || entry.bytes > diskBand.max)) {
+      failures.push('lab-record: ' + entry.id + ' is ' + entry.bytes + ' bytes on disk, outside the declared Q9 band ' + diskBand.min + '-' + diskBand.max);
     }
     const abs = path.resolve(labRoot, entry.labPath);
     if (!fs.existsSync(abs)) {
@@ -524,6 +551,86 @@ export function validateManifest(input) {
       fail('fixture ' + f.id + ': expected.oracle is required');
     }
 
+    // Reviewed fixtures carry the written accept/reject decision task 2 owes. A
+    // reviewed fixture with no decision is exactly the state g118 withheld.
+    const fixtureTags = Array.isArray(f.tags) ? f.tags : [];
+    if (fixtureTags.includes('reviewed-fixture')) {
+      const review = f.review;
+      if (!review || !['accepted', 'rejected'].includes(review.decision) ||
+          typeof review.decidedUtc !== 'string' || !Array.isArray(review.basis) || review.basis.length === 0) {
+        fail('fixture ' + f.id + ': a reviewed fixture must carry review {decision: accepted|rejected, decidedUtc, basis[]}');
+      }
+    }
+
+    // Engine-backed fixtures pin the bundle and the inputs that produced the bytes.
+    if (f.source && f.source.engineApi) {
+      if (SHA256_RE.test((f.generation && f.generation.engineBundleSha256) || '') === false) {
+        fail('fixture ' + f.id + ': an engine-backed fixture must pin generation.engineBundleSha256');
+      }
+      if (!f.generation || typeof f.generation.tool !== 'string' || f.generation.tool === '') {
+        fail('fixture ' + f.id + ': an engine-backed fixture must name its generator');
+      }
+      if (!f.generation || typeof f.generation.inputs !== 'string' || SHA256_RE.test(f.generation.inputsSha256 || '') === false) {
+        fail('fixture ' + f.id + ': an engine-backed fixture must pin generation.inputs and generation.inputsSha256');
+      }
+      if (!f.expected || typeof f.expected.fixtureOracle !== 'string' || f.expected.fixtureOracle.trim() === '') {
+        fail('fixture ' + f.id + ': an engine-backed fixture must record what the pinned engine observed (expected.fixtureOracle)');
+      }
+    }
+
+    // The TOC fixture must not bake in page numbers: they are a measurement.
+    if (f.source && f.source.engineApi === 'generateTocFieldXml') {
+      const entries = f.expected && f.expected.content && f.expected.content.entries;
+      if (!Array.isArray(entries) || entries.length === 0) {
+        fail('fixture ' + f.id + ': a TOC fixture must declare expected.content.entries');
+      } else {
+        entries.forEach((entry, index) => {
+          if (!entry || typeof entry.text !== 'string' || !Number.isInteger(entry.level)) {
+            fail('fixture ' + f.id + ': TOC entry ' + index + ' needs a text and an integer level');
+          }
+        });
+      }
+      const numericPage = findNumericPageField(f.expected && f.expected.content);
+      if (numericPage) fail('fixture ' + f.id + ': TOC content must not carry a page number (' + numericPage + '); the reader measures them');
+    }
+
+    if (f.generation && f.generation.regenerationDrift) {
+      const drift = f.generation.regenerationDrift;
+      if (drift.recordedSha256 !== f.sha256) fail('fixture ' + f.id + ': regenerationDrift.recordedSha256 must equal the pinned sha256');
+      if (SHA256_RE.test(drift.regeneratedSha256 || '') === false || drift.regeneratedSha256 === f.sha256) {
+        fail('fixture ' + f.id + ': regenerationDrift must record a different regenerated sha256');
+      }
+    }
+    // Expansion/complexity fixtures state the handling they require, and the
+    // complexity they claim, before anyone runs them.
+    if (fixtureTags.includes('expansion-negative')) {
+      const handling = f.expected && f.expected.handling;
+      if (!handling || !['refused', 'bounded-handling'].includes(handling.result)) {
+        fail('fixture ' + f.id + ': an expansion-negative fixture must declare expected.handling.result refused|bounded-handling');
+      }
+      if (!handling || !(typeof handling.maxSeconds === 'number' && handling.maxSeconds > 0) ||
+          !(typeof handling.maxMemoryMiB === 'number' && handling.maxMemoryMiB > 0)) {
+        fail('fixture ' + f.id + ': an expansion-negative fixture must bound the run with maxSeconds and maxMemoryMiB');
+      }
+      const observed = f.expected && f.expected.observed;
+      if (!observed || typeof observed.receipt !== 'string' || observed.receipt.trim() === '' ||
+          !['parsed', 'refused', 'timeout', 'killed', 'unknown'].includes(observed.outcome)) {
+        fail('fixture ' + f.id + ': an expansion-negative fixture must record expected.observed {receipt, outcome} from a real probe');
+      }
+      const complexity = f.complexity;
+      if (!complexity || !(typeof complexity.archiveBytes === 'number' && complexity.archiveBytes > 0) ||
+          !(typeof complexity.uncompressedBytes === 'number' && complexity.uncompressedBytes > 0) ||
+          !(typeof complexity.expansionRatio === 'number' && complexity.expansionRatio > 0)) {
+        fail('fixture ' + f.id + ': an expansion-negative fixture must declare complexity {archiveBytes, uncompressedBytes, expansionRatio}');
+      }
+      if (fixtureTags.includes('zip-bomb') && complexity && !(complexity.expansionRatio >= 100)) {
+        fail('fixture ' + f.id + ': a zip-bomb fixture must declare an expansion ratio of at least 100');
+      }
+      if (fixtureTags.includes('deep-nesting') && complexity && !(complexity.xmlDepth >= 256)) {
+        fail('fixture ' + f.id + ': a deep-nesting fixture must declare xmlDepth >= 256');
+      }
+    }
+
     if (!Array.isArray(f.capabilities) || f.capabilities.length === 0) {
       fail('fixture ' + f.id + ': at least one capability must be referenced');
     } else {
@@ -562,6 +669,17 @@ export function validateManifest(input) {
       if (!Array.isArray(f.tags) || !f.tags.includes('lab-only')) fail('fixture ' + f.id + ': a lab fixture must carry the lab-only tag');
       if (f.sha256 !== null || f.bytes !== null) {
         fail('fixture ' + f.id + ': a lab fixture must not carry a committed checksum; the lab record holds it instead');
+      }
+      // Q9-A is a file band under 50 MiB on disk. A content-size target alone
+      // let a 362 KB archive pass as the 46 MiB band (g118 audit), so the
+      // declaration must now name the band the file has to land in.
+      const onDiskBand = f.production && f.production.onDiskBandBytes;
+      if (!onDiskBand || !Number.isInteger(onDiskBand.min) || !Number.isInteger(onDiskBand.max)) {
+        fail('fixture ' + f.id + ': a lab fixture must record production.onDiskBandBytes {min,max}');
+      } else if (onDiskBand.max > Q9_DISK_CAP_BYTES) {
+        fail('fixture ' + f.id + ': the Q9 on-disk band must stay under ' + Q9_DISK_CAP_BYTES + ' bytes (50 MiB); it declares ' + onDiskBand.max);
+      } else if (onDiskBand.min >= onDiskBand.max || onDiskBand.min < Math.ceil(onDiskBand.max * 0.9)) {
+        fail('fixture ' + f.id + ': the Q9 on-disk band ' + onDiskBand.min + '-' + onDiskBand.max + ' is too wide to be a band');
       }
       continue;
     }
@@ -624,10 +742,18 @@ export function validateManifest(input) {
     // honest gate is stricter than "has a fixture": a proven status must name the
     // evidence-register entry that recorded the run. A fixture id is a case, not
     // an observed result, so it never satisfies this.
+    const fixtureById = new Map(manifest.fixtures.map((f) => [f.id, f]));
+    const proofCases = (row.fixtures || []).filter((fid) => {
+      const fx = fixtureById.get(fid);
+      return fx && !(Array.isArray(fx.tags) && fx.tags.includes('expansion-negative'));
+    });
     const claimedColumns = ['webProven', 'desktopProven'].filter((c) => PROVEN_STATUSES.includes(row[c]));
     if (claimedColumns.length) {
       if (!Array.isArray(row.fixtures) || row.fixtures.length === 0) {
         fail('capabilities: row ' + row.id + ' is marked proven with no verification case');
+      }
+      if (proofCases.length === 0) {
+        fail('capabilities: row ' + row.id + ' claims ' + claimedColumns.join('/') + ' but references only negative/complexity fixtures');
       }
       const register = typeof row.evidenceRegister === 'string' ? row.evidenceRegister.trim() : '';
       if (!register) {
@@ -694,7 +820,6 @@ export function selfTestCases(manifest, capabilities, sourceManifest, upstreamCo
   const firstGenerated = manifest.fixtures.find((f) => f.generation.method === 'generated');
   const firstCopied = manifest.fixtures.find((f) => f.generation.method === 'copied');
   const firstExternal = manifest.fixtures.find((f) => f.source.upstreamRepository);
-  const firstPending = manifest.fixtures.find((f) => f.generation.method === 'pending');
   const claimedRow = capabilities.rows.find((r) => r.fixtures && r.fixtures.length > 0);
 
   const cases = [
@@ -861,12 +986,74 @@ export function selfTestCases(manifest, capabilities, sourceManifest, upstreamCo
     },
     {
       name: 'pending fixture with no blocker reason',
-      mutate: (i) => { delete i.manifest.fixtures.find((f) => f.id === firstPending.id).source.reason; return i; },
+      mutate: (i) => {
+        const fixture = i.manifest.fixtures.find((f) => f.id === firstGenerated.id);
+        fixture.generation = { method: 'pending' };
+        fixture.source = { kind: 'pending' };
+        fixture.tags = Array.from(new Set([...(fixture.tags || []), 'pending-generation']));
+        return i;
+      },
       expectRejected: true,
     },
     {
       name: 'manifest that claims a run has passed',
       mutate: (i) => { i.manifest.status = 'đạt có bằng chứng'; return i; },
+      expectRejected: true,
+    },
+    {
+      name: 'expansion-negative fixture with no recorded observation',
+      mutate: (i) => { const f = i.manifest.fixtures.find((x) => (x.tags || []).includes('expansion-negative')); delete f.expected.observed; return i; },
+      expectRejected: true,
+    },
+    {
+      name: 'lab fixture with no on-disk band',
+      mutate: (i) => { delete i.manifest.fixtures.find((f) => f.generation.method === 'lab-large').production.onDiskBandBytes; return i; },
+      expectRejected: true,
+    },
+    {
+      name: 'lab fixture whose on-disk band reaches past 50 MiB',
+      mutate: (i) => { i.manifest.fixtures.find((f) => f.generation.method === 'lab-large').production.onDiskBandBytes = { min: 50 * 1024 * 1024, max: 60 * 1024 * 1024 }; return i; },
+      expectRejected: true,
+    },
+    {
+      name: 'expansion-negative fixture with no required handling',
+      mutate: (i) => { const f = i.manifest.fixtures.find((x) => (x.tags || []).includes('expansion-negative')); delete f.expected.handling; return i; },
+      expectRejected: true,
+    },
+    {
+      name: 'zip-bomb fixture with a small declared expansion ratio',
+      mutate: (i) => { const f = i.manifest.fixtures.find((x) => (x.tags || []).includes('zip-bomb')); f.complexity.expansionRatio = 3; return i; },
+      expectRejected: true,
+    },
+    {
+      name: 'deep-nesting fixture with a shallow declared depth',
+      mutate: (i) => { const f = i.manifest.fixtures.find((x) => (x.tags || []).includes('deep-nesting')); f.complexity.xmlDepth = 4; return i; },
+      expectRejected: true,
+    },
+    {
+      name: 'engine-backed fixture without a pinned engine bundle',
+      mutate: (i) => { const f = i.manifest.fixtures.find((x) => x.source && x.source.engineApi); delete f.generation.engineBundleSha256; return i; },
+      expectRejected: true,
+    },
+    {
+      name: 'TOC fixture that declares a numeric page number',
+      mutate: (i) => { const f = i.manifest.fixtures.find((x) => x.source && x.source.engineApi === 'generateTocFieldXml'); f.expected.content.entries[0].pageNo = 3; return i; },
+      expectRejected: true,
+    },
+    {
+      name: 'reviewed fixture without a written decision',
+      mutate: (i) => { delete i.manifest.fixtures.find((x) => (x.tags || []).includes('reviewed-fixture')).review; return i; },
+      expectRejected: true,
+    },
+    {
+      name: 'capability marked proven only by negative fixtures',
+      mutate: (i) => {
+        const row = i.capabilities.rows.find((r) => r.id === 'docx-open');
+        row.fixtures = i.manifest.fixtures.filter((f) => (f.tags || []).includes('expansion-negative')).map((f) => f.id);
+        row.webProven = 'đạt có bằng chứng';
+        row.evidenceRegister = 'E-DOCX-CYCLE';
+        return i;
+      },
       expectRejected: true,
     },
   ];
@@ -1010,9 +1197,10 @@ function runVerify(args) {
     checkBytes: true,
   });
 
-  const labRecordPath = path.join(LAB_ROOT, 'fixtures', 'large', 'lab-record.json');
+  const labRoot = args.labRoot || LAB_ROOT;
+  const labRecordPath = args.labRecord || path.join(labRoot, 'fixtures', 'large', 'lab-record.json');
   if (fs.existsSync(labRecordPath)) {
-    const labFailures = validateLabRecord(readJson(labRecordPath), manifest, LAB_ROOT);
+    const labFailures = validateLabRecord(readJson(labRecordPath), manifest, labRoot);
     failures.push(...labFailures);
     process.stdout.write('lab record: ' + labRecordPath + (labFailures.length ? ' (problems found)' : ' agrees') + '\n');
   } else {

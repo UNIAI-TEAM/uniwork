@@ -940,8 +940,65 @@
     "distinguishesLabFromProduction": "the lab copy is a survey and build sandbox; production source is a pinned copy inside the monorepo build (task 4), and no machine may require ../genoffice or a symlink to the user checkout",
     "reproducibilityRule": "preparation must succeed in a clean directory without global dependencies and without symlinking the source checkout",
     "patches": [],
-    "patchPolicy": "Task 3 records every spike patch in ../.uniwork-dev/office-g0/patches/ as a numbered .patch file plus a checksum, and adds an entry here. Zero entries at task-2 time is correct: no spike has run.",
-    "preparationRecordPath": "../.uniwork-dev/office-g0/trial-source/prepare-record.json"
+    "patchPolicy": "Task 3 records every spike patch that exists as a patch in ../.uniwork-dev/office-g0/patches/ (numbered .patch plus checksum) and registers it in trialSource.patchBundle. At the pinned commit the spike produced exactly one patch-shaped artifact (the lab pageImagePng extension, already integrated into the phase root) plus one transformer script; no trial-source (genoffice) patch exists, so trialSource.patches stays empty. Replay is portable and fails closed: node scripts/office-g0/apply-patch-bundle.mjs --bundle <dir> --root <clean-dir> --init-root.",
+    "preparationRecordPath": "../.uniwork-dev/office-g0/trial-source/prepare-record.json",
+    "patchBundle": {
+      "path": "../.uniwork-dev/office-g0/patches",
+      "tool": "scripts/office-g0/apply-patch-bundle.mjs",
+      "bundleManifest": "bundle.json beside the numbered .patch files",
+      "registeredUtc": "2026-09-25T12:00:00Z",
+      "entries": [
+        {
+          "order": 1,
+          "file": "0001-office-g0-lab-page-image-png.patch",
+          "sha256": "094C42CBB058344FC69E3C41447D47BDC338599E3CAB10C461273A24E9DAEC7A",
+          "appliesTo": "phase-root lab files (M/e2e/office-g0)",
+          "purpose": "DOC-003 spike: real pdfjs + @napi-rs/canvas region render for the lab channels host:pdf-page-image-png and host:pdf-page-preview-png, replacing the unmounting stand-in path (lab-only engine extension, frozen candidate per CORE-COMMON-g115).",
+          "preimageSha256": [
+            {
+              "path": "e2e/office-g0/host-adapter.mjs",
+              "sha256": "7014D03C2A834B55580FBF67FBD14BFD5AAE715DBD6613BC9D21B79FC0B1BBD3"
+            },
+            {
+              "path": "e2e/office-g0/lab-server.mjs",
+              "sha256": "5E70FC51B5427ACB155522443649939B8BB9C782737C67C1E62797D9449EA080"
+            }
+          ],
+          "postimageSha256": [
+            {
+              "path": "e2e/office-g0/host-adapter.mjs",
+              "sha256": "1B6DB9C590AA7AF6AA3EFBACA84DE431C82822D67E73EDB76EF403B1A611CB5F"
+            },
+            {
+              "path": "e2e/office-g0/lab-server.mjs",
+              "sha256": "5FBF2C4B3855568EEC6E672C1EE7F6BE72A03606DFAB99CA10C7E1ED1B56CC81"
+            }
+          ],
+          "sideArtifacts": [
+            {
+              "path": "e2e/office-g0/lab-page-image-png.mjs",
+              "sha256": "11C0F637CA53D213CB70E4720DB92F4EB7A338CB6A3582ECD78BFEE001FBA05E"
+            }
+          ],
+          "integrationStatus": "host-adapter.mjs is already integrated in the phase root (canonical SHA-256 equals this postimage); lab-server.mjs has moved on to contract revision C, so this entry replays on its documented preimage only and must not be re-applied to the current phase root."
+        }
+      ],
+      "notRegistered": [
+        {
+          "artifact": "core-docx-pptx slides edit transform (host:slides-edit-transform / pptx-edit-transform)",
+          "why": "the spike delivered it as a transformer script (patch-slides-edit-transform.mjs + anchor-based self-test) with preimage/postimage hashes for the revision-B lab base only, not as a .patch file; registering it as a patch would misstate what replays",
+          "receipt": ".uniwork-dev/orca-recovery-g104/core-docx-pptx/receipts/recon/patch-slides-edit-transform.json"
+        },
+        {
+          "artifact": "trial-source (genoffice) patches",
+          "why": "the spike ran the unmodified pinned tree: no packages/*-engine/src or apps/* patch exists at the pinned commit, so the trial source needs no patch and trialSource.patches stays empty; the replay path is exercised by entry 0001 instead"
+        }
+      ],
+      "portabilityFacts": [
+        "git apply must run with core.autocrlf=false and core.eol=lf, or the replay re-emits host line endings and the postimage hash never matches",
+        "the clean root must be a git work tree: outside one, git apply silently skips rename-shaped entries and still exits 0"
+      ]
+    }
   },
   "commands": {
     "prepare": "node scripts/office-g0/prepare-source.mjs --source ..\\..\\..\\genoffice --work-dir ..\\..\\..\\.uniwork-dev\\office-g0\\trial-source-r1",
@@ -957,7 +1014,7 @@
     "Coexistence with the UniWork React 19.2.3 and TipTap 3.30.6 catalog is unproven.",
     "macOS and Safari (QA-01) are deferred to UNI-671 and are not a passing platform result.",
     "Electron packaging, code signing, OCR helpers and the update feed were not exercised.",
-    "No spike patch exists yet, so the patch and checksum replay path is exercised only by the prepare and verify scripts, not by a real patch set."
+    "No trial-source (genoffice) patch exists: the spike ran the unmodified pinned tree. The one patch-shaped spike artifact (lab pageImagePng) is registered with its checksums and replays to its declared postimages in a clean git work tree; the docx/pptx slides transform ships as a script, not as a patch."
   ],
   "brandAndIntegration": {
     "task": "DOC-002 2.7",

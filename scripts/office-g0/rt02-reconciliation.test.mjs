@@ -103,13 +103,20 @@ test('six case-bound register rows reproduce the real-engine records without cla
   }
   // The existing malformed-result capture is checked by verify-evidence.mjs against its separate artifact root.
   assert.equal(rows.find((row) => row.cases[0] === 'malformed-result').status, 'PASS');
-  for (const summary of Object.values(map.format_summary)) {
-    assert.equal(summary.runtime_chosen, false);
+  // Harness-level fault rows never select a runtime: no operation in the map may cite one as its proof.
+  const faultRowIds = new Set(rows.map((row) => row.id));
+  for (const [format, entry] of Object.entries(map.formats)) {
+    for (const op of entry.operations) {
+      const cited = op.proving_evidence?.register_row;
+      assert.ok(!cited || !faultRowIds.has(cited), format + '/' + op.operation + ' cites a harness fault row as runtime proof');
+    }
   }
   assert.equal(map.source_layout_direction.verified_here, false);
   assert.equal(map.candidate_criterion_decisions['4.1'].decision, 'partial_correction_only');
   assert.equal(map.candidate_criterion_decisions['4.4'].decision, 'bounded_evidence_present_whole_criterion_open');
   assert.equal(map.candidate_criterion_decisions['4.7'].decision, 'handoff_contract_present_build_proof_open');
-  assert.equal(register.decision.value, 'NO-GO');
+  // The user recorded G0 = GO (2026-09-25); the earlier NO-GO stays in decisionHistory. GO is not pilot acceptance.
+  assert.equal(register.decision.value, 'GO');
+  assert.ok(register.decisionHistory.some((entry) => entry.value === 'NO-GO'), 'the earlier NO-GO must stay in decisionHistory');
   assert.equal(register.pilot.ready, false);
 });

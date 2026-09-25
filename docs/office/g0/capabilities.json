@@ -39,7 +39,7 @@
       "op": "open in editor",
       "upstreamHas": true,
       "mustPort": true,
-      "webProven": "chưa thử",
+      "webProven": "đạt có giới hạn",
       "desktopProven": "chưa thử",
       "tags": [
         "Q1-B"
@@ -48,14 +48,17 @@
         "F-DOCX-SIMPLE",
         "F-DOCX-KITCHEN",
         "F-DOCX-VI",
-        "F-LARGE-DOCX"
+        "F-LARGE-DOCX",
+        "F-DOCX-EXPANSION",
+        "F-DOCX-DEEP-NEST"
       ],
       "evidence": [
         "apps/shell/src/main/index.ts DOCX_RE routing",
         "apps/docs/src/main/docs-main.ts",
         "apps/docs/src/renderer/editor/extensions.ts"
       ],
-      "note": "Ca dải lớn phải sinh trước bằng generate-fixtures.mjs --large; checksum của nó không nằm trong manifest đã commit mà ở lab-record.json cạnh file."
+      "note": "Ca dải lớn phải sinh trước bằng generate-fixtures.mjs --large; checksum của nó không nằm trong manifest đã commit mà ở lab-record.json cạnh file. F-DOCX-EXPANSION and F-DOCX-DEEP-NEST are negative/complexity cases for this row: they state the required refusal/bounded handling and can never mark the row as proven. F-LARGE-DOCX/F-LARGE-XLSX now carry an on-disk band (49 MiB <= bytes < 50 MiB) because Q9-A is a real file band, not a content target.",
+      "evidenceRegister": "E-DOCX-CYCLE"
     },
     {
       "id": "docx-edit-text",
@@ -64,7 +67,7 @@
       "op": "edit text",
       "upstreamHas": true,
       "mustPort": true,
-      "webProven": "chưa thử",
+      "webProven": "đạt có giới hạn",
       "desktopProven": "chưa thử",
       "tags": [
         "Q1-B"
@@ -76,7 +79,8 @@
       "evidence": [
         "apps/docs/src/renderer/editor/extensions.ts",
         "packages/docx-engine/src/text-patch.ts"
-      ]
+      ],
+      "evidenceRegister": "E-DOCX-CYCLE"
     },
     {
       "id": "docx-edit-table-image",
@@ -85,7 +89,7 @@
       "op": "edit table and image",
       "upstreamHas": true,
       "mustPort": true,
-      "webProven": "chưa thử",
+      "webProven": "đạt có giới hạn",
       "desktopProven": "chưa thử",
       "tags": [
         "Q1-B"
@@ -97,7 +101,8 @@
       "evidence": [
         "packages/docx-engine/src/generate.ts table and image patch builders",
         "apps/docs/src/renderer/editor/table-properties.ts"
-      ]
+      ],
+      "evidenceRegister": "E-DOC3-DOCX-TABLE-IMAGE-CYCLE"
     },
     {
       "id": "docx-save-docx",
@@ -106,7 +111,7 @@
       "op": "save docx",
       "upstreamHas": true,
       "mustPort": true,
-      "webProven": "chưa thử",
+      "webProven": "đạt có giới hạn",
       "desktopProven": "chưa thử",
       "tags": [
         "Q1-B"
@@ -119,7 +124,8 @@
       "evidence": [
         "packages/docx-engine/src/patch.ts saveDocx",
         "apps/docs/src/main/atomic-write.ts"
-      ]
+      ],
+      "evidenceRegister": "E-DOCX-CYCLE"
     },
     {
       "id": "docx-export-pdf",
@@ -323,7 +329,7 @@
       "op": "content: watermark",
       "upstreamHas": true,
       "mustPort": true,
-      "webProven": "chưa thử",
+      "webProven": "đạt có giới hạn",
       "desktopProven": "chưa thử",
       "tags": [
         "Q1-B"
@@ -333,7 +339,8 @@
       ],
       "evidence": [
         "packages/docx-engine/src/watermark.ts"
-      ]
+      ],
+      "evidenceRegister": "E-DOC3-DOCX-HEADER-PRESERVE-CYCLE"
     },
     {
       "id": "docx-content-sections-columns",
@@ -423,7 +430,7 @@
       "op": "open password-encrypted docx",
       "upstreamHas": true,
       "mustPort": true,
-      "webProven": "chưa thử",
+      "webProven": "đạt có giới hạn",
       "desktopProven": "chưa thử",
       "tags": [
         "Q1-B"
@@ -436,7 +443,8 @@
       "evidence": [
         "apps/docs/src/main/docx-encryption.ts",
         "apps/docs/tests/encrypted-fixtures/ (password Password1234_)"
-      ]
+      ],
+      "evidenceRegister": "E-DOC3-FAIL-PASSWORD-DOCX"
     },
     {
       "id": "docx-text-extract",
@@ -489,7 +497,7 @@
       "op": "open in editor",
       "upstreamHas": true,
       "mustPort": true,
-      "webProven": "chưa thử",
+      "webProven": "đạt có giới hạn",
       "desktopProven": "chưa thử",
       "tags": [
         "Q1-B"
@@ -504,7 +512,8 @@
         "apps/shell/src/main/index.ts XLSX_RE and OPEN_DIALOG_EXTENSIONS",
         "apps/sheets/src/main/sheets-main.ts"
       ],
-      "note": "Ca dải lớn phải sinh trước bằng generate-fixtures.mjs --large; checksum của nó không nằm trong manifest đã commit mà ở lab-record.json cạnh file."
+      "note": "Ca dải lớn phải sinh trước bằng generate-fixtures.mjs --large; checksum của nó không nằm trong manifest đã commit mà ở lab-record.json cạnh file.",
+      "evidenceRegister": "E-XLSX-CYCLE"
     },
     {
       "id": "xlsx-edit-cells",
@@ -513,7 +522,7 @@
       "op": "edit cells",
       "upstreamHas": true,
       "mustPort": true,
-      "webProven": "chưa thử",
+      "webProven": "đạt có giới hạn",
       "desktopProven": "chưa thử",
       "tags": [
         "Q1-B"
@@ -529,7 +538,8 @@
         "apps/sheets/src/renderer/save-actions.ts",
         "apps/sheets/scripts/verify-compatibility.ts"
       ],
-      "note": "Ca dải lớn phải sinh trước bằng generate-fixtures.mjs --large; checksum của nó không nằm trong manifest đã commit mà ở lab-record.json cạnh file."
+      "note": "Ca dải lớn phải sinh trước bằng generate-fixtures.mjs --large; checksum của nó không nằm trong manifest đã commit mà ở lab-record.json cạnh file.",
+      "evidenceRegister": "E-XLSX-CYCLE"
     },
     {
       "id": "xlsx-save",
@@ -538,7 +548,7 @@
       "op": "save",
       "upstreamHas": true,
       "mustPort": true,
-      "webProven": "chưa thử",
+      "webProven": "đạt có giới hạn",
       "desktopProven": "chưa thử",
       "tags": [
         "Q1-B"
@@ -551,7 +561,8 @@
         "packages/xlsx-gateway/src/gateway/xlsx-gateway.ts applyCellEditsToXlsx",
         "apps/sheets/src/main/save-edits-transfer.ts"
       ],
-      "note": "the MCP save path still forces .xlsx although the interactive Save As offers xlsm and csv"
+      "note": "the MCP save path still forces .xlsx although the interactive Save As offers xlsm and csv",
+      "evidenceRegister": "E-XLSX-CYCLE"
     },
     {
       "id": "xlsx-recalculate",
@@ -560,7 +571,7 @@
       "op": "recalculate formulas",
       "upstreamHas": true,
       "mustPort": true,
-      "webProven": "chưa thử",
+      "webProven": "đạt có giới hạn",
       "desktopProven": "chưa thử",
       "tags": [
         "Q1-B"
@@ -573,7 +584,8 @@
         "apps/sheets/native/xlsx-engine (crate xlsx-sidecar, ironcalc plus calamine)",
         "apps/sheets/src/main/xlsx-sidecar-client.ts"
       ],
-      "note": "missing recalculation is a blocker per the plan's Task 3 table"
+      "note": "missing recalculation is a blocker per the plan's Task 3 table",
+      "evidenceRegister": "E-XLSX-CYCLE"
     },
     {
       "id": "xlsx-cross-sheet-formulas",
@@ -819,7 +831,7 @@
       "op": "open in editor",
       "upstreamHas": true,
       "mustPort": true,
-      "webProven": "chưa thử",
+      "webProven": "đạt có giới hạn",
       "desktopProven": "chưa thử",
       "tags": [
         "Q1-B"
@@ -831,7 +843,8 @@
       "evidence": [
         "apps/shell/src/main/index.ts PPTX_RE",
         "apps/slides/src/main/slides-main.ts"
-      ]
+      ],
+      "evidenceRegister": "E-PPTX-CYCLE"
     },
     {
       "id": "pptx-edit-text",
@@ -840,7 +853,7 @@
       "op": "edit text",
       "upstreamHas": true,
       "mustPort": true,
-      "webProven": "chưa thử",
+      "webProven": "đạt có giới hạn",
       "desktopProven": "chưa thử",
       "tags": [
         "Q1-B"
@@ -852,7 +865,8 @@
       "evidence": [
         "packages/pptx-ops/src/ops/text-ops.ts",
         "apps/slides/src/renderer/TextEditOverlay.tsx"
-      ]
+      ],
+      "evidenceRegister": "E-PPTX-CYCLE"
     },
     {
       "id": "pptx-edit-shape-image",
@@ -861,7 +875,7 @@
       "op": "edit shapes and images",
       "upstreamHas": true,
       "mustPort": true,
-      "webProven": "chưa thử",
+      "webProven": "đạt có giới hạn",
       "desktopProven": "chưa thử",
       "tags": [
         "Q1-B"
@@ -872,7 +886,8 @@
       "evidence": [
         "packages/pptx-ops/src/ops/element-ops.ts",
         "packages/pptx-engine/src/media-insert.ts"
-      ]
+      ],
+      "evidenceRegister": "E-PPTX-CYCLE"
     },
     {
       "id": "pptx-save",
@@ -881,7 +896,7 @@
       "op": "save",
       "upstreamHas": true,
       "mustPort": true,
-      "webProven": "chưa thử",
+      "webProven": "đạt có giới hạn",
       "desktopProven": "chưa thử",
       "tags": [
         "Q1-B"
@@ -893,7 +908,8 @@
       "evidence": [
         "apps/slides/src/renderer/file-actions.ts",
         "packages/pptx-engine/src/zip.ts"
-      ]
+      ],
+      "evidenceRegister": "E-PPTX-CYCLE"
     },
     {
       "id": "pptx-export-pdf",
@@ -1116,7 +1132,7 @@
       "op": "open and view",
       "upstreamHas": true,
       "mustPort": true,
-      "webProven": "chưa thử",
+      "webProven": "đạt có giới hạn",
       "desktopProven": "chưa thử",
       "tags": [
         "Q1-B"
@@ -1128,7 +1144,8 @@
       "evidence": [
         "apps/pdf/src/renderer/PdfPage.tsx",
         "apps/pdf/src/main/pdf-main.ts"
-      ]
+      ],
+      "evidenceRegister": "E-PDF-TEXT-CYCLE"
     },
     {
       "id": "pdf-edit-text-in-place",
@@ -1137,7 +1154,7 @@
       "op": "edit existing text in the content stream",
       "upstreamHas": true,
       "mustPort": true,
-      "webProven": "chưa thử",
+      "webProven": "đạt có giới hạn",
       "desktopProven": "chưa thử",
       "tags": [
         "Q1-B"
@@ -1149,7 +1166,8 @@
         "apps/pdf/src/main/text-edit.ts (TextEditInput)",
         "apps/pdf/src/shared/op-docs.ts"
       ],
-      "note": "MCP formats.ts calls the pdf app a viewer with read-only text extraction; the IPC and main-process implementations contradict that comment, and the plan forbids concluding from the package description"
+      "note": "MCP formats.ts calls the pdf app a viewer with read-only text extraction; the IPC and main-process implementations contradict that comment, and the plan forbids concluding from the package description",
+      "evidenceRegister": "E-PDF-TEXT-CYCLE"
     },
     {
       "id": "pdf-edit-image",
@@ -1158,7 +1176,7 @@
       "op": "edit and replace images",
       "upstreamHas": true,
       "mustPort": true,
-      "webProven": "chưa thử",
+      "webProven": "đạt có giới hạn",
       "desktopProven": "chưa thử",
       "tags": [
         "Q1-B"
@@ -1169,7 +1187,8 @@
       "evidence": [
         "apps/pdf/src/main/image-edit.ts",
         "apps/pdf/src/renderer/ImageEditLayer.tsx"
-      ]
+      ],
+      "evidenceRegister": "E-PDF-TEXT-CYCLE"
     },
     {
       "id": "pdf-save",
@@ -1178,7 +1197,7 @@
       "op": "save",
       "upstreamHas": true,
       "mustPort": true,
-      "webProven": "chưa thử",
+      "webProven": "đạt có giới hạn",
       "desktopProven": "chưa thử",
       "tags": [
         "Q1-B"
@@ -1189,7 +1208,8 @@
       "evidence": [
         "apps/pdf/src/main/save-pdf.ts",
         "apps/pdf/src/renderer/useAutosave.ts"
-      ]
+      ],
+      "evidenceRegister": "E-PDF-TEXT-CYCLE"
     },
     {
       "id": "pdf-export-docx",
@@ -1447,7 +1467,7 @@
       "op": "open in editor",
       "upstreamHas": true,
       "mustPort": true,
-      "webProven": "chưa thử",
+      "webProven": "đạt có giới hạn",
       "desktopProven": "chưa thử",
       "tags": [
         "Q1-B"
@@ -1459,7 +1479,8 @@
       "evidence": [
         "apps/shell/src/main/index.ts MD_RE",
         "apps/markdown/src/main/markdown-main.ts"
-      ]
+      ],
+      "evidenceRegister": "E-MD-CYCLE"
     },
     {
       "id": "md-save",
@@ -1468,7 +1489,7 @@
       "op": "save source",
       "upstreamHas": true,
       "mustPort": true,
-      "webProven": "chưa thử",
+      "webProven": "đạt có giới hạn",
       "desktopProven": "chưa thử",
       "tags": [
         "Q1-B"
@@ -1480,7 +1501,8 @@
       "evidence": [
         "apps/markdown/src/main/markdown-main.ts",
         "apps/markdown/src/renderer/editor/markdownEscape.ts"
-      ]
+      ],
+      "evidenceRegister": "E-MD-CYCLE"
     },
     {
       "id": "md-content-blocks",
@@ -1489,7 +1511,7 @@
       "op": "content: tables, code blocks, Unicode",
       "upstreamHas": true,
       "mustPort": true,
-      "webProven": "chưa thử",
+      "webProven": "đạt có giới hạn",
       "desktopProven": "chưa thử",
       "tags": [
         "Q1-B"
@@ -1501,7 +1523,8 @@
       "evidence": [
         "apps/markdown/src/renderer/editor/extensions.ts",
         "apps/markdown/src/renderer/components/TableMenu.tsx"
-      ]
+      ],
+      "evidenceRegister": "E-MD-CYCLE"
     },
     {
       "id": "md-content-math-mermaid",
@@ -1547,7 +1570,7 @@
       "op": "relative image and asset links",
       "upstreamHas": true,
       "mustPort": true,
-      "webProven": "chưa thử",
+      "webProven": "đạt có giới hạn",
       "desktopProven": "chưa thử",
       "tags": [
         "Q1-B"
@@ -1558,7 +1581,8 @@
       "evidence": [
         "apps/markdown/src/main/asset-lifecycle.ts",
         "apps/markdown/src/renderer/editor/localImage.ts"
-      ]
+      ],
+      "evidenceRegister": "E-MD-CYCLE"
     },
     {
       "id": "md-export-docx",
@@ -1623,7 +1647,7 @@
       "op": "open in editor",
       "upstreamHas": true,
       "mustPort": true,
-      "webProven": "chưa thử",
+      "webProven": "đạt có giới hạn",
       "desktopProven": "chưa thử",
       "tags": [
         "Q1-B"
@@ -1634,7 +1658,8 @@
       "evidence": [
         "apps/shell/src/main/index.ts HTML_RE",
         "apps/html/src/main/html-main.ts"
-      ]
+      ],
+      "evidenceRegister": "E-HTML-CYCLE"
     },
     {
       "id": "html-save",
@@ -1643,7 +1668,7 @@
       "op": "save source",
       "upstreamHas": true,
       "mustPort": true,
-      "webProven": "chưa thử",
+      "webProven": "đạt có giới hạn",
       "desktopProven": "chưa thử",
       "tags": [
         "Q1-B"
@@ -1655,7 +1680,8 @@
       "evidence": [
         "apps/html/src/main/html-main.ts",
         "apps/html/src/main/atomic-write.ts"
-      ]
+      ],
+      "evidenceRegister": "E-HTML-CYCLE"
     },
     {
       "id": "html-preview-isolation",
@@ -1664,7 +1690,7 @@
       "op": "isolated preview",
       "upstreamHas": true,
       "mustPort": true,
-      "webProven": "chưa thử",
+      "webProven": "đạt có giới hạn",
       "desktopProven": "chưa thử",
       "tags": [
         "Q1-B"
@@ -1677,7 +1703,8 @@
         "apps/html/src/main/preview-document.ts",
         "apps/html/src/renderer/preview/PreviewFrame.tsx"
       ],
-      "note": "content must not read the app session or escape its origin"
+      "note": "content must not read the app session or escape its origin",
+      "evidenceRegister": "E-HTML-CYCLE"
     },
     {
       "id": "html-content-assets",
@@ -1686,7 +1713,7 @@
       "op": "assets and single-file html",
       "upstreamHas": true,
       "mustPort": true,
-      "webProven": "chưa thử",
+      "webProven": "đạt có giới hạn",
       "desktopProven": "chưa thử",
       "tags": [
         "Q1-B"
@@ -1698,7 +1725,8 @@
       "evidence": [
         "apps/html/src/main/asset-lifecycle.ts",
         "apps/html/src/main/single-file-html.ts"
-      ]
+      ],
+      "evidenceRegister": "E-HTML-CYCLE"
     },
     {
       "id": "html-content-blocks",

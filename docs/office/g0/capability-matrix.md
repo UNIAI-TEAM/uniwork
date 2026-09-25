@@ -17,10 +17,10 @@ Nút UI, menu, filter hộp thoại và route table chỉ là bằng chứng **u
 
 | ID | Định dạng | Thao tác | upstream có | phải port | web đã chứng minh | desktop đã chứng minh | Tag | Fixture |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `docx-open` | docx | open in editor | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-DOCX-SIMPLE`, `F-DOCX-KITCHEN`, `F-DOCX-VI`, `F-LARGE-DOCX` |
-| `docx-edit-text` | docx | edit text | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-DOCX-KITCHEN`, `F-DOCX-VI` |
-| `docx-edit-table-image` | docx | edit table and image | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-DOCX-TABLE-IMG`, `F-DOCX-LONGTABLE` |
-| `docx-save-docx` | docx | save docx | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-DOCX-KITCHEN`, `F-DOCX-TABLE-IMG`, `F-DOCX-THEME` |
+| `docx-open` | docx | open in editor | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-DOCX-SIMPLE`, `F-DOCX-KITCHEN`, `F-DOCX-VI`, `F-LARGE-DOCX`, `F-DOCX-EXPANSION`, `F-DOCX-DEEP-NEST` |
+| `docx-edit-text` | docx | edit text | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-DOCX-KITCHEN`, `F-DOCX-VI` |
+| `docx-edit-table-image` | docx | edit table and image | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-DOCX-TABLE-IMG`, `F-DOCX-LONGTABLE` |
+| `docx-save-docx` | docx | save docx | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-DOCX-KITCHEN`, `F-DOCX-TABLE-IMG`, `F-DOCX-THEME` |
 | `docx-export-pdf` | docx | export to pdf | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-DOCX-KITCHEN`, `F-DOCX-FR-JUSTIFY` |
 | `docx-create-blank` | docx | create blank document | có | phải port | chưa thử | chưa thử | — | `F-DOCX-EMPTY` |
 | `docx-convert-to-md` | docx | convert docx to md | có | phải port | chưa thử | chưa thử | — | `F-DOCX-KITCHEN` |
@@ -31,18 +31,18 @@ Nút UI, menu, filter hộp thoại và route table chỉ là bằng chứng **u
 | `docx-content-equations` | docx | content: equations (OMML) | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-DOCX-EQUATION` |
 | `docx-content-fields-toc` | docx | content: fields and table of contents | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-DOCX-TOC` |
 | `docx-content-charts` | docx | content: charts | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-DOCX-CHART` |
-| `docx-content-watermark` | docx | content: watermark | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-DOCX-WATERMARK` |
+| `docx-content-watermark` | docx | content: watermark | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-DOCX-WATERMARK` |
 | `docx-content-sections-columns` | docx | content: sections, columns and page colour | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-DOCX-2COL`, `F-DOCX-THEME` |
 | `docx-content-drawing-anchors` | docx | content: float (captioned table); inline and page-anchor exist upstream but are not yet cased | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-DOCX-CAPTABLE-FLOAT` |
 | `docx-content-embedded-fonts` | docx | content: embedded fonts | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-DOCX-EMBEDDED-FONT` |
 | `docx-protection` | docx | edit protection with password | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-DOCX-PROTECTED` |
-| `docx-encrypted-open` | docx | open password-encrypted docx | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-DOCX-PWD-STANDARD`, `F-DOCX-PWD-AGILE`, `F-DOCX-PWD-AGILE-PLAIN` |
+| `docx-encrypted-open` | docx | open password-encrypted docx | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-DOCX-PWD-STANDARD`, `F-DOCX-PWD-AGILE`, `F-DOCX-PWD-AGILE-PLAIN` |
 | `docx-text-extract` | docx | extract plain text | có | — | chưa thử | chưa thử | — | `F-DOCX-KITCHEN` |
 | `docx-pagination-fidelity` | docx | pagination and layout fidelity | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-DOCX-FR-JUSTIFY`, `F-DOCX-LONGTABLE`, `F-DOCX-KITCHEN`, `F-LARGE-DOCX`, `F-DOCX-2COL` |
 
 Ghi chú của nhóm này:
 
-- `docx-open` — Ca dải lớn phải sinh trước bằng generate-fixtures.mjs --large; checksum của nó không nằm trong manifest đã commit mà ở lab-record.json cạnh file.
+- `docx-open` — Ca dải lớn phải sinh trước bằng generate-fixtures.mjs --large; checksum của nó không nằm trong manifest đã commit mà ở lab-record.json cạnh file. F-DOCX-EXPANSION and F-DOCX-DEEP-NEST are negative/complexity cases for this row: they state the required refusal/bounded handling and can never mark the row as proven. F-LARGE-DOCX/F-LARGE-XLSX now carry an on-disk band (49 MiB <= bytes < 50 MiB) because Q9-A is a real file band, not a content target.
 - `docx-text-extract` — not part of the interactive pilot; used by attachments
 - `docx-pagination-fidelity` — Ca dải lớn phải sinh trước bằng generate-fixtures.mjs --large; checksum của nó không nằm trong manifest đã commit mà ở lab-record.json cạnh file.
 
@@ -50,10 +50,10 @@ Ghi chú của nhóm này:
 
 | ID | Định dạng | Thao tác | upstream có | phải port | web đã chứng minh | desktop đã chứng minh | Tag | Fixture |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `xlsx-open` | xlsx, xlsm, xls, csv | open in editor | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-XLSX-BASIC`, `F-XLSX-KITCHEN`, `F-XLSX-VI`, `F-LARGE-XLSX` |
-| `xlsx-edit-cells` | xlsx | edit cells | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-XLSX-EDIT`, `F-XLSX-VI`, `F-LARGE-XLSX`, `F-XLSX-KITCHEN`, `F-XLSX-SHEETS` |
-| `xlsx-save` | xlsx, xlsm, csv | save | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-XLSX-EDIT`, `F-XLSX-STRUCT` |
-| `xlsx-recalculate` | xlsx, xlsm | recalculate formulas | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-XLSX-VI`, `F-XLSX-BASIC` |
+| `xlsx-open` | xlsx, xlsm, xls, csv | open in editor | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-XLSX-BASIC`, `F-XLSX-KITCHEN`, `F-XLSX-VI`, `F-LARGE-XLSX` |
+| `xlsx-edit-cells` | xlsx | edit cells | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-XLSX-EDIT`, `F-XLSX-VI`, `F-LARGE-XLSX`, `F-XLSX-KITCHEN`, `F-XLSX-SHEETS` |
+| `xlsx-save` | xlsx, xlsm, csv | save | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-XLSX-EDIT`, `F-XLSX-STRUCT` |
+| `xlsx-recalculate` | xlsx, xlsm | recalculate formulas | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-XLSX-VI`, `F-XLSX-BASIC` |
 | `xlsx-cross-sheet-formulas` | xlsx | cross-sheet and defined-name formulas | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-XLSX-VI`, `F-XLSX-SHEETS` |
 | `xlsx-charts` | xlsx | charts | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-XLSX-CHART`, `F-XLSX-VI`, `F-XLSX-KITCHEN` |
 | `xlsx-conditional-formatting` | xlsx | conditional formatting | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-XLSX-STRUCT`, `F-XLSX-KITCHEN` |
@@ -81,10 +81,10 @@ Ghi chú của nhóm này:
 
 | ID | Định dạng | Thao tác | upstream có | phải port | web đã chứng minh | desktop đã chứng minh | Tag | Fixture |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `pptx-open` | pptx | open in editor | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-PPTX-STD`, `F-PPTX-UNICODE` |
-| `pptx-edit-text` | pptx | edit text | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-PPTX-STD`, `F-PPTX-VI` |
-| `pptx-edit-shape-image` | pptx | edit shapes and images | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-PPTX-VI` |
-| `pptx-save` | pptx | save | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-PPTX-STD`, `F-PPTX-VI` |
+| `pptx-open` | pptx | open in editor | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-PPTX-STD`, `F-PPTX-UNICODE` |
+| `pptx-edit-text` | pptx | edit text | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-PPTX-STD`, `F-PPTX-VI` |
+| `pptx-edit-shape-image` | pptx | edit shapes and images | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-PPTX-VI` |
+| `pptx-save` | pptx | save | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-PPTX-STD`, `F-PPTX-VI` |
 | `pptx-export-pdf` | pptx | export to pdf | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-PPTX-STD` |
 | `pptx-notes` | pptx | speaker notes | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-PPTX-NOTES` |
 | `pptx-masters-layouts` | pptx | masters and layouts | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-PPTX-STD` |
@@ -101,10 +101,10 @@ Ghi chú của nhóm này:
 
 | ID | Định dạng | Thao tác | upstream có | phải port | web đã chứng minh | desktop đã chứng minh | Tag | Fixture |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `pdf-open-view` | pdf | open and view | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-PDF-TEXT`, `F-PDF-CORRUPT` |
-| `pdf-edit-text-in-place` | pdf | edit existing text in the content stream | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-PDF-TEXT` |
-| `pdf-edit-image` | pdf | edit and replace images | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-PDF-IMAGE` |
-| `pdf-save` | pdf | save | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-PDF-TEXT` |
+| `pdf-open-view` | pdf | open and view | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-PDF-TEXT`, `F-PDF-CORRUPT` |
+| `pdf-edit-text-in-place` | pdf | edit existing text in the content stream | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-PDF-TEXT` |
+| `pdf-edit-image` | pdf | edit and replace images | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-PDF-IMAGE` |
+| `pdf-save` | pdf | save | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-PDF-TEXT` |
 | `pdf-export-docx` | pdf | convert to docx | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-PDF-TEXT` |
 | `pdf-export-xlsx` | pdf | convert to xlsx | có | — | chưa thử | chưa thử | — | `F-PDF-TABLE` |
 | `pdf-export-pptx` | pdf | convert to pptx | có | — | chưa thử | chưa thử | — | `F-PDF-TEXT` |
@@ -129,12 +129,12 @@ Ghi chú của nhóm này:
 
 | ID | Định dạng | Thao tác | upstream có | phải port | web đã chứng minh | desktop đã chứng minh | Tag | Fixture |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `md-open` | md, markdown | open in editor | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-MD-VI`, `F-MD-FULL` |
-| `md-save` | md, markdown | save source | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-MD-VI`, `F-MD-FULL` |
-| `md-content-blocks` | md | content: tables, code blocks, Unicode | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-MD-FULL`, `F-MD-VI` |
+| `md-open` | md, markdown | open in editor | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-MD-VI`, `F-MD-FULL` |
+| `md-save` | md, markdown | save source | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-MD-VI`, `F-MD-FULL` |
+| `md-content-blocks` | md | content: tables, code blocks, Unicode | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-MD-FULL`, `F-MD-VI` |
 | `md-content-math-mermaid` | md | content: math and mermaid diagrams | có | — | chưa thử | chưa thử | — | `F-MD-FULL` |
 | `md-content-frontmatter` | md | content: YAML frontmatter | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-MD-FRONTMATTER` |
-| `md-content-local-assets` | md | relative image and asset links | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-MD-ASSET` |
+| `md-content-local-assets` | md | relative image and asset links | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-MD-ASSET` |
 | `md-export-docx` | md | export to docx | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-MD-VI` |
 | `md-export-pdf` | md | export to pdf | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-MD-VI` |
 | `md-export-html` | md | convert to html | có | — | chưa thử | chưa thử | — | `F-MD-VI` |
@@ -143,10 +143,10 @@ Ghi chú của nhóm này:
 
 | ID | Định dạng | Thao tác | upstream có | phải port | web đã chứng minh | desktop đã chứng minh | Tag | Fixture |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `html-open` | html, htm | open in editor | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-HTML-VI` |
-| `html-save` | html, htm | save source | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-HTML-VI`, `F-HTML-ASSET` |
-| `html-preview-isolation` | html, htm | isolated preview | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-HTML-SCRIPT` |
-| `html-content-assets` | html, htm | assets and single-file html | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-HTML-ASSET`, `F-HTML-SINGLE` |
+| `html-open` | html, htm | open in editor | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-HTML-VI` |
+| `html-save` | html, htm | save source | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-HTML-VI`, `F-HTML-ASSET` |
+| `html-preview-isolation` | html, htm | isolated preview | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-HTML-SCRIPT` |
+| `html-content-assets` | html, htm | assets and single-file html | có | phải port | đạt có giới hạn | chưa thử | `Q1-B` | `F-HTML-ASSET`, `F-HTML-SINGLE` |
 | `html-content-blocks` | html, htm | content: text, image, background and float | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-HTML-VI` |
 | `html-export-pdf` | html, htm | export to pdf | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-HTML-VI` |
 | `html-export-docx` | html, htm | convert to docx | có | phải port | chưa thử | chưa thử | `Q1-B` | `F-HTML-VI` |
@@ -194,8 +194,8 @@ Ghi chú của nhóm này:
 | Dòng có ít nhất một fixture tồn tại trong manifest | 95 |
 | Dòng thuộc phạm vi pilot (phải port) | 72 |
 | Dòng upstream không có đường triển khai | 1 |
-| Fixture đã khai trong manifest | 66 |
-| Dòng đã chứng minh trên web | 0 |
+| Fixture đã khai trong manifest | 68 |
+| Dòng đã chứng minh trên web | 26 |
 | Dòng đã chứng minh trên desktop | 0 |
 
 ## 3. Định dạng không được hỗ trợ theo thiết kế

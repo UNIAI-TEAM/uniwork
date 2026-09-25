@@ -1,0 +1,14 @@
+{
+  "note": "DOC-002 (UNI-666) inputs for the table-of-contents fixture. Vietnamese strings carry diacritics through JSON \\u escapes so this file stays ASCII.",
+  "savedAt": "2026-09-25T00:00:00.000Z",
+  "maxLevel": 3,
+  "headings": [
+    { "text": "B\u00e1o c\u00e1o t\u00e0i ch\u00ednh 2026", "level": 1, "body": "M\u1ee5c ti\u00eau v\u00e0 ph\u1ea1m vi b\u00e1o c\u00e1o." },
+    { "text": "Doanh thu theo v\u00f9ng", "level": 2, "body": "Doanh thu t\u0103ng \u1edf c\u1ea3 b\u1ed1n v\u00f9ng tr\u1ecdng \u0111i\u1ec3m." },
+    { "text": "Chi ph\u00ed v\u1eadn h\u00e0nh", "level": 2, "body": "Chi ph\u00ed v\u1eadn h\u00e0nh \u0111\u01b0\u1ee3c ki\u1ec3m so\u00e1t theo qu\u00fd." },
+    { "text": "R\u1ee7i ro t\u1ef7 gi\u00e1", "level": 3, "body": "R\u1ee7i ro t\u1ef7 gi\u00e1 \u0111\u01b0\u1ee3c tr\u00ecnh b\u00e0y ri\u00eang." },
+    { "text": "K\u1ebf ho\u1ea1ch 2027", "level": 1, "body": "K\u1ebf ho\u1ea1ch n\u0103m 2027 v\u1eabn \u0111ang \u0111\u01b0\u1ee3c so\u1ea1n." }
+  ],
+  "firstParagraph": "T\u00e0i li\u1ec7u n\u00e0y ch\u1ee9a m\u1ee5c l\u1ee5c th\u1ef1c do m\u00e1y sinh; s\u1ed1 trang do tr\u00ecnh \u0111\u1ecdc \u0111o, kh\u00f4ng \u0111\u01b0\u1ee3c ghi s\u1eb5n.",
+  "sentinel": "TOC fixture sentinel 314159"
+}

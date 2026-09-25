@@ -32,6 +32,7 @@ const UPSTREAM_SOURCE = resolveUpstreamSource();
 const manifest = readJson(path.join(REPO_ROOT, 'docs/office/g0/fixtures/manifest.json'));
 const capabilities = readJson(path.join(REPO_ROOT, 'docs/office/g0/capabilities.json'));
 const sourceManifest = readJson(path.join(REPO_ROOT, 'docs/office/g0/source-manifest.json'));
+const evidenceRegister = readJson(path.join(REPO_ROOT, 'docs/office/g0/evidence-register.json'));
 
 const baseInput = (overrides) => Object.assign({
   manifest,
@@ -105,12 +106,58 @@ test('each fixture lists capabilities that point back at it', () => {
   assert.deepEqual(problems, [], 'one-way capability links: ' + problems.join(', '));
 });
 
-test('no fixture is marked proven; the inventory starts at chưa thử', () => {
+const PROVEN_CELL_STATUSES = ['đạt có bằng chứng', 'đạt có giới hạn'];
+
+/**
+ * A proven cell is only honest when it names an evidence-register row that
+ * exists with status PASS and level browser-real (the G0 browser decision of
+ * 2026-09-25 makes browser-real the accepted evidence class). Returns the
+ * failure list so the test below and its mutants share one check.
+ */
+function provenCellRegisterFailures(caps, register) {
+  const rows = new Map((register.rows || []).map((row) => [row.id, row]));
+  const failures = [];
+  for (const row of caps.rows) {
+    for (const column of ['webProven', 'desktopProven']) {
+      if (!PROVEN_CELL_STATUSES.includes(row[column])) continue;
+      const ref = typeof row.evidenceRegister === 'string' ? row.evidenceRegister.trim() : '';
+      if (!ref) { failures.push('capabilities: ' + row.id + ' ' + column + ' is marked proven but names no evidenceRegister row'); continue; }
+      const target = rows.get(ref);
+      if (!target) failures.push('capabilities: ' + row.id + ' ' + column + ' names register row ' + ref + ' which does not exist');
+      else if (target.status !== 'PASS') failures.push('capabilities: ' + row.id + ' ' + column + ' names register row ' + ref + ' with status ' + target.status);
+      else if (target.level !== 'browser-real') failures.push('capabilities: ' + row.id + ' ' + column + ' names register row ' + ref + ' at level ' + target.level);
+    }
+  }
+  return failures;
+}
+
+test('every proven cell binds an accepted PASS browser-real register row', () => {
+  // DOC-003 follow-up to the pre-run inventory invariant: unproven cells still
+  // start at chưa thử; proven cells must name a real register row.
   for (const row of capabilities.rows) {
-    assert.equal(row.webProven, 'chưa thử', row.id + ' webProven');
     assert.equal(row.desktopProven, 'chưa thử', row.id + ' desktopProven');
+    if (!PROVEN_CELL_STATUSES.includes(row.webProven)) {
+      assert.equal(row.webProven, 'chưa thử', row.id + ' webProven');
+    }
   }
   assert.equal(manifest.status, 'chưa thử');
+  assert.deepEqual(provenCellRegisterFailures(capabilities, evidenceRegister), []);
+});
+
+test('a proven cell without a PASS browser-real register row is refused', () => {
+  const missing = JSON.parse(JSON.stringify(capabilities));
+  missing.rows.find((r) => r.id === 'docx-edit-table-image').evidenceRegister = 'E-NOT-A-ROW';
+  assert.ok(
+    provenCellRegisterFailures(missing, evidenceRegister).some((f) => /docx-edit-table-image.*does not exist/.test(f)),
+    'a proven cell naming a nonexistent register row must fail',
+  );
+
+  const notPass = JSON.parse(JSON.stringify(capabilities));
+  notPass.rows.find((r) => r.id === 'docx-encrypted-open').evidenceRegister = 'E-BROWSER-LAUNCH';
+  assert.ok(
+    provenCellRegisterFailures(notPass, evidenceRegister).some((f) => /docx-encrypted-open.*(status|level)/.test(f)),
+    'a proven cell naming a non-PASS row must fail',
+  );
 });
 
 test('source is refused when it is not the pinned commit', () => {

@@ -64,6 +64,8 @@ import { discoverHtmlImageSources, mergeImageSources } from './lab-html-sources.
 import { discoverHtmlStylesheets } from './lab-html-stylesheets.mjs';
 import { discoverMarkdownSources } from './lab-markdown-sources.mjs';
 import { BRIDGE_SAVE_CHANNELS, bridgeChannelForOp, createBridge, readEngineIdentity } from './lab-bridge.mjs';
+// DOC-003 r2 password: encrypted DOCX detection/decryption (see lab-docx-password.mjs).
+import { DocxDecryptError, createDocxDecryptor, isEncryptedDocx } from './lab-docx-password.mjs';
 import { createPageImagePngHandler, createPagePreviewPngHandler, PageImagePngError } from './lab-page-image-png.mjs';
 
 export const LAB_APPS = ['docs', 'markdown', 'html', 'pdf', 'sheets', 'slides'];
@@ -96,6 +98,8 @@ const STATUS_BY_CODE = {
   empty_output_refused: 422,
   save_conflict: 409,
   engine_unsupported: 501,
+  // DOC-003 r2 password: the lab never re-encrypts, so it refuses to write an opened encrypted package.
+  encrypted_save_unsupported: 501,
   unknown_engine_operation: 501,
   engine_timeout: 504,
   engine_unreachable: 502,
@@ -649,6 +653,29 @@ export function createLabServer({
     ? null
     : createPagePreviewPngHandler({ sourceRoot: pageImagePngSource });
 
+  // DOC-003 r2 password: the desktop main process answers an encrypted open with { needsPassword }
+  // (docs-main.ts:2622-2630) and decrypts through docs:open-decrypt with the pinned
+  // officecrypto-tool. The lab binds the same library from the prepared source; without one the
+  // decrypt channel answers a named 'unsupported' refusal.
+  const docxDecryptor = createDocxDecryptor({ sourceRoot: sourceRoot ?? sourceDir });
+  const docsOpenEntry = async (session, realPath) => {
+    const bytes = await readFileBytes(realPath);
+    if (isEncryptedDocx(bytes)) {
+      record({ view: session.viewId, op: 'docs-open-needs-password', path: realPath });
+      return { needsPassword: true, path: realPath, name: basename(realPath) };
+    }
+    return { path: realPath, name: basename(realPath), dataBase64: bytes.toString('base64'), hash: sha256(bytes), size: bytes.length };
+  };
+  const refuseEncryptedSave = (session) => {
+    if (session.docsEncryptedOpen) {
+      throw new LabProtocolError(
+        'encrypted_save_unsupported',
+        'this document was opened from a password-protected package; the lab host does not re-encrypt, so saving would write it as plaintext',
+        { path: session.docsEncryptedOpen },
+      );
+    }
+  };
+
   const handlers = {
     // ── lab control plane ─────────────────────────────────────────────────
     'lab:session-open': async (_ctx, body) => {
@@ -720,15 +747,45 @@ export function createLabServer({
     // ── docs ──────────────────────────────────────────────────────────────
     'host:docs-consume-pending-open': async (ctx) => {
       if (!ctx.session.workingPath) return null;
-      return entryOf(ctx.session.workingPath);
+      return docsOpenEntry(ctx.session, ctx.session.workingPath);
     },
 
     'host:docs-open-path': async (ctx, body) => {
       const real = readGranted(ctx.session, body.path);
-      return entryOf(real);
+      return docsOpenEntry(ctx.session, real);
+    },
+
+    // DOC-003 r2 password: DecryptOpenResult exactly as docs-main.ts:3338-3354 shapes it. The password is
+    // never recorded; a wrong password stays a 200 { ok: false } so the renderer keeps its prompt.
+    'host:docs-open-decrypt': async (ctx, body) => {
+      if (typeof body.path !== 'string' || typeof body.password !== 'string' || body.password.length === 0) {
+        return { ok: false, reason: 'error', error: 'invalid arguments' };
+      }
+      const real = readGranted(ctx.session, body.path);
+      const bytes = await readFileBytes(real);
+      if (!isEncryptedDocx(bytes)) return { ok: false, reason: 'error', error: 'not encrypted' };
+      if (!docxDecryptor) {
+        record({ view: ctx.viewId, op: 'docs-open-decrypt', path: real, outcome: 'unsupported-unbound' });
+        return { ok: false, reason: 'unsupported', error: 'docx decryption is not bound: the lab was started without a prepared source root' };
+      }
+      let plain;
+      try {
+        plain = await docxDecryptor.decrypt(bytes, body.password);
+      } catch (error) {
+        if (!(error instanceof DocxDecryptError)) throw error;
+        record({ view: ctx.viewId, op: 'docs-open-decrypt', path: real, outcome: error.reason });
+        return { ok: false, reason: error.reason, error: error.message };
+      }
+      ctx.session.docsEncryptedOpen = real;
+      record({ view: ctx.viewId, op: 'docs-open-decrypt', path: real, outcome: 'ok', bytes: plain.length, library: docxDecryptor.library + '@' + docxDecryptor.version });
+      return {
+        ok: true,
+        result: { path: real, name: basename(real), dataBase64: plain.toString('base64'), hash: sha256(bytes), size: plain.length, encrypted: true },
+      };
     },
 
     'host:docs-save': async (ctx, body) => {
+      refuseEncryptedSave(ctx.session);
       const bytes = decodeBase64Strict(body.dataBase64, { field: 'dataBase64' });
       const target = body.path ?? ctx.session.savePath ?? ctx.session.workingPath;
       if (!target) throw new LabProtocolError('invalid_input', 'docs save needs a granted path');
@@ -736,6 +793,7 @@ export function createLabServer({
     },
 
     'host:docs-save-new': async (ctx, body) => {
+      refuseEncryptedSave(ctx.session);
       const bytes = decodeBase64Strict(body.dataBase64, { field: 'dataBase64' });
       const target = outputTargetFor(ctx.session, withExtension(body.defaultName, '.docx'));
       const result = await writeForView(ctx.session, target, bytes, 'docs-save-new');
@@ -744,6 +802,7 @@ export function createLabServer({
     },
 
     'host:docs-save-as': async (ctx, body) => {
+      refuseEncryptedSave(ctx.session);
       const bytes = decodeBase64Strict(body.dataBase64, { field: 'dataBase64' });
       const target = outputTargetFor(ctx.session, withExtension(body.defaultName, '.docx'));
       const result = await writeForView(ctx.session, target, bytes, 'docs-save-as');
@@ -752,6 +811,7 @@ export function createLabServer({
     },
 
     'host:docs-save-to': async (ctx, body) => {
+      refuseEncryptedSave(ctx.session);
       const bytes = decodeBase64Strict(body.dataBase64, { field: 'dataBase64' });
       const target = sessions.requireWriteGrant(ctx.session.viewId, body.path);
       if (existsSync(target) && body.overwrite !== true) {
@@ -781,6 +841,10 @@ export function createLabServer({
     },
 
     'host:docs-write-recovery': async (ctx, body) => {
+      if (ctx.session.docsEncryptedOpen) {
+        record({ view: ctx.viewId, op: 'docs-write-recovery', skipped: 'encrypted-source' });
+        return { ok: false };
+      }
       const bytes = decodeBase64Strict(body.dataBase64, { field: 'dataBase64' });
       const dir = join(roots.tmpDir, 'recovery', ctx.viewId);
       const target = join(dir, sanitizeName(basename(String(body.path ?? 'recovery')), 'recovery'));

@@ -50,9 +50,10 @@ const saveBody = (viewId, path) => ({
 });
 
 /** Real lab + files. saveFor decides where the fake engine publishes; bytes null means it publishes
- * nothing, Buffer.alloc(0) an existing empty file. The fake claims bogus bytes/sha256 on purpose, so a
- * handler that trusts the engine instead of the file fails S1. */
-async function startLab(t, { port, previewPort, saveFor, bytes = PUBLISHED_BYTES }) {
+ * nothing, Buffer.alloc(0) an existing empty file. Since lab-bridge revision C the bridge re-hashes the
+ * published file and refuses a claim that does not match it (output_hash_mismatch), so the fake claims
+ * the true digest by default; claim: 'bogus' makes it lie, which the bridge must refuse (S9). */
+async function startLab(t, { port, previewPort, saveFor, bytes = PUBLISHED_BYTES, claim = 'true' }) {
   const root = scratchRoot('pdf-save-report-');
   const lab = join(root, 'lab');
   mkdirSync(join(root, 'builds'), { recursive: true });
@@ -76,7 +77,9 @@ async function startLab(t, { port, previewPort, saveFor, bytes = PUBLISHED_BYTES
           writeFileSync(path, bytes);
         }
         return {
-          ok: true, path, bytes: 4242, sha256: 'engine-claimed-hash',
+          ok: true, path,
+          bytes: claim === 'bogus' ? 4242 : (bytes ?? Buffer.alloc(0)).length,
+          sha256: claim === 'bogus' ? 'engine-claimed-hash' : sha256(bytes ?? Buffer.alloc(0)),
           imageEditsApplied: 1, skippedTextEdits: [], skippedTextInserts: [], skippedImageEdits: [],
           inBytes: FIXTURE_BYTES, inHash: FIXTURE_SHA,
         };
@@ -289,4 +292,19 @@ test('S8 a fresh view reopens the published file through its own directory grant
   assert.equal(session.sourceDir, join(lab.lab, 'out', viewId));
   assert.deepEqual(readFileSync(session.workingPath), PUBLISHED_BYTES, 'the reopened bytes are the published bytes');
   assert.throws(() => lab.server.sessions.requireReadGrant(second, join(lab.lab, 'out', 'someone-else', 'x.pdf')));
+});
+
+test('S9 a publication whose engine hash claim does not match the bytes on disk is refused', async (t) => {
+  const lab = await startLab(t, {
+    port: 5570, previewPort: 5571, claim: 'bogus',
+    saveFor: (labDir, viewId) => join(labDir, 'out', viewId, 'g0-text.pdf'),
+  });
+  const viewId = await lab.open('pdf', lab.input);
+  const session = lab.server.sessions.requireView(viewId);
+  const result = await lab.post('host:pdf-save', saveBody(viewId, session.workingPath));
+  assert.equal(result.body.ok, false, JSON.stringify(result.body));
+  assert.equal(result.body.error, 'output_hash_mismatch');
+  assert.equal(result.body.details.declaredSha256, 'engine-claimed-hash');
+  assert.equal(result.body.details.observedSha256, sha256(PUBLISHED_BYTES), 'the bridge reports the on-disk digest');
+  assert.equal(lab.server.events.peek(viewId).some((e) => e.type === 'saved'), false, 'no saved event for a refused claim');
 });

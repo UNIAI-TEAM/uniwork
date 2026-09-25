@@ -612,27 +612,105 @@
       "id": "F-DOCX-TOC",
       "path": "docs/docx-toc.docx",
       "format": "docx",
-      "bytes": null,
-      "sha256": null,
-      "license": "pending - must be settled when the fixture is produced",
+      "bytes": 3288,
+      "sha256": "0EE1F665DCA7101A876A99AC47BED283277F21E864214C750687F9C192343378",
+      "license": "Apache-2.0 (synthetic public inputs; package written by the pinned GenOffice engine, Copyright 2026 Mainfunc, Inc.; no user data)",
       "source": {
-        "kind": "pending",
-        "reason": "a table of contents only has a meaningful expected result once real heading pagination exists; a static field result would encode this script own assumptions"
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-toc-fixture.mjs",
+        "engineApi": "generateTocFieldXml",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "upstreamPaths": [
+          "packages/docx-engine/src/generate.ts",
+          "packages/docx-engine/src/patch.ts",
+          "packages/docx-engine/src/parse-fields.ts",
+          "packages/docx-engine/src/blank.ts"
+        ],
+        "provenance": "The pinned engine writes the TOC field; the generator passes entries without page numbers, so the stored result carries none. Byte-deterministic: two runs of one inputs file produce the same archive.",
+        "thirdPartyNotice": null
       },
       "generation": {
-        "method": "pending",
-        "blocker": "a table of contents only has a meaningful expected result once real heading pagination exists; a static field result would encode this script own assumptions",
-        "owner": "DOC-003 (task 3)"
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-toc-fixture.mjs",
+        "inputs": "scripts/office-g0/toc-fixture-inputs.json",
+        "inputsSha256": "5AA057B7AD08805384C732C465E81D73992BCBCD0A4E081323B64A458B9E3356",
+        "generatorSha256": "E3BA9EE9455B63B4D492B27C3F98605D584B135A2E1FF9B6E0B21F67D127EF2A",
+        "engineBundleSha256": "CEC5C9B23240FEB9A3C83FE304547D21DD16089EFA2F9E173339146AE85A4E36",
+        "engineBundleBuildRecord": "the bundle build record ships with the slice; every bundled repository input is byte-identical to the pinned checkout",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "dependencyLockSha256": "DE782E49A1006FAC7287A41C748C696EFD9FB3C3038EAE893EF82DFCA57F9FE5",
+        "savedAt": "2026-09-25T00:00:00.000Z",
+        "normalization": "ZIP entry order and timestamps only; engine-written XML payloads are unmodified."
       },
       "capabilities": [
         "docx-content-fields-toc"
       ],
       "expected": {
-        "result": "the TOC lists every heading with its correct page number; adding a heading shifts the numbers after refresh",
-        "oracle": "field result text compared with the heading order and the page numbers observed in the editor"
+        "result": "the document carries a real TOC field (one dirty field, one TOC1..TOC3 paragraph per heading in document order, dotted right tab) whose stored result holds the heading text and no page number; when the reader measures heading pages it shows those measured numbers, and adding a heading shifts the later numbers on refresh",
+        "oracle": "offline: the pinned parser exposes one TOC line per declared heading with level, text and an empty page slot, and no stored result run after the tab carries a digit; on-open: compare each entry number with the page the editor measured for that heading (DOC-003 3.3/3.5)",
+        "content": {
+          "entries": [
+            {
+              "text": "Báo cáo tài chính 2026",
+              "level": 1
+            },
+            {
+              "text": "Doanh thu theo vùng",
+              "level": 2
+            },
+            {
+              "text": "Chi phí vận hành",
+              "level": 2
+            },
+            {
+              "text": "Rủi ro tỷ giá",
+              "level": 3
+            },
+            {
+              "text": "Kế hoạch 2027",
+              "level": 1
+            }
+          ],
+          "headings": [
+            {
+              "text": "Báo cáo tài chính 2026",
+              "level": 1
+            },
+            {
+              "text": "Doanh thu theo vùng",
+              "level": 2
+            },
+            {
+              "text": "Chi phí vận hành",
+              "level": 2
+            },
+            {
+              "text": "Rủi ro tỷ giá",
+              "level": 3
+            },
+            {
+              "text": "Kế hoạch 2027",
+              "level": 1
+            }
+          ],
+          "tocInstruction": " TOC \\o \"1-3\" \\h \\z \\u ",
+          "pageNumbers": "not encoded; the fixture must ship none and the reader measures them",
+          "sentinel": "TOC fixture sentinel 314159"
+        },
+        "fixtureOracle": "Real pinned-engine parse of the produced bytes: exactly one TOC instruction, five TOC lines with the declared heading text and level, empty page slots, five Heading1..3 paragraphs; regeneration is byte-identical. Editor open/save/reopen identity, the rendered TOC, and the page numbers remain DOC-003 work (this fixture replaces the withheld pending entry, it does not claim a run)."
+      },
+      "negative": {
+        "case": "a candidate TOC fixture whose entry text or level disagrees with the heading order, or whose stored result already carries a page number, is rejected",
+        "enforcedBy": [
+          "scripts/office-g0/verify-manifest.mjs (no page numbers may be declared; entries must match the declared headings)",
+          "scripts/office-g0/manifest.test.mjs (mutants below)"
+        ]
       },
       "tags": [
-        "pending-generation"
+        "engine-generated",
+        "toc-field",
+        "vietnamese",
+        "engine-api:generateTocFieldXml"
       ]
     },
     {
@@ -784,8 +862,23 @@
       "tags": [
         "embedded-font",
         "OFL-1.1",
-        "engine-generated"
-      ]
+        "engine-generated",
+        "reviewed-fixture"
+      ],
+      "review": {
+        "decision": "accepted",
+        "scope": "fixture and package/parse oracle: the pinned engine writes and reads back one embedded Liberation Sans face with a complete relationship chain and a licence that ships beside it",
+        "limitations": [
+          "rendering with the host font absent and the glyph advances are not proven by the fixture; they are DOC-003 3.3/3.7 work"
+        ],
+        "basis": [
+          "generated by the pinned engine, licence SIL OFL 1.1 shipped as docs/office/g0/fixtures/licenses/LiberationSans-OFL.txt",
+          "fixtureOracle in the manifest records the real parse result"
+        ],
+        "decidedUtc": "2026-09-25T12:00:00Z",
+        "decidedBy": "doc002-fixtures lead (codex deepseek-4.1, g119)",
+        "evidence": ".uniwork-dev/orca-recovery-g119/doc002-fixtures/REPORT.md"
+      }
     },
     {
       "id": "F-DOCX-PROTECTED",
@@ -864,7 +957,14 @@
       },
       "generation": {
         "method": "generated",
-        "tool": "scripts/office-g0/generate-fixtures.mjs"
+        "tool": "scripts/office-g0/generate-fixtures.mjs",
+        "regenerationDrift": {
+          "observedUtc": "2026-09-25T13:10:14Z",
+          "command": "node scripts/office-g0/generate-fixtures.mjs --deps-dir <frozen bootstrap-source node_modules>  (in a clean re-prepared tree, pinned Node 22.23.2)",
+          "recordedSha256": "940CDB88AB3738A2662422582E44FFABDE72E1BEAC7909AD16E09C5867D83F56",
+          "regeneratedSha256": "858E66091ABBE75C4E15CD799193BD1E86AD07C69429646EB0B587CFF959D885",
+          "note": "This fixture is pinned by the shipped bytes and its checksum; the recorded regenerate command no longer reproduces those bytes (the XLSX/PPTX builders moved after the fixture was pinned). Do not re-pin without a fresh engine run: accepted evidence rows name these bytes."
+        }
       },
       "capabilities": [
         "xlsx-open",
@@ -898,7 +998,14 @@
       },
       "generation": {
         "method": "generated",
-        "tool": "scripts/office-g0/generate-fixtures.mjs"
+        "tool": "scripts/office-g0/generate-fixtures.mjs",
+        "regenerationDrift": {
+          "observedUtc": "2026-09-25T13:10:14Z",
+          "command": "node scripts/office-g0/generate-fixtures.mjs --deps-dir <frozen bootstrap-source node_modules>  (in a clean re-prepared tree, pinned Node 22.23.2)",
+          "recordedSha256": "BF69B9DBC4F6B8FC485BAF6255494ED490EE6C53A3051CB4CE6F967F34FE4BC6",
+          "regeneratedSha256": "6C9166DDB8B0091B0A8C3D23853DA0DCC00951CB3FEE32E80A48619ADA5994A6",
+          "note": "This fixture is pinned by the shipped bytes and its checksum; the recorded regenerate command no longer reproduces those bytes (the XLSX/PPTX builders moved after the fixture was pinned). Do not re-pin without a fresh engine run: accepted evidence rows name these bytes."
+        }
       },
       "capabilities": [
         "xlsx-open",
@@ -929,7 +1036,14 @@
       },
       "generation": {
         "method": "generated",
-        "tool": "scripts/office-g0/generate-fixtures.mjs"
+        "tool": "scripts/office-g0/generate-fixtures.mjs",
+        "regenerationDrift": {
+          "observedUtc": "2026-09-25T13:10:14Z",
+          "command": "node scripts/office-g0/generate-fixtures.mjs --deps-dir <frozen bootstrap-source node_modules>  (in a clean re-prepared tree, pinned Node 22.23.2)",
+          "recordedSha256": "E76CC7C4435F55FCA7882EE22C2B99FC36B310BA04CB0C5C769E4E8095633AD2",
+          "regeneratedSha256": "73E3D226C5DFAEE162DAA29FEACE889E4AFCE7578CCAB60673448EE5FADF4B7A",
+          "note": "This fixture is pinned by the shipped bytes and its checksum; the recorded regenerate command no longer reproduces those bytes (the XLSX/PPTX builders moved after the fixture was pinned). Do not re-pin without a fresh engine run: accepted evidence rows name these bytes."
+        }
       },
       "capabilities": [
         "xlsx-open",
@@ -965,7 +1079,14 @@
       },
       "generation": {
         "method": "generated",
-        "tool": "scripts/office-g0/generate-fixtures.mjs"
+        "tool": "scripts/office-g0/generate-fixtures.mjs",
+        "regenerationDrift": {
+          "observedUtc": "2026-09-25T13:10:14Z",
+          "command": "node scripts/office-g0/generate-fixtures.mjs --deps-dir <frozen bootstrap-source node_modules>  (in a clean re-prepared tree, pinned Node 22.23.2)",
+          "recordedSha256": "2C2D3A09543A0AB83E4449F7224C0B81810C1071DBB87BBC59F398B12DCEF687",
+          "regeneratedSha256": "B894204A524261571BF6FF6A6AAF157B26D5658BC84C0C49EDF55BA56FBA4A5B",
+          "note": "This fixture is pinned by the shipped bytes and its checksum; the recorded regenerate command no longer reproduces those bytes (the XLSX/PPTX builders moved after the fixture was pinned). Do not re-pin without a fresh engine run: accepted evidence rows name these bytes."
+        }
       },
       "capabilities": [
         "xlsx-edit-cells",
@@ -992,7 +1113,14 @@
       },
       "generation": {
         "method": "generated",
-        "tool": "scripts/office-g0/generate-fixtures.mjs"
+        "tool": "scripts/office-g0/generate-fixtures.mjs",
+        "regenerationDrift": {
+          "observedUtc": "2026-09-25T13:10:14Z",
+          "command": "node scripts/office-g0/generate-fixtures.mjs --deps-dir <frozen bootstrap-source node_modules>  (in a clean re-prepared tree, pinned Node 22.23.2)",
+          "recordedSha256": "8ACC6D23D924ED8CD3AD97FC73DD7A374400A113F7A1A65A3FCA2015EDE0AE17",
+          "regeneratedSha256": "16A0CD7D5CB101F297117CFAD12858821F8752F0BA34C80398E527D56500BD90",
+          "note": "This fixture is pinned by the shipped bytes and its checksum; the recorded regenerate command no longer reproduces those bytes (the XLSX/PPTX builders moved after the fixture was pinned). Do not re-pin without a fresh engine run: accepted evidence rows name these bytes."
+        }
       },
       "capabilities": [
         "xlsx-cross-sheet-formulas",
@@ -1020,7 +1148,14 @@
       },
       "generation": {
         "method": "generated",
-        "tool": "scripts/office-g0/generate-fixtures.mjs"
+        "tool": "scripts/office-g0/generate-fixtures.mjs",
+        "regenerationDrift": {
+          "observedUtc": "2026-09-25T13:10:14Z",
+          "command": "node scripts/office-g0/generate-fixtures.mjs --deps-dir <frozen bootstrap-source node_modules>  (in a clean re-prepared tree, pinned Node 22.23.2)",
+          "recordedSha256": "BBDE82788120B694540C330924D30C723F0BE22B86FABE25483774E958CA69E9",
+          "regeneratedSha256": "FDE4EDA0C0C3918D043DC3FACBBA209B337A5E8813F1694D0CB3DB4F5F785F13",
+          "note": "This fixture is pinned by the shipped bytes and its checksum; the recorded regenerate command no longer reproduces those bytes (the XLSX/PPTX builders moved after the fixture was pinned). Do not re-pin without a fresh engine run: accepted evidence rows name these bytes."
+        }
       },
       "capabilities": [
         "xlsx-save",
@@ -1048,7 +1183,14 @@
       },
       "generation": {
         "method": "generated",
-        "tool": "scripts/office-g0/generate-fixtures.mjs"
+        "tool": "scripts/office-g0/generate-fixtures.mjs",
+        "regenerationDrift": {
+          "observedUtc": "2026-09-25T13:10:14Z",
+          "command": "node scripts/office-g0/generate-fixtures.mjs --deps-dir <frozen bootstrap-source node_modules>  (in a clean re-prepared tree, pinned Node 22.23.2)",
+          "recordedSha256": "BA50DCAB1FE11949556523E2E76B706515C00862A80A3E07858D77CEC6B4956A",
+          "regeneratedSha256": "CF03429130990FDE8614EE3BB3DED57EF02F7E8577FDAB4E2D6822DF454D737E",
+          "note": "This fixture is pinned by the shipped bytes and its checksum; the recorded regenerate command no longer reproduces those bytes (the XLSX/PPTX builders moved after the fixture was pinned). Do not re-pin without a fresh engine run: accepted evidence rows name these bytes."
+        }
       },
       "capabilities": [
         "xlsx-charts"
@@ -1074,7 +1216,14 @@
       },
       "generation": {
         "method": "generated",
-        "tool": "scripts/office-g0/generate-fixtures.mjs"
+        "tool": "scripts/office-g0/generate-fixtures.mjs",
+        "regenerationDrift": {
+          "observedUtc": "2026-09-25T13:10:14Z",
+          "command": "node scripts/office-g0/generate-fixtures.mjs --deps-dir <frozen bootstrap-source node_modules>  (in a clean re-prepared tree, pinned Node 22.23.2)",
+          "recordedSha256": "EBC669740482A78B4B1E97276560CF21679DFA8967BC6B832B9C7E9F337D7EAA",
+          "regeneratedSha256": "6FEDB7BCDFBF478EDFE889387F894254F1DAB710E977AF8B0B96257DAC27A46B",
+          "note": "This fixture is pinned by the shipped bytes and its checksum; the recorded regenerate command no longer reproduces those bytes (the XLSX/PPTX builders moved after the fixture was pinned). Do not re-pin without a fresh engine run: accepted evidence rows name these bytes."
+        }
       },
       "capabilities": [
         "xlsx-macro-preserve-not-execute"
@@ -1102,7 +1251,14 @@
       },
       "generation": {
         "method": "generated",
-        "tool": "scripts/office-g0/generate-fixtures.mjs"
+        "tool": "scripts/office-g0/generate-fixtures.mjs",
+        "regenerationDrift": {
+          "observedUtc": "2026-09-25T13:10:14Z",
+          "command": "node scripts/office-g0/generate-fixtures.mjs --deps-dir <frozen bootstrap-source node_modules>  (in a clean re-prepared tree, pinned Node 22.23.2)",
+          "recordedSha256": "6AC87F1DF7AF916E4F0CED0A153F7A0A36A6EE4C5EDDA62BDB9CFF946E00643E",
+          "regeneratedSha256": "7BB4F2149CE61399488F109B60A78908FD64B093DA1146E324049F1377F0CDEE",
+          "note": "This fixture is pinned by the shipped bytes and its checksum; the recorded regenerate command no longer reproduces those bytes (the XLSX/PPTX builders moved after the fixture was pinned). Do not re-pin without a fresh engine run: accepted evidence rows name these bytes."
+        }
       },
       "capabilities": [
         "xlsx-protection"
@@ -1218,8 +1374,24 @@
         }
       },
       "tags": [
-        "licensed-upstream-copy"
-      ]
+        "licensed-upstream-copy",
+        "reviewed-fixture"
+      ],
+      "review": {
+        "decision": "accepted",
+        "scope": "fixture: an attributable, unmodified Apache POI BIFF8 workbook with the licence and notice shipped, plus the declared sheet/cell snapshot as the oracle",
+        "limitations": [
+          "the open-and-convert claim is unproven: no engine run exists for .xls, and the capability note records that file-parse has no .xls text branch",
+          "if the pilot keeps .xls in scope, DOC-003 must run the conversion or the capability stays chua thu"
+        ],
+        "basis": [
+          "upstream copy at a pinned Apache POI commit with licenceFile and thirdPartyNotice in the licence bundle",
+          "oracle compares the declared snapshot with the converted workbook after reopen"
+        ],
+        "decidedUtc": "2026-09-25T12:00:00Z",
+        "decidedBy": "doc002-fixtures lead (codex deepseek-4.1, g119)",
+        "evidence": ".uniwork-dev/orca-recovery-g119/doc002-fixtures/REPORT.md"
+      }
     },
     {
       "id": "F-PPTX-STD",
@@ -1272,7 +1444,14 @@
       },
       "generation": {
         "method": "generated",
-        "tool": "scripts/office-g0/generate-fixtures.mjs"
+        "tool": "scripts/office-g0/generate-fixtures.mjs",
+        "regenerationDrift": {
+          "observedUtc": "2026-09-25T13:10:14Z",
+          "command": "node scripts/office-g0/generate-fixtures.mjs --deps-dir <frozen bootstrap-source node_modules>  (in a clean re-prepared tree, pinned Node 22.23.2)",
+          "recordedSha256": "755BE7AE0F3BA1A1E22076F0731BF1E57FE73EC8E42E083C8B6228FBD5961223",
+          "regeneratedSha256": "FC438AB4BBFF048635317BBA7679428AD8F8E4FBA27133E7E60DAFD09212E242",
+          "note": "This fixture is pinned by the shipped bytes and its checksum; the recorded regenerate command no longer reproduces those bytes (the XLSX/PPTX builders moved after the fixture was pinned). Do not re-pin without a fresh engine run: accepted evidence rows name these bytes."
+        }
       },
       "capabilities": [
         "pptx-edit-text",
@@ -1302,7 +1481,14 @@
       },
       "generation": {
         "method": "generated",
-        "tool": "scripts/office-g0/generate-fixtures.mjs"
+        "tool": "scripts/office-g0/generate-fixtures.mjs",
+        "regenerationDrift": {
+          "observedUtc": "2026-09-25T13:10:14Z",
+          "command": "node scripts/office-g0/generate-fixtures.mjs --deps-dir <frozen bootstrap-source node_modules>  (in a clean re-prepared tree, pinned Node 22.23.2)",
+          "recordedSha256": "37913C2BC018BB0F2A07BADE39539891C958FE66AF3FA32EAA480099DB17A15F",
+          "regeneratedSha256": "760927D981111008C05D29D24590B7FEEBCA30FB9BFC1D3AD1D4712D0390EA01",
+          "note": "This fixture is pinned by the shipped bytes and its checksum; the recorded regenerate command no longer reproduces those bytes (the XLSX/PPTX builders moved after the fixture was pinned). Do not re-pin without a fresh engine run: accepted evidence rows name these bytes."
+        }
       },
       "capabilities": [
         "pptx-open",
@@ -1331,7 +1517,14 @@
       },
       "generation": {
         "method": "generated",
-        "tool": "scripts/office-g0/generate-fixtures.mjs"
+        "tool": "scripts/office-g0/generate-fixtures.mjs",
+        "regenerationDrift": {
+          "observedUtc": "2026-09-25T13:10:14Z",
+          "command": "node scripts/office-g0/generate-fixtures.mjs --deps-dir <frozen bootstrap-source node_modules>  (in a clean re-prepared tree, pinned Node 22.23.2)",
+          "recordedSha256": "2D417DD379209D6035A678E1C606F161F08FDA6DA6F0C0EBD96F956A7896F7AB",
+          "regeneratedSha256": "AE82851E14F478F85DB62D245F61E296E9A6B6A1C83A31D382E547C19CD981D4",
+          "note": "This fixture is pinned by the shipped bytes and its checksum; the recorded regenerate command no longer reproduces those bytes (the XLSX/PPTX builders moved after the fixture was pinned). Do not re-pin without a fresh engine run: accepted evidence rows name these bytes."
+        }
       },
       "capabilities": [
         "pptx-notes"
@@ -1357,7 +1550,14 @@
       },
       "generation": {
         "method": "generated",
-        "tool": "scripts/office-g0/generate-fixtures.mjs"
+        "tool": "scripts/office-g0/generate-fixtures.mjs",
+        "regenerationDrift": {
+          "observedUtc": "2026-09-25T13:10:14Z",
+          "command": "node scripts/office-g0/generate-fixtures.mjs --deps-dir <frozen bootstrap-source node_modules>  (in a clean re-prepared tree, pinned Node 22.23.2)",
+          "recordedSha256": "01A5471555F0519E084AF2B870FE0F0418BBE41510514345DD76ABC295CE2C22",
+          "regeneratedSha256": "D1186A33A36B3EC8845D67981B7441254E2510A3E8BC537F63D0002866FA1AB6",
+          "note": "This fixture is pinned by the shipped bytes and its checksum; the recorded regenerate command no longer reproduces those bytes (the XLSX/PPTX builders moved after the fixture was pinned). Do not re-pin without a fresh engine run: accepted evidence rows name these bytes."
+        }
       },
       "capabilities": [
         "pptx-tables"
@@ -1498,8 +1698,23 @@
       "tags": [
         "embedded-font",
         "OFL-1.1",
-        "engine-generated"
-      ]
+        "engine-generated",
+        "reviewed-fixture"
+      ],
+      "review": {
+        "decision": "accepted",
+        "scope": "fixture and package/parse oracle only: the package carries the obfuscated face and the relationship chain",
+        "limitations": [
+          "PPTX rendering with the host font absent is not proven; DOC-003 owns the run"
+        ],
+        "basis": [
+          "generated by the pinned pptx engine from the bundled licensed font",
+          "no fabricated rendering claim in expected.oracle"
+        ],
+        "decidedUtc": "2026-09-25T12:00:00Z",
+        "decidedBy": "doc002-fixtures lead (codex deepseek-4.1, g119)",
+        "evidence": ".uniwork-dev/orca-recovery-g119/doc002-fixtures/REPORT.md"
+      }
     },
     {
       "id": "F-PDF-TEXT",
@@ -1747,8 +1962,23 @@
         }
       },
       "tags": [
-        "licensed-upstream-copy"
-      ]
+        "licensed-upstream-copy",
+        "reviewed-fixture"
+      ],
+      "review": {
+        "decision": "accepted",
+        "scope": "fixture: an attributable unmodified Apache PDFBox AcroForm with the licence and notice shipped, and a declared field/widget snapshot as the oracle",
+        "limitations": [
+          "pdf-forms is outside the Q1-B pilot scope (mustPort=false), so G0 does not require a run; the fill/save case stays unproven and owned by whichever phase re-opens forms"
+        ],
+        "basis": [
+          "upstream copy at a pinned Apache PDFBox commit with licenceFile and thirdPartyNotice",
+          "the expected result names both fields, the widget count and the nested field"
+        ],
+        "decidedUtc": "2026-09-25T12:00:00Z",
+        "decidedBy": "doc002-fixtures lead (codex deepseek-4.1, g119)",
+        "evidence": ".uniwork-dev/orca-recovery-g119/doc002-fixtures/REPORT.md"
+      }
     },
     {
       "id": "F-MD-VI",
@@ -2183,11 +2413,19 @@
       },
       "generation": {
         "method": "lab-large",
-        "tool": "scripts/office-g0/generate-fixtures.mjs"
+        "tool": "scripts/office-g0/generate-q9-fixtures.mjs",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad"
       },
       "production": {
         "labPath": "fixtures/large/large-document.docx",
-        "defaultBytes": 48234496
+        "defaultBytes": 52428799,
+        "onDiskBandBytes": {
+          "min": 51380224,
+          "max": 52428799
+        },
+        "regenerate": "node scripts/office-g0/generate-q9-fixtures.mjs --manifest docs/office/g0/fixtures/manifest.json --out <lab>/fixtures/large",
+        "payload": "a real document with an embedded incompressible photo (deterministic PRNG noise, stored-deflate PNG)",
+        "why": "Q9-A is a band of real files just under 50 MiB on disk; the previous content-size target produced a 362 KB archive and was rejected by the g118 ledger audit."
       },
       "capabilities": [
         "docx-open",
@@ -2217,11 +2455,19 @@
       },
       "generation": {
         "method": "lab-large",
-        "tool": "scripts/office-g0/generate-fixtures.mjs"
+        "tool": "scripts/office-g0/generate-q9-fixtures.mjs",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad"
       },
       "production": {
         "labPath": "fixtures/large/large-workbook.xlsx",
-        "defaultBytes": 48234496
+        "defaultBytes": 52428799,
+        "onDiskBandBytes": {
+          "min": 51380224,
+          "max": 52428799
+        },
+        "regenerate": "node scripts/office-g0/generate-q9-fixtures.mjs --manifest docs/office/g0/fixtures/manifest.json --out <lab>/fixtures/large",
+        "payload": "a data-heavy workbook whose rows carry pseudo-random inline strings",
+        "why": "Q9-A is a band of real files just under 50 MiB on disk; the previous content-size target produced a 362 KB archive and was rejected by the g118 ledger audit."
       },
       "capabilities": [
         "xlsx-open",
@@ -2237,6 +2483,121 @@
         "q9-band",
         "performance",
         "lab-only"
+      ]
+    },
+    {
+      "id": "F-DOCX-EXPANSION",
+      "path": "docs/docx-expansion-bomb.docx",
+      "format": "docx",
+      "bytes": 1833588,
+      "sha256": "3CC4DF2C6B7B2763F32549662E6DB8BCB5AA4A51E89DC6168E943BBA96AF28E0",
+      "license": "Apache-2.0 (synthetic public bytes generated by this repository; contains no upstream and no user data)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-expansion-fixtures.mjs",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "provenance": "A real DEFLATE stream expands to the declared uncompressed size; the declared size in the central directory is the true one, so this is an expansion fixture and not an edited size field.",
+        "thirdPartyNotice": null
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-expansion-fixtures.mjs",
+        "inputs": "parameters recorded in the receipt beside the bytes",
+        "receipt": ".uniwork-dev/orca-recovery-g119/doc002-fixtures/fixtures/docx-expansion.receipt.json",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "deterministic": true
+      },
+      "capabilities": [
+        "docx-open"
+      ],
+      "complexity": {
+        "parts": 5,
+        "uncompressedBytes": 629145600,
+        "archiveBytes": 1833588,
+        "expansionRatio": 343.12,
+        "largestPartBytes": 629145600
+      },
+      "expected": {
+        "result": "opening the file must stop at the declared zip limit instead of expanding the oversized part: a refusal, no output, bounded time and memory",
+        "oracle": "compare the observed handling with the pinned DOCX_ZIP_LIMITS (part > 512 MiB or total > 1.5 GiB is refused before any part is inflated); an editor run that inflates the part, returns a partial document, or dies from memory exhaustion fails the gate",
+        "handling": {
+          "result": "refused",
+          "error": "limit refusal naming the part and the declared size against DOCX_ZIP_LIMITS; the pinned engine raises a plain Error with that message and exposes no error code",
+          "noOutput": true,
+          "maxSeconds": 10,
+          "maxMemoryMiB": 768
+        },
+        "fixtureOracle": "Fixture-level probe with the pinned engine bundle: refused in 16 ms with \"docx rejected: part word/media/expansion.bin declares 629145600 uncompressed bytes (limit 536870912)\" (see the probe receipt). This is an engine-level observation, not an editor run.",
+        "observed": {
+          "by": "pinned docx engine bundle CEC5C9B23240FEB9A3C83FE304547D21DD16089EFA2F9E173339146AE85A4E36",
+          "outcome": "refused",
+          "error": "docx rejected: part word/media/expansion.bin declares 629145600 uncompressed bytes (limit 536870912)",
+          "wallMs": 242,
+          "receipt": ".uniwork-dev/orca-recovery-g119/doc002-fixtures/evidence/probe-fixture-handling-g119.json"
+        }
+      },
+      "tags": [
+        "q9-complexity",
+        "expansion-negative",
+        "zip-bomb",
+        "negative"
+      ]
+    },
+    {
+      "id": "F-DOCX-DEEP-NEST",
+      "path": "docs/docx-deep-nest.docx",
+      "format": "docx",
+      "bytes": 1722,
+      "sha256": "330FFD61178C67FAE0363DC7F2E2E1BF484CEB879B181F956976D539F80340AC",
+      "license": "Apache-2.0 (synthetic public bytes generated by this repository; contains no upstream and no user data)",
+      "source": {
+        "kind": "generated",
+        "generator": "scripts/office-g0/generate-expansion-fixtures.mjs",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "provenance": "Legal OOXML nested 1500 levels deep (3000 element opens) around a paragraph; the structure, not the size, is the input under test.",
+        "thirdPartyNotice": null
+      },
+      "generation": {
+        "method": "generated",
+        "tool": "scripts/office-g0/generate-expansion-fixtures.mjs",
+        "receipt": ".uniwork-dev/orca-recovery-g119/doc002-fixtures/fixtures/docx-expansion.receipt.json",
+        "upstreamCommit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+        "deterministic": true
+      },
+      "capabilities": [
+        "docx-open"
+      ],
+      "complexity": {
+        "parts": 4,
+        "uncompressedBytes": 127813,
+        "archiveBytes": 1722,
+        "expansionRatio": 74.22,
+        "xmlDepth": 3000
+      },
+      "expected": {
+        "result": "a deeply nested but legal document opens with bounded resources; if the reader refuses it, the refusal names the depth or size limit and produces no partial document",
+        "oracle": "bounded open (recorded time and memory budget) or a named refusal; a stack overflow, a crash or an unbounded parse fails the gate",
+        "handling": {
+          "result": "bounded-handling",
+          "error": "named depth/size refusal if the reader refuses",
+          "noOutput": false,
+          "maxSeconds": 10,
+          "maxMemoryMiB": 768
+        },
+        "fixtureOracle": "Fixture-level probe with the pinned engine bundle: parsed in 54 ms with no recursion failure (see the probe receipt); the editor path is DOC-003 3.7.",
+        "observed": {
+          "by": "pinned docx engine bundle CEC5C9B23240FEB9A3C83FE304547D21DD16089EFA2F9E173339146AE85A4E36",
+          "outcome": "parsed",
+          "blocks": 2,
+          "wallMs": 260,
+          "receipt": ".uniwork-dev/orca-recovery-g119/doc002-fixtures/evidence/probe-fixture-handling-g119.json"
+        }
+      },
+      "tags": [
+        "q9-complexity",
+        "expansion-negative",
+        "deep-nesting",
+        "negative"
       ]
     }
   ],

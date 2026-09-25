@@ -394,7 +394,24 @@ Tag `Documents`; SDI/SDO ở `dto/{sdi,sdo}/document.go`; route `router/document
 
 Hai loại xung đột phiên bản được ánh xạ tới cùng lớp ổn định `errorClass = conflict`; client xử lý theo lớp lỗi, không suy luận từ HTTP status hay đọc nội dung thông báo. Mã 422 cho trang là hiện hữu; mã Office 409 là đề xuất, không khẳng định endpoint Office đã triển khai.
 
-MIME allowlist file: PDF, ảnh (png/jpeg/gif/webp), Office (docx/xlsx/pptx), OpenDocument, text/markdown/csv, zip. **Không** nhận html/svg/js/exe; kiểm cả phần mở rộng lẫn `http.DetectContentType`. Tải về luôn `attachment` (không render inline) trừ ảnh asset.
+MIME allowlist file: PDF, ảnh (png/jpeg/gif/webp), Office (docx/xlsx/pptx), OpenDocument, text/markdown/csv, zip, và **HTML** (`text/html`, đuôi `.html`/`.htm`). **Không** nhận svg/js/exe; kiểm cả phần mở rộng lẫn `http.DetectContentType` và trả 415 `unsupported_media_type` khi hai bên không khớp. Tải về luôn `attachment` (không render inline) trừ ảnh asset; **HTML không bao giờ được render inline từ origin của app**.
+
+**HTML — luật nhận, lưu và preview (bổ sung 2026-09-25; ADR 0021, hàng `E-HTML-CYCLE`, DOC-004).** Phạm vi G0 có
+editor HTML, nên `text/html` được nhận như mọi định dạng lõi khác, với các điều kiện sau:
+
+- **Nhận:** đuôi `.html`/`.htm` và `http.DetectContentType` phải cùng nói `text/html`; lệch → 415. Trần 50 MiB và
+  quota `storage.bytes` như file khác, không có ngoại lệ.
+- **Lưu:** lưu **nguyên byte** người dùng tải lên (không viết lại, không sanitize phía server) thành một version của
+  Document `kind = file`, checksum SHA-256 như hiện có; tải về vẫn `attachment`. HTML không được trích xuất vào tìm
+  kiếm/AI ở G0.
+- **Preview và sửa (cách ly bắt buộc):** mọi hiển thị nội dung HTML phải nằm trong iframe **`sandbox` không có
+  `allow-same-origin`** (origin mờ) trên một **host khác** origin của app — không phải chỉ khác cổng: đo trong
+  `E-HTML-CYCLE` cho thấy cookie scoped theo host nên hai cổng cùng host **không** phải cách ly. Nội dung nạp qua
+  `srcdoc`/blob hoặc từ chính host preview, không kèm credential app; preview không đọc được storage/cookie của app
+  (phía app, `contentDocument` là `null`) và `fetch` tới API app bị từ chối. Script trong tài liệu **được** chạy
+  trong sandbox origin mờ đó (đã đo bằng `F-HTML-SCRIPT`); ngoài sandbox đó, mọi đường render inline đều bị cấm.
+- **Hệ quả cho G1/G2/G3:** cần host preview riêng, chính sách asset tương đối cho HTML/Markdown (hàng `E-HTML-CYCLE`
+  sao asset cạnh tài liệu đã lưu), và test cách ly chạy trên host đó; desktop re-home scheme là việc G4 (ADR 0021).
 
 ## 6. Sự kiện, realtime, worker
 

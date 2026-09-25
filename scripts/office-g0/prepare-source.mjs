@@ -823,7 +823,7 @@ export function run(argv = process.argv.slice(2), opts = {}) {
       notes: [
         'This copy is a survey and build sandbox; it is not the production source tree.',
         'Bytes come from the git object store at the pinned commit, not from the working tree, so ignored and dirty files cannot enter it.',
-        'Dependencies are installed from the pinned lockfile inside the copy, never from the user checkout.',
+        'Dependencies, when a later step installs them, come from the pinned lockfile inside the copy and never from the user checkout; this prepare step itself installs nothing.',
         'Re-running with --replace rebuilds the copy deterministically; the record is rewritten with it.',
       ],
     });
