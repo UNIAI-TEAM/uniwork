@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/unicomhub/uniwork/server/internal/service"
+	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -112,4 +113,86 @@ func TestServicePreferencesAndPush(t *testing.T) {
 		t.Fatal("unsubscribe left the row active")
 	}
 	_ = db.PushSubscription{}
+}
+
+// Undo after the group moved on: while a row sat archived or read, a later
+// event opened a fresh row of its group. Putting the old one back must not
+// break the one-open-row-per-group index (a 500 on undo), so it comes back
+// read, or stays read.
+func TestServiceRestoreIntoReopenedGroup(t *testing.T) {
+	f := newFixture(t)
+	svc := NewService(f.q, PushConfig{})
+	task := f.newTask(t, "Nhóm")
+	f.assign(t, task.ID, f.member.ID)
+	f.handleLast(t, "task.updated")
+	old := f.inbox(t, f.member.ID)[0]
+	reopen := func() db.Notification {
+		t.Helper()
+		row, err := f.q.UpsertNotification(f.ctx, db.UpsertNotificationParams{
+			ID: util.NewID(), UserID: old.UserID, OrganizationID: old.OrganizationID,
+			WorkspaceID: old.WorkspaceID, Kind: old.Kind, GroupKey: old.GroupKey,
+			ResourceType: old.ResourceType, ResourceID: old.ResourceID,
+			ActorKind: old.ActorKind, ActorID: old.ActorID, TitleKey: old.TitleKey, Params: old.Params,
+		})
+		if err != nil || row.ID == old.ID {
+			t.Fatalf("reopen = %+v err=%v", row, err)
+		}
+		return row
+	}
+	openCount := func() int64 {
+		t.Helper()
+		c, err := svc.UnreadCount(f.ctx, f.member.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return c.Total
+	}
+
+	if err := svc.Archive(f.ctx, f.member.ID, []string{old.ID}); err != nil {
+		t.Fatal(err)
+	}
+	fresh := reopen()
+	if err := svc.Unarchive(f.ctx, f.member.ID, []string{old.ID}); err != nil {
+		t.Fatalf("unarchive into reopened group = %v", err)
+	}
+	if rows := f.inbox(t, f.member.ID); len(rows) != 2 || openCount() != 1 {
+		t.Fatalf("after unarchive: %d rows, %d unread", len(rows), openCount())
+	}
+
+	// Both read, then both marked unread in one call: only the newer reopens.
+	if _, err := svc.MarkAllRead(f.ctx, f.member.ID, f.wsID); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.MarkUnread(f.ctx, f.member.ID, []string{old.ID, fresh.ID}); err != nil {
+		t.Fatalf("mark unread into one group = %v", err)
+	}
+	if openCount() != 1 {
+		t.Fatalf("unread after mark unread = %d", openCount())
+	}
+	for _, r := range f.inbox(t, f.member.ID) {
+		if (r.ID == fresh.ID) != !r.ReadAt.Valid {
+			t.Fatalf("row %s read_at=%v, want only the newer one unread", r.ID, r.ReadAt)
+		}
+	}
+
+	// Both archived unread, then restored together: the newer one stays open.
+	if err := svc.MarkRead(f.ctx, f.member.ID, []string{fresh.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.MarkUnread(f.ctx, f.member.ID, []string{old.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Archive(f.ctx, f.member.ID, []string{old.ID}); err != nil {
+		t.Fatal(err)
+	}
+	newest := reopen()
+	if err := svc.Archive(f.ctx, f.member.ID, []string{newest.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Unarchive(f.ctx, f.member.ID, []string{old.ID, newest.ID}); err != nil {
+		t.Fatalf("unarchive two of one group = %v", err)
+	}
+	if openCount() != 1 {
+		t.Fatalf("unread after joint unarchive = %d", openCount())
+	}
 }

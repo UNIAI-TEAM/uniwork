@@ -36,11 +36,17 @@ export function useUndoableTriage() {
 
   const fail = () => toast.error(t("notifications.error"));
   const undoFailed = () => toast.error(t("notifications.undo_failed"));
+  // mutateAsync, not mutate(…, callbacks): per-call callbacks fire only for the
+  // latest call on the observer and never after unmount, which would drop rows
+  // of a quick run from the undo, and the undo's own errors once the toast
+  // outlives the inbox.
+  const undo = (ids: string[], restore: (part: string[]) => Promise<unknown>) => {
+    void Promise.all(chunks(ids).map((part) => restore(part))).catch(undoFailed);
+  };
 
   const archiveRow = (n: Notification) => {
-    archive.mutate([n.id], {
-      onError: fail,
-      onSuccess: () => {
+    void archive.mutateAsync([n.id]).then(
+      () => {
         run.current = [...run.current, n.id];
         const ids = run.current;
         const end = () => {
@@ -54,30 +60,29 @@ export function useUndoableTriage() {
             label: t("notifications.undo"),
             onClick: () => {
               end();
-              for (const part of chunks(ids)) unarchive.mutate(part, { onError: undoFailed });
+              undo(ids, unarchive.mutateAsync);
             },
           },
         });
       },
-    });
+      fail,
+    );
   };
 
   const markAllRead = (workspaceId: string) => {
-    markAll.mutate(workspaceId, {
-      onError: fail,
-      onSuccess: (ids) => {
+    void markAll.mutateAsync(workspaceId).then(
+      (ids) => {
         if (ids.length === 0) return;
         toast.success(t("notifications.marked_all", { count: ids.length }), {
           id: MARK_ALL_TOAST,
           action: {
             label: t("notifications.undo"),
-            onClick: () => {
-              for (const part of chunks(ids)) markUnread.mutate(part, { onError: undoFailed });
-            },
+            onClick: () => undo(ids, markUnread.mutateAsync),
           },
         });
       },
-    });
+      fail,
+    );
   };
 
   return { archiveRow, markAllRead, markingAll: markAll.isPending };

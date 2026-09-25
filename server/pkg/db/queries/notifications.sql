@@ -54,16 +54,33 @@ WHERE user_id = $1 AND read_at IS NULL AND archived_at IS NULL
 RETURNING id;
 
 -- name: MarkNotificationsUnread :execrows
-UPDATE notifications SET read_at = NULL, updated_at = now()
-WHERE user_id = $1 AND id = ANY(sqlc.arg('ids')::text[]) AND read_at IS NOT NULL;
+-- A row whose group already has an open row, or a newer row reopened in the
+-- same call, stays read: reopening it would break uidx_notifications_open_group.
+UPDATE notifications n SET read_at = NULL, updated_at = now()
+WHERE n.user_id = $1 AND n.id = ANY(sqlc.arg('ids')::text[]) AND n.read_at IS NOT NULL
+  AND (n.archived_at IS NOT NULL OR NOT EXISTS (
+    SELECT 1 FROM notifications o
+    WHERE o.user_id = n.user_id AND o.group_key = n.group_key AND o.id <> n.id
+      AND o.archived_at IS NULL
+      AND (o.read_at IS NULL OR (o.id = ANY(sqlc.arg('ids')::text[]) AND o.id > n.id))
+  ));
 
 -- name: ArchiveNotifications :execrows
 UPDATE notifications SET archived_at = now(), updated_at = now()
 WHERE user_id = $1 AND id = ANY(sqlc.arg('ids')::text[]) AND archived_at IS NULL;
 
 -- name: UnarchiveNotifications :execrows
-UPDATE notifications SET archived_at = NULL, updated_at = now()
-WHERE user_id = $1 AND id = ANY(sqlc.arg('ids')::text[]) AND archived_at IS NOT NULL;
+-- An unread row comes back read when its group already has an open row (a
+-- later event opened one while it sat archived), or a newer row of its group
+-- comes back unread in the same call: uidx_notifications_open_group allows one.
+UPDATE notifications n SET archived_at = NULL, updated_at = now(),
+  read_at = CASE WHEN n.read_at IS NULL AND EXISTS (
+    SELECT 1 FROM notifications o
+    WHERE o.user_id = n.user_id AND o.group_key = n.group_key AND o.id <> n.id
+      AND o.read_at IS NULL
+      AND (o.archived_at IS NULL OR (o.id = ANY(sqlc.arg('ids')::text[]) AND o.id > n.id))
+  ) THEN now() ELSE n.read_at END
+WHERE n.user_id = $1 AND n.id = ANY(sqlc.arg('ids')::text[]) AND n.archived_at IS NOT NULL;
 
 -- name: ListChatMessageRooms :many
 SELECT id, room_id FROM chat_messages WHERE id = ANY(sqlc.arg('ids')::text[]) AND deleted_at IS NULL;
