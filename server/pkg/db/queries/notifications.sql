@@ -47,10 +47,11 @@ GROUP BY workspace_id;
 UPDATE notifications SET read_at = now(), updated_at = now()
 WHERE user_id = $1 AND id = ANY(sqlc.arg('ids')::text[]) AND read_at IS NULL;
 
--- name: MarkAllNotificationsRead :execrows
+-- name: MarkAllNotificationsRead :many
 UPDATE notifications SET read_at = now(), updated_at = now()
 WHERE user_id = $1 AND read_at IS NULL AND archived_at IS NULL
-  AND (sqlc.narg('workspace_id')::text IS NULL OR workspace_id = sqlc.narg('workspace_id')::text);
+  AND (sqlc.narg('workspace_id')::text IS NULL OR workspace_id = sqlc.narg('workspace_id')::text)
+RETURNING id;
 
 -- name: MarkNotificationsUnread :execrows
 UPDATE notifications SET read_at = NULL, updated_at = now()
@@ -59,6 +60,13 @@ WHERE user_id = $1 AND id = ANY(sqlc.arg('ids')::text[]) AND read_at IS NOT NULL
 -- name: ArchiveNotifications :execrows
 UPDATE notifications SET archived_at = now(), updated_at = now()
 WHERE user_id = $1 AND id = ANY(sqlc.arg('ids')::text[]) AND archived_at IS NULL;
+
+-- name: UnarchiveNotifications :execrows
+UPDATE notifications SET archived_at = NULL, updated_at = now()
+WHERE user_id = $1 AND id = ANY(sqlc.arg('ids')::text[]) AND archived_at IS NOT NULL;
+
+-- name: ListChatMessageRooms :many
+SELECT id, room_id FROM chat_messages WHERE id = ANY(sqlc.arg('ids')::text[]) AND deleted_at IS NULL;
 
 -- name: CountOwnedNotifications :one
 SELECT count(*)::bigint FROM notifications WHERE user_id = $1 AND id = ANY(sqlc.arg('ids')::text[]);

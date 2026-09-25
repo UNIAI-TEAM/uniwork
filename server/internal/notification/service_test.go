@@ -48,8 +48,8 @@ func TestServiceInboxAndIsolation(t *testing.T) {
 	if err := svc.MarkUnread(f.ctx, f.member.ID, ids[:1]); err != nil {
 		t.Fatal(err)
 	}
-	if n, err := svc.MarkAllRead(f.ctx, f.member.ID, f.wsID); err != nil || n != 2 {
-		t.Fatalf("mark all = %d %v", n, err)
+	if read, err := svc.MarkAllRead(f.ctx, f.member.ID, f.wsID); err != nil || len(read) != 2 {
+		t.Fatalf("mark all = %v %v", read, err)
 	}
 	unread, _ := svc.List(f.ctx, f.member.ID, ListInput{UnreadOnly: true})
 	if len(unread) != 0 {
@@ -63,6 +63,15 @@ func TestServiceInboxAndIsolation(t *testing.T) {
 	}
 	if err := svc.Archive(f.ctx, f.owner.ID, ids); !errors.Is(err, service.ErrNotFound) {
 		t.Fatalf("foreign archive = %v", err)
+	}
+	if err := svc.Unarchive(f.ctx, f.owner.ID, ids); !errors.Is(err, service.ErrNotFound) {
+		t.Fatalf("foreign unarchive = %v", err)
+	}
+	if err := svc.Unarchive(f.ctx, f.member.ID, ids[:1]); err != nil {
+		t.Fatal(err)
+	}
+	if back, _ := svc.List(f.ctx, f.member.ID, ListInput{}); len(back) != 1 || back[0].ID != ids[0] {
+		t.Fatalf("unarchived rows = %+v", back)
 	}
 }
 

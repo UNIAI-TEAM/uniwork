@@ -161,6 +161,35 @@ func (q *Queries) ListActivePushSubscriptions(ctx context.Context, userID string
 	return items, nil
 }
 
+const listChatMessageRooms = `-- name: ListChatMessageRooms :many
+SELECT id, room_id FROM chat_messages WHERE id = ANY($1::text[]) AND deleted_at IS NULL
+`
+
+type ListChatMessageRoomsRow struct {
+	ID     string `json:"id"`
+	RoomID string `json:"room_id"`
+}
+
+func (q *Queries) ListChatMessageRooms(ctx context.Context, ids []string) ([]ListChatMessageRoomsRow, error) {
+	rows, err := q.db.Query(ctx, listChatMessageRooms, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListChatMessageRoomsRow{}
+	for rows.Next() {
+		var i ListChatMessageRoomsRow
+		if err := rows.Scan(&i.ID, &i.RoomID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDigestCandidateUsers = `-- name: ListDigestCandidateUsers :many
 SELECT DISTINCT n.user_id FROM notifications n
 WHERE n.digested_at IS NULL AND n.read_at IS NULL AND n.archived_at IS NULL AND n.created_at > $1
@@ -501,10 +530,11 @@ func (q *Queries) ListUndigestedNotifications(ctx context.Context, arg ListUndig
 	return items, nil
 }
 
-const markAllNotificationsRead = `-- name: MarkAllNotificationsRead :execrows
+const markAllNotificationsRead = `-- name: MarkAllNotificationsRead :many
 UPDATE notifications SET read_at = now(), updated_at = now()
 WHERE user_id = $1 AND read_at IS NULL AND archived_at IS NULL
   AND ($2::text IS NULL OR workspace_id = $2::text)
+RETURNING id
 `
 
 type MarkAllNotificationsReadParams struct {
@@ -512,12 +542,24 @@ type MarkAllNotificationsReadParams struct {
 	WorkspaceID pgtype.Text `json:"workspace_id"`
 }
 
-func (q *Queries) MarkAllNotificationsRead(ctx context.Context, arg MarkAllNotificationsReadParams) (int64, error) {
-	result, err := q.db.Exec(ctx, markAllNotificationsRead, arg.UserID, arg.WorkspaceID)
+func (q *Queries) MarkAllNotificationsRead(ctx context.Context, arg MarkAllNotificationsReadParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, markAllNotificationsRead, arg.UserID, arg.WorkspaceID)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return result.RowsAffected(), nil
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const markNotificationPushed = `-- name: MarkNotificationPushed :exec
@@ -595,6 +637,24 @@ type RevokePushSubscriptionByEndpointParams struct {
 
 func (q *Queries) RevokePushSubscriptionByEndpoint(ctx context.Context, arg RevokePushSubscriptionByEndpointParams) (int64, error) {
 	result, err := q.db.Exec(ctx, revokePushSubscriptionByEndpoint, arg.UserID, arg.Endpoint)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const unarchiveNotifications = `-- name: UnarchiveNotifications :execrows
+UPDATE notifications SET archived_at = NULL, updated_at = now()
+WHERE user_id = $1 AND id = ANY($2::text[]) AND archived_at IS NOT NULL
+`
+
+type UnarchiveNotificationsParams struct {
+	UserID string   `json:"user_id"`
+	Ids    []string `json:"ids"`
+}
+
+func (q *Queries) UnarchiveNotifications(ctx context.Context, arg UnarchiveNotificationsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, unarchiveNotifications, arg.UserID, arg.Ids)
 	if err != nil {
 		return 0, err
 	}
