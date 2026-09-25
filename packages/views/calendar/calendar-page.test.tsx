@@ -199,7 +199,7 @@ describe("CalendarPageView", () => {
     expect(createFromSlotProps.current.slot).toBeNull();
   });
 
-  it("opens task creation directly with the selected calendar slot", () => {
+  it("opens the calendar composer with the selected slot", () => {
     render(
       wrap(
         <CalendarPageView

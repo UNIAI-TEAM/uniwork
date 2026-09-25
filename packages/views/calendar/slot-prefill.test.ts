@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { taskDefaultsFromSlot } from "./slot-prefill";
+import { meetingScheduleFromSlot, taskDefaultsFromSlot } from "./slot-prefill";
 
 describe("taskDefaultsFromSlot", () => {
   it("all-day click sets due_date only", () => {
@@ -37,5 +37,27 @@ describe("taskDefaultsFromSlot", () => {
       start_at: start.toISOString(),
       due_at: end.toISOString(),
     });
+  });
+});
+
+describe("meetingScheduleFromSlot", () => {
+  it("uses a one-hour morning block for an all-day slot", () => {
+    expect(
+      meetingScheduleFromSlot({
+        start: new Date("2026-09-10T00:00:00"),
+        end: null,
+        allDay: true,
+      }),
+    ).toEqual({ date: "2026-09-10", start: "09:00", end: "10:00" });
+  });
+
+  it("keeps the local wall-time range for a timed slot", () => {
+    expect(
+      meetingScheduleFromSlot({
+        start: new Date("2026-09-10T14:00:00"),
+        end: new Date("2026-09-10T15:30:00"),
+        allDay: false,
+      }),
+    ).toEqual({ date: "2026-09-10", start: "14:00", end: "15:30" });
   });
 });

@@ -2631,6 +2631,7 @@
     "create_task": "New task",
     "create_task_on_date": "Create task on {{date}}",
     "create_meeting": "New meeting",
+    "create_dock_no_time": "Choose an item type to continue",
     "sidebar_label": "Calendar planner panel",
     "sidebar_loading": "Loading planner panel…",
     "sidebar_error": "Could not load the planner panel.",
