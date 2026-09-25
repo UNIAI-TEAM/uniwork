@@ -1,51 +1,36 @@
 import type { HomeLayout, HomeSectionKey } from "@uniwork/core/home/prefs";
 
-/**
- * Grid classes live in views, not core, so Tailwind's scan of this package
- * sees every class the home grid can take. Balanced does not use a grid; see
- * `homeBalancedBands`.
- */
-export function homeGridClass(layout: Exclude<HomeLayout, "balanced">): string {
-  return layout === "compact" ? "mx-auto grid w-full max-w-3xl grid-cols-1 gap-4" : "grid grid-cols-1 gap-4 xl:grid-cols-3";
-}
+/** The companion sections: they sit beside my work instead of below it. */
+const ASIDE_SECTIONS: ReadonlySet<HomeSectionKey> = new Set(["upcoming", "inbox"]);
 
-/** Stats and brief always run full width; in wide every other section takes one column. */
-export function homeSpanClass(key: HomeSectionKey, layout: Exclude<HomeLayout, "balanced">): string {
-  if (layout === "compact") return "min-w-0";
-  if (key === "stats" || key === "brief") return "min-w-0 xl:col-span-3";
-  return "min-w-0";
-}
-
-/** The short sections: they sit beside the long lists instead of stretching to match them. */
-const ASIDE_SECTIONS: ReadonlySet<HomeSectionKey> = new Set(["upcoming", "brief"]);
-
-/** Spelled out so Tailwind sees every class; there are five sections at most. */
-const ORDER_CLASS = ["order-1", "order-2", "order-3", "order-4", "order-5"] as const;
-
-export interface HomePlaced {
-  key: HomeSectionKey;
-  /** Keeps the person's own order once the columns dissolve below `xl`. */
-  orderClass: string;
-}
-
-export type HomeBand = { kind: "row"; key: HomeSectionKey } | { kind: "split"; main: HomePlaced[]; aside: HomePlaced[] };
+export type HomeBand =
+  | { kind: "row"; key: HomeSectionKey }
+  /** Balanced: my work in a main column, the short lists stacked beside it. */
+  | { kind: "split"; keys: HomeSectionKey[]; asideRows: number }
+  /** Wide: every section of the run in its own column, my work twice as wide. */
+  | { kind: "columns"; keys: HomeSectionKey[]; template: string };
 
 /**
- * Balanced density. The day's figures run full width; the sections between
- * them split into a main column (my work, inbox) and an aside (upcoming,
- * brief), so a three-row meeting list never stretches beside an eight-row task
- * list. A run with nothing for one side stays a single column. Below `xl` the
- * columns dissolve and each section's order class restores the saved order.
+ * How the visible sections are laid out. The day's figures always run full
+ * width and break the page into runs; what happens to a run depends on the
+ * density. Every band keeps the sections in the person's own order in the
+ * DOM, so reading and tab order match the order they chose; only the columns
+ * move things side by side, and only once the page itself is wide enough
+ * (a container query in the view, not the viewport).
  */
-export function homeBalancedBands(keys: readonly HomeSectionKey[]): HomeBand[] {
+export function homeBands(keys: readonly HomeSectionKey[], layout: HomeLayout): HomeBand[] {
   const bands: HomeBand[] = [];
   let run: HomeSectionKey[] = [];
   const flush = () => {
-    const placed = run.map((key, i) => ({ key, orderClass: ORDER_CLASS[i] ?? "" }));
-    const main = placed.filter((p) => !ASIDE_SECTIONS.has(p.key));
-    const aside = placed.filter((p) => ASIDE_SECTIONS.has(p.key));
-    if (main.length > 0 && aside.length > 0) bands.push({ kind: "split", main, aside });
-    else for (const p of placed) bands.push({ kind: "row", key: p.key });
+    const aside = run.filter((key) => ASIDE_SECTIONS.has(key));
+    if (layout === "balanced" && aside.length > 0 && aside.length < run.length) {
+      bands.push({ kind: "split", keys: run, asideRows: aside.length });
+    } else if (layout === "wide" && run.length > 1) {
+      const template = run.map((key) => (ASIDE_SECTIONS.has(key) ? "minmax(0,1fr)" : "minmax(0,2fr)")).join(" ");
+      bands.push({ kind: "columns", keys: run, template });
+    } else {
+      for (const key of run) bands.push({ kind: "row", key });
+    }
     run = [];
   };
   for (const key of keys) {
@@ -58,4 +43,9 @@ export function homeBalancedBands(keys: readonly HomeSectionKey[]): HomeBand[] {
   }
   flush();
   return bands;
+}
+
+/** Whether a section of a split band goes in the aside column. */
+export function isHomeAside(key: HomeSectionKey): boolean {
+  return ASIDE_SECTIONS.has(key);
 }

@@ -24,6 +24,8 @@ export interface NotificationRowProps {
   compact?: boolean;
   /** The inbox's mail keys (j/k/r/e), attached to the row's link. */
   onKeyDown?: (e: KeyboardEvent<HTMLElement>) => void;
+  /** Off where every row is unread (Home), so the bar would tell nothing apart. */
+  unreadBar?: boolean;
 }
 
 /**
@@ -57,7 +59,16 @@ function absoluteTime(iso: string, locale: string): string {
  * focusable elements in the tab order. A listbox would hide them from
  * assistive tech (option children are presentational) and from Tab.
  */
-export function NotificationRow({ notification: n, href, onOpen, onToggleRead, onArchive, compact, onKeyDown }: NotificationRowProps) {
+export function NotificationRow({
+  notification: n,
+  href,
+  onOpen,
+  onToggleRead,
+  onArchive,
+  compact,
+  onKeyDown,
+  unreadBar = true,
+}: NotificationRowProps) {
   const { t, i18n } = useTranslation();
   const now = useNow();
   const reduceMotion = useReducedMotion() ?? false;
@@ -102,7 +113,7 @@ export function NotificationRow({ notification: n, href, onOpen, onToggleRead, o
     !compact && "pointer-coarse:pr-26",
     // The unread bar: 3px of brand on the leading edge, inside the row so
     // it scrolls with it and follows the row's rounded corners.
-    unread && "before:absolute before:inset-y-3 before:left-0 before:w-[3px] before:rounded-r-full before:bg-primary",
+    unread && unreadBar && "before:absolute before:inset-y-3 before:left-0 before:w-[3px] before:rounded-r-full before:bg-primary",
     n.resource_deleted && "opacity-60",
   );
 
