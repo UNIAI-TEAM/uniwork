@@ -102,6 +102,14 @@ export const GLOBAL_PREFIXES = [
   "/workspaces",
   "/invite/",
   "/admin",
+  // Public marketing pages: without these the two-segment ones would read
+  // as /[orgSlug]/[workspaceSlug] in RUM route patterns.
+  "/solutions",
+  "/features",
+  "/why-uniwork",
+  "/learn",
+  "/pricing",
+  "/enterprise",
 ] as const;
 
 export function isGlobalPath(path: string): boolean {

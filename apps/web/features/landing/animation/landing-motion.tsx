@@ -62,10 +62,12 @@ export function LandingMotion() {
       });
     }, root);
     // Accordions, translated copy and media may change document height.
-    let refreshFrame = 0;
+    // Debounced: an accordion animates its height every frame, and a full
+    // refresh per frame re-measures every trigger mid-interaction.
+    let refreshTimer = 0;
     const observer = new ResizeObserver(() => {
-      cancelAnimationFrame(refreshFrame);
-      refreshFrame = requestAnimationFrame(() => ScrollTrigger.refresh());
+      window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => ScrollTrigger.refresh(), 150);
     });
     observer.observe(root);
     return () => {
@@ -73,7 +75,7 @@ export function LandingMotion() {
       decisionObserver.disconnect();
       document.removeEventListener("visibilitychange", updateDecisionMotion);
       decisionSections.forEach((section) => delete section.dataset.motionVisible);
-      cancelAnimationFrame(refreshFrame);
+      window.clearTimeout(refreshTimer);
       mm.revert();
     };
   }, []);

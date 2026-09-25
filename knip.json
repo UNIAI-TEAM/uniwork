@@ -13,7 +13,8 @@
       "ignoreDependencies": [
         "@playwright/test",
         "playwright-core",
-        "k6"
+        "k6",
+        "sharp"
       ]
     },
     "apps/web": {

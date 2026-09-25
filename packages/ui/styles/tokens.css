@@ -703,7 +703,6 @@ html.dark[data-accent] {
      the fallback face. */
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-plus-jakarta), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-heading: var(--font-display);
   --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
   /* Role-named scale. Sizes keep the app's 14px density; leading and tracking
      follow ClickUp's ratios — body copy loose and untracked, headings tighter

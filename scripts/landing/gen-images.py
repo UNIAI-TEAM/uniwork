@@ -85,6 +85,8 @@ def generate(key: str, model: str, quality: str, size: str, prompt: str) -> byte
             payload = json.load(resp)
     except urllib.error.HTTPError as e:
         sys.exit(f"OpenAI returned {e.code}: {e.read().decode()[:500]}")
+    except (urllib.error.URLError, TimeoutError) as e:
+        sys.exit(f"OpenAI request failed: {e}")
     return base64.b64decode(payload["data"][0]["b64_json"])
 
 
@@ -101,6 +103,18 @@ def encode(png: bytes, width: int) -> bytes:
 
 def sha(b: bytes | str) -> str:
     return hashlib.sha256(b if isinstance(b, bytes) else b.encode()).hexdigest()
+
+
+def write_atomic(path: str, data: bytes) -> None:
+    """Write beside the target and rename, so an interrupted run never leaves half a file."""
+    tmp = f"{path}.tmp"
+    with open(tmp, "wb") as f:
+        f.write(data)
+    os.replace(tmp, path)
+
+
+def save_lock(lock: dict) -> None:
+    write_atomic(LOCK, (json.dumps(lock, ensure_ascii=False, indent=2) + "\n").encode())
 
 
 def main() -> int:
@@ -130,7 +144,7 @@ def main() -> int:
                 continue
             print(f"  render {stem}.webp ({image['size']}) ...", flush=True)
             webp = encode(generate(key, spec["model"], spec["quality"], image["size"], prompt), WIDTH)
-            open(os.path.join(OUT, f"{stem}.webp"), "wb").write(webp)
+            write_atomic(os.path.join(OUT, f"{stem}.webp"), webp)
             lock["images"][stem] = {
                 "size": image["size"],
                 "locale": locale,
@@ -138,10 +152,12 @@ def main() -> int:
                 "bytes": len(webp),
                 "sha256": sha(webp),
             }
+            # Lock after every image: a later failure exits the run, and an
+            # image already paid for must not be rendered (and billed) again.
+            save_lock(lock)
             print(f"  wrote {stem}.webp ({len(webp) // 1024} KB)")
 
-    json.dump(lock, open(LOCK, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
-    open(LOCK, "a", encoding="utf-8").write("\n")
+    save_lock(lock)
     total = sum(v["bytes"] for v in lock["images"].values()) / 1024 / 1024
     print(f"lock updated, {len(lock['images'])} images, {total:.2f} MB total")
     return 0

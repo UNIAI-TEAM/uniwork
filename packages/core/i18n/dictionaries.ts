@@ -28,7 +28,7 @@ export function bundledDictionary(locale: SupportedLocale): Record<string, unkno
  * dictionary to every route instead would put the whole set in the shared
  * chunk — see scripts/bundle-budget.mjs.
  */
-export const loaders: Record<Exclude<SupportedLocale, "vi">, () => Promise<{ default: object }>> = {
+const loaders: Record<Exclude<SupportedLocale, "vi">, () => Promise<{ default: object }>> = {
   en: () => import("./locales/en.json"),
 };
 
@@ -47,5 +47,3 @@ export async function loadDictionary(locale: SupportedLocale): Promise<Record<st
   const dict = (await load()).default as Record<string, unknown>;
   return Object.keys(dict).length > 0 ? dict : null;
 }
-
-export { vi };
