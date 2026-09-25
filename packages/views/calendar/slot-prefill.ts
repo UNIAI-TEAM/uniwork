@@ -44,8 +44,7 @@ export function taskDefaultsFromSlot(slot: CalendarSlot): Partial<CreateTaskBody
 
 export function meetingScheduleFromSlot(slot: CalendarSlot): ScheduleDraft {
   if (slot.allDay) {
-    const date = ymdLocal(slot.start);
-    return { date, start: "09:00", end: "10:00" };
+    return { date: ymdLocal(slot.start), start: "09:00", end: "10:00" };
   }
   const end = slot.end ?? addHours(slot.start, 1);
   return {
