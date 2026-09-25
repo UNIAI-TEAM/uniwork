@@ -206,7 +206,9 @@ test('--work is refused when it overlaps the workspace root', { skip: skipWorksp
 });
 
 test('a refused --work leaves no evidence record and creates nothing', { skip: skipWorkspace }, async () => {
-  const refused = path.join(TEST_SCRATCH_ROOT, 'uni668-refused-' + Date.now());
+  // Outside <workspace>/.uniwork-dev, so the launcher refuses it whatever scratch root the run uses
+  // (TEST_SCRATCH_ROOT may itself sit under .uniwork-dev, where a fresh dir is legitimately accepted).
+  const refused = path.join(WORKSPACE_ROOT, 'uni668-refused-' + Date.now());
   const outcome = await runLab(['--source', PREPARED_SOURCE || 's', '--work', refused], process.env);
   assert.equal(outcome.exitCode, 1);
   assert.equal(outcome.record.failure.stage, 'work-ownership');
