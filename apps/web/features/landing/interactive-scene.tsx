@@ -32,7 +32,8 @@ export function InteractiveScene() {
       void import("./animation/scene-renderer").then(({ createScene: create }) => {
         if (cancelled) return;
         const style = getComputedStyle(element);
-        renderer.current = create(element, { brand: style.getPropertyValue("--brand").trim(), paper: style.getPropertyValue("--landing-model-shell").trim(), ink: style.getPropertyValue("--landing-deep").trim(), mint: style.getPropertyValue("--landing-model-light").trim() }, setSelected, setFailed);
+        const colour = (name: string) => toSrgb(style.getPropertyValue(name).trim());
+        renderer.current = create(element, { brand: colour("--brand"), paper: colour("--landing-model-shell"), ink: colour("--landing-deep"), mint: colour("--landing-model-light") }, setSelected, setFailed);
         renderer.current.setState(state.current);
       }).catch(() => { if (!cancelled) setFailed(true); });
     }, { rootMargin: "200px" });
@@ -50,4 +51,17 @@ export function InteractiveScene() {
     </div>
     <Button className="scene-motion-toggle" variant="ghost" size="icon" disabled={failed} aria-label={t(paused ? "landing.motion.play" : "landing.motion.pause")} onClick={() => setManualPause(!paused)}>{paused ? <Play aria-hidden /> : <Pause aria-hidden />}</Button>
   </div>;
+}
+
+/**
+ * three's Color parser knows hex, rgb() and hsl(), not the oklch() a stored
+ * accent turns `--brand` into; a 2D canvas resolves any CSS colour to sRGB.
+ */
+function toSrgb(value: string) {
+  const context = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+  if (!context || !value) return value;
+  context.fillStyle = value;
+  context.fillRect(0, 0, 1, 1);
+  const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+  return `rgb(${r}, ${g}, ${b})`;
 }

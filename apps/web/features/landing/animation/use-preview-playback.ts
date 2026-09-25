@@ -32,7 +32,7 @@ export function usePreviewPlayback(host: RefObject<HTMLElement | null>, beatCoun
     const timer = window.setTimeout(() => {
       fired = true; remaining.current = 2600; setPressing(false); setStep(value => (value + 1) % beatCount);
     }, remaining.current);
-    return () => { clearTimeout(press); clearTimeout(timer); if (!fired) remaining.current = Math.max(0, remaining.current - (performance.now() - started)); };
+    return () => { clearTimeout(press); clearTimeout(timer); if (!fired) { remaining.current = Math.max(0, remaining.current - (performance.now() - started)); setPressing(false); } };
   }, [running, step, beatCount]);
   return { step, running, playing, reduced, pressing, toggle: () => setRequested(!playing) };
 }

@@ -45,6 +45,21 @@ test("the prompts, the lock and the files on disk agree", () => {
   assert.deepEqual(orphans, [], `unrecorded files in public/landing: ${orphans.join(", ")}`);
 });
 
+// Mirrors compose() in gen-images.py. A prompt edited without a re-render
+// leaves committed pixels that no prompt in the repo describes any more.
+test("every image was rendered from the prompt now in the repo", () => {
+  const stale = [];
+  for (const [name, spec] of Object.entries(prompts.images)) {
+    for (const locale of spec.localized ? LOCALES : [null]) {
+      const stem = locale ? `${name}.${locale}` : name;
+      const lettering = locale ? spec.text[locale] : "No text, no lettering of any kind anywhere in the image.";
+      const prompt = [prompts.style, spec.prompt, lettering].join("\n\n");
+      if (lock.images[stem] && sha(prompt) !== lock.images[stem].prompt_sha256) stale.push(stem);
+    }
+  }
+  assert.deepEqual(stale, [], `prompt changed since the render; run \`pnpm landing:gen <name>\`: ${stale.join(", ")}`);
+});
+
 // The generator decides how many files exist; the resolver decides which one a
 // component asks for. They read the same `localized` flag from two different
 // files, and a page that asks for a locale variant nobody rendered is a 404 in

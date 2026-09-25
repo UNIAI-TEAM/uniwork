@@ -109,7 +109,7 @@ export function createMascotRenderer(host: HTMLElement, onFailure: (failed: bool
       renderer.domElement.removeEventListener("webglcontextlost", contextLost);
       renderer.domElement.removeEventListener("webglcontextrestored", contextRestored);
       document.removeEventListener("visibilitychange", sync);
-      texture.dispose(); geometry.dispose(); material.dispose(); renderer.dispose(); renderer.domElement.remove();
+      texture.dispose(); geometry.dispose(); material.dispose(); renderer.forceContextLoss(); renderer.dispose(); renderer.domElement.remove();
     },
   };
 }

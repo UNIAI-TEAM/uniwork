@@ -5476,7 +5476,7 @@
       "send": "Gửi tin nhắn",
       "you": "Bạn",
       "ownerQuestion": "Ai đang phụ trách?",
-      "ownerAnswer": "Hoàng Anh phụ trách thiết kế onboarding. Minh Linh giữ brief sản phẩm, UNI tổng hợp phản hồi và Thu Ngân phụ trách phạm vi ra mắt.",
+      "ownerAnswer": "Hoàng Anh phụ trách thiết kế onboarding. Minh Linh giữ brief sản phẩm, UNI tổng hợp phản hồi và Thanh Ngân phụ trách phạm vi ra mắt.",
       "completedCount_one": "{{count}} trong 4 công việc minh họa đã hoàn thành.",
       "completedCount_other": "{{count}} trong 4 công việc minh họa đã hoàn thành."
     },
@@ -5986,7 +5986,7 @@
         "i2Title": "Thiếu khả năng xử lý file chuẩn doanh nghiệp",
         "i2Desc": "Hỗ trợ DOCX, XLSX, PPTX hạn chế, và đó không phải thế mạnh của nền tảng.",
         "i3Title": "Chưa mạnh về dự án và công việc phức tạp",
-        "i3Desc": "Task và project mang tính cơ bản, khó đáp ứng nhu cầu vận hành quy mô lớn.",
+        "i3Desc": "Việc và dự án chỉ ở mức cơ bản, khó đáp ứng nhu cầu vận hành quy mô lớn.",
         "i4Title": "Khả năng tích hợp còn giới hạn",
         "i4Desc": "Cần nhiều công cụ bên ngoài để nối với email, lịch, họp và quy trình.",
         "i5Title": "AI chủ yếu trong phạm vi workspace",

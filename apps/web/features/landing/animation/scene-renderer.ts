@@ -91,7 +91,7 @@ export function createScene(host: HTMLElement, palette: ScenePalette, onSelect: 
       canvas.removeEventListener("webglcontextlost", contextLost); canvas.removeEventListener("webglcontextrestored", contextRestored);
       const materials = new Set<THREE.Material>();
       scene.traverse((object) => { if (object instanceof THREE.Mesh) { object.geometry.dispose(); (Array.isArray(object.material) ? object.material : [object.material]).forEach(material => materials.add(material)); } });
-      materials.forEach(material => material.dispose()); environmentTarget.dispose(); renderer.dispose(); canvas.remove();
+      materials.forEach(material => material.dispose()); environmentTarget.dispose(); renderer.forceContextLoss(); renderer.dispose(); canvas.remove();
     },
   };
 }

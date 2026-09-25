@@ -167,7 +167,7 @@
 .lovable-project-tabs > span[data-active=true] { border-bottom: 2px solid var(--preview-accent); padding: 12px 0; color: var(--preview-ink); }
 .lovable-project-tabs > svg { margin-left: auto; }
 .lovable-workspace-pill { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; background: var(--preview-soft); color: var(--preview-ink); font-weight: 600; }
-.lovable-workspace-pill i { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 5px; background: var(--success); color: var(--success-foreground, var(--brand-foreground)); font-size: 12px; font-style: normal; }
+.lovable-workspace-pill i { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 5px; background: var(--success-solid); color: var(--on-solid); font-size: 12px; font-style: normal; }
 .lovable-breadcrumb { font-size: 10px; text-transform: uppercase; color: var(--preview-muted); margin: 16px 0 10px; }
 .lovable-task-heading > h2 { margin-bottom: 24px; }
 .lovable-task-heading .lovable-page-heading h2 { font-size: 26px; }

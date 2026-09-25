@@ -30,7 +30,7 @@ export function WorkflowFilm() {
   const toggle = () => {
     const element = video.current; if (!element) return;
     if (playing) { element.pause(); setManual(false); }
-    else { if (error) { element.load(); setError(false); } setManual(true); void element.play().catch(() => setError(true)); }
+    else { if (error) { element.load(); setError(false); } setManual(true); void element.play().catch((reason: unknown) => { if (!(reason instanceof DOMException && reason.name === "AbortError")) setError(true); }); }
   };
   return <figure className="workflow-film">
     <div className="film-screen">

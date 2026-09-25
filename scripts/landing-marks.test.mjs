@@ -49,6 +49,14 @@ test("the generated module carries exactly the paths the lock recorded", () => {
 
 // The band's whole point is that the marks track the page's text colour in
 // both themes. A vendored path with its own fill would break that silently.
+// The module keeps only the path, so the colour is checked on the upstream file.
 test("no vendored mark carries its own colour", () => {
-  assert.equal(/fill="#|fill='#|fill:\s*#/.test(generated), false, "a mark hardcodes a colour");
+  const pkgDir = path.dirname(require.resolve("@lobehub/icons-static-svg/package.json"));
+  const coloured = Object.entries(lock.marks)
+    .filter(([, meta]) => {
+      const svg = fs.readFileSync(path.join(pkgDir, meta.source), "utf8");
+      return !/fill="currentColor"/.test(svg) || /fill="#|fill='#|fill:\s*#/.test(svg);
+    })
+    .map(([slug]) => slug);
+  assert.deepEqual(coloured, [], `a mark hardcodes a colour: ${coloured.join(", ")}`);
 });

@@ -24,6 +24,8 @@ Run: pnpm landing:gen            # everything missing from the lock
      pnpm landing:gen hero       # just this one, re-rendered
 """
 
+from __future__ import annotations
+
 import base64
 import hashlib
 import io
