@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { setAccessToken } from "../session";
 import {
+  getEmailHubConversation,
   getEmailHubThread,
   getEmailHubUnreadCount,
   listEmailHubAccounts,
@@ -242,6 +243,34 @@ describe("email hub endpoints", () => {
     expect(url).toContain("scheduled-sends/sch1/retry");
     expect(url).toContain("account_id=acc1");
     expect((init as RequestInit).method).toBe("POST");
+  });
+
+  it("getEmailHubConversation parses and degrades malformed payloads", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        messages: [
+          {
+            id: "th1",
+            account_id: "acc1",
+            folder: "INBOX",
+            subject: "Hi",
+            snippet: "a",
+            from_addr: "a@b.co",
+            to_addrs: ["me@x.com"],
+            sent_at: "2026-09-21T10:00:00Z",
+            is_read: true,
+            is_starred: false,
+            has_attachments: false,
+            body_cached: false,
+          },
+        ],
+      }),
+    );
+    const conv = await getEmailHubConversation("ws1", "acc1", "th1");
+    expect(conv.messages).toHaveLength(1);
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ messages: "nope" }));
+    await expect(getEmailHubConversation("ws1", "acc1", "th1")).resolves.toEqual({ messages: [] });
   });
 
   it("getEmailHubThreadSummary returns null on 404 and parses cache payload", async () => {

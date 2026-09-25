@@ -43,6 +43,7 @@ import {
   canPromoteChatMember,
   canUnmuteChatMember,
 } from "./chat-room-moderation-utils";
+import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
 import { initialOf } from "./chat-initials";
 import { useRoomMemberModeration } from "./use-room-member-moderation";
 
@@ -66,6 +67,7 @@ export function GroupSettingsSheet({
   leaving,
   leaveDisabled,
   onOpenSearch,
+  memberAvatarByUserId = {},
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -74,6 +76,7 @@ export function GroupSettingsSheet({
   currentUserId: string;
   youLabel: string;
   memberProfiles: Record<string, MemberProfile>;
+  memberAvatarByUserId?: MemberAvatarUrlMap;
   nicknamesByUserId?: Record<string, string>;
   onAddMembers: () => void;
   onOpenSearch?: () => void;
@@ -229,7 +232,14 @@ export function GroupSettingsSheet({
                 {members.map((member) => (
                   <ChatMemberRow
                     key={member.key}
-                    avatar={<ActorAvatar name={member.label} initials={initialOf(member.label)} size="lg" />}
+                    avatar={
+                      <ActorAvatar
+                        name={member.label}
+                        initials={initialOf(member.label)}
+                        avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, member.key)}
+                        size="lg"
+                      />
+                    }
                     name={member.label}
                     detail={
                       member.label !== member.legalLabel

@@ -31,6 +31,7 @@ import { ChatPresenceAvatar } from "./chat-presence-avatar";
 import { ChatRoomBulletinSheet } from "./chat-room-bulletin-sheet";
 import { ChatSetNicknameDialog } from "./chat-set-nickname-dialog";
 import { useChatRoomPreferences } from "./use-chat-room-preferences";
+import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
 import { initialOf } from "./chat-initials";
 
 export function DmSettingsSheet({
@@ -52,6 +53,7 @@ export function DmSettingsSheet({
   blocking,
   unblocking,
   onOpenSearch,
+  memberAvatarByUserId = {},
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -60,6 +62,7 @@ export function DmSettingsSheet({
   roomId?: string | null;
   currentUserId: string;
   nicknamesByUserId?: Record<string, string>;
+  memberAvatarByUserId?: MemberAvatarUrlMap;
   youLabel: string;
   onLeave: () => void | Promise<void>;
   leaving?: boolean;
@@ -132,11 +135,17 @@ export function DmSettingsSheet({
                   key={participant.key}
                   avatar={
                     participant.key === "self" ? (
-                      <ActorAvatar name={participant.label} initials={initialOf(participant.label)} size="lg" />
+                      <ActorAvatar
+                        name={participant.label}
+                        initials={initialOf(participant.label)}
+                        avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, currentUserId)}
+                        size="lg"
+                      />
                     ) : (
                       <ChatPresenceAvatar
                         name={participant.label}
                         initials={initialOf(participant.label)}
+                        avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, contact.user_id)}
                         size="lg"
                         online={contactOnline}
                       />
@@ -261,9 +270,11 @@ export function DmChatToolbar({
   voiceCallDisabled,
   onVideoCall,
   videoCallDisabled,
+  memberAvatarByUserId = {},
 }: {
   contact: ChatContact;
   nicknamesByUserId?: Record<string, string>;
+  memberAvatarByUserId?: MemberAvatarUrlMap;
   backAriaLabel?: string;
   onBack?: () => void;
   sidebarCollapsed?: boolean;
@@ -289,6 +300,7 @@ export function DmChatToolbar({
         <ChatPresenceAvatar
           name={contactLabel}
           initials={initialOf(contactLabel)}
+          avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, contact.user_id)}
           size="xl"
           online={online}
         />

@@ -13,6 +13,7 @@ import { ChatReminderMessageRow } from "./chat-reminder-message-row";
 import { ChatVoiceMessageRow } from "./chat-voice-message-row";
 import { VoiceCallLogRow } from "./voice-call-log-row";
 import { VoiceCallSummaryRow } from "./voice-call-summary-row";
+import { resolveAvatarUrlFromNameContext } from "./chat-member-avatar";
 import type { NameContextEntry } from "./native-chat-message-mapping";
 import { messageGrouping } from "./native-chat-message-grouping";
 import { messageDayKey } from "./chat-message-time";
@@ -42,7 +43,6 @@ export type NativeChatMessageContext = {
   nameContext: NameContextEntry[];
   showSenderName: boolean;
   canPinMessages: boolean;
-  workHubEnabled: boolean;
   actions: NativeChatMessageActions;
 };
 
@@ -54,6 +54,7 @@ export type NativeChatRowLayout = {
   lastOfRun: boolean;
   showReadReceipt: boolean;
   senderLabel: string;
+  senderAvatarUrl?: string;
   replyTarget: ChatMessage | undefined;
 };
 
@@ -82,6 +83,10 @@ export function layoutNativeChatMessages(
       showReadReceipt: index === receiptIndex,
       senderLabel:
         message.sender === input.currentUserId ? input.youLabel : names.get(message.sender) || message.sender,
+      senderAvatarUrl:
+        message.sender === input.currentUserId
+          ? undefined
+          : resolveAvatarUrlFromNameContext(input.nameContext, message.sender),
       // The message this row points back to: its reply parent, or — for an
       // AI call summary — the call's log row.
       replyTarget: message.replyToEventId
@@ -104,9 +109,9 @@ function MessageBody({
   context: NativeChatMessageContext;
   highlighted: boolean;
 }) {
-  const { workspaceId, roomId, currentUserId, youLabel, nameContext, showSenderName, canPinMessages, workHubEnabled, actions } =
+  const { workspaceId, roomId, currentUserId, youLabel, nameContext, showSenderName, canPinMessages, actions } =
     context;
-  const { compactTop, showAvatar, senderLabel } = layout;
+  const { compactTop, showAvatar, senderLabel, senderAvatarUrl } = layout;
   const isOwn = message.sender === currentUserId;
   const cardProps = { senderLabel, senderId: message.sender, isOwn, ts: message.ts, showSenderName, compactTop };
 
@@ -158,6 +163,7 @@ function MessageBody({
     roomId,
     message,
     senderLabel,
+    senderAvatarUrl,
     isOwn,
     showSenderName,
     compactTop,
@@ -169,10 +175,9 @@ function MessageBody({
     onPin: live && canPinMessages ? actions.onPin : undefined,
     onCopy: live ? actions.onCopy : undefined,
     onDelete: live ? actions.onDelete : undefined,
-    onCreateTask: live && workHubEnabled ? actions.onCreateTask : undefined,
-    onLinkTask: live && workHubEnabled ? actions.onLinkTask : undefined,
-    onFollowUp: live && workHubEnabled ? actions.onFollowUp : undefined,
-    workHubEnabled,
+    onCreateTask: live ? actions.onCreateTask : undefined,
+    onLinkTask: live ? actions.onLinkTask : undefined,
+    onFollowUp: live ? actions.onFollowUp : undefined,
   };
 
   if (message.kind === "voice" && message.voice) {

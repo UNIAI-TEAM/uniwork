@@ -64,24 +64,25 @@ type EmailHubAccountView struct {
 }
 
 type EmailHubThreadView struct {
-	ID             string
-	AccountID      string
-	Folder         string
-	Subject        string
-	Snippet        string
-	FromAddr       string
-	FromName       string
-	ToAddrs        []string
-	SentAt         time.Time
-	IsRead         bool
-	IsStarred      bool
-	HasAttachments bool
-	ImapLabels     []string
-	SnoozedUntil   *time.Time
-	Attachments    []EmailHubAttachmentView
-	BodyText       string
-	BodyHTML       string
-	BodyCached     bool
+	ID                       string
+	AccountID                string
+	Folder                   string
+	Subject                  string
+	Snippet                  string
+	FromAddr                 string
+	FromName                 string
+	ToAddrs                  []string
+	SentAt                   time.Time
+	IsRead                   bool
+	IsStarred                bool
+	HasAttachments           bool
+	ImapLabels               []string
+	SnoozedUntil             *time.Time
+	Attachments              []EmailHubAttachmentView
+	BodyText                 string
+	BodyHTML                 string
+	BodyCached               bool
+	ConversationMessageCount int
 }
 
 type EmailHubCounts struct {
@@ -339,7 +340,7 @@ func (s *EmailHubService) sendOutboundMail(
 	if err != nil {
 		return EmailHubThreadView{}, err
 	}
-	var inReplyTo, references string
+	var inReplyTo, references, convKey string
 	if in.ReplyToThreadID != "" {
 		parent, err := s.q.GetEmailHubThread(ctx, db.GetEmailHubThreadParams{
 			ID: in.ReplyToThreadID, AccountID: in.AccountID, OrganizationID: organizationID,
@@ -351,12 +352,23 @@ func (s *EmailHubService) sendOutboundMail(
 			return EmailHubThreadView{}, err
 		}
 		if parent.MessageID.Valid && parent.MessageID.String != "" {
-			inReplyTo = parent.MessageID.String
-			references = parent.MessageID.String
+			inReplyTo = emailhub.NormalizeMessageID(parent.MessageID.String)
+			references = emailhub.ReferencesHeader(parent.MessageID.String, "")
+		}
+		convKey = strings.TrimSpace(parent.ConversationKey)
+		if convKey == "" {
+			parentMID := ""
+			if parent.MessageID.Valid {
+				parentMID = parent.MessageID.String
+			}
+			convKey = emailhub.ConversationKey(acc.ID, parent.Subject, parentMID, inReplyTo)
 		}
 		if subject == "" {
 			subject = replySubject(parent.Subject)
 		}
+	}
+	if convKey == "" {
+		convKey = emailhub.ConversationKey(acc.ID, subject, "", "")
 	}
 	if subject == "" {
 		return EmailHubThreadView{}, Invalid("subject required")
@@ -383,7 +395,8 @@ func (s *EmailHubService) sendOutboundMail(
 		MessageID: pgtype.Text{String: msgID, Valid: true},
 		Subject:   subject, Snippet: snippet, FromAddr: acc.EmailAddress,
 		ToAddrs: to, SentAt: pgtype.Timestamptz{Time: now, Valid: true},
-		IsRead: true, IsStarred: false, HasAttachments: len(attachments) > 0, ImapLabels: []string{},
+		IsRead: true, IsStarred: false, HasAttachments: len(attachments) > 0,
+		ImapLabels: []string{}, ConversationKey: convKey,
 	})
 	if err != nil {
 		return EmailHubThreadView{}, fmt.Errorf("%w: %w", errEmailHubSentNotCached, err)

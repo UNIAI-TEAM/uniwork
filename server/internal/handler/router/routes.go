@@ -157,6 +157,7 @@ type Routes struct {
 	ListEmailHubImapLabels        http.HandlerFunc
 	ListEmailHubThreads           http.HandlerFunc
 	GetEmailHubThread             http.HandlerFunc
+	ListEmailHubConversation      http.HandlerFunc
 	GetEmailHubThreadSummary      http.HandlerFunc
 	SummarizeEmailHubThread       http.HandlerFunc
 	CreateEmailHubSummaryTasks    http.HandlerFunc

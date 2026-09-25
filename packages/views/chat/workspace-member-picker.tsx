@@ -23,6 +23,7 @@ import {
   memberToChatContact,
   shouldLookupEmailOutsideWorkspace,
 } from "./workspace-member-picker-utils";
+import { memberAvatarUrl } from "./chat-member-avatar";
 import { initialOf } from "./chat-initials";
 
 /**
@@ -246,7 +247,12 @@ export function WorkspaceMemberPickerList({
                 className="group flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-surface-hover pointer-coarse:min-h-11"
                 onClick={() => onPick(contact)}
               >
-                <ActorAvatar name={label} initials={initialOf(label)} size="lg" />
+                <ActorAvatar
+                  name={label}
+                  initials={initialOf(label)}
+                  avatarUrl={memberAvatarUrl(member.avatar_url)}
+                  size="lg"
+                />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-body font-medium text-foreground">{label}</span>
                   <span className="block truncate text-caption text-muted-foreground">{member.email}</span>

@@ -13,7 +13,7 @@ export function buildMainTimelineMessages(input: {
   pendingEntries: PendingChatMessage[];
   outboxEntries: ChatSendOutboxEntry[];
   currentUserId: string;
-  workHubEnabled: boolean;
+  threadsEnabled: boolean;
 }): ChatMessage[] {
   const {
     anchorMessages,
@@ -22,7 +22,7 @@ export function buildMainTimelineMessages(input: {
     pendingEntries,
     outboxEntries,
     currentUserId,
-    workHubEnabled,
+    threadsEnabled,
   } = input;
   if (anchorMessages) return anchorMessages;
   const latest = latestRows.map(toChatMessage);
@@ -33,7 +33,7 @@ export function buildMainTimelineMessages(input: {
     outboxEntries,
     currentUserId,
   ) as ChatMessage[];
-  const withoutThreadReplies = workHubEnabled
+  const withoutThreadReplies = threadsEnabled
     ? mergedLatest.filter((message) => !message.threadRootId)
     : mergedLatest;
   if (olderMessages.length === 0) return withoutThreadReplies;
@@ -41,7 +41,7 @@ export function buildMainTimelineMessages(input: {
   const merged: ChatMessage[] = [];
   for (const message of [...olderMessages, ...withoutThreadReplies]) {
     if (seen.has(message.id)) continue;
-    if (workHubEnabled && message.threadRootId) continue;
+    if (threadsEnabled && message.threadRootId) continue;
     seen.add(message.id);
     merged.push(message);
   }
@@ -55,11 +55,11 @@ export function buildThreadViewMessages(input: {
   threadRows: ChatMessageRecord[] | undefined;
   pendingEntries: PendingChatMessage[];
   currentUserId: string;
-  workHubEnabled: boolean;
+  threadsEnabled: boolean;
 }): ChatMessage[] {
-  const { allMessages, threadRoot, threadRows, pendingEntries, currentUserId, workHubEnabled } =
+  const { allMessages, threadRoot, threadRows, pendingEntries, currentUserId, threadsEnabled } =
     input;
-  if (workHubEnabled) {
+  if (threadsEnabled) {
     const serverThread = (threadRows ?? []).map(toChatMessage);
     const threadPending = pendingEntries.filter(
       (entry) => entry.thread_root_id === threadRoot.id,

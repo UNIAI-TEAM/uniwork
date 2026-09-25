@@ -23,8 +23,8 @@ export type UnifiedSidebarEntry =
  * a single room that "All" always lists, so a filter for it only ever showed
  * one row and pushed the control onto a second line.
  */
-export function chatSidebarFilterOptions(workHubEnabled: boolean): ChatSidebarKindFilter[] {
-  return workHubEnabled ? ["all", "dm", "group", "channel"] : ["all", "dm", "group"];
+export function chatSidebarFilterOptions(): ChatSidebarKindFilter[] {
+  return ["all", "dm", "group", "channel"];
 }
 
 /** Accent-insensitive: "tuan" finds "Tuấn", "thiet ke" finds "Thiết kế". */
@@ -44,7 +44,6 @@ export function buildUnifiedSidebarEntries(input: {
   nicknamesByUserId: Record<string, string>;
   roomPreviewsByRoomId: Record<string, ChatRoomPreview>;
   pinnedByRoomId: Record<string, ChatRoomPreference>;
-  workHubEnabled: boolean;
 }): UnifiedSidebarEntry[] {
   const {
     kindFilter,
@@ -57,7 +56,6 @@ export function buildUnifiedSidebarEntries(input: {
     nicknamesByUserId,
     roomPreviewsByRoomId,
     pinnedByRoomId,
-    workHubEnabled,
   } = input;
 
   const entries: UnifiedSidebarEntry[] = [];
@@ -74,7 +72,7 @@ export function buildUnifiedSidebarEntries(input: {
     });
   }
 
-  if (workHubEnabled && include("channel")) {
+  if (include("channel")) {
     for (const channel of channels) {
       if (
         !matchesText(channel.name, filterText) &&

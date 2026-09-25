@@ -73,24 +73,25 @@ type EmailHubAttachmentSDO struct {
 
 // EmailHubThreadSDO is a cached inbox row.
 type EmailHubThreadSDO struct {
-	ID             string                  `json:"id"`
-	AccountID      string                  `json:"account_id"`
-	Folder         string                  `json:"folder"`
-	Subject        string                  `json:"subject"`
-	Snippet        string                  `json:"snippet"`
-	FromAddr       string                  `json:"from_addr"`
-	FromName       string                  `json:"from_name,omitempty"`
-	ToAddrs        []string                `json:"to_addrs"`
-	SentAt         string                  `json:"sent_at" format:"date-time"`
-	IsRead         bool                    `json:"is_read"`
-	IsStarred      bool                    `json:"is_starred"`
-	HasAttachments bool                    `json:"has_attachments"`
-	Attachments    []EmailHubAttachmentSDO `json:"attachments,omitempty"`
-	BodyText       string                  `json:"body_text,omitempty"`
-	BodyHTML       string                  `json:"body_html,omitempty"`
-	BodyCached     bool                    `json:"body_cached"`
-	ImapLabels     []string                `json:"imap_labels,omitempty"`
-	SnoozedUntil   string                  `json:"snoozed_until,omitempty" format:"date-time"`
+	ID                       string                  `json:"id"`
+	AccountID                string                  `json:"account_id"`
+	Folder                   string                  `json:"folder"`
+	Subject                  string                  `json:"subject"`
+	Snippet                  string                  `json:"snippet"`
+	FromAddr                 string                  `json:"from_addr"`
+	FromName                 string                  `json:"from_name,omitempty"`
+	ToAddrs                  []string                `json:"to_addrs"`
+	SentAt                   string                  `json:"sent_at" format:"date-time"`
+	IsRead                   bool                    `json:"is_read"`
+	IsStarred                bool                    `json:"is_starred"`
+	HasAttachments           bool                    `json:"has_attachments"`
+	Attachments              []EmailHubAttachmentSDO `json:"attachments,omitempty"`
+	BodyText                 string                  `json:"body_text,omitempty"`
+	BodyHTML                 string                  `json:"body_html,omitempty"`
+	BodyCached               bool                    `json:"body_cached"`
+	ImapLabels               []string                `json:"imap_labels,omitempty"`
+	SnoozedUntil             string                  `json:"snoozed_until,omitempty" format:"date-time"`
+	ConversationMessageCount int                     `json:"conversation_message_count,omitempty"`
 }
 
 // EmailHubImapLabelListSDO lists distinct user-visible IMAP labels on cached threads.
@@ -103,6 +104,11 @@ type EmailHubThreadListSDO struct {
 	Threads    []EmailHubThreadSDO `json:"threads"`
 	Counts     EmailHubCountsSDO   `json:"counts"`
 	NextCursor string              `json:"next_cursor,omitempty"`
+}
+
+// EmailHubConversationSDO lists every message in one conversation (oldest first).
+type EmailHubConversationSDO struct {
+	Messages []EmailHubThreadSDO `json:"messages"`
 }
 
 // EmailHubCountsSDO holds folder totals.

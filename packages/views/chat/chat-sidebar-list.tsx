@@ -7,6 +7,7 @@ import type { ChatRoomPreference } from "@uniwork/core/chat/room-preferences-sto
 import type { ChatRoomPreview } from "./chat-sidebar-preview";
 import type { ChatSidebarTarget } from "./chat-sidebar-types";
 import type { UnifiedSidebarEntry } from "./chat-sidebar-unified";
+import type { MemberAvatarUrlMap } from "./chat-member-avatar";
 import {
   ChatSidebarUnifiedRow,
   isSidebarEntryActive,
@@ -36,6 +37,7 @@ type RowData = {
   unreadBadgesReady: boolean;
   preferencesByRoomId: Record<string, ChatRoomPreference>;
   labels: SidebarRowLabels;
+  memberAvatarByUserId: MemberAvatarUrlMap;
 };
 
 /**
@@ -122,6 +124,7 @@ export function ChatSidebarList(props: RowData) {
         rowIndex={index}
         tabIndex={index === rowTabStop ? 0 : -1}
         onRowFocus={setFocusIndex}
+        memberAvatarByUserId={props.memberAvatarByUserId}
       />
     );
   };

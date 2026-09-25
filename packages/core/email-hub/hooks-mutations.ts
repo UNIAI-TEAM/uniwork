@@ -40,6 +40,14 @@ export function useSendEmailHub(wsId: string) {
       }
       qc.setQueryData(threadDetailKey(wsId, input.accountId, result.id), result);
       invalidateEmailHubThreads(qc, wsId, input.accountId);
+      if (input.replyToThreadId) {
+        void qc.invalidateQueries({
+          queryKey: emailHubKeys.conversation(wsId, input.accountId, input.replyToThreadId),
+        });
+      }
+      void qc.invalidateQueries({
+        queryKey: emailHubKeys.conversation(wsId, input.accountId, result.id),
+      });
     },
   });
 }

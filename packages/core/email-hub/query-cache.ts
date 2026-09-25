@@ -13,6 +13,8 @@ export const emailHubKeys = {
     ["email-hub", wsId, "threads", accountId, folder, filters] as const,
   thread: (wsId: string, accountId: string, threadId: string) =>
     ["email-hub", wsId, "thread", accountId, threadId] as const,
+  conversation: (wsId: string, accountId: string, threadId: string) =>
+    ["email-hub", wsId, "conversation", accountId, threadId] as const,
   threadSummary: (wsId: string, accountId: string, threadId: string, locale: string) =>
     ["email-hub", wsId, "thread-summary", accountId, threadId, locale] as const,
   unread: (wsId: string) => ["email-hub", wsId, "unread"] as const,

@@ -59,6 +59,7 @@ export function EmailHubThreadListItem({
     ? t("email_hub.to_recipient", { name: row.to_addrs[0] ?? row.from_addr })
     : senderDisplayName(row.from_name, row.from_addr);
   const subject = row.subject || t("email_hub.no_subject");
+  const convCount = row.conversation_message_count ?? 0;
   const snippet = row.snippet?.trim();
   const showSnippet = Boolean(snippet && snippet !== subject);
   const unread = !row.is_read;
@@ -164,6 +165,14 @@ export function EmailHubThreadListItem({
 
           <p className="min-w-0 flex-1 truncate text-body">
             <span className={cn(unread ? "font-semibold text-foreground" : "text-foreground/90")}>{subject}</span>
+            {convCount > 1 ? (
+              <span
+                className="ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-caption font-medium tabular-nums text-muted-foreground"
+                title={t("email_hub.conversation_count", { count: convCount })}
+              >
+                {convCount}
+              </span>
+            ) : null}
             {showSnippet ? (
               <>
                 <span className="hidden text-muted-foreground @3xl:inline"> — </span>
