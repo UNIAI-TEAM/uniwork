@@ -26,6 +26,15 @@ export function overdueDays(today: string, due: string | undefined): number {
   return Math.max(0, t - d);
 }
 
+/**
+ * The oldest open overdue task (My work is sorted oldest due first). A task
+ * completed on the page stays in the cache, dimmed, until the refetch; it is
+ * no longer overdue.
+ */
+export function oldestOverdue(summary: HomeSummary): HomeSummary["my_work"][number] | undefined {
+  return summary.my_work.find((t) => t.status !== "done" && overdueDays(summary.today, t.due_date) > 0);
+}
+
 /** Calendar day of an instant in the person's zone, as YYYY-MM-DD. */
 export function localDay(iso: string, timeZone: string): string {
   const date = new Date(iso);
@@ -39,19 +48,19 @@ export function localDay(iso: string, timeZone: string): string {
 
 /**
  * The one sentence under the greeting: the thing to look at first, derived
- * from the summary the page already has. A failed source comes first, because
- * its zeros are not true; then a meeting in progress (it is urgent by the
- * minute), the oldest overdue task, the next meeting starting today, what is
+ * from the summary the page already has. A meeting in progress comes first (it
+ * is urgent by the minute, and its source did load); then a failed source,
+ * because its zeros are not true; then the oldest overdue task, the next meeting starting today, what is
  * due today, what is unread, and otherwise a clear day. It names what the stat tiles cannot (a title, a time) rather than
  * repeating their numbers. `at` is a meeting start for the view to format.
  */
 export function buildHomeHeadline(summary: HomeSummary): HomeHeadline {
   const { counts, today } = summary;
-  if (summary.partial.length > 0) return { key: "home.headline.partial", params: {} };
   const live = summary.upcoming_meetings.find((m) => m.status === "IN_PROGRESS");
   if (live) return { key: "home.headline.live", params: { title: live.title }, liveMeetingId: live.id };
+  if (summary.partial.length > 0) return { key: "home.headline.partial", params: {} };
   if (counts.overdue > 0) {
-    const oldest = summary.my_work.find((t) => overdueDays(today, t.due_date) > 0);
+    const oldest = oldestOverdue(summary);
     return oldest
       ? { key: "home.headline.overdue", params: { title: oldest.title, count: overdueDays(today, oldest.due_date) } }
       : { key: "home.headline.overdue_plain", params: { count: counts.overdue } };

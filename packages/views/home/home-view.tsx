@@ -4,7 +4,7 @@ import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { House, LayoutDashboard, SlidersHorizontal, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { buildHomeHeadline, overdueDays } from "@uniwork/core/home/brief";
+import { buildHomeHeadline, oldestOverdue } from "@uniwork/core/home/brief";
 import { useHomePrefs, useHomeSummary } from "@uniwork/core/home";
 import { greetingName } from "@uniwork/core/home/greeting";
 import { visibleSections, type HomeLayout, type HomeSectionKey } from "@uniwork/core/home/prefs";
@@ -145,9 +145,11 @@ export function HomeView() {
   // Overdue and due today have no filtered list elsewhere to land on, so they
   // land on the first such task in My work here.
   const showWork = (stat: HomeWorkStat) => {
-    const target = summary?.my_work.find((task) =>
-      stat === "overdue" ? overdueDays(summary.today, task.due_date) > 0 : task.due_date === summary.today,
-    );
+    if (!summary) return;
+    const target =
+      stat === "overdue"
+        ? oldestOverdue(summary)
+        : summary.my_work.find((task) => task.status !== "done" && task.due_date === summary.today);
     const link = target ? document.querySelector<HTMLElement>(`[data-task-id="${target.id}"] a`) : null;
     if (link) link.focus();
     else document.getElementById("home-mywork")?.scrollIntoView({ block: "start" });

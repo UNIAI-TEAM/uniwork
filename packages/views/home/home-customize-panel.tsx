@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { ArrowDown, ArrowUp, Check, RotateCcw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -49,7 +49,7 @@ function Option({
   );
 }
 
-type MoveTarget = { key: HomeSectionKey; dir: "up" | "down" };
+type MoveTarget = { key: HomeSectionKey; dir: "up" | "down"; order: HomeSectionKey[] };
 
 /**
  * Show or hide sections, move them up or down, pick a density or a preset,
@@ -80,8 +80,10 @@ export function HomeCustomizePanel({
 
   // A section moved to either end disables the arrow that was just pressed;
   // focus then goes to the other arrow of the same row instead of the page.
-  useEffect(() => {
-    if (!refocus) return;
+  // Wait for the new order to render: the optimistic write lands a tick after
+  // the click, and a row React moves in the DOM drops its focus.
+  useLayoutEffect(() => {
+    if (!refocus || refocus.order.join() !== prefs.order.join()) return;
     const button = buttons.current.get(`${refocus.key}:${refocus.dir}`);
     if (button && !button.disabled) button.focus();
     setRefocus(null);
@@ -91,7 +93,7 @@ export function HomeCustomizePanel({
     const order = moveSection(prefs.order, key, dir);
     const at = order.indexOf(key);
     const atEnd = dir === -1 ? at === 0 : at === order.length - 1;
-    setRefocus({ key, dir: atEnd ? (dir === -1 ? "down" : "up") : dir === -1 ? "up" : "down" });
+    setRefocus({ key, dir: atEnd ? (dir === -1 ? "down" : "up") : dir === -1 ? "up" : "down", order });
     onChange({ ...prefs, order });
   };
 

@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { ArrowDown, ArrowUpRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { nextMeetingToday, overdueDays } from "@uniwork/core/home/brief";
+import { nextMeetingToday, oldestOverdue, overdueDays } from "@uniwork/core/home/brief";
 import { paths } from "@uniwork/core/paths";
 import type { HomeSource, HomeSummary } from "@uniwork/core/types/home";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
@@ -59,7 +59,7 @@ export function HomeStats({
   const context = (key: HomeMarkKey): string | undefined => {
     if (!summary) return undefined;
     if (key === "overdue") {
-      const oldest = summary.my_work.find((task) => overdueDays(summary.today, task.due_date) > 0);
+      const oldest = oldestOverdue(summary);
       return oldest ? t("home.stats.oldest", { count: overdueDays(summary.today, oldest.due_date) }) : undefined;
     }
     if (key === "meetings_today") {

@@ -12,7 +12,7 @@ function summary(over: Partial<HomeSummary>): HomeSummary {
   };
 }
 
-const task = (title: string, due?: string) => ({ id: title, title, due_date: due }) as Task;
+const task = (title: string, due?: string, status = "todo") => ({ id: title, title, due_date: due, status }) as Task;
 const meeting = (title: string, startsAt: string, status = "SCHEDULED") =>
   ({ id: title, title, starts_at: startsAt, status }) as Meeting;
 
@@ -33,6 +33,20 @@ describe("buildHomeHeadline", () => {
 
   it("puts a failed source before anything its zeros would hide", () => {
     expect(buildHomeHeadline(summary({ partial: ["tasks"], counts: { ...zero, unread: 3 } })).key).toBe("home.headline.partial");
+  });
+
+  it("keeps a meeting in progress ahead of a failed source that is not meetings", () => {
+    expect(buildHomeHeadline(summary({
+      partial: ["notifications"],
+      upcoming_meetings: [meeting("Đang họp", "2026-09-14T01:00:00Z", "IN_PROGRESS")],
+    })).liveMeetingId).toBe("Đang họp");
+  });
+
+  it("skips a task just completed on the page when naming the oldest overdue", () => {
+    expect(buildHomeHeadline(summary({
+      counts: { ...zero, overdue: 1 },
+      my_work: [task("Vừa xong", "2026-09-01", "done"), task("Còn lại", "2026-09-10")],
+    }))).toEqual({ key: "home.headline.overdue", params: { title: "Còn lại", count: 4 } });
   });
 
   it("names the oldest overdue task with its age", () => {
