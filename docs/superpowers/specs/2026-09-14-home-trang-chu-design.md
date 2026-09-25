@@ -369,4 +369,8 @@ workspace mới, cột phụ lệch ở cả ba mật độ. Thay đổi — cá
   Hộp việc (trước đó chỉ khác mặc định ở `brief`).
 - **Bỏ nút Làm mới** ở header: summary đã tự làm mới (staleTime 60s + realtime), lỗi có nút Thử lại riêng.
 - Skeleton theo đúng hình hàng; lỗi toàn trang nằm trong khung viền.
+- **Bỏ flag `home_page` (2026-09-25, quyết định của quangpd)** — thay §2 #2: gốc workspace luôn là
+  Trang chủ, sidebar luôn có mục "Trang chủ" đứng đầu. Flag đã rời catalogue (`featureflags/keys.go`)
+  và `HOME_PAGE_FLAG` rời `packages/core/feature-flags`; hàng override `home_page` còn trong DB bị
+  bỏ qua như mọi khoá không có trong catalogue. Câu hỏi §11 #6 không còn.
 

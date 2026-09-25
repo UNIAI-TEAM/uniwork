@@ -1,25 +1,17 @@
 import { expect, test } from "@playwright/test";
 import { verifyEmail } from "./auth-nav";
-import { assignWorkspaceTasksDueToday, clearE2EFlagOverride, setE2EFlagOverride } from "./db";
+import { assignWorkspaceTasksDueToday } from "./db";
 
-// Golden path for the home screen (spec 2026-09-14-home-trang-chu §7): with
-// home_page on, the workspace root is Home and the sidebar leads with it; work
-// assigned to me and due today is listed, and completing it from Home takes
-// the row away. Requires `make dev`.
+// Golden path for the home screen (spec 2026-09-14-home-trang-chu §7): the
+// workspace root is Home and the sidebar leads with it; work assigned to me and
+// due today is listed, and completing it from Home takes the row away.
+// Requires `make dev`.
 const stamp = Date.now();
 const email = `home-${stamp}@example.com`;
 const orgSlug = `trang-chu-${stamp}`;
 const wsSlug = "doi-home";
 
 test.describe.configure({ timeout: 120_000 });
-
-test.beforeAll(async () => {
-  await setE2EFlagOverride("home_page", true);
-});
-
-test.afterAll(async () => {
-  await clearE2EFlagOverride("home_page");
-});
 
 test("home lists my work due today and completes it", async ({ page }) => {
   await page.goto("/register");
@@ -45,11 +37,8 @@ test("home lists my work due today and completes it", async ({ page }) => {
     .toBeGreaterThan(0);
   const title = titles[0]!;
 
-  // Flag overrides reach the server within its 30 s cache.
-  await expect(async () => {
-    await page.goto(`/${orgSlug}/${wsSlug}`);
-    await expect(page.getByRole("heading", { name: "Trang chủ", level: 1 })).toBeVisible({ timeout: 5_000 });
-  }).toPass({ timeout: 60_000, intervals: [3_000] });
+  await page.goto(`/${orgSlug}/${wsSlug}`);
+  await expect(page.getByRole("heading", { name: "Trang chủ", level: 1 })).toBeVisible({ timeout: 15_000 });
 
   await expect(page.getByRole("link", { name: "Trang chủ", exact: true })).toHaveAttribute("aria-current", "page");
   const list = page.getByRole("list", { name: "Công việc của tôi" });
