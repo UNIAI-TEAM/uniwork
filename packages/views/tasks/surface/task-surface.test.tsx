@@ -1,12 +1,22 @@
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { taskKeys } from "@uniwork/core/tasks";
 import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view-store";
+import { ViewStoreProvider } from "@uniwork/core/tasks/stores/view-store-context";
 import { requestMock, wrap } from "../../test/api-mock";
 import { TaskSurface } from "./task-surface";
+import { useTaskSurfaceController } from "./use-task-surface-controller";
 
 initI18n();
 
@@ -49,9 +59,10 @@ beforeEach(() => {
       };
     }
     if (typeof path === "string" && path.includes("/tasks/table/rows")) {
-      const body = (init?.body ?? {}) as { limit?: number; offset?: number };
+      const body = (init?.body ?? {}) as { limit?: number; cursor?: string | null };
       const limit = body.limit ?? 50;
-      const offset = body.offset ?? 0;
+      // Fake cursor: base64 of the offset; the client never reads it.
+      const offset = body.cursor ? Number(atob(body.cursor)) : 0;
       // Cap page size in the truncated fixture so the table stays under the
       // virtualization threshold in jsdom (no scroll height → empty window).
       const pageLimit =
@@ -64,16 +75,17 @@ beforeEach(() => {
             title: `Task ${offset + i + 1}`,
           }),
           direct_child_count: i === 0 && offset === 0 ? tableChildCount : 0,
+          labels: [],
         }),
       );
+      const end = offset + rows.length;
       return {
         query_fingerprint: "fp-rows",
         group_key: "status:todo",
         parent_id: null,
         total: tableRowsTotal,
         rows,
-        branch_total: tableRowsTotal,
-        next_cursor: null,
+        next_cursor: end < tableRowsTotal ? btoa(String(end)) : null,
       };
     }
     if (typeof path === "string" && path.includes("/tasks/table/facets")) {
@@ -153,10 +165,62 @@ describe("TaskSurface", () => {
       );
       expect(groupsCall).toBeDefined();
       const init = groupsCall?.[1] as
-        | { body?: { filter?: { project_ids?: string[] } } }
+        | { body?: { query?: { filter?: { project_ids?: string[] } } } }
         | undefined;
-      expect(init?.body?.filter?.project_ids).toEqual(["p1"]);
+      expect(init?.body?.query?.filter?.project_ids).toEqual(["p1"]);
     });
+  });
+
+  it("puts statusFilters into table groups body filter.statuses", async () => {
+    const store = getTaskSurfaceViewStore("test-ws-table-status-filter");
+    store.getState().setTableGrouping("status");
+    store.getState().toggleStatusFilter("todo");
+
+    render(
+      wrap(
+        <TaskSurface
+          workspaceId="w1"
+          scope={{ type: "workspace" }}
+          modes={["table"]}
+          surfaceKey="test-ws-table-status-filter"
+        />,
+      ),
+    );
+
+    await waitFor(() => {
+      const groupsCall = requestMock.mock.calls.find(
+        ([path]) =>
+          typeof path === "string" && path.includes("/tasks/table/groups"),
+      );
+      expect(groupsCall).toBeDefined();
+      const init = groupsCall?.[1] as
+        | { body?: { query?: { filter?: { statuses?: string[] } } } }
+        | undefined;
+      expect(init?.body?.query?.filter?.statuses).toEqual(["todo"]);
+    });
+  });
+
+  it("applies client status filter on load-flat list surface", async () => {
+    queryTasks = [
+      task({ id: "t-todo", title: "Todo only", status: "todo" }),
+      task({ id: "t-done", title: "Done only", status: "done" }),
+    ];
+    const store = getTaskSurfaceViewStore("test-ws-list-status-filter");
+    store.getState().toggleStatusFilter("todo");
+
+    render(
+      wrap(
+        <TaskSurface
+          workspaceId="w1"
+          scope={{ type: "workspace" }}
+          modes={["list"]}
+          surfaceKey="test-ws-list-status-filter"
+        />,
+      ),
+    );
+
+    expect(await screen.findByText("Todo only")).toBeInTheDocument();
+    expect(screen.queryByText("Done only")).not.toBeInTheDocument();
   });
 
   it("does not request table groups for my-scope even if table is in modes", async () => {
@@ -214,7 +278,7 @@ describe("TaskSurface", () => {
     expect(chevron).toBeEnabled();
   });
 
-  it("loads the next offset page when group rows are truncated", async () => {
+  it("loads the next cursor page when group rows are truncated", async () => {
     tableRowsTotal = 51;
     render(
       wrap(
@@ -228,22 +292,23 @@ describe("TaskSurface", () => {
     );
 
     expect(await screen.findByText("Task 1")).toBeInTheDocument();
-    expect(screen.queryByText("Task 51")).not.toBeInTheDocument();
+    expect(screen.queryByText("Task 6")).not.toBeInTheDocument();
     expect(
       await screen.findByText(/Hiển thị 5\/51|Showing 5 of 51/),
     ).toBeInTheDocument();
 
     fireEvent.click(await screen.findByRole("button", { name: /tải thêm|load more/i }));
 
-    expect(await screen.findByText("Task 51")).toBeInTheDocument();
+    expect(await screen.findByText("Task 6")).toBeInTheDocument();
+    expect(await screen.findByText(/Hiển thị 10\/51|Showing 10 of 51/)).toBeInTheDocument();
     await waitFor(() => {
       const rowCalls = requestMock.mock.calls.filter(
         ([path]) => typeof path === "string" && path.includes("/tasks/table/rows"),
       );
       expect(
         rowCalls.some(([, init]) => {
-          const body = (init as { body?: { offset?: number } } | undefined)?.body;
-          return body?.offset === 50;
+          const body = (init as { body?: { cursor?: string | null } } | undefined)?.body;
+          return body?.cursor === btoa("5");
         }),
       ).toBe(true);
     });
@@ -293,6 +358,60 @@ describe("TaskSurface", () => {
       ]);
     });
   }, 60_000);
+
+  it("sends a start_date patch through actions.updateTask like due_date", async () => {
+    // useTaskSurfaceController is the same hook TaskSurface renders with; this
+    // exercises taskPatchFromSurfaceUpdates through the real actions.updateTask
+    // path without exporting it just for the test (mirrors due_date's mapping).
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const store = getTaskSurfaceViewStore("test-ws-start-date-patch");
+    function Wrapper({ children }: { children: React.ReactNode }) {
+      return (
+        <QueryClientProvider client={client}>
+          <ViewStoreProvider store={store}>{children}</ViewStoreProvider>
+        </QueryClientProvider>
+      );
+    }
+    const { result } = renderHook(
+      () =>
+        useTaskSurfaceController({
+          workspaceId: "w1",
+          scope: { type: "workspace" },
+          modes: ["list"],
+        }),
+      { wrapper: Wrapper },
+    );
+
+    await act(async () => {
+      result.current.actions.updateTask("t1", { start_date: "2026-09-20" });
+    });
+
+    await waitFor(() => {
+      const call = requestMock.mock.calls.find(
+        ([path]) => path === "/api/v1/tasks/t1",
+      );
+      expect(call).toEqual([
+        "/api/v1/tasks/t1",
+        { method: "PATCH", body: { start_date: "2026-09-20" } },
+      ]);
+    });
+
+    // null clears it, exactly like due_date.
+    await act(async () => {
+      result.current.actions.updateTask("t1", { start_date: null });
+    });
+    await waitFor(() => {
+      const calls = requestMock.mock.calls.filter(
+        ([path]) => path === "/api/v1/tasks/t1",
+      );
+      expect(calls.at(-1)).toEqual([
+        "/api/v1/tasks/t1",
+        { method: "PATCH", body: { start_date: null } },
+      ]);
+    });
+  });
 
   it("shows surface empty with create in gantt when zero tasks exist", async () => {
     queryTasks = [];
@@ -790,22 +909,24 @@ describe("TaskSurface pagination (pages of 50)", () => {
     }
     render(wrap(<ProjectSwitch />));
 
-    await waitFor(() => expect(listRows()).toBe(50));
+    await waitFor(() => expect(listRows()).toBe(50), { timeout: LONG });
     await clickLoadMore();
-    await waitFor(() => expect(listRows()).toBe(100));
+    await waitFor(() => expect(listRows()).toBe(100), { timeout: LONG });
 
     fireEvent.click(screen.getByRole("button", { name: "switch project" }));
 
-    expect(await screen.findByText("p2 task 0")).toBeInTheDocument();
-    await waitFor(() => expect(listRows()).toBe(50));
+    expect(
+      await screen.findByText("p2 task 0", {}, { timeout: LONG }),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(listRows()).toBe(50), { timeout: LONG });
     expect(screen.queryAllByText(/^p1 task/)).toHaveLength(0);
     expect(
       server.seen
         .filter((request) => request.params.project_id === "p2")
         .map((request) => request.params.offset),
     ).toEqual([0]);
-    expect(screen.getByText("50 / 120 công việc đã tải")).toBeInTheDocument();
-  }, 30_000);
+    expect(await screen.findByText("50 / 120 công việc đã tải", {}, { timeout: LONG })).toBeInTheDocument();
+  }, LONG);
 
   it("is not empty while the first page loads, nor while later pages remain behind hidden rows", async () => {
     const server = servePagedTasks({

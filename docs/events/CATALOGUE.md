@@ -94,6 +94,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `chat.voice.invite` | 1 | `room_id`, `user_id` | — | user | ephemeral |
 | `chat.voice.recording.started` | 1 | `room_id`, `call_id`, `user_id` | — | chat | ephemeral |
 | `chat.voice.recording.stopped` | 1 | `room_id`, `call_id`, `user_id` | — | chat | ephemeral |
+| `chat.voice.call.completed` | 1 | `room_id`, `workspace_id`, `organization_id`, `call_id`, `call_log_message_id`, `caller_id`, `started_at`, `ended_at`, `duration_seconds`, `duration_label`, `participants` | — | - | outbox |
 | `conference.session_ready` | 1 | `meeting_id`, `version` | — | workspace | ephemeral |
 | `flag.updated` | 1 | `flag_key` | — | - | outbox |
 | `host.transferred` | 1 | `meeting_id`, `version` | — | workspace | outbox |
@@ -128,6 +129,8 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `department.created` | 1 | `organization_id`, `department_id` | — | organization | outbox |
 | `department.updated` | 1 | `organization_id`, `department_id` | — | organization | outbox |
 | `department.archived` | 1 | `organization_id`, `department_id` | — | organization | outbox |
+| `email_hub.inbox_changed` | 1 | `account_id`, `user_id` | — | user | outbox |
+| `email_hub.new_mail` | 1 | `account_id`, `user_id`, `workspace_id` | — | user | outbox |
 | `people.exported` | 1 | `organization_id`, `user_id` | — | - | outbox |
 | `participant.invited` | 1 | `meeting_id`, `version` | — | workspace | outbox |
 | `participant.removed` | 1 | `meeting_id`, `version` | — | workspace | outbox |

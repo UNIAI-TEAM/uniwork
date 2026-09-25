@@ -1,21 +1,70 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { Check } from "lucide-react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLinkChatMessage } from "@uniwork/core/chat";
-import { useTasks } from "@uniwork/core/tasks";
+import { useDebouncedValue } from "@uniwork/core/hooks/use-debounced-value";
+import { tableRowsPageBody, tableRowsPageQuery } from "@uniwork/core/tasks/surface/table-query";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@uniwork/ui/components/ui/dialog";
-import { Input } from "@uniwork/ui/components/ui/input";
-import { Label } from "@uniwork/ui/components/ui/label";
+  Command,
+  CommandEmpty,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@uniwork/ui/components/ui/command";
+import { Dialog } from "@uniwork/ui/components/ui/dialog";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
+import {
+  FormDialogBody,
+  FormDialogContent,
+  FormDialogFooter,
+  FormDialogHeader,
+} from "../common/form-dialog";
+import { chatErrorMessage } from "./chat-error-message";
+
+/** Rows asked of the server per search; past this the list asks for a narrower search. */
+const RESULT_CAP = 40;
+const SEARCH_DEBOUNCE_MS = 250;
+
+function TaskListSkeleton({ label }: { label: string }) {
+  return (
+    <div role="status" className="space-y-1 p-1">
+      <span className="sr-only">{label}</span>
+      {[0, 1, 2, 3].map((i) => (
+        <div key={i} className="space-y-1.5 px-2 py-1.5" aria-hidden>
+          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-3 w-16" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * One page of the workspace's tasks matching `search`, searched on the server
+ * (title words, or a task number such as "UNI-12") — the dialog never pulls
+ * the whole workspace into the browser to filter it.
+ */
+function useLinkableTasks(workspaceId: string, search: string, enabled: boolean) {
+  const body = tableRowsPageBody({
+    query: { search },
+    groupBy: "none",
+    hierarchy: false,
+    groupKey: null,
+    parentId: null,
+    cursor: null,
+    limit: RESULT_CAP,
+  });
+  return useQuery({
+    ...tableRowsPageQuery(workspaceId, body),
+    enabled: enabled && Boolean(workspaceId),
+    placeholderData: keepPreviousData,
+  });
+}
 
 export function LinkTaskDialog({
   open,
@@ -32,114 +81,155 @@ export function LinkTaskDialog({
 }) {
   const { t } = useTranslation();
   const linkTask = useLinkChatMessage(workspaceId);
-  const { data: tasks = [], isLoading } = useTasks(workspaceId);
   const [query, setQuery] = useState("");
+  const search = useDebouncedValue(query.trim(), SEARCH_DEBOUNCE_MS);
+  const tasksQuery = useLinkableTasks(workspaceId, search, open);
   const [selectedId, setSelectedId] = useState("");
+  // Kept with the id: a new search may no longer list the chosen task, and
+  // the footer must still name what Submit will link.
+  const [selectedTitle, setSelectedTitle] = useState("");
+  const [linkError, setLinkError] = useState<string | null>(null);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return tasks.slice(0, 40);
-    return tasks
-      .filter((task) => {
-        const hay = `${task.title} ${task.identifier} ${task.id}`.toLowerCase();
-        return hay.includes(q);
-      })
-      .slice(0, 40);
-  }, [query, tasks]);
+  const rows = tasksQuery.data?.rows ?? [];
+  const shown = rows.map((row) => row.task);
+  const total = tasksQuery.data?.total ?? shown.length;
+  const capped = total > shown.length;
+  const searching = query.trim() !== search || (tasksQuery.isFetching && tasksQuery.isPlaceholderData);
 
-  const canSubmit = !!selectedId && !!messageId && !linkTask.isPending;
+  const reset = () => {
+    setQuery("");
+    setSelectedId("");
+    setSelectedTitle("");
+    setLinkError(null);
+  };
 
   const submit = () => {
-    if (!canSubmit) return;
+    if (!selectedId || !messageId || linkTask.isPending) return;
+    const taskId = selectedId;
+    setLinkError(null);
     void linkTask
-      .mutateAsync({
-        messageId,
-        target_type: "task",
-        target_id: selectedId,
-      })
+      .mutateAsync({ messageId, target_type: "task", target_id: taskId })
       .then((link) => {
-        if (!link) return;
-        setQuery("");
-        setSelectedId("");
+        if (!link) {
+          setLinkError(t("chat.link.link_error"));
+          return;
+        }
+        reset();
         onOpenChange(false);
-        onLinked?.(selectedId);
-      });
+        onLinked?.(taskId);
+      })
+      .catch((err: unknown) => setLinkError(chatErrorMessage(err, t, t("chat.link.link_error"))));
   };
 
   const handleOpenChange = (next: boolean) => {
-    if (!next) {
-      setQuery("");
-      setSelectedId("");
-    }
+    if (!next) reset();
     onOpenChange(next);
   };
 
+  const listLabel = t("chat.link.task_list_aria");
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-md" showCloseButton>
-        <DialogHeader className="space-y-1 border-b border-border bg-muted/20 px-5 py-4">
-          <DialogTitle>{t("chat.link.link_task_title")}</DialogTitle>
-          <DialogDescription>{t("chat.link.link_task_description")}</DialogDescription>
-        </DialogHeader>
+      <FormDialogContent size="md">
+        <FormDialogHeader
+          title={t("chat.link.link_task_title")}
+          description={t("chat.link.link_task_description")}
+        />
 
-        <div className="space-y-3 px-5 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="chat-link-task-search">{t("chat.link.search_label")}</Label>
-            <Input
-              id="chat-link-task-search"
+        <FormDialogBody className="space-y-3">
+          <Command
+            shouldFilter={false}
+            label={listLabel}
+            className="rounded-lg! border border-border bg-background p-0"
+          >
+            <CommandInput
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onValueChange={setQuery}
               placeholder={t("chat.link.search_placeholder")}
-              className="rounded-xl"
+              aria-label={t("chat.link.search_label")}
               autoFocus
             />
-          </div>
+            {tasksQuery.isPending ? (
+              <TaskListSkeleton label={t("chat.link.loading")} />
+            ) : tasksQuery.isError ? (
+              <div role="alert" className="flex items-center justify-between gap-3 px-3 py-4">
+                <p className="text-body text-muted-foreground">{t("chat.link.tasks_load_error")}</p>
+                <Button type="button" size="sm" variant="outline" onClick={() => void tasksQuery.refetch()}>
+                  {t("common.retry")}
+                </Button>
+              </div>
+            ) : (
+              <CommandList aria-label={listLabel} aria-busy={searching || undefined} className="max-h-64 p-1">
+                <CommandEmpty className="py-6 text-body text-muted-foreground">
+                  {search ? t("chat.link.empty") : t("chat.link.empty_workspace")}
+                </CommandEmpty>
+                {shown.map((task) => {
+                  const selected = selectedId === task.id;
+                  // cmdk's aria-selected is the keyboard cursor; the picked task
+                  // is a separate fact, said by the visible check and the name.
+                  return (
+                    <CommandItem
+                      key={task.id}
+                      value={task.id}
+                      data-checked={selected}
+                      aria-label={
+                        selected
+                          ? t("chat.link.task_option_selected", { title: task.title })
+                          : task.title
+                      }
+                      onSelect={() => {
+                        setSelectedId(task.id);
+                        setSelectedTitle(task.title);
+                        setLinkError(null);
+                      }}
+                      className="items-start data-[checked=true]:bg-surface-selected data-[checked=true]:text-surface-selected-foreground"
+                    >
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate text-body font-medium">{task.title}</span>
+                        <span className="truncate text-caption text-muted-foreground">
+                          {task.identifier || task.id}
+                        </span>
+                      </span>
+                      <Check
+                        aria-hidden
+                        className={cn("mt-0.5 size-4 shrink-0", selected ? "opacity-100" : "opacity-0")}
+                      />
+                    </CommandItem>
+                  );
+                })}
+              </CommandList>
+            )}
+          </Command>
 
-          <ul
-            className="max-h-64 space-y-1 overflow-y-auto rounded-xl border border-border p-1"
-            role="listbox"
-            aria-label={t("chat.link.task_list_aria")}
-          >
-            {isLoading ? (
-              <li className="px-3 py-2 text-caption text-muted-foreground">{t("chat.link.loading")}</li>
-            ) : null}
-            {!isLoading && filtered.length === 0 ? (
-              <li className="px-3 py-2 text-caption text-muted-foreground">{t("chat.link.empty")}</li>
-            ) : null}
-            {filtered.map((task) => {
-              const selected = selectedId === task.id;
-              return (
-                <li key={task.id}>
-                  <button
-                    type="button"
-                    role="option"
-                    aria-selected={selected}
-                    className={cn(
-                      "flex w-full flex-col items-start rounded-lg px-3 py-2 text-left transition-colors",
-                      selected ? "bg-brand/10 text-foreground" : "hover:bg-muted/60",
-                    )}
-                    onClick={() => setSelectedId(task.id)}
-                  >
-                    <span className="truncate text-body font-medium">{task.title}</span>
-                    <span className="truncate text-caption text-muted-foreground">
-                      {task.identifier || task.id}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+          {capped ? (
+            <p className="text-caption text-muted-foreground">
+              {t("chat.link.results_capped", { count: RESULT_CAP })}
+            </p>
+          ) : null}
 
-        <DialogFooter className="border-t border-border px-5 py-4">
-          <Button type="button" variant="ghost" onClick={() => handleOpenChange(false)}>
-            {t("chat.link.cancel")}
-          </Button>
-          <Button type="button" onClick={submit} disabled={!canSubmit}>
-            {linkTask.isPending ? t("chat.link.linking") : t("chat.link.link")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+          {linkError ? (
+            <p role="alert" className="text-caption text-destructive">
+              {linkError}
+            </p>
+          ) : null}
+        </FormDialogBody>
+
+        <FormDialogFooter
+          onCancel={() => handleOpenChange(false)}
+          submitLabel={t("chat.link.link")}
+          submittingLabel={t("chat.link.linking")}
+          submitting={linkTask.isPending}
+          submitDisabled={!selectedId || !messageId}
+          onSubmit={submit}
+          leading={
+            selectedTitle ? (
+              <span className="line-clamp-1" aria-live="polite">
+                {t("chat.link.selected_task", { title: selectedTitle })}
+              </span>
+            ) : undefined
+          }
+        />
+      </FormDialogContent>
     </Dialog>
   );
 }

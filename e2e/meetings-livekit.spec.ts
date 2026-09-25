@@ -25,7 +25,7 @@ test.describe("meeting livekit smoke", () => {
     await page.goto(`/org-lk-${stamp}/doi-lk-${stamp}/meetings`);
     await page.getByRole("button", { name: "Tạo cuộc họp" }).first().click();
     await page.getByLabel("Tiêu đề").fill("LiveKit smoke");
-    await page.getByRole("button", { name: "Tạo", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Tạo cuộc họp", exact: true }).click();
     await expect(page).toHaveURL(/\/meetings\/[0-9A-Z]+$/, { timeout: 15_000 });
 
     await page.getByRole("button", { name: "Bắt đầu" }).click();

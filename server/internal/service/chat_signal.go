@@ -21,8 +21,8 @@ func (s *ChatService) SignalVoiceInvite(ctx context.Context, userID, workspaceID
 	if isWorkspaceDefaultRoom(room) {
 		return Invalid("cuộc gọi thoại không khả dụng trong phòng workspace")
 	}
-	if room.Kind != chatRoomKindDM && room.Kind != chatRoomKindGroup {
-		return Invalid("cuộc gọi thoại chỉ khả dụng trong tin nhắn trực tiếp hoặc nhóm")
+	if room.Kind != chatRoomKindDM && !voiceCallMultiPartyKind(room.Kind) {
+		return Invalid("cuộc gọi thoại chỉ khả dụng trong tin nhắn trực tiếp, nhóm hoặc kênh")
 	}
 	u, err := s.q.GetUserByID(ctx, userID)
 	if err != nil {
@@ -57,6 +57,7 @@ func (s *ChatService) SignalVoiceAccept(ctx context.Context, userID, workspaceID
 		return err
 	}
 	s.trackVoiceCallAccept(roomID, callID)
+	s.trackVoiceCallParticipant(roomID, callID, userID)
 	ev := Event{
 		Type: "chat.voice.accept",
 		Payload: map[string]string{
@@ -81,7 +82,7 @@ func (s *ChatService) SignalVoiceHangup(
 	if err := s.requireVoiceCallActor(ctx, room, userID, false); err != nil {
 		return err
 	}
-	if room.Kind == chatRoomKindGroup {
+	if voiceCallMultiPartyKind(room.Kind) {
 		key := voiceCallSessionKey(roomID, callID)
 		raw, ok := voiceCallSessions.Load(key)
 		if !ok {
@@ -92,6 +93,7 @@ func (s *ChatService) SignalVoiceHangup(
 			return ErrForbidden
 		}
 	}
+	s.trackVoiceCallParticipant(roomID, callID, userID)
 	s.stopVoiceRecordingOnHangup(ctx, room, callID, userID)
 	if logErr := s.finalizeVoiceCall(ctx, room, userID, callID, durationSeconds); logErr != nil {
 		return logErr

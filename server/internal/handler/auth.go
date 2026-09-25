@@ -16,13 +16,15 @@ import (
 
 const refreshCookie = "uniwork_refresh"
 
-// requestLocale reads the uniwork-locale cookie the frontend writes, then
-// Accept-Language; anything else means vi.
+// requestLocale reads the uniwork-locale cookie the frontend writes; without
+// it the answer is English, the product default. Accept-Language is not
+// consulted — the web app ignores it too, so the account and the screen the
+// user signed up on agree.
 func requestLocale(r *http.Request) string {
 	if c, err := r.Cookie("uniwork-locale"); err == nil && c.Value != "" {
 		return service.NormalizeLocale(c.Value)
 	}
-	return service.NormalizeLocale(r.Header.Get("Accept-Language"))
+	return "en"
 }
 
 func toUserDTO(u db.User) sdo.UserDTO {
@@ -170,6 +172,8 @@ func (h *handlers) mapServiceError(w http.ResponseWriter, err error) {
 		respondError(w, 403, "email_unverified", "email address not verified")
 	case errors.Is(err, service.ErrInvalidToken):
 		respondError(w, 400, "invalid_token", "invalid or expired token")
+	case errors.Is(err, service.ErrEmailHubNotConfigured):
+		respondError(w, http.StatusServiceUnavailable, "email_hub_not_configured", "Email Hub is not configured")
 	default:
 		h.Log.Error("internal", "err", err)
 		respondError(w, 500, "internal", "internal error")

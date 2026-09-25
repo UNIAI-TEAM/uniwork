@@ -122,6 +122,18 @@ func TestPromptSnapshots(t *testing.T) {
 			"locale": "vi", "today": "2026-09-11", "scope": "room", "since": "2026-09-11T08:00:00Z",
 			"sources": RenderSources([]Source{{ID: "S1", Kind: "chat", Title: "An · 2026-09-11 09:00", Excerpt: "Nhắc hạn F-09"}}),
 		},
+		PromptChatCallSummary: {
+			"locale": "vi", "today": "2026-09-16", "duration": "1:05", "participants": "An, Bình",
+			"sources": RenderSources([]Source{
+				{ID: "S1", Kind: "chat", Title: "Cuộc gọi", Excerpt: "Cuộc gọi thoại · 1:05 · An, Bình"},
+				{ID: "S2", Kind: "chat", Title: "An · 09:00", Excerpt: "Chốt demo thứ Sáu"},
+			}),
+		},
+		PromptEmailThreadSummary: {
+			"locale": "vi", "subject": "Demo F-09", "from": "an@example.com",
+			"to": "team@example.com", "sent_at": "2026-09-06T10:00:00Z",
+			"body": "Chốt demo thứ Sáu.",
+		},
 	}
 	for _, k := range PromptKeys() {
 		p, _ := LookupPrompt(k)
@@ -179,6 +191,17 @@ func TestParseAnswerDropsUnknownCitations(t *testing.T) {
 	}
 }
 
+func TestParseEmailThreadSummaryJSON(t *testing.T) {
+	in := `{"summary":"Tóm tắt","key_points":["a"],"action_items":[{"title":"Làm X","owner":"","due":""}],"needs_reply":true,"reply_hint":"Trả lời hạn"}`
+	out, err := ParseEmailThreadSummaryJSON(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Summary != "Tóm tắt" || !out.NeedsReply || len(out.KeyPoints) != 1 {
+		t.Fatalf("unexpected: %+v", out)
+	}
+}
+
 func TestParseSummaryJSONTolerant(t *testing.T) {
 	in := "Here you go:\n```json\n{\"summary\":\"S\",\"decisions\":[\"D1\"],\"action_items\":[{\"title\":\"T\",\"owner\":\"An\"}]}\n```"
 	out, err := ParseSummaryJSON(in)
@@ -194,6 +217,41 @@ func TestParseSummaryJSONTolerant(t *testing.T) {
 	}
 }
 
+func TestParseCatchUpJSON(t *testing.T) {
+	pack := []Source{{ID: "S1"}, {ID: "S2"}}
+	in := "```json\n{\"summary\":\"Brief\",\"highlights\":null,\"action_items\":[{\"title\":\"Do it\",\"source_id\":\"S1\"},{\"title\":\"\",\"source_id\":\"S1\"},{\"title\":\"Drop id\",\"source_id\":\"S9\"}]}\n```"
+	out, err := ParseCatchUpJSON(in, pack)
+	if err != nil || out.Summary != "Brief" || out.Highlights == nil || len(out.ActionItems) != 2 {
+		t.Fatalf("%+v %v", out, err)
+	}
+	if out.ActionItems[0].SourceID != "S1" || out.ActionItems[1].SourceID != "" {
+		t.Fatalf("source filter %+v", out.ActionItems)
+	}
+	if _, err := ParseCatchUpJSON("no json", pack); !errors.Is(err, ErrOutputInvalid) {
+		t.Fatalf("%v", err)
+	}
+	if _, err := ParseCatchUpJSON(`{"summary":""}`, pack); !errors.Is(err, ErrOutputInvalid) {
+		t.Fatalf("%v", err)
+	}
+	if _, err := ParseCatchUpJSON(`{"summary":"x",`, pack); !errors.Is(err, ErrOutputInvalid) {
+		t.Fatalf("%v", err)
+	}
+}
+
+func TestAIErrorMethods(t *testing.T) {
+	wrapped := ErrQuotaExceeded.wrap(errors.New("db"))
+	var ae *Error
+	if !errors.As(wrapped, &ae) || ae.Error() == "" || ae.Unwrap() == nil {
+		t.Fatalf("%v", wrapped)
+	}
+	plain := &Error{Code: "x", Msg: "m"}
+	if plain.Error() != "x: m" || plain.Unwrap() != nil {
+		t.Fatalf("%v", plain)
+	}
+	if !errors.Is(wrapped, ErrQuotaExceeded) || errors.Is(wrapped, ErrDisabled) {
+		t.Fatal("Is by code")
+	}
+}
 func TestAskUniToolRegistryHelpers(t *testing.T) {
 	r := Registry{{Name: "a", Kind: ToolRead}, {Name: "b", Kind: ToolWrite}}
 	if r.MutationCount() != 1 || len(r.Names()) != 2 {

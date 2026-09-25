@@ -23,6 +23,28 @@ export const paths = {
   invite: (token: string) => `/invite/${token}`,
   meetingInvite: (linkId: string) => `/invite/meeting/${linkId}`,
   meetingInviteRoom: (linkId: string) => `/invite/meeting/${linkId}/room`,
+  /**
+   * Public marketing pages, one per team the product is sold to. The noun is
+   * reserved so an organization can never take the subtree
+   * (docs/conventions.md §Routes).
+   */
+  solutions: {
+    root: () => "/solutions",
+    product: () => "/solutions/product",
+    operations: () => "/solutions/operations",
+  },
+  features: () => "/features",
+  feature: (slug: string) => `/features/${encodeURIComponent(slug)}`,
+  learn: () => "/learn",
+  pricing: () => "/pricing",
+  enterprise: () => "/enterprise",
+  /**
+   * Positioning page: what the platforms a buyer already owns do not cover.
+   * Hyphenated root, the third after forgot-password and reset-password; the
+   * slug is reserved so an organization can never take it
+   * (docs/conventions.md §Routes).
+   */
+  whyUniwork: () => "/why-uniwork",
   /** Platform-admin console: outside every organization, guarded by GET /admin/me. */
   admin: {
     root: () => "/admin",
@@ -40,6 +62,7 @@ export const paths = {
       tasks: () => `${base}/tasks`,
       task: (id: string) => `${base}/tasks/${id}`,
       myTasks: () => `${base}/my-tasks`,
+      calendar: () => `${base}/calendar`,
       projects: () => `${base}/projects`,
       project: (id: string) => `${base}/projects/${id}`,
       meetings: () => `${base}/meetings`,
@@ -47,6 +70,7 @@ export const paths = {
       room: (id: string) => `${base}/meetings/${id}/room`,
       chat: () => `${base}/chat`,
       inbox: () => `${base}/inbox`,
+      email: () => `${base}/email`,
       members: () => `${base}/members`,
       people: () => `${base}/people`,
       person: (userId: string) => `${base}/people/${userId}`,
@@ -78,6 +102,14 @@ export const GLOBAL_PREFIXES = [
   "/workspaces",
   "/invite/",
   "/admin",
+  // Public marketing pages: without these the two-segment ones would read
+  // as /[orgSlug]/[workspaceSlug] in RUM route patterns.
+  "/solutions",
+  "/features",
+  "/why-uniwork",
+  "/learn",
+  "/pricing",
+  "/enterprise",
 ] as const;
 
 export function isGlobalPath(path: string): boolean {

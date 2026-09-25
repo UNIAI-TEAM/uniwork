@@ -1,6 +1,5 @@
 export { StatusPicker, useStatusOptions } from "./status-picker";
 export {
-  toHumanAssigneeOptions,
   toMemberOptions,
   useWorkspaceAssigneeOptions,
   type MemberOption,

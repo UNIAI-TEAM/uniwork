@@ -76,7 +76,8 @@ type PersonSDO struct {
 type PeopleListSDO struct {
 	People      []PersonDTO `json:"people"`
 	NextCursor  string      `json:"next_cursor,omitempty" description:"Con trỏ trang kế tiếp, rỗng khi đã hết" example:"TmfDtG4AMDFK"`
-	TotalActive int64       `json:"total_active" description:"Số thành viên đang hoạt động của tổ chức" example:"128"`
+	Total       int64       `json:"total" description:"Số người khớp bộ lọc hiện tại, trên mọi trang; chỉ có ở trang đầu (không cursor), các trang sau là 0" example:"42"`
+	TotalActive int64       `json:"total_active" description:"Số thành viên đang hoạt động của tổ chức; chỉ có ở trang đầu (không cursor), các trang sau là 0" example:"128"`
 }
 
 // DepartmentDTO is one node of the (at most two level) department tree. The

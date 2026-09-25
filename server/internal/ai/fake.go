@@ -48,6 +48,24 @@ func FakeReply(req provider.CompletionRequest) provider.CompletionResponse {
 		}
 		b, _ := json.Marshal(cu)
 		text = string(b)
+	case strings.Contains(req.System, "You summarize one email thread"):
+		es := EmailThreadSummary{
+			Summary:     "Bản tóm tắt email thử nghiệm.",
+			KeyPoints:   []string{"Điểm chính thử nghiệm"},
+			ActionItems: []ActionItem{{Title: "Theo dõi nội dung email", Owner: "", Due: ""}},
+			NeedsReply:  false,
+			ReplyHint:   "",
+		}
+		b, _ := json.Marshal(es)
+		text = string(b)
+	case strings.Contains(req.System, "You summarize a completed voice call"):
+		cu := CatchUp{
+			Summary:     "Cuộc gọi đã kết thúc.",
+			Highlights:  []string{},
+			ActionItems: []CatchUpActionItem{{Title: "Theo dõi việc đã thống nhất", Owner: "", Due: "", SourceID: ""}},
+		}
+		b, _ := json.Marshal(cu)
+		text = string(b)
 	default:
 		b, _ := json.Marshal(MeetingSummary{Summary: "Bản tóm tắt thử nghiệm.", Decisions: []string{}, ActionItems: []ActionItem{}})
 		text = string(b)

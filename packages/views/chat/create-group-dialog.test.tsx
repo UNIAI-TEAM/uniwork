@@ -22,8 +22,15 @@ const members = [
 ];
 
 vi.mock("./workspace-member-picker", () => ({
+  useMemberPickerFocus: () => ({
+    inputRef: { current: null },
+    listRef: { current: null },
+    focusInput: () => undefined,
+    focusFirstRow: () => undefined,
+  }),
   useWorkspaceMemberPicker: () => ({
     filteredMembers: members,
+    hasOtherMembers: true,
     isLoading: false,
     lookup: { isFetching: false, isFetched: false, data: null },
     lookupEnabled: false,
@@ -73,6 +80,7 @@ vi.mock("./workspace-member-picker", () => ({
     </ul>
   ),
   ExternalMemberLookupRow: () => null,
+  WorkspaceMemberLookupResult: () => null,
 }));
 
 beforeAll(() => {
@@ -96,7 +104,11 @@ describe("CreateGroupDialog", () => {
       ),
     );
 
-    fireEvent.change(screen.getByLabelText("Tên nhóm"), { target: { value: "Squad" } });
+    // The name is optional, and the label says so (not the placeholder).
+    fireEvent.change(screen.getByLabelText("Tên nhóm (tùy chọn)"), { target: { value: "Squad" } });
+    // "How many are missing" is said once, beside the submit button.
+    expect(screen.getByText("Chọn thêm 2 người nữa để tạo nhóm.")).toBeInTheDocument();
+    expect(screen.queryByText(/cần ít nhất/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Tran Hoang Long" }));
     fireEvent.click(screen.getByRole("button", { name: "Binh" }));
 

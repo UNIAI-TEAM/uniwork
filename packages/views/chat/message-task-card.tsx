@@ -3,12 +3,19 @@
 import { useState } from "react";
 import { ListTodo, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useChatMessageLinks, useUnlinkChatMessage } from "@uniwork/core/chat";
+import { useUnlinkChatMessage } from "@uniwork/core/chat";
 import { taskLinksOf } from "@uniwork/core/chat/message-links";
 import { useTask } from "@uniwork/core/tasks";
+import { tintForegroundClass } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
+import { moduleTone } from "../layout/module-tones";
+import { StatusIcon } from "../tasks/icons/status-icon";
+import { ConfirmDialog } from "../common/form-dialog";
 import { ChatTaskPeekDialog } from "./chat-task-peek-dialog";
+import { toastChatError } from "./chat-error-message";
+import { useChatMessageLinksFor } from "./chat-message-links-context";
 
 function MessageTaskLinkRow({
   workspaceId,
@@ -27,47 +34,72 @@ function MessageTaskLinkRow({
   const { data: task } = useTask(taskId);
   const unlink = useUnlinkChatMessage(workspaceId);
   const [peekOpen, setPeekOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const title = task?.title ?? t("chat.link.task_loading");
   const identifier = task?.identifier || task?.id.slice(0, 8);
   const openLabel = t("chat.link.open_task", { identifier, title });
 
   return (
     <>
-      <div
-        className={cn(
-          "flex w-full max-w-full items-center gap-2 rounded-lg border border-border bg-surface px-2.5 py-2 shadow-sm",
+      {/* A linked task reads as a task everywhere: the tasks tint on its glyph,
+          its identifier, and its status in the status's own words and icon. */}
+      <div className="flex w-full max-w-full items-center gap-2 rounded-lg border border-border bg-surface py-1 pr-1 pl-2.5">
+        <ListTodo className={cn("size-3.5 shrink-0", tintForegroundClass[moduleTone("tasks")])} aria-hidden />
+        {task ? (
+          <button
+            type="button"
+            className="min-w-0 flex-1 truncate rounded-sm py-1 text-left text-caption font-medium text-foreground hover:underline"
+            aria-label={openLabel}
+            onClick={() => setPeekOpen(true)}
+          >
+            <span className="text-muted-foreground tabular-nums">{identifier}</span>
+            <span className="mx-1 text-muted-foreground">·</span>
+            <span>{title}</span>
+          </button>
+        ) : (
+          <span className="flex min-w-0 flex-1 items-center gap-2 py-1" aria-busy>
+            <span className="sr-only">{title}</span>
+            <Skeleton className="h-3 w-12" />
+            <Skeleton className="h-3 flex-1" />
+          </span>
         )}
-      >
-        <ListTodo className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-        <button
-          type="button"
-          className="min-w-0 flex-1 truncate text-left text-caption font-medium text-foreground hover:underline"
-          aria-label={openLabel}
-          onClick={() => setPeekOpen(true)}
-        >
-          <span className="text-muted-foreground">{identifier}</span>
-          <span className="mx-1 text-muted-foreground">·</span>
-          <span>{title}</span>
-        </button>
         {task?.status ? (
-          <span className="shrink-0 text-caption text-muted-foreground">{task.status}</span>
+          <span className="inline-flex shrink-0 items-center gap-1 text-caption text-muted-foreground">
+            <StatusIcon status={task.status} className="size-3.5" />
+            {t(`tasks.status_${task.status}`, { defaultValue: task.status })}
+          </span>
         ) : null}
         {canUnlink ? (
           <Button
             type="button"
             variant="ghost"
             size="icon-sm"
-            className="size-7 shrink-0"
-            aria-label={t("chat.link.unlink")}
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+            aria-label={t("chat.message_list.unlink_named", { identifier: identifier ?? "", title })}
             disabled={unlink.isPending}
-            onClick={() => {
-              void unlink.mutateAsync({ messageId, linkId });
-            }}
+            onClick={() => setConfirmOpen(true)}
           >
             <X className="size-3.5" aria-hidden />
           </Button>
         ) : null}
       </div>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={t("chat.message_list.unlink_confirm_title")}
+        description={t("chat.message_list.unlink_confirm_description", { title })}
+        confirmLabel={t("chat.link.unlink")}
+        pending={unlink.isPending}
+        onConfirm={() => {
+          void unlink
+            .mutateAsync({ messageId, linkId })
+            .then(() => setConfirmOpen(false))
+            .catch((err: unknown) => {
+              setConfirmOpen(false);
+              toastChatError(err, t, t("chat.message_list.unlink_failed"));
+            });
+        }}
+      />
       <ChatTaskPeekDialog
         open={peekOpen}
         onOpenChange={setPeekOpen}
@@ -82,19 +114,15 @@ function MessageTaskLinkRow({
 export function MessageTaskCard({
   workspaceId,
   messageId,
-  enabled = true,
-  canUnlink = true,
   className,
 }: {
   workspaceId: string;
   messageId: string;
-  enabled?: boolean;
-  canUnlink?: boolean;
   className?: string;
 }) {
-  const { data: links = [] } = useChatMessageLinks(workspaceId, messageId, enabled && !!messageId);
+  const { links, canUnlink } = useChatMessageLinksFor(messageId);
   const taskLinks = taskLinksOf(links);
-  if (!enabled || taskLinks.length === 0) return null;
+  if (taskLinks.length === 0) return null;
 
   return (
     <div className={cn("mt-2 flex w-full flex-col gap-1.5", className)} data-testid="message-task-card">

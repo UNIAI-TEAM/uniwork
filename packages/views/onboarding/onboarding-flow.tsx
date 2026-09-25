@@ -170,18 +170,11 @@ function AuthedOnboardingFlow({
 
   if (step === "welcome") {
     return (
-      <>
-        {/* A `<header>` (banner) rather than a bare sibling: steps 1–4 receive
-            this button through the rail's footer slot, i.e. inside a landmark.
-            On Welcome it used to sit BEFORE `<main>` as a sibling, so it
-            belonged to no landmark at all and a landmark-browsing user never
-            reached the switch-account escape hatch. The button stays `fixed`,
-            so the wrapper takes no space in the flow. */}
-        <header>
-          <OnboardingLogoutButton />
-        </header>
-        <StepWelcome onNext={() => setStep(ONBOARDING_STEP_ORDER[0]!)} onSkip={canSkipWelcome ? skipWelcome : undefined} />
-      </>
+      <StepWelcome
+        onNext={() => setStep(ONBOARDING_STEP_ORDER[0]!)}
+        onSkip={canSkipWelcome ? skipWelcome : undefined}
+        headerEnd={<OnboardingLogoutButton className="-mr-2 ml-0 rounded-full" />}
+      />
     );
   }
 
@@ -201,7 +194,7 @@ function AuthedOnboardingFlow({
   const onStepChange = isNew ? undefined : (s: OnboardingStep) => setStep(s);
 
   return (
-    <StepShell currentStep={step} onBack={stepBack} backDisabled={stepBusy} onStepChange={onStepChange} chromeFooter={<OnboardingLogoutButton inline />}>
+    <StepShell currentStep={step} onBack={stepBack} backDisabled={stepBusy} onStepChange={onStepChange} chromeFooter={<OnboardingLogoutButton />}>
       {step === "about_you" && (
         <StepAboutYou
           answers={answers}

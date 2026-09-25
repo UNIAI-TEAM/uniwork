@@ -2,6 +2,7 @@ import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { displayLabelForChatContact, resolveChatNicknameForUser } from "@uniwork/core/chat/contacts-store";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
+import { buildMemberAvatarUrlMap, lookupMemberAvatarUrl, memberAvatarUrl } from "./chat-member-avatar";
 
 export type GroupMemberProfile = {
   user_id: string;
@@ -12,12 +13,14 @@ export type GroupMemberProfile = {
 export type ChatNameContextEntry = {
   user_id: string;
   display_name: string;
+  avatar_url?: string;
 };
 
 export type WorkspaceMemberLike = {
   user_id: string;
   display_name: string;
   email: string;
+  avatar_url?: unknown;
 };
 
 function displayLabelForWorkspaceMember(member: WorkspaceMemberLike): string {
@@ -32,13 +35,36 @@ function pushNameEntry(
   seen: Set<string>,
   user_id: string,
   display_name: string,
+  avatar_url?: string,
 ) {
+  const existing = entries.find((entry) => entry.user_id === user_id);
+  if (existing) {
+    if (avatar_url) existing.avatar_url = avatar_url;
+    return;
+  }
   if (seen.has(user_id)) return;
   seen.add(user_id);
   entries.push({
     user_id,
     display_name: display_name.trim() || user_id,
+    ...(avatar_url ? { avatar_url } : {}),
   });
+}
+
+/**
+ * The workspace room's name as people see it. The server names the room
+ * after the workspace; until someone renames it, it reads as the generic
+ * "Chung" everywhere (list, header, settings). Once renamed, the new name
+ * shows in all three.
+ */
+export function workspaceRoomTitle(
+  roomName: string | null | undefined,
+  workspaceName: string | null | undefined,
+  defaultLabel: string,
+): string {
+  const name = roomName?.trim();
+  if (!name || name === workspaceName?.trim()) return defaultLabel;
+  return name;
 }
 
 export function chatHeaderTitle(
@@ -81,9 +107,16 @@ export function buildChatNameContext(
 ): ChatNameContextEntry[] {
   const nameContext: ChatNameContextEntry[] = [];
   const seen = new Set<string>();
+  const avatarByUserId = buildMemberAvatarUrlMap(workspaceMembers);
 
   for (const c of contacts) {
-    pushNameEntry(nameContext, seen, c.user_id, displayLabelForChatContact(c, nicknamesByUserId));
+    pushNameEntry(
+      nameContext,
+      seen,
+      c.user_id,
+      displayLabelForChatContact(c, nicknamesByUserId),
+      lookupMemberAvatarUrl(avatarByUserId, c.user_id),
+    );
   }
   if (activeContact) {
     pushNameEntry(
@@ -91,6 +124,7 @@ export function buildChatNameContext(
       seen,
       activeContact.user_id,
       displayLabelForChatContact(activeContact, nicknamesByUserId),
+      lookupMemberAvatarUrl(avatarByUserId, activeContact.user_id),
     );
   }
   if (activeGroup) {
@@ -103,12 +137,19 @@ export function buildChatNameContext(
           seen,
           profile.user_id,
           resolveChatNicknameForUser(nicknamesByUserId, profile.user_id) || profile.display_name,
+          lookupMemberAvatarUrl(avatarByUserId, profile.user_id),
         );
         continue;
       }
       const contact = contacts.find((entry) => entry.user_id === memberId);
       if (contact) {
-        pushNameEntry(nameContext, seen, contact.user_id, displayLabelForChatContact(contact, nicknamesByUserId));
+        pushNameEntry(
+          nameContext,
+          seen,
+          contact.user_id,
+          displayLabelForChatContact(contact, nicknamesByUserId),
+          lookupMemberAvatarUrl(avatarByUserId, contact.user_id),
+        );
       }
     }
   }
@@ -119,6 +160,7 @@ export function buildChatNameContext(
       seen,
       member.user_id,
       nickname || displayLabelForWorkspaceMember(member),
+      memberAvatarUrl(member.avatar_url),
     );
   }
   return nameContext;

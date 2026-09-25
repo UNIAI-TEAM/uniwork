@@ -1,0 +1,32 @@
+{{- $env := .Values.env | default dict }}
+{{- if $env.beContent }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: uniwork-be
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: uniwork-be
+  annotations:
+    uniwork.io/env-layer: be
+data:
+{{- include "uniwork.envFileData" $env.beContent | nindent 2 }}
+{{- else }}
+{{- fail "env.beContent is required (helm --set-file env.beContent=deploy/app/env/uniwork-be.env)" }}
+{{- end }}
+---
+{{- if $env.feContent }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: uniwork-fe
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: uniwork-fe
+  annotations:
+    uniwork.io/env-layer: fe
+data:
+{{- include "uniwork.envFileData" $env.feContent | nindent 2 }}
+{{- else }}
+{{- fail "env.feContent is required (helm --set-file env.feContent=deploy/app/env/uniwork-fe.env)" }}
+{{- end }}

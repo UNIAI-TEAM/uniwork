@@ -35,6 +35,7 @@ import { useWorkspaceAssigneeOptions } from "../../pickers";
 import {
   TaskSurfaceSelectionProvider,
   useCreateTaskSurfaceSelection,
+  useTaskSurfaceSelectedIds,
 } from "../../surface/selection-context";
 import { BatchActionToolbar } from "../../views/batch-action-toolbar";
 import { SubtaskRow } from "./subtask-row";
@@ -58,7 +59,7 @@ export function TaskDetailSubtasksSection({
   const selection = useCreateTaskSurfaceSelection(
     `${taskId}:${children.map((child) => child.id).join(",")}`,
   );
-  const selected = selection.selectedIds;
+  const selected = useTaskSurfaceSelectedIds(selection.store);
   const { options: assigneeOptions } = useWorkspaceAssigneeOptions(workspaceId);
   const members = useMemo(
     () =>

@@ -1,37 +1,33 @@
 "use client";
 
-import { Archive, Hash, Lock, Search, UserPlus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Archive, Search, UserPlus } from "lucide-react";
+import { toast } from "sonner";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import {
   useArchiveChatChannel,
+  useChatRoomMembers,
   useUnarchiveChatChannel,
   useUpdateChatChannel,
 } from "@uniwork/core/chat";
+import { useCurrentMember } from "@uniwork/core/permissions";
 import { useProjects } from "@uniwork/core/tasks";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@uniwork/ui/components/ui/radio-group";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@uniwork/ui/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@uniwork/ui/components/ui/sheet";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@uniwork/ui/components/ui/select";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@uniwork/ui/components/ui/sheet";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { ChannelSettingsMembers } from "./channel-settings-members";
+import { ChannelSettingsReadonly } from "./channel-settings-readonly";
 import { ChatSettingsMenuRow, ChatSettingsTitleRow } from "./chat-settings-ui";
+import { ConfirmDialog } from "../common/form-dialog";
+import { toastChatError } from "./chat-error-message";
+import { isChatRoomModerator } from "./chat-room-moderation-utils";
 import { LeaveConversationSection } from "./leave-conversation-section";
+import type { MemberAvatarUrlMap } from "./chat-member-avatar";
 
 export function ChannelSettingsSheet({
   open,
@@ -46,6 +42,7 @@ export function ChannelSettingsSheet({
   leaving,
   leaveDisabled,
   onOpenSearch,
+  memberAvatarByUserId = {},
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -53,6 +50,7 @@ export function ChannelSettingsSheet({
   channel: ChatRoomRecord;
   currentUserId: string;
   youLabel: string;
+  memberAvatarByUserId?: MemberAvatarUrlMap;
   onArchived?: () => void;
   onAddMembers?: () => void;
   onLeave?: () => void | Promise<void>;
@@ -66,12 +64,24 @@ export function ChannelSettingsSheet({
   const unarchiveChannel = useUnarchiveChatChannel(workspaceId);
   const { data: projectList } = useProjects(workspaceId);
   const projects = projectList?.projects ?? [];
+  // Editing and archiving are the channel admin's (creator, room admin, or a
+  // workspace owner/admin — chat_channels.go authorizeChannelAdmin). Until the
+  // members load the sheet stays read-only rather than offering a form the
+  // server may refuse.
+  const { data: members = [] } = useChatRoomMembers(workspaceId, channel.id, open);
+  const currentMember = useCurrentMember(workspaceId);
+  const canAdmin = isChatRoomModerator(currentUserId, members, currentMember.role);
 
   const [name, setName] = useState(channel.name);
   const [topic, setTopic] = useState(channel.topic ?? "");
   const [visibility, setVisibility] = useState(channel.visibility === "private" ? "private" : "public");
   const [projectId, setProjectId] = useState(channel.project_id ?? "");
   const [busy, setBusy] = useState(false);
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
+  const [discardConfirmOpen, setDiscardConfirmOpen] = useState(false);
+  // What the viewer was heading to when the discard question interrupted:
+  // confirming carries on there instead of just closing the sheet.
+  const afterDiscardRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -83,6 +93,42 @@ export function ChannelSettingsSheet({
 
   const isDefault = Boolean(channel.is_default);
   const saving = updateChannel.isPending || busy;
+  // Save appears once something changed, so an untouched sheet reads as
+  // information, not as a form waiting to be submitted.
+  const dirty =
+    canAdmin &&
+    (name.trim() !== channel.name ||
+      topic.trim() !== (channel.topic ?? "") ||
+      (!isDefault && visibility !== (channel.visibility === "private" ? "private" : "public")) ||
+      (projectId || null) !== (channel.project_id || null));
+
+  const resetForm = () => {
+    setName(channel.name);
+    setTopic(channel.topic ?? "");
+    setVisibility(channel.visibility === "private" ? "private" : "public");
+    setProjectId(channel.project_id ?? "");
+  };
+
+  // Closing with unsaved edits asks first; every way out of the sheet goes through here.
+  const requestOpenChange = (next: boolean) => {
+    if (!next && dirty) {
+      afterDiscardRef.current = null;
+      setDiscardConfirmOpen(true);
+      return;
+    }
+    onOpenChange(next);
+  };
+
+  // Leave the sheet for another surface, asking about unsaved edits first.
+  const leaveTo = (action: () => void) => {
+    if (dirty) {
+      afterDiscardRef.current = action;
+      setDiscardConfirmOpen(true);
+      return;
+    }
+    onOpenChange(false);
+    action();
+  };
 
   const save = () => {
     const trimmed = name.trim();
@@ -95,33 +141,49 @@ export function ChannelSettingsSheet({
         roomId: channel.id,
         name: trimmed !== channel.name ? trimmed : undefined,
         topic: topic.trim() !== (channel.topic ?? "") ? topic.trim() : undefined,
-        visibility:
-          !isDefault && visibility !== (channel.visibility ?? "public") ? visibility : undefined,
+        visibility: !isDefault && visibility !== (channel.visibility ?? "public") ? visibility : undefined,
         project_id: nextProject !== prevProject ? nextProject : undefined,
       })
       .then((room) => {
         if (room) onOpenChange(false);
       })
+      .catch((err: unknown) => toastChatError(err, t, t("chat.channel.save_failed")))
       .finally(() => setBusy(false));
   };
 
+  // Archived channels leave every list, so the sheet only ever sees an
+  // active one: archiving asks first, then offers an undo in the toast.
   const handleArchive = () => {
     if (isDefault || archiveChannel.isPending) return;
-    void archiveChannel.mutateAsync(channel.id).then((ok) => {
-      if (!ok) return;
-      onOpenChange(false);
-      onArchived?.();
-    });
-  };
-
-  const handleUnarchive = () => {
-    if (unarchiveChannel.isPending) return;
-    void unarchiveChannel.mutateAsync(channel.id);
+    void archiveChannel
+      .mutateAsync(channel.id)
+      .then((ok) => {
+        if (!ok) return;
+        setArchiveConfirmOpen(false);
+        onOpenChange(false);
+        onArchived?.();
+        toast.success(t("chat.channel.archived_toast", { name: channel.name }), {
+          action: {
+            label: t("chat.channel.unarchive"),
+            onClick: () => {
+              void unarchiveChannel
+                .mutateAsync(channel.id)
+                .catch((err: unknown) => toastChatError(err, t, t("chat.channel.unarchive_failed")));
+            },
+          },
+        });
+      })
+      .catch((err: unknown) => toastChatError(err, t, t("chat.channel.archive_failed")));
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" showCloseButton={false} className="flex w-full flex-col p-0 sm:max-w-md">
+    <Sheet open={open} onOpenChange={requestOpenChange}>
+      <SheetContent
+        side="right"
+        showCloseButton={false}
+        closeLabel={t("common.close")}
+        className="flex w-full flex-col p-0 sm:max-w-md"
+      >
         <SheetHeader className="sr-only">
           <SheetTitle>{t("chat.channel.settings_title")}</SheetTitle>
           <SheetDescription>{t("chat.channel.settings_description")}</SheetDescription>
@@ -131,165 +193,207 @@ export function ChannelSettingsSheet({
           <ChatSettingsTitleRow title={`#${channel.name}`} />
 
           {onOpenSearch ? (
-            <section className="border-b border-border">
+            <section className="border-b border-border py-1">
               <ChatSettingsMenuRow
                 icon={Search}
                 label={t("chat.search_messages")}
-                onClick={() => {
-                  onOpenChange(false);
-                  onOpenSearch();
-                }}
+                onClick={() => leaveTo(onOpenSearch)}
               />
             </section>
           ) : null}
 
-          <div className="space-y-5 px-5 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="channel-settings-name">{t("chat.channel.name_label")}</Label>
-              <Input
-                id="channel-settings-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="rounded-xl"
-                maxLength={80}
-              />
-            </div>
+          {!canAdmin ? (
+            <ChannelSettingsReadonly
+              channel={channel}
+              projectTitle={projects.find((project) => project.id === channel.project_id)?.title ?? null}
+            />
+          ) : (
+            <form
+              id="channel-settings-form"
+              className="space-y-4 border-b border-border px-4 py-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                save();
+              }}
+            >
+              <div className="space-y-1.5">
+                <Label htmlFor="channel-settings-name">{t("chat.channel.name_label")}</Label>
+                <Input
+                  id="channel-settings-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  maxLength={80}
+                  required
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="channel-settings-topic">{t("chat.channel.topic_label")}</Label>
-              <Textarea
-                id="channel-settings-topic"
-                value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-                className="min-h-16 rounded-xl"
-                maxLength={280}
-              />
-            </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="channel-settings-topic">{t("chat.channel.topic_label")}</Label>
+                <Textarea
+                  id="channel-settings-topic"
+                  value={topic}
+                  onChange={(e) => setTopic(e.target.value)}
+                  className="min-h-16"
+                  maxLength={280}
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label>{t("chat.channel.visibility_label")}</Label>
-              <RadioGroup
-                value={visibility}
-                onValueChange={(value) => {
-                  if (value === "public" || value === "private") setVisibility(value);
-                }}
-                className="gap-2"
-              >
-                <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-border px-3 py-2">
-                  <RadioGroupItem value="public" id="channel-settings-public" disabled={isDefault} />
-                  <Hash className="size-4 text-muted-foreground" aria-hidden />
-                  <span className="text-body">{t("chat.channel.visibility_public")}</span>
-                </label>
-                <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-border px-3 py-2">
-                  <RadioGroupItem value="private" id="channel-settings-private" disabled={isDefault} />
-                  <Lock className="size-4 text-muted-foreground" aria-hidden />
-                  <span className="text-body">{t("chat.channel.visibility_private")}</span>
-                </label>
-              </RadioGroup>
-              {isDefault ? (
-                <p className="text-caption text-muted-foreground">
-                  {t("chat.channel.default_visibility_locked")}
-                </p>
-              ) : null}
-            </div>
-
-            <div className="space-y-2">
-              <Label>{t("chat.channel.project_label")}</Label>
-              <Select
-                value={projectId || "__none__"}
-                onValueChange={(value) => setProjectId(!value || value === "__none__" ? "" : value)}
-                items={[
-                  { value: "__none__", label: t("chat.channel.project_none") },
-                  ...projects.map((project) => ({ value: project.id, label: project.title })),
-                ]}
-              >
-                <SelectTrigger className="w-full rounded-xl" aria-label={t("chat.channel.project_label")}>
-                  <SelectValue placeholder={t("chat.channel.project_none")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">{t("chat.channel.project_none")}</SelectItem>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.title}
-                    </SelectItem>
+              <div className="space-y-1.5">
+                <Label id="channel-settings-visibility-label">{t("chat.channel.visibility_label")}</Label>
+                <RadioGroup
+                  aria-labelledby="channel-settings-visibility-label"
+                  value={visibility}
+                  onValueChange={(value) => {
+                    if (value === "public" || value === "private") setVisibility(value);
+                  }}
+                  className="gap-1.5"
+                >
+                  {(["public", "private"] as const).map((value) => (
+                    <label
+                      key={value}
+                      className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border px-3 py-2 transition-colors duration-(--duration-fast) hover:bg-surface-hover has-[[data-checked]]:border-ring has-[[data-checked]]:bg-surface-selected"
+                    >
+                      <RadioGroupItem
+                        value={value}
+                        id={`channel-settings-${value}`}
+                        disabled={isDefault}
+                        className="mt-0.5"
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-body font-medium text-foreground">
+                          {t(`chat.channel.visibility_${value}_title`)}
+                        </span>
+                        <span className="block text-caption text-muted-foreground">
+                          {t(`chat.channel.visibility_${value}_hint`)}
+                        </span>
+                      </span>
+                    </label>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
+                </RadioGroup>
+                {isDefault ? (
+                  <p className="text-caption text-muted-foreground">{t("chat.channel.default_visibility_locked")}</p>
+                ) : null}
+              </div>
 
-            <Button type="button" className="w-full rounded-full" disabled={saving} onClick={save}>
-              {saving ? t("chat.channel.saving") : t("chat.channel.save")}
-            </Button>
+              <div className="space-y-1.5">
+                <Label id="channel-settings-project-label">{t("chat.channel.project_label")}</Label>
+                <Select
+                  value={projectId || "__none__"}
+                  onValueChange={(value) => setProjectId(!value || value === "__none__" ? "" : value)}
+                  items={[
+                    {
+                      value: "__none__",
+                      label: t("chat.channel.project_none"),
+                    },
+                    ...projects.map((project) => ({
+                      value: project.id,
+                      label: project.title,
+                    })),
+                  ]}
+                >
+                  <SelectTrigger className="w-full" aria-labelledby="channel-settings-project-label">
+                    <SelectValue placeholder={t("chat.channel.project_none")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">{t("chat.channel.project_none")}</SelectItem>
+                    {projects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </form>
+          )}
 
-            {!isDefault && onAddMembers ? (
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full rounded-full"
-                onClick={() => {
-                  onOpenChange(false);
-                  onAddMembers();
-                }}
-              >
-                <UserPlus className="size-4" aria-hidden />
-                {t("chat.channel.add_members")}
-              </Button>
-            ) : null}
+          {!isDefault && onAddMembers ? (
+            <section className="border-b border-border py-1">
+              <ChatSettingsMenuRow
+                icon={UserPlus}
+                label={t("chat.channel.add_members")}
+                onClick={() => leaveTo(onAddMembers)}
+              />
+            </section>
+          ) : null}
 
-            {!isDefault ? (
-              <div className="rounded-xl border border-border p-3">
-                <p className="mb-2 text-label font-medium text-foreground">
-                  {t("chat.channel.archive_section")}
-                </p>
-                <p className="mb-3 text-caption text-muted-foreground">
-                  {t("chat.channel.archive_hint")}
-                </p>
-                <div className="flex flex-wrap gap-2">
+          {!isDefault ? (
+            <ChannelSettingsMembers
+              open={open}
+              workspaceId={workspaceId}
+              roomId={channel.id}
+              currentUserId={currentUserId}
+              youLabel={youLabel}
+              memberAvatarByUserId={memberAvatarByUserId}
+            />
+          ) : null}
+
+          {!isDefault ? (
+            <div className="space-y-4 px-4 py-4">
+              {canAdmin ? (
+                <section className="space-y-2">
+                  <h3 className="text-label font-semibold text-foreground">{t("chat.channel.archive_section")}</h3>
+                  <p className="text-caption text-pretty text-muted-foreground">{t("chat.channel.archive_hint")}</p>
                   <Button
                     type="button"
                     variant="outline"
-                    className="rounded-full"
                     disabled={archiveChannel.isPending}
-                    onClick={handleArchive}
+                    onClick={() => setArchiveConfirmOpen(true)}
                   >
-                    <Archive className="size-4" aria-hidden />
+                    <Archive aria-hidden />
                     {t("chat.channel.archive")}
                   </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="rounded-full"
-                    disabled={unarchiveChannel.isPending}
-                    onClick={handleUnarchive}
-                  >
-                    {t("chat.channel.unarchive")}
-                  </Button>
-                </div>
-              </div>
-            ) : null}
-
-            {!isDefault ? (
-              <ChannelSettingsMembers
-                open={open}
-                workspaceId={workspaceId}
-                roomId={channel.id}
-                currentUserId={currentUserId}
-                youLabel={youLabel}
-              />
-            ) : null}
-
-            {!isDefault && onLeave ? (
-              <div className="px-0 pb-2">
+                </section>
+              ) : null}
+              {onLeave ? (
                 <LeaveConversationSection
                   variant="channel"
                   disabled={leaveDisabled}
                   leaving={leaving}
                   onLeave={onLeave}
                 />
-              </div>
-            ) : null}
-          </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
+
+        {dirty ? (
+          <div className="flex items-center justify-end gap-2 border-t border-border bg-surface px-4 py-3">
+            <Button type="button" variant="outline" disabled={saving} onClick={resetForm}>
+              {t("chat.channel.discard_changes")}
+            </Button>
+            <Button type="submit" form="channel-settings-form" disabled={saving || !name.trim()}>
+              {saving ? t("chat.channel.saving") : t("chat.channel.save")}
+            </Button>
+          </div>
+        ) : null}
+
+        <ConfirmDialog
+          open={archiveConfirmOpen}
+          onOpenChange={setArchiveConfirmOpen}
+          title={t("chat.channel.archive_confirm_title", {
+            name: channel.name,
+          })}
+          description={t("chat.channel.archive_hint")}
+          confirmLabel={t("chat.channel.archive")}
+          pending={archiveChannel.isPending}
+          onConfirm={handleArchive}
+        />
+        <ConfirmDialog
+          open={discardConfirmOpen}
+          onOpenChange={setDiscardConfirmOpen}
+          title={t("chat.channel.discard_confirm_title")}
+          description={t("chat.channel.discard_confirm_description")}
+          confirmLabel={t("chat.channel.discard_changes")}
+          onConfirm={() => {
+            const next = afterDiscardRef.current;
+            afterDiscardRef.current = null;
+            setDiscardConfirmOpen(false);
+            resetForm();
+            onOpenChange(false);
+            next?.();
+          }}
+        />
       </SheetContent>
     </Sheet>
   );

@@ -30,7 +30,6 @@ type ChatPageContentDialogsProps = Pick<
   | "onDmSettingsOpenChange"
   | "channelSettingsOpen"
   | "onChannelSettingsOpenChange"
-  | "workHubEnabled"
   | "setTarget"
   | "dmBlockedByMe"
   | "dmBlockedMe"
@@ -47,6 +46,7 @@ type ChatPageContentDialogsProps = Pick<
   | "onLeaveDm"
   | "onLeaveChannel"
   | "workspaceMembers"
+  | "memberAvatarByUserId"
   | "workspaceSettingsOpen"
   | "onWorkspaceSettingsOpenChange"
   | "activeRoomId"
@@ -82,7 +82,6 @@ export function ChatPageContentDialogs({
   onDmSettingsOpenChange,
   channelSettingsOpen,
   onChannelSettingsOpenChange,
-  workHubEnabled,
   setTarget,
   dmBlockedByMe,
   dmBlockedMe,
@@ -99,6 +98,7 @@ export function ChatPageContentDialogs({
   onLeaveDm,
   onLeaveChannel,
   workspaceMembers,
+  memberAvatarByUserId,
   workspaceSettingsOpen,
   onWorkspaceSettingsOpenChange,
   activeRoomId,
@@ -122,6 +122,7 @@ export function ChatPageContentDialogs({
           onOpenChange={onCreatePollOpenChange}
           workspaceId={workspaceId}
           roomId={activeRoomId}
+          canPinToTop={canPinMessages}
         />
       ) : null}
       {activeRoomId ? (
@@ -173,6 +174,7 @@ export function ChatPageContentDialogs({
             currentUserId={currentUserId}
             youLabel={t("chat.you")}
             memberProfiles={groupMemberProfiles}
+            memberAvatarByUserId={memberAvatarByUserId}
             nicknamesByUserId={nicknamesByUserId}
             onAddMembers={() => onAddMembersOpenChange(true)}
             leaving={leavingConversation}
@@ -213,10 +215,11 @@ export function ChatPageContentDialogs({
           onUnblock={onUnblockContact}
           blocking={blockingContact}
           unblocking={unblockingContact}
+          memberAvatarByUserId={memberAvatarByUserId}
           onOpenSearch={() => onMessageSearchOpenChange(true)}
         />
       ) : null}
-      {workHubEnabled && activeChannel ? (
+      {activeChannel ? (
         <>
           <ChannelSettingsSheet
             open={channelSettingsOpen}
@@ -225,6 +228,7 @@ export function ChatPageContentDialogs({
             channel={activeChannel}
             currentUserId={currentUserId}
             youLabel={t("chat.you")}
+            memberAvatarByUserId={memberAvatarByUserId}
             onArchived={() => setTarget({ kind: "workspace" })}
             onAddMembers={
               activeChannel.is_default ? undefined : () => onAddMembersOpenChange(true)

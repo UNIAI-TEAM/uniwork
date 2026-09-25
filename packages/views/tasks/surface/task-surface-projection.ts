@@ -2,8 +2,16 @@ import type {
   SortDirection,
   SortField,
 } from "@uniwork/core/tasks/stores/view-store";
-import type { Task } from "@uniwork/core/types";
-import { sortTasksForTable } from "../modes/table-view-model";
+import {
+  TASK_PRIORITIES,
+  TASK_STATUSES,
+  type Task,
+} from "@uniwork/core/types";
+import {
+  applyTaskFilters,
+  type TaskFilterContext,
+  type TaskFilterState,
+} from "../utils/filter";
 
 export function projectSurfaceTasks(
   tasks: Task[],
@@ -11,14 +19,101 @@ export function projectSurfaceTasks(
     showSubTasks: boolean;
     sortBy: SortField;
     sortDirection: SortDirection;
+    /** Full client filter state for load-flat modes. */
+    taskFilters?: TaskFilterState;
+    filterContext?: TaskFilterContext;
+    /**
+     * Table-backed modes already sent server dimensions — only keep
+     * client-only predicates (`workingOnly` / agentRunning).
+     */
+    clientOnlyFilterDimensions?: boolean;
   },
 ): Task[] {
   const visibleTasks = options.showSubTasks
     ? tasks
     : tasks.filter((task) => !task.parent_task_id);
-  return sortTasksForTable(
+  const sorted = sortSurfaceTasks(
     visibleTasks,
     options.sortBy,
     options.sortDirection,
   );
+  if (!options.taskFilters) return sorted;
+
+  const filters: TaskFilterState = options.clientOnlyFilterDimensions
+    ? {
+        statusFilters: [],
+        priorityFilters: [],
+        assigneeFilters: [],
+        includeNoAssignee: false,
+        creatorFilters: [],
+        projectFilters: [],
+        includeNoProject: false,
+        labelFilters: [],
+        workingOnly: options.taskFilters.workingOnly,
+      }
+    : options.taskFilters;
+
+  if (
+    options.clientOnlyFilterDimensions &&
+    filters.workingOnly !== true
+  ) {
+    return sorted;
+  }
+
+  return applyTaskFilters(sorted, filters, options.filterContext);
+}
+
+const STATUS_RANK = new Map(TASK_STATUSES.map((status, i) => [status, i]));
+const PRIORITY_RANK = new Map(
+  TASK_PRIORITIES.map((priority, i) => [priority, i]),
+);
+
+function sortValue(task: Task, field: SortField): string | number | null {
+  switch (field) {
+    case "title":
+      return task.title.toLocaleLowerCase();
+    case "status":
+      return STATUS_RANK.get(task.status) ?? Number.MAX_SAFE_INTEGER;
+    case "priority":
+      return PRIORITY_RANK.get(task.priority) ?? Number.MAX_SAFE_INTEGER;
+    case "due_date":
+      return task.due_date ?? "";
+    case "created_at":
+      return task.created_at;
+    case "updated_at":
+      return task.updated_at;
+    case "position":
+      return task.position;
+    case "start_date":
+      return task.start_date ?? "";
+    default:
+      return null;
+  }
+}
+
+/**
+ * Client-sort loaded tasks for the views that still order on the client (list,
+ * gantt, swimlane); unknown / property fields keep input order. The table sorts
+ * on the server.
+ */
+export function sortSurfaceTasks(
+  tasks: Task[],
+  sortBy: SortField,
+  sortDirection: SortDirection,
+): Task[] {
+  const ranked = tasks.map((task, index) => ({
+    task,
+    index,
+    value: sortValue(task, sortBy),
+  }));
+  const direction = sortDirection === "desc" ? -1 : 1;
+  ranked.sort((a, b) => {
+    if (a.value == null && b.value == null) return a.index - b.index;
+    if (a.value == null || a.value === "") return 1;
+    if (b.value == null || b.value === "") return -1;
+    if (a.value < b.value) return -1 * direction;
+    if (a.value > b.value) return 1 * direction;
+    return a.index - b.index;
+  });
+  return ranked.map((entry) => entry.task);
 }

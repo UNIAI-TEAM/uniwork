@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Megaphone } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useSendChatRoomMessage } from "@uniwork/core/chat";
@@ -10,18 +9,16 @@ import {
   POST_BODY_MAX_LENGTH,
   POST_TITLE_MAX_LENGTH,
 } from "@uniwork/core/chat/post-utils";
-import { Button } from "@uniwork/ui/components/ui/button";
-import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@uniwork/ui/components/ui/dialog";
+import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
+import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
+import { chatErrorMessage } from "./chat-error-message";
+import { ChatCharCounter, ChatFormFooterNote, nearLimit, RequiredMark } from "./chat-form-parts";
+import { PinToTopRow } from "./chat-pin-to-top-row";
+
+const FORM_ID = "chat-create-post-form";
 
 export function ChatCreatePostDialog({
   open,
@@ -44,32 +41,35 @@ export function ChatCreatePostDialog({
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [pinToTop, setPinToTop] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const resetForm = () => {
+  useEffect(() => {
+    if (open) return;
     setTitle("");
     setBody("");
     setPinToTop(false);
-  };
-
-  useEffect(() => {
-    if (!open) resetForm();
+    setSubmitError(null);
   }, [open]);
 
   const canCreate = canSubmitPost(title, body);
+  const missingHint = !title.trim()
+    ? !body.trim()
+      ? t("chat.post_submit_hint_both")
+      : t("chat.post_submit_hint_title")
+    : !body.trim()
+      ? t("chat.post_submit_hint_body")
+      : null;
 
   const handleCreate = () => {
     if (!canCreate || sendMessage.isPending) return;
-    if (pinToTop && !canPinToTop) {
-      toast.error(t("chat.post_pin_forbidden"));
-      return;
-    }
+    setSubmitError(null);
     void sendMessage
       .mutateAsync({
         roomId,
         post: {
           title: title.trim(),
           body: body.trim(),
-          pin_to_top: pinToTop,
+          pin_to_top: pinToTop && canPinToTop,
         },
       })
       .then(() => {
@@ -77,65 +77,103 @@ export function ChatCreatePostDialog({
         onCreated?.();
         onOpenChange(false);
       })
-      .catch(() => {
-        toast.error(t("chat.post_create_failed"));
+      .catch((err: unknown) => {
+        setSubmitError(chatErrorMessage(err, t, t("chat.post_create_failed")));
       });
+  };
+
+  const clearError = () => {
+    if (submitError) setSubmitError(null);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
-        <DialogHeader className="border-b border-border px-5 py-4">
-          <DialogTitle>{t("chat.post_create_title")}</DialogTitle>
-        </DialogHeader>
+      <FormDialogContent size="lg">
+        <FormDialogHeader title={t("chat.post_create_title")} description={t("chat.post_create_description")} />
 
-        <div className="space-y-5 overflow-y-auto px-5 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="post-title">{t("chat.post_title_label")}</Label>
-            <Input
-              id="post-title"
-              value={title}
-              maxLength={POST_TITLE_MAX_LENGTH}
-              placeholder={t("chat.post_title_placeholder")}
-              onChange={(event) => setTitle(event.target.value)}
-            />
-          </div>
+        <form
+          id={FORM_ID}
+          className="contents"
+          onSubmit={(event) => {
+            event.preventDefault();
+            handleCreate();
+          }}
+        >
+          <FormDialogBody className="space-y-5">
+            <div className="space-y-2">
+              <div className="flex items-baseline justify-between gap-3">
+                <Label htmlFor="post-title">
+                  {t("chat.post_title_label")}
+                  <RequiredMark />
+                </Label>
+                <ChatCharCounter id="post-title-count" length={title.length} max={POST_TITLE_MAX_LENGTH} />
+              </div>
+              <Input
+                id="post-title"
+                value={title}
+                maxLength={POST_TITLE_MAX_LENGTH}
+                aria-required
+                aria-describedby={nearLimit(title.length, POST_TITLE_MAX_LENGTH) ? "post-title-count" : undefined}
+                placeholder={t("chat.post_title_placeholder")}
+                onChange={(event) => {
+                  setTitle(event.target.value);
+                  clearError();
+                }}
+                onKeyDown={(event) => {
+                  // Enter that confirms an IME word must not submit the form.
+                  if (event.key === "Enter" && (event.nativeEvent.isComposing || event.keyCode === 229)) {
+                    event.preventDefault();
+                  }
+                }}
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="post-body">{t("chat.post_body_label")}</Label>
-            <Textarea
-              id="post-body"
-              value={body}
-              maxLength={POST_BODY_MAX_LENGTH}
-              rows={8}
-              placeholder={t("chat.post_body_placeholder")}
-              onChange={(event) => setBody(event.target.value)}
-            />
-          </div>
+            <div className="space-y-2">
+              <div className="flex items-baseline justify-between gap-3">
+                <Label htmlFor="post-body">
+                  {t("chat.post_body_label")}
+                  <RequiredMark />
+                </Label>
+                <ChatCharCounter id="post-body-count" length={body.length} max={POST_BODY_MAX_LENGTH} />
+              </div>
+              <Textarea
+                id="post-body"
+                value={body}
+                maxLength={POST_BODY_MAX_LENGTH}
+                rows={8}
+                aria-required
+                aria-describedby={nearLimit(body.length, POST_BODY_MAX_LENGTH) ? "post-body-count" : undefined}
+                placeholder={t("chat.post_body_placeholder")}
+                onChange={(event) => {
+                  setBody(event.target.value);
+                  clearError();
+                }}
+              />
+            </div>
 
-          <div className="flex items-start gap-2">
-            <Checkbox
+            <PinToTopRow
               id="post-pin-top"
+              label={t("chat.post_pin_to_top")}
               checked={pinToTop}
-              disabled={!canPinToTop}
-              onCheckedChange={(checked) => setPinToTop(checked === true)}
+              onCheckedChange={setPinToTop}
+              disabledReason={canPinToTop ? undefined : t("chat.post_pin_forbidden")}
             />
-            <Label htmlFor="post-pin-top" id="post-pin-top-label" className="cursor-pointer font-normal leading-snug">
-              {t("chat.post_pin_to_top")}
-            </Label>
-          </div>
-        </div>
+          </FormDialogBody>
 
-        <DialogFooter className="gap-2 border-t border-border px-5 py-4">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            {t("common.cancel")}
-          </Button>
-          <Button type="button" disabled={!canCreate || sendMessage.isPending} onClick={handleCreate}>
-            <Megaphone className="size-4" aria-hidden />
-            {t("chat.post_create_submit")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+          <FormDialogFooter
+            onCancel={() => onOpenChange(false)}
+            submitLabel={t("chat.post_create_submit")}
+            submittingLabel={t("chat.post_create_submitting")}
+            submitting={sendMessage.isPending}
+            submitDisabled={!canCreate}
+            submitType="submit"
+            form={FORM_ID}
+            leading={
+              submitError || missingHint ? <ChatFormFooterNote error={submitError} hint={missingHint} /> : undefined
+            }
+          />
+        </form>
+      </FormDialogContent>
     </Dialog>
   );
 }

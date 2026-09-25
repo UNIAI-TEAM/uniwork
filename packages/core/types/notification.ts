@@ -12,6 +12,7 @@ export const NOTIFICATION_KINDS = [
   "role_changed",
   "audit_export_ready",
   "chat_follow_up",
+  "email_hub_new_mail",
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
@@ -24,6 +25,8 @@ export const NotificationSchema = z.object({
   resource_type: z.string(),
   resource_id: z.string(),
   resource_deleted: z.boolean().optional().default(false),
+  /** Where a resource with no page of its own lives: a chat message's room. */
+  resource_parent_id: z.string().optional(),
   actor_kind: z.string().optional().default("system"),
   actor_id: z.string().optional().default(""),
   title_key: z.string(),

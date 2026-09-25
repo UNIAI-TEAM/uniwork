@@ -12,11 +12,13 @@ export function TaskDetailResizableLayout({
   sidebar,
   sidebarController,
   sidebarLabel,
+  sidebarDefaultSize,
 }: {
   main: ReactNode;
   sidebar: ReactNode;
   sidebarController: AnimatedRightSidebarController;
   sidebarLabel: string;
+  sidebarDefaultSize?: number | string;
 }) {
   return (
     <AnimatedRightSidebarLayout
@@ -24,6 +26,7 @@ export function TaskDetailResizableLayout({
       main={main}
       sidebar={sidebar}
       sidebarLabel={sidebarLabel}
+      sidebarDefaultSize={sidebarDefaultSize}
     />
   );
 }

@@ -1,76 +1,103 @@
 "use client";
 
 import { X } from "lucide-react";
+import { useEffect, useId, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
-import { Badge } from "@uniwork/ui/components/ui/badge";
+import { Button } from "@uniwork/ui/components/ui/button";
+import { initialOf } from "./chat-initials";
 
-function initialOf(name: string): string {
-  return name.trim().slice(0, 1).toUpperCase() || "?";
-}
-
+/**
+ * People picked so far, each removable. `summary` is a plain-words count
+ * ("2 selected · at least 2 needed") shown next to the title.
+ */
 export function SelectedMemberChips({
   members,
   onRemove,
   emptyLabel,
   title,
-  countBadge,
+  summary,
+  onRemovedLast,
 }: {
   members: ChatContact[];
   onRemove: (userId: string) => void;
   emptyLabel?: string;
   title?: string;
-  countBadge?: string;
+  summary?: string;
+  /** Focus goes here once no chip is left to take it (the search field). */
+  onRemovedLast?: () => void;
 }) {
   const { t } = useTranslation();
+  const titleId = useId();
+  const listRef = useRef<HTMLUListElement>(null);
+  // After a removal, focus the chip that took the removed one's place (or
+  // the one before it), so keyboard users do not fall back to the page.
+  const refocusIndex = useRef<number | null>(null);
+  useEffect(() => {
+    const index = refocusIndex.current;
+    if (index === null) return;
+    refocusIndex.current = null;
+    const buttons = listRef.current?.querySelectorAll<HTMLButtonElement>("[data-chip-remove]");
+    if (buttons && buttons.length > 0) buttons[Math.min(index, buttons.length - 1)]?.focus();
+    else onRemovedLast?.();
+  }, [members, onRemovedLast]);
+
+  const remove = (userId: string, index: number) => {
+    if (members.length <= 1) {
+      // The list (and maybe this whole block) unmounts with the last chip.
+      onRemove(userId);
+      onRemovedLast?.();
+      return;
+    }
+    refocusIndex.current = index;
+    onRemove(userId);
+  };
 
   return (
     <div className="space-y-2">
-      {title || countBadge ? (
-        <div className="flex items-center justify-between gap-2">
+      {title || summary ? (
+        <div className="flex items-baseline justify-between gap-2">
           {title ? (
-            <p className="text-label font-medium text-foreground">{title}</p>
+            <p id={titleId} className="text-label font-medium text-foreground">
+              {title}
+            </p>
           ) : (
             <span />
           )}
-          {countBadge ? (
-            <Badge variant="secondary" className="tabular-nums">
-              {countBadge}
-            </Badge>
+          {summary ? (
+            <p className="text-caption text-muted-foreground tabular-nums" aria-live="polite">
+              {summary}
+            </p>
           ) : null}
         </div>
       ) : null}
 
       {members.length === 0 ? (
-        emptyLabel ? (
-          <p className="px-0.5 py-1 text-caption text-muted-foreground">{emptyLabel}</p>
-        ) : null
+        emptyLabel ? <p className="py-1 text-caption text-muted-foreground">{emptyLabel}</p> : null
       ) : (
-        <ul className="flex flex-wrap gap-2">
-          {members.map((member) => {
+        <ul ref={listRef} className="flex flex-wrap gap-2" aria-labelledby={title ? titleId : undefined}>
+          {members.map((member, index) => {
             const label = displayLabelForChatContact(member);
             return (
-              <li key={member.user_id}>
-                <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-muted/60 py-1 pl-1 pr-1.5">
-                  <ActorAvatar
-                    name={member.display_name}
-                    initials={initialOf(member.display_name)}
-                    size="sm"
-                  />
-                  <span className="min-w-0 truncate text-caption font-medium text-foreground">
-                    {label}
-                  </span>
-                  <button
-                    type="button"
-                    className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-background/80 hover:text-foreground"
-                    aria-label={t("chat.remove_member", { name: label })}
-                    onClick={() => onRemove(member.user_id)}
-                  >
-                    <X className="size-3.5" aria-hidden />
-                  </button>
-                </span>
+              <li
+                key={member.user_id}
+                className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-muted py-0.5 pr-0.5 pl-1"
+              >
+                <ActorAvatar name={label} initials={initialOf(label)} size="md" />
+                <span className="min-w-0 truncate text-label font-medium text-foreground">{label}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  className="rounded-full text-muted-foreground hover:bg-background hover:text-foreground"
+                  aria-label={t("chat.unselect_member", { name: label })}
+                  data-chip-remove=""
+                  onClick={() => remove(member.user_id, index)}
+                >
+                  <X aria-hidden />
+                </Button>
               </li>
             );
           })}

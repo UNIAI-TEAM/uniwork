@@ -245,6 +245,53 @@ func (q *Queries) GetTaskLabelByID(ctx context.Context, arg GetTaskLabelByIDPara
 	return i, err
 }
 
+const listLabelsForTasks = `-- name: ListLabelsForTasks :many
+SELECT l.task_id, lb.id, lb.name, lb.color
+FROM task_label_links l
+JOIN task_labels lb ON lb.organization_id = l.organization_id AND lb.workspace_id = l.workspace_id AND lb.id = l.label_id
+WHERE l.organization_id = $1 AND l.workspace_id = $2 AND l.task_id = ANY($3::text[])
+  AND lb.archived_at IS NULL
+ORDER BY l.task_id, LOWER(lb.name), lb.id
+`
+
+type ListLabelsForTasksParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	TaskIds        []string `json:"task_ids"`
+}
+
+type ListLabelsForTasksRow struct {
+	TaskID string `json:"task_id"`
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Color  string `json:"color"`
+}
+
+func (q *Queries) ListLabelsForTasks(ctx context.Context, arg ListLabelsForTasksParams) ([]ListLabelsForTasksRow, error) {
+	rows, err := q.db.Query(ctx, listLabelsForTasks, arg.OrganizationID, arg.WorkspaceID, arg.TaskIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLabelsForTasksRow{}
+	for rows.Next() {
+		var i ListLabelsForTasksRow
+		if err := rows.Scan(
+			&i.TaskID,
+			&i.ID,
+			&i.Name,
+			&i.Color,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTaskLabelLinks = `-- name: ListTaskLabelLinks :many
 SELECT l.id, l.organization_id, l.workspace_id, l.name, l.color, l.description, l.archived_at, l.created_by, l.created_by_kind, l.created_at, l.updated_at FROM task_labels l
 INNER JOIN task_label_links x

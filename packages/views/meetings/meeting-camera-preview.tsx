@@ -3,17 +3,30 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { createLocalVideoTrack, type LocalVideoTrack } from "livekit-client";
-import { VideoOff } from "lucide-react";
+import { RotateCcw, Video } from "lucide-react";
 import type { MeetingBackgroundPreset } from "@uniwork/core/meetings/room-preferences";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
+import { CAMERA_PREVIEW_FRAME, CameraPreviewPlaceholder } from "./meeting-camera-placeholder";
 import {
   applyMeetingBackgroundProcessor,
   meetingBackgroundActive,
   supportsBackgroundProcessors,
 } from "./meeting-background-processor";
 
+export { CameraPreviewPlaceholder, CameraPreviewFrame } from "./meeting-camera-placeholder";
+
 export type CameraPreviewStatus =
-  "idle" | "loading" | "live" | "denied" | "nocamera" | "timeout" | "error";
+  "idle" | "loading" | "live" | "denied" | "nocamera" | "inuse" | "timeout" | "error";
+
+/** Failures a second getUserMedia call can fix (permission granted, app closed, camera plugged in). */
+const RETRYABLE: ReadonlySet<CameraPreviewStatus> = new Set([
+  "denied",
+  "nocamera",
+  "inuse",
+  "timeout",
+  "error",
+]);
 
 /** How long the permission prompt may stay unanswered before we stop saying "starting". */
 const PERMISSION_TIMEOUT_MS = 8000;
@@ -27,6 +40,8 @@ function previewStatusMessage(
       return t("meetings.devicePreviewPermissionDismissed");
     case "nocamera":
       return t("meetings.devicePreviewNoCamera");
+    case "inuse":
+      return t("meetings.devicePreviewInUse");
     case "timeout":
       return t("meetings.devicePreviewTimeout");
     case "error":
@@ -41,6 +56,8 @@ function mapCaptureError(error: unknown): CameraPreviewStatus {
   if (name === "NotAllowedError" || name === "PermissionDeniedError") return "denied";
   if (name === "TimeoutError") return "timeout";
   if (name === "NotFoundError" || name === "OverconstrainedError") return "nocamera";
+  // Another app (or tab) holds the device; Chrome's legacy name is TrackStartError.
+  if (name === "NotReadableError" || name === "TrackStartError") return "inuse";
   return "error";
 }
 
@@ -61,6 +78,7 @@ export function MeetingCameraPreview({
   background = "none",
   customBackgroundDataUrl = null,
   mirrorCamera = false,
+  onRequestEnable,
 }: {
   deviceId?: string;
   active: boolean;
@@ -69,6 +87,8 @@ export function MeetingCameraPreview({
   background?: MeetingBackgroundPreset;
   customBackgroundDataUrl?: string | null;
   mirrorCamera?: boolean;
+  /** Shown as a "turn camera on" action while the camera is off. */
+  onRequestEnable?: () => void;
 }) {
   const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -78,6 +98,8 @@ export function MeetingCameraPreview({
     null,
   );
   const [status, setStatus] = useState<CameraPreviewStatus>("idle");
+  // Bumped by "Thử lại" to re-run getUserMedia with the same inputs.
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     onStatusChange?.(status);
@@ -195,18 +217,30 @@ export function MeetingCameraPreview({
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     };
-  }, [active, deviceId, background, customBackgroundDataUrl]);
+  }, [active, deviceId, background, customBackgroundDataUrl, attempt]);
 
   const statusMessage = previewStatusMessage(status, t);
   const showPlaceholder = status !== "live";
+  const placeholderTitle =
+    status === "loading"
+      ? t("meetings.devicePreviewStarting")
+      : status === "idle"
+        ? t("meetings.devicePreviewOff")
+        : t("meetings.devicePreviewUnavailable");
+  const placeholderAction = RETRYABLE.has(status) ? (
+    <Button type="button" variant="outline" size="sm" onClick={() => setAttempt((n) => n + 1)}>
+      <RotateCcw aria-hidden />
+      {t("common.retry")}
+    </Button>
+  ) : status === "idle" && onRequestEnable ? (
+    <Button type="button" variant="outline" size="sm" onClick={onRequestEnable}>
+      <Video aria-hidden />
+      {t("meetings.devicePreviewTurnOn")}
+    </Button>
+  ) : null;
 
   return (
-    <div
-      className={cn(
-        "dark relative flex aspect-[4/3] min-h-48 w-full items-center justify-center overflow-hidden rounded-xl bg-rail ring-1 ring-border",
-        className,
-      )}
-    >
+    <div className={cn(CAMERA_PREVIEW_FRAME, className)}>
       <video
         ref={videoRef}
         aria-label={t("meetings.devicePreviewTitle")}
@@ -220,19 +254,12 @@ export function MeetingCameraPreview({
         )}
       />
       {showPlaceholder ? (
-        <div className="flex max-w-xs flex-col items-center gap-2 px-4 text-center">
-          <span className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
-            <VideoOff aria-hidden className="size-6" />
-          </span>
-          <p className="text-body text-foreground">
-            {status === "loading"
-              ? t("meetings.devicePreviewStarting")
-              : t("meetings.devicePreviewEmpty")}
-          </p>
-          {statusMessage ? (
-            <p className="text-caption text-muted-foreground">{statusMessage}</p>
-          ) : null}
-        </div>
+        <CameraPreviewPlaceholder
+          title={placeholderTitle}
+          detail={statusMessage}
+          hint={status === "denied" ? t("meetings.devicePreviewDeniedHint") : null}
+          action={placeholderAction}
+        />
       ) : null}
     </div>
   );

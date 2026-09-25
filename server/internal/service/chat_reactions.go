@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"sort"
 	"strings"
 )
 
@@ -69,9 +70,57 @@ func toggleReactionInMetadata(raw []byte, userID, emoji string) ([]byte, error) 
 		meta.Reactions[emoji] = next
 	}
 	if len(meta.Reactions) == 0 {
+		return patchMetadataKey(raw, "reactions", nil)
+	}
+	return patchMetadataKey(raw, "reactions", meta.Reactions)
+}
+
+// patchMetadataKey rewrites one top-level key of a message's metadata and
+// keeps every other key byte for byte. The typed struct above does not know
+// the file, voice or call-log fields, so round-tripping through it would drop
+// an attachment's object key the first time someone reacted to it. A nil
+// value removes the key.
+func patchMetadataKey(raw []byte, key string, value any) ([]byte, error) {
+	fields := map[string]json.RawMessage{}
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &fields); err != nil || fields == nil {
+			fields = map[string]json.RawMessage{}
+		}
+	}
+	if value == nil {
+		delete(fields, key)
+	} else {
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			return nil, err
+		}
+		fields[key] = encoded
+	}
+	if len(fields) == 0 {
 		return []byte("{}"), nil
 	}
-	return json.Marshal(meta)
+	return json.Marshal(fields)
+}
+
+// myReactionsFromMetadata lists the emojis viewerID has reacted with, sorted,
+// so a client can show its own reactions as pressed.
+func myReactionsFromMetadata(raw []byte, viewerID string) []string {
+	viewer := strings.ToUpper(strings.TrimSpace(viewerID))
+	if viewer == "" {
+		return nil
+	}
+	meta := decodeChatMessageMetadata(raw)
+	var out []string
+	for emoji, userIDs := range meta.Reactions {
+		for _, id := range userIDs {
+			if strings.ToUpper(strings.TrimSpace(id)) == viewer {
+				out = append(out, emoji)
+				break
+			}
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 func decodeChatMessageMetadata(raw []byte) chatMessageMetadata {
@@ -93,14 +142,14 @@ func pinFromMetadata(raw []byte) bool {
 }
 
 func togglePinInMetadata(raw []byte) ([]byte, bool, error) {
-	meta := decodeChatMessageMetadata(raw)
-	meta.Pinned = !meta.Pinned
-	if !meta.Pinned && len(meta.Reactions) == 0 {
-		return []byte("{}"), false, nil
+	pinned := !decodeChatMessageMetadata(raw).Pinned
+	var value any
+	if pinned {
+		value = true
 	}
-	out, err := json.Marshal(meta)
+	out, err := patchMetadataKey(raw, "pinned", value)
 	if err != nil {
 		return nil, false, err
 	}
-	return out, meta.Pinned, nil
+	return out, pinned, nil
 }

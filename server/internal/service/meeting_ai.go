@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -256,6 +255,8 @@ type SummaryTaskItem struct {
 	Title       string
 	Description string
 	AssigneeID  *string
+	ProjectID   *string
+	Priority    string
 	DueDate     *string
 	Owner       string
 	DueSpoken   string
@@ -314,9 +315,10 @@ func (s *MeetingService) CreateTasksFromSummary(ctx context.Context, userID, mee
 		} else {
 			desc = desc + "\n\n" + origin
 		}
+		priority := strings.TrimSpace(it.Priority)
 		t, err := s.Tasks.Create(ctx, Human(userID), m.WorkspaceID, CreateTaskInput{
-			Title: it.Title, Description: desc, AssigneeID: assigneeID, DueDate: dueDate,
-			OriginType: "meeting", OriginID: &meetingOrigin,
+			Title: it.Title, Description: desc, AssigneeID: assigneeID, DueDate: dueDate, ProjectID: it.ProjectID,
+			Priority: priority, OriginType: "meeting", OriginID: &meetingOrigin,
 		})
 		if err != nil {
 			return out, err
@@ -530,47 +532,4 @@ func (s *MeetingService) CalendarICS(ctx context.Context, userID, meetingID, fro
 		joinURL = strings.TrimSuffix(frontendOrigin, "/") + "/" + ws.OrganizationSlug + "/" + ws.Slug + "/meetings/" + m.ID
 	}
 	return renderICS(m, joinURL, time.Now()), nil
-}
-
-func icsTime(t time.Time) string { return t.UTC().Format("20060102T150405Z") }
-
-// icsEscape follows RFC 5545 §3.3.11: backslash, semicolon, comma, newline.
-func icsEscape(s string) string {
-	r := strings.NewReplacer(`\`, `\\`, ";", `\;`, ",", `\,`, "\r\n", `\n`, "\n", `\n`)
-	return r.Replace(s)
-}
-
-func renderICS(m db.Meeting, joinURL string, now time.Time) []byte {
-	var b strings.Builder
-	w := func(line string) { b.WriteString(line); b.WriteString("\r\n") }
-	w("BEGIN:VCALENDAR")
-	w("VERSION:2.0")
-	w("PRODID:-//UniWork//Meetings//VI")
-	w("METHOD:PUBLISH")
-	w("BEGIN:VEVENT")
-	w("UID:" + m.ID + "@uniwork")
-	w("DTSTAMP:" + icsTime(now))
-	w("DTSTART:" + icsTime(m.StartsAt.Time))
-	w("DTEND:" + icsTime(m.EndsAt.Time))
-	w("SUMMARY:" + icsEscape(m.Title))
-	desc := m.Description
-	if joinURL != "" {
-		if desc != "" {
-			desc += "\n\n"
-		}
-		desc += joinURL
-		w("URL:" + joinURL)
-	}
-	if desc != "" {
-		w("DESCRIPTION:" + icsEscape(desc))
-	}
-	status := "CONFIRMED"
-	if m.Status == MeetingCanceled {
-		status = "CANCELLED"
-	}
-	w("STATUS:" + status)
-	w(fmt.Sprintf("SEQUENCE:%d", m.Version))
-	w("END:VEVENT")
-	w("END:VCALENDAR")
-	return []byte(b.String())
 }

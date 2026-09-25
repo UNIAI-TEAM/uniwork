@@ -1550,6 +1550,94 @@ func (q *Queries) ListChatMessagesByRoom(ctx context.Context, arg ListChatMessag
 	return items, nil
 }
 
+const listChatMessagesInRoomBetween = `-- name: ListChatMessagesInRoomBetween :many
+SELECT
+  m.id,
+  m.room_id,
+  m.workspace_id,
+  m.sender_id,
+  m.kind,
+  m.body,
+  m.metadata,
+  m.reply_to_message_id,
+  m.edited_at,
+  m.created_at,
+  m.client_msg_id,
+  u.display_name AS sender_display_name
+FROM chat_messages m
+INNER JOIN users u ON u.id = m.sender_id
+WHERE m.room_id = $1
+  AND m.workspace_id = $2
+  AND m.deleted_at IS NULL
+  AND m.created_at >= $3
+  AND m.created_at <= $4
+  AND m.kind NOT IN ('voice_call_log', 'system')
+ORDER BY m.created_at ASC
+LIMIT $5
+`
+
+type ListChatMessagesInRoomBetweenParams struct {
+	RoomID      string             `json:"room_id"`
+	WorkspaceID string             `json:"workspace_id"`
+	StartAt     pgtype.Timestamptz `json:"start_at"`
+	EndAt       pgtype.Timestamptz `json:"end_at"`
+	MsgLimit    int32              `json:"msg_limit"`
+}
+
+type ListChatMessagesInRoomBetweenRow struct {
+	ID                string             `json:"id"`
+	RoomID            string             `json:"room_id"`
+	WorkspaceID       string             `json:"workspace_id"`
+	SenderID          string             `json:"sender_id"`
+	Kind              string             `json:"kind"`
+	Body              string             `json:"body"`
+	Metadata          []byte             `json:"metadata"`
+	ReplyToMessageID  pgtype.Text        `json:"reply_to_message_id"`
+	EditedAt          pgtype.Timestamptz `json:"edited_at"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	ClientMsgID       pgtype.Text        `json:"client_msg_id"`
+	SenderDisplayName string             `json:"sender_display_name"`
+}
+
+func (q *Queries) ListChatMessagesInRoomBetween(ctx context.Context, arg ListChatMessagesInRoomBetweenParams) ([]ListChatMessagesInRoomBetweenRow, error) {
+	rows, err := q.db.Query(ctx, listChatMessagesInRoomBetween,
+		arg.RoomID,
+		arg.WorkspaceID,
+		arg.StartAt,
+		arg.EndAt,
+		arg.MsgLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListChatMessagesInRoomBetweenRow{}
+	for rows.Next() {
+		var i ListChatMessagesInRoomBetweenRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.RoomID,
+			&i.WorkspaceID,
+			&i.SenderID,
+			&i.Kind,
+			&i.Body,
+			&i.Metadata,
+			&i.ReplyToMessageID,
+			&i.EditedAt,
+			&i.CreatedAt,
+			&i.ClientMsgID,
+			&i.SenderDisplayName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listChatRoomMemberUserIDs = `-- name: ListChatRoomMemberUserIDs :many
 SELECT user_id FROM chat_room_members
 WHERE room_id = $1 AND status IN ('invited', 'active')

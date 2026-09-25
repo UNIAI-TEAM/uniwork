@@ -35,7 +35,9 @@ export default function OnboardingPage() {
           completing.current = false;
         }}
         onComplete={(ws) => {
-          push(ws ? paths.workspace(ws.organization_slug, ws.slug).tasks() : paths.root());
+          // `/` is the public landing page now; an onboarding that produced no
+          // workspace belongs on the picker, not on marketing.
+          push(ws ? paths.workspace(ws.organization_slug, ws.slug).tasks() : paths.workspaces());
         }}
       />
     </div>

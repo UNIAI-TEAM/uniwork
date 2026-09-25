@@ -79,7 +79,8 @@ describe("ChatCatchUpSheet", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Gửi bản nháp/ }));
+    // The whole row is no longer a button: creating a task is its own action beside "view source".
+    fireEvent.click(screen.getByRole("button", { name: "Tạo việc" }));
     expect(screen.getByTestId("create-task-dialog")).toHaveTextContent("msg-1:Gửi bản nháp");
   });
 
@@ -126,5 +127,87 @@ describe("ChatCatchUpSheet", () => {
 
     expect(screen.getByText("Bạn đã bắt kịp")).toBeInTheDocument();
     expect(screen.getByText("Không có tin mới kể từ lần đọc trước.")).toBeInTheDocument();
+  });
+
+  it("labels the brief as AI output with its generation time and covered period", () => {
+    render(
+      wrap(
+        <ChatCatchUpSheet
+          open
+          onOpenChange={vi.fn()}
+          loading={false}
+          error={null}
+          result={brief}
+          workspaceId="ws1"
+          generatedAt={Date.parse("2026-09-14T08:30:00Z")}
+        />,
+      ),
+    );
+
+    expect(screen.getByText(/catch_up_attribution|Tóm tắt bởi AI/)).toBeInTheDocument();
+    const times = document.querySelectorAll("time");
+    expect([...times].map((node) => node.getAttribute("datetime"))).toEqual([
+      "2026-09-14T08:30:00.000Z",
+      "2026-09-14T00:00:00.000Z",
+    ]);
+  });
+
+  it("jumps to the source message of a suggested action and closes", () => {
+    const onOpenChange = vi.fn();
+    const onJump = vi.fn();
+    render(
+      wrap(
+        <ChatCatchUpSheet
+          open
+          onOpenChange={onOpenChange}
+          loading={false}
+          error={null}
+          result={brief}
+          workspaceId="ws1"
+          onJumpToMessage={onJump}
+        />,
+      ),
+    );
+
+    // Only the item that carries a source message id offers the jump.
+    const jumps = screen.getAllByRole("button", { name: /catch_up_view_source|tin gốc/i });
+    expect(jumps).toHaveLength(1);
+    fireEvent.click(jumps[0]!);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+    expect(onJump).toHaveBeenCalledWith("msg-1");
+  });
+
+  it("shows a skeleton with a screen-reader label while loading", () => {
+    render(
+      wrap(
+        <ChatCatchUpSheet open onOpenChange={vi.fn()} loading error={null} result={null} workspaceId="ws1" />,
+      ),
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("UNI đang đọc tin chưa đọc…");
+    expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(3);
+  });
+
+  it("shows a translated failure with the reason and a retry", () => {
+    const onRetry = vi.fn();
+    render(
+      wrap(
+        <ChatCatchUpSheet
+          open
+          onOpenChange={vi.fn()}
+          loading={false}
+          error="Tổ chức đã hết hạn mức token AI của tháng."
+          result={null}
+          onRetry={onRetry}
+          workspaceId="ws1"
+        />,
+      ),
+    );
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Không bắt kịp được lúc này.");
+    expect(alert).toHaveTextContent("Tổ chức đã hết hạn mức token AI của tháng.");
+    fireEvent.click(screen.getByRole("button", { name: "Thử lại" }));
+    expect(onRetry).toHaveBeenCalled();
   });
 });

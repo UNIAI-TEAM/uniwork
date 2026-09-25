@@ -1,5 +1,6 @@
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import type { Member } from "@uniwork/core/types/workspace";
+import { foldedIncludes } from "./chat-search-fold";
 
 export function memberToChatContact(member: { user_id: string; email: string; display_name: string }): ChatContact {
   const name = member.display_name.trim();
@@ -23,13 +24,13 @@ export function filterWorkspaceMembers(
     query: string;
   },
 ): Member[] {
-  const q = options.query.trim().toLowerCase();
+  const q = options.query.trim();
   return members.filter((member) => {
     if (member.user_id === options.currentUserId) return false;
     if (options.excludeUserIds?.has(member.user_id)) return false;
     if (!q) return true;
-    const label = memberDisplayLabel(member).toLowerCase();
-    return label.includes(q) || member.email.toLowerCase().includes(q);
+    // Accent-insensitive, so "tuan" finds "Tuấn".
+    return foldedIncludes(memberDisplayLabel(member), q) || foldedIncludes(member.email, q);
   });
 }
 
@@ -48,4 +49,22 @@ export function shouldLookupEmailOutsideWorkspace(
   const normalized = query.trim().toLowerCase();
   if (!normalized.includes("@")) return false;
   return findWorkspaceMemberByEmail(members, normalized) === null;
+}
+
+/**
+ * Why a picker list is empty, so the line under it tells the truth:
+ * a typed query that matched no one, a workspace with nobody else in it
+ * yet, or everyone already picked (or already in the room).
+ */
+type MemberPickerEmptyReason = "no_match" | "no_other_members" | "all_picked";
+
+export function memberPickerEmptyReason({
+  query,
+  hasOtherMembers,
+}: {
+  query: string;
+  hasOtherMembers: boolean;
+}): MemberPickerEmptyReason {
+  if (query.trim()) return "no_match";
+  return hasOtherMembers ? "all_picked" : "no_other_members";
 }

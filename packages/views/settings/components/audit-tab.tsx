@@ -8,7 +8,21 @@ import { CollectionPageState } from "../../layout/collection-page";
 import { useWorkspace } from "../../layout/workspace-context";
 import { AuditExports, AuditRetention } from "./audit-exports";
 import { AuditLog } from "./audit-log";
-import { SettingsTab } from "./settings-layout";
+import { SettingsSkeletonRows, SettingsTab } from "./settings-layout";
+
+/** The tab's shape while the role loads: the filter row, then the log's rows. */
+function AuditTabSkeleton() {
+  return (
+    <div className="space-y-3" aria-hidden>
+      <div className="flex flex-wrap gap-2">
+        <Skeleton className="h-9 w-48" />
+        <Skeleton className="h-9 w-44" />
+        <Skeleton className="h-9 w-48" />
+      </div>
+      <SettingsSkeletonRows rows={5} withAvatar />
+    </div>
+  );
+}
 
 export function AuditTab() {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.audit" });
@@ -19,7 +33,7 @@ export function AuditTab() {
   if (permissionsLoading) {
     return (
       <SettingsTab title={t("title")} description={t("description")}>
-        <Skeleton className="h-64 w-full" />
+        <AuditTabSkeleton />
       </SettingsTab>
     );
   }
@@ -32,6 +46,7 @@ export function AuditTab() {
           title={t("forbidden_title")}
           description={t("forbidden_description")}
           role="status"
+          headingLevel={3}
         />
       </SettingsTab>
     );
@@ -39,7 +54,9 @@ export function AuditTab() {
 
   return (
     <SettingsTab title={t("title")} description={t("description")}>
-      <AuditLog orgId={orgId} workspaceId={workspace.id} />
+      {/* The server sends an IP address to the owner only (viewsFor in
+          audit_service.go), which is exactly who may manage audit settings. */}
+      <AuditLog orgId={orgId} workspaceId={workspace.id} canSeeIp={canManage.allowed} />
       <AuditRetention orgId={orgId} canManage={canManage.allowed} />
       <AuditExports orgId={orgId} canManage={canManage.allowed} />
     </SettingsTab>

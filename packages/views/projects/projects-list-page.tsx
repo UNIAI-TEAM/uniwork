@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { FolderKanban, Pin, Plus, Search, Trash2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
+import { DEFAULT_LOCALE } from "@uniwork/core/i18n";
 import {
   PROJECT_PRIORITY_ORDER,
   PROJECT_STATUS_ORDER,
@@ -324,7 +325,7 @@ export function ProjectsListPage({
     });
 
   const showEmpty = !isLoading && projects.length === 0;
-  const locale = i18n.language || "vi";
+  const locale = i18n.language || DEFAULT_LOCALE;
 
   const submitCreate = () => {
     const title = createTitle.trim();

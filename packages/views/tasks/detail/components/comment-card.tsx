@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { CheckCircle2, ChevronRight, Copy, MoreHorizontal, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@uniwork/core/auth";
+import { DEFAULT_LOCALE } from "@uniwork/core/i18n";
 import type { UploadFileFn } from "@uniwork/core/hooks/use-file-upload";
 import type { Attachment, TaskComment } from "@uniwork/core/types";
 import { ReactionBar } from "@uniwork/ui/components/common/reaction-bar";
@@ -52,7 +53,7 @@ function CommentEntry({ taskId, comment, attachments, uploadFile, highlighted, c
   const canEdit = !!callbacks.onEdit && (isOwn || canModerate);
   const canDelete = !!callbacks.onDelete && (isOwn || canModerate);
   const resolved = !!comment.resolved_at;
-  const locale = i18n.resolvedLanguage ?? i18n.language ?? "vi";
+  const locale = i18n.resolvedLanguage ?? i18n.language ?? DEFAULT_LOCALE;
   const edited = !!comment.updated_at && comment.updated_at !== comment.created_at;
   const displayedAt = edited ? comment.updated_at : comment.created_at;
   const timeAgo = now === null

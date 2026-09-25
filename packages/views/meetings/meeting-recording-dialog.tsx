@@ -1,6 +1,6 @@
 "use client";
 
-import { LoaderCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -19,6 +19,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@uniwork/ui/components/ui/dialog";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { Notice } from "../common/notice";
+import { MeetingSectionLoading } from "./meeting-section-state";
 
 export function MeetingRecordingDialog({
   open,
@@ -107,18 +110,20 @@ export function MeetingRecordingDialog({
           <DialogTitle>{t("meetings.recording_play_title")}</DialogTitle>
         </DialogHeader>
         {status === "loading" ? (
-          <div className="flex items-center justify-center gap-2 py-8 text-muted-foreground">
-            <LoaderCircle aria-hidden className="size-5 animate-spin" />
-            <span>{t("meetings.recording_play_loading")}</span>
-          </div>
+          // Shaped like the player it turns into, so the dialog does not jump.
+          <MeetingSectionLoading label={t("meetings.recording_play_loading")}>
+            <Skeleton aria-hidden className="aspect-video w-full rounded-md" />
+          </MeetingSectionLoading>
         ) : null}
         {status === "error" ? (
-          <p className="py-4 text-body text-destructive">{t("meetings.recording_play_error")}</p>
+          <Notice tone="destructive" icon={AlertCircle} layout="inline" live="assertive">
+            {t("meetings.recording_play_error")}
+          </Notice>
         ) : null}
         {status === "ready" && playbackUrlRef.current ? (
           /* eslint-disable-next-line jsx-a11y/media-has-caption -- meeting recording playback has no caption track */
           <video
-            className="max-h-[min(70vh,720px)] w-full rounded-md bg-black object-contain"
+            className="max-h-[min(70vh,720px)] w-full rounded-md bg-meeting-video-bg object-contain"
             controls
             playsInline
             preload="metadata"

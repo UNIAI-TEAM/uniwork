@@ -54,6 +54,20 @@ describe("create task draft store", () => {
     expect(useCreateTaskDraftStore.getState().draftFor("ws1")).toBeNull();
   });
 
+  it("keeps an agent prompt and actor even when the manual fields are blank", () => {
+    useCreateTaskDraftStore.getState().setDraft("ws1", {
+      title: "",
+      agentPrompt: "Điều tra lỗi đăng nhập",
+      agentId: "agent-1",
+      idempotencyKey: "agent-key",
+    });
+
+    expect(useCreateTaskDraftStore.getState().draftFor("ws1")).toMatchObject({
+      agentPrompt: "Điều tra lỗi đăng nhập",
+      agentId: "agent-1",
+    });
+  });
+
   it("keeps the idempotency key until the accepted draft is cleared", () => {
     useCreateTaskDraftStore.getState().setDraft("ws1", {
       title: "Việc A",

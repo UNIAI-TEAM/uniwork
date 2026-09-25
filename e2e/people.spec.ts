@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { VI_LOCALE_STATE } from "./locale-state";
 import { VERIFICATION_CODE, verifyEmail } from "./auth-nav";
 
 // The golden path for F-03: an organization stops being a shell around
@@ -43,7 +44,7 @@ async function registerInvitee(page: Page, name: string, email: string) {
 }
 
 test("directory, department, accent-insensitive search, then deactivation", async ({ browser }) => {
-  const ownerContext = await browser.newContext();
+  const ownerContext = await browser.newContext({ storageState: VI_LOCALE_STATE });
   const owner = await ownerContext.newPage();
   await registerFounder(owner, "Đỗ Thị Hà", ownerEmail);
 
@@ -66,7 +67,7 @@ test("directory, department, accent-insensitive search, then deactivation", asyn
   await expect(owner).toHaveURL(new RegExp(`/${orgSlug}/doi-danh-ba/tasks$`), { timeout: 15_000 });
   await owner.getByRole("button", { name: "Để sau" }).click();
 
-  const memberContext = await browser.newContext();
+  const memberContext = await browser.newContext({ storageState: VI_LOCALE_STATE });
   const member = await memberContext.newPage();
   await registerInvitee(member, "Nguyễn Văn Ân", memberEmail);
   await member.goto("/invitations");
@@ -80,7 +81,7 @@ test("directory, department, accent-insensitive search, then deactivation", asyn
   await expect(owner.getByText("1 thành viên", { exact: false })).toHaveCount(0);
 
   await owner.goto(`/${orgSlug}/doi-danh-ba/people`);
-  await owner.getByRole("link", { name: /Nguyễn Văn Ân/ }).click();
+  await owner.getByRole("link", { name: "Nguyễn Văn Ân", exact: true }).click();
   await owner.getByRole("button", { name: "Sửa hồ sơ" }).click();
   await owner.getByLabel("Chức danh").fill("Trưởng nhóm");
   await owner.getByLabel("Phòng ban").click();
@@ -90,7 +91,7 @@ test("directory, department, accent-insensitive search, then deactivation", asyn
 
   // The colleague finds them without typing a single diacritic.
   await member.goto(`/${orgSlug}/doi-danh-ba/people`);
-  await member.getByRole("textbox", { name: "Tìm người" }).fill("nguyen van an");
+  await member.getByRole("searchbox", { name: "Tìm người" }).fill("nguyen van an");
   // The card carries the job title and the department as separate lines; only
   // the name is the link, so the card itself is the list item around it.
   // Scoped to the content region: the sidebar's account menu is a list item
@@ -114,6 +115,8 @@ test("directory, department, accent-insensitive search, then deactivation", asyn
     .filter({ hasText: memberEmail })
     .getByRole("button", { name: "Vô hiệu hóa" })
     .click();
+  // Deactivation locks the person out, so it goes through a confirmation.
+  await owner.getByRole("alertdialog").getByRole("button", { name: "Vô hiệu hóa" }).click();
   await expect(owner.getByText("Đã vô hiệu hóa thành viên")).toBeVisible({ timeout: 15_000 });
 
   await member.goto(`/${orgSlug}/doi-danh-ba/tasks`);

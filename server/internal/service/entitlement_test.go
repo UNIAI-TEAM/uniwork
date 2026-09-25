@@ -147,6 +147,9 @@ func TestNewOrganizationIsOnTheDefaultPlan(t *testing.T) {
 	if e, ok := lookup(snap.Entitlements, FeatureAITokens); !ok || !e.Metered || e.Limit == nil || *e.Limit != 500000 {
 		t.Fatalf("ai.tokens must be metered with the G2 default: %+v", e)
 	}
+	if e, ok := lookup(snap.Entitlements, FeatureTasksMax); !ok || !e.Metered || e.Limit != nil {
+		t.Fatalf("tasks.max must be metered and unlimited on starter: %+v", e)
+	}
 	if e, ok := lookup(snap.Entitlements, "storage.bytes"); !ok || e.Metered {
 		t.Fatalf("storage.bytes has no consumer yet and must not claim to be metered: %+v", e)
 	}

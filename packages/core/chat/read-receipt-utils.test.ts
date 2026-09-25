@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isMessageSeenByPeer, shouldShowReadReceipt } from "./read-receipt-utils";
+import { isMessageSeenByPeer, latestSeenOwnMessageIndex, shouldShowReadReceipt } from "./read-receipt-utils";
 
 describe("isMessageSeenByPeer", () => {
   it("returns false without a peer cursor", () => {
@@ -46,5 +46,30 @@ describe("shouldShowReadReceipt", () => {
     expect(
       shouldShowReadReceipt({ messages, index: 3, currentUserId: me, peerLastReadAt: cursor }),
     ).toBe(false);
+  });
+});
+
+describe("latestSeenOwnMessageIndex", () => {
+  const messages = [
+    { sender: "me", ts: 1_000 },
+    { sender: "peer", ts: 2_000 },
+    { sender: "me", ts: 3_000 },
+    { sender: "me", ts: 5_000 },
+  ];
+
+  it("picks the latest own message the peer has read, matching shouldShowReadReceipt", () => {
+    const peer = new Date(4_000).toISOString();
+    const index = latestSeenOwnMessageIndex(messages, "me", peer);
+    expect(index).toBe(2);
+    messages.forEach((_, i) => {
+      expect(shouldShowReadReceipt({ messages, index: i, currentUserId: "me", peerLastReadAt: peer })).toBe(
+        i === index,
+      );
+    });
+  });
+
+  it("is -1 without a cursor or when nothing of mine was read", () => {
+    expect(latestSeenOwnMessageIndex(messages, "me", null)).toBe(-1);
+    expect(latestSeenOwnMessageIndex(messages, "me", new Date(500).toISOString())).toBe(-1);
   });
 });

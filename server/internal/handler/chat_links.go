@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -60,6 +61,29 @@ func (h *handlers) listChatMessageLinks(w http.ResponseWriter, r *http.Request) 
 		middleware.UserID(r.Context()),
 		chi.URLParam(r, "workspaceID"),
 		chi.URLParam(r, "messageID"),
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	out := make([]sdo.ChatMessageLinkDTO, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, toChatMessageLinkDTO(row))
+	}
+	respondJSON(w, http.StatusOK, sdo.ChatMessageLinkListSDO{Links: out})
+}
+
+func (h *handlers) listChatRoomMessageLinks(w http.ResponseWriter, r *http.Request) {
+	var ids []string
+	if raw := r.URL.Query().Get("message_ids"); raw != "" {
+		ids = strings.Split(raw, ",")
+	}
+	rows, err := h.Chat.ListRoomMessageLinks(
+		r.Context(),
+		middleware.UserID(r.Context()),
+		chi.URLParam(r, "workspaceID"),
+		chi.URLParam(r, "roomID"),
+		ids,
 	)
 	if err != nil {
 		h.mapServiceError(w, err)

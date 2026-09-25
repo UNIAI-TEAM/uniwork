@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS email_hub_scheduled_sends_due_idx;

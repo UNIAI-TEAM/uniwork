@@ -14,8 +14,8 @@ beforeAll(() => {
 });
 
 describe("voiceCallInitialOf", () => {
-  it("uses first letters of first and last name", () => {
-    expect(voiceCallInitialOf("Tran Hoang Long")).toBe("TL");
+  it("uses the one-letter fallback every chat avatar uses", () => {
+    expect(voiceCallInitialOf("Tran Hoang Long")).toBe("T");
   });
 
   it("falls back to first character for single token names", () => {
@@ -91,6 +91,48 @@ describe("VoiceCallFloatingPanel", () => {
     expect(screen.getByText("video")).toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("Thu về cửa sổ"));
     expect(onMinimize).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("VoiceCallFloatingPanel focus", () => {
+  function Harness({ mode, onMinimize, onMaximize }: { mode: "expanded" | "minimized"; onMinimize: () => void; onMaximize: () => void }) {
+    return (
+      <VoiceCallFloatingPanel
+        peerName="Long"
+        statusLabel="Đã kết nối"
+        mode={mode}
+        onMinimize={onMinimize}
+        onMaximize={onMaximize}
+      >
+        <span>body</span>
+      </VoiceCallFloatingPanel>
+    );
+  }
+
+  it("moves focus to the control that undoes a minimise or expand", () => {
+    const props = { onMinimize: vi.fn(), onMaximize: vi.fn() };
+    const { rerender } = render(wrap(<Harness mode="expanded" {...props} />));
+    expect(screen.getByRole("region", { name: "Cuộc gọi với Long · Đã kết nối" })).toBeInTheDocument();
+
+    rerender(wrap(<Harness mode="minimized" {...props} />));
+    expect(screen.getByLabelText("Mở rộng cuộc gọi")).toHaveFocus();
+
+    rerender(wrap(<Harness mode="expanded" {...props} />));
+    expect(screen.getByLabelText("Thu nhỏ cuộc gọi")).toHaveFocus();
+  });
+
+  it("keeps the recording badge on the minimised pill", () => {
+    render(
+      wrap(
+        <VoiceCallFloatingPanel
+          peerName="Long"
+          statusLabel="Đã kết nối"
+          mode="minimized"
+          indicator={<span data-testid="rec">REC</span>}
+        />,
+      ),
+    );
+    expect(screen.getByTestId("rec")).toBeInTheDocument();
   });
 });
 

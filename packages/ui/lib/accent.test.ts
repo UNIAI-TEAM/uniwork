@@ -21,7 +21,7 @@ describe("accent themes", () => {
 
   it("writes the four derivation properties tokens.css reads", () => {
     // A missing property makes oklch() invalid and the brand slot falls back to
-    // the inherited violet — a silent no-op rather than an error.
+    // the inherited default blue — a silent no-op rather than an error.
     applyAccent("blue", document.documentElement);
     const root = document.documentElement;
     expect(root.getAttribute("data-accent")).toBe("blue");

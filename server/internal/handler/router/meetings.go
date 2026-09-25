@@ -9,7 +9,7 @@ import (
 
 func registerMeetings(r api, h Routes) {
 	r.Get("/workspaces/{workspaceID}/meetings", h.ListMeetings, apiOp{
-		summary: "List meetings", tags: []string{"meetings"}, sdo: sdo.MeetingListSDO{}, auth: true,
+		summary: "List meetings", tags: []string{"meetings"}, sdi: sdi.ListMeetingsSDI{}, sdo: sdo.MeetingListSDO{}, auth: true,
 	})
 	r.Get("/workspaces/{workspaceID}/meeting-statistics", h.MeetingStatistics, apiOp{
 		summary: "Meeting statistics", tags: []string{"meetings"}, sdo: sdo.MeetingStatisticsSDO{}, auth: true,

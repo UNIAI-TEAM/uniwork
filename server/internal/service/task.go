@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"net/http"
 	"slices"
@@ -33,12 +34,14 @@ type TaskService struct {
 	q       *db.Queries
 	ws      *WorkspaceService
 	storage storage.Storage
+	// ent is the quota gate (F-02); built here so create can never skip it.
+	ent *EntitlementService
 	// Chat is optional; when set, CreateProject can provision a linked channel.
 	Chat *ChatService
 }
 
 func NewTaskService(pool *pgxpool.Pool, q *db.Queries, ws *WorkspaceService, store storage.Storage) *TaskService {
-	return &TaskService{pool: pool, q: q, ws: ws, storage: store}
+	return &TaskService{pool: pool, q: q, ws: ws, storage: store, ent: NewEntitlementService(pool, q)}
 }
 
 type CreateTaskInput struct {
@@ -50,6 +53,8 @@ type CreateTaskInput struct {
 	AssigneeKind  string // "" or human | agent (ADR 0007)
 	StartDate     *string
 	DueDate       *string
+	StartAt       *time.Time
+	DueAt         *time.Time
 	OriginType    string
 	OriginID      *string
 	ProjectID     *string // optional; must belong to the same workspace
@@ -58,10 +63,12 @@ type CreateTaskInput struct {
 	LabelIDs      []string
 	AttachmentIDs []string
 	Properties    map[string]json.RawMessage
+	// AllowDuplicate skips the active-title guard (CLI / explicit override).
+	AllowDuplicate bool
 }
 
-// UpdateTaskInput: con trỏ nil = không đổi; với AssigneeID/DueDate/ProjectID con trỏ
-// kép — con trỏ tới nil = xóa giá trị.
+// UpdateTaskInput: con trỏ nil = không đổi; với AssigneeID/StartDate/DueDate/StartAt/DueAt/ProjectID
+// con trỏ kép — con trỏ tới nil = xóa giá trị.
 type UpdateTaskInput struct {
 	Title        *string
 	Description  *string
@@ -70,7 +77,10 @@ type UpdateTaskInput struct {
 	Position     *float64
 	AssigneeID   **string
 	AssigneeKind string // read only when AssigneeID is set; "" means human
+	StartDate    **string
 	DueDate      **string
+	StartAt      **time.Time
+	DueAt        **time.Time
 	ProjectID    **string
 }
 
@@ -146,6 +156,13 @@ func nowTz() pgtype.Timestamptz {
 	return pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}
 }
 
+func optTz(t *time.Time) pgtype.Timestamptz {
+	if t == nil {
+		return pgtype.Timestamptz{}
+	}
+	return pgtype.Timestamptz{Time: t.UTC(), Valid: true}
+}
+
 // normalizedCreatorType maps ADR 0007 actor kinds onto the Tasks foundation
 // creator_type vocabulary (member|agent|system).
 func normalizedCreatorType(kind audit.Kind) string {
@@ -184,11 +201,20 @@ func taskAuditFields(t db.Task) map[string]any {
 		"assignee_kind":  t.AssigneeKind,
 		"start_date":     dateOrNil(t.StartDate),
 		"due_date":       dateOrNil(t.DueDate),
+		"start_at":       timeOrNil(t.StartAt),
+		"due_at":         timeOrNil(t.DueAt),
 		"position":       t.Position,
 		"project_id":     audit.Text(t.ProjectID.Valid, t.ProjectID.String),
 		"parent_task_id": audit.Text(t.ParentTaskID.Valid, t.ParentTaskID.String),
 		"stage":          int4OrNil(t.Stage),
 	}
+}
+
+func timeOrNil(t pgtype.Timestamptz) any {
+	if !t.Valid {
+		return nil
+	}
+	return t.Time.UTC().Format(time.RFC3339)
 }
 
 func dateOrNil(d pgtype.Date) any {
@@ -309,13 +335,19 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 	if !validPriority[in.Priority] {
 		return db.Task{}, Invalid("priority không hợp lệ")
 	}
-	start, err := parseDate(in.StartDate)
+	start, err := parseDate("start_date", in.StartDate)
 	if err != nil {
 		return db.Task{}, err
 	}
-	due, err := parseDate(in.DueDate)
+	due, err := parseDate("due_date", in.DueDate)
 	if err != nil {
 		return db.Task{}, err
+	}
+	if (in.StartAt == nil) != (in.DueAt == nil) {
+		return db.Task{}, Invalid("start_at và due_at phải được đặt cùng nhau")
+	}
+	if in.StartAt != nil && !in.DueAt.After(*in.StartAt) {
+		return db.Task{}, Invalid("due_at phải sau start_at")
 	}
 	if in.Stage != nil && *in.Stage < 1 {
 		return db.Task{}, Invalid("stage phải từ 1 trở lên")
@@ -340,6 +372,15 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 	if err != nil {
 		return db.Task{}, err
 	}
+	if err := s.guardActiveDuplicateTask(ctx, q, ws, projectID, parentTaskID, in.Title, in.AllowDuplicate); err != nil {
+		return db.Task{}, err
+	}
+	if err := s.ent.Consume(ctx, q, ConsumeInput{
+		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
+		Meter: FeatureTasksMax, Delta: 1, Actor: actor,
+	}); err != nil {
+		return db.Task{}, err
+	}
 	minPos, err := q.MinTaskPosition(ctx, db.MinTaskPositionParams{
 		OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID, Status: status,
 	})
@@ -357,6 +398,7 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 		Number: number, Title: strings.TrimSpace(in.Title), Description: in.Description,
 		Status: status, Priority: in.Priority, AssigneeID: optText(in.AssigneeID), AssigneeKind: assigneeKind,
 		AssigneeType: normalizedAssigneeType(in.AssigneeID, assigneeKind), StartDate: start, DueDate: due,
+		StartAt: optTz(in.StartAt), DueAt: optTz(in.DueAt),
 		Position: minPos - 1024, CreatedBy: actor.ID, CreatedByKind: string(actor.Kind),
 		CreatorID: actor.ID, CreatorType: normalizedCreatorType(actor.Kind),
 		Revision: 1, LastActivityAt: nowTz(),
@@ -426,6 +468,65 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 		return db.Task{}, err
 	}
 	return task, nil
+}
+
+func normalizeTaskTitle(title string) string {
+	return strings.ToLower(strings.Join(strings.Fields(title), " "))
+}
+
+// guardActiveDuplicateTask serializes creates that share the same normalized
+// title under one workspace/project/parent and refuses a second active row
+// unless AllowDuplicate is set (active duplicate-task parity).
+func (s *TaskService) guardActiveDuplicateTask(
+	ctx context.Context,
+	q *db.Queries,
+	ws db.Workspace,
+	projectID, parentTaskID pgtype.Text,
+	title string,
+	allowDuplicate bool,
+) error {
+	normalized := normalizeTaskTitle(title)
+	if normalized == "" {
+		return nil
+	}
+	lockKey := strings.Join([]string{
+		"task-active-duplicate",
+		ws.OrganizationID,
+		ws.ID,
+		projectID.String,
+		parentTaskID.String,
+		normalized,
+	}, "|")
+	if err := q.LockTaskDuplicateKey(ctx, lockKey); err != nil {
+		return err
+	}
+	if allowDuplicate {
+		return nil
+	}
+	dup, err := q.FindActiveDuplicateTask(ctx, db.FindActiveDuplicateTaskParams{
+		OrganizationID:  ws.OrganizationID,
+		WorkspaceID:     ws.ID,
+		ProjectID:       projectID,
+		ParentTaskID:    parentTaskID,
+		NormalizedTitle: normalized,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return CodedError{
+		Code:   "active_duplicate_task",
+		Status: http.StatusConflict,
+		Msg:    fmt.Sprintf("đã có task đang mở với tiêu đề này: %s-%d – %s", ws.TaskPrefix, dup.Number, dup.Title),
+		Err:    ErrConflict,
+		Fields: map[string]any{
+			"task_id":    dup.ID,
+			"identifier": fmt.Sprintf("%s-%d", ws.TaskPrefix, dup.Number),
+			"title":      dup.Title,
+		},
+	}
 }
 
 func normalizeCreateTaskProperties(
@@ -536,6 +637,17 @@ func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor A
 	if in.Title != nil && strings.TrimSpace(*in.Title) == "" {
 		return db.Task{}, Invalid("tiêu đề không được để trống")
 	}
+	if (in.StartAt == nil) != (in.DueAt == nil) {
+		return db.Task{}, Invalid("start_at và due_at phải được đặt cùng nhau")
+	}
+	if in.StartAt != nil {
+		if (*in.StartAt == nil) != (*in.DueAt == nil) {
+			return db.Task{}, Invalid("start_at và due_at phải cùng có giá trị hoặc cùng null")
+		}
+		if *in.StartAt != nil && !(*in.DueAt).After(**in.StartAt) {
+			return db.Task{}, Invalid("due_at phải sau start_at")
+		}
+	}
 	task, err := q.UpdateTask(ctx, db.UpdateTaskParams{
 		ID: before.ID, OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
 		Title: optText(in.Title), Description: optText(in.Description),
@@ -563,13 +675,35 @@ func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor A
 			return db.Task{}, err
 		}
 	}
+	if in.StartDate != nil {
+		start, serr := parseDate("start_date", *in.StartDate)
+		if serr != nil {
+			return db.Task{}, serr
+		}
+		task, err = q.SetTaskStartDate(ctx, db.SetTaskStartDateParams{
+			ID: before.ID, StartDate: start,
+			OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
+		})
+		if err != nil {
+			return db.Task{}, err
+		}
+	}
 	if in.DueDate != nil {
-		due, derr := parseDate(*in.DueDate)
+		due, derr := parseDate("due_date", *in.DueDate)
 		if derr != nil {
 			return db.Task{}, derr
 		}
 		task, err = q.SetTaskDueDate(ctx, db.SetTaskDueDateParams{
 			ID: before.ID, DueDate: due,
+			OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
+		})
+		if err != nil {
+			return db.Task{}, err
+		}
+	}
+	if in.StartAt != nil {
+		task, err = q.SetTaskScheduleTimes(ctx, db.SetTaskScheduleTimesParams{
+			ID: before.ID, StartAt: optTz(*in.StartAt), DueAt: optTz(*in.DueAt),
 			OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
 		})
 		if err != nil {
@@ -679,13 +813,14 @@ func (s *TaskService) CommentReactionsForTask(ctx context.Context, userID, taskI
 	})
 }
 
-func parseDate(s *string) (pgtype.Date, error) {
+// parseDate reads an optional YYYY-MM-DD value; field names it in the error.
+func parseDate(field string, s *string) (pgtype.Date, error) {
 	if s == nil || *s == "" {
 		return pgtype.Date{}, nil
 	}
 	t, err := time.Parse("2006-01-02", *s)
 	if err != nil {
-		return pgtype.Date{}, Invalid("due_date phải dạng YYYY-MM-DD")
+		return pgtype.Date{}, Invalid(field + " phải dạng YYYY-MM-DD")
 	}
 	return pgtype.Date{Time: t, Valid: true}, nil
 }

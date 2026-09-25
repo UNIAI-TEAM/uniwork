@@ -25,6 +25,18 @@ function errorMessage(err: unknown, t: (key: string) => string): string {
   return t("chat.ai.catch_up_failed");
 }
 
+/*
+ * The catch-up API returns no generation timestamp, so the moment the
+ * response reached the client stands in for it. Keyed by the response object
+ * so the sheet can read it without another prop threaded through the page.
+ */
+const generatedAtByResult = new WeakMap<ChatCatchUpResponse, number>();
+
+/** When this brief was generated (client receive time), or null if unknown. */
+export function catchUpGeneratedAt(result: ChatCatchUpResponse | null): number | null {
+  return result ? (generatedAtByResult.get(result) ?? null) : null;
+}
+
 /** Clear sidebar badge without replacing the array when already zero. */
 function clearLocalUnread(
   qc: ReturnType<typeof useQueryClient>,
@@ -89,18 +101,21 @@ export function useChatCatchUpUi(workspaceId: string, roomId: string | null, thr
         thread_root_id: threadRootId || undefined,
         locale: i18n.language?.startsWith("en") ? "en" : "vi",
       });
+      generatedAtByResult.set(res, Date.now());
       setResult(res);
     } catch (err) {
       setError(errorMessage(err, t));
     }
   }, [catchUp, i18n.language, roomId, t, threadRootId]);
 
+  // Closing counts as "caught up" only when a brief was actually shown; a
+  // failed or still-loading summary leaves the unread window for next time.
   const onOpenChange = useCallback(
     (next: boolean) => {
       setOpen(next);
-      if (!next) flushRead(roomId);
+      if (!next && result) flushRead(roomId);
     },
-    [flushRead, roomId],
+    [flushRead, result, roomId],
   );
 
   return {

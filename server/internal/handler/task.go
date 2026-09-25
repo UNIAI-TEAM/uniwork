@@ -57,6 +57,14 @@ func fillLegacyTaskDTOFields(out sdo.TaskDTO, t db.Task) sdo.TaskDTO {
 		s := t.StartDate.Time.Format("2006-01-02")
 		out.StartDate = &s
 	}
+	if t.StartAt.Valid {
+		s := t.StartAt.Time.UTC().Format(time.RFC3339)
+		out.StartAt = &s
+	}
+	if t.DueAt.Valid {
+		s := t.DueAt.Time.UTC().Format(time.RFC3339)
+		out.DueAt = &s
+	}
 	if t.ProjectID.Valid {
 		s := t.ProjectID.String
 		out.ProjectID = &s
@@ -286,7 +294,33 @@ func parseTaskPatch(raw map[string]json.RawMessage) (service.UpdateTaskInput, er
 	if in.AssigneeID, err = nullable("assignee_id"); err != nil {
 		return in, err
 	}
+	if in.StartDate, err = nullable("start_date"); err != nil {
+		return in, err
+	}
 	if in.DueDate, err = nullable("due_date"); err != nil {
+		return in, err
+	}
+	nullableTime := func(k string) (**time.Time, error) {
+		v, ok := raw[k]
+		if !ok {
+			return nil, nil
+		}
+		if string(v) == "null" {
+			var p *time.Time
+			return &p, nil
+		}
+		var parsed time.Time
+		if err := json.Unmarshal(v, &parsed); err != nil {
+			return nil, fmt.Errorf("%s phải là thời điểm RFC3339 hoặc null", k)
+		}
+		parsed = parsed.UTC()
+		p := &parsed
+		return &p, nil
+	}
+	if in.StartAt, err = nullableTime("start_at"); err != nil {
+		return in, err
+	}
+	if in.DueAt, err = nullableTime("due_at"); err != nil {
 		return in, err
 	}
 	if in.ProjectID, err = nullable("project_id"); err != nil {

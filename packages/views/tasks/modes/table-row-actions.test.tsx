@@ -80,8 +80,7 @@ beforeEach(() => {
         group_key: "status:todo",
         parent_id: null,
         total: 1,
-        rows: [{ task: task({}), direct_child_count: 0 }],
-        branch_total: 1,
+        rows: [{ task: task({}), direct_child_count: 0, labels: [] }],
         next_cursor: null,
       };
     }
@@ -122,7 +121,9 @@ async function renderTable() {
       </NavigationProvider>,
     ),
   );
-  const row = (await screen.findByText("Task 1")).closest("tr") as HTMLElement;
+  // The table mounts behind a lazy surface and two queries; under a full
+  // parallel run the default 1s wait is not always enough for the first row.
+  const row = (await screen.findByText("Task 1", undefined, { timeout: 5000 })).closest("tr") as HTMLElement;
   return { onOpenTask, row };
 }
 

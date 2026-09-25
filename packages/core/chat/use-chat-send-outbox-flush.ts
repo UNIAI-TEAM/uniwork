@@ -24,7 +24,7 @@ export function useChatSendOutboxFlush(workspaceId: string, senderId: string): v
 
   const flush = useCallback(async () => {
     if (!workspaceId || !senderId || flushingRef.current) return;
-    const pending = useChatSendOutboxStore.getState().listForWorkspace(workspaceId);
+    const pending = useChatSendOutboxStore.getState().listForWorkspace(workspaceId, senderId);
     if (pending.length === 0) return;
 
     flushingRef.current = true;
@@ -59,6 +59,6 @@ export function useChatSendOutboxFlush(workspaceId: string, senderId: string): v
   }, [flush, ws?.client]);
 }
 
-export function useChatSendOutboxCount(workspaceId: string): number {
-  return useChatSendOutboxStore((state) => state.countForWorkspace(workspaceId));
+export function useChatSendOutboxCount(workspaceId: string, senderId: string): number {
+  return useChatSendOutboxStore((state) => state.countForWorkspace(workspaceId, senderId));
 }

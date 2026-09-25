@@ -4,6 +4,8 @@
 > lượt duyệt của chủ sở hữu sản phẩm; các quyết định ở §2 là lựa chọn của người viết
 > spec, câu hỏi cần quangpd quyết nằm ở §11). Lát 1 đã triển khai trên nhánh
 > `feature/UNI-451-home-trang-chu` (plan `../plans/2026-09-14-home-trang-chu.md`), chưa merge.
+> Làm lại giao diện 2026-09-24: khối "Tóm tắt hôm nay" đã bỏ, nội dung chuyển vào dòng
+> dưới lời chào; xem §"Làm lại 2026-09-24" cuối file — mục đó thắng các chỗ cũ bên trên.
 
 **Ngày:** 2026-09-14
 **Issue:** UNI-451 (A-05 · Insights: home brief, dashboard inline, work economics) — lát 1
@@ -69,7 +71,7 @@ tiêu đề (`home-task-kind.ts`: email/họp/chat/tài liệu) và phím R "tra
 | 7 | "Hôm nay" tính theo **`users.timezone`** (mặc định `Asia/Ho_Chi_Minh`) trên server; `due_date` là `DATE` nên so bằng ngày | `due_date` không có giờ; múi giờ người dùng đã có từ F-07 |
 | 8 | "Sắp tới" = **cuộc họp** của workspace bắt đầu từ đầu hôm nay đến hết ngày mai, `status ∈ {SCHEDULED, IN_PROGRESS}`, mà tôi là host, người tạo, hoặc participant còn hiệu lực; IN_PROGRESS (đang diễn ra) luôn vào; tối đa 5. **Không** gộp deadline task | Deadline đã nằm trong "Công việc của tôi" (#5); gộp gây trùng dòng |
 | 9 | "Hộp việc" = **8 thông báo chưa đọc** của workspace này, dùng `notification.Service.List` và `NotificationRow`/`resourceHref` sẵn có; mở dòng = đánh dấu đã đọc rồi đi tới tài nguyên | Không viết lại logic deep link; nhất quán với `/inbox` |
-| 10 | Tổng quan hôm nay là **dải số inline** (đến hạn hôm nay · quá hạn · họp hôm nay · chưa đọc), không phải KPI card | PRODUCT.md anti-reference "hero KPI cards"; số chưa đọc lấy từ `unread-count` theo workspace |
+| 10 | Tổng quan hôm nay là **bốn ô số** (đến hạn hôm nay · quá hạn · họp hôm nay · chưa đọc), mỗi ô một ký hiệu: đến hạn/quá hạn mang màu tín hiệu (warning/destructive, về xám khi bằng 0), họp/chưa đọc mang tint module như sidebar. *Sửa 2026-09-18 (UNI-704): ban đầu là dải số inline, không KPI card* | PRODUCT.md 2026-09-17 cho phép thẻ chỉ số khi đếm record thật của màn đang xem; số chưa đọc lấy từ `unread-count` theo workspace |
 | 11 | Tóm tắt hôm nay là **hàm thuần phía client** (`packages/core/home/brief.ts`) sinh `{key, params}` render qua `t()`; tối đa 3 dòng; không dòng nào → ẩn khối | Không có nội dung server-side cần dịch; test được không cần DB; "không có dữ liệu" thay vì 0 |
 | 12 | Tuỳ chọn Home lưu ở bảng mới **`home_preferences`** `(organization_id, workspace_id, user_id, prefs JSONB)`, PK `(workspace_id, user_id)`; server chỉ kiểm `prefs` là object ≤ 8 KiB; client chuẩn hoá bằng zod với fallback mặc định | Theo mẫu `task_view_preferences`; bản cũ dùng chung bảng dashboard với tiền tố `home.` — UniWork chưa có dashboard nên bảng riêng rõ hơn |
 | 13 | Ghi prefs **không audit, không outbox** | Cài đặt cá nhân về cách hiển thị, không phải trạng thái nghiệp vụ; cùng cách xử lý với `task_view_preferences` và `notification_preferences` |
@@ -217,7 +219,7 @@ ba nhóm này.
 - `home/home-view.tsx` — ghép khối theo prefs, lưới theo `layout`, thông báo `partial`.
 - `home/home-view.tsx` cũng chứa lời chào theo giờ và phụ đề theo `counts`; header dùng `CollectionPageHeader`
   với hai hành động Tuỳ chỉnh và Làm mới (không có nút tạo nhanh: tạo việc đã có ở top bar).
-- `home/home-stats.tsx` — dải số inline (link tới `/tasks`, `/my-tasks`, `/meetings`, `/inbox`).
+- `home/home-stats.tsx` — bốn ô số (đến hạn/quá hạn đưa focus tới việc đầu tiên trong Công việc của tôi; họp → `/meetings`, chưa đọc → `/inbox`); ký hiệu dùng chung với tóm tắt ở `home/home-marks.ts`.
 - `home/home-my-work.tsx`, `home/home-my-work-row.tsx`, `home/use-my-work-keys.ts` —
   danh sách, chọn nhiều, hoàn thành, hàng loạt, phím tắt.
 - `home/home-upcoming.tsx` — cuộc họp; IN_PROGRESS có nút "Vào họp" tới `ws.room(id)`.
@@ -225,7 +227,7 @@ ba nhóm này.
 - `home/home-brief.tsx` — render `buildHomeBrief`.
 - `home/home-customize-panel.tsx` — bật/tắt, lên/xuống, mật độ, preset, đặt lại.
 - `home/home-partial-notice.tsx` — nhãn nguồn lỗi + nút thử lại; mỗi khối dùng `PanelCard` (`common/panel-card.tsx`).
-- `home/home-layout.ts` + `home-layout.test.ts` — `homeGridClass(layout)`, `homeSpanClass(key, layout)` (chuỗi class Tailwind phải nằm trong `views` để được quét).
+- `home/home-layout.ts` + `home-layout.test.ts` — `homeGridClass(layout)`, `homeSpanClass(key, layout)` cho gọn/rộng (chuỗi class Tailwind phải nằm trong `views` để được quét); cân bằng dùng `homeBalancedBands(keys)`: công việc + hộp việc ở cột chính, sắp tới + tóm tắt ở cột phụ, dưới `xl` gộp một cột theo thứ tự người dùng chọn.
 - Test: `home-view.test.tsx` (loading / lỗi / rỗng / có dữ liệu / partial / prefs ẩn hết),
   `home-my-work.test.tsx` (hoàn thành gọi PATCH, hàng loạt gọi batch-update, phím tắt),
   `home-customize-panel.test.tsx`, `home-brief.test.tsx`, `home-layout.test.ts`.
@@ -331,3 +333,76 @@ là C-02); `/m/home`; `user_dashboard_prefs` dùng chung với tiền tố `home
 | 5 | "Sắp tới" có thêm deadline task ngày mai không? | Không (tránh trùng "Công việc của tôi") | Thêm query + kiểu dòng `task` trong khối |
 | 6 | Flag `home_page` bật mặc định cho org UNICOM ngay khi merge (override organization) hay chờ 48 giờ staging? | Chờ người bật qua console `/admin/flags` | Không ảnh hưởng mã |
 | 7 | Phát hiện lúc triển khai: `usePublicConfig` gọi `GET /api/v1/config` không kèm `organization_id`, nên override flag cấp **organization** không tới được web (cả `home_page` lẫn `chat_work_hub`); chỉ override `user` hoặc `global` có hiệu lực ở client. Sửa trong lát này hay issue riêng? | Không sửa trong lát này (ngoài phạm vi, chạm mọi flag) | Bật cho org UNICOM hiện phải bật theo từng user hoặc global |
+
+## Làm lại 2026-09-24
+
+Audit `/redesign-existing-projects` (2026-09-24) tìm ra: số liệu lặp 3–4 lần (ô số, phụ đề,
+Tóm tắt, huy hiệu), nguồn lỗi hiện thành "0" và "không có việc gấp", ba thẻ trống cho
+workspace mới, cột phụ lệch ở cả ba mật độ. Thay đổi — các mục này thay cho chỗ tương ứng ở trên:
+
+- **Bỏ khối `brief`.** `HOME_SECTION_KEYS` còn `stats | mywork | upcoming | inbox`; prefs cũ có
+  `brief` bị `normalizeHomePrefs` bỏ như mọi khoá lạ. `buildHomeBrief` → `buildHomeHeadline`:
+  **một** câu dưới lời chào, theo thứ tự nguồn lỗi → việc quá hạn lâu nhất (tên + số ngày) →
+  cuộc họp đang diễn ra → cuộc họp kế tiếp hôm nay (tên + giờ) → đến hạn hôm nay → chưa đọc →
+  không có việc gấp. Câu nêu điều ô số không nói được (tên, giờ), không lặp con số.
+- **Nguồn lỗi không bao giờ hiện số 0 như thật.** Server vẫn trả count = 0 khi một nguồn lỗi;
+  client đọc `partial`: ô số tương ứng hiện "—" + "Chưa tải được", không bấm được; khối chỉ hiện
+  dòng báo lỗi, không kèm trạng thái trống; câu dưới lời chào báo dữ liệu thiếu.
+- **Ô số có dòng ngữ cảnh**: Quá hạn "Lâu nhất N ngày", Cuộc họp "Kế tiếp HH:MM"/"Đang diễn ra".
+  Mũi tên ↓ cho ô nhảy trong trang, ↗ cho ô sang màn khác. Ô tự xuống 2 cột theo bề rộng khối
+  (container query), không theo viewport.
+- **Bố cục**: Cân bằng = Việc của tôi ở cột chính, Sắp tới + Hộp việc ở cột phụ. Rộng = lưới 4
+  cột thẳng với 4 ô số, Việc của tôi chiếm 2. Gọn = cả lời chào lẫn nội dung trong `max-w-3xl`.
+  Khối phụ không đổ bóng, chỉ Việc của tôi nổi.
+- **Workspace không có gì** (mọi nguồn trả lời, mọi danh sách và count rỗng): một panel "Hôm nay
+  chưa có gì chờ bạn" với ba bước — Tạo việc (mở dialog tạo việc), Lên lịch họp, Mời đồng đội —
+  thay cho ô số 0 và ba thẻ trống. Một khối rỗng giữa các khối có dữ liệu vẫn giữ trạng thái trống riêng.
+- **Việc của tôi**: nhóm theo hạn (Quá hạn · Hôm nay · Sắp tới · Chưa đặt hạn; bỏ tiêu đề khi chỉ
+  có một nhóm); thanh chọn chỉ hiện khi đã chọn; hàng đã chọn có nền `brand-subtle`; nút Hoàn thành
+  chỉ hiện khi rê chuột/focus (luôn hiện trên màn cảm ứng); gợi ý phím chỉ hiện khi focus trong
+  khối; footer "Còn N việc nữa" khi `counts.open` lớn hơn số việc trả về; tiêu đề tối đa 2 dòng.
+- **Sắp tới**: tiêu đề ngày viết thường có hoa đầu câu (không còn overline mono chữ hoa), vạch 2px,
+  thêm thời lượng; giờ theo múi giờ của người dùng (`summary.timezone`), như lời chào.
+- **Hộp việc**: bỏ vạch "chưa đọc" (`NotificationRow unreadBar={false}`) vì mọi hàng ở đây đều chưa đọc.
+- **Tuỳ chỉnh** là Sheet bên phải thay vì chèn giữa trang; preset đang khớp được đánh dấu
+  (`activePreset`); "Preset nhanh" → "Mẫu có sẵn"; Đặt lại có toast Hoàn tác. Preset `doer` giờ tắt
+  Hộp việc (trước đó chỉ khác mặc định ở `brief`).
+- **Bỏ nút Làm mới** ở header: summary đã tự làm mới (staleTime 60s + realtime), lỗi có nút Thử lại riêng.
+- Skeleton theo đúng hình hàng; lỗi toàn trang nằm trong khung viền.
+- **Bỏ flag `home_page` (2026-09-25, quyết định của quangpd)** — thay §2 #2: gốc workspace luôn là
+  Trang chủ, sidebar luôn có mục "Trang chủ" đứng đầu. Flag đã rời catalogue (`featureflags/keys.go`)
+  và `HOME_PAGE_FLAG` rời `packages/core/feature-flags`; hàng override `home_page` còn trong DB bị
+  bỏ qua như mọi khoá không có trong catalogue. Câu hỏi §11 #6 không còn.
+
+
+## Audit impeccable 2026-09-25
+
+Audit `/impeccable audit` (15/20) sau đợt làm lại ở trên. Các mục dưới đây thay chỗ tương ứng:
+
+- **Thứ tự câu dưới lời chào**: cuộc họp **đang diễn ra** lên trước việc quá hạn (gấp theo phút),
+  kèm nút "Vào họp" ngay cạnh câu (`HomeHeadline.liveMeetingId`).
+- **Lời chào gọi tên**, không gọi cả họ tên: `greetingName` lấy chữ cuối khi chữ đầu là họ Việt
+  phổ biến (có hay không dấu), còn lại lấy chữ đầu.
+- **Bố cục theo bề rộng trang, không theo viewport**: nội dung là container `@container/home`;
+  Cân bằng và Rộng chia cột từ `@5xl/home` (64rem), nên thu sidebar cũng được tính.
+  DOM luôn giữ đúng thứ tự người dùng lưu (thứ tự đọc/Tab = thứ tự đã chọn); Cân bằng dùng
+  lưới hai cột với Việc của tôi `row-span-full` ở cột chính, không còn `order-*`.
+  Rộng: mỗi khối đang hiện một cột, Việc của tôi 2fr, không còn ô trống khi ẩn khối;
+  mật độ Rộng được dùng tới `max-w-[100rem]`.
+- **Chờ prefs trước khi vẽ**: trong lúc prefs tải, trang hiện khung chờ thay vì vẽ Cân bằng rồi nhảy.
+- **Ô số**: số cỡ `title-lg` (nhỏ hơn lời chào); 4 cột và icon theo bề rộng khối; nhãn xuống dòng
+  thay vì cắt; mũi tên luôn hiện trên màn cảm ứng.
+- **Lịch họp**: khối "Sắp tới" đổi tên thành **"Lịch họp"** (en "Meetings") để không trùng nhóm
+  hạn "Sắp tới" trong Việc của tôi. Cột hẹp (< 20rem) đưa "Vào họp" xuống dưới tiêu đề.
+- **Khối phụ trống** (Lịch họp, Hộp việc): một dòng chữ, không icon, không nút — tiêu đề khối đã
+  có "Xem tất cả".
+- **Hoàn tác khi hoàn thành việc**: mọi lần hoàn thành (nút, chọn nhiều, phím C) có toast Hoàn tác,
+  trả mỗi việc về trạng thái cũ (`useReopenHomeTasks`). Footer "Còn N việc nữa" đếm theo việc còn mở
+  và ẩn khi nguồn việc lỗi.
+- **Thông báo**: đọc/bỏ đọc/đọc hết/lưu trữ ở bất kỳ đâu đều làm mới mọi summary Trang chủ
+  (`isHomeSummary`, `home/keys.ts` tách riêng để tránh vòng import).
+- **Màn bắt đầu**: "Lên lịch họp" mở dialog tạo họp tại chỗ (nạp lười), "Mời đồng đội" chỉ hiện
+  với người có `canManageMembers`.
+- **Tuỳ chỉnh**: đưa khối lên đầu/xuống cuối giữ focus ở mũi tên còn lại của hàng; Mật độ và Mẫu có
+  sẵn là nhóm radio thật (fieldset + input radio); công tắc có `aria-describedby` tới mô tả;
+  mô tả sửa thành "Lưu riêng cho bạn trong workspace này".

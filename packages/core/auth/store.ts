@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import * as auth from "../api/endpoints/auth";
 import { getAccessToken, subscribe as subscribeToToken } from "../api/session";
+import { setCurrentWorkspace } from "../platform/workspace-storage";
 import type { User } from "../types/user";
 
 export type SessionStatus = "loading" | "authed" | "anon";
@@ -31,6 +32,10 @@ function clearSession(runLogoutCallback = true): void {
   const state = useAuthStore.getState();
   if (state.user === null && state.status === "anon") return;
   useAuthStore.setState({ user: null, status: "anon" });
+  // Leave the workspace scope with the session: workspace-keyed persisted
+  // state (chat outbox, views) must not keep reading and writing the previous
+  // user's namespace until some layout sets a new one.
+  setCurrentWorkspace(null, null);
   if (runLogoutCallback) onLogout?.();
 }
 

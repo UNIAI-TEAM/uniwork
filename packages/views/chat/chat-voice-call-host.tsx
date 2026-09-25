@@ -5,20 +5,19 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useState,
   type ReactNode,
 } from "react";
-import { useTranslation } from "react-i18next";
-import { toast } from "sonner";
-import { ApiError } from "@uniwork/core/api/http";
 import { useChatRooms, useChatVoiceToken } from "@uniwork/core/chat";
 import { useWorkspace } from "../layout/workspace-context";
 import { useNativeVoiceCall } from "./use-native-voice-call";
-import { prepareVoiceCapture } from "./voice-call-media";
+import { prepareVideoCapture, prepareVoiceCapture } from "./voice-call-media";
 import { VoiceCallOverlay, type VoiceCallKind } from "./voice-call-overlay";
-import type { VoiceCallOverlayState } from "./voice-call-overlay-types";
+import type { VoiceCallDeviceError, VoiceCallOverlayState } from "./voice-call-overlay-types";
 
 type ChatVoiceCallContextValue = {
   voiceCall: VoiceCallOverlayState;
+  /** Warms up the devices, then rings; every failure lands on the call panel. */
   startCall: (
     roomId: string,
     label: string,
@@ -27,9 +26,6 @@ type ChatVoiceCallContextValue = {
   ) => Promise<boolean>;
   acceptCall: () => Promise<boolean>;
   declineCall: () => Promise<void>;
-  leaveCall: () => void;
-  endCallForAll: () => Promise<void>;
-  markVoiceConnected: () => void;
   inCall: boolean;
 };
 
@@ -49,7 +45,6 @@ export function useChatVoiceCall(): ChatVoiceCallContextValue {
  * invites while the user is on another screen.
  */
 export function ChatVoiceCallHost({ children }: { children: ReactNode }) {
-  const { t } = useTranslation();
   const { workspace, user } = useWorkspace();
   const workspaceId = workspace.id;
   const currentUserId = user.id;
@@ -63,10 +58,11 @@ export function ChatVoiceCallHost({ children }: { children: ReactNode }) {
       ),
     [rooms],
   );
-  const chatVoiceToken = useChatVoiceToken();
+  // mutateAsync is stable across renders; the mutation object is not.
+  const { mutateAsync: mintVoiceTokenAsync } = useChatVoiceToken();
   const mintVoiceToken = useCallback(
-    async (roomId: string, callId: string) => chatVoiceToken.mutateAsync({ roomId, callId }),
-    [chatVoiceToken],
+    async (roomId: string, callId: string) => mintVoiceTokenAsync({ roomId, callId }),
+    [mintVoiceTokenAsync],
   );
   const voice = useNativeVoiceCall({
     workspaceId,
@@ -74,39 +70,65 @@ export function ChatVoiceCallHost({ children }: { children: ReactNode }) {
     mintToken: mintVoiceToken,
     allowedRoomIds,
   });
+  const { startCall: ringCall, acceptCall: answerCall, reportStartFailure } = voice;
+  // A device that would not start while answering: the call keeps ringing
+  // and the panel says which device and why, so answering again is the retry.
+  const [acceptError, setAcceptError] = useState<{ callId: string; device: VoiceCallDeviceError } | null>(null);
 
-  const handleAccept = useCallback(async () => {
-    try {
-      const micReady = await prepareVoiceCapture();
-      if (!micReady) {
-        toast.error(t("chat.voice_call_mic_denied"));
-        return;
+  const startCall = useCallback(
+    async (roomId: string, label: string, callKind: VoiceCallKind, options?: { withCamera?: boolean }) => {
+      const withCamera = options?.withCamera ?? false;
+      const target = { roomId, peerName: label, callKind, withCamera };
+      const prep = withCamera ? await prepareVideoCapture() : await prepareVoiceCapture();
+      if (!prep.ok) {
+        reportStartFailure({ ...target, reason: "device", device: prep.device });
+        return false;
       }
-      const ok = await voice.acceptCall();
-      if (!ok) toast.error(t("chat.voice_call_failed"));
-    } catch (err) {
-      if (err instanceof ApiError && err.code === "livekit_not_configured") {
-        toast.error(t("chat.voice_call_not_configured"));
-      } else {
-        toast.error(t("chat.voice_call_failed"));
+      try {
+        return await ringCall(roomId, label, callKind, { withCamera });
+      } catch (err) {
+        reportStartFailure({ ...target, reason: "start_failed", error: err });
+        return false;
       }
-      void voice.declineCall();
+    },
+    [ringCall, reportStartFailure],
+  );
+
+  const acceptCall = useCallback(async () => {
+    const current = voice.voiceCall;
+    if (current.status !== "incoming") return false;
+    const prep = await prepareVoiceCapture();
+    if (!prep.ok) {
+      setAcceptError({ callId: current.callId, device: prep.device });
+      return false;
     }
-  }, [voice, t]);
+    setAcceptError(null);
+    return answerCall();
+  }, [voice.voiceCall, answerCall]);
+
+  const retryEnded = useCallback(() => {
+    const current = voice.voiceCall;
+    if (current.status !== "ended") return;
+    void startCall(current.roomId, current.peerName, current.callKind, {
+      withCamera: current.withCamera ?? false,
+    });
+  }, [voice.voiceCall, startCall]);
 
   const value = useMemo<ChatVoiceCallContextValue>(
     () => ({
       voiceCall: voice.voiceCall,
-      startCall: voice.startCall,
-      acceptCall: voice.acceptCall,
+      startCall,
+      acceptCall,
       declineCall: voice.declineCall,
-      leaveCall: voice.leaveCall,
-      endCallForAll: voice.endCallForAll,
-      markVoiceConnected: voice.markVoiceConnected,
       inCall: voice.inCall,
     }),
-    [voice],
+    [voice.voiceCall, voice.declineCall, voice.inCall, startCall, acceptCall],
   );
+
+  const incomingDeviceError =
+    acceptError && voice.voiceCall.status === "incoming" && voice.voiceCall.callId === acceptError.callId
+      ? acceptError.device
+      : null;
 
   return (
     <ChatVoiceCallContext.Provider value={value}>
@@ -114,11 +136,15 @@ export function ChatVoiceCallHost({ children }: { children: ReactNode }) {
       <VoiceCallOverlay
         workspaceId={workspaceId}
         state={voice.voiceCall}
-        onAccept={() => void handleAccept()}
+        incomingDeviceError={incomingDeviceError}
+        onAccept={() => void acceptCall()}
         onDecline={() => void voice.declineCall()}
         onLeave={voice.leaveCall}
-        onEndForAll={() => void voice.endCallForAll()}
+        onDisconnected={voice.finalizeCallOnDisconnect}
+        onEndForAll={(init) => void voice.endCallForAll(init)}
         onConnected={voice.markVoiceConnected}
+        onRetryEnded={retryEnded}
+        onDismissEnded={voice.dismissEnded}
       />
     </ChatVoiceCallContext.Provider>
   );

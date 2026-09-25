@@ -12,6 +12,7 @@ import {
   markUnread,
   setPreferences,
   subscribePush,
+  unarchive,
   unsubscribePush,
 } from "./notifications";
 
@@ -57,13 +58,14 @@ describe("notification endpoints", () => {
     expect(await getUnreadCount()).toEqual({ total: 0, by_workspace: {} });
   });
 
-  it("markRead, markAllRead, markUnread and archive post the right bodies", async () => {
+  it("markRead, markAllRead, markUnread, archive and unarchive post the right bodies", async () => {
     vi.mocked(fetch).mockImplementation(() => Promise.resolve(json({ status: "ok" })));
     await markRead(["n1"]);
     await markAllRead("ws1");
     await markAllRead();
     await markUnread(["n1"]);
     await archive(["n1", "n2"]);
+    await unarchive(["n1"]);
     const bodies = vi.mocked(fetch).mock.calls.map((c) => [c[0], JSON.parse(String((c[1] as RequestInit).body))]);
     expect(bodies).toEqual([
       ["http://api.test/api/v1/me/notifications/read", { ids: ["n1"] }],
@@ -71,7 +73,15 @@ describe("notification endpoints", () => {
       ["http://api.test/api/v1/me/notifications/read", { all: true }],
       ["http://api.test/api/v1/me/notifications/unread", { ids: ["n1"] }],
       ["http://api.test/api/v1/me/notifications/archive", { ids: ["n1", "n2"] }],
+      ["http://api.test/api/v1/me/notifications/unarchive", { ids: ["n1"] }],
     ]);
+  });
+
+  it("markAllRead resolves to the ids it read, [] from an older server", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok", ids: ["n1", "n2"] }));
+    expect(await markAllRead("ws1")).toEqual(["n1", "n2"]);
+    vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
+    expect(await markAllRead("ws1")).toEqual([]);
   });
 
   it("preferences round-trip and degrade to []", async () => {

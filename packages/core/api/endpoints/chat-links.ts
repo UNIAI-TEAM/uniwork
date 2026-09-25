@@ -85,6 +85,26 @@ export async function listChatMessageLinks(
   return parsed.links ?? [];
 }
 
+/**
+ * Links of many messages in one room, in one request: a timeline asks once
+ * for the messages it shows instead of once per message.
+ */
+export async function listChatRoomMessageLinks(
+  workspaceId: string,
+  roomId: string,
+  messageIds: string[],
+): Promise<ChatMessageLinkRecord[]> {
+  if (messageIds.length === 0) return [];
+  const params = new URLSearchParams({ message_ids: messageIds.join(",") });
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/chat/rooms/${enc(roomId)}/message-links?${params.toString()}`,
+  );
+  const parsed = parseWithFallback(raw, LinkListSchema, { links: [] }, {
+    endpoint: "GET .../chat/rooms/{roomID}/message-links",
+  });
+  return parsed.links ?? [];
+}
+
 export async function createChatMessageLink(
   workspaceId: string,
   messageId: string,

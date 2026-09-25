@@ -32,11 +32,13 @@
       the duration / easing set. Motion lives here AND in lib/motion.ts;
       tokens.test.ts holds the two to the same numbers.
 
-   Source of the palette (2026-09-10): the ClickUp marketing system — violet
-   #7612FA as the single brand signal, white cards on a white page with thin
-   grey borders, Plus Jakarta Sans headings over Inter copy. ClickUp
-   publishes light values only; every dark value here is derived from its
-   deep-panel (#1E1E1E) and dark-footer (#111111) greys and measured.
+   Source of the palette (2026-09-10): the ClickUp marketing system — white
+   cards on a white page with thin grey borders, Plus Jakarta Sans headings
+   over Inter copy. ClickUp publishes light values only; every dark value here
+   is derived from its deep-panel (#1E1E1E) and dark-footer (#111111) greys
+   and measured. The BRAND hue is not ClickUp's (2026-09-17): it is the blue
+   of the UniWork logo, hue 263, the deep end of the mark's gradient pulled to
+   a value that carries text. Meetings keep violet as their module tint.
 
    Every themed slot is declared in BOTH `:root` and `.dark`. Custom
    properties are computed and then inherited, so a slot missing from `.dark`
@@ -44,6 +46,33 @@
    contract test (tokens.test.ts) fails when the two blocks drift. Every
    colour pair carries its measured WCAG ratio in the comment beside it. */
 :root {
+  /* Lovable demo reference surfaces, isolated to landing illustrations. */
+  --preview-canvas: #ffffff;
+  --preview-panel: #f8f9fb;
+  --preview-soft: #f0f0f9;
+  --preview-ink: #1e1e1e;
+  --preview-muted: #606060;
+  --preview-line: #cacaca;
+  --preview-accent: #6858cd;
+  --preview-on-accent: #ffffff;
+  --preview-selected: #eaf2ff;
+  /* Marketing stage: scoped consumers, shared theme contract. */
+  --landing-stage: #edf2ff;
+  --landing-stage-soft: #f3f6fc;
+  --landing-ink: #13254b;
+  --landing-paper: #ffffff;
+  --landing-mint: #ddf7eb;
+  --landing-violet: #ede7ff;
+  --landing-cyan: #dcf6ff;
+  --landing-lime: #eef8cf;
+  --landing-coral: #fff0e8;
+  --landing-deep: #101f42;
+  --landing-model-shell: #f4f7ff;
+  --landing-model-light: #b9eaff;
+  --landing-close-start: #0754d8;
+  --landing-close-end: #8731c5;
+  --landing-close-light: #15aede;
+  --landing-close-foreground: #ffffff;
   /* Planes. The shell is the one grey plane (#F4F4F8, ClickUp's utility
      grey pulled one step lighter so the gutter between sidebar and page
      reads as a gap, 1.09:1 on white, not as a band). Sidebar, page and
@@ -59,9 +88,18 @@
   --surface-foreground: #202020;
   --surface-raised: #ffffff;
   --surface-hover: #f1f1f9;
-  --surface-selected: #efedfd;
+  --surface-selected: #e4edff;
   --surface-selected-foreground: #202020;
   --surface-border: #cfcfcf;
+
+  /* The emphasis band: a content plane whose polarity is flipped against the
+     page, used to break the rhythm of a long scroll (landing product bands,
+     the Work Graph section). Its CONTENT is wrapped in `.dark` so foreground,
+     brand and ring resolve from the dark palette; the background is painted by
+     the parent so this slot still tracks the page theme. Unlike --rail, which
+     is one value in both themes, this one is restated below.
+     Light: 17.59 against --background. */
+  --surface-emphasis: oklch(0.20 0.08 278);
 
   --card: #ffffff;
   --card-foreground: #202020;
@@ -71,8 +109,8 @@
   /* `--primary` is the brand FILL — the CTA, the unread count, the selected
      dot. It equals `--brand` in every theme and accent (the accent blocks
      below re-derive both), so a view that writes `bg-primary` and one that
-     writes `bg-brand` paint the same pixel. White on #7612fa: 6.49. */
-  --primary: #7612fa;
+     writes `bg-brand` paint the same pixel. White on #0a52e6: 6.25. */
+  --primary: #0a52e6;
   --primary-foreground: #ffffff;
   --secondary: #f1f1f9;
   --secondary-foreground: #202020;
@@ -96,16 +134,22 @@
      hover of the destructive button, and it must hold 4.5:1 on its own /20
      tint over background, surface and muted — #ad1a1a reads 4.50 there;
      e2e/admin-contrast.spec.ts measures it on the suspended banner. */
-  /* ClickUp's accent, used verbatim: 6.15 on --background, 6.49 on --surface,
-     5.77 on --muted, and still 4.89 on its own /10 tint over muted. */
-  --brand: #7612fa;
+  /* The logo's blue (oklch 0.505 0.232 263; the deep end of the mark's gradient,
+     which itself stays logo-only). 6.25 on --background and --surface,
+     5.56 on --muted, 4.79 on its own /10 tint over muted, 4.94 on /15 over
+     white. */
+  --brand: #0a52e6;
   --brand-foreground: #ffffff;
+  /* Second brand hue, carried over from the marketing palette. Text and icons
+     only — it has no --brand-accent-foreground because nothing paints a
+     surface with it. 4.99 on --surface, 4.78 on --background. */
+  --brand-accent: oklch(0.58 0.27 325);
   /* The brand as a wash: selected nav row, the AI entry point, a chip that
-     is ON. Brand text on the wash: 5.62. The accent blocks derive the fill
+     is ON. Brand text on the wash: 5.33. The accent blocks derive the fill
      as an 11% mix of the brand into white, the same recipe as
      --surface-selected, so the two never disagree. */
-  --brand-subtle: #efedfd;
-  --brand-subtle-foreground: #7612fa;
+  --brand-subtle: #e4edff;
+  --brand-subtle-foreground: #0a52e6;
   --destructive: #ad1a1a;
   --success: #137046;
   --warning: #8a4f04;
@@ -136,13 +180,13 @@
      muted. ClickUp's borderStrong (#B4B4B4) is 2.07 and cannot take that job. */
   --border: #cfcfcf;
   --input: #87878f;
-  --ring: #7612fa;
+  --ring: #0a52e6;
   /* Base of the radius ramp; the explicit stops live in @theme below. */
   --radius: 12px;
 
   /* Browser-drawn surfaces (selection, caret, scrollbar) read these so every
-     pixel belongs to the palette. Selection is ClickUp's pale-purple. */
-  --selection: #efedfd;
+     pixel belongs to the palette. Selection is the brand wash. */
+  --selection: #e4edff;
   --selection-foreground: #202020;
 
   /* The onboarding rail is a dark panel in BOTH themes, so it is defined once
@@ -155,14 +199,14 @@
      --sidebar-border; hover is the utility grey. */
   --sidebar: #ffffff;
   --sidebar-foreground: #202020;
-  --sidebar-primary: #7612fa;
+  --sidebar-primary: #0a52e6;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #f1f1f9;
   --sidebar-accent-foreground: #202020;
   --sidebar-border: #cfcfcf;
-  --sidebar-ring: #7612fa;
+  --sidebar-ring: #0a52e6;
 
-  /* Chart ramp: chart-1 is the DEFAULT brand hue (oklch 295 ≈ #7612FA) so the
+  /* Chart ramp: chart-1 is the DEFAULT brand hue (oklch 263 ≈ #0A52E6) so the
      leading series anchors to the product colour; 2..5 step lighter and less
      saturated so a stacked bar reads as a hierarchy instead of five equally
      loud greys.
@@ -171,11 +215,11 @@
      are near-achromatic (black, bronze), and deriving five steps from their
      chroma yields five near-identical greys — a legible chart matters more than
      a chart that matches the sidebar. */
-  --chart-1: oklch(0.52 0.24 295);
-  --chart-2: oklch(0.64 0.18 295);
-  --chart-3: oklch(0.75 0.12 295);
-  --chart-4: oklch(0.85 0.07 295);
-  --chart-5: oklch(0.92 0.03 295);
+  --chart-1: oklch(0.505 0.23 263);
+  --chart-2: oklch(0.62 0.17 263);
+  --chart-3: oklch(0.74 0.11 263);
+  --chart-4: oklch(0.85 0.06 263);
+  --chart-5: oklch(0.92 0.03 263);
 
   /* Chat sender names: distinct hues, text-safe on --surface / --muted.
      Sender 1 sits on the brand hue; the old slot at 290 moved to 262 so no
@@ -241,28 +285,51 @@
   --menu-shadow: 0 4px 10px rgb(13 21 48 / 0.08), 0 0 1px rgb(0 0 0 / 0.27);
   --floating-shadow: 0 10px 25px rgb(18 43 165 / 0.10), 0 0 1px rgb(0 0 0 / 0.27);
 
-  /* Meeting room — video rail overlay, dark control bar, tile labels. Used
-     inside the forced-dark video subtree; values are dark-surface oriented in
-     both themes so the in-room chrome stays consistent. */
-  --meeting-rail-overlay-from: rgb(30 30 30 / 0.85);
-  --meeting-rail-overlay-to: rgb(30 30 30 / 0);
+  /* Meeting room — the video stage, its control bar and tile labels. The
+     stage is dark in BOTH themes (video reads best on near-black), so these
+     are dark-surface values in both blocks and in-room chrome never has to
+     borrow the onboarding --rail or a raw black. --meeting-video-bg letterboxes
+     a video; --meeting-scrim dims a tile under its hover controls. */
+  --meeting-stage: #1e1e1e;
+  --meeting-stage-foreground: #f8f9fa;
+  --meeting-video-bg: #0a0a0a;
+  --meeting-scrim: rgb(10 10 10 / 0.45);
+  --meeting-bar-muted-foreground: #b4b6b8;
   --meeting-bar-bg: rgb(30 30 30 / 0.92);
   --meeting-bar-border: rgb(255 255 255 / 0.12);
   --meeting-bar-foreground: #f8f9fa;
   --meeting-bar-chip-bg: rgb(255 255 255 / 0.1);
   --meeting-bar-chip-hover: rgb(255 255 255 / 0.18);
-  --meeting-tile-name-bg: rgb(0 0 0 / 0.55);
+  --meeting-tile-name-bg: rgb(0 0 0 / 0.62);
   --meeting-tile-name-foreground: #f8f9fa;
-
-  /* Meeting lobby — ambient canvas behind prejoin / waiting screens. */
-  --meeting-lobby-glow-a: color-mix(in srgb, var(--brand) 16%, transparent);
-  --meeting-lobby-glow-b: color-mix(in srgb, var(--chart-2) 12%, transparent);
-  --meeting-lobby-vignette-from: color-mix(in srgb, var(--background) 45%, transparent);
-  --meeting-lobby-vignette-to: color-mix(in srgb, var(--background) 88%, transparent);
-  --meeting-lobby-grid: color-mix(in srgb, var(--border) 55%, transparent);
 }
 
 .dark {
+  --preview-canvas: #090a0c;
+  --preview-panel: #121417;
+  --preview-soft: #1d1d24;
+  --preview-ink: #edeef0;
+  --preview-muted: #a1a5ad;
+  --preview-line: #ffffff1f;
+  --preview-accent: #9088f0;
+  --preview-on-accent: #151423;
+  --preview-selected: #1b2531;
+  --landing-stage: #192741;
+  --landing-stage-soft: #172132;
+  --landing-ink: #e2ebff;
+  --landing-paper: #1c2638;
+  --landing-mint: #17352c;
+  --landing-violet: #30264b;
+  --landing-cyan: #123747;
+  --landing-lime: #2b3619;
+  --landing-coral: #3c2721;
+  --landing-deep: #101f42;
+  --landing-model-shell: #f4f7ff;
+  --landing-model-light: #b9eaff;
+  --landing-close-start: #0754d8;
+  --landing-close-end: #8731c5;
+  --landing-close-light: #15aede;
+  --landing-close-foreground: #ffffff;
   /* Same plane order as light: shell deepest (#0a0a0a), sidebar = page on
      dark-footer #111111, cards one step up (#181818), menus and dialogs on
      the deep-panel grey. The old dark shell sat ABOVE the page (#1E1E1E on
@@ -276,22 +343,27 @@
   --surface-foreground: #f8f9fa;
   --surface-raised: #181818;
   --surface-hover: #262626;
-  --surface-selected: #2a1f4a;
+  --surface-selected: #222e42;
   --surface-selected-foreground: #f8f9fa;
   --surface-border: #2e2e2e;
+
+  /* Lifted above the dark --background so the band still reads as a band when
+     the whole page is dark; the light value would sink below it. The step is
+     1.27, the same order as --surface over --background (1.06). */
+  --surface-emphasis: oklch(0.28 0.07 278);
 
   --card: #181818;
   --card-foreground: #f8f9fa;
   --popover: #181818;
   --popover-foreground: #f8f9fa;
 
-  /* Brand fill in the dark: the pastel brand under near-ink (7.51), the
-     same pair --sidebar-primary carries, so a CTA and a selected row agree.
-     A saturated violet with white text was tried and dropped — #7f3ffa is
-     5.26 under white but only 3.59 against the page, and the pastel keeps
-     the fill legible as a SHAPE, not just its label. */
-  --primary: #b38cff;
-  --primary-foreground: #0d0a1f;
+  /* Brand fill in the dark: the logo blue lifted toward the mark's own dark
+     ramp under near-ink (6.44), the same pair --sidebar-primary
+     carries, so a CTA and a selected row agree. A deep blue with white text
+     would sink into the #111 page; the light fill stays legible as a SHAPE,
+     not just its label. */
+  --primary: #5a96ff;
+  --primary-foreground: #0d1220;
   --secondary: #262626;
   --secondary-foreground: #f8f9fa;
   --accent: #262626;
@@ -300,14 +372,19 @@
   --muted-foreground: #a1a1aa;
   --faint-foreground: #8b8b95;
 
-  /* ClickUp's product-violet-soft, the light tint of the same hue: 7.29 on
-     --background, 6.86 on --surface, 5.85 on --muted, 6.44 on --rail. The
-     foreground is a near-black violet (7.51 on the brand fill). */
-  --brand: #b38cff;
-  --brand-foreground: #0d0a1f;
-  /* 5.82 on the wash; derived as a 24% mix into #111111 under an accent. */
-  --brand-subtle: #2a1f4a;
-  --brand-subtle-foreground: #b38cff;
+  /* The logo's dark-ramp blue, one step lighter than #4D8DFF so text on its
+     own wash clears AA: 6.51 on --background, 6.12 on --surface, 5.22 on
+     --muted, 5.75 on --rail. The foreground is a near-black blue (6.44 on the
+     brand fill). */
+  --brand: #5a96ff;
+  --brand-foreground: #0d1220;
+  /* Lightened the way --brand is, keeping hue 325 and easing chroma so it does
+     not glare on a dark ground. 6.37 on --background, 5.98 on --surface, and
+     6.20 inside the emphasis band. */
+  --brand-accent: oklch(0.70 0.22 325);
+  /* 4.73 on the wash; derived as a 24% mix into #111111 under an accent. */
+  --brand-subtle: #222e42;
+  --brand-subtle-foreground: #5a96ff;
   --destructive: #f87171;
   --success: #4ade80;
   --warning: #fbbf24;
@@ -333,25 +410,25 @@
      surface / 3.08 muted / 3.40 rail. This keeps their boundary perceivable
      without giving every field the visual weight of a focus indicator. */
   --input: #707078;
-  --ring: #b38cff;
+  --ring: #5a96ff;
 
-  --selection: #2a1f4a;
+  --selection: #222e42;
   --selection-foreground: #f8f9fa;
 
   --sidebar: #111111;
   --sidebar-foreground: #f8f9fa;
-  --sidebar-primary: #b38cff;
-  --sidebar-primary-foreground: #0d0a1f;
+  --sidebar-primary: #5a96ff;
+  --sidebar-primary-foreground: #0d1220;
   --sidebar-accent: #1e1e1e;
   --sidebar-accent-foreground: #f8f9fa;
   --sidebar-border: #2e2e2e;
-  --sidebar-ring: #b38cff;
+  --sidebar-ring: #5a96ff;
 
-  --chart-1: oklch(0.72 0.17 295);
-  --chart-2: oklch(0.78 0.13 295);
-  --chart-3: oklch(0.84 0.09 295);
-  --chart-4: oklch(0.89 0.05 295);
-  --chart-5: oklch(0.93 0.02 295);
+  --chart-1: oklch(0.70 0.16 263);
+  --chart-2: oklch(0.77 0.12 263);
+  --chart-3: oklch(0.83 0.08 263);
+  --chart-4: oklch(0.89 0.05 263);
+  --chart-5: oklch(0.93 0.02 263);
 
   --chat-sender-1: oklch(0.78 0.14 295);
   --chat-sender-2: oklch(0.74 0.14 330);
@@ -402,27 +479,24 @@
   --menu-shadow: 0 4px 10px rgb(0 0 0 / 0.4), 0 0 1px rgb(255 255 255 / 0.12);
   --floating-shadow: 0 10px 25px rgb(0 0 0 / 0.5), 0 0 1px rgb(255 255 255 / 0.12);
 
-  --meeting-rail-overlay-from: rgb(17 17 17 / 0.9);
-  --meeting-rail-overlay-to: rgb(17 17 17 / 0);
+  --meeting-stage: #1e1e1e;
+  --meeting-stage-foreground: #f8f9fa;
+  --meeting-video-bg: #0a0a0a;
+  --meeting-scrim: rgb(10 10 10 / 0.45);
+  --meeting-bar-muted-foreground: #b4b6b8;
   --meeting-bar-bg: rgb(17 17 17 / 0.92);
   --meeting-bar-border: rgb(255 255 255 / 0.12);
   --meeting-bar-foreground: #f8f9fa;
   --meeting-bar-chip-bg: rgb(255 255 255 / 0.1);
   --meeting-bar-chip-hover: rgb(255 255 255 / 0.18);
-  --meeting-tile-name-bg: rgb(0 0 0 / 0.55);
+  --meeting-tile-name-bg: rgb(0 0 0 / 0.62);
   --meeting-tile-name-foreground: #f8f9fa;
-
-  --meeting-lobby-glow-a: color-mix(in srgb, var(--brand) 22%, transparent);
-  --meeting-lobby-glow-b: color-mix(in srgb, var(--chart-2) 14%, transparent);
-  --meeting-lobby-vignette-from: color-mix(in srgb, var(--background) 35%, transparent);
-  --meeting-lobby-vignette-to: color-mix(in srgb, var(--background) 92%, transparent);
-  --meeting-lobby-grid: color-mix(in srgb, var(--border) 40%, transparent);
 }
 
 /* Accent themes. The second theming axis: light/dark picks the palette, the
    accent moves the BRAND slots inside it. `--accent-h/c/l/l-dark` are written
    onto <html> from `lib/accent.ts` (one table, no hex repeated here) and the
-   default accent — violet — writes nothing, so `:root` / `.dark` above stay the
+   default accent — uniwork, the logo blue — writes nothing, so `:root` / `.dark` above stay the
    unmodified, measured baseline.
 
    The light selector is `html:not(.dark)[data-accent]`, not `:root[data-accent]`:
@@ -507,6 +581,8 @@ html.dark[data-accent] {
   --color-muted-foreground: var(--muted-foreground);
   --color-faint-foreground: var(--faint-foreground);
   --color-brand: var(--brand);
+  --color-brand-accent: var(--brand-accent);
+  --color-surface-emphasis: var(--surface-emphasis);
   --color-brand-foreground: var(--brand-foreground);
   --color-brand-subtle: var(--brand-subtle);
   --color-brand-subtle-foreground: var(--brand-subtle-foreground);
@@ -581,6 +657,11 @@ html.dark[data-accent] {
   --color-tint-teal-solid: var(--tint-teal-solid);
   --color-tint-gray-solid: var(--tint-gray-solid);
   --color-tint-red-solid: var(--tint-red-solid);
+  --color-meeting-stage: var(--meeting-stage);
+  --color-meeting-stage-foreground: var(--meeting-stage-foreground);
+  --color-meeting-video-bg: var(--meeting-video-bg);
+  --color-meeting-scrim: var(--meeting-scrim);
+  --color-meeting-bar-muted-foreground: var(--meeting-bar-muted-foreground);
   --color-meeting-bar-bg: var(--meeting-bar-bg);
   --color-meeting-bar-border: var(--meeting-bar-border);
   --color-meeting-bar-foreground: var(--meeting-bar-foreground);
@@ -593,23 +674,28 @@ html.dark[data-accent] {
   --shadow-surface: var(--surface-shadow);
   --shadow-menu: var(--menu-shadow);
   --shadow-floating: var(--floating-shadow);
-  /* Radius ramp, explicit per step: chips and inputs 6–8, cards 12, dialogs
+  /* Radius ramp, explicit per step: compact controls 8, default controls 10,
+     cards 12, dialogs
      and popovers 16, panels 20, section media 32. Pill stays rounded-full. */
   --radius-sm: 6px;
   --radius-md: 8px;
+  --radius-control: 10px;
   --radius-lg: 12px;
   --radius-xl: 16px;
   --radius-2xl: 20px;
   --radius-3xl: 32px;
-  /* Motion. One curve (the quartic ease-out lib/motion.ts exports as
-     UI_EASE_OUT) and three durations — micro for colour, fast for popovers,
-     standard for panels and page transitions. The right-sidebar and the
+  /* Motion. Two curves (the quartic ease-out lib/motion.ts exports as
+     UI_EASE_OUT, and UI_EASE_SETTLE for an object that travels) and four
+     durations — micro for colour, fast for popovers, standard for panels and
+     page transitions, settle for the travelling object. The right-sidebar and the
      glyph pops in base.css read these; tokens.test.ts holds them equal to
      UI_MOTION_DURATION so CSS and motion/react never drift apart. */
   --ease-out-quart: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-settle: cubic-bezier(0.32, 0.72, 0, 1);
   --duration-micro: 100ms;
   --duration-fast: 150ms;
   --duration-standard: 200ms;
+  --duration-settle: 450ms;
   /* Three families. Plus Jakarta Sans for headings (bound to the title /
      display / hero utilities below), Inter for copy and controls, JetBrains
      Mono for taxonomy labels — Sometype Mono, ClickUp's own, ships no
@@ -641,18 +727,26 @@ html.dark[data-accent] {
   --text-hero-sm: 36px;    --text-hero-sm--line-height: 40px;  --text-hero-sm--letter-spacing: -0.035em;
   --text-hero: 48px;       --text-hero--line-height: 53px;     --text-hero--letter-spacing: -0.035em;
   --text-hero-lg: 60px;    --text-hero-lg--line-height: 66px;  --text-hero-lg--letter-spacing: -0.035em;
+  --text-hero-xl: 72px;    --text-hero-xl--line-height: 79px;  --text-hero-xl--letter-spacing: -0.035em;
+  /* Fluid opening roles for the landing hero. */
+  --text-hero-opening: clamp(36px, 4vw, 52px);
+  --text-hero-opening-tablet: clamp(34px, 4.6vw, 46px);
+  --text-hero-opening-mobile: clamp(32px, 7vw, 36px);
 }
 
 /* Headings take the display family through the type utility itself, so the
    57 existing call sites of text-title* / text-display* / text-hero* switch
    without edits and a new one cannot forget. Family only: weight stays with
    the view (font-medium / font-semibold) because it is set per role there.
-   Declared in the utilities layer so an explicit `font-sans` beside the
-   role class still wins by order. */
+   An explicit `font-sans` beside the role class opts out: fields use
+   text-title-sm for its 16px (no iOS focus zoom), not for the heading face.
+   Being in the utilities layer was meant to let `font-sans` win by order, but
+   this block lands after the generated utilities, so the display face won and
+   typed text in inputs rendered in the heading family. */
 @layer utilities {
-  .text-title-sm, .text-title, .text-title-lg,
+  :where(.text-title-sm, .text-title, .text-title-lg,
   .text-display-sm, .text-display,
-  .text-hero-sm, .text-hero, .text-hero-lg {
+  .text-hero-sm, .text-hero, .text-hero-lg):not(.font-sans) {
     font-family: var(--font-display);
   }
   /* The overline is a complete role: family, case and weight travel with

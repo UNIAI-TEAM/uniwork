@@ -51,6 +51,26 @@ describe("request", () => {
     expect(() => new ApiError("x", "c", 1)).not.toThrow();
   });
 
+  it("attaches ErrorSDO fields when the server sends them", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      okJson(
+        {
+          error: {
+            code: "active_duplicate_task",
+            message: "trùng",
+            fields: { task_id: "t1", identifier: "UNI-1", title: "Bug" },
+          },
+        },
+        409,
+      ),
+    );
+    await expect(request("/api/v1/x")).rejects.toMatchObject({
+      code: "active_duplicate_task",
+      status: 409,
+      fields: { task_id: "t1", identifier: "UNI-1", title: "Bug" },
+    });
+  });
+
   it("extracts the server message from ApiError", () => {
     expect(apiErrorMessage(new ApiError("thao tác không hợp lệ", "invalid_meeting_state", 409))).toBe(
       "thao tác không hợp lệ",

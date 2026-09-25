@@ -1,0 +1,7 @@
+Use case: precise-object-edit
+Asset type: final transparent horse mascot cutout.
+Input image: the supplied transparent horse cutout is the edit target.
+Primary request: final cutout polish only. Preserve this exact horse identity, facial expression, full-body waving pose, blue eyes, white coat, plain navy vest and hooves, sculpted mane and tail, lighting, and high-quality rendered detail.
+Refine the cutout for the brand palette and landing-page framing: replace the broad yellow-lime green mane and tail bands with turquoise and cyan continuous with the surrounding hair; retain only a very thin, restrained cool-green accent on one hair tip, with no yellow. Keep cobalt and cyan dominant. Reframe the complete unchanged character slightly smaller on a square transparent canvas so it occupies about 84 percent of canvas height and leaves roughly 8 percent transparent top and bottom margin. Keep the ears, tail tips, and hooves fully visible.
+Clean the alpha silhouette so there are no isolated white or colored speckled pixels outside the character contour. Keep smooth antialiased edges, retain actual transparent alpha everywhere around the character and between limbs, and preserve the character's fine surface detail.
+Invariants: do not change the pose, face, eye shape, anatomy, plain navy vest, lighting, or material quality. No text, names, letters, logo, badge, speech bubble, sound symbol, background, floor, cast ground shadow, checkerboard, or opaque rectangle. Output a genuine transparent RGBA image.

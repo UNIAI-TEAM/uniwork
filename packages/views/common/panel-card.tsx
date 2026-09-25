@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
+import { IconTile, type IconTileTone } from "@uniwork/ui/components/common/icon-tile";
 import { cn } from "@uniwork/ui/lib/utils";
 
 type PanelTone = "default" | "warning" | "brand";
@@ -22,6 +23,7 @@ export function PanelCard({
   title,
   description,
   icon: Icon,
+  iconTone,
   children,
   className,
   action,
@@ -33,6 +35,8 @@ export function PanelCard({
   title: string;
   description?: string;
   icon?: LucideIcon;
+  /** Colours the icon as a tile in this tone, e.g. the tint of the module the panel lists. */
+  iconTone?: IconTileTone;
   children: ReactNode;
   className?: string;
   action?: ReactNode;
@@ -52,7 +56,9 @@ export function PanelCard({
     >
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
-          {Icon ? (
+          {Icon && iconTone ? (
+            <IconTile icon={Icon} size="sm" tone={iconTone} />
+          ) : Icon ? (
             <span
               aria-hidden
               className={cn(

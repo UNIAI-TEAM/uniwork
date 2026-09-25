@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests } from "@uniwork/core/auth";
-import { initI18n } from "@uniwork/core/i18n";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
 import { NavigationProvider } from "@uniwork/views/navigation";
 import type { NavigationAdapter } from "@uniwork/views/navigation";
@@ -51,9 +51,12 @@ const SESSION = {
   user: { id: "u1", email: "a@b.co", display_name: "A" },
 };
 
-beforeEach(() => {
+beforeEach(async () => {
   requestMock.mockReset();
   resetAuthStoreForTests();
+  localeAdapter.persist.mockClear();
+  await setLocale("vi");
+  document.documentElement.lang = "vi";
 });
 
 describe("LoginView", () => {
@@ -246,15 +249,16 @@ describe("LoginView", () => {
 
   it("keeps focus on the language switch instead of jumping to the heading", async () => {
     render(wrap(<LoginView onSuccess={() => {}} />));
-    // Two switches: one in the rail, one in the phone header; CSS hides one.
-    const toEnglish = screen.getAllByRole("button", { name: "Chuyển sang English" })[0]!;
+    // Two switches: desktop rail first, mobile header second; jsdom only lays out the latter.
+    const toEnglish = screen.getAllByRole("radio", { name: "English" }).at(-1)!;
     toEnglish.focus();
     fireEvent.click(toEnglish);
     await screen.findByRole("heading", { name: "Log in" });
 
     expect(screen.getByRole("heading", { name: "Log in" })).not.toHaveFocus();
     // Whichever switch is visible/focused — not necessarily index 0 in DOM order.
-    expect(document.activeElement).toHaveAccessibleName("Switch to Tiếng Việt");
+    expect(document.activeElement).toHaveAccessibleName("English");
+    expect(document.activeElement).toBeChecked();
   });
 
   it("selects the rejected password so the retry replaces it in one keystroke", async () => {

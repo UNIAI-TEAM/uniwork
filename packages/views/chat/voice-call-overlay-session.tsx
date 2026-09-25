@@ -2,7 +2,11 @@
 
 import { VoiceCallRoom } from "./voice-call-room";
 import { ActiveVoiceCallContent } from "./voice-call-active-content";
-import type { VoiceCallKind } from "./voice-call-overlay-types";
+import type {
+  VoiceCallDisconnectInfo,
+  VoiceCallEndInit,
+  VoiceCallKind,
+} from "./voice-call-overlay-types";
 import type { VoiceCallPanelMode } from "./voice-call-floating-panel";
 
 export function ActiveVoiceCallSession({
@@ -19,6 +23,7 @@ export function ActiveVoiceCallSession({
   onMinimize,
   onMaximize,
   onLeave,
+  onDisconnected,
   onEndForAll,
   onConnected,
   onConnectFailed,
@@ -35,8 +40,9 @@ export function ActiveVoiceCallSession({
   panelMode: VoiceCallPanelMode;
   onMinimize: () => void;
   onMaximize: () => void;
-  onLeave: () => void;
-  onEndForAll: () => void;
+  onLeave: (init?: VoiceCallEndInit) => void;
+  onDisconnected: (info?: VoiceCallDisconnectInfo) => void;
+  onEndForAll: (init?: VoiceCallEndInit) => void;
   onConnected: () => void;
   onConnectFailed: () => void;
 }) {
@@ -45,7 +51,7 @@ export function ActiveVoiceCallSession({
       url={url}
       token={token}
       initialCameraEnabled={initialCameraEnabled}
-      onDisconnected={onLeave}
+      onDisconnected={onDisconnected}
       onConnectFailed={onConnectFailed}
     >
       <ActiveVoiceCallContent

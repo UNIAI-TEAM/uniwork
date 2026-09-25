@@ -4,8 +4,10 @@ import { useAuthStore } from "../auth/store";
 import * as auth from "../api/endpoints/auth";
 import { setSessionUser } from "../auth/hooks";
 import * as workspaces from "../api/endpoints/workspaces";
+import { workspaceKeys } from "./keys";
 
 export type { InviteResult } from "../api/endpoints/workspaces";
+export { workspaceKeys } from "./keys";
 
 export function slugify(name: string): string {
   return name
@@ -17,14 +19,6 @@ export function slugify(name: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 }
-
-export const workspaceKeys = {
-  list: () => ["workspaces"] as const,
-  bySlugs: (orgSlug: string, wsSlug: string) => ["workspace", orgSlug, wsSlug] as const,
-  members: (wsId: string) => ["members", wsId] as const,
-  me: (wsId: string) => ["workspace-me", wsId] as const,
-  myInvitations: () => ["my-invitations"] as const,
-};
 
 export function useWorkspaces() {
   const authed = useAuthStore((s) => s.status === "authed");
@@ -87,6 +81,8 @@ export function useRemoveMember(workspaceId: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: workspaceKeys.members(workspaceId) });
       void qc.invalidateQueries({ queryKey: workspaceKeys.me(workspaceId) });
+      // Leaving one's own workspace lands on the picker, which must not offer it.
+      void qc.invalidateQueries({ queryKey: workspaceKeys.list() });
     },
   });
 }

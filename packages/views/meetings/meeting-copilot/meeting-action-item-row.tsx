@@ -28,7 +28,7 @@ export function MeetingActionItemRow({
   assigneePreviewName?: string;
 }) {
   return (
-    <li className="flex items-start gap-2.5 rounded-xl border border-border bg-surface-hover/30 px-3 py-2.5">
+    <li className="flex items-start gap-2.5 rounded-xl border border-border bg-surface px-3 py-2.5">
       {selectable ? (
         <Checkbox
           className="mt-0.5"
@@ -51,7 +51,7 @@ export function MeetingActionItemRow({
       </div>
       <div className="flex shrink-0 flex-col items-end gap-1.5">
         {owner && !selectable ? (
-          <MeetingPersonAvatar name={owner} size="sm" className="size-7" />
+          <MeetingPersonAvatar name={owner} size="sm" />
         ) : null}
         {assigneePreviewName && selectable ? (
           <span className="text-caption text-muted-foreground">{assigneePreviewName}</span>

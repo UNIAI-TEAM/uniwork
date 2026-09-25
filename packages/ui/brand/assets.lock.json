@@ -3,21 +3,21 @@
   "sources": {
     "app-icon-maskable.svg": "098d83f72cb74ecd",
     "app-icon.svg": "343d12cf93da9b1a",
-    "lockup-horizontal-mono.svg": "85f8ea61c06fb4b2",
-    "lockup-horizontal.svg": "abfc357842956699",
-    "lockup-stacked.svg": "17b2f6df9c5d5f8e",
+    "lockup-horizontal-mono.svg": "0b0ed0acce0c3968",
+    "lockup-horizontal.svg": "d3c438c124653e83",
+    "lockup-stacked.svg": "1ded04fcf5a0cdfb",
     "mark-compact.svg": "80611b266107ae89",
     "mark-dark.svg": "a1abd9a50255a64e",
     "mark-flat.svg": "62f229eef39c3ee7",
     "mark-mono.svg": "120377f077f3935f",
     "mark.svg": "608373b157f0a237",
-    "wordmark.svg": "de450ca979a78472"
+    "wordmark.svg": "0b0ed0acce0c3968"
   },
   "assets": {
     "apps/web/public/brand/email-lockup.png": {
       "source": "lockup-horizontal.svg",
-      "size": "274x64",
-      "sha": "abfc357842956699"
+      "size": "338x64",
+      "sha": "d3c438c124653e83"
     },
     "apps/web/app/apple-icon.png": {
       "source": "app-icon.svg",
@@ -47,7 +47,7 @@
     "apps/web/app/opengraph-image.jpg": {
       "source": "lockup-horizontal-mono.svg",
       "size": "1200x630",
-      "sha": "85f8ea61c06fb4b2"
+      "sha": "0b0ed0acce0c3968"
     },
     "apps/web/app/icon.svg": {
       "source": "mark-compact.svg",

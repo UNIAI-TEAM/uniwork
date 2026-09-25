@@ -334,4 +334,25 @@ describe("chat-sidebar-preview", () => {
       ),
     ).toBeGreaterThan(0);
   });
+
+  it("shows a sticker as words, never as its markdown", () => {
+    expect(
+      formatChatSidebarPreviewText(
+        {
+          body: "![sticker:ăn mừng](https://media.giphy.com/a.webp)",
+          kind: "text",
+          senderId: "self",
+          senderName: "Minh",
+          createdAt: "2026-09-21T09:00:00Z",
+        },
+        {
+          currentUserId: "self",
+          isGroup: true,
+          youLabel: "Bạn",
+          voiceCallLabel: "Cuộc gọi",
+          mediaLabels: { sticker: "Nhãn dán", gif: "GIF", image: "Hình ảnh" },
+        },
+      ),
+    ).toBe("Bạn: Nhãn dán · ăn mừng");
+  });
 });

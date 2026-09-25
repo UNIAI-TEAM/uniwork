@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -36,6 +37,7 @@ type ChatService struct {
 	pub         EventPublisher
 	tasks       *TaskService
 	conference  meetings.ConferenceProvider
+	ai          *ai.Gateway
 	TenorAPIKey string
 }
 
@@ -78,9 +80,11 @@ type ChatMessageRow struct {
 	ThreadUnread      bool
 	CreatedAt         time.Time
 	Reactions         map[string]int
+	MyReactions       []string // emojis the viewer reacted with; empty without a viewer
 	Pinned            bool
 	MentionedUserIDs  []string
 	VoiceCall         *VoiceCallLogInfo
+	VoiceCallSummary  *VoiceCallSummaryInfo
 	Voice             *VoiceMessageInfo
 	File              *FileMessageInfo
 	Poll              *ChatPollInfo
@@ -602,7 +606,7 @@ func (s *ChatService) ToggleChatMessageReaction(
 		return ChatMessageRow{}, err
 	}
 	s.publishChatMessageUpdated(ctx, room, updated.ID)
-	return chatMessageRowFromDB(updated, u.DisplayName), nil
+	return chatMessageRowFromDBForViewer(updated, u.DisplayName, userID), nil
 }
 
 func chatMessageRowFromDB(msg db.ChatMessage, senderDisplayName string) ChatMessageRow {

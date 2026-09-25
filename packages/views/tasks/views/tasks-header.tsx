@@ -3,12 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import type { TableFacetsResult } from "@uniwork/core/api/endpoints/tasks-table";
 import { capabilityState } from "@uniwork/core/capabilities";
 import { useAuthStore } from "@uniwork/core/auth";
 import { usePublicConfig } from "@uniwork/core/feature-flags";
 import type { Task } from "@uniwork/core/types";
 import type { TaskView } from "@uniwork/core/types/task-view";
 import { useViewStore } from "@uniwork/core/tasks/stores/view-store-context";
+import { baselineFromQuery } from "@uniwork/core/tasks/views/baseline";
 import { useActiveTaskView } from "@uniwork/core/tasks/views/use-active-view";
 import type { TaskViewScope } from "@uniwork/core/tasks/views/active-view-store";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -19,6 +21,7 @@ import {
 } from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import { PAGE_GUTTER } from "../../layout/page-header";
+import type { TaskTableFacetSpec } from "../filters/filter-counts";
 import type { TaskSurfaceMode } from "../surface/types";
 import { FilterChipsBar } from "./filter-chips-bar";
 import { SaveViewDialog, type SaveViewScope } from "./save-view-dialog";
@@ -31,6 +34,10 @@ const EMPTY_CONFIG = {
   work_management_capabilities: {},
 } as const;
 
+function isQueryRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
 export function TasksHeader({
   workspaceId,
   modes,
@@ -41,6 +48,10 @@ export function TasksHeader({
   showProjectGrouping = true,
   projectGroupingDisabled = true,
   projectGroupingReasonKey,
+  tableFacetCounts,
+  onTableFacetChange,
+  /** When false, agents-working stays stubbed (no running-ids projection). */
+  agentRunningProjection = false,
 }: {
   workspaceId: string;
   modes: TaskSurfaceMode[];
@@ -52,9 +63,11 @@ export function TasksHeader({
   showProjectGrouping?: boolean;
   projectGroupingDisabled?: boolean;
   projectGroupingReasonKey?: string;
+  tableFacetCounts?: TableFacetsResult;
+  onTableFacetChange?: (facet: TaskTableFacetSpec | null) => void;
+  agentRunningProjection?: boolean;
 }) {
   const { t } = useTranslation();
-  void scopedTasks;
   const [saveViewOpen, setSaveViewOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<{
     view: TaskView;
@@ -79,6 +92,14 @@ export function TasksHeader({
 
   const currentUserId = useAuthStore((s) => s.user?.id ?? null);
   const isViewOwner = !!activeView && activeView.owner_id === currentUserId;
+
+  const viewBaseline = useMemo(() => {
+    if (!activeView || !isQueryRecord(activeView.query)) return undefined;
+    return baselineFromQuery(activeView.query);
+  }, [activeView]);
+
+  const dateFilter = useViewStore((s) => s.dateFilter);
+  const setDateFilter = useViewStore((s) => s.setDateFilter);
 
   // People/Agents actor tabs omitted until surfaceTasks is filtered by
   // created_by_kind / assignee_kind — keep a single honest "All" builtin.
@@ -109,7 +130,11 @@ export function TasksHeader({
   const toggleAgentRunningFilter = useViewStore(
     (s) => s.toggleAgentRunningFilter,
   );
-  const agentAvailable = agentCapability.status === "available";
+  const agentAvailable =
+    agentCapability.status === "available" && agentRunningProjection;
+  const agentUnavailableReason = !agentRunningProjection
+    ? t("capabilities.unknown")
+    : t(agentCapability.explanation_key || "capabilities.unknown");
   const saveLabel = activeView
     ? isViewOwner
       ? t("tasks.filters.chip_edit")
@@ -172,6 +197,9 @@ export function TasksHeader({
                     size="sm"
                     disabled={!agentAvailable}
                     aria-disabled={!agentAvailable}
+                    data-reason-code={
+                      agentAvailable ? undefined : "agent_runtime_missing"
+                    }
                     className={!agentAvailable ? "opacity-60" : undefined}
                     onClick={() => {
                       if (!agentAvailable) return;
@@ -184,9 +212,7 @@ export function TasksHeader({
               </TooltipTrigger>
               {!agentAvailable ? (
                 <TooltipContent side="bottom">
-                  {t(
-                    agentCapability.explanation_key || "capabilities.unknown",
-                  )}
+                  {agentUnavailableReason}
                 </TooltipContent>
               ) : null}
             </Tooltip>
@@ -194,16 +220,28 @@ export function TasksHeader({
             <TaskDisplayControls
               modes={modes}
               isRefreshing={isRefreshing}
+              workspaceId={workspaceId}
+              scopedTasks={scopedTasks}
               showProjectGrouping={showProjectGrouping}
               projectGroupingDisabled={projectGroupingDisabled}
               projectGroupingReasonKey={projectGroupingReasonKey}
+              lockProjectFilter={lockProjectFilter}
+              viewBaseline={viewBaseline}
+              dateFilter={dateFilter}
+              onDateFilterChange={setDateFilter}
+              tableFacetCounts={tableFacetCounts}
+              onTableFacetChange={onTableFacetChange}
             />
           </div>
         </div>
       </div>
 
       <FilterChipsBar
+        workspaceId={workspaceId}
+        dateFilter={dateFilter}
+        onDateFilterChange={setDateFilter}
         lockProjectFilter={lockProjectFilter}
+        viewBaseline={viewBaseline}
         onSave={saveViewScope ? openSaveView : undefined}
         saveLabel={saveViewScope ? saveLabel : undefined}
       />

@@ -11,8 +11,14 @@ export function resourceHref(n: Notification, workspace: Workspace): string {
       return ws.meeting(n.resource_id);
     case "audit_export":
       return `${ws.settings()}?tab=audit`;
-    case "chat_message":
-      return ws.chat();
+    case "chat_message": {
+      // The message opens in its room, scrolled to it (see use-chat-message-deep-link).
+      if (!n.resource_parent_id) return ws.chat();
+      const q = new URLSearchParams({ room: n.resource_parent_id, message: n.resource_id });
+      return `${ws.chat()}?${q.toString()}`;
+    }
+    case "email_account":
+      return ws.email();
     default:
       return ws.inbox();
   }

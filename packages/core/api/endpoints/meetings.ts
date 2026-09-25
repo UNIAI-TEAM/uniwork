@@ -79,7 +79,10 @@ export interface MeetingListFilters {
   limit?: number;
   offset?: number;
   host_user_id?: string;
+  /** "" (newest created first), "actual_start_at", or "starts_at" (the list screen's calendar order). */
   sort?: string;
+  /** Viewer's IANA zone; decides "today" and each meeting's day for `sort: "starts_at"`. */
+  tz?: string;
 }
 
 export interface MeetingListPage {
@@ -91,6 +94,8 @@ export interface JoinMeetingBody {
   invite_link_id?: string;
   secret?: string;
   display_name?: string;
+  /** Files a new join request after the host declined the last one. */
+  request_again?: boolean;
 }
 
 const enc = encodeURIComponent;
@@ -105,20 +110,24 @@ function listQuery(filters?: MeetingListFilters): string {
   if (filters.to) p.set("to", filters.to);
   if (filters.host_user_id) p.set("host_user_id", filters.host_user_id);
   if (filters.sort) p.set("sort", filters.sort);
+  if (filters.tz) p.set("tz", filters.tz);
   if (filters.limit !== undefined) p.set("limit", String(filters.limit));
   if (filters.offset !== undefined) p.set("offset", String(filters.offset));
   const s = p.toString();
   return s ? `?${s}` : "";
 }
 
+/**
+ * Does not degrade to an empty page: `{ meetings: [], total: 0 }` would render
+ * as "No meetings yet" over a workspace that has meetings. A malformed answer
+ * throws so the query lands in its error state, with a retry.
+ */
 export async function listMeetings(workspaceId: string, filters?: MeetingListFilters): Promise<MeetingListPage> {
   const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/meetings${listQuery(filters)}`);
-  const parsed = parseWithFallback<z.infer<typeof MeetingsResponse>>(
-    raw,
-    MeetingsResponse,
-    { meetings: [], total: 0 },
-    { endpoint: "GET /api/v1/workspaces/{ws}/meetings" },
-  );
+  const parsed = parseWithFallback<z.infer<typeof MeetingsResponse> | null>(raw, MeetingsResponse, null, {
+    endpoint: "GET /api/v1/workspaces/{ws}/meetings",
+  });
+  if (!parsed) throw new Error("meetings_list_invalid");
   return { meetings: parsed.meetings, total: parsed.total ?? parsed.meetings.length };
 }
 
@@ -257,8 +266,13 @@ const PublicInviteLinkSchema = z.object({
   access_mode: z.string(),
   expired: z.boolean(),
   guest_session: z.string().optional(),
+  // Added after `expired`; an older server omits both and the page falls back to `expired`.
+  link_state: z.string().optional(),
+  meeting_state: z.string().optional(),
 });
 export type PublicInviteLink = z.infer<typeof PublicInviteLinkSchema>;
+export type InviteLinkState = "active" | "expired" | "revoked" | "exhausted";
+export type InviteMeetingState = "open" | "ended" | "canceled" | "past_scheduled_end";
 
 export async function resolveInviteLink(linkId: string, secret: string): Promise<PublicInviteLink | null> {
   const raw = await request("/api/v1/public/meeting-invite-links/resolve", {
@@ -440,6 +454,8 @@ export interface SummaryTaskItem {
   title: string;
   description?: string;
   assignee_id?: string;
+  project_id?: string;
+  priority?: string;
   due_date?: string;
   owner?: string;
   due_spoken?: string;

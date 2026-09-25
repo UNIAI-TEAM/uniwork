@@ -38,3 +38,6 @@ SELECT count(*) FROM organization_members WHERE organization_id = $1 AND deactiv
 
 -- name: CountWorkspacesInOrganization :one
 SELECT count(*) FROM workspaces WHERE organization_id = $1;
+
+-- name: CountTasksInOrganization :one
+SELECT count(*)::bigint FROM tasks WHERE organization_id = $1;

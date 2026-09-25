@@ -20,13 +20,14 @@ const (
 	KindRoleChanged       = "role_changed"
 	KindAuditExportReady  = "audit_export_ready"
 	KindChatFollowUp      = "chat_follow_up"
+	KindEmailHubNewMail   = "email_hub_new_mail"
 )
 
 // Kinds is the list in display order.
 var Kinds = []string{
 	KindTaskAssigned, KindTaskStatusChanged, KindTaskCommented, KindMentioned,
 	KindMeetingInvited, KindMeetingStarting,
-	KindMemberAdded, KindRoleChanged, KindAuditExportReady, KindChatFollowUp,
+	KindMemberAdded, KindRoleChanged, KindAuditExportReady, KindChatFollowUp, KindEmailHubNewMail,
 }
 
 var kindSet = func() map[string]bool {

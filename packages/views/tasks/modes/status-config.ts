@@ -1,26 +1,23 @@
-import type { LucideIcon } from "lucide-react";
-import { Ban, Circle, CircleCheck, CircleDashed, CircleDot, CircleX, Eye } from "lucide-react";
 import type { TaskStatus } from "@uniwork/core/types";
 import type { Tint } from "@uniwork/ui/components/common/icon-tile";
 import { tintForegroundClass } from "@uniwork/ui/components/common/icon-tile";
 
 /**
  * Column chrome for the seven catalog categories. `tone` is the category's
- * tint (identity, not state — see PRODUCT.md › Design Principles); `icon`
- * is the glyph every surface shows beside the status so a row can be read
- * without its column.
+ * tint (identity, not state — see PRODUCT.md › Design Principles). Status
+ * glyph geometry lives in `icons/status-icon.tsx`.
  */
 export const STATUS_CONFIG: Record<
   TaskStatus,
-  { tone: Tint; icon: LucideIcon; iconColor: string; columnBg: string }
+  { tone: Tint; iconColor: string; columnBg: string }
 > = {
-  backlog: { tone: "gray", icon: CircleDashed, iconColor: tintForegroundClass.gray, columnBg: "bg-tint-gray dark:bg-tint-gray/35" },
-  todo: { tone: "blue", icon: Circle, iconColor: tintForegroundClass.blue, columnBg: "bg-tint-blue dark:bg-tint-blue/35" },
-  in_progress: { tone: "yellow", icon: CircleDot, iconColor: tintForegroundClass.yellow, columnBg: "bg-tint-yellow dark:bg-tint-yellow/35" },
-  in_review: { tone: "violet", icon: Eye, iconColor: tintForegroundClass.violet, columnBg: "bg-tint-violet dark:bg-tint-violet/35" },
-  done: { tone: "green", icon: CircleCheck, iconColor: tintForegroundClass.green, columnBg: "bg-tint-green dark:bg-tint-green/35" },
-  blocked: { tone: "red", icon: Ban, iconColor: tintForegroundClass.red, columnBg: "bg-tint-red dark:bg-tint-red/35" },
-  cancelled: { tone: "gray", icon: CircleX, iconColor: tintForegroundClass.gray, columnBg: "bg-tint-gray dark:bg-tint-gray/35" },
+  backlog: { tone: "gray", iconColor: tintForegroundClass.gray, columnBg: "bg-muted/40" },
+  todo: { tone: "blue", iconColor: tintForegroundClass.gray, columnBg: "bg-muted/40" },
+  in_progress: { tone: "yellow", iconColor: "text-warning", columnBg: "bg-warning/5" },
+  in_review: { tone: "violet", iconColor: "text-success", columnBg: "bg-success/5" },
+  done: { tone: "green", iconColor: "text-info", columnBg: "bg-info/5" },
+  blocked: { tone: "red", iconColor: "text-destructive", columnBg: "bg-destructive/5" },
+  cancelled: { tone: "gray", iconColor: tintForegroundClass.gray, columnBg: "bg-muted/40" },
 };
 
 export function statusColumnBg(status: string): string {

@@ -143,6 +143,18 @@ WHERE meeting_id = $1 AND requester_user_id = $2 AND status = 'PENDING';
 SELECT * FROM meeting_join_requests
 WHERE meeting_id = $1 AND requester_guest_id = $2 AND status = 'PENDING';
 
+-- name: GetLatestJoinRequestForUser :one
+SELECT * FROM meeting_join_requests
+WHERE meeting_id = $1 AND requester_user_id = $2
+ORDER BY requested_at DESC, id DESC
+LIMIT 1;
+
+-- name: GetLatestJoinRequestForGuest :one
+SELECT * FROM meeting_join_requests
+WHERE meeting_id = $1 AND requester_guest_id = $2
+ORDER BY requested_at DESC, id DESC
+LIMIT 1;
+
 -- name: ListJoinRequests :many
 SELECT * FROM meeting_join_requests WHERE meeting_id = $1 ORDER BY requested_at DESC;
 

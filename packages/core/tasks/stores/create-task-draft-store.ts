@@ -21,9 +21,14 @@ export type CreateTaskDraft = {
   stage?: string;
   startDate?: string;
   dueDate?: string;
+  startAt?: string;
+  dueAt?: string;
   labelIds?: string[];
   attachments?: Attachment[];
   properties?: Record<string, unknown>;
+  /** Prompt and actor are separate from the manual description/assignee so mode switches are reversible. */
+  agentPrompt?: string;
+  agentId?: string;
   idempotencyKey: string;
   /** Monotonic local edit revision used to protect a newer draft from a late response. */
   version?: number;
@@ -59,8 +64,12 @@ function hasMeaningfulContent(draft: CreateTaskDraft): boolean {
       draft.stage ||
       draft.startDate ||
       draft.dueDate ||
+      draft.startAt ||
+      draft.dueAt ||
       draft.labelIds?.length ||
       draft.attachments?.length ||
+      draft.agentPrompt?.trim() ||
+      draft.agentId ||
       Object.keys(draft.properties ?? {}).length,
   );
 }

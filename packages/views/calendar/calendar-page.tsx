@@ -1,0 +1,279 @@
+"use client";
+
+import { useCallback, useMemo, useRef, useState } from "react";
+import { Calendar } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { useCalendarEvents, useCalendarSidebar } from "@uniwork/core/calendar";
+import {
+  DEFAULT_CALENDAR_PREFERENCES,
+  type CalendarPreferences,
+} from "@uniwork/core/calendar/preferences";
+import type { CalendarEvent } from "@uniwork/core/calendar/types";
+import { Button } from "@uniwork/ui/components/ui/button";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { cn } from "@uniwork/ui/lib/utils";
+import { format } from "date-fns";
+import { CollectionPageHeader, CollectionPageState } from "../layout/collection-page";
+import { moduleTone } from "../layout/module-tones";
+import { PAGE_GUTTER } from "../layout/page-header";
+import { CalendarToolbar } from "./calendar-toolbar";
+import { CalendarMeetingPanel } from "./calendar-meeting-panel";
+import { CalendarTaskPanel } from "./calendar-task-panel";
+import { type CalendarViewMode, rangeForMode } from "./calendar-view-mode";
+import { useCalendarMutations } from "./calendar-mutations";
+import { CreateFromSlot } from "./create-from-slot";
+import { CalendarSidebar, EMPTY_CALENDAR_SIDEBAR } from "./calendar-sidebar";
+import { FullCalendarHost, type CalendarSlot } from "./fullcalendar-host";
+import { NewMeetingDialog } from "../meetings/new-meeting-dialog";
+
+export function CalendarPageView({
+  workspaceId,
+  initialPreferences = DEFAULT_CALENDAR_PREFERENCES,
+  onPreferencesChange,
+  onOpenTask,
+  onOpenMeeting,
+  onJoinMeeting,
+}: {
+  workspaceId: string;
+  initialPreferences?: CalendarPreferences;
+  onPreferencesChange?: (next: CalendarPreferences) => void;
+  onOpenTask: (id: string) => void;
+  onOpenMeeting: (id: string) => void;
+  onJoinMeeting?: (id: string) => void;
+}) {
+  const { t, i18n } = useTranslation();
+  const [anchorDate, setAnchorDate] = useState(() => new Date());
+  const [mine, setMine] = useState(initialPreferences.mine);
+  const [showWeekends, setShowWeekends] = useState(initialPreferences.showWeekends);
+  const [viewMode, setViewMode] = useState<CalendarViewMode>(
+    initialPreferences.viewMode,
+  );
+  const [range, setRange] = useState(() =>
+    rangeForMode(initialPreferences.viewMode, new Date()),
+  );
+  const [slotMenuOpen, setSlotMenuOpen] = useState(false);
+  const [selectedSlot, setSelectedSlot] = useState<CalendarSlot | null>(null);
+  const [slotAnchor, setSlotAnchor] = useState<HTMLElement | null>(null);
+  const [createMeetingOpen, setCreateMeetingOpen] = useState(false);
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
+  const [openMeetingId, setOpenMeetingId] = useState<string | null>(null);
+  const taskTriggerRef = useRef<HTMLElement | null>(null);
+  const meetingTriggerRef = useRef<HTMLElement | null>(null);
+  const viewerTimeZone = useMemo(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+    [],
+  );
+
+  const initialDate = format(anchorDate, "yyyy-MM-dd");
+
+  const { data, isError, isPending, isRefetching, refetch } = useCalendarEvents(
+    workspaceId,
+    range.from,
+    range.to,
+    mine,
+  );
+  const sidebarQuery = useCalendarSidebar(workspaceId);
+  const sidebarSections = sidebarQuery.data ?? EMPTY_CALENDAR_SIDEBAR;
+  const events = useMemo(() => data ?? [], [data]);
+  const { applyDropPatch, applyExternalTaskDue } = useCalendarMutations(workspaceId);
+
+  const handleAnchorDateChange = (next: Date) => {
+    setAnchorDate(next);
+    setRange(rangeForMode(viewMode, next));
+  };
+
+  const handleViewModeChange = (mode: CalendarViewMode) => {
+    setViewMode(mode);
+    setRange(rangeForMode(mode, anchorDate));
+    onPreferencesChange?.({ viewMode: mode, mine, showWeekends });
+  };
+
+  const handleMineChange = (next: boolean) => {
+    setMine(next);
+    onPreferencesChange?.({ viewMode, mine: next, showWeekends });
+  };
+
+  const handleShowWeekendsChange = (next: boolean) => {
+    setShowWeekends(next);
+    onPreferencesChange?.({ viewMode, mine, showWeekends: next });
+  };
+
+  /** FullCalendar fires datesSet on option churn; skip no-op range updates to avoid loops. */
+  const handleDatesSet = (next: { from: string; to: string }) => {
+    setRange((prev) =>
+      prev.from === next.from && prev.to === next.to ? prev : next,
+    );
+  };
+
+  const handleSlotSelect = (slot: CalendarSlot, source?: HTMLElement) => {
+    setSelectedSlot(slot);
+    setSlotAnchor(source ?? null);
+    setSlotMenuOpen(true);
+  };
+
+  const handleQuickCreate = (source: HTMLElement) => {
+    setSelectedSlot(null);
+    setSlotAnchor(source);
+    setSlotMenuOpen(true);
+  };
+
+  const handleTaskOpen = useCallback((taskId: string, source?: HTMLElement) => {
+    const activeElement = document.activeElement;
+    const trigger = source ?? (activeElement instanceof HTMLElement ? activeElement : null);
+    if (trigger && trigger.tabIndex < 0) trigger.tabIndex = -1;
+    taskTriggerRef.current = trigger;
+    setOpenMeetingId(null);
+    setOpenTaskId(taskId);
+  }, []);
+
+  const handleMeetingOpen = useCallback((meetingId: string, source?: HTMLElement) => {
+    const activeElement = document.activeElement;
+    const trigger = source ?? (activeElement instanceof HTMLElement ? activeElement : null);
+    meetingTriggerRef.current = trigger;
+    setOpenTaskId(null);
+    setOpenMeetingId(meetingId);
+  }, []);
+
+  const handleTaskPanelClose = useCallback(() => {
+    const trigger = taskTriggerRef.current;
+    taskTriggerRef.current = null;
+    setOpenTaskId(null);
+    if (trigger?.isConnected) trigger.focus();
+  }, []);
+
+  const handleMeetingPanelClose = useCallback(() => {
+    const trigger = meetingTriggerRef.current;
+    meetingTriggerRef.current = null;
+    setOpenMeetingId(null);
+    if (trigger?.isConnected) trigger.focus();
+  }, []);
+
+  const handleExternalTaskReceive = async (input: { taskId: string; dueDate: string }) => {
+    const calendarEvent = events.find(
+      (ev) => ev.kind === "task" && ev.entityId === input.taskId,
+    );
+    await applyExternalTaskDue({ ...input, calendarEvent });
+  };
+
+  const handleEventClick = (event: CalendarEvent, source?: HTMLElement) => {
+    if (event.kind === "task") {
+      handleTaskOpen(event.entityId, source);
+      return;
+    }
+    handleMeetingOpen(event.entityId, source);
+  };
+
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <CollectionPageHeader
+        icon={Calendar}
+        tone={moduleTone("calendar")}
+        title={t("calendar.title")}
+      />
+      <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
+        <CalendarSidebar
+          workspaceId={workspaceId}
+          viewerTimeZone={viewerTimeZone}
+          sections={sidebarSections}
+          isPending={sidebarQuery.isPending}
+          isError={sidebarQuery.isError}
+          onRetry={() => void sidebarQuery.refetch()}
+          onOpenTask={handleTaskOpen}
+          onOpenMeeting={handleMeetingOpen}
+          onCreateMeeting={() => setCreateMeetingOpen(true)}
+          onQuickCreate={handleQuickCreate}
+        />
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <CalendarToolbar
+            anchorDate={anchorDate}
+            mine={mine}
+            showWeekends={showWeekends}
+            viewMode={viewMode}
+            workspaceId={workspaceId}
+            exportFrom={range.from}
+            exportTo={range.to}
+            isRefreshing={isRefetching || sidebarQuery.isRefetching}
+            onAnchorDateChange={handleAnchorDateChange}
+            onMineChange={handleMineChange}
+            onRefresh={() => {
+              void Promise.all([refetch(), sidebarQuery.refetch()]);
+            }}
+            onShowWeekendsChange={handleShowWeekendsChange}
+            onViewModeChange={handleViewModeChange}
+          />
+          {isError ? (
+            <CollectionPageState
+              icon={Calendar}
+              tone="destructive"
+              role="alert"
+              title={t("calendar.error")}
+              actions={
+                <Button size="sm" variant="outline" onClick={() => void refetch()}>
+                  {t("calendar.retry")}
+                </Button>
+              }
+            />
+          ) : (
+            <div
+              className={cn(
+                "flex min-h-0 flex-1 flex-col overflow-hidden py-4",
+                PAGE_GUTTER,
+                isPending ? "opacity-70" : undefined,
+              )}
+              aria-busy={isPending}
+            >
+              {isPending ? (
+                <p className="sr-only">{t("calendar.loading")}</p>
+              ) : null}
+              {isPending ? <Skeleton className="mb-4 h-8 w-full max-w-md" /> : null}
+              <FullCalendarHost
+                events={events}
+                initialDate={initialDate}
+                viewMode={viewMode}
+                showWeekends={showWeekends}
+                language={i18n.resolvedLanguage ?? i18n.language}
+                viewerTimeZone={viewerTimeZone}
+                onDatesSet={handleDatesSet}
+                onEventClick={handleEventClick}
+                onEventDropOrResize={applyDropPatch}
+                onExternalTaskReceive={handleExternalTaskReceive}
+                onSlotSelect={handleSlotSelect}
+              />
+              <CreateFromSlot
+                workspaceId={workspaceId}
+                open={slotMenuOpen}
+                onOpenChange={setSlotMenuOpen}
+                slot={selectedSlot}
+                anchor={slotAnchor}
+              />
+            </div>
+          )}
+        </div>
+        {openTaskId ? (
+          <CalendarTaskPanel
+            workspaceId={workspaceId}
+            taskId={openTaskId}
+            onClose={handleTaskPanelClose}
+            onOpenFullPage={onOpenTask}
+          />
+        ) : null}
+        {openMeetingId ? (
+          <CalendarMeetingPanel
+            workspaceId={workspaceId}
+            meetingId={openMeetingId}
+            onClose={handleMeetingPanelClose}
+            onJoin={(meetingId) => (onJoinMeeting ?? onOpenMeeting)(meetingId)}
+            onOpenFullPage={onOpenMeeting}
+          />
+        ) : null}
+      </div>
+      <NewMeetingDialog
+        workspaceId={workspaceId}
+        open={createMeetingOpen}
+        onOpenChange={setCreateMeetingOpen}
+        showTrigger={false}
+        onCreated={onOpenMeeting}
+      />
+    </div>
+  );
+}

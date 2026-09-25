@@ -1,0 +1,51 @@
+/* UNI is a dimensional focal point, while the product claims stay in the copy. */
+.landing-site .ai-stage {
+  background-color: var(--landing-cyan);
+  background-image:
+    radial-gradient(ellipse 50% 70% at 81% 40%, color-mix(in srgb, var(--landing-paper) 70%, transparent), transparent 82%),
+    radial-gradient(ellipse 42% 62% at 88% 78%, color-mix(in srgb, var(--landing-violet) 64%, transparent), transparent 88%),
+    linear-gradient(125deg, var(--landing-cyan), color-mix(in srgb, var(--landing-violet) 48%, var(--landing-cyan)));
+}
+.landing-site .ai-stage-copy { padding-right: clamp(20px, 3.5vw, 54px); }
+.landing-site .ai-intro .studio-title { max-width: 26ch; }
+.landing-site .ai-intro .studio-description { margin-top: 26px; max-width: 45ch; }
+.landing-site .ai-stage .ai-benefits {
+  max-width: 520px;
+  margin-top: 34px;
+  padding: 8px 18px;
+  border: 1px solid color-mix(in srgb, var(--brand) 13%, var(--border));
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--landing-paper) 83%, var(--landing-cyan));
+}
+.landing-site .ai-stage .ai-benefits [data-slot=accordion-item] { border-color: color-mix(in srgb, var(--brand) 15%, var(--border)); }
+.landing-site .ai-stage .ai-benefits [data-slot=accordion-item]:last-child { border-bottom: 0; }
+.landing-site .ai-stage .ai-benefits [data-slot=accordion-trigger] { min-height: 56px; font-weight: 650; }
+.landing-site .ai-stage .ai-benefits [data-slot=accordion-trigger] > span { gap: 16px; }
+.landing-site .ai-stage .ai-benefits [data-slot=accordion-trigger] > span svg { width: 24px; height: 24px; flex: none; }
+.landing-site .ai-stage .ai-benefits [data-slot=accordion-item][data-open] [data-slot=accordion-trigger] { color: var(--brand); }
+.landing-site .ai-stage .ai-demo-link { margin-top: 30px; }
+.landing-site .ai-stage .ai-visual { position: relative; isolation: isolate; }
+.landing-site .ai-stage .mascot-stage::before {
+  content: ""; position: absolute; z-index: -1; width: min(74%, 430px); aspect-ratio: 1; top: 15%; left: 50%;
+  transform: translateX(-50%); border: 1px solid color-mix(in srgb, var(--brand) 16%, transparent); border-radius: 50%;
+  box-shadow: 0 0 0 32px color-mix(in srgb, var(--landing-paper) 27%, transparent), 0 0 0 33px color-mix(in srgb, var(--brand) 8%, transparent);
+  pointer-events: none;
+}
+.landing-site .ai-stage .mascot-stage::after {
+  content: ""; position: absolute; z-index: -1; width: 55%; height: 18%; bottom: 8%; left: 50%; transform: translateX(-50%);
+  border-radius: 50%; background: radial-gradient(ellipse, color-mix(in srgb, var(--brand) 13%, transparent), transparent 72%);
+  pointer-events: none;
+}
+.landing-site .ai-stage .mascot-portrait { z-index: 1; }
+.landing-site .ai-stage .mascot-ground { z-index: 0; opacity: .1; }
+@media (max-width: 1100px) {
+  .landing-site .ai-stage-copy { padding-right: 24px; }
+  .landing-site .ai-stage .ai-benefits { padding-inline: 14px; }
+}
+@media (max-width: 767px) {
+  .landing-site .ai-stage-copy { padding-right: 24px; }
+  .landing-site .ai-intro .studio-title { max-width: none; }
+  .landing-site .ai-stage .ai-benefits { margin-top: 24px; }
+  .landing-site .ai-stage .ai-visual { margin-top: 14px; }
+  .landing-site .ai-stage .mascot-stage::before { top: 11%; width: min(67%, 280px); box-shadow: 0 0 0 22px color-mix(in srgb, var(--landing-paper) 27%, transparent), 0 0 0 23px color-mix(in srgb, var(--brand) 8%, transparent); }
+}

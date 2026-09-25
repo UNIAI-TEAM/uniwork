@@ -44,8 +44,8 @@ describe("TaskActivityRow", () => {
       },
       "Lan",
     );
-    expect(el).toHaveTextContent("Tạo task");
-    expect(el).not.toHaveTextContent("Cập nhật task");
+    expect(el).toHaveTextContent("Tạo việc");
+    expect(el).not.toHaveTextContent("Cập nhật việc");
     // Ba trường, tối đa hai ô hiển thị: phần dư gộp thành "+1".
     expect(el).toHaveTextContent("Tiêu đề");
     expect(el).toHaveTextContent("+1");
@@ -56,7 +56,7 @@ describe("TaskActivityRow", () => {
       { changes: { status: { from: "todo", to: "in_progress" } } },
       "Lan",
     );
-    expect(el).toHaveTextContent("Cập nhật task");
+    expect(el).toHaveTextContent("Cập nhật việc");
     expect(el).toHaveTextContent("Lan");
     expect(el).toHaveTextContent("Cần làm");
     expect(el).toHaveTextContent("Đang làm");
@@ -87,7 +87,7 @@ describe("TaskActivityRow", () => {
   it("hành động lạ vẫn hiện chính tên nó thay vì bịa ra câu khác", () => {
     const el = row({ action: "task.archived_by_a_newer_server" });
     expect(el).toHaveTextContent("task.archived_by_a_newer_server");
-    expect(el).not.toHaveTextContent("Cập nhật task");
+    expect(el).not.toHaveTextContent("Cập nhật việc");
   });
 });
 

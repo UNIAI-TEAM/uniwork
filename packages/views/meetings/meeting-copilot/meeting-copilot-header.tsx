@@ -29,7 +29,7 @@ export function MeetingCopilotHeader({
         <h2 className="text-pretty text-title-sm font-semibold text-foreground">
           {t("meetings.uniworkAi")}
         </h2>
-        <Badge variant="secondary" className="border-brand/20 bg-surface-selected text-brand">
+        <Badge variant="secondary" className="border-transparent bg-brand-subtle text-brand-subtle-foreground">
           {t("meetings.betaLabel")}
         </Badge>
       </div>

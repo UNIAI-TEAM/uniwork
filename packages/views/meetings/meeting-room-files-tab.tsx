@@ -4,23 +4,45 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useRecordings } from "@uniwork/core/meetings";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { meetingLocale } from "./meeting-datetime";
 import { MeetingRecordingDialog } from "./meeting-recording-dialog";
+import { MeetingSectionError, MeetingSectionLoading } from "./meeting-section-state";
 
+/**
+ * The meeting's recordings. It lists only what the server records today;
+ * shared files are not a thing a meeting has yet, so the tab does not promise them.
+ */
 export function MeetingRoomFilesTab({ meetingId }: { meetingId: string }) {
   const { t, i18n } = useTranslation();
-  const { data: recordings, isLoading } = useRecordings(meetingId);
+  const { data: recordings, isPending, isError, refetch } = useRecordings(meetingId);
   const shared = (recordings ?? []).filter((r) => r.file_url);
   const [playbackId, setPlaybackId] = useState<string | null>(null);
 
-  if (isLoading) {
-    return <p className="text-label text-muted-foreground">{t("common.loading")}</p>;
+  if (isPending) {
+    return (
+      <MeetingSectionLoading className="space-y-2">
+        {[0, 1].map((i) => (
+          <div
+            key={i}
+            className="flex items-center justify-between gap-2 rounded-xl border border-border bg-surface-hover px-3 py-2.5"
+          >
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="h-8 w-20 rounded-lg" />
+          </div>
+        ))}
+      </MeetingSectionLoading>
+    );
+  }
+
+  if (isError) {
+    return <MeetingSectionError message={t("meetings.recordingsLoadFailed")} onRetry={() => void refetch()} />;
   }
 
   if (shared.length === 0) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center">
-        <p className="text-label text-muted-foreground">{t("meetings.filesEmpty")}</p>
+      <div className="flex flex-1 flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface-hover px-4 py-8 text-center">
+        <p className="text-label text-pretty text-muted-foreground">{t("meetings.recordingsEmpty")}</p>
       </div>
     );
   }
@@ -31,7 +53,7 @@ export function MeetingRoomFilesTab({ meetingId }: { meetingId: string }) {
         {shared.map((r) => (
           <li
             key={r.id}
-            className="flex flex-col gap-2 rounded-xl border border-border bg-muted/20 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
+            className="flex flex-col gap-2 rounded-xl border border-border bg-surface-hover px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
           >
             <span className="text-caption tabular-nums text-muted-foreground">
               {r.started_at

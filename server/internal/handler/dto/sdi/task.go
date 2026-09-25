@@ -1,38 +1,47 @@
 package sdi
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"time"
+)
 
 // CreateTaskSDI is POST /api/v1/workspaces/{workspaceID}/tasks.
 type CreateTaskSDI struct {
-	Title         string                     `json:"title" minLength:"1" description:"Tiêu đề công việc" example:"Chuẩn bị standup"`
-	Description   string                     `json:"description" description:"Chi tiết tùy chọn" example:"Agenda và ghi chú"`
-	Status        string                     `json:"status" description:"Key trạng thái trong catalog workspace; mặc định todo" example:"in_progress"`
-	Priority      string                     `json:"priority" description:"none, low, medium, high hoặc urgent" example:"medium"`
-	AssigneeID    *string                    `json:"assignee_id" description:"Thành viên hoặc agent được giao; bỏ trống nếu chưa giao" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	AssigneeKind  string                     `json:"assignee_kind" description:"human (mặc định) hoặc agent" example:"human"`
-	StartDate     *string                    `json:"start_date" description:"Ngày bắt đầu dạng YYYY-MM-DD" example:"2026-08-25"`
-	DueDate       *string                    `json:"due_date" description:"Hạn chót dạng YYYY-MM-DD" example:"2026-08-28"`
-	ProjectID     *string                    `json:"project_id" description:"Project cùng workspace" example:"01J8X4PROJ0N1P2Q3R4S5T6U7"`
-	ParentTaskID  *string                    `json:"parent_task_id" description:"Task cha cùng workspace" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
-	Stage         *int32                     `json:"stage" description:"Thứ tự giai đoạn, từ 1 trở lên" example:"1"`
-	LabelIDs      []string                   `json:"label_ids" description:"Các nhãn active cùng workspace, gắn nguyên tử khi tạo"`
-	AttachmentIDs []string                   `json:"attachment_ids" description:"Các đính kèm tạm cùng workspace, gắn nguyên tử khi tạo"`
-	Properties    map[string]json.RawMessage `json:"properties" description:"Giá trị custom property active cùng workspace, lưu nguyên tử khi tạo"`
+	Title          string                     `json:"title" minLength:"1" description:"Tiêu đề công việc" example:"Chuẩn bị standup"`
+	Description    string                     `json:"description" description:"Chi tiết tùy chọn" example:"Agenda và ghi chú"`
+	Status         string                     `json:"status" description:"Key trạng thái trong catalog workspace; mặc định todo" example:"in_progress"`
+	Priority       string                     `json:"priority" description:"none, low, medium, high hoặc urgent" example:"medium"`
+	AssigneeID     *string                    `json:"assignee_id" description:"Thành viên hoặc agent được giao; bỏ trống nếu chưa giao" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	AssigneeKind   string                     `json:"assignee_kind" description:"human (mặc định) hoặc agent" example:"human"`
+	StartDate      *string                    `json:"start_date" description:"Ngày bắt đầu dạng YYYY-MM-DD" example:"2026-08-25"`
+	DueDate        *string                    `json:"due_date" description:"Hạn chót dạng YYYY-MM-DD" example:"2026-08-28"`
+	StartAt        *time.Time                 `json:"start_at" description:"Thời điểm bắt đầu RFC3339; dùng cùng start_date cho task có giờ" example:"2026-08-25T02:00:00Z"`
+	DueAt          *time.Time                 `json:"due_at" description:"Thời điểm kết thúc RFC3339; dùng cùng due_date cho task có giờ" example:"2026-08-25T03:00:00Z"`
+	ProjectID      *string                    `json:"project_id" description:"Project cùng workspace" example:"01J8X4PROJ0N1P2Q3R4S5T6U7"`
+	ParentTaskID   *string                    `json:"parent_task_id" description:"Task cha cùng workspace" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
+	Stage          *int32                     `json:"stage" description:"Thứ tự giai đoạn, từ 1 trở lên" example:"1"`
+	LabelIDs       []string                   `json:"label_ids" description:"Các nhãn active cùng workspace, gắn nguyên tử khi tạo"`
+	AttachmentIDs  []string                   `json:"attachment_ids" description:"Các đính kèm tạm cùng workspace, gắn nguyên tử khi tạo"`
+	Properties     map[string]json.RawMessage `json:"properties" description:"Giá trị custom property active cùng workspace, lưu nguyên tử khi tạo"`
+	AllowDuplicate bool                       `json:"allow_duplicate,omitempty" description:"Bỏ qua guard tiêu đề trùng với task đang mở" example:"false"`
 }
 
 // PatchTaskSDI documents PATCH /api/v1/tasks/{taskID}. The handler still
 // decodes map[string]json.RawMessage so a missing field stays unchanged and
-// a JSON null clears assignee_id / due_date.
+// a JSON null clears assignee_id / start_date / due_date / start_at / due_at.
 type PatchTaskSDI struct {
-	Title        *string  `json:"title" description:"Tiêu đề mới" example:"Chuẩn bị standup"`
-	Description  *string  `json:"description" example:"Agenda và ghi chú"`
-	Status       *string  `json:"status" description:"backlog, todo, in_progress, in_review, done, blocked hoặc cancelled" example:"in_progress"`
-	Priority     *string  `json:"priority" example:"high"`
-	Position     *float64 `json:"position" description:"Thứ tự trên bảng; số lớn hơn nằm sau" example:"1"`
-	AssigneeID   *string  `json:"assignee_id" description:"Gán thành viên hoặc agent, hoặc gửi null để bỏ giao" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
-	AssigneeKind *string  `json:"assignee_kind" description:"human (mặc định) hoặc agent; đọc cùng assignee_id" example:"agent"`
-	DueDate      *string  `json:"due_date" description:"Đặt YYYY-MM-DD, hoặc gửi null để xóa hạn" example:"2026-08-28"`
-	ProjectID    *string  `json:"project_id" description:"Gắn project ULID, hoặc gửi null để gỡ" example:"01J8X4PROJ0N1P2Q3R4S5T6U7"`
+	Title        *string    `json:"title" description:"Tiêu đề mới" example:"Chuẩn bị standup"`
+	Description  *string    `json:"description" example:"Agenda và ghi chú"`
+	Status       *string    `json:"status" description:"backlog, todo, in_progress, in_review, done, blocked hoặc cancelled" example:"in_progress"`
+	Priority     *string    `json:"priority" example:"high"`
+	Position     *float64   `json:"position" description:"Thứ tự trên bảng; số lớn hơn nằm sau" example:"1"`
+	AssigneeID   *string    `json:"assignee_id" description:"Gán thành viên hoặc agent, hoặc gửi null để bỏ giao" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	AssigneeKind *string    `json:"assignee_kind" description:"human (mặc định) hoặc agent; đọc cùng assignee_id" example:"agent"`
+	StartDate    *string    `json:"start_date" description:"Đặt YYYY-MM-DD, hoặc gửi null để xóa ngày bắt đầu" example:"2026-08-25"`
+	DueDate      *string    `json:"due_date" description:"Đặt YYYY-MM-DD, hoặc gửi null để xóa hạn" example:"2026-08-28"`
+	StartAt      *time.Time `json:"start_at" description:"Đặt thời điểm bắt đầu RFC3339 cùng due_at, hoặc gửi cả hai là null để xóa lịch giờ" example:"2026-08-25T02:00:00Z"`
+	DueAt        *time.Time `json:"due_at" description:"Đặt thời điểm kết thúc RFC3339 cùng start_at, hoặc gửi cả hai là null để xóa lịch giờ" example:"2026-08-25T03:00:00Z"`
+	ProjectID    *string    `json:"project_id" description:"Gắn project ULID, hoặc gửi null để gỡ" example:"01J8X4PROJ0N1P2Q3R4S5T6U7"`
 }
 
 // QueryTasksSDI is POST /api/v1/workspaces/{workspaceID}/tasks/query (flagged suite).
@@ -85,34 +94,52 @@ type ListMyTasksSDI struct {
 
 // TableFilterSDI narrows table groups/rows/facets.
 type TableFilterSDI struct {
-	Statuses    []string `json:"statuses" description:"Lọc status; bỏ trống = mọi status" example:"[\"todo\",\"in_progress\"]"`
-	Priorities  []string `json:"priorities" description:"Lọc priority" example:"[\"high\"]"`
-	AssigneeIDs []string `json:"assignee_ids" description:"Lọc assignee ULID" example:"[\"01J8X4K2M0N1P2Q3R4S5T6U7V8\"]"`
-	ProjectIDs  []string `json:"project_ids" description:"Lọc project ULID" example:"[\"01J8X4PROJ0N1P2Q3R4S5T6U7\"]"`
+	Statuses          []string            `json:"statuses" description:"Lọc status; bỏ trống = mọi status" example:"[\"todo\",\"in_progress\"]"`
+	Priorities        []string            `json:"priorities" description:"Lọc priority" example:"[\"high\"]"`
+	AssigneeIDs       []string            `json:"assignee_ids" description:"Lọc assignee ULID" example:"[\"01J8X4K2M0N1P2Q3R4S5T6U7V8\"]"`
+	ProjectIDs        []string            `json:"project_ids" description:"Lọc project ULID" example:"[\"01J8X4PROJ0N1P2Q3R4S5T6U7\"]"`
+	IncludeNoAssignee bool                `json:"include_no_assignee" description:"Kèm việc chưa gán người; OR với assignee_ids"`
+	IncludeNoProject  bool                `json:"include_no_project" description:"Kèm việc chưa gán dự án; OR với project_ids"`
+	CreatorRefs       []string            `json:"creator_refs" description:"human:<id> hoặc agent:<id>" example:"[\"human:01J8X4K2M0N1P2Q3R4S5T6U7V8\"]"`
+	LabelIDs          []string            `json:"label_ids" description:"Lọc nhãn ULID" example:"[\"01J8X4LABELN1P2Q3R4S5T6U7\"]"`
+	Properties        map[string][]string `json:"properties" description:"property id → option ids; __none__ = chưa đặt"`
+	DateField         string              `json:"date_field" description:"created_at hoặc updated_at" example:"created_at"`
+	DateFrom          string              `json:"date_from" description:"YYYY-MM-DD inclusive" example:"2026-01-01"`
+	DateTo            string              `json:"date_to" description:"YYYY-MM-DD inclusive" example:"2026-12-31"`
+}
+
+// TableSortSDI orders table rows; both fields default (position asc) when empty.
+type TableSortSDI struct {
+	Field     string `json:"field" description:"position, title, created_at, updated_at, start_date, due_date, status, priority hoặc property:<id>" example:"due_date"`
+	Direction string `json:"direction" description:"asc hoặc desc" example:"asc"`
+}
+
+// TableQuerySDI is the filter/search/sort shared by groups, rows and facets.
+type TableQuerySDI struct {
+	Filter TableFilterSDI `json:"filter" description:"Bộ lọc chung"`
+	Search string         `json:"search" description:"Tìm theo tiêu đề (mọi từ) hoặc số hiệu" example:"báo cáo"`
+	Sort   TableSortSDI   `json:"sort" description:"Thứ tự dòng; bỏ trống = position tăng dần"`
 }
 
 // TableGroupsSDI is POST .../tasks/table/groups (flagged suite).
 type TableGroupsSDI struct {
-	Filter  TableFilterSDI `json:"filter" description:"Bộ lọc chung"`
-	GroupBy string         `json:"group_by" description:"status, priority hoặc assignee" example:"status"`
-	Columns []string       `json:"columns" description:"Cột client yêu cầu (fingerprint); groups không chiếu cột" example:"[\"title\",\"status\"]"`
-	Limit   int32          `json:"limit" description:"Giới hạn số group (dự phòng phân trang)" example:"50"`
-	Offset  int32          `json:"offset" example:"0"`
+	Query   TableQuerySDI `json:"query" description:"Lọc, tìm và sắp xếp dùng chung với rows và facets"`
+	GroupBy string        `json:"group_by" description:"none, status, priority, assignee, project hoặc property:<id>" example:"status"`
 }
 
 // TableRowsSDI is POST .../tasks/table/rows (flagged suite).
 type TableRowsSDI struct {
-	Filter   TableFilterSDI `json:"filter"`
-	GroupBy  string         `json:"group_by" description:"Trục nhóm khớp groups" example:"status"`
-	GroupKey *string        `json:"group_key" description:"Key group từ /table/groups; null = mọi group" example:"todo"`
-	Columns  []string       `json:"columns" description:"Cột client; server trả task đầy đủ ổn định" example:"[\"title\",\"status\",\"priority\"]"`
-	Limit    int32          `json:"limit" example:"50"`
-	Offset   int32          `json:"offset" example:"0"`
+	Query     TableQuerySDI `json:"query" description:"Lọc, tìm và sắp xếp; phải khớp truy vấn đã tạo cursor"`
+	GroupBy   string        `json:"group_by" description:"Trục nhóm khớp groups" example:"status"`
+	GroupKey  *string       `json:"group_key" description:"Key nhóm nguyên văn từ /table/groups; null khi group_by=none" example:"status:todo"`
+	Hierarchy bool          `json:"hierarchy" description:"Bật cây việc con" example:"true"`
+	ParentID  *string       `json:"parent_id" description:"Tải con của việc này; cần hierarchy=true" example:"01J8X4TASKN1P2Q3R4S5T6U7"`
+	Cursor    *string       `json:"cursor" description:"next_cursor của trang trước" example:"eyJ2IjoxfQ"`
+	Limit     int32         `json:"limit" description:"1–100, mặc định 50" example:"50"`
 }
 
 // TableFacetsSDI is POST .../tasks/table/facets (flagged suite).
 type TableFacetsSDI struct {
-	Filter  TableFilterSDI `json:"filter"`
-	Facets  []string       `json:"facets" description:"status, priority, assignee" example:"[\"status\",\"priority\"]"`
-	Columns []string       `json:"columns" description:"Fingerprint; facets không chiếu cột" example:"[\"title\"]"`
+	Query  TableQuerySDI `json:"query" description:"Lọc, tìm và sắp xếp để đếm facet"`
+	Facets []string      `json:"facets" description:"status, priority, assignee, project" example:"[\"status\"]"`
 }

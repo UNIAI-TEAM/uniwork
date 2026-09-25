@@ -49,9 +49,12 @@ function DialogContent({
   overlayClassName,
   children,
   showCloseButton = true,
+  closeLabel = "Close",
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
+  /** Screen-reader label of the close button; hosts pass their locale's word. */
+  closeLabel?: string
   /** Scrim override. The default bg-black/10 assumes a dialog the user can
       dismiss by looking away; a dialog that must own the screen (welcome,
       destructive confirm) passes a heavier one. */
@@ -83,7 +86,7 @@ function DialogContent({
           >
             <XIcon
             />
-            <span className="sr-only">Close</span>
+            <span className="sr-only">{closeLabel}</span>
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Popup>

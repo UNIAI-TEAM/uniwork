@@ -1,23 +1,26 @@
 "use client";
 
-import { useRef } from "react";
+import { useId, useRef } from "react";
 import {
+  Calendar,
   CalendarDays,
-  ChevronsUpDown,
+  ChevronDown,
   FolderKanban,
   House,
   Inbox,
   ListTodo,
   LogOut,
+  Mail,
   MessageSquare,
   Settings,
   SquareCheckBig,
   Users,
   type LucideIcon,
 } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { useLogout } from "@uniwork/core/auth";
-import { HOME_PAGE_FLAG, useFlag } from "@uniwork/core/feature-flags";
+import { useEmailHubUnreadCount } from "@uniwork/core/email-hub/hooks";
 import { useUnreadCount } from "@uniwork/core/notifications";
 import { paths } from "@uniwork/core/paths";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
@@ -37,6 +40,7 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuBadge,
@@ -45,7 +49,7 @@ import {
   SidebarRail,
   useSidebar,
 } from "@uniwork/ui/components/ui/sidebar";
-import { cn } from "@uniwork/ui/lib/utils";
+import { UI_EASE_SETTLE, UI_MOTION_DURATION } from "@uniwork/ui/lib/motion";
 import { AppLink, useNavigation } from "../navigation";
 import { SearchTrigger } from "../search";
 import { useWorkspace } from "./workspace-context";
@@ -54,7 +58,7 @@ import { moduleTone, type ModuleKey } from "./module-tones";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 
 interface NavItem {
-  key: "nav.home" | "nav.inbox" | "nav.tasks" | "nav.my_tasks" | "nav.projects" | "nav.meetings" | "nav.chat" | "nav.people";
+  key: "nav.home" | "nav.inbox" | "nav.email" | "nav.tasks" | "nav.my_tasks" | "nav.projects" | "nav.calendar" | "nav.meetings" | "nav.chat" | "nav.people";
   module: ModuleKey;
   href: string;
   icon: LucideIcon;
@@ -63,11 +67,15 @@ interface NavItem {
   exact?: boolean;
 }
 
-/* Active row: the brand wash with brand text. The glyph keeps its module
-   tint on every row; the label alone changes. The unread count is the brand
-   fill — one colour for "attention", the same one the bell wears. */
+interface NavGroup {
+  id: string;
+  /** No label for the lead group: Home and Inbox are where a day starts, not a category. */
+  label?: "nav.group_work" | "nav.group_communication";
+  items: NavItem[];
+}
+
 const navButtonClass =
-  "text-muted-foreground hover:not-data-active:bg-sidebar-accent/70 data-active:bg-surface-selected data-active:text-brand data-active:hover:bg-surface-selected";
+  "isolate h-9 rounded-md text-muted-foreground hover:not-data-active:bg-sidebar-accent/70 data-active:bg-transparent data-active:font-medium data-active:text-sidebar-accent-foreground data-active:hover:bg-transparent";
 
 /** First letter of the first word, which is all an avatar has room for at 32px. */
 function initialOf(name: string) {
@@ -90,17 +98,45 @@ export function AppSidebar() {
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
   const unread = useUnreadCount();
   const unreadHere = unread.data?.by_workspace[workspace.id] ?? 0;
-  const homeEnabled = useFlag(HOME_PAGE_FLAG, false);
+  const emailUnread = useEmailHubUnreadCount(workspace.id);
+  const emailUnreadHere = emailUnread.data?.unread ?? 0;
+  const labelId = useId();
+  const reduceMotion = useReducedMotion() ?? false;
 
-  const items: NavItem[] = [
-    ...(homeEnabled ? [{ key: "nav.home", module: "home", href: ws.root(), icon: House, exact: true } satisfies NavItem] : []),
-    { key: "nav.inbox", module: "inbox", href: ws.inbox(), icon: Inbox, badge: unreadHere },
-    { key: "nav.tasks", module: "tasks", href: ws.tasks(), icon: SquareCheckBig },
-    { key: "nav.my_tasks", module: "my_tasks", href: ws.myTasks(), icon: ListTodo },
-    { key: "nav.projects", module: "projects", href: ws.projects(), icon: FolderKanban },
-    { key: "nav.meetings", module: "meetings", href: ws.meetings(), icon: CalendarDays },
-    { key: "nav.chat", module: "chat", href: ws.chat(), icon: MessageSquare },
-    { key: "nav.people", module: "people", href: ws.people(), icon: Users },
+  const groups: NavGroup[] = [
+    {
+      id: "lead",
+      items: [
+        { key: "nav.home", module: "home", href: ws.root(), icon: House, exact: true },
+        { key: "nav.inbox", module: "inbox", href: ws.inbox(), icon: Inbox, badge: unreadHere },
+      ],
+    },
+    {
+      id: "work",
+      label: "nav.group_work",
+      items: [
+        { key: "nav.tasks", module: "tasks", href: ws.tasks(), icon: SquareCheckBig },
+        { key: "nav.my_tasks", module: "my_tasks", href: ws.myTasks(), icon: ListTodo },
+        { key: "nav.projects", module: "projects", href: ws.projects(), icon: FolderKanban },
+        { key: "nav.calendar", module: "calendar", href: ws.calendar(), icon: Calendar },
+      ],
+    },
+    {
+      id: "communication",
+      label: "nav.group_communication",
+      items: [
+        {
+          key: "nav.email",
+          module: "email",
+          href: ws.email(),
+          icon: Mail,
+          badge: emailUnreadHere > 0 ? emailUnreadHere : undefined,
+        },
+        { key: "nav.meetings", module: "meetings", href: ws.meetings(), icon: CalendarDays },
+        { key: "nav.chat", module: "chat", href: ws.chat(), icon: MessageSquare },
+        { key: "nav.people", module: "people", href: ws.people(), icon: Users },
+      ],
+    },
   ];
 
   const isActive = (href: string, exact = false) => pathname === href || (!exact && pathname.startsWith(href + "/"));
@@ -111,7 +147,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar variant="inset" collapsible="icon">
-      <SidebarHeader className="gap-1 py-2 group-data-[collapsible=icon]:px-0">
+      <SidebarHeader className="gap-2 px-2 pt-2 pb-1 group-data-[collapsible=icon]:px-0">
         <SidebarMenu>
           <SidebarMenuItem>
             <WorkspaceSwitcher current={workspace} onNavigate={dismissSheet} />
@@ -125,47 +161,81 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent ref={sidebarScrollRef} style={sidebarFadeStyle}>
-        <nav aria-label={t("nav.workspace_group")} className="flex flex-col">
-          <SidebarGroup className="group-data-[collapsible=icon]:px-0">
-            <SidebarGroupContent>
-              <SidebarMenu className="gap-0.5">
-                {items.map(({ key, module, href, icon: Icon, badge, exact }) => {
-                  const active = isActive(href, exact);
-                  return (
-                    <SidebarMenuItem key={href}>
-                      <SidebarMenuButton
-                        isActive={active}
-                        tooltip={t(key)}
-                        className={navButtonClass}
-                        render={
-                          <AppLink
-                            href={href}
-                            aria-current={active ? "page" : undefined}
-                            onClick={dismissSheet}
-                          />
-                        }
-                      >
-                        <IconTile icon={Icon} size="xs" variant="solid" tone={moduleTone(module)} className="[&_svg]:size-3" />
-                        <span>{t(key)}</span>
-                        {badge ? (
-                          <SidebarMenuBadge
-                            aria-label={t("notifications.bell_unread", { count: badge })}
-                            className="rounded-full bg-primary text-primary-foreground"
+        <nav aria-label={t("nav.workspace_group")} className="flex flex-col pt-1">
+          {groups.map(({ id, label, items }) =>
+            items.length === 0 ? null : (
+              <SidebarGroup key={id} className="py-1 group-data-[collapsible=icon]:px-0">
+                {/* The label names its list through `aria-labelledby`, and is
+                    itself aria-hidden: read as text too, a screen reader said
+                    "Làm việc" twice, and in the icon rail (where the label
+                    fades out) it was a stray line between two lists. A
+                    reference to a hidden element still yields the name. */}
+                {label ? (
+                  <SidebarGroupLabel
+                    id={`${labelId}-${id}`}
+                    aria-hidden
+                    className="h-7 px-2 text-overline text-muted-foreground"
+                  >
+                    {t(label)}
+                  </SidebarGroupLabel>
+                ) : null}
+                <SidebarGroupContent>
+                  <SidebarMenu className="gap-0.5" aria-labelledby={label ? `${labelId}-${id}` : undefined}>
+                    {items.map(({ key, module, href, icon: Icon, badge, exact }) => {
+                      const active = isActive(href, exact);
+                      return (
+                        <SidebarMenuItem key={href}>
+                          <SidebarMenuButton
+                            isActive={active}
+                            tooltip={t(key)}
+                            className={navButtonClass}
+                            render={
+                              <AppLink
+                                href={href}
+                                aria-current={active ? "page" : undefined}
+                                onClick={dismissSheet}
+                              />
+                            }
                           >
-                            {badge > 99 ? "99+" : badge}
-                          </SidebarMenuBadge>
-                        ) : null}
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+                            {active ? (
+                              <motion.span
+                                aria-hidden
+                                initial={false}
+                                layoutId={reduceMotion ? undefined : "sidebar-active-row"}
+                                transition={{ duration: UI_MOTION_DURATION.settle, ease: UI_EASE_SETTLE }}
+                                data-slot="sidebar-active-indicator"
+                                className="pointer-events-none absolute inset-0 -z-10 rounded-md bg-sidebar-accent"
+                              />
+                            ) : null}
+                            <IconTile
+                              icon={Icon}
+                              size="xs"
+                              variant="solid"
+                              tone={moduleTone(module)}
+                              className="[&_svg]:size-3 [&_svg]:stroke-[2.25]"
+                            />
+                            <span>{t(key)}</span>
+                            {badge ? (
+                              <SidebarMenuBadge
+                                aria-label={t("notifications.bell_unread", { count: badge })}
+                                className="top-2! right-2 rounded-full bg-primary px-1.5 text-primary-foreground peer-data-active/menu-button:text-primary-foreground peer-hover/menu-button:text-primary-foreground [[data-mobile=true]_&]:top-3!"
+                              >
+                                {badge > 99 ? "99+" : badge}
+                              </SidebarMenuBadge>
+                            ) : null}
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      );
+                    })}
+                  </SidebarMenu>
+                </SidebarGroupContent>
+              </SidebarGroup>
+            ),
+          )}
         </nav>
       </SidebarContent>
 
-      <SidebarFooter className="p-2 group-data-[collapsible=icon]:px-0">
+      <SidebarFooter className="px-2 pt-1 pb-2 group-data-[collapsible=icon]:px-0">
         <SidebarMenu>
           <SidebarMenuItem>
             <DropdownMenu>
@@ -173,9 +243,11 @@ export function AppSidebar() {
                 render={
                   <SidebarMenuButton
                     size="lg"
-                    aria-label={t("nav.account")}
+                    // Starts with what the button shows, so a voice-control
+                    // user can say the name they see (WCAG 2.5.3).
+                    aria-label={t("nav.account_named", { name: user.display_name, email: user.email })}
                     tooltip={user.display_name}
-                    className={cn(navButtonClass, "data-[popup-open]:bg-sidebar-accent")}
+                    className="gap-2.5 px-2"
                   />
                 }
               >
@@ -184,12 +256,17 @@ export function AppSidebar() {
                   initials={initialOf(user.display_name)}
                   avatarUrl={user.avatar_url}
                   size="lg"
-                  className="bg-sidebar-accent text-sidebar-accent-foreground ring-1 ring-sidebar-border"
+                  className="bg-sidebar-accent text-sidebar-accent-foreground"
                 />
-                <span className="min-w-0 flex-1 truncate text-left text-body font-medium text-sidebar-foreground group-data-[collapsible=icon]:hidden">
-                  {user.display_name}
+                <span className="flex min-w-0 flex-1 flex-col text-left group-data-[collapsible=icon]:hidden">
+                  <span title={user.display_name} className="truncate text-body font-semibold text-foreground">
+                    {user.display_name}
+                  </span>
+                  <span title={user.email} className="truncate text-caption text-muted-foreground">
+                    {user.email}
+                  </span>
                 </span>
-                <ChevronsUpDown aria-hidden className="size-4 shrink-0 text-faint-foreground group-data-[collapsible=icon]:hidden" />
+                <ChevronDown aria-hidden className="ml-auto size-3! text-muted-foreground group-data-[collapsible=icon]:hidden" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" side="top" className="min-w-56">
                 <DropdownMenuGroup>

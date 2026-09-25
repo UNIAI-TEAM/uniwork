@@ -143,13 +143,38 @@ type Routes struct {
 	GetTaskViewPreference http.HandlerFunc
 	PutTaskViewPreference http.HandlerFunc
 
-	GetHomeSummary    http.HandlerFunc
-	GetHomePreference http.HandlerFunc
-	PutHomePreference http.HandlerFunc
-	ListPins          http.HandlerFunc
-	CreatePin         http.HandlerFunc
-	DeletePin         http.HandlerFunc
-	ReorderPins       http.HandlerFunc
+	GetHomeSummary      http.HandlerFunc
+	GetHomePreference   http.HandlerFunc
+	PutHomePreference   http.HandlerFunc
+	ListCalendarEvents  http.HandlerFunc
+	ListCalendarSidebar http.HandlerFunc
+	WorkspaceCalendar   http.HandlerFunc
+
+	ListEmailHubAccounts          http.HandlerFunc
+	GetEmailHubUnreadCount        http.HandlerFunc
+	ConnectEmailHubAccount        http.HandlerFunc
+	DisconnectEmailHubAccount     http.HandlerFunc
+	ListEmailHubImapLabels        http.HandlerFunc
+	ListEmailHubThreads           http.HandlerFunc
+	GetEmailHubThread             http.HandlerFunc
+	ListEmailHubConversation      http.HandlerFunc
+	GetEmailHubThreadSummary      http.HandlerFunc
+	SummarizeEmailHubThread       http.HandlerFunc
+	CreateEmailHubSummaryTasks    http.HandlerFunc
+	DownloadEmailHubAttachment    http.HandlerFunc
+	PatchEmailHubThread           http.HandlerFunc
+	SendEmailHub                  http.HandlerFunc
+	ListEmailHubScheduledSends    http.HandlerFunc
+	CancelEmailHubScheduledSend   http.HandlerFunc
+	RetryEmailHubScheduledSend    http.HandlerFunc
+	SyncEmailHub                  http.HandlerFunc
+	WatchEmailHub                 http.HandlerFunc
+	SubscribeEmailHubInboxWatch   http.HandlerFunc
+	UnsubscribeEmailHubInboxWatch http.HandlerFunc
+	ListPins                      http.HandlerFunc
+	CreatePin                     http.HandlerFunc
+	DeletePin                     http.HandlerFunc
+	ReorderPins                   http.HandlerFunc
 
 	ListProjects          http.HandlerFunc
 	SearchProjects        http.HandlerFunc
@@ -193,6 +218,7 @@ type Routes struct {
 	MarkNotificationsRead      http.HandlerFunc
 	MarkNotificationsUnread    http.HandlerFunc
 	ArchiveNotifications       http.HandlerFunc
+	UnarchiveNotifications     http.HandlerFunc
 	GetNotificationPreferences http.HandlerFunc
 	PutNotificationPreferences http.HandlerFunc
 	PushConfig                 http.HandlerFunc
@@ -315,6 +341,7 @@ type Routes struct {
 	CreateTaskFromChatMessage        http.HandlerFunc
 	CreateChatMessageLink            http.HandlerFunc
 	ListChatMessageLinks             http.HandlerFunc
+	ListChatRoomMessageLinks         http.HandlerFunc
 	DeleteChatMessageLink            http.HandlerFunc
 	SyncChatThreadTask               http.HandlerFunc
 	UnsyncChatThreadTask             http.HandlerFunc

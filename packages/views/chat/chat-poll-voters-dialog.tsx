@@ -8,68 +8,79 @@ import {
   type PollVotesByUser,
 } from "@uniwork/core/chat/poll-utils";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@uniwork/ui/components/ui/dialog";
+import { Dialog } from "@uniwork/ui/components/ui/dialog";
+import { Progress } from "@uniwork/ui/components/ui/progress";
+import { FormDialogBody, FormDialogContent, FormDialogHeader } from "../common/form-dialog";
+import { resolveAvatarUrlFromNameContext } from "./chat-member-avatar";
 import type { ChatNameContextEntry } from "./chat-page-utils";
 
 type PollOption = { id: string; label: string; votes: number };
+
+type VoterNames = {
+  nameContext: ChatNameContextEntry[];
+  currentUserId: string;
+  youLabel: string;
+};
 
 function voterInitial(label: string): string {
   return label.trim().slice(0, 1).toUpperCase() || "?";
 }
 
+/** Who picked one option — the same list in the per-option and all-options views. */
+function PollVoterList({ voterIds, names }: { voterIds: string[]; names: VoterNames }) {
+  const { t } = useTranslation();
+  if (voterIds.length === 0) {
+    return <p className="text-caption text-muted-foreground">{t("chat.poll_voters_empty")}</p>;
+  }
+  return (
+    <ul className="space-y-2">
+      {voterIds.map((userId) => {
+        const label = resolvePollVoterLabel(
+          userId,
+          names.nameContext,
+          names.currentUserId,
+          names.youLabel,
+        );
+        return (
+          <li key={userId} className="flex min-w-0 items-center gap-2">
+            <ActorAvatar
+              name={label}
+              initials={voterInitial(label)}
+              avatarUrl={resolveAvatarUrlFromNameContext(names.nameContext, userId)}
+              size="sm"
+            />
+            <span className="truncate text-body text-foreground">{label}</span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function PollOptionVotersSection({
   option,
   voterIds,
-  ratio,
-  nameContext,
-  currentUserId,
-  youLabel,
+  percent,
+  names,
 }: {
   option: PollOption;
   voterIds: string[];
-  ratio: number;
-  nameContext: ChatNameContextEntry[];
-  currentUserId: string;
-  youLabel: string;
+  percent: number;
+  names: VoterNames;
 }) {
   const { t } = useTranslation();
-
   return (
-    <section className="rounded-lg border border-border p-3">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-body font-semibold text-foreground">{option.label}</p>
-        <span className="shrink-0 text-caption tabular-nums text-muted-foreground">
-          {t("chat.poll_voters_option_count", { count: option.votes })}
-        </span>
+    <section className="space-y-3 rounded-lg border border-border p-3">
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <p className="min-w-0 truncate text-body font-semibold text-foreground">{option.label}</p>
+          <span className="shrink-0 text-caption tabular-nums text-muted-foreground">
+            {t("chat.poll_voters_option_count", { count: option.votes })}
+          </span>
+        </div>
+        <Progress value={percent} aria-label={option.label} className="gap-0" />
       </div>
-      <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-muted">
-        <span
-          className="block h-full rounded-full bg-brand/60 transition-all"
-          style={{ width: `${Math.round(ratio * 100)}%` }}
-          aria-hidden
-        />
-      </div>
-      {voterIds.length === 0 ? (
-        <p className="text-caption text-muted-foreground">{t("chat.poll_voters_empty")}</p>
-      ) : (
-        <ul className="space-y-2">
-          {voterIds.map((userId) => {
-            const label = resolvePollVoterLabel(userId, nameContext, currentUserId, youLabel);
-            return (
-              <li key={`${option.id}-${userId}`} className="flex items-center gap-2">
-                <ActorAvatar name={label} initials={voterInitial(label)} size="sm" />
-                <span className="text-body text-foreground">{label}</span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      <PollVoterList voterIds={voterIds} names={names} />
     </section>
   );
 }
@@ -101,71 +112,41 @@ export function ChatPollVotersDialog({
     () => groupPollVotersByOption(votesByUser, options.map((option) => option.id)),
     [options, votesByUser],
   );
+  const names: VoterNames = { nameContext, currentUserId, youLabel };
 
   const focusedOption = focusedOptionId
     ? options.find((option) => option.id === focusedOptionId)
     : undefined;
-  const singleOptionMode = focusedOption != null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[min(80vh,520px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-sm">
-        <DialogHeader className="border-b border-border px-4 py-3 text-left">
-          <DialogTitle>{singleOptionMode ? focusedOption.label : t("chat.poll_voters_title")}</DialogTitle>
-          <DialogDescription className="line-clamp-2 text-caption text-muted-foreground">
-            {question}
-          </DialogDescription>
-          {singleOptionMode ? (
-            <p className="text-caption text-muted-foreground">
-              {t("chat.poll_voters_option_count", { count: focusedOption.votes })}
-            </p>
-          ) : (
-            <p className="text-caption text-muted-foreground">
-              {t("chat.poll_vote_hint", { count: totalVotes })}
-            </p>
-          )}
-        </DialogHeader>
+      <FormDialogContent size="md">
+        <FormDialogHeader
+          title={focusedOption ? focusedOption.label : t("chat.poll_voters_title")}
+          description={question}
+        />
 
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
-          {singleOptionMode ? (
-            (() => {
-              const voterIds = votersByOption[focusedOption.id] ?? [];
-              if (voterIds.length === 0) {
-                return <p className="text-caption text-muted-foreground">{t("chat.poll_voters_empty")}</p>;
-              }
-              return (
-                <ul className="space-y-2">
-                  {voterIds.map((userId) => {
-                    const label = resolvePollVoterLabel(userId, nameContext, currentUserId, youLabel);
-                    return (
-                      <li key={userId} className="flex items-center gap-2 rounded-lg px-1 py-1">
-                        <ActorAvatar name={label} initials={voterInitial(label)} size="sm" />
-                        <span className="text-body text-foreground">{label}</span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              );
-            })()
+        <FormDialogBody className="space-y-3">
+          <p className="text-overline uppercase text-muted-foreground">
+            {focusedOption
+              ? t("chat.poll_voters_option_count", { count: focusedOption.votes })
+              : t("chat.poll_vote_hint", { count: totalVotes })}
+          </p>
+          {focusedOption ? (
+            <PollVoterList voterIds={votersByOption[focusedOption.id] ?? []} names={names} />
           ) : (
-            options.map((option) => {
-              const voterIds = votersByOption[option.id] ?? [];
-              const ratio = totalVotes > 0 ? option.votes / totalVotes : 0;
-              return (
-                <PollOptionVotersSection
-                  key={option.id}
-                  option={option}
-                  voterIds={voterIds}
-                  ratio={ratio}
-                  nameContext={nameContext}
-                  currentUserId={currentUserId}
-                  youLabel={youLabel}
-                />
-              );
-            })
+            options.map((option) => (
+              <PollOptionVotersSection
+                key={option.id}
+                option={option}
+                voterIds={votersByOption[option.id] ?? []}
+                percent={totalVotes > 0 ? Math.round((option.votes / totalVotes) * 100) : 0}
+                names={names}
+              />
+            ))
           )}
-        </div>
-      </DialogContent>
+        </FormDialogBody>
+      </FormDialogContent>
     </Dialog>
   );
 }

@@ -37,3 +37,23 @@ export function shouldShowReadReceipt(input: {
   }
   return true;
 }
+
+/**
+ * The index of the one own message that carries the read receipt (the latest
+ * own message the peer has seen), or -1. One pass over the timeline instead
+ * of `shouldShowReadReceipt` per row, which scanned to the end each time.
+ */
+export function latestSeenOwnMessageIndex(
+  messages: OwnMessageRef[],
+  currentUserId: string,
+  peerLastReadAt: string | null | undefined,
+): number {
+  if (!peerLastReadAt) return -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i];
+    if (message && message.sender === currentUserId && isMessageSeenByPeer(message.ts, peerLastReadAt)) {
+      return i;
+    }
+  }
+  return -1;
+}

@@ -14,6 +14,21 @@ type CreateMeetingSDI struct {
 	AttendeeUserIDs  []string  `json:"attendee_user_ids"`
 }
 
+// ListMeetingsSDI documents GET /api/v1/workspaces/{workspaceID}/meetings query params.
+type ListMeetingsSDI struct {
+	Status      string `query:"status" description:"Lọc theo status đã lưu; bỏ trống = mọi status" example:"SCHEDULED"`
+	MeetingType string `query:"meeting_type" description:"SCHEDULED hoặc INSTANT; bỏ trống = cả hai" example:"SCHEDULED"`
+	HostUserID  string `query:"host_user_id" description:"Lọc theo ULID người chủ trì" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	ProjectID   string `query:"project_id" description:"Lọc theo ULID project" example:""`
+	Q           string `query:"q" description:"Tìm theo tiêu đề (không phân biệt hoa thường)" example:"standup"`
+	From        string `query:"from" description:"starts_at từ thời điểm này (RFC3339)" example:"2026-08-01T00:00:00Z"`
+	To          string `query:"to" description:"starts_at đến thời điểm này (RFC3339)" example:"2026-08-31T23:59:59Z"`
+	Sort        string `query:"sort" enum:"actual_start_at,starts_at" description:"Bỏ trống = mới tạo trước; actual_start_at = mới bắt đầu thật trước; starts_at = hôm nay và sắp tới trước (sớm nhất trước), rồi các ngày đã qua (ngày gần nhất trước), trong ngày theo giờ bắt đầu" example:"starts_at"`
+	TZ          string `query:"tz" description:"Múi giờ IANA của người xem, quyết định ngày hôm nay và ngày của từng cuộc họp khi sort=starts_at; bỏ trống = UTC" example:"Asia/Ho_Chi_Minh"`
+	Limit       int32  `query:"limit" description:"Kích thước trang (mặc định 50, tối đa 100)" example:"20"`
+	Offset      int32  `query:"offset" description:"Offset phân trang" example:"0"`
+}
+
 type CreateInstantMeetingSDI struct {
 	Title string `json:"title" example:"Họp nhanh"`
 }
@@ -70,6 +85,7 @@ type JoinMeetingSDI struct {
 	InviteLinkID string `json:"invite_link_id"`
 	Secret       string `json:"secret"`
 	DisplayName  string `json:"display_name"`
+	RequestAgain bool   `json:"request_again" description:"Gửi lại yêu cầu vào phòng sau khi bị chủ trì từ chối; bỏ trống thì lần vào lại trả join_request_rejected"`
 }
 
 type CreateJoinRequestSDI struct {
@@ -108,6 +124,8 @@ type SummaryTaskItemSDI struct {
 	Title       string  `json:"title" minLength:"1" example:"Gửi báo cáo sprint"`
 	Description string  `json:"description"`
 	AssigneeID  *string `json:"assignee_id"`
+	ProjectID   *string `json:"project_id" description:"Dự án workspace; tùy chọn"`
+	Priority    string  `json:"priority,omitempty" description:"none | low | medium | high | urgent"`
 	DueDate     *string `json:"due_date" description:"YYYY-MM-DD" example:"2026-09-05"`
 	Owner       string  `json:"owner" description:"Tên người phụ trách do AI gợi ý; server resolve sang assignee_id"`
 	DueSpoken   string  `json:"due_spoken" description:"Hạn nói trong họp; server parse sang due_date"`

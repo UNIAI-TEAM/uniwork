@@ -352,6 +352,93 @@ type Email struct {
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 }
 
+type EmailHubAccount struct {
+	ID             string             `json:"id"`
+	UserID         string             `json:"user_id"`
+	OrganizationID string             `json:"organization_id"`
+	EmailAddress   string             `json:"email_address"`
+	Provider       string             `json:"provider"`
+	ImapHost       string             `json:"imap_host"`
+	ImapPort       int32              `json:"imap_port"`
+	SmtpHost       string             `json:"smtp_host"`
+	SmtpPort       int32              `json:"smtp_port"`
+	PasswordEnc    string             `json:"password_enc"`
+	SyncState      []byte             `json:"sync_state"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	DisconnectedAt pgtype.Timestamptz `json:"disconnected_at"`
+}
+
+type EmailHubAttachment struct {
+	ID             string             `json:"id"`
+	ThreadID       string             `json:"thread_id"`
+	AccountID      string             `json:"account_id"`
+	OrganizationID string             `json:"organization_id"`
+	Filename       string             `json:"filename"`
+	MimeType       string             `json:"mime_type"`
+	SizeBytes      int64              `json:"size_bytes"`
+	PartID         string             `json:"part_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
+type EmailHubScheduledSend struct {
+	ID             string             `json:"id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	AccountID      string             `json:"account_id"`
+	OrganizationID string             `json:"organization_id"`
+	UserID         string             `json:"user_id"`
+	Payload        []byte             `json:"payload"`
+	SendAt         pgtype.Timestamptz `json:"send_at"`
+	Status         string             `json:"status"`
+	LastError      pgtype.Text        `json:"last_error"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	SentAt         pgtype.Timestamptz `json:"sent_at"`
+}
+
+type EmailHubThread struct {
+	ID              string             `json:"id"`
+	AccountID       string             `json:"account_id"`
+	OrganizationID  string             `json:"organization_id"`
+	Folder          string             `json:"folder"`
+	ImapUid         int32              `json:"imap_uid"`
+	MessageID       pgtype.Text        `json:"message_id"`
+	Subject         string             `json:"subject"`
+	Snippet         string             `json:"snippet"`
+	FromAddr        string             `json:"from_addr"`
+	FromName        pgtype.Text        `json:"from_name"`
+	ToAddrs         []string           `json:"to_addrs"`
+	SentAt          pgtype.Timestamptz `json:"sent_at"`
+	IsRead          bool               `json:"is_read"`
+	IsStarred       bool               `json:"is_starred"`
+	HasAttachments  bool               `json:"has_attachments"`
+	BodyText        pgtype.Text        `json:"body_text"`
+	BodyHtml        pgtype.Text        `json:"body_html"`
+	BodyCached      bool               `json:"body_cached"`
+	SyncedAt        pgtype.Timestamptz `json:"synced_at"`
+	ImapLabels      []string           `json:"imap_labels"`
+	SnoozedUntil    pgtype.Timestamptz `json:"snoozed_until"`
+	ConversationKey string             `json:"conversation_key"`
+}
+
+type EmailHubThreadAiSummary struct {
+	ID                string             `json:"id"`
+	OrganizationID    string             `json:"organization_id"`
+	ThreadID          string             `json:"thread_id"`
+	AccountID         string             `json:"account_id"`
+	Locale            string             `json:"locale"`
+	SourceFingerprint string             `json:"source_fingerprint"`
+	Summary           string             `json:"summary"`
+	KeyPoints         []byte             `json:"key_points"`
+	ActionItems       []byte             `json:"action_items"`
+	NeedsReply        bool               `json:"needs_reply"`
+	ReplyHint         string             `json:"reply_hint"`
+	Model             string             `json:"model"`
+	CreatedBy         string             `json:"created_by"`
+	CreatedByKind     string             `json:"created_by_kind"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
 type EmailVerificationCode struct {
 	ID        string             `json:"id"`
 	UserID    string             `json:"user_id"`
@@ -910,6 +997,8 @@ type Task struct {
 	FirstExecutedAt    pgtype.Timestamptz `json:"first_executed_at"`
 	Revision           int64              `json:"revision"`
 	LastActivityAt     pgtype.Timestamptz `json:"last_activity_at"`
+	StartAt            pgtype.Timestamptz `json:"start_at"`
+	DueAt              pgtype.Timestamptz `json:"due_at"`
 }
 
 type TaskComment struct {

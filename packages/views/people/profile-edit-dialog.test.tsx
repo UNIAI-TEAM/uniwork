@@ -83,7 +83,7 @@ describe("ProfileForm layout", () => {
     renderForm();
     const editor = await screen.findByRole("dialog");
 
-    expect(within(editor).getByRole("heading", { name: "Sửa hồ sơ" })).toBeInTheDocument();
+    expect(within(editor).getByRole("heading", { name: /^Sửa hồ sơ/ })).toBeInTheDocument();
     expect(within(editor).getByLabelText("Chức danh")).toBeInTheDocument();
   });
 
@@ -99,9 +99,11 @@ describe("ProfileForm layout", () => {
     requestMock.mockReset();
     mockApi("member");
     renderForm();
-    await screen.findByLabelText("Mã nhân viên");
+    await screen.findByLabelText("Chức danh");
 
-    expect(within(dialog()).getByLabelText("Mã nhân viên")).toBeDisabled();
+    // Fields the reader may not set are read, not greyed-out inputs.
+    expect(within(dialog()).queryByLabelText("Mã nhân viên")).toBeNull();
+    expect(within(dialog()).getByText("Mã nhân viên")).toBeInTheDocument();
     // One reason for the group, rather than a reason attached to one field
     // while its two locked neighbours say nothing.
     expect(within(dialog()).getAllByText(/quản trị/i).length).toBeGreaterThan(0);
@@ -186,6 +188,20 @@ describe("ProfileForm validation", () => {
     expect(await screen.findByText("Giới thiệu tối đa 500 ký tự.")).toBeInTheDocument();
     expect(bio).toHaveAttribute("aria-invalid", "true");
     expect(saveButton()).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("sends only the fields that changed, so it never writes back stale company values", async () => {
+    mockApi("owner", () => Promise.resolve({ person }));
+    renderForm();
+    fireEvent.change(await screen.findByLabelText("Nơi làm việc"), { target: { value: "Đà Nẵng" } });
+    fireEvent.click(saveButton());
+
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/orgs/acme/people/u1/profile",
+        expect.objectContaining({ method: "PATCH", body: { location: "Đà Nẵng" } }),
+      ),
+    );
   });
 
   it("puts a rejected employee code on its own field, not only in a toast", async () => {

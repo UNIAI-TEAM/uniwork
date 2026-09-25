@@ -110,7 +110,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		},
 		audit.ActionPeopleExported: func(t *testing.T, f *auditFixture) {
 			f.build(t)
-			if _, err := f.people.ExportCSV(f.ctx, f.owner.ID, f.orgID, io.Discard); err != nil {
+			if _, err := f.people.ExportCSV(f.ctx, f.owner.ID, f.orgID, PeopleFilter{}, io.Discard); err != nil {
 				t.Fatal(err)
 			}
 		},
@@ -673,6 +673,30 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionChatMessageUnlinked: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			room, err := f.chat.EnsureWorkspaceRoom(f.ctx, f.owner.ID, w.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			msg, err := f.chat.SendRoomMessage(f.ctx, f.owner.ID, w.ID, room.RoomID, SendChatMessageInput{Body: "unlink me"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			task, err := f.tasks.Create(f.ctx, Human(f.owner.ID), w.ID, CreateTaskInput{Title: "from chat"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			link, err := f.chat.LinkChatMessage(f.ctx, f.owner.ID, w.ID, msg.ID, CreateChatMessageLinkInput{
+				TargetType: "task", TargetID: task.ID,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.chat.UnlinkChatMessage(f.ctx, f.owner.ID, w.ID, msg.ID, link.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionChatThreadTaskLinked: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
 			ch, err := f.chat.CreateChannel(f.ctx, f.owner.ID, w.ID, CreateChannelInput{
@@ -844,6 +868,7 @@ func auditActions() []string {
 		audit.ActionChatChannelUpdated,
 		audit.ActionChatChannelArchived,
 		audit.ActionChatMessageLinked,
+		audit.ActionChatMessageUnlinked,
 		audit.ActionChatThreadTaskLinked,
 		audit.ActionChatFollowUpCreated,
 		audit.ActionChatFollowUpUpdated,

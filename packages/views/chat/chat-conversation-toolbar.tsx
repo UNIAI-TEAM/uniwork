@@ -2,12 +2,9 @@
 
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
+import { Users, type LucideIcon } from "lucide-react";
 import { ChatConversationHeader } from "./chat-conversation-header";
-
-function initialOf(name: string): string {
-  return name.trim().slice(0, 1).toUpperCase() || "?";
-}
+import { ChatRoomMark } from "./chat-room-mark";
 
 export function ChatConversationToolbar({
   avatar,
@@ -30,6 +27,7 @@ export function ChatConversationToolbar({
   videoCallAriaLabel,
   onVideoCall,
   videoCallDisabled,
+  onSearch,
 }: {
   avatar: ReactNode;
   title: string;
@@ -51,6 +49,7 @@ export function ChatConversationToolbar({
   videoCallAriaLabel?: string;
   onVideoCall?: () => void;
   videoCallDisabled?: boolean;
+  onSearch?: () => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -78,11 +77,14 @@ export function ChatConversationToolbar({
       videoCallAriaLabel={videoCallAriaLabel}
       onVideoCall={onVideoCall}
       videoCallDisabled={videoCallDisabled}
+      searchAriaLabel={t("chat.message_list.search_open")}
+      onSearch={onSearch}
     />
   );
 }
 
 export function GroupChatToolbar({
+  icon = Users,
   title,
   memberCount,
   backAriaLabel,
@@ -97,7 +99,10 @@ export function GroupChatToolbar({
   voiceCallDisabled,
   onVideoCall,
   videoCallDisabled,
+  onSearch,
 }: {
+  /** Users for a group; Hash or Lock for a channel. */
+  icon?: LucideIcon;
   title: string;
   memberCount: number;
   backAriaLabel?: string;
@@ -112,12 +117,13 @@ export function GroupChatToolbar({
   voiceCallDisabled?: boolean;
   onVideoCall?: () => void;
   videoCallDisabled?: boolean;
+  onSearch?: () => void;
 }) {
   const { t } = useTranslation();
 
   return (
     <ChatConversationToolbar
-      avatar={<ActorAvatar name={title} initials={initialOf(title)} size="xl" />}
+      avatar={<ChatRoomMark icon={icon} size="header" />}
       title={title}
       subtitle={t("chat.group_member_count", { count: memberCount })}
       backAriaLabel={backAriaLabel}
@@ -137,6 +143,7 @@ export function GroupChatToolbar({
       videoCallAriaLabel={t("chat.video_call_start")}
       onVideoCall={onVideoCall}
       videoCallDisabled={videoCallDisabled}
+      onSearch={onSearch}
     />
   );
 }

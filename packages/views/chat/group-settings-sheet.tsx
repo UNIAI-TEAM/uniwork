@@ -1,15 +1,13 @@
 "use client";
 
-import { Bell, BellOff, Pin, Search, Settings, Tag, UserPlus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Bell, BellOff, Pin, Search, Settings, StickyNote, Tag, UserPlus } from "lucide-react";
+import { useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { GroupChat } from "@uniwork/core/chat/groups-store";
 import { displayLabelForChatContact, resolveChatNicknameForUser } from "@uniwork/core/chat/contacts-store";
 import {
   useChatRoomMembers,
   useChatRooms,
-  useRemoveChatRoomMember,
-  useUpdateChatRoomMember,
 } from "@uniwork/core/chat";
 import { useCurrentMember } from "@uniwork/core/permissions";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
@@ -24,7 +22,9 @@ import {
 import { LeaveConversationSection } from "./leave-conversation-section";
 import { ChatRoomMemberActions } from "./chat-room-member-actions";
 import {
-  ChatSettingsBulletinEntry,
+  ChatMemberListError,
+  ChatMemberListSkeleton,
+  ChatMemberRow,
   ChatSettingsCollapsibleSection,
   ChatSettingsMenuRow,
   ChatSettingsQuickAction,
@@ -43,16 +43,15 @@ import {
   canPromoteChatMember,
   canUnmuteChatMember,
 } from "./chat-room-moderation-utils";
+import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
+import { initialOf } from "./chat-initials";
+import { useRoomMemberModeration } from "./use-room-member-moderation";
 
 type MemberProfile = {
   user_id: string;
   display_name: string;
   email: string;
 };
-
-function initialOf(name: string): string {
-  return name.trim().slice(0, 1).toUpperCase() || "?";
-}
 
 export function GroupSettingsSheet({
   open,
@@ -68,6 +67,7 @@ export function GroupSettingsSheet({
   leaving,
   leaveDisabled,
   onOpenSearch,
+  memberAvatarByUserId = {},
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -76,6 +76,7 @@ export function GroupSettingsSheet({
   currentUserId: string;
   youLabel: string;
   memberProfiles: Record<string, MemberProfile>;
+  memberAvatarByUserId?: MemberAvatarUrlMap;
   nicknamesByUserId?: Record<string, string>;
   onAddMembers: () => void;
   onOpenSearch?: () => void;
@@ -84,7 +85,13 @@ export function GroupSettingsSheet({
   leaveDisabled?: boolean;
 }) {
   const { t } = useTranslation();
-  const { data: chatMembers = [] } = useChatRoomMembers(workspaceId, group.room_id, open);
+  const {
+    data: chatMembers = [],
+    isPending: membersPending,
+    isError: membersError,
+    refetch: refetchMembers,
+  } = useChatRoomMembers(workspaceId, group.room_id, open);
+  const manageId = useId();
   const { data: rooms = [] } = useChatRooms(workspaceId);
   const roomRecord = useMemo(
     () => rooms.find((room) => room.id === group.room_id),
@@ -92,9 +99,7 @@ export function GroupSettingsSheet({
   );
   const { notificationsMuted, pinned, onToggleMute, onTogglePin } = useChatRoomPreferences(group.room_id);
   const currentMember = useCurrentMember(workspaceId);
-  const updateMember = useUpdateChatRoomMember(workspaceId);
-  const removeMember = useRemoveChatRoomMember(workspaceId);
-  const [busyUserId, setBusyUserId] = useState<string | null>(null);
+  const moderation = useRoomMemberModeration({ workspaceId, roomId: group.room_id });
   const [membersOpen, setMembersOpen] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
@@ -154,22 +159,9 @@ export function GroupSettingsSheet({
     return ordered;
   }, [chatMembers, currentUserId, youLabel, memberProfiles, nicknamesByUserId]);
 
-  const runMemberAction = (
-    userId: string,
-    action: () => Promise<unknown>,
-    confirmMessage?: string,
-  ) => {
-    if (busyUserId) return;
-    if (confirmMessage && !window.confirm(confirmMessage)) return;
-    setBusyUserId(userId);
-    void action().finally(() => {
-      setBusyUserId(null);
-    });
-  };
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" showCloseButton={false} className="flex w-full flex-col p-0 sm:max-w-md">
+      <SheetContent side="right" showCloseButton={false} closeLabel={t("common.close")} className="flex w-full flex-col p-0 sm:max-w-md">
         <SheetHeader className="sr-only">
           <SheetTitle>{displayName}</SheetTitle>
           <SheetDescription>{t("chat.group_settings_description")}</SheetDescription>
@@ -206,13 +198,15 @@ export function GroupSettingsSheet({
             <ChatSettingsQuickAction
               icon={Settings}
               label={t("chat.settings_manage_group")}
-              onClick={() => setManageOpen(true)}
+              onClick={() => setManageOpen((value) => !value)}
               active={manageOpen}
+              controls={manageId}
             />
           </ChatSettingsQuickActions>
 
           {manageOpen ? (
             <ChatGroupManageSection
+              id={manageId}
               workspaceId={workspaceId}
               roomId={group.room_id}
               permissions={roomRecord?.member_permissions}
@@ -222,113 +216,90 @@ export function GroupSettingsSheet({
 
           <ChatSettingsCollapsibleSection
             title={t("chat.settings_group_members")}
-            summary={t("chat.group_member_count", { count: members.length })}
+            summary={
+              membersPending || membersError ? undefined : t("chat.group_member_count", { count: members.length })
+            }
             open={membersOpen}
             onOpenChange={setMembersOpen}
+            flush
           >
-            <ul className="space-y-2">
-              {members.map((member) => (
-                <li
-                  key={member.key}
-                  className="flex items-center gap-3 rounded-md border border-border px-3 py-2"
-                >
-                  <ActorAvatar name={member.label} initials={initialOf(member.label)} size="sm" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-body font-medium text-foreground">{member.label}</p>
-                    <p className="truncate text-caption text-muted-foreground">
-                      {!member.isSelf && member.label !== member.legalLabel ? (
-                        t("chat.nickname_legal_name", { name: member.legalLabel })
-                      ) : member.isSelf && member.label !== member.legalLabel ? (
-                        t("chat.nickname_legal_name", { name: member.legalLabel })
-                      ) : member.chat.role === "admin"
+            {membersPending ? (
+              <ChatMemberListSkeleton label={t("chat.members_loading")} />
+            ) : membersError ? (
+              <ChatMemberListError onRetry={() => void refetchMembers()} />
+            ) : (
+              <ul>
+                {members.map((member) => (
+                  <ChatMemberRow
+                    key={member.key}
+                    avatar={
+                      <ActorAvatar
+                        name={member.label}
+                        initials={initialOf(member.label)}
+                        avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, member.key)}
+                        size="lg"
+                      />
+                    }
+                    name={member.label}
+                    detail={
+                      member.label !== member.legalLabel
+                        ? t("chat.nickname_legal_name", { name: member.legalLabel })
+                        : member.chat.role === "admin"
                           ? t("chat.room_role_admin")
                           : member.chat.send_restricted
                             ? t("chat.room_role_muted")
-                            : member.email}
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="size-8 shrink-0 text-muted-foreground"
-                    aria-label={t("chat.nickname_action")}
-                    onClick={() =>
-                      setNicknameTarget({ userId: member.key, label: member.legalLabel })
+                            : member.email
                     }
-                  >
-                    <Tag className="size-4" aria-hidden />
-                  </Button>
-                  {!member.isSelf && isModerator ? (
-                    <ChatRoomMemberActions
-                      label={member.label}
-                      canPromote={canPromoteChatMember(member.chat, isModerator)}
-                      canDemote={canDemoteChatMember(member.chat, currentUserId, isModerator)}
-                      canMute={canMuteChatMember(member.chat, isModerator)}
-                      canUnmute={canUnmuteChatMember(member.chat, isModerator)}
-                      canKick={isModerator && member.chat.role === "member"}
-                      busy={busyUserId === member.key}
-                      onPromote={() =>
-                        runMemberAction(member.key, () =>
-                          updateMember.mutateAsync({
-                            roomId: group.room_id,
-                            userId: member.key,
-                            role: "admin",
-                          }),
-                        )
-                      }
-                      onDemote={() =>
-                        runMemberAction(member.key, () =>
-                          updateMember.mutateAsync({
-                            roomId: group.room_id,
-                            userId: member.key,
-                            role: "member",
-                          }),
-                        )
-                      }
-                      onMute={() =>
-                        runMemberAction(member.key, () =>
-                          updateMember.mutateAsync({
-                            roomId: group.room_id,
-                            userId: member.key,
-                            send_restricted: true,
-                          }),
-                        )
-                      }
-                      onUnmute={() =>
-                        runMemberAction(member.key, () =>
-                          updateMember.mutateAsync({
-                            roomId: group.room_id,
-                            userId: member.key,
-                            send_restricted: false,
-                          }),
-                        )
-                      }
-                      onKick={() =>
-                        runMemberAction(
-                          member.key,
-                          () =>
-                            removeMember.mutateAsync({
-                              roomId: group.room_id,
-                              userId: member.key,
-                            }),
-                          t("chat.group_kick_confirm", { name: member.label }),
-                        )
-                      }
-                    />
-                  ) : null}
-                </li>
-              ))}
-            </ul>
+                    actions={
+                      <>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-muted-foreground hover:text-foreground"
+                          aria-label={t("chat.nickname_action_for", { name: member.label })}
+                          title={t("chat.nickname_action")}
+                          onClick={() => setNicknameTarget({ userId: member.key, label: member.legalLabel })}
+                        >
+                          <Tag aria-hidden />
+                        </Button>
+                        {!member.isSelf && isModerator ? (
+                          <ChatRoomMemberActions
+                            label={member.label}
+                            canPromote={canPromoteChatMember(member.chat, isModerator)}
+                            canDemote={canDemoteChatMember(member.chat, currentUserId, isModerator)}
+                            canMute={canMuteChatMember(member.chat, isModerator)}
+                            canUnmute={canUnmuteChatMember(member.chat, isModerator)}
+                            canKick={isModerator && member.chat.role === "member"}
+                            busy={moderation.busyUserId === member.key}
+                            onPromote={() => moderation.promote(member.key)}
+                            onDemote={() => moderation.demote(member.key)}
+                            onMute={() => moderation.mute(member.key)}
+                            onUnmute={() => moderation.unmute(member.key)}
+                            onKick={() =>
+                              moderation.requestRemove(
+                                member.key,
+                                member.label,
+                                t("chat.group_kick_confirm", { name: member.label }),
+                              )
+                            }
+                          />
+                        ) : null}
+                      </>
+                    }
+                  />
+                ))}
+              </ul>
+            )}
           </ChatSettingsCollapsibleSection>
 
-          <ChatSettingsBulletinEntry
-            label={t("chat.settings_notes_pins_polls")}
-            onClick={() => setBulletinOpen(true)}
-          />
-
-          {onOpenSearch ? (
-            <section className="border-b border-border">
+          <section className="border-b border-border py-1">
+            <ChatSettingsMenuRow
+              icon={StickyNote}
+              label={t("chat.settings_notes_pins_polls")}
+              onClick={() => setBulletinOpen(true)}
+            />
+            {onOpenSearch ? (
               <ChatSettingsMenuRow
                 icon={Search}
                 label={t("chat.search_messages")}
@@ -337,10 +308,10 @@ export function GroupSettingsSheet({
                   onOpenSearch();
                 }}
               />
-            </section>
-          ) : null}
+            ) : null}
+          </section>
 
-          <div className="px-4 pb-4">
+          <div className="px-4 py-4">
             <LeaveConversationSection
               variant="group"
               disabled={leaveDisabled}
@@ -383,6 +354,7 @@ export function GroupSettingsSheet({
             currentNickname={resolveChatNicknameForUser(nicknamesByUserId, nicknameTarget.userId) ?? ""}
           />
         ) : null}
+        {moderation.confirmDialog}
       </SheetContent>
     </Sheet>
   );

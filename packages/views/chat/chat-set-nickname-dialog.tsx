@@ -5,15 +5,11 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useSetChatNickname } from "@uniwork/core/chat";
 import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@uniwork/ui/components/ui/dialog";
+import { Dialog } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
+import { FormDialogBody, FormDialogContent, FormDialogFooter, FormDialogHeader } from "../common/form-dialog";
+import { chatErrorMessage } from "./chat-error-message";
 
 const MAX_NICKNAME_LENGTH = 64;
 
@@ -37,9 +33,14 @@ export function ChatSetNicknameDialog({
   const { t } = useTranslation();
   const setNickname = useSetChatNickname(workspaceId);
   const [nickname, setNicknameValue] = useState(currentNickname);
+  // Which of the two writes is running, so only that button says "…ing".
+  const [pendingAction, setPendingAction] = useState<"save" | "clear" | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (open) setNicknameValue(currentNickname);
+    if (!open) return;
+    setNicknameValue(currentNickname);
+    setError(null);
   }, [open, currentNickname]);
 
   const handleOpenChange = (next: boolean) => {
@@ -47,79 +48,87 @@ export function ChatSetNicknameDialog({
     onOpenChange(next);
   };
 
-  const handleSave = () => {
+  const write = (value: string, action: "save" | "clear") => {
     if (setNickname.isPending) return;
-    const trimmed = nickname.trim();
-    if (trimmed.length > MAX_NICKNAME_LENGTH) {
-      toast.error(t("chat.nickname_too_long"));
-      return;
-    }
+    setPendingAction(action);
+    setError(null);
     void setNickname
-      .mutateAsync({ userId: targetUserId, nickname: trimmed })
+      .mutateAsync({ userId: targetUserId, nickname: value })
       .then(() => {
-        toast.success(trimmed ? t("chat.nickname_saved") : t("chat.nickname_cleared"));
-        onSaved?.(trimmed);
+        toast.success(value ? t("chat.nickname_saved") : t("chat.nickname_cleared"));
+        onSaved?.(value);
         onOpenChange(false);
       })
-      .catch(() => {
-        toast.error(t("chat.nickname_save_failed"));
-      });
+      .catch((err: unknown) => {
+        setError(chatErrorMessage(err, t, t("chat.nickname_save_failed")));
+      })
+      .finally(() => setPendingAction(null));
   };
+
+  const handleSave = () => write(nickname.trim(), "save");
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{t("chat.nickname_title")}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          <p className="text-caption text-muted-foreground">
-            {t("chat.nickname_description", { name: targetLabel })}
-          </p>
-          <div className="space-y-2">
+      <FormDialogContent size="md">
+        <FormDialogHeader
+          title={t("chat.nickname_title")}
+          description={t("chat.nickname_description", { name: targetLabel })}
+        />
+        <FormDialogBody className="space-y-2">
+          <div className="flex items-baseline justify-between gap-3">
             <Label htmlFor="chat-nickname">{t("chat.nickname_label")}</Label>
-            <Input
-              id="chat-nickname"
-              value={nickname}
-              maxLength={MAX_NICKNAME_LENGTH}
-              placeholder={targetLabel}
-              onChange={(event) => setNicknameValue(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") handleSave();
-              }}
-            />
+            <span id="chat-nickname-count" className="text-caption tabular-nums text-muted-foreground">
+              {nickname.length}/{MAX_NICKNAME_LENGTH}
+            </span>
           </div>
-        </div>
-        <DialogFooter className="gap-2 sm:justify-between">
-          <Button
-            type="button"
-            variant="ghost"
-            className="text-muted-foreground"
-            disabled={setNickname.isPending || !currentNickname.trim()}
-            onClick={() => {
-              setNicknameValue("");
-              void setNickname
-                .mutateAsync({ userId: targetUserId, nickname: "" })
-                .then(() => {
-                  toast.success(t("chat.nickname_cleared"));
-                  onSaved?.("");
-                  onOpenChange(false);
-                })
-                .catch(() => toast.error(t("chat.nickname_save_failed")));
+          <Input
+            id="chat-nickname"
+            value={nickname}
+            maxLength={MAX_NICKNAME_LENGTH}
+            placeholder={targetLabel}
+            aria-describedby={error ? "chat-nickname-count chat-nickname-error" : "chat-nickname-count"}
+            aria-invalid={error ? true : undefined}
+            onChange={(event) => {
+              setNicknameValue(event.target.value);
+              if (error) setError(null);
             }}
-          >
-            {t("chat.nickname_clear")}
-          </Button>
-          <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button type="button" disabled={setNickname.isPending} onClick={handleSave}>
-              {t("common.save")}
-            </Button>
-          </div>
-        </DialogFooter>
-      </DialogContent>
+            onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+              if (event.key === "Enter") handleSave();
+            }}
+          />
+          {error ? (
+            <p id="chat-nickname-error" role="alert" className="text-caption text-destructive">
+              {error}
+            </p>
+          ) : null}
+        </FormDialogBody>
+        <FormDialogFooter
+          onCancel={() => handleOpenChange(false)}
+          submitLabel={t("common.save")}
+          submittingLabel={t("chat.nickname_saving")}
+          submitting={pendingAction === "save"}
+          submitDisabled={setNickname.isPending}
+          onSubmit={handleSave}
+          leading={
+            currentNickname.trim() ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="-ml-2 text-muted-foreground"
+                disabled={setNickname.isPending}
+                onClick={() => {
+                  setNicknameValue("");
+                  write("", "clear");
+                }}
+              >
+                {pendingAction === "clear" ? t("chat.nickname_clearing") : t("chat.nickname_clear")}
+              </Button>
+            ) : null
+          }
+        />
+      </FormDialogContent>
     </Dialog>
   );
 }

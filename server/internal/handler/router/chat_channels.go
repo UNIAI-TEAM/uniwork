@@ -7,10 +7,9 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
 
-// registerChatChannels mounts channel routes behind chat_work_hub.
-func registerChatChannels(r api, h Routes, flagMW, chatWriteLimit func(http.Handler) http.Handler) {
+// registerChatChannels mounts workspace chat channel routes.
+func registerChatChannels(r api, h Routes, chatWriteLimit func(http.Handler) http.Handler) {
 	r.Group(func(ch api) {
-		ch.Use(flagMW)
 		ch.With(chatWriteLimit).Post("/workspaces/{workspaceID}/chat/channels", h.CreateChatChannel, apiOp{
 			summary:     "Create chat channel",
 			description: "Tạo kênh public hoặc private; tùy chọn gắn Project.",

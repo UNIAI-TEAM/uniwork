@@ -73,7 +73,7 @@ export type AiUsageSummary = z.infer<typeof AiUsageSummarySchema>;
 export interface AskUniInput {
   conversation_id?: string;
   question: string;
-  focus?: { kind: "task" | "meeting" | "room" | "thread" | "message"; id: string };
+  focus?: { kind: "task" | "meeting" | "email_thread" | "room" | "thread" | "message"; id: string };
   locale?: string;
 }
 

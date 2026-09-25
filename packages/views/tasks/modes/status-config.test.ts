@@ -23,10 +23,13 @@ describe("status-config", () => {
     expect(statusColumnBg("not-a-status")).toBe("bg-muted/20");
   });
 
-  it("uses full light tints while keeping dark columns restrained", () => {
-    for (const config of Object.values(STATUS_CONFIG)) {
-      expect(config.columnBg).toMatch(/^bg-tint-[a-z]+ dark:bg-tint-[a-z]+\/35$/);
-      expect(config.columnBg).not.toMatch(/^bg-tint-[a-z]+\/35/);
-    }
+  it("uses semantic column backgrounds", () => {
+    expect(STATUS_CONFIG.backlog.columnBg).toBe("bg-muted/40");
+    expect(STATUS_CONFIG.todo.columnBg).toBe("bg-muted/40");
+    expect(STATUS_CONFIG.cancelled.columnBg).toBe("bg-muted/40");
+    expect(STATUS_CONFIG.in_progress.columnBg).toBe("bg-warning/5");
+    expect(STATUS_CONFIG.in_review.columnBg).toBe("bg-success/5");
+    expect(STATUS_CONFIG.done.columnBg).toBe("bg-info/5");
+    expect(STATUS_CONFIG.blocked.columnBg).toBe("bg-destructive/5");
   });
 });

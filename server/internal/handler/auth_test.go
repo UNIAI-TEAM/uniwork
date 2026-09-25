@@ -148,6 +148,8 @@ func newTestDeps(t *testing.T, google GoogleExchanger, out mail.Enqueuer) (Deps,
 		Onboarding:    service.NewOnboardingService(q, ws, mail.Renderer{AppURL: "http://localhost:3000"}, discardOutbox{}),
 		Tasks:         tasks,
 		Home:          service.NewHomeService(q, ws),
+		Calendar:      service.NewCalendarService(q, ws),
+		EmailHub:      service.NewEmailHubService(q, ws, nil),
 		Agents:        service.NewAgentService(pool, q, orgs, ws),
 		Actors:        service.NewActorService(q),
 		Audit:         service.NewAuditService(pool, q, orgs, ws),
@@ -372,12 +374,13 @@ func TestAuthProvidersReflectsGoogleConfig(t *testing.T) {
 	}
 }
 
-func TestRegisterPicksLocaleFromCookieThenAcceptLanguage(t *testing.T) {
+func TestRegisterPicksLocaleFromCookieElseEnglish(t *testing.T) {
 	srv := newTestServer(t)
+	// No cookie: English, whatever the browser prefers.
 	body, _ := json.Marshal(map[string]string{"email": "loc@example.com", "password": "password123", "display_name": "L"})
 	req, _ := http.NewRequest("POST", srv.URL+"/api/v1/auth/register", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	req.Header.Set("Accept-Language", "vi-VN,vi;q=0.9")
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -385,7 +388,7 @@ func TestRegisterPicksLocaleFromCookieThenAcceptLanguage(t *testing.T) {
 	var out map[string]any
 	_ = json.NewDecoder(res.Body).Decode(&out)
 	if got := out["user"].(map[string]any)["locale"]; got != "en" {
-		t.Fatalf("locale from Accept-Language: want en, got %v", got)
+		t.Fatalf("no cookie: want en, got %v", got)
 	}
 
 	body, _ = json.Marshal(map[string]string{"email": "loc2@example.com", "password": "password123", "display_name": "L"})

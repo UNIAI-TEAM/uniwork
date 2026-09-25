@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import type { Member } from "@uniwork/core/types";
+import { useWorkspaceAgents } from "@uniwork/core/agents";
+import type { Agent, Member } from "@uniwork/core/types";
 import { useMembers } from "@uniwork/core/workspaces";
 import type { AssigneeOption } from "./assignee-picker";
 
@@ -20,19 +21,25 @@ export function toMemberOptions(members: Member[]): MemberOption[] {
   }));
 }
 
-/**
- * Task surfaces only offer human members as assignees; agent assignment is not
- * offered from the table or the row menu (see assignee-picker.tsx, task-2 report).
- */
-export function toHumanAssigneeOptions(
+/** Members and workspace agents in the same order used by assignee pickers. */
+export function toWorkspaceAssigneeOptions(
   members: MemberOption[],
+  agents: Agent[],
 ): AssigneeOption[] {
-  return members.map((member) => ({
-    id: member.id,
-    kind: "human",
-    name: member.name,
-    avatarUrl: member.avatarUrl,
-  }));
+  return [
+    ...members.map((member) => ({
+      id: member.id,
+      kind: "human" as const,
+      name: member.name,
+      avatarUrl: member.avatarUrl,
+    })),
+    ...agents.map((agent) => ({
+      id: agent.id,
+      kind: "agent" as const,
+      name: agent.name,
+      avatarUrl: agent.avatar_url,
+    })),
+  ];
 }
 
 export type WorkspaceAssigneeOptions = {
@@ -51,10 +58,17 @@ export type WorkspaceAssigneeOptions = {
 export function useWorkspaceAssigneeOptions(
   workspaceId: string,
 ): WorkspaceAssigneeOptions {
-  const { data, isLoading, isError } = useMembers(workspaceId);
+  const members = useMembers(workspaceId);
+  const agents = useWorkspaceAgents(workspaceId);
   const options = useMemo(
-    () => toHumanAssigneeOptions(toMemberOptions(data ?? [])),
-    [data],
+    () => toWorkspaceAssigneeOptions(toMemberOptions(members.data ?? []), agents.data ?? []),
+    [agents.data, members.data],
   );
-  return { options, isLoading, isError: isError && data === undefined };
+  return {
+    options,
+    isLoading: members.isLoading || agents.isLoading,
+    isError:
+      (members.isError && members.data === undefined) ||
+      (agents.isError && agents.data === undefined),
+  };
 }

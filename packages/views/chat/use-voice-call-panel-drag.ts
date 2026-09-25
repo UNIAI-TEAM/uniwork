@@ -15,8 +15,13 @@ function clampOffset(x: number, y: number, width: number, height: number): Voice
   };
 }
 
-/** Drag a fixed call panel; `null` offset means default bottom-right placement. */
-export function useVoiceCallPanelDrag(enabled: boolean) {
+/**
+ * Drag a fixed call panel; `null` offset means default bottom-right placement.
+ * A dragged panel is pulled back inside the viewport whenever the window or
+ * the panel changes size (rotate a phone, minimise, expand), so the hang-up
+ * control can never end up off screen.
+ */
+export function useVoiceCallPanelDrag(enabled: boolean, mode?: string) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [offset, setOffset] = useState<VoiceCallPanelOffset | null>(null);
   const dragRef = useRef<{
@@ -30,6 +35,30 @@ export function useVoiceCallPanelDrag(enabled: boolean) {
   useEffect(() => {
     if (!enabled) setOffset(null);
   }, [enabled]);
+
+  const reclamp = useCallback(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+    setOffset((current) => {
+      if (current == null) return current;
+      const next = clampOffset(current.x, current.y, panel.offsetWidth, panel.offsetHeight);
+      return next.x === current.x && next.y === current.y ? current : next;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) return;
+    reclamp();
+    window.addEventListener("resize", reclamp);
+    const panel = panelRef.current;
+    const observer =
+      panel && typeof ResizeObserver !== "undefined" ? new ResizeObserver(() => reclamp()) : null;
+    if (panel) observer?.observe(panel);
+    return () => {
+      window.removeEventListener("resize", reclamp);
+      observer?.disconnect();
+    };
+  }, [enabled, mode, reclamp]);
 
   const onPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLElement>) => {
@@ -56,14 +85,12 @@ export function useVoiceCallPanelDrag(enabled: boolean) {
     const drag = dragRef.current;
     const panel = panelRef.current;
     if (!drag || drag.pointerId !== event.pointerId || !panel) return;
-    const width = panel.offsetWidth;
-    const height = panel.offsetHeight;
     setOffset(
       clampOffset(
         drag.originX + (event.clientX - drag.startX),
         drag.originY + (event.clientY - drag.startY),
-        width,
-        height,
+        panel.offsetWidth,
+        panel.offsetHeight,
       ),
     );
   }, []);

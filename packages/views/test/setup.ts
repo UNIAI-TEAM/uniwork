@@ -2,9 +2,18 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { installMediaStubs } from "./media-stub";
-import { afterEach, vi } from "vitest";
+import { afterEach, beforeAll, vi } from "vitest";
 
 initI18n();
+
+// The product default is English, but the views suite asserts on Vietnamese
+// copy: every file starts in vi, and afterEach puts it back.
+beforeAll(async () => {
+  await setLocale("vi");
+  if (typeof document !== "undefined") {
+    document.documentElement.lang = "vi";
+  }
+});
 
 afterEach(async () => {
   cleanup();
@@ -43,8 +52,13 @@ if (typeof document !== "undefined") {
   if (typeof (globalThis as { PointerEvent?: unknown }).PointerEvent === "undefined") {
     class PE extends MouseEvent {
       pointerId = 1;
-      pointerType = "mouse";
+      pointerType: string;
       isPrimary = true;
+      constructor(type: string, init?: PointerEventInit) {
+        super(type, init);
+        // Keep the init's pointer type so touch-only handlers can be tested.
+        this.pointerType = init?.pointerType ?? "mouse";
+      }
     }
     (globalThis as unknown as { PointerEvent: typeof PE }).PointerEvent = PE;
   }

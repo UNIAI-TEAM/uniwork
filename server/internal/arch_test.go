@@ -352,8 +352,40 @@ var taskFoundationQueryFiles = []string{
 
 // GetTask is authorize-by-taskID (id-only SELECT); membership is decided solely
 // via RequireMember. JOIN-only presence of tenant columns must not fake compliance.
+// LockTaskDuplicateKey is a transaction advisory lock — the lock key already
+// embeds organization_id and workspace_id in Go; it does not read a business table.
 var taskFoundationScopeExemptQueries = map[string]bool{
-	"GetTask": true,
+	"GetTask":              true,
+	"LockTaskDuplicateKey": true,
+}
+
+// The table view's dynamic SQL is one package, reached from one place (ADR
+// 0020): only internal/service/task_table*.go may build a query with
+// pkg/db/tablequery. A second caller would be a second place free to bypass
+// the $n-parameter and tenant-clause discipline that package holds.
+func TestTableQueryOnlyFromTaskTableService(t *testing.T) {
+	root := ".."
+	err := filepath.WalkDir(root, func(p string, d os.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(p, ".go") {
+			return err
+		}
+		slash := filepath.ToSlash(p)
+		if strings.Contains(slash, "pkg/db/tablequery/") || strings.HasSuffix(slash, "_test.go") {
+			return nil
+		}
+		src, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		if strings.Contains(string(src), `"`+module+`pkg/db/tablequery"`) &&
+			!regexp.MustCompile(`internal/service/task_table[a-z_]*\.go$`).MatchString(slash) {
+			t.Errorf("%s imports pkg/db/tablequery; only internal/service/task_table*.go may (ADR 0020)", slash)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestTaskFoundationQueriesCarryTenantScope(t *testing.T) {

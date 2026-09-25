@@ -8,11 +8,10 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { useOptionalNavigation } from "../../navigation";
 
 /**
- * Lối thoát đổi tài khoản. `fixed` chỉ ở màn Welcome (không có rail); các bước
- * khác truyền `inline` để nằm ở chân rail — rail scope `.dark` nên token
- * muted/primary tự đúng trên nền tối.
+ * The switch-account escape hatch: on the lockup row of Welcome and in the
+ * rail footer of the other steps. Always inside a landmark, never `fixed`.
  */
-export function OnboardingLogoutButton({ inline = false }: { inline?: boolean } = {}) {
+export function OnboardingLogoutButton({ className }: { className?: string } = {}) {
   const { t } = useTranslation();
   const logout = useLogout();
   const nav = useOptionalNavigation();
@@ -20,11 +19,7 @@ export function OnboardingLogoutButton({ inline = false }: { inline?: boolean } 
     <Button
       variant="ghost"
       size="sm"
-      className={cn(
-        inline
-          ? "-ml-2 w-fit shrink-0 text-muted-foreground hover:text-foreground"
-          : "fixed right-8 top-8 z-50 text-muted-foreground hover:text-destructive",
-      )}
+      className={cn("-ml-2 w-fit shrink-0 text-muted-foreground hover:text-foreground", className)}
       onClick={() => logout.mutate(undefined, { onSuccess: () => nav?.replace(paths.login()) })}
     >
       <LogOut className="size-4" />

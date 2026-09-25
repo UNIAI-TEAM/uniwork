@@ -139,6 +139,8 @@ var catalogue = []EventDef{
 	{Topic: "department.created", Version: 1, Payload: []string{"organization_id", "department_id"}, Scope: ScopeOrganization, Delivery: DeliveryOutbox},
 	{Topic: "department.updated", Version: 1, Payload: []string{"organization_id", "department_id"}, Scope: ScopeOrganization, Delivery: DeliveryOutbox},
 	{Topic: "department.archived", Version: 1, Payload: []string{"organization_id", "department_id"}, Scope: ScopeOrganization, Delivery: DeliveryOutbox},
+	{Topic: "email_hub.inbox_changed", Version: 1, Payload: []string{"account_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "email_hub.new_mail", Version: 1, Payload: []string{"account_id", "user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
 	// Exporting the directory is an audited act with nothing to redraw.
 	{Topic: "people.exported", Version: 1, Payload: []string{"organization_id", "user_id"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 	{Topic: "workspace.created", Version: 1, Payload: []string{"workspace_id", "organization_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
@@ -175,6 +177,7 @@ var catalogue = []EventDef{
 	{Topic: "chat.voice.hangup", Version: 1, Payload: []string{"room_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryEphemeral},
 	{Topic: "chat.voice.recording.started", Version: 1, Payload: []string{"room_id", "call_id", "user_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
 	{Topic: "chat.voice.recording.stopped", Version: 1, Payload: []string{"room_id", "call_id", "user_id"}, Scope: ScopeChat, Delivery: DeliveryEphemeral},
+	{Topic: "chat.voice.call.completed", Version: 1, Payload: []string{"room_id", "workspace_id", "organization_id", "call_id", "call_log_message_id", "caller_id", "started_at", "ended_at", "duration_seconds", "duration_label", "participants"}, Scope: ScopeNone, Delivery: DeliveryOutbox},
 
 	// Meetings
 	{Topic: "meeting.created", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},

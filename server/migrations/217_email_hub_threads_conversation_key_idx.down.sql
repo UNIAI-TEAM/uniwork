@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS email_hub_threads_account_conversation_sent_idx;

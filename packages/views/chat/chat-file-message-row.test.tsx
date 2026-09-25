@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { wrap } from "../test/api-mock";
 import { ChatFileMessageRow } from "./chat-file-message-row";
 
@@ -17,7 +18,7 @@ describe("ChatFileMessageRow", () => {
     vi.mocked(loadChatFileBlob).mockReset();
   });
 
-  it("renders filename, size, download, and inline PDF preview", async () => {
+  it("shows a PDF as a file card and loads its preview only when asked", async () => {
     vi.mocked(loadChatFileBlob).mockResolvedValue(
       new Blob(["%PDF"], { type: "application/pdf" }),
     );
@@ -57,8 +58,11 @@ describe("ChatFileMessageRow", () => {
     );
 
     expect(screen.getByText("sprint.pdf")).toBeInTheDocument();
-    expect(screen.getByText("2.0 KB")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Tải tệp" })).toBeInTheDocument();
+    expect(screen.getByText("2,0 KB")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tải sprint.pdf xuống" })).toBeInTheDocument();
+    // No bytes are fetched for a PDF nobody opened.
+    expect(loadChatFileBlob).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Hiện bản xem trước" }));
     await waitFor(() => {
       expect(screen.getByTitle("Xem trước PDF")).toHaveAttribute("src", "blob:pdf");
     });
@@ -110,7 +114,7 @@ describe("ChatFileMessageRow", () => {
         "blob:preview",
       );
     });
-    expect(screen.getByRole("button", { name: "Mở tệp" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mở long.png" })).toBeInTheDocument();
     expect(loadChatFileBlob).toHaveBeenCalledWith("ws1", "room1", "message2");
   });
 
@@ -155,7 +159,8 @@ describe("ChatFileMessageRow", () => {
     fireEvent.click(screen.getByRole("button", { name: "Trả lời" }));
     expect(onReply).toHaveBeenCalledTimes(1);
     expect(screen.getByText("👍")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sửa" })).toBeDisabled();
+    // A file cannot be edited, so the action is left out rather than shown disabled.
+    expect(screen.queryByRole("button", { name: "Sửa" })).not.toBeInTheDocument();
   });
 
   it("formats byte sizes and shows peer sender chrome", () => {
@@ -229,8 +234,8 @@ describe("ChatFileMessageRow", () => {
         />,
       ),
     );
-    expect(screen.getByText("2.0 MB")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Tải tệp" }));
+    expect(screen.getByText("2,0 MB")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Tải big.bin xuống" }));
     await waitFor(() => {
       expect(loadChatFileBlob).toHaveBeenCalledWith("ws1", "room1", "message4");
       expect(click).toHaveBeenCalled();
@@ -268,5 +273,39 @@ describe("ChatFileMessageRow", () => {
     await waitFor(() => {
       expect(screen.getByText("Không tải được tệp.")).toBeInTheDocument();
     });
+  });
+
+  it("reads an image from the cache when its row mounts again, instead of downloading it twice", async () => {
+    vi.mocked(loadChatFileBlob).mockResolvedValue(new Blob(["png"], { type: "image/png" }));
+    vi.stubGlobal("URL", { ...URL, createObjectURL: vi.fn(() => "blob:cached"), revokeObjectURL: vi.fn() });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const row = (
+      <QueryClientProvider client={client}>
+        <ChatFileMessageRow
+          workspaceId="ws1"
+          roomId="room1"
+          message={{
+            id: "message9",
+            sender: "user1",
+            body: "a.png",
+            kind: "file",
+            ts: Date.now(),
+            reactions: {},
+            file: { filename: "a.png", content_type: "image/png", size_bytes: 10 },
+          }}
+          senderLabel="An"
+          isOwn
+          showSenderName={false}
+          compactTop={false}
+          showAvatar={false}
+        />
+      </QueryClientProvider>
+    );
+    const first = render(row);
+    await waitFor(() => expect(screen.getByRole("img", { name: "a.png" })).toBeInTheDocument());
+    first.unmount();
+    render(row);
+    await waitFor(() => expect(screen.getByRole("img", { name: "a.png" })).toBeInTheDocument());
+    expect(loadChatFileBlob).toHaveBeenCalledTimes(1);
   });
 });

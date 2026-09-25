@@ -7,10 +7,9 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
 
-// registerChatLinks mounts message↔task link routes behind chat_work_hub.
-func registerChatLinks(r api, h Routes, flagMW, chatWriteLimit func(http.Handler) http.Handler) {
+// registerChatLinks mounts message↔task link routes.
+func registerChatLinks(r api, h Routes, chatWriteLimit func(http.Handler) http.Handler) {
 	r.Group(func(lk api) {
-		lk.Use(flagMW)
 		lk.With(chatWriteLimit).Post("/workspaces/{workspaceID}/chat/messages/{messageID}/tasks", h.CreateTaskFromChatMessage, apiOp{
 			summary:     "Create task from chat message",
 			description: "Tạo task từ tin nhắn; gắn liên kết created_from; tùy chọn đồng bộ thread.",
@@ -30,6 +29,13 @@ func registerChatLinks(r api, h Routes, flagMW, chatWriteLimit func(http.Handler
 		lk.Get("/workspaces/{workspaceID}/chat/messages/{messageID}/links", h.ListChatMessageLinks, apiOp{
 			summary:     "List chat message links",
 			description: "Danh sách liên kết của một tin nhắn.",
+			tags:        []string{"chat"},
+			sdo:         sdo.ChatMessageLinkListSDO{},
+			auth:        true,
+		})
+		lk.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/message-links", h.ListChatRoomMessageLinks, apiOp{
+			summary:     "List links of many chat messages",
+			description: "Danh sách liên kết của nhiều tin nhắn trong một phòng (message_ids=a,b,…; tối đa 200).",
 			tags:        []string{"chat"},
 			sdo:         sdo.ChatMessageLinkListSDO{},
 			auth:        true,

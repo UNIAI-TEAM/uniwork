@@ -15,10 +15,13 @@ var meetingLobbyEventTypes = map[string]struct{}{
 	"meeting.ended":            {},
 	"meeting.canceled":         {},
 	"join_request.approved":    {},
+	"join_request.rejected":    {},
 	"conference.session_ready": {},
 	"chat.message":             {},
 	"participant.invited":      {},
 	"participant.removed":      {},
+	"recording.started":        {},
+	"recording.stopped":        {},
 	"recording.ready":          {},
 }
 

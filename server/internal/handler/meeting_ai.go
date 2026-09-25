@@ -120,7 +120,7 @@ func (h *handlers) createSummary(w http.ResponseWriter, r *http.Request) {
 	}
 	locale := strings.ToLower(strings.TrimSpace(in.Locale))
 	if locale == "" {
-		locale = "vi"
+		locale = "en"
 	}
 	s, err := h.Meetings.Summarize(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), locale)
 	if err != nil {
@@ -139,8 +139,8 @@ func (h *handlers) createSummaryTasks(w http.ResponseWriter, r *http.Request) {
 	items := make([]service.SummaryTaskItem, 0, len(in.Items))
 	for _, it := range in.Items {
 		items = append(items, service.SummaryTaskItem{
-			Title: it.Title, Description: it.Description, AssigneeID: it.AssigneeID, DueDate: it.DueDate,
-			Owner: it.Owner, DueSpoken: it.DueSpoken,
+			Title: it.Title, Description: it.Description, AssigneeID: it.AssigneeID, ProjectID: it.ProjectID,
+			Priority: it.Priority, DueDate: it.DueDate, Owner: it.Owner, DueSpoken: it.DueSpoken,
 		})
 	}
 	tasks, err := h.Meetings.CreateTasksFromSummary(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), items)

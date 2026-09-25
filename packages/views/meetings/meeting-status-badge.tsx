@@ -3,25 +3,58 @@ import { Badge } from "@uniwork/ui/components/ui/badge";
 import { cn } from "@uniwork/ui/lib/utils";
 import { useTranslation } from "react-i18next";
 
-const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  SCHEDULED: "outline",
-  IN_PROGRESS: "default",
-  OVERTIME: "outline",
-  ENDED: "secondary",
+/**
+ * The signal set every meeting state reads from — status, RSVP, invite link,
+ * and the live row in the list and on Home. A state is a signal, never the
+ * meetings violet: that tint only says "this is a meeting".
+ */
+export type MeetingTone = "info" | "success" | "warning" | "destructive" | "muted";
+
+export const MEETING_TONE_BADGE: Record<MeetingTone, string> = {
+  info: "bg-info-soft text-info-soft-foreground",
+  success: "bg-success-soft text-success-soft-foreground",
+  warning: "bg-warning-soft text-warning-soft-foreground",
+  destructive: "bg-destructive-soft text-destructive-soft-foreground",
+  muted: "bg-muted text-muted-foreground",
+};
+
+export const MEETING_STATUS_TONE: Record<string, MeetingTone> = {
+  SCHEDULED: "info",
+  IN_PROGRESS: "success",
+  OVERTIME: "warning",
+  MISSED: "muted",
+  ENDED: "muted",
   CANCELED: "destructive",
 };
 
+const RSVP_TONE: Record<string, MeetingTone> = {
+  PENDING: "muted",
+  ACCEPTED: "success",
+  DECLINED: "destructive",
+  TENTATIVE: "warning",
+};
+
+const LINK_TONE: Record<"active" | "expired" | "revoked" | "limit_reached", MeetingTone> = {
+  active: "success",
+  expired: "muted",
+  revoked: "destructive",
+  limit_reached: "warning",
+};
+
+export function ToneBadge({ tone, className, children }: { tone: MeetingTone; className?: string; children: React.ReactNode }) {
+  return (
+    <Badge data-tone={tone} className={cn(MEETING_TONE_BADGE[tone], className)}>
+      {children}
+    </Badge>
+  );
+}
+
 export function MeetingStatusBadge({ status, className }: { status?: string; className?: string }) {
   const { t } = useTranslation();
-  const key = status && status in STATUS_VARIANT ? status : "SCHEDULED";
+  const key = status && status in MEETING_STATUS_TONE ? status : "SCHEDULED";
   const live = key === "IN_PROGRESS";
-  // Live wears the meetings tint (identity), not a signal colour: a meeting
-  // in progress is not a warning. Recording, which IS a state, stays red.
   return (
-    <Badge
-      variant={STATUS_VARIANT[key]}
-      className={cn(live && "gap-1.5 bg-tint-violet text-tint-violet-foreground", className)}
-    >
+    <ToneBadge tone={MEETING_STATUS_TONE[key] ?? "info"} className={cn(live && "gap-1.5", className)}>
       {live ? (
         <span
           aria-hidden
@@ -29,31 +62,17 @@ export function MeetingStatusBadge({ status, className }: { status?: string; cla
         />
       ) : null}
       {t(`meetings.status_${key}`)}
-    </Badge>
+    </ToneBadge>
   );
 }
 
-const RSVP_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  PENDING: "outline",
-  ACCEPTED: "default",
-  DECLINED: "destructive",
-  TENTATIVE: "secondary",
-};
-
 export function MeetingRsvpBadge({ status }: { status: string }) {
   const { t } = useTranslation();
-  const key = status in RSVP_VARIANT ? status : "PENDING";
-  return <Badge variant={RSVP_VARIANT[key]}>{t(`meetings.rsvp_${key}`)}</Badge>;
+  const key = status in RSVP_TONE ? status : "PENDING";
+  return <ToneBadge tone={RSVP_TONE[key] ?? "muted"}>{t(`meetings.rsvp_${key}`)}</ToneBadge>;
 }
-
-const LINK_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  active: "default",
-  expired: "secondary",
-  revoked: "destructive",
-  limit_reached: "outline",
-};
 
 export function MeetingLinkBadge({ status }: { status: "active" | "expired" | "revoked" | "limit_reached" }) {
   const { t } = useTranslation();
-  return <Badge variant={LINK_VARIANT[status]}>{t(`meetings.link_${status}`)}</Badge>;
+  return <ToneBadge tone={LINK_TONE[status]}>{t(`meetings.link_${status}`)}</ToneBadge>;
 }

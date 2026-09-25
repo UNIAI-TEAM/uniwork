@@ -5,9 +5,24 @@ import type { ChatMessage } from "./chat-messages";
 export interface NameContextEntry {
   user_id: string;
   display_name: string;
+  avatar_url?: string;
 }
 
+// React Query keeps an unchanged record the same object across refetches
+// (structural sharing), so mapping through this cache gives an unchanged
+// message the same object too: rows can memoise on it, and an attachment
+// preview keyed on it does not reload when the timeline rebuilds.
+const mapped = new WeakMap<ChatMessageRecord, ChatMessage>();
+
 export function toChatMessage(record: ChatMessageRecord): ChatMessage {
+  const cached = mapped.get(record);
+  if (cached) return cached;
+  const message = mapRecord(record);
+  mapped.set(record, message);
+  return message;
+}
+
+function mapRecord(record: ChatMessageRecord): ChatMessage {
   return {
     id: record.id,
     sender: record.sender_id,
@@ -23,14 +38,33 @@ export function toChatMessage(record: ChatMessageRecord): ChatMessage {
     pinned: record.pinned,
     mentionedUserIds: record.mentioned_user_ids,
     reactions: record.reactions ?? {},
+    myReactions: record.my_reactions,
     voiceCall: record.voice_call
       ? {
           outcome: record.voice_call.outcome,
           duration_seconds: record.voice_call.duration_seconds,
           caller_id: record.voice_call.caller_id,
+          participants: record.voice_call.participants?.map((p) => ({
+            user_id: p.user_id,
+            display_name: p.display_name ?? "",
+          })),
           recording_id: record.voice_call.recording_id,
           recording_status: record.voice_call.recording_status,
           recording_url: record.voice_call.recording_url,
+        }
+      : undefined,
+    voiceCallSummary: record.voice_call_summary
+      ? {
+          call_id: record.voice_call_summary.call_id,
+          call_log_message_id: record.voice_call_summary.call_log_message_id,
+          summary: record.voice_call_summary.summary ?? "",
+          highlights: record.voice_call_summary.highlights ?? [],
+          action_items: record.voice_call_summary.action_items.map((item) => ({
+            title: item.title,
+            owner: item.owner ?? "",
+            due: item.due ?? "",
+            source_message_id: item.source_message_id ?? "",
+          })),
         }
       : undefined,
     voice: record.voice,

@@ -45,7 +45,7 @@ function WelcomeShell({ children }: { children: ReactNode }) {
  * gì về sản phẩm. Đây là lần đầu người dùng thấy workspace của mình, nên chỗ
  * này phải là thương hiệu.
  *
- * `animate-pulse` lúc chờ là cùng một ngôn ngữ với `workspace-loader.tsx`:
+ * `animate-pulse` lúc chờ là cùng một ngôn ngữ với `LogoLoader` (`@uniwork/ui/brand`):
  * trong sản phẩm, dấu UniWork đập nhẹ nghĩa là đang tải.
  */
 function WelcomeMark({ state }: { state: "ready" | "loading" | "error" }) {

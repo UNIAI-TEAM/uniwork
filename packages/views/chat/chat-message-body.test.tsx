@@ -1,32 +1,36 @@
-import { render, screen } from "@testing-library/react";
-import { beforeAll, describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { ChatMessageBody } from "./chat-message-body";
 
 initI18n();
 
 describe("ChatMessageBody", () => {
-  // Importing the markdown chunk (KaTeX, Shiki) costs seconds while the whole
-  // suite runs in parallel under coverage. Warming the module registry here
-  // keeps the lazy boundary in the assertions without timing the import.
-  beforeAll(async () => {
-    await import("@uniwork/ui/markdown");
-  }, 60_000);
-
   it("renders plain text without markdown wrapper", () => {
     render(<ChatMessageBody body="hello world" isOwn={false} nameContext={[]} />);
     expect(screen.getByText("hello world")).toBeInTheDocument();
   });
 
-  // The markdown renderer is lazy (it carries KaTeX and Shiki), so these two
-  // wait for the chunk; the plain-text case above renders synchronously.
-  // The renderer stays behind Suspense even with the module warmed, so these
-  // two still await the boundary.
-  // Loading that chunk takes longer than the one-second default while the whole
-  // suite runs in parallel under coverage, and under `make check` several view
-  // suites compile at once and the on-demand compile is measured past 8s — see
-  // date-field.test.tsx.
-  const CHUNK_LOAD = { timeout: 20_000 };
+  it("draws a sticker at once as an image named in words, and says so when it cannot load", () => {
+    render(
+      <ChatMessageBody body="![sticker:ăn mừng](https://media.giphy.com/a/giphy.gif)" isOwn nameContext={[]} />,
+    );
+    // No markdown chunk to wait for: the image is there on the first render.
+    const img = screen.getByRole("img", { name: "Nhãn dán · ăn mừng" });
+    expect(img).toHaveAttribute("src", "https://media.giphy.com/a/giphy.gif");
+    fireEvent.error(img);
+    expect(screen.getByText("Không tải được Nhãn dán · ăn mừng")).toBeInTheDocument();
+  });
+
+  it("turns web addresses into links and leaves trailing punctuation outside", () => {
+    render(
+      <ChatMessageBody body="Xem https://docs.example.com/a?b=1. rồi báo nhé" isOwn nameContext={[]} />,
+    );
+    const link = screen.getByRole("link", { name: "https://docs.example.com/a?b=1" });
+    expect(link).toHaveAttribute("href", "https://docs.example.com/a?b=1");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(link.closest("p")).toHaveTextContent("Xem https://docs.example.com/a?b=1. rồi báo nhé");
+  });
 
   it("renders member mention with display name from context", async () => {
     render(
@@ -36,8 +40,33 @@ describe("ChatMessageBody", () => {
         nameContext={[{ user_id: "u2", display_name: "Binh" }]}
       />,
     );
-    expect(await screen.findByText("@Binh", undefined, CHUNK_LOAD)).toBeInTheDocument();
+    expect(screen.getByText("@Binh")).toBeInTheDocument();
     expect(screen.getByText(/check this/)).toBeInTheDocument();
+  });
+
+  it("renders a message with a mention the same way as one without: links still work, no markup shows", () => {
+    render(
+      <ChatMessageBody
+        body="[@Binh](mention://member/u2) xem https://a.example/x nhé"
+        isOwn={false}
+        nameContext={[{ user_id: "u2", display_name: "Binh" }]}
+      />,
+    );
+    expect(screen.getByRole("link", { name: "https://a.example/x" })).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain("mention://");
+  });
+
+  it("names someone who left by the label written into the message, never their id", () => {
+    render(<ChatMessageBody body="[@Lan cũ](mention://member/01J8ABC) cảm ơn" isOwn nameContext={[]} />);
+    expect(screen.getByText("@Lan cũ")).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain("01J8ABC");
+  });
+
+  it("lets a GIF be paused", () => {
+    render(<ChatMessageBody body="![gif:vui](https://media.example/v.gif)" isOwn nameContext={[]} />);
+    const pause = screen.getByRole("button", { name: /Dừng ảnh động/ });
+    fireEvent.click(pause);
+    expect(screen.getByRole("button", { name: /Phát ảnh động/ })).toBeInTheDocument();
   });
 
   it("renders sticker media messages as images", async () => {
@@ -48,7 +77,7 @@ describe("ChatMessageBody", () => {
         nameContext={[]}
       />,
     );
-    expect(await screen.findByRole("img", undefined, CHUNK_LOAD)).toHaveAttribute(
+    expect(await screen.findByRole("img")).toHaveAttribute(
       "src",
       "https://cdn.example/sticker.png",
     );

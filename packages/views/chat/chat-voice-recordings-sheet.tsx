@@ -1,12 +1,19 @@
 "use client";
 
-import { LoaderCircle, Play } from "lucide-react";
-import { useMemo, useState } from "react";
+import { AudioLines, Play } from "lucide-react";
+import { useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatVoiceRecordingItem } from "@uniwork/core/api/endpoints/chat-voice";
 import { useChatVoiceRecordings } from "@uniwork/core/chat";
-import { Badge } from "@uniwork/ui/components/ui/badge";
+import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@uniwork/ui/components/ui/empty";
 import {
   Sheet,
   SheetContent,
@@ -14,14 +21,26 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@uniwork/ui/components/ui/sheet";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { cn } from "@uniwork/ui/lib/utils";
+import { moduleTone } from "../layout/module-tones";
+import { formatMessageDateTime, formatMessageDay, formatMessageTime } from "./chat-message-time";
 import type { NameContextEntry } from "./native-chat-message-mapping";
+import { formatVoiceCallDuration } from "./voice-call-duration";
 import { VoiceCallRecordingDialog } from "./voice-call-recording-dialog";
 
-function formatRecordingWhen(iso: string, locale: string): string {
-  if (!iso.trim()) return "—";
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
+function parseTs(iso: string): number | null {
+  if (!iso.trim()) return null;
+  const ts = Date.parse(iso);
+  return Number.isNaN(ts) ? null : ts;
+}
+
+/** Length of a finished recording, or null while it is still running / unknown. */
+export function recordingDurationSeconds(item: Pick<ChatVoiceRecordingItem, "started_at" | "ended_at">): number | null {
+  const start = parseTs(item.started_at);
+  const end = parseTs(item.ended_at);
+  if (start === null || end === null || end <= start) return null;
+  return Math.round((end - start) / 1000);
 }
 
 function startedByLabel(
@@ -37,34 +56,50 @@ function startedByLabel(
   return match?.display_name.trim() || unknownLabel;
 }
 
-function recordingStatusLabel(status: string, t: (key: string) => string): string {
-  switch (status) {
+type RecordingStatus = "complete" | "processing" | "active" | "failed" | "unknown";
+
+/** Server statuses are a lenient string; anything new reads as a translated "unknown". */
+export function recordingStatus(status: string): RecordingStatus {
+  switch (status.trim().toUpperCase()) {
     case "COMPLETE":
-      return t("chat.voice_recordings_status_complete");
+      return "complete";
     case "PROCESSING":
-      return t("chat.voice_recordings_status_processing");
+      return "processing";
     case "ACTIVE":
-      return t("chat.voice_recordings_status_active");
+      return "active";
     case "FAILED":
-      return t("chat.voice_recordings_status_failed");
+      return "failed";
     default:
-      return status;
+      return "unknown";
   }
 }
 
-function recordingStatusVariant(
-  status: string,
-): "default" | "secondary" | "destructive" | "outline" {
-  switch (status) {
-    case "COMPLETE":
-      return "default";
-    case "FAILED":
-      return "destructive";
-    case "ACTIVE":
-      return "secondary";
-    default:
-      return "outline";
-  }
+const STATUS_LABEL_KEY: Record<RecordingStatus, string> = {
+  complete: "chat.voice_recordings_status_complete",
+  processing: "chat.voice_recordings_status_processing",
+  active: "chat.voice_recordings_status_active",
+  failed: "chat.voice_recordings_status_failed",
+  unknown: "chat.voice_recordings_status_unknown",
+};
+
+const STATUS_TONE: Record<RecordingStatus, string> = {
+  complete: "bg-success-soft text-success-soft-foreground",
+  processing: "bg-info-soft text-info-soft-foreground",
+  active: "bg-brand-subtle text-brand-subtle-foreground",
+  failed: "bg-destructive-soft text-destructive-soft-foreground",
+  unknown: "bg-muted text-muted-foreground",
+};
+
+function RecordingStatusPill({ status }: { status: RecordingStatus }) {
+  const { t } = useTranslation();
+  return (
+    <span
+      data-status={status}
+      className={cn("shrink-0 rounded-md px-1.5 py-0.5 text-micro font-semibold", STATUS_TONE[status])}
+    >
+      {t(STATUS_LABEL_KEY[status])}
+    </span>
+  );
 }
 
 function RecordingRow({
@@ -83,40 +118,56 @@ function RecordingRow({
   onPlay: (recordingId: string) => void;
 }) {
   const { t } = useTranslation();
-  const canPlay = item.status === "COMPLETE";
+  const describedById = useId();
+  const status = recordingStatus(item.status);
+  const startedTs = parseTs(item.started_at);
+  const duration = recordingDurationSeconds(item);
+  const who = startedByLabel(
+    item.started_by,
+    currentUserId,
+    nameContext,
+    youLabel,
+    t("chat.voice_recordings_unknown_member"),
+  );
 
   return (
-    <li className="rounded-xl border border-border bg-muted/20 px-3 py-2.5">
-      <div className="flex items-start justify-between gap-2">
+    <li className="rounded-lg border border-border bg-surface px-3 py-2.5 transition-colors duration-(--duration-fast) hover:bg-surface-hover">
+      <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-body font-medium text-foreground">
-            {formatRecordingWhen(item.started_at, locale)}
+          <p id={`${describedById}-when`} className="text-body font-medium text-foreground tabular-nums">
+            {startedTs === null ? (
+              t("chat.voice_recordings_unknown_time")
+            ) : (
+              <time dateTime={new Date(startedTs).toISOString()} title={formatMessageDateTime(startedTs, locale)}>
+                {t("chat.voice_recordings_when", {
+                  day: formatMessageDay(startedTs, locale, {
+                    today: t("chat.day_today"),
+                    yesterday: t("chat.sidebar_yesterday"),
+                  }),
+                  time: formatMessageTime(startedTs, locale),
+                })}
+              </time>
+            )}
           </p>
-          <p className="mt-0.5 text-caption text-muted-foreground">
-            {t("chat.voice_recordings_started_by", {
-              name: startedByLabel(
-                item.started_by,
-                currentUserId,
-                nameContext,
-                youLabel,
-                t("chat.voice_recordings_unknown_member"),
-              ),
-            })}
+          <p id={`${describedById}-who`} className="mt-0.5 truncate text-caption text-muted-foreground tabular-nums">
+            {t("chat.voice_recordings_started_by", { name: who })}
+            {duration !== null
+              ? ` · ${t("chat.voice_recordings_duration", { duration: formatVoiceCallDuration(duration) })}`
+              : null}
           </p>
         </div>
-        <Badge variant={recordingStatusVariant(item.status)}>
-          {recordingStatusLabel(item.status, t)}
-        </Badge>
+        <RecordingStatusPill status={status} />
       </div>
-      {item.status === "FAILED" ? (
+      {status === "failed" ? (
         <p className="mt-2 text-caption text-muted-foreground">{t("chat.voice_recordings_failed_hint")}</p>
       ) : null}
-      {canPlay ? (
+      {status === "complete" ? (
         <Button
           type="button"
           variant="outline"
           size="sm"
           className="mt-2.5"
+          aria-describedby={`${describedById}-when ${describedById}-who`}
           onClick={() => onPlay(item.id)}
         >
           <Play aria-hidden className="size-4" />
@@ -124,6 +175,24 @@ function RecordingRow({
         </Button>
       ) : null}
     </li>
+  );
+}
+
+/** Recordings are loading: rows in their own shape. */
+function RecordingListSkeleton({ label }: { label: string }) {
+  return (
+    <div className="space-y-2" aria-busy>
+      <span className="sr-only">{label}</span>
+      {["w-40", "w-32", "w-36"].map((w) => (
+        <div key={w} className="flex items-start gap-3 rounded-lg border border-border px-3 py-3">
+          <div className="flex flex-1 flex-col gap-1.5">
+            <Skeleton className={cn("h-3.5", w)} />
+            <Skeleton className="h-3 w-28" />
+          </div>
+          <Skeleton className="h-4 w-14" />
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -152,49 +221,55 @@ export function ChatVoiceRecordingsSheet({
   );
 
   const sorted = useMemo(
-    () => [...recordings].sort((a, b) => b.started_at.localeCompare(a.started_at)),
+    () => [...recordings].sort((a, b) => (parseTs(b.started_at) ?? 0) - (parseTs(a.started_at) ?? 0)),
     [recordings],
   );
 
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="right" className="flex w-full flex-col p-0 sm:max-w-md">
+        <SheetContent side="right" closeLabel={t("common.close")} className="flex w-full flex-col p-0 sm:max-w-md">
           <SheetHeader className="border-b border-border px-4 py-3">
             <SheetTitle>{t("chat.voice_recordings_title")}</SheetTitle>
             <SheetDescription>{t("chat.voice_recordings_description")}</SheetDescription>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
             {isLoading ? (
-              <div className="flex items-center gap-2 px-1 text-caption text-muted-foreground">
-                <LoaderCircle aria-hidden className="size-4 animate-spin" />
-                <span>{t("chat.voice_recordings_loading")}</span>
-              </div>
-            ) : null}
-            {isError ? (
-              <div className="flex flex-col gap-2 px-1">
-                <p className="text-caption text-destructive">{t("chat.voice_recordings_load_failed")}</p>
+              <RecordingListSkeleton label={t("chat.voice_recordings_loading")} />
+            ) : isError ? (
+              <div role="alert" className="flex flex-col items-start gap-2 px-1">
+                <p className="text-body text-destructive">{t("chat.voice_recordings_load_failed")}</p>
                 <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
                   {t("chat.retry")}
                 </Button>
               </div>
-            ) : null}
-            {!isLoading && !isError && sorted.length === 0 ? (
-              <p className="px-1 text-caption text-muted-foreground">{t("chat.voice_recordings_empty")}</p>
-            ) : null}
-            <ul className="space-y-2">
-              {sorted.map((item) => (
-                <RecordingRow
-                  key={item.id}
-                  item={item}
-                  locale={i18n.language}
-                  currentUserId={currentUserId}
-                  nameContext={nameContext}
-                  youLabel={t("chat.you")}
-                  onPlay={setPlaybackId}
-                />
-              ))}
-            </ul>
+            ) : sorted.length === 0 ? (
+              <Empty className="py-10">
+                <EmptyHeader>
+                  <EmptyMedia>
+                    <IconTile icon={AudioLines} tone={moduleTone("chat")} size="lg" />
+                  </EmptyMedia>
+                  <EmptyTitle>{t("chat.voice_recordings_empty")}</EmptyTitle>
+                  <EmptyDescription className="text-caption">
+                    {t("chat.voice_recordings_empty_hint")}
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            ) : (
+              <ul className="space-y-2">
+                {sorted.map((item) => (
+                  <RecordingRow
+                    key={item.id}
+                    item={item}
+                    locale={i18n.language}
+                    currentUserId={currentUserId}
+                    nameContext={nameContext}
+                    youLabel={t("chat.you")}
+                    onPlay={setPlaybackId}
+                  />
+                ))}
+              </ul>
+            )}
           </div>
         </SheetContent>
       </Sheet>

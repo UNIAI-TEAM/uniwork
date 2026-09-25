@@ -1,12 +1,16 @@
 "use client";
 
 import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { ChatMessageRecord } from "@uniwork/core/api/endpoints/chat";
 import { useSearchChatRoomMessages } from "@uniwork/core/chat";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { describeChatMediaBody } from "./chat-expression-utils";
+import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
+import { foldVi } from "./chat-search-fold";
 import { cn } from "@uniwork/ui/lib/utils";
 
 type NameContextEntry = {
@@ -25,29 +29,43 @@ function senderLabelFor(
   return match?.display_name?.trim() || message.sender_display_name?.trim() || message.sender_id;
 }
 
-function highlightSnippet(body: string, query: string): ReactNode {
-  const trimmed = query.trim();
-  if (!trimmed) return body;
-  const lowerBody = body.toLowerCase();
-  const lowerQuery = trimmed.toLowerCase();
-  const index = lowerBody.indexOf(lowerQuery);
-  if (index < 0) return body;
-  const before = body.slice(0, index);
-  const match = body.slice(index, index + trimmed.length);
-  const after = body.slice(index + trimmed.length);
+/**
+ * The snippet with the match marked. The body is shown the way a person
+ * reads it (mentions as @names, not markup), and matched accent-insensitively
+ * — "tuan" marks "Tuấn" — by folding each character and keeping where it came
+ * from, so the mark lands on the original letters.
+ */
+function highlightSnippet(rawBody: string, query: string): ReactNode {
+  const body = deserializeMessageBodyToComposerDraft(rawBody);
+  const folded = foldVi(query.trim());
+  if (!folded) return body;
+  let hay = "";
+  const origin: number[] = [];
+  for (let i = 0; i < body.length; i += 1) {
+    const piece = foldVi(body[i] ?? "");
+    for (let j = 0; j < piece.length; j += 1) origin.push(i);
+    hay += piece;
+  }
+  const at = hay.indexOf(folded);
+  if (at < 0) return body;
+  const start = origin[at] ?? 0;
+  const end = (origin[at + folded.length - 1] ?? start) + 1;
+  const before = body.slice(0, start);
+  const match = body.slice(start, end);
+  const after = body.slice(end);
   return (
     <>
       {before}
-      <mark className="rounded-sm bg-brand/20 px-0.5 text-foreground">{match}</mark>
+      <mark className="rounded-sm bg-brand-subtle px-0.5 font-medium text-brand-subtle-foreground">{match}</mark>
       {after}
     </>
   );
 }
 
-function formatResultTime(iso: string): string {
+function formatResultTime(iso: string, locale: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString(undefined, {
+  return date.toLocaleString(locale, {
     day: "2-digit",
     month: "2-digit",
     hour: "2-digit",
@@ -72,14 +90,29 @@ export function ChatMessageSearchBar({
   onClose: () => void;
   onJumpToMessage: (messageId: string) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const listId = useId();
+  const mediaLabels = { sticker: t("chat.media_sticker"), gif: t("chat.media_gif"), image: t("chat.media_image") };
   const inputRef = useRef<HTMLInputElement>(null);
+  // Where focus was when search opened (the ⌘F target or the header button):
+  // closing without a jump puts it back there. A jump hands focus to the
+  // message instead.
+  const openerRef = useRef<HTMLElement | null>(
+    typeof document !== "undefined" && document.activeElement instanceof HTMLElement ? document.activeElement : null,
+  );
+  const jumpedRef = useRef(false);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   useEffect(() => {
+    const opener = openerRef.current;
     inputRef.current?.focus();
+    return () => {
+      if (!jumpedRef.current && opener?.isConnected) {
+        window.requestAnimationFrame(() => opener.focus());
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -115,11 +148,22 @@ export function ChatMessageSearchBar({
     });
   };
 
-  const jumpToSelected = () => {
-    if (!selected) return;
-    onJumpToMessage(selected.id);
+  const jumpTo = (messageId: string) => {
+    jumpedRef.current = true;
+    onJumpToMessage(messageId);
     onClose();
   };
+
+  const jumpToSelected = () => {
+    if (!selected) return;
+    jumpTo(selected.id);
+  };
+
+  // Arrow keys move the active option from the field; keep it in view.
+  useEffect(() => {
+    if (!selected) return;
+    document.getElementById(`${listId}-${selected.id}`)?.scrollIntoView?.({ block: "nearest" });
+  }, [listId, selected]);
 
   return (
     <div className="border-b border-border bg-surface">
@@ -136,7 +180,12 @@ export function ChatMessageSearchBar({
             onChange={(event) => setQuery(event.target.value)}
             placeholder={t("chat.search_messages_placeholder")}
             aria-label={t("chat.search_messages")}
-            className="pl-9"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-expanded={textResults.length > 0}
+            aria-controls={listId}
+            aria-activedescendant={selected ? `${listId}-${selected.id}` : undefined}
+            className="h-8 pl-9"
             onKeyDown={(event) => {
               if (event.key === "Escape") {
                 event.preventDefault();
@@ -154,6 +203,8 @@ export function ChatMessageSearchBar({
                 return;
               }
               if (event.key === "Enter") {
+                // Enter that only commits a Vietnamese IME syllable is not a jump.
+                if (event.nativeEvent.isComposing || event.keyCode === 229) return;
                 event.preventDefault();
                 jumpToSelected();
               }
@@ -164,7 +215,7 @@ export function ChatMessageSearchBar({
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="shrink-0 rounded-full"
+          className="shrink-0"
           aria-label={t("chat.search_prev_result")}
           disabled={textResults.length === 0}
           onClick={() => moveSelection(-1)}
@@ -175,7 +226,7 @@ export function ChatMessageSearchBar({
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="shrink-0 rounded-full"
+          className="shrink-0"
           aria-label={t("chat.search_next_result")}
           disabled={textResults.length === 0}
           onClick={() => moveSelection(1)}
@@ -186,7 +237,7 @@ export function ChatMessageSearchBar({
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="shrink-0 rounded-full"
+          className="shrink-0"
           aria-label={t("chat.search_close")}
           onClick={onClose}
         >
@@ -197,46 +248,68 @@ export function ChatMessageSearchBar({
       {debouncedQuery.length >= 2 ? (
         <div className="border-t border-border px-3 py-2 sm:px-4">
           {isFetching ? (
-            <p className="text-caption text-muted-foreground">{t("chat.search_loading")}</p>
+            <div className="space-y-2 py-1" aria-busy>
+              <span className="sr-only">{t("chat.search_loading")}</span>
+              {["w-3/4", "w-1/2"].map((w) => (
+                <div key={w} className="space-y-1.5 px-3 py-1">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className={cn("h-3", w)} />
+                </div>
+              ))}
+            </div>
           ) : textResults.length === 0 ? (
-            <p className="text-caption text-muted-foreground">{t("chat.search_messages_no_results")}</p>
+            <p className="py-1 text-caption text-muted-foreground" role="status">
+              {t("chat.search_messages_no_results")}
+            </p>
           ) : (
             <>
-              <p className="mb-2 text-caption text-muted-foreground">
+              {/* The position is for the eye; a screen reader already hears
+                  the active option through aria-activedescendant, and hears
+                  the total once, when the results change. */}
+              <p className="mb-1.5 text-caption text-muted-foreground tabular-nums" aria-hidden>
                 {t("chat.search_results_count", {
                   current: selectedIndex + 1,
                   total: textResults.length,
                 })}
               </p>
-              <ul className="max-h-52 space-y-1 overflow-y-auto">
+              <p className="sr-only" role="status">
+                {t("chat.message_list.search_results_total", { count: textResults.length })}
+              </p>
+              {/* Focus stays in the search field; arrows move the active option
+                  (aria-activedescendant), Enter or a click jumps to it. */}
+              <ul id={listId} role="listbox" aria-label={t("chat.search_messages")} className="max-h-52 space-y-px overflow-y-auto">
                 {textResults.map((message, index) => {
                   const label = senderLabelFor(message, currentUserId, youLabel, nameContext);
+                  const jump = () => {
+                    setSelectedIndex(index);
+                    jumpTo(message.id);
+                  };
                   return (
-                    <li key={message.id}>
-                      <button
-                        type="button"
-                        className={cn(
-                          "w-full rounded-md px-3 py-2 text-left transition-colors hover:bg-muted",
-                          index === selectedIndex && "bg-muted ring-1 ring-border",
-                        )}
-                        onClick={() => {
-                          setSelectedIndex(index);
-                          onJumpToMessage(message.id);
-                          onClose();
-                        }}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="truncate text-caption font-medium text-foreground">
-                            {label}
-                          </span>
-                          <span className="shrink-0 text-caption tabular-nums text-muted-foreground">
-                            {formatResultTime(message.created_at)}
-                          </span>
-                        </div>
-                        <p className="mt-0.5 line-clamp-2 text-caption text-muted-foreground">
-                          {highlightSnippet(message.body, debouncedQuery)}
-                        </p>
-                      </button>
+                    <li
+                      key={message.id}
+                      id={`${listId}-${message.id}`}
+                      role="option"
+                      aria-selected={index === selectedIndex}
+                      tabIndex={-1}
+                      className={cn(
+                        "cursor-pointer rounded-md px-3 py-2 transition-colors duration-(--duration-fast) hover:bg-surface-hover",
+                        index === selectedIndex && "bg-surface-selected hover:bg-surface-selected",
+                      )}
+                      onClick={jump}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") jump();
+                      }}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-caption font-medium text-foreground">{label}</span>
+                        <span className="shrink-0 text-caption tabular-nums text-muted-foreground">
+                          {formatResultTime(message.created_at, i18n.language)}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 line-clamp-2 text-caption text-muted-foreground">
+                        {describeChatMediaBody(message.body, mediaLabels) ??
+                          highlightSnippet(message.body, debouncedQuery)}
+                      </p>
                     </li>
                   );
                 })}

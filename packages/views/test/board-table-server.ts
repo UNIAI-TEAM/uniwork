@@ -1,6 +1,16 @@
 // Fake table API behind the mocked transport, for board tests: groups and rows
-// per status column, paged by group_key and offset as the real server pages them.
+// per status column (`group_key` `status:<status>`), paged by `cursor` as the
+// real server pages them. The cursor is base64 of the offset string — for this
+// fake only; the client never reads it. Pages are named `status:<status>@<offset>`.
+import { ApiError } from "@uniwork/core/api/http";
 import { requestMock } from "./request-mock";
+
+/** Requests one failed attempt makes: the request and the table queries' one automatic retry. */
+export const FAILED_ATTEMPT_REQUESTS = 2;
+
+const STATUS_PREFIX = "status:";
+const encodeCursor = (offset: number) => btoa(String(offset));
+const decodeCursor = (cursor: unknown) => (typeof cursor === "string" ? Number(atob(cursor)) : 0);
 
 type Params = Record<string, unknown>;
 
@@ -27,11 +37,15 @@ interface BoardTableServerOptions {
   claimed?: Record<string, number>;
   /** Rows pages after the first start this many rows early, repeating ids across the boundary. */
   overlap?: number;
-  /** `status@offset` pages whose first request fails. */
+  /**
+   * `status:<status>@offset` pages whose first attempt fails with a 503: the
+   * request and the one automatic retry the table queries make (see
+   * `tableQueryRetry`); the next request, a user's retry, succeeds.
+   */
   failOnce?: string[];
-  /** The first groups request fails. */
+  /** The first groups attempt (the request and its automatic retry) fails with a 503. */
   failGroupsOnce?: boolean;
-  /** `status@offset` page held until `release()`. */
+  /** `status:<status>@offset` page held until `release()`. */
   hold?: string;
   /** Hold only this request of the `hold` page, counting from 1; by default every one waits. */
   holdNth?: number;
@@ -44,7 +58,6 @@ export function serveBoardTable(options: BoardTableServerOptions) {
   const rowBodies: Params[] = [];
   const groupBodies: Params[] = [];
   const paths: string[] = [];
-  const failed = new Set<string>();
   const requestsPerPage = new Map<string, number>();
   let release = () => {};
   const held = new Promise<void>((resolve) => {
@@ -62,9 +75,8 @@ export function serveBoardTable(options: BoardTableServerOptions) {
     const body: Params = { ...(init?.body as Params | undefined) };
     if (path.includes("/tasks/table/groups")) {
       groupBodies.push(body);
-      if (options.failGroupsOnce && !failed.has("groups")) {
-        failed.add("groups");
-        throw new Error("groups failed");
+      if (options.failGroupsOnce && groupBodies.length <= FAILED_ATTEMPT_REQUESTS) {
+        throw new ApiError("groups failed", "internal", 503);
       }
       return {
         query_fingerprint: "fp-groups",
@@ -72,7 +84,7 @@ export function serveBoardTable(options: BoardTableServerOptions) {
         groups: statuses
           .filter((status) => served(status) > 0)
           .map((status) => ({
-            key: status,
+            key: `${STATUS_PREFIX}${status}`,
             value: { kind: "status", status },
             count: claimed(status),
           })),
@@ -82,7 +94,9 @@ export function serveBoardTable(options: BoardTableServerOptions) {
     if (path.includes("/tasks/table/rows")) {
       rowBodies.push(body);
       const groupKey = typeof body.group_key === "string" ? body.group_key : null;
-      const offset = Number(body.offset ?? 0);
+      const status =
+        groupKey?.startsWith(STATUS_PREFIX) ? groupKey.slice(STATUS_PREFIX.length) : groupKey;
+      const offset = decodeCursor(body.cursor);
       const limit = Number(body.limit ?? 50);
       const page = `${String(groupKey)}@${offset}`;
       const nth = (requestsPerPage.get(page) ?? 0) + 1;
@@ -90,25 +104,24 @@ export function serveBoardTable(options: BoardTableServerOptions) {
       if (options.hold === page && (options.holdNth === undefined || options.holdNth === nth)) {
         await held;
       }
-      if (options.failOnce?.includes(page) && !failed.has(page)) {
-        failed.add(page);
-        throw new Error("page failed");
+      if (options.failOnce?.includes(page) && nth <= FAILED_ATTEMPT_REQUESTS) {
+        throw new ApiError("page failed", "internal", 503);
       }
       // Without a group key the server pages every status as one branch.
-      const branchStatuses = groupKey === null ? statuses : [groupKey];
+      const branchStatuses = status === null ? statuses : [status];
       const branch = branchStatuses.flatMap((status) =>
         Array.from({ length: served(status) }, (_, index) => row(status, index)),
       );
       const start = offset > 0 ? Math.max(0, offset - (options.overlap ?? 0)) : 0;
-      const pageRows = branch.slice(start, start + limit);
+      const end = Math.min(branch.length, start + limit);
+      const pageRows = branch.slice(start, end);
       return {
         query_fingerprint: "fp-rows",
         group_key: groupKey,
         parent_id: null,
-        total: groupKey === null ? claimedTotal() : claimed(groupKey),
-        rows: pageRows.map((task) => ({ task, direct_child_count: 0 })),
-        branch_total: pageRows.length,
-        next_cursor: null,
+        total: status === null ? claimedTotal() : claimed(status),
+        rows: pageRows.map((task) => ({ task, direct_child_count: 0, labels: [] })),
+        next_cursor: end < branch.length ? encodeCursor(end) : null,
       };
     }
     if (path.includes("/my-tasks")) {
@@ -131,9 +144,9 @@ export function serveBoardTable(options: BoardTableServerOptions) {
   });
 
   return {
-    /** Every rows request as `group_key@offset`, in order. */
+    /** Every rows request as `group_key@offset` (the cursor decoded), in order. */
     rowRequests: () =>
-      rowBodies.map((body) => `${String(body.group_key)}@${String(body.offset)}`),
+      rowBodies.map((body) => `${String(body.group_key)}@${decodeCursor(body.cursor)}`),
     rowBodies,
     groupBodies,
     paths,
