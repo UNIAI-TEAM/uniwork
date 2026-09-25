@@ -1,33 +1,35 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Forward, ImageOff, RefreshCw, Reply, ReplyAll } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Forward, RefreshCw, Reply, ReplyAll } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useEmailHubConversation } from "@uniwork/core/email-hub/hooks";
 import type { EmailHubThread } from "@uniwork/core/types/email-hub";
 import { tintClass } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { identityTint } from "../people/identity-tint";
+import { EmailHubConversationMessage } from "./email-hub-conversation-message";
+import { useEmailHubRemoteImagesPref } from "./use-email-hub-remote-images-pref";
 import { emailHubLocale, formatEmailFullDate, senderDisplayName } from "./email-hub-format";
-import { emailHasRemoteContent } from "./email-hub-html";
 import {
   emailHubThreadCapabilities,
   EmailHubThreadToolbar,
   type EmailHubThreadActions,
   type EmailHubThreadPending,
 } from "./email-hub-thread-toolbar";
-import { AttachmentList, EmailHtmlFrame, EmailSenderAvatar } from "./email-hub-view-parts";
+import { AttachmentList, EmailSenderAvatar } from "./email-hub-view-parts";
 
 interface EmailHubThreadDetailProps {
+  wsId: string;
+  accountId: string;
   activeThread: EmailHubThread;
-  /** Sidebar folder the user is browsing (may differ from cached thread.folder briefly). */
   browserFolder: string;
   detailData?: EmailHubThread | null;
   readableBody: boolean;
   bodyLoading: boolean;
   bodyLoadFailed: boolean;
-  isError: boolean;
   actions: EmailHubThreadActions;
   pending: EmailHubThreadPending;
   aiOpen: boolean;
@@ -49,13 +51,14 @@ function BodySkeleton() {
 }
 
 export function EmailHubThreadDetail({
+  wsId,
+  accountId,
   activeThread,
   browserFolder,
   detailData,
   readableBody,
   bodyLoading,
   bodyLoadFailed,
-  isError,
   actions,
   pending,
   aiOpen,
@@ -64,21 +67,31 @@ export function EmailHubThreadDetail({
   const locale = emailHubLocale(i18n.language);
   const thread = detailData ?? activeThread;
   const subject = thread.subject || t("email_hub.no_subject");
-  const name = senderDisplayName(thread.from_name, thread.from_addr);
   const can = emailHubThreadCapabilities(thread, browserFolder);
   const labels = thread.imap_labels ?? [];
-  const recipients = thread.to_addrs.join(", ");
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const [remoteAllowedFor, setRemoteAllowedFor] = useState<string | null>(null);
-  const allowRemote = remoteAllowedFor === activeThread.id;
-  const bodyHtml = readableBody ? detailData?.body_html : undefined;
-  const remoteBlocked = !!bodyHtml && !allowRemote && emailHasRemoteContent(bodyHtml);
+  const [alwaysShowRemoteImages, setAlwaysShowRemoteImages] = useEmailHubRemoteImagesPref();
+  const [allowRemoteImages, setAllowRemoteImages] = useState(alwaysShowRemoteImages);
+  const conversation = useEmailHubConversation(wsId, accountId, activeThread.id);
+  const allowRemote = alwaysShowRemoteImages || allowRemoteImages;
 
-  // Opening an email removes the row that had focus; move it to the subject so
-  // a keyboard or screen-reader user lands on what they opened, not on <body>.
+  const messages = useMemo(() => {
+    const list = conversation.data?.messages?.filter(Boolean) ?? [];
+    if (list.length > 0) return list;
+    return [activeThread];
+  }, [activeThread, conversation.data?.messages]);
+
+  const multiMessage = messages.length > 1;
+
+  useEffect(() => {
+    setAllowRemoteImages(alwaysShowRemoteImages);
+  }, [activeThread.id, alwaysShowRemoteImages]);
+
   useEffect(() => {
     headingRef.current?.focus({ preventScroll: true });
   }, [activeThread.id]);
+
+  const showPrimarySkeleton = !multiMessage && bodyLoading;
 
   return (
     <article className="flex h-full min-h-0 w-full min-w-0 flex-col" aria-labelledby="email-hub-thread-subject">
@@ -102,6 +115,11 @@ export function EmailHubThreadDetail({
               >
                 {subject}
               </h1>
+              {multiMessage ? (
+                <p className="text-caption text-muted-foreground">
+                  {t("email_hub.conversation_count", { count: messages.length })}
+                </p>
+              ) : null}
               {labels.length > 0 ? (
                 <ul className="flex flex-wrap gap-1" aria-label={t("email_hub.labels_section")}>
                   {labels.map((label) => (
@@ -115,71 +133,73 @@ export function EmailHubThreadDetail({
                 </ul>
               ) : null}
             </div>
-            <div className="flex min-w-0 items-start gap-3">
-              <EmailSenderAvatar fromName={thread.from_name} fromAddr={thread.from_addr} />
-              <div className="min-w-0 flex-1">
-                <p className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
-                  <span className="truncate text-body font-semibold">{name}</span>
-                  {thread.from_name ? (
-                    <span className="truncate text-caption text-muted-foreground">{thread.from_addr}</span>
-                  ) : null}
-                </p>
-                {recipients ? (
-                  <p className="truncate text-caption text-muted-foreground" title={recipients}>
-                    {t("email_hub.to_recipient", { name: recipients })}
+            {!multiMessage ? (
+              <div className="flex min-w-0 items-start gap-3">
+                <EmailSenderAvatar fromName={thread.from_name} fromAddr={thread.from_addr} />
+                <div className="min-w-0 flex-1">
+                  <p className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
+                    <span className="truncate text-body font-semibold">
+                      {senderDisplayName(thread.from_name, thread.from_addr)}
+                    </span>
+                    {thread.from_name ? (
+                      <span className="truncate text-caption text-muted-foreground">{thread.from_addr}</span>
+                    ) : null}
                   </p>
-                ) : null}
-                <time dateTime={thread.sent_at} className="block text-caption tabular-nums text-muted-foreground @2xl:hidden">
+                  {thread.to_addrs.length ? (
+                    <p className="truncate text-caption text-muted-foreground" title={thread.to_addrs.join(", ")}>
+                      {t("email_hub.to_recipient", { name: thread.to_addrs.join(", ") })}
+                    </p>
+                  ) : null}
+                  <time dateTime={thread.sent_at} className="block text-caption tabular-nums text-muted-foreground @2xl:hidden">
+                    {formatEmailFullDate(thread.sent_at, locale)}
+                  </time>
+                </div>
+                <time
+                  dateTime={thread.sent_at}
+                  className="hidden shrink-0 pt-0.5 text-caption tabular-nums text-muted-foreground @2xl:block"
+                >
                   {formatEmailFullDate(thread.sent_at, locale)}
                 </time>
               </div>
-              <time
-                dateTime={thread.sent_at}
-                className="hidden shrink-0 pt-0.5 text-caption tabular-nums text-muted-foreground @2xl:block"
-              >
-                {formatEmailFullDate(thread.sent_at, locale)}
-              </time>
-            </div>
+            ) : null}
           </header>
 
-          {bodyLoading ? (
+          {conversation.isLoading && multiMessage ? (
             <BodySkeleton />
-          ) : bodyHtml ? (
-            <div className="space-y-2">
-              {remoteBlocked ? (
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-muted px-3 py-2 text-caption text-muted-foreground">
-                  <ImageOff className="size-4 shrink-0" aria-hidden />
-                  <span className="min-w-0 flex-1 text-pretty">{t("email_hub.remote_blocked")}</span>
-                  <Button type="button" variant="outline" size="sm" onClick={() => setRemoteAllowedFor(activeThread.id)}>
-                    {t("email_hub.remote_show")}
-                  </Button>
-                </div>
-              ) : null}
-              <div className="overflow-hidden rounded-lg border border-border">
-                <EmailHtmlFrame html={bodyHtml} title={subject} allowRemote={allowRemote} />
-              </div>
+          ) : multiMessage ? (
+            <div className="space-y-4">
+              {messages.map((msg) => (
+                <EmailHubConversationMessage
+                  key={msg.id}
+                  wsId={wsId}
+                  accountId={accountId}
+                  message={msg}
+                  detailOverride={msg.id === activeThread.id ? detailData : null}
+                  allowRemote={allowRemote}
+                  onAllowRemote={() => {
+                    setAllowRemoteImages(true);
+                    setAlwaysShowRemoteImages(true);
+                  }}
+                  locale={locale}
+                />
+              ))}
             </div>
-          ) : readableBody && detailData?.body_text?.trim() ? (
-            <div className="rounded-lg border border-border bg-surface px-5 py-4">
-              <p className="max-w-[72ch] font-sans text-body leading-relaxed whitespace-pre-wrap">
-                {detailData.body_text.trim()}
-              </p>
-            </div>
-          ) : bodyLoadFailed || isError ? (
-            <div
-              className="flex flex-col items-center gap-3 rounded-lg border border-border px-4 py-10 text-center"
-              role="alert"
-            >
-              <p className="text-body text-destructive">{t("email_hub.load_error")}</p>
-              <Button type="button" variant="outline" onClick={actions.onRefetch}>
-                <RefreshCw aria-hidden />
-                {t("common.retry")}
-              </Button>
-            </div>
+          ) : showPrimarySkeleton ? (
+            <BodySkeleton />
           ) : (
-            <p className="rounded-lg border border-dashed border-border px-4 py-10 text-center text-body text-muted-foreground">
-              {t("email_hub.body_empty")}
-            </p>
+            <EmailHubConversationMessage
+              wsId={wsId}
+              accountId={accountId}
+              message={activeThread}
+              detailOverride={detailData}
+              allowRemote={allowRemote}
+              onAllowRemote={() => {
+                setAllowRemoteImages(true);
+                setAlwaysShowRemoteImages(true);
+              }}
+              locale={locale}
+              showHeader={false}
+            />
           )}
 
           {detailData?.attachments?.length ? (

@@ -13,6 +13,8 @@ import type { EmailHubThreadActions, EmailHubThreadPending } from "./email-hub-t
 import { EmailHubEmptyState } from "./email-hub-view-parts";
 
 export type EmailHubViewDetailPanelProps = {
+  wsId: string;
+  accountId: string;
   isScheduledFolder: boolean;
   selectedScheduled: EmailHubScheduledSendItem | null;
   cancelScheduledPending: boolean;
@@ -68,13 +70,14 @@ export function EmailHubViewDetailPanel(props: EmailHubViewDetailPanelProps) {
   } else if (props.activeThread) {
     content = (
       <EmailHubThreadDetail
+        wsId={props.wsId}
+        accountId={props.accountId}
         activeThread={props.activeThread}
         browserFolder={props.mailFolder}
         detailData={props.detailData}
         readableBody={props.readableBody}
         bodyLoading={props.bodyLoading}
         bodyLoadFailed={props.bodyLoadFailed}
-        isError={props.detailError}
         actions={actions}
         pending={props.pending}
         aiOpen={props.aiOpen}

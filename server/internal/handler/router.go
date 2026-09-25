@@ -213,6 +213,7 @@ func New(d Deps) http.Handler {
 		ListEmailHubImapLabels:        h.listEmailHubImapLabels,
 		ListEmailHubThreads:           h.listEmailHubThreads,
 		GetEmailHubThread:             h.getEmailHubThread,
+		ListEmailHubConversation:      h.listEmailHubConversation,
 		GetEmailHubThreadSummary:      h.getEmailHubThreadSummary,
 		SummarizeEmailHubThread:       h.summarizeEmailHubThread,
 		CreateEmailHubSummaryTasks:    h.createEmailHubSummaryTasks,

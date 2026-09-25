@@ -44,6 +44,7 @@ import { useEmailHubScheduledActions } from "./use-email-hub-scheduled-actions";
 import { useEmailHubShortcuts } from "./use-email-hub-shortcuts";
 import { useEmailHubShortcutsPref } from "./use-email-hub-shortcuts-pref";
 import { useEmailHubThreadActions } from "./use-email-hub-thread-actions";
+import { EmailHubSenderAvatarProvider } from "./email-hub-sender-avatar-context";
 
 export function EmailHubView() {
   const { t, i18n } = useTranslation();
@@ -346,18 +347,21 @@ export function EmailHubView() {
   }
 
   return (
-    <div className={frame}>
-      <EmailHubFolderSidebar
-        {...nav}
-        composeDisabled={!accountId}
-        onCompose={() => openCompose("new")}
-        accountMenu={accountMenu}
-        shortcutsOn={shortcutsOn}
-        onOpenShortcuts={openShortcuts}
-      />
+    <EmailHubSenderAvatarProvider workspaceId={wsId}>
+      <div className={frame}>
+        <EmailHubFolderSidebar
+          {...nav}
+          composeDisabled={!accountId}
+          onCompose={() => openCompose("new")}
+          accountMenu={accountMenu}
+          shortcutsOn={shortcutsOn}
+          onOpenShortcuts={openShortcuts}
+        />
 
-      {readingEmail ? (
+        {readingEmail ? (
         <EmailHubViewDetailPanel
+          wsId={wsId}
+          accountId={accountId ?? ""}
           isScheduledFolder={isScheduledFolder}
           selectedScheduled={selectedScheduled}
           cancelScheduledPending={scheduledActions.cancelPending}
@@ -496,7 +500,8 @@ export function EmailHubView() {
         enabled={shortcutsOn}
         onEnabledChange={setShortcutsOn}
       />
-      {dialogs}
-    </div>
+        {dialogs}
+      </div>
+    </EmailHubSenderAvatarProvider>
   );
 }

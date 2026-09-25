@@ -396,27 +396,28 @@ type EmailHubScheduledSend struct {
 }
 
 type EmailHubThread struct {
-	ID             string             `json:"id"`
-	AccountID      string             `json:"account_id"`
-	OrganizationID string             `json:"organization_id"`
-	Folder         string             `json:"folder"`
-	ImapUid        int32              `json:"imap_uid"`
-	MessageID      pgtype.Text        `json:"message_id"`
-	Subject        string             `json:"subject"`
-	Snippet        string             `json:"snippet"`
-	FromAddr       string             `json:"from_addr"`
-	FromName       pgtype.Text        `json:"from_name"`
-	ToAddrs        []string           `json:"to_addrs"`
-	SentAt         pgtype.Timestamptz `json:"sent_at"`
-	IsRead         bool               `json:"is_read"`
-	IsStarred      bool               `json:"is_starred"`
-	HasAttachments bool               `json:"has_attachments"`
-	BodyText       pgtype.Text        `json:"body_text"`
-	BodyHtml       pgtype.Text        `json:"body_html"`
-	BodyCached     bool               `json:"body_cached"`
-	SyncedAt       pgtype.Timestamptz `json:"synced_at"`
-	ImapLabels     []string           `json:"imap_labels"`
-	SnoozedUntil   pgtype.Timestamptz `json:"snoozed_until"`
+	ID              string             `json:"id"`
+	AccountID       string             `json:"account_id"`
+	OrganizationID  string             `json:"organization_id"`
+	Folder          string             `json:"folder"`
+	ImapUid         int32              `json:"imap_uid"`
+	MessageID       pgtype.Text        `json:"message_id"`
+	Subject         string             `json:"subject"`
+	Snippet         string             `json:"snippet"`
+	FromAddr        string             `json:"from_addr"`
+	FromName        pgtype.Text        `json:"from_name"`
+	ToAddrs         []string           `json:"to_addrs"`
+	SentAt          pgtype.Timestamptz `json:"sent_at"`
+	IsRead          bool               `json:"is_read"`
+	IsStarred       bool               `json:"is_starred"`
+	HasAttachments  bool               `json:"has_attachments"`
+	BodyText        pgtype.Text        `json:"body_text"`
+	BodyHtml        pgtype.Text        `json:"body_html"`
+	BodyCached      bool               `json:"body_cached"`
+	SyncedAt        pgtype.Timestamptz `json:"synced_at"`
+	ImapLabels      []string           `json:"imap_labels"`
+	SnoozedUntil    pgtype.Timestamptz `json:"snoozed_until"`
+	ConversationKey string             `json:"conversation_key"`
 }
 
 type EmailHubThreadAiSummary struct {

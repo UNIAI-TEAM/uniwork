@@ -7,8 +7,10 @@ import type { EmailHubAttachment } from "@uniwork/core/types/email-hub";
 import { tintClass } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
+import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { identityTint } from "../people/identity-tint";
-import { emailHubLocale, formatBytes, senderInitial } from "./email-hub-format";
+import { emailHubLocale, formatBytes, senderDisplayName, senderInitial } from "./email-hub-format";
+import { useEmailHubSenderAvatarUrl } from "./email-hub-sender-avatar-context";
 import { wrapEmailHtml } from "./email-hub-html";
 
 /**
@@ -25,6 +27,18 @@ export function EmailSenderAvatar({
   fromAddr?: string;
   className?: string;
 }) {
+  const avatarUrl = useEmailHubSenderAvatarUrl(fromAddr);
+  const label = senderDisplayName(fromName, fromAddr);
+  const initial = senderInitial(fromName, fromAddr);
+
+  if (avatarUrl) {
+    return (
+      <span className={cn("inline-flex shrink-0", className)} aria-hidden>
+        <ActorAvatar name={label || "?"} initials={initial} avatarUrl={avatarUrl} size="lg" className="size-9 text-caption" />
+      </span>
+    );
+  }
+
   const tint = identityTint((fromAddr || fromName || "?").toLowerCase());
   return (
     <span
@@ -35,7 +49,7 @@ export function EmailSenderAvatar({
       )}
       aria-hidden
     >
-      {senderInitial(fromName, fromAddr)}
+      {initial}
     </span>
   );
 }

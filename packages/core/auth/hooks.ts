@@ -5,6 +5,7 @@ import { useShallow } from "zustand/react/shallow";
 import * as auth from "../api/endpoints/auth";
 import { ApiError } from "../api/http";
 import { isMFAChallenge, type MFAChallenge, type SessionResponse, type User, type UserSession } from "../types/user";
+import { workspaceKeys } from "../workspaces/keys";
 import { useAuthStore, type SessionStatus } from "./store";
 
 export type { SessionStatus };
@@ -195,10 +196,12 @@ export function useResetPassword() {
 }
 
 export function useUploadAvatar() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (file: File) => auth.uploadAvatar(file),
     onSuccess: (user) => {
       if (user) setSessionUser(user);
+      void queryClient.invalidateQueries({ queryKey: workspaceKeys.allMembers() });
     },
   });
 }

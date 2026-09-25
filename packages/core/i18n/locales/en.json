@@ -1325,7 +1325,9 @@
       "star": "Star / unstar"
     },
     "remote_blocked": "Images from outside servers are off, so the sender can't tell you opened this email.",
-    "remote_show": "Show images"
+    "remote_show": "Show images",
+    "conversation_count": "{{count}} messages in this conversation",
+    "remote_always": "Always show external images (this browser)"
   },
   "tasks": {
     "title": "Tasks",

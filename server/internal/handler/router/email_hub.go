@@ -65,6 +65,13 @@ func registerEmailHub(r api, h Routes) {
 		sdo:     sdo.EmailHubThreadSDO{},
 		auth:    true,
 	})
+	r.Get("/workspaces/{workspaceID}/email-hub/threads/{threadID}/conversation", h.ListEmailHubConversation, apiOp{
+		summary:     "List messages in a conversation",
+		description: "Returns every cached message with the same conversation key (all folders), oldest first.",
+		tags:        []string{"email-hub"},
+		sdo:         sdo.EmailHubConversationSDO{},
+		auth:        true,
+	})
 	r.Get("/workspaces/{workspaceID}/email-hub/threads/{threadID}/ai/summary", h.GetEmailHubThreadSummary, apiOp{
 		summary:     "Get cached AI summary for an email thread",
 		description: "Returns 404 when no cache or email content changed since last summarize.",

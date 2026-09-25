@@ -1324,7 +1324,9 @@
       "star": "Gắn sao / bỏ sao"
     },
     "remote_blocked": "Ảnh từ máy chủ bên ngoài đang tắt, để người gửi không biết bạn đã mở email này.",
-    "remote_show": "Hiện ảnh"
+    "remote_show": "Hiện ảnh",
+    "conversation_count": "{{count}} tin trong cuộc hội thoại",
+    "remote_always": "Luôn hiện ảnh ngoài (trên trình duyệt này)"
   },
   "tasks": {
     "title": "Công việc",

@@ -4,6 +4,7 @@ import {
   EmailHubAccountSchema,
   EmailHubSyncSchema,
   EmailHubUnreadSchema,
+  EmailHubConversationSchema,
   EmailHubThreadListSchema,
   EmailHubThreadSchema,
   EmailHubThreadSummarySchema,
@@ -25,6 +26,7 @@ const enc = encodeURIComponent;
 
 const EMPTY_ACCOUNTS = { accounts: [] as EmailHubAccount[] };
 const EMPTY_THREADS = { threads: [] as EmailHubThread[], counts: { total: 0, unread: 0 }, next_cursor: "" };
+const EMPTY_CONVERSATION = { messages: [] as EmailHubThread[] };
 const EMPTY_WATCH: EmailHubWatch = { changed: false, synced: false, at: "" };
 const EMPTY_INBOX_WATCH: EmailHubInboxWatch = { subscribed: false };
 const EMPTY_SYNC: EmailHubSync = { synced: false };
@@ -136,6 +138,22 @@ export async function getEmailHubThread(
   });
   return parseWithFallback<EmailHubThread | null>(raw, EmailHubThreadSchema, null, {
     endpoint: "GET /api/v1/workspaces/{ws}/email-hub/threads/{id}",
+  });
+}
+
+export async function getEmailHubConversation(
+  workspaceId: string,
+  accountId: string,
+  threadId: string,
+  signal?: AbortSignal,
+) {
+  const q = new URLSearchParams({ account_id: accountId });
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/email-hub/threads/${enc(threadId)}/conversation?${q}`,
+    { signal },
+  );
+  return parseWithFallback(raw, EmailHubConversationSchema, EMPTY_CONVERSATION, {
+    endpoint: "GET /api/v1/workspaces/{ws}/email-hub/threads/{id}/conversation",
   });
 }
 

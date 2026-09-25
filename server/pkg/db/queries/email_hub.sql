@@ -45,12 +45,16 @@ WHERE id = $1;
 INSERT INTO email_hub_threads (
   id, account_id, organization_id, folder, imap_uid, message_id,
   subject, snippet, from_addr, from_name, to_addrs, sent_at,
-  is_read, is_starred, has_attachments, imap_labels, synced_at
+  is_read, is_starred, has_attachments, imap_labels, conversation_key, synced_at
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, now()
+  $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, now()
 )
 ON CONFLICT (account_id, folder, imap_uid) DO UPDATE SET
   message_id = EXCLUDED.message_id,
+  conversation_key = CASE
+    WHEN EXCLUDED.conversation_key <> '' THEN EXCLUDED.conversation_key
+    ELSE email_hub_threads.conversation_key
+  END,
   subject = EXCLUDED.subject,
   snippet = EXCLUDED.snippet,
   from_addr = EXCLUDED.from_addr,
@@ -82,6 +86,16 @@ FROM email_hub_threads
 WHERE id = $1
   AND account_id = $2
   AND organization_id = $3;
+
+-- name: ListEmailHubConversationMessages :many
+SELECT *
+FROM email_hub_threads
+WHERE account_id = $1
+  AND organization_id = $2
+  AND conversation_key = $3
+  AND conversation_key <> ''
+ORDER BY sent_at ASC
+LIMIT $4;
 
 -- name: ListEmailHubThreadsPendingBody :many
 SELECT *
@@ -258,6 +272,103 @@ FROM email_hub_threads
 WHERE account_id = $1
   AND organization_id = $2
   AND is_starred = true;
+
+-- name: ListEmailHubInboxConversationPage :many
+SELECT t.*
+FROM email_hub_threads t
+WHERE t.account_id = sqlc.arg('account_id')
+  AND t.organization_id = sqlc.arg('organization_id')
+  AND t.id IN (
+    SELECT DISTINCT ON (partition_key) s.id
+    FROM (
+      SELECT
+        t2.id,
+        CASE WHEN t2.conversation_key = '' THEN t2.id ELSE t2.conversation_key END AS partition_key,
+        t2.sent_at
+      FROM email_hub_threads t2
+      WHERE t2.account_id = sqlc.arg('account_id')
+        AND t2.organization_id = sqlc.arg('organization_id')
+        AND (
+          (
+            t2.folder = 'INBOX'
+            AND (t2.snoozed_until IS NULL OR t2.snoozed_until <= now())
+            AND t2.conversation_key = ''
+          )
+          OR (
+            CASE WHEN t2.conversation_key = '' THEN t2.id ELSE t2.conversation_key END IN (
+              SELECT CASE WHEN conversation_key = '' THEN id ELSE conversation_key END
+              FROM email_hub_threads
+              WHERE account_id = sqlc.arg('account_id')
+                AND organization_id = sqlc.arg('organization_id')
+                AND folder = 'INBOX'
+                AND (snoozed_until IS NULL OR snoozed_until <= now())
+            )
+          )
+        )
+    ) s
+    ORDER BY s.partition_key, s.sent_at DESC, s.id DESC
+  )
+  AND (NOT sqlc.arg('unread_only') OR EXISTS (
+    SELECT 1 FROM email_hub_threads u
+    WHERE u.account_id = t.account_id
+      AND u.organization_id = t.organization_id
+      AND u.folder = 'INBOX'
+      AND NOT u.is_read
+      AND (
+        CASE WHEN u.conversation_key = '' THEN u.id ELSE u.conversation_key END
+      ) = CASE WHEN t.conversation_key = '' THEN t.id ELSE t.conversation_key END
+  ))
+  AND (NOT sqlc.arg('has_attachments_only') OR t.has_attachments)
+  AND (
+    sqlc.arg('from_filter') = ''
+    OR t.from_addr ILIKE '%' || sqlc.arg('from_filter') || '%'
+    OR COALESCE(t.from_name, '') ILIKE '%' || sqlc.arg('from_filter') || '%'
+  )
+  AND (
+    sqlc.arg('query') = ''
+    OR t.subject ILIKE '%' || sqlc.arg('query') || '%'
+    OR t.snippet ILIKE '%' || sqlc.arg('query') || '%'
+    OR t.from_addr ILIKE '%' || sqlc.arg('query') || '%'
+    OR COALESCE(t.from_name, '') ILIKE '%' || sqlc.arg('query') || '%'
+    OR COALESCE(t.body_text, '') ILIKE '%' || sqlc.arg('query') || '%'
+  )
+  AND (
+    sqlc.narg('before_sent_at')::timestamptz IS NULL
+    OR t.sent_at < sqlc.narg('before_sent_at')::timestamptz
+    OR (
+      t.sent_at = sqlc.narg('before_sent_at')::timestamptz
+      AND t.id < sqlc.arg('before_id')
+    )
+  )
+ORDER BY t.sent_at DESC, t.id DESC
+LIMIT sqlc.arg('limit_val');
+
+-- name: CountEmailHubInboxConversations :one
+SELECT
+  count(*)::bigint AS total,
+  count(*) FILTER (WHERE conv_unread)::bigint AS unread
+FROM (
+  SELECT
+    bool_or(NOT is_read) AS conv_unread
+  FROM email_hub_threads
+  WHERE account_id = sqlc.arg('account_id')
+    AND organization_id = sqlc.arg('organization_id')
+    AND folder = 'INBOX'
+    AND (snoozed_until IS NULL OR snoozed_until <= now())
+  GROUP BY CASE WHEN conversation_key = '' THEN id ELSE conversation_key END
+) grouped;
+
+-- name: ListEmailHubConversationMessageCounts :many
+SELECT
+  conversation_key,
+  count(*)::int AS message_count,
+  bool_or(NOT is_read AND folder = 'INBOX') AS inbox_unread
+FROM email_hub_threads
+WHERE account_id = sqlc.arg('account_id')
+  AND organization_id = sqlc.arg('organization_id')
+  AND conversation_key <> ''
+  AND conversation_key = ANY(sqlc.arg('conversation_keys')::text[])
+GROUP BY conversation_key;
 
 -- name: ListEmailHubThreadsPage :many
 SELECT t.*
