@@ -4,12 +4,16 @@ import { mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { auditText } from "./contrast";
 
-for (const width of [1440, 390]) {
+// Phones get the three-step story instead of the film (landing-playback.spec.ts
+// covers it), so the pending/source beats are only reachable on wider stages.
+for (const width of [1440, 820]) {
   test(`pending and source destination stay readable at ${width}px`, async ({ page }) => {
+    test.setTimeout(180_000);
     await page.setViewportSize({ width, height: 900 });
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
-    await expect(page.locator(".scene-canvas")).toHaveAttribute("data-rendered", "true");
+    // WebGL start-up is slow on a loaded headless GPU; motion specs allow 20s too.
+    await expect(page.locator(".scene-canvas")).toHaveAttribute("data-rendered", "true", { timeout: 20000 });
     const dir = resolve(import.meta.dirname, "../.impeccable/review");
     if (process.env.LANDING_CAPTURE === "1") {
       await mkdir(dir, { recursive: true });
@@ -98,8 +102,11 @@ test("email keeps the same thread and Ask UNI only opens its cited source", asyn
 test("assignment opens details and a member picker without completing the task", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/#du-an");
+  // /config settling remounts the landing; installing the clock before that
+  // restarts the film mid-sequence.
+  await page.waitForLoadState("networkidle");
   const film = page.locator(".product-playback");
-  await expect(film.locator(".action-stage")).toBeVisible();
+  await expect(film.locator(".action-stage").first()).toBeVisible();
   await page.clock.install();
   await film.getByRole("button", { name: "Phát demo", exact: true }).click();
   await page.clock.runFor(2700);

@@ -77,8 +77,10 @@ test("decision sections use prominent semantic icon anchors", async ({ page }) =
   await expect(page.locator("#bang-gia .pricing-check")).toHaveCount(8);
   await expect(page.locator(".landing-faq .faq-heading-mark")).toHaveCount(1);
   await expect(page.locator(".landing-faq .faq-question-icon:visible")).toHaveCount(5);
+  // Plated anchors carry a 44px footprint. Security deliberately has no plate
+  // (DESIGN.md: 20px glyphs inside 56px-high disclosure targets), so there the
+  // glyph and its trigger are measured separately.
   for (const selector of [
-    "#security .security-mechanism-icon",
     "#work-products .work-product-icon",
     "#bang-gia .pricing-plan-mark",
     ".landing-faq .faq-question-icon",
@@ -87,6 +89,10 @@ test("decision sections use prominent semantic icon anchors", async ({ page }) =
     expect(box?.width).toBeGreaterThanOrEqual(44);
     expect(box?.height).toBeGreaterThanOrEqual(44);
   }
+  const securityIcon = await page.locator("#security .security-mechanism-icon").first().boundingBox();
+  expect(securityIcon?.width).toBeGreaterThanOrEqual(20);
+  const securityTrigger = await page.locator("#security [data-slot=accordion-trigger]").first().boundingBox();
+  expect(securityTrigger?.height).toBeGreaterThanOrEqual(44);
 });
 
 test("trust band explains provider choice without repeating security claims", async ({ page }) => {
@@ -95,11 +101,12 @@ test("trust band explains provider choice without repeating security claims", as
   const trust = page.locator(".trust-band");
   await expect(trust.locator(".trust-provider-mark")).toHaveCount(3);
   await expect(trust.locator(".trust-guarantees")).toHaveCount(0);
-  for (const selector of [".trust-provider-mark"]) {
-    const box = await trust.locator(selector).first().boundingBox();
-    expect(box?.width).toBeGreaterThanOrEqual(44);
-    expect(box?.height).toBeGreaterThanOrEqual(44);
-  }
+  // Provider labels are non-interactive list items: 22px marks in 28px
+  // footprints (DESIGN.md "Compact provider band"), not touch targets.
+  const mark = await trust.locator(".trust-provider-mark").first().boundingBox();
+  expect(mark?.width).toBeGreaterThanOrEqual(28);
+  expect(mark?.height).toBeGreaterThanOrEqual(28);
+  await expect(trust.locator(".trust-provider-mark").first().locator("xpath=ancestor::a|ancestor::button")).toHaveCount(0);
 });
 
 test("feature selector stays visible in reduced motion without a decorative rail", async ({ page }) => {
@@ -109,7 +116,8 @@ test("feature selector stays visible in reduced motion without a decorative rail
   await page.locator("#platform").scrollIntoViewIfNeeded();
   await expect(page.locator(".workflow-progress, .landing-signal")).toHaveCount(0);
   await expect(page.locator(".workspace-group-button")).toHaveCount(6);
-  await expect(page.locator(".workspace-tabs [role=tab]")).toHaveCount(5);
+  // Work & projects: Dashboard, Tasks, Projects, Today, Calendar, Workflows.
+  await expect(page.locator(".workspace-tabs [role=tab]")).toHaveCount(6);
   for (const link of await page.locator(".workspace-tabs [role=tab]").all()) {
     await expect(link).toBeVisible();
     const box = await link.boundingBox();

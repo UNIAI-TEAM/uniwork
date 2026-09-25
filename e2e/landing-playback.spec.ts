@@ -10,7 +10,8 @@ test("preview plays a real sequence, pauses and stops outside the viewport", asy
   const player = page.locator(".product-playback");
   await player.scrollIntoViewIfNeeded();
   await expect(player).toHaveAttribute("data-running", "true");
-  await expect(player).toHaveAttribute("data-step", "1", { timeout: 8000 });
+  // Real time, not a faked clock: under load the film may already be past beat 1.
+  await expect.poll(async () => Number(await player.getAttribute("data-step")), { timeout: 8000 }).toBeGreaterThanOrEqual(1);
   await expect(player.locator('[data-demo-detail="task"]')).toBeVisible();
   await player.getByRole("button", { name: "Dừng demo", exact: true }).click();
   // Short entrances must settle; pausing a caption halfway leaves clipped text.
@@ -39,8 +40,13 @@ test("reduced motion is still by default and manual exploration retains local ac
   await expect(stage.getByRole("searchbox")).toHaveValue("phạm vi");
 });
 
-for (const width of [1440, 390]) {
+// Below 768px the stage shows a readable three-step story instead of the film
+// (DESIGN.md, "readable three-step summary below 768px"); see the test after this loop.
+for (const width of [1440]) {
   test(`every storyboard reaches its last beat without clipping at ${width}px`, async ({ page }) => {
+    // Every clock tick also drives the 3D core and scroll ticker, so a full run of
+    // five films takes minutes of wall time, not the default minute.
+    test.setTimeout(240_000);
     await page.setViewportSize({ width, height: 900 });
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/#du-an");
@@ -85,6 +91,27 @@ for (const width of [1440, 390]) {
     }
   });
 }
+
+test("storyboards become readable three-step stories at 390px", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/#du-an");
+  for (const key of ["tasks", "meetings", "chat", "ask", "email"]) {
+    await selectWorkspaceFeature(page, key, false);
+    const story = page.locator(`.mobile-feature-story[data-mobile-feature="${key}"]`);
+    await story.scrollIntoViewIfNeeded();
+    await expect(story).toBeVisible();
+    const steps = story.locator(".mobile-story-steps button");
+    await expect(steps).toHaveCount(3);
+    const detail = story.locator(".mobile-story-detail");
+    const first = await detail.innerText();
+    await steps.nth(2).click();
+    await expect(steps.nth(2)).toHaveAttribute("aria-pressed", "true");
+    await expect(detail).not.toHaveText(first);
+    for (const button of await steps.all()) expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
+});
 
 test("original UNI wears the shared mark and retains its static fallback", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });

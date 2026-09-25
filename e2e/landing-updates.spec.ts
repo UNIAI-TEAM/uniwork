@@ -15,7 +15,9 @@ test("new product stories are local demos with truthful availability", async ({ 
   const workspace = page.locator("#product-preview");
   await selectWorkspaceFeature(page, "chat");
   const chat = workspace;
-  await expect(chat.getByText("Cần bật Chat Work Hub cho workspace.")).toBeVisible();
+  // The per-panel availability strip was removed with the V2 demo sync; the
+  // toolbar's sample-data label is what marks the panel as illustrative now.
+  await expect(workspace.locator(".preview-topbar").getByText("Bản minh họa", { exact: true })).toBeVisible();
   await chat.getByRole("button", { name: "Thử tạo công việc" }).click();
   await expect(chat.locator(".chat-task-action [role=status]")).toContainText("Đã tạo trong bản minh họa");
   await chat.getByRole("button", { name: "Thử lại" }).click();
@@ -23,7 +25,7 @@ test("new product stories are local demos with truthful availability", async ({ 
   await selectWorkspaceFeature(page, "email");
   const email = workspace;
   await expect(email).toHaveCount(1);
-  await expect(email).toContainText("IMAP/SMTP");
+  await expect(email).toContainText(/IMAP ?\/ ?SMTP/);
   await email.getByRole("button", { name: /Lịch họp cùng đối tác/ }).click();
   await expect(email.locator(".mail-reader h3")).toHaveText("Lịch họp cùng đối tác");
   await email.getByRole("button", { name: "Gắn sao" }).click();

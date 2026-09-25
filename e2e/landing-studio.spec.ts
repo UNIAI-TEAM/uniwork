@@ -29,7 +29,7 @@ test("studio demo switches views and tabs locally, with keyboard support", async
   await expect(preview.getByRole("tab", { name: "Email Hub", exact: true })).toHaveAttribute("aria-selected", "true");
   await selectWorkspaceFeature(page, "ask");
   await expect(preview.getByRole("tab", { name: "Hỏi UNI", exact: true })).toHaveAttribute("aria-selected", "true");
-  await expect(preview.getByText("Hỏi UNI chỉ đọc dữ liệu được cấp quyền. Đây là câu trả lời minh họa.")).toBeVisible();
+  await expect(preview.getByText("Dựa trên các công việc bạn có quyền xem trong workspace", { exact: false })).toBeVisible();
   await expect(preview.locator(".preview-source")).toContainText("Nguồn");
   expect(writes).toEqual([]);
 });
@@ -61,7 +61,7 @@ for (const scenario of [
     await page.waitForLoadState("networkidle");
     await expect(page.locator("html")).toHaveAttribute("lang", scenario.locale);
     await page.evaluate((mode) => document.documentElement.classList.toggle("dark", mode === "dark"), scenario.theme);
-    await expect(page.locator("h1")).toContainText(scenario.locale === "vi" ? "Mọi công việc." : "All your work.");
+    await expect(page.locator("h1")).toContainText(scenario.locale === "vi" ? "Cả nhóm." : "Your team.");
     await expect(page.locator("body")).not.toContainText(/landing\.[a-zA-Z][\w.]+/);
     await expect(page.locator('[data-scene="core"]')).toBeVisible();
     await page.locator('[data-scene="character"]').scrollIntoViewIfNeeded();

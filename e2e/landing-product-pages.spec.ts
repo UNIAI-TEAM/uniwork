@@ -44,7 +44,8 @@ test("all feature introductions have unique content, canonical URL and reference
   expect(headings.size).toBe(features.length);
   await page.goto("/features/not-a-feature");
   // Streamed App Router responses can already have sent 200 when notFound runs.
-  await expect(page.getByRole("heading", { name: "404", exact: true })).toBeVisible();
+  // The app-wide not-found screen (apps/web/app/not-found.tsx) has no "404" heading.
+  await expect(page.getByTestId("app-not-found")).toBeVisible();
   await expect(page.locator('meta[name="robots"][content="noindex"]').first()).toBeAttached();
   await expect(page.locator(".feature-page-hero")).toHaveCount(0);
 });

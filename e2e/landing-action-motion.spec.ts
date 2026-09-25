@@ -4,9 +4,13 @@ import { auditText } from "./contrast";
 for (const sample of [
   { width: 1440, locale: "vi", theme: "light" },
   { width: 768, locale: "vi", theme: "light" },
-  { width: 390, locale: "en", theme: "dark" },
+  // Phones show the three-step story, not the film; dark/en is covered on tablet.
+  { width: 820, locale: "en", theme: "dark" },
 ] as const) {
   test(`click leads a continuous card move: ${sample.width}-${sample.theme}`, async ({ page, context, baseURL }) => {
+    // Faked clock ticks also drive the 3D core and scroll ticker; the scripted run
+    // needs minutes of wall time on a dev server.
+    test.setTimeout(240_000);
     await context.addCookies([{ name: "uniwork-locale", value: sample.locale, url: baseURL! }]);
     await page.setViewportSize({ width: sample.width, height: 1000 });
     await page.emulateMedia({ reducedMotion: "reduce", colorScheme: sample.theme });

@@ -63,7 +63,8 @@ test("hero keeps one conversion action and one product control system", async ({
   const preview = page.locator("#product-preview");
   await openManualPreview(page);
   await expect(preview.locator(".workspace-group-button")).toHaveCount(6);
-  await expect(preview.getByRole("tab")).toHaveCount(5);
+  // Work & projects: Dashboard, Tasks, Projects, Today, Calendar, Workflows.
+  await expect(preview.getByRole("tab")).toHaveCount(6);
   await expect(hero.getByRole("tab")).toHaveCount(0);
   await expect(preview.locator(".preview-sidebar")).toHaveCount(0);
   await expect(page.locator(".landing-product-story > section")).toHaveCount(3);
@@ -159,7 +160,7 @@ test("nonessential motion stops offscreen and pause controls stop the real rende
   await expect(film.locator("video")).toHaveJSProperty("paused", false);
   const startedAt = await film.locator("video").evaluate((video: HTMLVideoElement) => video.currentTime);
   await expect.poll(() => film.locator("video").evaluate((video: HTMLVideoElement) => video.currentTime)).not.toBe(startedAt);
-  await page.locator("footer").scrollIntoViewIfNeeded();
+  await page.getByRole("contentinfo").scrollIntoViewIfNeeded();
   await expect(film.locator("video")).toHaveJSProperty("paused", true);
   const character = page.locator('[data-scene="character"]');
   await character.scrollIntoViewIfNeeded();
@@ -169,7 +170,7 @@ test("nonessential motion stops offscreen and pause controls stop the real rende
   const pausedFrame = await character.locator('canvas').screenshot();
   await character.locator('.mascot-portrait').hover({ position: { x: 40, y: 60 } });
   expect((await character.locator('canvas').screenshot()).equals(pausedFrame)).toBe(true);
-  await page.locator('footer').scrollIntoViewIfNeeded();
+  await page.getByRole("contentinfo").scrollIntoViewIfNeeded();
   await expect(character.locator('.mascot-portrait')).toHaveAttribute('data-running', 'false');
 });
 

@@ -47,10 +47,9 @@ test.describe("landing", () => {
   test("dải tin cậy, FAQ và hai trang giải pháp", async ({ page }) => {
     await page.goto("/");
     // Trang công khai nằm trong `Providers` của ứng dụng, nên khi tải nó vẫn
-    // gọi POST /auth/refresh và GET /config. Lúc hai request đó xong, React
-    // dựng lại nhánh cây và mọi node đang được giữ đều bị gỡ khỏi DOM — click
-    // vào accordion trước thời điểm này sẽ trượt. Đây là hệ quả của việc hoàn
-    // tác nhóm route (app); nếu landing lại có runtime riêng, bỏ dòng này đi.
+    // gọi GET /config (trang marketing không còn gọi /auth/refresh). Lúc request
+    // đó xong, React dựng lại nhánh cây và mọi node đang được giữ đều bị gỡ khỏi
+    // DOM — click vào accordion trước thời điểm này sẽ trượt.
     await page.waitForLoadState("networkidle");
 
     // Nhà cung cấp tách biệt với cơ chế bảo mật, không lặp cam kết.
@@ -104,11 +103,15 @@ test.describe("landing", () => {
     await expect(
       page.getByRole("heading", { name: "Quy trình chạy được là quy trình truy được" }),
     ).toBeVisible();
-    // Header trên trang con trỏ về mỏ neo của trang chủ, không phải một mỏ neo
+    // Header và footer trên trang con trỏ tới route thật, không phải một mỏ neo
     // trống trong chính tài liệu này.
-    await expect(page.getByRole("link", { name: "Tính năng" }).first()).toHaveAttribute(
+    await expect(page.getByRole("banner").getByRole("link", { name: "Nhân sự AI", exact: true })).toHaveAttribute(
       "href",
-      "/#platform",
+      "/features/agents",
+    );
+    await expect(page.getByRole("contentinfo").getByRole("link", { name: "Tính năng", exact: true })).toHaveAttribute(
+      "href",
+      "/features",
     );
 
     // Khối khoảng trống thị trường dẫn sang trang phân tích, và trang đó mở được.
@@ -161,7 +164,7 @@ test.describe("landing", () => {
    * hydrate, che mất nó.
    */
   test("mỗi request nhận đúng ngôn ngữ của chính nó", async ({ playwright, baseURL }) => {
-    const expected = { vi: "Tính năng", en: "Features" } as const;
+    const expected = { vi: "Nhân sự AI", en: "AI teammates" } as const;
     // Context riêng cho từng request, KHÔNG dùng `page.request`: page mang sẵn
     // cookie jar của mình và nó đè lên header đặt tay, nên bài đo tưởng là
     // xen kẽ mà thật ra chỉ hỏi một ngôn ngữ.
@@ -176,7 +179,7 @@ test.describe("landing", () => {
       // Anh đi kèm trong payload của máy chủ, nên cả trang tiếng Việt cũng
       // chứa chuỗi "Features" và phép thử cả tài liệu luôn xanh.
       const lang = html.match(/<html lang="([a-z]+)"/)?.[1];
-      const nav = html.match(/href="\/#platform"[^>]*>([^<]*)/)?.[1];
+      const nav = html.match(/href="\/features\/agents"[^>]*>([^<]*)/)?.[1];
       expect(lang, "sai <html lang>").toBe(locale);
       expect(nav, `cookie ${locale} nhưng máy chủ render "${nav}"`).toBe(expected[locale]);
     }
