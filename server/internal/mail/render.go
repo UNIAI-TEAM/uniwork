@@ -97,10 +97,10 @@ type layoutData struct {
 }
 
 func normalizeLocale(l string) string {
-	if l == "en" {
-		return "en"
+	if l == "vi" {
+		return "vi"
 	}
-	return "vi"
+	return "en"
 }
 
 // renderKind executes the html (through layout) and text templates. The

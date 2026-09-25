@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { VI_LOCALE_STATE } from "./locale-state";
 import { VERIFICATION_CODE, verifyEmail } from "./auth-nav";
 
 // The golden path for F-07 (spec §8.3): A assigns a task to B; B sees the
@@ -43,7 +44,7 @@ test("assigning a task lights the assignee's inbox badge without a reload", asyn
   // B: register and verify under the invited address. With an invitation
   // waiting, verification lands on /invitations rather than onboarding;
   // joining there is what marks B onboarded and opens the workspace.
-  const memberContext = await browser.newContext({ locale: "vi-VN" });
+  const memberContext = await browser.newContext({ locale: "vi-VN", storageState: VI_LOCALE_STATE });
   const member = await memberContext.newPage();
   await member.goto("/register");
   await member.getByLabel("Tên hiển thị").fill("Thành Viên");

@@ -37,11 +37,11 @@ var titles = map[string]map[string]string{
 }
 
 // Title renders the kind's title in locale with params, i18next-style
-// {{name}} substitution. Unknown locale falls back to vi.
+// {{name}} substitution. Unknown locale falls back to en.
 func Title(locale, kind string, params map[string]string) string {
 	loc := titles[locale]
 	if loc == nil {
-		loc = titles["vi"]
+		loc = titles["en"]
 	}
 	s := loc[kind]
 	if s == "" {

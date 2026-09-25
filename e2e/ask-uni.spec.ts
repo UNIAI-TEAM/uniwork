@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { VI_LOCALE_STATE } from "./locale-state";
 import { VERIFICATION_CODE, verifyEmail } from "./auth-nav";
 
 // The golden path for F-09 (spec §8): A creates a task, opens Ask UNI with
@@ -55,7 +56,7 @@ test("⌘J answers from the asker's own workspace only", async ({ browser, page:
   await expect(dialog.getByText(/token vào/)).toBeVisible();
 
   // B: own organization, same question, nothing of A's comes back.
-  const ctx = await browser.newContext({ locale: "vi-VN" });
+  const ctx = await browser.newContext({ locale: "vi-VN", storageState: VI_LOCALE_STATE });
   const b = await ctx.newPage();
   await onboard(b, "Người Khác", `Beta ${stamp}`, "Đội Beta");
   const dialogB = await ask(b, `việc cho UNI ${stamp} thế nào?`);
