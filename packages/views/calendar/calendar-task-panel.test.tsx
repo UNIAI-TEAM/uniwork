@@ -10,11 +10,16 @@ vi.mock("../tasks/detail", () => ({
   TaskDetailSuitePage: ({
     taskId,
     headerActions,
+    defaultPropertiesOpen,
   }: {
     taskId: string;
     headerActions?: React.ReactNode;
+    defaultPropertiesOpen?: boolean;
   }) => (
-    <div data-testid="task-detail-suite">
+    <div
+      data-testid="task-detail-suite"
+      data-default-properties-open={String(defaultPropertiesOpen)}
+    >
       <span>{taskId}</span>
       {headerActions}
     </div>
@@ -37,7 +42,13 @@ describe("CalendarTaskPanel", () => {
       ),
     );
 
-    expect(screen.getByRole("complementary", { name: "Chi tiết công việc" })).toBeInTheDocument();
+    const panel = screen.getByRole("complementary", { name: "Chi tiết công việc" });
+    expect(panel).toBeInTheDocument();
+    expect(panel).toHaveClass("2xl:w-[40rem]");
+    expect(screen.getByTestId("task-detail-suite")).toHaveAttribute(
+      "data-default-properties-open",
+      "false",
+    );
     expect(screen.getByRole("button", { name: "Đóng" })).toHaveFocus();
 
     fireEvent.click(screen.getByRole("button", { name: "Mở toàn trang" }));

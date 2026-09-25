@@ -49,11 +49,12 @@ export function CalendarTaskPanel({
     <aside
       ref={panelRef}
       aria-label={t("calendar.task_panel_label")}
-      className="absolute inset-y-0 right-0 z-40 flex min-h-0 w-[min(56rem,calc(100%-1rem))] shrink-0 flex-col overflow-hidden border-l border-border bg-background shadow-[var(--floating-shadow)] 2xl:relative 2xl:z-auto 2xl:w-[min(52vw,56rem)] 2xl:shadow-none"
+      className="absolute inset-y-0 right-0 z-40 flex min-h-0 w-[min(40rem,calc(100%-1rem))] shrink-0 flex-col overflow-hidden border-l border-border bg-background shadow-[var(--floating-shadow)] 2xl:relative 2xl:z-auto 2xl:w-[40rem] 2xl:shadow-none"
     >
       <TaskDetailSuitePage
         workspaceId={workspaceId}
         taskId={taskId}
+        defaultPropertiesOpen={false}
         headerActions={
           <>
             <Tooltip>

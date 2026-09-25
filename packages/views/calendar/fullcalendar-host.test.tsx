@@ -30,7 +30,7 @@ type CapturedFcProps = {
   selectMirror?: boolean;
   height?: string | number;
   datesSet?: (arg: { start: Date; end: Date }) => void;
-  eventClick?: (arg: { event: { id: string } }) => void;
+  eventClick?: (arg: { event: { id: string }; el?: HTMLElement }) => void;
   eventDrop?: (arg: DropResizeArg) => void | Promise<void>;
   eventResize?: (arg: DropResizeArg) => void | Promise<void>;
   dateClick?: (arg: { date: Date; allDay: boolean }) => void;

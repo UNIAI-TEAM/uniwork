@@ -31,13 +31,21 @@ export function TaskDetailSuitePage(props: {
   onDeleted?: () => void;
   /** Host-level actions such as closing a contextual detail panel. */
   headerActions?: ReactNode;
+  /** Compact hosts can start with properties collapsed while keeping the toggle. */
+  defaultPropertiesOpen?: boolean;
 }) {
-  const { workspaceId, taskId, onDeleted, headerActions } = props;
+  const {
+    workspaceId,
+    taskId,
+    onDeleted,
+    headerActions,
+    defaultPropertiesOpen = true,
+  } = props;
   const { t } = useTranslation();
   const { workspace } = useWorkspace();
   const { data: task, isLoading, isError, error, refetch } = useTask(taskId);
   useRecordTaskVisit({ workspaceId, taskId, task, error });
-  const sidebarController = useAnimatedRightSidebar(true);
+  const sidebarController = useAnimatedRightSidebar(defaultPropertiesOpen);
   const [scrollEl, setScrollEl] = useState<HTMLElement | null>(null);
   const attachScroll = useCallback((el: HTMLElement | null) => {
     setScrollEl(el);
@@ -96,6 +104,7 @@ export function TaskDetailSuitePage(props: {
       <TaskDetailResizableLayout
         sidebarController={sidebarController}
         sidebarLabel={t("tasks.detail.sidebar_toggle")}
+        sidebarDefaultSize={defaultPropertiesOpen ? "28%" : 0}
         main={
           <div
             className="flex h-full min-h-0 flex-col"
