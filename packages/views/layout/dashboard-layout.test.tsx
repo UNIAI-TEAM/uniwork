@@ -24,6 +24,7 @@ vi.mock("./dashboard-guard", () => ({
 vi.mock("@uniwork/core/realtime", () => ({ WSProvider: ({ children }: { children: ReactNode }) => children }));
 vi.mock("../chat/chat-voice-call-host", () => ({ ChatVoiceCallHost: ({ children }: { children: ReactNode }) => children }));
 vi.mock("./workspace-realtime-sync", () => ({ WorkspaceRealtimeSync: () => null }));
+vi.mock("./workspace-chat-presence", () => ({ WorkspaceChatPresence: () => null }));
 vi.mock("./app-sidebar", () => ({ AppSidebar: () => null }));
 vi.mock("./navigation-progress", () => ({ NavigationProgress: () => null }));
 vi.mock("./workspace-top-bar", () => ({ WorkspaceChrome: ({ children }: { children: ReactNode }) => children }));
