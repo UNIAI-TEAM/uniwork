@@ -2,7 +2,8 @@
 
 Lane: `t8-migrate` · Run `run_5c1df2ff658d` · Branch `feature/UNI-746-fs-recording-migrate`
 Base: `5291950b` (Gate A0; integration root `118d939a` already an ancestor — no merge needed)
-Commit under review: `3b434165`
+Commits: `3b434165` (impl) → `49dd74ef` (FE FS-gate test) → `3a647ac8`
+(review fixes). Final head: `3a647ac8`.
 
 ## Scope
 
@@ -55,10 +56,20 @@ Finish (`finishRecordingFileClaim` meeting_ai.go:543,
   rows; the webhook's provider URL is discarded.
 - `RecordingFailed` → row FAILED (non-terminal only); pending output expires
   with its session.
+- Finish branches on the **row's `file_id`**, not current wiring (review
+  fix `3a647ac8`): an FS-backed row reaching the webhook with the seam
+  unwired stays non-terminal and logs `slog.Error` rather than taking the
+  legacy path and persisting a `file_url` its claim would never see.
 - Retryable = `storage_unavailable`, `file_not_ready` → row stays
-  ACTIVE/PROCESSING, a later provider event retries. All other verify
-  refusals (wrong bytes, over cap, rejected type, expired/deleted) → row
-  FAILED rather than stuck forever (no reconciler re-drives recordings).
+  ACTIVE/PROCESSING. Provider-event dedup inserts `ProviderEventID` before
+  dispatch; a duplicate `conference.recording_ended` re-enters the
+  idempotent finish path (fix `3a647ac8`) because LiveKit webhook retries
+  reuse the event id — finish queries gate on ACTIVE/PROCESSING and the FS
+  claim replays on `OperationID`, so re-entry is safe. Other duplicate event
+  types stay deduplicated.
+- All other verify refusals (wrong bytes, over cap, rejected type,
+  expired/deleted) → row FAILED rather than stuck forever (no reconciler
+  re-drives recordings).
 - Terminal rows: replay is a no-op (both paths); late success after FAILED
   does not resurrect.
 - Row without `file_id` → legacy `FinishRecordingByEgress` + `file_url` —
@@ -117,25 +128,29 @@ Run with `GOCACHE/GOTMPDIR` on D:, `GOFLAGS=-p=2`, one go command at a time
 (host guard msg_93b34455e218), `TEST_DATABASE_URL` = worktree test DB.
 
 - `go build ./... && go vet ./...` — clean (cold cache).
-- `go test ./internal/service/ -run 'TestMeetingRecording|TestChatVoiceRecording|TestRecordingReference|TestFinishVoiceRecording' -count=1` — **ok 181s**.
+- `go test ./internal/service/ -run 'TestMeetingRecording|TestChatVoiceRecording|TestRecordingReference|TestFinishVoiceRecording' -count=1` — **ok 181s** pre-fix; **ok 121s** on final head `3a647ac8`.
   Covers: FS lifecycle (register→target→provider write→complete→claim→row),
-  replay + late-events (failed egress, no resurrection), storage-outage retry
-  (row stays PROCESSING, retry completes), legacy byte-identical path,
-  chat FS lifecycle + idempotent start, chat failed egress, both reference
-  providers.
-- `go test ./internal/meetings/ ./internal/files/... -count=1` — **ok**.
+  replay + late-events (failed egress, no resurrection), storage-outage
+  retry via **same** provider event id (row stays PROCESSING, redelivery
+  completes), FS-row finish while unwired (non-terminal + loud, completes
+  after re-wire — `TestMeetingRecordingFSRowUnwiredFinishIsNonTerminal`),
+  legacy byte-identical path, chat FS lifecycle + idempotent start, chat
+  failed egress, both reference providers.
+- `go test ./internal/meetings/ ./internal/files/... -count=1` — **ok**
+  (meetings re-verified on `3a647ac8`).
 - `go test ./internal/handler/ -run 'Recording|Voice|MeetingList' -count=1` —
   **ok 172s** (Bước 0 regression suite incl. S3 legacy Range + authz).
 - `go test ./migrations/ -run 'Lint|Migration'` — **ok**.
 - `go test ./internal/` (arch tests incl.
   `TestFilesContractIsALeafCalledOnlyFromTheServiceTier`) — **ok**.
+- `pnpm --filter @uniwork/views exec vitest run meetings/meeting-list-view.test.tsx` — **11/11 pass** incl. FS COMPLETE-row-without-`file_url` case.
 
 ## Legacy branches kept (removal conditions — plan §7 step 8 / T9c)
 
 | Branch | Location | Removal condition |
 |---|---|---|
 | `FilePrefix` on `StartRecordingRequest`, `filepath = FilePrefix + "-{time}.mp4"` | meetings/provider.go, livekit.go | T9c cutover: when FileService is unconditionally wired, drop `FilePrefix` and the S3 output branch. |
-| `file_url` write on finish (`FinishRecordingByEgress`/`FinishChatVoiceRecordingByEgress`) | meeting_ai.go:524, chat_voice_recording.go:227 | T9c: all rows FS-claimed; column dropped after data migration. |
+| `file_url` write on finish (`FinishRecordingByEgress`/`FinishChatVoiceRecordingByEgress`) | meeting_ai.go:538, chat_voice_recording.go:244 | T9c: all rows FS-claimed; column dropped after data migration. |
 | `file_url` playback (`KeyFromURL` → presign / `streamRecordingObject` S3 branch) | handler/meeting_ai.go, chat_voice.go, recording_playback.go | T9c: no legacy rows remain; streamRecordingRange's S3 closure is deleted with it. |
 | Guest filter's `FileUrl.Valid` clause | handler/meeting_ai.go:190 | T9c: every COMPLETE row is FS; filter reduces to status check. |
 | `GetMeetingRecordingForPlayback`/`GetVoiceRecordingForPlayback` `file_url` fallback | meeting_ai.go:504, chat_voice_recording.go:420 | T9c: single `file_id` check remains. |
@@ -166,15 +181,44 @@ Run with `GOCACHE/GOTMPDIR` on D:, `GOFLAGS=-p=2`, one go command at a time
    `recording_not_configured`. Legacy mode still works. If org-less rooms
    must record under FS, a scope decision is needed (purpose policy or room
    backfill).
-6. **Verify-failure = FAILED**: non-retryable `CompleteProviderOutput`
-   refusals fail the row because nothing re-drives stuck recordings; a
-   reconciler (if added later) may revisit this.
-7. **t1c detector**: filesfake currently uses `http.DetectContentType`; my
+6. **Retry/reconcile semantics**: non-retryable `CompleteProviderOutput`
+   refusals fail the row because nothing re-drives stuck recordings.
+   Same-event-id redelivery now re-drives finish (fix `3a647ac8`), so
+   LiveKit webhook retries self-heal; a reconciler for rows whose provider
+   never retries may still be worth a T9c decision.
+7. **Unwired FS row is loud-but-silent to the caller**: with the seam
+   unwired, an FS row's webhook finish logs `slog.Error` and leaves the row
+   PROCESSING — webhook still returns success to the provider (matching the
+   retryable-failure contract). Integration should ensure the seam is wired
+   before rows can carry `file_id` (request #1 covers this).
+8. **t1c detector**: filesfake currently uses `http.DetectContentType`; my
    tests pass an explicit `video/mp4` content type, so they are green
    today and unaffected by the pending detector swap.
 
 ## Stage reports
 
-- Tester (codex gpt-6-luna): _pending_
-- BE reviewer (claude claude-sonnet-5): _pending_
-- FE reviewer (claude claude-sonnet-5): _pending_
+- **Tester** (`task_3ce07ac6d5a3`, codex / gpt-6-luna, dispatch
+  `ctx_00de5295d24b`): **pass** — `reports/t8-migrate/test-report.md`.
+  All focused Go suites green on the tested head; flagged F1 (same-event-id
+  redelivery swallowed by dedup) and F2 (wiring-keyed finish) — both fixed
+  in `3a647ac8` with regression tests. F3 (no handler-level FS-row test)
+  accepted: service tests + code inspection cover the route, listed for
+  T9c.
+- **BE reviewer** (`task_cae0bc6bd9a4`, claude / claude-sonnet-5):
+  **clear** — `reports/t8-migrate/be-review.md`. F1/F2/F3 non-blocking;
+  F1 + F2 + dead-code nits fixed in `3a647ac8`.
+- **FE reviewer** (`task_d8505f9ff269`, claude / claude-sonnet-5):
+  **clear** — `reports/t8-migrate/fe-review.md`. All four meeting views
+  gate on `status === "COMPLETE"`; chat stays endpoint-driven. Positive
+  COMPLETE-row test added for the list view (`49dd74ef`); equivalent cases
+  in `meeting-room-files-tab`/`meeting-summary-panel` remain a
+  non-blocking suggestion.
+
+## Worker notes for integration
+
+- `sync.Map` sidecar on `ChatService` folds into a plain field when T7's
+  struct lands (setter signatures unchanged) — integration request #2.
+- `.mp4` suffix guard in the LiveKit adapter is a *refusal*, not mutation:
+  FileService minted keys must end in `.mp4` for these purposes or
+  `StartRecording` fails `recording_not_configured` — request #3.
+- No push/PR performed; local commits only per lane contract.
