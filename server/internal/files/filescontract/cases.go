@@ -81,8 +81,10 @@ var cases = []contractCase{
 	{"claim/foreign_scope_and_wrong_purpose_are_not_found", caseClaimForeign},
 	{"claim/validates_purpose_and_scope_first", caseClaimInputValidation},
 	{"claim/rollback_leaves_the_file_staged", caseClaimRollback},
+	{"claim/replaces_locks_the_old_file_too", caseClaimReplaces},
 	{"release/unknown_id_is_not_found", caseReleaseUnknown},
 	{"release/collected_files_are_refused_everywhere", caseCollected},
+	{"release/after_collecting_is_a_no_op", caseReleaseAfterCollecting},
 	{"resolve/presign_and_proxy_follow_the_policy", caseResolveModes},
 	{"resolve/per_id_errors_leave_the_rest_resolved", caseResolvePerIDErrors},
 	{"resolve/foreign_tenant_is_not_found", caseResolveForeign},
@@ -578,6 +580,80 @@ func caseClaimRollback(t *testing.T, h Harness) {
 	claimOK(t, h, spec, scope, up.File.ID)
 }
 
+// caseClaimReplaces pins ClaimInput.Replaces, the field a version replace sets
+// so old and new rows are locked in one order (FS-C1 section 4). The replaced
+// ids are validated in the claim's own scope and a bad one refuses the whole
+// batch; locking the old file never drops it - unlinking stays the module's
+// own release command.
+func caseClaimReplaces(t *testing.T, h Harness) {
+	spec := purposeFor(t, h, files.ScopeOrgWorkspace, imageAllowed)
+	scope := scopeFor(spec)
+
+	old := uploadOK(t, h, spec, scope, "replaces-old", "old.png", pngBody)
+	claimOK(t, h, spec, scope, old.File.ID)
+	replacement := uploadOK(t, h, spec, scope, "replaces-new", "new.png", pngBody)
+
+	claimed, err := claimInTx(t, h, files.ClaimInput{
+		Actor: actorA(), Purpose: spec.Purpose, Scope: scope,
+		FileIDs:  []files.FileID{replacement.File.ID},
+		Replaces: []files.FileID{old.File.ID},
+	})
+	if err != nil {
+		t.Fatalf("claim with Replaces: %v", err)
+	}
+	if len(claimed) != 1 || claimed[0].ID != replacement.File.ID {
+		t.Fatalf("claim with Replaces returned %+v, want the new file", claimed)
+	}
+	kept := resolveOK(t, h, files.ResolveInput{
+		Scope: scope, Mode: spec.Policy.ReadMode, Disposition: files.DispositionInline,
+		FileIDs: []files.FileID{old.File.ID},
+	})
+	if len(kept) != 1 || kept[0].Err != nil {
+		t.Fatalf("the replaced file stopped resolving: %+v", kept)
+	}
+
+	// An unknown Replaces id and one from another tenant are both
+	// file_not_found (section 5.1), and each refused claim attaches nothing:
+	// the new file is still staged and claims on its own afterwards.
+	for _, tc := range []struct {
+		name  string
+		oldID files.FileID
+	}{
+		{"unknown id", unknownID},
+		{"foreign tenant", uploadOK(t, h, spec, files.Scope{OrganizationID: orgB, WorkspaceID: wsB}, "replaces-foreign", "note.png", pngBody).File.ID},
+	} {
+		fresh := uploadOK(t, h, spec, scope, "replaces-fresh-"+tc.name, "note.png", pngBody)
+		_, err := claimInTx(t, h, files.ClaimInput{
+			Actor: actorA(), Purpose: spec.Purpose, Scope: scope,
+			FileIDs:  []files.FileID{fresh.File.ID},
+			Replaces: []files.FileID{tc.oldID},
+		})
+		requireError(t, err, files.CodeNotFound, http.StatusNotFound)
+		claimOK(t, h, spec, scope, fresh.File.ID)
+	}
+
+	if h.SimulateGC != nil {
+		// The race the field exists for: the old file passed the collector's
+		// barrier between the module's read and its save, so the swap is
+		// file_deleting instead of locking a file that is already going away.
+		gone := uploadOK(t, h, spec, scope, "replaces-gone", "gone.png", pngBody)
+		claimOK(t, h, spec, scope, gone.File.ID)
+		if err := releaseInTx(t, h, []files.FileID{gone.File.ID}); err != nil {
+			t.Fatalf("release: %v", err)
+		}
+		h.SimulateGC(t, gone.File.ID)
+
+		fresh := uploadOK(t, h, spec, scope, "replaces-fresh-gone", "note.png", pngBody)
+		_, err := claimInTx(t, h, files.ClaimInput{
+			Actor: actorA(), Purpose: spec.Purpose, Scope: scope,
+			FileIDs:  []files.FileID{fresh.File.ID},
+			Replaces: []files.FileID{gone.File.ID},
+		})
+		requireError(t, err, files.CodeDeleting, http.StatusConflict)
+		claimOK(t, h, spec, scope, fresh.File.ID)
+	}
+}
+
 func caseReleaseUnknown(t *testing.T, h Harness) {
 	err := releaseInTx(t, h, []files.FileID{unknownID})
 	requireError(t, err, files.CodeNotFound, http.StatusNotFound)
@@ -615,6 +691,34 @@ func caseCollected(t *testing.T, h Harness) {
 	} else {
 		requireError(t, err, files.CodeDeleting, http.StatusConflict)
 	}
+}
+
+// caseReleaseAfterCollecting pins the unlink that races the collector: the
+// module drops its reference in its own transaction at the same time the
+// collector has already committed deleting, and that late release must not
+// fail the transaction - the collector already owns the file (FS-C1 section
+// 9.3). A second release also never resurrects the file: it stays deleting.
+func caseReleaseAfterCollecting(t *testing.T, h Harness) {
+	if h.SimulateGC == nil {
+		t.Skip("this implementation cannot force the collector's barrier")
+	}
+	spec := purposeFor(t, h, files.ScopeOrgWorkspace, imageAllowed)
+	scope := scopeFor(spec)
+	up := uploadOK(t, h, spec, scope, "release-collecting", "note.png", pngBody)
+	claimOK(t, h, spec, scope, up.File.ID)
+	if err := releaseInTx(t, h, []files.FileID{up.File.ID}); err != nil {
+		t.Fatalf("release: %v", err)
+	}
+	h.SimulateGC(t, up.File.ID)
+
+	if err := releaseInTx(t, h, []files.FileID{up.File.ID}); err != nil {
+		t.Errorf("an unlink after the collector took the file returned %v, want no error", err)
+	}
+	got := resolveOK(t, h, files.ResolveInput{Scope: scope, Mode: spec.Policy.ReadMode, Disposition: files.DispositionInline, FileIDs: []files.FileID{up.File.ID}})
+	if len(got) != 1 {
+		t.Fatalf("resolved %d entries, want 1", len(got))
+	}
+	requireError(t, got[0].Err, files.CodeDeleting, http.StatusConflict)
 }
 
 // --- resolve ----------------------------------------------------------------
