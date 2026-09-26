@@ -161,6 +161,35 @@ func (q *Queries) ListActivePushSubscriptions(ctx context.Context, userID string
 	return items, nil
 }
 
+const listChatMessageRooms = `-- name: ListChatMessageRooms :many
+SELECT id, room_id FROM chat_messages WHERE id = ANY($1::text[]) AND deleted_at IS NULL
+`
+
+type ListChatMessageRoomsRow struct {
+	ID     string `json:"id"`
+	RoomID string `json:"room_id"`
+}
+
+func (q *Queries) ListChatMessageRooms(ctx context.Context, ids []string) ([]ListChatMessageRoomsRow, error) {
+	rows, err := q.db.Query(ctx, listChatMessageRooms, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListChatMessageRoomsRow{}
+	for rows.Next() {
+		var i ListChatMessageRoomsRow
+		if err := rows.Scan(&i.ID, &i.RoomID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDigestCandidateUsers = `-- name: ListDigestCandidateUsers :many
 SELECT DISTINCT n.user_id FROM notifications n
 WHERE n.digested_at IS NULL AND n.read_at IS NULL AND n.archived_at IS NULL AND n.created_at > $1
@@ -501,10 +530,11 @@ func (q *Queries) ListUndigestedNotifications(ctx context.Context, arg ListUndig
 	return items, nil
 }
 
-const markAllNotificationsRead = `-- name: MarkAllNotificationsRead :execrows
+const markAllNotificationsRead = `-- name: MarkAllNotificationsRead :many
 UPDATE notifications SET read_at = now(), updated_at = now()
 WHERE user_id = $1 AND read_at IS NULL AND archived_at IS NULL
   AND ($2::text IS NULL OR workspace_id = $2::text)
+RETURNING id
 `
 
 type MarkAllNotificationsReadParams struct {
@@ -512,12 +542,24 @@ type MarkAllNotificationsReadParams struct {
 	WorkspaceID pgtype.Text `json:"workspace_id"`
 }
 
-func (q *Queries) MarkAllNotificationsRead(ctx context.Context, arg MarkAllNotificationsReadParams) (int64, error) {
-	result, err := q.db.Exec(ctx, markAllNotificationsRead, arg.UserID, arg.WorkspaceID)
+func (q *Queries) MarkAllNotificationsRead(ctx context.Context, arg MarkAllNotificationsReadParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, markAllNotificationsRead, arg.UserID, arg.WorkspaceID)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return result.RowsAffected(), nil
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const markNotificationPushed = `-- name: MarkNotificationPushed :exec
@@ -557,8 +599,14 @@ func (q *Queries) MarkNotificationsRead(ctx context.Context, arg MarkNotificatio
 }
 
 const markNotificationsUnread = `-- name: MarkNotificationsUnread :execrows
-UPDATE notifications SET read_at = NULL, updated_at = now()
-WHERE user_id = $1 AND id = ANY($2::text[]) AND read_at IS NOT NULL
+UPDATE notifications n SET read_at = NULL, updated_at = now()
+WHERE n.user_id = $1 AND n.id = ANY($2::text[]) AND n.read_at IS NOT NULL
+  AND (n.archived_at IS NOT NULL OR NOT EXISTS (
+    SELECT 1 FROM notifications o
+    WHERE o.user_id = n.user_id AND o.group_key = n.group_key AND o.id <> n.id
+      AND o.archived_at IS NULL
+      AND (o.read_at IS NULL OR (o.id = ANY($2::text[]) AND o.id > n.id))
+  ))
 `
 
 type MarkNotificationsUnreadParams struct {
@@ -566,6 +614,8 @@ type MarkNotificationsUnreadParams struct {
 	Ids    []string `json:"ids"`
 }
 
+// A row whose group already has an open row, or a newer row reopened in the
+// same call, stays read: reopening it would break uidx_notifications_open_group.
 func (q *Queries) MarkNotificationsUnread(ctx context.Context, arg MarkNotificationsUnreadParams) (int64, error) {
 	result, err := q.db.Exec(ctx, markNotificationsUnread, arg.UserID, arg.Ids)
 	if err != nil {
@@ -595,6 +645,33 @@ type RevokePushSubscriptionByEndpointParams struct {
 
 func (q *Queries) RevokePushSubscriptionByEndpoint(ctx context.Context, arg RevokePushSubscriptionByEndpointParams) (int64, error) {
 	result, err := q.db.Exec(ctx, revokePushSubscriptionByEndpoint, arg.UserID, arg.Endpoint)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const unarchiveNotifications = `-- name: UnarchiveNotifications :execrows
+UPDATE notifications n SET archived_at = NULL, updated_at = now(),
+  read_at = CASE WHEN n.read_at IS NULL AND EXISTS (
+    SELECT 1 FROM notifications o
+    WHERE o.user_id = n.user_id AND o.group_key = n.group_key AND o.id <> n.id
+      AND o.read_at IS NULL
+      AND (o.archived_at IS NULL OR (o.id = ANY($2::text[]) AND o.id > n.id))
+  ) THEN now() ELSE n.read_at END
+WHERE n.user_id = $1 AND n.id = ANY($2::text[]) AND n.archived_at IS NOT NULL
+`
+
+type UnarchiveNotificationsParams struct {
+	UserID string   `json:"user_id"`
+	Ids    []string `json:"ids"`
+}
+
+// An unread row comes back read when its group already has an open row (a
+// later event opened one while it sat archived), or a newer row of its group
+// comes back unread in the same call: uidx_notifications_open_group allows one.
+func (q *Queries) UnarchiveNotifications(ctx context.Context, arg UnarchiveNotificationsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, unarchiveNotifications, arg.UserID, arg.Ids)
 	if err != nil {
 		return 0, err
 	}

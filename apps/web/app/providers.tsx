@@ -4,12 +4,14 @@
 import "../platform/runtime-config";
 // Registers the Web Push adapter when the browser supports it; no exports.
 import "../platform/push";
+import { usePathname } from "next/navigation";
 import type { SupportedLocale } from "@uniwork/core/i18n";
 import { CoreProvider } from "@uniwork/core/platform";
 import { ThemeProvider } from "@uniwork/ui/components/common/theme-provider";
 import { Toaster } from "@uniwork/ui/components/ui/sonner";
 import { WebFeatureFlagsProvider } from "../platform/feature-flags";
 import { WebLocaleProvider } from "../platform/locale";
+import { isMarketingPath } from "../platform/marketing-routes";
 import { WebNavigationProvider } from "../platform/navigation";
 
 /**
@@ -27,9 +29,10 @@ export function Providers({
   initialDictionary?: object;
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
   return (
     <ThemeProvider>
-      <CoreProvider>
+      <CoreProvider initializeAuth={!isMarketingPath(pathname)}>
         <WebFeatureFlagsProvider>
           <WebLocaleProvider initialLocale={initialLocale} initialDictionary={initialDictionary}>
             <WebNavigationProvider>{children}</WebNavigationProvider>

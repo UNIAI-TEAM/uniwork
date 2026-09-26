@@ -120,7 +120,7 @@ func (h *handlers) createSummary(w http.ResponseWriter, r *http.Request) {
 	}
 	locale := strings.ToLower(strings.TrimSpace(in.Locale))
 	if locale == "" {
-		locale = "vi"
+		locale = "en"
 	}
 	s, err := h.Meetings.Summarize(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), locale)
 	if err != nil {

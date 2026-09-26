@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
+import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
@@ -52,9 +53,10 @@ const empty = {
 
 type Opts = { method?: string; body?: { prefs?: unknown } };
 
-function serve({ home = summary as unknown, prefs = {} as Record<string, unknown> } = {}) {
+function serve({ home = summary as unknown, prefs = {} as Record<string, unknown>, role = "member" } = {}) {
   requestMock.mockReset();
   requestMock.mockImplementation(async (path: string, opts?: Opts) => {
+    if (path === "/api/v1/orgs/acme/members/me") return { role };
     if (path.endsWith("/home/preferences")) {
       return opts?.method === "PUT" ? { prefs: opts.body?.prefs, updated_at: "t" } : { prefs, updated_at: "" };
     }
@@ -76,19 +78,24 @@ function renderHome() {
   );
 }
 
-beforeEach(() => serve());
+beforeEach(() => {
+  resetAuthStoreForTests();
+  setSessionUser(user);
+  serve();
+});
 
 describe("HomeView", () => {
   it("renders every section from the one home request", async () => {
     renderHome();
     expect(await screen.findByText("Chuẩn bị demo")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Trang chủ", level: 1 })).toBeInTheDocument();
-    expect(screen.getByText("Hôm nay có 3 việc cần bạn chú ý")).toBeInTheDocument();
+    expect(screen.getByText("Nên xử lý trước: “Viết spec”, đã quá hạn 4 ngày.")).toBeInTheDocument();
     expect(screen.getByTestId("home-stat-overdue")).toHaveTextContent("1");
     expect(screen.getByText("Quá hạn 4 ngày")).toBeInTheDocument();
     expect(screen.getByText("Standup")).toBeInTheDocument();
     expect(screen.getByRole("list", { name: "Hộp việc" })).toHaveTextContent("Bình đã giao bạn việc “Việc được giao”");
-    expect(screen.getByText("1 việc đang quá hạn, cũ nhất là “Viết spec” (quá hạn 4 ngày).")).toBeInTheDocument();
+    expect(screen.getByText("Lâu nhất 4 ngày")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Làm mới" })).toBeNull();
     expect(requestMock.mock.calls.filter(([p]) => String(p).endsWith("/home"))).toHaveLength(1);
   });
 
@@ -112,14 +119,40 @@ describe("HomeView", () => {
     expect(screen.getByTestId("home-stat-overdue")).toHaveTextContent("1");
   });
 
-  it("says what to do next when nothing is waiting, and drops the brief", async () => {
+  it("offers first steps instead of empty lists when nothing is waiting", async () => {
     serve({ home: empty });
     renderHome();
+    expect(await screen.findByRole("heading", { name: "Hôm nay chưa có gì chờ bạn" })).toBeInTheDocument();
+    expect(screen.getByText("Hôm nay bạn không có việc gấp.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Tạo việc/ })).toHaveAttribute("aria-haspopup", "dialog");
+    expect(screen.getByRole("button", { name: /Lên lịch họp/ })).toHaveAttribute("aria-haspopup", "dialog");
+    // A member cannot add people, so the step is not offered.
+    expect(screen.queryByRole("link", { name: /Mời đồng đội/ })).toBeNull();
+    expect(screen.queryByText("Không có việc cần xử lý")).toBeNull();
+    expect(screen.queryByTestId("home-stat-overdue")).toBeNull();
+  });
+
+  it("offers inviting teammates to someone who may add members", async () => {
+    serve({ home: empty, role: "admin" });
+    renderHome();
+    expect(await screen.findByRole("link", { name: /Mời đồng đội/ })).toHaveAttribute("href", "/acme/team/people");
+  });
+
+  it("leads with a meeting in progress and offers to join it", async () => {
+    const live = { ...summary.upcoming_meetings[0]!, status: "IN_PROGRESS" };
+    serve({ home: { ...summary, upcoming_meetings: [live] } });
+    renderHome();
+    expect(await screen.findByText("“Standup” đang diễn ra.")).toBeInTheDocument();
+    const joins = screen.getAllByRole("link", { name: "Vào họp" });
+    expect(joins[0]).toHaveAttribute("href", "/acme/team/meetings/m1/room");
+  });
+
+
+  it("keeps a section's own empty state while the others have something", async () => {
+    serve({ home: { ...empty, counts: { ...empty.counts, unread: 1 }, inbox: summary.inbox } });
+    renderHome();
     expect(await screen.findByText("Không có việc cần xử lý")).toBeInTheDocument();
-    expect(screen.getByText("Không có cuộc họp")).toBeInTheDocument();
-    expect(screen.getByText("Hộp việc trống")).toBeInTheDocument();
-    expect(screen.getByText("Hôm nay bạn không có việc gấp")).toBeInTheDocument();
-    expect(screen.queryByText("Từ dữ liệu thật")).toBeNull();
+    expect(screen.getByText("Bạn không có cuộc họp nào hôm nay và ngày mai.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Mở danh sách công việc" })).toHaveAttribute("href", "/acme/team/tasks");
   });
 
@@ -133,15 +166,21 @@ describe("HomeView", () => {
     expect(await screen.findByText("Chuẩn bị demo")).toBeInTheDocument();
   });
 
-  it("labels a failed source and keeps the others", async () => {
-    serve({ home: { ...summary, upcoming_meetings: [], partial: ["meetings"] } });
+  it("labels a failed source, keeps the others, and never shows its zeros as true", async () => {
+    serve({
+      home: { ...summary, counts: { ...summary.counts, meetings_today: 0 }, upcoming_meetings: [], partial: ["meetings"] },
+    });
     renderHome();
     expect(await screen.findByText("Không tải được lịch họp.")).toBeInTheDocument();
     expect(screen.getByText("Chuẩn bị demo")).toBeInTheDocument();
+    expect(screen.queryByText("Bạn không có cuộc họp nào hôm nay và ngày mai.")).toBeNull();
+    expect(screen.getByTestId("home-stat-meetings_today")).toHaveTextContent("—");
+    expect(screen.queryByRole("link", { name: /cuộc họp hôm nay/ })).toBeNull();
+    expect(screen.getByText("Một phần dữ liệu chưa tải được, số liệu dưới đây có thể thiếu.")).toBeInTheDocument();
   });
 
   it("leaves a way back when every section is hidden", async () => {
-    serve({ prefs: { enabled: { stats: false, mywork: false, upcoming: false, inbox: false, brief: false } } });
+    serve({ prefs: { enabled: { stats: false, mywork: false, upcoming: false, inbox: false } } });
     renderHome();
     expect(await screen.findByText("Bạn đã ẩn mọi khối trên trang chủ.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Mở tuỳ chỉnh" }));
@@ -150,13 +189,13 @@ describe("HomeView", () => {
 
   it("saves a hidden section and removes it from the page", async () => {
     renderHome();
-    expect(await screen.findByText("Từ dữ liệu thật")).toBeInTheDocument();
+    expect(await screen.findByRole("list", { name: "Hộp việc" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Tuỳ chỉnh" }));
-    fireEvent.click(screen.getByRole("switch", { name: "Tóm tắt hôm nay" }));
+    fireEvent.click(screen.getByRole("switch", { name: "Hộp việc" }));
     await waitFor(() => {
       const put = requestMock.mock.calls.find(([p, o]) => String(p).endsWith("/home/preferences") && (o as Opts)?.method === "PUT");
-      expect((put?.[1] as Opts).body?.prefs).toMatchObject({ enabled: { brief: false } });
+      expect((put?.[1] as Opts).body?.prefs).toMatchObject({ enabled: { inbox: false } });
     });
-    await waitFor(() => expect(screen.queryByText("Từ dữ liệu thật")).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("list", { name: "Hộp việc" })).toBeNull());
   });
 });

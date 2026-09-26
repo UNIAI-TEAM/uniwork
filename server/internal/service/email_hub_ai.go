@@ -40,7 +40,7 @@ func (s *EmailHubService) GetThreadSummary(
 		return EmailHubThreadSummaryView{}, err
 	}
 	if locale == "" {
-		locale = "vi"
+		locale = "en"
 	}
 	view, row, err := s.getThreadForSummary(ctx, actor, ws, workspaceID, accountID, threadID)
 	if err != nil {
@@ -72,7 +72,7 @@ func (s *EmailHubService) SummarizeThread(
 		return EmailHubThreadSummaryView{}, err
 	}
 	if locale == "" {
-		locale = "vi"
+		locale = "en"
 	}
 	view, row, err := s.getThreadForSummary(ctx, actor, ws, workspaceID, accountID, threadID)
 	if err != nil {

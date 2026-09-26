@@ -33,7 +33,7 @@ func TestTitlesMatchClientLocales(t *testing.T) {
 	if got := Title("vi", KindTaskAssigned, map[string]string{"actor": "An", "task": "Spec"}); got != "An đã giao bạn việc “Spec”" {
 		t.Fatalf("Title = %q", got)
 	}
-	if got := Title("xx", KindAuditExportReady, nil); got != titles["vi"][KindAuditExportReady] {
-		t.Fatalf("unknown locale did not fall back to vi: %q", got)
+	if got := Title("xx", KindAuditExportReady, nil); got != titles["en"][KindAuditExportReady] {
+		t.Fatalf("unknown locale did not fall back to en: %q", got)
 	}
 }

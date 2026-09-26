@@ -57,6 +57,7 @@ export const EmailHubThreadSchema = z.object({
   body_cached: z.boolean(),
   imap_labels: z.array(z.string()).optional().default([]),
   snoozed_until: z.string().optional(),
+  conversation_message_count: z.number().optional(),
 });
 
 export const EmailHubImapLabelListSchema = z.object({
@@ -71,6 +72,10 @@ export const EmailHubThreadListSchema = z.object({
   threads: z.array(EmailHubThreadSchema),
   counts: EmailHubCountsSchema,
   next_cursor: z.string().optional(),
+});
+
+export const EmailHubConversationSchema = z.object({
+  messages: z.array(EmailHubThreadSchema).optional().default([]),
 });
 
 export const EmailHubSummaryActionItemSchema = z.object({

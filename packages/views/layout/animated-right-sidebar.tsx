@@ -167,6 +167,8 @@ function AnimatedRightSidebar({
   const reduceMotion = useReducedMotion() ?? false;
   return (
     <motion.div
+      aria-hidden={!open}
+      inert={!open}
       initial={false}
       animate={{ opacity: open ? 1 : 0, x: open || reduceMotion ? 0 : 12 }}
       transition={

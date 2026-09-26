@@ -7,10 +7,9 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
 
-// registerChatFollowUps mounts personal follow-up routes behind chat_work_hub.
-func registerChatFollowUps(r api, h Routes, flagMW, chatWriteLimit func(http.Handler) http.Handler) {
+// registerChatFollowUps mounts personal follow-up routes.
+func registerChatFollowUps(r api, h Routes, chatWriteLimit func(http.Handler) http.Handler) {
 	r.Group(func(fu api) {
-		fu.Use(flagMW)
 		fu.Get("/workspaces/{workspaceID}/chat/follow-ups", h.ListChatFollowUps, apiOp{
 			summary:     "List chat follow-ups",
 			description: "Danh sách FollowUp cá nhân trong workspace; mặc định chỉ open.",

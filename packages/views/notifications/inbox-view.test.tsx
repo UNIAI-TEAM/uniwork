@@ -6,7 +6,16 @@ import { requestMock, wrapWithNav } from "../test/api-mock";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { InboxView } from "./inbox-view";
 
+const toastSuccess = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: vi.fn() } }));
+
 initI18n();
+
+/** The Undo action of the last success toast. */
+const lastUndo = () => {
+  const options = toastSuccess.mock.calls.at(-1)?.[1] as { action: { label: string; onClick: () => void } };
+  return options.action;
+};
 
 const user: User = {
   id: "u1", email: "a@b.c", display_name: "An",
@@ -27,8 +36,12 @@ function mockApi(
   unread = { total: 0, by_workspace: {} as Record<string, number> },
   older: unknown[] = [],
 ) {
-  requestMock.mockImplementation((path: string) => {
+  requestMock.mockImplementation((path: string, init?: { body?: { all?: boolean } }) => {
     if (path.startsWith("/api/v1/me/notifications/unread-count")) return Promise.resolve(unread);
+    // "Mark all" answers with the ids it read, for the undo.
+    if (path === "/api/v1/me/notifications/read" && init?.body?.all) {
+      return Promise.resolve({ status: "ok", ids: (notifications as { id: string }[]).map((n) => n.id) });
+    }
     if (path.startsWith("/api/v1/me/notifications?")) {
       // A second page exists only when `older` is given; it is fetched with the cursor.
       if (path.includes("before=")) return Promise.resolve({ notifications: older, next_before: "" });
@@ -61,6 +74,7 @@ function renderInbox() {
 
 beforeEach(() => {
   requestMock.mockReset();
+  toastSuccess.mockReset();
 });
 
 describe("InboxView", () => {
@@ -74,10 +88,13 @@ describe("InboxView", () => {
     );
     renderInbox();
     const list = await screen.findByRole("list", { name: "Hộp việc" });
-    const items = within(list).getAllByRole("presentation");
-    expect(items[0]).toHaveTextContent("Chưa đọc");
+    // Each group's label is a heading a screen reader can jump to, and says how many rows it holds.
+    const headings = within(list).getAllByRole("heading", { level: 2 });
+    expect(headings[0]).toHaveAccessibleName(/Chưa đọc.*1 thông báo/);
     // Read rows are grouped by the viewer's day; 2026-09-06 is well past a week.
-    expect(items[1]).toHaveTextContent("Cũ hơn");
+    expect(headings[1]).toHaveTextContent("Cũ hơn");
+    // The header count says what it counts.
+    expect(screen.getByRole("heading", { level: 1 }).parentElement).toHaveTextContent("1 chưa đọc");
     expect(screen.getByRole("link", { name: sentence("Bình đã giao bạn việc “Việc n1”") })).toHaveAttribute(
       "href",
       "/acme/team/tasks/t-n1",
@@ -116,6 +133,44 @@ describe("InboxView", () => {
         expect.objectContaining({ body: { all: true, workspace_id: "ws1" } }),
       ),
     );
+    // Undo puts back exactly the rows it read.
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Đã đánh dấu 2 thông báo là đã đọc", expect.anything()));
+    lastUndo().onClick();
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/me/notifications/unread",
+        expect.objectContaining({ body: { ids: ["n1", "n2"] } }),
+      ),
+    );
+  });
+
+  it("undoes a run of archives from one toast", async () => {
+    mockApi([row("n1"), row("n2"), row("n3")], { total: 3, by_workspace: { ws1: 3 } });
+    renderInbox();
+    const first = await screen.findByRole("link", { name: /Việc n1/ });
+    first.focus();
+    fireEvent.keyDown(first, { key: "e" });
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Đã lưu trữ 1 thông báo", expect.anything()));
+    const second = screen.getByRole("link", { name: /Việc n2/ });
+    expect(document.activeElement).toBe(second);
+    fireEvent.keyDown(second, { key: "e" });
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith("Đã lưu trữ 2 thông báo", expect.anything()));
+    lastUndo().onClick();
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/me/notifications/unarchive",
+        expect.objectContaining({ body: { ids: ["n1", "n2"] } }),
+      ),
+    );
+  });
+
+  it("hands focus to the filters when the only row is archived", async () => {
+    mockApi([row("n1")], { total: 1, by_workspace: { ws1: 1 } });
+    renderInbox();
+    const only = await screen.findByRole("link", { name: /Việc n1/ });
+    only.focus();
+    fireEvent.keyDown(only, { key: "e" });
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Mọi loại" }));
   });
 
   it("moves focus between real rows with j/k, archives with e and toggles read with r", async () => {
@@ -183,7 +238,7 @@ describe("InboxView", () => {
     renderInbox();
     await screen.findByRole("link", { name: /Họp tuần/ });
     const meetings = screen.getByRole("button", { name: /Cuộc họp/ });
-    expect(within(meetings).getByLabelText("1 chưa đọc")).toBeInTheDocument();
+    expect(meetings).toHaveAccessibleName(/Cuộc họp.*1 chưa đọc/);
     fireEvent.click(meetings);
     await waitFor(() => expect(screen.queryByRole("link", { name: /Việc n1/ })).toBeNull());
     expect(screen.getByRole("link", { name: /Họp tuần/ })).toBeInTheDocument();
@@ -197,7 +252,7 @@ describe("InboxView", () => {
     mockApi([row("n1", { kind: "mentioned", title_key: "notifications.kind.mentioned" })], { total: 3, by_workspace: { ws1: 3 } });
     renderInbox();
     await screen.findByRole("link", { name: /Việc n1/ });
-    expect(screen.queryByLabelText(/chưa đọc$/)).toBeNull();
+    expect(screen.getByRole("button", { name: /Nhắc & bình luận/ })).not.toHaveAccessibleName(/chưa đọc/);
   });
 
   it("fetches older notifications through the cursor", async () => {
@@ -211,16 +266,22 @@ describe("InboxView", () => {
   });
 
   it("keeps a row in its group when r toggles it, so focus stays on it", async () => {
-    mockApi([row("n1"), row("n2")], { total: 2, by_workspace: { ws1: 2 } });
+    const rows = [row("n1"), row("n2")];
+    mockApi(rows, { total: 2, by_workspace: { ws1: 2 } });
     renderInbox();
     const first = await screen.findByRole("link", { name: /Việc n1/ });
     first.focus();
     fireEvent.keyDown(first, { key: "r" });
+    // The server now has it read, so the refetch after the mark agrees.
+    Object.assign(rows[0]!, { read_at: "2026-09-06T09:00:00Z" });
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/me/notifications/read", expect.objectContaining({ body: { ids: ["n1"] } })),
     );
     const list = screen.getByRole("list", { name: "Hộp việc" });
-    expect(within(list).getAllByRole("presentation")).toHaveLength(1);
+    expect(within(list).getAllByRole("heading", { level: 2 })).toHaveLength(1);
     expect(document.activeElement).toBe(screen.getByRole("link", { name: /Việc n1/ }));
+    // Once focus leaves the list, the row goes to the group its state says.
+    fireEvent.blur(screen.getByRole("link", { name: /Việc n1/ }), { relatedTarget: document.body });
+    await waitFor(() => expect(within(list).getAllByRole("heading", { level: 2 })).toHaveLength(2));
   });
 });
