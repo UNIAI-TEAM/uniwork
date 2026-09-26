@@ -59,8 +59,8 @@ var textByExtension = map[string]string{
 //
 //   - It starts from http.DetectContentType, normalized.
 //   - A zip whose local headers hold [Content_Types].xml and parts of exactly
-//     one of word/, xl/ or ppt/ is the matching OOXML type; any other zip
-//     stays application/zip, whatever its name.
+//     one of word/, xl/ or ppt/, and no vbaProject.bin part, is the matching
+//     OOXML type; any other zip stays application/zip, whatever its name.
 //   - An OLE compound file is DOC, XLS or PPT by its extension; with any other
 //     extension it is application/octet-stream.
 //   - Non-empty valid UTF-8 text named .csv, .ndjson or .md is text/csv,
@@ -70,7 +70,8 @@ var textByExtension = map[string]string{
 //     stream is audio/ogg, a Theora one video/ogg, anything else
 //     application/ogg. A well-formed ftyp box is the MP4 family whatever its
 //     brands: audio/mp4 with an M4A or M4B brand, video/mp4 otherwise, except
-//     a still-image HEIF/AVIF major brand, which stays unknown. WebM stays video/webm: telling an
+//     a still-image HEIF/AVIF major brand, which stays unknown; a malformed
+//     ftyp box is unknown too. WebM stays video/webm: telling an
 //     audio-only WebM from a video one needs the track headers, which a head
 //     scan cannot read reliably.
 //
@@ -101,10 +102,13 @@ func DetectContentType(head []byte, filename string) string {
 		return mimeTextPlain
 	case sniffed == mimeOgg:
 		return oggType(head)
-	case sniffed == mimeVideoMP4 || sniffed == mimeOctetStream:
+	case (sniffed == mimeVideoMP4 || sniffed == mimeOctetStream) && len(head) >= 8 && string(head[4:8]) == "ftyp":
 		if ct := mp4Type(head); ct != "" {
 			return ct
 		}
+		// A box mp4Type refuses is not MP4, even where the standard
+		// sniffer's looser check accepts it.
+		return mimeOctetStream
 	}
 	return sniffed
 }
@@ -112,26 +116,34 @@ func DetectContentType(head []byte, filename string) string {
 // ooxmlType walks the zip local file headers in head and names the OOXML
 // package they describe. A package needs the content-types part and parts of
 // one main folder; a zip holding two main folders is ambiguous and stays a
-// zip. It reads names only, never decompresses.
+// zip, and so does a macro-enabled package (a vbaProject.bin part), which no
+// purpose allows under the plain OOXML types. It reads names only, never
+// decompresses.
+//
+// An entry whose local header carries its compressed size is skipped by that
+// size, so the bytes of a stored entry (a zip inside the zip) are never read
+// as headers of the outer archive. A streamed entry (data descriptor, size 0
+// in the local header) is skipped by searching for the next header
+// signature; its data is compressed in every writer seen, so it does not
+// hold raw headers.
 func ooxmlType(head []byte) string {
-	const localHeaderLen = 30
+	const (
+		localHeaderLen = 30
+		flagStreamed   = 0x08
+		zip64Size      = 0xffffffff
+	)
 	sig := []byte("PK\x03\x04")
-	var contentTypes, word, xl, ppt bool
-	for pos := 0; ; {
-		i := bytes.Index(head[pos:], sig)
-		if i < 0 {
-			break
-		}
-		start := pos + i
-		if start+localHeaderLen > len(head) {
-			break
-		}
-		nameLen := int(binary.LittleEndian.Uint16(head[start+26:]))
-		nameEnd := start + localHeaderLen + nameLen
+	var contentTypes, word, xl, ppt, macros bool
+	for pos := 0; pos+localHeaderLen <= len(head) && bytes.Equal(head[pos:pos+4], sig); {
+		flags := binary.LittleEndian.Uint16(head[pos+6:])
+		compressed := binary.LittleEndian.Uint32(head[pos+18:])
+		nameLen := int(binary.LittleEndian.Uint16(head[pos+26:]))
+		extraLen := int(binary.LittleEndian.Uint16(head[pos+28:]))
+		nameEnd := pos + localHeaderLen + nameLen
 		if nameEnd > len(head) {
 			break
 		}
-		name := string(head[start+localHeaderLen : nameEnd])
+		name := string(head[pos+localHeaderLen : nameEnd])
 		switch {
 		case name == "[Content_Types].xml":
 			contentTypes = true
@@ -142,11 +154,30 @@ func ooxmlType(head []byte) string {
 		case strings.HasPrefix(name, "ppt/"):
 			ppt = true
 		}
-		// Scanning on from the name, not by the compressed size: a streamed
-		// entry (data descriptor) carries size 0 in its local header.
-		pos = nameEnd
+		if strings.HasSuffix(name, "/vbaProject.bin") {
+			macros = true
+		}
+		dataStart := nameEnd + extraLen
+		switch {
+		case compressed == zip64Size:
+			// The real size is in the zip64 extra field; an entry that large
+			// ends past any head anyway.
+			pos = len(head)
+		case flags&flagStreamed != 0 && compressed == 0:
+			next := -1
+			if dataStart <= len(head) {
+				next = bytes.Index(head[dataStart:], sig)
+			}
+			if next < 0 {
+				pos = len(head)
+			} else {
+				pos = dataStart + next
+			}
+		default:
+			pos = dataStart + int(compressed)
+		}
 	}
-	if !contentTypes {
+	if !contentTypes || macros {
 		return ""
 	}
 	switch {

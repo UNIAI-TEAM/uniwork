@@ -3,6 +3,7 @@ package files_test
 import (
 	"archive/zip"
 	"bytes"
+	"hash/crc32"
 	"strings"
 	"testing"
 
@@ -200,6 +201,33 @@ func TestDetectContentTypeReadsOnlyTheHead(t *testing.T) {
 	}
 	if got := files.DetectContentType(buf.Bytes(), "brief.docx"); got != "application/zip" {
 		t.Errorf("got %q, want application/zip (the word/ part is past the head)", got)
+	}
+}
+
+// Writers that know each part's size up front (no data descriptor) are
+// walked by those sizes; the package is still recognised.
+func TestDetectContentTypeWalksSizedHeaders(t *testing.T) {
+	var buf bytes.Buffer
+	w := zip.NewWriter(&buf)
+	for _, name := range []string{"[Content_Types].xml", "_rels/.rels", "ppt/presentation.xml"} {
+		body := []byte("<x/>")
+		f, err := w.CreateRaw(&zip.FileHeader{
+			Name: name, Method: zip.Store, CRC32: crc32.ChecksumIEEE(body),
+			CompressedSize64: uint64(len(body)), UncompressedSize64: uint64(len(body)),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.Write(body); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	want := "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+	if got := files.DetectContentType(buf.Bytes(), "deck.pptx"); got != want {
+		t.Errorf("got %q, want %q", got, want)
 	}
 }
 
