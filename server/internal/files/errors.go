@@ -145,7 +145,7 @@ func UploadCanceled(id FileID) *Error {
 
 // Deleting: a garbage collector moved the file to deleting before this call
 // won the row lock, so the bytes are on their way out and no new claim,
-// cancel or URL is granted (FS-C1 section 9.3).
+// cancel or URL is granted (FS-C1 section 7, file_deleting).
 func Deleting(id FileID) *Error {
 	return NewError(CodeDeleting, fmt.Sprintf("file %q is being deleted", string(id)))
 }

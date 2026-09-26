@@ -79,7 +79,7 @@ func NormalizeContentType(contentType string) string {
 // served.
 type PurposeSpec struct {
 	Purpose UploadPurpose
-	// Prefix is the purpose branch of the object key (FS-C1 section 6.2),
+	// Prefix is the purpose branch of the object key (FS-C1 section 3),
 	// without the version, tenant, date and file segments.
 	Prefix string
 	Scope  ScopeShape

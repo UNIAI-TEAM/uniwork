@@ -91,6 +91,7 @@ var cases = []contractCase{
 	{"resolve/mode_must_match_the_policy", caseResolveModeMismatch},
 	{"provider/output_intent_is_idempotent_per_operation", caseProviderIntentIdempotent},
 	{"provider/completed_output_becomes_a_ready_file", caseProviderComplete},
+	{"provider/complete_replays_and_checks_the_operation", caseProviderCompleteReplay},
 	{"provider/invalid_output_is_refused", caseProviderInvalidOutput},
 	{"provider/output_that_disagrees_with_the_report_is_refused", caseProviderOutputVerification},
 	{"provider/storage_unavailable_is_refused_and_recovers", caseStorageUnavailable},
@@ -387,7 +388,7 @@ func caseCancelStaged(t *testing.T, h Harness) {
 	if err := h.Service.CancelUpload(ctx, in); err != nil {
 		t.Fatalf("cancel: %v", err)
 	}
-	// Repeating the cancel answers the same nothing (FS-C1 section 7.3).
+	// Repeating the cancel answers the same nothing (FS-C1 section 4).
 	if err := h.Service.CancelUpload(ctx, in); err != nil {
 		t.Fatalf("repeated cancel: %v", err)
 	}
@@ -439,7 +440,7 @@ func caseCancelNotFound(t *testing.T, h Harness) {
 	})
 	requireError(t, err, files.CodeNotFound, http.StatusNotFound)
 
-	// Cancel verifies the actor too (FS-C1 section 7.3), and says "not found"
+	// Cancel verifies the actor too (FS-C1 sections 4 and 5.1), and says "not found"
 	// rather than confirming the file exists.
 	err = h.Service.CancelUpload(ctx, files.CancelInput{Actor: actorB(), Scope: scope, FileID: up.File.ID})
 	requireError(t, err, files.CodeNotFound, http.StatusNotFound)
@@ -563,7 +564,7 @@ func caseClaimRollback(t *testing.T, h Harness) {
 
 	// The module claims the file and then fails its own command: the claim
 	// rolls back with the transaction, so the file is still staged and the user
-	// can save again (FS-C1 section 7.2).
+	// can save again (FS-C1 section 4).
 	rollback := errors.New("filescontract: module command failed after the claim")
 	err := h.InTx(t, func(q *db.Queries) error {
 		if _, err := h.Service.ClaimInTx(context.Background(), q, files.ClaimInput{
@@ -673,7 +674,7 @@ func caseCollected(t *testing.T, h Harness) {
 	h.SimulateGC(t, up.File.ID)
 
 	// Once the collector has committed deleting, nothing attaches or serves the
-	// file again (FS-C1 section 9.3).
+	// file again (FS-C1 section 7, file_deleting).
 	_, err := claimInTx(t, h, files.ClaimInput{Actor: actorA(), Purpose: spec.Purpose, Scope: scope, FileIDs: []files.FileID{up.File.ID}})
 	requireError(t, err, files.CodeDeleting, http.StatusConflict)
 
@@ -696,8 +697,8 @@ func caseCollected(t *testing.T, h Harness) {
 // caseReleaseAfterCollecting pins the unlink that races the collector: the
 // module drops its reference in its own transaction at the same time the
 // collector has already committed deleting, and that late release must not
-// fail the transaction - the collector already owns the file (FS-C1 section
-// 9.3). A second release also never resurrects the file: it stays deleting.
+// fail the transaction - the collector already owns the file (FS-C1 section 7,
+// file_deleting). A second release also never resurrects the file: it stays deleting.
 func caseReleaseAfterCollecting(t *testing.T, h Harness) {
 	if h.SimulateGC == nil {
 		t.Skip("this implementation cannot force the collector's barrier")
@@ -905,6 +906,55 @@ func caseProviderComplete(t *testing.T, h Harness) {
 	}
 }
 
+// caseProviderCompleteReplay covers the webhook side of CompleteProviderOutput
+// (FS-C1 section 4): the operation id is what binds a job to its file, so an id
+// that is not the file's is idempotency_conflict and an id that never came from
+// RegisterProviderOutput is file_not_found; a replay after success returns the
+// same ready file instead of writing a second result.
+func caseProviderCompleteReplay(t *testing.T, h Harness) {
+	spec := purposeFor(t, h, files.ScopeOrgWorkspace, imageAllowed)
+	scope := scopeFor(spec)
+	ctx := context.Background()
+
+	// A file that did not come from RegisterProviderOutput has no operation to
+	// complete against; it answers file_not_found like any unknown id.
+	direct := uploadOK(t, h, spec, scope, "complete-direct", "note.png", pngBody)
+	_, err := h.Service.CompleteProviderOutput(ctx, files.CompleteOutputInput{
+		Actor: actorA(), Scope: scope, FileID: direct.File.ID, OperationID: "op-stray",
+	})
+	requireError(t, err, files.CodeNotFound, http.StatusNotFound)
+
+	out := registerOK(t, h, spec, scope, "op-replay")
+
+	// A webhook reporting the wrong operation id conflicts with the
+	// registration instead of silently completing somebody else's job.
+	_, err = h.Service.CompleteProviderOutput(ctx, files.CompleteOutputInput{
+		Actor: actorA(), Scope: scope, FileID: out.FileID, OperationID: "op-other",
+	})
+	requireError(t, err, files.CodeIdempotencyConflict, http.StatusConflict)
+
+	body, contentType := sampleFor(t, spec)
+	h.WriteProviderOutput(t, out, body, contentType)
+	first, err := h.Service.CompleteProviderOutput(ctx, files.CompleteOutputInput{
+		Actor: actorA(), Scope: scope, FileID: out.FileID, OperationID: "op-replay",
+	})
+	if err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+
+	// The provider redelivers the webhook: the replay returns the same ready
+	// file rather than failing or writing a second result.
+	again, err := h.Service.CompleteProviderOutput(ctx, files.CompleteOutputInput{
+		Actor: actorA(), Scope: scope, FileID: out.FileID, OperationID: "op-replay",
+	})
+	if err != nil {
+		t.Fatalf("replayed complete: %v", err)
+	}
+	if again.ID != first.ID || again.Status != files.StatusReady {
+		t.Errorf("replay returned %+v, want the same ready file %+v", again, first)
+	}
+}
+
 func caseProviderInvalidOutput(t *testing.T, h Harness) {
 	ctx := context.Background()
 
@@ -984,7 +1034,33 @@ func caseStorageUnavailable(t *testing.T, h Harness) {
 		t.Errorf("a failed upload returned file %q; nothing may be staged", up.File.ID)
 	}
 
+	// Nothing was staged behind the key, so a mid-outage retry answers the
+	// same transient failure - not idempotency_conflict - and after the
+	// adapter recovers the same key + same command succeeds as a fresh upload
+	// (FS-C1 section 7: storage_unavailable keeps the job retryable).
+	_, err = h.Service.Upload(ctx, files.UploadInput{
+		Actor: actorA(), Purpose: spec.Purpose, Scope: scope,
+		IdempotencyKey: "storage-down", Filename: "note.png", Body: bytes.NewReader(pngBody),
+	})
+	requireError(t, err, files.CodeStorageUnavailable, http.StatusServiceUnavailable)
 	h.SetStorageDown(t, false)
+	retried := uploadOK(t, h, spec, scope, "storage-down", "note.png", pngBody)
+	claimOK(t, h, spec, scope, retried.File.ID)
+
+	// The same holds when the body stream itself broke before a session
+	// existed: the failure is the client's to resend, so the key stays usable.
+	broken := errReader{err: errors.New("filescontract: client stream broke")}
+	if _, err := h.Service.Upload(ctx, files.UploadInput{
+		Actor: actorA(), Purpose: spec.Purpose, Scope: scope,
+		IdempotencyKey: "body-broken", Filename: "note.png", Body: broken,
+	}); err == nil {
+		t.Error("an unreadable body was accepted")
+	}
+	resent := uploadOK(t, h, spec, scope, "body-broken", "note.png", pngBody)
+	if resent.File.ID == "" {
+		t.Error("a retry after a broken stream returned no file")
+	}
+
 	ready := uploadOK(t, h, spec, scope, "storage-up", "note.png", pngBody)
 	claimOK(t, h, spec, scope, ready.File.ID)
 
@@ -1060,6 +1136,11 @@ func caseOpen(t *testing.T, h Harness) {
 }
 
 // --- helpers ----------------------------------------------------------------
+
+// errReader is a body whose stream fails, like a client that stopped sending.
+type errReader struct{ err error }
+
+func (r errReader) Read([]byte) (int, error) { return 0, r.err }
 
 func requireError(t *testing.T, err error, code string, status int) {
 	t.Helper()

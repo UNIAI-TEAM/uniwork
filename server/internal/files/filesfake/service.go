@@ -124,7 +124,7 @@ func (f *Fake) Upload(_ context.Context, in files.UploadInput) (files.Upload, er
 
 // CancelUpload revokes a staged upload. The actor and the scope must be the
 // ones that staged it, and repeating the cancel answers the same nothing
-// (FS-C1 section 7.3).
+// (FS-C1 section 4).
 func (f *Fake) CancelUpload(_ context.Context, in files.CancelInput) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -213,7 +213,7 @@ func (f *Fake) ClaimInTx(_ context.Context, _ *db.Queries, in files.ClaimInput) 
 
 // ReleaseInTx records that a module dropped its references. Bytes are not
 // touched here: only the collector decides that, and only after every provider
-// has been asked again (FS-C1 section 9).
+// has been asked again (FS-C1 section 4).
 func (f *Fake) ReleaseInTx(_ context.Context, _ *db.Queries, ids []files.FileID) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
