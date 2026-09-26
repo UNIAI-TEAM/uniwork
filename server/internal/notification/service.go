@@ -49,14 +49,18 @@ type ListInput struct {
 	Limit       int32
 }
 
-// Item is a notification plus whether its resource still exists.
+// Item is a notification plus whether its resource still exists and, for a
+// chat message, the room it sits in — a message has no page of its own, so
+// the client needs the room to open it.
 type Item struct {
 	db.Notification
-	ResourceDeleted bool
+	ResourceDeleted  bool
+	ResourceParentID string
 }
 
 // List returns the caller's inbox page, newest first, with resource_deleted
-// resolved in two batched queries rather than one per row.
+// (and a chat message's room) resolved in one batched query per resource
+// type rather than one per row.
 func (s *Service) List(ctx context.Context, userID string, in ListInput) ([]Item, error) {
 	limit := in.Limit
 	if limit <= 0 {
@@ -72,13 +76,15 @@ func (s *Service) List(ctx context.Context, userID string, in ListInput) ([]Item
 	if err != nil {
 		return nil, err
 	}
-	var taskIDs, meetingIDs []string
+	var taskIDs, meetingIDs, messageIDs []string
 	for _, n := range rows {
 		switch n.ResourceType {
 		case "task":
 			taskIDs = append(taskIDs, n.ResourceID)
 		case "meeting":
 			meetingIDs = append(meetingIDs, n.ResourceID)
+		case "chat_message":
+			messageIDs = append(messageIDs, n.ResourceID)
 		}
 	}
 	alive := map[string]bool{}
@@ -100,10 +106,26 @@ func (s *Service) List(ctx context.Context, userID string, in ListInput) ([]Item
 			alive["meeting:"+id] = true
 		}
 	}
+	roomOf := map[string]string{}
+	if len(messageIDs) > 0 {
+		msgs, err := s.q.ListChatMessageRooms(ctx, messageIDs)
+		if err != nil {
+			return nil, err
+		}
+		for _, m := range msgs {
+			alive["chat_message:"+m.ID] = true
+			roomOf[m.ID] = m.RoomID
+		}
+	}
 	out := make([]Item, 0, len(rows))
 	for _, n := range rows {
-		deleted := (n.ResourceType == "task" || n.ResourceType == "meeting") && !alive[n.ResourceType+":"+n.ResourceID]
-		out = append(out, Item{Notification: n, ResourceDeleted: deleted})
+		tracked := n.ResourceType == "task" || n.ResourceType == "meeting" || n.ResourceType == "chat_message"
+		deleted := tracked && !alive[n.ResourceType+":"+n.ResourceID]
+		parent := ""
+		if n.ResourceType == "chat_message" {
+			parent = roomOf[n.ResourceID]
+		}
+		out = append(out, Item{Notification: n, ResourceDeleted: deleted, ResourceParentID: parent})
 	}
 	return out, nil
 }
@@ -157,8 +179,9 @@ func (s *Service) MarkRead(ctx context.Context, userID string, ids []string) err
 	return err
 }
 
-// MarkAllRead reads everything open, optionally only one workspace.
-func (s *Service) MarkAllRead(ctx context.Context, userID, workspaceID string) (int64, error) {
+// MarkAllRead reads everything open, optionally only one workspace, and
+// returns the ids it read so the client can offer to put them back.
+func (s *Service) MarkAllRead(ctx context.Context, userID, workspaceID string) ([]string, error) {
 	return s.q.MarkAllNotificationsRead(ctx, db.MarkAllNotificationsReadParams{UserID: userID, WorkspaceID: optText(workspaceID)})
 }
 
@@ -175,6 +198,15 @@ func (s *Service) Archive(ctx context.Context, userID string, ids []string) erro
 		return err
 	}
 	_, err := s.q.ArchiveNotifications(ctx, db.ArchiveNotificationsParams{UserID: userID, Ids: ids})
+	return err
+}
+
+// Unarchive puts archived rows back in the inbox: the undo of Archive.
+func (s *Service) Unarchive(ctx context.Context, userID string, ids []string) error {
+	if err := s.own(ctx, userID, ids); err != nil {
+		return err
+	}
+	_, err := s.q.UnarchiveNotifications(ctx, db.UnarchiveNotificationsParams{UserID: userID, Ids: ids})
 	return err
 }
 

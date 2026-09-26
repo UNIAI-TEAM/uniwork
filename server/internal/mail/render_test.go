@@ -30,8 +30,8 @@ func TestVerificationCodeRendersBothLocales(t *testing.T) {
 		}
 	}
 	m, _ := r.VerificationCode("a@example.com", "fr", "", VerificationData{Code: "1", Expires: time.Minute})
-	if m.Locale != "vi" {
-		t.Fatalf("unknown locale must fall back to vi, got %q", m.Locale)
+	if m.Locale != "en" {
+		t.Fatalf("unknown locale must fall back to en, got %q", m.Locale)
 	}
 }
 

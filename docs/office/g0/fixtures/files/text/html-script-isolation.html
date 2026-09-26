@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head><meta charset="utf-8"/><title>Kiem thu cach ly</title></head>
+<body>
+  <h1>Kiem thu cach ly preview</h1>
+  <p id="ket-qua">chua chay</p>
+<script>
+  try {
+    var host = window.parent !== window ? 'co-parent' : 'khong-parent';
+    var top = window.top;
+    var cookie = document.cookie;
+    var hasil = 'host=' + host + ';cookie=' + (cookie ? 'co' : 'khong');
+    document.getElementById('ket-qua').textContent = hasil;
+  } catch (e) {
+    document.getElementById('ket-qua').textContent = 'loi: ' + e.name;
+  }
+</script>
+</body>
+</html>

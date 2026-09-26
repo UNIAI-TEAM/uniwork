@@ -137,12 +137,7 @@ data to cite and none may be estimated.
    features discovered.
 3. **Vietnamese is the first language, not a translation layer.** Copy is
    written natively; parity with English is a floor, not the goal.
-4. **Never advertise what does not exist.** No surface lists a customer or a
-   number the product cannot back today, and no capability is presented as
-   working before it works. The one allowance is a roadmap surface shown
-   locked and labelled "Sắp có" (see Operating Context). Empty states explain
-   the next step instead of showing mock rows.
-5. **Legibility at a glance is the quality signal.** A person scanning a
+4. **Legibility at a glance is the quality signal.** A person scanning a
    screen for two seconds should know what each thing is, what state it is in
    and what needs them; colour, density and grouping serve that, not taste.
 

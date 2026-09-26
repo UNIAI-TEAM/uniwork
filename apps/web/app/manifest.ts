@@ -6,6 +6,11 @@ import type { MetadataRoute } from "next";
  * crop up to 20% off every edge and the standard tile's glyph would lose its
  * heads.
  *
+ * `start_url` opens the app, not the public landing at `/`: `/workspaces`
+ * sends a signed-out visitor to login on its own. `id` pins the identity the
+ * app was installed under when `start_url` was still `/`; without it a browser
+ * treats the new start_url as a different app.
+ *
  * `theme_color` is the flat brand hue, not the logo gradient: it paints the
  * Android status bar, which is product chrome.
  */
@@ -14,7 +19,8 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "UniWork",
     short_name: "UniWork",
     description: "Work OS thuần AI cho đội ngũ Việt.",
-    start_url: "/",
+    id: "/",
+    start_url: "/workspaces",
     display: "standalone",
     background_color: "#fafafa",
     theme_color: "#0a52e6",

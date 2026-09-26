@@ -50,7 +50,7 @@ export function NotificationTitle({ notification: n, unread }: { notification: N
             <span className={cn("text-foreground", unread ? "font-semibold" : "font-medium")}>{value}</span>
             {isAgent ? " " : null}
             {isAgent ? (
-              <span className="inline-flex translate-y-[-1px] items-center rounded-[5px] bg-brand-subtle px-1 text-micro leading-4 font-semibold text-brand-subtle-foreground align-middle">
+              <span className="inline-flex -translate-y-px items-center rounded-sm bg-brand-subtle px-1 text-micro leading-4 font-semibold text-brand-subtle-foreground align-middle">
                 {t("people.agent_badge")}
               </span>
             ) : null}
@@ -65,7 +65,7 @@ export function NotificationTitle({ notification: n, unread }: { notification: N
         return (
           <span
             className={cn(
-              "inline-flex translate-y-[-1px] items-center rounded-[5px] px-1.5 text-caption leading-5 font-medium align-middle",
+              "inline-flex -translate-y-px items-center rounded-sm px-1.5 text-caption leading-5 font-medium align-middle",
               cfg ? tintClass[cfg.tone] : "bg-muted text-foreground",
             )}
           >

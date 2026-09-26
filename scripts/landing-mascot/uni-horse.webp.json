@@ -1,0 +1,45 @@
+{
+  "prompt": "Use case: precise-object-edit\nAsset type: final transparent horse mascot cutout.\nInput image: the supplied transparent horse cutout is the edit target.\nPrimary request: final cutout polish only. Preserve this exact horse identity, facial expression, full-body waving pose, blue eyes, white coat, plain navy vest and hooves, sculpted mane and tail, lighting, and high-quality rendered detail.\nRefine the cutout for the brand palette and landing-page framing: replace the broad yellow-lime green mane and tail bands with turquoise and cyan continuous with the surrounding hair; retain only a very thin, restrained cool-green accent on one hair tip, with no yellow. Keep cobalt and cyan dominant. Reframe the complete unchanged character slightly smaller on a square transparent canvas so it occupies about 84 percent of canvas height and leaves roughly 8 percent transparent top and bottom margin. Keep the ears, tail tips, and hooves fully visible.\nClean the alpha silhouette so there are no isolated white or colored speckled pixels outside the character contour. Keep smooth antialiased edges, retain actual transparent alpha everywhere around the character and between limbs, and preserve the character's fine surface detail.\nInvariants: do not change the pose, face, eye shape, anatomy, plain navy vest, lighting, or material quality. No text, names, letters, logo, badge, speech bubble, sound symbol, background, floor, cast ground shadow, checkerboard, or opaque rectangle. Output a genuine transparent RGBA image.",
+  "asset": "uni-horse.webp",
+  "assetType": "AI-rendered raster illustration",
+  "method": "Built-in image_gen generation with a user-supplied horse appearance reference, followed by one pose-preserving palette and cutout refinement.",
+  "sourceReference": "photo_2026-08-26_15-49-31.jpg (user-provided horse appearance and quality reference; reference branding not used)",
+  "width": 1200,
+  "height": 1200,
+  "bytes": 613036,
+  "sha256": "ef66b41fae6055b6eb57f1541c77e6061cacc5103ce76433280ce4fdd3ebf19f",
+  "hasAlpha": true,
+  "transparentPixels": 935938,
+  "totalPixels": 1440000,
+  "alphaVerification": "All corner pixels have alpha 0. Final lossless WebP alpha matches the 1200px-resampled PNG master exactly (0 differing alpha samples). Hidden RGB may be nonzero at alpha 0; it is invisible when composited.",
+  "optimization": "sharp 0.35.4; resize inside 1200x1200 without enlargement; lossless WebP, quality 100, effort 6. Shipping asset is 598.67 KiB.",
+  "originalMaster": {
+    "path": "scripts/landing-mascot/uni-horse-master.png",
+    "width": 1254,
+    "height": 1254,
+    "bytes": 1020903,
+    "sha256": "13a079961f0475b3157b22b755b3fd29ba61e1fb4134ffd29d2e6f5259ce26e5"
+  },
+  "exactPrompts": {
+    "initial": "Use case: stylized-concept\nAsset type: one premium horse mascot illustration cutout for a landing page, square canvas, genuinely transparent RGBA background.\nInput images: Image 1 is a character appearance and rendering-quality reference only. Use the horse character as reference; do not reproduce the poster, background, typography, names, or symbols.\nPrimary request: a polished film-quality 3D-style illustration of the friendly white horse mascot seen in the reference. Preserve the horse's appealing smooth anatomy, compact upright body, large expressive blue eyes, soft muzzle and nostrils, confident intelligent smile, long ears, sculpted layered mane, and flowing curled tail. The mane and tail are primarily cobalt, bright cyan, and turquoise, with at most a tiny restrained green accent inspired by the reference. Navy hooves and an entirely plain dark navy fabric vest, without any emblem or decoration.\nPose/composition: full-body front three-quarter view, facing mostly toward the camera. One foreleg is raised in a friendly wave with clear transparent separation from the head and body; the other foreleg rests naturally near the side. Both standing hooves, complete tail, mane tips, raised foreleg, and both ears are fully inside the canvas. Character fills about 84 percent of the image height with about 8 percent clear margin above and below. Natural balanced stance, readable silhouette, smooth sophisticated anatomy.\nStyle/materials: highly refined 3D-rendered character illustration, appealing sculpted proportions, detailed layered mane shapes, subtly subsurface-scattering white coat, refined roughness and delicate cloth texture on the vest, deep blue irises with clean eye highlights, smooth natural transitions between anatomical forms. Match or exceed the rendering sophistication of the reference; no crude primitive shapes, boxy robot, or low-poly toy approximation.\nLighting: soft studio area key light and gentle fill, clean white-coat detail, controlled highlights, no harsh rim glow. Preserve color separation between the white body, cobalt/cyan mane, and navy clothing.\nTransparency: output an actual transparent background with an alpha channel. Isolate only the complete horse character. All surrounding pixels and openings between limbs must be transparent. No floor, ground plane, background scenery, baked background rectangle, checkerboard pattern, cast ground shadow, or platform.\nConstraints: absolutely no text, lettering, name, watermark, logo, horse-head logo, speech bubble, audio symbol, badge, or chest graphic anywhere. The vest must be completely plain navy fabric. Do not reproduce the reference poster or its branding. No extra props or palette colors. This deliverable is a raster illustration, not a 3D model.",
+    "refinement": "Use case: precise-object-edit\nAsset type: final transparent horse mascot cutout.\nInput image: the supplied transparent horse cutout is the edit target.\nPrimary request: final cutout polish only. Preserve this exact horse identity, facial expression, full-body waving pose, blue eyes, white coat, plain navy vest and hooves, sculpted mane and tail, lighting, and high-quality rendered detail.\nRefine the cutout for the brand palette and landing-page framing: replace the broad yellow-lime green mane and tail bands with turquoise and cyan continuous with the surrounding hair; retain only a very thin, restrained cool-green accent on one hair tip, with no yellow. Keep cobalt and cyan dominant. Reframe the complete unchanged character slightly smaller on a square transparent canvas so it occupies about 84 percent of canvas height and leaves roughly 8 percent transparent top and bottom margin. Keep the ears, tail tips, and hooves fully visible.\nClean the alpha silhouette so there are no isolated white or colored speckled pixels outside the character contour. Keep smooth antialiased edges, retain actual transparent alpha everywhere around the character and between limbs, and preserve the character's fine surface detail.\nInvariants: do not change the pose, face, eye shape, anatomy, plain navy vest, lighting, or material quality. No text, names, letters, logo, badge, speech bubble, sound symbol, background, floor, cast ground shadow, checkerboard, or opaque rectangle. Output a genuine transparent RGBA image."
+  },
+  "promptFiles": [
+    "scripts/landing-mascot/initial.prompt.txt",
+    "scripts/landing-mascot/refinement.prompt.txt"
+  ],
+  "visualVerification": [
+    "Full horse, ears, mane tips, tail, and hooves in frame",
+    "Friendly waving pose with separated foreleg silhouette",
+    "Large blue eyes, white coat, sculpted cobalt/cyan hair, restrained green tips",
+    "Entirely plain navy vest and hooves; no words, names, emblems, or branding",
+    "Light and dark alpha composites inspected",
+    "Final shipping WebP decoded in Chromium at 1200x1200; light and dark background screenshot inspected"
+  ],
+  "proofFiles": [
+    ".go-tmp/uni-horse-light-check.png",
+    ".go-tmp/uni-horse-dark-check.png",
+    ".go-tmp/uni-horse-browser-check.png"
+  ],
+  "limitations": "This file is a static raster illustration. It is not a rigged model, GLB, or motion asset."
+}

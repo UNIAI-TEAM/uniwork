@@ -171,6 +171,10 @@ func TestEmailHubEndpointsWhenNotConfigured(t *testing.T) {
 	if res.StatusCode != http.StatusServiceUnavailable || errorCode(out) != "email_hub_not_configured" {
 		t.Fatalf("cancel scheduled not configured: %d %v", res.StatusCode, out)
 	}
+	res, out = doJSON(t, srv, "POST", base+"/scheduled-sends/01SCHD00000000000000000001/retry?account_id=acc-1", token, nil)
+	if res.StatusCode != http.StatusServiceUnavailable || errorCode(out) != "email_hub_not_configured" {
+		t.Fatalf("retry scheduled not configured: %d %v", res.StatusCode, out)
+	}
 }
 
 func TestEmailHubConfiguredHTTP(t *testing.T) {
@@ -228,7 +232,7 @@ func TestEmailHubConfiguredHTTP(t *testing.T) {
 		Folder: emailhub.FolderInbox, ImapUid: 7, Subject: "Hi", Snippet: "hi",
 		FromAddr: "a@b.co", ToAddrs: []string{"seed@gmail.com"},
 		SentAt:     pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
-		ImapLabels: []string{},
+		ImapLabels: []string{}, ConversationKey: "",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -347,6 +351,59 @@ func TestEmailHubConfiguredHTTP(t *testing.T) {
 	res, _ = doJSON(t, srv, "DELETE", base+"/scheduled-sends/"+util.NewID(), token, nil)
 	if res.StatusCode != http.StatusBadRequest {
 		t.Fatalf("cancel scheduled missing account_id: %d", res.StatusCode)
+	}
+
+	// A send the worker gave up on stays listed (failed first) until retried
+	// or dismissed; last_error is never exposed.
+	failedID := util.NewID()
+	if _, err := q.CreateEmailHubScheduledSend(ctx, db.CreateEmailHubScheduledSendParams{
+		ID: failedID, WorkspaceID: wsID, AccountID: accID, OrganizationID: orgID, UserID: userID,
+		Payload: []byte(`{"to":["x@example.com"],"subject":"Broke","body_text":"x"}`),
+		SendAt:  pgtype.Timestamptz{Time: time.Now().UTC().Add(-time.Minute), Valid: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.MarkEmailHubScheduledSendFailed(ctx, db.MarkEmailHubScheduledSendFailedParams{
+		ID: failedID, LastError: pgtype.Text{String: "smtp: boom", Valid: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	res, out = doJSON(t, srv, "GET", base+"/scheduled-sends?account_id="+accID, token, nil)
+	scheduled := jsonArrayAt(t, out, "scheduled")
+	if res.StatusCode != 200 || len(scheduled) != 1 {
+		t.Fatalf("list failed scheduled: %d %v", res.StatusCode, out)
+	}
+	item, _ := scheduled[0].(map[string]any)
+	if item["id"] != failedID || item["status"] != "failed" {
+		t.Fatalf("failed item: %v", item)
+	}
+	if _, leaked := item["last_error"]; leaked {
+		t.Fatalf("last_error must not be exposed: %v", item)
+	}
+	res, _ = doJSON(t, srv, "POST", base+"/scheduled-sends/"+failedID+"/retry", token, nil)
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("retry missing account_id: %d", res.StatusCode)
+	}
+	res, _ = doJSON(t, srv, "POST", base+"/scheduled-sends/"+failedID+"/retry?account_id="+accID, token, nil)
+	if res.StatusCode != http.StatusNoContent {
+		t.Fatalf("retry failed scheduled: %d", res.StatusCode)
+	}
+	res, _ = doJSON(t, srv, "POST", base+"/scheduled-sends/"+failedID+"/retry?account_id="+accID, token, nil)
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("retry pending scheduled: %d", res.StatusCode)
+	}
+	res, _ = doJSON(t, srv, "POST", base+"/scheduled-sends/"+scheduledID+"/retry?account_id="+accID, token, nil)
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("retry cancelled scheduled: %d", res.StatusCode)
+	}
+	if err := q.MarkEmailHubScheduledSendFailed(ctx, db.MarkEmailHubScheduledSendFailedParams{
+		ID: failedID, LastError: pgtype.Text{String: "smtp: boom", Valid: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	res, _ = doJSON(t, srv, "DELETE", base+"/scheduled-sends/"+failedID+"?account_id="+accID, token, nil)
+	if res.StatusCode != http.StatusNoContent {
+		t.Fatalf("dismiss failed scheduled: %d", res.StatusCode)
 	}
 
 	res, out = doJSON(t, srv, "POST", base+"/send", token, map[string]any{
