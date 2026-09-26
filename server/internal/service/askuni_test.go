@@ -63,7 +63,7 @@ func usageCount(t *testing.T, s *AskUNIService, orgID string) int64 {
 func TestAskCitesOnlyPermittedSources(t *testing.T) {
 	s, fake, ua, ub, w := askFixture(t)
 	ctx := context.Background()
-	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	yesterday := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02") // the server compares due dates against today in UTC
 	overdue, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Viết spec F-09", DueDate: &yesterday})
 	if err != nil {
 		t.Fatal(err)
@@ -254,7 +254,7 @@ func TestConversationOwnershipAndUsage(t *testing.T) {
 func TestUsageWindowSurvivesADatabaseClockAhead(t *testing.T) {
 	s, _, ua, _, w := askFixture(t)
 	ctx := context.Background()
-	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	yesterday := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02") // the server compares due dates against today in UTC
 	if _, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Viết spec F-09", DueDate: &yesterday}); err != nil {
 		t.Fatal(err)
 	}
@@ -289,7 +289,7 @@ func TestSearchScoringOverdueAndMembers(t *testing.T) {
 	if _, err := s.q.UpdateUserProfile(ctx, db.UpdateUserProfileParams{ID: ub.ID, DisplayName: strText("Bình")}); err != nil {
 		t.Fatal(err)
 	}
-	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	yesterday := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02") // the server compares due dates against today in UTC
 	if _, err := s.tasks.Create(ctx, Human(ua.ID), w.ID, CreateTaskInput{Title: "Trễ", DueDate: &yesterday, AssigneeID: &ub.ID}); err != nil {
 		t.Fatal(err)
 	}

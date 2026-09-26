@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { LandingPage } from "../features/landing/landing-page";
+import { marketingMetadata } from "../platform/feature-metadata";
 
-export default function Home() {
-  redirect("/login");
-}
+export function generateMetadata() { return marketingMetadata("home", "/"); }
+export default function Page() { return <LandingPage />; }

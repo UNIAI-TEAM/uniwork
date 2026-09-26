@@ -33,7 +33,7 @@ export function LocaleSwitch({ className }: { className?: string }) {
   const { t, i18n } = useTranslation();
   const localeAdapter = useLocaleAdapter();
   const name = useId();
-  const current: SupportedLocale = i18n.language === "en" ? "en" : "vi";
+  const current: SupportedLocale = i18n.language === "vi" ? "vi" : "en";
 
   const choose = (target: SupportedLocale) => {
     if (target === current) return;

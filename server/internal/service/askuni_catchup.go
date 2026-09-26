@@ -71,14 +71,14 @@ func (s *AskUNIService) CatchUp(ctx context.Context, userID, workspaceID string,
 		return CatchUpResult{}, err
 	}
 	empty := CatchUpResult{
-		Summary:     "Không có tin mới kể từ lần đọc trước.",
+		Summary:     "Nothing new since you last read.",
 		Highlights:  []string{},
 		ActionItems: []CatchUpActionItemDTO{},
 		Mode:        mode,
 		Since:       since,
 	}
-	if in.Locale == "en" {
-		empty.Summary = "Nothing new since you last read."
+	if in.Locale == "vi" {
+		empty.Summary = "Không có tin mới kể từ lần đọc trước."
 	}
 	if len(msgs) == 0 {
 		return empty, nil

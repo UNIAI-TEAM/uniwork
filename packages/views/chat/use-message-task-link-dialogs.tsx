@@ -11,11 +11,8 @@ export type MessageTaskLinkActions = {
 };
 
 /** Owns create/link task dialogs for the message panel; keeps the panel under max-lines. */
-export function useMessageTaskLinkDialogs(
-  workspaceId: string,
-  enabled: boolean,
-): {
-  actions: MessageTaskLinkActions | null;
+export function useMessageTaskLinkDialogs(workspaceId: string): {
+  actions: MessageTaskLinkActions;
   dialogs: ReactNode;
 } {
   const [createFor, setCreateFor] = useState<ChatMessage | null>(null);
@@ -29,10 +26,6 @@ export function useMessageTaskLinkDialogs(
   }, []);
   // Stable, so the message rows memoised on their actions do not re-render.
   const actions = useMemo(() => ({ onCreateTask, onLinkTask }), [onCreateTask, onLinkTask]);
-
-  if (!enabled) {
-    return { actions: null, dialogs: null };
-  }
 
   const allowSyncThread = Boolean(createFor && !createFor.threadRootId);
 

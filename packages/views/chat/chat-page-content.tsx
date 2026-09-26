@@ -37,7 +37,6 @@ export function ChatPageContent({
   contacts,
   groups,
   channels,
-  workHubEnabled,
   activeContact,
   activeGroup,
   activeChannel,
@@ -101,6 +100,7 @@ export function ChatPageContent({
   onVideoCall,
   videoCallDisabled,
   workspaceMembers,
+  memberAvatarByUserId,
   workspaceSettingsOpen,
   onWorkspaceSettingsOpenChange,
   messageSearchOpen,
@@ -120,7 +120,7 @@ export function ChatPageContent({
   const [createNoteOpen, setCreateNoteOpen] = useState(false);
   const [createPostOpen, setCreatePostOpen] = useState(false);
   const [recordingsOpen, setRecordingsOpen] = useState(false);
-  const followUpUi = useChatFollowUpUi(workspaceId, workHubEnabled);
+  const followUpUi = useChatFollowUpUi(workspaceId);
   const catchUpUi = useChatCatchUpUi(workspaceId, activeRoomId, activeThreadRootId);
   const {
     sidebarCollapsed,
@@ -248,7 +248,6 @@ export function ChatPageContent({
         onDmSettingsOpenChange={onDmSettingsOpenChange}
         channelSettingsOpen={channelSettingsOpen}
         onChannelSettingsOpenChange={onChannelSettingsOpenChange}
-        workHubEnabled={workHubEnabled}
         dmBlockedByMe={dmBlockedByMe}
         dmBlockedMe={dmBlockedMe}
         onBlockContact={onBlockContact}
@@ -264,6 +263,7 @@ export function ChatPageContent({
         onLeaveDm={onLeaveDm}
         onLeaveChannel={onLeaveChannel}
         workspaceMembers={workspaceMembers}
+        memberAvatarByUserId={memberAvatarByUserId}
         workspaceSettingsOpen={workspaceSettingsOpen}
         onWorkspaceSettingsOpenChange={onWorkspaceSettingsOpenChange}
         activeRoomId={activeRoomId}
@@ -310,7 +310,6 @@ export function ChatPageContent({
               contacts={contacts}
               groups={groups}
               channels={channels}
-              workHubEnabled={workHubEnabled}
               onOpenFollowUps={openFollowUps}
               onJoinedWorkspace={handleJoinedWorkspace}
               onCreateGroup={onCreateGroup}
@@ -327,6 +326,7 @@ export function ChatPageContent({
               loadError={isWorkspaceError}
               onRetry={onRefetchWorkspace}
               workspaceRoomTitle={workspaceRoomTitle}
+              memberAvatarByUserId={memberAvatarByUserId}
               onCollapse={handleToggleSidebar}
               embedded
             />
@@ -380,6 +380,7 @@ export function ChatPageContent({
                     activeChannel={activeChannel}
                     workspaceMembersCount={workspaceMembers.length}
                     nicknamesByUserId={nicknamesByUserId}
+                    memberAvatarByUserId={memberAvatarByUserId}
                     backToListLabel={backToListLabel}
                     sidebarCollapsed={sidebarCollapsed}
                     onBack={handleBackToConversationList}
@@ -433,12 +434,10 @@ export function ChatPageContent({
                   }
                   replyTo={replyTo}
                   onReplyToChange={onReplyToChange}
-                  workHubEnabled={workHubEnabled}
                   threadsEnabled={
-                    workHubEnabled &&
-                    (target.kind === "channel" ||
-                      target.kind === "group" ||
-                      target.kind === "workspace")
+                    target.kind === "channel" ||
+                    target.kind === "group" ||
+                    target.kind === "workspace"
                   }
                   onFollowUp={followUpUi.onFollowUp}
                   onActiveThreadRootIdChange={onActiveThreadRootIdChange}
@@ -475,6 +474,7 @@ export function ChatPageContent({
                       ? mentionCandidates
                       : undefined
                   }
+                  memberAvatarByUserId={memberAvatarByUserId}
                   placeholder={chatComposerPlaceholder(t, {
                     dmBlocked,
                     chatSendMutedByModerator,

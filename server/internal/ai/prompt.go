@@ -57,8 +57,8 @@ func str(vars map[string]any, k string) string {
 }
 
 func language(locale string) string {
-	if len(locale) >= 2 && locale[:2] == "en" {
-		return "English"
+	if len(locale) >= 2 && locale[:2] == "vi" {
+		return "Vietnamese"
 	}
-	return "Vietnamese"
+	return "English"
 }

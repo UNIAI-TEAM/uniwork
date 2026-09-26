@@ -7,10 +7,9 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
 
-// registerChatThreads mounts first-class thread routes behind chat_work_hub.
-func registerChatThreads(r api, h Routes, flagMW, chatWriteLimit func(http.Handler) http.Handler) {
+// registerChatThreads mounts first-class thread routes.
+func registerChatThreads(r api, h Routes, chatWriteLimit func(http.Handler) http.Handler) {
 	r.Group(func(th api) {
-		th.Use(flagMW)
 		th.Get("/workspaces/{workspaceID}/chat/rooms/{roomID}/threads/{messageID}/messages", h.ListChatThreadMessages, apiOp{
 			summary:     "List thread messages",
 			description: "Tin gốc và các câu trả lời trong thread (một cấp).",

@@ -7,15 +7,11 @@ import { updateTask } from "../api/endpoints/tasks";
 import { batchUpdateTasks } from "../api/endpoints/tasks-suite";
 import { useMarkRead } from "../notifications/hooks";
 import { taskKeys } from "../tasks/keys";
+import type { TaskStatus } from "../types/task";
 import type { HomePreference, HomeSummary } from "../types/home";
 import { overdueDays } from "./brief";
+import { homeKeys } from "./keys";
 import { DEFAULT_HOME_PREFS, normalizeHomePrefs, type HomePrefs } from "./prefs";
-
-/** Workspace-scoped: the home screen is one person's view of one workspace. */
-export const homeKeys = {
-  summary: (wsId: string) => ["home", wsId, "summary"] as const,
-  prefs: (wsId: string) => ["home", wsId, "prefs"] as const,
-};
 
 export function useHomeSummary(wsId: string) {
   return useQuery({
@@ -83,6 +79,26 @@ export function useCompleteHomeTasks(wsId: string) {
   });
 }
 
+/**
+ * The undo of a completion: each task goes back to the status it had. Not
+ * optimistic — the completed rows are still on screen, dimmed, until the
+ * refetch settles them either way.
+ */
+export function useReopenHomeTasks(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (previous: { id: string; status: TaskStatus }[]) => {
+      await Promise.all(previous.map(({ id, status }) => updateTask(id, { status })));
+    },
+    onSettled: (_data, _error, previous) =>
+      invalidateAfterComplete(
+        qc,
+        wsId,
+        previous.map((p) => p.id),
+      ),
+  });
+}
+
 /** The person's layout, saved optimistically; a failed save restores the last one. */
 export function useHomePrefs(wsId: string) {
   const qc = useQueryClient();
@@ -117,24 +133,29 @@ export function useHomePrefs(wsId: string) {
   return { prefs, loading: query.isLoading, saving: mutation.isPending, failed: mutation.isError, update, reset };
 }
 
+/** The cached summary without the given notification, its unread count taken off when it was unread. */
+function dropNotification(summary: HomeSummary | null | undefined, id: string): HomeSummary | null | undefined {
+  const row = summary?.inbox.find((n) => n.id === id);
+  if (!summary || !row) return summary;
+  return {
+    ...summary,
+    inbox: summary.inbox.filter((n) => n.id !== id),
+    counts: { ...summary.counts, unread: row.read_at ? summary.counts.unread : atLeastZero(summary.counts.unread - 1) },
+  };
+}
+
 /**
  * Opening an inbox row from home marks it read and takes it off the cached
  * summary at once, so coming back to home never shows it as waiting. The
- * inbox caches are patched by the notification hook itself.
+ * inbox caches are patched by the notification hook itself, and its settle
+ * refetches the summary.
  */
 export function useReadHomeNotification(wsId: string) {
   const qc = useQueryClient();
   const { mutate } = useMarkRead();
   return useCallback(
     (id: string) => {
-      qc.setQueryData<HomeSummary | null>(homeKeys.summary(wsId), (summary) => {
-        if (!summary || !summary.inbox.some((n) => n.id === id)) return summary;
-        return {
-          ...summary,
-          inbox: summary.inbox.filter((n) => n.id !== id),
-          counts: { ...summary.counts, unread: atLeastZero(summary.counts.unread - 1) },
-        };
-      });
+      qc.setQueryData<HomeSummary | null>(homeKeys.summary(wsId), (summary) => dropNotification(summary, id));
       mutate([id]);
     },
     [mutate, qc, wsId],

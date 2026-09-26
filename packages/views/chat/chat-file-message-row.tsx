@@ -19,6 +19,7 @@ function ChatFileMessageRowImpl({
   roomId,
   message,
   senderLabel,
+  senderAvatarUrl,
   isOwn,
   showSenderName,
   compactTop,
@@ -35,12 +36,12 @@ function ChatFileMessageRowImpl({
   onCreateTask,
   onLinkTask,
   onFollowUp,
-  workHubEnabled = false,
 }: {
   workspaceId: string;
   roomId: string;
   message: ChatMessage;
   senderLabel: string;
+  senderAvatarUrl?: string;
   isOwn: boolean;
   showSenderName: boolean;
   compactTop: boolean;
@@ -57,7 +58,6 @@ function ChatFileMessageRowImpl({
   onCreateTask?: (message: ChatMessage) => void;
   onLinkTask?: (message: ChatMessage) => void;
   onFollowUp?: (message: ChatMessage) => void;
-  workHubEnabled?: boolean;
 }) {
   const reveal = useMessageActionsReveal();
   const edgeToEdge = chatFileIsEdgeToEdge(message.file);
@@ -77,7 +77,13 @@ function ChatFileMessageRowImpl({
       <div className={cn("flex max-w-[min(85%,26rem)] gap-2", isOwn && "flex-row-reverse")}>
         {isOwn ? null : showAvatar ? (
           <span className="shrink-0" aria-hidden>
-            <ActorAvatar name={senderLabel} initials={initialOf(senderLabel)} size="lg" className="shrink-0" />
+            <ActorAvatar
+              name={senderLabel}
+              initials={initialOf(senderLabel)}
+              avatarUrl={senderAvatarUrl}
+              size="lg"
+              className="shrink-0"
+            />
           </span>
         ) : (
           <span className="w-8 shrink-0" aria-hidden />
@@ -121,13 +127,11 @@ function ChatFileMessageRowImpl({
           </div>
           <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} />
           <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} />
-          {workHubEnabled ? (
-            <MessageTaskCard
-              workspaceId={workspaceId}
-              messageId={message.id}
-              className={cn(isOwn && "items-end self-end")}
-            />
-          ) : null}
+          <MessageTaskCard
+            workspaceId={workspaceId}
+            messageId={message.id}
+            className={cn(isOwn && "items-end self-end")}
+          />
           {/* After the content in reading order; positioned over the bubble. */}
           <ChatMessageHoverActions
             message={message}
@@ -138,9 +142,9 @@ function ChatFileMessageRowImpl({
             onPin={onPin}
             onCopy={onCopy}
             onDelete={onDelete}
-            onCreateTask={workHubEnabled ? onCreateTask : undefined}
-            onLinkTask={workHubEnabled ? onLinkTask : undefined}
-            onFollowUp={workHubEnabled ? onFollowUp : undefined}
+            onCreateTask={onCreateTask}
+            onLinkTask={onLinkTask}
+            onFollowUp={onFollowUp}
             canEdit={false}
             forceOpen={reveal.open}
           />

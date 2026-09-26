@@ -2,9 +2,18 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { installMediaStubs } from "./media-stub";
-import { afterEach, vi } from "vitest";
+import { afterEach, beforeAll, vi } from "vitest";
 
 initI18n();
+
+// The product default is English, but the views suite asserts on Vietnamese
+// copy: every file starts in vi, and afterEach puts it back.
+beforeAll(async () => {
+  await setLocale("vi");
+  if (typeof document !== "undefined") {
+    document.documentElement.lang = "vi";
+  }
+});
 
 afterEach(async () => {
   cleanup();

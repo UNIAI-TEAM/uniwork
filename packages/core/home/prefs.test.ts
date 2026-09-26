@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_HOME_PREFS, HOME_PRESETS, moveSection, normalizeHomePrefs, visibleSections } from "./prefs";
+import { DEFAULT_HOME_PREFS, HOME_PRESETS, activePreset, moveSection, normalizeHomePrefs, visibleSections } from "./prefs";
 
 describe("normalizeHomePrefs", () => {
   it("gives the default layout for nothing, an empty object or a non-object", () => {
@@ -10,13 +10,13 @@ describe("normalizeHomePrefs", () => {
 
   it("keeps known values and drops unknown keys, duplicates and wrong types", () => {
     const got = normalizeHomePrefs({
-      enabled: { brief: false, stats: "no", ghost: true },
-      order: ["inbox", "ghost", "inbox", 3, "mywork"],
+      enabled: { inbox: false, stats: "no", brief: false, ghost: true },
+      order: ["inbox", "ghost", "brief", "inbox", 3, "mywork"],
       layout: "huge",
       extra: 1,
     });
-    expect(got.enabled).toEqual({ ...DEFAULT_HOME_PREFS.enabled, brief: false });
-    expect(got.order).toEqual(["inbox", "mywork", "stats", "upcoming", "brief"]);
+    expect(got.enabled).toEqual({ ...DEFAULT_HOME_PREFS.enabled, inbox: false });
+    expect(got.order).toEqual(["inbox", "mywork", "stats", "upcoming"]);
     expect(got.layout).toBe("balanced");
   });
 
@@ -29,13 +29,13 @@ describe("moveSection", () => {
   const order = [...DEFAULT_HOME_PREFS.order];
 
   it("swaps with the neighbour in the given direction", () => {
-    expect(moveSection(order, "upcoming", -1)).toEqual(["stats", "upcoming", "mywork", "inbox", "brief"]);
-    expect(moveSection(order, "upcoming", 1)).toEqual(["stats", "mywork", "inbox", "upcoming", "brief"]);
+    expect(moveSection(order, "upcoming", -1)).toEqual(["stats", "upcoming", "mywork", "inbox"]);
+    expect(moveSection(order, "upcoming", 1)).toEqual(["stats", "mywork", "inbox", "upcoming"]);
   });
 
   it("leaves the order alone at either end", () => {
     expect(moveSection(order, "stats", -1)).toBe(order);
-    expect(moveSection(order, "brief", 1)).toBe(order);
+    expect(moveSection(order, "inbox", 1)).toBe(order);
   });
 });
 
@@ -44,7 +44,15 @@ describe("visibleSections", () => {
     const minimal = HOME_PRESETS.find((p) => p.key === "minimal")!.prefs;
     expect(visibleSections(minimal)).toEqual(["mywork"]);
     expect(visibleSections({ ...DEFAULT_HOME_PREFS, enabled: { ...DEFAULT_HOME_PREFS.enabled, stats: false } })).toEqual([
-      "mywork", "upcoming", "inbox", "brief",
+      "mywork", "upcoming", "inbox",
     ]);
+  });
+});
+
+describe("activePreset", () => {
+  it("names the preset the layout matches, and nothing once it is changed", () => {
+    const doer = HOME_PRESETS.find((p) => p.key === "doer")!.prefs;
+    expect(activePreset(doer)).toBe("doer");
+    expect(activePreset({ ...doer, layout: "wide" })).toBeUndefined();
   });
 });

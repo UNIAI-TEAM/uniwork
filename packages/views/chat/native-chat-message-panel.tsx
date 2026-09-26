@@ -58,7 +58,6 @@ export function NativeChatMessagePanel({
   onClearAnchor,
   canPinMessages = true,
   canSendMessages = false,
-  workHubEnabled = false,
   /** Thread API is channel/group/workspace only — never DM (work-hub decision 8). */
   threadsEnabled = false,
   peerLastReadAt = null,
@@ -83,7 +82,6 @@ export function NativeChatMessagePanel({
   canPinMessages?: boolean;
   /** May write in this room (send, unlink a task): mirrors the server's send gate. */
   canSendMessages?: boolean;
-  workHubEnabled?: boolean;
   threadsEnabled?: boolean;
   peerLastReadAt?: string | null;
   onFollowUp?: (message: ChatMessage) => void;
@@ -128,7 +126,7 @@ export function NativeChatMessagePanel({
       state.listForWorkspace(workspaceId, currentUserId).filter((entry) => entry.roomId === roomId),
     ),
   );
-  const { actions: taskLinkActions, dialogs: taskLinkDialogs } = useMessageTaskLinkDialogs(workspaceId, workHubEnabled);
+  const { actions: taskLinkActions, dialogs: taskLinkDialogs } = useMessageTaskLinkDialogs(workspaceId);
 
   const allMessages = useMemo(
     () =>
@@ -139,7 +137,7 @@ export function NativeChatMessagePanel({
         pendingEntries,
         outboxEntries,
         currentUserId,
-        workHubEnabled: threadsEnabled,
+        threadsEnabled,
       }),
     [anchorMessages, currentUserId, latestRows, olderMessages, outboxEntries, pendingEntries, threadsEnabled],
   );
@@ -152,7 +150,7 @@ export function NativeChatMessagePanel({
       threadRows: threadQuery.data,
       pendingEntries,
       currentUserId,
-      workHubEnabled: threadsEnabled,
+      threadsEnabled,
     });
   }, [allMessages, currentUserId, pendingEntries, threadQuery.data, threadRoot, threadsEnabled]);
 
@@ -334,13 +332,10 @@ export function NativeChatMessagePanel({
 
   // Links for every loaded message in one request, not one per task card.
   const linkMessageIds = useMemo(
-    () =>
-      workHubEnabled
-        ? messages.filter((m) => !m.deliveryStatus && !isPendingChatMessageId(m.id)).map((m) => m.id)
-        : [],
-    [messages, workHubEnabled],
+    () => messages.filter((m) => !m.deliveryStatus && !isPendingChatMessageId(m.id)).map((m) => m.id),
+    [messages],
   );
-  const { data: linksByMessageId } = useChatRoomMessageLinks(workspaceId, roomId, linkMessageIds, workHubEnabled);
+  const { data: linksByMessageId } = useChatRoomMessageLinks(workspaceId, roomId, linkMessageIds);
   const linksValue = useMemo(
     () => ({ linksByMessageId: linksByMessageId ?? EMPTY_LINKS, canUnlink: canSendMessages }),
     [canSendMessages, linksByMessageId],
@@ -359,10 +354,9 @@ export function NativeChatMessagePanel({
       nameContext,
       showSenderName,
       canPinMessages,
-      workHubEnabled,
       actions,
     }),
-    [actions, canPinMessages, currentUserId, nameContext, roomId, showSenderName, workHubEnabled, workspaceId, youLabel],
+    [actions, canPinMessages, currentUserId, nameContext, roomId, showSenderName, workspaceId, youLabel],
   );
 
   const renderMessage = useCallback(

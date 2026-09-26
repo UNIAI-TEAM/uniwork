@@ -13,12 +13,14 @@ import { cn } from "@uniwork/ui/lib/utils";
 export function ChatPresenceAvatar({
   name,
   initials,
+  avatarUrl,
   size = "sm",
   online = false,
   className,
 }: {
   name: string;
   initials: string;
+  avatarUrl?: string | null;
   size?: AvatarSize;
   online?: boolean;
   className?: string;
@@ -26,7 +28,7 @@ export function ChatPresenceAvatar({
   const { t } = useTranslation();
   return (
     <span className={cn("relative inline-flex shrink-0", className)}>
-      <ActorAvatar name={name} initials={initials} size={size} />
+      <ActorAvatar name={name} initials={initials} avatarUrl={avatarUrl} size={size} />
       {online ? (
         <>
           <span
