@@ -157,6 +157,7 @@ type AuditExport struct {
 	CompletedAt     pgtype.Timestamptz `json:"completed_at"`
 	FailedAt        pgtype.Timestamptz `json:"failed_at"`
 	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
+	FileID          pgtype.Text        `json:"file_id"`
 }
 
 type AuditRetentionPolicy struct {

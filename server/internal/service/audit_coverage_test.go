@@ -29,6 +29,7 @@ var actionsWithoutCommands = map[string]string{
 	audit.ActionOrganizationUpdated:  "no organization rename command exists yet",
 	audit.ActionMemberRemoved:        "deactivation replaced removal by an admin; leaving writes member.left",
 	audit.ActionAuditExportRequested: "covered by the audit service's own tests",
+	audit.ActionAuditExported:        "covered by the audit export consumer's own tests",
 	audit.ActionAuditRetentionSet:    "covered by the audit service's own tests",
 }
 
@@ -875,6 +876,7 @@ func auditActions() []string {
 		audit.ActionChatFollowUpCompleted,
 		audit.ActionChatFollowUpDeleted,
 		audit.ActionAuditExportRequested,
+		audit.ActionAuditExported,
 		audit.ActionAuditRetentionSet,
 		audit.ActionSubscriptionChanged,
 	}
