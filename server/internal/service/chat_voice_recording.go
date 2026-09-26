@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -220,7 +221,16 @@ func (s *ChatService) FinishVoiceRecordingByEgress(ctx context.Context, ev Provi
 	if err != nil {
 		return
 	}
-	if f := s.voiceRecordingFiles(); f != nil && strings.TrimSpace(rec.FileID.String) != "" {
+	if strings.TrimSpace(rec.FileID.String) != "" {
+		// The row was reserved through FileService. If the seam is unwired at
+		// webhook time, leave it non-terminal and loud rather than writing a
+		// legacy locator onto an FS row the claim would never see.
+		f := s.voiceRecordingFiles()
+		if f == nil {
+			slog.Error("voice recording finish dropped: FileService unwired for FS-backed row",
+				"recording_id", rec.ID, "egress_id", ev.RecordingID)
+			return
+		}
 		s.finishVoiceRecordingFileClaim(ctx, f, ev, rec)
 		return
 	}

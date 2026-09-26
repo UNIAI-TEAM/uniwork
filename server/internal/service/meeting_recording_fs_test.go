@@ -231,8 +231,10 @@ func TestMeetingRecordingFileServiceStorageDownRetries(t *testing.T) {
 		t.Fatalf("during outage: %+v err=%v", recs, err)
 	}
 	fake.SetStorageDown(false)
+	// LiveKit webhook retries reuse the same provider event id — the dedup
+	// guard must let recording_ended re-enter the idempotent finish path.
 	if err := s.HandleProviderEvent(ctx, ProviderNeutralEvent{
-		Type: "conference.recording_ended", ProviderEventID: "ev-down-retry",
+		Type: "conference.recording_ended", ProviderEventID: "ev-down",
 		RecordingID: rec.EgressID, RecordingURL: "https://bucket/down.mp4",
 	}); err != nil {
 		t.Fatal(err)
@@ -243,6 +245,56 @@ func TestMeetingRecordingFileServiceStorageDownRetries(t *testing.T) {
 	}
 	if url, err := s.ResolveMeetingRecordingPlaybackURL(ctx, ua.ID, "", m.ID, rec.ID); err != nil || url.URL == "" {
 		t.Fatalf("resolve after retry: %+v err=%v", url, err)
+	}
+}
+
+func TestMeetingRecordingFSRowUnwiredFinishIsNonTerminal(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	ctx := context.Background()
+	fake := filesfake.New(filesfake.Options{})
+	s.SetFiles(fake)
+	fp := s.provider.(*meetings.FakeProvider)
+	fp.RecordingEnabled = true
+
+	m, err := s.CreateInstant(ctx, ua.ID, w.ID, "Unwired finish")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec, err := s.StartRecording(ctx, ua.ID, m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := fake.WriteProviderOutput(providerOutput(rec.FileID.String), fakeMP4(), "video/mp4"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.StopRecording(ctx, ua.ID, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	// An FS-backed row must never take the legacy finish path, even when the
+	// seam is unwired at webhook time: the row stays non-terminal, loud, with
+	// no file_url.
+	s.SetFiles(nil)
+	if err := s.HandleProviderEvent(ctx, ProviderNeutralEvent{
+		Type: "conference.recording_ended", ProviderEventID: "ev-unwired",
+		RecordingID: rec.EgressID, RecordingURL: "https://bucket/unwired.mp4",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	recs, err := s.Recordings(ctx, ua.ID, "", m.ID)
+	if err != nil || len(recs) != 1 || recs[0].Status != RecordingProcessing || recs[0].FileUrl.Valid {
+		t.Fatalf("unwired finish must stay non-terminal: %+v err=%v", recs, err)
+	}
+	// Re-wiring lets the same event redelivery land it.
+	s.SetFiles(fake)
+	if err := s.HandleProviderEvent(ctx, ProviderNeutralEvent{
+		Type: "conference.recording_ended", ProviderEventID: "ev-unwired",
+		RecordingID: rec.EgressID, RecordingURL: "https://bucket/unwired.mp4",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	recs, err = s.Recordings(ctx, ua.ID, "", m.ID)
+	if err != nil || recs[0].Status != RecordingComplete {
+		t.Fatalf("re-wired retry should complete: %+v err=%v", recs, err)
 	}
 }
 

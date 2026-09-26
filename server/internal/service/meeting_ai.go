@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -517,7 +518,15 @@ func (s *MeetingService) finishRecordingFromProvider(ctx context.Context, ev Pro
 		}
 		return
 	}
-	if s.files != nil && strings.TrimSpace(rec.FileID.String) != "" {
+	if strings.TrimSpace(rec.FileID.String) != "" {
+		// The row was reserved through FileService. If the seam is unwired at
+		// webhook time, leave it non-terminal and loud rather than writing a
+		// legacy locator onto an FS row the claim would never see.
+		if s.files == nil {
+			slog.Error("recording finish dropped: FileService unwired for FS-backed row",
+				"recording_id", rec.ID, "egress_id", ev.RecordingID)
+			return
+		}
 		s.finishRecordingFileClaim(ctx, ev, rec)
 		return
 	}
@@ -729,8 +738,6 @@ func (s *MeetingService) OpenMeetingRecording(ctx context.Context, userID, guest
 // MeetingRecordingProvider is the FS-C1 section 6 reference provider for
 // meeting_recordings.file_id: a live recording row holds its file.
 type MeetingRecordingProvider struct{}
-
-func NewMeetingRecordingProvider() MeetingRecordingProvider { return MeetingRecordingProvider{} }
 
 func (MeetingRecordingProvider) Name() string { return "meetings.recordings" }
 

@@ -28,7 +28,6 @@ type FakeProvider struct {
 	// LastRecording captures the last StartRecordingRequest so tests can
 	// assert the provider was given the FileService write target.
 	LastRecording StartRecordingRequest
-	RecordErr     error
 }
 
 func (f *FakeProvider) Key() string { return "fake" }
@@ -88,9 +87,6 @@ func (f *FakeProvider) EndSession(_ context.Context, req EndProviderSessionReque
 func (f *FakeProvider) StartRecording(_ context.Context, req StartRecordingRequest) (RecordingRef, error) {
 	f.RecordCalls++
 	f.LastRecording = req
-	if f.RecordErr != nil {
-		return RecordingRef{}, f.RecordErr
-	}
 	return RecordingRef{RecordingID: "fake-egress-" + req.RoomName}, nil
 }
 
