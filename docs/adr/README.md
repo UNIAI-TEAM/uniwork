@@ -33,6 +33,7 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0019](0019-do-thi-cong-viec-la-projection.md) | Đồ thị công việc là projection qua outbox; cấm suy diễn quan hệ |
 | [0020](0020-truy-van-bang-cong-viec-dung-sql-dong-trong-tablequery.md) | View Bảng dựng SQL động trong `pkg/db/tablequery` (whitelist, tham số hóa, luôn lọc tenant); sqlc vẫn là mặc định |
 | [0021](0021-runtime-engine-office-da-dinh-dang.md) | Runtime đa định dạng cho UniWork Office: editor ở trang host qua adapter tiêm, service nội bộ cho phần chạy ngoài trang, engine native riêng; thay thế 0018 |
+| [0023](0023-file-theo-tenant-va-ngoai-le-avatar-ca-nhan.md) | FileService giữ `organization_id` cho file theo tenant; NULL chỉ là nhánh avatar cá nhân (purpose `user_avatar` + `user_id`), không phải public hay tenant mờ |
 
 ## Bản nháp
 
