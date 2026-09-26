@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -93,6 +94,7 @@ var cases = []contractCase{
 	{"resolve/foreign_tenant_is_not_found", caseResolveForeign},
 	{"resolve/mode_must_match_the_policy", caseResolveModeMismatch},
 	{"provider/output_intent_is_idempotent_per_operation", caseProviderIntentIdempotent},
+	{"provider/write_target_carries_the_object_key_suffix", caseProviderKeySuffix},
 	{"provider/completed_output_becomes_a_ready_file", caseProviderComplete},
 	{"provider/complete_replays_and_checks_the_operation", caseProviderCompleteReplay},
 	{"provider/invalid_output_is_refused", caseProviderInvalidOutput},
@@ -1016,6 +1018,32 @@ func caseProviderIntentIdempotent(t *testing.T, h Harness) {
 		Deadline: h.Now().Add(time.Hour),
 	})
 	requireError(t, err, files.CodeIdempotencyConflict, http.StatusConflict)
+}
+
+// caseProviderKeySuffix pins Policy.ObjectKeySuffix on the write target: an
+// external writer such as LiveKit egress appends ".mp4" to a key without an
+// extension, so the object a provider is told to write must already end with
+// the purpose's suffix, or CompleteProviderOutput would look for an object
+// that was never written.
+func caseProviderKeySuffix(t *testing.T, h Harness) {
+	checked := 0
+	for _, spec := range h.Registry.Specs() {
+		if spec.Disabled || spec.Policy.ObjectKeySuffix == "" {
+			continue
+		}
+		checked++
+		out := registerOK(t, h, spec, scopeFor(spec), "op-suffix-"+string(spec.Purpose))
+		target, err := url.Parse(out.WriteTarget.URL)
+		if err != nil {
+			t.Fatalf("%s: write target is not a URL: %v", spec.Purpose, err)
+		}
+		if !strings.HasSuffix(target.Path, spec.Policy.ObjectKeySuffix) {
+			t.Errorf("%s: write target path does not end with %q", spec.Purpose, spec.Policy.ObjectKeySuffix)
+		}
+	}
+	if checked == 0 {
+		t.Skip("no open purpose declares an object key suffix")
+	}
 }
 
 func caseProviderComplete(t *testing.T, h Harness) {

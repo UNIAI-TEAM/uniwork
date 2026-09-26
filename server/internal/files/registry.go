@@ -52,6 +52,15 @@ type Policy struct {
 	// WebM is audio/webm) keeps that name here, as data, instead of teaching
 	// the detector about purposes. Every value must be in MIMEAllowlist.
 	CanonicalTypes map[string]string
+	// ObjectKeySuffix is appended to every object key minted for this
+	// purpose, e.g. ".mp4". It exists for external writers that name the
+	// object themselves when the key lacks an extension: LiveKit egress
+	// appends one to a filepath without it and writes with its own
+	// credentials, so a recording key without ".mp4" would make
+	// CompleteProviderOutput look for an object that was never written. Empty
+	// means no suffix; the verified type still comes from the bytes, never
+	// from this suffix.
+	ObjectKeySuffix string
 }
 
 // Canonical returns the type a verified content type is stored as under this
@@ -185,6 +194,10 @@ var (
 	// cannot tell an audio-only WebM from a video one, so every WebM is
 	// video/webm.
 	recordingMIMETypes = []string{"video/webm", "audio/ogg", "video/ogg", "audio/mp4", "video/mp4"}
+	// recordingKeySuffix ends every recording key: LiveKit egress writes the
+	// object itself and appends ".mp4" to a filepath that has no extension,
+	// so the key FileService records must already carry it.
+	recordingKeySuffix = ".mp4"
 	// voiceMIMETypes is the browser voice-note set (4 MiB, T1 caps above),
 	// after voiceCanonicalTypes.
 	voiceMIMETypes = []string{"audio/webm", "audio/ogg", "audio/mp4"}
@@ -251,13 +264,13 @@ func DefaultSpecs() []PurposeSpec {
 			Purpose: ChatCallRecording,
 			Prefix:  "chat/recordings",
 			Scope:   ScopeOrgWorkspaceOptional,
-			Policy:  Policy{MaxBytes: 2 << 30, MIMEAllowlist: recordingMIMETypes, ReadMode: ReadPresign},
+			Policy:  Policy{MaxBytes: 2 << 30, MIMEAllowlist: recordingMIMETypes, ReadMode: ReadPresign, ObjectKeySuffix: recordingKeySuffix},
 		},
 		{
 			Purpose: MeetingRecording,
 			Prefix:  "meetings/recordings",
 			Scope:   ScopeOrgWorkspace,
-			Policy:  Policy{MaxBytes: 8 << 30, MIMEAllowlist: recordingMIMETypes, ReadMode: ReadPresign},
+			Policy:  Policy{MaxBytes: 8 << 30, MIMEAllowlist: recordingMIMETypes, ReadMode: ReadPresign, ObjectKeySuffix: recordingKeySuffix},
 		},
 		{
 			Purpose: AuditExport,
@@ -335,6 +348,9 @@ func NewRegistry(specs ...PurposeSpec) (Registry, error) {
 				return Registry{}, fmt.Errorf("files: purpose %q maps %q to %q, which its allowlist refuses", string(spec.Purpose), from, to)
 			}
 		}
+		if suffix := spec.Policy.ObjectKeySuffix; suffix != "" && !validKeySuffix(suffix) {
+			return Registry{}, fmt.Errorf("files: purpose %q has invalid object key suffix %q", string(spec.Purpose), suffix)
+		}
 		switch spec.Policy.ReadMode {
 		case ReadPresign, ReadProxy:
 		default:
@@ -389,4 +405,18 @@ func (r Registry) Specs() []PurposeSpec {
 func (r Registry) Enabled(purpose UploadPurpose) bool {
 	spec, ok := r.specs[purpose]
 	return ok && !spec.Disabled
+}
+
+// validKeySuffix accepts a dot and one to eight lowercase letters or digits:
+// enough for an extension, never a path segment, a second dot or a traversal.
+func validKeySuffix(suffix string) bool {
+	if len(suffix) < 2 || len(suffix) > 9 || suffix[0] != '.' {
+		return false
+	}
+	for _, r := range suffix[1:] {
+		if (r < 'a' || r > 'z') && (r < '0' || r > '9') {
+			return false
+		}
+	}
+	return true
 }

@@ -352,7 +352,7 @@ func (f *Fake) RegisterProviderOutput(_ context.Context, in files.ProviderOutput
 		if e.spec.Purpose != in.Purpose || !scopeEqual(e.scope, in.Scope) {
 			return files.ProviderOutput{}, files.IdempotencyConflict(in.OperationID)
 		}
-		return files.ProviderOutput{FileID: id, WriteTarget: f.writeTarget(id, in.Deadline)}, nil
+		return files.ProviderOutput{FileID: id, WriteTarget: f.writeTarget(id, spec, in.Deadline)}, nil
 	}
 	if f.storageDown {
 		return files.ProviderOutput{}, files.StorageUnavailable(errStorageDown)
@@ -369,15 +369,16 @@ func (f *Fake) RegisterProviderOutput(_ context.Context, in files.ProviderOutput
 		operationID: in.OperationID,
 	}
 	f.operations[in.OperationID] = id
-	return files.ProviderOutput{FileID: id, WriteTarget: f.writeTarget(id, in.Deadline)}, nil
+	return files.ProviderOutput{FileID: id, WriteTarget: f.writeTarget(id, spec, in.Deadline)}, nil
 }
 
 // writeTarget is scoped to exactly one object and one deadline. The fake's
 // target names the file so a test hook can write through it; the real service
-// signs a PUT URL for the same object and deadline.
-func (f *Fake) writeTarget(id files.FileID, deadline time.Time) files.WriteTarget {
+// signs a PUT URL for the same object and deadline. Its path ends with the
+// purpose's ObjectKeySuffix, as the real object key does.
+func (f *Fake) writeTarget(id files.FileID, spec files.PurposeSpec, deadline time.Time) files.WriteTarget {
 	return files.WriteTarget{
-		URL:       "fake://provider-put/" + string(id),
+		URL:       "fake://provider-put/" + string(id) + spec.Policy.ObjectKeySuffix,
 		Method:    http.MethodPut,
 		Headers:   map[string]string{},
 		ExpiresAt: deadline,
