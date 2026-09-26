@@ -69,6 +69,9 @@ var cases = []contractCase{
 	{"upload/checksum_follows_the_policy", caseUploadChecksum},
 	{"upload/over_cap_is_refused", caseUploadTooLarge},
 	{"upload/disallowed_type_is_refused", caseUploadTypeRejected},
+	{"upload/every_allowlisted_type_is_verified_from_the_bytes", caseUploadVerifiedTypes},
+	{"upload/filename_never_moves_bytes_to_another_family", caseUploadMisnamed},
+	{"upload/purpose_canonical_types_are_stored_and_served", caseUploadCanonicalTypes},
 	{"upload/idempotency_replay_returns_the_same_result", caseUploadIdempotentReplay},
 	{"upload/idempotency_conflict_on_a_different_command", caseUploadIdempotencyConflict},
 	{"upload/replay_after_cancel_does_not_resurrect", caseUploadReplayAfterCancel},
@@ -290,6 +293,134 @@ func caseUploadTooLarge(t *testing.T, h Harness) {
 	if up.File.ID != "" {
 		t.Errorf("a replayed refusal returned a result: %+v", up)
 	}
+}
+
+// caseUploadVerifiedTypes uploads every sample to every open purpose. A type
+// the policy allows (after its CanonicalTypes) is stored as that type; any
+// other is refused. And
+// every allowlist entry of every open purpose must be reached by a sample: a
+// registry that lists a type needs a sample that verifies as it, or the entry
+// is dead and must go.
+func caseUploadVerifiedTypes(t *testing.T, h Harness) {
+	uploadSamples(t, h, "verified", Samples(), true)
+}
+
+// caseUploadMisnamed uploads bodies whose filename claims another type: the
+// verified type stays the bytes' own, so a purpose accepts them only when it
+// allows that type (FS-C1 v1 errata).
+func caseUploadMisnamed(t *testing.T, h Harness) {
+	uploadSamples(t, h, "misnamed", MisnamedSamples(), false)
+}
+
+func uploadSamples(t *testing.T, h Harness, keyPrefix string, samples []Sample, requireEveryEntry bool) {
+	t.Helper()
+	ctx := context.Background()
+	reached := map[string]bool{}
+	for _, spec := range h.Registry.Specs() {
+		if spec.Disabled {
+			continue
+		}
+		for _, sample := range samples {
+			if int64(len(sample.Body)) > spec.Policy.MaxBytes {
+				continue
+			}
+			up, err := h.Service.Upload(ctx, files.UploadInput{
+				Actor: actorA(), Purpose: spec.Purpose, Scope: scopeFor(spec),
+				IdempotencyKey: keyPrefix + "-" + string(spec.Purpose) + "-" + sample.Name,
+				Filename:       sample.Filename, Body: bytes.NewReader(sample.Body),
+			})
+			want := spec.Policy.Canonical(sample.ContentType)
+			if !spec.Policy.Allows(want) {
+				if err == nil {
+					t.Errorf("%s/%s: accepted as %q, want file_type_rejected for %q", spec.Purpose, sample.Name, up.File.ContentType, want)
+					continue
+				}
+				var fe *files.Error
+				if !errors.As(err, &fe) || fe.Code != files.CodeTypeRejected {
+					t.Errorf("%s/%s: error = %v, want %s", spec.Purpose, sample.Name, err, files.CodeTypeRejected)
+				}
+				continue
+			}
+			if err != nil {
+				t.Errorf("%s/%s: upload failed: %v", spec.Purpose, sample.Name, err)
+				continue
+			}
+			if up.File.ContentType != want {
+				t.Errorf("%s/%s: content type = %q, want %q", spec.Purpose, sample.Name, up.File.ContentType, want)
+			}
+			reached[string(spec.Purpose)+" "+want] = true
+			reached[string(spec.Purpose)+" from "+sample.ContentType] = true
+		}
+	}
+	if !requireEveryEntry {
+		return
+	}
+	for _, spec := range h.Registry.Specs() {
+		if spec.Disabled {
+			continue
+		}
+		for _, ct := range spec.Policy.MIMEAllowlist {
+			if !reached[string(spec.Purpose)+" "+ct] {
+				t.Errorf("purpose %s allows %q but no upload reached it", spec.Purpose, ct)
+			}
+		}
+		for from := range spec.Policy.CanonicalTypes {
+			if !reached[string(spec.Purpose)+" from "+from] {
+				t.Errorf("purpose %s maps %q but no upload verified as it", spec.Purpose, from)
+			}
+		}
+	}
+}
+
+// caseUploadCanonicalTypes pins each purpose-level mapping on its own: a body
+// the detector names as the mapping's key is stored, returned and resolved
+// as its value, never as the container type (a voice note's WebM stays
+// audio/webm, as production serves it today).
+func caseUploadCanonicalTypes(t *testing.T, h Harness) {
+	ctx := context.Background()
+	mapped := 0
+	for _, spec := range h.Registry.Specs() {
+		if spec.Disabled {
+			continue
+		}
+		for from, to := range spec.Policy.CanonicalTypes {
+			sample, ok := sampleVerifiedAs(from)
+			if !ok {
+				t.Errorf("purpose %s maps %q, which no contract sample verifies as", spec.Purpose, from)
+				continue
+			}
+			if int64(len(sample.Body)) > spec.Policy.MaxBytes {
+				continue
+			}
+			mapped++
+			scope := scopeFor(spec)
+			up := uploadOK(t, h, spec, scope, "canonical-"+string(spec.Purpose)+"-"+sample.Name, sample.Filename, sample.Body)
+			if up.File.ContentType != to {
+				t.Errorf("%s: %q uploaded as %q, want %q", spec.Purpose, from, up.File.ContentType, to)
+			}
+			resolved, err := h.Service.ResolveMany(ctx, files.ResolveInput{
+				Scope: scope, Mode: spec.Policy.ReadMode, Disposition: files.DispositionInline, FileIDs: []files.FileID{up.File.ID},
+			})
+			if err != nil || len(resolved) != 1 || resolved[0].Err != nil {
+				t.Fatalf("%s: resolve = %v, %v", spec.Purpose, resolved, err)
+			}
+			if resolved[0].File.ContentType != to {
+				t.Errorf("%s: %q resolved as %q, want %q", spec.Purpose, from, resolved[0].File.ContentType, to)
+			}
+		}
+	}
+	if mapped == 0 {
+		t.Skip("no open purpose declares a canonical type")
+	}
+}
+
+func sampleVerifiedAs(contentType string) (Sample, bool) {
+	for _, s := range Samples() {
+		if s.ContentType == contentType {
+			return s, true
+		}
+	}
+	return Sample{}, false
 }
 
 func caseUploadTypeRejected(t *testing.T, h Harness) {

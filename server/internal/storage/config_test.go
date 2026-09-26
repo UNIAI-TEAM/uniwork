@@ -17,7 +17,7 @@ type stubFactory struct {
 
 func (f stubFactory) Backend() Backend { return f.backend }
 
-func (f stubFactory) New(context.Context, Config) (Storage, error) {
+func (f stubFactory) New(context.Context, Config) (ObjectStore, error) {
 	return nil, errors.New("stubFactory.New is not implemented")
 }
 
@@ -431,6 +431,25 @@ func TestLoadConfigGroupsAreIndependent(t *testing.T) {
 		_, err := LoadConfig(registryFor(t, BackendMinIO), envLookup(env))
 		if !errors.Is(err, ErrAdapterNotImplemented) {
 			t.Fatalf("error = %v, want storage_adapter_not_implemented", err)
+		}
+	})
+
+	t.Run("every group missing a factory is named at once", func(t *testing.T) {
+		env := validMinIOEnv()
+		env["S3_BUCKET"] = "uniwork-media"
+		env["LOCAL_UPLOAD_DIR"] = "./data/uploads"
+
+		// An empty registry misses the factory for the selected backend and
+		// for both declared groups: the operator must learn all three from
+		// one error (reviewer note R1 of t2-prep).
+		_, err := LoadConfig(NewRegistry(), envLookup(env))
+		if !errors.Is(err, ErrAdapterNotImplemented) {
+			t.Fatalf("error = %v, want storage_adapter_not_implemented", err)
+		}
+		for _, code := range []string{"local", "s3", "minio"} {
+			if !strings.Contains(err.Error(), code) {
+				t.Fatalf("error %q must name the missing %q factory", err, code)
+			}
 		}
 	})
 
