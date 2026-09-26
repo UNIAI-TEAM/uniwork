@@ -22,6 +22,7 @@ import {
   type CreateTaskSettings,
 } from "@uniwork/core/tasks/stores/create-task-draft-store";
 import { TASK_PRIORITIES, TASK_STATUSES } from "@uniwork/core/types";
+import { editorAttachmentPurpose } from "@uniwork/core/constants/upload";
 import { contentReferencesAttachment } from "@uniwork/core/types/attachment-url";
 import { createSafeId } from "@uniwork/core/utils";
 import { useOptionalWorkspace } from "../layout/workspace-context";
@@ -360,7 +361,10 @@ export function useCreateTaskManualState({
     uploadCountRef.current += 1;
     setUploadCount(uploadCountRef.current);
     try {
-      const attachment = await uploadAttachment.mutateAsync(file);
+      const attachment = await uploadAttachment.mutateAsync({
+        file,
+        purpose: editorAttachmentPurpose(file),
+      });
       const attachments = draftRef.current.attachments ?? [];
       if (!attachments.some((item) => item.id === attachment.id)) {
         updateDraft({ attachments: [...attachments, attachment] });

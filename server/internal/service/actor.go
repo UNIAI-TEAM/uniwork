@@ -6,6 +6,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -35,9 +36,17 @@ type ActorInfo struct {
 }
 
 // ActorService resolves ids to display data in one batch per kind.
-type ActorService struct{ q *db.Queries }
+// files is optional: with FileService wired, user avatars stored as file ids
+// resolve to presigned URLs here (UNI-744).
+type ActorService struct {
+	q     *db.Queries
+	files files.Service
+}
 
 func NewActorService(q *db.Queries) *ActorService { return &ActorService{q: q} }
+
+// SetFiles selects the FileService path for avatar URL emission.
+func (s *ActorService) SetFiles(f files.Service) { s.files = f }
 
 // Resolve looks up every ref; unknown ids are simply absent from the result.
 func (s *ActorService) Resolve(ctx context.Context, refs []ActorRef) (map[ActorRef]ActorInfo, error) {
@@ -56,8 +65,22 @@ func (s *ActorService) Resolve(ctx context.Context, refs []ActorRef) (map[ActorR
 		if err != nil {
 			return nil, err
 		}
+		var byUser map[string]files.FileID
+		if s.files != nil {
+			byUser = map[string]files.FileID{}
+			for _, u := range rows {
+				if u.AvatarFileID.Valid && u.AvatarFileID.String != "" {
+					byUser[u.ID] = files.FileID(u.AvatarFileID.String)
+				}
+			}
+		}
+		urls := resolveAvatarURLs(ctx, s.files, byUser)
 		for _, u := range rows {
-			out[ActorRef{Kind: audit.KindHuman, ID: u.ID}] = ActorInfo{ID: u.ID, Kind: audit.KindHuman, DisplayName: u.DisplayName, AvatarURL: textOrEmpty(u.AvatarUrl)}
+			avatar := textOrEmpty(u.AvatarUrl)
+			if avatar == "" && u.AvatarFileID.Valid {
+				avatar = urls[files.FileID(u.AvatarFileID.String)]
+			}
+			out[ActorRef{Kind: audit.KindHuman, ID: u.ID}] = ActorInfo{ID: u.ID, Kind: audit.KindHuman, DisplayName: u.DisplayName, AvatarURL: avatar}
 		}
 	}
 	if len(agentIDs) > 0 {

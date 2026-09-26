@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -127,22 +128,35 @@ func (s *TaskService) ListTaskAttachments(ctx context.Context, actor Actor, task
 }
 
 // UploadTaskAttachment stores the object then inserts the attachments row.
-func (s *TaskService) UploadTaskAttachment(ctx context.Context, actor Actor, taskID, filename, contentType string, size int64, r io.Reader) (db.Attachment, error) {
-	if err := s.requireStorage(); err != nil {
+// purpose is one of the task-side registry purposes; "" means task_attachment.
+func (s *TaskService) UploadTaskAttachment(ctx context.Context, actor Actor, taskID, purpose, filename, contentType string, size int64, r io.Reader) (db.Attachment, error) {
+	p, err := normalizeAttachmentPurpose(purpose)
+	if err != nil {
 		return db.Attachment{}, err
+	}
+	if s.files == nil {
+		if err := s.requireStorage(); err != nil {
+			return db.Attachment{}, err
+		}
 	}
 	task, err := s.authorizeActor(ctx, actor, taskID)
 	if err != nil {
 		return db.Attachment{}, err
 	}
-	return s.uploadAttachment(ctx, actor, task.OrganizationID, task.WorkspaceID, &taskID, filename, contentType, size, r)
+	return s.uploadAttachment(ctx, actor, task.OrganizationID, task.WorkspaceID, &taskID, p, filename, contentType, size, r)
 }
 
 // UploadWorkspaceAttachment stages a file before its task exists. CreateTaskSuite
 // claims the returned id atomically; unclaimed rows expire after 24 hours.
-func (s *TaskService) UploadWorkspaceAttachment(ctx context.Context, actor Actor, workspaceID, filename, contentType string, size int64, r io.Reader) (db.Attachment, error) {
-	if err := s.requireStorage(); err != nil {
+func (s *TaskService) UploadWorkspaceAttachment(ctx context.Context, actor Actor, workspaceID, purpose, filename, contentType string, size int64, r io.Reader) (db.Attachment, error) {
+	p, err := normalizeAttachmentPurpose(purpose)
+	if err != nil {
 		return db.Attachment{}, err
+	}
+	if s.files == nil {
+		if err := s.requireStorage(); err != nil {
+			return db.Attachment{}, err
+		}
 	}
 	if err := s.ws.requireActorMember(ctx, workspaceID, actor); err != nil {
 		return db.Attachment{}, err
@@ -151,10 +165,15 @@ func (s *TaskService) UploadWorkspaceAttachment(ctx context.Context, actor Actor
 	if err != nil {
 		return db.Attachment{}, err
 	}
-	return s.uploadAttachment(ctx, actor, ws.OrganizationID, workspaceID, nil, filename, contentType, size, r)
+	return s.uploadAttachment(ctx, actor, ws.OrganizationID, workspaceID, nil, p, filename, contentType, size, r)
 }
 
-func (s *TaskService) uploadAttachment(ctx context.Context, actor Actor, organizationID, workspaceID string, taskID *string, filename, contentType string, size int64, r io.Reader) (db.Attachment, error) {
+// uploadAttachment dispatches on the module's selected storage path. A wired
+// files.Service owns the whole write; nil stays on the legacy object store.
+func (s *TaskService) uploadAttachment(ctx context.Context, actor Actor, organizationID, workspaceID string, taskID *string, purpose files.UploadPurpose, filename, contentType string, size int64, r io.Reader) (db.Attachment, error) {
+	if s.files != nil {
+		return s.uploadAttachmentFS(ctx, actor, organizationID, workspaceID, taskID, purpose, filename, r)
+	}
 	if size < 0 || size > MaxAttachmentBytes {
 		return db.Attachment{}, coded(http.StatusRequestEntityTooLarge, "attachment_too_large", "tệp vượt quá giới hạn 25 MiB")
 	}
@@ -204,13 +223,14 @@ func (s *TaskService) uploadAttachment(ctx context.Context, actor Actor, organiz
 		CommentID:      pgtype.Text{},
 		UploaderType:   uploaderType,
 		UploaderID:     actor.ID,
-		ObjectKey:      key,
+		ObjectKey:      pgtype.Text{String: key, Valid: true},
 		ObjectUrl:      pgtype.Text{String: objectURL, Valid: objectURL != ""},
 		Filename:       safeName,
 		ContentType:    ct,
 		Metadata:       []byte("{}"),
 		SizeBytes:      actualSize,
 		ExpiresAt:      pgtype.Timestamptz{Time: time.Now().Add(24 * time.Hour), Valid: taskID == nil},
+		Purpose:        pgtype.Text{String: string(purpose), Valid: true},
 	})
 	if err != nil {
 		_ = s.storage.DeleteObject(ctx, key)
@@ -248,23 +268,42 @@ func (s *TaskService) GetAttachment(ctx context.Context, actor Actor, attachment
 	return s.loadAttachment(ctx, actor, attachmentID)
 }
 
-// OpenAttachmentContent streams the stored object for preview/download.
+// OpenAttachmentContent streams the stored object for preview/download. The
+// row's file_id picks the path: FileService rows stream through files.Open,
+// legacy rows through storage.
 func (s *TaskService) OpenAttachmentContent(ctx context.Context, actor Actor, attachmentID string) (db.Attachment, io.ReadCloser, error) {
-	if err := s.requireStorage(); err != nil {
-		return db.Attachment{}, nil, err
-	}
 	att, err := s.loadAttachment(ctx, actor, attachmentID)
 	if err != nil {
 		return db.Attachment{}, nil, err
 	}
-	r, err := s.storage.GetReader(ctx, att.ObjectKey)
+	if att.FileID.Valid {
+		if s.files == nil {
+			// A file-backed row is not servable while the module is unwired —
+			// its bytes were never on the legacy store.
+			return db.Attachment{}, nil, ErrNotFound
+		}
+		r, err := s.files.Open(ctx, files.OpenInput{
+			Scope:  taskFileScope(att.OrganizationID, att.WorkspaceID),
+			FileID: files.FileID(att.FileID.String),
+		})
+		if err != nil {
+			return db.Attachment{}, nil, filesError(err)
+		}
+		return att, r.Body, nil
+	}
+	if err := s.requireStorage(); err != nil {
+		return db.Attachment{}, nil, err
+	}
+	r, err := s.storage.GetReader(ctx, att.ObjectKey.String)
 	if err != nil {
 		return db.Attachment{}, nil, err
 	}
 	return att, r, nil
 }
 
-// DeleteAttachment removes the DB row (audited) then best-effort deletes the object.
+// DeleteAttachment removes the DB row (audited) then schedules the bytes: a
+// file-backed row releases through ReleaseInTx inside the transaction, a
+// legacy row keeps the best-effort storage delete.
 func (s *TaskService) DeleteAttachment(ctx context.Context, actor Actor, attachmentID string) error {
 	att, err := s.loadAttachment(ctx, actor, attachmentID)
 	if err != nil {
@@ -273,6 +312,13 @@ func (s *TaskService) DeleteAttachment(ctx context.Context, actor Actor, attachm
 	taskID := ""
 	if att.TaskID.Valid {
 		taskID = att.TaskID.String
+	}
+	metadata := map[string]any{"task_id": taskID}
+	if att.ObjectKey.Valid {
+		metadata["object_key"] = att.ObjectKey.String
+	}
+	if att.FileID.Valid {
+		metadata["file_id"] = att.FileID.String
 	}
 
 	tx, err := s.pool.Begin(ctx)
@@ -286,11 +332,26 @@ func (s *TaskService) DeleteAttachment(ctx context.Context, actor Actor, attachm
 	}); err != nil {
 		return err
 	}
+	if att.FileID.Valid {
+		if s.files == nil {
+			// A file-backed row cannot be removed correctly while the module
+			// is unwired: the unlink has to reach FileService.
+			return coded(http.StatusServiceUnavailable, "attachment_storage_missing", "đính kèm chưa khả dụng")
+		}
+		bound := att.TaskID.Valid || att.CommentID.Valid
+		if bound {
+			// The row held a claimed file; dropping the row drops the hold.
+			// The provider re-check happens in the collector, not here.
+			if err := releaseFilesInTx(ctx, s.files, q, []files.FileID{files.FileID(att.FileID.String)}); err != nil {
+				return err
+			}
+		}
+	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: att.OrganizationID, WorkspaceID: att.WorkspaceID,
 		Actor: actor, Action: audit.ActionAttachmentDeleted,
 		ResourceType: "attachment", ResourceID: attachmentID,
-		Metadata: map[string]any{"task_id": taskID, "object_key": att.ObjectKey},
+		Metadata: metadata,
 	}, audit.Event{Topic: "attachment.deleted", Payload: map[string]string{
 		"attachment_id": attachmentID, "task_id": taskID, "workspace_id": att.WorkspaceID,
 	}}); err != nil {
@@ -299,8 +360,17 @@ func (s *TaskService) DeleteAttachment(ctx context.Context, actor Actor, attachm
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
-	if s.storage != nil {
-		_ = s.storage.DeleteObject(ctx, att.ObjectKey)
+	switch {
+	case att.FileID.Valid && !att.TaskID.Valid && !att.CommentID.Valid:
+		// A staged file was never claimed, so there is nothing to release —
+		// cancelling closes its session instead of leaving it to expire.
+		_ = s.files.CancelUpload(ctx, files.CancelInput{
+			Actor:  actor,
+			Scope:  taskFileScope(att.OrganizationID, att.WorkspaceID),
+			FileID: files.FileID(att.FileID.String),
+		})
+	case !att.FileID.Valid && s.storage != nil:
+		_ = s.storage.DeleteObject(ctx, att.ObjectKey.String)
 	}
 	return nil
 }

@@ -258,6 +258,21 @@ func (s *TaskService) DeleteComment(ctx context.Context, actor Actor, commentID 
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	if s.files != nil {
+		// Rows bound to the comment lose their hold with it. Nothing writes
+		// comment_id today — comment uploads bind to the task — but a row
+		// that does carry one releases its file here, in this transaction.
+		fileIDs, err := q.ListAttachmentFileIDsByComment(ctx, db.ListAttachmentFileIDsByCommentParams{
+			OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
+			CommentID: pgtype.Text{String: commentID, Valid: true},
+		})
+		if err != nil {
+			return err
+		}
+		if err := releaseFilesInTx(ctx, s.files, q, attachmentFileIDs(fileIDs)); err != nil {
+			return err
+		}
+	}
 	if err := q.DeleteTaskComment(ctx, db.DeleteTaskCommentParams{
 		ID: commentID, OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
 	}); err != nil {

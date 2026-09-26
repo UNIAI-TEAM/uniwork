@@ -8,6 +8,7 @@ import { useMembers } from "@uniwork/core/workspaces";
 import { useWorkspaceAgents } from "@uniwork/core/agents";
 import { useResourceHistory } from "@uniwork/core/audit";
 import type { AuditEvent } from "@uniwork/core/types";
+import { TASK_COMMENT_ATTACHMENT_PURPOSE } from "@uniwork/core/constants/upload";
 import {
   useAddCommentReaction,
   useComments,
@@ -122,7 +123,10 @@ export function TaskDetailTimeline({
   // scroll effect below.
   const expandedResolvedIds = useResolvedExpandedThreads(taskId);
   const uploadCommentFile = useCallback(async (file: File) => {
-    const attachment = await uploadTaskAttachment(file);
+    const attachment = await uploadTaskAttachment({
+      file,
+      purpose: TASK_COMMENT_ATTACHMENT_PURPOSE,
+    });
     if (!attachment) throw new Error("upload failed");
     return attachment;
   }, [uploadTaskAttachment]);

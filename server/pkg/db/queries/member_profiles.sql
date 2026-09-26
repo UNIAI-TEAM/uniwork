@@ -33,7 +33,7 @@ WHERE organization_id = $1 AND user_id = $2;
 
 -- name: GetPerson :one
 SELECT m.user_id, m.role, m.deactivated_at, m.created_at,
-       u.email, u.display_name, u.avatar_url, u.timezone,
+       u.email, u.display_name, u.avatar_url, u.avatar_file_id, u.timezone,
        p.title, p.department_id, p.manager_id, p.employee_code, p.phone, p.phone_visible,
        p.location, p.bio, p.joined_on,
        d.name AS department_name
@@ -54,7 +54,7 @@ WHERE m.organization_id = $1 AND m.user_id = $2;
 -- never disagree. ListPeopleForExport and ListDirectReports repeat the ORDER BY,
 -- and ListPeopleForExport and CountPeople repeat the WHERE; keep them in step.
 SELECT m.user_id, m.role, m.deactivated_at, m.created_at,
-       u.email, u.display_name, u.avatar_url, u.timezone,
+       u.email, u.display_name, u.avatar_url, u.avatar_file_id, u.timezone,
        p.title, p.department_id, p.manager_id, p.employee_code, p.phone, p.phone_visible,
        p.location, p.bio, p.joined_on,
        d.name AS department_name
@@ -102,7 +102,7 @@ WHERE m.organization_id = sqlc.arg(organization_id)
   AND (sqlc.narg(role)::text IS NULL OR m.role = sqlc.narg(role)::text);
 
 -- name: ListDirectReports :many
-SELECT m.user_id, u.display_name, u.avatar_url
+SELECT m.user_id, u.display_name, u.avatar_url, u.avatar_file_id
 FROM organization_member_profiles p
 JOIN organization_members m ON m.organization_id = p.organization_id AND m.user_id = p.user_id
 JOIN users u ON u.id = p.user_id

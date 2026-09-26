@@ -2,12 +2,15 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -61,10 +64,27 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.q.WithTx(tx)
+	var avatarFileID string
+	if s.files != nil {
+		// Read the file-backed avatar before AnonymizeUser clears the column;
+		// its release belongs to this same transaction.
+		prev, err := qtx.GetUserAvatarFileIDForUpdate(ctx, userID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+		if prev.Valid {
+			avatarFileID = prev.String
+		}
+	}
 	if _, err := qtx.AnonymizeUser(ctx, db.AnonymizeUserParams{
 		ID: userID, Email: "deleted-" + strings.ToLower(userID) + "@deleted.uniwork.invalid", DisplayName: deletedDisplayName,
 	}); err != nil {
 		return err
+	}
+	if avatarFileID != "" {
+		if err := releaseFilesInTx(ctx, s.files, qtx, []files.FileID{files.FileID(avatarFileID)}); err != nil {
+			return err
+		}
 	}
 	if err := qtx.DeactivateAllOrganizationMembershipsForUser(ctx, pgtype.Text{String: userID, Valid: true}); err != nil {
 		return err

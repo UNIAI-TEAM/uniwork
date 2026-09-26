@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/storage"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -34,6 +35,9 @@ type TaskService struct {
 	q       *db.Queries
 	ws      *WorkspaceService
 	storage storage.Storage
+	// files selects the FileService path for attachments (UNI-744); nil keeps
+	// the legacy storage path. Wired through SetFiles — never both at once.
+	files files.Service
 	// ent is the quota gate (F-02); built here so create can never skip it.
 	ent *EntitlementService
 	// Chat is optional; when set, CreateProject can provision a linked channel.
@@ -442,6 +446,11 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 		if len(bound) != len(attachmentIDs) {
 			return db.Task{}, coded(http.StatusUnprocessableEntity, "attachment_not_available", "đính kèm không tồn tại, đã hết hạn hoặc đã được sử dụng")
 		}
+		// File-backed rows must be claimed inside this same transaction: a
+		// refusal here rolls the task back with them.
+		if err := s.claimBoundAttachmentsInTx(ctx, q, actor, ws, workspaceID, attachmentIDs); err != nil {
+			return db.Task{}, err
+		}
 	}
 	autoSubscribed, err := autoSubscribeTaskAssignee(ctx, q, task)
 	if err != nil {
@@ -765,6 +774,20 @@ func (s *TaskService) Delete(ctx context.Context, userID, taskID string) error {
 
 // deleteTaskInTx removes the task and writes audit/outbox using q (caller owns the tx).
 func (s *TaskService) deleteTaskInTx(ctx context.Context, q *db.Queries, userID string, task db.Task, ws db.Workspace) error {
+	if s.files != nil {
+		// File-backed attachments bound to the task lose their hold here —
+		// the release records it in the same transaction that drops the task.
+		fileIDs, err := q.ListAttachmentFileIDsByTask(ctx, db.ListAttachmentFileIDsByTaskParams{
+			OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
+			TaskID: pgtype.Text{String: task.ID, Valid: true},
+		})
+		if err != nil {
+			return err
+		}
+		if err := releaseFilesInTx(ctx, s.files, q, attachmentFileIDs(fileIDs)); err != nil {
+			return err
+		}
+	}
 	if err := q.DeleteTask(ctx, db.DeleteTaskParams{
 		ID: task.ID, OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
 	}); err != nil {
@@ -795,9 +818,32 @@ func (s *TaskService) Comments(ctx context.Context, userID, taskID string) ([]db
 	if err != nil {
 		return nil, err
 	}
-	return s.q.ListTaskComments(ctx, db.ListTaskCommentsParams{
+	rows, err := s.q.ListTaskComments(ctx, db.ListTaskCommentsParams{
 		TaskID: taskID, OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
 	})
+	if err != nil {
+		return nil, err
+	}
+	// File-backed author avatars resolve to presigned URLs here; stored
+	// avatar_url values pass through untouched.
+	if s.files != nil {
+		byUser := map[string]files.FileID{}
+		for _, r := range rows {
+			if r.AvatarFileID.Valid && r.AvatarFileID.String != "" {
+				byUser[r.AuthorID] = files.FileID(r.AvatarFileID.String)
+			}
+		}
+		urls := resolveAvatarURLs(ctx, s.files, byUser)
+		for i := range rows {
+			if rows[i].AvatarUrl.Valid || !rows[i].AvatarFileID.Valid {
+				continue
+			}
+			if url := urls[files.FileID(rows[i].AvatarFileID.String)]; url != "" {
+				rows[i].AvatarUrl = pgtype.Text{String: url, Valid: true}
+			}
+		}
+	}
+	return rows, nil
 }
 
 // CommentReactionsForTask returns every reaction on every comment of the task

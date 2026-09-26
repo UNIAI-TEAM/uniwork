@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -50,11 +51,17 @@ type OrganizationMemberService struct {
 	// them after main has built the mail stack.
 	render mail.Renderer
 	out    mail.Enqueuer
+	// files is optional: with FileService wired, member avatars stored as
+	// file ids resolve to presigned URLs (UNI-744).
+	files files.Service
 }
 
 func NewOrganizationMemberService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationService) *OrganizationMemberService {
 	return &OrganizationMemberService{pool: pool, q: q, orgs: orgs, ent: NewEntitlementService(pool, q)}
 }
+
+// SetFiles selects the FileService path for avatar URL emission.
+func (s *OrganizationMemberService) SetFiles(f files.Service) { s.files = f }
 
 // MemberPage is one keyset page of the organization's membership.
 type MemberPage struct {
@@ -103,6 +110,11 @@ func (s *OrganizationMemberService) Members(ctx context.Context, actorID, orgID,
 		last := page.Members[len(page.Members)-1]
 		page.NextCursor = encodeMemberCursor(last.DisplayName, last.UserID)
 	}
+	decorateMemberAvatars(ctx, s.files, page.Members, func(r db.ListOrganizationMembersRow) avatarRow {
+		return avatarRow{UserID: r.UserID, AvatarURL: r.AvatarUrl, FileID: r.AvatarFileID}
+	}, func(r *db.ListOrganizationMembersRow, url string) {
+		r.AvatarUrl = pgtype.Text{String: url, Valid: true}
+	})
 	return page, nil
 }
 

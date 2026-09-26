@@ -48,7 +48,7 @@ ORDER BY w.created_at;
 -- The directory's admin view: membership plus the identity columns, keyset
 -- paged on (display_name, user_id) so a rename cannot skip or repeat a row.
 SELECT m.organization_id, m.user_id, m.role, m.created_at, m.deactivated_at, m.deactivated_by, m.invited_by,
-       u.email, u.display_name, u.avatar_url
+       u.email, u.display_name, u.avatar_url, u.avatar_file_id
 FROM organization_members m JOIN users u ON u.id = m.user_id
 WHERE m.organization_id = $1
   AND (
