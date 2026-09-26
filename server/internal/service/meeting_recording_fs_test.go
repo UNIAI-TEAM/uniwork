@@ -23,7 +23,10 @@ import (
 // fakeMP4 is the smallest byte string the sniffer reports as video/mp4: an
 // ftyp box signature at offset 4.
 func fakeMP4() []byte {
-	body := []byte{0x00, 0x00, 0x00, 0x18, 'f', 't', 'y', 'p', 'm', 'p', '4', '2'}
+	// A minimal well-formed ftyp box: boxLen 16, major brand mp42, no
+	// compatible brands. DetectContentType validates every brand is
+	// printable, so padding must stay outside the declared box length.
+	body := []byte{0x00, 0x00, 0x00, 0x10, 'f', 't', 'y', 'p', 'm', 'p', '4', '2', 0x00, 0x00, 0x00, 0x00}
 	return append(body, make([]byte, 128)...)
 }
 
