@@ -116,6 +116,7 @@
     "./modals": "./modals/store.ts",
     "./search": "./search/index.ts",
     "./attachments/*": "./attachments/*.ts",
+    "./files": "./files/index.ts",
     "./hooks/*": "./hooks/*.ts",
     "./editor/config-store": "./editor/config-store.ts"
   },
