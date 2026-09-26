@@ -272,6 +272,18 @@ var tenantBackfillDebt = []string{
 	"meeting_transcript_segments", "meeting_summaries", "meeting_recordings",
 }
 
+// Tables whose organization_id column must exist but may accept NULL on
+// exactly one documented branch - never "public" and never "unknown tenant".
+// Each entry states the branch; a schema test pins the binding. Adding a name
+// here requires an ADR justifying the NULL branch (today: ADR 0023).
+var nullableTenantTables = map[string]string{
+	"files":                "NULL only for the account-avatar identity scope; every other file is tenant-scoped (ADR 0023)",
+	"file_upload_sessions": "NULL only on the user_avatar branch, which the scope CHECK binds to a NULL workspace and a non-NULL user_id (ADR 0023)",
+	"file_jobs":            "denormalized tenant of its target file; NULL only for avatar files (ADR 0023)",
+}
+
+var nullableTenantColumnPattern = regexp.MustCompile(`\borganization_id\s+TEXT\b`)
+
 func TestNewTablesCarryOrganizationID(t *testing.T) {
 	for _, name := range newMigrationUpFiles(t) {
 		if migrationPrefix(t, name) <= maxPreTenantMigrationPrefix {
@@ -281,10 +293,72 @@ func TestNewTablesCarryOrganizationID(t *testing.T) {
 			if _, exempt := tenantExemptTables[table]; exempt {
 				continue
 			}
+			if reason, nullable := nullableTenantTables[table]; nullable {
+				if !nullableTenantColumnPattern.MatchString(body) || tenantColumnPattern.MatchString(body) {
+					t.Errorf("%s creates %s: organization_id must be declared `TEXT` (nullable) - %s", name, table, reason)
+				}
+				continue
+			}
 			if !tenantColumnPattern.MatchString(body) {
 				t.Errorf("%s creates %s without `organization_id TEXT NOT NULL` (ADR 0008); a business table is tenant-scoped from its first migration, or is listed in tenantExemptTables with a reason", name, table)
 			}
 		}
+	}
+}
+
+func TestNullTenantIsOnlyTheAvatarBranch(t *testing.T) {
+	// ADR 0023: files.organization_id is nullable on exactly one branch - the
+	// account-avatar identity scope (purpose user_avatar carrying user_id).
+	// Pin both halves: the set of new tables that accept NULL is exactly
+	// nullableTenantTables, and the session scope CHECK binds the NULL tenant
+	// to user_avatar (so no other purpose can carry it).
+	type created struct {
+		file string
+		body string
+	}
+	tables := map[string]created{}
+	for _, name := range newMigrationUpFiles(t) {
+		if migrationPrefix(t, name) <= maxPreTenantMigrationPrefix {
+			continue
+		}
+		for table, body := range createdTables(stripSQLComments(readMigration(t, name))) {
+			tables[table] = created{file: name, body: body}
+		}
+	}
+	var got []string
+	for table, c := range tables {
+		if _, exempt := tenantExemptTables[table]; exempt {
+			continue
+		}
+		if nullableTenantColumnPattern.MatchString(c.body) && !tenantColumnPattern.MatchString(c.body) {
+			got = append(got, table)
+		}
+	}
+	sort.Strings(got)
+	var want []string
+	for table := range nullableTenantTables {
+		want = append(want, table)
+	}
+	sort.Strings(want)
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("tables accepting NULL organization_id = %v, want %v; a NULL tenant is only the user_avatar branch (ADR 0023)", got, want)
+	}
+
+	nonEmptyCheck := regexp.MustCompile(`organization_id\s+IS\s+NULL\s+OR`)
+	for table := range nullableTenantTables {
+		c, ok := tables[table]
+		if !ok {
+			t.Fatalf("%s is in nullableTenantTables but no migration creates it", table)
+		}
+		if !nonEmptyCheck.MatchString(c.body) {
+			t.Errorf("%s (%s): a NULL organization_id is allowed but the empty string must not be - add an `organization_id IS NULL OR organization_id <> ''` CHECK", table, c.file)
+		}
+	}
+
+	avatarBranch := regexp.MustCompile(`(?s)purpose\s*=\s*'user_avatar'[^;]*organization_id\s+IS\s+NULL[^;]*user_id\s+IS\s+NOT\s+NULL`)
+	sess := tables["file_upload_sessions"]
+	if !avatarBranch.MatchString(sess.body) {
+		t.Errorf("%s: file_upload_sessions must bind `organization_id IS NULL` to `purpose = 'user_avatar'` with `user_id IS NOT NULL` in the scope CHECK (ADR 0023)", sess.file)
 	}
 }
 

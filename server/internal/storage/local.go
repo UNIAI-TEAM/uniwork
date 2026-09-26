@@ -202,30 +202,45 @@ func (s *LocalStorage) UploadStream(ctx context.Context, key string, data io.Rea
 // temp file and the existing object survives untouched. Both upload paths go
 // through here so neither can reintroduce the destructive shape.
 func writeAtomic(dest string, src io.Reader) error {
+	_, err := writeAtomicSized(dest, src, -1)
+	return err
+}
+
+// writeAtomicSized is writeAtomic plus a declared-length check: the stream
+// must produce exactly declared bytes (declared < 0 skips the check) and the
+// comparison happens BEFORE the rename, so a stream that ends short discards
+// only its own temp file - the object already committed at dest survives a
+// lying writer. Returns the stored byte count.
+func writeAtomicSized(dest string, src io.Reader, declared int64) (int64, error) {
 	if err := os.MkdirAll(filepath.Dir(dest), 0755); err != nil {
-		return fmt.Errorf("local storage MkdirAll: %w", err)
+		return 0, fmt.Errorf("local storage MkdirAll: %w", err)
 	}
 	tmp := tempPath(dest)
 	// 0644 at open, matching the mode the direct write used (os.CreateTemp
 	// would make it 0600 and need a chmod that some mounts refuse).
 	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
-		return fmt.Errorf("local storage create temp: %w", err)
+		return 0, fmt.Errorf("local storage create temp: %w", err)
 	}
-	if _, err := io.Copy(f, src); err != nil {
+	n, err := io.Copy(f, src)
+	if err != nil {
 		_ = f.Close()
 		_ = os.Remove(tmp)
-		return fmt.Errorf("local storage stream copy: %w", err)
+		return n, fmt.Errorf("local storage stream copy: %w", err)
 	}
 	if err := f.Close(); err != nil {
 		_ = os.Remove(tmp)
-		return fmt.Errorf("local storage Close: %w", err)
+		return n, fmt.Errorf("local storage Close: %w", err)
+	}
+	if declared >= 0 && n != declared {
+		_ = os.Remove(tmp)
+		return n, fmt.Errorf("%w: declared %d bytes, stored %d", ErrSizeMismatch, declared, n)
 	}
 	if err := os.Rename(tmp, dest); err != nil {
 		_ = os.Remove(tmp)
-		return fmt.Errorf("local storage Rename: %w", err)
+		return n, fmt.Errorf("local storage Rename: %w", err)
 	}
-	return nil
+	return n, nil
 }
 
 // tempPath is the staging file writeAtomic renames into place. It is derived

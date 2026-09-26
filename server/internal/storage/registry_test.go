@@ -62,6 +62,39 @@ func TestRegistryRejectsTypedNilFactory(t *testing.T) {
 	}
 }
 
+// isTypedNil must catch every nilable kind, not only pointers: a Factory
+// implemented as a nil map, slice, channel or func value would survive
+// `f == nil` and panic inside New (reviewer note R3 of t2-prep).
+func TestRegistryRejectsTypedNilOfEveryNilableKind(t *testing.T) {
+	var nilMap map[string]int
+	var nilSlice []int
+	var nilFunc func()
+	var nilChan chan int
+	var nilAny any = nilChan
+	for name, value := range map[string]any{
+		"map":     nilMap,
+		"slice":   nilSlice,
+		"func":    nilFunc,
+		"channel": nilChan,
+		// an interface holding a nil channel unwraps to the nilable kind
+		"iface": nilAny,
+	} {
+		if !isTypedNil(value) {
+			t.Fatalf("isTypedNil(%s) = false, want true", name)
+		}
+	}
+	for name, value := range map[string]any{
+		"int":         0,
+		"string":      "",
+		"struct":      struct{}{},
+		"non-nil ptr": &stubFactory{},
+	} {
+		if isTypedNil(value) {
+			t.Fatalf("isTypedNil(%s) = true, want false", name)
+		}
+	}
+}
+
 func TestRegistryRejectsDuplicateFactory(t *testing.T) {
 	registry := NewRegistry()
 	first := stubFactory{backend: BackendS3}
@@ -112,7 +145,7 @@ func TestRegistryNilReceivers(t *testing.T) {
 func TestRegistryFactoriesBuildFromConfig(t *testing.T) {
 	var built Backend
 	registry := NewRegistry()
-	if err := registry.Register(factoryFunc(func(_ context.Context, cfg Config) (Storage, error) {
+	if err := registry.Register(factoryFunc(func(_ context.Context, cfg Config) (ObjectStore, error) {
 		built = cfg.Backend
 		return nil, nil
 	})); err != nil {
@@ -133,10 +166,10 @@ func TestRegistryFactoriesBuildFromConfig(t *testing.T) {
 
 // factoryFunc adapts a plain function to Factory so a test can observe the
 // call.
-type factoryFunc func(context.Context, Config) (Storage, error)
+type factoryFunc func(context.Context, Config) (ObjectStore, error)
 
 func (f factoryFunc) Backend() Backend { return BackendMinIO }
 
-func (f factoryFunc) New(ctx context.Context, cfg Config) (Storage, error) {
+func (f factoryFunc) New(ctx context.Context, cfg Config) (ObjectStore, error) {
 	return f(ctx, cfg)
 }
