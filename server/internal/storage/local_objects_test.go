@@ -5,7 +5,9 @@ import (
 	"errors"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -137,6 +139,52 @@ func TestLocalObjectStoreRejectsSymlinkEscape(t *testing.T) {
 	// meaningful while the target exists.
 	if _, err := os.Stat(secret); err != nil {
 		t.Fatal("symlink target vanished - the delete path was not exercised")
+	}
+}
+
+// TestLocalObjectStoreRejectsJunctionEscape is the Windows twin of the
+// symlink test: a junction needs no admin rights, and Go's EvalSymlinks
+// leaves one opaque as the last component, so containment must refuse it
+// explicitly. Keys through the junction - existing leaf or not - must all
+// answer ErrLocatorInvalid and nothing may land outside the root.
+func TestLocalObjectStoreRejectsJunctionEscape(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("directory junctions are a Windows construct")
+	}
+	store, root := newLocalStore(t)
+	ctx := context.Background()
+
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "secret.bin"), []byte("outside the root"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, "linked")
+	if out, err := exec.Command("cmd", "/c", "mklink", "/J", link, outside).CombinedOutput(); err != nil {
+		t.Skipf("junction creation unavailable: %v (%s)", err, out)
+	}
+
+	// A fresh leaf through the junction is the dangerous Put path: the
+	// junction resolves transparently for the OS but not for EvalSymlinks.
+	for _, key := range []string{"linked", "linked/secret.bin", "linked/new.bin"} {
+		loc := localLoc(key)
+		if _, err := store.Open(ctx, loc, ReadOptions{}); !errors.Is(err, ErrLocatorInvalid) {
+			t.Errorf("Open through junction %q = %v, want ErrLocatorInvalid", key, err)
+		}
+		if _, err := store.Stat(ctx, loc); !errors.Is(err, ErrLocatorInvalid) {
+			t.Errorf("Stat through junction %q = %v, want ErrLocatorInvalid", key, err)
+		}
+		if _, err := store.Put(ctx, loc, strings.NewReader("escape"), WriteInfo{SizeBytes: 6}); !errors.Is(err, ErrLocatorInvalid) {
+			t.Errorf("Put through junction %q = %v, want ErrLocatorInvalid", key, err)
+		}
+		if err := store.Delete(ctx, loc); !errors.Is(err, ErrLocatorInvalid) {
+			t.Errorf("Delete through junction %q = %v, want ErrLocatorInvalid", key, err)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(outside, "new.bin")); !os.IsNotExist(err) {
+		t.Fatal("Put streamed through the junction into a file outside the root")
+	}
+	if _, err := os.Stat(filepath.Join(outside, "secret.bin")); err != nil {
+		t.Fatal("junction target vanished - the refuse checks were not exercised")
 	}
 }
 

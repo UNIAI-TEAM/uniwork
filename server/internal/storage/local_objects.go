@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // localObjectStore is the locator-contract view of the filesystem backend. It
@@ -213,6 +214,13 @@ func (s *localObjectStore) localPath(loc ObjectLocator) (string, error) {
 // like. For a target that does not exist yet (a Put) the deepest existing
 // ancestor is resolved and the remainder re-joined - a symlinked directory
 // anywhere in the chain still fails the check.
+//
+// EvalSymlinks is not enough on Windows: it leaves a junction (mount-point
+// reparse point) opaque when the junction is the last existing component, so
+// "root/linked/new.bin" through a junction into another directory would pass
+// the containment check and Put would stream outside the root. The component
+// walk below refuses any existing component that is a link, a reparse point,
+// or otherwise not a plain directory along the way.
 func resolveUnderRoot(root, target string) (string, error) {
 	resolvedRoot, err := filepath.EvalSymlinks(root)
 	if err != nil {
@@ -225,7 +233,49 @@ func resolveUnderRoot(root, target string) (string, error) {
 	if !isUnder(resolvedRoot, resolved) {
 		return "", fmt.Errorf("path escapes the storage root")
 	}
+	if err := checkComponentsPlain(resolvedRoot, resolved); err != nil {
+		return "", err
+	}
 	return resolved, nil
+}
+
+// checkComponentsPlain walks every component of target below root and refuses
+// components that are not plain directories (ancestors) or a plain file or
+// directory (the leaf). A junction or other reparse point reports
+// ModeIrregular rather than IsDir, so it is caught here even where
+// EvalSymlinks left it opaque. Missing components are fine: Put creates
+// plain directories for them inside the root.
+func checkComponentsPlain(root, target string) error {
+	rel, err := filepath.Rel(root, target)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("path escapes the storage root")
+	}
+	segs := strings.Split(rel, string(filepath.Separator))
+	cur := root
+	for i, seg := range segs {
+		if seg == "" || seg == "." {
+			continue
+		}
+		cur = filepath.Join(cur, seg)
+		fi, err := os.Lstat(cur)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return fmt.Errorf("inspect path: %w", err)
+		}
+		last := i == len(segs)-1
+		if fi.Mode()&(os.ModeSymlink|os.ModeIrregular) != 0 {
+			return fmt.Errorf("path component %q is a link or reparse point", seg)
+		}
+		if !last && !fi.IsDir() {
+			return fmt.Errorf("path component %q is not a directory", seg)
+		}
+		if last && !fi.IsDir() && !fi.Mode().IsRegular() {
+			return fmt.Errorf("path %q is not a regular file", seg)
+		}
+	}
+	return nil
 }
 
 // resolveExisting returns target with every symlink in its existing prefix
