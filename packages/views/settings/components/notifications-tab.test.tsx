@@ -41,9 +41,11 @@ describe("NotificationsTab", () => {
     mockApi(false);
     render(wrap(<NotificationsTab />));
     expect(await screen.findByRole("rowheader", { name: /Được giao việc/ })).toBeInTheDocument();
-    // One row per kind, plus the "every kind" row that carries the channel toggles.
-    expect(screen.getAllByRole("rowheader")).toHaveLength(NOTIFICATION_KINDS.length + 1);
+    // One row per kind, plus the "every kind" row that carries the channel
+    // toggles, plus one heading per inbox category the kinds are grouped by.
+    expect(screen.getAllByRole("rowheader")).toHaveLength(NOTIFICATION_KINDS.length + 1 + 5);
     expect(screen.getByRole("rowheader", { name: "Mọi loại" })).toBeInTheDocument();
+    expect(screen.getByRole("rowheader", { name: "Cuộc họp" })).toHaveAttribute("scope", "rowgroup");
     expect(screen.queryByRole("columnheader", { name: "Đẩy" })).toBeNull();
     expect(screen.queryByText("Thông báo đẩy")).toBeNull();
 
@@ -93,9 +95,9 @@ describe("NotificationsTab", () => {
   it("turns one channel off for every kind in a single request", async () => {
     mockApi(false);
     render(wrap(<NotificationsTab />));
-    const allEmail = await screen.findByRole("switch", { name: "Email cho mọi loại" });
-    // "mentioned" has email off, so the channel is not on everywhere yet.
-    expect(allEmail).toHaveAttribute("aria-checked", "false");
+    const allEmail = await screen.findByRole("checkbox", { name: "Email cho mọi loại" });
+    // "mentioned" has email off, so the channel is on for some kinds: mixed, not off.
+    expect(allEmail).toHaveAttribute("aria-checked", "mixed");
     fireEvent.click(allEmail);
 
     await waitFor(() => expect(requestMock.mock.calls.filter(([, init]) => (init as { method?: string })?.method === "PUT")).toHaveLength(1));
@@ -104,7 +106,7 @@ describe("NotificationsTab", () => {
     // Only the kinds that were off are written, all of them switched on.
     expect(sent.map((p) => p.kind)).toEqual(["mentioned"]);
     expect(sent.every((p) => p.email)).toBe(true);
-    expect(await screen.findByRole("switch", { name: "Email cho mọi loại" })).toHaveAttribute("aria-checked", "true");
+    expect(await screen.findByRole("checkbox", { name: "Email cho mọi loại" })).toHaveAttribute("aria-checked", "true");
   });
 
   it("shows the push column and the browser switch when push is available", async () => {

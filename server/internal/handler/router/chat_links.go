@@ -7,10 +7,9 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
 
-// registerChatLinks mounts message↔task link routes behind chat_work_hub.
-func registerChatLinks(r api, h Routes, flagMW, chatWriteLimit func(http.Handler) http.Handler) {
+// registerChatLinks mounts message↔task link routes.
+func registerChatLinks(r api, h Routes, chatWriteLimit func(http.Handler) http.Handler) {
 	r.Group(func(lk api) {
-		lk.Use(flagMW)
 		lk.With(chatWriteLimit).Post("/workspaces/{workspaceID}/chat/messages/{messageID}/tasks", h.CreateTaskFromChatMessage, apiOp{
 			summary:     "Create task from chat message",
 			description: "Tạo task từ tin nhắn; gắn liên kết created_from; tùy chọn đồng bộ thread.",

@@ -20,6 +20,8 @@ interface CollectionPageHeaderProps {
   tone?: Tint;
   title: ReactNode;
   count?: number;
+  /** What the count counts, for screen readers ("12 unread"); without it the bare number is read. */
+  countLabel?: string;
   description?: ReactNode;
   actions?: ReactNode;
   className?: string;
@@ -29,7 +31,16 @@ interface CollectionPageHeaderProps {
  * Header of a list screen: entity icon, title, optional count and supporting
  * copy on the left; page-level actions on the right.
  */
-export function CollectionPageHeader({ icon: Icon, tone, title, count, description, actions, className }: CollectionPageHeaderProps) {
+export function CollectionPageHeader({
+  icon: Icon,
+  tone,
+  title,
+  count,
+  countLabel,
+  description,
+  actions,
+  className,
+}: CollectionPageHeaderProps) {
   return (
     <PageHeader className={className}>
       <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -38,7 +49,16 @@ export function CollectionPageHeader({ icon: Icon, tone, title, count, descripti
         </span>
         <h1 className="truncate text-body font-medium">{title}</h1>
         {typeof count === "number" && count > 0 ? (
-          <span className="shrink-0 font-mono text-caption tabular-nums text-muted-foreground">{count}</span>
+          <span className="shrink-0 font-mono text-caption tabular-nums text-muted-foreground">
+            {countLabel ? (
+              <>
+                <span aria-hidden>{count}</span>
+                <span className="sr-only">{countLabel}</span>
+              </>
+            ) : (
+              count
+            )}
+          </span>
         ) : null}
         {description ? (
           <p className="ml-2 hidden min-w-0 truncate text-caption text-muted-foreground md:block">{description}</p>

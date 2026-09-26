@@ -42,6 +42,7 @@ const EMPTY_COUNTS: Record<string, number> = {};
 const EMPTY_PREVIEWS: NonNullable<ChatSidebarProps["roomPreviewsByRoomId"]> = {};
 const EMPTY_NICKNAMES: Record<string, string> = {};
 const EMPTY_CHANNELS: NonNullable<ChatSidebarProps["channels"]> = [];
+const EMPTY_MEMBER_AVATARS: NonNullable<ChatSidebarProps["memberAvatarByUserId"]> = {};
 
 export type { ChatSidebarTarget } from "./chat-sidebar-types";
 
@@ -65,7 +66,6 @@ export const ChatSidebar = memo(function ChatSidebar({
   contacts,
   groups,
   channels = EMPTY_CHANNELS,
-  workHubEnabled = false,
   onOpenFollowUps,
   onCreateGroup,
   creatingGroup = false,
@@ -84,6 +84,7 @@ export const ChatSidebar = memo(function ChatSidebar({
   onRetry,
   workspaceRoomTitle,
   onCollapse,
+  memberAvatarByUserId = EMPTY_MEMBER_AVATARS,
 }: ChatSidebarProps) {
   const { t } = useTranslation();
   const [filterQuery, setFilterQuery] = useState("");
@@ -99,10 +100,7 @@ export const ChatSidebar = memo(function ChatSidebar({
   const pinnedByRoomId = useChatRoomPreferencesStore((state) => state.byRoomId);
   const workspaceTitle = workspaceRoomTitle ?? t("chat.workspace_room");
 
-  const filterOptions = useMemo(
-    () => chatSidebarFilterOptions(workHubEnabled),
-    [workHubEnabled],
-  );
+  const filterOptions = useMemo(() => chatSidebarFilterOptions(), []);
 
   const entries = useMemo(
     () =>
@@ -117,7 +115,6 @@ export const ChatSidebar = memo(function ChatSidebar({
         nicknamesByUserId,
         roomPreviewsByRoomId,
         pinnedByRoomId,
-        workHubEnabled,
       }),
     [
       kindFilter,
@@ -130,7 +127,6 @@ export const ChatSidebar = memo(function ChatSidebar({
       nicknamesByUserId,
       roomPreviewsByRoomId,
       pinnedByRoomId,
-      workHubEnabled,
     ],
   );
 
@@ -185,7 +181,7 @@ export const ChatSidebar = memo(function ChatSidebar({
           <h2 id="chat-sidebar-title" className="min-w-0 flex-1 truncate text-title-sm font-semibold text-foreground">
             {t("chat.title")}
           </h2>
-          {workHubEnabled && onOpenFollowUps ? (
+          {onOpenFollowUps ? (
             <SidebarIconAction icon={ListChecks} label={t("chat.follow_up.list_title")} onClick={onOpenFollowUps} />
           ) : null}
           <DropdownMenu>
@@ -218,19 +214,15 @@ export const ChatSidebar = memo(function ChatSidebar({
                 <Users aria-hidden />
                 {t("chat.create_group_aria")}
               </DropdownMenuItem>
-              {workHubEnabled ? (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setCreateChannelOpen(true)}>
-                    <Hash aria-hidden />
-                    {t("chat.channel.create_aria")}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setChannelDirectoryOpen(true)}>
-                    <Compass aria-hidden />
-                    {t("chat.channel.directory_aria")}
-                  </DropdownMenuItem>
-                </>
-              ) : null}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setCreateChannelOpen(true)}>
+                <Hash aria-hidden />
+                {t("chat.channel.create_aria")}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setChannelDirectoryOpen(true)}>
+                <Compass aria-hidden />
+                {t("chat.channel.directory_aria")}
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           {onCollapse ? (
@@ -303,8 +295,8 @@ export const ChatSidebar = memo(function ChatSidebar({
               actions={{
                 onStartDm: openStartDm,
                 onCreateGroup: openCreateGroup,
-                onCreateChannel: workHubEnabled ? () => setCreateChannelOpen(true) : undefined,
-                onBrowseChannels: workHubEnabled ? () => setChannelDirectoryOpen(true) : undefined,
+                onCreateChannel: () => setCreateChannelOpen(true),
+                onBrowseChannels: () => setChannelDirectoryOpen(true),
                 onShowAll: () => {
                   setKindFilter("all");
                   setFilterQuery("");
@@ -326,6 +318,7 @@ export const ChatSidebar = memo(function ChatSidebar({
               unreadBadgesReady={unreadBadgesReady}
               preferencesByRoomId={pinnedByRoomId}
               labels={labels}
+              memberAvatarByUserId={memberAvatarByUserId}
             />
           )}
           {!loading && !loadError && !filtering && entries.length === 1 && entries[0]?.kind === "workspace" ? (
@@ -352,34 +345,30 @@ export const ChatSidebar = memo(function ChatSidebar({
         onCreate={handleCreateGroup}
       />
 
-      {workHubEnabled ? (
-        <>
-          <CreateChannelDialog
-            open={createChannelOpen}
-            onOpenChange={setCreateChannelOpen}
-            workspaceId={workspaceId}
-            currentUserId={currentUserId}
-            onCreated={(room) => {
-              setCreateChannelOpen(false);
-              onTargetChange({ kind: "channel", channel: room });
-            }}
-          />
-          <ChannelDirectorySheet
-            open={channelDirectoryOpen}
-            onOpenChange={setChannelDirectoryOpen}
-            workspaceId={workspaceId}
-            memberChannelIds={memberChannelIds}
-            onCreateChannel={() => {
-              setChannelDirectoryOpen(false);
-              setCreateChannelOpen(true);
-            }}
-            onJoined={(room) => {
-              setChannelDirectoryOpen(false);
-              onTargetChange({ kind: "channel", channel: room });
-            }}
-          />
-        </>
-      ) : null}
+      <CreateChannelDialog
+        open={createChannelOpen}
+        onOpenChange={setCreateChannelOpen}
+        workspaceId={workspaceId}
+        currentUserId={currentUserId}
+        onCreated={(room) => {
+          setCreateChannelOpen(false);
+          onTargetChange({ kind: "channel", channel: room });
+        }}
+      />
+      <ChannelDirectorySheet
+        open={channelDirectoryOpen}
+        onOpenChange={setChannelDirectoryOpen}
+        workspaceId={workspaceId}
+        memberChannelIds={memberChannelIds}
+        onCreateChannel={() => {
+          setChannelDirectoryOpen(false);
+          setCreateChannelOpen(true);
+        }}
+        onJoined={(room) => {
+          setChannelDirectoryOpen(false);
+          onTargetChange({ kind: "channel", channel: room });
+        }}
+      />
     </>
   );
 });

@@ -1,110 +1,93 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Archive,
-  CalendarClock,
-  ChevronDown,
-  Clock,
-  Inbox,
-  Mail,
-  Send,
-  ShieldAlert,
-  Star,
-  Tag,
-  Trash2,
-} from "lucide-react";
+import { ChevronDown, Keyboard, Lock, Mail, PenSquare, Tag } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Button } from "@uniwork/ui/components/ui/button";
-import { cn } from "@uniwork/ui/lib/utils";
-import { emailHubComposeButtonClass, emailHubNavItemClass, emailHubSecondaryNavButtonClass } from "./email-hub-ui";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
+import { Button } from "@uniwork/ui/components/ui/button";
+import { Kbd } from "@uniwork/ui/components/ui/kbd";
+import { cn } from "@uniwork/ui/lib/utils";
 import { moduleTone } from "../layout/module-tones";
+import { EmailHubAccountMenu, type EmailHubAccountMenuProps } from "./email-hub-account-menu";
+import {
+  EMAIL_HUB_MORE_FOLDERS,
+  EMAIL_HUB_PRIMARY_FOLDERS,
+  emailHubFolderBadge,
+  type EmailHubFolderCounts,
+  type EmailHubFolderDef,
+  type EmailHubFolderKey,
+} from "./email-hub-folders";
+import { emailHubCountBadgeClass, emailHubNavItemClass } from "./email-hub-ui";
 
-export type EmailHubFolderKey =
-  | "INBOX"
-  | "STARRED"
-  | "SENT"
-  | "SCHEDULED"
-  | "SNOOZED"
-  | "DRAFTS"
-  | "ARCHIVE"
-  | "SPAM"
-  | "TRASH";
-
-const PRIMARY_FOLDERS: { key: EmailHubFolderKey; icon: typeof Inbox; labelKey: string }[] = [
-  { key: "INBOX", icon: Inbox, labelKey: "email_hub.folders.inbox" },
-  { key: "STARRED", icon: Star, labelKey: "email_hub.folders.important" },
-  { key: "SENT", icon: Send, labelKey: "email_hub.folders.sent" },
-  { key: "SCHEDULED", icon: CalendarClock, labelKey: "email_hub.folders.scheduled" },
-  { key: "SNOOZED", icon: Clock, labelKey: "email_hub.folders.snoozed" },
-  { key: "DRAFTS", icon: Mail, labelKey: "email_hub.folders.drafts" },
-];
-
-const MORE_FOLDERS: { key: EmailHubFolderKey; icon: typeof Inbox; labelKey: string }[] = [
-  { key: "ARCHIVE", icon: Archive, labelKey: "email_hub.folders.archive" },
-  { key: "SPAM", icon: ShieldAlert, labelKey: "email_hub.folders.spam" },
-  { key: "TRASH", icon: Trash2, labelKey: "email_hub.folders.trash" },
-];
+export type { EmailHubFolderKey } from "./email-hub-folders";
 
 const LABELS_PREVIEW = 6;
 
-interface EmailHubFolderSidebarProps {
+export interface EmailHubFolderNavProps {
   folder: EmailHubFolderKey;
   selectedLabel: string | null;
   imapLabels: string[];
-  unreadCount: number;
-  scheduledCount: number;
-  snoozedCount: number;
-  composeDisabled: boolean;
+  counts: EmailHubFolderCounts;
   onFolderChange: (folder: EmailHubFolderKey) => void;
   onLabelChange: (label: string | null) => void;
-  onCompose: () => void;
 }
 
 function FolderNavButton({
+  def,
   active,
-  icon: Icon,
-  label,
   badge,
   onClick,
 }: {
+  def: EmailHubFolderDef;
   active: boolean;
-  icon: typeof Inbox;
-  label: string;
   badge?: number;
   onClick: () => void;
 }) {
+  const { t } = useTranslation();
+  const Icon = def.icon;
   return (
-    <button type="button" className={emailHubNavItemClass(active)} onClick={onClick}>
-      <Icon className="size-4 shrink-0" />
-      <span className="flex-1 truncate text-left">{label}</span>
-      {badge !== undefined && badge > 0 ? (
-        <span className="rounded-full bg-brand/10 px-2 py-0.5 text-caption font-semibold tabular-nums text-brand">
-          {badge}
-        </span>
-      ) : null}
-    </button>
+    <li>
+      <button
+        type="button"
+        className={emailHubNavItemClass(active)}
+        aria-current={active ? "page" : undefined}
+        onClick={onClick}
+      >
+        <Icon className="size-4 shrink-0" aria-hidden />
+        <span className="min-w-0 flex-1 truncate text-left">{t(def.labelKey)}</span>
+        {badge ? (
+          <span className={cn(emailHubCountBadgeClass, active ? "bg-background/70" : "bg-muted text-foreground")}>
+            {badge}
+          </span>
+        ) : null}
+      </button>
+    </li>
   );
 }
 
+/** Folder and label navigation, from `lg` up. Below it the list header carries `EmailHubFolderMenu`. */
 export function EmailHubFolderSidebar({
   folder,
   selectedLabel,
   imapLabels,
-  unreadCount,
-  scheduledCount,
-  snoozedCount,
-  composeDisabled,
+  counts,
   onFolderChange,
   onLabelChange,
+  composeDisabled,
   onCompose,
-}: EmailHubFolderSidebarProps) {
+  accountMenu,
+  shortcutsOn,
+  onOpenShortcuts,
+}: EmailHubFolderNavProps & {
+  composeDisabled: boolean;
+  onCompose: () => void;
+  accountMenu: EmailHubAccountMenuProps;
+  shortcutsOn: boolean;
+  onOpenShortcuts: () => void;
+}) {
   const { t } = useTranslation();
-  const tone = moduleTone("email");
-  const [moreOpen, setMoreOpen] = useState(
-    folder === "ARCHIVE" || folder === "SPAM" || folder === "TRASH",
-  );
+  const inMore = EMAIL_HUB_MORE_FOLDERS.some((f) => f.key === folder);
+  const [moreOpen, setMoreOpen] = useState(inMore);
   const [labelsExpanded, setLabelsExpanded] = useState(false);
   const visibleLabels = labelsExpanded ? imapLabels : imapLabels.slice(0, LABELS_PREVIEW);
 
@@ -114,106 +97,129 @@ export function EmailHubFolderSidebar({
   };
 
   return (
-    <aside className="flex w-full shrink-0 flex-col border-b border-border bg-sidebar lg:w-60 lg:border-b-0 lg:border-r">
-      <div className="border-b border-border px-4 py-4">
-        <div className="flex items-center gap-3">
-          <IconTile icon={Mail} tone={tone} size="sm" />
-          <div>
-            <span className="text-title font-semibold">{t("email_hub.title")}</span>
-            <p className="text-caption text-muted-foreground">{t("email_hub.subtitle")}</p>
-          </div>
-        </div>
-      </div>
-      <div className="space-y-2 p-3">
-        <Button variant="brand" className={emailHubComposeButtonClass} disabled={composeDisabled} onClick={onCompose}>
-          <Mail className="size-4" />
-          {t("email_hub.compose_label")}
-        </Button>
-        <Button variant="ghost" className={emailHubSecondaryNavButtonClass} disabled>
-          <Tag className="size-4" />
-          {t("email_hub.labels_rules")}
-        </Button>
-      </div>
-      <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-2 pb-2">
-        {PRIMARY_FOLDERS.map(({ key, icon, labelKey }) => (
-          <FolderNavButton
-            key={key}
-            active={folder === key && !selectedLabel}
-            icon={icon}
-            label={t(labelKey)}
-            badge={
-              key === "INBOX"
-                ? unreadCount
-                : key === "SCHEDULED"
-                  ? scheduledCount
-                  : key === "SNOOZED"
-                    ? snoozedCount
-                    : undefined
-            }
-            onClick={() => pickFolder(key)}
-          />
-        ))}
-        <button
-          type="button"
-          className={cn(emailHubNavItemClass(false), "text-caption font-medium")}
-          aria-expanded={moreOpen}
-          onClick={() => setMoreOpen((v) => !v)}
-        >
-          <ChevronDown className={cn("size-4 shrink-0 transition-transform", moreOpen && "rotate-180")} aria-hidden />
-          <span className="flex-1 truncate text-left">{t("email_hub.folders.more")}</span>
-        </button>
-        {moreOpen
-          ? MORE_FOLDERS.map(({ key, icon, labelKey }) => (
-              <FolderNavButton
-                key={key}
-                active={folder === key && !selectedLabel}
-                icon={icon}
-                label={t(labelKey)}
-                onClick={() => pickFolder(key)}
-              />
-            ))
-          : null}
-      </nav>
-      <div className="max-h-44 overflow-y-auto border-t border-border px-3 py-3">
-        <p className="mb-1.5 px-1 text-caption font-medium uppercase tracking-wide text-muted-foreground">
-          {t("email_hub.labels_section")}
+    <aside
+      className="hidden w-60 shrink-0 flex-col border-r border-border bg-sidebar lg:flex"
+      aria-label={t("email_hub.title")}
+    >
+      <div className="space-y-3 px-3 pt-4 pb-3">
+        {/* The page's h1 is the folder (list) or the subject (reading); this is the module name. */}
+        <p className="flex items-center gap-2.5 px-1 text-title font-semibold">
+          <IconTile icon={Mail} tone={moduleTone("email")} size="sm" />
+          {t("email_hub.title")}
         </p>
+        <EmailHubAccountMenu {...accountMenu} />
+        <Button
+          variant="brand"
+          size="lg"
+          className="w-full justify-start gap-2"
+          disabled={composeDisabled}
+          onClick={onCompose}
+        >
+          <PenSquare aria-hidden />
+          {t("email_hub.compose_label")}
+          {shortcutsOn ? <Kbd className="ml-auto bg-brand-foreground/15 text-brand-foreground">C</Kbd> : null}
+        </Button>
+      </div>
+
+      <nav className="min-h-0 flex-1 overflow-y-auto px-3 pb-3" aria-label={t("email_hub.folders_nav")}>
+        <ul className="space-y-0.5">
+          {EMAIL_HUB_PRIMARY_FOLDERS.map((def) => (
+            <FolderNavButton
+              key={def.key}
+              def={def}
+              active={folder === def.key && !selectedLabel}
+              badge={emailHubFolderBadge(def.key, counts)}
+              onClick={() => pickFolder(def.key)}
+            />
+          ))}
+          <li>
+            <button
+              type="button"
+              className={emailHubNavItemClass(false)}
+              aria-expanded={moreOpen}
+              onClick={() => setMoreOpen((v) => !v)}
+            >
+              <ChevronDown
+                className={cn(
+                  "size-4 shrink-0 transition-transform duration-(--duration-fast)",
+                  !moreOpen && "-rotate-90",
+                )}
+                aria-hidden
+              />
+              <span className="flex-1 truncate text-left">
+                {moreOpen ? t("email_hub.folders.less") : t("email_hub.folders.more")}
+              </span>
+            </button>
+          </li>
+          {moreOpen
+            ? EMAIL_HUB_MORE_FOLDERS.map((def) => (
+                <FolderNavButton
+                  key={def.key}
+                  def={def}
+                  active={folder === def.key && !selectedLabel}
+                  onClick={() => pickFolder(def.key)}
+                />
+              ))
+            : null}
+        </ul>
+
+        <h2 className="mt-5 mb-1.5 px-2.5 text-overline text-muted-foreground">{t("email_hub.labels_section")}</h2>
         {imapLabels.length === 0 ? (
-          <p className="px-1 text-caption text-muted-foreground">{t("email_hub.labels_sync_hint")}</p>
+          <p className="px-2.5 text-caption text-pretty text-muted-foreground">{t("email_hub.labels_sync_hint")}</p>
         ) : (
           <>
             <ul className="space-y-0.5">
-              {visibleLabels.map((label) => (
-                <li key={label}>
-                  <button
-                    type="button"
-                    className={cn(emailHubNavItemClass(selectedLabel === label), "min-h-9 py-1.5 text-caption")}
-                    onClick={() => {
-                      onFolderChange("INBOX");
-                      onLabelChange(selectedLabel === label ? null : label);
-                    }}
-                  >
-                    <Tag className="size-3.5 shrink-0" />
-                    <span className="flex-1 truncate text-left">{label}</span>
-                  </button>
-                </li>
-              ))}
+              {visibleLabels.map((label) => {
+                const active = selectedLabel === label;
+                return (
+                  <li key={label}>
+                    <button
+                      type="button"
+                      className={emailHubNavItemClass(active)}
+                      aria-current={active ? "page" : undefined}
+                      onClick={() => {
+                        onFolderChange("INBOX");
+                        onLabelChange(active ? null : label);
+                      }}
+                    >
+                      <Tag className="size-4 shrink-0" aria-hidden />
+                      <span className="flex-1 truncate text-left">{label}</span>
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
             {imapLabels.length > LABELS_PREVIEW ? (
-              <Button
+              <button
                 type="button"
-                variant="ghost"
-                size="sm"
-                className="mt-1 h-8 w-full justify-start px-2 text-caption text-muted-foreground"
+                className={cn(emailHubNavItemClass(false), "text-caption")}
                 onClick={() => setLabelsExpanded((v) => !v)}
               >
-                {labelsExpanded
-                  ? t("email_hub.labels_show_less")
-                  : t("email_hub.labels_show_more", { count: imapLabels.length - LABELS_PREVIEW })}
-              </Button>
+                <span className="pl-6.5">
+                  {labelsExpanded
+                    ? t("email_hub.labels_show_less")
+                    : t("email_hub.labels_show_more", { count: imapLabels.length - LABELS_PREVIEW })}
+                </span>
+              </button>
             ) : null}
           </>
         )}
+      </nav>
+
+      <div className="border-t border-border px-3 pt-2">
+        <button type="button" className={cn(emailHubNavItemClass(false), "text-caption")} onClick={onOpenShortcuts}>
+          <Keyboard className="size-4 shrink-0" aria-hidden />
+          <span className="flex-1 truncate text-left">{t("email_hub.shortcuts.open_button")}</span>
+          {shortcutsOn ? <Kbd>?</Kbd> : null}
+        </button>
+      </div>
+      <div className="flex items-center gap-2.5 px-5 pt-1 pb-3 text-caption text-muted-foreground">
+        <Tag className="size-4 shrink-0" aria-hidden />
+        <span className="min-w-0 flex-1 truncate">{t("email_hub.labels_rules")}</span>
+        <span className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 font-medium">
+          <Lock className="size-3" aria-hidden />
+          {t("email_hub.coming_soon")}
+        </span>
       </div>
     </aside>
   );

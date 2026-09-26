@@ -1,0 +1,979 @@
+{
+  "source": "docs/office/g0/RT02-six-fault-evidence.json",
+  "source_sha256": "d237c15d54ccf95f11502e3f2b14a48b747efd80fe06c2aed84ef8eb7119ff8f",
+  "source_case_count": 6,
+  "evidence_kind": "real_adapter_with_modeled_business_boundary",
+  "business_boundary": "modeled",
+  "case": {
+    "id": "type-version-mismatch",
+    "expected": {
+      "wrongTypesAndVersionsRefused": true,
+      "invalidJobs": 0,
+      "invalidPuts": 0,
+      "invalidCommits": 0,
+      "validControl": "completed"
+    },
+    "input": {
+      "path": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\inputs\\g0-kitchen-sink.docx",
+      "sha256": "8b6de008b979174065aa43c58e17db5a3eb654b42eb61232c42945ecfa64dff9",
+      "bytes": 3415
+    },
+    "runtime": {
+      "before": {
+        "generation": 1,
+        "pid": 51220,
+        "identity": {
+          "source": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\office-g0\\bootstrap-source",
+          "lab": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\lab\\run-31PlNx\\lab",
+          "prebundle": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\inputs\\pptx-ops.mjs",
+          "routes": [
+            "/engine/docx-edit",
+            "/engine/docx-parse",
+            "/engine/docx-unchanged-save",
+            "/engine/pdf-fonts",
+            "/engine/pdf-list-form-fills",
+            "/engine/pdf-list-images",
+            "/engine/pdf-replace-image",
+            "/engine/pdf-save-request",
+            "/engine/pdf-save-text",
+            "/engine/pdf-text-read",
+            "/engine/pdf-validate-text",
+            "/engine/ping",
+            "/engine/pptx-add-element",
+            "/engine/pptx-add-image",
+            "/engine/pptx-drain-events",
+            "/engine/pptx-edit-text",
+            "/engine/pptx-edit-transform",
+            "/engine/pptx-is-dirty",
+            "/engine/pptx-layouts",
+            "/engine/pptx-open",
+            "/engine/pptx-render",
+            "/engine/pptx-replace-picture",
+            "/engine/pptx-roundtrip",
+            "/engine/pptx-save",
+            "/engine/pptx-save-as",
+            "/engine/pptx-state",
+            "/engine/read-file",
+            "/engine/session-close",
+            "/engine/xlsx-close",
+            "/engine/xlsx-is-dirty",
+            "/engine/xlsx-open",
+            "/engine/xlsx-open-blank",
+            "/engine/xlsx-read-formulas",
+            "/engine/xlsx-read-range",
+            "/engine/xlsx-recalc",
+            "/engine/xlsx-save"
+          ]
+        },
+        "ping": {
+          "ok": true,
+          "source": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\office-g0\\bootstrap-source",
+          "lab": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\lab\\run-31PlNx\\lab",
+          "prebundle": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\inputs\\pptx-ops.mjs",
+          "routes": [
+            "/engine/docx-edit",
+            "/engine/docx-parse",
+            "/engine/docx-unchanged-save",
+            "/engine/pdf-fonts",
+            "/engine/pdf-list-form-fills",
+            "/engine/pdf-list-images",
+            "/engine/pdf-replace-image",
+            "/engine/pdf-save-request",
+            "/engine/pdf-save-text",
+            "/engine/pdf-text-read",
+            "/engine/pdf-validate-text",
+            "/engine/ping",
+            "/engine/pptx-add-element",
+            "/engine/pptx-add-image",
+            "/engine/pptx-drain-events",
+            "/engine/pptx-edit-text",
+            "/engine/pptx-edit-transform",
+            "/engine/pptx-is-dirty",
+            "/engine/pptx-layouts",
+            "/engine/pptx-open",
+            "/engine/pptx-render",
+            "/engine/pptx-replace-picture",
+            "/engine/pptx-roundtrip",
+            "/engine/pptx-save",
+            "/engine/pptx-save-as",
+            "/engine/pptx-state",
+            "/engine/read-file",
+            "/engine/session-close",
+            "/engine/xlsx-close",
+            "/engine/xlsx-is-dirty",
+            "/engine/xlsx-open",
+            "/engine/xlsx-open-blank",
+            "/engine/xlsx-read-formulas",
+            "/engine/xlsx-read-range",
+            "/engine/xlsx-recalc",
+            "/engine/xlsx-save"
+          ],
+          "g48": {
+            "pid": 58364,
+            "started": "2026-09-22T08:39:02.303Z",
+            "seam": "after-real-DOCX-result-before-HTTP-response"
+          }
+        },
+        "descendants": {
+          "ok": true,
+          "pids": [
+            58364,
+            60652
+          ],
+          "reason": null
+        },
+        "command": {
+          "executable": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\tools\\node-v22.23.2-win-x64\\node.exe",
+          "args": [
+            "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\office-g0\\bootstrap-source\\node_modules\\tsx\\dist\\cli.mjs",
+            "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\runner\\e2e\\office-g0\\engine-contract-fault-host.mts",
+            "--source",
+            "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\office-g0\\bootstrap-source",
+            "--lab",
+            "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\lab\\run-31PlNx\\lab",
+            "--prebundle",
+            "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\inputs\\pptx-ops.mjs",
+            "--port",
+            "55305"
+          ]
+        },
+        "stdoutLog": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\lab\\run-31PlNx\\logs\\host-1\\engine-host.out.log",
+        "stderrLog": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\lab\\run-31PlNx\\logs\\host-1\\engine-host.err.log"
+      },
+      "node": {
+        "verified": true,
+        "declaredVersion": "22.23.2",
+        "declaredPath": ".uniwork-dev/tools/node-v22.23.2-win-x64/node.exe",
+        "declaredAbsolute": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\tools\\node-v22.23.2-win-x64\\node.exe",
+        "observedVersion": "v22.23.2",
+        "observedExecutable": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\tools\\node-v22.23.2-win-x64\\node.exe",
+        "binary": {
+          "path": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\tools\\node-v22.23.2-win-x64\\node.exe",
+          "bytes": 86997320,
+          "sha256": "0d0f5e39f9f3d9587bc19f73eab3c2c9c4903fd02d6dbf9c853dd81b3d95fad4"
+        },
+        "note": "the manifest does not record a binary hash, so this proves the declared name/version/path, not the binary bytes",
+        "problems": []
+      },
+      "upstream_pin": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+      "after": {
+        "generation": 1,
+        "pid": 51220,
+        "identity": {
+          "source": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\office-g0\\bootstrap-source",
+          "lab": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\lab\\run-31PlNx\\lab",
+          "prebundle": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\inputs\\pptx-ops.mjs",
+          "routes": [
+            "/engine/docx-edit",
+            "/engine/docx-parse",
+            "/engine/docx-unchanged-save",
+            "/engine/pdf-fonts",
+            "/engine/pdf-list-form-fills",
+            "/engine/pdf-list-images",
+            "/engine/pdf-replace-image",
+            "/engine/pdf-save-request",
+            "/engine/pdf-save-text",
+            "/engine/pdf-text-read",
+            "/engine/pdf-validate-text",
+            "/engine/ping",
+            "/engine/pptx-add-element",
+            "/engine/pptx-add-image",
+            "/engine/pptx-drain-events",
+            "/engine/pptx-edit-text",
+            "/engine/pptx-edit-transform",
+            "/engine/pptx-is-dirty",
+            "/engine/pptx-layouts",
+            "/engine/pptx-open",
+            "/engine/pptx-render",
+            "/engine/pptx-replace-picture",
+            "/engine/pptx-roundtrip",
+            "/engine/pptx-save",
+            "/engine/pptx-save-as",
+            "/engine/pptx-state",
+            "/engine/read-file",
+            "/engine/session-close",
+            "/engine/xlsx-close",
+            "/engine/xlsx-is-dirty",
+            "/engine/xlsx-open",
+            "/engine/xlsx-open-blank",
+            "/engine/xlsx-read-formulas",
+            "/engine/xlsx-read-range",
+            "/engine/xlsx-recalc",
+            "/engine/xlsx-save"
+          ]
+        },
+        "ping": {
+          "ok": true,
+          "source": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\office-g0\\bootstrap-source",
+          "lab": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\lab\\run-31PlNx\\lab",
+          "prebundle": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\inputs\\pptx-ops.mjs",
+          "routes": [
+            "/engine/docx-edit",
+            "/engine/docx-parse",
+            "/engine/docx-unchanged-save",
+            "/engine/pdf-fonts",
+            "/engine/pdf-list-form-fills",
+            "/engine/pdf-list-images",
+            "/engine/pdf-replace-image",
+            "/engine/pdf-save-request",
+            "/engine/pdf-save-text",
+            "/engine/pdf-text-read",
+            "/engine/pdf-validate-text",
+            "/engine/ping",
+            "/engine/pptx-add-element",
+            "/engine/pptx-add-image",
+            "/engine/pptx-drain-events",
+            "/engine/pptx-edit-text",
+            "/engine/pptx-edit-transform",
+            "/engine/pptx-is-dirty",
+            "/engine/pptx-layouts",
+            "/engine/pptx-open",
+            "/engine/pptx-render",
+            "/engine/pptx-replace-picture",
+            "/engine/pptx-roundtrip",
+            "/engine/pptx-save",
+            "/engine/pptx-save-as",
+            "/engine/pptx-state",
+            "/engine/read-file",
+            "/engine/session-close",
+            "/engine/xlsx-close",
+            "/engine/xlsx-is-dirty",
+            "/engine/xlsx-open",
+            "/engine/xlsx-open-blank",
+            "/engine/xlsx-read-formulas",
+            "/engine/xlsx-read-range",
+            "/engine/xlsx-recalc",
+            "/engine/xlsx-save"
+          ],
+          "g48": {
+            "pid": 58364,
+            "started": "2026-09-22T08:39:02.303Z",
+            "seam": "after-real-DOCX-result-before-HTTP-response"
+          }
+        },
+        "descendants": {
+          "ok": true,
+          "pids": [
+            58364,
+            60652
+          ],
+          "reason": null
+        },
+        "command": {
+          "executable": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\tools\\node-v22.23.2-win-x64\\node.exe",
+          "args": [
+            "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\office-g0\\bootstrap-source\\node_modules\\tsx\\dist\\cli.mjs",
+            "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\runner\\e2e\\office-g0\\engine-contract-fault-host.mts",
+            "--source",
+            "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\office-g0\\bootstrap-source",
+            "--lab",
+            "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\lab\\run-31PlNx\\lab",
+            "--prebundle",
+            "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\inputs\\pptx-ops.mjs",
+            "--port",
+            "55305"
+          ]
+        },
+        "stdoutLog": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\lab\\run-31PlNx\\logs\\host-1\\engine-host.out.log",
+        "stderrLog": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\lab\\run-31PlNx\\logs\\host-1\\engine-host.err.log"
+      }
+    },
+    "evidence_kind": "real_adapter_with_modeled_business_boundary",
+    "pass": true,
+    "actual": {
+      "refusals": [
+        {
+          "reachable": true,
+          "transport_status": 400,
+          "parsed": {
+            "ok": false,
+            "error": {
+              "kind": "contract_violation",
+              "field_path": "envelope.contract_version",
+              "rule": "must_equal",
+              "detail": "uniwork-office-engine-contract/999"
+            }
+          },
+          "parse_error": null,
+          "body_bytes": 157
+        },
+        {
+          "reachable": true,
+          "transport_status": 400,
+          "parsed": {
+            "ok": false,
+            "error": {
+              "kind": "contract_violation",
+              "field_path": "envelope.protocol_version",
+              "rule": "safe_integer_required",
+              "detail": "1"
+            }
+          },
+          "parse_error": null,
+          "body_bytes": 135
+        },
+        {
+          "reachable": true,
+          "transport_status": 400,
+          "parsed": {
+            "ok": false,
+            "error": {
+              "kind": "contract_violation",
+              "field_path": "envelope.protocol_version",
+              "rule": "must_equal",
+              "detail": "2"
+            }
+          },
+          "parse_error": null,
+          "body_bytes": 124
+        },
+        {
+          "reachable": true,
+          "transport_status": 400,
+          "parsed": {
+            "ok": false,
+            "error": {
+              "code": "engine_incompatible",
+              "status": 409,
+              "error_class": "incompatible",
+              "kind": "engine_version",
+              "retryable": false,
+              "fidelity_preserved": true,
+              "want": "genoffice@09485f88+uniwork-office.0",
+              "got": "untrusted@0"
+            }
+          },
+          "parse_error": null,
+          "body_bytes": 226
+        }
+      ],
+      "before": {
+        "jobs": 0,
+        "puts": 0,
+        "commits": 0,
+        "ledgerRows": 0,
+        "revision": 7,
+        "version": "01J8Z0V0000000000000000A"
+      },
+      "engineRefusal": {
+        "job_id": "JOB00000000000000000000001",
+        "view_id": "g48-98d2d148b0ea-job00000000000000000000001",
+        "state": "failed",
+        "error": {
+          "code": "engine_result_invalid",
+          "status": 502,
+          "error_class": "engine",
+          "kind": "malformed_result",
+          "retryable": true,
+          "fidelity_preserved": true,
+          "adapter_code": "engine_error"
+        },
+        "settled": true,
+        "accepted_at": 1790066343473,
+        "deadline_ms": 30000,
+        "editText": "must not commit",
+        "input": {
+          "path": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\lab\\run-31PlNx\\lab\\type-version\\requests\\g48-98d2d148b0ea-job00000000000000000000001.docx",
+          "sha256": "6f8b8ea9595c6ad2246733b7eb73a974b231c50837dea4fea0d302a9b8ea2c9a",
+          "bytes": 18
+        },
+        "transport": {
+          "reachable": true,
+          "transport_status": 200,
+          "adapter_code": "engine_error",
+          "ok": false,
+          "result": null,
+          "mapped_code": "engine_result_invalid",
+          "mapped_class": "engine",
+          "retryable": true,
+          "field_path": null
+        },
+        "output": null,
+        "lateDiscarded": false,
+        "events": [
+          {
+            "event": "accepted",
+            "at": 1790066343476
+          },
+          {
+            "event": "transport-refused",
+            "at": 1790066344183
+          }
+        ],
+        "output_checksum": null,
+        "observations": {
+          "jobs": 1,
+          "puts": 0,
+          "commits": 0,
+          "ledgerRows": 0,
+          "revision": 7,
+          "version": "01J8Z0V0000000000000000A"
+        }
+      },
+      "control": {
+        "job_id": "JOB00000000000000000000002",
+        "view_id": "g48-98d2d148b0ea-job00000000000000000000002",
+        "state": "completed",
+        "error": null,
+        "settled": true,
+        "accepted_at": 1790066344188,
+        "deadline_ms": 30000,
+        "editText": "UNI-668 G48 valid-control",
+        "input": {
+          "path": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\lab\\run-31PlNx\\lab\\type-version\\requests\\g48-98d2d148b0ea-job00000000000000000000002.docx",
+          "sha256": "8b6de008b979174065aa43c58e17db5a3eb654b42eb61232c42945ecfa64dff9",
+          "bytes": 3415
+        },
+        "transport": {
+          "reachable": true,
+          "transport_status": 200,
+          "adapter_code": null,
+          "ok": true,
+          "result": {
+            "path": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\lab\\run-31PlNx\\lab\\out\\g48-98d2d148b0ea-job00000000000000000000002\\edited.docx",
+            "replacedIndex": 1,
+            "inBytes": 3415,
+            "outBytes": 3277,
+            "outHash": "6036898995572280a2d97bef69e7ed6a007e36503ccf4f118f6870e66c6d649d",
+            "persistedBytes": 3277,
+            "persistedHash": "6036898995572280a2d97bef69e7ed6a007e36503ccf4f118f6870e66c6d649d",
+            "replacedBlockType": "paragraph",
+            "replacedBlockText": "UNI-668 G48 valid-control",
+            "editPersisted": true,
+            "originalBlocksChecked": 10,
+            "originalBlocksChanged": [],
+            "originalBlocksMissing": [],
+            "allOriginalsRetained": true,
+            "preservationScope": "block-level reparse of persisted staged bytes; package part bytes are not verified by this route",
+            "blocks": 12,
+            "tables": 1,
+            "images": 1,
+            "headings": 2,
+            "listItems": 3,
+            "passthrough": 2,
+            "text": "第一章 概述\nUNI-668 G48 valid-control\n1.1 列表\n无序项一\n无序项二\n有序项一\n链接示例:示例网站\n\n\n\n尾段。\n"
+          },
+          "mapped_code": null,
+          "mapped_class": null,
+          "retryable": null,
+          "field_path": null
+        },
+        "output": {
+          "path": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\lab\\run-31PlNx\\lab\\out\\g48-98d2d148b0ea-job00000000000000000000002\\edited.docx",
+          "sha256": "6036898995572280a2d97bef69e7ed6a007e36503ccf4f118f6870e66c6d649d",
+          "bytes": 3277,
+          "declared_checksum": "6036898995572280a2d97bef69e7ed6a007e36503ccf4f118f6870e66c6d649d",
+          "editPersisted": true,
+          "allOriginalsRetained": true,
+          "editText": "UNI-668 G48 valid-control",
+          "readResponse": {
+            "reachable": true,
+            "transport_status": 200,
+            "adapter_code": null,
+            "ok": true,
+            "result": {
+              "path": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\lab\\run-31PlNx\\lab\\out\\g48-98d2d148b0ea-job00000000000000000000002\\edited.docx",
+              "size": 3277,
+              "hash": "6036898995572280a2d97bef69e7ed6a007e36503ccf4f118f6870e66c6d649d",
+              "base64": "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"
+            },
+            "mapped_code": null,
+            "mapped_class": null,
+            "retryable": null,
+            "field_path": null
+          }
+        },
+        "lateDiscarded": false,
+        "events": [
+          {
+            "event": "accepted",
+            "at": 1790066344191
+          },
+          {
+            "event": "real-output-received",
+            "at": 1790066344328
+          },
+          {
+            "event": "boundary-settled",
+            "at": 1790066344330,
+            "state": "completed"
+          }
+        ],
+        "output_checksum": "6036898995572280a2d97bef69e7ed6a007e36503ccf4f118f6870e66c6d649d",
+        "observations": {
+          "jobs": 2,
+          "puts": 1,
+          "commits": 1,
+          "ledgerRows": 1,
+          "revision": 8,
+          "version": "01J8Z0V0000000000000000001"
+        }
+      }
+    },
+    "transcript": [
+      {
+        "at": "2026-09-22T08:39:03.462Z",
+        "baseUrl": "http://127.0.0.1:55314",
+        "route": "/lab/submit",
+        "request": {
+          "envelope": {
+            "request_id": "REQ-invalid",
+            "contract_version": "uniwork-office-engine-contract/999",
+            "protocol_version": 1,
+            "operation": "serialize",
+            "format": "docx",
+            "deadline_ms": 30000,
+            "idempotency_key": "IDEMP-invalid",
+            "client_engine_version": "genoffice@09485f88+uniwork-office.0",
+            "payload": {
+              "document_model_ref": "g48:invalid",
+              "input_bytes": "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",
+              "input_checksum": "8b6de008b979174065aa43c58e17db5a3eb654b42eb61232c42945ecfa64dff9",
+              "input_length": 3415,
+              "base_revision": 7,
+              "base_version_id": "01J8Z0V0000000000000000A"
+            }
+          },
+          "editText": "invalid"
+        },
+        "response": {
+          "reachable": true,
+          "transport_status": 400,
+          "parsed": {
+            "ok": false,
+            "error": {
+              "kind": "contract_violation",
+              "field_path": "envelope.contract_version",
+              "rule": "must_equal",
+              "detail": "uniwork-office-engine-contract/999"
+            }
+          },
+          "parse_error": null,
+          "body_bytes": 157
+        }
+      },
+      {
+        "at": "2026-09-22T08:39:03.465Z",
+        "baseUrl": "http://127.0.0.1:55314",
+        "route": "/lab/submit",
+        "request": {
+          "envelope": {
+            "request_id": "REQ-invalid",
+            "contract_version": "uniwork-office-engine-contract/1",
+            "protocol_version": "1",
+            "operation": "serialize",
+            "format": "docx",
+            "deadline_ms": 30000,
+            "idempotency_key": "IDEMP-invalid",
+            "client_engine_version": "genoffice@09485f88+uniwork-office.0",
+            "payload": {
+              "document_model_ref": "g48:invalid",
+              "input_bytes": "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",
+              "input_checksum": "8b6de008b979174065aa43c58e17db5a3eb654b42eb61232c42945ecfa64dff9",
+              "input_length": 3415,
+              "base_revision": 7,
+              "base_version_id": "01J8Z0V0000000000000000A"
+            }
+          },
+          "editText": "invalid"
+        },
+        "response": {
+          "reachable": true,
+          "transport_status": 400,
+          "parsed": {
+            "ok": false,
+            "error": {
+              "kind": "contract_violation",
+              "field_path": "envelope.protocol_version",
+              "rule": "safe_integer_required",
+              "detail": "1"
+            }
+          },
+          "parse_error": null,
+          "body_bytes": 135
+        }
+      },
+      {
+        "at": "2026-09-22T08:39:03.467Z",
+        "baseUrl": "http://127.0.0.1:55314",
+        "route": "/lab/submit",
+        "request": {
+          "envelope": {
+            "request_id": "REQ-invalid",
+            "contract_version": "uniwork-office-engine-contract/1",
+            "protocol_version": 2,
+            "operation": "serialize",
+            "format": "docx",
+            "deadline_ms": 30000,
+            "idempotency_key": "IDEMP-invalid",
+            "client_engine_version": "genoffice@09485f88+uniwork-office.0",
+            "payload": {
+              "document_model_ref": "g48:invalid",
+              "input_bytes": "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",
+              "input_checksum": "8b6de008b979174065aa43c58e17db5a3eb654b42eb61232c42945ecfa64dff9",
+              "input_length": 3415,
+              "base_revision": 7,
+              "base_version_id": "01J8Z0V0000000000000000A"
+            }
+          },
+          "editText": "invalid"
+        },
+        "response": {
+          "reachable": true,
+          "transport_status": 400,
+          "parsed": {
+            "ok": false,
+            "error": {
+              "kind": "contract_violation",
+              "field_path": "envelope.protocol_version",
+              "rule": "must_equal",
+              "detail": "2"
+            }
+          },
+          "parse_error": null,
+          "body_bytes": 124
+        }
+      },
+      {
+        "at": "2026-09-22T08:39:03.470Z",
+        "baseUrl": "http://127.0.0.1:55314",
+        "route": "/lab/submit",
+        "request": {
+          "envelope": {
+            "request_id": "REQ-invalid",
+            "contract_version": "uniwork-office-engine-contract/1",
+            "protocol_version": 1,
+            "operation": "serialize",
+            "format": "docx",
+            "deadline_ms": 30000,
+            "idempotency_key": "IDEMP-invalid",
+            "client_engine_version": "untrusted@0",
+            "payload": {
+              "document_model_ref": "g48:invalid",
+              "input_bytes": "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",
+              "input_checksum": "8b6de008b979174065aa43c58e17db5a3eb654b42eb61232c42945ecfa64dff9",
+              "input_length": 3415,
+              "base_revision": 7,
+              "base_version_id": "01J8Z0V0000000000000000A"
+            }
+          },
+          "editText": "invalid"
+        },
+        "response": {
+          "reachable": true,
+          "transport_status": 400,
+          "parsed": {
+            "ok": false,
+            "error": {
+              "code": "engine_incompatible",
+              "status": 409,
+              "error_class": "incompatible",
+              "kind": "engine_version",
+              "retryable": false,
+              "fidelity_preserved": true,
+              "want": "genoffice@09485f88+uniwork-office.0",
+              "got": "untrusted@0"
+            }
+          },
+          "parse_error": null,
+          "body_bytes": 226
+        }
+      },
+      {
+        "at": "2026-09-22T08:39:03.479Z",
+        "baseUrl": "http://127.0.0.1:55314",
+        "route": "/lab/submit",
+        "request": {
+          "envelope": {
+            "request_id": "REQ-real-refusal",
+            "contract_version": "uniwork-office-engine-contract/1",
+            "protocol_version": 1,
+            "operation": "serialize",
+            "format": "docx",
+            "deadline_ms": 30000,
+            "idempotency_key": "IDEMP-real-refusal",
+            "client_engine_version": "genoffice@09485f88+uniwork-office.0",
+            "payload": {
+              "document_model_ref": "g48:real-refusal",
+              "input_bytes": "bm90IGEgRE9DWCBwYWNrYWdl",
+              "input_checksum": "6f8b8ea9595c6ad2246733b7eb73a974b231c50837dea4fea0d302a9b8ea2c9a",
+              "input_length": 18,
+              "base_revision": 7,
+              "base_version_id": "01J8Z0V0000000000000000A"
+            }
+          },
+          "editText": "must not commit"
+        },
+        "response": {
+          "reachable": true,
+          "transport_status": 200,
+          "parsed": {
+            "ok": true,
+            "result": {
+              "job_id": "JOB00000000000000000000001",
+              "view_id": "g48-98d2d148b0ea-job00000000000000000000001",
+              "replay": false
+            }
+          },
+          "parse_error": null,
+          "body_bytes": 131
+        }
+      },
+      {
+        "at": "2026-09-22T08:39:04.185Z",
+        "baseUrl": "http://127.0.0.1:55314",
+        "route": "/lab/status",
+        "request": {
+          "job_id": "JOB00000000000000000000001"
+        },
+        "response": {
+          "reachable": true,
+          "transport_status": 200,
+          "parsed": {
+            "ok": true,
+            "result": {
+              "job_id": "JOB00000000000000000000001",
+              "view_id": "g48-98d2d148b0ea-job00000000000000000000001",
+              "state": "failed",
+              "error": {
+                "code": "engine_result_invalid",
+                "status": 502,
+                "error_class": "engine",
+                "kind": "malformed_result",
+                "retryable": true,
+                "fidelity_preserved": true,
+                "adapter_code": "engine_error"
+              },
+              "settled": true,
+              "accepted_at": 1790066343473,
+              "deadline_ms": 30000,
+              "editText": "must not commit",
+              "input": {
+                "path": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\lab\\run-31PlNx\\lab\\type-version\\requests\\g48-98d2d148b0ea-job00000000000000000000001.docx",
+                "sha256": "6f8b8ea9595c6ad2246733b7eb73a974b231c50837dea4fea0d302a9b8ea2c9a",
+                "bytes": 18
+              },
+              "transport": {
+                "reachable": true,
+                "transport_status": 200,
+                "adapter_code": "engine_error",
+                "ok": false,
+                "result": null,
+                "mapped_code": "engine_result_invalid",
+                "mapped_class": "engine",
+                "retryable": true,
+                "field_path": null
+              },
+              "output": null,
+              "lateDiscarded": false,
+              "events": [
+                {
+                  "event": "accepted",
+                  "at": 1790066343476
+                },
+                {
+                  "event": "transport-refused",
+                  "at": 1790066344183
+                }
+              ],
+              "output_checksum": null,
+              "observations": {
+                "jobs": 1,
+                "puts": 0,
+                "commits": 0,
+                "ledgerRows": 0,
+                "revision": 7,
+                "version": "01J8Z0V0000000000000000A"
+              }
+            }
+          },
+          "parse_error": null,
+          "body_bytes": 1218
+        }
+      },
+      {
+        "at": "2026-09-22T08:39:04.187Z",
+        "baseUrl": "http://127.0.0.1:55314",
+        "route": "/documents/metadata",
+        "request": {},
+        "response": {
+          "reachable": true,
+          "transport_status": 200,
+          "parsed": {
+            "ok": true,
+            "result": {
+              "document_id": "DOC-1",
+              "jobs": 1,
+              "puts": 0,
+              "commits": 0,
+              "ledgerRows": 0,
+              "revision": 7,
+              "version": "01J8Z0V0000000000000000A",
+              "sha256": "8b6de008b979174065aa43c58e17db5a3eb654b42eb61232c42945ecfa64dff9",
+              "bytes": 3415
+            }
+          },
+          "parse_error": null,
+          "body_bytes": 228
+        }
+      },
+      {
+        "at": "2026-09-22T08:39:04.193Z",
+        "baseUrl": "http://127.0.0.1:55314",
+        "route": "/lab/submit",
+        "request": {
+          "envelope": {
+            "request_id": "REQ-valid-control",
+            "contract_version": "uniwork-office-engine-contract/1",
+            "protocol_version": 1,
+            "operation": "serialize",
+            "format": "docx",
+            "deadline_ms": 30000,
+            "idempotency_key": "IDEMP-valid-control",
+            "client_engine_version": "genoffice@09485f88+uniwork-office.0",
+            "payload": {
+              "document_model_ref": "g48:valid-control",
+              "input_bytes": "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",
+              "input_checksum": "8b6de008b979174065aa43c58e17db5a3eb654b42eb61232c42945ecfa64dff9",
+              "input_length": 3415,
+              "base_revision": 7,
+              "base_version_id": "01J8Z0V0000000000000000A"
+            }
+          },
+          "editText": "UNI-668 G48 valid-control",
+          "fault": null
+        },
+        "response": {
+          "reachable": true,
+          "transport_status": 200,
+          "parsed": {
+            "ok": true,
+            "result": {
+              "job_id": "JOB00000000000000000000002",
+              "view_id": "g48-98d2d148b0ea-job00000000000000000000002",
+              "replay": false
+            }
+          },
+          "parse_error": null,
+          "body_bytes": 131
+        }
+      },
+      {
+        "at": "2026-09-22T08:39:04.331Z",
+        "baseUrl": "http://127.0.0.1:55314",
+        "route": "/lab/status",
+        "request": {
+          "job_id": "JOB00000000000000000000002"
+        },
+        "response": {
+          "reachable": true,
+          "transport_status": 200,
+          "parsed": {
+            "ok": true,
+            "result": {
+              "job_id": "JOB00000000000000000000002",
+              "view_id": "g48-98d2d148b0ea-job00000000000000000000002",
+              "state": "completed",
+              "error": null,
+              "settled": true,
+              "accepted_at": 1790066344188,
+              "deadline_ms": 30000,
+              "editText": "UNI-668 G48 valid-control",
+              "input": {
+                "path": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\lab\\run-31PlNx\\lab\\type-version\\requests\\g48-98d2d148b0ea-job00000000000000000000002.docx",
+                "sha256": "8b6de008b979174065aa43c58e17db5a3eb654b42eb61232c42945ecfa64dff9",
+                "bytes": 3415
+              },
+              "transport": {
+                "reachable": true,
+                "transport_status": 200,
+                "adapter_code": null,
+                "ok": true,
+                "result": {
+                  "path": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\lab\\run-31PlNx\\lab\\out\\g48-98d2d148b0ea-job00000000000000000000002\\edited.docx",
+                  "replacedIndex": 1,
+                  "inBytes": 3415,
+                  "outBytes": 3277,
+                  "outHash": "6036898995572280a2d97bef69e7ed6a007e36503ccf4f118f6870e66c6d649d",
+                  "persistedBytes": 3277,
+                  "persistedHash": "6036898995572280a2d97bef69e7ed6a007e36503ccf4f118f6870e66c6d649d",
+                  "replacedBlockType": "paragraph",
+                  "replacedBlockText": "UNI-668 G48 valid-control",
+                  "editPersisted": true,
+                  "originalBlocksChecked": 10,
+                  "originalBlocksChanged": [],
+                  "originalBlocksMissing": [],
+                  "allOriginalsRetained": true,
+                  "preservationScope": "block-level reparse of persisted staged bytes; package part bytes are not verified by this route",
+                  "blocks": 12,
+                  "tables": 1,
+                  "images": 1,
+                  "headings": 2,
+                  "listItems": 3,
+                  "passthrough": 2,
+                  "text": "第一章 概述\nUNI-668 G48 valid-control\n1.1 列表\n无序项一\n无序项二\n有序项一\n链接示例:示例网站\n\n\n\n尾段。\n"
+                },
+                "mapped_code": null,
+                "mapped_class": null,
+                "retryable": null,
+                "field_path": null
+              },
+              "output": {
+                "path": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\lab\\run-31PlNx\\lab\\out\\g48-98d2d148b0ea-job00000000000000000000002\\edited.docx",
+                "sha256": "6036898995572280a2d97bef69e7ed6a007e36503ccf4f118f6870e66c6d649d",
+                "bytes": 3277,
+                "declared_checksum": "6036898995572280a2d97bef69e7ed6a007e36503ccf4f118f6870e66c6d649d",
+                "editPersisted": true,
+                "allOriginalsRetained": true,
+                "editText": "UNI-668 G48 valid-control",
+                "readResponse": {
+                  "reachable": true,
+                  "transport_status": 200,
+                  "adapter_code": null,
+                  "ok": true,
+                  "result": {
+                    "path": "D:\\.Vietants_Project\\uniwork-workspace\\.uniwork-dev\\worktrees\\UNI-668-office-engine-contracts\\.uniwork-dev\\real-adapter-faults-g48\\lab\\run-31PlNx\\lab\\out\\g48-98d2d148b0ea-job00000000000000000000002\\edited.docx",
+                    "size": 3277,
+                    "hash": "6036898995572280a2d97bef69e7ed6a007e36503ccf4f118f6870e66c6d649d",
+                    "base64": "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"
+                  },
+                  "mapped_code": null,
+                  "mapped_class": null,
+                  "retryable": null,
+                  "field_path": null
+                }
+              },
+              "lateDiscarded": false,
+              "events": [
+                {
+                  "event": "accepted",
+                  "at": 1790066344191
+                },
+                {
+                  "event": "real-output-received",
+                  "at": 1790066344328
+                },
+                {
+                  "event": "boundary-settled",
+                  "at": 1790066344330,
+                  "state": "completed"
+                }
+              ],
+              "output_checksum": "6036898995572280a2d97bef69e7ed6a007e36503ccf4f118f6870e66c6d649d",
+              "observations": {
+                "jobs": 2,
+                "puts": 1,
+                "commits": 1,
+                "ledgerRows": 1,
+                "revision": 8,
+                "version": "01J8Z0V0000000000000000001"
+              }
+            }
+          },
+          "parse_error": null,
+          "body_bytes": 7557
+        }
+      }
+    ]
+  }
+}

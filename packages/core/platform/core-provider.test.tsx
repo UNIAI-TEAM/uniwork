@@ -46,6 +46,26 @@ describe("CoreProvider", () => {
     expect(auth.refreshSession).toHaveBeenCalledTimes(1);
   });
 
+  it("defers the session refresh while the host says the page needs no session", async () => {
+    // Public marketing pages never read the session; refreshing there only
+    // costs every anonymous visitor a 401. Turning the flag on later (the
+    // visitor navigates into the app) resolves the session once.
+    const { rerender } = render(
+      <CoreProvider initializeAuth={false}>
+        <div>app</div>
+      </CoreProvider>,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(auth.refreshSession).not.toHaveBeenCalled();
+
+    rerender(
+      <CoreProvider initializeAuth>
+        <div>app</div>
+      </CoreProvider>,
+    );
+    await vi.waitFor(() => expect(auth.refreshSession).toHaveBeenCalledTimes(1));
+  });
+
   it("renders its children", () => {
     const { getByText } = render(
       <CoreProvider>

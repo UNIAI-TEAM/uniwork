@@ -28,23 +28,24 @@ export function EmailHubAiActionItemsCard({
   if (actionItems.length === 0) return null;
 
   return (
-    <div className="space-y-3 rounded-xl border border-border/70 bg-surface px-3 py-3">
-      <div className="flex items-center gap-2 text-caption font-medium text-foreground">
-        <ListChecks className="size-3.5 shrink-0 text-brand" aria-hidden />
+    <section className="space-y-3 rounded-lg border border-border bg-surface px-4 py-3" aria-labelledby="email-hub-ai-actions">
+      <h3 id="email-hub-ai-actions" className="flex items-center gap-2 text-body font-semibold text-foreground">
+        <ListChecks className="size-4 shrink-0 text-muted-foreground" aria-hidden />
         {t("email_hub.ai.action_items")}
-      </div>
+      </h3>
       <p className="text-caption leading-snug text-muted-foreground">{t("email_hub.ai.task_pick_hint")}</p>
 
-      <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
+      <ul className="divide-y divide-border overflow-hidden rounded-md border border-border">
         {actionItems.map((item, index) => (
           <li
             key={`${item.title}-${index}`}
             className={cn(
               "px-3 py-2.5 transition-colors",
-              picked.has(index) && "bg-surface-selected",
+              picked.has(index) && "bg-brand-subtle/50",
             )}
           >
-            <div className="flex items-start gap-3">
+            {/* The whole line is the label: the title is the target, not only the 16px box. */}
+            <label className="flex cursor-pointer items-start gap-3">
               <Checkbox
                 className="mt-0.5"
                 checked={picked.has(index)}
@@ -54,7 +55,6 @@ export function EmailHubAiActionItemsCard({
                   else next.delete(index);
                   onPickedChange(next);
                 }}
-                aria-label={item.title}
               />
               <span className="min-w-0 flex-1 text-body leading-snug text-foreground">
                 {item.title}
@@ -64,20 +64,14 @@ export function EmailHubAiActionItemsCard({
                   </span>
                 ) : null}
               </span>
-            </div>
+            </label>
           </li>
         ))}
       </ul>
 
-      <Button
-        type="button"
-        size="sm"
-        className="w-full rounded-full"
-        disabled={createDisabled}
-        onClick={onOpenCreateDialog}
-      >
-        {t("email_hub.ai.create_tasks")}
+      <Button type="button" variant="brand" className="w-full" disabled={createDisabled} onClick={onOpenCreateDialog}>
+        {t("email_hub.ai.create_tasks", { count: picked.size })}
       </Button>
-    </div>
+    </section>
   );
 }

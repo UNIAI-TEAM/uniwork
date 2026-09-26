@@ -10,6 +10,7 @@ import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { useOptionalWorkspace } from "../layout/workspace-context";
+import { memberAvatarUrl } from "./chat-member-avatar";
 import { initialOf } from "./chat-initials";
 import { ChatRoomMemberActions } from "./chat-room-member-actions";
 import {
@@ -119,7 +120,14 @@ export function WorkspaceRoomMemberList({
             return (
               <ChatMemberRow
                 key={member.user_id}
-                avatar={<ActorAvatar name={label} initials={initialOf(label)} size="lg" />}
+                avatar={
+                  <ActorAvatar
+                    name={label}
+                    initials={initialOf(label)}
+                    avatarUrl={memberAvatarUrl(wsMember?.avatar_url)}
+                    size="lg"
+                  />
+                }
                 name={label}
                 detail={detail}
                 actions={

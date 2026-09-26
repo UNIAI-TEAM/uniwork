@@ -7,6 +7,7 @@ import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import { displayLabelForChatContact } from "@uniwork/core/chat/contacts-store";
 import { selectIsUserOnline, usePresenceStore } from "@uniwork/core/chat/presence-store";
 import { initialOf } from "./chat-initials";
+import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
 import { ChatPresenceAvatar } from "./chat-presence-avatar";
 import { ChatRoomMark } from "./chat-room-mark";
 import type { ChatRoomPreview } from "./chat-sidebar-preview";
@@ -22,9 +23,25 @@ export type SidebarRowLabels = Omit<SidebarPreviewOptions, "isGroup" | "nickname
  * rather than the whole presence map, so a colleague coming online repaints
  * their own row and nothing else.
  */
-function DmPresenceAvatar({ userId, label }: { userId: string; label: string }) {
+function DmPresenceAvatar({
+  userId,
+  label,
+  memberAvatarByUserId,
+}: {
+  userId: string;
+  label: string;
+  memberAvatarByUserId: MemberAvatarUrlMap;
+}) {
   const online = usePresenceStore((state) => selectIsUserOnline(state, userId));
-  return <ChatPresenceAvatar name={label} initials={initialOf(label)} size="lg" online={online} />;
+  return (
+    <ChatPresenceAvatar
+      name={label}
+      initials={initialOf(label)}
+      avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, userId)}
+      size="lg"
+      online={online}
+    />
+  );
 }
 
 /** The room a sidebar entry opens; null for a DM whose room does not exist yet. */
@@ -77,6 +94,7 @@ export const ChatSidebarUnifiedRow = memo(function ChatSidebarUnifiedRow({
   rowIndex,
   tabIndex,
   onRowFocus,
+  memberAvatarByUserId,
 }: {
   entry: UnifiedSidebarEntry;
   active: boolean;
@@ -85,6 +103,7 @@ export const ChatSidebarUnifiedRow = memo(function ChatSidebarUnifiedRow({
   contacts: ChatContact[];
   currentUserId: string;
   nicknamesByUserId: Record<string, string>;
+  memberAvatarByUserId: MemberAvatarUrlMap;
   preview: ChatRoomPreview | undefined;
   unread: number;
   mentionUnread: number;
@@ -174,7 +193,13 @@ export const ChatSidebarUnifiedRow = memo(function ChatSidebarUnifiedRow({
   return (
     <SidebarNavItem
       {...shared}
-      avatar={<DmPresenceAvatar userId={entry.contact.user_id} label={label} />}
+      avatar={
+        <DmPresenceAvatar
+          userId={entry.contact.user_id}
+          label={label}
+          memberAvatarByUserId={memberAvatarByUserId}
+        />
+      }
       title={label}
       contacts={contacts}
     />

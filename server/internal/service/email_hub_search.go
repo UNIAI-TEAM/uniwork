@@ -125,6 +125,14 @@ func (s *EmailHubService) ListThreads(
 				return ListEmailHubThreadsResult{}, err
 			}
 			total, unread = counts.Total, counts.Unread
+		} else if s.useInboxConversationList(in, folder) {
+			counts, err := s.q.CountEmailHubInboxConversations(ctx, db.CountEmailHubInboxConversationsParams{
+				AccountID: in.AccountID, OrganizationID: ws.OrganizationID,
+			})
+			if err != nil {
+				return ListEmailHubThreadsResult{}, err
+			}
+			total, unread = counts.Total, counts.Unread
 		} else {
 			counts, err := s.q.CountEmailHubThreads(ctx, db.CountEmailHubThreadsParams{
 				AccountID: in.AccountID, OrganizationID: ws.OrganizationID, Folder: folder,
@@ -137,9 +145,17 @@ func (s *EmailHubService) ListThreads(
 		}
 	}
 
-	out := make([]EmailHubThreadView, 0, len(rows))
-	for _, r := range rows {
-		out = append(out, threadView(r))
+	var out []EmailHubThreadView
+	if s.useInboxConversationList(in, folder) {
+		out, err = s.enrichInboxConversationList(ctx, rows)
+		if err != nil {
+			return ListEmailHubThreadsResult{}, err
+		}
+	} else {
+		out = make([]EmailHubThreadView, 0, len(rows))
+		for _, r := range rows {
+			out = append(out, threadView(r))
+		}
 	}
 	result := ListEmailHubThreadsResult{
 		Threads: out,
@@ -168,6 +184,9 @@ func (s *EmailHubService) listThreadRows(
 			FromFilter:   strings.TrimSpace(in.FromFilter),
 			BeforeSentAt: beforeSent, BeforeID: beforeID, LimitVal: limit,
 		})
+	}
+	if s.useInboxConversationList(in, folder) {
+		return s.listInboxConversationRows(ctx, in, organizationID, beforeSent, beforeID, limit)
 	}
 	return s.q.ListEmailHubThreadsPage(ctx, db.ListEmailHubThreadsPageParams{
 		AccountID: in.AccountID, OrganizationID: organizationID, Folder: folder,

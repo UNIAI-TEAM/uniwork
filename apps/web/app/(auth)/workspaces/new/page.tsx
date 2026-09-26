@@ -21,7 +21,9 @@ export default function NewWorkspacePage() {
         mode="new_workspace"
         // Cancelling needs somewhere to return to; with no workspace the flow must complete.
         onCancel={workspaces.length > 0 ? () => push(resolvePostAuthDestination(workspaces, user)) : undefined}
-        onComplete={(ws) => push(ws ? paths.workspace(ws.organization_slug, ws.slug).tasks() : paths.root())}
+        // `/` is the public landing page now, so a completion that produced no
+        // workspace goes to the picker rather than back out to marketing.
+        onComplete={(ws) => push(ws ? paths.workspace(ws.organization_slug, ws.slug).tasks() : paths.workspaces())}
       />
     </div>
   );

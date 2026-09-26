@@ -1,0 +1,1 @@
+Tai nguyen tuong doi cho fixture Markdown va HTML.

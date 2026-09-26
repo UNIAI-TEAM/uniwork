@@ -3,6 +3,7 @@ import type { GroupChat } from "@uniwork/core/chat/groups-store";
 import type { ChatRoomRecord } from "@uniwork/core/api/endpoints/chat";
 import type { Workspace } from "@uniwork/core/types";
 import type { ChatRoomPreview } from "./chat-sidebar-preview";
+import type { MemberAvatarUrlMap } from "./chat-member-avatar";
 
 export type ChatSidebarTarget =
   | { kind: "workspace" }
@@ -18,7 +19,6 @@ export interface ChatSidebarProps {
   contacts: ChatContact[];
   groups: GroupChat[];
   channels?: ChatRoomRecord[];
-  workHubEnabled?: boolean;
   onOpenFollowUps?: () => void;
   onCreateGroup?: (members: ChatContact[], name: string) => void;
   creatingGroup?: boolean;
@@ -42,4 +42,6 @@ export interface ChatSidebarProps {
   workspaceRoomTitle?: string;
   /** Hides the list on desktop; the conversation header offers the way back. */
   onCollapse?: () => void;
+  /** Workspace member avatars keyed by normalized user id. */
+  memberAvatarByUserId?: MemberAvatarUrlMap;
 }

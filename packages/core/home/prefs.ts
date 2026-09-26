@@ -2,9 +2,10 @@
  * The personal home layout: which sections show, in what order, at what
  * density. The server stores whatever object it is given; this module is the
  * contract, and `normalizeHomePrefs` is the only way a stored value becomes a
- * layout — unknown keys drop, missing keys take their default.
+ * layout — unknown keys drop, missing keys take their default. A section
+ * that no longer exists (the old "brief") drops the same way.
  */
-export const HOME_SECTION_KEYS = ["stats", "mywork", "upcoming", "inbox", "brief"] as const;
+export const HOME_SECTION_KEYS = ["stats", "mywork", "upcoming", "inbox"] as const;
 export type HomeSectionKey = (typeof HOME_SECTION_KEYS)[number];
 
 export const HOME_LAYOUTS = ["compact", "balanced", "wide"] as const;
@@ -17,8 +18,8 @@ export type HomePrefs = {
 };
 
 export const DEFAULT_HOME_PREFS: HomePrefs = {
-  enabled: { stats: true, mywork: true, upcoming: true, inbox: true, brief: true },
-  order: ["stats", "mywork", "upcoming", "inbox", "brief"],
+  enabled: { stats: true, mywork: true, upcoming: true, inbox: true },
+  order: ["stats", "mywork", "upcoming", "inbox"],
   layout: "balanced",
 };
 
@@ -28,24 +29,24 @@ export const HOME_PRESETS: { key: HomePresetKey; prefs: HomePrefs }[] = [
   {
     key: "executive",
     prefs: {
-      enabled: { stats: true, mywork: true, upcoming: false, inbox: true, brief: true },
-      order: ["stats", "brief", "inbox", "mywork", "upcoming"],
+      enabled: { stats: true, mywork: true, upcoming: false, inbox: true },
+      order: ["stats", "inbox", "mywork", "upcoming"],
       layout: "balanced",
     },
   },
   {
     key: "doer",
     prefs: {
-      enabled: { stats: true, mywork: true, upcoming: true, inbox: true, brief: false },
-      order: ["stats", "mywork", "upcoming", "inbox", "brief"],
+      enabled: { stats: true, mywork: true, upcoming: true, inbox: false },
+      order: ["stats", "mywork", "upcoming", "inbox"],
       layout: "balanced",
     },
   },
   {
     key: "minimal",
     prefs: {
-      enabled: { stats: false, mywork: true, upcoming: false, inbox: false, brief: false },
-      order: ["mywork", "stats", "upcoming", "inbox", "brief"],
+      enabled: { stats: false, mywork: true, upcoming: false, inbox: false },
+      order: ["mywork", "stats", "upcoming", "inbox"],
       layout: "compact",
     },
   },
@@ -91,4 +92,14 @@ export function moveSection(order: HomeSectionKey[], key: HomeSectionKey, dir: -
 
 export function visibleSections(prefs: HomePrefs): HomeSectionKey[] {
   return prefs.order.filter((key) => prefs.enabled[key]);
+}
+
+/** The preset a layout is exactly equal to, so the picker can mark it. */
+export function activePreset(prefs: HomePrefs): HomePresetKey | undefined {
+  return HOME_PRESETS.find(
+    (preset) =>
+      preset.prefs.layout === prefs.layout &&
+      preset.prefs.order.every((key, i) => prefs.order[i] === key) &&
+      HOME_SECTION_KEYS.every((key) => preset.prefs.enabled[key] === prefs.enabled[key]),
+  )?.key;
 }

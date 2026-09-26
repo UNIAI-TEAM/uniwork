@@ -14,6 +14,7 @@ import {
 } from "./chat-settings-ui";
 import { useResolvedRoomPermissions } from "./use-resolved-room-permissions";
 import { useRoomMemberModeration } from "./use-room-member-moderation";
+import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
 import { initialOf } from "./chat-initials";
 
 export function ChannelSettingsMembers({
@@ -22,12 +23,14 @@ export function ChannelSettingsMembers({
   roomId,
   currentUserId,
   youLabel,
+  memberAvatarByUserId = {},
 }: {
   open: boolean;
   workspaceId: string;
   roomId: string;
   currentUserId: string;
   youLabel: string;
+  memberAvatarByUserId?: MemberAvatarUrlMap;
 }) {
   const { t } = useTranslation();
   const { data: members = [], isPending, isError, refetch } = useChatRoomMembers(workspaceId, roomId, open);
@@ -60,7 +63,14 @@ export function ChannelSettingsMembers({
             return (
               <ChatMemberRow
                 key={member.user_id}
-                avatar={<ActorAvatar name={label} initials={initialOf(label)} size="lg" />}
+                avatar={
+                  <ActorAvatar
+                    name={label}
+                    initials={initialOf(label)}
+                    avatarUrl={lookupMemberAvatarUrl(memberAvatarByUserId, member.user_id)}
+                    size="lg"
+                  />
+                }
                 name={label}
                 detail={member.role === "admin" ? t("chat.room_role_admin") : member.email}
                 actions={

@@ -11,9 +11,13 @@
     "lint": "eslint . --max-warnings 0"
   },
   "dependencies": {
+    "three": "catalog:",
+    "@gsap/react": "catalog:",
     "@uniwork/core": "workspace:*",
     "@uniwork/ui": "workspace:*",
     "@uniwork/views": "workspace:*",
+    "gsap": "catalog:",
+    "lucide-react": "catalog:",
     "next": "^16.3.4",
     "react": "catalog:",
     "react-dom": "catalog:",
@@ -21,6 +25,7 @@
     "web-vitals": "^6.2.1"
   },
   "devDependencies": {
+    "@types/three": "catalog:",
     "@tailwindcss/postcss": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

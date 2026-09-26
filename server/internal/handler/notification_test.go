@@ -114,9 +114,9 @@ func TestNotificationEndpoints(t *testing.T) {
 	if res.StatusCode != 200 {
 		t.Fatalf("unread: %d", res.StatusCode)
 	}
-	res, _ = doJSON(t, srv, "POST", "/api/v1/me/notifications/read", member, map[string]any{"all": true, "workspace_id": wsID})
-	if res.StatusCode != 200 {
-		t.Fatalf("read all: %d", res.StatusCode)
+	res, out = doJSON(t, srv, "POST", "/api/v1/me/notifications/read", member, map[string]any{"all": true, "workspace_id": wsID})
+	if read, _ := out["ids"].([]any); res.StatusCode != 200 || len(read) != 1 || read[0] != nid {
+		t.Fatalf("read all: %d %v", res.StatusCode, out)
 	}
 	if _, out := doJSON(t, srv, "GET", "/api/v1/me/notifications?unread=1", member, nil); len(out["notifications"].([]any)) != 0 {
 		t.Fatalf("unread filter after read all: %v", out)
@@ -127,6 +127,17 @@ func TestNotificationEndpoints(t *testing.T) {
 	}
 	if _, out := doJSON(t, srv, "GET", "/api/v1/me/notifications", member, nil); len(out["notifications"].([]any)) != 0 {
 		t.Fatalf("archived row still listed: %v", out)
+	}
+	res, _ = doJSON(t, srv, "POST", "/api/v1/me/notifications/unarchive", owner, map[string]any{"ids": []string{nid}})
+	if res.StatusCode != 404 {
+		t.Fatalf("foreign unarchive: %d", res.StatusCode)
+	}
+	res, _ = doJSON(t, srv, "POST", "/api/v1/me/notifications/unarchive", member, map[string]any{"ids": []string{nid}})
+	if res.StatusCode != 200 {
+		t.Fatalf("unarchive: %d", res.StatusCode)
+	}
+	if _, out := doJSON(t, srv, "GET", "/api/v1/me/notifications", member, nil); len(out["notifications"].([]any)) != 1 {
+		t.Fatalf("unarchived row not listed: %v", out)
 	}
 
 	// Preferences: defaults, rejection of an unknown kind, persistence.

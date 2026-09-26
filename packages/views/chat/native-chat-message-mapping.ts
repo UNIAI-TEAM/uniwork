@@ -5,6 +5,7 @@ import type { ChatMessage } from "./chat-messages";
 export interface NameContextEntry {
   user_id: string;
   display_name: string;
+  avatar_url?: string;
 }
 
 // React Query keeps an unchanged record the same object across refetches
