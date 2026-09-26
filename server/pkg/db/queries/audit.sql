@@ -80,6 +80,30 @@ UPDATE audit_exports SET
   completed_at = now(), object_key = $2, row_count = $3, expires_at = now() + interval '24 hours'
 WHERE id = $1;
 
+-- name: CompleteAuditExportWithFile :one
+-- Đường FileService: chỉ ghi khi job chưa hoàn tất, để một lần phát lại của
+-- outbox không ghi đè kết quả đã gắn. ClaimInTx chạy trước, trong cùng
+-- transaction của caller.
+UPDATE audit_exports SET
+  completed_at = now(), file_id = $2, row_count = $3, expires_at = now() + interval '24 hours'
+WHERE id = $1 AND completed_at IS NULL
+RETURNING id;
+
+-- name: ListExpiredAuditExportFiles :many
+-- Tham chiếu file còn gắn sau expires_at: hết cửa sổ tải, chờ giải phóng cho
+-- collector. Hàng đường cũ (object_key, không file_id) không nằm trong đây.
+SELECT id, file_id FROM audit_exports
+WHERE file_id IS NOT NULL AND expires_at IS NOT NULL AND expires_at <= now();
+
+-- name: ReleaseAuditExportFile :execrows
+-- Gỡ tham chiếu sau khi hết hạn; caller gọi files.ReleaseInTx trong cùng
+-- transaction. Điều kiện file_id khớp để một lần gỡ trùng không xóa nhầm.
+UPDATE audit_exports SET file_id = NULL WHERE id = $1 AND file_id = $2;
+
+-- name: AuditExportHeldFileIDs :many
+-- ReferenceProvider của FileService: id file nào một job export còn giữ.
+SELECT file_id FROM audit_exports WHERE file_id = ANY(sqlc.arg('file_ids')::text[]);
+
 -- name: FailAuditExport :exec
 UPDATE audit_exports SET failed_at = now(), error = $2 WHERE id = $1;
 

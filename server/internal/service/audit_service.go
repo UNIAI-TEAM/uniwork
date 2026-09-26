@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -46,11 +47,21 @@ type AuditService struct {
 	q    *db.Queries
 	orgs *OrganizationService
 	ws   *WorkspaceService
+	// files is the FileService handle for the export download route and the
+	// expiry release. nil until wiring sets it: the service then behaves as
+	// before, and audit_exports rows the legacy consumer wrote simply have no
+	// file_id to serve.
+	files files.Service
 }
 
 func NewAuditService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationService, ws *WorkspaceService) *AuditService {
 	return &AuditService{pool: pool, q: q, orgs: orgs, ws: ws}
 }
+
+// SetFileService attaches FileService. Wiring calls it once (the integrator
+// owns cmd/server/main.go); it is the same constructor-level selector the
+// export consumer's SetFileService is.
+func (s *AuditService) SetFileService(fs files.Service) { s.files = fs }
 
 // AuditFilter narrows a page of the log. Every field is optional; Before is a
 // cursor, not an offset, so paging stays stable while rows arrive.
@@ -297,6 +308,54 @@ func (s *AuditService) Exports(ctx context.Context, userID, orgID string) ([]db.
 		return nil, err
 	}
 	return s.q.ListAuditExports(ctx, db.ListAuditExportsParams{OrganizationID: orgID, Limit: 20})
+}
+
+// AuditExportFile is the stream a finished export serves on the authenticated
+// download route, plus the header values the handler sets from it.
+type AuditExportFile struct {
+	Reader      files.Reader
+	Filename    string
+	ContentType string
+}
+
+// DownloadExport opens one finished export's file. The audit permission and
+// the 24 hour window are re-checked on every call — the link in the status
+// response is never a standing grant — and bytes leave only through
+// FileService's proxy read, never a storage URL.
+func (s *AuditService) DownloadExport(ctx context.Context, userID, orgID, exportID string) (AuditExportFile, error) {
+	if _, err := s.RequireOrgAdmin(ctx, orgID, userID); err != nil {
+		return AuditExportFile{}, err
+	}
+	exp, err := s.q.GetAuditExport(ctx, db.GetAuditExportParams{ID: exportID, OrganizationID: orgID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return AuditExportFile{}, ErrNotFound
+	}
+	if err != nil {
+		return AuditExportFile{}, err
+	}
+	if !exp.CompletedAt.Valid || !exp.ExpiresAt.Valid {
+		return AuditExportFile{}, ErrNotFound
+	}
+	if !time.Now().Before(exp.ExpiresAt.Time) {
+		return AuditExportFile{}, coded(http.StatusGone, "audit_export_expired", "bản xuất đã hết hạn tải")
+	}
+	if !exp.FileID.Valid || s.files == nil {
+		// A NULL file_id is either a legacy row from before the cutover —
+		// which this route cannot serve — or an already-released reference.
+		return AuditExportFile{}, ErrNotFound
+	}
+	reader, err := s.files.Open(ctx, files.OpenInput{
+		Scope:  files.Scope{OrganizationID: orgID},
+		FileID: files.FileID(exp.FileID.String),
+	})
+	if err != nil {
+		return AuditExportFile{}, filesError(err)
+	}
+	return AuditExportFile{
+		Reader:      reader,
+		Filename:    reader.File.Filename,
+		ContentType: auditExportContentType(exp.Format),
+	}, nil
 }
 
 // viewsFor parses the JSON columns and drops the IP address for anyone but an

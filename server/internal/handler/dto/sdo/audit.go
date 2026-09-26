@@ -47,7 +47,7 @@ type AuditExportDTO struct {
 	ToAt        string  `json:"to_at" example:"2026-09-01T00:00:00Z"`
 	Status      string  `json:"status" description:"pending, running, done hoặc failed" example:"done"`
 	RowCount    int32   `json:"row_count" example:"1204"`
-	DownloadURL *string `json:"download_url,omitempty" description:"Có khi status = done" example:"https://cdn.example.com/audit-exports/…"`
+	DownloadURL *string `json:"download_url,omitempty" description:"Có khi status = done còn hạn; đường dẫn API tải cần Bearer" example:"/api/v1/orgs/…/audit/exports/…/download"`
 	Error       *string `json:"error,omitempty" example:"khoảng thời gian quá lớn"`
 	CreatedAt   string  `json:"created_at" example:"2026-09-04T09:00:00Z"`
 	ExpiresAt   *string `json:"expires_at,omitempty" description:"Link tải hết hạn sau 24 giờ" example:"2026-09-05T09:00:00Z"`

@@ -5,7 +5,7 @@ import {
   type AuditEvent,
   type AuditExport,
 } from "../../types/audit";
-import { request } from "../http";
+import { request, requestBlob } from "../http";
 import { parseWithFallback } from "../schema";
 
 const AuditEventsResponse = z.object({
@@ -126,4 +126,12 @@ export async function getAuditExport(orgId: string, exportId: string): Promise<A
       endpoint: "GET /api/v1/orgs/{org}/audit/exports/{id}",
     })?.export ?? null
   );
+}
+
+/**
+ * Fetch a finished export's bytes through the authenticated download route —
+ * a plain <a href> cannot attach the bearer token this route re-checks.
+ */
+export async function downloadAuditExport(orgId: string, exportId: string): Promise<Blob> {
+  return requestBlob(`/api/v1/orgs/${enc(orgId)}/audit/exports/${enc(exportId)}/download`);
 }

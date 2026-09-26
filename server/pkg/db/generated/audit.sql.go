@@ -11,6 +11,31 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const auditExportHeldFileIDs = `-- name: AuditExportHeldFileIDs :many
+SELECT file_id FROM audit_exports WHERE file_id = ANY($1::text[])
+`
+
+// ReferenceProvider của FileService: id file nào một job export còn giữ.
+func (q *Queries) AuditExportHeldFileIDs(ctx context.Context, fileIds []string) ([]pgtype.Text, error) {
+	rows, err := q.db.Query(ctx, auditExportHeldFileIDs, fileIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.Text{}
+	for rows.Next() {
+		var file_id pgtype.Text
+		if err := rows.Scan(&file_id); err != nil {
+			return nil, err
+		}
+		items = append(items, file_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const completeAuditExport = `-- name: CompleteAuditExport :exec
 UPDATE audit_exports SET
   completed_at = now(), object_key = $2, row_count = $3, expires_at = now() + interval '24 hours'
@@ -26,6 +51,29 @@ type CompleteAuditExportParams struct {
 func (q *Queries) CompleteAuditExport(ctx context.Context, arg CompleteAuditExportParams) error {
 	_, err := q.db.Exec(ctx, completeAuditExport, arg.ID, arg.ObjectKey, arg.RowCount)
 	return err
+}
+
+const completeAuditExportWithFile = `-- name: CompleteAuditExportWithFile :one
+UPDATE audit_exports SET
+  completed_at = now(), file_id = $2, row_count = $3, expires_at = now() + interval '24 hours'
+WHERE id = $1 AND completed_at IS NULL
+RETURNING id
+`
+
+type CompleteAuditExportWithFileParams struct {
+	ID       string      `json:"id"`
+	FileID   pgtype.Text `json:"file_id"`
+	RowCount int32       `json:"row_count"`
+}
+
+// Đường FileService: chỉ ghi khi job chưa hoàn tất, để một lần phát lại của
+// outbox không ghi đè kết quả đã gắn. ClaimInTx chạy trước, trong cùng
+// transaction của caller.
+func (q *Queries) CompleteAuditExportWithFile(ctx context.Context, arg CompleteAuditExportWithFileParams) (string, error) {
+	row := q.db.QueryRow(ctx, completeAuditExportWithFile, arg.ID, arg.FileID, arg.RowCount)
+	var id string
+	err := row.Scan(&id)
+	return id, err
 }
 
 const countAuditEventsOlderThan = `-- name: CountAuditEventsOlderThan :one
@@ -144,7 +192,7 @@ func (q *Queries) GetAuditEventByCorrelation(ctx context.Context, arg GetAuditEv
 }
 
 const getAuditExport = `-- name: GetAuditExport :one
-SELECT id, organization_id, requested_by, requested_by_kind, format, from_at, to_at, row_count, object_key, error, created_at, started_at, completed_at, failed_at, expires_at FROM audit_exports WHERE id = $1 AND organization_id = $2
+SELECT id, organization_id, requested_by, requested_by_kind, format, from_at, to_at, row_count, object_key, error, created_at, started_at, completed_at, failed_at, expires_at, file_id FROM audit_exports WHERE id = $1 AND organization_id = $2
 `
 
 type GetAuditExportParams struct {
@@ -171,6 +219,7 @@ func (q *Queries) GetAuditExport(ctx context.Context, arg GetAuditExportParams) 
 		&i.CompletedAt,
 		&i.FailedAt,
 		&i.ExpiresAt,
+		&i.FileID,
 	)
 	return i, err
 }
@@ -242,7 +291,7 @@ const insertAuditExport = `-- name: InsertAuditExport :one
 INSERT INTO audit_exports (
   id, organization_id, requested_by, requested_by_kind, format, from_at, to_at
 ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, organization_id, requested_by, requested_by_kind, format, from_at, to_at, row_count, object_key, error, created_at, started_at, completed_at, failed_at, expires_at
+RETURNING id, organization_id, requested_by, requested_by_kind, format, from_at, to_at, row_count, object_key, error, created_at, started_at, completed_at, failed_at, expires_at, file_id
 `
 
 type InsertAuditExportParams struct {
@@ -282,6 +331,7 @@ func (q *Queries) InsertAuditExport(ctx context.Context, arg InsertAuditExportPa
 		&i.CompletedAt,
 		&i.FailedAt,
 		&i.ExpiresAt,
+		&i.FileID,
 	)
 	return i, err
 }
@@ -419,7 +469,7 @@ func (q *Queries) ListAuditEventsForExport(ctx context.Context, arg ListAuditEve
 }
 
 const listAuditExports = `-- name: ListAuditExports :many
-SELECT id, organization_id, requested_by, requested_by_kind, format, from_at, to_at, row_count, object_key, error, created_at, started_at, completed_at, failed_at, expires_at FROM audit_exports
+SELECT id, organization_id, requested_by, requested_by_kind, format, from_at, to_at, row_count, object_key, error, created_at, started_at, completed_at, failed_at, expires_at, file_id FROM audit_exports
 WHERE organization_id = $1
 ORDER BY created_at DESC
 LIMIT $2
@@ -455,6 +505,7 @@ func (q *Queries) ListAuditExports(ctx context.Context, arg ListAuditExportsPara
 			&i.CompletedAt,
 			&i.FailedAt,
 			&i.ExpiresAt,
+			&i.FileID,
 		); err != nil {
 			return nil, err
 		}
@@ -483,6 +534,38 @@ func (q *Queries) ListAuditOrganizations(ctx context.Context) ([]string, error) 
 			return nil, err
 		}
 		items = append(items, organization_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listExpiredAuditExportFiles = `-- name: ListExpiredAuditExportFiles :many
+SELECT id, file_id FROM audit_exports
+WHERE file_id IS NOT NULL AND expires_at IS NOT NULL AND expires_at <= now()
+`
+
+type ListExpiredAuditExportFilesRow struct {
+	ID     string      `json:"id"`
+	FileID pgtype.Text `json:"file_id"`
+}
+
+// Tham chiếu file còn gắn sau expires_at: hết cửa sổ tải, chờ giải phóng cho
+// collector. Hàng đường cũ (object_key, không file_id) không nằm trong đây.
+func (q *Queries) ListExpiredAuditExportFiles(ctx context.Context) ([]ListExpiredAuditExportFilesRow, error) {
+	rows, err := q.db.Query(ctx, listExpiredAuditExportFiles)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListExpiredAuditExportFilesRow{}
+	for rows.Next() {
+		var i ListExpiredAuditExportFilesRow
+		if err := rows.Scan(&i.ID, &i.FileID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -543,6 +626,25 @@ func (q *Queries) ListResourceAuditEvents(ctx context.Context, arg ListResourceA
 		return nil, err
 	}
 	return items, nil
+}
+
+const releaseAuditExportFile = `-- name: ReleaseAuditExportFile :execrows
+UPDATE audit_exports SET file_id = NULL WHERE id = $1 AND file_id = $2
+`
+
+type ReleaseAuditExportFileParams struct {
+	ID     string      `json:"id"`
+	FileID pgtype.Text `json:"file_id"`
+}
+
+// Gỡ tham chiếu sau khi hết hạn; caller gọi files.ReleaseInTx trong cùng
+// transaction. Điều kiện file_id khớp để một lần gỡ trùng không xóa nhầm.
+func (q *Queries) ReleaseAuditExportFile(ctx context.Context, arg ReleaseAuditExportFileParams) (int64, error) {
+	result, err := q.db.Exec(ctx, releaseAuditExportFile, arg.ID, arg.FileID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const startAuditExport = `-- name: StartAuditExport :exec
