@@ -130,7 +130,7 @@ test("recording playback: listed, exact bytes, member reads, other org blocked @
   expect(asMember.status()).toBe(200);
 
   // ...and a user from another organization who guessed the ids is refused.
-  const outsider = await registerApiUser(page, api, "rec-outsider");
+  const outsider = await createRecordingAccount(page, api, "rec-outsider");
   const asOutsider = await page.request.get(content, { headers: { authorization: `Bearer ${outsider.token}` } });
   expect(asOutsider.status()).toBe(403);
 });

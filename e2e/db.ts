@@ -84,7 +84,7 @@ export async function assignWorkspaceTasksDueToday(email: string, orgSlug: strin
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
 /** ULID-shaped id, so seeded rows look like the ids the server mints. */
-export function e2eUlid(): string {
+function e2eUlid(): string {
   let time = Date.now();
   const stamp = Array.from({ length: 10 }, () => {
     const char = CROCKFORD[time % 32];
@@ -115,7 +115,7 @@ function repoRoot(): string {
  * E2E_UPLOAD_DIR; otherwise the single server/data/uploads-* directory of the
  * checkout is used, which is what init-worktree-env.sh gives each worktree.
  */
-export function localUploadDir(): string {
+function localUploadDir(): string {
   const configured = process.env.E2E_UPLOAD_DIR ?? process.env.LOCAL_UPLOAD_DIR;
   const root = repoRoot();
   if (configured) {
