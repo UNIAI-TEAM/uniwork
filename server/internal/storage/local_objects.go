@@ -162,6 +162,13 @@ func (s *localObjectStore) SignRead(context.Context, ObjectLocator, SignOptions)
 	return SignedURL{}, fmt.Errorf("local SignRead: %w: the filesystem backend serves objects through the API proxy route", ErrCapabilityUnsupported)
 }
 
+// SignWrite implements ObjectStore - same refusal as SignRead: a presigned
+// PUT has no target on the filesystem backend, so provider-upload flows must
+// not run on local.
+func (s *localObjectStore) SignWrite(context.Context, ObjectLocator, SignOptions) (SignedURL, error) {
+	return SignedURL{}, fmt.Errorf("local SignWrite: %w: the filesystem backend has no presigned upload URL", ErrCapabilityUnsupported)
+}
+
 // Probe implements ObjectStore. It answers "is the root still a usable
 // directory" - cheap enough for the readiness interval and never a write.
 func (s *localObjectStore) Probe(ctx context.Context) error {

@@ -294,6 +294,34 @@ func TestS3SignReadMintsURL(t *testing.T) {
 	}
 }
 
+func TestS3SignWriteMintsPUT(t *testing.T) {
+	stub := &stubS3{}
+	store := newStubS3(t, stub)
+	signed, err := store.SignWrite(context.Background(), store.loc("provider/in.bin"), SignOptions{TTL: 5 * time.Minute})
+	if err != nil {
+		t.Fatalf("SignWrite: %v", err)
+	}
+	if signed.Method != "PUT" {
+		t.Fatalf("SignWrite Method = %q, want PUT", signed.Method)
+	}
+	if !strings.Contains(signed.URL, "/testbucket/provider/in.bin") {
+		t.Fatalf("signed URL %q does not name the object", signed.URL)
+	}
+	if !strings.Contains(signed.URL, "X-Amz-Signature=") {
+		t.Fatalf("signed URL %q has no signature", signed.URL)
+	}
+	if strings.Contains(signed.URL, "sk") {
+		t.Fatalf("signed URL leaks the secret key: %q", signed.URL)
+	}
+	if _, err := store.SignWrite(context.Background(), store.loc("a.bin"), SignOptions{}); err == nil {
+		t.Fatal("SignWrite with zero TTL succeeded")
+	}
+	// A locator for another backend is refused before a URL is minted.
+	if _, err := store.SignWrite(context.Background(), ObjectLocator{Storage: BackendS3, Bucket: "testbucket", Key: "a.bin"}, SignOptions{TTL: time.Minute}); !errors.Is(err, ErrLocatorInvalid) {
+		t.Fatalf("SignWrite foreign locator = %v, want ErrLocatorInvalid", err)
+	}
+}
+
 func TestS3SignReadPublicEndpointHost(t *testing.T) {
 	stub := &stubS3{}
 	store := newStubS3(t, stub)

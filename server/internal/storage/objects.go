@@ -103,11 +103,12 @@ type SignOptions struct {
 	Disposition string
 }
 
-// SignedURL is one presigned GET. URL carries the signature; it must never be
-// written to a log or an error string.
+// SignedURL is one presigned URL. URL carries the signature; it must never be
+// written to a log or an error string. Method is the HTTP verb the URL is
+// valid for (GET for SignRead, PUT for SignWrite).
 type SignedURL struct {
 	URL       string
-	Method    string // always GET today
+	Method    string
 	ExpiresAt time.Time
 }
 
@@ -160,6 +161,12 @@ type ObjectStore interface {
 	// (local) returns ErrCapabilityUnsupported instead of an empty URL that
 	// looks like success (spec §3).
 	SignRead(ctx context.Context, loc ObjectLocator, opts SignOptions) (SignedURL, error)
+	// SignWrite mints a presigned PUT URL for the locator's key (provider
+	// flows: a files row is registered first, the client then uploads
+	// directly). opts.Disposition is ignored - writes carry no
+	// response-disposition. An adapter without the capability returns
+	// ErrCapabilityUnsupported, never a fake URL.
+	SignWrite(ctx context.Context, loc ObjectLocator, opts SignOptions) (SignedURL, error)
 	// Probe is the readiness dependency check: cheap, bounded by the caller's
 	// ctx, and never an upload or a delete (spec §3.3.5).
 	Probe(ctx context.Context) error

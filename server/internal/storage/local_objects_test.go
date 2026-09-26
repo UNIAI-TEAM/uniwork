@@ -314,6 +314,15 @@ func TestLocalObjectStoreSignReadUnsupported(t *testing.T) {
 	if signed.URL != "" {
 		t.Fatal("SignRead returned a URL on a backend without presign")
 	}
+	// SignWrite refuses the same way - no presigned upload exists on a
+	// filesystem root.
+	signedW, err := store.SignWrite(context.Background(), localLoc("a.bin"), SignOptions{TTL: time.Minute})
+	if !errors.Is(err, ErrCapabilityUnsupported) {
+		t.Fatalf("SignWrite = %v, want ErrCapabilityUnsupported", err)
+	}
+	if signedW.URL != "" {
+		t.Fatal("SignWrite returned a URL on a backend without presign")
+	}
 }
 
 // TestLocalFactoryPreflightRootErrors: preflight proves the root usable - a

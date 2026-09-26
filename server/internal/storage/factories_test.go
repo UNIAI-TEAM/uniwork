@@ -29,6 +29,9 @@ func (s stubStore) Delete(context.Context, ObjectLocator) error { return nil }
 func (s stubStore) SignRead(context.Context, ObjectLocator, SignOptions) (SignedURL, error) {
 	return SignedURL{}, ErrCapabilityUnsupported
 }
+func (s stubStore) SignWrite(context.Context, ObjectLocator, SignOptions) (SignedURL, error) {
+	return SignedURL{}, ErrCapabilityUnsupported
+}
 func (s stubStore) Probe(context.Context) error { return nil }
 
 // codedFactory returns a factory for backend that builds the given store.

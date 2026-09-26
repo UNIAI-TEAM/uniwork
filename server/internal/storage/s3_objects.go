@@ -242,6 +242,29 @@ func (s *s3ObjectStore) SignRead(ctx context.Context, loc ObjectLocator, opts Si
 	return SignedURL{URL: out.URL, Method: "GET", ExpiresAt: time.Now().Add(opts.TTL)}, nil
 }
 
+// SignWrite implements ObjectStore: a presigned PUT for the provider-upload
+// flow (the files row is registered first, the client then uploads straight
+// to storage). The signature covers the key only - content type/length are
+// enforced by the caller's own checks, not by the URL.
+func (s *s3ObjectStore) SignWrite(ctx context.Context, loc ObjectLocator, opts SignOptions) (SignedURL, error) {
+	if err := s.checkLocator(loc); err != nil {
+		return SignedURL{}, err
+	}
+	if opts.TTL <= 0 {
+		return SignedURL{}, fmt.Errorf("s3 SignWrite: %w: ttl must be positive", ErrLocatorInvalid)
+	}
+	out, err := s3.NewPresignClient(s.presignClient).PresignPutObject(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(loc.Key),
+	}, func(o *s3.PresignOptions) {
+		o.Expires = opts.TTL
+	})
+	if err != nil {
+		return SignedURL{}, fmt.Errorf("s3 SignWrite: %w", err)
+	}
+	return SignedURL{URL: out.URL, Method: "PUT", ExpiresAt: time.Now().Add(opts.TTL)}, nil
+}
+
 // Probe implements ObjectStore: one HeadBucket, bounded by the caller's
 // deadline - never an upload or a delete (spec §3.3.5).
 func (s *s3ObjectStore) Probe(ctx context.Context) error {

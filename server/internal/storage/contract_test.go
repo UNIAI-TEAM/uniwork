@@ -201,6 +201,51 @@ func runObjectStoreContract(t *testing.T, cs contractStore) {
 		}
 	})
 
+	t.Run("SignWrite", func(t *testing.T) {
+		signedPutLoc := cs.locFor("contract/signed-put.bin")
+		t.Cleanup(func() {
+			cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			_ = store.Delete(cleanupCtx, signedPutLoc)
+		})
+		signed, err := store.SignWrite(ctx, signedPutLoc, SignOptions{TTL: time.Minute})
+		if !store.Capabilities().Presign {
+			if !errors.Is(err, ErrCapabilityUnsupported) {
+				t.Fatalf("SignWrite on a non-presign adapter = %v, want ErrCapabilityUnsupported", err)
+			}
+			return
+		}
+		if err != nil {
+			t.Fatalf("SignWrite: %v", err)
+		}
+		if signed.URL == "" || signed.Method != "PUT" {
+			t.Fatalf("SignWrite = %+v, want a PUT URL", signed)
+		}
+		// The URL must accept the upload - provider flows depend on a working
+		// presigned PUT, not a URL that only parses.
+		payload := []byte("signed put payload")
+		req, reqErr := http.NewRequestWithContext(ctx, http.MethodPut, signed.URL, bytes.NewReader(payload))
+		if reqErr != nil {
+			t.Fatalf("build signed PUT: %v", reqErr)
+		}
+		resp, respErr := http.DefaultClient.Do(req)
+		if respErr != nil {
+			t.Fatalf("PUT signed URL: %v", respErr)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("signed PUT status = %d, want 200", resp.StatusCode)
+		}
+		// And the bytes must be retrievable through the normal path.
+		info, err := store.Stat(ctx, signedPutLoc)
+		if err != nil {
+			t.Fatalf("Stat after signed PUT: %v", err)
+		}
+		if info.SizeBytes != int64(len(payload)) {
+			t.Fatalf("signed PUT object size = %d, want %d", info.SizeBytes, len(payload))
+		}
+	})
+
 	// Delete runs last: every read leg above uses the object it removes.
 	t.Run("Delete", func(t *testing.T) {
 		if err := store.Delete(ctx, deleteLoc); err != nil {
