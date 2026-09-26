@@ -1287,8 +1287,11 @@
   "source_docs": [
    {
     "path": "docs/office/g0/engine-contract.md",
-    "sha256": "0d2bf778081bb2eefd66f396b978ce9e9f1f0c3e847db656667da5e46d95d3f0",
-    "bytes": 61786
+    "sha256": "e294d063a72e2b2ef41ff5739226d12f3e6aeda62a72c79118f3544dc69effd1",
+    "bytes": 66556,
+    "reconciled_sha256": "0d2bf778081bb2eefd66f396b978ce9e9f1f0c3e847db656667da5e46d95d3f0",
+    "reconciled_bytes": 61786,
+    "amended_by": "UNI-748 (B1) 2026-09-27: FileService amendment of the section 1 row and the ledger/lifecycle wording in sections 6, 7, 8.1, 8.3, 8.4, 11, 13 and 15; RT-02 evidence was reconciled against reconciled_sha256 and is not re-run"
    },
    {
     "path": "docs/office/g0/engine-contract-lab-runtime.md",
