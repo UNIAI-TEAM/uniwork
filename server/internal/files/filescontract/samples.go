@@ -18,8 +18,10 @@ type Sample struct {
 	ContentType string
 }
 
-// Samples returns one sample per type any registry allowlist names. Every
-// call builds fresh bodies, so a caller may keep or mutate them.
+// Samples returns one sample per type DetectContentType returns that a
+// registry row allows or maps with CanonicalTypes. ContentType is the
+// detector's answer; a purpose stores Policy.Canonical of it. Every call
+// builds fresh bodies, so a caller may keep or mutate them.
 func Samples() []Sample {
 	return []Sample{
 		{"jpeg", "photo.jpg", jpegSample(), "image/jpeg"},
@@ -42,6 +44,7 @@ func Samples() []Sample {
 		{"webm", "voice.webm", webmSample(), "video/webm"},
 		{"ogg_opus", "voice.ogg", oggSample("OpusHead\x01\x01\x38\x01\x80\xbb\x00\x00\x00\x00\x00"), "audio/ogg"},
 		{"ogg_theora", "call.ogv", oggSample("\x80theora\x03\x02\x01"), "video/ogg"},
+		{"ogg_other_codec", "voice.ogg", oggSample("\x7fmystery"), "application/ogg"},
 		{"m4a", "voice.m4a", ftypSample("M4A ", "M4A ", "mp42", "isom"), "audio/mp4"},
 		{"mp4", "call.mp4", ftypSample("isom", "isom", "iso2", "avc1", "mp41"), "video/mp4"},
 	}

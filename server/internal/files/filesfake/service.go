@@ -82,7 +82,7 @@ func (f *Fake) Upload(_ context.Context, in files.UploadInput) (files.Upload, er
 		return files.Upload{}, fmt.Errorf("%w: %v", errBodyUnreadable, err)
 	}
 
-	contentType := files.DetectContentType(body, in.Filename)
+	contentType := spec.Policy.Canonical(files.DetectContentType(body, in.Filename))
 	if !spec.Policy.Allows(contentType) {
 		failure := files.TypeRejected(contentType)
 		f.uploads[in.IdempotencyKey] = &uploadAttempt{fingerprint: fingerprint, failure: failure}
@@ -422,7 +422,7 @@ func (f *Fake) CompleteProviderOutput(_ context.Context, in files.CompleteOutput
 	}
 	// A provider output carries no filename (FS-C1 section 4), so only the
 	// bytes speak: the extension-hinted text types stay text/plain here.
-	contentType := files.DetectContentType(e.bytes, e.file.Filename)
+	contentType := e.spec.Policy.Canonical(files.DetectContentType(e.bytes, e.file.Filename))
 	if !e.spec.Policy.Allows(contentType) {
 		return files.File{}, files.TypeRejected(contentType)
 	}

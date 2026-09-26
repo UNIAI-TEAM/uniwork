@@ -26,20 +26,75 @@ func TestDetectContentTypeMisnamed(t *testing.T) {
 	}
 }
 
-// Every allowlist entry of every purpose, disabled ones included, must be a
-// type some real body verifies as; otherwise the entry is unreachable.
+// Every allowlist entry of every purpose, disabled ones included, must be the
+// stored type of some real body; otherwise the entry is unreachable. Every
+// canonical mapping must start from a type some body verifies as.
 func TestEveryAllowlistEntryIsReachable(t *testing.T) {
-	reachable := map[string]string{}
-	for _, s := range filescontract.Samples() {
-		reachable[files.DetectContentType(s.Body, s.Filename)] = s.Name
-	}
 	for _, spec := range files.DefaultSpecs() {
+		stored := map[string]bool{}
+		detected := map[string]bool{}
+		for _, s := range filescontract.Samples() {
+			ct := files.DetectContentType(s.Body, s.Filename)
+			detected[ct] = true
+			stored[spec.Policy.Canonical(ct)] = true
+		}
 		for _, ct := range spec.Policy.MIMEAllowlist {
-			if _, ok := reachable[ct]; !ok {
-				t.Errorf("purpose %s allows %q, which no sample verifies as", spec.Purpose, ct)
+			if !stored[ct] {
+				t.Errorf("purpose %s allows %q, which no sample is stored as", spec.Purpose, ct)
+			}
+		}
+		for from := range spec.Policy.CanonicalTypes {
+			if !detected[from] {
+				t.Errorf("purpose %s maps %q, which no sample verifies as", spec.Purpose, from)
 			}
 		}
 	}
+}
+
+// A voice note keeps the names the legacy pipeline stores and serves
+// (sniffChatVoiceContentType; the UNI-745 regression net pins audio/webm on
+// the message and the playback stream).
+func TestChatVoiceKeepsLegacyTypes(t *testing.T) {
+	spec, err := files.DefaultRegistry().Lookup(files.ChatVoice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		"webm": "audio/webm", "ogg_opus": "audio/ogg", "ogg_theora": "audio/ogg",
+		"ogg_other_codec": "audio/ogg", "m4a": "audio/mp4", "mp4": "audio/mp4",
+	}
+	seen := 0
+	for _, s := range filescontract.Samples() {
+		ct, ok := want[s.Name]
+		if !ok {
+			continue
+		}
+		seen++
+		if got := spec.Policy.Canonical(files.DetectContentType(s.Body, s.Filename)); got != ct || !spec.Policy.Allows(got) {
+			t.Errorf("%s: stored as %q (allowed %v), want %q", s.Name, got, spec.Policy.Allows(got), ct)
+		}
+	}
+	if seen != len(want) {
+		t.Errorf("found %d of %d voice samples", seen, len(want))
+	}
+}
+
+func TestMeetingRecordingKeepsTheEgressType(t *testing.T) {
+	spec, err := files.DefaultRegistry().Lookup(files.MeetingRecording)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range filescontract.Samples() {
+		if s.Name != "mp4" {
+			continue
+		}
+		// recording_playback.go serves every meeting recording as video/mp4.
+		if got := spec.Policy.Canonical(files.DetectContentType(s.Body, s.Filename)); got != "video/mp4" {
+			t.Errorf("egress mp4 stored as %q, want video/mp4", got)
+		}
+		return
+	}
+	t.Fatal("no mp4 sample")
 }
 
 func TestDetectContentTypeEdges(t *testing.T) {

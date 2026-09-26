@@ -45,6 +45,23 @@ type Policy struct {
 	MIMEAllowlist    []string
 	ChecksumRequired bool
 	ReadMode         ReadMode
+	// CanonicalTypes maps a type DetectContentType returns to the type this
+	// purpose stores and serves, applied before the allowlist check. The
+	// detector names the container family the bytes prove; a purpose whose
+	// files production already serves under another name (a voice note's
+	// WebM is audio/webm) keeps that name here, as data, instead of teaching
+	// the detector about purposes. Every value must be in MIMEAllowlist.
+	CanonicalTypes map[string]string
+}
+
+// Canonical returns the type a verified content type is stored as under this
+// policy: its CanonicalTypes entry, or the normalized type itself.
+func (p Policy) Canonical(contentType string) string {
+	ct := NormalizeContentType(contentType)
+	if mapped, ok := p.CanonicalTypes[ct]; ok {
+		return mapped
+	}
+	return ct
 }
 
 // Allows reports whether a verified content type is in the allowlist.
@@ -150,17 +167,27 @@ var (
 	// both as text/plain and accepted them, and DetectContentType now names
 	// them by their extension.
 	chatFileMIMETypes = []string{"image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf", "text/plain", "text/csv", "text/markdown"}
+	// voiceCanonicalTypes keeps the names the chat voice pipeline stores and
+	// serves today (sniffChatVoiceContentType in
+	// server/internal/handler/chat_voice_message.go): any Ogg is audio/ogg,
+	// any WebM audio/webm, any MP4 audio/mp4. The UNI-745 regression tests
+	// pin audio/webm on the stored message and the playback stream.
+	voiceCanonicalTypes = map[string]string{
+		"video/webm":      "audio/webm",
+		"application/ogg": "audio/ogg",
+		"video/ogg":       "audio/ogg",
+		"video/mp4":       "audio/mp4",
+	}
 	// recordingMIMETypes covers what LiveKit egress and the browser recorder
-	// produce today (webm/ogg/mp4), for voice notes and call recordings, as
-	// DetectContentType names them. There is no audio/webm: a head scan cannot
-	// tell an audio-only WebM from a video one, so every WebM is video/webm.
+	// produce today (webm/ogg/mp4), for call and meeting recordings, as
+	// DetectContentType names them; the LiveKit egress MP4 is video/mp4, the
+	// type meeting playback serves today. There is no audio/webm: a head scan
+	// cannot tell an audio-only WebM from a video one, so every WebM is
+	// video/webm.
 	recordingMIMETypes = []string{"video/webm", "audio/ogg", "video/ogg", "audio/mp4", "video/mp4"}
-	// voiceMIMETypes is the browser voice-note set (4 MiB, T1 caps above) as
-	// DetectContentType names it: a recorder's WebM is video/webm, and an MP4
-	// whose ftyp box carries no M4A brand (Safari's recorder writes generic
-	// ISO brands) is video/mp4. The cap, not the type, keeps a voice note
-	// small.
-	voiceMIMETypes = []string{"video/webm", "audio/ogg", "audio/mp4", "video/mp4"}
+	// voiceMIMETypes is the browser voice-note set (4 MiB, T1 caps above),
+	// after voiceCanonicalTypes.
+	voiceMIMETypes = []string{"audio/webm", "audio/ogg", "audio/mp4"}
 	// exportMIMETypes is what AuditExport writes today: NDJSON or CSV, or a
 	// zip of them. The text types need the .ndjson / .csv filename.
 	exportMIMETypes = []string{"application/x-ndjson", "text/csv", "application/zip"}
@@ -218,7 +245,7 @@ func DefaultSpecs() []PurposeSpec {
 			Purpose: ChatVoice,
 			Prefix:  "chat/voice",
 			Scope:   ScopeOrgWorkspaceOptional,
-			Policy:  Policy{MaxBytes: 4 << 20, MIMEAllowlist: voiceMIMETypes, ReadMode: ReadPresign},
+			Policy:  Policy{MaxBytes: 4 << 20, MIMEAllowlist: voiceMIMETypes, CanonicalTypes: voiceCanonicalTypes, ReadMode: ReadPresign},
 		},
 		{
 			Purpose: ChatCallRecording,
@@ -298,6 +325,14 @@ func NewRegistry(specs ...PurposeSpec) (Registry, error) {
 		for _, ct := range spec.Policy.MIMEAllowlist {
 			if NormalizeContentType(ct) != ct || ct == "" {
 				return Registry{}, fmt.Errorf("files: purpose %q has malformed MIME type %q", string(spec.Purpose), ct)
+			}
+		}
+		for from, to := range spec.Policy.CanonicalTypes {
+			if NormalizeContentType(from) != from || from == "" || NormalizeContentType(to) != to || to == "" {
+				return Registry{}, fmt.Errorf("files: purpose %q has malformed canonical type %q -> %q", string(spec.Purpose), from, to)
+			}
+			if !spec.Policy.Allows(to) {
+				return Registry{}, fmt.Errorf("files: purpose %q maps %q to %q, which its allowlist refuses", string(spec.Purpose), from, to)
 			}
 		}
 		switch spec.Policy.ReadMode {
