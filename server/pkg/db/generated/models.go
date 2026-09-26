@@ -301,18 +301,21 @@ type ChatUserNickname struct {
 }
 
 type ChatVoiceRecording struct {
-	ID               string             `json:"id"`
-	OrganizationID   string             `json:"organization_id"`
-	WorkspaceID      string             `json:"workspace_id"`
-	RoomID           string             `json:"room_id"`
-	CallID           string             `json:"call_id"`
-	EgressID         string             `json:"egress_id"`
-	Status           string             `json:"status"`
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	RoomID         string `json:"room_id"`
+	CallID         string `json:"call_id"`
+	EgressID       string `json:"egress_id"`
+	Status         string `json:"status"`
+	// Legacy storage locator; NULL for FileService rows located by file_id.
 	FileUrl          pgtype.Text        `json:"file_url"`
 	CallLogMessageID pgtype.Text        `json:"call_log_message_id"`
 	StartedBy        string             `json:"started_by"`
 	StartedAt        pgtype.Timestamptz `json:"started_at"`
 	EndedAt          pgtype.Timestamptz `json:"ended_at"`
+	// FileService file id (FS-C1); NULL = legacy egress row located by file_url.
+	FileID pgtype.Text `json:"file_id"`
 }
 
 type CommentReaction struct {
@@ -837,14 +840,17 @@ type MeetingProviderEvent struct {
 }
 
 type MeetingRecording struct {
-	ID        string             `json:"id"`
-	MeetingID string             `json:"meeting_id"`
-	EgressID  string             `json:"egress_id"`
-	Status    string             `json:"status"`
+	ID        string `json:"id"`
+	MeetingID string `json:"meeting_id"`
+	EgressID  string `json:"egress_id"`
+	Status    string `json:"status"`
+	// Legacy storage locator; NULL for FileService rows located by file_id.
 	FileUrl   pgtype.Text        `json:"file_url"`
 	StartedBy string             `json:"started_by"`
 	StartedAt pgtype.Timestamptz `json:"started_at"`
 	EndedAt   pgtype.Timestamptz `json:"ended_at"`
+	// FileService file id (FS-C1); NULL = legacy egress row located by file_url.
+	FileID pgtype.Text `json:"file_id"`
 }
 
 type MeetingSummary struct {

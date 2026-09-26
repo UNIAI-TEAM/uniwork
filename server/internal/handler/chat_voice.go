@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -140,8 +141,8 @@ func (h *handlers) listChatVoiceRecordings(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *handlers) getChatVoiceRecordingPlaybackURL(w http.ResponseWriter, r *http.Request) {
-	presigner, ok := h.Storage.(storage.DownloadPresigner)
-	if !ok {
+	presigner, presignOK := h.Storage.(storage.DownloadPresigner)
+	if !presignOK && !h.Chat.VoiceFileServiceEnabled() {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "file storage is not configured")
 		return
 	}
@@ -154,6 +155,28 @@ func (h *handlers) getChatVoiceRecordingPlaybackURL(w http.ResponseWriter, r *ht
 	)
 	if err != nil {
 		h.mapServiceError(w, err)
+		return
+	}
+	if h.Chat.VoiceFileServiceEnabled() && strings.TrimSpace(rec.FileID.String) != "" {
+		target, err := h.Chat.ResolveVoiceRecordingPlaybackURL(
+			r.Context(),
+			middleware.UserID(r.Context()),
+			chi.URLParam(r, "workspaceID"),
+			chi.URLParam(r, "roomID"),
+			rec.ID,
+		)
+		if err != nil {
+			h.mapServiceError(w, err)
+			return
+		}
+		respondJSON(w, http.StatusOK, sdo.ChatVoiceRecordingPlaybackSDO{
+			PlaybackURL: target.URL,
+			ExpiresAt:   target.ExpiresAt.Format(time.RFC3339),
+		})
+		return
+	}
+	if !presignOK {
+		respondError(w, http.StatusNotImplemented, "storage_unavailable", "file storage is not configured")
 		return
 	}
 	key := h.Storage.KeyFromURL(rec.FileUrl.String)
@@ -177,7 +200,7 @@ func (h *handlers) getChatVoiceRecordingPlaybackURL(w http.ResponseWriter, r *ht
 }
 
 func (h *handlers) streamChatVoiceRecording(w http.ResponseWriter, r *http.Request) {
-	if h.Storage == nil {
+	if h.Storage == nil && !h.Chat.VoiceFileServiceEnabled() {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "file storage is not configured")
 		return
 	}
@@ -192,12 +215,38 @@ func (h *handlers) streamChatVoiceRecording(w http.ResponseWriter, r *http.Reque
 		h.mapServiceError(w, err)
 		return
 	}
+	if h.Chat.VoiceFileServiceEnabled() && strings.TrimSpace(rec.FileID.String) != "" {
+		h.streamVoiceRecordingFile(w, r, rec.ID)
+		return
+	}
+	if h.Storage == nil {
+		respondError(w, http.StatusNotImplemented, "storage_unavailable", "file storage is not configured")
+		return
+	}
 	key := h.Storage.KeyFromURL(rec.FileUrl.String)
 	if key == "" {
 		respondError(w, http.StatusNotFound, "not_found", "recording file not found")
 		return
 	}
 	h.streamRecordingObject(w, r, key, rec.ID)
+}
+
+// streamVoiceRecordingFile serves an FS-backed call recording: the service
+// authorizes and sizes the file, this route does the Range math, and Open
+// carries the byte window (UNI-746).
+func (h *handlers) streamVoiceRecordingFile(w http.ResponseWriter, r *http.Request, recordingID string) {
+	userID := middleware.UserID(r.Context())
+	workspaceID := chi.URLParam(r, "workspaceID")
+	roomID := chi.URLParam(r, "roomID")
+	size, err := h.Chat.VoiceRecordingFileSize(r.Context(), userID, workspaceID, roomID, recordingID)
+	if err != nil {
+		h.Log.Error("recording head", "err", err, "recording_id", recordingID)
+		h.mapServiceError(w, err)
+		return
+	}
+	h.streamRecordingRange(w, r, size, recordingID, func(offset, length int64) (io.ReadCloser, error) {
+		return h.Chat.OpenVoiceRecording(r.Context(), userID, workspaceID, roomID, recordingID, offset, length)
+	})
 }
 
 func chatVoiceRecordingDTO(rec db.ChatVoiceRecording) sdo.ChatVoiceRecordingDTO {

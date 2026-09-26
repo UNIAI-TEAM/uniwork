@@ -98,8 +98,9 @@ type MeetingService struct {
 	Chat *ChatService
 	// ent is the entitlement gate (F-02); built here so it can never be nil.
 	ent *EntitlementService
-	// files is optional: with FileService wired, note-author avatars stored as
-	// file ids resolve to presigned URLs (UNI-744).
+	// files is the shared FileService, optional: with it wired, note-author
+	// avatars stored as file ids resolve to presigned URLs (UNI-744) and new
+	// recordings go through it (UNI-746); nil keeps both legacy paths.
 	files files.Service
 }
 
@@ -441,7 +442,8 @@ func (s *MeetingService) AddNote(ctx context.Context, userID, meetingID, body st
 	})
 }
 
-// SetFiles selects the FileService path for avatar URL emission.
+// SetFiles attaches the shared FileService for both avatar URL emission and
+// the recording pipeline; nil keeps the legacy paths byte-identical.
 func (s *MeetingService) SetFiles(f files.Service) { s.files = f }
 
 func (s *MeetingService) Notes(ctx context.Context, userID, meetingID string) ([]db.ListMeetingNotesRow, error) {
