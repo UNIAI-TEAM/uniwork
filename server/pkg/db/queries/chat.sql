@@ -101,17 +101,23 @@ INSERT INTO chat_messages (
 
 -- name: CreateChatVoiceMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id, file_id
 ) VALUES (
-  $1, $2, $3, $4, $5, 'voice', '', $6, $7, sqlc.narg(client_msg_id)
+  $1, $2, $3, $4, $5, 'voice', '', $6, $7, sqlc.narg(client_msg_id), sqlc.narg(file_id)
 ) RETURNING *;
 
 -- name: CreateChatFileMessage :one
 INSERT INTO chat_messages (
-  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id
+  id, room_id, workspace_id, sender_id, sender_kind, kind, body, metadata, reply_to_message_id, client_msg_id, file_id
 ) VALUES (
-  $1, $2, $3, $4, $5, 'file', $6, $7, $8, sqlc.narg(client_msg_id)
+  $1, $2, $3, $4, $5, 'file', $6, $7, $8, sqlc.narg(client_msg_id), sqlc.narg(file_id)
 ) RETURNING *;
+
+-- name: ListChatMessageFileRefs :many
+SELECT DISTINCT file_id
+FROM chat_messages
+WHERE file_id = ANY($1::text[])
+  AND deleted_at IS NULL;
 
 -- name: GetChatMessageByClientMsgID :one
 SELECT * FROM chat_messages

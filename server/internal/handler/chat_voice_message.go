@@ -42,6 +42,13 @@ func sniffChatVoiceContentType(data []byte) (string, bool) {
 }
 
 func (h *handlers) sendChatVoiceMessage(w http.ResponseWriter, r *http.Request) {
+	// T7 selectable path: a wired FileService takes the FS flow below; nil keeps
+	// the legacy storage pipeline byte-identical until the module cutover
+	// (plan §7 step 8 / T9c removes it).
+	if h.Chat.FilesService() != nil {
+		h.sendChatVoiceMessageFS(w, r)
+		return
+	}
 	if h.Storage == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "file storage is not configured")
 		return
@@ -126,7 +133,62 @@ func (h *handlers) sendChatVoiceMessage(w http.ResponseWriter, r *http.Request) 
 	respondJSON(w, http.StatusOK, map[string]any{"message": toChatMessageDTO(msg)})
 }
 
+// sendChatVoiceMessageFS is the FileService send: the handler only unpacks
+// the multipart envelope and duration; verification, dedupe and claim all
+// live in the service.
+func (h *handlers) sendChatVoiceMessageFS(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, service.MaxChatVoiceMessageBytes+chatVoiceMultipartHeadroom)
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			respondError(w, http.StatusRequestEntityTooLarge, "too_large", "voice message must be at most 4 MiB")
+			return
+		}
+		respondError(w, http.StatusBadRequest, "invalid_request", `multipart field "file" is required`)
+		return
+	}
+	defer file.Close()
+
+	data, err := io.ReadAll(io.LimitReader(file, service.MaxChatVoiceMessageBytes+1))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid_request", "could not read voice message")
+		return
+	}
+	if len(data) > service.MaxChatVoiceMessageBytes {
+		respondError(w, http.StatusRequestEntityTooLarge, "too_large", "voice message must be at most 4 MiB")
+		return
+	}
+	durationMS, err := strconv.Atoi(strings.TrimSpace(r.FormValue("duration_ms")))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid_request", "duration_ms must be an integer")
+		return
+	}
+	var replyTo *string
+	if raw := strings.TrimSpace(r.FormValue("reply_to_message_id")); raw != "" {
+		replyTo = &raw
+	}
+	ctx := r.Context()
+	msg, err := h.Chat.SendVoiceMessage(ctx, middleware.UserID(ctx), chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"), service.SendVoiceMessageInput{
+		DurationMS:       durationMS,
+		Body:             bytes.NewReader(data),
+		ReplyToMessageID: replyTo,
+		ClientMsgID:      strings.TrimSpace(r.FormValue("client_msg_id")),
+	})
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"message": toChatMessageDTO(msg)})
+}
+
 func (h *handlers) streamChatVoiceMessage(w http.ResponseWriter, r *http.Request) {
+	// Reader handles rows written by either path: file_id rows open through
+	// FileService, object_key rows still read the storage object.
+	if h.Chat.FilesService() != nil {
+		h.streamChatVoiceMessageFS(w, r)
+		return
+	}
 	if h.Storage == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "file storage is not configured")
 		return
@@ -156,6 +218,49 @@ func (h *handlers) streamChatVoiceMessage(w http.ResponseWriter, r *http.Request
 	w.Header().Set("Content-Disposition", "inline")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	if _, err := io.Copy(w, reader); err != nil {
+		h.Log.Error("chat voice stream", "err", err, "message_id", msg.ID)
+	}
+}
+
+// streamChatVoiceMessageFS opens through FileService; a pre-migration row
+// still serves its storage object until the T9b backfill lands.
+func (h *handlers) streamChatVoiceMessageFS(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	msg, reader, err := h.Chat.OpenChatVoiceMessage(
+		ctx,
+		middleware.UserID(ctx),
+		chi.URLParam(r, "workspaceID"),
+		chi.URLParam(r, "roomID"),
+		chi.URLParam(r, "messageID"),
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	var body io.ReadCloser
+	if reader.Body != nil {
+		body = reader.Body
+	} else {
+		if h.Storage == nil || msg.Voice.ObjectKey == "" {
+			respondError(w, http.StatusNotFound, "not_found", "voice content not found")
+			return
+		}
+		legacy, err := h.Storage.GetReader(ctx, msg.Voice.ObjectKey)
+		if err != nil {
+			h.Log.Error("chat voice read", "err", err, "message_id", msg.ID)
+			respondError(w, http.StatusNotFound, "not_found", "voice content not found")
+			return
+		}
+		body = legacy
+	}
+	defer body.Close()
+
+	w.Header().Set("Content-Type", msg.Voice.ContentType)
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", msg.Voice.SizeBytes))
+	w.Header().Set("Cache-Control", "private, no-store")
+	w.Header().Set("Content-Disposition", "inline")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if _, err := io.Copy(w, body); err != nil {
 		h.Log.Error("chat voice stream", "err", err, "message_id", msg.ID)
 	}
 }
