@@ -47,6 +47,7 @@ func Samples() []Sample {
 		{"ogg_other_codec", "voice.ogg", oggSample("\x7fmystery"), "application/ogg"},
 		{"m4a", "voice.m4a", ftypSample("M4A ", "M4A ", "mp42", "isom"), "audio/mp4"},
 		{"mp4", "call.mp4", ftypSample("isom", "isom", "iso2", "avc1", "mp41"), "video/mp4"},
+		{"mp4_unknown_brand", "voice.mp4", ftypSample("iso9", "iso9", "zz01"), "video/mp4"},
 	}
 }
 
@@ -67,6 +68,8 @@ func MisnamedSamples() []Sample {
 		{"cfb_named_txt", "notes.txt", cfbSample(), "application/octet-stream"},
 		{"pdf_named_doc", "brief.doc", []byte("%PDF-1.7\n%%EOF\n"), "application/pdf"},
 		{"png_named_csv", "export.csv", pngSample(), "image/png"},
+		{"malformed_ftyp_named_m4a", "voice.m4a", append([]byte("\x00\x00\x00\x14ftyp\x01\x02\x03\x04\x00\x00\x00\x00\xff\xfe\xfd\xfc"), make([]byte, 16)...), "application/octet-stream"},
+		{"heic_named_mp4", "photo.mp4", ftypSample("heic", "mif1", "heic"), "application/octet-stream"},
 		{"latin1_named_csv", "export.csv", []byte("id,t\xe9n\n1,\xc1nh\n"), "text/plain"},
 	}
 }

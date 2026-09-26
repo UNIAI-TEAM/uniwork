@@ -68,8 +68,9 @@ var textByExtension = map[string]string{
 //     sniffer's type.
 //   - An Ogg stream whose first page opens an Opus, Vorbis, FLAC or Speex
 //     stream is audio/ogg, a Theora one video/ogg, anything else
-//     application/ogg. An MP4 whose ftyp box names an M4A or M4B brand is
-//     audio/mp4, any other MP4 video/mp4. WebM stays video/webm: telling an
+//     application/ogg. A well-formed ftyp box is the MP4 family whatever its
+//     brands: audio/mp4 with an M4A or M4B brand, video/mp4 otherwise, except
+//     a still-image HEIF/AVIF major brand, which stays unknown. WebM stays video/webm: telling an
 //     audio-only WebM from a video one needs the track headers, which a head
 //     scan cannot read reliably.
 //
@@ -101,7 +102,7 @@ func DetectContentType(head []byte, filename string) string {
 	case sniffed == mimeOgg:
 		return oggType(head)
 	case sniffed == mimeVideoMP4 || sniffed == mimeOctetStream:
-		if ct := mp4Type(head, sniffed); ct != "" {
+		if ct := mp4Type(head); ct != "" {
 			return ct
 		}
 	}
@@ -182,32 +183,52 @@ func oggType(head []byte) string {
 	return mimeOgg
 }
 
-// mp4Type reads the ftyp box. An M4A/M4B brand marks an audio file; any other
-// brand the standard sniffer accepted stays video/mp4. It returns "" when head
-// has no ftyp box, leaving the sniffer's answer alone.
-func mp4Type(head []byte, sniffed string) string {
+// mp4Type reads the ftyp box. A well-formed box - sane size, the ftyp tag at
+// offset 4, printable brands - proves the ISO base media family whatever its
+// brands, because recorders vary them (Safari and iOS write brands the
+// standard sniffer does not know). An M4A/M4B brand marks an audio file; a
+// still-image HEIF/AVIF major brand is not media and stays unknown; anything
+// else is video/mp4. It returns "" when head has no well-formed ftyp box,
+// leaving the sniffer's answer alone.
+func mp4Type(head []byte) string {
+	const maxFtypLen = 1024
 	if len(head) < 16 || string(head[4:8]) != "ftyp" {
 		return ""
 	}
 	boxLen := int(binary.BigEndian.Uint32(head))
-	if boxLen < 16 || boxLen > len(head) || boxLen%4 != 0 {
+	if boxLen < 16 || boxLen > maxFtypLen || boxLen > len(head) || boxLen%4 != 0 {
 		return ""
 	}
 	// Major brand at 8, minor version at 12, compatible brands from 16.
-	brands := [][]byte{head[8:12]}
+	brands := []string{string(head[8:12])}
 	for i := 16; i+4 <= boxLen; i += 4 {
-		brands = append(brands, head[i:i+4])
+		brands = append(brands, string(head[i:i+4]))
 	}
 	for _, brand := range brands {
-		switch string(brand) {
+		if !printableBrand(brand) {
+			return ""
+		}
+	}
+	switch brands[0] {
+	case "mif1", "msf1", "heic", "heix", "heim", "heis", "hevc", "hevx", "avif", "avis":
+		return ""
+	}
+	for _, brand := range brands {
+		switch brand {
 		case "M4A ", "M4B ":
 			return mimeAudioMP4
 		}
 	}
-	if sniffed == mimeVideoMP4 {
-		return mimeVideoMP4
+	return mimeVideoMP4
+}
+
+func printableBrand(brand string) bool {
+	for i := 0; i < len(brand); i++ {
+		if brand[i] < 0x20 || brand[i] > 0x7e {
+			return false
+		}
 	}
-	return ""
+	return true
 }
 
 // validUTF8Head reports whether head is UTF-8. When the body was cut at

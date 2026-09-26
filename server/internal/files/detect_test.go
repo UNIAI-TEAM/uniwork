@@ -98,10 +98,11 @@ func TestMeetingRecordingKeepsTheEgressType(t *testing.T) {
 }
 
 func TestDetectContentTypeEdges(t *testing.T) {
-	bigCSV := []byte(strings.Repeat("ạ,b\n", files.DetectHeadBytes/5+1))
-	// The head is cut inside the three-byte "ạ" when the cut is not aligned.
-	for len(bigCSV)%5 == 0 || bigCSV[files.DetectHeadBytes-1] < 0x80 {
-		bigCSV = append([]byte("x"), bigCSV...)
+	// Two ASCII bytes, then three-byte runes: (DetectHeadBytes-2)%3 != 0, so
+	// the head is cut inside a rune.
+	bigCSV := []byte("xy" + strings.Repeat("ạ", files.DetectHeadBytes/3+1) + ",b\n")
+	if (files.DetectHeadBytes-2)%3 == 0 {
+		t.Fatal("fixture no longer cuts inside a rune")
 	}
 
 	cases := []struct {
@@ -124,7 +125,12 @@ func TestDetectContentTypeEdges(t *testing.T) {
 		{"ogg_unknown_codec", ogg("\x7fmystery"), "clip.ogg", "application/ogg"},
 		{"ogg_vorbis", ogg("\x01vorbis\x00\x00\x00\x00"), "clip.ogg", "audio/ogg"},
 		{"ogg_truncated_page", []byte("OggS\x00\x02"), "clip.ogg", "application/ogg"},
-		{"mp4_quicktime_brand", ftyp("qt  ", "qt  "), "clip.mov", "application/octet-stream"},
+		{"mp4_quicktime_brand", ftyp("qt  ", "qt  "), "clip.mov", "video/mp4"},
+		{"mp4_brand_unknown_to_the_sniffer", ftyp("iso9", "iso9"), "voice.mp4", "video/mp4"},
+		{"mp4_avif_major_brand", ftyp("avif", "mif1", "avif"), "photo.avif", "application/octet-stream"},
+		{"mp4_box_not_word_aligned", []byte("\x00\x00\x00\x11ftypiso9\x00\x00\x00\x00iso9\x00"), "voice.mp4", "application/octet-stream"},
+		{"mp4_box_too_long", append([]byte("\x00\x00\x08\x00ftypiso9\x00\x00\x00\x00"), bytes.Repeat([]byte("iso9"), 600)...), "voice.mp4", "application/octet-stream"},
+		{"mp4_control_bytes_in_brand", ftyp("is\x00m", "isom"), "voice.mp4", "application/octet-stream"},
 		{"mp4_m4a_only_brands", ftyp("M4A ", "isom"), "voice.m4a", "audio/mp4"},
 		{"mp4_m4b_compatible", ftyp("mp42", "M4B ", "mp42"), "book.m4b", "audio/mp4"},
 		{"mp4_box_longer_than_head", []byte("\x00\x00\x00\x40ftypM4A\x00\x00\x00\x00"), "voice.m4a", "application/octet-stream"},
