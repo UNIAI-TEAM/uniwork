@@ -33,7 +33,8 @@ test("a task edit shows up in the organization's audit log", async ({ page }) =>
   await expect(page).toHaveURL(new RegExp(`/${orgSlug}/doi-audit/tasks$`), { timeout: 15_000 });
   await Promise.all([
     page.waitForURL(/\/tasks\/[0-9A-Z]+$/, { timeout: 30_000 }),
-    page.getByRole("button", { name: "Để sau" }).click(),
+    // "Để sau" only dismisses the welcome dialog; this button opens the guide task.
+    page.getByRole("button", { name: "Mở task hướng dẫn" }).click(),
   ]);
 
   // An ordinary edit. Suite title is lazy: click to activate the TipTap textbox.
@@ -41,11 +42,14 @@ test("a task edit shows up in the organization's audit log", async ({ page }) =>
   const title = page.getByRole("textbox", { name: "Tiêu đề công việc" });
   await expect(title).toBeVisible({ timeout: 15_000 });
   await title.fill(`Việc đã đổi ${stamp}`);
+  // Once activated the title editor stays mounted, so wait for the save itself.
+  const saved = page.waitForResponse(
+    (res) => res.request().method() === "PUT" && /\/api\/v1\/tasks\/[0-9A-Z]+$/.test(res.url()) && res.ok(),
+    { timeout: 15_000 },
+  );
   await title.blur();
+  await saved;
   // Suite timeline is comments-only for now; the org audit log is the F-08 proof.
-  await expect(page.getByRole("button", { name: `Việc đã đổi ${stamp}` })).toBeVisible({
-    timeout: 15_000,
-  });
 
   await page.goto(`/${orgSlug}/doi-audit/settings?tab=audit`);
   await expect(page.getByRole("heading", { name: "Nhật ký hoạt động" })).toBeVisible();

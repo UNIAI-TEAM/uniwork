@@ -11,7 +11,11 @@ test("original UNI artwork and face stay unchanged while the foreleg waves", asy
   const portrait = character.locator(".mascot-portrait");
   const canvas = portrait.locator("canvas");
   // Isolate the foreleg deformation from the unrelated scroll-reveal entrance.
-  await page.addStyleTag({ content: ".ai-stage, .ai-visual, .horse-mascot { transform: none !important; }" });
+  // The face box also covers transparent artwork above the head, where the
+  // stage's radial gradients show through; Chrome re-rasterises (and re-dithers)
+  // them once the canvas animates, by up to three levels even far from the
+  // canvas. A flat stage keeps the measurement on the artwork itself.
+  await page.addStyleTag({ content: ".ai-stage, .ai-visual, .horse-mascot { transform: none !important; } .landing-site .ai-stage { background-image: none !important; }" });
   await expect(portrait).toHaveAttribute("data-rendered", "true", { timeout: 20000 });
   await expect(portrait.locator("img")).toHaveAttribute("src", /\/landing\/mascot\/uni-horse-v2\.webp$/);
   const faceClip = async () => canvas.evaluate(element => {

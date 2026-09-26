@@ -28,11 +28,13 @@ khả năng gì**, và **bộ mẫu nào chứng minh từng khả năng**. Khô
 | [capability-matrix.md](capability-matrix.md) | Bảng người đọc, sinh từ `capabilities.json` và `fixtures/manifest.json`; test canh lệch | review, DOC-006 |
 | [fixtures/manifest.json](fixtures/manifest.json) | 66 fixture: id, nguồn/license, checksum, capability, kết quả chuẩn và oracle | DOC-003 |
 | [fixtures/files/](fixtures/files) | Fixture nhỏ và metadata, có license, nằm trong Git | DOC-003 |
-| `scripts/office-g0/verify-manifest.mjs` | Kiểm manifest, checksum, đường dẫn, coverage và allowlist; có negative self-test | CI, review |
+| `scripts/office-g0/verify-manifest.mjs` | Kiểm manifest, checksum, đường dẫn, coverage và allowlist; có negative self-test | chạy tay / Tester (`node --test`, môi trường đã chuẩn bị), review |
 | `scripts/office-g0/generate-fixtures.mjs` | Sinh fixture tất định từ manifest | tái lập |
 | `scripts/office-g0/prepare-source.mjs` | Trích bản source thử trong lab từ đúng commit/tree đã pin (đọc git object, không đọc cây làm việc), ghi checksum từng file | DOC-003/004/005 |
-| `scripts/office-g0/manifest.test.mjs` | Test `node --test` cho các ca âm, ca chứa/đường dẫn, glob loại trừ và promote | CI |
-| `scripts/office-g0/prepare-source.test.mjs` | Test `node --test` cho trích nguồn: chứa/đường dẫn, byte đã pin, glob loại trừ, promote gián đoạn | CI |
+| `scripts/office-g0/manifest.test.mjs` | Test `node --test` cho các ca âm, ca chứa/đường dẫn, glob loại trừ và promote | chạy tay / Tester (`node --test`) |
+| `scripts/office-g0/prepare-source.test.mjs` | Test `node --test` cho trích nguồn: chứa/đường dẫn, byte đã pin, glob loại trừ, promote gián đoạn | chạy tay / Tester (`node --test`) |
+
+Hiện `.github/workflows/ci.yml` chưa chạy các test lab office-g0 (qua `scripts/check.sh` chỉ có `scripts/office-g0/run-contracts.test.mjs`); phần lớn chúng cần source GenOffice đã chuẩn bị. Nối chúng vào CI là việc tiếp theo của G2/G7.
 
 Fixture lớn (dải Q9) **không** nằm trong Git; xem §6.
 
