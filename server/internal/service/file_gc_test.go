@@ -744,3 +744,34 @@ func TestFileGCConfigRejectsDuplicateProviders(t *testing.T) {
 		t.Fatal("unknown GC mode accepted")
 	}
 }
+
+// A versioned bucket: an unversioned DeleteObject would only plant a delete
+// marker, so a file without a recorded object_version is never deleted - the
+// job waits with storage_version_required - and a recorded one is deleted by
+// exactly that version.
+func TestFileGCVersionedBucketDeletesOnlyTheRecordedVersion(t *testing.T) {
+	h := newGCHarness(t, FileGCDestructive)
+	id := h.claimedAndReleased(t, "versioned", 30*time.Hour)
+	h.gcs.setVersioned(true, "")
+	rep := h.sweep(t)
+	if e := entry(t, rep, id, fileJobCleanup); e.Action != FileGCRetry || e.Reason != "storage_version_required" {
+		t.Fatalf("entry = %+v, want retry storage_version_required", e)
+	}
+	row := h.wantStatus(t, id, files.StatusDeleting)
+	if !h.objectExists(t, row) || len(h.gcs.deletedVersions()) != 0 {
+		t.Fatal("an unversioned delete reached a versioned bucket")
+	}
+
+	if _, err := h.pool.Exec(context.Background(), `UPDATE files SET object_version = 'ver-1' WHERE id = $1`, string(id)); err != nil {
+		t.Fatal(err)
+	}
+	h.until(h.liveJob(t, id, fileJobCleanup).NextAttemptAt.Time)
+	rep = h.sweep(t)
+	if e := entry(t, rep, id, fileJobCleanup); e.Action != FileGCDeleted {
+		t.Fatalf("entry = %+v, want deleted", e)
+	}
+	if got := h.gcs.deletedVersions(); len(got) != 1 || got[0] != "ver-1" {
+		t.Fatalf("deleted versions = %v, want [ver-1]", got)
+	}
+	h.wantStatus(t, id, files.StatusDeleted)
+}

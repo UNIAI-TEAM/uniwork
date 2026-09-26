@@ -196,48 +196,43 @@ func (q *Queries) FileGCClaimJobs(ctx context.Context, arg FileGCClaimJobsParams
 	return items, nil
 }
 
-const fileGCLegacyLocatorFileIDs = `-- name: FileGCLegacyLocatorFileIDs :many
-SELECT DISTINCT f.id FROM files f
-JOIN attachments a ON a.object_key = f.object_key
-WHERE f.id = ANY($1::text[])
-UNION
-SELECT DISTINCT f.id FROM files f
-JOIN users u ON u.avatar_url IS NOT NULL
-  AND right(u.avatar_url, length(f.object_key)) = f.object_key
-WHERE f.id = ANY($1::text[])
-UNION
-SELECT DISTINCT f.id FROM files f
-JOIN meeting_recordings r ON r.file_url IS NOT NULL
-  AND right(r.file_url, length(f.object_key)) = f.object_key
-WHERE f.id = ANY($1::text[])
-UNION
-SELECT DISTINCT f.id FROM files f
-JOIN chat_voice_recordings r ON r.file_url IS NOT NULL
-  AND right(r.file_url, length(f.object_key)) = f.object_key
-WHERE f.id = ANY($1::text[])
-UNION
-SELECT DISTINCT f.id FROM files f
-JOIN chat_messages m ON m.metadata->>'object_key' = f.object_key
-WHERE f.id = ANY($1::text[])
+const fileGCLegacyManagedLocators = `-- name: FileGCLegacyManagedLocators :many
+SELECT a.object_key::text AS locator FROM attachments a
+WHERE a.object_key LIKE 'v1/orgs/%' OR a.object_key LIKE 'v1/users/%'
+UNION ALL
+SELECT u.avatar_url::text FROM users u
+WHERE u.avatar_url LIKE '%v1/orgs/%' OR u.avatar_url LIKE '%v1/users/%'
+UNION ALL
+SELECT r.file_url::text FROM meeting_recordings r
+WHERE r.file_url LIKE '%v1/orgs/%' OR r.file_url LIKE '%v1/users/%'
+UNION ALL
+SELECT r.file_url::text FROM chat_voice_recordings r
+WHERE r.file_url LIKE '%v1/orgs/%' OR r.file_url LIKE '%v1/users/%'
+UNION ALL
+SELECT (m.metadata->>'object_key')::text FROM chat_messages m
+WHERE m.metadata->>'object_key' LIKE 'v1/orgs/%' OR m.metadata->>'object_key' LIKE 'v1/users/%'
 `
 
-// Files whose object key a pre-FileService locator column still names: a
-// consumer that has not moved to file_id reads those bytes by key, so the
-// object is shared and must be held (spec 9.2, plan T5). Exact key match or a
-// URL that ends in the key; joins, not per-file scans.
-func (q *Queries) FileGCLegacyLocatorFileIDs(ctx context.Context, fileIds []string) ([]string, error) {
-	rows, err := q.db.Query(ctx, fileGCLegacyLocatorFileIDs, fileIds)
+// Pre-FileService locator values that look like a FileService key: a
+// consumer that has not moved to file_id and still reads those bytes by key
+// makes the object shared, so the collector must hold it (spec 9.2, plan
+// T5). Run once per sweep, not per batch: each table is scanned once with a
+// cheap filter (managed keys start with v1/orgs/ or v1/users/, legacy keys
+// never do), and the worker matches the few rows it returns against each
+// candidate's key (exact key or a URL ending in it).
+func (q *Queries) FileGCLegacyManagedLocators(ctx context.Context) ([]string, error) {
+	rows, err := q.db.Query(ctx, fileGCLegacyManagedLocators)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	items := []string{}
 	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
+		var locator string
+		if err := rows.Scan(&locator); err != nil {
 			return nil, err
 		}
-		items = append(items, id)
+		items = append(items, locator)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

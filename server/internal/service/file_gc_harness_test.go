@@ -72,13 +72,52 @@ func (p *memProvider) fail(err error) {
 
 // gcStore puts delete failures in front of the harness store: a Delete that
 // errors (timeout, permission) and a Delete that answers nil but keeps the
-// bytes (an Object Lock hold, a delete marker).
+// bytes (an Object Lock hold, a delete marker). versioned makes it report a
+// versioned bucket - the capability the collector must honour by deleting
+// only a recorded version - with statVersion as the version Stat reports.
 type gcStore struct {
 	*switchStore
-	mu        sync.Mutex
-	deleteErr error
-	phantom   bool
-	deletes   int
+	mu          sync.Mutex
+	deleteErr   error
+	phantom     bool
+	deletes     int
+	versioned   bool
+	statVersion string
+	deleted     []string // the Version of every Delete that reached storage
+}
+
+func (s *gcStore) Capabilities() storage.Capabilities {
+	caps := s.switchStore.Capabilities()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	caps.VersionedObjects = s.versioned
+	return caps
+}
+
+// Stat and Delete strip the version before the local adapter, which has no
+// versions and refuses a locator that names one: the versioned bucket is
+// simulated here, and what the collector asked for is recorded.
+func (s *gcStore) Stat(ctx context.Context, loc storage.ObjectLocator) (storage.ObjectInfo, error) {
+	loc.Version = ""
+	info, err := s.switchStore.Stat(ctx, loc)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err == nil && s.versioned {
+		info.VersionID = s.statVersion
+	}
+	return info, err
+}
+
+func (s *gcStore) setVersioned(versioned bool, statVersion string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.versioned, s.statVersion = versioned, statVersion
+}
+
+func (s *gcStore) deletedVersions() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.deleted...)
 }
 
 func (s *gcStore) Delete(ctx context.Context, loc storage.ObjectLocator) error {
@@ -86,6 +125,7 @@ func (s *gcStore) Delete(ctx context.Context, loc storage.ObjectLocator) error {
 	err, phantom := s.deleteErr, s.phantom
 	if err == nil {
 		s.deletes++
+		s.deleted = append(s.deleted, loc.Version)
 	}
 	s.mu.Unlock()
 	if err != nil {
@@ -94,6 +134,7 @@ func (s *gcStore) Delete(ctx context.Context, loc storage.ObjectLocator) error {
 	if phantom {
 		return nil
 	}
+	loc.Version = ""
 	return s.switchStore.ObjectStore.Delete(ctx, loc)
 }
 
@@ -206,7 +247,9 @@ func (h *gcHarness) liveJob(t *testing.T, id files.FileID, op string) db.FileJob
 
 func (h *gcHarness) objectExists(t *testing.T, row db.File) bool {
 	t.Helper()
-	_, err := h.store.ObjectStore.Stat(context.Background(), locator(row))
+	loc := locator(row)
+	loc.Version = "" // the local adapter has no versions (see gcStore)
+	_, err := h.store.ObjectStore.Stat(context.Background(), loc)
 	if errors.Is(err, storage.ErrNotFound) {
 		return false
 	}

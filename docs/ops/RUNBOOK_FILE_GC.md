@@ -53,7 +53,10 @@ Mỗi dòng `FileGCEntry` có `Action` và `Reason`. Log cuối lượt:
 
 `FileGCReport.Coverage` khác rỗng nghĩa là có cột file_id trong catalogue
 hoặc purpose đang bật mà chưa có provider: **mọi job cleanup bị để nguyên**
-(không lease, không tăng attempt). Hôm nay `audit_export` đang bật nhưng
+(không lease, không tăng attempt). Lỗi khi chụp danh sách locator legacy
+(một truy vấn mỗi lượt quét trên `attachments`, `users`, `meeting_recordings`,
+`chat_voice_recordings`, `chat_messages`, lọc key dạng `v1/orgs/` hoặc
+`v1/users/`) cũng hiện ở đây và có cùng hậu quả. Hôm nay `audit_export` đang bật nhưng
 provider của T10 chưa merge, nên destructive GC chưa xóa được gì cho tới khi
 T10 đăng ký provider.
 

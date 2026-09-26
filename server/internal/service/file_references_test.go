@@ -203,7 +203,7 @@ func TestFileReferenceQueriesRun(t *testing.T) {
 	if _, err := r.heldBy(context.Background(), q, ids); err != nil {
 		t.Fatalf("providers: %v", err)
 	}
-	if _, err := q.FileGCLegacyLocatorFileIDs(context.Background(), []string{string(ids[0])}); err != nil {
+	if _, err := q.FileGCLegacyManagedLocators(context.Background()); err != nil {
 		t.Fatalf("legacy locator query: %v", err)
 	}
 }

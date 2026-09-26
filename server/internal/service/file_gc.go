@@ -249,6 +249,17 @@ func (s *FileService) SweepFiles(ctx context.Context) (*FileGCReport, error) {
 		rep.Coverage = err.Error()
 		slog.Warn("files gc: reference coverage gap, cleanup jobs left untouched", "err", err)
 	}
+	if rep.Coverage == "" {
+		// Legacy consumers mint their own keys and never start naming a
+		// managed one, so one snapshot per sweep is as good as a check per
+		// batch - and scans those tables once a day instead of per batch.
+		legacy, err := s.q.FileGCLegacyManagedLocators(ctx)
+		if err != nil {
+			rep.Coverage = "legacy locator snapshot failed: " + err.Error()
+			slog.Warn("files gc: legacy locator snapshot failed, cleanup jobs left untouched", "err", err)
+		}
+		run.legacy = legacy
+	}
 	if err := run.prepare(ctx); err != nil {
 		return rep, err
 	}
@@ -274,6 +285,9 @@ type fileGCRun struct {
 	destructive bool
 	jobs        int
 	stopped     bool
+	// legacy is this sweep's snapshot of pre-FileService locators that look
+	// like managed keys (normally empty).
+	legacy []string
 }
 
 // prepare recovers crashed leases and closes claim windows that have passed,
@@ -431,7 +445,7 @@ func (r *fileGCRun) drainDry(ctx context.Context, ops []string) error {
 			if err != nil {
 				return err
 			}
-			verdicts, err := s.judgeCleanup(ctx, s.q, cands)
+			verdicts, err := s.judgeCleanup(ctx, s.q, cands, r.legacy)
 			if err != nil {
 				slog.Warn("files gc: dry-run batch aborted", "err", err)
 				for _, c := range cands {
@@ -566,8 +580,9 @@ func abortReason(err error) string {
 
 // judgeCleanup decides every candidate of one batch. It is the same function
 // for the dry run (unlocked reads) and the destructive batch (after the
-// locks). Any provider or query error aborts the whole batch.
-func (s *FileService) judgeCleanup(ctx context.Context, q *db.Queries, cands []gcCandidate) ([]gcVerdict, error) {
+// locks). Any provider or query error aborts the whole batch. legacy is the
+// sweep's snapshot of legacy locators naming managed keys.
+func (s *FileService) judgeCleanup(ctx context.Context, q *db.Queries, cands []gcCandidate, legacy []string) ([]gcVerdict, error) {
 	now := s.now()
 	out := make([]gcVerdict, len(cands))
 	var check []files.FileID
@@ -584,18 +599,6 @@ func (s *FileService) judgeCleanup(ctx context.Context, q *db.Queries, cands []g
 	if len(check) == 0 {
 		return out, nil
 	}
-	raw := make([]string, 0, len(check))
-	for _, id := range check {
-		raw = append(raw, string(id))
-	}
-	legacy, err := q.FileGCLegacyLocatorFileIDs(ctx, raw)
-	if err != nil {
-		return nil, fmt.Errorf("%w: legacy locator check: %w", errGCBatchAborted, err)
-	}
-	shared := make(map[string]bool, len(legacy))
-	for _, id := range legacy {
-		shared[id] = true
-	}
 	tenants, err := s.refs.referenceTenants(ctx, q, check)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", errGCBatchAborted, err)
@@ -609,7 +612,7 @@ func (s *FileService) judgeCleanup(ctx context.Context, q *db.Queries, cands []g
 			continue
 		}
 		id := files.FileID(c.file.ID)
-		if shared[c.file.ID] {
+		if namedByLegacyLocator(c.file.ObjectKey, legacy) {
 			out[i] = s.quarantine(c, "legacy_locator_shared", now)
 			continue
 		}
@@ -624,6 +627,17 @@ func (s *FileService) judgeCleanup(ctx context.Context, q *db.Queries, cands []g
 		}
 	}
 	return out, nil
+}
+
+// namedByLegacyLocator reports whether a legacy locator is the key itself or
+// a URL ending in it.
+func namedByLegacyLocator(key string, legacy []string) bool {
+	for _, loc := range legacy {
+		if strings.HasSuffix(loc, key) {
+			return true
+		}
+	}
+	return false
 }
 
 // gateCleanup applies the checks that need no provider: file state, locator,
@@ -781,7 +795,7 @@ func (r *fileGCRun) cleanupBatch(ctx context.Context, jobs []db.FileJob) error {
 			}
 			s.gcHooks.batchLocked(ids)
 		}
-		if verdicts, err = s.judgeCleanup(ctx, q, cands); err != nil {
+		if verdicts, err = s.judgeCleanup(ctx, q, cands, r.legacy); err != nil {
 			if errors.Is(err, errGCBatchAborted) {
 				aborted = err
 			}
@@ -1011,7 +1025,9 @@ func (r *fileGCRun) sweepSpool() {
 // its context ends. It belongs in the server's shutdown sequence
 // (cmd/server/main.go), not a bare goroutine.
 type FileGCWorker struct {
-	svc   *FileService
+	svc *FileService
+	// after replaces the timer (tests); nil uses a real timer that is
+	// stopped at shutdown.
 	after func(time.Duration) <-chan time.Time
 	// swept observes every finished sweep (tests).
 	swept func(*FileGCReport, error)
@@ -1019,7 +1035,7 @@ type FileGCWorker struct {
 
 // NewFileGCWorker builds the daily worker for this service.
 func (s *FileService) NewFileGCWorker() *FileGCWorker {
-	return &FileGCWorker{svc: s, after: time.After}
+	return &FileGCWorker{svc: s}
 }
 
 // Run blocks until ctx ends, sweeping once per schedule slot. With the
@@ -1030,11 +1046,8 @@ func (w *FileGCWorker) Run(ctx context.Context) {
 	}
 	for {
 		now := w.svc.now()
-		wait := w.svc.gc.nextRun(now).Sub(now)
-		select {
-		case <-ctx.Done():
+		if !w.wait(ctx, w.svc.gc.nextRun(now).Sub(now)) {
 			return
-		case <-w.after(wait):
 		}
 		if ctx.Err() != nil {
 			// Shutdown raced the timer: never start a sweep on a closing
@@ -1048,5 +1061,25 @@ func (w *FileGCWorker) Run(ctx context.Context) {
 		if w.swept != nil {
 			w.swept(rep, err)
 		}
+	}
+}
+
+// wait sleeps d or until ctx ends; false means ctx ended.
+func (w *FileGCWorker) wait(ctx context.Context, d time.Duration) bool {
+	if w.after != nil {
+		select {
+		case <-ctx.Done():
+			return false
+		case <-w.after(d):
+			return true
+		}
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-t.C:
+		return true
 	}
 }

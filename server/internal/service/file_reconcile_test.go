@@ -42,7 +42,9 @@ func crashedIntent(t *testing.T, h *gcHarness, key string, putObject bool) uploa
 
 func (h *gcHarness) putAt(t *testing.T, row db.File, body []byte) {
 	t.Helper()
-	if _, err := h.store.ObjectStore.Put(context.Background(), locator(row), bytes.NewReader(body), storage.WriteInfo{SizeBytes: int64(len(body))}); err != nil {
+	loc := locator(row)
+	loc.Version = "" // the local adapter has no versions (see gcStore)
+	if _, err := h.store.ObjectStore.Put(context.Background(), loc, bytes.NewReader(body), storage.WriteInfo{SizeBytes: int64(len(body))}); err != nil {
 		t.Fatalf("put: %v", err)
 	}
 }
@@ -264,5 +266,36 @@ func TestFileGCSweepsStaleSpoolFiles(t *testing.T) {
 		if got := fileExists(p); got != want {
 			t.Errorf("%s exists = %v, want %v", strings.TrimPrefix(p, dir), got, want)
 		}
+	}
+}
+
+// On a versioned bucket a late write at a tombstone's key is a new version:
+// reconcile deletes exactly the version Stat reports, never the key blindly.
+func TestFileReconcileTombstoneDeletesTheLateVersion(t *testing.T) {
+	h := newGCHarness(t, FileGCDestructive)
+	ctx := context.Background()
+	id := h.claimedAndReleased(t, "late-version", 30*time.Hour)
+	if _, err := h.pool.Exec(ctx, `UPDATE files SET object_version = 'ver-1' WHERE id = $1`, string(id)); err != nil {
+		t.Fatal(err)
+	}
+	h.gcs.setVersioned(true, "ver-1")
+	h.sweep(t)
+	row := h.wantStatus(t, id, files.StatusDeleted)
+
+	h.putAt(t, row, []byte("late!\n"))
+	h.gcs.setVersioned(true, "ver-late")
+	if err := h.svc.enqueueJob(ctx, h.svc.q, row, fileJobReconcile, h.clock.Now()); err != nil {
+		t.Fatal(err)
+	}
+	rep := h.sweep(t)
+	if e := entry(t, rep, id, fileJobReconcile); e.Action != FileGCDeleted || e.Reason != "late_object" {
+		t.Fatalf("entry = %+v, want late_object deleted", e)
+	}
+	got := h.gcs.deletedVersions()
+	if len(got) != 2 || got[0] != "ver-1" || got[1] != "ver-late" {
+		t.Fatalf("deleted versions = %v, want [ver-1 ver-late]", got)
+	}
+	if h.objectExists(t, row) {
+		t.Fatal("late version survived")
 	}
 }
