@@ -11,6 +11,11 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
 // The object-store contract suite (spec §3, lane brief: "one contract suite
@@ -335,4 +340,77 @@ func TestObjectStoreContractMinIO(t *testing.T) {
 			return ObjectLocator{Storage: BackendMinIO, Bucket: cfg.MinIO.Bucket, Key: key}
 		},
 	})
+}
+
+// TestObjectStoreContractMinIOVersioned runs the same suite on a bucket with
+// versioning enabled, because the unversioned uniwork bucket never exercises
+// VersionID capture or the version-required Delete rule. The bucket name is
+// deterministic so reruns reuse it instead of piling up fixtures; objects
+// inside are removed by the suite's own delete leg.
+func TestObjectStoreContractMinIOVersioned(t *testing.T) {
+	required := []string{
+		"MINIO_ENDPOINT",
+		"MINIO_ACCESS_KEY_ID",
+		"MINIO_SECRET_ACCESS_KEY",
+		"MINIO_REGION",
+	}
+	for _, key := range required {
+		if strings.TrimSpace(os.Getenv(key)) == "" {
+			t.Skipf("skipping versioned MinIO contract test: %s is not set", key)
+		}
+	}
+	bucket := "uniwork-contract-versioned"
+	cfg := Config{
+		Backend: BackendMinIO,
+		MinIO: &MinIOConfig{
+			Endpoint:        os.Getenv("MINIO_ENDPOINT"),
+			Bucket:          bucket,
+			Region:          os.Getenv("MINIO_REGION"),
+			AccessKeyID:     os.Getenv("MINIO_ACCESS_KEY_ID"),
+			SecretAccessKey: os.Getenv("MINIO_SECRET_ACCESS_KEY"),
+		},
+	}
+	admin := s3.New(s3.Options{
+		Region:       cfg.MinIO.Region,
+		BaseEndpoint: aws.String(cfg.MinIO.Endpoint),
+		UsePathStyle: true,
+		Credentials:  aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(cfg.MinIO.AccessKeyID, cfg.MinIO.SecretAccessKey, "")),
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	// Create-or-reuse: BucketAlreadyOwnedByYou just means a previous run left
+	// the fixture behind.
+	if _, err := admin.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(bucket)}); err != nil {
+		var owned *s3types.BucketAlreadyOwnedByYou
+		var exists *s3types.BucketAlreadyExists
+		if !errors.As(err, &owned) && !errors.As(err, &exists) {
+			t.Fatalf("create versioned fixture bucket: %v", err)
+		}
+	}
+	if _, err := admin.PutBucketVersioning(ctx, &s3.PutBucketVersioningInput{
+		Bucket:                  aws.String(bucket),
+		VersioningConfiguration: &s3types.VersioningConfiguration{Status: s3types.BucketVersioningStatusEnabled},
+	}); err != nil {
+		t.Fatalf("enable versioning on fixture bucket: %v", err)
+	}
+
+	store, err := (minioFactory{}).New(ctx, cfg)
+	if err != nil {
+		t.Fatalf("minio factory on versioned bucket: %v", err)
+	}
+	if !store.Capabilities().VersionedObjects {
+		t.Fatal("preflight did not detect the versioned bucket")
+	}
+	runObjectStoreContract(t, contractStore{
+		store: store,
+		locFor: func(key string) ObjectLocator {
+			return ObjectLocator{Storage: BackendMinIO, Bucket: bucket, Key: key}
+		},
+	})
+	// The versioned-bucket Delete rule is part of the contract's promise: an
+	// unversioned delete would only plant a marker and the bytes would
+	// survive cleanup forever.
+	if err := store.Delete(ctx, ObjectLocator{Storage: BackendMinIO, Bucket: bucket, Key: "contract/any.bin"}); !errors.Is(err, ErrCapabilityUnsupported) {
+		t.Fatalf("versioned Delete without Version = %v, want ErrCapabilityUnsupported", err)
+	}
 }
