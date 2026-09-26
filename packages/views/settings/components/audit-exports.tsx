@@ -211,7 +211,10 @@ function ExportItem({ job, orgId }: { job: AuditExport; orgId: string }) {
     try {
       saveFile(await downloadAuditExport(orgId, job.id), exportFileName(job));
     } catch (err) {
-      toastApiError(err, t("download_failed", { defaultValue: t("error_generic") }));
+      // download_failed is an integration-requested key (i18n files are
+      // integrator-owned); until it lands the English default still names the
+      // failed action correctly.
+      toastApiError(err, t("download_failed", { defaultValue: "Download failed" }));
     } finally {
       setDownloading(false);
     }
@@ -236,7 +239,11 @@ function ExportItem({ job, orgId }: { job: AuditExport; orgId: string }) {
       actions={
         job.download_url ? (
           <Button variant="outline" size="sm" disabled={downloading} onClick={() => void onDownload()}>
-            <Download data-icon="inline-start" aria-hidden />
+            {downloading ? (
+              <Spinner data-icon="inline-start" aria-label={i18n.t("settings.audit.loading")} />
+            ) : (
+              <Download data-icon="inline-start" aria-hidden />
+            )}
             {t("download")}
           </Button>
         ) : null
