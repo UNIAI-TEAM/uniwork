@@ -2,12 +2,15 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -61,6 +64,31 @@ func (s *AuthService) DeleteAccount(ctx context.Context, userID string, in Delet
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	qtx := s.q.WithTx(tx)
+	if s.files != nil {
+		// FS-C1 §5.4: the release locks the files row before this transaction
+		// locks the user row, so avatar_file_id is read non-locking, released,
+		// then re-read FOR UPDATE — an avatar swap landing in between aborts
+		// the deletion instead of releasing the wrong file.
+		prev, err := qtx.GetUserAvatarFileID(ctx, userID)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+		if prev.Valid && prev.String != "" {
+			if err := releaseFilesInTx(ctx, s.files, qtx, []files.FileID{files.FileID(prev.String)}); err != nil {
+				return err
+			}
+		}
+		cur, err := qtx.GetUserAvatarFileIDForUpdate(ctx, userID)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			return err
+		}
+		if cur.String != prev.String || cur.Valid != prev.Valid {
+			return ErrConflict
+		}
+	}
 	if _, err := qtx.AnonymizeUser(ctx, db.AnonymizeUserParams{
 		ID: userID, Email: "deleted-" + strings.ToLower(userID) + "@deleted.uniwork.invalid", DisplayName: deletedDisplayName,
 	}); err != nil {

@@ -56,7 +56,7 @@ SELECT * FROM workspace_members WHERE workspace_id = $1 AND user_id = $2;
 
 -- name: ListWorkspaceMembers :many
 SELECT m.workspace_id, m.user_id, m.role, m.created_at,
-       u.email, u.display_name, u.avatar_url
+       u.email, u.display_name, u.avatar_url, u.avatar_file_id
 FROM workspace_members m
 JOIN users u ON u.id = m.user_id
 WHERE m.workspace_id = $1

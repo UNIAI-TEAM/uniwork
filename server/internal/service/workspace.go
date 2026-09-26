@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/telemetry"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -40,11 +41,17 @@ type WorkspaceService struct {
 	// ent is the quota gate (F-02). Built here rather than injected so there
 	// is no nil path that skips the gate.
 	ent *EntitlementService
+	// files is optional: with FileService wired, member avatars stored as
+	// file ids resolve to presigned URLs (UNI-744).
+	files files.Service
 }
 
 func NewWorkspaceService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationService, r mail.Renderer, out mail.Enqueuer) *WorkspaceService {
 	return &WorkspaceService{pool: pool, q: q, orgs: orgs, render: r, out: out, ent: NewEntitlementService(pool, q)}
 }
+
+// SetFiles selects the FileService path for avatar URL emission.
+func (s *WorkspaceService) SetFiles(f files.Service) { s.files = f }
 
 func viewFromInOrgRow(r db.ListWorkspacesInOrgRow) WorkspaceView {
 	return WorkspaceView{Workspace: db.Workspace{
@@ -320,7 +327,16 @@ func (s *WorkspaceService) Members(ctx context.Context, userID, workspaceID stri
 	if _, err := s.RequireMember(ctx, workspaceID, userID); err != nil {
 		return nil, err
 	}
-	return s.q.ListWorkspaceMembers(ctx, workspaceID)
+	rows, err := s.q.ListWorkspaceMembers(ctx, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	decorateMemberAvatars(ctx, s.files, rows, func(r db.ListWorkspaceMembersRow) avatarRow {
+		return avatarRow{UserID: r.UserID, AvatarURL: r.AvatarUrl, FileID: r.AvatarFileID}
+	}, func(r *db.ListWorkspaceMembersRow, url string) {
+		r.AvatarUrl = pgtype.Text{String: url, Valid: true}
+	})
+	return rows, nil
 }
 
 const (

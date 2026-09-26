@@ -125,7 +125,7 @@ VALUES ($1, $2, $3, $4)
 RETURNING *;
 
 -- name: ListMeetingNotes :many
-SELECT n.id, n.meeting_id, n.author_id, n.body, n.created_at, u.display_name, u.avatar_url
+SELECT n.id, n.meeting_id, n.author_id, n.body, n.created_at, u.display_name, u.avatar_url, u.avatar_file_id
 FROM meeting_notes n JOIN users u ON u.id = n.author_id
 WHERE n.meeting_id = $1 ORDER BY n.created_at;
 

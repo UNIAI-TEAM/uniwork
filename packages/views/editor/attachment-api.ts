@@ -77,13 +77,19 @@ export const api = {
   },
   async uploadFile(
     file: File,
-    ctx?: { taskId?: string; workspaceId?: string; commentId?: string; chatSessionId?: string },
+    ctx?: {
+      taskId?: string;
+      workspaceId?: string;
+      commentId?: string;
+      chatSessionId?: string;
+      purpose?: string;
+    },
     _signal?: AbortSignal,
   ): Promise<Attachment> {
     const att = ctx?.taskId
-      ? await uploadTaskAttachment(ctx.taskId, file)
+      ? await uploadTaskAttachment(ctx.taskId, file, ctx.purpose)
       : ctx?.workspaceId
-        ? await uploadWorkspaceAttachment(ctx.workspaceId, file)
+        ? await uploadWorkspaceAttachment(ctx.workspaceId, file, ctx.purpose)
         : null;
     if (!att) throw new Error("upload failed");
     return att;

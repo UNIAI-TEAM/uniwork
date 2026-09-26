@@ -330,19 +330,20 @@ func (q *Queries) GetMeeting(ctx context.Context, id string) (Meeting, error) {
 }
 
 const listMeetingNotes = `-- name: ListMeetingNotes :many
-SELECT n.id, n.meeting_id, n.author_id, n.body, n.created_at, u.display_name, u.avatar_url
+SELECT n.id, n.meeting_id, n.author_id, n.body, n.created_at, u.display_name, u.avatar_url, u.avatar_file_id
 FROM meeting_notes n JOIN users u ON u.id = n.author_id
 WHERE n.meeting_id = $1 ORDER BY n.created_at
 `
 
 type ListMeetingNotesRow struct {
-	ID          string             `json:"id"`
-	MeetingID   string             `json:"meeting_id"`
-	AuthorID    string             `json:"author_id"`
-	Body        string             `json:"body"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	DisplayName string             `json:"display_name"`
-	AvatarUrl   pgtype.Text        `json:"avatar_url"`
+	ID           string             `json:"id"`
+	MeetingID    string             `json:"meeting_id"`
+	AuthorID     string             `json:"author_id"`
+	Body         string             `json:"body"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	DisplayName  string             `json:"display_name"`
+	AvatarUrl    pgtype.Text        `json:"avatar_url"`
+	AvatarFileID pgtype.Text        `json:"avatar_file_id"`
 }
 
 func (q *Queries) ListMeetingNotes(ctx context.Context, meetingID string) ([]ListMeetingNotesRow, error) {
@@ -362,6 +363,7 @@ func (q *Queries) ListMeetingNotes(ctx context.Context, meetingID string) ([]Lis
 			&i.CreatedAt,
 			&i.DisplayName,
 			&i.AvatarUrl,
+			&i.AvatarFileID,
 		); err != nil {
 			return nil, err
 		}
