@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -81,6 +82,7 @@ var cases = []contractCase{
 	{"claim/ready_file_is_attached_and_reusable", caseClaimReady},
 	{"claim/not_ready_file_is_refused", caseClaimNotReady},
 	{"claim/window_is_24h_and_claimed_files_ignore_it", caseClaimWindow},
+	{"claim/window_closes_exactly_at_the_deadline", caseClaimWindowEdge},
 	{"claim/foreign_scope_and_wrong_purpose_are_not_found", caseClaimForeign},
 	{"claim/validates_purpose_and_scope_first", caseClaimInputValidation},
 	{"claim/rollback_leaves_the_file_staged", caseClaimRollback},
@@ -93,6 +95,7 @@ var cases = []contractCase{
 	{"resolve/foreign_tenant_is_not_found", caseResolveForeign},
 	{"resolve/mode_must_match_the_policy", caseResolveModeMismatch},
 	{"provider/output_intent_is_idempotent_per_operation", caseProviderIntentIdempotent},
+	{"provider/write_target_carries_the_object_key_suffix", caseProviderKeySuffix},
 	{"provider/completed_output_becomes_a_ready_file", caseProviderComplete},
 	{"provider/complete_replays_and_checks_the_operation", caseProviderCompleteReplay},
 	{"provider/invalid_output_is_refused", caseProviderInvalidOutput},
@@ -677,6 +680,37 @@ func caseClaimWindow(t *testing.T, h Harness) {
 	requireError(t, err, files.CodeClaimExpired, http.StatusConflict)
 }
 
+// caseClaimWindowEdge pins the exact instant: the window is open one tick
+// before ClaimExpiresAt and closed at it (T1-Q5), for claim and for a fresh
+// read grant alike, so a module test on the fake and the real service agree.
+func caseClaimWindowEdge(t *testing.T, h Harness) {
+	spec := purposeFor(t, h, files.ScopeOrgWorkspace, imageAllowed)
+	scope := scopeFor(spec)
+
+	before := uploadOK(t, h, spec, scope, "edge-before", "note.png", pngBody)
+	at := uploadOK(t, h, spec, scope, "edge-at", "note.png", pngBody)
+	if !before.ClaimExpiresAt.Equal(at.ClaimExpiresAt) {
+		t.Fatalf("uploads at one instant got deadlines %s and %s", before.ClaimExpiresAt, at.ClaimExpiresAt)
+	}
+
+	// One microsecond - the database's precision - before the deadline.
+	h.Advance(before.ClaimExpiresAt.Sub(h.Now()) - time.Microsecond)
+	claimOK(t, h, spec, scope, before.File.ID)
+
+	h.Advance(time.Microsecond)
+	if !h.Now().Equal(at.ClaimExpiresAt) {
+		t.Fatalf("clock at %s, want exactly the deadline %s", h.Now(), at.ClaimExpiresAt)
+	}
+	_, err := claimInTx(t, h, files.ClaimInput{Actor: actorA(), Purpose: spec.Purpose, Scope: scope, FileIDs: []files.FileID{at.File.ID}})
+	requireError(t, err, files.CodeClaimExpired, http.StatusConflict)
+
+	got := resolveOK(t, h, files.ResolveInput{Scope: scope, Mode: spec.Policy.ReadMode, Disposition: files.DispositionInline, FileIDs: []files.FileID{at.File.ID}})
+	if len(got) != 1 || got[0].Err == nil || got[0].URL != "" {
+		t.Fatalf("a session at its deadline still resolved: %+v", got)
+	}
+	requireError(t, got[0].Err, files.CodeClaimExpired, http.StatusConflict)
+}
+
 func caseClaimForeign(t *testing.T, h Harness) {
 	spec := purposeFor(t, h, files.ScopeOrgWorkspace, imageAllowed)
 	scope := scopeFor(spec)
@@ -1016,6 +1050,32 @@ func caseProviderIntentIdempotent(t *testing.T, h Harness) {
 		Deadline: h.Now().Add(time.Hour),
 	})
 	requireError(t, err, files.CodeIdempotencyConflict, http.StatusConflict)
+}
+
+// caseProviderKeySuffix pins Policy.ObjectKeySuffix on the write target: an
+// external writer such as LiveKit egress appends ".mp4" to a key without an
+// extension, so the object a provider is told to write must already end with
+// the purpose's suffix, or CompleteProviderOutput would look for an object
+// that was never written.
+func caseProviderKeySuffix(t *testing.T, h Harness) {
+	checked := 0
+	for _, spec := range h.Registry.Specs() {
+		if spec.Disabled || spec.Policy.ObjectKeySuffix == "" {
+			continue
+		}
+		checked++
+		out := registerOK(t, h, spec, scopeFor(spec), "op-suffix-"+string(spec.Purpose))
+		target, err := url.Parse(out.WriteTarget.URL)
+		if err != nil {
+			t.Fatalf("%s: write target is not a URL: %v", spec.Purpose, err)
+		}
+		if !strings.HasSuffix(target.Path, spec.Policy.ObjectKeySuffix) {
+			t.Errorf("%s: write target path does not end with %q", spec.Purpose, spec.Policy.ObjectKeySuffix)
+		}
+	}
+	if checked == 0 {
+		t.Skip("no open purpose declares an object key suffix")
+	}
 }
 
 func caseProviderComplete(t *testing.T, h Harness) {

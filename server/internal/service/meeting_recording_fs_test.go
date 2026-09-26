@@ -93,7 +93,9 @@ func TestMeetingRecordingFileServiceLifecycle(t *testing.T) {
 	if out == nil {
 		t.Fatal("provider did not receive a write target")
 	}
-	if !strings.HasSuffix(out.URL, "/"+rec.FileID.String) {
+	// Recording purposes mint "<file_id>.mp4": LiveKit appends an extension to
+	// extension-less filepaths, so the reserved key carries it (T3 ObjectKeySuffix).
+	if !strings.HasSuffix(out.URL, "/"+rec.FileID.String+".mp4") {
 		t.Fatalf("write target %q does not name file %q", out.URL, rec.FileID.String)
 	}
 	if out.Method != "PUT" || out.ExpiresAt.IsZero() {
@@ -455,7 +457,7 @@ func TestChatVoiceRecordingFileServiceLifecycle(t *testing.T) {
 		t.Fatalf("legacy locator on an FS row: %+v", rec)
 	}
 	out := fp.LastRecording.OutputTarget
-	if out == nil || !strings.HasSuffix(out.URL, "/"+rec.FileID.String) {
+	if out == nil || !strings.HasSuffix(out.URL, "/"+rec.FileID.String+".mp4") {
 		t.Fatalf("write target: %+v", out)
 	}
 	if fp.RecordCalls != 1 {

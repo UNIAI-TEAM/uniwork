@@ -160,6 +160,11 @@ func TestRegistryRejectsBadTables(t *testing.T) {
 		{"canonical type outside the allowlist", []PurposeSpec{{Purpose: TaskAttachment, Prefix: "x", Scope: valid.Scope, Policy: Policy{MaxBytes: 1, MIMEAllowlist: []string{"audio/webm"}, CanonicalTypes: map[string]string{"video/webm": "audio/ogg"}, ReadMode: ReadProxy}}}},
 		{"malformed canonical key", []PurposeSpec{{Purpose: TaskAttachment, Prefix: "x", Scope: valid.Scope, Policy: Policy{MaxBytes: 1, MIMEAllowlist: []string{"audio/webm"}, CanonicalTypes: map[string]string{"Video/WebM": "audio/webm"}, ReadMode: ReadProxy}}}},
 		{"malformed canonical value", []PurposeSpec{{Purpose: TaskAttachment, Prefix: "x", Scope: valid.Scope, Policy: Policy{MaxBytes: 1, MIMEAllowlist: []string{"audio/webm"}, CanonicalTypes: map[string]string{"video/webm": "audio/webm; codecs=opus"}, ReadMode: ReadProxy}}}},
+		{"object key suffix without a dot", []PurposeSpec{{Purpose: TaskAttachment, Prefix: "x", Scope: valid.Scope, Policy: Policy{MaxBytes: 1, MIMEAllowlist: []string{"image/png"}, ReadMode: ReadProxy, ObjectKeySuffix: "mp4"}}}},
+		{"object key suffix with a path", []PurposeSpec{{Purpose: TaskAttachment, Prefix: "x", Scope: valid.Scope, Policy: Policy{MaxBytes: 1, MIMEAllowlist: []string{"image/png"}, ReadMode: ReadProxy, ObjectKeySuffix: ".mp4/x"}}}},
+		{"object key suffix with a second dot", []PurposeSpec{{Purpose: TaskAttachment, Prefix: "x", Scope: valid.Scope, Policy: Policy{MaxBytes: 1, MIMEAllowlist: []string{"image/png"}, ReadMode: ReadProxy, ObjectKeySuffix: "..mp4"}}}},
+		{"object key suffix in upper case", []PurposeSpec{{Purpose: TaskAttachment, Prefix: "x", Scope: valid.Scope, Policy: Policy{MaxBytes: 1, MIMEAllowlist: []string{"image/png"}, ReadMode: ReadProxy, ObjectKeySuffix: ".MP4"}}}},
+		{"object key suffix too long", []PurposeSpec{{Purpose: TaskAttachment, Prefix: "x", Scope: valid.Scope, Policy: Policy{MaxBytes: 1, MIMEAllowlist: []string{"image/png"}, ReadMode: ReadProxy, ObjectKeySuffix: ".abcdefghi"}}}},
 	}
 	for _, tc := range cases {
 		if _, err := NewRegistry(tc.specs...); err == nil {
@@ -168,6 +173,22 @@ func TestRegistryRejectsBadTables(t *testing.T) {
 	}
 	if _, err := NewRegistry(valid); err != nil {
 		t.Fatalf("NewRegistry refused a valid row: %v", err)
+	}
+}
+
+// TestRecordingKeysEndInMP4 pins the LiveKit egress rule: egress appends
+// ".mp4" to a filepath without an extension and writes with its own
+// credentials, so both recording purposes must mint keys that already end in
+// it, and no other purpose grows a suffix by accident.
+func TestRecordingKeysEndInMP4(t *testing.T) {
+	for _, spec := range DefaultSpecs() {
+		want := ""
+		if spec.Purpose == MeetingRecording || spec.Purpose == ChatCallRecording {
+			want = ".mp4"
+		}
+		if got := spec.Policy.ObjectKeySuffix; got != want {
+			t.Errorf("%s object key suffix = %q, want %q", spec.Purpose, got, want)
+		}
 	}
 }
 
