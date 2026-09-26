@@ -12,6 +12,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -38,6 +39,7 @@ type ChatService struct {
 	tasks       *TaskService
 	conference  meetings.ConferenceProvider
 	ai          *ai.Gateway
+	files       files.Service
 	TenorAPIKey string
 }
 
