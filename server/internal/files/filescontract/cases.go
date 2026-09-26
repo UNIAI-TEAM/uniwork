@@ -535,6 +535,15 @@ func caseClaimWindow(t *testing.T, h Harness) {
 	if got[0].URL != "" {
 		t.Errorf("an expired session returned URL %q", got[0].URL)
 	}
+
+	// An expired session is never resurrected by a replay either (T1-Q8): the
+	// same upload key + command answers claim_expired instead of the stale
+	// result or a fresh window.
+	_, err = h.Service.Upload(context.Background(), files.UploadInput{
+		Actor: actorA(), Purpose: spec.Purpose, Scope: scope,
+		IdempotencyKey: "window-expired", Filename: "note.png", Body: bytes.NewReader(pngBody),
+	})
+	requireError(t, err, files.CodeClaimExpired, http.StatusConflict)
 }
 
 func caseClaimForeign(t *testing.T, h Harness) {
@@ -967,6 +976,17 @@ func caseProviderCompleteReplay(t *testing.T, h Harness) {
 	}
 	if again.ID != first.ID || again.Status != files.StatusReady {
 		t.Errorf("replay returned %+v, want the same ready file %+v", again, first)
+	}
+
+	// A webhook can also arrive after the collector passed the file: the
+	// barrier answer is file_deleting, not a resurrection (FS-C1 section 7).
+	if h.SimulateGC != nil {
+		collected := registerOK(t, h, spec, scope, "op-collected")
+		h.SimulateGC(t, collected.FileID)
+		_, err = h.Service.CompleteProviderOutput(ctx, files.CompleteOutputInput{
+			Actor: actorA(), Scope: scope, FileID: collected.FileID, OperationID: "op-collected",
+		})
+		requireError(t, err, files.CodeDeleting, http.StatusConflict)
 	}
 }
 
