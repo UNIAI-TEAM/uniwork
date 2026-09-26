@@ -472,7 +472,7 @@ type FeatureFlagOverride struct {
 	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
 }
 
-// FileService technical metadata: one row per immutable object. Bytes live in the storage the locator names; business tables hold file_id references. Upload actor/scope/purpose live on file_upload_sessions, not here.
+// FileService technical metadata: one row per immutable object. Bytes live in the storage the locator names; business tables hold the file_id. Upload actor/scope/purpose live on file_upload_sessions, not here.
 type File struct {
 	// Opaque ULID assigned when the intent is recorded, before any byte is stored. Business tables store it; nothing parses it.
 	ID string `json:"id"`
@@ -494,7 +494,7 @@ type File struct {
 	SizeBytes pgtype.Int8 `json:"size_bytes"`
 	// Lowercase-hex SHA-256 of the bytes, stored only when a purpose policy requires it or a supplied digest was verified (T1-Q2). NULL is valid on ready files; a value is never an unverified client or provider claim.
 	ChecksumSha256 pgtype.Text `json:"checksum_sha256"`
-	// File lifecycle: pending, processing, ready, failed, deleting, deleted. Says whether bytes and metadata exist, not whether a module references the file.
+	// File lifecycle: pending, processing, ready, failed, deleting, deleted. Says whether bytes and metadata exist, not whether a module points at the file.
 	Status string `json:"status"`
 	// Versioned technical attributes object (schema_version, width, height, duration_ms, page_count, codec, ...) that the service validates against an allowlist with type checks (T1-Q1). Never business data, owners, scopes or signed URLs.
 	Metadata []byte `json:"metadata"`

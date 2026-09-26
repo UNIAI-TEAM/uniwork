@@ -59,6 +59,7 @@ FOR UPDATE;
 -- name: MarkFileReady :execrows
 -- Pending/processing -> ready with the verified content fields; ready_at is
 -- set exactly once (COALESCE keeps the first stamp) and never moves again.
+-- ready_at is caller-supplied so the file-age anchor is deterministic.
 UPDATE files SET
   status = 'ready',
   content_type = sqlc.arg('content_type'),
@@ -66,7 +67,7 @@ UPDATE files SET
   checksum_sha256 = sqlc.arg('checksum_sha256'),
   metadata = sqlc.arg('metadata')::jsonb,
   object_version = sqlc.arg('object_version'),
-  ready_at = COALESCE(ready_at, now()),
+  ready_at = COALESCE(ready_at, sqlc.arg('ready_at')),
   updated_at = now()
 WHERE id = sqlc.arg('id') AND status IN ('pending', 'processing');
 
@@ -86,10 +87,11 @@ UPDATE files SET
 WHERE id = sqlc.arg('id') AND status IN ('ready', 'failed');
 
 -- name: MarkFileDeleted :execrows
--- Tombstone: only from deleting, after bytes are gone.
+-- Tombstone: only from deleting, after bytes are gone. deleted_at is
+-- caller-supplied so reconcile and GC share one clock.
 UPDATE files SET
   status = 'deleted',
-  deleted_at = now(),
+  deleted_at = sqlc.arg('deleted_at'),
   updated_at = now()
 WHERE id = sqlc.arg('id') AND status = 'deleting';
 

@@ -19,7 +19,7 @@ UPDATE file_upload_sessions SET
 WHERE id = $3
   AND status IN ('receiving', 'staged')
   AND (lease_expires_at IS NULL
-       OR lease_expires_at <= now()
+       OR lease_expires_at <= $4
        OR lease_owner = $1)
 `
 
@@ -27,12 +27,19 @@ type AcquireUploadSessionLeaseParams struct {
 	LeaseOwner     pgtype.Text        `json:"lease_owner"`
 	LeaseExpiresAt pgtype.Timestamptz `json:"lease_expires_at"`
 	ID             string             `json:"id"`
+	Now            pgtype.Timestamptz `json:"now"`
 }
 
 // Write lease: take it only while the session is still open and no live lease
 // blocks it. Zero rows means another writer owns it - refuse, do not wait.
+// `now` comes from the caller so the expiry check is deterministic in tests.
 func (q *Queries) AcquireUploadSessionLease(ctx context.Context, arg AcquireUploadSessionLeaseParams) (int64, error) {
-	result, err := q.db.Exec(ctx, acquireUploadSessionLease, arg.LeaseOwner, arg.LeaseExpiresAt, arg.ID)
+	result, err := q.db.Exec(ctx, acquireUploadSessionLease,
+		arg.LeaseOwner,
+		arg.LeaseExpiresAt,
+		arg.ID,
+		arg.Now,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -70,15 +77,20 @@ UPDATE file_upload_sessions SET
   status = 'canceled',
   lease_owner = NULL,
   lease_expires_at = NULL,
-  closed_at = now(),
+  closed_at = $1,
   updated_at = now()
-WHERE organization_id = $1
+WHERE organization_id = $2
   AND status IN ('receiving', 'staged')
 `
 
+type CancelOrgUploadSessionsParams struct {
+	ClosedAt       pgtype.Timestamptz `json:"closed_at"`
+	OrganizationID pgtype.Text        `json:"organization_id"`
+}
+
 // Tenant teardown: every still-open session in the organization is canceled.
-func (q *Queries) CancelOrgUploadSessions(ctx context.Context, organizationID pgtype.Text) (int64, error) {
-	result, err := q.db.Exec(ctx, cancelOrgUploadSessions, organizationID)
+func (q *Queries) CancelOrgUploadSessions(ctx context.Context, arg CancelOrgUploadSessionsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, cancelOrgUploadSessions, arg.ClosedAt, arg.OrganizationID)
 	if err != nil {
 		return 0, err
 	}
@@ -90,14 +102,19 @@ UPDATE file_upload_sessions SET
   status = 'canceled',
   lease_owner = NULL,
   lease_expires_at = NULL,
-  closed_at = now(),
+  closed_at = $1,
   updated_at = now()
-WHERE id = $1 AND status IN ('receiving', 'staged')
+WHERE id = $2 AND status IN ('receiving', 'staged')
 `
 
+type CancelUploadSessionParams struct {
+	ClosedAt pgtype.Timestamptz `json:"closed_at"`
+	ID       string             `json:"id"`
+}
+
 // Either open state -> canceled; terminal rows never resurrect (T1-Q8).
-func (q *Queries) CancelUploadSession(ctx context.Context, id string) (int64, error) {
-	result, err := q.db.Exec(ctx, cancelUploadSession, id)
+func (q *Queries) CancelUploadSession(ctx context.Context, arg CancelUploadSessionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, cancelUploadSession, arg.ClosedAt, arg.ID)
 	if err != nil {
 		return 0, err
 	}
@@ -107,18 +124,24 @@ func (q *Queries) CancelUploadSession(ctx context.Context, id string) (int64, er
 const consumeUploadSession = `-- name: ConsumeUploadSession :execrows
 UPDATE file_upload_sessions SET
   status = 'claimed',
-  closed_at = now(),
+  closed_at = $1,
   updated_at = now()
-WHERE id = $1
+WHERE id = $2
   AND status = 'staged'
-  AND claim_expires_at > now()
+  AND claim_expires_at > $1
 `
+
+type ConsumeUploadSessionParams struct {
+	Now pgtype.Timestamptz `json:"now"`
+	ID  string             `json:"id"`
+}
 
 // Claim consumes the grant: staged -> claimed, only inside the deadline.
 // Zero rows means already claimed/canceled/expired or past the window - the
 // service maps that to file_already_claimed / file_claim_expired (T1-Q5).
-func (q *Queries) ConsumeUploadSession(ctx context.Context, id string) (int64, error) {
-	result, err := q.db.Exec(ctx, consumeUploadSession, id)
+// `now` comes from the caller so the deadline check is deterministic.
+func (q *Queries) ConsumeUploadSession(ctx context.Context, arg ConsumeUploadSessionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, consumeUploadSession, arg.Now, arg.ID)
 	if err != nil {
 		return 0, err
 	}
@@ -128,16 +151,17 @@ func (q *Queries) ConsumeUploadSession(ctx context.Context, id string) (int64, e
 const expireUploadSessions = `-- name: ExpireUploadSessions :many
 UPDATE file_upload_sessions SET
   status = 'expired',
-  closed_at = now(),
+  closed_at = $1,
   updated_at = now()
-WHERE status = 'staged' AND claim_expires_at <= now()
+WHERE status = 'staged' AND claim_expires_at <= $1
 RETURNING id, file_id, created_by, created_by_kind, purpose, organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status, provider_operation_id, generation, claim_expires_at, lease_owner, lease_expires_at, created_at, updated_at, closed_at
 `
 
 // Daily sweep: staged sessions past the claim deadline. The update marks
-// them and returns the rows so the worker can schedule file cleanup.
-func (q *Queries) ExpireUploadSessions(ctx context.Context) ([]FileUploadSession, error) {
-	rows, err := q.db.Query(ctx, expireUploadSessions)
+// them and returns the rows so the worker can schedule file cleanup. `now`
+// is the caller's sweep instant.
+func (q *Queries) ExpireUploadSessions(ctx context.Context, now pgtype.Timestamptz) ([]FileUploadSession, error) {
+	rows, err := q.db.Query(ctx, expireUploadSessions, now)
 	if err != nil {
 		return nil, err
 	}
@@ -178,37 +202,62 @@ func (q *Queries) ExpireUploadSessions(ctx context.Context) ([]FileUploadSession
 
 const findUploadSessionByIdempotencyKey = `-- name: FindUploadSessionByIdempotencyKey :one
 SELECT id, file_id, created_by, created_by_kind, purpose, organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status, provider_operation_id, generation, claim_expires_at, lease_owner, lease_expires_at, created_at, updated_at, closed_at FROM file_upload_sessions
-WHERE created_by_kind = $1
-  AND created_by = $2
-  AND purpose = $3
-  AND organization_id IS NOT DISTINCT FROM $4
-  AND workspace_id IS NOT DISTINCT FROM $5
-  AND user_id IS NOT DISTINCT FROM $6
-  AND idempotency_key = $7
+WHERE organization_id = $1
+  AND idempotency_key = $2
 `
 
 type FindUploadSessionByIdempotencyKeyParams struct {
-	CreatedByKind  string      `json:"created_by_kind"`
-	CreatedBy      string      `json:"created_by"`
-	Purpose        string      `json:"purpose"`
 	OrganizationID pgtype.Text `json:"organization_id"`
-	WorkspaceID    pgtype.Text `json:"workspace_id"`
-	UserID         pgtype.Text `json:"user_id"`
 	IdempotencyKey string      `json:"idempotency_key"`
 }
 
-// Replay lookup: the key is bound to the same actor pair, purpose and full
-// scope (T1-Q8). IS NOT DISTINCT FROM keeps NULL scope fields comparable.
+// Organization branch (T1-Q8): a key is unique per tenant, so this returns
+// the stored session for ANY same-key replay inside the organization - the
+// service compares command_fingerprint and answers idempotency_conflict when
+// the command differs, instead of a second row ever existing.
 func (q *Queries) FindUploadSessionByIdempotencyKey(ctx context.Context, arg FindUploadSessionByIdempotencyKeyParams) (FileUploadSession, error) {
-	row := q.db.QueryRow(ctx, findUploadSessionByIdempotencyKey,
-		arg.CreatedByKind,
-		arg.CreatedBy,
-		arg.Purpose,
-		arg.OrganizationID,
-		arg.WorkspaceID,
-		arg.UserID,
-		arg.IdempotencyKey,
+	row := q.db.QueryRow(ctx, findUploadSessionByIdempotencyKey, arg.OrganizationID, arg.IdempotencyKey)
+	var i FileUploadSession
+	err := row.Scan(
+		&i.ID,
+		&i.FileID,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.Purpose,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.UserID,
+		&i.IdempotencyKey,
+		&i.CommandFingerprint,
+		&i.Status,
+		&i.ProviderOperationID,
+		&i.Generation,
+		&i.ClaimExpiresAt,
+		&i.LeaseOwner,
+		&i.LeaseExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ClosedAt,
 	)
+	return i, err
+}
+
+const findUserUploadSessionByIdempotencyKey = `-- name: FindUserUploadSessionByIdempotencyKey :one
+SELECT id, file_id, created_by, created_by_kind, purpose, organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status, provider_operation_id, generation, claim_expires_at, lease_owner, lease_expires_at, created_at, updated_at, closed_at FROM file_upload_sessions
+WHERE organization_id IS NULL
+  AND created_by = $1
+  AND idempotency_key = $2
+`
+
+type FindUserUploadSessionByIdempotencyKeyParams struct {
+	CreatedBy      string `json:"created_by"`
+	IdempotencyKey string `json:"idempotency_key"`
+}
+
+// Identity branch (organization_id IS NULL, ADR 0023): the key is unique per
+// uploader, so a replay finds the stored session by actor + key.
+func (q *Queries) FindUserUploadSessionByIdempotencyKey(ctx context.Context, arg FindUserUploadSessionByIdempotencyKeyParams) (FileUploadSession, error) {
+	row := q.db.QueryRow(ctx, findUserUploadSessionByIdempotencyKey, arg.CreatedBy, arg.IdempotencyKey)
 	var i FileUploadSession
 	err := row.Scan(
 		&i.ID,
