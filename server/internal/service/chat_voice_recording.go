@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -22,29 +21,13 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// voiceRecordingFiles holds the FileService handle for call recordings.
-// ChatService's struct lives in chat.go, which the T7 lane owns this round,
-// so the seam is stored beside the service keyed by instance; the integrator
-// folds it into a plain field when T7's own files field lands. Read with
-// voiceRecordingFiles.
-var voiceRecordingFileServices sync.Map // *ChatService -> files.Service
-
 // SetVoiceRecordingFiles selects the FileService path for call recordings;
-// nil (the default) keeps the legacy egress-to-S3 path byte-identical.
-func (s *ChatService) SetVoiceRecordingFiles(f files.Service) {
-	if f == nil {
-		voiceRecordingFileServices.Delete(s)
-		return
-	}
-	voiceRecordingFileServices.Store(s, f)
-}
+// nil (the default) keeps the legacy egress-to-S3 path byte-identical. It
+// shares the files handle T7 added to ChatService for chat media (chat.go);
+// the setter name stays so existing wiring calls do not change.
+func (s *ChatService) SetVoiceRecordingFiles(f files.Service) { s.files = f }
 
-func (s *ChatService) voiceRecordingFiles() files.Service {
-	if v, ok := voiceRecordingFileServices.Load(s); ok {
-		return v.(files.Service)
-	}
-	return nil
-}
+func (s *ChatService) voiceRecordingFiles() files.Service { return s.files }
 
 // VoiceFileServiceEnabled reports whether the FileService path is wired.
 func (s *ChatService) VoiceFileServiceEnabled() bool {
