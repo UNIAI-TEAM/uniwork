@@ -475,6 +475,8 @@ func (f *Fake) claimable(e *entry) error {
 // sessionAgreement is the one rule every read or claim of an unreferenced file
 // makes: a canceled session is refused, and the 24 hour window is measured from
 // ready/staged (T1-Q5). Opening a preview or retrying a save never extends it.
+// The deadline itself is outside the window, as the real service and the
+// ConsumeUploadSession/ExpireUploadSessions queries read it.
 func (f *Fake) sessionAgreement(e *entry) error {
 	switch e.session {
 	case files.SessionCanceled:
@@ -482,7 +484,7 @@ func (f *Fake) sessionAgreement(e *entry) error {
 	case files.SessionClaimed:
 		return nil
 	}
-	if f.now().After(e.claimExpiresAt) {
+	if !f.now().Before(e.claimExpiresAt) {
 		e.session = files.SessionExpired
 		return files.ClaimExpired(e.file.ID)
 	}
