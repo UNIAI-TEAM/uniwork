@@ -52,6 +52,12 @@ type FileService struct {
 	newID    func() string
 	spoolDir string
 	lease    time.Duration
+
+	// T5: the reference registry the collector asks, its configuration, and
+	// test seams for the collector's barriers (nil in production).
+	refs    *fileReferenceRegistry
+	gc      FileGCConfig
+	gcHooks fileGCHooks
 }
 
 var _ files.Service = (*FileService)(nil)
@@ -94,6 +100,14 @@ type FileServiceOptions struct {
 	// WriteLease is how long an upload writer owns its session before a retry
 	// of the same key may take over. Default: 15 minutes.
 	WriteLease time.Duration
+	// ReferenceProviders are every module's FS-C1 section 6 providers,
+	// assembled by the composition root. The collector asks all of them
+	// before it deletes a file; a catalogue column without its provider
+	// keeps the collector from deleting anything (T5).
+	ReferenceProviders []files.ReferenceProvider
+	// GC configures the daily collector. The zero value is dry-run: it
+	// reports and never deletes (Gate C).
+	GC FileGCConfig
 }
 
 // NewFileService validates the wiring. A missing pool or adapter is a startup
@@ -140,7 +154,17 @@ func NewFileService(opts FileServiceOptions) (*FileService, error) {
 	if opts.Quota != nil && !isNilInterface(opts.Quota) {
 		quota = opts.Quota
 	}
+	refs, err := newFileReferenceRegistry(opts.ReferenceProviders, managedFileReferenceSources())
+	if err != nil {
+		return nil, err
+	}
+	gc, err := opts.GC.normalized()
+	if err != nil {
+		return nil, err
+	}
 	return &FileService{
+		refs:     refs,
+		gc:       gc,
 		pool:     opts.Pool,
 		q:        db.New(opts.Pool),
 		registry: registry,
