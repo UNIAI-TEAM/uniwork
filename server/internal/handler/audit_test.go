@@ -238,8 +238,10 @@ func TestAuditExportDownloadLinkStopsAfter24Hours(t *testing.T) {
 	srv := newTestServer(t)
 	w := buildAuditWorld(t, srv)
 
+	// RFC3339 truncates to the second, so `to` must reach past "now" or a world
+	// built inside the current second falls outside the window entirely.
 	from := time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)
-	to := time.Now().UTC().Format(time.RFC3339)
+	to := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
 	res, out := doJSON(t, srv, "POST", "/api/v1/orgs/"+w.orgID+"/audit/exports", w.token,
 		map[string]string{"format": "csv", "from": from, "to": to})
 	if res.StatusCode != 202 {
@@ -289,8 +291,10 @@ func TestAuditExportsAreRefusedAcrossOrganizations(t *testing.T) {
 	srv := newTestServer(t)
 	w := buildAuditWorld(t, srv)
 
+	// RFC3339 truncates to the second, so `to` must reach past "now" or a world
+	// built inside the current second falls outside the window entirely.
 	from := time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)
-	to := time.Now().UTC().Format(time.RFC3339)
+	to := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
 	res, out := doJSON(t, srv, "POST", "/api/v1/orgs/"+w.orgID+"/audit/exports", w.token,
 		map[string]string{"format": "csv", "from": from, "to": to})
 	if res.StatusCode != 202 {
@@ -340,8 +344,10 @@ func TestLegacyExportDownloadIsADirectStorageURL(t *testing.T) {
 	srv := newTestServer(t)
 	w := buildAuditWorld(t, srv)
 
+	// RFC3339 truncates to the second, so `to` must reach past "now" or a world
+	// built inside the current second falls outside the window entirely.
 	from := time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)
-	to := time.Now().UTC().Format(time.RFC3339)
+	to := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
 	res, out := doJSON(t, srv, "POST", "/api/v1/orgs/"+w.orgID+"/audit/exports", w.token,
 		map[string]string{"format": "csv", "from": from, "to": to})
 	if res.StatusCode != 202 {
