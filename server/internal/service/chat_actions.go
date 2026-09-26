@@ -51,7 +51,9 @@ func (s *ChatService) EditChatMessage(
 	return chatMessageRowFromDB(updated, u.DisplayName), nil
 }
 
-// DeleteChatMessage soft-deletes the caller's own message.
+// DeleteChatMessage soft-deletes the caller's own message and releases the
+// FileService reference in the same transaction; the bytes stay with the
+// garbage collector, which re-checks every reference provider.
 func (s *ChatService) DeleteChatMessage(
 	ctx context.Context, userID, workspaceID, roomID, messageID string,
 ) error {
@@ -60,13 +62,25 @@ func (s *ChatService) DeleteChatMessage(
 		return err
 	}
 	anchorWS := roomAnchorWorkspaceID(room)
-	deleted, err := s.q.SoftDeleteChatMessage(ctx, db.SoftDeleteChatMessageParams{
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+	deleted, err := q.SoftDeleteChatMessage(ctx, db.SoftDeleteChatMessageParams{
 		ID: messageID, RoomID: roomID, WorkspaceID: anchorWS, SenderID: userID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrForbidden
 	}
 	if err != nil {
+		return err
+	}
+	if err := s.releaseChatMessageFile(ctx, q, deleted); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
 	s.publishChatMessageDeleted(ctx, room, deleted.ID)

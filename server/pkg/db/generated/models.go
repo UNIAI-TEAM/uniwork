@@ -193,6 +193,7 @@ type ChatMessage struct {
 	ReplyCount            int32              `json:"reply_count"`
 	LastReplyAt           pgtype.Timestamptz `json:"last_reply_at"`
 	MirroredFromCommentID pgtype.Text        `json:"mirrored_from_comment_id"`
+	FileID                pgtype.Text        `json:"file_id"`
 }
 
 type ChatMessageFollowUp struct {
@@ -475,6 +476,122 @@ type FeatureFlagOverride struct {
 	CreatedByKind string             `json:"created_by_kind"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
+}
+
+// FileService technical metadata: one row per immutable object. Bytes live in the storage the locator names; business tables hold the file_id. Upload actor/scope/purpose live on file_upload_sessions, not here.
+type File struct {
+	// Opaque ULID assigned when the intent is recorded, before any byte is stored. Business tables store it; nothing parses it.
+	ID string `json:"id"`
+	// Immutable tenant organization ID from an authorized context, written at intent creation and never changed. Required for organization files. NULL is reserved for the account-avatar branch (purpose user_avatar with user scope) authorized through the identity flow; it does not mean public access or an unknown tenant (ADR 0023). An empty string is rejected.
+	OrganizationID pgtype.Text `json:"organization_id"`
+	// Storage provider code: local = API server filesystem root; s3 = Amazon S3; minio = MinIO at any deployment location, including localhost and Docker. Not a deployment environment and not browser localStorage.
+	Storage string `json:"storage"`
+	// Object bucket for s3/minio, including locally hosted MinIO. NULL for local filesystem storage.
+	Bucket pgtype.Text `json:"bucket"`
+	// Immutable object name within the bucket, or the relative path beneath the configured filesystem root for local storage. Server-generated; not a URL and not an absolute filesystem path.
+	ObjectKey string `json:"object_key"`
+	// Object version ID where the storage backend supports versioning. NULL where versioning is absent or the object has no recorded version.
+	ObjectVersion pgtype.Text `json:"object_version"`
+	// Sanitized upload-time name shared by every reference for display and download (T1-Q4: no rename after upload).
+	OriginalFilename string `json:"original_filename"`
+	// MIME type verified from content; NULL while pending/processing and required once ready. Never the client-supplied Content-Type.
+	ContentType pgtype.Text `json:"content_type"`
+	// Verified size in bytes; NULL until measured, required once ready.
+	SizeBytes pgtype.Int8 `json:"size_bytes"`
+	// Lowercase-hex SHA-256 of the bytes, stored only when a purpose policy requires it or a supplied digest was verified (T1-Q2). NULL is valid on ready files; a value is never an unverified client or provider claim.
+	ChecksumSha256 pgtype.Text `json:"checksum_sha256"`
+	// File lifecycle: pending, processing, ready, failed, deleting, deleted. Says whether bytes and metadata exist, not whether a module points at the file.
+	Status string `json:"status"`
+	// Versioned technical attributes object (schema_version, width, height, duration_ms, page_count, codec, ...) that the service validates against an allowlist with type checks (T1-Q1). Never business data, owners, scopes or signed URLs.
+	Metadata []byte `json:"metadata"`
+	// When the file first became ready. The garbage-collection age anchor (T1-Q5/T1-Q6): set once and never moved by claim, cancel, unlink or metadata updates. GC never substitutes created_at or updated_at for it.
+	ReadyAt pgtype.Timestamptz `json:"ready_at"`
+	// Intent write time. Not the file-age anchor; that is ready_at.
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	// Last write to the technical record.
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	// Tombstone time: set exactly when status becomes deleted, NULL on every live status. Kept for reconcile, never resurrected.
+	DeletedAt pgtype.Timestamptz `json:"deleted_at"`
+}
+
+// FileService durable coordination jobs (cleanup, reconcile, abort_multipart) with lease ownership and generation fencing. Internal worker state; the organization_id copy aids cleanup invariants and cross-checks but is not an authorization grant.
+type FileJob struct {
+	// Opaque job id (ULID).
+	ID string `json:"id"`
+	// File the job operates on.
+	FileID string `json:"file_id"`
+	// Tenant of the file at enqueue time, denormalized for org-scoped cleanup queries. NULL when the target file is on the user_avatar branch (ADR 0023).
+	OrganizationID pgtype.Text `json:"organization_id"`
+	// cleanup = remove unreferenced bytes + row; reconcile = verify object presence, visibility and size and fix drift; abort_multipart = cancel an interrupted multipart upload before it can leak object parts.
+	Operation string `json:"operation"`
+	// pending -> leased -> succeeded | failed | canceled. A failure never drops the retry intent: the row returns to pending with a later next_attempt_at and the daily scan picks it up again.
+	Status string `json:"status"`
+	// Number of completed attempts; incremented on each terminal outcome. Alerting watches count/age, retry never stops on it alone.
+	Attempt int32 `json:"attempt"`
+	// Earliest time the job may be leased again. Retried failures land on the next daily scan.
+	NextAttemptAt pgtype.Timestamptz `json:"next_attempt_at"`
+	// Worker instance holding the job right now; set with lease_expires_at on claim, cleared on release or lease expiry.
+	LeaseOwner pgtype.Text `json:"lease_owner"`
+	// Lease expiry. Another replica may retake the job only after this passes.
+	LeaseExpiresAt pgtype.Timestamptz `json:"lease_expires_at"`
+	// Bumped on every lease takeover so a stale worker finishing late is refused (fencing, spec 9.4).
+	Generation int32 `json:"generation"`
+	// Last failure code (storage_unavailable, file_deleting, ...) for operators and reconcile.
+	ErrorCode pgtype.Text `json:"error_code"`
+	// Operation-scoped payload: e.g. multipart upload_id + part keys for abort_multipart, object locator snapshot for reconcile.
+	Details []byte `json:"details"`
+	// How long a terminal row is kept for audit and reconcile before it may be pruned.
+	RetainUntil pgtype.Timestamptz `json:"retain_until"`
+	// Enqueue time.
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	// Last write to the job row.
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	// Terminal mark: set exactly when the job turns succeeded, failed or canceled; NULL while pending or leased.
+	FinishedAt pgtype.Timestamptz `json:"finished_at"`
+}
+
+// FileService upload coordination: one row per logical upload (one idempotency key). Carries the actor pair, the backend-verified scope, the purpose, the claim deadline and the write lease. Temporary grant before a business object claims the file; after claim it is retention/audit data, not an ACL.
+type FileUploadSession struct {
+	// Opaque ULID of the upload session; returned to the uploader as upload_session_id.
+	ID string `json:"id"`
+	// The file row this session is currently bound to. A technical retry after an uncertain write points it at the new attempt file and bumps generation; the superseded file stays for reconcile (spec 9.4).
+	FileID string `json:"file_id"`
+	// Actor id who opened the upload (ADR 0007 pair with created_by_kind). This is the temporary grant identity, not a business owner.
+	CreatedBy string `json:"created_by"`
+	// human | agent | system - kind of the uploading actor (ADR 0007).
+	CreatedByKind string `json:"created_by_kind"`
+	// FS-C1 upload purpose chosen by the calling module; never client-supplied. Binds the session to the purpose registry policy and scope shape.
+	Purpose string `json:"purpose"`
+	// Verified tenant scope of the upload. NULL only on the user_avatar branch (ADR 0023); required and non-empty for every other purpose.
+	OrganizationID pgtype.Text `json:"organization_id"`
+	// Verified workspace scope where the purpose requires one; NULL on user, org-only and optionally-workspace purposes.
+	WorkspaceID pgtype.Text `json:"workspace_id"`
+	// Verified user scope for user-scope purposes (user_avatar). NULL elsewhere.
+	UserID pgtype.Text `json:"user_id"`
+	// Client key for one logical upload (T1-Q8). Kept across retries of the same attempt; a new upload or changed file uses a new key.
+	IdempotencyKey string `json:"idempotency_key"`
+	// Fingerprint of the command parameters the idempotency key was bound to (actor, scope, purpose, filename, ...). The same key with a different fingerprint is idempotency_conflict.
+	CommandFingerprint string `json:"command_fingerprint"`
+	// Session lifecycle: receiving -> staged -> claimed, with canceled and expired as terminal exits. A session never leaves a terminal state.
+	Status string `json:"status"`
+	// The external writer operation id (LiveKit egress id, Office job id) for provider outputs; unique when set so a retried operation finds the same file.
+	ProviderOperationID pgtype.Text `json:"provider_operation_id"`
+	// Write generation, bumped when a technical retry repoints the session at a new attempt file. Stale completions carry an older generation and are refused.
+	Generation int32 `json:"generation"`
+	// Claim deadline (T1-Q5): file ready_at + 24h, stamped when the session turns staged. Claim and fresh URLs through the session are refused past it even before the daily sweep marks expired.
+	ClaimExpiresAt pgtype.Timestamptz `json:"claim_expires_at"`
+	// Writer lease holder while bytes are being written (an upload attempt or a provider operation). Always paired with lease_expires_at.
+	LeaseOwner pgtype.Text `json:"lease_owner"`
+	// Write-lease expiry, including the provider write deadline for RegisterProviderOutput. An expired lease is not proof the writer stopped - reconcile must still confirm or quarantine (spec 9.4).
+	LeaseExpiresAt pgtype.Timestamptz `json:"lease_expires_at"`
+	// Session open time.
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	// Last write to the session row.
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	// Terminal mark: set exactly when the session turns claimed, canceled or expired; NULL while receiving or staged.
+	ClosedAt pgtype.Timestamptz `json:"closed_at"`
+	// FS-C1 section 7 code of the permanent refusal this upload ended with (file_too_large | file_type_rejected), replayed for the same idempotency key without re-reading the body. NULL on every session that was not refused, including a plain cancel.
+	FailureCode pgtype.Text `json:"failure_code"`
 }
 
 type HomePreference struct {
