@@ -334,7 +334,7 @@ export function MeetingSummaryPanel({
                   <span className="text-caption tabular-nums text-muted-foreground">
                     {r.started_at ? formatMeetingStart(r.started_at, meetingLocale(i18n.language)) : null}
                   </span>
-                  {r.file_url ? (
+                  {r.status === "COMPLETE" ? (
                     <Button type="button" size="sm" variant="link" className="h-auto px-0" onClick={() => setPlaybackId(r.id)}>
                       {t("meetings.recording_play")}
                     </Button>

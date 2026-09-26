@@ -13,6 +13,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -97,6 +98,9 @@ type MeetingService struct {
 	Chat *ChatService
 	// ent is the entitlement gate (F-02); built here so it can never be nil.
 	ent *EntitlementService
+	// files is the shared FileService when the recording pipeline is wired
+	// through it (UNI-746); nil keeps the legacy egress-to-S3 path.
+	files files.Service
 }
 
 // organizationOf resolves the tenant a meeting belongs to, for the gate.

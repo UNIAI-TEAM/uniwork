@@ -79,6 +79,23 @@ type StartRecordingRequest struct {
 	RoomName   string
 	FilePrefix string
 	Layout     string
+	// OutputTarget, when set, is the write target the storage layer reserved
+	// for this recording (FileService provider output). The provider writes
+	// exactly that object and FilePrefix is ignored; nil keeps the
+	// provider-owned path. It mirrors files.WriteTarget without importing the
+	// contract package — the arch test forbids internal/meetings importing
+	// internal/files.
+	OutputTarget *RecordingOutputTarget
+}
+
+// RecordingOutputTarget is the provider-facing view of a FileService write
+// target: one object, one deadline, issued by the server. The provider never
+// derives an object key from a webhook or event payload.
+type RecordingOutputTarget struct {
+	URL       string
+	Method    string
+	Headers   map[string]string
+	ExpiresAt time.Time
 }
 
 type RecordingRef struct {
