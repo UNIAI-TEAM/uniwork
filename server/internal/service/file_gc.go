@@ -630,9 +630,14 @@ func (s *FileService) judgeCleanup(ctx context.Context, q *db.Queries, cands []g
 }
 
 // namedByLegacyLocator reports whether a legacy locator is the key itself or
-// a URL ending in it.
+// a URL ending in it. A query string or fragment (a stored signed URL, a
+// cache-busting ?v=) is not part of the key and is cut before matching, so
+// such a locator still holds the object.
 func namedByLegacyLocator(key string, legacy []string) bool {
 	for _, loc := range legacy {
+		if i := strings.IndexAny(loc, "?#"); i >= 0 {
+			loc = loc[:i]
+		}
 		if strings.HasSuffix(loc, key) {
 			return true
 		}

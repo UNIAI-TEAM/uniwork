@@ -221,3 +221,25 @@ func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
 }
+
+// A legacy locator holds a managed object when it is the key, a URL ending in
+// it, or such a URL with a query string or fragment (a stored signed URL).
+func TestNamedByLegacyLocator(t *testing.T) {
+	key := "v1/orgs/o/workspaces/w/tasks/attachments/2026/09/F1/original"
+	for _, tc := range []struct {
+		loc  string
+		want bool
+	}{
+		{key, true},
+		{"https://cdn.example.test/" + key, true},
+		{"https://cdn.example.test/" + key + "?v=1", true},
+		{"https://s3.example.test/bucket/" + key + "?X-Amz-Signature=abc#frag", true},
+		{"https://cdn.example.test/" + key + "-thumb", false},
+		{"v1/orgs/o/workspaces/w/tasks/attachments/2026/09/F2/original", false},
+		{"https://cdn.example.test/?next=" + key + "x", false},
+	} {
+		if got := namedByLegacyLocator(key, []string{tc.loc}); got != tc.want {
+			t.Errorf("namedByLegacyLocator(%q) = %v, want %v", tc.loc, got, tc.want)
+		}
+	}
+}
