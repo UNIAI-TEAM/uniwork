@@ -91,10 +91,6 @@ func voiceStreamPath(wsID, roomID, messageID string) string {
 	return "/api/v1/workspaces/" + wsID + "/chat/rooms/" + roomID + "/messages/" + messageID + "/voice"
 }
 
-func uploadPath(wsID, roomID, kind string) string {
-	return "/api/v1/workspaces/" + wsID + "/chat/rooms/" + roomID + "/messages/" + kind
-}
-
 // registerOtherOrgUser creates a second organization with its own workspace
 // and returns its owner token plus the ids an attacker would have to guess.
 // The two-organization case is the isolation contract every FileService
