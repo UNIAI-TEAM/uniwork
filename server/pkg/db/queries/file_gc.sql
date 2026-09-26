@@ -142,3 +142,9 @@ FROM meeting_recordings r
 LEFT JOIN meetings m ON m.id = r.meeting_id
 LEFT JOIN workspaces w ON w.id = m.workspace_id
 WHERE r.file_id = ANY(sqlc.arg('file_ids')::text[]);
+
+-- name: FileGCAuditExportRefTenants :many
+-- audit_exports.file_id: the row carries its tenant.
+SELECT e.file_id, e.organization_id
+FROM audit_exports e
+WHERE e.file_id = ANY(sqlc.arg('file_ids')::text[]);

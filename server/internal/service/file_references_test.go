@@ -105,22 +105,28 @@ func TestFileReferenceRegistryValidation(t *testing.T) {
 		}
 	}
 
-	full, err := newFileReferenceRegistry(append(productionProviders(), newMemProvider("audit.exports", files.AuditExport)), sources)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := full.coverage(files.DefaultRegistry()); err != nil {
-		t.Fatalf("full provider set: %v", err)
-	}
-	// Today's production set: audit_export is enabled but T10's provider is
-	// still in its lane, so the collector must refuse to delete.
 	prod, err := newFileReferenceRegistry(productionProviders(), sources)
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = prod.coverage(files.DefaultRegistry())
-	if !errors.Is(err, errFileReferenceCoverage) || !strings.Contains(err.Error(), "audit_export") {
-		t.Fatalf("coverage = %v, want the audit_export gap", err)
+	if err := prod.coverage(files.DefaultRegistry()); err != nil {
+		t.Fatalf("production provider set: %v", err)
+	}
+	// Without the audit export provider both its column and its enabled
+	// purpose are uncovered, so the collector must refuse to delete.
+	var partial []files.ReferenceProvider
+	for _, p := range productionProviders() {
+		if p.Name() != "audit.exports" {
+			partial = append(partial, p)
+		}
+	}
+	gap, err := newFileReferenceRegistry(partial, sources)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = gap.coverage(files.DefaultRegistry())
+	if !errors.Is(err, errFileReferenceCoverage) || !strings.Contains(err.Error(), "audit_exports.file_id") || !strings.Contains(err.Error(), "purpose audit_export") {
+		t.Fatalf("coverage = %v, want the audit_exports column and audit_export purpose gaps", err)
 	}
 	// Disabled purposes need no provider; a registered one is still asked.
 	if prod.covers(files.DocumentFile) {

@@ -42,8 +42,7 @@ type fileReferenceTenant struct {
 
 // managedFileReferenceSources is the catalogue of every file id column in the
 // managed scope. A module that adds a column adds its row, its provider and
-// its tenant query (file_gc.sql) in the same change; T10's
-// audit_exports.file_id plugs in the same way.
+// its tenant query (file_gc.sql) in the same change.
 func managedFileReferenceSources() []FileReferenceSource {
 	return []FileReferenceSource{
 		{
@@ -83,6 +82,17 @@ func managedFileReferenceSources() []FileReferenceSource {
 			Table: "chat_voice_recordings", Column: "file_id", Provider: chatVoiceRecordingProvider{}.Name(),
 			tenants: func(ctx context.Context, q *db.Queries, ids []string) ([]fileReferenceTenant, error) {
 				rows, err := q.FileGCChatVoiceRecordingRefTenants(ctx, ids)
+				out := make([]fileReferenceTenant, 0, len(rows))
+				for _, r := range rows {
+					out = append(out, knownTenant(r.FileID, r.OrganizationID))
+				}
+				return out, err
+			},
+		},
+		{
+			Table: "audit_exports", Column: "file_id", Provider: auditExportReferenceProvider{}.Name(),
+			tenants: func(ctx context.Context, q *db.Queries, ids []string) ([]fileReferenceTenant, error) {
+				rows, err := q.FileGCAuditExportRefTenants(ctx, ids)
 				out := make([]fileReferenceTenant, 0, len(rows))
 				for _, r := range rows {
 					out = append(out, knownTenant(r.FileID, r.OrganizationID))

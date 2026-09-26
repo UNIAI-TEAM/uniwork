@@ -161,7 +161,7 @@ func withProviders(ps ...files.ReferenceProvider) gcOption {
 func productionProviders() []files.ReferenceProvider {
 	return []files.ReferenceProvider{
 		NewTaskAttachmentProvider(), NewUserAvatarProvider(), chatFileReferenceProvider{},
-		chatVoiceRecordingProvider{}, MeetingRecordingProvider{},
+		chatVoiceRecordingProvider{}, MeetingRecordingProvider{}, AuditExportReferenceProvider(),
 	}
 }
 

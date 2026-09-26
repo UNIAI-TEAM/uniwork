@@ -44,6 +44,38 @@ func (q *Queries) FileGCAttachmentRefTenants(ctx context.Context, fileIds []stri
 	return items, nil
 }
 
+const fileGCAuditExportRefTenants = `-- name: FileGCAuditExportRefTenants :many
+SELECT e.file_id, e.organization_id
+FROM audit_exports e
+WHERE e.file_id = ANY($1::text[])
+`
+
+type FileGCAuditExportRefTenantsRow struct {
+	FileID         pgtype.Text `json:"file_id"`
+	OrganizationID string      `json:"organization_id"`
+}
+
+// audit_exports.file_id: the row carries its tenant.
+func (q *Queries) FileGCAuditExportRefTenants(ctx context.Context, fileIds []string) ([]FileGCAuditExportRefTenantsRow, error) {
+	rows, err := q.db.Query(ctx, fileGCAuditExportRefTenants, fileIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FileGCAuditExportRefTenantsRow{}
+	for rows.Next() {
+		var i FileGCAuditExportRefTenantsRow
+		if err := rows.Scan(&i.FileID, &i.OrganizationID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const fileGCChatMessageRefTenants = `-- name: FileGCChatMessageRefTenants :many
 SELECT m.file_id,
        r.organization_id AS room_organization_id,
