@@ -76,7 +76,7 @@ func runPlan(ctx context.Context, args []string) error {
 	}
 	defer pool.Close()
 
-	rep, err := backfill.New(db.New(pool)).Plan(ctx, backfill.Options{
+	rep, err := backfill.New(db.New(pool), backfill.ResolverFromEnv()).Plan(ctx, backfill.Options{
 		Cohorts:      splitList(*cohort),
 		BatchSize:    int32(*batch),
 		IncludeItems: *items,

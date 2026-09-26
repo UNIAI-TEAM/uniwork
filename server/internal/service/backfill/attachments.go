@@ -16,18 +16,23 @@ import (
 // The legacy writer always targeted the configured STORAGE_BACKEND of its
 // moment, which the row does not record, so plan leaves Storage empty; apply
 // resolves the adapter by probing the configured stores.
-func (e *Engine) scanAttachments(ctx context.Context, after string, limit int32) ([]Item, error) {
+func (e *Engine) scanAttachments(ctx context.Context, after string, limit int32) ([]Item, string, error) {
 	rows, err := e.q.FileBackfillScanAttachments(ctx, db.FileBackfillScanAttachmentsParams{
 		AfterID: after, LimitN: limit,
 	})
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	items := make([]Item, 0, len(rows))
+	next := ""
 	for _, r := range rows {
 		items = append(items, classifyAttachment(r))
+		next = r.ID
 	}
-	return items, nil
+	if int32(len(rows)) < limit {
+		next = ""
+	}
+	return items, next, nil
 }
 
 func classifyAttachment(r db.FileBackfillScanAttachmentsRow) Item {

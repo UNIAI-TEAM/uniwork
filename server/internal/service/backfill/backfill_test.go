@@ -78,7 +78,7 @@ func attKey(ws, id string) string {
 
 func planAttachments(t *testing.T, q *db.Queries) *Report {
 	t.Helper()
-	rep, err := New(q).Plan(context.Background(), Options{Cohorts: []string{CohortTaskAttachments}, IncludeItems: true})
+	rep, err := New(q, nil).Plan(context.Background(), Options{Cohorts: []string{CohortTaskAttachments}, IncludeItems: true})
 	if err != nil {
 		t.Fatalf("plan: %v", err)
 	}
@@ -199,6 +199,7 @@ func TestMarkSharedLocatorsHoldsConflicts(t *testing.T) {
 		},
 	}}}
 	markSharedLocators(rep)
+	retally(&rep.Cohorts[0])
 	cr := rep.Cohorts[0]
 	for _, id := range []string{"a", "b", "c"} {
 		if got := itemByID(cr, id); got.Class != ClassHeld || got.Reason != "cross_scope_shared_locator" {

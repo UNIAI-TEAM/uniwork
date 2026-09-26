@@ -1,7 +1,7 @@
 // Package backfill is the T9b (UNI-747) engine behind cmd/files-backfill: it
 // scans the pre-FileService locator columns, classifies each source row by
 // the inventory-spec mapping rules (verified / unresolved / held / foreign /
-// already_applied), and - in apply mode - mints the files + claimed-session
+// already_applied), and — in apply mode — mints the files + claimed-session
 // pair and rewrites the business reference inside one transaction per batch.
 //
 // The contract it preserves:
@@ -11,7 +11,7 @@
 //     the anchor, so apply is get-or-create by (storage, bucket, object_key).
 //   - A locator shared by two tenants is held, never merged; a locator
 //     demonstrably not ours is foreign, never imported.
-//   - Legacy/G0 objects stay owned by their legacy columns - a files row is a
+//   - Legacy/G0 objects stay owned by their legacy columns — a files row is a
 //     new reference alongside them, not a transfer of custody, so no backfill
 //     path ever deletes or rewrites the object or its legacy column.
 //   - Checkpoint rows commit with the batch they describe, so a crash never
@@ -35,26 +35,23 @@ const (
 	CohortChatFiles         = "chat-files"         // M3
 	CohortChatVoice         = "chat-voice"         // M4
 	CohortMeetingRecordings = "meeting-recordings" // M5
-	CohortCallRecordings    = "call-recordings"    // M6 (M7 call-log refs fold in)
+	CohortCallRecordings    = "call-recordings"    // M6 (+M7 call-log refs)
 	CohortAuditExports      = "audit-exports"      // M12
 	CohortContentRefs       = "content-refs"       // M11: markdown/JSON reference evidence only
 )
 
-// cohorts lists every cohort the command knows, in spec order. Implemented
-// toggles whether the cohort has a scanner yet — the Advisor's first slice is
-// task-attachments only; the rest error loudly instead of silently skipping.
+// cohorts lists every cohort the command knows, in spec order.
 var cohorts = []struct {
-	Name        string
-	Implemented bool
+	Name string
 }{
-	{CohortTaskAttachments, true},
-	{CohortAvatars, false},
-	{CohortChatFiles, false},
-	{CohortChatVoice, false},
-	{CohortMeetingRecordings, false},
-	{CohortCallRecordings, false},
-	{CohortAuditExports, false},
-	{CohortContentRefs, false},
+	{CohortTaskAttachments},
+	{CohortAvatars},
+	{CohortChatFiles},
+	{CohortChatVoice},
+	{CohortMeetingRecordings},
+	{CohortCallRecordings},
+	{CohortAuditExports},
+	{CohortContentRefs},
 }
 
 // Class is the classification a source row gets. The names are the report's
@@ -83,6 +80,7 @@ type Item struct {
 	RawLocator     string `json:"raw_locator,omitempty"`
 	OrganizationID string `json:"organization_id,omitempty"`
 	WorkspaceID    string `json:"workspace_id,omitempty"`
+	UserID         string `json:"user_id,omitempty"`
 	FileID         string `json:"file_id,omitempty"`
 	Purpose        string `json:"purpose,omitempty"`
 	Claimed        bool   `json:"claimed"`
@@ -94,14 +92,14 @@ type Item struct {
 // locatorID is the dedup key: the files-table locator identity
 // (storage, coalesce(bucket,”), object_key). plan resolves the backend only
 // where the source column already names one, so an unresolved backend sorts
-// under "" — attachments on local vs s3 can collide by key, which the shared
-// check treats conservatively (same key, different scope = held either way).
+// under "" — the shared check treats identical keys under different scopes
+// as a conflict either way, which is the conservative verdict.
 func (it Item) locatorID() string {
 	return it.Storage + "\x00" + it.Bucket + "\x00" + it.ObjectKey
 }
 
 func (it Item) scopeID() string {
-	return it.OrganizationID + "\x00" + it.WorkspaceID
+	return it.OrganizationID + "\x00" + it.WorkspaceID + "\x00" + it.UserID
 }
 
 // CohortReport is one cohort's tally.
@@ -130,7 +128,7 @@ type Report struct {
 
 // Options selects what an engine run covers.
 type Options struct {
-	// Cohorts, empty = every implemented cohort.
+	// Cohorts, empty = every cohort.
 	Cohorts []string
 	// BatchSize bounds one keyset page (and one apply transaction).
 	BatchSize int32
@@ -144,33 +142,41 @@ func (o *Options) normalize() {
 	}
 }
 
-// Engine runs the subcommands against one database handle.
+// scanFn pages one scan unit: cursor "" is the start, a "" next cursor is
+// exhaustion. The cursor shape is owned by the unit (a row id for
+// single-table units; "<table>\x00<id>" for content refs).
+type scanFn func(ctx context.Context, cursor string, limit int32) (items []Item, next string, err error)
+
+// Engine runs the subcommands against one database handle; resolver maps
+// stored URL locators to storage authorities (nil-safe: URL cohorts then
+// classify every URL row foreign, never silently verify).
 type Engine struct {
-	q *db.Queries
+	q        *db.Queries
+	resolver *Resolver
 }
 
-func New(q *db.Queries) *Engine { return &Engine{q: q} }
+func New(q *db.Queries, resolver *Resolver) *Engine {
+	if resolver == nil {
+		resolver = &Resolver{}
+	}
+	return &Engine{q: q, resolver: resolver}
+}
 
-// ResolveCohorts validates the selection: unknown names fail, known but not
-// yet implemented names fail with the cohort's name so the error says what is
-// missing rather than silently producing an empty report.
+// ResolveCohorts validates the selection; unknown names fail loudly.
 func ResolveCohorts(names []string) ([]string, error) {
 	if len(names) == 0 {
-		var out []string
+		out := make([]string, 0, len(cohorts))
 		for _, c := range cohorts {
-			if c.Implemented {
-				out = append(out, c.Name)
-			}
+			out = append(out, c.Name)
 		}
 		return out, nil
 	}
 	known := map[string]bool{}
-	implemented := map[string]bool{}
 	for _, c := range cohorts {
 		known[c.Name] = true
-		implemented[c.Name] = c.Implemented
 	}
 	out := make([]string, 0, len(names))
+	seen := map[string]bool{}
 	for _, n := range names {
 		n = strings.TrimSpace(n)
 		if n == "" {
@@ -179,15 +185,39 @@ func ResolveCohorts(names []string) ([]string, error) {
 		if !known[n] {
 			return nil, fmt.Errorf("unknown cohort %q", n)
 		}
-		if !implemented[n] {
-			return nil, fmt.Errorf("cohort %q is not implemented yet", n)
+		if !seen[n] {
+			seen[n] = true
+			out = append(out, n)
 		}
-		out = append(out, n)
 	}
 	if len(out) == 0 {
 		return nil, fmt.Errorf("no cohorts selected")
 	}
 	return out, nil
+}
+
+// unitsFor maps a cohort to the scans that feed it. The chat-messages unit
+// emits items for three cohorts at once; items carry their own cohort tag so
+// the engine attributes each to the right report column.
+func (e *Engine) unitsFor(cohort string) []scanFn {
+	switch cohort {
+	case CohortTaskAttachments:
+		return []scanFn{e.scanAttachments}
+	case CohortAvatars:
+		return []scanFn{e.scanAvatars}
+	case CohortChatFiles, CohortChatVoice:
+		return []scanFn{e.scanChat}
+	case CohortMeetingRecordings:
+		return []scanFn{e.scanMeetingRecordings}
+	case CohortCallRecordings:
+		return []scanFn{e.scanCallRecordings, e.scanChatCallLogRefs}
+	case CohortAuditExports:
+		return []scanFn{e.scanAuditExports}
+	case CohortContentRefs:
+		return []scanFn{e.scanContentRefs}
+	default:
+		return nil
+	}
 }
 
 // Plan scans every selected cohort and classifies every row. Read-only: it
@@ -200,17 +230,16 @@ func (e *Engine) Plan(ctx context.Context, opts Options) (*Report, error) {
 	}
 	rep := &Report{Command: "plan"}
 	for _, name := range names {
-		cr, items, err := e.scanCohort(ctx, name, opts.BatchSize)
+		items, err := e.scanAll(ctx, name, opts.BatchSize)
 		if err != nil {
 			return nil, fmt.Errorf("plan %s: %w", name, err)
 		}
-		// Items stay attached through the shared-locator pass, which rewrites
-		// classes and re-tallies; they are dropped afterwards when the caller
-		// asked for counts only.
-		cr.Items = items
-		rep.Cohorts = append(rep.Cohorts, *cr)
+		rep.Cohorts = append(rep.Cohorts, CohortReport{Name: name, Items: items})
 	}
 	markSharedLocators(rep)
+	for i := range rep.Cohorts {
+		retally(&rep.Cohorts[i])
+	}
 	tally(rep)
 	if !opts.IncludeItems {
 		for i := range rep.Cohorts {
@@ -220,40 +249,30 @@ func (e *Engine) Plan(ctx context.Context, opts Options) (*Report, error) {
 	return rep, nil
 }
 
-// scanCohort pages through one cohort's source rows and classifies each.
-func (e *Engine) scanCohort(ctx context.Context, cohort string, batch int32) (*CohortReport, []Item, error) {
-	cr := &CohortReport{Name: cohort, Reasons: map[string]int{}}
+// scanAll walks a cohort's units to exhaustion, keeping only items the unit
+// tagged for this cohort (the chat unit feeds three).
+func (e *Engine) scanAll(ctx context.Context, cohort string, batch int32) ([]Item, error) {
 	var items []Item
-	after := ""
-	for {
-		var page []Item
-		var err error
-		switch cohort {
-		case CohortTaskAttachments:
-			page, err = e.scanAttachments(ctx, after, batch)
-		default:
-			err = fmt.Errorf("cohort %q is not implemented yet", cohort)
-		}
-		if err != nil {
-			return nil, nil, err
-		}
-		if len(page) == 0 {
-			break
-		}
-		for _, it := range page {
-			cr.RowsSeen++
-			countClass(cr, it)
-			if it.Reason != "" {
-				cr.Reasons[it.Reason]++
+	for _, unit := range e.unitsFor(cohort) {
+		cursor := ""
+		for {
+			page, next, err := unit(ctx, cursor, batch)
+			if err != nil {
+				return nil, err
 			}
-			items = append(items, it)
-			after = it.SourceID
-		}
-		if int32(len(page)) < batch {
-			break
+			for _, it := range page {
+				if it.Cohort == cohort {
+					items = append(items, it)
+				}
+			}
+			if next == "" {
+				break
+			}
+			cursor = next
 		}
 	}
-	return cr, items, nil
+	sort.Slice(items, func(i, j int) bool { return items[i].SourceID < items[j].SourceID })
+	return items, nil
 }
 
 func countClass(cr *CohortReport, it Item) {
@@ -271,14 +290,51 @@ func countClass(cr *CohortReport, it Item) {
 	}
 }
 
-// markSharedLocators is the cross-row pass: a locator named by rows with
-// different verified scopes is cross-tenant shared and every reference to it
-// is held — it is never merged into one tenant's file (spec §9 held rule).
-// Rows that failed to classify keep their verdict; only verified items can
-// become held here.
+// retally recomputes a cohort's counts from its items after the
+// shared-locator pass rewrote classes.
+func retally(cr *CohortReport) {
+	cr.Verified, cr.Held, cr.Unresolved, cr.Foreign, cr.AlreadyApplied = 0, 0, 0, 0, 0
+	cr.Reasons = map[string]int{}
+	cr.DistinctObjects, cr.DuplicateRefs, cr.SharedLocators = 0, 0, 0
+	cr.RowsSeen = len(cr.Items)
+	seen := map[string]bool{}
+	heldLocators := map[string]bool{}
+	for _, it := range cr.Items {
+		countClass(cr, it)
+		if it.Reason != "" {
+			cr.Reasons[it.Reason]++
+		}
+		if it.Class == ClassHeld && it.Reason == "cross_scope_shared_locator" {
+			heldLocators[it.locatorID()] = true
+		}
+		// Content refs are evidence about another row's locator, never an
+		// object claim of their own — they neither dedupe nor get deduped.
+		if it.Cohort == CohortContentRefs {
+			continue
+		}
+		if it.Class == ClassVerified && it.ObjectKey != "" {
+			id := it.locatorID()
+			if seen[id] {
+				cr.DuplicateRefs++
+			} else {
+				seen[id] = true
+				cr.DistinctObjects++
+			}
+		}
+	}
+	cr.SharedLocators = len(heldLocators)
+}
+
+// markSharedLocators is the cross-row pass: a locator named by verified rows
+// with different scopes (org, workspace or avatar user) is cross-scope shared
+// and every reference to it is held — it is never merged into one scope's
+// file (spec §9 held rule). Same-scope duplicates stay verified and dedupe.
 func markSharedLocators(rep *Report) {
 	byLocator := map[string][]*Item{}
 	for ci := range rep.Cohorts {
+		if rep.Cohorts[ci].Name == CohortContentRefs {
+			continue // evidence rows, not object claims
+		}
 		for i := range rep.Cohorts[ci].Items {
 			it := &rep.Cohorts[ci].Items[i]
 			if it.Class == ClassVerified && it.ObjectKey != "" {
@@ -286,47 +342,25 @@ func markSharedLocators(rep *Report) {
 			}
 		}
 	}
-	// Re-tally per cohort after reclassification; also counts the locators
-	// that were held for sharing and the in-scope duplicates.
-	for ci := range rep.Cohorts {
-		cr := &rep.Cohorts[ci]
-		cr.Verified, cr.Held, cr.Unresolved, cr.Foreign, cr.AlreadyApplied = 0, 0, 0, 0, 0
-		cr.Reasons = map[string]int{}
-		cr.DistinctObjects, cr.DuplicateRefs, cr.SharedLocators = 0, 0, 0
-		heldLocators := map[string]bool{}
-		seen := map[string]bool{}
-		for i := range cr.Items {
-			it := &cr.Items[i]
-			id := it.locatorID()
-			group := byLocator[id]
-			if it.Class == ClassVerified && it.ObjectKey != "" && len(group) > 0 {
-				scopes := map[string]bool{}
-				for _, g := range group {
-					scopes[g.scopeID()] = true
-				}
-				if len(scopes) > 1 {
-					it.Class = ClassHeld
-					it.Reason = "cross_scope_shared_locator"
-					it.SharedLocator = true
-					heldLocators[id] = true
-				} else if len(group) > 1 {
-					it.SharedLocator = true
-				}
+	for _, group := range byLocator {
+		if len(group) < 2 {
+			continue
+		}
+		scopes := map[string]bool{}
+		for _, it := range group {
+			scopes[it.scopeID()] = true
+		}
+		if len(scopes) > 1 {
+			for _, it := range group {
+				it.Class = ClassHeld
+				it.Reason = "cross_scope_shared_locator"
+				it.SharedLocator = true
 			}
-			countClass(cr, *it)
-			if it.Reason != "" {
-				cr.Reasons[it.Reason]++
-			}
-			if it.Class == ClassVerified && it.ObjectKey != "" {
-				if seen[id] {
-					cr.DuplicateRefs++
-				} else {
-					seen[id] = true
-					cr.DistinctObjects++
-				}
+		} else {
+			for _, it := range group {
+				it.SharedLocator = true
 			}
 		}
-		cr.SharedLocators = len(heldLocators)
 	}
 }
 
@@ -350,17 +384,17 @@ func tally(rep *Report) {
 func (r *Report) Human() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "files-backfill %s\n", r.Command)
-	fmt.Fprintf(&b, "%-20s %8s %8s %10s %6s %8s %15s %9s %9s\n",
-		"cohort", "seen", "verified", "unresolved", "held", "foreign", "already_applied", "objects", "dup_refs")
+	fmt.Fprintf(&b, "%-20s %8s %8s %10s %6s %8s %15s %9s %9s %7s\n",
+		"cohort", "seen", "verified", "unresolved", "held", "foreign", "already_applied", "objects", "dup_refs", "shared")
 	for _, c := range r.Cohorts {
-		fmt.Fprintf(&b, "%-20s %8d %8d %10d %6d %8d %15d %9d %9d\n",
+		fmt.Fprintf(&b, "%-20s %8d %8d %10d %6d %8d %15d %9d %9d %7d\n",
 			c.Name, c.RowsSeen, c.Verified, c.Unresolved, c.Held, c.Foreign,
-			c.AlreadyApplied, c.DistinctObjects, c.DuplicateRefs)
+			c.AlreadyApplied, c.DistinctObjects, c.DuplicateRefs, c.SharedLocators)
 	}
 	t := r.Totals
-	fmt.Fprintf(&b, "%-20s %8d %8d %10d %6d %8d %15d %9d %9d\n",
+	fmt.Fprintf(&b, "%-20s %8d %8d %10d %6d %8d %15d %9d %9d %7d\n",
 		"TOTAL", t.RowsSeen, t.Verified, t.Unresolved, t.Held, t.Foreign,
-		t.AlreadyApplied, t.DistinctObjects, t.DuplicateRefs)
+		t.AlreadyApplied, t.DistinctObjects, t.DuplicateRefs, t.SharedLocators)
 	for _, c := range r.Cohorts {
 		if len(c.Reasons) == 0 {
 			continue
