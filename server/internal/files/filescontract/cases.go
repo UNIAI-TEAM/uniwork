@@ -275,6 +275,21 @@ func caseUploadTooLarge(t *testing.T, h Harness) {
 	if up.File.ID != "" || !up.ClaimExpiresAt.IsZero() {
 		t.Errorf("a refused upload returned a result: %+v", up)
 	}
+
+	// Unlike a transient failure, a permanent refusal is the stored result for
+	// the key: the same command replayed answers the same file_too_large, and
+	// it must come from the record - the replacement body would fail the read
+	// if it were re-validated (FS-C1 section 4: same key + same command returns
+	// the earlier result).
+	up, err = h.Service.Upload(context.Background(), files.UploadInput{
+		Actor: actorA(), Purpose: spec.Purpose, Scope: scopeFor(spec),
+		IdempotencyKey: "too-large", Filename: "big.png",
+		Body: errReader{err: errors.New("filescontract: the stored refusal must replay without reading")},
+	})
+	requireError(t, err, files.CodeTooLarge, http.StatusRequestEntityTooLarge)
+	if up.File.ID != "" {
+		t.Errorf("a replayed refusal returned a result: %+v", up)
+	}
 }
 
 func caseUploadTypeRejected(t *testing.T, h Harness) {
@@ -1064,13 +1079,37 @@ func caseStorageUnavailable(t *testing.T, h Harness) {
 	ready := uploadOK(t, h, spec, scope, "storage-up", "note.png", pngBody)
 	claimOK(t, h, spec, scope, ready.File.ID)
 
+	// RegisterProviderOutput and CompleteProviderOutput face the same adapter:
+	// a new registration and a pending completion both answer
+	// storage_unavailable instead of half-running against a dead backend.
+	pending := registerOK(t, h, spec, scope, "op-storage-pending")
+
 	h.SetStorageDown(t, true)
 	if _, err := h.Service.Open(ctx, files.OpenInput{Scope: scope, FileID: ready.File.ID}); err == nil {
 		t.Error("open succeeded while the adapter was down")
 	} else {
 		requireError(t, err, files.CodeStorageUnavailable, http.StatusServiceUnavailable)
 	}
+	_, err = h.Service.RegisterProviderOutput(ctx, files.ProviderOutputInput{
+		Actor: actorA(), Purpose: spec.Purpose, Scope: scope,
+		OperationID: "op-new-while-down", Deadline: h.Now().Add(time.Hour),
+	})
+	requireError(t, err, files.CodeStorageUnavailable, http.StatusServiceUnavailable)
+	_, err = h.Service.CompleteProviderOutput(ctx, files.CompleteOutputInput{
+		Actor: actorA(), Scope: scope, FileID: pending.FileID, OperationID: "op-storage-pending",
+	})
+	requireError(t, err, files.CodeStorageUnavailable, http.StatusServiceUnavailable)
 	h.SetStorageDown(t, false)
+
+	// And the refused calls recover: the registered file completes once the
+	// adapter is back.
+	body, contentType := sampleFor(t, spec)
+	h.WriteProviderOutput(t, pending, body, contentType)
+	if _, err := h.Service.CompleteProviderOutput(ctx, files.CompleteOutputInput{
+		Actor: actorA(), Scope: scope, FileID: pending.FileID, OperationID: "op-storage-pending",
+	}); err != nil {
+		t.Fatalf("complete after recovery: %v", err)
+	}
 }
 
 // --- open -------------------------------------------------------------------
