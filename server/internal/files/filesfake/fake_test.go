@@ -138,7 +138,10 @@ func TestSimulateGCMovesOnlyTheNamedFiles(t *testing.T) {
 // sleeping and no wall clock.
 func TestClaimWindowIsMeasuredOnTheInjectedClock(t *testing.T) {
 	ctx := context.Background()
-	fake := filesfake.New(filesfake.Options{})
+	// A frozen clock: with the default wall clock, Now() read after Upload has
+	// moved on and the equality below only held when both reads shared a tick.
+	start := time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC)
+	fake := filesfake.New(filesfake.Options{Clock: func() time.Time { return start }})
 	scope := files.Scope{OrganizationID: testOrg, WorkspaceID: testWs}
 	up, err := fake.Upload(ctx, files.UploadInput{
 		Actor: audit.User("01J8ZQ0K7V9W1Y2X3Z4A5B6C7H"), Purpose: files.TaskAttachment, Scope: scope,
