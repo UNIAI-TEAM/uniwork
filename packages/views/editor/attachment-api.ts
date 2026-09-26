@@ -40,12 +40,19 @@ export class PreviewUnsupportedError extends Error {
   }
 }
 
-function mapPreviewError(err: unknown): never {
+// Both vocabularies are live until every module's cutover (UNI-747): legacy
+// rows answer too_large / unsupported_media_type, FileService rows answer the
+// FS-C1 codes. The status is the same in both, so it decides first and a
+// body whose code did not parse still maps.
+const TOO_LARGE_CODES = new Set(["too_large", "file_too_large"]);
+const UNSUPPORTED_CODES = new Set(["unsupported_media_type", "file_type_rejected"]);
+
+export function mapPreviewError(err: unknown): never {
   if (err instanceof ApiError) {
-    if (err.status === 413 || err.code === "too_large") {
+    if (err.status === 413 || TOO_LARGE_CODES.has(err.code)) {
       throw new PreviewTooLargeError(err.message);
     }
-    if (err.status === 415 || err.code === "unsupported_media_type") {
+    if (err.status === 415 || UNSUPPORTED_CODES.has(err.code)) {
       throw new PreviewUnsupportedError(err.message);
     }
   }

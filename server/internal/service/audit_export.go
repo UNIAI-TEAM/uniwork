@@ -312,11 +312,19 @@ func (auditExportReferenceProvider) HeldBy(ctx context.Context, q *db.Queries, i
 	return held, nil
 }
 
+// exportFilename names the file after its format. JSON Lines is .ndjson, not
+// .json: FileService proves NDJSON from UTF-8 text named .ndjson (FS-C1
+// errata 9.1), and a .json name would verify as text/plain, which the
+// AuditExport allowlist refuses.
 func exportFilename(exp db.AuditExport) string {
+	ext := exp.Format
+	if ext == "json" {
+		ext = "ndjson"
+	}
 	return fmt.Sprintf("audit-%s-%s.%s",
 		exp.FromAt.Time.UTC().Format("20060102"),
 		exp.ToAt.Time.UTC().Format("20060102"),
-		exp.Format)
+		ext)
 }
 
 // auditExportContentType is the type the download route declares — the

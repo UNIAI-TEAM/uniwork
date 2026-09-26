@@ -221,3 +221,10 @@ Không đổi chữ ký, trạng thái hay mã lỗi, nên version vẫn là **F
 - Chat file nhận thêm `text/csv`/`text/markdown` và task attachment nhận thêm `text/csv` (trước đây sniff ra `text/plain` và được nhận). Text đặt tên `.ndjson` ở task attachment, task comment và chat file được `CanonicalTypes` đổi về `text/plain`, đúng loại đang lưu hôm nay, thay vì mở thêm `application/x-ndjson` cho các module đó.
 - Provider output không mang filename (§4), nên loại cần gợi ý đuôi (CSV/NDJSON/Markdown, DOC/XLS/PPT) chỉ đạt được qua `Upload`.
 - `filescontract.Samples()` và `MisnamedSamples()` là fixture tối thiểu thật cho mọi loại trong allowlist; contract suite upload chúng vào mọi purpose đang bật và đòi mọi mục allowlist đều đạt được.
+
+### 9.2 Errata v1 (2026-09-27, UNI-747): hậu tố khóa object và Open theo chế độ đọc
+
+Không đổi chữ ký, trạng thái hay mã lỗi, nên version vẫn là **FS-C1 v1**. Hai điểm dưới đây ghi lại hành vi đã có trên `filesfake` và FileService thật khi tích hợp.
+
+- `Policy.ObjectKeySuffix` là dữ liệu registry (được `NewRegistry` kiểm), không phải tham số module truyền: `MeetingRecording` và `ChatCallRecording` khai `.mp4`, vì LiveKit Egress tự thêm đuôi vào filepath không có đuôi và bytes sẽ rơi cạnh object đã đặt chỗ. Khóa FileService sinh cho purpose đó kết thúc bằng hậu tố, write target của `RegisterProviderOutput` (cả trên fake) cũng vậy; case `provider/write_target_carries_the_object_key_suffix` của `filescontract` ghim điều này.
+- `Policy.ReadMode` ràng buộc `ResolveMany` (có URL hay không), không ràng buộc `Open`. `Open` là đường đọc proxy mà module đã tự kiểm quyền, nên hợp lệ với mọi purpose, kể cả purpose `presign`: chat phát voice (`ChatVoice`) qua `Open` để kiểm quyền từng request. `TestOpenServesAPresignPurpose` ghim hành vi này trên service thật; fake cũng không kiểm read mode trong `Open`.

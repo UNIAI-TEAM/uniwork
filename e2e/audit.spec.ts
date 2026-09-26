@@ -2,6 +2,7 @@ import { expect, test, type Download, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { verifyEmail } from "./auth-nav";
 import { backdateAuditExports } from "./db";
+import { createRecordingAccount } from "./meeting-recording-fixture";
 
 // The golden path for F-08: a change to a task appears in the organization's
 // immutable log, with the field that moved. The whole point of the feature is
@@ -134,11 +135,15 @@ async function createTodaysExport(page: Page, format: "CSV" | "JSON Lines") {
   await pickDay(page, "audit-export-from", new Date());
   await pickDay(page, "audit-export-to", new Date());
   await page.getByRole("button", { name: "Tạo bản xuất" }).click();
-  const downloadLink = page.getByRole("link", { name: "Tải về" });
-  await expect(downloadLink).toBeVisible({ timeout: 60_000 });
+  // A FileService export downloads through the API with the bearer token
+  // (T10), so the action is a button that saves the blob, not a storage link.
+  const downloadButton = page.getByRole("button", { name: "Tải về" });
+  await expect(downloadButton).toBeVisible({ timeout: 60_000 });
   await expect(page.getByText("Xong").first()).toBeVisible();
-  return downloadLink;
+  return downloadButton;
 }
+
+const DOWNLOAD_ROUTE = /\/api\/v1\/orgs\/[0-9A-Z]+\/audit\/exports\/[0-9A-Z]+\/download$/;
 
 /** Reads the bytes a download produced. */
 async function downloadBytes(download: Download): Promise<Buffer> {
@@ -147,9 +152,10 @@ async function downloadBytes(download: Download): Promise<Buffer> {
   return readFile(path);
 }
 
-// Bước 0 smoke: the shortest path that proves the module still works on the
-// legacy storage path — create an export, watch it finish, download the file,
-// and check the bytes are the log's own.
+// Smoke: the shortest path that proves the module works on FileService (it
+// was pinned on the legacy path first, Bước 0) — create an export, watch it
+// finish, download the file, check the bytes are the log's own, and check
+// another organization cannot fetch it.
 test("@files-smoke audit export: an owner creates a CSV and downloads it", async ({ page }) => {
   test.setTimeout(120_000);
   const { slug } = await onboardOwner(page, "audit-export-smoke");
@@ -157,7 +163,11 @@ test("@files-smoke audit export: an owner creates a CSV and downloads it", async
   await expect(page.getByRole("heading", { name: "Nhật ký hoạt động" })).toBeVisible({ timeout: 15_000 });
 
   const link = await createTodaysExport(page, "CSV");
-  const [download] = await Promise.all([page.waitForEvent("download"), link.click()]);
+  const [download, fetched] = await Promise.all([
+    page.waitForEvent("download"),
+    page.waitForRequest((req) => DOWNLOAD_ROUTE.test(new URL(req.url()).pathname)),
+    link.click(),
+  ]);
   const body = await downloadBytes(download);
 
   // Excel on a Vietnamese Windows reads a BOM-less UTF-8 file as the system
@@ -174,6 +184,13 @@ test("@files-smoke audit export: an owner creates a CSV and downloads it", async
   expect(text).toContain("workspace.created");
   // An export leaves the system entirely, so it never carries an address.
   expect(text).not.toContain("ip_address");
+
+  // Another organization's owner who learns the download URL gets nothing:
+  // the route re-checks the organization on every request.
+  const outsider = await createRecordingAccount(page, new URL(fetched.url()).origin, "audit-outsider");
+  const stolen = await page.request.get(fetched.url(), { headers: { authorization: `Bearer ${outsider.token}` } });
+  expect([403, 404]).toContain(stolen.status());
+  expect((await stolen.body()).includes(Buffer.from("organization.created"))).toBe(false);
 });
 
 // The other leg of T10: JSON Lines fidelity, and the 24h window the migration
@@ -204,6 +221,6 @@ test("audit export: JSON Lines mirrors the log, and a lapsed link is withdrawn",
   expect(moved).toBeGreaterThan(0);
   await page.reload();
   await expect(page.getByRole("heading", { name: "Nhật ký hoạt động" })).toBeVisible({ timeout: 15_000 });
-  await expect(page.getByRole("link", { name: "Tải về" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Tải về" })).toHaveCount(0);
   await expect(page.getByText("Xong").first()).toBeVisible();
 });

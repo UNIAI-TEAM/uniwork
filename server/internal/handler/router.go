@@ -351,6 +351,7 @@ func New(d Deps) http.Handler {
 		ListAuditExports:    h.listAuditExports,
 		CreateAuditExport:   h.createAuditExport,
 		GetAuditExport:      h.getAuditExport,
+		DownloadAuditExport: h.downloadAuditExport,
 
 		ListMeetings:                   h.listMeetings,
 		CreateMeeting:                  h.createMeeting,

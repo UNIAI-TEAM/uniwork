@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"strings"
@@ -692,4 +693,27 @@ type rejectingUpload struct {
 
 func (r *rejectingUpload) Upload(context.Context, files.UploadInput) (files.Upload, error) {
 	return files.Upload{}, r.err
+}
+
+// JSON Lines on the FileService path: the detector proves NDJSON only from
+// text named .ndjson, so an export uploaded as .json was refused
+// file_type_rejected on the real service and the job failed (Gate D, UNI-747).
+func TestAuditExportFilesJSONLinesIsAccepted(t *testing.T) {
+	f := newAuditFileFixture(t)
+	if _, err := f.tasks.Create(f.ctx, Human(f.ownerA.ID), f.wsA.ID, CreateTaskInput{Title: "Việc JSON"}); err != nil {
+		t.Fatal(err)
+	}
+
+	done, body := requestAndRunExportFiles(t, f, "json", time.Now().Add(-time.Hour), time.Now().Add(time.Hour))
+
+	lines := bytes.Split(bytes.TrimSpace(body), []byte("\n"))
+	if int32(len(lines)) != done.RowCount || done.RowCount == 0 {
+		t.Fatalf("file holds %d lines but the job reports %d rows", len(lines), done.RowCount)
+	}
+	for i, line := range lines {
+		var rec map[string]any
+		if err := json.Unmarshal(line, &rec); err != nil {
+			t.Fatalf("line %d is not JSON: %v", i, err)
+		}
+	}
 }

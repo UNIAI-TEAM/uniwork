@@ -41,7 +41,7 @@ test.describe("meeting livekit smoke", () => {
    * The real provider path: LiveKit Egress writes the MP4 into the recording
    * bucket, the signed egress_ended webhook completes the row, and playback
    * serves the object with byte ranges (what a player's seek uses). Needs
-   * LIVEKIT_RECORDING_BUCKET with egress and MinIO, plus STORAGE_BACKEND=s3 so
+   * LIVEKIT_RECORDING_BUCKET with egress and MinIO, plus STORAGE_BACKEND=minio so
    * the app reads the same bucket; the case skips itself with that reason when
    * the server reports recording off, so a plain `make start` shows the gap
    * instead of failing.
@@ -56,7 +56,7 @@ test.describe("meeting livekit smoke", () => {
     const caps = (await capsRes.json()) as { recording: boolean };
     test.skip(
       !caps.recording,
-      "server reports recording off: set LIVEKIT_RECORDING_BUCKET (+ egress, MinIO, STORAGE_BACKEND=s3) to run this",
+      "server reports recording off: set LIVEKIT_RECORDING_BUCKET (+ egress, MinIO, STORAGE_BACKEND=minio) to run this",
     );
 
     const meeting = await createInstantMeeting(page, api, seed.token, seed.wsId, `Ghi hình ${seed.wsId}`);

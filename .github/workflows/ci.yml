@@ -389,9 +389,8 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-      # MinIO is here for the file-flow smoke specs; the server this job starts
-      # still writes local disk (STORAGE_BACKEND=local) until the storage
-      # loader is wired in.
+      # MinIO is the FileService destination of the server this job starts
+      # (STORAGE_BACKEND=minio): smoke and e2e run on the real adapter.
       minio:
         image: minio/minio:RELEASE.2025-09-07T16-13-09Z
         env:
@@ -413,10 +412,9 @@ jobs:
       API_PUBLIC_URL: http://localhost:8080
       APP_ENV: development
       DEV_VERIFICATION_CODE: "123456"
-      STORAGE_BACKEND: local
-      LOCAL_UPLOAD_DIR: /tmp/uniwork-uploads
-      # MinIO is up for the file-flow smoke specs; the server keeps using local
-      # disk until the storage loader is wired in.
+      # The server writes every new file to MinIO; a missing or broken group
+      # stops it at preflight, which the wait step below then reports.
+      STORAGE_BACKEND: minio
       MINIO_ENDPOINT: http://localhost:9000
       MINIO_BUCKET: uniwork-test
       MINIO_ACCESS_KEY_ID: minioadmin
@@ -460,6 +458,8 @@ jobs:
           for i in $(seq 1 60); do curl -sf http://localhost:8080/healthz && break; sleep 1; done
           for i in $(seq 1 90); do curl -sf http://localhost:3000 > /dev/null && break; sleep 1; done
           curl -sf http://localhost:8080/healthz && curl -sf http://localhost:3000 > /dev/null
+          # Readiness includes the storage probe: MinIO must answer too.
+          curl -sf http://localhost:8080/readyz
       - run: pnpm --filter @uniwork/e2e exec playwright install --with-deps chromium
       - run: pnpm --filter @uniwork/e2e test
       - if: failure()

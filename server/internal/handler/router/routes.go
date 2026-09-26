@@ -255,6 +255,7 @@ type Routes struct {
 	ListAuditExports    http.HandlerFunc
 	CreateAuditExport   http.HandlerFunc
 	GetAuditExport      http.HandlerFunc
+	DownloadAuditExport http.HandlerFunc
 
 	ListMeetings                   http.HandlerFunc
 	CreateMeeting                  http.HandlerFunc

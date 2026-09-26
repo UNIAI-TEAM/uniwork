@@ -234,10 +234,12 @@ test("loại tệp không được hỗ trợ bị từ chối", async ({ page }
   await onboardToWorkspace(page, w);
   await openTask(page, w, await createTask(page, await captureAuth(page), `Việc sai loại ${stamp}`));
 
-  // FileUploadButton has no accept filter, so a type outside the server's
-  // allowedAttachmentMIME (application/zip here) really reaches the API and
-  // is answered 400 attachment_mime_rejected. The declared Content-Type is
-  // what the allowlist reads, so the body can be anything.
+  // FileUploadButton has no accept filter, so the file really reaches the
+  // API. Intended change at cutover (UNI-747): FileService verifies the type
+  // from the bytes, never the declared Content-Type or name, so the body must
+  // really be unrecognizable - bytes no detector names are
+  // application/octet-stream, which no purpose allows. The task module keeps
+  // its published answer at the API boundary: 400 attachment_mime_rejected.
   const rejected = page.waitForResponse(
     (res) =>
       res.request().method() === "POST" &&
@@ -247,9 +249,11 @@ test("loại tệp không được hỗ trợ bị từ chối", async ({ page }
   await descriptionUpload(page).setInputFiles({
     name: `payload-${stamp}.zip`,
     mimeType: "application/zip",
-    buffer: Buffer.from(`not a real zip ${stamp}`),
+    buffer: Buffer.concat([Buffer.from([0x00, 0xff, 0x13, 0x37, 0x00, 0xfe]), Buffer.from(`${stamp}`)]),
   });
-  expect((await rejected).status()).toBe(400);
+  const response = await rejected;
+  expect(response.status()).toBe(400);
+  expect(((await response.json()) as { error?: { code?: string } }).error?.code).toBe("attachment_mime_rejected");
 
   await expect(page.getByText(/Không tải lên được/)).toBeVisible({ timeout: 60_000 });
   await expect(page.getByRole("region", { name: "Đính kèm" })).toHaveCount(0);
