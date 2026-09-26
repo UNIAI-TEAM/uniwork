@@ -126,7 +126,7 @@ INSERT INTO chat_messages (
   $1, $2, $3, $4, $5, 'text', $6,
   $7, $8, $9
 )
-RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id
+RETURNING id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id
 `
 
 type CreateMirroredChatThreadReplyParams struct {
@@ -172,6 +172,7 @@ func (q *Queries) CreateMirroredChatThreadReply(ctx context.Context, arg CreateM
 		&i.ReplyCount,
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
+		&i.FileID,
 	)
 	return i, err
 }
@@ -215,7 +216,7 @@ func (q *Queries) DeleteChatThreadTaskLinkByThread(ctx context.Context, arg Dele
 }
 
 const getChatMessageByMirroredComment = `-- name: GetChatMessageByMirroredComment :one
-SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id FROM chat_messages
+SELECT id, room_id, workspace_id, sender_id, kind, body, metadata, reply_to_message_id, edited_at, deleted_at, created_at, sender_kind, client_msg_id, thread_root_id, reply_count, last_reply_at, mirrored_from_comment_id, file_id FROM chat_messages
 WHERE mirrored_from_comment_id = $1 AND deleted_at IS NULL
 `
 
@@ -240,6 +241,7 @@ func (q *Queries) GetChatMessageByMirroredComment(ctx context.Context, mirroredF
 		&i.ReplyCount,
 		&i.LastReplyAt,
 		&i.MirroredFromCommentID,
+		&i.FileID,
 	)
 	return i, err
 }

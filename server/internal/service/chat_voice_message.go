@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -26,9 +28,12 @@ var supportedVoiceContentTypes = map[string]struct{}{
 }
 
 // VoiceMessageInfo is private-object metadata for a stored voice message.
-// ObjectKey is used only by the authenticated streaming handler.
+// FileID is the FileService reference on rows written after the migration;
+// ObjectKey is used only by the authenticated streaming handler for rows
+// written before it.
 type VoiceMessageInfo struct {
 	DurationMS  int
+	FileID      string
 	ObjectKey   string
 	ContentType string
 	SizeBytes   int64
@@ -55,9 +60,16 @@ type VoiceMessagePreparation struct {
 	input          PrepareVoiceMessageInput
 }
 
-func validateVoiceMessageInput(in PrepareVoiceMessageInput) error {
-	if in.DurationMS < 1 || in.DurationMS > maxVoiceDurationMS {
+func validateVoiceDurationMS(durationMS int) error {
+	if durationMS < 1 || durationMS > maxVoiceDurationMS {
 		return Invalid("duration_ms phải từ 1 đến 120000")
+	}
+	return nil
+}
+
+func validateVoiceMessageInput(in PrepareVoiceMessageInput) error {
+	if err := validateVoiceDurationMS(in.DurationMS); err != nil {
+		return err
 	}
 	if in.SizeBytes < 1 || in.SizeBytes > MaxChatVoiceMessageBytes {
 		return Invalid("tệp thoại phải có kích thước từ 1 byte đến 4 MiB")
@@ -221,6 +233,58 @@ func (s *ChatService) publishCreatedChatMessage(ctx context.Context, room db.Cha
 	s.publishChatRoomActivity(ctx, room.ID)
 }
 
+// SendVoiceMessageInput is a voice send on the FileService path. The bytes go
+// to FileService, which verifies size and type under the chat_voice policy;
+// the service claims the file and writes the message in one transaction.
+// DurationMS is the client's measured duration - message metadata FileService
+// does not own.
+type SendVoiceMessageInput struct {
+	DurationMS       int
+	Body             io.Reader
+	ReplyToMessageID *string
+	ClientMsgID      string
+}
+
+// SendVoiceMessage uploads the voice note through FileService and commits
+// claim + message in one transaction. A replayed client_msg_id with the same
+// file returns the earlier message; a different command under the key is
+// idempotency_conflict.
+func (s *ChatService) SendVoiceMessage(
+	ctx context.Context,
+	userID, workspaceID, roomID string,
+	in SendVoiceMessageInput,
+) (ChatMessageRow, error) {
+	in.ClientMsgID = strings.TrimSpace(in.ClientMsgID)
+	if err := validateVoiceDurationMS(in.DurationMS); err != nil {
+		return ChatMessageRow{}, err
+	}
+	if in.Body == nil {
+		return ChatMessageRow{}, Invalid("tệp thoại là bắt buộc")
+	}
+	if err := validateClientMsgID(in.ClientMsgID); err != nil {
+		return ChatMessageRow{}, err
+	}
+	return s.sendChatMedia(ctx, userID, workspaceID, roomID, chatMediaCommand{
+		purpose:     files.ChatVoice,
+		kind:        "voice",
+		filename:    "voice-message",
+		body:        in.Body,
+		durationMS:  in.DurationMS,
+		replyToID:   in.ReplyToMessageID,
+		clientMsgID: in.ClientMsgID,
+	})
+}
+
+// OpenChatVoiceMessage authorizes the read and opens the voice bytes through
+// FileService. An empty Reader means a pre-migration row whose bytes still
+// sit behind the legacy storage object key.
+func (s *ChatService) OpenChatVoiceMessage(
+	ctx context.Context,
+	userID, workspaceID, roomID, messageID string,
+) (ChatMessageRow, files.Reader, error) {
+	return s.openChatMediaMessage(ctx, userID, workspaceID, roomID, messageID, "voice")
+}
+
 // GetVoiceMessage authorizes both room and message and returns private object metadata.
 func (s *ChatService) GetVoiceMessage(
 	ctx context.Context,
@@ -230,18 +294,22 @@ func (s *ChatService) GetVoiceMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	if row.Kind != "voice" || row.Voice == nil || row.Voice.ObjectKey == "" {
+	if row.Kind != "voice" || row.Voice == nil || (row.Voice.ObjectKey == "" && row.Voice.FileID == "") {
 		return ChatMessageRow{}, ErrNotFound
 	}
 	return row, nil
 }
 
+// voiceMessageFromMetadata reads rows written by either path: a
+// post-migration row references the file by file_id, a pre-migration row by
+// object_key; both carry duration and the verified type/size snapshot.
 func voiceMessageFromMetadata(kind string, raw []byte) *VoiceMessageInfo {
 	if kind != "voice" || len(raw) == 0 {
 		return nil
 	}
 	var meta struct {
 		DurationMS  int    `json:"duration_ms"`
+		FileID      string `json:"file_id"`
 		ObjectKey   string `json:"object_key"`
 		ContentType string `json:"content_type"`
 		SizeBytes   int64  `json:"size_bytes"`
@@ -249,13 +317,15 @@ func voiceMessageFromMetadata(kind string, raw []byte) *VoiceMessageInfo {
 	if err := json.Unmarshal(raw, &meta); err != nil {
 		return nil
 	}
+	objectKey := strings.TrimSpace(meta.ObjectKey)
+	fileID := strings.TrimSpace(meta.FileID)
 	if validateVoiceMessageInput(PrepareVoiceMessageInput{
 		DurationMS: meta.DurationMS, ContentType: meta.ContentType, SizeBytes: meta.SizeBytes,
-	}) != nil || strings.TrimSpace(meta.ObjectKey) == "" {
+	}) != nil || (objectKey == "" && fileID == "") {
 		return nil
 	}
 	return &VoiceMessageInfo{
-		DurationMS: meta.DurationMS, ObjectKey: meta.ObjectKey,
+		DurationMS: meta.DurationMS, FileID: fileID, ObjectKey: objectKey,
 		ContentType: meta.ContentType, SizeBytes: meta.SizeBytes,
 	}
 }

@@ -188,6 +188,7 @@ type ChatMessage struct {
 	ReplyCount            int32              `json:"reply_count"`
 	LastReplyAt           pgtype.Timestamptz `json:"last_reply_at"`
 	MirroredFromCommentID pgtype.Text        `json:"mirrored_from_comment_id"`
+	FileID                pgtype.Text        `json:"file_id"`
 }
 
 type ChatMessageFollowUp struct {
