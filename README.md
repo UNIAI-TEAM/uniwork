@@ -55,9 +55,12 @@ Local object storage (MinIO, for uploads such as chat voice):
 make minio-up
 ```
 
-Set `STORAGE_BACKEND=s3`, `AWS_ACCESS_KEY_ID=minioadmin`,
-`AWS_SECRET_ACCESS_KEY=minioadmin`, `AWS_ENDPOINT_URL=http://localhost:9000`,
-`S3_BUCKET=uniwork`, `S3_REGION=us-east-1` in `.env`, then restart the API.
+Set `STORAGE_BACKEND=minio`, `MINIO_ENDPOINT=http://localhost:9000`,
+`MINIO_BUCKET=uniwork`, `MINIO_ACCESS_KEY_ID=minioadmin`,
+`MINIO_SECRET_ACCESS_KEY=minioadmin`, `MINIO_REGION=us-east-1` in `.env`, then
+restart the API. An unset `STORAGE_BACKEND` means MinIO; local disk needs
+`STORAGE_BACKEND=local` written out, and a bad storage config stops the server
+at startup (see `.env.example`).
 Console: http://localhost:9001
 
 ## Kiểm tra

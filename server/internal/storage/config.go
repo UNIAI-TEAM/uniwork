@@ -55,6 +55,10 @@ const (
 	envAWSSecretAccessKey = "AWS_SECRET_ACCESS_KEY"
 	envAWSSessionToken    = "AWS_SESSION_TOKEN"
 	envAWSEndpointURL     = "AWS_ENDPOINT_URL"
+	// Aliases that are never read for the S3 group; they only fail startup
+	// when they disagree with it (aliasConflicts).
+	envAWSS3Bucket = "AWS_S3_BUCKET"
+	envAWSRegion   = "AWS_REGION"
 
 	envMinIOEndpoint        = "MINIO_ENDPOINT"
 	envMinIOBucket          = "MINIO_BUCKET"
@@ -201,10 +205,35 @@ func LoadConfig(reg *Registry, lookup EnvLookup) (Config, error) {
 	if err := requireFactories(reg, cfg); err != nil {
 		return Config{}, err
 	}
+	if problems := aliasConflicts(lookup, cfg); len(problems) > 0 {
+		return Config{}, fmt.Errorf("%w: %s", ErrConfigInvalid, strings.Join(problems, "; "))
+	}
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
 	}
 	return cfg, nil
+}
+
+// aliasConflicts rejects the AWS_* spellings of an S3 setting when they
+// disagree with the S3_* value the loader actually reads. AWS_S3_BUCKET is
+// never read; AWS_REGION is shared with the AWS SDK. Either one set to a
+// different bucket or region than the S3 group is a deployment that believes
+// it writes somewhere it does not, so startup fails instead of picking one.
+func aliasConflicts(lookup EnvLookup, cfg Config) []string {
+	var problems []string
+	if alias, ok := envValue(lookup, envAWSS3Bucket); ok {
+		bucket := ""
+		if cfg.S3 != nil {
+			bucket = cfg.S3.Bucket
+		}
+		if strings.TrimSpace(alias) != bucket {
+			problems = append(problems, envAWSS3Bucket+" is not read and differs from "+envS3Bucket+"; set "+envS3Bucket+" only")
+		}
+	}
+	if alias, ok := envValue(lookup, envAWSRegion); ok && cfg.S3 != nil && cfg.S3.Region != "" && strings.TrimSpace(alias) != cfg.S3.Region {
+		problems = append(problems, envAWSRegion+" differs from "+envS3Region+" for the s3 group")
+	}
+	return problems
 }
 
 // Validate re-checks a Config. LoadConfig already applies these rules; the

@@ -190,17 +190,14 @@ func main() {
 			URL: cfg.LiveKitURL, APIKey: cfg.LiveKitAPIKey, APISecret: cfg.LiveKitAPISecret,
 			TokenTTL: cfg.LiveKitTokenTTL, EmptyTimeout: cfg.LiveKitEmptyTimeout,
 		}
-		if cfg.LiveKitRecordingBucket != "" {
-			recordingEndpoint := os.Getenv("LIVEKIT_RECORDING_S3_ENDPOINT")
-			if recordingEndpoint == "" {
-				recordingEndpoint = os.Getenv("AWS_ENDPOINT_URL")
-			}
-			lk.Recording = &meetings.RecordingS3{
-				AccessKey: os.Getenv("AWS_ACCESS_KEY_ID"), Secret: os.Getenv("AWS_SECRET_ACCESS_KEY"),
-				Region: os.Getenv("AWS_REGION"), Endpoint: recordingEndpoint,
-				Bucket: cfg.LiveKitRecordingBucket,
-			}
-			log.Info("meeting recording enabled", "bucket", cfg.LiveKitRecordingBucket)
+		recording, err := recordingTarget(storageCfg, cfg.LiveKitRecordingBucket, os.Getenv("LIVEKIT_RECORDING_S3_ENDPOINT"))
+		if err != nil {
+			log.Error("meeting recording config", "err", err)
+			os.Exit(1)
+		}
+		if recording != nil {
+			lk.Recording = recording
+			log.Info("meeting recording enabled", "bucket", recording.Bucket, "backend", string(storageCfg.Backend))
 		}
 		conference = lk
 	}
