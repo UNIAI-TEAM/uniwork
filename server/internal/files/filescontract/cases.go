@@ -69,6 +69,8 @@ var cases = []contractCase{
 	{"upload/checksum_follows_the_policy", caseUploadChecksum},
 	{"upload/over_cap_is_refused", caseUploadTooLarge},
 	{"upload/disallowed_type_is_refused", caseUploadTypeRejected},
+	{"upload/every_allowlisted_type_is_verified_from_the_bytes", caseUploadVerifiedTypes},
+	{"upload/filename_never_moves_bytes_to_another_family", caseUploadMisnamed},
 	{"upload/idempotency_replay_returns_the_same_result", caseUploadIdempotentReplay},
 	{"upload/idempotency_conflict_on_a_different_command", caseUploadIdempotencyConflict},
 	{"upload/replay_after_cancel_does_not_resurrect", caseUploadReplayAfterCancel},
@@ -289,6 +291,75 @@ func caseUploadTooLarge(t *testing.T, h Harness) {
 	requireError(t, err, files.CodeTooLarge, http.StatusRequestEntityTooLarge)
 	if up.File.ID != "" {
 		t.Errorf("a replayed refusal returned a result: %+v", up)
+	}
+}
+
+// caseUploadVerifiedTypes uploads every sample to every open purpose. A type
+// the policy allows is stored as the verified type; any other is refused. And
+// every allowlist entry of every open purpose must be reached by a sample: a
+// registry that lists a type needs a sample that verifies as it, or the entry
+// is dead and must go.
+func caseUploadVerifiedTypes(t *testing.T, h Harness) {
+	uploadSamples(t, h, "verified", Samples(), true)
+}
+
+// caseUploadMisnamed uploads bodies whose filename claims another type: the
+// verified type stays the bytes' own, so a purpose accepts them only when it
+// allows that type (FS-C1 v1 errata).
+func caseUploadMisnamed(t *testing.T, h Harness) {
+	uploadSamples(t, h, "misnamed", MisnamedSamples(), false)
+}
+
+func uploadSamples(t *testing.T, h Harness, keyPrefix string, samples []Sample, requireEveryEntry bool) {
+	t.Helper()
+	ctx := context.Background()
+	reached := map[string]bool{}
+	for _, spec := range h.Registry.Specs() {
+		if spec.Disabled {
+			continue
+		}
+		for _, sample := range samples {
+			if int64(len(sample.Body)) > spec.Policy.MaxBytes {
+				continue
+			}
+			up, err := h.Service.Upload(ctx, files.UploadInput{
+				Actor: actorA(), Purpose: spec.Purpose, Scope: scopeFor(spec),
+				IdempotencyKey: keyPrefix + "-" + string(spec.Purpose) + "-" + sample.Name,
+				Filename:       sample.Filename, Body: bytes.NewReader(sample.Body),
+			})
+			if !spec.Policy.Allows(sample.ContentType) {
+				if err == nil {
+					t.Errorf("%s/%s: accepted as %q, want file_type_rejected for %q", spec.Purpose, sample.Name, up.File.ContentType, sample.ContentType)
+					continue
+				}
+				var fe *files.Error
+				if !errors.As(err, &fe) || fe.Code != files.CodeTypeRejected {
+					t.Errorf("%s/%s: error = %v, want %s", spec.Purpose, sample.Name, err, files.CodeTypeRejected)
+				}
+				continue
+			}
+			if err != nil {
+				t.Errorf("%s/%s: upload failed: %v", spec.Purpose, sample.Name, err)
+				continue
+			}
+			if up.File.ContentType != sample.ContentType {
+				t.Errorf("%s/%s: content type = %q, want %q", spec.Purpose, sample.Name, up.File.ContentType, sample.ContentType)
+			}
+			reached[string(spec.Purpose)+" "+sample.ContentType] = true
+		}
+	}
+	if !requireEveryEntry {
+		return
+	}
+	for _, spec := range h.Registry.Specs() {
+		if spec.Disabled {
+			continue
+		}
+		for _, ct := range spec.Policy.MIMEAllowlist {
+			if !reached[string(spec.Purpose)+" "+ct] {
+				t.Errorf("purpose %s allows %q but no upload reached it", spec.Purpose, ct)
+			}
+		}
 	}
 }
 

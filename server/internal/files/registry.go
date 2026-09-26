@@ -132,10 +132,12 @@ func (s PurposeSpec) ValidateScope(scope Scope) error {
 var (
 	imageMIMETypes = []string{"image/jpeg", "image/png", "image/gif", "image/webp"}
 	// attachmentMIMETypes mirrors the allowlist the task attachment pipeline
-	// published before FileService (server/internal/service/task_attachments.go).
+	// published before FileService (server/internal/service/task_attachments.go),
+	// plus text/csv: that pipeline sniffed a CSV as text/plain and accepted it,
+	// and DetectContentType now names it text/csv.
 	attachmentMIMETypes = []string{
 		"image/jpeg", "image/png", "image/gif", "image/webp", "image/bmp",
-		"application/pdf", "text/markdown", "text/plain",
+		"application/pdf", "text/markdown", "text/plain", "text/csv",
 		"application/msword",
 		"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 		"application/vnd.ms-excel",
@@ -144,14 +146,23 @@ var (
 		"application/vnd.openxmlformats-officedocument.presentationml.presentation",
 	}
 	// chatFileMIMETypes mirrors supportedChatFileContentTypes in the chat
-	// message pipeline.
-	chatFileMIMETypes = []string{"image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf", "text/plain"}
+	// message pipeline, plus text/csv and text/markdown: that pipeline sniffed
+	// both as text/plain and accepted them, and DetectContentType now names
+	// them by their extension.
+	chatFileMIMETypes = []string{"image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf", "text/plain", "text/csv", "text/markdown"}
 	// recordingMIMETypes covers what LiveKit egress and the browser recorder
-	// produce today (webm/ogg/mp4), for voice notes and call recordings.
-	recordingMIMETypes = []string{"audio/webm", "video/webm", "audio/ogg", "video/ogg", "audio/mp4", "video/mp4"}
-	// voiceMIMETypes is the browser voice-note set (4 MiB, T1 caps above).
-	voiceMIMETypes = []string{"audio/webm", "audio/ogg", "audio/mp4"}
-	// exportMIMETypes is what AuditExport writes today: NDJSON or CSV.
+	// produce today (webm/ogg/mp4), for voice notes and call recordings, as
+	// DetectContentType names them. There is no audio/webm: a head scan cannot
+	// tell an audio-only WebM from a video one, so every WebM is video/webm.
+	recordingMIMETypes = []string{"video/webm", "audio/ogg", "video/ogg", "audio/mp4", "video/mp4"}
+	// voiceMIMETypes is the browser voice-note set (4 MiB, T1 caps above) as
+	// DetectContentType names it: a recorder's WebM is video/webm, and an MP4
+	// whose ftyp box carries no M4A brand (Safari's recorder writes generic
+	// ISO brands) is video/mp4. The cap, not the type, keeps a voice note
+	// small.
+	voiceMIMETypes = []string{"video/webm", "audio/ogg", "audio/mp4", "video/mp4"}
+	// exportMIMETypes is what AuditExport writes today: NDJSON or CSV, or a
+	// zip of them. The text types need the .ndjson / .csv filename.
 	exportMIMETypes = []string{"application/x-ndjson", "text/csv", "application/zip"}
 	// documentMIMETypes is what a Document version may hold.
 	documentMIMETypes = []string{
