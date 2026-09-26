@@ -198,8 +198,11 @@ var errExportSettled = errors.New("audit export: job already completed")
 
 // claimAndComplete runs the one transaction that attaches the file and marks
 // the job done: the claim first, in the lock order ClaimInTx declares (FS-C1
-// §5.4), the conditional completion after it, and the audit.exported row last
-// so the notification only ever fires for a result that truly landed.
+// §5.4), the conditional completion after it, and the audit.exported audit
+// row + outbox event last so the notification only ever fires for a result
+// that truly landed — and the audit trail records the moment personal data
+// became downloadable (ADR 0009/0012: completion is a business command, so it
+// goes through Record, not the provider-scoped Emit).
 func (c *AuditExportConsumer) claimAndComplete(ctx context.Context, exp db.AuditExport, scope files.Scope, actor audit.Actor, up files.Upload, rowCount int32) error {
 	tx, err := c.pool.Begin(ctx)
 	if err != nil {
@@ -225,7 +228,12 @@ func (c *AuditExportConsumer) claimAndComplete(ctx context.Context, exp db.Audit
 	} else if err != nil {
 		return err
 	}
-	if err := auditRecorder.Emit(ctx, q, actor, audit.Event{
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: exp.OrganizationID,
+		Actor:          actor,
+		Action:         audit.ActionAuditExported,
+		ResourceType:   "audit_export", ResourceID: exp.ID,
+	}, audit.Event{
 		Topic:   "audit.exported",
 		Version: 1,
 		Payload: map[string]string{

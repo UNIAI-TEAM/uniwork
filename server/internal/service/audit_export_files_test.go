@@ -242,7 +242,13 @@ func TestAuditExportFilesClaimsTheFileWithTheCompletion(t *testing.T) {
 	}
 
 	// audit.exported fires once, naming the export, organization and
-	// requester — the notification consumer reads exactly these keys.
+	// requester — the notification consumer reads exactly these keys. The
+	// completion is a business command (Advisor F2), so it also leaves its
+	// own audit_events row in the same commit.
+	auditRows, outboxRows := auditExportedRows(t, f, done.ID)
+	if auditRows != 1 || outboxRows != 1 {
+		t.Fatalf("audit.exported rows = %d audit + %d outbox, want 1 + 1", auditRows, outboxRows)
+	}
 	var payload string
 	if err := f.svc.pool.QueryRow(f.ctx, `SELECT payload FROM outbox_events
 		WHERE topic = 'audit.exported' AND organization_id = $1`, f.orgA).Scan(&payload); err != nil {
@@ -251,6 +257,22 @@ func TestAuditExportFilesClaimsTheFileWithTheCompletion(t *testing.T) {
 	if !strings.Contains(payload, done.ID) || !strings.Contains(payload, f.orgA) || !strings.Contains(payload, f.ownerA.ID) {
 		t.Fatalf("audit.exported payload %q does not name export/org/requester", payload)
 	}
+}
+
+// auditExportedRows counts the completion's audit_events and outbox_events
+// rows for one export: 1+1 on a landed completion, 0+0 on a failed or
+// revoked-duplicate path.
+func auditExportedRows(t *testing.T, f *auditFileFixture, exportID string) (auditRows, outboxRows int) {
+	t.Helper()
+	if err := f.svc.pool.QueryRow(f.ctx, `SELECT count(*) FROM audit_events
+		WHERE action = 'audit.exported' AND resource_id = $1`, exportID).Scan(&auditRows); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.svc.pool.QueryRow(f.ctx, `SELECT count(*) FROM outbox_events
+		WHERE topic = 'audit.exported' AND payload LIKE '%' || $1 || '%'`, exportID).Scan(&outboxRows); err != nil {
+		t.Fatal(err)
+	}
+	return
 }
 
 // A retried delivery must converge on the result the first attempt attached:
@@ -469,6 +491,11 @@ func TestAuditExportFilesFailedJobIsNotRevived(t *testing.T) {
 	if len(f.spy.cancels) != 1 {
 		t.Fatalf("the loser left %d staged sessions behind, want 1 canceled", len(f.spy.cancels))
 	}
+	// The rolled-back completion wrote no audit or outbox row: the job's only
+	// audit trail is the request and the failure itself.
+	if auditRows, outboxRows := auditExportedRows(t, f, exp.ID); auditRows != 0 || outboxRows != 0 {
+		t.Fatalf("a failed job wrote %d audit + %d outbox completion rows", auditRows, outboxRows)
+	}
 }
 
 // The download route checks the permission and the window at read time — the
@@ -641,6 +668,9 @@ func TestAuditExportFilesPermanentRefusalFailsTheJob(t *testing.T) {
 	done, err := f.svc.Export(f.ctx, f.ownerA.ID, f.orgA, exp.ID)
 	if err != nil || !done.FailedAt.Valid || !done.Error.Valid {
 		t.Fatalf("a permanent refusal should fail the job: err=%v %+v", err, done)
+	}
+	if auditRows, outboxRows := auditExportedRows(t, f, exp.ID); auditRows != 0 || outboxRows != 0 {
+		t.Fatalf("a refused job wrote %d audit + %d outbox completion rows", auditRows, outboxRows)
 	}
 }
 
