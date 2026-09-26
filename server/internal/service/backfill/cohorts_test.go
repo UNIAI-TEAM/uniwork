@@ -21,6 +21,14 @@ func insertRoom(t *testing.T, pool *pgxpool.Pool, id, org, ws string) {
 
 func insertChatMessage(t *testing.T, pool *pgxpool.Pool, id, room, ws, kind, metadata string, deleted bool) {
 	t.Helper()
+	// kind values like 'file' break the check the 160-family down migrations
+	// re-add, and testutil truncates at start not end — so the last test's
+	// rows must not survive. The advisory lock is still held in Cleanup.
+	t.Cleanup(func() {
+		if _, err := pool.Exec(context.Background(), `DELETE FROM chat_messages`); err != nil {
+			t.Logf("cleanup chat_messages: %v", err)
+		}
+	})
 	if _, err := pool.Exec(context.Background(),
 		`INSERT INTO chat_messages (id, room_id, workspace_id, sender_id, sender_kind, kind, metadata, body)
 		 VALUES ($1,$2,$3,'user-1','human',$4,$5::jsonb,'')`, id, room, ws, kind, metadata); err != nil {

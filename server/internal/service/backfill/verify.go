@@ -138,6 +138,21 @@ func (e *Engine) verifyItem(ctx context.Context, it *Item, statOnce func(*Item) 
 		return verdictUnexpectedReference
 	}
 
+	// Content refs are evidence rows: they never claim a file or hold a
+	// session, so the meaningful check is only that the referenced file_id
+	// resolves to a live files row.
+	if it.Cohort == CohortContentRefs {
+		_, err := e.q.FileBackfillGetFileByID(ctx, it.FileID)
+		switch {
+		case err == nil:
+			return verdictConsistent
+		case errors.Is(err, pgx.ErrNoRows):
+			return verdictFileRowMissing
+		default:
+			return verdictFileRowMissing + ":error"
+		}
+	}
+
 	f, err := e.q.FileBackfillGetFileByID(ctx, it.FileID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

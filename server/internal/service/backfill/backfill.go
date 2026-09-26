@@ -386,6 +386,9 @@ func markSharedLocators(rep *Report) {
 }
 
 func tally(rep *Report) {
+	// Reset so callers that re-classify items (dry-run stat pass, verify
+	// verdicts) can tally again without double-counting.
+	rep.Totals = CohortReport{}
 	t := &rep.Totals
 	t.Name = "totals"
 	for _, cr := range rep.Cohorts {

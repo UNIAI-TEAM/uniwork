@@ -41,6 +41,14 @@ func insertOrg(t *testing.T, pool *pgxpool.Pool, org, ws, by string) {
 
 func insertAttachment(t *testing.T, pool *pgxpool.Pool, id, org, ws, taskID, key string, staged, withFile bool) {
 	t.Helper()
+	// Staged rows (task_id and comment_id NULL) break the attachments_check
+	// the 192 down migration re-adds; testutil truncates at start, so the
+	// last test's rows must not survive. Runs while the lock is still held.
+	t.Cleanup(func() {
+		if _, err := pool.Exec(context.Background(), `DELETE FROM attachments`); err != nil {
+			t.Logf("cleanup attachments: %v", err)
+		}
+	})
 	ctx := context.Background()
 	var expires *time.Time
 	if staged {

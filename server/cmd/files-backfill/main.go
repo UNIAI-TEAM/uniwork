@@ -134,6 +134,8 @@ func runCmd(ctx context.Context, cmd string, args []string) error {
 		d := defaults(*f.backend, *f.bucket)
 		if deps, derr := writeDeps(ctx, *f.backend, *f.bucket); derr == nil {
 			stat, d = deps.stat, deps.defaults
+		} else {
+			fmt.Fprintf(os.Stderr, "files-backfill: storage not configured (%v) — every object reports object_missing\n", derr)
 		}
 		eng.WithWriteDeps(backfill.WriteDeps{Stat: stat, Defaults: d})
 		rep, err = eng.DryRun(ctx, opts)
