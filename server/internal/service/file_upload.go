@@ -300,7 +300,7 @@ func (s *FileService) refuseAttempt(ctx context.Context, att uploadAttempt, refu
 		if _, err := q.MarkFileFailed(ctx, att.file.ID); err != nil {
 			return err
 		}
-		_, err := q.CancelPendingFileJobs(ctx, db.CancelPendingFileJobsParams{FileID: att.file.ID, Operation: fileJobReconcile})
+		_, err := q.CancelPendingFileJobs(ctx, db.CancelPendingFileJobsParams{FileID: att.file.ID, Operation: fileJobReconcile, FinishedAt: fileTime(s.now())})
 		return err
 	})
 	if err != nil {
@@ -327,7 +327,7 @@ func (s *FileService) abandonAttempt(ctx context.Context, att uploadAttempt) {
 		if _, err := q.MarkFileFailed(ctx, att.file.ID); err != nil {
 			return err
 		}
-		if _, err := q.CancelPendingFileJobs(ctx, db.CancelPendingFileJobsParams{FileID: att.file.ID, Operation: fileJobReconcile}); err != nil {
+		if _, err := q.CancelPendingFileJobs(ctx, db.CancelPendingFileJobsParams{FileID: att.file.ID, Operation: fileJobReconcile, FinishedAt: fileTime(s.now())}); err != nil {
 			return err
 		}
 		return s.enqueueJob(ctx, q, att.file, fileJobCleanup, now)
@@ -364,7 +364,7 @@ func (s *FileService) publishUpload(ctx context.Context, att uploadAttempt, cont
 		}); err != nil {
 			return fmt.Errorf("files: mark ready: %w", err)
 		}
-		if _, err := q.CancelPendingFileJobs(ctx, db.CancelPendingFileJobsParams{FileID: att.file.ID, Operation: fileJobReconcile}); err != nil {
+		if _, err := q.CancelPendingFileJobs(ctx, db.CancelPendingFileJobsParams{FileID: att.file.ID, Operation: fileJobReconcile, FinishedAt: fileTime(s.now())}); err != nil {
 			return fmt.Errorf("files: void reconcile: %w", err)
 		}
 		file, err := q.GetFileByID(ctx, att.file.ID)
