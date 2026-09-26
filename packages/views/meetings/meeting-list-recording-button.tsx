@@ -26,8 +26,8 @@ export function MeetingListRecordingButton({ meetingId }: { meetingId: string })
     if (wanted && isError) toastApiError(error, t("meetings.recordingsLoadFailed"));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per failure, not per render
   }, [errorUpdatedAt]);
-  const playable = recordings?.find((r) => r.file_url);
-  // The flag said yes but the list came back without a file (deleted since): nothing to offer.
+  const playable = recordings?.find((r) => r.status === "COMPLETE");
+  // The flag said yes but no COMPLETE row came back (deleted since): nothing to offer.
   if (recordings && !playable) return null;
   const loading = wanted && !playable && isFetching;
 

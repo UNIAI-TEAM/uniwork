@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -13,6 +15,8 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
+	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/storage"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -336,6 +340,15 @@ func (s *MeetingService) RecordingEnabled(ctx context.Context) bool {
 	return s.provider != nil && s.provider.Capabilities(ctx).Recording
 }
 
+// FileServiceEnabled reports whether the FileService path is wired.
+func (s *MeetingService) FileServiceEnabled() bool { return s.files != nil }
+
+// recordingWriteLease bounds the write target's validity. The egress uploads
+// the object when the recording finalizes, not when it starts, so the lease
+// must cover the longest plausible recording — a meeting can run well past
+// its scheduled end inside autoEndOvertime.
+const recordingWriteLease = 24 * time.Hour
+
 func (s *MeetingService) StartRecording(ctx context.Context, userID, meetingID string) (db.MeetingRecording, error) {
 	m, err := s.requireHostOrAdmin(ctx, userID, meetingID)
 	if err != nil {
@@ -353,16 +366,51 @@ func (s *MeetingService) StartRecording(ctx context.Context, userID, meetingID s
 	if _, err := s.q.GetActiveMeetingRecording(ctx, meetingID); err == nil {
 		return db.MeetingRecording{}, coded(http.StatusConflict, "recording_active", "cuộc họp đang được ghi hình")
 	}
+	recID := util.NewID()
+	var target *meetings.RecordingOutputTarget
+	var fileID pgtype.Text
+	if s.files != nil {
+		orgID, err := s.organizationOf(ctx, m)
+		if err != nil {
+			return db.MeetingRecording{}, err
+		}
+		// Reserve the file and the write target before the provider starts:
+		// the egress id does not exist yet, so the recording row id doubles
+		// as the provider operation identity and the webhook binds
+		// egress_id -> row -> (file_id, operation id).
+		po, err := s.files.RegisterProviderOutput(ctx, files.ProviderOutputInput{
+			Actor:       Human(userID),
+			Purpose:     files.MeetingRecording,
+			Scope:       files.Scope{OrganizationID: orgID, WorkspaceID: m.WorkspaceID},
+			OperationID: recID,
+			Deadline:    time.Now().UTC().Add(recordingWriteLease),
+		})
+		if err != nil {
+			return db.MeetingRecording{}, recordingFileErr("không bắt đầu ghi hình được", err)
+		}
+		target = &meetings.RecordingOutputTarget{
+			URL: po.WriteTarget.URL, Method: po.WriteTarget.Method,
+			Headers: po.WriteTarget.Headers, ExpiresAt: po.WriteTarget.ExpiresAt,
+		}
+		fileID = strText(string(po.FileID))
+	}
 	ref, err := s.provider.StartRecording(ctx, meetings.StartRecordingRequest{
-		RoomName:   meetings.RoomNameForMeeting(meetingID),
-		FilePrefix: "meetings/" + m.WorkspaceID + "/" + meetingID,
-		Layout:     "grid",
+		RoomName:     meetings.RoomNameForMeeting(meetingID),
+		FilePrefix:   "meetings/" + m.WorkspaceID + "/" + meetingID,
+		Layout:       "grid",
+		OutputTarget: target,
 	})
 	if err != nil {
+		if errors.Is(err, meetings.ErrRecordingOutputTarget) {
+			return db.MeetingRecording{}, coded(http.StatusServiceUnavailable, "recording_not_configured", "ghi hình chưa được cấu hình trên server")
+		}
 		return db.MeetingRecording{}, coded(http.StatusBadGateway, "recording_failed", "không bắt đầu ghi hình được: "+err.Error())
 	}
+	// A provider started but the row insert failing leaves the intent pending
+	// until the session expires; the reconciler collects it — the egress
+	// writes an object nobody claims.
 	rec, err := s.q.InsertMeetingRecording(ctx, db.InsertMeetingRecordingParams{
-		ID: util.NewID(), MeetingID: meetingID, EgressID: ref.RecordingID, StartedBy: userID,
+		ID: recID, MeetingID: meetingID, EgressID: ref.RecordingID, StartedBy: userID, FileID: fileID,
 	})
 	if err != nil {
 		return db.MeetingRecording{}, err
@@ -370,6 +418,20 @@ func (s *MeetingService) StartRecording(ctx context.Context, userID, meetingID s
 	_ = s.writeAudit(ctx, s.q, meetingID, "RECORDING_STARTED", userID, "", rec.ID, "{}")
 	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "recording.started", Payload: map[string]string{"meeting_id": meetingID}})
 	return rec, nil
+}
+
+// recordingFileErr maps a FileService refusal on the recording path: storage
+// or scope problems mean the deployment cannot take provider output, so the
+// surface stays the capability error rather than a start failure.
+func recordingFileErr(prefix string, err error) error {
+	var fe *files.Error
+	if errors.As(err, &fe) {
+		switch fe.Code {
+		case files.CodeScopeInvalid, files.CodePurposeDisabled, files.CodePurposeUnknown, files.CodeStorageUnavailable:
+			return CodedError{Code: "recording_not_configured", Status: http.StatusServiceUnavailable, Msg: "ghi hình chưa được cấu hình trên server", Err: err}
+		}
+	}
+	return CodedError{Code: "recording_failed", Status: http.StatusBadGateway, Msg: prefix + ": " + err.Error(), Err: err}
 }
 
 func (s *MeetingService) StopRecording(ctx context.Context, userID, meetingID string) (db.MeetingRecording, error) {
@@ -436,7 +498,7 @@ func (s *MeetingService) GetMeetingRecordingForPlayback(
 		return db.MeetingRecording{}, coded(http.StatusConflict, "recording_not_ready",
 			"bản ghi chưa sẵn sàng")
 	}
-	if !rec.FileUrl.Valid || strings.TrimSpace(rec.FileUrl.String) == "" {
+	if strings.TrimSpace(rec.FileUrl.String) == "" && strings.TrimSpace(rec.FileID.String) == "" {
 		return db.MeetingRecording{}, ErrNotFound
 	}
 	return rec, nil
@@ -445,22 +507,269 @@ func (s *MeetingService) GetMeetingRecordingForPlayback(
 // finishRecordingFromProvider is called from HandleProviderEvent when the
 // provider reports an egress ended.
 func (s *MeetingService) finishRecordingFromProvider(ctx context.Context, ev ProviderNeutralEvent) {
-	status := RecordingComplete
-	if ev.RecordingFailed {
-		status = RecordingFailed
-	}
-	rec, err := s.q.FinishRecordingByEgress(ctx, db.FinishRecordingByEgressParams{
-		EgressID: ev.RecordingID, Status: status, FileUrl: strText(storage.NormalizeObjectURL(ev.RecordingURL)),
-	})
+	rec, err := s.q.GetMeetingRecordingByEgressID(ctx, ev.RecordingID)
 	if err != nil {
 		if s.Chat != nil {
 			s.Chat.FinishVoiceRecordingByEgress(ctx, ev)
 		}
 		return
 	}
-	if m, err := s.q.GetMeeting(ctx, rec.MeetingID); err == nil {
+	if strings.TrimSpace(rec.FileID.String) != "" {
+		// The row was reserved through FileService. If the seam is unwired at
+		// webhook time, leave it non-terminal and loud rather than writing a
+		// legacy locator onto an FS row the claim would never see.
+		if s.files == nil {
+			slog.Error("recording finish dropped: FileService unwired for FS-backed row",
+				"recording_id", rec.ID, "egress_id", ev.RecordingID)
+			return
+		}
+		s.finishRecordingFileClaim(ctx, ev, rec)
+		return
+	}
+	status := RecordingComplete
+	if ev.RecordingFailed {
+		status = RecordingFailed
+	}
+	updated, err := s.q.FinishRecordingByEgress(ctx, db.FinishRecordingByEgressParams{
+		EgressID: ev.RecordingID, Status: status, FileUrl: strText(storage.NormalizeObjectURL(ev.RecordingURL)),
+	})
+	if err != nil {
+		return
+	}
+	if m, err := s.q.GetMeeting(ctx, updated.MeetingID); err == nil {
 		s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "recording.ready", Payload: map[string]string{"meeting_id": m.ID}})
 	}
+}
+
+// finishRecordingFileClaim finishes an FS-backed recording row: verify the
+// object the egress uploaded, then claim the file and mark the row COMPLETE
+// in one transaction so a halfway state is impossible. The locator lives on
+// files.file_id; the webhook's file URL is never stored.
+func (s *MeetingService) finishRecordingFileClaim(ctx context.Context, ev ProviderNeutralEvent, rec db.MeetingRecording) {
+	m, err := s.q.GetMeeting(ctx, rec.MeetingID)
+	if err != nil {
+		return
+	}
+	orgID, err := s.organizationOf(ctx, m)
+	if err != nil {
+		return
+	}
+	scope := files.Scope{OrganizationID: orgID, WorkspaceID: m.WorkspaceID}
+	if ev.RecordingFailed {
+		// The provider never delivered the object. Fail the row; the pending
+		// output expires with its session and the collector removes it.
+		// Publish only when the row actually transitioned — a duplicate
+		// recording_ended re-delivery reaches here on a terminal row and must
+		// not re-fire the event.
+		if rec.Status == RecordingActive || rec.Status == RecordingProcessing {
+			if _, err := s.q.FinishRecordingByEgress(ctx, db.FinishRecordingByEgressParams{
+				EgressID: ev.RecordingID, Status: RecordingFailed,
+			}); err == nil {
+				s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "recording.ready", Payload: map[string]string{"meeting_id": m.ID}})
+			}
+		}
+		return
+	}
+	if rec.Status != RecordingActive && rec.Status != RecordingProcessing {
+		return // terminal already — a replay is a no-op
+	}
+	if _, err := s.files.CompleteProviderOutput(ctx, files.CompleteOutputInput{
+		Actor:       audit.System("livekit.egress"),
+		Scope:       scope,
+		FileID:      files.FileID(rec.FileID.String),
+		OperationID: rec.ID,
+	}); err != nil {
+		// Retryable failures leave the row PROCESSING: storage_unavailable is
+		// transient, and file_not_ready means the object is not visible yet —
+		// a later provider event for the same egress finishes the job inside
+		// the session lease. Every other refusal is permanent (wrong bytes,
+		// over the cap, rejected type, expired or deleted file): fail the row.
+		var fe *files.Error
+		if !errors.As(err, &fe) || (fe.Code != files.CodeStorageUnavailable && fe.Code != files.CodeNotReady) {
+			_, _ = s.q.FinishRecordingByEgress(ctx, db.FinishRecordingByEgressParams{
+				EgressID: ev.RecordingID, Status: RecordingFailed,
+			})
+		}
+		return
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	if _, err := s.files.ClaimInTx(ctx, q, files.ClaimInput{
+		Actor:   audit.System("livekit.egress"),
+		Purpose: files.MeetingRecording,
+		Scope:   scope,
+		FileIDs: []files.FileID{files.FileID(rec.FileID.String)},
+	}); err != nil {
+		return
+	}
+	if _, err := q.FinishRecordingByEgress(ctx, db.FinishRecordingByEgressParams{
+		EgressID: ev.RecordingID, Status: RecordingComplete,
+	}); err != nil {
+		return
+	}
+	_ = s.writeAudit(ctx, q, m.ID, "RECORDING_COMPLETED", rec.StartedBy, "", rec.ID, "{}")
+	if err := tx.Commit(ctx); err != nil {
+		return
+	}
+	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "recording.ready", Payload: map[string]string{"meeting_id": m.ID}})
+}
+
+// ---- Recording playback (FileService path) ------------------------------------
+//
+// The purpose policy's read mode is presign: the browser plays the object
+// directly off storage, and the proxy stream below exists for the range-aware
+// fallback route. Handlers hold no files types; every method re-authorizes
+// the caller itself so the permission check is never delegated to the caller.
+
+// RecordingPlaybackURL is a presigned read target for an FS-backed
+// recording.
+type RecordingPlaybackURL struct {
+	URL       string
+	ExpiresAt time.Time
+}
+
+// recordingScope rebuilds the tenant scope a recording was claimed under. It
+// must match the scope RegisterProviderOutput/ClaimInTx used, so it reads the
+// meeting row rather than the caller's claims.
+func (s *MeetingService) recordingScope(ctx context.Context, meetingID string) (files.Scope, error) {
+	m, err := s.q.GetMeeting(ctx, meetingID)
+	if err != nil {
+		return files.Scope{}, err
+	}
+	orgID, err := s.organizationOf(ctx, m)
+	if err != nil {
+		return files.Scope{}, err
+	}
+	return files.Scope{OrganizationID: orgID, WorkspaceID: m.WorkspaceID}, nil
+}
+
+// ResolveMeetingRecordingPlaybackURL returns a presigned read URL for an
+// FS-backed recording row.
+func (s *MeetingService) ResolveMeetingRecordingPlaybackURL(ctx context.Context, userID, guestID, meetingID, recordingID string) (RecordingPlaybackURL, error) {
+	rec, err := s.GetMeetingRecordingForPlayback(ctx, userID, guestID, meetingID, recordingID)
+	if err != nil {
+		return RecordingPlaybackURL{}, err
+	}
+	if strings.TrimSpace(rec.FileID.String) == "" {
+		return RecordingPlaybackURL{}, ErrNotFound
+	}
+	scope, err := s.recordingScope(ctx, meetingID)
+	if err != nil {
+		return RecordingPlaybackURL{}, err
+	}
+	resolved, err := s.files.ResolveMany(ctx, files.ResolveInput{
+		Scope:       scope,
+		Mode:        files.ReadPresign,
+		Disposition: files.DispositionInline,
+		FileIDs:     []files.FileID{files.FileID(rec.FileID.String)},
+	})
+	if err != nil {
+		return RecordingPlaybackURL{}, filesError(err)
+	}
+	if len(resolved) == 0 || resolved[0].Err != nil || resolved[0].URL == "" {
+		if len(resolved) > 0 && resolved[0].Err != nil {
+			return RecordingPlaybackURL{}, filesError(resolved[0].Err)
+		}
+		return RecordingPlaybackURL{}, ErrNotFound
+	}
+	return RecordingPlaybackURL{URL: resolved[0].URL, ExpiresAt: resolved[0].URLExpiresAt}, nil
+}
+
+// MeetingRecordingFileSize authorizes the caller and returns the byte size of
+// an FS-backed recording, so the proxy route can do its own Range math.
+func (s *MeetingService) MeetingRecordingFileSize(ctx context.Context, userID, guestID, meetingID, recordingID string) (int64, error) {
+	rec, err := s.GetMeetingRecordingForPlayback(ctx, userID, guestID, meetingID, recordingID)
+	if err != nil {
+		return 0, err
+	}
+	if strings.TrimSpace(rec.FileID.String) == "" {
+		return 0, ErrNotFound
+	}
+	scope, err := s.recordingScope(ctx, meetingID)
+	if err != nil {
+		return 0, err
+	}
+	resolved, err := s.files.ResolveMany(ctx, files.ResolveInput{
+		Scope:       scope,
+		Mode:        files.ReadPresign,
+		Disposition: files.DispositionInline,
+		FileIDs:     []files.FileID{files.FileID(rec.FileID.String)},
+	})
+	if err != nil {
+		return 0, filesError(err)
+	}
+	if len(resolved) == 0 || resolved[0].Err != nil {
+		if len(resolved) > 0 && resolved[0].Err != nil {
+			return 0, filesError(resolved[0].Err)
+		}
+		return 0, ErrNotFound
+	}
+	return resolved[0].File.SizeBytes, nil
+}
+
+// OpenMeetingRecording streams bytes of an FS-backed recording for the
+// authorized proxy route. Offset/Length mirror files.OpenInput — Length 0
+// reads to the end.
+func (s *MeetingService) OpenMeetingRecording(ctx context.Context, userID, guestID, meetingID, recordingID string, offset, length int64) (io.ReadCloser, error) {
+	rec, err := s.GetMeetingRecordingForPlayback(ctx, userID, guestID, meetingID, recordingID)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(rec.FileID.String) == "" {
+		return nil, ErrNotFound
+	}
+	scope, err := s.recordingScope(ctx, meetingID)
+	if err != nil {
+		return nil, err
+	}
+	r, err := s.files.Open(ctx, files.OpenInput{
+		Scope: scope, FileID: files.FileID(rec.FileID.String), Offset: offset, Length: length,
+	})
+	if err != nil {
+		return nil, filesError(err)
+	}
+	return r.Body, nil
+}
+
+// MeetingRecordingProvider is the FS-C1 section 6 reference provider for
+// meeting_recordings.file_id: a live recording row holds its file.
+type MeetingRecordingProvider struct{}
+
+func (MeetingRecordingProvider) Name() string { return "meetings.recordings" }
+
+func (MeetingRecordingProvider) Purposes() []files.UploadPurpose {
+	return []files.UploadPurpose{files.MeetingRecording}
+}
+
+func (MeetingRecordingProvider) HeldBy(ctx context.Context, q *db.Queries, ids []files.FileID) (map[files.FileID]files.HoldReason, error) {
+	out := map[files.FileID]files.HoldReason{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	raw := make([]string, 0, len(ids))
+	for _, id := range ids {
+		raw = append(raw, string(id))
+	}
+	held, err := q.ListMeetingRecordingFileHolds(ctx, raw)
+	if err != nil {
+		return nil, err
+	}
+	for _, h := range held {
+		if h.Valid && h.String != "" {
+			out[files.FileID(h.String)] = files.HoldActive
+		}
+	}
+	return out, nil
+}
+
+// FileReferenceProvider exposes the recording provider for the FileService
+// registry.
+func (s *MeetingService) FileReferenceProvider() files.ReferenceProvider {
+	return MeetingRecordingProvider{}
 }
 
 // ---- Auto end ----------------------------------------------------------------

@@ -15,9 +15,18 @@ RETURNING *;
 SELECT * FROM meeting_summaries WHERE meeting_id = $1 ORDER BY created_at DESC, id DESC LIMIT 1;
 
 -- name: InsertMeetingRecording :one
-INSERT INTO meeting_recordings (id, meeting_id, egress_id, started_by)
-VALUES ($1, $2, $3, $4)
+INSERT INTO meeting_recordings (id, meeting_id, egress_id, started_by, file_id)
+VALUES ($1, $2, $3, $4, sqlc.narg('file_id'))
 RETURNING *;
+
+-- name: GetMeetingRecordingByEgressID :one
+SELECT * FROM meeting_recordings WHERE egress_id = $1 ORDER BY started_at DESC LIMIT 1;
+
+-- name: ListMeetingRecordingFileHolds :many
+-- FS-C1 section 6: a live recording row holds its file.
+SELECT DISTINCT file_id
+FROM meeting_recordings
+WHERE file_id = ANY($1::text[]);
 
 -- name: ListMeetingRecordings :many
 SELECT * FROM meeting_recordings WHERE meeting_id = $1 ORDER BY started_at DESC;
