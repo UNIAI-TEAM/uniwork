@@ -259,6 +259,7 @@ func buildStore(t *testing.T, cfg storage.Config, backend storage.Backend) stora
 type countingQuota struct {
 	mu    sync.Mutex
 	calls map[files.FileID]int64
+	total int
 	err   error
 }
 
@@ -272,7 +273,14 @@ func (c *countingQuota) ReserveFileBytes(_ context.Context, org string, id files
 		return errors.New("quota reserved for an empty organization")
 	}
 	c.calls[id] = size
+	c.total++
 	return nil
+}
+
+func (c *countingQuota) reservations() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.total
 }
 
 func (c *countingQuota) reserved(id files.FileID) int64 {

@@ -3,6 +3,8 @@ package service
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"net/http"
 	"strings"
@@ -196,6 +198,16 @@ func TestUploadReplayNeverReadsTheBody(t *testing.T) {
 	}
 	if puts, _ := h.store.counts(); puts != 1 {
 		t.Errorf("stored %d objects for one logical upload", puts)
+	}
+	// Claiming, and attaching the same file again (T1-Q3 reuse), never
+	// reserves its bytes a second time (T1-Q9).
+	for i := 0; i < 2; i++ {
+		if _, err := t3Claim(t, h, first.File.ID); err != nil {
+			t.Fatalf("claim %d: %v", i, err)
+		}
+	}
+	if n := h.quota.reservations(); n != 1 {
+		t.Errorf("%d quota reservations for one file claimed twice, want 1", n)
 	}
 	// Another organization may use the same key for its own upload.
 	other, err := t3Upload(t, h, files.TaskAttachment, files.Scope{OrganizationID: t3OrgB, WorkspaceID: t3WS}, "replay-body", "note.png", t3PNG)
@@ -442,8 +454,9 @@ func TestChecksumFollowsThePolicy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("upload: %v", err)
 	}
-	if len(withSum.File.ChecksumSHA256) != 64 {
-		t.Errorf("required checksum = %q", withSum.File.ChecksumSHA256)
+	pngSum := sha256.Sum256(t3PNG)
+	if want := hex.EncodeToString(pngSum[:]); withSum.File.ChecksumSHA256 != want {
+		t.Errorf("required checksum = %q, want the SHA-256 of the bytes %q", withSum.File.ChecksumSHA256, want)
 	}
 
 	ctx := context.Background()
@@ -464,6 +477,23 @@ func TestChecksumFollowsThePolicy(t *testing.T) {
 	}
 	if file.ChecksumSHA256 != "" {
 		t.Errorf("provider output stored an unrequested checksum %q", file.ChecksumSHA256)
+	}
+
+	// A required-checksum purpose on the provider path: the digest is
+	// computed from the stored object, not taken from the provider.
+	req, err := h.svc.RegisterProviderOutput(ctx, files.ProviderOutputInput{
+		Actor: t3Actor, Purpose: files.DocumentAsset, Scope: t3Scope, OperationID: "op-sum-required", Deadline: h.clock.Now().Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	putWriteTarget(t, req.WriteTarget, t3PNG, "image/png")
+	summed, err := h.svc.CompleteProviderOutput(ctx, files.CompleteOutputInput{Actor: t3Actor, Scope: t3Scope, FileID: req.FileID, OperationID: "op-sum-required"})
+	if err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	if want := hex.EncodeToString(pngSum[:]); summed.ChecksumSHA256 != want {
+		t.Errorf("provider checksum = %q, want %q", summed.ChecksumSHA256, want)
 	}
 }
 
@@ -608,5 +638,57 @@ func TestProviderOutputNeedsASigner(t *testing.T) {
 	t3Code(t, err, files.CodeStorageUnavailable)
 	if f, s, j := pipelineRowCounts(t, h.pool); f+s+j != 0 {
 		t.Errorf("no-signer registration left rows: %d %d %d", f, s, j)
+	}
+}
+
+// BE-1 (review r1): every path locks the file row before its session (FS-C1
+// section 5.4). A module transaction that holds the file lock and then takes
+// the session lock must not deadlock with a provider finalize on the same
+// file: the finalize waits on the file, holds nothing, and completes after the
+// module commits.
+func TestFinalizeTakesTheFileLockFirst(t *testing.T) {
+	h := newFileHarness(t, localFileBackend(), nil)
+	ctx := context.Background()
+	out, err := h.svc.RegisterProviderOutput(ctx, files.ProviderOutputInput{
+		Actor: t3Actor, Purpose: files.TaskAttachment, Scope: t3Scope, OperationID: "op-lock-order", Deadline: h.clock.Now().Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	putWriteTarget(t, out.WriteTarget, t3PNG, "image/png")
+
+	tx, err := h.pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := db.New(h.pool).WithTx(tx)
+	if _, err := q.LockFilesInIDOrder(ctx, []string{string(out.FileID)}); err != nil {
+		t.Fatalf("module lock on the file: %v", err)
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := h.svc.CompleteProviderOutput(ctx, files.CompleteOutputInput{
+			Actor: t3Actor, Scope: t3Scope, FileID: out.FileID, OperationID: "op-lock-order",
+		})
+		done <- err
+	}()
+	// Give the finalize time to reach its locks; with the old order it would
+	// now hold the session and wait on the file.
+	time.Sleep(700 * time.Millisecond)
+	if _, err := q.LockUploadSessionsByFileIDs(ctx, []string{string(out.FileID)}); err != nil {
+		t.Fatalf("module lock on the session after the file: %v", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("module commit: %v", err)
+	}
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("finalize after the module committed: %v", err)
+		}
+	case <-time.After(30 * time.Second):
+		t.Fatal("finalize did not finish after the module released its locks")
 	}
 }

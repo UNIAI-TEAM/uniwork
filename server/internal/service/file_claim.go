@@ -86,7 +86,7 @@ func (s *FileService) ClaimInTx(ctx context.Context, q *db.Queries, in files.Cla
 			}
 		}
 		// A file released earlier and attached again is no longer garbage.
-		if _, err := q.CancelPendingFileJobs(ctx, db.CancelPendingFileJobsParams{FileID: file.ID, Operation: fileJobCleanup, FinishedAt: fileTime(s.now())}); err != nil {
+		if _, err := q.CancelPendingFileJobs(ctx, db.CancelPendingFileJobsParams{FileID: file.ID, Operation: fileJobCleanup, FinishedAt: fileTime(now)}); err != nil {
 			return nil, fmt.Errorf("files: void cleanup: %w", err)
 		}
 		out = append(out, fileView(file))

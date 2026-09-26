@@ -120,8 +120,9 @@ func (s *FileService) openUploadAttempt(ctx context.Context, spec files.PurposeS
 			now := s.now()
 			sess, err := s.findSessionByKey(ctx, q, in)
 			if err == nil {
-				// Serialize a replay and a retry of the same key on the row.
-				sess, err = q.GetUploadSessionByIDForUpdate(ctx, sess.ID)
+				// Serialize a replay and a retry of the same key on the rows,
+				// in the lock order of FS-C1 section 5.4: the file first.
+				sess, err = lockSessionAndFile(ctx, q, sess)
 			}
 			if errors.Is(err, pgx.ErrNoRows) {
 				att, err = s.recordIntent(ctx, q, spec, in, fingerprint, now)
@@ -157,7 +158,7 @@ func (s *FileService) openUploadAttempt(ctx context.Context, spec files.PurposeS
 				return err
 			}
 		})
-		if err != nil && isUniqueViolation(err) && pass == 0 {
+		if err != nil && (isUniqueViolation(err) || errors.Is(err, errSessionMoved)) && pass == 0 {
 			continue
 		}
 		return att, replay, err
@@ -288,19 +289,20 @@ func (s *FileService) insertIntentFile(ctx context.Context, q *db.Queries, spec 
 // fails and its reconcile job is voided; no bytes need cleaning.
 func (s *FileService) refuseAttempt(ctx context.Context, att uploadAttempt, refusal *files.Error) error {
 	err := s.inTx(ctx, func(q *db.Queries) error {
+		now := s.now()
 		if held, err := s.stillHolds(ctx, q, att); err != nil || !held {
 			// A cancel or a takeover got there first; its outcome stands.
 			return err
 		}
 		if _, err := q.RefuseUploadSession(ctx, db.RefuseUploadSessionParams{
-			ID: att.session.ID, FailureCode: fileText(refusal.Code), ClosedAt: fileTime(s.now()),
+			ID: att.session.ID, FailureCode: fileText(refusal.Code), ClosedAt: fileTime(now),
 		}); err != nil {
 			return err
 		}
 		if _, err := q.MarkFileFailed(ctx, att.file.ID); err != nil {
 			return err
 		}
-		_, err := q.CancelPendingFileJobs(ctx, db.CancelPendingFileJobsParams{FileID: att.file.ID, Operation: fileJobReconcile, FinishedAt: fileTime(s.now())})
+		_, err := q.CancelPendingFileJobs(ctx, db.CancelPendingFileJobsParams{FileID: att.file.ID, Operation: fileJobReconcile, FinishedAt: fileTime(now)})
 		return err
 	})
 	if err != nil {
@@ -319,6 +321,9 @@ func (s *FileService) abandonAttempt(ctx context.Context, att uploadAttempt) {
 	ctx = context.WithoutCancel(ctx)
 	_ = s.inTx(ctx, func(q *db.Queries) error {
 		now := s.now()
+		if _, err := s.stillHolds(ctx, q, att); err != nil {
+			return err
+		}
 		if _, err := q.ReleaseUploadSessionLease(ctx, db.ReleaseUploadSessionLeaseParams{
 			ID: att.session.ID, LeaseOwner: fileText(att.leaseOwner),
 		}); err != nil {
@@ -327,7 +332,7 @@ func (s *FileService) abandonAttempt(ctx context.Context, att uploadAttempt) {
 		if _, err := q.MarkFileFailed(ctx, att.file.ID); err != nil {
 			return err
 		}
-		if _, err := q.CancelPendingFileJobs(ctx, db.CancelPendingFileJobsParams{FileID: att.file.ID, Operation: fileJobReconcile, FinishedAt: fileTime(s.now())}); err != nil {
+		if _, err := q.CancelPendingFileJobs(ctx, db.CancelPendingFileJobsParams{FileID: att.file.ID, Operation: fileJobReconcile, FinishedAt: fileTime(now)}); err != nil {
 			return err
 		}
 		return s.enqueueJob(ctx, q, att.file, fileJobCleanup, now)
@@ -364,7 +369,7 @@ func (s *FileService) publishUpload(ctx context.Context, att uploadAttempt, cont
 		}); err != nil {
 			return fmt.Errorf("files: mark ready: %w", err)
 		}
-		if _, err := q.CancelPendingFileJobs(ctx, db.CancelPendingFileJobsParams{FileID: att.file.ID, Operation: fileJobReconcile, FinishedAt: fileTime(s.now())}); err != nil {
+		if _, err := q.CancelPendingFileJobs(ctx, db.CancelPendingFileJobsParams{FileID: att.file.ID, Operation: fileJobReconcile, FinishedAt: fileTime(now)}); err != nil {
 			return fmt.Errorf("files: void reconcile: %w", err)
 		}
 		file, err := q.GetFileByID(ctx, att.file.ID)
@@ -384,6 +389,27 @@ func (s *FileService) publishUpload(ctx context.Context, att uploadAttempt, cont
 		return files.Upload{}, err
 	}
 	return result, nil
+}
+
+// errSessionMoved: between the unlocked key lookup and the locks, a retry
+// repointed the session at another file. The caller's next pass sees it.
+var errSessionMoved = errors.New("files: upload session moved to another attempt")
+
+// lockSessionAndFile locks the file a session points at and then the session,
+// the order every multi-row path uses (FS-C1 section 5.4, spec 9.5), so a
+// finalize never waits on a session while a claim holds its file.
+func lockSessionAndFile(ctx context.Context, q *db.Queries, sess db.FileUploadSession) (db.FileUploadSession, error) {
+	if _, err := q.LockFilesInIDOrder(ctx, []string{sess.FileID}); err != nil {
+		return db.FileUploadSession{}, fmt.Errorf("files: lock file: %w", err)
+	}
+	cur, err := q.GetUploadSessionByIDForUpdate(ctx, sess.ID)
+	if err != nil {
+		return db.FileUploadSession{}, err
+	}
+	if cur.FileID != sess.FileID {
+		return db.FileUploadSession{}, errSessionMoved
+	}
+	return cur, nil
 }
 
 // takeLease gives owner the session's write lease until expires, or refuses
@@ -406,6 +432,10 @@ func (s *FileService) takeLease(ctx context.Context, q *db.Queries, sessionID, o
 // this writer's. A cancel that won the race, or a retry that took over after
 // the lease expired, makes it false.
 func (s *FileService) stillHolds(ctx context.Context, q *db.Queries, att uploadAttempt) (bool, error) {
+	// File row first, then the session (FS-C1 section 5.4).
+	if _, err := q.LockFilesInIDOrder(ctx, []string{att.file.ID}); err != nil {
+		return false, fmt.Errorf("files: lock file: %w", err)
+	}
 	cur, err := q.GetUploadSessionByIDForUpdate(ctx, att.session.ID)
 	if err != nil {
 		return false, fmt.Errorf("files: lock session: %w", err)
