@@ -14,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go"
 )
 
 // TestMinIOBackendIntegration proves the typed MinIO configuration against a
@@ -136,12 +137,21 @@ func TestMinIOBackendIntegration(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("DeleteObject: %v", err)
 	}
-	if _, err := client.HeadObject(ctx, &s3.HeadObjectInput{
+	// The post-delete head must prove the object is gone, not merely that the
+	// request failed: a transient 5xx would also error, so the assertion is
+	// pinned to the not-found answer (reviewer note R2 of t2-prep).
+	_, headErr := client.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(cfg.MinIO.Bucket),
 		Key:    aws.String(key),
-	}); err == nil {
+	})
+	if headErr == nil {
 		t.Fatal("HeadObject after DeleteObject succeeded, the object is still there")
-	} else if errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("HeadObject after delete did not answer before the deadline: %v", err)
+	}
+	if errors.Is(headErr, context.DeadlineExceeded) {
+		t.Fatalf("HeadObject after delete did not answer before the deadline: %v", headErr)
+	}
+	var apiErr smithy.APIError
+	if !errors.As(headErr, &apiErr) || apiErr.ErrorCode() != "NotFound" && apiErr.ErrorCode() != "404" {
+		t.Fatalf("HeadObject after delete: error = %v, want a not-found answer", headErr)
 	}
 }
