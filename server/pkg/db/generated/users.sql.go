@@ -278,6 +278,21 @@ func (q *Queries) EnableUserMFA(ctx context.Context, arg EnableUserMFAParams) (U
 	return i, err
 }
 
+const getUserAvatarFileID = `-- name: GetUserAvatarFileID :one
+SELECT avatar_file_id FROM users WHERE id = $1
+`
+
+// Non-locking read that opens a FileService swap: the claim/release has to
+// lock files rows before this transaction locks the user row (FS-C1 §5.4),
+// and the FOR UPDATE re-read afterwards is what serializes a concurrent
+// replace.
+func (q *Queries) GetUserAvatarFileID(ctx context.Context, id string) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, getUserAvatarFileID, id)
+	var avatar_file_id pgtype.Text
+	err := row.Scan(&avatar_file_id)
+	return avatar_file_id, err
+}
+
 const getUserAvatarFileIDForUpdate = `-- name: GetUserAvatarFileIDForUpdate :one
 SELECT avatar_file_id FROM users WHERE id = $1 FOR UPDATE
 `

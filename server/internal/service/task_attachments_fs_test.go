@@ -522,3 +522,63 @@ func TestFSAvatarURLResolvesOnMemberSurfaces(t *testing.T) {
 		t.Fatalf("actor avatar = %q, want presigned", info.AvatarURL)
 	}
 }
+
+// releaseRecorder wraps the fake so a test can see the unlink reach
+// FileService: the fake keeps a release internally but exposes no reader for
+// it, and column/held assertions alone cannot tell a forgotten release apart
+// from a run one.
+type releaseRecorder struct {
+	files.Service
+	released []files.FileID
+}
+
+func (r *releaseRecorder) ReleaseInTx(ctx context.Context, q *db.Queries, ids []files.FileID) error {
+	r.released = append(r.released, ids...)
+	return r.Service.ReleaseInTx(ctx, q, ids)
+}
+
+// Account deletion anonymises the row and releases the file-backed avatar in
+// the same transaction (checklist invariant 5): the column clears, the
+// provider stops holding the file, and the unlink actually reaches
+// FileService — not just the SQL half.
+func TestFSDeleteAccountReleasesAvatar(t *testing.T) {
+	as, fake, q, u := authFixtureWithFiles(t)
+	rec := &releaseRecorder{Service: fake}
+	as.SetFiles(rec)
+	ctx := context.Background()
+
+	got, err := as.UploadAvatar(ctx, u.ID, "me.png", bytes.NewReader(fsPNG))
+	if err != nil {
+		t.Fatal(err)
+	}
+	avatarFile := files.FileID(got.AvatarFileID.String)
+
+	if err := as.DeleteAccount(ctx, u.ID, DeleteAccountInput{Password: "password123"}); err != nil {
+		t.Fatal(err)
+	}
+
+	found := false
+	for _, id := range rec.released {
+		if id == avatarFile {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("avatar file %q was never released: released=%v", avatarFile, rec.released)
+	}
+
+	row, err := q.GetUserByID(ctx, u.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if row.AvatarFileID.Valid && row.AvatarFileID.String != "" {
+		t.Fatalf("avatar_file_id = %q, want cleared", row.AvatarFileID.String)
+	}
+	held, err := NewUserAvatarProvider().HeldBy(ctx, q, []files.FileID{avatarFile})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := held[avatarFile]; ok {
+		t.Fatal("a deleted account still holds its avatar file")
+	}
+}

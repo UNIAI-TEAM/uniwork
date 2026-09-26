@@ -311,12 +311,31 @@ func (s *AuthService) UpdateAvatar(ctx context.Context, userID, url string) (db.
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	prev, err := q.GetUserAvatarFileIDForUpdate(ctx, userID)
+	// FS-C1 §5.4: the release locks the files row before this transaction
+	// locks the user row, so avatar_file_id is read non-locking first and
+	// re-read FOR UPDATE after the files call — a swap committed in between
+	// surfaces as a conflict, not a release of the wrong file.
+	prev, err := q.GetUserAvatarFileID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return db.User{}, ErrNotFound
 		}
 		return db.User{}, err
+	}
+	if prev.Valid && prev.String != "" {
+		if err := releaseFilesInTx(ctx, s.files, q, []files.FileID{files.FileID(prev.String)}); err != nil {
+			return db.User{}, err
+		}
+	}
+	cur, err := q.GetUserAvatarFileIDForUpdate(ctx, userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.User{}, ErrNotFound
+		}
+		return db.User{}, err
+	}
+	if cur.String != prev.String || cur.Valid != prev.Valid {
+		return db.User{}, ErrConflict
 	}
 	u, err := q.UpdateUserAvatar(ctx, db.UpdateUserAvatarParams{
 		ID:        userID,
@@ -324,11 +343,6 @@ func (s *AuthService) UpdateAvatar(ctx context.Context, userID, url string) (db.
 	})
 	if err != nil {
 		return db.User{}, err
-	}
-	if prev.Valid && prev.String != "" {
-		if err := releaseFilesInTx(ctx, s.files, q, []files.FileID{files.FileID(prev.String)}); err != nil {
-			return db.User{}, err
-		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return db.User{}, err

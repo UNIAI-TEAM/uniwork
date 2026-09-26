@@ -436,6 +436,13 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 		return db.Task{}, Invalid("attachment_ids tối đa 20")
 	}
 	if len(attachmentIDs) > 0 {
+		// File-backed rows must be claimed inside this same transaction, and
+		// the claim locks files rows before the bind writes attachments ones
+		// (FS-C1 §5.4). A refusal — or a short bind — rolls the task back with
+		// them.
+		if err := s.claimBoundAttachmentsInTx(ctx, q, actor, ws, workspaceID, attachmentIDs); err != nil {
+			return db.Task{}, err
+		}
 		bound, err := q.BindAttachmentsToTask(ctx, db.BindAttachmentsToTaskParams{
 			TaskID: pgtype.Text{String: task.ID, Valid: true}, OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
 			UploaderType: s.commentActorType(actor.Kind), UploaderID: actor.ID, AttachmentIds: attachmentIDs,
@@ -445,11 +452,6 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 		}
 		if len(bound) != len(attachmentIDs) {
 			return db.Task{}, coded(http.StatusUnprocessableEntity, "attachment_not_available", "đính kèm không tồn tại, đã hết hạn hoặc đã được sử dụng")
-		}
-		// File-backed rows must be claimed inside this same transaction: a
-		// refusal here rolls the task back with them.
-		if err := s.claimBoundAttachmentsInTx(ctx, q, actor, ws, workspaceID, attachmentIDs); err != nil {
-			return db.Task{}, err
 		}
 	}
 	autoSubscribed, err := autoSubscribeTaskAssignee(ctx, q, task)

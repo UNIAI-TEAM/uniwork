@@ -327,11 +327,6 @@ func (s *TaskService) DeleteAttachment(ctx context.Context, actor Actor, attachm
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	if err := q.DeleteAttachment(ctx, db.DeleteAttachmentParams{
-		ID: attachmentID, OrganizationID: att.OrganizationID, WorkspaceID: att.WorkspaceID,
-	}); err != nil {
-		return err
-	}
 	if att.FileID.Valid {
 		if s.files == nil {
 			// A file-backed row cannot be removed correctly while the module
@@ -341,11 +336,18 @@ func (s *TaskService) DeleteAttachment(ctx context.Context, actor Actor, attachm
 		bound := att.TaskID.Valid || att.CommentID.Valid
 		if bound {
 			// The row held a claimed file; dropping the row drops the hold.
-			// The provider re-check happens in the collector, not here.
+			// The release locks the files row before the delete touches the
+			// attachments row (FS-C1 §5.4), and the provider re-check happens
+			// in the collector, not here.
 			if err := releaseFilesInTx(ctx, s.files, q, []files.FileID{files.FileID(att.FileID.String)}); err != nil {
 				return err
 			}
 		}
+	}
+	if err := q.DeleteAttachment(ctx, db.DeleteAttachmentParams{
+		ID: attachmentID, OrganizationID: att.OrganizationID, WorkspaceID: att.WorkspaceID,
+	}); err != nil {
+		return err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: att.OrganizationID, WorkspaceID: att.WorkspaceID,

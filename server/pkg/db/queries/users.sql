@@ -36,6 +36,13 @@ UPDATE users SET avatar_file_id = $2, avatar_url = NULL, updated_at = now()
 WHERE id = $1
 RETURNING *;
 
+-- Non-locking read that opens a FileService swap: the claim/release has to
+-- lock files rows before this transaction locks the user row (FS-C1 §5.4),
+-- and the FOR UPDATE re-read afterwards is what serializes a concurrent
+-- replace.
+-- name: GetUserAvatarFileID :one
+SELECT avatar_file_id FROM users WHERE id = $1;
+
 -- Reads the current avatar file under the row lock so a concurrent replace
 -- serializes here instead of releasing the same file twice.
 -- name: GetUserAvatarFileIDForUpdate :one

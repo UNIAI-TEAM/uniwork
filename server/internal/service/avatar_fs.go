@@ -84,20 +84,16 @@ func (s *AuthService) UploadAvatar(ctx context.Context, userID, filename string,
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 
-	prev, err := q.GetUserAvatarFileIDForUpdate(ctx, userID)
+	// FS-C1 §5.4: the claim and release lock files rows before this
+	// transaction locks the user row, so the first read of avatar_file_id is
+	// a plain SELECT and the FOR UPDATE re-read after the files calls is
+	// what serializes a concurrent swap.
+	prev, err := q.GetUserAvatarFileID(ctx, userID)
 	if err != nil {
 		cancel()
 		if errors.Is(err, pgx.ErrNoRows) {
 			return db.User{}, ErrNotFound
 		}
-		return db.User{}, err
-	}
-	u, err := q.UpdateUserAvatarFile(ctx, db.UpdateUserAvatarFileParams{
-		ID:           userID,
-		AvatarFileID: pgtype.Text{String: string(newID), Valid: true},
-	})
-	if err != nil {
-		cancel()
 		return db.User{}, err
 	}
 	var replaces []files.FileID
@@ -112,6 +108,26 @@ func (s *AuthService) UploadAvatar(ctx context.Context, userID, filename string,
 		return db.User{}, filesError(err)
 	}
 	if err := releaseFilesInTx(ctx, s.files, q, replaces); err != nil {
+		cancel()
+		return db.User{}, err
+	}
+	cur, err := q.GetUserAvatarFileIDForUpdate(ctx, userID)
+	if err != nil {
+		cancel()
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.User{}, ErrNotFound
+		}
+		return db.User{}, err
+	}
+	if cur.String != prev.String || cur.Valid != prev.Valid {
+		cancel()
+		return db.User{}, ErrConflict
+	}
+	u, err := q.UpdateUserAvatarFile(ctx, db.UpdateUserAvatarFileParams{
+		ID:           userID,
+		AvatarFileID: pgtype.Text{String: string(newID), Valid: true},
+	})
+	if err != nil {
 		cancel()
 		return db.User{}, err
 	}
