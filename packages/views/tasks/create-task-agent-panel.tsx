@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useWorkspaceAgents } from "@uniwork/core/agents";
 import { toUploadResult, type UploadResult } from "@uniwork/core/hooks/use-file-upload";
+import { editorAttachmentPurpose } from "@uniwork/core/constants/upload";
 import { useShortcut } from "@uniwork/core/shortcuts";
 import { useProjects, useTasks, useUploadWorkspaceAttachment } from "@uniwork/core/tasks";
 import { useCreateTaskDraftStore, type CreateTaskDraft } from "@uniwork/core/tasks/stores/create-task-draft-store";
@@ -150,7 +151,10 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
     uploadCountRef.current += 1;
     setUploadCount(uploadCountRef.current);
     try {
-      const attachment = await uploadAttachment.mutateAsync(file);
+      const attachment = await uploadAttachment.mutateAsync({
+        file,
+        purpose: editorAttachmentPurpose(file),
+      });
       const attachments = draftRef.current.attachments ?? [];
       if (!attachments.some((item) => item.id === attachment.id)) updateDraft({ attachments: [...attachments, attachment] });
       return toUploadResult(attachment);

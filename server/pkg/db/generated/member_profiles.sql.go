@@ -66,7 +66,7 @@ func (q *Queries) CountPeople(ctx context.Context, arg CountPeopleParams) (int64
 
 const getPerson = `-- name: GetPerson :one
 SELECT m.user_id, m.role, m.deactivated_at, m.created_at,
-       u.email, u.display_name, u.avatar_url, u.timezone,
+       u.email, u.display_name, u.avatar_url, u.avatar_file_id, u.timezone,
        p.title, p.department_id, p.manager_id, p.employee_code, p.phone, p.phone_visible,
        p.location, p.bio, p.joined_on,
        d.name AS department_name
@@ -90,6 +90,7 @@ type GetPersonRow struct {
 	Email          string             `json:"email"`
 	DisplayName    string             `json:"display_name"`
 	AvatarUrl      pgtype.Text        `json:"avatar_url"`
+	AvatarFileID   pgtype.Text        `json:"avatar_file_id"`
 	Timezone       string             `json:"timezone"`
 	Title          pgtype.Text        `json:"title"`
 	DepartmentID   pgtype.Text        `json:"department_id"`
@@ -114,6 +115,7 @@ func (q *Queries) GetPerson(ctx context.Context, arg GetPersonParams) (GetPerson
 		&i.Email,
 		&i.DisplayName,
 		&i.AvatarUrl,
+		&i.AvatarFileID,
 		&i.Timezone,
 		&i.Title,
 		&i.DepartmentID,
@@ -130,7 +132,7 @@ func (q *Queries) GetPerson(ctx context.Context, arg GetPersonParams) (GetPerson
 }
 
 const listDirectReports = `-- name: ListDirectReports :many
-SELECT m.user_id, u.display_name, u.avatar_url
+SELECT m.user_id, u.display_name, u.avatar_url, u.avatar_file_id
 FROM organization_member_profiles p
 JOIN organization_members m ON m.organization_id = p.organization_id AND m.user_id = p.user_id
 JOIN users u ON u.id = p.user_id
@@ -146,9 +148,10 @@ type ListDirectReportsParams struct {
 }
 
 type ListDirectReportsRow struct {
-	UserID      string      `json:"user_id"`
-	DisplayName string      `json:"display_name"`
-	AvatarUrl   pgtype.Text `json:"avatar_url"`
+	UserID       string      `json:"user_id"`
+	DisplayName  string      `json:"display_name"`
+	AvatarUrl    pgtype.Text `json:"avatar_url"`
+	AvatarFileID pgtype.Text `json:"avatar_file_id"`
 }
 
 func (q *Queries) ListDirectReports(ctx context.Context, arg ListDirectReportsParams) ([]ListDirectReportsRow, error) {
@@ -160,7 +163,12 @@ func (q *Queries) ListDirectReports(ctx context.Context, arg ListDirectReportsPa
 	items := []ListDirectReportsRow{}
 	for rows.Next() {
 		var i ListDirectReportsRow
-		if err := rows.Scan(&i.UserID, &i.DisplayName, &i.AvatarUrl); err != nil {
+		if err := rows.Scan(
+			&i.UserID,
+			&i.DisplayName,
+			&i.AvatarUrl,
+			&i.AvatarFileID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -322,7 +330,7 @@ func (q *Queries) ListProfileSearchSources(ctx context.Context, arg ListProfileS
 
 const searchPeople = `-- name: SearchPeople :many
 SELECT m.user_id, m.role, m.deactivated_at, m.created_at,
-       u.email, u.display_name, u.avatar_url, u.timezone,
+       u.email, u.display_name, u.avatar_url, u.avatar_file_id, u.timezone,
        p.title, p.department_id, p.manager_id, p.employee_code, p.phone, p.phone_visible,
        p.location, p.bio, p.joined_on,
        d.name AS department_name
@@ -373,6 +381,7 @@ type SearchPeopleRow struct {
 	Email          string             `json:"email"`
 	DisplayName    string             `json:"display_name"`
 	AvatarUrl      pgtype.Text        `json:"avatar_url"`
+	AvatarFileID   pgtype.Text        `json:"avatar_file_id"`
 	Timezone       string             `json:"timezone"`
 	Title          pgtype.Text        `json:"title"`
 	DepartmentID   pgtype.Text        `json:"department_id"`
@@ -422,6 +431,7 @@ func (q *Queries) SearchPeople(ctx context.Context, arg SearchPeopleParams) ([]S
 			&i.Email,
 			&i.DisplayName,
 			&i.AvatarUrl,
+			&i.AvatarFileID,
 			&i.Timezone,
 			&i.Title,
 			&i.DepartmentID,

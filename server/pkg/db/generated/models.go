@@ -99,14 +99,15 @@ type AiUsageEvent struct {
 }
 
 type Attachment struct {
-	ID              string             `json:"id"`
-	OrganizationID  string             `json:"organization_id"`
-	WorkspaceID     string             `json:"workspace_id"`
-	TaskID          pgtype.Text        `json:"task_id"`
-	CommentID       pgtype.Text        `json:"comment_id"`
-	UploaderType    string             `json:"uploader_type"`
-	UploaderID      string             `json:"uploader_id"`
-	ObjectKey       string             `json:"object_key"`
+	ID             string      `json:"id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	TaskID         pgtype.Text `json:"task_id"`
+	CommentID      pgtype.Text `json:"comment_id"`
+	UploaderType   string      `json:"uploader_type"`
+	UploaderID     string      `json:"uploader_id"`
+	// Legacy storage locator; NULL for FileService rows located by file_id.
+	ObjectKey       pgtype.Text        `json:"object_key"`
 	ObjectUrl       pgtype.Text        `json:"object_url"`
 	Filename        string             `json:"filename"`
 	ContentType     string             `json:"content_type"`
@@ -116,6 +117,10 @@ type Attachment struct {
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
+	// FileService file id (FS-C1); NULL = legacy storage row located by object_key.
+	FileID pgtype.Text `json:"file_id"`
+	// FS-C1 upload purpose that produced the file; NULL for legacy rows.
+	Purpose pgtype.Text `json:"purpose"`
 }
 
 type AuditEvent struct {
@@ -1333,6 +1338,8 @@ type User struct {
 	MfaEnabledAt            pgtype.Timestamptz `json:"mfa_enabled_at"`
 	MfaRecoveryCodes        []string           `json:"mfa_recovery_codes"`
 	DeletedAt               pgtype.Timestamptz `json:"deleted_at"`
+	// FileService file id of the account avatar; NULL = avatar_url (legacy or external) is the source.
+	AvatarFileID pgtype.Text `json:"avatar_file_id"`
 }
 
 type WebhookInbox struct {

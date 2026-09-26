@@ -11,6 +11,7 @@ import {
   useUploadTaskAttachment,
 } from "@uniwork/core/tasks";
 import type { Task } from "@uniwork/core/types";
+import { editorAttachmentPurpose } from "@uniwork/core/constants/upload";
 import { useMembers } from "@uniwork/core/workspaces";
 import { FileUploadButton } from "@uniwork/ui/components/common/file-upload-button";
 import { ReactionBar } from "@uniwork/ui/components/common/reaction-bar";
@@ -55,7 +56,10 @@ export function TaskDetailEditors({
   const addReaction = useAddTaskReaction(task.id);
   const removeReaction = useRemoveTaskReaction(task.id);
   const { upload, uploading } = useEditorUpload(async (file) => {
-    const attachment = await uploadMutation.mutateAsync(file);
+    const attachment = await uploadMutation.mutateAsync({
+      file,
+      purpose: editorAttachmentPurpose(file),
+    });
     if (!attachment) throw new Error("upload failed");
     return attachment;
   });

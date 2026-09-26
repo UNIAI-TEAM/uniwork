@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -33,11 +34,17 @@ type PeopleService struct {
 	pool *pgxpool.Pool
 	q    *db.Queries
 	orgs *OrganizationService
+	// files is optional: with FileService wired, directory avatars stored as
+	// file ids resolve to presigned URLs (UNI-744).
+	files files.Service
 }
 
 func NewPeopleService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationService) *PeopleService {
 	return &PeopleService{pool: pool, q: q, orgs: orgs}
 }
+
+// SetFiles selects the FileService path for avatar URL emission.
+func (s *PeopleService) SetFiles(f files.Service) { s.files = f }
 
 // PersonView is one directory entry: global identity, the membership, and the
 // profile, already reduced to what this viewer may see.
@@ -193,6 +200,11 @@ func (s *PeopleService) Search(ctx context.Context, actorID, orgID string, f Peo
 		page.NextCursor = encodeMemberCursor(last.DisplayName, last.UserID)
 		rows = rows[:limit]
 	}
+	decorateMemberAvatars(ctx, s.files, rows, func(r db.SearchPeopleRow) avatarRow {
+		return avatarRow{UserID: r.UserID, AvatarURL: r.AvatarUrl, FileID: r.AvatarFileID}
+	}, func(r *db.SearchPeopleRow, url string) {
+		r.AvatarUrl = pgtype.Text{String: url, Valid: true}
+	})
 	for _, r := range rows {
 		page.People = append(page.People, personFromSearchRow(r, actorID, m.Role))
 	}
@@ -212,10 +224,20 @@ func (s *PeopleService) Get(ctx context.Context, actorID, orgID, userID string) 
 	if err != nil {
 		return PersonView{}, nil, err
 	}
+	if s.files != nil && row.AvatarFileID.Valid && row.AvatarFileID.String != "" && !row.AvatarUrl.Valid {
+		if url, ok := resolveAvatarURL(ctx, s.files, row.UserID, files.FileID(row.AvatarFileID.String)); ok {
+			row.AvatarUrl = pgtype.Text{String: url, Valid: true}
+		}
+	}
 	reports, err := s.q.ListDirectReports(ctx, db.ListDirectReportsParams{OrganizationID: orgID, ManagerID: pgtype.Text{String: userID, Valid: true}})
 	if err != nil {
 		return PersonView{}, nil, err
 	}
+	decorateMemberAvatars(ctx, s.files, reports, func(r db.ListDirectReportsRow) avatarRow {
+		return avatarRow{UserID: r.UserID, AvatarURL: r.AvatarUrl, FileID: r.AvatarFileID}
+	}, func(r *db.ListDirectReportsRow, url string) {
+		r.AvatarUrl = pgtype.Text{String: url, Valid: true}
+	})
 	out := make([]ActorInfo, 0, len(reports))
 	for _, r := range reports {
 		out = append(out, ActorInfo{ID: r.UserID, Kind: audit.KindHuman, DisplayName: r.DisplayName, AvatarURL: textOrEmpty(r.AvatarUrl)})

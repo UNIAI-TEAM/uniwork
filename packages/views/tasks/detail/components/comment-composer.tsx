@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ArrowUp } from "lucide-react";
 import type { UploadFileFn } from "@uniwork/core/hooks/use-file-upload";
+import { TASK_COMMENT_ATTACHMENT_PURPOSE } from "@uniwork/core/constants/upload";
 import type { Attachment } from "@uniwork/core/types";
 import { FileUploadButton } from "@uniwork/ui/components/common/file-upload-button";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -216,7 +217,9 @@ export function TaskCommentComposer({
             onUploadingChange={uploadGate.onUploadingChange}
             attachments={attachments}
             currentTaskId={taskId}
-            onUploadFile={(file) => editorUpload.upload(file, { taskId })}
+            onUploadFile={(file) =>
+              editorUpload.upload(file, { taskId, purpose: TASK_COMMENT_ATTACHMENT_PURPOSE })
+            }
             onUpdate={(md) => {
               // isEmpty drives the Send button and must never lag the caret.
               setIsEmpty(!md.trim());

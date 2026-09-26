@@ -482,7 +482,7 @@ func (q *Queries) ListPendingOrganizationInvitations(ctx context.Context, organi
 
 const listWorkspaceMembers = `-- name: ListWorkspaceMembers :many
 SELECT m.workspace_id, m.user_id, m.role, m.created_at,
-       u.email, u.display_name, u.avatar_url
+       u.email, u.display_name, u.avatar_url, u.avatar_file_id
 FROM workspace_members m
 JOIN users u ON u.id = m.user_id
 WHERE m.workspace_id = $1
@@ -490,13 +490,14 @@ ORDER BY m.created_at
 `
 
 type ListWorkspaceMembersRow struct {
-	WorkspaceID string             `json:"workspace_id"`
-	UserID      string             `json:"user_id"`
-	Role        string             `json:"role"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	Email       string             `json:"email"`
-	DisplayName string             `json:"display_name"`
-	AvatarUrl   pgtype.Text        `json:"avatar_url"`
+	WorkspaceID  string             `json:"workspace_id"`
+	UserID       string             `json:"user_id"`
+	Role         string             `json:"role"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	Email        string             `json:"email"`
+	DisplayName  string             `json:"display_name"`
+	AvatarUrl    pgtype.Text        `json:"avatar_url"`
+	AvatarFileID pgtype.Text        `json:"avatar_file_id"`
 }
 
 func (q *Queries) ListWorkspaceMembers(ctx context.Context, workspaceID string) ([]ListWorkspaceMembersRow, error) {
@@ -516,6 +517,7 @@ func (q *Queries) ListWorkspaceMembers(ctx context.Context, workspaceID string) 
 			&i.Email,
 			&i.DisplayName,
 			&i.AvatarUrl,
+			&i.AvatarFileID,
 		); err != nil {
 			return nil, err
 		}

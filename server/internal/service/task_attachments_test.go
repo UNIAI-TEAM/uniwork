@@ -21,7 +21,7 @@ func TestUploadListGetOpenDeleteAttachment(t *testing.T) {
 	}
 
 	body := []byte("# hello\n")
-	att, err := s.UploadTaskAttachment(ctx, Human(ua.ID), task.ID, "note.md", "text/markdown", int64(len(body)), bytes.NewReader(body))
+	att, err := s.UploadTaskAttachment(ctx, Human(ua.ID), task.ID, "", "note.md", "text/markdown", int64(len(body)), bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,11 +29,11 @@ func TestUploadListGetOpenDeleteAttachment(t *testing.T) {
 		t.Fatalf("upload = %+v", att)
 	}
 	wantKey := "workspaces/" + w.ID + "/attachments/" + att.ID + "/note.md"
-	if att.ObjectKey != wantKey {
-		t.Fatalf("object_key = %q, want %q", att.ObjectKey, wantKey)
+	if att.ObjectKey.String != wantKey {
+		t.Fatalf("object_key = %q, want %q", att.ObjectKey.String, wantKey)
 	}
-	if !bytes.Equal(store.objects[att.ObjectKey], body) {
-		t.Fatalf("stored body = %q", store.objects[att.ObjectKey])
+	if !bytes.Equal(store.objects[att.ObjectKey.String], body) {
+		t.Fatalf("stored body = %q", store.objects[att.ObjectKey.String])
 	}
 
 	listed, err := s.ListTaskAttachments(ctx, Human(ua.ID), task.ID)
@@ -78,7 +78,7 @@ func TestUploadListGetOpenDeleteAttachment(t *testing.T) {
 	if err := s.DeleteAttachment(ctx, Human(ua.ID), att.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := store.objects[att.ObjectKey]; ok {
+	if _, ok := store.objects[att.ObjectKey.String]; ok {
 		t.Fatal("storage object still present after delete")
 	}
 	if _, err := s.GetAttachment(ctx, Human(ua.ID), att.ID); !errors.Is(err, ErrNotFound) {
@@ -104,13 +104,13 @@ func TestUploadAttachmentRejectsOversizeAndBadMIME(t *testing.T) {
 	}
 
 	over := int64(MaxAttachmentBytes + 1)
-	_, err = s.UploadTaskAttachment(ctx, Human(ua.ID), task.ID, "big.bin", "application/pdf", over, strings.NewReader("x"))
+	_, err = s.UploadTaskAttachment(ctx, Human(ua.ID), task.ID, "", "big.bin", "application/pdf", over, strings.NewReader("x"))
 	var coded CodedError
 	if !errors.As(err, &coded) || coded.Status != http.StatusRequestEntityTooLarge {
 		t.Fatalf("oversize: %v", err)
 	}
 
-	_, err = s.UploadTaskAttachment(ctx, Human(ua.ID), task.ID, "evil.exe", "application/x-msdownload", 4, strings.NewReader("MZ\x00\x00"))
+	_, err = s.UploadTaskAttachment(ctx, Human(ua.ID), task.ID, "", "evil.exe", "application/x-msdownload", 4, strings.NewReader("MZ\x00\x00"))
 	if !errors.As(err, &coded) || coded.Status != http.StatusBadRequest {
 		var ve ValidationError
 		if !errors.As(err, &ve) {
@@ -124,7 +124,7 @@ func TestStageAttachmentAndBindAtomicallyOnTaskCreate(t *testing.T) {
 	ctx := context.Background()
 	body := []byte("# draft\n")
 
-	att, err := s.UploadWorkspaceAttachment(ctx, Human(ua.ID), w.ID, "draft.md", "text/markdown", int64(len(body)), bytes.NewReader(body))
+	att, err := s.UploadWorkspaceAttachment(ctx, Human(ua.ID), w.ID, "", "draft.md", "text/markdown", int64(len(body)), bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,7 @@ func TestCreateTaskRejectsForeignOrAlreadyBoundAttachment(t *testing.T) {
 	s, _, _, ua, _, w := taskFixtureWithStorage(t)
 	ctx := context.Background()
 	body := []byte("x")
-	att, err := s.UploadWorkspaceAttachment(ctx, Human(ua.ID), w.ID, "one.txt", "text/plain", 1, bytes.NewReader(body))
+	att, err := s.UploadWorkspaceAttachment(ctx, Human(ua.ID), w.ID, "", "one.txt", "text/plain", 1, bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestStagedAttachmentIsPrivateToUploader(t *testing.T) {
 	if err := s.q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: w.ID, UserID: ub.ID, Role: "member"}); err != nil {
 		t.Fatal(err)
 	}
-	att, err := s.UploadWorkspaceAttachment(ctx, Human(ua.ID), w.ID, "private.txt", "text/plain", 1, strings.NewReader("x"))
+	att, err := s.UploadWorkspaceAttachment(ctx, Human(ua.ID), w.ID, "", "private.txt", "text/plain", 1, strings.NewReader("x"))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -13,12 +13,13 @@ import (
 
 const anonymizeUser = `-- name: AnonymizeUser :one
 UPDATE users SET
-  email = $2, display_name = $3, password_hash = NULL, avatar_url = NULL, google_id = NULL,
+  email = $2, display_name = $3, password_hash = NULL, avatar_url = NULL, avatar_file_id = NULL,
+  google_id = NULL,
   totp_secret = NULL, mfa_enabled_at = NULL, mfa_recovery_codes = '{}',
   platform_role = NULL, matrix_user_id = NULL, onboarding_questionnaire = '{}'::jsonb,
   deleted_at = now(), updated_at = now()
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
 `
 
 type AnonymizeUserParams struct {
@@ -53,6 +54,7 @@ func (q *Queries) AnonymizeUser(ctx context.Context, arg AnonymizeUserParams) (U
 		&i.MfaEnabledAt,
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
@@ -90,7 +92,7 @@ func (q *Queries) CountOwnedOrganizationsForUser(ctx context.Context, userID str
 const createGoogleUser = `-- name: CreateGoogleUser :one
 INSERT INTO users (id, email, display_name, avatar_url, google_id, email_verified_at, locale)
 VALUES ($1, $2, $3, $4, $5, now(), $6)
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
 `
 
 type CreateGoogleUserParams struct {
@@ -134,6 +136,7 @@ func (q *Queries) CreateGoogleUser(ctx context.Context, arg CreateGoogleUserPara
 		&i.MfaEnabledAt,
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
@@ -141,7 +144,7 @@ func (q *Queries) CreateGoogleUser(ctx context.Context, arg CreateGoogleUserPara
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (id, email, password_hash, display_name, locale)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
 `
 
 type CreateUserParams struct {
@@ -183,6 +186,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.MfaEnabledAt,
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
@@ -200,7 +204,7 @@ func (q *Queries) DeactivateAllOrganizationMembershipsForUser(ctx context.Contex
 const disableUserMFA = `-- name: DisableUserMFA :one
 UPDATE users SET totp_secret = NULL, mfa_enabled_at = NULL, mfa_recovery_codes = '{}', updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
 `
 
 func (q *Queries) DisableUserMFA(ctx context.Context, id string) (User, error) {
@@ -228,6 +232,7 @@ func (q *Queries) DisableUserMFA(ctx context.Context, id string) (User, error) {
 		&i.MfaEnabledAt,
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
@@ -235,7 +240,7 @@ func (q *Queries) DisableUserMFA(ctx context.Context, id string) (User, error) {
 const enableUserMFA = `-- name: EnableUserMFA :one
 UPDATE users SET mfa_enabled_at = now(), mfa_recovery_codes = $2, updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
 `
 
 type EnableUserMFAParams struct {
@@ -268,12 +273,41 @@ func (q *Queries) EnableUserMFA(ctx context.Context, arg EnableUserMFAParams) (U
 		&i.MfaEnabledAt,
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
 
+const getUserAvatarFileID = `-- name: GetUserAvatarFileID :one
+SELECT avatar_file_id FROM users WHERE id = $1
+`
+
+// Non-locking read that opens a FileService swap: the claim/release has to
+// lock files rows before this transaction locks the user row (FS-C1 §5.4),
+// and the FOR UPDATE re-read afterwards is what serializes a concurrent
+// replace.
+func (q *Queries) GetUserAvatarFileID(ctx context.Context, id string) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, getUserAvatarFileID, id)
+	var avatar_file_id pgtype.Text
+	err := row.Scan(&avatar_file_id)
+	return avatar_file_id, err
+}
+
+const getUserAvatarFileIDForUpdate = `-- name: GetUserAvatarFileIDForUpdate :one
+SELECT avatar_file_id FROM users WHERE id = $1 FOR UPDATE
+`
+
+// Reads the current avatar file under the row lock so a concurrent replace
+// serializes here instead of releasing the same file twice.
+func (q *Queries) GetUserAvatarFileIDForUpdate(ctx context.Context, id string) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, getUserAvatarFileIDForUpdate, id)
+	var avatar_file_id pgtype.Text
+	err := row.Scan(&avatar_file_id)
+	return avatar_file_id, err
+}
+
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at FROM users WHERE email = $1
+SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -301,12 +335,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.MfaEnabledAt,
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
 
 const getUserByGoogleID = `-- name: GetUserByGoogleID :one
-SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at FROM users WHERE google_id = $1
+SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id FROM users WHERE google_id = $1
 `
 
 func (q *Queries) GetUserByGoogleID(ctx context.Context, googleID pgtype.Text) (User, error) {
@@ -334,12 +369,13 @@ func (q *Queries) GetUserByGoogleID(ctx context.Context, googleID pgtype.Text) (
 		&i.MfaEnabledAt,
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at FROM users WHERE id = $1
+SELECT id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
@@ -367,18 +403,20 @@ func (q *Queries) GetUserByID(ctx context.Context, id string) (User, error) {
 		&i.MfaEnabledAt,
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
 
 const getUsersByIDs = `-- name: GetUsersByIDs :many
-SELECT id, display_name, avatar_url FROM users WHERE id = ANY($1::text[])
+SELECT id, display_name, avatar_url, avatar_file_id FROM users WHERE id = ANY($1::text[])
 `
 
 type GetUsersByIDsRow struct {
-	ID          string      `json:"id"`
-	DisplayName string      `json:"display_name"`
-	AvatarUrl   pgtype.Text `json:"avatar_url"`
+	ID           string      `json:"id"`
+	DisplayName  string      `json:"display_name"`
+	AvatarUrl    pgtype.Text `json:"avatar_url"`
+	AvatarFileID pgtype.Text `json:"avatar_file_id"`
 }
 
 func (q *Queries) GetUsersByIDs(ctx context.Context, ids []string) ([]GetUsersByIDsRow, error) {
@@ -390,7 +428,12 @@ func (q *Queries) GetUsersByIDs(ctx context.Context, ids []string) ([]GetUsersBy
 	items := []GetUsersByIDsRow{}
 	for rows.Next() {
 		var i GetUsersByIDsRow
-		if err := rows.Scan(&i.ID, &i.DisplayName, &i.AvatarUrl); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.DisplayName,
+			&i.AvatarUrl,
+			&i.AvatarFileID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -408,7 +451,7 @@ UPDATE users SET
   avatar_url = COALESCE(avatar_url, $3),
   updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
 `
 
 type LinkGoogleAccountParams struct {
@@ -442,14 +485,44 @@ func (q *Queries) LinkGoogleAccount(ctx context.Context, arg LinkGoogleAccountPa
 		&i.MfaEnabledAt,
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
+		&i.AvatarFileID,
 	)
 	return i, err
+}
+
+const listUserAvatarFileIDs = `-- name: ListUserAvatarFileIDs :many
+SELECT avatar_file_id
+FROM users
+WHERE deleted_at IS NULL
+  AND avatar_file_id = ANY($1::text[])
+`
+
+// Reference-provider view: which of these file ids a live (not deleted)
+// account still wears as its avatar.
+func (q *Queries) ListUserAvatarFileIDs(ctx context.Context, fileIds []string) ([]pgtype.Text, error) {
+	rows, err := q.db.Query(ctx, listUserAvatarFileIDs, fileIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.Text{}
+	for rows.Next() {
+		var avatar_file_id pgtype.Text
+		if err := rows.Scan(&avatar_file_id); err != nil {
+			return nil, err
+		}
+		items = append(items, avatar_file_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const markEmailVerified = `-- name: MarkEmailVerified :one
 UPDATE users SET email_verified_at = COALESCE(email_verified_at, now()), updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
 `
 
 func (q *Queries) MarkEmailVerified(ctx context.Context, id string) (User, error) {
@@ -477,6 +550,7 @@ func (q *Queries) MarkEmailVerified(ctx context.Context, id string) (User, error
 		&i.MfaEnabledAt,
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
@@ -484,7 +558,7 @@ func (q *Queries) MarkEmailVerified(ctx context.Context, id string) (User, error
 const markUserOnboarded = `-- name: MarkUserOnboarded :one
 UPDATE users SET onboarded_at = COALESCE(onboarded_at, now()), updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
 `
 
 func (q *Queries) MarkUserOnboarded(ctx context.Context, id string) (User, error) {
@@ -512,6 +586,7 @@ func (q *Queries) MarkUserOnboarded(ctx context.Context, id string) (User, error
 		&i.MfaEnabledAt,
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
@@ -521,7 +596,7 @@ UPDATE users SET
   onboarding_questionnaire = COALESCE($1, onboarding_questionnaire),
   updated_at = now()
 WHERE id = $2
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
 `
 
 type PatchUserOnboardingParams struct {
@@ -554,6 +629,7 @@ func (q *Queries) PatchUserOnboarding(ctx context.Context, arg PatchUserOnboardi
 		&i.MfaEnabledAt,
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
@@ -582,7 +658,7 @@ func (q *Queries) ScrubMemberProfilesForUser(ctx context.Context, userID string)
 const setUserMatrixUserID = `-- name: SetUserMatrixUserID :one
 UPDATE users SET matrix_user_id = $2, updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
 `
 
 type SetUserMatrixUserIDParams struct {
@@ -615,6 +691,7 @@ func (q *Queries) SetUserMatrixUserID(ctx context.Context, arg SetUserMatrixUser
 		&i.MfaEnabledAt,
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
@@ -637,9 +714,9 @@ func (q *Queries) SetUserTOTPSecret(ctx context.Context, arg SetUserTOTPSecretPa
 }
 
 const updateUserAvatar = `-- name: UpdateUserAvatar :one
-UPDATE users SET avatar_url = $2, updated_at = now()
+UPDATE users SET avatar_url = $2, avatar_file_id = NULL, updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
 `
 
 type UpdateUserAvatarParams struct {
@@ -647,6 +724,8 @@ type UpdateUserAvatarParams struct {
 	AvatarUrl pgtype.Text `json:"avatar_url"`
 }
 
+// avatar_file_id clears with the URL write: a caller that stores a URL —
+// legacy or external (Google) — is declaring the URL the avatar source again.
 func (q *Queries) UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarParams) (User, error) {
 	row := q.db.QueryRow(ctx, updateUserAvatar, arg.ID, arg.AvatarUrl)
 	var i User
@@ -672,6 +751,51 @@ func (q *Queries) UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarPara
 		&i.MfaEnabledAt,
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
+		&i.AvatarFileID,
+	)
+	return i, err
+}
+
+const updateUserAvatarFile = `-- name: UpdateUserAvatarFile :one
+UPDATE users SET avatar_file_id = $2, avatar_url = NULL, updated_at = now()
+WHERE id = $1
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
+`
+
+type UpdateUserAvatarFileParams struct {
+	ID           string      `json:"id"`
+	AvatarFileID pgtype.Text `json:"avatar_file_id"`
+}
+
+// The FileService swap: the new file id replaces the reference and the URL
+// column clears — for a file-backed avatar the served URL is resolved on read
+// and never persisted (FS-C1 T1-Q7).
+func (q *Queries) UpdateUserAvatarFile(ctx context.Context, arg UpdateUserAvatarFileParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserAvatarFile, arg.ID, arg.AvatarFileID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.PasswordHash,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OnboardedAt,
+		&i.OnboardingQuestionnaire,
+		&i.EmailVerifiedAt,
+		&i.GoogleID,
+		&i.Locale,
+		&i.MatrixUserID,
+		&i.PlatformRole,
+		&i.Timezone,
+		&i.PlatformRoleGrantedBy,
+		&i.PlatformRoleGrantedAt,
+		&i.TotpSecret,
+		&i.MfaEnabledAt,
+		&i.MfaRecoveryCodes,
+		&i.DeletedAt,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
@@ -679,7 +803,7 @@ func (q *Queries) UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarPara
 const updateUserPassword = `-- name: UpdateUserPassword :one
 UPDATE users SET password_hash = $2, updated_at = now()
 WHERE id = $1
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
 `
 
 type UpdateUserPasswordParams struct {
@@ -712,6 +836,7 @@ func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPassword
 		&i.MfaEnabledAt,
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
@@ -723,7 +848,7 @@ UPDATE users SET
   timezone     = COALESCE($3, timezone),
   updated_at   = now()
 WHERE id = $4
-RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at
+RETURNING id, email, password_hash, display_name, avatar_url, created_at, updated_at, onboarded_at, onboarding_questionnaire, email_verified_at, google_id, locale, matrix_user_id, platform_role, timezone, platform_role_granted_by, platform_role_granted_at, totp_secret, mfa_enabled_at, mfa_recovery_codes, deleted_at, avatar_file_id
 `
 
 type UpdateUserProfileParams struct {
@@ -765,6 +890,7 @@ func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfilePa
 		&i.MfaEnabledAt,
 		&i.MfaRecoveryCodes,
 		&i.DeletedAt,
+		&i.AvatarFileID,
 	)
 	return i, err
 }
