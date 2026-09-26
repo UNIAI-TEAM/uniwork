@@ -114,9 +114,10 @@ func (s *ChatService) sendChatMedia(
 
 	msg, created, err := s.commitChatMediaMessage(ctx, userID, room, in, up.File, scope, actor, replyTo)
 	if err != nil {
-		if codedIs(err, files.CodeIdempotencyConflict) {
-			s.cancelStagedUpload(ctx, actor, scope, up.File.ID)
-		}
+		// Any terminal error after the upload leaves a staged object; cancel
+		// reclaims it now instead of waiting for the 24h claim window. A file
+		// that did get claimed reports already_claimed and stays.
+		s.cancelStagedUpload(ctx, actor, scope, up.File.ID)
 		return ChatMessageRow{}, err
 	}
 	if created {
@@ -343,10 +344,21 @@ func (s *ChatService) openChatMediaMessage(
 	if !infoOk {
 		return ChatMessageRow{}, files.Reader{}, ErrNotFound
 	}
-	// The column is authoritative; metadata carries the same id for list rows.
+	// The column is authoritative; the metadata view carries the same id and
+	// is the fallback for a row written by a data fix that set only the
+	// metadata side (no T7 writer produces that shape, but readers stay
+	// tolerant).
 	fileID := ""
 	if msg.FileID.Valid {
 		fileID = msg.FileID.String
+	}
+	if fileID == "" {
+		switch wantKind {
+		case "file":
+			fileID = row.File.FileID
+		case "voice":
+			fileID = row.Voice.FileID
+		}
 	}
 	if fileID == "" {
 		// Legacy row: bytes still sit behind the storage object key.
