@@ -78,7 +78,7 @@ func TestRemoveOneOfManyTaskAttachments(t *testing.T) {
 	bodies := [][]byte{[]byte("one\n"), []byte("two\n"), []byte("three\n")}
 	atts := make([]db.Attachment, 0, len(files))
 	for i, name := range files {
-		att, err := s.UploadTaskAttachment(ctx, Human(ua.ID), task.ID, name, "text/plain", int64(len(bodies[i])), bytes.NewReader(bodies[i]))
+		att, err := s.UploadTaskAttachment(ctx, Human(ua.ID), task.ID, "", name, "text/plain", int64(len(bodies[i])), bytes.NewReader(bodies[i]))
 		if err != nil {
 			t.Fatalf("upload %s: %v", name, err)
 		}
@@ -88,7 +88,7 @@ func TestRemoveOneOfManyTaskAttachments(t *testing.T) {
 	if err := s.DeleteAttachment(ctx, Human(ua.ID), atts[1].ID); err != nil {
 		t.Fatalf("delete middle attachment: %v", err)
 	}
-	if _, ok := store.objects[atts[1].ObjectKey]; ok {
+	if _, ok := store.objects[atts[1].ObjectKey.String]; ok {
 		t.Fatal("storage object of the deleted attachment is still present")
 	}
 	if _, err := s.GetAttachment(ctx, Human(ua.ID), atts[1].ID); !errors.Is(err, ErrNotFound) {
@@ -126,7 +126,7 @@ func TestDescriptionImageAttachmentSurvivesTaskReload(t *testing.T) {
 	}
 
 	pngBytes := makeRegressionPNG(t, color.NRGBA{R: 0x22, G: 0x66, B: 0xcc, A: 0xff})
-	att, err := s.UploadTaskAttachment(ctx, Human(ua.ID), task.ID, "shot.png", "image/png", int64(len(pngBytes)), bytes.NewReader(pngBytes))
+	att, err := s.UploadTaskAttachment(ctx, Human(ua.ID), task.ID, "", "shot.png", "image/png", int64(len(pngBytes)), bytes.NewReader(pngBytes))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +175,7 @@ func TestCommentAttachmentStaysReadableAfterCommentSave(t *testing.T) {
 	}
 
 	body := []byte("log line\n")
-	att, err := s.UploadTaskAttachment(ctx, Human(ua.ID), task.ID, "log.txt", "text/plain", int64(len(body)), bytes.NewReader(body))
+	att, err := s.UploadTaskAttachment(ctx, Human(ua.ID), task.ID, "", "log.txt", "text/plain", int64(len(body)), bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,7 +226,7 @@ func TestAttachmentFromAnotherOrganizationIsBlocked(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	att, err := s.UploadTaskAttachment(ctx, Human(ua.ID), task.ID, "secret.txt", "text/plain", 7, strings.NewReader("secret\n"))
+	att, err := s.UploadTaskAttachment(ctx, Human(ua.ID), task.ID, "", "secret.txt", "text/plain", 7, strings.NewReader("secret\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -248,7 +248,7 @@ func TestAttachmentFromAnotherOrganizationIsBlocked(t *testing.T) {
 	if err != nil || got.ID != att.ID {
 		t.Fatalf("owner read after blocked guesses: %+v %v", got, err)
 	}
-	if _, ok := store.objects[att.ObjectKey]; !ok {
+	if _, ok := store.objects[att.ObjectKey.String]; !ok {
 		t.Fatal("blocked cross-org calls changed storage")
 	}
 }

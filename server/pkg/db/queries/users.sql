@@ -22,9 +22,39 @@ WHERE id = $1
 RETURNING *;
 
 -- name: UpdateUserAvatar :one
-UPDATE users SET avatar_url = $2, updated_at = now()
+-- avatar_file_id clears with the URL write: a caller that stores a URL —
+-- legacy or external (Google) — is declaring the URL the avatar source again.
+UPDATE users SET avatar_url = $2, avatar_file_id = NULL, updated_at = now()
 WHERE id = $1
 RETURNING *;
+
+-- The FileService swap: the new file id replaces the reference and the URL
+-- column clears — for a file-backed avatar the served URL is resolved on read
+-- and never persisted (FS-C1 T1-Q7).
+-- name: UpdateUserAvatarFile :one
+UPDATE users SET avatar_file_id = $2, avatar_url = NULL, updated_at = now()
+WHERE id = $1
+RETURNING *;
+
+-- Non-locking read that opens a FileService swap: the claim/release has to
+-- lock files rows before this transaction locks the user row (FS-C1 §5.4),
+-- and the FOR UPDATE re-read afterwards is what serializes a concurrent
+-- replace.
+-- name: GetUserAvatarFileID :one
+SELECT avatar_file_id FROM users WHERE id = $1;
+
+-- Reads the current avatar file under the row lock so a concurrent replace
+-- serializes here instead of releasing the same file twice.
+-- name: GetUserAvatarFileIDForUpdate :one
+SELECT avatar_file_id FROM users WHERE id = $1 FOR UPDATE;
+
+-- Reference-provider view: which of these file ids a live (not deleted)
+-- account still wears as its avatar.
+-- name: ListUserAvatarFileIDs :many
+SELECT avatar_file_id
+FROM users
+WHERE deleted_at IS NULL
+  AND avatar_file_id = ANY(sqlc.arg('file_ids')::text[]);
 
 -- name: CreateGoogleUser :one
 INSERT INTO users (id, email, display_name, avatar_url, google_id, email_verified_at, locale)
@@ -70,7 +100,7 @@ WHERE id = $1
 RETURNING *;
 
 -- name: GetUsersByIDs :many
-SELECT id, display_name, avatar_url FROM users WHERE id = ANY(sqlc.arg('ids')::text[]);
+SELECT id, display_name, avatar_url, avatar_file_id FROM users WHERE id = ANY(sqlc.arg('ids')::text[]);
 
 -- Identity hardening (F-01, UNI-432).
 
@@ -99,7 +129,8 @@ SELECT count(*) FROM organization_members WHERE user_id = $1 AND role = 'owner';
 -- name: AnonymizeUser :one
 -- Nghị định 13 deletion: identity fields go, the row and its audit trail stay.
 UPDATE users SET
-  email = $2, display_name = $3, password_hash = NULL, avatar_url = NULL, google_id = NULL,
+  email = $2, display_name = $3, password_hash = NULL, avatar_url = NULL, avatar_file_id = NULL,
+  google_id = NULL,
   totp_secret = NULL, mfa_enabled_at = NULL, mfa_recovery_codes = '{}',
   platform_role = NULL, matrix_user_id = NULL, onboarding_questionnaire = '{}'::jsonb,
   deleted_at = now(), updated_at = now()

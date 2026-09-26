@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import type { Attachment } from "@uniwork/core/types";
 import type { UploadFileFn } from "@uniwork/core/hooks/use-file-upload";
+import { TASK_COMMENT_ATTACHMENT_PURPOSE } from "@uniwork/core/constants/upload";
 import { FileUploadButton } from "@uniwork/ui/components/common/file-upload-button";
 import { ContentEditor, type ContentEditorRef, useEditorUpload, useUploadGate } from "../../../editor";
 
@@ -42,7 +43,9 @@ export function TaskCommentEditor({ taskId, body, attachments, uploadFile, onSav
         debounceMs={0}
         attachments={attachments}
         currentTaskId={taskId}
-        onUploadFile={(file) => editorUpload.upload(file, { taskId })}
+        onUploadFile={(file) =>
+          editorUpload.upload(file, { taskId, purpose: TASK_COMMENT_ATTACHMENT_PURPOSE })
+        }
         onUploadingChange={uploadGate.onUploadingChange}
         onUpdate={setDraft}
         onSubmit={() => void save()}
