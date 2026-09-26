@@ -518,6 +518,50 @@ type File struct {
 	DeletedAt pgtype.Timestamptz `json:"deleted_at"`
 }
 
+// Per-cohort keyset cursor + counters; committed in the same transaction as the batch it describes, so a crash never advances past unwritten work.
+type FileBackfillCheckpoint struct {
+	RunID     string             `json:"run_id"`
+	Cohort    string             `json:"cohort"`
+	Cursor    string             `json:"cursor"`
+	Seen      int64              `json:"seen"`
+	Applied   int64              `json:"applied"`
+	Skipped   int64              `json:"skipped"`
+	Held      int64              `json:"held"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+// Per-source-row outcome: status is verified/applied/already_applied/unresolved/held/foreign/skipped; previous_locator preserves the as-was locator for rollback. The mapping report is derivable from this table.
+type FileBackfillItem struct {
+	RunID         string      `json:"run_id"`
+	Cohort        string      `json:"cohort"`
+	SourceTable   string      `json:"source_table"`
+	SourceID      string      `json:"source_id"`
+	FileID        pgtype.Text `json:"file_id"`
+	Storage       pgtype.Text `json:"storage"`
+	Bucket        pgtype.Text `json:"bucket"`
+	ObjectKey     pgtype.Text `json:"object_key"`
+	ObjectVersion pgtype.Text `json:"object_version"`
+	// Tenant the mapping resolved for this item (NULL for the avatar identity scope and for rows that never resolved). It records a fact about the source row; the table itself is not tenant-scoped.
+	OrganizationID  pgtype.Text        `json:"organization_id"`
+	Status          string             `json:"status"`
+	Reason          string             `json:"reason"`
+	PreviousLocator pgtype.Text        `json:"previous_locator"`
+	Details         []byte             `json:"details"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
+// files-backfill invocations: the run id is the resume token; config records cohorts/batch size/destination fingerprint.
+type FileBackfillRun struct {
+	ID         string             `json:"id"`
+	Command    string             `json:"command"`
+	Config     []byte             `json:"config"`
+	Status     string             `json:"status"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+	FinishedAt pgtype.Timestamptz `json:"finished_at"`
+}
+
 // FileService durable coordination jobs (cleanup, reconcile, abort_multipart) with lease ownership and generation fencing. Internal worker state; the organization_id copy aids cleanup invariants and cross-checks but is not an authorization grant.
 type FileJob struct {
 	// Opaque job id (ULID).
