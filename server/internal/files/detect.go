@@ -191,6 +191,9 @@ func oggType(head []byte) string {
 // else is video/mp4. It returns "" when head has no well-formed ftyp box,
 // leaving the sniffer's answer alone.
 func mp4Type(head []byte) string {
+	// Real ftyp boxes hold a handful of brands (well under 100 bytes); 1024
+	// bytes is 250 brands, far past any writer, so a larger size is not an
+	// ftyp box.
 	const maxFtypLen = 1024
 	if len(head) < 16 || string(head[4:8]) != "ftyp" {
 		return ""

@@ -79,6 +79,34 @@ func TestChatVoiceKeepsLegacyTypes(t *testing.T) {
 	}
 }
 
+// Task and chat files accepted every UTF-8 text as text/plain before
+// FileService; each named text type stays accepted there, and NDJSON is
+// stored as text/plain, as today.
+func TestTextUploadsStayAcceptedWhereTheyWere(t *testing.T) {
+	want := map[string]string{"text": "text/plain", "csv": "text/csv", "markdown": "text/markdown", "ndjson": "text/plain"}
+	for _, purpose := range []files.UploadPurpose{files.TaskAttachment, files.TaskCommentAttachment, files.ChatAttachment} {
+		spec, err := files.DefaultRegistry().Lookup(purpose)
+		if err != nil {
+			t.Fatal(err)
+		}
+		seen := 0
+		for _, s := range filescontract.Samples() {
+			ct, ok := want[s.Name]
+			if !ok {
+				continue
+			}
+			seen++
+			got := spec.Policy.Canonical(files.DetectContentType(s.Body, s.Filename))
+			if got != ct || !spec.Policy.Allows(got) {
+				t.Errorf("%s/%s: stored as %q (allowed %v), want %q", purpose, s.Name, got, spec.Policy.Allows(got), ct)
+			}
+		}
+		if seen != len(want) {
+			t.Errorf("%s: found %d of %d text samples", purpose, seen, len(want))
+		}
+	}
+}
+
 func TestMeetingRecordingKeepsTheEgressType(t *testing.T) {
 	spec, err := files.DefaultRegistry().Lookup(files.MeetingRecording)
 	if err != nil {
