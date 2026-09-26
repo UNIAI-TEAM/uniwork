@@ -100,7 +100,10 @@ func TestAuditExportWritesCSVWithABOM(t *testing.T) {
 }
 
 // A retried row must not upload a second copy — the dispatcher calls every
-// consumer again when a sibling fails.
+// consumer again when a sibling fails. The object key is deterministic, so an
+// unchanged count alone cannot distinguish a correct skip from a buggy re-run
+// onto the same key; the completion stamp can, because a real re-run would set
+// completed_at = now() again.
 func TestAuditExportIsIdempotent(t *testing.T) {
 	f := newAuditServiceFixture(t)
 	store := newMemStorage()
@@ -115,11 +118,23 @@ func TestAuditExportIsIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := len(store.objects)
+	first, err := f.svc.Export(f.ctx, f.ownerA.ID, f.orgA, exp.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := consumer.Handle(f.ctx, row); err != nil {
+		t.Fatal(err)
+	}
+	second, err := f.svc.Export(f.ctx, f.ownerA.ID, f.orgA, exp.ID)
+	if err != nil {
 		t.Fatal(err)
 	}
 	if len(store.objects) != before {
 		t.Fatalf("a retry uploaded again: %d objects, want %d", len(store.objects), before)
+	}
+	if !second.CompletedAt.Time.Equal(first.CompletedAt.Time) ||
+		!second.ExpiresAt.Time.Equal(first.ExpiresAt.Time) {
+		t.Fatalf("the retry re-ran onto the same key: %+v -> %+v", first, second)
 	}
 }
 
@@ -262,6 +277,8 @@ func TestAuditExportCSVCarriesTheEventsOwnValues(t *testing.T) {
 		{5, want.ResourceType},
 		{6, want.ResourceID},
 		{7, want.WorkspaceID.String},
+		{8, want.Changes},
+		{9, want.Metadata},
 		{10, want.CorrelationID},
 	}
 	for _, c := range columns {
