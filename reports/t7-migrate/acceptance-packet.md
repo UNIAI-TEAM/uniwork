@@ -2,7 +2,7 @@
 
 Lane: `t7-migrate` · Run `run_5c1df2ff658d` · Branch `feature/UNI-745-fs-chat-migrate`
 Base: `5291950b` (integration root merged in and evidence re-run on it; includes Gate A0 + the UNI-745/UNI-746 Bước 0 nets)
-Commit under review: `19556745`
+Commits under review: `19556745` (implementation) → `610849f3` (tester-finding fixes) → HEAD (BE-review test additions + this packet)
 
 ## Scope
 
@@ -75,6 +75,9 @@ unchanged legacy ACL/block e2e+handler tests.
   `PrepareFileMessage`/`CreateFileMessage` unchanged.
 - `server/internal/service/chat_voice_message.go` — `SendVoiceMessage`,
   `OpenChatVoiceMessage`, `VoiceMessageInfo.FileID`; legacy pair unchanged.
+  One refactor-only touch: the duration check inside the shared
+  `validateVoiceMessageInput` was extracted to `validateVoiceDurationMS`
+  (same bounds, same message — BE reviewer F-BE-2, informational).
 - `server/internal/service/chat.go` — `files` field only (T8-owned shared
   file; kept to two lines + import so T8's `SetVoiceRecordingFiles` merges
   cleanly).
@@ -117,11 +120,14 @@ time (host guard msg_0f3c85bbd438), `.env.worktree` exported.
 - `go vet ./internal/handler ./internal/service` — **clean**.
 - `go test ./migrations -count=1` — **ok** (900/901 lint clean).
 - FS service suite
-  `go test ./internal/service -run 'FS$|FileReference|ReleasesFileReference|VerifiedBytes' -count=1 -v` —
-  **10 PASS, 1 SKIP** (447s): metadata file_id, replay/conflict,
+  `go test ./internal/service -run 'FS$|FileReference|ReleasesFileReference|VerifiedBytes|MetadataFileIDFallback|CancelsStagedUpload' -count=1 -v` —
+  **12 PASS, 1 SKIP** (308s final run): metadata file_id, replay/conflict,
   concurrent same-key (1 row, 1 event), membership+DM block, release on
   delete + provider before/after, `files.Open` verified bytes, policy
-  refusals (type/oversize), validation, storage_unavailable when unwired.
+  refusals (type/oversize), validation, storage_unavailable when unwired,
+  staged-upload cancel on a post-upload commit error (injected ClaimInTx
+  failure → `file_upload_canceled` on replay; F-BE-1), metadata-only
+  `file_id` read fallback (column NULL → streams via FS; F-BE-1).
   `TestSendVoiceMessageHappyPathFS` SKIPs — pending t1c detector.
 - FS handler suite `go test ./internal/handler -run 'FS$|FSLeaves' -count=1 -v` —
   **2 PASS, 1 SKIP**: upload→claim→DTO→replay→409 conflict→`files.Open`
@@ -157,10 +163,12 @@ time (host guard msg_0f3c85bbd438), `.env.worktree` exported.
 ## Integration requests / flags
 
 1. **Wiring (integrator)**: construct the real `files.Service` in
-   `cmd/server/main.go` (owned by the integrator) and call
-   `chatSvc.SetFiles(fs)`; register `chatSvc.FileReferenceProvider()` with
-   the FS provider registry. Until then production runs the legacy path —
-   exactly as tested.
+   `cmd/server/main.go` (owned by the integrator), call
+   `chatSvc.SetFiles(fs)`, **and register `chatSvc.FileReferenceProvider()`
+   (`chat.messages`) in the same wiring step** — the collector otherwise
+   sees no holds for `chat_messages.file_id` and may reclaim bytes that
+   live messages still reference (tester F-T7-6). Until then production
+   runs the legacy path — exactly as tested.
 2. **Org-less rooms**: `chatFileScope` returns empty org/workspace for
    rooms without them; `ScopeOrgWorkspaceOptional` tolerates that. If a
    stricter scope is decided centrally, chat follows the registry row.
@@ -170,20 +178,55 @@ time (host guard msg_0f3c85bbd438), `.env.worktree` exported.
    t1c-content-detect (UNI-739) owns the shared detector + registry fix;
    the voice tests flip green once it merges. Per Advisor ruling, T7 did
    not touch `registry.go`/`filesfake`.
-4. **Idempotency-key payload digest**: the upload key includes
+4. **`chat_voice` read mode**: the registry row declares `ReadPresign` but
+   chat streams voice bytes through `files.Open` (per-request ACL needs a
+   proxy). Confirm with the FS owner that `Open` is legal for a presign
+   purpose, or flip the row to `ReadProxy` at cutover (tester F-T7-5;
+   the fake does not enforce read mode in `Open`, so nothing catches a
+   mismatch until the real service).
+5. **Error-code vocabulary at cutover**: the FS path surfaces contract
+   codes (`file_type_rejected`/`file_too_large`/`file_not_found`/
+   `idempotency_conflict`) where the legacy path answered
+   `unsupported_media_type`/`too_large`/`not_found`/silent replay. Status
+   codes are unchanged; the FE currently keys off the legacy codes, so the
+   vocabulary must be published (API docs + FE error handling) before the
+   selector flips (tester F-T7-3).
+6. **Idempotency-key payload digest**: the upload key includes
    `sha256(payload)[:8]` so a different recording/file under one
    `client_msg_id` is a different command — needed because the fake's
    `commandFingerprint` does not bind body bytes. If the contract later
    binds payloads into the key, drop the digest from
    `chatMediaUploadKey`.
-5. **Unclaimed staged uploads**: a send that loses a race or conflicts
-   cancels its staged upload; a winner's replayed-by-race duplicate (same
-   bytes) stays staged until GC — bounded, GC-owned, no action needed.
+7. **Unclaimed staged uploads**: post-upload errors cancel the staged
+   upload (fixed per tester F-T7-4 — cancel now runs on every terminal
+   error, not only conflicts); a replayed-by-race duplicate stays staged
+   until GC — bounded, GC-owned.
+8. **Backfill contract for T9b**: rows must carry `file_id` in BOTH the
+   column and the metadata snapshot — the provider reads the column, the
+   read path now tolerates metadata-only references (tester F-T7-2 fix),
+   but a column-only row would still render without file metadata in the
+   DTO (tester F-T7-1, latent).
 
 ## Stage reports
 
 - Tester (codex deepseek-4.1, effort xhigh — requested deepseek-4.1+max,
-  `max` rejected for this model): _pending_
-- BE Reviewer (claude claude-sonnet-5): _pending_
+  `max` rejected for this model): **pass** on all 7 checks (vet, migration
+  lint 18/18, FS service 10+1skip, FS handler 2+1skip, both legacy nets
+  green unchanged, arch guards, adversarial diff review). 6 findings, none
+  blocking; F-T7-2 (metadata file_id fallback) and F-T7-4 (cancel on any
+  post-upload error) fixed in `610849f3` and retested green; F-T7-3/5/6
+  carried as integration flags above. Report:
+  `reports/t7-migrate/tester-r1.md`.
+- BE Reviewer (claude claude-sonnet-5): **`review_verdict: clear`** — no
+  blocking defect; design verified against the diff (one path per request,
+  claim+insert tx, payload-bound upload key, delete release atomic, tenant
+  scope server-derived, DTO never leaks `file_id`/`object_key`, legacy
+  functionally untouched). F-BE-1 (the two `610849f3` fixes lacked
+  regression tests) **closed here** by
+  `TestSendFileMessageCancelsStagedUploadOnCommitErrorFS` +
+  `TestOpenChatFileMessageMetadataFileIDFallbackFS`; F-BE-2 (the
+  `validateVoiceMessageInput` extraction is refactor-only) recorded in the
+  changed-files table above; carried F-T7-1/3/5/6 remain integration-stage
+  items as listed. Report: `reports/t7-migrate/be-review.md`.
 - FE Reviewer: **not applicable** — zero FE/UI files changed (wire
   contract unchanged).

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
@@ -615,5 +616,103 @@ func TestSendVoiceMessageHappyPathFS(t *testing.T) {
 	}
 	if got.Voice == nil || got.Voice.FileID != row.Voice.FileID {
 		t.Fatalf("row voice view = %#v", got.Voice)
+	}
+}
+
+// F-BE-1: a terminal commit error after a successful upload must cancel the
+// staged upload instead of leaving it for the 24h claim window. failClaimFiles
+// injects a ClaimInTx refusal, standing in for any post-upload failure the send
+// path cannot classify as a replay.
+type failClaimFiles struct {
+	files.Service
+	fail bool
+}
+
+func (f *failClaimFiles) ClaimInTx(ctx context.Context, q *db.Queries, in files.ClaimInput) ([]files.File, error) {
+	if f.fail {
+		return nil, files.StorageUnavailable(errors.New("filesfake wrapper: injected claim failure"))
+	}
+	return f.Service.ClaimInTx(ctx, q, in)
+}
+
+func TestSendFileMessageCancelsStagedUploadOnCommitErrorFS(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixture(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatalf("resolve dm: %v", err)
+	}
+
+	inner := filesfake.New(filesfake.Options{})
+	s.SetFiles(&failClaimFiles{Service: inner, fail: true})
+
+	_, err = s.SendFileMessage(ctx, ua.ID, w.ID, dm.ID, SendFileMessageInput{
+		Filename: "se-bo.pdf", Body: bytes.NewReader(tinyFSFileBytes), ClientMsgID: "fs-cancel-1",
+	})
+	if !codedIs(err, files.CodeStorageUnavailable) {
+		t.Fatalf("send with a failing claim = %v, want storage_unavailable", err)
+	}
+
+	// The staged upload must be canceled: replaying the same upload command
+	// answers file_upload_canceled. Had the staged object been left behind,
+	// the idempotent replay would return the earlier result with no error.
+	scope := files.Scope{OrganizationID: w.OrganizationID, WorkspaceID: w.ID}
+	_, err = inner.Upload(ctx, files.UploadInput{
+		Actor:          audit.User(ua.ID),
+		Purpose:        files.ChatAttachment,
+		Scope:          scope,
+		IdempotencyKey: chatMediaUploadKey("file", dm.ID, ua.ID, "fs-cancel-1", tinyFSFileBytes),
+		Filename:       "se-bo.pdf",
+		Body:           bytes.NewReader(tinyFSFileBytes),
+	})
+	var fErr *files.Error
+	if !errors.As(err, &fErr) || fErr.Code != files.CodeUploadCanceled {
+		t.Fatalf("upload replay = %v, want file_upload_canceled (staged upload was left behind)", err)
+	}
+}
+
+// F-BE-1: a data-fix row can carry file_id only in the metadata snapshot with
+// the column still NULL. The open path must follow the metadata reference and
+// stream through FileService instead of misreading the row as pre-migration.
+func TestOpenChatFileMessageMetadataFileIDFallbackFS(t *testing.T) {
+	s, _, q, ua, ub, w := chatFixtureFiles(t)
+	ctx := context.Background()
+	addOrgMember(t, q, w.OrganizationID, ub.ID)
+	addWorkspaceMember(t, q, w.ID, ub.ID)
+
+	dm, err := s.ResolveDM(ctx, ua.ID, w.ID, ub.ID)
+	if err != nil {
+		t.Fatalf("resolve dm: %v", err)
+	}
+	row, err := s.SendFileMessage(ctx, ua.ID, w.ID, dm.ID, SendFileMessageInput{
+		Filename: "chi-meta.pdf", Body: bytes.NewReader(tinyFSFileBytes), ClientMsgID: "fs-meta-fallback-1",
+	})
+	if err != nil {
+		t.Fatalf("send: %v", err)
+	}
+	if _, err := s.pool.Exec(ctx, "UPDATE chat_messages SET file_id = NULL WHERE id = $1", row.ID); err != nil {
+		t.Fatalf("null the file_id column: %v", err)
+	}
+
+	got, reader, err := s.OpenChatFileMessage(ctx, ub.ID, w.ID, dm.ID, row.ID)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if reader.Body == nil {
+		t.Fatal("metadata-only file_id misread as a legacy row: open fell back to storage")
+	}
+	defer reader.Close()
+	data, err := io.ReadAll(reader.Body)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if !bytes.Equal(data, tinyFSFileBytes) {
+		t.Fatalf("streamed %d bytes, want %d", len(data), len(tinyFSFileBytes))
+	}
+	if got.File == nil || got.File.FileID == "" {
+		t.Fatalf("row file view = %#v, want the metadata file_id", got.File)
 	}
 }
