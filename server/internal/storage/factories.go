@@ -182,7 +182,8 @@ func (s *localObjectStore) preflight(ctx context.Context) error {
 		return fmt.Errorf("local preflight: %w", err)
 	}
 	// A root that is not writable is a startup error, not a request-time
-	// surprise: create a uniquely named probe file and remove it.
+	// surprise: write a fixed-name probe file and remove it. Fixed beats
+	// random here - a crash mid-probe can never leave an orphan.
 	probe := filepath.Join(s.root, ".storage-preflight-probe")
 	if err := os.WriteFile(probe, nil, 0644); err != nil {
 		return fmt.Errorf("local preflight: root is not writable: %w", err)
