@@ -336,7 +336,9 @@ func selectBackend(lookup EnvLookup) (Backend, error) {
 // requireFactories fails when the selected code or any declared group has no
 // registered factory. It runs before field validation so a code that is known
 // but not implemented reports storage_adapter_not_implemented - the reason
-// startup cannot serve, not the shape of its environment.
+// startup cannot serve, not the shape of its environment. Every group that is
+// missing a factory is named in the one error, so an operator fixes all of
+// them in a single edit instead of iterating restarts.
 func requireFactories(reg *Registry, cfg Config) error {
 	declared := []struct {
 		code  Backend
@@ -347,11 +349,17 @@ func requireFactories(reg *Registry, cfg Config) error {
 		{BackendS3, cfg.S3 != nil},
 		{BackendMinIO, cfg.MinIO != nil},
 	}
+	var missing []string
+	seen := map[Backend]bool{}
 	for _, entry := range declared {
-		if !entry.inUse || reg.Has(entry.code) {
+		if !entry.inUse || reg.Has(entry.code) || seen[entry.code] {
 			continue
 		}
-		return fmt.Errorf("%w: no adapter factory is registered for %q", ErrAdapterNotImplemented, string(entry.code))
+		seen[entry.code] = true
+		missing = append(missing, string(entry.code))
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("%w: no adapter factory is registered for: %s", ErrAdapterNotImplemented, strings.Join(missing, ", "))
 	}
 	return nil
 }

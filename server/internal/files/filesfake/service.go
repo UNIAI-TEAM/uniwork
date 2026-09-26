@@ -82,7 +82,7 @@ func (f *Fake) Upload(_ context.Context, in files.UploadInput) (files.Upload, er
 		return files.Upload{}, fmt.Errorf("%w: %v", errBodyUnreadable, err)
 	}
 
-	contentType := detectedType(body)
+	contentType := spec.Policy.Canonical(files.DetectContentType(body, in.Filename))
 	if !spec.Policy.Allows(contentType) {
 		failure := files.TypeRejected(contentType)
 		f.uploads[in.IdempotencyKey] = &uploadAttempt{fingerprint: fingerprint, failure: failure}
@@ -420,7 +420,9 @@ func (f *Fake) CompleteProviderOutput(_ context.Context, in files.CompleteOutput
 	if int64(len(e.bytes)) > e.spec.Policy.MaxBytes {
 		return files.File{}, files.TooLarge(e.spec.Policy.MaxBytes)
 	}
-	contentType := detectedType(e.bytes)
+	// A provider output carries no filename (FS-C1 section 4), so only the
+	// bytes speak: the extension-hinted text types stay text/plain here.
+	contentType := e.spec.Policy.Canonical(files.DetectContentType(e.bytes, e.file.Filename))
 	if !e.spec.Policy.Allows(contentType) {
 		return files.File{}, files.TypeRejected(contentType)
 	}
@@ -484,13 +486,6 @@ func (f *Fake) sessionAgreement(e *entry) error {
 		return files.ClaimExpired(e.file.ID)
 	}
 	return nil
-}
-
-// detectedType is the type the fake verifies from the bytes. It uses the
-// standard library's sniffer - the same rule the avatar and chat pipelines
-// publish today - and never the client's Content-Type or the filename.
-func detectedType(body []byte) string {
-	return files.NormalizeContentType(http.DetectContentType(body))
 }
 
 // readCapped reads at most cap bytes and reports file_too_large without

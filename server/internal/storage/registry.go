@@ -7,19 +7,20 @@ import (
 	"reflect"
 )
 
-// Factory builds a Storage adapter from an already validated Config.
+// Factory builds an ObjectStore adapter from an already validated Config.
 //
-// New returns an error instead of a nil Storage: a nil pointer held in an
+// New returns an error instead of a nil ObjectStore: a nil pointer held in an
 // interface passes `!= nil` checks and only panics at the first method call,
 // which turns a missing adapter into a request-time crash instead of a startup
-// failure.
+// failure. New runs the adapter's bounded preflight, so the returned store is
+// proven reachable before startup continues (spec §3.3.3).
 type Factory interface {
 	// Backend reports the selector code this factory implements.
 	Backend() Backend
 	// New builds the adapter. cfg was validated by LoadConfig, so a failure
 	// here is an environment problem (unreachable endpoint, no write
 	// permission on the local root), not a shape error.
-	New(ctx context.Context, cfg Config) (Storage, error)
+	New(ctx context.Context, cfg Config) (ObjectStore, error)
 }
 
 // Registration errors. They are programming errors, not environment errors:

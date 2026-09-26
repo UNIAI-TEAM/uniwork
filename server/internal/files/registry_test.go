@@ -157,6 +157,9 @@ func TestRegistryRejectsBadTables(t *testing.T) {
 		{"empty allowlist", []PurposeSpec{{Purpose: TaskAttachment, Prefix: "x", Scope: valid.Scope, Policy: Policy{MaxBytes: 1, ReadMode: ReadProxy}}}},
 		{"malformed mime", []PurposeSpec{{Purpose: TaskAttachment, Prefix: "x", Scope: valid.Scope, Policy: Policy{MaxBytes: 1, MIMEAllowlist: []string{"Image/PNG"}, ReadMode: ReadProxy}}}},
 		{"unknown read mode", []PurposeSpec{{Purpose: TaskAttachment, Prefix: "x", Scope: valid.Scope, Policy: Policy{MaxBytes: 1, MIMEAllowlist: []string{"image/png"}, ReadMode: "stream"}}}},
+		{"canonical type outside the allowlist", []PurposeSpec{{Purpose: TaskAttachment, Prefix: "x", Scope: valid.Scope, Policy: Policy{MaxBytes: 1, MIMEAllowlist: []string{"audio/webm"}, CanonicalTypes: map[string]string{"video/webm": "audio/ogg"}, ReadMode: ReadProxy}}}},
+		{"malformed canonical key", []PurposeSpec{{Purpose: TaskAttachment, Prefix: "x", Scope: valid.Scope, Policy: Policy{MaxBytes: 1, MIMEAllowlist: []string{"audio/webm"}, CanonicalTypes: map[string]string{"Video/WebM": "audio/webm"}, ReadMode: ReadProxy}}}},
+		{"malformed canonical value", []PurposeSpec{{Purpose: TaskAttachment, Prefix: "x", Scope: valid.Scope, Policy: Policy{MaxBytes: 1, MIMEAllowlist: []string{"audio/webm"}, CanonicalTypes: map[string]string{"video/webm": "audio/webm; codecs=opus"}, ReadMode: ReadProxy}}}},
 	}
 	for _, tc := range cases {
 		if _, err := NewRegistry(tc.specs...); err == nil {
