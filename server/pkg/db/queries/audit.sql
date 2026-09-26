@@ -81,12 +81,13 @@ UPDATE audit_exports SET
 WHERE id = $1;
 
 -- name: CompleteAuditExportWithFile :one
--- Đường FileService: chỉ ghi khi job chưa hoàn tất, để một lần phát lại của
--- outbox không ghi đè kết quả đã gắn. ClaimInTx chạy trước, trong cùng
--- transaction của caller.
+-- Đường FileService: chỉ ghi khi job chưa chốt — cả completed lẫn failed — để
+-- một lần phát lại của outbox không ghi đè kết quả đã gắn, và một nhánh đã
+-- fail không bị nhánh khác hồi sinh thành done. ClaimInTx chạy trước, trong
+-- cùng transaction của caller.
 UPDATE audit_exports SET
   completed_at = now(), file_id = $2, row_count = $3, expires_at = now() + interval '24 hours'
-WHERE id = $1 AND completed_at IS NULL
+WHERE id = $1 AND completed_at IS NULL AND failed_at IS NULL
 RETURNING id;
 
 -- name: ListExpiredAuditExportFiles :many

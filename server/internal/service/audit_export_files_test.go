@@ -437,6 +437,40 @@ func TestAuditExportFilesLosingDeliveryCancelsItsUpload(t *testing.T) {
 	}
 }
 
+// Failed is as settled as completed: a sibling delivery that marks the job
+// failed while this one's claim transaction is still open must not be
+// revived by the conditional completion — the loser drops its own staged
+// upload and leaves the failure standing.
+func TestAuditExportFilesFailedJobIsNotRevived(t *testing.T) {
+	f := newAuditFileFixture(t)
+	exp, err := f.svc.RequestExport(f.ctx, f.ownerA.ID, f.orgA, "csv",
+		time.Now().Add(-time.Hour), time.Now().Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.spy.onClaim = func() {
+		if err := f.q.FailAuditExport(f.ctx, db.FailAuditExportParams{
+			ID:    exp.ID,
+			Error: pgtype.Text{String: "sibling refused the range", Valid: true},
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := f.consumer.Handle(f.ctx, exportRow(exp.ID, f.orgA)); err != nil {
+		t.Fatal(err)
+	}
+	done, err := f.svc.Export(f.ctx, f.ownerA.ID, f.orgA, exp.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !done.FailedAt.Valid || done.CompletedAt.Valid || done.FileID.Valid {
+		t.Fatalf("a failed job was revived: %+v", done)
+	}
+	if len(f.spy.cancels) != 1 {
+		t.Fatalf("the loser left %d staged sessions behind, want 1 canceled", len(f.spy.cancels))
+	}
+}
+
 // The download route checks the permission and the window at read time — the
 // API path in download_url is not a standing grant — and serves bytes only
 // through FileService's proxy read.
