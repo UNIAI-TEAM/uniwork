@@ -122,20 +122,22 @@ func DetectContentType(head []byte, filename string) string {
 //
 // An entry whose local header carries its compressed size is skipped by that
 // size, so the bytes of a stored entry (a zip inside the zip) are never read
-// as headers of the outer archive. A streamed entry (data descriptor, size 0
-// in the local header) is skipped by searching for the next header
-// signature; its data is compressed in every writer seen, so it does not
-// hold raw headers.
+// as headers of the outer archive. A streamed compressed entry (data
+// descriptor, size 0 in the local header) is skipped by searching for the
+// next header signature, since compressed data holds no raw headers; a
+// streamed stored entry ends the walk, because its raw bytes could.
 func ooxmlType(head []byte) string {
 	const (
 		localHeaderLen = 30
 		flagStreamed   = 0x08
+		methodStore    = 0
 		zip64Size      = 0xffffffff
 	)
 	sig := []byte("PK\x03\x04")
 	var contentTypes, word, xl, ppt, macros bool
 	for pos := 0; pos+localHeaderLen <= len(head) && bytes.Equal(head[pos:pos+4], sig); {
 		flags := binary.LittleEndian.Uint16(head[pos+6:])
+		method := binary.LittleEndian.Uint16(head[pos+8:])
 		compressed := binary.LittleEndian.Uint32(head[pos+18:])
 		nameLen := int(binary.LittleEndian.Uint16(head[pos+26:]))
 		extraLen := int(binary.LittleEndian.Uint16(head[pos+28:]))
@@ -162,6 +164,11 @@ func ooxmlType(head []byte) string {
 		case compressed == zip64Size:
 			// The real size is in the zip64 extra field; an entry that large
 			// ends past any head anyway.
+			pos = len(head)
+		case flags&flagStreamed != 0 && compressed == 0 && method == methodStore:
+			// A stored entry of unknown length holds raw bytes that may be
+			// another zip; its end cannot be found without trusting them, so
+			// the walk stops and judges on the parts seen so far.
 			pos = len(head)
 		case flags&flagStreamed != 0 && compressed == 0:
 			next := -1

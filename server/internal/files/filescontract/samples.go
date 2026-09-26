@@ -66,6 +66,7 @@ func MisnamedSamples() []Sample {
 		{"zip_named_csv", "export.csv", zipSample("a.txt"), "application/zip"},
 		{"zip_named_docx", "brief.docx", zipSample("word/document.xml"), "application/zip"},
 		{"zip_holding_a_stored_xlsx", "sheet.xlsx", storedZipSample("inner.xlsx", ooxmlSample("xl/workbook.xml")), "application/zip"},
+		{"zip_streaming_a_stored_xlsx", "sheet.xlsx", streamedStoredZipSample("inner.xlsx", ooxmlSample("xl/workbook.xml")), "application/zip"},
 		{"xlsm_named_xlsx", "sheet.xlsx", ooxmlSample("xl/workbook.xml", "xl/vbaProject.bin"), "application/zip"},
 		{"docm_named_docx", "brief.docx", ooxmlSample("word/document.xml", "word/vbaProject.bin"), "application/zip"},
 		{"ftyp_without_minor_version", "call.mp4", append([]byte("\x00\x00\x00\x0cftypmp4 "), make([]byte, 20)...), "application/octet-stream"},
@@ -144,6 +145,25 @@ func storedZipSample(name string, body []byte) []byte {
 		Name: name, Method: zip.Store, CRC32: crc32.ChecksumIEEE(body),
 		CompressedSize64: uint64(len(body)), UncompressedSize64: uint64(len(body)),
 	})
+	if err != nil {
+		panic(err)
+	}
+	if _, err := f.Write(body); err != nil {
+		panic(err)
+	}
+	if err := w.Close(); err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
+}
+
+// streamedStoredZipSample is a zip with one stored entry written the way
+// archive/zip streams it: a data descriptor after the bytes and size 0 in the
+// local header, so the entry's extent is unknown until its end.
+func streamedStoredZipSample(name string, body []byte) []byte {
+	var buf bytes.Buffer
+	w := zip.NewWriter(&buf)
+	f, err := w.CreateHeader(&zip.FileHeader{Name: name, Method: zip.Store})
 	if err != nil {
 		panic(err)
 	}
