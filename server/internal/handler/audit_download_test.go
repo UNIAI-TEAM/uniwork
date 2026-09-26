@@ -121,6 +121,9 @@ func TestAuditExportDownloadRoute(t *testing.T) {
 
 	// The status payload now points at the API route, not a storage URL.
 	res, out = doJSON(t, srv, "GET", "/api/v1/orgs/"+w.orgID+"/audit/exports/"+exportID, w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("export status: %d %v", res.StatusCode, out)
+	}
 	url, _ := out["export"].(map[string]any)["download_url"].(string)
 	want := "/api/v1/orgs/" + w.orgID + "/audit/exports/" + exportID + "/download"
 	if url != want {
@@ -157,6 +160,9 @@ func TestAuditExportDownloadRoute(t *testing.T) {
 	res, out = doJSON(t, srv, "POST", "/api/v1/auth/register", "", map[string]string{
 		"email": "audit-dl-outsider@example.com", "password": "password123", "display_name": "Out",
 	})
+	if res.StatusCode != 200 {
+		t.Fatalf("register outsider: %d %v", res.StatusCode, out)
+	}
 	outsider := out["access_token"].(string)
 	if res, _ := get(outsider, w.orgID, exportID); res.StatusCode != 403 {
 		t.Fatalf("non-member download: %d, want 403", res.StatusCode)
@@ -182,6 +188,9 @@ func TestAuditExportDownloadRoute(t *testing.T) {
 	}
 	// And the status payload stops offering the link too.
 	res, out = doJSON(t, srv, "GET", "/api/v1/orgs/"+w.orgID+"/audit/exports/"+exportID, w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("expired export status: %d %v", res.StatusCode, out)
+	}
 	if out["export"].(map[string]any)["download_url"] != nil {
 		t.Fatalf("an expired export still offers the download: %v", out["export"])
 	}
@@ -217,6 +226,9 @@ func TestAuditExportDownloadRouteLeavesLegacyRowsOnStorageURLs(t *testing.T) {
 	runAuditExportWorker(t, exportID, w.orgID)
 
 	res, out = doJSON(t, srv, "GET", "/api/v1/orgs/"+w.orgID+"/audit/exports/"+exportID, w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("legacy export status: %d %v", res.StatusCode, out)
+	}
 	url, _ := out["export"].(map[string]any)["download_url"].(string)
 	if url == "" || strings.HasPrefix(url, "/api/v1/") {
 		t.Fatalf("a legacy row must keep its storage URL, got %q", url)

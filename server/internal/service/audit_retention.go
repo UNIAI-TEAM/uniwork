@@ -105,7 +105,7 @@ func (s *AuditService) releaseExpiredExportFile(ctx context.Context, row db.List
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
-	n, err := q.ReleaseAuditExportFile(ctx, db.ReleaseAuditExportFileParams{ID: row.ID, FileID: row.FileID})
+	n, err := q.ReleaseAuditExportFile(ctx, db.ReleaseAuditExportFileParams(row))
 	if err != nil {
 		return err
 	}
