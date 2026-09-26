@@ -1,6 +1,6 @@
 # UniWork — Documents (soạn thảo cộng tác, phiên bản, chia sẻ, nhật ký truy cập, object storage)
 
-> **Trạng thái:** in-progress — Đã duyệt 2026-09-08 (quangpd — UNI-437). Spec đầu tiên của Giai đoạn C (epic UNI-416); plan và sub-issue lập khi bắt đầu lát cắt 1 (§11). **Bổ sung 2026-09-16 (§13):** tài liệu thuộc sở hữu của một Kết quả công việc — hệ quả của ADR 0016, điều kiện để C-14 (UNI-634) khởi động. Phần đã duyệt không đổi.
+> **Trạng thái:** in-progress — Đã duyệt 2026-09-08 (quangpd — UNI-437). Spec đầu tiên của Giai đoạn C (epic UNI-416); plan và sub-issue lập khi bắt đầu lát cắt 1 (§11). **Bổ sung 2026-09-16 (§13):** tài liệu thuộc sở hữu của một Kết quả công việc — hệ quả của ADR 0016, điều kiện để C-14 (UNI-634) khởi động. Phần đã duyệt không đổi. **Amendment 2026-09-26 (§14), chờ người dùng duyệt:** sau G0 = GO (ADR 0021) và hợp đồng FileService FS-C1 — byte qua FileService (`file_id`, đọc bằng proxy, `ReleaseInTx`), cột còn thiếu, bảng lỗi DOC-005, một hình dạng API save; chưa có hiệu lực cho tới khi được duyệt.
 
 **Ngày:** 2026-09-08
 **Issue:** UNI-437 · C-01 · Bounded context Document · P0
@@ -836,3 +836,131 @@ Hai cột, ba constraint, một index, nhánh `effectiveLevel` và năm thao tá
 tại, nhánh ủy quyền được viết sau một interface và có một bản cài đặt trả `none` cho mọi
 actor — nghĩa là **không tài liệu nào thuộc sở hữu tồn tại được cho tới khi C-14 cắm vào**.
 Fail-closed, không fail-open.
+
+---
+
+## 14. Amendment 2026-09-26 — byte qua FileService, cột còn thiếu, bảng lỗi DOC-005 và một hình dạng API save
+
+> **Trạng thái amendment:** **chờ người dùng duyệt** (U-3 trong plan G1-G2 §1.3). Chưa có hiệu lực: cho tới khi
+> được duyệt, §1-§13 như đã duyệt vẫn là spec. Viết bởi Advisor G1-G2 (UNI-657) sau G0 = GO. Không sửa chữ của các
+> mục đã duyệt; mỗi mục dưới đây nói rõ nó thay câu nào.
+
+### 14.1 Vì sao
+
+Ba việc xảy ra sau ngày duyệt 2026-09-08:
+
+1. **FileService (UNI-726) thành pipeline file chung** (2026-09-24). Hợp đồng
+   [FS-C1](2026-09-24-file-service-contract.md) cấm module tự giữ key/URL, tự xóa byte hay tự dựng ledger/cleanup
+   (§5.2, §5.7), và đặt policy purpose `document_file`/`document_asset`: 50 MiB / 10 MiB, checksum bắt buộc,
+   **đọc bằng proxy** (§3). ADR 0022 (đề xuất, `docs/adr/drafts/`) ghi quyết định kiến trúc tương ứng.
+2. **DOC-005 được nghiệm thu ở mức G0** (`docs/office/g0/login-sync-contract.md`, Advisor g118, 2026-09-25): bảng lỗi
+   §4, thứ tự kiểm ở commit §3, fingerprint idempotency §3.1, provenance bản sao §7.1.
+3. **G0 = GO** (2026-09-25, ADR 0021): Office sáu định dạng dùng kho này, nên version cần metadata engine và bản sao
+   chuyển đổi cần provenance.
+
+### 14.2 Byte qua FileService (thay §2 #6, #11, #12, #13; §3.2; §3.3; §5.1; §5.3; §5.4; §6.3; §10)
+
+| Câu đã duyệt | Đọc thành |
+| --- | --- |
+| §2 #6 "DB chỉ giữ `object_key` + metadata; byte nằm ở object storage đã có" | DB giữ `file_id` của FileService; byte, key, bucket và backend thuộc FileService. Quota vẫn là `storage.bytes` của tổ chức |
+| §2 #11 "tải về = 302 sang presigned GET 5 phút …, fallback stream cho `LocalStorage`" | Tải về luôn stream qua route Go của Documents: kiểm quyền, ghi access log, rồi `files.Service.Open` (HEAD/Range). Không presign byte tài liệu, vì DOC-004 không cho client thấy vị trí lưu và thu quyền phải chặn ngay lần đọc kế tiếp |
+| §2 #12 "Ảnh dán vào trang là `document_assets` (bảng riêng, cùng object storage)" | `document_assets` giữ `file_id` với purpose `document_asset`; `asset://{id}` trong JSON trỏ tới asset, không tới file hay URL |
+| §2 #13 "purge bởi job (xóa row + object)" | Purge xóa row và gọi `ReleaseInTx` trong cùng transaction; byte do GC FileService xóa sau khi `ReferenceProvider` của Documents thôi giữ |
+| §3.2 `object_key TEXT` và `document_versions_payload_check … (kind = 'file' AND object_key IS NOT NULL)` | `file_id TEXT` (không FK) và `CHECK ((kind = 'page' AND content IS NOT NULL) OR (kind = 'file' AND file_id IS NOT NULL))`. `mime_type`, `size_bytes`, `checksum_sha256` giữ làm bản chụp lúc tạo version, lấy từ `files.File` đã `ready`, không từ client |
+| §3.3 `object_key TEXT NOT NULL` | `file_id TEXT NOT NULL`. `orphaned_at` giữ: đó là mốc Documents dùng để tính hạn giữ 7 ngày trong `ReferenceProvider` |
+| §5.1 `POST …/documents/files`: "ghi object trước, row sau; lỗi row → xóa object" | `files.Service.Upload` (ngoài transaction, đo byte thật, checksum) rồi một transaction: kiểm quyền và quota, tạo row, `ClaimInTx`, audit/outbox. Lỗi transaction để file ở trạng thái chưa claim; GC FileService dọn sau hạn claim 24 giờ. Documents không xóa gì |
+| §5.1 `GET …/download`, §5.3 `GET /public/documents/{token}` (file), §5.4 `GET …/assets/{assetID}`: "302 presigned" | Stream qua route Go như hàng §2 #11. Public link kiểm flag org, hạn và thu hồi trước mỗi lần đọc; asset công khai đi qua route theo token, không qua route cần đăng nhập |
+| §6.3 `DocumentPurger`: "xóa object ngoài tx (`DeleteKeys`; thất bại → outbox `storage.delete_requested`)"; "Asset `orphaned_at < now - 7 ngày` cùng cách" | Purger xóa row và `ReleaseInTx` trong một transaction; không `DeleteKeys`, không topic `storage.delete_requested`. Asset quá 7 ngày: provider thôi trả `retention`, Documents `ReleaseInTx` khi gỡ row |
+| §6.3 meter `storage.bytes`: "`SUM(size_bytes)` của versions + assets chưa purge" | Byte trang (bản làm việc + mốc) cộng byte của các `file_id` **khác nhau** mà Documents còn giữ trong tổ chức; một `file_id` tính một lần dù nhiều mốc trỏ tới (FileService T1-Q9). Upload chưa claim dùng hook reservation của FileService, không cộng hai lần |
+| §10 hàng `storage_ref`: "Giữ `object_key` + `checksum_sha256` + `size_bytes`" | Giữ `file_id` + bản chụp `checksum_sha256`/`size_bytes` |
+| §10 hàng `DocumentApi`: "mọi byte qua Go + presigned" | Mọi byte qua Go + FileService, đọc bằng proxy |
+
+`ReferenceProvider` của Documents (FS-C1 §6) trả hold cho: phiên bản hiện hành và cũ (`version_history`), tài liệu
+archive hoặc soft delete chưa purge (`soft_deleted`), asset còn trong nội dung (`active`) hoặc chưa quá 7 ngày từ
+`orphaned_at` (`retention`). Registry FileService chỉ bật purpose Documents khi provider này qua test (G1-03).
+
+### 14.3 Cột còn thiếu (bổ sung §3.1, §3.2 và bảng idempotency)
+
+```sql
+-- documents (§3.1): người nắm quyền quản lý tách khỏi người tạo
+acl_owner_id           TEXT,      -- mặc định = created_by khi created_by_kind = 'human'; bản sao giữ acl_owner_id của nguồn
+
+-- document_versions (§3.2): build nào đã tạo ra byte này
+engine_name            TEXT,      -- NULL cho page và file tải lên thẳng
+engine_version         TEXT,      -- dạng genoffice@<pin>+uniwork-office.<n>
+contract_version       TEXT,      -- ví dụ uniwork-office-engine-contract/1
+protocol_version       TEXT,
+
+-- documents (§3.1): nguồn gốc của bản sao chuyển đổi (Q7-B, DOC-005 §7.1)
+source_document_id     TEXT,
+source_version_id      TEXT,
+source_revision        BIGINT,
+source_format          TEXT,
+source_engine          TEXT,
+target_format          TEXT,
+source_checksum_sha256 TEXT,
+conversion_reason      TEXT,      -- 'convert' | 'lossy_same_format'
+CONSTRAINT documents_source_pair_check
+  CHECK ((source_document_id IS NULL) = (source_version_id IS NULL))
+
+-- idempotency_keys (bảng hiện có): DOC-005 §3.1
+payload_fingerprint    TEXT       -- nullable; bản ghi cũ NULL nghĩa là "chưa biết", không phải "khớp"
+```
+
+API công khai không nhận `acl_owner_id` hay các cột `source_*`; service tự gán và kiểm cùng tổ chức/workspace.
+Fingerprint là hash chuẩn hóa của thao tác, document, base và checksum byte cùng các lựa chọn đổi kết quả, không chỉ
+tên file. Số migration cấp lúc tích hợp (§14.6).
+
+### 14.4 Một hình dạng API save cho phiên bản file (thay §5.2 hàng `versions/file`)
+
+G0 để lại ba hình dạng: DOC-005 §3 (upload rồi commit), §5.2 ở trên (`POST …/versions/file` multipart) và plan G1-G2 cũ
+(multipart + commit nội bộ). Chọn một, theo DOC-005:
+
+| Method & path | Mô tả |
+| --- | --- |
+| `POST /documents/{documentID}/uploads` multipart `file` | Cần `edit`. Stream vào `files.Service.Upload` (purpose `document_file`). Trả `{upload_id, checksum_sha256, size_bytes, claim_expires_at}`; `upload_id` **là** `file_id` của FileService. Chưa tạo version |
+| `POST /documents/{documentID}/versions/commit` `{upload_id, base_revision}` + `Idempotency-Key` | Kiểm theo thứ tự DOC-005 §3: session → tombstone → idempotency (có fingerprint) → quyền (kiểm lại) → engine → base → quota; rồi `ClaimInTx`, insert version `reason = upload`, đổi `file_version_id`, `revision + 1`, audit/outbox, lưu phản hồi idempotency trong một transaction |
+
+`POST …/versions/file` bỏ. Output của engine (G2) đi cùng `versions/commit`, với `upload_id` là `file_id` mà
+`RegisterProviderOutput` cấp cho job. Tạo tài liệu file mới vẫn là một multipart `POST /workspaces/{workspaceID}/documents/files`
+(§5.1, đã sửa ở §14.2). Tạo bản sao chuyển đổi dùng `POST /documents/{documentID}/copies` (plan G1-G2 §6.2), bắt buộc
+`consent: "copy"`.
+
+### 14.5 Bảng lỗi (bổ sung §5.5)
+
+§5.5 ghi `document_version_conflict` là "mã Office đề xuất, chờ DOC-005 được chấp nhận". DOC-005 đã được chấp nhận ở
+mức G0, nên mã này là hợp đồng cho endpoint Office khi endpoint đó ship. Mọi lỗi mang thêm `error.error_class` trên
+wire (snake_case theo `docs/conventions.md`; DOC-005 và §5.5 viết `errorClass` là tên trong model JS). Mã bổ sung, mỗi
+mã một lần ở `mapServiceError`:
+
+| Code | HTTP | `error_class` | Khi nào |
+| --- | --- | --- | --- |
+| `revision_conflict` | 422 | `conflict` | Như §5.5 (trang) |
+| `document_version_conflict` | 409 | `conflict` | Base của commit file/Office đã cũ |
+| `document_deleted` | 410 | `gone` | Tài liệu đã purge hoặc tombstone |
+| `idempotency_payload_mismatch` | 409 | `conflict` | Cùng key, khác fingerprint. Tên duy nhất; engine-contract G0 gọi là `payload_fingerprint_mismatch`, hợp nhất ở G1-03 |
+| `idempotency_key_reuse` | 409 | `conflict` | Cùng key, khác actor |
+| `idempotency_in_flight` | 409 | `conflict` | Request cùng key đang chạy |
+| `upload_already_committed` | 409 | `conflict` | `upload_id` đã claim cho version khác |
+| `copy_consent_required` | 409 | `conflict` | Bản sao mất mát thiếu `consent: "copy"` |
+| `owner_requires_copy` | 409 | `conflict` | Ghi đè nguồn khi chuyển đổi, hoặc copy tài liệu thuộc sở hữu khi C-14 chưa có |
+| `engine_incompatible` | 409 | `incompatible` | Engine/contract/protocol của client ngoài dải hỗ trợ |
+| `quota_exceeded` | **403** | `quota` | Giữ mã hiện có của repo (`entitlement.go`, FS-C1 §7); DOC-005 ghi 413 là giá trị của model G0 |
+| `forbidden` / `not_found` | 403 / 404 | `permission` / `missing` | Như hiện có |
+
+Lỗi của FileService (FS-C1 §7) được bọc lại khi C-01 đã có mã: `file_type_rejected` → `unsupported_media_type` (415),
+`file_too_large` → `file_too_large` (413), `file_not_found` → `not_found`; `file_not_ready`, `file_claim_expired` và
+`file_upload_canceled` → `document_upload_invalid` (409, `conflict`, kèm `fields.reason`); `storage_unavailable` giữ
+nguyên (503). `document_upload_invalid` là mã mới do amendment này đề xuất.
+
+### 14.6 Số migration (thay số ở §3 và §11)
+
+Các số 159-179 trong §3/§11 đã bị migration khác dùng (develop `c6b567f0` tới 217). G1-01 giữ register migration và cấp
+số từ số lớn nhất trên develop lúc tích hợp; tên file giữ phần mô tả (`documents`, `document_versions`, …). Mỗi index
+vẫn một file `CONCURRENTLY` (ADR 0001).
+
+### 14.7 Không đổi
+
+Mô hình trang/tệp, cây, quyền ba mức, visibility, chia sẻ, liên kết công khai, nhật ký truy cập, worker auto-version và
+compactor, sự kiện ids-only, §13 (sở hữu bởi Work Product) và luật HTML 2026-09-25 giữ nguyên. Amendment này không mở
+luồng lưu thứ hai và không đổi mã HTTP hiện có của repo.
