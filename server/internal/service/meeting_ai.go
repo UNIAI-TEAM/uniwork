@@ -562,12 +562,16 @@ func (s *MeetingService) finishRecordingFileClaim(ctx context.Context, ev Provid
 	if ev.RecordingFailed {
 		// The provider never delivered the object. Fail the row; the pending
 		// output expires with its session and the collector removes it.
+		// Publish only when the row actually transitioned — a duplicate
+		// recording_ended re-delivery reaches here on a terminal row and must
+		// not re-fire the event.
 		if rec.Status == RecordingActive || rec.Status == RecordingProcessing {
-			_, _ = s.q.FinishRecordingByEgress(ctx, db.FinishRecordingByEgressParams{
+			if _, err := s.q.FinishRecordingByEgress(ctx, db.FinishRecordingByEgressParams{
 				EgressID: ev.RecordingID, Status: RecordingFailed,
-			})
+			}); err == nil {
+				s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "recording.ready", Payload: map[string]string{"meeting_id": m.ID}})
+			}
 		}
-		s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "recording.ready", Payload: map[string]string{"meeting_id": m.ID}})
 		return
 	}
 	if rec.Status != RecordingActive && rec.Status != RecordingProcessing {

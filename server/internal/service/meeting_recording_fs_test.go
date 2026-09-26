@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -34,6 +35,34 @@ func fakeMP4() []byte {
 // recording row: WriteProviderOutput only needs the file id.
 func providerOutput(fileID string) files.ProviderOutput {
 	return files.ProviderOutput{FileID: files.FileID(fileID)}
+}
+
+// countingPublisher records published events so a test can assert a webhook
+// replay does not re-fire recording.ready.
+type countingPublisher struct {
+	mu     sync.Mutex
+	events []Event
+}
+
+func (p *countingPublisher) Publish(_ context.Context, _ string, ev Event) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.events = append(p.events, ev)
+}
+
+func (p *countingPublisher) PublishToScope(context.Context, string, string, Event) {}
+func (p *countingPublisher) SendToUser(context.Context, string, Event)             {}
+
+func (p *countingPublisher) count(eventType string) int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	n := 0
+	for _, ev := range p.events {
+		if ev.Type == eventType {
+			n++
+		}
+	}
+	return n
 }
 
 func TestMeetingRecordingFileServiceLifecycle(t *testing.T) {
@@ -298,6 +327,67 @@ func TestMeetingRecordingFSRowUnwiredFinishIsNonTerminal(t *testing.T) {
 	recs, err = s.Recordings(ctx, ua.ID, "", m.ID)
 	if err != nil || recs[0].Status != RecordingComplete {
 		t.Fatalf("re-wired retry should complete: %+v err=%v", recs, err)
+	}
+}
+
+func TestMeetingRecordingFSFailedEgressDuplicateDoesNotRepublish(t *testing.T) {
+	// Mirror meetingFixture but inject a counting publisher.
+	pool := testutil.DB(t)
+	q := db.New(pool)
+	as := NewAuthService(pool, q, auth.TokenMinter{Secret: []byte("t"), TTL: time.Minute}, time.Hour, nil)
+	orgs := NewOrganizationService(pool, q)
+	ws := NewWorkspaceService(pool, q, orgs, mail.Renderer{AppURL: "http://localhost:3000"}, &fakeOutbox{})
+	ctx := context.Background()
+	ua := registerVerified(t, q, as, "a@example.com", "A")
+	org, _ := orgs.Create(ctx, ua.ID, "Org", "org-alpha")
+	v, _ := ws.CreateInOrg(ctx, ua.ID, org.ID, "Alpha", "alpha")
+	w := v.Workspace
+	pub := &countingPublisher{}
+	s := NewMeetingService(pool, q, ws, pub, &meetings.FakeProvider{}, MeetingRuntime{TokenTTL: 2 * time.Minute, HMACKey: []byte("t")})
+
+	fake := filesfake.New(filesfake.Options{})
+	s.SetFiles(fake)
+	fp := s.provider.(*meetings.FakeProvider)
+	fp.RecordingEnabled = true
+
+	m, err := s.CreateInstant(ctx, ua.ID, w.ID, "Failed egress replay")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec, err := s.StartRecording(ctx, ua.ID, m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.StopRecording(ctx, ua.ID, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	fail := ProviderNeutralEvent{
+		Type: "conference.recording_ended", ProviderEventID: "ev-fail",
+		RecordingID: rec.EgressID, RecordingFailed: true,
+	}
+	if err := s.HandleProviderEvent(ctx, fail); err != nil {
+		t.Fatal(err)
+	}
+	recs, err := s.Recordings(ctx, ua.ID, "", m.ID)
+	if err != nil || len(recs) != 1 || recs[0].Status != RecordingFailed {
+		t.Fatalf("first failure should land FAILED: %+v err=%v", recs, err)
+	}
+	if got := pub.count("recording.ready"); got != 1 {
+		t.Fatalf("expected 1 recording.ready after first failure, got %d", got)
+	}
+	// Webhook retry reuses the same provider event id: dedup re-enters the
+	// finish path, but the terminal row must not re-fire the event.
+	for i := 0; i < 2; i++ {
+		if err := s.HandleProviderEvent(ctx, fail); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := pub.count("recording.ready"); got != 1 {
+		t.Fatalf("duplicate failed egress re-published recording.ready: got %d", got)
+	}
+	recs, err = s.Recordings(ctx, ua.ID, "", m.ID)
+	if err != nil || recs[0].Status != RecordingFailed {
+		t.Fatalf("row must stay FAILED: %+v err=%v", recs, err)
 	}
 }
 
