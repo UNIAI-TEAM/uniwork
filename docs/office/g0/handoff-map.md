@@ -7,6 +7,10 @@
 > 2026-09-25; the raw JSON receipts are in `../receipts/uniai/` (`UNI-656.json`, `UNI-657.json`,
 > `UNI-658.json`, `UNI-659.json`, `UNI-636.json`, `UNI-660.json`, `UNI-635.json`, `UNI-661.json`,
 > `UNI-662.json`, `UNI-670.json`, `issue-list-project.json`). Nothing was written to UniAI from this slice.
+> **Paths (2026-09-26):** the files G1/G2 need were copied into git under `docs/office/g1g2/` and the
+> references below point there. Paths still written as `doc00N-…/`, `../receipts/…` or `receipts/…` name
+> evidence in the G0 run folder (`.uniwork-dev/orca-recovery-g119/`, outside git); the register and the
+> pinned RT02 files carry the hashes needed to re-check it. Name map: `docs/office/g1g2/README.md`.
 
 The plan's acceptance line for task 6 is that a **new implementation group can receive the artifact, understand
 scope and limits, re-run the evidence and plan G1-G7 without guessing decisions that do not exist**. This map
@@ -60,9 +64,9 @@ before anyone plans them. (An earlier draft of this map claimed the same negativ
 | The change-feed contract: identity by account/org/workspace/document, cursor, pagination, retention, full resync, tombstone | same, section 5 |
 | One error table for the client (`errorClass`, 422/409 kept) | same, section 4 and 4.1 |
 | The mandatory-case evidence: 17 accepted cases, 4 of them with real durable draft bytes | register gate `G0-DOC005-MANDATORY`; `login-sync-contract.md` section 8 |
-| Storage ownership: Go owns auth/ACL/quota/idempotency/version/audit/outbox commit and the orphan-object ledger; the engine owns no business table | `RUNTIME-CONCLUSION.md` section 1; `docs/office/g0/engine-contract.md` sections 9-11 |
+| Storage ownership: Go owns auth/ACL/quota/idempotency/version/audit/outbox commit and the orphan-object ledger; the engine owns no business table | `docs/office/g1g2/runtime-conclusion.md` section 1; `docs/office/g0/engine-contract.md` sections 9-11 |
 | Rollout order steps 1-3 (errorClass, payload fingerprint migration, mismatch switch) | `login-sync-contract.md` section 9.1 |
-| Provenance record shape for the Q7 conversion copy (source id + sha256 on the new OOXML file) - implemented in G1/G2, contract in DOC-005 | `doc003-evidence/r2/Q7-BLOCKER.md` owner section; plan 5.4 |
+| Provenance record shape for the Q7 conversion copy (source id + sha256 on the new OOXML file) - implemented in G1/G2, contract in DOC-005 | `docs/office/g1g2/q7-blocker.md` owner section; plan 5.4 |
 
 Acceptance criteria it must satisfy: migration rules of the repo (no FKs, concurrent indexes, `organization_id`,
 append-only audit); idempotency keys are payload-fingerprinted so "same key, different payload" is a conflict,
@@ -74,15 +78,15 @@ the ordering and the additive/flag-gated rollout are fixed in section 9.1; what 
 
 | Receives | Where |
 | --- | --- |
-| Per-operation runtime decisions with proof or blocker, and the INT-01 deviations that must not be hidden | `RUNTIME-CONCLUSION.md` sections 1-3; `CANDIDATE-module-runtime-map.g119.json` |
-| Packaging matrix (web bundle / private engine service / desktop host / native sidecar) and version negotiation + rollback rules | `PACKAGING-AND-HANDOFF.md` sections 1-2 |
+| Per-operation runtime decisions with proof or blocker, and the INT-01 deviations that must not be hidden | `docs/office/g1g2/runtime-conclusion.md` sections 1-3; `docs/office/g0/module-runtime-map.json` |
+| Packaging matrix (web bundle / private engine service / desktop host / native sidecar) and version negotiation + rollback rules | `docs/office/g1g2/packaging-and-handoff.md` sections 1-2 |
 | Monorepo layout proposal, dependency direction, public entry rules, catalog conflict | same, section 4 |
 | The clean-checkout proof and its **named** missing pieces (prepared pinned source with local esbuild; untracked `e2e/office-g0/lab/fixtures/g0-text.pdf`; runner temp/git discovery to pin) | same, section 5b |
 | The six proven browser cycles as the acceptance baseline, plus CONTRACT-v1 (lab bridge protocol) as the adapter boundary | register `E-*-CYCLE` rows; `docs/office/g0/CONTRACT-v1.md` |
 | Import-graph proof that no unguarded node/electron/native marker is in the six browser closures | `doc003-evidence/candidates/browser-proof.md`; `receipts/tester-b/import-graph.json` |
-| **r2: the Q7 conversion engine work item** - a legacy/ODF -> OOXML conversion engine, service side, never in the browser bundle; none exists today (`xlsx-open` reads OOXML only, `.xls` answers `invalid Zip archive: Could not find EOCD`; no convert op in the lab allowlist or engine routes). The service choice lands in DOC-004's contract | `doc003-evidence/r2/Q7-BLOCKER.md`; `r2/ROOT-CAUSE.md` D6 |
-| **r2: port item P5** - password-protected DOCX save: carry the password-intent state (set/clear/intent revision; `setDocPassword`/`docPasswordIntentRevision`/`discardDocPasswordIntents`) to a service that re-encrypts, or refuse save by policy; the lab stub is not a product answer; passwords never leave the client unencrypted | `doc003-evidence/r2/PORT-ITEMS.md` P5 |
-| **r2: port item P3's adapter half** - a failed open must report its failure class to the shell so a Workspace file never looks like an empty version of itself | `doc003-evidence/r2/PORT-ITEMS.md` P3 |
+| **r2: the Q7 conversion engine work item** - a legacy/ODF -> OOXML conversion engine, service side, never in the browser bundle; none exists today (`xlsx-open` reads OOXML only, `.xls` answers `invalid Zip archive: Could not find EOCD`; no convert op in the lab allowlist or engine routes). The service choice lands in DOC-004's contract | `docs/office/g1g2/q7-blocker.md`; `docs/office/g1g2/root-cause.md` D6 |
+| **r2: port item P5** - password-protected DOCX save: carry the password-intent state (set/clear/intent revision; `setDocPassword`/`docPasswordIntentRevision`/`discardDocPasswordIntents`) to a service that re-encrypts, or refuse save by policy; the lab stub is not a product answer; passwords never leave the client unencrypted | `docs/office/g1g2/port-items.md` P5 |
+| **r2: port item P3's adapter half** - a failed open must report its failure class to the shell so a Workspace file never looks like an empty version of itself | `docs/office/g1g2/port-items.md` P3 |
 
 Acceptance criteria: the ported engine builds from a clean checkout with no `../genoffice` and no private
 registry; it builds against the UniWork catalog (React 19.2.3 / TipTap 3.30.6) without raising the product
@@ -99,10 +103,10 @@ port of existing behaviour).
 | Receives | Where |
 | --- | --- |
 | Per-format required assertions (the acceptance contract of each editor) | `docs/office/g0/pilot-handoff.md` section 1.2 |
-| The measured thresholds: measured open envelopes for **all six formats** (n = 3 cold + n = 3 warm each, two independent runs), the remaining `chua do` gaps (per-format saves, large-fixture opens, memory limits, XLSX warm definition), and the render-tolerance decision that is still open | `r2/THRESHOLDS.md` sections 3-6 |
-| **r2: DEC-RENDER-TOLERANCE ownership** - G3 measures the per-format pixel diffs (edited region masked, fixed viewport/DPR, on `WIN-ORCA-1.4.209`); a named human reviewer then signs. Until signed, a row claims only what its part/object oracle proves | user decision 2026-09-25; `r2/THRESHOLDS.md` section 4 |
-| **r2: the named upstream-behaviour port items P1-P4** - P1 named localized PDF parse error instead of the fixed "Failed to open file"; P2 missing-fonts check must count adopted embedded faces; P3 failed DOCX open keeps a named error state bound to the file id, never a blank document offered for Save; P4 sheets failed-select shows an error state, not a shell + status line | `doc003-evidence/r2/PORT-ITEMS.md` P1-P4 (closing tests named per item) |
-| **r2: the Q7 warning/cancel/accept UI** - the dialog that lists what a conversion will change, creates nothing on cancel, and produces a copy with provenance on accept | `doc003-evidence/r2/Q7-BLOCKER.md` |
+| The measured thresholds: measured open envelopes for **all six formats** (n = 3 cold + n = 3 warm each, two independent runs), the remaining `chua do` gaps (per-format saves, large-fixture opens, memory limits, XLSX warm definition), and the render-tolerance decision that is still open | `docs/office/g0/acceptance-thresholds.md` sections 3-6 |
+| **r2: DEC-RENDER-TOLERANCE ownership** - G3 measures the per-format pixel diffs (edited region masked, fixed viewport/DPR, on `WIN-ORCA-1.4.209`); a named human reviewer then signs. Until signed, a row claims only what its part/object oracle proves | user decision 2026-09-25; `docs/office/g0/acceptance-thresholds.md` section 4 |
+| **r2: the named upstream-behaviour port items P1-P4** - P1 named localized PDF parse error instead of the fixed "Failed to open file"; P2 missing-fonts check must count adopted embedded faces; P3 failed DOCX open keeps a named error state bound to the file id, never a blank document offered for Save; P4 sheets failed-select shows an error state, not a shell + status line | `docs/office/g1g2/port-items.md` P1-P4 (closing tests named per item) |
+| **r2: the Q7 warning/cancel/accept UI** - the dialog that lists what a conversion will change, creates nothing on cancel, and produces a copy with provenance on accept | `docs/office/g1g2/q7-blocker.md` |
 | The editor-shell requirements: resolve document type, permission and save state, then open the matching editor or a truthful unavailable/read-only state; no Electron IPC in the browser | issue UNI-659 text; plan task 1 FE spec |
 | Brand rows for web: navigation entry, editor chrome, i18n parity, theme must not change authored bytes | `uniwork-office-integration-brand.md` B-12, B-16 and section 4 "theme" check |
 | Known defects to fix, not discover: 375 px with the AI panel open collapses markdown/slides/html to a 0 px document; brand width 1280 px not measured; DOCX core row edits paragraph text only | `pilot-handoff.md` section 3 limits; brand doc section 3 |
@@ -122,7 +126,7 @@ behaviours are work items, not decisions.
 | Desktop login contract (PKCE S256 BASE64URL, client owns verifier/state/pending attempt, callback must match; token in host secret store) | `login-sync-contract.md` section 2 and 2.1-2.2 |
 | `device_sessions` + desktop exchange endpoint as a G4 item | same, section 9 rows 2 and 5; section 9.1 step 5 |
 | The four mandatory bridge behaviours: idempotent complete, 409 on stale version, revocation mid-session refuses completion, cross-organization isolation with no metadata leak | issue UNI-636 text |
-| Identity/brand values (proposed, none existing at the pinned commit): app id `com.uniwork.office`, executable `uniwork-office`, artifact `uniwork-office_<version>_<arch>`, scheme `uniwork-office` incl. `uniwork-office://auth/callback`, user-data namespace `uniwork-office`, UniWork-owned update feed | `PACKAGING-AND-HANDOFF.md` section 3; brand rows B-01..B-15, B-17 |
+| Identity/brand values (proposed, none existing at the pinned commit): app id `com.uniwork.office`, executable `uniwork-office`, artifact `uniwork-office_<version>_<arch>`, scheme `uniwork-office` incl. `uniwork-office://auth/callback`, user-data namespace `uniwork-office`, UniWork-owned update feed | `docs/office/g1g2/packaging-and-handoff.md` section 3; brand rows B-01..B-15, B-17 |
 | Q8 draft behaviour that must survive logout/restart, and Q7 conversion-copy behaviour | `login-sync-contract.md` sections 6-7 |
 
 Acceptance criteria: installs beside GenOffice with no shared app id, scheme, data dir or update feed; a
@@ -153,7 +157,7 @@ the user.
 | --- | --- |
 | The per-part OOXML classification oracle (preserved / changed / added / removed, with hash evidence) that its acceptance text already demands | `doc003-evidence/oracle/docx-parts-diff.mjs` + the two accepted cycles |
 | The stop-and-say-so rule when a patch cannot be applied safely, and "original is never overwritten" | issue UNI-635 text; plan 5.4/Q7 |
-| Engine contract and the ownership boundary (bytes and versions live in Documents; engine never writes a business table) | `engine-contract.md` sections 9-11; `PACKAGING-AND-HANDOFF.md` section 1 |
+| Engine contract and the ownership boundary (bytes and versions live in Documents; engine never writes a business table) | `engine-contract.md` sections 9-11; `docs/office/g1g2/packaging-and-handoff.md` section 1 |
 | AI proposal -> human confirm -> execute, with the audit fields | repo `CLAUDE.md` (ADR 0010); `login-sync-contract.md` section 7.1 for provenance |
 
 Acceptance criteria: real Vietnamese/bilingual fixture set through import -> AI proposal -> accept -> patch ->
@@ -168,12 +172,12 @@ apply it (see OPEN-1).
 | Receives | Where |
 | --- | --- |
 | The register and its verifier command, with the GO decision and its limits | `docs/office/g0/evidence-register.json`; `pilot-handoff.md` sections 1, 3 |
-| The measured thresholds and the explicit `chua do` list to close before publishing support/fidelity limits | `r2/THRESHOLDS.md` |
+| The measured thresholds and the explicit `chua do` list to close before publishing support/fidelity limits | `docs/office/g0/acceptance-thresholds.md` |
 | The seven brand acceptance checks and the attribution allowlist | `uniwork-office-integration-brand.md` sections 3.1, 4 |
-| The release rule: bumping a version is not a gate, re-running the fixtures and the fault harness is | `PACKAGING-AND-HANDOFF.md` section 2 |
-| Residual items to clean up or record: the DOC-004 external temp tree `%LOCALAPPDATA%\Temp\office-g0-iQLGS5`, the 13-fixture regeneration drift, and **r2 adds fixture item F1** (an embedded-font fixture whose family is neither bundled by the renderer nor installed on the test host, with a glyph-advance oracle - owner DOC-002 UNI-666) | `PACKAGING-AND-HANDOFF.md` section 5b; `doc002-fixtures/REPORT.md` limits; `doc003-evidence/r2/PORT-ITEMS.md` F1 |
+| The release rule: bumping a version is not a gate, re-running the fixtures and the fault harness is | `docs/office/g1g2/packaging-and-handoff.md` section 2 |
+| Residual items to clean up or record: the DOC-004 external temp tree `%LOCALAPPDATA%\Temp\office-g0-iQLGS5`, the 13-fixture regeneration drift, and **r2 adds fixture item F1** (an embedded-font fixture whose family is neither bundled by the renderer nor installed on the test host, with a glyph-advance oracle - owner DOC-002 UNI-666) | `docs/office/g1g2/packaging-and-handoff.md` section 5b; `doc002-fixtures/REPORT.md` limits; `docs/office/g1g2/port-items.md` F1 |
 | The macOS/Safari deferral (UNI-671) that must be closed for full pilot platform acceptance | UNI-670 text; QA-01 |
-| **r2: the named reproducibility finding to re-run** - the XLSX warm-state spread (~44% cross-run), closed by a larger-n first-reload vs steady-state separation run | `doc003-evidence/r2/receipts/tester-r2b/REPORT.md`; `r2/THRESHOLDS.md` section 5.3 |
+| **r2: the named reproducibility finding to re-run** - the XLSX warm-state spread (~44% cross-run), closed by a larger-n first-reload vs steady-state separation run | `doc003-evidence/r2/receipts/tester-r2b/REPORT.md`; `docs/office/g0/acceptance-thresholds.md` section 5.3 |
 
 Acceptance criteria: web edit -> cloud version/audit -> desktop open/edit -> cloud sync -> web receives the
 version, on real installers; permissions/revocation, tenant isolation, migration compatibility, offline/retry,
@@ -188,7 +192,7 @@ per entry.
 The brand hand-off is "what the receiving group must prove", not a colour decision:
 
 1. **Targets that are still empty and must not be invented by a receiving group.** Every value below is a
-   proposal in `PACKAGING-AND-HANDOFF.md` section 3 and `uniwork-office-integration-brand.md` section 3, and
+   proposal in `docs/office/g1g2/packaging-and-handoff.md` section 3 and `uniwork-office-integration-brand.md` section 3, and
    none exists at the pinned commit `09485f88`.
 
 | Target | State today | Owner |
