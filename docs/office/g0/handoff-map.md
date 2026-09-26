@@ -61,18 +61,23 @@ before anyone plans them. (An earlier draft of this map claimed the same negativ
 | Receives | Where |
 | --- | --- |
 | The version/save protocol: working revision vs checkpoint vs immutable blob, base revision + checksum + idempotency key, stale base keeps both versions | `docs/office/g0/login-sync-contract.md` sections 3, 3.1 |
-| The change-feed contract: identity by account/org/workspace/document, cursor, pagination, retention, full resync, tombstone | same, section 5 |
+| The change-feed contract, **for reference only**: identity by account/org/workspace/document, cursor, pagination, retention, full resync, tombstone. Building it is G5 UNI-660 (DOC-005 section 9, step 4 of 9.1), not G1 (corrected 2026-09-26) | same, section 5 |
 | One error table for the client (`errorClass`, 422/409 kept) | same, section 4 and 4.1 |
 | The mandatory-case evidence: 17 accepted cases, 4 of them with real durable draft bytes | register gate `G0-DOC005-MANDATORY`; `login-sync-contract.md` section 8 |
-| Storage ownership: Go owns auth/ACL/quota/idempotency/version/audit/outbox commit and the orphan-object ledger; the engine owns no business table | `docs/office/g1g2/runtime-conclusion.md` section 1; `docs/office/g0/engine-contract.md` sections 9-11 |
+| Storage ownership: Go owns auth/ACL/quota/idempotency/version/audit/outbox commit; bytes, upload intent and GC belong to FileService (FS-C1; ADR 0022, proposed) - Documents keeps `file_id`, calls `ClaimInTx`/`ReleaseInTx` in its own transaction and provides a `ReferenceProvider`; the engine owns no business table. The earlier "Go owns the orphan-object ledger" is replaced (corrected 2026-09-26) | `docs/office/g1g2/runtime-conclusion.md` section 1; `docs/office/g0/engine-contract.md` sections 9-11 as corrected by `docs/office/g1g2/fs-c1-alignment.md` |
 | Rollout order steps 1-3 (errorClass, payload fingerprint migration, mismatch switch) | `login-sync-contract.md` section 9.1 |
 | Provenance record shape for the Q7 conversion copy (source id + sha256 on the new OOXML file) - implemented in G1/G2, contract in DOC-005 | `docs/office/g1g2/q7-blocker.md` owner section; plan 5.4 |
 
 Acceptance criteria it must satisfy: migration rules of the repo (no FKs, concurrent indexes, `organization_id`,
 append-only audit); idempotency keys are payload-fingerprinted so "same key, different payload" is a conflict,
-not a hit; the version commit and the audit/outbox rows share one transaction; the orphan-object ledger has a
-reconciler; nothing in the engine writes a business table. Open decisions: none are left open by G0 for G1 -
-the ordering and the additive/flag-gated rollout are fixed in section 9.1; what remains is implementation.
+not a hit; the version commit, `ClaimInTx` and the audit/outbox rows share one transaction; every table that
+holds a `file_id` has a `ReferenceProvider` that sees old versions, soft deletes and retention holds (FS-C1
+sections 5-6). This replaces the earlier criterion "the orphan-object ledger has a reconciler"
+(`docs/office/g1g2/fs-c1-alignment.md`). Nothing in the engine writes a business table. Open decisions
+(corrected 2026-09-26; this line used to say "none"): ADR 0022 acceptance (U-2); the C-01 section 14
+amendment, including the one save API shape (U-3); the package layout (U-1). See plan
+`docs/superpowers/plans/2026-09-18-documents-office-g1-g2.md` section 1.3. The DOC-005 ordering and the
+additive, flag-gated rollout of section 9.1 steps 1-3 stay fixed.
 
 ### G2 - UNI-658 (shared engine, web/desktop adapters)
 

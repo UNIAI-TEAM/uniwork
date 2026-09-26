@@ -78,7 +78,7 @@ replace them. Units: **EW = engineer-week of one focused engineer**.
 | R2 | one format's editor+adapter integration into Documents (shell, save state, permissions, i18n, tokens) | 1.5 / 2.5 / 4 EW per format | 6 formats today; the proven cycles give the behaviour baseline, not the effort; replace after G3's first format. The r2 port items P1-P4 are concrete instances inside this package - naming them does not add new scope, it removes discovery risk |
 | R3 | independent verification per format (fixtures re-run, thresholds, reviewer) | 0.5 / 1.0 / 2.0 EW per format | r2 replaces the r1 guess-basis: one full five-format open-timing sweep cost ~5-6 min lab wall on this machine, but a full per-format verification (cycles + thresholds + review) is still unmeasured; replace with measured run-days after the first G3 format |
 | R4 | engine service + native sidecar productisation (process, health, metrics, limits, backpressure, on-prem packaging) | 3 / 5 / 8 EW total | DOC-004 packaging matrix rows exist; nothing is built. r2 adds a concrete instance: a conversion engine for Q7 does not exist at all |
-| R5 | Go document store work (metadata, versions, commit transaction, audit/outbox, quota, orphan ledger + reconciler) | 6 / 10 / 16 EW total | G1 UNI-657; the register states all of it is modeled today |
+| R5 | Go document store work (metadata, versions, commit transaction, audit/outbox, quota, orphan ledger + reconciler) | 6 / 10 / 16 EW total | G1 UNI-657; the register states all of it is modeled today. **2026-09-26:** under FS-C1 / ADR 0022 (proposed) the orphan ledger and reconciler belong to FileService, and G1 adds a `ReferenceProvider` plus the FS-C1 consumer tests instead; the rate is left unchanged (no measured effort exists either way, see `docs/office/g1g2/fs-c1-alignment.md`) |
 | R6 | desktop host: login/deep link/session, identity namespace, coexistence, packaging pipeline per OS | 4 / 7 / 11 EW total | DOC-005 desktop items + brand B-01..B-17 |
 | R7 | signing, notarization, installer formats (deb/rpm/nsis/dmg) and the private update channel | 2 / 3.5 / 6 EW total | brand B-04/B-05/B-17 and DOC-004 section 3 |
 | R8 | brand/assets/identity work across the 18 surfaces + 7 acceptance checks | 2.5 / 4 / 6.5 EW total | brand doc sections 3-4 |
@@ -100,7 +100,7 @@ Q7 conversion engine** (r2 additions - enumerated members of the existing packag
 | FE design + integration (r2 detail: P1-P4 named error/blank/shell/font behaviours are inside this package) | 6 formats x R2 | 9.0 | 15.0 | 24.0 |
 | Test / verification (incl. DOC-004 fault gate, thresholds, pixel diff) | 6 formats x R3 | 3.0 | 6.0 | 12.0 |
 | Signing + distribution | R7 | 2.0 | 3.5 | 6.0 |
-| Infrastructure (Go store, commit/audit/outbox, quota, orphan ledger, change feed) | R5 + R10 | 9.0 | 15.0 | 24.0 |
+| Infrastructure (Go store, commit/audit/outbox, quota, orphan ledger - now FileService under FS-C1 -, change feed) | R5 + R10 | 9.0 | 15.0 | 24.0 |
 | Brand / assets / identity / update + coexistence | R8 + R6 | 6.5 | 11.0 | 17.5 |
 | Q7/Q8 product behaviour (conversion copy, draft protection; r2 detail: P5 adapter intent path + the missing conversion engine land here and in R4) | R9 | 3.0 | 5.0 | 8.0 |
 | Platform matrix (Chrome/Edge re-record + macOS/Safari, UNI-671) | R11 | 2.0 | 3.5 | 6.0 |
@@ -132,7 +132,7 @@ OCR stays outside M2 (Q2-A) and is not costed here; a scanned-PDF OCR milestone 
 
 | Step | Must exist before | Evidence |
 | --- | --- | --- |
-| 1 | Go store + commit/audit/outbox + orphan ledger (G1 UNI-657) | migration order is the dependency order: store and ledger exist before the engine writes |
+| 1 | Go store + commit/audit/outbox + `ReferenceProvider` (G1 UNI-657), on FileService FS-C1 (orphan ledger and GC are FileService's since 2026-09-24) | migration order is the dependency order: store and FileService exist before the engine writes |
 | 2 | engine port into the monorepo from a clean checkout, catalog-conflict decision (React/TipTap) resolved (G2 UNI-658) | clean-checkout FAIL-DEFERRAL with 2 named missing pieces |
 | 3 | engine service + native sidecar productised (G2); r2 adds: the Q7 conversion engine (G2) and the P5 password-intent adapter path (G2) | DOC-004 packaging matrix row "Server"; `r2/Q7-BLOCKER.md`; `r2/PORT-ITEMS.md` P5 |
 | 4 | browser editors integrated on the ported engine (G3 UNI-659); r2 adds: the named port behaviours P1-P4 and the Q7 warning/cancel/accept UI (G3) | six proven cycles exist on the lab bridge, not on the product engine; `r2/PORT-ITEMS.md` P1-P4 |
@@ -147,7 +147,7 @@ OCR stays outside M2 (Q2-A) and is not costed here; a scanned-PDF OCR milestone 
 | Resource | Why | Evidence |
 | --- | --- | --- |
 | engine/native engineer (Rust + Node/TS) | sidecar, engine service, PDF image-edit decode path, PPTX `host:slides-edit-transform` channel; r2 adds the Q7 conversion engine (BIFF8/ODF -> OOXML, service side) | DOC-004 deviations 1-3; `r2/Q7-BLOCKER.md` |
-| Go/backend engineer | store, commit transaction, audit/outbox, quota, change feed, orphan ledger | G1 scope; register says it is modeled today |
+| Go/backend engineer | store, commit transaction, audit/outbox, quota, change feed (G5), `ReferenceProvider` on FileService (the orphan ledger is FileService's under FS-C1) | G1 scope; register says it is modeled today |
 | FE engineer | 6 editors into Documents, brand chrome, editor shell states, 375 px defect, brand 1280 px; r2 adds the named port behaviours P1-P4 and the Q7 dialog | `pilot-handoff.md` limits; brand B-16; `r2/PORT-ITEMS.md` |
 | desktop/packaging engineer | host, login/deep link, installers, signing/notarization, update feed | brand B-01..B-17, DOC-004 section 1 |
 | independent Tester with the Orca browser | every new row needs its own browser-real evidence; the r2 sweep (~5-6 min lab wall per five-format timing pass) is the cheapest verification loop so far | DOC-003 reports; `r2/receipts/tester-r2b/REPORT.md` |
