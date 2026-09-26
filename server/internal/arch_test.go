@@ -432,15 +432,15 @@ func TestFilesContractIsALeafCalledOnlyFromTheServiceTier(t *testing.T) {
 	graph := directImports(t)
 	for pkg, imports := range graph {
 		for _, imp := range imports {
-			if !strings.HasPrefix(imp, module+"internal/files") {
-				continue
-			}
 			if strings.HasPrefix(pkg, "internal/files") {
 				for _, forbidden := range []string{module + "internal/service", module + "internal/handler"} {
 					if strings.HasPrefix(imp, forbidden) {
 						t.Errorf("%s imports %s; internal/files must not depend on the service or handler tier (FS-C1 section 2)", pkg, imp)
 					}
 				}
+				continue
+			}
+			if !strings.HasPrefix(imp, module+"internal/files") {
 				continue
 			}
 			if !strings.HasPrefix(pkg, "internal/service") {
