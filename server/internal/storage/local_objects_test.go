@@ -42,7 +42,7 @@ func TestValidObjectKeyMatrix(t *testing.T) {
 		"files/01JABC/object.bin",
 		"chat/files/photo.png",
 		"deeply/nested/path/file",
-		"trailing.dots...",
+		"trailing.dots.txt",
 		"UPPER.txt",
 	}
 	invalid := []string{
@@ -65,6 +65,12 @@ func TestValidObjectKeyMatrix(t *testing.T) {
 		"dir/object.meta.json",
 		".object.tmp",
 		"dir/.object.tmp",
+		// Trailing dot/space segments alias other names on Windows
+		// ("victim." opens "victim") - generated keys never need them.
+		"trailing.dots...",
+		"dir/victim.",
+		"dir/victim ",
+		"victim.",
 	}
 	for _, k := range valid {
 		if !validObjectKey(k) {
@@ -272,7 +278,8 @@ func TestLocalObjectStoreDeleteReclaimsCrashLeftoverTemp(t *testing.T) {
 }
 
 // TestLocalObjectStoreSizeMismatch: a declared length the stream cannot meet
-// stores nothing.
+// stores nothing - and on an overwrite it must not destroy the object that was
+// committed before (the size check runs before the rename).
 func TestLocalObjectStoreSizeMismatch(t *testing.T) {
 	store, _ := newLocalStore(t)
 	ctx := context.Background()
@@ -284,6 +291,32 @@ func TestLocalObjectStoreSizeMismatch(t *testing.T) {
 	}
 	if _, err := store.Stat(ctx, loc); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("Stat after size mismatch = %v, want ErrNotFound", err)
+	}
+}
+
+// TestLocalObjectStoreMismatchedOverwriteKeepsObject is the destructive shape
+// the tester caught: a retry whose stream ends short of the declared size
+// used to rename into place and then delete dest, erasing the committed
+// object. Now the mismatch discards only its own temp file.
+func TestLocalObjectStoreMismatchedOverwriteKeepsObject(t *testing.T) {
+	store, _ := newLocalStore(t)
+	ctx := context.Background()
+	loc := localLoc("m.bin")
+
+	if _, err := store.Put(ctx, loc, strings.NewReader("v1-complete"), WriteInfo{SizeBytes: 11}); err != nil {
+		t.Fatalf("first Put: %v", err)
+	}
+	if _, err := store.Put(ctx, loc, strings.NewReader("short"), WriteInfo{SizeBytes: 40}); !errors.Is(err, ErrSizeMismatch) {
+		t.Fatalf("overwriting Put = %v, want ErrSizeMismatch", err)
+	}
+	obj, err := store.Open(ctx, loc, ReadOptions{})
+	if err != nil {
+		t.Fatalf("Open after mismatched overwrite: %v", err)
+	}
+	got, _ := io.ReadAll(obj.Body)
+	_ = obj.Body.Close()
+	if string(got) != "v1-complete" {
+		t.Fatalf("object after mismatched overwrite = %q, want the original", got)
 	}
 }
 
@@ -309,20 +342,12 @@ func TestLocalObjectStoreOpenWindowEdges(t *testing.T) {
 		t.Fatalf("open-ended window = %q, want %q", got, "89")
 	}
 
-	// Offset exactly at end: an empty body is a legal window.
-	obj, err = store.Open(ctx, loc, ReadOptions{Offset: 10, Length: 0})
-	if err != nil {
-		t.Fatalf("Open at end: %v", err)
-	}
-	got, _ = io.ReadAll(obj.Body)
-	_ = obj.Body.Close()
-	if len(got) != 0 {
-		t.Fatalf("at-end window = %q, want empty", got)
-	}
-
-	// Past the end is not-found - no such bytes.
-	if _, err := store.Open(ctx, loc, ReadOptions{Offset: 11}); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("Open past end = %v, want ErrNotFound", err)
+	// Offset at or past the end cannot be satisfied: the same sentinel S3
+	// answers with 416, so a proxy sees one shape on every backend.
+	for _, off := range []int64{10, 11} {
+		if _, err := store.Open(ctx, loc, ReadOptions{Offset: off}); !errors.Is(err, ErrRangeNotSatisfiable) {
+			t.Fatalf("Open offset %d = %v, want ErrRangeNotSatisfiable", off, err)
+		}
 	}
 	if _, err := store.Open(ctx, loc, ReadOptions{Offset: -1}); !errors.Is(err, ErrLocatorInvalid) {
 		t.Fatalf("Open negative offset = %v, want ErrLocatorInvalid", err)

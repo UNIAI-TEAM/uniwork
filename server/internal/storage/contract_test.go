@@ -123,6 +123,13 @@ func runObjectStoreContract(t *testing.T, cs contractStore) {
 		if obj.Info.SizeBytes != int64(len(body)) {
 			t.Fatalf("ranged Open SizeBytes = %d, want the whole object's %d", obj.Info.SizeBytes, len(body))
 		}
+		// A window that starts at or past the end cannot be satisfied - every
+		// backend answers the same sentinel so a proxy can emit one 416.
+		for _, off := range []int64{int64(len(body)), int64(len(body)) + 5} {
+			if _, err := store.Open(ctx, loc, ReadOptions{Offset: off}); !errors.Is(err, ErrRangeNotSatisfiable) {
+				t.Fatalf("Open offset %d = %v, want ErrRangeNotSatisfiable", off, err)
+			}
+		}
 	})
 
 	t.Run("NotFound", func(t *testing.T) {

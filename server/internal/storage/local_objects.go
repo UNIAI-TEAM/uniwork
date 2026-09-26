@@ -45,15 +45,12 @@ func (s *localObjectStore) Put(ctx context.Context, loc ObjectLocator, body io.R
 	if err := ctx.Err(); err != nil {
 		return PutResult{}, err
 	}
-	counter := &countingReader{r: ctxReader(ctx, body)}
-	if err := writeAtomic(dest, counter); err != nil {
+	// The declared-size check happens inside writeAtomicSized, before the
+	// rename: a stream that ends short only loses its own temp file and the
+	// object already stored at this key is never touched.
+	stored, err := writeAtomicSized(dest, ctxReader(ctx, body), info.SizeBytes)
+	if err != nil {
 		return PutResult{}, fmt.Errorf("local Put: %w", err)
-	}
-	if info.SizeBytes >= 0 && counter.n != info.SizeBytes {
-		// The stream did not deliver the declared length: the object cannot be
-		// trusted, so remove it rather than commit a partial write.
-		_ = os.Remove(dest)
-		return PutResult{}, fmt.Errorf("local Put: %w: declared %d bytes, stored %d", ErrSizeMismatch, info.SizeBytes, counter.n)
 	}
 	// The same sidecar the legacy Upload writes: it preserves the verified
 	// content type so Open/Stat can return it (and ServeFile keeps its
@@ -64,7 +61,7 @@ func (s *localObjectStore) Put(ctx context.Context, loc ObjectLocator, body io.R
 		// download name, never the bytes.
 		_ = os.WriteFile(dest+metaSuffix, meta, 0644)
 	}
-	return PutResult{SizeBytes: counter.n}, nil
+	return PutResult{SizeBytes: stored}, nil
 }
 
 // Open implements ObjectStore. Offset/Length are served by seeking the open
@@ -89,9 +86,11 @@ func (s *localObjectStore) Open(ctx context.Context, loc ObjectLocator, opts Rea
 		_ = f.Close()
 		return nil, localErr("Open", err)
 	}
-	if opts.Offset > size {
+	// A range that starts at or past the end cannot be satisfied - same rule
+	// S3 answers with 416. A plain open (no Offset/Length) never reaches this.
+	if (opts.Offset > 0 || opts.Length > 0) && opts.Offset >= size {
 		_ = f.Close()
-		return nil, fmt.Errorf("local Open: %w: offset %d past end of a %d byte object", ErrNotFound, opts.Offset, size)
+		return nil, fmt.Errorf("local Open: %w: offset %d past end of a %d byte object", ErrRangeNotSatisfiable, opts.Offset, size)
 	}
 	if opts.Offset > 0 {
 		if _, err := f.Seek(opts.Offset, io.SeekStart); err != nil {
@@ -109,7 +108,7 @@ func (s *localObjectStore) Open(ctx context.Context, loc ObjectLocator, opts Rea
 		body = io.LimitReader(f, window)
 	}
 	info := ObjectInfo{SizeBytes: size, ContentType: localContentType(path), RangeStart: -1, RangeEnd: -1}
-	if opts.Offset > 0 || opts.Length > 0 {
+	if window > 0 && (opts.Offset > 0 || opts.Length > 0) {
 		info.RangeStart = opts.Offset
 		info.RangeEnd = opts.Offset + window - 1
 	}
@@ -305,19 +304,6 @@ func resolveExisting(target string) (string, error) {
 		resolved = filepath.Join(resolved, tail[i])
 	}
 	return resolved, nil
-}
-
-// countingReader counts bytes as they stream through, so Put can verify a
-// declared length and always report the stored size.
-type countingReader struct {
-	r io.Reader
-	n int64
-}
-
-func (r *countingReader) Read(p []byte) (int, error) {
-	n, err := r.r.Read(p)
-	r.n += int64(n)
-	return n, err
 }
 
 // ctxReader fails the read as soon as ctx is done, so a canceled upload stops

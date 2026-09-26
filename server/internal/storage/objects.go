@@ -147,7 +147,9 @@ type ObjectStore interface {
 	// wrong bucket, escaping key) is ErrLocatorInvalid and does no I/O.
 	Put(ctx context.Context, loc ObjectLocator, body io.Reader, info WriteInfo) (PutResult, error)
 	// Open returns the object body, bounded by opts.Range when set.
-	// A missing object is ErrNotFound.
+	// A missing object is ErrNotFound. A requested range that cannot be
+	// satisfied (Offset at or past the end) is ErrRangeNotSatisfiable on
+	// every backend - the same rule S3 applies (HTTP 416).
 	Open(ctx context.Context, loc ObjectLocator, opts ReadOptions) (*Object, error)
 	// Stat returns object metadata. A missing object is ErrNotFound.
 	Stat(ctx context.Context, loc ObjectLocator) (ObjectInfo, error)
@@ -193,6 +195,10 @@ var (
 	// serve safely (default object-lock retention, undeletable hold) - the
 	// configured destination is refused before the first upload (spec §3.3.2).
 	ErrBucketUnsupported = errors.New("storage_bucket_unsupported")
+	// ErrRangeNotSatisfiable: the requested window starts at or past the end
+	// of the object (HTTP 416). Both adapters answer the same sentinel so a
+	// proxy can emit one status without backend branches.
+	ErrRangeNotSatisfiable = errors.New("storage_range_not_satisfiable")
 )
 
 // validObjectKey refuses the key shapes no object may have. Object keys are
@@ -231,6 +237,12 @@ func validObjectKey(key string) bool {
 			return false
 		}
 		if strings.ContainsRune(seg, ':') {
+			return false
+		}
+		// A trailing dot or space silently aliases another key on Windows
+		// ("victim." opens "victim"), so generated keys may not end a segment
+		// with either.
+		if strings.HasSuffix(seg, ".") || strings.HasSuffix(seg, " ") {
 			return false
 		}
 	}

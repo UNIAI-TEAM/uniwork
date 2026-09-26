@@ -291,6 +291,20 @@ func (s *s3ObjectStore) checkLocator(loc ObjectLocator) error {
 	return nil
 }
 
+// countingReader counts bytes as they stream through, so Put can verify a
+// declared length after the SDK consumed the body (S3 commits atomically, so
+// a post-hoc check is safe - unlike the local rename path).
+type countingReader struct {
+	r io.Reader
+	n int64
+}
+
+func (r *countingReader) Read(p []byte) (int, error) {
+	n, err := r.r.Read(p)
+	r.n += int64(n)
+	return n, err
+}
+
 // rangeHeader formats the HTTP Range value; length <= 0 is open-ended.
 func rangeHeader(offset, length int64) string {
 	if length > 0 {
@@ -333,6 +347,11 @@ func mapSDKError(err error) error {
 		switch apiErr.ErrorCode() {
 		case "NoSuchKey", "NoSuchVersion", "NotFound", "404":
 			return errors.Join(ErrNotFound, err)
+		case "InvalidRange":
+			// S3/MinIO answer 416 InvalidRange when the window cannot be
+			// satisfied; the local adapter raises the same sentinel for an
+			// offset at or past the end, so a proxy sees one shape.
+			return errors.Join(ErrRangeNotSatisfiable, err)
 		}
 	}
 	var noKey *s3types.NoSuchKey
