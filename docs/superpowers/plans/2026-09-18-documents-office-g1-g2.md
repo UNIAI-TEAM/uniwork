@@ -54,7 +54,14 @@ service/engine thật.
   (UNI-726). Documents là một bên tiêu thụ; plan này không tự dựng pipeline file.
   Quyền sở hữu blob/intent/GC được ghi trong ADR 0022 (đề xuất, `docs/adr/drafts/`).
   Tại baseline, develop **chưa** có `server/internal/files`: code FS-C1 T1a (UNI-739)
-  nằm trên nhánh `feature/UNI-739-fs-c1-contract` (`5fececa8`), chưa merge.
+  nằm trên nhánh `feature/UNI-739-fs-c1-contract` (đầu nhánh `5fececa8` lúc đọc ngày
+  2026-09-26, chưa phải bản cuối). Theo Advisor FileService, T1a merge cục bộ vào
+  `feature/UNI-726-shared-file-service` trước, rồi chỉ tới develop qua PR do lead merge.
+  FS-C1 vẫn là v1, không có thay đổi đang chờ.
+- **Đọc `engine-contract.md` và `module-runtime-map.json` kèm
+  [`docs/office/g1g2/fs-c1-alignment.md`](../../office/g1g2/fs-c1-alignment.md).** Hai file đó
+  (file đầu bị pin sha256) vẫn giao "orphan ledger + reconciler" cho G1 (§1, §8.3, §11, §13, §15;
+  `g1_g2_handoff`, `ownership_map`); ghi chú liệt kê từng câu bị thay theo FS-C1.
 - Code có sẵn: Go Chi + pgx/sqlc, storage S3/LocalStorage, audit/outbox,
   entitlement, task comments, TipTap, core/views và workspace shell.
   Chưa có DocumentService, module Documents hay Office service sản phẩm.
@@ -67,6 +74,9 @@ service/engine thật.
 Kiểm lại ngày 2026-09-26 trên develop `c6b567f0`; verifier
 `node scripts/office-g0/verify-evidence.mjs --registry docs/office/g0/evidence-register.json --root . --json --require-go`
 (kèm hai thư mục `--artifacts` ngoài repo) trả `valid: true`, `go: true`, 8/8 gate bắt buộc.
+Lần chạy này cần hai thư mục bằng chứng G0 ngoài git (`.uniwork-dev/office-g0` và
+`dev-uniwork/.uniwork-dev`), nên không tái lập được từ một bản clone sạch; phần pin trong repo
+vẫn kiểm được.
 
 - [x] G0 bàn giao source pin + checksum + license/dependency inventory:
   `docs/office/g0/source-manifest.json` (commit upstream `09485f88`, LICENSE/NOTICE, hash từng input).
@@ -553,7 +563,7 @@ bytes/history/assets/search; public revoke và owned constraints có test thật
 **Phụ thuộc:** G1-01, quyền nền G1-02; FS-C1 (FileService Gate A0) để bắt đầu code
 bằng `filesfake`; FileService Gate C để nghiệm thu với storage thật.
 Gate A0 = T1a của UNI-739 đã merge vào develop. Ngày 2026-09-26 T1a mới ở nhánh
-`feature/UNI-739-fs-c1-contract` (`5fececa8`), develop chưa có `server/internal/files`:
+`feature/UNI-739-fs-c1-contract` (chưa phải bản cuối), develop chưa có `server/internal/files`:
 G1-03 chưa mở code được, trong khi G1-01 và G1-02a vẫn làm được. Cần thêm U-2 và U-3.
 **Đây là dependency chính của G2.**
 

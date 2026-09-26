@@ -948,10 +948,21 @@ mã một lần ở `mapServiceError`:
 | `quota_exceeded` | **403** | `quota` | Giữ mã hiện có của repo (`entitlement.go`, FS-C1 §7); DOC-005 ghi 413 là giá trị của model G0 |
 | `forbidden` / `not_found` | 403 / 404 | `permission` / `missing` | Như hiện có |
 
-Lỗi của FileService (FS-C1 §7) được bọc lại khi C-01 đã có mã: `file_type_rejected` → `unsupported_media_type` (415),
-`file_too_large` → `file_too_large` (413), `file_not_found` → `not_found`; `file_not_ready`, `file_claim_expired` và
-`file_upload_canceled` → `document_upload_invalid` (409, `conflict`, kèm `fields.reason`); `storage_unavailable` giữ
-nguyên (503). `document_upload_invalid` là mã mới do amendment này đề xuất.
+Lỗi của FileService (FS-C1 §7) được bọc lại, không lộ nguyên dạng cho client:
+
+| Mã FileService | Documents trả | Ghi chú |
+| --- | --- | --- |
+| `file_type_rejected` | `unsupported_media_type` (415) | Mã C-01 hiện có |
+| `file_too_large` | `file_too_large` (413) | Mã C-01 hiện có |
+| `file_not_found` | `not_found` (404) | Không xác nhận file tồn tại |
+| `file_not_ready`, `file_claim_expired`, `file_upload_canceled`, `file_deleting` | `document_upload_invalid` (409, `conflict`, `fields.reason` = mã gốc) | Mã mới do amendment này đề xuất; client tải lên lại |
+| `file_already_claimed` | `upload_already_committed` (409) | Chỉ xảy ra khi hủy một upload đã commit |
+| `idempotency_conflict` | `idempotency_payload_mismatch` (409) | Documents dẫn key idempotency của FileService từ key của chính request |
+| `file_purpose_unknown`, `file_purpose_disabled`, `file_scope_invalid` | 500, log | Documents tự dựng purpose/scope từ context đã kiểm quyền, nên đây là lỗi cấu hình hoặc lỗi code phía server, không phải lỗi của client |
+| `storage_unavailable` | `storage_unavailable` (503) | Giữ nguyên; client giữ nháp và thử lại |
+
+Việc `upload_id` đã gắn vào một version khác do Documents tự kiểm (FileService cho phép dùng lại `file_id` trong cùng
+tổ chức theo T1-Q3), và trả `upload_already_committed`.
 
 ### 14.6 Số migration (thay số ở §3 và §11)
 
