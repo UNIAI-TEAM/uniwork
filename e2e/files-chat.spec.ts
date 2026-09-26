@@ -240,6 +240,11 @@ test.describe.serial("chat file and voice messages", () => {
 
   test("an unsupported file type is refused before it is sent", async () => {
     await openChat(owner);
+    // The composer is visible before the message list finishes loading; wait
+    // for a known earlier message so `before` counts a settled list.
+    await expect(
+      owner.locator('article[id^="chat-msg-"]').filter({ hasText: `gui-lai-${stamp}.txt` }),
+    ).toBeVisible({ timeout: 20_000 });
     const before = await owner.locator('article[id^="chat-msg-"]').count();
 
     await owner.locator('input[type="file"]').setInputFiles({
