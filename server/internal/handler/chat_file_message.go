@@ -51,6 +51,13 @@ func sniffChatFileContentType(data []byte, filename string) (string, bool) {
 }
 
 func (h *handlers) sendChatFileMessage(w http.ResponseWriter, r *http.Request) {
+	// T7 selectable path: a wired FileService takes the FS flow below; nil keeps
+	// the legacy storage pipeline byte-identical until the module cutover
+	// (plan §7 step 8 / T9c removes it).
+	if h.Chat.FilesService() != nil {
+		h.sendChatFileMessageFS(w, r)
+		return
+	}
 	if h.Storage == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "file storage is not configured")
 		return
@@ -134,7 +141,60 @@ func (h *handlers) sendChatFileMessage(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]any{"message": toChatMessageDTO(msg)})
 }
 
+// sendChatFileMessageFS is the FileService send: the handler only unpacks the
+// multipart envelope; verification, dedupe and claim all live in the service.
+func (h *handlers) sendChatFileMessageFS(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, service.MaxChatFileMessageBytes+chatFileMultipartHeadroom)
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			respondError(w, http.StatusRequestEntityTooLarge, "too_large", "file must be at most 25 MiB")
+			return
+		}
+		respondError(w, http.StatusBadRequest, "invalid_request", `multipart field "file" is required`)
+		return
+	}
+	defer file.Close()
+
+	data, err := io.ReadAll(io.LimitReader(file, service.MaxChatFileMessageBytes+1))
+	if err != nil {
+		respondError(w, http.StatusBadRequest, "invalid_request", "could not read file")
+		return
+	}
+	if len(data) > service.MaxChatFileMessageBytes {
+		respondError(w, http.StatusRequestEntityTooLarge, "too_large", "file must be at most 25 MiB")
+		return
+	}
+	filename := ""
+	if header != nil {
+		filename = header.Filename
+	}
+	var replyTo *string
+	if raw := strings.TrimSpace(r.FormValue("reply_to_message_id")); raw != "" {
+		replyTo = &raw
+	}
+	ctx := r.Context()
+	msg, err := h.Chat.SendFileMessage(ctx, middleware.UserID(ctx), chi.URLParam(r, "workspaceID"), chi.URLParam(r, "roomID"), service.SendFileMessageInput{
+		Filename:         filename,
+		Body:             bytes.NewReader(data),
+		ReplyToMessageID: replyTo,
+		ClientMsgID:      strings.TrimSpace(r.FormValue("client_msg_id")),
+	})
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"message": toChatMessageDTO(msg)})
+}
+
 func (h *handlers) streamChatFileMessage(w http.ResponseWriter, r *http.Request) {
+	// Reader handles rows written by either path: file_id rows open through
+	// FileService, object_key rows still read the storage object.
+	if h.Chat.FilesService() != nil {
+		h.streamChatFileMessageFS(w, r)
+		return
+	}
 	if h.Storage == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "file storage is not configured")
 		return
@@ -168,6 +228,53 @@ func (h *handlers) streamChatFileMessage(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`%s; filename=%q`, disposition, msg.File.Filename))
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	if _, err := io.Copy(w, reader); err != nil {
+		h.Log.Error("chat file stream", "err", err, "message_id", msg.ID)
+	}
+}
+
+// streamChatFileMessageFS opens through FileService; a pre-migration row still
+// serves its storage object until the T9b backfill lands.
+func (h *handlers) streamChatFileMessageFS(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	msg, reader, err := h.Chat.OpenChatFileMessage(
+		ctx,
+		middleware.UserID(ctx),
+		chi.URLParam(r, "workspaceID"),
+		chi.URLParam(r, "roomID"),
+		chi.URLParam(r, "messageID"),
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	var body io.ReadCloser
+	if reader.Body != nil {
+		body = reader.Body
+	} else {
+		if h.Storage == nil || msg.File.ObjectKey == "" {
+			respondError(w, http.StatusNotFound, "not_found", "file content not found")
+			return
+		}
+		legacy, err := h.Storage.GetReader(ctx, msg.File.ObjectKey)
+		if err != nil {
+			h.Log.Error("chat file read", "err", err, "message_id", msg.ID)
+			respondError(w, http.StatusNotFound, "not_found", "file content not found")
+			return
+		}
+		body = legacy
+	}
+	defer body.Close()
+
+	disposition := "attachment"
+	if strings.HasPrefix(msg.File.ContentType, "image/") {
+		disposition = "inline"
+	}
+	w.Header().Set("Content-Type", msg.File.ContentType)
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", msg.File.SizeBytes))
+	w.Header().Set("Cache-Control", "private, no-store")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`%s; filename=%q`, disposition, msg.File.Filename))
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if _, err := io.Copy(w, body); err != nil {
 		h.Log.Error("chat file stream", "err", err, "message_id", msg.ID)
 	}
 }
