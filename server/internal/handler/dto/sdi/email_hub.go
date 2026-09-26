@@ -30,7 +30,7 @@ type SendEmailHubSDI struct {
 // SummarizeEmailHubThreadSDI is POST .../email-hub/threads/{threadID}/ai/summarize.
 type SummarizeEmailHubThreadSDI struct {
 	AccountID string `json:"account_id" minLength:"1" example:"01JABC1234567890ABCDEFGH"`
-	Locale    string `json:"locale" description:"vi hoặc en; mặc định vi" example:"vi"`
+	Locale    string `json:"locale" description:"vi hoặc en; mặc định en" example:"vi"`
 	Force     bool   `json:"force" description:"true = bỏ cache và gọi AI lại"`
 }
 

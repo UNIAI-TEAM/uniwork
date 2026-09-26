@@ -81,7 +81,7 @@ func (s *ChatService) HandleVoiceCallCompleted(ctx context.Context, payload map[
 	}
 	locale := strings.TrimSpace(payload["locale"])
 	if locale == "" {
-		locale = "vi"
+		locale = "en"
 	}
 	durationLabel := strings.TrimSpace(payload["duration_label"])
 	participants := strings.TrimSpace(payload["participants"])

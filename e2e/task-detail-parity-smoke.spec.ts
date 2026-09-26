@@ -70,9 +70,12 @@ test("task detail: suite comment + attachment always on", async ({ page }) => {
   await page.getByRole("button", { name: "Gửi" }).click();
   await expect(page.getByText(commentBody)).toBeVisible({ timeout: 15_000 });
 
-  // Attachment upload when capability is available.
-  const uploadInput = page.locator('input[type="file"][aria-label="Thêm tệp"]');
-  await expect(uploadInput).toBeAttached({ timeout: 15_000 });
-  await uploadInput.setInputFiles(fixturePath);
+  // Attachment upload goes through the description's attach button (the first
+  // one on the page; each comment composer carries its own).
+  const [chooser] = await Promise.all([
+    page.waitForEvent("filechooser"),
+    page.getByRole("button", { name: "Đính kèm tệp" }).first().click(),
+  ]);
+  await chooser.setFiles(fixturePath);
   await expect(page.getByText("parity-upload.txt")).toBeVisible({ timeout: 20_000 });
 });

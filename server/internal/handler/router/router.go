@@ -120,10 +120,10 @@ func New(d Deps, h Routes) http.Handler {
 			chatWriteLimit := mw.RateLimit(d.Redis, 120, time.Minute, proxies)
 			chatTypingLimit := mw.RateLimit(d.Redis, 30, time.Minute, proxies)
 			registerChat(authed, h, chatWriteLimit, chatTypingLimit)
-			registerChatChannels(authed, h, mw.RequireFeatureFlag(d.FeatureFlags, "chat_work_hub"), chatWriteLimit)
-			registerChatThreads(authed, h, mw.RequireFeatureFlag(d.FeatureFlags, "chat_work_hub"), chatWriteLimit)
-			registerChatLinks(authed, h, mw.RequireFeatureFlag(d.FeatureFlags, "chat_work_hub"), chatWriteLimit)
-			registerChatFollowUps(authed, h, mw.RequireFeatureFlag(d.FeatureFlags, "chat_work_hub"), chatWriteLimit)
+			registerChatChannels(authed, h, chatWriteLimit)
+			registerChatThreads(authed, h, chatWriteLimit)
+			registerChatLinks(authed, h, chatWriteLimit)
+			registerChatFollowUps(authed, h, chatWriteLimit)
 			if d.PlatformRoles != nil {
 				adminLimit := mw.RateLimit(d.Redis, d.Cfg.AdminRateLimitPerMin, time.Minute, proxies)
 				registerAdmin(authed, h, adminLimit,

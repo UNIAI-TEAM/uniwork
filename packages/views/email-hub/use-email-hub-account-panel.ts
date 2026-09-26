@@ -1,8 +1,6 @@
-import { useCallback, useMemo, type ComponentProps } from "react";
+import { useCallback, useMemo } from "react";
 import type { EmailHubAccount } from "@uniwork/core/types/email-hub";
-import type { EmailHubAccountsPanel } from "./email-hub-accounts-panel";
-
-type AccountPanelProps = ComponentProps<typeof EmailHubAccountsPanel>;
+import type { EmailHubAccountMenuProps } from "./email-hub-account-menu";
 
 export function useEmailHubAccountPanel(
   accountList: EmailHubAccount[],
@@ -10,8 +8,12 @@ export function useEmailHubAccountPanel(
   setAccountId: (id: string | null) => void,
   setSelectedId: (id: string | null) => void,
   setConnectOpen: (open: boolean) => void,
-  disconnect: { mutate: (id: string, opts?: { onSuccess?: () => void }) => void; isPending: boolean },
-): AccountPanelProps {
+  disconnect: {
+    mutate: (id: string, opts?: { onSuccess?: () => void; onError?: (err: unknown) => void; onSettled?: () => void }) => void;
+    isPending: boolean;
+  },
+  onDisconnectError: (err: unknown) => void,
+): EmailHubAccountMenuProps {
   const selectAccount = useCallback(
     (id: string) => {
       setAccountId(id);
@@ -21,7 +23,7 @@ export function useEmailHubAccountPanel(
   );
 
   const disconnectAccount = useCallback(
-    (id: string) => {
+    (id: string, onDone: () => void) => {
       disconnect.mutate(id, {
         onSuccess: () => {
           if (accountId === id) {
@@ -29,9 +31,11 @@ export function useEmailHubAccountPanel(
             setSelectedId(null);
           }
         },
+        onError: onDisconnectError,
+        onSettled: onDone,
       });
     },
-    [accountId, disconnect, setAccountId, setSelectedId],
+    [accountId, disconnect, onDisconnectError, setAccountId, setSelectedId],
   );
 
   return useMemo(

@@ -1,0 +1,579 @@
+{
+  "schemaVersion": 1,
+  "kind": "uniwork-office-browser-cycle-contract",
+  "contract": {
+    "name": "uniwork-office-lab-bridge",
+    "version": "1.1",
+    "string": "uniwork-office-lab-bridge@1",
+    "stringPattern": "^[a-z0-9][a-z0-9-]*@[1-9][0-9]*$",
+    "owner": "core-protocol",
+    "status": "frozen-candidate",
+    "appliedToM": false,
+    "supersedes": "CONTRACT-v1 (same protocol string; the rebind and the supportingFixture row field are new)",
+    "relatedButSeparate": [
+      {
+        "name": "uniwork-office-engine-contract/1",
+        "where": "M/scripts/office-g0/engine-contract-adapter.mjs, M/scripts/office-g0/engine-contract.mjs",
+        "note": "frozen DOC-004 boundary contract; this contract does not replace or re-claim it"
+      }
+    ],
+    "versionNegotiation": {
+      "rule": "a request that declares a contract string the running adapter does not implement is refused, never served",
+      "refusalCode": "bridge_contract_unsupported",
+      "missingCode": "bridge_contract_required",
+      "bumpRule": "a new version is a new string (@2); this string is never edited in place"
+    },
+    "documentVersion": "1.1",
+    "changelog": [
+      {
+        "version": "1",
+        "note": "first frozen contract: protocol string, envelopes, operation ids, manifest binding, receipts, row template, reference client"
+      },
+      {
+        "version": "1.1",
+        "note": "E-XLSX-CYCLE fixture rebind (F-XLSX-EDIT -> F-XLSX-KITCHEN, F-XLSX-EDIT kept as supportingFixture) and the supportingFixture row field; the protocol string stays uniwork-office-lab-bridge@1 because nothing on the wire changed"
+      },
+      {
+        "version": "1.1+r3",
+        "note": "errata: the lab reads a LAB-CONTAINED byte-equal copy verified against the M manifest (a bare --fixture-root outside the lab read roots is path_outside_lab); the verifier reports unknown-fixture-id as an error for a required core row and for both sides of a rebind; the two slice-owned lab extensions are out of scope"
+      }
+    ]
+  },
+  "transport": {
+    "request": {
+      "method": "POST",
+      "pathTemplate": "/lab/<channel>",
+      "contentType": "application/json",
+      "bodyShape": "channel-specific body plus the server-minted viewId; viewId is never supplied by the browser",
+      "bridgeBlockOptional": true,
+      "bridgeBlock": {
+        "contract": "uniwork-office-lab-bridge@1",
+        "operationId": "<canonical operation id for the session format>",
+        "client": {
+          "family": "orca",
+          "chromiumVersion": "<from navigator.userAgent>",
+          "userAgent": "<navigator.userAgent>"
+        }
+      }
+    },
+    "success": {
+      "status": 200,
+      "shape": {
+        "ok": true,
+        "result": "channel result plus the bridge stamp for save channels"
+      }
+    },
+    "refusal": {
+      "status": "statusForCode(code), default 500",
+      "shape": {
+        "ok": false,
+        "error": "<code>",
+        "message": "<text>",
+        "details": "<optional>"
+      }
+    },
+    "bridgeStamp": {
+      "contract": "uniwork-office-lab-bridge@1",
+      "protocol": {
+        "name": "uniwork-office-lab-bridge",
+        "version": 1
+      },
+      "operationId": "<canonical>",
+      "requestDigest": "<sha256 of canonical-json-v1({ channel, body }) - the request body together with the channel it was posted to>",
+      "outputSha256": "<lowercase sha256 read back from disk>",
+      "outputBytes": "<integer>",
+      "receiptPath": "<absolute>",
+      "receiptDigest": "<sha256 of the receipt canonical JSON>"
+    },
+    "saveChannelsCarryBridgeStamp": true,
+    "nonSaveChannelsCarryBridgeStamp": false
+  },
+  "formats": [
+    {
+      "format": "docx",
+      "app": "docs",
+      "saveChannels": [
+        "host:docs-save",
+        "host:docs-save-new",
+        "host:docs-save-as",
+        "host:docs-save-to"
+      ],
+      "operationIds": [
+        "open-edit-text-save-reopen"
+      ],
+      "engineOperationsOnSaveCall": [],
+      "engineRuntime": "browser-renderer",
+      "serializerPackage": "@genoffice/docs",
+      "requiredAssertions": [
+        "text-changed",
+        "table-preserved",
+        "image-preserved",
+        "reopen-fresh-session"
+      ]
+    },
+    {
+      "format": "xlsx",
+      "app": "sheets",
+      "saveChannels": [
+        "host:sheets-save-edits"
+      ],
+      "operationIds": [
+        "open-edit-cell-recalculate-save-reopen"
+      ],
+      "engineOperationsOnSaveCall": [
+        "xlsx-save"
+      ],
+      "engineRuntime": "engine-host-http",
+      "serializerPackage": "@genoffice/sheets",
+      "requiredAssertions": [
+        "cell-value-changed",
+        "formula-recalculated-numeric",
+        "formula-expected-value",
+        "sheet-structure-preserved",
+        "reopen-fresh-session"
+      ]
+    },
+    {
+      "format": "pptx",
+      "app": "slides",
+      "saveChannels": [
+        "host:slides-save",
+        "host:slides-save-as"
+      ],
+      "operationIds": [
+        "edit-text-image-shape-save-reopen"
+      ],
+      "engineOperationsOnSaveCall": [
+        "pptx-txn",
+        "pptx-save"
+      ],
+      "engineRuntime": "engine-host-http",
+      "serializerPackage": "@genoffice/slides",
+      "requiredAssertions": [
+        "text-changed",
+        "image-changed",
+        "shape-changed",
+        "objects-preserved",
+        "reopen-fresh-session"
+      ]
+    },
+    {
+      "format": "pdf",
+      "app": "pdf",
+      "saveChannels": [
+        "host:pdf-save"
+      ],
+      "operationIds": [
+        "replace-text-and-image-save-reopen"
+      ],
+      "engineOperationsOnSaveCall": [
+        "pdf-save"
+      ],
+      "engineRuntime": "engine-host-http",
+      "serializerPackage": "@genoffice/pdf",
+      "requiredAssertions": [
+        "text-changed",
+        "image-changed",
+        "pre-edit-extraction",
+        "post-edit-extraction",
+        "pre-edit-render",
+        "post-edit-render",
+        "annotation-not-substituted",
+        "page-structure-preserved"
+      ]
+    },
+    {
+      "format": "md",
+      "app": "markdown",
+      "saveChannels": [
+        "host:text-save"
+      ],
+      "operationIds": [
+        "edit-source-save-reopen"
+      ],
+      "engineOperationsOnSaveCall": [],
+      "engineRuntime": "browser-renderer",
+      "serializerPackage": "@genoffice/markdown",
+      "requiredAssertions": [
+        "source-changed",
+        "assets-resolve",
+        "table-preserved-unrendered",
+        "reopen-fresh-session"
+      ]
+    },
+    {
+      "format": "html",
+      "app": "html",
+      "saveChannels": [
+        "host:text-save"
+      ],
+      "operationIds": [
+        "edit-source-save-reopen-isolated-preview"
+      ],
+      "engineOperationsOnSaveCall": [],
+      "engineRuntime": "browser-renderer",
+      "serializerPackage": "@genoffice/html",
+      "requiredAssertions": [
+        "source-changed",
+        "assets-resolve",
+        "preview-isolated",
+        "session-read-refused",
+        "reopen-fresh-session"
+      ]
+    }
+  ],
+  "fixtureBinding": {
+    "manifest": "M/docs/office/g0/fixtures/manifest.json",
+    "manifestEntriesKey": "fixtures",
+    "entryFields": [
+      "id",
+      "path",
+      "bytes",
+      "sha256"
+    ],
+    "idShape": "^F-[A-Z0-9-]+$",
+    "openRequest": {
+      "queryExample": "?fixture=F-DOCX-KITCHEN",
+      "equivalent": [
+        "?fixture=manifest:F-DOCX-KITCHEN",
+        "{ app, fixtureId }"
+      ],
+      "rawPathAllowed": true,
+      "rawPathGivesFixtureId": false
+    },
+    "comparison": [
+      "bytes",
+      "sha256 (case-insensitive; the manifest stores uppercase hex; receipts record lowercase)"
+    ],
+    "refusals": [
+      {
+        "code": "fixture_manifest_missing",
+        "status": 500,
+        "when": "manifest file absent or unreadable"
+      },
+      {
+        "code": "fixture_manifest_invalid",
+        "status": 500,
+        "when": "manifest unparseable or an entry lacks id/path/bytes/sha256"
+      },
+      {
+        "code": "fixture_not_in_manifest",
+        "status": 400,
+        "when": "requested id is not an entry"
+      },
+      {
+        "code": "fixture_identity_unavailable",
+        "status": 400,
+        "when": "the entry exists but carries bytes:null/sha256:null (a large-band or pending entry whose bytes do not ship in Git); it loads with the manifest and is refused only when requested"
+      },
+      {
+        "code": "fixture_bytes_missing",
+        "status": 500,
+        "when": "the entry's file is absent or unreadable"
+      },
+      {
+        "code": "fixture_identity_mismatch",
+        "status": 409,
+        "when": "on-disk length or sha256 differs from the manifest entry"
+      }
+    ],
+    "sessionResultBlock": [
+      "fixture.id",
+      "fixture.manifestPath",
+      "fixture.manifestSha256",
+      "fixture.path",
+      "fixture.bytes",
+      "fixture.sha256",
+      "fixture.byteEqualToManifest"
+    ],
+    "fixtureRoot": "<the manifest file's own directory>/files - the rule M/scripts/office-g0/paths.mjs already owns as resolveFixtureRoot(); --fixture-root overrides it",
+    "entryPathResolution": "entry.path is repository-relative and resolves under the fixture root; a mismatch of bytes or sha256 is refused with fixture_identity_mismatch (409) before any working copy exists",
+    "examples": [
+      {
+        "id": "F-DOCX-KITCHEN",
+        "path": "docs/docx-kitchen-sink.docx",
+        "resolved": "M/docs/office/g0/fixtures/files/docs/docx-kitchen-sink.docx",
+        "bytes": 3415,
+        "sha256": "f86c8d90b44a265945b4918dc1f857ebd835f28e3bdf3199f24e66f7fc8ab00b"
+      },
+      {
+        "id": "F-XLSX-KITCHEN",
+        "path": "sheets/xlsx-kitchen-sink.xlsx",
+        "resolved": "M/docs/office/g0/fixtures/files/sheets/xlsx-kitchen-sink.xlsx",
+        "bytes": 5046,
+        "sha256": "bf69b9dbc4f6b8fc485baf6255494ed490ee6c53a3051cb4ce6f967f34fe4bc6"
+      }
+    ],
+    "entryFieldsNote": "id and path are required for every entry, and the bytes and sha256 properties must exist; an explicit null on either is a legitimate pending/large-band entry that loads and is refused by name when requested, while a missing property is a malformed entry",
+    "rebinds": [
+      {
+        "format": "xlsx",
+        "gate": "G0-CORE-XLSX",
+        "row": "E-XLSX-CYCLE",
+        "from": "F-XLSX-EDIT",
+        "to": "F-XLSX-KITCHEN",
+        "primaryFixture": {
+          "id": "F-XLSX-KITCHEN",
+          "path": "sheets/xlsx-kitchen-sink.xlsx",
+          "resolved": "M/docs/office/g0/fixtures/files/sheets/xlsx-kitchen-sink.xlsx",
+          "bytes": 5046,
+          "sha256": "bf69b9dbc4f6b8fc485baf6255494ed490ee6c53a3051cb4ce6f967f34fe4bc6"
+        },
+        "supportingFixture": {
+          "id": "F-XLSX-EDIT",
+          "path": "sheets/xlsx-compatibility-edit.xlsx",
+          "resolved": "M/docs/office/g0/fixtures/files/sheets/xlsx-compatibility-edit.xlsx",
+          "bytes": 3340,
+          "sha256": "2c2d3a09543a0ab83e4449f7224c0b81810c1071dbb87bbc59f398b12dcef687"
+        },
+        "reason": "the E-XLSX-CYCLE recalc assertion (formula-recalculated-numeric) cannot be met on F-XLSX-EDIT: the manifest describes it as holding a cached formula, but the advisor verified that it has no cell formula. The primary fixture is therefore F-XLSX-KITCHEN and F-XLSX-EDIT stays as supportingFixture (context only, never the artifact-ref identity).",
+        "decidedBy": "Advisor g117 decision of 2026-09-25 (DECISION-g117-advisor.md section 2), after the fixture mismatch was reported by the core-xlsx-pdf slice",
+        "manifestEdited": false,
+        "manifestNote": "M/docs/office/g0/fixtures/manifest.json is NOT edited by this contract: the manifest text for F-XLSX-EDIT and the fixture bytes disagree, and that mismatch is recorded as a finding by core-xlsx-pdf.",
+        "artifactRefRule": "every artifact of a core row still carries ref = <primary fixture>/<format>/<operationId>; a supportingFixture never replaces the primary in a ref"
+      }
+    ],
+    "rebindRule": "a rebind moves a core row to a fixture that can actually meet its required assertions; the retired fixture may remain as that row's supportingFixture. A required core row whose primary fixture is the retired side of a rebind for its format is reported by the verifier (warning) and must not be accepted as evidence of the assertion the rebind was made for.",
+    "labReadRule": "the lab can only read paths inside its own read roots: copy the manifest fixture into the lab (or pass its directory as the lab --fixtures root), verify the copy against the M manifest by size+sha256 before lab start, then open the session on the lab-contained copy; the receipt records input.byteEqualToManifest. The M path is never a lab document root.",
+    "unknownIdRule": "a required core-cycle row must name a fixture id that exists in docs/office/g0/fixtures/manifest.json; the verifier reads the manifest (explicit --fixture-manifest, else <root>/docs/office/g0/fixtures/manifest.json) and reports unknown-fixture-id as an error for a core row, for supportingFixture and for both sides of a fixtureRebinds entry. A non-core lane fixture name stays a warning, and an unreadable manifest is one fixture-manifest-unreadable warning."
+  },
+  "receipts": {
+    "root": "<labRoot>/receipts/<viewId>/",
+    "files": {
+      "save": "save-<NNNN>-<channelSanitized>.json",
+      "refused": "refused-<NNNN>-<channelSanitized>.json",
+      "index": "index.json"
+    },
+    "channelSanitization": "every character outside [a-z0-9-] replaced by '-' (host:docs-save -> host-docs-save)",
+    "digest": {
+      "algorithm": "sha256",
+      "canonicalization": "canonical-json-v1: keys sorted, no insignificant whitespace, receipt.digest.value set to null",
+      "field": "digest.value"
+    },
+    "fields": [
+      "receipt.kind",
+      "receipt.schemaVersion",
+      "receipt.ok",
+      "receipt.contract",
+      "receipt.protocol.name",
+      "receipt.protocol.version",
+      "receipt.at",
+      "receipt.sequence",
+      "receipt.viewId",
+      "receipt.app",
+      "receipt.format",
+      "receipt.channel",
+      "receipt.op",
+      "receipt.operationId",
+      "receipt.labRoot",
+      "receipt.requestDigest",
+      "receipt.refusal.code",
+      "receipt.refusal.message",
+      "receipt.refusal.details",
+      "input.fixtureId",
+      "input.manifestPath",
+      "input.manifestSha256",
+      "input.path",
+      "input.name",
+      "input.bytes",
+      "input.sha256",
+      "input.byteEqualToManifest",
+      "output.path",
+      "output.name",
+      "output.bytes",
+      "output.sha256",
+      "output.declaredSha256",
+      "output.verified",
+      "engine.name",
+      "engine.version",
+      "engine.runtime",
+      "engine.host",
+      "engine.operations",
+      "engine.sessionOperations",
+      "engine.sourcePin",
+      "engine.source",
+      "browser.family",
+      "browser.orcaVersion",
+      "browser.orcaVersionSource",
+      "browser.userAgent",
+      "browser.chromiumVersion",
+      "browser.declared",
+      "browser.declaredMatchesUserAgent",
+      "digest.algorithm",
+      "digest.canonicalization",
+      "digest.value",
+      "browser.familySource",
+      "output.independentDeclaration",
+      "output.verifiedAgainst"
+    ],
+    "readBack": {
+      "durable": "<labRoot>/receipts/<viewId>/save-*.json + index.json",
+      "live": "POST /lab/lab:events-record (the in-memory log, same bridge fields)",
+      "independentByteCheck": "Get-FileHash -Algorithm SHA256 <output.path> and its byte length must equal output.sha256 / output.bytes"
+    },
+    "refusalReceiptRule": "a refused save writes only refused-<NNNN>-<channel>.json with ok:false and receipt.refusal; no save-*.json exists for it; output.sha256 is always the adapter recomputation, output.declaredSha256 stays null when nothing was declared, and an existing receipt file is never overwritten (bridge_receipt_unwritable)",
+    "unwritableRule": "if a receipt cannot be written the save is not answered ok:true: bridge_receipt_unwritable"
+  },
+  "identity": {
+    "engine": {
+      "source": "the prepared source tree's own package.json name/version, read by the adapter at boot",
+      "runtimeValues": [
+        "browser-renderer",
+        "engine-host-http"
+      ],
+      "hostValue": "the engine-host base URL only when THIS save really called the host; an in-process (injected) handler and a save with no engine call both record null",
+      "operationsRule": "engine.operations lists only operations this save call really invoked from ENGINE_OPERATIONS, in call order; [] is a truthful statement, never upgraded into an engine-round-trip claim"
+    },
+    "browser": {
+      "familyForG0OrcaRows": "orca is recorded only when the transport carries the claim (a declared bridge.client.family of orca, or a Chrome-shaped user agent plus a runner-observed orca --version); otherwise family is \"unspecified\" with familySource naming the rule",
+      "userAgentSource": "observed User-Agent request header",
+      "chromiumVersionSource": "parsed from the user agent, else null",
+      "orcaVersionSource": "run-lab.mjs --orca-version (observed from `orca --version`); without it the receipt records null plus orcaVersionSource 'unavailable'",
+      "declaredVsObserved": "a declared bridge.client block is recorded as browser.declared and compared with the observed user agent; both values are kept"
+    }
+  },
+  "negativeCases": [
+    {
+      "case": "wrong-fixture-bytes",
+      "request": "open a manifest id whose file on disk is not byte-equal to the manifest entry",
+      "expected": {
+        "code": "fixture_identity_mismatch",
+        "status": 409,
+        "sideEffects": "no working copy, no receipt"
+      }
+    },
+    {
+      "case": "missing-protocol-string",
+      "request": "save request carrying a bridge block without a contract string",
+      "expected": {
+        "code": "bridge_contract_required",
+        "status": 400,
+        "sideEffects": "no write, no engine call"
+      }
+    },
+    {
+      "case": "unsupported-protocol-string",
+      "request": "save request declaring uniwork-office-lab-bridge@2 or an invented name",
+      "expected": {
+        "code": "bridge_contract_unsupported",
+        "status": 400,
+        "sideEffects": "no write, no engine call"
+      }
+    },
+    {
+      "case": "mismatched-output-hash",
+      "request": "declared output digest differs from the bytes written to disk",
+      "expected": {
+        "code": "output_hash_mismatch",
+        "status": 500,
+        "sideEffects": "only refused-*.json is written; both digests are recorded"
+      }
+    },
+    {
+      "case": "verifier-core-row-without-protocol-or-orca-version",
+      "request": "a core-cycle row with empty protocolVersion or empty platform.orcaVersion",
+      "expected": {
+        "code": "verifier error",
+        "status": "non-zero with --require-go",
+        "sideEffects": "the gate stays unsatisfied"
+      }
+    }
+  ],
+  "rowTemplate": {
+    "platform": {
+      "os": "windows",
+      "browser": "orca",
+      "browserVersion": "<embedded Chromium version from browser.chromiumVersion>",
+      "orcaVersion": "<browser.orcaVersion>",
+      "embeddedBrowser": "orca"
+    },
+    "level": "browser-real",
+    "provides": [
+      "editor-cycle"
+    ],
+    "operationEvidence": "byte-verified-operation",
+    "adapter": "real",
+    "uiKind": "real-editor",
+    "protocolVersion": "uniwork-office-lab-bridge@1",
+    "fixtureSource": "M/docs/office/g0/fixtures/manifest.json entry id",
+    "artifactsRefRule": "<fixture>/<format>/<operationId>",
+    "requiredRoles": [
+      "immutable-input",
+      "persisted-output",
+      "report-or-transcript",
+      "render-or-extraction-evidence"
+    ],
+    "pdfExtraRoles": [
+      "pre-edit-extraction",
+      "post-edit-extraction",
+      "pre-edit-render",
+      "post-edit-render"
+    ],
+    "engineFieldsComeFrom": "the receipt's engine block, verbatim",
+    "supportingFixture": "<manifest fixture id used as context only; optional; never the artifact-ref identity>",
+    "supportingFixtureRule": "supportingFixture must be a manifest id, must differ from fixture, and is reported in the row and in the verifier output; artifacts stay bound to fixture."
+  },
+  "browserDecision": {
+    "decidedAt": "2026-09-25",
+    "decision": "for G0 every core-cycle gate is satisfied by rows run in the Orca embedded browser (Chromium) on Windows; installed Windows Chrome/Edge and macOS/Safari are not required at G0",
+    "requiredBrowserPairs": [
+      {
+        "os": "windows",
+        "browser": "orca"
+      }
+    ],
+    "deferred": [
+      {
+        "browser": "chrome",
+        "os": "windows",
+        "issue": "UNI-671",
+        "phase": "later-phase (G3+)"
+      },
+      {
+        "browser": "edge",
+        "os": "windows",
+        "issue": "UNI-671",
+        "phase": "later-phase (G3+)"
+      },
+      {
+        "browser": "safari",
+        "os": "macos",
+        "issue": "UNI-671",
+        "phase": "later-phase (G3+)"
+      }
+    ],
+    "existingScopedRowsStayValid": true,
+    "existingScopedRowsAre": [
+      "E-DOCX-TABLE-SCOPED-CHROME",
+      "E-DOCX-TABLE-SCOPED-EDGE",
+      "E-PPTX-IMAGE-SCOPED-CHROME",
+      "E-PPTX-IMAGE-SCOPED-EDGE",
+      "E-PDF-TEXT-SCOPED-CHROMIUM",
+      "E-XLSX-INPUT-SCOPED-ORCA"
+    ]
+  },
+  "referenceClient": {
+    "module": "reference-client/reference-client.mjs",
+    "test": "reference-client/reference-client.test.mjs",
+    "evidenceClass": "model/harness only: never a real adapter run, browser cycle or engine round trip",
+    "exports": [
+      "CONTRACT",
+      "buildSaveRequest",
+      "buildReceipt",
+      "validateReceipt",
+      "canonicalJson",
+      "receiptDigest",
+      "createFakeLab",
+      "readReceiptIndex"
+    ]
+  },
+  "notClaimed": [
+    "no product Go service, auth, quota, version commit, audit or outbox",
+    "no replacement of the frozen DOC-004 boundary or its fault gate",
+    "no engine-host round trip is claimed for docx/md/html saves",
+    "no core cycle itself: the six format cycles belong to the format slices",
+    "no browser run: browser evidence comes only from the Orca embedded browser and is recorded by the Tester",
+    "the rebind does not edit the fixture manifest and does not make F-XLSX-EDIT a fixture with a formula; the manifest-vs-bytes mismatch stays a recorded finding of the core-xlsx-pdf slice",
+    "the two slice-owned lab extensions (pdfApi.pageImagePng, host:slides-edit-transform + pptx-edit-transform allowlist) are not implemented or claimed here"
+  ]
+}
