@@ -5,11 +5,7 @@
 .landing-product-story > .platform-section .studio-title { font-size: var(--text-display-sm); letter-spacing: -.025em; }
 .platform-section .studio-heading-centered { max-width: none; display: grid; grid-template-columns: 1.2fr 1fr; align-items: end; gap: 48px; text-align: left; padding: 0 4px; }
 .platform-section .studio-description { margin: 0; font-size: var(--text-body); max-width: 48ch; }
-/* Two classes on purpose: landing.css caps .product-preview at 1160px, and in a
-   production build its chunk can load after this file, so equal specificity
-   would let the cap win and squeeze the stage to ~930px beside the rail. */
-.product-preview.unified-workspace { max-width: none; }
-.unified-workspace { margin-top: 28px; }
+.unified-workspace { max-width: none; margin-top: 28px; }
 .unified-workspace .workspace-explorer { display: grid; grid-template-columns: 216px minmax(0, 1fr); gap: 0; align-items: stretch; border: 1px solid var(--border); border-radius: 16px; overflow: clip; background: var(--landing-paper); }
 .workspace-selector { padding: 18px 12px; background: var(--landing-stage-soft); border-right: 1px solid var(--border); }
 .workspace-feature-groups { display: flex; flex-direction: column; gap: 6px; }
