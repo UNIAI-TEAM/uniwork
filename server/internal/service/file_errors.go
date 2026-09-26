@@ -12,7 +12,7 @@ import (
 // internal/files cannot import this package (arch_test.go keeps it a leaf), so
 // the contract carries its own error type; this helper copies the code and the
 // status so they travel unchanged, wraps the sentinel the table names -
-// ErrNotFound for file_not_found, ErrConflict for the five conflict codes - so
+// ErrNotFound for file_not_found, ErrConflict for the six conflict codes - so
 // errors.Is keeps matching for callers that already ask that way, and leaves
 // every other code without a sentinel.
 //
