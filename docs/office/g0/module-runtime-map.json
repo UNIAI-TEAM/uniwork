@@ -1,0 +1,3068 @@
+{
+ "schema_version": 1,
+ "kind": "uniwork-office-module-runtime-map",
+ "issue": "UNI-668",
+ "parent_issue": "UNI-656",
+ "roadmap": "C-01",
+ "task": "DOC-004 (G0 task 4) - engine/editor/storage contract, runtime placement and per-operation evidence",
+ "owner_doc": "docs/office/g0/engine-contract.md",
+ "contract_harness": "scripts/office-g0/engine-contract.mjs",
+ "contract_doc_test": "scripts/office-g0/engine-contract.test.mjs",
+ "wire_format": "snake_case",
+ "status": "candidate-g119",
+ "read_before_quoting": [
+  "This file is not proof that any engine executes in any runtime. Every row carries its own evidence_level and every format summary repeats its counts, so a claimed runtime cannot be read as proven by adjacency.",
+  "The DOC-003 six-browser open/edit/save/reopen flows are still not accepted as a whole. UNI-667 owns them. Scoped subordinate cycles in scoped_editor_cycles are real and must not be denied, but they do not raise a preferred-runtime row to proven and do not set runtime_chosen. The 11-case adapter run is real DOC-003 engine-host behavior over loopback and the six canonical fault cases use real DOCX/HTTP engine behavior with modeled Go/storage/commit. Neither is product browser, production service, or placement proof; neither changes evidence_level or runtime_chosen.",
+  "Entries marked proposed_g0_output are new G0 design decisions, not existing deployed resources, directories or feed URLs.",
+  "A pending row is a blocker with an owner, never a silent downgrade to unsupported. Per Q1-B an upstream capability the web build cannot run yet stays in the requirement set."
+ ],
+ "product": {
+  "display_name": "UniWork Office",
+  "technical_slug": "uniwork-office",
+  "brand_rule_doc": "docs/office/g0/uniwork-office-integration-brand.md",
+  "rule": "GenOffice is the upstream source name in provenance, LICENSE and NOTICE only; it is never a user-visible product name."
+ },
+ "upstream": {
+  "name": "GenOffice",
+  "repository": "https://github.com/genspark-ai/genoffice.git",
+  "pinned_commit": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+  "pinned_tree": "b743f03ab1f1de8f0ba1913b7bd9c06edef8f884",
+  "package_lock_path": "package-lock.json",
+  "package_lock_sha256": "DE782E49A1006FAC7287A41C748C696EFD9FB3C3038EAE893EF82DFCA57F9FE5",
+  "license_identifier": "Apache-2.0",
+  "license_holder": "Copyright 2026 Mainfunc, Inc.",
+  "source_manifest": "docs/office/g0/source-manifest.json",
+  "source_manifest_issue": "UNI-666",
+  "excluded_paths": [
+   "ee/**"
+  ],
+  "attribution_rule": "LICENSE, NOTICE, the fork commit and internal @genoffice package names are preserved for provenance; only user-visible strings change."
+ },
+ "evidence_levels": {
+  "proven": "A run exists whose command, environment, fixture and artifact are recorded and repeatable.",
+  "source_read": "Source at the pinned commit was read and the symbol exists as written. This proves a symbol, never behaviour.",
+  "pending": "No implementation path is proven: a dependency is missing, an adapter must be written, or no run exists. Must not be presented as working."
+ },
+ "counting_rule": "evidence_level is per operation. A format with one proven operation and five pending operations has one proven row, not a proven runtime. No format in this map is proven end to end.",
+ "runtime_kinds": {
+  "browser": "The UniWork web page behind an injected host adapter.",
+  "worker": "Off-main-thread context in the browser host.",
+  "native_desktop": "A process the desktop host owns. Filesystem and native handles stay in that host and never reach the browser API.",
+  "internal_service": "The private Office Engine Service beside UniWork, reached only by Go, never by a browser.",
+  "none": "No engine: file I/O, text handling or host UI only."
+ },
+ "evidence_refs": {
+  "pdf_text_apply_verify": ".uniwork-dev/office-g0/main-pdf-text-probe.json (main, in-memory upstream text apply plus independent extraction only)",
+  "doc003_reviews": [
+   ".uniwork-dev/office-g0/cursor-doc003-review-r1.md",
+   ".uniwork-dev/office-g0/cursor-doc003-engine-contract-review.md"
+  ],
+  "source_manifest": "docs/office/g0/source-manifest.json",
+  "fixture_manifest": "docs/office/g0/fixtures/manifest.json",
+  "plan": "docs/superpowers/plans/2026-09-16-documents-office-g0.md (uncommitted; read from the main checkout)"
+ },
+ "source_layout_direction": {
+  "rule": "Selected upstream modules are ported as pinned source inside the UniWork monorepo. After the port, a clean checkout must build without ../genoffice, without a symlink to a user checkout and without a private registry.",
+  "verified_here": false,
+  "build_closure": {
+   "clean_standalone_production_build": false,
+   "reason": "Prepared bootstrap-source, its node_modules, tsx and esbuild remain external inputs. source-manifest runtime.node.requiredRange is >=22.12.0 and usedForChecks is 22.23.2. A clean checkout build without ../genoffice was not demonstrated.",
+   "import_check_2026_09_22": "apps/pdf/src/main/image-edit.ts line 1 imports nativeImage from electron in both the genoffice checkout and bootstrap-source, 19325 bytes each. A non-recursive scan of packages/docx-engine/src/*.ts found no electron import. Neither check chooses a runtime."
+  },
+  "target_roles": [
+   {
+    "role": "upstream-source-area",
+    "direction": "packages/office-upstream/** or equivalent pinned area inside the monorepo",
+    "owner": "G2",
+    "evidence_level": "pending",
+    "note": "final package names follow the DOC-002 dependency inventory"
+   },
+   {
+    "role": "host-independent engine/contract module",
+    "direction": "shared types plus parser/serializer modules with browser and node entry points separated",
+    "owner": "G2",
+    "evidence_level": "pending"
+   },
+   {
+    "role": "editor UI",
+    "direction": "packages/views/ for screens, packages/core/ for logic and endpoints, packages/ui/ for primitives",
+    "owner": "G3",
+    "evidence_level": "source_read",
+    "note": "dependency direction views -> core + ui is enforced by lint today"
+   },
+   {
+    "role": "browser and native entry points",
+    "direction": "apps/web/platform/ and the desktop host inject a host adapter; the browser build must not pull node, electron or native modules",
+    "owner": "G3/G4",
+    "evidence_level": "pending"
+   },
+   {
+    "role": "Go adapter to the engine service",
+    "direction": "server/ calls the internal engine over a private transport; the engine is not linked into the Go binary",
+    "owner": "G1/G2",
+    "evidence_level": "pending"
+   },
+   {
+    "role": "native sidecar",
+    "direction": "a separately built and deployed process inside the on-premise bundle",
+    "owner": "G2/G7",
+    "evidence_level": "pending"
+   }
+  ],
+  "catalog_conflict": {
+   "react": {
+    "uniwork": "19.2.3",
+    "upstream_docs": "19.2.4",
+    "status": "pending",
+    "prove_later": "a ported build must compile against the UniWork catalog version without raising the shared catalog; measured at G2/G3, not waived here"
+   },
+   "tiptap": {
+    "uniwork_override": "3.30.6",
+    "upstream_docs": "3.31.0",
+    "status": "pending",
+    "prove_later": "the docx/markdown editor must be re-verified against 3.30.6 in a browser; a version bump of the whole product catalog is not an acceptable G0 fix"
+   }
+  }
+ },
+ "formats": {
+  "docx": {
+   "upstream_engine": {
+    "package": "@genoffice/docx-engine",
+    "entry": "packages/docx-engine/src/index.ts",
+    "exports": [
+     "parseDocx",
+     "saveDocx"
+    ],
+    "host_coupling": "none in src/ - the consuming editor is Electron-bound"
+   },
+   "operations": [
+    {
+     "operation": "open_edit_text_save_reopen",
+     "contract_operation": "open + edit + serialize",
+     "runtime": "browser_main",
+     "runtime_detail": "real docs renderer inside the Orca embedded browser page; host I/O through the injected adapter channel host:docs-save (CONTRACT-v1.1). The renderer serialized the package itself; the receipt records engine.operations [].",
+     "dependency": "pinned docs renderer + injected host adapter (e2e/office-g0/host-adapter.mjs shape); no Node/Electron global in the page",
+     "allowed_fallback": "native_desktop docs host (the upstream Electron host) - implemented upstream, NOT proven at G0; no silent fallback in the product path",
+     "evidence_level": "proven",
+     "proving_evidence": {
+      "register_row": "E-DOCX-CYCLE",
+      "summary": "open F-DOCX-KITCHEN, edit body text, renderer Save, close, reopen the persisted bytes in a fresh session; text-changed / table-preserved / image-preserved / unchanged-parts-preserved / reopen-fresh-session all passed",
+      "artifacts": [
+       {
+        "role": "immutable-input",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-docx-pptx/artifacts/docx-v1b/input/docx-kitchen-sink.docx",
+        "sha256": "f86c8d90b44a265945b4918dc1f857ebd835f28e3bdf3199f24e66f7fc8ab00b"
+       },
+       {
+        "role": "persisted-output",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-docx-pptx/artifacts/docx-v1b/saved-docx-kitchen-sink.docx",
+        "sha256": "e09ec04d94cb6dafc88991b51786e3232aef13d21365d13de49553612349080a"
+       },
+       {
+        "role": "reopened-output",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-docx-pptx/artifacts/docx-v1b/reopened-docx-kitchen-sink.docx",
+        "sha256": "e09ec04d94cb6dafc88991b51786e3232aef13d21365d13de49553612349080a"
+       },
+       {
+        "role": "extraction-evidence",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-docx-pptx/evidence/docx/cycle-assessment-v1b.json",
+        "sha256": "18d4bfeb7eac51d3f23d314cc1f84d275189f9f80eb4eaeebd08177af4e95577"
+       },
+       {
+        "role": "render-evidence",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-docx-pptx/artifacts/docx-v1b/screenshot-reopen.png",
+        "sha256": "76ba4fddd74c4666605375d5cd4aee45c51278fa2d9c5a38111acb62c96e7e69"
+       },
+       {
+        "role": "render-evidence",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-docx-pptx/artifacts/docx-v1b/screenshot-after-save.png",
+        "sha256": "758c7c5686237fcdf508c3a5e0c1eaeaacda6cecdc754aa20420ece79a164569"
+       },
+       {
+        "role": "report",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-docx-pptx/lab/labroot-v1b/receipts/view-d3c568e2-2db3-4d00-bf83-49776b4128b7/save-0001-host-docs-save.json",
+        "sha256": "3f3270a53516dfb7f9291af1b5e54300d2d1ee8ee4847f054c0fa34f54a7e204"
+       },
+       {
+        "role": "report",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-docx-pptx/receipts/lead/docx-v1b6/engine-parse-saved.json",
+        "sha256": "263882a7d2ca30e7aeeb51263e739b72f87701343ca115c02aec712e826d2de6"
+       },
+       {
+        "role": "transcript",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-docx-pptx/receipts/lead/docx-v1b6/cycle-summary.json",
+        "sha256": "2b47479752786e8aa5c673eed4315b44b5b0513eac1fcad65f00347100d07d35"
+       },
+       {
+        "role": "transcript",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-docx-pptx/receipts/lead/docx-v1b6/33-network-after-save.json",
+        "sha256": "f727a8abe062851af500ff6559c93d3e6244755048879a9eeef50d438643b46c"
+       },
+       {
+        "role": "transcript",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-docx-pptx/receipts/lead/docx-reopen-v1b/reopen-summary.json",
+        "sha256": "ae94ea7648b79a30e9afe18b44456a7b756def7cf6d118a035c5359d363ab439"
+       },
+       {
+        "role": "report",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-docx-pptx/receipts/lead/docx-v1b6/engine-parse-saved.json",
+        "sha256": "263882a7d2ca30e7aeeb51263e739b72f87701343ca115c02aec712e826d2de6"
+       }
+      ]
+     },
+     "owner": "UNI-659 G3 (editor/web adoption); UNI-658 G2 (module port)",
+     "receipt_fields": "receiptEvidence.channel host:docs-save, engine.operations [], output 3443 B e09ec04d... verified from disk, digest 97ed753a...",
+     "int01_delta": "none - browser renderer plus an injected adapter is the INT-01 preferred model",
+     "status": "proven",
+     "runtime_selected": true,
+     "failure_behavior": "on a runtime failure surface the typed engine error and keep the current version unchanged; the proven byte-level behaviour is the one recorded in the cited register row"
+    },
+    {
+     "operation": "open_parse_bytes",
+     "contract_operation": "open",
+     "runtime": "worker",
+     "runtime_detail": "candidate: docx engine (parseDocx) in a browser worker behind the adapter; NOT selected",
+     "dependency": "jszip, fast-xml-parser, utif2",
+     "allowed_fallback": "explicit refusal with unsupported_operation (501) until the runtime is proven; never a fake success",
+     "evidence_level": "pending",
+     "proving_evidence": null,
+     "blocker": "the preferred worker runtime is unproved: the accepted core cycle edited through the renderer, and its docx-parse ran on the lab engine host, not in a browser worker",
+     "test_that_would_prove": "in the Orca embedded browser, open a plan-named fixture through the injected adapter with the engine module loaded in a Worker (no Electron global), edit, serialize, reopen, and byte-compare input/output/checksums against the manifest - recorded as a register row like E-DOCX-CYCLE",
+     "owner": "UNI-658 G2 owns the engine port; UNI-659 G3 owns browser adoption",
+     "bounded_evidence": {
+      "register_row": "E-DOCX-CYCLE",
+      "note": "a real /engine/docx-parse of the saved bytes is recorded inside the E-DOCX-CYCLE row (tables 1, blocks 12); it is bounded engine-host evidence and does not select the product runtime",
+      "artifact": "M/.uniwork-dev/orca-recovery-g104/core-docx-pptx/receipts/lead/docx-v1b6/engine-parse-saved.json"
+     },
+     "status": "blocked",
+     "runtime_selected": false,
+     "failure_behavior": "explicit refusal with unsupported_operation (501) until the runtime is proven; never a fake success"
+    },
+    {
+     "operation": "edit_table_and_image",
+     "contract_operation": "edit",
+     "runtime": "browser_main",
+     "runtime_detail": "candidate: the same real docs renderer (browser) with table/image parts preserved through the adapter save; NOT proven on the required Orca pair",
+     "dependency": "docs renderer table/image extensions",
+     "allowed_fallback": "explicit refusal with unsupported_operation (501); no partial save on an unproved path",
+     "evidence_level": "pending",
+     "proving_evidence": null,
+     "blocker": "table and image editing is not covered by the accepted Orca core cycle (paragraph text only) and the scoped rows ran on installed Chrome/Edge",
+     "test_that_would_prove": "one Orca embedded-browser cycle that edits a table cell and replaces an inline image in F-DOCX-KITCHEN, saves through the renderer, and reopens the persisted bytes with the unchanged-parts oracle",
+     "owner": "UNI-667 DOC-003 (whole-editor matrix); runtime placement then belongs to UNI-659 G3",
+     "bounded_evidence": {
+      "register_rows": [
+       "E-DOCX-TABLE-SCOPED-CHROME",
+       "E-DOCX-TABLE-SCOPED-EDGE"
+      ],
+      "unblocking_row": {
+       "pending_evidence": "slice doc003-evidence in this same g119 wave is producing Orca-browser DOCX table-cell and image cycle rows right now (fixtures F-DOCX-TABLE-IMG and F-DOCX-WATERMARK; lead dry run passed, Tester stage next). The Advisor flips this row at integration if those rows are accepted; this slice does not wait for it.",
+       "note": "scoped A1 table-cell edit / renderer Save / distinct-view reopen on installed Windows Chrome and Edge; the required G0 browser is the Orca embedded Chromium, so this is bounded evidence, not the core-cycle proof",
+       "artifacts": [
+        {
+         "role": "immutable-input",
+         "path": "M/.uniwork-dev/advisor-resume2/evidence-population/scoped/docx/fixture-chrome.docx",
+         "sha256": "8b6de008b979174065aa43c58e17db5a3eb654b42eb61232c42945ecfa64dff9"
+        },
+        {
+         "role": "persisted-output",
+         "path": "M/.uniwork-dev/advisor-resume2/evidence-population/scoped/docx/persisted-chrome.docx",
+         "sha256": "742b02047766113b3cf517c29ec0ee83fe6f7b96618db1a093239cfd4c183ba3"
+        },
+        {
+         "role": "render-evidence",
+         "path": "M/.uniwork-dev/advisor-resume2/evidence-population/scoped/docx/docx-table-reopen-chrome.png",
+         "sha256": "79a063e0ac4b2e73102db5af72f4b64e09b5950c0c17cb63e940c8352a4521eb"
+        }
+       ]
+      }
+     },
+     "status": "blocked",
+     "runtime_selected": false,
+     "failure_behavior": "explicit refusal with unsupported_operation (501); no partial save on an unproved path"
+    },
+    {
+     "operation": "convert",
+     "contract_operation": "convert",
+     "runtime": "internal_service",
+     "runtime_detail": "candidate only; the contract settles failed/unsupported_operation (501) at G0",
+     "dependency": "packages/html2docx (docx 9.7.1) needs a real DOM; DOM extraction drivers are Playwright or Electron based",
+     "allowed_fallback": "unsupported_operation (501), retryable false - the G0 behaviour named in engine-contract.md 4.5",
+     "evidence_level": "pending",
+     "proving_evidence": null,
+     "blocker": "conversion produces a new Document (Q7-B) and no lab channel or product job path exists; DOM extraction drivers are Playwright/Electron based",
+     "test_that_would_prove": "a private-service job that converts a named fixture into a new Document with source_version_id preserved, an output checksum recomputed by Go, a fidelity label, and a register row citing both the source and the produced document",
+     "owner": "UNI-658 G2 (service) + UNI-657 G1 (new-document commit)",
+     "status": "blocked",
+     "runtime_selected": false,
+     "failure_behavior": "unsupported_operation (501), retryable false - the G0 behaviour named in engine-contract.md 4.5"
+    },
+    {
+     "operation": "export",
+     "contract_operation": "export",
+     "runtime": "internal_service",
+     "runtime_detail": "candidate only; G0 settles unsupported_operation (501)",
+     "dependency": "PDF export path",
+     "allowed_fallback": "unsupported_operation (501), retryable false",
+     "evidence_level": "pending",
+     "proving_evidence": null,
+     "blocker": "exportPdf has no working lab channel (the lab answers a fake app:ok-true) and no product job path exists",
+     "test_that_would_prove": "an export job that writes a derived artifact bound to one immutable version, recomputes its checksum, records fidelity.lost, and never mutates the source version",
+     "owner": "UNI-658 G2",
+     "status": "blocked",
+     "runtime_selected": false,
+     "failure_behavior": "unsupported_operation (501), retryable false"
+    }
+   ],
+   "mode": "browser renderer plus an injected host adapter; the engine module is a worker/service candidate only where a row proves it",
+   "int01_delta": "none - matches the preferred model for the proven cycle; every other operation stays blocked rather than assumed"
+  },
+  "xlsx": {
+   "upstream_engine": {
+    "package": "@genoffice/xlsx-gateway plus the Rust crate xlsx-sidecar",
+    "entry": "packages/xlsx-gateway/src/gateway/xlsx-gateway.ts (applyCellEditsToXlsx, writeXlsxAtomically)",
+    "sidecar": "apps/sheets/native/xlsx-engine, class XlsxSidecarClient (apps/sheets/src/main/xlsx-sidecar-client.ts)",
+    "host_coupling": "the gateway is Electron-free and browser-safe; recalculation is a native process"
+   },
+   "operations": [
+    {
+     "operation": "open_edit_cell_recalculate_save_reopen",
+     "contract_operation": "open + edit + serialize (recalculation carried as an engine operation inside the job)",
+     "runtime": "browser_main + internal_service",
+     "runtime_detail": "real Orca-embedded sheets editor (browser page) with the workbook opened, read and saved through the lab engine host; recalculation ran in the native sidecar host, not in the page",
+     "dependency": "jszip/numfmt/zod gateway in the host; Rust xlsx-sidecar (Cargo, ironcalc) for recalculation; injected adapter channel host:sheets-save-edits",
+     "allowed_fallback": "native_desktop host for the same sidecar; NOT proven at G0. A WASM inference is not allowed (INT-01 rule 4).",
+     "evidence_level": "proven",
+     "proving_evidence": {
+      "register_row": "E-XLSX-CYCLE",
+      "summary": "F-XLSX-KITCHEN opened byte-equal, Data!B2 and PhuLuc!C1 edited, formulas recalculated through the real sidecar host (xlsx-recalc), Save 5088 B f49cb7b9... verified, fresh-session reopen byte-identical; the six assertion ids including formula-recalculated-numeric passed",
+      "artifacts": [
+       {
+        "role": "immutable-input",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-xlsx-pdf/artifacts/xlsx/F-XLSX-KITCHEN-fixture.xlsx",
+        "sha256": "bf69b9dbc4f6b8fc485baf6255494ed490ee6c53a3051cb4ce6f967f34fe4bc6"
+       },
+       {
+        "role": "persisted-output",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-xlsx-pdf/artifacts/xlsx/F-XLSX-KITCHEN-saved.xlsx",
+        "sha256": "f49cb7b996694e40cbbfadfcfb4d052ead038f6879d4cef0a6a91973b47ad47a"
+       },
+       {
+        "role": "reopened-output",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-xlsx-pdf/artifacts/xlsx/F-XLSX-KITCHEN-reopened.xlsx",
+        "sha256": "f49cb7b996694e40cbbfadfcfb4d052ead038f6879d4cef0a6a91973b47ad47a"
+       },
+       {
+        "role": "report",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-xlsx-pdf/artifacts/xlsx/F-XLSX-KITCHEN-save-receipt.json",
+        "sha256": "f630aeeeae8d8ca993884360bb0bbe3d2e430db10d5d68f2b40fc52d2098c427"
+       },
+       {
+        "role": "transcript",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-xlsx-pdf/artifacts/xlsx/F-XLSX-KITCHEN-transcript.jsonl",
+        "sha256": "64487c6fb2082e2e5db07a842149cb8c2b4f4c29019d6de6a476f49f6aed2dd8"
+       },
+       {
+        "role": "render-evidence",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-xlsx-pdf/artifacts/xlsx/F-XLSX-KITCHEN-reopen.png",
+        "sha256": "50d2846a3b5c95901bc7897eb45982a4583f296688f80834fb77cc616c7ae187"
+       },
+       {
+        "role": "extraction-evidence",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-xlsx-pdf/artifacts/xlsx/F-XLSX-KITCHEN-verdict.json",
+        "sha256": "cf0afff88296dc8a9b4e36450fbc19fcd97f573397cb12358731fb6b168b2be0"
+       }
+      ]
+     },
+     "owner": "UNI-658 G2 (engine + native recalculation); UNI-659 G3 (editor)",
+     "int01_delta": "recalculation is a native process in the internal service, not a browser worker - deliberate, not a WASM assumption",
+     "status": "proven",
+     "runtime_selected": true,
+     "failure_behavior": "on a runtime failure surface the typed engine error and keep the current version unchanged; the proven byte-level behaviour is the one recorded in the cited register row"
+    },
+    {
+     "operation": "convert",
+     "contract_operation": "convert",
+     "runtime": "internal_service",
+     "runtime_detail": "candidate only; the contract settles failed/unsupported_operation (501) at G0",
+     "dependency": "external-format and CSV conversion pipelines (M1 optional rows xlsx-convert-external-to-xlsx, xlsx-convert-to-csv)",
+     "allowed_fallback": "unsupported_operation (501), retryable false",
+     "evidence_level": "pending",
+     "proving_evidence": null,
+     "blocker": "no conversion pipeline is wired and the contract G0 behaviour is an explicit refusal",
+     "test_that_would_prove": "a conversion job that creates a new Document with source_version_id preserved and a fidelity label",
+     "owner": "UNI-658 G2 + UNI-657 G1",
+     "status": "blocked",
+     "runtime_selected": false,
+     "failure_behavior": "unsupported_operation (501), retryable false"
+    },
+    {
+     "operation": "export",
+     "contract_operation": "export",
+     "runtime": "internal_service",
+     "runtime_detail": "candidate only; G0 settles unsupported_operation (501)",
+     "dependency": "PDF export path",
+     "allowed_fallback": "unsupported_operation (501), retryable false",
+     "evidence_level": "pending",
+     "proving_evidence": null,
+     "blocker": "no export channel exists in the lab and no product job path exists",
+     "test_that_would_prove": "an export job writing a derived artifact for one immutable version with a Go-recomputed checksum and a fidelity label",
+     "owner": "UNI-658 G2",
+     "status": "blocked",
+     "runtime_selected": false,
+     "failure_behavior": "unsupported_operation (501), retryable false"
+    }
+   ],
+   "mode": "browser editor for package mutation + native sidecar in the internal service for recalculation",
+   "int01_delta": "recalculation is a native process in the internal service: a deliberate deviation from a browser-worker assumption (INT-01 rule 4), never a WASM inference"
+  },
+  "pptx": {
+   "upstream_engine": {
+    "packages": [
+     "@genoffice/pptx-engine",
+     "@genoffice/pptx-ops",
+     "@genoffice/pptx-render"
+    ],
+    "entry": "packages/pptx-engine/src/index.ts (openPptx, savePptx)",
+    "ops_entry": "packages/pptx-ops/src/index.ts (runTxn, op field is op, the setText payload field is paragraphs)",
+    "host_coupling": "the engine is pure; rendering needs canvas and font shaping"
+   },
+   "operations": [
+    {
+     "operation": "edit_text_image_shape_save_reopen",
+     "contract_operation": "open + edit + serialize",
+     "runtime": "browser_main + internal_service",
+     "runtime_detail": "real Orca-embedded slides editor (browser page); open/layouts/edit-text/edit-transform/save were served by the lab engine host over loopback HTTP (engine runtime engine-host-http)",
+     "dependency": "pptx-engine/pptx-ops/pptx-render behind the injected adapter; engine host routes /engine/pptx-*",
+     "allowed_fallback": "a worker-hosted engine if a later cycle proves it; NOT proven. Shape gestures need the declared channel below or the product refuses them.",
+     "evidence_level": "proven",
+     "proving_evidence": {
+      "register_row": "E-PPTX-CYCLE",
+      "summary": "F-PPTX-STD opened, text edited, an existing picture replaced through host:slides-edit-transform (a declared slice-owned lab extension), saved on host:slides-save, reopened in a distinct view byte-verified",
+      "artifacts": [
+       {
+        "role": "immutable-input",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-docx-pptx/artifacts/pptx/input/pptx-standard-business.pptx",
+        "sha256": "faddc03270215218e78720f1c8f6e3aa862891a432f71e7ec9f3d13ea7902048"
+       },
+       {
+        "role": "persisted-output",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-docx-pptx/artifacts/pptx/saved-pptx-standard-business.pptx",
+        "sha256": "e7bff5cb81d299f7c33a284d07a120c654a62c9dee3e7c5da58e694fc2469f07"
+       },
+       {
+        "role": "reopened-output",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-docx-pptx/artifacts/pptx/reopened-pptx-standard-business.pptx",
+        "sha256": "e7bff5cb81d299f7c33a284d07a120c654a62c9dee3e7c5da58e694fc2469f07"
+       },
+       {
+        "role": "extraction-evidence",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-docx-pptx/evidence/pptx/cycle-assessment.json",
+        "sha256": "348595f907a5c97a3e453367b1d8811bcbc8ae03df591ef8b7f2354ed733808e"
+       },
+       {
+        "role": "render-evidence",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-docx-pptx/artifacts/pptx/screenshot-reopen.png",
+        "sha256": "d27c232130d7683434557a33c24382a426bc1fa28c2a68b0a636c57bc554a971"
+       },
+       {
+        "role": "render-evidence",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-docx-pptx/artifacts/pptx/screenshot-after-save.png",
+        "sha256": "d5d5a3081b20b96713160a5292289d999ddcfae55b077486ad01b57d2095959c"
+       },
+       {
+        "role": "render-evidence",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-docx-pptx/artifacts/pptx/screenshot-slideshow-attempt.png",
+        "sha256": "c5b1c9db3f30f22015ad97399d5b7401e6700ad7c889ac3bc698d62f773cd82a"
+       },
+       {
+        "role": "report",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-docx-pptx/lab/labroot-v1b/receipts/view-bc3bca3c-4878-4c25-b20e-1eb9e99802c3/save-0001-host-slides-save.json",
+        "sha256": "b01de498820ae290d2c6797b5acb78dc2be23e4e1da99d9d6de79e69da8cc04e"
+       },
+       {
+        "role": "transcript",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-docx-pptx/receipts/lead/pptx-v1b4/cycle-summary.json",
+        "sha256": "4b8fddb7734de9def71eee5c35ee1b410d06e8b4f7300b24c9463d7d1a6f435b"
+       },
+       {
+        "role": "transcript",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-docx-pptx/receipts/lead/pptx-v1b4/38-network-after-shape.json",
+        "sha256": "490c2c56fd3f69275876c61fb91f48d9605b4bbfb0c607e9c8fc6856a1e3e6b6"
+       },
+       {
+        "role": "transcript",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-docx-pptx/receipts/lead/pptx-v1b4/48-network-after-replace.json",
+        "sha256": "c341f7abe5033f7b83b475fa1ae229aa24bc676c22345e33aaad7b940c9ac8a3"
+       },
+       {
+        "role": "transcript",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-docx-pptx/receipts/lead/pptx-v1b4/53-network-after-save.json",
+        "sha256": "6fe1dd94b14c10dec17be7b47a1fe08f25f31094d23eb4c918e9e9eb05d699ed"
+       },
+       {
+        "role": "transcript",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-docx-pptx/receipts/lead/pptx-reopen-v1b4/24-outline.txt",
+        "sha256": "5d2901d8953334ddb715759c2bd1342d437efd30f5746961cc314017277f75a5"
+       }
+      ]
+     },
+     "owner": "UNI-658 G2 (engine ops); UNI-659 G3 (editor/channels)",
+     "product_requirement": "the accepted cycle required the declared slice-owned channel host:slides-edit-transform plus the pptx-edit-transform engine allowlist entry; CONTRACT-v1 revision B refuses that gesture with 404 unknown_channel without it. The product must implement the channel (G3) and the allowlist entry (G2), or refuse the gesture explicitly.",
+     "int01_delta": "the engine ran on the private service host rather than in a browser worker; text edits still go through the engine transaction path, and the prebundle is a build-time device, not a runtime choice",
+     "status": "proven",
+     "runtime_selected": true,
+     "failure_behavior": "on a runtime failure surface the typed engine error and keep the current version unchanged; the proven byte-level behaviour is the one recorded in the cited register row"
+    },
+    {
+     "operation": "render_preview",
+     "contract_operation": "open (model -> view model)",
+     "runtime": "browser_main",
+     "runtime_detail": "candidate: pptx-render in the page/worker with canvas + bundled fonts; NOT proven",
+     "dependency": "opentype.js, bidi-js, bundled fonts",
+     "allowed_fallback": "explicit refusal with unsupported_operation (501) for a deck whose preview cannot be produced",
+     "evidence_level": "pending",
+     "proving_evidence": null,
+     "blocker": "web font shaping differs per host and is unmeasured; no accepted row renders a deck preview independently of the editor",
+     "test_that_would_prove": "a render cycle that draws a named fixture slides off-screen, compares text shaping metrics against the upstream Electron renderer for the same deck, and records the measured difference",
+     "owner": "UNI-658 G2 (render module); UNI-659 G3 (host fonts)",
+     "status": "blocked",
+     "runtime_selected": false,
+     "failure_behavior": "explicit refusal with unsupported_operation (501) for a deck whose preview cannot be produced"
+    },
+    {
+     "operation": "export",
+     "contract_operation": "export",
+     "runtime": "internal_service",
+     "runtime_detail": "candidate only; G0 settles unsupported_operation (501)",
+     "dependency": "PDF export path for a PPTX source",
+     "allowed_fallback": "unsupported_operation (501), retryable false",
+     "evidence_level": "pending",
+     "proving_evidence": null,
+     "blocker": "no export channel exists in the lab and no product job path exists",
+     "test_that_would_prove": "an export job writing a derived artifact for one immutable version with a Go-recomputed checksum and a fidelity label",
+     "owner": "UNI-658 G2",
+     "status": "blocked",
+     "runtime_selected": false,
+     "failure_behavior": "unsupported_operation (501), retryable false"
+    }
+   ],
+   "mode": "browser editor with the engine served by the private engine host; the prebundle is a build-time device",
+   "int01_delta": "the accepted cycle ran the engine on the service host and needed one declared extra channel for shape transforms (host:slides-edit-transform), which the product must implement or refuse"
+  },
+  "pdf": {
+   "upstream_engine": {
+    "text": "apps/pdf/src/main/text-edit.ts (applyTextEdits, validateTextEdits, verifyTextEdits)",
+    "save_pipeline": "apps/pdf/src/main/save-pdf.ts (applySaveRequest, savePdfToPath)",
+    "existing_image": "apps/pdf/src/main/image-edit.ts (applyImageEdits, listPageImages, verifyImageEdits, replaceImage, transformImage, deleteImage)",
+    "host_coupling": "image-edit.ts statically imports Electron nativeImage; text-edit.ts is Node-safe if pdfium wasm and fonts resolve"
+   },
+   "operations": [
+    {
+     "operation": "replace_text_and_image_save_reopen",
+     "contract_operation": "open + edit + serialize",
+     "runtime": "browser_main + internal_service",
+     "runtime_detail": "real Orca-embedded PDF editor (browser page); Save wrote the file content through the PDF engine, and the existing-image change went through the patched host channels pageImagePng/pagePreviewPng",
+     "dependency": "@embedpdf/pdfium + pdfium.wasm, font metrics, harfbuzzjs subsetting, system fallback fonts; injected adapter channels host:pdf-*",
+     "allowed_fallback": "native_desktop PDF host (Electron image path) for the image leg only; NOT proven at G0",
+     "evidence_level": "proven",
+     "proving_evidence": {
+      "register_row": "E-PDF-TEXT-CYCLE",
+      "summary": "F-PDF-TEXT opened byte-equal, a page-1 text run replaced (the original run is gone), a page-2 embedded image changed through the real image-edit flow, Save 37092 B 37947fb6... verified, fresh-session reopen byte-identical, all eight required assertions passed",
+      "artifacts": [
+       {
+        "role": "immutable-input",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-xlsx-pdf/artifacts/pdf/F-PDF-TEXT-fixture.pdf",
+        "sha256": "22e3b04f3ad92c22edf1d3a0e02e30f3b778b1834b1022788272a8009f162fa9"
+       },
+       {
+        "role": "persisted-output",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-xlsx-pdf/artifacts/pdf/F-PDF-TEXT-saved.pdf",
+        "sha256": "37947fb67195e7389a2bc8a089952ac0658d876f68156649da77c4fd8963f4b2"
+       },
+       {
+        "role": "reopened-output",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-xlsx-pdf/artifacts/pdf/F-PDF-TEXT-reopened.pdf",
+        "sha256": "37947fb67195e7389a2bc8a089952ac0658d876f68156649da77c4fd8963f4b2"
+       },
+       {
+        "role": "report",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-xlsx-pdf/artifacts/pdf/F-PDF-TEXT-save-receipt.json",
+        "sha256": "9b6a594908f04867b5e299ac1271bbf8fd920eb8f973d8e514043b9a41b0d7f0"
+       },
+       {
+        "role": "transcript",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-xlsx-pdf/artifacts/pdf/F-PDF-TEXT-transcript.jsonl",
+        "sha256": "8aea0279a7557d688c0e58f32b28ad64c5c62ba34ce9334b62f3fae80d4c09d2"
+       },
+       {
+        "role": "extraction-evidence",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-xlsx-pdf/artifacts/oracles/pdf/cycle-verdict.json",
+        "sha256": "0c0685fc7be6c2cbffb0955536ee8a7288f5667c4e9215ca0d2aa25277fbdb46"
+       },
+       {
+        "role": "pre-edit-extraction",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-xlsx-pdf/artifacts/oracles/pdf/cycle/pre-extraction.json",
+        "sha256": "5002f2f9c64017972c660f6f644c90d301cdd20fa9d9451d0f6d13ef3605f529"
+       },
+       {
+        "role": "post-edit-extraction",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-xlsx-pdf/artifacts/oracles/pdf/cycle/post-extraction.json",
+        "sha256": "53038f344c06897bf724691133aff256911b956c4401a661d722d6a117336acc"
+       },
+       {
+        "role": "pre-edit-render",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-xlsx-pdf/artifacts/oracles/pdf/cycle/pre-page-1.png",
+        "sha256": "afc84caacb2e2d082c5ffbebc9658022a7bfb8fbfce922f02b59ab5d81316bd8"
+       },
+       {
+        "role": "post-edit-render",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-xlsx-pdf/artifacts/oracles/pdf/cycle/post-page-1.png",
+        "sha256": "61625f909d987ab625fc18408e21dcc7c0b712e657faad24d774143dbae1370a"
+       },
+       {
+        "role": "render-evidence",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-xlsx-pdf/artifacts/pdf/F-PDF-TEXT-reopened.png",
+        "sha256": "2b1ffa15aff9866b61cb238b155e57a12e7d7b55ea61150b1b5169c2f8debca4"
+       }
+      ]
+     },
+     "owner": "UNI-658 G2 / UNI-659 G3",
+     "product_requirement": "the cycle ran on the Advisor-verified additive build r7-pdf-pageimage2 whose extra channels (pageImagePng, pagePreviewPng) are slice-owned additions; the product host adapter must implement them (G3) or refuse the image leg.",
+     "int01_delta": "existing-image editing is proven in the browser + host-adapter path; the module static Electron import still forces an adapter rewrite or a desktop host before the product path exists",
+     "status": "proven",
+     "runtime_selected": true,
+     "failure_behavior": "on a runtime failure surface the typed engine error and keep the current version unchanged; the proven byte-level behaviour is the one recorded in the cited register row"
+    },
+    {
+     "operation": "edit_text_in_service",
+     "contract_operation": "edit",
+     "runtime": "internal_service",
+     "runtime_detail": "in-memory PDF text apply/verify probe in the internal service role; CANDIDATE with supporting evidence only, not proven",
+     "dependency": "@embedpdf/pdfium + pdfium.wasm, font metrics, harfbuzzjs",
+     "allowed_fallback": "the browser editor path above (proven by E-PDF-TEXT-CYCLE) when the service is unreachable; the service path itself must refuse with a typed error, never a fake success",
+     "evidence_level": "candidate",
+     "proving_evidence": null,
+     "blocker": "the only evidence is a pre-register in-memory probe: no persisted output, no browser run and no register row (the probe's own limitation string)",
+     "test_that_would_prove": "a service job that returns bytes for a named version, with the Go boundary recomputing output_checksum and committing only after a byte-identical read-back, recorded as an appended register row",
+     "owner": "UNI-658 G2 + UNI-657 G1",
+     "supporting_evidence": {
+      "artifact_root": "E (workspace artifact root, NOT under M; named by the Advisor)",
+      "artifact_root_absolute": "D:/.Vietants_Project/uniwork-workspace/.uniwork-dev",
+      "path": "E/office-g0/main-pdf-text-probe.json",
+      "sha256": "c39ee01f444a5d64c6cb4039b392e3e03ad36a775efcc7a4870f6cc3e12562e5",
+      "bytes": 2846,
+      "encoding": "UTF-16LE",
+      "issue": "UNI-667",
+      "level": "upstream-engine-in-memory",
+      "outcome": "passed",
+      "own_limitation": "No persisted output, browser, image-edit or render-fidelity proof.",
+      "note": "supporting evidence only: it may support a design statement, it may not mark this operation proven and it is not an accepted register row"
+     },
+     "status": "candidate",
+     "runtime_selected": false,
+     "failure_behavior": "refuse before creating a product job with unsupported_operation (501) until this operation has its proof; never a silent no-op and never a fake success"
+    },
+    {
+     "operation": "serialize",
+     "contract_operation": "serialize",
+     "runtime": "internal_service",
+     "runtime_detail": "candidate: pdf-lib save pipeline in the private service; the browser editor Save path is proven separately by E-PDF-TEXT-CYCLE",
+     "dependency": "pdf-lib and an atomic write (writePdfAtomically takes a filesystem path a browser host does not have)",
+     "allowed_fallback": "unsupported_operation (501) until the service save path is proven",
+     "evidence_level": "pending",
+     "proving_evidence": null,
+     "blocker": "no product Go save path is wired; the proven saves are editor-scoped (Orca renderer Save and the additive image channels), not the internal-service pipeline",
+     "test_that_would_prove": "a service serialize job that returns bytes for a named version, with the Go boundary recomputing output_checksum and committing only after a byte-identical read-back",
+     "owner": "UNI-658 G2 + UNI-657 G1 (commit)",
+     "status": "blocked",
+     "runtime_selected": false,
+     "failure_behavior": "unsupported_operation (501) until the service save path is proven"
+    },
+    {
+     "operation": "convert",
+     "contract_operation": "convert",
+     "runtime": "internal_service",
+     "runtime_detail": "candidate only; the contract settles failed/unsupported_operation (501) at G0",
+     "dependency": "PDF -> DOCX conversion pipeline (M1 must-port row pdf-export-docx)",
+     "allowed_fallback": "unsupported_operation (501), retryable false",
+     "evidence_level": "pending",
+     "proving_evidence": null,
+     "blocker": "no conversion pipeline is wired and the contract G0 behaviour is an explicit refusal",
+     "test_that_would_prove": "a conversion job that creates a new Document with source_version_id preserved and a fidelity label",
+     "owner": "UNI-658 G2 + UNI-657 G1",
+     "status": "blocked",
+     "runtime_selected": false,
+     "failure_behavior": "unsupported_operation (501), retryable false"
+    },
+    {
+     "operation": "ocr",
+     "contract_operation": "convert",
+     "runtime": "internal_service",
+     "runtime_detail": "explicitly out of M1 scope (Q2-A); recorded so it is never mistaken for supported",
+     "dependency": "a native OCR helper",
+     "allowed_fallback": "unsupported_operation (501)",
+     "evidence_level": "pending",
+     "proving_evidence": null,
+     "blocker": "out of M1 scope by Q2-A",
+     "test_that_would_prove": "not scheduled; if the scope changes, an OCR job with the same grant/checksum/commit rules as any other service job",
+     "owner": "UNI-656 (scope); no M1 owner",
+     "status": "blocked",
+     "runtime_selected": false,
+     "failure_behavior": "unsupported_operation (501)"
+    }
+   ],
+   "mode": "browser editor over the injected adapter for text and existing-image edits; the internal service keeps the text pipeline",
+   "int01_delta": "existing-image editing is Electron-bound in the module and was proven only through the additive lab channels; a Node-safe decode adapter or a desktop host is still required"
+  },
+  "md": {
+   "upstream_engine": {
+    "entry": "apps/markdown (TipTap markdown extensions)",
+    "save_request": "SaveMarkdownRequest { text, imageSources, mode, suggestedName } in apps/markdown/src/shared/ipc.ts",
+    "host_coupling": "none for the basic cycle"
+   },
+   "operations": [
+    {
+     "operation": "edit_source_save_reopen",
+     "contract_operation": "open + edit + serialize",
+     "runtime": "browser_main",
+     "runtime_detail": "real Markdown editor in the Orca embedded browser; the text is held in the renderer and saved through host:text-save; no engine host is involved (engine.operations [])",
+     "dependency": "TipTap markdown extensions (catalog 3.30.6 vs upstream 3.31.0 - a conflict owned by G2/G3); injected adapter channel host:text-save",
+     "allowed_fallback": "none needed for the basic cycle; relative assets that cannot resolve must be reported, never silently dropped",
+     "evidence_level": "proven",
+     "proving_evidence": {
+      "register_row": "E-MD-CYCLE",
+      "summary": "F-MD-FULL opened by id, a marker typed at the end of the source, saved on host:text-save (1122 B -> 1148 B verified), fresh-tab reopen renders the marker, the Unicode heading, the table, both code fences and the relative image/link",
+      "artifacts": [
+       {
+        "role": "immutable-input",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-md-html/artifacts/final-b/md/input/markdown-kitchen-sink.md",
+        "sha256": "7cc9530f628b38bf70fd350f7db0342091796c743205a63962541abb3754f828"
+       },
+       {
+        "role": "persisted-output",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-md-html/artifacts/final-b/md/saved/markdown-kitchen-sink.md",
+        "sha256": "ab0f6bd9dbc9b54bfd1017eeed4bef7db7e4ddff40bb1a3b56501f6bb845671e"
+       },
+       {
+        "role": "reopened-output",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-md-html/artifacts/final-b/md/reopened/markdown-kitchen-sink.md",
+        "sha256": "ab0f6bd9dbc9b54bfd1017eeed4bef7db7e4ddff40bb1a3b56501f6bb845671e"
+       },
+       {
+        "role": "render-evidence",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-md-html/artifacts/final-b/md/render/reopen-rendered-above-the-fold.png",
+        "sha256": "0e0e798afb85956791bfe6086de159b60144cf313bddf1fb33161548b343a0c2"
+       },
+       {
+        "role": "extraction-evidence",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-md-html/artifacts/final-b/md/extraction/oracle-verdict.json",
+        "sha256": "cdb62997c1551ebbff682b9e89f182f5890a7c8334cfb5bd7b46cd23ab294855"
+       },
+       {
+        "role": "report",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-md-html/artifacts/final-b/md/report/save-0001-host-text-save.json",
+        "sha256": "b0ff97806be98048a8e678d9382f61d5b326ea4e03ec8d2ec7afaeec6fedbba4"
+       },
+       {
+        "role": "report",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-md-html/artifacts/final-b/md/report/reopen-eval.json",
+        "sha256": "e42bfc9bd432ff509a64c2f63bdb1872a936624eb0ef70c9cd5a309f616ec956"
+       },
+       {
+        "role": "report",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-md-html/artifacts/final-b/md/report/edited-snapshot.json",
+        "sha256": "a3dbbe88c3bda094ce580b06f386d76da351653e80e9d90ddff36c3c2121a2de"
+       },
+       {
+        "role": "transcript",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-md-html/artifacts/tester/md/tester-report.md",
+        "sha256": "7235dba042369509dd571597a0baac8e9cb720fa5c885484a6670d088bcdd2a5"
+       },
+       {
+        "role": "extraction-evidence",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-md-html/artifacts/tester/md/independent-oracle-verdict.json",
+        "sha256": "9c742686c90e5eb7752761cd7a53c97e51d96ee10bbd8b11dc384c6455bb731c"
+       }
+      ]
+     },
+     "owner": "UNI-659 G3",
+     "int01_delta": "none - browser plus host file I/O matches the preferred model",
+     "status": "proven",
+     "runtime_selected": true,
+     "failure_behavior": "on a runtime failure surface the typed engine error and keep the current version unchanged; the proven byte-level behaviour is the one recorded in the cited register row"
+    },
+    {
+     "operation": "convert",
+     "contract_operation": "convert",
+     "runtime": "internal_service",
+     "runtime_detail": "candidate only; the contract settles failed/unsupported_operation (501) at G0",
+     "dependency": "markdown -> docx pipeline (M1 must-port row md-export-docx)",
+     "allowed_fallback": "unsupported_operation (501), retryable false",
+     "evidence_level": "pending",
+     "proving_evidence": null,
+     "blocker": "no conversion pipeline is wired and the contract G0 behaviour is an explicit refusal",
+     "test_that_would_prove": "a conversion job that creates a new Document with source_version_id preserved and a fidelity label",
+     "owner": "UNI-658 G2 + UNI-657 G1",
+     "status": "blocked",
+     "runtime_selected": false,
+     "failure_behavior": "unsupported_operation (501), retryable false"
+    },
+    {
+     "operation": "export",
+     "contract_operation": "export",
+     "runtime": "internal_service",
+     "runtime_detail": "candidate only; G0 settles unsupported_operation (501)",
+     "dependency": "markdown -> PDF export path (M1 must-port row md-export-pdf)",
+     "allowed_fallback": "unsupported_operation (501), retryable false",
+     "evidence_level": "pending",
+     "proving_evidence": null,
+     "blocker": "no export channel exists in the lab and no product job path exists",
+     "test_that_would_prove": "an export job writing a derived artifact for one immutable version with a Go-recomputed checksum and a fidelity label",
+     "owner": "UNI-658 G2",
+     "status": "blocked",
+     "runtime_selected": false,
+     "failure_behavior": "unsupported_operation (501), retryable false"
+    }
+   ],
+   "mode": "browser with file I/O through the host adapter; no engine",
+   "int01_delta": "none - matches the preferred model"
+  },
+  "html": {
+   "upstream_engine": {
+    "entry": "apps/html (buildPreviewDocument, previewUrlFor in apps/html/src/main/preview-document.ts)",
+    "host_coupling": "preview isolation relies on an Electron protocol handler today"
+   },
+   "operations": [
+    {
+     "operation": "edit_source_save_reopen_isolated_preview",
+     "contract_operation": "open + edit + serialize",
+     "runtime": "browser_main",
+     "runtime_detail": "real HTML editor in the Orca embedded browser; the source is saved through host:text-save and the preview runs in an iframe on 127.0.0.1:5631 sandboxed without allow-same-origin",
+     "dependency": "injected adapter channel host:text-save plus the isolated preview origin; no engine host is involved (engine.operations [])",
+     "allowed_fallback": "refuse to preview (explicitly) rather than serve the document from the app origin",
+     "evidence_level": "proven",
+     "proving_evidence": {
+      "register_row": "E-HTML-CYCLE",
+      "summary": "F-HTML-ASSET opened by id, a marker typed, saved on host:text-save (530 B -> 582 B), assets copied and resolved in the preview; isolation asserted: sandboxed frame without allow-same-origin, contentDocument null, the preview cannot read the app localStorage and its fetch to the app API is refused",
+      "artifacts": [
+       {
+        "role": "immutable-input",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-md-html/artifacts/final-b/html/input/html-local-asset.html",
+        "sha256": "36ea1fd51144387bfca2bde62b93badb26b48963385427e6ae745f5b14844455"
+       },
+       {
+        "role": "persisted-output",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-md-html/artifacts/final-b/html/saved/html-local-asset.html",
+        "sha256": "76564bdd7ab0eb896ac93a1fc9c8cbb8da0cafc46c355b721ea5b22e69adf957"
+       },
+       {
+        "role": "reopened-output",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-md-html/artifacts/final-b/html/reopened/html-local-asset.html",
+        "sha256": "76564bdd7ab0eb896ac93a1fc9c8cbb8da0cafc46c355b721ea5b22e69adf957"
+       },
+       {
+        "role": "render-evidence",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-md-html/artifacts/final-b/html/render/isolation-app-source-view.png",
+        "sha256": "0b128fd731d0efec92aa5dc9c14db1c41d46aea68cbd49e0b1ecc66c1b5be6b9"
+       },
+       {
+        "role": "render-evidence",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-md-html/artifacts/final-b/html/render/isolation-preview-surface.png",
+        "sha256": "cb95879822c4db300f9b3b6cae84bd24aec0883b1480e3b58b6e7b94cc7fb073"
+       },
+       {
+        "role": "extraction-evidence",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-md-html/artifacts/final-b/html/extraction/oracle-verdict.json",
+        "sha256": "cdf31e6d5bee73ed43c430949fb098a601167035e5718972a6945de195ded1cc"
+       },
+       {
+        "role": "report",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-md-html/artifacts/final-b/html/report/save-0001-host-text-save.json",
+        "sha256": "9c70cd4976324ef195ffe88327b8759c2fc7574c3d62ba126327be989da4e764"
+       },
+       {
+        "role": "report",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-md-html/artifacts/final-b/html/report/saved-preview-eval.json",
+        "sha256": "4d386be71e22738b1c66146dd8ea189cfe41907543403d88ba86e453f2b046e6"
+       },
+       {
+        "role": "report",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-md-html/artifacts/final-b/html/report/saved-preview-network.json",
+        "sha256": "2d4d65dda26d4765c53bb82f336477532557b7334d2ebe81c39d0db9da1ba63c"
+       },
+       {
+        "role": "report",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-md-html/artifacts/final-b/html/report/isolation-frame-eval.json",
+        "sha256": "47a0bbbbc83c584fc406b273ad93a7a278c849b8e3b6f2fad7a786904bc9e667"
+       },
+       {
+        "role": "report",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-md-html/artifacts/final-b/html/report/isolation-preview-eval.json",
+        "sha256": "b315e5ed24ce8d0f9ed15593839571101a4ed27c546d56c740020052190d3a38"
+       },
+       {
+        "role": "transcript",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-md-html/artifacts/tester/html/tester-report.md",
+        "sha256": "7235dba042369509dd571597a0baac8e9cb720fa5c885484a6670d088bcdd2a5"
+       },
+       {
+        "role": "extraction-evidence",
+        "path": "M/.uniwork-dev/orca-recovery-g104/core-md-html/artifacts/tester/html/independent-oracle-verdict.json",
+        "sha256": "09aef194ac7265a1cb924f75330a024f6dbd15bf257ea11fe76add223db6c177"
+       }
+      ]
+     },
+     "owner": "UNI-659 G3; the preview origin is owned by G3 with the desktop scheme work in G4",
+     "int01_delta": "the preview origin was re-homed off the Electron scheme and the isolation assertions passed in the Orca browser; the desktop scheme rename itself stays G4 work",
+     "status": "proven",
+     "runtime_selected": true,
+     "failure_behavior": "on a runtime failure surface the typed engine error and keep the current version unchanged; the proven byte-level behaviour is the one recorded in the cited register row"
+    },
+    {
+     "operation": "convert",
+     "contract_operation": "convert",
+     "runtime": "internal_service",
+     "runtime_detail": "candidate only; the contract settles failed/unsupported_operation (501) at G0",
+     "dependency": "html2docx (docx 9.7.1) with a browser DOM extraction driver",
+     "allowed_fallback": "unsupported_operation (501), retryable false",
+     "evidence_level": "pending",
+     "proving_evidence": null,
+     "blocker": "no conversion pipeline is wired; DOM extraction drivers are Playwright or Electron based",
+     "test_that_would_prove": "a conversion job that creates a new Document with source_version_id preserved and a fidelity label",
+     "owner": "UNI-658 G2 + UNI-657 G1",
+     "status": "blocked",
+     "runtime_selected": false,
+     "failure_behavior": "unsupported_operation (501), retryable false"
+    },
+    {
+     "operation": "export",
+     "contract_operation": "export",
+     "runtime": "internal_service",
+     "runtime_detail": "candidate only; G0 settles unsupported_operation (501)",
+     "dependency": "html -> PDF export path (M1 must-port row html-export-pdf)",
+     "allowed_fallback": "unsupported_operation (501), retryable false",
+     "evidence_level": "pending",
+     "proving_evidence": null,
+     "blocker": "no export channel exists in the lab and no product job path exists",
+     "test_that_would_prove": "an export job writing a derived artifact for one immutable version with a Go-recomputed checksum and a fidelity label",
+     "owner": "UNI-658 G2",
+     "status": "blocked",
+     "runtime_selected": false,
+     "failure_behavior": "unsupported_operation (501), retryable false"
+    }
+   ],
+   "mode": "browser with a sandboxed preview origin; no engine",
+   "int01_delta": "the preview isolation was proven on a non-app origin in the Orca browser; the desktop scheme rename remains G4"
+  }
+ },
+ "format_summary": {
+  "docx": {
+   "proven": 1,
+   "candidate": 0,
+   "pending": 4,
+   "editor_cycle_proven": true,
+   "runtime_selected_operations": 1,
+   "runtime_selected_operations_note": "only an operation backed by an accepted register row counts as selected; a candidate runtime is never marked chosen",
+   "note": "the format editor cycle is placed by E-DOCX-CYCLE; the remaining operations stay blocked or candidate with a named test. a scoped Windows Chrome and Edge A1 cell edit/save/distinct-view reopen exists and is not a worker, so these counts stay unchanged. Loopback lab persistence in engine-contract.md section 12.3 is a separate fact. An injected web adapter is still required before this is the preferred worker flow."
+  },
+  "xlsx": {
+   "proven": 1,
+   "candidate": 0,
+   "pending": 2,
+   "editor_cycle_proven": true,
+   "runtime_selected_operations": 1,
+   "runtime_selected_operations_note": "only an operation backed by an accepted register row counts as selected; a candidate runtime is never marked chosen",
+   "note": "the format editor cycle is placed by E-XLSX-CYCLE; the remaining operations stay blocked or candidate with a named test. a scoped native Orca edit, sidecar recalc of B3 to 9, Save, and distinct-view reopen exists. It is not installed Chrome or Edge, not a browser worker, and not an internal-service deployment, so these counts stay unchanged."
+  },
+  "pptx": {
+   "proven": 1,
+   "candidate": 0,
+   "pending": 2,
+   "editor_cycle_proven": true,
+   "runtime_selected_operations": 1,
+   "runtime_selected_operations_note": "only an operation backed by an accepted register row counts as selected; a candidate runtime is never marked chosen",
+   "note": "the format editor cycle is placed by E-PPTX-CYCLE; the remaining operations stay blocked or candidate with a named test. text edit via pptx.setText is still not an export. The accepted existing-image Replace Picture, Save, and distinct-view reopen in Windows Chrome and Edge is scoped browser-UI evidence, not a worker runtime, so these counts stay unchanged."
+  },
+  "pdf": {
+   "proven": 1,
+   "candidate": 1,
+   "pending": 3,
+   "editor_cycle_proven": true,
+   "runtime_selected_operations": 1,
+   "runtime_selected_operations_note": "only an operation backed by an accepted register row counts as selected; a candidate runtime is never marked chosen",
+   "note": "the format editor cycle is placed by E-PDF-TEXT-CYCLE; the remaining operations stay blocked or candidate with a named test. the only proven row remains the in-memory text-edit probe. Scoped embedded-Chromium ASCII save/reopen and native Orca current-view repeated Save with automatic recovery exist and do not promote open or serialize. Existing-image edit stays Electron-bound and is not the accepted F1 cycle."
+  },
+  "md": {
+   "proven": 1,
+   "candidate": 0,
+   "pending": 2,
+   "editor_cycle_proven": true,
+   "runtime_selected_operations": 1,
+   "runtime_selected_operations_note": "only an operation backed by an accepted register row counts as selected; a candidate runtime is never marked chosen",
+   "note": "the format editor cycle is placed by E-MD-CYCLE; the remaining operations stay blocked or candidate with a named test. file I/O is possible; no session bind and no browser run"
+  },
+  "html": {
+   "proven": 1,
+   "candidate": 0,
+   "pending": 2,
+   "editor_cycle_proven": true,
+   "runtime_selected_operations": 1,
+   "runtime_selected_operations_note": "only an operation backed by an accepted register row counts as selected; a candidate runtime is never marked chosen",
+   "note": "the format editor cycle is placed by E-HTML-CYCLE; the remaining operations stay blocked or candidate with a named test. preview isolation is not implemented off the Electron scheme"
+  }
+ },
+ "scoped_editor_cycles": [
+  {
+   "id": "UNI667-docx-table-cycle-r7",
+   "format": "docx",
+   "scope": "one existing A1 table cell edit, renderer Save, distinct-view reopen of persisted bytes",
+   "host": "installed Windows Chrome and Edge, pinned docs renderer",
+   "not_this": "worker runtime, whole DOC-003, product Go store",
+   "evidence": ".uniwork-dev/office-g0/advisor-automation/accepted-features-01a0c335-d693-79e3-a6b0-742018df3468/docx/evidence/report.md"
+  },
+  {
+   "id": "UNI667-xlsx-native-edit-save-reopen",
+   "format": "xlsx",
+   "scope": "Data!C1 edited from 5 to 9, B3 recalculated to 9, real XLSX Save, distinct-view reopen",
+   "host": "native Orca, not installed Chrome or Edge",
+   "not_this": "browser worker, internal-service deployment, large workbook fidelity, product storage",
+   "evidence": ".uniwork-dev/office-g0/advisor-automation/xlsx-acceptance-g48-scheduled5.md"
+  },
+  {
+   "id": "UNI667-pptx-image-cycle-r4",
+   "format": "pptx",
+   "scope": "existing-image Replace Picture, normal Save, distinct-view reopen",
+   "host": "installed Windows Chrome and Edge on the pinned lab",
+   "not_this": "worker runtime, text edit via setText, whole DOC-003, Safari or Mac",
+   "evidence": ".uniwork-dev/office-g0/advisor-automation/pptx-acceptance-g48-scheduled2.md"
+  },
+  {
+   "id": "UNI667-pdf-embedded-reopen",
+   "format": "pdf",
+   "scope": "one ASCII text edit on page 1, renderer Save, distinct-view reopen of persisted bytes",
+   "host": "Orca embedded Chromium on Windows",
+   "not_this": "installed Chrome or Edge, product save, image edit, whole PDF editor",
+   "evidence": ".uniwork-dev/office-g0/advisor-automation/pdf-acceptance-01a0c275-3666-7713-8e57-11a8735463c3.md"
+  },
+  {
+   "id": "UNI667-pdf-f1-current-view-recovery",
+   "format": "pdf",
+   "scope": "native current-view repeated Save and automatic recovery",
+   "host": "native Orca",
+   "not_this": "manual Retry, image edit, installed Chrome or Edge, full platform, product Documents commit",
+   "evidence": ".uniwork-dev/office-g0/advisor-automation/acceptance-g48-scheduled10.md"
+  }
+ ],
+ "runtime_selection_verdict": {
+  "chosen": true,
+  "scope": "the open-edit-serialize-reopen capability of all six formats is placed by an accepted core-cycle row; XLSX recalculation additionally runs in the native sidecar service.",
+  "not_chosen": "every other operation in this map stays unproven and is recorded as a blocker with the test that would prove it; nothing is silently assumed.",
+  "evidence": {
+   "docx": "E-DOCX-CYCLE",
+   "xlsx": "E-XLSX-CYCLE",
+   "pptx": "E-PPTX-CYCLE",
+   "pdf": "E-PDF-TEXT-CYCLE",
+   "md": "E-MD-CYCLE",
+   "html": "E-HTML-CYCLE"
+  },
+  "next_step": "G2/G3 must implement and prove each blocked operation in its named runtime before it is enabled; G1 owns the commit path that consumes serialize output."
+ },
+ "packaging_and_namespace": {
+  "rule": "Every value below is a proposed G0 output (BRAND-01, task 4.6). None of them exists as a deployed resource today, and none is a rename of a shipped GenOffice surface.",
+  "proposed_g0_output": true,
+  "app_id": {
+   "value": "com.uniwork.office",
+   "owner": "G4",
+   "evidence_level": "pending",
+   "check": "install beside GenOffice; both apps survive and neither overwrites the other"
+  },
+  "executable_name": {
+   "value": "uniwork-office",
+   "owner": "G4",
+   "evidence_level": "pending",
+   "note": "must keep the X11 desktop-name and StartupWMClass pairing intact so the taskbar matches the window class"
+  },
+  "installer_artifact": {
+   "value": "uniwork-office_<version>_<arch>",
+   "owner": "G4/G7",
+   "evidence_level": "pending",
+   "note": "deb, rpm, nsis and dmg names derive from the same slug"
+  },
+  "user_facing_scheme": {
+   "value": "uniwork-office",
+   "owner": "G4/G5",
+   "evidence_level": "pending",
+   "note": "the desktop login callback uniwork-office://auth/callback is a DOC-005 dependency; scheme value here is aligned with that contract"
+  },
+  "internal_schemes": {
+   "value": "uniwork-office-app, uniwork-office-preview, uniwork-office-asset",
+   "owner": "G3/G4",
+   "evidence_level": "pending",
+   "note": "the preview scheme is the isolation boundary the HTML capability depends on; renaming the Electron scheme is not enough, the preview must be re-homed"
+  },
+  "user_data_namespace": {
+   "value": "uniwork-office",
+   "owner": "G4/G5",
+   "evidence_level": "pending",
+   "note": "launcher, control channel, cache and token store must be separate from GenOffice"
+  },
+  "update_feed": {
+   "value": "a UniWork Office channel owned by UniWork; never the upstream GenOffice feed",
+   "owner": "G4/G7",
+   "evidence_level": "pending",
+   "note": "GENOFFICE_UPDATE_URL and publish.url must not survive; no binary may be accepted from the upstream feed"
+  },
+  "coexistence_with_genoffice": {
+   "rule": "the two products share no app id, scheme, data directory, control channel or update feed; installing one must never modify the other",
+   "owner": "G4",
+   "evidence_level": "pending"
+  },
+  "license_and_attribution": {
+   "rule": "LICENSE, NOTICE and the fork commit stay in the fork; any release regenerates the bundled third-party notices and ships them",
+   "owner": "G2/G7",
+   "evidence_level": "pending"
+  },
+  "theme_rule": "rebranding changes editor chrome only. It must never change authored document bytes: no colour, font, logo or content inside a user file changes because of a theme switch. Task 3 pins this with a before/after byte comparison on a theme-bearing fixture."
+ },
+ "versioning_and_rollout": {
+  "negotiation": "The client advertises contract_version, protocol_version and its engine build. Go compares them against the stored document_versions.engine_* columns before a job is created. A mismatch is a typed refusal (engine_incompatible, protocol_mismatch or contract_mismatch), never a silent downgrade.",
+  "rolling_update": "An older engine keeps serving documents whose recorded engine version it can still read; a new engine version is introduced behind a flag. A run against an incompatible engine is refused before bytes are written, so the stored current version never moves.",
+  "rollback": "Rolling back to the previous engine build must still read every draft and every committed version. Drafts are preserved in the account draft store independently of the engine build, so a rollback cannot lose a draft; a base-version mismatch on recovery surfaces as a conflict, never as silent overwrite (DOC-005 owns the recovery path).",
+  "fixture_replay": "Every engine, adapter or protocol version change reruns the DOC-003 fixtures and the DOC-005 fault harness before rollout. The replay is the gate, not the version bump.",
+  "ownership": {
+   "G1": "version rows, commit transaction, engine_* columns",
+   "G2": "engine build, adapter, module layout",
+   "G3": "editor version handshake in the UI",
+   "G4": "desktop packaging and update feed",
+   "G7": "release process and fixture replay"
+  }
+ },
+ "ownership_map": {
+  "G1": {
+   "issue": "UNI-657",
+   "scope": "Documents store, commit transaction, audit/outbox, orphan ledger and cleanup reconciler",
+   "migration_order": 1
+  },
+  "G2": {
+   "issue": "UNI-658",
+   "scope": "engine module port, source layout, internal engine service, native sidecar, Go adapter",
+   "migration_order": 2
+  },
+  "G3": {
+   "issue": "UNI-659",
+   "scope": "editor integration, host adapters, editor chrome and theme",
+   "migration_order": 3
+  },
+  "G4": {
+   "issue": "UNI-636",
+   "scope": "desktop host, login, packaging, namespace and update feed",
+   "migration_order": 4
+  },
+  "G7": {
+   "issue": "UNI-661",
+   "scope": "release, brand scan on real binaries, fixture replay",
+   "migration_order": 5
+  },
+  "shared": {
+   "issue": "UNI-660",
+   "phase": "G5",
+   "scope": "sync, offline queue and full draft recovery exercise the DOC-005 protocol on top of this boundary"
+  },
+  "rule": "Migration order is the dependency order: the store and its ledger exist before the engine writes into it; the adapter exists before the editor consumes it; the desktop host exists before packaging; release last."
+ },
+ "open_items": [
+  {
+   "id": "RT-01",
+   "item": "DOC-003 six-browser flows",
+   "owner": "UNI-667",
+   "status": "pending",
+   "why": "the six whole-editor flows are not accepted. Scoped DOCX, PPTX, PDF, and XLSX cycles in scoped_editor_cycles do not close DOC-003."
+  },
+  {
+   "id": "RT-02",
+   "item": "real adapter wiring against this boundary (task 4.4)",
+   "owner": "UNI-668 candidate evidence; Advisor retains criterion acceptance",
+   "status": "bounded_evidence_present",
+   "why": "11/11 real DOC-003 loopback adapter cases plus a separate prior six-case real-adapter fault run are pinned below; product Go/storage/ACL, durable job state, all-format runtime choice, and clean production build remain open."
+  },
+  {
+   "id": "RT-03",
+   "item": "native sidecar build and recalculation proof",
+   "owner": "G2",
+   "status": "pending",
+   "why": "one native Orca cycle recalculated B3 to 9. An internal-service sidecar build and deployment remain unproved."
+  },
+  {
+   "id": "RT-04",
+   "item": "PDF existing-image decode adapter",
+   "owner": "G2/G3",
+   "status": "pending"
+  },
+  {
+   "id": "RT-05",
+   "item": "React and TipTap catalog coexistence",
+   "owner": "G2/G3",
+   "status": "pending"
+  },
+  {
+   "id": "RT-06",
+   "item": "desktop packaging, installer and update feed proof",
+   "owner": "G4/G7",
+   "status": "pending"
+  },
+  {
+   "id": "RT-07",
+   "item": "macOS and Safari real-device evidence",
+   "owner": "UNI-671",
+   "status": "backlog"
+  }
+ ],
+ "machine_checks": {
+  "json_valid": "must parse with JSON.parse; the DOC-004 test suite reads this file and asserts the shape, the per-format counts and that no format claims runtime_chosen true",
+  "snake_case_wire": "every key in this file is snake_case, matching the wire convention, so a reader does not have to learn a second casing for the contract",
+  "no_absolute_paths_of_the_authoring_machine": "the only absolute-looking values are the pinned commit and tree, which are repository objects, not filesystem paths",
+  "absolute_paths": "the only absolute path in this candidate is supporting_evidence.artifact_root_absolute, the Advisor-named workspace artifact root E; every other path is repository-, slice- or root-relative",
+  "evidence_citations_resolve": "every proved operation cites an E-*-CYCLE row that exists in docs/office/g0/evidence-register.json and artifact paths under M/.uniwork-dev; every other operation carries blocker + test_that_would_prove"
+ },
+ "rt02_reconciliation": {
+  "status": "bounded_evidence_present",
+  "decision": "Replace pending-as-no-evidence with bounded-evidence-present. Do not close DOC-004 criterion 4.4 as a whole and do not choose any format runtime.",
+  "real_engine_run": {
+   "artifact": "docs/office/g0/RT02-adapter-evidence.json",
+   "acquisition_origin_read_only": "../.uniwork-dev/worktrees/UNI-668-office-engine-contracts/.office-g0-adapter-lab/adapter-evidence.json",
+   "sha256": "2a9a5830f3489aef1959c9c5551d205be2694c08ae7636b22f4d0bb4b92d4d05",
+   "bytes": 9353,
+   "generated_at": "2026-09-20T20:02:09.963Z",
+   "evidence_kind": "real_engine_evidence",
+   "contract_version": "uniwork-office-engine-contract/1",
+   "transport": "loopback-http-post",
+   "base_url": "http://127.0.0.1:5392",
+   "runtime": "v22.23.2",
+   "platform": "win32",
+   "total": 11,
+   "passed": 11,
+   "failed": 0,
+   "unavailable": 0,
+   "oracle_digest": "bae36e364475441967d8bf092e1c34b43d11a14c5239745be6bc08b8de0f5cad",
+   "cases": [
+    "adapter-unreachable-host-maps-to-engine-crashed",
+    "adapter-method-not-allowed-is-a-caller-fault",
+    "adapter-bad-json-is-a-caller-fault",
+    "adapter-unknown-route-is-a-typed-refusal",
+    "adapter-view-traversal-refused-before-work",
+    "adapter-outside-lab-path-refused",
+    "adapter-malformed-engine-input-is-typed",
+    "adapter-missing-required-input-is-refused",
+    "adapter-real-docx-edit-roundtrip-persists",
+    "adapter-real-pdf-text-read-returns-fixture-text",
+    "adapter-real-pptx-open-and-close-cycle"
+   ],
+   "bounded_scope": "A pinned real DOC-003 engine host answered loopback adapter requests. The three document-engine cases cover DOCX edit persistence, PDF text read, and PPTX open/close. The other eight cover HTTP/transport, containment, and typed input/error behavior.",
+   "not_proven": "This run is not a UniWork Go service, database/object store, tenant ACL, durable job-map restart, product browser flow, all-format runtime decision, or clean production build."
+  },
+  "separate_six_fault_run": {
+   "artifact": "docs/office/g0/RT02-six-fault-evidence.json",
+   "acquisition_origin_read_only": "../.uniwork-dev/worktrees/UNI-668-office-engine-contracts/.uniwork-dev/real-adapter-faults-g48/lab/run-31PlNx/evidence.json",
+   "sha256": "d237c15d54ccf95f11502e3f2b14a48b747efd80fe06c2aed84ef8eb7119ff8f",
+   "bytes": 762007,
+   "canonical_cases": [
+    "type-version-mismatch",
+    "checksum-mismatch",
+    "timeout",
+    "cancel-complete-race",
+    "crash-restart",
+    "metadata-access-engine-down"
+   ],
+   "source_report": "../.uniwork-dev/worktrees/UNI-668-office-engine-contracts/.uniwork-dev/real-adapter-faults-g48/REPORT.md",
+   "status": "previously independently tested/reviewed six-case run; reused and reconciled to individually pinned register artifacts",
+   "limitation": "Real DOCX/HTTP and engine responses; authorization, object storage, commit, and catalogue are modeled. Parent job state remains in the parent process; staged bytes may remain after cancellation/deadline."
+  },
+  "case_sets_are_distinct": true,
+  "modeled_33_case_table_is_not_either_real_engine_run": true,
+  "register_status": "six_canonical_faults_case_bound_real_engine_modeled_business",
+  "register_ref": "docs/office/g0/evidence-register.json",
+  "register_case_count": 6,
+  "register_scope": "Real pinned DOCX engine and loopback HTTP; Go authorization, object storage, version commit and document catalogue are modeled. Engine process restart is observed, while parent job-map persistence, product ACL and staging-byte cleanup remain unproven.",
+  "source_docs": [
+   {
+    "path": "docs/office/g0/engine-contract.md",
+    "sha256": "0d2bf778081bb2eefd66f396b978ce9e9f1f0c3e847db656667da5e46d95d3f0",
+    "bytes": 61786
+   },
+   {
+    "path": "docs/office/g0/engine-contract-lab-runtime.md",
+    "sha256": "3d195b118aa14b407c18273def5f03f15e231c1e4d7ffa62659aae68888f1ecf",
+    "bytes": 19012
+   },
+   {
+    "path": "docs/office/g0/engine-contract-adapter-checksum.md",
+    "sha256": "8cab37775d9a9968123fba6241089c417cadebe9798a05a3fafde5d680f0386d",
+    "bytes": 7952
+   }
+  ]
+ },
+ "g1_g2_handoff": {
+  "status": "g0_contract_output_only",
+  "placement_rule": "No operation is enabled for users by this document. Source reads remain hypotheses; the in-memory pdf/edit_text probe remains bounded; pending rows fail closed.",
+  "source_and_patch": {
+   "proposed_layout": [
+    "packages/office-contracts/ holds versioned request/result/error schemas and fixture-independent types only.",
+    "packages/office-engine-upstream/<module>/ holds selected pinned upstream source, patches, LICENSE and NOTICE inside this monorepo; no sibling checkout, symlink, private registry, or ../genoffice dependency.",
+    "packages/office-engine-browser/ exposes browser-safe worker entry points; packages/office-engine-node/ contains Node/native-only entry points. Do not re-export Node, Electron, canvas, or native bindings through the browser entry.",
+    "services/office-engine/ owns the private engine service and native sidecars; server/internal/officeengine/ is the Go transport client; server/internal/service/documents/ owns authorization, version, quota, and commit orchestration.",
+    "apps/web/platform/ injects host adapters; packages/views/ may depend on @uniwork/core and @uniwork/ui, while core/ui do not import the engine package or app host."
+   ],
+   "patch_source_of_truth": "Pin upstream commit and source-manifest hashes; store the reviewed patch series beside the vendored module and verify clean-checkout replay. G0 has no tested final package names or patch replay.",
+   "public_entry": "Export only typed document operations and versioned protocol contracts from the browser-safe package facade; keep internal service, storage path, Node, Electron, and sidecar APIs private.",
+   "dependency_direction": "views -> core + ui; web platform -> injected adapter; Go document service -> private engine client -> private engine service. The engine receives bounded bytes and operation input, never authority to choose a tenant, user path, object key, or database mutation."
+  },
+  "version_and_catalog": {
+   "uniwork_react": "19.2.3",
+   "upstream_docs_react": "19.2.4",
+   "uniwork_tiptap": "3.30.6",
+   "upstream_docs_tiptap": "3.31.0",
+   "rule": "Keep the shared UniWork catalog versions. Prove compatibility at G2/G3 with clean install, typecheck, build, and browser fixtures; no G0 catalog bump or duplicate React/TipTap tree.",
+   "evidence_level": "pending"
+  },
+  "private_service_job_resource_cleanup": {
+   "authority": "Go owns authentication, workspace/organization authorization, quota, idempotency, deadline, and document-version checks before job creation; the engine service is private and receives a scoped operation grant plus bounded bytes.",
+   "job": "Persist job/idempotency and terminal state in G1-owned storage; transitions are accepted -> running -> completed|failed|timed_out|cancelled. A retry with the same key/payload replays; a changed payload conflicts; incompatible contract/protocol/engine refuses before job creation.",
+   "resource": "Enforce input/output byte caps, operation allowlists, bounded concurrency, deadline, memory/temp quotas, and per-job isolated staging. The engine cannot access arbitrary host paths, network destinations, or business tables.",
+   "commit": "Engine output remains staged. Go recomputes the output digest and length, writes the immutable object before the database transaction, then commits version, audit/outbox, and idempotency state atomically; an uncommitted object is tracked for reconciliation.",
+   "cleanup": "Cancellation/timeout/crash must not advance current_version. G1 reconciles service-owned staged objects/orphan ledger; G2 must prove process/temp-tree cleanup. Current evidence cannot guarantee removal of engine-local staged bytes after cancel/deadline or durable job state after parent restart.",
+   "failure": "Return stable typed errors. Preserve original and current version on engine-down, timeout, malformed output, checksum/length mismatch, or cleanup uncertainty; no silent fallback, overwrite, or version downgrade."
+  },
+  "upgrade_rollback": {
+   "rollout": "Introduce new engine build behind a disabled-by-default flag and explicit supported contract/protocol range; replay the exact DOC-003 fixture and DOC-005 failure suites before routing any job.",
+   "migration": "G1 stores engine build and protocol metadata per immutable version; never rewrite existing bytes during engine upgrade.",
+   "rollback": "Keep the prior service/build able to read committed and draft versions. Disable the new flag and route compatible jobs to the previous build; if it cannot read a version, refuse with typed incompatibility and preserve the stored bytes/draft.",
+   "proof": "No product upgrade, rollback, multi-version reader, or feature-flag path is implemented by this G0 candidate."
+  },
+  "phase_owners": {
+   "G1_UNI657": "Documents store, authorization boundary, version rows, transaction, audit/outbox, idempotency/orphan ledger, and cleanup reconciler.",
+   "G2_UNI658": "Pinned source/patch replay, browser-safe and Node/native entry separation, internal engine service, sidecar build, typed Go adapter, process/resource lifecycle, and clean-checkout build proof.",
+   "G3_UNI659": "Editor and web host integration, host adapter, React/TipTap compatibility, browser fixture runs, and user-visible failure states.",
+   "G4_UNI636": "Desktop host, login, packaging, namespace, installer, and update feed.",
+   "G5_UNI660": "Offline queue, sync, and draft recovery over DOC-005.",
+   "G7_UNI661": "Release, real-binary brand scan, upgrade/rollback rollout, and fixture replay."
+  },
+  "local_replica_proof": "The guarded document package and tests run from an isolated copy of the recorded preimage with no sibling GenOffice dependency. No product engine source/build was imported, so this does not satisfy clean-checkout engine-build evidence.",
+  "build_closure": {
+   "clean_standalone_production_build": false,
+   "evidence_level": "pending",
+   "owner": "UNI-658 G2",
+   "blocker": "No final ported module, package manifest, public entry, or private service binary exists in this G0 candidate."
+  }
+ },
+ "candidate_criterion_decisions": {
+  "4.1": {
+   "decision": "partial_correction_only",
+   "reason": "Every operation now has an explicit candidate placement, evidence scope, owner, and fail-closed behavior. DOC-003 whole browser flows are still not accepted; every runtime_chosen remains false."
+  },
+  "4.4": {
+   "decision": "bounded_evidence_present_whole_criterion_open",
+   "reason": "The 11-case real-engine adapter run and separate six-fault run are reconciled to exact artifact hashes and case IDs. Production Go/storage/ACL, durable parent-job restart, local staged-byte cleanup, and product adapter integration remain unproven."
+  },
+  "4.7": {
+   "decision": "handoff_contract_present_build_proof_open",
+   "reason": "The G1/G2 layout and interface contract is implementable, but no clean-checkout build, React/TipTap compatibility, service binary, or production runtime was built here."
+  }
+ },
+ "candidate": {
+  "slice": ".uniwork-dev/orca-recovery-g119/doc004-runtime",
+  "generated_at": "2026-09-25",
+  "base": "docs/office/g0/module-runtime-map.json",
+  "base_sha256": "b449d0dc27f75a8d39b3ad68ac33f3695e103c20f0d77c00e3ae0d3654d172a8",
+  "accepted_register_rows": [
+   "E-DOCX-CYCLE",
+   "E-HTML-CYCLE",
+   "E-MD-CYCLE",
+   "E-PDF-TEXT-CYCLE",
+   "E-PPTX-CYCLE",
+   "E-XLSX-CYCLE"
+  ],
+  "supersedes_reason": "4.1: every operation carries a runtime plus either an accepted register row + artifact or a blocker with the test that would prove it; the g118 six cycles are reconciled.",
+  "integration_rule": "replace formats and runtime_selection_verdict; add candidate, capability_placement, capability_placement_summary and g119_reconciliation; all other keys are carried over verbatim from the base file"
+ },
+ "canonical_patch_required": {
+  "why": "scripts/office-g0/engine-contract.test.mjs pins the pre-g118 state and will fail on an integrated candidate until it is updated in the same change",
+  "guarded_update_allowed_by": "Advisor DECISION-g119-advisor-1.md condition 3 (2026-09-25)",
+  "pins_to_update": [
+   "replace runtime_selection_verdict.chosen === false with an assertion that the verdict is scoped, that every chosen scope cites an accepted register row, and that no candidate operation is marked chosen",
+   "replace the proven-list deepEqual with: proven set == { operations whose proving_evidence.register_row resolves in the accepted register }, and require it to equal the six E-*-CYCLE editor operations plus any operation that later earns a row",
+   "replace format_summary.<format>.runtime_chosen === false with format_summary.<format>.editor_cycle_proven === true and runtime_selected_operations == the number of proven operations",
+   "add per-operation structural assertions: every operation has runtime, status in {proven, candidate, blocked}, failure_behavior, and either a proving_evidence.register_row for proven or a blocker + test_that_would_prove otherwise",
+   "extend the evidence-level vocabulary guard to accept the 'candidate' level the Advisor approved, and keep every existing negative case"
+  ],
+  "other_files_that_must_move_with_it": [
+   "docs/office/g0/engine-contract.md section 9.1: the deviation rows still describe the pre-cycle scoped evidence; they must cite the accepted Orca rows",
+   "docs/office/g0/engine-contract.md section 9: the sentence that points at module-runtime-map.json stays true, but the map now carries an accepted row per editor cycle"
+  ],
+  "not_required": "no RT-02 pin moves: rt02_reconciliation is carried over verbatim and its artifacts still hash the same"
+ },
+ "capability_placement": [
+  {
+   "capability_id": "docx-open",
+   "family": "docx",
+   "must_port": true,
+   "op": "open in editor",
+   "placement": "browser_main",
+   "operation": "open_edit_text_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "proven_by_core_cycle",
+   "dependency": "pinned docs renderer + injected host adapter (e2e/office-g0/host-adapter.mjs shape); no Node/Electron global in the page",
+   "allowed_fallback": "native_desktop docs host (the upstream Electron host) - implemented upstream, NOT proven at G0; no silent fallback in the product path",
+   "evidence": {
+    "register_row": "E-DOCX-CYCLE"
+   },
+   "owner": "UNI-659 G3 (editor/web adoption); UNI-658 G2 (module port)",
+   "note": null
+  },
+  {
+   "capability_id": "docx-edit-text",
+   "family": "docx",
+   "must_port": true,
+   "op": "edit text",
+   "placement": "browser_main",
+   "operation": "open_edit_text_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "proven_by_core_cycle",
+   "dependency": "pinned docs renderer + injected host adapter (e2e/office-g0/host-adapter.mjs shape); no Node/Electron global in the page",
+   "allowed_fallback": "native_desktop docs host (the upstream Electron host) - implemented upstream, NOT proven at G0; no silent fallback in the product path",
+   "evidence": {
+    "register_row": "E-DOCX-CYCLE"
+   },
+   "owner": "UNI-659 G3 (editor/web adoption); UNI-658 G2 (module port)",
+   "note": null
+  },
+  {
+   "capability_id": "docx-edit-table-image",
+   "family": "docx",
+   "must_port": true,
+   "op": "edit table and image",
+   "placement": "browser_main",
+   "operation": "edit_table_and_image",
+   "contract_operation": "edit",
+   "state": "blocked_unproven",
+   "dependency": "docs renderer table/image extensions",
+   "allowed_fallback": "explicit refusal with unsupported_operation (501); no partial save on an unproved path",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "one Orca embedded-browser cycle that edits a table cell and replaces an inline image in F-DOCX-KITCHEN, saves through the renderer, and reopens the persisted bytes with the unchanged-parts oracle"
+   },
+   "owner": "UNI-667 DOC-003 (whole-editor matrix); runtime placement then belongs to UNI-659 G3",
+   "note": "table and image editing is not covered by the accepted Orca core cycle (paragraph text only) and the scoped rows ran on installed Chrome/Edge"
+  },
+  {
+   "capability_id": "docx-save-docx",
+   "family": "docx",
+   "must_port": true,
+   "op": "save docx",
+   "placement": "browser_main",
+   "operation": "open_edit_text_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "proven_by_core_cycle",
+   "dependency": "pinned docs renderer + injected host adapter (e2e/office-g0/host-adapter.mjs shape); no Node/Electron global in the page",
+   "allowed_fallback": "native_desktop docs host (the upstream Electron host) - implemented upstream, NOT proven at G0; no silent fallback in the product path",
+   "evidence": {
+    "register_row": "E-DOCX-CYCLE"
+   },
+   "owner": "UNI-659 G3 (editor/web adoption); UNI-658 G2 (module port)",
+   "note": null
+  },
+  {
+   "capability_id": "docx-export-pdf",
+   "family": "docx",
+   "must_port": true,
+   "op": "export to pdf",
+   "placement": "internal_service",
+   "operation": "export",
+   "contract_operation": "export",
+   "state": "blocked_unproven",
+   "dependency": "PDF export path",
+   "allowed_fallback": "unsupported_operation (501), retryable false",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "an export job that writes a derived artifact bound to one immutable version, recomputes its checksum, records fidelity.lost, and never mutates the source version"
+   },
+   "owner": "UNI-658 G2",
+   "note": "exportPdf has no working lab channel (the lab answers a fake app:ok-true) and no product job path exists"
+  },
+  {
+   "capability_id": "docx-create-blank",
+   "family": "docx",
+   "must_port": true,
+   "op": "create blank document",
+   "placement": "browser_main",
+   "operation": "open_edit_text_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "pinned docs renderer + injected host adapter (e2e/office-g0/host-adapter.mjs shape); no Node/Electron global in the page",
+   "allowed_fallback": "native_desktop docs host (the upstream Electron host) - implemented upstream, NOT proven at G0; no silent fallback in the product path",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-659 G3 (editor/web adoption); UNI-658 G2 (module port)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "docx-convert-to-md",
+   "family": "docx",
+   "must_port": true,
+   "op": "convert docx to md",
+   "placement": "internal_service",
+   "operation": "convert",
+   "contract_operation": "convert",
+   "state": "blocked_unproven",
+   "dependency": "packages/html2docx (docx 9.7.1) needs a real DOM; DOM extraction drivers are Playwright or Electron based",
+   "allowed_fallback": "unsupported_operation (501), retryable false - the G0 behaviour named in engine-contract.md 4.5",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a private-service job that converts a named fixture into a new Document with source_version_id preserved, an output checksum recomputed by Go, a fidelity label, and a register row citing both the source and the produced document"
+   },
+   "owner": "UNI-658 G2 (service) + UNI-657 G1 (new-document commit)",
+   "note": "conversion produces a new Document (Q7-B) and no lab channel or product job path exists; DOM extraction drivers are Playwright/Electron based"
+  },
+  {
+   "capability_id": "docx-convert-to-html",
+   "family": "docx",
+   "must_port": false,
+   "op": "convert docx to html",
+   "placement": "internal_service",
+   "operation": "convert",
+   "contract_operation": "convert",
+   "state": "blocked_unproven",
+   "dependency": "packages/html2docx (docx 9.7.1) needs a real DOM; DOM extraction drivers are Playwright or Electron based",
+   "allowed_fallback": "unsupported_operation (501), retryable false - the G0 behaviour named in engine-contract.md 4.5",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a private-service job that converts a named fixture into a new Document with source_version_id preserved, an output checksum recomputed by Go, a fidelity label, and a register row citing both the source and the produced document"
+   },
+   "owner": "UNI-658 G2 (service) + UNI-657 G1 (new-document commit)",
+   "note": "conversion produces a new Document (Q7-B) and no lab channel or product job path exists; DOM extraction drivers are Playwright/Electron based"
+  },
+  {
+   "capability_id": "docx-content-headings-lists",
+   "family": "docx",
+   "must_port": true,
+   "op": "content: headings and list numbering",
+   "placement": "browser_main",
+   "operation": "open_edit_text_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "proven_by_core_cycle",
+   "dependency": "pinned docs renderer + injected host adapter (e2e/office-g0/host-adapter.mjs shape); no Node/Electron global in the page",
+   "allowed_fallback": "native_desktop docs host (the upstream Electron host) - implemented upstream, NOT proven at G0; no silent fallback in the product path",
+   "evidence": {
+    "register_row": "E-DOCX-CYCLE"
+   },
+   "owner": "UNI-659 G3 (editor/web adoption); UNI-658 G2 (module port)",
+   "note": null
+  },
+  {
+   "capability_id": "docx-content-footnotes",
+   "family": "docx",
+   "must_port": true,
+   "op": "content: footnotes and endnotes",
+   "placement": "browser_main",
+   "operation": "open_edit_text_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "pinned docs renderer + injected host adapter (e2e/office-g0/host-adapter.mjs shape); no Node/Electron global in the page",
+   "allowed_fallback": "native_desktop docs host (the upstream Electron host) - implemented upstream, NOT proven at G0; no silent fallback in the product path",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-659 G3 (editor/web adoption); UNI-658 G2 (module port)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "docx-content-comments-revisions",
+   "family": "docx",
+   "must_port": true,
+   "op": "content: comments and tracked changes",
+   "placement": "browser_main",
+   "operation": "open_edit_text_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "pinned docs renderer + injected host adapter (e2e/office-g0/host-adapter.mjs shape); no Node/Electron global in the page",
+   "allowed_fallback": "native_desktop docs host (the upstream Electron host) - implemented upstream, NOT proven at G0; no silent fallback in the product path",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-659 G3 (editor/web adoption); UNI-658 G2 (module port)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "docx-content-equations",
+   "family": "docx",
+   "must_port": true,
+   "op": "content: equations (OMML)",
+   "placement": "browser_main",
+   "operation": "open_edit_text_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "pinned docs renderer + injected host adapter (e2e/office-g0/host-adapter.mjs shape); no Node/Electron global in the page",
+   "allowed_fallback": "native_desktop docs host (the upstream Electron host) - implemented upstream, NOT proven at G0; no silent fallback in the product path",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-659 G3 (editor/web adoption); UNI-658 G2 (module port)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "docx-content-fields-toc",
+   "family": "docx",
+   "must_port": true,
+   "op": "content: fields and table of contents",
+   "placement": "browser_main",
+   "operation": "open_edit_text_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "pinned docs renderer + injected host adapter (e2e/office-g0/host-adapter.mjs shape); no Node/Electron global in the page",
+   "allowed_fallback": "native_desktop docs host (the upstream Electron host) - implemented upstream, NOT proven at G0; no silent fallback in the product path",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-659 G3 (editor/web adoption); UNI-658 G2 (module port)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "docx-content-charts",
+   "family": "docx",
+   "must_port": true,
+   "op": "content: charts",
+   "placement": "browser_main",
+   "operation": "open_edit_text_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "pinned docs renderer + injected host adapter (e2e/office-g0/host-adapter.mjs shape); no Node/Electron global in the page",
+   "allowed_fallback": "native_desktop docs host (the upstream Electron host) - implemented upstream, NOT proven at G0; no silent fallback in the product path",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-659 G3 (editor/web adoption); UNI-658 G2 (module port)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "docx-content-watermark",
+   "family": "docx",
+   "must_port": true,
+   "op": "content: watermark",
+   "placement": "browser_main",
+   "operation": "open_edit_text_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "pinned docs renderer + injected host adapter (e2e/office-g0/host-adapter.mjs shape); no Node/Electron global in the page",
+   "allowed_fallback": "native_desktop docs host (the upstream Electron host) - implemented upstream, NOT proven at G0; no silent fallback in the product path",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-659 G3 (editor/web adoption); UNI-658 G2 (module port)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "docx-content-sections-columns",
+   "family": "docx",
+   "must_port": true,
+   "op": "content: sections, columns and page colour",
+   "placement": "browser_main",
+   "operation": "open_edit_text_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "pinned docs renderer + injected host adapter (e2e/office-g0/host-adapter.mjs shape); no Node/Electron global in the page",
+   "allowed_fallback": "native_desktop docs host (the upstream Electron host) - implemented upstream, NOT proven at G0; no silent fallback in the product path",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-659 G3 (editor/web adoption); UNI-658 G2 (module port)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "docx-content-drawing-anchors",
+   "family": "docx",
+   "must_port": true,
+   "op": "content: float (captioned table); inline and page-anchor exist upstream but are not yet cased",
+   "placement": "browser_main",
+   "operation": "open_edit_text_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "pinned docs renderer + injected host adapter (e2e/office-g0/host-adapter.mjs shape); no Node/Electron global in the page",
+   "allowed_fallback": "native_desktop docs host (the upstream Electron host) - implemented upstream, NOT proven at G0; no silent fallback in the product path",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-659 G3 (editor/web adoption); UNI-658 G2 (module port)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "docx-content-embedded-fonts",
+   "family": "docx",
+   "must_port": true,
+   "op": "content: embedded fonts",
+   "placement": "browser_main",
+   "operation": "open_edit_text_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "pinned docs renderer + injected host adapter (e2e/office-g0/host-adapter.mjs shape); no Node/Electron global in the page",
+   "allowed_fallback": "native_desktop docs host (the upstream Electron host) - implemented upstream, NOT proven at G0; no silent fallback in the product path",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-659 G3 (editor/web adoption); UNI-658 G2 (module port)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "docx-protection",
+   "family": "docx",
+   "must_port": true,
+   "op": "edit protection with password",
+   "placement": "browser_main",
+   "operation": "open_edit_text_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "pinned docs renderer + injected host adapter (e2e/office-g0/host-adapter.mjs shape); no Node/Electron global in the page",
+   "allowed_fallback": "native_desktop docs host (the upstream Electron host) - implemented upstream, NOT proven at G0; no silent fallback in the product path",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-659 G3 (editor/web adoption); UNI-658 G2 (module port)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "docx-encrypted-open",
+   "family": "docx",
+   "must_port": true,
+   "op": "open password-encrypted docx",
+   "placement": "browser_main",
+   "operation": "open_edit_text_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "pinned docs renderer + injected host adapter (e2e/office-g0/host-adapter.mjs shape); no Node/Electron global in the page",
+   "allowed_fallback": "native_desktop docs host (the upstream Electron host) - implemented upstream, NOT proven at G0; no silent fallback in the product path",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-659 G3 (editor/web adoption); UNI-658 G2 (module port)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "docx-text-extract",
+   "family": "docx",
+   "must_port": false,
+   "op": "extract plain text",
+   "placement": "browser_main",
+   "operation": "open_edit_text_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "pinned docs renderer + injected host adapter (e2e/office-g0/host-adapter.mjs shape); no Node/Electron global in the page",
+   "allowed_fallback": "native_desktop docs host (the upstream Electron host) - implemented upstream, NOT proven at G0; no silent fallback in the product path",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-659 G3 (editor/web adoption); UNI-658 G2 (module port)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "docx-pagination-fidelity",
+   "family": "docx",
+   "must_port": true,
+   "op": "pagination and layout fidelity",
+   "placement": "browser_main",
+   "operation": "open_edit_text_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "proven_by_core_cycle",
+   "dependency": "pinned docs renderer + injected host adapter (e2e/office-g0/host-adapter.mjs shape); no Node/Electron global in the page",
+   "allowed_fallback": "native_desktop docs host (the upstream Electron host) - implemented upstream, NOT proven at G0; no silent fallback in the product path",
+   "evidence": {
+    "register_row": "E-DOCX-CYCLE"
+   },
+   "owner": "UNI-659 G3 (editor/web adoption); UNI-658 G2 (module port)",
+   "note": null
+  },
+  {
+   "capability_id": "xlsx-open",
+   "family": "xlsx",
+   "must_port": true,
+   "op": "open in editor",
+   "placement": "browser_main + internal_service",
+   "operation": "open_edit_cell_recalculate_save_reopen",
+   "contract_operation": "open + edit + serialize (recalculation carried as an engine operation inside the job)",
+   "state": "proven_by_core_cycle",
+   "dependency": "jszip/numfmt/zod gateway in the host; Rust xlsx-sidecar (Cargo, ironcalc) for recalculation; injected adapter channel host:sheets-save-edits",
+   "allowed_fallback": "native_desktop host for the same sidecar; NOT proven at G0. A WASM inference is not allowed (INT-01 rule 4).",
+   "evidence": {
+    "register_row": "E-XLSX-CYCLE"
+   },
+   "owner": "UNI-658 G2 (engine + native recalculation); UNI-659 G3 (editor)",
+   "note": null
+  },
+  {
+   "capability_id": "xlsx-edit-cells",
+   "family": "xlsx",
+   "must_port": true,
+   "op": "edit cells",
+   "placement": "browser_main + internal_service",
+   "operation": "open_edit_cell_recalculate_save_reopen",
+   "contract_operation": "open + edit + serialize (recalculation carried as an engine operation inside the job)",
+   "state": "proven_by_core_cycle",
+   "dependency": "jszip/numfmt/zod gateway in the host; Rust xlsx-sidecar (Cargo, ironcalc) for recalculation; injected adapter channel host:sheets-save-edits",
+   "allowed_fallback": "native_desktop host for the same sidecar; NOT proven at G0. A WASM inference is not allowed (INT-01 rule 4).",
+   "evidence": {
+    "register_row": "E-XLSX-CYCLE"
+   },
+   "owner": "UNI-658 G2 (engine + native recalculation); UNI-659 G3 (editor)",
+   "note": null
+  },
+  {
+   "capability_id": "xlsx-save",
+   "family": "xlsx",
+   "must_port": true,
+   "op": "save",
+   "placement": "browser_main + internal_service",
+   "operation": "open_edit_cell_recalculate_save_reopen",
+   "contract_operation": "open + edit + serialize (recalculation carried as an engine operation inside the job)",
+   "state": "proven_by_core_cycle",
+   "dependency": "jszip/numfmt/zod gateway in the host; Rust xlsx-sidecar (Cargo, ironcalc) for recalculation; injected adapter channel host:sheets-save-edits",
+   "allowed_fallback": "native_desktop host for the same sidecar; NOT proven at G0. A WASM inference is not allowed (INT-01 rule 4).",
+   "evidence": {
+    "register_row": "E-XLSX-CYCLE"
+   },
+   "owner": "UNI-658 G2 (engine + native recalculation); UNI-659 G3 (editor)",
+   "note": null
+  },
+  {
+   "capability_id": "xlsx-recalculate",
+   "family": "xlsx",
+   "must_port": true,
+   "op": "recalculate formulas",
+   "placement": "browser_main + internal_service",
+   "operation": "open_edit_cell_recalculate_save_reopen",
+   "contract_operation": "open + edit + serialize (recalculation carried as an engine operation inside the job)",
+   "state": "proven_by_core_cycle",
+   "dependency": "jszip/numfmt/zod gateway in the host; Rust xlsx-sidecar (Cargo, ironcalc) for recalculation; injected adapter channel host:sheets-save-edits",
+   "allowed_fallback": "native_desktop host for the same sidecar; NOT proven at G0. A WASM inference is not allowed (INT-01 rule 4).",
+   "evidence": {
+    "register_row": "E-XLSX-CYCLE"
+   },
+   "owner": "UNI-658 G2 (engine + native recalculation); UNI-659 G3 (editor)",
+   "note": null
+  },
+  {
+   "capability_id": "xlsx-cross-sheet-formulas",
+   "family": "xlsx",
+   "must_port": true,
+   "op": "cross-sheet and defined-name formulas",
+   "placement": "browser_main + internal_service",
+   "operation": "open_edit_cell_recalculate_save_reopen",
+   "contract_operation": "open + edit + serialize (recalculation carried as an engine operation inside the job)",
+   "state": "proven_by_core_cycle",
+   "dependency": "jszip/numfmt/zod gateway in the host; Rust xlsx-sidecar (Cargo, ironcalc) for recalculation; injected adapter channel host:sheets-save-edits",
+   "allowed_fallback": "native_desktop host for the same sidecar; NOT proven at G0. A WASM inference is not allowed (INT-01 rule 4).",
+   "evidence": {
+    "register_row": "E-XLSX-CYCLE"
+   },
+   "owner": "UNI-658 G2 (engine + native recalculation); UNI-659 G3 (editor)",
+   "note": null
+  },
+  {
+   "capability_id": "xlsx-charts",
+   "family": "xlsx",
+   "must_port": true,
+   "op": "charts",
+   "placement": "browser_main + internal_service",
+   "operation": "open_edit_cell_recalculate_save_reopen",
+   "contract_operation": "open + edit + serialize (recalculation carried as an engine operation inside the job)",
+   "state": "blocked_unproven",
+   "dependency": "jszip/numfmt/zod gateway in the host; Rust xlsx-sidecar (Cargo, ironcalc) for recalculation; injected adapter channel host:sheets-save-edits",
+   "allowed_fallback": "native_desktop host for the same sidecar; NOT proven at G0. A WASM inference is not allowed (INT-01 rule 4).",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-658 G2 (engine + native recalculation); UNI-659 G3 (editor)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "xlsx-conditional-formatting",
+   "family": "xlsx",
+   "must_port": true,
+   "op": "conditional formatting",
+   "placement": "browser_main + internal_service",
+   "operation": "open_edit_cell_recalculate_save_reopen",
+   "contract_operation": "open + edit + serialize (recalculation carried as an engine operation inside the job)",
+   "state": "blocked_unproven",
+   "dependency": "jszip/numfmt/zod gateway in the host; Rust xlsx-sidecar (Cargo, ironcalc) for recalculation; injected adapter channel host:sheets-save-edits",
+   "allowed_fallback": "native_desktop host for the same sidecar; NOT proven at G0. A WASM inference is not allowed (INT-01 rule 4).",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-658 G2 (engine + native recalculation); UNI-659 G3 (editor)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "xlsx-data-validation",
+   "family": "xlsx",
+   "must_port": true,
+   "op": "data validation",
+   "placement": "browser_main + internal_service",
+   "operation": "open_edit_cell_recalculate_save_reopen",
+   "contract_operation": "open + edit + serialize (recalculation carried as an engine operation inside the job)",
+   "state": "blocked_unproven",
+   "dependency": "jszip/numfmt/zod gateway in the host; Rust xlsx-sidecar (Cargo, ironcalc) for recalculation; injected adapter channel host:sheets-save-edits",
+   "allowed_fallback": "native_desktop host for the same sidecar; NOT proven at G0. A WASM inference is not allowed (INT-01 rule 4).",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-658 G2 (engine + native recalculation); UNI-659 G3 (editor)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "xlsx-pivot",
+   "family": "xlsx",
+   "must_port": true,
+   "op": "pivot tables",
+   "placement": "browser_main + internal_service",
+   "operation": "open_edit_cell_recalculate_save_reopen",
+   "contract_operation": "open + edit + serialize (recalculation carried as an engine operation inside the job)",
+   "state": "blocked_unproven",
+   "dependency": "jszip/numfmt/zod gateway in the host; Rust xlsx-sidecar (Cargo, ironcalc) for recalculation; injected adapter channel host:sheets-save-edits",
+   "allowed_fallback": "native_desktop host for the same sidecar; NOT proven at G0. A WASM inference is not allowed (INT-01 rule 4).",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-658 G2 (engine + native recalculation); UNI-659 G3 (editor)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "xlsx-protection",
+   "family": "xlsx",
+   "must_port": true,
+   "op": "sheet and range protection",
+   "placement": "browser_main + internal_service",
+   "operation": "open_edit_cell_recalculate_save_reopen",
+   "contract_operation": "open + edit + serialize (recalculation carried as an engine operation inside the job)",
+   "state": "blocked_unproven",
+   "dependency": "jszip/numfmt/zod gateway in the host; Rust xlsx-sidecar (Cargo, ironcalc) for recalculation; injected adapter channel host:sheets-save-edits",
+   "allowed_fallback": "native_desktop host for the same sidecar; NOT proven at G0. A WASM inference is not allowed (INT-01 rule 4).",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-658 G2 (engine + native recalculation); UNI-659 G3 (editor)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "xlsx-export-pdf",
+   "family": "xlsx",
+   "must_port": true,
+   "op": "export to pdf",
+   "placement": "internal_service",
+   "operation": "export",
+   "contract_operation": "export",
+   "state": "blocked_unproven",
+   "dependency": "PDF export path",
+   "allowed_fallback": "unsupported_operation (501), retryable false",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "an export job writing a derived artifact for one immutable version with a Go-recomputed checksum and a fidelity label"
+   },
+   "owner": "UNI-658 G2",
+   "note": "no export channel exists in the lab and no product job path exists"
+  },
+  {
+   "capability_id": "xlsx-convert-external-to-xlsx",
+   "family": "xlsx",
+   "must_port": false,
+   "op": "convert external format to xlsx",
+   "placement": "internal_service",
+   "operation": "convert",
+   "contract_operation": "convert",
+   "state": "blocked_unproven",
+   "dependency": "external-format and CSV conversion pipelines (M1 optional rows xlsx-convert-external-to-xlsx, xlsx-convert-to-csv)",
+   "allowed_fallback": "unsupported_operation (501), retryable false",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a conversion job that creates a new Document with source_version_id preserved and a fidelity label"
+   },
+   "owner": "UNI-658 G2 + UNI-657 G1",
+   "note": "no conversion pipeline is wired and the contract G0 behaviour is an explicit refusal"
+  },
+  {
+   "capability_id": "xlsx-convert-to-csv",
+   "family": "xlsx",
+   "must_port": false,
+   "op": "convert to csv",
+   "placement": "internal_service",
+   "operation": "convert",
+   "contract_operation": "convert",
+   "state": "blocked_unproven",
+   "dependency": "external-format and CSV conversion pipelines (M1 optional rows xlsx-convert-external-to-xlsx, xlsx-convert-to-csv)",
+   "allowed_fallback": "unsupported_operation (501), retryable false",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a conversion job that creates a new Document with source_version_id preserved and a fidelity label"
+   },
+   "owner": "UNI-658 G2 + UNI-657 G1",
+   "note": "no conversion pipeline is wired and the contract G0 behaviour is an explicit refusal"
+  },
+  {
+   "capability_id": "xlsx-macro-preserve-not-execute",
+   "family": "xlsx",
+   "must_port": true,
+   "op": "preserve macros without executing them",
+   "placement": "browser_main + internal_service",
+   "operation": "open_edit_cell_recalculate_save_reopen",
+   "contract_operation": "open + edit + serialize (recalculation carried as an engine operation inside the job)",
+   "state": "blocked_unproven",
+   "dependency": "jszip/numfmt/zod gateway in the host; Rust xlsx-sidecar (Cargo, ironcalc) for recalculation; injected adapter channel host:sheets-save-edits",
+   "allowed_fallback": "native_desktop host for the same sidecar; NOT proven at G0. A WASM inference is not allowed (INT-01 rule 4).",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-658 G2 (engine + native recalculation); UNI-659 G3 (editor)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "xlsx-text-extract",
+   "family": "xlsx",
+   "must_port": false,
+   "op": "extract plain text",
+   "placement": "browser_main + internal_service",
+   "operation": "open_edit_cell_recalculate_save_reopen",
+   "contract_operation": "open + edit + serialize (recalculation carried as an engine operation inside the job)",
+   "state": "blocked_unproven",
+   "dependency": "jszip/numfmt/zod gateway in the host; Rust xlsx-sidecar (Cargo, ironcalc) for recalculation; injected adapter channel host:sheets-save-edits",
+   "allowed_fallback": "native_desktop host for the same sidecar; NOT proven at G0. A WASM inference is not allowed (INT-01 rule 4).",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-658 G2 (engine + native recalculation); UNI-659 G3 (editor)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "xlsx-native-sidecar-build",
+   "family": "xlsx",
+   "must_port": true,
+   "op": "build the Rust recalculation sidecar",
+   "placement": "browser_main + internal_service",
+   "operation": "open_edit_cell_recalculate_save_reopen",
+   "contract_operation": "open + edit + serialize (recalculation carried as an engine operation inside the job)",
+   "state": "proven_by_core_cycle",
+   "dependency": "jszip/numfmt/zod gateway in the host; Rust xlsx-sidecar (Cargo, ironcalc) for recalculation; injected adapter channel host:sheets-save-edits",
+   "allowed_fallback": "native_desktop host for the same sidecar; NOT proven at G0. A WASM inference is not allowed (INT-01 rule 4).",
+   "evidence": {
+    "register_row": "E-XLSX-CYCLE"
+   },
+   "owner": "UNI-658 G2 (engine + native recalculation); UNI-659 G3 (editor)",
+   "note": null
+  },
+  {
+   "capability_id": "pptx-open",
+   "family": "pptx",
+   "must_port": true,
+   "op": "open in editor",
+   "placement": "browser_main + internal_service",
+   "operation": "edit_text_image_shape_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "proven_by_core_cycle",
+   "dependency": "pptx-engine/pptx-ops/pptx-render behind the injected adapter; engine host routes /engine/pptx-*",
+   "allowed_fallback": "a worker-hosted engine if a later cycle proves it; NOT proven. Shape gestures need the declared channel below or the product refuses them.",
+   "evidence": {
+    "register_row": "E-PPTX-CYCLE"
+   },
+   "owner": "UNI-658 G2 (engine ops); UNI-659 G3 (editor/channels)",
+   "note": null
+  },
+  {
+   "capability_id": "pptx-edit-text",
+   "family": "pptx",
+   "must_port": true,
+   "op": "edit text",
+   "placement": "browser_main + internal_service",
+   "operation": "edit_text_image_shape_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "proven_by_core_cycle",
+   "dependency": "pptx-engine/pptx-ops/pptx-render behind the injected adapter; engine host routes /engine/pptx-*",
+   "allowed_fallback": "a worker-hosted engine if a later cycle proves it; NOT proven. Shape gestures need the declared channel below or the product refuses them.",
+   "evidence": {
+    "register_row": "E-PPTX-CYCLE"
+   },
+   "owner": "UNI-658 G2 (engine ops); UNI-659 G3 (editor/channels)",
+   "note": null
+  },
+  {
+   "capability_id": "pptx-edit-shape-image",
+   "family": "pptx",
+   "must_port": true,
+   "op": "edit shapes and images",
+   "placement": "browser_main + internal_service",
+   "operation": "edit_text_image_shape_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "proven_by_core_cycle",
+   "dependency": "pptx-engine/pptx-ops/pptx-render behind the injected adapter; engine host routes /engine/pptx-*",
+   "allowed_fallback": "a worker-hosted engine if a later cycle proves it; NOT proven. Shape gestures need the declared channel below or the product refuses them.",
+   "evidence": {
+    "register_row": "E-PPTX-CYCLE"
+   },
+   "owner": "UNI-658 G2 (engine ops); UNI-659 G3 (editor/channels)",
+   "note": null
+  },
+  {
+   "capability_id": "pptx-save",
+   "family": "pptx",
+   "must_port": true,
+   "op": "save",
+   "placement": "browser_main + internal_service",
+   "operation": "edit_text_image_shape_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "proven_by_core_cycle",
+   "dependency": "pptx-engine/pptx-ops/pptx-render behind the injected adapter; engine host routes /engine/pptx-*",
+   "allowed_fallback": "a worker-hosted engine if a later cycle proves it; NOT proven. Shape gestures need the declared channel below or the product refuses them.",
+   "evidence": {
+    "register_row": "E-PPTX-CYCLE"
+   },
+   "owner": "UNI-658 G2 (engine ops); UNI-659 G3 (editor/channels)",
+   "note": null
+  },
+  {
+   "capability_id": "pptx-export-pdf",
+   "family": "pptx",
+   "must_port": true,
+   "op": "export to pdf",
+   "placement": "internal_service",
+   "operation": "export",
+   "contract_operation": "export",
+   "state": "blocked_unproven",
+   "dependency": "PDF export path for a PPTX source",
+   "allowed_fallback": "unsupported_operation (501), retryable false",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "an export job writing a derived artifact for one immutable version with a Go-recomputed checksum and a fidelity label"
+   },
+   "owner": "UNI-658 G2",
+   "note": "no export channel exists in the lab and no product job path exists"
+  },
+  {
+   "capability_id": "pptx-notes",
+   "family": "pptx",
+   "must_port": true,
+   "op": "speaker notes",
+   "placement": "browser_main + internal_service",
+   "operation": "edit_text_image_shape_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "pptx-engine/pptx-ops/pptx-render behind the injected adapter; engine host routes /engine/pptx-*",
+   "allowed_fallback": "a worker-hosted engine if a later cycle proves it; NOT proven. Shape gestures need the declared channel below or the product refuses them.",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-658 G2 (engine ops); UNI-659 G3 (editor/channels)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "pptx-masters-layouts",
+   "family": "pptx",
+   "must_port": true,
+   "op": "masters and layouts",
+   "placement": "browser_main + internal_service",
+   "operation": "edit_text_image_shape_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "proven_by_core_cycle",
+   "dependency": "pptx-engine/pptx-ops/pptx-render behind the injected adapter; engine host routes /engine/pptx-*",
+   "allowed_fallback": "a worker-hosted engine if a later cycle proves it; NOT proven. Shape gestures need the declared channel below or the product refuses them.",
+   "evidence": {
+    "register_row": "E-PPTX-CYCLE"
+   },
+   "owner": "UNI-658 G2 (engine ops); UNI-659 G3 (editor/channels)",
+   "note": null
+  },
+  {
+   "capability_id": "pptx-animations",
+   "family": "pptx",
+   "must_port": true,
+   "op": "animations and transitions",
+   "placement": "browser_main + internal_service",
+   "operation": "edit_text_image_shape_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "pptx-engine/pptx-ops/pptx-render behind the injected adapter; engine host routes /engine/pptx-*",
+   "allowed_fallback": "a worker-hosted engine if a later cycle proves it; NOT proven. Shape gestures need the declared channel below or the product refuses them.",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-658 G2 (engine ops); UNI-659 G3 (editor/channels)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "pptx-charts",
+   "family": "pptx",
+   "must_port": true,
+   "op": "charts",
+   "placement": "browser_main + internal_service",
+   "operation": "edit_text_image_shape_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "pptx-engine/pptx-ops/pptx-render behind the injected adapter; engine host routes /engine/pptx-*",
+   "allowed_fallback": "a worker-hosted engine if a later cycle proves it; NOT proven. Shape gestures need the declared channel below or the product refuses them.",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-658 G2 (engine ops); UNI-659 G3 (editor/channels)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "pptx-tables",
+   "family": "pptx",
+   "must_port": true,
+   "op": "tables",
+   "placement": "browser_main + internal_service",
+   "operation": "edit_text_image_shape_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "pptx-engine/pptx-ops/pptx-render behind the injected adapter; engine host routes /engine/pptx-*",
+   "allowed_fallback": "a worker-hosted engine if a later cycle proves it; NOT proven. Shape gestures need the declared channel below or the product refuses them.",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-658 G2 (engine ops); UNI-659 G3 (editor/channels)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "pptx-embedded-fonts",
+   "family": "pptx",
+   "must_port": true,
+   "op": "embedded fonts",
+   "placement": "browser_main + internal_service",
+   "operation": "edit_text_image_shape_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "pptx-engine/pptx-ops/pptx-render behind the injected adapter; engine host routes /engine/pptx-*",
+   "allowed_fallback": "a worker-hosted engine if a later cycle proves it; NOT proven. Shape gestures need the declared channel below or the product refuses them.",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-658 G2 (engine ops); UNI-659 G3 (editor/channels)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "pptx-comments",
+   "family": "pptx",
+   "must_port": false,
+   "op": "comments",
+   "placement": "browser_main + internal_service",
+   "operation": "edit_text_image_shape_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "pptx-engine/pptx-ops/pptx-render behind the injected adapter; engine host routes /engine/pptx-*",
+   "allowed_fallback": "a worker-hosted engine if a later cycle proves it; NOT proven. Shape gestures need the declared channel below or the product refuses them.",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-658 G2 (engine ops); UNI-659 G3 (editor/channels)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "pptx-render-fidelity",
+   "family": "pptx",
+   "must_port": true,
+   "op": "render tree and text shaping fidelity",
+   "placement": "browser_main",
+   "operation": "render_preview",
+   "contract_operation": "open (model -> view model)",
+   "state": "blocked_unproven",
+   "dependency": "opentype.js, bidi-js, bundled fonts",
+   "allowed_fallback": "explicit refusal with unsupported_operation (501) for a deck whose preview cannot be produced",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a render cycle that draws a named fixture slides off-screen, compares text shaping metrics against the upstream Electron renderer for the same deck, and records the measured difference"
+   },
+   "owner": "UNI-658 G2 (render module); UNI-659 G3 (host fonts)",
+   "note": "web font shaping differs per host and is unmeasured; no accepted row renders a deck preview independently of the editor"
+  },
+  {
+   "capability_id": "pptx-text-extract",
+   "family": "pptx",
+   "must_port": false,
+   "op": "extract plain text",
+   "placement": "browser_main + internal_service",
+   "operation": "edit_text_image_shape_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "pptx-engine/pptx-ops/pptx-render behind the injected adapter; engine host routes /engine/pptx-*",
+   "allowed_fallback": "a worker-hosted engine if a later cycle proves it; NOT proven. Shape gestures need the declared channel below or the product refuses them.",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-658 G2 (engine ops); UNI-659 G3 (editor/channels)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "pptx-audit",
+   "family": "pptx",
+   "must_port": false,
+   "op": "deck audit and QC",
+   "placement": "browser_main + internal_service",
+   "operation": "edit_text_image_shape_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "pptx-engine/pptx-ops/pptx-render behind the injected adapter; engine host routes /engine/pptx-*",
+   "allowed_fallback": "a worker-hosted engine if a later cycle proves it; NOT proven. Shape gestures need the declared channel below or the product refuses them.",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-658 G2 (engine ops); UNI-659 G3 (editor/channels)",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "pdf-open-view",
+   "family": "pdf",
+   "must_port": true,
+   "op": "open and view",
+   "placement": "browser_main + internal_service",
+   "operation": "replace_text_and_image_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "proven_by_core_cycle",
+   "dependency": "@embedpdf/pdfium + pdfium.wasm, font metrics, harfbuzzjs subsetting, system fallback fonts; injected adapter channels host:pdf-*",
+   "allowed_fallback": "native_desktop PDF host (Electron image path) for the image leg only; NOT proven at G0",
+   "evidence": {
+    "register_row": "E-PDF-TEXT-CYCLE"
+   },
+   "owner": "UNI-658 G2 / UNI-659 G3",
+   "note": null
+  },
+  {
+   "capability_id": "pdf-edit-text-in-place",
+   "family": "pdf",
+   "must_port": true,
+   "op": "edit existing text in the content stream",
+   "placement": "browser_main + internal_service",
+   "operation": "replace_text_and_image_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "proven_by_core_cycle",
+   "dependency": "@embedpdf/pdfium + pdfium.wasm, font metrics, harfbuzzjs subsetting, system fallback fonts; injected adapter channels host:pdf-*",
+   "allowed_fallback": "native_desktop PDF host (Electron image path) for the image leg only; NOT proven at G0",
+   "evidence": {
+    "register_row": "E-PDF-TEXT-CYCLE"
+   },
+   "owner": "UNI-658 G2 / UNI-659 G3",
+   "note": null
+  },
+  {
+   "capability_id": "pdf-edit-image",
+   "family": "pdf",
+   "must_port": true,
+   "op": "edit and replace images",
+   "placement": "browser_main + internal_service",
+   "operation": "replace_text_and_image_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "proven_by_core_cycle",
+   "dependency": "@embedpdf/pdfium + pdfium.wasm, font metrics, harfbuzzjs subsetting, system fallback fonts; injected adapter channels host:pdf-*",
+   "allowed_fallback": "native_desktop PDF host (Electron image path) for the image leg only; NOT proven at G0",
+   "evidence": {
+    "register_row": "E-PDF-TEXT-CYCLE"
+   },
+   "owner": "UNI-658 G2 / UNI-659 G3",
+   "note": null
+  },
+  {
+   "capability_id": "pdf-save",
+   "family": "pdf",
+   "must_port": true,
+   "op": "save",
+   "placement": "browser_main + internal_service",
+   "operation": "replace_text_and_image_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "proven_by_core_cycle",
+   "dependency": "@embedpdf/pdfium + pdfium.wasm, font metrics, harfbuzzjs subsetting, system fallback fonts; injected adapter channels host:pdf-*",
+   "allowed_fallback": "native_desktop PDF host (Electron image path) for the image leg only; NOT proven at G0",
+   "evidence": {
+    "register_row": "E-PDF-TEXT-CYCLE"
+   },
+   "owner": "UNI-658 G2 / UNI-659 G3",
+   "note": null
+  },
+  {
+   "capability_id": "pdf-export-docx",
+   "family": "pdf",
+   "must_port": true,
+   "op": "convert to docx",
+   "placement": "internal_service",
+   "operation": "convert",
+   "contract_operation": "convert",
+   "state": "blocked_unproven",
+   "dependency": "PDF -> DOCX conversion pipeline (M1 must-port row pdf-export-docx)",
+   "allowed_fallback": "unsupported_operation (501), retryable false",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a conversion job that creates a new Document with source_version_id preserved and a fidelity label"
+   },
+   "owner": "UNI-658 G2 + UNI-657 G1",
+   "note": "no conversion pipeline is wired and the contract G0 behaviour is an explicit refusal"
+  },
+  {
+   "capability_id": "pdf-export-xlsx",
+   "family": "pdf",
+   "must_port": false,
+   "op": "convert to xlsx",
+   "placement": "internal_service",
+   "operation": "convert",
+   "contract_operation": "convert",
+   "state": "blocked_unproven",
+   "dependency": "PDF -> DOCX conversion pipeline (M1 must-port row pdf-export-docx)",
+   "allowed_fallback": "unsupported_operation (501), retryable false",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a conversion job that creates a new Document with source_version_id preserved and a fidelity label"
+   },
+   "owner": "UNI-658 G2 + UNI-657 G1",
+   "note": "no conversion pipeline is wired and the contract G0 behaviour is an explicit refusal"
+  },
+  {
+   "capability_id": "pdf-export-pptx",
+   "family": "pdf",
+   "must_port": false,
+   "op": "convert to pptx",
+   "placement": "internal_service",
+   "operation": "convert",
+   "contract_operation": "convert",
+   "state": "blocked_unproven",
+   "dependency": "PDF -> DOCX conversion pipeline (M1 must-port row pdf-export-docx)",
+   "allowed_fallback": "unsupported_operation (501), retryable false",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a conversion job that creates a new Document with source_version_id preserved and a fidelity label"
+   },
+   "owner": "UNI-658 G2 + UNI-657 G1",
+   "note": "no conversion pipeline is wired and the contract G0 behaviour is an explicit refusal"
+  },
+  {
+   "capability_id": "pdf-annotations-stamps",
+   "family": "pdf",
+   "must_port": true,
+   "op": "annotations, stamps and ink",
+   "placement": "browser_main + internal_service",
+   "operation": "replace_text_and_image_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "@embedpdf/pdfium + pdfium.wasm, font metrics, harfbuzzjs subsetting, system fallback fonts; injected adapter channels host:pdf-*",
+   "allowed_fallback": "native_desktop PDF host (Electron image path) for the image leg only; NOT proven at G0",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-658 G2 / UNI-659 G3",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "pdf-forms",
+   "family": "pdf",
+   "must_port": false,
+   "op": "form fields",
+   "placement": "browser_main + internal_service",
+   "operation": "replace_text_and_image_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "@embedpdf/pdfium + pdfium.wasm, font metrics, harfbuzzjs subsetting, system fallback fonts; injected adapter channels host:pdf-*",
+   "allowed_fallback": "native_desktop PDF host (Electron image path) for the image leg only; NOT proven at G0",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-658 G2 / UNI-659 G3",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "pdf-signature",
+   "family": "pdf",
+   "must_port": false,
+   "op": "signature placement",
+   "placement": "browser_main + internal_service",
+   "operation": "replace_text_and_image_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "@embedpdf/pdfium + pdfium.wasm, font metrics, harfbuzzjs subsetting, system fallback fonts; injected adapter channels host:pdf-*",
+   "allowed_fallback": "native_desktop PDF host (Electron image path) for the image leg only; NOT proven at G0",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-658 G2 / UNI-659 G3",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "pdf-page-ops",
+   "family": "pdf",
+   "must_port": true,
+   "op": "page operations (insert, delete, rotate, reorder, extract, merge)",
+   "placement": "browser_main + internal_service",
+   "operation": "replace_text_and_image_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "@embedpdf/pdfium + pdfium.wasm, font metrics, harfbuzzjs subsetting, system fallback fonts; injected adapter channels host:pdf-*",
+   "allowed_fallback": "native_desktop PDF host (Electron image path) for the image leg only; NOT proven at G0",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-658 G2 / UNI-659 G3",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "pdf-metadata",
+   "family": "pdf",
+   "must_port": false,
+   "op": "document metadata and properties",
+   "placement": "browser_main + internal_service",
+   "operation": "replace_text_and_image_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "@embedpdf/pdfium + pdfium.wasm, font metrics, harfbuzzjs subsetting, system fallback fonts; injected adapter channels host:pdf-*",
+   "allowed_fallback": "native_desktop PDF host (Electron image path) for the image leg only; NOT proven at G0",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-658 G2 / UNI-659 G3",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "pdf-password-open",
+   "family": "pdf",
+   "must_port": true,
+   "op": "open a password-protected pdf",
+   "placement": "browser_main + internal_service",
+   "operation": "replace_text_and_image_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "@embedpdf/pdfium + pdfium.wasm, font metrics, harfbuzzjs subsetting, system fallback fonts; injected adapter channels host:pdf-*",
+   "allowed_fallback": "native_desktop PDF host (Electron image path) for the image leg only; NOT proven at G0",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-658 G2 / UNI-659 G3",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "pdf-corrupt-handling",
+   "family": "pdf",
+   "must_port": true,
+   "op": "reject a corrupt file with a clear error",
+   "placement": "browser_main + internal_service",
+   "operation": "replace_text_and_image_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "@embedpdf/pdfium + pdfium.wasm, font metrics, harfbuzzjs subsetting, system fallback fonts; injected adapter channels host:pdf-*",
+   "allowed_fallback": "native_desktop PDF host (Electron image path) for the image leg only; NOT proven at G0",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-658 G2 / UNI-659 G3",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "pdf-ocr-scan",
+   "family": "pdf",
+   "must_port": false,
+   "op": "OCR a scanned page",
+   "placement": "internal_service",
+   "operation": "ocr",
+   "contract_operation": "convert",
+   "state": "blocked_unproven",
+   "dependency": "a native OCR helper",
+   "allowed_fallback": "unsupported_operation (501)",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "not scheduled; if the scope changes, an OCR job with the same grant/checksum/commit rules as any other service job"
+   },
+   "owner": "UNI-656 (scope); no M1 owner",
+   "note": "out of M1 scope by Q2-A"
+  },
+  {
+   "capability_id": "pdf-text-extract",
+   "family": "pdf",
+   "must_port": false,
+   "op": "extract plain text",
+   "placement": "internal_service",
+   "operation": "edit_text_in_service",
+   "contract_operation": "edit",
+   "state": "candidate_supporting_evidence",
+   "dependency": "@embedpdf/pdfium + pdfium.wasm, font metrics, harfbuzzjs",
+   "allowed_fallback": "the browser editor path above (proven by E-PDF-TEXT-CYCLE) when the service is unreachable; the service path itself must refuse with a typed error, never a fake success",
+   "evidence": {
+    "register_row": null,
+    "supporting_evidence": {
+     "artifact_root": "E (workspace artifact root, NOT under M; named by the Advisor)",
+     "artifact_root_absolute": "D:/.Vietants_Project/uniwork-workspace/.uniwork-dev",
+     "path": "E/office-g0/main-pdf-text-probe.json",
+     "sha256": "c39ee01f444a5d64c6cb4039b392e3e03ad36a775efcc7a4870f6cc3e12562e5",
+     "bytes": 2846,
+     "encoding": "UTF-16LE",
+     "issue": "UNI-667",
+     "level": "upstream-engine-in-memory",
+     "outcome": "passed",
+     "own_limitation": "No persisted output, browser, image-edit or render-fidelity proof.",
+     "note": "supporting evidence only: it may support a design statement, it may not mark this operation proven and it is not an accepted register row"
+    },
+    "test_that_would_prove": "a service job that returns bytes for a named version, with the Go boundary recomputing output_checksum and committing only after a byte-identical read-back, recorded as an appended register row"
+   },
+   "owner": "UNI-658 G2 + UNI-657 G1",
+   "note": "the only evidence is a pre-register in-memory probe: no persisted output, no browser run and no register row (the probe's own limitation string)"
+  },
+  {
+   "capability_id": "pdf-print",
+   "family": "pdf",
+   "must_port": false,
+   "op": "print",
+   "placement": "internal_service",
+   "operation": "serialize",
+   "contract_operation": "serialize",
+   "state": "blocked_unproven",
+   "dependency": "pdf-lib and an atomic write (writePdfAtomically takes a filesystem path a browser host does not have)",
+   "allowed_fallback": "unsupported_operation (501) until the service save path is proven",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a service serialize job that returns bytes for a named version, with the Go boundary recomputing output_checksum and committing only after a byte-identical read-back"
+   },
+   "owner": "UNI-658 G2 + UNI-657 G1 (commit)",
+   "note": "no product Go save path is wired; the proven saves are editor-scoped (Orca renderer Save and the additive image channels), not the internal-service pipeline"
+  },
+  {
+   "capability_id": "md-open",
+   "family": "md",
+   "must_port": true,
+   "op": "open in editor",
+   "placement": "browser_main",
+   "operation": "edit_source_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "proven_by_core_cycle",
+   "dependency": "TipTap markdown extensions (catalog 3.30.6 vs upstream 3.31.0 - a conflict owned by G2/G3); injected adapter channel host:text-save",
+   "allowed_fallback": "none needed for the basic cycle; relative assets that cannot resolve must be reported, never silently dropped",
+   "evidence": {
+    "register_row": "E-MD-CYCLE"
+   },
+   "owner": "UNI-659 G3",
+   "note": null
+  },
+  {
+   "capability_id": "md-save",
+   "family": "md",
+   "must_port": true,
+   "op": "save source",
+   "placement": "browser_main",
+   "operation": "edit_source_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "proven_by_core_cycle",
+   "dependency": "TipTap markdown extensions (catalog 3.30.6 vs upstream 3.31.0 - a conflict owned by G2/G3); injected adapter channel host:text-save",
+   "allowed_fallback": "none needed for the basic cycle; relative assets that cannot resolve must be reported, never silently dropped",
+   "evidence": {
+    "register_row": "E-MD-CYCLE"
+   },
+   "owner": "UNI-659 G3",
+   "note": null
+  },
+  {
+   "capability_id": "md-content-blocks",
+   "family": "md",
+   "must_port": true,
+   "op": "content: tables, code blocks, Unicode",
+   "placement": "browser_main",
+   "operation": "edit_source_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "proven_by_core_cycle",
+   "dependency": "TipTap markdown extensions (catalog 3.30.6 vs upstream 3.31.0 - a conflict owned by G2/G3); injected adapter channel host:text-save",
+   "allowed_fallback": "none needed for the basic cycle; relative assets that cannot resolve must be reported, never silently dropped",
+   "evidence": {
+    "register_row": "E-MD-CYCLE"
+   },
+   "owner": "UNI-659 G3",
+   "note": null
+  },
+  {
+   "capability_id": "md-content-math-mermaid",
+   "family": "md",
+   "must_port": false,
+   "op": "content: math and mermaid diagrams",
+   "placement": "browser_main",
+   "operation": "edit_source_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "blocked_unproven",
+   "dependency": "TipTap markdown extensions (catalog 3.30.6 vs upstream 3.31.0 - a conflict owned by G2/G3); injected adapter channel host:text-save",
+   "allowed_fallback": "none needed for the basic cycle; relative assets that cannot resolve must be reported, never silently dropped",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a dedicated DOC-003 row for this capability in the required Orca browser (owner UNI-667); the accepted core cycle covers the format editor cycle, not this capability"
+   },
+   "owner": "UNI-659 G3",
+   "note": "no dedicated operation row for this capability; the accepted format cycle does not cover it"
+  },
+  {
+   "capability_id": "md-content-frontmatter",
+   "family": "md",
+   "must_port": true,
+   "op": "content: YAML frontmatter",
+   "placement": "browser_main",
+   "operation": "edit_source_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "proven_by_core_cycle",
+   "dependency": "TipTap markdown extensions (catalog 3.30.6 vs upstream 3.31.0 - a conflict owned by G2/G3); injected adapter channel host:text-save",
+   "allowed_fallback": "none needed for the basic cycle; relative assets that cannot resolve must be reported, never silently dropped",
+   "evidence": {
+    "register_row": "E-MD-CYCLE"
+   },
+   "owner": "UNI-659 G3",
+   "note": null
+  },
+  {
+   "capability_id": "md-content-local-assets",
+   "family": "md",
+   "must_port": true,
+   "op": "relative image and asset links",
+   "placement": "browser_main",
+   "operation": "edit_source_save_reopen",
+   "contract_operation": "open + edit + serialize",
+   "state": "proven_by_core_cycle",
+   "dependency": "TipTap markdown extensions (catalog 3.30.6 vs upstream 3.31.0 - a conflict owned by G2/G3); injected adapter channel host:text-save",
+   "allowed_fallback": "none needed for the basic cycle; relative assets that cannot resolve must be reported, never silently dropped",
+   "evidence": {
+    "register_row": "E-MD-CYCLE"
+   },
+   "owner": "UNI-659 G3",
+   "note": null
+  },
+  {
+   "capability_id": "md-export-docx",
+   "family": "md",
+   "must_port": true,
+   "op": "export to docx",
+   "placement": "internal_service",
+   "operation": "convert",
+   "contract_operation": "convert",
+   "state": "blocked_unproven",
+   "dependency": "markdown -> docx pipeline (M1 must-port row md-export-docx)",
+   "allowed_fallback": "unsupported_operation (501), retryable false",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a conversion job that creates a new Document with source_version_id preserved and a fidelity label"
+   },
+   "owner": "UNI-658 G2 + UNI-657 G1",
+   "note": "no conversion pipeline is wired and the contract G0 behaviour is an explicit refusal"
+  },
+  {
+   "capability_id": "md-export-pdf",
+   "family": "md",
+   "must_port": true,
+   "op": "export to pdf",
+   "placement": "internal_service",
+   "operation": "export",
+   "contract_operation": "export",
+   "state": "blocked_unproven",
+   "dependency": "markdown -> PDF export path (M1 must-port row md-export-pdf)",
+   "allowed_fallback": "unsupported_operation (501), retryable false",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "an export job writing a derived artifact for one immutable version with a Go-recomputed checksum and a fidelity label"
+   },
+   "owner": "UNI-658 G2",
+   "note": "no export channel exists in the lab and no product job path exists"
+  },
+  {
+   "capability_id": "md-export-html",
+   "family": "md",
+   "must_port": false,
+   "op": "convert to html",
+   "placement": "internal_service",
+   "operation": "convert",
+   "contract_operation": "convert",
+   "state": "blocked_unproven",
+   "dependency": "markdown -> docx pipeline (M1 must-port row md-export-docx)",
+   "allowed_fallback": "unsupported_operation (501), retryable false",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a conversion job that creates a new Document with source_version_id preserved and a fidelity label"
+   },
+   "owner": "UNI-658 G2 + UNI-657 G1",
+   "note": "no conversion pipeline is wired and the contract G0 behaviour is an explicit refusal"
+  },
+  {
+   "capability_id": "html-open",
+   "family": "html",
+   "must_port": true,
+   "op": "open in editor",
+   "placement": "browser_main",
+   "operation": "edit_source_save_reopen_isolated_preview",
+   "contract_operation": "open + edit + serialize",
+   "state": "proven_by_core_cycle",
+   "dependency": "injected adapter channel host:text-save plus the isolated preview origin; no engine host is involved (engine.operations [])",
+   "allowed_fallback": "refuse to preview (explicitly) rather than serve the document from the app origin",
+   "evidence": {
+    "register_row": "E-HTML-CYCLE"
+   },
+   "owner": "UNI-659 G3; the preview origin is owned by G3 with the desktop scheme work in G4",
+   "note": null
+  },
+  {
+   "capability_id": "html-save",
+   "family": "html",
+   "must_port": true,
+   "op": "save source",
+   "placement": "browser_main",
+   "operation": "edit_source_save_reopen_isolated_preview",
+   "contract_operation": "open + edit + serialize",
+   "state": "proven_by_core_cycle",
+   "dependency": "injected adapter channel host:text-save plus the isolated preview origin; no engine host is involved (engine.operations [])",
+   "allowed_fallback": "refuse to preview (explicitly) rather than serve the document from the app origin",
+   "evidence": {
+    "register_row": "E-HTML-CYCLE"
+   },
+   "owner": "UNI-659 G3; the preview origin is owned by G3 with the desktop scheme work in G4",
+   "note": null
+  },
+  {
+   "capability_id": "html-preview-isolation",
+   "family": "html",
+   "must_port": true,
+   "op": "isolated preview",
+   "placement": "browser_main",
+   "operation": "edit_source_save_reopen_isolated_preview",
+   "contract_operation": "open + edit + serialize",
+   "state": "proven_by_core_cycle",
+   "dependency": "injected adapter channel host:text-save plus the isolated preview origin; no engine host is involved (engine.operations [])",
+   "allowed_fallback": "refuse to preview (explicitly) rather than serve the document from the app origin",
+   "evidence": {
+    "register_row": "E-HTML-CYCLE"
+   },
+   "owner": "UNI-659 G3; the preview origin is owned by G3 with the desktop scheme work in G4",
+   "note": null
+  },
+  {
+   "capability_id": "html-content-assets",
+   "family": "html",
+   "must_port": true,
+   "op": "assets and single-file html",
+   "placement": "browser_main",
+   "operation": "edit_source_save_reopen_isolated_preview",
+   "contract_operation": "open + edit + serialize",
+   "state": "proven_by_core_cycle",
+   "dependency": "injected adapter channel host:text-save plus the isolated preview origin; no engine host is involved (engine.operations [])",
+   "allowed_fallback": "refuse to preview (explicitly) rather than serve the document from the app origin",
+   "evidence": {
+    "register_row": "E-HTML-CYCLE"
+   },
+   "owner": "UNI-659 G3; the preview origin is owned by G3 with the desktop scheme work in G4",
+   "note": null
+  },
+  {
+   "capability_id": "html-content-blocks",
+   "family": "html",
+   "must_port": true,
+   "op": "content: text, image, background and float",
+   "placement": "browser_main",
+   "operation": "edit_source_save_reopen_isolated_preview",
+   "contract_operation": "open + edit + serialize",
+   "state": "proven_by_core_cycle",
+   "dependency": "injected adapter channel host:text-save plus the isolated preview origin; no engine host is involved (engine.operations [])",
+   "allowed_fallback": "refuse to preview (explicitly) rather than serve the document from the app origin",
+   "evidence": {
+    "register_row": "E-HTML-CYCLE"
+   },
+   "owner": "UNI-659 G3; the preview origin is owned by G3 with the desktop scheme work in G4",
+   "note": null
+  },
+  {
+   "capability_id": "html-export-pdf",
+   "family": "html",
+   "must_port": true,
+   "op": "export to pdf",
+   "placement": "internal_service",
+   "operation": "export",
+   "contract_operation": "export",
+   "state": "blocked_unproven",
+   "dependency": "html -> PDF export path (M1 must-port row html-export-pdf)",
+   "allowed_fallback": "unsupported_operation (501), retryable false",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "an export job writing a derived artifact for one immutable version with a Go-recomputed checksum and a fidelity label"
+   },
+   "owner": "UNI-658 G2",
+   "note": "no export channel exists in the lab and no product job path exists"
+  },
+  {
+   "capability_id": "html-export-docx",
+   "family": "html",
+   "must_port": true,
+   "op": "convert to docx",
+   "placement": "internal_service",
+   "operation": "convert",
+   "contract_operation": "convert",
+   "state": "blocked_unproven",
+   "dependency": "html2docx (docx 9.7.1) with a browser DOM extraction driver",
+   "allowed_fallback": "unsupported_operation (501), retryable false",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a conversion job that creates a new Document with source_version_id preserved and a fidelity label"
+   },
+   "owner": "UNI-658 G2 + UNI-657 G1",
+   "note": "no conversion pipeline is wired; DOM extraction drivers are Playwright or Electron based"
+  },
+  {
+   "capability_id": "html2docx-browser-driver",
+   "family": "html",
+   "must_port": true,
+   "op": "DOM extraction via a browser driver",
+   "placement": "internal_service",
+   "operation": "convert",
+   "contract_operation": "convert",
+   "state": "blocked_unproven",
+   "dependency": "html2docx (docx 9.7.1) with a browser DOM extraction driver",
+   "allowed_fallback": "unsupported_operation (501), retryable false",
+   "evidence": {
+    "register_row": null,
+    "test_that_would_prove": "a conversion job that creates a new Document with source_version_id preserved and a fidelity label"
+   },
+   "owner": "UNI-658 G2 + UNI-657 G1",
+   "note": "no conversion pipeline is wired; DOM extraction drivers are Playwright or Electron based"
+  }
+ ],
+ "capability_placement_summary": {
+  "proven_by_core_cycle": 30,
+  "blocked_unproven": 56,
+  "candidate_supporting_evidence": 1
+ },
+ "g119_reconciliation": {
+  "cycle_rows": {
+   "docx": {
+    "register_row": "E-DOCX-CYCLE",
+    "operation_id": "open-edit-text-save-reopen",
+    "level": "browser-real",
+    "platform": {
+     "os": "windows",
+     "browser": "orca",
+     "browserVersion": "150.0.7871.250",
+     "orcaVersion": "1.4.209",
+     "embeddedBrowser": "orca"
+    },
+    "protocol_version": "uniwork-office-lab-bridge@1",
+    "receipt_channel": "host:docs-save",
+    "engine_runtime": "browser-renderer"
+   },
+   "xlsx": {
+    "register_row": "E-XLSX-CYCLE",
+    "operation_id": "open-edit-cell-recalculate-save-reopen",
+    "level": "browser-real",
+    "platform": {
+     "os": "windows",
+     "browser": "orca",
+     "browserVersion": "150.0.7871.250",
+     "orcaVersion": "1.4.209",
+     "embeddedBrowser": "orca"
+    },
+    "protocol_version": "uniwork-office-lab-bridge@1",
+    "receipt_channel": null,
+    "engine_runtime": null
+   },
+   "pptx": {
+    "register_row": "E-PPTX-CYCLE",
+    "operation_id": "edit-text-image-shape-save-reopen",
+    "level": "browser-real",
+    "platform": {
+     "os": "windows",
+     "browser": "orca",
+     "browserVersion": "150.0.7871.250",
+     "orcaVersion": "1.4.209",
+     "embeddedBrowser": "orca"
+    },
+    "protocol_version": "uniwork-office-lab-bridge@1",
+    "receipt_channel": "host:slides-save",
+    "engine_runtime": "engine-host-http"
+   },
+   "pdf": {
+    "register_row": "E-PDF-TEXT-CYCLE",
+    "operation_id": "replace-text-and-image-save-reopen",
+    "level": "browser-real",
+    "platform": {
+     "os": "windows",
+     "browser": "orca",
+     "browserVersion": "150.0.7871.250",
+     "orcaVersion": "1.4.209",
+     "embeddedBrowser": "orca"
+    },
+    "protocol_version": "uniwork-office-lab-bridge@1",
+    "receipt_channel": null,
+    "engine_runtime": null
+   },
+   "md": {
+    "register_row": "E-MD-CYCLE",
+    "operation_id": "edit-source-save-reopen",
+    "level": "browser-real",
+    "platform": {
+     "os": "windows",
+     "browser": "orca",
+     "browserVersion": "150.0.7871.250",
+     "orcaVersion": "1.4.209",
+     "embeddedBrowser": "orca",
+     "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) orca/1.4.209 Chrome/150.0.7871.250 Electron/43.7.0 Safari/537.36"
+    },
+    "protocol_version": "uniwork-office-lab-bridge@1",
+    "receipt_channel": null,
+    "engine_runtime": null
+   },
+   "html": {
+    "register_row": "E-HTML-CYCLE",
+    "operation_id": "edit-source-save-reopen-isolated-preview",
+    "level": "browser-real",
+    "platform": {
+     "os": "windows",
+     "browser": "orca",
+     "browserVersion": "150.0.7871.250",
+     "orcaVersion": "1.4.209",
+     "embeddedBrowser": "orca",
+     "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) orca/1.4.209 Chrome/150.0.7871.250 Electron/43.7.0 Safari/537.36"
+    },
+    "protocol_version": "uniwork-office-lab-bridge@1",
+    "receipt_channel": null,
+    "engine_runtime": null
+   }
+  },
+  "register_decision": "GO",
+  "register_gates": [
+   "G0-CORE-DOCX",
+   "G0-CORE-XLSX",
+   "G0-CORE-PPTX",
+   "G0-CORE-PDF",
+   "G0-CORE-MD",
+   "G0-CORE-HTML",
+   "G0-DOC004-FAULT",
+   "G0-DOC005-MANDATORY"
+  ],
+  "note": "the g118 acceptance integrated these six rows into the phase-root register; this candidate re-points 4.1 at them instead of the earlier pending-only state."
+ }
+}

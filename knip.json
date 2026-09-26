@@ -8,13 +8,15 @@
       "ignore": ["scripts/landing-film/**"],
       "entry": [
         "scripts/**/*.mjs",
-        "scripts/load/*.k6.js"
+        "scripts/load/*.k6.js",
+        "scripts/office-g0/*.ts"
       ],
       "ignoreDependencies": [
         "@playwright/test",
         "playwright-core",
         "k6",
-        "sharp"
+        "sharp",
+        "jszip"
       ]
     },
     "apps/web": {
@@ -28,10 +30,16 @@
     },
     "e2e": {
       "entry": [
-        "*.spec.ts"
+        "*.spec.ts",
+        "office-g0/**/*.{mjs,mts}",
+        "playwright.office-g0*.config.ts"
       ],
       "ignoreBinaries": [
         "go"
+      ],
+      "ignoreDependencies": [
+        "pdfjs-dist",
+        "@napi-rs/canvas"
       ]
     },
     "packages/tsconfig": {

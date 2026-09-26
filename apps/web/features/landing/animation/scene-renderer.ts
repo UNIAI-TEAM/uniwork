@@ -3,10 +3,16 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { buildSceneModel, type ScenePalette } from "./scene-models";
 
 export function createScene(host: HTMLElement, palette: ScenePalette, onSelect: (index: number) => void, onFailure: (failed: boolean) => void) {
-  const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "low-power" });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+  // Without a usable GPU (a VM, remote desktop, a blocklisted driver) the browser
+  // rasterises WebGL on the CPU. Multisampling and the blurred shadow passes each
+  // hold a frame there for over 100 ms and stall the whole page around the hero,
+  // so that renderer draws the scene at 1x without either; model, lights and
+  // motion are unchanged.
+  const software = softwareRasterizer();
+  const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: !software, powerPreference: "low-power" });
+  renderer.setPixelRatio(software ? 1 : Math.min(window.devicePixelRatio, 1.5));
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1;
-  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.VSMShadowMap;
+  renderer.shadowMap.enabled = !software; renderer.shadowMap.type = THREE.VSMShadowMap;
   renderer.domElement.setAttribute("aria-hidden", "true"); host.appendChild(renderer.domElement);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(34, 1, .1, 50);
@@ -52,7 +58,10 @@ export function createScene(host: HTMLElement, palette: ScenePalette, onSelect: 
     renderer.setSize(width, height); camera.aspect = width / height; camera.updateProjectionMatrix(); draw();
   };
   const observer = new ResizeObserver(resize); observer.observe(host);
-  const visibility = new IntersectionObserver(([entry]) => { visible = entry?.isIntersecting ?? false; sync(); }, { threshold: .08 }); visibility.observe(host);
+  // The site header is fixed over the top of the viewport. A hero scrolled up
+  // under it is out of sight, so that band does not count as visible.
+  const header = document.querySelector(".site-header")?.getBoundingClientRect().bottom ?? 0;
+  const visibility = new IntersectionObserver(([entry]) => { visible = entry?.isIntersecting ?? false; sync(); }, { threshold: .08, rootMargin: `-${Math.max(0, Math.round(header))}px 0px 0px 0px` }); visibility.observe(host);
   const canvas = renderer.domElement;
   const down = (event: PointerEvent) => { dragging = true; moved = false; startX = event.clientX; canvas.setPointerCapture(event.pointerId); };
   const move = (event: PointerEvent) => {
@@ -94,4 +103,14 @@ export function createScene(host: HTMLElement, palette: ScenePalette, onSelect: 
       materials.forEach(material => material.dispose()); environmentTarget.dispose(); renderer.forceContextLoss(); renderer.dispose(); canvas.remove();
     },
   };
+}
+
+/** Reads the renderer name from a throwaway context, released straight away. */
+function softwareRasterizer() {
+  const gl = document.createElement("canvas").getContext("webgl2") ?? document.createElement("canvas").getContext("webgl");
+  if (!gl) return false;
+  const info = gl.getExtension("WEBGL_debug_renderer_info");
+  const name = String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER) ?? "");
+  gl.getExtension("WEBGL_lose_context")?.loseContext();
+  return /swiftshader|llvmpipe|softpipe|software/i.test(name);
 }

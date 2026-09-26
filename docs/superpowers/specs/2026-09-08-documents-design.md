@@ -27,7 +27,7 @@ Tính chất đo được:
 7. **Agent là đồng tác giả, không phải người ghi trực tiếp.** `created_by_kind = agent` có chỗ ngay từ schema; agent đọc theo quyền thành viên; agent ghi chỉ qua `agent_action_proposals` (ADR 0010) — action type định nghĩa ở đây, thực thi ở Giai đoạn A.
 8. **Empty state trung thực.** Không có tài liệu thì nói cách tạo trang đầu tiên hoặc tải tệp; không có số dung lượng giả (bản cũ từng hiện "342.6 GB of 1 TB").
 
-**Ngoài phạm vi C-01:** bình luận trên tài liệu (đợt sau, dùng cùng cơ chế `task_comments`/reactions của F-05 — câu hỏi mở §12.3), xuất PDF (chỉ Markdown/HTML), OCR/preview DOCX/XLSX phía server (mở bằng tải về), quét virus, ký số, template tài liệu, import từ Google Docs/Notion, wiki/knowledge base có cấu trúc (A-04), Work Graph edges (C-11 — spec này chỉ để lại `document_id` làm đích), mobile (C-08 đọc-only sau khi C-01 ship).
+**Ngoài phạm vi C-01:** OCR cho PDF scan (mốc sau), quét virus, ký số, template tài liệu, import từ Google Docs/Notion, wiki/knowledge base có cấu trúc (A-04), Work Graph edges (C-11 — spec này chỉ để lại `document_id` làm đích), mobile (C-08 đọc-only sau khi C-01 ship). Phạm vi yêu cầu G0 gồm editor và preview cho sáu định dạng lõi DOCX/XLSX/PPTX/PDF/Markdown/HTML trên web và desktop; PDF phải sửa được nội dung có lớp chữ, còn annotation hoặc lớp chữ đè không thay thế chỉnh sửa nội dung. PDF export/conversion chỉ theo các thao tác được kiểm kê và Q7-B loss/copy rules; không có tuyên bố export rộng hơn. Đây là kết quả mục tiêu theo Q1-B/Q2-A, không khẳng định tính năng đã giao. Bình luận tài liệu thuộc C-01 và dùng chung cơ chế bình luận task; các giới hạn Work Product tại §13 vẫn giữ nguyên.
 
 ## 2. Quyết định đã chốt
 
@@ -390,18 +390,28 @@ Tag `Documents`; SDI/SDO ở `dto/{sdi,sdo}/document.go`; route `router/document
 
 ### 5.5 Lỗi ổn định
 
-`revision_conflict` (422), `document_too_large` (413), `document_cycle`, `document_too_deep`,
-`cross_workspace_reference`, `principal_not_in_organization`, `document_link_limit`,
-`document_version_unchanged` (409), `document_owned_by_work_product` (409 — thao tác chia sẻ,
-liên kết công khai, đổi visibility, di chuyển cây hoặc archive trên tài liệu thuộc sở hữu; §13),
-`unsupported_media_type` (415 — MIME ngoài allowlist hoặc
-không khớp magic bytes), `file_too_large` (413), `quota_exceeded` / `entitlement_required`
-(từ entitlement), `feature_disabled` (404), `forbidden` / `not_found`. Thêm một lần ở
-`mapServiceError`.
+`revision_conflict` (422; tự lưu trang C-01 hiện hữu), `document_version_conflict` (409; mã Office đề xuất, chờ DOC-005 được chấp nhận), `document_too_large` (413), `document_cycle`, `document_too_deep`, `cross_workspace_reference`, `principal_not_in_organization`, `document_link_limit`, `document_version_unchanged` (409), `document_owned_by_work_product` (409 — thao tác chia sẻ, liên kết công khai, đổi visibility, di chuyển cây hoặc archive trên tài liệu thuộc sở hữu; §13), `unsupported_media_type` (415 — MIME ngoài allowlist hoặc không khớp magic bytes), `file_too_large` (413), `quota_exceeded` / `entitlement_required` (từ entitlement), `feature_disabled` (404), `forbidden` / `not_found`. Thêm một lần ở `mapServiceError`.
 
-MIME allowlist file: PDF, ảnh (png/jpeg/gif/webp), Office (docx/xlsx/pptx), OpenDocument, text/
-markdown/csv, zip. **Không** nhận html/svg/js/exe; kiểm cả phần mở rộng lẫn `http.DetectContentType`.
-Tải về luôn `attachment` (không render inline) trừ ảnh asset.
+Hai loại xung đột phiên bản được ánh xạ tới cùng lớp ổn định `errorClass = conflict`; client xử lý theo lớp lỗi, không suy luận từ HTTP status hay đọc nội dung thông báo. Mã 422 cho trang là hiện hữu; mã Office 409 là đề xuất, không khẳng định endpoint Office đã triển khai.
+
+MIME allowlist file: PDF, ảnh (png/jpeg/gif/webp), Office (docx/xlsx/pptx), OpenDocument, text/markdown/csv, zip, và **HTML** (`text/html`, đuôi `.html`/`.htm`). **Không** nhận svg/js/exe; kiểm cả phần mở rộng lẫn `http.DetectContentType` và trả 415 `unsupported_media_type` khi hai bên không khớp. Tải về luôn `attachment` (không render inline) trừ ảnh asset; **HTML không bao giờ được render inline từ origin của app**.
+
+**HTML — luật nhận, lưu và preview (bổ sung 2026-09-25; ADR 0021, hàng `E-HTML-CYCLE`, DOC-004).** Phạm vi G0 có
+editor HTML, nên `text/html` được nhận như mọi định dạng lõi khác, với các điều kiện sau:
+
+- **Nhận:** đuôi `.html`/`.htm` và `http.DetectContentType` phải cùng nói `text/html`; lệch → 415. Trần 50 MiB và
+  quota `storage.bytes` như file khác, không có ngoại lệ.
+- **Lưu:** lưu **nguyên byte** người dùng tải lên (không viết lại, không sanitize phía server) thành một version của
+  Document `kind = file`, checksum SHA-256 như hiện có; tải về vẫn `attachment`. HTML không được trích xuất vào tìm
+  kiếm/AI ở G0.
+- **Preview và sửa (cách ly bắt buộc):** mọi hiển thị nội dung HTML phải nằm trong iframe **`sandbox` không có
+  `allow-same-origin`** (origin mờ) trên một **host khác** origin của app — không phải chỉ khác cổng: đo trong
+  `E-HTML-CYCLE` cho thấy cookie scoped theo host nên hai cổng cùng host **không** phải cách ly. Nội dung nạp qua
+  `srcdoc`/blob hoặc từ chính host preview, không kèm credential app; preview không đọc được storage/cookie của app
+  (phía app, `contentDocument` là `null`) và `fetch` tới API app bị từ chối. Script trong tài liệu **được** chạy
+  trong sandbox origin mờ đó (đã đo bằng `F-HTML-SCRIPT`); ngoài sandbox đó, mọi đường render inline đều bị cấm.
+- **Hệ quả cho G1/G2/G3:** cần host preview riêng, chính sách asset tương đối cho HTML/Markdown (hàng `E-HTML-CYCLE`
+  sao asset cạnh tài liệu đã lưu), và test cách ly chạy trên host đó; desktop re-home scheme là việc G4 (ADR 0021).
 
 ## 6. Sự kiện, realtime, worker
 
@@ -471,7 +481,7 @@ audit từng lần (đã có phiên bản + `updated_by`); được thay bằng 
 | `packages/views/documents/document-tree.tsx` | Cây 5 cấp, mở/đóng, kéo thả đổi cha (cùng `position.ts`), bàn phím ←→↑↓ |
 | `packages/views/documents/document-detail-view.tsx` | `/documents/{id}`: `BreadcrumbHeader` (cây › tiêu đề), trạng thái lưu ("Đã lưu 10:32" / "Đang lưu…" / "Xung đột"), nút Chia sẻ, Phiên bản, menu ⋯ (xuất, nhật ký, lưu trữ) |
 | `packages/views/documents/document-editor.tsx` | **`next/dynamic`-free**: lazy qua `React.lazy` trong views (không `next/*`), chunk riêng; TipTap + extensions của schema; toolbar nổi; dán ảnh → upload asset → chèn `asset://` |
-| `packages/views/documents/document-file-view.tsx` | `kind=file`: thẻ tệp (icon theo MIME, kích thước, phiên bản), nút Tải về / Tải phiên bản mới; không preview trong app đợt này (PDF cũng tải về — §12.5) |
+| `packages/views/documents/document-file-view.tsx` | `kind=file`: thẻ tệp (icon MIME, kích thước, phiên bản), nút Tải về / Tải phiên bản mới; mục tiêu G0 là preview/editor cho sáu định dạng lõi DOCX/XLSX/PPTX/PDF/Markdown/HTML trên web và desktop. PDF hỗ trợ sửa nội dung có lớp chữ; chỉ thêm annotation hoặc lớp chữ đè không đạt yêu cầu. Đây là phạm vi yêu cầu, không phải trạng thái đã ship |
 | `packages/views/documents/conflict-dialog.tsx` | Khi 422: "Người khác vừa lưu" — xem bản của họ / giữ bản của tôi thành phiên bản `manual` "Bản của tôi lúc hh:mm" rồi nạp bản mới |
 | `packages/views/documents/version-history-sheet.tsx` | Danh sách phiên bản, xem, khôi phục (confirm), đặt tên mốc |
 | `packages/views/documents/share-dialog.tsx` | Visibility, thêm người/workspace/tổ chức + mức, danh sách share sống + thu hồi, mục Liên kết (ẩn khi entitlement/setting tắt, kèm lý do) |
@@ -614,9 +624,9 @@ tắt flag; migration forward-compatible.
 
 1. **CRDT ở C hay để A?** Spec đặt ở lát cắt 3 với Go relay (không dịch vụ Node). Phương án khác: Hocuspocus (Node) — ít code hơn nhưng thêm một process phải vận hành và on-prem (E-01) phải đóng gói thêm. Đề xuất: giữ lát cắt 3, quyết định bật sau pilot lát cắt 1–2.
 2. **Liên kết công khai mặc định tắt** ở cấp org và cần entitlement — có làm pilot khó gửi tài liệu cho khách không? Đề xuất: giữ tắt mặc định, org admin bật một lần; gói Team trở lên có entitlement.
-3. **Bình luận trên tài liệu** ngay trong C-01 (thêm lát cắt) hay chờ F-05 lát cắt 5 (comment thread dùng chung) ship rồi nối? Đề xuất: chờ, để một cơ chế bình luận cho cả task và tài liệu.
+3. **Bình luận trên tài liệu** dùng chung cơ chế bình luận với task; bình luận được lưu theo document và hỗ trợ nhắc tên cùng thông báo. Đây là phạm vi yêu cầu của C-01, không phải tuyên bố đã ship; G1 sở hữu dữ liệu, quyền và audit.
 4. **Share có kế thừa xuống trang con không?** Spec: không (mỗi tài liệu tự share; trang con chỉ kế thừa `visibility` lúc tạo). Kế thừa làm UI phức tạp và bản cũ không có. Đề xuất: giữ không, xem lại khi có yêu cầu thật.
-5. **Xem PDF trong app** (iframe presigned inline) thay vì tải về? Rẻ nhưng mở bề mặt XSS/phishing của PDF; đề xuất: đợt sau, sau C-10.
+5. **Preview và sửa PDF trong app** thuộc phạm vi editor sáu định dạng; PDF phải sửa nội dung có lớp chữ theo Q2-A. Annotation hoặc thêm lớp chữ đè không thay thế thao tác sửa nội dung. OCR cho PDF scan vẫn ở mốc sau; preview/editor là kết quả mục tiêu, không phải claim đã giao.
 6. **Retention nhật ký truy cập**: giữ mãi (như audit) hay 365 ngày? Ảnh hưởng C-06 export. Đề xuất: giữ mãi ở C, chính sách retention làm cùng C-06.
 7. **Trần tệp 50 MiB** đủ cho pilot (bản vẽ, video ngắn)? Đề xuất: 50 MiB mặc định, entitlement `documents.max_file_bytes` nếu có khách cần hơn.
 8. **Tên nav**: "Tài liệu" (đề xuất) hay "Docs" như IA V2? Ảnh hưởng glossary.

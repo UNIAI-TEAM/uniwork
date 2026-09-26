@@ -35,7 +35,10 @@ test("assigning a task lights the assignee's inbox badge without a reload", asyn
 
   // Invite B from the Members page; the token comes out of the mail outbox.
   const memberEmail = `member-${stamp}@example.com`;
-  await owner.goto(`/${orgSlug}/${wsSlug}/members`);
+  // Members live under Settings; /members is only a client-side redirect there,
+  // and typing into the form before it lands loses the address.
+  await owner.goto(`/${orgSlug}/${wsSlug}/settings?tab=members`);
+  await expect(owner.getByRole("heading", { name: "Mời vào workspace" })).toBeVisible({ timeout: 15_000 });
   await owner.getByLabel("Email đồng nghiệp").fill(memberEmail);
   await owner.getByLabel("Email đồng nghiệp").press("Enter");
   await owner.getByRole("button", { name: "Mời thành viên" }).click();

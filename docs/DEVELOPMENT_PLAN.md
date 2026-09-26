@@ -82,7 +82,7 @@ dựng số doanh thu.
 
 ## Phụ thuộc hạ tầng
 
-Sidecar Office (ADR 0018) phải có mặt trong bộ cài **E-01 on-premise** — compose và Helm.
+Runtime Office đã chọn (service nội bộ + sidecar native của engine, ADR 0021) phải có mặt trong bộ cài **E-01 on-premise** — compose và Helm.
 Bỏ sót là lỗi phát hành, không phải giới hạn đã biết.
 
 ## Cố ý không làm trong đợt này
@@ -96,7 +96,7 @@ Ghi lại để lần sau không phải khảo sát lại; lý do đầy đủ �
 | Ngôn ngữ `id`, `ms` | Chờ nhu cầu thật ở thị trường đó; mỗi ngôn ngữ là một món nợ dịch thuật |
 | Chia sẻ bản đồ công việc bằng liên kết ngoài | Làm nền C-11 trước; tính sau khi biết pilot có cần khoe đồ thị cho khách |
 | PWA | ADR 0011 giữ nguyên: mobile là app Expo |
-| Engine XLSX, PPTX, PDF | Chỉ DOCX đợt này (ADR 0018) |
+| Engine XLSX, PPTX, PDF ngoài phạm vi đợt DOCX ban đầu | Quyết định cũ (ADR 0018, chỉ DOCX) đã bị thay bởi ADR 0021 (`adr/0021-runtime-engine-office-da-dinh-dang.md`): sáu định dạng lõi nằm trong phạm vi, mỗi thao tác có runtime theo bảng DOC-004; việc chưa chứng minh ghi thành blocker + tên test |
 | Chấm công | Không dựng số giờ người bằng ước tính; xem A-11 |
 | Job AI tự đào tạo lại hằng ngày | Là năng lực thật, không núp trong task về màn hình; quyết sau khi có A-01 |
 

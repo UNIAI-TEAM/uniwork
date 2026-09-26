@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
 import { resetAuthStoreForTests, setSessionUser } from "@uniwork/core/auth";
@@ -39,6 +39,22 @@ describe("AdminLayout", () => {
     const adapter = nav("/admin/system");
     render(wrapWithNav(<AdminLayout><p>secret</p></AdminLayout>, adapter));
     await waitFor(() => expect(adapter.replace).toHaveBeenCalledWith("/login?next=%2Fadmin%2Fsystem"));
+  });
+
+  it("waits for the session before asking /admin/me, so a reload does not log an admin out", async () => {
+    // A reload: the refresh cookie is still being exchanged, there is no access token yet.
+    resetAuthStoreForTests();
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
+    requestMock.mockResolvedValue({ platform_role: "admin" });
+    const adapter = nav();
+    render(wrapWithNav(<AdminLayout><p>page body</p></AdminLayout>, adapter));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(requestMock).not.toHaveBeenCalled();
+    act(() => setSessionUser(user));
+    expect(await screen.findByText("page body")).toBeInTheDocument();
+    expect(requestMock).toHaveBeenCalledWith("/api/v1/admin/me");
+    expect(adapter.replace).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
   });
 
   it("renders the nav, the role and the page for a platform admin", async () => {

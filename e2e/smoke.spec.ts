@@ -57,7 +57,7 @@ test("register → workspace → task → meeting", async ({ page }) => {
   await page.getByRole("button", { name: "Vào phòng họp" }).click();
   await expect(
     page
-      .getByText("LiveKit chưa được cấu hình trên server")
+      .getByText("Phòng họp video chưa được thiết lập. Hãy báo quản trị viên workspace.")
       .or(page.getByText("Đang chờ người chủ trì bắt đầu cuộc họp"))
       .or(page.locator("[data-lk-theme]")),
   ).toBeVisible({ timeout: 15_000 });

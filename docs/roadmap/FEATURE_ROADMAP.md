@@ -1,6 +1,6 @@
 # UniWork — Feature Roadmap (bản đồ tính năng để phát triển bám theo)
 
-> **Trạng thái:** in-progress · **Cập nhật:** 2026-09-16 · **Nguồn định hướng:** `docs/vision/PROJECT_VISION.md` · **Thứ tự làm và phụ thuộc:** `docs/DEVELOPMENT_PLAN.md` · **Đối chiếu bản nháp:** `docs/DRAFT_MAPPING.md`
+> **Trạng thái:** in-progress · **Cập nhật:** 2026-09-25 · **Nguồn định hướng:** `docs/vision/PROJECT_VISION.md` · **Thứ tự làm và phụ thuộc:** `docs/DEVELOPMENT_PLAN.md` · **Đối chiếu bản nháp:** `docs/DRAFT_MAPPING.md`
 
 Đây là **danh sách duy nhất** các tính năng cần xây lại từ bản Lovable (`unidigiwork`)
 sang UniWork. Mỗi tính năng có: trạng thái thật trong repo này, việc còn phải làm,
@@ -78,8 +78,8 @@ OpenTelemetry, documents, calendar, workflow, knowledge/search toàn cục, insi
 | C-12 | Decision record: thực thể quyết định hạng nhất sinh từ tóm tắt họp (`meeting_summaries.decisions`) và từ task, gắn Work Graph, có người xác nhận | Knowledge & Memory | CHƯA | `(cần viết)` decision-records-design | P1 |
 | C-13 | Chat đẳng cấp ClickUp: kênh gắn Project, thread hạng nhất, tin nhắn ↔ task, đính kèm tệp, Posts, FollowUps, AI CatchUp / Ask UNI trong kênh, tìm kiếm toàn cục | Chat & Collaboration | CHƯA (chat messenger đã có; thiếu lớp gắn công việc) | `2026-09-09-chat-work-hub-design.md` (lát 1–3, chờ duyệt), các lát sau có spec riêng; epic UNI-506, 10 lát cắt = UNI-507…516 theo thứ tự | P1 |
 | C-14 | **Kết quả công việc (Work Product)**: deliverable nghiệp vụ — loại nghiệp vụ tách khỏi định dạng, phiên bản có ảnh chụp nguồn gốc, bình luận, xem xét/duyệt, AI có bảng chọn nguồn ngữ cảnh tường minh | Work Product | CHƯA | `2026-09-16-work-products-design.md` (bản 2 sau review kiến trúc; Đề xuất — chờ duyệt, 5 câu hỏi mở §12). Thêm 2026-09-16 từ bản nháp; ADR 0016. Phụ thuộc **C-01 §13** (lát 1a) và **C-11** (lát 1b, 4). 6 lát: 1a dữ liệu+quyền+API · 1b projector Work Graph · danh sách+chi tiết+soạn native · phiên bản+xem xét/duyệt+người theo dõi · AI+nguồn ngữ cảnh · tích hợp. **Câu hỏi mở §12.1 (bình luận) nếu chốt hoãn thì dòng này và UNI-641 phải sửa theo** | P0 |
-| C-15 | **Nhập DOCX và AI sửa có người duyệt**: nhập giữ nguyên bản gốc bất biến, trích nội dung cho AI và tìm kiếm, AI đề xuất theo khối, người duyệt, sidecar vá đúng chỗ, sinh phiên bản mới | Work Product + Document | CHƯA | `(cần viết)` docx-import-design; ADR 0018. **Phạm vi thu hẹp so với bản nháp:** web không làm trình soạn thảo khối — sửa tay định dạng nặng dùng UniWork Office | P1 |
-| C-16 | **Office Bridge**: mở tài liệu bằng UniWork Office (bản tùy biến từ GenOffice), lưu ngược thành `document_versions`, khóa chống lặp, 409 khi lệch phiên bản, thu quyền giữa chừng thì chặn lưu | Document | CHƯA | `(cần viết)` office-bridge-design; ADR 0018. Không phụ thuộc C-14, chạy song song được | P1 |
+| C-15 | **Nhập đa định dạng và AI sửa có người duyệt**: kiểm kê/nhập nội dung trong sáu định dạng lõi DOCX/XLSX/PPTX/PDF/Markdown/HTML; AI đề xuất theo năng lực từng engine, người dùng duyệt trước khi áp dụng; editor trên web và desktop theo ma trận Q1-B | Work Product + Document | CHƯA | `(cần viết)` documents-import-design; yêu cầu G0 Q1-B. Phạm vi/engine theo từng thao tác phải được xác minh; đây là mục tiêu roadmap, chưa phải tính năng đã ship | **Cập nhật 2026-09-25:** ADR 0021 đã được chấp nhận và chốt runtime theo từng thao tác (bảng DOC-004, `docs/office/g0/module-runtime-map.json`): editor ở trang host + adapter tiêm, phần chạy ngoài trang ở service nội bộ; thao tác chưa chứng minh giữ blocker + tên test, không hứa trước | P1 |
+| C-16 | **Hợp đồng UniWork Office đa định dạng**: editor cho DOCX/XLSX/PPTX/PDF/Markdown/HTML trên web và desktop theo Q1-B; phiên bản, change feed, tombstone và đồng bộ theo Q5-A/Q7-B. `document_version_conflict` 409 là mã Office đề xuất trong DOC-005, dùng cùng `errorClass = conflict` với `revision_conflict` 422 của trang; chỉ chấp nhận sau khi hợp đồng được duyệt | Document | CHƯA | `(cần viết)` documents-office-design; yêu cầu G0 (quyết định G0 = GO ngày 2026-09-25); hợp đồng DOC-005 đã nghiệm thu ở mức G0 (model tham chiếu, `docs/office/g0/login-sync-contract.md` §8.6). Không chọn runtime hay tuyên bố tích hợp/ship; G4 sở hữu desktop | **Cập nhật 2026-09-25:** ADR 0021 đã chốt runtime cho sáu chu trình editor và DOC-004 đã nghiệm thu (87/87 thao tác có runtime + hành vi khi chưa chứng minh; G0 = GO). Đây vẫn là hợp đồng ở mức thiết kế: chưa có tích hợp sản phẩm, G4 sở hữu desktop | P1 |
 
 **Tiêu chí thoát**: 5 tenant pilot ≥ 30 ngày, ≥ 3 tiếp tục; 1 hóa đơn thật; ≥ 20 cuộc họp
 có transcript + tóm tắt thật; pentest 0 High/Critical mở; availability ≥ 99,9% trong 60 ngày.
@@ -135,13 +135,13 @@ Thêm sau đợt đối chiếu bản nháp 2026-09-16 — lý do đầy đủ �
 | Nhập Excel nhân sự/bộ phận/lịch họp; màn quản lý lịch họp cấp tổ chức | Mời thành viên và CSV danh bạ của F-03 đã đủ; chờ pilot thật yêu cầu |
 | Ngôn ngữ `id`, `ms` | Chờ nhu cầu thật ở thị trường đó |
 | Chia sẻ bản đồ công việc bằng liên kết ngoài | Làm nền C-11 trước; tính lại sau |
-| Engine XLSX, PPTX, PDF | Chỉ DOCX đợt này (ADR 0018) |
+| Engine XLSX, PPTX, PDF ngoài phạm vi đợt DOCX ban đầu | Quyết định cũ (ADR 0018, chỉ DOCX) đã bị thay bởi [ADR 0021](../adr/0021-runtime-engine-office-da-dinh-dang.md): sáu định dạng lõi nằm trong phạm vi, mỗi thao tác có runtime theo bảng DOC-004; phần chưa chứng minh ghi thành blocker + tên test, không phải "không làm" |
 | Chấm công | Không dựng số giờ người bằng ước tính; xem A-11 |
 | Job AI tự đào tạo lại hằng ngày | Là năng lực thật, không núp trong task về màn hình; quyết sau khi có A-01 |
 | So sánh hai bộ máy Office | Công cụ nội bộ của đợt chọn engine, không phải tính năng người dùng |
 
 Ứng dụng desktop **không còn** nằm ngoài phạm vi: UniWork Office là bản tùy biến từ
-GenOffice (Apache-2.0) và C-16 là hợp đồng tích hợp với nó (ADR 0018).
+GenOffice (Apache-2.0) và C-16 là hợp đồng tích hợp với nó (ADR 0021, đã thay [ADR 0018](../adr/0018-engine-office-chay-o-sidecar-node.md)).
 
 ## Thứ tự làm trong Giai đoạn F (đề xuất)
 
