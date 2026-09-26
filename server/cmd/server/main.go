@@ -126,14 +126,23 @@ func main() {
 			}
 		}()
 	}
-	// STORAGE_BACKEND=s3 uses the S3-compatible backend (AWS_* / AWS_ENDPOINT_URL);
-	// anything else is local disk under LOCAL_UPLOAD_DIR, served by the API.
-	var store storage.Storage
-	if os.Getenv("STORAGE_BACKEND") == "s3" {
-		store = storage.NewS3StorageFromEnv()
-	} else if local := storage.NewLocalStorageFromEnv(); local != nil {
-		store = local
+	// Storage (FileService T2): STORAGE_BACKEND selects where new files are
+	// written; every declared provider group is built and preflighted here, so
+	// a bad configuration stops startup instead of falling back to local disk.
+	storageCfg, err := storage.LoadConfigFromEnv(storage.NewDefaultRegistry())
+	if err != nil {
+		log.Error("storage config", "err", err)
+		os.Exit(1)
 	}
+	stores, err := storage.BuildStores(ctx, storageCfg, storage.NewDefaultRegistry())
+	if err != nil {
+		log.Error("storage preflight", "backend", string(storageCfg.Backend), "err", err)
+		os.Exit(1)
+	}
+	objectStore := stores[storageCfg.Backend]
+	// The legacy adapter only reads rows written before each module's
+	// cutover; new writes go through FileService.
+	store := storage.NewLegacyStorage(storageCfg)
 	hub := realtime.NewHub()
 	go hub.Run()
 	// Without Redis every event fans out in-process only. With it, the relay
@@ -205,7 +214,7 @@ func main() {
 	taskSvc := service.NewTaskService(pool, q, wsSvc, store)
 	meetingSvc.Tasks = taskSvc
 	agentSvc := service.NewAgentService(pool, q, orgSvc, wsSvc)
-	readiness := service.NewReadiness(pool, rdb)
+	readiness := service.NewReadiness(pool, rdb).WithStorageProber(objectStore)
 	billingSvc := service.NewBillingService(pool, q, orgSvc, billing.FromConfig(cfg.BillingProvider))
 	actorSvc := service.NewActorService(q)
 	// One AI gateway for the process (F-09): meeting summaries and Ask UNI
@@ -236,6 +245,37 @@ func main() {
 	// connection joins its organization scope at connect time (F-03 §6.4).
 	hub.SetOrganizationResolver(wsSvc.OrganizationOf)
 	auditSvc := service.NewAuditService(pool, q, orgSvc, wsSvc)
+	peopleSvc := service.NewPeopleService(pool, q, orgSvc)
+	// One FileService for the process. Every writer below is wired in the
+	// same step as the reference provider that covers it: the collector must
+	// never meet a file_id column it cannot ask about. GC stays at its zero
+	// value (dry_run): it reports and never deletes.
+	fileSvc, err := service.NewFileService(service.FileServiceOptions{
+		Pool: pool, Store: objectStore, Bucket: storageCfg.Bucket(),
+		ReferenceProviders: service.FileReferenceProviders(chatSvc, meetingSvc),
+	})
+	if err != nil {
+		log.Error("file service", "err", err)
+		os.Exit(1)
+	}
+	taskSvc.SetFiles(fileSvc)
+	authSvc.SetFiles(fileSvc)
+	peopleSvc.SetFiles(fileSvc)
+	wsSvc.SetFiles(fileSvc)
+	orgMemberSvc.SetFiles(fileSvc)
+	actorSvc.SetFiles(fileSvc)
+	chatSvc.SetFiles(fileSvc)
+	chatSvc.SetVoiceRecordingFiles(fileSvc)
+	meetingSvc.SetFiles(fileSvc)
+	auditSvc.SetFileService(fileSvc)
+	fileAccess, err := service.NewFileAccessService(service.FileAccessOptions{
+		Files: fileSvc, Workspaces: wsSvc, Secret: []byte(cfg.JWTSecret),
+	})
+	if err != nil {
+		log.Error("file access", "err", err)
+		os.Exit(1)
+	}
+	fileGC := fileSvc.NewFileGCWorker()
 	// One dispatcher drains outbox_events for the whole process. Registering a
 	// consumer is the only thing a new bounded context has to do to receive
 	// domain events; nothing here knows what produced them.
@@ -245,7 +285,9 @@ func main() {
 	dispatcher.Register(meetingSvc.ProviderConsumer())
 	realtimeConsumer := outbox.NewRealtimeConsumer(service.RealtimePublisher{Pub: pub}).WithMembers(chatSvc)
 	dispatcher.Register(realtimeConsumer)
-	dispatcher.Register(service.NewAuditExportConsumer(q, store))
+	auditExports := service.NewAuditExportConsumer(q, store)
+	auditExports.SetFileService(pool, fileSvc)
+	dispatcher.Register(auditExports)
 	dispatcher.Register(outbox.WebhookConsumer{})
 	dispatcher.Register(service.NewChatTaskSyncConsumer(pool, q, chatSvc, taskSvc))
 	dispatcher.Register(service.NewChatVoiceSummaryConsumer(chatSvc))
@@ -284,6 +326,10 @@ func main() {
 	if reg != nil {
 		go auditSvc.RunRetentionMarker(runCtx, reg.Outbox)
 	}
+	// The file collector stops with the dispatcher (runCancel) and is awaited
+	// in the shutdown sequence below, so a sweep never outlives the process.
+	fileGCDone := make(chan struct{})
+	go func() { fileGC.Run(runCtx); close(fileGCDone) }()
 	// Google needs both credentials; discovery runs once here. A failed
 	// discovery leaves Google off rather than taking the API down with it.
 	var google handler.GoogleExchanger
@@ -326,7 +372,7 @@ func main() {
 		Google:          google,
 		Organizations:   orgSvc,
 		OrgMembers:      orgMemberSvc,
-		People:          service.NewPeopleService(pool, q, orgSvc),
+		People:          peopleSvc,
 		Departments:     service.NewDepartmentService(pool, q, orgSvc),
 		Workspaces:      wsSvc,
 		Onboarding:      service.NewOnboardingService(q, wsSvc, renderer, mailOutbox),
@@ -347,6 +393,7 @@ func main() {
 		FeatureFlags:    flags,
 		Bus:             bus,
 		Storage:         store,
+		FileAccess:      fileAccess,
 		MembershipCache: membershipCache,
 		HTTPMetrics:     httpMetrics,
 		WebVitals:       webVitals(reg),
@@ -414,6 +461,11 @@ func main() {
 	case <-dispatcherDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("outbox: dispatcher did not stop in time")
+	}
+	select {
+	case <-fileGCDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("files: gc worker did not stop in time")
 	}
 	if relay != nil {
 		relay.Stop()
