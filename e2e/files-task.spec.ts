@@ -2,7 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { verifyEmail } from "./auth-nav";
+import { onboardToWorkspace, workspaceSeed, type WorkspaceSeed } from "./onboard";
 import { captureAuth, type SeedAuth } from "./tasks-seed";
 
 /**
@@ -30,44 +30,8 @@ const TINY_PNG = Buffer.from(
   "base64",
 );
 
-interface Workspace {
-  name: string;
-  email: string;
-  orgName: string;
-  wsName: string;
-  orgSlug: string;
-  wsSlug: string;
-}
-
-/** Names stay ASCII so the slugs the onboarding form derives are predictable. */
-function workspaceFor(label: string): Workspace {
-  return {
-    name: `Files ${label}`,
-    email: `files-${label}-${stamp}@example.com`,
-    orgName: `Files ${label} ${stamp}`,
-    wsName: `Team ${label} ${stamp}`,
-    orgSlug: `files-${label}-${stamp}`,
-    wsSlug: `team-${label}-${stamp}`,
-  };
-}
-
-async function onboard(page: Page, w: Workspace): Promise<void> {
-  await page.goto("/register");
-  await page.getByLabel("Tên hiển thị").fill(w.name);
-  await page.getByLabel("Email").fill(w.email);
-  await page.getByLabel("Mật khẩu", { exact: true }).fill("password123");
-  await page.getByRole("button", { name: "Đăng ký" }).click();
-  await verifyEmail(page);
-
-  await page.getByRole("button", { name: /Bắt đầu/ }).click();
-  await page.getByRole("button", { name: "Bỏ qua" }).click();
-  await page.getByLabel("Tên tổ chức").fill(w.orgName);
-  await page.getByRole("button", { name: `Tạo ${w.orgName}` }).click();
-  await page.getByLabel("Tên workspace").fill(w.wsName);
-  await page.getByRole("button", { name: `Tạo ${w.wsName}` }).click();
-  await page.getByRole("button", { name: "Bỏ qua, mời sau" }).click();
-  await expect(page).toHaveURL(new RegExp(`/${w.orgSlug}/${w.wsSlug}/tasks`), { timeout: 60_000 });
-  await page.getByRole("button", { name: "Để sau" }).click({ timeout: 30_000 });
+function workspaceFor(label: string): WorkspaceSeed {
+  return workspaceSeed("files", label, stamp);
 }
 
 /**
@@ -86,7 +50,7 @@ async function createTask(page: Page, auth: SeedAuth, title: string): Promise<st
   return body.task.id;
 }
 
-async function openTask(page: Page, w: Workspace, taskId: string): Promise<void> {
+async function openTask(page: Page, w: WorkspaceSeed, taskId: string): Promise<void> {
   await page.goto(`/${w.orgSlug}/${w.wsSlug}/tasks/${taskId}`);
   await expect(page.getByTestId("task-detail-suite")).toBeVisible({ timeout: 30_000 });
 }
@@ -96,9 +60,16 @@ function tmpFile(name: string, body: string | Buffer): string {
   return file;
 }
 
-/** The description editor's paperclip is the first file input on the page. */
+/**
+ * The description editor's paperclip input. FileUploadButton renders no
+ * label/testid, but every other file input on the detail page lives under
+ * [data-testid="task-comment-composer"], so excluding that ancestor pins the
+ * description input structurally instead of by DOM order.
+ */
 function descriptionUpload(page: Page) {
-  return page.locator('input[type="file"]').first();
+  return page
+    .locator('xpath=//input[@type="file" and not(ancestor::*[@data-testid="task-comment-composer"])]')
+    .first();
 }
 
 interface UploadedAttachment {
@@ -123,7 +94,7 @@ async function uploadIntoDescription(page: Page, file: string): Promise<Uploaded
 
 test("@files-smoke đính kèm task: tải lên, thấy tệp, tải về đúng bytes", async ({ page }) => {
   const w = workspaceFor("smoke");
-  await onboard(page, w);
+  await onboardToWorkspace(page, w);
   const auth = await captureAuth(page);
   await openTask(page, w, await createTask(page, auth, `Việc smoke ${stamp}`));
 
@@ -148,7 +119,7 @@ test("@files-smoke đính kèm task: tải lên, thấy tệp, tải về đúng
 
 test("bình luận kèm tệp: gửi bình luận có đính kèm", async ({ page }) => {
   const w = workspaceFor("comment");
-  await onboard(page, w);
+  await onboardToWorkspace(page, w);
   await openTask(page, w, await createTask(page, await captureAuth(page), `Việc bình luận ${stamp}`));
 
   const file = tmpFile("comment.txt", `comment attachment ${stamp}\n`);
@@ -169,7 +140,7 @@ test("bình luận kèm tệp: gửi bình luận có đính kèm", async ({ pag
 
 test("ảnh trong mô tả sống sót sau khi tải lại", async ({ page }) => {
   const w = workspaceFor("image");
-  await onboard(page, w);
+  await onboardToWorkspace(page, w);
   await openTask(page, w, await createTask(page, await captureAuth(page), `Việc ảnh ${stamp}`));
 
   const file = tmpFile("shot.png", TINY_PNG);
@@ -193,7 +164,7 @@ test("ảnh trong mô tả sống sót sau khi tải lại", async ({ page }) =>
 
 test("gỡ một trong nhiều tệp đính kèm", async ({ page }) => {
   const w = workspaceFor("remove");
-  await onboard(page, w);
+  await onboardToWorkspace(page, w);
   await openTask(page, w, await createTask(page, await captureAuth(page), `Việc gỡ tệp ${stamp}`));
 
   const first = path.basename(tmpFile("first.txt", `first ${stamp}\n`));
@@ -207,7 +178,23 @@ test("gỡ một trong nhiều tệp đính kèm", async ({ page }) => {
   await editor.click();
   await page.keyboard.press("Control+z");
   await page.keyboard.press("Control+z");
-  await page.waitForTimeout(2_500);
+  // The autosave is debounced 1500ms, and it only goes out when the draft
+  // differs from the saved description — after the undos it can be identical
+  // again, so a bare waitForResponse could wait on a PUT that never happens.
+  // Typing a marker makes a save mandatory and gives the PUT a unique body:
+  // an earlier in-flight save (the card inserts also schedule one) cannot
+  // carry it. This replaces the old fixed 2.5s sleep that could lose to the
+  // debounce under load.
+  const marker = `marker-${stamp}`;
+  const undoSaved = page.waitForResponse(
+    (res) =>
+      res.request().method() === "PUT" &&
+      /\/api\/v1\/tasks\/[0-9A-Z]+$/.test(new URL(res.url()).pathname) &&
+      (res.request().postData() ?? "").includes(marker),
+    { timeout: 30_000 },
+  );
+  await page.keyboard.type(marker);
+  expect((await undoSaved).status()).toBe(200);
   await page.reload();
 
   const section = page.getByRole("region", { name: "Đính kèm" });
@@ -232,7 +219,7 @@ test("gỡ một trong nhiều tệp đính kèm", async ({ page }) => {
 
 test("tệp trên 25 MiB bị từ chối", async ({ page }) => {
   const w = workspaceFor("cap");
-  await onboard(page, w);
+  await onboardToWorkspace(page, w);
   await openTask(page, w, await createTask(page, await captureAuth(page), `Việc quá cỡ ${stamp}`));
 
   const file = tmpFile("big.txt", Buffer.alloc(26 * 1024 * 1024, "x"));
@@ -242,11 +229,37 @@ test("tệp trên 25 MiB bị từ chối", async ({ page }) => {
   await expect(page.getByRole("region", { name: "Đính kèm" })).toHaveCount(0);
 });
 
+test("loại tệp không được hỗ trợ bị từ chối", async ({ page }) => {
+  const w = workspaceFor("mime");
+  await onboardToWorkspace(page, w);
+  await openTask(page, w, await createTask(page, await captureAuth(page), `Việc sai loại ${stamp}`));
+
+  // FileUploadButton has no accept filter, so a type outside the server's
+  // allowedAttachmentMIME (application/zip here) really reaches the API and
+  // is answered 400 attachment_mime_rejected. The declared Content-Type is
+  // what the allowlist reads, so the body can be anything.
+  const rejected = page.waitForResponse(
+    (res) =>
+      res.request().method() === "POST" &&
+      /\/api\/v1\/tasks\/[0-9A-Z]+\/attachments$/.test(new URL(res.url()).pathname),
+    { timeout: 30_000 },
+  );
+  await descriptionUpload(page).setInputFiles({
+    name: `payload-${stamp}.zip`,
+    mimeType: "application/zip",
+    buffer: Buffer.from(`not a real zip ${stamp}`),
+  });
+  expect((await rejected).status()).toBe(400);
+
+  await expect(page.getByText(/Không tải lên được/)).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByRole("region", { name: "Đính kèm" })).toHaveCount(0);
+});
+
 test("tổ chức khác đoán URL tệp thì bị chặn", async ({ browser }) => {
   const ownerContext = await browser.newContext({ locale: "vi-VN" });
   const ownerPage = await ownerContext.newPage();
   const owner = workspaceFor("owner");
-  await onboard(ownerPage, owner);
+  await onboardToWorkspace(ownerPage, owner);
   const ownerAuth = await captureAuth(ownerPage);
   await openTask(ownerPage, owner, await createTask(ownerPage, ownerAuth, `Việc riêng tư ${stamp}`));
   const att = await uploadIntoDescription(
@@ -257,7 +270,7 @@ test("tổ chức khác đoán URL tệp thì bị chặn", async ({ browser }) 
   const otherContext = await browser.newContext({ locale: "vi-VN" });
   const otherPage = await otherContext.newPage();
   const other = workspaceFor("other");
-  await onboard(otherPage, other);
+  await onboardToWorkspace(otherPage, other);
   const otherAuth = await captureAuth(otherPage);
 
   for (const endpoint of [att.download_url, `/api/v1/attachments/${att.id}/content`]) {

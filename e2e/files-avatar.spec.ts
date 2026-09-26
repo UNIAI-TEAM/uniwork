@@ -2,7 +2,7 @@ import { expect, type Page, test } from "@playwright/test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { verifyEmail } from "./auth-nav";
+import { onboardToWorkspace, workspaceSeed, type WorkspaceSeed } from "./onboard";
 import { captureAuth } from "./tasks-seed";
 
 /**
@@ -33,44 +33,8 @@ const AVATAR_TWO = Buffer.from(
   "base64",
 );
 
-interface Workspace {
-  name: string;
-  email: string;
-  orgName: string;
-  wsName: string;
-  orgSlug: string;
-  wsSlug: string;
-}
-
-/** Names stay ASCII so the slugs the onboarding form derives are predictable. */
-function workspaceFor(label: string): Workspace {
-  return {
-    name: `Avatar ${label}`,
-    email: `avatar-${label}-${stamp}@example.com`,
-    orgName: `Avatar ${label} ${stamp}`,
-    wsName: `Team ${label} ${stamp}`,
-    orgSlug: `avatar-${label}-${stamp}`,
-    wsSlug: `team-${label}-${stamp}`,
-  };
-}
-
-async function onboard(page: Page, w: Workspace): Promise<void> {
-  await page.goto("/register");
-  await page.getByLabel("Tên hiển thị").fill(w.name);
-  await page.getByLabel("Email").fill(w.email);
-  await page.getByLabel("Mật khẩu", { exact: true }).fill("password123");
-  await page.getByRole("button", { name: "Đăng ký" }).click();
-  await verifyEmail(page);
-
-  await page.getByRole("button", { name: /Bắt đầu/ }).click();
-  await page.getByRole("button", { name: "Bỏ qua" }).click();
-  await page.getByLabel("Tên tổ chức").fill(w.orgName);
-  await page.getByRole("button", { name: `Tạo ${w.orgName}` }).click();
-  await page.getByLabel("Tên workspace").fill(w.wsName);
-  await page.getByRole("button", { name: `Tạo ${w.wsName}` }).click();
-  await page.getByRole("button", { name: "Bỏ qua, mời sau" }).click();
-  await expect(page).toHaveURL(new RegExp(`/${w.orgSlug}/${w.wsSlug}/tasks`), { timeout: 60_000 });
-  await page.getByRole("button", { name: "Để sau" }).click({ timeout: 30_000 });
+function workspaceFor(label: string): WorkspaceSeed {
+  return workspaceSeed("avatar", label, stamp);
 }
 
 function tmpPng(name: string, bytes: Buffer): string {
@@ -84,7 +48,7 @@ function avatarInput(page: Page) {
   return page.locator('input[type="file"][accept*="image/png"]');
 }
 
-async function openProfileTab(page: Page, w: Workspace): Promise<void> {
+async function openProfileTab(page: Page, w: WorkspaceSeed): Promise<void> {
   await page.goto(`/${w.orgSlug}/${w.wsSlug}/settings?tab=profile`);
   await expect(avatarInput(page)).toBeAttached({ timeout: 20_000 });
 }
@@ -96,7 +60,7 @@ function sidebarAvatar(page: Page, email: string) {
 
 test("@files-smoke avatar: đổi ảnh, thấy ở header", async ({ page }) => {
   const w = workspaceFor("smoke");
-  await onboard(page, w);
+  await onboardToWorkspace(page, w);
   await openProfileTab(page, w);
 
   await avatarInput(page).setInputFiles(tmpPng("one.png", AVATAR_ONE));
@@ -109,7 +73,7 @@ test("@files-smoke avatar: đổi ảnh, thấy ở header", async ({ page }) =>
 
 test("thay avatar lần hai, hiện ở tổ chức thứ hai", async ({ page }) => {
   const w = workspaceFor("replace");
-  await onboard(page, w);
+  await onboardToWorkspace(page, w);
   const auth = await captureAuth(page);
 
   await openProfileTab(page, w);
@@ -149,7 +113,7 @@ test("thay avatar lần hai, hiện ở tổ chức thứ hai", async ({ page })
 
 test("ảnh sai loại bị từ chối", async ({ page }) => {
   const w = workspaceFor("wrongtype");
-  await onboard(page, w);
+  await onboardToWorkspace(page, w);
   await openProfileTab(page, w);
 
   const file = path.join(os.tmpdir(), `uni744-avatar-${stamp}-not-image.txt`);
