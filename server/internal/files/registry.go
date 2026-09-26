@@ -176,6 +176,14 @@ var (
 	// both as text/plain and accepted them, and DetectContentType now names
 	// them by their extension.
 	chatFileMIMETypes = []string{"image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf", "text/plain", "text/csv", "text/markdown"}
+	// plainTextCanonicalTypes keeps a text file named .ndjson what the task
+	// attachment and chat file pipelines store today: they sniff it as
+	// text/plain and accept it. NDJSON is an export format, not an upload
+	// type those modules name, so it maps back rather than widening their
+	// allowlists.
+	plainTextCanonicalTypes = map[string]string{
+		"application/x-ndjson": "text/plain",
+	}
 	// voiceCanonicalTypes keeps the names the chat voice pipeline stores and
 	// serves today (sniffChatVoiceContentType in
 	// server/internal/handler/chat_voice_message.go): any Ogg is audio/ogg,
@@ -234,7 +242,7 @@ func DefaultSpecs() []PurposeSpec {
 			Purpose: TaskAttachment,
 			Prefix:  "tasks/attachments",
 			Scope:   ScopeOrgWorkspace,
-			Policy:  Policy{MaxBytes: 25 << 20, MIMEAllowlist: attachmentMIMETypes, ReadMode: ReadProxy},
+			Policy:  Policy{MaxBytes: 25 << 20, MIMEAllowlist: attachmentMIMETypes, CanonicalTypes: plainTextCanonicalTypes, ReadMode: ReadProxy},
 		},
 		{
 			Purpose: TaskDescriptionImage,
@@ -246,13 +254,13 @@ func DefaultSpecs() []PurposeSpec {
 			Purpose: TaskCommentAttachment,
 			Prefix:  "tasks/comments",
 			Scope:   ScopeOrgWorkspace,
-			Policy:  Policy{MaxBytes: 25 << 20, MIMEAllowlist: attachmentMIMETypes, ReadMode: ReadProxy},
+			Policy:  Policy{MaxBytes: 25 << 20, MIMEAllowlist: attachmentMIMETypes, CanonicalTypes: plainTextCanonicalTypes, ReadMode: ReadProxy},
 		},
 		{
 			Purpose: ChatAttachment,
 			Prefix:  "chat/files",
 			Scope:   ScopeOrgWorkspaceOptional,
-			Policy:  Policy{MaxBytes: 25 << 20, MIMEAllowlist: chatFileMIMETypes, ReadMode: ReadProxy},
+			Policy:  Policy{MaxBytes: 25 << 20, MIMEAllowlist: chatFileMIMETypes, CanonicalTypes: plainTextCanonicalTypes, ReadMode: ReadProxy},
 		},
 		{
 			Purpose: ChatVoice,

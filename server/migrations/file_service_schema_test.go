@@ -318,27 +318,77 @@ func TestFileServiceAttributionPair(t *testing.T) {
 
 func TestFileServiceIdempotencyBinding(t *testing.T) {
 	pool, ctx := fileServicePool(t)
+	q := db.New(pool)
 
 	insertFile(t, pool, ctx, "01FILE0000000000000000004A", fsOrgA, "s3", "b", "k/id-1")
 	insertFile(t, pool, ctx, "01FILE0000000000000000004B", fsOrgA, "s3", "b", "k/id-2")
+	insertFile(t, pool, ctx, "01FILE0000000000000000004C", fsOrgB, "s3", "b", "k/id-3")
 
+	// Org branch: the key is unique per organization whatever the rest of the
+	// command was - same key with a different purpose must collide so the
+	// service can answer idempotency_conflict on the stored fingerprint.
 	insertSession(t, pool, ctx, "01SESS0000000000000000004A", "01FILE0000000000000000004A",
 		"audit_export", fsOrgA, nil, nil, "same-key")
-
-	// Exact same binding + key: refused by the unique index.
 	_, err := pool.Exec(ctx, `
 		INSERT INTO file_upload_sessions (
 		  id, file_id, created_by, created_by_kind, purpose,
 		  organization_id, idempotency_key, command_fingerprint
-		) VALUES ('01SESS0000000000000000004B', '01FILE0000000000000000004B', $1, 'human', 'audit_export',
-		  $2, 'same-key', 'fp')`, fsActorA, fsOrgA)
+		) VALUES ('01SESS0000000000000000004B', '01FILE0000000000000000004B', $1, 'human', 'chat_attachment',
+		  $2, 'same-key', 'fp-other')`, fsActorA, fsOrgA)
 	wantPgError(t, err, "23505", "uidx_file_upload_sessions_idempotency")
 
-	// Same key under a different binding is a different logical upload and is
-	// allowed by the index (the service layer still answers
-	// idempotency_conflict through command_fingerprint).
-	insertSession(t, pool, ctx, "01SESS0000000000000000004C", "01FILE0000000000000000004B",
-		"chat_attachment", fsOrgA, nil, nil, "same-key")
+	// Same key in a different tenant is a different namespace and allowed.
+	insertSession(t, pool, ctx, "01SESS0000000000000000004C", "01FILE0000000000000000004C",
+		"audit_export", fsOrgB, nil, nil, "same-key")
+
+	// The org lookup resolves any same-key replay to the stored session.
+	stored, err := q.FindUploadSessionByIdempotencyKey(ctx, db.FindUploadSessionByIdempotencyKeyParams{
+		OrganizationID: pgtype.Text{String: fsOrgA, Valid: true},
+		IdempotencyKey: "same-key",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.ID != "01SESS0000000000000000004A" || stored.CommandFingerprint != "fp-01SESS0000000000000000004A" {
+		t.Fatalf("org idempotency lookup returned %s/%s", stored.ID, stored.CommandFingerprint)
+	}
+
+	// Identity branch: NULL tenant keys are unique per uploader instead.
+	insertFile(t, pool, ctx, "01FILE0000000000000000004D", nil, "s3", "b", "k/id-4")
+	insertFile(t, pool, ctx, "01FILE0000000000000000004E", nil, "s3", "b", "k/id-5")
+	insertFile(t, pool, ctx, "01FILE0000000000000000004F", nil, "s3", "b", "k/id-6")
+	insertSession(t, pool, ctx, "01SESS0000000000000000004D", "01FILE0000000000000000004D",
+		"user_avatar", nil, nil, fsUserA, "av-key")
+	_, err = pool.Exec(ctx, `
+		INSERT INTO file_upload_sessions (
+		  id, file_id, created_by, created_by_kind, purpose,
+		  organization_id, workspace_id, user_id,
+		  idempotency_key, command_fingerprint
+		) VALUES ('01SESS0000000000000000004E', '01FILE0000000000000000004E', $1, 'human', 'user_avatar',
+		  NULL, NULL, $2, 'av-key', 'fp')`, fsActorA, fsUserA)
+	wantPgError(t, err, "23505", "uidx_file_upload_sessions_avatar_idempotency")
+	// A different uploader may reuse the key - different binding (the avatar
+	// index is per uploader actor, so created_by differs here).
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO file_upload_sessions (
+		  id, file_id, created_by, created_by_kind, purpose,
+		  organization_id, workspace_id, user_id,
+		  idempotency_key, command_fingerprint
+		) VALUES ('01SESS0000000000000000004F', '01FILE0000000000000000004F', $1, 'human', 'user_avatar',
+		  NULL, NULL, $1, 'av-key', 'fp')`, "01USRFS00000000000000000B"); err != nil {
+		t.Fatalf("second uploader avatar session: %v", err)
+	}
+
+	avStored, err := q.FindUserUploadSessionByIdempotencyKey(ctx, db.FindUserUploadSessionByIdempotencyKeyParams{
+		CreatedBy:      fsActorA,
+		IdempotencyKey: "av-key",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if avStored.ID != "01SESS0000000000000000004D" {
+		t.Fatalf("avatar idempotency lookup returned %s", avStored.ID)
+	}
 }
 
 func TestFileServiceSessionClaimWindow(t *testing.T) {
@@ -359,35 +409,72 @@ func TestFileServiceSessionClaimWindow(t *testing.T) {
 	wantPgError(t, err, "23514", "file_upload_sessions_claim_deadline")
 
 	// A staged session inside the window consumes; a second consume hits the
-	// terminal claimed state and changes zero rows.
+	// terminal claimed state and changes zero rows. The caller supplies `now`.
+	now := time.Now()
 	insertSession(t, pool, ctx, "01SESS0000000000000000005B", "01FILE0000000000000000005B",
 		"audit_export", fsOrgA, nil, nil, "idem-cl-2")
 	if _, err := pool.Exec(ctx, `
-		UPDATE file_upload_sessions SET status='staged', claim_expires_at=now()+interval '1 hour'
-		WHERE id='01SESS0000000000000000005B'`); err != nil {
+		UPDATE file_upload_sessions SET status='staged', claim_expires_at=$1
+		WHERE id='01SESS0000000000000000005B'`, now.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
-	if n, err := q.ConsumeUploadSession(ctx, "01SESS0000000000000000005B"); err != nil || n != 1 {
+	if n, err := q.ConsumeUploadSession(ctx, db.ConsumeUploadSessionParams{
+		ID:  "01SESS0000000000000000005B",
+		Now: pgtype.Timestamptz{Time: now, Valid: true},
+	}); err != nil || n != 1 {
 		t.Fatalf("consume inside window: n=%d err=%v, want 1", n, err)
 	}
-	if n, err := q.ConsumeUploadSession(ctx, "01SESS0000000000000000005B"); err != nil || n != 0 {
+	if n, err := q.ConsumeUploadSession(ctx, db.ConsumeUploadSessionParams{
+		ID:  "01SESS0000000000000000005B",
+		Now: pgtype.Timestamptz{Time: now, Valid: true},
+	}); err != nil || n != 0 {
 		t.Fatalf("re-consume of a claimed session: n=%d err=%v, want 0", n, err)
+	}
+
+	// A caller-supplied `now` past the deadline refuses even while the wall
+	// clock is still inside the window - the param is the clock (T1-Q5).
+	insertSession(t, pool, ctx, "01SESS0000000000000000005D", "01FILE0000000000000000005A",
+		"audit_export", fsOrgA, nil, nil, "idem-cl-4")
+	if _, err := pool.Exec(ctx, `
+		UPDATE file_upload_sessions SET status='staged', claim_expires_at=$1
+		WHERE id='01SESS0000000000000000005D'`, now.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := q.ConsumeUploadSession(ctx, db.ConsumeUploadSessionParams{
+		ID:  "01SESS0000000000000000005D",
+		Now: pgtype.Timestamptz{Time: now.Add(2 * time.Hour), Valid: true},
+	}); err != nil || n != 0 {
+		t.Fatalf("consume with caller now past deadline: n=%d err=%v, want 0", n, err)
 	}
 
 	// Past the deadline, consume refuses even before the sweep runs (T1-Q5).
 	insertSession(t, pool, ctx, "01SESS0000000000000000005C", "01FILE0000000000000000005C",
 		"audit_export", fsOrgA, nil, nil, "idem-cl-3")
 	if _, err := pool.Exec(ctx, `
-		UPDATE file_upload_sessions SET status='staged', claim_expires_at=now()-interval '1 minute'
-		WHERE id='01SESS0000000000000000005C'`); err != nil {
+		UPDATE file_upload_sessions SET status='staged', claim_expires_at=$1
+		WHERE id='01SESS0000000000000000005C'`, now.Add(-time.Minute)); err != nil {
 		t.Fatal(err)
 	}
-	if n, err := q.ConsumeUploadSession(ctx, "01SESS0000000000000000005C"); err != nil || n != 0 {
+	if n, err := q.ConsumeUploadSession(ctx, db.ConsumeUploadSessionParams{
+		ID:  "01SESS0000000000000000005C",
+		Now: pgtype.Timestamptz{Time: now, Valid: true},
+	}); err != nil || n != 0 {
 		t.Fatalf("consume past deadline: n=%d err=%v, want 0 (file_claim_expired)", n, err)
 	}
 
-	// The sweep marks it expired and returns the row for follow-up cleanup.
-	expired, err := q.ExpireUploadSessions(ctx)
+	// The sweep marks it expired at the caller's instant - a `now` before the
+	// deadline leaves it staged, one after marks it.
+	if _, err := q.ExpireUploadSessions(ctx, pgtype.Timestamptz{Time: now.Add(-2 * time.Minute), Valid: true}); err != nil {
+		t.Fatal(err)
+	}
+	var staged string
+	if err := pool.QueryRow(ctx, `SELECT status FROM file_upload_sessions WHERE id='01SESS0000000000000000005C'`).Scan(&staged); err != nil {
+		t.Fatal(err)
+	}
+	if staged != "staged" {
+		t.Fatalf("session expired early by an early caller now: status=%s", staged)
+	}
+	expired, err := q.ExpireUploadSessions(ctx, pgtype.Timestamptz{Time: now, Valid: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -473,11 +560,22 @@ func TestFileServiceJobLeaseAndDedupe(t *testing.T) {
 	}
 
 	// Claim leases the pending job, bumps its generation and fences with the
-	// owner: a stale generation cannot complete it.
+	// owner: a stale generation cannot complete it. A `now` before
+	// next_attempt_at claims nothing - the caller's clock decides runnability.
+	now := time.Now()
+	if claimed, err := q.ClaimFileJobs(ctx, db.ClaimFileJobsParams{
+		LeaseOwner:     pgtype.Text{String: "worker-0", Valid: true},
+		LeaseExpiresAt: pgtype.Timestamptz{Time: now.Add(time.Minute), Valid: true},
+		Now:            pgtype.Timestamptz{Time: now.Add(-time.Hour), Valid: true},
+		LimitN:         10,
+	}); err != nil || len(claimed) != 0 {
+		t.Fatalf("claim with early now got %d jobs err=%v, want 0", len(claimed), err)
+	}
 	claimed, err := q.ClaimFileJobs(ctx, db.ClaimFileJobsParams{
-		LeaseOwner:   pgtype.Text{String: "worker-1", Valid: true},
-		LeaseSeconds: 60,
-		LimitN:       10,
+		LeaseOwner:     pgtype.Text{String: "worker-1", Valid: true},
+		LeaseExpiresAt: pgtype.Timestamptz{Time: now.Add(time.Minute), Valid: true},
+		Now:            pgtype.Timestamptz{Time: now, Valid: true},
+		LimitN:         10,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -490,17 +588,23 @@ func TestFileServiceJobLeaseAndDedupe(t *testing.T) {
 		t.Fatalf("generation after first lease = %d, want 1", job.Generation)
 	}
 	if n, err := q.CompleteFileJob(ctx, db.CompleteFileJobParams{
-		ID: job.ID, Generation: job.Generation - 1, LeaseOwner: pgtype.Text{String: "worker-1", Valid: true},
+		ID: job.ID, Generation: job.Generation - 1,
+		LeaseOwner: pgtype.Text{String: "worker-1", Valid: true},
+		FinishedAt: pgtype.Timestamptz{Time: now, Valid: true},
 	}); err != nil || n != 0 {
 		t.Fatalf("stale generation completed n=%d err=%v, want 0", n, err)
 	}
 	if n, err := q.CompleteFileJob(ctx, db.CompleteFileJobParams{
-		ID: job.ID, Generation: job.Generation, LeaseOwner: pgtype.Text{String: "worker-other", Valid: true},
+		ID: job.ID, Generation: job.Generation,
+		LeaseOwner: pgtype.Text{String: "worker-other", Valid: true},
+		FinishedAt: pgtype.Timestamptz{Time: now, Valid: true},
 	}); err != nil || n != 0 {
 		t.Fatalf("foreign owner completed n=%d err=%v, want 0", n, err)
 	}
 	if n, err := q.CompleteFileJob(ctx, db.CompleteFileJobParams{
-		ID: job.ID, Generation: job.Generation, LeaseOwner: pgtype.Text{String: "worker-1", Valid: true},
+		ID: job.ID, Generation: job.Generation,
+		LeaseOwner: pgtype.Text{String: "worker-1", Valid: true},
+		FinishedAt: pgtype.Timestamptz{Time: now, Valid: true},
 	}); err != nil || n != 1 {
 		t.Fatalf("rightful completion: n=%d err=%v, want 1", n, err)
 	}
@@ -518,9 +622,10 @@ func TestFileServiceJobLeaseAndDedupe(t *testing.T) {
 		t.Fatal(err)
 	}
 	claimed, err = q.ClaimFileJobs(ctx, db.ClaimFileJobsParams{
-		LeaseOwner:   pgtype.Text{String: "worker-2", Valid: true},
-		LeaseSeconds: 60,
-		LimitN:       10,
+		LeaseOwner:     pgtype.Text{String: "worker-2", Valid: true},
+		LeaseExpiresAt: pgtype.Timestamptz{Time: now.Add(time.Minute), Valid: true},
+		Now:            pgtype.Timestamptz{Time: now, Valid: true},
+		LimitN:         10,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -544,5 +649,80 @@ func TestFileServiceJobLeaseAndDedupe(t *testing.T) {
 	}
 	if status != "pending" || attempt != 1 {
 		t.Fatalf("after retry: status=%s attempt=%d, want pending/1", status, attempt)
+	}
+}
+
+func TestFileServiceFailureCode(t *testing.T) {
+	pool, ctx := fileServicePool(t)
+	q := db.New(pool)
+
+	insertFile(t, pool, ctx, "01FILE0000000000000000008A", fsOrgA, "s3", "b", "k/fc-1")
+	insertFile(t, pool, ctx, "01FILE0000000000000000008B", fsOrgA, "s3", "b", "k/fc-2")
+	insertFile(t, pool, ctx, "01FILE0000000000000000008C", fsOrgA, "s3", "b", "k/fc-3")
+	insertFile(t, pool, ctx, "01FILE0000000000000000008D", fsOrgA, "s3", "b", "k/fc-4")
+
+	// A refusal stores its FS-C1 code on a canceled session with the caller's
+	// clock, so a replay of the same idempotency key re-answers the code.
+	insertSession(t, pool, ctx, "01SESS0000000000000000008A", "01FILE0000000000000000008A",
+		"audit_export", fsOrgA, nil, nil, "idem-fc-1")
+	closedAt := time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC)
+	if n, err := q.RefuseUploadSession(ctx, db.RefuseUploadSessionParams{
+		ID:          "01SESS0000000000000000008A",
+		FailureCode: pgtype.Text{String: "file_too_large", Valid: true},
+		ClosedAt:    pgtype.Timestamptz{Time: closedAt, Valid: true},
+	}); err != nil || n != 1 {
+		t.Fatalf("refuse open session: n=%d err=%v, want 1", n, err)
+	}
+	var status, code string
+	var closed time.Time
+	if err := pool.QueryRow(ctx, `SELECT status, failure_code, closed_at FROM file_upload_sessions
+		WHERE id='01SESS0000000000000000008A'`).Scan(&status, &code, &closed); err != nil {
+		t.Fatal(err)
+	}
+	if status != "canceled" || code != "file_too_large" || !closed.Equal(closedAt) {
+		t.Fatalf("refused session: status=%s code=%s closed_at=%v", status, code, closed)
+	}
+
+	// A code outside the two permanent refusals is rejected by the CHECK.
+	insertSession(t, pool, ctx, "01SESS0000000000000000008B", "01FILE0000000000000000008B",
+		"audit_export", fsOrgA, nil, nil, "idem-fc-2")
+	_, err := q.RefuseUploadSession(ctx, db.RefuseUploadSessionParams{
+		ID:          "01SESS0000000000000000008B",
+		FailureCode: pgtype.Text{String: "file_not_found", Valid: true},
+		ClosedAt:    pgtype.Timestamptz{Time: closedAt, Valid: true},
+	})
+	wantPgError(t, err, "23514", "file_upload_sessions_failure_code_check")
+
+	// failure_code on a non-canceled session is rejected by the CHECK.
+	insertSession(t, pool, ctx, "01SESS0000000000000000008C", "01FILE0000000000000000008C",
+		"audit_export", fsOrgA, nil, nil, "idem-fc-3")
+	_, err = pool.Exec(ctx, `UPDATE file_upload_sessions SET failure_code='file_too_large'
+		WHERE id='01SESS0000000000000000008C'`)
+	wantPgError(t, err, "23514", "file_upload_sessions_failure_code_check")
+
+	// Terminal rows never resurrect: a second refuse on the canceled session
+	// changes zero rows.
+	insertSession(t, pool, ctx, "01SESS0000000000000000008D", "01FILE0000000000000000008D",
+		"audit_export", fsOrgA, nil, nil, "idem-fc-4")
+	if n, err := q.CancelUploadSession(ctx, db.CancelUploadSessionParams{
+		ID:       "01SESS0000000000000000008D",
+		ClosedAt: pgtype.Timestamptz{Time: closedAt, Valid: true},
+	}); err != nil || n != 1 {
+		t.Fatalf("plain cancel: n=%d err=%v, want 1", n, err)
+	}
+	if n, err := q.RefuseUploadSession(ctx, db.RefuseUploadSessionParams{
+		ID:          "01SESS0000000000000000008D",
+		FailureCode: pgtype.Text{String: "file_type_rejected", Valid: true},
+		ClosedAt:    pgtype.Timestamptz{Time: closedAt, Valid: true},
+	}); err != nil || n != 0 {
+		t.Fatalf("refuse on terminal session: n=%d err=%v, want 0", n, err)
+	}
+	var nullCode *string
+	if err := pool.QueryRow(ctx, `SELECT failure_code FROM file_upload_sessions
+		WHERE id='01SESS0000000000000000008D'`).Scan(&nullCode); err != nil {
+		t.Fatal(err)
+	}
+	if nullCode != nil {
+		t.Fatalf("plain cancel must keep failure_code NULL, got %q", *nullCode)
 	}
 }

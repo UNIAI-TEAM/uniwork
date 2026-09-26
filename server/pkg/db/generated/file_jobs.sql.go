@@ -16,23 +16,24 @@ UPDATE file_jobs SET
   status = 'canceled',
   lease_owner = NULL,
   lease_expires_at = NULL,
-  finished_at = now(),
+  finished_at = $1,
   updated_at = now()
-WHERE file_id = $1
-  AND operation = $2
+WHERE file_id = $2
+  AND operation = $3
   AND status = 'pending'
 `
 
 type CancelPendingFileJobsParams struct {
-	FileID    string `json:"file_id"`
-	Operation string `json:"operation"`
+	FinishedAt pgtype.Timestamptz `json:"finished_at"`
+	FileID     string             `json:"file_id"`
+	Operation  string             `json:"operation"`
 }
 
 // Claim/GC voids queued same-operation work for a file (e.g. a cleanup job
 // whose file just got referenced). Only pending rows cancel - a leased row
-// is fenced by its generation instead.
+// is fenced by its generation instead. finished_at is caller-supplied.
 func (q *Queries) CancelPendingFileJobs(ctx context.Context, arg CancelPendingFileJobsParams) (int64, error) {
-	result, err := q.db.Exec(ctx, cancelPendingFileJobs, arg.FileID, arg.Operation)
+	result, err := q.db.Exec(ctx, cancelPendingFileJobs, arg.FinishedAt, arg.FileID, arg.Operation)
 	if err != nil {
 		return 0, err
 	}
@@ -43,30 +44,37 @@ const claimFileJobs = `-- name: ClaimFileJobs :many
 UPDATE file_jobs SET
   status = 'leased',
   lease_owner = $1,
-  lease_expires_at = now() + make_interval(secs => $2::double precision),
+  lease_expires_at = $2,
   generation = generation + 1,
   updated_at = now()
 WHERE id IN (
-  SELECT id FROM file_jobs
-  WHERE status = 'pending' AND next_attempt_at <= now()
-  ORDER BY next_attempt_at, id
-  LIMIT $3
+  SELECT file_jobs.id FROM file_jobs
+  WHERE file_jobs.status = 'pending' AND file_jobs.next_attempt_at <= $3
+  ORDER BY file_jobs.next_attempt_at, file_jobs.id
+  LIMIT $4
   FOR UPDATE SKIP LOCKED
 )
 RETURNING id, file_id, organization_id, operation, status, attempt, next_attempt_at, lease_owner, lease_expires_at, generation, error_code, details, retain_until, created_at, updated_at, finished_at
 `
 
 type ClaimFileJobsParams struct {
-	LeaseOwner   pgtype.Text `json:"lease_owner"`
-	LeaseSeconds float64     `json:"lease_seconds"`
-	LimitN       int32       `json:"limit_n"`
+	LeaseOwner     pgtype.Text        `json:"lease_owner"`
+	LeaseExpiresAt pgtype.Timestamptz `json:"lease_expires_at"`
+	Now            pgtype.Timestamptz `json:"now"`
+	LimitN         int32              `json:"limit_n"`
 }
 
 // Lease the next runnable batch. SKIP LOCKED lets replicas share the scan;
 // the UPDATE flips each winner to leased with owner + expiry + a bumped
-// generation, so a late-finish from an older lease is fenced off.
+// generation, so a late-finish from an older lease is fenced off. `now` and
+// `lease_expires_at` are caller-supplied so lease timing is deterministic.
 func (q *Queries) ClaimFileJobs(ctx context.Context, arg ClaimFileJobsParams) ([]FileJob, error) {
-	rows, err := q.db.Query(ctx, claimFileJobs, arg.LeaseOwner, arg.LeaseSeconds, arg.LimitN)
+	rows, err := q.db.Query(ctx, claimFileJobs,
+		arg.LeaseOwner,
+		arg.LeaseExpiresAt,
+		arg.Now,
+		arg.LimitN,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -109,24 +117,30 @@ UPDATE file_jobs SET
   lease_owner = NULL,
   lease_expires_at = NULL,
   error_code = NULL,
-  finished_at = now(),
+  finished_at = $1,
   updated_at = now()
-WHERE id = $1
+WHERE id = $2
   AND status = 'leased'
-  AND generation = $2
-  AND lease_owner = $3
+  AND generation = $3
+  AND lease_owner = $4
 `
 
 type CompleteFileJobParams struct {
-	ID         string      `json:"id"`
-	Generation int32       `json:"generation"`
-	LeaseOwner pgtype.Text `json:"lease_owner"`
+	FinishedAt pgtype.Timestamptz `json:"finished_at"`
+	ID         string             `json:"id"`
+	Generation int32              `json:"generation"`
+	LeaseOwner pgtype.Text        `json:"lease_owner"`
 }
 
 // leased -> succeeded, fenced by owner + generation so only the live holder
-// can close the job.
+// can close the job. finished_at is caller-supplied.
 func (q *Queries) CompleteFileJob(ctx context.Context, arg CompleteFileJobParams) (int64, error) {
-	result, err := q.db.Exec(ctx, completeFileJob, arg.ID, arg.Generation, arg.LeaseOwner)
+	result, err := q.db.Exec(ctx, completeFileJob,
+		arg.FinishedAt,
+		arg.ID,
+		arg.Generation,
+		arg.LeaseOwner,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -182,26 +196,28 @@ UPDATE file_jobs SET
   error_code = $1,
   lease_owner = NULL,
   lease_expires_at = NULL,
-  finished_at = now(),
+  finished_at = $2,
   updated_at = now()
-WHERE id = $2
+WHERE id = $3
   AND status = 'leased'
-  AND generation = $3
-  AND lease_owner = $4
+  AND generation = $4
+  AND lease_owner = $5
 `
 
 type FailFileJobParams struct {
-	ErrorCode  pgtype.Text `json:"error_code"`
-	ID         string      `json:"id"`
-	Generation int32       `json:"generation"`
-	LeaseOwner pgtype.Text `json:"lease_owner"`
+	ErrorCode  pgtype.Text        `json:"error_code"`
+	FinishedAt pgtype.Timestamptz `json:"finished_at"`
+	ID         string             `json:"id"`
+	Generation int32              `json:"generation"`
+	LeaseOwner pgtype.Text        `json:"lease_owner"`
 }
 
 // Terminal failure after a retry sequence the worker chooses to stop:
-// leased -> failed, fenced the same way.
+// leased -> failed, fenced the same way. finished_at is caller-supplied.
 func (q *Queries) FailFileJob(ctx context.Context, arg FailFileJobParams) (int64, error) {
 	result, err := q.db.Exec(ctx, failFileJob,
 		arg.ErrorCode,
+		arg.FinishedAt,
 		arg.ID,
 		arg.Generation,
 		arg.LeaseOwner,
@@ -336,13 +352,13 @@ UPDATE file_jobs SET
   lease_owner = NULL,
   lease_expires_at = NULL,
   updated_at = now()
-WHERE status = 'leased' AND lease_expires_at <= now()
+WHERE status = 'leased' AND lease_expires_at <= $1
 `
 
 // Crashed-worker recovery: a lease that outlived its expiry returns to
-// pending and is claimable again.
-func (q *Queries) ReleaseExpiredFileJobLeases(ctx context.Context) (int64, error) {
-	result, err := q.db.Exec(ctx, releaseExpiredFileJobLeases)
+// pending and is claimable again. `now` is the caller's sweep instant.
+func (q *Queries) ReleaseExpiredFileJobLeases(ctx context.Context, now pgtype.Timestamptz) (int64, error) {
+	result, err := q.db.Exec(ctx, releaseExpiredFileJobLeases, now)
 	if err != nil {
 		return 0, err
 	}

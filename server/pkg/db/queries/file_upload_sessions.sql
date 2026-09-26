@@ -26,15 +26,20 @@ SELECT * FROM file_upload_sessions WHERE id = sqlc.arg('id');
 SELECT * FROM file_upload_sessions WHERE id = sqlc.arg('id') FOR UPDATE;
 
 -- name: FindUploadSessionByIdempotencyKey :one
--- Replay lookup: the key is bound to the same actor pair, purpose and full
--- scope (T1-Q8). IS NOT DISTINCT FROM keeps NULL scope fields comparable.
+-- Organization branch (T1-Q8): a key is unique per tenant, so this returns
+-- the stored session for ANY same-key replay inside the organization - the
+-- service compares command_fingerprint and answers idempotency_conflict when
+-- the command differs, instead of a second row ever existing.
 SELECT * FROM file_upload_sessions
-WHERE created_by_kind = sqlc.arg('created_by_kind')
+WHERE organization_id = sqlc.arg('organization_id')
+  AND idempotency_key = sqlc.arg('idempotency_key');
+
+-- name: FindUserUploadSessionByIdempotencyKey :one
+-- Identity branch (organization_id IS NULL, ADR 0023): the key is unique per
+-- uploader, so a replay finds the stored session by actor + key.
+SELECT * FROM file_upload_sessions
+WHERE organization_id IS NULL
   AND created_by = sqlc.arg('created_by')
-  AND purpose = sqlc.arg('purpose')
-  AND organization_id IS NOT DISTINCT FROM sqlc.arg('organization_id')
-  AND workspace_id IS NOT DISTINCT FROM sqlc.arg('workspace_id')
-  AND user_id IS NOT DISTINCT FROM sqlc.arg('user_id')
   AND idempotency_key = sqlc.arg('idempotency_key');
 
 -- name: GetUploadSessionByProviderOp :one
@@ -58,6 +63,7 @@ FOR UPDATE;
 -- name: AcquireUploadSessionLease :execrows
 -- Write lease: take it only while the session is still open and no live lease
 -- blocks it. Zero rows means another writer owns it - refuse, do not wait.
+-- `now` comes from the caller so the expiry check is deterministic in tests.
 UPDATE file_upload_sessions SET
   lease_owner = sqlc.arg('lease_owner'),
   lease_expires_at = sqlc.arg('lease_expires_at'),
@@ -65,7 +71,7 @@ UPDATE file_upload_sessions SET
 WHERE id = sqlc.arg('id')
   AND status IN ('receiving', 'staged')
   AND (lease_expires_at IS NULL
-       OR lease_expires_at <= now()
+       OR lease_expires_at <= sqlc.arg('now')
        OR lease_owner = sqlc.arg('lease_owner'));
 
 -- name: ReleaseUploadSessionLease :execrows
@@ -90,13 +96,14 @@ WHERE id = sqlc.arg('id') AND status = 'receiving';
 -- Claim consumes the grant: staged -> claimed, only inside the deadline.
 -- Zero rows means already claimed/canceled/expired or past the window - the
 -- service maps that to file_already_claimed / file_claim_expired (T1-Q5).
+-- `now` comes from the caller so the deadline check is deterministic.
 UPDATE file_upload_sessions SET
   status = 'claimed',
-  closed_at = now(),
+  closed_at = sqlc.arg('now'),
   updated_at = now()
 WHERE id = sqlc.arg('id')
   AND status = 'staged'
-  AND claim_expires_at > now();
+  AND claim_expires_at > sqlc.arg('now');
 
 -- name: CancelUploadSession :execrows
 -- Either open state -> canceled; terminal rows never resurrect (T1-Q8).
@@ -104,7 +111,21 @@ UPDATE file_upload_sessions SET
   status = 'canceled',
   lease_owner = NULL,
   lease_expires_at = NULL,
-  closed_at = now(),
+  closed_at = sqlc.arg('closed_at'),
+  updated_at = now()
+WHERE id = sqlc.arg('id') AND status IN ('receiving', 'staged');
+
+-- name: RefuseUploadSession :execrows
+-- A permanent refusal (file_too_large | file_type_rejected) closes the
+-- session WITH its code, so a replay of the same idempotency key answers the
+-- same refusal without reading a body (T1-Q8, contract
+-- upload/over_cap_is_refused). `closed_at` is the caller's clock.
+UPDATE file_upload_sessions SET
+  status = 'canceled',
+  failure_code = sqlc.arg('failure_code'),
+  lease_owner = NULL,
+  lease_expires_at = NULL,
+  closed_at = sqlc.arg('closed_at'),
   updated_at = now()
 WHERE id = sqlc.arg('id') AND status IN ('receiving', 'staged');
 
@@ -114,19 +135,20 @@ UPDATE file_upload_sessions SET
   status = 'canceled',
   lease_owner = NULL,
   lease_expires_at = NULL,
-  closed_at = now(),
+  closed_at = sqlc.arg('closed_at'),
   updated_at = now()
 WHERE organization_id = sqlc.arg('organization_id')
   AND status IN ('receiving', 'staged');
 
 -- name: ExpireUploadSessions :many
 -- Daily sweep: staged sessions past the claim deadline. The update marks
--- them and returns the rows so the worker can schedule file cleanup.
+-- them and returns the rows so the worker can schedule file cleanup. `now`
+-- is the caller's sweep instant.
 UPDATE file_upload_sessions SET
   status = 'expired',
-  closed_at = now(),
+  closed_at = sqlc.arg('now'),
   updated_at = now()
-WHERE status = 'staged' AND claim_expires_at <= now()
+WHERE status = 'staged' AND claim_expires_at <= sqlc.arg('now')
 RETURNING *;
 
 -- name: BumpUploadSessionFile :execrows

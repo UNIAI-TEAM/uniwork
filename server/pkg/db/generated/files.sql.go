@@ -333,14 +333,20 @@ func (q *Queries) LockFilesInIDOrder(ctx context.Context, fileIds []string) ([]F
 const markFileDeleted = `-- name: MarkFileDeleted :execrows
 UPDATE files SET
   status = 'deleted',
-  deleted_at = now(),
+  deleted_at = $1,
   updated_at = now()
-WHERE id = $1 AND status = 'deleting'
+WHERE id = $2 AND status = 'deleting'
 `
 
-// Tombstone: only from deleting, after bytes are gone.
-func (q *Queries) MarkFileDeleted(ctx context.Context, id string) (int64, error) {
-	result, err := q.db.Exec(ctx, markFileDeleted, id)
+type MarkFileDeletedParams struct {
+	DeletedAt pgtype.Timestamptz `json:"deleted_at"`
+	ID        string             `json:"id"`
+}
+
+// Tombstone: only from deleting, after bytes are gone. deleted_at is
+// caller-supplied so reconcile and GC share one clock.
+func (q *Queries) MarkFileDeleted(ctx context.Context, arg MarkFileDeletedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, markFileDeleted, arg.DeletedAt, arg.ID)
 	if err != nil {
 		return 0, err
 	}
@@ -388,22 +394,24 @@ UPDATE files SET
   checksum_sha256 = $3,
   metadata = $4::jsonb,
   object_version = $5,
-  ready_at = COALESCE(ready_at, now()),
+  ready_at = COALESCE(ready_at, $6),
   updated_at = now()
-WHERE id = $6 AND status IN ('pending', 'processing')
+WHERE id = $7 AND status IN ('pending', 'processing')
 `
 
 type MarkFileReadyParams struct {
-	ContentType    pgtype.Text `json:"content_type"`
-	SizeBytes      pgtype.Int8 `json:"size_bytes"`
-	ChecksumSha256 pgtype.Text `json:"checksum_sha256"`
-	Metadata       []byte      `json:"metadata"`
-	ObjectVersion  pgtype.Text `json:"object_version"`
-	ID             string      `json:"id"`
+	ContentType    pgtype.Text        `json:"content_type"`
+	SizeBytes      pgtype.Int8        `json:"size_bytes"`
+	ChecksumSha256 pgtype.Text        `json:"checksum_sha256"`
+	Metadata       []byte             `json:"metadata"`
+	ObjectVersion  pgtype.Text        `json:"object_version"`
+	ReadyAt        pgtype.Timestamptz `json:"ready_at"`
+	ID             string             `json:"id"`
 }
 
 // Pending/processing -> ready with the verified content fields; ready_at is
 // set exactly once (COALESCE keeps the first stamp) and never moves again.
+// ready_at is caller-supplied so the file-age anchor is deterministic.
 func (q *Queries) MarkFileReady(ctx context.Context, arg MarkFileReadyParams) (int64, error) {
 	result, err := q.db.Exec(ctx, markFileReady,
 		arg.ContentType,
@@ -411,6 +419,7 @@ func (q *Queries) MarkFileReady(ctx context.Context, arg MarkFileReadyParams) (i
 		arg.ChecksumSha256,
 		arg.Metadata,
 		arg.ObjectVersion,
+		arg.ReadyAt,
 		arg.ID,
 	)
 	if err != nil {
