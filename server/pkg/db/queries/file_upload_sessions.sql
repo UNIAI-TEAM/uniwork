@@ -115,6 +115,20 @@ UPDATE file_upload_sessions SET
   updated_at = now()
 WHERE id = sqlc.arg('id') AND status IN ('receiving', 'staged');
 
+-- name: RefuseUploadSession :execrows
+-- A permanent refusal (file_too_large | file_type_rejected) closes the
+-- session WITH its code, so a replay of the same idempotency key answers the
+-- same refusal without reading a body (T1-Q8, contract
+-- upload/over_cap_is_refused). `closed_at` is the caller's clock.
+UPDATE file_upload_sessions SET
+  status = 'canceled',
+  failure_code = sqlc.arg('failure_code'),
+  lease_owner = NULL,
+  lease_expires_at = NULL,
+  closed_at = sqlc.arg('closed_at'),
+  updated_at = now()
+WHERE id = sqlc.arg('id') AND status IN ('receiving', 'staged');
+
 -- name: CancelOrgUploadSessions :execrows
 -- Tenant teardown: every still-open session in the organization is canceled.
 UPDATE file_upload_sessions SET

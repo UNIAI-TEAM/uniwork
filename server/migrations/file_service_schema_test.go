@@ -651,3 +651,78 @@ func TestFileServiceJobLeaseAndDedupe(t *testing.T) {
 		t.Fatalf("after retry: status=%s attempt=%d, want pending/1", status, attempt)
 	}
 }
+
+func TestFileServiceFailureCode(t *testing.T) {
+	pool, ctx := fileServicePool(t)
+	q := db.New(pool)
+
+	insertFile(t, pool, ctx, "01FILE0000000000000000008A", fsOrgA, "s3", "b", "k/fc-1")
+	insertFile(t, pool, ctx, "01FILE0000000000000000008B", fsOrgA, "s3", "b", "k/fc-2")
+	insertFile(t, pool, ctx, "01FILE0000000000000000008C", fsOrgA, "s3", "b", "k/fc-3")
+	insertFile(t, pool, ctx, "01FILE0000000000000000008D", fsOrgA, "s3", "b", "k/fc-4")
+
+	// A refusal stores its FS-C1 code on a canceled session with the caller's
+	// clock, so a replay of the same idempotency key re-answers the code.
+	insertSession(t, pool, ctx, "01SESS0000000000000000008A", "01FILE0000000000000000008A",
+		"audit_export", fsOrgA, nil, nil, "idem-fc-1")
+	closedAt := time.Date(2026, 9, 26, 12, 0, 0, 0, time.UTC)
+	if n, err := q.RefuseUploadSession(ctx, db.RefuseUploadSessionParams{
+		ID:          "01SESS0000000000000000008A",
+		FailureCode: pgtype.Text{String: "file_too_large", Valid: true},
+		ClosedAt:    pgtype.Timestamptz{Time: closedAt, Valid: true},
+	}); err != nil || n != 1 {
+		t.Fatalf("refuse open session: n=%d err=%v, want 1", n, err)
+	}
+	var status, code string
+	var closed time.Time
+	if err := pool.QueryRow(ctx, `SELECT status, failure_code, closed_at FROM file_upload_sessions
+		WHERE id='01SESS0000000000000000008A'`).Scan(&status, &code, &closed); err != nil {
+		t.Fatal(err)
+	}
+	if status != "canceled" || code != "file_too_large" || !closed.Equal(closedAt) {
+		t.Fatalf("refused session: status=%s code=%s closed_at=%v", status, code, closed)
+	}
+
+	// A code outside the two permanent refusals is rejected by the CHECK.
+	insertSession(t, pool, ctx, "01SESS0000000000000000008B", "01FILE0000000000000000008B",
+		"audit_export", fsOrgA, nil, nil, "idem-fc-2")
+	_, err := q.RefuseUploadSession(ctx, db.RefuseUploadSessionParams{
+		ID:          "01SESS0000000000000000008B",
+		FailureCode: pgtype.Text{String: "file_not_found", Valid: true},
+		ClosedAt:    pgtype.Timestamptz{Time: closedAt, Valid: true},
+	})
+	wantPgError(t, err, "23514", "file_upload_sessions_failure_code_check")
+
+	// failure_code on a non-canceled session is rejected by the CHECK.
+	insertSession(t, pool, ctx, "01SESS0000000000000000008C", "01FILE0000000000000000008C",
+		"audit_export", fsOrgA, nil, nil, "idem-fc-3")
+	_, err = pool.Exec(ctx, `UPDATE file_upload_sessions SET failure_code='file_too_large'
+		WHERE id='01SESS0000000000000000008C'`)
+	wantPgError(t, err, "23514", "file_upload_sessions_failure_code_check")
+
+	// Terminal rows never resurrect: a second refuse on the canceled session
+	// changes zero rows.
+	insertSession(t, pool, ctx, "01SESS0000000000000000008D", "01FILE0000000000000000008D",
+		"audit_export", fsOrgA, nil, nil, "idem-fc-4")
+	if n, err := q.CancelUploadSession(ctx, db.CancelUploadSessionParams{
+		ID:       "01SESS0000000000000000008D",
+		ClosedAt: pgtype.Timestamptz{Time: closedAt, Valid: true},
+	}); err != nil || n != 1 {
+		t.Fatalf("plain cancel: n=%d err=%v, want 1", n, err)
+	}
+	if n, err := q.RefuseUploadSession(ctx, db.RefuseUploadSessionParams{
+		ID:          "01SESS0000000000000000008D",
+		FailureCode: pgtype.Text{String: "file_type_rejected", Valid: true},
+		ClosedAt:    pgtype.Timestamptz{Time: closedAt, Valid: true},
+	}); err != nil || n != 0 {
+		t.Fatalf("refuse on terminal session: n=%d err=%v, want 0", n, err)
+	}
+	var nullCode *string
+	if err := pool.QueryRow(ctx, `SELECT failure_code FROM file_upload_sessions
+		WHERE id='01SESS0000000000000000008D'`).Scan(&nullCode); err != nil {
+		t.Fatal(err)
+	}
+	if nullCode != nil {
+		t.Fatalf("plain cancel must keep failure_code NULL, got %q", *nullCode)
+	}
+}

@@ -584,6 +584,8 @@ type FileUploadSession struct {
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 	// Terminal mark: set exactly when the session turns claimed, canceled or expired; NULL while receiving or staged.
 	ClosedAt pgtype.Timestamptz `json:"closed_at"`
+	// FS-C1 section 7 code of the permanent refusal this upload ended with (file_too_large | file_type_rejected), replayed for the same idempotency key without re-reading the body. NULL on every session that was not refused, including a plain cancel.
+	FailureCode pgtype.Text `json:"failure_code"`
 }
 
 type HomePreference struct {

@@ -154,7 +154,7 @@ UPDATE file_upload_sessions SET
   closed_at = $1,
   updated_at = now()
 WHERE status = 'staged' AND claim_expires_at <= $1
-RETURNING id, file_id, created_by, created_by_kind, purpose, organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status, provider_operation_id, generation, claim_expires_at, lease_owner, lease_expires_at, created_at, updated_at, closed_at
+RETURNING id, file_id, created_by, created_by_kind, purpose, organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status, provider_operation_id, generation, claim_expires_at, lease_owner, lease_expires_at, created_at, updated_at, closed_at, failure_code
 `
 
 // Daily sweep: staged sessions past the claim deadline. The update marks
@@ -189,6 +189,7 @@ func (q *Queries) ExpireUploadSessions(ctx context.Context, now pgtype.Timestamp
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ClosedAt,
+			&i.FailureCode,
 		); err != nil {
 			return nil, err
 		}
@@ -201,7 +202,7 @@ func (q *Queries) ExpireUploadSessions(ctx context.Context, now pgtype.Timestamp
 }
 
 const findUploadSessionByIdempotencyKey = `-- name: FindUploadSessionByIdempotencyKey :one
-SELECT id, file_id, created_by, created_by_kind, purpose, organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status, provider_operation_id, generation, claim_expires_at, lease_owner, lease_expires_at, created_at, updated_at, closed_at FROM file_upload_sessions
+SELECT id, file_id, created_by, created_by_kind, purpose, organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status, provider_operation_id, generation, claim_expires_at, lease_owner, lease_expires_at, created_at, updated_at, closed_at, failure_code FROM file_upload_sessions
 WHERE organization_id = $1
   AND idempotency_key = $2
 `
@@ -238,12 +239,13 @@ func (q *Queries) FindUploadSessionByIdempotencyKey(ctx context.Context, arg Fin
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ClosedAt,
+		&i.FailureCode,
 	)
 	return i, err
 }
 
 const findUserUploadSessionByIdempotencyKey = `-- name: FindUserUploadSessionByIdempotencyKey :one
-SELECT id, file_id, created_by, created_by_kind, purpose, organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status, provider_operation_id, generation, claim_expires_at, lease_owner, lease_expires_at, created_at, updated_at, closed_at FROM file_upload_sessions
+SELECT id, file_id, created_by, created_by_kind, purpose, organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status, provider_operation_id, generation, claim_expires_at, lease_owner, lease_expires_at, created_at, updated_at, closed_at, failure_code FROM file_upload_sessions
 WHERE organization_id IS NULL
   AND created_by = $1
   AND idempotency_key = $2
@@ -279,12 +281,13 @@ func (q *Queries) FindUserUploadSessionByIdempotencyKey(ctx context.Context, arg
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ClosedAt,
+		&i.FailureCode,
 	)
 	return i, err
 }
 
 const getUploadSessionByFile = `-- name: GetUploadSessionByFile :one
-SELECT id, file_id, created_by, created_by_kind, purpose, organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status, provider_operation_id, generation, claim_expires_at, lease_owner, lease_expires_at, created_at, updated_at, closed_at FROM file_upload_sessions WHERE file_id = $1
+SELECT id, file_id, created_by, created_by_kind, purpose, organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status, provider_operation_id, generation, claim_expires_at, lease_owner, lease_expires_at, created_at, updated_at, closed_at, failure_code FROM file_upload_sessions WHERE file_id = $1
 `
 
 // file_id is unique per session; the session row is the temporary grant the
@@ -312,12 +315,13 @@ func (q *Queries) GetUploadSessionByFile(ctx context.Context, fileID string) (Fi
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ClosedAt,
+		&i.FailureCode,
 	)
 	return i, err
 }
 
 const getUploadSessionByID = `-- name: GetUploadSessionByID :one
-SELECT id, file_id, created_by, created_by_kind, purpose, organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status, provider_operation_id, generation, claim_expires_at, lease_owner, lease_expires_at, created_at, updated_at, closed_at FROM file_upload_sessions WHERE id = $1
+SELECT id, file_id, created_by, created_by_kind, purpose, organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status, provider_operation_id, generation, claim_expires_at, lease_owner, lease_expires_at, created_at, updated_at, closed_at, failure_code FROM file_upload_sessions WHERE id = $1
 `
 
 func (q *Queries) GetUploadSessionByID(ctx context.Context, id string) (FileUploadSession, error) {
@@ -343,12 +347,13 @@ func (q *Queries) GetUploadSessionByID(ctx context.Context, id string) (FileUplo
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ClosedAt,
+		&i.FailureCode,
 	)
 	return i, err
 }
 
 const getUploadSessionByIDForUpdate = `-- name: GetUploadSessionByIDForUpdate :one
-SELECT id, file_id, created_by, created_by_kind, purpose, organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status, provider_operation_id, generation, claim_expires_at, lease_owner, lease_expires_at, created_at, updated_at, closed_at FROM file_upload_sessions WHERE id = $1 FOR UPDATE
+SELECT id, file_id, created_by, created_by_kind, purpose, organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status, provider_operation_id, generation, claim_expires_at, lease_owner, lease_expires_at, created_at, updated_at, closed_at, failure_code FROM file_upload_sessions WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetUploadSessionByIDForUpdate(ctx context.Context, id string) (FileUploadSession, error) {
@@ -374,12 +379,13 @@ func (q *Queries) GetUploadSessionByIDForUpdate(ctx context.Context, id string) 
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ClosedAt,
+		&i.FailureCode,
 	)
 	return i, err
 }
 
 const getUploadSessionByProviderOp = `-- name: GetUploadSessionByProviderOp :one
-SELECT id, file_id, created_by, created_by_kind, purpose, organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status, provider_operation_id, generation, claim_expires_at, lease_owner, lease_expires_at, created_at, updated_at, closed_at FROM file_upload_sessions
+SELECT id, file_id, created_by, created_by_kind, purpose, organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status, provider_operation_id, generation, claim_expires_at, lease_owner, lease_expires_at, created_at, updated_at, closed_at, failure_code FROM file_upload_sessions
 WHERE provider_operation_id = $1
 `
 
@@ -407,6 +413,7 @@ func (q *Queries) GetUploadSessionByProviderOp(ctx context.Context, providerOper
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ClosedAt,
+		&i.FailureCode,
 	)
 	return i, err
 }
@@ -423,7 +430,7 @@ INSERT INTO file_upload_sessions (
   $6, $7, $8,
   $9, $10,
   $11
-) RETURNING id, file_id, created_by, created_by_kind, purpose, organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status, provider_operation_id, generation, claim_expires_at, lease_owner, lease_expires_at, created_at, updated_at, closed_at
+) RETURNING id, file_id, created_by, created_by_kind, purpose, organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status, provider_operation_id, generation, claim_expires_at, lease_owner, lease_expires_at, created_at, updated_at, closed_at, failure_code
 `
 
 type InsertUploadSessionParams struct {
@@ -482,12 +489,13 @@ func (q *Queries) InsertUploadSession(ctx context.Context, arg InsertUploadSessi
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ClosedAt,
+		&i.FailureCode,
 	)
 	return i, err
 }
 
 const lockUploadSessionsByFileIDs = `-- name: LockUploadSessionsByFileIDs :many
-SELECT id, file_id, created_by, created_by_kind, purpose, organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status, provider_operation_id, generation, claim_expires_at, lease_owner, lease_expires_at, created_at, updated_at, closed_at FROM file_upload_sessions
+SELECT id, file_id, created_by, created_by_kind, purpose, organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status, provider_operation_id, generation, claim_expires_at, lease_owner, lease_expires_at, created_at, updated_at, closed_at, failure_code FROM file_upload_sessions
 WHERE file_id = ANY($1::text[])
 ORDER BY file_id
 FOR UPDATE
@@ -524,6 +532,7 @@ func (q *Queries) LockUploadSessionsByFileIDs(ctx context.Context, fileIds []str
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ClosedAt,
+			&i.FailureCode,
 		); err != nil {
 			return nil, err
 		}
@@ -554,6 +563,35 @@ type MarkUploadSessionStagedParams struct {
 // (ready_at + 24h, T1-Q5) and drop the write lease.
 func (q *Queries) MarkUploadSessionStaged(ctx context.Context, arg MarkUploadSessionStagedParams) (int64, error) {
 	result, err := q.db.Exec(ctx, markUploadSessionStaged, arg.ClaimExpiresAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const refuseUploadSession = `-- name: RefuseUploadSession :execrows
+UPDATE file_upload_sessions SET
+  status = 'canceled',
+  failure_code = $1,
+  lease_owner = NULL,
+  lease_expires_at = NULL,
+  closed_at = $2,
+  updated_at = now()
+WHERE id = $3 AND status IN ('receiving', 'staged')
+`
+
+type RefuseUploadSessionParams struct {
+	FailureCode pgtype.Text        `json:"failure_code"`
+	ClosedAt    pgtype.Timestamptz `json:"closed_at"`
+	ID          string             `json:"id"`
+}
+
+// A permanent refusal (file_too_large | file_type_rejected) closes the
+// session WITH its code, so a replay of the same idempotency key answers the
+// same refusal without reading a body (T1-Q8, contract
+// upload/over_cap_is_refused). `closed_at` is the caller's clock.
+func (q *Queries) RefuseUploadSession(ctx context.Context, arg RefuseUploadSessionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, refuseUploadSession, arg.FailureCode, arg.ClosedAt, arg.ID)
 	if err != nil {
 		return 0, err
 	}
