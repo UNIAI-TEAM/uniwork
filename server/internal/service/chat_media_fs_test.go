@@ -30,8 +30,8 @@ import (
 var tinyFSFileBytes = []byte("%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\ntrailer\n%%EOF\n")
 
 // tinyFSVoiceBytes carries the EBML container magic a browser voice note
-// starts with. Until t1c-content-detect lands the fake's sniffer reports it
-// as video/webm or octet-stream, so happy-path voice uploads stay skipped.
+// starts with; the t1c shared detector maps it to audio/webm through the
+// chat_voice canonical types.
 var tinyFSVoiceBytes = []byte{0x1a, 0x45, 0xdf, 0xa3, 0x81, 0x00, 0x00, 0x00, 0x00}
 
 // chatFixtureFiles wires the in-memory FileService the FS-path tests need.
@@ -39,17 +39,6 @@ func chatFixtureFiles(t *testing.T) (*ChatService, *capturePublisher, *db.Querie
 	s, pub, q, ua, ub, w := chatFixture(t)
 	s.SetFiles(filesfake.New(filesfake.Options{}))
 	return s, pub, q, ua, ub, w
-}
-
-// skipVoiceUploadUntilT1C marks the assertions that need the shared content
-// detector (lane t1c-content-detect, UNI-739): filesfake's raw
-// http.DetectContentType can never produce the audio/* allowlist, so a real
-// voice upload is refused with file_type_rejected until that merge lands.
-func skipVoiceUploadUntilT1C(t *testing.T, err error) {
-	t.Helper()
-	if codedIs(err, files.CodeTypeRejected) {
-		t.Skip("voice upload refused by the raw sniffer: pending t1c-content-detect (UNI-739) merge")
-	}
 }
 
 // lookupPurposeSpec reads the registry row a chat purpose declares.
@@ -566,9 +555,9 @@ func TestSendVoiceMessageRejectsNonAudioFS(t *testing.T) {
 	}
 }
 
-// The voice happy path through FileService: duration in the metadata, the
-// file_id reference, and the peer's open going through files.Open. Skipped
-// until t1c-content-detect lands the shared detector in the fake.
+// A voice note uploads, verifies as audio/webm through the shared t1c
+// detector, claims in one transaction, replays idempotently and streams
+// back through files.Open.
 func TestSendVoiceMessageHappyPathFS(t *testing.T) {
 	s, pub, q, ua, ub, w := chatFixtureFiles(t)
 	ctx := context.Background()
@@ -583,7 +572,6 @@ func TestSendVoiceMessageHappyPathFS(t *testing.T) {
 		DurationMS: 12_500, Body: bytes.NewReader(tinyFSVoiceBytes), ClientMsgID: "fs-voice-happy-1",
 	})
 	if err != nil {
-		skipVoiceUploadUntilT1C(t, err)
 		t.Fatalf("send voice: %v", err)
 	}
 	if row.Kind != "voice" || row.Voice == nil {
@@ -714,5 +702,50 @@ func TestOpenChatFileMessageMetadataFileIDFallbackFS(t *testing.T) {
 	}
 	if got.File == nil || got.File.FileID == "" {
 		t.Fatalf("row file view = %#v, want the metadata file_id", got.File)
+	}
+}
+
+// F-T7R2-4: cancelStagedUpload runs on every post-upload error, but a file
+// that was claimed by a racing row must not be touched — CancelUpload answers
+// already_claimed and the reference (and bytes) stay.
+func TestCancelStagedUploadToleratesAlreadyClaimedFS(t *testing.T) {
+	s, _, _, ua, _, w := chatFixture(t)
+	ctx := context.Background()
+
+	inner := filesfake.New(filesfake.Options{})
+	s.SetFiles(inner)
+
+	scope := files.Scope{OrganizationID: w.OrganizationID, WorkspaceID: w.ID}
+	actor := audit.User(ua.ID)
+	up, err := inner.Upload(ctx, files.UploadInput{
+		Actor:          actor,
+		Purpose:        files.ChatAttachment,
+		Scope:          scope,
+		IdempotencyKey: "fs-claimed-1",
+		Filename:       "da-claim.pdf",
+		Body:           bytes.NewReader(tinyFSFileBytes),
+	})
+	if err != nil {
+		t.Fatalf("stage upload: %v", err)
+	}
+	if _, err := inner.ClaimInTx(ctx, s.q, files.ClaimInput{
+		Actor: actor, Purpose: files.ChatAttachment, Scope: scope,
+		FileIDs: []files.FileID{up.File.ID},
+	}); err != nil {
+		t.Fatalf("claim: %v", err)
+	}
+
+	// The racing-row case: the file is already attached, so the best-effort
+	// cancel must not release it.
+	s.cancelStagedUpload(ctx, actor, scope, up.File.ID)
+
+	rd, err := inner.Open(ctx, files.OpenInput{Scope: scope, FileID: up.File.ID})
+	if err != nil {
+		t.Fatalf("open after cancel = %v, want the claimed file still readable", err)
+	}
+	defer rd.Close()
+	data, err := io.ReadAll(rd.Body)
+	if err != nil || !bytes.Equal(data, tinyFSFileBytes) {
+		t.Fatalf("bytes after cancel: err=%v len=%d", err, len(data))
 	}
 }

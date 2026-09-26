@@ -132,17 +132,13 @@ func TestChatFileMessageFSLeavesLocalStorageEmpty(t *testing.T) {
 	}
 }
 
-// Voice uploads on the FS path stay gated on the shared content detector
-// (t1c-content-detect, UNI-739): filesfake's raw http.DetectContentType cannot
-// produce the audio/* allowlist, so the upload answers 415 until that merge
-// lands; bad envelopes still fail validation the same way.
+// Voice upload + DTO on the FS path: the shared content detector (t1c,
+// UNI-739) sniffs the EBML magic and maps it to audio/webm via the
+// chat_voice canonical types, so a real voice note is accepted.
 func TestSendChatVoiceMessageFS(t *testing.T) {
 	f := setupChatFixtureFiles(t, "fsvoice")
 
 	res, out := uploadChatVoice(t, f.srv.URL, f.tokens["a"], f.wsID, f.dmRoomID, 4_000, "fs-voice-1", tinyWebM)
-	if res.StatusCode == http.StatusUnsupportedMediaType {
-		t.Skip("voice bytes refused by the raw sniffer: pending t1c-content-detect (UNI-739) merge")
-	}
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("voice upload = %d %v", res.StatusCode, out)
 	}
