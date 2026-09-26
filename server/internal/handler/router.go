@@ -50,6 +50,11 @@ type Deps struct {
 	Meetings      *service.MeetingService
 	Chat          *service.ChatService
 	Hub           *realtime.Hub
+
+	// FileAccess is the FileService read path (T4); nil answers 501 on the
+	// file routes until the server wires it.
+	FileAccess *service.FileAccessService
+
 	// Redis is optional: nil disables the rate limiter and any other feature
 	// that needs shared state across instances.
 	Redis *redis.Client
@@ -474,6 +479,9 @@ func New(d Deps) http.Handler {
 		StreamChatVoiceRecording:         h.streamChatVoiceRecording,
 		SignalChatTyping:                 h.signalChatTyping,
 		SignalChatPresence:               h.signalChatPresence,
+
+		ResolveWorkspaceFiles: h.resolveWorkspaceFiles,
+		GetFileContent:        h.getFileContent,
 	})
 }
 

@@ -339,6 +339,10 @@ func pathParamSDI(path string) any {
 		return struct {
 			CommentID string `path:"commentID" description:"ULID bình luận" example:"01J8X4CMTN1P2Q3R4S5T6U7V"`
 		}{}
+	case "fileID":
+		return struct {
+			FileID string `path:"fileID" description:"ULID tệp" example:"01J8X4FILEN1P2Q3R4S5T6U7V8"`
+		}{}
 	case "attachmentID":
 		return struct {
 			AttachmentID string `path:"attachmentID" description:"ULID đính kèm" example:"01J8X4ATTN1P2Q3R4S5T6U7"`
