@@ -29,7 +29,7 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0015](0015-va-cache-tu-frame-realtime-theo-catalogue.md) | Vá cache từ frame realtime chỉ với trường catalogue khai ở `Patch`; guard `revision_before`/`revision` |
 | [0016](0016-work-product-la-bounded-context-tai-lieu-la-kho-duy-nhat.md) | Work Product là bounded context riêng; Document là kho duy nhất, không có bảng artifact riêng |
 | [0017](0017-mot-bang-execution-cho-nguoi-va-ai.md) | Một bảng execution cho người và AI; nguồn gốc là bảng nối, cấm suy diễn; hai cổng duyệt tách |
-| [0018](0018-engine-office-chay-o-sidecar-node.md) | Engine Office chạy ở sidecar Node dùng chung với UniWork Office; chỉ DOCX |
+| [0018](0018-engine-office-chay-o-sidecar-node.md) | Engine Office chạy ở sidecar Node dùng chung với UniWork Office; chỉ DOCX — **superseded by 0021** |
 | [0019](0019-do-thi-cong-viec-la-projection.md) | Đồ thị công việc là projection qua outbox; cấm suy diễn quan hệ |
 | [0020](0020-truy-van-bang-cong-viec-dung-sql-dong-trong-tablequery.md) | View Bảng dựng SQL động trong `pkg/db/tablequery` (whitelist, tham số hóa, luôn lọc tenant); sqlc vẫn là mặc định |
 | [0021](0021-runtime-engine-office-da-dinh-dang.md) | Runtime đa định dạng cho UniWork Office: editor ở trang host qua adapter tiêm, service nội bộ cho phần chạy ngoài trang, engine native riêng; thay thế 0018 |
@@ -40,6 +40,12 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 không được governance test đếm. Khi chấp nhận: chuyển ra thư mục này, đổi trạng thái
 `accepted`, thêm vào bảng trên, thêm luật vào `CLAUDE.md` kèm tên test giữ luật.
 
-Hiện `drafts/` không còn bản nháp: `drafts/documents-office-runtime.md` đã được chấp nhận thành
+`drafts/documents-office-runtime.md` đã được chấp nhận thành
 [0021](0021-runtime-engine-office-da-dinh-dang.md) ngày 2026-09-25 (DOC-001/UNI-665). Guard test của
 0021 land cùng G1/G2; đến lúc đó 0021 không thêm luật vào `CLAUDE.md`.
+
+Bản nháp đang chờ quyết định:
+
+| Bản nháp | Nội dung | Chờ |
+| --- | --- | --- |
+| [drafts/0022](drafts/0022-fileservice-so-huu-blob-intent-gc.md) | FileService sở hữu byte, ý định upload và dọn rác của Documents; Documents chỉ giữ `file_id`. Thay phần "sổ object mồ côi" trong QĐ3 của 0021 | Người dùng chấp nhận (U-2, plan G1-G2 §1.3); số 0022 là dự kiến |
