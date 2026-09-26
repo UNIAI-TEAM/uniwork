@@ -9,6 +9,7 @@ import { useWorkspaceAgents } from "@uniwork/core/agents";
 import { useResourceHistory } from "@uniwork/core/audit";
 import type { AuditEvent } from "@uniwork/core/types";
 import { TASK_COMMENT_ATTACHMENT_PURPOSE } from "@uniwork/core/constants/upload";
+import type { UploadContext } from "@uniwork/core/hooks/use-file-upload";
 import {
   useAddCommentReaction,
   useComments,
@@ -122,10 +123,10 @@ export function TaskDetailTimeline({
   // selector, or every render would produce a new identity and re-run the
   // scroll effect below.
   const expandedResolvedIds = useResolvedExpandedThreads(taskId);
-  const uploadCommentFile = useCallback(async (file: File) => {
+  const uploadCommentFile = useCallback(async (file: File, context?: UploadContext) => {
     const attachment = await uploadTaskAttachment({
       file,
-      purpose: TASK_COMMENT_ATTACHMENT_PURPOSE,
+      purpose: context?.purpose ?? TASK_COMMENT_ATTACHMENT_PURPOSE,
     });
     if (!attachment) throw new Error("upload failed");
     return attachment;
