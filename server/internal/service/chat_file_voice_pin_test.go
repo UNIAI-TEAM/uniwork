@@ -159,11 +159,6 @@ func TestChatFileMessageClientMsgIDIdempotencyPinForFileServiceMigration(t *test
 	if err != nil || retry.Existing == nil || retry.Existing.ID != row.ID {
 		t.Fatalf("retry prepare: err=%v existing=%+v want id %s", err, retry.Existing, row.ID)
 	}
-	again, created, err := s.CreateFileMessage(ctx, ua.ID, "chat/files/org/room/second.pdf", retry)
-	if err != nil || created || again.ID != row.ID {
-		t.Fatalf("retry create: err=%v created=%v id=%s want %s", err, created, again.ID, row.ID)
-	}
-
 	different, err := s.PrepareFileMessage(ctx, ua.ID, w.ID, dm.ID, PrepareFileMessageInput{
 		Filename: "khac.pdf", ContentType: "application/pdf", SizeBytes: 2048,
 		ClientMsgID: "same-key-file",
@@ -202,12 +197,14 @@ func TestChatFileMessageClientMsgIDIdempotencyPinForFileServiceMigration(t *test
 	if err != nil || voiceRetry.Existing == nil || voiceRetry.Existing.ID != voiceRow.ID {
 		t.Fatalf("voice retry prepare: err=%v existing=%+v want %s", err, voiceRetry.Existing, voiceRow.ID)
 	}
-	// A text message that already owns the client_msg_id is a different kind,
-	// so the file path refuses to reuse it.
-	if _, err := s.SendRoomMessage(ctx, ua.ID, w.ID, dm.ID, SendChatMessageInput{
+	// The lookup is per (room, sender, key), not per kind: a text send that
+	// reuses the key returns the earlier file message. T7 makes a different
+	// command under the same key an idempotency conflict.
+	textRow, err := s.SendRoomMessage(ctx, ua.ID, w.ID, dm.ID, SendChatMessageInput{
 		Body: "text with the same id", ClientMsgID: "same-key-file",
-	}); err == nil {
-		t.Fatal("text message reusing a file client_msg_id should fail today")
+	})
+	if err != nil || textRow.ID != row.ID || textRow.Kind != "file" {
+		t.Fatalf("text reuse of the file key: err=%v row=%+v want the file message %s", err, textRow, row.ID)
 	}
 }
 

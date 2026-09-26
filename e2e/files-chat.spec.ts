@@ -28,14 +28,11 @@ const wsSlug = `team-files-${stamp}`;
 const wsName = `Team Files ${stamp}`;
 const ownerEmail = `chat-owner-${stamp}@example.com`;
 const memberEmail = `chat-member-${stamp}@example.com`;
-const outsiderEmail = `chat-outsider-${stamp}@example.com`;
 
 let ownerContext: BrowserContext;
 let memberContext: BrowserContext;
-let outsiderContext: BrowserContext;
 let owner: Page;
 let member: Page;
-let outsider: Page;
 
 let fileBody = "";
 let fileName = "";
@@ -96,15 +93,13 @@ test.describe.serial("chat file and voice messages", () => {
   test.beforeAll(async ({ browser }) => {
     ownerContext = await browser.newContext();
     memberContext = await browser.newContext();
-    outsiderContext = await browser.newContext();
     owner = await ownerContext.newPage();
     member = await memberContext.newPage();
-    outsider = await outsiderContext.newPage();
 
     // A failing setup step is otherwise a bare URL timeout; name the API call
     // that refused it (rate limits and permission gates look identical from
     // the DOM).
-    for (const page of [owner, member, outsider]) {
+    for (const page of [owner, member]) {
       page.on("response", (res) => {
         if (res.url().includes("/api/") && res.status() >= 400) {
           console.log(`[api] ${res.status()} ${res.request().method()} ${res.url()}`);
@@ -120,19 +115,6 @@ test.describe.serial("chat file and voice messages", () => {
     await member.getByRole("button", { name: /Tham gia|Chấp nhận/ }).first().click();
     await expect(member).toHaveURL(new RegExp(`/${orgSlug}/${wsSlug}/`), { timeout: 20_000 });
 
-    // A second organization: the outsider owns their own workspace and is in
-    // no way a member of the one under test.
-    await registerVerified(outsider, "chat-outsider", stamp);
-    await outsider.getByRole("button", { name: /Bắt đầu/ }).click();
-    await outsider.getByRole("button", { name: "Bỏ qua" }).click();
-    await outsider.getByLabel("Tên tổ chức").fill(`Ngoai Org ${stamp}`);
-    await outsider.getByRole("button", { name: `Tạo Ngoai Org ${stamp}` }).click();
-    await outsider.getByLabel("Tên workspace").fill(`Ngoai WS ${stamp}`);
-    await outsider.getByRole("button", { name: `Tạo Ngoai WS ${stamp}` }).click();
-    await outsider.getByRole("button", { name: "Bỏ qua, mời sau" }).click();
-    await expect(outsider).toHaveURL(new RegExp(`/ngoai-org-${stamp}/ngoai-ws-${stamp}/`), { timeout: 20_000 });
-    await outsider.getByRole("button", { name: "Để sau" }).click();
-
     fileBody = `Bước 0 chat file ${stamp}\n`.repeat(20);
     fileName = `ghi-chu-${stamp}.txt`;
   });
@@ -140,7 +122,6 @@ test.describe.serial("chat file and voice messages", () => {
   test.afterAll(async () => {
     await ownerContext?.close();
     await memberContext?.close();
-    await outsiderContext?.close();
   });
 
   test("a file sent in the room reaches the second member and downloads @files-smoke", async () => {
@@ -230,6 +211,19 @@ test.describe.serial("chat file and voice messages", () => {
   });
 
   test("a member of another organization cannot reach the workspace or its files", async () => {
+    const outsiderContext = await ownerContext.browser()!.newContext();
+    const outsider = await outsiderContext.newPage();
+    await registerVerified(outsider, "chat-outsider", stamp);
+    await outsider.getByRole("button", { name: /Bắt đầu/ }).click();
+    await outsider.getByRole("button", { name: "Bỏ qua" }).click();
+    await outsider.getByLabel("Tên tổ chức").fill(`Ngoai Org ${stamp}`);
+    await outsider.getByRole("button", { name: `Tạo Ngoai Org ${stamp}` }).click();
+    await outsider.getByLabel("Tên workspace").fill(`Ngoai WS ${stamp}`);
+    await outsider.getByRole("button", { name: `Tạo Ngoai WS ${stamp}` }).click();
+    await outsider.getByRole("button", { name: "Bỏ qua, mời sau" }).click();
+    await expect(outsider).toHaveURL(new RegExp(`/ngoai-org-${stamp}/ngoai-ws-${stamp}/`), { timeout: 20_000 });
+    await outsider.getByRole("button", { name: "Để sau" }).click();
+
     // Real ids from the database: the outsider knows exactly where the file
     // lives, which is the "guesses the id/URL" case from plan §6.1.
     const ref = await latestChatFileMessage(orgSlug, wsSlug);
@@ -241,6 +235,7 @@ test.describe.serial("chat file and voice messages", () => {
     // app sends them back to their own workspace picker.
     await expect(outsider).toHaveURL(/\/workspaces$/, { timeout: 20_000 });
     await expect(outsider.locator('article[id^="chat-msg-"]').filter({ hasText: ref.filename })).toHaveCount(0);
+    await outsiderContext.close();
   });
 
   test("an unsupported file type is refused before it is sent", async () => {
@@ -265,14 +260,18 @@ test.describe.serial("chat file and voice messages", () => {
     // Member opens a direct conversation with the owner.
     await member.getByRole("button", { name: "Tạo cuộc trò chuyện" }).click();
     await member.getByRole("menuitem", { name: "Nhắn tin với người mới" }).click();
-    await member.getByLabel("Tên hoặc email").fill("Chủ Tệp");
-    await member.getByRole("button", { name: /Chủ Tệp/ }).first().click();
+    // The owner's display name comes from registerVerified("chat-owner").
+    await member.getByLabel("Tên hoặc email").fill("chat-owner");
+    await member.getByRole("button", { name: /chat-owner/ }).first().click();
 
     const dmComposer = member.getByPlaceholder("Nhập tin nhắn…");
     await expect(dmComposer).toBeVisible({ timeout: 20_000 });
     await dmComposer.fill("xin chao");
     await member.getByRole("button", { name: "Gửi", exact: true }).click();
-    await expect(member.getByText("xin chao", { exact: true })).toBeVisible({ timeout: 20_000 });
+    // Scoped to the message list: the composer still holds the same text.
+    await expect(member.locator('article[id^="chat-msg-"]').filter({ hasText: "xin chao" })).toBeVisible({
+      timeout: 20_000,
+    });
 
     // The DM settings sheet carries the block action.
     await member.getByRole("button", { name: "Cài đặt cuộc trò chuyện" }).click();

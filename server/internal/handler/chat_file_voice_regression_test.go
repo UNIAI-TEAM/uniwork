@@ -133,7 +133,7 @@ func TestChatFileMessageSecondMemberSeesAndDownloads(t *testing.T) {
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("upload status = %d out=%v", res.StatusCode, out)
 	}
-	sent := out["message"].(map[string]any)
+	sent := chatMessageDTO(t, out)
 	meta := sent["file"].(map[string]any)
 	if meta["filename"] != "ke-hoach.pdf" || meta["content_type"] != "application/pdf" {
 		t.Fatalf("file meta = %v", meta)
@@ -190,7 +190,7 @@ func TestChatFileMessageIdempotentResendKeepsOneMessage(t *testing.T) {
 
 	_, first := uploadChatFile(t, f.srv.URL, f.tokens["a"], f.wsID, f.groupRoomID,
 		"anh.png", "image/png", "idem-file-1", tinyPNG)
-	firstID := first["message"].(map[string]any)["id"].(string)
+	firstID := chatMessageDTO(t, first)["id"].(string)
 
 	// A lost response is retried with the same client_msg_id; the payload is
 	// the same file. It must not create a second message.
@@ -199,7 +199,7 @@ func TestChatFileMessageIdempotentResendKeepsOneMessage(t *testing.T) {
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("retry status = %d out=%v", res.StatusCode, second)
 	}
-	if got := second["message"].(map[string]any)["id"]; got != firstID {
+	if got := chatMessageDTO(t, second)["id"]; got != firstID {
 		t.Fatalf("retry created a second message: %v want %s", got, firstID)
 	}
 
@@ -210,7 +210,7 @@ func TestChatFileMessageIdempotentResendKeepsOneMessage(t *testing.T) {
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("different payload under the same id should return the earlier message today: %d %v", res.StatusCode, third)
 	}
-	if got := third["message"].(map[string]any)["id"]; got != firstID {
+	if got := chatMessageDTO(t, third)["id"]; got != firstID {
 		t.Fatalf("different payload under the same id created a new message: %v want %s", got, firstID)
 	}
 
@@ -263,11 +263,11 @@ func TestChatFileMessageSizeAndTypeRejectionPinsForFileServiceMigration(t *testi
 	// The declared multipart type does not win over the content: PNG bytes
 	// sent as text/plain are still stored as image/png.
 	res, out = uploadChatFile(t, f.srv.URL, f.tokens["a"], f.wsID, f.groupRoomID,
-		"anh.txt", "text/plain", "sniff-1", tinyPNG)
+		"anh.txt", "text/plain", "sniff-mismatch-1", tinyPNG)
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("declared-type mismatch status = %d out=%v", res.StatusCode, out)
 	}
-	meta := out["message"].(map[string]any)["file"].(map[string]any)
+	meta := chatMessageDTO(t, out)["file"].(map[string]any)
 	if meta["content_type"] != "image/png" {
 		t.Fatalf("content_type = %v, want image/png (content wins)", meta["content_type"])
 	}
@@ -290,7 +290,7 @@ func TestChatVoiceMessageSecondMemberPlaysWithDurationMetadata(t *testing.T) {
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("voice upload status = %d out=%v", res.StatusCode, out)
 	}
-	sent := out["message"].(map[string]any)
+	sent := chatMessageDTO(t, out)
 	if sent["kind"] != "voice" {
 		t.Fatalf("kind = %v", sent["kind"])
 	}
@@ -347,7 +347,7 @@ func TestChatVoiceMessageSecondMemberPlaysWithDurationMetadata(t *testing.T) {
 	if res.StatusCode != http.StatusOK {
 		t.Fatalf("voice retry status = %d out=%v", res.StatusCode, retry)
 	}
-	if got := retry["message"].(map[string]any)["id"]; got != messageID {
+	if got := chatMessageDTO(t, retry)["id"]; got != messageID {
 		t.Fatalf("voice retry created a second message: %v want %s", got, messageID)
 	}
 }
@@ -397,9 +397,9 @@ func TestChatFileMessageOutsideRoomCannotDownload(t *testing.T) {
 
 	_, out := uploadChatFile(t, f.srv.URL, f.tokens["a"], f.wsID, f.groupRoomID,
 		"noi-bo.pdf", "application/pdf", "acl-file-1", tinyPDF)
-	fileID := out["message"].(map[string]any)["id"].(string)
+	fileID := chatMessageDTO(t, out)["id"].(string)
 	_, voiceOut := uploadChatVoice(t, f.srv.URL, f.tokens["a"], f.wsID, f.groupRoomID, 3_000, "acl-voice-1", tinyWebM)
-	voiceID := voiceOut["message"].(map[string]any)["id"].(string)
+	voiceID := chatMessageDTO(t, voiceOut)["id"].(string)
 
 	// d is in the workspace but was never added to the group room.
 	res, raw := getChatAttachment(t, f.srv, fileStreamPath(f.wsID, f.groupRoomID, fileID), f.tokens["d"])
@@ -447,7 +447,7 @@ func TestChatFileMessageCrossOrganizationGuessedIDsBlocked(t *testing.T) {
 
 	_, out := uploadChatFile(t, f.srv.URL, f.tokens["a"], f.wsID, f.groupRoomID,
 		"bi-mat.pdf", "application/pdf", "org-file-1", tinyPDF)
-	fileID := out["message"].(map[string]any)["id"].(string)
+	fileID := chatMessageDTO(t, out)["id"].(string)
 
 	otherToken, otherOrgID, otherWSID := registerOtherOrgUser(t, f.srv, "fileorg")
 	if otherOrgID == f.orgID || otherWSID == f.wsID {
@@ -500,11 +500,11 @@ func TestChatFileAndVoiceUploadRespectsDMBlockAndSendRestriction(t *testing.T) {
 	}
 	res, out = uploadChatFile(t, f.srv.URL, f.tokens["a"], f.wsID, f.dmRoomID,
 		"sau-khi-chan.pdf", "application/pdf", "dm-block-2", tinyPDF)
-	if res.StatusCode != http.StatusForbidden || out["code"] != "chat_user_blocked" {
+	if res.StatusCode != http.StatusForbidden || errorCodeOf(out) != "chat_user_blocked" {
 		t.Fatalf("blocked file upload = %d %v", res.StatusCode, out)
 	}
 	res, out = uploadChatVoice(t, f.srv.URL, f.tokens["a"], f.wsID, f.dmRoomID, 4_000, "dm-block-3", tinyWebM)
-	if res.StatusCode != http.StatusForbidden || out["code"] != "chat_user_blocked" {
+	if res.StatusCode != http.StatusForbidden || errorCodeOf(out) != "chat_user_blocked" {
 		t.Fatalf("blocked voice upload = %d %v", res.StatusCode, out)
 	}
 
@@ -583,8 +583,8 @@ func TestChatFileMessageStorageKeyAndDeletePinsForFileServiceMigration(t *testin
 	f := setupChatFixture(t, "filestore")
 
 	_, out := uploadChatFile(t, f.srv.URL, f.tokens["a"], f.wsID, f.groupRoomID,
-		"luu-tru.pdf", "application/pdf", "store-1", tinyPDF)
-	messageID := out["message"].(map[string]any)["id"].(string)
+		"luu-tru.pdf", "application/pdf", "store-file-01", tinyPDF)
+	messageID := chatMessageDTO(t, out)["id"].(string)
 
 	objects := listStoredObjects(t, dir)
 	if len(objects) != 1 {
@@ -598,16 +598,16 @@ func TestChatFileMessageStorageKeyAndDeletePinsForFileServiceMigration(t *testin
 	// The retry uploads its own copy first and deletes it after the insert
 	// reports the earlier message: the room still holds one object.
 	res, retry := uploadChatFile(t, f.srv.URL, f.tokens["a"], f.wsID, f.groupRoomID,
-		"luu-tru.pdf", "application/pdf", "store-1", tinyPDF)
-	if res.StatusCode != http.StatusOK || retry["message"].(map[string]any)["id"] != messageID {
+		"luu-tru.pdf", "application/pdf", "store-file-01", tinyPDF)
+	if res.StatusCode != http.StatusOK || chatMessageDTO(t, retry)["id"] != messageID {
 		t.Fatalf("retry = %d %v", res.StatusCode, retry)
 	}
 	if objects := listStoredObjects(t, dir); len(objects) != 1 {
 		t.Fatalf("objects after retry = %v, want the retry copy removed", objects)
 	}
 
-	_, voiceOut := uploadChatVoice(t, f.srv.URL, f.tokens["a"], f.wsID, f.groupRoomID, 2_000, "store-2", tinyWebM)
-	voiceID := voiceOut["message"].(map[string]any)["id"].(string)
+	_, voiceOut := uploadChatVoice(t, f.srv.URL, f.tokens["a"], f.wsID, f.groupRoomID, 2_000, "store-voice-01", tinyWebM)
+	voiceID := chatMessageDTO(t, voiceOut)["id"].(string)
 	voicePrefix := "chat/voice/" + f.orgID + "/" + f.groupRoomID + "/"
 	voiceObjects := 0
 	for _, key := range listStoredObjects(t, dir) {
@@ -664,4 +664,22 @@ func uploadChatVoiceWithoutDuration(t *testing.T, srvURL, token, workspaceID, ro
 	var out map[string]any
 	_ = json.Unmarshal(raw, &out)
 	return res, out
+}
+
+// chatMessageDTO fails the test with the raw body when a response carries no
+// message, instead of panicking on the type assertion.
+func chatMessageDTO(t *testing.T, out map[string]any) map[string]any {
+	t.Helper()
+	msg, ok := out["message"].(map[string]any)
+	if !ok {
+		t.Fatalf("response has no message: %v", out)
+	}
+	return msg
+}
+
+// errorCodeOf reads ErrorSDO's machine-readable code.
+func errorCodeOf(out map[string]any) string {
+	envelope, _ := out["error"].(map[string]any)
+	code, _ := envelope["code"].(string)
+	return code
 }
