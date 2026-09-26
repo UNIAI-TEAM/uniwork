@@ -134,10 +134,10 @@ async function createTodaysExport(page: Page, format: "CSV" | "JSON Lines") {
   await pickDay(page, "audit-export-from", new Date());
   await pickDay(page, "audit-export-to", new Date());
   await page.getByRole("button", { name: "Tạo bản xuất" }).click();
-  const download = page.getByRole("link", { name: "Tải về" });
-  await expect(download).toBeVisible({ timeout: 60_000 });
+  const downloadLink = page.getByRole("link", { name: "Tải về" });
+  await expect(downloadLink).toBeVisible({ timeout: 60_000 });
   await expect(page.getByText("Xong").first()).toBeVisible();
-  return download;
+  return downloadLink;
 }
 
 /** Reads the bytes a download produced. */
