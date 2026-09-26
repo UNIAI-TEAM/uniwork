@@ -3,14 +3,21 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { onboardToWorkspace, workspaceSeed, type WorkspaceSeed } from "./onboard";
+import { createRecordingAccount } from "./meeting-recording-fixture";
 import { captureAuth } from "./tasks-seed";
 
 /**
  * Step 0 regression spec for avatars (UNI-744, plan T6).
  *
- * Pins what the legacy path does today: setting an avatar, replacing it, the
- * account-level avatar showing up in a second organization's shell, and a
- * non-image file being refused before it reaches storage.
+ * Pinned on the legacy path first (Bước 0), now run on FileService: setting
+ * an avatar, replacing it, the account-level avatar showing up in a second
+ * organization's shell, a non-image file being refused before it reaches
+ * storage, and another organization failing to resolve the avatar's file.
+ *
+ * Intended change at cutover (UNI-747): the avatar is a presign purpose, so
+ * the src is a signed storage URL (12h) under the user's avatars/ prefix
+ * instead of /uploads/avatars/<name>.png. A fresh signature is minted on each
+ * read, so "the same image" is compared on the object path, not the full URL.
  *
  * The @files-smoke test is the shortest proof the module is alive; run it
  * alone with:
@@ -58,6 +65,30 @@ function sidebarAvatar(page: Page, email: string) {
   return page.locator(`button[aria-label*="${email}"] img`).first();
 }
 
+/** A signed avatar URL: the users/<id>/avatars/ object plus its signature. */
+const AVATAR_SRC = /\/users\/[0-9A-Z]+\/avatars\/.+X-Amz-Signature=/;
+
+/** The object the src names, without the per-read signature. */
+function objectPath(src: string | null): string {
+  return src ? new URL(src).pathname : "";
+}
+
+/** The avatar's file id is the object key segment after the year/month. */
+function avatarFileID(src: string | null): string {
+  const id = /\/avatars\/\d{4}\/\d{2}\/([0-9A-Z]+)\//.exec(objectPath(src))?.[1];
+  if (!id) throw new Error(`no file id in avatar src ${src}`);
+  return id;
+}
+
+/** The browser really decoded the bytes behind the src. */
+async function expectDecoded(page: Page, email: string): Promise<void> {
+  await expect
+    .poll(() => sidebarAvatar(page, email).evaluate((img) => (img as HTMLImageElement).naturalWidth), {
+      timeout: 20_000,
+    })
+    .toBeGreaterThan(0);
+}
+
 test("@files-smoke avatar: đổi ảnh, thấy ở header", async ({ page }) => {
   const w = workspaceFor("smoke");
   await onboardToWorkspace(page, w);
@@ -68,7 +99,8 @@ test("@files-smoke avatar: đổi ảnh, thấy ở header", async ({ page }) =>
 
   const avatar = sidebarAvatar(page, w.email);
   await expect(avatar).toBeVisible({ timeout: 20_000 });
-  await expect(avatar).toHaveAttribute("src", /\/uploads\/avatars\/.+\.png$/);
+  await expect(avatar).toHaveAttribute("src", AVATAR_SRC);
+  await expectDecoded(page, w.email);
 });
 
 test("thay avatar lần hai, hiện ở tổ chức thứ hai", async ({ page }) => {
@@ -79,15 +111,16 @@ test("thay avatar lần hai, hiện ở tổ chức thứ hai", async ({ page })
   await openProfileTab(page, w);
   await avatarInput(page).setInputFiles(tmpPng("one.png", AVATAR_ONE));
   const first = sidebarAvatar(page, w.email);
-  await expect(first).toHaveAttribute("src", /\/uploads\/avatars\/.+\.png$/, { timeout: 20_000 });
-  const firstSrc = await first.getAttribute("src");
+  await expect(first).toHaveAttribute("src", AVATAR_SRC, { timeout: 20_000 });
+  const firstPath = objectPath(await first.getAttribute("src"));
 
   await avatarInput(page).setInputFiles(tmpPng("two.png", AVATAR_TWO));
   await expect
-    .poll(() => sidebarAvatar(page, w.email).getAttribute("src"), { timeout: 20_000 })
-    .not.toBe(firstSrc);
+    .poll(async () => objectPath(await sidebarAvatar(page, w.email).getAttribute("src")), { timeout: 20_000 })
+    .not.toBe(firstPath);
   const secondSrc = await sidebarAvatar(page, w.email).getAttribute("src");
-  expect(secondSrc).toMatch(/\/uploads\/avatars\/.+\.png$/);
+  expect(secondSrc).toMatch(AVATAR_SRC);
+  await expectDecoded(page, w.email);
 
   // A second organization for the same account: the avatar belongs to the
   // account, so the shell in the second org shows the same image.
@@ -107,8 +140,23 @@ test("thay avatar lần hai, hiện ở tổ chức thứ hai", async ({ page })
   expect(wsRes.status()).toBe(201);
 
   await page.goto(`/${orgSlug}/${wsSlug}/tasks`);
-  const inSecondOrg = sidebarAvatar(page, w.email);
-  await expect(inSecondOrg).toHaveAttribute("src", secondSrc ?? "", { timeout: 20_000 });
+  await expect
+    .poll(async () => objectPath(await sidebarAvatar(page, w.email).getAttribute("src")), { timeout: 20_000 })
+    .toBe(objectPath(secondSrc));
+  await expectDecoded(page, w.email);
+
+  // Someone in an unrelated organization who learns the file id cannot
+  // resolve it through the files API: it is not a file they staged.
+  const outsider = await createRecordingAccount(page, auth.api, "avatar-outsider");
+  const resolved = await page.request.post(`${auth.api}/api/v1/workspaces/${outsider.wsId}/files/resolve`, {
+    headers: { authorization: `Bearer ${outsider.token}` },
+    data: { file_ids: [avatarFileID(secondSrc)] },
+  });
+  expect(resolved.status()).toBe(200);
+  const items = ((await resolved.json()) as { items: { url?: string; error: { code: string } | null }[] }).items;
+  expect(items).toHaveLength(1);
+  expect(items[0].url ?? "").toBe("");
+  expect(items[0].error?.code).toBe("file_not_found");
 });
 
 test("ảnh sai loại bị từ chối", async ({ page }) => {
