@@ -14,7 +14,7 @@ function beat(
   void signalChatPresence(workspaceId, state, opts).catch(() => undefined);
 }
 
-/** Keep the caller's online presence fresh while the chat page is mounted. */
+/** Keep the caller's online presence fresh while the hook is mounted (workspace shell). */
 export function useChatPresenceHeartbeat(workspaceId: string, enabled = true): void {
   useEffect(() => {
     if (!enabled || !workspaceId) return;
