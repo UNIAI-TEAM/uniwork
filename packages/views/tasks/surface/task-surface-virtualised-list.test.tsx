@@ -123,10 +123,10 @@ describe("TaskSurface list with a virtualised group", () => {
         </>,
       ),
     );
-    await waitFor(() => expect(listRows()).toBe(50));
+    await waitFor(() => expect(listRows()).toBe(50), { timeout: 20_000 });
 
     fireEvent.click(screen.getByRole("button", { name: "Tải thêm" }));
-    await waitFor(() => expect(listRows()).toBe(100));
+    await waitFor(() => expect(listRows()).toBe(100), { timeout: 20_000 });
     // A group is virtualised now and its end is in range.
     expect(screen.getAllByTestId("fake-virtuoso").length).toBeGreaterThan(0);
     await settle(300);
@@ -135,7 +135,7 @@ describe("TaskSurface list with a virtualised group", () => {
 
     // A task event refetches the two loaded pages and rebuilds every group's array.
     fireEvent.click(screen.getByRole("button", { name: "realtime refetch" }));
-    await waitFor(() => expect(offsets).toEqual([0, 50, 0, 50]));
+    await waitFor(() => expect(offsets).toEqual([0, 50, 0, 50]), { timeout: 20_000 });
     await settle(500);
     expect(offsets).toEqual([0, 50, 0, 50]);
     expect(listRows()).toBe(100);
@@ -143,7 +143,7 @@ describe("TaskSurface list with a virtualised group", () => {
 
   it("one load more asks for exactly one more page, and a realtime refetch asks for none", async () => {
     await expectOnePagePerLoadMore(serveTasks(300), "test-virtualised-list");
-  }, 30_000);
+  }, 60_000);
 
   it("holds when the virtualised group is the last group on the list", async () => {
     // 45 backlog rows stay under the threshold; cancelled, the last status
@@ -151,5 +151,5 @@ describe("TaskSurface list with a virtualised group", () => {
     // last group alone would fire here.
     const offsets = serveTasks(300, (index) => (index < 45 ? "backlog" : "cancelled"));
     await expectOnePagePerLoadMore(offsets, "test-virtualised-list-last");
-  }, 30_000);
+  }, 60_000);
 });

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -93,11 +94,13 @@ func (s *EmailHubService) deliverScheduledSend(ctx context.Context, row db.Email
 		AccountID: row.AccountID, To: payload.To, Cc: payload.Cc, Bcc: payload.Bcc, Subject: payload.Subject,
 		BodyText: payload.BodyText, BodyHTML: payload.BodyHTML, Attachments: attachments,
 		ReplyToThreadID: payload.ReplyToThreadID,
-	}); err != nil {
+	}); err != nil && !errors.Is(err, errEmailHubSentNotCached) {
 		_ = s.q.MarkEmailHubScheduledSendFailed(ctx, db.MarkEmailHubScheduledSendFailedParams{
 			ID: row.ID, LastError: pgtype.Text{String: err.Error(), Valid: true},
 		})
 		return
+	} else if err != nil {
+		s.log.Warn("email hub scheduled send not cached", "scheduled_id", row.ID, "err", err)
 	}
 	_ = s.q.MarkEmailHubScheduledSendSent(ctx, row.ID)
 }

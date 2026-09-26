@@ -4,9 +4,14 @@ import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useNotificationPreferences, useSetNotificationPreferences } from "@uniwork/core/notifications";
 import { NOTIFICATION_KINDS, type NotificationPreference } from "@uniwork/core/types";
+import { tintForegroundClass, tintSolidClass } from "@uniwork/ui/components/common/icon-tile";
+import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { Switch } from "@uniwork/ui/components/ui/switch";
+import { cn } from "@uniwork/ui/lib/utils";
 import { KindIcon } from "../../notifications/kind-icon";
+import { kindTone } from "../../notifications/kind-tone";
+import { CATEGORY_TONE, INBOX_CATEGORIES, inboxCategory } from "../../notifications/notification-category";
 import {
   SettingsCard,
   SettingsCardBody,
@@ -27,7 +32,9 @@ const CELL = "w-18 px-2 py-2 text-center sm:w-24 pointer-coarse:py-0";
  * has a full target without the desktop matrix growing.
  */
 const SWITCH_ROW = "pointer-coarse:h-11";
-const SWITCH_HIT = "aria-busy:opacity-60 pointer-coarse:after:-inset-y-[15px]";
+const SWITCH_HIT = "aria-busy:opacity-60 pointer-coarse:after:-inset-y-3.75";
+/** The "every kind" checkbox: 16px, its hit area grown to 44px under a finger. */
+const CHECK_HIT = "mx-auto aria-busy:opacity-60 pointer-coarse:after:-inset-y-3.5";
 
 /**
  * The server fills every kind it knows with defaults; a kind it did not send
@@ -43,11 +50,15 @@ function serverDefault(kind: Kind): NotificationPreference {
  * Kind × channel matrix. Every switch saves on its own: there is no form to
  * submit, and a setting that needs a Save button is a setting nobody changes.
  * Only the rows being written wait; the rest of the matrix stays live. The
- * first row turns one channel on or off for every kind in a single request.
+ * first row turns one channel on or off for every kind in a single request;
+ * it is a checkbox, not a switch, because it has a third state — on for some
+ * kinds — that a switch would pass off as "off". The kinds are grouped the
+ * way the inbox filters them, each with its module's colour.
  */
 export function NotificationsMatrix({ channels, footnotes }: { channels: Channel[]; footnotes?: ReactNode }) {
   const { t } = useTranslation(undefined, { keyPrefix: "settings.notifications" });
   const { t: tSave } = useTranslation(undefined, { keyPrefix: "settings.save" });
+  const { t: tInbox } = useTranslation(undefined, { keyPrefix: "notifications" });
   const prefs = useNotificationPreferences();
   const save = useSetNotificationPreferences();
   // What the reader asked for, shown until the server answers; a pending row
@@ -134,46 +145,66 @@ export function NotificationsMatrix({ channels, footnotes }: { channels: Channel
                 </th>
                 {channels.map((c) => {
                   const allOn = rows.every((r) => r[c]);
+                  const someOn = !allOn && rows.some((r) => r[c]);
                   const anyBusy = rows.some((r) => busy(r.kind));
                   return (
                     <td key={c} className={CELL}>
-                      <Switch
-                        size="sm"
+                      <Checkbox
                         aria-label={t("channel_all", { channel: channelLabel(c) })}
                         aria-busy={anyBusy || undefined}
-                        className={SWITCH_HIT}
+                        className={CHECK_HIT}
                         checked={allOn}
-                        onCheckedChange={(v) => toggleChannel(c, v)}
+                        indeterminate={someOn}
+                        // Mixed turns everything on, the way a "select all" does.
+                        onCheckedChange={() => toggleChannel(c, !allOn)}
                       />
                     </td>
                   );
                 })}
               </tr>
             </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.kind} className={`border-t border-border ${SWITCH_ROW}`}>
-                  <th scope="row" className="px-4 py-2 text-left font-normal">
-                    <span className="flex min-h-7 items-center gap-2">
-                      <KindIcon kind={row.kind} className="size-4 shrink-0 text-muted-foreground" />
-                      <span className="min-w-0 text-pretty">{kindLabel(row.kind)}</span>
-                    </span>
-                  </th>
-                  {channels.map((c) => (
-                    <td key={c} className={CELL}>
-                      <Switch
-                        size="sm"
-                        aria-label={`${kindLabel(row.kind)} · ${channelLabel(c)}`}
-                        aria-busy={busy(row.kind) || undefined}
-                        className={SWITCH_HIT}
-                        checked={row[c]}
-                        onCheckedChange={(v) => toggle(row, c, v)}
-                      />
-                    </td>
+            {INBOX_CATEGORIES.map((category) => {
+              const group = rows.filter((r) => inboxCategory(r.kind) === category);
+              if (group.length === 0) return null;
+              return (
+                <tbody key={category}>
+                  <tr className="border-t border-border">
+                    <th
+                      scope="rowgroup"
+                      colSpan={channels.length + 1}
+                      className="px-4 pt-3 pb-1 text-left text-overline font-medium text-muted-foreground"
+                    >
+                      <span className="flex items-center gap-2">
+                        <span aria-hidden className={cn("size-2 rounded-full", tintSolidClass[CATEGORY_TONE[category]])} />
+                        {tInbox(`category.${category}`)}
+                      </span>
+                    </th>
+                  </tr>
+                  {group.map((row) => (
+                    <tr key={row.kind} className={`border-t border-border ${SWITCH_ROW}`}>
+                      <th scope="row" className="px-4 py-2 text-left font-normal">
+                        <span className="flex min-h-7 items-center gap-2">
+                          <KindIcon kind={row.kind} className={cn("size-4 shrink-0", tintForegroundClass[kindTone(row.kind)])} />
+                          <span className="min-w-0 text-pretty">{kindLabel(row.kind)}</span>
+                        </span>
+                      </th>
+                      {channels.map((c) => (
+                        <td key={c} className={CELL}>
+                          <Switch
+                            size="sm"
+                            aria-label={`${kindLabel(row.kind)} · ${channelLabel(c)}`}
+                            aria-busy={busy(row.kind) || undefined}
+                            className={SWITCH_HIT}
+                            checked={row[c]}
+                            onCheckedChange={(v) => toggle(row, c, v)}
+                          />
+                        </td>
+                      ))}
+                    </tr>
                   ))}
-                </tr>
-              ))}
-            </tbody>
+                </tbody>
+              );
+            })}
           </table>
         )}
         {footnotes ? <SettingsCardBody>{footnotes}</SettingsCardBody> : null}

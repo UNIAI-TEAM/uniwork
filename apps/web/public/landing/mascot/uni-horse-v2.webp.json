@@ -1,0 +1,11 @@
+{
+  "method": "Built-in image_gen; lossless-alpha WebP optimization with sharp",
+  "source": "scripts/landing-mascot/uni-horse-v2-master.png",
+  "reference": "Existing UniWork white horse; identity only, no source branding",
+  "exactPrompt": "Use case: stylized-concept. Asset type: premium transparent animated website mascot base artwork.\nInput image is the current UniWork white horse, an identity reference. Create a refreshed, exceptionally appealing high quality 3D-rendered white horse character based on it, with lively intelligent big blue eyes, a softer joyful open smile, sculpted cobalt/turquoise mane and sweeping tail, plain navy vest and navy hooves. Character must remain a HORSE, no horn. Improve facial expression and natural proportions, sophisticated animated feature-film craft, not primitive toy geometry.\nFull-body front three-quarter view facing the viewer, upright, both feet planted, relaxed confident posture. One foreleg lifted to shoulder level on IMAGE LEFT, separated from head, as if just beginning a friendly wave. Other foreleg resting near hip. Ears tall, eyes wide and expressive, muzzle softly rounded. Keep eyes clearly visible and roughly horizontally aligned for animation. Mane mostly on IMAGE RIGHT, tail curls toward IMAGE RIGHT at lower half. Smooth diffuse ivory fur, realistic navy cloth detail, beautiful sculpted hair, controlled studio lighting. No props. Clean, readable silhouette.\nCentered on a square genuinely transparent RGBA canvas. Character fills about 86 percent of canvas height with all ears, tail and feet fully visible and generous clean transparent margins on every side. No shadows outside character, floor or scenery. NO text, lettering, name, watermark, logo, badge, speech bubble, symbol or emblem anywhere. Vest plain. No reference branding. Single character only. Produce actual alpha transparency, not a checkerboard.\n",
+  "width": 1200,
+  "height": 1200,
+  "hasAlpha": true,
+  "bytes": 190390,
+  "sha256": "dff42c0d24ef891c569cbc7c7a0091d882b30daaf5d746296eb4f0a231fb76f0"
+}

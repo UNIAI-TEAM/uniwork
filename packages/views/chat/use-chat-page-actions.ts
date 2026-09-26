@@ -41,7 +41,6 @@ export function useChatPageActions({
   replyTo,
   setReplyTo,
   activeThreadRootId = null,
-  workHubEnabled = false,
   ensureRoom,
   sendRoomMessage,
   sendThreadMessage,
@@ -77,7 +76,6 @@ export function useChatPageActions({
   replyTo: ChatMessage | null;
   setReplyTo: React.Dispatch<React.SetStateAction<ChatMessage | null>>;
   activeThreadRootId?: string | null;
-  workHubEnabled?: boolean;
   ensureRoom: { mutateAsync: () => Promise<{ room_id?: string | null }> };
   sendRoomMessage: Pick<ReturnType<typeof useSendChatRoomMessage>, "mutateAsync">;
   sendThreadMessage?: {
@@ -127,7 +125,7 @@ export function useChatPageActions({
       const threadsAllowed =
         target.kind === "channel" || target.kind === "group" || target.kind === "workspace";
       const sendingInThread = Boolean(
-        workHubEnabled && threadsAllowed && activeThreadRootId && sendThreadMessage,
+        threadsAllowed && activeThreadRootId && sendThreadMessage,
       );
 
       const payload: ChatTextSendPayload = {
@@ -210,7 +208,6 @@ export function useChatPageActions({
       replyTo,
       setReplyTo,
       activeThreadRootId,
-      workHubEnabled,
       setDraft,
       setConnectError,
       composerPriority,

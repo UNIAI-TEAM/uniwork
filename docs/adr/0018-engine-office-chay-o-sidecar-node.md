@@ -1,6 +1,6 @@
 # 0018 — Engine Office chạy ở sidecar Node, dùng chung với ứng dụng UniWork Office
 
-**Trạng thái:** accepted (2026-09-16) — quyết định của quangpd (chủ sở hữu sản phẩm). Định hướng: UniWork Office là bản tùy biến từ GenOffice (`genspark-ai/genoffice`, Apache-2.0).
+**Trạng thái:** superseded by 0021 (2026-09-25) — quyết định gốc của quangpd (chủ sở hữu sản phẩm) ngày 2026-09-16, được thay bởi [0021](0021-runtime-engine-office-da-dinh-dang.md). Lịch sử giữ nguyên, không sửa phần còn lại. Định hướng: UniWork Office là bản tùy biến từ GenOffice (`genspark-ai/genoffice`, Apache-2.0).
 
 ## Bối cảnh
 

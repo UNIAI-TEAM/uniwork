@@ -20,6 +20,7 @@ import {
   resetPassword,
   revokeOtherSessions,
   revokeSession,
+  uploadAvatar,
   verifyEmail,
   verifyMfa,
 } from "./auth";
@@ -96,6 +97,20 @@ describe("auth endpoints", () => {
     const u = await patchMe({ locale: "en" });
     expect(u?.locale).toBe("en");
     expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0]![1]?.body))).toEqual({ locale: "en" });
+  });
+
+  it("uploadAvatar posts multipart and returns the user or null on drift", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ user: { ...user, avatar_url: "https://cdn/a.png" } }));
+    const file = new File(["x"], "a.png", { type: "image/png" });
+    const u = await uploadAvatar(file);
+    expect(u?.avatar_url).toBe("https://cdn/a.png");
+    const init = vi.mocked(fetch).mock.calls[0]![1]!;
+    expect(init.method).toBe("POST");
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toContain("/api/v1/me/avatar");
+    expect(init.body).toBeInstanceOf(FormData);
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    await expect(uploadAvatar(file)).resolves.toBeNull();
   });
 
   it("forgotPassword posts the email and resolves on 200", async () => {

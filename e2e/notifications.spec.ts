@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { VI_LOCALE_STATE } from "./locale-state";
 import { VERIFICATION_CODE, verifyEmail } from "./auth-nav";
 
 // The golden path for F-07 (spec §8.3): A assigns a task to B; B sees the
@@ -34,7 +35,10 @@ test("assigning a task lights the assignee's inbox badge without a reload", asyn
 
   // Invite B from the Members page; the token comes out of the mail outbox.
   const memberEmail = `member-${stamp}@example.com`;
-  await owner.goto(`/${orgSlug}/${wsSlug}/members`);
+  // Members live under Settings; /members is only a client-side redirect there,
+  // and typing into the form before it lands loses the address.
+  await owner.goto(`/${orgSlug}/${wsSlug}/settings?tab=members`);
+  await expect(owner.getByRole("heading", { name: "Mời vào workspace" })).toBeVisible({ timeout: 15_000 });
   await owner.getByLabel("Email đồng nghiệp").fill(memberEmail);
   await owner.getByLabel("Email đồng nghiệp").press("Enter");
   await owner.getByRole("button", { name: "Mời thành viên" }).click();
@@ -43,7 +47,7 @@ test("assigning a task lights the assignee's inbox badge without a reload", asyn
   // B: register and verify under the invited address. With an invitation
   // waiting, verification lands on /invitations rather than onboarding;
   // joining there is what marks B onboarded and opens the workspace.
-  const memberContext = await browser.newContext({ locale: "vi-VN" });
+  const memberContext = await browser.newContext({ locale: "vi-VN", storageState: VI_LOCALE_STATE });
   const member = await memberContext.newPage();
   await member.goto("/register");
   await member.getByLabel("Tên hiển thị").fill("Thành Viên");

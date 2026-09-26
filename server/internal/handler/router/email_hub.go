@@ -65,6 +65,13 @@ func registerEmailHub(r api, h Routes) {
 		sdo:     sdo.EmailHubThreadSDO{},
 		auth:    true,
 	})
+	r.Get("/workspaces/{workspaceID}/email-hub/threads/{threadID}/conversation", h.ListEmailHubConversation, apiOp{
+		summary:     "List messages in a conversation",
+		description: "Returns every cached message with the same conversation key (all folders), oldest first.",
+		tags:        []string{"email-hub"},
+		sdo:         sdo.EmailHubConversationSDO{},
+		auth:        true,
+	})
 	r.Get("/workspaces/{workspaceID}/email-hub/threads/{threadID}/ai/summary", h.GetEmailHubThreadSummary, apiOp{
 		summary:     "Get cached AI summary for an email thread",
 		description: "Returns 404 when no cache or email content changed since last summarize.",
@@ -100,15 +107,22 @@ func registerEmailHub(r api, h Routes) {
 		auth:    true,
 	})
 	r.Get("/workspaces/{workspaceID}/email-hub/scheduled-sends", h.ListEmailHubScheduledSends, apiOp{
-		summary: "List pending scheduled sends",
-		tags:    []string{"email-hub"},
-		sdo:     sdo.EmailHubScheduledSendListSDO{},
-		auth:    true,
+		summary:     "List open scheduled sends",
+		description: "Query: account_id (required). Pending and failed scheduled sends of the mailbox, failed first.",
+		tags:        []string{"email-hub"},
+		sdo:         sdo.EmailHubScheduledSendListSDO{},
+		auth:        true,
 	})
 	r.Delete("/workspaces/{workspaceID}/email-hub/scheduled-sends/{scheduledSendID}", h.CancelEmailHubScheduledSend, apiOp{
-		summary: "Cancel a pending scheduled send",
+		summary: "Cancel a pending scheduled send or dismiss a failed one",
 		tags:    []string{"email-hub"},
 		auth:    true,
+	})
+	r.Post("/workspaces/{workspaceID}/email-hub/scheduled-sends/{scheduledSendID}/retry", h.RetryEmailHubScheduledSend, apiOp{
+		summary:     "Retry a failed scheduled send",
+		description: "Query: account_id (required). Re-queues a failed scheduled send to go out now; 404 unless it is failed.",
+		tags:        []string{"email-hub"},
+		auth:        true,
 	})
 	r.Post("/workspaces/{workspaceID}/email-hub/send", h.SendEmailHub, apiOp{
 		summary:     "Send email via SMTP",

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -132,7 +133,16 @@ func ResourceURL(ctx context.Context, q *db.Queries, origin string, n db.Notific
 	case "audit_export":
 		return base + "/settings?tab=audit", nil
 	case "chat_message":
-		return base + "/chat", nil
+		// A message opens in its room, scrolled to it; a message that is gone
+		// still lands in Chat.
+		msg, err := q.GetChatMessageByID(ctx, n.ResourceID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return base + "/chat", nil
+		}
+		if err != nil {
+			return "", err
+		}
+		return base + "/chat?room=" + url.QueryEscape(msg.RoomID) + "&message=" + url.QueryEscape(msg.ID), nil
 	case "email_account":
 		return base + "/email", nil
 	default:

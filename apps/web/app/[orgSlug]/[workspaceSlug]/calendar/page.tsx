@@ -46,6 +46,7 @@ function CalendarPageContent() {
       onPreferencesChange={handlePreferencesChange}
       onOpenTask={(id) => push(ws.task(id))}
       onOpenMeeting={(id) => push(ws.meeting(id))}
+      onJoinMeeting={(id) => push(ws.room(id))}
     />
   );
 }

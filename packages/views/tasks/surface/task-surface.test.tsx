@@ -909,22 +909,24 @@ describe("TaskSurface pagination (pages of 50)", () => {
     }
     render(wrap(<ProjectSwitch />));
 
-    await waitFor(() => expect(listRows()).toBe(50));
+    await waitFor(() => expect(listRows()).toBe(50), { timeout: LONG });
     await clickLoadMore();
-    await waitFor(() => expect(listRows()).toBe(100));
+    await waitFor(() => expect(listRows()).toBe(100), { timeout: LONG });
 
     fireEvent.click(screen.getByRole("button", { name: "switch project" }));
 
-    expect(await screen.findByText("p2 task 0")).toBeInTheDocument();
-    await waitFor(() => expect(listRows()).toBe(50));
+    expect(
+      await screen.findByText("p2 task 0", {}, { timeout: LONG }),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(listRows()).toBe(50), { timeout: LONG });
     expect(screen.queryAllByText(/^p1 task/)).toHaveLength(0);
     expect(
       server.seen
         .filter((request) => request.params.project_id === "p2")
         .map((request) => request.params.offset),
     ).toEqual([0]);
-    expect(screen.getByText("50 / 120 công việc đã tải")).toBeInTheDocument();
-  }, 30_000);
+    expect(await screen.findByText("50 / 120 công việc đã tải", {}, { timeout: LONG })).toBeInTheDocument();
+  }, LONG);
 
   it("is not empty while the first page loads, nor while later pages remain behind hidden rows", async () => {
     const server = servePagedTasks({

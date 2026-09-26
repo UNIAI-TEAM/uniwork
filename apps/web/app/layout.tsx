@@ -83,9 +83,9 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await resolveRequestLocale();
-  // English only: keep `en.json` off the shared client chunk (bundle-budget).
+  // Vietnamese only: keep `vi.json` off the shared client chunk (bundle-budget).
   const initialDictionary =
-    locale === "en" ? (await import("@uniwork/core/i18n/locales/en.json")).default : undefined;
+    locale === "vi" ? (await import("@uniwork/core/i18n/locales/vi.json")).default : undefined;
   return (
     <html lang={locale} suppressHydrationWarning className={`${inter.variable} ${plusJakarta.variable} ${jetbrainsMono.variable}`}>
       <body className="font-sans">

@@ -47,6 +47,9 @@ test("tasks collection: suite mode controls always on", async ({ page }) => {
   await expect(page.getByTestId("task-mode-board")).toBeVisible();
   await expect(page.getByTestId("task-mode-swimlane")).toBeVisible();
   await expect(page.getByTestId("task-mode-table")).toHaveCount(0);
+  // The mode menu is modal: close it before reaching for the toolbar again.
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("task-mode-list")).toBeHidden();
 
   const filterAdd = page.getByTestId("task-filter-add");
   await expect(filterAdd).toBeVisible();
@@ -58,6 +61,11 @@ test("tasks collection: suite mode controls always on", async ({ page }) => {
   await page.getByTestId("task-filter-status-todo").click();
 
   await expect(page.getByTestId("tasks-filter-chips")).toBeVisible({ timeout: 10_000 });
+  // The filter menu stays open for more picks: Escape closes the status submenu,
+  // then the menu itself, before clearing.
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("task-filter-section-status")).toBeHidden();
   await page.getByRole("button", { name: "Xóa bộ lọc" }).click();
   await expect(page.getByRole("button", { name: "Xóa bộ lọc" })).toHaveCount(0);
 });

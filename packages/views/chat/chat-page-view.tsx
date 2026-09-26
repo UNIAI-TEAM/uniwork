@@ -31,16 +31,21 @@ import {
 } from "@uniwork/core/chat";
 import { useActiveChatRoomStore } from "@uniwork/core/chat/active-chat-room-store";
 import { useAuthStore } from "@uniwork/core/auth";
-import { useFlag } from "@uniwork/core/feature-flags";
 import { useChatRoomScopes } from "@uniwork/core/realtime";
 import { runtimeConfig } from "@uniwork/core/runtime-config";
 import { useCurrentMember } from "@uniwork/core/permissions";
+import { useChatMessageDeepLink } from "./use-chat-message-deep-link";
 import type { ChatSidebarTarget } from "./chat-sidebar";
 import type { ChatMessage } from "./chat-messages";
 import type { ComposerMessagePriority } from "@uniwork/core/chat/composer-priority";
 import { toggleComposerPriority } from "@uniwork/core/chat/composer-priority";
 import { useChatReminderNotifications } from "./use-chat-reminder-notify";
 import { chatErrorMessage } from "./chat-error-message";
+import {
+  applySelfAvatarToNameContext,
+  buildMemberAvatarUrlMap,
+  withSelfAvatarFromUser,
+} from "./chat-member-avatar";
 import { buildChatNameContext, chatHeaderTitle, workspaceRoomTitle } from "./chat-page-utils";
 import { buildChatMentionCandidates } from "./chat-mention-utils";
 import { memberDisplayLabel } from "./workspace-member-picker-utils";
@@ -77,8 +82,8 @@ export function ChatPageView({
   const { t } = useTranslation();
   const workspaceName = useOptionalWorkspace()?.workspace.name;
   useChatReminderNotifications(workspaceId);
-  const workHubEnabled = useFlag("chat_work_hub", false);
   const authReady = useAuthStore((s) => s.status === "authed");
+  const authUser = useAuthStore((s) => (s.status === "authed" ? s.user : null));
   const { data: rooms = NO_ROOMS, isError, refetch, isSuccess: roomsLoaded } = useChatRooms(workspaceId);
   const { data: nicknamesByUserId = NO_NICKNAMES } = useChatNicknames(workspaceId);
   const { data: workspaceMembers = NO_MEMBERS } = useMembers(workspaceId);
@@ -204,6 +209,8 @@ export function ChatPageView({
     setComposerPriority(null);
     setActiveThreadRootId(null);
   }, [activeRoomId]);
+  // After the reset above: a notification's `?message=` jumps once its room is open.
+  useChatMessageDeepLink({ activeRoomId, roomsReady: unreadBadgesReady, onJump: setJumpToMessageId });
 
   useEffect(() => {
     useActiveChatRoomStore.getState().setActiveRoom(workspaceId, activeRoomId);
@@ -299,7 +306,6 @@ export function ChatPageView({
       replyTo,
       setReplyTo,
       activeThreadRootId,
-      workHubEnabled,
       ensureRoom,
       sendRoomMessage,
       sendThreadMessage,
@@ -333,17 +339,30 @@ export function ChatPageView({
     nicknamesByUserId,
     channels,
   );
+  const memberAvatarByUserId = useMemo(
+    () =>
+      withSelfAvatarFromUser(
+        buildMemberAvatarUrlMap(workspaceMembers),
+        authUser?.id,
+        authUser?.avatar_url,
+      ),
+    [workspaceMembers, authUser?.avatar_url, authUser?.id],
+  );
   const nameContext = useMemo(
     () =>
-      buildChatNameContext(
-        contacts,
-        activeContact,
-        activeGroup,
-        groupMemberProfiles,
-        workspaceMembers,
-        nicknamesByUserId,
+      applySelfAvatarToNameContext(
+        buildChatNameContext(
+          contacts,
+          activeContact,
+          activeGroup,
+          groupMemberProfiles,
+          workspaceMembers,
+          nicknamesByUserId,
+        ),
+        authUser?.id,
+        authUser?.avatar_url,
       ),
-    [contacts, activeContact, activeGroup, groupMemberProfiles, workspaceMembers, nicknamesByUserId],
+    [contacts, activeContact, activeGroup, groupMemberProfiles, workspaceMembers, nicknamesByUserId, authUser?.avatar_url, authUser?.id],
   );
 
   const { startCall, acceptCall, declineCall, inCall } = useChatVoiceCall();
@@ -430,7 +449,6 @@ export function ChatPageView({
         contacts={contacts}
         groups={groups}
         channels={channels}
-        workHubEnabled={workHubEnabled}
         activeContact={activeContact}
         activeGroup={activeGroup}
         activeChannel={activeChannel}
@@ -493,6 +511,7 @@ export function ChatPageView({
         onVideoCall={() => void handleStartVideoCall()}
         videoCallDisabled={callControlsDisabled}
         workspaceMembers={workspaceMembers}
+        memberAvatarByUserId={memberAvatarByUserId}
         workspaceSettingsOpen={workspaceSettingsOpen}
         onWorkspaceSettingsOpenChange={setWorkspaceSettingsOpen}
         messageSearchOpen={messageSearchOpen}
