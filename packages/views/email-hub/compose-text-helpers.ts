@@ -44,12 +44,38 @@ export function isImageUrl(url: string) {
   }
 }
 
-function formatInline(text: string) {
-  let html = escapeHtml(text);
-  html = html.replace(/\*(.+?)\*/g, "<strong>$1</strong>");
-  html = html.replace(/_(.+?)_/g, "<em>$1</em>");
-  html = html.replace(/&lt;u&gt;(.+?)&lt;\/u&gt;/g, "<u>$1</u>");
-  return html;
+/** Links and addresses are copied through untouched: their underscores are not italics. */
+const LINK_RE = /(https?:\/\/[^\s<>"]+|[\w.+-]+@[\w-]+(?:\.[\w-]+)+)/g;
+const TRAILING_PUNCT_RE = /[.,;:!?)]+$/;
+
+/**
+ * Markers count only when they wrap whole words: `*quan trọng*` is bold, while
+ * `5*3*2`, `bao_gia_v2` and a `utm_source=…&utm_medium` query stay literal.
+ * They used to match anywhere, so sent links came out with `<em>` inside them.
+ */
+function formatWords(text: string) {
+  return escapeHtml(text)
+    .replace(/(^|[^\p{L}\p{N}*])\*(?=\S)([^*\n]*?\S)\*(?![\p{L}\p{N}*])/gu, "$1<strong>$2</strong>")
+    .replace(/(^|[^\p{L}\p{N}_])_(?=\S)([^_\n]*?\S)_(?![\p{L}\p{N}_])/gu, "$1<em>$2</em>")
+    .replace(/&lt;u&gt;(.+?)&lt;\/u&gt;/g, "<u>$1</u>");
+}
+
+function linkHtml(raw: string) {
+  const trail = raw.match(TRAILING_PUNCT_RE)?.[0] ?? "";
+  const link = trail ? raw.slice(0, -trail.length) : raw;
+  const href = link.includes("@") && !link.startsWith("http") ? `mailto:${link}` : link;
+  return `<a href="${escapeHtmlAttr(href)}">${escapeHtml(link)}</a>${escapeHtml(trail)}`;
+}
+
+function formatInline(line: string) {
+  let html = "";
+  let last = 0;
+  for (const match of line.matchAll(LINK_RE)) {
+    const index = match.index ?? 0;
+    html += formatWords(line.slice(last, index)) + linkHtml(match[0]);
+    last = index + match[0].length;
+  }
+  return html + formatWords(line.slice(last));
 }
 
 function imageHtml(url: string, alt = "") {
@@ -81,49 +107,52 @@ export function plainTextToHtml(text: string) {
   return `<div>${parts.join("")}</div>`;
 }
 
-export async function buildComposeBodyHtml(text: string, files: File[]) {
-  const html = plainTextToHtml(text);
-  const images = files.filter((file) => file.type.startsWith("image/"));
-  if (!images.length) return html;
-  const blocks = await Promise.all(
-    images.map(async (file) => {
-      const b64 = await readFileAsBase64(file);
-      const src = `data:${file.type || "image/png"};base64,${b64}`;
-      return imageHtml(src, file.name);
-    }),
-  );
-  return `${html}${blocks.join("")}`;
+/**
+ * Attached files travel as attachments only. Images used to be embedded again
+ * as data URIs, which doubled the payload and showed the picture twice.
+ */
+export function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const url = typeof reader.result === "string" ? reader.result : "";
+      resolve(url.slice(url.indexOf(",") + 1));
+    };
+    reader.onerror = () => reject(reader.error ?? new Error("read failed"));
+    reader.readAsDataURL(file);
+  });
 }
 
-export async function readFileAsBase64(file: File) {
-  const buffer = await file.arrayBuffer();
-  let binary = "";
-  const bytes = new Uint8Array(buffer);
-  for (let i = 0; i < bytes.length; i += 1) {
-    binary += String.fromCharCode(bytes[i] ?? 0);
-  }
-  return btoa(binary);
-}
-
-export function printComposeDraft(input: {
+export interface PrintDraftLabels {
   from: string;
   to: string;
-  cc?: string;
+  cc: string;
   subject: string;
-  body: string;
-}) {
-  const win = window.open("", "_blank", "noopener,noreferrer");
-  if (!win) return;
-  const ccLine = input.cc?.trim() ? `<p><strong>Cc:</strong> ${escapeHtml(input.cc)}</p>` : "";
-  win.document.write(`<!DOCTYPE html><html><head><title>${escapeHtml(input.subject || "Email")}</title></head><body>
-    <p><strong>From:</strong> ${escapeHtml(input.from)}</p>
-    <p><strong>To:</strong> ${escapeHtml(input.to)}</p>
+}
+
+/**
+ * Prints the draft from a blank tab. `noopener` in the features string makes
+ * `window.open` return null, which silently skipped printing; the opener link
+ * is cut by hand instead. Returns false when the browser blocked the tab.
+ */
+export function printComposeDraft(
+  input: { from: string; to: string; cc?: string; subject: string; body: string },
+  labels: PrintDraftLabels,
+): boolean {
+  const win = window.open("", "_blank");
+  if (!win) return false;
+  win.opener = null;
+  const ccLine = input.cc?.trim() ? `<p><strong>${escapeHtml(labels.cc)}:</strong> ${escapeHtml(input.cc)}</p>` : "";
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(input.subject || "Email")}</title></head><body>
+    <p><strong>${escapeHtml(labels.from)}:</strong> ${escapeHtml(input.from)}</p>
+    <p><strong>${escapeHtml(labels.to)}:</strong> ${escapeHtml(input.to)}</p>
     ${ccLine}
-    <p><strong>Subject:</strong> ${escapeHtml(input.subject)}</p>
+    <p><strong>${escapeHtml(labels.subject)}:</strong> ${escapeHtml(input.subject)}</p>
     <hr />
     <pre style="white-space:pre-wrap;font-family:system-ui,sans-serif">${escapeHtml(input.body)}</pre>
   </body></html>`);
   win.document.close();
   win.focus();
   win.print();
+  return true;
 }

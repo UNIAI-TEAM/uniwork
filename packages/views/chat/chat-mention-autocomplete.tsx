@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { cn } from "@uniwork/ui/lib/utils";
+import { lookupMemberAvatarUrl, type MemberAvatarUrlMap } from "./chat-member-avatar";
 import type { ChatMentionCandidate } from "./chat-mention-utils";
 import { initialOf } from "./chat-initials";
 
@@ -19,12 +20,14 @@ export function ChatMentionAutocomplete({
   selectedIndex,
   onSelect,
   onHover,
+  memberAvatarByUserId = {},
 }: {
   listId: string;
   candidates: ChatMentionCandidate[];
   selectedIndex: number;
   onSelect: (candidate: ChatMentionCandidate) => void;
   onHover: (index: number) => void;
+  memberAvatarByUserId?: MemberAvatarUrlMap;
 }) {
   const { t } = useTranslation();
   const listRef = useRef<HTMLDivElement>(null);
@@ -85,7 +88,15 @@ export function ChatMentionAutocomplete({
                 <Users className="size-4" aria-hidden />
               </span>
             ) : (
-              <ActorAvatar name={candidate.label} initials={initials} size="lg" className="shrink-0" />
+              <ActorAvatar
+                name={candidate.label}
+                initials={initials}
+                avatarUrl={
+                  candidate.userId ? lookupMemberAvatarUrl(memberAvatarByUserId, candidate.userId) : undefined
+                }
+                size="lg"
+                className="shrink-0"
+              />
             )}
             <span className="min-w-0 flex-1">
               <span className="block truncate font-medium text-foreground">{candidate.label}</span>

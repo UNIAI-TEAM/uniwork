@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { VI_LOCALE_STATE } from "./locale-state";
 import { VERIFICATION_CODE, verifyEmail } from "./auth-nav";
 
 // The golden path for F-03: an organization stops being a shell around
@@ -43,7 +44,7 @@ async function registerInvitee(page: Page, name: string, email: string) {
 }
 
 test("directory, department, accent-insensitive search, then deactivation", async ({ browser }) => {
-  const ownerContext = await browser.newContext();
+  const ownerContext = await browser.newContext({ storageState: VI_LOCALE_STATE });
   const owner = await ownerContext.newPage();
   await registerFounder(owner, "Đỗ Thị Hà", ownerEmail);
 
@@ -66,7 +67,7 @@ test("directory, department, accent-insensitive search, then deactivation", asyn
   await expect(owner).toHaveURL(new RegExp(`/${orgSlug}/doi-danh-ba/tasks$`), { timeout: 15_000 });
   await owner.getByRole("button", { name: "Để sau" }).click();
 
-  const memberContext = await browser.newContext();
+  const memberContext = await browser.newContext({ storageState: VI_LOCALE_STATE });
   const member = await memberContext.newPage();
   await registerInvitee(member, "Nguyễn Văn Ân", memberEmail);
   await member.goto("/invitations");

@@ -34,7 +34,7 @@ const summary: HomeSummary = {
   generated_at: "",
 };
 
-function renderMyWork() {
+function renderMyWork(data: HomeSummary = summary) {
   const nav = {
     push: vi.fn(), replace: vi.fn(), back: vi.fn(),
     pathname: "/acme/team", searchParams: new URLSearchParams(), getShareableUrl: (p: string) => p,
@@ -42,7 +42,7 @@ function renderMyWork() {
   render(
     wrapWithNav(
       <WorkspaceProvider workspace={workspace} user={user}>
-        <HomeMyWork summary={summary} loading={false} retrying={false} onRetry={() => {}} />
+        <HomeMyWork summary={data} loading={false} retrying={false} onRetry={() => {}} />
       </WorkspaceProvider>,
       nav,
     ),
@@ -90,13 +90,34 @@ describe("HomeMyWork", () => {
     );
   });
 
-  it("keeps the list plain so each row control keeps its role", () => {
+  it("keeps the list plain so each row control keeps its role, grouped by due", () => {
     renderMyWork();
     const list = screen.getByRole("list", { name: "Công việc của tôi" });
     expect(list).not.toHaveAttribute("role");
     expect(screen.queryByRole("listbox")).toBeNull();
     expect(screen.queryByRole("option")).toBeNull();
+    expect(screen.getByRole("list", { name: "Quá hạn" })).toHaveTextContent("Viết spec");
+    expect(screen.getByRole("list", { name: "Hôm nay" })).toHaveTextContent("Chuẩn bị demo");
+  });
+
+  it("drops the due headings when every task shares one", () => {
+    renderMyWork({ ...summary, my_work: [task("1", "Viết spec", "2026-09-14"), task("2", "Chuẩn bị demo", "2026-09-14")] });
+    expect(screen.queryByRole("heading", { name: "Hôm nay" })).toBeNull();
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
+  });
+
+  it("shows the selection bar only once something is selected", () => {
+    renderMyWork();
+    expect(screen.queryByRole("button", { name: "Bỏ chọn" })).toBeNull();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Chọn: Viết spec" }));
+    expect(screen.getByText("Đã chọn 1/2")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Bỏ chọn" }));
+    expect(screen.queryByText("Đã chọn 1/2")).toBeNull();
+  });
+
+  it("says how much more open work there is than the page shows", () => {
+    renderMyWork({ ...summary, counts: { ...summary.counts, open: 12 } });
+    expect(screen.getByRole("link", { name: /Còn 10 việc nữa/ })).toHaveAttribute("href", "/acme/team/my-tasks");
   });
 
   it("moves real focus between rows and selects, completes and opens from the keyboard", async () => {

@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "savedAt": "2026-09-22T00:00:00.000Z",
+  "equation": {
+    "latex": "\\frac{x^{2}+1}{y_{1}}=\\sqrt{z}",
+    "alignment": "center",
+    "body": [
+      "Equation fixture",
+      "Before equation sentinel 314159",
+      "After equation sentinel 271828"
+    ]
+  },
+  "protection": {
+    "password": "UniWork-Fixture-Only-2026!",
+    "passwordClassification": "Public synthetic test password; never a user secret.",
+    "wrongPassword": "UniWork-Fixture-Wrong-2026!",
+    "body": [
+      "Protected fixture",
+      "Before protection sentinel 161803",
+      "After protection sentinel 141421"
+    ],
+    "edit": "readOnly",
+    "enforced": true,
+    "hash": "n2VmGB0nVd7UFhtU8xkZA8NJk21j1aGiUqEJKXNnbxbYHKqP3wzNG3CJaQwYzwso5HQh5/ONAipHoLEPU7l8GQ==",
+    "salt": "als0xQxeO+qUSwC8t2gcIQ==",
+    "spinCount": 100000,
+    "algorithmSid": 14,
+    "saltProvenance": "One random 16-byte salt from unmodified pinned hashProtectionPassword using WebCrypto getRandomValues. Retained explicitly for fixture regeneration; fresh salt generation is intentionally not byte deterministic."
+  }
+}

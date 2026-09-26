@@ -16,10 +16,7 @@ import { ChatFollowUpsSheet } from "./chat-follow-ups-sheet";
 import { useChatTaskNav } from "./use-chat-task-nav";
 
 /** Follow-up create + list sheet for the message panel / chat page. */
-export function useChatFollowUpUi(
-  workspaceId: string,
-  enabled: boolean,
-): {
+export function useChatFollowUpUi(workspaceId: string): {
   onFollowUp: ((message: ChatMessage) => void) | undefined;
   openList: () => void;
   sheet: ReactNode;
@@ -71,10 +68,6 @@ export function useChatFollowUpUi(
         (err: unknown) => toastChatError(err, t, t("chat.follow_up.restore_failed")),
       );
   };
-
-  if (!enabled) {
-    return { onFollowUp: undefined, openList: () => undefined, sheet: null };
-  }
 
   return {
     onFollowUp,

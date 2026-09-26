@@ -14,6 +14,7 @@ import { ComposerAttachMenu, ComposerToolbarButton, type ComposerAttachAction } 
 import { ComposerPriorityChip, ComposerVoiceBar, StagedFileChip } from "./chat-composer-parts";
 import { ChatExpressionPicker } from "./chat-expression-picker";
 import { ChatMentionAutocomplete, mentionOptionId } from "./chat-mention-autocomplete";
+import type { MemberAvatarUrlMap } from "./chat-member-avatar";
 import type { ChatMentionCandidate } from "./chat-mention-utils";
 import { deserializeMessageBodyToComposerDraft } from "./chat-mention-utils";
 import { CHAT_FILE_ACCEPT, pickChatAcceptedFiles } from "./chat-file-accept";
@@ -39,6 +40,7 @@ type ChatComposerProps = {
   sendLabel: string;
   typingLabel?: string | null;
   mentionCandidates?: ChatMentionCandidate[];
+  memberAvatarByUserId?: MemberAvatarUrlMap;
   composerPriority?: ComposerMessagePriority | null;
   onComposerPriorityChange?: (priority: ComposerMessagePriority | null) => void;
   onAttachAction?: (action: ComposerAttachAction) => void;
@@ -59,6 +61,7 @@ export function ChatComposer({
   sendLabel,
   typingLabel,
   mentionCandidates,
+  memberAvatarByUserId,
   composerPriority = null,
   onComposerPriorityChange,
   onAttachAction,
@@ -273,6 +276,7 @@ export function ChatComposer({
                   selectedIndex={mentions.activeIndex}
                   onSelect={mentions.insert}
                   onHover={mentions.setSelectedIndex}
+                  memberAvatarByUserId={memberAvatarByUserId}
                 />
               ) : null}
               <Textarea

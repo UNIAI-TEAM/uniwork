@@ -38,9 +38,24 @@ function AuthInitializer() {
   return null;
 }
 
-export function CoreProvider({ children }: { children: ReactNode }) {
+export function CoreProvider({
+  children,
+  initializeAuth = true,
+}: {
+  children: ReactNode;
+  /**
+   * False on pages that never read the session (public marketing): refreshing
+   * there only costs every anonymous visitor a 401. Screens that need the
+   * session still resolve it through `useSession()`, and flipping this back to
+   * true after a client-side navigation resolves it once.
+   */
+  initializeAuth?: boolean;
+}) {
   const [queryClient] = useState(createQueryClient);
   const [ready] = useState(() => {
+    // The default instance, for a host that resolves no locale of its own.
+    // i18next initialises once, so a host that DOES have one — the web app
+    // reads it from a cookie — must mount its locale provider above this.
     initI18n();
     setSchemaLogger(createLogger("api"));
     return true;
@@ -65,7 +80,7 @@ export function CoreProvider({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthInitializer />
+      {initializeAuth ? <AuthInitializer /> : null}
       <QuerySessionSync queryClient={queryClient} />
       {children}
     </QueryClientProvider>

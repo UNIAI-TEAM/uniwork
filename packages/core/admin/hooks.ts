@@ -13,8 +13,9 @@ export type { AdminOrganizationPage, AdminOrganizationQuery, AdminOrganizationSo
  * admitting the route exists; the layout guard reads the error status and
  * leaves. Never retried: the answer does not change between attempts.
  */
-export function useAdminMe() {
-  return useQuery({ queryKey: adminKeys.me, queryFn: admin.getAdminMe, retry: false });
+/** `enabled` waits for the session: asked before the token is restored, the server answers 401. */
+export function useAdminMe(enabled = true) {
+  return useQuery({ queryKey: adminKeys.me, queryFn: admin.getAdminMe, retry: false, enabled });
 }
 
 export function useAdminOrganizations(query: AdminOrganizationQuery = {}, enabled = true) {

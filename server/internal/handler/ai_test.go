@@ -51,7 +51,7 @@ func TestAIEndpoints(t *testing.T) {
 	if err := q.AddWorkspaceMember(ctx, db.AddWorkspaceMemberParams{WorkspaceID: wsID, UserID: memberID, Role: "member"}); err != nil {
 		t.Fatal(err)
 	}
-	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	yesterday := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02") // the server compares due dates against today in UTC
 	res, out = doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/tasks", owner, map[string]any{"title": "Viết spec F-09", "due_date": yesterday})
 	if res.StatusCode != 200 && res.StatusCode != 201 {
 		t.Fatalf("create task: %d %v", res.StatusCode, out)

@@ -103,10 +103,10 @@ type ChatMessageRowProps = {
   onCreateTask?: (message: ChatMessage) => void;
   onLinkTask?: (message: ChatMessage) => void;
   onFollowUp?: (message: ChatMessage) => void;
-  workHubEnabled?: boolean;
   showSenderName?: boolean;
   compactTop?: boolean;
   showAvatar?: boolean;
+  senderAvatarUrl?: string;
   /** The next message starts a new run (other sender or a pause): print the time here. */
   lastOfRun?: boolean;
   highlighted?: boolean;
@@ -135,10 +135,10 @@ function ChatMessageRowImpl({
   onCreateTask,
   onLinkTask,
   onFollowUp,
-  workHubEnabled = false,
   showSenderName = false,
   compactTop = false,
   showAvatar = true,
+  senderAvatarUrl,
   lastOfRun = true,
   highlighted = false,
   nameContext = EMPTY_NAME_CONTEXT,
@@ -168,7 +168,13 @@ function ChatMessageRowImpl({
       {!isOwn ? (
         <div className={INCOMING_AVATAR_SLOT_CLASS} aria-hidden>
           {showAvatar ? (
-            <ActorAvatar name={senderLabel} initials={initialOf(senderLabel)} size="lg" className="shrink-0" />
+            <ActorAvatar
+              name={senderLabel}
+              initials={initialOf(senderLabel)}
+              avatarUrl={senderAvatarUrl}
+              size="lg"
+              className="shrink-0"
+            />
           ) : null}
         </div>
       ) : null}
@@ -225,7 +231,7 @@ function ChatMessageRowImpl({
 
         <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} />
 
-        {workHubEnabled && workspaceId && !isPending ? (
+        {workspaceId && !isPending ? (
           <MessageTaskCard
             workspaceId={workspaceId}
             messageId={message.id}
@@ -246,9 +252,9 @@ function ChatMessageRowImpl({
             onPin={onPin}
             onCopy={onCopy}
             onDelete={onDelete}
-            onCreateTask={workHubEnabled ? onCreateTask : undefined}
-            onLinkTask={workHubEnabled ? onLinkTask : undefined}
-            onFollowUp={workHubEnabled ? onFollowUp : undefined}
+            onCreateTask={onCreateTask}
+            onLinkTask={onLinkTask}
+            onFollowUp={onFollowUp}
             canEdit={canEdit}
             forceOpen={reveal.open}
           />

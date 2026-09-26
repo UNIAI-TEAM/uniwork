@@ -81,7 +81,7 @@ func seedEmailHubThread(t *testing.T, q *db.Queries, accountID, orgID string) db
 		Folder: emailhub.FolderInbox, ImapUid: 42, Subject: "Hello",
 		Snippet: "hello", FromAddr: "a@b.co", ToAddrs: []string{"seed@gmail.com"},
 		SentAt:     pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true},
-		ImapLabels: []string{},
+		ImapLabels: []string{}, ConversationKey: "",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -281,7 +281,7 @@ func TestEmailHubGetSentThreadShortBodyCached(t *testing.T) {
 		Folder: emailhub.FolderSent, ImapUid: 99, Subject: "hehe",
 		Snippet: "hehe", FromAddr: acc.EmailAddress, ToAddrs: []string{"dest@example.com"},
 		SentAt: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}, IsRead: true,
-		ImapLabels: []string{},
+		ImapLabels: []string{}, ConversationKey: "",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -409,6 +409,85 @@ func TestEmailHubStarredFolderListing(t *testing.T) {
 	}
 }
 
+func TestEmailHubConversationMessages(t *testing.T) {
+	svc, q, user, ws, _ := emailHubFixture(t)
+	ctx := context.Background()
+	actor := Human(user.ID)
+	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
+	convKey := "subj:" + acc.ID + ":chức năng"
+
+	inbox, err := q.UpsertEmailHubThread(ctx, db.UpsertEmailHubThreadParams{
+		ID: util.NewID(), AccountID: acc.ID, OrganizationID: ws.OrganizationID,
+		Folder: emailhub.FolderInbox, ImapUid: 50, Subject: "chức năng",
+		Snippet: "hay làm", FromAddr: "longthldz@gmail.com", ToAddrs: []string{acc.EmailAddress},
+		SentAt:     pgtype.Timestamptz{Time: time.Now().UTC().Add(-time.Hour), Valid: true},
+		ImapLabels: []string{}, ConversationKey: convKey,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sent, err := q.UpsertEmailHubThread(ctx, db.UpsertEmailHubThreadParams{
+		ID: util.NewID(), AccountID: acc.ID, OrganizationID: ws.OrganizationID,
+		Folder: emailhub.FolderSent, ImapUid: 51, Subject: "Re: chức năng",
+		Snippet: "oke", FromAddr: acc.EmailAddress, ToAddrs: []string{"longthldz@gmail.com"},
+		SentAt: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}, IsRead: true,
+		ImapLabels: []string{}, ConversationKey: convKey,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	msgs, err := svc.ListConversationMessages(ctx, actor, ws.ID, acc.ID, inbox.ID)
+	if err != nil || len(msgs) != 2 {
+		t.Fatalf("conversation: err=%v len=%d", err, len(msgs))
+	}
+	if msgs[0].ID != inbox.ID || msgs[1].ID != sent.ID {
+		t.Fatalf("order: %+v", msgs)
+	}
+}
+
+func TestEmailHubInboxConversationList(t *testing.T) {
+	svc, q, user, ws, _ := emailHubFixture(t)
+	ctx := context.Background()
+	actor := Human(user.ID)
+	acc := seedEmailHubAccount(t, q, svc.box, user.ID, ws.OrganizationID)
+	convKey := "subj:" + acc.ID + ":demo"
+
+	_, err := q.UpsertEmailHubThread(ctx, db.UpsertEmailHubThreadParams{
+		ID: util.NewID(), AccountID: acc.ID, OrganizationID: ws.OrganizationID,
+		Folder: emailhub.FolderInbox, ImapUid: 60, Subject: "demo",
+		Snippet: "first", FromAddr: "a@b.co", ToAddrs: []string{acc.EmailAddress},
+		SentAt:     pgtype.Timestamptz{Time: time.Now().UTC().Add(-time.Hour), Valid: true},
+		ImapLabels: []string{}, ConversationKey: convKey,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = q.UpsertEmailHubThread(ctx, db.UpsertEmailHubThreadParams{
+		ID: util.NewID(), AccountID: acc.ID, OrganizationID: ws.OrganizationID,
+		Folder: emailhub.FolderSent, ImapUid: 61, Subject: "Re: demo",
+		Snippet: "reply", FromAddr: acc.EmailAddress, ToAddrs: []string{"a@b.co"},
+		SentAt: pgtype.Timestamptz{Time: time.Now().UTC(), Valid: true}, IsRead: true,
+		ImapLabels: []string{}, ConversationKey: convKey,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	page, err := svc.ListThreads(ctx, actor, ws.ID, ListEmailHubThreadsInput{
+		AccountID: acc.ID, Folder: emailhub.FolderInbox, Limit: 50,
+	})
+	if err != nil || len(page.Threads) != 1 {
+		t.Fatalf("inbox list: err=%v len=%d", err, len(page.Threads))
+	}
+	if page.Threads[0].Folder != emailhub.FolderSent || page.Threads[0].Snippet != "reply" {
+		t.Fatalf("expected latest sent in inbox row: %+v", page.Threads[0])
+	}
+	if page.Threads[0].ConversationMessageCount != 2 {
+		t.Fatalf("count: %+v", page.Threads[0])
+	}
+}
+
 func TestEmailHubScheduledSendLifecycle(t *testing.T) {
 	svc, q, user, ws, _ := emailHubFixture(t)
 	ctx := context.Background()
@@ -434,14 +513,14 @@ func TestEmailHubScheduledSendLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	list, err := svc.ListPendingScheduledSends(ctx, actor, ws.ID, acc.ID)
+	list, err := svc.ListScheduledSends(ctx, actor, ws.ID, acc.ID)
 	if err != nil || len(list) != 1 || list[0].ID != created.ID || list[0].Subject != "Later" {
 		t.Fatalf("list scheduled: err=%v list=%+v created=%+v", err, list, created)
 	}
 	if err := svc.CancelScheduledSend(ctx, actor, ws.ID, acc.ID, created.ID); err != nil {
 		t.Fatal(err)
 	}
-	list, err = svc.ListPendingScheduledSends(ctx, actor, ws.ID, acc.ID)
+	list, err = svc.ListScheduledSends(ctx, actor, ws.ID, acc.ID)
 	if err != nil || len(list) != 0 {
 		t.Fatalf("expected empty after cancel: err=%v list=%+v", err, list)
 	}
