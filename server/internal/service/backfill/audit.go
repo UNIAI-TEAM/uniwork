@@ -39,6 +39,8 @@ func classifyAuditExport(r db.FileBackfillScanAuditExportsRow) Item {
 		OrganizationID: r.OrganizationID,
 		Purpose:        "audit_export",
 		Claimed:        true,
+		ActorID:        r.RequestedBy,
+		ActorKind:      r.RequestedByKind,
 	}
 	if r.FileID.Valid && r.FileID.String != "" {
 		it.Class = ClassAlreadyApplied

@@ -25,6 +25,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -87,6 +89,15 @@ type Item struct {
 	SharedLocator  bool   `json:"shared_locator,omitempty"`
 	Filename       string `json:"filename,omitempty"`
 	SizeBytes      int64  `json:"size_bytes"`
+	ContentType    string `json:"content_type,omitempty"`
+	ActorID        string `json:"actor_id,omitempty"`
+	ActorKind      string `json:"actor_kind,omitempty"`
+	// Verdict is set by verify only; apply/plan leave it empty.
+	Verdict string `json:"verdict,omitempty"`
+
+	// Internal apply state — never serialized into the report.
+	runID    string
+	replaced bool
 }
 
 // locatorID is the dedup key: the files-table locator identity
@@ -115,7 +126,11 @@ type CohortReport struct {
 	SharedLocators  int            `json:"shared_locators"`  // locators named by >1 scope — always held
 	DuplicateRefs   int            `json:"duplicate_refs"`   // extra rows sharing one verified locator
 	Reasons         map[string]int `json:"reasons,omitempty"`
-	Items           []Item         `json:"items,omitempty"`
+	// Verify-only tallies: per-verdict counts plus pass/fail buckets.
+	Checks     map[string]int `json:"checks,omitempty"`
+	VerifiedOK int            `json:"verified_ok,omitempty"`
+	Failed     int            `json:"failed,omitempty"`
+	Items      []Item         `json:"items,omitempty"`
 }
 
 // Report is the deterministic machine-readable plan/dry-run/verify output.
@@ -153,6 +168,9 @@ type scanFn func(ctx context.Context, cursor string, limit int32) (items []Item,
 type Engine struct {
 	q        *db.Queries
 	resolver *Resolver
+	pool     *pgxpool.Pool
+	stat     Statter
+	defaults Defaults
 }
 
 func New(q *db.Queries, resolver *Resolver) *Engine {
@@ -233,6 +251,9 @@ func (e *Engine) Plan(ctx context.Context, opts Options) (*Report, error) {
 		items, err := e.scanAll(ctx, name, opts.BatchSize)
 		if err != nil {
 			return nil, fmt.Errorf("plan %s: %w", name, err)
+		}
+		if name == CohortCallRecordings {
+			items = reconcileCallLogRefs(items)
 		}
 		rep.Cohorts = append(rep.Cohorts, CohortReport{Name: name, Items: items})
 	}

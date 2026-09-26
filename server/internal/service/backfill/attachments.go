@@ -44,6 +44,9 @@ func classifyAttachment(r db.FileBackfillScanAttachmentsRow) Item {
 		WorkspaceID:    r.WorkspaceID,
 		Filename:       r.Filename,
 		SizeBytes:      r.SizeBytes,
+		ContentType:    r.ContentType,
+		ActorID:        r.UploaderID,
+		ActorKind:      r.UploaderType,
 		Claimed:        !r.ExpiresAt.Valid, // binding CHECK: staged rows carry expires_at
 		Purpose:        "task_attachment",
 	}

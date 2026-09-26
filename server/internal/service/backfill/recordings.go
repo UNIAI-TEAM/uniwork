@@ -30,6 +30,8 @@ func (e *Engine) scanMeetingRecordings(ctx context.Context, after string, limit 
 			RawLocator:     r.FileUrl.String,
 			OrganizationID: r.MeetingOrganizationID.String,
 			WorkspaceID:    r.MeetingWorkspaceID.String,
+			ActorID:        r.StartedBy,
+			ActorKind:      "human",
 		}
 		if r.FileID.Valid && r.FileID.String != "" {
 			it.Class = ClassAlreadyApplied
@@ -73,6 +75,8 @@ func (e *Engine) scanCallRecordings(ctx context.Context, after string, limit int
 			RawLocator:     r.FileUrl.String,
 			OrganizationID: r.OrganizationID,
 			WorkspaceID:    r.WorkspaceID,
+			ActorID:        r.StartedBy,
+			ActorKind:      "human",
 		}
 		if r.FileID.Valid && r.FileID.String != "" {
 			it.Class = ClassAlreadyApplied

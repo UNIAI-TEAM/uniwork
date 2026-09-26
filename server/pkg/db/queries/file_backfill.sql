@@ -121,6 +121,16 @@ WHERE storage = sqlc.arg('storage')
   AND object_key = sqlc.arg('object_key')
   AND bucket IS NOT DISTINCT FROM sqlc.narg('bucket');
 
+-- name: FileBackfillGetFileByID :one
+-- verify reads the row a business file_id points at.
+SELECT * FROM files WHERE id = sqlc.arg('id');
+
+-- name: FileBackfillListSessionsForFile :many
+-- verify checks scope/purpose coverage; rollback checks remaining claims.
+SELECT * FROM file_upload_sessions
+WHERE file_id = sqlc.arg('file_id')
+ORDER BY id;
+
 -- name: FileBackfillInsertFile :one
 -- Get-or-create by locator: a second inserter loses the race silently and
 -- re-reads through FileBackfillGetFileByLocator, so a replayed run can never
@@ -264,6 +274,12 @@ ON CONFLICT (run_id, cohort, source_table, source_id) DO UPDATE SET
 SELECT * FROM file_backfill_items
 WHERE run_id = sqlc.arg('run_id')
 ORDER BY cohort, source_table, source_id;
+
+-- name: FileBackfillListDoneItemKeys :many
+-- The resume index: committed item rows mean the business write committed,
+-- so a resumed run skips exactly the work that already landed.
+SELECT source_table, source_id FROM file_backfill_items
+WHERE run_id = sqlc.arg('run_id');
 
 -- name: FileBackfillListRunItemsByStatus :many
 SELECT * FROM file_backfill_items

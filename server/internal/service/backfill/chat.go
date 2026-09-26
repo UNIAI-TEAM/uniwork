@@ -100,6 +100,8 @@ func (e *Engine) classifyChatMessage(r db.FileBackfillScanChatMessagesRow) Item 
 		WorkspaceID:    ws,
 		Purpose:        purpose,
 		Claimed:        true,
+		ActorID:        r.SenderID,
+		ActorKind:      r.SenderKind,
 	}
 
 	if r.FileID.Valid && r.FileID.String != "" {
@@ -134,6 +136,9 @@ func (e *Engine) classifyChatMessage(r db.FileBackfillScanChatMessagesRow) Item 
 	it.RawLocator = key
 	if fn := metaString(meta, "filename"); fn != "" {
 		it.Filename = fn
+	}
+	if ct := metaString(meta, "content_type"); ct != "" {
+		it.ContentType = ct
 	}
 	if sz, ok := meta["size_bytes"].(float64); ok {
 		it.SizeBytes = int64(sz)
@@ -186,4 +191,25 @@ func (e *Engine) classifyCallLogRef(it Item, meta map[string]any) Item {
 	}
 	it.Class = ClassVerified
 	return it
+}
+
+// reconcileCallLogRefs applies the M7 rule after scanning: a voice_call_log
+// reference verifies only when a chat_voice_recordings row names the same
+// locator. A resolved URL with no recording row is unresolved, not applied —
+// the row is the tenant evidence, the URL alone is not.
+func reconcileCallLogRefs(items []Item) []Item {
+	have := map[string]bool{}
+	for _, it := range items {
+		if it.SourceTable == "chat_voice_recordings" && it.Class == ClassVerified {
+			have[it.locatorID()] = true
+		}
+	}
+	for i := range items {
+		it := &items[i]
+		if it.SourceTable == "chat_messages" && it.Class == ClassVerified && !have[it.locatorID()] {
+			it.Class = ClassUnresolved
+			it.Reason = "recording_row_missing"
+		}
+	}
+	return items
 }

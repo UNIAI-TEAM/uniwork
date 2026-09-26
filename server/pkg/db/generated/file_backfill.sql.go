@@ -211,6 +211,35 @@ func (q *Queries) FileBackfillFinishRun(ctx context.Context, arg FileBackfillFin
 	return err
 }
 
+const fileBackfillGetFileByID = `-- name: FileBackfillGetFileByID :one
+SELECT id, organization_id, storage, bucket, object_key, object_version, original_filename, content_type, size_bytes, checksum_sha256, status, metadata, ready_at, created_at, updated_at, deleted_at FROM files WHERE id = $1
+`
+
+// verify reads the row a business file_id points at.
+func (q *Queries) FileBackfillGetFileByID(ctx context.Context, id string) (File, error) {
+	row := q.db.QueryRow(ctx, fileBackfillGetFileByID, id)
+	var i File
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.Storage,
+		&i.Bucket,
+		&i.ObjectKey,
+		&i.ObjectVersion,
+		&i.OriginalFilename,
+		&i.ContentType,
+		&i.SizeBytes,
+		&i.ChecksumSha256,
+		&i.Status,
+		&i.Metadata,
+		&i.ReadyAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
 const fileBackfillGetFileByLocator = `-- name: FileBackfillGetFileByLocator :one
 
 SELECT id, organization_id, storage, bucket, object_key, object_version, original_filename, content_type, size_bytes, checksum_sha256, status, metadata, ready_at, created_at, updated_at, deleted_at FROM files
@@ -444,6 +473,38 @@ func (q *Queries) FileBackfillListCheckpoints(ctx context.Context, runID string)
 	return items, nil
 }
 
+const fileBackfillListDoneItemKeys = `-- name: FileBackfillListDoneItemKeys :many
+SELECT source_table, source_id FROM file_backfill_items
+WHERE run_id = $1
+`
+
+type FileBackfillListDoneItemKeysRow struct {
+	SourceTable string `json:"source_table"`
+	SourceID    string `json:"source_id"`
+}
+
+// The resume index: committed item rows mean the business write committed,
+// so a resumed run skips exactly the work that already landed.
+func (q *Queries) FileBackfillListDoneItemKeys(ctx context.Context, runID string) ([]FileBackfillListDoneItemKeysRow, error) {
+	rows, err := q.db.Query(ctx, fileBackfillListDoneItemKeys, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FileBackfillListDoneItemKeysRow{}
+	for rows.Next() {
+		var i FileBackfillListDoneItemKeysRow
+		if err := rows.Scan(&i.SourceTable, &i.SourceID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const fileBackfillListRunItems = `-- name: FileBackfillListRunItems :many
 SELECT run_id, cohort, source_table, source_id, file_id, storage, bucket, object_key, object_version, organization_id, status, reason, previous_locator, details, created_at, updated_at FROM file_backfill_items
 WHERE run_id = $1
@@ -524,6 +585,54 @@ func (q *Queries) FileBackfillListRunItemsByStatus(ctx context.Context, arg File
 			&i.Details,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const fileBackfillListSessionsForFile = `-- name: FileBackfillListSessionsForFile :many
+SELECT id, file_id, created_by, created_by_kind, purpose, organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status, provider_operation_id, generation, claim_expires_at, lease_owner, lease_expires_at, created_at, updated_at, closed_at, failure_code FROM file_upload_sessions
+WHERE file_id = $1
+ORDER BY id
+`
+
+// verify checks scope/purpose coverage; rollback checks remaining claims.
+func (q *Queries) FileBackfillListSessionsForFile(ctx context.Context, fileID string) ([]FileUploadSession, error) {
+	rows, err := q.db.Query(ctx, fileBackfillListSessionsForFile, fileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FileUploadSession{}
+	for rows.Next() {
+		var i FileUploadSession
+		if err := rows.Scan(
+			&i.ID,
+			&i.FileID,
+			&i.CreatedBy,
+			&i.CreatedByKind,
+			&i.Purpose,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.UserID,
+			&i.IdempotencyKey,
+			&i.CommandFingerprint,
+			&i.Status,
+			&i.ProviderOperationID,
+			&i.Generation,
+			&i.ClaimExpiresAt,
+			&i.LeaseOwner,
+			&i.LeaseExpiresAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ClosedAt,
+			&i.FailureCode,
 		); err != nil {
 			return nil, err
 		}

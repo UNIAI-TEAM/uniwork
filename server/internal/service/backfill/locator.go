@@ -94,6 +94,24 @@ func ResolverFromEnv() *Resolver {
 			}
 		}
 	}
+
+	// LIVEKIT_RECORDING_BUCKET is a separate bucket the LiveKit egress wrote
+	// recordings to (inventory §9.1 #4) — it resolves as an s3-family locator
+	// of its own, never merged with the storage bucket's namespace.
+	if bucket := strings.TrimSpace(os.Getenv("LIVEKIT_RECORDING_BUCKET")); bucket != "" {
+		ep := strings.TrimSpace(os.Getenv("LIVEKIT_RECORDING_S3_ENDPOINT"))
+		if ep == "" {
+			ep = os.Getenv("AWS_ENDPOINT_URL")
+		}
+		for _, a := range endpointAliases(ep) {
+			r.rules = append(r.rules,
+				prefixRule{backend: string(storage.BackendS3), bucket: bucket, prefix: a + "/" + bucket + "/"},
+			)
+			if vh := virtualHosted(a, bucket); vh != "" {
+				r.rules = append(r.rules, prefixRule{backend: string(storage.BackendS3), bucket: bucket, prefix: vh})
+			}
+		}
+	}
 	return r
 }
 

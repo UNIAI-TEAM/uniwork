@@ -44,6 +44,7 @@ func (e *Engine) classifyAvatar(r db.FileBackfillScanAvatarsRow) Item {
 	// its scope is the user alone, so two users naming one locator conflict
 	// in the shared-locator pass and hold rather than merge.
 	it.UserID = r.ID
+	it.ActorID, it.ActorKind = r.ID, "human"
 
 	if r.AvatarFileID.Valid && r.AvatarFileID.String != "" {
 		it.Class = ClassAlreadyApplied
