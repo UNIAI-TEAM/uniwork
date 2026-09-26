@@ -1,6 +1,7 @@
 # M1 / M2 ESTIMATE - DOC-006 plan item 6.3 (g119 r2)
 
-> **Status:** candidate for M; canonical files stay read-only. Issue UNI-670 (DOC-006), plan task 6, item 6.3.
+> **Status:** integrated into develop at `c6b567f0` (PR #130, G0 = GO); this was the g119 r2 candidate. Issue UNI-670 (DOC-006), plan task 6, item 6.3.
+> The G1-G2 plan (`docs/superpowers/plans/2026-09-18-documents-office-g1-g2.md` section 8.4) takes its G1+G2 floor from R4 + R5 here.
 > This is the **r2 refresh** of `../ESTIMATE-M1-M2.md` (SHA-256 `949C1F04...`). Every count in this document
 > is re-read from an accepted artifact named in `evidence/estimate-sources-r2.json` (r2 inputs) or the r1
 > map `../evidence/estimate-sources.json`. **No effort, throughput or calendar number here is a

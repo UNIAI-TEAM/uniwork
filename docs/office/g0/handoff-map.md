@@ -1,6 +1,8 @@
 # HANDOFF MAP - DOC-006 plan items 6.5 and 6.6 (g119 r2)
 
-> **Status:** candidate for M; canonical files and UniAI stay read-only. Issue UNI-670 (DOC-006), plan task 6.
+> **Status:** integrated into develop at `c6b567f0` (PR #130, G0 = GO); this was the g119 r2 candidate. Issue UNI-670 (DOC-006), plan task 6.
+> **Updated 2026-09-26:** OPEN-1 is closed (the G1-G7 lines are in the tracker, see below); section 2 G1 is
+> corrected for FileService FS-C1. The section 1 table is the 2026-09-25 read and is kept as history.
 > This is the **r2 refresh** of `../HANDOFF-MAP.md` (SHA-256 `8B17BDEB...`): the DOC-003 r2 port items
 > (P1-P5), the Q7 blocker owner split and the DEC-RENDER-TOLERANCE user decision are now folded into the
 > per-group tables. Every tracker statement below was read with `uniai issue get <KEY> --output json` on
@@ -32,7 +34,11 @@ therefore gives, for each group: (1) the artifact it receives, (2) the acceptanc
 | - | UNI-671 | QA-01: Real macOS browser/device fidelity checks | `backlog` | Deferral is stated in UNI-670's text |
 | parent | UNI-656 | C-01: Multi-format architecture and six-format capability proof | `in_progress` | INT-01 and the branding decision are recorded there |
 
-**OPEN-1 (coordinator readback, blocking this plan item's "Dat" line).** The G1-G7 mapping is *consistent* with
+**OPEN-1 - closed 2026-09-26.** The Advisor applied one `G0 → G1–G7 mapping` line to each of UNI-657, UNI-658,
+UNI-659, UNI-636, UNI-660, UNI-635 and UNI-661 on user instruction (read back on 2026-09-26). The paragraph below
+is the original finding, kept as history.
+
+**OPEN-1 (as written 2026-09-25).** The G1-G7 mapping is *consistent* with
 the plan and the issue texts, but it is **not confirmed in the tracker**: no issue carries a `G<n>` line, and
 each of UNI-657/658/659/660/661 only records a UNI-655 planning-group number that does not equal its G number.
 This slice cannot write to UniAI. Action for the Advisor/user: add one line per issue, for example

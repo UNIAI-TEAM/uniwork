@@ -41,6 +41,13 @@ lại giữ nguyên văn, kể cả câu đã lỗi thời (bảng dưới nói 
   (plan G1-G2 §1.3, §3.2).
 - `runtime-conclusion.md` §4 "O-05 ADR number": ADR đã mang số 0021.
 
+## Dòng trạng thái cũ trong file G0 bị pin
+
+`docs/office/g0/engine-contract.md` vẫn ghi "in-progress (G0, chưa shipped) · Ngày 2026-09-17", và §14 ghi "All
+`runtime_chosen` fields remain false". Cả hai đúng ở thời điểm viết, nay đã cũ: G0 kết thúc với G0 = GO và
+`module-runtime-map.json` có `runtime_selection_verdict.chosen: true` cho sáu chu trình lõi (xem `status_note`
+trong file đó). File bị pin sha256 nên không sửa; đọc kèm ghi chú này và [fs-c1-alignment.md](fs-c1-alignment.md).
+
 ## Còn ngoài git, cố ý
 
 Receipt, cây lab (`lab/labroot-*`), ảnh chụp và báo cáo Tester của các slice g119 vẫn ở thư mục chạy

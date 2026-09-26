@@ -1,6 +1,9 @@
 # UniWork — G0: đặc tả kiến trúc Documents và UniWork Office đa định dạng
 
-> **Trạng thái:** Phạm vi đã chốt để lập plan (2026-09-16). Người dùng yêu cầu
+> **Trạng thái:** shipped — G0 kết thúc với G0 = GO (2026-09-25), merge ở develop `c6b567f0` (PR #130); đây là
+> spec của đợt khảo sát, không phải sản phẩm. Runtime theo thao tác đã chốt ở ADR 0021; phần còn lại chuyển G1-G7
+> (`docs/office/g0/handoff-map.md`, plan G1-G2 `2026-09-18-documents-office-g1-g2.md`).
+> Lịch sử (2026-09-16): Phạm vi đã chốt để lập plan. Người dùng yêu cầu
 > chuyển sang plan theo spec đã chốt; lựa chọn runtime/protocol và ngưỡng đo còn
 > được kiểm chứng trong G0, chưa phải kết quả triển khai.
 > **Issue:** UNI-656 · Parent UNI-437 · Roadmap C-01, liên quan C-15/C-16.
