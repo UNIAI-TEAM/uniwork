@@ -211,10 +211,7 @@ function ExportItem({ job, orgId }: { job: AuditExport; orgId: string }) {
     try {
       saveFile(await downloadAuditExport(orgId, job.id), exportFileName(job));
     } catch (err) {
-      // download_failed is an integration-requested key (i18n files are
-      // integrator-owned); until it lands the English default still names the
-      // failed action correctly.
-      toastApiError(err, t("download_failed", { defaultValue: "Download failed" }));
+      toastApiError(err, t("download_failed"));
     } finally {
       setDownloading(false);
     }

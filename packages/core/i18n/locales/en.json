@@ -592,6 +592,7 @@
         "expires": "Expires",
         "format_jsonl": "JSON Lines",
         "create_failed": "The export could not be created. Try again in a few minutes.",
+        "download_failed": "Couldn't download the export. Try again in a moment.",
         "load_error": "Exports could not be loaded.",
         "history_label": "Recent exports",
         "error_range_too_large": "The date range is too large. Split it and export again.",
