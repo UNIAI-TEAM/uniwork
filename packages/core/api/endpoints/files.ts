@@ -45,9 +45,18 @@ function absoluteUrl(url: string, access: FileAccessMode | null): string {
   return url;
 }
 
+/** Split the URL off an entry before validation: a failed parse logs the value
+ *  it received, and a presigned URL or proxy ticket must never reach a log. */
+function withoutUrl(raw: unknown): { rest: unknown; url: unknown } {
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return { rest: raw, url: undefined };
+  const { url, ...rest } = raw as Record<string, unknown>;
+  return { rest, url };
+}
+
 function toResolved(raw: unknown, fileId: string): ResolvedFile {
+  const { rest, url: rawUrl } = withoutUrl(raw);
   const item = parseWithFallback<z.infer<typeof FileAccessItemSchema> | null>(
-    raw,
+    rest,
     FileAccessItemSchema,
     null,
     { endpoint: ENDPOINT },
@@ -63,7 +72,7 @@ function toResolved(raw: unknown, fileId: string): ResolvedFile {
       error: { code: item.error.code, message: item.error.message ?? "" },
     };
   }
-  const url = item.url?.trim() ?? "";
+  const url = typeof rawUrl === "string" ? rawUrl.trim() : "";
   if (!item.file || !url) return unavailable(fileId);
   const access = narrowAccess(item.access);
   return {

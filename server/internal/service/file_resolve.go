@@ -141,6 +141,9 @@ func (s *FileService) presignRead(ctx context.Context, rec fileRecord, dispositi
 	if end, ok := claimWindowEnd(rec.session); ok && end.Before(expires) {
 		expires = end
 	}
+	// Callers run sessionGrant first, so a staged file here still has window
+	// left; the guard keeps a future caller that skips it from signing a URL
+	// that is dead on arrival.
 	if !expires.After(now) {
 		return "", time.Time{}, fmt.Errorf("files: claim window for %s already ended", rec.file.ID)
 	}

@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
+import { noopLogger } from "../../logger";
+import { setSchemaLogger } from "../schema";
 import { setAccessToken } from "../session";
 import { resolveWorkspaceFiles } from "./files";
 
@@ -157,6 +159,28 @@ describe("files endpoints", () => {
       "file_unavailable", // missing entry
     ]);
     expect(out[1]?.url).toBe("https://ok");
+  });
+
+  it("never hands a URL or ticket to the schema logger", async () => {
+    const warn = vi.fn();
+    setSchemaLogger({ ...noopLogger, warn });
+    try {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        json({
+          items: [
+            { file_id: "f1", file: { id: "f1" }, access: "proxy", url: "/api/v1/files/f1/content?ticket=SECRET" },
+            { file_id: "f2", file: view("f2"), access: "presign", url: "https://s3.test/o?X-Amz-Signature=SECRET" },
+          ],
+        }),
+      );
+      const out = await resolveWorkspaceFiles("ws1", ["f1", "f2"]);
+      expect(out[0]?.error?.code).toBe("file_unavailable");
+      expect(out[1]?.url).toBe("https://s3.test/o?X-Amz-Signature=SECRET");
+      expect(warn).toHaveBeenCalled();
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("SECRET");
+    } finally {
+      setSchemaLogger(noopLogger);
+    }
   });
 
   it("keeps the URL but narrows an unknown access mode to null", async () => {
