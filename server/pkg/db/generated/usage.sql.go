@@ -64,6 +64,58 @@ func (q *Queries) CountOrganizationMembers(ctx context.Context, organizationID s
 	return count, err
 }
 
+const countStorageBytesInOrganization = `-- name: CountStorageBytesInOrganization :one
+WITH held AS (
+  SELECT r.file_id, max(r.size_bytes) AS size_bytes
+  FROM (
+    SELECT v.file_id, v.size_bytes
+    FROM document_versions v
+    WHERE v.organization_id = $1
+      AND v.kind = 'file'
+      AND v.file_id IS NOT NULL
+    UNION ALL
+    SELECT a.file_id, a.size_bytes
+    FROM document_assets a
+    WHERE a.organization_id = $1
+  ) r
+  GROUP BY r.file_id
+)
+SELECT (
+  (SELECT COALESCE(sum(d.content_bytes), 0) FROM documents d
+    WHERE d.organization_id = $1 AND d.kind = 'page')
+  + (SELECT COALESCE(sum(v.size_bytes), 0) FROM document_versions v
+    WHERE v.organization_id = $1 AND v.kind = 'page')
+  + (SELECT COALESCE(sum(h.size_bytes), 0) FROM held h)
+  + (SELECT COALESCE(sum(e.delta), 0)
+     FROM usage_events e
+     JOIN file_upload_sessions s ON s.file_id = e.ref_id
+     JOIN files f ON f.id = e.ref_id
+     WHERE e.organization_id = $1
+       AND e.meter_key = 'storage.bytes'
+       AND e.ref_type = 'file_reservation'
+       AND s.status IN ('receiving', 'staged')
+       AND f.status IN ('pending', 'processing', 'ready')
+       AND NOT EXISTS (SELECT 1 FROM held h WHERE h.file_id = e.ref_id))
+)::bigint AS total
+`
+
+// storage.bytes (C-01 §14.2, G1-03): page bytes (working copy + page
+// versions) plus every DISTINCT file_id Documents still holds in the
+// organization - one file counts once however many versions or assets point
+// at it (FileService T1-Q9) - plus the live upload reservations the
+// FileService quota hook recorded. A reservation is a usage_events row with
+// ref_type 'file_reservation' (ref_id = file_id); it stops counting when the
+// file is held (claimed into a document row), when its session is no longer
+// receiving/staged (claimed, canceled, expired) or when the file failed or
+// is being deleted, so a reservation is always finite. Archived documents
+// still count: only the purge (row gone) frees their bytes.
+func (q *Queries) CountStorageBytesInOrganization(ctx context.Context, organizationID string) (int64, error) {
+	row := q.db.QueryRow(ctx, countStorageBytesInOrganization, organizationID)
+	var total int64
+	err := row.Scan(&total)
+	return total, err
+}
+
 const countTasksInOrganization = `-- name: CountTasksInOrganization :one
 SELECT count(*)::bigint FROM tasks WHERE organization_id = $1
 `
@@ -84,6 +136,39 @@ func (q *Queries) CountWorkspacesInOrganization(ctx context.Context, organizatio
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const getStorageReservationUpload = `-- name: GetStorageReservationUpload :one
+SELECT purpose, workspace_id, created_by, created_by_kind
+FROM file_upload_sessions
+WHERE file_id = $1
+  AND organization_id = $2
+`
+
+type GetStorageReservationUploadParams struct {
+	FileID         string      `json:"file_id"`
+	OrganizationID pgtype.Text `json:"organization_id"`
+}
+
+type GetStorageReservationUploadRow struct {
+	Purpose       string      `json:"purpose"`
+	WorkspaceID   pgtype.Text `json:"workspace_id"`
+	CreatedBy     string      `json:"created_by"`
+	CreatedByKind string      `json:"created_by_kind"`
+}
+
+// The upload behind a reservation: FileService calls the quota hook with a
+// file id only, and the purpose decides whether storage.bytes meters it.
+func (q *Queries) GetStorageReservationUpload(ctx context.Context, arg GetStorageReservationUploadParams) (GetStorageReservationUploadRow, error) {
+	row := q.db.QueryRow(ctx, getStorageReservationUpload, arg.FileID, arg.OrganizationID)
+	var i GetStorageReservationUploadRow
+	err := row.Scan(
+		&i.Purpose,
+		&i.WorkspaceID,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+	)
+	return i, err
 }
 
 const getUsageCounter = `-- name: GetUsageCounter :one

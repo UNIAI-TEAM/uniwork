@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -26,6 +27,9 @@ const (
 	FeatureMeetingMinutes   = "meeting.participant_minutes"
 	FeatureMeetingRecording = "meeting.recording"
 	FeatureMeetingAISummary = "meeting.ai_summary"
+	// FeatureStorageBytes is the Documents storage meter (C-01 §14.2):
+	// snapshot mode, counted by CountStorageBytesInOrganization.
+	FeatureStorageBytes = "storage.bytes"
 )
 
 // wiredFeatures have a consumer in this codebase (a gate or a meter call).
@@ -35,7 +39,7 @@ const (
 var wiredFeatures = map[string]bool{
 	FeatureMembersMax: true, FeatureWorkspacesMax: true, FeatureTasksMax: true,
 	FeatureMeetingMinutes: true, FeatureMeetingRecording: true, FeatureMeetingAISummary: true,
-	FeatureAITokens: true,
+	FeatureAITokens: true, FeatureStorageBytes: true,
 }
 
 // graceFeatures stay effective when the subscription is inactive, so an
@@ -225,6 +229,8 @@ func snapshotCount(ctx context.Context, q *db.Queries, orgID, meter string) (int
 		return q.CountWorkspacesInOrganization(ctx, orgID)
 	case FeatureTasksMax:
 		return q.CountTasksInOrganization(ctx, orgID)
+	case FeatureStorageBytes:
+		return q.CountStorageBytesInOrganization(ctx, orgID)
 	}
 	return 0, nil
 }
@@ -333,6 +339,73 @@ func (s *EntitlementService) consume(ctx context.Context, q *db.Queries, in Cons
 	return s.notifyThreshold(ctx, q, in, e, row)
 }
 
+// storageMeteredPurposes are the upload purposes storage.bytes counts. The
+// quota hook sees every organization upload; only these reserve bytes.
+var storageMeteredPurposes = map[files.UploadPurpose]bool{
+	files.DocumentFile:  true,
+	files.DocumentAsset: true,
+}
+
+// storageReservationRef marks a usage_events row as an upload reservation of
+// storage.bytes; CountStorageBytesInOrganization reads it back.
+const storageReservationRef = "file_reservation"
+
+// ReserveFileBytes is the FileService quota hook (FileQuotaHook) for
+// storage.bytes. FileService calls it once per new file, after measuring the
+// bytes and before storing them, outside any transaction. The reservation is
+// decided under the organization's subscription lock - the same lock every
+// storage Consume takes - so two parallel uploads are serialized here and the
+// second sees the first one's reservation: together they cannot pass the
+// limit. The reservation is a usage_events row keyed by the file id, so a
+// replay never reserves twice; it stops counting once the file is claimed,
+// canceled, expired or failed (see the query).
+func (s *EntitlementService) ReserveFileBytes(ctx context.Context, organizationID string, fileID files.FileID, sizeBytes int64) error {
+	up, err := s.q.GetStorageReservationUpload(ctx, db.GetStorageReservationUploadParams{
+		FileID: string(fileID), OrganizationID: pgtype.Text{String: organizationID, Valid: true},
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil // not an organization upload FileService knows; nothing to meter
+	}
+	if err != nil {
+		return err
+	}
+	if !storageMeteredPurposes[files.UploadPurpose(up.Purpose)] {
+		return nil
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := s.q.WithTx(tx)
+	sub, e, err := s.entitlement(ctx, q, organizationID, FeatureStorageBytes, true)
+	if err != nil {
+		return err
+	}
+	if e.Limit != nil {
+		cur, err := s.current(ctx, q, sub, e)
+		if err != nil {
+			return err
+		}
+		if cur+sizeBytes > *e.Limit {
+			return errQuotaExceeded(FeatureStorageBytes, *e.Limit, cur, sizeBytes)
+		}
+	}
+	if _, err := q.InsertUsageEvent(ctx, usageEventParams(ConsumeInput{
+		OrganizationID: organizationID,
+		WorkspaceID:    up.WorkspaceID.String,
+		Meter:          FeatureStorageBytes,
+		Delta:          sizeBytes,
+		Actor:          Actor{Kind: audit.Kind(up.CreatedByKind), ID: up.CreatedBy},
+		RefType:        storageReservationRef,
+		RefID:          string(fileID),
+		IdempotencyKey: "storage.reserve:" + string(fileID),
+	})); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 func usageEventParams(in ConsumeInput) db.InsertUsageEventParams {
 	kind := string(in.Actor.Kind)
 	if kind == "" {
@@ -423,3 +496,5 @@ func (s *EntitlementService) Snapshot(ctx context.Context, orgID string) (Entitl
 	}
 	return EntitlementSnapshot{Subscription: sub, Plan: plan, Entitlements: ents}, nil
 }
+
+var _ FileQuotaHook = (*EntitlementService)(nil)

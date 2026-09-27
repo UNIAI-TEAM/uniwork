@@ -150,8 +150,10 @@ func TestNewOrganizationIsOnTheDefaultPlan(t *testing.T) {
 	if e, ok := lookup(snap.Entitlements, FeatureTasksMax); !ok || !e.Metered || e.Limit != nil {
 		t.Fatalf("tasks.max must be metered and unlimited on starter: %+v", e)
 	}
-	if e, ok := lookup(snap.Entitlements, "storage.bytes"); !ok || e.Metered {
-		t.Fatalf("storage.bytes has no consumer yet and must not claim to be metered: %+v", e)
+	// G1-03 wired storage.bytes (Documents): metered, unlimited on starter,
+	// and a new organization holds nothing yet.
+	if e, ok := lookup(snap.Entitlements, FeatureStorageBytes); !ok || !e.Metered || e.Limit != nil || e.Current != 0 {
+		t.Fatalf("storage.bytes must be metered, unlimited and empty: %+v", e)
 	}
 }
 
