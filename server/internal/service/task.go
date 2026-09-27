@@ -445,7 +445,7 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 		}
 		bound, err := q.BindAttachmentsToTask(ctx, db.BindAttachmentsToTaskParams{
 			TaskID: pgtype.Text{String: task.ID, Valid: true}, OrganizationID: ws.OrganizationID, WorkspaceID: workspaceID,
-			UploaderType: s.commentActorType(actor.Kind), UploaderID: actor.ID, AttachmentIds: attachmentIDs,
+			UploaderType: commentActorType(actor.Kind), UploaderID: actor.ID, AttachmentIds: attachmentIDs,
 		})
 		if err != nil {
 			return db.Task{}, err
