@@ -34,12 +34,12 @@ const fixturePath = resolve(process.cwd(), "../../docs/parity/document-schema.js
 const fixture = JSON.parse(readFileSync(fixturePath, "utf8")) as FixtureFile;
 
 const mergeLimits = (defaults: SanitizeLimits, opt?: FixtureLimits): SanitizeLimits => ({
-  maxInputBytes: opt?.maxInputBytes || defaults.maxInputBytes,
-  maxBytes: opt?.maxBytes || defaults.maxBytes,
-  maxDepth: opt?.maxDepth || defaults.maxDepth,
-  maxNodes: opt?.maxNodes || defaults.maxNodes,
-  maxTableRows: opt?.maxTableRows || defaults.maxTableRows,
-  maxTableCols: opt?.maxTableCols || defaults.maxTableCols,
+  maxInputBytes: opt?.maxInputBytes ?? defaults.maxInputBytes,
+  maxBytes: opt?.maxBytes ?? defaults.maxBytes,
+  maxDepth: opt?.maxDepth ?? defaults.maxDepth,
+  maxNodes: opt?.maxNodes ?? defaults.maxNodes,
+  maxTableRows: opt?.maxTableRows ?? defaults.maxTableRows,
+  maxTableCols: opt?.maxTableCols ?? defaults.maxTableCols,
 });
 
 describe("document schema parity", () => {

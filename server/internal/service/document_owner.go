@@ -89,6 +89,12 @@ func (s *DocumentService) CreateOwnedDocumentInTx(
 	if len([]rune(in.Title)) > 500 {
 		return db.Document{}, Invalid("tên tài liệu tối đa 500 ký tự")
 	}
+	if strings.TrimSpace(in.OrganizationID) == "" {
+		return db.Document{}, Invalid("organization_id bắt buộc")
+	}
+	if strings.TrimSpace(in.WorkspaceID) == "" {
+		return db.Document{}, Invalid("workspace_id bắt buộc")
+	}
 	if strings.TrimSpace(in.OwnerID) == "" {
 		return db.Document{}, Invalid("owner_id bắt buộc")
 	}
@@ -100,7 +106,7 @@ func (s *DocumentService) CreateOwnedDocumentInTx(
 		if len(in.Content) > 0 {
 			sanitized, text, err := document.Sanitize(in.Content)
 			if err != nil {
-				return db.Document{}, err
+				return db.Document{}, documentServiceError(err)
 			}
 			content = sanitized
 			contentText = text
@@ -137,7 +143,46 @@ func (s *DocumentService) CreateOwnedDocumentInTx(
 	if strings.TrimSpace(in.Icon) != "" {
 		params.Icon = pgtype.Text{String: in.Icon, Valid: true}
 	}
-	return q.InsertDocument(ctx, params)
+	doc, err := q.InsertDocument(ctx, params)
+	if err != nil {
+		return db.Document{}, err
+	}
+	// Every business write carries its audit row and outbox event in the same
+	// transaction (CLAUDE.md "Audit and Events"): the caller's q binds the
+	// owner service's tx, so the document, the audit row and the
+	// document.created frame commit or roll back with the work product.
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: in.OrganizationID,
+		WorkspaceID:    in.WorkspaceID,
+		Actor:          actor,
+		Action:         audit.ActionDocumentCreated,
+		ResourceType:   "document",
+		ResourceID:     doc.ID,
+		Changes: audit.Diff(nil, map[string]any{
+			"title": doc.Title,
+			"kind":  doc.Kind,
+		}),
+	}, audit.Event{Topic: "document.created", Payload: map[string]string{
+		"document_id":  doc.ID,
+		"workspace_id": in.WorkspaceID,
+	}}); err != nil {
+		return db.Document{}, err
+	}
+	return doc, nil
+}
+
+// documentServiceError maps the sanitizer's typed error onto the coded
+// service error handlers translate (document_invalid -> 400,
+// document_too_large -> 413).
+func documentServiceError(err error) error {
+	var de *document.Error
+	if !errors.As(err, &de) {
+		return err
+	}
+	if de.Code == document.ErrCodeTooLarge {
+		return coded(413, de.Code, de.Msg)
+	}
+	return coded(400, de.Code, de.Msg)
 }
 
 // aclOwnerFor implements §14.3: acl_owner_id defaults to the creator, but

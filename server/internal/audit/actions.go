@@ -114,6 +114,11 @@ const (
 
 	ActionSubscriptionChanged = "subscription.changed"
 
+	// Documents (UNI-657): created today through the owner seam
+	// (C-01 §13.5); the public page/file commands add their own rows as
+	// those lands (G1-04+).
+	ActionDocumentCreated = "document.created"
+
 	// Platform admin (F-11). The actor is a platform_role holder, or "cli"
 	// for uniwork-admin; admin_actions carries the reason beside the row.
 	ActionOrganizationSuspended   = "organization.suspended"

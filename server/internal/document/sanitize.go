@@ -1,6 +1,7 @@
 package document
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -53,10 +54,15 @@ func SanitizeWithLimits(raw []byte, lim Limits) (json.RawMessage, string, error)
 		return nil, "", err
 	}
 	outDoc := map[string]any{"type": "doc", "content": out}
-	enc, err := json.Marshal(outDoc)
-	if err != nil {
+	// HTML escaping stays off so the stored bytes and the size bound measure
+	// the same thing JSON.stringify does on the client (FE R1 F3).
+	var buf bytes.Buffer
+	je := json.NewEncoder(&buf)
+	je.SetEscapeHTML(false)
+	if err := je.Encode(outDoc); err != nil {
 		return nil, "", errInvalid("sanitized document does not encode")
 	}
+	enc := bytes.TrimRight(buf.Bytes(), "\n")
 	if int64(len(enc)) > lim.MaxBytes {
 		return nil, "", errTooLarge(fmt.Sprintf("sanitized document exceeds %d bytes", lim.MaxBytes))
 	}

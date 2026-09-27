@@ -5,6 +5,11 @@
 // fixtures in docs/parity/document-schema.json.
 package document
 
+import (
+	"math"
+	"unicode"
+)
+
 // Limits bound what a page document may contain. The defaults are the
 // contract values from C-01 §3.7; tests and future callers may tighten them
 // through SanitizeWithLimits.
@@ -95,7 +100,7 @@ var nodeSpecs = map[string]nodeSpec{
 	},
 	"bulletList": {},
 	"orderedList": {
-		attrs: map[string]attrRule{"start": isIntBetween(1, maxInt)},
+		attrs: map[string]attrRule{"start": isIntBetween(1, maxListStart)},
 	},
 	"listItem":       {},
 	"taskList":       {},
@@ -108,7 +113,7 @@ var nodeSpecs = map[string]nodeSpec{
 		attrs: map[string]attrRule{
 			"src":   isAssetRef,
 			"alt":   isStringLen(512),
-			"width": isIntBetween(1, maxInt),
+			"width": isIntBetween(1, maxImageWidth),
 		},
 		required: []string{"src"},
 		leaf:     true,
@@ -116,8 +121,8 @@ var nodeSpecs = map[string]nodeSpec{
 	},
 	"table":       {},
 	"tableRow":    {},
-	"tableCell":   {attrs: map[string]attrRule{"colspan": isIntBetween(1, maxInt), "rowspan": isIntBetween(1, maxInt)}},
-	"tableHeader": {attrs: map[string]attrRule{"colspan": isIntBetween(1, maxInt), "rowspan": isIntBetween(1, maxInt)}},
+	"tableCell":   {attrs: map[string]attrRule{"colspan": isIntBetween(1, maxColspan), "rowspan": isIntBetween(1, maxRowspan)}},
+	"tableHeader": {attrs: map[string]attrRule{"colspan": isIntBetween(1, maxColspan), "rowspan": isIntBetween(1, maxRowspan)}},
 	"mention": {
 		attrs: map[string]attrRule{
 			"kind":  isMentionKind,
@@ -143,7 +148,16 @@ var markSpecs = map[string]markSpec{
 	},
 }
 
-const maxInt = int(^uint(0) >> 1)
+// Product bounds for numeric attrs, shared with the TypeScript mirror
+// (schema.ts must keep the same values). They sit far above anything a page
+// shows and far below the float64/int64 edge where the two languages used to
+// disagree.
+const (
+	maxListStart  = 1_000_000_000
+	maxImageWidth = 10_000
+	maxColspan    = 20  // a span can never exceed the table column bound
+	maxRowspan    = 200 // nor the table row bound
+)
 
 func isBool(v any) bool {
 	_, ok := v.(bool)
@@ -151,14 +165,16 @@ func isBool(v any) bool {
 }
 
 // isIntBetween accepts a JSON number with an integral value inside [lo, hi].
+// The bounds are compared in float64 first: int() on a value outside the int
+// range is implementation-defined, so the conversion only happens once f is
+// known to fit.
 func isIntBetween(lo, hi int) attrRule {
 	return func(v any) bool {
 		f, ok := v.(float64)
-		if !ok {
+		if !ok || f < float64(lo) || f > float64(hi) || f != math.Trunc(f) {
 			return false
 		}
-		i := int(f)
-		return float64(i) == f && i >= lo && i <= hi
+		return true
 	}
 }
 
@@ -223,10 +239,13 @@ func isMentionKind(v any) bool {
 
 // isSafeHref allows https:// URLs, mailto: addresses and root-absolute
 // internal paths (C-01 §3.7). Everything else - javascript:, data:,
-// protocol-relative //, bare http: - is rejected, as is any whitespace.
+// protocol-relative //, bare http: - is rejected. So is any byte the browser
+// rewrites before navigation: backslash (WHATWG URL parsing turns `/\x` into
+// `//x`, smuggling an external host past the root-absolute rule), ASCII
+// control characters, and Unicode whitespace.
 func isSafeHref(v any) bool {
 	s, ok := v.(string)
-	if !ok || s == "" || len([]rune(s)) > 2048 || hasSpace(s) {
+	if !ok || s == "" || len([]rune(s)) > 2048 || hasUnsafeHrefChar(s) {
 		return false
 	}
 	switch {
@@ -245,10 +264,12 @@ func hasPrefix(s, p string) bool {
 	return len(s) >= len(p) && s[:len(p)] == p
 }
 
-func hasSpace(s string) bool {
+// hasUnsafeHrefChar reports whether s carries a character a browser would
+// strip or reinterpret inside a URL: backslash, ASCII control characters
+// (including DEL) and any Unicode whitespace.
+func hasUnsafeHrefChar(s string) bool {
 	for _, c := range s {
-		switch c {
-		case ' ', '\t', '\n', '\r', '\f', '\v':
+		if c == '\\' || c < 0x20 || c == 0x7f || unicode.IsSpace(c) {
 			return true
 		}
 	}

@@ -99,7 +99,14 @@ interface MarkSpec {
 
 const ULID_PATTERN = /^[0-9A-HJKMNP-TV-Z]{26}$/i;
 const MAX_HREF_LENGTH = 2048;
-const INT_MAX = Number.MAX_SAFE_INTEGER;
+// Product bounds for numeric attrs, shared with the Go mirror
+// (server/internal/document/schema.go must keep the same values). They sit
+// far above anything a page shows and far below the Number/int64 edge where
+// the two languages used to disagree.
+const MAX_LIST_START = 1_000_000_000;
+const MAX_IMAGE_WIDTH = 10_000;
+const MAX_COLSPAN = 20;
+const MAX_ROWSPAN = 200;
 
 const isBool = (v: unknown): boolean => typeof v === "boolean";
 const isIntBetween =
@@ -116,11 +123,24 @@ const isAssetRef = (v: unknown): boolean =>
 const isMentionKind = (v: unknown): boolean =>
   typeof v === "string" && (DOCUMENT_MENTION_KINDS as readonly string[]).includes(v);
 
-const hasSpace = (s: string): boolean => /[ \t\n\r\f\v]/.test(s);
+/**
+ * Characters a browser would strip or reinterpret inside a URL: backslash
+ * (WHATWG URL parsing turns `/\x` into `//x`, smuggling an external host past
+ * the root-absolute rule), ASCII control characters and DEL, and any
+ * whitespace including Unicode spaces (\s covers those). Mirrors Go's
+ * hasUnsafeHrefChar.
+ */
+const hasUnsafeHrefChar = (s: string): boolean => {
+  for (const c of s) {
+    const cp = c.codePointAt(0) ?? 0;
+    if (c === "\\" || cp < 0x20 || cp === 0x7f || /\s/u.test(c)) return true;
+  }
+  return false;
+};
 
 /** https://, mailto: or a root-absolute internal path; nothing else. */
 const isSafeHref = (v: unknown): boolean => {
-  if (typeof v !== "string" || v === "" || [...v].length > MAX_HREF_LENGTH || hasSpace(v)) {
+  if (typeof v !== "string" || v === "" || [...v].length > MAX_HREF_LENGTH || hasUnsafeHrefChar(v)) {
     return false;
   }
   if (v.startsWith("https://")) return v.length > "https://".length;
@@ -133,7 +153,7 @@ const NODE_SPECS: Record<string, NodeSpec> = {
   paragraph: {},
   heading: { attrs: { level: isIntBetween(1, 3) }, required: ["level"] },
   bulletList: {},
-  orderedList: { attrs: { start: isIntBetween(1, INT_MAX) } },
+  orderedList: { attrs: { start: isIntBetween(1, MAX_LIST_START) } },
   listItem: {},
   taskList: {},
   taskItem: { attrs: { checked: isBool } },
@@ -142,7 +162,7 @@ const NODE_SPECS: Record<string, NodeSpec> = {
   horizontalRule: { leaf: true },
   hardBreak: { leaf: true, inline: true },
   image: {
-    attrs: { src: isAssetRef, alt: isStringLen(512), width: isIntBetween(1, INT_MAX) },
+    attrs: { src: isAssetRef, alt: isStringLen(512), width: isIntBetween(1, MAX_IMAGE_WIDTH) },
     required: ["src"],
     leaf: true,
     inline: true,
@@ -150,10 +170,10 @@ const NODE_SPECS: Record<string, NodeSpec> = {
   table: {},
   tableRow: {},
   tableCell: {
-    attrs: { colspan: isIntBetween(1, INT_MAX), rowspan: isIntBetween(1, INT_MAX) },
+    attrs: { colspan: isIntBetween(1, MAX_COLSPAN), rowspan: isIntBetween(1, MAX_ROWSPAN) },
   },
   tableHeader: {
-    attrs: { colspan: isIntBetween(1, INT_MAX), rowspan: isIntBetween(1, INT_MAX) },
+    attrs: { colspan: isIntBetween(1, MAX_COLSPAN), rowspan: isIntBetween(1, MAX_ROWSPAN) },
   },
   mention: {
     attrs: { kind: isMentionKind, id: isULID, label: isStringLen(256) },
@@ -260,7 +280,10 @@ function sanitizeNode(
   }
   const obj = item as JsonObject;
   const name = obj.type;
-  const spec = typeof name === "string" ? NODE_SPECS[name] : undefined;
+  // Object.hasOwn: plain-object specs would otherwise answer prototype names
+  // ("constructor"/"toString" pass as nodes, "__proto__" throws on call).
+  const spec =
+    typeof name === "string" && Object.hasOwn(NODE_SPECS, name) ? NODE_SPECS[name] : undefined;
   if (!spec || typeof name !== "string") {
     return null;
   }
@@ -323,13 +346,13 @@ function filterAttrs(raw: unknown, spec: NodeSpec): JsonObject | null {
   const attrs = isPlainObject(raw) ? (raw as JsonObject) : {};
   const kept: JsonObject = {};
   for (const [k, v] of Object.entries(attrs)) {
-    const rule = spec.attrs?.[k];
+    const rule = spec.attrs && Object.hasOwn(spec.attrs, k) ? spec.attrs[k] : undefined;
     if (rule && rule(v)) {
       kept[k] = v;
     }
   }
   for (const req of spec.required ?? []) {
-    if (!(req in kept)) {
+    if (!Object.hasOwn(kept, req)) {
       return null;
     }
   }
@@ -342,7 +365,8 @@ function sanitizeMarks(input: unknown[]): JsonObject[] {
     if (!isPlainObject(item)) continue;
     const obj = item as JsonObject;
     const name = obj.type;
-    const spec = typeof name === "string" ? MARK_SPECS[name] : undefined;
+    const spec =
+      typeof name === "string" && Object.hasOwn(MARK_SPECS, name) ? MARK_SPECS[name] : undefined;
     if (!spec || typeof name !== "string") continue;
     const kept = filterAttrs(obj.attrs, spec);
     if (kept === null) continue;
@@ -381,7 +405,7 @@ export function extractText(doc: JsonObject): string {
 
 function fragOf(node: JsonObject): string {
   const name = typeof node.type === "string" ? node.type : "";
-  const spec = NODE_SPECS[name];
+  const spec = Object.hasOwn(NODE_SPECS, name) ? NODE_SPECS[name] : undefined;
 
   if (name === "text") {
     return typeof node.text === "string" ? node.text : "";
@@ -405,7 +429,7 @@ function fragOf(node: JsonObject): string {
     const s = fragOf(child as JsonObject);
     if (s === "") continue;
     const cn = typeof (child as JsonObject).type === "string" ? ((child as JsonObject).type as string) : "";
-    parts.push({ s, inline: NODE_SPECS[cn]?.inline === true });
+    parts.push({ s, inline: Object.hasOwn(NODE_SPECS, cn) && NODE_SPECS[cn]?.inline === true });
   }
   let out = "";
   let prevInline = true;
