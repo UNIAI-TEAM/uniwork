@@ -175,7 +175,9 @@ export interface EnvelopeFacts {
 /** Bind the validated envelope to the grant: every result-deciding field the
  * caller sent must be the one Go authorised. */
 export function bindEnvelope(grant: ServiceGrant, facts: EnvelopeFacts, outputOrigins: readonly string[]): void {
-  if (facts.grantId !== undefined && facts.grantId !== grant.grant_id) scope("grant_id");
+  // The envelope must name the grant it runs under; a missing grant_id is
+  // refused like a wrong one.
+  if (facts.grantId !== grant.grant_id) scope("grant_id");
   if (facts.operation !== grant.operation) scope("operation");
   if (facts.format !== grant.format) scope("format");
   if (facts.baseRevision !== grant.base_revision) scope("base_revision");

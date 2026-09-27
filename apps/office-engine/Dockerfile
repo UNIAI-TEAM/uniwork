@@ -23,6 +23,21 @@ COPY apps/office-engine/src apps/office-engine/src
 COPY apps/office-engine/scripts apps/office-engine/scripts
 RUN node apps/office-engine/scripts/build.mjs
 
+# Test stage: the service suite on Linux, where the process-group, /proc and
+# job-tag paths of process-tree.ts actually run. Not part of the image:
+#   docker build -f apps/office-engine/Dockerfile --target test -t uniwork-office-engine:test .
+#   docker run --rm --init uniwork-office-engine:test
+FROM build AS test
+COPY GATE_LEVEL ./
+COPY scripts/coverage-gate.ts scripts/vitest-pool.ts scripts/
+COPY apps/office-engine/test apps/office-engine/test
+# The Go-signed grant parity fixture (grants.test.ts).
+COPY server/internal/office/testdata server/internal/office/testdata
+COPY apps/office-engine/vitest.config.ts apps/office-engine/tsconfig.json apps/office-engine/
+WORKDIR /repo/apps/office-engine
+ENV CI=1
+CMD ["node", "/repo/apps/office-engine/node_modules/vitest/vitest.mjs", "run", "--coverage"]
+
 FROM node:22.23.2-bookworm-slim
 ENV NODE_ENV=production \
     OFFICE_ENGINE_HOST=0.0.0.0 \

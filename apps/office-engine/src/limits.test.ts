@@ -2,7 +2,7 @@
 // the job with its own named outcome; the tree must be gone and the job's temp
 // dir removed afterwards.
 
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { isAlive } from "./process-tree.ts";
@@ -124,6 +124,20 @@ describe("process tree and temp ownership", () => {
     expect(isAlive(pid)).toBe(true);
     const done = await waitTerminal(h, job);
     expect(done.body.state).toBe("timed_out");
+    const gone = Date.now() + 5_000;
+    while (isAlive(pid) && Date.now() < gone) await new Promise((r) => setTimeout(r, 50));
+    expect(isAlive(pid)).toBe(false);
+  });
+
+  // Linux (the container) only: a descendant that left the process group and
+  // outlived the worker is found by the job tag in its environment. Windows
+  // has no equivalent; there it is a documented dev-host gap (runbook).
+  it.runIf(process.platform === "linux")("kills a detached (setsid) descendant that outlived the worker", async () => {
+    const { done } = await runFault("orphan");
+    expect(done.body.state).toBe("completed");
+    const marker = (await readdir(h.tempRoot)).find((n) => n.startsWith("orphan-"));
+    expect(marker).toBeDefined();
+    const pid = Number(await readFile(join(h.tempRoot, marker as string), "utf8"));
     const gone = Date.now() + 5_000;
     while (isAlive(pid) && Date.now() < gone) await new Promise((r) => setTimeout(r, 50));
     expect(isAlive(pid)).toBe(false);

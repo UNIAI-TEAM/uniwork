@@ -11,6 +11,9 @@
 //   uniwork-fault:heap              grow the JS heap until the V8 cap
 //   uniwork-fault:temp <MiB>        fill the job temp dir, then wait
 //   uniwork-fault:grandchild <ms>   spawn a child process, record its pid, wait
+//   uniwork-fault:orphan            spawn a detached (setsid) child, record its
+//                                   pid, then finish normally - the worker exits
+//                                   while the child lives on
 //   uniwork-fault:crash             kill the worker process
 //   uniwork-fault:output <MiB>      write an output of that size
 
@@ -61,6 +64,12 @@ export async function runFault(head: string, message: RunMessage): Promise<Handl
       const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore", windowsHide: true });
       await writeFile(join(message.tempDir, "grandchild.pid"), String(child.pid));
       await sleep(arg);
+      return null;
+    }
+    case "orphan": {
+      const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore", detached: true, windowsHide: true });
+      child.unref();
+      await writeFile(join(message.tempDir, "..", "orphan-" + String(child.pid) + ".pid"), String(child.pid));
       return null;
     }
     case "crash":

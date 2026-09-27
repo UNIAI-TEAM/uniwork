@@ -9,7 +9,6 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
-  ENGINE_ERROR_CODES,
   ENGINE_VERSION_TRUSTED,
   EngineBoundaryError,
   isTerminalJobState,
@@ -23,6 +22,8 @@ import { LIMIT_OUTCOMES, resolveLimits, type EffectiveLimits } from "./limits.ts
 import type { Metrics } from "./metrics.ts";
 import { measureOutput, putOutput } from "./output.ts";
 import { Supervisor } from "./supervisor.ts";
+
+const WORKER_CODES: ReadonlySet<string> = new Set(["engine_result_invalid", "unsupported_operation", "engine_crashed"]);
 
 export interface Job {
   jobId: string;
@@ -208,7 +209,9 @@ export class JobManager {
           await this.deliver(job, outputPath);
           return;
         case "fail": {
-          const code = (result.code in ENGINE_ERROR_CODES ? result.code : "engine_result_invalid") as EngineErrorCode;
+          // A worker may only report the few codes a handler can mean; it can
+          // never claim a grant, conflict or storage outcome.
+          const code = WORKER_CODES.has(result.code) ? (result.code as EngineErrorCode) : "engine_result_invalid";
           this.transition(job, "failed", { code, reason: result.reason });
           return;
         }

@@ -155,6 +155,7 @@ export function makeJob(target: TargetServer, spec: JobSpec): { grant: ServiceGr
     format,
     deadline_ms: spec.deadlineMs ?? 20_000,
     idempotency_key: grant.job_id,
+    grant_id: grant.grant_id,
     payload: {
       document_model_ref: "model-" + grant.document_id,
       base_revision: grant.base_revision,

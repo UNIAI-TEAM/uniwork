@@ -4,9 +4,10 @@
 // tree killed and the process reaped, so nothing a job started outlives it.
 
 import { fork, type ChildProcess } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { dirBytes } from "./cleanup.ts";
 import type { EffectiveLimits, LimitKind } from "./limits.ts";
-import { killTree, treeUsage } from "./process-tree.ts";
+import { JOB_TAG_ENV, killTree, treeUsage } from "./process-tree.ts";
 import type { RunMessage, WorkerMessage } from "./worker/protocol.ts";
 
 export interface WorkerRun {
@@ -29,10 +30,11 @@ export type WorkerResult =
   | { kind: "aborted" }
   | { kind: "crashed"; reason: string };
 
-/** A worker gets no service secret: only what Node needs to start, and temp
- * variables pointing into its own job dir. */
-function workerEnv(tempDir: string): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { TMPDIR: tempDir, TEMP: tempDir, TMP: tempDir, HOME: tempDir, NODE_ENV: "production" };
+/** A worker gets no service secret: only what Node needs to start, temp
+ * variables pointing into its own job dir, and the job tag its descendants
+ * inherit (process-tree.ts kills by it). */
+function workerEnv(tempDir: string, tag: string): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { TMPDIR: tempDir, TEMP: tempDir, TMP: tempDir, HOME: tempDir, NODE_ENV: "production", [JOB_TAG_ENV]: tag };
   for (const key of ["PATH", "Path", "SystemRoot", "SYSTEMROOT", "WINDIR"]) {
     // eslint-disable-next-line no-restricted-syntax -- the only env a worker inherits: how to find executables and the OS root.
     const value = process.env[key];
@@ -42,7 +44,7 @@ function workerEnv(tempDir: string): NodeJS.ProcessEnv {
 }
 
 export class Supervisor {
-  private readonly live = new Set<ChildProcess>();
+  private readonly live = new Map<ChildProcess, string>();
 
   get running(): number {
     return this.live.size;
@@ -50,20 +52,21 @@ export class Supervisor {
 
   /** Kill every live tree now (shutdown path). */
   killAll(): void {
-    for (const child of this.live) killTree(child);
+    for (const [child, tag] of this.live) killTree(child, tag);
   }
 
   run(job: WorkerRun): Promise<WorkerResult> {
     return new Promise<WorkerResult>((resolve) => {
+      const tag = randomUUID();
       const child = fork(job.entry, [], {
         execArgv: [],
-        env: workerEnv(job.tempDir),
+        env: workerEnv(job.tempDir, tag),
         cwd: job.tempDir,
         detached: process.platform !== "win32",
         stdio: ["ignore", "ignore", "ignore", "ipc"],
         serialization: "json",
       });
-      this.live.add(child);
+      this.live.set(child, tag);
       let result: WorkerResult | null = null;
       let exited = false;
       let reported = { rssBytes: 0, cpuMs: 0 };
@@ -80,7 +83,7 @@ export class Supervisor {
         clearInterval(sampler);
         clearTimeout(deadline);
         job.signal.removeEventListener("abort", onAbort);
-        killTree(child);
+        killTree(child, tag);
         // Bounded wait for the exit event: a tree that ignores SIGKILL does
         // not hold the job forever.
         setTimeout(() => {
@@ -102,7 +105,7 @@ export class Supervisor {
           settle({ kind: "limit", limit: "deadline" });
           return;
         }
-        const tree = child.pid === undefined ? null : treeUsage(child.pid);
+        const tree = child.pid === undefined ? null : treeUsage(child.pid, tag);
         check({
           rssBytes: Math.max(reported.rssBytes, tree?.rssBytes ?? 0),
           cpuMs: Math.max(reported.cpuMs, tree?.cpuMs ?? 0),

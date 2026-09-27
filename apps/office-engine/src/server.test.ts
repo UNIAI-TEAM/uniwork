@@ -186,6 +186,7 @@ describe("grant refusal", () => {
       [{ payload: { base_version_id: "ver-other" } }, "base_version_id"],
       [{ grant: { input: { checksum: "0".repeat(64), length: 4 } } }, "input"],
       [{ envelope: { grant_id: "another-grant" } }, "grant_id"],
+      [{ envelope: { grant_id: undefined } }, "grant_id"],
     ];
     for (const [spec, reason] of cases) {
       const job = makeJob(h.target, { text: "bind", ...spec });
