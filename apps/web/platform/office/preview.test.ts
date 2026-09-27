@@ -1,0 +1,242 @@
+import type { AssetManifest } from "@uniwork/office-engine/assets";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  acceptPreviewMessage,
+  checkAssetOrigin,
+  createPreviewBridge,
+  mountHtmlPreview,
+  previewCsp,
+  previewSandbox,
+  type PreviewAssetProxy,
+  type PreviewAssetScopeRequest,
+  type PreviewCapability,
+  type PreviewEvent,
+} from "./preview";
+
+const APP = "http://localhost:3000";
+const PROXY_ORIGIN = "https://preview-assets.example";
+const SHA = "c".repeat(64);
+const MANIFEST: AssetManifest = {
+  version: 1,
+  document_path: "index.html",
+  entries: [
+    { key: "img/a b.png", sha256: SHA, byte_length: 1, media_type: "image/png", origin: "imported" },
+    { key: "js/app.js", sha256: SHA, byte_length: 1, media_type: "text/javascript", origin: "imported" },
+  ],
+};
+
+/** Test fake of the asset proxy contract: one document/job, bounded life, granted keys only. */
+function fakeProxy(options: { origin?: string; now?: () => number } = {}) {
+  const now = options.now ?? Date.now;
+  const opened: PreviewAssetScopeRequest[] = [];
+  let revoked = 0;
+  const proxy: PreviewAssetProxy = {
+    async open(request) {
+      opened.push(request);
+      const expires_at = now() + request.ttl_ms;
+      const granted = new Set(request.keys);
+      let live = true;
+      const scopeId = request.document_id + "." + request.job_id;
+      return {
+        origin: options.origin ?? PROXY_ORIGIN,
+        expires_at,
+        urlFor(key) {
+          if (!live || now() >= expires_at || !granted.has(key)) return null;
+          return (options.origin ?? PROXY_ORIGIN) + "/s/" + scopeId + "/" + encodeURIComponent(key);
+        },
+        revoke() {
+          live = false;
+          revoked++;
+        },
+      };
+    },
+  };
+  return { proxy, opened, revoked: () => revoked };
+}
+
+async function mount(text: string, extra: { capability?: PreviewCapability; proxy?: PreviewAssetProxy; onEvent?: (e: PreviewEvent) => void } = {}) {
+  const container = document.createElement("div");
+  document.body.appendChild(container);
+  const session = await mountHtmlPreview({
+    container,
+    title: "Xem trước",
+    text,
+    manifest: MANIFEST,
+    scope: { document_id: "D1", job_id: "J1", ttl_ms: 60_000 },
+    proxy: extra.proxy ?? fakeProxy().proxy,
+    capability: extra.capability,
+    color_scheme: "dark",
+    onEvent: extra.onEvent,
+    appOrigin: APP,
+  });
+  return { container, session };
+}
+
+afterEach(() => {
+  document.body.innerHTML = "";
+  vi.restoreAllMocks();
+});
+
+describe("preview sandbox and policy", () => {
+  it("never grants same-origin, top navigation, popups, forms or downloads", () => {
+    expect(previewSandbox(undefined)).toBe("");
+    expect(previewSandbox({ scripts: false })).toBe("");
+    const sneaky = { scripts: true, sandbox: "allow-same-origin allow-top-navigation" } as unknown as PreviewCapability;
+    expect(previewSandbox(sneaky)).toBe("allow-scripts");
+  });
+
+  it("blocks every network path except the scoped asset origin", () => {
+    const csp = previewCsp(PROXY_ORIGIN, { scripts: false });
+    const directives = Object.fromEntries(csp.split("; ").map((d) => [d.split(" ")[0], d.split(" ").slice(1).join(" ")]));
+    expect(directives).toMatchObject({
+      "default-src": "'none'",
+      "connect-src": "'none'",
+      "script-src": "'none'",
+      "frame-src": "'none'",
+      "form-action": "'none'",
+      "base-uri": "'none'",
+      "img-src": PROXY_ORIGIN + " data:",
+      "media-src": PROXY_ORIGIN,
+    });
+    expect(csp).not.toMatch(/\*|https?:(?!\/\/preview-assets\.example)/);
+    expect(previewCsp(PROXY_ORIGIN, { scripts: true })).toContain("script-src " + PROXY_ORIGIN + " 'unsafe-inline'");
+    expect(previewCsp(null, undefined)).toContain("media-src 'none'");
+  });
+
+  it.each([
+    ["the app origin", APP],
+    ["plain http", "http://assets.example"],
+    ["a path", PROXY_ORIGIN + "/s/1"],
+    ["garbage", "not a url"],
+  ])("refuses an asset proxy on %s", (_name, origin) => {
+    expect(() => checkAssetOrigin(origin, APP)).toThrow(expect.objectContaining({ name: "PreviewIsolationError" }));
+  });
+
+  it("allows https and loopback http proxy origins", () => {
+    expect(checkAssetOrigin(PROXY_ORIGIN + "/", APP)).toBe(PROXY_ORIGIN);
+    expect(checkAssetOrigin("http://127.0.0.1:5631", APP)).toBe("http://127.0.0.1:5631");
+  });
+});
+
+describe("preview bridge", () => {
+  const NONCE = "n0nce";
+
+  it.each([
+    ["no nonce", { data: { type: "ready" } }],
+    ["a wrong nonce", { data: { type: "ready", nonce: "other" } }],
+    ["an empty nonce", { data: { type: "ready", nonce: "" }, nonce: "" }],
+    ["origin null", { data: { type: "ready", nonce: NONCE }, origin: "null" }],
+    ["an unknown type", { data: { type: "navigate", nonce: NONCE } }],
+    ["a smuggled url", { data: { type: "ready", nonce: NONCE, url: "https://evil.example" } }],
+    ["a path field on resize", { data: { type: "resize", nonce: NONCE, height: 10, path: "C:\\x" } }],
+    ["a bad height", { data: { type: "resize", nonce: NONCE, height: "10" } }],
+    ["a negative height", { data: { type: "resize", nonce: NONCE, height: -1 } }],
+    ["a non-object", { data: "ready" }],
+    ["an array", { data: [NONCE] }],
+  ])("rejects a message with %s", (_name, event) => {
+    expect(acceptPreviewMessage(event, (event as { nonce?: string }).nonce ?? NONCE)).toBeNull();
+  });
+
+  it("accepts nonce-bearing ready and clamped resize messages", () => {
+    expect(acceptPreviewMessage({ data: { type: "ready", nonce: NONCE }, origin: "" }, NONCE)).toEqual({ type: "ready" });
+    expect(acceptPreviewMessage({ data: { type: "resize", nonce: NONCE, height: 12.6 } }, NONCE)).toEqual({ type: "resize", height: 13 });
+    expect(acceptPreviewMessage({ data: { type: "resize", nonce: NONCE, height: 1e12 } }, NONCE)).toEqual({ type: "resize", height: 1_000_000 });
+  });
+
+  it("delivers only valid port messages and stops after close", async () => {
+    const events: PreviewEvent[] = [];
+    const bridge = createPreviewBridge(NONCE, (e) => events.push(e));
+    bridge.remote.postMessage({ type: "ready" });
+    bridge.remote.postMessage({ type: "ready", nonce: NONCE });
+    await vi.waitFor(() => expect(events).toEqual([{ type: "ready" }]));
+    bridge.close();
+    bridge.remote.postMessage({ type: "ready", nonce: NONCE });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(events).toHaveLength(1);
+    bridge.remote.close();
+  });
+});
+
+describe("mountHtmlPreview", () => {
+  it("renders an isolated frame with the scoped copy and leaves app secrets out", async () => {
+    document.cookie = "uw_session=SECRET-COOKIE";
+    window.localStorage.setItem("uw_token", "SECRET-STORAGE");
+    const { proxy, opened } = fakeProxy();
+    const { session } = await mount(`<!doctype html><img src="img/a%20b.png"><img src="https://tracker.example/p.gif"><a href="https://evil.example" target="_top">x</a>`, { proxy });
+    const frame = session.iframe;
+    expect(frame.getAttribute("sandbox")).toBe("");
+    expect(frame.getAttribute("csp")).toContain("connect-src 'none'");
+    expect(frame.hasAttribute("credentialless")).toBe(true);
+    expect(frame.getAttribute("referrerpolicy")).toBe("no-referrer");
+    expect(frame.getAttribute("allow")).toContain("clipboard-read 'none'");
+    expect(frame.getAttribute("title")).toBe("Xem trước");
+    const doc = frame.srcdoc;
+    expect(doc).toContain(`src="${PROXY_ORIGIN}/s/D1.J1/img%2Fa%20b.png"`);
+    expect(doc).not.toContain("tracker.example");
+    expect(doc).not.toContain("evil.example");
+    expect(doc).toContain('<meta name="color-scheme" content="dark">');
+    expect(doc).not.toContain("<script");
+    expect(doc).not.toMatch(/SECRET|uw_session|uw_token/);
+    expect(doc).not.toContain(session.nonce);
+    expect(opened).toEqual([{ document_id: "D1", job_id: "J1", ttl_ms: 60_000, keys: ["img/a b.png", "js/app.js"] }]);
+  });
+
+  it("signals ready from the host load event when scripts are off, never from messages", async () => {
+    const events: PreviewEvent[] = [];
+    const { session } = await mount("<p>x</p>", { onEvent: (e) => events.push(e) });
+    window.dispatchEvent(new MessageEvent("message", { data: { type: "ready", nonce: session.nonce }, origin: "null" }));
+    window.dispatchEvent(new MessageEvent("message", { data: { type: "resize", nonce: session.nonce, height: 5 }, origin: APP }));
+    expect(events).toEqual([]);
+    session.iframe.dispatchEvent(new Event("load"));
+    expect(events).toEqual([{ type: "ready" }]);
+  });
+
+  it("hands a nonce-bound port to the frame only when scripts are on", async () => {
+    const { session } = await mount("<p>x</p>", { capability: { scripts: true } });
+    expect(session.iframe.getAttribute("sandbox")).toBe("allow-scripts");
+    expect(session.iframe.srcdoc).toContain("<script>(function(){");
+    const post = vi.spyOn(session.iframe.contentWindow!, "postMessage").mockImplementation(() => undefined);
+    session.iframe.dispatchEvent(new Event("load"));
+    expect(post).toHaveBeenCalledTimes(1);
+    const [message, target, transfer] = post.mock.calls[0] as unknown as [unknown, string, MessagePort[]];
+    expect(message).toEqual({ type: "uniwork-preview:init", nonce: session.nonce });
+    expect(target).toBe("*");
+    expect(transfer).toHaveLength(1);
+    expect(session.nonce).toMatch(/^[0-9a-f]{32}$/);
+    transfer[0]!.close();
+    session.dispose();
+  });
+
+  it("refuses a proxy that shares the app origin and revokes its scope", async () => {
+    const shared = fakeProxy({ origin: APP });
+    await expect(mount("<p>x</p>", { proxy: shared.proxy })).rejects.toMatchObject({ name: "PreviewIsolationError" });
+    expect(shared.revoked()).toBe(1);
+    expect(document.querySelector("iframe")).toBeNull();
+  });
+
+  it("stops granting assets once the scope expires, and revokes on dispose", async () => {
+    let now = 1_000;
+    const fake = fakeProxy({ now: () => now });
+    vi.spyOn(Date, "now").mockImplementation(() => now);
+    const { session } = await mount(`<img src="img/a%20b.png">`, { proxy: fake.proxy });
+    expect(session.iframe.srcdoc).toContain(PROXY_ORIGIN + "/s/");
+    now += 60_000;
+    session.update(`<img src="img/a%20b.png">`);
+    expect(session.iframe.srcdoc).not.toContain(PROXY_ORIGIN + "/s/");
+    session.dispose();
+    expect(fake.revoked()).toBe(1);
+    expect(document.querySelector("iframe")).toBeNull();
+  });
+
+  it("ignores a proxy URL on a foreign origin", async () => {
+    const proxy: PreviewAssetProxy = {
+      async open() {
+        return { origin: PROXY_ORIGIN, expires_at: Date.now() + 60_000, urlFor: () => "https://evil.example/x.png", revoke() {} };
+      },
+    };
+    const { session } = await mount(`<img src="img/a%20b.png">`, { proxy });
+    expect(session.iframe.srcdoc).not.toContain("evil.example");
+    session.update(`<img src="img/a%20b.png">`, { ...MANIFEST, entries: [] });
+    expect(session.iframe.srcdoc).toContain("about:blank#blocked");
+  });
+});
