@@ -1,0 +1,35 @@
+{
+  "lane": "g2-03-docx-pptx",
+  "stage": "G2-03a",
+  "note": "G2-03a drives the adapter seams with synthetic fakes only — no real document bytes. Real G0 fixtures (F-DOCX-KITCHEN, E-PPTX-CYCLE set) arrive with G2-03b fixture replay via scripts/office/replay-fixtures.mjs once packages/office-upstream lands.",
+  "fakes": {
+    "docx": {
+      "file": "test/fake-docx-engine.ts",
+      "convention": "PK\u0003\u0004 zip magic + UTF-8 JSON {magic:'fake-docx', blocks, extras, hf, parts} (real OOXML is a zip; the adapter container sniff stays honest); CFB magic + UTF-16LE 'EncryptedPackage' marks the encrypted container ({check, inner} JSON); 'password is incorrect' mirrors upstream decrypt refusals; unchanged saves return the source bytes (reverse-composition).",
+      "covers": [
+        "open/edit/serialize seam",
+        "P3 failure classes",
+        "P5 decrypt-edit-save-reopen",
+        "no-op + two-save",
+        "unknown-part preservation"
+      ]
+    },
+    "pptx": {
+      "files": [
+        "test/fake-pptx-engine.ts",
+        "test/fake-pptx-fixtures.ts"
+      ],
+      "convention": "PK\u0003\u0004 zip magic + UTF-8 JSON {magic:'fake-pptx', size, slides, layouts, entries}; archive.entries Map carries media/rels/embeddings; runTxn implements the registry subset with dry-run + atomic restore semantics; commitSaved is tracked for the two-save oracle.",
+      "covers": [
+        "openPptx/runTxn/savePptx seam",
+        "slides-edit-transform + slides-edit-text channels",
+        "ordering ops",
+        "P3 failure classes",
+        "asset relationship map"
+      ]
+    }
+  },
+  "real_fixtures_pending": [
+    "docs/office/g0 fixture set referenced by E-DOCX-CYCLE / E-PPTX-CYCLE rows — consumed in G2-03b"
+  ]
+}
