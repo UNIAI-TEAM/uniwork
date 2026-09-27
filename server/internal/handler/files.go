@@ -84,7 +84,7 @@ func fileAccessItemDTO(item service.FileAccessItem) sdo.FileAccessItemSDO {
 func fileItemError(err error) *sdo.ErrorDetail {
 	var ce service.CodedError
 	if errors.As(err, &ce) {
-		return &sdo.ErrorDetail{Code: ce.Code, Message: ce.Msg}
+		return &sdo.ErrorDetail{Code: ce.Code, Message: ce.Msg, ErrorClass: sdo.ErrorClassFor(ce.Code)}
 	}
 	return &sdo.ErrorDetail{Code: "storage_unavailable", Message: "file storage is unavailable"}
 }

@@ -2,11 +2,13 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/telemetry"
 	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
@@ -62,7 +64,7 @@ func OptionalAuth(m auth.TokenMinter) func(http.Handler) http.Handler {
 func writeUnauthorized(w http.ResponseWriter, msg string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusUnauthorized)
-	_, _ = w.Write([]byte(`{"error":{"code":"unauthorized","message":"` + msg + `"}}`))
+	_ = json.NewEncoder(w).Encode(sdo.NewErrorSDO("unauthorized", msg))
 }
 
 // WithUserID also seeds the flag EvalContext with the user, so a service

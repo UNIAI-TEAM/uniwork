@@ -11,6 +11,44 @@ import { GUEST_SESSION_HEADER, getGuestSession } from "./guest-session";
  * parseWithFallback so a drifted contract degrades instead of throwing.
  */
 
+/**
+ * The coarse classes the server stamps on `error.error_class` (C-01 §14.5 /
+ * DOC-005 §4). Callers switch on it for the recovery path — keep both
+ * revisions on `conflict`, stop retrying on `gone`, run session recovery on
+ * `session` — never on the message text. Every switch carries a `default`:
+ * a class the caller does not know must degrade to code/status inference.
+ */
+export type ApiErrorClass =
+  | "conflict"
+  | "gone"
+  | "quota"
+  | "permission"
+  | "missing"
+  | "incompatible"
+  | "session";
+
+const API_ERROR_CLASSES: readonly string[] = [
+  "conflict",
+  "gone",
+  "quota",
+  "permission",
+  "missing",
+  "incompatible",
+  "session",
+];
+
+/**
+ * Narrow an unknown wire value to a known class. Unknown strings and
+ * malformed values (number, object, …) both degrade to undefined — the
+ * caller then falls back to code/status inference, which is exactly what an
+ * old client does against a newer server's extra class.
+ */
+function asApiErrorClass(value: unknown): ApiErrorClass | undefined {
+  return typeof value === "string" && API_ERROR_CLASSES.includes(value)
+    ? (value as ApiErrorClass)
+    : undefined;
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -28,6 +66,12 @@ export class ApiError extends Error {
      * could not be parsed.
      */
     public fields?: Record<string, unknown>,
+    /**
+     * The coarse class from ErrorSDO.error_class, when the server stamped one
+     * the client knows. Optional and last so existing construction sites keep
+     * compiling.
+     */
+    public errorClass?: ApiErrorClass,
   ) {
     super(message);
     this.name = "ApiError";
@@ -58,6 +102,15 @@ export function correlationIdOf(err: unknown): string | undefined {
  */
 export function errorFields(err: unknown): Record<string, unknown> | undefined {
   return err instanceof ApiError ? err.fields : undefined;
+}
+
+/**
+ * The coarse error class from a failed API call, when the server stamped a
+ * known one. Dispatch on it for the recovery path; undefined means fall back
+ * to code/status inference.
+ */
+export function errorClassOf(err: unknown): ApiErrorClass | undefined {
+  return err instanceof ApiError ? err.errorClass : undefined;
 }
 
 /**
@@ -154,20 +207,34 @@ async function throwFromFailedResponse(res: Response): Promise<never> {
   let code = "internal";
   let message = res.statusText;
   let fields: Record<string, unknown> | undefined;
+  let errorClass: ApiErrorClass | undefined;
   try {
     const body = (await res.json()) as {
-      error?: { code: string; message: string; fields?: Record<string, unknown> };
+      error?: {
+        code: string;
+        message: string;
+        fields?: Record<string, unknown>;
+        error_class?: unknown;
+      };
     };
     if (body.error) {
       ({ code, message } = body.error);
       if (body.error.fields && typeof body.error.fields === "object" && !Array.isArray(body.error.fields)) {
         fields = body.error.fields;
       }
+      errorClass = asApiErrorClass(body.error.error_class);
     }
   } catch {
     /* body is not JSON */
   }
-  throw new ApiError(message, code, res.status, res.headers.get(CORRELATION_HEADER) ?? undefined, fields);
+  throw new ApiError(
+    message,
+    code,
+    res.status,
+    res.headers.get(CORRELATION_HEADER) ?? undefined,
+    fields,
+    errorClass,
+  );
 }
 
 /**

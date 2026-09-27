@@ -9,9 +9,9 @@
 // Hooks import from ./endpoints; nothing outside this directory calls
 // `request` directly, so the compiler is what keeps every response behind a
 // schema.
-export { ApiError, apiErrorMessage, correlationIdOf, errorCode, errorFields, refreshSession } from "./http";
+export { ApiError, apiErrorMessage, correlationIdOf, errorClassOf, errorCode, errorFields, refreshSession } from "./http";
 export { GUEST_SESSION_HEADER, getGuestSession, setGuestSession } from "./guest-session";
-export type { RequestOpts } from "./http";
+export type { ApiErrorClass, RequestOpts } from "./http";
 export { parseWithFallback, setSchemaLogger } from "./schema";
 export type { ParseOptions } from "./schema";
 export { WSClient } from "./ws-client";

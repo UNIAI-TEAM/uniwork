@@ -1,9 +1,11 @@
 package middleware
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
@@ -20,7 +22,7 @@ func RequireFeatureFlag(flags *featureflag.Service, name string) func(http.Handl
 			if !flags.IsEnabled(r.Context(), name, def) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusNotFound)
-				_, _ = w.Write([]byte(`{"error":{"code":"feature_disabled","message":"feature is disabled"}}`))
+				_ = json.NewEncoder(w).Encode(sdo.NewErrorSDO("feature_disabled", "feature is disabled"))
 				return
 			}
 			next.ServeHTTP(w, r)

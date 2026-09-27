@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError, apiErrorMessage, request } from "./http";
+import { ApiError, apiErrorMessage, errorClassOf, request } from "./http";
 import { setAccessToken } from "./session";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 
@@ -69,6 +69,30 @@ describe("request", () => {
       status: 409,
       fields: { task_id: "t1", identifier: "UNI-1", title: "Bug" },
     });
+  });
+
+  it("parses error.error_class into ApiError.errorClass", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      okJson({ error: { code: "revision_conflict", message: "stale", error_class: "conflict" } }, 422),
+    );
+    const err = await request("/api/v1/x").catch((e: unknown) => e);
+    expect(err).toMatchObject({ code: "revision_conflict", status: 422, errorClass: "conflict" });
+    expect(errorClassOf(err)).toBe("conflict");
+    expect(errorClassOf(new Error("x"))).toBeUndefined();
+  });
+
+  it("degrades unknown and malformed error_class to undefined without throwing", async () => {
+    for (const errorClass of [42, { kind: "conflict" }, ["conflict"], "future_class", null]) {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        okJson({ error: { code: "c", message: "m", error_class: errorClass } }, 400),
+      );
+      await expect(request("/api/v1/x")).rejects.toMatchObject({ code: "c", errorClass: undefined });
+    }
+  });
+
+  it("leaves errorClass undefined when the server omits it", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(okJson({ error: { code: "not_found", message: "m" } }, 404));
+    await expect(request("/api/v1/x")).rejects.toMatchObject({ code: "not_found", errorClass: undefined });
   });
 
   it("extracts the server message from ApiError", () => {
