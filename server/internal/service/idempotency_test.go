@@ -22,7 +22,7 @@ func TestIdempotentCreateReplaysSameResponse(t *testing.T) {
 
 	createOnce := func() (db.Task, []byte, int) {
 		t.Helper()
-		replay, commit, err := BeginIdempotent(ctx, q, w.OrganizationID, w.ID, scope, key, ua.ID)
+		replay, commit, err := BeginIdempotent(ctx, q, w.OrganizationID, w.ID, scope, key, ua.ID, IdempotencyOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -95,5 +95,65 @@ func TestRevisionConflictOnStaleUpdate(t *testing.T) {
 	}
 	if CheckTaskRevision(2, 2) != nil {
 		t.Fatal("matching revision should pass")
+	}
+}
+
+// DOC-005 §3.1: a key bound to a fingerprint replays only the same payload;
+// a row with no fingerprint is "unknown", never "matches"; the zero options
+// keep the legacy replay.
+func TestIdempotencyFingerprintOptions(t *testing.T) {
+	s, _, ua, ub, w := taskFixture(t)
+	ctx := context.Background()
+	q := s.q
+	fp := IdempotencyFingerprint("op", "doc", "1", "sum")
+	opts := IdempotencyOptions{Fingerprint: fp, RequireFingerprint: true}
+
+	if IdempotencyFingerprint("a", "bc") == IdempotencyFingerprint("ab", "c") {
+		t.Fatal("fingerprint parts collide")
+	}
+	if _, _, err := BeginIdempotent(ctx, q, w.OrganizationID, w.ID, "docs", util.NewID(), ua.ID, IdempotencyOptions{RequireFingerprint: true}); !errors.Is(err, errIdempotencyFingerprintRequired) {
+		t.Fatalf("missing fingerprint = %v", err)
+	}
+
+	key := util.NewID()
+	replay, commit, err := BeginIdempotent(ctx, q, w.OrganizationID, w.ID, "docs", key, ua.ID, opts)
+	if err != nil || replay != nil {
+		t.Fatalf("first claim: replay=%v err=%v", replay, err)
+	}
+	if err := commit(http.StatusOK, []byte(`{"ok":true}`)); err != nil {
+		t.Fatal(err)
+	}
+	replay, _, err = BeginIdempotent(ctx, q, w.OrganizationID, w.ID, "docs", key, ua.ID, opts)
+	if err != nil || replay == nil || string(replay.Body) != `{"ok":true}` {
+		t.Fatalf("same payload: replay=%v err=%v", replay, err)
+	}
+	if peek, err := PeekIdempotent(ctx, q, w.OrganizationID, w.ID, "docs", key, ua.ID, opts); err != nil || peek == nil {
+		t.Fatalf("peek: %v %v", peek, err)
+	}
+	other := IdempotencyOptions{Fingerprint: IdempotencyFingerprint("op", "doc", "2", "sum"), RequireFingerprint: true}
+	if _, _, err := BeginIdempotent(ctx, q, w.OrganizationID, w.ID, "docs", key, ua.ID, other); !codedIs(err, "idempotency_payload_mismatch") {
+		t.Fatalf("different payload = %v", err)
+	}
+	if _, _, err := BeginIdempotent(ctx, q, w.OrganizationID, w.ID, "docs", key, ub.ID, opts); !codedIs(err, "idempotency_key_reuse") {
+		t.Fatalf("different actor = %v", err)
+	}
+	// Legacy callers still replay whatever they stored, fingerprint or not.
+	if replay, _, err := BeginIdempotent(ctx, q, w.OrganizationID, w.ID, "docs", key, ua.ID, IdempotencyOptions{}); err != nil || replay == nil {
+		t.Fatalf("legacy replay: %v %v", replay, err)
+	}
+
+	legacy := util.NewID()
+	_, commit, err = BeginIdempotent(ctx, q, w.OrganizationID, w.ID, "docs", legacy, ua.ID, IdempotencyOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := commit(http.StatusOK, []byte(`{}`)); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := BeginIdempotent(ctx, q, w.OrganizationID, w.ID, "docs", legacy, ua.ID, opts); !codedIs(err, "idempotency_payload_mismatch") {
+		t.Fatalf("row without fingerprint = %v, want mismatch (never replay)", err)
+	}
+	if _, err := PeekIdempotent(ctx, q, w.OrganizationID, w.ID, "docs", legacy, ua.ID, opts); !codedIs(err, "idempotency_payload_mismatch") {
+		t.Fatalf("peek row without fingerprint = %v", err)
 	}
 }
