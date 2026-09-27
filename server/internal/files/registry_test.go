@@ -57,28 +57,18 @@ func TestDefaultRegistryCoversTheEnum(t *testing.T) {
 	}
 }
 
-// The Document purposes are declared and disabled (FS-C1 section 5.6): a
-// consumer may name them, and the registry refuses them until their policy and
-// reference provider exist.
-func TestDocumentPurposesAreDeclaredAndDisabled(t *testing.T) {
+// The Document purposes are open (G1-03, UNI-677): their reference providers
+// (documents.versions, documents.assets) hold every Documents file_id column,
+// which is the condition FS-C1 section 5.6 sets for opening a purpose.
+func TestDocumentPurposesAreOpen(t *testing.T) {
 	registry := DefaultRegistry()
 	for _, purpose := range []UploadPurpose{DocumentFile, DocumentAsset} {
 		spec, err := registry.Lookup(purpose)
-		if err == nil {
-			t.Fatalf("purpose %q is enabled in the real registry", purpose)
+		if err != nil {
+			t.Fatalf("lookup %q: %v", purpose, err)
 		}
-		var fe *Error
-		if !errors.As(err, &fe) {
-			t.Fatalf("lookup %q returned %T, want *Error", purpose, err)
-		}
-		if fe.Code != CodePurposeDisabled || fe.Status != http.StatusBadRequest {
-			t.Errorf("lookup %q returned %s/%d, want %s/400", purpose, fe.Code, fe.Status, CodePurposeDisabled)
-		}
-		if spec.Purpose != "" || spec.Prefix != "" {
-			t.Errorf("lookup %q returned a spec alongside the refusal: %+v", purpose, spec)
-		}
-		if registry.Enabled(purpose) {
-			t.Errorf("Enabled(%q) = true", purpose)
+		if spec.Purpose != purpose || spec.Disabled || !registry.Enabled(purpose) {
+			t.Errorf("purpose %q is not open: %+v", purpose, spec)
 		}
 	}
 }

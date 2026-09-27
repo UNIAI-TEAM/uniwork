@@ -350,7 +350,7 @@ func (h *fileHarness) contract() filescontract.Harness {
 			t.Helper()
 			putWriteTarget(t, out.WriteTarget, body, contentType)
 		},
-		DisabledPurpose: files.DocumentFile,
+		DisabledPurpose: firstDisabledPurpose(h.svc.Registry()),
 		SimulateGC: func(t *testing.T, ids ...files.FileID) {
 			t.Helper()
 			want := make([]string, 0, len(ids))
@@ -390,4 +390,33 @@ func putWriteTarget(t *testing.T, target files.WriteTarget, body []byte, content
 		// The status only: the target URL carries a signature.
 		t.Fatalf("provider PUT answered %d", resp.StatusCode)
 	}
+}
+
+// firstDisabledPurpose names a purpose the registry refuses, or "" when every
+// purpose is open (the disabled-purpose case then skips, as on filesfake).
+func firstDisabledPurpose(r files.Registry) files.UploadPurpose {
+	for _, spec := range r.Specs() {
+		if spec.Disabled {
+			return spec.Purpose
+		}
+	}
+	return ""
+}
+
+// registryWithDisabled is DefaultSpecs with the named purposes closed.
+func registryWithDisabled(t *testing.T, closed ...files.UploadPurpose) *files.Registry {
+	t.Helper()
+	specs := files.DefaultSpecs()
+	for i := range specs {
+		for _, p := range closed {
+			if specs[i].Purpose == p {
+				specs[i].Disabled = true
+			}
+		}
+	}
+	reg, err := files.NewRegistry(specs...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &reg
 }
