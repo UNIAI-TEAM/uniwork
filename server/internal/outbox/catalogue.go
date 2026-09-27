@@ -205,6 +205,9 @@ var catalogue = []EventDef{
 
 	// Documents (UNI-675): ids only; consumers refetch the page/file.
 	{Topic: "document.created", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// G1-03 (UNI-677): a file version was committed or restored; the client
+	// refetches the document and its versions.
+	{Topic: "document.version_created", Version: 1, Payload: []string{"document_id", "version_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 
 	// Billing (F-02). Both go to each owner/admin, one row per person, because
 	// the realtime consumer resolves user scope from payload.user_id.

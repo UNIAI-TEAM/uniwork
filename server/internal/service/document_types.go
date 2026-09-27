@@ -72,6 +72,10 @@ type DocumentService struct {
 	// owner-delegated levels then fail closed (C-01 §13.8).
 	ownerLevel    OwnerLevelResolver
 	ownerLevelSet bool
+
+	// store is the byte side (G1-03, document_files.go): FileService, quota
+	// and the access-log hook.
+	store documentStore
 }
 
 func NewDocumentService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationService, ws *WorkspaceService) *DocumentService {
