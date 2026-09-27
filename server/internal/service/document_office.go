@@ -554,8 +554,15 @@ func (s *DocumentOfficeService) GetOfficeJob(ctx context.Context, actor Actor, o
 //   - ClaimInTx the job's OutputFileID with FileService, or the staged output
 //     expires after files.ClaimTTL while the version points at it.
 func (s *DocumentOfficeService) ClaimOfficeJobOutputInTx(ctx context.Context, q *db.Queries, orgID, wsID, jobID, versionID string) (db.OfficeJob, error) {
+	return claimOfficeJobOutputInTx(ctx, q, orgID, wsID, jobID, versionID, s.ts())
+}
+
+// claimOfficeJobOutputInTx runs the same CAS without a service receiver: the
+// commit path in document_commit.go (CommitFileVersion) has no
+// DocumentOfficeService handle and stamps its own now.
+func claimOfficeJobOutputInTx(ctx context.Context, q *db.Queries, orgID, wsID, jobID, versionID string, now pgtype.Timestamptz) (db.OfficeJob, error) {
 	row, err := q.MarkOfficeJobCommitted(ctx, db.MarkOfficeJobCommittedParams{
-		CommittedVersionID: pgtype.Text{String: versionID, Valid: true}, Now: s.ts(),
+		CommittedVersionID: pgtype.Text{String: versionID, Valid: true}, Now: now,
 		ID: jobID, OrganizationID: orgID, WorkspaceID: wsID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -45,6 +46,14 @@ import (
 // files rows (ClaimInTx) -> subscription (Consume). FileService never locks
 // a document row and the quota hook locks only the subscription, so no cycle
 // exists.
+//
+// An upload_id minted by RegisterProviderOutput for an office job (G2-02c)
+// goes through this same commit: inside the transaction the job row names
+// the authoritative base (revision and file_version_id CAS), the output file
+// is claimed like any upload, the version is inserted through
+// pointAtNewFileVersion, and MarkOfficeJobCommitted flips the job to
+// committed - one commit wins, a cancel that landed first refuses the commit
+// and rolls back everything.
 
 const (
 	idempotencyScopeDocumentVersionCommit  = "documents.versions.commit"
@@ -75,6 +84,45 @@ func errDocumentVersionConflict(current int64) error {
 func errEngineIncompatible() error {
 	return CodedError{Code: "engine_incompatible", Status: http.StatusConflict, Err: ErrConflict,
 		Msg: "phiên bản trình soạn thảo không tương thích; hãy cập nhật ứng dụng"}
+}
+
+// errOfficeUploadInvalid: the staged file is an office output this commit
+// cannot take - the job belongs to another document, or it is not committable
+// any more (cancelled, failed, timed out, or a cancelled-by-race claim). The
+// reason rides in fields.reason like document_upload_invalid's file_* codes.
+func errOfficeUploadInvalid(reason string) error {
+	return CodedError{Code: "document_upload_invalid", Status: http.StatusConflict, Err: ErrConflict,
+		Msg: "bản tải lên không còn dùng được; hãy tải lên lại", Fields: map[string]any{"reason": reason}}
+}
+
+// officeEngineInfo is the provenance an office-produced version row stamps:
+// the one engine build this server trusts (internal/office), derived on the
+// server, never claimed by the caller.
+func officeEngineInfo() DocumentEngineInfo {
+	return DocumentEngineInfo{
+		Name: "genoffice", Version: office.TrustedEngineVersion,
+		ContractVersion: office.ContractVersion, ProtocolVersion: strconv.Itoa(office.ProtocolVersion),
+	}
+}
+
+// officeJobForOutput answers the office_jobs row behind a provider-output
+// file_id, or nil for a straight upload. A job bound to another document
+// makes the upload_id invalid for the one being committed.
+func officeJobForOutput(ctx context.Context, q *db.Queries, doc db.Document, fileID files.FileID) (*db.OfficeJob, error) {
+	job, err := q.GetOfficeJobByOutputFile(ctx, db.GetOfficeJobByOutputFileParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+		OutputFileID: pgtype.Text{String: string(fileID), Valid: true},
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if job.DocumentID != doc.ID {
+		return nil, errOfficeUploadInvalid("office_job_document")
+	}
+	return &job, nil
 }
 
 // checkEngine accepts a straight upload (no engine) or the one engine build,
@@ -211,11 +259,36 @@ func (s *DocumentService) CommitFileVersion(ctx context.Context, actor Actor, do
 			res, err = replayWithAccess(replay.Body, access)
 			return err
 		}
-		if err := checkEngine(in.Engine); err != nil {
+		job, err := officeJobForOutput(ctx, q, locked, file.ID)
+		if err != nil {
 			return err
 		}
-		if locked.Revision != in.BaseRevision {
-			return errDocumentVersionConflict(locked.Revision)
+		var eng DocumentEngineInfo
+		if job != nil {
+			// Office output (G2-02c): the job row, not the request, carries
+			// the authoritative base and the engine provenance is stamped
+			// server-side - the caller's engine field is ignored. A spent
+			// output answers upload_already_committed; a settled job is an
+			// invalid upload; a document that moved off the job's base is
+			// the contract conflict. Exactly one commit marks the job below.
+			if job.CommittedVersionID.Valid {
+				return errUploadAlreadyCommitted()
+			}
+			if job.State != string(office.JobCompleted) {
+				return errOfficeUploadInvalid("office_job_" + job.State)
+			}
+			if locked.Revision != job.BaseRevision || locked.FileVersionID.String != job.BaseVersionID {
+				return errDocumentVersionConflict(locked.Revision)
+			}
+			eng = officeEngineInfo()
+		} else {
+			if err := checkEngine(in.Engine); err != nil {
+				return err
+			}
+			if locked.Revision != in.BaseRevision {
+				return errDocumentVersionConflict(locked.Revision)
+			}
+			eng = in.Engine
 		}
 		current, err := s.currentFileVersion(ctx, q, locked)
 		if err != nil {
@@ -258,9 +331,21 @@ func (s *DocumentService) CommitFileVersion(ctx context.Context, actor Actor, do
 		if err := s.consumeStorage(ctx, q, actor, locked.OrganizationID, locked.WorkspaceID, f); err != nil {
 			return err
 		}
-		res, err = s.pointAtNewFileVersion(ctx, q, actor, locked, access, f, "upload", in.Engine, pgtype.Int4{})
+		res, err = s.pointAtNewFileVersion(ctx, q, actor, locked, access, f, "upload", eng, pgtype.Int4{})
 		if err != nil {
 			return err
+		}
+		if job != nil {
+			// Commit wins or loses against cancel here: the CAS matches a
+			// completed, uncommitted job only. A rollback keeps the output
+			// staged; a lost race refuses this whole transaction.
+			if _, err := claimOfficeJobOutputInTx(ctx, q, locked.OrganizationID, locked.WorkspaceID, job.ID, res.Version.ID,
+				pgtype.Timestamptz{Time: time.Now(), Valid: true}); err != nil {
+				if errors.Is(err, ErrOfficeJobNotCommittable) {
+					return errOfficeUploadInvalid("office_job_not_committable")
+				}
+				return err
+			}
 		}
 		return storeDocumentFileResult(commit, http.StatusOK, res)
 	})
