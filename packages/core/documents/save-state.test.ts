@@ -166,6 +166,28 @@ describe("DocumentSaveMachine", () => {
     expect(m.getState().errorClass).toBe("conflict");
   });
 
+  it("a bare 422 with an unmapped code stays retryable, never conflict", async () => {
+    const t = fakeTransport();
+    const m = machine(t.impl);
+    m.edit({ title: "a" });
+    await vi.advanceTimersByTimeAsync(2_000);
+    const key = t.calls[0]?.idempotencyKey;
+    // 422 spans conflict codes AND validation failures; without a code the
+    // table knows, the machine treats it as unknown - draft + key kept.
+    t.pending[0]?.reject(new ApiError("bad input", "validation_failed", 422));
+    await settle();
+    const s = m.getState();
+    expect(s.phase).toBe("error");
+    expect(s.errorClass).toBe("unknown");
+    expect(s.errorCode).toBe("validation_failed");
+    expect(s.dirty).toBe(true);
+    expect(s.idempotencyKey).toBe(key);
+    m.retry();
+    await settle();
+    expect(t.calls).toHaveLength(2);
+    expect(t.calls[1]?.idempotencyKey).toBe(key);
+  });
+
   it("a timeout keeps the draft and replays the same idempotency key", async () => {
     const t = fakeTransport();
     const m = machine(t.impl);
