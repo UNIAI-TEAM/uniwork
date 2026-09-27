@@ -1,0 +1,27 @@
+{
+  "fixture": "uniwork-office-contract-fixture/envelope-authority-violation@1",
+  "description": "An envelope that names a caller-authority field is rejected before any job exists (ContractViolation caller_authority_field).",
+  "value": {
+    "request_id": "01J8Z2ABCDE00000000000000Y",
+    "contract_version": "uniwork-office-engine-contract/1",
+    "protocol_version": 1,
+    "operation": "open",
+    "format": "docx",
+    "deadline_ms": 30000,
+    "payload": {
+      "input_bytes": "aGVsbG8=",
+      "input_checksum": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+      "input_length": 5,
+      "base_revision": 12,
+      "base_version_id": "01J8Z0V0000000000000000A",
+      "output_object_key": "office/jobs/evil/out.docx"
+    }
+  },
+  "expected": {
+    "valid": false,
+    "kind": "contract_violation",
+    "field_path": "envelope.payload.output_object_key",
+    "rule": "unknown_field",
+    "note": "An authority-named key is not in the operation allowlist, so requireOnlyKeys rejects it as unknown_field - the same refusal the G0 model produces (caller_authority_field is the unreachable defense-in-depth branch behind it)."
+  }
+}

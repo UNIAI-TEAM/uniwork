@@ -1,0 +1,24 @@
+{
+  "fixture": "uniwork-office-contract-fixture/fingerprint@1",
+  "description": "Canonical JSON + payload fingerprint parity: both runtimes must derive the same canonical string and SHA-256.",
+  "decisive": {
+    "contract_version": "uniwork-office-engine-contract/1",
+    "protocol_version": 1,
+    "operation": "open",
+    "format": "docx",
+    "input_checksum": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+    "input_length": 5,
+    "base_revision": 12,
+    "base_version_id": "01J8Z0V0000000000000000A",
+    "document_model_ref": null,
+    "source_version_id": null,
+    "engine_version": "genoffice@09485f88+uniwork-office.0",
+    "target_format": null,
+    "edits": null,
+    "export_options": null
+  },
+  "expected": {
+    "canonical": "{\"base_revision\":12,\"base_version_id\":\"01J8Z0V0000000000000000A\",\"contract_version\":\"uniwork-office-engine-contract/1\",\"document_model_ref\":null,\"edits\":null,\"engine_version\":\"genoffice@09485f88+uniwork-office.0\",\"export_options\":null,\"format\":\"docx\",\"input_checksum\":\"2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824\",\"input_length\":5,\"operation\":\"open\",\"protocol_version\":1,\"source_version_id\":null,\"target_format\":null}",
+    "fingerprint": "7b3ab48ef9298c592e100b656527307aa6c803a329586fdb4016a96934d29937"
+  }
+}

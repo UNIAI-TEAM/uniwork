@@ -1,0 +1,28 @@
+{
+  "name": "@uniwork/office-engine-app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "UniWork Office engine service host. G2-02 owns the real service; this scaffold binds the contract-shaped Node transport behind an injected endpoint and refuses to serve until one is configured.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests=false --coverage",
+    "lint": "eslint . --max-warnings 0"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@uniwork/office-contracts": "workspace:*",
+    "@uniwork/office-engine": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@uniwork/eslint-config": "workspace:*",
+    "@uniwork/tsconfig": "workspace:*",
+    "@vitest/coverage-v8": "catalog:",
+    "eslint": "^9.32.0",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "fixture": "uniwork-office-contract-fixture/error-envelope@1",
+  "description": "The shared error envelope shape (engine-contract.md SS4.7).",
+  "value": {
+    "request_id": "01J8Z2ABCDE00000000000000Z",
+    "state": "failed",
+    "operation": "edit",
+    "error": {
+      "code": "engine_checksum_mismatch",
+      "status": 502,
+      "error_class": "engine",
+      "kind": "output_checksum",
+      "retryable": true,
+      "fidelity_preserved": true
+    }
+  },
+  "expected": {
+    "valid": true,
+    "code": "engine_checksum_mismatch",
+    "retryable": true
+  }
+}

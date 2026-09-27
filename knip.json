@@ -16,15 +16,26 @@
         "playwright-core",
         "k6",
         "sharp",
-        "jszip"
+        "jszip",
+        "esbuild"
       ]
     },
     "apps/web": {
       "ignore": [
-        "public/sw.js"
+        "public/sw.js",
+        "platform/office/**"
+      ],
+      "ignoreDependencies": [
+        "@uniwork/office-contracts",
+        "@uniwork/office-engine"
       ]
     },
     "packages/*": {},
+    "packages/office-upstream": {
+      "ignore": [
+        "upstream/**"
+      ]
+    },
     "packages/views": {
       "ignoreExportsUsedInFile": true
     },

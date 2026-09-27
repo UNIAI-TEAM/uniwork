@@ -11,9 +11,10 @@
     "lint": "eslint . --max-warnings 0"
   },
   "dependencies": {
-    "three": "catalog:",
     "@gsap/react": "catalog:",
     "@uniwork/core": "workspace:*",
+    "@uniwork/office-contracts": "workspace:*",
+    "@uniwork/office-engine": "workspace:*",
     "@uniwork/ui": "workspace:*",
     "@uniwork/views": "workspace:*",
     "gsap": "catalog:",
@@ -22,6 +23,7 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-i18next": "catalog:",
+    "three": "catalog:",
     "web-vitals": "^6.2.1"
   },
   "devDependencies": {
