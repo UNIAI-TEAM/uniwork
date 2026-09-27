@@ -12,7 +12,7 @@ export default defineConfig({
       include: ["src/**/*.ts"],
       exclude: ["src/**/*.test.ts", "test/**", "**/*.config.*"],
       reporter: ["text-summary"],
-      thresholds: coverageThresholds({ statements: 62, branches: 60, functions: 50, lines: 63 }),
+      thresholds: coverageThresholds({ statements: 92, branches: 82, functions: 95, lines: 94 }),
     },
   },
 });
