@@ -3,11 +3,13 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "UniWork Office engine service host. G2-02 owns the real service; this scaffold binds the contract-shaped Node transport behind an injected endpoint and refuses to serve until one is configured.",
+  "description": "UniWork Office engine service (G2-02): private HTTP service Go calls with a service credential and a per-job grant; bounded worker pool, per-job limits and process-tree ownership.",
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests=false --coverage",
-    "lint": "eslint . --max-warnings 0"
+    "lint": "eslint . --max-warnings 0",
+    "build": "node scripts/build.mjs",
+    "start": "node dist/main.mjs"
   },
   "exports": {
     ".": "./src/index.ts"

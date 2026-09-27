@@ -1,0 +1,10 @@
+**/node_modules
+**/dist
+**/.turbo
+**/coverage
+.git
+.uniwork-dev
+server
+apps/web
+e2e
+docs
