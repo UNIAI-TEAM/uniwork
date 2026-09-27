@@ -1,6 +1,6 @@
 # UniWork - Hợp đồng FileService FS-C1 cho module tiêu thụ
 
-> **Trạng thái:** in-progress - bản hợp đồng v1 viết ngày 2026-09-24 để module tiêu thụ (task, chat, avatar, recording, audit export, Documents/Office G1-G2) code trước theo contract; chưa có implementation.
+> **Trạng thái:** in-progress - hợp đồng v1 (2026-09-24) đã có implementation thật `service.FileService` cùng `filesfake`/`filescontract` trên nhánh `feature/UNI-726-shared-file-service` (cập nhật 2026-09-27); hợp đồng vẫn đóng băng cho bên tiêu thụ, gồm Documents/Office G1-G2.
 
 **Ngày:** 2026-09-24
 
