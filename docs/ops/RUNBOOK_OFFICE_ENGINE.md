@@ -1,7 +1,7 @@
 # Runbook: Office engine service
 
-> **Trạng thái:** in-progress (G2-02 / UNI-685, 2026-09-27). Service half (02a) landed; the Go transport and
-> job lifecycle (02b) and the G1-03 commit hand-off (02c) extend this page.
+> **Trạng thái:** in-progress (G2-02 / UNI-685, 2026-09-27). Service (02a) and the Go transport and job lifecycle
+> (02b) are on the lane; the G1-03 commit hand-off (02c) extends this page.
 
 The Office engine service (`apps/office-engine`) is the private process that runs the Office engine operations
 which must not run in the browser (ADR 0021). Go is its only caller. It owns no account, ACL, version store or
@@ -78,6 +78,26 @@ with the variables above exported (Node 22).
   `office_engine_jobs_accepted_total{operation}`, `office_engine_jobs_total{operation,outcome}`,
   `office_engine_rejections_total{code}`, `office_engine_job_duration_seconds{operation}`.
 
+## Go side: jobs, readiness, reconciler
+
+- Config (server `.env.example`): `OFFICE_ENGINE_URL` (unset = no engine; office jobs answer
+  `office.ErrNotConfigured`, nothing else changes), `OFFICE_ENGINE_SERVICE_TOKEN`, `OFFICE_ENGINE_GRANT_KEY` (the same
+  two secrets the engine holds), `OFFICE_ENGINE_REQUEST_TIMEOUT_MS`, `OFFICE_JOB_MAX_DEADLINE_MS`,
+  `OFFICE_JOB_RECONCILE_INTERVAL_MS`.
+- `service.DocumentOfficeService` (`server/internal/service/document_office*.go`) persists the `office_jobs` row -
+  actor, scope, operation, base, fingerprint, deadline, grant id and the output `file_id` from
+  `RegisterProviderOutput` - **before** it dispatches. States `accepted -> running -> completed | failed | timed_out |
+  cancelled`, each a compare-and-set. `completed` is not a Document version: the G1-03 commit claims it with
+  `ClaimOfficeJobOutputInTx`; until then a cancel still wins and a cancelled job's output is never claimed.
+- The reconciler (`RunReconciler`, in the `cmd/server` shutdown sequence) sweeps live jobs every interval: it applies
+  engine outcomes, settles jobs the engine lost, and times out jobs past their deadline on Go's own clock.
+- Engine readiness is `EngineReady` (metric `uniwork_office_engine_ready`), never part of the API's `/readyz`: an
+  engine outage does not take the API, Documents list or download out of rotation.
+- Go metrics: `uniwork_office_jobs_total{operation,outcome}`, `uniwork_office_job_duration_seconds{operation}`,
+  `uniwork_office_engine_ready`, `uniwork_office_engine_queue_depth`.
+- Today the real FileService keeps the `document_file` purpose disabled until G1-03 opens it, so a real deployment
+  refuses office jobs at `RegisterProviderOutput` (`file_purpose_disabled`) until then.
+
 ## Job outcomes and what they mean
 
 | State / code | Cause | Operator action |
@@ -91,9 +111,38 @@ with the variables above exported (Node 22).
 | `cancelled` | Go cancelled before the job settled | none |
 | `501 unsupported_operation` | operation not bound in this build; `convert` always (Q7) | expected until the format lane binds it |
 
-Stuck processes: every job's tree is killed on every exit path (POSIX process group + `/proc` walk; Windows
-`taskkill /T`). If `docker top` shows worker processes with no job running, capture `/metrics` and the logs and
-restart the container; the service sweeps stale `uw-office-job-*` temp dirs on start.
+Stuck processes: every job's tree is killed on every exit path. On Linux (the image) that is the worker's process
+group, every descendant found under `/proc/<pid>/task/*/children`, and every process whose environment carries the
+job's `UW_OFFICE_JOB_TAG` - the last one catches a descendant that called `setsid()` and outlived the worker. CPU is
+measured over the same set including reaped children (`cutime`/`cstime`). If `docker top` shows worker processes
+with no job running, capture `/metrics` and the logs and restart the container; the service sweeps stale
+`uw-office-job-*` temp dirs on start.
+
+### Isolation limits (read before binding a native parser)
+
+- **Windows dev hosts** have no tag scan: a descendant that breaks away from the worker's job object can outlive it,
+  and CPU/RSS of native descendants is not measured there (only the worker's self-report). Production is the Linux
+  image; the Linux suite runs with `docker build -f apps/office-engine/Dockerfile --target test`.
+- **Same uid.** Workers run as the service's uid. The compose profile runs the root filesystem read-only with a 1 GiB
+  tmpfs on `/tmp` (the job temp root), so a worker can write nowhere else and all jobs together cannot fill more than
+  the tmpfs; but a compromised worker could read another concurrent job's temp dir. Before G2-04/G2-05 bind native
+  parsers on untrusted files, add a per-job sandbox (per-job uid, or a per-job-class container). Owner: G2-04/G2-05
+  with this runbook's owner.
+- The submit path parses and hashes the envelope on the service's event loop; a large input stalls other requests
+  briefly (measured in `reports/g2-02-engine-service/limits-measurement.md`).
+
+### Restart and replay (Go side)
+
+- The single-use grant ledger is in memory. After an engine restart Go never re-sends a grant for a job the engine
+  had accepted: the engine answers `not_found` and Go settles from `office_jobs` plus the FileService provider-output
+  intent (object written -> `completed`, nothing written -> `failed engine_lost_job`). Go re-dispatches only a job the
+  engine never accepted (a retryable refusal: engine down or overloaded), under the same job and grant ids; if that
+  first dispatch did reach an engine that then restarted, the second run writes the same output object again (same
+  bytes, one file id).
+- A cancel or shutdown can land after the output PUT succeeded, so the object exists for a cancelled job. It is never
+  claimed (`ClaimOfficeJobOutputInTx` requires `completed`), and FileService collects it after its claim window.
+- `/v1/capability` needs only the service credential: it describes the build and touches no job, so there is no
+  grant to present.
 
 ## Q7 conversions
 
