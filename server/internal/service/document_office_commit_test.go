@@ -24,6 +24,45 @@ func TestDocumentOfficeCommit(t *testing.T) {
 	forEachDocStorageBackend(t, func(t *testing.T, env *docStorageEnv) {
 		member := human(env.tn.member)
 
+		t.Run("a scripted engine job lands its output end to end", func(t *testing.T) {
+			// PDF: the provider output has no filename (FS-C1 §4), so the bytes
+			// alone must sniff to the document's format on the real backends.
+			created := env.createFile(t, member, "e2e.pdf", pdfBody("e2e-v1"))
+			eng := newScriptedEngine()
+			eng.fake = env.fake // nil on the real backends: the grant's URL is used
+			jobs := NewDocumentOfficeService(DocumentOfficeOptions{
+				Pool: env.f.pool, Queries: env.f.q, Files: env.fs, Engine: eng, Documents: env.svc,
+				MaxDeadline: time.Minute,
+			})
+			row, err := jobs.StartOfficeJob(context.Background(), member, OfficeJobInput{
+				OrganizationID: created.Document.OrganizationID, WorkspaceID: created.Document.WorkspaceID,
+				DocumentID: created.Document.ID, BaseVersionID: created.Document.FileVersionID.String,
+				BaseRevision: created.Document.Revision, Operation: office.OperationSerialize, Format: office.FormatPDF,
+				IdempotencyKey: util.NewID(),
+			})
+			mustf(t, err, "start job")
+			// The engine PUTs its output to the grant's write target - on the
+			// real backends this is the signed URL FileService issued.
+			out := pdfBody("e2e-engine")
+			eng.finish(t, row.ID, out, "application/pdf")
+			done, err := jobs.GetOfficeJob(context.Background(), member, created.Document.OrganizationID, created.Document.WorkspaceID, row.ID)
+			mustf(t, err, "refresh")
+			if done.State != "completed" || done.OutputChecksum.String != sha(out) {
+				t.Fatalf("job did not verify its output: %+v", done)
+			}
+			res, err := env.commit(member, created.Document.ID, done.OutputFileID.String, done.BaseRevision, util.NewID())
+			mustf(t, err, "commit")
+			if res.Version.Version != 2 || res.Version.FileID.String != done.OutputFileID.String {
+				t.Fatalf("version = %+v", res.Version)
+			}
+			if got := env.job(t, row.ID); got.CommittedVersionID.String != res.Version.ID {
+				t.Fatal("job not marked committed")
+			}
+			if got := env.read(t, member, created.Document.ID, 0, DocumentByteRange{}); !bytes.Equal(got, out) {
+				t.Fatal("the version does not serve the engine's bytes")
+			}
+		})
+
 		t.Run("a completed job commits exactly one version", func(t *testing.T) {
 			created := env.createFile(t, member, "office.pdf", pdfBody("office-v1"))
 			body := pdfBody("office-v2")

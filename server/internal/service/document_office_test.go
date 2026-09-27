@@ -31,9 +31,9 @@ import (
 
 // TestDocumentOfficeJob runs the Go job lifecycle against the REAL engine
 // service (the office compose profile, started with fault operations on) and
-// a real database. FileService is the in-memory fake, bridged to a real HTTP
-// write target the engine container PUTs to, because the Document purposes
-// stay disabled in the real registry until G1-03.
+// a real database. FileService is the in-memory fake bridged to a real HTTP
+// write target the engine container PUTs to; the same provider-output shape
+// lands on the real FileService in TestDocumentOfficeCommit (local, MinIO).
 //
 // Environment (scripts in the G2-02 report start the container):
 //   OFFICE_ENGINE_TEST_URL            engine base URL, e.g. http://127.0.0.1:18091
@@ -54,15 +54,6 @@ func officeEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
-}
-
-type allowMember struct{ userID string }
-
-func (a allowMember) RequireMember(_ context.Context, _ string, userID string) (db.WorkspaceMember, error) {
-	if userID != a.userID {
-		return db.WorkspaceMember{}, ErrForbidden
-	}
-	return db.WorkspaceMember{UserID: userID, Role: "member"}, nil
 }
 
 // bridgeFiles is filesfake with a real write target: the engine PUTs to it and
@@ -137,9 +128,15 @@ func (b *bridgeFiles) putCount(id string) int {
 	return b.puts[files.FileID(id)]
 }
 
+// officeFixture is a real tenant (docPermFixture) with a real
+// DocumentService over the bridge fake, so the office service's document-ACL
+// gate resolves actual membership, shares and levels.
 type officeFixture struct {
 	pool   *pgxpool.Pool
 	q      *db.Queries
+	pf     *docPermFixture
+	tn     docTenant
+	docs   *DocumentService
 	files  *bridgeFiles
 	actor  Actor
 	org    string
@@ -157,45 +154,35 @@ func (f *officeFixture) clock() time.Time {
 func newOfficeFixture(t *testing.T, content string) *officeFixture {
 	t.Helper()
 	pool := testutil.DB(t)
-	f := &officeFixture{pool: pool, q: db.New(pool), files: officeBridge(t), actor: Human(util.NewID()), org: util.NewID(), ws: util.NewID()}
-	f.doc, f.ver = f.seedDocument(t, content)
+	pf := newDocPermFixtureOn(pool)
+	f := &officeFixture{pool: pool, q: pf.q, pf: pf, files: officeBridge(t)}
+	f.tn = pf.tenant(t, "g2c"+strings.ToLower(util.NewID()[20:]))
+	f.actor, f.org, f.ws = human(f.tn.member), f.tn.orgID, f.tn.wsA
+	f.docs = pf.svc
+	f.docs.SetFiles(f.files)
+	f.docs.SetEntitlements(NewEntitlementService(pool, pf.q))
+	f.docs.store.spoolDir = t.TempDir()
+	f.doc, f.ver, f.rev = f.seedDocument(t, content)
 	return f
 }
 
-func (f *officeFixture) seedDocument(t *testing.T, content string) (string, string) {
+// seedDocument creates a file document through the real service, so the
+// document, its first version and its file exist the way production leaves
+// them. It answers (document id, version id, revision).
+func (f *officeFixture) seedDocument(t *testing.T, content string) (string, string, int64) {
 	t.Helper()
-	ctx := context.Background()
-	up, err := f.files.Upload(ctx, files.UploadInput{
-		Actor: f.actor, Purpose: files.DocumentFile, Scope: files.Scope{OrganizationID: f.org, WorkspaceID: f.ws},
-		IdempotencyKey: util.NewID(), Filename: "note.md", Body: strings.NewReader(content),
+	res, err := f.docs.CreateFileDocument(context.Background(), f.actor, f.ws, CreateFileDocumentInput{
+		Title: "Tài liệu " + util.NewID()[20:], Filename: "note.md", Body: strings.NewReader(content),
 	})
 	if err != nil {
-		t.Fatalf("upload: %v", err)
+		t.Fatalf("seed document: %v", err)
 	}
-	sum := sha256.Sum256([]byte(content))
-	docID, verID := util.NewID(), util.NewID()
-	f.rev = 3
-	if _, err := f.q.InsertDocument(ctx, db.InsertDocumentParams{
-		ID: docID, OrganizationID: f.org, WorkspaceID: f.ws, Kind: "file", Title: "note.md", Visibility: "workspace",
-		CurrentVersion: 1, FileVersionID: pgtype.Text{String: verID, Valid: true}, Revision: f.rev,
-		CreatedBy: f.actor.ID, CreatedByKind: "human", UpdatedBy: f.actor.ID, UpdatedByKind: "human",
-	}); err != nil {
-		t.Fatalf("document: %v", err)
-	}
-	if _, err := f.q.InsertDocumentVersion(ctx, db.InsertDocumentVersionParams{
-		ID: verID, OrganizationID: f.org, WorkspaceID: f.ws, DocumentID: docID, Version: 1, Kind: "file", Reason: "upload",
-		FileID: pgtype.Text{String: string(up.File.ID), Valid: true}, SizeBytes: int64(len(content)),
-		ChecksumSha256: pgtype.Text{String: hex.EncodeToString(sum[:]), Valid: true},
-		CreatedBy:      f.actor.ID, CreatedByKind: "human",
-	}); err != nil {
-		t.Fatalf("version: %v", err)
-	}
-	return docID, verID
+	return res.Document.ID, res.Version.ID, res.Document.Revision
 }
 
 func (f *officeFixture) service(engine OfficeEngine) *DocumentOfficeService {
 	return NewDocumentOfficeService(DocumentOfficeOptions{
-		Pool: f.pool, Queries: f.q, Files: f.files, Engine: engine, Members: allowMember{f.actor.ID},
+		Pool: f.pool, Queries: f.q, Files: f.files, Engine: engine, Documents: f.docs,
 		MaxDeadline: 2 * time.Minute, ReconcileInterval: 100 * time.Millisecond, Clock: f.clock,
 	})
 }
@@ -312,9 +299,8 @@ func TestDocumentOfficeJob(t *testing.T) {
 		if _, err := svc.StartOfficeJob(ctx, f.actor, changed); office.ErrorCode(err) != "payload_fingerprint_mismatch" {
 			t.Fatalf("changed payload: %v", err)
 		}
-		other := Human(util.NewID())
-		svc2 := NewDocumentOfficeService(DocumentOfficeOptions{Pool: f.pool, Queries: f.q, Files: f.files, Engine: engine, Members: allowMember{other.ID}})
-		if _, err := svc2.StartOfficeJob(ctx, other, f.input("k-retry")); office.ErrorCode(err) != "job_conflict" {
+		other := human(f.tn.creator) // another member with edit on the document
+		if _, err := svc.StartOfficeJob(ctx, other, f.input("k-retry")); office.ErrorCode(err) != "job_conflict" {
 			t.Fatalf("other actor, same key: %v", err)
 		}
 	})
@@ -399,7 +385,7 @@ func TestDocumentOfficeJob(t *testing.T) {
 		svc := f.service(engine)
 		for i := 0; i < 6; i++ {
 			in := f.input(fmt.Sprintf("k-race-%d", i))
-			in.DocumentID, in.BaseVersionID = f.seedDocument(t, fmt.Sprintf("race %d\n", i))
+			in.DocumentID, in.BaseVersionID, in.BaseRevision = f.seedDocument(t, fmt.Sprintf("race %d\n", i))
 			row, err := svc.StartOfficeJob(ctx, f.actor, in)
 			if err != nil {
 				t.Fatal(err)
@@ -558,7 +544,7 @@ func TestDocumentOfficeJob(t *testing.T) {
 		engine := realEngine(t)
 		f := newOfficeFixture(t, "auth\n")
 		svc := f.service(engine)
-		if _, err := svc.StartOfficeJob(ctx, Human(util.NewID()), f.input("k-auth")); !errors.Is(err, ErrForbidden) {
+		if _, err := svc.StartOfficeJob(ctx, Human(util.NewID()), f.input("k-auth")); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("non-member: %v", err)
 		}
 		stale := f.input("k-stale")
@@ -571,7 +557,7 @@ func TestDocumentOfficeJob(t *testing.T) {
 		if _, err := svc.StartOfficeJob(ctx, f.actor, other); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("other tenant: %v", err)
 		}
-		if _, err := svc.GetOfficeJob(ctx, Human(util.NewID()), f.org, f.ws, "nope"); !errors.Is(err, ErrForbidden) {
+		if _, err := svc.GetOfficeJob(ctx, Human(util.NewID()), f.org, f.ws, "nope"); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("non-member read: %v", err)
 		}
 	})

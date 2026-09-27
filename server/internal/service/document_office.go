@@ -52,19 +52,17 @@ type OfficeMetrics interface {
 	SetOfficeEngine(ready bool, queueDepth int)
 }
 
-type officeMembers interface {
-	RequireMember(ctx context.Context, workspaceID, userID string) (db.WorkspaceMember, error)
-}
-
-// DocumentOfficeOptions wires the service. Engine nil means no engine is
-// deployed: office jobs answer office.ErrNotConfigured and nothing else in
-// Documents depends on the engine.
+// DocumentOfficeOptions wires the service. Documents is the G1-02 gate every
+// office command authorizes through (edit to submit or cancel, view to read
+// a job's status). Engine nil means no engine is deployed: office jobs
+// answer office.ErrNotConfigured and nothing else in Documents depends on
+// the engine.
 type DocumentOfficeOptions struct {
 	Pool              *pgxpool.Pool
 	Queries           *db.Queries
 	Files             files.Service
 	Engine            OfficeEngine
-	Members           officeMembers
+	Documents         *DocumentService
 	Metrics           OfficeMetrics
 	MaxDeadline       time.Duration
 	ReconcileInterval time.Duration
@@ -74,17 +72,17 @@ type DocumentOfficeOptions struct {
 }
 
 type DocumentOfficeService struct {
-	pool     *pgxpool.Pool
-	q        *db.Queries
-	files    files.Service
-	engine   OfficeEngine
-	members  officeMembers
-	metrics  OfficeMetrics
-	maxDL    time.Duration
-	interval time.Duration
-	now      func() time.Time
-	newID    func() string
-	log      *slog.Logger
+	pool      *pgxpool.Pool
+	q         *db.Queries
+	files     files.Service
+	engine    OfficeEngine
+	documents *DocumentService
+	metrics   OfficeMetrics
+	maxDL     time.Duration
+	interval  time.Duration
+	now       func() time.Time
+	newID     func() string
+	log       *slog.Logger
 }
 
 const (
@@ -108,7 +106,7 @@ var ErrOfficeJobInvalid = errors.New("office_job_invalid")
 
 func NewDocumentOfficeService(o DocumentOfficeOptions) *DocumentOfficeService {
 	s := &DocumentOfficeService{
-		pool: o.Pool, q: o.Queries, files: o.Files, engine: o.Engine, members: o.Members, metrics: o.Metrics,
+		pool: o.Pool, q: o.Queries, files: o.Files, engine: o.Engine, documents: o.Documents, metrics: o.Metrics,
 		maxDL: o.MaxDeadline, interval: o.ReconcileInterval, now: o.Clock, newID: o.NewID, log: o.Log,
 	}
 	if s.maxDL <= 0 {
@@ -159,11 +157,19 @@ func officeOperationID(jobID string) string { return "office_job:" + jobID }
 
 func officeErr(code, reason string) error { return office.NewEngineError(code, reason) }
 
-func (s *DocumentOfficeService) authorize(ctx context.Context, actor Actor, workspaceID string) error {
+// authorize maps an office command onto the document ACL (G1-02): the
+// command's document is authorized through authorizeDocument at the required
+// level - edit to submit or cancel, view to read a job's status. Only human
+// actors reach an office command: agents write through proposals (ADR 0010)
+// and anything else never gets a document.
+func (s *DocumentOfficeService) authorize(ctx context.Context, actor Actor, documentID string, required DocumentLevel) error {
 	if actor.Kind != audit.KindHuman || actor.ID == "" {
 		return ErrForbidden
 	}
-	_, err := s.members.RequireMember(ctx, workspaceID, actor.ID)
+	if s.documents == nil {
+		return fmt.Errorf("office: documents service not wired")
+	}
+	_, _, err := s.documents.authorizeDocument(ctx, actor, documentID, required)
 	return err
 }
 
@@ -194,7 +200,7 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 	if !validOfficeOperation(in.Operation) || key == "" || len(key) > 128 {
 		return db.OfficeJob{}, ErrOfficeJobInvalid
 	}
-	if err := s.authorize(ctx, actor, in.WorkspaceID); err != nil {
+	if err := s.authorize(ctx, actor, in.DocumentID, DocumentLevelEdit); err != nil {
 		return db.OfficeJob{}, err
 	}
 	// A retried key is answered from its row before anything about the
@@ -496,11 +502,11 @@ func (s *DocumentOfficeService) settleWith(ctx context.Context, row db.OfficeJob
 // was committed; then it answers the job as it is. The engine is told
 // best-effort - Go's row is the outcome.
 func (s *DocumentOfficeService) CancelOfficeJob(ctx context.Context, actor Actor, orgID, wsID, jobID string) (db.OfficeJob, error) {
-	if err := s.authorize(ctx, actor, wsID); err != nil {
-		return db.OfficeJob{}, err
-	}
 	row, err := s.get(ctx, orgID, wsID, jobID)
 	if err != nil {
+		return db.OfficeJob{}, err
+	}
+	if err := s.authorize(ctx, actor, row.DocumentID, DocumentLevelEdit); err != nil {
 		return db.OfficeJob{}, err
 	}
 	// Only the job's creator discards its work: a cancel can drop staged
@@ -532,11 +538,11 @@ func (s *DocumentOfficeService) CancelOfficeJob(ctx context.Context, actor Actor
 
 // GetOfficeJob reads a job; a live one is refreshed from the engine first.
 func (s *DocumentOfficeService) GetOfficeJob(ctx context.Context, actor Actor, orgID, wsID, jobID string) (db.OfficeJob, error) {
-	if err := s.authorize(ctx, actor, wsID); err != nil {
-		return db.OfficeJob{}, err
-	}
 	row, err := s.get(ctx, orgID, wsID, jobID)
 	if err != nil {
+		return db.OfficeJob{}, err
+	}
+	if err := s.authorize(ctx, actor, row.DocumentID, DocumentLevelView); err != nil {
 		return db.OfficeJob{}, err
 	}
 	return s.Refresh(ctx, row)
