@@ -141,28 +141,48 @@ func TestPlanChatFilesAndVoice(t *testing.T) {
 	}
 }
 
-// FS-native chat rows carry metadata.file_id and no object_key; they are the
-// applied state, never a classification anomaly. A file_id on a row whose
-// locator contradicts it keeps the contradiction for verify to flag.
+// FS-native chat rows carry file_id in the column (T7 writes both carriers);
+// a data-fix row may carry it only in metadata (F-BE-1). The metadata-only
+// shape is NOT already_applied: the GC reference provider reads the column,
+// so the row must promote instead — held when the named file is missing,
+// dead, or another org's. A file_id on a locator-contradicting row keeps
+// the contradiction for verify to flag.
 func TestPlanChatFSNativeAndContradictedReference(t *testing.T) {
 	pool := testutil.DB(t)
 	q := db.New(pool)
 	insertUser(t, pool, "user-1")
 	insertOrg(t, pool, "org-1", "ws-1", "user-1")
+	insertOrg(t, pool, "org-2", "ws-2", "user-1")
 	insertRoom(t, pool, "room-1", "org-1", "ws-1")
+	insertFile(t, pool, "fil_native", "org-1", "chat/files/org-1/room-1/n.pdf")
+	insertFile(t, pool, "fil_other", "org-2", "chat/files/org-2/room-9/y.pdf")
 
 	ctx := context.Background()
+	insertChatMessage(t, pool, "msg-colonly", "room-1", "ws-1", "file", `{}`, false)
 	insertChatMessage(t, pool, "msg-fsnative", "room-1", "ws-1", "file",
 		`{"file_id":"fil_native","filename":"n.pdf","content_type":"application/pdf","size_bytes":9}`, false)
+	insertChatMessage(t, pool, "msg-ghost", "room-1", "ws-1", "file",
+		`{"file_id":"fil_ghost","filename":"g.pdf"}`, false)
+	insertChatMessage(t, pool, "msg-foreignf", "room-1", "ws-1", "file",
+		`{"file_id":"fil_other","filename":"y.pdf"}`, false)
 	insertChatMessage(t, pool, "msg-contra", "room-1", "ws-1", "file",
 		`{"object_key":"chat/files/org-2/room-9/y.pdf","filename":"y.pdf"}`, false)
-	if _, err := pool.Exec(ctx, `UPDATE chat_messages SET file_id='fil_x' WHERE id='msg-contra'`); err != nil {
+	if _, err := pool.Exec(ctx, `UPDATE chat_messages SET file_id='fil_x' WHERE id IN ('msg-colonly','msg-contra')`); err != nil {
 		t.Fatal(err)
 	}
 
 	files := planCohort(t, q, nil, CohortChatFiles).Cohorts[0]
-	if got := itemByID(files, "msg-fsnative"); got.Class != ClassAlreadyApplied || got.FileID != "fil_native" {
-		t.Fatalf("msg-fsnative = %+v, want already_applied", got)
+	if got := itemByID(files, "msg-colonly"); got.Class != ClassAlreadyApplied || got.FileID != "fil_x" {
+		t.Fatalf("msg-colonly = %+v, want already_applied (column carrier)", got)
+	}
+	if got := itemByID(files, "msg-fsnative"); got.Class != ClassPromote || got.PromoteFileID != "fil_native" {
+		t.Fatalf("msg-fsnative = %+v, want promote fil_native", got)
+	}
+	if got := itemByID(files, "msg-ghost"); got.Class != ClassHeld || got.Reason != "file_reference_missing" {
+		t.Fatalf("msg-ghost = %+v, want held/file_reference_missing", got)
+	}
+	if got := itemByID(files, "msg-foreignf"); got.Class != ClassHeld || got.Reason != "file_scope_conflict" {
+		t.Fatalf("msg-foreignf = %+v, want held/file_scope_conflict", got)
 	}
 	if got := itemByID(files, "msg-contra"); got.Class != ClassHeld || got.FileID != "fil_x" {
 		t.Fatalf("msg-contra = %+v, want held carrying file_id for verify", got)

@@ -109,6 +109,27 @@ func (q *Queries) FileBackfillClearMeetingRecordingFile(ctx context.Context, arg
 	return result.RowsAffected(), nil
 }
 
+const fileBackfillClearPromotedChatFile = `-- name: FileBackfillClearPromotedChatFile :execrows
+UPDATE chat_messages SET file_id = NULL
+WHERE id = $1 AND file_id IS NOT DISTINCT FROM $2
+`
+
+type FileBackfillClearPromotedChatFileParams struct {
+	ID     string      `json:"id"`
+	FileID pgtype.Text `json:"file_id"`
+}
+
+// Rollback of a promote: the metadata file_id predates the run (a data-fix
+// row carried it), so only the column is cleared — the as-was state keeps
+// its metadata snapshot untouched.
+func (q *Queries) FileBackfillClearPromotedChatFile(ctx context.Context, arg FileBackfillClearPromotedChatFileParams) (int64, error) {
+	result, err := q.db.Exec(ctx, fileBackfillClearPromotedChatFile, arg.ID, arg.FileID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const fileBackfillClearUserAvatarFile = `-- name: FileBackfillClearUserAvatarFile :execrows
 UPDATE users SET avatar_file_id = NULL, updated_at = now()
 WHERE id = $1 AND avatar_file_id IS NOT DISTINCT FROM $2
@@ -211,6 +232,20 @@ func (q *Queries) FileBackfillFinishRun(ctx context.Context, arg FileBackfillFin
 	return err
 }
 
+const fileBackfillGetChatMessageFileID = `-- name: FileBackfillGetChatMessageFileID :one
+SELECT file_id FROM chat_messages WHERE id = $1
+`
+
+// Conflict read for the promote path: a zero-row guarded update means the
+// column moved; this tells apply whether it landed the same value or a
+// different one (file_id_conflict).
+func (q *Queries) FileBackfillGetChatMessageFileID(ctx context.Context, id string) (pgtype.Text, error) {
+	row := q.db.QueryRow(ctx, fileBackfillGetChatMessageFileID, id)
+	var file_id pgtype.Text
+	err := row.Scan(&file_id)
+	return file_id, err
+}
+
 const fileBackfillGetFileByID = `-- name: FileBackfillGetFileByID :one
 SELECT id, organization_id, storage, bucket, object_key, object_version, original_filename, content_type, size_bytes, checksum_sha256, status, metadata, ready_at, created_at, updated_at, deleted_at FROM files WHERE id = $1
 `
@@ -282,6 +317,52 @@ func (q *Queries) FileBackfillGetFileByLocator(ctx context.Context, arg FileBack
 		&i.DeletedAt,
 	)
 	return i, err
+}
+
+const fileBackfillGetFilesByIDs = `-- name: FileBackfillGetFilesByIDs :many
+SELECT id, organization_id, storage, bucket, object_key, status
+FROM files
+WHERE id = ANY($1::text[])
+ORDER BY id
+`
+
+type FileBackfillGetFilesByIDsRow struct {
+	ID             string      `json:"id"`
+	OrganizationID pgtype.Text `json:"organization_id"`
+	Storage        string      `json:"storage"`
+	Bucket         pgtype.Text `json:"bucket"`
+	ObjectKey      string      `json:"object_key"`
+	Status         string      `json:"status"`
+}
+
+// The promote-candidate check: a chat message carrying file_id only in its
+// metadata snapshot must prove the row exists and belongs to the message's
+// organization before apply promotes the reference into the column.
+func (q *Queries) FileBackfillGetFilesByIDs(ctx context.Context, ids []string) ([]FileBackfillGetFilesByIDsRow, error) {
+	rows, err := q.db.Query(ctx, fileBackfillGetFilesByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FileBackfillGetFilesByIDsRow{}
+	for rows.Next() {
+		var i FileBackfillGetFilesByIDsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.Storage,
+			&i.Bucket,
+			&i.ObjectKey,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const fileBackfillGetRun = `-- name: FileBackfillGetRun :one

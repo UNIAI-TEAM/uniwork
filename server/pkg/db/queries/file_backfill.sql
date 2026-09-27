@@ -125,6 +125,21 @@ WHERE storage = sqlc.arg('storage')
 -- verify reads the row a business file_id points at.
 SELECT * FROM files WHERE id = sqlc.arg('id');
 
+-- name: FileBackfillGetFilesByIDs :many
+-- The promote-candidate check: a chat message carrying file_id only in its
+-- metadata snapshot must prove the row exists and belongs to the message's
+-- organization before apply promotes the reference into the column.
+SELECT id, organization_id, storage, bucket, object_key, status
+FROM files
+WHERE id = ANY(sqlc.arg('ids')::text[])
+ORDER BY id;
+
+-- name: FileBackfillGetChatMessageFileID :one
+-- Conflict read for the promote path: a zero-row guarded update means the
+-- column moved; this tells apply whether it landed the same value or a
+-- different one (file_id_conflict).
+SELECT file_id FROM chat_messages WHERE id = sqlc.arg('id');
+
 -- name: FileBackfillListSessionsForFile :many
 -- verify checks scope/purpose coverage; rollback checks remaining claims.
 SELECT * FROM file_upload_sessions
@@ -304,6 +319,13 @@ WHERE id = sqlc.arg('id') AND avatar_file_id IS NOT DISTINCT FROM sqlc.narg('fil
 -- name: FileBackfillClearChatMessageFile :execrows
 UPDATE chat_messages
 SET file_id = NULL, metadata = metadata - 'file_id'
+WHERE id = sqlc.arg('id') AND file_id IS NOT DISTINCT FROM sqlc.narg('file_id');
+
+-- name: FileBackfillClearPromotedChatFile :execrows
+-- Rollback of a promote: the metadata file_id predates the run (a data-fix
+-- row carried it), so only the column is cleared — the as-was state keeps
+-- its metadata snapshot untouched.
+UPDATE chat_messages SET file_id = NULL
 WHERE id = sqlc.arg('id') AND file_id IS NOT DISTINCT FROM sqlc.narg('file_id');
 
 -- name: FileBackfillClearMeetingRecordingFile :execrows

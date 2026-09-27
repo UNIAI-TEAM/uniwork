@@ -223,6 +223,12 @@ func (e *Engine) applyBatch(ctx context.Context, runID, cohort string, batch []I
 			status, reason = string(ClassHeld), "object_missing"
 		case it.Class == ClassVerified && invalid[it.locatorID()]:
 			status, reason = string(ClassHeld), "unsafe_locator"
+		case it.Class == ClassPromote:
+			res, err := e.applyPromote(ctx, q, it)
+			if err != nil {
+				return fmt.Errorf("%s/%s: %w", it.SourceTable, it.SourceID, err)
+			}
+			status, reason, fileID, details = res.status, res.reason, res.fileID, res.details
 		case it.Class == ClassVerified:
 			res, err := e.applyVerified(ctx, q, runID, it, stats[it.locatorID()])
 			if err != nil {
@@ -294,6 +300,35 @@ func (e *Engine) applyVerified(ctx context.Context, q *db.Queries, runID string,
 		status: itemApplied, fileID: fileID, version: info.VersionID,
 		details: details,
 	}, nil
+}
+
+// applyPromote copies a metadata-only file_id into the chat_messages column
+// — the only carrier the GC reference providers read — so the file the row
+// already claims is actually held. The files row and its session belong to
+// the FS write that created them; apply touches neither. The guarded update
+// keeps replays no-ops and a concurrent different value reports
+// file_id_conflict instead of being overwritten.
+func (e *Engine) applyPromote(ctx context.Context, q *db.Queries, it *Item) (*applyResult, error) {
+	n, err := q.FileBackfillSetChatMessageFile(ctx, db.FileBackfillSetChatMessageFileParams{
+		ID: it.SourceID, FileID: pgText(it.PromoteFileID),
+	})
+	if err != nil {
+		return nil, err
+	}
+	details := map[string]any{"promoted": true}
+	if n > 0 {
+		return &applyResult{status: itemApplied, fileID: it.PromoteFileID, details: details}, nil
+	}
+	cur, gerr := q.FileBackfillGetChatMessageFileID(ctx, it.SourceID)
+	if gerr != nil {
+		return nil, gerr
+	}
+	if cur.Valid && cur.String == it.PromoteFileID {
+		// A concurrent fix landed the same value — the desired state holds,
+		// so the item is applied and rollback's guarded clear stays honest.
+		return &applyResult{status: itemApplied, fileID: it.PromoteFileID, details: details}, nil
+	}
+	return &applyResult{status: itemSkipped, reason: "file_id_conflict", fileID: it.PromoteFileID}, nil
 }
 
 // getOrCreateFile resolves the files row for the item's locator. It returns

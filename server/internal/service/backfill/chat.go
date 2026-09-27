@@ -106,40 +106,50 @@ func (e *Engine) classifyChatMessage(r db.FileBackfillScanChatMessagesRow) Item 
 
 	meta := chatMessageMeta(r.Metadata)
 
-	// The column is the promoted reference, but a data-fix row can carry the
-	// same fact only in the metadata snapshot (T7's F-BE-1 read fallback) —
-	// evidence merges both carriers.
-	fileID := r.FileID
-	if meta != nil && strings.TrimSpace(fileID.String) == "" {
-		if v := metaString(meta, "file_id"); v != "" {
-			fileID = pgText(v)
-		}
-	}
-
-	// A file_id-bearing row with no locator in metadata is an FS-native
-	// write (file_id, never object_key/recording_url) — the applied state,
-	// with nothing to reconcile. Unparseable metadata cannot prove that
-	// absence, so it classifies normally below.
-	if meta != nil && fileID.String != "" {
-		locator := metaString(meta, "object_key")
+	colID := strings.TrimSpace(r.FileID.String)
+	metaID, locator := "", ""
+	if meta != nil {
+		metaID = metaString(meta, "file_id")
+		locator = metaString(meta, "object_key")
 		if r.Kind == "voice_call_log" {
 			locator = metaString(meta, "recording_url")
 		}
-		if locator == "" {
-			it.Class, it.FileID = ClassAlreadyApplied, fileID.String
-			return it
-		}
+	}
+	// file_id evidence merges both carriers — the column when written, the
+	// metadata snapshot otherwise (T7's F-BE-1 data-fix shape).
+	fileID := r.FileID
+	if colID == "" && metaID != "" {
+		fileID = pgText(metaID)
+	}
+
+	// The column already carries the reference and no locator accompanies it:
+	// the FS-native applied state, nothing to reconcile. A column-bearing row
+	// with a locator falls through — the locator gets classified normally and
+	// the column rides along as finishItem evidence.
+	if colID != "" && locator == "" {
+		it.Class, it.FileID = ClassAlreadyApplied, colID
+		return it
 	}
 	if org == "" {
 		it.Class = ClassUnresolved
 		it.Reason = "room_tenant_missing"
 		return finishItem(it, fileID)
 	}
-
 	if meta == nil {
 		it.Class = ClassUnresolved
 		it.Reason = "unparseable_metadata"
 		return finishItem(it, fileID)
+	}
+
+	// Metadata-only file_id: the reference is real but invisible to the GC
+	// reference providers (they read the column). Classified promote; the
+	// post-scan pass proves the named files row exists, is live, and shares
+	// the message's org before apply writes the column.
+	if colID == "" && metaID != "" {
+		it.Class = ClassPromote
+		it.PromoteFileID = metaID
+		it.RawLocator = locator
+		return it
 	}
 
 	if r.Kind == "voice_call_log" {

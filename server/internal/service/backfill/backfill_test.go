@@ -80,6 +80,39 @@ func nilIfEmpty(s string) any {
 	return s
 }
 
+// insertFile seeds a files row (pending needs no object metadata) for
+// promote/verify fixtures. The cleanup drops sessions first so the files
+// rows never outlive their receipts inside the shared test DB.
+func insertFile(t *testing.T, pool *pgxpool.Pool, id, org, key string) {
+	t.Helper()
+	t.Cleanup(func() {
+		if _, err := pool.Exec(context.Background(), `DELETE FROM file_upload_sessions`); err != nil {
+			t.Logf("cleanup file_upload_sessions: %v", err)
+		}
+		if _, err := pool.Exec(context.Background(), `DELETE FROM files`); err != nil {
+			t.Logf("cleanup files: %v", err)
+		}
+	})
+	if _, err := pool.Exec(context.Background(), `INSERT INTO files
+		(id, organization_id, storage, object_key, original_filename, status)
+		VALUES ($1,$2,'local',$3,$4,'pending')`, id, nilIfEmpty(org), key, key); err != nil {
+		t.Fatalf("seed file %s: %v", id, err)
+	}
+}
+
+// insertSession seeds a claimed session — the receipt an FS upload already
+// left on the file a promote candidate names.
+func insertSession(t *testing.T, pool *pgxpool.Pool, id, fileID, purpose, org, ws, user string) {
+	t.Helper()
+	if _, err := pool.Exec(context.Background(), `INSERT INTO file_upload_sessions
+		(id, file_id, created_by, created_by_kind, purpose,
+		 organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status)
+		VALUES ($1,$2,'user-1','human',$3,$4,$5,$6,$7,'fp','claimed')`,
+		id, fileID, purpose, nilIfEmpty(org), nilIfEmpty(ws), nilIfEmpty(user), "test/"+id); err != nil {
+		t.Fatalf("seed session %s: %v", id, err)
+	}
+}
+
 func attKey(ws, id string) string {
 	return fmt.Sprintf("workspaces/%s/attachments/%s/doc.pdf", ws, id)
 }

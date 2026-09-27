@@ -142,7 +142,9 @@ type VerifyOptions struct {
 func (e *Engine) verifyItem(ctx context.Context, it *Item, statOnce func(*Item) (storage.ObjectInfo, error)) string {
 	if it.FileID == "" {
 		switch it.Class {
-		case ClassVerified:
+		case ClassVerified, ClassPromote:
+			// Verified awaits the mint; promote awaits the column write —
+			// both are correct pre-apply states, flagged for the operator.
 			return verdictPendingApply
 		default:
 			// held/foreign/unresolved correctly carry no reference.
@@ -300,6 +302,25 @@ func (e *Engine) rollbackItem(ctx context.Context, runID string, it db.FileBackf
 	q := e.q.WithTx(tx)
 
 	fid := it.FileID.String
+
+	// A promote wrote only the column — the metadata file_id predates the run
+	// (a data-fix row carried it), the run minted no session and no files row.
+	// Clearing just the column restores the as-was state exactly.
+	var det struct {
+		FileCreated bool          `json:"file_created"`
+		AdoptedFrom *fileSnapshot `json:"adopted_from"`
+		Promoted    bool          `json:"promoted"`
+	}
+	_ = json.Unmarshal(it.Details, &det)
+	if det.Promoted {
+		if _, err := q.FileBackfillClearPromotedChatFile(ctx, db.FileBackfillClearPromotedChatFileParams{
+			ID: it.SourceID, FileID: pgText(fid),
+		}); err != nil {
+			return err
+		}
+		return tx.Commit(ctx)
+	}
+
 	switch it.SourceTable {
 	case "attachments":
 		_, err = q.FileBackfillClearAttachmentFile(ctx, db.FileBackfillClearAttachmentFileParams{ID: it.SourceID, FileID: pgText(fid)})
@@ -332,11 +353,6 @@ func (e *Engine) rollbackItem(ctx context.Context, runID string, it db.FileBackf
 	// still claims it — a second run reusing the locator keeps the row alive.
 	// A row the run merely adopted (pending/processing -> ready) is restored
 	// to its recorded as-was state instead.
-	var det struct {
-		FileCreated bool          `json:"file_created"`
-		AdoptedFrom *fileSnapshot `json:"adopted_from"`
-	}
-	_ = json.Unmarshal(it.Details, &det)
 	if det.FileCreated {
 		rest, err := q.FileBackfillListSessionsForFile(ctx, fid)
 		if err != nil {

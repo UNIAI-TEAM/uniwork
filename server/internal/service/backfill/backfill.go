@@ -68,6 +68,12 @@ const (
 	ClassHeld           Class = "held"            // conflicting or unsafe-to-automate evidence
 	ClassForeign        Class = "foreign"         // demonstrably not an object we store
 	ClassAlreadyApplied Class = "already_applied" // the business reference already carries a file_id
+	// ClassPromote names a chat row whose file_id lives only in the metadata
+	// snapshot (T7's F-BE-1 data-fix shape): the reference is real but the
+	// column — the only carrier the GC reference providers read — is empty.
+	// Apply promotes metadata.file_id into chat_messages.file_id; until then
+	// the file is unheld and a destructive GC would call it unreferenced.
+	ClassPromote Class = "promote"
 )
 
 // Item is one source row's classification. In apply mode the same shape is
@@ -86,14 +92,18 @@ type Item struct {
 	WorkspaceID    string `json:"workspace_id,omitempty"`
 	UserID         string `json:"user_id,omitempty"`
 	FileID         string `json:"file_id,omitempty"`
-	Purpose        string `json:"purpose,omitempty"`
-	Claimed        bool   `json:"claimed"`
-	SharedLocator  bool   `json:"shared_locator,omitempty"`
-	Filename       string `json:"filename,omitempty"`
-	SizeBytes      int64  `json:"size_bytes"`
-	ContentType    string `json:"content_type,omitempty"`
-	ActorID        string `json:"actor_id,omitempty"`
-	ActorKind      string `json:"actor_kind,omitempty"`
+	// PromoteFileID is the metadata-snapshot reference awaiting promotion into
+	// the file_id column (ClassPromote rows only). It is kept off FileID so
+	// verify reads "no applied reference" until the column write lands.
+	PromoteFileID string `json:"promote_file_id,omitempty"`
+	Purpose       string `json:"purpose,omitempty"`
+	Claimed       bool   `json:"claimed"`
+	SharedLocator bool   `json:"shared_locator,omitempty"`
+	Filename      string `json:"filename,omitempty"`
+	SizeBytes     int64  `json:"size_bytes"`
+	ContentType   string `json:"content_type,omitempty"`
+	ActorID       string `json:"actor_id,omitempty"`
+	ActorKind     string `json:"actor_kind,omitempty"`
 	// Verdict is set by verify only; apply/plan leave it empty.
 	Verdict string `json:"verdict,omitempty"`
 
@@ -125,6 +135,7 @@ type CohortReport struct {
 	Held            int            `json:"held"`
 	Foreign         int            `json:"foreign"`
 	AlreadyApplied  int            `json:"already_applied"`
+	Promote         int            `json:"promote"`          // metadata-only file_id rows pending column promotion
 	DistinctObjects int            `json:"distinct_objects"` // unique verified locators this cohort would write
 	SharedLocators  int            `json:"shared_locators"`  // locators named by >1 scope — always held
 	DuplicateRefs   int            `json:"duplicate_refs"`   // extra rows sharing one verified locator
@@ -260,6 +271,9 @@ func (e *Engine) Plan(ctx context.Context, opts Options) (*Report, error) {
 		}
 		rep.Cohorts = append(rep.Cohorts, CohortReport{Name: name, Items: items})
 	}
+	if err := e.resolvePromoteRefs(ctx, rep); err != nil {
+		return nil, fmt.Errorf("plan: %w", err)
+	}
 	markUnsafeLocators(rep)
 	markSharedLocators(rep)
 	for i := range rep.Cohorts {
@@ -312,13 +326,15 @@ func countClass(cr *CohortReport, it Item) {
 		cr.Foreign++
 	case ClassAlreadyApplied:
 		cr.AlreadyApplied++
+	case ClassPromote:
+		cr.Promote++
 	}
 }
 
 // retally recomputes a cohort's counts from its items after the
 // shared-locator pass rewrote classes.
 func retally(cr *CohortReport) {
-	cr.Verified, cr.Held, cr.Unresolved, cr.Foreign, cr.AlreadyApplied = 0, 0, 0, 0, 0
+	cr.Verified, cr.Held, cr.Unresolved, cr.Foreign, cr.AlreadyApplied, cr.Promote = 0, 0, 0, 0, 0, 0
 	cr.Reasons = map[string]int{}
 	cr.DistinctObjects, cr.DuplicateRefs, cr.SharedLocators = 0, 0, 0
 	cr.RowsSeen = len(cr.Items)
@@ -426,6 +442,80 @@ func markSharedLocators(rep *Report) {
 	}
 }
 
+// resolvePromoteRefs validates promote candidates against the files table in
+// one batch lookup. A metadata-only file_id promotes only when the row it
+// names exists, is live, belongs to the message's organization, and — when
+// the row also recorded a legacy locator — points at the same object.
+// Anything else is held with the reason a human needs to act on.
+func (e *Engine) resolvePromoteRefs(ctx context.Context, rep *Report) error {
+	ids := []string{}
+	for ci := range rep.Cohorts {
+		for i := range rep.Cohorts[ci].Items {
+			if rep.Cohorts[ci].Items[i].Class == ClassPromote {
+				ids = append(ids, rep.Cohorts[ci].Items[i].PromoteFileID)
+			}
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	rows, err := e.q.FileBackfillGetFilesByIDs(ctx, ids)
+	if err != nil {
+		return err
+	}
+	files := make(map[string]db.FileBackfillGetFilesByIDsRow, len(rows))
+	for _, r := range rows {
+		files[r.ID] = r
+	}
+	hold := func(it *Item, reason string) {
+		it.Class, it.Reason = ClassHeld, reason
+	}
+	for ci := range rep.Cohorts {
+		for i := range rep.Cohorts[ci].Items {
+			it := &rep.Cohorts[ci].Items[i]
+			if it.Class != ClassPromote {
+				continue
+			}
+			f, ok := files[it.PromoteFileID]
+			switch {
+			case !ok:
+				hold(it, "file_reference_missing")
+			case f.Status == "deleted" || f.Status == "deleting":
+				hold(it, "locator_tombstoned")
+			case f.Status == "failed":
+				hold(it, "file_failed")
+			case !f.OrganizationID.Valid || f.OrganizationID.String != it.OrganizationID:
+				hold(it, "file_scope_conflict")
+			default:
+				// The row's own locator, when present, must name the same
+				// object the file does — two different objects claimed by one
+				// reference is conflicting evidence, never auto-resolved.
+				if key := it.locatorKey(e.resolver); key != "" && key != f.ObjectKey {
+					hold(it, "file_locator_conflict")
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// locatorKey normalizes the item's raw locator to an object key for the
+// promote-consistency check: key-shaped metadata compares directly, a URL
+// goes through the configured resolver.
+func (it *Item) locatorKey(r *Resolver) string {
+	raw := it.RawLocator
+	if raw == "" {
+		return ""
+	}
+	if strings.Contains(raw, "://") {
+		if loc, ok := r.Resolve(raw); ok {
+			return loc.Key
+		}
+		return raw // unresolvable URL never equals a files key
+	}
+	return raw
+}
+
 func tally(rep *Report) {
 	// Reset so callers that re-classify items (dry-run stat pass, verify
 	// verdicts) can tally again without double-counting.
@@ -439,6 +529,7 @@ func tally(rep *Report) {
 		t.Held += cr.Held
 		t.Foreign += cr.Foreign
 		t.AlreadyApplied += cr.AlreadyApplied
+		t.Promote += cr.Promote
 		t.DistinctObjects += cr.DistinctObjects
 		t.SharedLocators += cr.SharedLocators
 		t.DuplicateRefs += cr.DuplicateRefs
@@ -449,17 +540,17 @@ func tally(rep *Report) {
 func (r *Report) Human() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "files-backfill %s\n", r.Command)
-	fmt.Fprintf(&b, "%-20s %8s %8s %10s %6s %8s %15s %9s %9s %7s\n",
-		"cohort", "seen", "verified", "unresolved", "held", "foreign", "already_applied", "objects", "dup_refs", "shared")
+	fmt.Fprintf(&b, "%-20s %8s %8s %10s %6s %8s %15s %8s %9s %9s %7s\n",
+		"cohort", "seen", "verified", "unresolved", "held", "foreign", "already_applied", "promote", "objects", "dup_refs", "shared")
 	for _, c := range r.Cohorts {
-		fmt.Fprintf(&b, "%-20s %8d %8d %10d %6d %8d %15d %9d %9d %7d\n",
+		fmt.Fprintf(&b, "%-20s %8d %8d %10d %6d %8d %15d %8d %9d %9d %7d\n",
 			c.Name, c.RowsSeen, c.Verified, c.Unresolved, c.Held, c.Foreign,
-			c.AlreadyApplied, c.DistinctObjects, c.DuplicateRefs, c.SharedLocators)
+			c.AlreadyApplied, c.Promote, c.DistinctObjects, c.DuplicateRefs, c.SharedLocators)
 	}
 	t := r.Totals
-	fmt.Fprintf(&b, "%-20s %8d %8d %10d %6d %8d %15d %9d %9d %7d\n",
+	fmt.Fprintf(&b, "%-20s %8d %8d %10d %6d %8d %15d %8d %9d %9d %7d\n",
 		"TOTAL", t.RowsSeen, t.Verified, t.Unresolved, t.Held, t.Foreign,
-		t.AlreadyApplied, t.DistinctObjects, t.DuplicateRefs, t.SharedLocators)
+		t.AlreadyApplied, t.Promote, t.DistinctObjects, t.DuplicateRefs, t.SharedLocators)
 	for _, c := range r.Cohorts {
 		if len(c.Reasons) == 0 {
 			continue

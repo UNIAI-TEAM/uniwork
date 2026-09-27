@@ -193,6 +193,77 @@ func TestVerifyFSNativeRowsAreApplied(t *testing.T) {
 	}
 }
 
+// A metadata-only file_id promotes into the column in the batch transaction:
+// ledger applied, no files row or session minted (FS owns those), verify
+// reads the promoted column as consistent, and rollback clears just the
+// column — the metadata snapshot's file_id predates the run and survives.
+func TestPromoteMetadataFileIDLifecycle(t *testing.T) {
+	pool := testutil.DB(t)
+	insertUser(t, pool, "user-1")
+	insertOrg(t, pool, "org-1", "ws-1", "user-1")
+	insertRoom(t, pool, "room-1", "org-1", "ws-1")
+	insertFile(t, pool, "fil_promo", "org-1", "chat/files/org-1/room-1/p.pdf")
+	insertSession(t, pool, "ses_promo", "fil_promo", "chat_attachment", "org-1", "ws-1", "")
+	insertChatMessage(t, pool, "msg-promo", "room-1", "ws-1", "file",
+		`{"file_id":"fil_promo","filename":"p.pdf","content_type":"application/pdf","size_bytes":7}`, false)
+	ctx := context.Background()
+
+	eng := applyEngine(pool, &fakeStat{})
+	rep, err := eng.Apply(ctx, ApplyOptions{Options: Options{Cohorts: []string{CohortChatFiles}}})
+	if err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	var col *string
+	var metaID string
+	if err := pool.QueryRow(ctx,
+		`SELECT file_id, metadata->>'file_id' FROM chat_messages WHERE id='msg-promo'`).Scan(&col, &metaID); err != nil {
+		t.Fatal(err)
+	}
+	if col == nil || *col != "fil_promo" || metaID != "fil_promo" {
+		t.Fatalf("promoted row = column %v / metadata %q, want fil_promo in both", col, metaID)
+	}
+	if got := countRows(t, pool, "files"); got != 1 {
+		t.Fatalf("files = %d, want 1 (promote mints no row)", got)
+	}
+	if got := countRows(t, pool, "file_upload_sessions"); got != 1 {
+		t.Fatalf("sessions = %d, want 1 (promote mints no receipt)", got)
+	}
+	var status string
+	if err := pool.QueryRow(ctx,
+		`SELECT status FROM file_backfill_items WHERE source_id='msg-promo'`).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != "applied" {
+		t.Fatalf("ledger status = %q, want applied", status)
+	}
+
+	// Post-apply the row is plain FS-native; verify confirms the column.
+	vrep, err := eng.Verify(ctx, VerifyOptions{Options: Options{
+		Cohorts: []string{CohortChatFiles}, IncludeItems: true,
+	}})
+	if err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if got := itemByID(vrep.Cohorts[0], "msg-promo"); got.Verdict != verdictConsistent {
+		t.Fatalf("verify verdict = %q, want consistent", got.Verdict)
+	}
+
+	// Rollback clears the column only: metadata file_id stays, file stays.
+	if _, err := eng.Rollback(ctx, rep.RunID); err != nil {
+		t.Fatalf("rollback: %v", err)
+	}
+	if err := pool.QueryRow(ctx,
+		`SELECT file_id, metadata->>'file_id' FROM chat_messages WHERE id='msg-promo'`).Scan(&col, &metaID); err != nil {
+		t.Fatal(err)
+	}
+	if col != nil || metaID != "fil_promo" {
+		t.Fatalf("after rollback = column %v / metadata %q, want NULL / fil_promo", col, metaID)
+	}
+	if got := countRows(t, pool, "files"); got != 1 {
+		t.Fatalf("files after rollback = %d, want 1 (FS-owned row untouched)", got)
+	}
+}
+
 // verify --run must name a live apply run: a typo'd id or a rolled-back run
 // refuses loudly instead of printing a misleading report.
 func TestVerifyRefusesUnknownAndRolledBackRuns(t *testing.T) {
