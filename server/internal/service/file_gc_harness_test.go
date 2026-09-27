@@ -321,12 +321,22 @@ func entry(t *testing.T, rep *FileGCReport, id files.FileID, op string) FileGCEn
 
 // waitForLockWaiter blocks until some backend waits on a row lock, so a
 // barrier test knows its second actor is really parked behind the first.
+// It watches on a connection of its own: at that moment the sweep and the
+// open claim transaction already hold pool connections, and pgxpool sizes
+// itself to max(4, NumCPU), so on a small CI runner borrowing from h.pool
+// would wait forever behind the lock it is looking for.
 func (h *gcHarness) waitForLockWaiter(t *testing.T) {
 	t.Helper()
+	ctx := context.Background()
+	conn, err := pgx.ConnectConfig(ctx, h.pool.Config().ConnConfig.Copy())
+	if err != nil {
+		t.Fatalf("lock watcher connection: %v", err)
+	}
+	defer func() { _ = conn.Close(ctx) }()
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		var n int
-		if err := h.pool.QueryRow(context.Background(),
+		if err := conn.QueryRow(ctx,
 			`SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(&n); err != nil {
 			t.Fatalf("pg_stat_activity: %v", err)
 		}
