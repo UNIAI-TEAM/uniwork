@@ -122,10 +122,17 @@ with no job running, capture `/metrics` and the logs and restart the container; 
 
 - **Windows dev hosts** have no tag scan: a descendant that breaks away from the worker's job object can outlive it,
   and CPU/RSS of native descendants is not measured there (only the worker's self-report). Production is the Linux
-  image; the Linux suite runs with `docker build -f apps/office-engine/Dockerfile --target test`.
-- **Same uid.** Workers run as the service's uid. The compose profile runs the root filesystem read-only with a 1 GiB
-  tmpfs on `/tmp` (the job temp root), so a worker can write nowhere else and all jobs together cannot fill more than
-  the tmpfs; but a compromised worker could read another concurrent job's temp dir. Before G2-04/G2-05 bind native
+  image; the Linux suite runs with `docker build -f apps/office-engine/Dockerfile --target test -t
+  uniwork-office-engine:test . && docker run --rm --init uniwork-office-engine:test`. CI does not run it yet (owner:
+  the CI owner, G1-09); until it does, run it before merging any change under `apps/office-engine/src`.
+- **The job tag is not a security boundary.** It catches descendants that inherit the environment; a descendant that
+  execs with a scrubbed environment escapes it. It is enough for our own handlers, not for hostile native code.
+  Scanning `/proc/*/environ` on every sample assumes the container's own PID namespace (a handful of processes); do
+  not run the engine in the host PID namespace.
+- **Same uid.** Workers run as the service's uid. The compose profile runs the root filesystem read-only with a 512 MiB
+  tmpfs on `/tmp` (the job temp root; tmpfs pages count against `mem_limit`, so tmpfs + workers x job RSS + the service
+  stay under the 2 GiB ceiling), so a worker can write nowhere else and all jobs together cannot fill more than the
+  tmpfs; but a compromised worker could read another concurrent job's temp dir. Before G2-04/G2-05 bind native
   parsers on untrusted files, add a per-job sandbox (per-job uid, or a per-job-class container). Owner: G2-04/G2-05
   with this runbook's owner.
 - The submit path parses and hashes the envelope on the service's event loop; a large input stalls other requests
@@ -139,6 +146,13 @@ with no job running, capture `/metrics` and the logs and restart the container; 
   engine never accepted (a retryable refusal: engine down or overloaded), under the same job and grant ids; if that
   first dispatch did reach an engine that then restarted, the second run writes the same output object again (same
   bytes, one file id).
+- A retryable refusal at dispatch (engine down, overloaded, or refusing the service credential after a config change)
+  leaves the job `accepted`; only a client retry with the **same** idempotency key dispatches it again. Without one
+  the reconciler times it out (`never_dispatched`) at its deadline, and until then the same work under another key
+  answers `in_flight`.
+- The submit carries the base as base64 inside JSON; the client scales its request timeout with the payload
+  (+250 ms per MiB over `OFFICE_ENGINE_REQUEST_TIMEOUT_MS`) because the engine's decode of a large envelope takes
+  seconds (see the N5 measurement).
 - A cancel or shutdown can land after the output PUT succeeded, so the object exists for a cancelled job. It is never
   claimed (`ClaimOfficeJobOutputInTx` requires `completed`), and FileService collects it after its claim window.
 - `/v1/capability` needs only the service credential: it describes the build and touches no job, so there is no
