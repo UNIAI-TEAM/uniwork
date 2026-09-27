@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -123,7 +124,7 @@ func TestFlagOverridesReachPublicConfig(t *testing.T) {
 		t.Fatalf("all overrides: %d %v", res.StatusCode, out)
 	}
 	res, out = doJSON(t, srv, "GET", "/api/v1/admin/flags", w.token, nil)
-	if res.StatusCode != 200 || len(out["flags"].([]any)) != 6 {
+	if res.StatusCode != 200 || len(out["flags"].([]any)) != len(featureflags.Catalogue()) {
 		t.Fatalf("catalogue: %d %v", res.StatusCode, out)
 	}
 	res, out = doJSON(t, srv, "PUT", "/api/v1/admin/flags/agents_assignee/overrides", w.token,
