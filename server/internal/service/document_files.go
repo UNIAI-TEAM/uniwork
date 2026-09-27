@@ -374,12 +374,7 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 		return DocumentFileResult{}, NormalizeIdempotencyError(err)
 	}
 	if replay != nil {
-		res, err := decodeDocumentFileResult(replay.Body)
-		if err != nil {
-			return DocumentFileResult{}, err
-		}
-		res.Access, err = s.effectiveLevel(ctx, q, actor, res.Document)
-		return res, err
+		return s.replayCreatedFile(ctx, q, actor, replay.Body)
 	}
 	// Re-check inside the transaction: a revoke between the upload and here
 	// must win (DOC-005 §3).
@@ -455,6 +450,34 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 	if err := tx.Commit(ctx); err != nil {
 		return DocumentFileResult{}, err
 	}
+	return res, nil
+}
+
+// replayCreatedFile answers a replayed create with the access the caller
+// holds on the document as it is now: a caller who can no longer see it (or
+// a document purged since) gets not_found, never the stored snapshot.
+func (s *DocumentService) replayCreatedFile(ctx context.Context, q *db.Queries, actor Actor, body []byte) (DocumentFileResult, error) {
+	res, err := decodeDocumentFileResult(body)
+	if err != nil {
+		return DocumentFileResult{}, err
+	}
+	doc, err := q.GetDocument(ctx, db.GetDocumentParams{
+		ID: res.Document.ID, OrganizationID: res.Document.OrganizationID, WorkspaceID: res.Document.WorkspaceID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DocumentFileResult{}, ErrNotFound
+	}
+	if err != nil {
+		return DocumentFileResult{}, err
+	}
+	access, err := s.effectiveLevel(ctx, q, actor, doc)
+	if err != nil {
+		return DocumentFileResult{}, err
+	}
+	if err := decideDocumentAccess(doc, access, DocumentLevelView); err != nil {
+		return DocumentFileResult{}, ErrNotFound
+	}
+	res.Access = access
 	return res, nil
 }
 

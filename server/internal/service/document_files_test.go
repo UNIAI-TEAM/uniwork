@@ -189,6 +189,29 @@ func TestDocumentIdempotency(t *testing.T) {
 			}
 		})
 
+		t.Run("a replayed create answers with the access held now", func(t *testing.T) {
+			key := util.NewID()
+			in := func() CreateFileDocumentInput {
+				return CreateFileDocumentInput{Title: "Idem create", Filename: "idem-create.pdf",
+					Body: bytes.NewReader(pdfBody("idem-create")), IdempotencyKey: key}
+			}
+			first, err := env.svc.CreateFileDocument(ctx, member, env.tn.wsA, in())
+			mustf(t, err, "create")
+			again, err := env.svc.CreateFileDocument(ctx, member, env.tn.wsA, in())
+			mustf(t, err, "replay")
+			if again.Document.ID != first.Document.ID || again.Access.Level != DocumentLevelManage {
+				t.Fatalf("replay = %s %+v, want %s with manage", again.Document.ID, again.Access, first.Document.ID)
+			}
+			// Restricted and no longer the ACL owner: the member cannot see
+			// the document any more, so the replay is not found.
+			if _, err := env.f.pool.Exec(ctx, `UPDATE documents SET visibility = 'restricted', acl_owner_id = $2 WHERE id = $1`,
+				first.Document.ID, env.tn.wsAdmin.ID); err != nil {
+				t.Fatal(err)
+			}
+			_, err = env.svc.CreateFileDocument(ctx, member, env.tn.wsA, in())
+			wantNotFound(t, err)
+		})
+
 		t.Run("same key, different payload is refused", func(t *testing.T) {
 			d := env.doc(t, doc.ID)
 			a := env.upload(t, member, d.ID, "a.pdf", pdfBody("idem-a"))
