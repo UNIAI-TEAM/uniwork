@@ -148,3 +148,15 @@ WHERE r.file_id = ANY(sqlc.arg('file_ids')::text[]);
 SELECT e.file_id, e.organization_id
 FROM audit_exports e
 WHERE e.file_id = ANY(sqlc.arg('file_ids')::text[]);
+
+-- name: FileGCDocumentVersionRefTenants :many
+-- document_versions.file_id: the row carries its tenant.
+SELECT v.file_id, v.organization_id
+FROM document_versions v
+WHERE v.file_id = ANY(sqlc.arg('file_ids')::text[]);
+
+-- name: FileGCDocumentAssetRefTenants :many
+-- document_assets.file_id: the row carries its tenant.
+SELECT a.file_id, a.organization_id
+FROM document_assets a
+WHERE a.file_id = ANY(sqlc.arg('file_ids')::text[]);
