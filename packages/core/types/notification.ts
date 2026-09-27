@@ -13,6 +13,8 @@ export const NOTIFICATION_KINDS = [
   "audit_export_ready",
   "chat_follow_up",
   "email_hub_new_mail",
+  "document_commented",
+  "document_mentioned",
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 

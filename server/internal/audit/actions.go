@@ -132,6 +132,19 @@ const (
 	ActionDocumentLinkRevoked     = "document.link_revoked"
 	ActionDocumentSettingsChanged = "document.settings_changed"
 
+	// Document comments + favorites (UNI-681): the document half of the
+	// shared comment core. The reaction actions stay document-scoped so
+	// the outbox payload carries document_id, not a probed task_id.
+	ActionDocumentCommentAdded           = "document.comment_added"
+	ActionDocumentCommentUpdated         = "document.comment_updated"
+	ActionDocumentCommentDeleted         = "document.comment_deleted"
+	ActionDocumentCommentResolved        = "document.comment_resolved"
+	ActionDocumentCommentUnresolved      = "document.comment_unresolved"
+	ActionDocumentCommentReactionAdded   = "document.comment_reaction_added"
+	ActionDocumentCommentReactionRemoved = "document.comment_reaction_removed"
+	ActionDocumentFavorited              = "document.favorited"
+	ActionDocumentUnfavorited            = "document.unfavorited"
+
 	// Platform admin (F-11). The actor is a platform_role holder, or "cli"
 	// for uniwork-admin; admin_actions carries the reason beside the row.
 	ActionOrganizationSuspended   = "organization.suspended"

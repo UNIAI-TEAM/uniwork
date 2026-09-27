@@ -912,6 +912,93 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionDocumentCommentAdded: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.AddDocumentComment(f.ctx, Human(f.owner.ID), docID, AddCommentInput{Body: "ghi chú tài liệu"}, ""); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentCommentUpdated: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			c, err := svc.AddDocumentComment(f.ctx, Human(f.owner.ID), docID, AddCommentInput{Body: "gốc"}, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.UpdateDocumentComment(f.ctx, Human(f.owner.ID), c.ID, UpdateCommentInput{Body: "sửa"}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentCommentDeleted: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			c, err := svc.AddDocumentComment(f.ctx, Human(f.owner.ID), docID, AddCommentInput{Body: "xóa"}, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.DeleteDocumentComment(f.ctx, Human(f.owner.ID), c.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentCommentResolved: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			c, err := svc.AddDocumentComment(f.ctx, Human(f.owner.ID), docID, AddCommentInput{Body: "resolve"}, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ResolveDocumentComment(f.ctx, Human(f.owner.ID), c.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentCommentUnresolved: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			c, err := svc.AddDocumentComment(f.ctx, Human(f.owner.ID), docID, AddCommentInput{Body: "unresolve"}, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ResolveDocumentComment(f.ctx, Human(f.owner.ID), c.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.UnresolveDocumentComment(f.ctx, Human(f.owner.ID), c.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentCommentReactionAdded: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			c, err := svc.AddDocumentComment(f.ctx, Human(f.owner.ID), docID, AddCommentInput{Body: "react"}, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.AddDocumentCommentReaction(f.ctx, Human(f.owner.ID), c.ID, "👍"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentCommentReactionRemoved: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			c, err := svc.AddDocumentComment(f.ctx, Human(f.owner.ID), docID, AddCommentInput{Body: "react"}, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.AddDocumentCommentReaction(f.ctx, Human(f.owner.ID), c.ID, "👍"); err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.RemoveDocumentCommentReaction(f.ctx, Human(f.owner.ID), c.ID, "👍"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentFavorited: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.FavoriteDocument(f.ctx, Human(f.owner.ID), docID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentUnfavorited: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.FavoriteDocument(f.ctx, Human(f.owner.ID), docID); err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.UnfavoriteDocument(f.ctx, Human(f.owner.ID), docID); err != nil {
+				t.Fatal(err)
+			}
+		},
 	}
 
 	for _, action := range auditActions() {
@@ -1011,6 +1098,15 @@ func auditActions() []string {
 		audit.ActionDocumentVersionCreated,
 		audit.ActionDocumentVersionRestored,
 		audit.ActionDocumentAssetUploaded,
+		audit.ActionDocumentCommentAdded,
+		audit.ActionDocumentCommentUpdated,
+		audit.ActionDocumentCommentDeleted,
+		audit.ActionDocumentCommentResolved,
+		audit.ActionDocumentCommentUnresolved,
+		audit.ActionDocumentCommentReactionAdded,
+		audit.ActionDocumentCommentReactionRemoved,
+		audit.ActionDocumentFavorited,
+		audit.ActionDocumentUnfavorited,
 	}
 }
 

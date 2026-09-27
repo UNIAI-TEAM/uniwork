@@ -319,6 +319,12 @@ func main() {
 	// delivers notification.push, and two jobs (digest, reminder) run beside
 	// them. VAPID keys missing means push is off, not broken.
 	notifConsumer := notification.NewConsumer(pool, q, wsSvc)
+	// Document read permission is a DocumentService decision; the consumer
+	// gets the resolver injected so notification never imports the service
+	// package (G1-07).
+	docSvc := service.NewDocumentService(pool, q, orgSvc, wsSvc)
+	docSvc.SetEntitlements(service.NewEntitlementService(pool, q))
+	notifConsumer.SetDocumentReaders(docSvc)
 	var pushSender notification.PushSender
 	if cfg.PushEnabled() {
 		pushSender = notification.WebPushSender{PublicKey: cfg.VAPIDPublicKey, PrivateKey: cfg.VAPIDPrivateKey, Subject: cfg.VAPIDSubject}

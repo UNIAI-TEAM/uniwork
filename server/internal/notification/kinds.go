@@ -21,6 +21,11 @@ const (
 	KindAuditExportReady  = "audit_export_ready"
 	KindChatFollowUp      = "chat_follow_up"
 	KindEmailHubNewMail   = "email_hub_new_mail"
+	// Document comments (G1-07, UNI-681): distinct kinds because the gate is
+	// document read access, not workspace membership - and the titles name
+	// the document, not a task.
+	KindDocumentCommented = "document_commented"
+	KindDocumentMentioned = "document_mentioned"
 )
 
 // Kinds is the list in display order.
@@ -28,6 +33,7 @@ var Kinds = []string{
 	KindTaskAssigned, KindTaskStatusChanged, KindTaskCommented, KindMentioned,
 	KindMeetingInvited, KindMeetingStarting,
 	KindMemberAdded, KindRoleChanged, KindAuditExportReady, KindChatFollowUp, KindEmailHubNewMail,
+	KindDocumentCommented, KindDocumentMentioned,
 }
 
 var kindSet = func() map[string]bool {

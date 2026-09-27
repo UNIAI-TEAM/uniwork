@@ -266,7 +266,9 @@
         "role_changed": "Vai trò thay đổi",
         "audit_export_ready": "Bản xuất nhật ký sẵn sàng",
         "chat_follow_up": "Tin nhắn cần theo dõi",
-        "email_hub_new_mail": "Thư mới (Email Hub)"
+        "email_hub_new_mail": "Thư mới (Email Hub)",
+        "document_commented": "Bình luận trong tài liệu",
+        "document_mentioned": "Được nhắc đến trong tài liệu"
       },
       "all_kinds": "Mọi loại",
       "channel_all": "{{channel}} cho mọi loại",
@@ -3863,7 +3865,9 @@
       "role_changed": "{{actor}} đã đổi vai trò của bạn thành {{role}}",
       "audit_export_ready": "Bản xuất nhật ký của bạn đã sẵn sàng",
       "chat_follow_up": "Bạn đã gắn Follow-up cho một tin nhắn",
-      "email_hub_new_mail": "Bạn có {{count}} thư chưa đọc · {{mailbox}}"
+      "email_hub_new_mail": "Bạn có {{count}} thư chưa đọc · {{mailbox}}",
+      "document_commented": "{{actor}} đã bình luận trong “{{document}}”",
+      "document_mentioned": "{{actor}} đã nhắc đến bạn trong “{{document}}”"
     },
     "archived_one": "Đã lưu trữ {{count}} thông báo",
     "archived_other": "Đã lưu trữ {{count}} thông báo",

@@ -51,10 +51,6 @@ func validateReactionEmoji(emoji string) (string, error) {
 	return emoji, nil
 }
 
-func (s *TaskService) commentActorType(kind audit.Kind) string {
-	return normalizedCreatorType(kind)
-}
-
 func commentOrigin(origin string) pgtype.Text {
 	origin = strings.TrimSpace(origin)
 	if origin == "" {
@@ -63,8 +59,117 @@ func commentOrigin(origin string) pgtype.Text {
 	return pgtype.Text{String: origin, Valid: true}
 }
 
+// taskCommentAdapter is the task_comments half of the shared comment core:
+// the table's sqlc queries, the task comment_type allowlist, and moderation
+// by author-or-workspace-admin. Task comments keep the wide type list -
+// status_change/progress_update/system rows are internal TaskService writes.
+type taskCommentAdapter struct {
+	svc *TaskService
+}
+
+func (a taskCommentAdapter) byID(ctx context.Context, q *db.Queries, id string) (db.TaskComment, error) {
+	return q.GetTaskCommentByID(ctx, id)
+}
+
+func (a taskCommentAdapter) tenantGet(ctx context.Context, q *db.Queries, ref CommentRef, id string) (db.TaskComment, error) {
+	return q.GetTaskComment(ctx, db.GetTaskCommentParams{
+		ID: id, OrganizationID: ref.OrganizationID, WorkspaceID: ref.WorkspaceID,
+	})
+}
+
+func (taskCommentAdapter) identity(c db.TaskComment) commentIdentity {
+	return commentIdentity{ID: c.ID, ResourceID: c.TaskID, AuthorID: c.AuthorID, AuthorKind: c.AuthorKind}
+}
+
+func (taskCommentAdapter) insert(ctx context.Context, q *db.Queries, ref CommentRef, in AddCommentInput, p preparedComment) (db.TaskComment, error) {
+	return q.CreateTaskCommentThreaded(ctx, db.CreateTaskCommentThreadedParams{
+		ID: p.ID, OrganizationID: ref.OrganizationID, WorkspaceID: ref.WorkspaceID,
+		TaskID: ref.ResourceID, AuthorID: p.AuthorID, AuthorKind: p.AuthorKind, Body: p.Body,
+		Origin: commentOrigin(in.Origin), ParentCommentID: p.ParentID, CommentType: p.CommentType,
+		ChatMessageID: optText(in.ChatMessageID),
+	})
+}
+
+func (taskCommentAdapter) updateBody(ctx context.Context, q *db.Queries, ref CommentRef, c db.TaskComment, body string) (db.TaskComment, error) {
+	return q.UpdateTaskCommentBody(ctx, db.UpdateTaskCommentBodyParams{
+		ID: c.ID, OrganizationID: ref.OrganizationID, WorkspaceID: ref.WorkspaceID, Body: body,
+	})
+}
+
+func (taskCommentAdapter) remove(ctx context.Context, q *db.Queries, ref CommentRef, c db.TaskComment) error {
+	return q.DeleteTaskComment(ctx, db.DeleteTaskCommentParams{
+		ID: c.ID, OrganizationID: ref.OrganizationID, WorkspaceID: ref.WorkspaceID,
+	})
+}
+
+func (taskCommentAdapter) resolve(ctx context.Context, q *db.Queries, ref CommentRef, c db.TaskComment, resolvedByType, resolvedByID string) (db.TaskComment, error) {
+	return q.ResolveTaskComment(ctx, db.ResolveTaskCommentParams{
+		ID: c.ID, OrganizationID: ref.OrganizationID, WorkspaceID: ref.WorkspaceID,
+		ResolvedByType: pgtype.Text{String: resolvedByType, Valid: true},
+		ResolvedByID:   pgtype.Text{String: resolvedByID, Valid: true},
+	})
+}
+
+func (taskCommentAdapter) unresolve(ctx context.Context, q *db.Queries, ref CommentRef, c db.TaskComment) (db.TaskComment, error) {
+	return q.UnresolveTaskComment(ctx, db.UnresolveTaskCommentParams{
+		ID: c.ID, OrganizationID: ref.OrganizationID, WorkspaceID: ref.WorkspaceID,
+	})
+}
+
+func (taskCommentAdapter) commentTypes() []string {
+	return []string{"comment", "status_change", "progress_update", "system"}
+}
+
+func (taskCommentAdapter) foreignParentError() error {
+	return Invalid("parent_id không thuộc công việc này")
+}
+
+func (a taskCommentAdapter) canModerate(ctx context.Context, actor Actor, _ CommentRef, c db.TaskComment) (bool, error) {
+	return a.svc.canManageComment(ctx, actor, c)
+}
+
+// beforeDelete releases comment-bound attachments inside the delete
+// transaction (nothing writes comment_id today - comment uploads bind to
+// the task - but a row that does carry one releases its file here).
+func (a taskCommentAdapter) beforeDelete(ctx context.Context, q *db.Queries, ref CommentRef, c db.TaskComment) error {
+	if a.svc.files == nil {
+		return nil
+	}
+	fileIDs, err := q.ListAttachmentFileIDsByComment(ctx, db.ListAttachmentFileIDsByCommentParams{
+		OrganizationID: ref.OrganizationID, WorkspaceID: ref.WorkspaceID,
+		CommentID: pgtype.Text{String: c.ID, Valid: true},
+	})
+	if err != nil {
+		return err
+	}
+	return releaseFilesInTx(ctx, a.svc.files, q, attachmentFileIDs(fileIDs))
+}
+
+func (taskCommentAdapter) verbs() commentVerbs {
+	return commentVerbs{
+		resourceType:    "task",
+		added:           audit.ActionTaskCommentAdded,
+		updated:         audit.ActionTaskCommentUpdated,
+		deleted:         audit.ActionTaskCommentDeleted,
+		resolved:        audit.ActionTaskCommentResolved,
+		unresolved:      audit.ActionTaskCommentUnresolved,
+		reactionAdded:   audit.ActionCommentReactionAdded,
+		reactionRemoved: audit.ActionCommentReactionRemoved,
+	}
+}
+
+func taskCommentRef(task db.Task) CommentRef {
+	return CommentRef{Kind: CommentResourceTask, ResourceID: task.ID,
+		OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID}
+}
+
+func taskCommentRefFor(c db.TaskComment) CommentRef {
+	return CommentRef{Kind: CommentResourceTask, ResourceID: c.TaskID,
+		OrganizationID: c.OrganizationID, WorkspaceID: c.WorkspaceID}
+}
+
 func (s *TaskService) loadComment(ctx context.Context, actor Actor, commentID string) (db.TaskComment, error) {
-	c, err := s.q.GetTaskCommentByID(ctx, commentID)
+	c, err := taskCommentAdapter{s}.byID(ctx, s.q, commentID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return db.TaskComment{}, ErrNotFound
@@ -88,37 +193,8 @@ func (s *TaskService) AddCommentSuite(ctx context.Context, actor Actor, taskID s
 	if err != nil {
 		return db.TaskComment{}, err
 	}
-	body := strings.TrimSpace(in.Body)
-	if body == "" {
-		return db.TaskComment{}, Invalid("nội dung không được để trống")
-	}
-	commentType := strings.TrimSpace(in.CommentType)
-	if commentType == "" {
-		commentType = "comment"
-	}
-	switch commentType {
-	case "comment", "status_change", "progress_update", "system":
-	default:
-		return db.TaskComment{}, Invalid("comment_type không hợp lệ")
-	}
-
-	var parentText pgtype.Text
-	if in.ParentID != nil && strings.TrimSpace(*in.ParentID) != "" {
-		pid := strings.TrimSpace(*in.ParentID)
-		parent, err := s.q.GetTaskComment(ctx, db.GetTaskCommentParams{
-			ID: pid, OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
-		})
-		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return db.TaskComment{}, ErrNotFound
-			}
-			return db.TaskComment{}, err
-		}
-		if parent.TaskID != taskID {
-			return db.TaskComment{}, Invalid("parent_id không thuộc công việc này")
-		}
-		parentText = pgtype.Text{String: pid, Valid: true}
-	}
+	ad := taskCommentAdapter{s}
+	ref := taskCommentRef(task)
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -139,13 +215,10 @@ func (s *TaskService) AddCommentSuite(ctx context.Context, actor Actor, taskID s
 		return c, nil
 	}
 
-	c, err := q.CreateTaskCommentThreaded(ctx, db.CreateTaskCommentThreadedParams{
-		ID: util.NewID(), OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
-		TaskID: taskID, AuthorID: actor.ID, AuthorKind: string(actor.Kind), Body: body,
-		Origin: commentOrigin(in.Origin), ParentCommentID: parentText, CommentType: commentType,
-		ChatMessageID: optText(in.ChatMessageID),
-	})
+	c, err := addCommentOn(ctx, q, ad, ref, actor, in)
 	if err != nil {
+		// A chat-mirrored comment losing the chat_message_id unique race
+		// returns the row that won it (chat_task_sync replays by message).
 		if in.ChatMessageID != nil && isUniqueViolation(err) {
 			existing, lookupErr := s.q.GetTaskCommentByChatMessageID(ctx, pgtype.Text{
 				String: strings.TrimSpace(*in.ChatMessageID), Valid: true,
@@ -155,16 +228,6 @@ func (s *TaskService) AddCommentSuite(ctx context.Context, actor Actor, taskID s
 			}
 			return existing, nil
 		}
-		return db.TaskComment{}, err
-	}
-	if err := auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
-		Actor: actor, Action: audit.ActionTaskCommentAdded,
-		ResourceType: "task", ResourceID: taskID,
-		Metadata: map[string]any{"comment_id": c.ID},
-	}, audit.Event{Topic: "task.comment_added", Payload: map[string]string{
-		"task_id": taskID, "comment_id": c.ID, "workspace_id": task.WorkspaceID,
-	}}); err != nil {
 		return db.TaskComment{}, err
 	}
 	bodyJSON, err := json.Marshal(c)
@@ -200,37 +263,13 @@ func (s *TaskService) UpdateComment(ctx context.Context, actor Actor, commentID 
 	if err != nil {
 		return db.TaskComment{}, err
 	}
-	allowed, err := s.canManageComment(ctx, actor, before)
-	if err != nil {
-		return db.TaskComment{}, err
-	}
-	if !allowed {
-		return db.TaskComment{}, ErrForbidden
-	}
-	body := strings.TrimSpace(in.Body)
-	if body == "" {
-		return db.TaskComment{}, Invalid("nội dung không được để trống")
-	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return db.TaskComment{}, err
 	}
 	defer tx.Rollback(ctx)
-	q := s.q.WithTx(tx)
-	c, err := q.UpdateTaskCommentBody(ctx, db.UpdateTaskCommentBodyParams{
-		ID: commentID, OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID, Body: body,
-	})
+	c, err := updateCommentOn(ctx, s.q.WithTx(tx), taskCommentAdapter{s}, taskCommentRefFor(before), actor, commentID, in)
 	if err != nil {
-		return db.TaskComment{}, err
-	}
-	if err := auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
-		Actor: actor, Action: audit.ActionTaskCommentUpdated,
-		ResourceType: "task", ResourceID: before.TaskID,
-		Metadata: map[string]any{"comment_id": c.ID},
-	}, audit.Event{Topic: "task.comment_updated", Payload: map[string]string{
-		"task_id": before.TaskID, "comment_id": c.ID, "workspace_id": before.WorkspaceID,
-	}}); err != nil {
 		return db.TaskComment{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -245,47 +284,12 @@ func (s *TaskService) DeleteComment(ctx context.Context, actor Actor, commentID 
 	if err != nil {
 		return err
 	}
-	allowed, err := s.canManageComment(ctx, actor, before)
-	if err != nil {
-		return err
-	}
-	if !allowed {
-		return ErrForbidden
-	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	q := s.q.WithTx(tx)
-	if s.files != nil {
-		// Rows bound to the comment lose their hold with it. Nothing writes
-		// comment_id today — comment uploads bind to the task — but a row
-		// that does carry one releases its file here, in this transaction.
-		fileIDs, err := q.ListAttachmentFileIDsByComment(ctx, db.ListAttachmentFileIDsByCommentParams{
-			OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
-			CommentID: pgtype.Text{String: commentID, Valid: true},
-		})
-		if err != nil {
-			return err
-		}
-		if err := releaseFilesInTx(ctx, s.files, q, attachmentFileIDs(fileIDs)); err != nil {
-			return err
-		}
-	}
-	if err := q.DeleteTaskComment(ctx, db.DeleteTaskCommentParams{
-		ID: commentID, OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
-	}); err != nil {
-		return err
-	}
-	if err := auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
-		Actor: actor, Action: audit.ActionTaskCommentDeleted,
-		ResourceType: "task", ResourceID: before.TaskID,
-		Metadata: map[string]any{"comment_id": commentID},
-	}, audit.Event{Topic: "task.comment_deleted", Payload: map[string]string{
-		"task_id": before.TaskID, "comment_id": commentID, "workspace_id": before.WorkspaceID,
-	}}); err != nil {
+	if err := deleteCommentOn(ctx, s.q.WithTx(tx), taskCommentAdapter{s}, taskCommentRefFor(before), actor, commentID); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -302,26 +306,8 @@ func (s *TaskService) ResolveComment(ctx context.Context, actor Actor, commentID
 		return db.TaskComment{}, err
 	}
 	defer tx.Rollback(ctx)
-	q := s.q.WithTx(tx)
-	c, err := q.ResolveTaskComment(ctx, db.ResolveTaskCommentParams{
-		ID: commentID, OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
-		ResolvedByType: pgtype.Text{String: s.commentActorType(actor.Kind), Valid: true},
-		ResolvedByID:   pgtype.Text{String: actor.ID, Valid: true},
-	})
+	c, err := setCommentResolvedOn(ctx, s.q.WithTx(tx), taskCommentAdapter{s}, taskCommentRefFor(before), actor, commentID, true)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return before, nil // already resolved
-		}
-		return db.TaskComment{}, err
-	}
-	if err := auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
-		Actor: actor, Action: audit.ActionTaskCommentResolved,
-		ResourceType: "task", ResourceID: before.TaskID,
-		Metadata: map[string]any{"comment_id": c.ID},
-	}, audit.Event{Topic: "task.comment_resolved", Payload: map[string]string{
-		"task_id": before.TaskID, "comment_id": c.ID, "workspace_id": before.WorkspaceID,
-	}}); err != nil {
 		return db.TaskComment{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -341,24 +327,8 @@ func (s *TaskService) UnresolveComment(ctx context.Context, actor Actor, comment
 		return db.TaskComment{}, err
 	}
 	defer tx.Rollback(ctx)
-	q := s.q.WithTx(tx)
-	c, err := q.UnresolveTaskComment(ctx, db.UnresolveTaskCommentParams{
-		ID: commentID, OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
-	})
+	c, err := setCommentResolvedOn(ctx, s.q.WithTx(tx), taskCommentAdapter{s}, taskCommentRefFor(before), actor, commentID, false)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return before, nil
-		}
-		return db.TaskComment{}, err
-	}
-	if err := auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: before.OrganizationID, WorkspaceID: before.WorkspaceID,
-		Actor: actor, Action: audit.ActionTaskCommentUnresolved,
-		ResourceType: "task", ResourceID: before.TaskID,
-		Metadata: map[string]any{"comment_id": c.ID},
-	}, audit.Event{Topic: "task.comment_unresolved", Payload: map[string]string{
-		"task_id": before.TaskID, "comment_id": c.ID, "workspace_id": before.WorkspaceID,
-	}}); err != nil {
 		return db.TaskComment{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -373,50 +343,13 @@ func (s *TaskService) AddCommentReaction(ctx context.Context, actor Actor, comme
 	if err != nil {
 		return db.CommentReaction{}, err
 	}
-	emoji, err = validateReactionEmoji(emoji)
-	if err != nil {
-		return db.CommentReaction{}, err
-	}
-	actorType := s.commentActorType(actor.Kind)
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return db.CommentReaction{}, err
 	}
 	defer tx.Rollback(ctx)
-	q := s.q.WithTx(tx)
-	row, err := q.InsertCommentReaction(ctx, db.InsertCommentReactionParams{
-		ID: util.NewID(), OrganizationID: c.OrganizationID, WorkspaceID: c.WorkspaceID,
-		CommentID: commentID, ActorType: actorType, ActorID: actor.ID, Emoji: emoji,
-	})
+	row, err := reactToCommentOn(ctx, s.q.WithTx(tx), taskCommentAdapter{s}, taskCommentRefFor(c), actor, commentID, emoji)
 	if err != nil {
-		if !errors.Is(err, pgx.ErrNoRows) {
-			return db.CommentReaction{}, err
-		}
-		// Already present — return existing without audit/outbox.
-		existing, lerr := q.ListCommentReactions(ctx, db.ListCommentReactionsParams{
-			CommentID: commentID, OrganizationID: c.OrganizationID, WorkspaceID: c.WorkspaceID,
-		})
-		if lerr != nil {
-			return db.CommentReaction{}, lerr
-		}
-		for _, r := range existing {
-			if r.ActorType == actorType && r.ActorID == actor.ID && r.Emoji == emoji {
-				if err := tx.Commit(ctx); err != nil {
-					return db.CommentReaction{}, err
-				}
-				return r, nil
-			}
-		}
-		return db.CommentReaction{}, ErrNotFound
-	}
-	if err := auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: c.OrganizationID, WorkspaceID: c.WorkspaceID,
-		Actor: actor, Action: audit.ActionCommentReactionAdded,
-		ResourceType: "task", ResourceID: c.TaskID,
-		Metadata: map[string]any{"comment_id": commentID, "emoji": emoji},
-	}, audit.Event{Topic: "comment.reaction_added", Payload: map[string]string{
-		"task_id": c.TaskID, "comment_id": commentID, "workspace_id": c.WorkspaceID,
-	}}); err != nil {
 		return db.CommentReaction{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -431,34 +364,12 @@ func (s *TaskService) RemoveCommentReaction(ctx context.Context, actor Actor, co
 	if err != nil {
 		return err
 	}
-	emoji, err = validateReactionEmoji(emoji)
-	if err != nil {
-		return err
-	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
-	q := s.q.WithTx(tx)
-	n, err := q.DeleteCommentReaction(ctx, db.DeleteCommentReactionParams{
-		CommentID: commentID, OrganizationID: c.OrganizationID, WorkspaceID: c.WorkspaceID,
-		ActorType: s.commentActorType(actor.Kind), ActorID: actor.ID, Emoji: emoji,
-	})
-	if err != nil {
-		return err
-	}
-	if n == 0 {
-		return tx.Commit(ctx) // no-op remove — no audit
-	}
-	if err := auditRecorder.Record(ctx, q, audit.Entry{
-		OrganizationID: c.OrganizationID, WorkspaceID: c.WorkspaceID,
-		Actor: actor, Action: audit.ActionCommentReactionRemoved,
-		ResourceType: "task", ResourceID: c.TaskID,
-		Metadata: map[string]any{"comment_id": commentID, "emoji": emoji},
-	}, audit.Event{Topic: "comment.reaction_removed", Payload: map[string]string{
-		"task_id": c.TaskID, "comment_id": commentID, "workspace_id": c.WorkspaceID,
-	}}); err != nil {
+	if err := unreactToCommentOn(ctx, s.q.WithTx(tx), taskCommentAdapter{s}, taskCommentRefFor(c), actor, commentID, emoji); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -474,7 +385,7 @@ func (s *TaskService) AddTaskReaction(ctx context.Context, actor Actor, taskID, 
 	if err != nil {
 		return db.TaskReaction{}, err
 	}
-	actorType := s.commentActorType(actor.Kind)
+	actorType := commentActorType(actor.Kind)
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return db.TaskReaction{}, err
@@ -550,7 +461,7 @@ func (s *TaskService) RemoveTaskReaction(ctx context.Context, actor Actor, taskI
 	q := s.q.WithTx(tx)
 	n, err := q.DeleteTaskReaction(ctx, db.DeleteTaskReactionParams{
 		TaskID: taskID, OrganizationID: task.OrganizationID, WorkspaceID: task.WorkspaceID,
-		ActorType: s.commentActorType(actor.Kind), ActorID: actor.ID, Emoji: emoji,
+		ActorType: commentActorType(actor.Kind), ActorID: actor.ID, Emoji: emoji,
 	})
 	if err != nil {
 		return err
