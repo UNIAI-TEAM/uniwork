@@ -145,11 +145,15 @@ describe("markdown engine", () => {
     expect(store.published[0]!.manifest.entries[0]!.key).toBe("other/assets/x.png");
   });
 
-  it("advertises pending capability rows that the product keeps unsupported", async () => {
+  it("advertises the replay-proven rows and keeps conversion unsupported", async () => {
     const result = (await engine().capability("md")) as { capabilities: CapabilityEntry[] };
-    for (const row of toProductCapabilities(result.capabilities)) expect(row.supported).toBe(false);
-    expect(result.capabilities.find((c) => c.operation === "open")?.evidence_level).toBe("pending");
+    const product = toProductCapabilities(result.capabilities);
+    for (const op of ["open", "edit", "serialize"]) {
+      expect(product.find((c) => c.operation === op)).toMatchObject({ supported: true, evidence_level: "proven" });
+    }
+    for (const op of ["convert", "export"]) expect(product.find((c) => c.operation === op)?.supported).toBe(false);
   });
+
 
   it("refuses another format and unknown sessions by name", async () => {
     const md = engine();

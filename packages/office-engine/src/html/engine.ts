@@ -7,11 +7,16 @@ import type { HtmlUpstream, UpstreamParseMap, UpstreamPatchSet } from "./seam";
 // the structural model over it and source patches as the only edit primitive
 // (upstream apps/html/src/renderer/document/patch.ts:2). Never page JSON.
 
-const PENDING = "G2-06b binds packages/office-upstream and proves this row";
+// Proven by test/replay/g2-06-replay.mjs through scripts/office/replay-fixtures.mjs
+// (html: 10 rows): every G0 fixture round-trips byte-identically and create/edit/
+// save/reopen twice, UTF-8, a spaced image path, save-as rebasing and asset
+// failure injection pass on the vendored upstream (pinned 09485f88). The
+// seam is environment-neutral; the replay runs it under Node.
+const PROVEN = "vendored upstream 09485f88; proven by the G2-06 fixture replay (html: 10 rows)";
 const HTML_CAPABILITIES: readonly CapabilityEntry[] = [
-  { operation: "open", supported: false, runtime: "browser", evidence_level: "pending", reason: PENDING },
-  { operation: "edit", supported: false, runtime: "browser", evidence_level: "pending", reason: PENDING },
-  { operation: "serialize", supported: false, runtime: "browser", evidence_level: "pending", reason: PENDING },
+  { operation: "open", supported: true, runtime: "browser", evidence_level: "proven", reason: PROVEN },
+  { operation: "edit", supported: true, runtime: "browser", evidence_level: "proven", reason: PROVEN },
+  { operation: "serialize", supported: true, runtime: "browser", evidence_level: "proven", reason: PROVEN },
   { operation: "convert", supported: false, runtime: "none", evidence_level: "pending", reason: "conversion is G2-07" },
   { operation: "export", supported: false, runtime: "none", evidence_level: "pending", reason: "export is G2-07" },
   // The isolated preview: engine preview copy (html/preview-copy.ts) in a

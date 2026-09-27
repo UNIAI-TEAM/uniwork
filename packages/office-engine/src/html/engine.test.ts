@@ -20,7 +20,11 @@ describe("html engine", () => {
     const preview = result.capabilities.find((c) => c.operation === "preview");
     expect(preview).toMatchObject({ runtime: "browser", evidence_level: "pending" });
     expect(preview?.reason).toContain("preview-gate.ts");
-    expect(toProductCapabilities(result.capabilities).every((c) => !c.supported)).toBe(true);
+    const product = toProductCapabilities(result.capabilities);
+    for (const op of ["preview", "convert", "export"]) expect(product.find((c) => c.operation === op)?.supported).toBe(false);
+    for (const op of ["open", "edit", "serialize"]) {
+      expect(product.find((c) => c.operation === op)).toMatchObject({ supported: true, evidence_level: "proven" });
+    }
   });
 
   it("edits through upstream patch sets against the session revision", async () => {
