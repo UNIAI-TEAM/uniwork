@@ -17,7 +17,7 @@ export default defineConfig({
       exclude: ["**/*.test.ts"],
       reporter: ["text-summary"],
       // docs/engineering/GATE_LEVELS.md; the numbers only go up (ADR 0014).
-      thresholds: coverageThresholds({ statements: 96, branches: 95, functions: 90, lines: 97 }),
+      thresholds: coverageThresholds({ statements: 98, branches: 100, functions: 91, lines: 99 }),
     },
   },
 });
