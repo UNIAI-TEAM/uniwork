@@ -12,7 +12,11 @@
 // the other, and runs the G2-06 scenarios on the vendored engine: every G0
 // fixture round-trips byte-identically, create blank, edit/save/reopen twice,
 // Vietnamese UTF-8, an image path with spaces, save-as rebasing, a no-op
-// roundtrip and asset-failure injection. The oracle is independent of the
+// roundtrip and asset-failure injection. Both bundles target the BROWSER
+// platform: every Node builtin (the vendored asset-lifecycle modules are
+// Electron main-process files that import node:fs/crypto/path at top level)
+// resolves to a stub that throws and records the access, and the last row
+// fails if any was touched. The oracle is independent of the
 // engine: bytes by sha256, text by decoding, staged assets against the
 // fixture files on disk. Writes <out>/<format>-result.json; exit 0 only when
 // every row passes (a missing input is a failure, never a skip).
@@ -168,7 +172,9 @@ async function commonRows({ probe, engine, format, docPath, blankEdit, imageRef,
     const ref = await openOrThrow(engine, { bytes: utf8(rebaseDoc.text), format, document_id: 'S1', asset_manifest: manifest });
     const { report } = await engine.saveAs(ref, { target_document_id: 'S2', target_document_path: rebaseDoc.to, ...st });
     const saved = text(st.published.at(-1).text_bytes);
-    check(saved.includes(rebaseDoc.expect), 'rewritten reference missing: ' + saved);
+    const rewritten = saved.split(rebaseDoc.expect).length - 1;
+    check(rewritten === rebaseDoc.references, `${rewritten}/${rebaseDoc.references} references rewritten: ${saved}`);
+    check(!saved.includes('../'), 'an escaping reference survived: ' + saved);
     check(report.manifest.entries.map((e) => e.key).includes('assets/logo png.png'), 'target key missing');
     check(sameBytes(st.committed.get('S2').get('assets/logo png.png'), logo), 'rebased bytes differ');
     return `${rebaseDoc.from} -> ${rebaseDoc.to}: ${rebaseDoc.expect}`;
@@ -242,7 +248,7 @@ async function replayMd({ probe, seam, vendored, fixtures }) {
     blankEdit: (img) => '# Báo cáo tuần\n\nĐã hoàn thành việc kiểm thử.\n\n' + img + '\n',
     imageRef: (ref) => '![Ảnh](<' + ref + '>)',
     append: (t, line) => t + '\n' + line + '\n',
-    rebaseDoc: { from: 'notes/a.md', to: 'b.md', text: 'Logo ![l](<../shared/logo png.png>) ở đây.\n', expect: 'assets/logo png.png' },
+    rebaseDoc: { from: 'notes/a.md', to: 'b.md', text: 'Logo ![l](<../shared/logo png.png>) ở đây.\n', expect: 'assets/logo png.png', references: 1 },
   });
 }
 
@@ -335,14 +341,51 @@ async function replayHtml({ probe, seam, vendored, fixtures }) {
       to: 'copy.html',
       text: '<div style="background:url(\'../../shared/logo png.png\')"></div><img src="../../shared/logo%20png.png">',
       expect: 'assets/logo png.png',
+      references: 2,
     },
   });
 }
 
 // ── main ─────────────────────────────────────────────────────────────────
 
+// Node builtins a browser bundle cannot have. They resolve to a stub whose
+// every property is a function that throws and records the access, so a code
+// path that needs Node fails - and cannot hide inside an upstream try/catch,
+// because the final row reads the record.
+const NODE_BUILTIN = /^(node:.+|fs|fs\/promises|path|crypto|os|url|child_process|stream|util|events|buffer|module)$/;
+const TOUCHED_KEY = '__g2_06_node_builtins_touched__';
+
+const nodeStubPlugin = {
+  name: 'g2-06-node-builtin-stub',
+  setup(build) {
+    build.onResolve({ filter: NODE_BUILTIN }, (resolved) => ({ path: resolved.path, namespace: 'node-stub' }));
+    build.onLoad({ filter: /.*/, namespace: 'node-stub' }, (loaded) => ({
+      loader: 'js',
+      contents: `const name = ${JSON.stringify(loaded.path)};
+const touched = (globalThis[${JSON.stringify(TOUCHED_KEY)}] ??= []);
+const thrower = new Proxy({}, { get(_, key) {
+  if (typeof key === 'symbol' || key === '__esModule' || key === 'then') return undefined;
+  return function nodeBuiltinStub() {
+    touched.push(name + '.' + String(key));
+    throw new Error('Node builtin ' + name + '.' + String(key) + ' used by the browser bundle');
+  };
+} });
+module.exports = Object.create(thrower);`,
+    }));
+  },
+};
+
 async function bundle(esbuild, entry, outfile) {
-  await esbuild.build({ ...entry, bundle: true, format: 'esm', platform: 'node', target: 'node22', outfile, logLevel: 'silent' });
+  await esbuild.build({
+    ...entry,
+    bundle: true,
+    format: 'esm',
+    platform: 'browser',
+    target: 'es2022',
+    plugins: [nodeStubPlugin],
+    outfile,
+    logLevel: 'silent',
+  });
   return import(pathToFileURL(outfile).href);
 }
 
@@ -358,6 +401,8 @@ async function main() {
 
   // 1. the vendored sources in the build tree must be the provenance bytes
   const provenance = JSON.parse(fs.readFileSync(PROVENANCE_PATH, 'utf8'));
+  const upstreamCommit = provenance.upstream?.pinnedCommit ?? provenance.pinnedCommit ?? null;
+  check(upstreamCommit === PINNED_COMMIT, `provenance.json pins ${upstreamCommit}, the replay expects ${PINNED_COMMIT}`);
   const recorded = new Map((provenance.files ?? []).map((entry) => [entry.path, entry]));
   const sources = {};
   for (const [name, rel] of Object.entries(VENDORED[args.format])) {
@@ -410,6 +455,11 @@ async function main() {
   check(fixtures.length > 0, 'no G0 fixtures for ' + args.format);
   if (args.format === 'md') await replayMd({ probe, seam, vendored, fixtures });
   else await replayHtml({ probe, seam, vendored, fixtures });
+  await probe.row('browser bundle: no Node builtin was touched by any row', async () => {
+    const touched = globalThis[TOUCHED_KEY] ?? [];
+    check(touched.length === 0, 'Node builtins touched: ' + [...new Set(touched)].join(', '));
+    return 'platform browser, node builtins stubbed to throw; 0 accesses';
+  });
 
   const failed = probe.rows.filter((r) => r.status === 'fail');
   const result = {
@@ -420,7 +470,8 @@ async function main() {
     detail: failed.length === 0 ? `${probe.rows.length} rows passed on the vendored engine` : `${failed.length}/${probe.rows.length} rows failed`,
     rows: probe.rows,
     evidence: {
-      upstreamCommit: provenance.upstream?.pinnedCommit ?? provenance.pinnedCommit ?? null,
+      upstreamCommit,
+      bundlePlatform: 'browser',
       expectedCommit: PINNED_COMMIT,
       filesDigest: provenance.integrity?.filesDigest ?? null,
       vendoredSources: sources,

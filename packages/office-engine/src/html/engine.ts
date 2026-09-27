@@ -8,11 +8,12 @@ import type { HtmlUpstream, UpstreamParseMap, UpstreamPatchSet } from "./seam";
 // (upstream apps/html/src/renderer/document/patch.ts:2). Never page JSON.
 
 // Proven by test/replay/g2-06-replay.mjs through scripts/office/replay-fixtures.mjs
-// (html: 10 rows): every G0 fixture round-trips byte-identically and create/edit/
+// (html: 11 rows): every G0 fixture round-trips byte-identically and create/edit/
 // save/reopen twice, UTF-8, a spaced image path, save-as rebasing and asset
 // failure injection pass on the vendored upstream (pinned 09485f88). The
-// seam is environment-neutral; the replay runs it under Node.
-const PROVEN = "vendored upstream 09485f88; proven by the G2-06 fixture replay (html: 10 rows)";
+// replay bundles seam and vendored code for the browser platform with every
+// Node builtin stubbed to throw, and a row fails if any is touched.
+const PROVEN = "vendored upstream 09485f88; proven by the G2-06 fixture replay (html: 11 rows)";
 const HTML_CAPABILITIES: readonly CapabilityEntry[] = [
   { operation: "open", supported: true, runtime: "browser", evidence_level: "proven", reason: PROVEN },
   { operation: "edit", supported: true, runtime: "browser", evidence_level: "proven", reason: PROVEN },

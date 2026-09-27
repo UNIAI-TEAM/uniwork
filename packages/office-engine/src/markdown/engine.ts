@@ -9,11 +9,12 @@ import type { MarkdownUpstream, UpstreamSaveMarkdownRequest } from "./seam";
 // Engine claims stay pending until G2-06b proves them on the vendored engine;
 // the product projection (toProductCapability) keeps them unsupported.
 // Proven by test/replay/g2-06-replay.mjs through scripts/office/replay-fixtures.mjs
-// (md: 9 rows): every G0 fixture round-trips byte-identically and create/edit/
+// (md: 10 rows): every G0 fixture round-trips byte-identically and create/edit/
 // save/reopen twice, UTF-8, a spaced image path, save-as rebasing and asset
 // failure injection pass on the vendored upstream (pinned 09485f88). The
-// seam is environment-neutral; the replay runs it under Node.
-const PROVEN = "vendored upstream 09485f88; proven by the G2-06 fixture replay (md: 9 rows)";
+// replay bundles seam and vendored code for the browser platform with every
+// Node builtin stubbed to throw, and a row fails if any is touched.
+const PROVEN = "vendored upstream 09485f88; proven by the G2-06 fixture replay (md: 10 rows)";
 const MARKDOWN_CAPABILITIES: readonly CapabilityEntry[] = [
   { operation: "open", supported: true, runtime: "browser", evidence_level: "proven", reason: PROVEN },
   { operation: "edit", supported: true, runtime: "browser", evidence_level: "proven", reason: PROVEN },
