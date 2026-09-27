@@ -1,4 +1,4 @@
-import { sha256Hex } from "@uniwork/office-contracts";
+import { sha256Hex, toProductCapabilities, type CapabilityEntry } from "@uniwork/office-contracts";
 import { describe, expect, it } from "vitest";
 import { fakeHtmlUpstream, fakeStore, PNG_BYTES, utf8 } from "../assets/test-fakes";
 import { createHtmlEngine } from "./engine";
@@ -14,6 +14,15 @@ async function manifest(documentPath: string, files: Record<string, [Uint8Array,
 }
 
 describe("html engine", () => {
+  it("lists the isolated preview as a pending row that names the final gate", async () => {
+    const html = createHtmlEngine({ upstream: fakeHtmlUpstream() });
+    const result = (await html.capability("html")) as { capabilities: CapabilityEntry[] };
+    const preview = result.capabilities.find((c) => c.operation === "preview");
+    expect(preview).toMatchObject({ runtime: "browser", evidence_level: "pending" });
+    expect(preview?.reason).toContain("preview-gate.ts");
+    expect(toProductCapabilities(result.capabilities).every((c) => !c.supported)).toBe(true);
+  });
+
   it("edits through upstream patch sets against the session revision", async () => {
     const html = createHtmlEngine({ upstream: fakeHtmlUpstream() });
     const { document_model_ref: ref } = html.createBlank({ document_id: "H1" });

@@ -14,6 +14,17 @@ const HTML_CAPABILITIES: readonly CapabilityEntry[] = [
   { operation: "serialize", supported: false, runtime: "browser", evidence_level: "pending", reason: PENDING },
   { operation: "convert", supported: false, runtime: "none", evidence_level: "pending", reason: "conversion is G2-07" },
   { operation: "export", supported: false, runtime: "none", evidence_level: "pending", reason: "export is G2-07" },
+  // The isolated preview: engine preview copy (html/preview-copy.ts) in a
+  // sandboxed opaque-origin iframe, behind the web host's browser-parser final
+  // gate (apps/web/platform/office/preview-gate.ts). Proven only once a
+  // product route renders it (G2-07).
+  {
+    operation: "preview",
+    supported: false,
+    runtime: "browser",
+    evidence_level: "pending",
+    reason: "sandboxed iframe + preview-gate.ts DOMParser final gate; route proof in G2-07",
+  },
 ];
 
 export interface HtmlEngine extends TextDocumentEngine {
