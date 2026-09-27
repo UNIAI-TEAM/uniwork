@@ -309,10 +309,12 @@ export class DocxAdapter {
       if (error instanceof EngineBoundaryError || error instanceof HostCapabilityRefusal) throw error;
       throw new EngineBoundaryError("engine_result_invalid", { detail: "saved plaintext does not re-parse" });
     }
-    session.model.rebase(rebased);
-    session.assets = inventoryDocxAssets(rebased, this.deps.listPackageParts?.(rebased));
     const hash = this.deps.sha256 ?? sha256Hex;
     const checksum = await hash(wire);
+    // Only after every fallible step: rebase the model, refresh the asset
+    // oracle and commit the password state — a failed save changes nothing.
+    session.model.rebase(rebased);
+    session.assets = inventoryDocxAssets(rebased, this.deps.listPackageParts?.(rebased));
     this.passwords.commitSave(session.documentId, snap);
     return { bytes: wire, checksum, warnings: [] };
   }
