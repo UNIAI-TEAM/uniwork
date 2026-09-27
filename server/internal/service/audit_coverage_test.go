@@ -863,6 +863,13 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// G1-04a (UNI-678): a PATCH of the page; the audit row is metadata only.
+		audit.ActionDocumentUpdated: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.UpdateDocument(f.ctx, Human(f.owner.ID), docID, UpdateDocumentInput{Revision: 1, Title: strPtr("Đổi tên")}); err != nil {
+				t.Fatal(err)
+			}
+		},
 		// G1-03: the file commands run on filesfake; the storage tests run
 		// the same commands on the real FileService.
 		audit.ActionDocumentVersionCreated: func(t *testing.T, f *auditFixture) {
@@ -1095,6 +1102,7 @@ func auditActions() []string {
 		audit.ActionDocumentLinkCreated,
 		audit.ActionDocumentLinkRevoked,
 		audit.ActionDocumentSettingsChanged,
+		audit.ActionDocumentUpdated,
 		audit.ActionDocumentVersionCreated,
 		audit.ActionDocumentVersionRestored,
 		audit.ActionDocumentAssetUploaded,

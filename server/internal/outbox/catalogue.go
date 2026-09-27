@@ -215,6 +215,9 @@ var catalogue = []EventDef{
 	{Topic: "document.share_revoked", Version: 1, Payload: []string{"document_id", "workspace_id", "share_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.link_created", Version: 1, Payload: []string{"document_id", "workspace_id", "link_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.link_revoked", Version: 1, Payload: []string{"document_id", "workspace_id", "link_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// Pages (UNI-678): title, icon or visibility changed; ids only, no
+	// revision (ADR 0015). An autosave of the content emits nothing.
+	{Topic: "document.updated", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 
 	// Document comments (UNI-681): ids only, workspace scope like the task
 	// rows. A reader reached only through a share is caught by the
