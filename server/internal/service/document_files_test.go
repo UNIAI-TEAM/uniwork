@@ -265,12 +265,30 @@ func TestDocumentIdempotency(t *testing.T) {
 			key := util.NewID()
 			first, err := env.commit(editor, d.ID, up.UploadID, d.Revision, key)
 			mustf(t, err, "commit")
+			if first.Access.Level != DocumentLevelEdit {
+				t.Fatalf("first access = %+v", first.Access)
+			}
+			// Downgraded to view: DOC-005 puts idempotency before the
+			// permission re-check, so the write that already happened is
+			// replayed - with the access the caller holds now.
 			env.f.revoke(t, sh, env.tn.member.ID)
-			// View is gone, so the document is not visible at all: not found,
-			// the stored answer is not handed to someone who lost access.
+			view := env.f.share(t, d, DocumentPrincipalUser, env.tn.creator.ID, DocumentLevelView, env.tn.member.ID)
+			again, err := env.commit(editor, d.ID, up.UploadID, d.Revision, key)
+			mustf(t, err, "replay after a downgrade")
+			if again.Version.ID != first.Version.ID || again.Access.Level != DocumentLevelView {
+				t.Fatalf("replay = version %s access %+v, want %s with view", again.Version.ID, again.Access, first.Version.ID)
+			}
+			// A new command from the viewer is refused.
+			other := env.upload(t, member, d.ID, "order-v3.pdf", pdfBody("order-v3"))
+			_, err = env.commit(editor, d.ID, other.UploadID, env.doc(t, d.ID).Revision, util.NewID())
+			if !errors.Is(err, ErrForbidden) {
+				t.Fatalf("viewer commit = %v, want forbidden", err)
+			}
+			// View is gone too: the document is not visible at all, and the
+			// stored answer is not handed to someone who lost access.
+			env.f.revoke(t, view, env.tn.member.ID)
 			_, err = env.commit(editor, d.ID, up.UploadID, d.Revision, key)
 			wantNotFound(t, err)
-			_ = first
 		})
 	})
 }
@@ -384,6 +402,25 @@ func TestDocumentQuota(t *testing.T) {
 				t.Fatalf("usage %d passed the limit", got)
 			}
 			env.setStorageLimit(t, 1<<40)
+		})
+
+		t.Run("a repeated hook call reserves once", func(t *testing.T) {
+			realOnly(t, env)
+			d := env.doc(t, created.Document.ID)
+			up := env.upload(t, member, d.ID, "twice.pdf", sizedPDF("twice", 8<<10))
+			used := env.usage(t) // includes the reservation
+			env.setStorageLimit(t, used)
+			for i := 0; i < 2; i++ {
+				if err := env.ent.ReserveFileBytes(ctx, d.OrganizationID, files.FileID(up.UploadID), up.SizeBytes); err != nil {
+					t.Fatalf("hook call %d at a full quota: %v", i, err)
+				}
+			}
+			if got := env.usage(t); got != used {
+				t.Fatalf("usage after repeated hook calls = %d, want %d", got, used)
+			}
+			env.setStorageLimit(t, 1<<40)
+			scope := files.Scope{OrganizationID: d.OrganizationID, WorkspaceID: d.WorkspaceID}
+			mustf(t, env.fs.CancelUpload(ctx, files.CancelInput{Actor: member, Scope: scope, FileID: files.FileID(up.UploadID)}), "cancel")
 		})
 
 		t.Run("a reservation ends with its upload", func(t *testing.T) {

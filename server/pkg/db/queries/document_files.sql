@@ -26,14 +26,18 @@ RETURNING *;
 -- upload is consumed by the first version or asset that claims it;
 -- FileService allows reuse inside a tenant (T1-Q3), Documents does not
 -- (upload_already_committed, C-01 §14.5).
+-- Document purposes are workspace-scoped in FileService, so a file can only
+-- ever be claimed inside its own workspace.
 -- name: DocumentFileInUse :one
 SELECT EXISTS (
   SELECT 1 FROM document_versions v
   WHERE v.organization_id = sqlc.arg(organization_id)
+    AND v.workspace_id = sqlc.arg(workspace_id)
     AND v.file_id = sqlc.arg(file_id)
   UNION ALL
   SELECT 1 FROM document_assets a
   WHERE a.organization_id = sqlc.arg(organization_id)
+    AND a.workspace_id = sqlc.arg(workspace_id)
     AND a.file_id = sqlc.arg(file_id)
 ) AS in_use;
 

@@ -26,7 +26,12 @@ import (
 //  1. session     - the handler (token_expired / unauthorized)
 //  2. tombstone   - document_deleted (410); a stranger still gets not_found
 //  3. idempotency - idempotency_key_reuse | idempotency_payload_mismatch |
-//     idempotency_in_flight, or the stored answer replayed
+//     idempotency_in_flight, or the stored answer replayed. The fingerprint
+//     binds the verified checksum, so the upload is resolved (not claimed)
+//     just before this step: an upload_id that no longer resolves answers
+//     with its own error (not_found, document_upload_invalid,
+//     storage_unavailable) instead of the stored answer. A replay carries
+//     the caller's access as it is now, not as it was at the first commit.
 //  4. permission  - re-checked inside the mutation (withDocumentMutation),
 //     never trusted from the upload
 //  5. engine      - engine_incompatible (409)
@@ -99,31 +104,43 @@ func commitFingerprint(documentID string, base int64, checksum string, e Documen
 // tombstone. It reads outside any transaction; the mutation decides again.
 // A document the actor cannot see at all is not_found (no existence leak);
 // an archived one the actor can see is document_deleted.
-func (s *DocumentService) preflightDocument(ctx context.Context, actor Actor, documentID string) (db.Document, error) {
+func (s *DocumentService) preflightDocument(ctx context.Context, actor Actor, documentID string) (db.Document, DocumentAccess, error) {
 	if !validActor(actor) || documentID == "" {
-		return db.Document{}, ErrNotFound
+		return db.Document{}, DocumentAccess{}, ErrNotFound
 	}
 	doc, err := s.q.GetDocumentByID(ctx, documentID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return db.Document{}, ErrNotFound
+		return db.Document{}, DocumentAccess{}, ErrNotFound
 	}
 	if err != nil {
-		return db.Document{}, err
+		return db.Document{}, DocumentAccess{}, err
 	}
 	access, err := s.effectiveLevel(ctx, s.q, actor, doc)
 	if err != nil {
-		return db.Document{}, err
+		return db.Document{}, DocumentAccess{}, err
 	}
 	if access.Level == DocumentLevelNone {
-		return db.Document{}, ErrNotFound
+		return db.Document{}, DocumentAccess{}, ErrNotFound
 	}
 	if doc.ArchivedAt.Valid {
-		return db.Document{}, errDocumentDeleted()
+		return db.Document{}, DocumentAccess{}, errDocumentDeleted()
 	}
 	if doc.Kind != DocumentKindFile {
-		return db.Document{}, Invalid("chỉ tài liệu file nhận phiên bản tệp")
+		return db.Document{}, DocumentAccess{}, Invalid("chỉ tài liệu file nhận phiên bản tệp")
 	}
-	return doc, nil
+	return doc, access, nil
+}
+
+// replayWithAccess decodes a stored answer and stamps the caller's current
+// access on it: the write happened, but my_level must not outlive a
+// downgrade.
+func replayWithAccess(body []byte, access DocumentAccess) (DocumentFileResult, error) {
+	res, err := decodeDocumentFileResult(body)
+	if err != nil {
+		return DocumentFileResult{}, err
+	}
+	res.Access = access
+	return res, nil
 }
 
 // resolveUpload reads the staged file's verified record (checksum, size,
@@ -155,7 +172,7 @@ func (s *DocumentService) CommitFileVersion(ctx context.Context, actor Actor, do
 	if in.UploadID == "" {
 		return DocumentFileResult{}, Invalid("upload_id bắt buộc")
 	}
-	doc, err := s.preflightDocument(ctx, actor, documentID)
+	doc, current, err := s.preflightDocument(ctx, actor, documentID)
 	if err != nil {
 		return DocumentFileResult{}, err
 	}
@@ -173,7 +190,7 @@ func (s *DocumentService) CommitFileVersion(ctx context.Context, actor Actor, do
 		return DocumentFileResult{}, NormalizeIdempotencyError(err)
 	}
 	if replay != nil {
-		return decodeDocumentFileResult(replay.Body)
+		return replayWithAccess(replay.Body, current)
 	}
 	// The editor format check streams the bytes, so it runs before the
 	// transaction opens (FS-C1 §5.5).
@@ -191,7 +208,7 @@ func (s *DocumentService) CommitFileVersion(ctx context.Context, actor Actor, do
 			return NormalizeIdempotencyError(err)
 		}
 		if replay != nil {
-			res, err = decodeDocumentFileResult(replay.Body)
+			res, err = replayWithAccess(replay.Body, access)
 			return err
 		}
 		if err := checkEngine(in.Engine); err != nil {
@@ -221,7 +238,8 @@ func (s *DocumentService) CommitFileVersion(ctx context.Context, actor Actor, do
 		// Checked after ClaimInTx locked the file row, so a concurrent commit
 		// of the same upload elsewhere is already visible.
 		inUse, err := q.DocumentFileInUse(ctx, db.DocumentFileInUseParams{
-			OrganizationID: locked.OrganizationID, FileID: pgtype.Text{String: string(file.ID), Valid: true},
+			OrganizationID: locked.OrganizationID, WorkspaceID: locked.WorkspaceID,
+			FileID: pgtype.Text{String: string(file.ID), Valid: true},
 		})
 		if err != nil {
 			return err
@@ -268,7 +286,7 @@ func (s *DocumentService) RestoreFileVersion(ctx context.Context, actor Actor, d
 	if err != nil {
 		return DocumentFileResult{}, err
 	}
-	doc, err := s.preflightDocument(ctx, actor, documentID)
+	doc, current, err := s.preflightDocument(ctx, actor, documentID)
 	if err != nil {
 		return DocumentFileResult{}, err
 	}
@@ -282,7 +300,7 @@ func (s *DocumentService) RestoreFileVersion(ctx context.Context, actor Actor, d
 		return DocumentFileResult{}, NormalizeIdempotencyError(err)
 	}
 	if replay != nil {
-		return decodeDocumentFileResult(replay.Body)
+		return replayWithAccess(replay.Body, current)
 	}
 	scope := documentScope(doc.OrganizationID, doc.WorkspaceID)
 	var res DocumentFileResult
@@ -295,7 +313,7 @@ func (s *DocumentService) RestoreFileVersion(ctx context.Context, actor Actor, d
 			return NormalizeIdempotencyError(err)
 		}
 		if replay != nil {
-			res, err = decodeDocumentFileResult(replay.Body)
+			res, err = replayWithAccess(replay.Body, access)
 			return err
 		}
 		if locked.Revision != in.BaseRevision {

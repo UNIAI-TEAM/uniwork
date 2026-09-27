@@ -51,7 +51,9 @@ SELECT count(*)::bigint FROM tasks WHERE organization_id = $1;
 -- file is held (claimed into a document row), when its session is no longer
 -- receiving/staged (claimed, canceled, expired) or when the file failed or
 -- is being deleted, so a reservation is always finite. Archived documents
--- still count: only the purge (row gone) frees their bytes.
+-- still count: only the purge (row gone) frees their bytes. Organization
+-- tier on purpose (the meter is per organization, like tasks.max): every
+-- table read is bound to the same organization_id.
 -- name: CountStorageBytesInOrganization :one
 WITH held AS (
   SELECT r.file_id, max(r.size_bytes) AS size_bytes
@@ -76,8 +78,8 @@ SELECT (
   + (SELECT COALESCE(sum(h.size_bytes), 0) FROM held h)
   + (SELECT COALESCE(sum(e.delta), 0)
      FROM usage_events e
-     JOIN file_upload_sessions s ON s.file_id = e.ref_id
-     JOIN files f ON f.id = e.ref_id
+     JOIN file_upload_sessions s ON s.file_id = e.ref_id AND s.organization_id = e.organization_id
+     JOIN files f ON f.id = e.ref_id AND f.organization_id = e.organization_id
      WHERE e.organization_id = sqlc.arg('organization_id')
        AND e.meter_key = 'storage.bytes'
        AND e.ref_type = 'file_reservation'
@@ -88,6 +90,7 @@ SELECT (
 
 -- The upload behind a reservation: FileService calls the quota hook with a
 -- file id only, and the purpose decides whether storage.bytes meters it.
+-- Organization tier: the hook is told the organization, not a workspace.
 -- name: GetStorageReservationUpload :one
 SELECT purpose, workspace_id, created_by, created_by_kind
 FROM file_upload_sessions

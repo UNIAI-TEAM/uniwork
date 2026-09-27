@@ -15,16 +15,19 @@ const documentFileInUse = `-- name: DocumentFileInUse :one
 SELECT EXISTS (
   SELECT 1 FROM document_versions v
   WHERE v.organization_id = $1
-    AND v.file_id = $2
+    AND v.workspace_id = $2
+    AND v.file_id = $3
   UNION ALL
   SELECT 1 FROM document_assets a
   WHERE a.organization_id = $1
-    AND a.file_id = $2
+    AND a.workspace_id = $2
+    AND a.file_id = $3
 ) AS in_use
 `
 
 type DocumentFileInUseParams struct {
 	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
 	FileID         pgtype.Text `json:"file_id"`
 }
 
@@ -32,8 +35,10 @@ type DocumentFileInUseParams struct {
 // upload is consumed by the first version or asset that claims it;
 // FileService allows reuse inside a tenant (T1-Q3), Documents does not
 // (upload_already_committed, C-01 §14.5).
+// Document purposes are workspace-scoped in FileService, so a file can only
+// ever be claimed inside its own workspace.
 func (q *Queries) DocumentFileInUse(ctx context.Context, arg DocumentFileInUseParams) (bool, error) {
-	row := q.db.QueryRow(ctx, documentFileInUse, arg.OrganizationID, arg.FileID)
+	row := q.db.QueryRow(ctx, documentFileInUse, arg.OrganizationID, arg.WorkspaceID, arg.FileID)
 	var in_use bool
 	err := row.Scan(&in_use)
 	return in_use, err

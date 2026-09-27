@@ -374,7 +374,12 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 		return DocumentFileResult{}, NormalizeIdempotencyError(err)
 	}
 	if replay != nil {
-		return decodeDocumentFileResult(replay.Body)
+		res, err := decodeDocumentFileResult(replay.Body)
+		if err != nil {
+			return DocumentFileResult{}, err
+		}
+		res.Access, err = s.effectiveLevel(ctx, q, actor, res.Document)
+		return res, err
 	}
 	// Re-check inside the transaction: a revoke between the upload and here
 	// must win (DOC-005 §3).
@@ -574,7 +579,8 @@ func (s *DocumentService) UploadDocumentAsset(ctx context.Context, actor Actor, 
 			return documentFileError(err)
 		}
 		inUse, err := q.DocumentFileInUse(ctx, db.DocumentFileInUseParams{
-			OrganizationID: locked.OrganizationID, FileID: pgtype.Text{String: string(up.File.ID), Valid: true},
+			OrganizationID: locked.OrganizationID, WorkspaceID: locked.WorkspaceID,
+			FileID: pgtype.Text{String: string(up.File.ID), Valid: true},
 		})
 		if err != nil {
 			return err

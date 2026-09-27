@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -364,7 +365,10 @@ func (s *EntitlementService) ReserveFileBytes(ctx context.Context, organizationI
 		FileID: string(fileID), OrganizationID: pgtype.Text{String: organizationID, Valid: true},
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil // not an organization upload FileService knows; nothing to meter
+		// FileService records the session before it calls the hook, so this
+		// is a wiring bug, not a user error: meter nothing, but say so.
+		slog.Warn("storage quota: no upload session for reserved file", "organization", organizationID, "file", string(fileID))
+		return nil
 	}
 	if err != nil {
 		return err
@@ -382,16 +386,10 @@ func (s *EntitlementService) ReserveFileBytes(ctx context.Context, organizationI
 	if err != nil {
 		return err
 	}
-	if e.Limit != nil {
-		cur, err := s.current(ctx, q, sub, e)
-		if err != nil {
-			return err
-		}
-		if cur+sizeBytes > *e.Limit {
-			return errQuotaExceeded(FeatureStorageBytes, *e.Limit, cur, sizeBytes)
-		}
-	}
-	if _, err := q.InsertUsageEvent(ctx, usageEventParams(ConsumeInput{
+	// Record first, then check the total that now includes this file: a
+	// repeated call for the same file inserts nothing (the key is the file
+	// id) and must not count its own reservation twice.
+	n, err := q.InsertUsageEvent(ctx, usageEventParams(ConsumeInput{
 		OrganizationID: organizationID,
 		WorkspaceID:    up.WorkspaceID.String,
 		Meter:          FeatureStorageBytes,
@@ -400,8 +398,21 @@ func (s *EntitlementService) ReserveFileBytes(ctx context.Context, organizationI
 		RefType:        storageReservationRef,
 		RefID:          string(fileID),
 		IdempotencyKey: "storage.reserve:" + string(fileID),
-	})); err != nil {
+	}))
+	if err != nil {
 		return err
+	}
+	if n == 0 {
+		return nil // already reserved for this file
+	}
+	if e.Limit != nil {
+		cur, err := s.current(ctx, q, sub, e)
+		if err != nil {
+			return err
+		}
+		if cur > *e.Limit {
+			return errQuotaExceeded(FeatureStorageBytes, *e.Limit, cur-sizeBytes, sizeBytes)
+		}
 	}
 	return tx.Commit(ctx)
 }
