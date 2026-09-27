@@ -1095,6 +1095,36 @@ type NotificationPreference struct {
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
+type OfficeJob struct {
+	ID                 string             `json:"id"`
+	OrganizationID     string             `json:"organization_id"`
+	WorkspaceID        string             `json:"workspace_id"`
+	DocumentID         string             `json:"document_id"`
+	Operation          string             `json:"operation"`
+	Format             string             `json:"format"`
+	BaseRevision       int64              `json:"base_revision"`
+	BaseVersionID      string             `json:"base_version_id"`
+	IdempotencyKey     string             `json:"idempotency_key"`
+	PayloadFingerprint string             `json:"payload_fingerprint"`
+	InputChecksum      string             `json:"input_checksum"`
+	InputLength        int64              `json:"input_length"`
+	GrantID            string             `json:"grant_id"`
+	OutputFileID       pgtype.Text        `json:"output_file_id"`
+	OutputChecksum     pgtype.Text        `json:"output_checksum"`
+	OutputLength       pgtype.Int8        `json:"output_length"`
+	State              string             `json:"state"`
+	ErrorCode          pgtype.Text        `json:"error_code"`
+	ErrorReason        pgtype.Text        `json:"error_reason"`
+	DeadlineAt         pgtype.Timestamptz `json:"deadline_at"`
+	DispatchedAt       pgtype.Timestamptz `json:"dispatched_at"`
+	FinishedAt         pgtype.Timestamptz `json:"finished_at"`
+	CommittedVersionID pgtype.Text        `json:"committed_version_id"`
+	CreatedBy          string             `json:"created_by"`
+	CreatedByKind      string             `json:"created_by_kind"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Organization struct {
 	ID              string             `json:"id"`
 	Slug            string             `json:"slug"`

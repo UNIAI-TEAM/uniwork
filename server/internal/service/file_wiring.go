@@ -19,5 +19,7 @@ func FileReferenceProviders(chat *ChatService, meetings *MeetingService) []files
 		// registry cannot prove the columns are covered.
 		DocumentVersionReferenceProvider{},
 		DocumentAssetReferenceProvider{},
+		// Office engine output while a job is live (G2-02).
+		OfficeJobOutputProvider{},
 	}
 }

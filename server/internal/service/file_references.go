@@ -123,6 +123,18 @@ func managedFileReferenceSources() []FileReferenceSource {
 			},
 		},
 		{
+			// Office engine output (G2-02): held while its job is live.
+			Table: "office_jobs", Column: "output_file_id", Provider: OfficeJobOutputProvider{}.Name(),
+			tenants: func(ctx context.Context, q *db.Queries, ids []string) ([]fileReferenceTenant, error) {
+				rows, err := q.FileGCOfficeJobRefTenants(ctx, ids)
+				out := make([]fileReferenceTenant, 0, len(rows))
+				for _, r := range rows {
+					out = append(out, knownTenant(r.OutputFileID, r.OrganizationID))
+				}
+				return out, err
+			},
+		},
+		{
 			Table: "meeting_recordings", Column: "file_id", Provider: MeetingRecordingProvider{}.Name(),
 			tenants: func(ctx context.Context, q *db.Queries, ids []string) ([]fileReferenceTenant, error) {
 				rows, err := q.FileGCMeetingRecordingRefTenants(ctx, ids)

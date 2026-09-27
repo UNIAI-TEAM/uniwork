@@ -18,5 +18,38 @@ services:
   redis:
     image: redis:7-alpine
     ports: ["6379:6379"]
+  # Office engine service (G2-02), dev/on-prem: docker compose --profile office up -d office-engine
+  # Go reaches it at OFFICE_ENGINE_URL with OFFICE_ENGINE_SERVICE_TOKEN; grants are
+  # signed with OFFICE_ENGINE_GRANT_KEY. The dev values below are placeholders -
+  # set real secrets in any shared environment. Fault operations stay off unless
+  # a test run sets OFFICE_ENGINE_FAULT_OPERATIONS=1.
+  office-engine:
+    profiles: ["office"]
+    build:
+      context: .
+      dockerfile: apps/office-engine/Dockerfile
+    image: uniwork-office-engine:dev
+    init: true
+    environment:
+      OFFICE_ENGINE_SERVICE_TOKEN: ${OFFICE_ENGINE_SERVICE_TOKEN:-dev-only-office-engine-service-token-000001}
+      OFFICE_ENGINE_GRANT_KEY: ${OFFICE_ENGINE_GRANT_KEY:-dev-only-office-engine-grant-key-00000000002}
+      OFFICE_ENGINE_OUTPUT_ORIGINS: ${OFFICE_ENGINE_OUTPUT_ORIGINS:-http://host.docker.internal:9000}
+      OFFICE_ENGINE_MAX_WORKERS: ${OFFICE_ENGINE_MAX_WORKERS:-2}
+      OFFICE_ENGINE_MAX_QUEUE: ${OFFICE_ENGINE_MAX_QUEUE:-16}
+      OFFICE_ENGINE_FAULT_OPERATIONS: ${OFFICE_ENGINE_FAULT_OPERATIONS:-0}
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    ports: ["127.0.0.1:${OFFICE_ENGINE_PORT:-8090}:8090"]
+    # Read-only root: a worker can write only the tmpfs that holds the job
+    # temp dirs, and the tmpfs size caps what all jobs together can leave.
+    # tmpfs pages count against mem_limit: 512m tmpfs (2 workers x 256 MiB
+    # temp) + 2 x 512 MiB job RSS + the service itself stays under 2g.
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+    # Container ceiling above the per-job limits (defence in depth).
+    mem_limit: 2g
+    cpus: 2
+    pids_limit: 256
+    stop_grace_period: 15s
 volumes:
   pgdata:

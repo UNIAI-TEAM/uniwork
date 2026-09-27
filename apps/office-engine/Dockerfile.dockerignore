@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+**/.turbo
+**/coverage
+.git
+.uniwork-dev
+server
+!server/internal/office/testdata
+apps/web
+e2e
+docs
