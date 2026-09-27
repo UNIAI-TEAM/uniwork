@@ -207,6 +207,124 @@ describe("mountHtmlPreview", () => {
     session.dispose();
   });
 
+  it("withholds the bridge from a document that navigated its own frame, and blanks it", async () => {
+    const events: PreviewEvent[] = [];
+    const { session } = await mount("<p>x</p>", { capability: { scripts: true }, onEvent: (e) => events.push(e) });
+    const post = vi.spyOn(session.iframe.contentWindow!, "postMessage").mockImplementation(() => undefined);
+    const transfers = () => post.mock.calls.map((c) => (c as unknown as [unknown, string, MessagePort[]])[2]![0]!);
+    session.iframe.dispatchEvent(new Event("load"));
+    expect(post).toHaveBeenCalledTimes(1);
+    // A load we did not cause by assigning srcdoc: the document navigated itself.
+    session.iframe.dispatchEvent(new Event("load"));
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(events).toEqual([{ type: "navigated" }]);
+    expect(session.iframe.srcdoc).toBe("");
+    // The blank page's own load is expected and gets nothing either.
+    session.iframe.dispatchEvent(new Event("load"));
+    expect(post).toHaveBeenCalledTimes(1);
+    // A host re-render is a new document and gets a fresh port.
+    await session.update("<p>y</p>");
+    session.iframe.dispatchEvent(new Event("load"));
+    expect(post).toHaveBeenCalledTimes(2);
+    for (const port of transfers()) port.close();
+    session.dispose();
+  });
+
+  it("reopens the scope when an update brings asset keys it has not granted", async () => {
+    const fake = fakeProxy();
+    const { session } = await mount(`<img src="img/a%20b.png">`, { proxy: fake.proxy });
+    const next: AssetManifest = {
+      ...MANIFEST,
+      entries: [...MANIFEST.entries, { key: "img/new.png", sha256: SHA, byte_length: 1, media_type: "image/png", origin: "owned" }],
+    };
+    await session.update(`<img src="img/new.png"><img src="img/a%20b.png">`, next);
+    expect(fake.opened).toHaveLength(2);
+    expect(fake.opened[1]!.keys).toContain("img/new.png");
+    expect(fake.revoked()).toBe(1);
+    expect(session.iframe.srcdoc).toContain(PROXY_ORIGIN + "/s/D1.J1/img%2Fnew.png");
+    // A subset needs no new grant.
+    await session.update("<p>z</p>", MANIFEST);
+    expect(fake.opened).toHaveLength(2);
+    session.dispose();
+    expect(fake.revoked()).toBe(2);
+  });
+
+  it("refuses a reopened scope on another origin and keeps the old grant", async () => {
+    let origin = PROXY_ORIGIN;
+    let revoked = 0;
+    const proxy: PreviewAssetProxy = {
+      async open(req) {
+        const o = origin;
+        return { origin: o, expires_at: Date.now() + 60_000, urlFor: (k) => (req.keys.includes(k) ? o + "/" + encodeURIComponent(k) : null), revoke: () => void revoked++ };
+      },
+    };
+    const { session } = await mount(`<img src="img/a%20b.png">`, { proxy });
+    origin = "https://other-assets.example";
+    const before = session.iframe.srcdoc;
+    const next: AssetManifest = { ...MANIFEST, entries: [{ key: "img/x.png", sha256: SHA, byte_length: 1, media_type: "image/png", origin: "owned" }] };
+    await expect(session.update("<p/>", next)).rejects.toMatchObject({ name: "PreviewIsolationError" });
+    expect(revoked).toBe(1);
+    expect(session.iframe.srcdoc).toBe(before);
+    session.dispose();
+  });
+
+  it("revokes a scope that was reopened after dispose", async () => {
+    let release: () => void = () => {};
+    let opens = 0;
+    const revokedIds: number[] = [];
+    const proxy: PreviewAssetProxy = {
+      async open(req) {
+        const id = ++opens;
+        if (id === 2) await new Promise<void>((r) => (release = r));
+        return { origin: PROXY_ORIGIN, expires_at: Date.now() + 60_000, urlFor: (k) => (req.keys.includes(k) ? PROXY_ORIGIN + "/" + k : null), revoke: () => void revokedIds.push(id) };
+      },
+    };
+    const { session } = await mount("<p/>", { proxy });
+    const next: AssetManifest = { ...MANIFEST, entries: [{ key: "img/late.png", sha256: SHA, byte_length: 1, media_type: "image/png", origin: "owned" }] };
+    const pending = session.update("<p>late</p>", next);
+    await vi.waitFor(() => expect(opens).toBe(2));
+    session.dispose();
+    release();
+    await pending;
+    expect(revokedIds.sort()).toEqual([1, 2]);
+    expect(document.querySelector("iframe")).toBeNull();
+  });
+
+  it("defaults the app origin and TTL, blocks keys the proxy withholds, ignores updates after dispose", async () => {
+    const opened: PreviewAssetScopeRequest[] = [];
+    const proxy: PreviewAssetProxy = {
+      async open(req) {
+        opened.push(req);
+        return { origin: PROXY_ORIGIN, expires_at: Date.now() + req.ttl_ms, urlFor: (k) => (k === "js/app.js" ? PROXY_ORIGIN + "/js" : null), revoke() {} };
+      },
+    };
+    const container = document.createElement("div");
+    const session = await mountHtmlPreview({
+      container,
+      title: "t",
+      text: `<img src="img/a%20b.png">`,
+      manifest: MANIFEST,
+      scope: { document_id: "D1", job_id: "J1" },
+      proxy,
+    });
+    expect(opened[0]!.ttl_ms).toBe(10 * 60 * 1000);
+    expect(session.iframe.srcdoc).toContain(`src="about:blank#blocked"`);
+    session.dispose();
+    const before = session.iframe.srcdoc;
+    await session.update("<p>after</p>");
+    expect(session.iframe.srcdoc).toBe(before);
+  });
+
+  it("blocks an asset whose proxy URL does not parse", async () => {
+    const proxy: PreviewAssetProxy = {
+      async open() {
+        return { origin: PROXY_ORIGIN, expires_at: Date.now() + 60_000, urlFor: () => "::not a url::", revoke() {} };
+      },
+    };
+    const { session } = await mount(`<img src="img/a%20b.png">`, { proxy });
+    expect(session.iframe.srcdoc).toContain(`src="about:blank#blocked"`);
+  });
+
   it("refuses a proxy that shares the app origin and revokes its scope", async () => {
     const shared = fakeProxy({ origin: APP });
     await expect(mount("<p>x</p>", { proxy: shared.proxy })).rejects.toMatchObject({ name: "PreviewIsolationError" });
@@ -221,7 +339,7 @@ describe("mountHtmlPreview", () => {
     const { session } = await mount(`<img src="img/a%20b.png">`, { proxy: fake.proxy });
     expect(session.iframe.srcdoc).toContain(PROXY_ORIGIN + "/s/");
     now += 60_000;
-    session.update(`<img src="img/a%20b.png">`);
+    await session.update(`<img src="img/a%20b.png">`);
     expect(session.iframe.srcdoc).not.toContain(PROXY_ORIGIN + "/s/");
     session.dispose();
     expect(fake.revoked()).toBe(1);
@@ -236,7 +354,7 @@ describe("mountHtmlPreview", () => {
     };
     const { session } = await mount(`<img src="img/a%20b.png">`, { proxy });
     expect(session.iframe.srcdoc).not.toContain("evil.example");
-    session.update(`<img src="img/a%20b.png">`, { ...MANIFEST, entries: [] });
+    await session.update(`<img src="img/a%20b.png">`, { ...MANIFEST, entries: [] });
     expect(session.iframe.srcdoc).toContain("about:blank#blocked");
   });
 });

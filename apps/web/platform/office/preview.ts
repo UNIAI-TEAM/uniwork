@@ -5,16 +5,24 @@
 //     and cannot read this app's cookies, localStorage, IndexedDB or DOM;
 //   * never gets allow-top-navigation*, allow-popups*, allow-forms or
 //     allow-downloads; allow-scripts only when the capability asks for it;
-//   * carries a CSP (in the copy and on the frame) that blocks every network
-//     request except the scoped asset proxy origin: connect-src 'none',
-//     no frames, no forms, no <base>;
+//   * carries a CSP (in the copy and on the frame) that blocks every
+//     subresource request except the scoped asset proxy origin:
+//     connect-src 'none', no frames, no forms, no <base>;
 //   * receives a PREVIEW COPY built by @uniwork/office-engine/html - relative
 //     URLs, CSS, fonts and images are rewritten there only; the source a
 //     save serialises is never touched, and the theme only adds a
 //     color-scheme hint to the copy.
 //
-// The bridge back to the app is a MessageChannel handed to the frame once,
-// with a per-session nonce. The app never listens to window "message"
+// Residual risk with scripts ON: a script can navigate its own frame to any
+// URL and carry document text in it (browsers have no navigation CSP and no
+// sandbox flag against self-navigation). The host then blanks the frame and
+// withholds the bridge, but the request has already left - so the scripts
+// capability is for documents whose author is trusted, and it is off by
+// default. With scripts OFF nothing in the document can navigate: links,
+// <base>, meta refresh and srcdoc are neutralised in the copy.
+//
+// The bridge back to the app is a MessageChannel handed to the frame once
+// per srcdoc render, with a per-session nonce. The app never listens to window "message"
 // events for the preview, rejects origin-null and nonce-less messages, and
 // no inbound message can carry a URL or path: the app never fetches anything
 // a message names.
@@ -57,7 +65,9 @@ export interface PreviewAssetProxy {
   open(request: PreviewAssetScopeRequest): Promise<PreviewAssetScope>;
 }
 
-export type PreviewEvent = { type: "ready" } | { type: "resize"; height: number };
+/** "ready"/"resize" arrive from the preview; "navigated" is raised by the host
+ * when the document left the preview on its own (the frame is blanked). */
+export type PreviewEvent = { type: "ready" } | { type: "resize"; height: number } | { type: "navigated" };
 
 /** Preview TTL when the caller names none: long enough to read, short enough to expire. */
 const DEFAULT_TTL_MS = 10 * 60 * 1000;
@@ -123,9 +133,11 @@ function newNonce(): string {
 
 /**
  * The single gate for inbound bridge messages. Returns the event, rebuilt
- * from validated fields, or null. Rejects: origin "null", a missing or wrong
- * nonce, an unknown type, and any extra field (so no URL or path can ride
- * along).
+ * from validated fields, or null. Rejects a missing or wrong nonce, an
+ * unknown type, and any extra field (so no URL or path can ride along).
+ * Real port messages carry origin "" - the port and the nonce are the gates.
+ * An event with origin "null" is refused outright so that no caller can ever
+ * route a window message from an opaque-origin frame through this gate.
  */
 export function acceptPreviewMessage(event: { data: unknown; origin?: string }, nonce: string): PreviewEvent | null {
   if (event.origin === "null") return null;
@@ -193,8 +205,9 @@ export interface MountHtmlPreviewOptions {
 export interface HtmlPreviewSession {
   iframe: HTMLIFrameElement;
   nonce: string;
-  /** Re-render from new source (same scope while it lasts). */
-  update(text: string, manifest?: AssetManifest): void;
+  /** Re-render from new source. A manifest with keys the scope has not
+   * granted reopens the scope (same origin) before rendering. */
+  update(text: string, manifest?: AssetManifest): Promise<void>;
   dispose(): void;
 }
 
@@ -205,24 +218,34 @@ const DENIED_FEATURES =
 export async function mountHtmlPreview(options: MountHtmlPreviewOptions): Promise<HtmlPreviewSession> {
   const appOrigin = options.appOrigin ?? window.location.origin;
   const capability = options.capability;
+  const ttl_ms = options.scope.ttl_ms ?? DEFAULT_TTL_MS;
   let manifest = options.manifest;
-  const scope = await options.proxy.open({
-    document_id: options.scope.document_id,
-    job_id: options.scope.job_id,
-    ttl_ms: options.scope.ttl_ms ?? DEFAULT_TTL_MS,
-    keys: manifest.entries.map((e) => e.key),
-  });
-  let assetOrigin: string;
-  try {
-    assetOrigin = checkAssetOrigin(scope.origin, appOrigin);
-  } catch (error) {
-    scope.revoke();
-    throw error;
-  }
+  const openScope = async (keys: string[], requiredOrigin: string | null) => {
+    const opened = await options.proxy.open({
+      document_id: options.scope.document_id,
+      job_id: options.scope.job_id,
+      ttl_ms,
+      keys,
+    });
+    try {
+      const origin = checkAssetOrigin(opened.origin, appOrigin);
+      // The CSP is fixed at mount; a reopened scope must stay on its origin.
+      if (requiredOrigin !== null && origin !== requiredOrigin) {
+        throw new PreviewIsolationError("asset proxy origin changed within a preview session");
+      }
+      return { scope: opened, origin, granted: new Set(keys) };
+    } catch (error) {
+      opened.revoke();
+      throw error;
+    }
+  };
+  let current = await openScope(manifest.entries.map((e) => e.key), null);
+  const assetOrigin = current.origin;
   const csp = previewCsp(assetOrigin, capability);
   const nonce = newNonce();
 
   const assetUrl = (key: string): string | null => {
+    const { scope } = current;
     if (Date.now() >= scope.expires_at) return null;
     const url = scope.urlFor(key);
     if (url === null) return null;
@@ -253,10 +276,29 @@ export async function mountHtmlPreview(options: MountHtmlPreviewOptions): Promis
   iframe.setAttribute("title", options.title);
   iframe.className = "block h-full w-full border-0 bg-background";
 
+  // Which document the next load belongs to. Only a load WE caused by
+  // assigning srcdoc may receive the bridge; any other load means the
+  // document navigated its own frame (possible with scripts on: no sandbox
+  // flag or CSP directive stops self-navigation), so the frame is blanked and
+  // the new occupant never gets a port or the nonce (FE review r1 F-1).
+  let pending: "document" | "blank" | null = null;
+  const show = (text: string) => {
+    pending = "document";
+    iframe.srcdoc = render(text);
+  };
   let bridge: PreviewBridge | null = null;
   const onLoad = () => {
+    const cause = pending;
+    pending = null;
     bridge?.close();
     bridge = null;
+    if (cause === "blank") return;
+    if (cause === null) {
+      pending = "blank";
+      iframe.srcdoc = "";
+      options.onEvent?.({ type: "navigated" });
+      return;
+    }
     if (capability?.scripts !== true) {
       // No script can run: the only trustworthy signal is the host's own load event.
       options.onEvent?.({ type: "ready" });
@@ -268,21 +310,37 @@ export async function mountHtmlPreview(options: MountHtmlPreviewOptions): Promis
     iframe.contentWindow?.postMessage({ type: INIT_TYPE, nonce }, "*", [bridge.remote]);
   };
   iframe.addEventListener("load", onLoad);
-  iframe.srcdoc = render(options.text);
+  show(options.text);
   options.container.appendChild(iframe);
 
+  let disposed = false;
   return {
     iframe,
     nonce,
-    update(text, next) {
-      if (next) manifest = next;
-      iframe.srcdoc = render(text);
+    async update(text, next) {
+      if (next) {
+        manifest = next;
+        const keys = next.entries.map((e) => e.key);
+        if (keys.some((key) => !current.granted.has(key))) {
+          // New assets (e.g. an image dropped in while editing) need a grant:
+          // reopen the scope with the new key set and retire the old one.
+          const reopened = await openScope(keys, assetOrigin);
+          if (disposed) {
+            reopened.scope.revoke();
+            return;
+          }
+          current.scope.revoke();
+          current = reopened;
+        }
+      }
+      if (!disposed) show(text);
     },
     dispose() {
+      disposed = true;
       iframe.removeEventListener("load", onLoad);
       bridge?.close();
       bridge = null;
-      scope.revoke();
+      current.scope.revoke();
       iframe.remove();
     },
   };
