@@ -16,6 +16,7 @@
 //
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import {
   inspectSource,
   readTreeEntries,
@@ -78,6 +79,20 @@ export const SELECTION = [
   'tsconfig.base.json',
   'vitest.config.ts',
 ];
+
+/** The git blob id of file contents, recomputed the same way git stores it. */
+export function gitBlobSha(buf) {
+  return crypto.createHash('sha1').update('blob ' + buf.length + '\0').update(buf).digest('hex');
+}
+
+/** One anchor digest over every recorded (path, sha256, blob, mode) tuple. */
+export function filesDigest(files) {
+  const hash = crypto.createHash('sha256');
+  for (const f of [...files].sort((a, b) => (a.path < b.path ? -1 : 1))) {
+    hash.update(f.path + '\0' + f.sha256 + '\0' + (f.blob || '') + '\0' + (f.mode || '') + '\n');
+  }
+  return hash.digest('hex');
+}
 
 export function parseArgs(argv) {
   const out = { source: null, check: false, help: false };
@@ -177,6 +192,7 @@ export function vendor({ sourceDir, manifest, commit }) {
     },
     selection: SELECTION,
     fileCount: files.length,
+    integrity: { filesDigest: filesDigest(files) },
     files,
   };
   fs.writeFileSync(PROVENANCE_PATH, JSON.stringify(record, null, 2) + '\n');
@@ -196,14 +212,20 @@ export function checkVendored(manifest) {
   if (record.kind !== RECORD_KIND) problems.push({ problem: `provenance kind is ${record.kind}` });
   if (record.upstream?.pinnedCommit !== manifest.upstream.pinnedCommit) problems.push({ problem: 'pinned commit mismatch' });
   if (record.upstream?.pinnedTree !== manifest.upstream.pinnedTree) problems.push({ problem: 'pinned tree mismatch' });
+  if (record.integrity?.filesDigest !== filesDigest(record.files || [])) {
+    problems.push({ problem: 'integrity.filesDigest does not match the recorded file set - provenance was edited after vendoring' });
+  }
   const seen = new Set();
   const byPath = new Map((record.files || []).map((f) => [f.path, f]));
   for (const f of record.files || []) {
     seen.add(f.path);
     const p = path.join(UPSTREAM_DIR, f.path);
     if (!fs.existsSync(p)) { problems.push({ path: f.path, problem: 'missing' }); continue; }
-    const h = sha256Bytes(fs.readFileSync(p));
+    const buf = fs.readFileSync(p);
+    const h = sha256Bytes(buf);
     if (h !== f.sha256) problems.push({ path: f.path, problem: `sha256 ${h} != ${f.sha256}` });
+    const blob = gitBlobSha(buf);
+    if (f.blob && blob !== f.blob) problems.push({ path: f.path, problem: `git blob ${blob} != ${f.blob}` });
   }
   const walk = (dir) => {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -228,6 +250,41 @@ export function checkVendored(manifest) {
   return problems;
 }
 
+/**
+ * The strongest available check: every recorded path must exist in the pinned
+ * upstream tree with the same blob id. This is what makes "edit file + edit
+ * provenance" impossible to hide: the anchor is the pinned upstream objects,
+ * not the provenance record itself. Requires --source <genoffice checkout>.
+ */
+export function checkAgainstPinnedTree(manifest, sourceDir) {
+  const problems = [];
+  const record = JSON.parse(fs.readFileSync(PROVENANCE_PATH, 'utf8'));
+  const info = inspectSource(sourceDir);
+  if (info.commit !== manifest.upstream.pinnedCommit) {
+    problems.push({ problem: `source checkout is at ${info.commit}, expected pinned ${manifest.upstream.pinnedCommit}` });
+    return problems;
+  }
+  if (info.tree !== manifest.upstream.pinnedTree) {
+    problems.push({ problem: `pinned commit tree is ${info.tree}, expected ${manifest.upstream.pinnedTree}` });
+    return problems;
+  }
+  const upstream = new Map(readTreeEntries(sourceDir, info.commit).map((e) => [e.path, e]));
+  const seen = new Set();
+  for (const f of record.files || []) {
+    seen.add(f.path);
+    const entry = upstream.get(f.path);
+    if (!entry) { problems.push({ path: f.path, problem: 'not in the pinned upstream tree' }); continue; }
+    if (entry.sha !== f.blob) problems.push({ path: f.path, problem: `upstream blob ${entry.sha} != recorded ${f.blob}` });
+    if (entry.mode && f.mode && entry.mode !== f.mode) problems.push({ path: f.path, problem: `mode ${f.mode} != upstream ${entry.mode}` });
+  }
+  for (const [p, e] of upstream) {
+    if (!seen.has(p) && e.type === 'blob' && SELECTION.some((sel) => isWithinEntry(p, sel))) {
+      problems.push({ path: p, problem: 'selected upstream blob absent from provenance' });
+    }
+  }
+  return problems;
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
@@ -238,11 +295,18 @@ async function main() {
   const commit = manifest.upstream.pinnedCommit;
   if (args.check) {
     const problems = checkVendored(manifest);
+    let pinnedChecked = false;
+    if (args.source) {
+      const pinned = checkAgainstPinnedTree(manifest, path.resolve(args.source));
+      problems.push(...pinned);
+      pinnedChecked = true;
+    }
     if (problems.length) {
       console.log(JSON.stringify({ ok: false, problems }, null, 1));
       process.exit(1);
     }
-    console.log('vendor-upstream: OK - vendored bytes match provenance.json');
+    console.log('vendor-upstream: OK - vendored bytes match provenance.json' +
+      (pinnedChecked ? ' and every recorded blob matches the pinned upstream tree' : ''));
     return;
   }
   if (!args.source) throw new Error('--source <genoffice checkout> is required');

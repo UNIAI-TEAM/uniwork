@@ -63,4 +63,19 @@ describe("HostCapabilityRefusal", () => {
     expect(refusal.engine_error).toBe("engine_crashed");
     expect(refusal.toJSON().engine_error).toBe("engine_crashed");
   });
+
+  it("keeps a clean caller message on the wire", () => {
+    const refusal = new HostCapabilityRefusal("host:docs-save", "unbound", "save op is not bound");
+    expect(refusal.toJSON().message).toBe("save op is not bound");
+  });
+
+  it("replaces a caller message that names a host path or key", () => {
+    const refusal = new HostCapabilityRefusal(
+      "host:docs-save",
+      "failed",
+      "cannot write C:\\work\\out.docx - denied",
+    );
+    expect(refusal.toJSON().message).toBe("host:docs-save refused: failed");
+    expect(JSON.stringify(refusal.toJSON())).not.toContain("C:\\work");
+  });
 });

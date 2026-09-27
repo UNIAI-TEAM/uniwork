@@ -44,6 +44,9 @@
     "vitest.config.ts"
   ],
   "fileCount": 764,
+  "integrity": {
+    "filesDigest": "fca30f798f4680d0e3d4226b5bfdec2eaca230bfb01f1bc013b8056d41fd55e8"
+  },
   "files": [
     {
       "path": "LICENSE",

@@ -128,8 +128,20 @@ export function checkInputs({ capability, manifest, buildDir, provenance }) {
   for (const rel of capability.enginePaths) {
     if (!fs.existsSync(path.join(UPSTREAM_DIR, rel))) problems.push(`engine source ${rel} is not in the vendored tree`);
   }
+  // When a build record exists the artifact must hash to what the build
+  // recorded: a rebuilt, hand-edited or stale dist file is input drift, not
+  // something a replay may silently pass over. No record means existence-only.
+  const recordPath = path.join(buildDir, 'build-record.json');
+  const record = fs.existsSync(recordPath) ? JSON.parse(fs.readFileSync(recordPath, 'utf8')) : null;
+  if (record && record.verdict === 'fail') problems.push('build-record.json verdict is fail - the recorded build did not pass');
   for (const rel of capability.artifacts) {
-    if (!fs.existsSync(path.join(buildDir, rel))) problems.push(`build artifact ${rel} is missing - run scripts/office/build-upstream.mjs`);
+    const abs = path.join(buildDir, rel);
+    if (!fs.existsSync(abs)) { problems.push(`build artifact ${rel} is missing - run scripts/office/build-upstream.mjs`); continue; }
+    if (record) {
+      const entry = (record.artifacts || []).find((a) => a.out === rel);
+      if (!entry || entry.status !== 'built') problems.push(`build artifact ${rel} is not recorded as built in build-record.json`);
+      else if (sha256File(abs) !== entry.sha256) problems.push(`build artifact ${rel} sha256 drifted from build-record.json - rebuild or investigate`);
+    }
   }
   return { problems, fixtures };
 }

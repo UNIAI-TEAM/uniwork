@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { OfficeFormat } from "./formats";
 import type { EngineErrorCode } from "./error-codes";
 import type { OpenOutcome } from "./failure-classes";
+import { publicMessage } from "./leaks";
 
 // Host adapter contract (ADR 0021, engine-contract.md §9/§10): the host owns
 // read, write, asset resolution, worker hosting and IPC transport; the engine
@@ -50,7 +51,9 @@ export class HostCapabilityRefusal extends Error {
       kind: "host_refusal" as const,
       channel: this.channel,
       reason: this.reason,
-      message: this.message,
+      // The message is caller-provided and serialized verbatim to the host:
+      // a caller that embeds a host path or storage key must not leak it.
+      message: publicMessage(this.message, this.channel + " refused: " + this.reason),
       engine_error: this.engine_error ?? null,
     };
   }

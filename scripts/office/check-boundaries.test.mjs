@@ -66,6 +66,63 @@ test("fails on a browser entry importing the node entry point", () => {
   assert.ok(rules(result).includes("browser_isolation"));
 });
 
+test("fails on unverifiable module access in browser scope", () => {
+  const root = plant({
+    "packages/office-engine/src/browser/index.ts":
+      'const mod = await import(pickEngine());\nconst req = createRequire(import.meta.url);\nexport const x = mod;\n',
+  });
+  const result = checkBoundaries(root);
+  assert.equal(result.ok, false);
+  const detail = result.violations.map((v) => v.detail).join("\n");
+  assert.ok(detail.includes("computed import()"), "expected the computed import() to be flagged");
+  assert.ok(detail.includes("createRequire"), "expected createRequire to be flagged");
+});
+
+test("fails on a template import the checker cannot enumerate", () => {
+  const root = plant({
+    "packages/office-engine/src/browser/index.ts":
+      "const mod = await import(`./engines/${name}`);\nexport const x = mod;\n",
+  });
+  const result = checkBoundaries(root);
+  assert.equal(result.ok, false);
+  const detail = result.violations.map((v) => v.detail).join("\n");
+  assert.ok(detail.includes("template import()"), "expected the ${} template import() to be flagged");
+});
+
+test("a literal template import is extracted and checked normally", () => {
+  const root = plant({
+    "packages/office-engine/src/browser/index.ts":
+      "const fs = await import(`node:fs`);\nexport const x = fs;\n",
+  });
+  const result = checkBoundaries(root);
+  assert.equal(result.ok, false);
+  const detail = result.violations.map((v) => v.detail).join("\n");
+  assert.ok(detail.includes("node:fs"), "expected the literal template import of node:fs to be caught");
+});
+
+test("fails when exports[\"./browser\"] points at node code", () => {
+  const root = plant({
+    "packages/office-engine/package.json":
+      JSON.stringify({ name: "@uniwork/office-engine", exports: { ".": "./src/index.ts", "./browser": "./src/node/index.ts" } }),
+    "packages/office-engine/src/index.ts": "export {};\n",
+    "packages/office-engine/src/node/index.ts": 'import fs from "node:fs";\nexport const n = fs;\n',
+  });
+  const result = checkBoundaries(root);
+  assert.equal(result.ok, false);
+  assert.ok(rules(result).includes("exports_map"));
+});
+
+test("fails when exports[\".\"] target does not exist", () => {
+  const root = plant({
+    "packages/office-engine/package.json":
+      JSON.stringify({ name: "@uniwork/office-engine", exports: { ".": "./src/missing.ts", "./browser": "./src/browser/index.ts" } }),
+    "packages/office-engine/src/browser/index.ts": "export {};\n",
+  });
+  const result = checkBoundaries(root);
+  assert.equal(result.ok, false);
+  assert.ok(rules(result).includes("exports_map"));
+});
+
 test("fails on a planted /ee path", () => {
   const root = plant({
     "packages/office-upstream/LICENSE": "Apache-2.0\n",

@@ -12,6 +12,12 @@
 //   node scripts/office/build-upstream.mjs --skip-install # reuse existing deps
 //   node scripts/office/build-upstream.mjs --out <dir> --json
 //
+// Dependencies install into <out>/upstream/node_modules from the vendored
+// package.json + package-lock.json - the lock is the authoritative graph, the
+// public npm registry is pinned and ambient npmrc/npm_config settings are
+// stripped so resolution cannot float between builds. G0 tooling resolves
+// <source>/node_modules directly, so no junction or symlink is needed.
+//
 // Artifacts land in <out>/dist/*.mjs with sha256 recorded in
 // <out>/build-record.json. A missing input, failed install or failed bundle
 // exits non-zero; native work the script does not attempt is reported as
@@ -19,7 +25,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { REPO_ROOT } from '../office-g0/paths.mjs';
 import {
@@ -66,6 +72,8 @@ export function parseArgs(argv) {
   return out;
 }
 
+export const NPM_REGISTRY = 'https://registry.npmjs.org';
+
 export const sha256File = (p) => crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex').toUpperCase();
 
 function fail(record, step, detail) {
@@ -74,15 +82,26 @@ function fail(record, step, detail) {
   throw Object.assign(new Error(step + ': ' + detail), { record });
 }
 
-/** Exact versions the vendored package-lock pins for a dependency name. */
-export function lockedVersions(lock, name) {
-  const found = new Map();
-  for (const [key, meta] of Object.entries(lock.packages || {})) {
-    if (!key.endsWith('node_modules/' + name)) continue;
-    if (meta.link) continue;
-    found.set(meta.version, key);
+/**
+ * npm spawn environment with ambient npm_config_* settings stripped and the
+ * registry pinned: a developer .npmrc, corporate mirror or npm_config_registry
+ * must not change which registry the vendored lockfile is resolved against.
+ * The lockfile's own resolved URLs and the --registry flag agree with it.
+ */
+export function npmEnv() {
+  const env = {};
+  for (const [k, v] of Object.entries(process.env)) {
+    if (!k.toLowerCase().startsWith('npm_config_')) env[k] = v;
   }
-  return found;
+  env.npm_config_registry = NPM_REGISTRY;
+  return env;
+}
+
+/** Spawn npm portably: Windows cannot exec npm.cmd without a shell. */
+export function npmSpawn(args, cwd, timeoutMs = 20 * 60 * 1000) {
+  return process.platform === 'win32'
+    ? spawnSync(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', 'npm', ...args], { cwd, env: npmEnv(), encoding: 'utf8', timeout: timeoutMs })
+    : spawnSync('npm', args, { cwd, env: npmEnv(), encoding: 'utf8', timeout: timeoutMs });
 }
 
 /** The workspace packages inside the copied tree, in dependency order. */
@@ -144,48 +163,30 @@ const rawTextPlugin = {
 };
 
 /**
- * Synthetic manifest for the scratch workspace: every external dependency of
- * every vendored package pinned to the exact version the vendored
- * package-lock resolves, plus single-version transitive pins as overrides.
+ * Installs dependencies in the copied upstream tree from its own vendored
+ * package.json + package-lock.json. The lock is the authoritative dependency
+ * graph: npm prefers locked versions for every name it covers, the public
+ * registry is pinned, ambient npmrc/npm_config settings are stripped, and
+ * lifecycle scripts (the upstream postinstall pulls Electron) never run.
+ * The lockfile hash before/after install is recorded so any lock rewrite
+ * (e.g. pruning entries for workspaces outside the selection) is auditable.
  */
-export function scratchManifest(scratchUpstream, lock) {
-  const direct = new Map();
-  for (const dirName of fs.readdirSync(path.join(scratchUpstream, 'packages')).sort()) {
-    const pj = path.join(scratchUpstream, 'packages', dirName, 'package.json');
-    if (!fs.existsSync(pj)) continue;
-    const meta = JSON.parse(fs.readFileSync(pj, 'utf8'));
-    for (const [dep, range] of Object.entries(meta.dependencies || {})) {
-      if (dep.startsWith('@genoffice/')) continue;
-      const versions = lockedVersions(lock, dep);
-      if (!versions.size) throw new Error(`no locked version for ${dep} (wanted ${range} by ${meta.name})`);
-      const pinned = [...versions.keys()].sort().pop();
-      if (direct.has(dep) && direct.get(dep) !== pinned) throw new Error(`conflicting locked versions for ${dep}`);
-      direct.set(dep, pinned);
-    }
-  }
-  for (const dep of ['tsx', 'typescript', 'vitest', '@types/node', 'pptxgenjs', 'pdf-lib']) {
-    const versions = lockedVersions(lock, dep);
-    if (!versions.size) throw new Error(`required dev tool ${dep} is not in the vendored lock`);
-    direct.set(dep, [...versions.keys()].sort().pop());
-  }
-  const overrides = {};
-  const names = new Set();
-  for (const key of Object.keys(lock.packages || {})) {
-    const at = key.lastIndexOf('node_modules/');
-    if (at === -1) continue;
-    names.add(key.slice(at + 'node_modules/'.length));
-  }
-  for (const name of names) {
-    const versions = lockedVersions(lock, name);
-    if (versions.size === 1 && !name.startsWith('@genoffice/')) overrides[name] = [...versions.keys()][0];
-  }
-  return {
-    name: 'office-upstream-build',
-    private: true,
-    workspaces: ['upstream/packages/*'],
-    dependencies: Object.fromEntries([...direct.entries()].sort((a, b) => a[0].localeCompare(b[0]))),
-    overrides,
-  };
+export function installDeps(scratchUpstream, record) {
+  const lockPath = path.join(scratchUpstream, 'package-lock.json');
+  const lockBefore = fs.existsSync(lockPath) ? sha256File(lockPath) : null;
+  const inst = npmSpawn(
+    ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--registry', NPM_REGISTRY],
+    scratchUpstream,
+  );
+  if (inst.error) fail(record, 'install', String(inst.error.message || inst.error));
+  if (inst.status !== 0) fail(record, 'install', ((inst.stderr || '') + (inst.stdout || '')).slice(-2000));
+  const lockAfter = fs.existsSync(lockPath) ? sha256File(lockPath) : null;
+  const nm = path.join(scratchUpstream, 'node_modules');
+  const topLevel = fs.existsSync(nm) ? fs.readdirSync(nm).filter((n) => !n.startsWith('.')).length : 0;
+  const npmV = npmSpawn(['--version'], scratchUpstream, 30 * 1000).stdout.trim();
+  const detail = { npm: npmV, registry: NPM_REGISTRY, topLevel, lockSha256Before: lockBefore, lockSha256After: lockAfter };
+  record.steps.push({ step: 'install', status: 'pass', detail: `npm ${npmV}, ${topLevel} top-level entries, registry ${NPM_REGISTRY}` });
+  record.install = detail;
 }
 
 export async function run({ out, skipInstall, withNative, keep }) {
@@ -210,14 +211,20 @@ export async function run({ out, skipInstall, withNative, keep }) {
   record.steps.push({ step: 'provenance', status: 'pass', detail: `${provenance.fileCount} files match ${provenance.upstream.pinnedCommit.slice(0, 12)}` });
 
   const scratch = path.resolve(out || DEFAULT_OUT);
-  if (keep || skipInstall) {
-    fs.rmSync(path.join(scratch, 'upstream'), { recursive: true, force: true });
-    fs.rmSync(path.join(scratch, 'dist'), { recursive: true, force: true });
-  } else {
-    fs.rmSync(scratch, { recursive: true, force: true });
-  }
   const scratchUpstream = path.join(scratch, 'upstream');
   fs.mkdirSync(scratch, { recursive: true });
+  if (keep || skipInstall) {
+    // Preserve the installed tree only; everything else is refreshed.
+    if (fs.existsSync(scratchUpstream)) {
+      for (const e of fs.readdirSync(scratchUpstream)) {
+        if (e !== 'node_modules') fs.rmSync(path.join(scratchUpstream, e), { recursive: true, force: true });
+      }
+    }
+    fs.rmSync(path.join(scratch, 'dist'), { recursive: true, force: true });
+  } else {
+    fs.rmSync(scratchUpstream, { recursive: true, force: true });
+    fs.rmSync(path.join(scratch, 'dist'), { recursive: true, force: true });
+  }
   fs.cpSync(UPSTREAM_DIR, scratchUpstream, { recursive: true, dereference: false });
   record.steps.push({ step: 'copy', status: 'pass', detail: `${provenance.fileCount} files -> ${path.relative(REPO_ROOT, scratch)}` });
 
@@ -229,35 +236,11 @@ export async function run({ out, skipInstall, withNative, keep }) {
   }
   record.steps.push({ step: 'patches', status: 'pass', detail: `${record.patchesApplied.length} applied` });
 
-  const lock = JSON.parse(fs.readFileSync(path.join(scratchUpstream, 'package-lock.json'), 'utf8'));
-  fs.writeFileSync(path.join(scratch, 'package.json'), JSON.stringify(scratchManifest(scratchUpstream, lock), null, 2) + '\n');
   if (!skipInstall) {
-    const npmArgs = ['install', '--no-audit', '--no-fund'];
-    // Windows cannot spawn npm.cmd directly: route through cmd.exe.
-    const inst = process.platform === 'win32'
-      ? spawnSync(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', 'npm', ...npmArgs], { cwd: scratch, encoding: 'utf8', timeout: 20 * 60 * 1000 })
-      : spawnSync('npm', npmArgs, { cwd: scratch, encoding: 'utf8', timeout: 20 * 60 * 1000 });
-    if (inst.error) fail(record, 'install', String(inst.error.message || inst.error));
-    if (inst.status !== 0) fail(record, 'install', ((inst.stderr || '') + (inst.stdout || '')).slice(-2000));
-    const installed = fs.existsSync(path.join(scratch, 'node_modules')) ? fs.readdirSync(path.join(scratch, 'node_modules')).length : 0;
-    const npmV = process.platform === 'win32'
-      ? spawnSync(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', 'npm', '--version'], { encoding: 'utf8' }).stdout.trim()
-      : spawnSync('npm', ['--version'], { encoding: 'utf8' }).stdout.trim();
-    record.steps.push({ step: 'install', status: 'pass', detail: `npm ${npmV}, ${installed} top-level entries` });
+    installDeps(scratchUpstream, record);
   } else {
-    if (!fs.existsSync(path.join(scratch, 'node_modules'))) fail(record, 'install', '--skip-install but node_modules is absent');
+    if (!fs.existsSync(path.join(scratchUpstream, 'node_modules'))) fail(record, 'install', '--skip-install but node_modules is absent');
     record.steps.push({ step: 'install', status: 'pass', detail: 'reused existing node_modules' });
-  }
-
-  // G0 tooling resolves dependencies as <source>/node_modules/<pkg>: junction
-  // the installed tree into the scratch source copy so --source <scratch>/upstream
-  // works for fixture generation and engine bundling without a second install.
-  const upstreamModules = path.join(scratchUpstream, 'node_modules');
-  fs.rmSync(upstreamModules, { recursive: true, force: true });
-  try {
-    fs.symlinkSync(path.join(scratch, 'node_modules'), upstreamModules, 'junction');
-  } catch {
-    fs.symlinkSync(path.join(scratch, 'node_modules'), upstreamModules, 'dir');
   }
 
   const requireFromRepo = createRequire(path.join(REPO_ROOT, 'package.json'));
@@ -294,7 +277,7 @@ export async function run({ out, skipInstall, withNative, keep }) {
         logLevel: 'warning',
         plugins: [rawTextPlugin],
         external: BUNDLE_EXTERNALS,
-        nodePaths: [path.join(scratch, 'node_modules')],
+        nodePaths: [path.join(scratchUpstream, 'node_modules')],
         metafile: true,
       });
       const bytes = fs.statSync(outFile).size;

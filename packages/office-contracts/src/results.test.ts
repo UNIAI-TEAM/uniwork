@@ -144,6 +144,14 @@ describe("leak scanning + public projection", () => {
     expect(scanForLeaks({ document_model_ref: "engine-session:J1", warnings: [] })).toEqual([]);
   });
 
+  it("detects the alternate spellings of the same leaks", () => {
+    expect(scanForLeaks({ note: "under /root/.ssh/id" })).toContain("posix_absolute_path");
+    expect(scanForLeaks({ note: "see C:/work/file.docx" })).toContain("windows_forward_path");
+    expect(scanForLeaks({ note: "on //fs01/shared/x" })).toContain("unc_forward_path");
+    expect(scanForLeaks({ link: "https://docs.example/x" })).not.toContain("unc_forward_path");
+    expect(scanForLeaks({ link: "https://docs.example/x" })).not.toContain("windows_forward_path");
+  });
+
   it("strips authority/storage fields from a public result", () => {
     const internal = {
       job_id: "J1",

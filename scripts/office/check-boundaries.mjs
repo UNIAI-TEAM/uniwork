@@ -87,18 +87,43 @@ function* walk(dir) {
   }
 }
 
-/** Extract import/export/require specifier strings from a source file. */
+/** Extract import/export/require specifier strings from a source file.
+ * Literal template imports (`import(\`./x\`)` without `${}`) are extracted too;
+ * computed specifiers are not - they are reported by unverifiableModuleCalls. */
 export function extractImportSpecifiers(source) {
   const specifiers = [];
   const patterns = [
     /(?:import|export)\s+(?:type\s+)?(?:[^'"]*?\s+from\s+)?["']([^"']+)["']/g,
-    /import\s*\(\s*["']([^"']+)["']\s*\)/g,
-    /require\s*\(\s*["']([^"']+)["']\s*\)/g,
+    /import\s*\(\s*["'`]([^"'`$]+)["'`]\s*\)/g,
+    /require\s*\(\s*["'`]([^"'`$]+)["'`]\s*\)/g,
   ];
   for (const re of patterns) {
     for (const match of source.matchAll(re)) specifiers.push(match[1]);
   }
   return specifiers;
+}
+
+/**
+ * Module-resolution constructs a static checker cannot verify: a computed
+ * import()/require() argument, a template specifier containing ${}, or
+ * createRequire (which rebuilds CJS resolution anywhere). In browser scope
+ * each is a violation - the surface must stay statically enumerable.
+ */
+export function unverifiableModuleCalls(source) {
+  const hits = [];
+  const patterns = [
+    [/\bimport\s*\(\s*(?!["'`])/g, "computed import()"],
+    [/\bimport\s*\(\s*`[^`]*\$\{/g, "template import() with ${}"],
+    [/\brequire\s*\(\s*(?!["'`])/g, "computed require()"],
+    [/\brequire\s*\(\s*`[^`]*\$\{/g, "template require() with ${}"],
+    [/\bcreateRequire\b/g, "createRequire"],
+    [/\bprocess\.env\b/g, "process.env"],
+    [/\bglobalThis\.process\b/g, "globalThis.process"],
+  ];
+  for (const [re, label] of patterns) {
+    for (const match of source.matchAll(re)) hits.push(label + " " + JSON.stringify(match[0].trim()));
+  }
+  return hits;
 }
 
 /** Resolve a relative specifier to a file that exists. */
@@ -153,6 +178,9 @@ export function checkBoundaries(root, { requireUpstreamLicence = null } = {}) {
     if (!SOURCE_EXT.has(path.extname(normalized))) continue;
 
     const source = fs.readFileSync(normalized, "utf8");
+    for (const hit of unverifiableModuleCalls(source)) {
+      report("browser_isolation", normalized, `unverifiable module access: ${hit}`);
+    }
     for (const specifier of extractImportSpecifiers(source)) {
       if (isForbiddenSpecifier(specifier)) {
         report("browser_isolation", normalized, `resolves forbidden specifier ${JSON.stringify(specifier)}`);
@@ -194,6 +222,35 @@ export function checkBoundaries(root, { requireUpstreamLicence = null } = {}) {
           if (specifier.split("/").includes("ee") || specifier.split("\\").includes("ee")) {
             report("ee_path", relPath, `imports an /ee path ${JSON.stringify(specifier)}`);
           }
+        }
+      }
+    }
+  }
+
+  // --- 2b. Exports map -------------------------------------------------------
+  // The package.json exports map is itself a boundary artifact: repointing "."
+  // or "./browser" at node/desktop code would bypass the import scan entirely,
+  // so every leaf target behind the browser surface is checked to exist and to
+  // stay out of node/desktop directories.
+  const enginePkg = "packages/office-engine";
+  const enginePkgJson = path.join(root, enginePkg, "package.json");
+  if (fs.existsSync(enginePkgJson)) {
+    const exportsMap = (JSON.parse(fs.readFileSync(enginePkgJson, "utf8")).exports) || {};
+    const leaves = (v) => typeof v === "string" ? [v]
+      : v && typeof v === "object" ? Object.values(v).flatMap(leaves) : [];
+    for (const key of [".", "./browser"]) {
+      if (!(key in exportsMap)) {
+        report("exports_map", `${enginePkg}/package.json`, `exports["${key}"] is missing - the browser surface must be declared`);
+        continue;
+      }
+      for (const leaf of leaves(exportsMap[key])) {
+        const target = leaf.replace(/^\.\//, "");
+        const segments = target.split("/");
+        if (segments.includes("node") || segments.includes("desktop")) {
+          report("exports_map", `${enginePkg}/package.json`,
+            `exports["${key}"] -> ${JSON.stringify(leaf)} puts node/desktop code behind the browser surface`);
+        } else if (!fs.existsSync(path.join(root, enginePkg, target))) {
+          report("exports_map", `${enginePkg}/package.json`, `exports["${key}"] target ${JSON.stringify(leaf)} does not exist`);
         }
       }
     }
