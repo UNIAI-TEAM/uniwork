@@ -44,10 +44,10 @@ func TestDocumentCommit(t *testing.T) {
 			if res.Access.Level != DocumentLevelManage {
 				t.Fatalf("access = %+v, want the creator's manage", res.Access)
 			}
-			if got := env.read(t, member, created.Document.ID, 0, DocumentRange{}); !bytes.Equal(got, body) {
+			if got := env.read(t, member, created.Document.ID, 0, DocumentByteRange{}); !bytes.Equal(got, body) {
 				t.Fatal("download does not return the committed bytes")
 			}
-			if got := env.read(t, member, created.Document.ID, 1, DocumentRange{}); !bytes.Equal(got, pdfBody("v1")) {
+			if got := env.read(t, member, created.Document.ID, 1, DocumentByteRange{}); !bytes.Equal(got, pdfBody("v1")) {
 				t.Fatal("version 1 download does not return the first bytes")
 			}
 			if n := env.countAudit(t, audit.ActionDocumentVersionCreated, created.Document.ID); n != 1 {
@@ -155,7 +155,7 @@ func TestDocumentCommit(t *testing.T) {
 				t.Fatalf("versions after retry = %d, want exactly 2", len(vs))
 			}
 			// The pointer is not broken: it names a version whose file opens.
-			if got := env.read(t, member, d.ID, 0, DocumentRange{}); !bytes.Equal(got, pdfBody("flaky-v2")) {
+			if got := env.read(t, member, d.ID, 0, DocumentByteRange{}); !bytes.Equal(got, pdfBody("flaky-v2")) {
 				t.Fatal("pointer after retry does not serve the committed bytes")
 			}
 		})
@@ -249,7 +249,7 @@ func TestDocumentCommit(t *testing.T) {
 			if after := env.usage(t); after != before {
 				t.Fatalf("restore charged storage: %d -> %d", before, after)
 			}
-			if got := env.read(t, member, created.Document.ID, 0, DocumentRange{}); !bytes.Equal(got, v1) {
+			if got := env.read(t, member, created.Document.ID, 0, DocumentByteRange{}); !bytes.Equal(got, v1) {
 				t.Fatal("restored pointer does not serve the first bytes")
 			}
 			if n := env.countAudit(t, audit.ActionDocumentVersionRestored, created.Document.ID); n != 1 {

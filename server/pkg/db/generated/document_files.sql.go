@@ -44,56 +44,6 @@ func (q *Queries) DocumentFileInUse(ctx context.Context, arg DocumentFileInUsePa
 	return in_use, err
 }
 
-const getDocumentVersionByID = `-- name: GetDocumentVersionByID :one
-SELECT id, organization_id, workspace_id, document_id, version, kind, reason, label, content, file_id, mime_type, size_bytes, checksum_sha256, restored_from, engine_name, engine_version, contract_version, protocol_version, created_by, created_by_kind, created_at
-FROM document_versions
-WHERE id = $1
-  AND organization_id = $2
-  AND workspace_id = $3
-  AND document_id = $4
-`
-
-type GetDocumentVersionByIDParams struct {
-	ID             string `json:"id"`
-	OrganizationID string `json:"organization_id"`
-	WorkspaceID    string `json:"workspace_id"`
-	DocumentID     string `json:"document_id"`
-}
-
-func (q *Queries) GetDocumentVersionByID(ctx context.Context, arg GetDocumentVersionByIDParams) (DocumentVersion, error) {
-	row := q.db.QueryRow(ctx, getDocumentVersionByID,
-		arg.ID,
-		arg.OrganizationID,
-		arg.WorkspaceID,
-		arg.DocumentID,
-	)
-	var i DocumentVersion
-	err := row.Scan(
-		&i.ID,
-		&i.OrganizationID,
-		&i.WorkspaceID,
-		&i.DocumentID,
-		&i.Version,
-		&i.Kind,
-		&i.Reason,
-		&i.Label,
-		&i.Content,
-		&i.FileID,
-		&i.MimeType,
-		&i.SizeBytes,
-		&i.ChecksumSha256,
-		&i.RestoredFrom,
-		&i.EngineName,
-		&i.EngineVersion,
-		&i.ContractVersion,
-		&i.ProtocolVersion,
-		&i.CreatedBy,
-		&i.CreatedByKind,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
 const setDocumentFileVersion = `-- name: SetDocumentFileVersion :one
 
 UPDATE documents
@@ -124,8 +74,8 @@ type SetDocumentFileVersionParams struct {
 }
 
 // File documents (C-01 §14.2/§14.4; G1-03, UNI-677): the version pointer
-// swap, the upload-reuse check and the version lookup by id the commit,
-// restore and download commands need. Every query carries the tenant pair.
+// swap, the upload-reuse check the commit, restore and asset commands need
+// (GetDocumentVersionByID lives in document_access.sql, G1-02). Every query carries the tenant pair.
 // Commit/restore of a file version: the pointer moves, the ordinal and the
 // working revision advance. The revision guard is the base check - zero rows
 // means the base went stale between the lock and the write, which the

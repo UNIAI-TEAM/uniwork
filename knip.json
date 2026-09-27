@@ -26,15 +26,15 @@
         "platform/office/**"
       ],
       "ignoreDependencies": [
-        "@uniwork/office-contracts",
-        "@uniwork/office-engine"
+        "@uniwork/office-contracts"
       ]
     },
     "packages/*": {},
     "packages/office-engine": {
       "entry": [
         "test/replay/g2-03-replay.mjs",
-        "test/replay/adapter-entry.ts"
+        "test/replay/adapter-entry.ts",
+        "test/replay/g2-06-replay.mjs"
       ]
     },
     "packages/office-upstream": {

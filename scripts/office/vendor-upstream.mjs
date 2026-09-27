@@ -71,6 +71,10 @@ export const SELECTION = [
   'apps/markdown/src/shared',
   'apps/html/src/main',
   'apps/html/src/shared',
+  // G2-06b: the HTML document model the html seam binds (parse map + patches + blank check).
+  'apps/html/src/renderer/document/parse-map.ts',
+  'apps/html/src/renderer/document/patch.ts',
+  'apps/html/src/renderer/document/blank.ts',
   'LICENSE',
   'LICENSE-UNICODE.txt',
   'NOTICE',

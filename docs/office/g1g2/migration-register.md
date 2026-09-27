@@ -18,6 +18,8 @@ leftover numbers return to `free`.
 | 996–998 | allocated | G1-01 / UNI-675 | `document_access_logs` table + indexes |
 | after 998 | timestamped | any | `999<unix-ms>_name` - no range to claim; list the files here when they land |
 | 9991790519637301 | allocated | G1-03 / UNI-677 | `idempotency_keys.payload_fingerprint` column |
+| 9991790522571159 | allocated | G1-02 / UNI-676 | `9991790522571159_document_settings` - `document_settings` table (organization public-link switch) |
+| 9991790522571160 | allocated | G1-02 / UNI-676 | `9991790522571160_documents_public_links_feature` - `documents.public_links` feature + starter plan row |
 
 ## Rules
 

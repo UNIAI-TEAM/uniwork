@@ -13,7 +13,6 @@ import (
 	"image/png"
 	"io"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -44,29 +43,6 @@ type docStorageEnv struct {
 	fake  *filesfake.Fake // fake backend only
 	real  *FileService    // real backends only
 	clock *fileTestClock  // real backends only
-	acc   *recordingAccess
-}
-
-type recordingAccess struct {
-	mu     sync.Mutex
-	events []DocumentAccessEvent
-	err    error
-}
-
-func (r *recordingAccess) RecordDocumentAccess(_ context.Context, ev DocumentAccessEvent) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.err != nil {
-		return r.err
-	}
-	r.events = append(r.events, ev)
-	return nil
-}
-
-func (r *recordingAccess) all() []DocumentAccessEvent {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return append([]DocumentAccessEvent(nil), r.events...)
 }
 
 // documentsOpenRegistry is DefaultSpecs with the Document purposes open, so
@@ -104,8 +80,6 @@ func (e *docStorageEnv) wire(t *testing.T, fs files.Service) {
 	e.svc = e.f.svc
 	e.svc.SetFiles(fs)
 	e.svc.SetEntitlements(e.ent)
-	e.acc = &recordingAccess{}
-	e.svc.SetAccessRecorder(e.acc)
 	e.svc.store.spoolDir = t.TempDir()
 	e.tn = e.f.tenant(t, "g103"+strings.ToLower(util.NewID()[20:]))
 }
@@ -201,7 +175,7 @@ func docxLike(t *testing.T, parts ...string) []byte {
 	return buf.Bytes()
 }
 
-func readAll(t *testing.T, r io.Reader) []byte {
+func readBytes(t *testing.T, r io.Reader) []byte {
 	t.Helper()
 	b, err := io.ReadAll(r)
 	if err != nil {
@@ -305,18 +279,30 @@ func (e *docStorageEnv) sessionStatus(t *testing.T, id string) string {
 	return status
 }
 
-func (e *docStorageEnv) read(t *testing.T, actor Actor, docID string, version int32, rng DocumentRange) []byte {
+func (e *docStorageEnv) read(t *testing.T, actor Actor, docID string, version int32, rng DocumentByteRange) []byte {
 	t.Helper()
 	dl, err := e.svc.OpenDocumentFile(context.Background(), actor, docID, version, rng)
 	if err != nil {
 		t.Fatalf("open %s v%d: %v", docID, version, err)
 	}
-	defer func() { _ = dl.Close() }()
-	b, err := io.ReadAll(dl.Body)
+	defer func() { _ = dl.Reader.Close() }()
+	b, err := io.ReadAll(dl.Reader.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return b
+}
+
+// accessLogs counts access-log rows of one action on a document (G1-02b
+// writes them after the read).
+func (e *docStorageEnv) accessLogs(t *testing.T, docID, action string) int {
+	t.Helper()
+	var n int
+	if err := e.f.pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM document_access_logs WHERE document_id = $1 AND action = $2`, docID, action).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	return n
 }
 
 func (e *docStorageEnv) countAudit(t *testing.T, action, docID string) int {

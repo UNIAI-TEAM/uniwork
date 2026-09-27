@@ -417,6 +417,15 @@ type DocumentAsset struct {
 	OrphanedAt     pgtype.Timestamptz `json:"orphaned_at"`
 }
 
+type DocumentSetting struct {
+	OrganizationID     string             `json:"organization_id"`
+	PublicLinksEnabled bool               `json:"public_links_enabled"`
+	UpdatedBy          string             `json:"updated_by"`
+	UpdatedByKind      string             `json:"updated_by_kind"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
 type DocumentShare struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`

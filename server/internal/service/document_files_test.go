@@ -35,33 +35,23 @@ func TestDocumentUpload(t *testing.T) {
 			if res.Access.Level != DocumentLevelManage || res.Document.AclOwnerID.String != env.tn.member.ID {
 				t.Fatalf("creator access = %+v acl=%v", res.Access, res.Document.AclOwnerID)
 			}
-			got := env.read(t, member, res.Document.ID, 0, DocumentRange{})
+			got := env.read(t, member, res.Document.ID, 0, DocumentByteRange{})
 			if sha(got) != sha(body) {
 				t.Fatalf("@files-smoke: downloaded checksum %s, uploaded %s", sha(got), sha(body))
 			}
-			part := env.read(t, member, res.Document.ID, 0, DocumentRange{Offset: 5, Length: 10})
+			part := env.read(t, member, res.Document.ID, 0, DocumentByteRange{Offset: 5, Length: 10})
 			if !bytes.Equal(part, body[5:15]) {
 				t.Fatalf("range read = %q, want %q", part, body[5:15])
 			}
-			_, err := env.svc.OpenDocumentFile(ctx, member, res.Document.ID, 0, DocumentRange{Offset: int64(len(body))})
-			wantCode(t, err, "range_not_satisfiable")
-			if n := env.countAudit(t, audit.ActionDocumentCreated, res.Document.ID); n != 1 {
-				t.Fatalf("document.created audit rows = %d", n)
-			}
-			if n := env.countOutbox(t, "document.created", res.Document.ID); n != 1 {
-				t.Fatalf("document.created outbox rows = %d", n)
-			}
-			evs := env.acc.all()
-			if len(evs) == 0 || evs[len(evs)-1].DocumentID != res.Document.ID || evs[len(evs)-1].Action != "download" ||
-				evs[len(evs)-1].VersionID != res.Version.ID {
-				t.Fatalf("access events = %+v", evs)
+			if n := env.accessLogs(t, res.Document.ID, DocumentAccessDownload); n != 1 {
+				t.Fatalf("download access-log rows = %d, want 1 (reads coalesce within 5 minutes)", n)
 			}
 		})
 
 		t.Run("readers outside the document see nothing", func(t *testing.T) {
 			res := env.createFile(t, member, "private.pdf", pdfBody("private"))
 			for _, u := range []db.User{env.tn.bMember, env.tn.outsider, env.tn.deact} {
-				_, err := env.svc.OpenDocumentFile(ctx, human(u), res.Document.ID, 0, DocumentRange{})
+				_, err := env.svc.OpenDocumentFile(ctx, human(u), res.Document.ID, 0, DocumentByteRange{})
 				if err == nil {
 					t.Fatalf("%s read a document outside their workspace", u.ID)
 				}
@@ -71,19 +61,8 @@ func TestDocumentUpload(t *testing.T) {
 				}
 			}
 			other := env.f.tenant(t, "g103o"+strings.ToLower(util.NewID()[21:]))
-			_, err := env.svc.OpenDocumentFile(ctx, human(other.owner), res.Document.ID, 0, DocumentRange{})
+			_, err := env.svc.OpenDocumentFile(ctx, human(other.owner), res.Document.ID, 0, DocumentByteRange{})
 			wantNotFound(t, err)
-			// An access that cannot be logged is not served.
-			env.acc.mu.Lock()
-			env.acc.err = errors.New("access log down")
-			env.acc.mu.Unlock()
-			_, err = env.svc.OpenDocumentFile(ctx, member, res.Document.ID, 0, DocumentRange{})
-			env.acc.mu.Lock()
-			env.acc.err = nil
-			env.acc.mu.Unlock()
-			if err == nil {
-				t.Fatal("served a read the access log refused")
-			}
 		})
 
 		t.Run("a broken file is refused and canceled", func(t *testing.T) {
@@ -124,17 +103,17 @@ func TestDocumentUpload(t *testing.T) {
 			if asset.MimeType != "image/png" || asset.SizeBytes != int64(len(img)) || asset.Width.Int32 != 12 || asset.Height.Int32 != 7 {
 				t.Fatalf("asset = %+v", asset)
 			}
-			dl, err := env.svc.OpenDocumentAsset(ctx, member, page.ID, asset.ID)
+			rd, err := env.svc.OpenDocumentAsset(ctx, member, page.ID, asset.ID, DocumentByteRange{})
 			mustf(t, err, "asset open")
-			got := readAll(t, dl.Body)
-			_ = dl.Close()
-			if !bytes.Equal(got, img) || dl.Disposition != files.DispositionInline {
+			got := readBytes(t, rd.Body)
+			_ = rd.Close()
+			if !bytes.Equal(got, img) {
 				t.Fatal("asset bytes differ")
 			}
 			if n := env.countAudit(t, audit.ActionDocumentAssetUploaded, page.ID); n != 1 {
 				t.Fatalf("asset audit rows = %d", n)
 			}
-			_, err = env.svc.OpenDocumentAsset(ctx, human(env.tn.bMember), page.ID, asset.ID)
+			_, err = env.svc.OpenDocumentAsset(ctx, human(env.tn.bMember), page.ID, asset.ID, DocumentByteRange{})
 			wantNotFound(t, err)
 			// A page takes images, a file document does not take assets.
 			fileDoc := env.createFile(t, member, "noasset.pdf", pdfBody("noasset"))

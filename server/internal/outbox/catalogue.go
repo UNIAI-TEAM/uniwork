@@ -208,6 +208,13 @@ var catalogue = []EventDef{
 	// G1-03 (UNI-677): a file version was committed or restored; the client
 	// refetches the document and its versions.
 	{Topic: "document.version_created", Version: 1, Payload: []string{"document_id", "version_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// Access changes (UNI-676). Workspace scope, ids only: a recipient
+	// outside the workspace learns of a share through "shared with me";
+	// delivery-time filtering goes through DocumentReaderResolver.
+	{Topic: "document.shared", Version: 1, Payload: []string{"document_id", "workspace_id", "share_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.share_revoked", Version: 1, Payload: []string{"document_id", "workspace_id", "share_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.link_created", Version: 1, Payload: []string{"document_id", "workspace_id", "link_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.link_revoked", Version: 1, Payload: []string{"document_id", "workspace_id", "link_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 
 	// Billing (F-02). Both go to each owner/admin, one row per person, because
 	// the realtime consumer resolves user scope from payload.user_id.

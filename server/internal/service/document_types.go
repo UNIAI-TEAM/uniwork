@@ -3,6 +3,8 @@ package service
 import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/unicomhub/uniwork/server/internal/files"
+
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -67,19 +69,25 @@ type DocumentService struct {
 	orgs *OrganizationService
 	ws   *WorkspaceService
 
+	// files reads document bytes (proxy only, FS-C1); entitlements gates
+	// public links; accessMetrics counts access-log writes that failed.
+	files         files.Service
+	entitlements  *EntitlementService
+	accessMetrics DocumentAccessMetrics
+
 	// ownerLevel resolves the caller's level through the owning work
 	// product. nil means no owner service is wired: owned creates and
 	// owner-delegated levels then fail closed (C-01 §13.8).
 	ownerLevel    OwnerLevelResolver
 	ownerLevelSet bool
 
-	// store is the byte side (G1-03, document_files.go): FileService, quota
-	// and the access-log hook.
+	// store is the G1-03 write side's own state (document_files.go):
+	// validation limits, spool directory, test seam.
 	store documentStore
 }
 
 func NewDocumentService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationService, ws *WorkspaceService) *DocumentService {
-	return &DocumentService{pool: pool, q: q, orgs: orgs, ws: ws}
+	return &DocumentService{pool: pool, q: q, orgs: orgs, ws: ws, accessMetrics: nopDocumentAccessMetrics{}}
 }
 
 // maxSearchContentRunes is the C-01 §3.7 search contract: the search column

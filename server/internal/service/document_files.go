@@ -26,16 +26,13 @@ import (
 // Upload and Open stream outside any transaction; claim, quota, the version
 // row, audit and outbox commit together (document_commit.go).
 
-// documentStore is what DocumentService needs beyond the permission gate:
-// the FileService, the quota gate and the access-log hook. Wired by the
-// composition root through the setters below; a command that needs a piece
-// that is not wired fails closed.
+// documentStore is the G1-03 part of DocumentService beyond the FileService
+// and the quota gate (SetFiles / SetEntitlements live with the read path in
+// document_access.go, G1-02b): the validation limits, the spool directory
+// of the format check, and a test seam.
 type documentStore struct {
-	files        files.Service
-	entitlements *EntitlementService
-	access       DocumentAccessRecorder
-	limits       document.FileLimits
-	spoolDir     string
+	limits   document.FileLimits
+	spoolDir string
 	// afterClaim is a test seam: it runs inside the commit transaction right
 	// after ClaimInTx, so a test can fail the transaction after the bytes
 	// are stored and the file is claimed. nil in production.
@@ -44,40 +41,11 @@ type documentStore struct {
 
 var errDocumentStoreMissing = errors.New("documents: FileService is not wired")
 
-// SetFiles wires the FileService every document byte goes through.
-func (s *DocumentService) SetFiles(f files.Service) { s.store.files = f }
-
-// SetEntitlements wires the quota gate for storage.bytes.
-func (s *DocumentService) SetEntitlements(e *EntitlementService) { s.store.entitlements = e }
-
-// DocumentAccessRecorder is the access-log seam (C-01 §2 #10). The writer is
-// G1-02b's document_access_logs; until it is wired every read is recorded
-// nowhere, which is the documented gap, not a silent success of its own.
-type DocumentAccessRecorder interface {
-	RecordDocumentAccess(ctx context.Context, ev DocumentAccessEvent) error
-}
-
-// DocumentAccessEvent is one authorized read of document bytes.
-type DocumentAccessEvent struct {
-	OrganizationID string
-	WorkspaceID    string
-	DocumentID     string
-	VersionID      string
-	AssetID        string
-	Actor          Actor
-	Via            DocumentVia
-	Action         string // download | asset
-}
-
-// SetAccessRecorder wires the access-log writer. A recorder error fails the
-// read: an access that cannot be logged is not served.
-func (s *DocumentService) SetAccessRecorder(r DocumentAccessRecorder) { s.store.access = r }
-
 func (s *DocumentService) fileService() (files.Service, error) {
-	if s.store.files == nil {
+	if s.files == nil {
 		return nil, errDocumentStoreMissing
 	}
-	return s.store.files, nil
+	return s.files, nil
 }
 
 func (s *DocumentService) fileLimits() document.FileLimits {
@@ -518,10 +486,10 @@ func (s *DocumentService) workspaceOrganization(ctx context.Context, workspaceID
 // ended the upload reservation, so the file's bytes are the delta. Without a
 // wired EntitlementService there is no quota to enforce.
 func (s *DocumentService) consumeStorage(ctx context.Context, q *db.Queries, actor Actor, orgID, workspaceID string, f files.File) error {
-	if s.store.entitlements == nil || f.SizeBytes == 0 {
+	if s.entitlements == nil || f.SizeBytes == 0 {
 		return nil
 	}
-	return s.store.entitlements.Consume(ctx, q, ConsumeInput{
+	return s.entitlements.Consume(ctx, q, ConsumeInput{
 		OrganizationID: orgID,
 		WorkspaceID:    workspaceID,
 		Meter:          FeatureStorageBytes,
@@ -670,155 +638,4 @@ func assetByFile(ctx context.Context, q *db.Queries, doc db.Document, fileID fil
 	}
 	// Claimed by another document or a file version: the upload is spent.
 	return db.DocumentAsset{}, errUploadAlreadyCommitted()
-}
-
-// DocumentRange is the byte window of a proxied read. Length 0 means to the
-// end; a HEAD request opens with the zero range and closes the body.
-type DocumentRange struct {
-	Offset int64
-	Length int64
-}
-
-// DocumentDownload is an authorized, open read. The caller owns Close.
-type DocumentDownload struct {
-	Document    db.Document
-	Version     db.DocumentVersion
-	File        DocumentFileInfo
-	Disposition files.Disposition
-	Body        io.ReadCloser
-}
-
-// Close releases the stream.
-func (d DocumentDownload) Close() error {
-	if d.Body == nil {
-		return nil
-	}
-	return d.Body.Close()
-}
-
-func errRangeNotSatisfiable(size int64) error {
-	return CodedError{Code: "range_not_satisfiable", Status: http.StatusRequestedRangeNotSatisfiable,
-		Msg: "khoảng byte yêu cầu nằm ngoài tệp", Fields: map[string]any{"size_bytes": size}}
-}
-
-// OpenDocumentFile streams a file document's current version, or version
-// versionNo when it is non-zero (C-01 §14.2: always a proxy through Go,
-// never a presigned URL). Authorize first, then log, then open: a revoked
-// reader is refused on the very next read.
-func (s *DocumentService) OpenDocumentFile(ctx context.Context, actor Actor, documentID string, versionNo int32, rng DocumentRange) (DocumentDownload, error) {
-	fs, err := s.fileService()
-	if err != nil {
-		return DocumentDownload{}, err
-	}
-	doc, access, err := s.authorizeDocument(ctx, actor, documentID, DocumentLevelView)
-	if err != nil {
-		return DocumentDownload{}, err
-	}
-	if doc.Kind != DocumentKindFile {
-		return DocumentDownload{}, ErrNotFound
-	}
-	var v db.DocumentVersion
-	if versionNo == 0 {
-		cur, err := s.currentFileVersion(ctx, s.q, doc)
-		if err != nil {
-			return DocumentDownload{}, err
-		}
-		if cur == nil {
-			return DocumentDownload{}, ErrNotFound
-		}
-		v = *cur
-	} else {
-		v, err = s.q.GetDocumentVersion(ctx, db.GetDocumentVersionParams{
-			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID, Version: versionNo,
-		})
-		if errors.Is(err, pgx.ErrNoRows) {
-			return DocumentDownload{}, ErrNotFound
-		}
-		if err != nil {
-			return DocumentDownload{}, err
-		}
-	}
-	if v.Kind != DocumentKindFile || !v.FileID.Valid {
-		return DocumentDownload{}, ErrNotFound
-	}
-	if rng.Offset < 0 || rng.Length < 0 || (rng.Offset > 0 && rng.Offset >= v.SizeBytes) {
-		return DocumentDownload{}, errRangeNotSatisfiable(v.SizeBytes)
-	}
-	if err := s.recordAccess(ctx, DocumentAccessEvent{
-		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
-		VersionID: v.ID, Actor: actor, Via: access.Via, Action: "download",
-	}); err != nil {
-		return DocumentDownload{}, err
-	}
-	rd, err := fs.Open(ctx, files.OpenInput{
-		Scope: documentScope(doc.OrganizationID, doc.WorkspaceID), FileID: files.FileID(v.FileID.String),
-		Offset: rng.Offset, Length: rng.Length,
-	})
-	if err != nil {
-		return DocumentDownload{}, documentFileError(err)
-	}
-	return DocumentDownload{
-		Document: doc, Version: v, File: fileInfoOf(v, downloadFilename(rd.File.Filename, doc.Title)),
-		Disposition: files.DispositionAttachment, Body: rd.Body,
-	}, nil
-}
-
-// DocumentAssetDownload is an authorized, open asset read.
-type DocumentAssetDownload struct {
-	Asset       db.DocumentAsset
-	Filename    string
-	Disposition files.Disposition
-	Body        io.ReadCloser
-}
-
-// Close releases the stream.
-func (d DocumentAssetDownload) Close() error {
-	if d.Body == nil {
-		return nil
-	}
-	return d.Body.Close()
-}
-
-// OpenDocumentAsset streams a page asset inline to a reader of the page.
-func (s *DocumentService) OpenDocumentAsset(ctx context.Context, actor Actor, documentID, assetID string) (DocumentAssetDownload, error) {
-	fs, err := s.fileService()
-	if err != nil {
-		return DocumentAssetDownload{}, err
-	}
-	doc, asset, access, err := s.authorizeDocumentAsset(ctx, actor, documentID, assetID, DocumentLevelView)
-	if err != nil {
-		return DocumentAssetDownload{}, err
-	}
-	if err := s.recordAccess(ctx, DocumentAccessEvent{
-		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
-		AssetID: asset.ID, Actor: actor, Via: access.Via, Action: "asset",
-	}); err != nil {
-		return DocumentAssetDownload{}, err
-	}
-	rd, err := fs.Open(ctx, files.OpenInput{Scope: documentScope(doc.OrganizationID, doc.WorkspaceID), FileID: files.FileID(asset.FileID)})
-	if err != nil {
-		return DocumentAssetDownload{}, documentFileError(err)
-	}
-	return DocumentAssetDownload{
-		Asset: asset, Filename: downloadFilename(rd.File.Filename, asset.ID),
-		Disposition: files.DispositionInline, Body: rd.Body,
-	}, nil
-}
-
-func (s *DocumentService) recordAccess(ctx context.Context, ev DocumentAccessEvent) error {
-	if s.store.access == nil {
-		return nil
-	}
-	return s.store.access.RecordDocumentAccess(ctx, ev)
-}
-
-// downloadFilename is the name the proxy sends: the FileService name
-// sanitized at upload (T1-Q4), sanitized again (no path, no control
-// characters) with the document title as fallback. The handler still
-// encodes it with mime.FormatMediaType for Content-Disposition.
-func downloadFilename(stored, fallback string) string {
-	if strings.TrimSpace(stored) == "" {
-		stored = fallback
-	}
-	return files.SanitizeFilename(stored)
 }

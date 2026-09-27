@@ -76,6 +76,7 @@ export const CAPABILITIES = {
     artifacts: [],
     lane: 'G2-06',
     runtimes: ['node', 'desktop'],
+    executor: 'packages/office-engine/test/replay/g2-06-replay.mjs',
   },
   html: {
     formats: ['html'],
@@ -83,6 +84,7 @@ export const CAPABILITIES = {
     artifacts: ['dist/html2docx.mjs'],
     lane: 'G2-06',
     runtimes: ['node', 'desktop'],
+    executor: 'packages/office-engine/test/replay/g2-06-replay.mjs',
   },
 };
 

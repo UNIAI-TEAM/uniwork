@@ -1,6 +1,6 @@
 -- File documents (C-01 §14.2/§14.4; G1-03, UNI-677): the version pointer
--- swap, the upload-reuse check and the version lookup by id the commit,
--- restore and download commands need. Every query carries the tenant pair.
+-- swap, the upload-reuse check the commit, restore and asset commands need
+-- (GetDocumentVersionByID lives in document_access.sql, G1-02). Every query carries the tenant pair.
 
 -- Commit/restore of a file version: the pointer moves, the ordinal and the
 -- working revision advance. The revision guard is the base check - zero rows
@@ -40,11 +40,3 @@ SELECT EXISTS (
     AND a.workspace_id = sqlc.arg(workspace_id)
     AND a.file_id = sqlc.arg(file_id)
 ) AS in_use;
-
--- name: GetDocumentVersionByID :one
-SELECT *
-FROM document_versions
-WHERE id = sqlc.arg(id)
-  AND organization_id = sqlc.arg(organization_id)
-  AND workspace_id = sqlc.arg(workspace_id)
-  AND document_id = sqlc.arg(document_id);

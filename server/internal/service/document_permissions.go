@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/telemetry"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -55,6 +56,16 @@ const documentVisibilityRestricted = "restricted"
 // Archived documents keep their level here; decideDocumentAccess hides them
 // from everyone below manage.
 func (s *DocumentService) effectiveLevel(ctx context.Context, q *db.Queries, actor Actor, doc db.Document) (DocumentAccess, error) {
+	acc, err := s.resolveLevel(ctx, q, actor, doc)
+	// A share principal's workspace gate tags the request with that
+	// workspace, whatever the answer; the request is about this document's
+	// tenant.
+	telemetry.SetTenant(ctx, doc.OrganizationID, doc.WorkspaceID)
+	return acc, err
+}
+
+// resolveLevel is effectiveLevel without the telemetry tag.
+func (s *DocumentService) resolveLevel(ctx context.Context, q *db.Queries, actor Actor, doc db.Document) (DocumentAccess, error) {
 	none := DocumentAccess{}
 	switch actor.Kind {
 	case audit.KindHuman:
