@@ -50,12 +50,15 @@ func (o *Office) ObserveOfficeJob(operation, outcome string, d time.Duration) {
 	o.Duration.WithLabelValues(operation).Observe(d.Seconds())
 }
 
-// SetOfficeEngine records the last engine probe.
+// SetOfficeEngine records the last engine probe. A negative depth means the
+// probe failed: the gauge keeps its last value rather than reading as idle.
 func (o *Office) SetOfficeEngine(ready bool, queueDepth int) {
 	if ready {
 		o.Ready.Set(1)
 	} else {
 		o.Ready.Set(0)
 	}
-	o.QueueDepth.Set(float64(queueDepth))
+	if queueDepth >= 0 {
+		o.QueueDepth.Set(float64(queueDepth))
+	}
 }

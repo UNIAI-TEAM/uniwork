@@ -185,6 +185,11 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 		// Q7 (docs/office/g1g2/q7-blocker.md): no conversion engine is chosen.
 		return db.OfficeJob{}, officeErr("unsupported_operation", "q7_blocker")
 	}
+	if in.Operation == office.OperationExport {
+		// No format lane binds export yet; refuse before a row or an output
+		// intent exists instead of persisting a job the engine must refuse.
+		return db.OfficeJob{}, officeErr("unsupported_operation", "export_not_bound")
+	}
 	key := strings.TrimSpace(in.IdempotencyKey)
 	if !validOfficeOperation(in.Operation) || key == "" || len(key) > 128 {
 		return db.OfficeJob{}, ErrOfficeJobInvalid
@@ -192,45 +197,22 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 	if err := s.authorize(ctx, actor, in.WorkspaceID); err != nil {
 		return db.OfficeJob{}, err
 	}
-	doc, err := s.q.GetDocument(ctx, db.GetDocumentParams{ID: in.DocumentID, OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID})
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && doc.ArchivedAt.Valid) {
-		return db.OfficeJob{}, ErrNotFound
-	}
-	if err != nil {
-		return db.OfficeJob{}, err
-	}
-	if doc.Revision != in.BaseRevision {
-		return db.OfficeJob{}, officeErr("base_version_mismatch", "revision")
-	}
-	ver, err := s.q.GetOfficeJobBaseVersion(ctx, db.GetOfficeJobBaseVersionParams{
-		ID: in.BaseVersionID, OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID, DocumentID: in.DocumentID,
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return db.OfficeJob{}, officeErr("base_version_mismatch", "version")
-	}
-	if err != nil {
-		return db.OfficeJob{}, err
-	}
-	if in.Operation != office.OperationExport && doc.FileVersionID.String != ver.ID {
-		return db.OfficeJob{}, officeErr("base_version_mismatch", "not_current")
-	}
-	if ver.Kind != "file" || !ver.FileID.Valid {
-		return db.OfficeJob{}, officeErr("unsupported_operation", "page_version")
-	}
-	scope := files.Scope{OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID}
-	input, err := s.readBase(ctx, scope, files.FileID(ver.FileID.String), ver.ChecksumSha256)
-	if err != nil {
-		return db.OfficeJob{}, err
-	}
-	fp := officeFingerprint(in, input)
-
+	// A retried key is answered from its row before anything about the
+	// document is re-checked: once the output is committed the base is no
+	// longer current, and the retry must still read (or replay) its job.
 	if existing, err := s.q.GetOfficeJobByIdempotencyKey(ctx, db.GetOfficeJobByIdempotencyKeyParams{
 		OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID, IdempotencyKey: key,
 	}); err == nil {
-		return s.replay(ctx, actor, existing, fp, in, input)
+		return s.replay(ctx, actor, existing, in)
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return db.OfficeJob{}, err
 	}
+	input, err := s.loadBase(ctx, in)
+	if err != nil {
+		return db.OfficeJob{}, err
+	}
+	fp := officeFingerprint(in, input.checksum, int64(len(input.bytes)))
+	scope := files.Scope{OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID}
 
 	deadlineIn := in.Deadline
 	if deadlineIn <= 0 {
@@ -258,6 +240,7 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 		OutputFileID: pgtype.Text{String: string(out.FileID), Valid: true},
 		DeadlineAt:   pgtype.Timestamptz{Time: deadline, Valid: true},
 		CreatedBy:    actor.ID, CreatedByKind: string(actor.Kind),
+		Now: pgtype.Timestamptz{Time: now, Valid: true},
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		// Lost a race: the key or the same live work landed first. The output
@@ -270,12 +253,43 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 	return s.dispatch(ctx, row, in, input, out.WriteTarget)
 }
 
+// loadBase checks the document and its base version and reads the base bytes.
+func (s *DocumentOfficeService) loadBase(ctx context.Context, in OfficeJobInput) (officeInput, error) {
+	doc, err := s.q.GetDocument(ctx, db.GetDocumentParams{ID: in.DocumentID, OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID})
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && doc.ArchivedAt.Valid) {
+		return officeInput{}, ErrNotFound
+	}
+	if err != nil {
+		return officeInput{}, err
+	}
+	if doc.Revision != in.BaseRevision {
+		return officeInput{}, officeErr("base_version_mismatch", "revision")
+	}
+	ver, err := s.q.GetOfficeJobBaseVersion(ctx, db.GetOfficeJobBaseVersionParams{
+		ID: in.BaseVersionID, OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID, DocumentID: in.DocumentID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return officeInput{}, officeErr("base_version_mismatch", "version")
+	}
+	if err != nil {
+		return officeInput{}, err
+	}
+	if doc.FileVersionID.String != ver.ID {
+		return officeInput{}, officeErr("base_version_mismatch", "not_current")
+	}
+	if ver.Kind != "file" || !ver.FileID.Valid {
+		return officeInput{}, officeErr("unsupported_operation", "page_version")
+	}
+	scope := files.Scope{OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID}
+	return s.readBase(ctx, scope, files.FileID(ver.FileID.String), ver.ChecksumSha256)
+}
+
 func (s *DocumentOfficeService) afterInsertConflict(ctx context.Context, actor Actor, in OfficeJobInput, input officeInput, key, fp string) (db.OfficeJob, error) {
 	existing, err := s.q.GetOfficeJobByIdempotencyKey(ctx, db.GetOfficeJobByIdempotencyKeyParams{
 		OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID, IdempotencyKey: key,
 	})
 	if err == nil {
-		return s.replay(ctx, actor, existing, fp, in, input)
+		return s.replay(ctx, actor, existing, in)
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return db.OfficeJob{}, err
@@ -297,14 +311,23 @@ func (s *DocumentOfficeService) afterInsertConflict(ctx context.Context, actor A
 // its output once completed); anything else is refused, never a second job.
 // A job the engine never accepted (a retryable refusal left it accepted and
 // undispatched) is dispatched again under the same job and grant ids.
-func (s *DocumentOfficeService) replay(ctx context.Context, actor Actor, row db.OfficeJob, fp string, in OfficeJobInput, input officeInput) (db.OfficeJob, error) {
+func (s *DocumentOfficeService) replay(ctx context.Context, actor Actor, row db.OfficeJob, in OfficeJobInput) (db.OfficeJob, error) {
 	if row.CreatedBy != actor.ID {
 		return db.OfficeJob{}, officeErr("job_conflict", "actor")
 	}
-	if row.PayloadFingerprint != fp {
+	// The row's own input digest stands in for the bytes, so a replay never
+	// re-reads the base and still refuses a changed payload.
+	if officeFingerprint(in, row.InputChecksum, row.InputLength) != row.PayloadFingerprint {
 		return db.OfficeJob{}, officeErr("payload_fingerprint_mismatch", "")
 	}
 	if row.State == string(office.JobAccepted) && !row.DispatchedAt.Valid && s.now().Before(row.DeadlineAt.Time) {
+		input, err := s.loadBase(ctx, in)
+		if err != nil {
+			return row, err
+		}
+		if input.checksum != row.InputChecksum {
+			return row, officeErr("payload_fingerprint_mismatch", "base_changed")
+		}
 		out, err := s.files.RegisterProviderOutput(ctx, files.ProviderOutputInput{
 			Actor: actor, Purpose: files.DocumentFile,
 			Scope:       files.Scope{OrganizationID: row.OrganizationID, WorkspaceID: row.WorkspaceID},
@@ -348,7 +371,7 @@ func (s *DocumentOfficeService) readBase(ctx context.Context, scope files.Scope,
 // officeFingerprint is the identity of the job's result-deciding inputs: a
 // retry of the same work matches, a changed payload does not. The deadline
 // is deliberately not part of it.
-func officeFingerprint(in OfficeJobInput, input officeInput) string {
+func officeFingerprint(in OfficeJobInput, checksum string, length int64) string {
 	raw, _ := json.Marshal(struct {
 		Contract  string           `json:"contract_version"`
 		Protocol  int              `json:"protocol_version"`
@@ -358,12 +381,12 @@ func officeFingerprint(in OfficeJobInput, input officeInput) string {
 		Base      string           `json:"base_version_id"`
 		Revision  int64            `json:"base_revision"`
 		Checksum  string           `json:"input_checksum"`
-		Length    int              `json:"input_length"`
+		Length    int64            `json:"input_length"`
 		ModelRef  string           `json:"document_model_ref"`
 		Edits     []office.EditOp  `json:"edits"`
 		Engine    string           `json:"engine_version"`
 	}{office.ContractVersion, office.ProtocolVersion, in.Operation, in.Format, in.DocumentID, in.BaseVersionID,
-		in.BaseRevision, input.checksum, len(input.bytes), in.DocumentModelRef, in.Edits, office.TrustedEngineVersion})
+		in.BaseRevision, checksum, length, in.DocumentModelRef, in.Edits, office.TrustedEngineVersion})
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
 }
@@ -414,8 +437,6 @@ func (s *DocumentOfficeService) envelope(row db.OfficeJob, in OfficeJobInput, in
 			edits = []office.EditOp{}
 		}
 		payload["edits"] = edits
-	case office.OperationExport:
-		return office.Envelope{}, officeErr("unsupported_operation", "export_not_bound")
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
@@ -447,7 +468,9 @@ func (s *DocumentOfficeService) dispatch(ctx context.Context, row db.OfficeJob, 
 	}
 	js, err := s.engine.Submit(ctx, grant, env)
 	if err != nil {
-		if office.Retryable(err) {
+		// Retryable, or a credential the deployment can still fix: keep the
+		// row accepted so the same key dispatches it again.
+		if office.Retryable(err) || errors.Is(err, office.ErrServiceAuth) {
 			return row, err
 		}
 		return s.settleWith(ctx, row, err)
@@ -459,11 +482,8 @@ func (s *DocumentOfficeService) dispatch(ctx context.Context, row db.OfficeJob, 
 func (s *DocumentOfficeService) settleWith(ctx context.Context, row db.OfficeJob, cause error) (db.OfficeJob, error) {
 	code, reason := "engine_result_invalid", cause.Error()
 	var ee *office.EngineError
-	switch {
-	case errors.As(cause, &ee):
+	if errors.As(cause, &ee) {
 		code, reason = ee.Code, ee.Reason
-	case errors.Is(cause, office.ErrServiceAuth):
-		code, reason = "engine_crashed", "service_auth"
 	}
 	settled, err := s.settle(ctx, row, office.JobFailed, code, reason)
 	if err != nil {
@@ -483,6 +503,11 @@ func (s *DocumentOfficeService) CancelOfficeJob(ctx context.Context, actor Actor
 	if err != nil {
 		return db.OfficeJob{}, err
 	}
+	// Only the job's creator discards its work: a cancel can drop staged
+	// output before commit, and no other member's say-so is recorded.
+	if row.CreatedBy != actor.ID {
+		return db.OfficeJob{}, ErrForbidden
+	}
 	cancelled, err := s.q.CancelOfficeJob(ctx, db.CancelOfficeJobParams{
 		ErrorReason: pgtype.Text{String: "cancel_requested", Valid: true}, Now: s.ts(),
 		ID: row.ID, OrganizationID: orgID, WorkspaceID: wsID,
@@ -493,7 +518,10 @@ func (s *DocumentOfficeService) CancelOfficeJob(ctx context.Context, actor Actor
 	if err != nil {
 		return db.OfficeJob{}, err
 	}
-	s.observe(cancelled)
+	if isLiveOfficeState(row.State) {
+		// A completed job was already counted when it completed.
+		s.observe(cancelled)
+	}
 	if s.engine != nil && row.State != string(office.JobCompleted) {
 		if grant, err := s.grantFor(row, nil, nil); err == nil {
 			_, _ = s.engine.Cancel(ctx, row.ID, grant)
@@ -516,9 +544,15 @@ func (s *DocumentOfficeService) GetOfficeJob(ctx context.Context, actor Actor, o
 
 // ClaimOfficeJobOutputInTx is the hand-off to the commit path (G1-03): inside
 // the commit transaction, mark the completed job committed to versionID and
-// get its verified output. Exactly one commit wins; a cancelled, failed or
+// get the job row back. Exactly one commit wins; a cancelled, failed or
 // already committed job returns ErrOfficeJobNotCommittable and its output is
-// never attached.
+// never attached. The caller, in the same transaction, must also:
+//   - CAS the document on the job's base (documents.revision = BaseRevision and
+//     file_version_id = BaseVersionID): two jobs may complete on one base
+//     (different keys, or a retry after the first settled), and only the
+//     document CAS decides which one becomes the version;
+//   - ClaimInTx the job's OutputFileID with FileService, or the staged output
+//     expires after files.ClaimTTL while the version points at it.
 func (s *DocumentOfficeService) ClaimOfficeJobOutputInTx(ctx context.Context, q *db.Queries, orgID, wsID, jobID, versionID string) (db.OfficeJob, error) {
 	row, err := q.MarkOfficeJobCommitted(ctx, db.MarkOfficeJobCommittedParams{
 		CommittedVersionID: pgtype.Text{String: versionID, Valid: true}, Now: s.ts(),

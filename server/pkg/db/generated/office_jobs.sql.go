@@ -389,7 +389,7 @@ INSERT INTO office_jobs (
   id, organization_id, workspace_id, document_id, operation, format,
   base_revision, base_version_id, idempotency_key, payload_fingerprint,
   input_checksum, input_length, grant_id, output_file_id, deadline_at,
-  created_by, created_by_kind
+  created_by, created_by_kind, created_at, updated_at
 ) VALUES (
   $1, $2, $3,
   $4, $5, $6,
@@ -397,7 +397,7 @@ INSERT INTO office_jobs (
   $9, $10,
   $11, $12, $13,
   $14, $15,
-  $16, $17
+  $16, $17, $18, $18
 )
 ON CONFLICT DO NOTHING
 RETURNING id, organization_id, workspace_id, document_id, operation, format, base_revision, base_version_id, idempotency_key, payload_fingerprint, input_checksum, input_length, grant_id, output_file_id, output_checksum, output_length, state, error_code, error_reason, deadline_at, dispatched_at, finished_at, committed_version_id, created_by, created_by_kind, created_at, updated_at
@@ -421,6 +421,7 @@ type InsertOfficeJobParams struct {
 	DeadlineAt         pgtype.Timestamptz `json:"deadline_at"`
 	CreatedBy          string             `json:"created_by"`
 	CreatedByKind      string             `json:"created_by_kind"`
+	Now                pgtype.Timestamptz `json:"now"`
 }
 
 // Office engine jobs (G2-02 / UNI-685). Every business query carries the
@@ -448,6 +449,7 @@ func (q *Queries) InsertOfficeJob(ctx context.Context, arg InsertOfficeJobParams
 		arg.DeadlineAt,
 		arg.CreatedBy,
 		arg.CreatedByKind,
+		arg.Now,
 	)
 	var i OfficeJob
 	err := row.Scan(

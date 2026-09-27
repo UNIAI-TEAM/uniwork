@@ -179,13 +179,16 @@ func (c *Client) Capability(ctx context.Context, format Format) ([]CapabilityEnt
 }
 
 // Submit sends one job. A 2xx answer is a job (new or replayed); anything
-// else is a typed error.
+// else is a typed error. The request timeout grows with the envelope
+// (+250 ms per MiB): the engine decodes and hashes the base64 input before it
+// answers, which takes seconds for a large base.
 func (c *Client) Submit(ctx context.Context, grant string, env Envelope) (JobStatus, error) {
 	raw, err := json.Marshal(env)
 	if err != nil {
 		return JobStatus{}, err
 	}
-	return c.job(ctx, http.MethodPost, "/v1/jobs", grant, raw)
+	extra := time.Duration(len(raw)>>20) * 250 * time.Millisecond
+	return c.jobWithin(ctx, c.cfg.RequestTimeout+extra, http.MethodPost, "/v1/jobs", grant, raw)
 }
 
 // Status reads one job with its grant.
@@ -200,7 +203,11 @@ func (c *Client) Cancel(ctx context.Context, jobID, grant string) (JobStatus, er
 }
 
 func (c *Client) job(ctx context.Context, method, path, grant string, body []byte) (JobStatus, error) {
-	status, raw, err := c.do(ctx, method, path, grant, body)
+	return c.jobWithin(ctx, c.cfg.RequestTimeout, method, path, grant, body)
+}
+
+func (c *Client) jobWithin(ctx context.Context, timeout time.Duration, method, path, grant string, body []byte) (JobStatus, error) {
+	status, raw, err := c.doWithin(ctx, timeout, method, path, grant, body)
 	if err != nil {
 		return JobStatus{}, err
 	}
@@ -220,7 +227,11 @@ func (c *Client) job(ctx context.Context, method, path, grant string, body []byt
 }
 
 func (c *Client) do(ctx context.Context, method, path, grant string, body []byte) (int, []byte, error) {
-	ctx, cancel := context.WithTimeout(ctx, c.cfg.RequestTimeout)
+	return c.doWithin(ctx, c.cfg.RequestTimeout, method, path, grant, body)
+}
+
+func (c *Client) doWithin(ctx context.Context, timeout time.Duration, method, path, grant string, body []byte) (int, []byte, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	var reader io.Reader
 	if body != nil {

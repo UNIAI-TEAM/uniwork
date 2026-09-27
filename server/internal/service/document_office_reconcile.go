@@ -243,7 +243,11 @@ func (s *DocumentOfficeService) EngineReady(ctx context.Context) (office.Readine
 	}
 	r, err := s.engine.Ready(ctx)
 	if s.metrics != nil {
-		s.metrics.SetOfficeEngine(err == nil, r.QueueDepth)
+		depth := r.QueueDepth
+		if err != nil {
+			depth = -1 // unknown: keep the last depth instead of reading as idle
+		}
+		s.metrics.SetOfficeEngine(err == nil, depth)
 	}
 	return r, err
 }

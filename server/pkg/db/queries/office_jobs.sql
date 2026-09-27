@@ -10,7 +10,7 @@ INSERT INTO office_jobs (
   id, organization_id, workspace_id, document_id, operation, format,
   base_revision, base_version_id, idempotency_key, payload_fingerprint,
   input_checksum, input_length, grant_id, output_file_id, deadline_at,
-  created_by, created_by_kind
+  created_by, created_by_kind, created_at, updated_at
 ) VALUES (
   sqlc.arg(id), sqlc.arg(organization_id), sqlc.arg(workspace_id),
   sqlc.arg(document_id), sqlc.arg(operation), sqlc.arg(format),
@@ -18,7 +18,7 @@ INSERT INTO office_jobs (
   sqlc.arg(idempotency_key), sqlc.arg(payload_fingerprint),
   sqlc.arg(input_checksum), sqlc.arg(input_length), sqlc.arg(grant_id),
   sqlc.arg(output_file_id), sqlc.arg(deadline_at),
-  sqlc.arg(created_by), sqlc.arg(created_by_kind)
+  sqlc.arg(created_by), sqlc.arg(created_by_kind), sqlc.arg(now), sqlc.arg(now)
 )
 ON CONFLICT DO NOTHING
 RETURNING *;
