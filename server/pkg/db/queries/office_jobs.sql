@@ -47,6 +47,15 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND payload_fingerprint = sqlc.arg(payload_fingerprint)
   AND state IN ('accepted', 'running');
 
+-- The G1-03 commit finds the job behind a provider-output file_id. The
+-- tenant pair scopes it the same way the staged file's scope does.
+-- name: GetOfficeJobByOutputFile :one
+SELECT *
+FROM office_jobs
+WHERE output_file_id = sqlc.arg(output_file_id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id);
+
 -- The job's base: a version of this document in this tenant.
 -- name: GetOfficeJobBaseVersion :one
 SELECT *

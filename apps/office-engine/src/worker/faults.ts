@@ -75,11 +75,22 @@ export async function runFault(head: string, message: RunMessage): Promise<Handl
       const script =
         "const c=require('node:child_process').spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore',detached:true,windowsHide:true});" +
         "c.unref();process.stdout.write(String(c.pid));";
-      const pid = await new Promise<string>((resolve) => {
+      // Resolve on "close", not "exit": exit can fire before stdout has
+      // drained its pid, a spawn failure is an "error" event, and an empty
+      // stdout is a failure the test must see, not a hang or a bad filename.
+      const pid = await new Promise<string>((resolve, reject) => {
         const mid = spawn(process.execPath, ["-e", script], { stdio: ["ignore", "pipe", "ignore"], windowsHide: true });
         let out = "";
         mid.stdout.on("data", (d: Buffer) => (out += d.toString()));
-        mid.on("exit", () => resolve(out.trim()));
+        mid.on("error", reject);
+        mid.on("close", (code) => {
+          const pid = out.trim();
+          if (pid === "" || code !== 0) {
+            reject(new Error(`orphan fault: no pid (exit ${code})`));
+            return;
+          }
+          resolve(pid);
+        });
       });
       await writeFile(join(message.tempDir, "..", "orphan-" + pid + ".pid"), pid);
       return null;

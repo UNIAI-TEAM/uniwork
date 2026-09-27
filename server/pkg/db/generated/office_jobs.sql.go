@@ -383,6 +383,57 @@ func (q *Queries) GetOfficeJobByIdempotencyKey(ctx context.Context, arg GetOffic
 	return i, err
 }
 
+const getOfficeJobByOutputFile = `-- name: GetOfficeJobByOutputFile :one
+SELECT id, organization_id, workspace_id, document_id, operation, format, base_revision, base_version_id, idempotency_key, payload_fingerprint, input_checksum, input_length, grant_id, output_file_id, output_checksum, output_length, state, error_code, error_reason, deadline_at, dispatched_at, finished_at, committed_version_id, created_by, created_by_kind, created_at, updated_at
+FROM office_jobs
+WHERE output_file_id = $1
+  AND organization_id = $2
+  AND workspace_id = $3
+`
+
+type GetOfficeJobByOutputFileParams struct {
+	OutputFileID   pgtype.Text `json:"output_file_id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+}
+
+// The G1-03 commit finds the job behind a provider-output file_id. The
+// tenant pair scopes it the same way the staged file's scope does.
+func (q *Queries) GetOfficeJobByOutputFile(ctx context.Context, arg GetOfficeJobByOutputFileParams) (OfficeJob, error) {
+	row := q.db.QueryRow(ctx, getOfficeJobByOutputFile, arg.OutputFileID, arg.OrganizationID, arg.WorkspaceID)
+	var i OfficeJob
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.DocumentID,
+		&i.Operation,
+		&i.Format,
+		&i.BaseRevision,
+		&i.BaseVersionID,
+		&i.IdempotencyKey,
+		&i.PayloadFingerprint,
+		&i.InputChecksum,
+		&i.InputLength,
+		&i.GrantID,
+		&i.OutputFileID,
+		&i.OutputChecksum,
+		&i.OutputLength,
+		&i.State,
+		&i.ErrorCode,
+		&i.ErrorReason,
+		&i.DeadlineAt,
+		&i.DispatchedAt,
+		&i.FinishedAt,
+		&i.CommittedVersionID,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const insertOfficeJob = `-- name: InsertOfficeJob :one
 
 INSERT INTO office_jobs (

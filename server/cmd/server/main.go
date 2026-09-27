@@ -295,8 +295,13 @@ func main() {
 	if reg != nil {
 		officeMetrics = reg.Office
 	}
+	// Office commands authorize through the document ACL (G1-02), so the
+	// office service holds the same DocumentService the document routes use.
+	documentSvc := service.NewDocumentService(pool, q, orgSvc, wsSvc)
+	documentSvc.SetFiles(fileSvc)
+	documentSvc.SetEntitlements(service.NewEntitlementService(pool, q))
 	officeSvc := service.NewDocumentOfficeService(service.DocumentOfficeOptions{
-		Pool: pool, Queries: q, Files: fileSvc, Engine: officeEngine, Members: wsSvc, Metrics: officeMetrics,
+		Pool: pool, Queries: q, Files: fileSvc, Engine: officeEngine, Documents: documentSvc, Metrics: officeMetrics,
 		MaxDeadline: officeCfg.MaxJobDeadline, ReconcileInterval: officeCfg.ReconcileInterval, Log: log,
 	})
 	// One dispatcher drains outbox_events for the whole process. Registering a

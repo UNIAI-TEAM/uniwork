@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/files"
+	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	"github.com/unicomhub/uniwork/server/internal/office"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -23,6 +24,7 @@ import (
 type scriptedJob struct {
 	state  office.JobState
 	fileID string
+	target files.WriteTarget
 	sum    string
 	length int64
 	err    *office.JobError
@@ -31,17 +33,22 @@ type scriptedJob struct {
 type scriptedEngine struct {
 	mu        sync.Mutex
 	key       []byte
-	files     *bridgeFiles
 	jobs      map[string]*scriptedJob
 	grants    []office.ServiceGrant
 	submitErr error
 	lost      bool
 	gate      chan struct{}
-	cancels   int
+	// statusCalls, when non-nil, receives one signal per Status entry so a
+	// race test waits for "the refresh is inside Status" instead of a sleep.
+	statusCalls chan struct{}
+	// fake, when set, stands in for storage on fake:// write targets; nil
+	// means every output goes to the grant's URL (bridge or signed).
+	fake    *filesfake.Fake
+	cancels int
 }
 
-func newScriptedEngine(f *officeFixture) *scriptedEngine {
-	return &scriptedEngine{key: []byte(officeDevKey), files: f.files, jobs: map[string]*scriptedJob{}}
+func newScriptedEngine() *scriptedEngine {
+	return &scriptedEngine{key: []byte(officeDevKey), jobs: map[string]*scriptedJob{}}
 }
 
 func (e *scriptedEngine) Sign(g office.ServiceGrant) (string, error) {
@@ -70,7 +77,10 @@ func (e *scriptedEngine) Submit(_ context.Context, token string, env office.Enve
 	}
 	e.grants = append(e.grants, g)
 	if _, ok := e.jobs[g.JobID]; !ok {
-		e.jobs[g.JobID] = &scriptedJob{state: office.JobRunning, fileID: g.Output.FileID}
+		e.jobs[g.JobID] = &scriptedJob{state: office.JobRunning, fileID: g.Output.FileID, target: files.WriteTarget{
+			URL: g.Output.URL, Method: g.Output.Method, Headers: g.Output.Headers,
+			ExpiresAt: time.UnixMilli(g.Output.ExpiresAt),
+		}}
 	}
 	if env.GrantID != g.GrantID {
 		return office.JobStatus{}, office.NewEngineError("grant_scope", "grant_id")
@@ -78,16 +88,23 @@ func (e *scriptedEngine) Submit(_ context.Context, token string, env office.Enve
 	return e.status(g.JobID), nil
 }
 
-// finish plays the engine completing: it writes the output to the object
-// store (the fake) and reports completed.
-func (e *scriptedEngine) finish(t *testing.T, jobID string, body []byte) {
+// finish plays the engine completing: it PUTs the output to the grant's
+// write target - the bridge listener for the fake, the signed URL for a real
+// FileService backend - and reports completed.
+func (e *scriptedEngine) finish(t *testing.T, jobID string, body []byte, contentType string) {
 	t.Helper()
 	e.mu.Lock()
-	defer e.mu.Unlock()
 	j := e.jobs[jobID]
-	if err := e.files.WriteProviderOutput(files.ProviderOutput{FileID: files.FileID(j.fileID)}, body, "text/markdown"); err != nil {
-		t.Fatal(err)
+	e.mu.Unlock()
+	if e.fake != nil {
+		if err := e.fake.WriteProviderOutput(files.ProviderOutput{FileID: files.FileID(j.fileID)}, body, contentType); err != nil {
+			t.Fatal(err)
+		}
+	} else {
+		putWriteTarget(t, j.target, body, contentType)
 	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	sum := sha256.Sum256(body)
 	j.state, j.sum, j.length = office.JobCompleted, hex.EncodeToString(sum[:]), int64(len(body))
 }
@@ -105,7 +122,11 @@ func (e *scriptedEngine) Status(_ context.Context, jobID, token string) (office.
 	}
 	e.mu.Lock()
 	gate := e.gate
+	entered := e.statusCalls
 	e.mu.Unlock()
+	if entered != nil {
+		entered <- struct{}{}
+	}
 	if gate != nil {
 		<-gate
 	}
@@ -161,7 +182,7 @@ func TestDocumentOfficeLifecycle(t *testing.T) {
 
 	t.Run("the dispatch grant binds actor, scope, base, input, output and deadline", func(t *testing.T) {
 		f := newOfficeFixture(t, "bind me\n")
-		eng := newScriptedEngine(f)
+		eng := newScriptedEngine()
 		svc := f.service(eng)
 		row, err := svc.StartOfficeJob(ctx, f.actor, f.input("k-bind"))
 		if err != nil {
@@ -187,13 +208,13 @@ func TestDocumentOfficeLifecycle(t *testing.T) {
 
 	t.Run("a same-key retry after the output was committed replays the committed job", func(t *testing.T) {
 		f := newOfficeFixture(t, "commit me\n")
-		eng := newScriptedEngine(f)
+		eng := newScriptedEngine()
 		svc := f.service(eng)
 		row, err := svc.StartOfficeJob(ctx, f.actor, f.input("k-committed"))
 		if err != nil {
 			t.Fatal(err)
 		}
-		eng.finish(t, row.ID, body)
+		eng.finish(t, row.ID, body, "text/markdown")
 		done, err := svc.GetOfficeJob(ctx, f.actor, f.org, f.ws, row.ID)
 		if err != nil || done.State != "completed" {
 			t.Fatalf("complete: %+v %v", done, err)
@@ -223,15 +244,16 @@ func TestDocumentOfficeLifecycle(t *testing.T) {
 
 	t.Run("cancel wins against a completion the engine reports late", func(t *testing.T) {
 		f := newOfficeFixture(t, "race\n")
-		eng := newScriptedEngine(f)
+		eng := newScriptedEngine()
 		svc := f.service(eng)
 		row, err := svc.StartOfficeJob(ctx, f.actor, f.input("k-race"))
 		if err != nil {
 			t.Fatal(err)
 		}
-		eng.finish(t, row.ID, body) // the engine is done and the object exists
+		eng.finish(t, row.ID, body, "text/markdown") // the engine is done and the object exists
 		eng.mu.Lock()
 		eng.gate = make(chan struct{})
+		eng.statusCalls = make(chan struct{}, 8)
 		gate := eng.gate
 		eng.mu.Unlock()
 		refreshed := make(chan db.OfficeJob)
@@ -239,7 +261,7 @@ func TestDocumentOfficeLifecycle(t *testing.T) {
 			r, _ := svc.GetOfficeJob(ctx, f.actor, f.org, f.ws, row.ID) // blocks inside Status
 			refreshed <- r
 		}()
-		time.Sleep(50 * time.Millisecond)
+		<-eng.statusCalls // the refresh is inside Status, parked on the gate
 		cancelled, err := svc.CancelOfficeJob(ctx, f.actor, f.org, f.ws, row.ID)
 		if err != nil || cancelled.State != "cancelled" {
 			t.Fatalf("cancel: %+v %v", cancelled, err)
@@ -256,10 +278,10 @@ func TestDocumentOfficeLifecycle(t *testing.T) {
 
 	t.Run("commit and cancel of a completed job: whichever lands first is final", func(t *testing.T) {
 		f := newOfficeFixture(t, "order\n")
-		eng := newScriptedEngine(f)
+		eng := newScriptedEngine()
 		svc := f.service(eng)
 		first, _ := svc.StartOfficeJob(ctx, f.actor, f.input("k-commit-first"))
-		eng.finish(t, first.ID, body)
+		eng.finish(t, first.ID, body, "text/markdown")
 		if _, err := svc.GetOfficeJob(ctx, f.actor, f.org, f.ws, first.ID); err != nil {
 			t.Fatal(err)
 		}
@@ -271,11 +293,11 @@ func TestDocumentOfficeLifecycle(t *testing.T) {
 			t.Fatalf("cancel after commit: %+v %v", after, err)
 		}
 
-		docID, verID := f.seedDocument(t, "order 2\n")
+		docID, verID, rev := f.seedDocument(t, "order 2\n")
 		in := f.input("k-cancel-first")
-		in.DocumentID, in.BaseVersionID = docID, verID
+		in.DocumentID, in.BaseVersionID, in.BaseRevision = docID, verID, rev
 		second, _ := svc.StartOfficeJob(ctx, f.actor, in)
-		eng.finish(t, second.ID, body)
+		eng.finish(t, second.ID, body, "text/markdown")
 		if _, err := svc.GetOfficeJob(ctx, f.actor, f.org, f.ws, second.ID); err != nil {
 			t.Fatal(err)
 		}
@@ -289,7 +311,7 @@ func TestDocumentOfficeLifecycle(t *testing.T) {
 
 	t.Run("a retryable dispatch refusal keeps the job for the same key; a final one settles it", func(t *testing.T) {
 		f := newOfficeFixture(t, "busy\n")
-		eng := newScriptedEngine(f)
+		eng := newScriptedEngine()
 		svc := f.service(eng)
 		for _, cause := range []error{office.NewEngineError("engine_overloaded", "queue_full"), office.ErrServiceAuth} {
 			eng.submitErr = cause
@@ -306,7 +328,7 @@ func TestDocumentOfficeLifecycle(t *testing.T) {
 			if err != nil || again.ID != row.ID || again.GrantID != row.GrantID || again.State != "running" {
 				t.Fatalf("%v: redispatch %+v %v", cause, again, err)
 			}
-			eng.finish(t, row.ID, body)
+			eng.finish(t, row.ID, body, "text/markdown")
 			if done, _ := svc.GetOfficeJob(ctx, f.actor, f.org, f.ws, row.ID); done.State != "completed" {
 				t.Fatalf("%v: %+v", cause, done)
 			}
@@ -325,7 +347,7 @@ func TestDocumentOfficeLifecycle(t *testing.T) {
 
 	t.Run("engine outcomes map onto the row", func(t *testing.T) {
 		f := newOfficeFixture(t, "outcomes\n")
-		eng := newScriptedEngine(f)
+		eng := newScriptedEngine()
 		svc := f.service(eng)
 		cases := []struct {
 			state        office.JobState
@@ -339,9 +361,9 @@ func TestDocumentOfficeLifecycle(t *testing.T) {
 			{office.JobCancelled, "engine_cancelled", "cancel_requested", "cancelled", "engine_cancelled"},
 		}
 		for i, tc := range cases {
-			docID, verID := f.seedDocument(t, "outcome "+tc.reason+"\n")
+			docID, verID, rev := f.seedDocument(t, "outcome "+tc.reason+"\n")
 			in := f.input("k-outcome-" + tc.reason)
-			in.DocumentID, in.BaseVersionID = docID, verID
+			in.DocumentID, in.BaseVersionID, in.BaseRevision = docID, verID, rev
 			row, err := svc.StartOfficeJob(ctx, f.actor, in)
 			if err != nil {
 				t.Fatal(err)
@@ -356,14 +378,14 @@ func TestDocumentOfficeLifecycle(t *testing.T) {
 
 	t.Run("an engine that lost the job settles from the provider-output intent", func(t *testing.T) {
 		f := newOfficeFixture(t, "lost\n")
-		eng := newScriptedEngine(f)
+		eng := newScriptedEngine()
 		svc := f.service(eng)
 		lost, _ := svc.StartOfficeJob(ctx, f.actor, f.input("k-lost"))
-		docID, verID := f.seedDocument(t, "written\n")
+		docID, verID, rev := f.seedDocument(t, "written\n")
 		in := f.input("k-written")
-		in.DocumentID, in.BaseVersionID = docID, verID
+		in.DocumentID, in.BaseVersionID, in.BaseRevision = docID, verID, rev
 		written, _ := svc.StartOfficeJob(ctx, f.actor, in)
-		eng.finish(t, written.ID, body)
+		eng.finish(t, written.ID, body, "text/markdown")
 		eng.mu.Lock()
 		eng.lost = true
 		eng.mu.Unlock()
@@ -381,7 +403,7 @@ func TestDocumentOfficeLifecycle(t *testing.T) {
 
 	t.Run("Go's clock times out a job the engine keeps running, and tells the engine", func(t *testing.T) {
 		f := newOfficeFixture(t, "slow\n")
-		eng := newScriptedEngine(f)
+		eng := newScriptedEngine()
 		svc := f.service(eng)
 		row, _ := svc.StartOfficeJob(ctx, f.actor, f.input("k-slow"))
 		f.offset.Store(int64(time.Minute))
@@ -393,7 +415,7 @@ func TestDocumentOfficeLifecycle(t *testing.T) {
 
 	t.Run("export is refused before a row or an output intent exists", func(t *testing.T) {
 		f := newOfficeFixture(t, "export\n")
-		svc := f.service(newScriptedEngine(f))
+		svc := f.service(newScriptedEngine())
 		in := f.input("k-export")
 		in.Operation = office.OperationExport
 		if _, err := svc.StartOfficeJob(ctx, f.actor, in); office.ErrorCode(err) != "unsupported_operation" {
@@ -404,25 +426,64 @@ func TestDocumentOfficeLifecycle(t *testing.T) {
 		}
 	})
 
+	t.Run("office commands take the document ACL, not workspace membership", func(t *testing.T) {
+		f := newOfficeFixture(t, "acl\n")
+		eng := newScriptedEngine()
+		svc := f.service(eng)
+		if _, err := f.pool.Exec(ctx, `UPDATE documents SET visibility = 'restricted' WHERE id = $1`, f.doc); err != nil {
+			t.Fatal(err)
+		}
+		// A stranger never reaches a job: the document is not found for them.
+		if _, err := svc.StartOfficeJob(ctx, human(f.tn.bMember), f.input("k-acl-none")); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("stranger submit: %v", err)
+		}
+		// A viewer may read a job's status but may neither submit nor cancel.
+		docRow, err := f.q.GetDocumentByID(ctx, f.doc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		f.pf.share(t, docRow, DocumentPrincipalUser, f.tn.creator.ID, DocumentLevelView, f.tn.member.ID)
+		viewer := human(f.tn.creator)
+		if _, err := svc.StartOfficeJob(ctx, viewer, f.input("k-acl-view")); !errors.Is(err, ErrForbidden) {
+			t.Fatalf("viewer submit: %v", err)
+		}
+		row, err := svc.StartOfficeJob(ctx, f.actor, f.input("k-acl-edit"))
+		if err != nil {
+			t.Fatalf("editor submit: %v", err)
+		}
+		if _, err := svc.GetOfficeJob(ctx, viewer, f.org, f.ws, row.ID); err != nil {
+			t.Fatalf("viewer status: %v", err)
+		}
+		if _, err := svc.CancelOfficeJob(ctx, viewer, f.org, f.ws, row.ID); !errors.Is(err, ErrForbidden) {
+			t.Fatalf("viewer cancel: %v", err)
+		}
+		// Agents and anonymous actors never reach an office command.
+		if _, err := svc.StartOfficeJob(ctx, agentActor(f.tn.agent), f.input("k-acl-agent")); !errors.Is(err, ErrForbidden) {
+			t.Fatalf("agent submit: %v", err)
+		}
+		if _, err := svc.GetOfficeJob(ctx, agentActor(f.tn.agent), f.org, f.ws, row.ID); !errors.Is(err, ErrForbidden) {
+			t.Fatalf("agent status: %v", err)
+		}
+	})
+
 	t.Run("only the job's creator cancels it", func(t *testing.T) {
 		f := newOfficeFixture(t, "mine\n")
-		eng := newScriptedEngine(f)
+		eng := newScriptedEngine()
 		svc := f.service(eng)
 		row, _ := svc.StartOfficeJob(ctx, f.actor, f.input("k-mine"))
-		other := Human(util.NewID())
-		otherSvc := NewDocumentOfficeService(DocumentOfficeOptions{Pool: f.pool, Queries: f.q, Files: f.files, Engine: eng, Members: allowMember{other.ID}})
-		if _, err := otherSvc.CancelOfficeJob(ctx, other, f.org, f.ws, row.ID); !errors.Is(err, ErrForbidden) {
+		other := human(f.tn.creator) // another member with edit on the document
+		if _, err := svc.CancelOfficeJob(ctx, other, f.org, f.ws, row.ID); !errors.Is(err, ErrForbidden) {
 			t.Fatalf("other member cancel: %v", err)
 		}
 	})
 
 	t.Run("metrics count each job once and keep the queue gauge on a failed probe", func(t *testing.T) {
 		f := newOfficeFixture(t, "metrics\n")
-		eng := newScriptedEngine(f)
+		eng := newScriptedEngine()
 		m := &countingMetrics{}
-		svc := NewDocumentOfficeService(DocumentOfficeOptions{Pool: f.pool, Queries: f.q, Files: f.files, Engine: eng, Members: allowMember{f.actor.ID}, Metrics: m})
+		svc := NewDocumentOfficeService(DocumentOfficeOptions{Pool: f.pool, Queries: f.q, Files: f.files, Engine: eng, Documents: f.docs, Metrics: m})
 		row, _ := svc.StartOfficeJob(ctx, f.actor, f.input("k-metrics"))
-		eng.finish(t, row.ID, body)
+		eng.finish(t, row.ID, body, "text/markdown")
 		_, _ = svc.GetOfficeJob(ctx, f.actor, f.org, f.ws, row.ID)
 		_, _ = svc.CancelOfficeJob(ctx, f.actor, f.org, f.ws, row.ID) // completed -> cancelled
 		if len(m.outcomes) != 1 || m.outcomes[0] != "completed" {
@@ -435,10 +496,10 @@ func TestDocumentOfficeLifecycle(t *testing.T) {
 
 	t.Run("the reconciler sweeps on its interval and stops with its context", func(t *testing.T) {
 		f := newOfficeFixture(t, "sweep\n")
-		eng := newScriptedEngine(f)
+		eng := newScriptedEngine()
 		svc := f.service(eng)
 		row, _ := svc.StartOfficeJob(ctx, f.actor, f.input("k-sweep"))
-		eng.finish(t, row.ID, body)
+		eng.finish(t, row.ID, body, "text/markdown")
 		runCtx, cancel := context.WithCancel(ctx)
 		stopped := make(chan struct{})
 		go func() { svc.RunReconciler(runCtx); close(stopped) }()
