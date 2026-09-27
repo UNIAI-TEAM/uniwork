@@ -35,6 +35,9 @@
     "apps/markdown/src/shared",
     "apps/html/src/main",
     "apps/html/src/shared",
+    "apps/html/src/renderer/document/parse-map.ts",
+    "apps/html/src/renderer/document/patch.ts",
+    "apps/html/src/renderer/document/blank.ts",
     "LICENSE",
     "LICENSE-UNICODE.txt",
     "NOTICE",
@@ -43,9 +46,9 @@
     "tsconfig.base.json",
     "vitest.config.ts"
   ],
-  "fileCount": 764,
+  "fileCount": 767,
   "integrity": {
-    "filesDigest": "fca30f798f4680d0e3d4226b5bfdec2eaca230bfb01f1bc013b8056d41fd55e8"
+    "filesDigest": "63a07eea0cb66757ffb1695fe85bbc775a2a7a12a93cc0661fab4e2a500a815d"
   },
   "files": [
     {
@@ -193,6 +196,27 @@
       "bytes": 4772,
       "sha256": "7E93B3E1F4F4B025B6F84044DBE3DED98BFEB0A49F4E46D27F3343FD2C8808F1",
       "blob": "a0cd32a875e66d592c7c57d151be18cd7bc0536a",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/html/src/renderer/document/blank.ts",
+      "bytes": 690,
+      "sha256": "4BEE446EE1D49FA4DC4D83FF88104C9CA6C41A97267096CAC3541D60A147545F",
+      "blob": "ff7203c4e2f8d1787859866afd18174ae7535ca1",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/html/src/renderer/document/parse-map.ts",
+      "bytes": 6779,
+      "sha256": "763CB99A6CEFAFB859F7446205FC778CBA3FB4F76BD304330ED51F9B73DFBB5E",
+      "blob": "83587c50da315bb8e356277e8c798189cbe223ae",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/html/src/renderer/document/patch.ts",
+      "bytes": 2071,
+      "sha256": "DDE881C652745E3FE4102540E91EDBFD97805E0CC16E57E9F7976FBB9B6E8DF9",
+      "blob": "631d8ee37c03e5e0cef8e1bf4b7f316859545e59",
       "mode": "100644"
     },
     {
