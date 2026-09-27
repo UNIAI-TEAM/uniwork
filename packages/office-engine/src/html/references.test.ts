@@ -136,6 +136,20 @@ describe("HTML reference scanner", () => {
     expect(scanHtmlSlots(`<svg><font>${hidden}</font></svg>`).map((s) => s.role)).toEqual(["navigation"]);
   });
 
+  it("ends comments and raw text where the tokenizer does", () => {
+    expect(extractHtmlAssetReferences(`<!--><img src="a.png"><!---><img src="b.png"><!-- x --!><img src="c.png">`)).toEqual([
+      "a.png",
+      "b.png",
+      "c.png",
+    ]);
+    expect(extractHtmlAssetReferences(`<!-- x --><!-- y`)).toEqual([]);
+    expect(extractHtmlAssetReferences(`<style>a{}</style x="1"><img src="d.png"><textarea></textarea/><img src="e.png">`)).toEqual([
+      "d.png",
+      "e.png",
+    ]);
+    expect(extractHtmlAssetReferences(`<style>a{}</styles><img src="raw.png"></style><img src="f.png">`)).toEqual(["f.png"]);
+  });
+
   it("decodes numeric entities and tolerates unterminated markup", () => {
     expect(extractHtmlAssetReferences(`<img src="a&#46;png"><img src="&#x62;.png"><img src="&bogus;.png">`)).toEqual([
       "a.png",

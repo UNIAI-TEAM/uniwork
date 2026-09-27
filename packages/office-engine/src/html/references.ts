@@ -44,7 +44,7 @@ export function isAssetRole(role: SlotRole): role is AssetSlot {
 
 const ENTITIES: Readonly<Record<string, string>> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: "\u00a0" };
 
-function decodeEntities(raw: string): string {
+export function decodeEntities(raw: string): string {
   return raw.replace(/&(#x[0-9a-f]+|#[0-9]+|[a-z]+);/gi, (whole, body: string) => {
     if (body[0] === "#") {
       const code = body[1] === "x" || body[1] === "X" ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10);
@@ -189,12 +189,32 @@ function attributeRole(tag: string, attr: string, attrs: readonly Attr[]): { rol
   }
 }
 
-const RAW_TEXT_TAGS: ReadonlySet<string> = new Set(["script", "style", "title", "textarea"]);
+// Elements whose body the HTML tokenizer reads as text (script data, RAWTEXT,
+// RCDATA, PLAINTEXT). noscript is left out: the sandbox runs without script
+// by default, and then its body is markup.
+const RAW_TEXT_TAGS: ReadonlySet<string> = new Set([
+  "script", "style", "title", "textarea", "xmp", "iframe", "noembed", "noframes", "plaintext",
+]);
+
+/** End of a comment starting at lt ("<!--"), per the tokenizer: "<!-->" and
+ * "<!--->" close at once, and "--!>" closes like "-->". Returns the index
+ * just past the comment. */
+function commentEnd(html: string, lt: number): number {
+  if (html.startsWith("<!-->", lt)) return lt + 5;
+  if (html.startsWith("<!--->", lt)) return lt + 6;
+  const a = html.indexOf("-->", lt + 4);
+  const b = html.indexOf("--!>", lt + 4);
+  if (a === -1 && b === -1) return html.length;
+  if (b === -1 || (a !== -1 && a < b)) return a + 3;
+  return b + 4;
+}
 
 /** Every URL-bearing slot in document order. Comments, <script> bodies and
  * RCDATA (<title>, <textarea>) are skipped and <style> bodies are CSS slots -
  * in HTML content only; inside svg/math those elements are scanned as markup
- * (foreign-content.ts decides which, FE reviews r1-r3). */
+ * (foreign-content.ts decides which, FE reviews r1-r3). Accuracy here serves
+ * saves and CSS mapping; the preview copy does not rely on it for isolation
+ * (preview-copy.ts sweeps every attribute afterwards). */
 export function scanHtmlSlots(html: string): HtmlSlot[] {
   const slots: HtmlSlot[] = [];
   const foreignContent = createForeignContentTracker();
@@ -203,8 +223,7 @@ export function scanHtmlSlots(html: string): HtmlSlot[] {
     const lt = html.indexOf("<", i);
     if (lt === -1) break;
     if (html.startsWith("<!--", lt)) {
-      const close = html.indexOf("-->", lt + 4);
-      i = close === -1 ? html.length : close + 3;
+      i = commentEnd(html, lt);
       continue;
     }
     const endTag = /^<\/([a-zA-Z][a-zA-Z0-9:-]*)/.exec(html.slice(lt, lt + 64));
@@ -233,14 +252,17 @@ export function scanHtmlSlots(html: string): HtmlSlot[] {
     const foreign = foreignContent.inForeign();
     foreignContent.startTag(tag, attrs, selfClosing);
     if (foreign || !RAW_TEXT_TAGS.has(tag)) continue;
-    const closeRe = new RegExp("</" + tag + "\\s*>", "ig");
+    // The raw text ends at the first "</tag" followed by whitespace, "/" or
+    // ">" - an end tag may carry attributes.
+    const closeRe = new RegExp("</" + tag + "(?=[\\t\\n\\f\\r />])", "ig");
     closeRe.lastIndex = i;
     const close = closeRe.exec(html);
     const bodyEnd = close ? close.index : html.length;
     if (tag === "style" && bodyEnd > i) {
       slots.push({ start: i, end: bodyEnd, quote: "css", kind: "css", role: "image", value: html.slice(i, bodyEnd) });
     }
-    i = close ? close.index + close[0].length : html.length;
+    const gt = close ? html.indexOf(">", close.index) : -1;
+    i = gt === -1 ? html.length : gt + 1;
   }
   return slots;
 }

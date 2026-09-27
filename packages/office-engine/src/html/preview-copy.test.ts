@@ -80,6 +80,32 @@ describe("HTML preview copy", () => {
     expect(out).toContain(`href="${PROXY}img%2Flogo.svg"`);
   });
 
+  it("sweeps URL attributes the slot scanner could not see, keeping only approved values", () => {
+    const out = copy(
+      `<xmp><!--</xmp><a href="https://evil.example/c">c</a>` +
+        `<svg><a><set attributeName="href" to="https://evil.example/s"/></a></svg>` +
+        `<textarea><meta http-equiv="refresh" content="1;url=https://evil.example/r"></textarea>` +
+        `<title><iframe srcdoc="x"></iframe><img src="img/a%20b.png"></title>` +
+        `<img src="img/a%20b.png"><a href="#ok">ok</a><meta name="viewport" content="width=device-width">`,
+    );
+    expect(out).not.toMatch(/(?:href|content)="[^"]*evil.example/);
+    // The animation stays, but it no longer targets href.
+    expect(out).toContain(`attributeName="data-uw-blocked"`);
+    expect(out).toContain(`srcdoc=""`);
+    // Approved by the slot rewrite: the proxied image, a fragment link, a harmless meta.
+    expect(out).toContain(`<img src="${PROXY}img%2Fa%20b.png">`);
+    expect(out).toContain(`<a href="#ok">`);
+    expect(out).toContain(`content="width=device-width"`);
+    // The same local reference hidden in RCDATA is not approved there: it is blocked, not proxied.
+    expect(out).toContain(`<title><iframe srcdoc=""></iframe><img src="${BLOCKED_URL}"></title>`);
+  });
+
+  it("never keeps a value that carries markup", () => {
+    const out = copy(`<img src="data:image/png,<b>"><a href="#x<b>">y</a>`);
+    expect(out).toContain(`src="${BLOCKED_URL}"`);
+    expect(out).toContain(`href="#"`);
+  });
+
   it("rewrites CSS url() and font references", () => {
     const out = copy(`<style>@font-face{src:url(fonts/x.woff2)} body{background:url(https://evil.example/bg.png)}</style>`);
     expect(out).toContain(`url("${PROXY}fonts%2Fx.woff2")`);
