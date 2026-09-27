@@ -101,10 +101,12 @@ func (a documentCommentAdapter) canModerate(_ context.Context, actor Actor, _ Co
 	return a.access.Level.AtLeast(DocumentLevelManage), nil
 }
 
-// beforeDelete is a no-op for document comments - no attachment rows bind a
-// comment_id there.
-func (documentCommentAdapter) beforeDelete(_ context.Context, _ *db.Queries, _ CommentRef, _ db.DocumentComment) error {
-	return nil
+// beforeDelete removes the comment's reactions in the delete transaction (no
+// FK, so the service cleans up); no attachment rows bind a document comment.
+func (documentCommentAdapter) beforeDelete(ctx context.Context, q *db.Queries, ref CommentRef, c db.DocumentComment) error {
+	return q.DeleteDocumentCommentReactions(ctx, db.DeleteDocumentCommentReactionsParams{
+		CommentID: c.ID, OrganizationID: ref.OrganizationID, WorkspaceID: ref.WorkspaceID,
+	})
 }
 
 func (documentCommentAdapter) verbs() commentVerbs {

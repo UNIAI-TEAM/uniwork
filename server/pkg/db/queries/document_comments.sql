@@ -88,4 +88,14 @@ JOIN document_comments c ON c.id = r.comment_id
 WHERE c.document_id = $1
   AND r.organization_id = $2
   AND r.workspace_id = $3
+  AND c.organization_id = $2
+  AND c.workspace_id = $3
 ORDER BY r.created_at;
+
+-- name: DeleteDocumentCommentReactions :exec
+-- A deleted document comment takes its reactions with it (no FK: service
+-- cleanup in the delete transaction).
+DELETE FROM comment_reactions
+WHERE comment_id = $1
+  AND organization_id = $2
+  AND workspace_id = $3;

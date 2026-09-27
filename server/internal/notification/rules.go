@@ -344,6 +344,12 @@ func ruleDocumentCommentAdded(ctx context.Context, e env, ev outbox.Row, p map[s
 	if err != nil {
 		return nil, err
 	}
+	// The id came from the event payload: only trust a document that lives
+	// in the event's own tenant pair.
+	if (ev.OrganizationID.Valid && doc.OrganizationID != ev.OrganizationID.String) ||
+		(ev.WorkspaceID.Valid && doc.WorkspaceID != ev.WorkspaceID.String) {
+		return nil, nil
+	}
 	comment, err := e.q.GetDocumentComment(ctx, db.GetDocumentCommentParams{
 		ID: p["comment_id"], OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
 	})

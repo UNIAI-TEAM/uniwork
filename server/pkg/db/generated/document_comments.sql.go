@@ -84,6 +84,26 @@ func (q *Queries) DeleteDocumentComment(ctx context.Context, arg DeleteDocumentC
 	return err
 }
 
+const deleteDocumentCommentReactions = `-- name: DeleteDocumentCommentReactions :exec
+DELETE FROM comment_reactions
+WHERE comment_id = $1
+  AND organization_id = $2
+  AND workspace_id = $3
+`
+
+type DeleteDocumentCommentReactionsParams struct {
+	CommentID      string `json:"comment_id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+// A deleted document comment takes its reactions with it (no FK: service
+// cleanup in the delete transaction).
+func (q *Queries) DeleteDocumentCommentReactions(ctx context.Context, arg DeleteDocumentCommentReactionsParams) error {
+	_, err := q.db.Exec(ctx, deleteDocumentCommentReactions, arg.CommentID, arg.OrganizationID, arg.WorkspaceID)
+	return err
+}
+
 const getDocumentComment = `-- name: GetDocumentComment :one
 SELECT id, organization_id, workspace_id, document_id, parent_comment_id, author_id, author_kind, body, comment_type, revision, resolved_at, resolved_by_type, resolved_by_id, created_at, updated_at
 FROM document_comments
@@ -162,6 +182,8 @@ JOIN document_comments c ON c.id = r.comment_id
 WHERE c.document_id = $1
   AND r.organization_id = $2
   AND r.workspace_id = $3
+  AND c.organization_id = $2
+  AND c.workspace_id = $3
 ORDER BY r.created_at
 `
 

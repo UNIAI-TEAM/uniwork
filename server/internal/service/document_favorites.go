@@ -25,6 +25,12 @@ import (
 func (s *DocumentService) FavoriteDocument(ctx context.Context, actor Actor, documentID string) (db.DocumentFavorite, error) {
 	var out db.DocumentFavorite
 	err := s.withDocumentMutation(ctx, actor, documentID, DocumentLevelView, func(q *db.Queries, doc db.Document, _ DocumentAccess) error {
+		// Favorites are a person's bookmarks: an agent passes the view gate but
+		// never writes one (ADR 0010). Checked after the gate, so a caller who
+		// cannot see the document still learns nothing.
+		if actor.Kind != audit.KindHuman {
+			return ErrForbidden
+		}
 		row, err := q.AddDocumentFavorite(ctx, db.AddDocumentFavoriteParams{
 			ID: util.NewID(), OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
 			DocumentID: doc.ID, UserID: actor.ID,
@@ -61,6 +67,9 @@ func (s *DocumentService) FavoriteDocument(ctx context.Context, actor Actor, doc
 // a no-op and audits nothing.
 func (s *DocumentService) UnfavoriteDocument(ctx context.Context, actor Actor, documentID string) error {
 	return s.withDocumentMutation(ctx, actor, documentID, DocumentLevelView, func(q *db.Queries, doc db.Document, _ DocumentAccess) error {
+		if actor.Kind != audit.KindHuman {
+			return ErrForbidden
+		}
 		n, err := q.RemoveDocumentFavorite(ctx, db.RemoveDocumentFavoriteParams{
 			DocumentID: doc.ID, UserID: actor.ID,
 			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
