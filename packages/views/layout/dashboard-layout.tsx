@@ -12,6 +12,7 @@ import { WorkspaceChrome } from "./workspace-top-bar";
 import { WorkspaceLoader } from "./workspace-loader";
 import { WorkspaceProvider } from "./workspace-context";
 import { WorkspaceRealtimeSync } from "./workspace-realtime-sync";
+import { WorkspaceChatPresence } from "./workspace-chat-presence";
 import { ChatVoiceCallHost } from "../chat/chat-voice-call-host";
 
 interface DashboardLayoutProps {
@@ -53,6 +54,7 @@ export function DashboardLayout({ orgSlug, wsSlug, children, extra, loadingFallb
             <WSProvider workspaceSlug={`${orgSlug}/${wsSlug}`}>
               <ChatVoiceCallHost>
                 <WorkspaceRealtimeSync />
+                <WorkspaceChatPresence />
                 <SidebarProvider className="h-svh bg-app-shell" hasExternalTrigger>
                   {/* First in the DOM so it is the first tab stop; visible only
                       while focused. */}
