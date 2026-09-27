@@ -1,5 +1,6 @@
 import { buildHtmlPreviewCopy } from "@uniwork/office-engine/html";
 import { describe, expect, it } from "vitest";
+import { gatePreviewCopy } from "./preview-gate";
 
 // Parser-parity property for the preview copy. The engine rewrites URLs with
 // a string scanner; the frame parses the copy with a real HTML tree builder.
@@ -73,6 +74,36 @@ const copyOf = (text: string) =>
     scripts: false,
     csp: "default-src 'none'",
   });
+
+const gateOnly = (text: string): string => {
+  const result = gatePreviewCopy(text, { assetOrigin: "https://preview-assets.example", blockedUrl: "about:blank#blocked" });
+  return result.ok ? result.html : "";
+};
+
+function randomCases(count: number, seed: number): string[] {
+  const next = prng(seed);
+  const pick = <T,>(list: readonly T[]): T => list[Math.floor(next() * list.length)]!;
+  const out: string[] = [];
+  for (let n = 0; n < count; n++) {
+    const length = 1 + Math.floor(next() * 7);
+    let text = "";
+    for (let k = 0; k < length; k++) text += pick(TOKENS);
+    const [open, close] = pick(WRAPPERS);
+    out.push(text + open + pick(PAYLOADS) + close);
+  }
+  return out;
+}
+
+describe("final gate alone (browser parser tree walk, no engine help)", () => {
+  it("leaves no live hostile URL for 5000 raw random documents", () => {
+    const failures = randomCases(5000, 0x2545f491)
+      .map((text) => [text, liveHostile(gateOnly(text))] as const)
+      .filter(([, live]) => live.length > 0)
+      .slice(0, 5)
+      .map(([text, live]) => JSON.stringify(text) + " -> " + live.join(","));
+    expect(failures).toEqual([]);
+  });
+});
 
 describe("preview copy parser parity (parse5 tree builder)", () => {
   it("leaves no live hostile URL for 20000 random foreign-content prefixes", () => {

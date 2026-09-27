@@ -41,8 +41,9 @@
 // nosniff`, no cookies (none are sent: opaque origin + credentialless frame),
 // and must stop answering when the scope expires or is revoked.
 
-import { buildHtmlPreviewCopy } from "@uniwork/office-engine/html";
+import { BLOCKED_URL, buildHtmlPreviewCopy } from "@uniwork/office-engine/html";
 import type { AssetManifest } from "@uniwork/office-engine/assets";
+import { gatePreviewCopy } from "./preview-gate";
 
 export interface PreviewCapability {
   /** Let the document's own scripts run inside the sandbox. Default false. */
@@ -72,8 +73,14 @@ export interface PreviewAssetProxy {
 }
 
 /** "ready"/"resize" arrive from the preview; "navigated" is raised by the host
- * when the document left the preview on its own (the frame is blanked). */
-export type PreviewEvent = { type: "ready" } | { type: "resize"; height: number } | { type: "navigated" };
+ * when the document left the preview on its own (the frame is blanked);
+ * "refused" when the final gate (preview-gate.ts) could not prove the copy
+ * safe and the frame shows an empty document instead. */
+export type PreviewEvent =
+  | { type: "ready" }
+  | { type: "resize"; height: number }
+  | { type: "navigated" }
+  | { type: "refused"; reason: "unstable_serialisation" | "residual_after_reparse" };
 
 /** Preview TTL when the caller names none: long enough to read, short enough to expire. */
 const DEFAULT_TTL_MS = 10 * 60 * 1000;
@@ -289,8 +296,16 @@ export async function mountHtmlPreview(options: MountHtmlPreviewOptions): Promis
   // the new occupant never gets a port or the nonce (FE review r1 F-1).
   let pending: "document" | "blank" | null = null;
   const show = (text: string) => {
+    // Final gate: the browser's own parser decides what the copy contains.
+    const gated = gatePreviewCopy(render(text), { assetOrigin, blockedUrl: BLOCKED_URL });
+    if (!gated.ok) {
+      pending = "blank";
+      iframe.srcdoc = "";
+      options.onEvent?.({ type: "refused", reason: gated.reason });
+      return;
+    }
     pending = "document";
-    iframe.srcdoc = render(text);
+    iframe.srcdoc = gated.html;
   };
   let bridge: PreviewBridge | null = null;
   const onLoad = () => {

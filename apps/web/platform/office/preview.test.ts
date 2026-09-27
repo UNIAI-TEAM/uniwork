@@ -363,6 +363,23 @@ describe("mountHtmlPreview", () => {
     expect(session.iframe.srcdoc).toContain(`src="about:blank#blocked"`);
   });
 
+  it("shows an empty document and raises refused when the final gate cannot prove the copy", async () => {
+    const real = DOMParser.prototype.parseFromString;
+    let calls = 0;
+    // Second parse = the gate's re-parse: make it disagree with the first.
+    vi.spyOn(DOMParser.prototype, "parseFromString").mockImplementation(function (this: DOMParser, text, type) {
+      calls++;
+      return real.call(this, calls === 2 ? "<p>other</p>" : text, type);
+    });
+    const events: PreviewEvent[] = [];
+    const { session } = await mount("<p>x</p>", { onEvent: (e) => events.push(e) });
+    expect(events).toEqual([{ type: "refused", reason: "unstable_serialisation" }]);
+    expect(session.iframe.srcdoc).toBe("");
+    // Its load is expected and gets no ready and no bridge.
+    session.iframe.dispatchEvent(new Event("load"));
+    expect(events).toHaveLength(1);
+  });
+
   it("refuses a proxy that shares the app origin and revokes its scope", async () => {
     const shared = fakeProxy({ origin: APP });
     await expect(mount("<p>x</p>", { proxy: shared.proxy })).rejects.toMatchObject({ name: "PreviewIsolationError" });
