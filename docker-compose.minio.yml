@@ -16,8 +16,10 @@
 name: uniwork-minio
 services:
   minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
-    command: ["server", "/data", "--console-address", ":9001"]
+    # minio/minio and minio/mc are no longer published on Docker Hub; this is
+    # Bitnami's frozen legacy build, the same pin CI uses. It serves the API
+    # on 9000 and the console on 9001 without a command.
+    image: bitnamilegacy/minio:2025.7.23
     ports:
       - "${MINIO_API_PORT:-9000}:9000"
       - "${MINIO_CONSOLE_PORT:-9001}:9001"
@@ -25,7 +27,7 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     volumes:
-      - minio_data:/data
+      - minio_data:/bitnami/minio/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 5s
@@ -34,20 +36,24 @@ services:
       start_period: 10s
 
   minio-init:
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    image: bitnamilegacy/minio-client:2025.7.21
     depends_on:
       minio:
         condition: service_healthy
+    # The image runs as a non-root user that cannot save `mc alias set`, so
+    # the alias comes from the environment instead.
+    environment:
+      MC_HOST_uw: http://minioadmin:minioadmin@minio:9000
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        mc alias set local http://minio:9000 minioadmin minioadmin
-        mc mb --ignore-existing local/uniwork
+        set -e
+        mc mb --ignore-existing uw/uniwork
         # Prefixes show as folders in the console; objects land under these keys.
-        printf '' | mc pipe local/uniwork/chat/voice/.keep
-        printf '' | mc pipe local/uniwork/chat-voice/.keep
-        printf '' | mc pipe local/uniwork/chat/files/.keep
-        printf '' | mc pipe local/uniwork/avatars/.keep
+        printf '' | mc pipe uw/uniwork/chat/voice/.keep
+        printf '' | mc pipe uw/uniwork/chat-voice/.keep
+        printf '' | mc pipe uw/uniwork/chat/files/.keep
+        printf '' | mc pipe uw/uniwork/avatars/.keep
         echo "bucket uniwork ready (chat/voice, chat-voice, chat/files, avatars)"
 
 volumes:

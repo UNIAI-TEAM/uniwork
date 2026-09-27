@@ -25,7 +25,7 @@ import (
 // It is gated on the MINIO_* variables so a machine without MinIO skips it
 // cleanly. `docker compose -f docker-compose.minio.yml up -d minio` followed
 // by the minio-init service is the local setup; CI runs the same image as a
-// job service and creates the test bucket with minio/mc.
+// job service and creates the test bucket through MINIO_DEFAULT_BUCKETS.
 func TestMinIOBackendIntegration(t *testing.T) {
 	required := []string{
 		"MINIO_ENDPOINT",

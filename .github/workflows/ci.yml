@@ -254,13 +254,18 @@ jobs:
           --health-timeout 5s
           --health-retries 10
       # MinIO for internal/storage's integration test, pinned to the same
-      # release docker-compose.minio.yml uses. The bucket-init step below
-      # creates the test bucket; no test creates or deletes a bucket.
+      # image docker-compose.minio.yml uses. minio/minio and minio/mc are no
+      # longer published on Docker Hub, so this is Bitnami's frozen legacy
+      # build; MINIO_DEFAULT_BUCKETS creates the test bucket, and the only test
+      # that makes a bucket (the versioned contract case) makes its own.
       minio:
-        image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+        image: bitnamilegacy/minio:2025.7.23
         env:
           MINIO_ROOT_USER: minioadmin
           MINIO_ROOT_PASSWORD: minioadmin
+          # The image starts the server itself (a service container cannot
+          # take a command) and creates this bucket before it reports healthy.
+          MINIO_DEFAULT_BUCKETS: uniwork-test
         ports:
           - 9000:9000
         options: >-
@@ -297,15 +302,6 @@ jobs:
       - name: Build
         if: ${{ matrix.shard == 'rest' }}
         run: cd server && go build ./...
-      - name: Create the MinIO test bucket
-        # minio/mc, the same pin docker-compose.minio.yml uses. --network host
-        # reaches the port the service above publishes, and the bucket name is
-        # the MINIO_BUCKET the storage integration test reads.
-        run: |
-          docker run --rm --network host --entrypoint /bin/sh \
-            -e MINIO_ENDPOINT -e MINIO_BUCKET -e MINIO_ACCESS_KEY_ID -e MINIO_SECRET_ACCESS_KEY \
-            minio/mc:RELEASE.2025-08-13T08-35-41Z \
-            -c 'mc alias set ci "$MINIO_ENDPOINT" "$MINIO_ACCESS_KEY_ID" "$MINIO_SECRET_ACCESS_KEY" >/dev/null && mc mb --ignore-existing "ci/$MINIO_BUCKET"'
       - name: Migrate the test database
         run: cd server && go run ./cmd/migrate up
       - name: Tests (${{ matrix.shard }})
@@ -392,10 +388,13 @@ jobs:
       # MinIO is the FileService destination of the server this job starts
       # (STORAGE_BACKEND=minio): smoke and e2e run on the real adapter.
       minio:
-        image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+        image: bitnamilegacy/minio:2025.7.23
         env:
           MINIO_ROOT_USER: minioadmin
           MINIO_ROOT_PASSWORD: minioadmin
+          # The image starts the server itself (a service container cannot
+          # take a command) and creates this bucket before it reports healthy.
+          MINIO_DEFAULT_BUCKETS: uniwork-test
         ports:
           - 9000:9000
         options: >-
@@ -440,12 +439,6 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: server/go.sum
       - run: pnpm install --frozen-lockfile
-      - name: Create the MinIO test bucket
-        run: |
-          docker run --rm --network host --entrypoint /bin/sh \
-            -e MINIO_ENDPOINT -e MINIO_BUCKET -e MINIO_ACCESS_KEY_ID -e MINIO_SECRET_ACCESS_KEY \
-            minio/mc:RELEASE.2025-08-13T08-35-41Z \
-            -c 'mc alias set ci "$MINIO_ENDPOINT" "$MINIO_ACCESS_KEY_ID" "$MINIO_SECRET_ACCESS_KEY" >/dev/null && mc mb --ignore-existing "ci/$MINIO_BUCKET"'
       - name: Migrate and start the server
         run: |
           cd server
