@@ -16,9 +16,9 @@ Rules:
 
 ## Series
 
-| # | Patch | Files | What it carries |
-| - | ----- | ----- | --------------- |
-| 0001 | `0001-g108-xlsx-frozen-engine.patch` | `packages/xlsx-gateway/src/gateway/xlsx-styles.ts`, `xlsx-styles.dedupe.test.ts` (new), `apps/sheets/native/xlsx-engine/src/recalc.rs` | The frozen XLSX engine changes accepted in G0: the cellXfs dedupe fix so saving an already-styled cell does not grow `xl/styles.xml` (with its node:test regression), and the sidecar `normalize_for_ironcalc` normalization + tests that make unstyled packages recalculable. |
+| # | Patch | sha256 | Files | What it carries |
+| - | ----- | ------ | ----- | --------------- |
+| 0001 | `0001-g108-xlsx-frozen-engine.patch` | `E299A322443805E2F2EBD03B70A37CE44A44EBDE020A093A64F5C14695E0F27E` | `packages/xlsx-gateway/src/gateway/xlsx-styles.ts`, `xlsx-styles.dedupe.test.ts` (new), `apps/sheets/native/xlsx-engine/src/recalc.rs` | The frozen XLSX engine changes accepted in G0: the cellXfs dedupe fix so saving an already-styled cell does not grow `xl/styles.xml` (with its node:test regression), and the sidecar `normalize_for_ironcalc` normalization + tests that make unstyled packages recalculable. |
 
 ## Provenance of 0001
 
@@ -47,10 +47,10 @@ in effect — it diffs the pinned blobs against the accepted applied tree.
 
 ## Known gap (recorded, not worked around)
 
-The **Brand r8 product patch** and the canonical **G108 patch series** artifact
-could not be recovered from the surviving G0 run folders. What survives is the
-XLSX-lane frozen engine change set above, plus evidence that the other frozen
-changes were applied inside deleted lab trees (`bootstrap-source`,
+The **Brand r8 product patch** was lost with the G0 scratch and is a recorded
+gap **owned by the G3/G4/G7 brand lanes** (Advisor decision, run
+`run_5901144be3bc`, 2026-09-27). It is not reinvented in G2-01. What survives
+is the XLSX-lane frozen engine change set above, plus evidence that the other
+frozen changes were applied inside deleted lab trees (`bootstrap-source`,
 `engine-source` are not git checkouts and carry no patch manifest). The gap is
-recorded in the G2-01 acceptance packet and raised with the Advisor; nothing
-was reinvented.
+recorded in the G2-01 acceptance packet; nothing was reinvented.
