@@ -5,3 +5,4 @@ export * from "./model";
 export * from "./password";
 export * from "./assets";
 export * from "./adapter";
+export * from "./vendor";

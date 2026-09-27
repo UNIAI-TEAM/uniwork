@@ -4,3 +4,4 @@ export * from "./engine";
 export * from "./model";
 export * from "./assets";
 export * from "./adapter";
+export * from "./vendor";

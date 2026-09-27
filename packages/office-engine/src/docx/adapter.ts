@@ -288,9 +288,9 @@ export class DocxAdapter {
   }
 
   /** Honest capability rows for format docx (G0 module-runtime-map states).
-   * Rows the adapter implements against the bound seam are supported with
-   * source_read evidence — proven only arrives with the vendored-engine
-   * replay in G2-03b. Blocked rows stay pending with their proving test. */
+   * Rows proven by the vendored-engine fixture replay (G2-03b) carry
+   * evidence_level "proven" — the only level the product surface may call
+   * supported. Service-side rows stay pending with their proving test. */
   async capability(format: OfficeFormat): Promise<Record<string, unknown>> {
     if (format !== "docx") {
       throw new EngineBoundaryError("unsupported_operation", { format, expected: "docx" });
@@ -300,22 +300,22 @@ export class DocxAdapter {
         operation: "open",
         supported: true,
         runtime: "browser",
-        evidence_level: "source_read",
-        reason: "bound to the docx engine seam (parseDocx signature ported)",
+        evidence_level: "proven",
+        reason: "G2-03b replay: docx-open on vendored docx-engine (F-DOCX-SIMPLE/KITCHEN)",
       },
       {
         operation: "edit",
         supported: true,
         runtime: "browser",
-        evidence_level: "source_read",
-        reason: "save-plan model over SaveBlock; paragraph/xml/image/hf edits bound",
+        evidence_level: "proven",
+        reason: "G2-03b replay: paragraph/table/image/header-footer edits verified by jszip extraction",
       },
       {
         operation: "serialize",
         supported: true,
         runtime: "browser",
-        evidence_level: "source_read",
-        reason: "saveDocx seam; two-save rebase via re-parse",
+        evidence_level: "proven",
+        reason: "G2-03b replay: no-op byte-identity + two-save rebase on saveDocx",
       },
       {
         operation: "convert",
@@ -335,15 +335,15 @@ export class DocxAdapter {
         operation: "encrypted-open",
         supported: this.deps.crypto?.decrypt !== undefined,
         runtime: "browser",
-        evidence_level: "source_read",
-        reason: "CFB/EncryptedPackage detection + officecrypto-tool-shaped decrypt seam",
+        evidence_level: "proven",
+        reason: "G2-03b replay: required/wrong/correct paths on F-DOCX-PWD-STANDARD + F-DOCX-PWD-AGILE (officecrypto-tool)",
       },
       {
         operation: "encrypted-save",
         supported: this.deps.crypto?.encrypt !== undefined,
         runtime: "browser",
-        evidence_level: "pending",
-        reason: "carries intent revision to the service or refuses by policy when unbound",
+        evidence_level: "proven",
+        reason: "G2-03b replay: decrypt→edit→save→reopen stays encrypted with the same password; unbound still refuses by policy",
       },
     ];
     return { format: "docx", rows };

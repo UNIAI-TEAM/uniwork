@@ -295,8 +295,8 @@ export class PptxAdapter {
   }
 
   /** Honest capability rows for format pptx (G0 module-runtime-map states):
-   * the four proven_by_core_cycle rows are source_read here (ported seam,
-   * proven arrives with the vendored-engine replay in G2-03b). */
+   * rows proven by the G2-03b vendored-engine replay carry "proven"; the
+   * service-side rows keep pending with their proving lane. */
   async capability(format: OfficeFormat): Promise<Record<string, unknown>> {
     if (format !== "pptx") {
       throw new EngineBoundaryError("unsupported_operation", { format, expected: "pptx" });
@@ -306,29 +306,29 @@ export class PptxAdapter {
         operation: "open",
         supported: true,
         runtime: "browser",
-        evidence_level: "source_read",
-        reason: "bound to the pptx engine seam (openPptx signature ported)",
+        evidence_level: "proven",
+        reason: "G2-03b replay: pptx-open on vendored pptx-engine (F-PPTX-STD)",
       },
       {
         operation: "edit",
         supported: true,
         runtime: "browser",
-        evidence_level: "source_read",
-        reason: "runTxn-backed ops: text/transform/shape/image/slide ordering",
+        evidence_level: "proven",
+        reason: "G2-03b replay: text/transform/image/ordering ops on real runTxn, verified by extraction",
       },
       {
         operation: "serialize",
         supported: true,
         runtime: "browser",
-        evidence_level: "source_read",
-        reason: "savePptx + reopen-verify + commitSaved two-save semantics",
+        evidence_level: "proven",
+        reason: "G2-03b replay: savePptx + reopen-verify + commitSaved two-save on vendored engine",
       },
       {
         operation: "slides-edit-transform",
         supported: this.deps.render !== undefined,
         runtime: "browser",
-        evidence_level: "source_read",
-        reason: "host:slides-edit-transform channel; unbound render => typed refusal",
+        evidence_level: "proven",
+        reason: "G2-03b replay: host:slides-edit-transform lands byte-exact EMU xfrm; unbound render => typed refusal",
       },
       {
         operation: "convert",

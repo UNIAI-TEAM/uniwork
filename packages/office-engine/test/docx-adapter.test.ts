@@ -131,12 +131,12 @@ describe("docx adapter open (P3)", () => {
     });
   });
 
-  it("capability answers honest source_read/pending rows for docx only", async () => {
+  it("capability answers proven/pending rows for docx only", async () => {
     const adapter = createDocxAdapter({ engine: createFakeDocxEngine() });
     const res = (await adapter.capability("docx")) as { rows: Array<{ operation: string; supported: boolean; evidence_level: string }> };
     const open = res.rows.find((r) => r.operation === "open");
     const exp = res.rows.find((r) => r.operation === "export");
-    expect(open).toMatchObject({ supported: true, evidence_level: "source_read" });
+    expect(open).toMatchObject({ supported: true, evidence_level: "proven" });
     expect(exp).toMatchObject({ supported: false, evidence_level: "pending" });
     await expect(adapter.capability("pptx")).rejects.toMatchObject({ code: "unsupported_operation" });
   });

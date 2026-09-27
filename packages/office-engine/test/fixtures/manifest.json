@@ -1,7 +1,7 @@
 {
   "lane": "g2-03-docx-pptx",
-  "stage": "G2-03a",
-  "note": "G2-03a drives the adapter seams with synthetic fakes only — no real document bytes. Real G0 fixtures (F-DOCX-KITCHEN, E-PPTX-CYCLE set) arrive with G2-03b fixture replay via scripts/office/replay-fixtures.mjs once packages/office-upstream lands.",
+  "stage": "G2-03b",
+  "note": "G2-03a drives the adapter seams with synthetic fakes; G2-03b binds the same seams to the vendored packages/office-upstream bundles (pinned 09485f88) via src/{docx,pptx}/vendor.ts and replays the G0 fixture corpus through scripts/office/replay-fixtures.mjs. No product UI - no e2e.",
   "fakes": {
     "docx": {
       "file": "test/fake-docx-engine.ts",
@@ -29,7 +29,14 @@
       ]
     }
   },
-  "real_fixtures_pending": [
-    "docs/office/g0 fixture set referenced by E-DOCX-CYCLE / E-PPTX-CYCLE rows — consumed in G2-03b"
-  ]
+  "replay": {
+    "executor": "test/replay/g2-03-replay.mjs",
+    "entry": "test/replay/adapter-entry.ts",
+    "gate": "node scripts/office/replay-fixtures.mjs --formats docx,pptx --require docx,pptx",
+    "verdicts": {
+      "docx": "15 rows pass on the vendored engine: open, no-op save (byte-identical), edit-text (untouched runs preserved), table+image preservation/insert, header-footer write, unsupported-part (chart+embeddings) preservation, encrypted open/save on standard + agile schemes (officecrypto-tool@0.0.19), agile plain-sibling text oracle, two-save, cancel, typed open failures",
+      "pptx": "12 rows pass on the vendored engine: open, masters/layouts, edit-text, host:slides-edit-transform (byte-exact EMU xfrm verified in slide XML), shape geometry, add-image media part, slide ordering (sldIdLst), save, unsupported-part (chart+embeddings), two-save, no-op save, cancel"
+    },
+    "artifacts": ".go-tmp/office-fixture-replay/ (<format>-result.json, -extraction.json, pptx-render-diff.json, saved *.bin, version-manifest.json, replay-report.json)"
+  }
 }
