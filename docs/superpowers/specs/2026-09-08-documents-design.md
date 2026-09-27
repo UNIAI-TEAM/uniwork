@@ -879,6 +879,15 @@ Ba việc xảy ra sau ngày duyệt 2026-09-08:
 archive hoặc soft delete chưa purge (`soft_deleted`), asset còn trong nội dung (`active`) hoặc chưa quá 7 ngày từ
 `orphaned_at` (`retention`). Registry FileService chỉ bật purpose Documents khi provider này qua test (G1-03).
 
+**Asset của mốc cũ (người dùng quyết 2026-09-27, finding G1-01 BE F-6):** `orphaned_at` chỉ nói bản làm việc thôi
+tham chiếu asset; nó không phải lý do thả byte khi một mốc còn giữ trong `document_versions` vẫn trỏ tới asset đó.
+Provider trả `version_history` cho asset mà nội dung của bất kỳ mốc chưa purge nào của tài liệu còn tham chiếu, dù
+`orphaned_at` đã quá 7 ngày; `released` chỉ khi cả bản làm việc lẫn mọi mốc chưa purge đều không còn tham chiếu và
+đã qua 7 ngày giữ. Khôi phục một mốc đặt lại `orphaned_at = NULL` cho mọi asset mà nội dung được khôi phục tham chiếu,
+trong cùng transaction với phiên bản `restore`. Byte giữ thêm tính vào meter `storage.bytes` như mọi `file_id` còn giữ
+(một lần mỗi `file_id`). Phân công: quy tắc hold và test trong provider thuộc G1-03; khôi phục đặt lại `orphaned_at`
+thuộc G1-04. Mục đích: khôi phục mốc không bao giờ ra ảnh vỡ.
+
 ### 14.3 Cột còn thiếu (bổ sung §3.1, §3.2 và bảng idempotency)
 
 ```sql

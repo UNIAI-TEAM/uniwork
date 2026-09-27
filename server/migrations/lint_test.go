@@ -147,6 +147,50 @@ func readMigration(t *testing.T, name string) string {
 	return string(b)
 }
 
+// The three-digit space ends at 998. sqlc reads this directory in string
+// order and cannot be told otherwise, so every later migration is named
+// 999<unix-milliseconds>_name: all such prefixes share the "999" head and one
+// width, so string order equals numeric order, and they all sort after 998_.
+// A bare 999_ would sort after them ('_' > '9'), so it is refused too.
+var (
+	threeDigitPrefixPattern = regexp.MustCompile(`^\d{3}$`)
+	timestampPrefixPattern  = regexp.MustCompile(`^999\d{13}$`)
+)
+
+const maxThreeDigitMigrationPrefix = 998
+
+func TestMigrationPrefixesSortTheSameAsStringsAndNumbers(t *testing.T) {
+	var stems []string
+	for prefix, byPrefix := range migrationStemsByPrefix(t) {
+		switch {
+		case timestampPrefixPattern.MatchString(prefix):
+		case threeDigitPrefixPattern.MatchString(prefix):
+			if n, _ := strconv.Atoi(prefix); n > maxThreeDigitMigrationPrefix {
+				t.Errorf("migration prefix %s: after %03d name it 999<unix-ms>_name (e.g. 999%d_add_x)", prefix, maxThreeDigitMigrationPrefix, 1790000000000)
+			}
+		default:
+			t.Errorf("migration prefix %s: use a three-digit prefix up to %03d or 999<13-digit unix-ms>", prefix, maxThreeDigitMigrationPrefix)
+		}
+		stems = append(stems, byPrefix...)
+	}
+	byString := append([]string(nil), stems...)
+	sort.Strings(byString)
+	byNumber := append([]string(nil), stems...)
+	sort.SliceStable(byNumber, func(i, j int) bool {
+		a, _ := strconv.ParseInt(migrationPrefixPattern.FindStringSubmatch(byNumber[i])[1], 10, 64)
+		b, _ := strconv.ParseInt(migrationPrefixPattern.FindStringSubmatch(byNumber[j])[1], 10, 64)
+		if a != b {
+			return a < b
+		}
+		return byNumber[i] < byNumber[j]
+	})
+	for i := range byString {
+		if byString[i] != byNumber[i] {
+			t.Fatalf("migration order differs at %d: string order has %s, numeric order has %s", i, byString[i], byNumber[i])
+		}
+	}
+}
+
 func migrationStemsByPrefix(t *testing.T) map[string][]string {
 	t.Helper()
 	byPrefix := map[string][]string{}

@@ -16,14 +16,20 @@ leftover numbers return to `free`.
 | 990–992 | allocated | G1-01 / UNI-675 | `document_shares` table + indexes |
 | 993–995 | allocated | G1-01 / UNI-675 | `document_share_links` table + indexes |
 | 996–998 | allocated | G1-01 / UNI-675 | `document_access_logs` table + indexes |
-| 999–1003 | reserved | G1-07 / UNI-681 | `document_favorites` table + indexes |
-| 1004–1009 | reserved | G1-07 / UNI-681 | `document_comments` table + indexes |
-| 1010 | reserved | G1-03 | `idempotency_keys.payload_fingerprint` column |
+| after 998 | timestamped | any | `999<unix-ms>_name` - no range to claim; list the files here when they land |
 | 1011 | allocated | G1-02 / UNI-676 | `document_settings` table (organization public-link switch) |
 | 1012 | allocated | G1-02 / UNI-676 | `documents.public_links` feature + starter plan row |
-| 1013+ | free | — | next claimant writes its range here first |
 
 ## Rules
+
+- The three-digit space ends at `998` (user decision 2026-09-27). sqlc reads
+  `server/migrations/` in string order, so a four-digit `1010_` sorted before
+  `154_` and broke `make sqlc`. Every later migration is
+  `999<unix-milliseconds>_descriptive_name`; the shared `999` head and fixed
+  width make string order equal numeric order. The earlier reservations
+  (999-1003 and 1004-1009 for G1-07, 1010 for G1-03, 1011-1012 for G1-02b) are
+  void: those tasks name their files this way instead. `999_` and bare
+  four-digit prefixes fail `TestMigrationPrefixesSortTheSameAsStringsAndNumbers`.
 
 - One `CREATE ... CONCURRENTLY` statement per file, so each index consumes
   one number (CLAUDE.md migration rules).

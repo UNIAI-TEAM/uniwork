@@ -13,7 +13,10 @@
     ".": "./src/index.ts",
     "./browser": "./src/browser/index.ts",
     "./node": "./src/node/index.ts",
-    "./desktop": "./src/desktop/index.ts"
+    "./desktop": "./src/desktop/index.ts",
+    "./markdown": "./src/markdown/index.ts",
+    "./html": "./src/html/index.ts",
+    "./assets": "./src/assets/index.ts"
   },
   "dependencies": {
     "@uniwork/office-contracts": "workspace:*"

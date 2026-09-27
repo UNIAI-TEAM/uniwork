@@ -1,0 +1,158 @@
+{
+  "contract_version": "documents-api/1",
+  "description": "Documents HTTP contract samples (C-01 §5 + §14; UNI-679, G1-05a). Until the routes exist this set IS the contract: every endpoint carries one request and one response sample, and every error_class carries one envelope sample. Go decodes each sample into the named SDI/SDO type with no unknown fields; TypeScript parses it through the core zod schemas. request_kind: json = JSON body into SDI, form = multipart fields matched to formData tags, query = query params matched to query tags, none = no request body. response_kind: json = decode into SDO, stream = byte route (no JSON body). Revision is a decimal string; ids are opaque ULIDs; every error envelope carries error.error_class (C-01 §14.5).",
+  "endpoints": [
+    {
+      "name": "create_document",
+      "method": "POST",
+      "path": "/api/v1/workspaces/{workspaceID}/documents",
+      "request_kind": "json",
+      "request": "create-document.request.json",
+      "response_kind": "json",
+      "response": "create-document.response.json",
+      "sdi": "CreateDocumentSDI",
+      "sdo": "DocumentSDO"
+    },
+    {
+      "name": "get_document",
+      "method": "GET",
+      "path": "/api/v1/documents/{documentID}",
+      "request_kind": "none",
+      "response_kind": "json",
+      "response": "get-document.response.json",
+      "sdo": "DocumentSDO"
+    },
+    {
+      "name": "patch_document",
+      "method": "PATCH",
+      "path": "/api/v1/documents/{documentID}",
+      "request_kind": "json",
+      "request": "patch-document.request.json",
+      "response_kind": "json",
+      "response": "patch-document.response.json",
+      "sdi": "PatchDocumentSDI",
+      "sdo": "DocumentSDO"
+    },
+    {
+      "name": "create_document_file",
+      "method": "POST",
+      "path": "/api/v1/workspaces/{workspaceID}/documents/files",
+      "request_kind": "form",
+      "request": "create-document-file.request.json",
+      "response_kind": "json",
+      "response": "create-document-file.response.json",
+      "sdi": "CreateDocumentFileSDI",
+      "sdo": "DocumentSDO"
+    },
+    {
+      "name": "download_document_meta",
+      "method": "GET",
+      "path": "/api/v1/documents/{documentID}/download?meta=1",
+      "request_kind": "query",
+      "request": "download-document.request.json",
+      "response_kind": "json",
+      "response": "download-document.response.json",
+      "sdi": "DownloadDocumentSDI",
+      "sdo": "DocumentDownloadSDO"
+    },
+    {
+      "name": "download_document_bytes",
+      "method": "GET",
+      "path": "/api/v1/documents/{documentID}/download?version={versionNo}",
+      "request_kind": "query",
+      "request": "download-document.request.json",
+      "response_kind": "stream",
+      "sdi": "DownloadDocumentSDI"
+    },
+    {
+      "name": "upload_document_file",
+      "method": "POST",
+      "path": "/api/v1/documents/{documentID}/uploads",
+      "request_kind": "form",
+      "request": "upload-document-file.request.json",
+      "response_kind": "json",
+      "response": "upload-document-file.response.json",
+      "sdi": "UploadDocumentFileSDI",
+      "sdo": "DocumentUploadSDO"
+    },
+    {
+      "name": "commit_document_version",
+      "method": "POST",
+      "path": "/api/v1/documents/{documentID}/versions/commit",
+      "request_kind": "json",
+      "request": "commit-document-version.request.json",
+      "response_kind": "json",
+      "response": "commit-document-version.response.json",
+      "sdi": "CommitDocumentVersionSDI",
+      "sdo": "DocumentVersionResultSDO"
+    },
+    {
+      "name": "list_document_versions",
+      "method": "GET",
+      "path": "/api/v1/documents/{documentID}/versions",
+      "request_kind": "query",
+      "request": "list-document-versions.request.json",
+      "response_kind": "json",
+      "response": "list-document-versions.response.json",
+      "sdi": "ListDocumentVersionsSDI",
+      "sdo": "DocumentVersionListSDO"
+    },
+    {
+      "name": "get_document_version",
+      "method": "GET",
+      "path": "/api/v1/documents/{documentID}/versions/{versionNo}",
+      "request_kind": "none",
+      "response_kind": "json",
+      "response": "get-document-version.response.json",
+      "sdo": "DocumentVersionSDO"
+    },
+    {
+      "name": "create_document_version",
+      "method": "POST",
+      "path": "/api/v1/documents/{documentID}/versions",
+      "request_kind": "json",
+      "request": "create-document-version.request.json",
+      "response_kind": "json",
+      "response": "create-document-version.response.json",
+      "sdi": "CreateDocumentVersionSDI",
+      "sdo": "DocumentVersionSDO"
+    },
+    {
+      "name": "restore_document_version",
+      "method": "POST",
+      "path": "/api/v1/documents/{documentID}/versions/{versionNo}/restore",
+      "request_kind": "none",
+      "response_kind": "json",
+      "response": "restore-document-version.response.json",
+      "sdo": "DocumentVersionResultSDO"
+    },
+    {
+      "name": "upload_document_asset",
+      "method": "POST",
+      "path": "/api/v1/documents/{documentID}/assets",
+      "request_kind": "form",
+      "request": "upload-document-asset.request.json",
+      "response_kind": "json",
+      "response": "upload-document-asset.response.json",
+      "sdi": "UploadDocumentAssetSDI",
+      "sdo": "DocumentAssetSDO"
+    },
+    {
+      "name": "get_document_asset",
+      "method": "GET",
+      "path": "/api/v1/documents/{documentID}/assets/{assetID}",
+      "request_kind": "none",
+      "response_kind": "stream"
+    }
+  ],
+  "error_classes": ["conflict", "gone", "quota", "permission", "missing", "incompatible", "session"],
+  "error_samples": [
+    { "error_class": "conflict", "file": "error-conflict.json" },
+    { "error_class": "gone", "file": "error-gone.json" },
+    { "error_class": "quota", "file": "error-quota.json" },
+    { "error_class": "permission", "file": "error-permission.json" },
+    { "error_class": "missing", "file": "error-missing.json" },
+    { "error_class": "incompatible", "file": "error-incompatible.json" },
+    { "error_class": "session", "file": "error-session.json" }
+  ]
+}
