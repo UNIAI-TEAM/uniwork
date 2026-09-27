@@ -57,13 +57,12 @@ export function isCanonicalDocumentPath(documentPath: string): boolean {
 export function normaliseAssetReference(raw: string, documentPath: string): AssetReference {
   const trimmed = raw.trim();
   if (trimmed.length === 0) return { kind: "empty", raw };
-  if (CONTROL_RE.test(trimmed)) return { kind: "refused", raw, reason: "control_character" };
   if (trimmed.startsWith("#")) return { kind: "fragment", raw };
   if (trimmed.startsWith("//")) return { kind: "external", raw };
-  if (trimmed.startsWith("/") || trimmed.startsWith("\\")) {
-    return { kind: "refused", raw, reason: "absolute_path" };
-  }
   // A drive letter also matches the scheme grammar ("c:"); test it first.
+  // Leading "/" or "\\" and control characters are refused once, below, on the
+  // DECODED path - decoding is the identity for them, so one check covers
+  // both the raw and the percent-encoded spelling.
   if (DRIVE_RE.test(trimmed)) return { kind: "refused", raw, reason: "absolute_path" };
   const scheme = SCHEME_RE.exec(trimmed)?.[1]?.toLowerCase();
   if (scheme !== undefined) {
@@ -85,7 +84,7 @@ export function normaliseAssetReference(raw: string, documentPath: string): Asse
   } catch {
     return { kind: "refused", raw, reason: "encoding" };
   }
-  // Percent-encoding must not smuggle what the raw form was refused for.
+  // Percent-encoding must not smuggle a control character, a root or a drive.
   if (CONTROL_RE.test(decoded)) return { kind: "refused", raw, reason: "control_character" };
   if (decoded.startsWith("/") || decoded.startsWith("\\") || DRIVE_RE.test(decoded)) {
     return { kind: "refused", raw, reason: "absolute_path" };
