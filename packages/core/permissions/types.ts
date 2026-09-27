@@ -40,6 +40,7 @@ export type DecisionReason =
   | "member_deactivated"
   | "last_owner"
   | "not_resource_owner"
+  | "insufficient_level"
   | "unknown";
 
 export interface Decision {

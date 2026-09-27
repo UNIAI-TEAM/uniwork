@@ -794,7 +794,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		// one and commits before checking the row.
 		audit.ActionDocumentCreated: func(t *testing.T, f *auditFixture) {
 			w := f.build(t)
-			svc := NewDocumentService(f.pool, f.q)
+			svc := NewDocumentService(f.pool, f.q, f.orgs, f.ws)
 			svc.SetOwnerLevelResolver(fakeOwnerResolver{level: DocumentLevelManage})
 			tx, err := f.pool.Begin(f.ctx)
 			if err != nil {
