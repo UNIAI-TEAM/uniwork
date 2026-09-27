@@ -100,6 +100,19 @@ describe("HTML preview copy", () => {
     expect(out).toContain(`<title><iframe srcdoc=""></iframe><img src="${BLOCKED_URL}"></title>`);
   });
 
+  it("keeps the original quoting when it neutralises a value", () => {
+    const out = copy(`<a href='https://evil.example/1'>1</a><a href=https://evil.example/2>2</a><p title="x href='https://evil.example/3' y">3</p>`);
+    // Real links: the slot rewrite (quote-aware) makes them fragments; the sweep keeps those.
+    expect(out).toContain(`<a href='#'>1</a><a href=#>2</a>`);
+    // A phantom match inside a quoted title: the sweep mirrors its single quotes.
+    expect(out).toContain(`<p title="x href='${BLOCKED_URL}' y">3</p>`);
+  });
+
+  it("never keeps a value that swallows another URL attribute", () => {
+    const out = copy(`<svg><a><set title="q href="#y attributeName=href to=https://evil.example/s "/></a></svg>`);
+    expect(out).not.toMatch(/attributeName=href/i);
+  });
+
   it("never keeps a value that carries markup", () => {
     const out = copy(`<img src="data:image/png,<b>"><a href="#x<b>">y</a>`);
     expect(out).toContain(`src="${BLOCKED_URL}"`);

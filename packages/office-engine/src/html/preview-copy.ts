@@ -77,8 +77,14 @@ function policyInsertionPoint(html: string): number {
 // Attributes that can make a document load or navigate by themselves.
 // attributename covers SVG <set>/<animate attributeName="href">, which can
 // point a link anywhere without script; content covers meta refresh.
-const SWEEP_RE =
-  /(?<=^|[\s"'/])((?:xlink:)?href|src|srcset|poster|data|action|formaction|background|srcdoc|content|attributename)(\s*=\s*)("[^"]*(?:"|$)|'[^']*(?:'|$)|[^\s>]*)/gi;
+const SWEEP_NAMES = "(?:xlink:)?href|src|srcset|poster|data|action|formaction|background|srcdoc|content|attributename|ping";
+const SWEEP_RE = new RegExp(
+  "(?<=^|[\\s\"'/])(" + SWEEP_NAMES + ")(\\s*=\\s*)(\"[^\"]*(?:\"|$)|'[^']*(?:'|$)|[^\\s>]*)",
+  "gi",
+);
+// A match can start inside another attribute's quoted value and then swallow
+// real attributes (FE review r4 R4-1). Such a value is never kept.
+const SWALLOWS_RE = new RegExp("(?:^|[\\s\"'/])(?:" + SWEEP_NAMES + ")\\s*=", "i");
 
 /**
  * The isolation pass. The slot rewrite above follows a scanner that must
@@ -88,26 +94,32 @@ const SWEEP_RE =
  * every URL-bearing attribute ANYWHERE in the copy - inside comments, raw
  * text or other attribute values included - and keeps a value only if the
  * slot rewrite itself produced or approved it. Over-matching only rewrites
- * text the parser never treats as an attribute.
+ * text the parser never treats as an attribute - prose that quotes HTML, or,
+ * with scripts on, a string literal such as `src = "x"` in a script body -
+ * and only in the preview copy.
  */
 function sweep(html: string, approved: ReadonlySet<string>): string {
   return html.replace(SWEEP_RE, (whole, name: string, eq: string, raw: string) => {
     const quote = raw[0] === '"' || raw[0] === "'" ? raw[0] : "";
     const inner = quote ? raw.slice(1, raw.endsWith(quote) && raw.length > 1 ? -1 : undefined) : raw;
     const value = decodeEntities(inner);
+    const swallows = SWALLOWS_RE.test(inner) || SWALLOWS_RE.test(value);
     const lower = name.toLowerCase();
     let next: string | undefined;
-    if (lower === "attributename") next = /href/i.test(value) ? "data-uw-blocked" : undefined;
+    if (lower === "attributename") next = swallows || /href/i.test(value) ? "data-uw-blocked" : undefined;
     // Any value a refresh could act on: a leading number, or a url=.
-    else if (lower === "content") next = /url\s*=/i.test(value) || /^\s*[\d.]/.test(value) ? "" : undefined;
+    else if (lower === "content") next = swallows || /url\s*=/i.test(value) || /^\s*[\d.]/.test(value) ? "" : undefined;
     else if (lower === "srcdoc") next = value === "" ? undefined : "";
     else {
       const trimmed = value.trim();
-      const kept = trimmed === "" || (/^#[^<>]*$/.test(trimmed) && !/[<>]/.test(value)) || approved.has(value);
+      const kept = !swallows && !/[<>]/.test(value) && (trimmed === "" || trimmed.startsWith("#") || approved.has(value));
       next = kept ? undefined : BLOCKED_URL;
     }
     if (next === undefined) return whole;
-    return name + eq + '"' + next + '"';
+    // Mirror the original quoting (and a missing closing quote): the rewrite
+    // must not change how the surrounding markup tokenizes.
+    const close = quote && raw.length > 1 && raw.endsWith(quote) ? quote : "";
+    return name + eq + quote + next + close;
   });
 }
 
