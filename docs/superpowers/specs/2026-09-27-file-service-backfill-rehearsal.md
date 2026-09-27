@@ -1,6 +1,6 @@
 # Rehearsal `files-backfill` — ghi chú kỹ thuật (T9b, UNI-747)
 
-Ngày 2026-09-27 · run ledger `01M3G33BN69DTSMB51PD2BE2TA` (bản sau review r1) ·
+Ngày 2026-09-27 · run ledger `01M3G7D3MS8YNTGQ6EPMJ2ZXQB` (bản sau tester r1) ·
 script và artifact: `reports/t9b-backfill/rehearsal/` (`rehearse.sh`,
 `seed.sql`, `objects.txt`, `transcript.txt`, `plan.json`, `verify.json`,
 `rollback.json`).
@@ -23,11 +23,11 @@ script và artifact: `reports/t9b-backfill/rehearsal/` (`rehearse.sh`,
 
 | Bước | Kết quả |
 | --- | --- |
-| plan | 23 seen / 15 verified / 2 unresolved / 6 held / 1 foreign; 11 object riêng biệt, 2 dup ref; **0** dòng ledger |
+| plan | 23 seen / 15 verified / 2 unresolved / 5 held / 1 foreign; 11 object riêng biệt, 2 dup ref; **0** dòng ledger |
 | dry-run | 14 verified, `att-miss` → `held/object_missing`; **0** dòng ledger |
-| apply bị kill | 2 item committed, run treo `running` |
+| apply bị kill | 1 item committed, run treo `running` |
 | resume | `apply --run` hoàn tất: **10 files, 10 sessions**; ledger đầy đủ mọi cohort |
-| verify | mọi ref applied → `consistent`; `att-miss` → `pending_apply`; held/unresolved → `unreferenced`; **0** lỗi |
+| verify | mọi ref applied → `consistent`; held/unresolved → `unreferenced`/`pending_apply`; **0** lỗi (`verified_ok: 23`) |
 | rollback | `files`=0, `file_upload_sessions`=0, `attachments.file_id` về NULL |
 | G0 | `mc stat` control object còn nguyên; 0 `files` row cho `g0-legacy/*`; locator `v1/*` vẫn trong bảng (held cho GC dry-run) |
 
