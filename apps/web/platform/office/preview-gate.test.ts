@@ -43,6 +43,25 @@ describe("preview gate (browser parser tree walk)", () => {
     expect(out).toContain(`<meta name="viewport" content="width=device-width">`);
   });
 
+  it("drops loader elements and noscript whole, even with safe-looking values", () => {
+    const out = gate(
+      `<object data="${PROXY}/s/o.svg"></object><embed src="${PROXY}/s/e.svg"><iframe src="about:blank"></iframe>` +
+        `<frameset></frameset><portal src="${PROXY}/s/p"></portal><noscript><p>n</p></noscript><p>kept</p>`,
+    ).html;
+    expect(out).not.toMatch(/<object|<embed|<iframe|<frameset|<portal|<noscript/i);
+    expect(out).toContain("<p>kept</p>");
+  });
+
+  it("allows a URL attribute only on the elements that carry it", () => {
+    const out = gate(
+      `<div href="${PROXY}/s/a.png" src="${PROXY}/s/b.png">d</div><img src="${PROXY}/s/ok.png">` +
+        `<form action="${PROXY}/s/f"><button formaction="#">b</button></form><a href="#" ping="#">p</a>`,
+    ).html;
+    expect(out).toContain(`<div>d</div>`);
+    expect(out).toContain(`<img src="${PROXY}/s/ok.png">`);
+    expect(out).not.toMatch(/action=|formaction=|ping=/);
+  });
+
   it("cleans the inert trees inside <template>", () => {
     const out = gate(`<template><a href="${EVIL}/t">t</a><img src="${PROXY}/s/k.png"></template>`).html;
     expect(out).not.toContain("evil.example");
