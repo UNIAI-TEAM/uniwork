@@ -74,14 +74,25 @@ interface Attr {
   quote: '"' | "'" | null;
 }
 
-/** Parse one start tag's attributes from `from` (just after the tag name). */
-function parseAttributes(html: string, from: number): { attrs: Attr[]; end: number } {
+/** Parse one start tag's attributes from `from` (just after the tag name).
+ * `self_closing` is true only when a separator "/" - not the tail of an
+ * unquoted value such as `x=1/` - is the last thing before ">", which is
+ * exactly when the HTML tokenizer sets the self-closing flag. */
+function parseAttributes(html: string, from: number): { attrs: Attr[]; end: number; self_closing: boolean } {
   const attrs: Attr[] = [];
   let i = from;
   const n = html.length;
+  let selfClosing = false;
   while (i < n) {
-    while (i < n && /[\s/]/.test(html[i]!)) i++;
-    if (i >= n || html[i] === ">") break;
+    let slash = false;
+    while (i < n && /[\s/]/.test(html[i]!)) {
+      slash = html[i] === "/";
+      i++;
+    }
+    if (i >= n || html[i] === ">") {
+      selfClosing = slash && i < n;
+      break;
+    }
     const nameStart = i;
     while (i < n && !/[\s=>/]/.test(html[i]!)) i++;
     const name = html.slice(nameStart, i).toLowerCase();
@@ -104,7 +115,7 @@ function parseAttributes(html: string, from: number): { attrs: Attr[]; end: numb
       attrs.push({ name, value: html.slice(valueStart, i), start: valueStart, end: i, quote: null });
     }
   }
-  return { attrs, end: Math.min(i + 1, n) };
+  return { attrs, end: Math.min(i + 1, n), self_closing: selfClosing };
 }
 
 const LINK_REL_ROLES: Readonly<Record<string, SlotRole>> = {
@@ -179,8 +190,9 @@ function attributeRole(tag: string, attr: string, attrs: readonly Attr[]): { rol
 
 // Foreign content (svg, math). Inside it the HTML parser does NOT treat
 // <style>/<title>/<script>/<textarea> as raw text - their children are live
-// elements - until an HTML integration point (svg foreignObject/desc/title)
-// or a breakout tag returns to HTML parsing. Treating them as raw text there
+// elements - until an HTML integration point (svg foreignObject/desc/title,
+// MathML mi/mo/mn/ms/mtext and HTML-encoded annotation-xml) or a breakout
+// tag (including <font color|face|size>) returns to HTML parsing. Treating them as raw text there
 // would hide live links and images from the preview rewrite (FE review r1
 // F-2), so the scanner keeps a small namespace stack.
 const SVG_INTEGRATION_POINTS: ReadonlySet<string> = new Set(["foreignobject", "desc", "title"]);
@@ -188,7 +200,17 @@ const FOREIGN_BREAKOUT: ReadonlySet<string> = new Set(
   ("b big blockquote body br center code dd div dl dt em embed h1 h2 h3 h4 h5 h6 head hr i img li listing " +
     "menu meta nobr ol p pre ruby s small span strong strike sub sup table tt u ul var").split(" "),
 );
+// MathML text integration points; annotation-xml only with an HTML encoding.
+const MATH_INTEGRATION_POINTS: ReadonlySet<string> = new Set(["mi", "mo", "mn", "ms", "mtext"]);
 const RAW_TEXT_TAGS: ReadonlySet<string> = new Set(["script", "style", "title", "textarea"]);
+
+function isIntegrationPoint(root: string, tag: string, attrs: readonly Attr[]): boolean {
+  if (root === "svg") return SVG_INTEGRATION_POINTS.has(tag);
+  if (MATH_INTEGRATION_POINTS.has(tag)) return true;
+  if (tag !== "annotation-xml") return false;
+  const encoding = (attrs.find((a) => a.name === "encoding")?.value ?? "").toLowerCase();
+  return encoding === "text/html" || encoding === "application/xhtml+xml";
+}
 
 /** Every URL-bearing slot in document order. Comments, <script> bodies and
  * RCDATA (<title>, <textarea>) are skipped and <style> bodies are CSS slots -
@@ -226,21 +248,21 @@ export function scanHtmlSlots(html: string): HtmlSlot[] {
       continue;
     }
     const tag = nameMatch[1]!.toLowerCase();
-    const { attrs, end } = parseAttributes(html, lt + nameMatch[0].length);
+    const { attrs, end, self_closing: selfClosing } = parseAttributes(html, lt + nameMatch[0].length);
     for (const a of attrs) {
       const role = attributeRole(tag, a.name, attrs);
       if (role) slots.push({ start: a.start, end: a.end, quote: a.quote, kind: role.kind, role: role.role, value: decodeEntities(a.value) });
     }
     i = end;
-    const selfClosing = html[end - 2] === "/";
     const foreign = inForeign();
-    if (foreign && FOREIGN_BREAKOUT.has(tag)) stack.length = 0;
+    const fontBreakout = tag === "font" && attrs.some((a) => a.name === "color" || a.name === "face" || a.name === "size");
+    if (foreign && (FOREIGN_BREAKOUT.has(tag) || fontBreakout)) stack.length = 0;
     if (!selfClosing) {
       if (tag === "svg" || tag === "math") {
         stack.push(tag);
         continue;
       }
-      if (foreign && stack[stack.length - 1] === "svg" && SVG_INTEGRATION_POINTS.has(tag)) {
+      if (foreign && isIntegrationPoint(stack[stack.length - 1]!, tag, attrs)) {
         stack.push(tag);
         continue;
       }

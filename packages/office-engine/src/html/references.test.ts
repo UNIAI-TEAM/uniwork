@@ -115,6 +115,27 @@ describe("HTML reference scanner", () => {
     expect(scanHtmlSlots(`<svg><svg></svg><title>${hidden}</title></svg>`).map((s) => s.role)).toEqual(["navigation"]);
   });
 
+  it("does not mistake an unquoted value ending in '/' for a self-closing svg/math", () => {
+    const live = `<style><a href="https://x.example/l">c</a></style>`;
+    expect(scanHtmlSlots(`<svg x=1/>${live}`).map((s) => s.role)).toEqual(["navigation"]);
+    expect(scanHtmlSlots(`<math a=b/>${live}`).map((s) => s.role)).toEqual(["navigation"]);
+    expect(scanHtmlSlots(`<svg x="1"/>${live}`).map((s) => s.kind)).toEqual(["css"]);
+    expect(scanHtmlSlots(`<svg x=1 />${live}`).map((s) => s.kind)).toEqual(["css"]);
+  });
+
+  it("follows MathML integration points and the <font> breakout", () => {
+    const hidden = `<style><a href="https://hidden.example">no</a></style>`;
+    for (const html of [
+      `<math><mi>${hidden}</mi></math>`,
+      `<math><annotation-xml encoding="text/html">${hidden}</annotation-xml></math>`,
+      `<svg><font color="red">${hidden}`,
+    ]) {
+      expect(scanHtmlSlots(html).map((s) => s.kind)).toEqual(["css"]);
+    }
+    expect(scanHtmlSlots(`<math><annotation-xml>${hidden}</annotation-xml></math>`).map((s) => s.role)).toEqual(["navigation"]);
+    expect(scanHtmlSlots(`<svg><font>${hidden}</font></svg>`).map((s) => s.role)).toEqual(["navigation"]);
+  });
+
   it("decodes numeric entities and tolerates unterminated markup", () => {
     expect(extractHtmlAssetReferences(`<img src="a&#46;png"><img src="&#x62;.png"><img src="&bogus;.png">`)).toEqual([
       "a.png",
