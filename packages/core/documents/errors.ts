@@ -1,30 +1,40 @@
-import { ApiError, errorCode, errorFields } from "../api/http";
-import {
-  DOCUMENT_ERROR_CLASSES,
-  type DocumentErrorClass,
-} from "../types/document";
+import { ApiError, errorClassOf, errorCode, errorFields } from "../api/http";
+import type { DocumentErrorClass } from "../types/document";
 
 // Maps the stable wire codes of C-01 §14.5 onto the client-side classes the
-// save machine and the UI branch on. Codes, not statuses, are the primary
-// signal: two codes can share a status and mean different classes.
+// save machine and the UI branch on — a mirror of errorClassByCode in
+// server/internal/handler/dto/sdo/error_class.go. Codes, not statuses, are
+// the primary signal: two codes can share a status and mean different
+// classes. The last two entries are absent from the server table today; they
+// only fire when the server sent no error_class at all, which means the
+// client still has to recover alone.
 const CODE_TO_CLASS: Record<string, DocumentErrorClass> = {
   revision_conflict: "conflict",
   document_version_conflict: "conflict",
-  document_version_unchanged: "conflict",
   idempotency_payload_mismatch: "conflict",
   idempotency_key_reuse: "conflict",
   idempotency_in_flight: "conflict",
   upload_already_committed: "conflict",
   copy_consent_required: "conflict",
   owner_requires_copy: "conflict",
-  engine_incompatible: "incompatible",
-  quota_exceeded: "quota",
-  file_too_large: "quota",
+  document_upload_invalid: "conflict",
   document_deleted: "gone",
+  quota_exceeded: "quota",
   forbidden: "permission",
   member_deactivated: "permission",
+  organization_suspended: "permission",
+  not_meeting_host: "permission",
+  ai_context_forbidden: "permission",
+  ai_tool_not_allowed: "permission",
+  platform_role_insufficient: "permission",
   not_found: "missing",
+  engine_incompatible: "incompatible",
   unauthorized: "session",
+  invalid_token: "session",
+  invalid_code: "session",
+  // Client-only fallbacks for plausible codes the server table omits.
+  document_version_unchanged: "conflict",
+  file_too_large: "quota",
 };
 
 function statusToClass(status: number): DocumentErrorClass | null {
@@ -54,19 +64,19 @@ export interface ClassifiedDocumentError {
 }
 
 /**
- * Classify a failed documents call. When the server starts sending
- * `error.error_class` on the envelope (lane g1-05e), that declared class wins;
- * until then the stable code — then the status — decides. Non-ApiError
- * rejections (network down, abort, transport timeout) are "unknown": the
- * caller keeps the draft and retries rather than escalating to a terminal
- * state.
+ * Classify a failed documents call. The server's `error.error_class` stamp
+ * (lane g1-05e) wins; an absent or unknown stamp falls back to the stable
+ * code, then the status. Non-ApiError rejections (network down, abort,
+ * transport timeout) are "unknown": the caller keeps the draft and retries
+ * rather than escalating to a terminal state.
  */
 export function classifyDocumentError(err: unknown): ClassifiedDocumentError {
   if (err instanceof ApiError) {
-    // g1-05e lands `errorClass` on ApiError; accept it when a known class.
-    const declared = (err as ApiError & { errorClass?: unknown }).errorClass;
-    if (typeof declared === "string" && (DOCUMENT_ERROR_CLASSES as readonly string[]).includes(declared)) {
-      return { cls: declared as DocumentErrorClass, code: err.code || null, fields: err.fields };
+    // The server's declared class wins; an unknown or absent stamp falls
+    // back to the stable code, then the status.
+    const declared = errorClassOf(err);
+    if (declared) {
+      return { cls: declared, code: err.code || null, fields: err.fields };
     }
     const code = errorCode(err);
     if (code && CODE_TO_CLASS[code]) {

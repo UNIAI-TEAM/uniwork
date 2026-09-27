@@ -153,6 +153,19 @@ describe("DocumentSaveMachine", () => {
     expect(resolved.dirty).toBe(false);
   });
 
+  it("the server's declared error_class wins over code and status", async () => {
+    const t = fakeTransport();
+    const m = machine(t.impl);
+    m.edit({ title: "a" });
+    await vi.advanceTimersByTimeAsync(2_000);
+    // A 500 with an "internal" code but a declared conflict class still
+    // stops the machine — the stamp is the authoritative signal.
+    t.pending[0]?.reject(new ApiError("boom", "internal", 500, undefined, undefined, "conflict"));
+    await settle();
+    expect(m.getState().phase).toBe("conflict");
+    expect(m.getState().errorClass).toBe("conflict");
+  });
+
   it("a timeout keeps the draft and replays the same idempotency key", async () => {
     const t = fakeTransport();
     const m = machine(t.impl);

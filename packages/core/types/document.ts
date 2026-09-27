@@ -34,10 +34,12 @@ export const DOCUMENT_DISPOSITIONS = ["attachment", "inline"] as const;
 export type DocumentDisposition = (typeof DOCUMENT_DISPOSITIONS)[number];
 
 /**
- * The error_class vocabulary of C-01 §14.5 the client branches on. Server
- * codes stay open — new codes map onto these classes — so the union is what
- * save-state and the UI reason about, and an unknown class degrades to
- * `unknown` via classifyDocumentError, never a throw.
+ * The error_class vocabulary of C-01 §14.5 the client branches on — the same
+ * list as API_ERROR_CLASSES in api/http.ts (kept here so types/ stays free of
+ * api/ imports; the two tables must not drift). Server codes stay open — new
+ * codes map onto these classes — so the union is what save-state and the UI
+ * reason about, and an unknown class degrades to `unknown` via
+ * classifyDocumentError, never a throw.
  */
 export const DOCUMENT_ERROR_CLASSES = [
   "conflict",

@@ -68,19 +68,6 @@ var documentsAPISDO = map[string]reflect.Type{
 	"DocumentDownloadSDO":      reflect.TypeOf(sdo.DocumentDownloadSDO{}),
 }
 
-// contractErrorEnvelope mirrors the error envelope in
-// server/internal/handler/json.go plus the error_class field lane g1-05e adds
-// (C-01 §14.5). Samples pin the wire shape even while the shared envelope type
-// is still owned by that lane.
-type contractErrorEnvelope struct {
-	Error struct {
-		Code       string         `json:"code"`
-		Message    string         `json:"message"`
-		ErrorClass string         `json:"error_class"`
-		Fields     map[string]any `json:"fields"`
-	} `json:"error"`
-}
-
 func readContractSample(t *testing.T, name string) ([]byte, map[string]any) {
 	t.Helper()
 	raw, err := os.ReadFile(filepath.Join(documentsAPIContractDir, name))
@@ -303,7 +290,7 @@ func TestDocumentsAPIErrorSamples(t *testing.T) {
 			seen[es.ErrorClass] = true
 
 			raw, _ := readContractSample(t, es.File)
-			var env contractErrorEnvelope
+			var env sdo.ErrorSDO
 			dec := json.NewDecoder(bytes.NewReader(raw))
 			dec.DisallowUnknownFields()
 			if err := dec.Decode(&env); err != nil {
