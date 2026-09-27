@@ -2,13 +2,14 @@
 // reopen-still-encrypted, typed policy refusal when no re-encryption path is
 // bound, and the zero-secret-in-clear guarantee.
 import { describe, expect, it } from "vitest";
-import { HostCapabilityRefusal } from "@uniwork/office-contracts";
+import { EngineBoundaryError, HostCapabilityRefusal } from "@uniwork/office-contracts";
 import { createDocxAdapter, DocPasswordIntents, isEncryptedOoxml } from "../src/docx";
 import {
   createFakeDocxCrypto,
   createFakeDocxEngine,
   decodeFakeDocx,
   fakeEncryptDocx,
+  makeCorruptZipDocx,
   makeFakeDocxBytes,
 } from "./fake-docx-engine";
 
@@ -131,6 +132,60 @@ describe("P5 decrypt → edit → save → reopen", () => {
     await expect(crypto.decrypt(saved.bytes, PW)).rejects.toThrowError(/password is incorrect/);
     const re = await crypto.decrypt(saved.bytes, NEW_PW);
     expect(re.length).toBeGreaterThan(0);
+  });
+
+  it("a re-encryption crash is typed and leaves disk password state untouched", async () => {
+    let fail = true;
+    const baseCrypto = createFakeDocxCrypto();
+    const adapter = createDocxAdapter({
+      engine: createFakeDocxEngine(),
+      crypto: {
+        decrypt: baseCrypto.decrypt,
+        encrypt: (bytes: Uint8Array, password: string) => {
+          if (fail) throw new Error("kms exploded");
+          return baseCrypto.encrypt!(bytes, password);
+        },
+      },
+    });
+    const opened = await adapter.open({ bytes: encryptedFixture(), format: "docx", document_id: "doc-enc-fail", password: PW });
+    if (opened.outcome !== "opened") throw new Error("open failed");
+    const ref = opened.document_model_ref;
+    const error = await adapter.serialize({ document_model_ref: ref, format: "docx" }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(EngineBoundaryError);
+    expect((error as EngineBoundaryError).code).toBe("engine_crashed");
+    // State did not commit: the retry still re-encrypts with the disk password.
+    fail = false;
+    const saved = await adapter.serialize({ document_model_ref: ref, format: "docx" });
+    expect(isEncryptedOoxml(saved.bytes)).toBe(true);
+    await expect(createFakeDocxCrypto().decrypt(saved.bytes, PW)).resolves.toBeInstanceOf(Uint8Array);
+  });
+
+  it("a rebase-parse failure is typed and does not drain the pending intent", async () => {
+    let corruptSave = true;
+    const base = createFakeDocxEngine();
+    const adapter = createDocxAdapter({
+      engine: {
+        ...base,
+        async saveDocx(parsed, blocks, options) {
+          if (corruptSave) return makeCorruptZipDocx(); // bytes that fail re-parse
+          return base.saveDocx(parsed, blocks, options);
+        },
+      },
+      crypto: createFakeDocxCrypto(),
+    });
+    const opened = await adapter.open({ bytes: encryptedFixture(), format: "docx", document_id: "doc-rb-fail", password: PW });
+    if (opened.outcome !== "opened") throw new Error("open failed");
+    const ref = opened.document_model_ref;
+    const rev = adapter.setPasswordIntent("doc-rb-fail", null); // user wants a plaintext save
+    const error = await adapter.serialize({ document_model_ref: ref, format: "docx" }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(EngineBoundaryError);
+    expect((error as EngineBoundaryError).code).toBe("engine_result_invalid");
+    // The intent was NOT consumed by the failed save — its revision is still pending.
+    expect(adapter.passwordIntentRevision("doc-rb-fail")).toBe(rev);
+    corruptSave = false;
+    const saved = await adapter.serialize({ document_model_ref: ref, format: "docx" });
+    expect(isEncryptedOoxml(saved.bytes)).toBe(false); // the intent applied on retry
+    expect(adapter.passwordIntentRevision("doc-rb-fail")).toBe(0); // drained after the real save
   });
 
   it("intent revision is monotonic and carries to the adapter API", async () => {

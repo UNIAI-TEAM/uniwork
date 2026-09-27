@@ -63,9 +63,28 @@ describe("bindDocxCrypto", () => {
   });
 
   it("round-trips bytes through encrypt/decrypt without leaking the password", async () => {
+    const PW = "supplied-password";
     const crypto = bindDocxCrypto(cryptoLib("ok"));
-    expect([...(await crypto.decrypt(new Uint8Array([1]), "pw"))]).toEqual([9, 9]);
-    expect([...(await crypto.encrypt!(new Uint8Array([2]), "pw"))]).toEqual([7, 7]);
+    expect([...(await crypto.decrypt(new Uint8Array([1]), PW))]).toEqual([9, 9]);
+    expect([...(await crypto.encrypt!(new Uint8Array([2]), PW))]).toEqual([7, 7]);
+    // a decrypt refusal carries the lib message + reason token — never the secret
+    const wrong = bindDocxCrypto(cryptoLib("wrong"));
+    const err = await wrong.decrypt(new Uint8Array([3]), PW).catch((e: unknown) => e);
+    expect(String((err as Error).message)).not.toContain(PW);
+  });
+
+  it("normalises ArrayBuffer / {data} crypto outputs and types non-byte output", async () => {
+    const asBuffer = bindDocxCrypto({
+      decrypt: async () => new Uint8Array([1, 2]).buffer as unknown as Uint8Array,
+      encrypt: () => ({ data: [3, 4] }) as unknown as Uint8Array,
+    });
+    expect([...(await asBuffer.decrypt(new Uint8Array(), "x"))]).toEqual([1, 2]);
+    expect([...(await asBuffer.encrypt!(new Uint8Array(), "x"))]).toEqual([3, 4]);
+    const broken = bindDocxCrypto({
+      decrypt: async () => "not bytes" as unknown as Uint8Array,
+      encrypt: () => new Uint8Array(),
+    });
+    await expect(broken.decrypt(new Uint8Array(), "x")).rejects.toMatchObject({ code: "engine_result_invalid" });
   });
 });
 
@@ -91,7 +110,7 @@ describe("bindPptx* ", () => {
 
   it("forwards runTxn and builds render slides through the render bundle", async () => {
     const ops = bindPptxOps({ runTxn: (_o, req) => ({ applied: req.ops.length > 0, records: [] }) });
-    const result = ops.runTxn(opened, { ops: [{ op: "setHidden", args: { slide: 0, hidden: true } }], dryRun: false });
+    const result = ops.runTxn(opened, { ops: [{ op: "setHidden", target: { slide: 0 }, hidden: true }], dryRun: false });
     expect(result.applied).toBe(true);
 
     const render = bindPptxRender({
@@ -100,6 +119,6 @@ describe("bindPptx* ", () => {
     });
     const slide = await render.buildRenderSlide(opened, 0, 960);
     expect(slide.fit).toBe(960);
-    await expect(render.buildRenderSlide(opened, 9, 960)).rejects.toThrow(/no slide/);
+    await expect(render.buildRenderSlide(opened, 9, 960)).rejects.toMatchObject({ code: "no_slide" });
   });
 });

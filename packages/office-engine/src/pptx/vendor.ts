@@ -8,6 +8,7 @@
 //   dist/pptx-ops.mjs    -> runTxn (ops self-register on bundle import)
 //   dist/pptx-render.mjs -> buildRenderSlide + HeuristicMetrics (no canvas —
 //                          the heuristic metrics path is the honest fallback)
+import { PptxEngineError } from "./engine";
 import type {
   OpenedPptxLike,
   PptxEngineFunctions,
@@ -47,7 +48,7 @@ export function bindPptxEngine(mod: UpstreamPptxEngineModule): PptxEngineFunctio
   return {
     openPptx: (bytes: Uint8Array) => mod.openPptx(bytes),
     savePptx: (opened: OpenedPptxLike) => mod.savePptx(opened),
-    ...(mod.commitSaved ? { commitSaved: (opened: OpenedPptxLike) => mod.commitSaved(opened) } : {}),
+    commitSaved: (opened: OpenedPptxLike) => mod.commitSaved(opened),
     ...(mod.reparseDeck ? { reparseDeck: (opened: OpenedPptxLike) => mod.reparseDeck!(opened) } : {}),
     ...(mod.listSlideLayouts ? { listSlideLayouts: (a: unknown) => mod.listSlideLayouts!(a) } : {}),
     ...(mod.shouldOfferBuiltinLayouts
@@ -71,7 +72,7 @@ export function bindPptxRender(mod: UpstreamPptxRenderModule): PptxRenderPort {
   return {
     async buildRenderSlide(opened: OpenedPptxLike, slideIndex: number, fitWidthPx: number) {
       const slide = opened.deck.slides[slideIndex];
-      if (!slide) throw new Error("no slide " + slideIndex + " in opened deck");
+      if (!slide) throw new PptxEngineError("no_slide", "no slide " + slideIndex + " in opened deck");
       return mod.buildRenderSlide(slide, opened.deck.size, {
         fitWidthPx,
         metrics: new mod.HeuristicMetrics(),

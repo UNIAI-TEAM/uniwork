@@ -188,13 +188,24 @@ export class PptxAdapter {
     }
     // Save-verify: re-open the produced bytes; a deck that won't re-open is
     // not a save (the G0 host does the same before staging).
-    const reopened = await this.deps.engine.openPptx(out);
+    let reopened: OpenedPptxLike;
+    try {
+      reopened = await this.deps.engine.openPptx(out);
+    } catch (error) {
+      if (error instanceof EngineBoundaryError || error instanceof HostCapabilityRefusal) throw error;
+      throw new EngineBoundaryError("engine_result_invalid", { detail: "saved deck does not reopen" });
+    }
     if (!reopened?.deck?.slides || reopened.deck.slides.length === 0) {
       throw new EngineBoundaryError("engine_result_invalid", { detail: "saved deck reopened with no slides" });
     }
     // commitSaved marks the produced bytes as the new base — a second
     // serialize diffs against this state, not the original input.
-    this.deps.engine.commitSaved?.(session.model.opened);
+    try {
+      this.deps.engine.commitSaved?.(session.model.opened);
+    } catch (error) {
+      if (error instanceof EngineBoundaryError || error instanceof HostCapabilityRefusal) throw error;
+      throw new EngineBoundaryError("engine_crashed", { detail: "commitSaved failed on a verified save" });
+    }
     session.model.markSaved();
     session.assets = inventoryPptxAssets(session.model.opened);
     const hash = this.deps.sha256 ?? sha256Hex;
@@ -242,11 +253,21 @@ export class PptxAdapter {
       fitWidthPx: fitWidthPx ?? session.model.fitWidthPx,
       ...(groupId ? { groupId } : {}),
     });
-    return this.deps.render.buildRenderSlide(
-      session.model.opened,
-      slideIndex,
-      fitWidthPx ?? session.model.fitWidthPx,
-    ) as Promise<RenderSlide>;
+    return this.renderSlide(session, slideIndex, fitWidthPx ?? session.model.fitWidthPx);
+  }
+
+  /** Render the post-edit slide for the channel answer. The edit already
+   * landed when this runs, so a render failure is a typed engine error —
+   * never a raw throw, and never reported as "the gesture didn't apply". */
+  private async renderSlide(session: PptxSession, slideIndex: number, fitWidthPx: number): Promise<RenderSlide> {
+    try {
+      return (await this.deps.render!.buildRenderSlide(session.model.opened, slideIndex, fitWidthPx)) as RenderSlide;
+    } catch (error) {
+      if (error instanceof EngineBoundaryError || error instanceof HostCapabilityRefusal) throw error;
+      throw new EngineBoundaryError("engine_crashed", {
+        detail: "render failed after the edit landed; the model already carries the change",
+      });
+    }
   }
 
   /** host:slides-edit-text — same channel contract as transform. */
@@ -271,11 +292,7 @@ export class PptxAdapter {
       paragraphs: body.paragraphs as PptxParagraphLike[],
       ...(body.groupId ? { groupId: body.groupId } : {}),
     });
-    return this.deps.render.buildRenderSlide(
-      session.model.opened,
-      body.slideIndex,
-      session.model.fitWidthPx,
-    ) as Promise<RenderSlide>;
+    return this.renderSlide(session, body.slideIndex, session.model.fitWidthPx);
   }
 
   /** One dispatch point for the host adapter: known slides channels route to

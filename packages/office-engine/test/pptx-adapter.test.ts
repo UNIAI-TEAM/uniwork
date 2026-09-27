@@ -132,6 +132,47 @@ describe("pptx adapter serialize", () => {
     );
   });
 
+  it("saved bytes that fail to reopen => typed engine_result_invalid, not a raw Error", async () => {
+    const base = createFakePptxEngine();
+    let openCalls = 0;
+    const adapter = createPptxAdapter({
+      engine: {
+        openPptx: (bytes: Uint8Array) => {
+          openCalls += 1;
+          if (openCalls > 1) throw new Error("zip exploded on reopen");
+          return base.openPptx(bytes);
+        },
+        savePptx: base.savePptx,
+        commitSaved: base.commitSaved,
+      },
+      ops: createFakePptxOps(),
+    });
+    const out = await adapter.open({ bytes: makeFakePptxBytes(), format: "pptx", document_id: "d-reopen" });
+    const ref = (out as { document_model_ref: string }).document_model_ref;
+    const error = await adapter.serialize({ document_model_ref: ref, format: "pptx" }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(EngineBoundaryError);
+    expect((error as EngineBoundaryError).code).toBe("engine_result_invalid");
+  });
+
+  it("commitSaved crash on a verified save => typed engine_crashed", async () => {
+    const base = createFakePptxEngine();
+    const adapter = createPptxAdapter({
+      engine: {
+        openPptx: base.openPptx,
+        savePptx: base.savePptx,
+        commitSaved: () => {
+          throw new Error("base journal write failed");
+        },
+      },
+      ops: createFakePptxOps(),
+    });
+    const out = await adapter.open({ bytes: makeFakePptxBytes(), format: "pptx", document_id: "d-commit" });
+    const ref = (out as { document_model_ref: string }).document_model_ref;
+    const error = await adapter.serialize({ document_model_ref: ref, format: "pptx" }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(EngineBoundaryError);
+    expect((error as EngineBoundaryError).code).toBe("engine_crashed");
+  });
+
   it("capability answers honest rows; transform row reflects render binding", async () => {
     const bound = createPptxAdapter({ engine: createFakePptxEngine(), ops: createFakePptxOps(), render: createFakePptxRender() });
     const res = (await bound.capability("pptx")) as { rows: Array<{ operation: string; supported: boolean }> };

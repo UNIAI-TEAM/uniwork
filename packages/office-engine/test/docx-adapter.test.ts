@@ -2,7 +2,7 @@
 // session model refs, and the no-blank-document guarantee.
 import { describe, expect, it } from "vitest";
 import { EngineBoundaryError } from "@uniwork/office-contracts";
-import { createDocxAdapter } from "../src/docx";
+import { createDocxAdapter, isEncryptedOoxml } from "../src/docx";
 import {
   createFakeDocxCryptoWithCheck,
   createFakeDocxEngine,
@@ -79,6 +79,32 @@ describe("docx adapter open (P3)", () => {
     expect(out).toMatchObject({ outcome: "failed", failure_class: "wrong_password", document_id: "doc-w" });
   });
 
+  it("decrypt reason tokens drive the failure class, not message text", async () => {
+    // bindDocxCrypto tags errors with .reason — the adapter must consume the
+    // token even when the message matches no known pattern (otherwise this
+    // would collapse into a generic 'corrupted').
+    const enc = fakeEncryptDocx(fixture(), "right");
+    const wrongReason = await createDocxAdapter({
+      engine: createFakeDocxEngine(),
+      crypto: {
+        async decrypt() {
+          throw Object.assign(new Error("verifier mismatch"), { reason: "wrong-password" });
+        },
+      },
+    }).open({ bytes: enc, format: "docx", document_id: "doc-r1", password: "x" });
+    expect(wrongReason).toMatchObject({ outcome: "failed", failure_class: "wrong_password" });
+
+    const unsupportedReason = await createDocxAdapter({
+      engine: createFakeDocxEngine(),
+      crypto: {
+        async decrypt() {
+          throw Object.assign(new Error("cipher scheme tango"), { reason: "unsupported" });
+        },
+      },
+    }).open({ bytes: enc, format: "docx", document_id: "doc-r2", password: "x" });
+    expect(unsupportedReason).toMatchObject({ outcome: "failed", failure_class: "unsupported_feature" });
+  });
+
   it("encrypted package with a password but no decryptor bound => unsupported_feature", async () => {
     const adapter = createDocxAdapter({ engine: createFakeDocxEngine() });
     const enc = fakeEncryptDocx(fixture(), "pw1");
@@ -129,6 +155,25 @@ describe("docx adapter open (P3)", () => {
     await expect(adapter.serialize({ document_model_ref: ref, format: "docx" })).rejects.toMatchObject({
       code: "not_found",
     });
+  });
+
+  it("releasing one of two sessions on the same document keeps its password state", async () => {
+    // Two live sessions over the same encrypted document share the password
+    // channels — releasing one must not wipe the disk password the other
+    // still needs for save.
+    const adapter = createDocxAdapter({
+      engine: createFakeDocxEngine(),
+      crypto: createFakeDocxCryptoWithCheck("pw1"),
+    });
+    const enc = fakeEncryptDocx(fixture(), "pw1");
+    const first = await adapter.open({ bytes: enc, format: "docx", document_id: "doc-shared", password: "pw1" });
+    const second = await adapter.open({ bytes: enc, format: "docx", document_id: "doc-shared", password: "pw1" });
+    if (first.outcome !== "opened" || second.outcome !== "opened") throw new Error("open failed");
+    expect(adapter.release(first.document_model_ref)).toBe(true);
+    // the surviving session still saves encrypted with the disk password —
+    // released state would have produced a plaintext save here.
+    const saved = await adapter.serialize({ document_model_ref: second.document_model_ref, format: "docx" });
+    expect(isEncryptedOoxml(saved.bytes)).toBe(true);
   });
 
   it("capability answers proven/pending rows for docx only", async () => {

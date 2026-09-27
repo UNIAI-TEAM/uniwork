@@ -6,6 +6,7 @@
 // Upstream surface bound here (pinned 09485f88):
 //   dist/docx-engine.mjs        -> parseDocx / saveDocx
 //   officecrypto-tool           -> decrypt / encrypt (docx-encryption.ts:43/56)
+import { EngineBoundaryError, HostCapabilityRefusal } from "@uniwork/office-contracts";
 import type {
   DocxEngineFunctions,
   DocxParsed,
@@ -24,7 +25,7 @@ export interface UpstreamDocxEngineModule {
 /** officecrypto-tool's surface (docx-encryption.ts:12 imports it default). */
 export interface UpstreamOfficeCryptoModule {
   decrypt(bytes: Uint8Array, opts: { password: string }): Promise<Uint8Array>;
-  encrypt(bytes: Uint8Array, opts: { password: string }): Uint8Array | Promise<Uint8Array> | unknown;
+  encrypt(bytes: Uint8Array, opts: { password: string }): Uint8Array | Promise<Uint8Array>;
 }
 
 const toBytes = (out: unknown): Uint8Array => {
@@ -32,7 +33,7 @@ const toBytes = (out: unknown): Uint8Array => {
   if (out instanceof ArrayBuffer) return new Uint8Array(out);
   if (Array.isArray(out)) return new Uint8Array(out as number[]);
   if (out && typeof (out as { data?: number[] }).data === "object") return new Uint8Array((out as { data: number[] }).data);
-  throw new Error("crypto seam returned non-byte output");
+  throw new EngineBoundaryError("engine_result_invalid", { detail: "crypto seam returned non-byte output" });
 };
 
 /** Key under parsed.internal where the optional part enumeration lands. */
@@ -80,14 +81,25 @@ export function bindDocxEngine(
  */
 export function bindDocxCrypto(officeCrypto: UpstreamOfficeCryptoModule): OoxmlCrypto {
   // officecrypto-tool is a CJS node lib: it wants Buffer inputs. `Buffer` is a
-  // host global here — a browser bundle never reaches this function because
-  // hosts only bind crypto on node/desktop (no `node:` import, boundary safe).
+  // host global here — hosts only bind crypto on node/desktop, so reaching
+  // this function without a Buffer global is a binding mistake we refuse
+  // loudly instead of failing deep inside the library.
+  if (typeof Buffer === "undefined") {
+    throw new HostCapabilityRefusal(
+      "docx:crypto",
+      "unbound",
+      "officecrypto-tool needs a Node Buffer host; bind the crypto seam only on node/desktop",
+    );
+  }
   const toBuf = (b: Uint8Array) => Buffer.from(b.buffer, b.byteOffset, b.byteLength);
   return {
     async decrypt(bytes: Uint8Array, password: string): Promise<Uint8Array> {
       try {
         return toBytes(await officeCrypto.decrypt(toBuf(bytes), { password }));
       } catch (error) {
+        // Our own typed errors (e.g. toBytes engine_result_invalid) pass
+        // through untouched — only library failures get a reason token.
+        if (error instanceof EngineBoundaryError || error instanceof HostCapabilityRefusal) throw error;
         const message = String((error as Error)?.message ?? error);
         const err = new Error(message.includes("password is incorrect") ? "wrong-password: " + message : "unsupported: " + message);
         (err as { reason?: string }).reason = message.includes("password is incorrect") ? "wrong-password" : "unsupported";

@@ -359,27 +359,35 @@ export class PptxSessionModel {
       case "replace_picture":
         return this.replacePicture(edit);
       case "move_slide":
-        return { applied: true, ...(this.moveSlide(edit.slideIndex, edit.toIndex), {}) };
+        this.moveSlide(edit.slideIndex, edit.toIndex);
+        return { applied: true };
       case "reorder_element":
-        return { applied: true, ...(this.reorderElement(edit.slideIndex, edit.elementId, edit.dir), {}) };
+        this.reorderElement(edit.slideIndex, edit.elementId, edit.dir);
+        return { applied: true };
       case "set_slide_hidden":
-        return { applied: true, ...(this.setSlideHidden(edit.slideIndex, edit.hidden), {}) };
+        this.setSlideHidden(edit.slideIndex, edit.hidden);
+        return { applied: true };
       case "duplicate_slide":
-        return { applied: true, ...(this.duplicateSlide(edit.slideIndex, edit.clearText), {}) };
+        this.duplicateSlide(edit.slideIndex, edit.clearText);
+        return { applied: true };
       case "delete_slide":
-        return { applied: true, ...(this.deleteSlide(edit.slideIndex), {}) };
+        this.deleteSlide(edit.slideIndex);
+        return { applied: true };
       case "add_blank_slide":
-        return { applied: true, ...(this.addBlankSlide(edit.slideIndex), {}) };
+        this.addBlankSlide(edit.slideIndex);
+        return { applied: true };
       case "add_slide_with_layout":
-        return { applied: true, ...(this.addSlideWithLayout(edit.layout, edit.slideIndex), {}) };
+        this.addSlideWithLayout(edit.layout, edit.slideIndex);
+        return { applied: true };
       case "delete_element":
-        return { applied: true, ...(this.deleteElement(edit.slideIndex, edit.elementId), {}) };
+        this.deleteElement(edit.slideIndex, edit.elementId);
+        return { applied: true };
     }
   }
 
   /** Called by the adapter after a successful save — upstream commitSaved
-   * semantics live on the engine handle; the model only clears its journal
-   * boundary marker via a fresh revision epoch. */
+   * semantics live on the engine handle; the model only clears its dirty
+   * flag (the journal stays — it is the audit trail, not save state). */
   markSaved(): void {
     this.dirty = false;
   }

@@ -120,6 +120,16 @@ export class DocxAdapter {
     if (error instanceof HostCapabilityRefusal) {
       return this.failed(documentId, "engine_error", error.message, error.engine_error ?? "engine_crashed");
     }
+    // The crypto seam tags its failures with a typed `reason` token
+    // (vendor.ts bindDocxCrypto) — branch on it first; message matching is
+    // only the fallback for seam errors that carry no token.
+    const reason = (error as { reason?: unknown })?.reason;
+    if (reason === "wrong-password") {
+      return this.failed(documentId, "wrong_password", "decrypt refused the supplied password");
+    }
+    if (reason === "unsupported") {
+      return this.failed(documentId, "unsupported_feature", "encrypted payload uses a scheme this build cannot decrypt");
+    }
     const message = String((error as Error)?.message ?? error);
     const lower = message.toLowerCase();
     if (/password is incorrect|wrong-password/.test(lower)) {
@@ -174,7 +184,7 @@ export class DocxAdapter {
       } catch (error) {
         return this.mapParseError(document_id, error);
       }
-      const parsed = await this.parseOrFail(document_id, plain);
+      const parsed = await this.parseOrFail(document_id, plain, { encryptedSource: true });
       if (parsed.outcome !== "opened") return parsed;
       this.passwords.rememberDiskPassword(document_id, input.password);
       return parsed;
@@ -186,7 +196,11 @@ export class DocxAdapter {
     return this.parseOrFail(document_id, bytes);
   }
 
-  private async parseOrFail(documentId: string, plainBytes: Uint8Array): Promise<OpenOutcome> {
+  private async parseOrFail(
+    documentId: string,
+    plainBytes: Uint8Array,
+    opts: { encryptedSource?: boolean } = {},
+  ): Promise<OpenOutcome> {
     let parsed: DocxParsed;
     try {
       parsed = await this.deps.engine.parseDocx(plainBytes);
@@ -206,7 +220,7 @@ export class DocxAdapter {
       documentId,
       model: new DocxSessionModel(parsed),
       assets,
-      encryptedSource: this.passwords.isEncryptedSource(documentId),
+      encryptedSource: opts.encryptedSource === true || this.passwords.isEncryptedSource(documentId),
     });
     return { outcome: "opened", document_id: documentId, document_model_ref: ref, warnings };
   }
@@ -226,13 +240,16 @@ export class DocxAdapter {
     return session;
   }
 
-  /** Release a session (the contract's cancel path): frees the model + both
-   * password channels. Returns false when the ref was already gone. */
+  /** Release a session (the contract's cancel path): frees the model and —
+   * only when no other live session shares the document — both password
+   * channels. Returns false when the ref was already gone. */
   release(documentModelRef: string): boolean {
     const session = this.sessions.get(documentModelRef);
     if (!session) return false;
-    this.passwords.forget(session.documentId);
-    return this.sessions.delete(documentModelRef);
+    this.sessions.delete(documentModelRef);
+    const stillOpen = [...this.sessions.values()].some((s) => s.documentId === session.documentId);
+    if (!stillOpen) this.passwords.forget(session.documentId);
+    return true;
   }
 
   async serialize(input: {
@@ -261,6 +278,8 @@ export class DocxAdapter {
     // P5: effective password = intent ?? disk. Re-encrypt through the seam
     // when bound; otherwise a typed policy refusal — never plaintext over an
     // encrypted source (upstream recovery rule, docx-encryption.ts:163-168).
+    // Every fallible step runs BEFORE commitSave: a failure here must not
+    // advance disk/intent state for a save the caller never received.
     const snap = this.passwords.snapshot(session.documentId);
     let wire = out;
     if (snap.password !== null) {
@@ -273,17 +292,28 @@ export class DocxAdapter {
           "unsupported_operation",
         );
       }
-      wire = await this.deps.crypto.encrypt(out, snap.password);
+      try {
+        wire = await this.deps.crypto.encrypt(out, snap.password);
+      } catch (error) {
+        if (error instanceof EngineBoundaryError || error instanceof HostCapabilityRefusal) throw error;
+        throw new EngineBoundaryError("engine_crashed", { detail: "re-encryption failed" });
+      }
     }
-    this.passwords.commitSave(session.documentId, snap);
 
     // Two-save rule: the produced bytes become the new base. Re-parse the
     // PLAINTEXT output so the next plan patches forward from what was saved.
-    const rebased = await this.deps.engine.parseDocx(out);
+    let rebased: DocxParsed;
+    try {
+      rebased = await this.deps.engine.parseDocx(out);
+    } catch (error) {
+      if (error instanceof EngineBoundaryError || error instanceof HostCapabilityRefusal) throw error;
+      throw new EngineBoundaryError("engine_result_invalid", { detail: "saved plaintext does not re-parse" });
+    }
     session.model.rebase(rebased);
     session.assets = inventoryDocxAssets(rebased, this.deps.listPackageParts?.(rebased));
     const hash = this.deps.sha256 ?? sha256Hex;
     const checksum = await hash(wire);
+    this.passwords.commitSave(session.documentId, snap);
     return { bytes: wire, checksum, warnings: [] };
   }
 
