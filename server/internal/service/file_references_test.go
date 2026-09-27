@@ -19,8 +19,10 @@ import (
 )
 
 // fileServiceTables are FileService's own tables; their file_id columns are
-// coordination, not business references.
-var fileServiceTables = map[string]bool{"files": true, "file_upload_sessions": true, "file_jobs": true}
+// coordination, not business references. file_backfill_items is the
+// files-backfill ledger: a row records what a run did to a file, and must not
+// keep that file alive for the collector.
+var fileServiceTables = map[string]bool{"files": true, "file_upload_sessions": true, "file_jobs": true, "file_backfill_items": true}
 
 var (
 	alterTableRe  = regexp.MustCompile(`(?is)ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?"?(\w+)"?(.*)`)
