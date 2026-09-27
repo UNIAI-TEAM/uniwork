@@ -11,6 +11,35 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const clearDocumentAssetsOrphaned = `-- name: ClearDocumentAssetsOrphaned :exec
+UPDATE document_assets
+SET orphaned_at = NULL
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND document_id = $3
+  AND id = ANY($4::text[])
+  AND orphaned_at IS NOT NULL
+`
+
+type ClearDocumentAssetsOrphanedParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	DocumentID     string   `json:"document_id"`
+	Ids            []string `json:"ids"`
+}
+
+// Content references an asset again (an undo, a restored version): its
+// orphan mark goes, so the reference provider holds it active (C-01 §14.2).
+func (q *Queries) ClearDocumentAssetsOrphaned(ctx context.Context, arg ClearDocumentAssetsOrphanedParams) error {
+	_, err := q.db.Exec(ctx, clearDocumentAssetsOrphaned,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.DocumentID,
+		arg.Ids,
+	)
+	return err
+}
+
 const getDocument = `-- name: GetDocument :one
 SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at
 FROM documents
@@ -390,6 +419,31 @@ func (q *Queries) ListDocumentsByParent(ctx context.Context, arg ListDocumentsBy
 	return items, nil
 }
 
+const nextDocumentPosition = `-- name: NextDocumentPosition :one
+SELECT COALESCE(MAX(position) + 1, 0)::double precision AS position
+FROM documents
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND parent_id IS NOT DISTINCT FROM $3
+  AND owner_id IS NULL
+  AND archived_at IS NULL
+`
+
+type NextDocumentPositionParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	ParentID       pgtype.Text `json:"parent_id"`
+}
+
+// A new page goes after its live siblings in the workspace tree; the first
+// child of a parent (or of the root) sits at 0.
+func (q *Queries) NextDocumentPosition(ctx context.Context, arg NextDocumentPositionParams) (float64, error) {
+	row := q.db.QueryRow(ctx, nextDocumentPosition, arg.OrganizationID, arg.WorkspaceID, arg.ParentID)
+	var position float64
+	err := row.Scan(&position)
+	return position, err
+}
+
 const updateDocumentContent = `-- name: UpdateDocumentContent :one
 UPDATE documents
 SET content = $1,
@@ -432,6 +486,113 @@ func (q *Queries) UpdateDocumentContent(ctx context.Context, arg UpdateDocumentC
 		arg.ContentBytes,
 		arg.UpdatedBy,
 		arg.UpdatedByKind,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.ExpectedRevision,
+	)
+	var i Document
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.ParentID,
+		&i.Kind,
+		&i.Title,
+		&i.Icon,
+		&i.Visibility,
+		&i.Content,
+		&i.ContentText,
+		&i.SearchText,
+		&i.ContentBytes,
+		&i.CurrentVersion,
+		&i.FileVersionID,
+		&i.Revision,
+		&i.Position,
+		&i.OwnerKind,
+		&i.OwnerID,
+		&i.AclOwnerID,
+		&i.SourceDocumentID,
+		&i.SourceVersionID,
+		&i.SourceRevision,
+		&i.SourceFormat,
+		&i.SourceEngine,
+		&i.TargetFormat,
+		&i.SourceChecksumSha256,
+		&i.ConversionReason,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.UpdatedBy,
+		&i.UpdatedByKind,
+		&i.ContentSavedAt,
+		&i.LastVersionAt,
+		&i.ArchivedAt,
+		&i.ArchivedBy,
+		&i.PurgeAfter,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateDocumentFields = `-- name: UpdateDocumentFields :one
+
+UPDATE documents
+SET title = $1,
+    icon = $2,
+    visibility = $3,
+    content = $4,
+    content_text = $5,
+    search_text = $6,
+    content_bytes = $7,
+    revision = revision + 1,
+    updated_by = $8,
+    updated_by_kind = $9,
+    content_saved_at = CASE WHEN $10::boolean THEN now() ELSE content_saved_at END,
+    updated_at = now()
+WHERE id = $11
+  AND organization_id = $12
+  AND workspace_id = $13
+  AND revision = $14
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at
+`
+
+type UpdateDocumentFieldsParams struct {
+	Title            string      `json:"title"`
+	Icon             pgtype.Text `json:"icon"`
+	Visibility       string      `json:"visibility"`
+	Content          []byte      `json:"content"`
+	ContentText      string      `json:"content_text"`
+	SearchText       string      `json:"search_text"`
+	ContentBytes     int32       `json:"content_bytes"`
+	UpdatedBy        string      `json:"updated_by"`
+	UpdatedByKind    string      `json:"updated_by_kind"`
+	ContentChanged   bool        `json:"content_changed"`
+	ID               string      `json:"id"`
+	OrganizationID   string      `json:"organization_id"`
+	WorkspaceID      string      `json:"workspace_id"`
+	ExpectedRevision int64       `json:"expected_revision"`
+}
+
+// ---- Pages (G1-04a, UNI-678) ----------------------------------------------
+// The PATCH write (C-01 §5.1): the service has already merged the patch onto
+// the locked row, so every field is written back whole. The revision guard
+// repeats the base check the service made under the row lock - zero rows is
+// a revision_conflict. content_saved_at moves only when the content itself
+// changed: it is the auto-version worker's input (§6.3), and a rename is
+// not an edit of the working copy.
+func (q *Queries) UpdateDocumentFields(ctx context.Context, arg UpdateDocumentFieldsParams) (Document, error) {
+	row := q.db.QueryRow(ctx, updateDocumentFields,
+		arg.Title,
+		arg.Icon,
+		arg.Visibility,
+		arg.Content,
+		arg.ContentText,
+		arg.SearchText,
+		arg.ContentBytes,
+		arg.UpdatedBy,
+		arg.UpdatedByKind,
+		arg.ContentChanged,
 		arg.ID,
 		arg.OrganizationID,
 		arg.WorkspaceID,

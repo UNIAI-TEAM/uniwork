@@ -127,6 +127,10 @@ const (
 	ActionDocumentLinkRevoked     = "document.link_revoked"
 	ActionDocumentSettingsChanged = "document.settings_changed"
 
+	// Pages (UNI-678, G1-04a): a PATCH of title, icon, visibility or the
+	// working copy. Metadata only - the page JSON never reaches audit.
+	ActionDocumentUpdated = "document.updated"
+
 	// Platform admin (F-11). The actor is a platform_role holder, or "cli"
 	// for uniwork-admin; admin_actions carries the reason beside the row.
 	ActionOrganizationSuspended   = "organization.suspended"
