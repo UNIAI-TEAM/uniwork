@@ -1,4 +1,5 @@
 import type { AssetSlot } from "../assets/media";
+import { createForeignContentTracker } from "./foreign-content";
 
 // URL-bearing slots of an HTML source, found without building a DOM so the
 // same code runs in a worker, Node and a desktop host. Upstream (genoffice
@@ -188,41 +189,15 @@ function attributeRole(tag: string, attr: string, attrs: readonly Attr[]): { rol
   }
 }
 
-// Foreign content (svg, math). Inside it the HTML parser does NOT treat
-// <style>/<title>/<script>/<textarea> as raw text - their children are live
-// elements - until an HTML integration point (svg foreignObject/desc/title,
-// MathML mi/mo/mn/ms/mtext and HTML-encoded annotation-xml) or a breakout
-// tag (including <font color|face|size>) returns to HTML parsing. Treating them as raw text there
-// would hide live links and images from the preview rewrite (FE review r1
-// F-2), so the scanner keeps a small namespace stack.
-const SVG_INTEGRATION_POINTS: ReadonlySet<string> = new Set(["foreignobject", "desc", "title"]);
-const FOREIGN_BREAKOUT: ReadonlySet<string> = new Set(
-  ("b big blockquote body br center code dd div dl dt em embed h1 h2 h3 h4 h5 h6 head hr i img li listing " +
-    "menu meta nobr ol p pre ruby s small span strong strike sub sup table tt u ul var").split(" "),
-);
-// MathML text integration points; annotation-xml only with an HTML encoding.
-const MATH_INTEGRATION_POINTS: ReadonlySet<string> = new Set(["mi", "mo", "mn", "ms", "mtext"]);
 const RAW_TEXT_TAGS: ReadonlySet<string> = new Set(["script", "style", "title", "textarea"]);
-
-function isIntegrationPoint(root: string, tag: string, attrs: readonly Attr[]): boolean {
-  if (root === "svg") return SVG_INTEGRATION_POINTS.has(tag);
-  if (MATH_INTEGRATION_POINTS.has(tag)) return true;
-  if (tag !== "annotation-xml") return false;
-  const encoding = (attrs.find((a) => a.name === "encoding")?.value ?? "").toLowerCase();
-  return encoding === "text/html" || encoding === "application/xhtml+xml";
-}
 
 /** Every URL-bearing slot in document order. Comments, <script> bodies and
  * RCDATA (<title>, <textarea>) are skipped and <style> bodies are CSS slots -
- * in HTML content only; inside svg/math those elements are scanned as markup. */
+ * in HTML content only; inside svg/math those elements are scanned as markup
+ * (foreign-content.ts decides which, FE reviews r1-r3). */
 export function scanHtmlSlots(html: string): HtmlSlot[] {
   const slots: HtmlSlot[] = [];
-  // Open svg/math roots and svg integration points, innermost last.
-  const stack: string[] = [];
-  const inForeign = () => {
-    const top = stack[stack.length - 1];
-    return top === "svg" || top === "math";
-  };
+  const foreignContent = createForeignContentTracker();
   let i = 0;
   while (i < html.length) {
     const lt = html.indexOf("<", i);
@@ -234,9 +209,7 @@ export function scanHtmlSlots(html: string): HtmlSlot[] {
     }
     const endTag = /^<\/([a-zA-Z][a-zA-Z0-9:-]*)/.exec(html.slice(lt, lt + 64));
     if (endTag) {
-      const name = endTag[1]!.toLowerCase();
-      const at = stack.lastIndexOf(name);
-      if (at !== -1) stack.length = at;
+      foreignContent.endTag(endTag[1]!.toLowerCase());
       const close = html.indexOf(">", lt + 2);
       i = close === -1 ? html.length : close + 1;
       continue;
@@ -254,19 +227,11 @@ export function scanHtmlSlots(html: string): HtmlSlot[] {
       if (role) slots.push({ start: a.start, end: a.end, quote: a.quote, kind: role.kind, role: role.role, value: decodeEntities(a.value) });
     }
     i = end;
-    const foreign = inForeign();
-    const fontBreakout = tag === "font" && attrs.some((a) => a.name === "color" || a.name === "face" || a.name === "size");
-    if (foreign && (FOREIGN_BREAKOUT.has(tag) || fontBreakout)) stack.length = 0;
-    if (!selfClosing) {
-      if (tag === "svg" || tag === "math") {
-        stack.push(tag);
-        continue;
-      }
-      if (foreign && isIntegrationPoint(stack[stack.length - 1]!, tag, attrs)) {
-        stack.push(tag);
-        continue;
-      }
-    }
+    // Raw text only when THIS tag is parsed by HTML rules, i.e. the mode
+    // before it: an svg <title>/<style> is inserted by foreign rules even
+    // when it opens an integration point, and no breakout tag is raw text.
+    const foreign = foreignContent.inForeign();
+    foreignContent.startTag(tag, attrs, selfClosing);
     if (foreign || !RAW_TEXT_TAGS.has(tag)) continue;
     const closeRe = new RegExp("</" + tag + "\\s*>", "ig");
     closeRe.lastIndex = i;
