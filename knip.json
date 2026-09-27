@@ -26,8 +26,7 @@
         "platform/office/**"
       ],
       "ignoreDependencies": [
-        "@uniwork/office-contracts",
-        "@uniwork/office-engine"
+        "@uniwork/office-contracts"
       ]
     },
     "packages/*": {},
