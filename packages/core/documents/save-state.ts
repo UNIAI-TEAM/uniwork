@@ -95,6 +95,7 @@ export class DocumentSaveMachine {
   private timer: ReturnType<typeof setTimeout> | undefined;
   private abort: AbortController | undefined;
   private inFlight = false;
+  private disposed = false;
   private key: string | null = null;
   private readonly listeners = new Set<() => void>();
   private state: DocumentSaveState;
@@ -127,6 +128,7 @@ export class DocumentSaveMachine {
    *  While a save flies the edit queues; while in conflict the draft grows
    *  but nothing schedules — the machine never auto-retries on a new base. */
   edit(draft: PageDraft): void {
+    if (this.disposed) return;
     this.draft = { ...this.draft, ...draft };
     // The kept key belongs to the exact batch it was minted for; once the
     // pending draft changes, the next send is a different write and needs a
@@ -143,6 +145,7 @@ export class DocumentSaveMachine {
   /** Skip the quiet window and send now. With a save in flight the draft
    *  waits for the ack, then goes on the acknowledged revision. */
   flush(): void {
+    if (this.disposed) return;
     if (this.timer !== undefined) {
       clearTimeout(this.timer);
       this.timer = undefined;
@@ -154,13 +157,14 @@ export class DocumentSaveMachine {
    *  Ignored while a save flies and in "conflict" — retrying a stale base is
    *  just another 409. */
   retry(): void {
-    if (this.inFlight || !this.draft || this.state.phase === "conflict") return;
+    if (this.disposed || this.inFlight || !this.draft || this.state.phase === "conflict") return;
     void this.send();
   }
 
   /** Drop the pending draft and its key — the caller reloads the server's
    *  copy and the user starts over. */
   discardDraft(): void {
+    if (this.disposed) return;
     this.draft = undefined;
     this.key = null;
     this.clearTimer();
@@ -178,7 +182,7 @@ export class DocumentSaveMachine {
    *  revision and drop the rejected draft (the editor keeps its own copy and
    *  can edit() again on this base). */
   conflictResolved(revision: string, acked?: Document | null): void {
-    if (this.state.phase !== "conflict") return;
+    if (this.disposed || this.state.phase !== "conflict") return;
     this.draft = undefined;
     this.key = null;
     this.clearTimer();
@@ -198,11 +202,16 @@ export class DocumentSaveMachine {
    *  (a refetch, another member's write). Ignored while a draft or a flight
    *  exists — the in-flight base or the pending draft owns it. */
   updateBase(revision: string, acked?: Document | null): void {
-    if (this.draft || this.inFlight || !revision || revision === this.state.revision) return;
+    if (this.disposed || this.draft || this.inFlight || !revision || revision === this.state.revision)
+      return;
     this.setState({ revision, acked: acked ?? this.state.acked });
   }
 
+  /** Tear down on unmount: clears the quiet window, aborts the in-flight
+   *  request and drops every later outcome — a transport that resolves
+   *  anyway must not schedule a new save from a dead machine. */
   dispose(): void {
+    this.disposed = true;
     this.clearTimer();
     this.abort?.abort();
     this.listeners.clear();
@@ -225,6 +234,7 @@ export class DocumentSaveMachine {
   }
 
   private schedule(): void {
+    if (this.disposed) return;
     this.clearTimer();
     this.setState({ phase: "debouncing", dirty: true });
     this.timer = setTimeout(() => {
@@ -248,7 +258,7 @@ export class DocumentSaveMachine {
   }
 
   private async send(): Promise<void> {
-    if (this.inFlight || !this.draft || this.state.phase === "conflict") return;
+    if (this.disposed || this.inFlight || !this.draft || this.state.phase === "conflict") return;
     const sending = this.draft;
     this.draft = undefined;
     this.inFlight = true;
@@ -272,6 +282,9 @@ export class DocumentSaveMachine {
         idempotencyKey: this.key,
         signal: controller.signal,
       });
+      // Disposed mid-flight: drop the answer — nothing may schedule or
+      // announce from a machine the editor already tore down.
+      if (this.disposed) return;
       if (doc && doc.id === this.opts.documentId && doc.revision) {
         this.key = null;
         const queued = !!this.draft;
@@ -289,6 +302,7 @@ export class DocumentSaveMachine {
         this.setState({ phase: "unverifiable", dirty: true });
       }
     } catch (err) {
+      if (this.disposed) return;
       this.requeue(sending);
       const cls = classifyDocumentError(err);
       this.setState({

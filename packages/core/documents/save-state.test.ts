@@ -292,4 +292,44 @@ describe("DocumentSaveMachine", () => {
     m.updateBase("99");
     expect(m.getState().revision).toBe("44");
   });
+
+  it("dispose clears the pending timer and ignores further input", async () => {
+    const t = fakeTransport();
+    const m = machine(t.impl);
+    m.edit({ title: "a" });
+    expect(m.getState().phase).toBe("debouncing");
+    m.dispose();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(t.calls).toHaveLength(0);
+    // Everything after dispose is a no-op.
+    m.edit({ title: "b" });
+    m.flush();
+    m.retry();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(t.calls).toHaveLength(0);
+  });
+
+  it("dispose during a flight aborts and drops a late answer — no post-dispose send", async () => {
+    // A rogue transport that ignores the abort signal and resolves anyway:
+    // the pre-fix machine would schedule a new save from the dead instance.
+    const calls: DocumentSaveRequest[] = [];
+    const pending: { resolve: (doc: Document | null) => void }[] = [];
+    const rogue: DocumentSaveTransport = (req) => {
+      calls.push(req);
+      return new Promise<Document | null>((resolve) => pending.push({ resolve }));
+    };
+    const m = machine(rogue);
+    m.edit({ title: "a" });
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(calls).toHaveLength(1);
+    // A queued edit waits behind the flight.
+    m.edit({ title: "b" });
+    m.dispose();
+    expect(calls[0]?.signal.aborted).toBe(true);
+    // The transport resolves anyway — the dead machine must not schedule.
+    pending[0]?.resolve(stubDoc("42"));
+    await settle();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(calls).toHaveLength(1);
+  });
 });

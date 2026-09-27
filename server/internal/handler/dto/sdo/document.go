@@ -16,7 +16,7 @@ type DocumentDTO struct {
 	ID             string                  `json:"id" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	OrganizationID string                  `json:"organization_id" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
 	WorkspaceID    string                  `json:"workspace_id" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
-	ParentID       *string                 `json:"parent_id,omitempty" description:"ULID cha; null = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U8"`
+	ParentID       *string                 `json:"parent_id,omitempty" description:"ULID trang cha; vắng mặt = tài liệu gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
 	Kind           string                  `json:"kind" description:"page hoặc file" example:"page"`
 	Title          string                  `json:"title" example:"Kế hoạch Q4"`
 	Icon           *string                 `json:"icon,omitempty" example:"📄"`
@@ -43,7 +43,7 @@ type DocumentDTO struct {
 
 // DocumentBreadcrumbDTO is one ancestor entry in DocumentDTO.breadcrumbs.
 type DocumentBreadcrumbDTO struct {
-	ID    string  `json:"id" example:"01J8X4DOC0N1P2Q3R4S5T6U8"`
+	ID    string  `json:"id" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
 	Title string  `json:"title" example:"Tài liệu nội bộ"`
 	Icon  *string `json:"icon,omitempty" example:"📁"`
 }

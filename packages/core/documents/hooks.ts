@@ -13,7 +13,7 @@ import {
   type CreateDocumentFileMeta,
   type PatchDocumentBody,
 } from "../api/endpoints/documents";
-import type { Document } from "../types/document";
+import { DocumentNotVerifiableError, type Document } from "../types/document";
 import { documentKeys } from "./keys";
 import {
   createDocumentPatchTransport,
@@ -70,7 +70,7 @@ export function useCreateDocumentFile(wsId: string) {
       const verified = requireVerifiableDocument(doc);
       if (!verified.file?.file_id) {
         // A file document without its FileService reference is not usable.
-        throw new Error("result not verifiable");
+        throw new DocumentNotVerifiableError();
       }
       return verified;
     },

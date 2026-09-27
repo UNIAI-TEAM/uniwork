@@ -68,6 +68,16 @@ var documentsAPISDO = map[string]reflect.Type{
 	"DocumentDownloadSDO":      reflect.TypeOf(sdo.DocumentDownloadSDO{}),
 }
 
+// Required JSON fields per SDI — requiredness is contract semantics, not a
+// tag property (optional SDI fields are pointers without omitempty, so it
+// cannot be read off the struct the way SDO omitempty allows). A sample that
+// drops one of these would still decode; this list is what catches it.
+var documentsAPIRequiredSDIFields = map[string][]string{
+	"CreateDocumentSDI":        {"title"},
+	"PatchDocumentSDI":         {"revision"},
+	"CommitDocumentVersionSDI": {"upload_id", "base_revision"},
+}
+
 func readContractSample(t *testing.T, name string) ([]byte, map[string]any) {
 	t.Helper()
 	raw, err := os.ReadFile(filepath.Join(documentsAPIContractDir, name))
@@ -206,8 +216,13 @@ func TestDocumentsAPIEndpointSamples(t *testing.T) {
 				if !ok {
 					t.Fatalf("unknown SDI %q", ep.SDI)
 				}
-				raw, _ := readContractSample(t, ep.Request)
+				raw, sample := readContractSample(t, ep.Request)
 				decodeStrict(t, raw, typ, ep.Request)
+				for _, field := range documentsAPIRequiredSDIFields[ep.SDI] {
+					if _, present := sample[field]; !present {
+						t.Errorf("request %s lacks required field %q of %s", ep.Request, field, ep.SDI)
+					}
+				}
 				sdiCovered[ep.SDI] = true
 			case "form", "query":
 				typ, ok := documentsAPISDI[ep.SDI]
@@ -220,9 +235,14 @@ func TestDocumentsAPIEndpointSamples(t *testing.T) {
 				}
 				allowed := wireTagSet(typ, tag)
 				_, sample := readContractSample(t, ep.Request)
-				for key := range sample {
+				for key, val := range sample {
 					if !allowed[key] {
 						t.Errorf("request %s names %q which is not a %s tag of %s", ep.Request, key, tag, ep.SDI)
+					}
+					// Form and query values are strings on the wire; a JSON
+					// number or bool here would silently change type.
+					if _, isString := val.(string); !isString {
+						t.Errorf("request %s value %q must be a string (%s wire form), got %T", ep.Request, key, tag, val)
 					}
 				}
 				sdiCovered[ep.SDI] = true
@@ -301,6 +321,12 @@ func TestDocumentsAPIErrorSamples(t *testing.T) {
 			}
 			if env.Error.ErrorClass != es.ErrorClass {
 				t.Errorf("%s error_class = %q, want %q", es.File, env.Error.ErrorClass, es.ErrorClass)
+			}
+			// The declared class must also be the class the code->class
+			// table gives the sample's code — a sample that drifts from the
+			// server's own mapping is caught here, not in production.
+			if got := sdo.ErrorClassFor(env.Error.Code); got != es.ErrorClass {
+				t.Errorf("%s code %q classifies as %q via ErrorClassFor, not %q", es.File, env.Error.Code, got, es.ErrorClass)
 			}
 		})
 	}

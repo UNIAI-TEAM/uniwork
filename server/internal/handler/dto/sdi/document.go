@@ -90,5 +90,5 @@ type ListDocumentVersionsSDI struct {
 // descriptor DocumentDownloadSDO instead.
 type DownloadDocumentSDI struct {
 	Version *int32 `query:"version" description:"Số phiên bản file cần tải; bỏ trống = bản hiện hành" example:"2"`
-	Meta    *bool  `query:"meta" description:"1 = trả descriptor JSON thay vì stream byte" example:"1"`
+	Meta    *bool  `query:"meta" description:"1 = trả descriptor JSON thay vì stream byte" example:"true"`
 }

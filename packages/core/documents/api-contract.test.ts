@@ -136,8 +136,11 @@ describe("documents-api contract", () => {
         expect(parsed.success, JSON.stringify(parsed.success ? null : parsed.error.issues)).toBe(true);
       } else {
         const allowed = new Set(SDI_WIRE_KEYS[ep.sdi ?? ""] ?? []);
-        for (const key of Object.keys(sample as Record<string, unknown>)) {
+        for (const [key, value] of Object.entries(sample as Record<string, unknown>)) {
           expect(allowed.has(key), `key ${key} not declared on ${ep.sdi}`).toBe(true);
+          // Form and query values are strings on the wire; a number or bool
+          // in the sample would silently drift from the request's real type.
+          expect(typeof value, `value ${key} of ${ep.sdi} must be a string`).toBe("string");
         }
       }
     });

@@ -46,10 +46,13 @@ function statusToClass(status: number): DocumentErrorClass | null {
     case 404:
       return "missing";
     case 409:
-    case 422:
       return "conflict";
     case 410:
       return "gone";
+    // 422 deliberately absent: it means "understood but rejected", which
+    // spans conflict codes AND validation failures — a bare 422 must not
+    // freeze the save machine in conflict. Codes carry the real meaning;
+    // an unrecognized 422 falls to "unknown" and stays retryable.
     default:
       return null;
   }
