@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": "unauthorized",
+    "message": "Phiên đăng nhập đã hết hạn.",
+    "error_class": "session"
+  }
+}
