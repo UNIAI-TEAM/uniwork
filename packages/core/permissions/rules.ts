@@ -367,3 +367,84 @@ export function canManageDepartments(ctx: PermissionContext): Decision {
 export function canExportPeople(ctx: PermissionContext): Decision {
   return requireOrgAdmin(ctx, "Only organization owners and admins can export the directory.");
 }
+
+// ---- Documents (C-01 §4, §13.4; UNI-676) ------------------------------------
+
+/**
+ * The document level ladder as the server sends it in `my_level` (C-01 §5.1).
+ * The server decides it — shares, visibility, the ACL owner and the owning
+ * work product are not visible to the client — so these rules read the
+ * decision and never recompute it. Lenient input: an unknown or missing
+ * level ranks as none.
+ */
+export interface DocumentLevelInput {
+  my_level?: string | null;
+}
+
+function documentLevelRank(level: string | null | undefined): number {
+  switch (level) {
+    case "view":
+      return 1;
+    case "edit":
+      return 2;
+    case "manage":
+      return 3;
+    default:
+      return 0;
+  }
+}
+
+/**
+ * Shared shape of the three document rules.
+ * Backend: DocumentService.effectiveLevel computes the level and
+ * decideDocumentAccess turns it into the answer — none → 404, below the
+ * required level → 403 (server/internal/service/document_permissions.go).
+ * A deactivated member is refused by OrganizationService.RequireMember ahead
+ * of any level (member_deactivated).
+ */
+function requireDocumentLevel(
+  doc: DocumentLevelInput | null,
+  ctx: PermissionContext,
+  required: number,
+  message: string,
+): Decision {
+  if (ctx.userId === null) return deny("not_authenticated", "Sign in to continue.");
+  if (ctx.orgMemberStatus === "deactivated") {
+    return deny("member_deactivated", "Your account in this organization has been deactivated.");
+  }
+  const rank = documentLevelRank(doc?.my_level);
+  if (rank === 0) return deny("unknown", "Document not found.");
+  if (rank >= required) return ALLOW;
+  return deny("insufficient_level", message);
+}
+
+/**
+ * Open, search, export or download a document.
+ * Backend: DocumentService.authorizeDocument(…, DocumentLevelView)
+ * (server/internal/service/document_permissions.go).
+ */
+export function canViewDocument(doc: DocumentLevelInput | null, ctx: PermissionContext): Decision {
+  return requireDocumentLevel(doc, ctx, documentLevelRank("view"), "You cannot open this document.");
+}
+
+/**
+ * Edit content or title, save a version, restore, upload a new file version,
+ * paste an image, create a child page.
+ * Backend: DocumentService.withDocumentMutation(…, DocumentLevelEdit) — the
+ * level is re-evaluated inside the command's transaction
+ * (server/internal/service/document_permissions.go).
+ */
+export function canEditDocument(doc: DocumentLevelInput | null, ctx: PermissionContext): Decision {
+  return requireDocumentLevel(doc, ctx, documentLevelRank("edit"), "You can view this document but not edit it.");
+}
+
+/**
+ * Share, change visibility, manage public links, read the access log,
+ * archive. On a document owned by a work product the manage level still
+ * comes from the owner, and the owned-only refusals (§13.4) are separate.
+ * Backend: DocumentService.withDocumentMutation(…, DocumentLevelManage)
+ * (server/internal/service/document_permissions.go).
+ */
+export function canManageDocument(doc: DocumentLevelInput | null, ctx: PermissionContext): Decision {
+  return requireDocumentLevel(doc, ctx, documentLevelRank("manage"), "Only people who manage this document can do this.");
+}

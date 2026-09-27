@@ -55,12 +55,17 @@ const (
 	DocumentViaAIContext DocumentVia = "ai_context"
 )
 
-// DocumentService is the home of document commands. In G1-01 it exists for
-// the owned-create seam (§13/C-14) and as the anchor for the FileService
-// reference providers; the public business commands land with G1-04.
+// DocumentService is the home of document commands. G1-01 brought the
+// owned-create seam (§13/C-14) and the FileService reference providers;
+// G1-02 the permission gate (document_permissions.go); the public business
+// commands land with G1-03/G1-04.
 type DocumentService struct {
 	pool *pgxpool.Pool
 	q    *db.Queries
+	// The two membership gates: effectiveLevel decides membership only
+	// through them (CLAUDE.md "Database and Migration Rules").
+	orgs *OrganizationService
+	ws   *WorkspaceService
 
 	// ownerLevel resolves the caller's level through the owning work
 	// product. nil means no owner service is wired: owned creates and
@@ -69,8 +74,8 @@ type DocumentService struct {
 	ownerLevelSet bool
 }
 
-func NewDocumentService(pool *pgxpool.Pool, q *db.Queries) *DocumentService {
-	return &DocumentService{pool: pool, q: q}
+func NewDocumentService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationService, ws *WorkspaceService) *DocumentService {
+	return &DocumentService{pool: pool, q: q, orgs: orgs, ws: ws}
 }
 
 // maxSearchContentRunes is the C-01 §3.7 search contract: the search column

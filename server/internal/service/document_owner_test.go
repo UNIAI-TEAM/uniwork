@@ -24,7 +24,7 @@ func (f fakeOwnerResolver) Resolve(_ context.Context, _ Actor, _ string) (Docume
 func TestDocumentOwner(t *testing.T) {
 	pool := testutil.DB(t)
 	ctx := context.Background()
-	svc := NewDocumentService(pool, db.New(pool))
+	svc := newDocumentServiceForTest(pool, db.New(pool))
 	actor := Human("01USROWN000000000000000000")
 
 	t.Run("default resolver returns none", func(t *testing.T) {
