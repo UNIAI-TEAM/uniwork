@@ -21,7 +21,12 @@
     },
     "apps/web": {
       "ignore": [
-        "public/sw.js"
+        "public/sw.js",
+        "platform/office/**"
+      ],
+      "ignoreDependencies": [
+        "@uniwork/office-contracts",
+        "@uniwork/office-engine"
       ]
     },
     "packages/*": {},
