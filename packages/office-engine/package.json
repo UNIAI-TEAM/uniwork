@@ -19,10 +19,16 @@
     "./assets": "./src/assets/index.ts"
   },
   "dependencies": {
-    "@uniwork/office-contracts": "workspace:*"
+    "@uniwork/office-contracts": "workspace:*",
+    "@embedpdf/pdfium": "catalog:",
+    "pdf-lib": "catalog:",
+    "harfbuzzjs": "catalog:",
+    "pngjs": "catalog:",
+    "jpeg-js": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "@types/pngjs": "^6.0.5",
     "@uniwork/eslint-config": "workspace:*",
     "@uniwork/tsconfig": "workspace:*",
     "@vitest/coverage-v8": "catalog:",
