@@ -62,6 +62,27 @@ describe("preview gate (browser parser tree walk)", () => {
     expect(out).not.toMatch(/action=|formaction=|ping=/);
   });
 
+  it("allows data URLs only where they are embedded bytes, never behind a link or reference", () => {
+    const data = "data:image/svg+xml,%3Csvg%2F%3E";
+    const out = gate(
+      `<img src="${data}"><svg><image href="${data}"/><a href="${data}"><text>a</text></a><use href="${data}#x"/></svg>` +
+        `<a href="${data}">b</a><area href="data:font/woff2,AA">` +
+        `<video poster="data:image/png,AA"></video><table background="data:image/png,AA"></table>`,
+    ).html;
+    expect(out.match(/data:/g)).toHaveLength(4);
+    expect(out).toContain(`<img src="${data}">`);
+    expect(out).toContain(`<image href="${data}">`);
+  });
+
+  it("parses in no-quirks mode like a srcdoc document and always emits the standards doctype", () => {
+    // Quirks mode would keep the table inside the paragraph.
+    for (const copy of [`<p><table><tr><td>x</td></tr></table>`, `<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"><p><table></table>`]) {
+      const out = gate(copy).html;
+      expect(out.startsWith("<!DOCTYPE html>")).toBe(true);
+      expect(out).toContain("<p></p><table>");
+    }
+  });
+
   it("cleans the inert trees inside <template>", () => {
     const out = gate(`<template><a href="${EVIL}/t">t</a><img src="${PROXY}/s/k.png"></template>`).html;
     expect(out).not.toContain("evil.example");

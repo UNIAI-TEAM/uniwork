@@ -63,10 +63,18 @@ export type GateResult =
   | { ok: true; html: string; removed: number }
   | { ok: false; reason: "unstable_serialisation" | "residual_after_reparse" };
 
-function allowedUrl(value: string, options: GateOptions): boolean {
+/** Where an image/font data URL may appear: only where it is embedded as
+ * bytes. On a link (a/area/SVG a) or a reference (use, gradients, ...) a click
+ * or a load would open it as a document outside the proxy (FE review r5 R5-1). */
+function embedsData(tag: string, name: string): boolean {
+  if (name === "href" || name === "xlink:href") return tag === "image" || tag === "feimage";
+  return name === "src" || name === "poster" || name === "background";
+}
+
+function allowedUrl(value: string, options: GateOptions, allowData: boolean): boolean {
   const trimmed = value.trim();
   if (trimmed === "" || trimmed.startsWith("#") || trimmed === options.blockedUrl) return true;
-  if (/^data:(?:image|font)\//i.test(trimmed) && !/[<>]/.test(trimmed)) return true;
+  if (/^data:/i.test(trimmed)) return allowData && /^data:(?:image|font)\//i.test(trimmed) && !/[<>]/.test(trimmed);
   try {
     return new URL(trimmed).origin === options.assetOrigin;
   } catch {
@@ -79,7 +87,7 @@ function allowedSrcset(value: string, options: GateOptions): boolean {
   return value
     .split(/[\s,]+/)
     .filter((token) => token !== "" && !SRCSET_DESCRIPTOR.test(token))
-    .every((token) => allowedUrl(token, options));
+    .every((token) => allowedUrl(token, options, true));
 }
 
 function isRefresh(el: Element): boolean {
@@ -103,7 +111,7 @@ function badAttribute(tag: string, name: string, value: string, options: GateOpt
   const tags = URL_ATTRIBUTE_ELEMENTS.get(name);
   if (tags === undefined) return false;
   if (!tags.has(tag)) return true;
-  return SRCSET_ATTRIBUTES.has(name) ? !allowedSrcset(value, options) : !allowedUrl(value, options);
+  return SRCSET_ATTRIBUTES.has(name) ? !allowedSrcset(value, options) : !allowedUrl(value, options, embedsData(tag, name));
 }
 
 /** Walk the tree; with `fix`, drop offenders. Returns how many it found. */
@@ -128,14 +136,26 @@ function walk(doc: Document, options: GateOptions, fix: boolean): number {
   return found;
 }
 
+// Always no-quirks: an iframe srcdoc document is in no-quirks mode whatever
+// its doctype says, and tree building differs between the modes (e.g. <p>
+// before <table>), so the gate parses the way the frame will (FE review r5
+// R5-2) and every output carries the standards doctype.
+const DOCTYPE = "<!DOCTYPE html>";
+const LEADING_DOCTYPE = /^(?:\s|<!--[\s\S]*?-->)*<!doctype[^>]*>/i;
+
 function serialise(doc: Document): string {
-  const doctype = doc.doctype ? "<!DOCTYPE " + doc.doctype.name + ">" : "";
-  return doctype + doc.documentElement.outerHTML;
+  return DOCTYPE + doc.documentElement.outerHTML;
+}
+
+function withStandardsDoctype(copy: string): string {
+  const leading = LEADING_DOCTYPE.exec(copy);
+  if (!leading) return DOCTYPE + copy;
+  return leading[0].replace(/<!doctype[^>]*>$/i, DOCTYPE) + copy.slice(leading[0].length);
 }
 
 export function gatePreviewCopy(copy: string, options: GateOptions): GateResult {
   const parser = new DOMParser();
-  const doc = parser.parseFromString(copy, "text/html");
+  const doc = parser.parseFromString(withStandardsDoctype(copy), "text/html");
   const removed = walk(doc, options, true);
   const html = serialise(doc);
   const again = parser.parseFromString(html, "text/html");

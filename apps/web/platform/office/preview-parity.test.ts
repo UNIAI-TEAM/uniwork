@@ -61,7 +61,13 @@ function hostileIn(root: ParentNode): string[] {
     const animatesHref = (tag === "set" || tag === "animate") && /href/i.test(el.getAttribute("attributeName") ?? "");
     for (const attr of Array.from(el.attributes)) {
       const name = attr.name.toLowerCase();
-      // An image/font data URL is inert bytes, whatever text it carries.
+      // A data URL on a link or reference opens a document outside the proxy.
+      const embedded = ["src", "srcset", "poster", "background"].includes(name) || ((tag === "image" || tag === "feimage") && name.endsWith("href"));
+      if (/^\s*data:/i.test(attr.value) && !embedded && URL_ATTRS.includes(name)) {
+        found.push(tag + "[" + name + "]=data");
+        continue;
+      }
+      // An embedded image/font data URL is inert bytes, whatever text it carries.
       if (!attr.value.includes("evil.example") || /^\s*data:(?:image|font)\//i.test(attr.value)) continue;
       if (URL_ATTRS.includes(name) || name === "srcdoc" || (name === "content" && tag === "meta")) found.push(tag + "[" + name + "]");
       if (animatesHref && ["to", "from", "by", "values"].includes(name)) found.push(tag + "[" + name + "]");
@@ -138,6 +144,9 @@ const KNOWN_BYPASSES: ReadonlyArray<readonly [string, string]> = [
     "R4-1 approved-value swallow",
     `<img src="data:image/png;base64,x attributeName=href to=${EVIL}/s"><svg><a><set title="q src="data:image/png;base64,x attributeName=href to=${EVIL}/s "/>s</a></svg>`,
   ],
+  // FE review r5 R5-1: data: documents behind links and references.
+  ["R5-1 data link", `<a href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%2F%3E">d</a>`],
+  ["R5-1 data svg link", `<svg><a href="data:image/svg+xml,%3Csvg%2F%3E"><text>d</text></a><use href="data:image/svg+xml,%3Csvg%2F%3E#x"/></svg>`],
   // Scripting-flag difference: inert for DOMParser, live in a scripts-on frame.
   ["noscript breakout", `<noscript><p title="</noscript><a href=${EVIL}/n>n</a>"></p></noscript>`],
 ];
@@ -166,7 +175,10 @@ describe("engine copy alone (defence in depth under the gate, scripting off)", (
     expect(fuzzFailures(20000, COPY_FUZZ_SEED, (text) => offOnly(copyOf(text)))).toEqual([]);
   });
 
-  it.each(KNOWN_BYPASSES.filter(([name]) => name !== "noscript breakout"))("rewrites the known bypass: %s", (_name, text) => {
+  // Excluded: the scripting-flag case (the engine does not parse), and data:
+  // on SVG <use> - the engine has no element-level data rule; the gate owns it.
+  const engineScope = KNOWN_BYPASSES.filter(([name]) => name !== "noscript breakout" && name !== "R5-1 data svg link");
+  it.each(engineScope)("rewrites the known bypass: %s", (_name, text) => {
     expect(offOnly(copyOf(text))).toEqual([]);
   });
 });
