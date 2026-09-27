@@ -201,6 +201,11 @@ var (
 	ErrRangeNotSatisfiable = errors.New("storage_range_not_satisfiable")
 )
 
+// ValidObjectKey exposes the key-shape rule the write path enforces so
+// tooling that classifies stored locators (files-backfill) can hold a key
+// the adapters would refuse instead of discovering it at Stat time.
+func ValidObjectKey(key string) bool { return validObjectKey(key) }
+
 // validObjectKey refuses the key shapes no object may have. Object keys are
 // server-generated (FileService mints them), so rejecting is a bug barrier,
 // not a user error: empty keys, absolute or volume-qualified paths, traversal
