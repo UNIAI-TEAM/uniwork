@@ -420,6 +420,10 @@ jobs:
       MINIO_ACCESS_KEY_ID: minioadmin
       MINIO_SECRET_ACCESS_KEY: minioadmin
       MINIO_REGION: us-east-1
+      # The pre-FileService destination stays readable during the cutover
+      # (plan §7 step 1): the Bước 0 recording spec seeds a legacy /uploads
+      # row there, and e2e/db.ts writes its object into this directory.
+      LOCAL_UPLOAD_DIR: /tmp/uniwork-uploads
       NEXT_PUBLIC_API_URL: http://localhost:8080
       NEXT_PUBLIC_WS_URL: ws://localhost:8080
       NEXT_PUBLIC_APP_URL: http://localhost:3000
