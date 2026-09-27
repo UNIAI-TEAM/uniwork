@@ -389,4 +389,20 @@ type Routes struct {
 	// ticketed proxy route (router/files.go).
 	ResolveWorkspaceFiles http.HandlerFunc
 	GetFileContent        http.HandlerFunc
+
+	// Documents (C-01 §5 + §14; UNI-679, G1-05a): page CRUD-lite, file
+	// upload/commit/download, versions and embedded assets.
+	CreateDocument         http.HandlerFunc
+	CreateDocumentFile     http.HandlerFunc
+	GetDocument            http.HandlerFunc
+	PatchDocument          http.HandlerFunc
+	UploadDocumentFile     http.HandlerFunc
+	CommitDocumentVersion  http.HandlerFunc
+	ListDocumentVersions   http.HandlerFunc
+	CreateDocumentVersion  http.HandlerFunc
+	GetDocumentVersion     http.HandlerFunc
+	RestoreDocumentVersion http.HandlerFunc
+	UploadDocumentAsset    http.HandlerFunc
+	GetDocumentAsset       http.HandlerFunc
+	DownloadDocument       http.HandlerFunc
 }

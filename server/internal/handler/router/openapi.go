@@ -351,6 +351,20 @@ func pathParamSDI(path string) any {
 		return struct {
 			Token string `path:"token" description:"Token lời mời" example:"inv_01J8X4TOKEN"`
 		}{}
+	case "documentID":
+		return struct {
+			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+		}{}
+	case "documentID,versionNo":
+		return struct {
+			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+			VersionNo  int32  `path:"versionNo" description:"Số phiên bản (bắt đầu từ 1)" example:"2"`
+		}{}
+	case "documentID,assetID":
+		return struct {
+			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+			AssetID    string `path:"assetID" description:"ULID asset nhúng trong trang" example:"01J8X4AST0N1P2Q3R4S5T6U7V8"`
+		}{}
 	default:
 		return nil
 	}
