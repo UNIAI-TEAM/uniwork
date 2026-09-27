@@ -176,6 +176,7 @@ func (e *Engine) applyBatch(ctx context.Context, runID, cohort string, batch []I
 	// retries the page instead of recording a false verdict.
 	stats := map[string]storage.ObjectInfo{}
 	missing := map[string]bool{}
+	invalid := map[string]bool{}
 	for i := range batch {
 		it := &batch[i]
 		if it.Class != ClassVerified || it.Cohort == CohortContentRefs {
@@ -184,13 +185,17 @@ func (e *Engine) applyBatch(ctx context.Context, runID, cohort string, batch []I
 		e.fillDefaults(it)
 		loc := e.itemLocator(*it)
 		id := it.locatorID()
-		if _, ok := stats[id]; ok || missing[id] {
+		if _, ok := stats[id]; ok || missing[id] || invalid[id] {
 			continue
 		}
 		info, err := e.stat.Stat(ctx, loc)
 		switch {
 		case errors.Is(err, storage.ErrNotFound):
 			missing[id] = true
+		case errors.Is(err, storage.ErrLocatorInvalid):
+			// Deterministic refusal (bad key shape, wrong bucket) — the item
+			// is held in the ledger, not retried-fatal for the whole run.
+			invalid[id] = true
 		case err != nil:
 			return fmt.Errorf("stat %s: %w", loc.Key, err)
 		default:
@@ -216,6 +221,8 @@ func (e *Engine) applyBatch(ctx context.Context, runID, cohort string, batch []I
 			// Evidence only — record the verdict, write nothing.
 		case it.Class == ClassVerified && missing[it.locatorID()]:
 			status, reason = string(ClassHeld), "object_missing"
+		case it.Class == ClassVerified && invalid[it.locatorID()]:
+			status, reason = string(ClassHeld), "unsafe_locator"
 		case it.Class == ClassVerified:
 			res, err := e.applyVerified(ctx, q, runID, it, stats[it.locatorID()])
 			if err != nil {
@@ -274,14 +281,18 @@ func (e *Engine) applyVerified(ctx context.Context, q *db.Queries, runID string,
 	if it.replaced {
 		return &applyResult{status: itemSkipped, reason: "reference_taken", fileID: fileID}, nil
 	}
+	details := map[string]any{
+		"file_created":  created,
+		"object_size":   info.SizeBytes,
+		"size_mismatch": it.SizeBytes > 0 && info.SizeBytes != it.SizeBytes,
+		"session_id":    sessionIDFor(*it),
+	}
+	if it.adoptedFrom != nil {
+		details["adopted_from"] = it.adoptedFrom
+	}
 	return &applyResult{
 		status: itemApplied, fileID: fileID, version: info.VersionID,
-		details: map[string]any{
-			"file_created":  created,
-			"object_size":   info.SizeBytes,
-			"size_mismatch": it.SizeBytes > 0 && info.SizeBytes != it.SizeBytes,
-			"session_id":    sessionIDFor(*it),
-		},
+		details: details,
 	}, nil
 }
 
@@ -309,11 +320,16 @@ func (e *Engine) getOrCreateFile(ctx context.Context, q *db.Queries, it *Item, i
 		"run_id":       it.runID,
 	})
 	filename := it.Filename
-	if filename == "" {
-		if i := strings.LastIndex(it.ObjectKey, "/"); i >= 0 {
-			filename = it.ObjectKey[i+1:]
-		} else {
-			filename = "unnamed" // files_original_filename_nonempty
+	if strings.TrimSpace(filename) == "" {
+		// A blank or whitespace-only name fails files_original_filename_nonempty;
+		// the key's last segment is the honest name — unsafe_locator already
+		// held keys with an empty or dot trailing segment.
+		filename = it.ObjectKey
+		if i := strings.LastIndexByte(filename, '/'); i >= 0 {
+			filename = filename[i+1:]
+		}
+		if filename == "" {
+			filename = "unnamed"
 		}
 	}
 	id := util.NewID()
@@ -368,11 +384,46 @@ func (e *Engine) adoptExistingFile(ctx context.Context, q *db.Queries, existing 
 		return "", false, nil
 	}
 	if existing.Status == "pending" || existing.Status == "processing" {
+		// Snapshot the as-was row into the ledger details: rollback restores
+		// it rather than leaving a file this run did not create marked ready.
+		it.adoptedFrom = &fileSnapshot{
+			Status:         existing.Status,
+			ContentType:    textPtr(existing.ContentType),
+			SizeBytes:      int8Ptr(existing.SizeBytes),
+			ChecksumSha256: textPtr(existing.ChecksumSha256),
+			ObjectVersion:  textPtr(existing.ObjectVersion),
+		}
 		if err := e.markFileReady(ctx, q, existing.ID, it, info); err != nil {
 			return "", false, err
 		}
 	}
 	return existing.ID, true, nil
+}
+
+// fileSnapshot is the as-was files-row state recorded when apply adopts a
+// pending/processing row, so rollback can restore it exactly instead of
+// leaving the row readied. ready_at is not part of it: the schema forbids
+// ready_at on pending/processing rows, so it is always restored NULL.
+type fileSnapshot struct {
+	Status         string  `json:"status"`
+	ContentType    *string `json:"content_type"`
+	SizeBytes      *int64  `json:"size_bytes"`
+	ChecksumSha256 *string `json:"checksum_sha256"`
+	ObjectVersion  *string `json:"object_version"`
+}
+
+func textPtr(v pgtype.Text) *string {
+	if !v.Valid {
+		return nil
+	}
+	return &v.String
+}
+
+func int8Ptr(v pgtype.Int8) *int64 {
+	if !v.Valid {
+		return nil
+	}
+	return &v.Int64
 }
 
 // markFileReady turns the freshly-created (or inherited pending) row ready

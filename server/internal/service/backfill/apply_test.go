@@ -13,10 +13,11 @@ import (
 )
 
 // fakeStat is the storage double for the write path: a fixed object table,
-// plus failAt to inject one transient error at the Nth call — the
-// crash-mid-batch lever.
+// per-locator deterministic errors, plus failAt to inject one transient error
+// at the Nth call — the crash-mid-batch lever.
 type fakeStat struct {
 	infos  map[string]storage.ObjectInfo
+	errs   map[string]error
 	calls  int
 	failAt int
 }
@@ -29,6 +30,9 @@ func (f *fakeStat) Stat(_ context.Context, loc storage.ObjectLocator) (storage.O
 	f.calls++
 	if f.failAt > 0 && f.calls == f.failAt {
 		return storage.ObjectInfo{}, errors.New("injected transient failure")
+	}
+	if err, ok := f.errs[statKey(loc)]; ok {
+		return storage.ObjectInfo{}, err
 	}
 	if info, ok := f.infos[statKey(loc)]; ok {
 		return info, nil
@@ -402,6 +406,78 @@ func TestDryRunWritesNothing(t *testing.T) {
 		if got := countRows(t, pool, table); got != 0 {
 			t.Fatalf("dry-run wrote %d rows to %s", got, table)
 		}
+	}
+}
+
+// A deterministic adapter refusal (ErrLocatorInvalid — wrong bucket, unsafe
+// key that slipped classification) holds the item in the ledger and lets the
+// run complete; only transient store failures stay fatal.
+func TestApplyLocatorInvalidIsHeldNotFatal(t *testing.T) {
+	pool := testutil.DB(t)
+	insertUser(t, pool, "user-1")
+	insertOrg(t, pool, "org-1", "ws-1", "user-1")
+	insertAttachment(t, pool, "att-bad", "org-1", "ws-1", "task-1", attKey("ws-1", "att-bad"), false, false)
+	insertAttachment(t, pool, "att-ok", "org-1", "ws-1", "task-1", attKey("ws-1", "att-ok"), false, false)
+
+	fs := &fakeStat{errs: map[string]error{
+		statKey(storage.ObjectLocator{Storage: "local", Key: attKey("ws-1", "att-bad")}): storage.ErrLocatorInvalid,
+	}}
+	fs.seed("local", "", attKey("ws-1", "att-ok"), 4)
+
+	eng := applyEngine(pool, fs)
+	rep, err := eng.Apply(context.Background(), ApplyOptions{
+		Options: Options{Cohorts: []string{CohortTaskAttachments}},
+	})
+	if err != nil {
+		t.Fatalf("apply aborted on a deterministic refusal: %v", err)
+	}
+	var status, reason string
+	if err := pool.QueryRow(context.Background(),
+		`SELECT status, reason FROM file_backfill_items WHERE source_id='att-bad'`).Scan(&status, &reason); err != nil {
+		t.Fatal(err)
+	}
+	if status != "held" || reason != "unsafe_locator" {
+		t.Fatalf("ledger = %s/%s, want held/unsafe_locator", status, reason)
+	}
+	if got := countRows(t, pool, "files"); got != 1 {
+		t.Fatalf("files = %d, want 1 (the good row still applied)", got)
+	}
+	var runStatus string
+	if err := pool.QueryRow(context.Background(),
+		`SELECT status FROM file_backfill_runs WHERE id=$1`, rep.RunID).Scan(&runStatus); err != nil {
+		t.Fatal(err)
+	}
+	if runStatus != "completed" {
+		t.Fatalf("run status %q, want completed", runStatus)
+	}
+}
+
+// A row whose stored filename is blank applies with the key's last segment
+// instead of dying on files_original_filename_nonempty mid-run.
+func TestApplyBlankFilenameFallsBackToKeyBase(t *testing.T) {
+	pool := testutil.DB(t)
+	insertUser(t, pool, "user-1")
+	insertOrg(t, pool, "org-1", "ws-1", "user-1")
+	insertAttachment(t, pool, "att-blank", "org-1", "ws-1", "task-1", attKey("ws-1", "att-blank"), false, false)
+	if _, err := pool.Exec(context.Background(),
+		`UPDATE attachments SET filename = ' ' WHERE id = 'att-blank'`); err != nil {
+		t.Fatal(err)
+	}
+
+	fs := &fakeStat{}
+	fs.seed("local", "", attKey("ws-1", "att-blank"), 4)
+	eng := applyEngine(pool, fs)
+	if _, err := eng.Apply(context.Background(), ApplyOptions{
+		Options: Options{Cohorts: []string{CohortTaskAttachments}},
+	}); err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+	var name string
+	if err := pool.QueryRow(context.Background(), `SELECT original_filename FROM files`).Scan(&name); err != nil {
+		t.Fatal(err)
+	}
+	if name != "doc.pdf" {
+		t.Fatalf("original_filename = %q, want key basename doc.pdf", name)
 	}
 }
 

@@ -33,23 +33,17 @@ func (e *Engine) scanMeetingRecordings(ctx context.Context, after string, limit 
 			ActorID:        r.StartedBy,
 			ActorKind:      "human",
 		}
-		if r.FileID.Valid && r.FileID.String != "" {
-			it.Class = ClassAlreadyApplied
-			it.FileID = r.FileID.String
-			items = append(items, it)
-			continue
-		}
 		if it.OrganizationID == "" {
 			it.Class = ClassUnresolved
 			it.Reason = "tenant_missing"
-			items = append(items, it)
+			items = append(items, finishItem(it, r.FileID))
 			continue
 		}
 		it = e.resolveRecordingURL(it)
 		if it.Class == ClassVerified {
 			it = checkMeetingRecordingKey(it)
 		}
-		items = append(items, it)
+		items = append(items, finishItem(it, r.FileID))
 	}
 	if int32(len(rows)) < limit {
 		next = ""
@@ -82,23 +76,17 @@ func (e *Engine) scanCallRecordings(ctx context.Context, after string, limit int
 			ActorID:        r.StartedBy,
 			ActorKind:      "human",
 		}
-		if r.FileID.Valid && r.FileID.String != "" {
-			it.Class = ClassAlreadyApplied
-			it.FileID = r.FileID.String
-			items = append(items, it)
-			continue
-		}
 		if it.OrganizationID == "" || it.WorkspaceID == "" {
 			it.Class = ClassUnresolved
 			it.Reason = "tenant_missing"
-			items = append(items, it)
+			items = append(items, finishItem(it, r.FileID))
 			continue
 		}
 		it = e.resolveRecordingURL(it)
 		if it.Class == ClassVerified {
 			it = checkCallRecordingKey(it, r.RoomID)
 		}
-		items = append(items, it)
+		items = append(items, finishItem(it, r.FileID))
 	}
 	if int32(len(rows)) < limit {
 		next = ""

@@ -42,17 +42,12 @@ func classifyAuditExport(r db.FileBackfillScanAuditExportsRow) Item {
 		ActorID:        r.RequestedBy,
 		ActorKind:      r.RequestedByKind,
 	}
-	if r.FileID.Valid && r.FileID.String != "" {
-		it.Class = ClassAlreadyApplied
-		it.FileID = r.FileID.String
-		return it
-	}
 	key := strings.TrimSpace(r.ObjectKey.String)
 	it.RawLocator = key
 	if key == "" {
 		it.Class = ClassUnresolved
 		it.Reason = "no_locator"
-		return it
+		return finishItem(it, r.FileID)
 	}
 	it.ObjectKey = key
 
@@ -60,16 +55,16 @@ func classifyAuditExport(r db.FileBackfillScanAuditExportsRow) Item {
 	if len(segs) < 3 || segs[0] != "audit-exports" {
 		it.Class = ClassHeld
 		it.Reason = "unrecognized_key_shape"
-		return it
+		return finishItem(it, r.FileID)
 	}
 	if segs[1] != r.OrganizationID {
 		it.Class = ClassHeld
 		it.Reason = "organization_mismatch"
-		return it
+		return finishItem(it, r.FileID)
 	}
 	if i := strings.LastIndex(key, "/"); i >= 0 {
 		it.Filename = key[i+1:]
 	}
 	it.Class = ClassVerified
-	return it
+	return finishItem(it, r.FileID)
 }

@@ -104,33 +104,43 @@ func (e *Engine) classifyChatMessage(r db.FileBackfillScanChatMessagesRow) Item 
 		ActorKind:      r.SenderKind,
 	}
 
-	if r.FileID.Valid && r.FileID.String != "" {
-		it.Class = ClassAlreadyApplied
-		it.FileID = r.FileID.String
-		return it
+	meta := chatMessageMeta(r.Metadata)
+
+	// A file_id-bearing row with no locator in metadata is an FS-native
+	// write (metadata.file_id, never object_key/recording_url) — the applied
+	// state, with nothing to reconcile. Unparseable metadata cannot prove
+	// that absence, so it classifies normally below.
+	if meta != nil && r.FileID.Valid && r.FileID.String != "" {
+		locator := metaString(meta, "object_key")
+		if r.Kind == "voice_call_log" {
+			locator = metaString(meta, "recording_url")
+		}
+		if locator == "" {
+			it.Class, it.FileID = ClassAlreadyApplied, r.FileID.String
+			return it
+		}
 	}
 	if org == "" {
 		it.Class = ClassUnresolved
 		it.Reason = "room_tenant_missing"
-		return it
+		return finishItem(it, r.FileID)
 	}
 
-	meta := chatMessageMeta(r.Metadata)
 	if meta == nil {
 		it.Class = ClassUnresolved
 		it.Reason = "unparseable_metadata"
-		return it
+		return finishItem(it, r.FileID)
 	}
 
 	if r.Kind == "voice_call_log" {
-		return e.classifyCallLogRef(it, meta, r.RoomID)
+		return finishItem(e.classifyCallLogRef(it, meta, r.RoomID), r.FileID)
 	}
 
 	key := metaString(meta, "object_key")
 	if key == "" {
 		it.Class = ClassUnresolved
 		it.Reason = "no_locator"
-		return it
+		return finishItem(it, r.FileID)
 	}
 	it.ObjectKey = key
 	it.RawLocator = key
@@ -150,20 +160,20 @@ func (e *Engine) classifyChatMessage(r db.FileBackfillScanChatMessagesRow) Item 
 	if len(segs) < 4 || segs[0]+"/"+segs[1]+"/" != keyPrefix {
 		it.Class = ClassHeld
 		it.Reason = "unrecognized_key_shape"
-		return it
+		return finishItem(it, r.FileID)
 	}
 	if segs[2] != org {
 		it.Class = ClassHeld
 		it.Reason = "organization_mismatch"
-		return it
+		return finishItem(it, r.FileID)
 	}
 	if segs[3] != r.RoomID {
 		it.Class = ClassHeld
 		it.Reason = "room_mismatch"
-		return it
+		return finishItem(it, r.FileID)
 	}
 	it.Class = ClassVerified
-	return it
+	return finishItem(it, r.FileID)
 }
 
 // classifyCallLogRef resolves the voice_call_log's recording_url through the

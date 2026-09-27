@@ -141,6 +141,34 @@ func TestPlanChatFilesAndVoice(t *testing.T) {
 	}
 }
 
+// FS-native chat rows carry metadata.file_id and no object_key; they are the
+// applied state, never a classification anomaly. A file_id on a row whose
+// locator contradicts it keeps the contradiction for verify to flag.
+func TestPlanChatFSNativeAndContradictedReference(t *testing.T) {
+	pool := testutil.DB(t)
+	q := db.New(pool)
+	insertUser(t, pool, "user-1")
+	insertOrg(t, pool, "org-1", "ws-1", "user-1")
+	insertRoom(t, pool, "room-1", "org-1", "ws-1")
+
+	ctx := context.Background()
+	insertChatMessage(t, pool, "msg-fsnative", "room-1", "ws-1", "file",
+		`{"file_id":"fil_native","filename":"n.pdf","content_type":"application/pdf","size_bytes":9}`, false)
+	insertChatMessage(t, pool, "msg-contra", "room-1", "ws-1", "file",
+		`{"object_key":"chat/files/org-2/room-9/y.pdf","filename":"y.pdf"}`, false)
+	if _, err := pool.Exec(ctx, `UPDATE chat_messages SET file_id='fil_x' WHERE id='msg-contra'`); err != nil {
+		t.Fatal(err)
+	}
+
+	files := planCohort(t, q, nil, CohortChatFiles).Cohorts[0]
+	if got := itemByID(files, "msg-fsnative"); got.Class != ClassAlreadyApplied || got.FileID != "fil_native" {
+		t.Fatalf("msg-fsnative = %+v, want already_applied", got)
+	}
+	if got := itemByID(files, "msg-contra"); got.Class != ClassHeld || got.FileID != "fil_x" {
+		t.Fatalf("msg-contra = %+v, want held carrying file_id for verify", got)
+	}
+}
+
 // M5/M6/M7: recording file_urls resolve through the configured MinIO
 // authority; the voice_call_log item dedupes onto the recording's file.
 func TestPlanRecordings(t *testing.T) {

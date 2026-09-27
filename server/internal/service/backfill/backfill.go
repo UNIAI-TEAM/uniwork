@@ -25,8 +25,10 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/unicomhub/uniwork/server/internal/storage"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -96,8 +98,9 @@ type Item struct {
 	Verdict string `json:"verdict,omitempty"`
 
 	// Internal apply state — never serialized into the report.
-	runID    string
-	replaced bool
+	runID       string
+	replaced    bool
+	adoptedFrom *fileSnapshot
 }
 
 // locatorID is the dedup key: the files-table locator identity
@@ -257,6 +260,7 @@ func (e *Engine) Plan(ctx context.Context, opts Options) (*Report, error) {
 		}
 		rep.Cohorts = append(rep.Cohorts, CohortReport{Name: name, Items: items})
 	}
+	markUnsafeLocators(rep)
 	markSharedLocators(rep)
 	for i := range rep.Cohorts {
 		retally(&rep.Cohorts[i])
@@ -344,6 +348,43 @@ func retally(cr *CohortReport) {
 		}
 	}
 	cr.SharedLocators = len(heldLocators)
+}
+
+// finishItem overlays a pre-existing business reference onto the locator
+// classification. A row already carrying file_id is the applied state when
+// nothing contradicts it: either its locator verifies (the coordinates stay
+// on the item so verify can compare them against the files row) or the row
+// never recorded a legacy locator (FS-native writes). Any other class keeps
+// its evidence and the file_id so verify flags it as unexpected_reference —
+// a reference the classification cannot account for.
+func finishItem(it Item, fileID pgtype.Text) Item {
+	if !fileID.Valid || fileID.String == "" {
+		return it
+	}
+	it.FileID = fileID.String
+	if it.Class == ClassVerified ||
+		(it.Class == ClassUnresolved && it.Reason == "no_locator") {
+		it.Class = ClassAlreadyApplied
+	}
+	return it
+}
+
+// markUnsafeLocators is the write-path safety pass: a key the storage
+// adapters refuse (empty or dot segments, separators, NUL, reserved
+// suffixes) can never be Stat-ed or claimed, so a verified row carrying one
+// is held for a human instead of reaching apply and aborting the whole run.
+// It runs before the shared-locator pass so an unusable key never counts as
+// a claimant.
+func markUnsafeLocators(rep *Report) {
+	for ci := range rep.Cohorts {
+		for i := range rep.Cohorts[ci].Items {
+			it := &rep.Cohorts[ci].Items[i]
+			if it.Class == ClassVerified && it.ObjectKey != "" && !storage.ValidObjectKey(it.ObjectKey) {
+				it.Class = ClassHeld
+				it.Reason = "unsafe_locator"
+			}
+		}
+	}
 }
 
 // markSharedLocators is the cross-row pass: a locator named by verified rows

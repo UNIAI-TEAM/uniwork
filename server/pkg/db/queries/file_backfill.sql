@@ -328,3 +328,17 @@ DELETE FROM file_upload_sessions WHERE file_id = sqlc.arg('file_id');
 -- Physical delete, not a tombstone: the file never owned the object, so the
 -- row must not pin the locator in uidx_files_locator against a re-run.
 DELETE FROM files WHERE id = sqlc.arg('id') AND status IN ('pending', 'ready', 'failed');
+
+-- name: FileBackfillRestoreFileState :execrows
+-- Undo an adopted row's ready-marking on rollback: the as-was state the run
+-- snapshot into the item's details is written back. Guarded to rows still
+-- 'ready' — a file that moved on since apply is never rewound.
+UPDATE files SET
+  status = sqlc.arg('status'),
+  content_type = sqlc.narg('content_type'),
+  size_bytes = sqlc.narg('size_bytes'),
+  checksum_sha256 = sqlc.narg('checksum_sha256'),
+  object_version = sqlc.narg('object_version'),
+  ready_at = NULL,
+  updated_at = now()
+WHERE id = sqlc.arg('id') AND status = 'ready';

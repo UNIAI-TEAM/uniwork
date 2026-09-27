@@ -54,9 +54,13 @@ func classifyAttachment(r db.FileBackfillScanAttachmentsRow) Item {
 		it.Purpose = "task_comment_attachment"
 	}
 
-	if r.FileID.Valid && r.FileID.String != "" {
-		it.Class = ClassAlreadyApplied
-		it.FileID = r.FileID.String
+	// An FS-native row carries file_id with object_key NULL — including
+	// staged uploads, whose claim window belongs to the FS path itself. It
+	// is the applied state before any locator rule runs: there is no legacy
+	// locator to reconcile, and the staged guard below must not flag it.
+	if r.FileID.Valid && r.FileID.String != "" &&
+		(!r.ObjectKey.Valid || strings.TrimSpace(r.ObjectKey.String) == "") {
+		it.Class, it.FileID = ClassAlreadyApplied, r.FileID.String
 		return it
 	}
 	// Staged rows sit inside their claim window under the staging writer's
@@ -66,12 +70,12 @@ func classifyAttachment(r db.FileBackfillScanAttachmentsRow) Item {
 	if !it.Claimed {
 		it.Class = ClassHeld
 		it.Reason = "staged_unbound"
-		return it
+		return finishItem(it, r.FileID)
 	}
 	if !r.ObjectKey.Valid || r.ObjectKey.String == "" {
 		it.Class = ClassUnresolved
 		it.Reason = "no_locator"
-		return it
+		return finishItem(it, r.FileID)
 	}
 	it.ObjectKey = r.ObjectKey.String
 	it.RawLocator = r.ObjectKey.String
@@ -88,23 +92,23 @@ func classifyAttachment(r db.FileBackfillScanAttachmentsRow) Item {
 	if len(segs) < 5 || segs[0] != "workspaces" || segs[2] != "attachments" {
 		it.Class = ClassHeld
 		it.Reason = "unrecognized_key_shape"
-		return it
+		return finishItem(it, r.FileID)
 	}
 	if segs[1] != r.WorkspaceID {
 		it.Class = ClassHeld
 		it.Reason = "workspace_mismatch"
-		return it
+		return finishItem(it, r.FileID)
 	}
 	if !r.WorkspaceOrganizationID.Valid {
 		it.Class = ClassUnresolved
 		it.Reason = "workspace_missing"
-		return it
+		return finishItem(it, r.FileID)
 	}
 	if r.WorkspaceOrganizationID.String != r.OrganizationID {
 		it.Class = ClassHeld
 		it.Reason = "organization_mismatch"
-		return it
+		return finishItem(it, r.FileID)
 	}
 	it.Class = ClassVerified
-	return it
+	return finishItem(it, r.FileID)
 }

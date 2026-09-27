@@ -54,6 +54,21 @@ func (e *Engine) Verify(ctx context.Context, opts VerifyOptions) (*Report, error
 
 	var ledger map[string]db.FileBackfillItem
 	if opts.RunID != "" {
+		// The run must exist and still describe live state: an unknown id is
+		// a typo the operator must see, and a rolled-back run's ledger no
+		// longer matches the cleared business references — its "drift" would
+		// be noise, so refuse rather than report it.
+		run, rerr := e.q.FileBackfillGetRun(ctx, opts.RunID)
+		switch {
+		case errors.Is(rerr, pgx.ErrNoRows):
+			return nil, fmt.Errorf("run %q not found", opts.RunID)
+		case rerr != nil:
+			return nil, rerr
+		case run.Command != "apply":
+			return nil, fmt.Errorf("run %q is a %s run, not apply", opts.RunID, run.Command)
+		case run.Status == "rolled_back":
+			return nil, fmt.Errorf("run %q is rolled back — its references were cleared; run verify without --run for current state", opts.RunID)
+		}
 		ledger, err = e.runItems(ctx, opts.RunID)
 		if err != nil {
 			return nil, err
@@ -160,20 +175,22 @@ func (e *Engine) verifyItem(ctx context.Context, it *Item, statOnce func(*Item) 
 		}
 		return verdictFileRowMissing + ":error"
 	}
-	if it.ObjectKey != "" && it.Storage != "" {
-		// The files row must name the same physical locator the source row did.
-		// (Items with an assumed backend skip the backend check — the locator
-		// defaults are an operator claim, not row evidence.)
-		if f.Storage != it.Storage || f.ObjectKey != it.ObjectKey || f.Bucket.String != it.Bucket {
-			return verdictLocatorMismatch
-		}
+	// The files row must name the same physical locator the source row did.
+	// Compare only the coordinates the row itself recorded: key-column
+	// cohorts leave Storage empty until apply stamps the assumed default,
+	// which is an operator claim, not row evidence.
+	if it.ObjectKey != "" && f.ObjectKey != it.ObjectKey {
+		return verdictLocatorMismatch
+	}
+	if it.Storage != "" && (f.Storage != it.Storage || f.Bucket.String != it.Bucket) {
+		return verdictLocatorMismatch
 	}
 	sessions, err := e.q.FileBackfillListSessionsForFile(ctx, it.FileID)
 	if err != nil {
 		return verdictSessionMissing + ":error"
 	}
-	if !sessionCovers(sessions, it) {
-		return verdictSessionMissing
+	if v := sessionCover(sessions, it); v != "" {
+		return v
 	}
 	if f.Status == "ready" {
 		info, serr := statOnce(&Item{Storage: f.Storage, Bucket: f.Bucket.String, ObjectKey: f.ObjectKey})
@@ -189,20 +206,28 @@ func (e *Engine) verifyItem(ctx context.Context, it *Item, statOnce func(*Item) 
 	return verdictConsistent
 }
 
-// sessionCovers reports whether the file has a claimed session whose scope
-// and purpose match what the source row resolves to.
-func sessionCovers(sessions []db.FileUploadSession, it *Item) bool {
+// sessionCover reports "" when the file has a claimed session matching the
+// item's resolved scope — else the verdict that names the failure. Purpose
+// is deliberately not compared: under M2/M6/M7 dedupe several references
+// share one file and its single receipt session (uidx_file_upload_sessions_file),
+// so scope is the per-file fact while purpose is the first writer's.
+func sessionCover(sessions []db.FileUploadSession, it *Item) string {
+	sawClaimed := false
 	for _, s := range sessions {
-		if s.Status != "claimed" || s.Purpose != it.Purpose {
+		if s.Status != "claimed" {
 			continue
 		}
 		if s.OrganizationID.String == it.OrganizationID &&
 			s.WorkspaceID.String == it.WorkspaceID &&
 			s.UserID.String == it.UserID {
-			return true
+			return ""
 		}
+		sawClaimed = true
 	}
-	return false
+	if sawClaimed {
+		return verdictSessionScopeMismatch
+	}
+	return verdictSessionMissing
 }
 
 func isFailure(v string) bool {
@@ -305,12 +330,14 @@ func (e *Engine) rollbackItem(ctx context.Context, runID string, it db.FileBackf
 
 	// Delete the files row only when this run created it and no other session
 	// still claims it — a second run reusing the locator keeps the row alive.
-	created := false
-	var det map[string]any
-	if json.Unmarshal(it.Details, &det) == nil {
-		created, _ = det["file_created"].(bool)
+	// A row the run merely adopted (pending/processing -> ready) is restored
+	// to its recorded as-was state instead.
+	var det struct {
+		FileCreated bool          `json:"file_created"`
+		AdoptedFrom *fileSnapshot `json:"adopted_from"`
 	}
-	if created {
+	_ = json.Unmarshal(it.Details, &det)
+	if det.FileCreated {
 		rest, err := q.FileBackfillListSessionsForFile(ctx, fid)
 		if err != nil {
 			return err
@@ -320,8 +347,33 @@ func (e *Engine) rollbackItem(ctx context.Context, runID string, it db.FileBackf
 				return err
 			}
 		}
+	} else if det.AdoptedFrom != nil {
+		if _, err := q.FileBackfillRestoreFileState(ctx, db.FileBackfillRestoreFileStateParams{
+			ID:             fid,
+			Status:         det.AdoptedFrom.Status,
+			ContentType:    ptrText(det.AdoptedFrom.ContentType),
+			SizeBytes:      ptrInt8(det.AdoptedFrom.SizeBytes),
+			ChecksumSha256: ptrText(det.AdoptedFrom.ChecksumSha256),
+			ObjectVersion:  ptrText(det.AdoptedFrom.ObjectVersion),
+		}); err != nil {
+			return err
+		}
 	}
 	return tx.Commit(ctx)
+}
+
+func ptrText(s *string) pgtype.Text {
+	if s == nil {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: *s, Valid: true}
+}
+
+func ptrInt8(v *int64) pgtype.Int8 {
+	if v == nil {
+		return pgtype.Int8{}
+	}
+	return pgtype.Int8{Int64: *v, Valid: true}
 }
 
 func pgText(s string) pgtype.Text { return pgtype.Text{String: s, Valid: s != ""} }

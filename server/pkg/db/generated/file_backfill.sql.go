@@ -773,6 +773,45 @@ func (q *Queries) FileBackfillPutItem(ctx context.Context, arg FileBackfillPutIt
 	return err
 }
 
+const fileBackfillRestoreFileState = `-- name: FileBackfillRestoreFileState :execrows
+UPDATE files SET
+  status = $1,
+  content_type = $2,
+  size_bytes = $3,
+  checksum_sha256 = $4,
+  object_version = $5,
+  ready_at = NULL,
+  updated_at = now()
+WHERE id = $6 AND status = 'ready'
+`
+
+type FileBackfillRestoreFileStateParams struct {
+	Status         string      `json:"status"`
+	ContentType    pgtype.Text `json:"content_type"`
+	SizeBytes      pgtype.Int8 `json:"size_bytes"`
+	ChecksumSha256 pgtype.Text `json:"checksum_sha256"`
+	ObjectVersion  pgtype.Text `json:"object_version"`
+	ID             string      `json:"id"`
+}
+
+// Undo an adopted row's ready-marking on rollback: the as-was state the run
+// snapshot into the item's details is written back. Guarded to rows still
+// 'ready' — a file that moved on since apply is never rewound.
+func (q *Queries) FileBackfillRestoreFileState(ctx context.Context, arg FileBackfillRestoreFileStateParams) (int64, error) {
+	result, err := q.db.Exec(ctx, fileBackfillRestoreFileState,
+		arg.Status,
+		arg.ContentType,
+		arg.SizeBytes,
+		arg.ChecksumSha256,
+		arg.ObjectVersion,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const fileBackfillScanAttachments = `-- name: FileBackfillScanAttachments :many
 
 

@@ -33,6 +33,11 @@ func TestPlanSubcommandWritesJSON(t *testing.T) {
 	if os.Getenv("DATABASE_URL") == "" {
 		t.Setenv("DATABASE_URL", "postgres://uniwork:uniwork@localhost:5432/uniwork_test?sslmode=disable")
 	}
+	// config.Load validates these on every subcommand — the gate must pass on
+	// a clean machine with only TEST_DATABASE_URL exported.
+	t.Setenv("JWT_SECRET", "files-backfill-test-secret")
+	t.Setenv("FRONTEND_ORIGIN", "http://localhost:3000")
+	t.Setenv("API_PUBLIC_URL", "http://localhost:8080")
 
 	out := filepath.Join(t.TempDir(), "plan.json")
 	if err := run(context.Background(), []string{

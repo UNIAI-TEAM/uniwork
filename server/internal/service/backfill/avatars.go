@@ -46,12 +46,6 @@ func (e *Engine) classifyAvatar(r db.FileBackfillScanAvatarsRow) Item {
 	it.UserID = r.ID
 	it.ActorID, it.ActorKind = r.ID, "human"
 
-	if r.AvatarFileID.Valid && r.AvatarFileID.String != "" {
-		it.Class = ClassAlreadyApplied
-		it.FileID = r.AvatarFileID.String
-		return it
-	}
-
 	raw := strings.TrimSpace(r.AvatarUrl.String)
 	it.RawLocator = raw
 
@@ -60,7 +54,7 @@ func (e *Engine) classifyAvatar(r db.FileBackfillScanAvatarsRow) Item {
 	if !strings.HasPrefix(raw, "/") && !strings.HasPrefix(raw, "http://") && !strings.HasPrefix(raw, "https://") {
 		it.Class = ClassUnresolved
 		it.Reason = "unparseable_avatar_url"
-		return it
+		return finishItem(it, r.AvatarFileID)
 	}
 	loc, ok := e.resolver.Resolve(raw)
 	if !ok {
@@ -69,7 +63,7 @@ func (e *Engine) classifyAvatar(r db.FileBackfillScanAvatarsRow) Item {
 		// are not ours either but rarer — still foreign, still skipped.
 		it.Class = ClassForeign
 		it.Reason = "external_url"
-		return it
+		return finishItem(it, r.AvatarFileID)
 	}
 	it.Storage = loc.Backend
 	it.Bucket = loc.Bucket
@@ -79,16 +73,16 @@ func (e *Engine) classifyAvatar(r db.FileBackfillScanAvatarsRow) Item {
 	if len(segs) < 3 || segs[0] != "avatars" {
 		it.Class = ClassHeld
 		it.Reason = "unrecognized_key_shape"
-		return it
+		return finishItem(it, r.AvatarFileID)
 	}
 	if segs[1] != r.ID {
 		it.Class = ClassHeld
 		it.Reason = "avatar_user_mismatch"
-		return it
+		return finishItem(it, r.AvatarFileID)
 	}
 	if i := strings.LastIndex(loc.Key, "/"); i >= 0 {
 		it.Filename = loc.Key[i+1:]
 	}
 	it.Class = ClassVerified
-	return it
+	return finishItem(it, r.AvatarFileID)
 }

@@ -222,6 +222,33 @@ func TestMarkSharedLocatorsHoldsConflicts(t *testing.T) {
 	}
 }
 
+// A key that passes the writer-shape check but that no storage adapter can
+// serve (dot/empty segments) is held as unsafe_locator — never sent to Stat,
+// so one malformed row can never abort a whole apply run.
+func TestPlanUnsafeLocatorIsHeld(t *testing.T) {
+	pool := testutil.DB(t)
+	q := db.New(pool)
+	insertUser(t, pool, "user-1")
+	insertOrg(t, pool, "org-1", "ws-1", "user-1")
+
+	insertAttachment(t, pool, "att-trav", "org-1", "ws-1", "task-1",
+		"workspaces/ws-1/attachments/x/../escape.pdf", false, false)
+	insertAttachment(t, pool, "att-slash", "org-1", "ws-1", "task-1",
+		"workspaces/ws-1/attachments/att-slash/", false, false)
+	insertAttachment(t, pool, "att-ok", "org-1", "ws-1", "task-1", attKey("ws-1", "att-ok"), false, false)
+
+	rep := planAttachments(t, q)
+	cr := rep.Cohorts[0]
+	for _, id := range []string{"att-trav", "att-slash"} {
+		if got := itemByID(cr, id); got.Class != ClassHeld || got.Reason != "unsafe_locator" {
+			t.Fatalf("%s = %+v, want held/unsafe_locator", id, got)
+		}
+	}
+	if got := itemByID(cr, "att-ok"); got.Class != ClassVerified {
+		t.Fatalf("att-ok = %+v, want verified", got)
+	}
+}
+
 // plan is read-only: rerunning yields the same verdicts and the table is
 // untouched — this is the determinism the report contract requires.
 func TestPlanIsDeterministicAndReadOnly(t *testing.T) {

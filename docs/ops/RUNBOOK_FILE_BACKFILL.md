@@ -34,7 +34,12 @@ backend/bucket cho source row không lưu toạ độ — ví dụ `chat_message
 1. `plan` trước tiên — đọc bảng cohort và `reasons`. Item nào `held` hay
    `unresolved` phải hiểu lý do trước khi apply (`object_missing`,
    `cross_scope_shared_locator`, `external_url`, `avatar_user_mismatch`,
-   `room_tenant_missing`, `organization_mismatch`, `dangling_attachment_ref`…).
+   `room_tenant_missing`, `organization_mismatch`, `workspace_mismatch`,
+   `room_mismatch`, `staged_unbound`, `unsafe_locator`,
+   `unrecognized_key_shape`, `recording_row_missing`, `tenant_missing`,
+   `workspace_missing`, `file_scope_conflict`, `locator_tombstoned`,
+   `file_failed`, `unparseable_metadata`, `no_locator`,
+   `dangling_attachment_ref`…).
 2. `dry-run` — mọi object `verified` phải Stat được; `object_missing` nghĩa là
    row tham chiếu object không còn trong bucket — **không** apply đè lên nó.
    Sau `plan`/`dry-run`, `file_backfill_runs` phải vẫn trống.
@@ -53,8 +58,10 @@ backend/bucket cho source row không lưu toạ độ — ví dụ `chat_message
    `pending_apply`/`unreferenced` là trạng thái hợp lệ cho item held/unresolved;
    `file_row_missing`, `locator_mismatch`, `session_missing`,
    `session_scope_mismatch`, `object_missing`, `size_mismatch`,
-   `unexpected_reference`, `drift` là lỗi. Lưu ý: size equality kiểm
-   `files.size_bytes` = `Stat`, không phải byte identity.
+   `unexpected_reference`, `drift` là lỗi. `--run` từ chối id không tồn tại
+   và run đã `rolled_back` (ledger của nó không còn khớp business state) —
+   chạy `verify` không `--run` để reconcile trạng thái hiện tại. Lưu ý: size
+   equality kiểm `files.size_bytes` = `Stat`, không phải byte identity.
 
 ## Khắc phục
 
@@ -68,8 +75,10 @@ backend/bucket cho source row không lưu toạ độ — ví dụ `chat_message
   ```
 
   Rollback chỉ gỡ `file_id` còn đúng giá trị run đã ghi, xoá session do run
-  mint, xoá `files` do run tạo nếu không còn session nào giữ — **không đụng
-  object**, không undo thay đổi nghiệp vụ sau đó. Run kết thúc `rolled_back`.
+  mint, xoá `files` do run tạo nếu không còn session nào giữ, và trả một
+  `files` row pending/processing mà run đã adopt về đúng trạng thái cũ —
+  **không đụng object**, không undo thay đổi nghiệp vụ sau đó. Run kết thúc
+  `rolled_back`.
 - **Item `held`:** xử lý theo reason — `object_missing`: restore hoặc xoá row
   nguồn; `cross_scope_shared_locator`: quyết định thủ công owner (không merge
   cross-tenant); `*_mismatch`: sửa row nguồn rồi chạy lại plan.
