@@ -127,7 +127,9 @@ function neutralise(options: PreviewCopyOptions): string {
   const first = rewriteHtmlUrls(options.text, (u) => decide(options, u));
   const approved = new Set<string>();
   for (const slot of scanHtmlSlots(first)) {
-    approved.add(slot.value);
+    // URLs only: a CSS body or style attribute is not a URL, and approving
+    // its text would let the same string pass as a hidden link.
+    if (slot.kind === "srcset") approved.add(slot.value);
     for (const u of slotUrls(slot)) approved.add(u.url);
   }
   for (const value of approved) if (/[<>]/.test(value)) approved.delete(value);

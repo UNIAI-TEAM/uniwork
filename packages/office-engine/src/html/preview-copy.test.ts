@@ -113,6 +113,12 @@ describe("HTML preview copy", () => {
     expect(out).not.toMatch(/attributeName=href/i);
   });
 
+  it("does not approve CSS text as a URL", () => {
+    // The CDATA hides the link from the slot scanner, so only the sweep sees it.
+    const out = copy(`<style>https://evil.example/css</style><svg><![CDATA[ x > <!--]]><a href="https://evil.example/css">c</a></svg>`);
+    expect(out).not.toMatch(/href="https:\/\/evil/);
+  });
+
   it("never keeps a value that carries markup", () => {
     const out = copy(`<img src="data:image/png,<b>"><a href="#x<b>">y</a>`);
     expect(out).toContain(`src="${BLOCKED_URL}"`);
