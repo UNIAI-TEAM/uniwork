@@ -227,6 +227,10 @@ func TestDocumentVersion(t *testing.T) {
 		if _, err := env.svc.CreateDocumentVersion(ctx, member, fid, CreateDocumentVersionInput{}); !isValidation(err) {
 			t.Fatalf("manual version of a file: %v", err)
 		}
+		renamed, err := env.svc.UpdateDocument(ctx, member, fid, UpdateDocumentInput{Revision: res.View.Document.Revision, Title: strPtr("Báo cáo")})
+		if err != nil || renamed.File == nil || renamed.File.VersionID != res.Version.ID {
+			t.Fatalf("PATCH of a file document carries its file block: %+v %v", renamed.File, err)
+		}
 	})
 
 	t.Run("idempotent create and version", func(t *testing.T) {
@@ -263,21 +267,37 @@ func TestDocumentVersion(t *testing.T) {
 
 	t.Run("page bytes go through the storage quota", func(t *testing.T) {
 		q := env.page(t, member, pageJSON(strings.Repeat("nội dung ", 50)))
-		env.setStorageLimit(t, env.usage(t)+10)
-		_, err := env.svc.CreateDocumentVersion(ctx, member, q.Document.ID, CreateDocumentVersionInput{})
-		wantCode(t, err, "quota_exceeded")
-		if d := env.doc(t, q.Document.ID); d.CurrentVersion != 0 {
-			t.Fatal("a refused version was written")
+		qid := q.Document.ID
+		if _, err := env.svc.CreateDocumentVersion(ctx, member, qid, CreateDocumentVersionInput{}); err != nil {
+			t.Fatal(err)
 		}
-		_, err = env.svc.UpdateDocument(ctx, member, q.Document.ID, UpdateDocumentInput{Revision: 1, Content: pageJSON(strings.Repeat("dài hơn ", 200))})
+		env.setStorageLimit(t, env.usage(t)+10)
+		defer env.setStorageLimit(t, 1<<40)
+		unchanged := func(rev int64, cur int32) {
+			t.Helper()
+			if d := env.doc(t, qid); d.Revision != rev || d.CurrentVersion != cur {
+				t.Fatalf("a refused command wrote: rev %d cur %d, want %d %d", d.Revision, d.CurrentVersion, rev, cur)
+			}
+		}
+		// Restore charges the new version plus the working-copy growth.
+		_, err := env.svc.RestoreDocumentVersion(ctx, member, qid, RestoreDocumentVersionInput{Version: 1, BaseRevision: 1})
 		wantCode(t, err, "quota_exceeded")
+		unchanged(1, 1)
+		// Shrinking never needs room.
+		env.save(t, member, qid, 1, pageJSON("ngắn"))
+		env.setStorageLimit(t, env.usage(t)+10) // the shrink freed room; take it back
+		_, err = env.svc.CreateDocumentVersion(ctx, member, qid, CreateDocumentVersionInput{})
+		wantCode(t, err, "quota_exceeded")
+		unchanged(2, 1)
+		_, err = env.svc.UpdateDocument(ctx, member, qid, UpdateDocumentInput{Revision: 2, Content: pageJSON(strings.Repeat("dài hơn ", 200))})
+		wantCode(t, err, "quota_exceeded")
+		unchanged(2, 1)
 		_, err = env.svc.CreatePage(ctx, member, tn.wsA, CreatePageInput{Title: "to", Content: pageJSON(strings.Repeat("x", 500))})
 		wantCode(t, err, "quota_exceeded")
-		// Shrinking never needs room; a rename costs nothing.
-		if _, err := env.svc.UpdateDocument(ctx, member, q.Document.ID, UpdateDocumentInput{Revision: 1, Content: pageJSON("ngắn")}); err != nil {
-			t.Fatalf("shrinking save under a full quota: %v", err)
+		// A rename costs nothing.
+		if _, err := env.svc.UpdateDocument(ctx, member, qid, UpdateDocumentInput{Revision: 2, Title: strPtr("Tên mới")}); err != nil {
+			t.Fatalf("rename under a full quota: %v", err)
 		}
-		env.setStorageLimit(t, 1<<40)
 	})
 }
 

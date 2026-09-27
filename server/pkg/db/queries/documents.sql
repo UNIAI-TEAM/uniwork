@@ -132,3 +132,10 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND document_id = sqlc.arg(document_id)
   AND id = ANY(sqlc.arg(ids)::text[])
   AND orphaned_at IS NOT NULL;
+
+-- One workspace's tree changes one at a time: creates (sibling position)
+-- take it now, and the move/archive commands of G1-04b take the same key, so
+-- two tree writes never race on position, depth or cycles. Transaction-scoped;
+-- taken before any document row lock.
+-- name: LockDocumentTree :exec
+SELECT pg_advisory_xact_lock(hashtextextended('documents.tree:' || sqlc.arg(workspace_id)::text, 0));

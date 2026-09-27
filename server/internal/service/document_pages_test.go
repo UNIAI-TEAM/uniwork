@@ -339,11 +339,29 @@ func TestDocumentPage(t *testing.T) {
 		// Sanitize and validation run before the transaction.
 		_, err = f.svc.UpdateDocument(f.ctx, Human(tn.aclOwner.ID), id, UpdateDocumentInput{Revision: 5, Content: json.RawMessage(`[]`)})
 		wantCode(t, err, "document_invalid")
+		if d, err := f.q.GetDocumentByID(f.ctx, id); err != nil || d.Revision != 5 || d.UpdatedBy != tn.aclOwner.ID {
+			t.Fatalf("a rejected save touched the row: rev %d %v", d.Revision, err)
+		}
 		if _, err := f.svc.UpdateDocument(f.ctx, Human(tn.aclOwner.ID), id, UpdateDocumentInput{Revision: 5}); !isValidation(err) {
 			t.Fatalf("empty patch: %v", err)
 		}
 		if _, err := f.svc.UpdateDocument(f.ctx, Human(tn.aclOwner.ID), id, UpdateDocumentInput{Revision: 5, Title: strPtr(strings.Repeat("a", 501))}); !isValidation(err) {
 			t.Fatalf("long title: %v", err)
+		}
+	})
+
+	t.Run("the trash is read-only", func(t *testing.T) {
+		v, err := f.svc.CreatePage(f.ctx, Human(tn.aclOwner.ID), tn.wsA, CreatePageInput{Title: "Rác"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET archived_at = now() WHERE id = $1`, v.Document.ID); err != nil {
+			t.Fatal(err)
+		}
+		_, err = f.svc.UpdateDocument(f.ctx, Human(tn.aclOwner.ID), v.Document.ID, UpdateDocumentInput{Revision: 1, Title: strPtr("x")})
+		wantCode(t, err, "document_deleted")
+		if _, err := f.svc.UpdateDocument(f.ctx, member, v.Document.ID, UpdateDocumentInput{Revision: 1, Title: strPtr("x")}); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("editor on an archived page: %v, want ErrNotFound", err)
 		}
 	})
 
@@ -488,4 +506,53 @@ func waitForLockWaitersOn(t *testing.T, conn *pgx.Conn, n int) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatalf("fewer than %d backends waited on the document lock", n)
+}
+
+// Two root-level creates: no parent row orders them, the workspace tree
+// lock does, so they never share a sibling position. The barrier holds the
+// tree lock in a test transaction until both creates wait on it.
+func TestDocumentPageCreateRace(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "tree")
+	watch, err := pgx.ConnectConfig(f.ctx, f.pool.Config().ConnConfig.Copy())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = watch.Close(f.ctx) }()
+	holder, err := f.pool.Begin(f.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = holder.Rollback(f.ctx) }()
+	if err := f.q.WithTx(holder).LockDocumentTree(f.ctx, tn.wsA); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(f.ctx, 30*time.Second)
+	defer cancel()
+	type result struct {
+		v   DocumentView
+		err error
+	}
+	results := make(chan result, 2)
+	for _, a := range []Actor{Human(tn.member.ID), Human(tn.wsAdmin.ID)} {
+		go func() {
+			v, err := f.svc.CreatePage(ctx, a, tn.wsA, CreatePageInput{Title: "Gốc"})
+			results <- result{v, err}
+		}()
+	}
+	waitForLockWaitersOn(t, watch, 2)
+	if err := holder.Commit(f.ctx); err != nil {
+		t.Fatal(err)
+	}
+	positions := map[float64]bool{}
+	for i := 0; i < 2; i++ {
+		r := <-results
+		if r.err != nil {
+			t.Fatal(r.err)
+		}
+		positions[r.v.Document.Position] = true
+	}
+	if len(positions) != 2 {
+		t.Fatalf("root siblings share a position: %v", positions)
+	}
 }

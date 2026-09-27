@@ -419,6 +419,19 @@ func (q *Queries) ListDocumentsByParent(ctx context.Context, arg ListDocumentsBy
 	return items, nil
 }
 
+const lockDocumentTree = `-- name: LockDocumentTree :exec
+SELECT pg_advisory_xact_lock(hashtextextended('documents.tree:' || $1::text, 0))
+`
+
+// One workspace's tree changes one at a time: creates (sibling position)
+// take it now, and the move/archive commands of G1-04b take the same key, so
+// two tree writes never race on position, depth or cycles. Transaction-scoped;
+// taken before any document row lock.
+func (q *Queries) LockDocumentTree(ctx context.Context, workspaceID string) error {
+	_, err := q.db.Exec(ctx, lockDocumentTree, workspaceID)
+	return err
+}
+
 const nextDocumentPosition = `-- name: NextDocumentPosition :one
 SELECT COALESCE(MAX(position) + 1, 0)::double precision AS position
 FROM documents

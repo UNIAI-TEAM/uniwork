@@ -195,6 +195,12 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 	if replay != nil {
 		return s.replayCreatedPage(ctx, q, actor, w.OrganizationID, workspaceID, replay.Body)
 	}
+	// Tree lock before any row lock: two creates under the same parent (or
+	// at the root, where no parent row serializes them) never share a
+	// position.
+	if err := q.LockDocumentTree(ctx, workspaceID); err != nil {
+		return DocumentView{}, err
+	}
 	visibility := in.Visibility
 	if in.ParentID != "" {
 		parent, err := s.lockPageParent(ctx, q, actor, in.ParentID, w.OrganizationID, workspaceID)
@@ -520,7 +526,8 @@ func (s *DocumentService) UpdateDocument(ctx context.Context, actor Actor, docum
 			}
 		}
 		if doc.ArchivedAt.Valid {
-			return Invalid("tài liệu đang trong thùng rác; khôi phục trước khi sửa")
+			// The trash is read-only; the same answer as version and restore.
+			return errDocumentDeleted()
 		}
 		if in.Content != nil && doc.Kind != DocumentKindPage {
 			return Invalid("tài liệu file không nhận content")
@@ -604,7 +611,15 @@ func (s *DocumentService) UpdateDocument(ctx context.Context, actor Actor, docum
 		out = view
 		return err
 	})
-	return out, err
+	if err != nil {
+		return DocumentView{}, err
+	}
+	// The file block is read after the commit: FileService uses its own
+	// connection, never one borrowed under the document lock.
+	if out.File, err = s.currentFileInfo(ctx, out.Document); err != nil {
+		return DocumentView{}, err
+	}
+	return out, nil
 }
 
 func textOrNil(t pgtype.Text) any {
