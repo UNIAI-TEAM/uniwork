@@ -41,6 +41,7 @@
     "./meetings": "./meetings/hooks.ts",
     "./meetings/recording-playback-cache": "./meetings/recording-playback-cache.ts",
     "./meetings/summary-task-items": "./meetings/summary-task-items.ts",
+    "./documents/schema": "./documents/schema.ts",
     "./chat": "./chat/hooks.ts",
     "./chat/contacts-store": "./chat/contacts-store.ts",
     "./chat/groups-store": "./chat/groups-store.ts",

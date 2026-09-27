@@ -14,5 +14,10 @@ func FileReferenceProviders(chat *ChatService, meetings *MeetingService) []files
 		chat.VoiceRecordingFileReferenceProvider(),
 		meetings.FileReferenceProvider(),
 		AuditExportReferenceProvider(),
+		// Documents (UNI-675): the schema's file_id columns need providers
+		// before G1-03 opens the document purposes, or the reference
+		// registry cannot prove the columns are covered.
+		DocumentVersionReferenceProvider{},
+		DocumentAssetReferenceProvider{},
 	}
 }

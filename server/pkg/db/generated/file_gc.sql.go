@@ -228,6 +228,70 @@ func (q *Queries) FileGCClaimJobs(ctx context.Context, arg FileGCClaimJobsParams
 	return items, nil
 }
 
+const fileGCDocumentAssetRefTenants = `-- name: FileGCDocumentAssetRefTenants :many
+SELECT a.file_id, a.organization_id
+FROM document_assets a
+WHERE a.file_id = ANY($1::text[])
+`
+
+type FileGCDocumentAssetRefTenantsRow struct {
+	FileID         string `json:"file_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// document_assets.file_id: the row carries its tenant.
+func (q *Queries) FileGCDocumentAssetRefTenants(ctx context.Context, fileIds []string) ([]FileGCDocumentAssetRefTenantsRow, error) {
+	rows, err := q.db.Query(ctx, fileGCDocumentAssetRefTenants, fileIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FileGCDocumentAssetRefTenantsRow{}
+	for rows.Next() {
+		var i FileGCDocumentAssetRefTenantsRow
+		if err := rows.Scan(&i.FileID, &i.OrganizationID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const fileGCDocumentVersionRefTenants = `-- name: FileGCDocumentVersionRefTenants :many
+SELECT v.file_id, v.organization_id
+FROM document_versions v
+WHERE v.file_id = ANY($1::text[])
+`
+
+type FileGCDocumentVersionRefTenantsRow struct {
+	FileID         pgtype.Text `json:"file_id"`
+	OrganizationID string      `json:"organization_id"`
+}
+
+// document_versions.file_id: the row carries its tenant.
+func (q *Queries) FileGCDocumentVersionRefTenants(ctx context.Context, fileIds []string) ([]FileGCDocumentVersionRefTenantsRow, error) {
+	rows, err := q.db.Query(ctx, fileGCDocumentVersionRefTenants, fileIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FileGCDocumentVersionRefTenantsRow{}
+	for rows.Next() {
+		var i FileGCDocumentVersionRefTenantsRow
+		if err := rows.Scan(&i.FileID, &i.OrganizationID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const fileGCLegacyManagedLocators = `-- name: FileGCLegacyManagedLocators :many
 SELECT a.object_key::text AS locator FROM attachments a
 WHERE a.object_key LIKE 'v1/orgs/%' OR a.object_key LIKE 'v1/users/%'

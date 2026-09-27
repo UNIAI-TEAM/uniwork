@@ -789,6 +789,31 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// The only document write that exists in G1-01 is the owner seam: it
+		// runs inside the owner's transaction, so the coverage runs it inside
+		// one and commits before checking the row.
+		audit.ActionDocumentCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			svc := NewDocumentService(f.pool, f.q)
+			svc.SetOwnerLevelResolver(fakeOwnerResolver{level: DocumentLevelManage})
+			tx, err := f.pool.Begin(f.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = tx.Rollback(f.ctx) }()
+			if _, err := svc.CreateOwnedDocumentInTx(f.ctx, f.q.WithTx(tx), Human(f.owner.ID), OwnedDocumentInput{
+				OrganizationID: f.orgID,
+				WorkspaceID:    w.ID,
+				OwnerID:        "01WP0000000000000000000000",
+				Kind:           DocumentKindPage,
+				Title:          "Work product page",
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if err := tx.Commit(f.ctx); err != nil {
+				t.Fatal(err)
+			}
+		},
 	}
 
 	for _, action := range auditActions() {
@@ -879,6 +904,7 @@ func auditActions() []string {
 		audit.ActionAuditExported,
 		audit.ActionAuditRetentionSet,
 		audit.ActionSubscriptionChanged,
+		audit.ActionDocumentCreated,
 	}
 }
 

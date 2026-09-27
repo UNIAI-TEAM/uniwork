@@ -130,9 +130,12 @@ func TestFileReferenceRegistryValidation(t *testing.T) {
 	if !errors.Is(err, errFileReferenceCoverage) || !strings.Contains(err.Error(), "audit_exports.file_id") || !strings.Contains(err.Error(), "purpose audit_export") {
 		t.Fatalf("coverage = %v, want the audit_exports column and audit_export purpose gaps", err)
 	}
-	// Disabled purposes need no provider; a registered one is still asked.
-	if prod.covers(files.DocumentFile) {
-		t.Fatal("document_file reported covered")
+	// Disabled purposes need no provider, but UNI-675 registered
+	// documents.versions and documents.assets already: the schema's file_id
+	// columns exist before G1-03 opens document_file/document_asset, and the
+	// registry must still prove them covered. The purposes stay Disabled.
+	if !prod.covers(files.DocumentFile) || !prod.covers(files.DocumentAsset) {
+		t.Fatal("document purposes should be covered by the G1-01 providers")
 	}
 }
 
