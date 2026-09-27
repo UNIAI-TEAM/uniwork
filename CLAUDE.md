@@ -200,6 +200,9 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
   (`server/migrations/embed.go`) applies files outside a transaction for
   exactly this reason.
 - Ids are ULIDs in `TEXT` columns (`util.NewID()`).
+- Migration prefixes stop at `998`; later files are `999<unix-ms>_name`, so
+  string order (sqlc) and numeric order (the runner) agree
+  (`TestMigrationPrefixesSortTheSameAsStringsAndNumbers`).
 - Attribution is a pair (ADR 0007): a table created after migration `065`
   that has `created_by` also has `created_by_kind` (`human` | `agent` |
   `system`), and `tasks`, `task_comments`, `meetings`, `chat_messages` carry
