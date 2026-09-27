@@ -1,6 +1,6 @@
 // UNIT-TEST FAKES ONLY. Production code never imports this module
 // (src/assets/test-fakes.guard.test.ts fails if it does). The real seams are
-// bound to packages/office-upstream in G2-06b.
+// bound to packages/office-upstream by markdown/vendor.ts and html/vendor.ts.
 
 import type { HtmlUpstream, UpstreamPatch, UpstreamPatchError, UpstreamPatchSet } from "../html/seam";
 import type { MarkdownUpstream } from "../markdown/seam";

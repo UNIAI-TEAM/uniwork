@@ -1,8 +1,8 @@
 // The upstream seam for HTML, typed from the pinned upstream source
 // (genoffice 09485f884dc845cf3bf27fb7edfe489f9d457aad). Upstream's HTML
 // document model is the source text plus a parse5 source map over it; every
-// edit compiles down to source patches. G2-06b binds these to the vendored
-// copy in packages/office-upstream; until then only unit tests supply a fake.
+// edit compiles down to source patches. vendor.ts binds these to the vendored
+// copy in packages/office-upstream (G2-06b); unit tests may supply a fake.
 // Nothing here imports upstream code.
 
 /** apps/html/src/renderer/document/parse-map.ts:3 (ElementEntry). */

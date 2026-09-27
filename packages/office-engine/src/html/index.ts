@@ -4,3 +4,4 @@
 export { createHtmlEngine, type HtmlEngine } from "./engine";
 export { BLOCKED_URL, buildHtmlPreviewCopy, type PreviewCopyOptions } from "./preview-copy";
 export type { HtmlUpstream, UpstreamParseMap, UpstreamPatch, UpstreamPatchError, UpstreamPatchSet } from "./seam";
+export { bindHtmlUpstream, type UpstreamHtmlModules } from "./vendor";

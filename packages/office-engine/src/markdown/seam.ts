@@ -1,7 +1,7 @@
 // The upstream seam for Markdown, typed from the pinned upstream source
-// (genoffice 09485f884dc845cf3bf27fb7edfe489f9d457aad). G2-06b binds these
-// to the vendored copy in packages/office-upstream; until then only unit
-// tests supply a fake. Nothing here imports upstream code.
+// (genoffice 09485f884dc845cf3bf27fb7edfe489f9d457aad). vendor.ts binds them
+// to the vendored copy in packages/office-upstream (G2-06b); unit tests may
+// supply a fake. Nothing here imports upstream code.
 
 /**
  * The editor's save request, apps/markdown/src/shared/ipc.ts:54
