@@ -87,21 +87,48 @@ function fail(record, step, detail) {
  * registry pinned: a developer .npmrc, corporate mirror or npm_config_registry
  * must not change which registry the vendored lockfile is resolved against.
  * The lockfile's own resolved URLs and the --registry flag agree with it.
+ * userconfig/globalconfig are pointed at an empty file so ~/.npmrc (scoped
+ * registries, auth) cannot leak in either.
  */
-export function npmEnv() {
+export function npmEnv(emptyConfigFile) {
   const env = {};
   for (const [k, v] of Object.entries(process.env)) {
     if (!k.toLowerCase().startsWith('npm_config_')) env[k] = v;
   }
   env.npm_config_registry = NPM_REGISTRY;
+  if (emptyConfigFile) {
+    env.npm_config_userconfig = emptyConfigFile + '.user';
+    env.npm_config_globalconfig = emptyConfigFile + '.global';
+  }
   return env;
 }
 
 /** Spawn npm portably: Windows cannot exec npm.cmd without a shell. */
-export function npmSpawn(args, cwd, timeoutMs = 20 * 60 * 1000) {
+export function npmSpawn(args, cwd, { timeoutMs = 20 * 60 * 1000, emptyConfigFile = null } = {}) {
+  const env = npmEnv(emptyConfigFile);
   return process.platform === 'win32'
-    ? spawnSync(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', 'npm', ...args], { cwd, env: npmEnv(), encoding: 'utf8', timeout: timeoutMs })
-    : spawnSync('npm', args, { cwd, env: npmEnv(), encoding: 'utf8', timeout: timeoutMs });
+    ? spawnSync(process.env.ComSpec || 'cmd.exe', ['/d', '/s', '/c', 'npm', ...args], { cwd, env, encoding: 'utf8', timeout: timeoutMs })
+    : spawnSync('npm', args, { cwd, env, encoding: 'utf8', timeout: timeoutMs });
+}
+
+/**
+ * The lock rewrite npm performs at install is allowed to REMOVE entries (the
+ * vendored lock covers workspaces outside the selection, which npm prunes),
+ * but it must never change a kept version or add an entry - either means npm
+ * resolved something fresh, which is exactly the float this lane forbids.
+ * Returns the list of violations; an empty list means prune-only.
+ */
+export function lockRewriteViolations(before, after) {
+  const violations = [];
+  const pre = before.packages || {};
+  const post = after.packages || {};
+  for (const [key, meta] of Object.entries(post)) {
+    if (!key.includes('node_modules/')) continue;
+    if (!(key in pre)) { violations.push(`added ${key}@${meta.version} - not in the vendored lock`); continue; }
+    if (pre[key].version !== meta.version) violations.push(`${key} version changed ${pre[key].version} -> ${meta.version}`);
+    if (pre[key].resolved && meta.resolved && pre[key].resolved !== meta.resolved) violations.push(`${key} resolved changed`);
+  }
+  return violations;
 }
 
 /** The workspace packages inside the copied tree, in dependency order. */
@@ -174,17 +201,30 @@ const rawTextPlugin = {
 export function installDeps(scratchUpstream, record) {
   const lockPath = path.join(scratchUpstream, 'package-lock.json');
   const lockBefore = fs.existsSync(lockPath) ? sha256File(lockPath) : null;
+  const lockJsonBefore = fs.existsSync(lockPath) ? JSON.parse(fs.readFileSync(lockPath, 'utf8')) : null;
+  // An empty rc pair stands in for ~/.npmrc/globalconfig so ambient registry,
+  // scope and auth settings cannot affect this install (npm refuses to load
+  // one file as both user and global config).
+  const emptyConfig = path.join(scratchUpstream, '.npmrc.build');
+  fs.writeFileSync(emptyConfig + '.user', '# ambient npmrc intentionally neutralized by build-upstream.mjs\n');
+  fs.writeFileSync(emptyConfig + '.global', '# ambient npmrc intentionally neutralized by build-upstream.mjs\n');
   const inst = npmSpawn(
     ['install', '--ignore-scripts', '--no-audit', '--no-fund', '--registry', NPM_REGISTRY],
     scratchUpstream,
+    { emptyConfigFile: emptyConfig },
   );
   if (inst.error) fail(record, 'install', String(inst.error.message || inst.error));
   if (inst.status !== 0) fail(record, 'install', ((inst.stderr || '') + (inst.stdout || '')).slice(-2000));
   const lockAfter = fs.existsSync(lockPath) ? sha256File(lockPath) : null;
+  const lockJsonAfter = fs.existsSync(lockPath) ? JSON.parse(fs.readFileSync(lockPath, 'utf8')) : null;
+  const rewriteViolations = lockJsonBefore && lockJsonAfter ? lockRewriteViolations(lockJsonBefore, lockJsonAfter) : [];
+  if (rewriteViolations.length) {
+    fail(record, 'install', 'npm rewrote the vendored lock beyond pruning: ' + rewriteViolations.slice(0, 5).join('; '));
+  }
   const nm = path.join(scratchUpstream, 'node_modules');
   const topLevel = fs.existsSync(nm) ? fs.readdirSync(nm).filter((n) => !n.startsWith('.')).length : 0;
-  const npmV = npmSpawn(['--version'], scratchUpstream, 30 * 1000).stdout.trim();
-  const detail = { npm: npmV, registry: NPM_REGISTRY, topLevel, lockSha256Before: lockBefore, lockSha256After: lockAfter };
+  const npmV = npmSpawn(['--version'], scratchUpstream, { timeoutMs: 30 * 1000, emptyConfigFile: emptyConfig }).stdout.trim();
+  const detail = { npm: npmV, registry: NPM_REGISTRY, topLevel, lockSha256Before: lockBefore, lockSha256After: lockAfter, lockRewrite: lockBefore === lockAfter ? 'none' : 'prune-only' };
   record.steps.push({ step: 'install', status: 'pass', detail: `npm ${npmV}, ${topLevel} top-level entries, registry ${NPM_REGISTRY}` });
   record.install = detail;
 }

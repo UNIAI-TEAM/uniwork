@@ -7,12 +7,12 @@ const LEAK_PATTERNS: ReadonlyArray<{ rule: string; re: RegExp }> = [
   { rule: "windows_absolute_path", re: /[A-Za-z]:\\+/ },
   // Forward-slash drive paths (C:/work/...) are the same leak spelled the
   // other way. The (?!\/) keeps http(s):// scheme colons out of the match.
-  { rule: "windows_forward_path", re: /(^|[\s"'=(:])[A-Za-z]:\/(?!\/)/ },
+  { rule: "windows_forward_path", re: /(^|[\s"'=(:,[>])[A-Za-z]:\/(?!\/)/ },
   { rule: "file_url", re: /file:\/\// },
   { rule: "unc_path", re: /\\\\[A-Za-z0-9._-]+\\/ },
   // //host/share spelled forward; ':' is excluded from the prefix so an
   // https:// URL cannot false-positive here.
-  { rule: "unc_forward_path", re: /(^|[\s"'=(,])\/\/[A-Za-z0-9._-]+\// },
+  { rule: "unc_forward_path", re: /(^|[\s"'=(,[>])\/\/[A-Za-z0-9._-]+\// },
   {
     rule: "storage_key_field",
     re: /(?:"|')?(?:object_key|input_object_key|storage_key|bucket|minio_key)(?:"|')?\s*:/,

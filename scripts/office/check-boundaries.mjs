@@ -96,6 +96,10 @@ export function extractImportSpecifiers(source) {
     /(?:import|export)\s+(?:type\s+)?(?:[^'"]*?\s+from\s+)?["']([^"']+)["']/g,
     /import\s*\(\s*["'`]([^"'`$]+)["'`]\s*\)/g,
     /require\s*\(\s*["'`]([^"'`$]+)["'`]\s*\)/g,
+    // A literal worker URL is a module specifier: it loads a second graph the
+    // scan must walk. importScripts is the worker-side equivalent.
+    /\bnew\s+Worker\s*\(\s*["'`]([^"'`$]+)["'`]/g,
+    /\bimportScripts\s*\(\s*["'`]([^"'`$]+)["'`]\s*\)/g,
   ];
   for (const re of patterns) {
     for (const match of source.matchAll(re)) specifiers.push(match[1]);
@@ -119,6 +123,13 @@ export function unverifiableModuleCalls(source) {
     [/\bcreateRequire\b/g, "createRequire"],
     [/\bprocess\.env\b/g, "process.env"],
     [/\bglobalThis\.process\b/g, "globalThis.process"],
+    // Code and module access the import graph cannot enumerate. Literal
+    // Worker/importScripts specifiers are extracted as imports instead.
+    [/\beval\s*\(/g, "eval()"],
+    [/\bnew\s+Function\s*\(/g, "new Function()"],
+    [/\bimportScripts\s*\(\s*(?!["'`])/g, "computed importScripts()"],
+    [/\bnew\s+Worker\s*\(\s*(?!["'`])/g, "computed new Worker()"],
+    [/\bimport\.meta\.resolve\b/g, "import.meta.resolve"],
   ];
   for (const [re, label] of patterns) {
     for (const match of source.matchAll(re)) hits.push(label + " " + JSON.stringify(match[0].trim()));
@@ -238,10 +249,27 @@ export function checkBoundaries(root, { requireUpstreamLicence = null } = {}) {
     const exportsMap = (JSON.parse(fs.readFileSync(enginePkgJson, "utf8")).exports) || {};
     const leaves = (v) => typeof v === "string" ? [v]
       : v && typeof v === "object" ? Object.values(v).flatMap(leaves) : [];
+    // Runtime condition keys route a different target per runtime - behind the
+    // browser surface keys the contract is "same browser-safe code everywhere",
+    // so a runtime branch must not exist there at all.
+    const RUNTIME_CONDITION_KEYS = new Set(["node", "electron", "deno", "bun", "react-native"]);
+    const conditionKeys = (v, acc) => {
+      if (!v || typeof v !== "object") return;
+      for (const k of Object.keys(v)) {
+        if (!k.startsWith("./") && RUNTIME_CONDITION_KEYS.has(k)) acc.push(k);
+        conditionKeys(v[k], acc);
+      }
+    };
     for (const key of [".", "./browser"]) {
       if (!(key in exportsMap)) {
         report("exports_map", `${enginePkg}/package.json`, `exports["${key}"] is missing - the browser surface must be declared`);
         continue;
+      }
+      const runtimeKeys = [];
+      conditionKeys(exportsMap[key], runtimeKeys);
+      for (const k of runtimeKeys) {
+        report("exports_map", `${enginePkg}/package.json`,
+          `exports["${key}"] contains a "${k}" runtime condition - the browser surface must resolve identically in every runtime`);
       }
       for (const leaf of leaves(exportsMap[key])) {
         const target = leaf.replace(/^\.\//, "");

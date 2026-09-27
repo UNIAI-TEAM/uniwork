@@ -100,6 +100,65 @@ test("a literal template import is extracted and checked normally", () => {
   assert.ok(detail.includes("node:fs"), "expected the literal template import of node:fs to be caught");
 });
 
+test("fails on eval/Function/import.meta.resolve in browser scope", () => {
+  for (const [line, needle] of [
+    ["const r = eval(code);", "eval()"],
+    ["const f = new Function('return x');", "new Function()"],
+    ["const url = import.meta.resolve('./x');", "import.meta.resolve"],
+  ]) {
+    const root = plant({
+      "packages/office-engine/src/browser/index.ts": `${line}\nexport const x = 1;\n`,
+    });
+    const result = checkBoundaries(root);
+    assert.equal(result.ok, false, `expected a violation for ${line}`);
+    const detail = result.violations.map((v) => v.detail).join("\n");
+    assert.ok(detail.includes(needle), `expected ${needle} to be flagged`);
+  }
+});
+
+test("a literal Worker/importScripts specifier is chased like an import", () => {
+  const root = plant({
+    "packages/office-engine/src/browser/index.ts":
+      'const w = new Worker("./worker.ts");\nexport const x = w;\n',
+    "packages/office-engine/src/browser/worker.ts":
+      'importScripts("./native.ts");\n',
+    "packages/office-engine/src/browser/native.ts":
+      'import fs from "node:fs";\nexport const n = fs;\n',
+  });
+  const result = checkBoundaries(root);
+  assert.equal(result.ok, false);
+  const detail = result.violations.map((v) => v.detail).join("\n");
+  assert.ok(detail.includes("node:fs"), "expected the worker graph's node:fs import to be caught");
+});
+
+test("a computed Worker/importScripts specifier is flagged, not chased", () => {
+  const root = plant({
+    "packages/office-engine/src/browser/index.ts":
+      "const w = new Worker(pickUrl());\nimportScripts(pickUrl());\nexport const x = w;\n",
+  });
+  const result = checkBoundaries(root);
+  assert.equal(result.ok, false);
+  const detail = result.violations.map((v) => v.detail).join("\n");
+  assert.ok(detail.includes("computed new Worker()"), "expected the computed Worker() to be flagged");
+  assert.ok(detail.includes("computed importScripts()"), "expected the computed importScripts() to be flagged");
+});
+
+test("fails when exports[\"./browser\"] carries a runtime condition key", () => {
+  const root = plant({
+    "packages/office-engine/package.json":
+      JSON.stringify({ name: "@uniwork/office-engine", exports: {
+        ".": "./src/index.ts",
+        "./browser": { types: "./src/browser/index.ts", node: "./src/browser/index.ts", default: "./src/browser/index.ts" },
+      } }),
+    "packages/office-engine/src/index.ts": "export {};\n",
+    "packages/office-engine/src/browser/index.ts": "export {};\n",
+  });
+  const result = checkBoundaries(root);
+  assert.equal(result.ok, false);
+  const detail = result.violations.map((v) => v.detail).join("\n");
+  assert.ok(detail.includes('"node" runtime condition'), "expected the node condition key to be flagged");
+});
+
 test("fails when exports[\"./browser\"] points at node code", () => {
   const root = plant({
     "packages/office-engine/package.json":

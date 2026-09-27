@@ -152,6 +152,15 @@ describe("leak scanning + public projection", () => {
     expect(scanForLeaks({ link: "https://docs.example/x" })).not.toContain("windows_forward_path");
   });
 
+  it("detects forward-slash paths after punctuation, not just whitespace", () => {
+    for (const note of ["copy,C:/work/file.docx", "from[C:/work/file.docx]", "see>C:/work/file.docx"]) {
+      expect(scanForLeaks({ note })).toContain("windows_forward_path");
+    }
+    for (const note of ["copy,//fs01/shared/x", "from[//fs01/shared/x]", "see>//fs01/shared/x"]) {
+      expect(scanForLeaks({ note })).toContain("unc_forward_path");
+    }
+  });
+
   it("strips authority/storage fields from a public result", () => {
     const internal = {
       job_id: "J1",
