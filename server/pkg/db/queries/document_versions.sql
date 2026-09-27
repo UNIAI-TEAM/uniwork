@@ -62,3 +62,59 @@ JOIN documents d
  AND d.workspace_id = v.workspace_id
  AND d.id = v.document_id
 WHERE v.file_id = ANY(sqlc.arg('file_ids')::text[]);
+
+-- ---- Page versions and restore (G1-04a, UNI-678) ---------------------------
+
+-- A manual page version moves the ordinal and the version clock; the working
+-- copy did not change, so the revision stays (C-01 §5.2). The ordinal guard
+-- is the row-lock twin of the revision guard.
+-- name: MarkDocumentVersioned :one
+UPDATE documents
+SET current_version = sqlc.arg(current_version),
+    last_version_at = now()
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND current_version = sqlc.arg(expected_version)
+RETURNING *;
+
+-- Restore of a page version: the working copy takes the version's content,
+-- the ordinal points at the new restore version and the revision advances
+-- (C-01 §5.2). content_saved_at and last_version_at take the same now(), so
+-- the auto-versioner does not snapshot the restore a second time.
+-- name: RestoreDocumentPage :one
+UPDATE documents
+SET content = sqlc.arg(content),
+    content_text = sqlc.arg(content_text),
+    search_text = sqlc.arg(search_text),
+    content_bytes = sqlc.arg(content_bytes),
+    current_version = sqlc.arg(current_version),
+    revision = revision + 1,
+    updated_by = sqlc.arg(updated_by),
+    updated_by_kind = sqlc.arg(updated_by_kind),
+    content_saved_at = now(),
+    last_version_at = now(),
+    updated_at = now()
+WHERE id = sqlc.arg(id)
+  AND organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND kind = 'page'
+  AND revision = sqlc.arg(expected_revision)
+RETURNING *;
+
+-- The history list (C-01 §5.2): newest first, metadata only - content stays
+-- out of the page. The cursor is the last version number seen; versions are
+-- append-only ordinals, so a version created between two reads lands above
+-- the cursor and never shifts the next page.
+-- name: ListDocumentVersionsPage :many
+SELECT id, organization_id, workspace_id, document_id, version, kind, reason,
+  label, file_id, mime_type, size_bytes, checksum_sha256, restored_from,
+  engine_name, engine_version, contract_version, protocol_version,
+  created_by, created_by_kind, created_at
+FROM document_versions
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND document_id = sqlc.arg(document_id)
+  AND (sqlc.narg(before_version)::integer IS NULL OR version < sqlc.narg(before_version)::integer)
+ORDER BY version DESC
+LIMIT sqlc.arg(max_rows);

@@ -3,6 +3,8 @@ package service
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/document"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -40,17 +43,20 @@ type DocumentCrumb struct {
 }
 
 // DocumentView is what the page commands answer (DocumentSDO): the row, the
-// caller's level and path, and the ancestors the caller may read.
+// caller's level and path, the ancestors the caller may read and, for a file
+// document, its current version (set by GetDocument and the file restore).
 type DocumentView struct {
 	Document    db.Document
 	Access      DocumentAccess
 	Breadcrumbs []DocumentCrumb
+	File        *DocumentFileInfo
 }
 
 // CreatePageInput is POST /workspaces/{ws}/documents with kind page.
 // Visibility empty means the parent's (children inherit it at create time,
-// C-01 §4), or workspace at the root. IdempotencyKey is bound by the G1-03
-// ledger options once that lane lands; until then it is ignored.
+// C-01 §4), or workspace at the root. A non-empty IdempotencyKey binds the
+// create to its payload fingerprint (DOC-005 §3.1): a retry replays the page,
+// another payload under the same key is idempotency_payload_mismatch.
 type CreatePageInput struct {
 	ParentID       string
 	Title          string
@@ -176,6 +182,19 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 	if _, err := s.ws.RequireMemberQ(ctx, q, workspaceID, actor.ID); err != nil {
 		return DocumentView{}, err
 	}
+	sum := sha256.Sum256(page.content)
+	opts := IdempotencyOptions{
+		Fingerprint: IdempotencyFingerprint(idempotencyScopeDocumentPageCreate, workspaceID, in.ParentID,
+			title, icon.String, in.Visibility, hex.EncodeToString(sum[:])),
+		RequireFingerprint: true,
+	}
+	replay, commit, err := BeginIdempotent(ctx, q, w.OrganizationID, workspaceID, idempotencyScopeDocumentPageCreate, in.IdempotencyKey, actor.ID, opts)
+	if err != nil {
+		return DocumentView{}, NormalizeIdempotencyError(err)
+	}
+	if replay != nil {
+		return s.replayCreatedPage(ctx, q, actor, w.OrganizationID, workspaceID, replay.Body)
+	}
 	visibility := in.Visibility
 	if in.ParentID != "" {
 		parent, err := s.lockPageParent(ctx, q, actor, in.ParentID, w.OrganizationID, workspaceID)
@@ -195,8 +214,12 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 	if err != nil {
 		return DocumentView{}, err
 	}
+	docID := util.NewID()
+	if err := s.consumePageBytes(ctx, q, actor, db.Document{ID: docID, OrganizationID: w.OrganizationID, WorkspaceID: workspaceID}, int64(len(page.content))); err != nil {
+		return DocumentView{}, err
+	}
 	doc, err := q.InsertDocument(ctx, db.InsertDocumentParams{
-		ID:             util.NewID(),
+		ID:             docID,
 		OrganizationID: w.OrganizationID,
 		WorkspaceID:    workspaceID,
 		ParentID:       nullText(in.ParentID),
@@ -240,8 +263,45 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 	if err != nil {
 		return DocumentView{}, err
 	}
+	body, err := json.Marshal(pageReplay{DocumentID: doc.ID})
+	if err != nil {
+		return DocumentView{}, err
+	}
+	if err := commit(http.StatusCreated, body); err != nil {
+		return DocumentView{}, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return DocumentView{}, err
+	}
+	return view, nil
+}
+
+// pageReplay is what the ledger keeps for a page create: the id only.
+type pageReplay struct {
+	DocumentID string `json:"document_id"`
+}
+
+// replayCreatedPage answers a replayed create with the page as it is now and
+// the caller's current level: a caller who can no longer read it (or a page
+// gone since) gets not found, never a stored snapshot.
+func (s *DocumentService) replayCreatedPage(ctx context.Context, q *db.Queries, actor Actor, orgID, workspaceID string, body []byte) (DocumentView, error) {
+	var r pageReplay
+	if err := json.Unmarshal(body, &r); err != nil {
+		return DocumentView{}, err
+	}
+	doc, err := q.GetDocument(ctx, db.GetDocumentParams{ID: r.DocumentID, OrganizationID: orgID, WorkspaceID: workspaceID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DocumentView{}, ErrNotFound
+	}
+	if err != nil {
+		return DocumentView{}, err
+	}
+	view, err := s.documentView(ctx, q, actor, doc)
+	if err != nil {
+		return DocumentView{}, err
+	}
+	if decideDocumentAccess(doc, view.Access, DocumentLevelView) != nil {
+		return DocumentView{}, ErrNotFound
 	}
 	return view, nil
 }
@@ -320,8 +380,39 @@ func (s *DocumentService) GetDocument(ctx context.Context, actor Actor, document
 	if err != nil {
 		return DocumentView{}, err
 	}
+	file, err := s.currentFileInfo(ctx, doc)
+	if err != nil {
+		return DocumentView{}, err
+	}
 	s.RecordDocumentRead(ctx, actor, doc, access, DocumentAccessView, nil)
-	return DocumentView{Document: doc, Access: access, Breadcrumbs: crumbs}, nil
+	return DocumentView{Document: doc, Access: access, Breadcrumbs: crumbs, File: file}, nil
+}
+
+// currentFileInfo is the `file` block of a file document: its current
+// version's snapshot and the stored filename. Outside any transaction on
+// purpose - FileService reads through its own connection. A filename
+// FileService cannot resolve (being deleted, not ready) falls back to the
+// title rather than failing the whole read.
+func (s *DocumentService) currentFileInfo(ctx context.Context, doc db.Document) (*DocumentFileInfo, error) {
+	if doc.Kind != DocumentKindFile {
+		return nil, nil
+	}
+	v, err := s.currentFileVersion(ctx, s.q, doc)
+	if err != nil || v == nil {
+		return nil, err
+	}
+	name := doc.Title
+	if s.files != nil && v.FileID.Valid {
+		resolved, err := s.files.ResolveMany(ctx, files.ResolveInput{
+			Scope: documentScope(doc.OrganizationID, doc.WorkspaceID), Mode: files.ReadProxy,
+			Disposition: files.DispositionAttachment, FileIDs: []files.FileID{files.FileID(v.FileID.String)},
+		})
+		if err == nil && len(resolved) == 1 && resolved[0].Err == nil && resolved[0].File.Filename != "" {
+			name = resolved[0].File.Filename
+		}
+	}
+	info := fileInfoOf(*v, name)
+	return &info, nil
 }
 
 // documentView re-derives the caller's access on doc through q and adds the
@@ -470,6 +561,11 @@ func (s *DocumentService) UpdateDocument(ctx context.Context, actor Actor, docum
 		next.ContentChanged = contentChanged
 		next.ID, next.OrganizationID, next.WorkspaceID = doc.ID, doc.OrganizationID, doc.WorkspaceID
 		next.ExpectedRevision = doc.Revision
+		if contentChanged {
+			if err := s.consumePageBytes(ctx, q, actor, doc, int64(next.ContentBytes)-int64(doc.ContentBytes)); err != nil {
+				return err
+			}
+		}
 		updated, err := q.UpdateDocumentFields(ctx, next)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return errRevisionConflict(doc.Revision)
