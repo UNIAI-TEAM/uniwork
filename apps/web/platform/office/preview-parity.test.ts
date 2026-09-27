@@ -32,6 +32,7 @@ const PAYLOADS = [
   `<a><set attributeName="href" to="${EVIL}/s"/>s</a>`,
   `<meta http-equiv="refresh" content="0;url=${EVIL}/r">`,
   `<iframe srcdoc="&lt;img src=${EVIL}/d.png&gt;"></iframe>`,
+  `<a href="#" ping="${EVIL}/p">p</a>`,
 ];
 
 function prng(seed: number): () => number {
@@ -45,7 +46,7 @@ function prng(seed: number): () => number {
   };
 }
 
-const URL_ATTRS = ["href", "src", "xlink:href", "srcset", "poster", "data", "action", "formaction", "background"];
+const URL_ATTRS = ["href", "src", "xlink:href", "srcset", "poster", "data", "action", "formaction", "background", "ping"];
 
 function liveHostile(copy: string): string[] {
   const doc = new DOMParser().parseFromString(copy, "text/html");
@@ -100,6 +101,10 @@ describe("preview copy parser parity (parse5 tree builder)", () => {
     `<svg><a><set attributeName="href" to="${EVIL}/s"/>s</a></svg>`,
     `<!-- <b title="--> <a href=${EVIL}/c> ">`,
     `<svg><![CDATA[ x > <!--]]><image href="#"xlink:href="${EVIL}/q.png"/></svg>`,
+    // FE review r4 R4-1: a phantom match inside a quoted value swallowing real attributes.
+    `<svg><a><set title="q href="#y attributeName=href to=${EVIL}/s "/>s</a></svg>`,
+    `<img src="data:image/png;base64,x attributeName=href to=${EVIL}/s"><svg><a><set title="q src="data:image/png;base64,x attributeName=href to=${EVIL}/s "/>s</a></svg>`,
+    `<a title="x href='z' y" href="#" ping="${EVIL}/p">p</a>`,
     `<svg><foreignObject></svg></foreignObject><style><img src="data:image/png,</style><a href=${EVIL}/k>">`,
   ])("rewrites the known bypass %s", (text) => {
     expect(liveHostile(text).length).toBeGreaterThan(0);
