@@ -21,6 +21,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { REPO_ROOT } from '../office-g0/paths.mjs';
 import { UPSTREAM_DIR, PROVENANCE_PATH, RECORD_KIND } from './vendor-upstream.mjs';
 import { DEFAULT_OUT } from './build-upstream.mjs';
@@ -45,6 +46,7 @@ export const CAPABILITIES = {
     artifacts: ['dist/docx-engine.mjs'],
     lane: 'G2-03',
     runtimes: ['node', 'desktop'],
+    executor: 'packages/office-engine/test/replay/g2-03-replay.mjs',
   },
   xlsx: {
     formats: ['xlsx'],
@@ -59,6 +61,7 @@ export const CAPABILITIES = {
     artifacts: ['dist/pptx-engine.mjs'],
     lane: 'G2-03',
     runtimes: ['node', 'desktop'],
+    executor: 'packages/office-engine/test/replay/g2-03-replay.mjs',
   },
   pdf: {
     formats: ['pdf'],
@@ -161,6 +164,8 @@ export function replay({ formats, runtime, require, buildDir, evidenceDir }) {
     summary: { pass: 0, fail: 0, blocked: 0, inputErrors: 0 },
     requiredUnmet: [],
   };
+  const outDir = path.resolve(evidenceDir || path.join(REPO_ROOT, '.go-tmp', 'office-fixture-replay'));
+  fs.mkdirSync(outDir, { recursive: true });
   for (const name of names) {
     const capability = CAPABILITIES[name];
     if (!capability) {
@@ -179,8 +184,37 @@ export function replay({ formats, runtime, require, buildDir, evidenceDir }) {
       report.summary.inputErrors += 1;
       continue;
     }
-    // Inputs verified. There is no adapter to execute against in this lane:
-    // the capability is blocked until its owning G2 task lands the adapter.
+    // Inputs verified. When the owning lane shipped an executor, run it and
+    // read back its per-format result file; a lane without one stays blocked,
+    // never converted into a pass.
+    if (capability.executor) {
+      const executorPath = path.join(REPO_ROOT, capability.executor);
+      if (!fs.existsSync(executorPath)) {
+        report.capabilities[name] = { status: 'fail', lane: capability.lane, detail: `executor ${capability.executor} missing`, fixtures };
+        report.summary.fail += 1;
+        continue;
+      }
+      const run = spawnSync(
+        process.execPath,
+        [executorPath, '--build-dir', build, '--format', name, '--fixture', path.join(FIXTURE_FILES, fixtures[0].path), '--out', outDir],
+        { cwd: REPO_ROOT, encoding: 'utf8', timeout: 300000 },
+      );
+      const resultPath = path.join(outDir, `${name}-result.json`);
+      let result = null;
+      if (fs.existsSync(resultPath)) {
+        try { result = JSON.parse(fs.readFileSync(resultPath, 'utf8')); } catch { result = null; }
+      }
+      const pass = run.status === 0 && result?.status === 'pass';
+      report.capabilities[name] = {
+        status: pass ? 'pass' : 'fail',
+        lane: capability.lane,
+        detail: result?.detail ?? `executor exited ${run.status}: ${(run.stderr || run.stdout || '').trim().slice(0, 300)}`,
+        fixtures,
+        rows: result?.rows ?? [],
+      };
+      report.summary[pass ? 'pass' : 'fail'] += 1;
+      continue;
+    }
     report.capabilities[name] = {
       status: 'blocked',
       lane: capability.lane,
@@ -192,8 +226,6 @@ export function replay({ formats, runtime, require, buildDir, evidenceDir }) {
   for (const name of require) {
     if (report.capabilities[name]?.status !== 'pass') report.requiredUnmet.push(name);
   }
-  const outDir = path.resolve(evidenceDir || path.join(REPO_ROOT, '.go-tmp', 'office-fixture-replay'));
-  fs.mkdirSync(outDir, { recursive: true });
   const outPath = path.join(outDir, 'replay-report.json');
   fs.writeFileSync(outPath, JSON.stringify(report, null, 2) + '\n');
   return { report, outPath };

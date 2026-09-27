@@ -31,6 +31,12 @@
       ]
     },
     "packages/*": {},
+    "packages/office-engine": {
+      "entry": [
+        "test/replay/g2-03-replay.mjs",
+        "test/replay/adapter-entry.ts"
+      ]
+    },
     "packages/office-upstream": {
       "ignore": [
         "upstream/**"
