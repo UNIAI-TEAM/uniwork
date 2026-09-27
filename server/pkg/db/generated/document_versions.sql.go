@@ -302,3 +302,272 @@ func (q *Queries) ListDocumentVersions(ctx context.Context, arg ListDocumentVers
 	}
 	return items, nil
 }
+
+const listDocumentVersionsPage = `-- name: ListDocumentVersionsPage :many
+SELECT id, organization_id, workspace_id, document_id, version, kind, reason,
+  label, file_id, mime_type, size_bytes, checksum_sha256, restored_from,
+  engine_name, engine_version, contract_version, protocol_version,
+  created_by, created_by_kind, created_at
+FROM document_versions
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND document_id = $3
+  AND ($4::integer IS NULL OR version < $4::integer)
+ORDER BY version DESC
+LIMIT $5
+`
+
+type ListDocumentVersionsPageParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	DocumentID     string      `json:"document_id"`
+	BeforeVersion  pgtype.Int4 `json:"before_version"`
+	MaxRows        int32       `json:"max_rows"`
+}
+
+type ListDocumentVersionsPageRow struct {
+	ID              string             `json:"id"`
+	OrganizationID  string             `json:"organization_id"`
+	WorkspaceID     string             `json:"workspace_id"`
+	DocumentID      string             `json:"document_id"`
+	Version         int32              `json:"version"`
+	Kind            string             `json:"kind"`
+	Reason          string             `json:"reason"`
+	Label           pgtype.Text        `json:"label"`
+	FileID          pgtype.Text        `json:"file_id"`
+	MimeType        pgtype.Text        `json:"mime_type"`
+	SizeBytes       int64              `json:"size_bytes"`
+	ChecksumSha256  pgtype.Text        `json:"checksum_sha256"`
+	RestoredFrom    pgtype.Int4        `json:"restored_from"`
+	EngineName      pgtype.Text        `json:"engine_name"`
+	EngineVersion   pgtype.Text        `json:"engine_version"`
+	ContractVersion pgtype.Text        `json:"contract_version"`
+	ProtocolVersion pgtype.Text        `json:"protocol_version"`
+	CreatedBy       string             `json:"created_by"`
+	CreatedByKind   string             `json:"created_by_kind"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+// The history list (C-01 §5.2): newest first, metadata only - content stays
+// out of the page. The cursor is the last version number seen; versions are
+// append-only ordinals, so a version created between two reads lands above
+// the cursor and never shifts the next page.
+func (q *Queries) ListDocumentVersionsPage(ctx context.Context, arg ListDocumentVersionsPageParams) ([]ListDocumentVersionsPageRow, error) {
+	rows, err := q.db.Query(ctx, listDocumentVersionsPage,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.DocumentID,
+		arg.BeforeVersion,
+		arg.MaxRows,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDocumentVersionsPageRow{}
+	for rows.Next() {
+		var i ListDocumentVersionsPageRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.DocumentID,
+			&i.Version,
+			&i.Kind,
+			&i.Reason,
+			&i.Label,
+			&i.FileID,
+			&i.MimeType,
+			&i.SizeBytes,
+			&i.ChecksumSha256,
+			&i.RestoredFrom,
+			&i.EngineName,
+			&i.EngineVersion,
+			&i.ContractVersion,
+			&i.ProtocolVersion,
+			&i.CreatedBy,
+			&i.CreatedByKind,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const markDocumentVersioned = `-- name: MarkDocumentVersioned :one
+
+UPDATE documents
+SET current_version = $1,
+    last_version_at = now()
+WHERE id = $2
+  AND organization_id = $3
+  AND workspace_id = $4
+  AND current_version = $5
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at
+`
+
+type MarkDocumentVersionedParams struct {
+	CurrentVersion  int32  `json:"current_version"`
+	ID              string `json:"id"`
+	OrganizationID  string `json:"organization_id"`
+	WorkspaceID     string `json:"workspace_id"`
+	ExpectedVersion int32  `json:"expected_version"`
+}
+
+// ---- Page versions and restore (G1-04a, UNI-678) ---------------------------
+// A manual page version moves the ordinal and the version clock; the working
+// copy did not change, so the revision stays (C-01 §5.2). The ordinal guard
+// is the row-lock twin of the revision guard.
+func (q *Queries) MarkDocumentVersioned(ctx context.Context, arg MarkDocumentVersionedParams) (Document, error) {
+	row := q.db.QueryRow(ctx, markDocumentVersioned,
+		arg.CurrentVersion,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.ExpectedVersion,
+	)
+	var i Document
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.ParentID,
+		&i.Kind,
+		&i.Title,
+		&i.Icon,
+		&i.Visibility,
+		&i.Content,
+		&i.ContentText,
+		&i.SearchText,
+		&i.ContentBytes,
+		&i.CurrentVersion,
+		&i.FileVersionID,
+		&i.Revision,
+		&i.Position,
+		&i.OwnerKind,
+		&i.OwnerID,
+		&i.AclOwnerID,
+		&i.SourceDocumentID,
+		&i.SourceVersionID,
+		&i.SourceRevision,
+		&i.SourceFormat,
+		&i.SourceEngine,
+		&i.TargetFormat,
+		&i.SourceChecksumSha256,
+		&i.ConversionReason,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.UpdatedBy,
+		&i.UpdatedByKind,
+		&i.ContentSavedAt,
+		&i.LastVersionAt,
+		&i.ArchivedAt,
+		&i.ArchivedBy,
+		&i.PurgeAfter,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const restoreDocumentPage = `-- name: RestoreDocumentPage :one
+UPDATE documents
+SET content = $1,
+    content_text = $2,
+    search_text = $3,
+    content_bytes = $4,
+    current_version = $5,
+    revision = revision + 1,
+    updated_by = $6,
+    updated_by_kind = $7,
+    content_saved_at = now(),
+    last_version_at = now(),
+    updated_at = now()
+WHERE id = $8
+  AND organization_id = $9
+  AND workspace_id = $10
+  AND kind = 'page'
+  AND revision = $11
+RETURNING id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at
+`
+
+type RestoreDocumentPageParams struct {
+	Content          []byte `json:"content"`
+	ContentText      string `json:"content_text"`
+	SearchText       string `json:"search_text"`
+	ContentBytes     int32  `json:"content_bytes"`
+	CurrentVersion   int32  `json:"current_version"`
+	UpdatedBy        string `json:"updated_by"`
+	UpdatedByKind    string `json:"updated_by_kind"`
+	ID               string `json:"id"`
+	OrganizationID   string `json:"organization_id"`
+	WorkspaceID      string `json:"workspace_id"`
+	ExpectedRevision int64  `json:"expected_revision"`
+}
+
+// Restore of a page version: the working copy takes the version's content,
+// the ordinal points at the new restore version and the revision advances
+// (C-01 §5.2). content_saved_at and last_version_at take the same now(), so
+// the auto-versioner does not snapshot the restore a second time.
+func (q *Queries) RestoreDocumentPage(ctx context.Context, arg RestoreDocumentPageParams) (Document, error) {
+	row := q.db.QueryRow(ctx, restoreDocumentPage,
+		arg.Content,
+		arg.ContentText,
+		arg.SearchText,
+		arg.ContentBytes,
+		arg.CurrentVersion,
+		arg.UpdatedBy,
+		arg.UpdatedByKind,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.ExpectedRevision,
+	)
+	var i Document
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.ParentID,
+		&i.Kind,
+		&i.Title,
+		&i.Icon,
+		&i.Visibility,
+		&i.Content,
+		&i.ContentText,
+		&i.SearchText,
+		&i.ContentBytes,
+		&i.CurrentVersion,
+		&i.FileVersionID,
+		&i.Revision,
+		&i.Position,
+		&i.OwnerKind,
+		&i.OwnerID,
+		&i.AclOwnerID,
+		&i.SourceDocumentID,
+		&i.SourceVersionID,
+		&i.SourceRevision,
+		&i.SourceFormat,
+		&i.SourceEngine,
+		&i.TargetFormat,
+		&i.SourceChecksumSha256,
+		&i.ConversionReason,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.UpdatedBy,
+		&i.UpdatedByKind,
+		&i.ContentSavedAt,
+		&i.LastVersionAt,
+		&i.ArchivedAt,
+		&i.ArchivedBy,
+		&i.PurgeAfter,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
