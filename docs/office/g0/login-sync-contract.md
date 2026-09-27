@@ -349,6 +349,15 @@ Quy tắc chốt:
    mất mạng đều giữ nháp `dirty`. Byte chỉ rời store khi commit xác nhận tiêu đúng
    nháp đã sinh nó, hoặc khi người dùng **chủ động bỏ** (`discardDraft`). Không xoá sau
    lỗi đọc/xác thực/thiết lập khoá.
+7. **Nháp không đi qua FileService và không chịu TTL staged.** *(Cập nhật
+   2026-09-27, UNI-748.)* Byte nháp desktop/browser nằm trong store theo tài
+   khoản/scope của G0 — seam `createDraftStore({ dir, keyProvider, namespaceKey })`
+   ở mục 1 — **không** phải filesystem adapter `local` của API và không phải hàng
+   trong `files`. Vì vậy lịch dọn staged của FileService (file upload chưa gắn quá
+   hạn claim 24 giờ, T1-Q5) **không bao giờ** chạm nháp, và không worker nào được
+   áp TTL đó lên store này; nháp chỉ rời store theo mục 6 — commit được xác nhận
+   hoặc `discardDraft` rõ ràng. File sinh từ nháp (version mới sau commit) mới đi
+   qua FileService như mọi output khác.
 
 ### 6.1 Trạng thái và điểm kiểm của harness
 

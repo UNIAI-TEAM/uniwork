@@ -29,6 +29,7 @@ var actionsWithoutCommands = map[string]string{
 	audit.ActionOrganizationUpdated:  "no organization rename command exists yet",
 	audit.ActionMemberRemoved:        "deactivation replaced removal by an admin; leaving writes member.left",
 	audit.ActionAuditExportRequested: "covered by the audit service's own tests",
+	audit.ActionAuditExported:        "covered by the audit export consumer's own tests",
 	audit.ActionAuditRetentionSet:    "covered by the audit service's own tests",
 }
 
@@ -299,14 +300,14 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 		audit.ActionAttachmentUploaded: func(t *testing.T, f *auditFixture) {
 			task := f.newTask(t)
 			body := []byte("# note\n")
-			if _, err := f.tasks.UploadTaskAttachment(f.ctx, Human(f.owner.ID), task.ID, "note.md", "text/markdown", int64(len(body)), bytes.NewReader(body)); err != nil {
+			if _, err := f.tasks.UploadTaskAttachment(f.ctx, Human(f.owner.ID), task.ID, "", "note.md", "text/markdown", int64(len(body)), bytes.NewReader(body)); err != nil {
 				t.Fatal(err)
 			}
 		},
 		audit.ActionAttachmentDeleted: func(t *testing.T, f *auditFixture) {
 			task := f.newTask(t)
 			body := []byte("# note\n")
-			att, err := f.tasks.UploadTaskAttachment(f.ctx, Human(f.owner.ID), task.ID, "note.md", "text/markdown", int64(len(body)), bytes.NewReader(body))
+			att, err := f.tasks.UploadTaskAttachment(f.ctx, Human(f.owner.ID), task.ID, "", "note.md", "text/markdown", int64(len(body)), bytes.NewReader(body))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -875,6 +876,7 @@ func auditActions() []string {
 		audit.ActionChatFollowUpCompleted,
 		audit.ActionChatFollowUpDeleted,
 		audit.ActionAuditExportRequested,
+		audit.ActionAuditExported,
 		audit.ActionAuditRetentionSet,
 		audit.ActionSubscriptionChanged,
 	}

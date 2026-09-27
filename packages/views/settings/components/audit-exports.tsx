@@ -10,8 +10,9 @@ import {
   useCreateAuditExport,
   useSetAuditRetention,
 } from "@uniwork/core/audit";
+import { downloadAuditExport } from "@uniwork/core/api/endpoints/audit";
 import type { AuditExport } from "@uniwork/core/types";
-import { Button, ButtonLink } from "@uniwork/ui/components/ui/button";
+import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Label } from "@uniwork/ui/components/ui/label";
 import { Select } from "@uniwork/ui/components/ui/select";
@@ -175,9 +176,46 @@ function exportErrorKey(error: string): string {
   return error.startsWith("khoảng thời gian quá lớn") ? "error_range_too_large" : "error_generic";
 }
 
-function ExportItem({ job }: { job: AuditExport }) {
+/** Hand a fetched file to the browser to save. */
+function saveFile(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  // Revoked on the next task: Safari reads the URL after click() returns.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+/** The same name the server stamps on the file: audit-<from>-<to>.<format>. */
+function exportFileName(job: AuditExport): string {
+  const day = (iso: string) => new Date(iso).toISOString().slice(0, 10).replaceAll("-", "");
+  return `audit-${day(job.from_at)}-${day(job.to_at)}.${job.format}`;
+}
+
+function ExportItem({ job, orgId }: { job: AuditExport; orgId: string }) {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "settings.audit.export" });
+  const [downloading, setDownloading] = useState(false);
   const day = (iso: string) => new Date(iso).toLocaleDateString(i18n.language);
+
+  const onDownload = async () => {
+    if (!job.download_url) return;
+    if (!job.download_url.startsWith("/api/")) {
+      // A job the legacy path completed still carries its storage URL, which
+      // a plain navigation reaches; the API path is the one that needs the
+      // bearer fetch below.
+      window.open(job.download_url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    setDownloading(true);
+    try {
+      saveFile(await downloadAuditExport(orgId, job.id), exportFileName(job));
+    } catch (err) {
+      toastApiError(err, t("download_failed"));
+    } finally {
+      setDownloading(false);
+    }
+  };
   return (
     <SettingsListItem
       leading={<span className="font-mono text-caption uppercase text-muted-foreground">{job.format}</span>}
@@ -197,10 +235,14 @@ function ExportItem({ job }: { job: AuditExport }) {
       }
       actions={
         job.download_url ? (
-          <ButtonLink variant="outline" size="sm" href={job.download_url}>
-            <Download data-icon="inline-start" aria-hidden />
+          <Button variant="outline" size="sm" disabled={downloading} onClick={() => void onDownload()}>
+            {downloading ? (
+              <Spinner data-icon="inline-start" aria-label={i18n.t("settings.audit.loading")} />
+            ) : (
+              <Download data-icon="inline-start" aria-hidden />
+            )}
             {t("download")}
-          </ButtonLink>
+          </Button>
         ) : null
       }
     />
@@ -318,7 +360,7 @@ export function AuditExports({ orgId, canManage }: { orgId: string; canManage: b
         </SettingsCard>
       ) : exports.data && exports.data.length > 0 ? (
         <SettingsList aria-label={t("export.history_label")}>
-          {exports.data.map((job) => <ExportItem key={job.id} job={job} />)}
+          {exports.data.map((job) => <ExportItem key={job.id} job={job} orgId={orgId} />)}
         </SettingsList>
       ) : (
         <SettingsCard>

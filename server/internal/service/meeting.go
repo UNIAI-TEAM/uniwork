@@ -13,6 +13,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -97,6 +98,10 @@ type MeetingService struct {
 	Chat *ChatService
 	// ent is the entitlement gate (F-02); built here so it can never be nil.
 	ent *EntitlementService
+	// files is the shared FileService, optional: with it wired, note-author
+	// avatars stored as file ids resolve to presigned URLs (UNI-744) and new
+	// recordings go through it (UNI-746); nil keeps both legacy paths.
+	files files.Service
 }
 
 // organizationOf resolves the tenant a meeting belongs to, for the gate.
@@ -437,11 +442,24 @@ func (s *MeetingService) AddNote(ctx context.Context, userID, meetingID, body st
 	})
 }
 
+// SetFiles attaches the shared FileService for both avatar URL emission and
+// the recording pipeline; nil keeps the legacy paths byte-identical.
+func (s *MeetingService) SetFiles(f files.Service) { s.files = f }
+
 func (s *MeetingService) Notes(ctx context.Context, userID, meetingID string) ([]db.ListMeetingNotesRow, error) {
 	if _, _, err := s.authorize(ctx, userID, meetingID); err != nil {
 		return nil, err
 	}
-	return s.q.ListMeetingNotes(ctx, meetingID)
+	rows, err := s.q.ListMeetingNotes(ctx, meetingID)
+	if err != nil {
+		return nil, err
+	}
+	decorateMemberAvatars(ctx, s.files, rows, func(r db.ListMeetingNotesRow) avatarRow {
+		return avatarRow{UserID: r.AuthorID, AvatarURL: r.AvatarUrl, FileID: r.AvatarFileID}
+	}, func(r *db.ListMeetingNotesRow, url string) {
+		r.AvatarUrl = pgtype.Text{String: url, Valid: true}
+	})
+	return rows, nil
 }
 
 // meetingActionFor maps a realtime topic to the audit action for the same

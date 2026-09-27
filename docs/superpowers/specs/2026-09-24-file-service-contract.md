@@ -1,6 +1,6 @@
 # UniWork - Hợp đồng FileService FS-C1 cho module tiêu thụ
 
-> **Trạng thái:** in-progress - bản hợp đồng v1 viết ngày 2026-09-24 để module tiêu thụ (task, chat, avatar, recording, audit export, Documents/Office G1-G2) code trước theo contract; chưa có implementation.
+> **Trạng thái:** in-progress - hợp đồng v1 (2026-09-24) đã có implementation thật `service.FileService` cùng `filesfake`/`filescontract` trên nhánh `feature/UNI-726-shared-file-service` (cập nhật 2026-09-27); hợp đồng vẫn đóng băng cho bên tiêu thụ, gồm Documents/Office G1-G2.
 
 **Ngày:** 2026-09-24
 
@@ -203,3 +203,28 @@ Trước khi module đang chạy chuyển sang FileService, test hồi quy của
 ## 9. Đổi hợp đồng
 
 Version hiện tại: **FS-C1 v1**. Sau Gate A0, mọi thay đổi chữ ký, trạng thái hay mã lỗi phải tăng version, cập nhật fake và contract test trong cùng PR, rồi báo các bên đang tiêu thụ (plan FileService T3-T10, plan Documents + Office G1-03/G1-04/G2-02). Bên tiêu thụ không tự vá fake cho khớp code của mình; sai lệch thì sửa hợp đồng.
+
+### 9.1 Errata v1 (2026-09-26, UNI-739): MIME xác minh từ nội dung
+
+Không đổi chữ ký, trạng thái hay mã lỗi, nên version vẫn là **FS-C1 v1**. Errata này nói rõ `File.ContentType` "verified from content" nghĩa là gì, vì `http.DetectContentType` thuần không sinh được phần lớn allowlist (CSV/NDJSON ra `text/plain`, DOCX/XLSX/PPTX ra `application/zip`, DOC/XLS/PPT ra `application/octet-stream`, Ogg ra `application/ogg`).
+
+- Một hàm duy nhất `files.DetectContentType(head, filename)` quyết định MIME xác minh; `filesfake` dùng nó ngay, validator thật của T3 dùng lại, cả hai chỉ đọc `files.DetectHeadBytes` (64 KiB) đầu.
+- Bytes quyết định họ file; tên file chỉ là gợi ý **bên trong** họ bytes đã chứng minh, không bao giờ biến zip thành pdf hay text thành docx:
+  - zip có `[Content_Types].xml` và part của đúng một thư mục `word/`, `xl/`, `ppt/` trong local header là DOCX/XLSX/PPTX; zip khác vẫn là `application/zip`;
+  - OLE compound file + đuôi `.doc`/`.xls`/`.ppt` là `application/msword`/`vnd.ms-excel`/`vnd.ms-powerpoint`; đuôi khác là `application/octet-stream`;
+  - text UTF-8 hợp lệ, không rỗng + đuôi `.csv`/`.ndjson`/`.md` là `text/csv`/`application/x-ndjson`/`text/markdown`;
+  - Ogg theo codec của trang đầu: Opus/Vorbis/FLAC/Speex là `audio/ogg`, Theora là `video/ogg`, còn lại `application/ogg`; một box ftyp hợp lệ (kích thước hợp lý, thẻ `ftyp` ở offset 4, brand in được) là họ MP4 dù brand là gì (recorder của Safari/iOS dùng brand khác nhau): có brand `M4A `/`M4B ` là `audio/mp4`, major brand ảnh tĩnh HEIF/AVIF giữ `application/octet-stream`, còn lại `video/mp4`; box hỏng vẫn là `application/octet-stream`; WebM luôn là `video/webm` (quét phần đầu không phân biệt chắc chắn WebM chỉ có audio).
+- Local header của zip được đi theo compressed size khi header có ghi (entry stored chứa một zip khác không bị đọc nhầm thành package ngoài; entry stored không ghi độ dài - kiểu data descriptor - thì dừng duyệt và chỉ xét các part đã thấy); package có part `vbaProject.bin` (docm/xlsm/pptm) vẫn là `application/zip`.
+- Không nhận ra thì là `application/octet-stream`, không purpose nào cho phép.
+- Giới hạn đã biết (chấp nhận ở v1): chỉ đọc 64 KiB đầu, nên package OOXML có part chính nằm sau 64 KiB là `application/zip`, và phần sau 64 KiB của file text không được kiểm; CSV không phải UTF-8 (UTF-16, CP1252) là `text/plain`; mọi file EBML (kể cả Matroska) là `video/webm`; zip rỗng (chỉ có end-of-central-directory) và Ogg có version khác 0 là `application/octet-stream`; danh sách brand ảnh tĩnh HEIF/AVIF là danh sách cố định.
+- Detector không biết purpose. Purpose nào production đang lưu và phục vụ dưới tên khác thì khai `Policy.CanonicalTypes` (dữ liệu registry, áp sau detector và trước allowlist; mọi giá trị phải nằm trong allowlist): `ChatVoice` đổi `video/webm`→`audio/webm`, `application/ogg`/`video/ogg`→`audio/ogg`, `video/mp4`→`audio/mp4`, đúng như `sniffChatVoiceContentType` hiện nay (test hồi quy UNI-745 ghim `audio/webm`). Recording không cần đổi: MP4 của LiveKit egress ra `video/mp4`, đúng loại playback đang phục vụ; allowlist recording bỏ `audio/webm` vì không bao giờ xác minh ra.
+- Chat file nhận thêm `text/csv`/`text/markdown` và task attachment nhận thêm `text/csv` (trước đây sniff ra `text/plain` và được nhận). Text đặt tên `.ndjson` ở task attachment, task comment và chat file được `CanonicalTypes` đổi về `text/plain`, đúng loại đang lưu hôm nay, thay vì mở thêm `application/x-ndjson` cho các module đó.
+- Provider output không mang filename (§4), nên loại cần gợi ý đuôi (CSV/NDJSON/Markdown, DOC/XLS/PPT) chỉ đạt được qua `Upload`.
+- `filescontract.Samples()` và `MisnamedSamples()` là fixture tối thiểu thật cho mọi loại trong allowlist; contract suite upload chúng vào mọi purpose đang bật và đòi mọi mục allowlist đều đạt được.
+
+### 9.2 Errata v1 (2026-09-27, UNI-747): hậu tố khóa object và Open theo chế độ đọc
+
+Không đổi chữ ký, trạng thái hay mã lỗi, nên version vẫn là **FS-C1 v1**. Hai điểm dưới đây ghi lại hành vi đã có trên `filesfake` và FileService thật khi tích hợp.
+
+- `Policy.ObjectKeySuffix` là dữ liệu registry (được `NewRegistry` kiểm), không phải tham số module truyền: `MeetingRecording` và `ChatCallRecording` khai `.mp4`, vì LiveKit Egress tự thêm đuôi vào filepath không có đuôi và bytes sẽ rơi cạnh object đã đặt chỗ. Khóa FileService sinh cho purpose đó kết thúc bằng hậu tố, write target của `RegisterProviderOutput` (cả trên fake) cũng vậy; case `provider/write_target_carries_the_object_key_suffix` của `filescontract` ghim điều này.
+- `Policy.ReadMode` ràng buộc `ResolveMany` (có URL hay không), không ràng buộc `Open`. `Open` là đường đọc proxy mà module đã tự kiểm quyền, nên hợp lệ với mọi purpose, kể cả purpose `presign`: chat phát voice (`ChatVoice`) qua `Open` để kiểm quyền từng request. `TestOpenServesAPresignPurpose` ghim hành vi này trên service thật; fake cũng không kiểm read mode trong `Open`.

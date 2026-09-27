@@ -124,6 +124,7 @@ const (
 	ActionFlagOverrideDeleted     = "flag.override_deleted"
 
 	ActionAuditExportRequested = "audit.export_requested"
+	ActionAuditExported        = "audit.exported"
 	ActionAuditRetentionSet    = "audit.retention_set"
 )
 

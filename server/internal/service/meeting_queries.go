@@ -40,6 +40,15 @@ func (s *MeetingService) HandleProviderEvent(ctx context.Context, ev ProviderNeu
 			return err
 		}
 		if n == 0 {
+			// Duplicate delivery of a recorded event. The recording finish is
+			// idempotent (the finish queries gate on ACTIVE/PROCESSING and the
+			// FS claim replays on OperationID), and a webhook retry may reuse
+			// the provider event id — let recording_ended re-enter so a row a
+			// transient fault left non-terminal can still land. Every other
+			// event type stays deduplicated.
+			if ev.Type == "conference.recording_ended" {
+				s.finishRecordingFromProvider(ctx, ev)
+			}
 			return nil
 		}
 	}

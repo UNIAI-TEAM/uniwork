@@ -1,6 +1,6 @@
 # UniWork - Kế hoạch triển khai FileService dùng chung
 
-> **Trạng thái:** in-progress - Kế hoạch để duyệt; chưa triển khai runtime. Cập nhật 2026-09-24: hợp đồng trước, implement sau (Gate A0); Documents/Office G1-G2 code theo hợp đồng thay vì chờ backlog.
+> **Trạng thái:** in-progress - Đã triển khai T1-T10 và T9 trên nhánh `feature/UNI-726-shared-file-service` (cập nhật 2026-09-27, xem §9); chờ người dùng review PR và quyết định nghiệm thu/rollout. Chưa chạy backfill trên dữ liệu thật, chưa bật GC destructive.
 
 **Ngày:** 2026-09-22, cập nhật 2026-09-24
 
@@ -473,3 +473,28 @@ Phân biệt thứ tự viết code với thứ tự triển khai dữ liệu. T
 - [ ] Người dùng review kết quả/PR và quyết định nghiệm thu; chỉ người dùng cập nhật done.
 
 **Bàn giao của task hiện tại:** tài liệu plan, spec/roadmap đồng bộ và mapping sub-issue; chưa chạy các bước implementation ở trên.
+
+## 9. Kết quả triển khai (cập nhật 2026-09-27)
+
+Mọi task dưới đây đã merge vào nhánh `feature/UNI-726-shared-file-service` qua từng lane có Tester và Reviewer riêng; bằng chứng từng lane nằm trong comment `[agent]` của issue tương ứng. Checklist §4 giữ nguyên là danh mục thiết kế; mục này ghi lại những gì đã chạy thật. Chỉ người dùng quyết định done.
+
+| Task | Issue | Kết quả |
+| --- | --- | --- |
+| T1a/T1b/T1c | UNI-739 | FS-C1 code, `filesfake`, `filescontract`, schema `files`/session/job (migration 950+), nhận diện nội dung dùng chung. Gate A0, A đạt. |
+| T2 | UNI-740 | Loader config storage có kiểu, adapter local/S3/MinIO, preflight, MinIO trong CI. Gate B đạt. |
+| T3 | UNI-741 | Pipeline upload, idempotency, claim/cancel, provider output. |
+| T4 | UNI-742 | Resolve/proxy/presign, API và hook dùng chung, route `fileID`. |
+| T5 | UNI-743 | Catalogue reference, collector hằng ngày (mặc định dry-run), reconcile report, runbook `docs/ops/RUNBOOK_FILE_GC.md`. Gate C đạt, GC destructive chưa bật. |
+| T6/T7/T8/T10 | UNI-744/745/746/749 | Task/editor/avatar, chat file/voice, recording, audit export chuyển sang `file_id` + claim/audit/outbox trong transaction; bộ test Bước 0 vẫn xanh. |
+| T9a | UNI-747 | Inventory `docs/superpowers/specs/2026-09-24-file-service-inventory.md`. |
+| T9 tích hợp | UNI-747 | Một FileService nối trong `cmd/server/main.go`, `/readyz` có probe storage, 6 reference provider, GC worker trong shutdown sequence, route tải audit export, chọn storage tường minh trong env/script/CI. Gate D: `@files-smoke` 6/6 và e2e module 19/19 trên MinIO, mỗi spec có ca hai tổ chức bị chặn. |
+| T9b | UNI-747 | `server/cmd/files-backfill`: plan/dry-run/apply/verify/rollback cho mọi cohort, có checkpoint và ledger; rehearsal SIGKILL-resume-verify-rollback sạch, object G0 không đổi. Runbook `docs/ops/RUNBOOK_FILE_BACKFILL.md`. |
+| B1 | UNI-748 | DOC-004/DOC-005 của G0 chuyển sang mô hình FS-C1 (chỉ tài liệu và comment harness). |
+
+**Còn mở, người dùng quyết:**
+
+- Rollout theo §7: chạy backfill trên dữ liệu thật, rồi mới xét bật GC destructive theo scope đã xác nhận.
+- Chưa có bằng chứng ghi hình qua LiveKit Egress thật (máy chạy thử không có LiveKit server); phòng chat không thuộc tổ chức ghi hình dưới FileService trả `recording_not_configured`.
+- Chọn `LOCAL_UPLOAD_DIR`/backend storage cho môi trường prod trước khi deploy binary mới (binary mới dừng khi thiếu cấu hình storage).
+- Email hub giữ nguyên ngoài FileService theo quyết định ngày 2026-09-27 (attachment gửi thẳng SMTP, nhận thì đọc lại từ IMAP).
+

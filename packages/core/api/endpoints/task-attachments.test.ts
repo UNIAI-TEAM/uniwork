@@ -63,6 +63,27 @@ describe("task-attachments endpoints", () => {
     await expect(uploadTaskAttachment("t1", file)).resolves.toBeNull();
   });
 
+  it("omits the purpose multipart field when no purpose is passed", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(attachment));
+    const file = new File(["# hi"], "note.md", { type: "text/markdown" });
+    await uploadTaskAttachment("t1", file);
+    const form = vi.mocked(fetch).mock.calls[0]![1]!.body as FormData;
+    expect(form.has("purpose")).toBe(false);
+  });
+
+  it("appends purpose to the multipart body when provided", async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json(attachment))
+      .mockResolvedValueOnce(json({ ...attachment, task_id: null }));
+    const file = new File(["# hi"], "note.md", { type: "text/markdown" });
+    await uploadTaskAttachment("t1", file, "task_attachment");
+    await uploadWorkspaceAttachment("ws1", file, "task_comment_attachment");
+    const taskForm = vi.mocked(fetch).mock.calls[0]![1]!.body as FormData;
+    const wsForm = vi.mocked(fetch).mock.calls[1]![1]!.body as FormData;
+    expect(taskForm.get("purpose")).toBe("task_attachment");
+    expect(wsForm.get("purpose")).toBe("task_comment_attachment");
+  });
+
   it("uploads an unbound attachment in workspace scope before task creation", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(json({ ...attachment, task_id: null }))

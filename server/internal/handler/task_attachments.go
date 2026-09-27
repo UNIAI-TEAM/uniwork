@@ -107,6 +107,7 @@ func (h *handlers) uploadTaskAttachment(w http.ResponseWriter, r *http.Request) 
 		r.Context(),
 		service.Human(middleware.UserID(r.Context())),
 		chi.URLParam(r, "taskID"),
+		r.FormValue("purpose"),
 		filename,
 		contentType,
 		int64(len(data)),
@@ -151,7 +152,7 @@ func (h *handlers) uploadWorkspaceAttachment(w http.ResponseWriter, r *http.Requ
 	if contentType == "" || contentType == "application/octet-stream" {
 		contentType = http.DetectContentType(data)
 	}
-	att, err := h.Tasks.UploadWorkspaceAttachment(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), filename, contentType, int64(len(data)), bytes.NewReader(data))
+	att, err := h.Tasks.UploadWorkspaceAttachment(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), r.FormValue("purpose"), filename, contentType, int64(len(data)), bytes.NewReader(data))
 	if err != nil {
 		h.mapServiceError(w, err)
 		return

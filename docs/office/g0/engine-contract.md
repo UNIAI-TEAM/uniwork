@@ -24,7 +24,7 @@ thuộc G1/G2/G4/G7. Harness adapter thật ở `scripts/office-g0/engine-contra
 | --- | --- | --- |
 | Capability/open/edit/serialize/convert/export/cancel | Chốt wire, state machine, oracle từng ca | G2 (UNI-658) nối engine thật, G3 nối editor |
 | Commit/version/audit/outbox | Chốt thứ tự và chủ sở hữu; Go giữ toàn quyền quyết | G1 (UNI-657) kho Documents thật |
-| Object tạm, object mồ côi, retry cleanup | Chốt ledger, TTL, chủ sở hữu, `Storage.DeleteObject` | G1/G2 triển khai reconciler |
+| Object tạm, object mồ côi, retry cleanup | Chốt thứ tự intent → object → commit và lỗi delete được nêu; chủ object lifecycle là FileService (FS-C1): intent + `file_id`, `ClaimInTx`/`ReleaseInTx`, một chủ GC (cập nhật 2026-09-27, UNI-748 — §8.3) | G1/G2 code trên FS-C1; GC/reconcile thuộc FileService T5 |
 | Job grant có phạm vi và hạn | Chốt hình dạng grant và kiểm tra | G2 phát hành grant thật từ Go |
 | Đóng gói service, native sidecar, packaging desktop | Chốt quyết định và owner | G2/G4/G7 dựng thật, có bằng chứng |
 | Runtime theo định dạng | Ma trận có mức bằng chứng từng thao tác | G2/G3 khi có proof adapter thật |
@@ -470,16 +470,18 @@ settle(job, candidate):
 Vì vậy `cancel-vs-complete` là **xác định**: ai settle trước thắng, và cả hai bên đọc
 lại cùng kết luận. Nếu `complete` thắng, cancel trả `state: completed` (đã lưu thật);
 nếu `cancel` thắng, kết quả engine đến sau **bị bỏ**, output không được commit, và
-recorder cleanup dọn object mồ côi.
+object mồ côi do FileService dọn (§8.3).
 
 ### 6.3 Crash và restart
 
 - **Crash giữa chừng**: job `crashed` (502 `engine_crashed`). Không commit; bản hiện
-  hành không đổi; object tạm vào ledger mồ côi để retry cleanup.
-- **Restart**: state được nạp lại từ ledger. Job ở `running` khi process chết được
+  hành không đổi; output đã đăng ký intent dở dang do FileService GC dọn (§8.3) —
+  `office_jobs` không xóa object.
+- **Restart**: state được nạp lại từ `office_jobs` (job ledger). Job ở `running`
+  khi process chết được
   coi là `crashed` (không tự chạy lại). Một `retry` phải dùng **cùng idempotency
   key** và **cùng payload fingerprint**, nếu không → `payload_fingerprint_mismatch`.
-- **Job đã `completed` nhưng restart**: kết quả đọc lại được từ ledger; retry cùng
+- **Job đã `completed` nhưng restart**: kết quả đọc lại được từ job ledger; retry cùng
   key trả replay, không chạy lần hai.
 
 Bất biến: **cancelled/crashed job không thể commit**. Chỉ `completed` mới đi tiếp
@@ -507,7 +509,7 @@ fingerprint = sha256(json_canonical({
 
 `input_checksum` và `input_length` ở đây là giá trị **đo được** (`validateEnvelope` giải
 mã byte và tính lại), **không** phải cặp khai báo trên wire. Vì boundary luôn đo trước, một
-digest nói dối không bao giờ tới ledger, và một retry chỉ đổi byte (giữ nguyên digest khai)
+digest nói dối không bao giờ tới job ledger, và một retry chỉ đổi byte (giữ nguyên digest khai)
 bị từ chối là `payload_fingerprint_mismatch` chứ không replay nhầm. `document_model_ref`
 và `source_version_id` **có** trong fingerprint: hai retry trỏ hai model khác nhau là hai
 công việc khác nhau.
@@ -547,8 +549,8 @@ fingerprint bất kể thứ tự viết.
   `base_version_mismatch`) **không** tự retry; cần hành động người dùng.
 - Retry **không** được tạo version thứ hai: replay trả cùng `output_object_key` và
   cùng `output_checksum`.
-- Retry sau `engine_checksum_mismatch` phải sinh output mới; object của lần hỏng vào
-  ledger mồ côi và bị dọn theo §8.4, **không** được commit.
+- Retry sau `engine_checksum_mismatch` phải sinh output mới; object của lần hỏng ở
+  lại staged/chưa claim và do FileService dọn theo §8.4, **không** được commit.
 
 ---
 
@@ -558,15 +560,21 @@ fingerprint bất kể thứ tự viết.
 
 ```text
 engine serialize (byte đã đủ)
-   └─▶ engine ghi object nội bộ (temp object key)
-         └─▶ Go: tiền kiểm (byte dài đúng? checksum tính lại khớp?)
+   └─▶ engine ghi output vào write target FileService cấp cho job đó
+         (RegisterProviderOutput -> file_id + target giới hạn, hết hạn theo deadline)
+         └─▶ tiền kiểm byte (dài đúng? checksum tính lại khớp?)
+               — CompleteProviderOutput -> file ready, còn staged
                └─▶ Go: một transaction ghi
-                     document_versions (bất biến, checksum, engine_*)
+                     document_versions (bất biến, checksum, engine_*, file_id)
                      documents.current_version_id, working_revision +1
                      audit_events + outbox_events
-                     upload/ledger row -> committed
-               └─▶ sau commit: phát outbox, dọn object tạm nếu còn
+                     ClaimInTx(file_id) -> claimed
+               └─▶ sau commit: phát outbox; file staged chưa claim do FileService dọn
 ```
+
+Sơ đồ này đã cập nhật theo FileService (cập nhật 2026-09-27, UNI-748 — xem §8.3):
+không còn hàng `upload/ledger` do Documents sở hữu; thứ tự object-trước-commit
+và tiền kiểm byte/checksum độc lập giữ nguyên như G0 đã chứng minh.
 
 Go **không** tin checksum engine khai. Nó đọc object, đếm byte, tính lại SHA-256, và
 chỉ commit khi mọi thứ khớp. `output_length` sai một byte cũng là
@@ -595,40 +603,77 @@ Nói cách khác: bất biến của *byte* nằm ở object store (khoá bất 
 bất biến của *tham chiếu và lịch sử* nằm ở transaction DB. Sự phối hợp giữa hai bên
 là **write-ahead + reconcile**, không phải two-phase commit.
 
-### 8.3 Orphan ledger
+### 8.3 Object intent và lifecycle — FileService (FS-C1)
 
-Ledger là hàng trong DB (do Go sở hữu) ghi ý định trước khi object tồn tại, đúng mẫu
-`ObjectURL(key)` của `server/internal/storage/storage.go`: URL của một object **là
-hàm thuần của cấu hình**, nên ledger ghi được URL **trước** khi upload, rồi upload,
-rồi mới commit. Các trạng thái ledger:
+> **Cập nhật 2026-09-27, UNI-748.** Bản trước của mục này đặt một "orphan
+> ledger" do Documents sở hữu: một bảng DB ghi URL lấy từ `ObjectURL(key)` của
+> `server/internal/storage` trước khi object tồn tại (`intended → stored →
+> committed | orphaned → deleted`). Mô hình đó được thay bằng FileService —
+> hợp đồng FS-C1 (`docs/superpowers/specs/2026-09-24-file-service-contract.md`,
+> plan FileService §5). **Không** có bảng `document_objects`, không ledger URL
+> nào của Documents; bảng nghiệp vụ chỉ lưu `file_id`. Điều G0 đã chứng minh —
+> thứ tự object-trước-commit (§8.1/§8.2) và lỗi delete được nêu (§8.4) — giữ
+> nguyên; mục này nói mỗi bảo đảm đó nay nằm ở đâu. Ledger trong bộ nhớ của
+> `scripts/office-g0/engine-contract.mjs` vẫn là model chứng minh G0 và được giữ
+> nguyên; header của nó ghi rõ production thay bằng FS-C1.
 
-| Trạng thái | Nghĩa | Bước tiếp |
+Ý định ghi trước khi byte tồn tại nay là **intent của FileService**: một upload
+session (`Upload`) cho byte phía client, hoặc `RegisterProviderOutput` cho output
+do engine ghi — cả hai trả `file_id` trước khi byte đầy đủ. Với output engine,
+`RegisterProviderOutput` còn trả một write target giới hạn đúng object đó và hết
+hạn theo deadline của job; engine không cầm credential dài hạn, và
+`CompleteProviderOutput` xác minh object (Stat, size, MIME, checksum theo policy
+— Documents bắt buộc checksum) trước khi file `ready` và còn staged.
+
+Commit phiên bản gọi `ClaimInTx` trong **cùng transaction** với hàng
+`document_versions` (giữ `file_id`), con trỏ `current_version_id`,
+`working_revision`, audit và outbox — "stored → committed" của G0 nay là
+"staged → claimed" trong một transaction DB. Purge hay asset mồ côi gọi
+`ReleaseInTx` trong transaction gỡ reference; byte chỉ bị xóa sau đó, bởi GC,
+sau khi mọi provider được hỏi lại.
+
+| Trạng thái ledger G0 (cũ) | Tương ứng FileService | Bước tiếp |
 | --- | --- | --- |
-| `intended` | Đã ghi URL/expected key, chưa upload | Upload; quá TTL → dọn, xóa hàng |
-| `stored` | Object tồn tại, chưa có version trỏ tới | Chờ commit; quá TTL → `orphaned` |
-| `committed` | Version trỏ tới object | Giữ; không dọn |
-| `orphaned` | Object không có version trỏ tới | Retry cleanup định kỳ |
-| `deleted` | Đã gọi `DeleteObject` thành công | Giữ một thời gian cho audit rồi bỏ |
+| `intended` | intent đã ghi — session upload hoặc `RegisterProviderOutput`, chưa `ready` | Upload / provider ghi byte; bỏ dở → FileService dọn |
+| `stored` | `ready`, còn staged chờ claim (hạn claim 24 giờ, T1-Q5) | `ClaimInTx` ở commit; quá hạn → candidate GC |
+| `committed` | claimed: `document_versions.file_id` / `document_assets.file_id` trỏ tới | Giữ; provider trả `held` |
+| `orphaned` | chưa claim quá hạn, hoặc đã `ReleaseInTx` | GC kiểm lại mọi `ReferenceProvider` rồi mới xóa |
+| `deleted` | FileService đã xóa byte | Tombstone/audit theo chính sách FileService |
+
+Chủ cleanup duy nhất là **FileService (T5)**, không phải Documents: nó giữ
+reference registry (`documents.versions`, `documents.assets`… trả `HeldBy`, tính
+cả version cũ, soft delete và retention), chạy **dry-run mặc định**, và **giữ**
+mọi object legacy/G0/không rõ nguồn thay vì xóa. Không ai xóa theo prefix hay
+tuổi bucket. `office_jobs` chỉ giữ trạng thái engine và **không bao giờ** xóa
+object.
 
 ### 8.4 Retry cleanup dùng `DeleteObject` và **nêu lỗi**
+
 Object store exposes exactly one removal verb: **DELETE** on the object key. Go wraps it
-twice - `Storage.Delete` swallows the error, `Storage.DeleteObject` surfaces it. Office
-cleanup may only call `DeleteObject`, because a failed DELETE treated as success leaves an
-object behind that the ledger has already marked deleted.
+twice - `Storage.Delete` swallows the error, `Storage.DeleteObject` surfaces it. Cleanup
+code may only use the error-surfacing verb, because a failed DELETE treated as success
+leaves an object behind that the bookkeeping has already marked deleted.
+
+> **Cập nhật 2026-09-27, UNI-748.** Documents/Office không gọi cả hai hàm đó:
+> module không xóa byte (FS-C1 §5.7). Purge hay asset mồ côi gọi `ReleaseInTx`;
+> xóa thật do GC của FileService (T5) thực hiện — phía FileService, không phải
+> Documents, mới là nơi động từ xóa có-nêu-lỗi được gọi.
 
 `Storage.Delete` **không trả lỗi**; `Storage.DeleteObject` trả `error` (xem chú thích
-tại `storage.go:13-16`: DeleteObject là `Delete` có lỗi được nêu, để reconciler của
-media sắp retry thay vì giả định thành công). Cleanup của Office **chỉ** dùng
-`DeleteObject`, và:
+tại `storage.go:13-16`: DeleteObject là `Delete` có lỗi được nêu, để reconciler
+retry thay vì giả định thành công). Bảo đảm G0 chuyển nguyên vẹn sang chủ mới:
 
-- Nếu `DeleteObject` trả `nil` → ledger chuyển `deleted`.
-- Nếu trả lỗi → ledger **giữ** `orphaned` (hoặc chuyển `orphaned` nếu chưa), ghi
-  `attempts +1`, `last_error`, `next_attempt_at` theo backoff, và **phát metric**
-  (`office_orphan_delete_failures_total`).
-- Reconciler **không** được coi lỗi là thành công, không được xóa hàng ledger để
-  "cho sạch", và không được đánh dấu `deleted` khi object còn.
-- Vì object mồ côi không được ai trỏ tới, việc dọn nó **không bao giờ** ảnh hưởng
-  bản gốc: object của version đã commit là khoá khác, không nằm trong tập orphan.
+- Xóa thành công → FileService phản ánh byte đã xóa; thất bại → job cleanup
+  **giữ** trạng thái chờ, ghi `attempts +1`, `last_error`, `next_attempt_at`
+  theo backoff và phát metric — vai trò ledger `orphaned` + bộ đếm retry của G0
+  nay là job cleanup bền vững của FileService.
+- Cleanup **không** được coi lỗi là thành công, không được xóa bằng chứng "cho
+  sạch", và không được đánh dấu đã xóa khi object còn; job lỗi được retry ở lượt
+  quét hằng ngày tiếp theo của FileService.
+- File còn được reference (version cũ, soft delete, retention) không nằm trong
+  tập candidate — provider trả `held`. Byte của version đã commit là `file_id`
+  khác và không bị đụng: đây là bảo đảm "dọn mồ côi không bao giờ ảnh hưởng bản
+  gốc" mà G0 đã chứng minh, nay thực thi qua `HeldBy` thay vì tập orphan.
 
 ### 8.5 Bản gốc luôn truy cập được khi engine chết
 
@@ -750,17 +795,24 @@ bằng đọc token.
 
 | Nhóm | Issue | Phạm vi từ hợp đồng này | Thứ tự |
 | --- | --- | --- | --- |
-| G1 | UNI-657 | Kho Documents, transaction commit, audit/outbox, ledger mồ côi + reconciler | 1 |
+| G1 | UNI-657 | Kho Documents trên FS-C1: `document_versions.file_id`/`document_assets.file_id`, transaction commit + `ClaimInTx`/`ReleaseInTx`, audit/outbox, `ReferenceProvider` cho version/asset/soft-delete/retention | 1 |
 | G2 | UNI-658 | Port module engine, layout source, service engine nội bộ, sidecar native, adapter Go | 2 |
 | G3 | UNI-659 | Tích hợp editor, host adapter, chrome/theme editor | 3 |
 | G4 | UNI-636 | Host desktop, login, packaging, namespace, update feed | 4 |
 | G7 | UNI-661 | Release, brand scan trên binary thật, fixture replay | 5 |
 | G5 | UNI-660 | Sync/offline/nháp đầy đủ chạy trên protocol DOC-005, dùng ranh giới này | sau G1-G3 |
 
-Thứ tự là thứ tự **phụ thuộc**: store + ledger có trước khi engine ghi vào; adapter có
-trước khi editor tiêu thụ; desktop host có trước packaging; release cuối. DOC-005 đã
-chốt xong một phần (protocol + harness nháp) nhưng **không** chốt trước khi biết cách
-lưu và đơn vị version của DOC-004 — vì vậy nó bám theo hợp đồng này.
+Thứ tự là thứ tự **phụ thuộc**: store + intent file có trước khi engine ghi vào;
+adapter có trước khi editor tiêu thụ; desktop host có trước packaging; release cuối.
+DOC-005 đã chốt xong một phần (protocol + harness nháp) nhưng **không** chốt trước
+khi biết cách lưu và đơn vị version của DOC-004 — vì vậy nó bám theo hợp đồng này.
+
+> **Cập nhật 2026-09-27, UNI-748.** G1/G2 build trên FS-C1 (plan FileService §5,
+> "Giao cho plan G1-G2"). Hàng "ledger mồ côi + reconciler" mà bản trước giao cho
+> G1 nay thuộc **FileService T5**: Documents không có ledger object riêng, chỉ đăng
+> ký `ReferenceProvider` và gọi `ClaimInTx`/`ReleaseInTx` trong transaction nghiệp
+> vụ. Engine output đi qua `RegisterProviderOutput`/`CompleteProviderOutput`;
+> `office_jobs` giữ trạng thái engine, không xóa object (xem §8.3).
 
 ---
 
@@ -920,7 +972,8 @@ Giới hạn giữ nguyên. Chúng không được viết thành kiến trúc đ
 ## 13. Việc tiếp theo
 
 1. **Task 4.4 có hai lớp bằng chứng adapter thật, cả hai đều là loopback.** §12.3 là 11/11 ca transport và round-trip. §12.4 là sáu ca fault canonical đã nghiệm thu ở ranh giới tham chiếu, với auth, kho và commit vẫn là mô hình. Việc còn lại của G1/G2: nối các lớp đó vào service Go và storage thật, rồi điền cột runtime từ một lần chạy đúng nơi đặt (browser, worker hoặc native), không chỉ loopback. Chưa có build sản phẩm độc lập.
-2. G1 viết migration `payload_fingerprint` + ledger mồ côi; hợp nhất tên mã lỗi với
+2. G1 viết migration `payload_fingerprint` và các cột `file_id` theo FS-C1 —
+   không ledger mồ côi riêng (§8.3); hợp nhất tên mã lỗi với
    DOC-005 trong cùng PR (xem §7.2).
 3. G2 chốt layout package cuối cùng và dựng service engine nội bộ + sidecar native.
 4. G3/G4 chứng minh catalog React/TipTap và packaging desktop, kèm namespace ở §10.2.
@@ -982,7 +1035,10 @@ native sidecar, typed Go client, and clean-checkout build. Proposed layout:
 - `services/office-engine/`: private service and sidecars;
   `server/internal/officeengine/` is its typed transport client;
   `server/internal/service/documents/` keeps authorization, version, quota,
-  transaction, audit/outbox and orphan cleanup authority.
+  transaction and audit/outbox. Object cleanup authority lives in FileService
+  (FS-C1): modules call `ReleaseInTx` and the shared GC re-checks every
+  reference provider before deleting — there is no Documents-owned orphan
+  ledger (updated 2026-09-27, UNI-748; see §8.3).
 - `apps/web/platform/` injects host adapters; views keep the existing
   `views -> core + ui` dependency direction. The engine is not linked to Go.
 

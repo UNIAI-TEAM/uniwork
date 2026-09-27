@@ -938,7 +938,8 @@ SELECT c.id, c.task_id, c.author_id, c.author_kind, c.body, c.created_at,
        c.parent_comment_id, c.comment_type, c.revision, c.updated_at,
        c.resolved_at, c.resolved_by_type, c.resolved_by_id,
        COALESCE(u.display_name, a.name, '')::text AS display_name,
-       COALESCE(u.avatar_url, a.avatar_url) AS avatar_url
+       COALESCE(u.avatar_url, a.avatar_url) AS avatar_url,
+       u.avatar_file_id
 FROM task_comments c
 LEFT JOIN users u ON c.author_kind = 'human' AND u.id = c.author_id
 LEFT JOIN agents a ON c.author_kind = 'agent' AND a.id = c.author_id
@@ -970,6 +971,7 @@ type ListTaskCommentsRow struct {
 	ResolvedByID    pgtype.Text        `json:"resolved_by_id"`
 	DisplayName     string             `json:"display_name"`
 	AvatarUrl       pgtype.Text        `json:"avatar_url"`
+	AvatarFileID    pgtype.Text        `json:"avatar_file_id"`
 }
 
 func (q *Queries) ListTaskComments(ctx context.Context, arg ListTaskCommentsParams) ([]ListTaskCommentsRow, error) {
@@ -997,6 +999,7 @@ func (q *Queries) ListTaskComments(ctx context.Context, arg ListTaskCommentsPara
 			&i.ResolvedByID,
 			&i.DisplayName,
 			&i.AvatarUrl,
+			&i.AvatarFileID,
 		); err != nil {
 			return nil, err
 		}

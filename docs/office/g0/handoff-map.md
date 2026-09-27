@@ -85,6 +85,10 @@ amendment, including the one save API shape (U-3); the package layout (U-1). See
 `docs/superpowers/plans/2026-09-18-documents-office-g1-g2.md` section 1.3. The DOC-005 ordering and the
 additive, flag-gated rollout of section 9.1 steps 1-3 stay fixed.
 
+Cập nhật 2026-09-27 (UNI-748): "orphan-object ledger + reconciler" ở hai dòng trên nay đọc theo
+`docs/office/g0/engine-contract.md` §8.3 — object lifecycle thuộc FileService (FS-C1); G1/G2 code theo hợp
+đồng đó và đăng ký `ReferenceProvider`, không dựng ledger riêng.
+
 ### G2 - UNI-658 (shared engine, web/desktop adapters)
 
 | Receives | Where |

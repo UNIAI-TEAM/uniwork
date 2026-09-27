@@ -14,6 +14,11 @@
 // unless --allow-unavailable is passed: missing proof is stated, never
 // substituted, and a model pass is never promoted to real-engine evidence.
 //
+// (2026-09-27, UNI-748: the boundary this drives keeps its in-memory ledger as
+// the G0 proof model; production object lifecycle is FileService per FS-C1 —
+// intent + file_id, ClaimInTx/ReleaseInTx, FileService T5 GC. See the header of
+// engine-contract.mjs.)
+//
 //   # 1. prepare a lab this harness owns (copies the DOC-003 fixtures into it)
 //   node scripts/office-g0/engine-contract-adapter.mjs --prepare \
 //        --lab <work>/.office-g0-adapter-lab --fixtures <spike>/lab/fixtures

@@ -18,6 +18,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -36,6 +37,9 @@ type AuthService struct {
 	render mail.Renderer
 	out    mail.Enqueuer
 	now    func() time.Time
+	// files selects the FileService path for avatars (UNI-744); nil keeps the
+	// legacy storage path. Wired through SetFiles — never both at once.
+	files files.Service
 }
 
 func NewAuthService(pool *pgxpool.Pool, q *db.Queries, minter auth.TokenMinter, refreshTTL time.Duration, verification *VerificationService) *AuthService {
@@ -181,7 +185,7 @@ func (s *AuthService) sessionOrChallenge(ctx context.Context, u db.User, meta ma
 		if err != nil {
 			return Session{}, err
 		}
-		return Session{User: u, MFAToken: tok}, nil
+		return Session{User: s.decorateAvatar(ctx, u), MFAToken: tok}, nil
 	}
 	sess, err := s.mintSession(ctx, u, "", "")
 	if err != nil {
@@ -233,7 +237,10 @@ func (s *AuthService) Me(ctx context.Context, userID string) (db.User, error) {
 	if errors.Is(err, pgx.ErrNoRows) {
 		return db.User{}, ErrNotFound
 	}
-	return u, err
+	if err != nil {
+		return db.User{}, err
+	}
+	return s.decorateAvatar(ctx, u), nil
 }
 
 const maxDisplayNameRunes = 100
@@ -280,18 +287,67 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID string, displayN
 			return db.User{}, err
 		}
 	}
-	return u, nil
+	return s.decorateAvatar(ctx, u), nil
 }
 
+// UpdateAvatar stores an externally-hosted avatar URL (the legacy upload and
+// provider-photo path). The write clears avatar_file_id — under FileService a
+// file-backed avatar being replaced by a URL is released in the same
+// transaction, so the file is never left claimed-but-unreferenced.
 func (s *AuthService) UpdateAvatar(ctx context.Context, userID, url string) (db.User, error) {
-	u, err := s.q.UpdateUserAvatar(ctx, db.UpdateUserAvatarParams{
+	if s.files == nil {
+		u, err := s.q.UpdateUserAvatar(ctx, db.UpdateUserAvatarParams{
+			ID:        userID,
+			AvatarUrl: pgtype.Text{String: url, Valid: url != ""},
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.User{}, ErrNotFound
+		}
+		return u, err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return db.User{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	// FS-C1 §5.4: the release locks the files row before this transaction
+	// locks the user row, so avatar_file_id is read non-locking first and
+	// re-read FOR UPDATE after the files call — a swap committed in between
+	// surfaces as a conflict, not a release of the wrong file.
+	prev, err := q.GetUserAvatarFileID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.User{}, ErrNotFound
+		}
+		return db.User{}, err
+	}
+	if prev.Valid && prev.String != "" {
+		if err := releaseFilesInTx(ctx, s.files, q, []files.FileID{files.FileID(prev.String)}); err != nil {
+			return db.User{}, err
+		}
+	}
+	cur, err := q.GetUserAvatarFileIDForUpdate(ctx, userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.User{}, ErrNotFound
+		}
+		return db.User{}, err
+	}
+	if cur.String != prev.String || cur.Valid != prev.Valid {
+		return db.User{}, ErrConflict
+	}
+	u, err := q.UpdateUserAvatar(ctx, db.UpdateUserAvatarParams{
 		ID:        userID,
 		AvatarUrl: pgtype.Text{String: url, Valid: url != ""},
 	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return db.User{}, ErrNotFound
+	if err != nil {
+		return db.User{}, err
 	}
-	return u, err
+	if err := tx.Commit(ctx); err != nil {
+		return db.User{}, err
+	}
+	return u, nil
 }
 
 // SessionFor is the entry for the other first factors (Google, password
@@ -304,6 +360,7 @@ func (s *AuthService) SessionFor(ctx context.Context, u db.User) (Session, error
 // from a browser string this account has never used gets the alert mail;
 // the very first session of an account (registration) does not.
 func (s *AuthService) mintSession(ctx context.Context, u db.User, sessionID, inheritedUA string) (Session, error) {
+	u = s.decorateAvatar(ctx, u)
 	meta := sessionMetaFrom(ctx)
 	if sessionID != "" {
 		meta.UserAgent = inheritedUA

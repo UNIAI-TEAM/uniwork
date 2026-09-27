@@ -20,7 +20,7 @@ WHERE r.id = (
   ORDER BY c.started_at DESC
   LIMIT 1
 )
-RETURNING id, organization_id, workspace_id, room_id, call_id, egress_id, status, file_url, call_log_message_id, started_by, started_at, ended_at
+RETURNING id, organization_id, workspace_id, room_id, call_id, egress_id, status, file_url, call_log_message_id, started_by, started_at, ended_at, file_id
 `
 
 type AttachChatVoiceRecordingCallLogParams struct {
@@ -45,6 +45,7 @@ func (q *Queries) AttachChatVoiceRecordingCallLog(ctx context.Context, arg Attac
 		&i.StartedBy,
 		&i.StartedAt,
 		&i.EndedAt,
+		&i.FileID,
 	)
 	return i, err
 }
@@ -56,7 +57,7 @@ SET status = $2,
     ended_at = now(),
     call_log_message_id = COALESCE($4, call_log_message_id)
 WHERE id = $1 AND status = 'ACTIVE'
-RETURNING id, organization_id, workspace_id, room_id, call_id, egress_id, status, file_url, call_log_message_id, started_by, started_at, ended_at
+RETURNING id, organization_id, workspace_id, room_id, call_id, egress_id, status, file_url, call_log_message_id, started_by, started_at, ended_at, file_id
 `
 
 type FinishChatVoiceRecordingParams struct {
@@ -87,6 +88,7 @@ func (q *Queries) FinishChatVoiceRecording(ctx context.Context, arg FinishChatVo
 		&i.StartedBy,
 		&i.StartedAt,
 		&i.EndedAt,
+		&i.FileID,
 	)
 	return i, err
 }
@@ -98,7 +100,7 @@ SET status = $2,
     ended_at = COALESCE(ended_at, now()),
     call_log_message_id = COALESCE($4, call_log_message_id)
 WHERE egress_id = $1 AND status IN ('ACTIVE', 'PROCESSING')
-RETURNING id, organization_id, workspace_id, room_id, call_id, egress_id, status, file_url, call_log_message_id, started_by, started_at, ended_at
+RETURNING id, organization_id, workspace_id, room_id, call_id, egress_id, status, file_url, call_log_message_id, started_by, started_at, ended_at, file_id
 `
 
 type FinishChatVoiceRecordingByEgressParams struct {
@@ -129,12 +131,13 @@ func (q *Queries) FinishChatVoiceRecordingByEgress(ctx context.Context, arg Fini
 		&i.StartedBy,
 		&i.StartedAt,
 		&i.EndedAt,
+		&i.FileID,
 	)
 	return i, err
 }
 
 const getActiveChatVoiceRecording = `-- name: GetActiveChatVoiceRecording :one
-SELECT id, organization_id, workspace_id, room_id, call_id, egress_id, status, file_url, call_log_message_id, started_by, started_at, ended_at FROM chat_voice_recordings
+SELECT id, organization_id, workspace_id, room_id, call_id, egress_id, status, file_url, call_log_message_id, started_by, started_at, ended_at, file_id FROM chat_voice_recordings
 WHERE room_id = $1 AND call_id = $2 AND status = 'ACTIVE'
 ORDER BY started_at DESC
 LIMIT 1
@@ -161,12 +164,38 @@ func (q *Queries) GetActiveChatVoiceRecording(ctx context.Context, arg GetActive
 		&i.StartedBy,
 		&i.StartedAt,
 		&i.EndedAt,
+		&i.FileID,
+	)
+	return i, err
+}
+
+const getChatVoiceRecordingByEgressID = `-- name: GetChatVoiceRecordingByEgressID :one
+SELECT id, organization_id, workspace_id, room_id, call_id, egress_id, status, file_url, call_log_message_id, started_by, started_at, ended_at, file_id FROM chat_voice_recordings WHERE egress_id = $1 ORDER BY started_at DESC LIMIT 1
+`
+
+func (q *Queries) GetChatVoiceRecordingByEgressID(ctx context.Context, egressID string) (ChatVoiceRecording, error) {
+	row := q.db.QueryRow(ctx, getChatVoiceRecordingByEgressID, egressID)
+	var i ChatVoiceRecording
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.RoomID,
+		&i.CallID,
+		&i.EgressID,
+		&i.Status,
+		&i.FileUrl,
+		&i.CallLogMessageID,
+		&i.StartedBy,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.FileID,
 	)
 	return i, err
 }
 
 const getChatVoiceRecordingByID = `-- name: GetChatVoiceRecordingByID :one
-SELECT id, organization_id, workspace_id, room_id, call_id, egress_id, status, file_url, call_log_message_id, started_by, started_at, ended_at FROM chat_voice_recordings
+SELECT id, organization_id, workspace_id, room_id, call_id, egress_id, status, file_url, call_log_message_id, started_by, started_at, ended_at, file_id FROM chat_voice_recordings
 WHERE id = $1 AND workspace_id = $2 AND room_id = $3
 `
 
@@ -192,25 +221,27 @@ func (q *Queries) GetChatVoiceRecordingByID(ctx context.Context, arg GetChatVoic
 		&i.StartedBy,
 		&i.StartedAt,
 		&i.EndedAt,
+		&i.FileID,
 	)
 	return i, err
 }
 
 const insertChatVoiceRecording = `-- name: InsertChatVoiceRecording :one
 INSERT INTO chat_voice_recordings (
-  id, organization_id, workspace_id, room_id, call_id, egress_id, started_by
-) VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, organization_id, workspace_id, room_id, call_id, egress_id, status, file_url, call_log_message_id, started_by, started_at, ended_at
+  id, organization_id, workspace_id, room_id, call_id, egress_id, started_by, file_id
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, organization_id, workspace_id, room_id, call_id, egress_id, status, file_url, call_log_message_id, started_by, started_at, ended_at, file_id
 `
 
 type InsertChatVoiceRecordingParams struct {
-	ID             string `json:"id"`
-	OrganizationID string `json:"organization_id"`
-	WorkspaceID    string `json:"workspace_id"`
-	RoomID         string `json:"room_id"`
-	CallID         string `json:"call_id"`
-	EgressID       string `json:"egress_id"`
-	StartedBy      string `json:"started_by"`
+	ID             string      `json:"id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	RoomID         string      `json:"room_id"`
+	CallID         string      `json:"call_id"`
+	EgressID       string      `json:"egress_id"`
+	StartedBy      string      `json:"started_by"`
+	FileID         pgtype.Text `json:"file_id"`
 }
 
 func (q *Queries) InsertChatVoiceRecording(ctx context.Context, arg InsertChatVoiceRecordingParams) (ChatVoiceRecording, error) {
@@ -222,6 +253,7 @@ func (q *Queries) InsertChatVoiceRecording(ctx context.Context, arg InsertChatVo
 		arg.CallID,
 		arg.EgressID,
 		arg.StartedBy,
+		arg.FileID,
 	)
 	var i ChatVoiceRecording
 	err := row.Scan(
@@ -237,12 +269,40 @@ func (q *Queries) InsertChatVoiceRecording(ctx context.Context, arg InsertChatVo
 		&i.StartedBy,
 		&i.StartedAt,
 		&i.EndedAt,
+		&i.FileID,
 	)
 	return i, err
 }
 
+const listChatVoiceRecordingFileHolds = `-- name: ListChatVoiceRecordingFileHolds :many
+SELECT DISTINCT file_id
+FROM chat_voice_recordings
+WHERE file_id = ANY($1::text[])
+`
+
+// FS-C1 section 6: a live recording row holds its file.
+func (q *Queries) ListChatVoiceRecordingFileHolds(ctx context.Context, dollar_1 []string) ([]pgtype.Text, error) {
+	rows, err := q.db.Query(ctx, listChatVoiceRecordingFileHolds, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.Text{}
+	for rows.Next() {
+		var file_id pgtype.Text
+		if err := rows.Scan(&file_id); err != nil {
+			return nil, err
+		}
+		items = append(items, file_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listChatVoiceRecordingsForCall = `-- name: ListChatVoiceRecordingsForCall :many
-SELECT id, organization_id, workspace_id, room_id, call_id, egress_id, status, file_url, call_log_message_id, started_by, started_at, ended_at FROM chat_voice_recordings
+SELECT id, organization_id, workspace_id, room_id, call_id, egress_id, status, file_url, call_log_message_id, started_by, started_at, ended_at, file_id FROM chat_voice_recordings
 WHERE room_id = $1 AND call_id = $2
 ORDER BY started_at DESC
 `
@@ -274,6 +334,7 @@ func (q *Queries) ListChatVoiceRecordingsForCall(ctx context.Context, arg ListCh
 			&i.StartedBy,
 			&i.StartedAt,
 			&i.EndedAt,
+			&i.FileID,
 		); err != nil {
 			return nil, err
 		}
@@ -286,7 +347,7 @@ func (q *Queries) ListChatVoiceRecordingsForCall(ctx context.Context, arg ListCh
 }
 
 const listChatVoiceRecordingsForRoom = `-- name: ListChatVoiceRecordingsForRoom :many
-SELECT id, organization_id, workspace_id, room_id, call_id, egress_id, status, file_url, call_log_message_id, started_by, started_at, ended_at FROM chat_voice_recordings
+SELECT id, organization_id, workspace_id, room_id, call_id, egress_id, status, file_url, call_log_message_id, started_by, started_at, ended_at, file_id FROM chat_voice_recordings
 WHERE workspace_id = $1 AND room_id = $2
 ORDER BY started_at DESC
 LIMIT $3
@@ -320,6 +381,7 @@ func (q *Queries) ListChatVoiceRecordingsForRoom(ctx context.Context, arg ListCh
 			&i.StartedBy,
 			&i.StartedAt,
 			&i.EndedAt,
+			&i.FileID,
 		); err != nil {
 			return nil, err
 		}

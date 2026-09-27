@@ -37,7 +37,14 @@ func registerChatUser(t *testing.T, srv *httptest.Server, email, name string) (s
 
 func setupChatFixture(t *testing.T, tag string) *chatFixture {
 	t.Helper()
-	srv := newTestServer(t)
+	return setupChatFixtureOn(t, newTestServer(t), tag)
+}
+
+// setupChatFixtureOn builds the same fixture on a caller-provided server, so
+// the FileService-path tests can wire filesfake without changing the legacy
+// default (Advisor ruling: selectable path, Bước 0 net stays on legacy).
+func setupChatFixtureOn(t *testing.T, srv *httptest.Server, tag string) *chatFixture {
+	t.Helper()
 	f := &chatFixture{srv: srv, tokens: map[string]string{}, ids: map[string]string{}, emails: map[string]string{}}
 	users := []struct{ key, email, name string }{
 		{"a", "ca-" + tag + "@example.com", "Chat A"},

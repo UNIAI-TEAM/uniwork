@@ -197,6 +197,33 @@ describe("MeetingList", () => {
     expect(String(recordingCalls()[0]![0])).toContain("/meetings/m-ended/recordings");
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
+
+  // UNI-746: a FileService-backed row reaches COMPLETE with file_id, never
+  // file_url — playability must not depend on the legacy locator.
+  it("offers rewatch for a COMPLETE recording without file_url (FileService row)", async () => {
+    const ended: Meeting = {
+      ...meetings[0]!,
+      id: "m-ended",
+      title: "Cuộc họp tức thì",
+      status: "ENDED",
+      actual_end_at: new Date().toISOString(),
+      has_playable_recording: true,
+    };
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/members")) return Promise.resolve(members);
+      if (p.endsWith("/recordings")) {
+        return Promise.resolve({
+          recordings: [{ id: "rec-fs", meeting_id: "m-ended", status: "COMPLETE" }],
+        });
+      }
+      return Promise.resolve({});
+    });
+    render(shell(<MeetingList workspaceId="w1" meetings={[ended]} onOpenRoom={() => {}} />));
+    const button = await screen.findByRole("button", { name: "Xem lại" });
+    fireEvent.click(button);
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
 });
 
 describe("MeetingList clock", () => {

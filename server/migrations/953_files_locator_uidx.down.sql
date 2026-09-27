@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS uidx_files_locator;

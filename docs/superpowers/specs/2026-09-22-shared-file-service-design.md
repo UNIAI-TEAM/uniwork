@@ -1,6 +1,6 @@
 # UniWork - FileService dùng chung và vòng đời file
 
-> **Trạng thái:** in-progress - Thiết kế dùng làm cơ sở lập plan theo yêu cầu ngày 2026-09-22; chưa triển khai.
+> **Trạng thái:** in-progress - Thiết kế đã được triển khai trên nhánh `feature/UNI-726-shared-file-service` (cập nhật 2026-09-27; kết quả và việc còn mở ở plan §9); chờ người dùng nghiệm thu.
 
 **Ngày:** 2026-09-22
 

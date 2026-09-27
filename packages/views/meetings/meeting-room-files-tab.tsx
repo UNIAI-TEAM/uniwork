@@ -16,7 +16,10 @@ import { MeetingSectionError, MeetingSectionLoading } from "./meeting-section-st
 export function MeetingRoomFilesTab({ meetingId }: { meetingId: string }) {
   const { t, i18n } = useTranslation();
   const { data: recordings, isPending, isError, refetch } = useRecordings(meetingId);
-  const shared = (recordings ?? []).filter((r) => r.file_url);
+  // COMPLETE is the one playable state on both storage paths: a legacy row
+  // only reaches it with file_url set, an FS-backed row once its file is
+  // claimed (UNI-746).
+  const shared = (recordings ?? []).filter((r) => r.status === "COMPLETE");
   const [playbackId, setPlaybackId] = useState<string | null>(null);
 
   if (isPending) {
