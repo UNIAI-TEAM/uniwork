@@ -22,6 +22,7 @@ type prefixRule struct {
 	backend string
 	bucket  string
 	prefix  string // full URL prefix ending in "/" that precedes the key
+	strip   bool   // S3_KEY_PREFIX: only the app's own S3 bucket URLs carry it
 }
 
 // Resolver maps stored URLs to locators using only the deployment's
@@ -63,23 +64,23 @@ func ResolverFromEnv() *Resolver {
 		}
 		r.stripPrefix = prefix
 		if cdn := strings.TrimSpace(os.Getenv("CLOUDFRONT_DOMAIN")); cdn != "" {
-			r.rules = append(r.rules, prefixRule{backend: string(storage.BackendS3), bucket: bucket, prefix: "https://" + cdn + "/"})
+			r.rules = append(r.rules, prefixRule{backend: string(storage.BackendS3), bucket: bucket, prefix: "https://" + cdn + "/", strip: true})
 		}
 		if region != "" {
 			r.rules = append(r.rules,
-				prefixRule{backend: string(storage.BackendS3), bucket: bucket, prefix: "https://" + bucket + ".s3." + region + ".amazonaws.com/"},
-				prefixRule{backend: string(storage.BackendS3), bucket: bucket, prefix: "https://s3." + region + ".amazonaws.com/" + bucket + "/"},
+				prefixRule{backend: string(storage.BackendS3), bucket: bucket, prefix: "https://" + bucket + ".s3." + region + ".amazonaws.com/", strip: true},
+				prefixRule{backend: string(storage.BackendS3), bucket: bucket, prefix: "https://s3." + region + ".amazonaws.com/" + bucket + "/", strip: true},
 			)
 		}
 		// The legacy writer's bug form plus endpoint-based deployments
 		// (MinIO/R2 reached through the s3 adapter, LiveKit egress URLs).
-		r.rules = append(r.rules, prefixRule{backend: string(storage.BackendS3), bucket: bucket, prefix: "https://" + bucket + "/"})
+		r.rules = append(r.rules, prefixRule{backend: string(storage.BackendS3), bucket: bucket, prefix: "https://" + bucket + "/", strip: true})
 		for _, ep := range endpointAliases(os.Getenv("AWS_ENDPOINT_URL")) {
 			r.rules = append(r.rules,
-				prefixRule{backend: string(storage.BackendS3), bucket: bucket, prefix: ep + "/" + bucket + "/"},
+				prefixRule{backend: string(storage.BackendS3), bucket: bucket, prefix: ep + "/" + bucket + "/", strip: true},
 			)
 			if vh := virtualHosted(ep, bucket); vh != "" {
-				r.rules = append(r.rules, prefixRule{backend: string(storage.BackendS3), bucket: bucket, prefix: vh})
+				r.rules = append(r.rules, prefixRule{backend: string(storage.BackendS3), bucket: bucket, prefix: vh, strip: true})
 			}
 		}
 	}
@@ -185,7 +186,10 @@ func (r *Resolver) Resolve(raw string) (resolvedLocator, bool) {
 		if i := strings.IndexAny(key, "?#"); i >= 0 {
 			key = key[:i]
 		}
-		if key = r.stripKey(key); key == "" {
+		if rule.strip {
+			key = r.stripKey(key)
+		}
+		if key == "" {
 			return resolvedLocator{}, false
 		}
 		return resolvedLocator{Backend: rule.backend, Bucket: rule.bucket, Key: key}, true

@@ -70,6 +70,7 @@ func TestApplyThenVerifyAttachments(t *testing.T) {
 	insertOrg(t, pool, "org-1", "ws-1", "user-1")
 	insertAttachment(t, pool, "att-a", "org-1", "ws-1", "task-1", attKey("ws-1", "att-a"), false, false)
 	insertAttachment(t, pool, "att-b", "org-1", "ws-1", "task-1", attKey("ws-1", "att-b"), false, false)
+	// Staged (unbound) uploads hold: staging owns the object until the row binds.
 	insertAttachment(t, pool, "att-st", "org-1", "ws-1", "task-1", attKey("ws-1", "att-st"), true, false)
 
 	fs := &fakeStat{}
@@ -86,13 +87,13 @@ func TestApplyThenVerifyAttachments(t *testing.T) {
 	if rep.RunID == "" {
 		t.Fatal("apply returned no run id")
 	}
-	if got := countRows(t, pool, "files"); got != 3 {
-		t.Fatalf("files = %d, want 3", got)
+	if got := countRows(t, pool, "files"); got != 2 {
+		t.Fatalf("files = %d, want 2", got)
 	}
-	if got := countRows(t, pool, "file_upload_sessions"); got != 3 {
-		t.Fatalf("sessions = %d, want 3", got)
+	if got := countRows(t, pool, "file_upload_sessions"); got != 2 {
+		t.Fatalf("sessions = %d, want 2", got)
 	}
-	for _, id := range []string{"att-a", "att-b", "att-st"} {
+	for _, id := range []string{"att-a", "att-b"} {
 		var fid *string
 		if err := pool.QueryRow(ctx, `SELECT file_id FROM attachments WHERE id = $1`, id).Scan(&fid); err != nil {
 			t.Fatal(err)
@@ -101,12 +102,19 @@ func TestApplyThenVerifyAttachments(t *testing.T) {
 			t.Fatalf("%s file_id not set", id)
 		}
 	}
+	var stFid *string
+	if err := pool.QueryRow(ctx, `SELECT file_id FROM attachments WHERE id='att-st'`).Scan(&stFid); err != nil {
+		t.Fatal(err)
+	}
+	if stFid != nil {
+		t.Fatalf("staged row got file_id %v", *stFid)
+	}
 	// Legacy columns are never rewritten.
 	var key string
 	if err := pool.QueryRow(ctx, `SELECT object_key FROM attachments WHERE id='att-a'`).Scan(&key); err != nil || key != attKey("ws-1", "att-a") {
 		t.Fatalf("legacy locator changed: %q %v", key, err)
 	}
-	// Ledger: three applied items, one checkpoint row marked done.
+	// Ledger: two applied + one held, one checkpoint row marked done.
 	if got := countRows(t, pool, "file_backfill_items"); got != 3 {
 		t.Fatalf("ledger items = %d, want 3", got)
 	}
@@ -129,8 +137,12 @@ func TestApplyThenVerifyAttachments(t *testing.T) {
 		t.Fatalf("verify failures = %d", vrep.Totals.Failed)
 	}
 	for _, it := range vrep.Cohorts[0].Items {
-		if it.Verdict != verdictConsistent {
-			t.Fatalf("%s verdict %s", it.SourceID, it.Verdict)
+		want := verdictConsistent
+		if it.SourceID == "att-st" {
+			want = verdictUnreferenced // held staged row keeps file_id NULL
+		}
+		if it.Verdict != want {
+			t.Fatalf("%s verdict %s, want %s", it.SourceID, it.Verdict, want)
 		}
 	}
 
@@ -143,13 +155,13 @@ func TestApplyThenVerifyAttachments(t *testing.T) {
 	if rep2.RunID == rep.RunID {
 		t.Fatal("second apply reused the run id")
 	}
-	if got := countRows(t, pool, "files"); got != 3 {
-		t.Fatalf("files after re-apply = %d, want 3", got)
+	if got := countRows(t, pool, "files"); got != 2 {
+		t.Fatalf("files after re-apply = %d, want 2", got)
 	}
-	if got := countRows(t, pool, "file_upload_sessions"); got != 3 {
-		t.Fatalf("sessions after re-apply = %d, want 3 (deterministic ids)", got)
+	if got := countRows(t, pool, "file_upload_sessions"); got != 2 {
+		t.Fatalf("sessions after re-apply = %d, want 2 (deterministic ids)", got)
 	}
-	if rep2.Cohorts[0].AlreadyApplied != 3 {
+	if rep2.Cohorts[0].AlreadyApplied != 2 {
 		t.Fatalf("re-apply report = %+v", rep2.Cohorts[0])
 	}
 }

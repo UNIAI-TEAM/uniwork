@@ -123,7 +123,7 @@ func (e *Engine) classifyChatMessage(r db.FileBackfillScanChatMessagesRow) Item 
 	}
 
 	if r.Kind == "voice_call_log" {
-		return e.classifyCallLogRef(it, meta)
+		return e.classifyCallLogRef(it, meta, r.RoomID)
 	}
 
 	key := metaString(meta, "object_key")
@@ -169,7 +169,7 @@ func (e *Engine) classifyChatMessage(r db.FileBackfillScanChatMessagesRow) Item 
 // classifyCallLogRef resolves the voice_call_log's recording_url through the
 // configured authorities. It is one more reference to the object a
 // chat_voice_recordings row names; the shared-locator pass merges them.
-func (e *Engine) classifyCallLogRef(it Item, meta map[string]any) Item {
+func (e *Engine) classifyCallLogRef(it Item, meta map[string]any, roomID string) Item {
 	raw := metaString(meta, "recording_url")
 	if raw == "" {
 		it.Class = ClassUnresolved
@@ -190,7 +190,8 @@ func (e *Engine) classifyCallLogRef(it Item, meta map[string]any) Item {
 		it.Filename = loc.Key[i+1:]
 	}
 	it.Class = ClassVerified
-	return it
+	// Same tenant proof as the recordings row: chat-voice/<org>/<room>/.
+	return checkCallRecordingKey(it, roomID)
 }
 
 // reconcileCallLogRefs applies the M7 rule after scanning: a voice_call_log

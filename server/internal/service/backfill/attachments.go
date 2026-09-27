@@ -59,6 +59,15 @@ func classifyAttachment(r db.FileBackfillScanAttachmentsRow) Item {
 		it.FileID = r.FileID.String
 		return it
 	}
+	// Staged rows sit inside their claim window under the staging writer's
+	// ownership: the row either binds (a later pass migrates it as a normal
+	// attachment) or expires (staging cleanup owns the object). Never mint a
+	// claimed session for an unbound upload.
+	if !it.Claimed {
+		it.Class = ClassHeld
+		it.Reason = "staged_unbound"
+		return it
+	}
 	if !r.ObjectKey.Valid || r.ObjectKey.String == "" {
 		it.Class = ClassUnresolved
 		it.Reason = "no_locator"

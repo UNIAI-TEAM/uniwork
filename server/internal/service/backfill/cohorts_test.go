@@ -156,21 +156,40 @@ func TestPlanRecordings(t *testing.T) {
 		t.Fatalf("meeting: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO meeting_recordings (id, meeting_id, status, file_url, started_by)
-		VALUES ('rec-1','meeting-1','ENDED','http://localhost:9000/uniwork/recordings/m1.mp4','user-1')`); err != nil {
+		VALUES ('rec-1','meeting-1','ENDED','http://localhost:9000/uniwork/meetings/ws-1/meeting-1-0001.mp4','user-1')`); err != nil {
 		t.Fatalf("rec-1: %v", err)
 	}
+	// Tenant cross-check: the key embeds a different workspace than the row's.
 	if _, err := pool.Exec(ctx, `INSERT INTO meeting_recordings (id, meeting_id, status, file_url, started_by)
-		VALUES ('rec-orphan','meeting-gone','ENDED','http://localhost:9000/uniwork/recordings/x.mp4','user-1')`); err != nil {
+		VALUES ('rec-ws','meeting-1','ENDED','http://localhost:9000/uniwork/meetings/ws-9/meeting-1-0002.mp4','user-1')`); err != nil {
+		t.Fatalf("rec-ws: %v", err)
+	}
+	// A resolvable URL whose key is not the egress shape is held, not applied.
+	if _, err := pool.Exec(ctx, `INSERT INTO meeting_recordings (id, meeting_id, status, file_url, started_by)
+		VALUES ('rec-shape','meeting-1','ENDED','http://localhost:9000/uniwork/recordings/x.mp4','user-1')`); err != nil {
+		t.Fatalf("rec-shape: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO meeting_recordings (id, meeting_id, status, file_url, started_by)
+		VALUES ('rec-orphan','meeting-gone','ENDED','http://localhost:9000/uniwork/meetings/ws-1/x-0003.mp4','user-1')`); err != nil {
 		t.Fatalf("rec-orphan: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO chat_voice_recordings
 		(id, organization_id, workspace_id, room_id, call_id, status, file_url, call_log_message_id, started_by)
-		VALUES ('cvr-1','org-1','ws-1','room-1','call-1','ENDED','http://localhost:9000/uniwork/recordings/c1.mp4','msg-log','user-1')`); err != nil {
+		VALUES ('cvr-1','org-1','ws-1','room-1','call-1','ENDED','http://localhost:9000/uniwork/chat-voice/org-1/room-1/call-1-0001.mp4','msg-log','user-1')`); err != nil {
 		t.Fatalf("cvr-1: %v", err)
+	}
+	// Cross-tenant URL: the key names another org — held, never merged.
+	if _, err := pool.Exec(ctx, `INSERT INTO chat_voice_recordings
+		(id, organization_id, workspace_id, room_id, call_id, status, file_url, started_by)
+		VALUES ('cvr-org','org-1','ws-1','room-1','call-9','ENDED','http://localhost:9000/uniwork/chat-voice/org-9/room-9/call-9-0001.mp4','user-1')`); err != nil {
+		t.Fatalf("cvr-org: %v", err)
 	}
 	// M7: the call-log message references the same recording object.
 	insertChatMessage(t, pool, "msg-log", "room-1", "ws-1", "voice_call_log",
-		`{"call_id":"call-1","outcome":"ended","recording_url":"http://localhost:9000/uniwork/recordings/c1.mp4"}`, false)
+		`{"call_id":"call-1","outcome":"ended","recording_url":"http://localhost:9000/uniwork/chat-voice/org-1/room-1/call-1-0001.mp4"}`, false)
+	// A call-log ref to another room's recording is held even though the URL resolves.
+	insertChatMessage(t, pool, "msg-xroom", "room-1", "ws-1", "voice_call_log",
+		`{"call_id":"call-8","outcome":"ended","recording_url":"http://localhost:9000/uniwork/chat-voice/org-1/room-9/call-8-0001.mp4"}`, false)
 	insertChatMessage(t, pool, "msg-foreign", "room-1", "ws-1", "voice_call_log",
 		`{"call_id":"call-9","outcome":"ended","recording_url":"https://evil.example.com/x.mp4"}`, false)
 
@@ -179,8 +198,14 @@ func TestPlanRecordings(t *testing.T) {
 		prefixRule{backend: "minio", bucket: "uniwork", prefix: "http://localhost:9000/uniwork/"})
 
 	mr := planCohort(t, q, res, CohortMeetingRecordings).Cohorts[0]
-	if got := itemByID(mr, "rec-1"); got.Class != ClassVerified || got.Storage != "minio" || got.ObjectKey != "recordings/m1.mp4" {
+	if got := itemByID(mr, "rec-1"); got.Class != ClassVerified || got.Storage != "minio" || got.ObjectKey != "meetings/ws-1/meeting-1-0001.mp4" {
 		t.Fatalf("rec-1 = %+v", got)
+	}
+	if got := itemByID(mr, "rec-ws"); got.Class != ClassHeld || got.Reason != "workspace_mismatch" {
+		t.Fatalf("rec-ws = %+v", got)
+	}
+	if got := itemByID(mr, "rec-shape"); got.Class != ClassHeld || got.Reason != "unrecognized_key_shape" {
+		t.Fatalf("rec-shape = %+v", got)
 	}
 	if got := itemByID(mr, "rec-orphan"); got.Class != ClassUnresolved || got.Reason != "tenant_missing" {
 		t.Fatalf("rec-orphan = %+v", got)
@@ -192,8 +217,14 @@ func TestPlanRecordings(t *testing.T) {
 	if recItem.Class != ClassVerified || logItem.Class != ClassVerified {
 		t.Fatalf("rec=%+v log=%+v", recItem, logItem)
 	}
-	// Same locator + same scope → shared, deduped to one object, zero held.
-	if !recItem.SharedLocator || !logItem.SharedLocator || call.DuplicateRefs != 1 || call.DistinctObjects != 1 || call.Held != 0 {
+	if got := itemByID(call, "cvr-org"); got.Class != ClassHeld || got.Reason != "organization_mismatch" {
+		t.Fatalf("cvr-org = %+v", got)
+	}
+	if got := itemByID(call, "msg-xroom"); got.Class != ClassHeld || got.Reason != "room_mismatch" {
+		t.Fatalf("msg-xroom = %+v", got)
+	}
+	// Same locator + same scope → shared, deduped to one object.
+	if !recItem.SharedLocator || !logItem.SharedLocator || call.DuplicateRefs != 1 || call.DistinctObjects != 1 {
 		t.Fatalf("dedup counts = %+v", call)
 	}
 	if got := itemByID(call, "msg-foreign"); got.Class != ClassForeign {

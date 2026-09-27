@@ -45,7 +45,11 @@ func (e *Engine) scanMeetingRecordings(ctx context.Context, after string, limit 
 			items = append(items, it)
 			continue
 		}
-		items = append(items, e.resolveRecordingURL(it))
+		it = e.resolveRecordingURL(it)
+		if it.Class == ClassVerified {
+			it = checkMeetingRecordingKey(it)
+		}
+		items = append(items, it)
 	}
 	if int32(len(rows)) < limit {
 		next = ""
@@ -90,7 +94,11 @@ func (e *Engine) scanCallRecordings(ctx context.Context, after string, limit int
 			items = append(items, it)
 			continue
 		}
-		items = append(items, e.resolveRecordingURL(it))
+		it = e.resolveRecordingURL(it)
+		if it.Class == ClassVerified {
+			it = checkCallRecordingKey(it, r.RoomID)
+		}
+		items = append(items, it)
 	}
 	if int32(len(rows)) < limit {
 		next = ""
@@ -114,5 +122,43 @@ func (e *Engine) resolveRecordingURL(it Item) Item {
 		it.Filename = loc.Key[i+1:]
 	}
 	it.Class = ClassVerified
+	return it
+}
+
+// checkMeetingRecordingKey is the M5 tenant proof: the egress minted
+// meetings/<workspace>/<name>, so the embedded workspace must equal the
+// meeting's — anything else is conflicting evidence, held for a human.
+func checkMeetingRecordingKey(it Item) Item {
+	segs := strings.Split(it.ObjectKey, "/")
+	if len(segs) < 3 || segs[0] != "meetings" {
+		it.Class = ClassHeld
+		it.Reason = "unrecognized_key_shape"
+		return it
+	}
+	if segs[1] != it.WorkspaceID {
+		it.Class = ClassHeld
+		it.Reason = "workspace_mismatch"
+	}
+	return it
+}
+
+// checkCallRecordingKey is the M6 tenant proof: chat-voice/<org>/<room>/<name>
+// must agree with the row's organization and room.
+func checkCallRecordingKey(it Item, roomID string) Item {
+	segs := strings.Split(it.ObjectKey, "/")
+	if len(segs) < 4 || segs[0] != "chat-voice" {
+		it.Class = ClassHeld
+		it.Reason = "unrecognized_key_shape"
+		return it
+	}
+	if segs[1] != it.OrganizationID {
+		it.Class = ClassHeld
+		it.Reason = "organization_mismatch"
+		return it
+	}
+	if segs[2] != roomID {
+		it.Class = ClassHeld
+		it.Reason = "room_mismatch"
+	}
 	return it
 }

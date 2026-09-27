@@ -106,8 +106,8 @@ func itemByID(cr CohortReport, id string) Item {
 }
 
 // The M1 happy path plus the full class vocabulary in one pass: bound rows
-// verify, staged rows verify unclaimed, an existing file_id is skipped, and
-// each unsafe shape lands in its reason bucket.
+// verify, staged rows hold inside their claim window, an existing file_id is
+// skipped, and each unsafe shape lands in its reason bucket.
 func TestPlanAttachmentsClassification(t *testing.T) {
 	pool := testutil.DB(t)
 	q := db.New(pool)
@@ -134,8 +134,8 @@ func TestPlanAttachmentsClassification(t *testing.T) {
 	if got := itemByID(cr, "att-ok"); got.Class != ClassVerified || !got.Claimed || got.Purpose != "task_attachment" {
 		t.Fatalf("att-ok = %+v", got)
 	}
-	if got := itemByID(cr, "att-staged"); got.Class != ClassVerified || got.Claimed {
-		t.Fatalf("att-staged = %+v, want verified unclaimed", got)
+	if got := itemByID(cr, "att-staged"); got.Class != ClassHeld || got.Reason != "staged_unbound" || got.Claimed {
+		t.Fatalf("att-staged = %+v, want held/staged_unbound unclaimed", got)
 	}
 	if got := itemByID(cr, "att-done"); got.Class != ClassAlreadyApplied {
 		t.Fatalf("att-done = %+v", got)
@@ -154,11 +154,11 @@ func TestPlanAttachmentsClassification(t *testing.T) {
 			t.Fatalf("%s = %+v, want verified shared", id, got)
 		}
 	}
-	if cr.Verified != 4 || cr.Held != 2 || cr.Unresolved != 1 || cr.AlreadyApplied != 1 {
+	if cr.Verified != 3 || cr.Held != 3 || cr.Unresolved != 1 || cr.AlreadyApplied != 1 {
 		t.Fatalf("counts = %+v", cr)
 	}
-	if cr.DistinctObjects != 3 || cr.DuplicateRefs != 1 {
-		t.Fatalf("dedup: distinct=%d dup=%d, want 3/1", cr.DistinctObjects, cr.DuplicateRefs)
+	if cr.DistinctObjects != 2 || cr.DuplicateRefs != 1 {
+		t.Fatalf("dedup: distinct=%d dup=%d, want 2/1", cr.DistinctObjects, cr.DuplicateRefs)
 	}
 }
 
