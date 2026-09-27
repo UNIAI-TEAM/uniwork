@@ -1,0 +1,10 @@
+{
+  "error": {
+    "code": "revision_conflict",
+    "message": "Tài liệu đã thay đổi kể từ lần bạn mở nó.",
+    "error_class": "conflict",
+    "fields": {
+      "current_revision": "42"
+    }
+  }
+}
