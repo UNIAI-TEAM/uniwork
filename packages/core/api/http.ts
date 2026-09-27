@@ -13,21 +13,14 @@ import { GUEST_SESSION_HEADER, getGuestSession } from "./guest-session";
 
 /**
  * The coarse classes the server stamps on `error.error_class` (C-01 §14.5 /
- * DOC-005 §4). Callers switch on it for the recovery path — keep both
- * revisions on `conflict`, stop retrying on `gone`, run session recovery on
- * `session` — never on the message text. Every switch carries a `default`:
- * a class the caller does not know must degrade to code/status inference.
+ * DOC-005 §4). The list is the one source of truth for the union type and
+ * the lenient parser, so the two can never drift apart. Callers switch on
+ * the class for the recovery path — keep both revisions on `conflict`, stop
+ * retrying on `gone`, run session recovery on `session` — never on the
+ * message text. Every switch carries a `default`: a class the caller does
+ * not know must degrade to code/status inference.
  */
-export type ApiErrorClass =
-  | "conflict"
-  | "gone"
-  | "quota"
-  | "permission"
-  | "missing"
-  | "incompatible"
-  | "session";
-
-const API_ERROR_CLASSES: readonly string[] = [
+const API_ERROR_CLASSES = [
   "conflict",
   "gone",
   "quota",
@@ -35,7 +28,9 @@ const API_ERROR_CLASSES: readonly string[] = [
   "missing",
   "incompatible",
   "session",
-];
+] as const;
+
+export type ApiErrorClass = (typeof API_ERROR_CLASSES)[number];
 
 /**
  * Narrow an unknown wire value to a known class. Unknown strings and
@@ -44,9 +39,7 @@ const API_ERROR_CLASSES: readonly string[] = [
  * old client does against a newer server's extra class.
  */
 function asApiErrorClass(value: unknown): ApiErrorClass | undefined {
-  return typeof value === "string" && API_ERROR_CLASSES.includes(value)
-    ? (value as ApiErrorClass)
-    : undefined;
+  return API_ERROR_CLASSES.find((c) => c === value);
 }
 
 export class ApiError extends Error {

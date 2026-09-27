@@ -83,6 +83,20 @@ func TestMapServiceErrorStampsErrorClass(t *testing.T) {
 	}
 }
 
+// fileItemError resolves its class through the same table as the shared
+// writer: a coded FileService refusal carries its class while a non-coded
+// failure stays the unclassified storage_unavailable.
+func TestFileItemErrorUsesClassTable(t *testing.T) {
+	det := fileItemError(service.CodedError{Code: "quota_exceeded", Msg: "x"})
+	if det.Code != "quota_exceeded" || det.ErrorClass != "quota" {
+		t.Fatalf("coded refusal = %+v, want code quota_exceeded class quota", det)
+	}
+	det = fileItemError(errors.New("boom"))
+	if det.Code != "storage_unavailable" || det.ErrorClass != "" {
+		t.Fatalf("uncoded refusal = %+v, want storage_unavailable without class", det)
+	}
+}
+
 // respondErrorFields keeps error_class alongside fields so a classified code
 // loses neither detail nor class.
 func TestRespondErrorFieldsKeepsClassAndFields(t *testing.T) {

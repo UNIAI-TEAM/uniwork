@@ -90,6 +90,23 @@ describe("request", () => {
     }
   });
 
+  it("degrades non-object error fields and non-object bodies without throwing", async () => {
+    for (const body of [
+      { error: "plain string" },
+      { error: null },
+      { error: [1, 2] },
+      "not an object",
+      42,
+      null,
+    ]) {
+      vi.mocked(fetch).mockResolvedValueOnce(okJson(body, 500));
+      const err = await request("/api/v1/x").catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ApiError);
+      expect((err as ApiError).status).toBe(500);
+      expect((err as ApiError).errorClass).toBeUndefined();
+    }
+  });
+
   it("leaves errorClass undefined when the server omits it", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(okJson({ error: { code: "not_found", message: "m" } }, 404));
     await expect(request("/api/v1/x")).rejects.toMatchObject({ code: "not_found", errorClass: undefined });
