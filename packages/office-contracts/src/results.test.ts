@@ -41,8 +41,8 @@ describe("capability honesty", () => {
     ]);
     expect(product).toBeDefined();
     expect(product!.supported).toBe(false);
-    expect(product.evidence_level).toBe("pending");
-    expect(product.reason).toContain("pending");
+    expect(product!.evidence_level).toBe("pending");
+    expect(product!.reason).toContain("pending");
   });
 
   it("validates the capability result envelope", () => {
