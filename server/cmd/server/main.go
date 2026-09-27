@@ -266,7 +266,7 @@ func main() {
 	meetingSvc.SetFiles(fileSvc)
 	auditSvc.SetFileService(fileSvc)
 	fileAccess, err := service.NewFileAccessService(service.FileAccessOptions{
-		Files: fileSvc, Workspaces: wsSvc, Secret: []byte(cfg.JWTSecret),
+		Files: fileSvc, Workspaces: wsSvc, Secret: fileAccessSecret(cfg.JWTSecret),
 	})
 	if err != nil {
 		log.Error("file access", "err", err)
