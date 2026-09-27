@@ -195,9 +195,9 @@ func (s *DocumentService) CreatePage(ctx context.Context, actor Actor, workspace
 	if replay != nil {
 		return s.replayCreatedPage(ctx, q, actor, w.OrganizationID, workspaceID, replay.Body)
 	}
-	// Tree lock before any row lock: two creates under the same parent (or
-	// at the root, where no parent row serializes them) never share a
-	// position.
+	// Order: idempotency claim, then the tree lock, then document row locks.
+	// Two creates under the same parent (or at the root, where no parent row
+	// serializes them) never share a position.
 	if err := q.LockDocumentTree(ctx, workspaceID); err != nil {
 		return DocumentView{}, err
 	}

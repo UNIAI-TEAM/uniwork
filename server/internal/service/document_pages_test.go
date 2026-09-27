@@ -360,8 +360,10 @@ func TestDocumentPage(t *testing.T) {
 		}
 		_, err = f.svc.UpdateDocument(f.ctx, Human(tn.aclOwner.ID), v.Document.ID, UpdateDocumentInput{Revision: 1, Title: strPtr("x")})
 		wantCode(t, err, "document_deleted")
-		if _, err := f.svc.UpdateDocument(f.ctx, member, v.Document.ID, UpdateDocumentInput{Revision: 1, Title: strPtr("x")}); !errors.Is(err, ErrNotFound) {
-			t.Fatalf("editor on an archived page: %v, want ErrNotFound", err)
+		if _, err := f.svc.UpdateDocument(f.ctx, member, v.Document.ID, UpdateDocumentInput{Revision: 1, Title: strPtr("x")}); err != ErrNotFound {
+			// Exactly not found: document_deleted (which wraps it) would tell a
+			// non-manager the trash holds the page.
+			t.Fatalf("editor on an archived page: %v, want plain ErrNotFound", err)
 		}
 	})
 
