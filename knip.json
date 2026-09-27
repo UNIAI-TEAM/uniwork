@@ -16,7 +16,8 @@
         "playwright-core",
         "k6",
         "sharp",
-        "jszip"
+        "jszip",
+        "esbuild"
       ]
     },
     "apps/web": {
@@ -30,6 +31,11 @@
       ]
     },
     "packages/*": {},
+    "packages/office-upstream": {
+      "ignore": [
+        "upstream/**"
+      ]
+    },
     "packages/views": {
       "ignoreExportsUsedInFile": true
     },

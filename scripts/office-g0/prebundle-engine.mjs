@@ -24,10 +24,18 @@ const argOf = (name, fallback) => {
 const SOURCE = resolve(argOf("source", "."));
 const OUT = resolve(argOf("out", "lab/engine/pptx-ops.mjs"));
 
-// esbuild lives in the prepared source tree, not in this spike, so it is
-// required through the source's own package.json instead of this file's.
+// esbuild is a repository devDependency (catalog-pinned since UNI-684): the
+// bundler comes from this checkout's lockfile, and only falls back to the
+// prepared source tree's own install for legacy lab invocations.
+const repoRequire = createRequire(resolve(import.meta.dirname, "..", "..", "package.json"));
 const sourceRequire = createRequire(resolve(SOURCE, "package.json"));
-const { build } = sourceRequire("esbuild");
+const { build } = (() => {
+  try {
+    return repoRequire("esbuild");
+  } catch {
+    return sourceRequire("esbuild");
+  }
+})();
 
 // Resolve a "file?raw" import to its file and inline it as a JS string literal.
 const rawPlugin = {

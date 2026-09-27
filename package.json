@@ -73,6 +73,7 @@
   },
   "devDependencies": {
     "@lobehub/icons-static-svg": "^1.95.0",
+    "esbuild": "catalog:",
     "knip": "^6.33.0",
     "turbo": "^2.5.0"
   }

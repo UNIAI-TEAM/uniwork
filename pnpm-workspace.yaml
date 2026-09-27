@@ -10,6 +10,9 @@ catalog:
   "@types/react-dom": "^19.2.0"
   typescript: "^5.9.3"
   "@types/node": "^25.0.10"
+  # Office build tooling (UNI-684): builds vendored engine source without the
+  # prepared ../genoffice tree; also satisfies vite's esbuild peer range.
+  esbuild: "0.28.2"
   zod: "^4.1.5"
   "@tanstack/react-query": "^5.96.2"
   tailwindcss: "^4"

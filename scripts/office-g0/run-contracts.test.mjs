@@ -2,10 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 
 import {
+  DEFAULT_SCRATCH_ROOT,
   ERROR_CODES,
   FAULT_CASES,
   PLAN_CASE_IDS,
@@ -22,7 +22,7 @@ import { createDraftStore } from "./draft-store.mjs";
 // These assertions are about the harness, not about the protocol: the protocol
 // itself is pinned by each case's literal oracle in run-contracts.mjs.
 
-const TMP_ROOT = process.env.UNIWORK_G0_TMP || os.tmpdir();
+const TMP_ROOT = process.env.UNIWORK_G0_TMP || DEFAULT_SCRATCH_ROOT;
 const mkdir = () => fs.mkdtempSync(path.join(TMP_ROOT, "uw-g0-"));
 
 test("every mandatory fault case from the plan exists exactly once", () => {

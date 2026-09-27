@@ -1,0 +1,648 @@
+--- a/packages/xlsx-gateway/src/gateway/xlsx-styles.ts
++++ b/packages/xlsx-gateway/src/gateway/xlsx-styles.ts
+@@ -134,7 +134,11 @@
+     const children = `${alignment}${protection}`
+     const xf = children === '' ? `<xf ${attributes}/>` : `<xf ${attributes}>${children}</xf>`
+ 
+-    const index = internElement(this.cellXfs, xf)
++    // Reuse a semantically identical existing format before appending: a delta
++    // that only restates the base format must not grow cellXfs.
++    const identity = xfIdentity(xf)
++    let index = this.cellXfs.findIndex((entry) => xfIdentity(entry) === identity)
++    if (index === -1) index = internElement(this.cellXfs, xf)
+     this.cache.set(cacheKey, index)
+     return index
+   }
+@@ -202,6 +206,56 @@
+   }
+ }
+ 
++/// Attributes that decide whether one CT_Xf applies a component of its base format.
++/// compareAttributes=true spells an xsd:boolean, whose both spellings are the same
++/// value, so a delta that sets applyFont="true" and one that sets applyFont="1"
++/// identify the same format.
++const XF_APPLY_ATTRIBUTES = [
++  'applyNumberFormat',
++  'applyFont',
++  'applyFill',
++  'applyBorder',
++  'applyAlignment',
++  'applyProtection',
++] as const
++
++/// Normalises one boolean attribute spelling so "1" and "true" compare equal.
++function normalizedBooleanAttribute(xfXml: string, name: string): string {
++  const value = readCoreAttribute(xfXml, name)
++  if (value === undefined) return ''
++  return value === '1' || value === 'true' ? '1' : value === '0' || value === 'false' ? '0' : value
++}
++
++/// The canonical cell-FORMAT identity of one CT_Xf: the attributes that select the
++/// rendered format, with the OOXML defaults (numFmtId/fontId/fillId/borderId = 0)
++/// filled in for an omitted attribute, plus the alignment/protection children
++/// reduced to their markup.
++///
++/// A cellXfs entry is a format, not a spelling. The authored compact form
++/// `<xf fontId="1" applyFont="1"/>` and the reserialised
++/// `<xf numFmtId="0" fontId="1" fillId="0" borderId="0" applyFont="1"/>` denote the
++/// SAME format; attribute order and elided defaults carry no meaning. Raw string
++/// equality cannot see that, so interning a rebuilt xf by text alone appends a
++/// redundant duplicate whenever a delta merely restates the base format - the
++/// unbounded-growth defect. Comparing this identity instead keeps exactly one index
++/// per distinct format.
++function xfIdentity(xfXml: string): string {
++  const number = (name: string): number => {
++    const value = readAttribute(xfXml, name)
++    return value === undefined ? 0 : Number(value)
++  }
++  const children = (/<xf\b[^>]*>([\s\S]*?)<\/xf>/.exec(xfXml)?.[1] ?? '').replace(/\s+/g, '')
++  const core = [
++    'numFmtId=' + number('numFmtId'),
++    'fontId=' + number('fontId'),
++    'fillId=' + number('fillId'),
++    'borderId=' + number('borderId'),
++    'xfId=' + (readCoreAttribute(xfXml, 'xfId') ?? ''),
++    ...XF_APPLY_ATTRIBUTES.map((name) => name + '=' + normalizedBooleanAttribute(xfXml, name)),
++  ]
++  return core.join('|') + '#' + children
++}
++
+ const BUILTIN_NUMBER_FORMATS = new Map<string, number>([
+   ['General', 0],
+   ['0', 1],
+--- /dev/null
++++ b/packages/xlsx-gateway/src/gateway/xlsx-styles.dedupe.test.ts
+@@ -0,0 +1,154 @@
++// UNI-667 XLSX edit/save feature: regression test for the cellXfs dedupe fix.
++//
++// The defect this pins: the renderer's save body always carries the cell's CURRENT
++// style, so editing an already-bold cell re-sends style:{bold:true}. The gateway's
++// resolveStyle rebuilt the base xf into a canonical full-attribute form and interned
++// it with a raw string match, which never equalled the authored compact xf, so a
++// semantically redundant cellXfs entry was appended. The saved xl/styles.xml then
++// grew (fixture 364 B -> 431 B) and the independent output oracle correctly failed
++// nonTargetStructurePreserved.
++//
++// Every case here drives the REAL StylesheetEditor, so a fix that merely special-cases
++// one spelling cannot pass.
++import assert from 'node:assert/strict'
++import test from 'node:test'
++import { StylesheetEditor } from './xlsx-styles.ts'
++
++/// The authored compact stylesheet that mirrors the pinned lab fixture: cellXfs[1] is
++/// bold and spells ONLY fontId + applyFont, with the numeric defaults elided.
++const AUTHORED = [
++  '<?xml version="1.0" encoding="UTF-8"?>',
++  '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">',
++  '  <fonts count="2"><font/><font><b/></font></fonts><fills count="1"><fill/></fills><borders count="1"><border/></borders>',
++  '  <cellStyleXfs count="1"><xf/></cellStyleXfs><cellXfs count="2"><xf/><xf fontId="1" applyFont="1"/></cellXfs>',
++  '</styleSheet>',
++].join('\n')
++
++const cellXfsCount = (editor: StylesheetEditor): number => {
++  const match = /<cellXfs count="(\d+)">/.exec(editor.serialize())
++  assert.notEqual(match, null, 'serialized stylesheet keeps a cellXfs section')
++  return Number(match![1])
++}
++
++test('restating the base format reuses its index instead of appending a duplicate', () => {
++  const editor = new StylesheetEditor(AUTHORED)
++  // base index 1 is already bold. A delta that only restates "bold" is a no-op.
++  const index = editor.resolveStyle(1, { bold: true })
++  assert.equal(index, 1, 'the identical format must resolve back to its own cellXfs index')
++  assert.equal(cellXfsCount(editor), 2, 'cellXfs must not grow')
++  assert.equal(editor.changed, false, 'a no-op delta leaves the stylesheet unchanged')
++  assert.equal(editor.serialize(), AUTHORED, 'a no-op delta must not reserialize styles.xml at all')
++})
++
++test('inverting a boolean to its base value reuses the index', () => {
++  const editor = new StylesheetEditor(AUTHORED)
++  // base 1 is bold; explicitly asking for non-bold then bold again lands on the base.
++  const notBold = editor.resolveStyle(1, { bold: false })
++  assert.notEqual(notBold, 1, 'clearing bold is a genuinely different format')
++  const backToBold = editor.resolveStyle(notBold, { bold: true })
++  assert.equal(backToBold, 1, 'bold without italic/other deltas is the base format again')
++})
++
++test('a genuinely new format still appends exactly one entry', () => {
++  const editor = new StylesheetEditor(AUTHORED)
++  const italic = editor.resolveStyle(1, { italic: true })
++  assert.notEqual(italic, 1, 'italic is a different format from bold-only')
++  assert.equal(cellXfsCount(editor), 3, 'one new format appends exactly one entry')
++  assert.equal(editor.changed, true, 'a real format change is reported')
++  // Repeating the SAME real delta must be idempotent, not additive.
++  assert.equal(editor.resolveStyle(1, { italic: true }), italic, 'the same delta resolves to the same index')
++  assert.equal(cellXfsCount(editor), 3, 'repeating a real delta must not append again')
++})
++
++test('repeated saves never grow cellXfs', () => {
++  let editor = new StylesheetEditor(AUTHORED)
++  for (let round = 0; round < 5; round += 1) {
++    // Each round: restate bold (no-op), then apply a real italic delta on the base.
++    assert.equal(editor.resolveStyle(1, { bold: true }), 1, 'round ' + round + ': no-op restated bold reuses base')
++    const italic = editor.resolveStyle(1, { italic: true })
++    assert.equal(editor.resolveStyle(1, { italic: true }), italic, 'round ' + round + ': repeated italic is stable')
++  }
++  assert.equal(cellXfsCount(editor), 3, 'the whole sequence yields exactly one extra format')
++})
++
++test('distinct numeric formats and alignment still create distinct entries', () => {
++  const editor = new StylesheetEditor(AUTHORED)
++  const percent = editor.resolveStyle(0, { numberFormat: '0%' })
++  const currency = editor.resolveStyle(0, { numberFormat: '#,##0.00' })
++  const wrapped = editor.resolveStyle(0, { wrapText: true })
++  assert.equal(new Set([0, percent, currency, wrapped]).size, 4, 'each distinct format gets its own index')
++  assert.equal(cellXfsCount(editor), 5, 'four new formats append four entries')
++  // Re-resolving each of them reuses its own index.
++  assert.equal(editor.resolveStyle(0, { numberFormat: '0%' }), percent, 'percent reuses its index')
++  assert.equal(editor.resolveStyle(0, { numberFormat: '#,##0.00' }), currency, 'currency reuses its index')
++  assert.equal(editor.resolveStyle(0, { wrapText: true }), wrapped, 'wrap reuses its index')
++  assert.equal(cellXfsCount(editor), 5, 'no further growth on re-resolve')
++})
++
++test('a no-op restatement of the base format never appends, on a styled base too', () => {
++  // The defect case the renderer actually drives: the base cell is ALREADY bold and the
++  // save body re-sends style:{bold:true}. buildFont reproduces the base font verbatim
++  // here, so the xf identity equals the base and the index is reused.
++  const editor = new StylesheetEditor(AUTHORED)
++  const before = cellXfsCount(editor)
++  assert.equal(editor.resolveStyle(1, { bold: true }), 1, 'bold on an already-bold base reuses index 1')
++  assert.equal(editor.resolveStyle(1, { bold: true }), 1, 'and again')
++  assert.equal(cellXfsCount(editor), before, 'repeated no-op saves never grow cellXfs')
++})
++
++test('re-resolving an identical richer delta is stable, and the font-order boundary is named', () => {
++  const editor = new StylesheetEditor(AUTHORED)
++  // Base 1 is bold. Adding italic builds <i/><b/>: buildFont prepends the overridden
++  // children, so the resulting font markup is order-distinct from the authored <b/>.
++  const italicFromBold = editor.resolveStyle(1, { italic: true })
++  assert.notEqual(italicFromBold, 1, 'bold+italic is a different format from bold')
++  const afterFirst = cellXfsCount(editor)
++  assert.equal(afterFirst, 3, 'exactly one new xf for the new format')
++
++  // The same delta resolved against its OWN result builds <b/><i/> - a different font
++  // STRING for the same rendered format, because the fonts list is interned by exact
++  // markup. That is pre-existing upstream behaviour and this fix does not change it, so
++  // it is asserted here rather than glossed over: one extra entry, not a runaway.
++  const restated = editor.resolveStyle(italicFromBold, { bold: true, italic: true })
++  assert.notEqual(restated, italicFromBold, 'font markup order is still part of the byte-level font identity')
++  assert.equal(cellXfsCount(editor), 4, 'the reordered font costs exactly one entry')
++
++  // The xf-level guarantee still holds: resolving the SAME delta against the SAME base
++  // index is idempotent and adds nothing further, however many times it runs.
++  for (let round = 0; round < 5; round += 1) {
++    assert.equal(
++      editor.resolveStyle(italicFromBold, { bold: true, italic: true }),
++      restated,
++      'round ' + round + ': the identical delta reuses the index it first produced',
++    )
++  }
++  assert.equal(cellXfsCount(editor), 4, 'repeating it never appends')
++
++  // And the no-op restatement of the ORIGINAL authored base - the real renderer case -
++  // still never appends.
++  assert.equal(editor.resolveStyle(1, { bold: true }), 1, 'authored bold base restated reuses index 1')
++  assert.equal(cellXfsCount(editor), 4, 'still no growth')
++})
++
++test('alignment and protection children are part of the format identity', () => {
++  const editor = new StylesheetEditor(AUTHORED)
++  const left = editor.resolveStyle(0, { horizontalAlignment: 'left' })
++  const center = editor.resolveStyle(0, { horizontalAlignment: 'center' })
++  assert.notEqual(left, center, 'a different alignment is a different format')
++  assert.equal(editor.resolveStyle(0, { horizontalAlignment: 'left' }), left, 'the same alignment reuses its index')
++})
++
++test('an xf carrying applyAlignment is not confused with a bare alignment carrier', () => {
++  // A base that applies an alignment must not collapse into one that merely inherits it.
++  const withAlignment = AUTHORED.replace(
++    '<cellXfs count="2"><xf/><xf fontId="1" applyFont="1"/></cellXfs>',
++    '<cellXfs count="3"><xf/><xf fontId="1" applyFont="1"/><xf applyAlignment="1"><alignment horizontal="center"/></xf></cellXfs>',
++  )
++  const editor = new StylesheetEditor(withAlignment)
++  const alignCenter = editor.resolveStyle(2, { horizontalAlignment: 'center' })
++  assert.equal(alignCenter, 2, 'restating the base alignment reuses index 2')
++  assert.equal(cellXfsCount(editor), 3, 'no growth')
++  // A different alignment on that base is genuinely new.
++  const alignRight = editor.resolveStyle(2, { horizontalAlignment: 'right' })
++  assert.notEqual(alignRight, 2, 'a different alignment appends')
++})
+\ No newline at end of file
+--- a/apps/sheets/native/xlsx-engine/src/recalc.rs
++++ b/apps/sheets/native/xlsx-engine/src/recalc.rs
+@@ -10,6 +10,8 @@
+ //! normal sidecar error and the renderer keeps showing cached values.
+ 
+ use std::collections::HashMap;
++use std::fs::File;
++use std::io::{Read, Write};
+ use std::panic::{AssertUnwindSafe, catch_unwind};
+ use std::path::{Path, PathBuf};
+ use std::time::SystemTime;
+@@ -18,6 +20,9 @@
+ use ironcalc::base::types::CellType;
+ use ironcalc::import::load_from_xlsx;
+ use serde::{Deserialize, Serialize};
++use uuid::Uuid;
++use zip::write::SimpleFileOptions;
++use zip::{CompressionMethod, ZipArchive, ZipWriter};
+ 
+ use crate::{CellRange, SidecarError};
+ 
+@@ -228,9 +233,7 @@
+             let path_text = path.to_str().ok_or_else(|| {
+                 SidecarError::InvalidRequest("Workbook path is not valid UTF-8.".into())
+             })?;
+-            let mut model = load_from_xlsx(path_text, "en", "UTC", "en").map_err(|error| {
+-                SidecarError::Workbook(format!("Formula engine import failed: {error}"))
+-            })?;
++            let mut model = load_recalc_model(path, path_text)?;
+             pin_unparsable_formulas(&mut model);
+             ResidentModel {
+                 model,
+@@ -371,6 +374,217 @@
+     }
+ }
+ 
++/// IronCalc 0.7.1 rejects a few otherwise valid producer shapes: indentation
++/// text nodes between worksheet rows, a style table with no `cellStyles`
++/// entry, and `cellXfs` entries that omit their default `xfId`. The gateway
++/// must retain the source archive exactly, so only a throwaway archive used
++/// for the resident model is normalized here.
++fn load_recalc_model(path: &Path, path_text: &str) -> Result<Model<'static>, SidecarError> {
++    // Excel-produced workbooks import as they are; the compatibility rewrite is
++    // a fallback so the common path keeps one import and no extra archive.
++    let direct = catch_unwind(AssertUnwindSafe(|| {
++        load_from_xlsx(path_text, "en", "UTC", "en")
++    }));
++    // A rejection is not only an Err: IronCalc's strict importer can PANIC on
++    // the same producer shapes (its own note above names missing cellStyles
++    // and whitespace nodes). Contain that panic here and treat it as a
++    // rejection, so the compatibility rewrite below — the only thing that can
++    // read those shapes — still runs. Retaining the payload means a workbook
++    // the rewrite cannot help still surfaces the importer's own failure.
++    let mut direct_panic = None;
++    match direct {
++        Ok(Ok(model)) => return Ok(model),
++        Ok(Err(_)) => {}
++        Err(panic) => direct_panic = Some(panic),
++    }
++    let normalized = normalize_for_ironcalc(path)?;
++    let Some(normalized) = normalized else {
++        if let Some(panic) = direct_panic {
++            std::panic::resume_unwind(panic);
++        }
++        return Err(SidecarError::Workbook(
++            "Formula engine import failed: no compatible representation.".into(),
++        ));
++    };
++    let import_path = normalized
++        .to_str()
++        .unwrap_or(path_text);
++    let imported = catch_unwind(AssertUnwindSafe(|| {
++        load_from_xlsx(import_path, "en", "UTC", "en")
++    }));
++    let _ = std::fs::remove_file(&normalized);
++    match imported {
++        Ok(result) => result.map_err(|error| {
++            SidecarError::Workbook(format!("Formula engine import failed: {error}"))
++        }),
++        Err(panic) => std::panic::resume_unwind(panic),
++    }
++}
++
++fn normalize_for_ironcalc(path: &Path) -> Result<Option<PathBuf>, SidecarError> {
++    let mut archive = ZipArchive::new(File::open(path)?)?;
++    let mut replacements: HashMap<usize, Vec<u8>> = HashMap::new();
++    for index in 0..archive.len() {
++        let (name, bytes) = {
++            let mut entry = archive.by_index(index)?;
++            let name = entry.name().to_owned();
++            let is_worksheet = name.starts_with("xl/worksheets/") && name.ends_with(".xml");
++            if !is_worksheet && name != "xl/styles.xml" {
++                continue;
++            }
++            let mut bytes = Vec::new();
++            entry.read_to_end(&mut bytes)?;
++            (name, bytes)
++        };
++        let replacement = if name == "xl/styles.xml" {
++            normalize_styles_xml(&bytes)
++        } else {
++            compact_sheet_data_xml(&bytes)
++        };
++        if replacement != bytes {
++            replacements.insert(index, replacement);
++        }
++    }
++    if replacements.is_empty() {
++        return Ok(None);
++    }
++
++    let target = std::env::temp_dir().join(format!("genspark-ai-recalc-{}.xlsx", Uuid::new_v4()));
++    let mut writer = ZipWriter::new(File::create(&target)?);
++    for index in 0..archive.len() {
++        let name = archive.by_index(index)?.name().to_owned();
++        if let Some(bytes) = replacements.get(&index) {
++            let options = SimpleFileOptions::default()
++                .compression_method(CompressionMethod::Deflated)
++                .large_file(bytes.len() as u64 >= u64::from(u32::MAX));
++            writer.start_file(name, options)?;
++            writer.write_all(bytes)?;
++        } else {
++            writer.raw_copy_file_rename(archive.by_index_raw(index)?, &name)?;
++        }
++    }
++    writer.finish()?.sync_all()?;
++    Ok(Some(target))
++}
++
++/// Drop only indentation nodes inside `<sheetData>`, retaining literal spaces
++/// in inline and shared strings. IronCalc otherwise reads an indentation node
++/// as a row and rejects it because it carries no `r` attribute.
++fn compact_sheet_data_xml(source: &[u8]) -> Vec<u8> {
++    let Ok(source) = std::str::from_utf8(source) else {
++        return source.to_vec();
++    };
++    let mut output = String::with_capacity(source.len());
++    let mut cursor = 0;
++    let mut in_sheet_data = false;
++    let mut text_depth = 0usize;
++    while cursor < source.len() {
++        let Some(offset) = source[cursor..].find('<') else {
++            output.push_str(&source[cursor..]);
++            break;
++        };
++        let tag_start = cursor + offset;
++        let text = &source[cursor..tag_start];
++        if !in_sheet_data || text_depth > 0 || !text.chars().all(char::is_whitespace) {
++            output.push_str(text);
++        }
++        let Some(end_offset) = source[tag_start..].find('>') else {
++            output.push_str(&source[tag_start..]);
++            break;
++        };
++        let tag_end = tag_start + end_offset;
++        let tag = &source[tag_start..=tag_end];
++        output.push_str(tag);
++        let body = tag[1..tag.len() - 1].trim();
++        if let Some(name) = body.strip_prefix('/') {
++            let name = name.trim();
++            if name == "t" && text_depth > 0 {
++                text_depth -= 1;
++            }
++            if name == "sheetData" {
++                in_sheet_data = false;
++            }
++        } else if !body.starts_with(['?', '!']) && !body.ends_with('/') {
++            let name_end = body
++                .find(|ch: char| ch.is_whitespace() || ch == '/')
++                .unwrap_or(body.len());
++            match &body[..name_end] {
++                "sheetData" => in_sheet_data = true,
++                "t" if in_sheet_data => text_depth += 1,
++                _ => {}
++            }
++        }
++        cursor = tag_end + 1;
++    }
++    output.into_bytes()
++}
++
++fn normalize_styles_xml(source: &[u8]) -> Vec<u8> {
++    let mut normalized = match std::str::from_utf8(source) {
++        Ok(text) => text.to_owned(),
++        Err(_) => return source.to_vec(),
++    };
++    if !normalized.contains("<cellStyles") {
++        let Some(index) = normalized.find("<cellXfs") else {
++            return normalized.into_bytes();
++        };
++        normalized.insert_str(
++            index,
++            "<cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles>",
++        );
++    }
++    let Some(start) = normalized.find("<cellXfs") else {
++        return normalized.into_bytes();
++    };
++    let Some(open_end) = normalized[start..].find('>') else {
++        return normalized.into_bytes();
++    };
++    let content_start = start + open_end + 1;
++    let Some(close_offset) = normalized[content_start..].find("</cellXfs>") else {
++        return normalized.into_bytes();
++    };
++    let content_end = content_start + close_offset;
++    let cell_xfs = normalize_cell_xfs(&normalized[content_start..content_end]);
++    normalized.replace_range(content_start..content_end, &cell_xfs);
++    normalized.into_bytes()
++}
++
++fn normalize_cell_xfs(source: &str) -> String {
++    let mut output = String::with_capacity(source.len());
++    let mut cursor = 0;
++    while let Some(offset) = source[cursor..].find("<xf") {
++        let start = cursor + offset;
++        output.push_str(&source[cursor..start]);
++        let next = source.as_bytes().get(start + 3).copied();
++        if !matches!(
++            next,
++            Some(b'>') | Some(b'/') | Some(b' ') | Some(b'\t') | Some(b'\n') | Some(b'\r')
++        ) {
++            output.push_str("<xf");
++            cursor = start + 3;
++            continue;
++        }
++        let Some(end_offset) = source[start..].find('>') else {
++            output.push_str(&source[start..]);
++            break;
++        };
++        let end = start + end_offset;
++        let tag = &source[start..=end];
++        if tag.contains("xfId=") {
++            output.push_str(tag);
++        } else if let Some(slash) = tag.rfind("/>") {
++            output.push_str(&tag[..slash]);
++            output.push_str(" xfId=\"0\"/>");
++        } else {
++            output.push_str(&tag[..tag.len() - 1]);
++            output.push_str(" xfId=\"0\">");
++        }
++        cursor = end + 1;
++    }
++    output.push_str(&source[cursor..]);
++    output
++}
++
+ fn sheet_index(model: &Model, name: &str) -> Result<u32, SidecarError> {
+     model
+         .workbook
+@@ -423,6 +637,167 @@
+         }
+     }
+ 
++    /// An IronCalc-rejected package: indentation inside `sheetData`, no
++    /// `cellStyles`, and `cellXfs` entries without `xfId`.
++    fn write_indented_fixture(path: &Path) {
++        use std::io::Write as _;
++        use zip::write::SimpleFileOptions;
++        use zip::{CompressionMethod, ZipWriter};
++
++        let file = std::fs::File::create(path).unwrap();
++        let mut writer = ZipWriter::new(file);
++        let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
++        let parts: [(&str, &str); 6] = [
++            (
++                "[Content_Types].xml",
++                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">\n  <Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>\n  <Default Extension=\"xml\" ContentType=\"application/xml\"/>\n  <Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/>\n  <Override PartName=\"/xl/worksheets/sheet1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>\n  <Override PartName=\"/xl/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml\"/>\n</Types>",
++            ),
++            (
++                "_rels/.rels",
++                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">\n  <Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/>\n</Relationships>",
++            ),
++            (
++                "xl/_rels/workbook.xml.rels",
++                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">\n  <Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/>\n  <Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/>\n</Relationships>",
++            ),
++            (
++                "xl/worksheets/sheet1.xml",
++                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">\n  <sheetData>\n    <row r=\"1\"><c r=\"A1\"><v>10</v></c><c r=\"B1\" t=\"inlineStr\"><is><t xml:space=\"preserve\">  keep  </t></is></c></row>\n    <row r=\"2\"><c r=\"A2\"><v>20</v></c></row>\n    <row r=\"3\"><c r=\"A3\"><f>SUM(A1:A2)</f><v>30</v></c></row>\n  </sheetData>\n</worksheet>",
++            ),
++            (
++                "xl/styles.xml",
++                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">\n  <fonts count=\"2\"><font/><font><b/></font></fonts><fills count=\"1\"><fill/></fills><borders count=\"1\"><border/></borders>\n  <cellStyleXfs count=\"1\"><xf/></cellStyleXfs><cellXfs count=\"2\"><xf/><xf fontId=\"1\" applyFont=\"1\"/></cellXfs>\n</styleSheet>",
++            ),
++            (
++                "xl/workbook.xml",
++                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">\n  <sheets><sheet name=\"Sheet1\" sheetId=\"1\" r:id=\"rId1\"/></sheets>\n</workbook>",
++            ),
++        ];
++        for (name, body) in parts {
++            writer.start_file(name, options).unwrap();
++            writer.write_all(body.as_bytes()).unwrap();
++        }
++        writer.finish().unwrap();
++    }
++
++    #[test]
++    fn recalculates_a_package_ironcalc_itself_refuses() {
++        let dir = tempfile::tempdir().unwrap();
++        let path = dir.path().join("indented.xlsx");
++        write_indented_fixture(&path);
++        // The raw bytes are the shape IronCalc 0.7.1 errors on; the fallback
++        // keeps recalculation working without touching the source package.
++        let raw = std::fs::read(&path).unwrap();
++        let mut cache = RecalcCache::new();
++        let result =
++            recalc_cells(&mut cache, &path, &[edit("A1", "100")], &[read_a1_a3()]).unwrap();
++        let sum = result.cells.iter().find(|cell| cell.row == 2).unwrap();
++        assert_eq!(sum.formatted, "120");
++        assert!(sum.is_formula);
++        assert_eq!(std::fs::read(&path).unwrap(), raw);
++    }
++
++    /// A compact (single-line) package with no `cellStyles` and `cellXfs`
++    /// entries missing `xfId`: the producer shape IronCalc only REJECTS by
++    /// panicking, with no indentation text nodes to fail as an Err first.
++    fn write_compact_refused_fixture(path: &Path) {
++        use std::io::Write as _;
++        use zip::write::SimpleFileOptions;
++        use zip::{CompressionMethod, ZipWriter};
++
++        let file = std::fs::File::create(path).unwrap();
++        let mut writer = ZipWriter::new(file);
++        let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
++        let parts: [(&str, &str); 6] = [
++            (
++                "[Content_Types].xml",
++                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">\n  <Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>\n  <Default Extension=\"xml\" ContentType=\"application/xml\"/>\n  <Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/>\n  <Override PartName=\"/xl/worksheets/sheet1.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>\n  <Override PartName=\"/xl/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml\"/>\n</Types>",
++            ),
++            (
++                "_rels/.rels",
++                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">\n  <Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument\" Target=\"xl/workbook.xml\"/>\n</Relationships>",
++            ),
++            (
++                "xl/_rels/workbook.xml.rels",
++                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">\n  <Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet1.xml\"/>\n  <Relationship Id=\"rId2\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/>\n</Relationships>",
++            ),
++            (
++                "xl/worksheets/sheet1.xml",
++                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData><row r=\"1\"><c r=\"A1\"><v>10</v></c></row><row r=\"2\"><c r=\"A2\"><v>20</v></c></row><row r=\"3\"><c r=\"A3\"><f>SUM(A1:A2)</f><v>30</v></c></row></sheetData></worksheet>",
++            ),
++            (
++                "xl/styles.xml",
++                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><fonts count=\"2\"><font/><font><b/></font></fonts><fills count=\"1\"><fill/></fills><borders count=\"1\"><border/></borders><cellStyleXfs count=\"1\"><xf/></cellStyleXfs><cellXfs count=\"2\"><xf/><xf fontId=\"1\" applyFont=\"1\"/></cellXfs></styleSheet>",
++            ),
++            (
++                "xl/workbook.xml",
++                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">\n  <sheets><sheet name=\"Sheet1\" sheetId=\"1\" r:id=\"rId1\"/></sheets>\n</workbook>",
++            ),
++        ];
++        for (name, body) in parts {
++            writer.start_file(name, options).unwrap();
++            writer.write_all(body.as_bytes()).unwrap();
++        }
++        writer.finish().unwrap();
++    }
++
++    #[test]
++    fn a_first_import_panic_still_reaches_the_compatibility_rewrite() {
++        let dir = tempfile::tempdir().unwrap();
++        let path = dir.path().join("compact-refused.xlsx");
++        write_compact_refused_fixture(&path);
++        let raw = std::fs::read(&path).unwrap();
++        // Precondition: this shape makes the importer PANIC, so the test
++        // cannot silently pass through the Err branch instead.
++        let direct = catch_unwind(AssertUnwindSafe(|| {
++            let _ = load_from_xlsx(path.to_str().unwrap(), "en", "UTC", "en");
++        }));
++        assert!(
++            direct.is_err(),
++            "the fixture must exercise the panic path, not a plain rejection"
++        );
++        // The compatibility rewrite must still make it recalculate, and the
++        // source package must stay byte-identical.
++        let mut cache = RecalcCache::new();
++        let result =
++            recalc_cells(&mut cache, &path, &[edit("A1", "100")], &[read_a1_a3()]).unwrap();
++        let sum = result.cells.iter().find(|cell| cell.row == 2).unwrap();
++        assert_eq!(sum.formatted, "120");
++        assert!(sum.is_formula);
++        assert_eq!(std::fs::read(&path).unwrap(), raw);
++    }
++
++    #[test]
++    fn compacts_only_indentation_outside_string_text() {
++        let source = b"<worksheet><sheetData>\n  <row r=\"1\">\n    <c r=\"A1\" t=\"inlineStr\"><is><t xml:space=\"preserve\">  a  b  </t></is></c>\n  </row>\n</sheetData>\n<other>\n</other></worksheet>";
++        let compacted = String::from_utf8(compact_sheet_data_xml(source)).unwrap();
++        assert_eq!(
++            compacted,
++            "<worksheet><sheetData><row r=\"1\"><c r=\"A1\" t=\"inlineStr\"><is><t xml:space=\"preserve\">  a  b  </t></is></c></row></sheetData>\n<other>\n</other></worksheet>"
++        );
++    }
++
++    #[test]
++    fn completes_the_style_table_ironcalc_requires() {
++        let source = b"<styleSheet><cellStyleXfs count=\"1\"><xf/></cellStyleXfs><cellXfs count=\"2\"><xf/><xf fontId=\"1\" applyFont=\"1\"/></cellXfs></styleSheet>";
++        let normalized = String::from_utf8(normalize_styles_xml(source)).unwrap();
++        assert!(normalized.contains("<cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles>"));
++        assert!(normalized.contains("<xf xfId=\"0\"/>"));
++        assert!(normalized.contains("<xf fontId=\"1\" applyFont=\"1\" xfId=\"0\"/>"));
++        // A style table that already satisfies IronCalc is left byte-identical.
++        let complete = b"<styleSheet><cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs><cellXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\"/></cellXfs><cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles></styleSheet>";
++        assert_eq!(normalize_styles_xml(complete), complete.to_vec());
++    }
++
++    #[test]
++    fn leaves_an_importable_package_untouched() {
++        let dir = tempfile::tempdir().unwrap();
++        let path = dir.path().join("plain.xlsx");
++        fixture(&path);
++        // An Excel-shaped package needs no normalization at all.
++        assert!(normalize_for_ironcalc(&path).unwrap().is_none());
++    }
++
+     fn read_a1_a3() -> RecalcRead {
+         RecalcRead {
+             sheet: "Sheet1".into(),
