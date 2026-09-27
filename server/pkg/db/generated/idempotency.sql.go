@@ -133,7 +133,7 @@ type InsertIdempotencyKeyParams struct {
 }
 
 // payload_fingerprint is NULL for the legacy callers that bind no payload
-// (DOC-005 §3.1; migration 999).
+// (DOC-005 §3.1; migration 9991790519637301).
 func (q *Queries) InsertIdempotencyKey(ctx context.Context, arg InsertIdempotencyKeyParams) (IdempotencyKey, error) {
 	row := q.db.QueryRow(ctx, insertIdempotencyKey,
 		arg.ID,

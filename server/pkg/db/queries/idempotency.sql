@@ -10,7 +10,7 @@ WHERE organization_id = sqlc.arg('organization_id')
   AND key = sqlc.arg('key');
 
 -- payload_fingerprint is NULL for the legacy callers that bind no payload
--- (DOC-005 §3.1; migration 999).
+-- (DOC-005 §3.1; migration 9991790519637301).
 -- name: InsertIdempotencyKey :one
 INSERT INTO idempotency_keys (
   id, organization_id, workspace_id, scope, key, actor_id, payload_fingerprint

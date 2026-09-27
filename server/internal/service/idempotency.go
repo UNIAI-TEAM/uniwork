@@ -176,7 +176,7 @@ func replayOrInFlight(row db.IdempotencyKey, actorID string, opts IdempotencyOpt
 		return nil, nil, coded(http.StatusConflict, "idempotency_key_reuse", "idempotency key đã được dùng bởi actor khác")
 	}
 	// A bound caller never replays a row it cannot prove is the same
-	// payload: NULL is "unknown" (rows from before migration 999 or from a
+	// payload: NULL is "unknown" (rows from before migration 9991790519637301 or from a
 	// legacy caller), not "matches".
 	if opts.Fingerprint != "" && (!row.PayloadFingerprint.Valid || row.PayloadFingerprint.String != opts.Fingerprint) {
 		return nil, nil, errIdempotencyPayloadMismatch()
