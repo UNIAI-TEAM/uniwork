@@ -11,9 +11,12 @@
 //   uniwork-fault:heap              grow the JS heap until the V8 cap
 //   uniwork-fault:temp <MiB>        fill the job temp dir, then wait
 //   uniwork-fault:grandchild <ms>   spawn a child process, record its pid, wait
-//   uniwork-fault:orphan            spawn a detached (setsid) child, record its
-//                                   pid, then finish normally - the worker exits
-//                                   while the child lives on
+//   uniwork-fault:orphan            double fork: an intermediate process starts a
+//                                   detached (setsid) child and exits, so the
+//                                   child leaves the worker's tree and process
+//                                   group; its pid is recorded and the job
+//                                   finishes normally
+//   uniwork-fault:code <code>       report a failure with that engine code
 //   uniwork-fault:crash             kill the worker process
 //   uniwork-fault:output <MiB>      write an output of that size
 
@@ -67,11 +70,22 @@ export async function runFault(head: string, message: RunMessage): Promise<Handl
       return null;
     }
     case "orphan": {
-      const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore", detached: true, windowsHide: true });
-      child.unref();
-      await writeFile(join(message.tempDir, "..", "orphan-" + String(child.pid) + ".pid"), String(child.pid));
+      // The intermediate prints the orphan's pid and exits; only the job tag
+      // in the orphan's environment still links it to this job.
+      const script =
+        "const c=require('node:child_process').spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore',detached:true,windowsHide:true});" +
+        "c.unref();process.stdout.write(String(c.pid));";
+      const pid = await new Promise<string>((resolve) => {
+        const mid = spawn(process.execPath, ["-e", script], { stdio: ["ignore", "pipe", "ignore"], windowsHide: true });
+        let out = "";
+        mid.stdout.on("data", (d: Buffer) => (out += d.toString()));
+        mid.on("exit", () => resolve(out.trim()));
+      });
+      await writeFile(join(message.tempDir, "..", "orphan-" + pid + ".pid"), pid);
       return null;
     }
+    case "code":
+      return { ok: false, code: rawArg ?? "", reason: "fault" };
     case "crash":
       process.kill(process.pid, "SIGKILL");
       await sleep(60_000);

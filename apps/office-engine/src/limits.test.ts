@@ -100,6 +100,12 @@ describe("per-job limits", () => {
     expect(h.service.jobs.get(job.grant.job_id)).toBeUndefined();
   });
 
+  it("a worker cannot claim a code outside the handler allow-list", async () => {
+    const { done } = await runFault("code grant_expired");
+    expect(done.body.state).toBe("failed");
+    expect(done.body.error).toMatchObject({ code: "engine_result_invalid", reason: "fault" });
+  });
+
   it("crash: a worker that dies is reported crashed, not completed", async () => {
     const { done } = await runFault("crash");
     expect(done.body.state).toBe("crashed");

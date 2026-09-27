@@ -41,9 +41,11 @@ services:
     ports: ["127.0.0.1:${OFFICE_ENGINE_PORT:-8090}:8090"]
     # Read-only root: a worker can write only the tmpfs that holds the job
     # temp dirs, and the tmpfs size caps what all jobs together can leave.
+    # tmpfs pages count against mem_limit: 512m tmpfs (2 workers x 256 MiB
+    # temp) + 2 x 512 MiB job RSS + the service itself stays under 2g.
     read_only: true
     tmpfs:
-      - /tmp:size=1g,mode=1777
+      - /tmp:size=512m,mode=1777
     # Container ceiling above the per-job limits (defence in depth).
     mem_limit: 2g
     cpus: 2
