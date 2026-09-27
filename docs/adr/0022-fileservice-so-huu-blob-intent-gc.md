@@ -1,13 +1,12 @@
 # 0022 — FileService sở hữu byte, ý định upload và dọn rác của Documents; Documents chỉ giữ `file_id`
 
-**Trạng thái:** proposed (2026-09-26) — chờ người dùng quyết (U-2 trong plan G1-G2). Khi được chấp nhận: thay phần
-"Go sở hữu … sổ object mồ côi" trong Quyết định 3 của [0021](../0021-runtime-engine-office-da-dinh-dang.md); phần
-còn lại của 0021 giữ nguyên.
+**Trạng thái:** accepted (2026-09-27, người dùng chấp nhận U-2 trong plan G1-G2) — thay phần "Go sở hữu … sổ object
+mồ côi" trong Quyết định 3 của [0021](0021-runtime-engine-office-da-dinh-dang.md); phần còn lại của 0021 giữ nguyên.
 **Issue:** UNI-657 (G1) · **Liên quan:** UNI-658 (G2), UNI-726/UNI-739 (FileService, FS-C1), UNI-748 (G0 chuyển sang
 FileService), UNI-668 (DOC-004).
-**Nguồn:** [hợp đồng FS-C1](../../superpowers/specs/2026-09-24-file-service-contract.md) §4-§7;
-[spec FileService](../../superpowers/specs/2026-09-22-shared-file-service-design.md) §12-§14;
-[plan G1-G2](../../superpowers/plans/2026-09-18-documents-office-g1-g2.md) §3.1, G1-03, G1-04.
+**Nguồn:** [hợp đồng FS-C1](../superpowers/specs/2026-09-24-file-service-contract.md) §4-§7;
+[spec FileService](../superpowers/specs/2026-09-22-shared-file-service-design.md) §12-§14;
+[plan G1-G2](../superpowers/plans/2026-09-18-documents-office-g1-g2.md) §3.1, G1-03, G1-04.
 
 ---
 
@@ -97,20 +96,23 @@ Documents gọi `files.Service.Open` sau khi kiểm quyền; không presign byte
 - Nếu ADR chung của FileService (spec FileService §12 mục 1) ra sau và bao trùm quyết định này, ADR này được đánh dấu
   `superseded by NNNN`, không viết lại.
 
-## Test giữ luật (đề xuất; tên chốt khi G1 land)
+## Test giữ luật
 
-- `server/internal/arch_test.go`: code Documents không import `internal/storage`; chỉ `internal/service` gọi
-  `files.Service` (luật FS-C1 T1a).
+Đã có (land cùng FileService, PR #133):
+
+- `TestFilesContractIsALeafCalledOnlyFromTheServiceTier` (`server/internal/arch_test.go`): chỉ `internal/service` gọi
+  `files.Service`; `internal/files` là lá.
+- `TestEveryFileIDColumnHasAReferenceSource` (`server/internal/service/file_references_test.go`): mọi cột `file_id` có
+  nguồn tham chiếu và provider.
+
+Đề xuất, tên chốt khi G1 land:
 - Migration lint hoặc test schema: không bảng nghiệp vụ Documents nào có cột `object_key`/`bucket`/URL.
 - Test G1-03: purpose Documents bị registry thật từ chối khi thiếu `ReferenceProvider`; GC không xóa byte của phiên bản
   cũ, tài liệu archive chưa purge và asset còn trong thời gian giữ.
 
-Các guard này chưa tồn tại; đến khi có, ADR này (dù được chấp nhận) không thêm luật vào `CLAUDE.md`, cùng cách xử lý
-với 0008/0010/0021.
+Khi hai guard đề xuất có tên, thêm luật vào `CLAUDE.md` trỏ tới cả bốn test (cùng cách xử lý với 0008/0010/0021).
 
 ## Trạng thái
 
-`proposed` (2026-09-26), nằm trong `docs/adr/drafts/` và không được governance test đếm. Số 0022 là số dự kiến; nếu
-đến lúc chấp nhận số này đã có ADR khác dùng, đổi sang số trống kế tiếp. Khi người dùng chấp nhận: chuyển ra
-`docs/adr/`, đổi trạng thái `accepted`, thêm dòng chỉ mục vào `docs/adr/README.md`, và ghi `ADR 0022` vào bảng quyết
-định của plan G1-G2 (U-2).
+`accepted` (2026-09-27). Đề xuất ngày 2026-09-26 ở `docs/adr/drafts/`; người dùng chấp nhận U-2 ngày 2026-09-27. ADR chung
+của FileService lấy số 0023 và giữ phạm vi riêng (tenant file, ngoại lệ avatar).

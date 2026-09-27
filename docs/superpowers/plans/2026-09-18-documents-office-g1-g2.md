@@ -5,6 +5,7 @@
 > **Cập nhật 2026-09-22:** bổ sung nhóm FE/BE/Engine/QA/DevOps, đợt chạy song song và hợp đồng bàn giao; chưa khởi chạy implementation.
 > **Cập nhật 2026-09-24:** Documents lưu bytes qua FileService (UNI-726) theo hợp đồng FS-C1: bỏ ledger `document_objects` riêng, version/asset giữ `file_id`, cleanup chỉ qua FileService. G1-03 code bằng fake từ Gate A0 của FileService, không chờ FileService implement xong; chỉ nghiệm thu H1 chờ FileService Gate C.
 > **Cập nhật 2026-09-26 (sau G0 = GO):** baseline chuyển sang develop `c6b567f0` (PR #130 đã merge G0), migration mới nhất 217; tick H0 theo bằng chứng (§1.2); layout package là quyết định chờ người dùng U-1 (§1.3, §3.2); bổ sung các việc G2 còn thiếu (Q7, P3/P5, `host:slides-edit-transform`, guard test ADR 0021, clean build, đo tài nguyên); thống nhất tên lỗi idempotency và hình dạng API save; ước lượng đối chiếu với `m1-m2-estimate.md` (§8.4). Vẫn chưa khởi chạy implementation.
+> **Cập nhật 2026-09-27:** người dùng trả lời U-1..U-4 (cả bốn theo khuyến nghị, §1.3) và ra lệnh triển khai; FileService (PR #133) đã merge vào nhánh gốc ở `0fba24a0`. ADR 0022 accepted, C-01 §14 có hiệu lực.
 
 **Issue tài liệu:** UNI-657. **Roadmap:** C-01, phase C.
 **Nhóm triển khai:** G1 UNI-657 và G2 UNI-658, cùng parent UNI-437.
@@ -37,7 +38,7 @@ service/engine thật.
   (`217_email_hub_threads_conversation_key_idx`); số 159-179 trong C-01 đã bị dùng.
   Bản plan trước đo ở develop `97b4fa59` (migration 192).
 - Spec nghiệp vụ: [C-01 Documents](../specs/2026-09-08-documents-design.md),
-  đặc biệt §13 về Work Product và §14 (amendment theo FS-C1, chờ người dùng duyệt).
+  đặc biệt §13 về Work Product và §14 (amendment theo FS-C1, người dùng duyệt 2026-09-27).
 - Checklist phạm vi: DOCUMENTS_OFFICE_CHECKLIST.md tại workspace tổng,
   DOC-010..019 và DOC-020..025.
 - Đầu vào G0 (đã merge ở `c6b567f0`): spec G0/FE ngày 2026-09-16; source/capability/
@@ -52,7 +53,7 @@ service/engine thật.
 - FileService: [spec](../specs/2026-09-22-shared-file-service-design.md),
   [plan](2026-09-22-shared-file-service.md) và [hợp đồng FS-C1](../specs/2026-09-24-file-service-contract.md)
   (UNI-726). Documents là một bên tiêu thụ; plan này không tự dựng pipeline file.
-  Quyền sở hữu blob/intent/GC được ghi trong ADR 0022 (đề xuất, `docs/adr/drafts/`).
+  Quyền sở hữu blob/intent/GC được ghi trong ADR 0022 (accepted 2026-09-27).
   Tại baseline, develop **chưa** có `server/internal/files`: code FS-C1 T1a (UNI-739)
   nằm trên nhánh `feature/UNI-739-fs-c1-contract` (đầu nhánh `5fececa8` lúc đọc ngày
   2026-09-26, chưa phải bản cuối). Theo Advisor FileService, T1a merge cục bộ vào
@@ -86,14 +87,12 @@ vẫn kiểm được.
 - [x] Có fixture và bảng capability bắt buộc cho sáu định dạng; runtime mỗi thao tác
   là proven (sáu hàng `E-*-CYCLE`) hoặc blocker kèm tên test:
   `fixtures/manifest.json`, `capabilities.json`, `capability-matrix.md`, `module-runtime-map.json`, ADR 0021.
-- [ ] G0 hoàn tất thay thế các mệnh đề cũ trái phạm vi mới trong C-01/ADR. **Một phần:**
-  ADR 0021 đã thay 0018 và C-01 đã có luật HTML (2026-09-25). Còn lại: C-01 vẫn ghi
-  `object_key`, presign 302 và purger tự xóa object, trái FS-C1; ADR 0021 QĐ3 vẫn giao
-  "sổ object mồ côi" cho Go. Hai bản sửa đã viết và chờ người dùng: C-01 §14 (U-3) và
-  ADR 0022 (U-2). Plan này không tự đổi ADR từ proposed sang accepted.
-- [ ] G0 docs khớp FS-C1 (phần tài liệu của UNI-748): ghi chú bổ sung
-  [`docs/office/g1g2/fs-c1-alignment.md`](../../office/g1g2/fs-c1-alignment.md) thay
-  "orphan ledger + reconciler" bằng FileService. Tick khi ADR 0022 được chấp nhận.
+- [x] G0 hoàn tất thay thế các mệnh đề cũ trái phạm vi mới trong C-01/ADR: ADR 0021 thay 0018;
+  C-01 có luật HTML (2026-09-25) và §14 theo FS-C1 (người dùng duyệt U-3, 2026-09-27); ADR 0022
+  thay phần "sổ object mồ côi" của ADR 0021 QĐ3 (người dùng chấp nhận U-2, 2026-09-27).
+- [x] G0 docs khớp FS-C1 (phần tài liệu của UNI-748): UNI-748 (PR #133, merge vào nhánh này ở
+  `0fba24a0`) sửa `engine-contract.md` §1/§8.3/§8.4/§11/§13 và `login-sync-contract.md`; ghi chú
+  [`docs/office/g1g2/fs-c1-alignment.md`](../../office/g1g2/fs-c1-alignment.md) phủ phần còn lại.
 - Điều kiện theo từng task, không tick ở H0: người thực thi đọc issue/comments, gửi
   start qua coordinator rồi dùng nhánh issue từ develop đã chứa dependency được chấp nhận.
 
@@ -102,7 +101,7 @@ Capability bắt buộc chưa có runtime là blocker của đúng task, không 
 G0 = GO là quyết định khả thi, không phải nghiệm thu pilot: Q1-B là 0/95 trên web và
 desktop, và register vẫn liệt kê các giới hạn ở `decision.limits` / `unproven` (§1.4).
 
-### 1.3 Quyết định chờ người dùng trước khi mở task
+### 1.3 Quyết định của người dùng (đã trả lời 2026-09-27)
 
 | Mã | Quyết định | Khuyến nghị | Chặn task |
 | --- | --- | --- | --- |
@@ -111,8 +110,8 @@ desktop, và register vẫn liệt kê các giới hạn ở `decision.limits` /
 | U-3 | Duyệt amendment C-01 §14: `file_id`, đọc bằng proxy, `ReleaseInTx`, cột còn thiếu, bảng lỗi DOC-005, một hình dạng API save | Duyệt | G1-01, G1-03, G1-05 |
 | U-4 | Codec ảnh cho PDF trên web: codec Node an toàn ở G2-05, hay để host desktop (G4) và web từ chối thao tác sửa ảnh có sẵn | Codec Node ở G2-05 (giữ capability web theo Q1-B) | G2-05 |
 
-Chưa có câu trả lời thì task bị chặn giữ nguyên `todo`; phần không phụ thuộc vẫn chuẩn bị được
-(ví dụ G1-02a không cần U-1..U-4).
+**Trả lời của người dùng ngày 2026-09-27, cả bốn theo khuyến nghị:** U-1 giữ layout của plan (§3.2);
+U-2 chấp nhận ADR 0022; U-3 duyệt C-01 §14; U-4 codec Node ở G2-05. Không còn task nào bị chặn bởi U-1..U-4.
 
 ### 1.4 Giới hạn G0 còn mở và chủ của chúng
 
@@ -388,7 +387,7 @@ không mặc định H1 tối thiểu đã hoàn thành toàn bộ hợp đồng
 | Full Work Product chưa có | OwnerLevelResolver trả none mặc định; API công khai không nhận owner_kind/owner_id |
 | G0 engine host/model là mã lab | Port phần đã review sang module sản phẩm, bỏ fake success; runtime test mới quyết acceptance |
 | G0 có hai tên cho cùng lỗi "cùng key, khác payload": `payload_fingerprint_mismatch` (engine-contract) và `idempotency_payload_mismatch` (DOC-005 §3.1, §4) | Dùng một tên `idempotency_payload_mismatch` (409, `conflict`) theo DOC-005; G1-03 hợp nhất trong cùng PR migration fingerprint (engine-contract §13 bước 2) |
-| Ba hình dạng API save: DOC-005 §3 (uploads rồi commit), C-01 §5.2 (`versions/file` multipart), plan cũ (multipart + commit nội bộ) | Một hình dạng theo C-01 §14 (chờ U-3): `POST /documents/{id}/uploads` trả `upload_id` = `file_id` của FileService, rồi `POST /documents/{id}/versions/commit`; tạo tài liệu file mới vẫn là một multipart. G1-05 chốt, không mở đường thứ hai |
+| Ba hình dạng API save: DOC-005 §3 (uploads rồi commit), C-01 §5.2 (`versions/file` multipart), plan cũ (multipart + commit nội bộ) | Một hình dạng theo C-01 §14 (U-3 duyệt 2026-09-27): `POST /documents/{id}/uploads` trả `upload_id` = `file_id` của FileService, rồi `POST /documents/{id}/versions/commit`; tạo tài liệu file mới vẫn là một multipart. G1-05 chốt, không mở đường thứ hai |
 | Trường lớp lỗi: DOC-005/C-01 viết `errorClass`, plan viết `error_class` | Trên wire là `error.error_class` (snake_case theo `docs/conventions.md`); `errorClass` trong DOC-005 là tên trong model JS. C-01 §14 ghi lại |
 | C-01 tải về bằng presign 302 | Documents đọc bằng proxy qua `files.Service.Open` (policy purpose FS-C1 §3); không presign cho byte tài liệu |
 
@@ -410,7 +409,7 @@ sử spec. Không dùng plan để nhận một capability G0 chưa chứng minh
 | apps/office-engine | Node service nội bộ và supervisor cho native process |
 | apps/web/platform/office | Browser worker/transport adapter; G3 tiêu thụ qua injection |
 
-**Layout là quyết định U-1, chưa chốt.** G0 đề xuất một layout khác
+**Layout đã chốt: người dùng chọn layout của plan (U-1, 2026-09-27).** G0 đề xuất một layout khác
 (`engine-contract.md` §15, `module-runtime-map.json` → `g1_g2_handoff`). Hai bên:
 
 | Thành phần | Plan (bảng trên) | Đề xuất G0 |
@@ -493,7 +492,7 @@ Migration comments/favorites do G1-07 hoàn thiện nhưng số và owner nằm 
 - [ ] Thêm metadata engine/protocol, source_document_id/source_version_id,
   source_revision, conversion reason và acl_owner_id. Public create không nhận
   owner hoặc acl_owner; service tự gán và kiểm cùng organization/workspace.
-  Danh sách cột đầy đủ ở C-01 §14 (chờ U-3): `document_versions.engine_name/engine_version/
+  Danh sách cột đầy đủ ở C-01 §14 (U-3 duyệt 2026-09-27): `document_versions.engine_name/engine_version/
   contract_version/protocol_version`; provenance bản sao Q7 theo DOC-005 §7.1
   (`source_document_id`, `source_version_id`, `source_revision`, `source_format`,
   `source_engine`, `target_format`, `source_checksum_sha256`); `documents.acl_owner_id`;
@@ -564,7 +563,11 @@ bytes/history/assets/search; public revoke và owned constraints có test thật
 bằng `filesfake`; FileService Gate C để nghiệm thu với storage thật.
 Gate A0 = T1a của UNI-739 đã merge vào develop. Ngày 2026-09-26 T1a mới ở nhánh
 `feature/UNI-739-fs-c1-contract` (chưa phải bản cuối), develop chưa có `server/internal/files`:
-G1-03 chưa mở code được, trong khi G1-01 và G1-02a vẫn làm được. Cần thêm U-2 và U-3.
+G1-03 chưa mở code được, trong khi G1-01 và G1-02a vẫn làm được.
+**Cập nhật 2026-09-27:** FileService (PR #133, CI xanh, chờ lead merge vào develop) đã merge vào nhánh gốc
+G1-G2 ở `0fba24a0`: `server/internal/files`, `filesfake`/`filescontract` và `service.FileService` thật có trên
+nhánh này, nên G1-03 code và chạy test FileService thật được ngay trên nhánh gốc. Khi #133 vào develop thì
+merge develop. U-2 và U-3 đã được duyệt.
 **Đây là dependency chính của G2.**
 
 **Tạo:** service/document_files.go, document_commit.go, document_references.go
@@ -685,7 +688,7 @@ permissions/paths/feature-flags/realtime/types exports và package exports.
 - [ ] 05a: register flag documents mặc định false; create/get/update page,
   upload/download, assets, uploads + versions/commit, version list/create/restore. Auth actor do handler
   xây bằng service.Human, không lấy organization/workspace từ body để tin.
-- [ ] Một hình dạng save cho phiên bản file (C-01 §14, chờ U-3): `POST /documents/{id}/uploads`
+- [ ] Một hình dạng save cho phiên bản file (C-01 §14, U-3 duyệt 2026-09-27): `POST /documents/{id}/uploads`
   (multipart, stream vào `files.Service.Upload`, trả `upload_id` = `file_id`, checksum, hạn claim)
   rồi `POST /documents/{id}/versions/commit` `{upload_id, base_revision}` + `Idempotency-Key`.
   Không mở `versions/file` multipart song song; engine output (G2-02) đi cùng commit bằng `file_id`
@@ -1061,10 +1064,8 @@ asset loader và PDF fixtures/tests.
 - [ ] Wire text-edit/validate/verify/save pipeline thật; PDF input có text layer,
   annotation overlay không đáp ứng yêu cầu sửa nội dung.
 - [ ] Tách dependency Electron nativeImage bằng host image codec adapter.
-  **Chờ U-4:** ADR 0021 (sai khác 2) để mở "adapter decode an toàn cho Node (G2) hoặc host
-  desktop (G4)". Khuyến nghị: cung cấp codec Node đã test cho các thao tác ảnh bắt buộc trên
-  web, không hạ capability bắt buộc thành desktop-only để né dependency. Nếu người dùng chọn
-  host desktop, web trả refusal tường minh cho sửa ảnh có sẵn và ghi vào capability registry.
+  **U-4 (người dùng quyết 2026-09-27): codec Node ở G2-05.** Cung cấp codec Node đã test cho các
+  thao tác ảnh bắt buộc trên web; không hạ capability bắt buộc thành desktop-only để né dependency.
 - [ ] Thay kênh lab `pageImagePng` và build r7 cộng thêm bằng đường sản phẩm; đường
   annotation-delete (`excludeAnnots`) chạy end-to-end (register `decision.limits` nói cần build v3).
 - [ ] Đóng PDF HIGH F1 (sau save, tài liệu còn mở vẫn giữ nội dung trước khi sửa) và F2 (Save
@@ -1175,7 +1176,7 @@ actual engine evidence. Đạt G2 không đồng nghĩa pilot G7 đạt.
 ### 6.1 API G1 giao ở H1
 
 Tất cả đường dẫn có prefix /api/v1; tham số scope lấy từ authenticated context.
-Tên route đầy đủ và SDI/SDO theo C-01 §5 và §14 (amendment chờ U-3), với các bổ sung
+Tên route đầy đủ và SDI/SDO theo C-01 §5 và §14 (amendment U-3 duyệt 2026-09-27), với các bổ sung
 base/idempotency/error đã nêu trong plan.
 
 | Nhóm | API tối thiểu | Người dùng đầu tiên |
@@ -1386,7 +1387,7 @@ Sàn này **chưa gồm** ba phần mà DOC-006 không tách riêng cho G1/G2: (
 56 hàng capability bị chặn (R1, toàn M1 28 / 50,4 / 84 EW, chia G2/G3 chưa có tỷ lệ);
 (2) UI thư viện, comments, panels G1-06..08 (R2 là tích hợp editor từng định dạng, không phải
 thư viện); (3) phần Q7/Q8 của G1/G2 trong R9. R5 của DOC-006 còn tính "orphan ledger + reconciler";
-theo ADR 0022 (đề xuất) việc đó thuộc FileService, nên R5 hơi cao ở phần đó, nhưng G1 thêm
+theo ADR 0022 (accepted 2026-09-27) việc đó thuộc FileService, nên R5 hơi cao ở phần đó, nhưng G1 thêm
 `ReferenceProvider` và test hai lớp FS-C1 §8.1. Sprint đầu của G1 thay các tỷ lệ này bằng
 số đo (rows/sprint, EW theo task) như `m1-m2-estimate.md` §2 yêu cầu. Đây không phải lịch
 cam kết cho 16 task hoặc thời gian chạy agent.

@@ -33,6 +33,7 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0019](0019-do-thi-cong-viec-la-projection.md) | Đồ thị công việc là projection qua outbox; cấm suy diễn quan hệ |
 | [0020](0020-truy-van-bang-cong-viec-dung-sql-dong-trong-tablequery.md) | View Bảng dựng SQL động trong `pkg/db/tablequery` (whitelist, tham số hóa, luôn lọc tenant); sqlc vẫn là mặc định |
 | [0021](0021-runtime-engine-office-da-dinh-dang.md) | Runtime đa định dạng cho UniWork Office: editor ở trang host qua adapter tiêm, service nội bộ cho phần chạy ngoài trang, engine native riêng; thay thế 0018 |
+| [0022](0022-fileservice-so-huu-blob-intent-gc.md) | FileService sở hữu byte, ý định upload và dọn rác của Documents; Documents chỉ giữ `file_id`, claim/release trong transaction của mình; thay phần "sổ object mồ côi" trong QĐ3 của 0021 |
 | [0023](0023-file-theo-tenant-va-ngoai-le-avatar-ca-nhan.md) | FileService giữ `organization_id` cho file theo tenant; NULL chỉ là nhánh avatar cá nhân (purpose `user_avatar` + `user_id`), không phải public hay tenant mờ |
 
 ## Bản nháp
@@ -45,8 +46,5 @@ không được governance test đếm. Khi chấp nhận: chuyển ra thư mụ
 [0021](0021-runtime-engine-office-da-dinh-dang.md) ngày 2026-09-25 (DOC-001/UNI-665). Guard test của
 0021 land cùng G1/G2; đến lúc đó 0021 không thêm luật vào `CLAUDE.md`.
 
-Bản nháp đang chờ quyết định:
-
-| Bản nháp | Nội dung | Chờ |
-| --- | --- | --- |
-| [drafts/0022](drafts/0022-fileservice-so-huu-blob-intent-gc.md) | FileService sở hữu byte, ý định upload và dọn rác của Documents; Documents chỉ giữ `file_id`. Thay phần "sổ object mồ côi" trong QĐ3 của 0021 | Người dùng chấp nhận (U-2, plan G1-G2 §1.3); số 0022 là dự kiến |
+`drafts/0022-fileservice-so-huu-blob-intent-gc.md` được chấp nhận thành
+[0022](0022-fileservice-so-huu-blob-intent-gc.md) ngày 2026-09-27 (U-2, plan G1-G2). Hiện `drafts/` không còn bản nháp.
