@@ -43,15 +43,6 @@ func isValidation(err error) bool {
 	return errors.As(err, &ve)
 }
 
-func wantCode(t *testing.T, err error, code string) CodedError {
-	t.Helper()
-	var ce CodedError
-	if !errors.As(err, &ce) || ce.Code != code {
-		t.Fatalf("err = %v, want code %s", err, code)
-	}
-	return ce
-}
-
 func countDocuments(t *testing.T, f *docPermFixture, workspaceID string) int {
 	t.Helper()
 	var n int

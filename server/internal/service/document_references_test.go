@@ -162,3 +162,79 @@ func TestDocumentAssetHeldBy(t *testing.T) {
 		t.Error("unreferenced asset must not be held")
 	}
 }
+
+// C-01 §14.2 "Asset của mốc cũ" (G1-03): an asset the content of a
+// non-purged page version still references stays held (version_history)
+// past the 7-day orphan window; it is released only when neither the working
+// copy nor any version references it, or when the version is purged.
+func TestDocumentAssetHeldByOldVersions(t *testing.T) {
+	pool := testutil.DB(t)
+	ctx := context.Background()
+	q := db.New(pool)
+	now := time.Now()
+	const (
+		pageID  = "01DOCREFPAGEVH000000000000"
+		otherPg = "01DOCREFPAGEOT000000000000"
+		kept    = "01DAVHKEPT000000000000000A"
+		loose   = "01DAVHLOOSE00000000000000A"
+		purged  = "01DAVHPURGED0000000000000A"
+		young   = "01DAVHYOUNG00000000000000A"
+		foreign = "01DAVHFOREIGN000000000000A"
+	)
+	for _, id := range []string{pageID, otherPg} {
+		insertRow(t, ctx, pool, "documents", baseDoc(map[string]any{
+			"id": id, "organization_id": docOrgA, "workspace_id": docWsA, "kind": "page"}))
+	}
+	old := now.Add(-10 * 24 * time.Hour)
+	inHold := now.Add(-2 * 24 * time.Hour)
+	asset := func(id, doc string, orphanedAt time.Time) {
+		insertRow(t, ctx, pool, "document_assets", map[string]any{
+			"id": id, "organization_id": docOrgA, "workspace_id": docWsA,
+			"document_id": doc, "file_id": "01F" + id[3:], "mime_type": "image/png",
+			"size_bytes": 10, "created_by": docActor, "created_by_kind": "human", "orphaned_at": orphanedAt})
+	}
+	asset(kept, pageID, old)
+	asset(loose, pageID, old)
+	asset(purged, pageID, old)
+	asset(young, pageID, inHold)
+	asset(foreign, pageID, old)
+	pageVersion := func(id, doc string, n int, refs ...string) {
+		nodes := `{"type":"paragraph","content":[{"type":"text","text":"x"}]}`
+		for _, r := range refs {
+			nodes += `,{"type":"image","attrs":{"src":"asset://` + r + `"}}`
+		}
+		insertRow(t, ctx, pool, "document_versions", map[string]any{
+			"id": id, "organization_id": docOrgA, "workspace_id": docWsA, "document_id": doc,
+			"version": n, "kind": "page", "reason": "manual", "content": `{"type":"doc","content":[` + nodes + `]}`,
+			"created_by": docActor, "created_by_kind": "human"})
+	}
+	pageVersion("01DVVHONE00000000000000000", pageID, 1, kept, young, purged)
+	pageVersion("01DVVHTWO00000000000000000", pageID, 2)
+	// Another document's version naming the asset does not hold it: the
+	// lookup is bound to the asset's own document.
+	pageVersion("01DVVHOTHER000000000000000", otherPg, 1, foreign)
+	// The purge job removes version rows with the document; model it for one
+	// reference by dropping the only version that pointed at `purged`, after
+	// moving `kept` and `young` into a version that stays.
+	pageVersion("01DVVHTHREE00000000000000", pageID, 3, kept, young)
+	if _, err := pool.Exec(ctx, `DELETE FROM document_versions WHERE id = '01DVVHONE00000000000000000'`); err != nil {
+		t.Fatal(err)
+	}
+
+	fid := func(id string) files.FileID { return files.FileID("01F" + id[3:]) }
+	held, err := DocumentAssetReferenceProvider{}.HeldBy(ctx, q, []files.FileID{fid(kept), fid(loose), fid(purged), fid(young), fid(foreign)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if held[fid(kept)] != files.HoldVersionHistory {
+		t.Errorf("asset referenced by a kept version = %q, want version_history", held[fid(kept)])
+	}
+	if held[fid(young)] != files.HoldRetention {
+		t.Errorf("asset inside the hold and in a version = %q, want retention (the stronger)", held[fid(young)])
+	}
+	for _, id := range []string{loose, purged, foreign} {
+		if r, ok := held[fid(id)]; ok {
+			t.Errorf("asset %s must be released, held %q", id, r)
+		}
+	}
+}

@@ -228,8 +228,8 @@ var (
 // DefaultSpecs is the declared registry table (FS-C1 section 8): prefix, scope
 // shape and policy per purpose. Caps follow what each pipeline publishes today
 // (2 MiB avatar, 25 MiB attachment, 4 MiB voice, 100/25 MiB frontend/backend
-// mismatch resolved by one policy). Document purposes are declared and
-// disabled, because no reference provider holds their files yet.
+// mismatch resolved by one policy). The Document purposes opened with G1-03
+// (UNI-677), once their reference providers held every file_id column.
 func DefaultSpecs() []PurposeSpec {
 	return []PurposeSpec{
 		{
@@ -293,14 +293,15 @@ func DefaultSpecs() []PurposeSpec {
 			Policy:  Policy{MaxBytes: 50 << 20, MIMEAllowlist: documentMIMETypes, ChecksumRequired: true, ReadMode: ReadProxy},
 			// DOC-004: a client never sees the path or storage key of a
 			// document, and the bytes are verified against a checksum.
-			Disabled: true,
+			// Opened by G1-03 (UNI-677) together with its reference
+			// provider, documents.versions.
 		},
 		{
-			Purpose:  DocumentAsset,
-			Prefix:   "documents/assets",
-			Scope:    ScopeOrgWorkspace,
-			Policy:   Policy{MaxBytes: 10 << 20, MIMEAllowlist: imageMIMETypes, ChecksumRequired: true, ReadMode: ReadProxy},
-			Disabled: true,
+			Purpose: DocumentAsset,
+			Prefix:  "documents/assets",
+			Scope:   ScopeOrgWorkspace,
+			Policy:  Policy{MaxBytes: 10 << 20, MIMEAllowlist: imageMIMETypes, ChecksumRequired: true, ReadMode: ReadProxy},
+			// Opened by G1-03 with documents.assets.
 		},
 	}
 }
@@ -373,7 +374,7 @@ func NewRegistry(specs ...PurposeSpec) (Registry, error) {
 }
 
 // DefaultRegistry is the table the real FileService loads. It declares every
-// purpose in the enum, with the Document rows disabled.
+// purpose in the enum, every one open.
 func DefaultRegistry() Registry {
 	r, err := NewRegistry(DefaultSpecs()...)
 	if err != nil {

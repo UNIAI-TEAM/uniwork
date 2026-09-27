@@ -63,10 +63,11 @@ func documentVersionHold(reason string) files.HoldReason {
 // DocumentAssetReferenceProvider is the ReferenceProvider for
 // document_assets.file_id (C-01 §3.3). An asset still referenced by content
 // is held active; one orphaned less than seven days ago rides its retention
-// hold; an asset past that window is released - the provider deliberately
-// returns no hold so the collector may reap it. An asset on an
-// archived-but-not-purged document holds soft_deleted regardless of its own
-// orphaned_at.
+// hold; one the content of a non-purged page version still references holds
+// version_history whatever its orphaned_at (C-01 §14.2, G1-03); anything
+// else is released - the provider deliberately returns no hold so the
+// collector may reap it. An asset on an archived-but-not-purged document
+// holds soft_deleted regardless of its own orphaned_at.
 type DocumentAssetReferenceProvider struct{}
 
 func (DocumentAssetReferenceProvider) Name() string { return "documents.assets" }
@@ -109,6 +110,8 @@ func documentAssetHold(reason string) (files.HoldReason, bool) {
 		return files.HoldRetention, true
 	case "soft_deleted":
 		return files.HoldSoftDeleted, true
+	case "version_history":
+		return files.HoldVersionHistory, true
 	default:
 		return "", false
 	}

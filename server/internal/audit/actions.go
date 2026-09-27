@@ -118,6 +118,11 @@ const (
 	// (C-01 §13.5); the public page/file commands add their own rows as
 	// those lands (G1-04+).
 	ActionDocumentCreated = "document.created"
+	// G1-03 (UNI-677): a file version committed from a staged upload, a
+	// binary restore pointing back to an earlier file, and a page asset.
+	ActionDocumentVersionCreated  = "document.version_created"
+	ActionDocumentVersionRestored = "document.version_restored"
+	ActionDocumentAssetUploaded   = "document.asset_uploaded"
 
 	// Document access (UNI-676): shares and public links on one document,
 	// and the organization's public-link switch.

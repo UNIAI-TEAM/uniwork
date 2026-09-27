@@ -250,6 +250,9 @@ func main() {
 	fileSvc, err := service.NewFileService(service.FileServiceOptions{
 		Pool: pool, Store: objectStore, Bucket: storageCfg.Bucket(),
 		ReferenceProviders: service.FileReferenceProviders(chatSvc, meetingSvc),
+		// storage.bytes reservations for the Document purposes (G1-03): the
+		// hook ignores every other purpose.
+		Quota: service.NewEntitlementService(pool, q),
 	})
 	if err != nil {
 		log.Error("file service", "err", err)

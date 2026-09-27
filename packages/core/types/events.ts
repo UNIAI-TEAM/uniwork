@@ -53,6 +53,7 @@ export const WS_EVENT_TYPES = [
   "document.share_revoked",
   "document.shared",
   "document.updated",
+  "document.version_created",
   "email_hub.inbox_changed",
   "email_hub.new_mail",
   "host.transferred",

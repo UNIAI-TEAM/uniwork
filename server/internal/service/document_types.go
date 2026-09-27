@@ -80,6 +80,10 @@ type DocumentService struct {
 	// owner-delegated levels then fail closed (C-01 §13.8).
 	ownerLevel    OwnerLevelResolver
 	ownerLevelSet bool
+
+	// store is the G1-03 write side's own state (document_files.go):
+	// validation limits, spool directory, test seam.
+	store documentStore
 }
 
 func NewDocumentService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationService, ws *WorkspaceService) *DocumentService {

@@ -127,7 +127,7 @@ func (s *TaskService) AddCommentSuite(ctx context.Context, actor Actor, taskID s
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 
-	replay, commit, err := BeginIdempotent(ctx, q, task.OrganizationID, task.WorkspaceID, idempotencyScopeCommentCreate, idempotencyKey, actor.ID)
+	replay, commit, err := BeginIdempotent(ctx, q, task.OrganizationID, task.WorkspaceID, idempotencyScopeCommentCreate, idempotencyKey, actor.ID, IdempotencyOptions{})
 	if err != nil {
 		return db.TaskComment{}, NormalizeIdempotencyError(err)
 	}

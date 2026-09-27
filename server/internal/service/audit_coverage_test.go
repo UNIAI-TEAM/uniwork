@@ -870,6 +870,55 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// G1-03: the file commands run on filesfake; the storage tests run
+		// the same commands on the real FileService.
+		audit.ActionDocumentVersionCreated: func(t *testing.T, f *auditFixture) {
+			svc, created := auditFileDocument(t, f)
+			up, err := svc.UploadDocumentFile(f.ctx, Human(f.owner.ID), created.Document.ID, DocumentUploadInput{
+				Filename: "v2.pdf", Body: bytes.NewReader(pdfBody("audit-v2")),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.CommitFileVersion(f.ctx, Human(f.owner.ID), created.Document.ID, CommitFileVersionInput{
+				UploadID: up.UploadID, BaseRevision: created.Document.Revision,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentVersionRestored: func(t *testing.T, f *auditFixture) {
+			svc, created := auditFileDocument(t, f)
+			up, err := svc.UploadDocumentFile(f.ctx, Human(f.owner.ID), created.Document.ID, DocumentUploadInput{
+				Filename: "v2.pdf", Body: bytes.NewReader(pdfBody("audit-restore-v2")),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			res, err := svc.CommitFileVersion(f.ctx, Human(f.owner.ID), created.Document.ID, CommitFileVersionInput{
+				UploadID: up.UploadID, BaseRevision: created.Document.Revision,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.RestoreFileVersion(f.ctx, Human(f.owner.ID), created.Document.ID, RestoreFileVersionInput{
+				Version: 1, BaseRevision: res.Document.Revision,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentAssetUploaded: func(t *testing.T, f *auditFixture) {
+			svc, _ := auditFileDocument(t, f)
+			page := baseDoc(map[string]any{
+				"id": util.NewID(), "organization_id": f.orgID, "workspace_id": f.workspace.ID,
+				"created_by": f.owner.ID, "updated_by": f.owner.ID,
+			})
+			insertRow(t, f.ctx, f.pool, "documents", page)
+			if _, err := svc.UploadDocumentAsset(f.ctx, Human(f.owner.ID), page["id"].(string), DocumentUploadInput{
+				Filename: "a.png", Body: bytes.NewReader(pngBody(t, 2, 2)),
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
 	}
 
 	for _, action := range auditActions() {
@@ -967,6 +1016,9 @@ func auditActions() []string {
 		audit.ActionDocumentLinkRevoked,
 		audit.ActionDocumentSettingsChanged,
 		audit.ActionDocumentUpdated,
+		audit.ActionDocumentVersionCreated,
+		audit.ActionDocumentVersionRestored,
+		audit.ActionDocumentAssetUploaded,
 	}
 }
 
