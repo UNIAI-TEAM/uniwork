@@ -17,8 +17,8 @@ leftover numbers return to `free`.
 | 993–995 | allocated | G1-01 / UNI-675 | `document_share_links` table + indexes |
 | 996–998 | allocated | G1-01 / UNI-675 | `document_access_logs` table + indexes |
 | after 998 | timestamped | any | `999<unix-ms>_name` - no range to claim; list the files here when they land |
-| 1011 | allocated | G1-02 / UNI-676 | `document_settings` table (organization public-link switch) |
-| 1012 | allocated | G1-02 / UNI-676 | `documents.public_links` feature + starter plan row |
+| 9991790522571159 | allocated | G1-02 / UNI-676 | `9991790522571159_document_settings` - `document_settings` table (organization public-link switch) |
+| 9991790522571160 | allocated | G1-02 / UNI-676 | `9991790522571160_documents_public_links_feature` - `documents.public_links` feature + starter plan row |
 
 ## Rules
 
