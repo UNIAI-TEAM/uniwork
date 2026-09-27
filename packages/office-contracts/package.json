@@ -1,0 +1,28 @@
+{
+  "name": "@uniwork/office-contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "UniWork Office engine boundary contract: versioned wire schemas, errors, capabilities and host-adapter types. Pure TypeScript - no Node, Electron or native imports.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests=false --coverage",
+    "lint": "eslint . --max-warnings 0"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./fixtures/*": "./fixtures/*"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@uniwork/eslint-config": "workspace:*",
+    "@uniwork/tsconfig": "workspace:*",
+    "@vitest/coverage-v8": "catalog:",
+    "eslint": "^9.32.0",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
