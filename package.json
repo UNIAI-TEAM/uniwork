@@ -58,7 +58,7 @@
     }
   },
   "scripts": {
-    "prepare": "git config core.hooksPath .githooks 2>/dev/null || true",
+    "prepare": "git config core.hooksPath .githooks || node -e 0",
     "build": "turbo build",
     "dev": "turbo dev",
     "typecheck": "turbo typecheck",
