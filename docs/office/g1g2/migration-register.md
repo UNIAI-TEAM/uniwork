@@ -19,7 +19,9 @@ leftover numbers return to `free`.
 | 999–1003 | reserved | G1-07 / UNI-681 | `document_favorites` table + indexes |
 | 1004–1009 | reserved | G1-07 / UNI-681 | `document_comments` table + indexes |
 | 1010 | reserved | G1-03 | `idempotency_keys.payload_fingerprint` column |
-| 1011+ | free | — | next claimant writes its range here first |
+| 1011 | allocated | G1-02 / UNI-676 | `document_settings` table (organization public-link switch) |
+| 1012 | allocated | G1-02 / UNI-676 | `documents.public_links` feature + starter plan row |
+| 1013+ | free | — | next claimant writes its range here first |
 
 ## Rules
 

@@ -14,6 +14,7 @@ import (
 	authpkg "github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
+	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -814,6 +815,54 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionDocumentShared: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.ShareDocument(f.ctx, Human(f.owner.ID), docID, DocumentShareInput{
+				PrincipalType: DocumentPrincipalOrganization, PrincipalID: f.orgID, Level: DocumentLevelView,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentShareRevoked: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			sh, err := svc.ShareDocument(f.ctx, Human(f.owner.ID), docID, DocumentShareInput{
+				PrincipalType: DocumentPrincipalOrganization, PrincipalID: f.orgID, Level: DocumentLevelView,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.RevokeDocumentShare(f.ctx, Human(f.owner.ID), docID, sh.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentSettingsChanged: func(t *testing.T, f *auditFixture) {
+			svc, _ := f.document(t)
+			if _, err := svc.SetDocumentPublicLinks(f.ctx, Human(f.owner.ID), f.orgID, true); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentLinkCreated: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.SetDocumentPublicLinks(f.ctx, Human(f.owner.ID), f.orgID, true); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.CreateDocumentLink(f.ctx, Human(f.owner.ID), docID, 0); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentLinkRevoked: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.SetDocumentPublicLinks(f.ctx, Human(f.owner.ID), f.orgID, true); err != nil {
+				t.Fatal(err)
+			}
+			l, err := svc.CreateDocumentLink(f.ctx, Human(f.owner.ID), docID, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.RevokeDocumentLink(f.ctx, Human(f.owner.ID), docID, l.Link.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
 	}
 
 	for _, action := range auditActions() {
@@ -905,6 +954,11 @@ func auditActions() []string {
 		audit.ActionAuditRetentionSet,
 		audit.ActionSubscriptionChanged,
 		audit.ActionDocumentCreated,
+		audit.ActionDocumentShared,
+		audit.ActionDocumentShareRevoked,
+		audit.ActionDocumentLinkCreated,
+		audit.ActionDocumentLinkRevoked,
+		audit.ActionDocumentSettingsChanged,
 	}
 }
 
@@ -1134,4 +1188,19 @@ func (f *auditFixture) wrote(t *testing.T, action string) bool {
 		}
 	}
 	return false
+}
+
+// document wires a DocumentService on the fixture's gates and inserts one
+// workspace-visible page the organization owner manages (ACL owner).
+func (f *auditFixture) document(t *testing.T) (*DocumentService, string) {
+	t.Helper()
+	w := f.build(t)
+	svc := NewDocumentService(f.pool, f.q, f.orgs, f.ws)
+	svc.SetEntitlements(NewEntitlementService(f.pool, f.q))
+	id := util.NewID()
+	insertRow(t, f.ctx, f.pool, "documents", baseDoc(map[string]any{
+		"id": id, "organization_id": f.orgID, "workspace_id": w.ID,
+		"acl_owner_id": f.owner.ID, "created_by": f.owner.ID, "updated_by": f.owner.ID,
+	}))
+	return svc, id
 }

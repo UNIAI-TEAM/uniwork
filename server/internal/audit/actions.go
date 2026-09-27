@@ -119,6 +119,14 @@ const (
 	// those lands (G1-04+).
 	ActionDocumentCreated = "document.created"
 
+	// Document access (UNI-676): shares and public links on one document,
+	// and the organization's public-link switch.
+	ActionDocumentShared          = "document.shared"
+	ActionDocumentShareRevoked    = "document.share_revoked"
+	ActionDocumentLinkCreated     = "document.link_created"
+	ActionDocumentLinkRevoked     = "document.link_revoked"
+	ActionDocumentSettingsChanged = "document.settings_changed"
+
 	// Platform admin (F-11). The actor is a platform_role holder, or "cli"
 	// for uniwork-admin; admin_actions carries the reason beside the row.
 	ActionOrganizationSuspended   = "organization.suspended"

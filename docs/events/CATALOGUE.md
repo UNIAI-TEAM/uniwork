@@ -130,6 +130,10 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `department.updated` | 1 | `organization_id`, `department_id` | — | organization | outbox |
 | `department.archived` | 1 | `organization_id`, `department_id` | — | organization | outbox |
 | `document.created` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
+| `document.shared` | 1 | `document_id`, `workspace_id`, `share_id` | — | workspace | outbox |
+| `document.share_revoked` | 1 | `document_id`, `workspace_id`, `share_id` | — | workspace | outbox |
+| `document.link_created` | 1 | `document_id`, `workspace_id`, `link_id` | — | workspace | outbox |
+| `document.link_revoked` | 1 | `document_id`, `workspace_id`, `link_id` | — | workspace | outbox |
 | `email_hub.inbox_changed` | 1 | `account_id`, `user_id` | — | user | outbox |
 | `email_hub.new_mail` | 1 | `account_id`, `user_id`, `workspace_id` | — | user | outbox |
 | `people.exported` | 1 | `organization_id`, `user_id` | — | - | outbox |

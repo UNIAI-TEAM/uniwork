@@ -7,7 +7,116 @@ package db
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const countDocumentShareLinkView = `-- name: CountDocumentShareLinkView :one
+UPDATE document_share_links
+SET view_count = view_count + 1, last_viewed_at = now()
+WHERE id = $1
+  AND organization_id = $2
+  AND workspace_id = $3
+  AND revoked_at IS NULL
+  AND expires_at > now()
+RETURNING id, organization_id, workspace_id, document_id, token_hash, expires_at, view_count, last_viewed_at, created_by, created_by_kind, revoked_at, revoked_by, created_at
+`
+
+type CountDocumentShareLinkViewParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+}
+
+// A public page view: counted only while the link is still live, so a
+// revoke that commits between lookup and count still refuses the read.
+func (q *Queries) CountDocumentShareLinkView(ctx context.Context, arg CountDocumentShareLinkViewParams) (DocumentShareLink, error) {
+	row := q.db.QueryRow(ctx, countDocumentShareLinkView, arg.ID, arg.OrganizationID, arg.WorkspaceID)
+	var i DocumentShareLink
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.DocumentID,
+		&i.TokenHash,
+		&i.ExpiresAt,
+		&i.ViewCount,
+		&i.LastViewedAt,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.RevokedAt,
+		&i.RevokedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const countLiveDocumentShareLinks = `-- name: CountLiveDocumentShareLinks :one
+SELECT count(*)
+FROM document_share_links
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND document_id = $3
+  AND revoked_at IS NULL
+  AND expires_at > now()
+`
+
+type CountLiveDocumentShareLinksParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	DocumentID     string `json:"document_id"`
+}
+
+func (q *Queries) CountLiveDocumentShareLinks(ctx context.Context, arg CountLiveDocumentShareLinksParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countLiveDocumentShareLinks, arg.OrganizationID, arg.WorkspaceID, arg.DocumentID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const documentAccessLoggedSince = `-- name: DocumentAccessLoggedSince :one
+SELECT EXISTS (
+  SELECT 1
+  FROM document_access_logs
+  WHERE organization_id = $1
+    AND workspace_id = $2
+    AND document_id = $3
+    AND action = $4
+    AND actor_kind = $5
+    AND actor_id IS NOT DISTINCT FROM $6
+    AND share_link_id IS NOT DISTINCT FROM $7
+    AND occurred_at > $8
+)
+`
+
+type DocumentAccessLoggedSinceParams struct {
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	DocumentID     string             `json:"document_id"`
+	Action         string             `json:"action"`
+	ActorKind      string             `json:"actor_kind"`
+	ActorID        pgtype.Text        `json:"actor_id"`
+	ShareLinkID    pgtype.Text        `json:"share_link_id"`
+	Since          pgtype.Timestamptz `json:"since"`
+}
+
+// C-01 §3.6 coalescing: the same (document, actor, action) - and link, for
+// anonymous views - inside the window writes no new row.
+func (q *Queries) DocumentAccessLoggedSince(ctx context.Context, arg DocumentAccessLoggedSinceParams) (bool, error) {
+	row := q.db.QueryRow(ctx, documentAccessLoggedSince,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.DocumentID,
+		arg.Action,
+		arg.ActorKind,
+		arg.ActorID,
+		arg.ShareLinkID,
+		arg.Since,
+	)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
 
 const getDocumentByID = `-- name: GetDocumentByID :one
 
@@ -69,6 +178,465 @@ func (q *Queries) GetDocumentByID(ctx context.Context, id string) (Document, err
 	return i, err
 }
 
+const getDocumentSettings = `-- name: GetDocumentSettings :one
+
+SELECT organization_id, public_links_enabled, updated_by, updated_by_kind, created_at, updated_at
+FROM document_settings
+WHERE organization_id = $1
+`
+
+// ---- Organization settings (G1-02b) ----------------------------------------
+func (q *Queries) GetDocumentSettings(ctx context.Context, organizationID string) (DocumentSetting, error) {
+	row := q.db.QueryRow(ctx, getDocumentSettings, organizationID)
+	var i DocumentSetting
+	err := row.Scan(
+		&i.OrganizationID,
+		&i.PublicLinksEnabled,
+		&i.UpdatedBy,
+		&i.UpdatedByKind,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getDocumentShareLink = `-- name: GetDocumentShareLink :one
+SELECT id, organization_id, workspace_id, document_id, token_hash, expires_at, view_count, last_viewed_at, created_by, created_by_kind, revoked_at, revoked_by, created_at
+FROM document_share_links
+WHERE id = $1
+  AND organization_id = $2
+  AND workspace_id = $3
+  AND document_id = $4
+`
+
+type GetDocumentShareLinkParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	DocumentID     string `json:"document_id"`
+}
+
+func (q *Queries) GetDocumentShareLink(ctx context.Context, arg GetDocumentShareLinkParams) (DocumentShareLink, error) {
+	row := q.db.QueryRow(ctx, getDocumentShareLink,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.DocumentID,
+	)
+	var i DocumentShareLink
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.DocumentID,
+		&i.TokenHash,
+		&i.ExpiresAt,
+		&i.ViewCount,
+		&i.LastViewedAt,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.RevokedAt,
+		&i.RevokedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getDocumentVersionByID = `-- name: GetDocumentVersionByID :one
+SELECT id, organization_id, workspace_id, document_id, version, kind, reason, label, content, file_id, mime_type, size_bytes, checksum_sha256, restored_from, engine_name, engine_version, contract_version, protocol_version, created_by, created_by_kind, created_at
+FROM document_versions
+WHERE id = $1
+  AND organization_id = $2
+  AND workspace_id = $3
+  AND document_id = $4
+`
+
+type GetDocumentVersionByIDParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	DocumentID     string `json:"document_id"`
+}
+
+// The blob pointer of a file document (documents.file_version_id) resolved
+// inside the document's tenant pair.
+func (q *Queries) GetDocumentVersionByID(ctx context.Context, arg GetDocumentVersionByIDParams) (DocumentVersion, error) {
+	row := q.db.QueryRow(ctx, getDocumentVersionByID,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.DocumentID,
+	)
+	var i DocumentVersion
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.DocumentID,
+		&i.Version,
+		&i.Kind,
+		&i.Reason,
+		&i.Label,
+		&i.Content,
+		&i.FileID,
+		&i.MimeType,
+		&i.SizeBytes,
+		&i.ChecksumSha256,
+		&i.RestoredFrom,
+		&i.EngineName,
+		&i.EngineVersion,
+		&i.ContractVersion,
+		&i.ProtocolVersion,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getLiveDocumentShareByID = `-- name: GetLiveDocumentShareByID :one
+
+SELECT id, organization_id, workspace_id, document_id, principal_type, principal_id, level, granted_by, granted_by_kind, revoked_at, revoked_by, created_at
+FROM document_shares
+WHERE id = $1
+  AND organization_id = $2
+  AND workspace_id = $3
+  AND document_id = $4
+  AND revoked_at IS NULL
+`
+
+type GetLiveDocumentShareByIDParams struct {
+	ID             string `json:"id"`
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	DocumentID     string `json:"document_id"`
+}
+
+// ---- Shares (G1-02b) ------------------------------------------------------
+func (q *Queries) GetLiveDocumentShareByID(ctx context.Context, arg GetLiveDocumentShareByIDParams) (DocumentShare, error) {
+	row := q.db.QueryRow(ctx, getLiveDocumentShareByID,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.DocumentID,
+	)
+	var i DocumentShare
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.DocumentID,
+		&i.PrincipalType,
+		&i.PrincipalID,
+		&i.Level,
+		&i.GrantedBy,
+		&i.GrantedByKind,
+		&i.RevokedAt,
+		&i.RevokedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getLiveDocumentShareLinkByTokenHash = `-- name: GetLiveDocumentShareLinkByTokenHash :one
+SELECT id, organization_id, workspace_id, document_id, token_hash, expires_at, view_count, last_viewed_at, created_by, created_by_kind, revoked_at, revoked_by, created_at
+FROM document_share_links
+WHERE token_hash = $1
+  AND revoked_at IS NULL
+  AND expires_at > now()
+`
+
+// The anonymous entry point: the token hash alone finds the link (the
+// token is the credential), and only a live one answers.
+func (q *Queries) GetLiveDocumentShareLinkByTokenHash(ctx context.Context, tokenHash string) (DocumentShareLink, error) {
+	row := q.db.QueryRow(ctx, getLiveDocumentShareLinkByTokenHash, tokenHash)
+	var i DocumentShareLink
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.DocumentID,
+		&i.TokenHash,
+		&i.ExpiresAt,
+		&i.ViewCount,
+		&i.LastViewedAt,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.RevokedAt,
+		&i.RevokedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertDocumentAccessLog = `-- name: InsertDocumentAccessLog :exec
+
+INSERT INTO document_access_logs (
+  id, organization_id, workspace_id, document_id, version, action,
+  actor_kind, actor_id, via, share_link_id, correlation_id
+) VALUES (
+  $1, $2, $3,
+  $4, $5, $6,
+  $7, $8, $9,
+  $10, $11
+)
+`
+
+type InsertDocumentAccessLogParams struct {
+	ID             string      `json:"id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	DocumentID     string      `json:"document_id"`
+	Version        pgtype.Int4 `json:"version"`
+	Action         string      `json:"action"`
+	ActorKind      string      `json:"actor_kind"`
+	ActorID        pgtype.Text `json:"actor_id"`
+	Via            string      `json:"via"`
+	ShareLinkID    pgtype.Text `json:"share_link_id"`
+	CorrelationID  string      `json:"correlation_id"`
+}
+
+// ---- Access log (G1-02b) -----------------------------------------------------
+func (q *Queries) InsertDocumentAccessLog(ctx context.Context, arg InsertDocumentAccessLogParams) error {
+	_, err := q.db.Exec(ctx, insertDocumentAccessLog,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.DocumentID,
+		arg.Version,
+		arg.Action,
+		arg.ActorKind,
+		arg.ActorID,
+		arg.Via,
+		arg.ShareLinkID,
+		arg.CorrelationID,
+	)
+	return err
+}
+
+const insertDocumentShareLink = `-- name: InsertDocumentShareLink :one
+
+INSERT INTO document_share_links (
+  id, organization_id, workspace_id, document_id, token_hash, expires_at,
+  created_by, created_by_kind
+) VALUES (
+  $1, $2, $3,
+  $4, $5, $6,
+  $7, $8
+)
+RETURNING id, organization_id, workspace_id, document_id, token_hash, expires_at, view_count, last_viewed_at, created_by, created_by_kind, revoked_at, revoked_by, created_at
+`
+
+type InsertDocumentShareLinkParams struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	DocumentID     string             `json:"document_id"`
+	TokenHash      string             `json:"token_hash"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+}
+
+// ---- Public links (G1-02b) -------------------------------------------------
+func (q *Queries) InsertDocumentShareLink(ctx context.Context, arg InsertDocumentShareLinkParams) (DocumentShareLink, error) {
+	row := q.db.QueryRow(ctx, insertDocumentShareLink,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.DocumentID,
+		arg.TokenHash,
+		arg.ExpiresAt,
+		arg.CreatedBy,
+		arg.CreatedByKind,
+	)
+	var i DocumentShareLink
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.WorkspaceID,
+		&i.DocumentID,
+		&i.TokenHash,
+		&i.ExpiresAt,
+		&i.ViewCount,
+		&i.LastViewedAt,
+		&i.CreatedBy,
+		&i.CreatedByKind,
+		&i.RevokedAt,
+		&i.RevokedBy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const listDocumentAccessLogs = `-- name: ListDocumentAccessLogs :many
+SELECT id, organization_id, workspace_id, document_id, version, action, actor_kind, actor_id, via, share_link_id, correlation_id, occurred_at
+FROM document_access_logs
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND document_id = $3
+  AND ($4::text IS NULL OR action = $4)
+  AND ($5::timestamptz IS NULL OR occurred_at < $5)
+ORDER BY occurred_at DESC, id DESC
+LIMIT $6
+`
+
+type ListDocumentAccessLogsParams struct {
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	DocumentID     string             `json:"document_id"`
+	Action         pgtype.Text        `json:"action"`
+	Before         pgtype.Timestamptz `json:"before"`
+	MaxRows        int32              `json:"max_rows"`
+}
+
+func (q *Queries) ListDocumentAccessLogs(ctx context.Context, arg ListDocumentAccessLogsParams) ([]DocumentAccessLog, error) {
+	rows, err := q.db.Query(ctx, listDocumentAccessLogs,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.DocumentID,
+		arg.Action,
+		arg.Before,
+		arg.MaxRows,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DocumentAccessLog{}
+	for rows.Next() {
+		var i DocumentAccessLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.DocumentID,
+			&i.Version,
+			&i.Action,
+			&i.ActorKind,
+			&i.ActorID,
+			&i.Via,
+			&i.ShareLinkID,
+			&i.CorrelationID,
+			&i.OccurredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDocumentShareCandidates = `-- name: ListDocumentShareCandidates :many
+SELECT DISTINCT ON (s.document_id) s.document_id, s.workspace_id
+FROM document_shares s
+JOIN documents d
+  ON d.organization_id = s.organization_id
+ AND d.workspace_id = s.workspace_id
+ AND d.id = s.document_id
+WHERE s.organization_id = $1
+  AND s.revoked_at IS NULL
+  AND d.archived_at IS NULL
+  AND d.owner_id IS NULL
+  AND (
+    (s.principal_type = 'user' AND s.principal_id = $2)
+    OR (s.principal_type = 'organization' AND s.principal_id = $1)
+    OR s.principal_type = 'workspace'
+  )
+ORDER BY s.document_id, s.created_at DESC
+LIMIT $3
+`
+
+type ListDocumentShareCandidatesParams struct {
+	OrganizationID string `json:"organization_id"`
+	UserID         string `json:"user_id"`
+	MaxRows        int32  `json:"max_rows"`
+}
+
+type ListDocumentShareCandidatesRow struct {
+	DocumentID  string `json:"document_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+// "Shared with me" candidates: live shares naming the person, the whole
+// organization, or any workspace of it. The service keeps only documents
+// whose effectiveLevel came through a share, so workspace principals the
+// person is not in fall away there (membership is never read in SQL).
+func (q *Queries) ListDocumentShareCandidates(ctx context.Context, arg ListDocumentShareCandidatesParams) ([]ListDocumentShareCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, listDocumentShareCandidates, arg.OrganizationID, arg.UserID, arg.MaxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDocumentShareCandidatesRow{}
+	for rows.Next() {
+		var i ListDocumentShareCandidatesRow
+		if err := rows.Scan(&i.DocumentID, &i.WorkspaceID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLiveDocumentShareLinks = `-- name: ListLiveDocumentShareLinks :many
+SELECT id, organization_id, workspace_id, document_id, token_hash, expires_at, view_count, last_viewed_at, created_by, created_by_kind, revoked_at, revoked_by, created_at
+FROM document_share_links
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND document_id = $3
+  AND revoked_at IS NULL
+  AND expires_at > now()
+ORDER BY created_at, id
+`
+
+type ListLiveDocumentShareLinksParams struct {
+	OrganizationID string `json:"organization_id"`
+	WorkspaceID    string `json:"workspace_id"`
+	DocumentID     string `json:"document_id"`
+}
+
+// Links that still open: not revoked and not expired.
+func (q *Queries) ListLiveDocumentShareLinks(ctx context.Context, arg ListLiveDocumentShareLinksParams) ([]DocumentShareLink, error) {
+	rows, err := q.db.Query(ctx, listLiveDocumentShareLinks, arg.OrganizationID, arg.WorkspaceID, arg.DocumentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DocumentShareLink{}
+	for rows.Next() {
+		var i DocumentShareLink
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.DocumentID,
+			&i.TokenHash,
+			&i.ExpiresAt,
+			&i.ViewCount,
+			&i.LastViewedAt,
+			&i.CreatedBy,
+			&i.CreatedByKind,
+			&i.RevokedAt,
+			&i.RevokedBy,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockDocumentByID = `-- name: LockDocumentByID :one
 SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at
 FROM documents
@@ -119,6 +687,75 @@ func (q *Queries) LockDocumentByID(ctx context.Context, id string) (Document, er
 		&i.ArchivedAt,
 		&i.ArchivedBy,
 		&i.PurgeAfter,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const revokeDocumentShareLink = `-- name: RevokeDocumentShareLink :execrows
+UPDATE document_share_links
+SET revoked_at = now(), revoked_by = $1
+WHERE id = $2
+  AND organization_id = $3
+  AND workspace_id = $4
+  AND document_id = $5
+  AND revoked_at IS NULL
+`
+
+type RevokeDocumentShareLinkParams struct {
+	RevokedBy      pgtype.Text `json:"revoked_by"`
+	ID             string      `json:"id"`
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	DocumentID     string      `json:"document_id"`
+}
+
+func (q *Queries) RevokeDocumentShareLink(ctx context.Context, arg RevokeDocumentShareLinkParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeDocumentShareLink,
+		arg.RevokedBy,
+		arg.ID,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.DocumentID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const upsertDocumentSettings = `-- name: UpsertDocumentSettings :one
+INSERT INTO document_settings (organization_id, public_links_enabled, updated_by, updated_by_kind)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (organization_id) DO UPDATE
+SET public_links_enabled = EXCLUDED.public_links_enabled,
+    updated_by = EXCLUDED.updated_by,
+    updated_by_kind = EXCLUDED.updated_by_kind,
+    updated_at = now()
+RETURNING organization_id, public_links_enabled, updated_by, updated_by_kind, created_at, updated_at
+`
+
+type UpsertDocumentSettingsParams struct {
+	OrganizationID     string `json:"organization_id"`
+	PublicLinksEnabled bool   `json:"public_links_enabled"`
+	UpdatedBy          string `json:"updated_by"`
+	UpdatedByKind      string `json:"updated_by_kind"`
+}
+
+func (q *Queries) UpsertDocumentSettings(ctx context.Context, arg UpsertDocumentSettingsParams) (DocumentSetting, error) {
+	row := q.db.QueryRow(ctx, upsertDocumentSettings,
+		arg.OrganizationID,
+		arg.PublicLinksEnabled,
+		arg.UpdatedBy,
+		arg.UpdatedByKind,
+	)
+	var i DocumentSetting
+	err := row.Scan(
+		&i.OrganizationID,
+		&i.PublicLinksEnabled,
+		&i.UpdatedBy,
+		&i.UpdatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
