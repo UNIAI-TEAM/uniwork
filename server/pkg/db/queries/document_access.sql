@@ -42,26 +42,32 @@ WHERE id = sqlc.arg(id)
   AND revoked_at IS NULL;
 
 -- "Shared with me" candidates: live shares naming the person, the whole
--- organization, or any workspace of it. The service keeps only documents
--- whose effectiveLevel came through a share, so workspace principals the
--- person is not in fall away there (membership is never read in SQL).
+-- organization, or one of the workspaces the service passes in (the ones the
+-- person reaches through WorkspaceService; membership is never read in SQL).
+-- The workspace filter runs before the limit so shares to workspaces the
+-- person is not in cannot crowd theirs out; newest share first. The service
+-- still runs effectiveLevel on every row.
 -- name: ListDocumentShareCandidates :many
-SELECT DISTINCT ON (s.document_id) s.document_id, s.workspace_id
-FROM document_shares s
+SELECT sqlc.embed(d)
+FROM (
+  SELECT DISTINCT ON (s.document_id) s.document_id, s.workspace_id, s.created_at
+  FROM document_shares s
+  WHERE s.organization_id = sqlc.arg(organization_id)
+    AND s.revoked_at IS NULL
+    AND (
+      (s.principal_type = 'user' AND s.principal_id = sqlc.arg(user_id))
+      OR (s.principal_type = 'organization' AND s.principal_id = sqlc.arg(organization_id))
+      OR (s.principal_type = 'workspace' AND s.principal_id = ANY(sqlc.arg(workspace_ids)::text[]))
+    )
+  ORDER BY s.document_id, s.created_at DESC
+) c
 JOIN documents d
-  ON d.organization_id = s.organization_id
- AND d.workspace_id = s.workspace_id
- AND d.id = s.document_id
-WHERE s.organization_id = sqlc.arg(organization_id)
-  AND s.revoked_at IS NULL
-  AND d.archived_at IS NULL
+  ON d.organization_id = sqlc.arg(organization_id)
+ AND d.workspace_id = c.workspace_id
+ AND d.id = c.document_id
+WHERE d.archived_at IS NULL
   AND d.owner_id IS NULL
-  AND (
-    (s.principal_type = 'user' AND s.principal_id = sqlc.arg(user_id))
-    OR (s.principal_type = 'organization' AND s.principal_id = sqlc.arg(organization_id))
-    OR s.principal_type = 'workspace'
-  )
-ORDER BY s.document_id, s.created_at DESC
+ORDER BY c.created_at DESC, d.id
 LIMIT sqlc.arg(max_rows);
 
 -- ---- Public links (G1-02b) -------------------------------------------------

@@ -317,8 +317,9 @@ const maxSharedWithMe = 200
 // ListSharedWithMe lists the documents a person reaches through a share in
 // one organization, from any of its workspaces - the recipient never has to
 // join the source workspace (plan §3.1). The organization gate runs first;
-// every candidate then goes through effectiveLevel, so a workspace share the
-// person is not a member of, a revoked or a superseded share drop out.
+// workspace shares are narrowed to the workspaces WorkspaceService says the
+// person reaches, and every candidate then goes through effectiveLevel, so a
+// revoked, superseded or no-longer-reaching share drops out.
 func (s *DocumentService) ListSharedWithMe(ctx context.Context, userID, organizationID string) ([]SharedDocument, error) {
 	if _, err := s.orgs.RequireMember(ctx, organizationID, userID); err != nil {
 		if errors.Is(err, ErrForbidden) {
@@ -326,27 +327,33 @@ func (s *DocumentService) ListSharedWithMe(ctx context.Context, userID, organiza
 		}
 		return nil, err
 	}
+	workspaces, err := s.ws.ListForUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	workspaceIDs := make([]string, 0, len(workspaces))
+	for _, w := range workspaces {
+		if w.OrganizationID == organizationID {
+			workspaceIDs = append(workspaceIDs, w.ID)
+		}
+	}
 	rows, err := s.q.ListDocumentShareCandidates(ctx, db.ListDocumentShareCandidatesParams{
-		OrganizationID: organizationID, UserID: userID, MaxRows: maxSharedWithMe,
+		OrganizationID: organizationID, UserID: userID, WorkspaceIds: workspaceIDs, MaxRows: maxSharedWithMe,
 	})
 	if err != nil {
 		return nil, err
 	}
+	// Each candidate tags the request with its own workspace (same
+	// organization); telemetry has no reset, so a list that spans
+	// workspaces carries the last one - the organization tag is exact.
 	out := make([]SharedDocument, 0, len(rows))
 	for _, r := range rows {
-		doc, err := s.q.GetDocumentByID(ctx, r.DocumentID)
-		if errors.Is(err, pgx.ErrNoRows) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		acc, err := s.effectiveLevel(ctx, s.q, Human(userID), doc)
+		acc, err := s.effectiveLevel(ctx, s.q, Human(userID), r.Document)
 		if err != nil {
 			return nil, err
 		}
 		if acc.Via == DocumentViaShare && acc.Level != DocumentLevelNone {
-			out = append(out, SharedDocument{Document: doc, Access: acc})
+			out = append(out, SharedDocument{Document: r.Document, Access: acc})
 		}
 	}
 	return out, nil

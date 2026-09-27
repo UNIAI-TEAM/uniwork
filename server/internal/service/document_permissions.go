@@ -57,11 +57,10 @@ const documentVisibilityRestricted = "restricted"
 // from everyone below manage.
 func (s *DocumentService) effectiveLevel(ctx context.Context, q *db.Queries, actor Actor, doc db.Document) (DocumentAccess, error) {
 	acc, err := s.resolveLevel(ctx, q, actor, doc)
-	if err == nil && acc.Level != DocumentLevelNone {
-		// A share principal's workspace gate tags the request with that
-		// workspace; the request is about this document's tenant.
-		telemetry.SetTenant(ctx, doc.OrganizationID, doc.WorkspaceID)
-	}
+	// A share principal's workspace gate tags the request with that
+	// workspace, whatever the answer; the request is about this document's
+	// tenant.
+	telemetry.SetTenant(ctx, doc.OrganizationID, doc.WorkspaceID)
 	return acc, err
 }
 

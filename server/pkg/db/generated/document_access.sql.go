@@ -531,42 +531,53 @@ func (q *Queries) ListDocumentAccessLogs(ctx context.Context, arg ListDocumentAc
 }
 
 const listDocumentShareCandidates = `-- name: ListDocumentShareCandidates :many
-SELECT DISTINCT ON (s.document_id) s.document_id, s.workspace_id
-FROM document_shares s
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at
+FROM (
+  SELECT DISTINCT ON (s.document_id) s.document_id, s.workspace_id, s.created_at
+  FROM document_shares s
+  WHERE s.organization_id = $1
+    AND s.revoked_at IS NULL
+    AND (
+      (s.principal_type = 'user' AND s.principal_id = $2)
+      OR (s.principal_type = 'organization' AND s.principal_id = $1)
+      OR (s.principal_type = 'workspace' AND s.principal_id = ANY($3::text[]))
+    )
+  ORDER BY s.document_id, s.created_at DESC
+) c
 JOIN documents d
-  ON d.organization_id = s.organization_id
- AND d.workspace_id = s.workspace_id
- AND d.id = s.document_id
-WHERE s.organization_id = $1
-  AND s.revoked_at IS NULL
-  AND d.archived_at IS NULL
+  ON d.organization_id = $1
+ AND d.workspace_id = c.workspace_id
+ AND d.id = c.document_id
+WHERE d.archived_at IS NULL
   AND d.owner_id IS NULL
-  AND (
-    (s.principal_type = 'user' AND s.principal_id = $2)
-    OR (s.principal_type = 'organization' AND s.principal_id = $1)
-    OR s.principal_type = 'workspace'
-  )
-ORDER BY s.document_id, s.created_at DESC
-LIMIT $3
+ORDER BY c.created_at DESC, d.id
+LIMIT $4
 `
 
 type ListDocumentShareCandidatesParams struct {
-	OrganizationID string `json:"organization_id"`
-	UserID         string `json:"user_id"`
-	MaxRows        int32  `json:"max_rows"`
+	OrganizationID string   `json:"organization_id"`
+	UserID         string   `json:"user_id"`
+	WorkspaceIds   []string `json:"workspace_ids"`
+	MaxRows        int32    `json:"max_rows"`
 }
 
 type ListDocumentShareCandidatesRow struct {
-	DocumentID  string `json:"document_id"`
-	WorkspaceID string `json:"workspace_id"`
+	Document Document `json:"document"`
 }
 
 // "Shared with me" candidates: live shares naming the person, the whole
-// organization, or any workspace of it. The service keeps only documents
-// whose effectiveLevel came through a share, so workspace principals the
-// person is not in fall away there (membership is never read in SQL).
+// organization, or one of the workspaces the service passes in (the ones the
+// person reaches through WorkspaceService; membership is never read in SQL).
+// The workspace filter runs before the limit so shares to workspaces the
+// person is not in cannot crowd theirs out; newest share first. The service
+// still runs effectiveLevel on every row.
 func (q *Queries) ListDocumentShareCandidates(ctx context.Context, arg ListDocumentShareCandidatesParams) ([]ListDocumentShareCandidatesRow, error) {
-	rows, err := q.db.Query(ctx, listDocumentShareCandidates, arg.OrganizationID, arg.UserID, arg.MaxRows)
+	rows, err := q.db.Query(ctx, listDocumentShareCandidates,
+		arg.OrganizationID,
+		arg.UserID,
+		arg.WorkspaceIds,
+		arg.MaxRows,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -574,7 +585,46 @@ func (q *Queries) ListDocumentShareCandidates(ctx context.Context, arg ListDocum
 	items := []ListDocumentShareCandidatesRow{}
 	for rows.Next() {
 		var i ListDocumentShareCandidatesRow
-		if err := rows.Scan(&i.DocumentID, &i.WorkspaceID); err != nil {
+		if err := rows.Scan(
+			&i.Document.ID,
+			&i.Document.OrganizationID,
+			&i.Document.WorkspaceID,
+			&i.Document.ParentID,
+			&i.Document.Kind,
+			&i.Document.Title,
+			&i.Document.Icon,
+			&i.Document.Visibility,
+			&i.Document.Content,
+			&i.Document.ContentText,
+			&i.Document.SearchText,
+			&i.Document.ContentBytes,
+			&i.Document.CurrentVersion,
+			&i.Document.FileVersionID,
+			&i.Document.Revision,
+			&i.Document.Position,
+			&i.Document.OwnerKind,
+			&i.Document.OwnerID,
+			&i.Document.AclOwnerID,
+			&i.Document.SourceDocumentID,
+			&i.Document.SourceVersionID,
+			&i.Document.SourceRevision,
+			&i.Document.SourceFormat,
+			&i.Document.SourceEngine,
+			&i.Document.TargetFormat,
+			&i.Document.SourceChecksumSha256,
+			&i.Document.ConversionReason,
+			&i.Document.CreatedBy,
+			&i.Document.CreatedByKind,
+			&i.Document.UpdatedBy,
+			&i.Document.UpdatedByKind,
+			&i.Document.ContentSavedAt,
+			&i.Document.LastVersionAt,
+			&i.Document.ArchivedAt,
+			&i.Document.ArchivedBy,
+			&i.Document.PurgeAfter,
+			&i.Document.CreatedAt,
+			&i.Document.UpdatedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

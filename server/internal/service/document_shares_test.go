@@ -288,6 +288,36 @@ func TestDocumentShare(t *testing.T) {
 		}
 	})
 
+	t.Run("shares to workspaces the person is not in never crowd out theirs", func(t *testing.T) {
+		// BE 02b r1 F1: the candidate limit used to run before the
+		// workspace filter, so a page of other workspaces' shares hid the
+		// person's own. Fill a whole page of wsB shares, then share one
+		// newer document with the outsider directly.
+		cr := f.tenant(t, "swm")
+		for i := 0; i < maxSharedWithMe; i++ {
+			d := f.doc(t, cr, docSpec{ws: cr.wsA, visibility: "workspace", aclOwner: cr.aclOwner.ID, createdBy: cr.aclOwner.ID})
+			f.share(t, d, DocumentPrincipalWorkspace, cr.wsB, DocumentLevelView, cr.aclOwner.ID)
+		}
+		direct := f.doc(t, cr, docSpec{ws: cr.wsA, visibility: "restricted", aclOwner: cr.aclOwner.ID, createdBy: cr.aclOwner.ID})
+		f.share(t, direct, DocumentPrincipalUser, cr.outsider.ID, DocumentLevelView, cr.aclOwner.ID)
+
+		list, err := f.svc.ListSharedWithMe(f.ctx, cr.outsider.ID, cr.orgID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(list) != 1 || list[0].Document.ID != direct.ID {
+			t.Fatalf("outsider list = %d rows, want only the direct share", len(list))
+		}
+		// The workspace B member reaches the workspace shares, capped.
+		bl, err := f.svc.ListSharedWithMe(f.ctx, cr.bMember.ID, cr.orgID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(bl) != maxSharedWithMe {
+			t.Fatalf("wsB member list = %d rows, want %d", len(bl), maxSharedWithMe)
+		}
+	})
+
 	t.Run("revoke ends access; the reader resolver sees it at delivery time", func(t *testing.T) {
 		live, err := f.q.GetDocumentShare(f.ctx, db.GetDocumentShareParams{
 			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
