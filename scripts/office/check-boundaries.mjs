@@ -48,6 +48,9 @@ export const BROWSER_SCOPE_ROOTS = [
   "packages/office-engine/src/index.ts",
   "packages/office-engine/src/shared",
   "packages/office-engine/src/browser",
+  "packages/office-engine/src/markdown",
+  "packages/office-engine/src/html",
+  "packages/office-engine/src/assets",
 ];
 
 /** Directories the /ee and licence checks scan. */
