@@ -21,6 +21,12 @@
 // default. With scripts OFF nothing in the document can navigate: links,
 // <base>, meta refresh and srcdoc are neutralised in the copy.
 //
+// The same limit applies to the bridge: if a script navigates the frame before
+// our srcdoc document finishes loading, the next load is the new document's
+// and it receives the port. Today that port only accepts ready/resize, which
+// such a document can already fake; any inbound message type added later
+// must not assume the sender is the rendered source.
+//
 // The bridge back to the app is a MessageChannel handed to the frame once
 // per srcdoc render, with a per-session nonce. The app never listens to window "message"
 // events for the preview, rejects origin-null and nonce-less messages, and
@@ -314,26 +320,35 @@ export async function mountHtmlPreview(options: MountHtmlPreviewOptions): Promis
   options.container.appendChild(iframe);
 
   let disposed = false;
+  // The manifest the latest update asked for (an update without one keeps
+  // it), and a counter so only the latest update renders or swaps grants.
+  let requested = manifest;
+  let generation = 0;
   return {
     iframe,
     nonce,
     async update(text, next) {
-      if (next) {
-        manifest = next;
-        const keys = next.entries.map((e) => e.key);
-        if (keys.some((key) => !current.granted.has(key))) {
-          // New assets (e.g. an image dropped in while editing) need a grant:
-          // reopen the scope with the new key set and retire the old one.
-          const reopened = await openScope(keys, assetOrigin);
-          if (disposed) {
-            reopened.scope.revoke();
-            return;
-          }
-          current.scope.revoke();
-          current = reopened;
+      const gen = ++generation;
+      const target = next ?? requested;
+      requested = target;
+      const keys = target.entries.map((e) => e.key);
+      if (keys.some((key) => !current.granted.has(key))) {
+        // New assets (e.g. an image dropped in while editing) need a grant:
+        // reopen the scope with the new key set and retire the old one.
+        const reopened = await openScope(keys, assetOrigin);
+        // A newer update or a dispose overtook this one while it waited: its
+        // grant is retired at once and it neither renders nor swaps scopes,
+        // so text, manifest and grant always come from the same update.
+        if (disposed || gen !== generation) {
+          reopened.scope.revoke();
+          return;
         }
+        current.scope.revoke();
+        current = reopened;
       }
-      if (!disposed) show(text);
+      if (disposed) return;
+      manifest = target;
+      show(text);
     },
     dispose() {
       disposed = true;

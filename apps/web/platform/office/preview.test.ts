@@ -315,6 +315,44 @@ describe("mountHtmlPreview", () => {
     expect(session.iframe.srcdoc).toBe(before);
   });
 
+  it("lets only the latest of overlapping updates render and hold the grant", async () => {
+    let release: () => void = () => {};
+    let opens = 0;
+    const revokedIds: number[] = [];
+    const proxy: PreviewAssetProxy = {
+      async open(req) {
+        const id = ++opens;
+        if (id === 2) await new Promise<void>((r) => (release = r));
+        return {
+          origin: PROXY_ORIGIN,
+          expires_at: Date.now() + 60_000,
+          urlFor: (k) => (req.keys.includes(k) ? PROXY_ORIGIN + "/g" + id + "/" + encodeURIComponent(k) : null),
+          revoke: () => void revokedIds.push(id),
+        };
+      },
+    };
+    const { session } = await mount("<p>v0</p>", { proxy });
+    const next: AssetManifest = {
+      ...MANIFEST,
+      entries: [...MANIFEST.entries, { key: "img/new.png", sha256: SHA, byte_length: 1, media_type: "image/png", origin: "owned" }],
+    };
+    const first = session.update(`<p>v1</p><img src="img/new.png">`, next);
+    await vi.waitFor(() => expect(opens).toBe(2));
+    // A later text-only update keeps the requested manifest, so it needs (and gets) its own grant.
+    await session.update(`<p>v2</p><img src="img/new.png">`);
+    expect(opens).toBe(3);
+    expect(session.iframe.srcdoc).toContain("<p>v2</p>");
+    expect(session.iframe.srcdoc).toContain(PROXY_ORIGIN + "/g3/img%2Fnew.png");
+    release();
+    await first;
+    // The overtaken update neither rendered nor replaced the newer grant.
+    expect(session.iframe.srcdoc).toContain("<p>v2</p>");
+    expect(session.iframe.srcdoc).not.toContain("<p>v1</p>");
+    expect(revokedIds.sort()).toEqual([1, 2]);
+    session.dispose();
+    expect(revokedIds.sort()).toEqual([1, 2, 3]);
+  });
+
   it("blocks an asset whose proxy URL does not parse", async () => {
     const proxy: PreviewAssetProxy = {
       async open() {
