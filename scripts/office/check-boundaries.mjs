@@ -1,0 +1,234 @@
+#!/usr/bin/env node
+// UNI-684 / G2-01a - Office boundary checker.
+//
+// Enforces the three boundary rules the lane owns:
+//   1. Browser isolation: the browser-facing surface of @uniwork/office-engine
+//      (src/index.ts, src/shared/**, src/browser/**) and all of
+//      @uniwork/office-contracts must not resolve Node, Electron, native or
+//      canvas - directly OR transitively through relative imports.
+//   2. No /ee anywhere in the office tree: upstream /ee is separately licensed
+//      enterprise material and must never enter the source package
+//      (docs/office/g0/source-manifest.json).
+//   3. Licence attribution: when packages/office-upstream exists it must carry
+//      a non-empty LICENSE and NOTICE.
+//
+// Node 22 built-ins only. Exit 0 only when the tree is clean.
+//
+//   node scripts/office/check-boundaries.mjs            # check the real tree
+//   node --test scripts/office/check-boundaries.test.mjs
+
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+
+/** Import specifiers a browser-facing file must never resolve. */
+export const FORBIDDEN_BROWSER_SPECIFIERS = [
+  /^node:/,
+  /^electron(\/|$)/,
+  /^canvas(\/|$)/,
+  /^@napi-rs\//,
+  /\.node$/,
+];
+
+/** Bare specifiers a browser-facing file may legitimately import. Anything
+ * else bare is a violation (a browser entry cannot reach a workspace package
+ * that itself pulls Node). */
+export const BROWSER_SAFE_PACKAGES = new Set([
+  "zod",
+  "@uniwork/office-contracts",
+  "@uniwork/office-engine",
+]);
+
+/** Browser-scope roots, relative to the repo root. Every file under these
+ * roots (plus relative-import closure) must stay free of forbidden specifiers. */
+export const BROWSER_SCOPE_ROOTS = [
+  "packages/office-contracts/src",
+  "packages/office-engine/src/index.ts",
+  "packages/office-engine/src/shared",
+  "packages/office-engine/src/browser",
+];
+
+/** Directories the /ee and licence checks scan. */
+export const OFFICE_TREE_ROOTS = [
+  "packages/office-contracts",
+  "packages/office-engine",
+  "packages/office-upstream",
+  "apps/office-engine",
+  "apps/web/platform/office",
+];
+
+const SOURCE_EXT = new Set([".ts", ".tsx", ".mts", ".js", ".mjs", ".jsx"]);
+
+/** Test files are never part of a shipped entry point: they legitimately
+ * import vitest and node: builtins (hash fixtures, temp dirs). The boundary
+ * rule applies to what a browser bundle would resolve, so test files are out
+ * of the browser scope - but still scanned for /ee specifiers. */
+function isTestFile(relOrAbsPath) {
+  return /\.(test|spec)\.[a-z]+$/.test(relOrAbsPath) || /(^|[\\/])(test|tests|__tests__)[\\/]/.test(relOrAbsPath);
+}
+
+function* walk(dir) {
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name === "node_modules" || entry.name === ".git" || entry.name === "dist") continue;
+      yield* walk(full);
+    } else {
+      yield full;
+    }
+  }
+}
+
+/** Extract import/export/require specifier strings from a source file. */
+export function extractImportSpecifiers(source) {
+  const specifiers = [];
+  const patterns = [
+    /(?:import|export)\s+(?:type\s+)?(?:[^'"]*?\s+from\s+)?["']([^"']+)["']/g,
+    /import\s*\(\s*["']([^"']+)["']\s*\)/g,
+    /require\s*\(\s*["']([^"']+)["']\s*\)/g,
+  ];
+  for (const re of patterns) {
+    for (const match of source.matchAll(re)) specifiers.push(match[1]);
+  }
+  return specifiers;
+}
+
+/** Resolve a relative specifier to a file that exists. */
+function resolveRelative(fromFile, specifier) {
+  const base = path.resolve(path.dirname(fromFile), specifier);
+  const candidates = [base, base + ".ts", base + ".tsx", base + ".mts", base + ".js", base + ".mjs",
+    path.join(base, "index.ts"), path.join(base, "index.tsx"), path.join(base, "index.mjs")];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return path.resolve(candidate);
+  }
+  return null;
+}
+
+function isForbiddenSpecifier(specifier) {
+  return FORBIDDEN_BROWSER_SPECIFIERS.some((re) => re.test(specifier));
+}
+
+/** A path segment exactly "ee" = the separately licensed upstream enterprise
+ * tree. Also catch specifiers that name /ee paths inside the office tree. */
+function hasEnterpriseSegment(relPath) {
+  return relPath.split(/[\\/]/).includes("ee");
+}
+
+/**
+ * Check a tree. `scope` = { browserRoots: abs paths, officeRoots: abs paths,
+ * requireUpstreamLicence: bool }. Returns { ok, violations: [{rule,file,detail}] }.
+ */
+export function checkBoundaries(root, { requireUpstreamLicence = null } = {}) {
+  const violations = [];
+  const report = (rule, file, detail) => violations.push({ rule, file, detail });
+
+  // --- 1. Browser isolation -------------------------------------------------
+  const browserRoots = BROWSER_SCOPE_ROOTS.map((r) => path.join(root, r));
+  const seen = new Set();
+  const queue = [];
+  for (const entry of browserRoots) {
+    if (!fs.existsSync(entry)) continue;
+    if (fs.statSync(entry).isFile()) {
+      if (!isTestFile(entry)) queue.push(entry);
+    } else {
+      for (const f of walk(entry)) {
+        if (!isTestFile(f)) queue.push(f);
+      }
+    }
+  }
+
+  while (queue.length) {
+    const file = queue.shift();
+    const normalized = path.resolve(file);
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    if (!SOURCE_EXT.has(path.extname(normalized))) continue;
+
+    const source = fs.readFileSync(normalized, "utf8");
+    for (const specifier of extractImportSpecifiers(source)) {
+      if (isForbiddenSpecifier(specifier)) {
+        report("browser_isolation", normalized, `resolves forbidden specifier ${JSON.stringify(specifier)}`);
+        continue;
+      }
+      if (specifier === "../node" || specifier === "../node/index" || /(^|\/)\.\.[\\/]node[\\/]/.test(specifier)
+        || specifier.endsWith("/node") || /(^|\/)node$/.test(path.dirname(specifier))) {
+        report("browser_isolation", normalized, `imports the node entry ${JSON.stringify(specifier)}`);
+        continue;
+      }
+      if (specifier.startsWith("./") || specifier.startsWith("../")) {
+        const resolved = resolveRelative(normalized, specifier);
+        if (resolved === null) {
+          report("browser_isolation", normalized, `unresolvable specifier ${JSON.stringify(specifier)}`);
+        } else if (!seen.has(resolved) && !isTestFile(resolved)) {
+          // Transitive: only local resolution inside the repo can smuggle
+          // Node facilities; chase it.
+          if (resolved.startsWith(root + path.sep)) queue.push(resolved);
+          else report("browser_isolation", normalized, `resolves outside the checkout: ${resolved}`);
+        }
+      } else if (!BROWSER_SAFE_PACKAGES.has(specifier)) {
+        report("browser_isolation", normalized, `resolves non-browser-safe specifier ${JSON.stringify(specifier)}`);
+      }
+    }
+  }
+
+  // --- 2. No /ee ------------------------------------------------------------
+  for (const rel of OFFICE_TREE_ROOTS) {
+    const dir = path.join(root, rel);
+    if (!fs.existsSync(dir)) continue;
+    for (const file of walk(dir)) {
+      const relPath = path.relative(root, file);
+      if (hasEnterpriseSegment(relPath)) {
+        report("ee_path", relPath, "a path segment named 'ee' must never enter the office tree");
+      }
+      if (SOURCE_EXT.has(path.extname(file))) {
+        const source = fs.readFileSync(file, "utf8");
+        for (const specifier of extractImportSpecifiers(source)) {
+          if (specifier.split("/").includes("ee") || specifier.split("\\").includes("ee")) {
+            report("ee_path", relPath, `imports an /ee path ${JSON.stringify(specifier)}`);
+          }
+        }
+      }
+    }
+  }
+
+  // --- 3. Licence attribution ------------------------------------------------
+  const upstreamDir = path.join(root, "packages/office-upstream");
+  const upstreamExists = fs.existsSync(upstreamDir);
+  const requireLicence = requireUpstreamLicence ?? upstreamExists;
+  if (upstreamExists || requireLicence) {
+    for (const name of ["LICENSE", "NOTICE"]) {
+      const file = path.join(upstreamDir, name);
+      if (!fs.existsSync(file)) {
+        report("licence", `packages/office-upstream/${name}`, "missing - Apache-2.0 attribution must be vendored");
+      } else if (fs.statSync(file).size === 0) {
+        report("licence", `packages/office-upstream/${name}`, "empty - attribution must not be a stub");
+      }
+    }
+  }
+
+  return { ok: violations.length === 0, violations };
+}
+
+function main() {
+  const { ok, violations } = checkBoundaries(REPO_ROOT);
+  if (ok) {
+    console.log("check-boundaries: OK - browser isolation, no /ee, licence attribution");
+    return;
+  }
+  for (const v of violations) {
+    console.error(`check-boundaries: ${v.rule} ${v.file}: ${v.detail}`);
+  }
+  console.error(`check-boundaries: ${violations.length} violation(s)`);
+  process.exitCode = 1;
+}
+
+const invokedDirectly = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (invokedDirectly) main();
