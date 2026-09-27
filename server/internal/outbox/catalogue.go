@@ -213,6 +213,21 @@ var catalogue = []EventDef{
 	{Topic: "document.link_created", Version: 1, Payload: []string{"document_id", "workspace_id", "link_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "document.link_revoked", Version: 1, Payload: []string{"document_id", "workspace_id", "link_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 
+	// Document comments (UNI-681): ids only, workspace scope like the task
+	// rows. A reader reached only through a share is caught by the
+	// notification side, which re-checks read access at delivery time.
+	{Topic: "document.comment_added", Version: 1, Payload: []string{"document_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.comment_updated", Version: 1, Payload: []string{"document_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.comment_deleted", Version: 1, Payload: []string{"document_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.comment_resolved", Version: 1, Payload: []string{"document_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.comment_unresolved", Version: 1, Payload: []string{"document_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.comment_reaction_added", Version: 1, Payload: []string{"document_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.comment_reaction_removed", Version: 1, Payload: []string{"document_id", "comment_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// Favorites are one user's own list; the event reaches that user's
+	// connections (payload.user_id resolves the user scope) and nobody else.
+	{Topic: "document.favorited", Version: 1, Payload: []string{"document_id", "user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+	{Topic: "document.unfavorited", Version: 1, Payload: []string{"document_id", "user_id", "workspace_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},
+
 	// Billing (F-02). Both go to each owner/admin, one row per person, because
 	// the realtime consumer resolves user scope from payload.user_id.
 	{Topic: "subscription.changed", Version: 1, Payload: []string{"organization_id", "subscription_id", "user_id"}, Scope: ScopeUser, Delivery: DeliveryOutbox},

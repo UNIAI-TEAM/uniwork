@@ -19,6 +19,10 @@ leftover numbers return to `free`.
 | after 998 | timestamped | any | `999<unix-ms>_name` - no range to claim; list the files here when they land |
 | 9991790522571159 | allocated | G1-02 / UNI-676 | `9991790522571159_document_settings` - `document_settings` table (organization public-link switch) |
 | 9991790522571160 | allocated | G1-02 / UNI-676 | `9991790522571160_documents_public_links_feature` - `documents.public_links` feature + starter plan row |
+| 9991790532871902 | allocated | G1-07 / UNI-681 | `9991790532871902_document_comments` - `document_comments` table (threaded document comments on the shared comment core) |
+| 9991790532871903 | allocated | G1-07 / UNI-681 | `9991790532871903_document_comments_document_idx` - comment list index `(document_id, created_at)` |
+| 9991790532871904 | allocated | G1-07 / UNI-681 | `9991790532871904_document_favorites` - `document_favorites` table (server-side per-user favorites) |
+| 9991790532871905 | allocated | G1-07 / UNI-681 | `9991790532871905_document_favorites_user_idx` - favorites list index `(organization_id, user_id, created_at)` |
 
 ## Rules
 
