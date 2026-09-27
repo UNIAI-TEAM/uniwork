@@ -106,8 +106,10 @@ func insertSession(t *testing.T, pool *pgxpool.Pool, id, fileID, purpose, org, w
 	t.Helper()
 	if _, err := pool.Exec(context.Background(), `INSERT INTO file_upload_sessions
 		(id, file_id, created_by, created_by_kind, purpose,
-		 organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status)
-		VALUES ($1,$2,'user-1','human',$3,$4,$5,$6,$7,'fp','claimed')`,
+		 organization_id, workspace_id, user_id, idempotency_key, command_fingerprint, status,
+		 claim_expires_at, closed_at)
+		VALUES ($1,$2,'user-1','human',$3,$4,$5,$6,$7,'fp','claimed',
+			now() + interval '1 hour', now())`,
 		id, fileID, purpose, nilIfEmpty(org), nilIfEmpty(ws), nilIfEmpty(user), "test/"+id); err != nil {
 		t.Fatalf("seed session %s: %v", id, err)
 	}
