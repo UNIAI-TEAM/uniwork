@@ -28,6 +28,7 @@ type Registry struct {
 	Notifications *Notifications
 	AI            *AI
 	WebVitals     *WebVitals
+	Office        *Office
 }
 
 func NewRegistry(opts RegistryOptions) *Registry {
@@ -78,6 +79,9 @@ func NewRegistry(opts RegistryOptions) *Registry {
 	webVitals := NewWebVitals()
 	reg.MustRegister(webVitals.Collectors()...)
 
+	officeMetrics := NewOffice()
+	reg.MustRegister(officeMetrics.Collectors()...)
+
 	return &Registry{
 		Gatherer:      reg,
 		HTTP:          httpMetrics,
@@ -87,6 +91,7 @@ func NewRegistry(opts RegistryOptions) *Registry {
 		Notifications: notificationMetrics,
 		AI:            aiMetrics,
 		WebVitals:     webVitals,
+		Office:        officeMetrics,
 	}
 }
 

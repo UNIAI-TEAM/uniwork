@@ -17,6 +17,11 @@ leftover numbers return to `free`.
 | 993–995 | allocated | G1-01 / UNI-675 | `document_share_links` table + indexes |
 | 996–998 | allocated | G1-01 / UNI-675 | `document_access_logs` table + indexes |
 | after 998 | timestamped | any | `999<unix-ms>_name` - no range to claim; list the files here when they land |
+| 9991790521814499 | allocated | G2-02 / UNI-685 | `office_jobs` table |
+| 9991790521814500 | allocated | G2-02 / UNI-685 | `uidx_office_jobs_idempotency` (org, workspace, idempotency_key) |
+| 9991790521814501 | allocated | G2-02 / UNI-685 | `uidx_office_jobs_live_fingerprint` (one live job per base + payload) |
+| 9991790521814502 | allocated | G2-02 / UNI-685 | `idx_office_jobs_live_deadline` (reconciler sweep) |
+| 9991790521814503 | allocated | G2-02 / UNI-685 | `idx_office_jobs_output_file` (FileService reference lookup) |
 
 ## Rules
 
