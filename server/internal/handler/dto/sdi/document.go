@@ -26,7 +26,9 @@ type CreateDocumentSDI struct {
 // Idempotency-Key header, C-01 §14.2): one file document whose bytes stream
 // into FileService (purpose document_file, ≤ 50 MiB, MIME allowlist).
 // The handler reads the file part directly; the type describes the form for
-// OpenAPI.
+// OpenAPI. Text fields must precede the file part in the multipart body (the
+// stream is consumed part-by-part); a title that trails the file falls back
+// to the sanitized filename.
 type CreateDocumentFileSDI struct {
 	File     []byte  `formData:"file" description:"Byte tài liệu; MIME phải trong allowlist document_file và khớp magic bytes"`
 	ParentID *string `formData:"parent_id" description:"ULID trang cha cùng workspace; bỏ trống = gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
@@ -69,6 +71,16 @@ type CommitDocumentVersionSDI struct {
 // document_version_unchanged.
 type CreateDocumentVersionSDI struct {
 	Label *string `json:"label" description:"Nhãn mốc phiên bản, ≤ 200 ký tự" example:"Bản gửi khách hàng"`
+}
+
+// RestoreDocumentVersionSDI is the optional body of POST
+// /api/v1/documents/{documentID}/versions/{versionNo}/restore. The contract
+// declares no request: a page restore carries nothing and restores over the
+// live revision. A file restore must still name the base revision the writer
+// saw (the service checks it unconditionally for files), so the carrier is an
+// optional JSON body - absent or empty keeps the page behaviour.
+type RestoreDocumentVersionSDI struct {
+	BaseRevision *string `json:"base_revision" description:"Revision nền dạng chuỗi thập phân; bắt buộc cho file document, lệch → document_version_conflict" example:"41"`
 }
 
 // UploadDocumentAssetSDI documents POST /api/v1/documents/{documentID}/assets

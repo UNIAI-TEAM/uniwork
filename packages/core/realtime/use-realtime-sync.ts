@@ -222,13 +222,14 @@ function keysFor(
     case "document.link_revoked":
     case "document.favorited":
     case "document.unfavorited": {
-      // Ids-only refetch: the workspace root covers list/tree roots, and the
-      // detail key is the prefix of versions/version/downloadMeta so one
-      // invalidation covers the document's whole subtree. A dirty draft is
-      // not overwritten by the refetch — the save machine guards it.
+      // Ids-only refetch: the workspace root is the prefix of every document
+      // key (list/tree roots, detail, versions, downloadMeta), so one
+      // invalidation covers the whole subtree. document.comment_* stays
+      // unwired - G1-07b owns the comment keys. The frame only marks queries
+      // stale; an in-flight draft lives in the save machine, not the cache
+      // (documents/save-state.ts keeps it through conflict/unverified).
       if (payload.workspace_id && payload.workspace_id !== wsId) break;
       push(documentKeys.workspace(wsId));
-      if (payload.document_id) push(documentKeys.detail(wsId, payload.document_id));
       break;
     }
     case "summary.created": {

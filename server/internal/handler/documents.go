@@ -46,7 +46,7 @@ func documentTooLarge(w http.ResponseWriter) {
 // cappedDocumentPart counts part bytes while they stream into a service call
 // so an over-limit upload answers 413 even when the failure arrives wrapped.
 type cappedDocumentPart struct {
-	r   multipart.File
+	r   io.Reader
 	max int64
 	n   int64
 }
@@ -60,26 +60,63 @@ func (c *cappedDocumentPart) Read(p []byte) (int, error) {
 	return n, err
 }
 
-// documentUploadForm opens the required "file" part of a multipart request
-// whose body is already capped by MaxBytesReader. A missing or malformed part
-// answers 400; a request past the cap answers 413.
-func documentUploadForm(w http.ResponseWriter, r *http.Request, cap int64) (multipart.File, string, bool) {
+// documentUploadFieldCap bounds one text part of a document upload; a field
+// past it is rejected rather than truncated into a misleading title.
+const documentUploadFieldCap = 4 << 10
+
+// documentUploadForm streams the required "file" part into the caller's
+// service call - unlike r.FormFile, which buffers the whole part to memory or
+// a temp file before returning, MultipartReader hands the live part stream
+// over and the service reads it as it arrives. A request whose Content-Length
+// already exceeds the cap is refused without reading the body; MaxBytesReader
+// still bounds a chunked one. Text fields are honoured only while they
+// precede the file part (the wire contract orders them first); anything after
+// is dropped when the body drains. The caller owns the returned part's Close.
+func documentUploadForm(w http.ResponseWriter, r *http.Request, cap int64) (*multipart.Part, map[string]string, bool) {
+	if r.ContentLength > cap {
+		documentTooLarge(w)
+		return nil, nil, false
+	}
 	r.Body = http.MaxBytesReader(w, r.Body, cap)
-	file, header, err := r.FormFile("file")
+	mr, err := r.MultipartReader()
 	if err != nil {
-		var tooBig *http.MaxBytesError
-		if errors.As(err, &tooBig) {
-			documentTooLarge(w)
-			return nil, "", false
+		respondError(w, http.StatusBadRequest, "invalid_request", "multipart/form-data body required")
+		return nil, nil, false
+	}
+	fields := map[string]string{}
+	for {
+		p, err := mr.NextPart()
+		if errors.Is(err, io.EOF) {
+			break
 		}
-		respondError(w, http.StatusBadRequest, "invalid_request", `multipart field "file" is required`)
-		return nil, "", false
+		if err != nil {
+			var tooBig *http.MaxBytesError
+			if errors.As(err, &tooBig) {
+				documentTooLarge(w)
+			} else {
+				respondError(w, http.StatusBadRequest, "invalid_request", "malformed multipart body")
+			}
+			return nil, nil, false
+		}
+		if p.FormName() != "file" {
+			b, err := io.ReadAll(io.LimitReader(p, documentUploadFieldCap+1))
+			_ = p.Close()
+			if err != nil || len(b) > documentUploadFieldCap {
+				respondError(w, http.StatusBadRequest, "invalid_request", "multipart field "+p.FormName()+" is too large")
+				return nil, nil, false
+			}
+			fields[p.FormName()] = string(b)
+			continue
+		}
+		if p.FileName() == "" {
+			_ = p.Close()
+			respondError(w, http.StatusBadRequest, "invalid_request", `multipart field "file" must carry a filename`)
+			return nil, nil, false
+		}
+		return p, fields, true
 	}
-	filename := ""
-	if header != nil {
-		filename = header.Filename
-	}
-	return file, filename, true
+	respondError(w, http.StatusBadRequest, "invalid_request", `multipart field "file" is required`)
+	return nil, nil, false
 }
 
 // mapDocumentUploadError answers a streamed-upload failure: a read that hit
@@ -187,16 +224,16 @@ func (h *handlers) createDocumentFile(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
 		return
 	}
-	file, filename, ok := documentUploadForm(w, r, documentFileMultipartCap)
+	file, fields, ok := documentUploadForm(w, r, documentFileMultipartCap)
 	if !ok {
 		return
 	}
 	defer file.Close()
 	part := &cappedDocumentPart{r: file, max: 50 << 20}
 	res, err := h.Documents.CreateFileDocument(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), service.CreateFileDocumentInput{
-		ParentID:       strings.TrimSpace(r.FormValue("parent_id")),
-		Title:          strings.TrimSpace(r.FormValue("title")),
-		Filename:       filename,
+		ParentID:       strings.TrimSpace(fields["parent_id"]),
+		Title:          strings.TrimSpace(fields["title"]),
+		Filename:       file.FileName(),
 		Body:           part,
 		IdempotencyKey: r.Header.Get("Idempotency-Key"),
 	})
@@ -221,14 +258,14 @@ func (h *handlers) uploadDocumentFile(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
 		return
 	}
-	file, filename, ok := documentUploadForm(w, r, documentFileMultipartCap)
+	file, _, ok := documentUploadForm(w, r, documentFileMultipartCap)
 	if !ok {
 		return
 	}
 	defer file.Close()
 	part := &cappedDocumentPart{r: file, max: 50 << 20}
 	up, err := h.Documents.UploadDocumentFile(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"), service.DocumentUploadInput{
-		Filename:       filename,
+		Filename:       file.FileName(),
 		Body:           part,
 		IdempotencyKey: r.Header.Get("Idempotency-Key"),
 	})
@@ -353,18 +390,12 @@ func (h *handlers) createDocumentVersion(w http.ResponseWriter, r *http.Request)
 	respondJSON(w, http.StatusCreated, sdo.DocumentVersionSDO{Version: documentVersionDTO(v, false)})
 }
 
-// restoreDocumentVersionBody is the optional body of POST
-// /documents/{id}/versions/{versionNo}/restore. The contract declares no
-// request: a page restore carries nothing and restores over whatever the
-// working copy holds. A file restore must still name the base revision the
-// writer saw (document_commit.go checks it unconditionally), so the body is
-// accepted but never required.
-type restoreDocumentVersionBody struct {
-	BaseRevision *string `json:"base_revision"`
-}
-
 // restoreDocumentVersion appends a restore version pointing at an earlier
-// version and updates the working copy.
+// version and updates the working copy. The contract declares no request
+// body: a page restore carries nothing and restores over whatever the working
+// copy holds. A file restore must still name the base revision the writer saw
+// (document_commit.go checks it unconditionally), so the optional
+// RestoreDocumentVersionSDI body carries it.
 func (h *handlers) restoreDocumentVersion(w http.ResponseWriter, r *http.Request) {
 	if h.Documents == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
@@ -374,7 +405,7 @@ func (h *handlers) restoreDocumentVersion(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	var body restoreDocumentVersionBody
+	var body sdi.RestoreDocumentVersionSDI
 	if r.Body != nil && r.ContentLength != 0 {
 		if !decode(w, r, &body, maxJSONBody) {
 			return
@@ -412,14 +443,14 @@ func (h *handlers) uploadDocumentAsset(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
 		return
 	}
-	file, filename, ok := documentUploadForm(w, r, documentAssetMultipartCap)
+	file, _, ok := documentUploadForm(w, r, documentAssetMultipartCap)
 	if !ok {
 		return
 	}
 	defer file.Close()
 	part := &cappedDocumentPart{r: file, max: 10 << 20}
 	asset, err := h.Documents.UploadDocumentAsset(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"), service.DocumentUploadInput{
-		Filename:       filename,
+		Filename:       file.FileName(),
 		Body:           part,
 		IdempotencyKey: r.Header.Get("Idempotency-Key"),
 	})
@@ -454,7 +485,7 @@ func (h *handlers) getDocumentAsset(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
 		return
 	}
-	rd, rng, err := h.openDocumentAssetRange(w, r)
+	rd, rng, ranged, err := h.openDocumentAssetRange(w, r)
 	if err != nil || rd == nil {
 		return
 	}
@@ -466,7 +497,7 @@ func (h *handlers) getDocumentAsset(w http.ResponseWriter, r *http.Request) {
 		Filename:    rd.File.Filename,
 		Disposition: storage.ContentDisposition(rd.File.ContentType, rd.File.Filename),
 		Checksum:    rd.File.ChecksumSHA256,
-	}, rng, r.Header.Get("Range") != "")
+	}, rng, ranged)
 }
 
 // downloadDocument is GET|HEAD /documents/{documentID}/download: meta=1
@@ -500,7 +531,7 @@ func (h *handlers) downloadDocument(w http.ResponseWriter, r *http.Request) {
 	}
 	actor := service.Human(middleware.UserID(r.Context()))
 	documentID := chi.URLParam(r, "documentID")
-	f, rng, err := h.openDocumentFileRange(w, r, actor, documentID, versionNo)
+	f, rng, ranged, err := h.openDocumentFileRange(w, r, actor, documentID, versionNo)
 	if err != nil || f == nil {
 		return
 	}
@@ -523,7 +554,7 @@ func (h *handlers) downloadDocument(w http.ResponseWriter, r *http.Request) {
 	if f.Version.ChecksumSha256.Valid {
 		payload.Checksum = f.Version.ChecksumSha256.String
 	}
-	h.serveDocumentFile(w, r, payload, rng, r.Header.Get("Range") != "")
+	h.serveDocumentFile(w, r, payload, rng, ranged)
 }
 
 // documentRangeSpec is the client's Range header translated to the service's
@@ -537,17 +568,17 @@ type documentRangeSpec struct {
 }
 
 // parseDocumentRange validates the Range header syntactically; the size check
-// happens after open, when the file record is known.
-func parseDocumentRange(w http.ResponseWriter, r *http.Request) (documentRangeSpec, bool) {
+// happens after open, when the file record is known. A malformed or
+// unsupported header (bad unit, multi-range, nonsense bounds) is ignored per
+// RFC 9110 §14.2 and the whole body is served - a ranged client must never
+// get an error where a plain GET would have streamed the file.
+func parseDocumentRange(r *http.Request) documentRangeSpec {
 	var spec documentRangeSpec
 	raw := strings.TrimSpace(r.Header.Get("Range"))
 	if raw == "" {
-		return spec, true
+		return spec
 	}
-	bad := func() (documentRangeSpec, bool) {
-		respondError(w, http.StatusBadRequest, "invalid_request", "invalid byte range")
-		return documentRangeSpec{}, false
-	}
+	bad := func() documentRangeSpec { return documentRangeSpec{} }
 	if !strings.HasPrefix(raw, "bytes=") || strings.Contains(raw, ",") {
 		return bad()
 	}
@@ -556,7 +587,6 @@ func parseDocumentRange(w http.ResponseWriter, r *http.Request) (documentRangeSp
 		return bad()
 	}
 	left, right := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
-	spec.has = true
 	switch {
 	case left == "" && right != "":
 		n, err := strconv.ParseInt(right, 10, 64)
@@ -580,25 +610,24 @@ func parseDocumentRange(w http.ResponseWriter, r *http.Request) (documentRangeSp
 	default:
 		return bad()
 	}
-	return spec, true
+	spec.has = true
+	return spec
 }
 
 // openDocumentFileRange resolves the Range header into the service window and
 // opens the document's bytes once (a suffix range costs a 1-byte probe to
-// learn the size first). A syntactically bad range answers 400; a window past
-// the end is answered 416 by serveDocumentFile once it sees the size.
-// Returns the effective window so the response headers match the opened body.
-func (h *handlers) openDocumentFileRange(w http.ResponseWriter, r *http.Request, actor service.Actor, documentID string, versionNo int32) (*service.DocumentFile, service.DocumentByteRange, error) {
-	spec, ok := parseDocumentRange(w, r)
-	if !ok {
-		return nil, service.DocumentByteRange{}, nil
-	}
+// learn the size first). A malformed header is ignored and the body opens
+// whole; a window past the end is answered 416 by serveDocumentFile once it
+// sees the size. Returns the effective window and whether a range applied so
+// the response headers match the opened body.
+func (h *handlers) openDocumentFileRange(w http.ResponseWriter, r *http.Request, actor service.Actor, documentID string, versionNo int32) (*service.DocumentFile, service.DocumentByteRange, bool, error) {
+	spec := parseDocumentRange(r)
 	rng := service.DocumentByteRange{Offset: spec.offset, Length: spec.length}
 	if spec.suffix > 0 {
 		probe, err := h.Documents.OpenDocumentFile(r.Context(), actor, documentID, versionNo, service.DocumentByteRange{Length: 1})
 		if err != nil {
 			h.mapServiceError(w, err)
-			return nil, service.DocumentByteRange{}, err
+			return nil, service.DocumentByteRange{}, false, err
 		}
 		size := probe.Reader.File.SizeBytes
 		_ = probe.Reader.Close()
@@ -611,25 +640,22 @@ func (h *handlers) openDocumentFileRange(w http.ResponseWriter, r *http.Request,
 	f, err := h.Documents.OpenDocumentFile(r.Context(), actor, documentID, versionNo, rng)
 	if err != nil {
 		h.mapServiceError(w, err)
-		return nil, service.DocumentByteRange{}, err
+		return nil, service.DocumentByteRange{}, false, err
 	}
-	return &f, rng, nil
+	return &f, rng, spec.has, nil
 }
 
 // openDocumentAssetRange is openDocumentFileRange for the asset route: same
 // window math on OpenDocumentAsset.
-func (h *handlers) openDocumentAssetRange(w http.ResponseWriter, r *http.Request) (*files.Reader, service.DocumentByteRange, error) {
-	spec, ok := parseDocumentRange(w, r)
-	if !ok {
-		return nil, service.DocumentByteRange{}, nil
-	}
+func (h *handlers) openDocumentAssetRange(w http.ResponseWriter, r *http.Request) (*files.Reader, service.DocumentByteRange, bool, error) {
+	spec := parseDocumentRange(r)
 	actor := service.Human(middleware.UserID(r.Context()))
 	rng := service.DocumentByteRange{Offset: spec.offset, Length: spec.length}
 	if spec.suffix > 0 {
 		probe, err := h.Documents.OpenDocumentAsset(r.Context(), actor, chi.URLParam(r, "documentID"), chi.URLParam(r, "assetID"), service.DocumentByteRange{Length: 1})
 		if err != nil {
 			h.mapServiceError(w, err)
-			return nil, service.DocumentByteRange{}, err
+			return nil, service.DocumentByteRange{}, false, err
 		}
 		size := probe.File.SizeBytes
 		_ = probe.Close()
@@ -642,9 +668,9 @@ func (h *handlers) openDocumentAssetRange(w http.ResponseWriter, r *http.Request
 	rd, err := h.Documents.OpenDocumentAsset(r.Context(), actor, chi.URLParam(r, "documentID"), chi.URLParam(r, "assetID"), rng)
 	if err != nil {
 		h.mapServiceError(w, err)
-		return nil, service.DocumentByteRange{}, err
+		return nil, service.DocumentByteRange{}, false, err
 	}
-	return &rd, rng, nil
+	return &rd, rng, spec.has, nil
 }
 
 // documentFilePayload is the opened object plus the headers a document byte

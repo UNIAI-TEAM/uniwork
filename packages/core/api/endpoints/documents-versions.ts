@@ -130,17 +130,22 @@ export async function commitDocumentVersion(
  * the chosen version the working copy and records a new restore version.
  * Returns the bumped document plus the new version row; null means the
  * restore cannot be proven.
+ *
+ * The contract declares no request body, but a file restore must name the
+ * base the writer saw (the service checks base_revision unconditionally on
+ * files) — pass it via opts.baseRevision; page restores send none.
  */
 export async function restoreDocumentVersion(
   documentId: string,
   versionNo: number,
-  opts?: DocumentRequestOpts,
+  opts?: DocumentRequestOpts & { baseRevision?: string },
 ): Promise<DocumentVersionResult | null> {
   const raw = await request(
     `/api/v1/documents/${enc(documentId)}/versions/${enc(String(versionNo))}/restore`,
     {
       method: "POST",
       headers: opts?.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : undefined,
+      body: opts?.baseRevision ? { base_revision: opts.baseRevision } : undefined,
       signal: opts?.signal,
     },
   );

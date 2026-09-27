@@ -655,6 +655,59 @@ describe("useRealtimeSync", () => {
     expect(qc.getQueryData(chatKeys.roomMessages("ws1", "dm1"))).toEqual(messages);
   });
 
+  // Documents frames are ids-only: the workspace root is the prefix of every
+  // document key (detail, versions, downloadMeta), so each of the nine wired
+  // topics pushes exactly that root.
+  describe("documents", () => {
+    const docRoot = JSON.stringify(["documents", "ws1"]);
+
+    it.each([
+      "document.created",
+      "document.updated",
+      "document.version_created",
+      "document.shared",
+      "document.share_revoked",
+      "document.link_created",
+      "document.link_revoked",
+      "document.favorited",
+      "document.unfavorited",
+    ] as const)("invalidates the workspace documents root on %s", (type) => {
+      vi.useFakeTimers();
+      const { invalidate, client } = setup();
+      client.emit({ type, payload: { document_id: "d1", workspace_id: "ws1" } } as WSMessage);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(keysCalled(invalidate)).toContain(docRoot);
+    });
+
+    it("ignores a document frame stamped with another workspace", () => {
+      vi.useFakeTimers();
+      const { invalidate, client } = setup();
+      client.emit({
+        type: "document.updated",
+        payload: { document_id: "d1", workspace_id: "ws2" },
+      } as WSMessage);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(keysCalled(invalidate)).not.toContain(docRoot);
+    });
+
+    it("leaves document.comment_added unwired - G1-07b owns the comment keys", () => {
+      vi.useFakeTimers();
+      const { invalidate, client } = setup();
+      client.emit({
+        type: "document.comment_added",
+        payload: { document_id: "d1", comment_id: "c1", workspace_id: "ws1" },
+      } as WSMessage);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(keysCalled(invalidate).filter((k) => k.startsWith('["documents"'))).toEqual([]);
+    });
+  });
+
   it("invalidates workspace keys and open chat timelines after a reconnect", () => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();
@@ -678,6 +731,7 @@ describe("useRealtimeSync", () => {
         JSON.stringify(["meetings", "ws1"]),
         JSON.stringify(["meeting-stats", "ws1"]),
         JSON.stringify(["meeting-join-requests"]),
+        JSON.stringify(["documents", "ws1"]),
       ]),
     );
   });

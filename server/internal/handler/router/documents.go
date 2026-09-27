@@ -111,9 +111,10 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	})
 	d.Post("/documents/{documentID}/versions/{versionNo}/restore", h.RestoreDocumentVersion, apiOp{
 		summary: "Restore a document version",
-		description: "Append một version restore trỏ tới version cũ và cập nhật working copy. Body tùy chọn {base_revision}: page restore bỏ trống (ghi đè revision hiện tại); file restore bắt buộc base_revision client thấy, cũ -> 422 revision_conflict. " +
+		description: "Append một version restore trỏ tới version cũ và cập nhật working copy. Body tùy chọn {base_revision}: page restore bỏ trống (ghi đè revision hiện tại); file restore bắt buộc base_revision client thấy, cũ -> 409 document_version_conflict. " +
 			"Idempotency-Key replay trả kết quả đã lưu.",
 		tags: []string{"documents"},
+		sdi:  sdi.RestoreDocumentVersionSDI{},
 		sdo:  sdo.DocumentVersionResultSDO{},
 		auth: true,
 	})

@@ -409,6 +409,20 @@ func TestDocumentFileLifecycle(t *testing.T) {
 	if res.StatusCode != 416 || res.Header.Get("Content-Range") == "" {
 		t.Fatalf("unsatisfiable range: %d %v", res.StatusCode, res.Header)
 	}
+	// Suffix range serves the tail; the download is the restored v1 bytes
+	// (34 bytes, "quarterly report body, utf-8 text\n").
+	res, raw = doBytes(t, w.srv, "GET", "/api/v1/documents/"+id+"/download", w.token, "Range", "bytes=-5")
+	if res.StatusCode != 206 || len(raw) != 5 || res.Header.Get("Content-Range") != "bytes 29-33/34" {
+		t.Fatalf("suffix range: %d len=%d range=%q", res.StatusCode, len(raw), res.Header.Get("Content-Range"))
+	}
+	// A malformed or multi range is ignored per RFC 9110 - the whole body
+	// answers 200, never an error where a plain GET would have streamed.
+	for _, bad := range []string{"bytes=nonsense", "bytes=0-1,4-5", "items=0-9"} {
+		res, raw = doBytes(t, w.srv, "GET", "/api/v1/documents/"+id+"/download", w.token, "Range", bad)
+		if res.StatusCode != 200 || len(raw) != 34 {
+			t.Fatalf("range %q ignored: %d len=%d", bad, res.StatusCode, len(raw))
+		}
+	}
 
 	// Version list shows both file rows; restore needs the live base.
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+id+"/versions", w.token, nil)
@@ -448,9 +462,66 @@ func TestDocumentAssetUploadAndStream(t *testing.T) {
 	if cd := res.Header.Get("Content-Disposition"); !strings.HasPrefix(cd, "inline") {
 		t.Fatalf("asset disposition: %q (image must serve inline)", cd)
 	}
+	if res.Header.Get("Content-Security-Policy") == "" || res.Header.Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatalf("asset safety headers missing: %v", res.Header)
+	}
+	// HEAD answers headers only; an out-of-bounds range answers 416.
+	res, raw = doBytes(t, w.srv, "HEAD", url, w.token)
+	if res.StatusCode != 200 || len(raw) != 0 || res.Header.Get("Content-Length") != "70" {
+		t.Fatalf("asset HEAD: %d len=%d cl=%q", res.StatusCode, len(raw), res.Header.Get("Content-Length"))
+	}
+	res, _ = doBytes(t, w.srv, "GET", url, w.token, "Range", "bytes=999999-")
+	if res.StatusCode != 416 || res.Header.Get("Content-Range") != "bytes */70" {
+		t.Fatalf("asset 416: %d range=%q", res.StatusCode, res.Header.Get("Content-Range"))
+	}
 	res, _ = doBytes(t, w.srv, "GET", url, w.outsider)
 	if res.StatusCode != 404 {
 		t.Fatalf("outsider asset: %d, want 404", res.StatusCode)
+	}
+}
+
+// TestDocumentsNilService501 proves every document route answers 501 (not a
+// panic) while the DocumentService is unwired, with the flag on.
+func TestDocumentsNilService501(t *testing.T) {
+	d, pool := newTestDeps(t, nil, discardOutbox{})
+	q := db.New(pool)
+	if _, err := q.UpsertFlagOverride(context.Background(), db.UpsertFlagOverrideParams{
+		ID: util.NewID(), FlagKey: "documents", ScopeType: featureflags.ScopeGlobal,
+		Enabled: true, Note: "nil service test", CreatedBy: "test",
+	}); err != nil {
+		t.Fatalf("enable documents flag: %v", err)
+	}
+	if testFlagOverrides != nil {
+		testFlagOverrides.Invalidate()
+	}
+	srv := httptest.NewServer(New(d)) // d.Documents deliberately nil
+	t.Cleanup(srv.Close)
+	token, _ := filesRegister(t, srv, "nil-svc@example.com")
+	docID := "01J8X4DOC0N1P2Q3R4S5T6U7"
+	for _, tc := range []struct{ method, path string }{
+		{"GET", "/api/v1/documents/" + docID},
+		{"PATCH", "/api/v1/documents/" + docID},
+		{"GET", "/api/v1/documents/" + docID + "/download"},
+		{"GET", "/api/v1/documents/" + docID + "/versions"},
+		{"GET", "/api/v1/documents/" + docID + "/versions/1"},
+		{"POST", "/api/v1/documents/" + docID + "/versions"},
+		{"POST", "/api/v1/documents/" + docID + "/versions/1/restore"},
+		{"POST", "/api/v1/documents/" + docID + "/versions/commit"},
+	} {
+		res, out := doJSON(t, srv, tc.method, tc.path, token, map[string]any{})
+		code, _ := errCodeClass(out)
+		if res.StatusCode != 501 || code != "storage_unavailable" {
+			t.Fatalf("%s %s with nil Documents: %d code=%q, want 501 storage_unavailable", tc.method, tc.path, res.StatusCode, code)
+		}
+	}
+	// The multipart routes go through the same nil check.
+	res, _ := doMultipart(t, srv, "POST", "/api/v1/documents/"+docID+"/uploads", token, nil, "x.txt", []byte("x"), nil)
+	if res.StatusCode != 501 {
+		t.Fatalf("uploads with nil Documents: %d, want 501", res.StatusCode)
+	}
+	res, _ = doMultipart(t, srv, "POST", "/api/v1/documents/"+docID+"/assets", token, nil, "x.png", docsPNG, nil)
+	if res.StatusCode != 501 {
+		t.Fatalf("assets with nil Documents: %d, want 501", res.StatusCode)
 	}
 }
 
