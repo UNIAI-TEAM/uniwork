@@ -203,7 +203,7 @@ var catalogue = []EventDef{
 	{Topic: "recording.stopped", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
 	{Topic: "recording.ready", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
 
-	// Documents (UNI-657): ids only; consumers refetch the page/file.
+	// Documents (UNI-675): ids only; consumers refetch the page/file.
 	{Topic: "document.created", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 
 	// Billing (F-02). Both go to each owner/admin, one row per person, because

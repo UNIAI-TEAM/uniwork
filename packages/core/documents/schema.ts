@@ -126,14 +126,18 @@ const isMentionKind = (v: unknown): boolean =>
 /**
  * Characters a browser would strip or reinterpret inside a URL: backslash
  * (WHATWG URL parsing turns `/\x` into `//x`, smuggling an external host past
- * the root-absolute rule), ASCII control characters and DEL, and any
- * whitespace including Unicode spaces (\s covers those). Mirrors Go's
- * hasUnsafeHrefChar.
+ * the root-absolute rule), C0/C1 control characters (including DEL and NEL
+ * U+0085), the BOM/ZWNBSP U+FEFF and any whitespace including Unicode spaces
+ * (\s covers those). Mirrors Go's hasUnsafeHrefChar — JS \s covers U+FEFF but
+ * not NEL, Go's unicode.IsSpace covers NEL but not U+FEFF, so both are named
+ * explicitly (R2-1).
  */
 const hasUnsafeHrefChar = (s: string): boolean => {
   for (const c of s) {
     const cp = c.codePointAt(0) ?? 0;
-    if (c === "\\" || cp < 0x20 || cp === 0x7f || /\s/u.test(c)) return true;
+    if (c === "\\" || cp < 0x20 || cp === 0x7f || (cp >= 0x80 && cp <= 0x9f) || cp === 0xfeff || /\s/u.test(c)) {
+      return true;
+    }
   }
   return false;
 };

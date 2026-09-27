@@ -677,6 +677,29 @@
         "content": { "type": "doc", "content": [ { "type": "paragraph", "content": [ { "type": "text", "text": "bad \ufffd char" } ] } ] },
         "text": "bad \ufffd char"
       }
+    },
+    {
+      "name": "link-nel-and-feff",
+      "input": {
+        "type": "doc",
+        "content": [
+          { "type": "paragraph", "content": [
+            { "type": "text", "text": "a", "marks": [ { "type": "link", "attrs": { "href": "https://exa\u0085mple.com" } } ] },
+            { "type": "text", "text": "b", "marks": [ { "type": "link", "attrs": { "href": "https://exa\ufeffmple.com" } } ] },
+            { "type": "text", "text": "c", "marks": [ { "type": "link", "attrs": { "href": "https://ok.example" } } ] }
+          ] }
+        ]
+      },
+      "expect": {
+        "content": { "type": "doc", "content": [
+          { "type": "paragraph", "content": [
+            { "type": "text", "text": "a" },
+            { "type": "text", "text": "b" },
+            { "type": "text", "text": "c", "marks": [ { "type": "link", "attrs": { "href": "https://ok.example" } } ] }
+          ] }
+        ] },
+        "text": "abc"
+      }
     }
   ]
 }

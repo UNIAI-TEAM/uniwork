@@ -114,7 +114,7 @@ const (
 
 	ActionSubscriptionChanged = "subscription.changed"
 
-	// Documents (UNI-657): created today through the owner seam
+	// Documents (UNI-675): created today through the owner seam
 	// (C-01 §13.5); the public page/file commands add their own rows as
 	// those lands (G1-04+).
 	ActionDocumentCreated = "document.created"

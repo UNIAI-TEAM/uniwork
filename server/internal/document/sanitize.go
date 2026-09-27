@@ -55,7 +55,10 @@ func SanitizeWithLimits(raw []byte, lim Limits) (json.RawMessage, string, error)
 	}
 	outDoc := map[string]any{"type": "doc", "content": out}
 	// HTML escaping stays off so the stored bytes and the size bound measure
-	// the same thing JSON.stringify does on the client (FE R1 F3).
+	// the same thing JSON.stringify does on the client (FE R1 F3). Known
+	// residual (R2-2, accepted): encoding/json always escapes U+2028/U+2029,
+	// so this side still counts 6 bytes per occurrence where the client counts
+	// 3 — the drift only makes the server bound stricter, never looser.
 	var buf bytes.Buffer
 	je := json.NewEncoder(&buf)
 	je.SetEscapeHTML(false)

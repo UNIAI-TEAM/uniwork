@@ -265,11 +265,14 @@ func hasPrefix(s, p string) bool {
 }
 
 // hasUnsafeHrefChar reports whether s carries a character a browser would
-// strip or reinterpret inside a URL: backslash, ASCII control characters
-// (including DEL) and any Unicode whitespace.
+// strip or reinterpret inside a URL: backslash, C0/C1 control characters
+// (including DEL and NEL U+0085), the BOM/ZWNBSP U+FEFF and any Unicode
+// whitespace. The set is identical to the TypeScript mirror — Go's
+// unicode.IsSpace covers NEL but not U+FEFF, JS \s covers U+FEFF but not
+// NEL, so both are named explicitly (R2-1).
 func hasUnsafeHrefChar(s string) bool {
 	for _, c := range s {
-		if c == '\\' || c < 0x20 || c == 0x7f || unicode.IsSpace(c) {
+		if c == '\\' || c < 0x20 || c == 0x7f || (c >= 0x80 && c <= 0x9f) || c == 0xfeff || unicode.IsSpace(c) {
 			return true
 		}
 	}
