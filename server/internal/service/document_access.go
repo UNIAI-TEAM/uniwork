@@ -254,10 +254,11 @@ func (s *DocumentService) openVersionFile(ctx context.Context, doc db.Document, 
 
 // openDocumentBytes is the one call into files.Service.Open, scoped to the
 // document's own tenant pair (purposes document_file / document_asset are
-// org+workspace scoped).
+// org+workspace scoped). Refusals go out in the Documents vocabulary
+// (C-01 §14.5), never as a file_* code.
 func (s *DocumentService) openDocumentBytes(ctx context.Context, doc db.Document, fileID string, rng DocumentByteRange) (files.Reader, error) {
 	if s.files == nil {
-		return files.Reader{}, files.StorageUnavailable(errors.New("document file service not configured"))
+		return files.Reader{}, documentFileError(files.StorageUnavailable(errors.New("document file service not configured")))
 	}
 	r, err := s.files.Open(ctx, files.OpenInput{
 		Scope:  files.Scope{OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID},
@@ -266,7 +267,7 @@ func (s *DocumentService) openDocumentBytes(ctx context.Context, doc db.Document
 		Length: rng.Length,
 	})
 	if err != nil {
-		return files.Reader{}, filesError(err)
+		return files.Reader{}, documentFileError(err)
 	}
 	return r, nil
 }
