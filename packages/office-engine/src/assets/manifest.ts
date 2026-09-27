@@ -23,7 +23,7 @@ export interface AssetManifestEntry {
    * "imported": arrived with the document - kept even when no scanner finds
    * a reference, because a script or stylesheet may load it in ways a
    * scanner cannot see. Upstream draws the same line (app-owned files only
-   * are reconciled, asset-lifecycle.ts:1161). */
+   * are reconciled, apps/markdown/src/main/asset-lifecycle.ts:1148). */
   origin: AssetOrigin;
 }
 

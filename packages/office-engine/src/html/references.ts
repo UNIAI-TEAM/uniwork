@@ -5,7 +5,7 @@ import type { AssetSlot } from "../assets/media";
 // 09485f88) scans only <img src> (extractDocumentImageSources,
 // apps/html/src/main/asset-lifecycle.ts:851) because its preview reads every
 // other neighbour straight from disk through html-asset://
-// (apps/html/src/main/preview-protocol.ts:69). UniWork has no disk: a
+// (apps/html/src/main/preview-protocol.ts:30). UniWork has no disk: a
 // stylesheet, font or script the document needs must be found here, or it is
 // neither carried by a save nor loadable in the preview.
 
@@ -177,10 +177,30 @@ function attributeRole(tag: string, attr: string, attrs: readonly Attr[]): { rol
   }
 }
 
+// Foreign content (svg, math). Inside it the HTML parser does NOT treat
+// <style>/<title>/<script>/<textarea> as raw text - their children are live
+// elements - until an HTML integration point (svg foreignObject/desc/title)
+// or a breakout tag returns to HTML parsing. Treating them as raw text there
+// would hide live links and images from the preview rewrite (FE review r1
+// F-2), so the scanner keeps a small namespace stack.
+const SVG_INTEGRATION_POINTS: ReadonlySet<string> = new Set(["foreignobject", "desc", "title"]);
+const FOREIGN_BREAKOUT: ReadonlySet<string> = new Set(
+  ("b big blockquote body br center code dd div dl dt em embed h1 h2 h3 h4 h5 h6 head hr i img li listing " +
+    "menu meta nobr ol p pre ruby s small span strong strike sub sup table tt u ul var").split(" "),
+);
+const RAW_TEXT_TAGS: ReadonlySet<string> = new Set(["script", "style", "title", "textarea"]);
+
 /** Every URL-bearing slot in document order. Comments, <script> bodies and
- * RCDATA (<title>, <textarea>) are skipped; <style> bodies are CSS slots. */
+ * RCDATA (<title>, <textarea>) are skipped and <style> bodies are CSS slots -
+ * in HTML content only; inside svg/math those elements are scanned as markup. */
 export function scanHtmlSlots(html: string): HtmlSlot[] {
   const slots: HtmlSlot[] = [];
+  // Open svg/math roots and svg integration points, innermost last.
+  const stack: string[] = [];
+  const inForeign = () => {
+    const top = stack[stack.length - 1];
+    return top === "svg" || top === "math";
+  };
   let i = 0;
   while (i < html.length) {
     const lt = html.indexOf("<", i);
@@ -188,6 +208,15 @@ export function scanHtmlSlots(html: string): HtmlSlot[] {
     if (html.startsWith("<!--", lt)) {
       const close = html.indexOf("-->", lt + 4);
       i = close === -1 ? html.length : close + 3;
+      continue;
+    }
+    const endTag = /^<\/([a-zA-Z][a-zA-Z0-9:-]*)/.exec(html.slice(lt, lt + 64));
+    if (endTag) {
+      const name = endTag[1]!.toLowerCase();
+      const at = stack.lastIndexOf(name);
+      if (at !== -1) stack.length = at;
+      const close = html.indexOf(">", lt + 2);
+      i = close === -1 ? html.length : close + 1;
       continue;
     }
     const nameMatch = /^<([a-zA-Z][a-zA-Z0-9:-]*)/.exec(html.slice(lt, lt + 64));
@@ -203,16 +232,28 @@ export function scanHtmlSlots(html: string): HtmlSlot[] {
       if (role) slots.push({ start: a.start, end: a.end, quote: a.quote, kind: role.kind, role: role.role, value: decodeEntities(a.value) });
     }
     i = end;
-    if (tag === "script" || tag === "style" || tag === "title" || tag === "textarea") {
-      const closeRe = new RegExp("</" + tag + "\\s*>", "ig");
-      closeRe.lastIndex = i;
-      const close = closeRe.exec(html);
-      const bodyEnd = close ? close.index : html.length;
-      if (tag === "style" && bodyEnd > i) {
-        slots.push({ start: i, end: bodyEnd, quote: "css", kind: "css", role: "image", value: html.slice(i, bodyEnd) });
+    const selfClosing = html[end - 2] === "/";
+    const foreign = inForeign();
+    if (foreign && FOREIGN_BREAKOUT.has(tag)) stack.length = 0;
+    if (!selfClosing) {
+      if (tag === "svg" || tag === "math") {
+        stack.push(tag);
+        continue;
       }
-      i = close ? close.index + close[0].length : html.length;
+      if (foreign && stack[stack.length - 1] === "svg" && SVG_INTEGRATION_POINTS.has(tag)) {
+        stack.push(tag);
+        continue;
+      }
     }
+    if (foreign || !RAW_TEXT_TAGS.has(tag)) continue;
+    const closeRe = new RegExp("</" + tag + "\\s*>", "ig");
+    closeRe.lastIndex = i;
+    const close = closeRe.exec(html);
+    const bodyEnd = close ? close.index : html.length;
+    if (tag === "style" && bodyEnd > i) {
+      slots.push({ start: i, end: bodyEnd, quote: "css", kind: "css", role: "image", value: html.slice(i, bodyEnd) });
+    }
+    i = close ? close.index + close[0].length : html.length;
   }
   return slots;
 }

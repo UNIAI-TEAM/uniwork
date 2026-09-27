@@ -74,6 +74,12 @@ describe("HTML preview copy", () => {
     expect(out).toContain(`srcdoc=""`);
   });
 
+  it("neutralises links and images hidden in svg <style>/<title> (foreign content)", () => {
+    const out = copy(`<svg><style><a href="https://evil.example/s">x</a></style><title><a href="https://evil.example/t">y</a></title><image href="img/logo.svg"/></svg>`);
+    expect(out).not.toContain("evil.example");
+    expect(out).toContain(`href="${PROXY}img%2Flogo.svg"`);
+  });
+
   it("rewrites CSS url() and font references", () => {
     const out = copy(`<style>@font-face{src:url(fonts/x.woff2)} body{background:url(https://evil.example/bg.png)}</style>`);
     expect(out).toContain(`url("${PROXY}fonts%2Fx.woff2")`);

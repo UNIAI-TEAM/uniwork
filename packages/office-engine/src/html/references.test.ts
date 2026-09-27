@@ -90,6 +90,31 @@ describe("HTML reference scanner", () => {
     expect(out).toBe(`<img src=x&#32;y&#39;a.png><img src='x y&#39;b.png'><div style='background:url("x y&#39;c.png")'></div>`);
   });
 
+  it("scans svg/math <style>/<title>/<script> bodies as live markup, like the HTML parser", () => {
+    const html =
+      `<svg><style><a href="https://x.example/s">s</a><image href="img/s.png"/></style>` +
+      `<title><a href="https://x.example/t">t</a></title><script><image href="img/j.png"/></script></svg>` +
+      `<math><style><img src="img/m.png"></style></math>`;
+    const urls = scanHtmlSlots(html).flatMap((s) => slotUrls(s).map((u) => u.url + "=" + u.role));
+    expect(urls).toEqual([
+      "https://x.example/s=navigation",
+      "img/s.png=image",
+      "https://x.example/t=navigation",
+      "img/j.png=image",
+      "img/m.png=image",
+    ]);
+  });
+
+  it("returns to raw-text scanning at integration points, breakouts and after </svg>", () => {
+    const hidden = `<a href="https://hidden.example">no</a>`;
+    expect(extractHtmlAssetReferences(`<svg><foreignObject><style>${hidden}</style></foreignObject></svg>`)).toEqual([]);
+    expect(scanHtmlSlots(`<svg><foreignObject><style>${hidden}</style></foreignObject></svg>`).map((s) => s.kind)).toEqual(["css"]);
+    expect(scanHtmlSlots(`<svg></svg><style>${hidden}</style>`).map((s) => s.kind)).toEqual(["css"]);
+    expect(scanHtmlSlots(`<svg><p>x</p><style>${hidden}</style>`).map((s) => s.kind)).toEqual(["css"]);
+    expect(scanHtmlSlots(`<svg/><style>${hidden}</style>`).map((s) => s.kind)).toEqual(["css"]);
+    expect(scanHtmlSlots(`<svg><svg></svg><title>${hidden}</title></svg>`).map((s) => s.role)).toEqual(["navigation"]);
+  });
+
   it("decodes numeric entities and tolerates unterminated markup", () => {
     expect(extractHtmlAssetReferences(`<img src="a&#46;png"><img src="&#x62;.png"><img src="&bogus;.png">`)).toEqual([
       "a.png",
@@ -99,6 +124,7 @@ describe("HTML reference scanner", () => {
     expect(extractHtmlAssetReferences(`<img src="open.png`)).toEqual(["open.png"]);
     expect(extractHtmlAssetReferences(`<!-- never closed <img src="x.png">`)).toEqual([]);
     expect(extractHtmlAssetReferences(`<style>a{background:url(x.png)}`)).toEqual(["x.png"]);
+    expect(extractHtmlAssetReferences(`<style>a{background:url(x.png)}</style ><img src=y.png>`)).toEqual(["x.png", "y.png"]);
     expect(extractHtmlAssetReferences(`a < b <? pi ?> </p> <img src=ok.png`)).toEqual(["ok.png"]);
     expect(extractHtmlAssetReferences(`<link rel="modulepreload" href="m.js"><link rel=prefetch as=image href=p.png>`)).toEqual([
       "m.js",
