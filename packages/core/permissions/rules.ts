@@ -424,7 +424,7 @@ function requireDocumentLevel(
  * (server/internal/service/document_permissions.go).
  */
 export function canViewDocument(doc: DocumentLevelInput | null, ctx: PermissionContext): Decision {
-  return requireDocumentLevel(doc, ctx, 1, "You cannot open this document.");
+  return requireDocumentLevel(doc, ctx, documentLevelRank("view"), "You cannot open this document.");
 }
 
 /**
@@ -435,7 +435,7 @@ export function canViewDocument(doc: DocumentLevelInput | null, ctx: PermissionC
  * (server/internal/service/document_permissions.go).
  */
 export function canEditDocument(doc: DocumentLevelInput | null, ctx: PermissionContext): Decision {
-  return requireDocumentLevel(doc, ctx, 2, "You can view this document but not edit it.");
+  return requireDocumentLevel(doc, ctx, documentLevelRank("edit"), "You can view this document but not edit it.");
 }
 
 /**
@@ -446,5 +446,5 @@ export function canEditDocument(doc: DocumentLevelInput | null, ctx: PermissionC
  * (server/internal/service/document_permissions.go).
  */
 export function canManageDocument(doc: DocumentLevelInput | null, ctx: PermissionContext): Decision {
-  return requireDocumentLevel(doc, ctx, 3, "Only people who manage this document can do this.");
+  return requireDocumentLevel(doc, ctx, documentLevelRank("manage"), "Only people who manage this document can do this.");
 }

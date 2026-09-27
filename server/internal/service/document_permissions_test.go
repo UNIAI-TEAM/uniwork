@@ -378,14 +378,85 @@ func TestDocumentPermission(t *testing.T) {
 		f.wsMember(t, tn.wsB, tn.bMember.ID, "member")
 	})
 
-	t.Run("archived agent loses read", func(t *testing.T) {
-		if _, err := f.pool.Exec(f.ctx, `UPDATE agents SET status = 'paused' WHERE id = $1`, tn.agent); err != nil {
+	t.Run("paused or archived agent loses read", func(t *testing.T) {
+		for _, c := range []struct{ set, reset string }{
+			{`UPDATE agents SET status = 'paused' WHERE id = $1`, `UPDATE agents SET status = 'active' WHERE id = $1`},
+			{`UPDATE agents SET archived_at = now() WHERE id = $1`, `UPDATE agents SET archived_at = NULL WHERE id = $1`},
+		} {
+			if _, err := f.pool.Exec(f.ctx, c.set, tn.agent); err != nil {
+				t.Fatal(err)
+			}
+			got, err := f.svc.effectiveLevel(f.ctx, f.q, agentActor(tn.agent), docW)
+			if _, rerr := f.pool.Exec(f.ctx, c.reset, tn.agent); rerr != nil {
+				t.Fatal(rerr)
+			}
+			if err != nil || got.Level != DocumentLevelNone {
+				t.Fatalf("%s: %+v %v", c.set, got, err)
+			}
+		}
+	})
+
+	t.Run("agent of another organization seated in the workspace", func(t *testing.T) {
+		// A workspace_agent_members row naming a foreign agent (bad data, an
+		// import) still grants nothing: the agent must belong to the
+		// document's organization.
+		f.addAgent(t, tn.orgID, tn.wsA, foreign.agent, tn.owner.ID)
+		got, err := f.svc.effectiveLevel(f.ctx, f.q, agentActor(foreign.agent), docW)
+		if err != nil || got.Level != DocumentLevelNone {
+			t.Fatalf("foreign agent: %+v %v", got, err)
+		}
+	})
+
+	t.Run("workspace share of another organization never applies", func(t *testing.T) {
+		// dual is a member of both organizations and of the foreign
+		// workspace. A share row naming that workspace on this tenant's
+		// document grants nothing, and the foreign tenant's state never
+		// leaks into this document's answer.
+		dual := f.user(t, "perm", "dual")
+		f.orgMember(t, tn.orgID, dual.ID, OrgRoleMember)
+		f.orgMember(t, foreign.orgID, dual.ID, OrgRoleMember)
+		f.wsMember(t, foreign.wsA, dual.ID, "member")
+		d := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		f.share(t, d, DocumentPrincipalWorkspace, foreign.wsA, DocumentLevelEdit, tn.aclOwner.ID)
+		got, err := f.svc.effectiveLevel(f.ctx, f.q, H(dual.ID), d)
+		if err != nil || got.Level != DocumentLevelNone {
+			t.Fatalf("foreign workspace share: %+v %v", got, err)
+		}
+		if _, err := f.pool.Exec(f.ctx, `UPDATE organizations SET status = 'suspended' WHERE id = $1`, foreign.orgID); err != nil {
 			t.Fatal(err)
 		}
-		defer func() { _, _ = f.pool.Exec(f.ctx, `UPDATE agents SET status = 'active' WHERE id = $1`, tn.agent) }()
-		got, err := f.svc.effectiveLevel(f.ctx, f.q, agentActor(tn.agent), docW)
-		if err != nil || got.Level != DocumentLevelNone {
-			t.Fatalf("paused agent: %+v %v", got, err)
+		defer func() {
+			_, _ = f.pool.Exec(f.ctx, `UPDATE organizations SET status = 'active' WHERE id = $1`, foreign.orgID)
+		}()
+		// Same answer, no foreign organization_suspended.
+		f.share(t, d, DocumentPrincipalUser, dual.ID, DocumentLevelView, tn.aclOwner.ID)
+		got, err = f.svc.effectiveLevel(f.ctx, f.q, H(dual.ID), d)
+		if err != nil || got.Level != DocumentLevelView || got.Via != DocumentViaShare {
+			t.Fatalf("with the foreign org suspended: %+v %v", got, err)
+		}
+	})
+
+	t.Run("archived documents are found by manage only", func(t *testing.T) {
+		d := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET archived_at = now() WHERE id = $1`, d.ID); err != nil {
+			t.Fatal(err)
+		}
+		noop := func(*db.Queries, db.Document, DocumentAccess) error { return nil }
+		for _, a := range []Actor{H(tn.member.ID), agentActor(tn.agent)} {
+			if _, _, err := f.svc.authorizeDocument(f.ctx, a, d.ID, DocumentLevelView); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("%s reading archived: %v", a.ID, err)
+			}
+			if err := f.svc.withDocumentMutation(f.ctx, a, d.ID, DocumentLevelView, noop); !errors.Is(err, ErrNotFound) {
+				t.Fatalf("%s mutating archived: %v", a.ID, err)
+			}
+		}
+		for _, a := range []Actor{H(tn.aclOwner.ID), H(tn.wsAdmin.ID), H(tn.owner.ID)} {
+			if _, _, err := f.svc.authorizeDocument(f.ctx, a, d.ID, DocumentLevelManage); err != nil {
+				t.Fatalf("%s (manage) reading archived: %v", a.ID, err)
+			}
+			if err := f.svc.withDocumentMutation(f.ctx, a, d.ID, DocumentLevelManage, noop); err != nil {
+				t.Fatalf("%s (manage) mutating archived: %v", a.ID, err)
+			}
 		}
 	})
 
@@ -677,4 +748,50 @@ func waitForLockWaiter(t *testing.T, f *docPermFixture) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatal("no backend waited on the document lock")
+}
+
+// The mutation gate never borrows a second pool connection while its
+// transaction holds the document lock: every membership read goes through
+// the transaction's q. With two connections and three concurrent mutations
+// (each on a document with a workspace share, so several gate reads), a gate
+// that read through the pool would wait forever for a connection its
+// siblings hold.
+func TestDocumentMutationGateOnSmallPool(t *testing.T) {
+	f := newDocPermFixture(t)
+	tn := f.tenant(t, "pool")
+	cfg := f.pool.Config().Copy()
+	cfg.MaxConns = 2
+	small, err := pgxpool.NewWithConfig(f.ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer small.Close()
+	svc := newDocumentServiceForTest(small, db.New(small))
+
+	docs := make([]db.Document, 3)
+	for i := range docs {
+		docs[i] = f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		f.share(t, docs[i], DocumentPrincipalWorkspace, tn.wsB, DocumentLevelEdit, tn.aclOwner.ID)
+	}
+	ctx, cancel := context.WithTimeout(f.ctx, 30*time.Second)
+	defer cancel()
+	errs := make(chan error, 6)
+	start := make(chan struct{})
+	for i := 0; i < 6; i++ {
+		d := docs[i%len(docs)]
+		go func() {
+			<-start
+			errs <- svc.withDocumentMutation(ctx, Human(tn.bMember.ID), d.ID, DocumentLevelEdit,
+				func(*db.Queries, db.Document, DocumentAccess) error {
+					time.Sleep(20 * time.Millisecond)
+					return nil
+				})
+		}()
+	}
+	close(start)
+	for i := 0; i < 6; i++ {
+		if err := <-errs; err != nil {
+			t.Fatalf("mutation %d on a 2-connection pool: %v", i, err)
+		}
+	}
 }
