@@ -52,6 +52,8 @@ export interface EngineServiceConfig {
   faultOperations: boolean;
   /** Grace period for in-flight HTTP responses on shutdown. */
   shutdownGraceMs: number;
+  /** Per-job uid sandbox; see SandboxConfig. */
+  sandbox: SandboxConfig;
 }
 
 const MiB = 1024 * 1024;
@@ -65,6 +67,16 @@ export const PROVISIONAL_LIMITS: JobLimits = {
   maxInputBytes: 50 * MiB,
   maxOutputBytes: 50 * MiB,
 };
+
+/** Per-job uid sandbox (G2-05). Each worker slot owns one uid/gid; the pool
+ * starts at uidBase and runs maxWorkers long, all inside the unprivileged
+ * range. mode: "auto" engages only on Linux as uid 0, "required" refuses to
+ * start anywhere else, "off" is for dev debugging. */
+export interface SandboxConfig {
+  mode: "auto" | "required" | "off";
+  uidBase: number;
+  gidBase: number;
+}
 
 export class ConfigError extends Error {
   constructor(message: string) {
@@ -108,6 +120,30 @@ function origins(raw: string | undefined): string[] {
   return list;
 }
 
+const SANDBOX_MODES = ["auto", "required", "off"] as const;
+// The worker uid pool lives above the conventional system-uid ceiling and
+// below "nobody" (65534): a worker must never land on a uid that exists.
+const UID_MIN = 1000;
+const UID_MAX = 65533;
+
+function sandboxConfig(env: Record<string, string | undefined>, maxWorkers: number): SandboxConfig {
+  const mode = env.OFFICE_ENGINE_SANDBOX ?? "auto";
+  if (!(SANDBOX_MODES as readonly string[]).includes(mode)) {
+    throw new ConfigError("OFFICE_ENGINE_SANDBOX must be one of " + SANDBOX_MODES.join(", "));
+  }
+  const uidBase = positiveInt(env, "OFFICE_ENGINE_WORKER_UID_BASE", 60100);
+  const gidBase = positiveInt(env, "OFFICE_ENGINE_WORKER_GID_BASE", uidBase);
+  for (const [key, base] of [
+    ["OFFICE_ENGINE_WORKER_UID_BASE", uidBase],
+    ["OFFICE_ENGINE_WORKER_GID_BASE", gidBase],
+  ] as const) {
+    if (base < UID_MIN || base + maxWorkers - 1 > UID_MAX) {
+      throw new ConfigError(key + " must keep the " + maxWorkers + "-slot pool inside " + UID_MIN + ".." + UID_MAX);
+    }
+  }
+  return { mode: mode as SandboxConfig["mode"], uidBase, gidBase };
+}
+
 /** Build the config from an injected environment map. */
 export function loadConfig(env: Record<string, string | undefined>, defaults: { tempRoot: string; workerEntry: string }): EngineServiceConfig {
   const serviceToken = secret(env, "OFFICE_ENGINE_SERVICE_TOKEN");
@@ -115,13 +151,14 @@ export function loadConfig(env: Record<string, string | undefined>, defaults: { 
   if (serviceToken === grantKey) {
     throw new ConfigError("OFFICE_ENGINE_GRANT_KEY must differ from OFFICE_ENGINE_SERVICE_TOKEN");
   }
+  const maxWorkers = positiveInt(env, "OFFICE_ENGINE_MAX_WORKERS", 2, 64);
   return {
     host: env.OFFICE_ENGINE_HOST ?? "0.0.0.0",
     port: positiveInt(env, "OFFICE_ENGINE_PORT", 8090, 65535),
     serviceToken,
     grantKey,
     outputOrigins: origins(env.OFFICE_ENGINE_OUTPUT_ORIGINS),
-    maxWorkers: positiveInt(env, "OFFICE_ENGINE_MAX_WORKERS", 2, 64),
+    maxWorkers,
     maxQueue: positiveInt(env, "OFFICE_ENGINE_MAX_QUEUE", 16, 4096),
     limits: {
       maxJobMs: positiveInt(env, "OFFICE_ENGINE_MAX_JOB_MS", PROVISIONAL_LIMITS.maxJobMs, ENGINE_LIMITS.max_deadline_ms),
@@ -138,5 +175,6 @@ export function loadConfig(env: Record<string, string | undefined>, defaults: { 
     maxRetainedJobs: positiveInt(env, "OFFICE_ENGINE_MAX_RETAINED_JOBS", 1024, 100_000),
     faultOperations: env.OFFICE_ENGINE_FAULT_OPERATIONS === "1",
     shutdownGraceMs: positiveInt(env, "OFFICE_ENGINE_SHUTDOWN_GRACE_MS", 10_000, 120_000),
+    sandbox: sandboxConfig(env, maxWorkers),
   };
 }

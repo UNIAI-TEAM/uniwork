@@ -42,11 +42,14 @@ FROM node:22.23.2-bookworm-slim
 ENV NODE_ENV=production \
     OFFICE_ENGINE_HOST=0.0.0.0 \
     OFFICE_ENGINE_PORT=8090 \
-    OFFICE_ENGINE_TEMP_DIR=/tmp/uniwork-office-engine
+    OFFICE_ENGINE_TEMP_DIR=/tmp/uniwork-office-engine \
+    OFFICE_ENGINE_SANDBOX=required
 WORKDIR /app
 COPY --from=build /repo/apps/office-engine/dist/ ./
-# The service runs unprivileged; its only writable place is the job temp root.
-USER node
+# The supervisor runs as uid 0 so it can drop each job's worker to its own
+# slot uid before the handler loads (G2-05 sandbox). Workers themselves are
+# unprivileged and own nothing but their 0700 job dir; the compose profile
+# strips every capability the supervisor does not need.
 EXPOSE 8090
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=3 \
   CMD ["node", "-e", "fetch('http://127.0.0.1:'+(process.env.OFFICE_ENGINE_PORT||8090)+'/healthz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]

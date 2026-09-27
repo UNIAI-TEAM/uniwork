@@ -21,6 +21,7 @@ import { checkLive, GrantLedger, type ServiceGrant } from "./grants.ts";
 import { LIMIT_OUTCOMES, resolveLimits, type EffectiveLimits } from "./limits.ts";
 import type { Metrics } from "./metrics.ts";
 import { measureOutput, putOutput } from "./output.ts";
+import { WorkerSandbox } from "./sandbox.ts";
 import { Supervisor } from "./supervisor.ts";
 
 const WORKER_CODES: ReadonlySet<string> = new Set(["engine_result_invalid", "unsupported_operation", "engine_crashed"]);
@@ -67,6 +68,7 @@ export class JobManager {
     private readonly config: EngineServiceConfig,
     private readonly metrics: Metrics,
     private readonly now: () => number = Date.now,
+    private readonly sandbox: WorkerSandbox = WorkerSandbox.create(config.sandbox, config.maxWorkers),
   ) {
     this.ledger = new GrantLedger(Math.max(1024, (config.maxQueue + config.maxWorkers) * 64));
   }
@@ -185,11 +187,17 @@ export class JobManager {
 
   private async execute(job: Job): Promise<void> {
     let dir: string | null = null;
+    // One uid per worker slot: reserved before the dir exists so two jobs can
+    // never share a uid, and held until the tree is dead and the dir is gone.
+    const identity = this.sandbox.acquire();
     try {
       dir = await createJobDir(this.config.tempRoot);
       const inputPath = job.input ? join(dir, INPUT_NAME) : null;
       if (inputPath && job.input) await writeFile(inputPath, job.input);
       job.input = null;
+      // Hand the dir to the slot uid before the worker spawns; from then on the
+      // worker owns exactly this 0700 dir and nothing else on the filesystem.
+      if (identity) await this.sandbox.adopt(dir, identity);
       const outputPath = join(dir, OUTPUT_NAME);
       const result = await this.supervisor.run({
         entry: this.config.workerEntry,
@@ -202,6 +210,8 @@ export class JobManager {
         sampleMs: this.config.sampleMs,
         faults: this.config.faultOperations,
         signal: job.controller.signal,
+        uid: identity?.uid,
+        gid: identity?.gid,
       });
       switch (result.kind) {
         case "done":
@@ -236,6 +246,7 @@ export class JobManager {
       }
     } finally {
       if (dir) await removeJobDir(dir).catch(() => undefined);
+      this.sandbox.release(identity);
     }
   }
 

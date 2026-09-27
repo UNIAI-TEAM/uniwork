@@ -15,6 +15,11 @@ import { createEngineService, PROVISIONAL_LIMITS, signGrant, type EngineService,
 export const SERVICE_TOKEN = "service-token-for-tests-0123456789abcdef";
 export const GRANT_KEY = "grant-key-for-tests-fedcba9876543210-xyz";
 
+// 128 uids per suite process keeps parallel vitest workers disjoint (one uid
+// per worker slot, maxWorkers << 128); distinct per process so a killTree uid
+// sweep can never touch a sibling suite's workers.
+const WORKER_UID_BASE = 20000 + (Number(process.env.VITEST_WORKER_ID ?? 0) || process.pid % 251) * 128;
+
 interface Upload {
   path: string;
   headers: Record<string, string | string[] | undefined>;
@@ -73,6 +78,10 @@ export async function startHarness(overrides: Partial<EngineServiceConfig> = {})
     maxRetainedJobs: 100,
     faultOperations: true,
     shutdownGraceMs: 5_000,
+    // The uid sweep in killTree is kernel-wide, so every test process needs a
+    // disjoint uid pool: one per vitest worker. Production runs one engine per
+    // container, so its own pool is exclusive by deployment.
+    sandbox: { mode: "auto", uidBase: WORKER_UID_BASE, gidBase: WORKER_UID_BASE },
     ...overrides,
   };
   const service = createEngineService(config);
