@@ -12,14 +12,22 @@
 // until then the service answers unsupported_operation before a job exists.
 
 import { readFile, rename, writeFile } from "node:fs/promises";
-import {
-  applyPdfEditBytes,
-  PdfTypedError,
-  probePdf,
-} from "@uniwork/office-engine/pdf";
 import type { HandlerOutcome, RunMessage } from "./protocol.ts";
 
 type Handler = (message: RunMessage) => Promise<HandlerOutcome>;
+
+type PdfModule = typeof import("@uniwork/office-engine/pdf");
+
+// The pdf graph (pdf-lib, the image codecs, two dozen pipeline modules) costs
+// over a second of cpu to evaluate, and a job's cpu budget starts counting at
+// fork: paid eagerly at module scope, an instant markdown or fault job can
+// cpu_limit before its handler ever runs (UNI-688). Pdf jobs load it once, on
+// first use; every other operation's worker never evaluates it.
+let pdfModule: Promise<PdfModule> | null = null;
+function loadPdf(): Promise<PdfModule> {
+  pdfModule ??= import("@uniwork/office-engine/pdf");
+  return pdfModule;
+}
 
 /** write-then-rename: the supervisor never sees a half-written output file. */
 async function writeOutput(path: string, data: Uint8Array | string): Promise<void> {
@@ -41,8 +49,9 @@ async function serializeText(message: RunMessage): Promise<HandlerOutcome> {
 }
 
 /** Map the adapter's typed failures to worker outcome codes; anything else is
-    rethrown so the job reports engine_crashed, not a mislabeled refusal. */
-function pdfFail(error: unknown): HandlerOutcome {
+    rethrown so the job reports engine_crashed, not a mislabeled refusal. The
+    error class arrives with the lazily loaded module. */
+function pdfFail(error: unknown, PdfTypedError: PdfModule["PdfTypedError"]): HandlerOutcome {
   if (error instanceof PdfTypedError) return { ok: false, code: error.code, reason: error.reason };
   throw error;
 }
@@ -51,13 +60,14 @@ function pdfFail(error: unknown): HandlerOutcome {
     the probe artifact, not the input. */
 async function openPdf(message: RunMessage): Promise<HandlerOutcome> {
   if (!message.inputPath) return { ok: false, code: "engine_result_invalid", reason: "input_required" };
+  const pdf = await loadPdf();
   const bytes = await readFile(message.inputPath);
   try {
-    const probe = await probePdf(bytes);
+    const probe = await pdf.probePdf(bytes);
     await writeOutput(message.outputPath, JSON.stringify({ document_model: probe }));
     return { ok: true, warnings: [] };
   } catch (error) {
-    return pdfFail(error);
+    return pdfFail(error, pdf.PdfTypedError);
   }
 }
 
@@ -66,9 +76,10 @@ async function openPdf(message: RunMessage): Promise<HandlerOutcome> {
     refusals) and hands them unchanged to the output target. */
 async function serializePdf(message: RunMessage): Promise<HandlerOutcome> {
   if (!message.inputPath) return { ok: false, code: "engine_result_invalid", reason: "input_required" };
+  const pdf = await loadPdf();
   const bytes = await readFile(message.inputPath);
   try {
-    const probe = await probePdf(bytes);
+    const probe = await pdf.probePdf(bytes);
     await writeOutput(message.outputPath, bytes);
     if (!probe.hasTextLayer && probe.pageCount > 0) {
       return {
@@ -78,7 +89,7 @@ async function serializePdf(message: RunMessage): Promise<HandlerOutcome> {
     }
     return { ok: true, warnings: [] };
   } catch (error) {
-    return pdfFail(error);
+    return pdfFail(error, pdf.PdfTypedError);
   }
 }
 
@@ -88,6 +99,7 @@ async function serializePdf(message: RunMessage): Promise<HandlerOutcome> {
 async function editPdf(message: RunMessage): Promise<HandlerOutcome> {
   if (!message.inputPath) return { ok: false, code: "engine_result_invalid", reason: "input_required" };
   if (!message.payloadPath) return { ok: false, code: "engine_result_invalid", reason: "ops_payload_missing" };
+  const pdf = await loadPdf();
   const bytes = await readFile(message.inputPath);
   let edits: unknown[];
   try {
@@ -97,15 +109,15 @@ async function editPdf(message: RunMessage): Promise<HandlerOutcome> {
     }
     edits = (payload as { edits: unknown[] }).edits;
   } catch (error) {
-    if (error instanceof PdfTypedError) throw error;
+    if (error instanceof pdf.PdfTypedError) throw error;
     return { ok: false, code: "engine_result_invalid", reason: "ops_payload_invalid" };
   }
   try {
-    const result = await applyPdfEditBytes(bytes, edits);
+    const result = await pdf.applyPdfEditBytes(bytes, edits);
     await writeOutput(message.outputPath, result.bytes);
     return { ok: true, warnings: result.warnings };
   } catch (error) {
-    return pdfFail(error);
+    return pdfFail(error, pdf.PdfTypedError);
   }
 }
 

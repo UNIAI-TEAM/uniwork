@@ -6,7 +6,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { isAlive } from "./process-tree.ts";
-import { call, errorCode, jobDirs, makeJob, startHarness, submit, waitTerminal, type Harness } from "../test/harness.ts";
+import { call, errorCode, jobDirs, makeJob, startHarness, submit, waitTerminal, type Harness, type Reply } from "../test/harness.ts";
 
 const MiB = 1024 * 1024;
 let h: Harness;
@@ -36,7 +36,41 @@ async function runFault(fault: string, deadlineMs = 15_000) {
   return { job, done: await waitTerminal(h, job) };
 }
 
+interface ExpectedOutcome {
+  state: string;
+  code: string;
+  reason?: string;
+}
+
+/** A fault job must die by the limit or crash its fault drives at, never by a
+ *  bare timeout: a timed_out here means the job's own deadline/cpu budget
+ *  fired before the fault could report - worker startup cost counts against
+ *  the budget, so a fat module graph masks every fault outcome as timed_out
+ *  (that is the UNI-688 regression). Fail loudly with the real error body -
+ *  which now carries the measured usage - instead of a bare state diff that
+ *  reads like a host-load flake. */
+function expectFaultOutcome(done: Reply, fault: string, expected: ExpectedOutcome): void {
+  const error = (done.body.error ?? {}) as Record<string, unknown>;
+  if (done.body.state === "timed_out" && expected.state !== "timed_out") {
+    throw new Error(
+      `uniwork-fault:${fault} degraded to timed_out (${String(error.code)}/${String(error.reason)} ` +
+        `${JSON.stringify(error)}) instead of ${expected.state}/${expected.code}: a limit fired before ` +
+        `the fault reported - check worker startup cpu against this suite's cpuMs budget`,
+    );
+  }
+  expect(done.body.state).toBe(expected.state);
+  expect(done.body.error).toMatchObject(expected.reason ? { code: expected.code, reason: expected.reason } : { code: expected.code });
+}
+
 describe("per-job limits", () => {
+  it("guard: an instantly-answered fault never degrades to a limit outcome", async () => {
+    // The cpu budget counts worker startup (module loading). If a heavier
+    // import graph ever eats the budget again, every fault below degrades to
+    // timed_out and the suite's failures name everything except the cause.
+    const { done } = await runFault("code engine_result_invalid");
+    expectFaultOutcome(done, "code engine_result_invalid", { state: "failed", code: "engine_result_invalid", reason: "fault" });
+  });
+
   it("deadline: a job past its deadline is timed_out", async () => {
     const { done } = await runFault("sleep 30000", 1_500);
     expect(done.body.state).toBe("timed_out");
@@ -53,31 +87,31 @@ describe("per-job limits", () => {
 
   it("cpu: a CPU-bound handler is stopped by the CPU budget before its deadline", async () => {
     const { done } = await runFault("spin 60000", 18_000);
-    expect(done.body.state).toBe("timed_out");
-    expect(done.body.error).toMatchObject({ code: "engine_timeout", reason: "cpu_limit" });
+    expectFaultOutcome(done, "spin 60000", { state: "timed_out", code: "engine_timeout", reason: "cpu_limit" });
+    // The measurement that tripped the budget rides on the error body.
+    expect((done.body.error as { measured_cpu_ms?: number }).measured_cpu_ms).toBeGreaterThan(0);
   });
 
   it("memory: off-heap growth past the RSS cap fails with memory_limit", async () => {
     const { done } = await runFault("rss 400");
-    expect(done.body.state).toBe("failed");
-    expect(done.body.error).toMatchObject({ code: "engine_crashed", reason: "memory_limit" });
+    expectFaultOutcome(done, "rss 400", { state: "failed", code: "engine_crashed", reason: "memory_limit" });
+    expect((done.body.error as { measured_rss_bytes?: number }).measured_rss_bytes).toBeGreaterThan(0);
   });
 
   it("memory: JS heap growth dies at the V8 cap as memory_limit", async () => {
     const { done } = await runFault("heap");
-    expect(done.body.error).toMatchObject({ code: "engine_crashed", reason: "memory_limit" });
+    expectFaultOutcome(done, "heap", { state: "failed", code: "engine_crashed", reason: "memory_limit" });
   });
 
   it("temp: filling the job temp dir past its budget fails with temp_limit", async () => {
     const { done } = await runFault("temp 64");
-    expect(done.body.state).toBe("failed");
-    expect(done.body.error).toMatchObject({ code: "engine_crashed", reason: "temp_limit" });
+    expectFaultOutcome(done, "temp 64", { state: "failed", code: "engine_crashed", reason: "temp_limit" });
+    expect((done.body.error as { measured_temp_bytes?: number }).measured_temp_bytes).toBeGreaterThan(0);
   });
 
   it("output: an output over the byte bound is refused and never uploaded", async () => {
     const { job, done } = await runFault("output 3");
-    expect(done.body.state).toBe("failed");
-    expect(done.body.error).toMatchObject({ code: "upload_bounds", reason: "output_limit" });
+    expectFaultOutcome(done, "output 3", { state: "failed", code: "upload_bounds", reason: "output_limit" });
     expect(h.target.uploads.some((u) => u.path.includes(job.grant.job_id))).toBe(false);
   });
 
@@ -89,7 +123,7 @@ describe("per-job limits", () => {
     const token = signGrant(job.grant, GRANT_KEY);
     await submit(h, { token, envelope: job.envelope });
     const done = await waitTerminal(h, { grant: job.grant, token });
-    expect(done.body.error).toMatchObject({ code: "upload_bounds" });
+    expectFaultOutcome(done, "output 1", { state: "failed", code: "upload_bounds", reason: "output_limit" });
   });
 
   it("input: bytes over the service input bound are refused before a job exists", async () => {
@@ -102,14 +136,12 @@ describe("per-job limits", () => {
 
   it("a worker cannot claim a code outside the handler allow-list", async () => {
     const { done } = await runFault("code grant_expired");
-    expect(done.body.state).toBe("failed");
-    expect(done.body.error).toMatchObject({ code: "engine_result_invalid", reason: "fault" });
+    expectFaultOutcome(done, "code grant_expired", { state: "failed", code: "engine_result_invalid", reason: "fault" });
   });
 
   it("crash: a worker that dies is reported crashed, not completed", async () => {
     const { done } = await runFault("crash");
-    expect(done.body.state).toBe("crashed");
-    expect(done.body.error).toMatchObject({ code: "engine_crashed" });
+    expectFaultOutcome(done, "crash", { state: "crashed", code: "engine_crashed" });
   });
 });
 

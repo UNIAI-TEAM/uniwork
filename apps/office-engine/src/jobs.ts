@@ -38,7 +38,9 @@ export interface Job {
   acceptedAt: number;
   startedAt?: number;
   finishedAt?: number;
-  error?: { code: EngineErrorCode; reason: string };
+  /** Public error shape: code + reason, plus public-safe extras (the measured
+      usage that tripped a limit, a bound's max bytes) that land in jobView. */
+  error?: { code: EngineErrorCode; reason: string; extra?: Record<string, unknown> };
   output?: { file_id: string; checksum: string; length: number };
   warnings: { code: string; detail?: string }[];
   limits: EffectiveLimits;
@@ -167,7 +169,7 @@ export class JobManager {
     await Promise.race([Promise.allSettled([...this.inFlight]), new Promise((r) => setTimeout(r, graceMs).unref())]);
   }
 
-  private transition(job: Job, to: JobState, error?: { code: EngineErrorCode; reason: string }): boolean {
+  private transition(job: Job, to: JobState, error?: { code: EngineErrorCode; reason: string; extra?: Record<string, unknown> }): boolean {
     if (isTerminalJobState(job.state)) return false;
     if (to === "running" && job.state !== "accepted") return false;
     job.state = to;
@@ -242,7 +244,16 @@ export class JobManager {
         }
         case "limit": {
           const outcome = LIMIT_OUTCOMES[result.limit];
-          this.transition(job, outcome.state, { code: outcome.code, reason: outcome.reason });
+          // The measurement that tripped the limit rides on the error: a job
+          // that dies timed_out while a fault meant otherwise (UNI-688) shows
+          // the cpu/rss it actually consumed instead of looking like a flake.
+          const extra: Record<string, unknown> = {};
+          if (result.usage) {
+            if (result.usage.cpuMs > 0) extra.measured_cpu_ms = result.usage.cpuMs;
+            if (result.usage.rssBytes > 0) extra.measured_rss_bytes = result.usage.rssBytes;
+            if (result.usage.tempBytes !== undefined) extra.measured_temp_bytes = result.usage.tempBytes;
+          }
+          this.transition(job, outcome.state, { code: outcome.code, reason: outcome.reason, extra });
           return;
         }
         case "crashed":
@@ -255,7 +266,7 @@ export class JobManager {
     } catch (error) {
       if (error instanceof EngineBoundaryError) {
         const state: JobState = error.code === "engine_timeout" ? "timed_out" : "failed";
-        this.transition(job, state, { code: error.code, reason: String(error.fields.reason ?? error.code) });
+        this.transition(job, state, { code: error.code, reason: String(error.fields.reason ?? error.code), extra: error.fields });
       } else {
         this.transition(job, "crashed", { code: "engine_crashed", reason: "internal_error" });
       }
@@ -315,6 +326,6 @@ export function jobView(job: Job): Record<string, unknown> {
       ? { output_file_id: job.output.file_id, output_checksum: job.output.checksum, output_length: job.output.length }
       : {}),
     warnings: job.warnings,
-    ...(job.error ? { error: new EngineBoundaryError(job.error.code, { reason: job.error.reason }).toJSON() } : {}),
+    ...(job.error ? { error: new EngineBoundaryError(job.error.code, { reason: job.error.reason, ...job.error.extra }).toJSON() } : {}),
   };
 }
