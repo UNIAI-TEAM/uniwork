@@ -83,7 +83,7 @@ test("a page is created, typed into, and survives a reload", async ({ page }) =>
   await page.goto(`/${pageSeed.orgSlug}/${pageSeed.wsSlug}/documents`);
   // The library shell: tabs and the real empty state, never fabricated rows.
   await expect(page.getByRole("tab", { name: /Tất cả/ })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText("Chưa có tài liệu")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Chưa có tài liệu" })).toBeVisible();
   await shot(page, "documents-library-light-vi");
 
   await page
@@ -164,7 +164,9 @@ test("the library lists pages across its tabs and the tree opens one", async ({ 
   await onboard(page, librarySeed);
 
   await page.goto(`/${librarySeed.orgSlug}/${librarySeed.wsSlug}/documents`);
-  await expect(page.getByText("Chưa có tài liệu")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "Chưa có tài liệu" })).toBeVisible({
+    timeout: 30_000,
+  });
 
   // Create one page; its editor opens on it.
   await page.getByRole("button", { name: "Trang mới" }).first().click();
@@ -185,7 +187,9 @@ test("the library lists pages across its tabs and the tree opens one", async ({ 
   await page.getByRole("tab", { name: /Gần đây/ }).click();
   await expect(page.getByRole("tab", { name: /Gần đây/ })).toHaveAttribute("aria-selected", "true");
   await page.getByRole("tab", { name: /Được chia sẻ với tôi/ }).click();
-  await expect(page.getByText("Chưa có tài liệu")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "Chưa có tài liệu" })).toBeVisible({
+    timeout: 30_000,
+  });
   await page.getByRole("tab", { name: /Tất cả/ }).click();
 
   // Filters are the server's: a file filter drops the page row.
@@ -211,6 +215,7 @@ test("the library lists pages across its tabs and the tree opens one", async ({ 
   await page.getByRole("button", { name: "Cây" }).click();
   await expect(page.getByRole("treeitem", { name: /Trang mới/ })).toBeVisible({ timeout: 30_000 });
   await shot(page, "documents-library-mobile-tree-vi");
+  await page.keyboard.press("Escape");
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.getByRole("button", { name: "Ng\u00f4n ng\u1eef" }).click();
@@ -230,7 +235,7 @@ test("the library and the page editor never call the Office service", async ({ p
 
   await page.goto(`/${officeSeed.orgSlug}/${officeSeed.wsSlug}/documents`);
   await expect(page.getByRole("tab", { name: /Tất cả/ })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText("Chưa có tài liệu")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Chưa có tài liệu" })).toBeVisible();
 
   // This spec runs with the Office engine stopped; nothing above may depend on
   // it, and the page editor has to open without it.
