@@ -13,7 +13,7 @@ import {
   encodeBase64,
   payloadFingerprint,
   validateEnvelope,
-} from "./index";
+} from "./index.ts";
 
 // Fixture-driven envelope parity: the same JSON files the Go parity test in
 // server/internal/office consumes. If a fixture and the validator disagree,

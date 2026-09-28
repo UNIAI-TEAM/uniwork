@@ -1,8 +1,8 @@
 import { z } from "zod";
-import type { OfficeFormat } from "./formats";
-import type { EngineErrorCode } from "./error-codes";
-import type { OpenOutcome } from "./failure-classes";
-import { publicMessage } from "./leaks";
+import type { OfficeFormat } from "./formats.ts";
+import type { EngineErrorCode } from "./error-codes.ts";
+import type { OpenOutcome } from "./failure-classes.ts";
+import { publicMessage } from "./leaks.ts";
 
 // Host adapter contract (ADR 0021, engine-contract.md §9/§10): the host owns
 // read, write, asset resolution, worker hosting and IPC transport; the engine
