@@ -1,6 +1,8 @@
 package service
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -14,6 +16,7 @@ type countingDocMetrics struct {
 	conflicts []string
 	quota     []string
 	sweeps    []string
+	rowsFail  []string
 }
 
 func (c *countingDocMetrics) IncDocumentAccessLogFailed()           {}
@@ -39,6 +42,12 @@ func (c *countingDocMetrics) ObserveDocumentWorkerSweep(worker, result string, s
 		panic("negative sweep duration")
 	}
 	c.sweeps = append(c.sweeps, worker+"/"+result)
+}
+
+func (c *countingDocMetrics) AddDocumentWorkerRowsFailed(worker string, n int) {
+	for range n {
+		c.rowsFail = append(c.rowsFail, worker)
+	}
 }
 
 // The outcome vocabulary is a closed set: one row per answer a save can give.
@@ -79,8 +88,8 @@ func TestRecordDocumentSaveAndSweep(t *testing.T) {
 	s.recordDocumentSave(documentMetricKindPage, CodedError{Code: "quota_exceeded", Status: 403, Err: ErrQuotaExceeded}, time.Millisecond)
 	s.recordDocumentSave(documentMetricKindFile, CodedError{Code: "quota_exceeded", Status: 403, Err: ErrQuotaExceeded}, time.Millisecond)
 	s.recordDocumentSave(documentMetricKindPage, nil, time.Millisecond)
-	s.recordDocumentSweep("purge", errors.New("storage"), time.Now())
-	s.recordDocumentSweep("compact", nil, time.Now())
+	s.recordDocumentSweep("purge", 0, errors.New("storage"), time.Now())
+	s.recordDocumentSweep("compact", 0, nil, time.Now())
 
 	wantSaves := []string{"page/conflict", "page/quota", "file/quota", "page/ok"}
 	if len(m.saves) != len(wantSaves) {
@@ -102,6 +111,58 @@ func TestRecordDocumentSaveAndSweep(t *testing.T) {
 	if len(m.sweeps) != 2 || m.sweeps[0] != "purge/error" || m.sweeps[1] != "compact/ok" {
 		t.Fatalf("sweeps = %v", m.sweeps)
 	}
+}
+
+// A pass that skipped failed rows is never "ok": each worker reports partial
+// and adds its failed rows, a stopped pass is error, a clean pass is ok.
+func TestRecordDocumentSweepRowFailures(t *testing.T) {
+	for _, worker := range []string{"autoversion", "purge", "compact"} {
+		t.Run(worker, func(t *testing.T) {
+			m := &countingDocMetrics{}
+			s := &DocumentService{metrics: m}
+			s.recordDocumentSweep(worker, 2, nil, time.Now())
+			s.recordDocumentSweep(worker, 1, errors.New("db gone"), time.Now())
+			s.recordDocumentSweep(worker, 0, nil, time.Now())
+			want := []string{worker + "/partial", worker + "/error", worker + "/ok"}
+			if len(m.sweeps) != len(want) {
+				t.Fatalf("sweeps = %v, want %v", m.sweeps, want)
+			}
+			for i := range want {
+				if m.sweeps[i] != want[i] {
+					t.Fatalf("sweeps = %v, want %v", m.sweeps, want)
+				}
+			}
+			if len(m.rowsFail) != 3 {
+				t.Fatalf("failed rows = %v, want 3 for %s", m.rowsFail, worker)
+			}
+		})
+	}
+}
+
+// An upload refused by the storage.bytes reservation is counted once, at the
+// upload, on the real FileService (the fake has no quota hook).
+func TestDocumentUploadQuotaRejectIsCounted(t *testing.T) {
+	forEachDocStorageBackend(t, func(t *testing.T, env *docStorageEnv) {
+		realOnly(t, env)
+		member := human(env.tn.member)
+		created := env.createFile(t, member, "quota-metric.pdf", sizedPDF("quota-metric", 10<<10))
+		m := &countingDocMetrics{}
+		env.svc.SetMetrics(m)
+		t.Cleanup(func() { env.svc.SetMetrics(nil) })
+
+		body := sizedPDF("quota-metric-2", 20<<10)
+		env.setStorageLimit(t, env.usage(t)+int64(len(body))-1)
+		t.Cleanup(func() { env.setStorageLimit(t, 1<<40) })
+		_, err := env.svc.UploadDocumentFile(context.Background(), member, created.Document.ID,
+			DocumentUploadInput{Filename: "big.pdf", Body: bytes.NewReader(body)})
+		wantCode(t, err, "quota_exceeded")
+		if len(m.quota) != 1 || m.quota[0] != documentMetricKindFile {
+			t.Fatalf("quota rejects = %v, want [file]", m.quota)
+		}
+		if len(m.saves) != 0 {
+			t.Fatalf("an upload is not a save: saves = %v", m.saves)
+		}
+	})
 }
 
 // The wrapper is on the public command, not the private body: a save that

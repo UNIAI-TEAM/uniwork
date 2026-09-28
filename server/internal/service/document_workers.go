@@ -87,24 +87,24 @@ func (w *DocumentWorkers) Run(ctx context.Context) {
 	}{
 		{autoTick, func(ctx context.Context) {
 			started := time.Now()
-			err := w.autoVersionPass(ctx)
-			w.svc.recordDocumentSweep("autoversion", err, started)
+			failed, err := w.autoVersionPass(ctx)
+			w.svc.recordDocumentSweep("autoversion", failed, err, started)
 			if w.swept != nil {
 				w.swept("auto_version", err)
 			}
 		}},
 		{purgeTick, func(ctx context.Context) {
 			started := time.Now()
-			_, err := w.svc.PurgeExpired(ctx, w.clock()())
-			w.svc.recordDocumentSweep("purge", err, started)
+			rep, err := w.svc.PurgeExpired(ctx, w.clock()())
+			w.svc.recordDocumentSweep("purge", rep.Failed, err, started)
 			if w.swept != nil {
 				w.swept("purge", err)
 			}
 		}},
 		{compactTick, func(ctx context.Context) {
 			started := time.Now()
-			_, err := w.svc.CompactVersions(ctx)
-			w.svc.recordDocumentSweep("compact", err, started)
+			rep, err := w.svc.CompactVersions(ctx)
+			w.svc.recordDocumentSweep("compact", rep.Failed, err, started)
 			if w.swept != nil {
 				w.swept("compact", err)
 			}
@@ -156,8 +156,9 @@ func (w *DocumentWorkers) wait(ctx context.Context, d time.Duration) bool {
 
 // autoVersionPass snapshots every live page that has been quiet for the
 // window. now comes from the injected clock in tests, the wall clock
-// otherwise.
-func (w *DocumentWorkers) autoVersionPass(ctx context.Context) error {
+// otherwise. It returns how many pages failed; the pass carries on past them
+// and the next tick retries.
+func (w *DocumentWorkers) autoVersionPass(ctx context.Context) (int, error) {
 	now := w.clock()()
 	quiet := now.Add(-documentAutoVersionQuiet)
 	var failed int
@@ -169,7 +170,7 @@ func (w *DocumentWorkers) autoVersionPass(ctx context.Context) error {
 	afterID := pgtype.Text{}
 	for {
 		if ctx.Err() != nil {
-			return ctx.Err()
+			return failed, ctx.Err()
 		}
 		batch, err := w.svc.q.ListDocumentsForAutoVersion(ctx, db.ListDocumentsForAutoVersionParams{
 			QuietBefore: pgtype.Timestamptz{Time: quiet, Valid: true},
@@ -177,14 +178,14 @@ func (w *DocumentWorkers) autoVersionPass(ctx context.Context) error {
 			MaxRows: int32(documentSweepBatch),
 		})
 		if err != nil {
-			return err
+			return failed, err
 		}
 		if len(batch) == 0 {
 			break
 		}
 		for _, row := range batch {
 			if ctx.Err() != nil {
-				return ctx.Err()
+				return failed, ctx.Err()
 			}
 			m, err := w.svc.autoVersionOne(ctx, row.ID, row.OrganizationID, row.WorkspaceID, now)
 			if err != nil {
@@ -203,7 +204,7 @@ func (w *DocumentWorkers) autoVersionPass(ctx context.Context) error {
 	if failed > 0 {
 		slog.Warn("documents auto-version: pass finished with failures", "made", made, "failed", failed)
 	}
-	return nil
+	return failed, nil
 }
 
 // autoVersionOne snapshots one page under its row lock: every predicate of

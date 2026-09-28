@@ -3,6 +3,8 @@ package service
 import (
 	"errors"
 	"time"
+
+	"github.com/unicomhub/uniwork/server/internal/files"
 )
 
 // Operational metrics of the document service (G1-09, UNI-683). Every label
@@ -14,10 +16,12 @@ import (
 // (docs/ops/RUNBOOK_FILE_GC.md); Documents does not duplicate them.
 
 // Save kinds: the page PATCH (autosave) and the file version commit, the two
-// commands the C-01 §9.4 latency targets measure.
+// commands the C-01 §9.4 latency targets measure. Quota rejections also use
+// "asset", for a page image refused at upload.
 const (
-	documentMetricKindPage = "page"
-	documentMetricKindFile = "file"
+	documentMetricKindPage  = "page"
+	documentMetricKindFile  = "file"
+	documentMetricKindAsset = "asset"
 )
 
 // Outcome vocabulary. A conflict is a lost base race; the quota, invalid,
@@ -56,6 +60,7 @@ type DocumentMetrics interface {
 	IncDocumentConflict(kind, code string)
 	IncDocumentQuotaRejected(kind string)
 	ObserveDocumentWorkerSweep(worker, result string, seconds float64)
+	AddDocumentWorkerRowsFailed(worker string, n int)
 }
 
 type nopDocumentMetrics struct{}
@@ -66,6 +71,7 @@ func (nopDocumentMetrics) ObserveDocumentSave(string, string, float64)        {}
 func (nopDocumentMetrics) IncDocumentConflict(string, string)                 {}
 func (nopDocumentMetrics) IncDocumentQuotaRejected(string)                    {}
 func (nopDocumentMetrics) ObserveDocumentWorkerSweep(string, string, float64) {}
+func (nopDocumentMetrics) AddDocumentWorkerRowsFailed(string, int)            {}
 
 // SetMetrics wires the operational counters. Unwired, every call is a nop.
 func (s *DocumentService) SetMetrics(m DocumentMetrics) {
@@ -129,13 +135,45 @@ func (s *DocumentService) recordDocumentSave(kind string, err error, took time.D
 	}
 }
 
-// recordDocumentSweep records one maintenance sweep's outcome and duration.
-// A sweep error is retried by the worker's next tick; the counter is what an
-// alert watches while the lag gauge shows the backlog.
-func (s *DocumentService) recordDocumentSweep(worker string, err error, started time.Time) {
-	result := "ok"
-	if err != nil {
-		result = "error"
+// recordDocumentUploadQuota counts an upload refused by the storage.bytes
+// reservation (the FileService quota hook runs inside Upload, before a byte
+// is stored). A refused upload has no upload id, so no later commit can count
+// the same bytes again; a commit refused after a reservation passed is
+// counted by recordDocumentSave instead.
+func (s *DocumentService) recordDocumentUploadQuota(purpose files.UploadPurpose, err error) {
+	if outcome, _ := documentSaveResult(err); outcome != documentOutcomeQuota {
+		return
+	}
+	kind := documentMetricKindFile
+	if purpose == files.DocumentAsset {
+		kind = documentMetricKindAsset
+	}
+	s.metrics.IncDocumentQuotaRejected(kind)
+}
+
+// Sweep results: ok = every row done, partial = the pass finished but some
+// rows failed (the worker logs and skips them, the next tick retries), error =
+// the pass itself stopped.
+const (
+	documentSweepOK      = "ok"
+	documentSweepPartial = "partial"
+	documentSweepError   = "error"
+)
+
+// recordDocumentSweep records one maintenance sweep's outcome and duration,
+// and the rows it failed on. A sweep is retried by the worker's next tick;
+// the counters are what an alert watches while the lag gauge shows the
+// backlog. failed rows never turn a pass into "ok".
+func (s *DocumentService) recordDocumentSweep(worker string, failed int, err error, started time.Time) {
+	result := documentSweepOK
+	switch {
+	case err != nil:
+		result = documentSweepError
+	case failed > 0:
+		result = documentSweepPartial
 	}
 	s.metrics.ObserveDocumentWorkerSweep(worker, result, time.Since(started).Seconds())
+	if failed > 0 {
+		s.metrics.AddDocumentWorkerRowsFailed(worker, failed)
+	}
 }

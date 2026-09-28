@@ -1,6 +1,6 @@
 # Runbook — Documents (trang, tệp, phiên bản, worker)
 
-> **Trạng thái:** in-progress · **Cập nhật:** 2026-09-28 · **Thành phần:** `DocumentService`, `DocumentWorkers` (auto-version / purge / compact) trong tiến trình API, byte qua `FileService` · **Liên quan:** C-01 §6.3/§14, ADR 0022, `docs/ops/RUNBOOK_FILE_GC.md`, `docs/ops/RUNBOOK_OFFICE_ENGINE.md`, `docs/ops/RUNBOOK_OUTBOX.md`
+> **Trạng thái:** in-progress · **Cập nhật:** 2026-09-29 · **Thành phần:** `DocumentService`, `DocumentWorkers` (auto-version / purge / compact) trong tiến trình API, byte qua `FileService` · **Liên quan:** C-01 §6.3/§14, ADR 0022, `docs/ops/RUNBOOK_FILE_GC.md`, `docs/ops/RUNBOOK_OFFICE_ENGINE.md`, `docs/ops/RUNBOOK_OUTBOX.md`
 
 Documents không giữ byte: mọi tệp nằm ở FileService (ADR 0022). Vì vậy
 orphan backlog và delete-failure **không có metric riêng ở đây** — chúng là số
@@ -15,12 +15,14 @@ quyền, lịch sử và tham chiếu (`ReferenceProvider`).
 | `uniwork_document_saves_total{kind,outcome}` | Kết quả lệnh lưu: `page` = PATCH autosave, `file` = commit phiên bản tệp. `outcome` cố định: ok/conflict/quota/forbidden/not_found/gone/invalid/unavailable/error | `outcome="error"` hoặc `"unavailable"` khác 0 liên tục = điều tra |
 | `uniwork_document_save_duration_seconds{kind}` | Thời gian lệnh lưu. p95 PATCH là SLO C-01 §9.4 (< 150 ms, 200 người lưu 200 KiB/2 s) | p95 > 150 ms liên tục |
 | `uniwork_document_conflicts_total{kind,code}` | Lưu thua vì base đã cũ (`revision_conflict` / `document_version_conflict`) | Tăng vọt = nhiều tab/agent cùng sửa một trang |
-| `uniwork_document_quota_rejects_total{kind}` | Lưu bị từ chối vì `storage.bytes` vượt hạn mức tổ chức | > 0 kèm phản hồi người dùng |
+| `uniwork_document_quota_rejects_total{kind}` | Bị từ chối vì `storage.bytes` vượt hạn mức tổ chức: `page` = lưu trang, `file` = tải lên hoặc commit phiên bản tệp, `asset` = tải ảnh vào trang. Tải lên bị chặn ngay ở bước giữ chỗ nên không bao giờ đếm hai lần ở commit | > 0 kèm phản hồi người dùng |
 | `uniwork_document_access_log_failed_total` | Dòng nhật ký truy cập ghi lỗi sau khi lần đọc đã thành công | > 0 = kiểm DB/khóa; lần đọc vẫn đúng |
 | `uniwork_document_versions_protected_overflow_total` | Bản ghi bảo vệ (manual/restore/upload) vượt trần nén; mọi bản được giữ | Chỉ để nhìn |
-| `uniwork_document_worker_sweeps_total{worker,result}` | Lượt quét auto-version/purge/compact theo kết quả | `result="error"` lặp lại |
+| `uniwork_document_worker_sweeps_total{worker,result}` | Lượt quét auto-version/purge/compact theo kết quả: `ok` = mọi row xong, `partial` = lượt chạy hết nhưng có row lỗi (bỏ qua, lượt sau thử lại), `error` = lượt dừng giữa chừng | `result="error"` hoặc `"partial"` lặp lại |
+| `uniwork_document_worker_rows_failed_total{worker}` | Số row một lượt quét lỗi và bỏ qua | Tăng qua nhiều lượt = cùng row lỗi mãi, xem log `documents purge` / `documents auto-version` |
 | `uniwork_document_worker_sweep_duration_seconds{worker}` | Thời gian một lượt quét | Tăng dần đều |
-| `uniwork_document_worker_oldest_pending_seconds{worker}` | Tuổi công việc quá hạn cũ nhất worker còn nợ (`autoversion` = trang quá 10 phút im chưa chụp; `purge` = tài liệu archive quá `purge_after` hoặc asset mồ côi quá 7 ngày) | Tăng liên tục = worker không theo kịp |
+| `uniwork_document_worker_oldest_pending_seconds{worker}` | Tuổi công việc quá hạn cũ nhất worker còn nợ (`autoversion` = trang quá 10 phút im chưa chụp; `purge` = tài liệu archive quá `purge_after` hoặc asset mồ côi quá 7 ngày của tài liệu còn sống). Đọc tối đa mỗi 30 s | Tăng liên tục = worker không theo kịp |
+| `uniwork_document_worker_lag_up{worker}` | 1 = lần đọc lag gần nhất thành công; 0 = đọc lỗi, khi đó gauge lag **vắng mặt** (không phải 0) | 0 = kiểm kết nối/khóa DB trước khi tin là hết việc |
 | FileService GC | orphan/delete-failure, quarantine, coverage gap | Xem [`RUNBOOK_FILE_GC.md`](RUNBOOK_FILE_GC.md) |
 | Outbox | `document.*` / `document.shared`… không tới client | Xem [`RUNBOOK_OUTBOX.md`](RUNBOOK_OUTBOX.md) |
 
@@ -30,11 +32,14 @@ quyền, lịch sử và tham chiếu (`ReferenceProvider`).
   giữ nháp. Metric: `uniwork_document_saves_total{outcome=...}` và
   `uniwork_document_conflicts_total`; với tệp là route
   `POST /documents/{id}/uploads` + `POST /documents/{id}/versions/commit`.
-- **Storage không sẵn sàng.** Lệnh lưu trả `storage_unavailable` (503),
-  `outcome="unavailable"` tăng; các lần đọc (list/history) cũng có thể lỗi.
+- **Storage không sẵn sàng.** Lệnh cần byte trả `storage_unavailable` (503):
+  tải lên, commit phiên bản tệp, tải về, ảnh trong trang; `outcome="unavailable"`
+  tăng. Thư viện, mở trang và lịch sử phiên bản đọc metadata trong Postgres nên
+  **vẫn chạy**; nếu chúng cũng lỗi thì là sự cố DB, không phải storage.
   Đây là sự cố **FileService/backend byte**, không phải Documents.
-- **Purge lỗi.** `uniwork_document_worker_sweeps_total{worker="purge",result="error"}`
-  tăng, `uniwork_document_worker_oldest_pending_seconds{worker="purge"}` leo
+- **Purge lỗi.** Lỗi từng row: `uniwork_document_worker_sweeps_total{worker="purge",result="partial"}`
+  và `uniwork_document_worker_rows_failed_total{worker="purge"}` tăng; cả lượt
+  dừng: `result="error"`. `uniwork_document_worker_oldest_pending_seconds{worker="purge"}` leo
   thang; tài liệu hết hạn không được xóa (an toàn), hoặc xóa một nửa (row còn,
   tham chiếu chưa nhả).
 - **Engine Office chết.** Job `office_jobs` không tiến triển; engine không nằm
@@ -81,7 +86,8 @@ quyền, lịch sử và tham chiếu (`ReferenceProvider`).
    uniwork_document_worker_oldest_pending_seconds
    sum by (worker, result) (rate(uniwork_document_worker_sweeps_total[15m]))
    ```
-   `autoversion` tăng mà sweep vẫn `ok` = có trang không đủ điều kiện chụp
+   `result="partial"` hoặc `rows_failed_total` tăng = row lỗi bị bỏ qua (log
+   theo document id). `autoversion` tăng mà sweep vẫn `ok` = có trang không đủ điều kiện chụp
    (đang sửa liên tục) hoặc quét không theo kịp; `purge` tăng = mục quá hạn
    không xóa được (xem bước 3).
 5. Engine down: `OFFICE_ENGINE_URL` rỗng = không có engine (đúng thiết kế,
@@ -141,7 +147,7 @@ quyền, lịch sử và tham chiếu (`ReferenceProvider`).
 
 - `outcome="error"` hoặc `"unavailable"` > 5% số lần lưu trong 10 phút → sev 2,
   gọi on-call backend (Documents + FileService).
-- Purge lỗi kéo dài qua 2 lượt quét (2 giờ) hoặc `oldest_pending_seconds{purge}`
+- Purge lỗi (`result` = `partial`/`error`) kéo dài qua 2 lượt quét (2 giờ) hoặc `oldest_pending_seconds{purge}`
   > 24 giờ → sev 2, kèm id tài liệu + `error_code`; nghi xóa sai/xuyên tenant →
   coi là sự cố dữ liệu, báo ngay người phụ trách bảo mật dữ liệu (như
   [`RUNBOOK_FILE_GC.md`](RUNBOOK_FILE_GC.md)).

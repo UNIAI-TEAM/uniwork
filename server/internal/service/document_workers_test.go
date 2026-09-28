@@ -71,15 +71,15 @@ func TestDocumentWorkers(t *testing.T) {
 		doc := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
 			contentText: "quét", contentSavedAt: fixed.Add(-30 * time.Minute)})
 		w := f.svc.NewDocumentWorkers()
-		if err := w.autoVersionPass(f.ctx); err != nil {
-			t.Fatal(err)
+		if failed, err := w.autoVersionPass(f.ctx); err != nil || failed != 0 {
+			t.Fatalf("pass: failed=%d err=%v", failed, err)
 		}
 		if n := countVersions(t, f, doc.ID, "auto"); n != 1 {
 			t.Fatalf("sweep made %d auto versions, want 1", n)
 		}
 		// A second pass over the same clock finds nothing to do.
-		if err := w.autoVersionPass(f.ctx); err != nil {
-			t.Fatal(err)
+		if failed, err := w.autoVersionPass(f.ctx); err != nil || failed != 0 {
+			t.Fatalf("second pass: failed=%d err=%v", failed, err)
 		}
 		if n := countVersions(t, f, doc.ID, "auto"); n != 1 {
 			t.Fatalf("second sweep duplicated: %d auto versions", n)

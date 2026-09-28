@@ -23,6 +23,7 @@ type Documents struct {
 	QuotaRejects              *prometheus.CounterVec
 	WorkerSweeps              *prometheus.CounterVec
 	WorkerSweepDuration       *prometheus.HistogramVec
+	WorkerRowsFailed          *prometheus.CounterVec
 }
 
 func NewDocuments() *Documents {
@@ -54,12 +55,16 @@ func NewDocuments() *Documents {
 		}, []string{"kind"}),
 		WorkerSweeps: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Name: "uniwork_document_worker_sweeps_total",
-			Help: "Document maintenance sweeps by worker and result.",
+			Help: "Document maintenance sweeps by worker and result (ok, partial = some rows failed, error = the pass stopped).",
 		}, []string{"worker", "result"}),
 		WorkerSweepDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "uniwork_document_worker_sweep_duration_seconds",
 			Help:    "Time one document maintenance sweep took, by worker.",
 			Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1, 5, 30, 120, 600},
+		}, []string{"worker"}),
+		WorkerRowsFailed: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "uniwork_document_worker_rows_failed_total",
+			Help: "Rows a document maintenance sweep failed on and skipped (auto-version, purge, compaction); the next tick retries them.",
 		}, []string{"worker"}),
 	}
 }
@@ -68,7 +73,7 @@ func (d *Documents) Collectors() []prometheus.Collector {
 	return []prometheus.Collector{
 		d.AccessLogFailed, d.VersionsProtectedOverflow,
 		d.Saves, d.SaveDuration, d.Conflicts, d.QuotaRejects,
-		d.WorkerSweeps, d.WorkerSweepDuration,
+		d.WorkerSweeps, d.WorkerSweepDuration, d.WorkerRowsFailed,
 	}
 }
 
@@ -98,4 +103,9 @@ func (d *Documents) IncDocumentQuotaRejected(kind string) {
 func (d *Documents) ObserveDocumentWorkerSweep(worker, result string, seconds float64) {
 	d.WorkerSweeps.WithLabelValues(worker, result).Inc()
 	d.WorkerSweepDuration.WithLabelValues(worker).Observe(seconds)
+}
+
+// AddDocumentWorkerRowsFailed records the rows one sweep failed on.
+func (d *Documents) AddDocumentWorkerRowsFailed(worker string, n int) {
+	d.WorkerRowsFailed.WithLabelValues(worker).Add(float64(n))
 }

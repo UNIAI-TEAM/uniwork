@@ -34,6 +34,7 @@ func (c *countingAccessMetrics) IncDocumentQuotaRejected(string)             { c
 func (c *countingAccessMetrics) ObserveDocumentWorkerSweep(string, string, float64) {
 	c.sweeps.Add(1)
 }
+func (c *countingAccessMetrics) AddDocumentWorkerRowsFailed(string, int) {}
 
 func TestDocumentAccessLog(t *testing.T) {
 	f := newDocPermFixture(t)
