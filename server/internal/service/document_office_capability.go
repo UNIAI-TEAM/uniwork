@@ -49,6 +49,9 @@ type OfficeCapabilityRow struct {
 	EngineBound      bool
 	ProductSupported bool
 	Reason           string
+	// TargetFormat is the convert row's one output format (Q7); empty on
+	// every other row.
+	TargetFormat string
 }
 
 // OfficeCapability is the capability answer for one document's format.
@@ -72,7 +75,13 @@ func (s *DocumentOfficeService) Capability(ctx context.Context, actor Actor, doc
 	if err != nil {
 		return OfficeCapability{}, err
 	}
-	format, err := s.formatForVersion(ctx, doc, nil)
+	var current *db.DocumentVersion
+	if doc.Kind == DocumentKindFile {
+		if current, err = s.documents.currentFileVersion(ctx, s.q, doc); err != nil {
+			return OfficeCapability{}, err
+		}
+	}
+	format, err := s.formatForVersion(ctx, doc, current)
 	if err != nil {
 		return OfficeCapability{}, err
 	}
@@ -80,12 +89,24 @@ func (s *DocumentOfficeService) Capability(ctx context.Context, actor Actor, doc
 	if err != nil {
 		return OfficeCapability{}, err
 	}
+	// Rollback rule: bytes a newer engine build committed are not opened by
+	// this one, so every engine row reads unsupported for this version while
+	// download and recovery (not engine operations) stay.
+	unreadable := current != nil && !office.CanReadEngineVersion(current.EngineVersion.String)
 	out := OfficeCapability{Format: format, EngineVersion: res.EngineVersion, Operations: make([]OfficeCapabilityRow, 0, len(res.Capabilities)+1)}
 	for _, entry := range res.Capabilities {
-		out.Operations = append(out.Operations, OfficeCapabilityRow{
+		row := OfficeCapabilityRow{
 			Operation: entry.Operation, Runtime: string(entry.Runtime), EvidenceLevel: string(entry.EvidenceLevel),
 			EngineBound: entry.Supported, ProductSupported: entry.ProductSupported(), Reason: entry.Reason,
-		})
+		}
+		if office.Operation(entry.Operation) == office.OperationConvert {
+			row.TargetFormat = string(office.ConvertTargets[format])
+		}
+		if unreadable {
+			row.ProductSupported = false
+			row.Reason = "engine_incompatible: version written by " + current.EngineVersion.String
+		}
+		out.Operations = append(out.Operations, row)
 	}
 	blank, blankReason := blankSupported(format, res)
 	out.Operations = append(out.Operations, OfficeCapabilityRow{
@@ -96,12 +117,13 @@ func (s *DocumentOfficeService) Capability(ctx context.Context, actor Actor, doc
 	return out, nil
 }
 
-// blankSupported: only source-text formats have a blank the engine can make
-// from nothing. A zero-byte PDF or OOXML package is not a document, so the
-// action is absent for them until a format lane binds a blank generator.
+// blankSupported: source-text formats and XLSX (G2-07b: a minimal workbook
+// seed) have a blank the engine makes. A zero-byte PDF or OOXML package is not
+// a document, so the action is absent for DOCX, PPTX and PDF until a format
+// lane binds a blank generator.
 func blankSupported(format office.Format, res office.CapabilityResult) (bool, string) {
 	switch format {
-	case office.FormatMD, office.FormatHTML:
+	case office.FormatMD, office.FormatHTML, office.FormatXLSX:
 	default:
 		return false, "no blank generator is bound for " + string(format) +
 			"; an empty Office package is never created (docs/office/g1-g2-evidence.md)"
@@ -175,6 +197,10 @@ func officeFormatForFile(f files.File) (office.Format, bool) {
 		return office.FormatMD, true
 	case ".html", ".htm":
 		return office.FormatHTML, true
+	case ".xls":
+		return office.FormatXLS, true
+	case ".odt":
+		return office.FormatODT, true
 	}
 	return officeFormatFromMime(f.ContentType)
 }
@@ -198,6 +224,10 @@ func officeFormatFromMime(contentType string) (office.Format, bool) {
 		return office.FormatMD, true
 	case "text/html":
 		return office.FormatHTML, true
+	case "application/vnd.ms-excel":
+		return office.FormatXLS, true
+	case "application/vnd.oasis.opendocument.text":
+		return office.FormatODT, true
 	}
 	return "", false
 }
@@ -230,6 +260,10 @@ func officeFormatMime(format office.Format, mime string) bool {
 		return base == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 	case office.FormatPPTX:
 		return base == "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+	case office.FormatXLS:
+		return base == "application/vnd.ms-excel"
+	case office.FormatODT:
+		return base == "application/vnd.oasis.opendocument.text"
 	}
 	return false
 }
@@ -475,6 +509,10 @@ func blankSeedFor(format office.Format, title string) ([]byte, string, bool) {
 		escaped := html.EscapeString(name)
 		return []byte("<!doctype html>\n<html><head><meta charset=\"utf-8\"><title>" + escaped +
 			"</title></head>\n<body>\n<h1>" + escaped + "</h1>\n</body></html>\n"), "untitled.html", true
+	case office.FormatXLSX:
+		// The workbook carries no title: the document row holds it.
+		seed := blankXLSXSeed()
+		return seed, "untitled.xlsx", seed != nil
 	default:
 		return nil, "", false
 	}
@@ -495,6 +533,9 @@ type OfficeJobRequest struct {
 	IdempotencyKey   string
 	DocumentModelRef string
 	Deadline         time.Duration
+	// TargetFormat is a convert job's output format (xlsx for xls, docx for
+	// odt); any other operation must leave it empty.
+	TargetFormat string
 }
 
 // StartOfficeJobForDocument starts one job on the document's current version.
@@ -516,6 +557,12 @@ func (s *DocumentOfficeService) StartOfficeJobForDocument(ctx context.Context, a
 	if !ok {
 		return db.OfficeJob{}, ErrOfficeJobInvalid
 	}
+	var target office.Format
+	if req.TargetFormat != "" {
+		if target, ok = parseOfficeFormat(req.TargetFormat); !ok {
+			return db.OfficeJob{}, ErrOfficeJobInvalid
+		}
+	}
 	// A retried key replays its own job: once its output is committed the
 	// document has moved on, so the base comes from the row, not from the
 	// document as it is now. A changed payload still fails the fingerprint.
@@ -533,7 +580,7 @@ func (s *DocumentOfficeService) StartOfficeJobForDocument(ctx context.Context, a
 			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
 			BaseVersionID: existing.BaseVersionID, BaseRevision: revision,
 			Operation: operation, Format: office.Format(existing.Format), IdempotencyKey: req.IdempotencyKey,
-			Deadline: req.Deadline, DocumentModelRef: req.DocumentModelRef,
+			Deadline: req.Deadline, DocumentModelRef: req.DocumentModelRef, TargetFormat: target,
 		})
 	} else if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return db.OfficeJob{}, err
@@ -555,7 +602,7 @@ func (s *DocumentOfficeService) StartOfficeJobForDocument(ctx context.Context, a
 		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
 		BaseVersionID: doc.FileVersionID.String, BaseRevision: doc.Revision,
 		Operation: operation, Format: format, IdempotencyKey: req.IdempotencyKey,
-		Deadline: req.Deadline, DocumentModelRef: req.DocumentModelRef,
+		Deadline: req.Deadline, DocumentModelRef: req.DocumentModelRef, TargetFormat: target,
 	})
 }
 

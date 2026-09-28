@@ -172,8 +172,9 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	// Office (plan G2-07 / UNI-690; C-01 §6.2). The routes carry document
 	// authority: capability and job status need view, starting and cancelling
 	// a job need edit, and the client never learns an engine address - only
-	// the engine's pinned identity. Export/convert answer
-	// unsupported_operation until an engine lane binds a converter (Q7).
+	// the engine's pinned identity. Export answers unsupported_operation until
+	// an engine lane binds it; convert (Q7, G2-07b) stages an OOXML copy that
+	// POST .../copies with job_id accepts.
 	d.Get("/documents/{documentID}/office/capabilities", h.OfficeCapability, apiOp{
 		summary: "List the Office capabilities of a document",
 		description: "Hàng capability của engine cho định dạng của tài liệu, cộng hàng create_blank: supported = engine bind và đã có bằng chứng sản phẩm; " +
@@ -186,7 +187,8 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		summary: "Start an Office job",
 		description: "Operation trong allowlist open|serialize|export|convert + Idempotency-Key. Base version/revision và định dạng lấy từ tài liệu, client không gửi version id. " +
 			"Version negotiation và operation gate chạy TRƯỚC khi ghi: engine/contract/protocol lệch pin -> 409 engine_incompatible|contract_mismatch|protocol_mismatch; " +
-			"thao tác chưa bind -> 501 unsupported_operation. Job completed chưa phải version: commit bằng /versions/commit với upload_id = output_file_id.",
+			"thao tác chưa bind -> 501 unsupported_operation. Job completed chưa phải version: commit bằng /versions/commit với upload_id = output_file_id. " +
+			"convert (xls -> xlsx, odt -> docx) cần target_format; job completed mang result (fidelity + danh sách thay đổi), không commit vào nguồn: chấp nhận bằng /copies với job_id, huỷ bằng .../cancel.",
 		tags:   []string{"documents"},
 		sdi:    sdi.StartOfficeJobSDI{},
 		sdo:    sdo.OfficeJobSDO{},
@@ -220,7 +222,8 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	d.Post("/documents/{documentID}/copies", h.CopyDocument, apiOp{
 		summary: "Copy a document",
 		description: "Bản sao standalone: consent phải là \"copy\" (thiếu -> 409 copy_consent_required). Cần quyền sửa nguồn. Bản sao giữ acl_owner_id/visibility/share của nguồn " +
-			"và ghi provenance (source_document_id/version/revision/checksum/format); bytes dùng lại đúng file_id nên không tính dung lượng lần hai. Tài liệu thuộc sở hữu C-14 -> 409 owner_requires_copy.",
+			"và ghi provenance (source_document_id/version/revision/checksum/format); bytes dùng lại đúng file_id nên không tính dung lượng lần hai. Tài liệu thuộc sở hữu C-14 -> 409 owner_requires_copy. " +
+			"Có job_id: chấp nhận job convert đã completed (chỉ người tạo job) - bản sao là output OOXML, provenance ghi checksum nguồn + engine; job huỷ/đã chấp nhận -> 409 conversion_not_accepted; nguồn và lịch sử không đổi.",
 		tags:   []string{"documents"},
 		sdi:    sdi.CopyDocumentSDI{},
 		sdo:    sdo.DocumentSDO{},

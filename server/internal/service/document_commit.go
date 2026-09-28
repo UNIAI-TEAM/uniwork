@@ -277,6 +277,11 @@ func (s *DocumentService) CommitFileVersion(ctx context.Context, actor Actor, do
 			if job.State != string(office.JobCompleted) {
 				return errOfficeUploadInvalid("office_job_" + job.State)
 			}
+			if job.Operation == string(office.OperationConvert) {
+				// A conversion never becomes a version of its source: it is
+				// accepted only as a new document (POST .../copies, Q7).
+				return errOfficeUploadInvalid("office_job_convert_copy_only")
+			}
 			if locked.Revision != job.BaseRevision || locked.FileVersionID.String != job.BaseVersionID {
 				return errDocumentVersionConflict(locked.Revision)
 			}

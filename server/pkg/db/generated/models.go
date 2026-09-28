@@ -1153,6 +1153,8 @@ type OfficeJob struct {
 	CreatedByKind      string             `json:"created_by_kind"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	TargetFormat       pgtype.Text        `json:"target_format"`
+	Result             []byte             `json:"result"`
 }
 
 type Organization struct {

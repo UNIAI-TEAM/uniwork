@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -100,6 +101,7 @@ func (h *handlers) startOfficeJob(w http.ResponseWriter, r *http.Request) {
 		Operation: in.Operation, Format: strings.TrimSpace(stringValue(in.Format)),
 		BaseRevision: base, HasBaseRevision: hasBase, IdempotencyKey: r.Header.Get("Idempotency-Key"),
 		DocumentModelRef: stringValue(in.ModelRef), Deadline: 0,
+		TargetFormat: strings.TrimSpace(stringValue(in.TargetFormat)),
 	})
 	if err != nil {
 		h.mapOfficeError(w, err)
@@ -151,7 +153,7 @@ func (h *handlers) createBlankDocumentFile(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if !service.ValidOfficeFormat(in.Format) {
-		respondError(w, http.StatusBadRequest, "invalid_request", "format must be one of docx, xlsx, pptx, pdf, md, html")
+		respondError(w, http.StatusBadRequest, "invalid_request", "format must be one of docx, xlsx, pptx, pdf, md, html, xls, odt")
 		return
 	}
 	res, err := h.Office.CreateBlankFile(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), service.BlankFileInput{
@@ -165,7 +167,9 @@ func (h *handlers) createBlankDocumentFile(w http.ResponseWriter, r *http.Reques
 }
 
 // copyDocument is POST /documents/{documentID}/copies: an explicit copy
-// (consent "copy") that keeps the source's ACL snapshot and provenance.
+// (consent "copy") that keeps the source's ACL snapshot and provenance. With
+// job_id it accepts a completed Q7 convert job instead: the copy is the job's
+// OOXML output.
 func (h *handlers) copyDocument(w http.ResponseWriter, r *http.Request) {
 	if h.Documents == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
@@ -177,10 +181,10 @@ func (h *handlers) copyDocument(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := h.Documents.CopyDocument(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"), service.CopyDocumentInput{
 		Consent: in.Consent, Title: stringValue(in.Title), ParentID: stringValue(in.ParentID),
-		IdempotencyKey: r.Header.Get("Idempotency-Key"),
+		IdempotencyKey: r.Header.Get("Idempotency-Key"), JobID: stringValue(in.JobID),
 	})
 	if err != nil {
-		h.mapServiceError(w, err)
+		h.mapOfficeError(w, err)
 		return
 	}
 	h.respondDocumentCreated(w, r, res.Document.ID)
@@ -206,6 +210,7 @@ func officeCapabilityDTO(documentID string, in service.OfficeCapability) sdo.Off
 		out.Operations = append(out.Operations, sdo.OfficeCapabilityOperationDTO{
 			Operation: row.Operation, Runtime: row.Runtime, EvidenceLevel: row.EvidenceLevel,
 			EngineBound: row.EngineBound, Supported: row.ProductSupported, Reason: row.Reason,
+			TargetFormat: row.TargetFormat,
 		})
 	}
 	return out
@@ -233,6 +238,10 @@ func officeJobDTO(row db.OfficeJob) sdo.OfficeJobSDO {
 	if row.CommittedVersionID.Valid {
 		out.CommittedVersionID = &row.CommittedVersionID.String
 	}
+	if row.TargetFormat.Valid {
+		out.TargetFormat = &row.TargetFormat.String
+	}
+	out.Result = officeJobResultDTO(row.Result)
 	if row.ErrorCode.Valid || row.ErrorReason.Valid {
 		detail := sdo.OfficeJobErrorDTO{Code: row.ErrorCode.String, Reason: row.ErrorReason.String}
 		if kind, retryable, ok := service.OfficeErrorClassification(detail.Code); ok {
@@ -242,4 +251,21 @@ func officeJobDTO(row db.OfficeJob) sdo.OfficeJobSDO {
 		out.Error = &detail
 	}
 	return out
+}
+
+// officeJobResultDTO decodes a stored convert result into the SDO shape. The
+// row keeps the engine's JSON verbatim; a result that does not decode is
+// left out rather than answered half-parsed.
+func officeJobResultDTO(raw []byte) *sdo.OfficeJobResultDTO {
+	if len(raw) == 0 {
+		return nil
+	}
+	var out sdo.OfficeJobResultDTO
+	if err := json.Unmarshal(raw, &out); err != nil || out.TargetFormat == "" {
+		return nil
+	}
+	if out.Fidelity.Lost == nil {
+		out.Fidelity.Lost = []string{}
+	}
+	return &out
 }

@@ -1,7 +1,9 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -67,7 +69,7 @@ func (s *DocumentOfficeService) apply(ctx context.Context, row db.OfficeJob, js 
 	}
 	switch js.State {
 	case office.JobCompleted:
-		return s.verifyOutput(ctx, row, js.OutputChecksum, js.OutputLength)
+		return s.verifyOutput(ctx, row, js.OutputChecksum, js.OutputLength, js.Result)
 	case office.JobFailed, office.JobCrashed:
 		if code == "" {
 			code = "engine_crashed"
@@ -103,7 +105,7 @@ func (s *DocumentOfficeService) apply(ctx context.Context, row db.OfficeJob, js 
 // uploads only a measured, finished output), so the job completed; no object
 // means the work was lost.
 func (s *DocumentOfficeService) reconcileLost(ctx context.Context, row db.OfficeJob) (db.OfficeJob, error) {
-	settled, err := s.verifyOutput(ctx, row, "", nil)
+	settled, err := s.verifyOutput(ctx, row, "", nil, nil)
 	if err == nil && settled.State != row.State {
 		return settled, nil
 	}
@@ -123,7 +125,12 @@ func (s *DocumentOfficeService) reconcileLost(ctx context.Context, row db.Office
 // verifyOutput asks FileService to verify the object (stat, size, MIME, and
 // the engine's checksum when it reported one) and completes the job with
 // FileService's measured values - never with the engine's claim alone.
-func (s *DocumentOfficeService) verifyOutput(ctx context.Context, row db.OfficeJob, checksum string, length *int64) (db.OfficeJob, error) {
+//
+// result is the engine's operation result (a convert job's fidelity and
+// change list); it is stored only when it is a JSON object, never parsed for
+// authority. A convert job completes only with one: the change list is what a
+// caller shows before accepting the copy.
+func (s *DocumentOfficeService) verifyOutput(ctx context.Context, row db.OfficeJob, checksum string, length *int64, result json.RawMessage) (db.OfficeJob, error) {
 	if !row.OutputFileID.Valid {
 		return s.settle(ctx, row, office.JobFailed, "engine_result_invalid", "no_output_file")
 	}
@@ -156,7 +163,12 @@ func (s *DocumentOfficeService) verifyOutput(ctx context.Context, row db.OfficeJ
 	if sum == "" {
 		sum = checksum
 	}
+	stored := officeJobResult(result)
+	if office.Operation(row.Operation) == office.OperationConvert && stored == nil {
+		return s.settle(ctx, row, office.JobFailed, "engine_result_invalid", "convert_result_missing")
+	}
 	done, err := s.q.CompleteOfficeJob(ctx, db.CompleteOfficeJobParams{
+		Result:         stored,
 		OutputChecksum: pgtype.Text{String: sum, Valid: sum != ""},
 		OutputLength:   pgtype.Int8{Int64: f.SizeBytes, Valid: true},
 		Now:            s.ts(), ID: row.ID, OrganizationID: row.OrganizationID, WorkspaceID: row.WorkspaceID,
@@ -300,4 +312,13 @@ func (OfficeJobOutputProvider) HeldBy(ctx context.Context, q *db.Queries, ids []
 		}
 	}
 	return out, nil
+}
+
+// officeJobResult keeps an engine result only when it is a JSON object.
+func officeJobResult(raw json.RawMessage) []byte {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || trimmed[0] != '{' || !json.Valid(trimmed) {
+		return nil
+	}
+	return trimmed
 }
