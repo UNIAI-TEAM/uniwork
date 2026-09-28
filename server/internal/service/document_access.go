@@ -134,11 +134,26 @@ func (s *DocumentService) RecordDocumentRead(ctx context.Context, actor Actor, d
 	})
 }
 
-// DocumentAccessLogQuery pages the access log newest first.
+// DocumentAccessLogQuery pages the access log newest first. Before/BeforeID
+// are the keyset of the last row of the previous page (both empty starts at
+// the newest row); carrying the id keeps rows that share the boundary
+// timestamp from being skipped.
 type DocumentAccessLogQuery struct {
-	Action string    // "" = every action
-	Before time.Time // zero = from now
-	Limit  int
+	Action   string    // "" = every action
+	Before   time.Time // zero = from now
+	BeforeID string    // id of the row at Before; empty keeps the strict window
+	Limit    int
+}
+
+// EffectiveDocumentAccessLogLimit clamps a requested access-log page size to
+// the service's default and cap (<= 0 or > 100 -> 50). Exported so the HTTP
+// layer can tell whether a full page may have a successor without hard-coding
+// a second copy of the rule.
+func EffectiveDocumentAccessLogLimit(limit int) int {
+	if limit <= 0 || limit > 100 {
+		return 50
+	}
+	return limit
 }
 
 // ListDocumentAccessLogs is the manage-only access log (C-01 §5.4). An owned
@@ -148,10 +163,7 @@ func (s *DocumentService) ListDocumentAccessLogs(ctx context.Context, actor Acto
 	if err != nil {
 		return nil, err
 	}
-	limit := in.Limit
-	if limit <= 0 || limit > 100 {
-		limit = 50
-	}
+	limit := EffectiveDocumentAccessLogLimit(in.Limit)
 	params := db.ListDocumentAccessLogsParams{
 		OrganizationID: doc.OrganizationID,
 		WorkspaceID:    doc.WorkspaceID,
@@ -167,6 +179,9 @@ func (s *DocumentService) ListDocumentAccessLogs(ctx context.Context, actor Acto
 	}
 	if !in.Before.IsZero() {
 		params.Before = pgtype.Timestamptz{Time: in.Before, Valid: true}
+		if in.BeforeID != "" {
+			params.BeforeID = nullText(in.BeforeID)
+		}
 	}
 	return s.q.ListDocumentAccessLogs(ctx, params)
 }

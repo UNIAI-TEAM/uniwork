@@ -424,4 +424,24 @@ type Routes struct {
 	FavoriteDocument              http.HandlerFunc
 	UnfavoriteDocument            http.HandlerFunc
 	ListDocumentFavorites         http.HandlerFunc
+
+	// Documents collections, lifecycle, sharing and public reads (C-01 §5.1,
+	// §5.3, §5.4; UNI-679, G1-05b).
+	ListDocuments          http.HandlerFunc
+	ListRecentDocuments    http.HandlerFunc
+	ListSharedWithMe       http.HandlerFunc
+	DocumentTree           http.HandlerFunc
+	MoveDocument           http.HandlerFunc
+	ArchiveDocument        http.HandlerFunc
+	RestoreDocument        http.HandlerFunc
+	ListDocumentShares     http.HandlerFunc
+	CreateDocumentShare    http.HandlerFunc
+	RevokeDocumentShare    http.HandlerFunc
+	CreateDocumentLink     http.HandlerFunc
+	RevokeDocumentLink     http.HandlerFunc
+	ListDocumentAccessLogs http.HandlerFunc
+	SetDocumentSettings    http.HandlerFunc
+	GetPublicDocument      http.HandlerFunc
+	DownloadPublicDocument http.HandlerFunc
+	GetPublicDocumentAsset http.HandlerFunc
 }

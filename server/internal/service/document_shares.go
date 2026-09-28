@@ -3,8 +3,10 @@ package service
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -312,24 +314,58 @@ type SharedDocument struct {
 	Access   DocumentAccess
 }
 
-const maxSharedWithMe = 200
+// SharedWithMeQuery is one page request of the recipient's shared list.
+// AfterCreatedAt/AfterID are the keyset of the last candidate the previous
+// page read (both empty starts at the newest share).
+type SharedWithMeQuery struct {
+	Limit          int
+	AfterCreatedAt time.Time
+	AfterID        string
+}
+
+// SharedWithMePage is one page of shared documents plus the keyset of the
+// last candidate read. NextID is empty when the candidates were exhausted.
+type SharedWithMePage struct {
+	Items         []SharedDocument
+	NextCreatedAt time.Time
+	NextID        string
+}
+
+// sharedWithMeCandidatePage is how many share candidates one SQL page reads
+// before the effective-level filter runs. Variable so tests can shrink it.
+var sharedWithMeCandidatePage = 200
+
+// EffectiveSharedWithMeLimit clamps the requested page size the way the other
+// document lists do (<= 0 -> default, > cap -> cap).
+func EffectiveSharedWithMeLimit(limit int) int {
+	if limit <= 0 {
+		return defaultDocumentListPage
+	}
+	if limit > maxDocumentListPage {
+		return maxDocumentListPage
+	}
+	return limit
+}
 
 // ListSharedWithMe lists the documents a person reaches through a share in
 // one organization, from any of its workspaces - the recipient never has to
 // join the source workspace (plan §3.1). The organization gate runs first;
 // workspace shares are narrowed to the workspaces WorkspaceService says the
-// person reaches, and every candidate then goes through effectiveLevel, so a
-// revoked, superseded or no-longer-reaching share drops out.
-func (s *DocumentService) ListSharedWithMe(ctx context.Context, userID, organizationID string) ([]SharedDocument, error) {
+// person reaches. Candidates are walked by keyset in SQL pages and every one
+// runs effectiveLevel before it may fill a result slot, so a denied candidate
+// never consumes one; the walk stops at `limit` visible rows or exhausted
+// candidates and returns the keyset of the last row processed so the route
+// can hand out an opaque next cursor.
+func (s *DocumentService) ListSharedWithMe(ctx context.Context, userID, organizationID string, in SharedWithMeQuery) (SharedWithMePage, error) {
 	if _, err := s.orgs.RequireMember(ctx, organizationID, userID); err != nil {
 		if errors.Is(err, ErrForbidden) {
-			return nil, ErrNotFound
+			return SharedWithMePage{}, ErrNotFound
 		}
-		return nil, err
+		return SharedWithMePage{}, err
 	}
 	workspaces, err := s.ws.ListForUser(ctx, userID)
 	if err != nil {
-		return nil, err
+		return SharedWithMePage{}, err
 	}
 	workspaceIDs := make([]string, 0, len(workspaces))
 	for _, w := range workspaces {
@@ -337,24 +373,50 @@ func (s *DocumentService) ListSharedWithMe(ctx context.Context, userID, organiza
 			workspaceIDs = append(workspaceIDs, w.ID)
 		}
 	}
-	rows, err := s.q.ListDocumentShareCandidates(ctx, db.ListDocumentShareCandidatesParams{
-		OrganizationID: organizationID, UserID: userID, WorkspaceIds: workspaceIDs, MaxRows: maxSharedWithMe,
-	})
-	if err != nil {
-		return nil, err
+	limit := EffectiveSharedWithMeLimit(in.Limit)
+	afterAt, afterID := in.AfterCreatedAt, in.AfterID
+	if afterAt.IsZero() || afterID == "" {
+		afterAt, afterID = time.Time{}, ""
 	}
-	// Each candidate tags the request with its own workspace (same
-	// organization); telemetry has no reset, so a list that spans
-	// workspaces carries the last one - the organization tag is exact.
-	out := make([]SharedDocument, 0, len(rows))
-	for _, r := range rows {
-		acc, err := s.effectiveLevel(ctx, s.q, Human(userID), r.Document)
+	out := make([]SharedDocument, 0, limit)
+	for {
+		params := db.ListDocumentShareCandidatesParams{
+			OrganizationID: organizationID, UserID: userID, WorkspaceIds: workspaceIDs,
+			MaxRows: int32(sharedWithMeCandidatePage),
+		}
+		if !afterAt.IsZero() {
+			params.AfterCreatedAt = pgtype.Timestamptz{Time: afterAt, Valid: true}
+			params.AfterID = nullText(afterID)
+		}
+		rows, err := s.q.ListDocumentShareCandidates(ctx, params)
 		if err != nil {
-			return nil, err
+			return SharedWithMePage{}, err
 		}
-		if acc.Via == DocumentViaShare && acc.Level != DocumentLevelNone {
+		// Each candidate tags the request with its own workspace (same
+		// organization); telemetry has no reset, so a list that spans
+		// workspaces carries the last one - the organization tag is exact.
+		for _, r := range rows {
+			acc, err := s.effectiveLevel(ctx, s.q, Human(userID), r.Document)
+			if err != nil {
+				return SharedWithMePage{}, err
+			}
+			if acc.Via != DocumentViaShare || acc.Level == DocumentLevelNone {
+				continue
+			}
 			out = append(out, SharedDocument{Document: r.Document, Access: acc})
+			if len(out) == limit {
+				// The keyset points just past the row that filled the page;
+				// candidates after it (denied or not) are re-read by the next
+				// request, never dropped. A full page may still have no
+				// successor, and the next call then answers an empty page.
+				return SharedWithMePage{Items: out, NextCreatedAt: r.CreatedAt.Time, NextID: r.Document.ID}, nil
+			}
 		}
+		if len(rows) < sharedWithMeCandidatePage {
+			break
+		}
+		last := rows[len(rows)-1]
+		afterAt, afterID = last.CreatedAt.Time, last.Document.ID
 	}
-	return out, nil
+	return SharedWithMePage{Items: out}, nil
 }

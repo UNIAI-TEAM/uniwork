@@ -23,6 +23,21 @@ export const documentKeys = {
     [...documentKeys.detail(wsId, documentId), "version", versionNo] as const,
   downloadMeta: (wsId: string, documentId: string, version?: number) =>
     [...documentKeys.detail(wsId, documentId), "download", version ?? 0] as const,
+  // G1-05b. Every collection key sits under the workspace root so one
+  // `document.*` realtime invalidation still refreshes all of them; the
+  // filter is part of the key so two filtered lists never share an entry.
+  list: (wsId: string, filterKey: string = "") =>
+    [...documentKeys.workspace(wsId), "list", filterKey] as const,
+  recent: (wsId: string) => [...documentKeys.workspace(wsId), "recent"] as const,
+  sharedWithMe: (wsId: string) => [...documentKeys.workspace(wsId), "shared"] as const,
+  tree: (wsId: string, root: string = "") =>
+    [...documentKeys.workspace(wsId), "tree", root] as const,
+  shares: (wsId: string, documentId: string) =>
+    [...documentKeys.detail(wsId, documentId), "shares"] as const,
+  accessLogs: (wsId: string, documentId: string, action: string = "") =>
+    [...documentKeys.detail(wsId, documentId), "access-logs", action] as const,
+  settings: (orgId: string) => [...documentKeys.all, "settings", orgId] as const,
+  public: (token: string) => [...documentKeys.all, "public", token] as const,
   /**
    * One page asset's bytes. Deliberately OUTSIDE the detail prefix: a
    * `document.*` realtime frame invalidates the detail key, and an image blob

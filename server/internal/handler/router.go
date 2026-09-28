@@ -524,6 +524,24 @@ func New(d Deps) http.Handler {
 		FavoriteDocument:              h.favoriteDocument,
 		UnfavoriteDocument:            h.unfavoriteDocument,
 		ListDocumentFavorites:         h.listDocumentFavorites,
+
+		ListDocuments:          h.listDocuments,
+		ListRecentDocuments:    h.listRecentDocuments,
+		ListSharedWithMe:       h.listSharedWithMe,
+		DocumentTree:           h.getDocumentTree,
+		MoveDocument:           h.moveDocument,
+		ArchiveDocument:        h.archiveDocument,
+		RestoreDocument:        h.restoreDocument,
+		ListDocumentShares:     h.listDocumentShares,
+		CreateDocumentShare:    h.createDocumentShare,
+		RevokeDocumentShare:    h.revokeDocumentShare,
+		CreateDocumentLink:     h.createDocumentLink,
+		RevokeDocumentLink:     h.revokeDocumentLink,
+		ListDocumentAccessLogs: h.listDocumentAccessLogs,
+		SetDocumentSettings:    h.setDocumentSettings,
+		GetPublicDocument:      h.getPublicDocument,
+		DownloadPublicDocument: h.downloadPublicDocument,
+		GetPublicDocumentAsset: h.getPublicDocumentAsset,
 	})
 }
 
