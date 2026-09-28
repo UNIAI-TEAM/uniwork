@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -494,6 +495,14 @@ func (s *DocumentService) documentBreadcrumbs(ctx context.Context, q *db.Queries
 // (C-01 §5.1/§6.1): an autosave does not fan out to the workspace, and no
 // frame carries a revision (ADR 0015 opens that to task.updated only).
 func (s *DocumentService) UpdateDocument(ctx context.Context, actor Actor, documentID string, in UpdateDocumentInput) (DocumentView, error) {
+	started := time.Now()
+	view, err := s.updateDocument(ctx, actor, documentID, in)
+	s.recordDocumentSave(documentMetricKindPage, err, time.Since(started))
+	return view, err
+}
+
+// updateDocument is the command body; UpdateDocument adds the save metrics.
+func (s *DocumentService) updateDocument(ctx context.Context, actor Actor, documentID string, in UpdateDocumentInput) (DocumentView, error) {
 	if in.Title == nil && in.Icon == nil && in.Visibility == nil && in.Content == nil {
 		return DocumentView{}, Invalid("không có trường nào để cập nhật")
 	}

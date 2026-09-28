@@ -50,6 +50,7 @@ func NewRegistry(opts RegistryOptions) *Registry {
 	if opts.Pool != nil {
 		reg.MustRegister(NewDBCollector(opts.Pool))
 		reg.MustRegister(NewMeetingLagCollector(opts.Pool))
+		reg.MustRegister(NewDocumentLagCollector(opts.Pool))
 		reg.MustRegister(NewOutboxLagCollector(opts.Pool))
 	}
 	if opts.Realtime != nil {

@@ -904,7 +904,7 @@ func (s *DocumentService) compactOneDocument(ctx context.Context, orgID, wsID, d
 	}
 	// Protected rows alone at or above the bound: keep everything, count it.
 	if protected > int64(documentVersionKeep) {
-		s.accessMetrics.IncDocumentVersionsProtectedOverflow()
+		s.metrics.IncDocumentVersionsProtectedOverflow()
 		return 0, true, nil
 	}
 	var boundary int64

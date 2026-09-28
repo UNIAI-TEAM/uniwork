@@ -162,7 +162,9 @@ func (s *DocumentService) uploadChecked(
 		Body:           in.Body,
 	})
 	if err != nil {
-		return files.Upload{}, document.FileFacts{}, documentFileError(err)
+		err = documentFileError(err)
+		s.recordDocumentUploadQuota(purpose, err)
+		return files.Upload{}, document.FileFacts{}, err
 	}
 	facts, err := s.checkStoredFile(ctx, fs, scope, up.File)
 	if err != nil {

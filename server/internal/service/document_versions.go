@@ -190,7 +190,7 @@ func (s *DocumentService) consumePageBytes(ctx context.Context, q *db.Queries, a
 	if s.entitlements == nil || delta <= 0 {
 		return nil
 	}
-	return s.entitlements.Consume(ctx, q, ConsumeInput{
+	err := s.entitlements.Consume(ctx, q, ConsumeInput{
 		OrganizationID: doc.OrganizationID,
 		WorkspaceID:    doc.WorkspaceID,
 		Meter:          FeatureStorageBytes,
@@ -199,6 +199,10 @@ func (s *DocumentService) consumePageBytes(ctx context.Context, q *db.Queries, a
 		RefType:        "document_page",
 		RefID:          doc.ID,
 	})
+	if errors.Is(err, ErrQuotaExceeded) {
+		s.metrics.IncDocumentQuotaRejected(documentMetricKindPage)
+	}
+	return err
 }
 
 // ListDocumentVersionsInput is GET /documents/{id}/versions.

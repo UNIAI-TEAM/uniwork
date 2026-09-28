@@ -72,10 +72,12 @@ type DocumentService struct {
 	ws   *WorkspaceService
 
 	// files reads document bytes (proxy only, FS-C1); entitlements gates
-	// public links; accessMetrics counts access-log writes that failed.
-	files         files.Service
-	entitlements  *EntitlementService
-	accessMetrics DocumentAccessMetrics
+	// public links; metrics carries the operational counters (save
+	// outcomes, conflicts, quota rejects, worker sweeps, access-log
+	// failures).
+	files        files.Service
+	entitlements *EntitlementService
+	metrics      DocumentMetrics
 
 	// ownerLevel resolves the caller's level through the owning work
 	// product. nil means no owner service is wired: owned creates and
@@ -95,7 +97,7 @@ type DocumentService struct {
 }
 
 func NewDocumentService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationService, ws *WorkspaceService) *DocumentService {
-	return &DocumentService{pool: pool, q: q, orgs: orgs, ws: ws, accessMetrics: nopDocumentAccessMetrics{}, clock: time.Now}
+	return &DocumentService{pool: pool, q: q, orgs: orgs, ws: ws, metrics: nopDocumentMetrics{}, clock: time.Now}
 }
 
 // SetClock injects the time source (tests); nil resets to the wall clock.

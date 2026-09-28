@@ -27,28 +27,6 @@ const (
 // inside five minutes writes no new row.
 const documentAccessCoalesce = 5 * time.Minute
 
-// DocumentAccessMetrics counts what DocumentService cannot otherwise
-// report: access-log writes that failed after the read they belong to
-// succeeded, and compaction finding a document whose protected versions
-// alone overflow the keep bound (kept by rule, counted here).
-type DocumentAccessMetrics interface {
-	IncDocumentAccessLogFailed()
-	IncDocumentVersionsProtectedOverflow()
-}
-
-type nopDocumentAccessMetrics struct{}
-
-func (nopDocumentAccessMetrics) IncDocumentAccessLogFailed()           {}
-func (nopDocumentAccessMetrics) IncDocumentVersionsProtectedOverflow() {}
-
-// SetAccessMetrics wires the access-log failure counter.
-func (s *DocumentService) SetAccessMetrics(m DocumentAccessMetrics) {
-	if m == nil {
-		m = nopDocumentAccessMetrics{}
-	}
-	s.accessMetrics = m
-}
-
 // SetFiles wires FileService, the only way document bytes are read.
 func (s *DocumentService) SetFiles(f files.Service) { s.files = f }
 
@@ -73,9 +51,7 @@ type documentAccessEvent struct {
 // token or client address ever reaches the row or the log line.
 func (s *DocumentService) recordDocumentAccess(ctx context.Context, ev documentAccessEvent) {
 	if err := s.writeDocumentAccess(ctx, ev); err != nil {
-		if s.accessMetrics != nil {
-			s.accessMetrics.IncDocumentAccessLogFailed()
-		}
+		s.metrics.IncDocumentAccessLogFailed()
 		slog.Warn("document access log write failed",
 			"document", ev.Document.ID, "action", ev.Action, "correlation_id", audit.CorrelationID(ctx), "err", err)
 	}
