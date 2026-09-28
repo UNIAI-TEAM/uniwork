@@ -107,33 +107,143 @@ WHERE account_id = $1
 ORDER BY sent_at DESC
 LIMIT $4;
 
+-- name: ListEmailHubThreadsPendingBodyRecent :many
+SELECT *
+FROM email_hub_threads
+WHERE account_id = $1
+  AND organization_id = $2
+  AND folder = $3
+  AND NOT body_cached
+  AND sent_at >= $4
+ORDER BY sent_at DESC
+LIMIT $5;
+
+-- name: CountEmailHubThreadsBodyCached :one
+SELECT count(*)::bigint
+FROM email_hub_threads
+WHERE account_id = $1
+  AND organization_id = $2
+  AND folder = $3
+  AND body_cached = true;
+
+-- name: ListEmailHubThreadIDsOverFolderCap :many
+SELECT id
+FROM email_hub_threads
+WHERE account_id = sqlc.arg('account_id')
+  AND organization_id = sqlc.arg('organization_id')
+  AND folder = sqlc.arg('folder')
+  AND NOT is_starred
+ORDER BY sent_at DESC, id DESC
+OFFSET sqlc.arg('keep_count')::int
+LIMIT sqlc.arg('batch_limit')::int;
+
+-- name: ExpireEmailHubThreadBodiesBefore :many
+UPDATE email_hub_threads
+SET body_text = NULL,
+    body_html = NULL,
+    body_object_key = '',
+    body_cached = false,
+    synced_at = now()
+WHERE account_id = $1
+  AND organization_id = $2
+  AND body_cached = true
+  AND sent_at < $3
+RETURNING body_object_key;
+
+-- name: ListEmailHubThreadIDsExcessBodyCache :many
+SELECT id
+FROM email_hub_threads
+WHERE account_id = sqlc.arg('account_id')
+  AND organization_id = sqlc.arg('organization_id')
+  AND folder = sqlc.arg('folder')
+  AND body_cached = true
+ORDER BY sent_at ASC, id ASC
+OFFSET sqlc.arg('keep_count')::int
+LIMIT sqlc.arg('batch_limit')::int;
+
+-- name: InvalidateEmailHubThreadBodiesByIDs :many
+UPDATE email_hub_threads
+SET body_text = NULL,
+    body_html = NULL,
+    body_object_key = '',
+    body_cached = false,
+    synced_at = now()
+WHERE account_id = $1
+  AND organization_id = $2
+  AND id = ANY($3::text[])
+RETURNING body_object_key;
+
+-- name: DeleteEmailHubAttachmentsForThreads :exec
+DELETE FROM email_hub_attachments
+WHERE thread_id = ANY($1::text[]);
+
+-- name: DeleteEmailHubThreadAiSummariesForThreads :exec
+DELETE FROM email_hub_thread_ai_summaries
+WHERE thread_id = ANY($1::text[]);
+
+-- name: DeleteEmailHubThreadsByIDs :exec
+DELETE FROM email_hub_threads
+WHERE account_id = sqlc.arg('account_id')
+  AND organization_id = sqlc.arg('organization_id')
+  AND id = ANY(sqlc.arg('thread_ids')::text[]);
+
 -- name: UpdateEmailHubThreadBody :one
 UPDATE email_hub_threads
 SET body_text = $2,
     body_html = $3,
+    body_object_key = '',
     body_cached = true,
     synced_at = now()
 WHERE id = $1
 RETURNING *;
 
--- name: InvalidateEmailHubThreadBody :exec
+-- name: UpdateEmailHubThreadBodyObject :one
 UPDATE email_hub_threads
 SET body_text = NULL,
     body_html = NULL,
+    body_object_key = $2,
+    body_cached = true,
+    synced_at = now()
+WHERE id = $1
+RETURNING *;
+
+-- name: ListEmailHubBodyObjectKeysForThreads :many
+SELECT body_object_key
+FROM email_hub_threads
+WHERE account_id = $1
+  AND organization_id = $2
+  AND id = ANY($3::text[])
+  AND body_object_key <> '';
+
+-- name: GetEmailHubBodyObjectKey :one
+SELECT body_object_key
+FROM email_hub_threads
+WHERE id = $1
+  AND account_id = $2
+  AND organization_id = $3;
+
+-- name: InvalidateEmailHubThreadBody :one
+UPDATE email_hub_threads
+SET body_text = NULL,
+    body_html = NULL,
+    body_object_key = '',
     body_cached = false
-WHERE id = $1;
+WHERE id = $1
+RETURNING body_object_key;
 
 -- name: InvalidateEmailHubEmptyBodies :exec
 UPDATE email_hub_threads
 SET body_text = NULL,
     body_html = NULL,
+    body_object_key = '',
     body_cached = false,
     synced_at = now()
 WHERE account_id = $1
   AND organization_id = $2
   AND body_cached = true
   AND COALESCE(body_html, '') = ''
-  AND COALESCE(body_text, '') = '';
+  AND COALESCE(body_text, '') = ''
+  AND body_object_key = '';
 
 -- name: PatchEmailHubThreadSnippet :exec
 UPDATE email_hub_threads
