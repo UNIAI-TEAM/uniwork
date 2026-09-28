@@ -51,6 +51,9 @@ export const BROWSER_SCOPE_ROOTS = [
   "packages/office-engine/src/markdown",
   "packages/office-engine/src/html",
   "packages/office-engine/src/assets",
+  // G2-04: the browser-safe half of the xlsx lane. Its native sidecar lives
+  // under src/node and stays out of this scope by construction.
+  "packages/office-engine/src/xlsx",
 ];
 
 /** Directories the /ee and licence checks scan. */

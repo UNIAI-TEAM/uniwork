@@ -213,19 +213,44 @@ function keysFor(
       if (payload.meeting_id) push(meetingKeys.chat(payload.meeting_id));
       break;
     }
+    case "document.comment_added":
+    case "document.comment_updated":
+    case "document.comment_deleted":
+    case "document.comment_resolved":
+    case "document.comment_unresolved":
+    case "document.comment_reaction_added":
+    case "document.comment_reaction_removed": {
+      // Comment frames are ids-only and change nothing but the thread (G1-07b
+      // owns these keys): invalidate exactly the comment key of the document
+      // the frame names, never the document itself - detail, versions and
+      // downloadMeta stay fresh. A frame without a document id refreshes
+      // nothing, like the other id-addressed cases.
+      if (payload.workspace_id && payload.workspace_id !== wsId) break;
+      if (payload.document_id) push(documentKeys.comments(wsId, payload.document_id));
+      break;
+    }
+    case "document.favorited":
+    case "document.unfavorited": {
+      // A user-scoped bookmark change: the favorites list is organization-
+      // scoped (G1-07b) and the frame never names the organization, so the
+      // whole small favorites prefix refreshes; the watching workspace's
+      // document root refreshes as before.
+      push(documentKeys.favoritesRoot);
+      if (!payload.workspace_id || payload.workspace_id === wsId) {
+        push(documentKeys.workspace(wsId));
+      }
+      break;
+    }
     case "document.created":
     case "document.updated":
     case "document.version_created":
     case "document.shared":
     case "document.share_revoked":
     case "document.link_created":
-    case "document.link_revoked":
-    case "document.favorited":
-    case "document.unfavorited": {
+    case "document.link_revoked": {
       // Ids-only refetch: the workspace root is the prefix of every document
       // key (list/tree roots, detail, versions, downloadMeta), so one
-      // invalidation covers the whole subtree. document.comment_* stays
-      // unwired - G1-07b owns the comment keys. The frame only marks queries
+      // invalidation covers the whole subtree. The frame only marks queries
       // stale; an in-flight draft lives in the save machine, not the cache
       // (documents/save-state.ts keeps it through conflict/unverified).
       if (payload.workspace_id && payload.workspace_id !== wsId) break;
@@ -369,8 +394,10 @@ function allWorkspaceKeys(wsId: string) {
     notificationKeys.lists(),
     notificationKeys.unreadCount(),
     // Documents go stale while the socket is down; workspace root is the
-    // prefix of every document key.
+    // prefix of every document key, and the org-scoped favorites list is a
+    // different branch of the same feature.
     documentKeys.workspace(wsId),
+    documentKeys.favoritesRoot,
   ];
 }
 

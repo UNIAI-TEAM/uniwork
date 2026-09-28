@@ -1,0 +1,309 @@
+// XLSX native sidecar client — Node-only binding of the Rust xlsx-sidecar
+// protocol (main.rs: NDJSON over stdin/stdout, request envelope
+// {version:1, requestId, command, ...}, response {version, requestId, ok,
+// result|error:{code,message}}).
+//
+// The sidecar is a real child process owned by this port: a job's recalc
+// stages the workbook bytes into the job temp dir, issues recalc_cells
+// against that path, and close() kills the process AND unlinks the staging
+// file so no state — file or resident model — crosses into the next job.
+// A death is terminal: a process that exits, errors a stream, wedges on a
+// timed-out request or emits a rogue line kills the port (every pending
+// request settles typed, the child is SIGKILLed) rather than silently
+// respawning inside the job that watched it die — the save fails, the job
+// reports engine_crashed, and the next job spawns fresh.
+import { spawn, type ChildProcess } from "node:child_process";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { randomUUID } from "node:crypto";
+import { EngineBoundaryError } from "@uniwork/office-contracts";
+import {
+  XLSX_SIDECAR_PROTOCOL_VERSION,
+  type XlsxRecalcCell,
+  type XlsxRecalcEdit,
+  type XlsxRecalcPort,
+  type XlsxRecalcRead,
+  type XlsxRecalcResult,
+} from "../xlsx/engine.ts";
+
+export interface XlsxSidecarOptions {
+  /** Absolute path to the xlsx-sidecar binary (xlsx-assets resolves it when
+   *  the caller does not pass one). */
+  binaryPath: string;
+  /** Extra argv for the binary — production passes none; tests use it to run
+   *  a Node shim as the stand-in sidecar. */
+  binaryArgs?: string[];
+  /** Directory the staged workbook lands in — the job's private temp dir in
+   *  the service; a mkdtemp under os.tmpdir() otherwise. */
+  workDir?: string;
+  /** Per-request deadline; the default matches the job deadline envelope. */
+  timeoutMs?: number;
+}
+
+/** A single NDJSON response can legitimately carry ~20k cell records (the
+ *  wire's per-request read bound) — cap the buffered line at 16 MiB so a
+ *  rogue or panicking child cannot grow the worker's heap until the RSS
+ *  watchdog answers with an untyped OOM instead of a typed failure. */
+const MAX_RESPONSE_LINE_BYTES = 16 * 1024 * 1024;
+
+interface Pending {
+  resolve: (value: unknown) => void;
+  reject: (error: Error) => void;
+  timer: NodeJS.Timeout;
+}
+
+interface SidecarResponse {
+  version?: number;
+  requestId?: string;
+  ok?: boolean;
+  result?: unknown;
+  error?: { code?: string; message?: string };
+}
+
+/** Sidecar error.code → the boundary code the worker reports. */
+function mapSidecarError(code: string | undefined, message: string | undefined): EngineBoundaryError {
+  switch (code) {
+    case "unsupported_version":
+      return new EngineBoundaryError("protocol_mismatch", { detail: message ?? "sidecar protocol version" });
+    case "cancelled":
+      return new EngineBoundaryError("engine_cancelled", { detail: message ?? "cancelled" });
+    case "recalc_busy":
+      return new EngineBoundaryError("engine_overloaded", { detail: message ?? "sidecar busy" });
+    case "invalid_request":
+    case "invalid_json":
+      return new EngineBoundaryError("engine_result_invalid", { detail: message ?? code });
+    default:
+      // A live process answered ok:false with a code we don't know — the
+      // engine reported a malformed result, not a crash.
+      return new EngineBoundaryError("engine_result_invalid", { detail: message ?? code ?? "sidecar error" });
+  }
+}
+
+export class XlsxSidecar implements XlsxRecalcPort {
+  private child: ChildProcess | null = null;
+  private pending = new Map<string, Pending>();
+  /** Terminal once set — die() and close() both land here; ensure() refuses. */
+  private closed = false;
+  /** close() ran its cleanup to completion (idempotent release). */
+  private cleanedUp = false;
+  private exitWait: Promise<void> | null = null;
+  private stdoutChunks: Buffer[] = [];
+  private stdoutBytes = 0;
+  private stagedPath: string | null = null;
+  private stagedDir: string | null = null;
+
+  private readonly opts: XlsxSidecarOptions;
+
+  constructor(opts: XlsxSidecarOptions) {
+    this.opts = opts;
+  }
+
+  private ensure(): ChildProcess {
+    if (this.closed) throw new EngineBoundaryError("engine_crashed", { detail: "xlsx sidecar released" });
+    if (this.child) return this.child;
+    const workDir = this.opts.workDir ?? (this.stagedDir = mkdtempSync(join(tmpdir(), "xlsx-sidecar-")));
+    const child = spawn(this.opts.binaryPath, this.opts.binaryArgs ?? [], {
+      stdio: ["pipe", "pipe", "ignore"],
+      windowsHide: true,
+      cwd: workDir,
+      // Only what the process needs: no service env leaks into the sandbox's
+      // native helper beyond temp placement. PATH is left empty — the binary
+      // is invoked by absolute path and the sidecar needs no lookups.
+      env: { TMPDIR: workDir, TEMP: workDir, TMP: workDir, HOME: workDir },
+    });
+    // Every stream gets a listener — an unlistened 'error' (EPIPE on a dead
+    // child) is an uncaught exception that would crash the whole worker
+    // instead of taking the typed engine_crashed path.
+    child.on("error", () => this.die("engine_crashed", "xlsx sidecar process error"));
+    child.once("exit", () => this.die("engine_crashed", "xlsx sidecar exited"));
+    child.stdin!.on("error", () => this.die("engine_crashed", "xlsx sidecar stdin error"));
+    child.stdout!.on("error", () => this.die("engine_crashed", "xlsx sidecar stdout error"));
+    child.stdout!.on("data", (chunk: Buffer) => this.onStdout(chunk));
+    this.child = child;
+    return child;
+  }
+
+  private rejectPending(error: EngineBoundaryError): void {
+    for (const p of this.pending.values()) {
+      clearTimeout(p.timer);
+      p.reject(error);
+    }
+    this.pending.clear();
+  }
+
+  /** Kill the child once and return the shared exit wait — close() can
+   *  await the same death die() started. */
+  private killChild(): Promise<void> {
+    if (this.exitWait) return this.exitWait;
+    const child = this.child;
+    this.child = null;
+    this.stdoutChunks = [];
+    this.stdoutBytes = 0;
+    if (!child || child.exitCode !== null || child.signalCode !== null || child.pid === undefined)
+      return (this.exitWait = Promise.resolve());
+    this.exitWait = new Promise<void>((resolve) => {
+      child.once("exit", () => resolve());
+      setTimeout(resolve, 5_000).unref();
+    });
+    child.stdin?.end();
+    child.kill("SIGKILL");
+    return this.exitWait;
+  }
+
+  private die(code: "engine_crashed" | "engine_result_invalid", detail: string): void {
+    if (this.closed) return; // exit + stream-error can both fire
+    this.closed = true;
+    this.rejectPending(new EngineBoundaryError(code, { detail }));
+    void this.killChild();
+  }
+
+  /** Frame whole lines as bytes and decode each once — decoding a raw chunk
+   *  would corrupt a multibyte code point split across pipe writes, and
+   *  re-decoding the buffer every chunk is O(n²) on a big response. */
+  private onStdout(chunk: Buffer): void {
+    if (this.closed) return;
+    let start = 0;
+    let nl = chunk.indexOf(0x0a, start);
+    while (nl >= 0) {
+      const line = Buffer.concat([...this.stdoutChunks, chunk.subarray(start, nl)]).toString("utf8");
+      this.stdoutChunks = [];
+      this.stdoutBytes = 0;
+      this.onLine(line);
+      if (this.closed) return;
+      start = nl + 1;
+      nl = chunk.indexOf(0x0a, start);
+    }
+    const tail = chunk.subarray(start);
+    this.stdoutChunks.push(tail);
+    this.stdoutBytes += tail.length;
+    if (this.stdoutBytes > MAX_RESPONSE_LINE_BYTES) {
+      this.die("engine_result_invalid", `xlsx sidecar response exceeds the ${MAX_RESPONSE_LINE_BYTES}-byte line bound`);
+    }
+  }
+
+  private onLine(line: string): void {
+    let msg: SidecarResponse;
+    try {
+      msg = JSON.parse(line);
+    } catch {
+      return; // a non-JSON line is diagnostics noise, never a response
+    }
+    const id = msg.requestId;
+    if (id === undefined) return;
+    const p = this.pending.get(id);
+    if (!p) return;
+    this.pending.delete(id);
+    clearTimeout(p.timer);
+    if (msg.version !== XLSX_SIDECAR_PROTOCOL_VERSION) {
+      p.reject(new EngineBoundaryError("protocol_mismatch", { detail: `sidecar response version ${msg.version}` }));
+      return;
+    }
+    if (msg.ok === true) {
+      p.resolve(msg.result);
+    } else {
+      p.reject(mapSidecarError(msg.error?.code, msg.error?.message));
+    }
+  }
+
+  private request(command: Record<string, unknown>, timeoutMs?: number): Promise<unknown> {
+    const child = this.ensure();
+    const requestId = randomUUID();
+    const line = JSON.stringify({ version: XLSX_SIDECAR_PROTOCOL_VERSION, requestId, ...command });
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(requestId);
+        reject(new EngineBoundaryError("engine_timeout", { detail: "xlsx sidecar request timed out" }));
+        // A wedged child must not survive to serve a later request — the port
+        // dies with it, and the job's save fails rather than respawning.
+        this.die("engine_crashed", "xlsx sidecar wedged on a timed-out request");
+      }, timeoutMs ?? this.opts.timeoutMs ?? 60_000);
+      this.pending.set(requestId, { resolve, reject, timer });
+      child.stdin!.write(line + "\n", (error) => {
+        if (error) {
+          this.pending.delete(requestId);
+          clearTimeout(timer);
+          reject(new EngineBoundaryError("engine_crashed", { detail: "sidecar stdin closed" }));
+        }
+      });
+    });
+  }
+
+  /** Stage the workbook bytes once per recalc call; the sidecar is
+   *  path-based, so the file lives under workDir for the request duration. */
+  private stage(bytes: Uint8Array): string {
+    const dir = this.opts.workDir ?? (this.stagedDir ??= mkdtempSync(join(tmpdir(), "xlsx-sidecar-")));
+    const path = join(dir, `workbook-${randomUUID()}.xlsx`);
+    writeFileSync(path, bytes);
+    this.stagedPath = path;
+    return path;
+  }
+
+  private unstage(): void {
+    if (this.stagedPath) {
+      try {
+        rmSync(this.stagedPath, { force: true });
+      } catch {
+        /* cleanup failure is non-fatal; the job dir dies with the job */
+      }
+      this.stagedPath = null;
+    }
+  }
+
+  async recalc(
+    sourceBytes: Uint8Array,
+    edits: readonly XlsxRecalcEdit[],
+    reads: readonly XlsxRecalcRead[],
+  ): Promise<XlsxRecalcResult> {
+    const path = this.stage(sourceBytes);
+    try {
+      const result = (await this.request({
+        command: "recalc_cells",
+        path,
+        edits: edits.map((e) => ({ sheet: e.sheet, row: e.row, column: e.column, input: e.input })),
+        reads: reads.map((r) => ({
+          sheet: r.sheet,
+          range: {
+            startRow: r.range.startRow,
+            endRow: r.range.endRow,
+            startColumn: r.range.startColumn,
+            endColumn: r.range.endColumn,
+          },
+        })),
+      })) as { cells?: XlsxRecalcCell[]; cached?: boolean } | undefined;
+      if (!result || !Array.isArray(result.cells)) {
+        throw new EngineBoundaryError("engine_result_invalid", { detail: "sidecar recalc returned no cell list" });
+      }
+      return { cells: result.cells, cached: result.cached };
+    } finally {
+      this.unstage();
+    }
+  }
+
+  /** Release the process and every staged file. Idempotent — awaits the exit
+   *  event (including one a die() already triggered) so a caller that removes
+   *  the workDir does not race a dying child. */
+  async close(): Promise<void> {
+    if (this.cleanedUp) return;
+    this.cleanedUp = true;
+    const wasOpen = !this.closed;
+    this.closed = true;
+    if (wasOpen) {
+      this.rejectPending(new EngineBoundaryError("engine_cancelled", { detail: "xlsx sidecar closed" }));
+    }
+    await this.killChild();
+    this.unstage();
+    if (this.stagedDir) {
+      try {
+        rmSync(this.stagedDir, { recursive: true, force: true });
+      } catch {
+        /* ditto */
+      }
+      this.stagedDir = null;
+    }
+  }
+}
+
+export function createXlsxSidecar(opts: XlsxSidecarOptions): XlsxSidecar {
+  return new XlsxSidecar(opts);
+}

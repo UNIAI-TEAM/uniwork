@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ActorSchema } from "./actor";
+import { CommentReactionSchema } from "./task-collaboration";
 
 // Wire contract for the Documents API (C-01 §5 + §14; UNI-679, G1-05a).
 // The versioned samples in docs/parity/documents-api are the source of truth
@@ -410,3 +411,67 @@ export type PublicDocument = Omit<z.infer<typeof PublicDocumentSchema>, "kind"> 
 
 export const PublicDocumentEnvelopeSchema = z.object({ document: PublicDocumentSchema });
 export type PublicDocumentEnvelope = { document: PublicDocument };
+
+// ---- Comments + favorites (G1-07; UNI-681 lane 07b) ----------------------
+// Document comments reuse the comment_reactions shape from types/
+// task-collaboration.ts (keyed by comment_id) and mirror the task comment
+// DTO: enum-ish fields stay lenient strings so a server that ships a new
+// value degrades instead of failing the parse, and only `type` narrows - the
+// document routes accept "comment" alone, so a public client can never mint
+// a system row.
+
+export const DOCUMENT_COMMENT_TYPES = ["comment"] as const;
+export type DocumentCommentType = (typeof DOCUMENT_COMMENT_TYPES)[number];
+
+export const DocumentCommentSchema = z.object({
+  id: z.string(),
+  document_id: z.string(),
+  author_id: z.string().optional().default(""),
+  author_kind: z.string().optional().default("human"),
+  author: ActorSchema.optional(),
+  body: z.string(),
+  parent_id: z.string().nullish(),
+  type: z.string().optional().default("comment"),
+  revision: z.number().optional().default(0),
+  resolved_at: z.string().nullish(),
+  created_at: z.string().optional().default(""),
+  updated_at: z.string().optional().default(""),
+  display_name: z.string().optional().default(""),
+  avatar_url: z.string().optional().default(""),
+  // A malformed reaction row costs the reactions, never the comment: the
+  // thread parses with a `{ comments: [] }` fallback, so one bad nested row
+  // must not throw the whole conversation away.
+  reactions: z
+    .array(CommentReactionSchema)
+    .catch([])
+    .nullish()
+    .transform((v) => v ?? []),
+});
+export type DocumentComment = Omit<z.infer<typeof DocumentCommentSchema>, "type"> & {
+  type: DocumentCommentType;
+};
+
+/** One favorited document in the caller's list: what a favorites panel needs
+ *  to open the document, not the full payload (GET /documents/{id} has it). */
+export const DocumentFavoriteSchema = z.object({
+  document_id: z.string(),
+  favorite_id: z.string().optional().default(""),
+  workspace_id: z.string().optional().default(""),
+  title: z.string().optional().default(""),
+  kind: z.string().optional().default("page"),
+  icon: z.string().nullish(),
+  parent_id: z.string().nullish(),
+  favorited_at: z.string().optional().default(""),
+});
+export type DocumentFavorite = Omit<z.infer<typeof DocumentFavoriteSchema>, "kind"> & {
+  kind: DocumentKind;
+};
+
+export const DocumentCommentEnvelopeSchema = z.object({ comment: DocumentCommentSchema });
+export const DocumentCommentListEnvelopeSchema = z.object({
+  comments: z.array(DocumentCommentSchema),
+});
+export const DocumentFavoriteEnvelopeSchema = z.object({ favorite: DocumentFavoriteSchema });
+export const DocumentFavoriteListEnvelopeSchema = z.object({
+  favorites: z.array(DocumentFavoriteSchema),
+});

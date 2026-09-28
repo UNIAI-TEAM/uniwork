@@ -15,7 +15,7 @@ import {
   serializeResultSchema,
   toProductCapabilities,
   toPublicJobResult,
-} from "./index";
+} from "./index.ts";
 
 const fixturesDir = join(import.meta.dirname, "..", "fixtures");
 const loadFixture = (name: string) =>

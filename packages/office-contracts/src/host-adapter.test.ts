@@ -3,7 +3,7 @@ import {
   HOST_CONTRACT_CHANNELS,
   HostCapabilityRefusal,
   slidesEditTransformRequestSchema,
-} from "./index";
+} from "./index.ts";
 
 // The host adapter contract: ADR 0021's host:slides-edit-transform channel is
 // owned (not a typed refusal), and a missing capability is a typed refusal -

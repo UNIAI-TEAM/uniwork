@@ -425,4 +425,16 @@ type Routes struct {
 	GetPublicDocument      http.HandlerFunc
 	DownloadPublicDocument http.HandlerFunc
 	GetPublicDocumentAsset http.HandlerFunc
+	// Document comments + favorites (G1-07, UNI-681; lane 07b).
+	ListDocumentComments          http.HandlerFunc
+	CreateDocumentComment         http.HandlerFunc
+	UpdateDocumentComment         http.HandlerFunc
+	DeleteDocumentComment         http.HandlerFunc
+	ResolveDocumentComment        http.HandlerFunc
+	ReopenDocumentComment         http.HandlerFunc
+	AddDocumentCommentReaction    http.HandlerFunc
+	RemoveDocumentCommentReaction http.HandlerFunc
+	FavoriteDocument              http.HandlerFunc
+	UnfavoriteDocument            http.HandlerFunc
+	ListDocumentFavorites         http.HandlerFunc
 }

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { grantableOperationSchema } from "./operations";
+import { grantableOperationSchema } from "./operations.ts";
 
 // Job grant: the scoped, expiring permission Go issues per engine job
 // (engine-contract.md §3). A caller's copy is only a handle - the registry row
