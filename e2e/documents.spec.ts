@@ -113,8 +113,10 @@ test("a page is created, typed into, and survives a reload", async ({ page }) =>
   await page.setViewportSize({ width: 390, height: 844 });
   await shot(page, "document-page-mobile-vi");
 
-  // English, same screen.
-  await page.context().addCookies([{ name: "uniwork-locale", value: "en", url: page.url() }]);
+  // English, same screen, through the language menu the app ships. The editor
+  // takes its accessible name at mount, so the switch is followed by a reload.
+  await page.getByRole("button", { name: "Ng\u00f4n ng\u1eef" }).click();
+  await page.getByRole("menuitemradio", { name: "English" }).click();
   await page.reload();
   await expect(page.getByRole("textbox", { name: "Document content" })).toBeVisible({
     timeout: 60_000,
