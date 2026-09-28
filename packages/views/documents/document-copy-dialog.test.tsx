@@ -44,12 +44,14 @@ function documentFixture(over: Record<string, unknown> = {}): Document {
   );
 }
 
-function renderDialog(over: { onCopied?: (d: Document) => void; onUnavailable?: () => void } = {}) {
+function renderDialog(
+  over: { onCopied?: (d: Document) => void; onUnavailable?: () => void; onOpenChange?: (open: boolean) => void } = {},
+) {
   return render(
     wrap(
       <DocumentCopyDialog
         open
-        onOpenChange={() => undefined}
+        onOpenChange={over.onOpenChange ?? (() => undefined)}
         wsId={WS}
         doc={documentFixture()}
         onCopied={over.onCopied}
@@ -137,5 +139,15 @@ describe("DocumentCopyDialog", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent(t("documents.copy.unavailable"));
     expect(onUnavailable).toHaveBeenCalled();
+  });
+
+  it("holds focus inside while open and closes on Escape", async () => {
+    requestMock.mockReset();
+    const onOpenChange = vi.fn();
+    renderDialog({ onOpenChange });
+    const dialog = await screen.findByRole("dialog", { name: t("documents.copy.title") });
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+    fireEvent.keyDown(document.activeElement ?? dialog, { key: "Escape" });
+    await waitFor(() => expect(onOpenChange.mock.calls.some((call) => call[0] === false)).toBe(true));
   });
 });

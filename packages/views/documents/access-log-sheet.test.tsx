@@ -200,4 +200,13 @@ describe("AccessLogSheet", () => {
     expect(screen.getByText(t("documents.accessLog.manage_only"))).toBeInTheDocument();
     expect(screen.queryByRole("combobox")).toBeNull();
   });
+
+  it("holds focus inside while open and closes on Escape", async () => {
+    const onOpenChange = vi.fn();
+    renderSheet({ onOpenChange });
+    const dialog = await screen.findByRole("dialog", { name: t("documents.accessLog.title") });
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+    fireEvent.keyDown(document.activeElement ?? dialog, { key: "Escape" });
+    await waitFor(() => expect(onOpenChange.mock.calls.some((call) => call[0] === false)).toBe(true));
+  });
 });

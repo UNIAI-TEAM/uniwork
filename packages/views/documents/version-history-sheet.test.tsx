@@ -284,4 +284,14 @@ describe("VersionHistorySheet", () => {
       expect(screen.queryByRole("button", { name: t("documents.versions.load_more") })).toBeNull(),
     );
   });
+
+  it("holds focus inside while open and closes on Escape", async () => {
+    mockApi();
+    const onOpenChange = vi.fn();
+    renderSheet({ onOpenChange });
+    const dialog = await screen.findByRole("dialog", { name: t("documents.versions.title") });
+    await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+    fireEvent.keyDown(document.activeElement ?? dialog, { key: "Escape" });
+    await waitFor(() => expect(onOpenChange.mock.calls.some((call) => call[0] === false)).toBe(true));
+  });
 });
