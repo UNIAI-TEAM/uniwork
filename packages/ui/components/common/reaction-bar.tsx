@@ -40,6 +40,12 @@ interface ReactionBarProps {
   onToggle: (emoji: string) => void;
   getActorName: (type: string, id: string) => string;
   className?: string;
+  /**
+   * Read-only surfaces (a viewer reading a document's comments) still see the
+   * reactions, but as plain chips: no button semantics, no picker, nothing
+   * that looks clickable when the server would refuse the write.
+   */
+  readOnly?: boolean;
 }
 
 function ReactionBar({
@@ -48,36 +54,53 @@ function ReactionBar({
   onToggle,
   getActorName,
   className,
+  readOnly = false,
 }: ReactionBarProps) {
   const grouped = groupReactions(reactions, currentUserId);
+  const chipClass = (reacted: boolean) =>
+    `inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-caption ${
+      reacted
+        ? "border-brand/30 bg-brand/8 text-brand"
+        : "border-brand/10 bg-brand/4 text-muted-foreground"
+    }`;
 
   return (
     <div className={`flex flex-wrap items-center gap-1.5 ${className ?? ""}`}>
-      {grouped.map((g) => (
-        <Tooltip key={g.emoji}>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                aria-label={`${g.emoji} ${g.count}: ${g.actors.map((a) => getActorName(a.type, a.id)).join(", ")}`}
-                onClick={() => onToggle(g.emoji)}
-                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-caption transition-colors hover:bg-brand/15 ${
-                  g.reacted
-                    ? "border-brand/30 bg-brand/8 text-brand"
-                    : "border-brand/10 bg-brand/4 text-muted-foreground"
-                }`}
-              >
-                <span>{g.emoji}</span>
-                <span>{g.count}</span>
-              </button>
-            }
-          />
-          <TooltipContent side="top">
-            {g.actors.map((a) => getActorName(a.type, a.id)).join(", ")}
-          </TooltipContent>
-        </Tooltip>
-      ))}
-      <QuickEmojiPicker onSelect={onToggle} />
+      {grouped.map((g) => {
+        const actorNames = g.actors.map((a) => getActorName(a.type, a.id)).join(", ");
+        if (readOnly) {
+          return (
+            <span
+              key={g.emoji}
+              aria-label={`${g.emoji} ${g.count}: ${actorNames}`}
+              title={actorNames}
+              className={chipClass(g.reacted)}
+            >
+              <span>{g.emoji}</span>
+              <span>{g.count}</span>
+            </span>
+          );
+        }
+        return (
+          <Tooltip key={g.emoji}>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  aria-label={`${g.emoji} ${g.count}: ${actorNames}`}
+                  onClick={() => onToggle(g.emoji)}
+                  className={`${chipClass(g.reacted)} transition-colors hover:bg-brand/15`}
+                >
+                  <span>{g.emoji}</span>
+                  <span>{g.count}</span>
+                </button>
+              }
+            />
+            <TooltipContent side="top">{actorNames}</TooltipContent>
+          </Tooltip>
+        );
+      })}
+      {readOnly ? null : <QuickEmojiPicker onSelect={onToggle} />}
     </div>
   );
 }
