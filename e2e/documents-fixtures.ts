@@ -12,7 +12,7 @@ import { registerApiUser } from "./meeting-recording-fixture";
  * Nothing here signs anyone in: tests keep the bearer tokens and either call
  * the API directly or use loginViaUi. No case is admin-only.
  */
-export interface DocsAccount {
+interface DocsAccount {
   token: string;
   email: string;
   orgId: string;
@@ -21,7 +21,7 @@ export interface DocsAccount {
   wsSlug: string;
 }
 
-export interface DocsUser {
+interface DocsUser {
   token: string;
   email: string;
 }
@@ -41,15 +41,20 @@ export interface DocumentMatrix {
   aWS2Id: string;
 }
 
+/** Org and workspace slugs cap at 40 characters of a-z, 0-9 and "-". */
+function shortSlug(prefix: string): string {
+  const head = prefix.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 22).replace(/-+$/, "");
+  return `${head}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+}
+
 function authHeader(token: string): Record<string, string> {
   return { authorization: `Bearer ${token}`, "content-type": "application/json" };
 }
 
 /** Registers a verified account that owns one organization and one workspace. */
-export async function createDocsAccount(page: Page, api: string, tag: string): Promise<DocsAccount> {
+async function createDocsAccount(page: Page, api: string, tag: string): Promise<DocsAccount> {
   const user = await registerApiUser(page, api, tag);
-  const stamp = Date.now();
-  const orgSlug = `${tag}-${stamp}`;
+  const orgSlug = shortSlug(`o-${tag.split("-").slice(-2).join("-")}`);
   const createdOrg = await page.request.post(`${api}/api/v1/orgs`, {
     headers: authHeader(user.token),
     data: { name: `Org ${tag}`, slug: orgSlug },
@@ -57,7 +62,7 @@ export async function createDocsAccount(page: Page, api: string, tag: string): P
   expect(createdOrg.ok(), `create org: HTTP ${createdOrg.status()} ${await createdOrg.text()}`).toBeTruthy();
   const orgId = ((await createdOrg.json()) as { organization: { id: string } }).organization.id;
 
-  const wsSlug = `ws-${tag}-${stamp}`;
+  const wsSlug = shortSlug(`w-${tag.split("-").slice(-2).join("-")}`);
   const wsId = await createWorkspaceInOrg(page, api, user.token, orgId, orgSlug, wsSlug);
   const completed = await page.request.post(`${api}/api/v1/me/onboarding/complete`, {
     headers: authHeader(user.token),
@@ -89,7 +94,7 @@ async function createWorkspaceInOrg(
  * parameter (that helper hardcodes member); accepting marks the invitee
  * onboarded, so the UI flows can sign them in.
  */
-export async function inviteAndAccept(
+async function inviteAndAccept(
   page: Page,
   api: string,
   hostToken: string,
@@ -114,9 +119,9 @@ export async function inviteAndAccept(
 }
 
 async function createSeatedAgent(page: Page, api: string, owner: DocsAccount, tag: string): Promise<string> {
-  const created = await page.request.post(`${api}/api/v1/orgs/${owner.orgId}/agents`, {
+  const created = await page.request.post(`${api}/api/v1/orgs/${owner.orgSlug}/agents`, {
     headers: authHeader(owner.token),
-    data: { name: `Agent ${tag}`, handle: `${tag}-agent` },
+    data: { name: `Agent ${tag}`, handle: shortSlug("agent") },
   });
   expect(created.ok(), `create agent: HTTP ${created.status()} ${await created.text()}`).toBeTruthy();
   const agentId = ((await created.json()) as { agent: { id: string } }).agent.id;
@@ -137,7 +142,7 @@ function e2eDatabaseUrl(): string {
 }
 
 /** Fixture-only setup: stamps the F-03 lifecycle column, skipping the command. */
-export async function deactivateOrgMember(email: string): Promise<void> {
+async function deactivateOrgMember(email: string): Promise<void> {
   const c = new Client({ connectionString: e2eDatabaseUrl() });
   await c.connect();
   try {
@@ -161,7 +166,7 @@ export async function documentMatrix(page: Page, api: string, tag: string): Prom
     aOwner.token,
     aOwner.orgId,
     `A Two ${tag}`,
-    `ws-${tag}-a-two-${Date.now()}`,
+    shortSlug("w-a-two"),
   );
 
   const aAdmin = await registerApiUser(page, api, `${tag}-a-admin`);
