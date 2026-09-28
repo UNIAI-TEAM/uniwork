@@ -357,6 +357,7 @@ export function CalendarFloatingSearch({
                 {visibleEvents.length > 0 ? (
                   <CommandGroup
                     heading={t(normalizedQuery ? "calendar.search_events" : "calendar.search_up_next")}
+                    className="[&_[cmdk-group-items]]:space-y-0.5"
                   >
                     {visibleEvents.map((event) => {
                       const Icon = event.kind === "task" ? SquareCheckBig : CalendarClock;
@@ -364,7 +365,7 @@ export function CalendarFloatingSearch({
                         <CommandItem
                           key={event.id}
                           value={`event-${event.id}`}
-                          className="min-h-10 rounded-md px-2.5 py-2 data-selected:bg-surface-hover"
+                          className="min-h-10 rounded-md px-2.5 py-2 data-[selected=true]:bg-surface-hover"
                           onSelect={() =>
                             run(() => onOpenEvent(event, triggerRef.current ?? undefined))
                           }
@@ -387,7 +388,10 @@ export function CalendarFloatingSearch({
                   </CommandGroup>
                 ) : null}
                 {visibleTasks.length > 0 ? (
-                  <CommandGroup heading={t("calendar.search_tasks")}>
+                  <CommandGroup
+                    heading={t("calendar.search_tasks")}
+                    className="[&_[cmdk-group-items]]:space-y-0.5"
+                  >
                     {visibleTasks.map((task) => {
                       const due = formatDueDate(task.dueDate, locale);
                       const statusKey = `tasks.status_${task.status}`;
@@ -399,7 +403,7 @@ export function CalendarFloatingSearch({
                           data-calendar-external-task
                           data-task-id={task.id}
                           data-task-title={task.title}
-                          className="fc-event min-h-10 cursor-grab rounded-md px-2.5 py-2 data-selected:bg-surface-hover active:cursor-grabbing"
+                          className="fc-event min-h-10 cursor-grab rounded-md px-2.5 py-2 data-[selected=true]:bg-surface-hover active:cursor-grabbing"
                           onSelect={() =>
                             run(() => onOpenTask(task.id, triggerRef.current ?? undefined))
                           }
@@ -426,14 +430,17 @@ export function CalendarFloatingSearch({
                   </CommandGroup>
                 ) : null}
                 {visibleCommands.length > 0 ? (
-                  <CommandGroup heading={t("calendar.search_commands")}>
+                  <CommandGroup
+                    heading={t("calendar.search_commands")}
+                    className="[&_[cmdk-group-items]]:space-y-0.5"
+                  >
                     {visibleCommands.map((command) => {
                       const Icon = command.icon;
                       return (
                         <CommandItem
                           key={command.id}
                           value={`command-${command.id}`}
-                          className="min-h-9 rounded-md px-2.5 data-selected:bg-surface-hover"
+                          className="min-h-9 rounded-md px-2.5 data-[selected=true]:bg-surface-hover"
                           onSelect={() => run(command.action)}
                         >
                           <Icon aria-hidden />
