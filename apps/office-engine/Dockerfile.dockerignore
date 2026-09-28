@@ -12,4 +12,5 @@ docs
 !docs/office/g0/source-manifest.json
 !docs/office/g0/fixtures/files/pdf
 !docs/office/g0/fixtures/files/sheets
+!docs/office/g0/fixtures/files/legacy
 **/target
