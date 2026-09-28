@@ -7,6 +7,10 @@
  * `versions` is the 3-segment root for invalidate; the live infinite query
  * appends nothing (TanStack pages live inside one cache entry) and a
  * single-version read hangs off `version`/`versionNo`.
+ *
+ * `comments` hangs off the detail key (one thread per document); favorites
+ * are org-scoped because the endpoint is (G1-07), so they live under
+ * `favoritesRoot` instead of a workspace root.
  */
 export const documentKeys = {
   all: ["documents"] as const,
@@ -30,4 +34,15 @@ export const documentKeys = {
   /** Placeholder key for a view that has no asset id yet; never fetched. */
   assetIdle: (wsId: string, documentId: string) =>
     [...documentKeys.all, wsId, "asset", documentId, "idle"] as const,
+  comments: (wsId: string, documentId: string) =>
+    [...documentKeys.detail(wsId, documentId), "comments"] as const,
+  /**
+   * The favorites prefix: every org-scoped list hangs off it, so one
+   * invalidation after a favorite/unfavorite covers the caller's open lists
+   * even though the frame cannot name the organization. It sits beside the
+   * per-workspace roots rather than under one: a favorite belongs to the
+   * person, not the workspace they happen to be looking at.
+   */
+  favoritesRoot: ["documents", "favorites"] as const,
+  favorites: (orgId: string) => [...documentKeys.favoritesRoot, orgId] as const,
 };

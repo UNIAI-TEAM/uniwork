@@ -145,3 +145,64 @@ type DocumentDownloadSDO struct {
 	File        DocumentFileDTO `json:"file"`
 	Disposition string          `json:"disposition" description:"attachment (tài liệu file) hoặc inline (asset ảnh)" example:"attachment"`
 }
+
+// DocumentCommentDTO is one document_comments row on the wire. Reactions
+// reuses the shared CommentReactionDTO from task comments (comment_id,
+// actor_type, actor_id, emoji, created_at) and is never omitted so the client
+// can tell "nobody reacted" ([]) apart from "this server does not send the
+// field"; display_name/avatar_url come from the author join the list query
+// already carries.
+type DocumentCommentDTO struct {
+	ID          string               `json:"id" description:"ULID bình luận" example:"01J8X4CMTN1P2Q3R4S5T6U7V"`
+	DocumentID  string               `json:"document_id" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	AuthorID    string               `json:"author_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	AuthorKind  string               `json:"author_kind" description:"human, agent hoặc system" example:"human"`
+	Author      ActorDTO             `json:"author"`
+	Body        string               `json:"body" description:"Nội dung đã trim; request bị chặn ở 1 MiB" example:"Chỗ này cần số liệu Q3."`
+	ParentID    *string              `json:"parent_id,omitempty" description:"ULID bình luận cha khi là trả lời" example:"01J8X4CMTN1P2Q3R4S5T6U7W"`
+	Type        string               `json:"type" description:"comment (bình luận công khai); các loại hệ thống không nhận từ client" example:"comment"`
+	Revision    int64                `json:"revision" description:"Số lần sửa; tăng sau mỗi lần update" example:"1"`
+	ResolvedAt  *string              `json:"resolved_at,omitempty" description:"Thời điểm đánh dấu đã giải quyết; null khi còn mở" example:"2026-09-28T09:00:00Z"`
+	CreatedAt   string               `json:"created_at" example:"2026-09-28T08:00:00Z"`
+	UpdatedAt   string               `json:"updated_at" example:"2026-09-28T08:00:00Z"`
+	DisplayName string               `json:"display_name" example:"Nguyễn Văn An"`
+	AvatarURL   string               `json:"avatar_url,omitempty" example:"https://cdn.example.com/avatars/an.png"`
+	Reactions   []CommentReactionDTO `json:"reactions"`
+}
+
+// DocumentCommentSDO wraps one comment (create, patch, resolve, reopen).
+type DocumentCommentSDO struct {
+	Comment DocumentCommentDTO `json:"comment"`
+}
+
+// DocumentCommentListSDO is GET /api/v1/documents/{documentID}/comments:
+// oldest first, each row carrying its reactions.
+type DocumentCommentListSDO struct {
+	Comments []DocumentCommentDTO `json:"comments"`
+}
+
+// DocumentFavoriteDTO is one favorited document in the caller's list. It
+// carries what a favorites panel needs to open the document without a second
+// read; the full document payload stays on GET /documents/{id}.
+type DocumentFavoriteDTO struct {
+	DocumentID  string  `json:"document_id" description:"ULID tài liệu đã lưu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	FavoriteID  string  `json:"favorite_id" description:"ULID dòng document_favorites" example:"01J8X4FAVN1P2Q3R4S5T6U7V8"`
+	WorkspaceID string  `json:"workspace_id" description:"Workspace chứa tài liệu" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+	Title       string  `json:"title" example:"Kế hoạch Q4"`
+	Kind        string  `json:"kind" description:"page hoặc file" example:"page"`
+	Icon        *string `json:"icon,omitempty" example:"📄"`
+	ParentID    *string `json:"parent_id,omitempty" description:"ULID trang cha; vắng mặt = tài liệu gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
+	FavoritedAt string  `json:"favorited_at" example:"2026-09-28T08:00:00Z"`
+}
+
+// DocumentFavoriteSDO is POST /api/v1/documents/{documentID}/favorite: the
+// live favorite row, created or already there (the add is idempotent).
+type DocumentFavoriteSDO struct {
+	Favorite DocumentFavoriteDTO `json:"favorite"`
+}
+
+// DocumentFavoriteListSDO is GET /api/v1/orgs/{orgID}/documents/favorites:
+// every favorite of the caller that is still readable, newest first.
+type DocumentFavoriteListSDO struct {
+	Favorites []DocumentFavoriteDTO `json:"favorites"`
+}
