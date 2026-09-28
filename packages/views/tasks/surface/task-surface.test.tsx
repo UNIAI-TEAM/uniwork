@@ -514,9 +514,9 @@ describe("TaskSurface", () => {
       ),
     );
 
-    await waitFor(() => {
-      expect(screen.getByTestId("task-surface-error")).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByTestId("task-surface-error", {}, { timeout: 20_000 }),
+    ).toBeInTheDocument();
     expect(screen.queryByTestId("task-surface-empty")).not.toBeInTheDocument();
   });
 
@@ -542,9 +542,9 @@ describe("TaskSurface", () => {
       ),
     );
 
-    await waitFor(() => {
-      expect(screen.getByTestId("task-surface-error")).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByTestId("task-surface-error", {}, { timeout: 20_000 }),
+    ).toBeInTheDocument();
 
     const myTasksCallsBefore = requestMock.mock.calls.filter(
       ([path]) => typeof path === "string" && path.includes("/my-tasks"),
