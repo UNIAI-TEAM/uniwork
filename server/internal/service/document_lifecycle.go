@@ -348,6 +348,11 @@ func (s *DocumentService) documentBatchLifecycle(
 	if err != nil {
 		return DocumentArchiveResult{}, err
 	}
+	if access.Level == DocumentLevelNone {
+		// Nothing readable at all is not found - the owned refusal below
+		// must never confirm an id to a caller who cannot see it.
+		return DocumentArchiveResult{}, ErrNotFound
+	}
 	if doc.OwnerKind.Valid {
 		return DocumentArchiveResult{}, errDocumentOwned()
 	}
@@ -408,10 +413,22 @@ func (s *DocumentService) ArchiveOwnedDocumentsInTx(ctx context.Context, q *db.Q
 }
 
 // RestoreOwnedDocumentsInTx restores the documents an owner archived, inside
-// the caller's transaction. Returns the restored ids.
+// the caller's transaction. Returns the restored ids. The rows' own batch
+// ids are read before the clear so each document.restored frame names the
+// batch it left, like the public restore.
 func (s *DocumentService) RestoreOwnedDocumentsInTx(ctx context.Context, q *db.Queries, actor Actor, organizationID, workspaceID, ownerID string) ([]string, error) {
 	if ownerID == "" {
 		return nil, Invalid("owner_id bắt buộc")
+	}
+	archived, err := q.ListArchivedDocumentsByOwner(ctx, db.ListArchivedDocumentsByOwnerParams{
+		OrganizationID: organizationID, WorkspaceID: workspaceID, OwnerID: pgtype.Text{String: ownerID, Valid: true},
+	})
+	if err != nil {
+		return nil, err
+	}
+	batchOf := make(map[string]string, len(archived))
+	for _, r := range archived {
+		batchOf[r.ID] = r.ArchiveBatchID.String
 	}
 	stamped, err := q.RestoreDocumentsByOwner(ctx, db.RestoreDocumentsByOwnerParams{
 		OrganizationID: organizationID, WorkspaceID: workspaceID, OwnerID: pgtype.Text{String: ownerID, Valid: true},
@@ -420,14 +437,19 @@ func (s *DocumentService) RestoreOwnedDocumentsInTx(ctx context.Context, q *db.Q
 		return nil, err
 	}
 	for _, id := range stamped {
+		batch := batchOf[id]
+		metadata := map[string]any{"owner_id": ownerID}
+		payload := map[string]string{"document_id": id, "workspace_id": workspaceID}
+		if batch != "" {
+			metadata["archive_batch_id"] = batch
+			payload["archive_batch_id"] = batch
+		}
 		if err := auditRecorder.Record(ctx, q, audit.Entry{
 			OrganizationID: organizationID, WorkspaceID: workspaceID,
 			Actor: actor, Action: audit.ActionDocumentRestored,
 			ResourceType: "document", ResourceID: id,
-			Metadata: map[string]any{"owner_id": ownerID},
-		}, audit.Event{Topic: "document.restored", Payload: map[string]string{
-			"document_id": id, "workspace_id": workspaceID,
-		}}); err != nil {
+			Metadata: metadata,
+		}, audit.Event{Topic: "document.restored", Payload: payload}); err != nil {
 			return nil, err
 		}
 	}
@@ -438,11 +460,12 @@ func (s *DocumentService) RestoreOwnedDocumentsInTx(ctx context.Context, q *db.Q
 // the owner removes one representation it owns. Returns false when the
 // document is not owned or already archived.
 func (s *DocumentService) ArchiveOwnedDocumentInTx(ctx context.Context, q *db.Queries, actor Actor, organizationID, workspaceID, documentID string) (bool, error) {
+	batch := util.NewID()
 	stamped, err := q.ArchiveOwnedDocument(ctx, db.ArchiveOwnedDocumentParams{
 		ID: documentID, OrganizationID: organizationID, WorkspaceID: workspaceID,
 		ArchivedBy:     nullText(actor.ID),
 		PurgeAfter:     pgtype.Timestamptz{Time: s.now().Add(documentRetentionDays * 24 * time.Hour), Valid: true},
-		ArchiveBatchID: pgtype.Text{String: util.NewID(), Valid: true},
+		ArchiveBatchID: pgtype.Text{String: batch, Valid: true},
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
@@ -454,9 +477,9 @@ func (s *DocumentService) ArchiveOwnedDocumentInTx(ctx context.Context, q *db.Qu
 		OrganizationID: organizationID, WorkspaceID: workspaceID,
 		Actor: actor, Action: audit.ActionDocumentArchived,
 		ResourceType: "document", ResourceID: stamped,
-		Metadata: map[string]any{"seam": "owner"},
+		Metadata: map[string]any{"seam": "owner", "archive_batch_id": batch},
 	}, audit.Event{Topic: "document.archived", Payload: map[string]string{
-		"document_id": stamped, "workspace_id": workspaceID,
+		"document_id": stamped, "workspace_id": workspaceID, "archive_batch_id": batch,
 	}}); err != nil {
 		return false, err
 	}
@@ -466,6 +489,15 @@ func (s *DocumentService) ArchiveOwnedDocumentInTx(ctx context.Context, q *db.Qu
 // RestoreOwnedDocumentInTx restores one owned document inside the caller's
 // transaction; false when it is not owned or not archived.
 func (s *DocumentService) RestoreOwnedDocumentInTx(ctx context.Context, q *db.Queries, actor Actor, organizationID, workspaceID, documentID string) (bool, error) {
+	before, err := q.GetDocument(ctx, db.GetDocumentParams{
+		ID: documentID, OrganizationID: organizationID, WorkspaceID: workspaceID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
 	stamped, err := q.RestoreOwnedDocument(ctx, db.RestoreOwnedDocumentParams{
 		ID: documentID, OrganizationID: organizationID, WorkspaceID: workspaceID,
 	})
@@ -475,14 +507,18 @@ func (s *DocumentService) RestoreOwnedDocumentInTx(ctx context.Context, q *db.Qu
 	if err != nil {
 		return false, err
 	}
+	metadata := map[string]any{"seam": "owner"}
+	payload := map[string]string{"document_id": stamped, "workspace_id": workspaceID}
+	if before.ArchiveBatchID.Valid {
+		metadata["archive_batch_id"] = before.ArchiveBatchID.String
+		payload["archive_batch_id"] = before.ArchiveBatchID.String
+	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: organizationID, WorkspaceID: workspaceID,
 		Actor: actor, Action: audit.ActionDocumentRestored,
 		ResourceType: "document", ResourceID: stamped,
-		Metadata: map[string]any{"seam": "owner"},
-	}, audit.Event{Topic: "document.restored", Payload: map[string]string{
-		"document_id": stamped, "workspace_id": workspaceID,
-	}}); err != nil {
+		Metadata: metadata,
+	}, audit.Event{Topic: "document.restored", Payload: payload}); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -517,9 +553,19 @@ func (s *DocumentService) PurgeExpired(ctx context.Context, now time.Time) (Docu
 			return rep, fmt.Errorf("documents: owner purge: %w", err)
 		}
 	}
+	// Keyset scans: a batch remembers the ordering key of its last row and
+	// the next query starts after it, so rows that keep failing move the
+	// sweep forward instead of pinning it on the first page forever.
+	var afterAt pgtype.Timestamptz
+	afterID := pgtype.Text{}
 	for {
+		if ctx.Err() != nil {
+			return rep, ctx.Err()
+		}
 		batch, err := s.q.ListDocumentsForPurge(ctx, db.ListDocumentsForPurgeParams{
-			Before: pgtype.Timestamptz{Time: now, Valid: true}, MaxRows: int32(documentSweepBatch),
+			Before:  pgtype.Timestamptz{Time: now, Valid: true},
+			AfterAt: afterAt, AfterID: afterID,
+			MaxRows: int32(documentSweepBatch),
 		})
 		if err != nil {
 			return rep, err
@@ -528,23 +574,35 @@ func (s *DocumentService) PurgeExpired(ctx context.Context, now time.Time) (Docu
 			break
 		}
 		for _, d := range batch {
+			if ctx.Err() != nil {
+				return rep, ctx.Err()
+			}
 			released, err := s.purgeOneDocument(ctx, d, now)
 			if err != nil {
 				rep.Failed++
 				slog.Warn("documents purge: row failed, next sweep retries", "document", d.ID, "err", err)
-				continue
+			} else {
+				rep.Purged++
+				rep.Released += released
 			}
-			rep.Purged++
-			rep.Released += released
+			afterAt = d.PurgeAfter
+			afterID = pgtype.Text{String: d.ID, Valid: true}
 		}
 		if len(batch) < documentSweepBatch {
 			break
 		}
 	}
 	cutoff := now.Add(-documentAssetRetentionDays * 24 * time.Hour)
+	afterAt = pgtype.Timestamptz{}
+	afterID = pgtype.Text{}
 	for {
+		if ctx.Err() != nil {
+			return rep, ctx.Err()
+		}
 		batch, err := s.q.ListOrphanedDocumentAssets(ctx, db.ListOrphanedDocumentAssetsParams{
-			Before: pgtype.Timestamptz{Time: cutoff, Valid: true}, MaxRows: int32(documentSweepBatch),
+			Before:  pgtype.Timestamptz{Time: cutoff, Valid: true},
+			AfterAt: afterAt, AfterID: afterID,
+			MaxRows: int32(documentSweepBatch),
 		})
 		if err != nil {
 			return rep, err
@@ -553,12 +611,17 @@ func (s *DocumentService) PurgeExpired(ctx context.Context, now time.Time) (Docu
 			break
 		}
 		for _, a := range batch {
+			if ctx.Err() != nil {
+				return rep, ctx.Err()
+			}
 			if err := s.purgeOneAsset(ctx, a); err != nil {
 				rep.Failed++
 				slog.Warn("documents purge: asset row failed, next sweep retries", "asset", a.ID, "err", err)
-				continue
+			} else {
+				rep.AssetsPurged++
 			}
-			rep.AssetsPurged++
+			afterAt = a.OrphanedAt
+			afterID = pgtype.Text{String: a.ID, Valid: true}
 		}
 		if len(batch) < documentSweepBatch {
 			break
@@ -695,14 +758,18 @@ func (s *DocumentService) purgeOneAsset(ctx context.Context, a db.ListOrphanedDo
 	if held {
 		return nil
 	}
-	asset, err := q.GetDocumentAsset(ctx, db.GetDocumentAssetParams(a))
+	asset, err := q.GetDocumentAsset(ctx, db.GetDocumentAssetParams{
+		ID: a.ID, OrganizationID: a.OrganizationID, WorkspaceID: a.WorkspaceID, DocumentID: a.DocumentID,
+	})
 	if err != nil {
 		return err
 	}
 	if !asset.OrphanedAt.Valid {
 		return nil // referenced again since the scan
 	}
-	n, err := q.DeleteDocumentAsset(ctx, db.DeleteDocumentAssetParams(a))
+	n, err := q.DeleteDocumentAsset(ctx, db.DeleteDocumentAssetParams{
+		ID: a.ID, OrganizationID: a.OrganizationID, WorkspaceID: a.WorkspaceID, DocumentID: a.DocumentID,
+	})
 	if err != nil || n == 0 {
 		return err
 	}
@@ -710,6 +777,17 @@ func (s *DocumentService) purgeOneAsset(ctx context.Context, a db.ListOrphanedDo
 		if err := s.files.ReleaseInTx(ctx, q, []files.FileID{files.FileID(asset.FileID)}); err != nil {
 			return err
 		}
+	}
+	if err := auditRecorder.Record(ctx, q, audit.Entry{
+		OrganizationID: a.OrganizationID,
+		WorkspaceID:    a.WorkspaceID,
+		Actor:          audit.System("documents.purge"),
+		Action:         audit.ActionDocumentAssetPurged,
+		ResourceType:   "document",
+		ResourceID:     a.DocumentID,
+		Metadata:       map[string]any{"asset_id": a.ID, "file_id": asset.FileID},
+	}); err != nil {
+		return err
 	}
 	return tx.Commit(ctx)
 }
@@ -737,9 +815,15 @@ func (s *DocumentService) CompactVersions(ctx context.Context) (DocumentCompacti
 	if s.files == nil {
 		return rep, errors.New("documents: compaction requires FileService")
 	}
+	// Same keyset rule as the purge sweep: a document that cannot lose rows
+	// (protected overflow, a failing delete) must move the scan forward.
+	afterID := pgtype.Text{}
 	for {
+		if ctx.Err() != nil {
+			return rep, ctx.Err()
+		}
 		batch, err := s.q.ListDocumentsOverVersionLimit(ctx, db.ListDocumentsOverVersionLimitParams{
-			Keep: int32(documentVersionKeep), MaxRows: int32(documentSweepBatch),
+			AfterID: afterID, Keep: int32(documentVersionKeep), MaxRows: int32(documentSweepBatch),
 		})
 		if err != nil {
 			return rep, err
@@ -748,19 +832,20 @@ func (s *DocumentService) CompactVersions(ctx context.Context) (DocumentCompacti
 			break
 		}
 		for _, d := range batch {
+			if ctx.Err() != nil {
+				return rep, ctx.Err()
+			}
 			deleted, overflow, err := s.compactOneDocument(ctx, d.OrganizationID, d.WorkspaceID, d.DocumentID)
 			if err != nil {
 				rep.Failed++
 				slog.Warn("documents compact: document failed, next sweep retries", "document", d.DocumentID, "err", err)
-				continue
-			}
-			if overflow {
+			} else if overflow {
 				rep.ProtectedOverflow++
-			}
-			if deleted > 0 {
+			} else if deleted > 0 {
 				rep.Compacted++
 				rep.VersionsDeleted += deleted
 			}
+			afterID = pgtype.Text{String: d.DocumentID, Valid: true}
 		}
 		if len(batch) < documentSweepBatch {
 			break
@@ -779,7 +864,8 @@ func (s *DocumentService) compactOneDocument(ctx context.Context, orgID, wsID, d
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := s.q.WithTx(tx)
-	if _, err := q.LockDocumentByID(ctx, documentID); errors.Is(err, pgx.ErrNoRows) {
+	doc, err := q.LockDocumentByID(ctx, documentID)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return 0, false, nil
 	} else if err != nil {
 		return 0, false, err
@@ -823,9 +909,16 @@ func (s *DocumentService) compactOneDocument(ctx context.Context, orgID, wsID, d
 	}
 	dropped, err := q.DeleteDocumentAutoVersionsBelow(ctx, db.DeleteDocumentAutoVersionsBelowParams{
 		OrganizationID: orgID, WorkspaceID: wsID, DocumentID: documentID, BoundaryVersion: int32(boundary),
+		CurrentVersion: doc.CurrentVersion,
 	})
 	if err != nil {
 		return 0, false, err
+	}
+	if len(dropped) == 0 {
+		// Nothing left to drop - the over-count sits on protected rows, or
+		// every droppable auto is current_version. No state changed, so no
+		// audit row either.
+		return 0, false, tx.Commit(ctx)
 	}
 	var released []files.FileID
 	for _, f := range dropped {

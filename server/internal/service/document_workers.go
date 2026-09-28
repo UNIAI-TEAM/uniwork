@@ -156,12 +156,19 @@ func (w *DocumentWorkers) autoVersionPass(ctx context.Context) error {
 	quiet := now.Add(-documentAutoVersionQuiet)
 	var failed int
 	made := 0
+	// Keyset scan: the batch remembers the ordering key of its last row, so
+	// a page that fails every attempt moves the pass forward instead of
+	// pinning it on the first page forever.
+	var afterAt pgtype.Timestamptz
+	afterID := pgtype.Text{}
 	for {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
 		batch, err := w.svc.q.ListDocumentsForAutoVersion(ctx, db.ListDocumentsForAutoVersionParams{
-			QuietBefore: pgtype.Timestamptz{Time: quiet, Valid: true}, MaxRows: int32(documentSweepBatch),
+			QuietBefore: pgtype.Timestamptz{Time: quiet, Valid: true},
+			AfterAt:     afterAt, AfterID: afterID,
+			MaxRows: int32(documentSweepBatch),
 		})
 		if err != nil {
 			return err
@@ -170,12 +177,17 @@ func (w *DocumentWorkers) autoVersionPass(ctx context.Context) error {
 			break
 		}
 		for _, row := range batch {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			if err := w.svc.autoVersionOne(ctx, row.ID, row.OrganizationID, row.WorkspaceID, now); err != nil {
 				failed++
 				slog.Warn("documents auto-version: page failed, next tick retries", "document", row.ID, "err", err)
 			} else {
 				made++
 			}
+			afterAt = row.ContentSavedAt
+			afterID = pgtype.Text{String: row.ID, Valid: true}
 		}
 		if len(batch) < documentSweepBatch {
 			break

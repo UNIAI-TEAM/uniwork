@@ -157,7 +157,9 @@ UPDATE documents
 SET archived_at = NULL,
     archived_by = NULL,
     purge_after = NULL,
-    archive_batch_id = NULL
+    archive_batch_id = NULL,
+    revision = revision + 1,
+    updated_at = now()
 WHERE organization_id = $1
   AND workspace_id = $2
   AND archive_batch_id = $3
@@ -176,6 +178,9 @@ type ClearDocumentArchiveBatchRow struct {
 	ParentID pgtype.Text `json:"parent_id"`
 }
 
+// Every restore path bumps revision: a row that leaves the trash changes,
+// and a client holding the pre-archive revision must conflict on write
+// rather than silently keep a stale base.
 func (q *Queries) ClearDocumentArchiveBatch(ctx context.Context, arg ClearDocumentArchiveBatchParams) ([]ClearDocumentArchiveBatchRow, error) {
 	rows, err := q.db.Query(ctx, clearDocumentArchiveBatch, arg.OrganizationID, arg.WorkspaceID, arg.ArchiveBatchID)
 	if err != nil {
@@ -273,6 +278,50 @@ func (q *Queries) DetachDocumentToRoot(ctx context.Context, arg DetachDocumentTo
 		&i.ArchiveBatchID,
 	)
 	return i, err
+}
+
+const listArchivedDocumentsByOwner = `-- name: ListArchivedDocumentsByOwner :many
+SELECT id, archive_batch_id
+FROM documents
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND owner_id = $3
+  AND archived_at IS NOT NULL
+ORDER BY id
+`
+
+type ListArchivedDocumentsByOwnerParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	OwnerID        pgtype.Text `json:"owner_id"`
+}
+
+type ListArchivedDocumentsByOwnerRow struct {
+	ID             string      `json:"id"`
+	ArchiveBatchID pgtype.Text `json:"archive_batch_id"`
+}
+
+// The archived rows an owner holds, with the batch each one was stamped
+// under: the seam emits document.restored with the batch the row cleared,
+// which the restore cannot RETURNING (it writes NULL there).
+func (q *Queries) ListArchivedDocumentsByOwner(ctx context.Context, arg ListArchivedDocumentsByOwnerParams) ([]ListArchivedDocumentsByOwnerRow, error) {
+	rows, err := q.db.Query(ctx, listArchivedDocumentsByOwner, arg.OrganizationID, arg.WorkspaceID, arg.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListArchivedDocumentsByOwnerRow{}
+	for rows.Next() {
+		var i ListArchivedDocumentsByOwnerRow
+		if err := rows.Scan(&i.ID, &i.ArchiveBatchID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listDocumentArchiveBatch = `-- name: ListDocumentArchiveBatch :many
@@ -584,7 +633,9 @@ UPDATE documents
 SET archived_at = NULL,
     archived_by = NULL,
     purge_after = NULL,
-    archive_batch_id = NULL
+    archive_batch_id = NULL,
+    revision = revision + 1,
+    updated_at = now()
 WHERE organization_id = $1
   AND workspace_id = $2
   AND owner_id = $3
@@ -623,7 +674,9 @@ UPDATE documents
 SET archived_at = NULL,
     archived_by = NULL,
     purge_after = NULL,
-    archive_batch_id = NULL
+    archive_batch_id = NULL,
+    revision = revision + 1,
+    updated_at = now()
 WHERE id = $1
   AND organization_id = $2
   AND workspace_id = $3
@@ -650,7 +703,9 @@ UPDATE documents
 SET archived_at = NULL,
     archived_by = NULL,
     purge_after = NULL,
-    archive_batch_id = NULL
+    archive_batch_id = NULL,
+    revision = revision + 1,
+    updated_at = now()
 WHERE id = $1
   AND organization_id = $2
   AND workspace_id = $3

@@ -105,6 +105,14 @@ type documentListScope struct {
 	// memberVisible is the workspace-member paths: visibility='workspace',
 	// and acl_owner (both only ever true for an effective member).
 	memberVisible bool
+	// aclOwner gates the acl_owner leg: only an effective human member can
+	// hold it - resolveLevel never reaches the check for an agent or a
+	// non-member, and neither does the SQL.
+	aclOwner bool
+	// allowShares gates every share leg: agents are never share principals
+	// (resolveLevel answers the same), so for an agent this is false and a
+	// share row can never admit one to a restricted document.
+	allowShares bool
 	// shareWorkspaces are the workspaces of this organization the actor is
 	// a member of - the workspace-principal share legs that reach them.
 	shareWorkspaces []string
@@ -133,6 +141,7 @@ func (s *DocumentService) documentListScope(ctx context.Context, actor Actor, wo
 		if _, err := s.orgs.RequireMember(ctx, w.OrganizationID, actor.ID); err != nil {
 			return documentListScope{}, err
 		}
+		scope.allowShares = true
 		m, err := s.ws.RequireMember(ctx, workspaceID, actor.ID)
 		switch {
 		case err == nil:
@@ -140,6 +149,7 @@ func (s *DocumentService) documentListScope(ctx context.Context, actor Actor, wo
 				scope.seeAll = true
 			} else {
 				scope.memberVisible = true
+				scope.aclOwner = true
 			}
 		case errors.Is(err, ErrForbidden):
 			// Shares may still cover the caller (plan §3.1).
@@ -157,7 +167,8 @@ func (s *DocumentService) documentListScope(ctx context.Context, actor Actor, wo
 		}
 	case audit.KindAgent:
 		// Agents never pass a share leg and never see restricted documents;
-		// memberVisible keeps their predicate to the workspace-visible set.
+		// memberVisible keeps their predicate to the workspace-visible set
+		// while aclOwner and allowShares stay false.
 		if _, err := s.ws.RequireAgentMember(ctx, workspaceID, actor.ID); err != nil {
 			return documentListScope{}, err
 		}
@@ -239,7 +250,8 @@ func (s *DocumentService) ListDocuments(ctx context.Context, actor Actor, worksp
 		}
 		rows, err := s.q.ListArchivedDocumentsPage(ctx, db.ListArchivedDocumentsPageParams{
 			OrganizationID: scope.organizationID, WorkspaceID: workspaceID,
-			SeeAll: scope.seeAll, ActorID: scope.actorID, ShareWorkspaces: scope.shareWorkspaces,
+			SeeAll: scope.seeAll, AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID),
+			AllowShares: scope.allowShares, ShareWorkspaces: scope.shareWorkspaces,
 			Kind: kind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to, Query: query,
 			CursorAt: cursorAt, CursorID: cursorID, PageLimit: int32(limit + 1),
 		})
@@ -265,7 +277,8 @@ func (s *DocumentService) ListDocuments(ctx context.Context, actor Actor, worksp
 		rows, err := s.q.ListDocumentsByParentPage(ctx, db.ListDocumentsByParentPageParams{
 			OrganizationID: scope.organizationID, WorkspaceID: workspaceID, ParentID: nullText(*in.ParentID),
 			SeeAll: scope.seeAll, MemberVisible: scope.memberVisible,
-			ActorID: nullText(scope.actorID), ShareLevels: shareLevelsFor(DocumentLevelView), ShareWorkspaces: scope.shareWorkspaces,
+			AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID), AllowShares: scope.allowShares,
+			ShareLevels: shareLevelsFor(DocumentLevelView), ShareWorkspaces: scope.shareWorkspaces,
 			Kind: kind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to,
 			CursorPosition: cursorPos, CursorID: cursorID, PageLimit: int32(limit + 1),
 		})
@@ -289,7 +302,8 @@ func (s *DocumentService) ListDocuments(ctx context.Context, actor Actor, worksp
 		rows, err := s.q.ListDocumentsPage(ctx, db.ListDocumentsPageParams{
 			OrganizationID: scope.organizationID, WorkspaceID: workspaceID,
 			SeeAll: scope.seeAll, MemberVisible: scope.memberVisible,
-			ActorID: nullText(scope.actorID), ShareLevels: shareLevelsFor(DocumentLevelView), ShareWorkspaces: scope.shareWorkspaces,
+			AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID), AllowShares: scope.allowShares,
+			ShareLevels: shareLevelsFor(DocumentLevelView), ShareWorkspaces: scope.shareWorkspaces,
 			Kind: kind, UpdatedBy: updatedBy, UpdatedFrom: from, UpdatedTo: to, Query: query,
 			CursorAt: cursorAt, CursorID: cursorID, PageLimit: int32(limit + 1),
 		})
@@ -335,7 +349,8 @@ func (s *DocumentService) ListRecentDocuments(ctx context.Context, actor Actor, 
 	}
 	rows, err := s.q.ListRecentDocumentsPage(ctx, db.ListRecentDocumentsPageParams{
 		OrganizationID: scope.organizationID, WorkspaceID: workspaceID, ActorID: actor.ID,
-		SeeAll: scope.seeAll, MemberVisible: scope.memberVisible, ShareWorkspaces: scope.shareWorkspaces,
+		SeeAll: scope.seeAll, MemberVisible: scope.memberVisible, AclOwner: scope.aclOwner,
+		AllowShares: scope.allowShares, ShareWorkspaces: scope.shareWorkspaces,
 		CursorAt: cursorAt, CursorID: nullText(cursor.ID), PageLimit: int32(limit + 1),
 	})
 	if err != nil {

@@ -928,6 +928,26 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatalf("compacted %d versions, want 1", rep.VersionsDeleted)
 			}
 		},
+		audit.ActionDocumentAssetPurged: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			// A recording spy, not filesfake: the synthetic asset's file_id
+			// exists in no registry and the spy only answers whether the
+			// seam was called inside the transaction.
+			svc.SetFiles(&releaseSpy{})
+			insertRow(t, f.ctx, f.pool, "document_assets", map[string]any{
+				"id": util.NewID(), "organization_id": f.orgID, "workspace_id": f.workspace.ID,
+				"document_id": docID, "file_id": util.NewID(), "mime_type": "image/png",
+				"size_bytes": 10, "created_by": f.owner.ID, "created_by_kind": "human",
+				"orphaned_at": time.Now().Add(-8 * 24 * time.Hour),
+			})
+			rep, err := svc.PurgeExpired(f.ctx, time.Now())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rep.AssetsPurged != 1 {
+				t.Fatalf("assets purged %d, want 1", rep.AssetsPurged)
+			}
+		},
 		// G1-03: the file commands run on filesfake; the storage tests run
 		// the same commands on the real FileService.
 		audit.ActionDocumentVersionCreated: func(t *testing.T, f *auditFixture) {
@@ -1178,6 +1198,7 @@ func auditActions() []string {
 		audit.ActionDocumentRestored,
 		audit.ActionDocumentDeleted,
 		audit.ActionDocumentVersionsCompacted,
+		audit.ActionDocumentAssetPurged,
 	}
 }
 

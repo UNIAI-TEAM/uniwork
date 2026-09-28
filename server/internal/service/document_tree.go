@@ -110,6 +110,11 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 	if err != nil {
 		return DocumentView{}, err
 	}
+	if access.Level == DocumentLevelNone {
+		// Nothing readable at all is not found - the owned refusal below
+		// must never confirm an id to a caller who cannot see it.
+		return DocumentView{}, ErrNotFound
+	}
 	if doc.OwnerKind.Valid {
 		// §13: a work-product-owned document has no tree slot; the owner
 		// service archives and removes it through the internal seam.
@@ -144,15 +149,30 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 
 	var parent db.Document
 	if in.ParentID != "" {
-		parent, err = q.LockDocumentByID(ctx, in.ParentID)
+		// Classify the id before locking: a document of another
+		// organization answers not found like an unknown one - never a
+		// cross-tenant existence oracle, and never a row lock outside this
+		// workspace's tenant. Only a same-organization other-workspace id
+		// is the named cross_workspace_reference.
+		p, err := q.GetDocumentByID(ctx, in.ParentID)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return DocumentView{}, ErrNotFound
 		}
 		if err != nil {
 			return DocumentView{}, err
 		}
-		if parent.OrganizationID != doc.OrganizationID || parent.WorkspaceID != doc.WorkspaceID {
+		if p.OrganizationID != doc.OrganizationID {
+			return DocumentView{}, ErrNotFound
+		}
+		if p.WorkspaceID != doc.WorkspaceID {
 			return DocumentView{}, errDocumentCrossWorkspace()
+		}
+		parent, err = q.LockDocumentByID(ctx, in.ParentID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return DocumentView{}, ErrNotFound
+		}
+		if err != nil {
+			return DocumentView{}, err
 		}
 		if parent.OwnerKind.Valid || parent.ArchivedAt.Valid {
 			return DocumentView{}, ErrNotFound
@@ -273,7 +293,8 @@ func (s *DocumentService) DocumentTree(ctx context.Context, actor Actor, workspa
 	rows, err := s.q.ListTreeDocuments(ctx, db.ListTreeDocumentsParams{
 		OrganizationID: scope.organizationID, WorkspaceID: workspaceID,
 		SeeAll: scope.seeAll, MemberVisible: scope.memberVisible,
-		ActorID: nullText(scope.actorID), ShareWorkspaces: scope.shareWorkspaces,
+		AclOwner: scope.aclOwner, ActorID: nullText(scope.actorID),
+		AllowShares: scope.allowShares, ShareWorkspaces: scope.shareWorkspaces,
 	})
 	if err != nil {
 		return nil, err

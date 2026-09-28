@@ -158,6 +158,7 @@ const (
 	ActionDocumentRestored          = "document.restored"
 	ActionDocumentDeleted           = "document.deleted"
 	ActionDocumentVersionsCompacted = "document.versions_compacted"
+	ActionDocumentAssetPurged       = "document.asset_purged"
 
 	// Platform admin (F-11). The actor is a platform_role holder, or "cli"
 	// for uniwork-admin; admin_actions carries the reason beside the row.

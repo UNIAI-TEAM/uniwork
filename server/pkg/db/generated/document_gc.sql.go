@@ -152,6 +152,7 @@ WHERE organization_id = $1
   AND document_id = $3
   AND reason = 'auto'
   AND version <= $4
+  AND version <> $5
 RETURNING file_id
 `
 
@@ -160,14 +161,19 @@ type DeleteDocumentAutoVersionsBelowParams struct {
 	WorkspaceID     string `json:"workspace_id"`
 	DocumentID      string `json:"document_id"`
 	BoundaryVersion int32  `json:"boundary_version"`
+	CurrentVersion  int32  `json:"current_version"`
 }
 
+// current_version is never dropped: when protected rows alone reach the
+// bound the keep count is zero and the document's live version is the one
+// row compaction must leave standing.
 func (q *Queries) DeleteDocumentAutoVersionsBelow(ctx context.Context, arg DeleteDocumentAutoVersionsBelowParams) ([]pgtype.Text, error) {
 	rows, err := q.db.Query(ctx, deleteDocumentAutoVersionsBelow,
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.DocumentID,
 		arg.BoundaryVersion,
+		arg.CurrentVersion,
 	)
 	if err != nil {
 		return nil, err
@@ -384,34 +390,46 @@ func (q *Queries) ListDocumentFileIDs(ctx context.Context, arg ListDocumentFileI
 }
 
 const listDocumentsForAutoVersion = `-- name: ListDocumentsForAutoVersion :many
-SELECT id, organization_id, workspace_id
+SELECT id, organization_id, workspace_id, content_saved_at
 FROM documents
 WHERE kind = 'page'
   AND archived_at IS NULL
   AND content_saved_at IS NOT NULL
   AND content_saved_at < $1
   AND (last_version_at IS NULL OR last_version_at < content_saved_at)
+  AND ($2::timestamptz IS NULL
+       OR (content_saved_at, id) > ($2, $3::text))
 ORDER BY content_saved_at, id
-LIMIT $2
+LIMIT $4
 `
 
 type ListDocumentsForAutoVersionParams struct {
 	QuietBefore pgtype.Timestamptz `json:"quiet_before"`
+	AfterAt     pgtype.Timestamptz `json:"after_at"`
+	AfterID     pgtype.Text        `json:"after_id"`
 	MaxRows     int32              `json:"max_rows"`
 }
 
 type ListDocumentsForAutoVersionRow struct {
-	ID             string `json:"id"`
-	OrganizationID string `json:"organization_id"`
-	WorkspaceID    string `json:"workspace_id"`
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	ContentSavedAt pgtype.Timestamptz `json:"content_saved_at"`
 }
 
 // Quiet-page scan for the auto-version worker: a page whose content was
 // saved more than the quiet window ago and newer than its last versioned
 // save. last_version_at is the idempotency marker - once a snapshot covers
-// content_saved_at the row drops out of the scan.
+// content_saved_at the row drops out of the scan. after_* keysets past the
+// previous batch inside one pass so a page that keeps failing cannot pin
+// the sweep on the first page.
 func (q *Queries) ListDocumentsForAutoVersion(ctx context.Context, arg ListDocumentsForAutoVersionParams) ([]ListDocumentsForAutoVersionRow, error) {
-	rows, err := q.db.Query(ctx, listDocumentsForAutoVersion, arg.QuietBefore, arg.MaxRows)
+	rows, err := q.db.Query(ctx, listDocumentsForAutoVersion,
+		arg.QuietBefore,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.MaxRows,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -419,7 +437,12 @@ func (q *Queries) ListDocumentsForAutoVersion(ctx context.Context, arg ListDocum
 	items := []ListDocumentsForAutoVersionRow{}
 	for rows.Next() {
 		var i ListDocumentsForAutoVersionRow
-		if err := rows.Scan(&i.ID, &i.OrganizationID, &i.WorkspaceID); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.ContentSavedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -432,35 +455,50 @@ func (q *Queries) ListDocumentsForAutoVersion(ctx context.Context, arg ListDocum
 
 const listDocumentsForPurge = `-- name: ListDocumentsForPurge :many
 
-SELECT id, organization_id, workspace_id
+SELECT id, organization_id, workspace_id, purge_after
 FROM documents
 WHERE archived_at IS NOT NULL
   AND purge_after IS NOT NULL
   AND purge_after < $1
+  AND owner_id IS NULL
+  AND ($2::timestamptz IS NULL
+       OR (purge_after, id) > ($2, $3::text))
 ORDER BY purge_after, id
-LIMIT $2
+LIMIT $4
 `
 
 type ListDocumentsForPurgeParams struct {
 	Before  pgtype.Timestamptz `json:"before"`
+	AfterAt pgtype.Timestamptz `json:"after_at"`
+	AfterID pgtype.Text        `json:"after_id"`
 	MaxRows int32              `json:"max_rows"`
 }
 
 type ListDocumentsForPurgeRow struct {
-	ID             string `json:"id"`
-	OrganizationID string `json:"organization_id"`
-	WorkspaceID    string `json:"workspace_id"`
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	PurgeAfter     pgtype.Timestamptz `json:"purge_after"`
 }
 
 // Document retention, auto-versioning and compaction worker queries
 // (C-01 §6.3, §9; G1-04b, UNI-678). The List*For* scans are worker inputs:
 // they run once per tick across tenants, then every mutation that follows
 // carries the tenant pair of the row it found.
-// Archive rows whose 30-day retention ran out. The service deletes metadata
-// and releases the file references in one transaction; FileService GC owns
-// the bytes (ADR 0022).
+// Archive rows whose 30-day retention ran out, free documents only: an
+// owner-service document's retention is the owner's call through the §13.6
+// seam (the public sweep must never delete what an owner still holds). The
+// service deletes metadata and releases the file references in one
+// transaction; FileService GC owns the bytes (ADR 0022). after_* keysets
+// past the previous batch inside one pass so a row that keeps failing can
+// never pin the sweep on the first page.
 func (q *Queries) ListDocumentsForPurge(ctx context.Context, arg ListDocumentsForPurgeParams) ([]ListDocumentsForPurgeRow, error) {
-	rows, err := q.db.Query(ctx, listDocumentsForPurge, arg.Before, arg.MaxRows)
+	rows, err := q.db.Query(ctx, listDocumentsForPurge,
+		arg.Before,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.MaxRows,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -468,7 +506,12 @@ func (q *Queries) ListDocumentsForPurge(ctx context.Context, arg ListDocumentsFo
 	items := []ListDocumentsForPurgeRow{}
 	for rows.Next() {
 		var i ListDocumentsForPurgeRow
-		if err := rows.Scan(&i.ID, &i.OrganizationID, &i.WorkspaceID); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.WorkspaceID,
+			&i.PurgeAfter,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -482,13 +525,16 @@ func (q *Queries) ListDocumentsForPurge(ctx context.Context, arg ListDocumentsFo
 const listDocumentsOverVersionLimit = `-- name: ListDocumentsOverVersionLimit :many
 SELECT document_id, organization_id, workspace_id, count(*) AS total
 FROM document_versions
+WHERE $1::text IS NULL
+   OR document_id > $1
 GROUP BY organization_id, workspace_id, document_id
-HAVING count(*) > $1
+HAVING count(*) > $2
 ORDER BY document_id
-LIMIT $2
+LIMIT $3
 `
 
 type ListDocumentsOverVersionLimitParams struct {
+	AfterID pgtype.Text `json:"after_id"`
 	Keep    interface{} `json:"keep"`
 	MaxRows int32       `json:"max_rows"`
 }
@@ -501,8 +547,10 @@ type ListDocumentsOverVersionLimitRow struct {
 }
 
 // Compaction scan: documents whose version count passed the keep bound.
+// after_id keysets past the previous batch inside one pass so a document
+// that cannot be compacted (protected overflow) never pins the sweep.
 func (q *Queries) ListDocumentsOverVersionLimit(ctx context.Context, arg ListDocumentsOverVersionLimitParams) ([]ListDocumentsOverVersionLimitRow, error) {
-	rows, err := q.db.Query(ctx, listDocumentsOverVersionLimit, arg.Keep, arg.MaxRows)
+	rows, err := q.db.Query(ctx, listDocumentsOverVersionLimit, arg.AfterID, arg.Keep, arg.MaxRows)
 	if err != nil {
 		return nil, err
 	}
@@ -527,7 +575,7 @@ func (q *Queries) ListDocumentsOverVersionLimit(ctx context.Context, arg ListDoc
 }
 
 const listOrphanedDocumentAssets = `-- name: ListOrphanedDocumentAssets :many
-SELECT a.id, a.organization_id, a.workspace_id, a.document_id
+SELECT a.id, a.organization_id, a.workspace_id, a.document_id, a.orphaned_at
 FROM document_assets a
 JOIN documents d
   ON d.organization_id = a.organization_id
@@ -536,26 +584,37 @@ JOIN documents d
 WHERE a.orphaned_at IS NOT NULL
   AND a.orphaned_at < $1
   AND d.archived_at IS NULL
+  AND ($2::timestamptz IS NULL
+       OR (a.orphaned_at, a.id) > ($2, $3::text))
 ORDER BY a.orphaned_at, a.id
-LIMIT $2
+LIMIT $4
 `
 
 type ListOrphanedDocumentAssetsParams struct {
 	Before  pgtype.Timestamptz `json:"before"`
+	AfterAt pgtype.Timestamptz `json:"after_at"`
+	AfterID pgtype.Text        `json:"after_id"`
 	MaxRows int32              `json:"max_rows"`
 }
 
 type ListOrphanedDocumentAssetsRow struct {
-	ID             string `json:"id"`
-	OrganizationID string `json:"organization_id"`
-	WorkspaceID    string `json:"workspace_id"`
-	DocumentID     string `json:"document_id"`
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	DocumentID     string             `json:"document_id"`
+	OrphanedAt     pgtype.Timestamptz `json:"orphaned_at"`
 }
 
 // Orphaned assets on a live document, past the 7-day grace. The scan skips
-// archived documents: they purge whole with their rows.
+// archived documents: they purge whole with their rows. after_* keysets
+// past the previous batch inside one pass.
 func (q *Queries) ListOrphanedDocumentAssets(ctx context.Context, arg ListOrphanedDocumentAssetsParams) ([]ListOrphanedDocumentAssetsRow, error) {
-	rows, err := q.db.Query(ctx, listOrphanedDocumentAssets, arg.Before, arg.MaxRows)
+	rows, err := q.db.Query(ctx, listOrphanedDocumentAssets,
+		arg.Before,
+		arg.AfterAt,
+		arg.AfterID,
+		arg.MaxRows,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -568,6 +627,7 @@ func (q *Queries) ListOrphanedDocumentAssets(ctx context.Context, arg ListOrphan
 			&i.OrganizationID,
 			&i.WorkspaceID,
 			&i.DocumentID,
+			&i.OrphanedAt,
 		); err != nil {
 			return nil, err
 		}

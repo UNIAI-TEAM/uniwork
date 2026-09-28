@@ -19,34 +19,37 @@ WHERE d.organization_id = $1
   AND d.owner_id IS NULL
   AND d.archived_at IS NOT NULL
   AND ($3
-       OR EXISTS (
+       OR ($4 AND d.acl_owner_id = $5)
+       OR ($6 AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
               AND s.level = 'manage'
-              AND ((s.principal_type = 'user' AND s.principal_id = $4)
+              AND ((s.principal_type = 'user' AND s.principal_id = $5)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
-                       AND s.principal_id = ANY($5::text[])))))
-  AND ($6::text IS NULL OR d.kind = $6)
-  AND ($7::text IS NULL OR d.updated_by = $7)
-  AND ($8::timestamptz IS NULL OR d.archived_at >= $8)
-  AND ($9::timestamptz IS NULL OR d.archived_at < $9)
-  AND ($10::text IS NULL
-       OR d.search_text ILIKE '%' || $10::text || '%' ESCAPE '\')
-  AND ($11::timestamptz IS NULL
-       OR (d.archived_at, d.id) < ($11, $12::text))
+                       AND s.principal_id = ANY($7::text[]))))))
+  AND ($8::text IS NULL OR d.kind = $8)
+  AND ($9::text IS NULL OR d.updated_by = $9)
+  AND ($10::timestamptz IS NULL OR d.archived_at >= $10)
+  AND ($11::timestamptz IS NULL OR d.archived_at < $11)
+  AND ($12::text IS NULL
+       OR d.search_text ILIKE '%' || $12::text || '%' ESCAPE '\')
+  AND ($13::timestamptz IS NULL
+       OR (d.archived_at, d.id) < ($13, $14::text))
 ORDER BY d.archived_at DESC, d.id DESC
-LIMIT $13
+LIMIT $15
 `
 
 type ListArchivedDocumentsPageParams struct {
 	OrganizationID  string             `json:"organization_id"`
 	WorkspaceID     string             `json:"workspace_id"`
 	SeeAll          interface{}        `json:"see_all"`
-	ActorID         string             `json:"actor_id"`
+	AclOwner        interface{}        `json:"acl_owner"`
+	ActorID         pgtype.Text        `json:"actor_id"`
+	AllowShares     interface{}        `json:"allow_shares"`
 	ShareWorkspaces []string           `json:"share_workspaces"`
 	Kind            pgtype.Text        `json:"kind"`
 	UpdatedBy       pgtype.Text        `json:"updated_by"`
@@ -58,13 +61,16 @@ type ListArchivedDocumentsPageParams struct {
 	PageLimit       int32              `json:"page_limit"`
 }
 
-// The trash view: manage-only, ordered by archive time descending.
+// The trash view: manage-only (workspace admin, the ACL owner, or a manage
+// share), ordered by archive time descending.
 func (q *Queries) ListArchivedDocumentsPage(ctx context.Context, arg ListArchivedDocumentsPageParams) ([]Document, error) {
 	rows, err := q.db.Query(ctx, listArchivedDocumentsPage,
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.SeeAll,
+		arg.AclOwner,
 		arg.ActorID,
+		arg.AllowShares,
 		arg.ShareWorkspaces,
 		arg.Kind,
 		arg.UpdatedBy,
@@ -143,28 +149,28 @@ WHERE d.organization_id = $1
   AND d.parent_id IS NOT DISTINCT FROM $3
   AND ($4
        OR ($5 AND d.visibility = 'workspace')
-       OR ($5 AND d.acl_owner_id = $6)
-       OR EXISTS (
+       OR ($6 AND d.acl_owner_id = $7)
+       OR ($8 AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
-              AND s.level = ANY($7::text[])
-              AND ((s.principal_type = 'user' AND s.principal_id = $6)
+              AND s.level = ANY($9::text[])
+              AND ((s.principal_type = 'user' AND s.principal_id = $7)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
-                       AND s.principal_id = ANY($8::text[])))))
-  AND ($9::text IS NULL OR d.kind = $9)
-  AND ($10::text IS NULL OR d.updated_by = $10)
-  AND ($11::timestamptz IS NULL OR d.updated_at >= $11)
-  AND ($12::timestamptz IS NULL OR d.updated_at < $12)
-  AND ($13::text IS NULL
-       OR d.search_text ILIKE '%' || $13::text || '%' ESCAPE '\')
-  AND ($14::float8 IS NULL
-       OR (d.position, d.id) > ($14, $15::text))
+                       AND s.principal_id = ANY($10::text[]))))))
+  AND ($11::text IS NULL OR d.kind = $11)
+  AND ($12::text IS NULL OR d.updated_by = $12)
+  AND ($13::timestamptz IS NULL OR d.updated_at >= $13)
+  AND ($14::timestamptz IS NULL OR d.updated_at < $14)
+  AND ($15::text IS NULL
+       OR d.search_text ILIKE '%' || $15::text || '%' ESCAPE '\')
+  AND ($16::float8 IS NULL
+       OR (d.position, d.id) > ($16, $17::text))
 ORDER BY d.position, d.id
-LIMIT $16
+LIMIT $18
 `
 
 type ListDocumentsByParentPageParams struct {
@@ -173,7 +179,9 @@ type ListDocumentsByParentPageParams struct {
 	ParentID        pgtype.Text        `json:"parent_id"`
 	SeeAll          interface{}        `json:"see_all"`
 	MemberVisible   interface{}        `json:"member_visible"`
+	AclOwner        interface{}        `json:"acl_owner"`
 	ActorID         pgtype.Text        `json:"actor_id"`
+	AllowShares     interface{}        `json:"allow_shares"`
 	ShareLevels     []string           `json:"share_levels"`
 	ShareWorkspaces []string           `json:"share_workspaces"`
 	Kind            pgtype.Text        `json:"kind"`
@@ -195,7 +203,9 @@ func (q *Queries) ListDocumentsByParentPage(ctx context.Context, arg ListDocumen
 		arg.ParentID,
 		arg.SeeAll,
 		arg.MemberVisible,
+		arg.AclOwner,
 		arg.ActorID,
+		arg.AllowShares,
 		arg.ShareLevels,
 		arg.ShareWorkspaces,
 		arg.Kind,
@@ -277,28 +287,28 @@ WHERE d.organization_id = $2
   AND d.archived_at IS NULL
   AND ($4
        OR ($5 AND d.visibility = 'workspace')
-       OR ($5 AND d.acl_owner_id = $6)
-       OR EXISTS (
+       OR ($6 AND d.acl_owner_id = $7)
+       OR ($8 AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
-              AND s.level = ANY($7::text[])
-              AND ((s.principal_type = 'user' AND s.principal_id = $6)
+              AND s.level = ANY($9::text[])
+              AND ((s.principal_type = 'user' AND s.principal_id = $7)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
-                       AND s.principal_id = ANY($8::text[])))))
-  AND ($9::text IS NULL OR d.kind = $9)
-  AND ($10::text IS NULL OR d.updated_by = $10)
-  AND ($11::timestamptz IS NULL OR d.updated_at >= $11)
-  AND ($12::timestamptz IS NULL OR d.updated_at < $12)
+                       AND s.principal_id = ANY($10::text[]))))))
+  AND ($11::text IS NULL OR d.kind = $11)
+  AND ($12::text IS NULL OR d.updated_by = $12)
+  AND ($13::timestamptz IS NULL OR d.updated_at >= $13)
+  AND ($14::timestamptz IS NULL OR d.updated_at < $14)
   AND ($1::text IS NULL
        OR d.search_text ILIKE '%' || $1::text || '%' ESCAPE '\')
-  AND ($13::timestamptz IS NULL
-       OR (d.updated_at, d.id) < ($13, $14::text))
+  AND ($15::timestamptz IS NULL
+       OR (d.updated_at, d.id) < ($15, $16::text))
 ORDER BY d.updated_at DESC, d.id DESC
-LIMIT $15
+LIMIT $17
 `
 
 type ListDocumentsPageParams struct {
@@ -307,7 +317,9 @@ type ListDocumentsPageParams struct {
 	WorkspaceID     string             `json:"workspace_id"`
 	SeeAll          interface{}        `json:"see_all"`
 	MemberVisible   interface{}        `json:"member_visible"`
+	AclOwner        interface{}        `json:"acl_owner"`
 	ActorID         pgtype.Text        `json:"actor_id"`
+	AllowShares     interface{}        `json:"allow_shares"`
 	ShareLevels     []string           `json:"share_levels"`
 	ShareWorkspaces []string           `json:"share_workspaces"`
 	Kind            pgtype.Text        `json:"kind"`
@@ -380,6 +392,10 @@ type ListDocumentsPageRow struct {
 // Share links are anonymous view tokens (document_links.go) and never grant
 // a member listing visibility. Restricted docs never match member_visible,
 // so an invisible document drops out of the set before LIMIT runs.
+//
+// Actor-kind guards (resolveLevel answers the same): agents are never share
+// principals and never ACL owners, so callers pass allow_shares / acl_owner
+// false for an agent and every share or ACL-owner leg folds shut.
 // Flat "all" page and folded-text search share one cursor: (updated_at, id)
 // descending. q is already folded by the caller and escaped for LIKE.
 func (q *Queries) ListDocumentsPage(ctx context.Context, arg ListDocumentsPageParams) ([]ListDocumentsPageRow, error) {
@@ -389,7 +405,9 @@ func (q *Queries) ListDocumentsPage(ctx context.Context, arg ListDocumentsPagePa
 		arg.WorkspaceID,
 		arg.SeeAll,
 		arg.MemberVisible,
+		arg.AclOwner,
 		arg.ActorID,
+		arg.AllowShares,
 		arg.ShareLevels,
 		arg.ShareWorkspaces,
 		arg.Kind,
@@ -475,8 +493,8 @@ WHERE d.organization_id = $1
               AND a.actor_id = $3))
   AND ($4
        OR ($5 AND d.visibility = 'workspace')
-       OR ($5 AND d.acl_owner_id = $3)
-       OR EXISTS (
+       OR ($6 AND d.acl_owner_id = $3)
+       OR ($7 AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
@@ -485,11 +503,11 @@ WHERE d.organization_id = $1
               AND ((s.principal_type = 'user' AND s.principal_id = $3)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
-                       AND s.principal_id = ANY($6::text[])))))
-  AND ($7::timestamptz IS NULL
-       OR (d.updated_at, d.id) < ($7, $8::text))
+                       AND s.principal_id = ANY($8::text[]))))))
+  AND ($9::timestamptz IS NULL
+       OR (d.updated_at, d.id) < ($9, $10::text))
 ORDER BY d.updated_at DESC, d.id DESC
-LIMIT $9
+LIMIT $11
 `
 
 type ListRecentDocumentsPageParams struct {
@@ -498,6 +516,8 @@ type ListRecentDocumentsPageParams struct {
 	ActorID         string             `json:"actor_id"`
 	SeeAll          interface{}        `json:"see_all"`
 	MemberVisible   interface{}        `json:"member_visible"`
+	AclOwner        interface{}        `json:"acl_owner"`
+	AllowShares     interface{}        `json:"allow_shares"`
 	ShareWorkspaces []string           `json:"share_workspaces"`
 	CursorAt        pgtype.Timestamptz `json:"cursor_at"`
 	CursorID        pgtype.Text        `json:"cursor_id"`
@@ -513,6 +533,8 @@ func (q *Queries) ListRecentDocumentsPage(ctx context.Context, arg ListRecentDoc
 		arg.ActorID,
 		arg.SeeAll,
 		arg.MemberVisible,
+		arg.AclOwner,
+		arg.AllowShares,
 		arg.ShareWorkspaces,
 		arg.CursorAt,
 		arg.CursorID,
@@ -585,17 +607,17 @@ WHERE d.organization_id = $1
   AND d.archived_at IS NULL
   AND ($3
        OR ($4 AND d.visibility = 'workspace')
-       OR ($4 AND d.acl_owner_id = $5)
-       OR EXISTS (
+       OR ($5 AND d.acl_owner_id = $6)
+       OR ($7 AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
               AND s.document_id = d.id
               AND s.revoked_at IS NULL
-              AND ((s.principal_type = 'user' AND s.principal_id = $5)
+              AND ((s.principal_type = 'user' AND s.principal_id = $6)
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
-                       AND s.principal_id = ANY($6::text[])))))
+                       AND s.principal_id = ANY($8::text[]))))))
 ORDER BY d.position, d.id
 `
 
@@ -604,7 +626,9 @@ type ListTreeDocumentsParams struct {
 	WorkspaceID     string      `json:"workspace_id"`
 	SeeAll          interface{} `json:"see_all"`
 	MemberVisible   interface{} `json:"member_visible"`
+	AclOwner        interface{} `json:"acl_owner"`
 	ActorID         pgtype.Text `json:"actor_id"`
+	AllowShares     interface{} `json:"allow_shares"`
 	ShareWorkspaces []string    `json:"share_workspaces"`
 }
 
@@ -616,7 +640,9 @@ func (q *Queries) ListTreeDocuments(ctx context.Context, arg ListTreeDocumentsPa
 		arg.WorkspaceID,
 		arg.SeeAll,
 		arg.MemberVisible,
+		arg.AclOwner,
 		arg.ActorID,
+		arg.AllowShares,
 		arg.ShareWorkspaces,
 	)
 	if err != nil {

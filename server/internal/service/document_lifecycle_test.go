@@ -41,6 +41,23 @@ func (r *releaseSpy) releasedIDs() []files.FileID {
 	return out
 }
 
+// failReleaseSpy fails every ReleaseInTx batch that names one id: the purge
+// tests use it to prove a row that errors does not hold back the rest of
+// the sweep.
+type failReleaseSpy struct {
+	releaseSpy
+	bad files.FileID
+}
+
+func (r *failReleaseSpy) ReleaseInTx(ctx context.Context, q *db.Queries, ids []files.FileID) error {
+	for _, id := range ids {
+		if id == r.bad {
+			return errors.New("files: release refused (test)")
+		}
+	}
+	return r.releaseSpy.ReleaseInTx(ctx, q, ids)
+}
+
 // insertVersion adds a document_versions row the purge/compaction tests
 // shape by hand.
 func (f *docPermFixture) version(t *testing.T, d db.Document, n int, reason, fileID string) db.DocumentVersion {
@@ -141,9 +158,20 @@ func TestDocumentArchive(t *testing.T) {
 	})
 
 	t.Run("an owned document refuses archive and restore", func(t *testing.T) {
+		// The owner service grants the org owner manage on this owned doc;
+		// the public command still refuses - owned docs live and die through
+		// the owner seam, never the public archive path.
+		f.svc.SetOwnerLevelResolver(mapOwnerResolver{tn.owner.ID: DocumentLevelManage})
+		defer f.svc.SetOwnerLevelResolver(nil)
 		owned := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", createdBy: tn.aclOwner.ID, ownerID: "wp-arch"})
 		_, err := f.svc.ArchiveDocument(f.ctx, owner, owned.ID, ArchiveDocumentInput{})
 		wantCode(t, err, "document_owned_by_work_product")
+		// ...but an actor who cannot even read the document gets not_found:
+		// the owned refusal must never confirm the id to a stranger.
+		hidden := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted", createdBy: tn.aclOwner.ID, ownerID: "wp-arch"})
+		if _, err := f.svc.ArchiveDocument(f.ctx, Human(tn.member.ID), hidden.ID, ArchiveDocumentInput{}); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("archive on an invisible owned doc = %v, want ErrNotFound", err)
+		}
 	})
 
 	t.Run("an archived document cannot be moved", func(t *testing.T) {
@@ -236,6 +264,54 @@ func TestDocumentPurge(t *testing.T) {
 		}
 		f.liveArchived(t, recent.ID)
 	})
+
+	t.Run("owner-service documents are not the public sweep's business", func(t *testing.T) {
+		f.svc.SetFiles(&releaseSpy{})
+		past := time.Now().Add(-time.Hour)
+		owned := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", createdBy: tn.aclOwner.ID,
+			ownerID: "wp-purge", archived: true, purgeAfter: past})
+		f.version(t, owned, 1, "auto", "f-owned-1")
+		rep, err := f.svc.PurgeExpired(f.ctx, time.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rep.Purged != 0 || rep.Failed != 0 {
+			t.Fatalf("purge = %+v, want the owned row untouched", rep)
+		}
+		f.liveArchived(t, owned.ID)
+		d, err := f.q.GetDocumentByID(f.ctx, owned.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !d.OwnerKind.Valid || d.OwnerID.String != "wp-purge" {
+			t.Fatalf("owned doc lost its owner: %+v", d)
+		}
+	})
+
+	t.Run("a row that fails does not hold back the sweep", func(t *testing.T) {
+		f.svc.SetFiles(&failReleaseSpy{bad: "f-bad"})
+		past := time.Now().Add(-time.Hour)
+		bad := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			archived: true, purgeAfter: past.Add(-time.Minute)})
+		f.version(t, bad, 1, "auto", "f-bad")
+		good := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+			archived: true, purgeAfter: past})
+		f.version(t, good, 1, "auto", "f-good")
+
+		rep, err := f.svc.PurgeExpired(f.ctx, time.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rep.Purged != 1 || rep.Failed != 1 {
+			t.Fatalf("purge = %+v, want 1 purged past the 1 failed row", rep)
+		}
+		// The failing row stays in the trash for the next tick; the good
+		// row's orbit is gone.
+		f.liveArchived(t, bad.ID)
+		if _, err := f.q.GetDocumentByID(f.ctx, good.ID); err == nil {
+			t.Fatal("good document survived behind the failing row")
+		}
+	})
 }
 
 // liveArchived asserts the row exists AND is still in the trash.
@@ -319,6 +395,30 @@ func TestDocumentCompaction(t *testing.T) {
 		}
 		if metrics.protectedOverflow.Load() != 1 {
 			t.Fatalf("overflow metric = %d, want 1", metrics.protectedOverflow.Load())
+		}
+	})
+
+	t.Run("the version current_version points at never drops", func(t *testing.T) {
+		d := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		insertVersions(t, d, documentVersionKeep+1, "auto", "01DVCC")
+		// current_version = 1: the oldest auto is also the live one. The
+		// plain keep-boundary logic would drop exactly it.
+		if _, err := f.pool.Exec(f.ctx, `UPDATE documents SET current_version = 1 WHERE id = $1`, d.ID); err != nil {
+			t.Fatal(err)
+		}
+		rep, err := f.svc.CompactVersions(f.ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rep.VersionsDeleted != 0 || rep.Failed != 0 {
+			t.Fatalf("compact = %+v, want nothing deleted", rep)
+		}
+		var n int
+		if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM document_versions WHERE document_id = $1`, d.ID).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n != documentVersionKeep+1 {
+			t.Fatalf("compaction touched current_version: %d rows remain", n)
 		}
 	})
 }

@@ -7,6 +7,8 @@ package service
 import (
 	"testing"
 	"time"
+
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 func listIDs(page DocumentListPage) []string {
@@ -144,6 +146,74 @@ func TestDocumentSearch(t *testing.T) {
 		}
 		if containsID(listIDs(asMember), dead.ID) {
 			t.Fatal("member read the trash view")
+		}
+	})
+
+	t.Run("an agent never reaches a restricted document through a share", func(t *testing.T) {
+		// Organization share: a member-visible human sees it through the
+		// principal; the agent does not - shares are human-only (R1-01).
+		orgShared := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		f.share(t, orgShared, DocumentPrincipalOrganization, tn.orgID, DocumentLevelView, tn.aclOwner.ID)
+		// A user share naming the agent's id itself still grants nothing.
+		userShared := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		f.share(t, userShared, DocumentPrincipalUser, tn.agent, DocumentLevelView, tn.aclOwner.ID)
+		// A workspace share to a workspace the agent sits in: same answer.
+		wsShared := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		f.share(t, wsShared, DocumentPrincipalWorkspace, tn.wsA, DocumentLevelView, tn.aclOwner.ID)
+
+		page, err := f.svc.ListDocuments(f.ctx, agentActor(tn.agent), tn.wsA, ListDocumentsInput{Limit: 100})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, d := range []db.Document{orgShared, userShared, wsShared} {
+			if containsID(listIDs(page), d.ID) {
+				t.Fatalf("agent read restricted doc %s through a share", d.ID)
+			}
+		}
+		// Control: a human member sees the organization and workspace shares.
+		page, err = f.svc.ListDocuments(f.ctx, Human(tn.member.ID), tn.wsA, ListDocumentsInput{Limit: 100})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids := listIDs(page)
+		if !containsID(ids, orgShared.ID) || !containsID(ids, wsShared.ID) {
+			t.Fatalf("member missed shared docs: %v", ids)
+		}
+		// The tree hides them from the agent as well.
+		tree, err := f.svc.DocumentTree(f.ctx, agentActor(tn.agent), tn.wsA, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var treeIds []string
+		treeIDs(tree, &treeIds)
+		for _, d := range []db.Document{orgShared, userShared, wsShared} {
+			if containsID(treeIds, d.ID) {
+				t.Fatalf("agent's tree contains restricted doc %s", d.ID)
+			}
+		}
+	})
+
+	t.Run("the ACL owner finds their own document in the trash", func(t *testing.T) {
+		// aclOwner is a plain workspace member (not admin): see_all is false
+		// and only the ACL-owner leg admits them to the trash view (R1-03).
+		own := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		if _, err := f.svc.ArchiveDocument(f.ctx, Human(tn.aclOwner.ID), own.ID, ArchiveDocumentInput{}); err != nil {
+			t.Fatal(err)
+		}
+		trash, err := f.svc.ListDocuments(f.ctx, Human(tn.aclOwner.ID), tn.wsA, ListDocumentsInput{Archived: true, Limit: 100})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !containsID(listIDs(trash), own.ID) {
+			t.Fatal("ACL owner cannot see their own archived document")
+		}
+		// A co-member without manage still cannot.
+		asMember, err := f.svc.ListDocuments(f.ctx, Human(tn.member.ID), tn.wsA, ListDocumentsInput{Archived: true, Limit: 100})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if containsID(listIDs(asMember), own.ID) {
+			t.Fatal("plain member read another's restricted doc in the trash")
 		}
 	})
 

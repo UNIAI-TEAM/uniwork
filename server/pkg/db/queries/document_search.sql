@@ -14,6 +14,10 @@
 -- Share links are anonymous view tokens (document_links.go) and never grant
 -- a member listing visibility. Restricted docs never match member_visible,
 -- so an invisible document drops out of the set before LIMIT runs.
+--
+-- Actor-kind guards (resolveLevel answers the same): agents are never share
+-- principals and never ACL owners, so callers pass allow_shares / acl_owner
+-- false for an agent and every share or ACL-owner leg folds shut.
 
 -- Flat "all" page and folded-text search share one cursor: (updated_at, id)
 -- descending. q is already folded by the caller and escaped for LIKE.
@@ -28,8 +32,8 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.archived_at IS NULL
   AND (sqlc.arg(see_all)
        OR (sqlc.arg(member_visible) AND d.visibility = 'workspace')
-       OR (sqlc.arg(member_visible) AND d.acl_owner_id = sqlc.arg(actor_id))
-       OR EXISTS (
+       OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))
+       OR (sqlc.arg(allow_shares) AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
@@ -39,7 +43,7 @@ WHERE d.organization_id = sqlc.arg(organization_id)
               AND ((s.principal_type = 'user' AND s.principal_id = sqlc.arg(actor_id))
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
-                       AND s.principal_id = ANY(sqlc.arg(share_workspaces)::text[])))))
+                       AND s.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))))
   AND (sqlc.narg(kind)::text IS NULL OR d.kind = sqlc.narg(kind))
   AND (sqlc.narg(updated_by)::text IS NULL OR d.updated_by = sqlc.narg(updated_by))
   AND (sqlc.narg(updated_from)::timestamptz IS NULL OR d.updated_at >= sqlc.narg(updated_from))
@@ -63,8 +67,8 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)
   AND (sqlc.arg(see_all)
        OR (sqlc.arg(member_visible) AND d.visibility = 'workspace')
-       OR (sqlc.arg(member_visible) AND d.acl_owner_id = sqlc.arg(actor_id))
-       OR EXISTS (
+       OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))
+       OR (sqlc.arg(allow_shares) AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
@@ -74,7 +78,7 @@ WHERE d.organization_id = sqlc.arg(organization_id)
               AND ((s.principal_type = 'user' AND s.principal_id = sqlc.arg(actor_id))
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
-                       AND s.principal_id = ANY(sqlc.arg(share_workspaces)::text[])))))
+                       AND s.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))))
   AND (sqlc.narg(kind)::text IS NULL OR d.kind = sqlc.narg(kind))
   AND (sqlc.narg(updated_by)::text IS NULL OR d.updated_by = sqlc.narg(updated_by))
   AND (sqlc.narg(updated_from)::timestamptz IS NULL OR d.updated_at >= sqlc.narg(updated_from))
@@ -86,7 +90,8 @@ WHERE d.organization_id = sqlc.arg(organization_id)
 ORDER BY d.position, d.id
 LIMIT sqlc.arg(page_limit);
 
--- The trash view: manage-only, ordered by archive time descending.
+-- The trash view: manage-only (workspace admin, the ACL owner, or a manage
+-- share), ordered by archive time descending.
 -- name: ListArchivedDocumentsPage :many
 SELECT d.*
 FROM documents d
@@ -95,7 +100,8 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.owner_id IS NULL
   AND d.archived_at IS NOT NULL
   AND (sqlc.arg(see_all)
-       OR EXISTS (
+       OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))
+       OR (sqlc.arg(allow_shares) AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
@@ -105,7 +111,7 @@ WHERE d.organization_id = sqlc.arg(organization_id)
               AND ((s.principal_type = 'user' AND s.principal_id = sqlc.arg(actor_id))
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
-                       AND s.principal_id = ANY(sqlc.arg(share_workspaces)::text[])))))
+                       AND s.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))))
   AND (sqlc.narg(kind)::text IS NULL OR d.kind = sqlc.narg(kind))
   AND (sqlc.narg(updated_by)::text IS NULL OR d.updated_by = sqlc.narg(updated_by))
   AND (sqlc.narg(updated_from)::timestamptz IS NULL OR d.archived_at >= sqlc.narg(updated_from))
@@ -128,8 +134,8 @@ WHERE d.organization_id = sqlc.arg(organization_id)
   AND d.archived_at IS NULL
   AND (sqlc.arg(see_all)
        OR (sqlc.arg(member_visible) AND d.visibility = 'workspace')
-       OR (sqlc.arg(member_visible) AND d.acl_owner_id = sqlc.arg(actor_id))
-       OR EXISTS (
+       OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))
+       OR (sqlc.arg(allow_shares) AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
@@ -138,7 +144,7 @@ WHERE d.organization_id = sqlc.arg(organization_id)
               AND ((s.principal_type = 'user' AND s.principal_id = sqlc.arg(actor_id))
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
-                       AND s.principal_id = ANY(sqlc.arg(share_workspaces)::text[])))))
+                       AND s.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))))
 ORDER BY d.position, d.id;
 
 -- "Recent": documents the actor touched (access log) or last edited
@@ -159,8 +165,8 @@ WHERE d.organization_id = sqlc.arg(organization_id)
               AND a.actor_id = sqlc.arg(actor_id)))
   AND (sqlc.arg(see_all)
        OR (sqlc.arg(member_visible) AND d.visibility = 'workspace')
-       OR (sqlc.arg(member_visible) AND d.acl_owner_id = sqlc.arg(actor_id))
-       OR EXISTS (
+       OR (sqlc.arg(acl_owner) AND d.acl_owner_id = sqlc.arg(actor_id))
+       OR (sqlc.arg(allow_shares) AND EXISTS (
             SELECT 1 FROM document_shares s
             WHERE s.organization_id = d.organization_id
               AND s.workspace_id = d.workspace_id
@@ -169,7 +175,7 @@ WHERE d.organization_id = sqlc.arg(organization_id)
               AND ((s.principal_type = 'user' AND s.principal_id = sqlc.arg(actor_id))
                    OR (s.principal_type = 'organization' AND s.principal_id = d.organization_id)
                    OR (s.principal_type = 'workspace'
-                       AND s.principal_id = ANY(sqlc.arg(share_workspaces)::text[])))))
+                       AND s.principal_id = ANY(sqlc.arg(share_workspaces)::text[]))))))
   AND (sqlc.narg(cursor_at)::timestamptz IS NULL
        OR (d.updated_at, d.id) < (sqlc.narg(cursor_at), sqlc.narg(cursor_id)::text))
 ORDER BY d.updated_at DESC, d.id DESC

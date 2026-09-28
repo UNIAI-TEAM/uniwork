@@ -203,6 +203,22 @@ func TestDocumentTree(t *testing.T) {
 		wantCode(t, err, "cross_workspace_reference")
 	})
 
+	t.Run("a parent in another organization is not found", func(t *testing.T) {
+		// An id of a foreign tenant's document answers like an unknown id:
+		// no existence oracle across organizations (R1-06).
+		a := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		insertRow(t, f.ctx, f.pool, "documents", baseDoc(map[string]any{
+			"id": util.NewID(), "organization_id": "01ORGFOREIGN0000000000000", "workspace_id": "01WSFOREIGN00000000000000",
+		}))
+		var foreignID string
+		if err := f.pool.QueryRow(f.ctx, `SELECT id FROM documents WHERE organization_id = '01ORGFOREIGN0000000000000'`).Scan(&foreignID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.svc.MoveDocument(f.ctx, owner, a.ID, MoveDocumentInput{ParentID: foreignID, Revision: 1}); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("move to a foreign-organization parent = %v, want ErrNotFound", err)
+		}
+	})
+
 	t.Run("a move needs edit on source AND destination", func(t *testing.T) {
 		src := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
 		dst := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
@@ -230,10 +246,20 @@ func TestDocumentTree(t *testing.T) {
 	})
 
 	t.Run("an owned document has no tree slot", func(t *testing.T) {
+		// The owner service grants the org owner manage on the owned doc;
+		// the public move still refuses - owned docs have no tree slot.
+		f.svc.SetOwnerLevelResolver(mapOwnerResolver{tn.owner.ID: DocumentLevelManage})
+		defer f.svc.SetOwnerLevelResolver(nil)
 		owned := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", createdBy: tn.aclOwner.ID, ownerID: "wp-1"})
 		parent := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
 		_, err := f.svc.MoveDocument(f.ctx, owner, owned.ID, MoveDocumentInput{ParentID: parent.ID, Revision: 1})
 		wantCode(t, err, "document_owned_by_work_product")
+		// An actor who cannot read the document at all learns only that the
+		// id does not answer - the owned refusal never confirms it (R1-07).
+		hidden := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted", createdBy: tn.aclOwner.ID, ownerID: "wp-2"})
+		if _, err := f.svc.MoveDocument(f.ctx, Human(tn.member.ID), hidden.ID, MoveDocumentInput{ParentID: parent.ID, Revision: 1}); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("move on an invisible owned doc = %v, want ErrNotFound", err)
+		}
 	})
 
 	t.Run("a stale revision conflicts", func(t *testing.T) {

@@ -3,15 +3,22 @@
 -- they run once per tick across tenants, then every mutation that follows
 -- carries the tenant pair of the row it found.
 
--- Archive rows whose 30-day retention ran out. The service deletes metadata
--- and releases the file references in one transaction; FileService GC owns
--- the bytes (ADR 0022).
+-- Archive rows whose 30-day retention ran out, free documents only: an
+-- owner-service document's retention is the owner's call through the §13.6
+-- seam (the public sweep must never delete what an owner still holds). The
+-- service deletes metadata and releases the file references in one
+-- transaction; FileService GC owns the bytes (ADR 0022). after_* keysets
+-- past the previous batch inside one pass so a row that keeps failing can
+-- never pin the sweep on the first page.
 -- name: ListDocumentsForPurge :many
-SELECT id, organization_id, workspace_id
+SELECT id, organization_id, workspace_id, purge_after
 FROM documents
 WHERE archived_at IS NOT NULL
   AND purge_after IS NOT NULL
   AND purge_after < sqlc.arg(before)
+  AND owner_id IS NULL
+  AND (sqlc.narg(after_at)::timestamptz IS NULL
+       OR (purge_after, id) > (sqlc.narg(after_at), sqlc.narg(after_id)::text))
 ORDER BY purge_after, id
 LIMIT sqlc.arg(max_rows);
 
@@ -81,9 +88,10 @@ WHERE id = sqlc.arg(id)
   AND archived_at IS NOT NULL;
 
 -- Orphaned assets on a live document, past the 7-day grace. The scan skips
--- archived documents: they purge whole with their rows.
+-- archived documents: they purge whole with their rows. after_* keysets
+-- past the previous batch inside one pass.
 -- name: ListOrphanedDocumentAssets :many
-SELECT a.id, a.organization_id, a.workspace_id, a.document_id
+SELECT a.id, a.organization_id, a.workspace_id, a.document_id, a.orphaned_at
 FROM document_assets a
 JOIN documents d
   ON d.organization_id = a.organization_id
@@ -92,6 +100,8 @@ JOIN documents d
 WHERE a.orphaned_at IS NOT NULL
   AND a.orphaned_at < sqlc.arg(before)
   AND d.archived_at IS NULL
+  AND (sqlc.narg(after_at)::timestamptz IS NULL
+       OR (a.orphaned_at, a.id) > (sqlc.narg(after_at), sqlc.narg(after_id)::text))
 ORDER BY a.orphaned_at, a.id
 LIMIT sqlc.arg(max_rows);
 
@@ -119,15 +129,19 @@ WHERE id = sqlc.arg(id)
 -- Quiet-page scan for the auto-version worker: a page whose content was
 -- saved more than the quiet window ago and newer than its last versioned
 -- save. last_version_at is the idempotency marker - once a snapshot covers
--- content_saved_at the row drops out of the scan.
+-- content_saved_at the row drops out of the scan. after_* keysets past the
+-- previous batch inside one pass so a page that keeps failing cannot pin
+-- the sweep on the first page.
 -- name: ListDocumentsForAutoVersion :many
-SELECT id, organization_id, workspace_id
+SELECT id, organization_id, workspace_id, content_saved_at
 FROM documents
 WHERE kind = 'page'
   AND archived_at IS NULL
   AND content_saved_at IS NOT NULL
   AND content_saved_at < sqlc.arg(quiet_before)
   AND (last_version_at IS NULL OR last_version_at < content_saved_at)
+  AND (sqlc.narg(after_at)::timestamptz IS NULL
+       OR (content_saved_at, id) > (sqlc.narg(after_at), sqlc.narg(after_id)::text))
 ORDER BY content_saved_at, id
 LIMIT sqlc.arg(max_rows);
 
@@ -149,9 +163,13 @@ WHERE id = sqlc.arg(id)
 RETURNING *;
 
 -- Compaction scan: documents whose version count passed the keep bound.
+-- after_id keysets past the previous batch inside one pass so a document
+-- that cannot be compacted (protected overflow) never pins the sweep.
 -- name: ListDocumentsOverVersionLimit :many
 SELECT document_id, organization_id, workspace_id, count(*) AS total
 FROM document_versions
+WHERE sqlc.narg(after_id)::text IS NULL
+   OR document_id > sqlc.narg(after_id)
 GROUP BY organization_id, workspace_id, document_id
 HAVING count(*) > sqlc.arg(keep)
 ORDER BY document_id
@@ -186,6 +204,9 @@ WHERE organization_id = sqlc.arg(organization_id)
 ORDER BY version DESC
 LIMIT 1 OFFSET sqlc.arg(boundary_offset);
 
+-- current_version is never dropped: when protected rows alone reach the
+-- bound the keep count is zero and the document's live version is the one
+-- row compaction must leave standing.
 -- name: DeleteDocumentAutoVersionsBelow :many
 DELETE FROM document_versions
 WHERE organization_id = sqlc.arg(organization_id)
@@ -193,4 +214,5 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND document_id = sqlc.arg(document_id)
   AND reason = 'auto'
   AND version <= sqlc.arg(boundary_version)
+  AND version <> sqlc.arg(current_version)
 RETURNING file_id;

@@ -71,12 +71,17 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND archive_batch_id = sqlc.arg(archive_batch_id)
 ORDER BY id;
 
+-- Every restore path bumps revision: a row that leaves the trash changes,
+-- and a client holding the pre-archive revision must conflict on write
+-- rather than silently keep a stale base.
 -- name: ClearDocumentArchiveBatch :many
 UPDATE documents
 SET archived_at = NULL,
     archived_by = NULL,
     purge_after = NULL,
-    archive_batch_id = NULL
+    archive_batch_id = NULL,
+    revision = revision + 1,
+    updated_at = now()
 WHERE organization_id = sqlc.arg(organization_id)
   AND workspace_id = sqlc.arg(workspace_id)
   AND archive_batch_id = sqlc.arg(archive_batch_id)
@@ -90,7 +95,9 @@ UPDATE documents
 SET archived_at = NULL,
     archived_by = NULL,
     purge_after = NULL,
-    archive_batch_id = NULL
+    archive_batch_id = NULL,
+    revision = revision + 1,
+    updated_at = now()
 WHERE id = sqlc.arg(id)
   AND organization_id = sqlc.arg(organization_id)
   AND workspace_id = sqlc.arg(workspace_id)
@@ -126,12 +133,26 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND archived_at IS NULL
 RETURNING id;
 
+-- The archived rows an owner holds, with the batch each one was stamped
+-- under: the seam emits document.restored with the batch the row cleared,
+-- which the restore cannot RETURNING (it writes NULL there).
+-- name: ListArchivedDocumentsByOwner :many
+SELECT id, archive_batch_id
+FROM documents
+WHERE organization_id = sqlc.arg(organization_id)
+  AND workspace_id = sqlc.arg(workspace_id)
+  AND owner_id = sqlc.arg(owner_id)
+  AND archived_at IS NOT NULL
+ORDER BY id;
+
 -- name: RestoreDocumentsByOwner :many
 UPDATE documents
 SET archived_at = NULL,
     archived_by = NULL,
     purge_after = NULL,
-    archive_batch_id = NULL
+    archive_batch_id = NULL,
+    revision = revision + 1,
+    updated_at = now()
 WHERE organization_id = sqlc.arg(organization_id)
   AND workspace_id = sqlc.arg(workspace_id)
   AND owner_id = sqlc.arg(owner_id)
@@ -156,7 +177,9 @@ UPDATE documents
 SET archived_at = NULL,
     archived_by = NULL,
     purge_after = NULL,
-    archive_batch_id = NULL
+    archive_batch_id = NULL,
+    revision = revision + 1,
+    updated_at = now()
 WHERE id = sqlc.arg(id)
   AND organization_id = sqlc.arg(organization_id)
   AND workspace_id = sqlc.arg(workspace_id)

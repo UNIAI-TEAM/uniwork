@@ -349,8 +349,15 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 	if _, err := s.ws.RequireMemberQ(ctx, q, workspaceID, actor.ID); err != nil {
 		return DocumentFileResult{}, err
 	}
+	// A file create is a tree write like a page create (N-01): ledger claim,
+	// then the workspace tree lock, then the parent row lock - an archive or
+	// move of the parent waits for this, so a new file can never slip under
+	// a subtree that just left.
+	if err := q.LockDocumentTree(ctx, workspaceID); err != nil {
+		return DocumentFileResult{}, err
+	}
 	if in.ParentID != "" {
-		if err := s.requireParentInTx(ctx, q, actor, in.ParentID, orgID, workspaceID); err != nil {
+		if _, err := s.lockPageParent(ctx, q, actor, in.ParentID, orgID, workspaceID); err != nil {
 			return DocumentFileResult{}, err
 		}
 	}
@@ -447,26 +454,6 @@ func (s *DocumentService) replayCreatedFile(ctx context.Context, q *db.Queries, 
 	}
 	res.Access = access
 	return res, nil
-}
-
-// requireParentInTx: the parent must be a live document of the same tenant
-// pair the caller may edit, seen through the transaction.
-func (s *DocumentService) requireParentInTx(ctx context.Context, q *db.Queries, actor Actor, parentID, orgID, workspaceID string) error {
-	parent, err := q.GetDocumentByID(ctx, parentID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ErrNotFound
-	}
-	if err != nil {
-		return err
-	}
-	if parent.OrganizationID != orgID || parent.WorkspaceID != workspaceID || parent.OwnerKind.Valid {
-		return ErrNotFound
-	}
-	access, err := s.effectiveLevel(ctx, q, actor, parent)
-	if err != nil {
-		return err
-	}
-	return decideDocumentAccess(parent, access, DocumentLevelEdit)
 }
 
 func (s *DocumentService) workspaceOrganization(ctx context.Context, workspaceID string) (string, error) {
