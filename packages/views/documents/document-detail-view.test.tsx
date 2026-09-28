@@ -59,7 +59,15 @@ function findEditor() {
   return screen.findByRole("textbox", {}, { timeout: 15_000 });
 }
 
-function renderView(documentId = "d1", onBackToList = vi.fn(), on = true) {
+function renderView(
+  documentId = "d1",
+  onBackToList = vi.fn(),
+  on = true,
+  hrefs: {
+    documentHref?: (id: string) => string;
+    ownerHref?: (id: string) => string;
+  } = {},
+) {
   return {
     onBackToList,
     ...render(
@@ -68,6 +76,8 @@ function renderView(documentId = "d1", onBackToList = vi.fn(), on = true) {
           wsId={WS}
           documentId={documentId}
           libraryHref={LIBRARY}
+          documentHref={hrefs.documentHref}
+          ownerHref={hrefs.ownerHref}
           onBackToList={onBackToList}
         />,
         on,
@@ -140,6 +150,71 @@ describe("DocumentDetailView", () => {
       "href",
       LIBRARY,
     );
+  });
+
+  it("links every readable ancestor the server sent, and invents none", async () => {
+    // The server truncates the chain at the first unreadable ancestor: the
+    // client renders exactly that list, so an unreadable page never leaks a
+    // title—and a readable page above it is not guessed back in either.
+    requestMock.mockResolvedValue({
+      document: pageDocument({
+        breadcrumbs: [
+          { id: "p1", title: "Mục lục" },
+          { id: "p2", title: "Quý 3" },
+        ],
+      }),
+    });
+    renderView("d1", vi.fn(), true, { documentHref: (id) => `/acme/doi/documents/${id}` });
+
+    expect(await screen.findByRole("link", { name: "Tài liệu" })).toHaveAttribute("href", LIBRARY);
+    expect(await screen.findByRole("link", { name: "Mục lục" })).toHaveAttribute(
+      "href",
+      "/acme/doi/documents/p1",
+    );
+    expect(screen.getByRole("link", { name: "Quý 3" })).toHaveAttribute(
+      "href",
+      "/acme/doi/documents/p2",
+    );
+    expect(screen.queryByRole("link", { name: "Cấp trên bị ẩn" })).toBeNull();
+  });
+
+  it("starts a Work Product document at its owner instead of the library", async () => {
+    requestMock.mockResolvedValue({
+      document: pageDocument({
+        owner_kind: "work_product",
+        owner_id: "wp1",
+        // An owned document is not in the tree; the server has no ancestors.
+        breadcrumbs: [],
+      }),
+    });
+    renderView("d1", vi.fn(), true, { ownerHref: (id) => `/acme/doi/projects/${id}` });
+
+    expect(await screen.findByRole("link", { name: t("documents.detail.breadcrumb_work_product") }))
+      .toHaveAttribute("href", "/acme/doi/projects/wp1");
+    expect(screen.queryByRole("link", { name: t("documents.detail.breadcrumb_library") })).toBeNull();
+    expect(
+      screen.getByRole("button", { name: t("documents.detail.back_to_owner") }),
+    ).toBeInTheDocument();
+  });
+
+  it("never guesses a URL for an owned document's owner chain", async () => {
+    requestMock.mockResolvedValue({
+      document: pageDocument({ owner_kind: "work_product", owner_id: "wp1", breadcrumbs: [] }),
+    });
+    // Until C-14 ships a work-product route the app passes no ownerHref.
+    renderView();
+
+    const crumb = await screen.findByText(t("documents.detail.breadcrumb_work_product"));
+    expect(crumb.closest("a")).toBeNull();
+    expect(
+      screen.queryByRole("link", { name: t("documents.detail.breadcrumb_library") }),
+    ).toBeNull();
+    // The library does not list owned documents, so it is not offered as a
+    // way back either.
+    expect(
+      screen.queryByRole("button", { name: t("documents.detail.back_to_library") }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: t("documents.detail.back_to_owner") })).toBeNull();
   });
 
   it("keeps a view-only document readable but not editable", async () => {

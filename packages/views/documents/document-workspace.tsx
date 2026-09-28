@@ -19,6 +19,7 @@ import {
 } from "@uniwork/ui/components/ui/dialog";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
+import type { BreadcrumbSegment } from "../layout/breadcrumb-header";
 import { PAGE_GUTTER, PAGE_LEADING_ICON } from "../layout/page-header";
 import { Notice } from "../common/notice";
 import { leaveGuardAllows, registerLeaveGuard, useNavigation } from "../navigation";
@@ -44,6 +45,18 @@ export interface DocumentWorkspaceProps {
   /** The library list, the one breadcrumb ancestor we can point at today. */
   libraryHref: string;
   /**
+   * Builds the URL of another document in this workspace, for the breadcrumb
+   * ancestors. Absent, ancestors stay out of the chain: a link is never
+   * pointed at a URL that does not address the ancestor.
+   */
+  documentHref?: (documentId: string) => string;
+  /**
+   * Builds the URL of the Work Product that owns this document. Owned
+   * documents are not in the library at all (C-01 §13.5), so their chain
+   * starts at the owner page.
+   */
+  ownerHref?: (ownerId: string) => string;
+  /**
    * Actions the detail host adds to the header (G1-08's menu). Rendered
    * before the save indicator so the menu is the last, stable control.
    */
@@ -67,7 +80,15 @@ export interface DocumentWorkspaceProps {
  * revision. A callback from the previous document can therefore never write
  * into the next one.
  */
-export function DocumentWorkspace({ wsId, doc, libraryHref, headerActions, refetch }: DocumentWorkspaceProps) {
+export function DocumentWorkspace({
+  wsId,
+  doc,
+  libraryHref,
+  documentHref,
+  ownerHref,
+  headerActions,
+  refetch,
+}: DocumentWorkspaceProps) {
   const { t } = useTranslation();
   const { push } = useNavigation();
   const save = useDocumentSave(wsId, doc.id, doc.revision);
@@ -320,22 +341,52 @@ export function DocumentWorkspace({ wsId, doc, libraryHref, headerActions, refet
     return t("documents.save.unsaved");
   })();
 
+  // Breadcrumbs (C-01 §7.1, FE design §4.1): the library, then every ancestor
+  // the server proved readable — `document.breadcrumbs` stops at the first
+  // ancestor the caller cannot read, and the client invents no link of its
+  // own. A Work Product owns its documents: they are not in the library, so
+  // their chain starts at the owner page. Until that owner surface (C-14)
+  // ships a route, the owner crumb stays a label instead of a guessed URL
+  // (FE r1 FE-02), and the back control is not offered to the library either.
+  const owned = Boolean(doc.owner_id);
+  const ownerCrumbHref = owned && doc.owner_id && ownerHref ? ownerHref(doc.owner_id) : null;
+  const ownerCrumb: BreadcrumbSegment[] = owned
+    ? [{ href: ownerCrumbHref ?? undefined, label: t("documents.detail.breadcrumb_work_product") }]
+    : [];
+  const breadcrumbSegments: BreadcrumbSegment[] = owned
+    ? ownerCrumb
+    : [
+        { href: libraryHref, label: t("documents.detail.breadcrumb_library") },
+        ...(documentHref
+          ? (doc.breadcrumbs ?? [])
+              .filter((crumb) => crumb.id)
+              .map((crumb) => ({ href: documentHref(crumb.id), label: crumb.title }))
+          : []),
+      ];
+  /** Owner route when there is one; otherwise no back control for owned docs. */
+  const backHref = ownerCrumbHref ?? (owned ? null : libraryHref);
+  const backLabel = ownerCrumbHref
+    ? t("documents.detail.back_to_owner")
+    : t("documents.detail.back_to_library");
+
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <BreadcrumbHeader
         leading={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className={PAGE_LEADING_ICON}
-            aria-label={t("documents.detail.back_to_library")}
-            onClick={() => navigate(libraryHref)}
-          >
-            <ArrowLeft aria-hidden className="size-4" />
-          </Button>
+          backHref ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className={PAGE_LEADING_ICON}
+              aria-label={backLabel}
+              onClick={() => navigate(backHref)}
+            >
+              <ArrowLeft aria-hidden className="size-4" />
+            </Button>
+          ) : undefined
         }
-        segments={[{ href: libraryHref, label: t("documents.detail.breadcrumb_library") }]}
+        segments={breadcrumbSegments}
         leaf={
           <span className="truncate font-medium text-foreground">
             {doc.title || t("documents.detail.untitled")}

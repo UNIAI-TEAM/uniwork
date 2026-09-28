@@ -18,6 +18,16 @@ export interface DocumentDetailViewProps {
   documentId: string;
   /** The library list, the one breadcrumb ancestor we can point at today. */
   libraryHref: string;
+  /**
+   * Builds the URL of another document in this workspace, for the breadcrumb
+   * ancestors the server proved readable. Absent, ancestors are not linked.
+   */
+  documentHref?: (documentId: string) => string;
+  /**
+   * Builds the URL of the Work Product that owns this document; an owned
+   * document's chain starts there instead of the library (C-01 §13.5).
+   */
+  ownerHref?: (ownerId: string) => string;
   /** Called when the caller should go back to the library. */
   onBackToList: () => void;
 }
@@ -34,6 +44,8 @@ export function DocumentDetailView({
   wsId,
   documentId,
   libraryHref,
+  documentHref,
+  ownerHref,
   onBackToList,
 }: DocumentDetailViewProps) {
   const { t } = useTranslation();
@@ -127,12 +139,14 @@ export function DocumentDetailView({
           wsId={wsId}
           doc={query.data}
           libraryHref={libraryHref}
+          documentHref={documentHref}
+          ownerHref={ownerHref}
           refetch={() => query.refetch()}
           headerActions={
             <DocumentActionsMenu
               wsId={wsId}
               doc={query.data}
-              documentHrefFor={(id) => `${libraryHref}/${id}`}
+              documentHrefFor={documentHref ?? ((id) => `${libraryHref}/${id}`)}
               onArchived={onBackToList}
             />
           }
