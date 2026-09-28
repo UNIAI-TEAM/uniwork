@@ -30,6 +30,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/metrics"
 	"github.com/unicomhub/uniwork/server/internal/notification"
+	"github.com/unicomhub/uniwork/server/internal/office"
 	"github.com/unicomhub/uniwork/server/internal/outbox"
 	"github.com/unicomhub/uniwork/server/internal/realtime"
 	"github.com/unicomhub/uniwork/server/internal/service"
@@ -250,6 +251,9 @@ func main() {
 	fileSvc, err := service.NewFileService(service.FileServiceOptions{
 		Pool: pool, Store: objectStore, Bucket: storageCfg.Bucket(),
 		ReferenceProviders: service.FileReferenceProviders(chatSvc, meetingSvc),
+		// storage.bytes reservations for the Document purposes (G1-03): the
+		// hook ignores every other purpose.
+		Quota: service.NewEntitlementService(pool, q),
 	})
 	if err != nil {
 		log.Error("file service", "err", err)
@@ -273,6 +277,40 @@ func main() {
 		os.Exit(1)
 	}
 	fileGC := fileSvc.NewFileGCWorker()
+	// Office engine jobs (G2-02). No OFFICE_ENGINE_URL means no engine is
+	// deployed: office jobs are refused and nothing else depends on it - the
+	// engine is never part of /readyz, so an outage cannot take Documents
+	// list/download down with it.
+	officeCfg := office.ConfigFromEnv()
+	var officeEngine service.OfficeEngine
+	if officeCfg.Enabled() {
+		client, err := office.NewClient(officeCfg, nil)
+		if err != nil {
+			log.Error("office engine", "err", err)
+			os.Exit(1)
+		}
+		officeEngine = client
+	}
+	var officeMetrics service.OfficeMetrics
+	if reg != nil {
+		officeMetrics = reg.Office
+	}
+	// Office commands authorize through the document ACL (G1-02), so the
+	// office service holds the same DocumentService the document routes use.
+	documentSvc := service.NewDocumentService(pool, q, orgSvc, wsSvc)
+	documentSvc.SetFiles(fileSvc)
+	documentSvc.SetEntitlements(service.NewEntitlementService(pool, q))
+	if reg != nil {
+		documentSvc.SetMetrics(reg.Documents)
+	}
+	// The document maintenance worker (auto-version, purge, compaction -
+	// G1-04b) runs on the same service the routes use; it is awaited in the
+	// shutdown sequence below, so a sweep never outlives the process.
+	docWorkers := documentSvc.NewDocumentWorkers()
+	officeSvc := service.NewDocumentOfficeService(service.DocumentOfficeOptions{
+		Pool: pool, Queries: q, Files: fileSvc, Engine: officeEngine, Documents: documentSvc, Metrics: officeMetrics,
+		MaxDeadline: officeCfg.MaxJobDeadline, ReconcileInterval: officeCfg.ReconcileInterval, Log: log,
+	})
 	// One dispatcher drains outbox_events for the whole process. Registering a
 	// consumer is the only thing a new bounded context has to do to receive
 	// domain events; nothing here knows what produced them.
@@ -293,6 +331,13 @@ func main() {
 	// delivers notification.push, and two jobs (digest, reminder) run beside
 	// them. VAPID keys missing means push is off, not broken.
 	notifConsumer := notification.NewConsumer(pool, q, wsSvc)
+	// Document read permission is a DocumentService decision; the consumer
+	// gets the resolver injected so notification never imports the service
+	// package (G1-07).
+	docSvc := service.NewDocumentService(pool, q, orgSvc, wsSvc)
+	docSvc.SetEntitlements(service.NewEntitlementService(pool, q))
+	docSvc.SetFiles(fileSvc)
+	notifConsumer.SetDocumentReaders(docSvc)
 	var pushSender notification.PushSender
 	if cfg.PushEnabled() {
 		pushSender = notification.WebPushSender{PublicKey: cfg.VAPIDPublicKey, PrivateKey: cfg.VAPIDPrivateKey, Subject: cfg.VAPIDSubject}
@@ -327,6 +372,14 @@ func main() {
 	// in the shutdown sequence below, so a sweep never outlives the process.
 	fileGCDone := make(chan struct{})
 	go func() { fileGC.Run(runCtx); close(fileGCDone) }()
+	// The document worker (auto-version, purge, compaction) stops with
+	// runCancel and is awaited below like the file collector.
+	docWorkersDone := make(chan struct{})
+	go func() { docWorkers.Run(runCtx); close(docWorkersDone) }()
+	// The office reconciler settles jobs the engine finished, lost or timed
+	// out; it stops with runCancel and is awaited below.
+	officeDone := make(chan struct{})
+	go func() { officeSvc.RunReconciler(runCtx); close(officeDone) }()
 	// Google needs both credentials; discovery runs once here. A failed
 	// discovery leaves Google off rather than taking the API down with it.
 	var google handler.GoogleExchanger
@@ -405,6 +458,8 @@ func main() {
 		Bus:                 bus,
 		Storage:             store,
 		FileAccess:          fileAccess,
+		Documents:           docSvc,
+		Office:              officeSvc,
 		MembershipCache:     membershipCache,
 		HTTPMetrics:         httpMetrics,
 		WebVitals:           webVitals(reg),
@@ -477,6 +532,16 @@ func main() {
 	case <-fileGCDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("files: gc worker did not stop in time")
+	}
+	select {
+	case <-docWorkersDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("documents: maintenance worker did not stop in time")
+	}
+	select {
+	case <-officeDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("office: reconciler did not stop in time")
 	}
 	if relay != nil {
 		relay.Stop()

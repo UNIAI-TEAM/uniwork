@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/jackc/pgx/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/mentions"
 	"github.com/unicomhub/uniwork/server/internal/outbox"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -20,6 +22,16 @@ import (
 // longer a member gets nothing.
 type MemberChecker interface {
 	RequireMember(ctx context.Context, workspaceID, userID string) (db.WorkspaceMember, error)
+}
+
+// DocumentReadChecker is the document permission port the document comment
+// rules filter recipients through: a person is only notified while they can
+// read the document right now. DocumentService implements it; it is
+// injected through SetDocumentReaders so this package never imports
+// internal/service (arch test).
+type DocumentReadChecker interface {
+	CanReadDocument(ctx context.Context, userID, documentID string) (bool, error)
+	FilterDocumentReaders(ctx context.Context, documentID string, userIDs []string) ([]string, error)
 }
 
 // Draft is a notification a rule wants to create for one user. The consumer
@@ -37,10 +49,12 @@ type Draft struct {
 	Params         map[string]string
 }
 
-// env is what a rule may touch: read queries and the membership gate.
+// env is what a rule may touch: read queries, the membership gate and the
+// injected document-read resolver.
 type env struct {
 	q       *db.Queries
 	members MemberChecker
+	docs    DocumentReadChecker
 }
 
 // rule turns one outbox row into drafts. Rules are pure apart from reads; the
@@ -50,6 +64,7 @@ type rule func(ctx context.Context, e env, ev outbox.Row, p map[string]string) (
 var rules = map[string]rule{
 	"task.updated":           ruleTaskUpdated,
 	"task.comment_added":     ruleTaskCommentAdded,
+	"document.comment_added": ruleDocumentCommentAdded,
 	"participant.invited":    ruleParticipantInvited,
 	"member.joined":          ruleMemberJoined,
 	"member.role_changed":    ruleRoleChanged,
@@ -294,6 +309,114 @@ func ruleTaskCommentAdded(ctx context.Context, e env, ev outbox.Row, p map[strin
 		}
 	}
 	out = append(out, r.drafts(orgID, KindTaskCommented, "task:"+task.ID+":commented", "task", task.ID, params)...)
+	return out, nil
+}
+
+// sortedKeys keeps the candidate scan (and so the draft order) deterministic.
+func sortedKeys(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		if k != "" {
+			out = append(out, k)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// ruleDocumentCommentAdded turns a document comment into mention and
+// commented notifications. Every candidate - the mentioned ids, the ACL
+// owner, every earlier human commenter - goes through the injected
+// FilterDocumentReaders at delivery time, so a share revoked between the
+// comment and this run yields no row and no stored snippet; a direct-share
+// recipient in another workspace still gets it while the share holds, which
+// is why this rule does not gate on workspace membership.
+func ruleDocumentCommentAdded(ctx context.Context, e env, ev outbox.Row, p map[string]string) ([]Draft, error) {
+	if e.docs == nil {
+		// No document permission port wired: silent beats leaking a snippet
+		// to someone who cannot read the document.
+		return nil, nil
+	}
+	doc, err := e.q.GetDocumentByID(ctx, p["document_id"])
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	// The id came from the event payload: only trust a document that lives
+	// in the event's own tenant pair.
+	if (ev.OrganizationID.Valid && doc.OrganizationID != ev.OrganizationID.String) ||
+		(ev.WorkspaceID.Valid && doc.WorkspaceID != ev.WorkspaceID.String) {
+		return nil, nil
+	}
+	comment, err := e.q.GetDocumentComment(ctx, db.GetDocumentCommentParams{
+		ID: p["comment_id"], OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil // deleted between the event and this delivery
+	}
+	if err != nil {
+		return nil, err
+	}
+	comments, err := e.q.ListDocumentComments(ctx, db.ListDocumentCommentsParams{
+		DocumentID: doc.ID, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	mentioned := mentions.MemberIDs(comment.Body)
+	mentionedSet := map[string]bool{}
+	candidates := map[string]bool{}
+	for _, uid := range mentioned {
+		mentionedSet[uid] = true
+		candidates[uid] = true
+	}
+	for _, c := range comments {
+		if c.AuthorKind == string(audit.KindHuman) {
+			candidates[c.AuthorID] = true
+		}
+	}
+	if doc.AclOwnerID.Valid {
+		candidates[doc.AclOwnerID.String] = true
+	}
+	readers, err := e.docs.FilterDocumentReaders(ctx, doc.ID, sortedKeys(candidates))
+	if err != nil {
+		return nil, err
+	}
+	readable := map[string]bool{}
+	for _, uid := range readers {
+		readable[uid] = true
+	}
+	isActor := func(uid string) bool {
+		return ev.ActorKind.String == string(audit.KindHuman) && ev.ActorID.String == uid
+	}
+	params := map[string]string{"actor": actorName(ctx, e.q, ev), "document": doc.Title, "snippet": snippet(comment.Body)}
+
+	var out []Draft
+	for _, uid := range mentioned {
+		if !readable[uid] || isActor(uid) {
+			continue
+		}
+		out = append(out, Draft{
+			UserID: uid, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+			Kind: KindDocumentMentioned, GroupKey: "document:" + doc.ID + ":mention:" + comment.ID,
+			ResourceType: "document", ResourceID: doc.ID,
+			ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: params,
+		})
+	}
+	for _, uid := range sortedKeys(candidates) {
+		if mentionedSet[uid] || !readable[uid] || isActor(uid) {
+			continue
+		}
+		out = append(out, Draft{
+			UserID: uid, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+			Kind: KindDocumentCommented, GroupKey: "document:" + doc.ID + ":commented",
+			ResourceType: "document", ResourceID: doc.ID,
+			ActorKind: actorKindOf(ev), ActorID: ev.ActorID.String, Params: params,
+		})
+	}
 	return out, nil
 }
 

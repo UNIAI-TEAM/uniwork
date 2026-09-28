@@ -21,9 +21,10 @@ type FileID string
 // before a byte is read.
 type UploadPurpose string
 
-// The purposes FS-C1 v1 declares. Documents and Office are declared here but
-// stay disabled in DefaultRegistry until their policy and reference providers
-// exist (FS-C1 section 5.6); nothing may assume a purpose is open.
+// The purposes FS-C1 v1 declares. A purpose opens in DefaultRegistry only
+// together with its policy and reference providers (FS-C1 section 5.6); the
+// Document purposes opened with G1-03 (UNI-677). Nothing may assume a purpose
+// is open: the registry answers.
 const (
 	UserAvatar            UploadPurpose = "user_avatar"
 	TaskAttachment        UploadPurpose = "task_attachment"

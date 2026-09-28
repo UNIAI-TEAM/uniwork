@@ -101,6 +101,40 @@ func managedFileReferenceSources() []FileReferenceSource {
 			},
 		},
 		{
+			Table: "document_versions", Column: "file_id", Provider: DocumentVersionReferenceProvider{}.Name(),
+			tenants: func(ctx context.Context, q *db.Queries, ids []string) ([]fileReferenceTenant, error) {
+				rows, err := q.FileGCDocumentVersionRefTenants(ctx, ids)
+				out := make([]fileReferenceTenant, 0, len(rows))
+				for _, r := range rows {
+					out = append(out, knownTenant(r.FileID, r.OrganizationID))
+				}
+				return out, err
+			},
+		},
+		{
+			Table: "document_assets", Column: "file_id", Provider: DocumentAssetReferenceProvider{}.Name(),
+			tenants: func(ctx context.Context, q *db.Queries, ids []string) ([]fileReferenceTenant, error) {
+				rows, err := q.FileGCDocumentAssetRefTenants(ctx, ids)
+				out := make([]fileReferenceTenant, 0, len(rows))
+				for _, r := range rows {
+					out = append(out, fileReferenceTenant{FileID: files.FileID(r.FileID), OrganizationID: r.OrganizationID, Known: strings.TrimSpace(r.OrganizationID) != ""})
+				}
+				return out, err
+			},
+		},
+		{
+			// Office engine output (G2-02): held while its job is live.
+			Table: "office_jobs", Column: "output_file_id", Provider: OfficeJobOutputProvider{}.Name(),
+			tenants: func(ctx context.Context, q *db.Queries, ids []string) ([]fileReferenceTenant, error) {
+				rows, err := q.FileGCOfficeJobRefTenants(ctx, ids)
+				out := make([]fileReferenceTenant, 0, len(rows))
+				for _, r := range rows {
+					out = append(out, knownTenant(r.OutputFileID, r.OrganizationID))
+				}
+				return out, err
+			},
+		},
+		{
 			Table: "meeting_recordings", Column: "file_id", Provider: MeetingRecordingProvider{}.Name(),
 			tenants: func(ctx context.Context, q *db.Queries, ids []string) ([]fileReferenceTenant, error) {
 				rows, err := q.FileGCMeetingRecordingRefTenants(ctx, ids)

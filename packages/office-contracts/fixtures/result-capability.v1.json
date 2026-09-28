@@ -1,0 +1,20 @@
+{
+  "fixture": "uniwork-office-contract-fixture/result-capability@1",
+  "description": "A capability result as the engine reports it; the product projection must demote the pending row (pending proof never becomes supported=true).",
+  "value": {
+    "job_id": "JOB00000000000000000000001",
+    "state": "completed",
+    "operation": "capability",
+    "format": "docx",
+    "capabilities": [
+      { "operation": "open", "supported": true, "runtime": "worker", "evidence_level": "proven" },
+      { "operation": "edit", "supported": true, "runtime": "worker", "evidence_level": "source_read" },
+      { "operation": "serialize", "supported": true, "runtime": "worker", "evidence_level": "pending" },
+      { "operation": "convert", "supported": false, "runtime": "none", "evidence_level": "pending" }
+    ],
+    "limits": { "max_input_bytes": 67108864, "max_edit_ops": 20000 }
+  },
+  "expected": {
+    "product_supported": { "open": true, "edit": false, "serialize": false, "convert": false }
+  }
+}

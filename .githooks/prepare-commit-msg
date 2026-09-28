@@ -16,19 +16,19 @@ key="$(printf '%s' "$branch" | grep -oE 'UNI-[0-9]+' | head -n1 || true)"
 grep -qE "^Refs: $key\b" "$msg_file" && exit 0
 
 # Append after the message, keeping any comment lines git added at the end.
-python3 - "$msg_file" "$key" <<'PY'
-import sys
-path, key = sys.argv[1], sys.argv[2]
-lines = open(path, encoding="utf-8").read().split("\n")
-body, comments = [], []
-for i, l in enumerate(lines):
-    if l.startswith("#"):
-        body, comments = lines[:i], lines[i:]
-        break
-else:
-    body = lines
-while body and body[-1].strip() == "":
-    body.pop()
-body += ["", f"Refs: {key}", ""]
-open(path, "w", encoding="utf-8").write("\n".join(body + comments))
-PY
+# Pure awk (no python3): Git for Windows ships awk but not python3.
+tmp="$msg_file.refs.$$"
+awk -v key="$key" '
+  !incomments && /^#/ { incomments = 1 }
+  incomments { comments[++nc] = $0; next }
+  { body[++nb] = $0 }
+  END {
+    while (nb > 0 && body[nb] ~ /^[ \t\r]*$/) nb--
+    for (i = 1; i <= nb; i++) print body[i]
+    print ""
+    print "Refs: " key
+    if (nc > 0) print ""
+    for (i = 1; i <= nc; i++) print comments[i]
+  }
+' "$msg_file" > "$tmp"
+mv "$tmp" "$msg_file"

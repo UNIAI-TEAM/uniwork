@@ -27,7 +27,7 @@ và [brand/integration](../../office/g0/uniwork-office-integration-brand.md).
 
 Các bổ sung G1/G2 tại commit `215b9527` trên `feature/UNI-657-documents-office-g1-g2`
 được dùng làm đầu vào: plan `docs/superpowers/plans/2026-09-18-documents-office-g1-g2.md`
-cập nhật 27/09, C-01 §14, ADR 0022 accepted và `docs/office/g1g2/fs-c1-alignment.md`.
+cập nhật 27/09, C-01 §14, ADR 0024 accepted và `docs/office/g1g2/fs-c1-alignment.md`.
 Chúng chưa nằm hết trong baseline checkout spec; phải tích hợp dependency trước
 implementation, không sao chép lại hoặc sửa nhánh đang chạy của G1/G2.
 

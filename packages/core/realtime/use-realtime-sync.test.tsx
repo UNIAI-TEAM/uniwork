@@ -655,6 +655,103 @@ describe("useRealtimeSync", () => {
     expect(qc.getQueryData(chatKeys.roomMessages("ws1", "dm1"))).toEqual(messages);
   });
 
+  // Documents frames are ids-only: the workspace root is the prefix of every
+  // document key (detail, versions, downloadMeta), so each of the nine wired
+  // topics pushes exactly that root.
+  describe("documents", () => {
+    const docRoot = JSON.stringify(["documents", "ws1"]);
+
+    it.each([
+      "document.created",
+      "document.updated",
+      "document.version_created",
+      "document.shared",
+      "document.share_revoked",
+      "document.link_created",
+      "document.link_revoked",
+      "document.favorited",
+      "document.unfavorited",
+    ] as const)("invalidates the workspace documents root on %s", (type) => {
+      vi.useFakeTimers();
+      const { invalidate, client } = setup();
+      client.emit({ type, payload: { document_id: "d1", workspace_id: "ws1" } } as WSMessage);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(keysCalled(invalidate)).toContain(docRoot);
+    });
+
+    it("ignores a document frame stamped with another workspace", () => {
+      vi.useFakeTimers();
+      const { invalidate, client } = setup();
+      client.emit({
+        type: "document.updated",
+        payload: { document_id: "d1", workspace_id: "ws2" },
+      } as WSMessage);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(keysCalled(invalidate)).not.toContain(docRoot);
+    });
+
+    // Comment frames change nothing but the thread: exactly the comment key of
+    // the document the frame names is invalidated, never the document root.
+    it.each([
+      "document.comment_added",
+      "document.comment_updated",
+      "document.comment_deleted",
+      "document.comment_resolved",
+      "document.comment_unresolved",
+      "document.comment_reaction_added",
+      "document.comment_reaction_removed",
+    ] as const)("invalidates only the comment key on %s", (type) => {
+      vi.useFakeTimers();
+      const { invalidate, client } = setup();
+      client.emit({
+        type,
+        payload: { document_id: "d1", comment_id: "c1", workspace_id: "ws1" },
+      } as WSMessage);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      const keys = keysCalled(invalidate);
+      expect(keys).toContain(JSON.stringify(["documents", "ws1", "doc", "d1", "comments"]));
+      expect(keys).not.toContain(docRoot);
+      vi.useRealTimers();
+    });
+
+    it("ignores a comment frame stamped with another workspace", () => {
+      vi.useFakeTimers();
+      const { invalidate, client } = setup();
+      client.emit({
+        type: "document.comment_added",
+        payload: { document_id: "d1", comment_id: "c1", workspace_id: "ws2" },
+      } as WSMessage);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(keysCalled(invalidate).filter((k) => k.startsWith('["documents"'))).toEqual([]);
+      vi.useRealTimers();
+    });
+
+    it.each(["document.favorited", "document.unfavorited"] as const)(
+      "refreshes the favorites prefix on %s",
+      (type) => {
+        vi.useFakeTimers();
+        const { invalidate, client } = setup();
+        client.emit({
+          type,
+          payload: { document_id: "d1", workspace_id: "ws1" },
+        } as WSMessage);
+        act(() => {
+          vi.advanceTimersByTime(250);
+        });
+        expect(keysCalled(invalidate)).toContain(JSON.stringify(["documents", "favorites"]));
+        vi.useRealTimers();
+      },
+    );
+  });
+
   it("invalidates workspace keys and open chat timelines after a reconnect", () => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();
@@ -678,6 +775,7 @@ describe("useRealtimeSync", () => {
         JSON.stringify(["meetings", "ws1"]),
         JSON.stringify(["meeting-stats", "ws1"]),
         JSON.stringify(["meeting-join-requests"]),
+        JSON.stringify(["documents", "ws1"]),
       ]),
     );
   });

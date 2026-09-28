@@ -31,10 +31,14 @@ function workspaceRoot() {
   }
 }
 
-/** A fresh scratch dir under the workspace tmp; the parent is created first. */
+/**
+ * A fresh scratch dir under the workspace tmp; the parent is created first.
+ * OFFICE_G0_TEST_TMP wins when set (lab runs keep scratch inside the owned
+ * .uniwork-dev tree); a clean checkout falls back to the gitignored .go-tmp so
+ * the publication tests run without any prepared workspace beside the repo.
+ */
 function scratchRoot(prefix) {
-  const parent = process.env.OFFICE_G0_TEST_TMP;
-  if (!parent) throw new Error('OFFICE_G0_TEST_TMP must point inside the owned package');
+  const parent = process.env.OFFICE_G0_TEST_TMP ?? join(REPO_ROOT, '.go-tmp', 'office-g0-test', 'pdf-save-report');
   mkdirSync(parent, { recursive: true });
   return mkdtempSync(join(parent, prefix));
 }

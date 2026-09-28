@@ -3,6 +3,10 @@
 > **Trạng thái:** in-progress — bàn giao Task 2 (2026-09-16) theo plan G0.
 > Đây là **manifest và bộ mẫu**, không phải bằng chứng đã chạy: mọi ô năng lực vẫn
 > ở trạng thái `chưa thử` vì chưa editor nào được thực thi.
+> **Cập nhật 2026-09-26:** câu trên đúng cho lúc bàn giao Task 2. Sau đó DOC-003 đã chạy và nghiệm thu sáu
+> chu trình lõi (hàng `E-*-CYCLE` trong `evidence-register.json`, G0 = GO ngày 2026-09-25). Các ô Q1-B trong
+> `capabilities.json` chưa được cập nhật từ những lần chạy đó: register vẫn đếm 0/95 ô đã xác minh trên web và
+> desktop, và đó không phải cổng G0.
 
 **Issue:** UNI-666 (DOC-002) · **Parent:** UNI-656 · **Kế tiếp:** UNI-667 (DOC-003), UNI-668 (DOC-004), UNI-669 (DOC-005).
 **Plan:** `docs/superpowers/plans/2026-09-16-documents-office-g0.md` Task 2.

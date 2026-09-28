@@ -9,36 +9,19 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/unicomhub/uniwork/server/internal/mentions"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-var (
-	chatMentionMemberPattern = regexp.MustCompile(`mention://member/([A-Z0-9]+)`)
-	chatMentionAllPattern    = regexp.MustCompile(`mention://all/all`)
-)
+var chatMentionAllPattern = regexp.MustCompile(`mention://all/all`)
 
 func parseMentionUserIDsFromBody(body string) (memberIDs []string, mentionsAll bool) {
 	if body == "" {
 		return nil, false
 	}
-	mentionsAll = chatMentionAllPattern.MatchString(body)
-	seen := map[string]struct{}{}
-	for _, match := range chatMentionMemberPattern.FindAllStringSubmatch(body, -1) {
-		if len(match) < 2 {
-			continue
-		}
-		id := strings.ToUpper(strings.TrimSpace(match[1]))
-		if id == "" {
-			continue
-		}
-		if _, ok := seen[id]; ok {
-			continue
-		}
-		seen[id] = struct{}{}
-		memberIDs = append(memberIDs, id)
-	}
-	sort.Strings(memberIDs)
-	return memberIDs, mentionsAll
+	// The member-link grammar is shared (chat_mentions delegates); the
+	// room-wide mention stays chat-local.
+	return mentions.MemberIDs(body), chatMentionAllPattern.MatchString(body)
 }
 
 func (s *ChatService) resolveMentionRecipients(

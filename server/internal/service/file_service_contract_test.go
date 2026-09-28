@@ -3,6 +3,7 @@ package service
 import (
 	"testing"
 
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/files/filescontract"
 )
 
@@ -13,6 +14,16 @@ func TestFileServiceContractLocal(t *testing.T) {
 	backend := localFileBackend()
 	filescontract.Run(t, filescontract.FactoryFunc(func(t *testing.T) filescontract.Harness {
 		return newFileHarness(t, backend, nil).contract()
+	}))
+}
+
+// TestFileServiceContractLocalWithADisabledPurpose keeps the
+// file_purpose_disabled case on the real service now that every default
+// purpose is open (G1-03 opened the Document purposes).
+func TestFileServiceContractLocalWithADisabledPurpose(t *testing.T) {
+	backend := localFileBackend()
+	filescontract.Run(t, filescontract.FactoryFunc(func(t *testing.T) filescontract.Harness {
+		return newFileHarness(t, backend, registryWithDisabled(t, files.DocumentAsset)).contract()
 	}))
 }
 

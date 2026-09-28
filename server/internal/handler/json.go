@@ -21,11 +21,13 @@ func respondJSON(w http.ResponseWriter, status int, v any) {
 }
 
 func respondError(w http.ResponseWriter, status int, code, msg string) {
-	respondJSON(w, status, sdo.ErrorSDO{Error: sdo.ErrorDetail{Code: code, Message: msg}})
+	respondJSON(w, status, sdo.NewErrorSDO(code, msg))
 }
 
 func respondErrorFields(w http.ResponseWriter, status int, code, msg string, fields map[string]any) {
-	respondJSON(w, status, sdo.ErrorSDO{Error: sdo.ErrorDetail{Code: code, Message: msg, Fields: fields}})
+	body := sdo.NewErrorSDO(code, msg)
+	body.Error.Fields = fields
+	respondJSON(w, status, body)
 }
 
 // decode reads a JSON body into dst, bounded by limit bytes. On failure it

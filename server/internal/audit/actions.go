@@ -117,6 +117,52 @@ const (
 
 	ActionSubscriptionChanged = "subscription.changed"
 
+	// Documents (UNI-675): created today through the owner seam
+	// (C-01 §13.5); the public page/file commands add their own rows as
+	// those lands (G1-04+).
+	ActionDocumentCreated = "document.created"
+	// G1-03 (UNI-677): a file version committed from a staged upload, a
+	// binary restore pointing back to an earlier file, and a page asset.
+	ActionDocumentVersionCreated  = "document.version_created"
+	ActionDocumentVersionRestored = "document.version_restored"
+	ActionDocumentAssetUploaded   = "document.asset_uploaded"
+
+	// Document access (UNI-676): shares and public links on one document,
+	// and the organization's public-link switch.
+	ActionDocumentShared          = "document.shared"
+	ActionDocumentShareRevoked    = "document.share_revoked"
+	ActionDocumentLinkCreated     = "document.link_created"
+	ActionDocumentLinkRevoked     = "document.link_revoked"
+	ActionDocumentSettingsChanged = "document.settings_changed"
+
+	// Document comments + favorites (UNI-681): the document half of the
+	// shared comment core. The reaction actions stay document-scoped so
+	// the outbox payload carries document_id, not a probed task_id.
+	ActionDocumentCommentAdded           = "document.comment_added"
+	ActionDocumentCommentUpdated         = "document.comment_updated"
+	ActionDocumentCommentDeleted         = "document.comment_deleted"
+	ActionDocumentCommentResolved        = "document.comment_resolved"
+	ActionDocumentCommentUnresolved      = "document.comment_unresolved"
+	ActionDocumentCommentReactionAdded   = "document.comment_reaction_added"
+	ActionDocumentCommentReactionRemoved = "document.comment_reaction_removed"
+	ActionDocumentFavorited              = "document.favorited"
+	ActionDocumentUnfavorited            = "document.unfavorited"
+
+	// Pages (UNI-678, G1-04a): a PATCH of title, icon, visibility or the
+	// working copy. Metadata only - the page JSON never reaches audit.
+	ActionDocumentUpdated = "document.updated"
+
+	// Document tree and lifecycle (UNI-678, G1-04b): a move, the archive
+	// and restore of a batch (one row per affected document, the batch id
+	// in metadata), the retention purge of a document and the version
+	// compaction sweep of the maintenance worker.
+	ActionDocumentMoved             = "document.moved"
+	ActionDocumentArchived          = "document.archived"
+	ActionDocumentRestored          = "document.restored"
+	ActionDocumentDeleted           = "document.deleted"
+	ActionDocumentVersionsCompacted = "document.versions_compacted"
+	ActionDocumentAssetPurged       = "document.asset_purged"
+
 	// Platform admin (F-11). The actor is a platform_role holder, or "cli"
 	// for uniwork-admin; admin_actions carries the reason beside the row.
 	ActionOrganizationSuspended   = "organization.suspended"

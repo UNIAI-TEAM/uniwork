@@ -68,6 +68,40 @@ const LinkExtension = Link.extend({ inclusive: false }).configure({
   shouldAutoLink,
 });
 
+/**
+ * Stacks both editor flavors share: the code block view and the wrapped table
+ * (`renderWrapper` emits the `<div class="tableWrapper">` prose.css gives
+ * `overflow-x: auto`, so a wide table scrolls itself instead of dragging the
+ * page-level scroll container with it). Defined once so the Markdown editors
+ * and the page-document editor cannot drift apart.
+ */
+const CodeBlockExtension = CodeBlockLowlight.extend({
+  addNodeView() {
+    return ReactNodeViewRenderer(CodeBlockView);
+  },
+}).configure({ lowlight: codeLowlight });
+
+const TableExtension = Table.configure({ resizable: false, renderWrapper: true });
+
+/**
+ * Hrefs the page-document contract accepts (C-01 §3.7 `isSafeHref`, mirrored
+ * in packages/core/documents/schema.ts): https, mailto, or a root-absolute
+ * internal path, and nothing a browser would strip or reinterpret. An
+ * unrepresentable link is not offered at all, because the server drops it on
+ * save and the user would watch it disappear.
+ */
+function pageHrefAllowed(url: string): boolean {
+  if (!url.startsWith("https://") && !url.startsWith("mailto:") && !url.startsWith("/")) return false;
+  if (url.startsWith("//")) return false;
+  for (const c of url) {
+    const cp = c.codePointAt(0) ?? 0;
+    if (c === "\\" || cp < 0x20 || cp === 0x7f || (cp >= 0x80 && cp <= 0x9f) || cp === 0xfeff || /\s/u.test(c)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export const ImageExtension = Image.extend({
   addAttributes() {
     return {
@@ -229,22 +263,13 @@ export function createEditorExtensions(
     // `- ` still falls through to PatchedListItem's bullet list.
     TaskList,
     PatchedTaskItem,
-    CodeBlockLowlight.extend({
-      addNodeView() {
-        return ReactNodeViewRenderer(CodeBlockView);
-      },
-    }).configure({ lowlight: codeLowlight }),
+    CodeBlockExtension,
     // ⚠️ Link MUST appear before markdownPaste in this array.
     // linkOnPaste relies on Link's handlePaste plugin firing first;
     // markdownPaste's handlePaste is a catch-all that returns true.
     LinkExtension,
     ImageExtension,
-    // renderWrapper wraps the table in `<div class="tableWrapper">` (the same
-    // wrapper the resizable NodeView emits), which prose.css styles with
-    // `overflow-x: auto`. Without it a wide table is a bare <table> that can't
-    // shrink below min-content, so the horizontal scrollbar lands on the
-    // page-level scroll container instead of the table itself.
-    Table.configure({ resizable: false, renderWrapper: true }),
+    TableExtension,
     TableRow,
     TableHeader,
     TableCell,
@@ -299,5 +324,80 @@ export function createEditorExtensions(
     }),
     createBlurShortcutExtension(),
     createFileUploadExtension(options.onUploadFileRef!, options.pasteAsFileThresholdRef),
+  ];
+}
+
+/**
+ * Page mentions carry the contract's `kind` (user | task | document | meeting)
+ * rather than the shared picker's `type`. The picker itself is not attached in
+ * the page editor yet: it emits `type` nodes with no `kind`, which the server
+ * sanitizer drops, so offering it would silently delete what the user picked.
+ * The node type stays registered so mentions that arrive from the API render
+ * as pills; kind-aware mention authoring lands with G1-07.
+ */
+const PageMentionExtension = BaseMentionExtension.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      // Rendered from the doc, never from HTML or Markdown: the page JSON is
+      // the only place a mention's kind lives.
+      kind: { default: null, rendered: false },
+    };
+  },
+});
+
+export interface PageDocumentExtensionsOptions {
+  /** Image node whose NodeView resolves `asset://{id}` at render time. */
+  image: AnyExtension;
+  /** Paste/drop handler turning image files into document assets. */
+  assetUpload: AnyExtension;
+  /** Placeholder text, or a getter — same contract as the Markdown flavor. */
+  placeholder?: string | (() => string);
+}
+
+/**
+ * The page-document editor's extension set (G1-06; C-01 §3.7).
+ *
+ * Same primitives as the Markdown editors above — one place defines the
+ * node/mark stack, the toolbar is the same `EditorBubbleMenu` — and different
+ * only where the page contract forces it:
+ *
+ *  - the closed vocabulary stops at H1-H3, keeps `underline` (a real mark in
+ *    the page JSON, dropped in Markdown because CommonMark cannot express it)
+ *    and has no highlight, math or file-card node;
+ *  - there is no Markdown extension in the pipeline: page content is parsed
+ *    and persisted as TipTap JSON, never JSON → Markdown → JSON;
+ *  - images are document assets: `asset://{id}` stays in the JSON and the
+ *    NodeView resolves a URL for display, so no presigned URL is ever
+ *    serialized.
+ */
+export function createPageDocumentExtensions(
+  options: PageDocumentExtensionsOptions,
+): AnyExtension[] {
+  return [
+    StarterKit.configure({
+      heading: { levels: [1, 2, 3] },
+      link: false,
+      codeBlock: false,
+      underline: {},
+      listItem: false,
+    }),
+    PatchedListItem,
+    TaskList,
+    PatchedTaskItem,
+    CodeBlockExtension,
+    LinkExtension.configure({ isAllowedUri: pageHrefAllowed }),
+    options.image,
+    TableExtension,
+    TableRow,
+    TableHeader,
+    TableCell,
+    SuggestionTriggerArmingExtension,
+    PageMentionExtension.configure({
+      HTMLAttributes: { class: "mention" },
+      suggestion: { allow: () => false },
+    }),
+    Placeholder.configure({ placeholder: options.placeholder }),
+    options.assetUpload,
   ];
 }

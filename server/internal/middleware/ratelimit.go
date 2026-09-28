@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
 
 // rateLimitScript atomically increments the counter and sets the TTL on
@@ -84,9 +86,7 @@ func RateLimit(rdb *redis.Client, limit int, window time.Duration, trustedProxie
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusTooManyRequests)
 				// Same envelope as handler.respondError; the client maps the code.
-				json.NewEncoder(w).Encode(map[string]map[string]string{
-					"error": {"code": "rate_limited", "message": "too many requests"},
-				})
+				_ = json.NewEncoder(w).Encode(sdo.NewErrorSDO("rate_limited", "too many requests"))
 				return
 			}
 

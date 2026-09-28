@@ -9,6 +9,7 @@ import (
 	"embed"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -381,9 +382,40 @@ func versions() ([]string, error) {
 			vs = append(vs, strings.TrimSuffix(e.Name(), ".up.sql"))
 		}
 	}
-	sort.Strings(vs)
+	sortVersions(vs)
 	return vs, nil
 }
+
+// sortVersions orders migrations by their numeric prefix, then by name. A
+// plain string sort puts 1010_x between 100_x and 101_x, i.e. before the
+// tables it alters, as soon as the numbering passes 999.
+func sortVersions(vs []string) {
+	sort.Slice(vs, func(i, j int) bool {
+		ni, nj := versionNumber(vs[i]), versionNumber(vs[j])
+		if ni != nj {
+			return ni < nj
+		}
+		return vs[i] < vs[j]
+	})
+}
+
+// versionNumber is the leading digits of a version; -1 when there are none.
+func versionNumber(v string) int64 {
+	end := 0
+	for end < len(v) && v[end] >= '0' && v[end] <= '9' {
+		end++
+	}
+	n, err := strconv.ParseInt(v[:end], 10, 64)
+	if err != nil {
+		return -1
+	}
+	return n
+}
+
+// newestVersionSQL picks the newest applied version with the same numeric
+// order as sortVersions.
+const newestVersionSQL = `SELECT version FROM schema_migrations
+	ORDER BY COALESCE(NULLIF(substring(version from '^[0-9]+'), ''), '-1')::bigint DESC, version DESC LIMIT 1`
 
 func Up(ctx context.Context, pool *pgxpool.Pool) error {
 	conn, err := pool.Acquire(ctx)
@@ -450,7 +482,7 @@ func Down(ctx context.Context, pool *pgxpool.Pool) error {
 	}
 	defer conn.Release()
 	var v string
-	err = conn.QueryRow(ctx, "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1").Scan(&v)
+	err = conn.QueryRow(ctx, newestVersionSQL).Scan(&v)
 	if err != nil {
 		return fmt.Errorf("nothing to roll back: %w", err)
 	}
@@ -502,6 +534,6 @@ func Latest() string {
 // Applied returns the newest version recorded in schema_migrations.
 func Applied(ctx context.Context, pool *pgxpool.Pool) (string, error) {
 	var v string
-	err := pool.QueryRow(ctx, "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1").Scan(&v)
+	err := pool.QueryRow(ctx, newestVersionSQL).Scan(&v)
 	return v, err
 }

@@ -53,7 +53,7 @@ func (s *TaskService) CreateTaskSuite(ctx context.Context, actor Actor, workspac
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
 
-	replay, commit, err := BeginIdempotent(ctx, q, ws.OrganizationID, workspaceID, idempotencyScopeTaskCreate, idempotencyKey, actor.ID)
+	replay, commit, err := BeginIdempotent(ctx, q, ws.OrganizationID, workspaceID, idempotencyScopeTaskCreate, idempotencyKey, actor.ID, IdempotencyOptions{})
 	if err != nil {
 		return db.Task{}, NormalizeIdempotencyError(err)
 	}

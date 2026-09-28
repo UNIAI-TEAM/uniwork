@@ -104,7 +104,7 @@ func (s *TaskService) loadAttachment(ctx context.Context, actor Actor, attachmen
 		return db.Attachment{}, err
 	}
 	if !att.TaskID.Valid && !att.CommentID.Valid {
-		if att.UploaderID != actor.ID || att.UploaderType != s.commentActorType(actor.Kind) {
+		if att.UploaderID != actor.ID || att.UploaderType != commentActorType(actor.Kind) {
 			return db.Attachment{}, ErrNotFound
 		}
 		if att.ExpiresAt.Valid && time.Now().After(att.ExpiresAt.Time) {
@@ -182,7 +182,7 @@ func (s *TaskService) uploadAttachment(ctx context.Context, actor Actor, organiz
 		return db.Attachment{}, err
 	}
 	safeName := safeAttachmentFilename(filename)
-	uploaderType := s.commentActorType(actor.Kind)
+	uploaderType := commentActorType(actor.Kind)
 	if uploaderType != "member" && uploaderType != "agent" {
 		return db.Attachment{}, ErrForbidden
 	}

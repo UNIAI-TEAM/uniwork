@@ -211,7 +211,15 @@ func (s *WorkspaceService) GetBySlugs(ctx context.Context, userID, orgSlug, wsSl
 // org chứa workspace (khi đó role hiệu lực là "admin"). Đây là nơi DUY NHẤT
 // quyết định quyền workspace — service khác không tự query workspace_members.
 func (s *WorkspaceService) RequireMember(ctx context.Context, workspaceID, userID string) (db.WorkspaceMember, error) {
-	access, err := s.q.GetWorkspaceAccess(ctx, db.GetWorkspaceAccessParams{ID: workspaceID, UserID: userID})
+	return s.RequireMemberQ(ctx, s.q, workspaceID, userID)
+}
+
+// RequireMemberQ is RequireMember read through q: a caller that already holds
+// a transaction passes its q so the gate reads on that connection (and that
+// snapshot) instead of borrowing a second one from the pool while it holds
+// row locks. Same decision, same errors.
+func (s *WorkspaceService) RequireMemberQ(ctx context.Context, q *db.Queries, workspaceID, userID string) (db.WorkspaceMember, error) {
+	access, err := q.GetWorkspaceAccess(ctx, db.GetWorkspaceAccessParams{ID: workspaceID, UserID: userID})
 	if errors.Is(err, pgx.ErrNoRows) || (err == nil && access.Role == "") {
 		return db.WorkspaceMember{}, ErrForbidden
 	}
@@ -239,7 +247,12 @@ func (s *WorkspaceService) RequireMember(ctx context.Context, workspaceID, userI
 // in a workspace only through its own workspace_agent_members row, never
 // implicitly through the organization.
 func (s *WorkspaceService) RequireAgentMember(ctx context.Context, workspaceID, agentID string) (db.WorkspaceAgentMember, error) {
-	m, err := s.q.GetWorkspaceAgentMember(ctx, db.GetWorkspaceAgentMemberParams{WorkspaceID: workspaceID, AgentID: agentID})
+	return s.RequireAgentMemberQ(ctx, s.q, workspaceID, agentID)
+}
+
+// RequireAgentMemberQ is RequireAgentMember read through q (see RequireMemberQ).
+func (s *WorkspaceService) RequireAgentMemberQ(ctx context.Context, q *db.Queries, workspaceID, agentID string) (db.WorkspaceAgentMember, error) {
+	m, err := q.GetWorkspaceAgentMember(ctx, db.GetWorkspaceAgentMemberParams{WorkspaceID: workspaceID, AgentID: agentID})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return db.WorkspaceAgentMember{}, ErrForbidden
 	}

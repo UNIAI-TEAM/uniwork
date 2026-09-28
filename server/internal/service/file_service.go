@@ -82,8 +82,7 @@ type FileServiceOptions struct {
 	// and the adapter refuses any other.
 	Store  storage.ObjectStore
 	Bucket string
-	// Registry is the purpose table. Nil loads files.DefaultRegistry, which
-	// keeps the Document purposes disabled.
+	// Registry is the purpose table. Nil loads files.DefaultRegistry.
 	Registry *files.Registry
 	// Signer overrides the store's own URL signing; nil uses the store.
 	Signer FileObjectSigner

@@ -158,7 +158,7 @@ test('the work directory must live under the workspace root', () => {
   const inside = resolveDefaults({ source: PREPARED_SOURCE || 's', work: scratchDir('inside') }, { cwd: WORKSPACE_ROOT || process.cwd() });
   assert.equal(assertWorkInsideWorkspace(inside, WORKSPACE_ROOT), WORKSPACE_ROOT);
 
-  const outsideRoot = path.resolve(REPO_ROOT, '..', '..', 'uni668-outside-' + Date.now());
+  const outsideRoot = path.resolve(WORKSPACE_ROOT, '..', 'uni668-outside-' + Date.now());
   const outside = resolveDefaults({ source: PREPARED_SOURCE || 's', work: outsideRoot }, { cwd: process.cwd() });
   assert.throws(() => assertWorkInsideWorkspace(outside, WORKSPACE_ROOT), /--work must be a fresh directory under/);
 });

@@ -1,8 +1,11 @@
 # Documents + UniWork Office — kế hoạch thực thi G0
 
-> **Trạng thái:** in-progress — người dùng đã cho triển khai ngày 2026-09-16.
-> DOC-001a, DOC-002 và mô hình thử DOC-005 đang thực thi; checkbox chỉ đánh dấu
-> khi có bằng chứng đã qua kiểm tra. QA macOS/Safari thật chuyển backlog UNI-671.
+> **Trạng thái:** shipped — G0 kết thúc: G0 = GO (2026-09-25), merge vào develop ở `c6b567f0` (PR #130);
+> UNI-656 và UNI-670 ở `done` (đọc lại 2026-09-26). "Shipped" ở đây là đợt khảo sát khả thi, không phải sản
+> phẩm. Checkbox chỉ đánh dấu khi có bằng chứng; ô còn trống **không** được nghiệm thu trọn vẹn (register:
+> không task DOC-001..006 nào đạt nguyên dòng nghiệm thu) và phần việc còn lại đã chuyển sang G1-G7 theo
+> `docs/office/g0/handoff-map.md`. Không chạy lại G0 từ các ô trống này. QA macOS/Safari thật ở backlog UNI-671.
+> Lịch sử: người dùng cho triển khai ngày 2026-09-16.
 
 **Issue của plan:** UNI-656 · Parent UNI-437 · Roadmap C-01, liên quan C-15/C-16.
 > **Cập nhật 2026-09-25 (quyết định của người dùng):** với G0, mỗi cổng chu
@@ -483,31 +486,35 @@ của G7, hoặc chứng nhận auth/tenant isolation cho mã sản phẩm chưa
 
 **Issue:** UNI-670. **Đầu vào:** bằng chứng task 1-5, không chỉ mô tả.
 
-- [ ] **6.1 — Đóng evidence register.** Từng capability/fixture/contract case nối
+- [x] **6.1 — Đóng evidence register.** (Bằng chứng: `evidence-register.json`, verifier GO 8/8 ngày 2026-09-25.) Từng capability/fixture/contract case nối
   tới commit/runtime, lệnh, artifact/checksum và kết quả. Tách source-read,
   model/harness, engine round-trip, browser thật và E2E sản phẩm; không lấy mức
   bằng chứng thấp thay mức cao.
   INT-01 có bảng hướng thử/kết quả/quyết định cuối theo từng module/runtime;
   việc chưa chứng minh không được đổi thành quyết định kiến trúc đã đạt.
-- [ ] **6.2 — Chốt ngưỡng nghiệm thu theo số đo.** Nội dung/cấu trúc không mất,
+- [ ] **6.2 — Chốt ngưỡng nghiệm thu theo số đo.** (Một phần: `acceptance-thresholds.md` đo envelope mở cho
+  sáu định dạng; save/fixture lớn/bộ nhớ vẫn `chua do`; mức sai khác bố cục là DEC-RENDER-TOLERANCE, chuyển G3
+  UNI-659 và người nghiệm thu có tên — quyết định người dùng 2026-09-25.) Nội dung/cấu trúc không mất,
   sai khác render ngoài vùng sửa phải được giải thích; thời gian/bộ nhớ/size/
   complexity theo format và máy. Người nghiệm thu quyết mức sai khác bố cục
   chấp nhận được sau khi xem bằng chứng. Không âm thầm nới ngưỡng để qua một file.
-- [ ] **6.3 — Lập lại M1/M2 và estimate.** M1 theo Q1-B đầy đủ năng lực upstream
+- [x] **6.3 — Lập lại M1/M2 và estimate.** (Bằng chứng: `m1-m2-estimate.md`; tỷ lệ là giả định có nhãn.) M1 theo Q1-B đầy đủ năng lực upstream
   đã xác minh, OCR hoãn; nền tảng Q3-B; online Q5; Q7/Q8 bắt buộc. Tính công port,
   native/runtime, FE design/integration, test, ký/phân phối, hạ tầng và rủi ro;
   gồm công thay brand, assets, identity, update và kiểm tích hợp UniWork Office.
   ghi dependency/resource/calendar riêng. Không giữ nguyên 8-12 ngày G0 hoặc
   12-18 tuần pilot cũ khi bằng chứng không còn hỗ trợ.
-- [ ] **6.4 — Ghi quyết định chuyển bước.** Nếu sáu luồng cơ bản/contract bắt buộc
+- [x] **6.4 — Ghi quyết định chuyển bước.** (Bằng chứng: register `decision` GO, `pilot-handoff.md`, ADR 0021.) Nếu sáu luồng cơ bản/contract bắt buộc
   chưa đạt thì báo no-go có blocker và đường xử lý; hoàn thành báo cáo thất bại
   không có nghĩa DOC-003 đạt. Ghi rõ phần G1/G2 có thể bắt đầu độc lập theo
   contract ổn định; không mở G3/G4 trên giả định chưa chốt.
-- [ ] **6.5 — Bàn giao và cập nhật đúng bằng chứng.** Coordinator xác nhận
+- [x] **6.5 — Bàn giao và cập nhật đúng bằng chứng.** (Bằng chứng: dòng G1-G7 trong UNI-635/636/657/658/659/660/661,
+  ghi 2026-09-26; `handoff-map.md`.) Coordinator xác nhận
   mapping G1 UNI-657, G2 UNI-658, G3 UNI-659, G4 UNI-636, G5 UNI-660, G6 UNI-635,
   G7 UNI-661; coauthoring UNI-662 và phần mở rộng ADV-002 có phạm vi riêng. Cập
   nhật checklist/spec/plan/roadmap phù hợp thực tế và dẫn PR; con người quyết `done`.
-- [ ] **6.6 — Bàn giao tiêu chí tích hợp/brand.** G0 hoàn tất ma trận và contract;
+- [x] **6.6 — Bàn giao tiêu chí tích hợp/brand.** (Bằng chứng: `handoff-map.md` §2-§3; các kiểm tra trên binary
+  thật là việc của G3/G4/G7, không phải của G0.) G0 hoàn tất ma trận và contract;
   M1 chỉ nhận khi người dùng đi từ Documents web hoặc cloud library desktop tới
   cùng tài liệu, lưu/mở lại cùng version theo đúng quyền. G2 UNI-658 nhận adapter,
   G3 UNI-659 nhận editor/brand web, G4 UNI-636 nhận desktop/login/deep link/brand,

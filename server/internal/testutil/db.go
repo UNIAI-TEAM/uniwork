@@ -75,7 +75,9 @@ func DB(t *testing.T) *pgxpool.Pool {
 		subscriptions, usage_events, usage_counters, invoices,
 		email_hub_attachments, email_hub_threads, email_hub_accounts,
 		file_jobs, file_upload_sessions, files,
-		file_backfill_items, file_backfill_checkpoints, file_backfill_runs CASCADE`)
+		file_backfill_items, file_backfill_checkpoints, file_backfill_runs,
+		document_access_logs, document_share_links, document_shares,
+		document_assets, document_versions, documents, office_jobs CASCADE`)
 	if err != nil {
 		t.Fatal("truncate:", err)
 	}

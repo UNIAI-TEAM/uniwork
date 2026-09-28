@@ -14,6 +14,10 @@ type ErrorDetail struct {
 	// meter, limit, current, delta; capability_unavailable: reason_code matching
 	// workcapability catalogue keys such as agent_runtime_missing).
 	Fields map[string]any `json:"fields,omitempty" description:"Chi tiết máy đọc được (vd. reason_code cho capability_unavailable)"`
+	// ErrorClass is the coarse class a client switches on for its recovery
+	// path (conflict | gone | quota | permission | missing | incompatible |
+	// session). Omitted for codes outside the table in error_class.go.
+	ErrorClass string `json:"error_class,omitempty" description:"Lớp lỗi thô để client chọn hướng xử lý (conflict | gone | quota | permission | missing | incompatible | session)" example:"conflict"`
 }
 
 // ReadinessCheckSDO is one dependency probe of /readyz.

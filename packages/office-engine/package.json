@@ -1,0 +1,43 @@
+{
+  "name": "@uniwork/office-engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "UniWork Office engine boundary client. Separate /browser, /node and /desktop entries; the browser entry must never resolve Node, Electron, native or canvas even transitively.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests=false --coverage",
+    "lint": "eslint . --max-warnings 0"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./browser": "./src/browser/index.ts",
+    "./node": "./src/node/index.ts",
+    "./desktop": "./src/desktop/index.ts",
+    "./markdown": "./src/markdown/index.ts",
+    "./html": "./src/html/index.ts",
+    "./assets": "./src/assets/index.ts",
+    "./pdf": "./src/pdf/index.ts",
+    "./xlsx": "./src/xlsx/index.ts",
+    "./xlsx/native": "./src/node/xlsx.ts",
+    "./convert/native": "./src/node/convert/index.ts"
+  },
+  "dependencies": {
+    "@uniwork/office-contracts": "workspace:*",
+    "@embedpdf/pdfium": "catalog:",
+    "pdf-lib": "catalog:",
+    "harfbuzzjs": "catalog:",
+    "pngjs": "catalog:",
+    "jpeg-js": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/pngjs": "^6.0.5",
+    "@uniwork/eslint-config": "workspace:*",
+    "@uniwork/tsconfig": "workspace:*",
+    "@vitest/coverage-v8": "catalog:",
+    "eslint": "^9.32.0",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

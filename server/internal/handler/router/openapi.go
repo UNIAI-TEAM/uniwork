@@ -358,7 +358,46 @@ func pathParamSDI(path string) any {
 		}{}
 	case "token":
 		return struct {
-			Token string `path:"token" description:"Token lời mời" example:"inv_01J8X4TOKEN"`
+			Token string `path:"token" description:"Token lời mời hoặc token liên kết công khai tài liệu" example:"inv_01J8X4TOKEN"`
+		}{}
+	case "token,assetID":
+		return struct {
+			Token   string `path:"token" description:"Token liên kết công khai tài liệu" example:"pU7c9jIcDtOFv3S9yKtRsQdLYh1vWnJm2Xk4aB6eZ0g"`
+			AssetID string `path:"assetID" description:"ULID asset nhúng trong trang" example:"01J8X4AST0N1P2Q3R4S5T6U7V8"`
+		}{}
+	case "documentID":
+		return struct {
+			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+		}{}
+	case "documentID,versionNo":
+		return struct {
+			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+			VersionNo  int32  `path:"versionNo" description:"Số phiên bản (bắt đầu từ 1)" example:"2"`
+		}{}
+	case "documentID,jobID":
+		return struct {
+			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+			JobID      string `path:"jobID" description:"ULID job Office" example:"01J8X4JOB0N1P2Q3R4S5T6U7V8"`
+		}{}
+	case "documentID,commentID":
+		return struct {
+			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+			CommentID  string `path:"commentID" description:"ULID bình luận" example:"01J8X4CMTN1P2Q3R4S5T6U7V"`
+		}{}
+	case "documentID,assetID":
+		return struct {
+			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+			AssetID    string `path:"assetID" description:"ULID asset nhúng trong trang" example:"01J8X4AST0N1P2Q3R4S5T6U7V8"`
+		}{}
+	case "documentID,shareID":
+		return struct {
+			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+			ShareID    string `path:"shareID" description:"ULID grant chia sẻ" example:"01J8X4SHAREN1P2Q3R4S5T6U7"`
+		}{}
+	case "documentID,linkID":
+		return struct {
+			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+			LinkID     string `path:"linkID" description:"ULID liên kết công khai" example:"01J8X4LINK0N1P2Q3R4S5T6U7"`
 		}{}
 	default:
 		return nil

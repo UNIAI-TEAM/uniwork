@@ -157,7 +157,7 @@ Thứ tự kiểm ở commit (đúng thứ tự trong harness):
 4. permission     -> forbidden (403)        <- kiểm LẠI, không tin lúc upload
 5. engine         -> engine_incompatible (409)
 6. base revision  -> revision_conflict (422) | document_version_conflict (409)
-7. quota          -> quota_exceeded (413)
+7. quota          -> quota_exceeded (413 trong model G0; sản phẩm 403, xem §8.3)
 8. commit: version row + current pointer + revision + quota cùng một transaction
 ```
 
@@ -213,7 +213,7 @@ thêm `errorClass`:
 | `document_deleted` | 410 | `gone` | dừng retry, ẩn khỏi danh sách |
 | `change_cursor_expired` | 410 | `gone` | full resync từ cursor 0 |
 | `forbidden` | 403 | `permission` | khoá trong app, giữ nháp |
-| `quota_exceeded` | 413 | `quota` | giữ nháp `dirty`, báo người dùng |
+| `quota_exceeded` | 413 (model G0; sản phẩm 403, xem §8.3) | `quota` | giữ nháp `dirty`, báo người dùng |
 | `engine_incompatible` | 409 | `incompatible` | chặn mở/sửa, yêu cầu cập nhật |
 | `upload_already_committed` | 409 | `conflict` | upload đã tiêu; retry bằng cùng key hoặc upload mới |
 | `token_expired` | 401 | `session` | refresh; thất bại thì giữ nháp |
@@ -239,7 +239,7 @@ là một hàm của (đã lưu tới đâu, còn quyền không, base còn kh�
 | `saved` | tiếp tục | — | `edit` | M1/G3 |
 | `conflict` | xem đối chiếu, giữ bản tôi thành bản sao/mốc | `revision_conflict`, `document_version_conflict` | `edit` | M1/G3 |
 | `blocked` | Bảo vệ nháp gắn với tài khoản; không xuất, sao chép hoặc đồng bộ payload sang tài khoản khác. Bản đã commit chỉ được hiển/tải khi còn `view`; không bao gồm byte nháp. | `forbidden` (403) | Mất quyền `edit` còn hiệu lực; nếu mất cả `view`, ẩn nội dung đã commit. | M1/G4 |
-| `quota-blocked` | giải phóng dung lượng, giữ nháp | `quota_exceeded` (413) | `edit` | M1/G2 |
+| `quota-blocked` | giải phóng dung lượng, giữ nháp | `quota_exceeded` (413 model G0; sản phẩm 403) | `edit` | M1/G2 |
 | `incompatible` | cập nhật ứng dụng, chỉ đọc | `engine_incompatible` | — | G3/G4 |
 | `deleted` | rời màn hình, không retry | `document_deleted` (410) | — | M1/G5 |
 | `resyncing` | chờ full resync | `change_cursor_expired` (410) | `view` | G5 |
@@ -521,6 +521,13 @@ Các mục "Vòng sửa 1..4" ở bản trước **không** phải bốn vòng �
 đếm khác nhau giữa các mục chỉ phản ánh các lần sửa của cùng một submission. Mọi con số
 "25/25", "21/21", "24/25" ở bản trước **đã bị thay** bằng tập 41 ca hiện tại và không
 được trích lại như bằng chứng độc lập.
+
+**Đính chính 2026-09-26 (Advisor G1-G2, UNI-657): mã HTTP của `quota_exceeded`.** Model
+`scripts/office-g0/run-contracts.mjs` (`ERROR_CODES`) trả 413, và §3/§4/§4.1 chép theo model. Code sản
+phẩm trả **403** (`server/internal/service/entitlement.go`, `errQuotaExceeded`), hợp đồng FileService FS-C1
+§7 giữ 403, và plan G1-G2 §3.3 không đổi mã hiện có. G1/G2 dùng 403; 413 chỉ là giá trị của model G0,
+không phải hợp đồng cho client. `errorClass = quota` và hành vi FE (giữ nháp, trạng thái `quota-blocked`)
+không đổi. Harness G0 không sửa. Ghi chú đối chiếu: `docs/office/g1g2/fs-c1-alignment.md`.
 
 ### 8.4 Các finding review đã đóng (mapping)
 

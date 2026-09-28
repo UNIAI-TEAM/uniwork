@@ -7,12 +7,14 @@ import { AppLink } from "../navigation";
 import { PageHeader } from "./page-header";
 
 /**
- * One ancestor crumb. Always a link to the segment's container — the
- * breadcrumb is a containment chain, so every segment navigates somewhere.
- * Non-navigable chrome (skeletons, unknown states) does not belong here.
+ * One ancestor crumb. Normally a link to the segment's container — the
+ * breadcrumb is a containment chain, so a segment with a known destination
+ * navigates there. `href` may be omitted when the destination does not exist
+ * yet (for example an owner surface another slice still owes): the crumb then
+ * renders as a plain label instead of pointing at a guessed URL.
  */
 export interface BreadcrumbSegment {
-  href: string;
+  href?: string;
   label: ReactNode;
   /** Overrides the default `shrink-0`, e.g. for a truncating long title. */
   className?: string;
@@ -32,17 +34,23 @@ export function BreadcrumbHeader({ segments, leaf, actions, leading, className }
   return (
     <PageHeader leading={leading} className={cn("bg-background text-body", className)}>
       <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
-        {segments.map((segment) => (
-          <Fragment key={segment.href}>
-            <AppLink
-              href={segment.href}
-              className={cn(
-                "text-muted-foreground transition-colors hover:text-foreground",
-                segment.className ?? "shrink-0",
-              )}
-            >
-              {segment.label}
-            </AppLink>
+        {segments.map((segment, index) => (
+          <Fragment key={segment.href ?? `crumb-${index}`}>
+            {segment.href ? (
+              <AppLink
+                href={segment.href}
+                className={cn(
+                  "text-muted-foreground transition-colors hover:text-foreground",
+                  segment.className ?? "shrink-0",
+                )}
+              >
+                {segment.label}
+              </AppLink>
+            ) : (
+              <span className={cn("text-muted-foreground", segment.className ?? "shrink-0")}>
+                {segment.label}
+              </span>
+            )}
             <ChevronRight aria-hidden className="size-3 shrink-0 text-faint-foreground" />
           </Fragment>
         ))}

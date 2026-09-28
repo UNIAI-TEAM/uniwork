@@ -72,7 +72,7 @@ func (q *Queries) CountIdempotencyKeys(ctx context.Context, arg CountIdempotency
 
 const getIdempotencyKey = `-- name: GetIdempotencyKey :one
 
-SELECT id, organization_id, workspace_id, scope, key, actor_id, response_status, response_body, created_at FROM idempotency_keys
+SELECT id, organization_id, workspace_id, scope, key, actor_id, response_status, response_body, created_at, payload_fingerprint FROM idempotency_keys
 WHERE organization_id = $1
   AND workspace_id = $2
   AND scope = $3
@@ -107,29 +107,33 @@ func (q *Queries) GetIdempotencyKey(ctx context.Context, arg GetIdempotencyKeyPa
 		&i.ResponseStatus,
 		&i.ResponseBody,
 		&i.CreatedAt,
+		&i.PayloadFingerprint,
 	)
 	return i, err
 }
 
 const insertIdempotencyKey = `-- name: InsertIdempotencyKey :one
 INSERT INTO idempotency_keys (
-  id, organization_id, workspace_id, scope, key, actor_id
+  id, organization_id, workspace_id, scope, key, actor_id, payload_fingerprint
 ) VALUES (
-  $1, $2, $3, $4, $5, $6
+  $1, $2, $3, $4, $5, $6, $7
 )
 ON CONFLICT (organization_id, workspace_id, scope, key) DO NOTHING
-RETURNING id, organization_id, workspace_id, scope, key, actor_id, response_status, response_body, created_at
+RETURNING id, organization_id, workspace_id, scope, key, actor_id, response_status, response_body, created_at, payload_fingerprint
 `
 
 type InsertIdempotencyKeyParams struct {
-	ID             string `json:"id"`
-	OrganizationID string `json:"organization_id"`
-	WorkspaceID    string `json:"workspace_id"`
-	Scope          string `json:"scope"`
-	Key            string `json:"key"`
-	ActorID        string `json:"actor_id"`
+	ID                 string      `json:"id"`
+	OrganizationID     string      `json:"organization_id"`
+	WorkspaceID        string      `json:"workspace_id"`
+	Scope              string      `json:"scope"`
+	Key                string      `json:"key"`
+	ActorID            string      `json:"actor_id"`
+	PayloadFingerprint pgtype.Text `json:"payload_fingerprint"`
 }
 
+// payload_fingerprint is NULL for the legacy callers that bind no payload
+// (DOC-005 §3.1; migration 9991790519637301).
 func (q *Queries) InsertIdempotencyKey(ctx context.Context, arg InsertIdempotencyKeyParams) (IdempotencyKey, error) {
 	row := q.db.QueryRow(ctx, insertIdempotencyKey,
 		arg.ID,
@@ -138,6 +142,7 @@ func (q *Queries) InsertIdempotencyKey(ctx context.Context, arg InsertIdempotenc
 		arg.Scope,
 		arg.Key,
 		arg.ActorID,
+		arg.PayloadFingerprint,
 	)
 	var i IdempotencyKey
 	err := row.Scan(
@@ -150,6 +155,7 @@ func (q *Queries) InsertIdempotencyKey(ctx context.Context, arg InsertIdempotenc
 		&i.ResponseStatus,
 		&i.ResponseBody,
 		&i.CreatedAt,
+		&i.PayloadFingerprint,
 	)
 	return i, err
 }

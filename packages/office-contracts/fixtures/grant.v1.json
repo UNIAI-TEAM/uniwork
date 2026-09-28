@@ -1,0 +1,28 @@
+{
+  "fixture": "uniwork-office-contract-fixture/grant@1",
+  "description": "A scoped single-use job grant as Go issues it (engine-contract.md SS3).",
+  "value": {
+    "grant_id": "GRANT000000000000000000001",
+    "actor_id": "01J8Z0U000000000000000ACT",
+    "organization_id": "01J8Z0O000000000000000ORG",
+    "workspace_id": "01J8Z0W0000000000000000WS",
+    "document_id": "01J8Z0D000000000000000DOC",
+    "operation": "serialize",
+    "scope": "write_branch",
+    "base_revision": 12,
+    "base_version_id": "01J8Z0V0000000000000000A",
+    "input_object_key": "office/in/01J8Z0V0000000000000000A",
+    "issued_at": 1759000000000,
+    "expires_at": 1759000300000,
+    "single_use": true,
+    "consumed": false,
+    "max_output_bytes": 134217728
+  },
+  "expected": {
+    "valid": true,
+    "binding_fields": [
+      "actor_id", "organization_id", "workspace_id", "document_id", "operation",
+      "scope", "base_revision", "base_version_id", "single_use", "max_output_bytes"
+    ]
+  }
+}
