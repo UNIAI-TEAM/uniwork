@@ -27,16 +27,19 @@ const (
 // inside five minutes writes no new row.
 const documentAccessCoalesce = 5 * time.Minute
 
-// DocumentAccessMetrics counts access-log writes that failed. The read they
-// belong to still succeeds (the log is written outside the read), so the
-// counter is the only trace of the loss.
+// DocumentAccessMetrics counts what DocumentService cannot otherwise
+// report: access-log writes that failed after the read they belong to
+// succeeded, and compaction finding a document whose protected versions
+// alone overflow the keep bound (kept by rule, counted here).
 type DocumentAccessMetrics interface {
 	IncDocumentAccessLogFailed()
+	IncDocumentVersionsProtectedOverflow()
 }
 
 type nopDocumentAccessMetrics struct{}
 
-func (nopDocumentAccessMetrics) IncDocumentAccessLogFailed() {}
+func (nopDocumentAccessMetrics) IncDocumentAccessLogFailed()           {}
+func (nopDocumentAccessMetrics) IncDocumentVersionsProtectedOverflow() {}
 
 // SetAccessMetrics wires the access-log failure counter.
 func (s *DocumentService) SetAccessMetrics(m DocumentAccessMetrics) {

@@ -15,9 +15,15 @@ import (
 // minutes coalesces (C-01 §3.6); a failed write never fails the read and is
 // counted; no content, token or client address is stored.
 
-type countingAccessMetrics struct{ failed atomic.Int64 }
+type countingAccessMetrics struct {
+	failed            atomic.Int64
+	protectedOverflow atomic.Int64
+}
 
 func (c *countingAccessMetrics) IncDocumentAccessLogFailed() { c.failed.Add(1) }
+func (c *countingAccessMetrics) IncDocumentVersionsProtectedOverflow() {
+	c.protectedOverflow.Add(1)
+}
 
 func TestDocumentAccessLog(t *testing.T) {
 	f := newDocPermFixture(t)

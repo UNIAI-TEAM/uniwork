@@ -300,6 +300,13 @@ func main() {
 	documentSvc := service.NewDocumentService(pool, q, orgSvc, wsSvc)
 	documentSvc.SetFiles(fileSvc)
 	documentSvc.SetEntitlements(service.NewEntitlementService(pool, q))
+	if reg != nil {
+		documentSvc.SetAccessMetrics(reg.Documents)
+	}
+	// The document maintenance worker (auto-version, purge, compaction -
+	// G1-04b) runs on the same service the routes use; it is awaited in the
+	// shutdown sequence below, so a sweep never outlives the process.
+	docWorkers := documentSvc.NewDocumentWorkers()
 	officeSvc := service.NewDocumentOfficeService(service.DocumentOfficeOptions{
 		Pool: pool, Queries: q, Files: fileSvc, Engine: officeEngine, Documents: documentSvc, Metrics: officeMetrics,
 		MaxDeadline: officeCfg.MaxJobDeadline, ReconcileInterval: officeCfg.ReconcileInterval, Log: log,
@@ -364,6 +371,10 @@ func main() {
 	// in the shutdown sequence below, so a sweep never outlives the process.
 	fileGCDone := make(chan struct{})
 	go func() { fileGC.Run(runCtx); close(fileGCDone) }()
+	// The document worker (auto-version, purge, compaction) stops with
+	// runCancel and is awaited below like the file collector.
+	docWorkersDone := make(chan struct{})
+	go func() { docWorkers.Run(runCtx); close(docWorkersDone) }()
 	// The office reconciler settles jobs the engine finished, lost or timed
 	// out; it stops with runCancel and is awaited below.
 	officeDone := make(chan struct{})
@@ -504,6 +515,11 @@ func main() {
 	case <-fileGCDone:
 	case <-time.After(30 * time.Second):
 		log.Warn("files: gc worker did not stop in time")
+	}
+	select {
+	case <-docWorkersDone:
+	case <-time.After(30 * time.Second):
+		log.Warn("documents: maintenance worker did not stop in time")
 	}
 	select {
 	case <-officeDone:

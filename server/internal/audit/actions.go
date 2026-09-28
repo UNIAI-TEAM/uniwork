@@ -149,6 +149,16 @@ const (
 	// working copy. Metadata only - the page JSON never reaches audit.
 	ActionDocumentUpdated = "document.updated"
 
+	// Document tree and lifecycle (UNI-678, G1-04b): a move, the archive
+	// and restore of a batch (one row per affected document, the batch id
+	// in metadata), the retention purge of a document and the version
+	// compaction sweep of the maintenance worker.
+	ActionDocumentMoved             = "document.moved"
+	ActionDocumentArchived          = "document.archived"
+	ActionDocumentRestored          = "document.restored"
+	ActionDocumentDeleted           = "document.deleted"
+	ActionDocumentVersionsCompacted = "document.versions_compacted"
+
 	// Platform admin (F-11). The actor is a platform_role holder, or "cli"
 	// for uniwork-admin; admin_actions carries the reason beside the row.
 	ActionOrganizationSuspended   = "organization.suspended"
