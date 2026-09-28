@@ -131,9 +131,9 @@ export async function commitDocumentVersion(
  * Returns the bumped document plus the new version row; null means the
  * restore cannot be proven.
  *
- * The contract declares no request body, but a file restore must name the
- * base the writer saw (the service checks base_revision unconditionally on
- * files) — pass it via opts.baseRevision; page restores send none.
+ * The body is optional: a file restore must name the base the writer saw
+ * (the service checks base_revision unconditionally on files) — pass it via
+ * opts.baseRevision; page restores send none.
  */
 export async function restoreDocumentVersion(
   documentId: string,

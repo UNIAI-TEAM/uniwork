@@ -430,6 +430,9 @@ func TestDocumentFileLifecycle(t *testing.T) {
 		t.Fatalf("versions: %d %v", res.StatusCode, out)
 	}
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+id, w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("get before file restore: %d %v", res.StatusCode, out)
+	}
 	liveRev := out["document"].(map[string]any)["revision"].(string)
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+id+"/versions/1/restore", w.token, nil)
 	if code, class := errCodeClass(out); res.StatusCode != 409 || code != "document_version_conflict" || class != "conflict" {

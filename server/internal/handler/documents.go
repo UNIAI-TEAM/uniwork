@@ -101,6 +101,11 @@ func documentUploadForm(w http.ResponseWriter, r *http.Request, cap int64) (*mul
 		if p.FormName() != "file" {
 			b, err := io.ReadAll(io.LimitReader(p, documentUploadFieldCap+1))
 			_ = p.Close()
+			var tooBig *http.MaxBytesError
+			if errors.As(err, &tooBig) {
+				documentTooLarge(w)
+				return nil, nil, false
+			}
 			if err != nil || len(b) > documentUploadFieldCap {
 				respondError(w, http.StatusBadRequest, "invalid_request", "multipart field "+p.FormName()+" is too large")
 				return nil, nil, false
