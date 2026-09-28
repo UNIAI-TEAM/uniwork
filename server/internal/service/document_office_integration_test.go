@@ -4,17 +4,20 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/office"
+	"github.com/unicomhub/uniwork/server/internal/storage"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -29,11 +32,19 @@ import (
 //   OFFICE_ENGINE_TEST_GRANT_KEY, OFFICE_ENGINE_TEST_CONTAINER
 //   MINIO_* for the rows below (the container PUTs to the presigned URL).
 //
+// The presigned URL is minted for the host the ENGINE reaches: the rows
+// require MINIO_PUBLIC_ENDPOINT when the engine container cannot resolve
+// MINIO_ENDPOINT (Docker Desktop: MINIO_ENDPOINT=http://127.0.0.1:9000,
+// MINIO_PUBLIC_ENDPOINT=http://host.docker.internal:9000 and the container
+// started with --add-host host.docker.internal:host-gateway, its output
+// origin allowlist carrying both the public MinIO origin and the test's write
+// target origin).
+//
 // The five formats are driven by what the engine build binds: md/html/pdf run
 // real engine jobs; docx/pptx have no server-side handler in this build, so
 // their row proves the honest refusal plus the store/commit round-trip.
 
-var officeFixtureRoot = filepath.Join("..", "..", "docs", "office", "g0", "fixtures", "files")
+var officeFixtureRoot = filepath.Join("..", "..", "..", "docs", "office", "g0", "fixtures", "files")
 
 type officeRealEnv struct {
 	name string
@@ -55,6 +66,29 @@ func newOfficeRealEnv(t *testing.T, backend fileBackend) *officeRealEnv {
 			MaxDeadline: 2 * time.Minute, ReconcileInterval: 100 * time.Millisecond,
 		}),
 	}
+}
+
+// officeMinioBackend is the MinIO backend of the office rows with the optional
+// MINIO_PUBLIC_ENDPOINT: the presigned write target must name the host the
+// engine container reaches, while this process keeps reading and writing
+// through MINIO_ENDPOINT. The storage layer signs with the public endpoint
+// exactly as it does in production (storage.MinIOConfig.PublicEndpoint).
+func officeMinioBackend() (fileBackend, bool) {
+	for _, key := range []string{"MINIO_ENDPOINT", "MINIO_BUCKET", "MINIO_ACCESS_KEY_ID", "MINIO_SECRET_ACCESS_KEY", "MINIO_REGION"} {
+		if strings.TrimSpace(os.Getenv(key)) == "" {
+			return fileBackend{}, false
+		}
+	}
+	cfg := storage.Config{Backend: storage.BackendMinIO, MinIO: &storage.MinIOConfig{
+		Endpoint: os.Getenv("MINIO_ENDPOINT"), Bucket: os.Getenv("MINIO_BUCKET"), Region: os.Getenv("MINIO_REGION"),
+		AccessKeyID: os.Getenv("MINIO_ACCESS_KEY_ID"), SecretAccessKey: os.Getenv("MINIO_SECRET_ACCESS_KEY"),
+		PublicEndpoint: strings.TrimSpace(os.Getenv("MINIO_PUBLIC_ENDPOINT")),
+	}}
+	return fileBackend{
+		name:   "minio",
+		bucket: cfg.MinIO.Bucket,
+		build:  func(t *testing.T) storage.ObjectStore { return buildStore(t, cfg, storage.BackendMinIO) },
+	}, true
 }
 
 // doc creates one file document from explicit bytes.
@@ -132,6 +166,21 @@ func (e *officeRealEnv) runSerialize(t *testing.T, created DocumentFileResult, f
 	return done
 }
 
+// assertFormatResolves proves a committed document still resolves to its
+// engine format through the office service: a nameless provider output must
+// not lose md/html to the text/plain sniff (the version keeps the document's
+// mime, and the format resolver reads it).
+func (e *officeRealEnv) assertFormatResolves(t *testing.T, documentID string, want office.Format) {
+	t.Helper()
+	cap, err := e.jobs.Capability(context.Background(), human(e.tn.member), documentID)
+	if err != nil {
+		t.Fatalf("capability after commit: %v", err)
+	}
+	if cap.Format != want {
+		t.Fatalf("format after commit = %s, want %s", cap.Format, want)
+	}
+}
+
 func mustReadFixture(t *testing.T, relative string) []byte {
 	t.Helper()
 	body, err := os.ReadFile(filepath.Join(officeFixtureRoot, filepath.FromSlash(relative)))
@@ -142,7 +191,7 @@ func mustReadFixture(t *testing.T, relative string) []byte {
 }
 
 func TestDocumentOfficeIntegration(t *testing.T) {
-	backend, ok := minioFileBackend()
+	backend, ok := officeMinioBackend()
 	if !ok {
 		t.Skip("MINIO_* is not set: the engine container PUTs to the presigned URL, so the real-store rows need MinIO")
 	}
@@ -154,15 +203,17 @@ func TestDocumentOfficeIntegration(t *testing.T) {
 		body := mustReadFixture(t, "text/markdown-kitchen-sink.md")
 		created := e.doc(t, "kitchen-sink.md", body)
 		e.runSerialize(t, created, office.FormatMD, body)
+		e.assertFormatResolves(t, created.Document.ID, office.FormatMD)
 	})
 
 	t.Run("html: engine serialize to a committed version and back", func(t *testing.T) {
 		body := mustReadFixture(t, "text/html-vietnamese.html")
 		created := e.doc(t, "vietnamese.html", body)
 		e.runSerialize(t, created, office.FormatHTML, body)
+		e.assertFormatResolves(t, created.Document.ID, office.FormatHTML)
 	})
 
-	t.Run("pdf: open probes, serialize commits, bytes survive", func(t *testing.T) {
+	t.Run("pdf: open probes, serialize commits, bytes survive, reopen", func(t *testing.T) {
 		body := mustReadFixture(t, "pdf/pdf-text-editable.pdf")
 		created := e.doc(t, "text-editable.pdf", body)
 		open, err := e.jobs.StartOfficeJobForDocument(ctx, member, created.Document.ID, OfficeJobRequest{
@@ -180,6 +231,19 @@ func TestDocumentOfficeIntegration(t *testing.T) {
 			t.Fatal("pdf open returned the input instead of a probe artifact")
 		}
 		e.runSerialize(t, created, office.FormatPDF, body)
+		e.assertFormatResolves(t, created.Document.ID, office.FormatPDF)
+		// Reopen: the committed version comes back through the service - the
+		// nameless provider output must not lose the document's format.
+		doc := e.env.doc(t, created.Document.ID)
+		reopen, err := e.jobs.StartOfficeJobForDocument(ctx, member, doc.ID, OfficeJobRequest{
+			Operation: office.OperationOpen, IdempotencyKey: util.NewID(), Deadline: 60 * time.Second,
+		})
+		if err != nil {
+			t.Fatalf("pdf reopen: %v", err)
+		}
+		if settled := e.settle(t, reopen.ID); settled.State != string(office.JobCompleted) {
+			t.Fatalf("pdf reopen job = %+v", settled)
+		}
 	})
 
 	t.Run("docx/pptx: no bound handler -> typed refusal, store round-trip intact", func(t *testing.T) {
@@ -214,28 +278,129 @@ func TestDocumentOfficeIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("blank: create_blank makes real engine bytes for md and html", func(t *testing.T) {
+		for _, format := range []office.Format{office.FormatMD, office.FormatHTML} {
+			res, err := e.jobs.CreateBlankFile(ctx, member, e.tn.wsA, BlankFileInput{
+				Format: format, Title: "Blank " + string(format), IdempotencyKey: util.NewID(),
+			})
+			if err != nil {
+				t.Fatalf("%s blank: %v", format, err)
+			}
+			if res.Document.Kind != DocumentKindFile {
+				t.Fatalf("%s blank document = %+v", format, res.Document)
+			}
+			if body := e.env.read(t, member, res.Document.ID, 0, DocumentByteRange{}); len(body) == 0 {
+				t.Fatalf("%s blank first version is empty", format)
+			}
+			// The engine's bytes went through the one G1 create path; the new
+			// document resolves to its format like any other file document.
+			e.assertFormatResolves(t, res.Document.ID, format)
+		}
+	})
+
 	t.Run("fault: type-version-mismatch is refused before a job exists", func(t *testing.T) {
+		// The frozen DOC-004 case (docs/office/g0/RT02-fault-type-version-mismatch.json):
+		// a wrong contract, a wrong protocol type, a wrong protocol value and an
+		// untrusted engine build are each refused with zero jobs, while the
+		// accepted control (a real job) lives in the format rows above. These
+		// probes post raw JSON because the Go client cannot even represent a
+		// string protocol_version - the claim under test is that the REAL
+		// engine refuses wire drift, not that Go can send it. Go's own
+		// pre-mutation contract gate (office.Negotiate) is covered by
+		// TestDocumentOfficeNegotiationGates.
 		jobID, grantID := util.NewID(), util.NewID()
 		grant, err := office.SignGrant(office.ServiceGrant{
 			V: 1, GrantID: grantID, JobID: jobID, ActorID: util.NewID(), ActorKind: "human",
 			OrganizationID: e.tn.orgID, WorkspaceID: e.tn.wsA, DocumentID: util.NewID(),
-			Operation: office.OperationSerialize, Format: office.FormatMD,
+			Operation: office.OperationSerialize, Format: office.FormatMD, BaseRevision: 1, BaseVersionID: util.NewID(),
+			Input:      &office.GrantInput{Checksum: sha(nil), Length: 0},
 			DeadlineAt: time.Now().Add(time.Minute).UnixMilli(), IssuedAt: time.Now().UnixMilli(),
 			ExpiresAt: time.Now().Add(30 * time.Second).UnixMilli(),
 		}, []byte(officeEnv("OFFICE_ENGINE_TEST_GRANT_KEY", officeDevKey)))
 		if err != nil {
 			t.Fatal(err)
 		}
-		payload, _ := json.Marshal(map[string]any{
-			"input_bytes": "", "input_checksum": sha(nil), "input_length": 0, "document_model_ref": "drift",
-		})
-		_, err = e.eng.Submit(ctx, grant, office.Envelope{
-			RequestID: jobID, ContractVersion: "uniwork-office-engine-contract/9", ProtocolVersion: office.ProtocolVersion,
-			Operation: office.OperationSerialize, Format: office.FormatMD, IdempotencyKey: jobID,
-			ClientEngineVersion: office.TrustedEngineVersion, GrantID: grantID, Payload: payload,
-		})
-		if ee := wantOfficeCode(t, err, "contract_mismatch"); ee.Status != http.StatusConflict {
-			t.Fatalf("contract mismatch = %+v", ee)
+		envelope := func(mutate func(map[string]any)) []byte {
+			body := map[string]any{
+				"request_id": jobID, "contract_version": office.ContractVersion, "protocol_version": office.ProtocolVersion,
+				"operation": office.OperationSerialize, "format": office.FormatMD,
+				"idempotency_key": jobID, "client_engine_version": office.TrustedEngineVersion, "grant_id": grantID,
+				"payload": map[string]any{
+					"input_bytes": "", "input_checksum": sha(nil), "input_length": 0, "document_model_ref": "drift",
+				},
+			}
+			if mutate != nil {
+				mutate(body)
+			}
+			raw, err := json.Marshal(body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return raw
+		}
+		post := func(t *testing.T, body []byte) (int, map[string]any) {
+			t.Helper()
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+				officeEnv("OFFICE_ENGINE_TEST_URL", "")+"/v1/jobs", bytes.NewReader(body))
+			if err != nil {
+				t.Fatal(err)
+			}
+			req.Header.Set("Authorization", "Bearer "+officeEnv("OFFICE_ENGINE_TEST_SERVICE_TOKEN", officeDevToken))
+			req.Header.Set("X-Office-Grant", grant)
+			req.Header.Set("Content-Type", "application/json")
+			res, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer res.Body.Close()
+			raw, _ := io.ReadAll(res.Body)
+			var parsed map[string]any
+			if err := json.Unmarshal(raw, &parsed); err != nil {
+				t.Fatalf("engine answer is not JSON: %s", raw)
+			}
+			return res.StatusCode, parsed
+		}
+		refusal := func(t *testing.T, body map[string]any) (code, kind string) {
+			t.Helper()
+			outer, _ := body["error"].(map[string]any)
+			if outer == nil {
+				t.Fatalf("no error object in %v", body)
+			}
+			code, _ = outer["code"].(string)
+			kind, _ = outer["kind"].(string)
+			return code, kind
+		}
+		for _, c := range []struct {
+			name     string
+			mutate   func(map[string]any)
+			wantHTTP int
+			wantCode string
+			wantKind string
+		}{
+			{"contract version outside the pin", func(m map[string]any) { m["contract_version"] = "uniwork-office-engine-contract/999" }, http.StatusBadRequest, "", "contract_violation"},
+			{"protocol version sent as a string", func(m map[string]any) { m["protocol_version"] = "1" }, http.StatusBadRequest, "", "contract_violation"},
+			{"protocol version outside the pin", func(m map[string]any) { m["protocol_version"] = 2 }, http.StatusBadRequest, "", "contract_violation"},
+			{"untrusted engine build", func(m map[string]any) { m["client_engine_version"] = "untrusted@0" }, http.StatusConflict, "engine_incompatible", ""},
+		} {
+			t.Run(c.name, func(t *testing.T) {
+				status, body := post(t, envelope(c.mutate))
+				if status != c.wantHTTP {
+					t.Fatalf("status = %d, want %d (%v)", status, c.wantHTTP, body)
+				}
+				code, kind := refusal(t, body)
+				if c.wantCode != "" && code != c.wantCode {
+					t.Fatalf("code = %q, want %q (%v)", code, c.wantCode, body)
+				}
+				if c.wantKind != "" && kind != c.wantKind {
+					t.Fatalf("kind = %q, want %q (%v)", kind, c.wantKind, body)
+				}
+			})
+		}
+		// Every drifted envelope had to leave the engine without a job. The
+		// grant was never consumed, so a status read under the same grant must
+		// answer not_found.
+		if _, err := e.eng.Status(ctx, jobID, grant); office.ErrorCode(err) != "not_found" {
+			t.Fatalf("drift created or leaked a job: %v", err)
 		}
 	})
 
@@ -258,7 +423,14 @@ func TestDocumentOfficeIntegration(t *testing.T) {
 	})
 
 	t.Run("fault: checksum mismatch settles failed and commits nothing", func(t *testing.T) {
-		created := e.doc(t, "checksum.md", []byte("uniwork-fault:code engine_checksum_mismatch\n\ntext\n"))
+		// DOC-004 checksum-mismatch on the real engine: the container really
+		// produces and PUTs the output, and the verification models the one
+		// controlled field of the frozen oracle (RT02-fault-checksum-mismatch.json:
+		// "controlled host-response checksum field") - FileService re-hashes the
+		// real stored object while the engine's declared checksum drifts, so the
+		// job fails engine_checksum_mismatch with zero commits and zero versions.
+		body := mustReadFixture(t, "text/markdown-vietnamese.md")
+		created := e.doc(t, "checksum.md", body)
 		before := e.versionCount(t, created.Document.ID)
 		row, err := e.jobs.StartOfficeJobForDocument(ctx, member, created.Document.ID, OfficeJobRequest{
 			Operation: office.OperationSerialize, IdempotencyKey: util.NewID(), Deadline: 30 * time.Second,
@@ -266,7 +438,34 @@ func TestDocumentOfficeIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("start: %v", err)
 		}
-		done := e.settle(t, row.ID)
+		// Wait for the ENGINE to finish by reading it directly: the product's
+		// own poll path would verify with the engine's real checksum.
+		var engine office.JobStatus
+		giveUp := time.Now().Add(60 * time.Second)
+		for {
+			grant, err := e.jobs.grantFor(row, nil, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			engine, err = e.eng.Status(ctx, row.ID, grant)
+			if err != nil {
+				t.Fatalf("engine status: %v", err)
+			}
+			if !isLiveOfficeState(string(engine.State)) {
+				break
+			}
+			if time.Now().After(giveUp) {
+				t.Fatalf("engine job did not settle: %+v", engine)
+			}
+			time.Sleep(200 * time.Millisecond)
+		}
+		if engine.State != office.JobCompleted {
+			t.Fatalf("engine job = %+v", engine)
+		}
+		done, err := e.jobs.verifyOutput(ctx, row, sha([]byte("not the engine's output")), nil)
+		if err != nil {
+			t.Fatalf("verify: %v", err)
+		}
 		if done.State != string(office.JobFailed) || done.ErrorCode.String != "engine_checksum_mismatch" {
 			t.Fatalf("checksum job = %+v", done)
 		}

@@ -33,6 +33,11 @@ import (
 // format decides whether the action exists at all.
 const officeBlankOperation = "create_blank"
 
+// officeBlankPollInterval is how often the blank path re-reads the engine job
+// while its serialize runs: blank seeds are tiny, so a request pays a few
+// polls in the normal case.
+const officeBlankPollInterval = 150 * time.Millisecond
+
 // OfficeCapabilityRow is one capability row on the wire.
 type OfficeCapabilityRow struct {
 	Operation        string // engine operation, or create_blank
@@ -133,6 +138,16 @@ func (s *DocumentOfficeService) formatForVersion(ctx context.Context, doc db.Doc
 	if err != nil {
 		return "", err
 	}
+	if path.Ext(f.Filename) == "" {
+		// The extension decides when the file has one: a markdown upload
+		// sniffs as text/plain, so only the name can tell md from txt. A
+		// provider output has no extension (it carries the placeholder name
+		// "file"), so the version's own mime is authoritative there - the
+		// office commit path keeps it the document's format.
+		if format, ok := officeFormatFromMime(ver.MimeType.String); ok {
+			return format, nil
+		}
+	}
 	format, ok := officeFormatForFile(f)
 	if !ok {
 		return "", officeErr("unsupported_operation", "format_not_supported")
@@ -158,7 +173,15 @@ func officeFormatForFile(f files.File) (office.Format, bool) {
 	case ".html", ".htm":
 		return office.FormatHTML, true
 	}
-	base, _, _ := strings.Cut(strings.ToLower(f.ContentType), ";")
+	return officeFormatFromMime(f.ContentType)
+}
+
+// officeFormatFromMime maps a verified content type to an engine format. Only
+// the six formats' own spellings: text/plain stays unmapped (a .txt file is
+// not an office document, and office output that sniffs as text/plain is
+// resolved from the version's mime instead).
+func officeFormatFromMime(contentType string) (office.Format, bool) {
+	base, _, _ := strings.Cut(strings.ToLower(contentType), ";")
 	switch strings.TrimSpace(base) {
 	case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
 		return office.FormatDOCX, true
@@ -174,6 +197,38 @@ func officeFormatForFile(f files.File) (office.Format, bool) {
 		return office.FormatHTML, true
 	}
 	return "", false
+}
+
+// officeOutputKeepsFormat reports whether an office job output may carry a
+// mime spelling different from the document's: only inside the job's own
+// format family. A nameless provider output makes markdown text sniff as
+// text/plain (FS-C1 §4); nothing else may drift. The commit path calls this
+// when it would otherwise refuse a format change.
+func officeOutputKeepsFormat(jobFormat, current, incoming string) bool {
+	format := office.Format(jobFormat)
+	return officeFormatMime(format, current) && officeFormatMime(format, incoming)
+}
+
+// officeFormatMime reports whether one storage content type is a valid
+// spelling of an engine format.
+func officeFormatMime(format office.Format, mime string) bool {
+	base, _, _ := strings.Cut(strings.ToLower(mime), ";")
+	base = strings.TrimSpace(base)
+	switch format {
+	case office.FormatMD:
+		return base == "text/markdown" || base == "text/plain"
+	case office.FormatHTML:
+		return base == "text/html"
+	case office.FormatPDF:
+		return base == "application/pdf"
+	case office.FormatDOCX:
+		return base == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+	case office.FormatXLSX:
+		return base == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	case office.FormatPPTX:
+		return base == "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+	}
+	return false
 }
 
 // BlankFileInput creates one blank source document (POST
@@ -249,8 +304,11 @@ func (s *DocumentOfficeService) CreateBlankFile(ctx context.Context, actor Actor
 	if remaining < 1 {
 		remaining = 1
 	}
+	// A blank has no base version; the engine's grant contract requires a
+	// non-empty base_version_id, and the value binds the payload to the grant.
+	blankRef := "blank:" + jobID
 	payload, err := json.Marshal(map[string]any{
-		"base_revision": 0, "base_version_id": "",
+		"base_revision": 0, "base_version_id": blankRef,
 		"input_bytes": base64.StdEncoding.EncodeToString(seed), "input_checksum": checksum, "input_length": len(seed),
 		"document_model_ref": "blank:" + jobID,
 	})
@@ -270,9 +328,10 @@ func (s *DocumentOfficeService) CreateBlankFile(ctx context.Context, actor Actor
 	// the document is created only after the engine's bytes verify.
 	grant, err := s.engine.Sign(office.ServiceGrant{
 		V: 1, GrantID: grantID, JobID: jobID, ActorID: actor.ID, ActorKind: string(actor.Kind),
-		OrganizationID: orgID, WorkspaceID: ws.WorkspaceID, DocumentID: "blank:" + jobID,
+		OrganizationID: orgID, WorkspaceID: ws.WorkspaceID, DocumentID: blankRef,
 		Operation: office.OperationSerialize, Format: in.Format,
-		Input: &office.GrantInput{Checksum: checksum, Length: int64(len(seed))},
+		BaseVersionID: blankRef,
+		Input:         &office.GrantInput{Checksum: checksum, Length: int64(len(seed))},
 		Output: &office.GrantOutput{
 			FileID: string(out.FileID), URL: out.WriteTarget.URL, Method: out.WriteTarget.Method,
 			Headers: out.WriteTarget.Headers, ExpiresAt: millis(out.WriteTarget.ExpiresAt), MaxBytes: documentFileMaxBytes(),
@@ -285,6 +344,23 @@ func (s *DocumentOfficeService) CreateBlankFile(ctx context.Context, actor Actor
 	js, err := s.engine.Submit(ctx, grant, env)
 	if err != nil {
 		return DocumentFileResult{}, err
+	}
+	// The submit answer is accepted/running, never completed: the blank exists
+	// only once the engine's bytes exist. Poll the job under the same grant -
+	// a status read is not bound by the grant's start window - until it
+	// settles or the blank's deadline passes.
+	for isLiveOfficeState(string(js.State)) {
+		if !s.now().Before(deadline) {
+			return DocumentFileResult{}, officeErr("engine_timeout", "blank_deadline")
+		}
+		select {
+		case <-ctx.Done():
+			return DocumentFileResult{}, ctx.Err()
+		case <-time.After(officeBlankPollInterval):
+		}
+		if js, err = s.engine.Status(ctx, jobID, grant); err != nil {
+			return DocumentFileResult{}, err
+		}
 	}
 	if js.State != office.JobCompleted {
 		return DocumentFileResult{}, blankFailure(js)

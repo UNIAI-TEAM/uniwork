@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/office"
@@ -249,5 +250,91 @@ func TestBlankSeedIsNeverEmpty(t *testing.T) {
 		if _, _, ok := blankSeedFor(format, "Tieu de"); ok {
 			t.Fatalf("unsupported format %s has a blank seed", format)
 		}
+	}
+}
+
+// The blank path must wait for the engine: an accepted/running submit answer
+// is not a document yet, and the first version holds whatever bytes the engine
+// produced.
+func TestDocumentOfficeBlankCreateWaitsForTheEngine(t *testing.T) {
+	ctx := context.Background()
+	f := newOfficeFixture(t, "# seed\n")
+	eng := newScriptedEngine()
+	eng.fake = f.files.Fake
+	entered := make(chan struct{}, 8)
+	eng.statusCalls = entered
+	svc := f.service(eng)
+	before := f.documentCount(t)
+
+	type outcome struct {
+		res DocumentFileResult
+		err error
+	}
+	done := make(chan outcome, 1)
+	go func() {
+		res, err := svc.CreateBlankFile(ctx, f.actor, f.ws, BlankFileInput{
+			Format: office.FormatMD, Title: "Trong", IdempotencyKey: util.NewID(),
+		})
+		done <- outcome{res, err}
+	}()
+	// The first status read means the submit is in flight (the scripted engine
+	// answers accepted/running); complete it with real bytes, then let the
+	// next poll see the terminal state.
+	select {
+	case <-entered:
+	case <-time.After(20 * time.Second):
+		t.Fatal("blank create never polled the engine")
+	}
+	eng.mu.Lock()
+	var jobID string
+	for id := range eng.jobs {
+		jobID = id
+	}
+	eng.mu.Unlock()
+	if jobID == "" {
+		t.Fatal("no engine job was submitted")
+	}
+	eng.finish(t, jobID, []byte("# Trong\n"), "text/markdown; charset=utf-8")
+	select {
+	case out := <-done:
+		if out.err != nil {
+			t.Fatalf("blank create: %v", out.err)
+		}
+		if out.res.Document.Title != "Trong" || out.res.Document.Kind != DocumentKindFile {
+			t.Fatalf("blank document = %+v", out.res.Document)
+		}
+	case <-time.After(20 * time.Second):
+		t.Fatal("blank create did not settle after the engine completed")
+	}
+	if after := f.documentCount(t); after != before+1 {
+		t.Fatalf("blank create wrote %d documents, want 1", after-before)
+	}
+}
+
+// One format's storage spellings: markdown is the only format with two (a
+// nameless provider text output sniffs as text/plain); the drift rule must
+// never widen across formats.
+func TestOfficeOutputKeepsFormat(t *testing.T) {
+	md := "text/markdown"
+	cases := []struct {
+		name     string
+		job      office.Format
+		current  string
+		incoming string
+		want     bool
+	}{
+		{"md keeps its text output", office.FormatMD, md, "text/plain; charset=utf-8", true},
+		{"md accepts the named spelling", office.FormatMD, "text/plain", md, true},
+		{"md never accepts html", office.FormatMD, md, "text/html", false},
+		{"pdf keeps only pdf", office.FormatPDF, "application/pdf", "application/pdf", true},
+		{"pdf does not accept markdown", office.FormatPDF, "application/pdf", md, false},
+		{"html keeps only html", office.FormatHTML, "text/html", "text/plain", false},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := officeOutputKeepsFormat(string(c.job), c.current, c.incoming); got != c.want {
+				t.Fatalf("officeOutputKeepsFormat(%s, %q, %q) = %v, want %v", c.job, c.current, c.incoming, got, c.want)
+			}
+		})
 	}
 }
