@@ -89,6 +89,12 @@ khong duoc bind -> 501 `unsupported_operation` reason `not_bound`; capability tr
 - PDF asset trong image: job worker chay voi env whitelist (khong ke thua `UNIWORK_PDF_ASSETS`), nen
   `packages/office-engine/src/pdf/pdfium.ts` tim them `./pdf-assets` canh bundle truoc khi fallback ve
   `require.resolve`; khong sua `apps/office-engine/supervisor.ts` (G2-04 so huu).
+- Handler tier khong import `internal/office` (ADR 0021 leaf guard cua G2-02): cac allowlist, identity pin va
+  error view di qua service (`server/internal/service/document_office_view.go`), engine client dung
+  `service.NewOfficeEngineClient`; test handler dung engine stub HTTP qua chinh factory do.
+- Copy: endpoint `/copies` tra `owner_requires_copy` cho **moi** tai lieu owned (C-14 chua co); dieu kien
+  "level < edit" cu lam nhanh nay khong bao gio chay trong khi caller da qua duoc cong edit - khong tao ban sao
+  standalone cua tai lieu owned.
 
 ## 6. Gioi han con mo (khong duoc viet thanh da xong)
 
