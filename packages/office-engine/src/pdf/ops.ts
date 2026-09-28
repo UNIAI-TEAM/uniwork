@@ -15,17 +15,47 @@ import type {
 export class PdfOpError extends Error {
   readonly opName: string;
   readonly field: string;
-  constructor(opName: string, field: string, message: string) {
+  /** The op itself is outside the bound vocabulary (not a malformed argument). */
+  readonly unsupported: boolean;
+  constructor(opName: string, field: string, message: string, unsupported = false) {
     super(`${opName}.${field}: ${message}`);
     this.name = "PdfOpError";
     this.opName = opName;
     this.field = field;
+    this.unsupported = unsupported;
   }
 }
 
 type Dict = Record<string, unknown>;
 const isDict = (v: unknown): v is Dict =>
   v !== null && typeof v === "object" && !Array.isArray(v);
+
+/** Cheap count bounds — the HTTP body cap bounds memory, but each parsed edit
+    means a pdfium page pass and a verify row, so a 50k-item batch would burn
+    the whole CPU/deadline budget on one job. Fail fast and typed instead. */
+const MAX_EDITS = 1000;
+const MAX_LIST_ITEMS = 10_000;
+const MAX_TEXT_LEN = 1 << 20;
+const MAX_IMAGE_B64_LEN = 64 << 20;
+
+function capEdits(edits: unknown[]): void {
+  if (edits.length > MAX_EDITS) throw new PdfOpError("<edits>", "", `at most ${MAX_EDITS} ops per job`);
+}
+
+function capList(v: unknown[], op: string, f: string): unknown[] {
+  if (v.length > MAX_LIST_ITEMS) throw new PdfOpError(op, f, `at most ${MAX_LIST_ITEMS} items`);
+  return v;
+}
+
+function capText(s: string, op: string, f: string): string {
+  if (s.length > MAX_TEXT_LEN) throw new PdfOpError(op, f, `text exceeds ${MAX_TEXT_LEN} chars`);
+  return s;
+}
+
+function capImageB64(s: string, op: string, f: string): string {
+  if (s.length > MAX_IMAGE_B64_LEN) throw new PdfOpError(op, f, "image data exceeds the bound");
+  return s;
+}
 
 function num(v: unknown, op: string, f: string): number {
   if (typeof v !== "number" || !Number.isFinite(v)) throw new PdfOpError(op, f, "number required");
@@ -94,14 +124,14 @@ function parseTextEdit(a: Dict, op: string): TextEditInput {
   return {
     pageIndex: int(a.pageIndex, op, "pageIndex"),
     rect: vec4(a.rect, op, "rect"),
-    oldText: str(a.oldText, op, "oldText"),
-    newText: str(a.newText, op, "newText"),
+    oldText: capText(str(a.oldText, op, "oldText"), op, "oldText"),
+    newText: capText(str(a.newText, op, "newText"), op, "newText"),
     fontSize: num(a.fontSize, op, "fontSize"),
     newFontSize: opt(a.newFontSize, num, op, "newFontSize"),
     newColor: opt(a.newColor, rgb255, op, "newColor"),
     colorRuns: opt(a.colorRuns, (v, o, f) => {
       if (!Array.isArray(v)) throw new PdfOpError(o, f, "array required");
-      return v.map((r) => {
+      return capList(v, o, f).map((r) => {
         if (!isDict(r)) throw new PdfOpError(o, f, "range objects required");
         return {
           start: int(r.start, o, f + ".start"),
@@ -112,7 +142,7 @@ function parseTextEdit(a: Dict, op: string): TextEditInput {
     }, op, "colorRuns"),
     styleRuns: opt(a.styleRuns, (v, o, f) => {
       if (!Array.isArray(v)) throw new PdfOpError(o, f, "array required");
-      return v.map((r) => {
+      return capList(v, o, f).map((r) => {
         if (!isDict(r)) throw new PdfOpError(o, f, "run objects required");
         return {
           start: int(r.start, o, f + ".start"),
@@ -130,7 +160,7 @@ function parseTextEdit(a: Dict, op: string): TextEditInput {
     lineLeading: opt(a.lineLeading, num, op, "lineLeading"),
     lineXOffsets: opt(a.lineXOffsets, (v, o, f) => {
       if (!Array.isArray(v)) throw new PdfOpError(o, f, "array required");
-      return v.map((n) => num(n, o, f));
+      return capList(v, o, f).map((n) => num(n, o, f));
     }, op, "lineXOffsets"),
     align: opt(a.align, (v, o, f) => {
       const s = str(v, o, f);
@@ -147,7 +177,7 @@ function parseTextInsert(a: Dict, op: string): TextInsertInput {
   return {
     pageIndex: int(a.pageIndex, op, "pageIndex"),
     origin: vec2(a.origin, op, "origin"),
-    text: str(a.text, op, "text"),
+    text: capText(str(a.text, op, "text"), op, "text"),
     fontSize: num(a.fontSize, op, "fontSize"),
     color: rgb255(a.color, op, "color"),
     font: opt(a.font, str, op, "font"),
@@ -156,7 +186,7 @@ function parseTextInsert(a: Dict, op: string): TextInsertInput {
     lineLeading: opt(a.lineLeading, num, op, "lineLeading"),
     lineXOffsets: opt(a.lineXOffsets, (v, o, f) => {
       if (!Array.isArray(v)) throw new PdfOpError(o, f, "array required");
-      return v.map((n) => num(n, o, f));
+      return capList(v, o, f).map((n) => num(n, o, f));
     }, op, "lineXOffsets"),
     align: opt(a.align, (v, o, f) => {
       const s = str(v, o, f);
@@ -182,7 +212,7 @@ function parseImageEdit(a: Dict, op: string): ImageEditInput {
       return {
         ...base,
         kind,
-        image: str(a.image, op, "image"),
+        image: capImageB64(str(a.image, op, "image"), op, "image"),
         rect: vec4(a.rect, op, "rect"),
         layer: layer(a.layer, op, "layer"),
         rotate: opt(a.rotate, num, op, "rotate"),
@@ -202,7 +232,7 @@ function parseImageEdit(a: Dict, op: string): ImageEditInput {
         kind,
         oldRect: vec4(a.oldRect, op, "oldRect"),
         rect: vec4(a.rect, op, "rect"),
-        image: str(a.image, op, "image"),
+        image: capImageB64(str(a.image, op, "image"), op, "image"),
         layer: opt(a.layer, layer, op, "layer"),
         quarterTurns: opt(a.quarterTurns, int, op, "quarterTurns"),
       };
@@ -228,6 +258,7 @@ function parseMetadata(a: Dict, op: string): MetadataInput {
  * narrower than upstream's, not that its op vanished).
  */
 export function parsePdfOps(edits: unknown[]): PdfEditRequest {
+  capEdits(edits);
   const req: PdfEditRequest = {};
   const push = <K extends keyof PdfEditRequest>(
     key: K,
@@ -256,6 +287,7 @@ export function parsePdfOps(edits: unknown[]): PdfEditRequest {
       case "rotatePages": {
         const pages = a.pages;
         if (!Array.isArray(pages)) throw new PdfOpError(op, "pages", "array required");
+        capList(pages, op, "pages");
         const dir = int(a.dir, op, "dir");
         if (dir !== 90 && dir !== -90 && dir !== 180) {
           throw new PdfOpError(op, "dir", "90|-90|180");
@@ -271,7 +303,7 @@ export function parsePdfOps(edits: unknown[]): PdfEditRequest {
         if (order !== null && !Array.isArray(order)) {
           throw new PdfOpError(op, "order", "array|null required");
         }
-        req.pageOrder = order === null ? undefined : order.map((p) => int(p, op, "order[]"));
+        req.pageOrder = order === null ? undefined : capList(order, op, "order").map((p) => int(p, op, "order[]"));
         break;
       }
       case "setMetadata":
@@ -283,9 +315,9 @@ export function parsePdfOps(edits: unknown[]): PdfEditRequest {
       // stamps, signatures) and OCR.
       case "ocrPage":
       case "ocr":
-        throw new PdfOpError(op, "", "ocr is not a capability of this engine build (optical engines live outside the service)");
+        throw new PdfOpError(op, "", "ocr is not a capability of this engine build (optical engines live outside the service)", true);
       default:
-        throw new PdfOpError(op, "", "unknown op for pdf");
+        throw new PdfOpError(op, "", "unknown op for pdf", true);
     }
   }
   return req;

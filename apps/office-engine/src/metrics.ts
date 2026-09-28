@@ -40,7 +40,7 @@ export class Metrics {
     this.rejections.set(code, (this.rejections.get(code) ?? 0) + 1);
   }
 
-  render(gauges: { queueDepth: number; running: number; maxWorkers: number; maxQueue: number }): string {
+  render(gauges: { queueDepth: number; running: number; maxWorkers: number; maxQueue: number; quarantinedSlots?: number }): string {
     const lines: string[] = [];
     const gauge = (name: string, help: string, value: number) => {
       lines.push("# HELP " + name + " " + help, "# TYPE " + name + " gauge", name + " " + value);
@@ -49,6 +49,11 @@ export class Metrics {
     gauge("office_engine_running_jobs", "Jobs holding a worker.", gauges.running);
     gauge("office_engine_max_workers", "Configured worker pool size.", gauges.maxWorkers);
     gauge("office_engine_max_queue", "Configured queue bound.", gauges.maxQueue);
+    gauge(
+      "office_engine_quarantined_slots",
+      "Worker slot uids permanently withheld because a process tree outlived the kill sweep.",
+      gauges.quarantinedSlots ?? 0,
+    );
 
     lines.push("# HELP office_engine_jobs_accepted_total Jobs accepted.", "# TYPE office_engine_jobs_accepted_total counter");
     for (const [op, n] of this.acceptedTotal) lines.push('office_engine_jobs_accepted_total{operation="' + op + '"} ' + n);

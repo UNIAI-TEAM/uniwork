@@ -18,6 +18,7 @@ const RECT_TOL = 2
 function annotRect(m: Pdfium, annot: number): [number, number, number, number] | null {
   // FS_RECTF: four float32 {left, top, right, bottom}
   const ptr = m._malloc(16)
+  if (!ptr) return null
   try {
     if (!m._FPDFAnnot_GetRect(annot, ptr)) return null
     const f = m.HEAPF32
@@ -49,11 +50,13 @@ const rectsClose = (
 function annotContents(m: Pdfium, annot: number): string {
   const keyBytes = Buffer.from('Contents\0', 'ascii')
   const key = m._malloc(keyBytes.length)
+  if (!key) return ''
   m.HEAPU8.set(keyBytes, key)
   try {
     const len = m._FPDFAnnot_GetStringValue(annot, key, 0, 0)
     if (len <= 2) return ''
     const buf = m._malloc(len)
+    if (!buf) return ''
     try {
       m._FPDFAnnot_GetStringValue(annot, key, buf, len)
       return Buffer.from(m.HEAPU8.buffer, buf, len - 2).toString('utf16le')
@@ -108,37 +111,55 @@ function removeByMatch(m: Pdfium, page: number, d: AnnotDeleteInput): boolean {
   return false
 }
 
+export interface AnnotDeleteResult {
+  bytes: Uint8Array;
+  removed: number;
+  /** Entries that matched no live annotation — reported, not silently counted. */
+  skipped: { pageIndex: number; reason: string }[];
+}
+
 /**
  * Remove saved markup annotations from the file bytes (in memory). Runs before every
  * other save stage so the object numbers still address the on-disk file; unmatched
- * entries are skipped fail-soft (same policy as image ops).
+ * entries are skipped fail-soft (same policy as image ops) and reported.
  */
 export function applyAnnotDeletes(
   bytes: Uint8Array,
   deletes: AnnotDeleteInput[],
-): Promise<Uint8Array> {
+): Promise<AnnotDeleteResult> {
   return chainPdfium(async () => {
     const m = await loadPdfium()
     return withDocument(m, bytes, async (doc) => {
       const pageCount = m._FPDF_GetPageCount(doc)
       const byPage = new Map<number, AnnotDeleteInput[]>()
+      const skipped: { pageIndex: number; reason: string }[] = []
       for (const d of deletes) {
-        if (d.pageIndex < 0 || d.pageIndex >= pageCount) continue
+        if (d.pageIndex < 0 || d.pageIndex >= pageCount) {
+          skipped.push({ pageIndex: d.pageIndex, reason: "page out of range" })
+          continue
+        }
         byPage.set(d.pageIndex, [...(byPage.get(d.pageIndex) ?? []), d])
       }
       let removed = 0
       for (const [pageIndex, list] of byPage) {
         const page = m._FPDF_LoadPage(doc, pageIndex)
-        if (!page) continue
+        if (!page) {
+          for (const _d of list) skipped.push({ pageIndex, reason: "page failed to load" })
+          continue
+        }
         try {
           for (const d of list) {
-            if (removeByObjNum(m, page, d) || removeByMatch(m, page, d)) removed++
+            if (removeByObjNum(m, page, d) || removeByMatch(m, page, d)) {
+              removed++
+            } else {
+              skipped.push({ pageIndex, reason: "no matching annotation" })
+            }
           }
         } finally {
           m._FPDF_ClosePage(page)
         }
       }
-      return removed > 0 ? saveDoc(m, doc) : bytes
+      return { bytes: removed > 0 ? saveDoc(m, doc) : bytes, removed, skipped }
     })
   })
 }

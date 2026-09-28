@@ -6,8 +6,10 @@
 // produces no output bytes — the caller keeps the original.
 import { EncryptedPDFError, PDFDocument } from "pdf-lib";
 
+import { ImageTooLargeError } from "./codec.ts";
 import { readPdfText } from "./extract.ts";
 import { parsePdfOps, PdfOpError } from "./ops.ts";
+import { FPDF_ERR_PASSWORD, PdfOpenError } from "./pdfium.ts";
 import { applyPdfEdits, PdfVerifyError } from "./serialize.ts";
 import type { PdfEditRequest } from "./types.ts";
 
@@ -27,7 +29,45 @@ export class PdfTypedError extends Error {
 
 const PDF_MAGIC = "%PDF-";
 
-const ENCRYPT_MARKER = /\/Encrypt[\s[</]/;
+const ENCRYPT_KEY = /\/Encrypt\b/;
+const TRAILER_DICT = /\btrailer\s*<</g;
+const XREF_DICT = /\/Type\s*\/XRef/g;
+
+/**
+ * Whether the tail of the file marks the document encrypted. /Encrypt is only
+ * meaningful in the trailer dictionary (or an xref-stream dict), both of which
+ * live at the end beside the final startxref — so this scans only the last
+ * window and only inside `trailer << … startxref` / `obj … /Type /XRef …
+ * stream` spans (bounded by keywords, not `>>`, since both can nest dicts).
+ * A mention inside a content stream, a comment or an embedded file proves
+ * nothing and must not refuse an ordinary PDF. pdf-lib's EncryptedPDFError
+ * still covers whatever this misses.
+ */
+const TAIL_WINDOW = 256 * 1024;
+
+function trailerEncrypted(input: Uint8Array): boolean {
+  const tail = Buffer.from(input.subarray(Math.max(0, input.length - TAIL_WINDOW))).toString("latin1");
+  const lastStartXref = tail.lastIndexOf("startxref");
+  if (lastStartXref < 0) return false;
+  const before = tail.slice(0, lastStartXref);
+  // Classic trailer: only the trailer dict sits between `trailer <<` and
+  // startxref, so test the whole remainder rather than guessing dict nesting.
+  let m: RegExpExecArray | null;
+  let trStart = -1;
+  TRAILER_DICT.lastIndex = 0;
+  while ((m = TRAILER_DICT.exec(before)) !== null) trStart = m.index;
+  if (trStart >= 0 && ENCRYPT_KEY.test(before.slice(trStart))) return true;
+  // XRef stream: the dict carrying /Type /XRef runs from the object's `obj`
+  // keyword to its `stream` keyword; /Encrypt may precede /Type in the dict.
+  XREF_DICT.lastIndex = 0;
+  while ((m = XREF_DICT.exec(before)) !== null) {
+    const objStart = before.lastIndexOf("obj", m.index);
+    const streamStart = before.indexOf("stream", m.index);
+    if (objStart < 0 || streamStart < 0) continue;
+    if (ENCRYPT_KEY.test(before.slice(objStart, streamStart))) return true;
+  }
+  return false;
+}
 
 function sniffHeader(input: Uint8Array): void {
   // Some producers emit a BOM or junk before the header; PDFium tolerates a
@@ -38,10 +78,9 @@ function sniffHeader(input: Uint8Array): void {
     throw new PdfTypedError("engine_result_invalid", "not_a_pdf");
   }
   // Encryption lives in the trailer's /Encrypt entry, which is never itself
-  // encrypted — a raw byte sniff catches password/cert files that pdf-lib's
+  // encrypted — a trailer sniff catches password/cert files that pdf-lib's
   // xref parser can only report as corrupt. This build has no password path.
-  const latin = Buffer.from(input.subarray(0, Math.min(input.length, 4 << 20))).toString("latin1");
-  if (ENCRYPT_MARKER.test(latin)) {
+  if (trailerEncrypted(input)) {
     throw new PdfTypedError("engine_result_invalid", "encrypted_pdf");
   }
 }
@@ -71,7 +110,7 @@ export interface PdfEditOutcome {
     textEdits: { applied: number; skipped: number };
     textInserts: { applied: number; skipped: number };
     imageEdits: { applied: number; skipped: number };
-    annotDeletes: number;
+    annotDeletes: { applied: number; skipped: number };
     pageOps: { rotations: number; deletions: number; reordered: boolean; metadata: boolean };
   };
 }
@@ -100,11 +139,24 @@ function typed<T>(fn: () => Promise<T>): Promise<T> {
   return fn().catch((error: unknown) => {
     if (error instanceof PdfTypedError) throw error;
     if (error instanceof PdfOpError) {
-      const unsupported = error.message.endsWith("unknown op for pdf") || error.message.includes("ocr is not a capability");
-      throw new PdfTypedError(unsupported ? "unsupported_operation" : "engine_result_invalid", "bad_op:" + error.message);
+      throw new PdfTypedError(error.unsupported ? "unsupported_operation" : "engine_result_invalid", "bad_op:" + error.message);
     }
     if (error instanceof PdfVerifyError) {
       throw new PdfTypedError("engine_result_invalid", "verify_failed:" + error.message.slice(0, 200));
+    }
+    if (error instanceof ImageTooLargeError) {
+      // Fixed-size refusal string — no pixel dims come from a bigger error path.
+      throw new PdfTypedError("engine_result_invalid", "image_too_large");
+    }
+    if (error instanceof PdfOpenError) {
+      // A document pdfium could not open: a password wall is an encrypted
+      // refusal, every other load failure is corruption — both typed, both
+      // keep the original bytes. A heap failure is engine-side: rethrow.
+      if (error.detail === "heap") throw error;
+      throw new PdfTypedError(
+        "engine_result_invalid",
+        error.detail === FPDF_ERR_PASSWORD ? "encrypted_pdf" : "corrupt_pdf",
+      );
     }
     // Anything else from pdfium/pdf-lib is an engine failure, not a caller
     // fault — but keep the raw message out of the payload (it can carry
@@ -165,6 +217,7 @@ export async function applyPdfEditBytes(
     pushSkips("text", applied.skips.skippedTextEdits);
     pushSkips("insert", applied.skips.skippedTextInserts);
     pushSkips("image", applied.skips.skippedImageEdits);
+    pushSkips("annot", applied.skips.skippedAnnotDeletes);
     return {
       bytes: applied.bytes,
       warnings,
@@ -181,7 +234,7 @@ export async function applyPdfEditBytes(
           applied: (request.imageEdits?.length ?? 0) - applied.skips.skippedImageEdits.length,
           skipped: applied.skips.skippedImageEdits.length,
         },
-        annotDeletes: request.annotDeletes?.length ?? 0,
+        annotDeletes: { applied: applied.annotDeletesApplied, skipped: applied.skips.skippedAnnotDeletes.length },
         pageOps: {
           rotations: request.rotations?.length ?? 0,
           deletions: request.deletedPages?.length ?? 0,

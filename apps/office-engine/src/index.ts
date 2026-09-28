@@ -56,7 +56,7 @@ async function selfTest(config: EngineServiceConfig, sandbox: WorkerSandbox): Pr
     });
     return result.kind === "fail" && result.code === "unsupported_operation";
   } finally {
-    sandbox.release(identity);
+    await sandbox.release(identity);
     await removeJobDir(dir);
   }
 }

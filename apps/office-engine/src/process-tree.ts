@@ -82,8 +82,10 @@ function tagged(tag: string): number[] {
 /** Processes whose status shows this real/effective/saved/fs uid (Linux only).
  * The sandbox makes the uid itself the job boundary - one live slot, one uid -
  * so this sweep catches descendants that environ can no longer see: other-uids'
- * environ is ptrace-gated, and a hostile handler could exec a scrubbed env. */
-function ownedBy(uid: number | undefined): number[] {
+ * environ is ptrace-gated, and a hostile handler could exec a scrubbed env.
+ * Matching all four Uid fields also catches a setuid binary the worker ran:
+ * its real uid stays the slot uid, which is exactly what should be killed. */
+export function ownedBy(uid: number | undefined): number[] {
   if (!hasProc || uid === undefined) return [];
   const needle = "Uid:";
   const out: number[] = [];

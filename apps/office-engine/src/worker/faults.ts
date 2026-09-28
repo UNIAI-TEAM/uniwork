@@ -27,9 +27,13 @@
 //   uniwork-fault:probe-write <abs|self>
 //                                   output "wrote" or "denied:<code>"; "self"
 //                                   writes inside the job's own temp dir
+//   uniwork-fault:plant-output <abs|hard>
+//                                   replace output.bin with a symlink to <abs>
+//                                   (the supervisor must refuse to follow it)
+//                                   or a hard link to input.bin (nlink>1)
 
 import { spawn } from "node:child_process";
-import { writeFile, appendFile, readFile } from "node:fs/promises";
+import { writeFile, appendFile, link, readFile, rm, symlink } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import type { HandlerOutcome, RunMessage } from "./protocol.ts";
@@ -127,6 +131,15 @@ export async function runFault(head: string, message: RunMessage): Promise<Handl
         (e: NodeJS.ErrnoException) => "denied:" + (e.code ?? "ERR"),
       );
       await writeFile(message.outputPath, body);
+      return { ok: true, warnings: [] };
+    }
+    case "plant-output": {
+      await rm(message.outputPath, { force: true });
+      if (rawArg === "hard") {
+        await link(join(message.tempDir, "input.bin"), message.outputPath);
+      } else {
+        await symlink(rawArg ?? "/etc/hostname", message.outputPath);
+      }
       return { ok: true, warnings: [] };
     }
     default:

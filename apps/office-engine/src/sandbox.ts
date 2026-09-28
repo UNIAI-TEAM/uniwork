@@ -15,6 +15,7 @@
 import { chmod, chown, mkdir, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { ConfigError, type SandboxConfig } from "./config.ts";
+import { ownedBy } from "./process-tree.ts";
 
 export interface WorkerIdentity {
   /** 0..maxWorkers-1; uid = uidBase + slot. */
@@ -63,9 +64,38 @@ export class WorkerSandbox {
     return { slot, uid: this.config.uidBase + slot, gid: this.config.gidBase + slot };
   }
 
-  release(identity: WorkerIdentity | null): void {
+  /** How many slot uids are quarantined — held by processes that outlived a
+      bounded kill sweep. Surfaces through /metrics so readiness can degrade. */
+  private quarantinedSlots = 0;
+
+  get quarantined(): number {
+    return this.quarantinedSlots;
+  }
+
+  /** Return a slot to the pool — but only once nothing still runs under its
+      uid. killTree's sweep is a single pass over /proc; a descendant forked
+      between the readdir and the signal would survive it, so release reaps:
+      SIGKILL what ownedBy finds, pause, rescan. A uid that stays non-empty is
+      quarantined rather than reused — a live descendant could otherwise read
+      and write the next job's 0700 dir, which sits under the same uid. */
+  async release(identity: WorkerIdentity | null): Promise<void> {
     if (!identity || !this.used.delete(identity.slot)) return;
-    this.free.push(identity.slot);
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const alive = ownedBy(identity.uid);
+      if (alive.length === 0) {
+        this.free.push(identity.slot);
+        return;
+      }
+      for (const pid of alive) {
+        try {
+          process.kill(pid, "SIGKILL");
+        } catch {
+          // Gone between the scan and the signal.
+        }
+      }
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    this.quarantinedSlots++;
   }
 
   /** The temp root stays service-owned but must let a slot uid traverse to its
@@ -81,6 +111,8 @@ export class WorkerSandbox {
   async adopt(dir: string, identity: WorkerIdentity): Promise<void> {
     await chmod(dir, 0o700);
     await chown(dir, identity.uid, identity.gid);
+    // Direct children only: job dirs are flat by construction (input.bin,
+    // ops.json, output.bin) and nothing untrusted has run in the dir yet.
     for (const name of await readdir(dir)) {
       await chown(join(dir, name), identity.uid, identity.gid);
     }

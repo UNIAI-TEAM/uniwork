@@ -89,6 +89,12 @@ export class JobManager {
     return this.draining;
   }
 
+  /** Slot uids held by surviving processes — a nonzero count means the pool
+      has permanently shrunk; health/readiness should notice. */
+  get sandboxQuarantined(): number {
+    return this.sandbox.quarantined;
+  }
+
   get(jobId: string): Job | undefined {
     return this.jobs.get(jobId);
   }
@@ -225,7 +231,7 @@ export class JobManager {
       switch (result.kind) {
         case "done":
           job.warnings = result.warnings;
-          await this.deliver(job, outputPath);
+          await this.deliver(job, outputPath, identity?.uid);
           return;
         case "fail": {
           // A worker may only report the few codes a handler can mean; it can
@@ -255,23 +261,25 @@ export class JobManager {
       }
     } finally {
       if (dir) await removeJobDir(dir).catch(() => undefined);
-      this.sandbox.release(identity);
+      // The uid only goes back to the pool once nothing runs under it; a
+      // descendant that outlives the sweep quarantines the slot instead.
+      await this.sandbox.release(identity);
     }
   }
 
   /** Measure and upload the output within what is left of the deadline. */
-  private async deliver(job: Job, outputPath: string): Promise<void> {
+  private async deliver(job: Job, outputPath: string, expectedUid?: number): Promise<void> {
     const target = job.grant.output;
     if (!target) {
       this.transition(job, "completed");
       return;
     }
-    const measured = await measureOutput(outputPath, job.limits.maxOutputBytes);
+    const measured = await measureOutput(outputPath, job.limits.maxOutputBytes, expectedUid);
     const remaining = job.limits.deadlineAt - this.now();
     if (remaining <= 0) throw new EngineBoundaryError("engine_timeout", { reason: "deadline" });
     const timeout = AbortSignal.timeout(remaining);
     try {
-      await putOutput(outputPath, measured, target, AbortSignal.any([job.controller.signal, timeout]));
+      await putOutput(measured, target, AbortSignal.any([job.controller.signal, timeout]));
     } catch (error) {
       if (job.controller.signal.aborted) return;
       if (timeout.aborted) throw new EngineBoundaryError("engine_timeout", { reason: "deadline" });

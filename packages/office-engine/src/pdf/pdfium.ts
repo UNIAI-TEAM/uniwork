@@ -34,6 +34,7 @@ export interface Pdfium {
   _PDFiumExt_GetFileWriterData(writer: number, buf: number, size: number): number;
   _PDFiumExt_CloseFileWriter(writer: number): void;
   _FPDF_LoadMemDocument(ptr: number, size: number, password: number): number;
+  _FPDF_GetLastError(): number;
   _FPDF_CloseDocument(doc: number): void;
   _FPDF_LoadPage(doc: number, index: number): number;
   _FPDF_ClosePage(page: number): void;
@@ -230,18 +231,34 @@ export function chainPdfium<T>(fn: () => Promise<T>): Promise<T> {
   return run;
 }
 
+/** FPDF_GetLastError codes we classify (fpdfview.h). */
+export const FPDF_ERR_PASSWORD = 4;
+
+/** A document pdfium refused to open — the adapter maps this to a typed
+    corrupt/encrypted refusal instead of engine_crashed. */
+export class PdfOpenError extends Error {
+  /** FPDF_GetLastError code, or "heap" when the input copy could not be made. */
+  readonly detail: number | "heap";
+  constructor(detail: number | "heap") {
+    super(detail === "heap" ? "pdfium heap exhausted" : "pdfium load failed, fpdf_err=" + detail);
+    this.name = "PdfOpenError";
+    this.detail = detail;
+  }
+}
+
 export async function withDocument<T>(
   m: Pdfium,
   bytes: Uint8Array,
   fn: (doc: number) => Promise<T>,
 ): Promise<T> {
   const docPtr = m._malloc(bytes.length);
-  if (!docPtr) throw new Error("PDFium out of wasm heap");
+  if (!docPtr) throw new PdfOpenError("heap");
   m.HEAPU8.set(bytes, docPtr);
   const doc = m._FPDF_LoadMemDocument(docPtr, bytes.length, 0);
   if (!doc) {
+    const err = m._FPDF_GetLastError();
     m._free(docPtr);
-    throw new Error("PDFium could not load the document");
+    throw new PdfOpenError(err);
   }
   try {
     return await fn(doc);

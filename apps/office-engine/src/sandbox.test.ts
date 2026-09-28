@@ -171,6 +171,26 @@ describe.skipIf(!CAN_SANDBOX)("per-job uid sandbox", () => {
     expect(body).not.toContain("OFFICE_ENGINE_SERVICE_TOKEN");
   });
 
+  it("refuses an output the worker repointed: symlink and hard link both fail typed", async () => {
+    // A worker owns its 0700 dir and can plant output.bin -> anything. The
+    // supervisor opens O_NOFOLLOW and fstats the fd: a symlink is ELOOP at
+    // open, a hard link to input.bin trips nlink !== 1. Neither reaches the
+    // grant target.
+    const link = makeJob(h.target, { text: "uniwork-fault:plant-output /etc/hostname\n" });
+    await submit(h, link);
+    const linkDone = await waitTerminal(h, link);
+    expect(linkDone.body.state).toBe("failed");
+    expect(linkDone.body.error).toMatchObject({ code: "engine_result_invalid" });
+    expect(h.target.uploads.find((u) => u.path.includes(link.grant.job_id))).toBeUndefined();
+
+    const hard = makeJob(h.target, { text: "uniwork-fault:plant-output hard\n" });
+    await submit(h, hard);
+    const hardDone = await waitTerminal(h, hard);
+    expect(hardDone.body.state).toBe("failed");
+    expect(hardDone.body.error).toMatchObject({ code: "engine_result_invalid" });
+    expect(h.target.uploads.find((u) => u.path.includes(hard.grant.job_id))).toBeUndefined();
+  });
+
   it("kills the whole tree under the dropped uid", async () => {
     const job = makeJob(h.target, { text: "uniwork-fault:grandchild 30000\n" });
     await submit(h, job);

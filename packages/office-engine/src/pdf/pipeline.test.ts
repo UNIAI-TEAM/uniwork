@@ -292,6 +292,75 @@ describe("pdf edit — typed refusals", () => {
   });
 });
 
+describe("pdf edit — guard honesty (reviewer r1)", () => {
+  it("a content-stream '/Encrypt <<' mention does not refuse a plain pdf", async () => {
+    // The sniff scans only the trailer/xref dicts at the tail — a literal in a
+    // page's content stream is just bytes, not an encryption dictionary.
+    const doc = await PDFDocument.create();
+    doc.addPage([400, 400]).drawText("/Encrypt << /V 2 /R 2 >> in a stream", { x: 20, y: 200, size: 10 });
+    const bytes = await doc.save();
+    const probe = await probePdf(bytes);
+    expect(probe.pageCount).toBe(1);
+    expect(probe.hasTextLayer).toBe(true);
+  });
+
+  it("trailing bytes mentioning /Encrypt after %%EOF do not refuse either", async () => {
+    const input = TEXT_PDF();
+    const extra = Buffer.from("\n% just a comment /Encrypt << /V 2 >>\n", "latin1");
+    const padded = new Uint8Array(input.length + extra.length);
+    padded.set(input, 0);
+    padded.set(new Uint8Array(extra.buffer, extra.byteOffset, extra.length), input.length);
+    const probe = await probePdf(padded);
+    expect(probe.pageCount).toBe(2);
+  });
+
+  it("annotDeletes report requested-vs-removed honestly", async () => {
+    const out = await applyPdfEditBytes(TEXT_PDF(), [
+      {
+        op: "deleteSavedAnnot",
+        attributes: {
+          pageIndex: 0,
+          objNum: 9999,
+          subtype: "note",
+          rect: [0, 0, 10, 10],
+          contents: "nothing like this exists",
+        },
+      },
+    ]);
+    expect(out.report.annotDeletes).toEqual({ applied: 0, skipped: 1 });
+    expect(out.warnings.some((w) => w.code === "edit_skipped")).toBe(true);
+  });
+
+  it("an out-of-range annot page is a skip, not a count", async () => {
+    const out = await applyPdfEditBytes(TEXT_PDF(), [
+      {
+        op: "deleteSavedAnnot",
+        attributes: { pageIndex: 99, objNum: 1, subtype: "note", rect: [0, 0, 1, 1] },
+      },
+    ]);
+    expect(out.report.annotDeletes).toEqual({ applied: 0, skipped: 1 });
+  });
+
+  it("refuses an ops batch over the count cap as a typed bad_op", async () => {
+    const edits = Array.from({ length: 1001 }, () => ({ op: "setMetadata", attributes: { title: "x" } }));
+    await expect(applyPdfEditBytes(TEXT_PDF(), edits)).rejects.toMatchObject({
+      code: "engine_result_invalid",
+      reason: expect.stringContaining("bad_op"),
+    });
+  });
+
+  it("refuses a decompression-bomb PNG header before decoding", () => {
+    // 8-byte signature + a fake IHDR claiming 9000×9000 — never reaches pngjs.
+    const head = Buffer.alloc(33);
+    head.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+    head.writeUInt32BE(13, 8);
+    head.write("IHDR", 12, "ascii");
+    head.writeUInt32BE(9000, 16);
+    head.writeUInt32BE(9000, 20);
+    expect(() => decodeImageToBgra(head)).toThrowError(/image_too_large/);
+  });
+});
+
 describe("pdf edit — image ops on the image fixture", () => {
   it("inserts an image and the read-back verification sees it", async () => {
     const out = await applyPdfEditBytes(IMAGE_PDF(), [

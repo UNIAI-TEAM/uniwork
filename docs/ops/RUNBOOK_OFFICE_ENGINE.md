@@ -145,8 +145,13 @@ with no job running, capture `/metrics` and the logs and restart the container; 
   possible there; production evidence comes from the container test stage. Two rules the deployment must keep: the
   uid sweep in `killTree` assumes the pool is exclusive to one engine per kernel namespace (one engine per container;
   never run two engines with overlapping `OFFICE_ENGINE_WORKER_UID_BASE` ranges on one PID namespace or they kill
-  each other's workers), and the uid slots themselves are reused, so a descendant that survived `killTree` would share
-  the next job's uid on that slot - a cleanup gap, not a privilege path.
+  each other's workers), and slot release is gated on the uid being dead - `release()` resweeps `/proc` and SIGKILLs
+  stragglers before the slot returns to the pool; a uid that still owns processes is quarantined (never reissued,
+  counted in `office_engine_quarantined_slots` on `/metrics`) rather than shared with the next job on that slot.
+- **Output integrity.** The job dir belongs to the worker uid, so the supervisor treats `output.bin` as hostile:
+  it opens it `O_NOFOLLOW` and requires a plain file with `nlink == 1` owned by the slot uid on the fd it streams —
+  a worker that repoints the output (symlink to a host file, hard link into another job) fails the job with
+  `engine_result_invalid` and nothing reaches the grant target.
 - **Tmpfs bound.** The compose profile runs the root filesystem read-only with a 512 MiB
   tmpfs on `/tmp` (the job temp root; tmpfs pages count against `mem_limit`, so tmpfs + workers x job RSS + the service
   stay under the 2 GiB ceiling), so all jobs together cannot fill more than the tmpfs.

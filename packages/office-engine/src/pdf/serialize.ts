@@ -34,11 +34,15 @@ export interface PdfEditSkips {
   skippedTextEdits: TextEditFailure[];
   skippedTextInserts: TextInsertFailure[];
   skippedImageEdits: ImageEditFailure[];
+  /** annotDeletes that matched nothing — requested minus removed, honestly. */
+  skippedAnnotDeletes: { pageIndex: number; reason: string }[];
 }
 
 export interface AppliedPdfEdit {
   bytes: Uint8Array;
   skips: PdfEditSkips;
+  /** Annotations actually removed (differs from requested when skips exist). */
+  annotDeletesApplied: number;
 }
 
 /** Original page index → index in the saved file (after deletions/reorder);
@@ -141,8 +145,13 @@ export async function applyPdfEdits(
   let skippedTextEdits: TextEditFailure[] = [];
   let skippedTextInserts: TextInsertFailure[] = [];
   let skippedImageEdits: ImageEditFailure[] = [];
+  let skippedAnnotDeletes: { pageIndex: number; reason: string }[] = [];
+  let annotDeletesApplied = 0;
   if (request.annotDeletes && request.annotDeletes.length > 0) {
-    bytes = await applyAnnotDeletes(bytes, request.annotDeletes);
+    const annot = await applyAnnotDeletes(bytes, request.annotDeletes);
+    bytes = annot.bytes;
+    annotDeletesApplied = annot.removed;
+    skippedAnnotDeletes = annot.skipped;
   }
   if (request.textEdits && request.textEdits.length > 0) {
     const applied = await applyTextEdits(bytes, request.textEdits);
@@ -192,9 +201,11 @@ export async function applyPdfEdits(
     skippedTextEdits,
     skippedTextInserts,
     skippedImageEdits,
+    skippedAnnotDeletes,
   });
   return {
     bytes: out,
-    skips: { skippedTextEdits, skippedTextInserts, skippedImageEdits },
+    skips: { skippedTextEdits, skippedTextInserts, skippedImageEdits, skippedAnnotDeletes },
+    annotDeletesApplied,
   };
 }

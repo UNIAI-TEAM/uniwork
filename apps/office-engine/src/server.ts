@@ -205,6 +205,7 @@ async function route(req: IncomingMessage, res: ServerResponse, deps: ServerDeps
         running: deps.jobs.runningCount,
         maxWorkers: deps.config.maxWorkers,
         maxQueue: deps.config.maxQueue,
+        quarantinedSlots: deps.jobs.sandboxQuarantined,
       }),
     );
     return;
