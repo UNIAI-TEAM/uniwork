@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import type { CalendarEvent } from "@uniwork/core/calendar/types";
 import {
   Command,
@@ -25,6 +26,11 @@ import {
   CommandSeparator,
   CommandTextInput,
 } from "@uniwork/ui/components/ui/command";
+import {
+  UI_EASE_OUT,
+  UI_MOTION_DISTANCE,
+  UI_MOTION_DURATION,
+} from "@uniwork/ui/lib/motion";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { CalendarViewMode } from "./calendar-view-mode";
 
@@ -61,6 +67,7 @@ type CalendarCommand = {
 };
 
 const RESULT_LIMIT = 8;
+const SUGGESTED_COMMANDS = new Set(["today", "previous", "next", "refresh"]);
 
 const VIEW_KEYWORDS: Record<CalendarViewMode, string> = {
   day: "day ngay",
@@ -136,6 +143,7 @@ export function CalendarFloatingSearch({
   const { t, i18n } = useTranslation();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const reduceMotion = useReducedMotion() ?? false;
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -214,7 +222,7 @@ export function CalendarFloatingSearch({
       commands.filter((command) =>
         normalizedQuery
           ? searchable(`${command.label} ${command.keywords}`).includes(normalizedQuery)
-          : true,
+          : SUGGESTED_COMMANDS.has(command.id),
       ),
     [commands, normalizedQuery],
   );
@@ -277,34 +285,72 @@ export function CalendarFloatingSearch({
   return (
     <div
       ref={rootRef}
-      className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4"
+      className="pointer-events-none absolute inset-x-0 bottom-8 z-30 flex justify-center px-4"
     >
-      <button
+      <motion.button
         ref={triggerRef}
         type="button"
         aria-label={t("calendar.search_open")}
+        initial={false}
+        animate={{ opacity: open ? 0 : 1, y: open && !reduceMotion ? 4 : 0 }}
+        transition={{
+          duration: UI_MOTION_DURATION.fast,
+          ease: UI_EASE_OUT,
+        }}
         className={cn(
-          "pointer-events-auto flex h-10 w-full max-w-md items-center gap-2 rounded-lg border border-border/70 bg-popover px-3 text-left shadow-lg transition-colors hover:bg-surface-hover",
-          open && "hidden",
+          "pointer-events-auto flex h-11 w-full max-w-sm items-center gap-2.5 rounded-lg border border-border/80 bg-background/95 px-3.5 text-left shadow-floating backdrop-blur-sm",
+          "transition-colors hover:border-foreground/15 hover:bg-background",
+          open && "pointer-events-none invisible",
         )}
         onClick={() => setOpen(true)}
       >
-        <Search aria-hidden className="size-4 text-muted-foreground" />
-        <span className="min-w-0 flex-1 truncate text-body text-muted-foreground">
+        <Search aria-hidden className="size-4 text-foreground/70" />
+        <span className="min-w-0 flex-1 truncate text-body text-foreground/75">
           {t("calendar.search_placeholder")}
         </span>
-        <CalendarDays aria-hidden className="size-4 text-muted-foreground" />
-      </button>
+        <span className="flex items-center gap-1.5 text-caption text-muted-foreground">
+          <CalendarDays aria-hidden className="size-3.5" />
+          {t("calendar.search_scope")}
+        </span>
+      </motion.button>
 
-      {open ? (
-        <div className="pointer-events-auto w-full max-w-lg overflow-hidden rounded-lg border border-border/70 bg-popover text-popover-foreground shadow-xl">
+      <AnimatePresence initial={false}>
+        {open ? (
+          <motion.div
+            key="calendar-floating-search"
+            initial={{
+              opacity: 0,
+              y: reduceMotion ? 0 : UI_MOTION_DISTANCE.subtle,
+            }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{
+              opacity: 0,
+              y: reduceMotion ? 0 : UI_MOTION_DISTANCE.subtle,
+            }}
+            transition={{
+              duration: UI_MOTION_DURATION.fast,
+              ease: UI_EASE_OUT,
+            }}
+            className="pointer-events-auto absolute bottom-0 w-[min(30rem,calc(100%-2rem))] overflow-hidden rounded-lg border border-border/80 bg-popover text-popover-foreground shadow-floating"
+          >
           <Command
             label={t("calendar.search_input_label")}
             shouldFilter={false}
             className="rounded-none p-0"
           >
+            <div className="flex items-center justify-between gap-3 border-b border-border/70 px-3.5 py-2.5">
+              <div className="flex min-w-0 items-center gap-2">
+                <CalendarDays aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+                <span className="truncate text-label font-medium text-foreground">
+                  {t("calendar.search_title")}
+                </span>
+              </div>
+              <span className="shrink-0 text-caption text-muted-foreground">
+                {t("calendar.search_navigation_hint")}
+              </span>
+            </div>
             <div ref={resultsRef}>
-              <CommandList className="max-h-[min(22rem,55vh)] p-1">
+              <CommandList className="max-h-[min(20rem,48vh)] p-1.5">
                 {!hasResults ? (
                   <CommandEmpty>{t("calendar.search_empty")}</CommandEmpty>
                 ) : null}
@@ -318,6 +364,7 @@ export function CalendarFloatingSearch({
                         <CommandItem
                           key={event.id}
                           value={`event-${event.id}`}
+                          className="min-h-10 rounded-md px-2.5 py-2 data-selected:bg-surface-hover"
                           onSelect={() =>
                             run(() => onOpenEvent(event, triggerRef.current ?? undefined))
                           }
@@ -352,7 +399,7 @@ export function CalendarFloatingSearch({
                           data-calendar-external-task
                           data-task-id={task.id}
                           data-task-title={task.title}
-                          className="fc-event cursor-grab active:cursor-grabbing"
+                          className="fc-event min-h-10 cursor-grab rounded-md px-2.5 py-2 data-selected:bg-surface-hover active:cursor-grabbing"
                           onSelect={() =>
                             run(() => onOpenTask(task.id, triggerRef.current ?? undefined))
                           }
@@ -386,6 +433,7 @@ export function CalendarFloatingSearch({
                         <CommandItem
                           key={command.id}
                           value={`command-${command.id}`}
+                          className="min-h-9 rounded-md px-2.5 data-selected:bg-surface-hover"
                           onSelect={() => run(command.action)}
                         >
                           <Icon aria-hidden />
@@ -403,8 +451,8 @@ export function CalendarFloatingSearch({
               </CommandList>
             </div>
             <CommandSeparator className="mx-0" />
-            <div className="flex h-11 items-center gap-2 px-3">
-              <Search aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+            <div className="flex h-12 items-center gap-2.5 bg-muted/25 px-3.5">
+              <Search aria-hidden className="size-4 shrink-0 text-foreground/65" />
               <CommandTextInput
                 autoFocus
                 aria-label={t("calendar.search_input_label")}
@@ -418,13 +466,14 @@ export function CalendarFloatingSearch({
                   }
                 }}
               />
-              <span className="text-caption text-muted-foreground">
+              <span className="shrink-0 text-caption text-muted-foreground">
                 {t("calendar.search_escape_hint")}
               </span>
             </div>
           </Command>
-        </div>
-      ) : null}
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 }

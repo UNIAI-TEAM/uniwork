@@ -63,6 +63,8 @@ describe("CalendarFloatingSearch", () => {
     ).toHaveFocus();
     expect(screen.getByRole("group", { name: "Lệnh lịch" })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Sắp tới" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Xem theo tháng" })).toBeNull();
+    expect(screen.getAllByRole("option")).toHaveLength(5);
   });
 
   it("lọc task và mở panel chi tiết hiện có khi chọn kết quả", () => {
