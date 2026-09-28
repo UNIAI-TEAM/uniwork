@@ -11,6 +11,7 @@
 // (G2-04) and asset operations register here when those lanes bind them;
 // until then the service answers unsupported_operation before a job exists.
 
+import { createHash } from "node:crypto";
 import { readFile, rename, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import {
@@ -79,6 +80,13 @@ function xlsxGateway(assetsDir?: string): Promise<XlsxGatewayFunctions> {
     xlsxGatewayCache.set(artifact, cached);
   }
   return cached;
+}
+
+/** The engine build identity bound into each session — the gateway artifact's
+ *  own sha256, so a swapped bundle can never silently inherit a snapshot. */
+async function xlsxEngineVersion(assetsDir?: string): Promise<string> {
+  const artifact = xlsxGatewayArtifactPath(assetsDir);
+  return createHash("sha256").update(await readFile(artifact)).digest("hex");
 }
 
 /** Lazy sidecar port: the binary is resolved only when the adapter actually
@@ -157,7 +165,7 @@ async function editXlsx(message: RunMessage): Promise<HandlerOutcome> {
   try {
     const engine = await xlsxGateway(message.xlsxAssetsDir);
     recalc = xlsxRecalc(message.xlsxAssetsDir, message.tempDir);
-    const result = await applyXlsxEditBytes(engine, recalc, bytes, ops);
+    const result = await applyXlsxEditBytes(engine, recalc, bytes, ops, await xlsxEngineVersion(message.xlsxAssetsDir));
     await writeOutput(message.outputPath, result.bytes);
     return { ok: true, warnings: result.warnings };
   } catch (error) {

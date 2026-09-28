@@ -26,6 +26,7 @@ import {
   type OpenOutcome,
 } from "@uniwork/office-contracts";
 import {
+  XLSX_SIDECAR_PROTOCOL_VERSION,
   type XlsxGatewayFunctions,
   type XlsxPackageEntry,
   type XlsxRecalcPort,
@@ -74,14 +75,23 @@ export interface XlsxAdapterDeps {
   sha256?: (bytes: Uint8Array) => Promise<string>;
   maxInputBytes?: number;
   /** Build identity bound into the session (input hash + engine version +
-   *  model is the binding the task pins). */
+   *  protocol + model revision is the binding the task pins). The service
+   *  passes the gateway artifact's sha256; a drift between open and
+   *  serialize fails engine_incompatible and never touches the snapshot. */
   engineVersion?: string;
+  /** The NDJSON protocol the session was opened under — bumped when the
+   *  client speaks a new dialect; a drift fails serialize with
+   *  protocol_mismatch. Defaults to XLSX_SIDECAR_PROTOCOL_VERSION. */
+  protocolVersion?: number;
 }
 
 interface XlsxSession {
   ref: string;
   documentId: string;
   inputBytes: Uint8Array;
+  /** Binding captured at open — serialize re-verifies both before mutating. */
+  engineVersion: string | null;
+  protocolVersion: number | null;
   model: XlsxSessionModel;
   sheetNamesById: Readonly<Record<string, string>>;
   preservedParts: readonly string[];
@@ -191,6 +201,13 @@ export class XlsxAdapter {
     if (!parsed?.snapshot || !Array.isArray(parsed.snapshot.sheets) || parsed.snapshot.sheets.length === 0) {
       return this.failed(document_id, "corrupted", "engine returned a workbook without sheets");
     }
+    // A recalc-bound adapter serves ONE live session: the port carries a
+    // resident model per job, so two sessions would share native state — the
+    // cross-job isolation this lane is graded on. The service and the replay
+    // both build one adapter per document; a second open is caller misuse.
+    if (this.deps.recalc && this.sessions.size > 0) {
+      return this.failed(document_id, "engine_error", "a recalc-bound adapter already serves a session — release it before opening another", "engine_overloaded");
+    }
     const hash = this.deps.sha256 ?? sha256Hex;
     const inputSha256 = await hash(bytes);
     sessionCounter += 1;
@@ -200,6 +217,8 @@ export class XlsxAdapter {
       ref,
       documentId: document_id,
       inputBytes: bytes,
+      engineVersion: this.deps.engineVersion ?? null,
+      protocolVersion: this.deps.recalc ? (this.deps.protocolVersion ?? XLSX_SIDECAR_PROTOCOL_VERSION) : null,
       model: createXlsxSessionModel(parsed.snapshot, inputSha256),
       sheetNamesById: parsed.sheetNamesById,
       preservedParts,
@@ -232,8 +251,10 @@ export class XlsxAdapter {
     this.sessions.delete(documentModelRef);
     // No other live session may share this job's native model — purge the
     // resident sidecar state so the next open can never inherit it. The port
-    // is per-job in the service build; close() is idempotent.
-    if (this.deps.recalc) void this.deps.recalc.close().catch(() => {});
+    // is per-job (a recalc-bound adapter enforces a single live session at
+    // open), so zero sessions means the job's native state must die; close()
+    // is idempotent and terminal, a reopened session never revives it.
+    if (this.deps.recalc && this.sessions.size === 0) void this.deps.recalc.close().catch(() => {});
     return true;
   }
 
@@ -261,6 +282,20 @@ export class XlsxAdapter {
     if (digestNow !== session.model.inputSha256) {
       throw new EngineBoundaryError("engine_checksum_mismatch", {
         detail: "xlsx input digest changed since open; refusing to publish",
+      });
+    }
+    // The rest of the session binding: the engine build and protocol the
+    // model was parsed under must still be what this serialize runs on —
+    // a snapshot produced by a different build is never rebased onto it.
+    if (session.engineVersion !== (this.deps.engineVersion ?? null)) {
+      throw new EngineBoundaryError("engine_incompatible", {
+        detail: "xlsx engine build changed since open; the session snapshot cannot be reused",
+      });
+    }
+    const protocolNow = this.deps.recalc ? (this.deps.protocolVersion ?? XLSX_SIDECAR_PROTOCOL_VERSION) : null;
+    if (session.protocolVersion !== protocolNow) {
+      throw new EngineBoundaryError("protocol_mismatch", {
+        detail: "xlsx recalc protocol changed since open; the session snapshot cannot be reused",
       });
     }
     const warnings: { code: string; detail: string }[] = [];
@@ -500,8 +535,9 @@ export async function applyXlsxEditBytes(
   recalc: XlsxRecalcPort | undefined,
   bytes: Uint8Array,
   ops: unknown[],
+  engineVersion?: string,
 ): Promise<{ bytes: Uint8Array; warnings: { code: string; detail: string }[] }> {
-  const adapter = new XlsxAdapter({ engine, recalc });
+  const adapter = new XlsxAdapter({ engine, recalc, ...(engineVersion !== undefined ? { engineVersion } : {}) });
   const outcome = await adapter.open({ bytes, format: "xlsx", document_id: "job" });
   if (outcome.outcome !== "opened") {
     throw new XlsxTypedError("engine_result_invalid", outcome.failure_class + ": " + (outcome.message ?? ""));

@@ -179,3 +179,60 @@ describe("xlsx adapter edit + serialize", () => {
     expect(rows2.find((r) => r.operation === "serialize")?.supported).toBe(true);
   });
 });
+
+describe("xlsx session binding (engine version + protocol)", () => {
+  it("engine build drift after open => engine_incompatible, snapshot untouched", async () => {
+    const deps = {
+      engine: createFakeXlsxEngine(),
+      recalc: createFakeRecalc(),
+      engineVersion: "build-A",
+    };
+    const adapter = createXlsxAdapter(deps);
+    const out = await adapter.open({ bytes: fixture(), format: "xlsx", document_id: "doc-1" });
+    const ref = (out as { document_model_ref: string }).document_model_ref;
+    adapter.edit(ref, [{ op: "set_cell", target: { sheet: "Data", cell: "A4" }, attributes: { value: 7 } }]);
+    const snapshotBefore = adapter.snapshotOf(ref);
+    // The artifact was swapped between open and serialize.
+    deps.engineVersion = "build-B";
+    await expect(adapter.serialize({ document_model_ref: ref, format: "xlsx" })).rejects.toMatchObject({
+      code: "engine_incompatible",
+    });
+    // Nothing rebased: the pending edit and the base are exactly as before.
+    expect(adapter.isDirty(ref)).toBe(true);
+    expect(adapter.snapshotOf(ref)).toBe(snapshotBefore);
+    expect(deps.recalc.calls.length).toBe(0);
+  });
+
+  it("protocol drift after open => protocol_mismatch, snapshot untouched", async () => {
+    const deps = {
+      engine: createFakeXlsxEngine(),
+      recalc: createFakeRecalc(),
+      protocolVersion: 1,
+    };
+    const adapter = createXlsxAdapter(deps);
+    const out = await adapter.open({ bytes: fixture(), format: "xlsx", document_id: "doc-1" });
+    const ref = (out as { document_model_ref: string }).document_model_ref;
+    adapter.edit(ref, [{ op: "set_cell", target: { sheet: "Data", cell: "A4" }, attributes: { value: 7 } }]);
+    const snapshotBefore = adapter.snapshotOf(ref);
+    deps.protocolVersion = 2;
+    await expect(adapter.serialize({ document_model_ref: ref, format: "xlsx" })).rejects.toMatchObject({
+      code: "protocol_mismatch",
+    });
+    expect(adapter.isDirty(ref)).toBe(true);
+    expect(adapter.snapshotOf(ref)).toBe(snapshotBefore);
+    expect(deps.recalc.calls.length).toBe(0);
+  });
+
+  it("a recalc-bound adapter refuses a second live session", async () => {
+    const adapter = createXlsxAdapter({ engine: createFakeXlsxEngine(), recalc: createFakeRecalc() });
+    const first = await adapter.open({ bytes: fixture(), format: "xlsx", document_id: "doc-1" });
+    expect(first.outcome).toBe("opened");
+    const second = await adapter.open({ bytes: fixture(), format: "xlsx", document_id: "doc-2" });
+    expect(second).toMatchObject({ outcome: "failed", engine_error: "engine_overloaded" });
+    // Releasing the first frees the lane — the native state died with it.
+    const ref = (first as { document_model_ref: string }).document_model_ref;
+    adapter.release(ref);
+    const third = await adapter.open({ bytes: fixture(), format: "xlsx", document_id: "doc-3" });
+    expect(third.outcome).toBe("opened");
+  });
+});

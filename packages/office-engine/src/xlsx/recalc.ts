@@ -141,10 +141,14 @@ export function recalcToFormulaValues(
   // answer at that coordinate (e.g. the engine deduplicated a cell whose r=
   // attribute disagreed with its row element onto a shifted address) cannot
   // refresh an <f> cell's cache, so the file's own <v> is kept and warned.
+  const expectedKeys = new Set(expected.map((c) => `${c.sheetName} ${c.row},${c.column}`));
   const kept = expected.filter((c) => seen.get(`${c.sheetName} ${c.row},${c.column}`)?.isFormula !== true).length;
   const bySheet = new Map<string, { row: number; column: number; value: XlsxFormulaValue }[]>();
   for (const cell of result.cells) {
-    if (!cell.isFormula) continue;
+    // Only a formula answer at a coordinate we asked for may write a <v> —
+    // an answer at any other address (e.g. an engine-relocated cell) is
+    // dropped rather than aimed at a cell nobody planned to touch.
+    if (!cell.isFormula || !expectedKeys.has(`${cell.sheet} ${cell.row},${cell.column}`)) continue;
     const list = bySheet.get(cell.sheet) ?? [];
     list.push({ row: cell.row, column: cell.column, value: recalcCellValue(cell) });
     bySheet.set(cell.sheet, list);
