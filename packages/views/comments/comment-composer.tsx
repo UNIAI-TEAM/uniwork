@@ -237,6 +237,7 @@ export function CommentComposer({
             ref={editorRef}
             defaultValue={draft}
             placeholder={placeholder}
+            ariaLabel={placeholder}
             className={cn("text-body", compact ? "min-h-8" : "min-h-16")}
             debounceMs={0}
             disableMentions={disableMentions}

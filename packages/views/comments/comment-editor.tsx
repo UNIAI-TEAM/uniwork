@@ -63,6 +63,7 @@ export function CommentEditor({
         ref={editorRef}
         defaultValue={body}
         placeholder={placeholder}
+        ariaLabel={placeholder}
         className="min-h-20 text-body"
         debounceMs={0}
         attachments={attachments}

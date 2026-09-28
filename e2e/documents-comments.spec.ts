@@ -147,6 +147,10 @@ test("comments panel posts, replies, reacts, resolves and survives a reload", as
   await expect(rail.getByText("Comments", { exact: true }).first()).toBeVisible({
     timeout: 30_000,
   });
+  await expect(rail.getByText(/Resolved/).first()).toBeVisible({ timeout: 30_000 });
+  await rail.getByRole("button", { name: /Resolved/ }).first().click();
+  await expect(rail.getByText("Bình luận đầu tiên").first()).toBeVisible({ timeout: 30_000 });
+  await expect(rail.getByText("Trả lời nhé").first()).toBeVisible({ timeout: 30_000 });
   await shot(page, "document-comments-light-en");
 
   // Back to Vietnamese for the mobile sheet, which is modal below xl.
@@ -158,5 +162,8 @@ test("comments panel posts, replies, reacts, resolves and survives a reload", as
   });
   await page.setViewportSize({ width: 390, height: 844 });
   await openPanel(page);
+  await expect(rail.getByText(/Đã giải quyết/).first()).toBeVisible({ timeout: 30_000 });
+  await rail.getByRole("button", { name: /Đã giải quyết/ }).first().click();
+  await expect(rail.getByText("Bình luận đầu tiên").first()).toBeVisible({ timeout: 30_000 });
   await shot(page, "document-comments-mobile-vi");
 });
