@@ -118,7 +118,11 @@ export function convertDocument(sourceFormat: string, targetFormat: string, byte
 function asConvertError(error: unknown, fallbackReason: string): ConvertTypedError {
   if (error instanceof ConvertTypedError) return error;
   if (error instanceof CfbError) return new ConvertTypedError("engine_result_invalid", error.reason);
-  if (error instanceof BiffError) return new ConvertTypedError("engine_result_invalid", error.reason);
+  if (error instanceof BiffError) {
+    // A password-protected workbook is a named refusal, not a broken file.
+    const code = error.reason === "xls_encrypted" ? "unsupported_operation" : "engine_result_invalid";
+    return new ConvertTypedError(code, error.reason);
+  }
   if (error instanceof OdfError) return new ConvertTypedError("engine_result_invalid", error.reason);
   if (error instanceof ZipError) return new ConvertTypedError("engine_result_invalid", error.reason);
   if (error instanceof RangeError) return new ConvertTypedError("engine_result_invalid", fallbackReason);

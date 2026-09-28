@@ -120,3 +120,81 @@ tracked tree (41/41 contained run). A clean-checkout build of the *engine* remai
 pieces: the prepared pinned source with its local `esbuild` (owner UNI-658 G2, port), and the untracked PDF fixture
 `e2e/office-g0/lab/fixtures/g0-text.pdf` (owner UNI-667/UNI-658, fixtures), plus the runner's default temp/git
 discovery which should be pinned (owner UNI-658 G2)."
+
+## 7. G2-07 hand-off to G3 (editor) and G4 (desktop) - UNI-690, 2026-09-28
+
+> Added by lane g2-07b after the verbatim G0 copy above; it is the live hand-off, the sections above are history.
+
+**Imports (the only entry points a host may use).**
+
+| Consumer | Import | What it gives |
+| --- | --- | --- |
+| G3 web editor | `@uniwork/core` office endpoints (`packages/core/api/endpoints/office.ts`) + `packages/core/documents/office-hooks.ts` | capability, start/get/cancel job, blank, copy - through Go only |
+| G3 browser adapters | `@uniwork/office-engine/browser`, `/markdown`, `/html`, `/xlsx`, `/pdf` | in-browser editing surfaces; never an engine address |
+| Engine service (server only) | `@uniwork/office-engine/node`, `/xlsx/native`, `/convert/native` | node-only; `convert/native` is the Q7 converter and must never enter a browser bundle (`scripts/office/check-boundaries.mjs`) |
+| G4 desktop | `@uniwork/office-engine/desktop` | the same adapters; native handles stay in the host |
+| Everyone | `@uniwork/office-contracts` (+ `fixtures/*`) | schemas, error table, format vocabulary, capability rows |
+
+**Contract.** `uniwork-office-engine-contract/1`, protocol `1`, engine pin `genoffice@09485f88+uniwork-office.0`
+(Go `server/internal/office/contract.go`, TS `packages/office-contracts/src/version.ts`; `scripts/office/integration.test.mjs`
+holds them equal). G2-07b extended the format vocabulary inside `/1` with the Q7 sources `xls` and `odt`
+(capability + convert only; an engine without `convert:xls`/`convert:odt` is refused by negotiation before any write).
+
+**HTTP surface G3 calls** (all behind the `documents` flag and the document ACL; SDI/SDO in
+`server/internal/handler/dto/{sdi,sdo}/office.go`, OpenAPI built at start):
+
+| Route | Use |
+| --- | --- |
+| `GET /api/v1/documents/{id}/office/capabilities` | one row per operation + `create_blank`; show an action only when `supported`; the `convert` row names its `target_format` |
+| `POST /api/v1/documents/{id}/office/jobs` (+ `Idempotency-Key`) | `open` / `serialize` / `convert` (`target_format`: `xlsx` for xls, `docx` for odt) |
+| `GET .../office/jobs/{jobID}` | job state; a completed convert job carries `result` = `{source_format, target_format, fidelity:{level, lost[]}, content:{sheets, cells, paragraphs}}` - the Q7 warning text comes from `fidelity.lost` and `content` |
+| `POST .../office/jobs/{jobID}/cancel` | Q7 Cancel: nothing is created, the output is never claimed |
+| `POST /api/v1/documents/{id}/copies` `{consent:"copy", job_id}` | Q7 Accept: a new OOXML document with provenance; only the job's creator; 409 `conversion_not_accepted` when the job is cancelled, spent or not a conversion |
+| `POST /api/v1/documents/{id}/versions/commit` `{upload_id: output_file_id}` | save path for open/edit/serialize outputs; a convert output is refused here (`office_job_convert_copy_only`) |
+| `POST /api/v1/workspaces/{ws}/documents/files/blank` | `md`, `html`, `xlsx` |
+
+`packages/core` does not model `result`, `target_format` or `job_id` yet (its schemas are lenient and ignore the new
+keys): G3 extends `office.ts` with them plus a malformed-response case, per CLAUDE.md "API Compatibility".
+
+**Typed errors a client branches on** (code, never message): `unsupported_operation` (reasons `not_bound`,
+`convert_pair_not_bound`, `convert_source_not_bound`, `export_not_bound`, `blank_not_bound`, `format_mismatch`),
+`engine_incompatible` (engine drift, or `version_engine:<build>` for a version this build cannot read - edit is
+disabled, download/restore stay), `contract_mismatch`, `protocol_mismatch`, `base_version_mismatch`,
+`payload_fingerprint_mismatch`, `in_flight`, `engine_timeout`, `engine_overloaded`, `engine_crashed`,
+`engine_result_invalid` (incl. `convert_result_missing`, `biff_unreadable`), `engine_checksum_mismatch`,
+`conversion_not_accepted`, `office_job_invalid`, `office_not_configured` (503: no engine deployed - Documents keeps
+working). The full table is `server/internal/office/contract.go` `ErrorCodes`.
+
+**Fixture ids.** G0 manifest `docs/office/g0/fixtures/manifest.json`; the ones the G2 rows prove: F-DOCX-SIMPLE,
+F-PPTX-STD, F-XLSX-KITCHEN, F-PDF-TEXT, F-MD-FULL, F-HTML-VI, F-LEGACY-XLS, F-UNSUPPORTED-ODT; the upgrade-replay set is
+`docs/office/g1g2/upgrade-replay.json`.
+
+**Sample caller (Q7, what the G3 warning dialog does).**
+
+```text
+GET  /documents/{id}/office/capabilities              -> convert.supported, target_format "xlsx"
+POST /documents/{id}/office/jobs {operation:"convert", target_format:"xlsx"}   Idempotency-Key: k1
+GET  /documents/{id}/office/jobs/{job}  (poll)        -> state "completed", result.fidelity.lost, result.content
+  user cancels -> POST /documents/{id}/office/jobs/{job}/cancel
+  user accepts -> POST /documents/{id}/copies {consent:"copy", job_id:job}   Idempotency-Key: k2
+                  -> 201 DocumentSDO of the new xlsx document (source_* provenance on the row)
+```
+
+**Runtime deployment.** One private container per environment from `apps/office-engine/Dockerfile` (runtime stage),
+`docker run --init --read-only --tmpfs /tmp:size=512m,mode=1777 --memory 2g` with `OFFICE_ENGINE_SERVICE_TOKEN`,
+`OFFICE_ENGINE_GRANT_KEY`, `OFFICE_ENGINE_OUTPUT_ORIGINS` (the object-store origin the presigned PUT names),
+`OFFICE_ENGINE_SANDBOX=required`; Go reaches it through `OFFICE_ENGINE_URL` (+ token/key) and never exposes it.
+Engine absent = office routes answer 503 `office_not_configured`, nothing else changes. Upgrade: build the candidate,
+run `TestDocumentOfficeUpgradeReplay` against it, then add it to `office.ReadableEngineVersions` and move the pin in
+Go, TS and the replay manifest in one commit; rollback = redeploy the previous image (versions the newer build wrote
+answer `engine_incompatible` for edit, stay downloadable and restorable).
+
+**Open limits (not done, owners named).**
+- Q7 warning / cancel / accept UI, and the "incompatible version" state in the editor: G3 UNI-659.
+- docx/pptx have no server-side handler: editing is client-side (G3) and the server only stores/commits.
+- Mac/Safari: no browser row here ran on Safari/WebKit; the browser adapters are proven on Chromium only (G3 owns the
+  WebKit run). Desktop (G4 UNI-636): namespace, update feed and packaging rows in section 3 are still `pending`.
+- Export stays unbound; conversions beyond `xls -> xlsx` / `odt -> docx` (ods, xlsb, rtf, doc, ppt) are not bound.
+- Converter fidelity is `limited` by design (see `docs/office/g1-g2-evidence.md` section 8); a password-protected
+  `.xls` is refused as `unsupported_operation` `xls_encrypted`.
+- A durable (resumable) blank-create job is a G3 follow-up (07a decision, option A).

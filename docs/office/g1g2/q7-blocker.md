@@ -39,3 +39,12 @@ Nothing is faked: no conversion was simulated and no provenance field was invent
   (c) Accept -> a new OOXML copy whose reopen matches the manifest oracle, with a provenance field naming the source id
       and sha256; (d) source and its history unchanged.
 Until then DOC-003's 3.4 checkbox stays open with this blocker (plan: "Không đạt một nhóm lõi thì báo blocker").
+
+## Closing status (G2-07b, UNI-690, 2026-09-28)
+
+The server half is closed; the warning UI (G3 UNI-659) is still open. Engine choice (Advisor, option A): in-repo
+node-only converters `packages/office-engine/src/node/convert/` (BIFF8 `.xls -> .xlsx`, ODF text `.odt -> .docx`),
+bound in the engine service as `convert:xls` / `convert:odt`, no new dependency, never in the browser bundle.
+Closing test steps (a)-(d) run on the real engine container + FileService on MinIO in
+`server/internal/service/document_office_q7_integration_test.go` (`TestDocumentOfficeQ7Integration`), with the
+gate/authz rows in `document_office_q7_test.go`; the per-step table is `docs/office/g1-g2-evidence.md` section 8.

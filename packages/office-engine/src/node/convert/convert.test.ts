@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ConvertTypedError, convertDocument, convertLegacySpreadsheet, convertOdfText } from "./index.ts";
+import { BiffError, readBiff8Workbook } from "./biff8.ts";
 import { readZip } from "./zip.ts";
 
 // The oracles are the frozen G0 fixtures themselves:
@@ -136,3 +137,23 @@ function expectTyped(run: () => unknown): ConvertTypedError {
   }
   throw new Error("expected a ConvertTypedError, but the call returned");
 }
+
+describe("readBiff8Workbook refusals", () => {
+  // BOF (BIFF8 workbook globals) followed by FILEPASS: everything after it is
+  // ciphertext, so the reader must refuse by name instead of decoding cells.
+  function record(type: number, body: number[]): number[] {
+    return [type & 0xff, type >> 8, body.length & 0xff, body.length >> 8, ...body];
+  }
+  it("refuses a password-protected workbook as xls_encrypted", () => {
+    const bof = record(0x0809, [0x00, 0x06, 0x05, 0x00, ...new Array<number>(12).fill(0)]);
+    const filepass = record(0x002f, [0x01, 0x00, ...new Array<number>(52).fill(0)]);
+    const stream = new Uint8Array([...bof, ...filepass]);
+    try {
+      readBiff8Workbook(stream);
+      expect.unreachable("an encrypted workbook was read");
+    } catch (error) {
+      expect(error).toBeInstanceOf(BiffError);
+      expect((error as BiffError).reason).toBe("xls_encrypted");
+    }
+  });
+});

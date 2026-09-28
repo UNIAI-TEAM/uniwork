@@ -16,11 +16,12 @@ export interface BiffSheet {
 }
 
 export class BiffError extends Error {
-  readonly reason = "biff_unreadable";
-  constructor(detail: string) {
+  /** biff_unreadable, or xls_encrypted for a password-protected workbook. */
+  readonly reason: "biff_unreadable" | "xls_encrypted";
+  constructor(detail: string, reason: "biff_unreadable" | "xls_encrypted" = "biff_unreadable") {
     super(detail);
     this.name = "BiffError";
-    this.reason = "biff_unreadable";
+    this.reason = reason;
   }
 }
 
@@ -42,6 +43,7 @@ const MULRK = 0x00bd;
 const FORMULA = 0x0006;
 const STRING = 0x0207;
 const BOOLERR = 0x0205;
+const FILEPASS = 0x002f;
 const MAX_RECORDS = 500_000;
 
 /** Parse the Workbook stream of a BIFF8 compound file into sheets and cells. */
@@ -59,6 +61,9 @@ export function readBiff8Workbook(stream: Uint8Array): BiffSheet[] {
     const type = readU16(stream, at);
     const length = readU16(stream, at + 2);
     if (at + 4 + length > stream.byteLength) throw new BiffError("a record runs past the stream");
+    // Every record after FILEPASS is encrypted: reading on would turn
+    // ciphertext into cell values, so the workbook is refused by name.
+    if (type === FILEPASS) throw new BiffError("the workbook is password-protected", "xls_encrypted");
     records.push({ type, data: stream.subarray(at + 4, at + 4 + length) });
     at += 4 + length;
     count++;
