@@ -46,9 +46,6 @@ export interface XlsxSidecarOptions {
  *  rogue or panicking child cannot grow the worker's heap until the RSS
  *  watchdog answers with an untyped OOM instead of a typed failure. */
 const MAX_RESPONSE_LINE_BYTES = 16 * 1024 * 1024;
-/** stderr is drained, never buffered unboundedly — a Rust panic backtrace
- *  could otherwise fill the pipe and deadlock the child into a timeout. */
-const STDERR_TAIL_BYTES = 8 * 1024;
 
 interface Pending {
   resolve: (value: unknown) => void;
@@ -91,8 +88,8 @@ export class XlsxSidecar implements XlsxRecalcPort {
   /** close() ran its cleanup to completion (idempotent release). */
   private cleanedUp = false;
   private exitWait: Promise<void> | null = null;
-  private stdoutBuf = "";
-  private stderrTail = "";
+  private stdoutChunks: Buffer[] = [];
+  private stdoutBytes = 0;
   private stagedPath: string | null = null;
   private stagedDir: string | null = null;
 
@@ -107,7 +104,7 @@ export class XlsxSidecar implements XlsxRecalcPort {
     if (this.child) return this.child;
     const workDir = this.opts.workDir ?? (this.stagedDir = mkdtempSync(join(tmpdir(), "xlsx-sidecar-")));
     const child = spawn(this.opts.binaryPath, this.opts.binaryArgs ?? [], {
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "ignore"],
       windowsHide: true,
       cwd: workDir,
       // Only what the process needs: no service env leaks into the sandbox's
@@ -123,11 +120,6 @@ export class XlsxSidecar implements XlsxRecalcPort {
     child.stdin!.on("error", () => this.die("engine_crashed", "xlsx sidecar stdin error"));
     child.stdout!.on("error", () => this.die("engine_crashed", "xlsx sidecar stdout error"));
     child.stdout!.on("data", (chunk: Buffer) => this.onStdout(chunk));
-    child.stderr!.on("data", (chunk: Buffer) => {
-      // Diagnose, don't buffer: keep only the tail so a panicking sidecar's
-      // diagnostics reach the crash detail without deadlocking the pipe.
-      this.stderrTail = (this.stderrTail + chunk.toString("utf8")).slice(-STDERR_TAIL_BYTES);
-    });
     this.child = child;
     return child;
   }
@@ -146,8 +138,10 @@ export class XlsxSidecar implements XlsxRecalcPort {
     if (this.exitWait) return this.exitWait;
     const child = this.child;
     this.child = null;
-    this.stdoutBuf = "";
-    if (!child || child.exitCode !== null || child.killed) return (this.exitWait = Promise.resolve());
+    this.stdoutChunks = [];
+    this.stdoutBytes = 0;
+    if (!child || child.exitCode !== null || child.signalCode !== null || child.pid === undefined)
+      return (this.exitWait = Promise.resolve());
     this.exitWait = new Promise<void>((resolve) => {
       child.once("exit", () => resolve());
       setTimeout(resolve, 5_000).unref();
@@ -157,30 +151,34 @@ export class XlsxSidecar implements XlsxRecalcPort {
     return this.exitWait;
   }
 
-  private crashDetail(detail: string): string {
-    const tail = this.stderrTail.trim();
-    return tail ? `${detail}; stderr: ${tail.slice(-500)}` : detail;
-  }
-
   private die(code: "engine_crashed" | "engine_result_invalid", detail: string): void {
     if (this.closed) return; // exit + stream-error can both fire
     this.closed = true;
-    this.rejectPending(new EngineBoundaryError(code, { detail: this.crashDetail(detail) }));
+    this.rejectPending(new EngineBoundaryError(code, { detail }));
     void this.killChild();
   }
 
+  /** Frame whole lines as bytes and decode each once — decoding a raw chunk
+   *  would corrupt a multibyte code point split across pipe writes, and
+   *  re-decoding the buffer every chunk is O(n²) on a big response. */
   private onStdout(chunk: Buffer): void {
-    this.stdoutBuf += chunk.toString("utf8");
-    if (Buffer.byteLength(this.stdoutBuf) > MAX_RESPONSE_LINE_BYTES) {
-      this.die("engine_result_invalid", `xlsx sidecar response exceeds the ${MAX_RESPONSE_LINE_BYTES}-byte line bound`);
-      return;
-    }
-    let nl = this.stdoutBuf.indexOf("\n");
+    if (this.closed) return;
+    let start = 0;
+    let nl = chunk.indexOf(0x0a, start);
     while (nl >= 0) {
-      const line = this.stdoutBuf.slice(0, nl);
-      this.stdoutBuf = this.stdoutBuf.slice(nl + 1);
+      const line = Buffer.concat([...this.stdoutChunks, chunk.subarray(start, nl)]).toString("utf8");
+      this.stdoutChunks = [];
+      this.stdoutBytes = 0;
       this.onLine(line);
-      nl = this.stdoutBuf.indexOf("\n");
+      if (this.closed) return;
+      start = nl + 1;
+      nl = chunk.indexOf(0x0a, start);
+    }
+    const tail = chunk.subarray(start);
+    this.stdoutChunks.push(tail);
+    this.stdoutBytes += tail.length;
+    if (this.stdoutBytes > MAX_RESPONSE_LINE_BYTES) {
+      this.die("engine_result_invalid", `xlsx sidecar response exceeds the ${MAX_RESPONSE_LINE_BYTES}-byte line bound`);
     }
   }
 

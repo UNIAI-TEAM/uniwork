@@ -51,6 +51,20 @@ rl.on("line", (line) => {
 });
 `;
 
+// A responder whose answer splits a multibyte code point across two stdout
+// writes — framing must decode whole byte-lines, never a raw chunk.
+const SPLIT_UTF8_SCRIPT = `
+const rl = require("node:readline").createInterface({ input: process.stdin });
+rl.on("line", (line) => {
+  const req = JSON.parse(line);
+  const payload = Buffer.from(JSON.stringify({ version: 1, requestId: req.requestId, ok: true,
+    result: { cells: [{ sheet: "S", row: 0, column: 0, formatted: "Tiếng Việt ₫ 𝄞", isError: false, isFormula: true }], cached: false } }) + "\\n", "utf8");
+  const cut = payload.indexOf(Buffer.from("ế", "utf8")) + 1;
+  process.stdout.write(payload.subarray(0, cut));
+  setTimeout(() => process.stdout.write(payload.subarray(cut)), 50);
+});
+`;
+
 // A responder that emits a response far over the per-line bound — the client
 // must refuse it typed rather than buffer an unbounded stream.
 const GIANT_LINE_SCRIPT = `
@@ -75,6 +89,18 @@ describe("xlsx sidecar client", () => {
       const port = createXlsxSidecar({ ...fakeBinary(ECHO_SCRIPT), workDir: dir });
       const result = await port.recalc(new Uint8Array([80, 75]), [], [{ sheet: "S", range: { startRow: 0, endRow: 0, startColumn: 0, endColumn: 0 } }]);
       expect(result.cells[0]).toMatchObject({ formatted: "6", number: 6, isFormula: true });
+      await port.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    }
+  });
+
+  it("a multibyte answer split across stdout writes decodes intact", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "xlsx-sidecar-test-"));
+    try {
+      const port = createXlsxSidecar({ ...fakeBinary(SPLIT_UTF8_SCRIPT), workDir: dir });
+      const result = await port.recalc(new Uint8Array([80, 75]), [], []);
+      expect(result.cells[0]?.formatted).toBe("Tiếng Việt ₫ 𝄞");
       await port.close();
     } finally {
       rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });

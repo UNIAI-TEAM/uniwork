@@ -70,23 +70,32 @@ function pdfFail(error: unknown): HandlerOutcome {
 // worker. The sidecar stages its workbook copy inside the job temp dir and
 // dies with the worker, so no resident model or file survives a job.
 
-const xlsxGatewayCache = new Map<string, Promise<XlsxGatewayFunctions>>();
+type XlsxGatewayBuild = { functions: XlsxGatewayFunctions; engineVersion: string };
 
-function xlsxGateway(assetsDir?: string): Promise<XlsxGatewayFunctions> {
+const xlsxGatewayCache = new Map<string, Promise<XlsxGatewayBuild>>();
+
+/** The engine build identity bound into each session — an identity stamp of
+ *  the loaded build (gateway module + sidecar) fixed at load time, so a
+ *  swapped bundle can never silently inherit a snapshot's stamp while the
+ *  old code keeps running. */
+function xlsxGateway(assetsDir?: string): Promise<XlsxGatewayBuild> {
   const artifact = xlsxGatewayArtifactPath(assetsDir);
   let cached = xlsxGatewayCache.get(artifact);
   if (!cached) {
-    cached = import(pathToFileURL(artifact).href).then((mod) => bindXlsxGateway(mod as never));
+    cached = (async () => {
+      const gatewaySha = createHash("sha256").update(await readFile(artifact)).digest("hex");
+      const functions = bindXlsxGateway((await import(pathToFileURL(artifact).href)) as never);
+      let sidecarSha = "no-sidecar";
+      try {
+        sidecarSha = createHash("sha256").update(await readFile(xlsxSidecarPath(assetsDir))).digest("hex");
+      } catch {
+        /* an unresolved or unreadable sidecar stamps as "no-sidecar" */
+      }
+      return { functions, engineVersion: `gw:${gatewaySha};sc:${sidecarSha}` };
+    })();
     xlsxGatewayCache.set(artifact, cached);
   }
   return cached;
-}
-
-/** The engine build identity bound into each session — the gateway artifact's
- *  own sha256, so a swapped bundle can never silently inherit a snapshot. */
-async function xlsxEngineVersion(assetsDir?: string): Promise<string> {
-  const artifact = xlsxGatewayArtifactPath(assetsDir);
-  return createHash("sha256").update(await readFile(artifact)).digest("hex");
 }
 
 /** Lazy sidecar port: the binary is resolved only when the adapter actually
@@ -116,7 +125,7 @@ async function openXlsx(message: RunMessage): Promise<HandlerOutcome> {
   if (!message.inputPath) return { ok: false, code: "engine_result_invalid", reason: "input_required" };
   const bytes = await readFile(message.inputPath);
   try {
-    const engine = await xlsxGateway(message.xlsxAssetsDir);
+    const { functions: engine } = await xlsxGateway(message.xlsxAssetsDir);
     const probe = await probeXlsx(engine, bytes);
     await writeOutput(message.outputPath, JSON.stringify({ document_model: probe }));
     return { ok: true, warnings: [] };
@@ -131,7 +140,7 @@ async function serializeXlsx(message: RunMessage): Promise<HandlerOutcome> {
   if (!message.inputPath) return { ok: false, code: "engine_result_invalid", reason: "input_required" };
   const bytes = await readFile(message.inputPath);
   try {
-    const engine = await xlsxGateway(message.xlsxAssetsDir);
+    const { functions: engine } = await xlsxGateway(message.xlsxAssetsDir);
     const probe = await probeXlsx(engine, bytes);
     await writeOutput(message.outputPath, bytes);
     const warnings =
@@ -163,9 +172,9 @@ async function editXlsx(message: RunMessage): Promise<HandlerOutcome> {
   }
   let recalc: XlsxRecalcPort | undefined;
   try {
-    const engine = await xlsxGateway(message.xlsxAssetsDir);
+    const { functions: engine, engineVersion } = await xlsxGateway(message.xlsxAssetsDir);
     recalc = xlsxRecalc(message.xlsxAssetsDir, message.tempDir);
-    const result = await applyXlsxEditBytes(engine, recalc, bytes, ops, await xlsxEngineVersion(message.xlsxAssetsDir));
+    const result = await applyXlsxEditBytes(engine, recalc, bytes, ops, engineVersion);
     await writeOutput(message.outputPath, result.bytes);
     return { ok: true, warnings: result.warnings };
   } catch (error) {

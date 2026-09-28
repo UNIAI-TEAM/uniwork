@@ -224,11 +224,15 @@ describe("xlsx session binding (engine version + protocol)", () => {
   });
 
   it("a recalc-bound adapter refuses a second live session", async () => {
-    const adapter = createXlsxAdapter({ engine: createFakeXlsxEngine(), recalc: createFakeRecalc() });
+    const recalc = createFakeRecalc();
+    const adapter = createXlsxAdapter({ engine: createFakeXlsxEngine(), recalc });
     const first = await adapter.open({ bytes: fixture(), format: "xlsx", document_id: "doc-1" });
     expect(first.outcome).toBe("opened");
     const second = await adapter.open({ bytes: fixture(), format: "xlsx", document_id: "doc-2" });
     expect(second).toMatchObject({ outcome: "failed", engine_error: "engine_overloaded" });
+    // The refusal touched no port: still open, never asked to recalc.
+    expect(recalc.closed).toBe(false);
+    expect(recalc.calls.length).toBe(0);
     // Releasing the first frees the lane — the native state died with it.
     const ref = (first as { document_model_ref: string }).document_model_ref;
     adapter.release(ref);
