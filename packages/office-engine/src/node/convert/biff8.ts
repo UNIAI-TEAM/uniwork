@@ -5,7 +5,7 @@
 // tables and macros are outside the reader on purpose - the converter names
 // those as losses instead of guessing.
 
-export interface BiffCell {
+interface BiffCell {
   readonly text: string;
   readonly number?: number;
 }
@@ -300,7 +300,7 @@ function put(cells: Map<string, BiffCell>, row: number, col: number, cell: BiffC
   cells.set(`${columnName(col)}${row + 1}`, cell);
 }
 
-export function columnName(col: number): string {
+function columnName(col: number): string {
   let name = "";
   for (let c = col; c >= 0; c = Math.floor(c / 26) - 1) name = String.fromCharCode(65 + (c % 26)) + name;
   return name;

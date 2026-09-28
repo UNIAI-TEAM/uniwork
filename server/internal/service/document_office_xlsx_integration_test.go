@@ -126,8 +126,8 @@ func TestDocumentOfficeXlsxIntegration(t *testing.T) {
 	// Data!B5=SUM(B2:B4), and the cross-sheet PhuLuc!B2=SUM(Data!B2:B4) is the
 	// clean recalculated cell (Data!B5's relocated formula keeps its file
 	// `<v>` and warns, so it is not the value proof).
-	const dataFormula = "=SUM(B2:B4)"
-	const crossFormula = "=SUM(Data!B2:B4)"
+	const dataFormula = "<f>SUM(B2:B4)</f>"
+	const crossFormula = "<f>SUM(Data!B2:B4)</f>"
 
 	t.Run("xlsx: open probes, edit recalcs natively, commit, read back, reopen", func(t *testing.T) {
 		body := mustReadFixture(t, "sheets/xlsx-kitchen-sink.xlsx")

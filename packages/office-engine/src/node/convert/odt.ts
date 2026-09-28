@@ -11,7 +11,7 @@ export interface OdfParagraph {
   readonly heading: boolean;
 }
 
-export const ODF_TEXT_MIMETYPE = "application/vnd.oasis.opendocument.text";
+const ODF_TEXT_MIMETYPE = "application/vnd.oasis.opendocument.text";
 
 export class OdfError extends Error {
   readonly reason: string;
@@ -44,7 +44,7 @@ function isOdfText(pkg: Map<string, Uint8Array>): boolean {
 }
 
 /** Extract text:h and text:p elements in document order. */
-export function readOdfText(contentXml: string): OdfParagraph[] {
+function readOdfText(contentXml: string): OdfParagraph[] {
   if (!contentXml.includes("<office:document-content")) {
     throw new OdfError("not_odt", "content.xml is not an ODF document");
   }

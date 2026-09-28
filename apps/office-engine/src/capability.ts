@@ -15,7 +15,7 @@ import { BOUND_OPERATIONS } from "./worker/handlers.ts";
 
 /** Source formats whose conversion is bound, and the target each produces
     (docs/office/g1g2/q7-blocker.md closing test; G2-07b fixtures). */
-export const CONVERT_TARGETS: Partial<Record<OfficeFormat, "xlsx" | "docx">> = {
+const CONVERT_TARGETS: Partial<Record<OfficeFormat, "xlsx" | "docx">> = {
   xls: "xlsx",
   odt: "docx",
 };
