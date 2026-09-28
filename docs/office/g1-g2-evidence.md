@@ -61,6 +61,14 @@ tien khong rong va dinh dang cua tai lieu moi resolve dung. Dinh dang khac tra `
 `blank_not_bound` **truoc khi** dang ky output hay tao tai lieu, nen khong bao gio co file Office rong.
 Bang chung: `TestDocumentOfficeIntegration/blank...` (that: pass, lane run 2026-09-28) +
 `TestDocumentOfficeBlankCreateWaitsForTheEngine` (deterministic, scripted engine).
+Blank khong co dong `office_jobs` (chua co tai lieu de gan job): engine chay dong bo trong request, output la
+provider-output intent cua FileService (khong claim thi FileService thu gom), va version dau (reason `upload`)
+stamp engine/contract/protocol pin cua `officeEngineInfo()`. Mot key da co ket qua duoc tra lai **truoc khi**
+engine chay lai; cung key voi title/parent/dinh dang khac, hoac key cua mot upload thuong (version khong mang
+engine pin), la payload mismatch (review BE-01/BE-07, fix r2/r3). He qua: blank khong resume hay reconcile duoc
+sau khi mat request: khong tai lieu nao duoc tao, output do dang FileService thu gom, retry cung key chay lai
+engine. Quyet dinh Advisor 2026-09-28 (option A): ngoai le blank dong bo cho 07a; job blank ben vung (dong
+`office_jobs` truoc dispatch) la follow-up G3.
 
 Provenance cua output: commit path G1-03 nhan job row lam goc (`officeJobForOutput`), stamp
 `engine_name/genoffice`, engine/contract/protocol pin tu `office.TrustedEngineVersion`; actor la nguoi chay job.

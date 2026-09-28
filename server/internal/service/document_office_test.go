@@ -640,12 +640,9 @@ func restartEngine(t *testing.T, container string, engine *office.Client) {
 	}
 }
 
-// Engine down: office jobs report a retryable error and stay retryable on the
-// same key, while the API's readiness and the Documents read paths (list and
-// download) never touch the engine.
-func TestDocumentOfficeEngineDown(t *testing.T) {
-	ctx := context.Background()
-	f := newOfficeFixture(t, "engine down\n")
+// deadEngine is a client pointed at a port nobody listens on.
+func deadEngine(t *testing.T) *office.Client {
+	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -656,7 +653,17 @@ func TestDocumentOfficeEngineDown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	svc := f.service(down)
+	return down
+}
+
+// Engine down: office jobs report a retryable error and stay retryable on the
+// same key, while the API's readiness and the Documents read paths (list and
+// download) never touch the engine. The recovery half needs a write target the
+// engine can reach, so it is TestDocumentOfficeJobRedispatchAfterEngineDown.
+func TestDocumentOfficeEngineDown(t *testing.T) {
+	ctx := context.Background()
+	f := newOfficeFixture(t, "engine down\n")
+	svc := f.service(deadEngine(t))
 
 	row, err := svc.StartOfficeJob(ctx, f.actor, f.input("k-down"))
 	if office.ErrorCode(err) != "engine_crashed" || !office.Retryable(err) {
@@ -704,12 +711,19 @@ func TestDocumentOfficeEngineDown(t *testing.T) {
 	if n, err := none.ReconcileOfficeJobs(ctx); n != 0 || err != nil {
 		t.Fatalf("reconcile without engine: %d %v", n, err)
 	}
+}
 
-	// When the engine is back, the same key starts (and completes) the job.
-	if os.Getenv("OFFICE_ENGINE_TEST_URL") == "" {
-		return
+// When the engine is back, the key refused while it was down starts (and
+// completes) the job. It dispatches to the real engine, so it shares the
+// TestDocumentOfficeJob process and its container-facing write target.
+func TestDocumentOfficeJobRedispatchAfterEngineDown(t *testing.T) {
+	ctx := context.Background()
+	engine := realEngine(t)
+	f := newOfficeFixture(t, "engine down\n")
+	if _, err := f.service(deadEngine(t)).StartOfficeJob(ctx, f.actor, f.input("k-down")); office.ErrorCode(err) != "engine_crashed" {
+		t.Fatalf("engine down: %v", err)
 	}
-	up := f.service(realEngine(t))
+	up := f.service(engine)
 	again, err := up.StartOfficeJob(ctx, f.actor, f.input("k-down"))
 	if err != nil || again.ID == "" {
 		t.Fatalf("redispatch: %+v %v", again, err)

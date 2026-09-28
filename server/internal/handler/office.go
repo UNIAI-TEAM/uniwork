@@ -71,7 +71,8 @@ func (h *handlers) officeCapability(w http.ResponseWriter, r *http.Request) {
 
 // startOfficeJob is POST /documents/{documentID}/office/jobs: the operation
 // allowlist (open, serialize, export, convert) with an Idempotency-Key. The
-// base version and format come from the document, never from the caller.
+// base version and format come from the document, never from the caller; a
+// format the caller names must match it.
 func (h *handlers) startOfficeJob(w http.ResponseWriter, r *http.Request) {
 	if h.Office == nil {
 		respondError(w, http.StatusServiceUnavailable, "office_not_configured", "office engine is not configured")
@@ -86,7 +87,8 @@ func (h *handlers) startOfficeJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var base int64
-	if in.BaseRevision != nil && strings.TrimSpace(*in.BaseRevision) != "" {
+	hasBase := in.BaseRevision != nil && strings.TrimSpace(*in.BaseRevision) != ""
+	if hasBase {
 		parsed, err := strconv.ParseInt(strings.TrimSpace(*in.BaseRevision), 10, 64)
 		if err != nil || parsed < 0 {
 			respondError(w, http.StatusBadRequest, "invalid_request", "base_revision must be a decimal string")
@@ -95,7 +97,8 @@ func (h *handlers) startOfficeJob(w http.ResponseWriter, r *http.Request) {
 		base = parsed
 	}
 	row, err := h.Office.StartOfficeJobForDocument(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"), service.OfficeJobRequest{
-		Operation: in.Operation, BaseRevision: base, IdempotencyKey: r.Header.Get("Idempotency-Key"),
+		Operation: in.Operation, Format: strings.TrimSpace(stringValue(in.Format)),
+		BaseRevision: base, HasBaseRevision: hasBase, IdempotencyKey: r.Header.Get("Idempotency-Key"),
 		DocumentModelRef: stringValue(in.ModelRef), Deadline: 0,
 	})
 	if err != nil {
