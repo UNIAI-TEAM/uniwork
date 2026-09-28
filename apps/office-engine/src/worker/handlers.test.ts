@@ -34,8 +34,10 @@ afterEach(async () => {
 });
 
 describe("handler table", () => {
-  it("binds md/html serialize and the pdf + xlsx open/serialize/edit lanes", () => {
+  it("binds md/html serialize and the pdf + xlsx open/serialize/edit lanes plus the Q7 converters", () => {
     expect([...BOUND_OPERATIONS].sort()).toEqual([
+      "convert:odt",
+      "convert:xls",
       "edit:pdf",
       "edit:xlsx",
       "open:pdf",
@@ -47,6 +49,26 @@ describe("handler table", () => {
     ]);
     expect(findHandler("serialize", "docx")).toBeUndefined();
     expect(findHandler("open", "md")).toBeUndefined();
+  });
+
+  it("convert refuses a missing payload, a missing target and an unbound pair", async () => {
+    const handler = findHandler("convert", "xls")!;
+    const convertMessage: RunMessage = { ...message, operation: "convert", format: "xls" };
+    expect(await handler(convertMessage)).toMatchObject({ ok: false, reason: "payload_required" });
+
+    await writeFile(join(dir, "input.bin"), "not a workbook");
+    await writeFile(join(dir, "ops.json"), "{not json");
+    const withPayload = { ...convertMessage, payloadPath: join(dir, "ops.json") };
+    expect(await handler(withPayload)).toMatchObject({ ok: false, reason: "convert_payload_invalid" });
+
+    await writeFile(join(dir, "ops.json"), JSON.stringify({ target_format: "" }));
+    expect(await handler(withPayload)).toMatchObject({ ok: false, reason: "target_format_required" });
+
+    await writeFile(join(dir, "ops.json"), JSON.stringify({ target_format: "docx" }));
+    expect(await handler(withPayload)).toMatchObject({ ok: false, code: "unsupported_operation", reason: "convert_not_bound:xls->docx" });
+
+    await writeFile(join(dir, "ops.json"), JSON.stringify({ target_format: "xlsx" }));
+    expect(await handler(withPayload)).toMatchObject({ ok: false, code: "engine_result_invalid", reason: "not_compound_file" });
   });
 
   it("serialize writes the exact input bytes and refuses invalid UTF-8 or a missing input", async () => {

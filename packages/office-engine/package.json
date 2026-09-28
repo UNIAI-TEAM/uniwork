@@ -19,7 +19,8 @@
     "./assets": "./src/assets/index.ts",
     "./pdf": "./src/pdf/index.ts",
     "./xlsx": "./src/xlsx/index.ts",
-    "./xlsx/native": "./src/node/xlsx.ts"
+    "./xlsx/native": "./src/node/xlsx.ts",
+    "./convert/native": "./src/node/convert/index.ts"
   },
   "dependencies": {
     "@uniwork/office-contracts": "workspace:*",

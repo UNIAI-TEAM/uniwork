@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"sync"
 	"testing"
@@ -28,6 +29,8 @@ type scriptedJob struct {
 	sum    string
 	length int64
 	err    *office.JobError
+	// result is the operation result a convert job reports (G2-07b).
+	result json.RawMessage
 }
 
 type scriptedEngine struct {
@@ -62,7 +65,7 @@ func (e *scriptedEngine) Sign(g office.ServiceGrant) (string, error) {
 
 func (e *scriptedEngine) status(id string) office.JobStatus {
 	j := e.jobs[id]
-	js := office.JobStatus{JobID: id, State: j.state, OutputFileID: j.fileID, OutputChecksum: j.sum, Error: j.err}
+	js := office.JobStatus{JobID: id, State: j.state, OutputFileID: j.fileID, OutputChecksum: j.sum, Error: j.err, Result: j.result}
 	if j.state == office.JobCompleted {
 		n := j.length
 		js.OutputLength = &n

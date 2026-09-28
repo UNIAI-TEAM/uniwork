@@ -17,6 +17,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	"github.com/unicomhub/uniwork/server/internal/service"
@@ -221,12 +223,14 @@ func TestOfficeJobRoutes(t *testing.T) {
 	docID := w.createMarkdownFile(t, "# Ghi chu\n")
 
 	// The SDI allowlist is enforced before the service: an unknown operation
-	// is a 400, and the Q7 blocker answers 501 without a job row.
+	// is a 400, and a convert the engine does not bind for the document's
+	// format (markdown has no Q7 converter) answers 501 without a job row.
 	res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+docID+"/office/jobs", w.token, map[string]string{"operation": "publish"})
 	if code, _ := errCodeClass(out); res.StatusCode != 400 || code != "invalid_request" {
 		t.Fatalf("bad operation = %d %v", res.StatusCode, out)
 	}
-	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docID+"/office/jobs", w.token, map[string]string{"operation": "convert"})
+	res, out = doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+docID+"/office/jobs", w.token,
+		map[string]string{"Idempotency-Key": util.NewID()}, map[string]string{"operation": "convert", "target_format": "docx"})
 	if code, _ := errCodeClass(out); res.StatusCode != 501 || code != "unsupported_operation" {
 		t.Fatalf("convert = %d %v", res.StatusCode, out)
 	}
@@ -324,6 +328,38 @@ func TestOfficeBlankAndCopyRoutes(t *testing.T) {
 		t.Fatalf("outsider copy = %d %v", res.StatusCode, out)
 	} else if code != "not_found" && code != "forbidden" {
 		t.Fatalf("outsider copy code = %s", code)
+	}
+	// Accepting a conversion needs a convert job of this document: an
+	// unknown job id is not found and creates nothing (G2-07b).
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docID+"/copies", w.token,
+		map[string]string{"consent": "copy", "job_id": util.NewID()})
+	if code, _ := errCodeClass(out); res.StatusCode != 404 || code != "not_found" {
+		t.Fatalf("copy with an unknown job = %d %v", res.StatusCode, out)
+	}
+	// A target format on a non-convert job is a caller error.
+	res, out = doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+docID+"/office/jobs", w.token,
+		map[string]string{"Idempotency-Key": util.NewID()}, map[string]string{"operation": "serialize", "target_format": "docx"})
+	if code, _ := errCodeClass(out); res.StatusCode != 400 || code != "office_job_invalid" {
+		t.Fatalf("serialize with a target = %d %v", res.StatusCode, out)
+	}
+}
+
+// The job SDO carries a convert job's target and change list, decoded from
+// the stored engine result; anything that does not decode is left out.
+func TestOfficeJobResultDTO(t *testing.T) {
+	raw := []byte(`{"operation":"convert","source_format":"xls","target_format":"xlsx",` +
+		`"fidelity":{"level":"limited","lost":["cell_formatting"]},"content":{"sheets":["Sheet1"],"cells":{"Sheet1!A1":"replaceMe"}}}`)
+	target := "xlsx"
+	out := officeJobDTO(db.OfficeJob{ID: "j", Operation: "convert", Format: "xls",
+		TargetFormat: pgtype.Text{String: target, Valid: true}, Result: raw})
+	if out.TargetFormat == nil || *out.TargetFormat != "xlsx" || out.Result == nil ||
+		out.Result.Fidelity.Level != "limited" || out.Result.Content.Cells["Sheet1!A1"] != "replaceMe" {
+		t.Fatalf("convert job SDO = %+v result %+v", out, out.Result)
+	}
+	for _, bad := range [][]byte{nil, []byte(`[]`), []byte(`{"target_format":""}`), []byte(`{not json`)} {
+		if got := officeJobDTO(db.OfficeJob{ID: "j", Result: bad}); got.Result != nil {
+			t.Fatalf("result %q decoded to %+v", bad, got.Result)
+		}
 	}
 }
 

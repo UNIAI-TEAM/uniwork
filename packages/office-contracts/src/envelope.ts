@@ -58,7 +58,15 @@ export const PAYLOAD_FIELDS: Record<EngineOperation, readonly string[]> = {
   open: ["input_bytes", "input_checksum", "input_length", "base_revision", "base_version_id", "edits", "locale", "document_model_ref"],
   edit: ["document_model_ref", "base_revision", "base_version_id", "edits", "input_bytes", "input_checksum", "input_length", "locale"],
   serialize: ["document_model_ref", "base_revision", "base_version_id", "input_bytes", "input_checksum", "input_length"],
-  convert: ["source_version_id", "target_format", "overwrite_source", "options"],
+  convert: [
+    "source_version_id",
+    "target_format",
+    "overwrite_source",
+    "options",
+    "input_bytes",
+    "input_checksum",
+    "input_length",
+  ],
   export: ["source_version_id", "target_format", "overwrite_source", "options"],
   cancel: ["job_id", "reason"],
 };
@@ -238,6 +246,8 @@ export interface ValidatedEnvelope {
   inputs: MeasuredInput | null;
   editCount?: number;
   targetFormat?: OfficeFormat;
+  /** convert only: the source version the grant must name as its base. */
+  sourceVersionId?: string;
 }
 
 /**
@@ -343,7 +353,33 @@ export async function validateEnvelope(
     return { operation, format, deadlineMs, inputs, editCount: edits.length };
   }
 
-  if (operation === "convert" || operation === "export") {
+  if (operation === "convert") {
+    // G2-07b binds the conversion source: like open/serialize, the source
+    // version's bytes ride the payload as a measured checksum tuple (the grant
+    // binds them), and target_format names the OOXML output. The source
+    // version id is the grant's base: Go authorises converting exactly this
+    // committed version.
+    const sourceVersionId = requireString(
+      requireKey(p, "source_version_id", "envelope.payload"),
+      "envelope.payload.source_version_id",
+    );
+    const targetFormat = requireEnum(
+      requireKey(p, "target_format", "envelope.payload"),
+      officeFormats,
+      "envelope.payload.target_format",
+    );
+    if (p.overwrite_source !== undefined && p.overwrite_source !== false) {
+      violation("envelope.payload.overwrite_source", "must_be_false", "Q7-B forbids overwriting the committed source");
+    }
+    const inputs = await validateInputBytes(p, "envelope.payload", {
+      required: true,
+      byteBound: ENGINE_LIMITS.max_input_bytes,
+      hash,
+    });
+    return { operation, format, deadlineMs, targetFormat, sourceVersionId, inputs };
+  }
+
+  if (operation === "export") {
     requireString(requireKey(p, "source_version_id", "envelope.payload"), "envelope.payload.source_version_id");
     const targetFormat = requireEnum(
       requireKey(p, "target_format", "envelope.payload"),

@@ -31,7 +31,7 @@ export interface WorkerRun {
 }
 
 export type WorkerResult =
-  | { kind: "done"; warnings: { code: string; detail?: string }[] }
+  | { kind: "done"; warnings: { code: string; detail?: string }[]; result?: unknown }
   | { kind: "fail"; code: string; reason: string }
   // A limit outcome carries the measurement that tripped it (or the last
   // sample for the wall-clock deadline) so a masked fault outcome - a job
@@ -147,7 +147,7 @@ export class Supervisor {
           reported = { rssBytes: raw.rssBytes, cpuMs: raw.cpuMs };
           check(reported);
         } else if (raw.type === "done") {
-          settle({ kind: "done", warnings: Array.isArray(raw.warnings) ? raw.warnings : [] });
+          settle({ kind: "done", warnings: Array.isArray(raw.warnings) ? raw.warnings : [], ...(raw.result !== undefined ? { result: raw.result } : {}) });
         } else if (raw.type === "fail") {
           settle({ kind: "fail", code: String(raw.code), reason: String(raw.reason) });
         }

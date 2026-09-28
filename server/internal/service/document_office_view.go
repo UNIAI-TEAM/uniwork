@@ -68,7 +68,8 @@ func ValidOfficeOperation(raw string) bool {
 	return ok
 }
 
-// ValidOfficeFormat reports whether raw names one of the six document formats.
+// ValidOfficeFormat reports whether raw names one of the six document formats
+// or a Q7 conversion source (xls, odt).
 func ValidOfficeFormat(raw string) bool {
 	_, ok := parseOfficeFormat(raw)
 	return ok
@@ -86,7 +87,8 @@ func parseOfficeOperation(raw string) (office.Operation, bool) {
 // parseOfficeFormat maps the wire string onto the boundary format.
 func parseOfficeFormat(raw string) (office.Format, bool) {
 	switch format := office.Format(strings.TrimSpace(raw)); format {
-	case office.FormatDOCX, office.FormatXLSX, office.FormatPPTX, office.FormatPDF, office.FormatMD, office.FormatHTML:
+	case office.FormatDOCX, office.FormatXLSX, office.FormatPPTX, office.FormatPDF, office.FormatMD, office.FormatHTML,
+		office.FormatXLS, office.FormatODT:
 		return format, true
 	}
 	return "", false

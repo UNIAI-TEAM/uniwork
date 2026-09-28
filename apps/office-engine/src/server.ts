@@ -1,8 +1,11 @@
 // Private HTTP surface of the engine service. Go is the only caller: every
 // route except /healthz needs the service credential, and every job route
 // also needs the job's grant. Request order for a submit:
-//   credential -> body cap -> JSON -> convert refusal (Q7) -> grant signature
-//   -> envelope schema -> operation bound? -> grant binding -> job.
+//   credential -> body cap -> JSON -> grant signature -> envelope schema ->
+//   operation bound? -> grant binding -> job.
+// Convert jobs (Q7, G2-07b) follow the same order: the pair's binding
+// (convert:xls, convert:odt) is checked with every other operation, and the
+// target format rides the job payload into the worker.
 // No route takes a URL or a path from the caller as something to fetch: input
 // bytes arrive in the envelope (bound to the grant's checksum), and the only
 // place output goes is the write target inside the signed grant.
@@ -18,7 +21,7 @@ import {
   type OfficeFormat,
 } from "@uniwork/office-contracts";
 import { nodeSha256Hex } from "@uniwork/office-engine/node";
-import { capabilityResult, isBound, Q7_BLOCKER } from "./capability.ts";
+import { capabilityResult, isBound } from "./capability.ts";
 import type { EngineServiceConfig } from "./config.ts";
 import { boundaryFailure, notFoundRoute, toFailure, unauthenticated, type HttpFailure } from "./errors.ts";
 import { bindEnvelope, verifyGrant } from "./grants.ts";
@@ -85,6 +88,21 @@ function readBody(req: IncomingMessage, limit: number): Promise<Buffer> {
 
 const isDict = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
 
+/** Only worker-relevant payload fields cross into the job dir: edits[],
+    locale, and a convert job's target (with the source version for the
+    result's provenance). Byte/checksum fields already became `input`; other
+    refs stay on the wire. */
+function buildJobPayload(operation: string, payload: Record<string, unknown>): Record<string, unknown> | null {
+  const job: Record<string, unknown> = {};
+  if (payload.edits !== undefined) job.edits = payload.edits;
+  if (payload.locale !== undefined) job.locale = payload.locale;
+  if (operation === "convert") {
+    if (payload.target_format !== undefined) job.target_format = payload.target_format;
+    if (payload.source_version_id !== undefined) job.source_version_id = payload.source_version_id;
+  }
+  return Object.keys(job).length > 0 ? job : null;
+}
+
 async function submit(req: IncomingMessage, res: ServerResponse, deps: ServerDeps): Promise<void> {
   const { config } = deps;
   // Base64 inflates by 4/3; the envelope around it is small.
@@ -107,9 +125,9 @@ async function submit(req: IncomingMessage, res: ServerResponse, deps: ServerDep
     throw new EngineContractViolation("envelope", "json_required", "body is not JSON");
   }
   if (isDict(envelope) && envelope.operation === "convert") {
-    deps.metrics.rejected("unsupported_operation");
-    fail(res, boundaryFailure("unsupported_operation", { reason: "q7_blocker", blocker: Q7_BLOCKER }, { operation: "convert" }));
-    return;
+    // Convert is a normal job now (G2-07b): validateEnvelope enforces the
+    // target_format payload key, and the bound-pair gate below decides
+    // whether this build carries the converter for (format, target_format).
   }
   const grant = verifyGrant(req.headers[GRANT_HEADER] as string | undefined, config.grantKey);
   const validated = await validateEnvelope(envelope, { hash: nodeSha256Hex });
@@ -132,22 +150,18 @@ async function submit(req: IncomingMessage, res: ServerResponse, deps: ServerDep
       format: validated.format,
       grantId: typeof env.grant_id === "string" ? env.grant_id : undefined,
       baseRevision: typeof payload.base_revision === "number" ? payload.base_revision : undefined,
-      baseVersionId: typeof payload.base_version_id === "string" ? payload.base_version_id : undefined,
+      baseVersionId:
+        validated.operation === "convert"
+          ? validated.sourceVersionId
+          : typeof payload.base_version_id === "string"
+            ? payload.base_version_id
+            : undefined,
       inputs: validated.inputs,
     },
     config.outputOrigins,
   );
   const fingerprint = await payloadFingerprint(env, { inputs: validated.inputs, hash: nodeSha256Hex });
-  // Only worker-relevant payload fields cross into the job dir: edits[] and
-  // locale. Byte/checksum fields already became `input`; refs stay on the wire.
-  const edits = payload.edits;
-  const jobPayload =
-    edits !== undefined || payload.locale !== undefined
-      ? {
-          ...(edits !== undefined ? { edits } : {}),
-          ...(payload.locale !== undefined ? { locale: payload.locale } : {}),
-        }
-      : null;
+  const jobPayload = buildJobPayload(validated.operation, payload);
   const { job, replay } = deps.jobs.submit({
     grant,
     fingerprint,

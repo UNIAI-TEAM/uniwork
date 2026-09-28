@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { signGrant } from "./grants.ts";
 import {
@@ -56,20 +57,99 @@ describe("service authentication", () => {
 });
 
 describe("capability and unsupported operations", () => {
-  it("reports honest rows: convert names the Q7 blocker, bound rows stay pending", async () => {
-    const res = await call(h, "GET", "/v1/capability?format=md");
-    expect(res.status).toBe(200);
-    const rows = res.body.capabilities as { operation: string; supported: boolean; evidence_level: string; reason?: string }[];
-    expect(rows.find((r) => r.operation === "convert")).toMatchObject({ supported: false, reason: expect.stringContaining("q7-blocker") });
-    expect(rows.find((r) => r.operation === "serialize")).toMatchObject({ supported: true, evidence_level: "pending" });
+  it("reports honest rows: the xls/odt converters claim their pair, other rows stay honest", async () => {
+    const md = await call(h, "GET", "/v1/capability?format=md");
+    expect(md.status).toBe(200);
+    const mdRows = md.body.capabilities as { operation: string; supported: boolean; evidence_level: string; reason?: string }[];
+    expect(mdRows.find((r) => r.operation === "convert")).toMatchObject({ supported: false, reason: "no Q7 converter is bound from md" });
+    expect(mdRows.find((r) => r.operation === "serialize")).toMatchObject({ supported: true, evidence_level: "pending" });
+
+    const xls = await call(h, "GET", "/v1/capability?format=xls");
+    expect(xls.status).toBe(200);
+    const xlsRows = xls.body.capabilities as { operation: string; supported: boolean; runtime: string; evidence_level: string; reason?: string }[];
+    expect(xlsRows.find((r) => r.operation === "convert")).toMatchObject({
+      supported: true,
+      runtime: "internal_service",
+      evidence_level: "proven",
+      reason: expect.stringContaining("xls -> xlsx"),
+    });
+    for (const op of ["open", "edit", "serialize"]) {
+      expect(xlsRows.find((r) => r.operation === op)).toMatchObject({ supported: false, reason: "not bound in this service build" });
+    }
     expect((await call(h, "GET", "/v1/capability?format=exe")).status).toBe(400);
   });
 
-  it("answers convert with 501 unsupported_operation before any grant or job", async () => {
-    const res = await call(h, "POST", "/v1/jobs", { body: { operation: "convert", format: "docx" } });
+  it("answers an unbound convert pair with 501 unsupported_operation and does not consume the grant", async () => {
+    const job = makeJob(h.target, {
+      operation: "convert",
+      format: "docx",
+      text: "",
+      payload: {
+        document_model_ref: undefined,
+        base_revision: undefined,
+        base_version_id: undefined,
+        source_version_id: "ver-3",
+        target_format: "pdf",
+      },
+    });
+    const res = await submit(h, job);
     expect(res.status).toBe(501);
     expect(errorCode(res)).toBe("unsupported_operation");
-    expect(res.body.error).toMatchObject({ reason: "q7_blocker", blocker: "docs/office/g1g2/q7-blocker.md" });
+    expect(errorReason(res)).toBe("not_bound");
+    expect(h.service.jobs.get(job.grant.job_id)).toBeUndefined();
+  });
+
+  it("converts F-LEGACY-XLS through the real job path and settles its change list", async () => {
+    const bytes = readFileSync(new URL("../../../docs/office/g0/fixtures/files/sheets/legacy-xls.xls", import.meta.url));
+    const job = makeJob(h.target, {
+      operation: "convert",
+      format: "xls",
+      bytes,
+      payload: {
+        document_model_ref: undefined,
+        base_revision: undefined,
+        base_version_id: undefined,
+        source_version_id: "ver-3",
+        target_format: "xlsx",
+      },
+    });
+    const res = await submit(h, job);
+    expect(res.status).toBe(202);
+    const done = await waitTerminal(h, job);
+    expect(done.body.state).toBe("completed");
+    expect(done.body.result).toMatchObject({
+      operation: "convert",
+      source_format: "xls",
+      target_format: "xlsx",
+      source_version_id: "ver-3",
+      fidelity: { level: "limited" },
+      content: { sheets: ["Sheet1", "Sheet2", "Sheet3"], cells: { "Sheet1!A1": "replaceMe" } },
+    });
+    expect(done.body.output_length as number).toBeGreaterThan(0);
+  });
+
+  it("converts F-UNSUPPORTED-ODT through the real job path and settles its change list", async () => {
+    const bytes = readFileSync(new URL("../../../docs/office/g0/fixtures/files/legacy/unsupported-sample.odt", import.meta.url));
+    const job = makeJob(h.target, {
+      operation: "convert",
+      format: "odt",
+      bytes,
+      payload: {
+        document_model_ref: undefined,
+        base_revision: undefined,
+        base_version_id: undefined,
+        source_version_id: "ver-3",
+        target_format: "docx",
+      },
+    });
+    const res = await submit(h, job);
+    expect(res.status).toBe(202);
+    const done = await waitTerminal(h, job);
+    expect(done.body.state).toBe("completed");
+    const result = done.body.result as { fidelity: { level: string }; content: { paragraphs: string[] } };
+    expect(result.fidelity.level).toBe("limited");
+    expect(result.content.paragraphs.length).toBeGreaterThanOrEqual(2);
+    expect(done.body.output_length as number).toBeGreaterThan(0);
   });
 
   it("answers an operation no handler binds with 501 and does not consume the grant", async () => {

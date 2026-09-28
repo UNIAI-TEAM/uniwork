@@ -72,6 +72,9 @@ COPY apps/office-engine/test apps/office-engine/test
 COPY server/internal/office/testdata server/internal/office/testdata
 # G2-05 pdf fixtures (pipeline.test.ts / pdf-jobs.test.ts read these bytes).
 COPY docs/office/g0/fixtures/files/pdf docs/office/g0/fixtures/files/pdf
+# G2-07b Q7 fixtures (server.test.ts converts F-UNSUPPORTED-ODT; the xls one is
+# under sheets/ below).
+COPY docs/office/g0/fixtures/files/legacy docs/office/g0/fixtures/files/legacy
 # G2-04 xlsx fixtures + the real artifacts (gateway bundle + Rust sidecar) so
 # the service suite exercises the real engine, not a stand-in.
 COPY docs/office/g0/fixtures/files/sheets docs/office/g0/fixtures/files/sheets

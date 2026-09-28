@@ -144,6 +144,10 @@ type OfficeJobInput struct {
 	Deadline         time.Duration
 	DocumentModelRef string
 	Edits            []office.EditOp
+	// TargetFormat is a convert job's output format; it must be the one
+	// target office.ConvertTargets names for Format. Empty for every other
+	// operation.
+	TargetFormat office.Format
 }
 
 // documentFileMaxBytes is the DocumentFile policy cap: the most a base
@@ -179,7 +183,7 @@ func (s *DocumentOfficeService) authorize(ctx context.Context, actor Actor, docu
 
 func validOfficeOperation(op office.Operation) bool {
 	switch op {
-	case office.OperationOpen, office.OperationEdit, office.OperationSerialize, office.OperationExport:
+	case office.OperationOpen, office.OperationEdit, office.OperationSerialize, office.OperationExport, office.OperationConvert:
 		return true
 	}
 	return false
@@ -190,10 +194,6 @@ func validOfficeOperation(op office.Operation) bool {
 func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor, in OfficeJobInput) (db.OfficeJob, error) {
 	if s.engine == nil {
 		return db.OfficeJob{}, office.ErrNotConfigured
-	}
-	if in.Operation == office.OperationConvert {
-		// Q7 (docs/office/g1g2/q7-blocker.md): no conversion engine is chosen.
-		return db.OfficeJob{}, officeErr("unsupported_operation", "q7_blocker")
 	}
 	if in.Operation == office.OperationExport {
 		// No format lane binds export yet; refuse before a row or an output
@@ -232,6 +232,9 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 	if !capability.Supports(in.Operation) {
 		return db.OfficeJob{}, officeErr("unsupported_operation", "not_bound")
 	}
+	if err := checkConvertPair(in); err != nil {
+		return db.OfficeJob{}, err
+	}
 	fp := officeFingerprint(in, input.checksum, int64(len(input.bytes)))
 	scope := files.Scope{OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID}
 
@@ -258,6 +261,7 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 		IdempotencyKey: key, PayloadFingerprint: fp,
 		InputChecksum: input.checksum, InputLength: int64(len(input.bytes)),
 		GrantID:      s.newID(),
+		TargetFormat: pgtype.Text{String: string(in.TargetFormat), Valid: in.TargetFormat != ""},
 		OutputFileID: pgtype.Text{String: string(out.FileID), Valid: true},
 		DeadlineAt:   pgtype.Timestamptz{Time: deadline, Valid: true},
 		CreatedBy:    actor.ID, CreatedByKind: string(actor.Kind),
@@ -301,6 +305,12 @@ func (s *DocumentOfficeService) loadBase(ctx context.Context, in OfficeJobInput)
 	}
 	if ver.Kind != "file" || !ver.FileID.Valid {
 		return officeInput{}, "", officeErr("unsupported_operation", "page_version")
+	}
+	if !office.CanReadEngineVersion(ver.EngineVersion.String) {
+		// Rollback rule (G2-07b): a version a newer engine build committed is
+		// never opened by this build; download and recovery do not go
+		// through here and stay available.
+		return officeInput{}, "", officeErr("engine_incompatible", "version_engine:"+ver.EngineVersion.String)
 	}
 	format, err := s.formatForVersion(ctx, doc, &ver)
 	if err != nil {
@@ -420,10 +430,33 @@ func officeFingerprint(in OfficeJobInput, checksum string, length int64) string 
 		ModelRef  string           `json:"document_model_ref"`
 		Edits     []office.EditOp  `json:"edits"`
 		Engine    string           `json:"engine_version"`
+		// omitempty keeps every non-convert fingerprint byte-identical to
+		// the ones persisted before convert was bound.
+		Target office.Format `json:"target_format,omitempty"`
 	}{office.ContractVersion, office.ProtocolVersion, in.Operation, in.Format, in.DocumentID, in.BaseVersionID,
-		in.BaseRevision, checksum, length, in.DocumentModelRef, in.Edits, office.TrustedEngineVersion})
+		in.BaseRevision, checksum, length, in.DocumentModelRef, in.Edits, office.TrustedEngineVersion, in.TargetFormat})
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
+}
+
+// checkConvertPair refuses a convert whose target is not the one OOXML copy
+// the source converts to, and a target on any other operation. It runs before
+// any mutation.
+func checkConvertPair(in OfficeJobInput) error {
+	if in.Operation != office.OperationConvert {
+		if in.TargetFormat != "" {
+			return ErrOfficeJobInvalid
+		}
+		return nil
+	}
+	want, ok := office.ConvertTargets[in.Format]
+	if !ok {
+		return officeErr("unsupported_operation", "convert_source_not_bound")
+	}
+	if in.TargetFormat != want {
+		return officeErr("unsupported_operation", "convert_pair_not_bound")
+	}
+	return nil
 }
 
 func millis(t time.Time) int64 { return t.UnixMilli() }
@@ -460,6 +493,17 @@ func (s *DocumentOfficeService) envelope(row db.OfficeJob, in OfficeJobInput, in
 		"input_length":    len(input.bytes),
 	}
 	switch office.Operation(row.Operation) {
+	case office.OperationConvert:
+		// The convert allowlist has no base_* keys: the source version id is
+		// the grant's base, and the committed source is never overwritten.
+		payload = map[string]any{
+			"source_version_id": row.BaseVersionID,
+			"target_format":     row.TargetFormat.String,
+			"overwrite_source":  false,
+			"input_bytes":       payload["input_bytes"],
+			"input_checksum":    input.checksum,
+			"input_length":      len(input.bytes),
+		}
 	case office.OperationSerialize:
 		ref := in.DocumentModelRef
 		if ref == "" {

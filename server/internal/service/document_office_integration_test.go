@@ -462,7 +462,7 @@ func TestDocumentOfficeIntegration(t *testing.T) {
 		if engine.State != office.JobCompleted {
 			t.Fatalf("engine job = %+v", engine)
 		}
-		done, err := e.jobs.verifyOutput(ctx, row, sha([]byte("not the engine's output")), nil)
+		done, err := e.jobs.verifyOutput(ctx, row, sha([]byte("not the engine's output")), nil, nil)
 		if err != nil {
 			t.Fatalf("verify: %v", err)
 		}

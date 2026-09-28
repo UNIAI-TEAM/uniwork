@@ -49,7 +49,7 @@ process.once("message", (raw: unknown) => {
   worker.once("message", (outcome: HandlerOutcome) => {
     settled = true;
     clearInterval(timer);
-    finish(outcome.ok ? { type: "done", warnings: outcome.warnings } : { type: "fail", code: outcome.code, reason: outcome.reason });
+    finish(outcome.ok ? { type: "done", warnings: outcome.warnings, ...(outcome.result !== undefined ? { result: outcome.result } : {}) } : { type: "fail", code: outcome.code, reason: outcome.reason });
   });
   worker.once("error", (error: Error & { code?: string }) => {
     if (settled) return;

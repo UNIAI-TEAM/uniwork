@@ -26,10 +26,9 @@ import (
 // access. Provenance (source document/version/revision/checksum/format) is
 // recorded on the copy row; the source and its history are untouched.
 //
-// A conversion engine is not bound yet (Q7 blocker), so a lossy or
-// cross-format copy has nothing to run: the same-format copy is the path this
-// endpoint implements, and the Office job routes refuse convert/export with
-// unsupported_operation until an engine lane binds them.
+// A cross-format copy is the Q7 accept (G2-07b): with a job id the copy's
+// first version is a completed convert job's output
+// (document_copy_convert.go); without one it is the same-format copy below.
 
 const (
 	idempotencyScopeDocumentCopy = "documents.copy"
@@ -43,6 +42,10 @@ type CopyDocumentInput struct {
 	Title          string
 	ParentID       string
 	IdempotencyKey string
+	// JobID, when set, accepts a completed Q7 convert job of this document:
+	// the copy's first version is the job's OOXML output
+	// (document_copy_convert.go) instead of the source's own bytes.
+	JobID string
 }
 
 func errCopyConsentRequired() error {
@@ -86,6 +89,10 @@ func (s *DocumentService) CopyDocument(ctx context.Context, actor Actor, documen
 	// audience. Authorization ran first, so an outsider still learns nothing.
 	if src.OwnerID.Valid {
 		return DocumentFileResult{}, errOwnerRequiresCopy()
+	}
+	if strings.TrimSpace(in.JobID) != "" {
+		in.JobID = strings.TrimSpace(in.JobID)
+		return s.acceptConversion(ctx, fs, actor, src, access, in)
 	}
 	current, err := s.currentFileVersion(ctx, s.q, src)
 	if err != nil {

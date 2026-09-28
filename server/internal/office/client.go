@@ -133,6 +133,12 @@ type JobStatus struct {
 	Replay             bool      `json:"replay"`
 	PayloadFingerprint string    `json:"payload_fingerprint"`
 	Error              *JobError `json:"error"`
+	// Warnings are the job's non-fatal fidelity notices (a lossy convert).
+	Warnings []FidelityWarning `json:"warnings"`
+	// Result is the operation result beyond the output bytes: a convert
+	// job's fidelity and change list. Go stores it verbatim and never
+	// interprets it beyond JSON validity.
+	Result json.RawMessage `json:"result,omitempty"`
 }
 
 // Readiness is the engine's /readyz answer.

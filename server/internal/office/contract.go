@@ -29,7 +29,43 @@ const (
 	FormatPDF  Format = "pdf"
 	FormatMD   Format = "md"
 	FormatHTML Format = "html"
+	// FormatXLS and FormatODT are Q7 conversion sources (G2-07b): the
+	// boundary accepts them for capability and convert only; their one bound
+	// target is an OOXML copy, and open/edit/serialize stay unbound.
+	FormatXLS Format = "xls"
+	FormatODT Format = "odt"
 )
+
+// ConvertTargets is the one OOXML target each Q7 source converts to. A pair
+// outside this map is never submitted; the engine's capability row still
+// decides whether the running build binds it.
+var ConvertTargets = map[Format]Format{
+	FormatXLS: FormatXLSX,
+	FormatODT: FormatDOCX,
+}
+
+// ReadableEngineVersions are the engine builds whose committed output the
+// trusted build reads back. A version stamped by any other build (a newer
+// engine that wrote before a rollback) is not opened, edited, serialized or
+// converted by this build: download and recovery stay, and the office
+// routes answer engine_incompatible. Upgrading the pin adds the new build
+// here only after the upgrade-replay fixtures pass on it
+// (docs/office/g1g2/packaging-and-handoff.md "Upgrade replay").
+var ReadableEngineVersions = []string{TrustedEngineVersion}
+
+// CanReadEngineVersion reports whether this build reads bytes an engine build
+// committed. An empty stamp is a plain upload, which every build reads.
+func CanReadEngineVersion(version string) bool {
+	if version == "" {
+		return true
+	}
+	for _, v := range ReadableEngineVersions {
+		if v == version {
+			return true
+		}
+	}
+	return false
+}
 
 // Operation is a boundary-routed engine operation.
 type Operation string

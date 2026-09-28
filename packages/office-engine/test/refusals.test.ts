@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { createBrowserOfficeEngine } from "../src/browser/index";
 import { createDesktopOfficeEngine } from "../src/desktop/index";
@@ -6,6 +7,10 @@ import { createOfficeEngine } from "../src/index";
 import type { HostIpcPort } from "@uniwork/office-contracts";
 import { HostCapabilityRefusal } from "@uniwork/office-contracts";
 import { createFakeEngineTransport } from "./fake-transport";
+
+/** sha256 of zero bytes: a convert envelope now carries the measured source
+    tuple, so these refusal tests need a valid one. */
+const EMPTY_SHA256 = createHash("sha256").digest("hex");
 
 // Refusal-path coverage: every transport maps a raw failure into the named
 // typed surface, and never invents a success.
@@ -123,7 +128,13 @@ describe("transport refusal mapping", () => {
         operation: "convert",
         format: "docx",
         deadline_ms: 30000,
-        payload: { source_version_id: "V1", target_format: "pdf" },
+        payload: {
+          source_version_id: "V1",
+          target_format: "pdf",
+          input_bytes: "",
+          input_checksum: EMPTY_SHA256,
+          input_length: 0,
+        },
       }),
     ).rejects.toMatchObject({ name: "EngineBoundaryError", code: "unsupported_operation" });
   });

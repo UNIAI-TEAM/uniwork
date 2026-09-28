@@ -30,6 +30,7 @@ const (
 	mimeDOCX        = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 	mimeXLSX        = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 	mimePPTX        = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+	mimeODT         = "application/vnd.oasis.opendocument.text"
 )
 
 // cfbSignature opens every OLE compound file (DOC, XLS, PPT, MSG, encrypted
@@ -86,6 +87,9 @@ func DetectContentType(head []byte, filename string) string {
 
 	switch {
 	case sniffed == mimeZip:
+		if odf := odfType(head); odf != "" {
+			return odf
+		}
 		if ooxml := ooxmlType(head); ooxml != "" {
 			return ooxml
 		}
@@ -113,9 +117,40 @@ func DetectContentType(head []byte, filename string) string {
 	return sniffed
 }
 
+// odfType names an OpenDocument package from its head. ODF requires the
+// `mimetype` entry to be the first, STORED entry, so its bytes sit raw right
+// after the first local header: reading them proves the media type without
+// inflating anything. A zip that does not follow that shape stays a zip.
+func odfType(head []byte) string {
+	const localHeaderLen = 30
+	const maxDeclared = 128
+	if len(head) < localHeaderLen+8 || !bytes.Equal(head[0:4], []byte("PK\x03\x04")) {
+		return ""
+	}
+	method := binary.LittleEndian.Uint16(head[8:])
+	nameLen := int(binary.LittleEndian.Uint16(head[26:]))
+	extraLen := int(binary.LittleEndian.Uint16(head[28:]))
+	compressed := binary.LittleEndian.Uint32(head[18:])
+	if method != 0 || nameLen != len("mimetype") {
+		return ""
+	}
+	nameEnd := localHeaderLen + nameLen
+	if nameEnd > len(head) || string(head[localHeaderLen:nameEnd]) != "mimetype" {
+		return ""
+	}
+	dataStart := nameEnd + extraLen
+	if compressed > maxDeclared || dataStart+int(compressed) > len(head) {
+		return ""
+	}
+	switch string(head[dataStart : dataStart+int(compressed)]) {
+	case mimeODT:
+		return mimeODT
+	}
+	return ""
+}
+
 // ooxmlType walks the zip local file headers in head and names the OOXML
-// package they describe. A package needs the content-types part and parts of
-// one main folder; a zip holding two main folders is ambiguous and stays a
+// package they describe. A package needs the content-types part and parts of// one main folder; a zip holding two main folders is ambiguous and stays a
 // zip, and so does a macro-enabled package (a vbaProject.bin part), which no
 // purpose allows under the plain OOXML types. It reads names only, never
 // decompresses.

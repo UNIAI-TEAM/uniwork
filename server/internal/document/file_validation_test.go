@@ -184,6 +184,43 @@ func TestValidateFileRefusesBrokenFiles(t *testing.T) {
 	wantReason(t, err, ReasonImageDimensions)
 }
 
+// ODF text (G2-07b): the Q7 conversion source must be a real ODF package -
+// a stored `mimetype` naming ODF text and a content.xml - before any
+// conversion job can exist.
+func TestValidateFileOdt(t *testing.T) {
+	const odt = "application/vnd.oasis.opendocument.text"
+	valid := buildZip(t,
+		zipEntry{name: "mimetype", body: []byte(odt), stored: true},
+		zipEntry{name: "content.xml", body: []byte("<office:document-content/>")},
+	)
+	facts, err := validate(valid, odt, DefaultFileLimits)
+	if err != nil || facts.Format != "odt" {
+		t.Fatalf("valid odt = %+v, %v", facts, err)
+	}
+
+	missing := buildZip(t, zipEntry{name: "content.xml", body: []byte("<x/>")})
+	_, err = validate(missing, odt, DefaultFileLimits)
+	wantReason(t, err, ReasonODFMissingPart)
+
+	compressed := buildZip(t,
+		zipEntry{name: "mimetype", body: []byte(odt)},
+		zipEntry{name: "content.xml", body: []byte("<x/>")},
+	)
+	_, err = validate(compressed, odt, DefaultFileLimits)
+	wantReason(t, err, ReasonODFMimetype)
+
+	wrongType := buildZip(t,
+		zipEntry{name: "mimetype", body: []byte("application/vnd.oasis.opendocument.spreadsheet"), stored: true},
+		zipEntry{name: "content.xml", body: []byte("<x/>")},
+	)
+	_, err = validate(wrongType, odt, DefaultFileLimits)
+	wantReason(t, err, ReasonODFMimetype)
+
+	noContent := buildZip(t, zipEntry{name: "mimetype", body: []byte(odt), stored: true})
+	_, err = validate(noContent, odt, DefaultFileLimits)
+	wantReason(t, err, ReasonODFMissingPart)
+}
+
 // A multibyte rune split across the 64 KiB chunk boundary is not an error.
 func TestValidateTextAcrossChunkBoundary(t *testing.T) {
 	body := append(bytes.Repeat([]byte("a"), (64<<10)-1), []byte("ếb\n")...)

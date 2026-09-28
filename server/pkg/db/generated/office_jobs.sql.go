@@ -23,7 +23,7 @@ WHERE id = $3
   AND workspace_id = $5
   AND state IN ('accepted', 'running', 'completed')
   AND committed_version_id IS NULL
-RETURNING id, organization_id, workspace_id, document_id, operation, format, base_revision, base_version_id, idempotency_key, payload_fingerprint, input_checksum, input_length, grant_id, output_file_id, output_checksum, output_length, state, error_code, error_reason, deadline_at, dispatched_at, finished_at, committed_version_id, created_by, created_by_kind, created_at, updated_at
+RETURNING id, organization_id, workspace_id, document_id, operation, format, base_revision, base_version_id, idempotency_key, payload_fingerprint, input_checksum, input_length, grant_id, output_file_id, output_checksum, output_length, state, error_code, error_reason, deadline_at, dispatched_at, finished_at, committed_version_id, created_by, created_by_kind, created_at, updated_at, target_format, result
 `
 
 type CancelOfficeJobParams struct {
@@ -73,6 +73,8 @@ func (q *Queries) CancelOfficeJob(ctx context.Context, arg CancelOfficeJobParams
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TargetFormat,
+		&i.Result,
 	)
 	return i, err
 }
@@ -82,18 +84,20 @@ UPDATE office_jobs
 SET state = 'completed',
     output_checksum = $1,
     output_length = $2,
-    finished_at = $3,
-    updated_at = $3
-WHERE id = $4
-  AND organization_id = $5
-  AND workspace_id = $6
+    result = $3,
+    finished_at = $4,
+    updated_at = $4
+WHERE id = $5
+  AND organization_id = $6
+  AND workspace_id = $7
   AND state IN ('accepted', 'running')
-RETURNING id, organization_id, workspace_id, document_id, operation, format, base_revision, base_version_id, idempotency_key, payload_fingerprint, input_checksum, input_length, grant_id, output_file_id, output_checksum, output_length, state, error_code, error_reason, deadline_at, dispatched_at, finished_at, committed_version_id, created_by, created_by_kind, created_at, updated_at
+RETURNING id, organization_id, workspace_id, document_id, operation, format, base_revision, base_version_id, idempotency_key, payload_fingerprint, input_checksum, input_length, grant_id, output_file_id, output_checksum, output_length, state, error_code, error_reason, deadline_at, dispatched_at, finished_at, committed_version_id, created_by, created_by_kind, created_at, updated_at, target_format, result
 `
 
 type CompleteOfficeJobParams struct {
 	OutputChecksum pgtype.Text        `json:"output_checksum"`
 	OutputLength   pgtype.Int8        `json:"output_length"`
+	Result         []byte             `json:"result"`
 	Now            pgtype.Timestamptz `json:"now"`
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`
@@ -104,6 +108,7 @@ func (q *Queries) CompleteOfficeJob(ctx context.Context, arg CompleteOfficeJobPa
 	row := q.db.QueryRow(ctx, completeOfficeJob,
 		arg.OutputChecksum,
 		arg.OutputLength,
+		arg.Result,
 		arg.Now,
 		arg.ID,
 		arg.OrganizationID,
@@ -138,6 +143,8 @@ func (q *Queries) CompleteOfficeJob(ctx context.Context, arg CompleteOfficeJobPa
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TargetFormat,
+		&i.Result,
 	)
 	return i, err
 }
@@ -175,7 +182,7 @@ func (q *Queries) FileGCOfficeJobRefTenants(ctx context.Context, fileIds []strin
 }
 
 const getLiveOfficeJobByFingerprint = `-- name: GetLiveOfficeJobByFingerprint :one
-SELECT id, organization_id, workspace_id, document_id, operation, format, base_revision, base_version_id, idempotency_key, payload_fingerprint, input_checksum, input_length, grant_id, output_file_id, output_checksum, output_length, state, error_code, error_reason, deadline_at, dispatched_at, finished_at, committed_version_id, created_by, created_by_kind, created_at, updated_at
+SELECT id, organization_id, workspace_id, document_id, operation, format, base_revision, base_version_id, idempotency_key, payload_fingerprint, input_checksum, input_length, grant_id, output_file_id, output_checksum, output_length, state, error_code, error_reason, deadline_at, dispatched_at, finished_at, committed_version_id, created_by, created_by_kind, created_at, updated_at, target_format, result
 FROM office_jobs
 WHERE organization_id = $1
   AND workspace_id = $2
@@ -230,12 +237,14 @@ func (q *Queries) GetLiveOfficeJobByFingerprint(ctx context.Context, arg GetLive
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TargetFormat,
+		&i.Result,
 	)
 	return i, err
 }
 
 const getOfficeJob = `-- name: GetOfficeJob :one
-SELECT id, organization_id, workspace_id, document_id, operation, format, base_revision, base_version_id, idempotency_key, payload_fingerprint, input_checksum, input_length, grant_id, output_file_id, output_checksum, output_length, state, error_code, error_reason, deadline_at, dispatched_at, finished_at, committed_version_id, created_by, created_by_kind, created_at, updated_at
+SELECT id, organization_id, workspace_id, document_id, operation, format, base_revision, base_version_id, idempotency_key, payload_fingerprint, input_checksum, input_length, grant_id, output_file_id, output_checksum, output_length, state, error_code, error_reason, deadline_at, dispatched_at, finished_at, committed_version_id, created_by, created_by_kind, created_at, updated_at, target_format, result
 FROM office_jobs
 WHERE id = $1
   AND organization_id = $2
@@ -279,6 +288,8 @@ func (q *Queries) GetOfficeJob(ctx context.Context, arg GetOfficeJobParams) (Off
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TargetFormat,
+		&i.Result,
 	)
 	return i, err
 }
@@ -335,7 +346,7 @@ func (q *Queries) GetOfficeJobBaseVersion(ctx context.Context, arg GetOfficeJobB
 }
 
 const getOfficeJobByIdempotencyKey = `-- name: GetOfficeJobByIdempotencyKey :one
-SELECT id, organization_id, workspace_id, document_id, operation, format, base_revision, base_version_id, idempotency_key, payload_fingerprint, input_checksum, input_length, grant_id, output_file_id, output_checksum, output_length, state, error_code, error_reason, deadline_at, dispatched_at, finished_at, committed_version_id, created_by, created_by_kind, created_at, updated_at
+SELECT id, organization_id, workspace_id, document_id, operation, format, base_revision, base_version_id, idempotency_key, payload_fingerprint, input_checksum, input_length, grant_id, output_file_id, output_checksum, output_length, state, error_code, error_reason, deadline_at, dispatched_at, finished_at, committed_version_id, created_by, created_by_kind, created_at, updated_at, target_format, result
 FROM office_jobs
 WHERE organization_id = $1
   AND workspace_id = $2
@@ -379,12 +390,14 @@ func (q *Queries) GetOfficeJobByIdempotencyKey(ctx context.Context, arg GetOffic
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TargetFormat,
+		&i.Result,
 	)
 	return i, err
 }
 
 const getOfficeJobByOutputFile = `-- name: GetOfficeJobByOutputFile :one
-SELECT id, organization_id, workspace_id, document_id, operation, format, base_revision, base_version_id, idempotency_key, payload_fingerprint, input_checksum, input_length, grant_id, output_file_id, output_checksum, output_length, state, error_code, error_reason, deadline_at, dispatched_at, finished_at, committed_version_id, created_by, created_by_kind, created_at, updated_at
+SELECT id, organization_id, workspace_id, document_id, operation, format, base_revision, base_version_id, idempotency_key, payload_fingerprint, input_checksum, input_length, grant_id, output_file_id, output_checksum, output_length, state, error_code, error_reason, deadline_at, dispatched_at, finished_at, committed_version_id, created_by, created_by_kind, created_at, updated_at, target_format, result
 FROM office_jobs
 WHERE output_file_id = $1
   AND organization_id = $2
@@ -430,6 +443,8 @@ func (q *Queries) GetOfficeJobByOutputFile(ctx context.Context, arg GetOfficeJob
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TargetFormat,
+		&i.Result,
 	)
 	return i, err
 }
@@ -440,7 +455,7 @@ INSERT INTO office_jobs (
   id, organization_id, workspace_id, document_id, operation, format,
   base_revision, base_version_id, idempotency_key, payload_fingerprint,
   input_checksum, input_length, grant_id, output_file_id, deadline_at,
-  created_by, created_by_kind, created_at, updated_at
+  target_format, created_by, created_by_kind, created_at, updated_at
 ) VALUES (
   $1, $2, $3,
   $4, $5, $6,
@@ -448,10 +463,10 @@ INSERT INTO office_jobs (
   $9, $10,
   $11, $12, $13,
   $14, $15,
-  $16, $17, $18, $18
+  $16, $17, $18, $19, $19
 )
 ON CONFLICT DO NOTHING
-RETURNING id, organization_id, workspace_id, document_id, operation, format, base_revision, base_version_id, idempotency_key, payload_fingerprint, input_checksum, input_length, grant_id, output_file_id, output_checksum, output_length, state, error_code, error_reason, deadline_at, dispatched_at, finished_at, committed_version_id, created_by, created_by_kind, created_at, updated_at
+RETURNING id, organization_id, workspace_id, document_id, operation, format, base_revision, base_version_id, idempotency_key, payload_fingerprint, input_checksum, input_length, grant_id, output_file_id, output_checksum, output_length, state, error_code, error_reason, deadline_at, dispatched_at, finished_at, committed_version_id, created_by, created_by_kind, created_at, updated_at, target_format, result
 `
 
 type InsertOfficeJobParams struct {
@@ -470,6 +485,7 @@ type InsertOfficeJobParams struct {
 	GrantID            string             `json:"grant_id"`
 	OutputFileID       pgtype.Text        `json:"output_file_id"`
 	DeadlineAt         pgtype.Timestamptz `json:"deadline_at"`
+	TargetFormat       pgtype.Text        `json:"target_format"`
 	CreatedBy          string             `json:"created_by"`
 	CreatedByKind      string             `json:"created_by_kind"`
 	Now                pgtype.Timestamptz `json:"now"`
@@ -498,6 +514,7 @@ func (q *Queries) InsertOfficeJob(ctx context.Context, arg InsertOfficeJobParams
 		arg.GrantID,
 		arg.OutputFileID,
 		arg.DeadlineAt,
+		arg.TargetFormat,
 		arg.CreatedBy,
 		arg.CreatedByKind,
 		arg.Now,
@@ -531,12 +548,14 @@ func (q *Queries) InsertOfficeJob(ctx context.Context, arg InsertOfficeJobParams
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TargetFormat,
+		&i.Result,
 	)
 	return i, err
 }
 
 const listLiveOfficeJobs = `-- name: ListLiveOfficeJobs :many
-SELECT id, organization_id, workspace_id, document_id, operation, format, base_revision, base_version_id, idempotency_key, payload_fingerprint, input_checksum, input_length, grant_id, output_file_id, output_checksum, output_length, state, error_code, error_reason, deadline_at, dispatched_at, finished_at, committed_version_id, created_by, created_by_kind, created_at, updated_at
+SELECT id, organization_id, workspace_id, document_id, operation, format, base_revision, base_version_id, idempotency_key, payload_fingerprint, input_checksum, input_length, grant_id, output_file_id, output_checksum, output_length, state, error_code, error_reason, deadline_at, dispatched_at, finished_at, committed_version_id, created_by, created_by_kind, created_at, updated_at, target_format, result
 FROM office_jobs
 WHERE state IN ('accepted', 'running')
 ORDER BY deadline_at
@@ -584,6 +603,8 @@ func (q *Queries) ListLiveOfficeJobs(ctx context.Context, maxRows int32) ([]Offi
 			&i.CreatedByKind,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TargetFormat,
+			&i.Result,
 		); err != nil {
 			return nil, err
 		}
@@ -634,7 +655,7 @@ WHERE id = $3
   AND workspace_id = $5
   AND state = 'completed'
   AND committed_version_id IS NULL
-RETURNING id, organization_id, workspace_id, document_id, operation, format, base_revision, base_version_id, idempotency_key, payload_fingerprint, input_checksum, input_length, grant_id, output_file_id, output_checksum, output_length, state, error_code, error_reason, deadline_at, dispatched_at, finished_at, committed_version_id, created_by, created_by_kind, created_at, updated_at
+RETURNING id, organization_id, workspace_id, document_id, operation, format, base_revision, base_version_id, idempotency_key, payload_fingerprint, input_checksum, input_length, grant_id, output_file_id, output_checksum, output_length, state, error_code, error_reason, deadline_at, dispatched_at, finished_at, committed_version_id, created_by, created_by_kind, created_at, updated_at, target_format, result
 `
 
 type MarkOfficeJobCommittedParams struct {
@@ -684,6 +705,8 @@ func (q *Queries) MarkOfficeJobCommitted(ctx context.Context, arg MarkOfficeJobC
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TargetFormat,
+		&i.Result,
 	)
 	return i, err
 }
@@ -697,7 +720,7 @@ WHERE id = $2
   AND organization_id = $3
   AND workspace_id = $4
   AND state = 'accepted'
-RETURNING id, organization_id, workspace_id, document_id, operation, format, base_revision, base_version_id, idempotency_key, payload_fingerprint, input_checksum, input_length, grant_id, output_file_id, output_checksum, output_length, state, error_code, error_reason, deadline_at, dispatched_at, finished_at, committed_version_id, created_by, created_by_kind, created_at, updated_at
+RETURNING id, organization_id, workspace_id, document_id, operation, format, base_revision, base_version_id, idempotency_key, payload_fingerprint, input_checksum, input_length, grant_id, output_file_id, output_checksum, output_length, state, error_code, error_reason, deadline_at, dispatched_at, finished_at, committed_version_id, created_by, created_by_kind, created_at, updated_at, target_format, result
 `
 
 type MarkOfficeJobRunningParams struct {
@@ -743,6 +766,8 @@ func (q *Queries) MarkOfficeJobRunning(ctx context.Context, arg MarkOfficeJobRun
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TargetFormat,
+		&i.Result,
 	)
 	return i, err
 }
@@ -759,7 +784,7 @@ WHERE id = $5
   AND workspace_id = $7
   AND state IN ('accepted', 'running')
   AND $1::text IN ('failed', 'timed_out')
-RETURNING id, organization_id, workspace_id, document_id, operation, format, base_revision, base_version_id, idempotency_key, payload_fingerprint, input_checksum, input_length, grant_id, output_file_id, output_checksum, output_length, state, error_code, error_reason, deadline_at, dispatched_at, finished_at, committed_version_id, created_by, created_by_kind, created_at, updated_at
+RETURNING id, organization_id, workspace_id, document_id, operation, format, base_revision, base_version_id, idempotency_key, payload_fingerprint, input_checksum, input_length, grant_id, output_file_id, output_checksum, output_length, state, error_code, error_reason, deadline_at, dispatched_at, finished_at, committed_version_id, created_by, created_by_kind, created_at, updated_at, target_format, result
 `
 
 type SettleOfficeJobParams struct {
@@ -812,6 +837,8 @@ func (q *Queries) SettleOfficeJob(ctx context.Context, arg SettleOfficeJobParams
 		&i.CreatedByKind,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TargetFormat,
+		&i.Result,
 	)
 	return i, err
 }

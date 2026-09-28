@@ -51,6 +51,9 @@ export interface Job {
   error?: { code: EngineErrorCode; reason: string; extra?: Record<string, unknown> };
   output?: { file_id: string; checksum: string; length: number };
   warnings: { code: string; detail?: string }[];
+  /** Operation result beyond the output bytes (convert fidelity + change
+      list); only set by operations that carry one. */
+  result?: unknown;
   limits: EffectiveLimits;
   grant: ServiceGrant;
   input: Uint8Array | null;
@@ -242,6 +245,7 @@ export class JobManager {
       switch (result.kind) {
         case "done":
           job.warnings = result.warnings;
+          if (result.result !== undefined) job.result = result.result;
           await this.deliver(job, outputPath, identity?.uid);
           return;
         case "fail": {
@@ -335,6 +339,7 @@ export function jobView(job: Job): Record<string, unknown> {
       ? { output_file_id: job.output.file_id, output_checksum: job.output.checksum, output_length: job.output.length }
       : {}),
     warnings: job.warnings,
+    ...(job.result !== undefined ? { result: job.result } : {}),
     ...(job.error ? { error: new EngineBoundaryError(job.error.code, { reason: job.error.reason, ...job.error.extra }).toJSON() } : {}),
   };
 }

@@ -231,6 +231,75 @@ func TestDetectContentTypeWalksSizedHeaders(t *testing.T) {
 	}
 }
 
+// ODF detection is shape-strict: the `mimetype` entry must come first and be
+// stored, and only the ODF text media type is in the vocabulary (the other
+// ODF families stay application/zip until a lane binds them).
+func TestDetectContentTypeOdfPackages(t *testing.T) {
+	odt := "application/vnd.oasis.opendocument.text"
+	for _, c := range []struct {
+		name     string
+		body     []byte
+		filename string
+		want     string
+	}{
+		{"odf_text_first_stored", odfPackage(t, odt, zip.Store, true), "notes.odt", odt},
+		{"odf_text_ignores_the_name", odfPackage(t, odt, zip.Store, true), "notes.docx", odt},
+		{"odf_spreadsheet_stays_a_zip", odfPackage(t, "application/vnd.oasis.opendocument.spreadsheet", zip.Store, true), "sheet.ods", "application/zip"},
+		{"odf_compressed_mimetype_stays_a_zip", odfPackage(t, odt, zip.Deflate, true), "notes.odt", "application/zip"},
+		{"odf_mimetype_not_first_stays_a_zip", odfPackage(t, odt, zip.Store, false), "notes.odt", "application/zip"},
+	} {
+		if got := files.DetectContentType(c.body, c.filename); got != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
+	}
+}
+
+// odfPackage writes an ODF-shaped zip: optionally the mimetype entry first
+// (stored or deflated as asked), then a content part.
+func odfPackage(t *testing.T, mime string, method uint16, mimetypeFirst bool) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	w := zip.NewWriter(&buf)
+	write := func(name string, body []byte, isMimetype bool) {
+		t.Helper()
+		m := method
+		if !isMimetype {
+			m = zip.Deflate
+		}
+		if m == zip.Store {
+			f, err := w.CreateRaw(&zip.FileHeader{
+				Name: name, Method: zip.Store, CRC32: crc32.ChecksumIEEE(body),
+				CompressedSize64: uint64(len(body)), UncompressedSize64: uint64(len(body)),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.Write(body); err != nil {
+				t.Fatal(err)
+			}
+			return
+		}
+		f, err := w.CreateHeader(&zip.FileHeader{Name: name, Method: m})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.Write(body); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if mimetypeFirst {
+		write("mimetype", []byte(mime), true)
+		write("content.xml", []byte("<office:document-content/>"), false)
+	} else {
+		write("content.xml", []byte("<office:document-content/>"), false)
+		write("mimetype", []byte(mime), true)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes()
+}
+
 func zipOf(t *testing.T, names ...string) []byte {
 	t.Helper()
 	var buf bytes.Buffer

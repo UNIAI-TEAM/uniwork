@@ -180,7 +180,10 @@ export function bindEnvelope(grant: ServiceGrant, facts: EnvelopeFacts, outputOr
   if (facts.grantId !== grant.grant_id) scope("grant_id");
   if (facts.operation !== grant.operation) scope("operation");
   if (facts.format !== grant.format) scope("format");
-  if (facts.baseRevision !== grant.base_revision) scope("base_revision");
+  // Convert carries no base_revision payload field: its result-deciding base
+  // is the source version id (compared below as baseVersionId), and the
+  // grant's base_revision is informational for it.
+  if (facts.operation !== "convert" && facts.baseRevision !== grant.base_revision) scope("base_revision");
   if (facts.baseVersionId !== grant.base_version_id) scope("base_version_id");
   if ((grant.input === null) !== (facts.inputs === null)) scope("input");
   if (grant.input && facts.inputs) {

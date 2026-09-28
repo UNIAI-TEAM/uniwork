@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/office"
 	"github.com/unicomhub/uniwork/server/internal/util"
 )
@@ -269,13 +270,19 @@ func TestDocumentOfficeBlankRefusalsKeyOfAPlainUpload(t *testing.T) {
 // A blank seed is always non-empty: the file validator refuses zero bytes, so
 // the engine must produce a real first version, never an empty file.
 func TestBlankSeedIsNeverEmpty(t *testing.T) {
-	for _, format := range []office.Format{office.FormatMD, office.FormatHTML} {
+	for _, format := range []office.Format{office.FormatMD, office.FormatHTML, office.FormatXLSX} {
 		seed, filename, ok := blankSeedFor(format, "Tieu de")
 		if !ok || len(seed) == 0 || filename == "" {
 			t.Fatalf("seed %s = %d bytes, %q, ok=%v", format, len(seed), filename, ok)
 		}
 	}
-	for _, format := range []office.Format{office.FormatDOCX, office.FormatXLSX, office.FormatPPTX, office.FormatPDF} {
+	// The XLSX seed is a real SpreadsheetML package (G2-07b), deterministic so
+	// the blank job's fingerprint is too.
+	if seed := blankXLSXSeed(); files.DetectContentType(seed, "") != "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+		!bytes.Equal(seed, blankXLSXSeed()) {
+		t.Fatal("the xlsx blank seed is not a stable SpreadsheetML package")
+	}
+	for _, format := range []office.Format{office.FormatDOCX, office.FormatPPTX, office.FormatPDF, office.FormatXLS, office.FormatODT} {
 		if _, _, ok := blankSeedFor(format, "Tieu de"); ok {
 			t.Fatalf("unsupported format %s has a blank seed", format)
 		}
