@@ -23,6 +23,7 @@ import { PAGE_GUTTER, PAGE_LEADING_ICON } from "../layout/page-header";
 import { Notice } from "../common/notice";
 import { leaveGuardAllows, registerLeaveGuard, useNavigation } from "../navigation";
 import type { DocumentAssetUploader } from "./document-asset-upload";
+import { DocumentCommentsHeaderActions } from "./document-comments-context";
 import { DocumentConflictDialog } from "./conflict-dialog";
 import type { DocumentEditorHandle } from "./document-editor";
 import { DocumentFileView } from "./document-file-view";
@@ -352,6 +353,7 @@ export function DocumentWorkspace({ wsId, doc, libraryHref, refetch }: DocumentW
                 {t("documents.detail.readonly_title")}
               </span>
             ) : null}
+            <DocumentCommentsHeaderActions />
           </>
         }
       />

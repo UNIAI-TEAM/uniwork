@@ -4423,12 +4423,30 @@
   },
   "landing": {
     "meta": {
-      "home": { "title": "UniWork: People + AI agents", "description": "One platform where people and AI agents talk, plan, execute and turn knowledge into results." },
-      "features": { "title": "UniWork features", "description": "Explore tasks, meetings, chat, knowledge and AI in one workspace." },
-      "solutions": { "title": "UniWork solutions", "description": "Explore UniWork for product and operations teams." },
-      "learn": { "title": "Get started with UniWork", "description": "Get to know workspaces, tasks and conversations in UniWork." },
-      "pricing": { "title": "UniWork pricing", "description": "The Starter plan and UniWork's usage categories." },
-      "enterprise": { "title": "UniWork for enterprises", "description": "Explore organization structure, permissions and the activity log." }
+      "home": {
+        "title": "UniWork: People + AI agents",
+        "description": "One platform where people and AI agents talk, plan, execute and turn knowledge into results."
+      },
+      "features": {
+        "title": "UniWork features",
+        "description": "Explore tasks, meetings, chat, knowledge and AI in one workspace."
+      },
+      "solutions": {
+        "title": "UniWork solutions",
+        "description": "Explore UniWork for product and operations teams."
+      },
+      "learn": {
+        "title": "Get started with UniWork",
+        "description": "Get to know workspaces, tasks and conversations in UniWork."
+      },
+      "pricing": {
+        "title": "UniWork pricing",
+        "description": "The Starter plan and UniWork's usage categories."
+      },
+      "enterprise": {
+        "title": "UniWork for enterprises",
+        "description": "Explore organization structure, permissions and the activity log."
+      }
     },
     "revision": {
       "interactive": "Interactive",
@@ -5153,7 +5171,15 @@
       "archive": "Archive",
       "searchMail": "Search email…",
       "month": "September 2026",
-      "weekdays": { "mon": "Mon", "tue": "Tue", "wed": "Wed", "thu": "Thu", "fri": "Fri", "sat": "Sat", "sun": "Sun" },
+      "weekdays": {
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri",
+        "sat": "Sat",
+        "sun": "Sun"
+      },
       "calendarAlt": "Illustrative month calendar showing meetings, tasks and deadlines with sample data",
       "calendarScope": "Meetings, tasks and deadlines in one view.",
       "meeting": "Meetings",
@@ -5171,7 +5197,12 @@
       "auditTrace": "Trace the change",
       "viewAudit": "Explore the activity log",
       "viewAsk": "See Ask UNI in action",
-      "events": { "sync": "Product team sync", "design": "Design review", "review": "Content review", "launch": "Release sign-off" }
+      "events": {
+        "sync": "Product team sync",
+        "design": "Design review",
+        "review": "Content review",
+        "launch": "Release sign-off"
+      }
     },
     "actionDemo": {
       "creating": "Creating task…",
@@ -6325,6 +6356,46 @@
       "loading": "Opening the editor…",
       "asset_uploading": "Uploading image…",
       "asset_upload_failed": "Could not upload the image"
+    },
+    "comments": {
+      "title": "Comments",
+      "open": "Comments",
+      "close": "Close comments",
+      "count_one": "{{count}} comment",
+      "count_other": "{{count}} comments",
+      "empty": "No comments yet. Start the discussion below.",
+      "error_title": "Could not load the comments",
+      "error_description": "Nothing was lost. Try again in a moment.",
+      "retry": "Try again",
+      "revoked_title": "You no longer have access to these comments",
+      "revoked_description": "Comments are hidden under your current access to this document.",
+      "action_failed": "The comment action did not go through",
+      "favorite_add": "Add to favorites",
+      "favorite_remove": "Remove from favorites",
+      "favorite_failed": "Could not change the favorite",
+      "comment_placeholder": "Write a comment…",
+      "comment_send": "Send",
+      "comment_collapse": "Collapse comment",
+      "comment_expand": "Expand comment",
+      "comment_edited_time": "Edited · {{time}}",
+      "comment_reply_count_one": "{{count}} reply",
+      "comment_reply_count_other": "{{count}} replies",
+      "comment_resolved": "Resolved",
+      "comment_actions": "Comment actions",
+      "comment_copy": "Copy content",
+      "comment_resolve": "Resolve",
+      "comment_unresolve": "Unresolve",
+      "comment_edit": "Edit",
+      "comment_edit_placeholder": "Edit comment…",
+      "comment_delete_title": "Delete comment?",
+      "comment_delete_description": "The comment will be removed from the document's discussion.",
+      "comment_delete_confirm": "Delete comment",
+      "comment_resolved_fold_one": "{{count}} reply folded around the resolution",
+      "comment_resolved_fold_other": "{{count}} replies folded around the resolution",
+      "comment_resolved_fold_close": "Collapse resolved replies",
+      "comment_preview_empty": "This comment has no text",
+      "thread_resolved_one": "Resolved · {{count}} thread",
+      "thread_resolved_other": "Resolved · {{count}} threads"
     }
   },
   "squads": {

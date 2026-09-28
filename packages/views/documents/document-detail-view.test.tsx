@@ -206,4 +206,27 @@ describe("DocumentDetailView", () => {
     });
     expect(patches).toEqual(["/api/v1/documents/d1"]);
   });
+
+  it("mounts the comments rail and its header trigger when the flag is on", async () => {
+    // Desktop rail, not the modal sheet: a modal marks the rest of the page
+    // aria-hidden, which would hide the header controls from role queries.
+    window.innerWidth = 1400;
+    requestMock.mockResolvedValue({ document: pageDocument() });
+    renderView();
+    await screen.findByText("Kế hoạch Q3");
+
+    // The header owns the trigger; the panel is closed until it is used.
+    const trigger = screen.getByRole("button", { name: t("documents.comments.open") });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByTestId("document-comments-pane")).toBeNull();
+
+    fireEvent.click(trigger);
+
+    expect(await screen.findByTestId("document-comments-pane")).toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    // The favorite star rides the same header actions and reads the server list.
+    expect(
+      await screen.findByRole("button", { name: t("documents.comments.favorite_add") }),
+    ).toBeInTheDocument();
+  });
 });
