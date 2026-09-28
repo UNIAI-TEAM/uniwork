@@ -54,6 +54,7 @@ export const CAPABILITIES = {
     artifacts: ['dist/xlsx-gateway.mjs'],
     lane: 'G2-04',
     runtimes: ['node', 'desktop'],
+    executor: 'packages/office-engine/test/replay/g2-04-replay.mjs',
   },
   pptx: {
     formats: ['pptx'],

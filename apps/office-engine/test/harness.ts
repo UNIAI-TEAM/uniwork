@@ -108,7 +108,7 @@ export interface JobSpec {
   /** Text input (utf8) — or pass `bytes` for binary formats like pdf. */
   text?: string;
   bytes?: Uint8Array;
-  format?: "md" | "html" | "docx" | "pdf";
+  format?: "md" | "html" | "docx" | "pdf" | "xlsx";
   operation?: string;
   deadlineMs?: number;
   grant?: Partial<ServiceGrant>;

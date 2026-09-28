@@ -333,12 +333,33 @@ export async function run({ out, skipInstall, withNative, keep }) {
   else record.verdict = 'pass';
 
   // The Rust xlsx sidecar is vendored but needs cargo; report its real state,
-  // never claim it built.
+  // never claim it built. On success record the crate/protocol/binary
+  // checksums the lane is required to ship: Cargo.toml + Cargo.lock pin the
+  // crate graph, main.rs is the NDJSON protocol endpoint, and the release
+  // binary is the artifact the runtime stage ships.
   const cargo = spawnSync('cargo', ['--version'], { encoding: 'utf8' });
   if (withNative && cargo.status === 0) {
-    const rs = spawnSync('cargo', ['build', '--release'], { cwd: path.join(scratchUpstream, 'apps', 'sheets', 'native', 'xlsx-engine'), encoding: 'utf8', timeout: 20 * 60 * 1000 });
+    const engineDir = path.join(scratchUpstream, 'apps', 'sheets', 'native', 'xlsx-engine');
+    const rs = spawnSync('cargo', ['build', '--release'], { cwd: engineDir, encoding: 'utf8', timeout: 20 * 60 * 1000 });
     record.steps.push({ step: 'native', status: rs.status === 0 ? 'pass' : 'fail', detail: rs.status === 0 ? cargo.stdout.trim() : (rs.stderr || 'cargo build failed').slice(-500) });
-    if (rs.status !== 0) record.verdict = 'fail';
+    if (rs.status !== 0) {
+      record.verdict = 'fail';
+    } else {
+      const binaryPath = path.join(engineDir, 'target', 'release', process.platform === 'win32' ? 'xlsx-sidecar.exe' : 'xlsx-sidecar');
+      const protocolSrc = path.join(engineDir, 'src', 'main.rs');
+      const versionMatch = fs.existsSync(protocolSrc) ? /PROTOCOL_VERSION(?::\s*u8)?\s*=\s*(\d+)/.exec(fs.readFileSync(protocolSrc, 'utf8')) : null;
+      record.native = {
+        cargo: cargo.stdout.trim(),
+        crate: {
+          manifest: 'apps/sheets/native/xlsx-engine/Cargo.toml',
+          manifestSha256: sha256File(path.join(engineDir, 'Cargo.toml')),
+          lockfile: 'apps/sheets/native/xlsx-engine/Cargo.lock',
+          lockfileSha256: sha256File(path.join(engineDir, 'Cargo.lock')),
+        },
+        protocol: { source: 'apps/sheets/native/xlsx-engine/src/main.rs', sourceSha256: sha256File(protocolSrc), version: versionMatch ? Number(versionMatch[1]) : null },
+        binary: { path: path.relative(scratch, binaryPath).split(path.sep).join('/'), bytes: fs.statSync(binaryPath).size, sha256: sha256File(binaryPath) },
+      };
+    }
   } else {
     record.steps.push({ step: 'native', status: 'not-attempted', detail: withNative ? 'cargo not on PATH' : 'requires --with-native (rust toolchain)' });
   }
