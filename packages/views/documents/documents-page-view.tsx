@@ -56,19 +56,19 @@ const LIBRARY_TABS: { id: LibraryTab; labelKey: string }[] = [
 /**
  * A window on `updated_at`. The presets are computed once per filter choice —
  * never per render, or the query key would change on every keystroke-like
- * render and refetch in a loop.
+ * render and refetch in a loop. Only the lower bound is sent: an upper bound
+ * frozen when the filter was picked would hide a document updated later.
  */
-function dateRange(filter: DateFilter): { from?: string; to?: string } {
+function dateRange(filter: DateFilter): { from?: string } {
   if (filter === "all") return {};
   const now = new Date();
-  const to = now.toISOString();
   if (filter === "today") {
     const start = new Date(now);
     start.setHours(0, 0, 0, 0);
-    return { from: start.toISOString(), to };
+    return { from: start.toISOString() };
   }
   const days = filter === "week" ? 7 : 30;
-  return { from: new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString(), to };
+  return { from: new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString() };
 }
 
 interface LibraryPageState {
@@ -158,7 +158,6 @@ export function DocumentsPageView({ wsId, onOpen }: DocumentsPageViewProps) {
     () => ({
       ...(kind === "all" ? {} : { kind }),
       ...(range.from ? { updatedFrom: range.from } : {}),
-      ...(range.to ? { updatedTo: range.to } : {}),
     }),
     [kind, range],
   );
@@ -280,7 +279,10 @@ export function DocumentsPageView({ wsId, onOpen }: DocumentsPageViewProps) {
         icon={FileText}
         tone={moduleTone("documents")}
         title={t("documents.page.title")}
-        count={enabled ? active.rows.length : undefined}
+        // The count is the loaded rows of the active tab; while the first page
+        // is loading (or more pages exist) the tab badge carries the story, so
+        // the header never flashes a 0 or contradicts it.
+        count={enabled && !active.loading && !active.hasMore ? active.rows.length : undefined}
         actions={
           <>
             <CollectionPageHeaderAction

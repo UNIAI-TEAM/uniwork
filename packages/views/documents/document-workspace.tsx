@@ -338,11 +338,13 @@ export function DocumentWorkspace({
   // the server proved readable — `document.breadcrumbs` stops at the first
   // ancestor the caller cannot read, and the client invents no link of its
   // own. A Work Product owns its documents: they are not in the library, so
-  // their chain starts at the owner page instead.
+  // their chain starts at the owner page. Until that owner surface (C-14)
+  // ships a route, the owner crumb stays a label instead of a guessed URL
+  // (FE r1 FE-02), and the back control is not offered to the library either.
   const owned = Boolean(doc.owner_id);
   const ownerCrumbHref = owned && doc.owner_id && ownerHref ? ownerHref(doc.owner_id) : null;
-  const ownerCrumb: BreadcrumbSegment[] = ownerCrumbHref
-    ? [{ href: ownerCrumbHref, label: t("documents.detail.breadcrumb_work_product") }]
+  const ownerCrumb: BreadcrumbSegment[] = owned
+    ? [{ href: ownerCrumbHref ?? undefined, label: t("documents.detail.breadcrumb_work_product") }]
     : [];
   const breadcrumbSegments: BreadcrumbSegment[] = owned
     ? ownerCrumb
@@ -354,7 +356,8 @@ export function DocumentWorkspace({
               .map((crumb) => ({ href: documentHref(crumb.id), label: crumb.title }))
           : []),
       ];
-  const backHref = ownerCrumbHref ?? libraryHref;
+  /** Owner route when there is one; otherwise no back control for owned docs. */
+  const backHref = ownerCrumbHref ?? (owned ? null : libraryHref);
   const backLabel = ownerCrumbHref
     ? t("documents.detail.back_to_owner")
     : t("documents.detail.back_to_library");
@@ -363,16 +366,18 @@ export function DocumentWorkspace({
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <BreadcrumbHeader
         leading={
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className={PAGE_LEADING_ICON}
-            aria-label={backLabel}
-            onClick={() => navigate(backHref)}
-          >
-            <ArrowLeft aria-hidden className="size-4" />
-          </Button>
+          backHref ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className={PAGE_LEADING_ICON}
+              aria-label={backLabel}
+              onClick={() => navigate(backHref)}
+            >
+              <ArrowLeft aria-hidden className="size-4" />
+            </Button>
+          ) : undefined
         }
         segments={breadcrumbSegments}
         leaf={

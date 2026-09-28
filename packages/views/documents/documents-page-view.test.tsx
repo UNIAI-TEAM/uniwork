@@ -206,7 +206,9 @@ describe("DocumentsPageView", () => {
     await waitFor(() => {
       const sent = urls.some((url) => {
         const q = queryOf(url);
-        return q.get("updated_from") !== null && q.get("updated_to") !== null;
+        // Only the lower bound is sent: a frozen upper bound would hide a
+        // document updated after the filter was picked.
+        return q.get("updated_from") !== null && q.get("updated_to") === null;
       });
       expect(sent).toBe(true);
     });

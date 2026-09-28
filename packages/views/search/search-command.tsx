@@ -134,7 +134,9 @@ export function SearchCommand({ onCreateTask }: { onCreateTask: () => void }) {
               {documentsGroup.map((doc) => (
                 <CommandItem
                   key={doc.id}
-                  value={`${searchActive ? `${debouncedQuery} ` : ""}${doc.title} ${doc.id}`}
+                  // The live term leads the value so cmdk keeps a hit visible
+                  // while the user is still typing past the debounce.
+                  value={`${trimmedQuery} ${doc.title} ${doc.id}`}
                   onSelect={() => run(() => push(ws.document(doc.id)))}
                 >
                   {doc.kind === "file" ? <File /> : <FileText />}

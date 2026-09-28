@@ -196,6 +196,26 @@ describe("DocumentDetailView", () => {
     ).toBeInTheDocument();
   });
 
+  it("never guesses a URL for an owned document's owner chain", async () => {
+    requestMock.mockResolvedValue({
+      document: pageDocument({ owner_kind: "work_product", owner_id: "wp1", breadcrumbs: [] }),
+    });
+    // Until C-14 ships a work-product route the app passes no ownerHref.
+    renderView();
+
+    const crumb = await screen.findByText(t("documents.detail.breadcrumb_work_product"));
+    expect(crumb.closest("a")).toBeNull();
+    expect(
+      screen.queryByRole("link", { name: t("documents.detail.breadcrumb_library") }),
+    ).toBeNull();
+    // The library does not list owned documents, so it is not offered as a
+    // way back either.
+    expect(
+      screen.queryByRole("button", { name: t("documents.detail.back_to_library") }),
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: t("documents.detail.back_to_owner") })).toBeNull();
+  });
+
   it("keeps a view-only document readable but not editable", async () => {
     requestMock.mockResolvedValue({ document: pageDocument({ my_level: "view" }) });
     renderView();

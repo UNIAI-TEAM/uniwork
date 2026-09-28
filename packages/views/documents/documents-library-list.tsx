@@ -13,7 +13,7 @@ import { CollectionPageState } from "../layout/collection-page";
 /** A list row as the wire schema parses it (server enums stay lenient). */
 export type DocumentLibraryRow = DocumentList["documents"][number];
 
-/** Compact date of the last update; "—" when the server sent nothing usable. */
+/** Compact date of the last update; empty when the server sent nothing usable. */
 function formatUpdatedAt(iso: string | undefined, locale: string): string {
   if (!iso) return "";
   const date = new Date(iso);
@@ -147,7 +147,7 @@ export function DocumentsLibraryList({
             >
               <span aria-hidden className="flex size-8 shrink-0 items-center justify-center text-muted-foreground">
                 {doc.icon ? (
-                  <span className="text-base leading-none">{doc.icon}</span>
+                  <span className="text-body leading-none">{doc.icon}</span>
                 ) : doc.kind === "file" ? (
                   <File className="size-4" />
                 ) : (

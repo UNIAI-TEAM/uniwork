@@ -6265,7 +6265,8 @@
       "expand": "Mở rộng {{title}}",
       "collapse": "Thu gọn {{title}}",
       "moving": "Đang chuyển tài liệu…",
-      "move_failed": "Không chuyển được tài liệu"
+      "move_failed": "Không chuyển được tài liệu",
+      "too_deep": "Cây tài liệu tối đa 5 cấp."
     },
     "detail": {
       "loading": "Đang tải tài liệu…",

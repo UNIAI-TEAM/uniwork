@@ -6271,7 +6271,8 @@
       "expand": "Expand {{title}}",
       "collapse": "Collapse {{title}}",
       "moving": "Moving document…",
-      "move_failed": "Could not move the document"
+      "move_failed": "Could not move the document",
+      "too_deep": "The document tree is limited to five levels."
     },
     "detail": {
       "loading": "Loading document…",
