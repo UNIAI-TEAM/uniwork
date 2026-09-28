@@ -3,16 +3,13 @@ package service
 // G1-05b AC-1: an agent actor never writes through any of the 05b service
 // verbs. Agents are capped at view (ADR 0010: writes go through proposals),
 // so every 05b command refuses the agent before any row moves. The owner
-// seeds a live share first and the test proves the refusals left it active,
-// the settings row untouched and an archived document archived.
+// seeds a live share and a live link first, and the test proves the refusals
+// left both active, the settings row untouched and an archived document
+// archived.
 
 import (
 	"errors"
 	"testing"
-
-	"github.com/jackc/pgx/v5"
-
-	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 func TestDocument05bAgentWritesRefused(t *testing.T) {
@@ -21,13 +18,26 @@ func TestDocument05bAgentWritesRefused(t *testing.T) {
 	d := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
 	agent := agentActor(tn.agent)
 	mgr := Human(tn.aclOwner.ID)
+	orgOwner := Human(tn.owner.ID)
 
-	// A real live share the agent's revoke attempt must not touch.
-	live, err := f.svc.ShareDocument(f.ctx, mgr, d.ID, DocumentShareInput{
+	// Real revoke targets: a live share and a live link, and the switch on.
+	f.svc.SetEntitlements(NewEntitlementService(f.pool, f.q))
+	if _, err := f.svc.SetDocumentPublicLinks(f.ctx, orgOwner, tn.orgID, true); err != nil {
+		t.Fatalf("enable links: %v", err)
+	}
+	liveShare, err := f.svc.ShareDocument(f.ctx, mgr, d.ID, DocumentShareInput{
 		PrincipalType: DocumentPrincipalUser, PrincipalID: tn.member.ID, Level: DocumentLevelView,
 	})
 	if err != nil {
 		t.Fatalf("seed share: %v", err)
+	}
+	liveLink, err := f.svc.CreateDocumentLink(f.ctx, mgr, d.ID, 7)
+	if err != nil {
+		t.Fatalf("seed link: %v", err)
+	}
+	settingsBefore, settingsErrBefore := f.q.GetDocumentSettings(f.ctx, tn.orgID)
+	if settingsErrBefore != nil {
+		t.Fatalf("settings before: %v", settingsErrBefore)
 	}
 
 	refused := func(name string, err error) {
@@ -46,17 +56,14 @@ func TestDocument05bAgentWritesRefused(t *testing.T) {
 		PrincipalType: DocumentPrincipalUser, PrincipalID: tn.outsider.ID, Level: DocumentLevelView,
 	})
 	refused("share", err)
-	refused("revoke share", f.svc.RevokeDocumentShare(f.ctx, agent, d.ID, live.ID))
+	refused("revoke share", f.svc.RevokeDocumentShare(f.ctx, agent, d.ID, liveShare.ID))
 	_, err = f.svc.CreateDocumentLink(f.ctx, agent, d.ID, 7)
 	refused("create link", err)
-	// The link gate (every link command authorizes through the same
-	// requireDocumentACLChange path) refuses before the fabricated id is
-	// ever looked up, so no link row can move.
-	refused("revoke link", f.svc.RevokeDocumentLink(f.ctx, agent, d.ID, "01J8X4LINK0N1P2Q3R4S5T6U7"))
-	_, err = f.svc.SetDocumentPublicLinks(f.ctx, agent, tn.orgID, true)
+	refused("revoke link", f.svc.RevokeDocumentLink(f.ctx, agent, d.ID, liveLink.Link.ID))
+	_, err = f.svc.SetDocumentPublicLinks(f.ctx, agent, tn.orgID, false)
 	refused("public-links setting", err)
 
-	// Nothing moved: revision, archive flag, the seeded share, the absent
+	// Nothing moved: revision, archive flag, the seeded share and link, the
 	// settings row.
 	got, err := f.q.GetDocumentByID(f.ctx, d.ID)
 	if err != nil {
@@ -69,19 +76,29 @@ func TestDocument05bAgentWritesRefused(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var seeded *db.DocumentShare
-	for i := range ov.Shares {
-		if ov.Shares[i].Share.ID == live.ID {
-			seeded = &ov.Shares[i].Share
+	shareLive, linkLive := false, false
+	for _, sh := range ov.Shares {
+		if sh.Share.ID == liveShare.ID && !sh.Share.RevokedAt.Valid {
+			shareLive = true
 		}
 	}
-	if seeded == nil || !shareIsLive(t, f, *seeded) {
+	for _, l := range ov.Links {
+		if l.ID == liveLink.Link.ID {
+			linkLive = true
+		}
+	}
+	if !shareLive {
 		t.Fatalf("seeded share is no longer live: %+v", ov.Shares)
 	}
-	if set, err := f.q.GetDocumentSettings(f.ctx, tn.orgID); err == nil && set.PublicLinksEnabled {
-		t.Fatalf("agent enabled public links")
-	} else if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		t.Fatal(err)
+	if !linkLive {
+		t.Fatalf("seeded link is no longer live: %+v", ov.Links)
+	}
+	settingsAfter, settingsErrAfter := f.q.GetDocumentSettings(f.ctx, tn.orgID)
+	if settingsErrAfter != nil {
+		t.Fatalf("settings after: %v", settingsErrAfter)
+	}
+	if settingsAfter.PublicLinksEnabled != settingsBefore.PublicLinksEnabled {
+		t.Fatalf("agent touched the settings row: before %+v after %+v", settingsBefore, settingsAfter)
 	}
 
 	// An archived document is hidden below manage, so the agent's restore is
@@ -99,17 +116,4 @@ func TestDocument05bAgentWritesRefused(t *testing.T) {
 	if !after.ArchivedAt.Valid {
 		t.Fatal("agent restore unarchived the document")
 	}
-}
-
-// shareIsLive re-reads a share row and answers whether it is still live.
-func shareIsLive(t *testing.T, f *docPermFixture, sh db.DocumentShare) bool {
-	t.Helper()
-	row, err := f.q.GetDocumentShare(f.ctx, db.GetDocumentShareParams{
-		OrganizationID: sh.OrganizationID, WorkspaceID: sh.WorkspaceID, DocumentID: sh.DocumentID,
-		PrincipalType: sh.PrincipalType, PrincipalID: sh.PrincipalID,
-	})
-	if err != nil {
-		return false
-	}
-	return !row.RevokedAt.Valid
 }

@@ -221,9 +221,7 @@ func TestDocumentListSearchTree(t *testing.T) {
 		t.Fatalf("tree branch: %d %v", res.StatusCode, out)
 	}
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents/tree?root=01J8X4DOC0N1P2Q3R4S5T6U7", w.token, nil)
-	if code, _ := errCodeClass(out); res.StatusCode != 404 || code != "not_found" {
-		t.Fatalf("tree unknown root: %d code=%q", res.StatusCode, code)
-	}
+	wantErr(t, res, out, 404, "not_found", "missing")
 
 	// The archived view is manage-only; the plain list drops the trashed node.
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+beta+"/archive", w.token, nil)
@@ -804,6 +802,20 @@ func TestDocument05bWritePermissionMatrix(t *testing.T) {
 	res, out = doJSON(t, w.srv, "DELETE", "/api/v1/documents/"+docView+"/links/01J8X4LINK0N1P2Q3R4S5T6U7", viewer, nil)
 	wantErr(t, res, out, 403, "forbidden", "permission")
 
+	// Live revoke targets on docEdit: a real share and a real link the editor
+	// must not be able to touch.
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docEdit+"/shares", w.token, map[string]any{
+		"principal_type": "user", "principal_id": viewerID, "level": "view"})
+	if res.StatusCode != 201 {
+		t.Fatalf("seed edit share: %d %v", res.StatusCode, out)
+	}
+	editShareID := out["share"].(map[string]any)["id"].(string)
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docEdit+"/links", w.token, map[string]any{})
+	if res.StatusCode != 201 {
+		t.Fatalf("seed edit link: %d %v", res.StatusCode, out)
+	}
+	editLinkID := out["link"].(map[string]any)["id"].(string)
+
 	// Edit level: move is allowed; access changes are not.
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docEdit+"/move", editor, map[string]any{"revision": "1"})
 	if res.StatusCode != 200 {
@@ -818,10 +830,30 @@ func TestDocument05bWritePermissionMatrix(t *testing.T) {
 	wantErr(t, res, out, 403, "forbidden", "permission")
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docEdit+"/links", editor, map[string]any{})
 	wantErr(t, res, out, 403, "forbidden", "permission")
-	res, out = doJSON(t, w.srv, "DELETE", "/api/v1/documents/"+docEdit+"/shares/01J8X4SHAREN1P2Q3R4S5T6U7", editor, nil)
+	res, out = doJSON(t, w.srv, "DELETE", "/api/v1/documents/"+docEdit+"/shares/"+editShareID, editor, nil)
 	wantErr(t, res, out, 403, "forbidden", "permission")
-	res, out = doJSON(t, w.srv, "DELETE", "/api/v1/documents/"+docEdit+"/links/01J8X4LINK0N1P2Q3R4S5T6U7", editor, nil)
+	res, out = doJSON(t, w.srv, "DELETE", "/api/v1/documents/"+docEdit+"/links/"+editLinkID, editor, nil)
 	wantErr(t, res, out, 403, "forbidden", "permission")
+
+	// The real targets survived the editor's refused revokes.
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+docEdit+"/shares", w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("edit overview: %d %v", res.StatusCode, out)
+	}
+	liveShare, liveLink := false, false
+	for _, sh := range out["shares"].([]any) {
+		if sh.(map[string]any)["id"] == editShareID && sh.(map[string]any)["active"] == true {
+			liveShare = true
+		}
+	}
+	for _, l := range out["links"].([]any) {
+		if l.(map[string]any)["id"] == editLinkID {
+			liveLink = true
+		}
+	}
+	if !liveShare || !liveLink {
+		t.Fatalf("editor revokes touched live targets: shares=%v links=%v", out["shares"], out["links"])
+	}
 
 	// Manage level: archive/restore, share and link management all work,
 	// and only manage sees the archived row in the trash view.

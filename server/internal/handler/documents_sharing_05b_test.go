@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -154,7 +156,8 @@ func TestDocumentPublicLinks(t *testing.T) {
 	wantErr(t, res, out, 404, "not_found", "missing")
 
 	// 404 parity: unknown, revoked, switch-off and flag-off must answer the
-	// same body and headers, so a public caller cannot tell them apart.
+	// same body and the same deterministic headers, so a public caller cannot
+	// tell them apart and a header added on one refusal path fails here.
 	raw404 := func(method, path string) (string, string) {
 		t.Helper()
 		req, err := http.NewRequestWithContext(t.Context(), method, w.srv.URL+path, nil)
@@ -170,7 +173,7 @@ func TestDocumentPublicLinks(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return string(body), resp.Header.Get("Content-Type") + "|" + resp.Header.Get("X-Content-Type-Options")
+		return string(body), stableHeaders(resp.Header)
 	}
 	same404 := func(name, body, headers, wantBody, wantHeaders string) {
 		t.Helper()
@@ -183,6 +186,7 @@ func TestDocumentPublicLinks(t *testing.T) {
 	unknownAssetBody, unknownAssetHeaders := raw404("GET", "/api/v1/public/documents/unknown-token/assets/01J8X4AST0N1P2Q3R4S5T6U7V8")
 	unknownAssetHeadBody, unknownAssetHeadHeaders := raw404("HEAD", "/api/v1/public/documents/unknown-token/assets/01J8X4AST0N1P2Q3R4S5T6U7V8")
 	unknownDownloadBody, unknownDownloadHeaders := raw404("GET", "/api/v1/public/documents/unknown-token/download")
+	unknownDownloadHeadBody, unknownDownloadHeadHeaders := raw404("HEAD", "/api/v1/public/documents/unknown-token/download")
 
 	// Create one page link and one file link.
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+page+"/links", w.token, map[string]any{"expires_in_days": 7})
@@ -242,9 +246,7 @@ func TestDocumentPublicLinks(t *testing.T) {
 		t.Fatalf("public suffix range: %d len=%d", res.StatusCode, len(raw))
 	}
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/public/documents/"+pageToken+"/download", "", nil)
-	if code, _ := errCodeClass(out); res.StatusCode != 404 || code != "not_found" {
-		t.Fatalf("page download through link: %d code=%q", res.StatusCode, code)
-	}
+	wantErr(t, res, out, 404, "not_found", "missing")
 
 	// A page asset streams anonymously through the link, by exact asset id.
 	res, raw = doMultipart(t, w.srv, "POST", "/api/v1/documents/"+page+"/assets", w.token, nil, "pic.png", docsPNG, nil)
@@ -382,6 +384,8 @@ func TestDocumentPublicLinks(t *testing.T) {
 	if res.StatusCode != 404 {
 		t.Fatalf("switch off asset HEAD: %d", res.StatusCode)
 	}
+	settingHeadBody, settingHeadHeaders := raw404("HEAD", "/api/v1/public/documents/"+pageToken+"/assets/"+assetID)
+	same404("switch-off asset HEAD", settingHeadBody, settingHeadHeaders, unknownAssetHeadBody, unknownAssetHeadHeaders)
 	res, out = doJSON(t, w.srv, "PUT", "/api/v1/orgs/"+w.orgID+"/documents/settings", w.token, map[string]any{"public_links_enabled": true})
 	if res.StatusCode != 200 {
 		t.Fatalf("re-enable links: %d %v", res.StatusCode, out)
@@ -452,6 +456,12 @@ func TestDocumentPublicLinks(t *testing.T) {
 	}
 	revokedDownloadBody, revokedDownloadHeaders := raw404("GET", downloadURL)
 	same404("revoked download", revokedDownloadBody, revokedDownloadHeaders, unknownDownloadBody, unknownDownloadHeaders)
+	res, _ = doBytes(t, w.srv, "HEAD", downloadURL, "")
+	if res.StatusCode != 404 {
+		t.Fatalf("revoked download HEAD: %d", res.StatusCode)
+	}
+	revokedDownloadHeadBody, revokedDownloadHeadHeaders := raw404("HEAD", downloadURL)
+	same404("revoked download HEAD", revokedDownloadHeadBody, revokedDownloadHeadHeaders, unknownDownloadHeadBody, unknownDownloadHeadHeaders)
 }
 
 func TestDocumentAccessLog(t *testing.T) {
@@ -652,4 +662,28 @@ func docsCreateFileDoc(t *testing.T, w *docsWorld, filename string, body []byte)
 	}
 	doc := out["document"].(map[string]any)
 	return doc, doc["id"].(string)
+}
+
+// stableHeaders renders every response header except the per-request Date and
+// X-Correlation-Id so two refused responses can be compared byte for byte; a
+// header added on one refusal path (or a method) fails the comparison.
+func stableHeaders(h http.Header) string {
+	names := make([]string, 0, len(h))
+	for name := range h {
+		if strings.EqualFold(name, "Date") || strings.EqualFold(name, "X-Correlation-Id") {
+			continue
+		}
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	var b strings.Builder
+	for _, name := range names {
+		for _, v := range h.Values(name) {
+			b.WriteString(name)
+			b.WriteString(": ")
+			b.WriteString(v)
+			b.WriteString("\n")
+		}
+	}
+	return b.String()
 }
