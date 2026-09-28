@@ -19,4 +19,15 @@ export const documentKeys = {
     [...documentKeys.detail(wsId, documentId), "version", versionNo] as const,
   downloadMeta: (wsId: string, documentId: string, version?: number) =>
     [...documentKeys.detail(wsId, documentId), "download", version ?? 0] as const,
+  /**
+   * One page asset's bytes. Deliberately OUTSIDE the detail prefix: a
+   * `document.*` realtime frame invalidates the detail key, and an image blob
+   * must not be refetched — nor its object URL recreated — because a
+   * collaborator typed a character.
+   */
+  asset: (wsId: string, documentId: string, assetId: string) =>
+    [...documentKeys.all, wsId, "asset", documentId, assetId] as const,
+  /** Placeholder key for a view that has no asset id yet; never fetched. */
+  assetIdle: (wsId: string, documentId: string) =>
+    [...documentKeys.all, wsId, "asset", documentId, "idle"] as const,
 };

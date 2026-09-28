@@ -93,10 +93,18 @@ function EditorBubbleMenu({
   editor,
   currentTaskId,
   onCreateSubTask,
+  variant = "markdown",
 }: {
   editor: Editor;
   currentTaskId?: string;
   onCreateSubTask?: CreateSubTaskFn;
+  /**
+   * Which editor this toolbar sits on. The page-document editor (G1-06) runs
+   * the closed C-01 §3.7 vocabulary, which has no highlight mark: the
+   * button would call a command the editor does not have AND offer formatting
+   * the server drops on save. Every other control is shared.
+   */
+  variant?: "markdown" | "page";
 }) {
   const { t } = useTranslation();
   const [visible, setVisible] = useState(false);
@@ -239,7 +247,9 @@ function EditorBubbleMenu({
             <MarkButton editor={editor} mark="italic" icon={Italic} label={t("editor.bubble_menu.italic")} shortcut={createShortcutChord("I", { primary: true })} isActive={fmt.italic} />
             <MarkButton editor={editor} mark="strike" icon={Strikethrough} label={t("editor.bubble_menu.strikethrough")} shortcut={createShortcutChord("S", { primary: true, shift: true })} isActive={fmt.strike} />
             <MarkButton editor={editor} mark="code" icon={Code} label={t("editor.bubble_menu.code")} shortcut={createShortcutChord("E", { primary: true })} isActive={fmt.code} />
-            <MarkButton editor={editor} mark="highlight" icon={Highlighter} label={t("editor.bubble_menu.highlight")} shortcut={createShortcutChord("H", { primary: true, shift: true })} isActive={fmt.highlight} />
+            {variant === "markdown" ? (
+              <MarkButton editor={editor} mark="highlight" icon={Highlighter} label={t("editor.bubble_menu.highlight")} shortcut={createShortcutChord("H", { primary: true, shift: true })} isActive={fmt.highlight} />
+            ) : null}
             <Separator orientation="vertical" className="mx-0.5 h-5" />
             <Tooltip>
               <TooltipTrigger render={

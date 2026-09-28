@@ -1,10 +1,12 @@
 "use client";
-import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createDocument,
   createDocumentFile,
+  downloadDocumentFile,
   getDocument,
+  getDocumentAsset,
   getDocumentDownloadMeta,
   patchDocument,
   uploadDocumentAsset,
@@ -135,6 +137,37 @@ export function useDocumentDownloadMeta(wsId: string, documentId: string, versio
 }
 
 /**
+ * One page asset's bytes, for an `asset://{id}` a page embeds. The view turns
+ * the blob into an object URL that lives as long as it is displayed; nothing
+ * about the URL ever reaches the JSON, and the key sits outside the document
+ * detail prefix so a realtime frame cannot refetch every image on the page.
+ */
+export function useDocumentAsset(wsId: string, documentId: string, assetId: string | null) {
+  return useQuery({
+    queryKey: assetId
+      ? documentKeys.asset(wsId, documentId, assetId)
+      : documentKeys.assetIdle(wsId, documentId),
+    queryFn: ({ signal }) => getDocumentAsset(documentId, assetId!, signal),
+    enabled: !!wsId && !!documentId && !!assetId,
+    // Bytes behind one asset id never change; only the object URL is local.
+    staleTime: Infinity,
+  });
+}
+
+/**
+ * The bytes of the live (or one pinned) file version, through the Go proxy.
+ * The caller owns what to do with the blob — a browser download is a DOM
+ * concern — but the transport call belongs here, with the other documents
+ * reads, not in a view.
+ */
+export function useDocumentDownload(wsId: string, documentId: string) {
+  return useMutation({
+    mutationFn: ({ version }: { version?: number } = {}) =>
+      downloadDocumentFile(documentId, version),
+  });
+}
+
+/**
  * The page autosave loop as a hook: one DocumentSaveMachine per document,
  * PATCH transport through patchDocument, the acknowledged document written
  * back into the detail query on every save. The machine is a ref — it must
@@ -143,21 +176,32 @@ export function useDocumentDownloadMeta(wsId: string, documentId: string, versio
  */
 export function useDocumentSave(wsId: string, documentId: string, initialRevision: string) {
   const qc = useQueryClient();
-  const machine = useMemo(
+  // One machine per document: a revision prop change means the caller
+  // re-fetched (fresh mount), not that the live machine should rebase —
+  // updateBase handles in-place base moves.
+  const makeMachine = useCallback(
     () =>
       new DocumentSaveMachine({
         documentId,
         initialRevision,
         transport: createDocumentPatchTransport(patchDocument),
       }),
-    // One machine per document: a revision prop change means the caller
-    // re-fetched (fresh mount), not that the live machine should rebase —
-    // updateBase handles in-place base moves.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [wsId, documentId],
   );
+  const [machine, setMachine] = useState(makeMachine);
 
-  useEffect(() => () => machine.dispose(), [machine]);
+  useEffect(() => {
+    // React StrictMode mounts, cleans up and mounts again in development. The
+    // cleanup disposed the machine this component still holds, and a disposed
+    // machine ignores every later edit — autosave would be dead for the life
+    // of the screen. Replace it instead of handing the editor a dead one.
+    if (machine.isDisposed()) {
+      setMachine(makeMachine());
+      return;
+    }
+    return () => machine.dispose();
+  }, [machine, makeMachine]);
 
   const state = useSyncExternalStore(machine.subscribe.bind(machine), machine.getState.bind(machine));
 
