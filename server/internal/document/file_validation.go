@@ -38,6 +38,8 @@ const (
 	ReasonZipPath           = "zip_unsafe_path"
 	ReasonZipMacro          = "zip_macro_part"
 	ReasonOOXMLMissingPart  = "ooxml_missing_part"
+	ReasonODFMimetype       = "odf_mimetype"
+	ReasonODFMissingPart    = "odf_missing_part"
 	ReasonPDFHeader         = "pdf_header"
 	ReasonPDFTrailer        = "pdf_trailer"
 	ReasonOLESignature      = "ole_signature"
@@ -95,6 +97,7 @@ const (
 	mimeDOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 	mimeXLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 	mimePPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+	mimeODT  = "application/vnd.oasis.opendocument.text"
 	mimePNG  = "image/png"
 	mimeJPEG = "image/jpeg"
 )
@@ -128,6 +131,8 @@ func ValidateFile(r io.ReaderAt, size int64, contentType string, limits FileLimi
 	switch base = strings.TrimSpace(base); base {
 	case mimeDOCX, mimeXLSX, mimePPTX:
 		return validateOOXML(r, size, base, limits)
+	case mimeODT:
+		return validateODT(r, size, limits)
 	case mimePDF:
 		return validatePDF(r, size)
 	case mimeDOC, mimeXLS, mimePPT:
@@ -148,42 +153,91 @@ func validateOOXML(r io.ReaderAt, size int64, contentType string, limits FileLim
 	if err != nil {
 		return FileFacts{}, refuse(ReasonZipUnreadable, "the package cannot be read: %v", err)
 	}
-	if len(zr.File) > limits.MaxEntries {
-		return FileFacts{}, refuse(ReasonZipTooManyEntries, "%d entries, at most %d", len(zr.File), limits.MaxEntries)
+	parts, err := checkZipParts(zr, limits)
+	if err != nil {
+		return FileFacts{}, err
 	}
+	if _, ok := parts["[content_types].xml"]; !ok {
+		return FileFacts{}, refuse(ReasonOOXMLMissingPart, "[Content_Types].xml is missing")
+	}
+	main := ooxmlMainPart[contentType]
+	if _, ok := parts[main]; !ok {
+		return FileFacts{}, refuse(ReasonOOXMLMissingPart, "%s is missing", main)
+	}
+	return FileFacts{Format: ooxmlFormat(contentType)}, nil
+}
+
+// validateODT checks the ODF shape Q7 conversion sources must have: the zip
+// safety rules of an OOXML package plus the two parts a converter needs - the
+// spec-mandated `mimetype` entry naming ODF text (stored, not deflated) and
+// content.xml. An ODF package without them is refused like any other broken
+// package; it is never handed to another editor.
+func validateODT(r io.ReaderAt, size int64, limits FileLimits) (FileFacts, error) {
+	zr, err := zip.NewReader(r, size)
+	if err != nil {
+		return FileFacts{}, refuse(ReasonZipUnreadable, "the package cannot be read: %v", err)
+	}
+	parts, err := checkZipParts(zr, limits)
+	if err != nil {
+		return FileFacts{}, err
+	}
+	declared, ok := parts["mimetype"]
+	if !ok {
+		return FileFacts{}, refuse(ReasonODFMissingPart, "the mimetype entry is missing")
+	}
+	if declared.Method != zip.Store {
+		return FileFacts{}, refuse(ReasonODFMimetype, "the mimetype entry is compressed")
+	}
+	rc, err := declared.Open()
+	if err != nil {
+		return FileFacts{}, refuse(ReasonODFMimetype, "the mimetype entry cannot be read: %v", err)
+	}
+	raw, err := io.ReadAll(io.LimitReader(rc, 256))
+	_ = rc.Close()
+	if err != nil {
+		return FileFacts{}, refuse(ReasonODFMimetype, "the mimetype entry cannot be read: %v", err)
+	}
+	if strings.TrimSpace(string(raw)) != mimeODT {
+		return FileFacts{}, refuse(ReasonODFMimetype, "the mimetype entry names %q", string(raw))
+	}
+	if _, ok := parts["content.xml"]; !ok {
+		return FileFacts{}, refuse(ReasonODFMissingPart, "content.xml is missing")
+	}
+	return FileFacts{Format: "odt"}, nil
+}
+
+// checkZipParts applies the shared package safety rules (entry bounds, names,
+// inflation ratio, macro parts) and returns the entries by lower-case name.
+func checkZipParts(zr *zip.Reader, limits FileLimits) (map[string]*zip.File, error) {
+	if len(zr.File) > limits.MaxEntries {
+		return nil, refuse(ReasonZipTooManyEntries, "%d entries, at most %d", len(zr.File), limits.MaxEntries)
+	}
+	parts := make(map[string]*zip.File, len(zr.File))
 	var total uint64
-	seen := make(map[string]bool, len(zr.File))
 	for _, f := range zr.File {
 		if err := checkEntryName(f.Name, limits.MaxEntryName); err != nil {
-			return FileFacts{}, err
+			return nil, err
 		}
 		lower := strings.ToLower(f.Name)
-		if seen[lower] {
-			return FileFacts{}, refuse(ReasonZipPath, "entry %q appears twice", f.Name)
+		if _, dup := parts[lower]; dup {
+			return nil, refuse(ReasonZipPath, "entry %q appears twice", f.Name)
 		}
-		seen[lower] = true
 		if path.Base(lower) == "vbaproject.bin" {
-			return FileFacts{}, refuse(ReasonZipMacro, "macro-enabled packages are not editable")
+			return nil, refuse(ReasonZipMacro, "macro-enabled packages are not editable")
 		}
 		total += f.UncompressedSize64
 		if total > uint64(limits.MaxUncompressedBytes) {
-			return FileFacts{}, refuse(ReasonZipBomb, "the package inflates past %d bytes", limits.MaxUncompressedBytes)
+			return nil, refuse(ReasonZipBomb, "the package inflates past %d bytes", limits.MaxUncompressedBytes)
 		}
 		if f.UncompressedSize64 > 0 && f.Method != zip.Store {
 			comp := f.CompressedSize64
 			if comp == 0 || f.UncompressedSize64/comp > uint64(limits.MaxEntryRatio) {
-				return FileFacts{}, refuse(ReasonZipRatio, "entry %q compresses more than %d:1", f.Name, limits.MaxEntryRatio)
+				return nil, refuse(ReasonZipRatio, "entry %q compresses more than %d:1", f.Name, limits.MaxEntryRatio)
 			}
 		}
+		parts[lower] = f
 	}
-	if !seen["[content_types].xml"] {
-		return FileFacts{}, refuse(ReasonOOXMLMissingPart, "[Content_Types].xml is missing")
-	}
-	main := ooxmlMainPart[contentType]
-	if !seen[main] {
-		return FileFacts{}, refuse(ReasonOOXMLMissingPart, "%s is missing", main)
-	}
-	return FileFacts{Format: ooxmlFormat(contentType)}, nil
+	return parts, nil
 }
 
 func ooxmlFormat(contentType string) string {

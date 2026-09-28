@@ -215,7 +215,9 @@ var (
 	// documentMIMETypes is what a Document version may hold. text/html is in
 	// C-01 §5.5's file-document allowlist and is one of the six Office format
 	// lanes (G2-06/G2-07a); the preview sandbox, not this allowlist, is what
-	// keeps HTML safe to render.
+	// keeps HTML safe to render. ODF text joins with G2-07b: it is a Q7
+	// conversion source (docs/office/g1g2/q7-blocker.md), never an in-place
+	// editor format.
 	documentMIMETypes = []string{
 		"application/pdf", "text/plain", "text/markdown", "text/html",
 		"application/msword",
@@ -224,6 +226,7 @@ var (
 		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 		"application/vnd.ms-powerpoint",
 		"application/vnd.openxmlformats-officedocument.presentationml.presentation",
+		"application/vnd.oasis.opendocument.text",
 		"image/jpeg", "image/png",
 	}
 )
