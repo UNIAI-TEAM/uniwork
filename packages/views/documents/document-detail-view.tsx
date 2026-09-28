@@ -9,6 +9,8 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { CollectionPageState } from "../layout/collection-page";
 import { DocumentActionsMenu } from "./document-actions-menu";
+import { DocumentCommentsPanel } from "./document-comments-panel";
+import { DocumentCommentsProvider } from "./document-comments-context";
 import { DocumentWorkspace } from "./document-workspace";
 
 export interface DocumentDetailViewProps {
@@ -115,23 +117,28 @@ export function DocumentDetailView({
   }
 
   return (
-    <DocumentWorkspace
-      // Keyed by document: the editor reads its content once at mount, and
-      // useDocumentSave owns one machine per document, so a host that reuses
-      // this view for another id must remount rather than re-point either.
-      key={query.data.id}
-      wsId={wsId}
-      doc={query.data}
-      libraryHref={libraryHref}
-      refetch={() => query.refetch()}
-      headerActions={
-        <DocumentActionsMenu
+    <DocumentCommentsProvider wsId={wsId} doc={query.data}>
+      <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
+        <DocumentWorkspace
+          // Keyed by document: the editor reads its content once at mount, and
+          // useDocumentSave owns one machine per document, so a host that reuses
+          // this view for another id must remount rather than re-point either.
+          key={query.data.id}
           wsId={wsId}
           doc={query.data}
-          documentHrefFor={(id) => `${libraryHref}/${id}`}
-          onArchived={onBackToList}
+          libraryHref={libraryHref}
+          refetch={() => query.refetch()}
+          headerActions={
+            <DocumentActionsMenu
+              wsId={wsId}
+              doc={query.data}
+              documentHrefFor={(id) => `${libraryHref}/${id}`}
+              onArchived={onBackToList}
+            />
+          }
         />
-      }
-    />
+        <DocumentCommentsPanel />
+      </div>
+    </DocumentCommentsProvider>
   );
 }

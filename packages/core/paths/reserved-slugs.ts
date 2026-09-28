@@ -6,6 +6,7 @@ export const RESERVED_SLUGS = [
   "assets",
   "auth",
   "calendar",
+  "documents",
   "enterprise",
   "favicon.ico",
   "features",
