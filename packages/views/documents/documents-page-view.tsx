@@ -110,30 +110,6 @@ function infiniteState(q: {
 }
 
 /**
- * Shared-with-me answers one page until BE05B-09 (cursor/limit) lands on the
- * root; the day it does, this becomes `infiniteState` and the footer lights up
- * — the tab itself is already built against the list shape, not a shortcut.
- */
-function sharedState(q: {
-  data?: DocumentList;
-  isPending: boolean;
-  isError: boolean;
-  error: unknown;
-  refetch: () => unknown;
-}): LibraryPageState {
-  const rows = q.data?.documents ?? [];
-  return {
-    rows,
-    loading: q.isPending,
-    failure: q.isError && rows.length === 0 ? failureOf(q.error) : null,
-    hasMore: false,
-    loadingMore: false,
-    loadMore: () => {},
-    refetch: () => void q.refetch(),
-  };
-}
-
-/**
  * `/documents` — the library.
  *
  * Tabs read real server data per collection (all/recent/shared/archived) with
@@ -172,7 +148,7 @@ export function DocumentsPageView({ wsId, onOpen }: DocumentsPageViewProps) {
   const states: Record<LibraryTab, LibraryPageState> = {
     all: infiniteState(allQuery),
     recent: infiniteState(recentQuery),
-    shared: sharedState(sharedQuery),
+    shared: infiniteState(sharedQuery),
     archived: infiniteState(archivedQuery),
   };
   const queries = { all: allQuery, recent: recentQuery, shared: sharedQuery, archived: archivedQuery };
