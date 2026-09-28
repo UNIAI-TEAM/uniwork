@@ -392,19 +392,25 @@ type Routes struct {
 
 	// Documents (C-01 §5 + §14; UNI-679, G1-05a): page CRUD-lite, file
 	// upload/commit/download, versions and embedded assets.
-	CreateDocument         http.HandlerFunc
-	CreateDocumentFile     http.HandlerFunc
-	GetDocument            http.HandlerFunc
-	PatchDocument          http.HandlerFunc
-	UploadDocumentFile     http.HandlerFunc
-	CommitDocumentVersion  http.HandlerFunc
-	ListDocumentVersions   http.HandlerFunc
-	CreateDocumentVersion  http.HandlerFunc
-	GetDocumentVersion     http.HandlerFunc
-	RestoreDocumentVersion http.HandlerFunc
-	UploadDocumentAsset    http.HandlerFunc
-	GetDocumentAsset       http.HandlerFunc
-	DownloadDocument       http.HandlerFunc
+	CreateDocument          http.HandlerFunc
+	CreateDocumentFile      http.HandlerFunc
+	CreateBlankDocumentFile http.HandlerFunc
+	StartOfficeJob          http.HandlerFunc
+	GetOfficeJob            http.HandlerFunc
+	CancelOfficeJob         http.HandlerFunc
+	OfficeCapability        http.HandlerFunc
+	CopyDocument            http.HandlerFunc
+	GetDocument             http.HandlerFunc
+	PatchDocument           http.HandlerFunc
+	UploadDocumentFile      http.HandlerFunc
+	CommitDocumentVersion   http.HandlerFunc
+	ListDocumentVersions    http.HandlerFunc
+	CreateDocumentVersion   http.HandlerFunc
+	GetDocumentVersion      http.HandlerFunc
+	RestoreDocumentVersion  http.HandlerFunc
+	UploadDocumentAsset     http.HandlerFunc
+	GetDocumentAsset        http.HandlerFunc
+	DownloadDocument        http.HandlerFunc
 
 	// Document comments + favorites (G1-07, UNI-681; lane 07b).
 	ListDocumentComments          http.HandlerFunc

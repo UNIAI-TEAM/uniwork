@@ -45,6 +45,7 @@
     "./documents/schema": "./documents/schema.ts",
     "./documents/hooks": "./documents/hooks.ts",
     "./documents/hooks-versions": "./documents/hooks-versions.ts",
+    "./documents/office-hooks": "./documents/office-hooks.ts",
     "./documents/keys": "./documents/keys.ts",
     "./documents/save-state": "./documents/save-state.ts",
     "./documents/errors": "./documents/errors.ts",

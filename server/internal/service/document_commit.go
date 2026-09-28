@@ -324,9 +324,18 @@ func (s *DocumentService) CommitFileVersion(ctx context.Context, actor Actor, do
 		if current != nil && current.MimeType.String != f.ContentType {
 			// A new version keeps the document's format: a different type is
 			// a conversion (a copy, C-01 §14.4), never a silent editor switch.
-			return CodedError{Code: document.ErrCodeUnsupportedMedia, Status: http.StatusUnsupportedMediaType,
-				Msg:    "phiên bản mới phải cùng định dạng với tài liệu",
-				Fields: map[string]any{"reason": "format_changed"}}
+			// An office job output is the one exception: the engine writes
+			// through a provider output that carries no filename (FS-C1 §4),
+			// so a markdown document's bytes come back sniffed as text/plain.
+			// The job's format is the document's own (bound when it started),
+			// and the version keeps the document's mime so the format
+			// survives the round trip.
+			if job == nil || !officeOutputKeepsFormat(job.Format, current.MimeType.String, f.ContentType) {
+				return CodedError{Code: document.ErrCodeUnsupportedMedia, Status: http.StatusUnsupportedMediaType,
+					Msg:    "phiên bản mới phải cùng định dạng với tài liệu",
+					Fields: map[string]any{"reason": "format_changed"}}
+			}
+			f.ContentType = current.MimeType.String
 		}
 		if err := s.consumeStorage(ctx, q, actor, locked.OrganizationID, locked.WorkspaceID, f); err != nil {
 			return err

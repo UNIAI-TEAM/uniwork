@@ -147,9 +147,23 @@ func TestClientReadiness(t *testing.T) {
 	if _, err := c.Ready(context.Background()); ErrorCode(err) != "engine_crashed" {
 		t.Fatalf("draining: %v", err)
 	}
-	c = fakeEngine(t, 200, `{"capabilities":[{"operation":"convert","supported":false,"runtime":"none","evidence_level":"pending"}]}`)
-	rows, err := c.Capability(context.Background(), FormatDOCX)
-	if err != nil || len(rows) != 1 || rows[0].ProductSupported() {
-		t.Fatalf("capability: %+v %v", rows, err)
+	c = fakeEngine(t, 200, `{"engine_version":"genoffice@09485f88+uniwork-office.0","capabilities":[{"operation":"convert","supported":false,"runtime":"none","evidence_level":"pending"}]}`)
+	res, err := c.Capability(context.Background(), FormatDOCX)
+	if err != nil || len(res.Capabilities) != 1 || res.Capabilities[0].ProductSupported() || res.Supports(OperationConvert) {
+		t.Fatalf("capability: %+v %v", res, err)
+	}
+	if res.EngineVersion != TrustedEngineVersion {
+		t.Fatalf("engine version: %q", res.EngineVersion)
+	}
+	// Negotiation: a build the server was not written against is refused with
+	// a typed error before any mutation; an answer carrying neither identity
+	// nor rows is malformed drift, not an empty capability set.
+	drift := fakeEngine(t, 200, `{"engine_version":"genoffice@deadbeef+uniwork-office.9","capabilities":[]}`)
+	if _, err := Negotiate(context.Background(), drift, FormatDOCX); ErrorCode(err) != "engine_incompatible" {
+		t.Fatalf("drift build: %v", err)
+	}
+	empty := fakeEngine(t, 200, `{}`)
+	if _, err := empty.Capability(context.Background(), FormatDOCX); ErrorCode(err) != "engine_result_invalid" {
+		t.Fatalf("empty capability: %v", err)
 	}
 }
