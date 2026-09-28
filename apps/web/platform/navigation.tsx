@@ -34,8 +34,21 @@ function NavigationProviderInner({ children }: { children: React.ReactNode }) {
           if (allowed) router.replace(path);
         });
       },
-      back: () => router.back(),
-      forward: () => router.forward(),
+      // back/forward are guarded too: a screen with unsaved work is left by
+      // the same dialog, not only by a push. Browser chrome Back is a
+      // popstate the App Router handles itself and beforeunload does not fire
+      // for a same-document history move, so that one path stays best-effort
+      // (documented in the lane report).
+      back: () => {
+        void leaveGuardAllows(pathname).then((allowed) => {
+          if (allowed) router.back();
+        });
+      },
+      forward: () => {
+        void leaveGuardAllows(pathname).then((allowed) => {
+          if (allowed) router.forward();
+        });
+      },
       pathname,
       searchParams: new URLSearchParams(searchParams.toString()),
       getShareableUrl: (path) => (typeof window === "undefined" ? path : window.location.origin + path),

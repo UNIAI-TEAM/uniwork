@@ -4,7 +4,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createDocument,
   createDocumentFile,
+  downloadDocumentFile,
   getDocument,
+  getDocumentAsset,
   getDocumentDownloadMeta,
   patchDocument,
   uploadDocumentAsset,
@@ -131,6 +133,37 @@ export function useDocumentDownloadMeta(wsId: string, documentId: string, versio
     queryKey: documentKeys.downloadMeta(wsId, documentId, version),
     queryFn: ({ signal }) => getDocumentDownloadMeta(documentId, version, signal),
     enabled: !!wsId && !!documentId,
+  });
+}
+
+/**
+ * One page asset's bytes, for an `asset://{id}` a page embeds. The view turns
+ * the blob into an object URL that lives as long as it is displayed; nothing
+ * about the URL ever reaches the JSON, and the key sits outside the document
+ * detail prefix so a realtime frame cannot refetch every image on the page.
+ */
+export function useDocumentAsset(wsId: string, documentId: string, assetId: string | null) {
+  return useQuery({
+    queryKey: assetId
+      ? documentKeys.asset(wsId, documentId, assetId)
+      : documentKeys.assetIdle(wsId, documentId),
+    queryFn: ({ signal }) => getDocumentAsset(documentId, assetId!, signal),
+    enabled: !!wsId && !!documentId && !!assetId,
+    // Bytes behind one asset id never change; only the object URL is local.
+    staleTime: Infinity,
+  });
+}
+
+/**
+ * The bytes of the live (or one pinned) file version, through the Go proxy.
+ * The caller owns what to do with the blob — a browser download is a DOM
+ * concern — but the transport call belongs here, with the other documents
+ * reads, not in a view.
+ */
+export function useDocumentDownload(wsId: string, documentId: string) {
+  return useMutation({
+    mutationFn: ({ version }: { version?: number } = {}) =>
+      downloadDocumentFile(documentId, version),
   });
 }
 

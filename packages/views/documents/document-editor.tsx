@@ -148,7 +148,10 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
       },
       editorProps: {
         attributes: {
-          class: "rich-text-editor min-h-64 text-body outline-none",
+          // outline-none kills the browser default; the ring below is the
+          // focus indicator (the caret alone is not one for keyboard users).
+          class:
+            "rich-text-editor min-h-64 rounded-sm text-body outline-none focus-visible:ring-2 focus-visible:ring-ring/30",
           role: "textbox",
           "aria-multiline": "true",
           "aria-label": t("documents.editor.aria_label"),

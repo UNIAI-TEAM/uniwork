@@ -7,6 +7,7 @@ import {
   StaticProvider,
 } from "@uniwork/core/feature-flags";
 import { initI18n } from "@uniwork/core/i18n";
+import { DocumentSchema, type Document } from "@uniwork/core/types/document";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { DocumentDetailView } from "./document-detail-view";
 
@@ -20,8 +21,20 @@ function withFlag(ui: React.ReactElement, on = true) {
   return wrapWithNav(<FeatureFlagsProvider service={service}>{ui}</FeatureFlagsProvider>);
 }
 
-function pageDocument(over: Record<string, unknown> = {}) {
+/** The wire schema parses server enums leniently; the exported type narrows them. */
+function narrowDocument(parsed: ReturnType<typeof DocumentSchema.parse>): Document {
   return {
+    ...parsed,
+    kind: parsed.kind as Document["kind"],
+    visibility: parsed.visibility as Document["visibility"],
+    my_level: parsed.my_level as Document["my_level"],
+    via: parsed.via as Document["via"],
+    owner_kind: parsed.owner_kind as Document["owner_kind"],
+  };
+}
+
+function pageDocument(over: Record<string, unknown> = {}): Document {
+  return narrowDocument(DocumentSchema.parse({
     id: "d1",
     workspace_id: WS,
     kind: "page",
@@ -37,7 +50,7 @@ function pageDocument(over: Record<string, unknown> = {}) {
     created_at: "2026-09-28T03:00:00Z",
     updated_at: "2026-09-28T03:00:00Z",
     ...over,
-  };
+  }));
 }
 
 /** The editor arrives through React.lazy; the first TipTap import is slow. */
@@ -138,13 +151,13 @@ describe("DocumentDetailView", () => {
   });
 
   it("never writes one document's bytes into the document the user switched to", async () => {
-    let resolvePatch: ((value: unknown) => void) | null = null;
+    const pendingPatch: { resolve: ((value: unknown) => void) | null } = { resolve: null };
     const patches: string[] = [];
     requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
       if (opts?.method === "PATCH") {
         patches.push(path);
         return new Promise((resolve) => {
-          resolvePatch = resolve;
+          pendingPatch.resolve = resolve;
         });
       }
       if (path === "/api/v1/documents/d2") {
@@ -187,7 +200,7 @@ describe("DocumentDetailView", () => {
 
     // The answer to the abandoned save arrives late; it must not be written
     // anywhere, and nothing may be sent for the new document.
-    resolvePatch?.({ document: pageDocument({ revision: "4" }) });
+    pendingPatch.resolve?.({ document: pageDocument({ revision: "4" }) });
     await waitFor(() => expect(screen.getByRole("textbox")).toHaveTextContent("Nội dung B"), {
       timeout: 8_000,
     });

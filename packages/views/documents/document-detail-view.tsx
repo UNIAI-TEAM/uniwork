@@ -115,6 +115,10 @@ export function DocumentDetailView({
 
   return (
     <DocumentWorkspace
+      // Keyed by document: the editor reads its content once at mount, and
+      // useDocumentSave owns one machine per document, so a host that reuses
+      // this view for another id must remount rather than re-point either.
+      key={query.data.id}
       wsId={wsId}
       doc={query.data}
       libraryHref={libraryHref}

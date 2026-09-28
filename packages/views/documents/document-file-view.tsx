@@ -4,8 +4,8 @@ import { useRef, useState } from "react";
 import { Download, FileText, History, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { apiErrorMessage, documents as documentApi } from "@uniwork/core/api";
-import { useUploadDocumentFile } from "@uniwork/core/documents/hooks";
+import { apiErrorMessage } from "@uniwork/core/api";
+import { useDocumentDownload, useUploadDocumentFile } from "@uniwork/core/documents/hooks";
 import {
   useCommitDocumentVersion,
   useDocumentVersions,
@@ -80,6 +80,7 @@ export function DocumentFileView({ wsId, doc, readonly }: DocumentFileViewProps)
   const { t, i18n } = useTranslation();
   const file = doc.file;
   const versions = useDocumentVersions(wsId, doc.id);
+  const downloadFile = useDocumentDownload(wsId, doc.id);
   const upload = useUploadDocumentFile(wsId, doc.id);
   const commit = useCommitDocumentVersion(wsId, doc.id);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -94,7 +95,7 @@ export function DocumentFileView({ wsId, doc, readonly }: DocumentFileViewProps)
     const target = version === undefined ? "live" : String(version);
     setDownloading(target);
     try {
-      const blob = await documentApi.downloadDocumentFile(doc.id, version);
+      const blob = await downloadFile.mutateAsync({ version });
       const url = URL.createObjectURL(blob);
       const anchor = window.document.createElement("a");
       anchor.href = url;

@@ -2,10 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
-import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { documents as documentApi } from "@uniwork/core/api";
-import { documentKeys } from "@uniwork/core/documents/keys";
+import { useDocumentAsset } from "@uniwork/core/documents/hooks";
 import { cn } from "@uniwork/ui/lib/utils";
 import { assetIdFromSrc } from "./document-asset";
 import { useDocumentAssetScope } from "./document-asset-context";
@@ -29,16 +27,11 @@ export function DocumentImageView({ node, selected }: NodeViewProps) {
   const uploading = node.attrs.uploading === true;
   const assetId = assetIdFromSrc(src);
 
-  const asset = useQuery({
-    queryKey: scope && assetId
-      ? [...documentKeys.detail(scope.wsId, scope.documentId), "asset", assetId]
-      : ["documents", "asset", "idle"],
-    queryFn: ({ signal }) => documentApi.getDocumentAsset(scope!.documentId, assetId!, signal),
-    enabled: !!scope && !!assetId,
-    // Bytes behind one asset id never change; only the object URL is local.
-    staleTime: Infinity,
-    retry: false,
-  });
+  const asset = useDocumentAsset(
+    scope?.wsId ?? "",
+    scope?.documentId ?? "",
+    assetId,
+  );
 
   const [objectUrl, setObjectUrl] = useState<string | null>(null);
   useEffect(() => {

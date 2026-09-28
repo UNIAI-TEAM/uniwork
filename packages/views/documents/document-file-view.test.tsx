@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
+import { DocumentSchema, type Document } from "@uniwork/core/types/document";
 import { requestMock, wrap } from "../test/api-mock";
 import { DocumentFileView } from "./document-file-view";
 
@@ -8,8 +9,20 @@ const { t } = initI18n();
 
 const WS = "ws1";
 
-function fileDocument(over: Record<string, unknown> = {}) {
+/** The wire schema parses server enums leniently; the exported type narrows them. */
+function narrowDocument(parsed: ReturnType<typeof DocumentSchema.parse>): Document {
   return {
+    ...parsed,
+    kind: parsed.kind as Document["kind"],
+    visibility: parsed.visibility as Document["visibility"],
+    my_level: parsed.my_level as Document["my_level"],
+    via: parsed.via as Document["via"],
+    owner_kind: parsed.owner_kind as Document["owner_kind"],
+  };
+}
+
+function fileDocument(over: Record<string, unknown> = {}): Document {
+  return narrowDocument(DocumentSchema.parse({
     id: "d1",
     workspace_id: WS,
     kind: "file",
@@ -29,7 +42,7 @@ function fileDocument(over: Record<string, unknown> = {}) {
     created_at: "2026-09-28T03:00:00Z",
     updated_at: "2026-09-28T03:00:00Z",
     ...over,
-  };
+  }));
 }
 
 const versions = [
@@ -69,6 +82,7 @@ function renderView(doc = fileDocument(), readonly = false) {
 }
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
@@ -183,7 +197,7 @@ describe("DocumentFileView", () => {
 
   it("downloads the bytes through the authenticated proxy route", async () => {
     mockApi();
-    const fetchMock = vi.fn(() =>
+    const fetchMock = vi.fn((_input: RequestInfo | URL) =>
       Promise.resolve(
         new Response(new Blob(["bytes"], { type: "application/pdf" }), {
           status: 200,
@@ -197,6 +211,9 @@ describe("DocumentFileView", () => {
       createObjectURL: vi.fn(() => "blob:document"),
       revokeObjectURL: vi.fn(),
     });
+    // jsdom cannot navigate; the click on the synthetic anchor would log an
+    // unimplemented-navigation error.
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
 
     renderView();
     fireEvent.click(screen.getByRole("button", { name: t("documents.file.download") }));

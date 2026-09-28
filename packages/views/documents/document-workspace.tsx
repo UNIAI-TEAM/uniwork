@@ -68,15 +68,30 @@ export function DocumentWorkspace({ wsId, doc, libraryHref, refetch }: DocumentW
   const lastLocalContentRef = useRef<unknown>(undefined);
   const stateRef = useRef(state);
   const [pendingUploads, setPendingUploads] = useState(0);
+  const pendingUploadsRef = useRef(0);
   const [conflictOpen, setConflictOpen] = useState(false);
+  const [serverBase, setServerBase] = useState<{ revision: string; updatedAt: string | null } | null>(
+    null,
+  );
+  const [keepMinePending, setKeepMinePending] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [leavePending, setLeavePending] = useState(false);
   const leaveResolveRef = useRef<((allowed: boolean) => void) | null>(null);
-  const leaveSettleRef = useRef<((phase: string) => void) | null>(null);
   const leaveDoneRef = useRef(false);
 
   stateRef.current = state;
+  pendingUploadsRef.current = pendingUploads;
   const dirty = state.dirty;
+  /**
+   * Unsaved means "bytes the server has not acknowledged": a draft, or an
+   * upload still in flight whose result has not reached the document yet. The
+   * indicator already refuses to call an in-flight upload saved; the guard has
+   * to use the same definition or the image is lost without a word.
+   */
+  const hasUnsavedWork = useCallback(
+    () => stateRef.current.dirty || pendingUploadsRef.current > 0,
+    [],
+  );
 
   // The machine stops on a stale base; the dialog is the only way forward.
   useEffect(() => {
@@ -96,73 +111,71 @@ export function DocumentWorkspace({ wsId, doc, libraryHref, refetch }: DocumentW
     const handler = (event: BeforeUnloadEvent) => {
       // Best effort and a warning only: the 2 MiB page JSON cannot be promised
       // over a keepalive body, so the guard is the in-app dialog, not this.
-      if (!stateRef.current.dirty) return;
+      if (!hasUnsavedWork()) return;
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
-  }, []);
+  }, [hasUnsavedWork]);
 
   useEffect(
     () =>
       registerLeaveGuard(() => {
-        if (!stateRef.current.dirty) return Promise.resolve(true);
+        if (!hasUnsavedWork()) return Promise.resolve(true);
         return new Promise<boolean>((resolve) => {
+          // A second guarded navigation while the dialog is open (double click,
+          // sidebar plus breadcrumb) must not swallow the first one.
+          leaveResolveRef.current?.(false);
           leaveResolveRef.current = resolve;
           leaveDoneRef.current = false;
           setLeaveOpen(true);
         });
       }),
-    [],
+    [hasUnsavedWork],
   );
-
-  useEffect(() => {
-    const settle = leaveSettleRef.current;
-    if (!settle) return;
-    if (state.phase === "saving" || state.phase === "debouncing") return;
-    leaveSettleRef.current = null;
-    settle(state.phase);
-  }, [state.phase]);
 
   const finishLeave = useCallback((allowed: boolean) => {
     const resolve = leaveResolveRef.current;
     leaveResolveRef.current = null;
-    leaveSettleRef.current = null;
     setLeaveOpen(false);
     setLeavePending(false);
     resolve?.(allowed);
   }, []);
 
-  const afterSaveAttempt = useCallback(
-    (phase: string) => {
-      if (leaveDoneRef.current) return;
+  /**
+   * "Save and leave" waits for the whole write, uploads included: an image
+   * still going up is not saved work, and its node only exists in the document
+   * once the asset answers. Conflict or a failed save keeps the user here with
+   * the indicator explaining why.
+   */
+  useEffect(() => {
+    if (!leavePending || leaveDoneRef.current) return;
+    if (pendingUploads > 0) return;
+    if (state.phase === "saving" || state.phase === "debouncing") return;
+    if (state.phase === "saved" && !state.dirty) {
       leaveDoneRef.current = true;
-      if (phase === "saved") {
-        finishLeave(true);
-        return;
-      }
-      setLeavePending(false);
-      if (phase === "conflict") setConflictOpen(true);
-    },
-    [finishLeave],
-  );
+      finishLeave(true);
+      return;
+    }
+    if (state.dirty) {
+      // A draft with no request in flight (re-based after a conflict, or one
+      // that landed while an upload was settling): send it now.
+      save.flush();
+      return;
+    }
+    leaveDoneRef.current = true;
+    setLeavePending(false);
+    if (state.phase === "conflict") {
+      setConflictOpen(true);
+      setServerBase(null);
+    }
+  }, [leavePending, pendingUploads, state.phase, state.dirty, save, finishLeave]);
 
   const saveThenLeave = () => {
-    setLeavePending(true);
     leaveDoneRef.current = false;
-    const settled = new Promise<string>((resolve) => {
-      leaveSettleRef.current = resolve;
-    });
+    setLeavePending(true);
     save.flush();
-    queueMicrotask(() => {
-      const phase = stateRef.current.phase;
-      if (phase !== "saving" && phase !== "debouncing") {
-        leaveSettleRef.current = null;
-        afterSaveAttempt(phase);
-      }
-    });
-    void settled.then(afterSaveAttempt);
   };
 
   /** In-view navigation goes through the same guard the host adapter runs. */
@@ -177,10 +190,26 @@ export function DocumentWorkspace({ wsId, doc, libraryHref, refetch }: DocumentW
 
   /* ---- conflict resolution (C-01 §7.3, FE design §6.3) ---- */
 
+  /**
+   * Step one of "keep mine": read the server's CURRENT base and show it. The
+   * revision in the error is only what the failed save saw; the user has to
+   * see what they are about to write on top of before anything is committed.
+   */
   const keepMine = () => {
-    const serverRevision = String(state.errorFields?.current_revision ?? doc.revision);
-    save.conflictResolved(serverRevision, doc);
+    setKeepMinePending(true);
+    void refetch().then((fresh) => {
+      const next = fresh.data ?? doc;
+      setServerBase({ revision: next.revision, updatedAt: next.updated_at ?? null });
+      setKeepMinePending(false);
+    });
+  };
+
+  /** Step two: commit the user's copy on the base they just saw. */
+  const confirmKeepMine = () => {
+    if (!serverBase) return;
+    save.conflictResolved(serverBase.revision, doc);
     setConflictOpen(false);
+    setServerBase(null);
     // The editor still shows the user's bytes; re-queue them so autosave
     // commits on the base the dialog just showed. A writer landing in between
     // brings the dialog straight back.
@@ -315,11 +344,18 @@ export function DocumentWorkspace({ wsId, doc, libraryHref, refetch }: DocumentW
 
       <DocumentConflictDialog
         open={conflictOpen}
-        onOpenChange={setConflictOpen}
+        onOpenChange={(next) => {
+          setConflictOpen(next);
+          if (!next) setServerBase(null);
+        }}
         mineRevision={state.revision}
         serverRevision={String(state.errorFields?.current_revision ?? doc.revision)}
+        serverBase={serverBase}
         pending={state.phase === "saving"}
+        keepMinePending={keepMinePending}
         onKeepMine={keepMine}
+        onConfirmKeepMine={confirmKeepMine}
+        onBackFromServerBase={() => setServerBase(null)}
         onLoadServer={loadServer}
       />
 
