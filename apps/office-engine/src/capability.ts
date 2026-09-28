@@ -19,8 +19,25 @@ export function isBound(operation: string, format: string): boolean {
   return BOUND_OPERATIONS.includes(operation + ":" + format);
 }
 
+/** Format-level feature rows that are not engine operations but the matrix
+    still expects an honest answer for. Today only pdf's OCR refusal: upstream
+    defers OCR past M1 (Q2-A) and this service deliberately binds no optical
+    engine — the row is proven-unsupported, not pending. */
+const FEATURE_ROWS: Partial<Record<OfficeFormat, CapabilityEntry[]>> = {
+  pdf: [
+    {
+      operation: "ocr",
+      supported: false,
+      runtime: "none",
+      evidence_level: "proven",
+      reason:
+        "OCR deferred past M1 (Q2-A): no optical engine runs inside this service and overlay annotations do not satisfy the text-edit requirement",
+    },
+  ],
+};
+
 function capabilityRows(format: OfficeFormat): CapabilityEntry[] {
-  return grantableOperations
+  const ops = grantableOperations
     .filter((op) => op !== "capability")
     .map((op): CapabilityEntry => {
       if (op === "convert") {
@@ -37,6 +54,7 @@ function capabilityRows(format: OfficeFormat): CapabilityEntry[] {
       }
       return { operation: op, supported: false, runtime: "none", evidence_level: "pending", reason: "not bound in this service build" };
     });
+  return [...ops, ...(FEATURE_ROWS[format] ?? [])];
 }
 
 export function capabilityResult(format: OfficeFormat, maxInputBytes: number): Record<string, unknown> {

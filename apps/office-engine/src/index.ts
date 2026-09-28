@@ -13,6 +13,7 @@ import type { EngineServiceConfig } from "./config.ts";
 import { JobManager } from "./jobs.ts";
 import { resolveLimits } from "./limits.ts";
 import { Metrics } from "./metrics.ts";
+import { WorkerSandbox } from "./sandbox.ts";
 import { createHttpServer } from "./server.ts";
 import { Supervisor } from "./supervisor.ts";
 import type { ServiceGrant } from "./grants.ts";
@@ -33,30 +34,37 @@ const SELF_TEST_GRANT = { deadline_at: Number.MAX_SAFE_INTEGER, output: null } a
 /** Start one worker with an operation no handler binds: an
  * unsupported_operation answer proves the process, the handler thread and the
  * IPC channel all work. */
-async function selfTest(config: EngineServiceConfig): Promise<boolean> {
+async function selfTest(config: EngineServiceConfig, sandbox: WorkerSandbox): Promise<boolean> {
+  const identity = sandbox.acquire();
   const dir = await createJobDir(config.tempRoot);
   try {
+    if (identity) await sandbox.adopt(dir, identity);
     const result = await new Supervisor().run({
       entry: config.workerEntry,
       operation: "self-test",
       format: "none",
       inputPath: null,
       outputPath: dir + "/self-test.out",
+      payloadPath: null,
       tempDir: dir,
       limits: resolveLimits({ ...config.limits, maxJobMs: Math.min(config.limits.maxJobMs, 30_000) }, SELF_TEST_GRANT, null, Date.now()),
       sampleMs: config.sampleMs,
       faults: false,
       signal: new AbortController().signal,
+      uid: identity?.uid,
+      gid: identity?.gid,
     });
     return result.kind === "fail" && result.code === "unsupported_operation";
   } finally {
+    await sandbox.release(identity);
     await removeJobDir(dir);
   }
 }
 
 export function createEngineService(config: EngineServiceConfig): EngineService {
   const metrics = new Metrics();
-  const jobs = new JobManager(config, metrics);
+  const sandbox = WorkerSandbox.create(config.sandbox, config.maxWorkers);
+  const jobs = new JobManager(config, metrics, Date.now, sandbox);
   let isReady = false;
   const server = createHttpServer({ config, jobs, metrics, isReady: () => isReady });
   return {
@@ -65,11 +73,13 @@ export function createEngineService(config: EngineServiceConfig): EngineService 
     ready: () => isReady,
     async listen() {
       await sweepStaleJobDirs(config.tempRoot);
+      // Slot uids must traverse the root to reach their own 0700 job dirs.
+      await sandbox.prepareRoot(config.tempRoot);
       await new Promise<void>((resolve, reject) => {
         server.once("error", reject);
         server.listen(config.port, config.host, () => resolve());
       });
-      isReady = await selfTest(config).catch(() => false);
+      isReady = await selfTest(config, sandbox).catch(() => false);
       return (server.address() as AddressInfo).port;
     },
     async close() {

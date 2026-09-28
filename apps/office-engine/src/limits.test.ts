@@ -2,7 +2,7 @@
 // the job with its own named outcome; the tree must be gone and the job's temp
 // dir removed afterwards.
 
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { isAlive } from "./process-tree.ts";
@@ -139,11 +139,24 @@ describe("process tree and temp ownership", () => {
   // outlived the worker is found by the job tag in its environment. Windows
   // has no equivalent; there it is a documented dev-host gap (runbook).
   it.runIf(process.platform === "linux")("kills a detached (setsid) descendant that outlived the worker", async () => {
-    const { done } = await runFault("orphan");
-    expect(done.body.state).toBe("completed");
-    const marker = (await readdir(h.tempRoot)).find((n) => n.startsWith("orphan-"));
-    expect(marker).toBeDefined();
-    const pid = Number(await readFile(join(h.tempRoot, marker as string), "utf8"));
+    const job = makeJob(h.target, { text: "uniwork-fault:orphan 30000\n", deadlineMs: 25_000 });
+    await submit(h, job);
+    // The marker lives inside the job's own dir now: under the per-slot uid
+    // sandbox the worker owns nothing outside it.
+    let pid = 0;
+    const end = Date.now() + 10_000;
+    while (pid === 0 && Date.now() < end) {
+      for (const dir of await jobDirs(h.tempRoot)) {
+        pid = Number(await readFile(join(h.tempRoot, dir, "orphan.pid"), "utf8").catch(() => "0"));
+        if (pid) break;
+      }
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    expect(pid).toBeGreaterThan(0);
+    const res = await call(h, "POST", "/v1/jobs/" + job.grant.job_id + "/cancel", { grant: job.token });
+    expect(res.status).toBe(200);
+    const done = await waitTerminal(h, job);
+    expect(done.body.state).toBe("cancelled");
     const gone = Date.now() + 5_000;
     while (isAlive(pid) && Date.now() < gone) await new Promise((r) => setTimeout(r, 50));
     expect(isAlive(pid)).toBe(false);

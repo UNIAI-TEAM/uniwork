@@ -14,6 +14,15 @@ catalog:
   # prepared ../genoffice tree; also satisfies vite's esbuild peer range.
   esbuild: "0.28.2"
   zod: "^4.1.5"
+  # Office engine PDF lane (UNI-688 / G2-05, Advisor-approved delta): pdfium WASM
+  # (pin = vendored pdf2docx floor), pdf-lib serialize, hb-subset font subsetting,
+  # pure-JS image codec (pngjs decode/encode + jpeg-js decode) replacing the
+  # Electron nativeImage path.
+  "@embedpdf/pdfium": "2.15.0"
+  pdf-lib: "1.17.1"
+  harfbuzzjs: "1.6.2"
+  pngjs: "7.0.0"
+  jpeg-js: "0.4.4"
   "@tanstack/react-query": "^5.96.2"
   tailwindcss: "^4"
   "@tailwindcss/postcss": "^4"

@@ -38,6 +38,24 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ ...base, OFFICE_ENGINE_OUTPUT_ORIGINS: "not a url" }, defaults)).toThrow(/not a URL/);
     expect(() => loadConfig({ ...base, OFFICE_ENGINE_OUTPUT_ORIGINS: "file://x" }, defaults)).toThrow(ConfigError);
   });
+
+  it("parses the worker sandbox config and refuses privileged or overflowing uid pools", () => {
+    const config = loadConfig(base, defaults);
+    expect(config.sandbox).toMatchObject({ mode: "auto" });
+    expect(config.sandbox.uidBase).toBeGreaterThanOrEqual(1000);
+    expect(config.sandbox.uidBase).toBe(config.sandbox.gidBase);
+    expect(
+      loadConfig({ ...base, OFFICE_ENGINE_SANDBOX: "required", OFFICE_ENGINE_WORKER_UID_BASE: "61000" }, defaults).sandbox,
+    ).toMatchObject({ mode: "required", uidBase: 61000, gidBase: 61000 });
+    for (const env of [
+      { OFFICE_ENGINE_SANDBOX: "maybe" },
+      { OFFICE_ENGINE_WORKER_UID_BASE: "42" },
+      { OFFICE_ENGINE_WORKER_UID_BASE: "70000" },
+      { OFFICE_ENGINE_WORKER_GID_BASE: "0" },
+    ]) {
+      expect(() => loadConfig({ ...base, ...env }, defaults), JSON.stringify(env)).toThrow(ConfigError);
+    }
+  });
 });
 
 describe("resolveLimits", () => {

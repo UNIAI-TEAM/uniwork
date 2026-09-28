@@ -15,12 +15,13 @@ import {
   type EngineErrorCode,
   type JobState,
 } from "@uniwork/office-contracts";
-import { createJobDir, INPUT_NAME, OUTPUT_NAME, removeJobDir } from "./cleanup.ts";
+import { createJobDir, INPUT_NAME, OPS_NAME, OUTPUT_NAME, removeJobDir } from "./cleanup.ts";
 import type { EngineServiceConfig } from "./config.ts";
 import { checkLive, GrantLedger, type ServiceGrant } from "./grants.ts";
 import { LIMIT_OUTCOMES, resolveLimits, type EffectiveLimits } from "./limits.ts";
 import type { Metrics } from "./metrics.ts";
 import { measureOutput, putOutput } from "./output.ts";
+import { WorkerSandbox } from "./sandbox.ts";
 import { Supervisor } from "./supervisor.ts";
 
 const WORKER_CODES: ReadonlySet<string> = new Set(["engine_result_invalid", "unsupported_operation", "engine_crashed"]);
@@ -43,6 +44,9 @@ export interface Job {
   limits: EffectiveLimits;
   grant: ServiceGrant;
   input: Uint8Array | null;
+  /** Validated envelope payload extras (edits[] for edit/open); serialized
+      into ops.json inside the job dir so the worker IPC carries only paths. */
+  payload: Record<string, unknown> | null;
   controller: AbortController;
 }
 
@@ -52,6 +56,7 @@ export interface SubmitRequest {
   requestId: string;
   deadlineMs: number | null;
   input: Uint8Array | null;
+  payload?: Record<string, unknown> | null;
 }
 
 export class JobManager {
@@ -67,6 +72,7 @@ export class JobManager {
     private readonly config: EngineServiceConfig,
     private readonly metrics: Metrics,
     private readonly now: () => number = Date.now,
+    private readonly sandbox: WorkerSandbox = WorkerSandbox.create(config.sandbox, config.maxWorkers),
   ) {
     this.ledger = new GrantLedger(Math.max(1024, (config.maxQueue + config.maxWorkers) * 64));
   }
@@ -81,6 +87,12 @@ export class JobManager {
 
   get isDraining(): boolean {
     return this.draining;
+  }
+
+  /** Slot uids held by surviving processes — a nonzero count means the pool
+      has permanently shrunk; health/readiness should notice. */
+  get sandboxQuarantined(): number {
+    return this.sandbox.quarantined;
   }
 
   get(jobId: string): Job | undefined {
@@ -120,6 +132,7 @@ export class JobManager {
       limits: resolveLimits(this.config.limits, grant, req.deadlineMs, now),
       grant,
       input: req.input,
+      payload: req.payload ?? null,
       controller: new AbortController(),
     };
     this.jobs.set(job.jobId, job);
@@ -185,11 +198,20 @@ export class JobManager {
 
   private async execute(job: Job): Promise<void> {
     let dir: string | null = null;
+    // One uid per worker slot: reserved before the dir exists so two jobs can
+    // never share a uid, and held until the tree is dead and the dir is gone.
+    const identity = this.sandbox.acquire();
     try {
       dir = await createJobDir(this.config.tempRoot);
       const inputPath = job.input ? join(dir, INPUT_NAME) : null;
       if (inputPath && job.input) await writeFile(inputPath, job.input);
+      const payloadPath = job.payload ? join(dir, OPS_NAME) : null;
+      if (payloadPath) await writeFile(payloadPath, JSON.stringify(job.payload));
       job.input = null;
+      job.payload = null;
+      // Hand the dir to the slot uid before the worker spawns; from then on the
+      // worker owns exactly this 0700 dir and nothing else on the filesystem.
+      if (identity) await this.sandbox.adopt(dir, identity);
       const outputPath = join(dir, OUTPUT_NAME);
       const result = await this.supervisor.run({
         entry: this.config.workerEntry,
@@ -197,16 +219,19 @@ export class JobManager {
         format: job.format,
         inputPath,
         outputPath,
+        payloadPath,
         tempDir: dir,
         limits: job.limits,
         sampleMs: this.config.sampleMs,
         faults: this.config.faultOperations,
         signal: job.controller.signal,
+        uid: identity?.uid,
+        gid: identity?.gid,
       });
       switch (result.kind) {
         case "done":
           job.warnings = result.warnings;
-          await this.deliver(job, outputPath);
+          await this.deliver(job, outputPath, identity?.uid);
           return;
         case "fail": {
           // A worker may only report the few codes a handler can mean; it can
@@ -236,22 +261,25 @@ export class JobManager {
       }
     } finally {
       if (dir) await removeJobDir(dir).catch(() => undefined);
+      // The uid only goes back to the pool once nothing runs under it; a
+      // descendant that outlives the sweep quarantines the slot instead.
+      await this.sandbox.release(identity);
     }
   }
 
   /** Measure and upload the output within what is left of the deadline. */
-  private async deliver(job: Job, outputPath: string): Promise<void> {
+  private async deliver(job: Job, outputPath: string, expectedUid?: number): Promise<void> {
     const target = job.grant.output;
     if (!target) {
       this.transition(job, "completed");
       return;
     }
-    const measured = await measureOutput(outputPath, job.limits.maxOutputBytes);
+    const measured = await measureOutput(outputPath, job.limits.maxOutputBytes, expectedUid);
     const remaining = job.limits.deadlineAt - this.now();
     if (remaining <= 0) throw new EngineBoundaryError("engine_timeout", { reason: "deadline" });
     const timeout = AbortSignal.timeout(remaining);
     try {
-      await putOutput(outputPath, measured, target, AbortSignal.any([job.controller.signal, timeout]));
+      await putOutput(measured, target, AbortSignal.any([job.controller.signal, timeout]));
     } catch (error) {
       if (job.controller.signal.aborted) return;
       if (timeout.aborted) throw new EngineBoundaryError("engine_timeout", { reason: "deadline" });
