@@ -24,6 +24,10 @@ export default function DocumentDetailPage() {
         wsId={workspace.id}
         documentId={documentId}
         libraryHref={ws.documents()}
+        documentHref={(id) => ws.document(id)}
+        // No ownerHref until C-14 ships a work-product route: the owner crumb
+        // is a label rather than a guessed /projects/{work_product_id} URL
+        // (FE r1 FE-02).
         onBackToList={() => replace(ws.documents())}
       />
     </Suspense>
