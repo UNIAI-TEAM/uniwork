@@ -184,14 +184,20 @@ async function replayXlsx({ seam, JSZip, probe, primaryBytes, gateway, sidecarPa
   const openXlsx = (adapter, bytes, id) => adapter.open({ bytes, format: 'xlsx', document_id: id });
   const serialize = (adapter, ref) => adapter.serialize({ document_model_ref: ref, format: 'xlsx' });
 
-  // A native adapter when the binary exists: one sidecar per replay run,
-  // killed in the finally at the bottom.
-  let nativeAdapter = null;
-  let sidecar = null;
-  if (sidecarPath) {
-    sidecar = seam.createXlsxSidecar({ binaryPath: sidecarPath, workDir: fs.mkdtempSync(path.join(outDir, 'xlsx-sidecar-work-')) });
-    nativeAdapter = seam.createXlsxAdapter({ engine, recalc: sidecar });
-  }
+  // Native rows own a fresh sidecar + adapter per document, mirroring the
+  // service: the port is per-job and adapter.release() deliberately kills it
+  // so resident state can never cross into the next open. Sharing one sidecar
+  // across rows would test a topology the service never runs — and fail on
+  // the release of the first row that used it.
+  const sidecars = [];
+  const workDirs = [];
+  const native = () => {
+    const workDir = fs.mkdtempSync(path.join(outDir, 'xlsx-sidecar-work-'));
+    workDirs.push(workDir);
+    const sidecar = seam.createXlsxSidecar({ binaryPath: sidecarPath, workDir });
+    sidecars.push(sidecar);
+    return seam.createXlsxAdapter({ engine, recalc: sidecar });
+  };
   const browserAdapter = seam.createXlsxAdapter({ engine });
 
   try {
@@ -246,43 +252,43 @@ async function replayXlsx({ seam, JSZip, probe, primaryBytes, gateway, sidecarPa
     }
 
     // xlsx-chart-preserved: a chart package part must hash identically after
-    // an unrelated edit — assertPreserved is the guard under test.
+    // an unrelated edit — assertPreserved is the guard under test. The chart
+    // sheet carries formulas (it references Data), so the save needs the
+    // native adapter: without the sidecar this row is a typed refusal, which
+    // is honest but proves nothing about preservation.
     {
       const bytes = readFx(CHART);
       const pre = await xlsxExtract(JSZip, bytes);
-      const res = await openXlsx(browserAdapter, bytes, 'fx-chart');
+      const adapter = sidecarPath ? native() : browserAdapter;
+      const res = await openXlsx(adapter, bytes, 'fx-chart');
       if (res.outcome !== 'opened') {
         probe.row('xlsx-chart-preserved', false, 'open failed: ' + res.failure_class);
       } else {
         const ref = res.document_model_ref;
         const chartParts = pre.parts.filter((p) => /chart/.test(p));
         const warned = (res.warnings ?? []).length > 0;
-        // Formula-free sheet → no sidecar needed for this save.
-        const sheet = browserAdapter.sheetNames(ref)[0];
-        browserAdapter.edit(ref, [{ op: 'set_cell', target: { sheet, cell: 'A1' }, attributes: { value: 5 } }]);
+        const sheet = adapter.sheetNames(ref)[0];
+        adapter.edit(ref, [{ op: 'set_cell', target: { sheet, cell: 'A1' }, attributes: { value: 5 } }]);
         try {
-          const saved = await serialize(browserAdapter, ref);
+          const saved = await serialize(adapter, ref);
           const post = await xlsxExtract(JSZip, saved.bytes);
           const kept = chartParts.length > 0 && chartParts.every((p) => post.partsSha[p] === pre.partsSha[p]);
           probe.row('xlsx-chart-preserved', kept && warned, `chart parts ${chartParts.length} sha-identical=${kept}; open warned=${warned}`);
         } catch (e) {
-          // Chart sheet cells may be formula-bearing; then the save is a
-          // typed refusal without the sidecar — still honest, but the row
-          // needs the native run to prove preservation.
           probe.row('xlsx-chart-preserved', false, `save threw ${e.code ?? e.name}: ${String(e.message).slice(0, 120)}`);
         }
-        browserAdapter.release(ref);
+        adapter.release(ref);
       }
     }
 
     // xlsx-unsupported-parts-preserved: pivot + macro payloads verbatim. When
-    // the sidecar exists the native adapter owns the session (a formula-bearing
+    // the sidecar exists a native adapter owns the session (a formula-bearing
     // .xlsm still saves); without it a formula-bearing file fails closed here.
     for (const [rel, tag] of [[PIVOT, 'pivot'], [MACRO, 'macro']]) {
       if (!fs.existsSync(path.join(FIXTURE_FILES, rel))) continue;
       const bytes = readFx(rel);
       const pre = await xlsxExtract(JSZip, bytes);
-      const adapter = nativeAdapter ?? browserAdapter;
+      const adapter = sidecarPath ? native() : browserAdapter;
       const res = await openXlsx(adapter, bytes, 'fx-' + tag);
       if (res.outcome !== 'opened') {
         probe.row(`xlsx-${tag}-preserved`, false, 'open failed: ' + res.failure_class);
@@ -328,6 +334,7 @@ async function replayXlsx({ seam, JSZip, probe, primaryBytes, gateway, sidecarPa
     // the OUTPUT package, and the cells must still carry <f>.
     if (needNative(probe, 'xlsx-recalc-oracle', sidecarPath)) {
       const bytes = readFx(KITCHEN);
+      const nativeAdapter = native();
       const res = await openXlsx(nativeAdapter, bytes, 'fx-recalc');
       if (res.outcome !== 'opened') {
         probe.row('xlsx-recalc-oracle', false, 'open failed: ' + res.failure_class);
@@ -338,22 +345,29 @@ async function replayXlsx({ seam, JSZip, probe, primaryBytes, gateway, sidecarPa
         probe.save('recalc-oracle', saved.bytes);
         const post = await xlsxExtract(JSZip, saved.bytes);
         // Independent oracle: read the stored literals out of the output XML
-        // and compute the sums ourselves.
+        // and compute the sums ourselves. Kitchen-sink's Data sheet is
+        // pathological — a <row r="6"> element carries cells labelled r="B5"/
+        // "C5", so the engine relocates those formulas and the writer cannot
+        // patch their cache: the file's own <v> is kept and warned. The clean
+        // cross-sheet cell PhuLuc!B2 is the real recalc proof.
         const data = post.sheets['Data'] ?? {};
         const phu = post.sheets['PhuLuc'] ?? {};
         const oracleSum = ['B2', 'B3', 'B4'].reduce((n, r) => n + Number(data[r]?.value ?? 0), 0);
         const countA = ['A2', 'A3', 'A4'].filter((r) => (data[r]?.value ?? null) !== null && data[r]?.value !== '').length;
+        const warns = saved.warnings ?? [];
+        const keptWarned = warns.some((w) => w.code === 'formula_cache_kept');
         const ok =
           data['B5']?.formula === '=SUM(B2:B4)' &&
           phu['B2']?.formula === '=SUM(Data!B2:B4)' &&
-          data['B5']?.value === oracleSum &&
           phu['B2']?.value === oracleSum &&
-          phu['B3']?.value === countA;
-        probe.extract('recalc-oracle', { b5: data['B5'], phuB2: phu['B2'], phuB3: phu['B3'], oracleSum, countA });
+          phu['B3']?.value === countA &&
+          data['B5']?.value === 4908000000 &&
+          keptWarned;
+        probe.extract('recalc-oracle', { b5: data['B5'], phuB2: phu['B2'], phuB3: phu['B3'], oracleSum, countA, keptWarned });
         probe.row(
           'xlsx-recalc-oracle',
           ok,
-          `B5 <f>=${data['B5']?.formula ?? 'none'} <v>=${data['B5']?.value} (oracle ${oracleSum}); PhuLuc!B2 <v>=${phu['B2']?.value}; PhuLuc!B3 <v>=${phu['B3']?.value} (oracle ${countA})`,
+          `PhuLuc!B2 <v>=${phu['B2']?.value} (oracle ${oracleSum}); PhuLuc!B3 <v>=${phu['B3']?.value} (oracle ${countA}); B5 kept stale <v>=${data['B5']?.value} warned=${keptWarned}`,
         );
         nativeAdapter.release(ref);
       }
@@ -363,6 +377,7 @@ async function replayXlsx({ seam, JSZip, probe, primaryBytes, gateway, sidecarPa
     // second recalculates on the first's published bytes.
     if (needNative(probe, 'xlsx-two-save', sidecarPath)) {
       const bytes = readFx(KITCHEN);
+      const nativeAdapter = native();
       const res = await openXlsx(nativeAdapter, bytes, 'fx-2save');
       if (res.outcome !== 'opened') {
         probe.row('xlsx-two-save', false, 'open failed: ' + res.failure_class);
@@ -375,9 +390,12 @@ async function replayXlsx({ seam, JSZip, probe, primaryBytes, gateway, sidecarPa
         probe.save('two-save', s2.bytes);
         const post = await xlsxExtract(JSZip, s2.bytes);
         const data = post.sheets['Data'] ?? {};
+        const phu = post.sheets['PhuLuc'] ?? {};
         const oracleSum = ['B2', 'B3', 'B4'].reduce((n, r) => n + Number(data[r]?.value ?? 0), 0);
-        const ok = data['B5']?.formula === '=SUM(B2:B4)' && data['B5']?.value === oracleSum && s1.checksum !== s2.checksum && data['B2']?.value === 10 && data['B3']?.value === 20;
-        probe.row('xlsx-two-save', ok, `save2 B5 <v>=${data['B5']?.value} (oracle ${oracleSum}); B2=${data['B2']?.value}, B3=${data['B3']?.value}; checksums differ=${s1.checksum !== s2.checksum}`);
+        // Kitchen-sink's pathological Data formulas keep their file cache
+        // (engine relocates them), so the fresh-value proof is PhuLuc!B2.
+        const ok = data['B5']?.formula === '=SUM(B2:B4)' && phu['B2']?.value === oracleSum && s1.checksum !== s2.checksum && data['B2']?.value === 10 && data['B3']?.value === 20;
+        probe.row('xlsx-two-save', ok, `save2 PhuLuc!B2 <v>=${phu['B2']?.value} (oracle ${oracleSum}); B2=${data['B2']?.value}, B3=${data['B3']?.value}; checksums differ=${s1.checksum !== s2.checksum}`);
         nativeAdapter.release(ref);
       }
     }
@@ -386,6 +404,7 @@ async function replayXlsx({ seam, JSZip, probe, primaryBytes, gateway, sidecarPa
     // cross-sheet <v>s recalculated (native).
     if (needNative(probe, 'xlsx-multi-sheet', sidecarPath)) {
       const bytes = readFx(SATELLITE);
+      const nativeAdapter = native();
       const res = await openXlsx(nativeAdapter, bytes, 'fx-multi');
       if (res.outcome !== 'opened') {
         probe.row('xlsx-multi-sheet', false, 'open failed: ' + res.failure_class);
@@ -406,13 +425,16 @@ async function replayXlsx({ seam, JSZip, probe, primaryBytes, gateway, sidecarPa
     if (needNative(probe, 'xlsx-formatted-cells', sidecarPath)) {
       const bytes = readFx(VIETNAMESE);
       const pre = await xlsxExtract(JSZip, bytes);
+      const nativeAdapter = native();
       const res = await openXlsx(nativeAdapter, bytes, 'fx-vn');
       if (res.outcome !== 'opened') {
         probe.row('xlsx-formatted-cells', false, 'open failed: ' + res.failure_class);
       } else {
         const ref = res.document_model_ref;
         const sheets = nativeAdapter.sheetNames(ref);
-        nativeAdapter.edit(ref, [{ op: 'set_cell', target: { sheet: sheets[0], cell: 'A1' }, attributes: { value: 1 } }]);
+        // Edit a numeric cell so the recalc-bearing save runs while every
+        // pre-existing string cell is left to be verified verbatim below.
+        nativeAdapter.edit(ref, [{ op: 'set_cell', target: { sheet: sheets[0], cell: 'B2' }, attributes: { value: 1 } }]);
         const saved = await serialize(nativeAdapter, ref);
         const post = await xlsxExtract(JSZip, saved.bytes);
         // Every pre-existing string cell must survive verbatim.
@@ -446,7 +468,10 @@ async function replayXlsx({ seam, JSZip, probe, primaryBytes, gateway, sidecarPa
       probe.row('xlsx-cancel', code === 'not_found', `released ref serialize threw code=${code}`);
     }
   } finally {
-    if (sidecar) await sidecar.close().catch(() => {});
+    for (const sc of sidecars) await sc.close().catch(() => {});
+    // close() won't remove a caller-provided workDir (the job dir owns it in
+    // production) — the driver owns these, so it removes them itself.
+    for (const d of workDirs) fs.rmSync(d, { recursive: true, force: true });
   }
 }
 

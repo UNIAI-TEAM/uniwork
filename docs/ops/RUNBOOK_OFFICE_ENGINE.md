@@ -230,6 +230,12 @@ not a deployment knob.
 - Preservation is fail-closed: `assertOnlyTouchedEntriesChanged` sha256-verifies every package part outside the
   plan's touch set; a chart part, macro payload or unsupported OOXML entry that drifted fails the save instead of
   shipping a silently different package.
+- Fixture-replay acceptance (AC-1) runs natively in Linux — the sidecar is an ELF binary and the independent
+  oracle needs the upstream lockfile's jszip — via a dedicated Dockerfile stage that is never shipped:
+  `docker build -f apps/office-engine/Dockerfile --target xlsx-replay -t uniwork-office-engine:xlsx-replay .`
+  then `docker run --rm -v <evidence-dir>:/tmp/xlsx-replay uniwork-office-engine:xlsx-replay`. Exit 0 means all
+  12 capability-matrix rows passed on the real engine; the result/extraction/version-manifest JSONs land in the
+  mounted dir.
 
 ### XLSX sidecar — decided: same image, supervisor-owned subprocess (was: open question)
 

@@ -84,6 +84,21 @@ WORKDIR /repo/apps/office-engine
 ENV CI=1
 CMD ["node", "/repo/apps/office-engine/node_modules/vitest/vitest.mjs", "run", "--coverage"]
 
+# G2-04 acceptance evidence: the fixture replay exercises the real adapter
+# seam against the real patched gateway + the Linux Rust sidecar, with jszip
+# (the upstream lockfile's copy) as the independent oracle. It shares the
+# service's Linux node_modules (esbuild) and the xlsx-src build tree, and is
+# never part of the shipped image:
+#   docker build -f apps/office-engine/Dockerfile --target xlsx-replay -t uniwork-office-engine:xlsx-replay .
+#   docker run --rm -v <evidence-dir>:/tmp/xlsx-replay uniwork-office-engine:xlsx-replay
+FROM build AS xlsx-replay
+COPY packages/office-engine/test packages/office-engine/test
+COPY packages/office-upstream/provenance.json packages/office-upstream/provenance.json
+COPY docs/office/g0/fixtures/files/sheets docs/office/g0/fixtures/files/sheets
+COPY --from=xlsx-src /xlsx-build /xlsx-build
+WORKDIR /repo
+CMD ["node", "packages/office-engine/test/replay/g2-04-replay.mjs", "--build-dir", "/xlsx-build", "--format", "xlsx", "--out", "/tmp/xlsx-replay"]
+
 FROM node:22.23.2-bookworm-slim
 ENV NODE_ENV=production \
     OFFICE_ENGINE_HOST=0.0.0.0 \
