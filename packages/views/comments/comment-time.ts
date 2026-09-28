@@ -3,7 +3,11 @@ const MINUTE = 60 * SECOND;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
-export function formatCommentTimeAgo(value: string | undefined, locale: string, now = Date.now()): string | null {
+export function formatCommentTimeAgo(
+  value: string | undefined,
+  locale: string,
+  now = Date.now(),
+): string | null {
   if (!value) return null;
   const timestamp = Date.parse(value);
   if (!Number.isFinite(timestamp)) return null;

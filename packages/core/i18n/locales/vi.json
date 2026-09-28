@@ -4418,12 +4418,30 @@
   },
   "landing": {
     "meta": {
-      "home": { "title": "UniWork: Con người + Nhân sự AI", "description": "Một nền tảng thống nhất để con người và nhân sự AI cùng trò chuyện, lập kế hoạch, thực thi và biến tri thức thành kết quả." },
-      "features": { "title": "Các tính năng UniWork", "description": "Tìm hiểu công việc, cuộc họp, trao đổi, tri thức và AI trong một workspace." },
-      "solutions": { "title": "Giải pháp UniWork", "description": "Khám phá UniWork cho nhóm sản phẩm và vận hành." },
-      "learn": { "title": "Bắt đầu với UniWork", "description": "Làm quen với workspace, công việc và trao đổi trong UniWork." },
-      "pricing": { "title": "Bảng giá UniWork", "description": "Thông tin gói Starter và các nhóm hạn mức của UniWork." },
-      "enterprise": { "title": "UniWork cho doanh nghiệp", "description": "Tìm hiểu cấu trúc tổ chức, phân quyền và nhật ký hoạt động." }
+      "home": {
+        "title": "UniWork: Con người + Nhân sự AI",
+        "description": "Một nền tảng thống nhất để con người và nhân sự AI cùng trò chuyện, lập kế hoạch, thực thi và biến tri thức thành kết quả."
+      },
+      "features": {
+        "title": "Các tính năng UniWork",
+        "description": "Tìm hiểu công việc, cuộc họp, trao đổi, tri thức và AI trong một workspace."
+      },
+      "solutions": {
+        "title": "Giải pháp UniWork",
+        "description": "Khám phá UniWork cho nhóm sản phẩm và vận hành."
+      },
+      "learn": {
+        "title": "Bắt đầu với UniWork",
+        "description": "Làm quen với workspace, công việc và trao đổi trong UniWork."
+      },
+      "pricing": {
+        "title": "Bảng giá UniWork",
+        "description": "Thông tin gói Starter và các nhóm hạn mức của UniWork."
+      },
+      "enterprise": {
+        "title": "UniWork cho doanh nghiệp",
+        "description": "Tìm hiểu cấu trúc tổ chức, phân quyền và nhật ký hoạt động."
+      }
     },
     "revision": {
       "interactive": "Tương tác",
@@ -5148,7 +5166,15 @@
       "archive": "Lưu trữ",
       "searchMail": "Tìm email…",
       "month": "Tháng 9, 2026",
-      "weekdays": { "mon": "T2", "tue": "T3", "wed": "T4", "thu": "T5", "fri": "T6", "sat": "T7", "sun": "CN" },
+      "weekdays": {
+        "mon": "T2",
+        "tue": "T3",
+        "wed": "T4",
+        "thu": "T5",
+        "fri": "T6",
+        "sat": "T7",
+        "sun": "CN"
+      },
       "calendarAlt": "Minh họa giao diện lịch tháng với cuộc họp, công việc và hạn chót bằng dữ liệu mẫu",
       "calendarScope": "Cuộc họp, công việc và hạn chót cùng một góc nhìn.",
       "meeting": "Cuộc họp",
@@ -5166,7 +5192,12 @@
       "auditTrace": "Truy vết thay đổi",
       "viewAudit": "Khám phá nhật ký",
       "viewAsk": "Xem Hỏi UNI hoạt động",
-      "events": { "sync": "Họp đội sản phẩm", "design": "Duyệt thiết kế", "review": "Rà soát nội dung", "launch": "Chốt bản phát hành" }
+      "events": {
+        "sync": "Họp đội sản phẩm",
+        "design": "Duyệt thiết kế",
+        "review": "Rà soát nội dung",
+        "launch": "Chốt bản phát hành"
+      }
     },
     "actionDemo": {
       "creating": "Đang tạo công việc…",
@@ -6319,6 +6350,48 @@
       "loading": "Đang mở trình soạn thảo…",
       "asset_uploading": "Đang tải ảnh lên…",
       "asset_upload_failed": "Không tải được ảnh lên"
+    },
+    "comments": {
+      "title": "Bình luận",
+      "open": "Bình luận",
+      "close": "Đóng bình luận",
+      "count_one": "{{count}} bình luận",
+      "count_other": "{{count}} bình luận",
+      "empty": "Chưa có bình luận. Bắt đầu thảo luận ở dưới.",
+      "error_title": "Không tải được bình luận",
+      "error_description": "Chưa mất gì cả. Thử lại sau giây lát.",
+      "retry": "Thử lại",
+      "revoked_title": "Bạn không còn quyền xem bình luận",
+      "revoked_description": "Bình luận bị ẩn theo quyền hiện tại của bạn trên tài liệu này.",
+      "action_failed": "Thao tác bình luận chưa thành công",
+      "favorite_add": "Thêm vào yêu thích",
+      "favorite_remove": "Bỏ khỏi yêu thích",
+      "favorite_failed": "Không đổi được yêu thích",
+      "comment_placeholder": "Viết bình luận…",
+      "comment_send": "Gửi",
+      "comment_collapse": "Thu gọn bình luận",
+      "comment_expand": "Mở rộng bình luận",
+      "comment_edited_time": "Đã sửa · {{time}}",
+      "comment_reply_count_one": "{{count}} trả lời",
+      "comment_reply_count_other": "{{count}} trả lời",
+      "comment_resolved": "Đã xử lý",
+      "comment_actions": "Thao tác bình luận",
+      "comment_copy": "Sao chép nội dung",
+      "comment_resolve": "Đánh dấu đã xử lý",
+      "comment_unresolve": "Mở lại",
+      "comment_edit": "Sửa",
+      "comment_edit_placeholder": "Sửa bình luận…",
+      "comment_delete_title": "Xóa bình luận?",
+      "comment_delete_description": "Bình luận sẽ bị xóa khỏi phần thảo luận của tài liệu.",
+      "comment_delete_confirm": "Xóa bình luận",
+      "comment_resolved_fold_one": "Ẩn {{count}} trả lời quanh kết luận",
+      "comment_resolved_fold_other": "Ẩn {{count}} trả lời quanh kết luận",
+      "comment_resolved_fold_close": "Thu gọn các trả lời đã xử lý",
+      "comment_preview_empty": "Bình luận không có chữ",
+      "thread_resolved_one": "Đã giải quyết · {{count}} luồng",
+      "thread_resolved_other": "Đã giải quyết · {{count}} luồng",
+      "favorite_unavailable": "Chưa đọc được trạng thái yêu thích - thử lại",
+      "former_member": "Cựu thành viên"
     }
   },
   "squads": {
