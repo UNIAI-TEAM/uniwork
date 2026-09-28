@@ -1,6 +1,6 @@
 # Documents + UniWork Office - plan triển khai G1 và G2 song song
 
-> **Trạng thái:** in-progress - tài liệu kế hoạch ngày 2026-09-18; các task sản phẩm bên dưới chưa bắt đầu.
+> **Trạng thái:** shipped — 16/16 task G1-G2 được Advisor nghiệm thu ngày 2026-09-29 trên `feature/UNI-657-documents-office-g1-g2` (đã merge develop); PR vào develop chờ lead duyệt. Tài liệu kế hoạch ngày 2026-09-18.
 > Đây là plan thực thi theo task, không phải spec mới hay bằng chứng G0/G1/G2 đã nghiệm thu.
 > **Cập nhật 2026-09-22:** bổ sung nhóm FE/BE/Engine/QA/DevOps, đợt chạy song song và hợp đồng bàn giao; chưa khởi chạy implementation.
 > **Cập nhật 2026-09-24:** Documents lưu bytes qua FileService (UNI-726) theo hợp đồng FS-C1: bỏ ledger `document_objects` riêng, version/asset giữ `file_id`, cleanup chỉ qua FileService. G1-03 code bằng fake từ Gate A0 của FileService, không chờ FileService implement xong; chỉ nghiệm thu H1 chờ FileService Gate C.
