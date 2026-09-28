@@ -47,13 +47,22 @@ func (h *handlers) getPublicDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token := chi.URLParam(r, "token")
-	pub, err := h.Documents.OpenPublicDocument(r.Context(), token)
+	// Gate the flag on the side-effect-free resolve first: a denied read must
+	// not count a view or write an access-log row (BE05B-03).
+	pub, err := h.Documents.ResolvePublicDocument(r.Context(), token)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
 	if !h.publicDocumentsEnabled(r, pub.Document.OrganizationID) {
 		respondError(w, http.StatusNotFound, "not_found", "not found")
+		return
+	}
+	// The side-effecting open re-resolves, so a revoke that lands in between
+	// still refuses the read; the view is counted only now that the gate passed.
+	pub, err = h.Documents.OpenPublicDocument(r.Context(), token)
+	if err != nil {
+		h.mapServiceError(w, err)
 		return
 	}
 	out := sdo.PublicDocumentSDO{Document: sdo.PublicDocumentDTO{Title: pub.Document.Title, Kind: pub.Document.Kind}}
@@ -126,6 +135,18 @@ type publicByteRoute struct {
 // size first). assetID empty selects the file-download route. The caller owns
 // the returned closer.
 func (h *handlers) openPublicBytes(w http.ResponseWriter, r *http.Request, token, assetID string) (publicByteRoute, bool) {
+	// Gate the documents flag on the side-effect-free resolve before any byte
+	// open: the open records the access-log row, and a denied read must leave
+	// no view count and no log behind it (BE05B-03).
+	pub, err := h.Documents.ResolvePublicDocument(r.Context(), token)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return publicByteRoute{}, false
+	}
+	if !h.publicDocumentsEnabled(r, pub.Document.OrganizationID) {
+		respondError(w, http.StatusNotFound, "not_found", "not found")
+		return publicByteRoute{}, false
+	}
 	open := func(rng service.DocumentByteRange) (documentFilePayload, io.Closer, string, error) {
 		if assetID != "" {
 			rd, err := h.Documents.OpenPublicDocumentAsset(r.Context(), token, assetID, rng)

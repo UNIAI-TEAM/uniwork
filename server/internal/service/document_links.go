@@ -264,6 +264,16 @@ type PublicDocument struct {
 	Link     db.DocumentShareLink
 }
 
+// ResolvePublicDocument is the side-effect-free public read: it runs every
+// liveness, tenant, switch and entitlement check resolvePublicLink runs and
+// returns what a public caller may see, without counting a view or writing an
+// access-log row. The HTTP layer uses it to evaluate the organization's
+// `documents` feature flag before any side effect; the side-effecting open
+// still re-resolves, so a revoke that lands in between still refuses the read.
+func (s *DocumentService) ResolvePublicDocument(ctx context.Context, token string) (PublicDocument, error) {
+	return s.resolvePublicLink(ctx, token)
+}
+
 // resolvePublicLink is the check every public read, asset and download makes
 // before anything else (C-01 §14.2): a live, unexpired link by token hash, a
 // live, unowned document of an active organization, and both public-link

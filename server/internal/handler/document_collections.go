@@ -116,7 +116,9 @@ func (h *handlers) listRecentDocuments(w http.ResponseWriter, r *http.Request) {
 // listSharedWithMe is GET /workspaces/{workspaceID}/documents/shared-with-me.
 // The workspace in the URL names the context the caller is in (RequireMember
 // applies); the list itself spans the organization's workspaces, because a
-// share reaches the recipient without joining the source workspace.
+// share reaches the recipient without joining the source workspace. The
+// service walks candidates by keyset and filters before filling the page, so
+// a denied candidate never consumes a result slot; `limit`/`cursor` page it.
 func (h *handlers) listSharedWithMe(w http.ResponseWriter, r *http.Request) {
 	if h.Documents == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
@@ -128,15 +130,36 @@ func (h *handlers) listSharedWithMe(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	rows, err := h.Documents.ListSharedWithMe(r.Context(), userID, view.OrganizationID)
+	in := service.SharedWithMeQuery{}
+	if raw := strings.TrimSpace(r.URL.Query().Get("cursor")); raw != "" {
+		at, id, ok := decodeSharedWithMeCursor(raw)
+		if !ok {
+			respondError(w, http.StatusBadRequest, "invalid_request", "cursor không hợp lệ")
+			return
+		}
+		in.AfterCreatedAt, in.AfterID = at, id
+	}
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil || n < 0 {
+			respondError(w, http.StatusBadRequest, "invalid_request", "limit must be a non-negative integer")
+			return
+		}
+		in.Limit = n
+	}
+	page, err := h.Documents.ListSharedWithMe(r.Context(), userID, view.OrganizationID, in)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
-	out := sdo.DocumentListSDO{Documents: make([]sdo.DocumentSummaryDTO, 0, len(rows))}
-	for _, row := range rows {
+	out := sdo.DocumentListSDO{Documents: make([]sdo.DocumentSummaryDTO, 0, len(page.Items))}
+	for _, row := range page.Items {
 		access := row.Access
 		out.Documents = append(out.Documents, documentSummaryDTO(row.Document, "", &access))
+	}
+	if page.NextID != "" {
+		cursor := encodeSharedWithMeCursor(page.NextCreatedAt, page.NextID)
+		out.NextCursor = &cursor
 	}
 	respondJSON(w, http.StatusOK, out)
 }
@@ -317,26 +340,52 @@ func documentArchiveSDO(res service.DocumentArchiveResult) sdo.DocumentArchiveSD
 	return out
 }
 
-// documentAccessLogCursor pins the occurred_at of the last row returned; the
-// service windows the next page with `occurred_at < before`, so the cursor is
-// the same value the ordering uses. Opaque to the client.
+// documentAccessLogCursor pins the (occurred_at, id) keyset of the last row
+// returned; the service windows the next page with the same pair, so rows
+// sharing the boundary timestamp cannot be skipped. Opaque to the client.
 type documentAccessLogCursor struct {
 	At time.Time `json:"t"`
+	ID string    `json:"id"`
 }
 
-func encodeDocumentAccessLogCursor(at time.Time) string {
-	raw, _ := json.Marshal(documentAccessLogCursor{At: at.UTC()})
+func encodeDocumentAccessLogCursor(at time.Time, id string) string {
+	raw, _ := json.Marshal(documentAccessLogCursor{At: at.UTC(), ID: id})
 	return base64.RawURLEncoding.EncodeToString(raw)
 }
 
-func decodeDocumentAccessLogCursor(s string) (time.Time, bool) {
+func decodeDocumentAccessLogCursor(s string) (time.Time, string, bool) {
 	raw, err := base64.RawURLEncoding.DecodeString(s)
 	if err != nil {
-		return time.Time{}, false
+		return time.Time{}, "", false
 	}
 	var c documentAccessLogCursor
 	if err := json.Unmarshal(raw, &c); err != nil || c.At.IsZero() {
-		return time.Time{}, false
+		return time.Time{}, "", false
 	}
-	return c.At, true
+	return c.At, c.ID, true
+}
+
+// sharedWithMeCursor pins the (created_at, id) keyset of the last candidate
+// the shared-with-me walk read; the service resumes strictly after that pair.
+// Opaque to the client.
+type sharedWithMeCursor struct {
+	At time.Time `json:"t"`
+	ID string    `json:"id"`
+}
+
+func encodeSharedWithMeCursor(at time.Time, id string) string {
+	raw, _ := json.Marshal(sharedWithMeCursor{At: at.UTC(), ID: id})
+	return base64.RawURLEncoding.EncodeToString(raw)
+}
+
+func decodeSharedWithMeCursor(s string) (time.Time, string, bool) {
+	raw, err := base64.RawURLEncoding.DecodeString(s)
+	if err != nil {
+		return time.Time{}, "", false
+	}
+	var c sharedWithMeCursor
+	if err := json.Unmarshal(raw, &c); err != nil || c.At.IsZero() || c.ID == "" {
+		return time.Time{}, "", false
+	}
+	return c.At, c.ID, true
 }

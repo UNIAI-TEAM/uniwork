@@ -140,12 +140,13 @@ func (h *handlers) listDocumentAccessLogs(w http.ResponseWriter, r *http.Request
 	q := r.URL.Query()
 	query := service.DocumentAccessLogQuery{Action: strings.TrimSpace(q.Get("action"))}
 	if raw := strings.TrimSpace(q.Get("cursor")); raw != "" {
-		at, ok := decodeDocumentAccessLogCursor(raw)
+		at, id, ok := decodeDocumentAccessLogCursor(raw)
 		if !ok {
 			respondError(w, http.StatusBadRequest, "invalid_request", "cursor không hợp lệ")
 			return
 		}
 		query.Before = at
+		query.BeforeID = id
 	}
 	limit := 0
 	if raw := strings.TrimSpace(q.Get("limit")); raw != "" {
@@ -168,24 +169,12 @@ func (h *handlers) listDocumentAccessLogs(w http.ResponseWriter, r *http.Request
 	for _, row := range rows {
 		out.Logs = append(out.Logs, documentAccessLogDTO(row, actors))
 	}
-	if effective := effectiveAccessLogLimit(limit); len(rows) == effective {
-		cursor := encodeDocumentAccessLogCursor(rows[len(rows)-1].OccurredAt.Time)
+	if effective := service.EffectiveDocumentAccessLogLimit(limit); len(rows) == effective {
+		last := rows[len(rows)-1]
+		cursor := encodeDocumentAccessLogCursor(last.OccurredAt.Time, last.ID)
 		out.NextCursor = &cursor
 	}
 	respondJSON(w, http.StatusOK, out)
-}
-
-// effectiveAccessLogLimit mirrors DocumentAccessLogQuery's default and cap so
-// the handler knows whether a full page was returned (the service returns no
-// has-more flag; a cursor on a full page may lead to an empty next page).
-func effectiveAccessLogLimit(limit int) int {
-	if limit <= 0 {
-		return 50
-	}
-	if limit > 100 {
-		return 100
-	}
-	return limit
 }
 
 // resolveDocumentLogActors batch-resolves every human/agent actor of the

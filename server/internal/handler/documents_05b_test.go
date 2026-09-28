@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"testing"
 
@@ -20,6 +21,19 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
+
+// wantErr asserts status, error.code and the (possibly empty) error.error_class
+// of one error envelope. An unclassified code must omit the class.
+func wantErr(t *testing.T, res *http.Response, out map[string]any, status int, code, class string) {
+	t.Helper()
+	gotCode, gotClass := errCodeClass(out)
+	if res.StatusCode != status || gotCode != code {
+		t.Fatalf("status=%d code=%q, want %d %q (%v)", res.StatusCode, gotCode, status, code, out)
+	}
+	if gotClass != class {
+		t.Fatalf("error_class=%q, want %q for code %q", gotClass, class, code)
+	}
+}
 
 // docsCreatePageBody posts one page with a custom body (parent/visibility).
 func docsCreatePageBody(t *testing.T, w *docsWorld, token string, body map[string]any) (map[string]any, string) {
@@ -132,6 +146,7 @@ func TestDocumentListSearchTree(t *testing.T) {
 	// Cursor paging at limit=1 visits every document exactly once.
 	seen := map[string]bool{}
 	cursor := ""
+	firstCursor := ""
 	for page := 0; page < 5; page++ {
 		path := "/api/v1/workspaces/" + w.wsID + "/documents?limit=1"
 		if cursor != "" {
@@ -149,6 +164,9 @@ func TestDocumentListSearchTree(t *testing.T) {
 			seen[id] = true
 		}
 		next, _ := out["next_cursor"].(string)
+		if firstCursor == "" && next != "" {
+			firstCursor = next
+		}
 		if next == "" {
 			break
 		}
@@ -156,6 +174,18 @@ func TestDocumentListSearchTree(t *testing.T) {
 	}
 	if len(seen) != 3 {
 		t.Fatalf("cursor walk saw %d documents, want 3", len(seen))
+	}
+	if firstCursor == "" {
+		t.Fatal("cursor walk produced no next_cursor")
+	}
+
+	// A valid cursor replayed by an unauthorized caller cannot page: the
+	// permission gate runs before the cursor window on every request.
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents?limit=1&cursor="+firstCursor, w.outsider, nil)
+	wantErr(t, res, out, 403, "forbidden", "permission")
+	res, _ = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents?limit=1&cursor="+firstCursor, "", nil)
+	if res.StatusCode != 401 {
+		t.Fatalf("anonymous cursor page: %d, want 401", res.StatusCode)
 	}
 
 	// A malformed cursor and a negative limit are 400s.
@@ -211,16 +241,63 @@ func TestDocumentListSearchTree(t *testing.T) {
 
 	// Non-member and anonymous callers are refused before any row is read.
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents", w.outsider, nil)
-	if code, _ := errCodeClass(out); res.StatusCode != 403 || code != "forbidden" {
-		t.Fatalf("outsider list: %d code=%q", res.StatusCode, code)
-	}
+	wantErr(t, res, out, 403, "forbidden", "permission")
 	res, _ = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents", "", nil)
 	if res.StatusCode != 401 {
 		t.Fatalf("anonymous list: %d, want 401", res.StatusCode)
 	}
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents/recent", w.outsider, nil)
-	if code, _ := errCodeClass(out); res.StatusCode != 403 || code != "forbidden" {
-		t.Fatalf("outsider recent: %d code=%q", res.StatusCode, code)
+	wantErr(t, res, out, 403, "forbidden", "permission")
+}
+
+// TestDocumentListPermissionBeforeLimit proves the list's access predicate
+// runs before LIMIT: the newest document is restricted and invisible to a
+// plain member, and a limit=1 cursor walk must still return exactly the two
+// visible documents, with no duplicate, leak or short page.
+func TestDocumentListPermissionBeforeLimit(t *testing.T) {
+	w := newDocsWorld(t)
+	_, visibleA := docsCreatePageBody(t, w, w.token, map[string]any{"title": "Visible A", "kind": "page"})
+	_, visibleB := docsCreatePageBody(t, w, w.token, map[string]any{"title": "Visible B", "kind": "page"})
+	_, hidden := docsCreatePageBody(t, w, w.token, map[string]any{"title": "Hidden", "kind": "page", "visibility": "restricted"})
+	member, _ := docsJoinWorkspace(t, w, "docs-invisible-member@example.com")
+
+	// The member sees both workspace-visible documents; the restricted one
+	// stays out of the flat list entirely.
+	res, out := doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents", member, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("member list: %d %v", res.StatusCode, out)
+	}
+	if ids := docIDs(t, out); len(ids) != 2 || containsID(ids, hidden) {
+		t.Fatalf("member flat list = %v", ids)
+	}
+
+	// The paged walk (newest first, so the hidden document would own the
+	// first slot) visits exactly the two visible rows.
+	seen := map[string]bool{}
+	cursor := ""
+	for page := 0; page < 5; page++ {
+		path := "/api/v1/workspaces/" + w.wsID + "/documents?limit=1"
+		if cursor != "" {
+			path += "&cursor=" + cursor
+		}
+		res, out = doJSON(t, w.srv, "GET", path, member, nil)
+		if res.StatusCode != 200 {
+			t.Fatalf("member page %d: %d %v", page, res.StatusCode, out)
+		}
+		for _, id := range docIDs(t, out) {
+			if seen[id] {
+				t.Fatalf("cursor repeated %s on page %d", id, page)
+			}
+			seen[id] = true
+		}
+		next, _ := out["next_cursor"].(string)
+		if next == "" {
+			break
+		}
+		cursor = next
+	}
+	if len(seen) != 2 || !seen[visibleA] || !seen[visibleB] {
+		t.Fatalf("member cursor walk = %v, want the two visible documents", seen)
 	}
 }
 
@@ -328,6 +405,19 @@ func TestDocumentMoveDepthRefusedAtCreate(t *testing.T) {
 			t.Fatalf("level 6 create: %d code=%q %v", res.StatusCode, code, out)
 		}
 	}
+
+	// The 05b move route enforces the same ceiling: a standalone document
+	// cannot move under the fifth-level parent.
+	res, out := doJSON(t, w.srv, "POST", "/api/v1/workspaces/"+w.wsID+"/documents", w.token,
+		map[string]any{"title": "standalone", "kind": "page"})
+	if res.StatusCode != 201 {
+		t.Fatalf("standalone create: %d %v", res.StatusCode, out)
+	}
+	standalone := out["document"].(map[string]any)["id"].(string)
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+standalone+"/move", w.token, map[string]any{
+		"parent_id": parent, "revision": "1",
+	})
+	wantErr(t, res, out, 422, "document_too_deep", "")
 }
 
 func TestDocumentArchiveRestore(t *testing.T) {
@@ -531,27 +621,43 @@ func TestDocuments05bOpenAPI(t *testing.T) {
 	if err := json.NewDecoder(res.Body).Decode(&spec); err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range []string{
-		"/api/v1/workspaces/{workspaceID}/documents",
-		"/api/v1/workspaces/{workspaceID}/documents/recent",
-		"/api/v1/workspaces/{workspaceID}/documents/shared-with-me",
-		"/api/v1/workspaces/{workspaceID}/documents/tree",
-		"/api/v1/documents/{documentID}/move",
-		"/api/v1/documents/{documentID}/archive",
-		"/api/v1/documents/{documentID}/restore",
-		"/api/v1/documents/{documentID}/shares",
-		"/api/v1/documents/{documentID}/shares/{shareID}",
-		"/api/v1/documents/{documentID}/links",
-		"/api/v1/documents/{documentID}/links/{linkID}",
-		"/api/v1/documents/{documentID}/access-logs",
-		"/api/v1/orgs/{orgID}/documents/settings",
-		"/api/v1/public/documents/{token}",
-		"/api/v1/public/documents/{token}/download",
-		"/api/v1/public/documents/{token}/assets/{assetID}",
-	} {
-		p = strings.TrimSuffix(p, "/")
-		if _, ok := spec.Paths[p]; !ok {
+	// Every 05b path reflects exactly its method(s) - a mis-methoded or
+	// duplicated operation fails here, not only a missing path.
+	wantOps := map[string][]string{
+		"/api/v1/workspaces/{workspaceID}/documents":                {"get", "post"},
+		"/api/v1/workspaces/{workspaceID}/documents/recent":         {"get"},
+		"/api/v1/workspaces/{workspaceID}/documents/shared-with-me": {"get"},
+		"/api/v1/workspaces/{workspaceID}/documents/tree":           {"get"},
+		"/api/v1/documents/{documentID}/move":                       {"post"},
+		"/api/v1/documents/{documentID}/archive":                    {"post"},
+		"/api/v1/documents/{documentID}/restore":                    {"post"},
+		"/api/v1/documents/{documentID}/shares":                     {"get", "post"},
+		"/api/v1/documents/{documentID}/shares/{shareID}":           {"delete"},
+		"/api/v1/documents/{documentID}/links":                      {"post"},
+		"/api/v1/documents/{documentID}/links/{linkID}":             {"delete"},
+		"/api/v1/documents/{documentID}/access-logs":                {"get"},
+		"/api/v1/orgs/{orgID}/documents/settings":                   {"put"},
+		"/api/v1/public/documents/{token}":                          {"get"},
+		"/api/v1/public/documents/{token}/download":                 {"get", "head"},
+		"/api/v1/public/documents/{token}/assets/{assetID}":         {"get", "head"},
+	}
+	for p, methods := range wantOps {
+		raw, ok := spec.Paths[p]
+		if !ok {
 			t.Errorf("spec missing path %s", p)
+			continue
+		}
+		var ops map[string]json.RawMessage
+		if err := json.Unmarshal(raw, &ops); err != nil {
+			t.Fatalf("path %s: %v", p, err)
+		}
+		got := make([]string, 0, len(ops))
+		for m := range ops {
+			got = append(got, m)
+		}
+		sort.Strings(got)
+		if strings.Join(got, ",") != strings.Join(methods, ",") {
+			t.Errorf("spec %s methods = %v, want %v", p, got, methods)
 		}
 	}
 	// The list route documents its filters; the move SDI carries examples.
@@ -581,5 +687,158 @@ func TestDocuments05bOpenAPI(t *testing.T) {
 	}
 	if public := string(spec.Components.Schemas["SdoPublicDocumentSDO"]); public == "" {
 		t.Error("public document SDO not reflected")
+	}
+}
+
+// TestDocumentRecentCursorWalk proves the recent route walks its own cursor
+// over the documents the caller touched, newest first, without duplicates.
+func TestDocumentRecentCursorWalk(t *testing.T) {
+	w := newDocsWorld(t)
+	ids := make([]string, 0, 3)
+	for i := 0; i < 3; i++ {
+		_, id := docsCreatePageBody(t, w, w.token, map[string]any{"title": "Recent " + string(rune('a'+i)), "kind": "page"})
+		res, _ := doJSON(t, w.srv, "GET", "/api/v1/documents/"+id, w.token, nil)
+		if res.StatusCode != 200 {
+			t.Fatalf("recent view %d: %d", i, res.StatusCode)
+		}
+		ids = append(ids, id)
+	}
+	seen := map[string]bool{}
+	cursor := ""
+	for page := 0; page < 6; page++ {
+		path := "/api/v1/workspaces/" + w.wsID + "/documents/recent?limit=1"
+		if cursor != "" {
+			path += "&cursor=" + cursor
+		}
+		res, out := doJSON(t, w.srv, "GET", path, w.token, nil)
+		if res.StatusCode != 200 {
+			t.Fatalf("recent page %d: %d %v", page, res.StatusCode, out)
+		}
+		for _, id := range docIDs(t, out) {
+			if seen[id] {
+				t.Fatalf("recent cursor repeated %s on page %d", id, page)
+			}
+			seen[id] = true
+		}
+		next, _ := out["next_cursor"].(string)
+		if next == "" {
+			break
+		}
+		cursor = next
+	}
+	if len(seen) != 3 {
+		t.Fatalf("recent walk saw %d documents, want 3", len(seen))
+	}
+	for _, id := range ids {
+		if !seen[id] {
+			t.Fatalf("recent document %s missing from the walk", id)
+		}
+	}
+}
+
+// TestDocument05bWritePermissionMatrix proves the level gate on every 05b
+// write route: view-level readers cannot move, archive, restore, share or
+// manage links; edit-level may move but not change access; manage-level may
+// do all of it, and only manage sees archived rows in the trash view.
+func TestDocument05bWritePermissionMatrix(t *testing.T) {
+	w := newDocsWorld(t)
+	res, out := doJSON(t, w.srv, "PUT", "/api/v1/orgs/"+w.orgID+"/documents/settings", w.token,
+		map[string]any{"public_links_enabled": true})
+	if res.StatusCode != 200 {
+		t.Fatalf("enable links: %d %v", res.StatusCode, out)
+	}
+
+	_, docView := docsCreatePageBody(t, w, w.token, map[string]any{"title": "V", "kind": "page", "visibility": "restricted"})
+	_, docEdit := docsCreatePageBody(t, w, w.token, map[string]any{"title": "E", "kind": "page", "visibility": "restricted"})
+	_, docManage := docsCreatePageBody(t, w, w.token, map[string]any{"title": "M", "kind": "page", "visibility": "restricted"})
+	viewer, viewerID := docsJoinWorkspace(t, w, "docs-matrix-view@example.com")
+	editor, editorID := docsJoinWorkspace(t, w, "docs-matrix-edit@example.com")
+	manager, managerID := docsJoinWorkspace(t, w, "docs-matrix-manage@example.com")
+	share := func(doc, userID, level string) {
+		t.Helper()
+		res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+doc+"/shares", w.token, map[string]any{
+			"principal_type": "user", "principal_id": userID, "level": level,
+		})
+		if res.StatusCode != 201 {
+			t.Fatalf("share %s: %d %v", level, res.StatusCode, out)
+		}
+	}
+	share(docView, viewerID, "view")
+	share(docEdit, editorID, "edit")
+	share(docManage, managerID, "manage")
+
+	// View level: every 05b write is refused with the permission class.
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docView+"/move", viewer, map[string]any{"revision": "1"})
+	wantErr(t, res, out, 403, "forbidden", "permission")
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docView+"/archive", viewer, nil)
+	wantErr(t, res, out, 403, "forbidden", "permission")
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docView+"/restore", viewer, nil)
+	wantErr(t, res, out, 403, "forbidden", "permission")
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docView+"/shares", viewer, map[string]any{
+		"principal_type": "user", "principal_id": editorID, "level": "view"})
+	wantErr(t, res, out, 403, "forbidden", "permission")
+	res, out = doJSON(t, w.srv, "DELETE", "/api/v1/documents/"+docView+"/shares/01J8X4SHAREN1P2Q3R4S5T6U7", viewer, nil)
+	wantErr(t, res, out, 403, "forbidden", "permission")
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docView+"/links", viewer, map[string]any{})
+	wantErr(t, res, out, 403, "forbidden", "permission")
+	res, out = doJSON(t, w.srv, "DELETE", "/api/v1/documents/"+docView+"/links/01J8X4LINK0N1P2Q3R4S5T6U7", viewer, nil)
+	wantErr(t, res, out, 403, "forbidden", "permission")
+
+	// Edit level: move is allowed; access changes are not.
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docEdit+"/move", editor, map[string]any{"revision": "1"})
+	if res.StatusCode != 200 {
+		t.Fatalf("editor move: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docEdit+"/archive", editor, nil)
+	wantErr(t, res, out, 403, "forbidden", "permission")
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docEdit+"/restore", editor, nil)
+	wantErr(t, res, out, 403, "forbidden", "permission")
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docEdit+"/shares", editor, map[string]any{
+		"principal_type": "user", "principal_id": viewerID, "level": "view"})
+	wantErr(t, res, out, 403, "forbidden", "permission")
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docEdit+"/links", editor, map[string]any{})
+	wantErr(t, res, out, 403, "forbidden", "permission")
+
+	// Manage level: archive/restore, share and link management all work,
+	// and only manage sees the archived row in the trash view.
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docManage+"/archive", manager, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("manager archive: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents?archived=1", manager, nil)
+	if res.StatusCode != 200 || !containsID(docIDs(t, out), docManage) {
+		t.Fatalf("manager archived view: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents?archived=1", viewer, nil)
+	if res.StatusCode != 200 || containsID(docIDs(t, out), docManage) {
+		t.Fatalf("viewer archived view leaked: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docManage+"/restore", manager, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("manager restore: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docManage+"/shares", manager, map[string]any{
+		"principal_type": "user", "principal_id": editorID, "level": "view"})
+	if res.StatusCode != 201 {
+		t.Fatalf("manager share: %d %v", res.StatusCode, out)
+	}
+	newShare := out["share"].(map[string]any)["id"].(string)
+	res, out = doJSON(t, w.srv, "DELETE", "/api/v1/documents/"+docManage+"/shares/"+newShare, manager, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("manager revoke share: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docManage+"/links", manager, map[string]any{})
+	if res.StatusCode != 201 {
+		t.Fatalf("manager link: %d %v", res.StatusCode, out)
+	}
+	linkID := out["link"].(map[string]any)["id"].(string)
+	res, out = doJSON(t, w.srv, "DELETE", "/api/v1/documents/"+docManage+"/links/"+linkID, manager, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("manager revoke link: %d %v", res.StatusCode, out)
+	}
+	// The manager grant itself is never revoked by the new share.
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+docManage+"/shares", manager, nil)
+	if res.StatusCode != 200 || out["my_level"] != "manage" {
+		t.Fatalf("manager still manages: %d %v", res.StatusCode, out)
 	}
 }

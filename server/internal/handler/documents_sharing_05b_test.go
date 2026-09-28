@@ -8,7 +8,10 @@ package handler
 import (
 	"bytes"
 	"encoding/json"
+	"io"
+	"net/http"
 	"testing"
+	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -160,9 +163,37 @@ func TestDocumentPublicLinks(t *testing.T) {
 
 	// Unknown token: 404 with no hint.
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/public/documents/unknown-token", "", nil)
-	if code, _ := errCodeClass(out); res.StatusCode != 404 || code != "not_found" {
-		t.Fatalf("unknown token: %d code=%q", res.StatusCode, code)
+	wantErr(t, res, out, 404, "not_found", "missing")
+
+	// 404 parity: unknown, revoked, switch-off and flag-off must answer the
+	// same body and headers, so a public caller cannot tell them apart.
+	raw404 := func(method, path string) (string, string) {
+		t.Helper()
+		req, err := http.NewRequestWithContext(t.Context(), method, w.srv.URL+path, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp, err := w.srv.Client().Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(body), resp.Header.Get("Content-Type") + "|" + resp.Header.Get("X-Content-Type-Options")
 	}
+	same404 := func(name, body, headers, wantBody, wantHeaders string) {
+		t.Helper()
+		if body != wantBody || headers != wantHeaders {
+			t.Fatalf("%s 404 differs from unknown-token: body %q vs %q headers %q vs %q",
+				name, body, wantBody, headers, wantHeaders)
+		}
+	}
+	unknownBody, unknownHeaders := raw404("GET", "/api/v1/public/documents/unknown-token")
+	unknownAssetBody, unknownAssetHeaders := raw404("GET", "/api/v1/public/documents/unknown-token/assets/01J8X4AST0N1P2Q3R4S5T6U7V8")
+	unknownDownloadBody, unknownDownloadHeaders := raw404("GET", "/api/v1/public/documents/unknown-token/download")
 
 	// Create one page link and one file link.
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+page+"/links", w.token, map[string]any{"expires_in_days": 7})
@@ -241,9 +272,43 @@ func TestDocumentPublicLinks(t *testing.T) {
 	if res.StatusCode != 404 {
 		t.Fatalf("unknown public asset: %d", res.StatusCode)
 	}
+	res, _ = doBytes(t, w.srv, "HEAD", "/api/v1/public/documents/"+pageToken+"/assets/"+assetID, "")
+	if res.StatusCode != 200 {
+		t.Fatalf("live asset HEAD: %d", res.StatusCode)
+	}
 
-	// The organization flag closes every public surface of the link.
+	// Link view counts and log rows are read back through the manage routes
+	// so the flag-off block can prove neither moved.
+	pageLinkViews := func() float64 {
+		t.Helper()
+		res, out := doJSON(t, w.srv, "GET", "/api/v1/documents/"+page+"/shares", w.token, nil)
+		if res.StatusCode != 200 {
+			t.Fatalf("overview: %d %v", res.StatusCode, out)
+		}
+		for _, l := range out["links"].([]any) {
+			row := l.(map[string]any)
+			if row["id"] == pageLinkID {
+				return row["view_count"].(float64)
+			}
+		}
+		t.Fatalf("page link missing from overview: %v", out["links"])
+		return 0
+	}
+	pageAccessLogs := func() int {
+		t.Helper()
+		res, out := doJSON(t, w.srv, "GET", "/api/v1/documents/"+page+"/access-logs?limit=100", w.token, nil)
+		if res.StatusCode != 200 {
+			t.Fatalf("logs: %d %v", res.StatusCode, out)
+		}
+		return len(out["logs"].([]any))
+	}
+
+	// The organization flag closes every public surface of the link without
+	// any side effect: a flag-off read must not count a view or write a log
+	// row, and its 404 must match the unknown-token one byte for byte.
 	q := db.New(testPool)
+	viewsBefore := pageLinkViews()
+	logsBefore := pageAccessLogs()
 	if _, err := q.UpsertFlagOverride(t.Context(), db.UpsertFlagOverrideParams{
 		ID: util.NewID(), FlagKey: "documents", ScopeType: featureflags.ScopeOrganization,
 		ScopeID: w.orgID, Enabled: false, Note: "public flag test", CreatedBy: "test",
@@ -254,9 +319,9 @@ func TestDocumentPublicLinks(t *testing.T) {
 		testFlagOverrides.Invalidate()
 	}
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/public/documents/"+pageToken, "", nil)
-	if code, _ := errCodeClass(out); res.StatusCode != 404 || code != "not_found" {
-		t.Fatalf("flag off view: %d code=%q", res.StatusCode, code)
-	}
+	wantErr(t, res, out, 404, "not_found", "missing")
+	flagBody, flagHeaders := raw404("GET", "/api/v1/public/documents/"+pageToken)
+	same404("flag-off view", flagBody, flagHeaders, unknownBody, unknownHeaders)
 	res, _ = doBytes(t, w.srv, "GET", downloadURL, "")
 	if res.StatusCode != 404 {
 		t.Fatalf("flag off download: %d", res.StatusCode)
@@ -264,6 +329,12 @@ func TestDocumentPublicLinks(t *testing.T) {
 	res, _ = doBytes(t, w.srv, "GET", "/api/v1/public/documents/"+pageToken+"/assets/"+assetID, "")
 	if res.StatusCode != 404 {
 		t.Fatalf("flag off asset: %d", res.StatusCode)
+	}
+	flagAssetBody, flagAssetHeaders := raw404("GET", "/api/v1/public/documents/"+pageToken+"/assets/"+assetID)
+	same404("flag-off asset", flagAssetBody, flagAssetHeaders, unknownAssetBody, unknownAssetHeaders)
+	res, _ = doBytes(t, w.srv, "HEAD", "/api/v1/public/documents/"+pageToken+"/assets/"+assetID, "")
+	if res.StatusCode != 404 {
+		t.Fatalf("flag off asset HEAD: %d", res.StatusCode)
 	}
 	if _, err := q.UpsertFlagOverride(t.Context(), db.UpsertFlagOverrideParams{
 		ID: util.NewID(), FlagKey: "documents", ScopeType: featureflags.ScopeOrganization,
@@ -273,6 +344,12 @@ func TestDocumentPublicLinks(t *testing.T) {
 	}
 	if testFlagOverrides != nil {
 		testFlagOverrides.Invalidate()
+	}
+	if got := pageLinkViews(); got != viewsBefore {
+		t.Fatalf("flag-off reads counted a view: %v -> %v", viewsBefore, got)
+	}
+	if got := pageAccessLogs(); got != logsBefore {
+		t.Fatalf("flag-off reads wrote access-log rows: %d -> %d", logsBefore, got)
 	}
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/public/documents/"+pageToken, "", nil)
 	if res.StatusCode != 200 {
@@ -285,9 +362,9 @@ func TestDocumentPublicLinks(t *testing.T) {
 		t.Fatalf("disable links: %d %v", res.StatusCode, out)
 	}
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/public/documents/"+pageToken, "", nil)
-	if code, _ := errCodeClass(out); res.StatusCode != 404 || code != "not_found" {
-		t.Fatalf("switch off view: %d code=%q", res.StatusCode, code)
-	}
+	wantErr(t, res, out, 404, "not_found", "missing")
+	settingBody, settingHeaders := raw404("GET", "/api/v1/public/documents/"+pageToken)
+	same404("switch-off view", settingBody, settingHeaders, unknownBody, unknownHeaders)
 	res, _ = doBytes(t, w.srv, "GET", downloadURL, "")
 	if res.StatusCode != 404 {
 		t.Fatalf("switch off download: %d", res.StatusCode)
@@ -296,6 +373,8 @@ func TestDocumentPublicLinks(t *testing.T) {
 	if res.StatusCode != 404 {
 		t.Fatalf("switch off asset: %d", res.StatusCode)
 	}
+	settingAssetBody, settingAssetHeaders := raw404("GET", "/api/v1/public/documents/"+pageToken+"/assets/"+assetID)
+	same404("switch-off asset", settingAssetBody, settingAssetHeaders, unknownAssetBody, unknownAssetHeaders)
 	res, out = doJSON(t, w.srv, "PUT", "/api/v1/orgs/"+w.orgID+"/documents/settings", w.token, map[string]any{"public_links_enabled": true})
 	if res.StatusCode != 200 {
 		t.Fatalf("re-enable links: %d %v", res.StatusCode, out)
@@ -307,12 +386,18 @@ func TestDocumentPublicLinks(t *testing.T) {
 		t.Fatalf("revoke link: %d %v", res.StatusCode, out)
 	}
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/public/documents/"+pageToken, "", nil)
-	if code, _ := errCodeClass(out); res.StatusCode != 404 || code != "not_found" {
-		t.Fatalf("revoked view: %d code=%q", res.StatusCode, code)
-	}
+	wantErr(t, res, out, 404, "not_found", "missing")
+	revokedBody, revokedHeaders := raw404("GET", "/api/v1/public/documents/"+pageToken)
+	same404("revoked view", revokedBody, revokedHeaders, unknownBody, unknownHeaders)
 	res, _ = doBytes(t, w.srv, "GET", "/api/v1/public/documents/"+pageToken+"/assets/"+assetID, "")
 	if res.StatusCode != 404 {
 		t.Fatalf("revoked asset: %d", res.StatusCode)
+	}
+	revokedAssetBody, revokedAssetHeaders := raw404("GET", "/api/v1/public/documents/"+pageToken+"/assets/"+assetID)
+	same404("revoked asset", revokedAssetBody, revokedAssetHeaders, unknownAssetBody, unknownAssetHeaders)
+	res, _ = doBytes(t, w.srv, "HEAD", "/api/v1/public/documents/"+pageToken+"/assets/"+assetID, "")
+	if res.StatusCode != 404 {
+		t.Fatalf("revoked asset HEAD: %d", res.StatusCode)
 	}
 
 	// Five live links per document; the sixth is refused.
@@ -349,6 +434,15 @@ func TestDocumentPublicLinks(t *testing.T) {
 	if len(out) != 1 {
 		t.Fatalf("public payload grew: %v", out)
 	}
+
+	// Revoking the file link closes the download route with the same 404 as
+	// an unknown token.
+	res, out = doJSON(t, w.srv, "DELETE", "/api/v1/documents/"+fileDoc+"/links/"+fileLinkID, w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("revoke file link: %d %v", res.StatusCode, out)
+	}
+	revokedDownloadBody, revokedDownloadHeaders := raw404("GET", downloadURL)
+	same404("revoked download", revokedDownloadBody, revokedDownloadHeaders, unknownDownloadBody, unknownDownloadHeaders)
 }
 
 func TestDocumentAccessLog(t *testing.T) {
@@ -394,6 +488,30 @@ func TestDocumentAccessLog(t *testing.T) {
 		t.Fatalf("member actor block = %v", memberRow["actor"])
 	}
 
+	// Two rows that share the boundary timestamp both stay reachable: the
+	// cursor carries (occurred_at, id), so the window cannot skip one
+	// (BE05B-01).
+	if _, err := testPool.Exec(t.Context(),
+		`UPDATE document_access_logs SET occurred_at = '2026-09-28T12:00:00Z' WHERE document_id = $1`, doc); err != nil {
+		t.Fatalf("force same timestamp: %v", err)
+	}
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+doc+"/access-logs?limit=1", w.token, nil)
+	if res.StatusCode != 200 || len(out["logs"].([]any)) != 1 {
+		t.Fatalf("same-timestamp page 1: %d %v", res.StatusCode, out)
+	}
+	firstID := out["logs"].([]any)[0].(map[string]any)["id"].(string)
+	sameCursor, _ := out["next_cursor"].(string)
+	if sameCursor == "" {
+		t.Fatalf("same-timestamp page 1 missing cursor: %v", out)
+	}
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+doc+"/access-logs?limit=1&cursor="+sameCursor, w.token, nil)
+	if res.StatusCode != 200 || len(out["logs"].([]any)) != 1 {
+		t.Fatalf("same-timestamp page 2: %d %v", res.StatusCode, out)
+	}
+	if secondID := out["logs"].([]any)[0].(map[string]any)["id"].(string); secondID == firstID {
+		t.Fatalf("same-timestamp row repeated: %s", firstID)
+	}
+
 	// Action filter and limit + cursor paging.
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+doc+"/access-logs?action=download", w.token, nil)
 	if res.StatusCode != 200 || len(out["logs"].([]any)) != 0 {
@@ -426,9 +544,95 @@ func TestDocumentAccessLog(t *testing.T) {
 		t.Fatalf("view-level logs: %d code=%q", res.StatusCode, code)
 	}
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+doc+"/access-logs", w.outsider, nil)
-	if code, _ := errCodeClass(out); res.StatusCode != 404 || code != "not_found" {
-		t.Fatalf("outsider logs: %d code=%q", res.StatusCode, code)
+	wantErr(t, res, out, 404, "not_found", "missing")
+
+	// The handler uses the service's effective limit: limit=101 pages as 50
+	// with a cursor instead of dropping history (BE05B-02).
+	_, bulk := docsCreatePageBody(t, w, w.token, map[string]any{"title": "Bulk log", "kind": "page"})
+	for i := 0; i < 60; i++ {
+		ts := time.Date(2026, 9, 28, 10, 0, 0, i*1_000_000, time.UTC)
+		if _, err := testPool.Exec(t.Context(),
+			`INSERT INTO document_access_logs (id, organization_id, workspace_id, document_id, action, actor_kind, via, correlation_id, occurred_at)
+			 VALUES ($1, $2, $3, $4, 'view', 'human', 'member', $5, $6)`,
+			util.NewID(), w.orgID, w.wsID, bulk, util.NewID(), ts); err != nil {
+			t.Fatalf("seed log %d: %v", i, err)
+		}
 	}
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+bulk+"/access-logs?limit=101", w.token, nil)
+	if res.StatusCode != 200 || len(out["logs"].([]any)) != 50 {
+		t.Fatalf("limit=101 page 1: %d rows=%d", res.StatusCode, len(out["logs"].([]any)))
+	}
+	bulkCursor, _ := out["next_cursor"].(string)
+	if bulkCursor == "" {
+		t.Fatalf("limit=101 page 1 missing cursor: %v", out)
+	}
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+bulk+"/access-logs?limit=101&cursor="+bulkCursor, w.token, nil)
+	if res.StatusCode != 200 || len(out["logs"].([]any)) != 10 {
+		t.Fatalf("limit=101 page 2: %d rows=%d", res.StatusCode, len(out["logs"].([]any)))
+	}
+	if next, _ := out["next_cursor"].(string); next != "" {
+		t.Fatalf("limit=101 page 2 has a cursor: %v", out)
+	}
+}
+
+// TestDocumentSharedWithMePaging proves the route exposes keyset paging
+// (limit + opaque cursor) over visible shares, and refuses malformed paging
+// input before the service (BE05B-04).
+func TestDocumentSharedWithMePaging(t *testing.T) {
+	w := newDocsWorld(t)
+	member, memberID := docsJoinWorkspace(t, w, "docs-swm-page@example.com")
+	ids := make([]string, 0, 3)
+	for i := 0; i < 3; i++ {
+		_, id := docsCreatePageBody(t, w, w.token, map[string]any{
+			"title": "Shared " + string(rune('a'+i)), "kind": "page", "visibility": "restricted"})
+		res, out := doJSON(t, w.srv, "POST", "/api/v1/documents/"+id+"/shares", w.token, map[string]any{
+			"principal_type": "user", "principal_id": memberID, "level": "view"})
+		if res.StatusCode != 201 {
+			t.Fatalf("share %d: %d %v", i, res.StatusCode, out)
+		}
+		ids = append(ids, id)
+	}
+	seen := map[string]bool{}
+	cursor := ""
+	for page := 0; page < 6; page++ {
+		path := "/api/v1/workspaces/" + w.wsID + "/documents/shared-with-me?limit=2"
+		if cursor != "" {
+			path += "&cursor=" + cursor
+		}
+		res, out := doJSON(t, w.srv, "GET", path, member, nil)
+		if res.StatusCode != 200 {
+			t.Fatalf("shared-with-me page %d: %d %v", page, res.StatusCode, out)
+		}
+		rows := out["documents"].([]any)
+		if len(rows) > 2 {
+			t.Fatalf("shared-with-me page %d over limit: %d rows", page, len(rows))
+		}
+		for _, r := range rows {
+			id := r.(map[string]any)["id"].(string)
+			if seen[id] {
+				t.Fatalf("shared-with-me cursor repeated %s on page %d", id, page)
+			}
+			seen[id] = true
+		}
+		next, _ := out["next_cursor"].(string)
+		if next == "" {
+			break
+		}
+		cursor = next
+	}
+	if len(seen) != 3 {
+		t.Fatalf("shared-with-me walk saw %d documents, want 3", len(seen))
+	}
+	for _, id := range ids {
+		if !seen[id] {
+			t.Fatalf("shared document %s missing from the walk", id)
+		}
+	}
+
+	res, out := doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents/shared-with-me?cursor=bm90LWpzb24", member, nil)
+	wantErr(t, res, out, 400, "invalid_request", "")
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents/shared-with-me?limit=-1", member, nil)
+	wantErr(t, res, out, 400, "invalid_request", "")
 }
 
 // docsCreateFileDoc creates one file document through the multipart route.

@@ -45,10 +45,11 @@ WHERE id = sqlc.arg(id)
 -- organization, or one of the workspaces the service passes in (the ones the
 -- person reaches through WorkspaceService; membership is never read in SQL).
 -- The workspace filter runs before the limit so shares to workspaces the
--- person is not in cannot crowd theirs out; newest share first. The service
--- still runs effectiveLevel on every row.
+-- person is not in cannot crowd theirs out; newest share first, id ascending
+-- as the tiebreak, and (after_created_at, after_id) is the keyset that
+-- continues the walk. The service still runs effectiveLevel on every row.
 -- name: ListDocumentShareCandidates :many
-SELECT sqlc.embed(d)
+SELECT sqlc.embed(d), c.created_at
 FROM (
   SELECT DISTINCT ON (s.document_id) s.document_id, s.workspace_id, s.created_at
   FROM document_shares s
@@ -67,6 +68,11 @@ JOIN documents d
  AND d.id = c.document_id
 WHERE d.archived_at IS NULL
   AND d.owner_id IS NULL
+  AND (
+    sqlc.narg(after_created_at)::timestamptz IS NULL
+    OR c.created_at < sqlc.narg(after_created_at)::timestamptz
+    OR (c.created_at = sqlc.narg(after_created_at)::timestamptz AND d.id > sqlc.narg(after_id)::text)
+  )
 ORDER BY c.created_at DESC, d.id
 LIMIT sqlc.arg(max_rows);
 
@@ -188,12 +194,20 @@ SELECT EXISTS (
 );
 
 -- name: ListDocumentAccessLogs :many
+-- Newest first, id descending as the tiebreak; (before, before_id) is the
+-- keyset of the last row read, so equal timestamps cannot skip a row. A
+-- caller that passes only before keeps the historical strict-inequality
+-- behavior (rows at exactly that timestamp are excluded).
 SELECT *
 FROM document_access_logs
 WHERE organization_id = sqlc.arg(organization_id)
   AND workspace_id = sqlc.arg(workspace_id)
   AND document_id = sqlc.arg(document_id)
   AND (sqlc.narg(action)::text IS NULL OR action = sqlc.narg(action))
-  AND (sqlc.narg(before)::timestamptz IS NULL OR occurred_at < sqlc.narg(before))
+  AND (
+    sqlc.narg(before)::timestamptz IS NULL
+    OR occurred_at < sqlc.narg(before)::timestamptz
+    OR (occurred_at = sqlc.narg(before)::timestamptz AND id < sqlc.narg(before_id)::text)
+  )
 ORDER BY occurred_at DESC, id DESC
 LIMIT sqlc.arg(max_rows);
