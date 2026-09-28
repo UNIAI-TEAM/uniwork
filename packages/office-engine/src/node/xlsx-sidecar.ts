@@ -23,7 +23,7 @@ import {
   type XlsxRecalcPort,
   type XlsxRecalcRead,
   type XlsxRecalcResult,
-} from "../xlsx/engine";
+} from "../xlsx/engine.ts";
 
 export interface XlsxSidecarOptions {
   /** Absolute path to the xlsx-sidecar binary (xlsx-assets resolves it when
@@ -78,7 +78,11 @@ export class XlsxSidecar implements XlsxRecalcPort {
   private stagedPath: string | null = null;
   private stagedDir: string | null = null;
 
-  constructor(private readonly opts: XlsxSidecarOptions) {}
+  private readonly opts: XlsxSidecarOptions;
+
+  constructor(opts: XlsxSidecarOptions) {
+    this.opts = opts;
+  }
 
   private ensure(): ChildProcess {
     if (this.closed) throw new EngineBoundaryError("engine_crashed", { detail: "xlsx sidecar released" });

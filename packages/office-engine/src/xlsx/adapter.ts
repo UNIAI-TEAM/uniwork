@@ -110,7 +110,10 @@ function preservedWarnings(parts: readonly string[]): { code: string; detail: st
 
 export class XlsxAdapter {
   private sessions = new Map<string, XlsxSession>();
-  constructor(private deps: XlsxAdapterDeps) {}
+  private readonly deps: XlsxAdapterDeps;
+  constructor(deps: XlsxAdapterDeps) {
+    this.deps = deps;
+  }
 
   private failed(
     documentId: string,

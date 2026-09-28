@@ -185,7 +185,7 @@ export function createFakeRecalc(): XlsxRecalcPort & { calls: { edits: XlsxRecal
         const input = cell?.input ?? "";
         if (input.startsWith("=SUM(")) {
           const m = /^=SUM\(([A-Z]+)(\d+):([A-Z]+)(\d+)\)$/.exec(input);
-          if (m) {
+          if (m && m[1] && m[2] && m[3] && m[4]) {
             let sum = 0;
             const colOf = (l: string) => l.charCodeAt(0) - 65;
             for (let r = Number(m[2]); r <= Number(m[4]); r++) {

@@ -1,9 +1,9 @@
 // XLSX vendored-engine binding — maps the packages/office-upstream build
 // artifact (dist/xlsx-gateway.mjs, produced by scripts/office/build-upstream.mjs
 // over the PATCHED scratch tree — patch 0001 fixes cellXfs dedupe) onto the
-// seam in ./engine. The module object arrives already imported (the node
-// entry or the replay driver does the import()), so this file stays free of
-// Node/fs/canvas and the browser boundary holds.
+// seam in ./engine. The module object arrives already resolved (the node
+// entry or the replay driver performs the dynamic import), so this file stays
+// free of Node/fs/canvas and the browser boundary holds.
 //
 // Upstream surface bound here (pinned 09485f88 + patch 0001):
 //   dist/xlsx-gateway.mjs -> readBasicWorkbook / inventoryXlsx /

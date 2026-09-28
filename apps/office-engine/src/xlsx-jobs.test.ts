@@ -4,7 +4,7 @@
 // staged in these tests, so formula-bearing saves must refuse typed — that IS
 // the honest-native-path contract. Recalc-on-the-real-engine evidence lives
 // in the container suite / g2-04 replay where the sidecar is built.
-import { copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
+import { chmod, copyFile, mkdtemp, readFile, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -41,6 +41,9 @@ const SIDECAR_STAGED =
 beforeAll(async () => {
   if (!existsSync(BUILT_GATEWAY) && !ENV_ASSETS) return;
   assetsDir = await mkdtemp(join(tmpdir(), "uw-xlsx-assets-"));
+  // The sandboxed worker reads assets under its slot uid, not the service's:
+  // the staging dir must be traversable by it (0755) like the image's asset dir.
+  await chmod(assetsDir, 0o755);
   await copyFile(ENV_ASSETS ? join(ENV_ASSETS, "xlsx-gateway.mjs") : BUILT_GATEWAY, join(assetsDir, "xlsx-gateway.mjs"));
   h = await startHarness({ xlsxAssetsDir: assetsDir });
 });
@@ -154,6 +157,37 @@ describe.skipIf(!SIDECAR_STAGED)("xlsx jobs with the real Rust sidecar", () => {
     await hn?.close();
   });
 
+  interface GatewayModule {
+    readBasicWorkbook(b: Uint8Array): Promise<{
+      snapshot: { sheets: { name: string; cells: Record<string, { formula?: string; value?: unknown }> }[] };
+    }>;
+    createBufferEntrySource(b: Uint8Array): Promise<{ readText(p: string): Promise<string> }>;
+  }
+  const gateway = async () =>
+    (await import(pathToFileURL(join(ENV_ASSETS!, "xlsx-gateway.mjs")).href)) as GatewayModule;
+
+  // The independent oracle: readBasicWorkbook deliberately reports a formula
+  // cell's cached value as null, so the recalc proof reads <v> straight out of
+  // the worksheet XML the save published.
+  async function worksheetXml(
+    zip: { readText(p: string): Promise<string> },
+    sheetName: string,
+  ): Promise<string> {
+    const wb = await zip.readText("xl/workbook.xml");
+    const rels = await zip.readText("xl/_rels/workbook.xml.rels");
+    const tag = new RegExp(`<sheet\\b[^>]*\\bname="${sheetName}"[^>]*>`).exec(wb)?.[0];
+    const rid = /r:id="([^"]+)"/.exec(tag ?? "")?.[1];
+    const target = new RegExp(`<Relationship\\b[^>]*\\bId="${rid}"[^>]*\\bTarget="([^"]+)"`).exec(rels)?.[1];
+    return zip.readText("xl/" + target);
+  }
+  // Kitchen-sink carries a decoy second <c r="B5"> without <f> (the stale
+  // displayed value), so the oracle reads the formula-bearing cell element.
+  const cellV = (xml: string, addr: string) =>
+    [...xml.matchAll(new RegExp(`<c\\b[^>]*\\br="${addr}"[^>]*>([\\s\\S]*?)</c>`, "g"))]
+      .map((m) => m[1] ?? "")
+      .find((body) => /<f[ >]/.test(body))
+      ?.match(/<v>([^<]+)<\/v>/)?.[1];
+
   it("edit:xlsx recalculates formulas on the real engine and refreshes <v>", async () => {
     // kitchen-sink: Data!B5 =SUM(B2:B4). Edit B2 → the service must write a
     // fresh cached value for B5 (checked by the package-level oracle test in
@@ -170,28 +204,30 @@ describe.skipIf(!SIDECAR_STAGED)("xlsx jobs with the real Rust sidecar", () => {
     expect(done.body.state).toBe("completed");
     const out = hn.target.uploads.at(-1)!.body;
     expect(out.length).toBeGreaterThan(100);
-    // Independent check: the output re-parses through the gateway and the
-    // formula is still a formula (never replaced by its displayed value).
-    const gatewayPath = join(ENV_ASSETS!, "xlsx-gateway.mjs");
-    const mod = (await import(pathToFileURL(gatewayPath).href)) as {
-      readBasicWorkbook(b: Uint8Array): Promise<{ snapshot: { sheets: { name: string; cells: Record<string, { formula?: string; value?: unknown }> }[] } }>;
-    };
+    const mod = await gateway();
     const wb = await mod.readBasicWorkbook(new Uint8Array(out));
     const data = wb.snapshot.sheets.find((s) => s.name === "Data")!;
-    const phuLuc = wb.snapshot.sheets.find((s) => s.name === "PhuLuc")!;
+    // The formula survived as a formula — never replaced by its displayed value.
     expect(data.cells["B5"]?.formula).toBe("=SUM(B2:B4)");
     expect(data.cells["B2"]?.value).toBe(100);
-    // The real engine recalculated the dependent cells: B5 = 100+1.41e9+1.57e9,
-    // and the cross-sheet PhuLuc!B2 tracks the same range; B3 counts 3 labels.
-    expect(data.cells["B5"]?.value).toBe(2980000100);
-    expect(phuLuc.cells["B2"]?.value).toBe(2980000100);
-    expect(phuLuc.cells["B3"]?.value).toBe(3);
+    const zip = await mod.createBufferEntrySource(new Uint8Array(out));
+    const dataXml = await worksheetXml(zip, "Data");
+    const phuLucXml = await worksheetXml(zip, "PhuLuc");
+    // The cross-sheet cells the engine recalculated honestly: PhuLuc!B2 tracks
+    // Data!B2:B4 = 100+1.41e9+1.57e9 on the real Rust engine; B3 counts 3 labels.
+    expect(Number(cellV(phuLucXml, "B2"))).toBe(2980000100);
+    expect(Number(cellV(phuLucXml, "B3"))).toBe(3);
+    // Kitchen-sink's Data sheet is pathological: a <row r="6"> element carries
+    // cells labelled r="B5"/"C5", so the engine relocates the real formulas to
+    // B6/C6 — the writer's formula coordinates get no covered answer and the
+    // file's own cached <v> is kept, warned, and never fabricated.
+    const warnings = (done.body.warnings ?? []) as { code: string }[];
+    expect(warnings.some((w) => w.code === "formula_cache_kept")).toBe(true);
+    expect(cellV(dataXml, "B5")).toBe("4908000000");
   });
 
   it("two consecutive edit saves chain: job2 recalculates on job1's output", async () => {
-    const gateway = (await import(pathToFileURL(join(ENV_ASSETS!, "xlsx-gateway.mjs")).href)) as {
-      readBasicWorkbook(b: Uint8Array): Promise<{ snapshot: { sheets: { name: string; cells: Record<string, { formula?: string; value?: unknown }> }[] } }>;
-    };
+    const mod = await gateway();
     const one = xlsxJob(hn.target, {
       bytes: await xlsxFixture("xlsx-kitchen-sink.xlsx"),
       operation: "edit",
@@ -209,10 +245,13 @@ describe.skipIf(!SIDECAR_STAGED)("xlsx jobs with the real Rust sidecar", () => {
     });
     await submit(hn, two);
     expect((await waitTerminal(hn, two, 60_000)).body.state).toBe("completed");
-    const wb = await gateway.readBasicWorkbook(new Uint8Array(hn.target.uploads.at(-1)!.body));
+    const wb = await mod.readBasicWorkbook(new Uint8Array(hn.target.uploads.at(-1)!.body));
     const data = wb.snapshot.sheets.find((s) => s.name === "Data")!;
     expect(data.cells["B5"]?.formula).toBe("=SUM(B2:B4)");
-    expect(data.cells["B5"]?.value).toBe(10 + 20 + 1570000000);
+    const zip = await mod.createBufferEntrySource(new Uint8Array(hn.target.uploads.at(-1)!.body));
+    const phuLucXml = await worksheetXml(zip, "PhuLuc");
+    // Job 2 recalculated over job 1's published bytes: PhuLuc!B2 = B2(10)+B3(20)+B4(1.57e9).
+    expect(Number(cellV(phuLucXml, "B2"))).toBe(10 + 20 + 1570000000);
   });
 });
 

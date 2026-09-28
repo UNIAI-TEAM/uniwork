@@ -81,12 +81,14 @@ describe("recalcToFormulaValues", () => {
     const { values, kept } = recalcToFormulaValues(expected, {
       cells: [
         { sheet: "Data", row: 0, column: 1, formatted: "6", number: 6, isError: false, isFormula: true },
-        // row 1: a literal the user typed over a formula — no <v> patch.
+        // row 1: a literal answer at an <f> coordinate (the engine deduped
+        // the formula onto a shifted address) cannot refresh the cache —
+        // the file's own <v> is kept and counted.
         { sheet: "Data", row: 1, column: 1, formatted: "typed", isError: false, isFormula: false },
         // row 2 missing entirely: engine gap → keeps file's cached <v>.
       ],
     });
-    expect(kept).toBe(1);
+    expect(kept).toBe(2);
     expect(values).toEqual([{ sheetName: "Data", cells: [{ row: 0, column: 1, value: 6 }] }]);
   });
 });

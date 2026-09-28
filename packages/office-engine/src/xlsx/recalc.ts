@@ -137,7 +137,11 @@ export function recalcToFormulaValues(
   for (const cell of result.cells) {
     seen.set(`${cell.sheet} ${cell.row},${cell.column}`, cell);
   }
-  const kept = expected.filter((c) => !seen.has(`${c.sheetName} ${c.row},${c.column}`)).length;
+  // Only a formula-typed answer covers an expected formula cell — a literal
+  // answer at that coordinate (e.g. the engine deduplicated a cell whose r=
+  // attribute disagreed with its row element onto a shifted address) cannot
+  // refresh an <f> cell's cache, so the file's own <v> is kept and warned.
+  const kept = expected.filter((c) => seen.get(`${c.sheetName} ${c.row},${c.column}`)?.isFormula !== true).length;
   const bySheet = new Map<string, { row: number; column: number; value: XlsxFormulaValue }[]>();
   for (const cell of result.cells) {
     if (!cell.isFormula) continue;

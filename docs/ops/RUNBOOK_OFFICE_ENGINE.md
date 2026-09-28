@@ -53,6 +53,7 @@ only to an origin listed in `OFFICE_ENGINE_OUTPUT_ORIGINS`. The service never fe
 | `OFFICE_ENGINE_SANDBOX` | `auto` (`required` in the image) | Per-job uid sandbox: `auto` engages on Linux + uid 0, `required` refuses to start without it, `off` is for dev debugging |
 | `OFFICE_ENGINE_WORKER_UID_BASE` / `_GID_BASE` | `60100` | Start of the per-slot worker uid/gid pool (`maxWorkers` entries, 1000..65533) |
 | `UNIWORK_PDF_ASSETS` | `/app/pdf-assets` in the image | Directory holding `pdfium.wasm`, `harfbuzz-subset.wasm` and `fonts/` (bundled OFL Noto Sans). Set by the Dockerfile; unset in dev, where assets resolve package-relative |
+| `UNIWORK_XLSX_ASSETS` | `/app/xlsx-assets` in the image | Directory holding `xlsx-gateway.mjs` (patched upstream bundle) and `xlsx-sidecar` (the Rust recalculation binary) plus `build-record.json` checksums. Set by the Dockerfile; in dev point it at a dir staged from `node scripts/office/build-upstream.mjs --with-native` (gateway at `dist/xlsx-gateway.mjs`, binary at `upstream/apps/sheets/native/xlsx-engine/target/release/xlsx-sidecar`). Unset/unstaged is legal: `open:xlsx` and `serialize:xlsx` still run (gateway only), while `edit:xlsx` on a formula-bearing workbook fails `engine_incompatible` — it never falls back to stale cached values |
 
 **Every limit default is provisional** (acceptance-thresholds T-2: not a budget until `n >= 5` on the target machine
 class). Measured so far: see `reports/g2-02-engine-service/limits-measurement.md` in the run folder. XLSX (G2-04)
@@ -202,9 +203,37 @@ with no job running, capture `/metrics` and the logs and restart the container; 
 (`docs/office/g1g2/q7-blocker.md`); it stays a named M1 blocker. Choosing one is a decision for the Advisor/user,
 not a deployment knob.
 
-## Open question: XLSX sidecar — own container or the same service?
+## XLSX lane (G2-04)
 
-Not decided here (handoff-map G2). **Recommendation: same image, supervisor-owned subprocess.**
+- Decision landed as recommended below: the Rust recalculation sidecar ships in the same image
+  (`/app/xlsx-assets/xlsx-sidecar`, built from the vendored `apps/sheets/native/xlsx-engine` crate with its own
+  `Cargo.lock`) and is spawned per job as a supervisor-owned child of the job's worker — inside the per-slot uid
+  sandbox, with the workbook staged into the job's `0700` temp dir. `close()` on job end kills it; the killTree uid
+  sweep is the backstop for a sidecar that escapes its parent.
+- `open:xlsx` probes bytes into a document-model summary (`sheetCount`, `sheetNames`, `cellCount`,
+  `formulaCellCount`, `preservedParts` — charts, pivots, VBA, ActiveX, external links, customXml, embeddings, form
+  controls, comments). `serialize:xlsx` validates committed bytes and passes them through with a
+  `parts_preserved_not_editable` warning when the package carries parts the serializer does not own.
+  `edit:xlsx` runs `ops.json` `edits[]` (`set_cell`, `clear_cell`, `set_cells`) through the patched xlsx-gateway;
+  when the workbook has formulas the worker first asks the sidecar for fresh cached values and writes both in one
+  assemble pass — a formula cell keeps `<f>` and gets a verified `<v>`, never the other way round.
+- The browser-safe half (`@uniwork/office-engine/xlsx`) parses, edits and serializes with jszip only. The native
+  half (`@uniwork/office-engine/xlsx/native`) is Node-only; there is no WASM recalc path and none is claimed — a
+  formula-bearing save without the sidecar answers `unsupported_operation` (adapter) or `engine_incompatible`
+  (binary not staged), never stale values.
+- Sidecar wire protocol is NDJSON v1 (`recalc_cells`/`cancel`, `requestId`-matched) with closed bounds: 10_000 edits
+  and 20_000 summed read cells per request, 2 resident models, 256 cancelled ids. The client maps sidecar codes to
+  contract codes (`cancelled`, `recalc_busy` → `engine_overloaded`, `unsupported_version` → `protocol_mismatch`).
+- Known upstream engine gaps stay honest: cells the engine deliberately skips (`CELL("filename")`, the `RATE`
+  `#NUM!` solver case) keep their file-cached `<v>` and the save reports a `formula_cache_kept` warning with a
+  count — it does not fabricate a value.
+- Preservation is fail-closed: `assertOnlyTouchedEntriesChanged` sha256-verifies every package part outside the
+  plan's touch set; a chart part, macro payload or unsupported OOXML entry that drifted fails the save instead of
+  shipping a silently different package.
+
+### XLSX sidecar — decided: same image, supervisor-owned subprocess (was: open question)
+
+Settled with G2-04 on the runbook recommendation. The reasoning stands:
 
 - ADR 0021 QĐ2 and the accepted `E-XLSX-CYCLE` put recalculation in a native process *inside* the internal service.
 - The supervisor already owns what a native sidecar needs: per-job process tree kill, CPU/RSS sampling of native
@@ -213,7 +242,7 @@ Not decided here (handoff-map G2). **Recommendation: same image, supervisor-owne
 - One image keeps on-prem packaging to one runtime artifact (ADR 0021 "Hệ quả": the on-prem bundle must contain the
   chosen runtime, not only a Node sidecar).
 
-Revisit if G2-04's large-workbook measurement shows the sidecar needs a different scaling or isolation profile than
+Revisit only if a large-workbook measurement shows the sidecar needs a different scaling or isolation profile than
 the rest of the engine (e.g. memory per workbook far above the per-job budget); then split it into its own container
 reached only by this service. Owner of the decision: Advisor with G2-04.
 
