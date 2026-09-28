@@ -133,18 +133,25 @@ WHERE organization_id = sqlc.arg(organization_id)
   AND archived_at IS NULL
 RETURNING id;
 
--- The archived rows an owner holds, with the batch each one was stamped
--- under: the seam emits document.restored with the batch the row cleared,
--- which the restore cannot RETURNING (it writes NULL there).
--- name: ListArchivedDocumentsByOwner :many
+-- The archived rows an owner holds, locked for the caller's transaction and
+-- carrying the batch each one was stamped under: the seam emits
+-- document.restored with the batch the row cleared, which the restore
+-- cannot RETURNING (it writes NULL there). The row lock is what makes that
+-- batch honest - a concurrent rearchive or restore of the same row waits
+-- for this transaction instead of moving the batch between read and clear.
+-- name: LockArchivedDocumentsByOwner :many
 SELECT id, archive_batch_id
 FROM documents
 WHERE organization_id = sqlc.arg(organization_id)
   AND workspace_id = sqlc.arg(workspace_id)
   AND owner_id = sqlc.arg(owner_id)
   AND archived_at IS NOT NULL
-ORDER BY id;
+ORDER BY id
+FOR UPDATE;
 
+-- The restore update touches exactly the rows the lock above read: a row
+-- archived after the lock (or by a racing transaction) is a newer batch and
+-- stays put.
 -- name: RestoreDocumentsByOwner :many
 UPDATE documents
 SET archived_at = NULL,
@@ -156,6 +163,7 @@ SET archived_at = NULL,
 WHERE organization_id = sqlc.arg(organization_id)
   AND workspace_id = sqlc.arg(workspace_id)
   AND owner_id = sqlc.arg(owner_id)
+  AND id = ANY(sqlc.arg(ids)::text[])
   AND archived_at IS NOT NULL
 RETURNING id;
 

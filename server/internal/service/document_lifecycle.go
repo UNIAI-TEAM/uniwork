@@ -414,42 +414,47 @@ func (s *DocumentService) ArchiveOwnedDocumentsInTx(ctx context.Context, q *db.Q
 
 // RestoreOwnedDocumentsInTx restores the documents an owner archived, inside
 // the caller's transaction. Returns the restored ids. The rows' own batch
-// ids are read before the clear so each document.restored frame names the
-// batch it left, like the public restore.
+// ids are read under row locks so each document.restored frame names the
+// batch it actually left - a concurrent rearchive cannot move it between
+// the read and the clear - and the update touches exactly the locked rows.
+// A row archived before batches existed still emits the key, empty, like
+// the public restore.
 func (s *DocumentService) RestoreOwnedDocumentsInTx(ctx context.Context, q *db.Queries, actor Actor, organizationID, workspaceID, ownerID string) ([]string, error) {
 	if ownerID == "" {
 		return nil, Invalid("owner_id bắt buộc")
 	}
-	archived, err := q.ListArchivedDocumentsByOwner(ctx, db.ListArchivedDocumentsByOwnerParams{
+	archived, err := q.LockArchivedDocumentsByOwner(ctx, db.LockArchivedDocumentsByOwnerParams{
 		OrganizationID: organizationID, WorkspaceID: workspaceID, OwnerID: pgtype.Text{String: ownerID, Valid: true},
 	})
 	if err != nil {
 		return nil, err
 	}
+	ids := make([]string, 0, len(archived))
 	batchOf := make(map[string]string, len(archived))
 	for _, r := range archived {
+		ids = append(ids, r.ID)
 		batchOf[r.ID] = r.ArchiveBatchID.String
 	}
-	stamped, err := q.RestoreDocumentsByOwner(ctx, db.RestoreDocumentsByOwnerParams{
-		OrganizationID: organizationID, WorkspaceID: workspaceID, OwnerID: pgtype.Text{String: ownerID, Valid: true},
-	})
-	if err != nil {
-		return nil, err
+	var stamped []string
+	if len(ids) > 0 {
+		stamped, err = q.RestoreDocumentsByOwner(ctx, db.RestoreDocumentsByOwnerParams{
+			OrganizationID: organizationID, WorkspaceID: workspaceID, OwnerID: pgtype.Text{String: ownerID, Valid: true},
+			Ids: ids,
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 	for _, id := range stamped {
 		batch := batchOf[id]
-		metadata := map[string]any{"owner_id": ownerID}
-		payload := map[string]string{"document_id": id, "workspace_id": workspaceID}
-		if batch != "" {
-			metadata["archive_batch_id"] = batch
-			payload["archive_batch_id"] = batch
-		}
 		if err := auditRecorder.Record(ctx, q, audit.Entry{
 			OrganizationID: organizationID, WorkspaceID: workspaceID,
 			Actor: actor, Action: audit.ActionDocumentRestored,
 			ResourceType: "document", ResourceID: id,
-			Metadata: metadata,
-		}, audit.Event{Topic: "document.restored", Payload: payload}); err != nil {
+			Metadata: map[string]any{"owner_id": ownerID, "archive_batch_id": batch},
+		}, audit.Event{Topic: "document.restored", Payload: map[string]string{
+			"document_id": id, "workspace_id": workspaceID, "archive_batch_id": batch,
+		}}); err != nil {
 			return nil, err
 		}
 	}
@@ -487,11 +492,21 @@ func (s *DocumentService) ArchiveOwnedDocumentInTx(ctx context.Context, q *db.Qu
 }
 
 // RestoreOwnedDocumentInTx restores one owned document inside the caller's
-// transaction; false when it is not owned or not archived.
+// transaction; false when it is not owned or not archived. The row lock is
+// what makes the emitted batch id honest: a concurrent rearchive or restore
+// of the same row waits for this transaction instead of moving the batch
+// between the read and the clear.
 func (s *DocumentService) RestoreOwnedDocumentInTx(ctx context.Context, q *db.Queries, actor Actor, organizationID, workspaceID, documentID string) (bool, error) {
-	before, err := q.GetDocument(ctx, db.GetDocumentParams{
+	// Classify in-tenant without locking first so a foreign id never takes
+	// a row lock outside its own workspace pair.
+	if _, err := q.GetDocument(ctx, db.GetDocumentParams{
 		ID: documentID, OrganizationID: organizationID, WorkspaceID: workspaceID,
-	})
+	}); errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	} else if err != nil {
+		return false, err
+	}
+	before, err := q.LockDocumentByID(ctx, documentID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}
@@ -507,12 +522,8 @@ func (s *DocumentService) RestoreOwnedDocumentInTx(ctx context.Context, q *db.Qu
 	if err != nil {
 		return false, err
 	}
-	metadata := map[string]any{"seam": "owner"}
-	payload := map[string]string{"document_id": stamped, "workspace_id": workspaceID}
-	if before.ArchiveBatchID.Valid {
-		metadata["archive_batch_id"] = before.ArchiveBatchID.String
-		payload["archive_batch_id"] = before.ArchiveBatchID.String
-	}
+	metadata := map[string]any{"seam": "owner", "archive_batch_id": before.ArchiveBatchID.String}
+	payload := map[string]string{"document_id": stamped, "workspace_id": workspaceID, "archive_batch_id": before.ArchiveBatchID.String}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: organizationID, WorkspaceID: workspaceID,
 		Actor: actor, Action: audit.ActionDocumentRestored,
@@ -614,7 +625,7 @@ func (s *DocumentService) PurgeExpired(ctx context.Context, now time.Time) (Docu
 			if ctx.Err() != nil {
 				return rep, ctx.Err()
 			}
-			purged, err := s.purgeOneAsset(ctx, a)
+			purged, err := s.purgeOneAsset(ctx, a, cutoff)
 			if err != nil {
 				rep.Failed++
 				slog.Warn("documents purge: asset row failed, next sweep retries", "asset", a.ID, "err", err)
@@ -732,8 +743,10 @@ func (s *DocumentService) purgeOneDocument(ctx context.Context, d db.ListDocumen
 
 // purgeOneAsset removes one orphaned asset row past its grace and releases
 // the file it names. A version that still references it (a restore can bring
-// the reference back) keeps it.
-func (s *DocumentService) purgeOneAsset(ctx context.Context, a db.ListOrphanedDocumentAssetsRow) (bool, error) {
+// the reference back) keeps it. The grace check runs again under the
+// document lock: a row referenced and re-orphaned between the scan and here
+// gets a fresh orphaned_at and a fresh seven days.
+func (s *DocumentService) purgeOneAsset(ctx context.Context, a db.ListOrphanedDocumentAssetsRow, cutoff time.Time) (bool, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return false, err
@@ -765,11 +778,12 @@ func (s *DocumentService) purgeOneAsset(ctx context.Context, a db.ListOrphanedDo
 	if err != nil {
 		return false, err
 	}
-	if !asset.OrphanedAt.Valid {
-		return false, nil // referenced again since the scan
+	if !asset.OrphanedAt.Valid || !asset.OrphanedAt.Time.Before(cutoff) {
+		return false, nil // referenced again, or orphaned anew inside the grace
 	}
 	n, err := q.DeleteDocumentAsset(ctx, db.DeleteDocumentAssetParams{
 		ID: a.ID, OrganizationID: a.OrganizationID, WorkspaceID: a.WorkspaceID, DocumentID: a.DocumentID,
+		OrphanedBefore: pgtype.Timestamptz{Time: cutoff, Valid: true},
 	})
 	if err != nil || n == 0 {
 		return false, err

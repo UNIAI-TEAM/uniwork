@@ -280,50 +280,6 @@ func (q *Queries) DetachDocumentToRoot(ctx context.Context, arg DetachDocumentTo
 	return i, err
 }
 
-const listArchivedDocumentsByOwner = `-- name: ListArchivedDocumentsByOwner :many
-SELECT id, archive_batch_id
-FROM documents
-WHERE organization_id = $1
-  AND workspace_id = $2
-  AND owner_id = $3
-  AND archived_at IS NOT NULL
-ORDER BY id
-`
-
-type ListArchivedDocumentsByOwnerParams struct {
-	OrganizationID string      `json:"organization_id"`
-	WorkspaceID    string      `json:"workspace_id"`
-	OwnerID        pgtype.Text `json:"owner_id"`
-}
-
-type ListArchivedDocumentsByOwnerRow struct {
-	ID             string      `json:"id"`
-	ArchiveBatchID pgtype.Text `json:"archive_batch_id"`
-}
-
-// The archived rows an owner holds, with the batch each one was stamped
-// under: the seam emits document.restored with the batch the row cleared,
-// which the restore cannot RETURNING (it writes NULL there).
-func (q *Queries) ListArchivedDocumentsByOwner(ctx context.Context, arg ListArchivedDocumentsByOwnerParams) ([]ListArchivedDocumentsByOwnerRow, error) {
-	rows, err := q.db.Query(ctx, listArchivedDocumentsByOwner, arg.OrganizationID, arg.WorkspaceID, arg.OwnerID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListArchivedDocumentsByOwnerRow{}
-	for rows.Next() {
-		var i ListArchivedDocumentsByOwnerRow
-		if err := rows.Scan(&i.ID, &i.ArchiveBatchID); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listDocumentArchiveBatch = `-- name: ListDocumentArchiveBatch :many
 SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id
 FROM documents
@@ -542,6 +498,54 @@ func (q *Queries) ListDocumentSubtree(ctx context.Context, arg ListDocumentSubtr
 	return items, nil
 }
 
+const lockArchivedDocumentsByOwner = `-- name: LockArchivedDocumentsByOwner :many
+SELECT id, archive_batch_id
+FROM documents
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND owner_id = $3
+  AND archived_at IS NOT NULL
+ORDER BY id
+FOR UPDATE
+`
+
+type LockArchivedDocumentsByOwnerParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	OwnerID        pgtype.Text `json:"owner_id"`
+}
+
+type LockArchivedDocumentsByOwnerRow struct {
+	ID             string      `json:"id"`
+	ArchiveBatchID pgtype.Text `json:"archive_batch_id"`
+}
+
+// The archived rows an owner holds, locked for the caller's transaction and
+// carrying the batch each one was stamped under: the seam emits
+// document.restored with the batch the row cleared, which the restore
+// cannot RETURNING (it writes NULL there). The row lock is what makes that
+// batch honest - a concurrent rearchive or restore of the same row waits
+// for this transaction instead of moving the batch between read and clear.
+func (q *Queries) LockArchivedDocumentsByOwner(ctx context.Context, arg LockArchivedDocumentsByOwnerParams) ([]LockArchivedDocumentsByOwnerRow, error) {
+	rows, err := q.db.Query(ctx, lockArchivedDocumentsByOwner, arg.OrganizationID, arg.WorkspaceID, arg.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LockArchivedDocumentsByOwnerRow{}
+	for rows.Next() {
+		var i LockArchivedDocumentsByOwnerRow
+		if err := rows.Scan(&i.ID, &i.ArchiveBatchID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const moveDocument = `-- name: MoveDocument :one
 UPDATE documents
 SET parent_id = $1,
@@ -639,6 +643,7 @@ SET archived_at = NULL,
 WHERE organization_id = $1
   AND workspace_id = $2
   AND owner_id = $3
+  AND id = ANY($4::text[])
   AND archived_at IS NOT NULL
 RETURNING id
 `
@@ -647,10 +652,19 @@ type RestoreDocumentsByOwnerParams struct {
 	OrganizationID string      `json:"organization_id"`
 	WorkspaceID    string      `json:"workspace_id"`
 	OwnerID        pgtype.Text `json:"owner_id"`
+	Ids            []string    `json:"ids"`
 }
 
+// The restore update touches exactly the rows the lock above read: a row
+// archived after the lock (or by a racing transaction) is a newer batch and
+// stays put.
 func (q *Queries) RestoreDocumentsByOwner(ctx context.Context, arg RestoreDocumentsByOwnerParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, restoreDocumentsByOwner, arg.OrganizationID, arg.WorkspaceID, arg.OwnerID)
+	rows, err := q.db.Query(ctx, restoreDocumentsByOwner,
+		arg.OrganizationID,
+		arg.WorkspaceID,
+		arg.OwnerID,
+		arg.Ids,
+	)
 	if err != nil {
 		return nil, err
 	}

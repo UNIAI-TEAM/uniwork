@@ -62,9 +62,6 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 	if err != nil {
 		return DocumentView{}, err
 	}
-	if in.ParentID == documentID {
-		return DocumentView{}, errDocumentCycle()
-	}
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -123,6 +120,11 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 	if err := decideDocumentAccess(doc, access, DocumentLevelEdit); err != nil {
 		return DocumentView{}, err
 	}
+	// The self-parent check sits behind the access gate: answering
+	// document_cycle before it would tell a stranger the id exists.
+	if in.ParentID == documentID {
+		return DocumentView{}, errDocumentCycle()
+	}
 	if doc.ArchivedAt.Valid {
 		return DocumentView{}, errDocumentDeleted()
 	}
@@ -165,6 +167,17 @@ func (s *DocumentService) MoveDocument(ctx context.Context, actor Actor, documen
 			return DocumentView{}, ErrNotFound
 		}
 		if p.WorkspaceID != doc.WorkspaceID {
+			// The distinct reason is only for a caller who can already see
+			// the foreign-workspace row (its members, or a share recipient);
+			// anyone else gets the unknown-id answer so the 422 never
+			// confirms the id exists (Backend ID Rules).
+			paccess, err := s.effectiveLevel(ctx, q, actor, p)
+			if err != nil {
+				return DocumentView{}, err
+			}
+			if paccess.Level == DocumentLevelNone {
+				return DocumentView{}, ErrNotFound
+			}
 			return DocumentView{}, errDocumentCrossWorkspace()
 		}
 		parent, err = q.LockDocumentByID(ctx, in.ParentID)

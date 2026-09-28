@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
 	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -117,7 +119,13 @@ func TestDocumentArchive(t *testing.T) {
 			t.Fatalf("restore affected %v, want the same 3", res.Affected)
 		}
 		for _, id := range []string{root.ID, child.ID, grand.ID} {
-			f.live(t, id)
+			d := f.live(t, id)
+			// A restored row is a changed row: revision and updated_at move
+			// so a client holding the pre-archive revision conflicts on
+			// write instead of silently keeping a stale base (R1-09).
+			if d.Revision != 2 {
+				t.Fatalf("%s revision = %d, want 2 (restore bumps)", id, d.Revision)
+			}
 		}
 	})
 
@@ -183,6 +191,65 @@ func TestDocumentArchive(t *testing.T) {
 		}
 		_, err := f.svc.MoveDocument(f.ctx, owner, a.ID, MoveDocumentInput{ParentID: dst.ID, Revision: 1})
 		wantCode(t, err, "document_deleted")
+	})
+
+	t.Run("the owner restore seams name the batch each row cleared", func(t *testing.T) {
+		// R1-08: archived through the seam so the row carries a real batch;
+		// the document.restored frame's archive_batch_id is that batch, read
+		// under the row lock. A row archived without a batch still emits the
+		// key, empty, like the public restore.
+		live := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", createdBy: tn.aclOwner.ID, ownerID: "wp-seam-a"})
+		legacy := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", createdBy: tn.aclOwner.ID, ownerID: "wp-seam-b", archived: true})
+
+		tx, err := f.pool.Begin(f.ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ok, err := f.svc.ArchiveOwnedDocumentInTx(f.ctx, f.q.WithTx(tx), owner, tn.orgID, tn.wsA, live.ID)
+		if err != nil || !ok {
+			t.Fatalf("owner archive = (%v, %v)", ok, err)
+		}
+		if err := tx.Commit(f.ctx); err != nil {
+			t.Fatal(err)
+		}
+		var batch string
+		if err := f.pool.QueryRow(f.ctx, `SELECT archive_batch_id FROM documents WHERE id = $1`, live.ID).Scan(&batch); err != nil || batch == "" {
+			t.Fatalf("archived batch = %q, err=%v", batch, err)
+		}
+
+		tx, err = f.pool.Begin(f.ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ok, err = f.svc.RestoreOwnedDocumentInTx(f.ctx, f.q.WithTx(tx), owner, tn.orgID, tn.wsA, live.ID)
+		if err != nil || !ok {
+			t.Fatalf("single owner restore = (%v, %v)", ok, err)
+		}
+		restored, err := f.svc.RestoreOwnedDocumentsInTx(f.ctx, f.q.WithTx(tx), owner, tn.orgID, tn.wsA, "wp-seam-b")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := tx.Commit(f.ctx); err != nil {
+			t.Fatal(err)
+		}
+		if len(restored) != 1 || restored[0] != legacy.ID {
+			t.Fatalf("bulk owner restore = %v, want [%s]", restored, legacy.ID)
+		}
+		var gotBatch string
+		if err := f.pool.QueryRow(f.ctx,
+			`SELECT payload::jsonb->>'archive_batch_id' FROM outbox_events
+			 WHERE topic = 'document.restored' AND payload::jsonb->>'document_id' = $1`, live.ID).Scan(&gotBatch); err != nil {
+			t.Fatal(err)
+		}
+		if gotBatch != batch {
+			t.Fatalf("restored frame batch = %q, want %q", gotBatch, batch)
+		}
+		var hasKey bool
+		if err := f.pool.QueryRow(f.ctx,
+			`SELECT payload::jsonb ? 'archive_batch_id' FROM outbox_events
+			 WHERE topic = 'document.restored' AND payload::jsonb->>'document_id' = $1`, legacy.ID).Scan(&hasKey); err != nil || !hasKey {
+			t.Fatalf("legacy-batch frame missing archive_batch_id (has=%v, err=%v)", hasKey, err)
+		}
 	})
 }
 
@@ -375,6 +442,40 @@ func TestDocumentPurge(t *testing.T) {
 		var n int
 		if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM document_assets WHERE id = $1`, dead).Scan(&n); err != nil || n != 0 {
 			t.Fatalf("dead asset still present (n=%d, err=%v)", n, err)
+		}
+	})
+
+	t.Run("an asset orphaned anew inside the grace survives", func(t *testing.T) {
+		// R2-02: the scan classified the row on a stale stamp; the purge
+		// re-checks the row's own orphaned_at under the document lock, so an
+		// asset referenced and re-orphaned meanwhile keeps a fresh seven
+		// days.
+		spy := &releaseSpy{}
+		f.svc.SetFiles(spy)
+		d := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		assetID := util.NewID()
+		insertRow(t, f.ctx, f.pool, "document_assets", map[string]any{
+			"id": assetID, "organization_id": tn.orgID, "workspace_id": tn.wsA,
+			"document_id": d.ID, "file_id": "f-reorphaned", "mime_type": "image/png", "size_bytes": 10,
+			"created_by": d.CreatedBy, "created_by_kind": "human",
+			"orphaned_at": time.Now().Add(-24 * time.Hour), // inside the grace now
+		})
+		// The scan row carries the stale stamp the classification saw.
+		purged, err := f.svc.purgeOneAsset(f.ctx, db.ListOrphanedDocumentAssetsRow{
+			ID: assetID, OrganizationID: tn.orgID, WorkspaceID: tn.wsA, DocumentID: d.ID,
+			OrphanedAt: pgtype.Timestamptz{Time: time.Now().Add(-8 * 24 * time.Hour), Valid: true},
+		}, time.Now().Add(-documentAssetRetentionDays*24*time.Hour))
+		if err != nil || purged {
+			t.Fatalf("purgeOneAsset = (%v, %v), want (false, nil) for a re-orphaned asset", purged, err)
+		}
+		var n int
+		if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM document_assets WHERE id = $1`, assetID).Scan(&n); err != nil || n != 1 {
+			t.Fatalf("re-orphaned asset gone (n=%d, err=%v)", n, err)
+		}
+		for _, id := range spy.releasedIDs() {
+			if id == "f-reorphaned" {
+				t.Fatal("a re-orphaned asset's file was released")
+			}
 		}
 	})
 

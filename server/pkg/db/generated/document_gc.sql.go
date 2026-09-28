@@ -105,21 +105,27 @@ WHERE id = $1
   AND workspace_id = $3
   AND document_id = $4
   AND orphaned_at IS NOT NULL
+  AND orphaned_at < $5
 `
 
 type DeleteDocumentAssetParams struct {
-	ID             string `json:"id"`
-	OrganizationID string `json:"organization_id"`
-	WorkspaceID    string `json:"workspace_id"`
-	DocumentID     string `json:"document_id"`
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	DocumentID     string             `json:"document_id"`
+	OrphanedBefore pgtype.Timestamptz `json:"orphaned_before"`
 }
 
+// The orphaned_at bound is restated in the delete itself: an asset orphaned
+// anew inside the grace window survives even when its scan row carried a
+// stale timestamp.
 func (q *Queries) DeleteDocumentAsset(ctx context.Context, arg DeleteDocumentAssetParams) (int64, error) {
 	result, err := q.db.Exec(ctx, deleteDocumentAsset,
 		arg.ID,
 		arg.OrganizationID,
 		arg.WorkspaceID,
 		arg.DocumentID,
+		arg.OrphanedBefore,
 	)
 	if err != nil {
 		return 0, err

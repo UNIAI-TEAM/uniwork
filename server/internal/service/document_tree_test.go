@@ -219,6 +219,32 @@ func TestDocumentTree(t *testing.T) {
 		}
 	})
 
+	t.Run("a parent in a workspace the caller cannot see is not found", func(t *testing.T) {
+		// member holds edit on a but belongs to wsA only: a wsB id answers
+		// like an unknown id - the 422 would confirm the row exists (R1-06).
+		a := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		b := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsB, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		member := Human(tn.member.ID)
+		if _, err := f.svc.MoveDocument(f.ctx, member, a.ID, MoveDocumentInput{ParentID: b.ID, Revision: 1}); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("move to an unseen workspace's parent = %v, want ErrNotFound", err)
+		}
+		// A caller who can already see the foreign row still earns the
+		// distinct reason - here through a user share on it.
+		f.share(t, b, DocumentPrincipalUser, tn.member.ID, DocumentLevelEdit, tn.aclOwner.ID)
+		_, err := f.svc.MoveDocument(f.ctx, member, a.ID, MoveDocumentInput{ParentID: b.ID, Revision: 1})
+		wantCode(t, err, "cross_workspace_reference")
+	})
+
+	t.Run("an invisible document's self-parent move is not found", func(t *testing.T) {
+		// R1-07: the cycle check sits behind the access gate - a document a
+		// stranger cannot read must answer like an unknown id, never the
+		// cycle code that would confirm the id exists.
+		hidden := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		if _, err := f.svc.MoveDocument(f.ctx, Human(tn.member.ID), hidden.ID, MoveDocumentInput{ParentID: hidden.ID, Revision: 1}); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("self-parent on an invisible doc = %v, want ErrNotFound", err)
+		}
+	})
+
 	t.Run("a move needs edit on source AND destination", func(t *testing.T) {
 		src := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
 		dst := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "restricted", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})

@@ -118,13 +118,17 @@ SELECT EXISTS (
     AND strpos(v.content::text, 'asset://' || sqlc.arg(asset_id)) > 0
 ) AS held;
 
+-- The orphaned_at bound is restated in the delete itself: an asset orphaned
+-- anew inside the grace window survives even when its scan row carried a
+-- stale timestamp.
 -- name: DeleteDocumentAsset :execrows
 DELETE FROM document_assets
 WHERE id = sqlc.arg(id)
   AND organization_id = sqlc.arg(organization_id)
   AND workspace_id = sqlc.arg(workspace_id)
   AND document_id = sqlc.arg(document_id)
-  AND orphaned_at IS NOT NULL;
+  AND orphaned_at IS NOT NULL
+  AND orphaned_at < sqlc.arg(orphaned_before);
 
 -- Quiet-page scan for the auto-version worker: a page whose content was
 -- saved more than the quiet window ago and newer than its last versioned

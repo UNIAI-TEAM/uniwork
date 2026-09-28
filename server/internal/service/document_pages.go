@@ -317,6 +317,18 @@ func (s *DocumentService) replayCreatedPage(ctx context.Context, q *db.Queries, 
 // tenant pair, outside any work product, that the caller may edit, with room
 // for one more level below it.
 func (s *DocumentService) lockPageParent(ctx context.Context, q *db.Queries, actor Actor, parentID, orgID, workspaceID string) (db.Document, error) {
+	// Classify before locking: a parent outside this tenant pair answers
+	// not_found without ever taking its row lock, so a create in one
+	// workspace never queues on a foreign workspace's writer
+	// (organization_id/workspace_id are immutable, the scoped read answers
+	// them definitively).
+	if _, err := q.GetDocument(ctx, db.GetDocumentParams{
+		ID: parentID, OrganizationID: orgID, WorkspaceID: workspaceID,
+	}); errors.Is(err, pgx.ErrNoRows) {
+		return db.Document{}, ErrNotFound
+	} else if err != nil {
+		return db.Document{}, err
+	}
 	parent, err := q.LockDocumentByID(ctx, parentID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return db.Document{}, ErrNotFound
