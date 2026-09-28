@@ -44,6 +44,7 @@ import (
 //	POST   /api/v1/documents/{documentID}/assets
 //	GET    /api/v1/documents/{documentID}/assets/{assetID}  (HEAD)
 //	PUT    /api/v1/orgs/{orgID}/documents/settings                (G1-05b)
+//	GET    /api/v1/orgs/{orgID}/documents/settings                (G1-08)
 //
 //	GET    /api/v1/documents/{documentID}/comments
 //	POST   /api/v1/documents/{documentID}/comments
@@ -288,6 +289,13 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		tags:        []string{"documents"},
 		sdi:         sdi.ListDocumentAccessLogsSDI{},
 		sdo:         sdo.DocumentAccessLogListSDO{},
+		auth:        true,
+	})
+	d.Get("/orgs/{orgID}/documents/settings", h.GetDocumentSettings, apiOp{
+		summary:     "Read the organization public-link switch",
+		description: "Công tắc liên kết công khai của tổ chức. Chỉ owner/admin tổ chức đọc được; tổ chức chưa từng đổi trả về mặc định tắt (không ghi dòng nào).",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentSettingsSDO{},
 		auth:        true,
 	})
 	d.Put("/orgs/{orgID}/documents/settings", h.SetDocumentSettings, apiOp{

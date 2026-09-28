@@ -421,6 +421,7 @@ type Routes struct {
 	CreateDocumentLink     http.HandlerFunc
 	RevokeDocumentLink     http.HandlerFunc
 	ListDocumentAccessLogs http.HandlerFunc
+	GetDocumentSettings    http.HandlerFunc
 	SetDocumentSettings    http.HandlerFunc
 	GetPublicDocument      http.HandlerFunc
 	DownloadPublicDocument http.HandlerFunc

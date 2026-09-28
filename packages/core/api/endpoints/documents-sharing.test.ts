@@ -3,6 +3,7 @@ import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { setAccessToken } from "../session";
 import {
   createDocumentLink,
+  getDocumentSettings,
   getDocumentShares,
   listDocumentAccessLogs,
   revokeDocumentLink,
@@ -149,6 +150,17 @@ describe("documents-sharing endpoints", () => {
     expect(init?.method).toBe("PUT");
     expect(JSON.parse(String(init?.body))).toEqual({ public_links_enabled: true });
     expect(out?.public_links_enabled).toBe(true);
+  });
+
+  it("getDocumentSettings reads the switch (G1-08)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ organization_id: "o1", public_links_enabled: false }),
+    );
+    const out = await getDocumentSettings("o1");
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/orgs/o1/documents/settings");
+    expect(init?.method ?? "GET").toBe("GET");
+    expect(out).toEqual({ organization_id: "o1", public_links_enabled: false });
   });
 
   // ---- malformed responses: one per endpoint -----------------------------
