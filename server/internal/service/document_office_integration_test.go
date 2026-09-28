@@ -141,7 +141,7 @@ func (e *officeRealEnv) runSerialize(t *testing.T, created DocumentFileResult, f
 	ctx := context.Background()
 	member := human(e.tn.member)
 	row, err := e.jobs.StartOfficeJobForDocument(ctx, member, created.Document.ID, OfficeJobRequest{
-		Operation: office.OperationSerialize, IdempotencyKey: util.NewID(), Deadline: 60 * time.Second,
+		Operation: string(office.OperationSerialize), IdempotencyKey: util.NewID(), Deadline: 60 * time.Second,
 	})
 	if err != nil {
 		t.Fatalf("%s serialize: %v", format, err)
@@ -217,7 +217,7 @@ func TestDocumentOfficeIntegration(t *testing.T) {
 		body := mustReadFixture(t, "pdf/pdf-text-editable.pdf")
 		created := e.doc(t, "text-editable.pdf", body)
 		open, err := e.jobs.StartOfficeJobForDocument(ctx, member, created.Document.ID, OfficeJobRequest{
-			Operation: office.OperationOpen, IdempotencyKey: util.NewID(), Deadline: 60 * time.Second,
+			Operation: string(office.OperationOpen), IdempotencyKey: util.NewID(), Deadline: 60 * time.Second,
 		})
 		if err != nil {
 			t.Fatalf("pdf open: %v", err)
@@ -236,7 +236,7 @@ func TestDocumentOfficeIntegration(t *testing.T) {
 		// nameless provider output must not lose the document's format.
 		doc := e.env.doc(t, created.Document.ID)
 		reopen, err := e.jobs.StartOfficeJobForDocument(ctx, member, doc.ID, OfficeJobRequest{
-			Operation: office.OperationOpen, IdempotencyKey: util.NewID(), Deadline: 60 * time.Second,
+			Operation: string(office.OperationOpen), IdempotencyKey: util.NewID(), Deadline: 60 * time.Second,
 		})
 		if err != nil {
 			t.Fatalf("pdf reopen: %v", err)
@@ -256,7 +256,7 @@ func TestDocumentOfficeIntegration(t *testing.T) {
 		} {
 			created := e.fixtureDoc(t, row.rel, row.filename)
 			_, err := e.jobs.StartOfficeJobForDocument(ctx, member, created.Document.ID, OfficeJobRequest{
-				Operation: office.OperationSerialize, IdempotencyKey: util.NewID(), Deadline: 30 * time.Second,
+				Operation: string(office.OperationSerialize), IdempotencyKey: util.NewID(), Deadline: 30 * time.Second,
 			})
 			ee := wantOfficeCode(t, err, "unsupported_operation")
 			if ee.Reason != "not_bound" {
@@ -281,7 +281,7 @@ func TestDocumentOfficeIntegration(t *testing.T) {
 	t.Run("blank: create_blank makes real engine bytes for md and html", func(t *testing.T) {
 		for _, format := range []office.Format{office.FormatMD, office.FormatHTML} {
 			res, err := e.jobs.CreateBlankFile(ctx, member, e.tn.wsA, BlankFileInput{
-				Format: format, Title: "Blank " + string(format), IdempotencyKey: util.NewID(),
+				Format: string(format), Title: "Blank " + string(format), IdempotencyKey: util.NewID(),
 			})
 			if err != nil {
 				t.Fatalf("%s blank: %v", format, err)
@@ -433,7 +433,7 @@ func TestDocumentOfficeIntegration(t *testing.T) {
 		created := e.doc(t, "checksum.md", body)
 		before := e.versionCount(t, created.Document.ID)
 		row, err := e.jobs.StartOfficeJobForDocument(ctx, member, created.Document.ID, OfficeJobRequest{
-			Operation: office.OperationSerialize, IdempotencyKey: util.NewID(), Deadline: 30 * time.Second,
+			Operation: string(office.OperationSerialize), IdempotencyKey: util.NewID(), Deadline: 30 * time.Second,
 		})
 		if err != nil {
 			t.Fatalf("start: %v", err)
@@ -483,7 +483,7 @@ func TestDocumentOfficeIntegration(t *testing.T) {
 		created := e.doc(t, "timeout.md", []byte("uniwork-fault:sleep 5000\n\ntext\n"))
 		before := e.versionCount(t, created.Document.ID)
 		row, err := e.jobs.StartOfficeJobForDocument(ctx, member, created.Document.ID, OfficeJobRequest{
-			Operation: office.OperationSerialize, IdempotencyKey: util.NewID(), Deadline: 2 * time.Second,
+			Operation: string(office.OperationSerialize), IdempotencyKey: util.NewID(), Deadline: 2 * time.Second,
 		})
 		if err != nil {
 			t.Fatalf("start: %v", err)
@@ -508,7 +508,7 @@ func TestDocumentOfficeIntegration(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			_, startErr = e.jobs.StartOfficeJobForDocument(ctx, member, created.Document.ID, OfficeJobRequest{
-				Operation: office.OperationSerialize, IdempotencyKey: key, Deadline: 30 * time.Second,
+				Operation: string(office.OperationSerialize), IdempotencyKey: key, Deadline: 30 * time.Second,
 			})
 		}()
 		var live db.OfficeJob
@@ -551,7 +551,7 @@ func TestDocumentOfficeIntegration(t *testing.T) {
 		created := e.doc(t, "crash.md", []byte("uniwork-fault:crash\n\ntext\n"))
 		before := e.versionCount(t, created.Document.ID)
 		row, err := e.jobs.StartOfficeJobForDocument(ctx, member, created.Document.ID, OfficeJobRequest{
-			Operation: office.OperationSerialize, IdempotencyKey: util.NewID(), Deadline: 30 * time.Second,
+			Operation: string(office.OperationSerialize), IdempotencyKey: util.NewID(), Deadline: 30 * time.Second,
 		})
 		if err == nil {
 			if settled := e.settle(t, row.ID); settled.State == string(office.JobCompleted) {
@@ -578,7 +578,7 @@ func TestDocumentOfficeIntegration(t *testing.T) {
 			t.Fatal("download with engine down returned nothing")
 		}
 		if _, err := e.jobs.StartOfficeJobForDocument(ctx, member, created.Document.ID, OfficeJobRequest{
-			Operation: office.OperationSerialize, IdempotencyKey: util.NewID(), Deadline: 10 * time.Second,
+			Operation: string(office.OperationSerialize), IdempotencyKey: util.NewID(), Deadline: 10 * time.Second,
 		}); err == nil {
 			t.Fatal("a job started with the engine down")
 		}

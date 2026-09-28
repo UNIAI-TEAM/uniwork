@@ -202,7 +202,7 @@ func TestDocumentOfficeBlankRefusals(t *testing.T) {
 	before := f.documentCount(t)
 
 	// A format with no blank generator stores nothing at all.
-	if _, err := svc.CreateBlankFile(ctx, human, f.ws, BlankFileInput{Format: office.FormatPDF, Title: "Trong"}); err == nil {
+	if _, err := svc.CreateBlankFile(ctx, human, f.ws, BlankFileInput{Format: string(office.FormatPDF), Title: "Trong"}); err == nil {
 		t.Fatal("pdf blank create succeeded")
 	} else if ee := wantOfficeCode(t, err, "unsupported_operation"); ee.Reason != "blank_not_bound" {
 		t.Fatalf("pdf blank refusal = %+v", ee)
@@ -212,22 +212,22 @@ func TestDocumentOfficeBlankRefusals(t *testing.T) {
 	}
 
 	// The same rule holds for the Office packages: an empty DOCX is not a document.
-	if _, err := svc.CreateBlankFile(ctx, human, f.ws, BlankFileInput{Format: office.FormatDOCX, Title: "Trong"}); err == nil {
+	if _, err := svc.CreateBlankFile(ctx, human, f.ws, BlankFileInput{Format: string(office.FormatDOCX), Title: "Trong"}); err == nil {
 		t.Fatal("docx blank create succeeded")
 	}
 	// An agent never writes documents directly (ADR 0010).
 	agent := Actor{Kind: audit.KindAgent, ID: f.tn.agent}
-	if _, err := svc.CreateBlankFile(ctx, agent, f.ws, BlankFileInput{Format: office.FormatMD, Title: "Trong"}); !errors.Is(err, ErrForbidden) {
+	if _, err := svc.CreateBlankFile(ctx, agent, f.ws, BlankFileInput{Format: string(office.FormatMD), Title: "Trong"}); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("agent blank create = %v, want forbidden", err)
 	}
 	// No engine: refused before anything exists.
-	if _, err := f.service(nil).CreateBlankFile(ctx, human, f.ws, BlankFileInput{Format: office.FormatMD, Title: "Trong"}); !errors.Is(err, office.ErrNotConfigured) {
+	if _, err := f.service(nil).CreateBlankFile(ctx, human, f.ws, BlankFileInput{Format: string(office.FormatMD), Title: "Trong"}); !errors.Is(err, office.ErrNotConfigured) {
 		t.Fatalf("unconfigured blank create = %v", err)
 	}
 	// Engine drift: refused before anything exists.
 	drift := newScriptedEngine()
 	drift.engineVersion = "genoffice@deadbeef+uniwork-office.9"
-	if _, err := f.service(drift).CreateBlankFile(ctx, human, f.ws, BlankFileInput{Format: office.FormatMD, Title: "Trong"}); err == nil {
+	if _, err := f.service(drift).CreateBlankFile(ctx, human, f.ws, BlankFileInput{Format: string(office.FormatMD), Title: "Trong"}); err == nil {
 		t.Fatal("drifting engine created a blank")
 	} else {
 		wantOfficeCode(t, err, "engine_incompatible")
@@ -273,7 +273,7 @@ func TestDocumentOfficeBlankCreateWaitsForTheEngine(t *testing.T) {
 	done := make(chan outcome, 1)
 	go func() {
 		res, err := svc.CreateBlankFile(ctx, f.actor, f.ws, BlankFileInput{
-			Format: office.FormatMD, Title: "Trong", IdempotencyKey: util.NewID(),
+			Format: string(office.FormatMD), Title: "Trong", IdempotencyKey: util.NewID(),
 		})
 		done <- outcome{res, err}
 	}()

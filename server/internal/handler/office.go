@@ -12,7 +12,6 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
-	"github.com/unicomhub/uniwork/server/internal/office"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -22,25 +21,30 @@ import (
 // private engine address: a job answer carries ids, states and the pinned
 // engine identity only, and the engine's output travels to FileService, never
 // to the client. Every route authorizes through the document ACL.
+//
+// This tier never imports internal/office (ADR 0021 leaf guard): the
+// allowlists, the pinned identity and the error view come from the service
+// tier, and the engine client is built only at the composition root.
 
 // officeError maps the office boundary's typed errors onto the HTTP table:
 // the engine's own code and status (engine-contract §4.7) plus the contract's
 // kind/retryable fields, and the deployment errors that mean "no engine".
 func (h *handlers) mapOfficeError(w http.ResponseWriter, err error) {
-	var ee *office.EngineError
+	if view, ok := service.OfficeBoundaryError(err); ok {
+		fields := map[string]any{"retryable": view.Retryable, "fidelity_preserved": true}
+		if view.Kind != "" {
+			fields["kind"] = view.Kind
+		}
+		if view.Reason != "" {
+			fields["reason"] = view.Reason
+		}
+		respondErrorFields(w, view.Status, view.Code, err.Error(), fields)
+		return
+	}
 	switch {
-	case errors.As(err, &ee):
-		fields := map[string]any{"retryable": ee.Retryable, "fidelity_preserved": true}
-		if ee.Kind != "" {
-			fields["kind"] = ee.Kind
-		}
-		if ee.Reason != "" {
-			fields["reason"] = ee.Reason
-		}
-		respondErrorFields(w, ee.Status, ee.Code, ee.Error(), fields)
-	case errors.Is(err, office.ErrNotConfigured):
+	case service.IsOfficeNotConfigured(err):
 		respondError(w, http.StatusServiceUnavailable, "office_not_configured", "office engine is not configured")
-	case errors.Is(err, office.ErrServiceAuth):
+	case service.IsOfficeServiceAuth(err):
 		respondError(w, http.StatusServiceUnavailable, "office_unavailable", "office engine refused the service credential")
 	case errors.Is(err, service.ErrOfficeJobInvalid):
 		respondError(w, http.StatusBadRequest, "office_job_invalid", "operation, format or Idempotency-Key is not valid for an office job")
@@ -77,8 +81,7 @@ func (h *handlers) startOfficeJob(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, maxDocumentJSONBody) {
 		return
 	}
-	op, ok := officeOperation(in.Operation)
-	if !ok {
+	if !service.ValidOfficeOperation(in.Operation) {
 		respondError(w, http.StatusBadRequest, "invalid_request", "operation must be open, serialize, export or convert")
 		return
 	}
@@ -92,7 +95,7 @@ func (h *handlers) startOfficeJob(w http.ResponseWriter, r *http.Request) {
 		base = parsed
 	}
 	row, err := h.Office.StartOfficeJobForDocument(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"), service.OfficeJobRequest{
-		Operation: op, BaseRevision: base, IdempotencyKey: r.Header.Get("Idempotency-Key"),
+		Operation: in.Operation, BaseRevision: base, IdempotencyKey: r.Header.Get("Idempotency-Key"),
 		DocumentModelRef: stringValue(in.ModelRef), Deadline: 0,
 	})
 	if err != nil {
@@ -144,13 +147,12 @@ func (h *handlers) createBlankDocumentFile(w http.ResponseWriter, r *http.Reques
 	if !decode(w, r, &in, maxDocumentJSONBody) {
 		return
 	}
-	format, ok := officeFormat(in.Format)
-	if !ok {
+	if !service.ValidOfficeFormat(in.Format) {
 		respondError(w, http.StatusBadRequest, "invalid_request", "format must be one of docx, xlsx, pptx, pdf, md, html")
 		return
 	}
 	res, err := h.Office.CreateBlankFile(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), service.BlankFileInput{
-		Format: format, Title: in.Title, ParentID: stringValue(in.ParentID), IdempotencyKey: r.Header.Get("Idempotency-Key"),
+		Format: in.Format, Title: in.Title, ParentID: stringValue(in.ParentID), IdempotencyKey: r.Header.Get("Idempotency-Key"),
 	})
 	if err != nil {
 		h.mapOfficeError(w, err)
@@ -192,22 +194,6 @@ func (h *handlers) respondDocumentCreated(w http.ResponseWriter, r *http.Request
 	respondJSON(w, http.StatusCreated, sdo.DocumentSDO{Document: documentDTO(view)})
 }
 
-func officeOperation(raw string) (office.Operation, bool) {
-	switch op := office.Operation(strings.TrimSpace(raw)); op {
-	case office.OperationOpen, office.OperationSerialize, office.OperationExport, office.OperationConvert:
-		return op, true
-	}
-	return "", false
-}
-
-func officeFormat(raw string) (office.Format, bool) {
-	switch format := office.Format(strings.TrimSpace(raw)); format {
-	case office.FormatDOCX, office.FormatXLSX, office.FormatPPTX, office.FormatPDF, office.FormatMD, office.FormatHTML:
-		return format, true
-	}
-	return "", false
-}
-
 func officeCapabilityDTO(documentID string, in service.OfficeCapability) sdo.OfficeCapabilitySDO {
 	out := sdo.OfficeCapabilitySDO{
 		DocumentID: documentID, Format: string(in.Format), EngineVersion: in.EngineVersion,
@@ -223,11 +209,12 @@ func officeCapabilityDTO(documentID string, in service.OfficeCapability) sdo.Off
 }
 
 func officeJobDTO(row db.OfficeJob) sdo.OfficeJobSDO {
+	name, engineVersion, contractVersion, protocolVersion := service.OfficeEngineIdentity()
 	out := sdo.OfficeJobSDO{
 		JobID: row.ID, DocumentID: row.DocumentID, Operation: row.Operation, Format: row.Format,
 		State: row.State, BaseRevision: strconv.FormatInt(row.BaseRevision, 10), BaseVersionID: row.BaseVersionID,
-		EngineName: "genoffice", EngineVersion: office.TrustedEngineVersion,
-		ContractVersion: office.ContractVersion, ProtocolVersion: strconv.Itoa(office.ProtocolVersion),
+		EngineName: name, EngineVersion: engineVersion,
+		ContractVersion: contractVersion, ProtocolVersion: protocolVersion,
 		DeadlineAt: row.DeadlineAt.Time.Format(time.RFC3339), CreatedAt: row.CreatedAt.Time.Format(time.RFC3339), UpdatedAt: row.UpdatedAt.Time.Format(time.RFC3339),
 	}
 	if row.OutputFileID.Valid {
@@ -245,9 +232,9 @@ func officeJobDTO(row db.OfficeJob) sdo.OfficeJobSDO {
 	}
 	if row.ErrorCode.Valid || row.ErrorReason.Valid {
 		detail := sdo.OfficeJobErrorDTO{Code: row.ErrorCode.String, Reason: row.ErrorReason.String}
-		if spec, ok := office.ErrorCodes[detail.Code]; ok {
-			detail.Kind = spec.Kind
-			detail.Retryable = spec.Retryable
+		if kind, retryable, ok := service.OfficeErrorClassification(detail.Code); ok {
+			detail.Kind = kind
+			detail.Retryable = retryable
 		}
 		out.Error = &detail
 	}

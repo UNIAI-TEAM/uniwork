@@ -232,9 +232,10 @@ func officeFormatMime(format office.Format, mime string) bool {
 }
 
 // BlankFileInput creates one blank source document (POST
-// /workspaces/{workspaceID}/documents/files/blank).
+// /workspaces/{workspaceID}/documents/files/blank). Format is the wire
+// string; the service parses it against the six-format allowlist.
 type BlankFileInput struct {
-	Format         office.Format
+	Format         string
 	Title          string
 	ParentID       string
 	IdempotencyKey string
@@ -257,8 +258,12 @@ func (s *DocumentOfficeService) CreateBlankFile(ctx context.Context, actor Actor
 	if actor.Kind != audit.KindHuman || actor.ID == "" {
 		return DocumentFileResult{}, ErrForbidden
 	}
+	format, ok := parseOfficeFormat(in.Format)
+	if !ok {
+		return DocumentFileResult{}, Invalid("format must be one of docx, xlsx, pptx, pdf, md, html")
+	}
 	title := strings.TrimSpace(in.Title)
-	seed, filename, ok := blankSeedFor(in.Format, title)
+	seed, filename, ok := blankSeedFor(format, title)
 	if !ok {
 		// Nothing is registered and nothing is uploaded for a format with no
 		// blank generator.
@@ -277,7 +282,7 @@ func (s *DocumentOfficeService) CreateBlankFile(ctx context.Context, actor Actor
 	if err != nil {
 		return DocumentFileResult{}, err
 	}
-	res, err := office.Negotiate(ctx, s.engine, in.Format)
+	res, err := office.Negotiate(ctx, s.engine, format)
 	if err != nil {
 		return DocumentFileResult{}, err
 	}
@@ -317,7 +322,7 @@ func (s *DocumentOfficeService) CreateBlankFile(ctx context.Context, actor Actor
 	}
 	env := office.Envelope{
 		RequestID: jobID, ContractVersion: office.ContractVersion, ProtocolVersion: office.ProtocolVersion,
-		Operation: office.OperationSerialize, Format: in.Format, DeadlineMs: &remaining,
+		Operation: office.OperationSerialize, Format: format, DeadlineMs: &remaining,
 		IdempotencyKey: jobID, ClientEngineVersion: office.TrustedEngineVersion, GrantID: grantID, Payload: payload,
 	}
 	window := now.Add(officeGrantWindow)
@@ -329,7 +334,7 @@ func (s *DocumentOfficeService) CreateBlankFile(ctx context.Context, actor Actor
 	grant, err := s.engine.Sign(office.ServiceGrant{
 		V: 1, GrantID: grantID, JobID: jobID, ActorID: actor.ID, ActorKind: string(actor.Kind),
 		OrganizationID: orgID, WorkspaceID: ws.WorkspaceID, DocumentID: blankRef,
-		Operation: office.OperationSerialize, Format: in.Format,
+		Operation: office.OperationSerialize, Format: format,
 		BaseVersionID: blankRef,
 		Input:         &office.GrantInput{Checksum: checksum, Length: int64(len(seed))},
 		Output: &office.GrantOutput{
@@ -433,9 +438,10 @@ func blankSeedFor(format office.Format, title string) ([]byte, string, bool) {
 
 // OfficeJobRequest is the HTTP-facing start request: the server resolves the
 // document's tenant, current version and format, so a caller never sends a
-// version id or a format it could get wrong.
+// version id or a format it could get wrong. Operation is the wire string;
+// the service parses it against the allowlist.
 type OfficeJobRequest struct {
-	Operation        office.Operation
+	Operation        string
 	BaseRevision     int64 // 0 = the document's current revision
 	IdempotencyKey   string
 	DocumentModelRef string
@@ -457,6 +463,10 @@ func (s *DocumentOfficeService) StartOfficeJobForDocument(ctx context.Context, a
 	if err != nil {
 		return db.OfficeJob{}, err
 	}
+	operation, ok := parseOfficeOperation(req.Operation)
+	if !ok {
+		return db.OfficeJob{}, ErrOfficeJobInvalid
+	}
 	format, err := s.formatForVersion(ctx, doc, nil)
 	if err != nil {
 		return db.OfficeJob{}, err
@@ -470,7 +480,7 @@ func (s *DocumentOfficeService) StartOfficeJobForDocument(ctx context.Context, a
 	return s.StartOfficeJob(ctx, actor, OfficeJobInput{
 		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
 		BaseVersionID: doc.FileVersionID.String, BaseRevision: doc.Revision,
-		Operation: req.Operation, Format: format, IdempotencyKey: req.IdempotencyKey,
+		Operation: operation, Format: format, IdempotencyKey: req.IdempotencyKey,
 		Deadline: req.Deadline, DocumentModelRef: req.DocumentModelRef,
 	})
 }

@@ -12,55 +12,79 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
-	"github.com/unicomhub/uniwork/server/internal/office"
 	"github.com/unicomhub/uniwork/server/internal/service"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-type handlerStubEngine struct{}
+const (
+	handlerStubToken = "handler-test-service-token-000001"
+	handlerStubKey   = "handler-test-grant-key-000000001"
+)
 
-const handlerStubKey = "handler-test-grant-key-0000000001"
-
-func (handlerStubEngine) Sign(g office.ServiceGrant) (string, error) {
-	return office.SignGrant(g, []byte(handlerStubKey))
-}
-
-func (handlerStubEngine) Submit(_ context.Context, _ string, env office.Envelope) (office.JobStatus, error) {
-	return office.JobStatus{
-		JobID: env.RequestID, RequestID: env.RequestID, State: office.JobAccepted,
-		Operation: env.Operation, Format: env.Format, EngineVersion: office.TrustedEngineVersion,
-	}, nil
-}
-
-func (handlerStubEngine) Status(_ context.Context, jobID, _ string) (office.JobStatus, error) {
-	return office.JobStatus{JobID: jobID, State: office.JobAccepted}, nil
-}
-
-func (handlerStubEngine) Cancel(_ context.Context, jobID, _ string) (office.JobStatus, error) {
-	return office.JobStatus{JobID: jobID, State: office.JobRunning}, nil
-}
-
-func (handlerStubEngine) Ready(context.Context) (office.Readiness, error) {
-	return office.Readiness{Status: "ready"}, nil
-}
-
-func (handlerStubEngine) Capability(_ context.Context, format office.Format) (office.CapabilityResult, error) {
-	return office.CapabilityResult{
-		EngineVersion: office.TrustedEngineVersion, Format: format,
-		Capabilities: []office.CapabilityEntry{
-			{Operation: string(office.OperationOpen), Supported: true, Runtime: office.RuntimeInternalService, EvidenceLevel: office.EvidenceProven},
-			{Operation: string(office.OperationSerialize), Supported: true, Runtime: office.RuntimeInternalService, EvidenceLevel: office.EvidenceProven},
-			{Operation: string(office.OperationConvert), Supported: false, Runtime: office.RuntimeNone, EvidenceLevel: office.EvidencePending, Reason: "Q7 blocker"},
-			{Operation: string(office.OperationExport), Supported: false, Runtime: office.RuntimeNone, EvidenceLevel: office.EvidencePending},
-		},
-	}, nil
+// newHandlerStubEngine stands an engine-shaped HTTP stub up and returns the
+// service's client for it. The handler tier (and this test) never imports
+// internal/office (ADR 0021 leaf guard): the engine seam is reached through
+// service, and the stub speaks the pinned contract's JSON.
+func newHandlerStubEngine(t *testing.T) service.OfficeEngine {
+	t.Helper()
+	_, version, contract, protocol := service.OfficeEngineIdentity()
+	protocolNumber, err := strconv.Atoi(protocol)
+	if err != nil {
+		t.Fatalf("stub engine protocol: %v", err)
+	}
+	mux := http.NewServeMux()
+	writeJSON := func(w http.ResponseWriter, status int, body any) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		if err := json.NewEncoder(w).Encode(body); err != nil {
+			t.Errorf("stub engine encode: %v", err)
+		}
+	}
+	mux.HandleFunc("GET /v1/capability", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"engine_version": version, "contract_version": contract, "protocol_version": protocolNumber,
+			"format": r.URL.Query().Get("format"),
+			"capabilities": []map[string]any{
+				{"operation": "open", "supported": true, "runtime": "internal_service", "evidence_level": "proven"},
+				{"operation": "serialize", "supported": true, "runtime": "internal_service", "evidence_level": "proven"},
+				{"operation": "convert", "supported": false, "runtime": "none", "evidence_level": "pending", "reason": "Q7 blocker"},
+			},
+		})
+	})
+	mux.HandleFunc("POST /v1/jobs", func(w http.ResponseWriter, r *http.Request) {
+		var env struct {
+			RequestID string `json:"request_id"`
+			Operation string `json:"operation"`
+			Format    string `json:"format"`
+		}
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &env)
+		writeJSON(w, http.StatusAccepted, map[string]any{
+			"job_id": env.RequestID, "state": "accepted",
+			"operation": env.Operation, "format": env.Format, "engine_version": version,
+		})
+	})
+	mux.HandleFunc("GET /v1/jobs/{jobID}", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"job_id": r.PathValue("jobID"), "state": "accepted"})
+	})
+	mux.HandleFunc("POST /v1/jobs/{jobID}/cancel", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]any{"job_id": r.PathValue("jobID"), "state": "running"})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	eng, err := service.NewOfficeEngineClient(srv.URL, handlerStubToken, handlerStubKey)
+	if err != nil {
+		t.Fatalf("stub engine client: %v", err)
+	}
+	return eng
 }
 
 type officeWorld struct {
@@ -83,7 +107,7 @@ func newOfficeWorld(t *testing.T, enableFlag bool) *officeWorld {
 	docs.SetFiles(fake)
 	d.Documents = docs
 	d.Office = service.NewDocumentOfficeService(service.DocumentOfficeOptions{
-		Pool: pool, Queries: q, Files: fake, Engine: handlerStubEngine{}, Documents: docs,
+		Pool: pool, Queries: q, Files: fake, Engine: newHandlerStubEngine(t), Documents: docs,
 		MaxDeadline: time.Minute,
 	})
 	srv := httptest.NewServer(New(d))
@@ -113,7 +137,7 @@ func newOfficeWorld(t *testing.T, enableFlag bool) *officeWorld {
 		t.Fatalf("create ws: %d %v", res.StatusCode, out)
 	}
 	w.wsID = out["workspace"].(map[string]any)["id"].(string)
-	w.outsider, w.outsiderTok = filesRegister(t, srv, "office-outsider@example.com")
+	w.outsiderTok, w.outsider = filesRegister(t, srv, "office-outsider@example.com")
 	if err := q.AddOrganizationMember(context.Background(), db.AddOrganizationMemberParams{
 		OrganizationID: w.orgID, UserID: w.outsider, Role: "member",
 	}); err != nil {
@@ -183,7 +207,8 @@ func TestOfficeRoutesAuthority(t *testing.T) {
 		t.Fatalf("capability = %d %s", res.StatusCode, raw)
 	}
 	body := string(raw)
-	if !strings.Contains(body, "create_blank") || !strings.Contains(body, office.TrustedEngineVersion) {
+	_, engineVersion, _, _ := service.OfficeEngineIdentity()
+	if !strings.Contains(body, "create_blank") || !strings.Contains(body, engineVersion) {
 		t.Fatalf("capability body = %s", body)
 	}
 	if strings.Contains(body, "http://") || strings.Contains(body, "grant") {
@@ -230,7 +255,10 @@ func TestOfficeJobRoutes(t *testing.T) {
 	if err := json.Unmarshal(raw, &job); err != nil {
 		t.Fatal(err)
 	}
-	if job.JobID == "" || job.State != "accepted" || job.EngVer != office.TrustedEngineVersion || job.EngName != "genoffice" {
+	_, engineVersion, _, _ := service.OfficeEngineIdentity()
+	// The submit answer maps the engine's accepted/running onto the row's live
+	// state: once the engine holds the dispatched job the row is running.
+	if job.JobID == "" || (job.State != "running" && job.State != "accepted") || job.EngVer != engineVersion || job.EngName != "genoffice" {
 		t.Fatalf("job = %+v", job)
 	}
 	if strings.Contains(string(raw), "http://") || strings.Contains(string(raw), "grant") {
