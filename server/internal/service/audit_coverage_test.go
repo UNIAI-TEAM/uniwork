@@ -12,6 +12,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	authpkg "github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
 	"github.com/unicomhub/uniwork/server/internal/util"
@@ -870,6 +871,83 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// G1-04b (UNI-678): the tree and lifecycle commands.
+		audit.ActionDocumentMoved: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.MoveDocument(f.ctx, Human(f.owner.ID), docID, MoveDocumentInput{ParentID: "", Revision: 1}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentArchived: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.ArchiveDocument(f.ctx, Human(f.owner.ID), docID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentRestored: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.ArchiveDocument(f.ctx, Human(f.owner.ID), docID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.RestoreDocument(f.ctx, Human(f.owner.ID), docID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentDeleted: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			svc.SetFiles(filesfake.New(filesfake.Options{}))
+			if _, err := f.pool.Exec(f.ctx,
+				`UPDATE documents SET archived_at = now() - interval '40 days', purge_after = now() - interval '10 days' WHERE id = $1`,
+				docID); err != nil {
+				t.Fatal(err)
+			}
+			rep, err := svc.PurgeExpired(f.ctx, time.Now())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rep.Purged != 1 {
+				t.Fatalf("purged %d, want 1", rep.Purged)
+			}
+		},
+		audit.ActionDocumentVersionsCompacted: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			svc.SetFiles(filesfake.New(filesfake.Options{}))
+			// keep+1 automatic versions: compaction drops the oldest one.
+			if _, err := f.pool.Exec(f.ctx, `INSERT INTO document_versions
+				(id, organization_id, workspace_id, document_id, version, kind, reason, content, created_by, created_by_kind)
+				SELECT '01DVC' || lpad(g::text, 23, '0'), $2, $3, $1, g, 'page', 'auto',
+				       '{"type":"doc","content":[]}', $4, 'human'
+				FROM generate_series(1, 501) g`, docID, f.orgID, f.workspace.ID, f.owner.ID); err != nil {
+				t.Fatal(err)
+			}
+			rep, err := svc.CompactVersions(f.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rep.VersionsDeleted != 1 {
+				t.Fatalf("compacted %d versions, want 1", rep.VersionsDeleted)
+			}
+		},
+		audit.ActionDocumentAssetPurged: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			// A recording spy, not filesfake: the synthetic asset's file_id
+			// exists in no registry and the spy only answers whether the
+			// seam was called inside the transaction.
+			svc.SetFiles(&releaseSpy{})
+			insertRow(t, f.ctx, f.pool, "document_assets", map[string]any{
+				"id": util.NewID(), "organization_id": f.orgID, "workspace_id": f.workspace.ID,
+				"document_id": docID, "file_id": util.NewID(), "mime_type": "image/png",
+				"size_bytes": 10, "created_by": f.owner.ID, "created_by_kind": "human",
+				"orphaned_at": time.Now().Add(-8 * 24 * time.Hour),
+			})
+			rep, err := svc.PurgeExpired(f.ctx, time.Now())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rep.AssetsPurged != 1 {
+				t.Fatalf("assets purged %d, want 1", rep.AssetsPurged)
+			}
+		},
 		// G1-03: the file commands run on filesfake; the storage tests run
 		// the same commands on the real FileService.
 		audit.ActionDocumentVersionCreated: func(t *testing.T, f *auditFixture) {
@@ -1115,6 +1193,12 @@ func auditActions() []string {
 		audit.ActionDocumentCommentReactionRemoved,
 		audit.ActionDocumentFavorited,
 		audit.ActionDocumentUnfavorited,
+		audit.ActionDocumentMoved,
+		audit.ActionDocumentArchived,
+		audit.ActionDocumentRestored,
+		audit.ActionDocumentDeleted,
+		audit.ActionDocumentVersionsCompacted,
+		audit.ActionDocumentAssetPurged,
 	}
 }
 

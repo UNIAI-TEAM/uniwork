@@ -120,7 +120,7 @@ func (q *Queries) DocumentAccessLoggedSince(ctx context.Context, arg DocumentAcc
 
 const getDocumentByID = `-- name: GetDocumentByID :one
 
-SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at
+SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id
 FROM documents
 WHERE id = $1
 `
@@ -174,6 +174,7 @@ func (q *Queries) GetDocumentByID(ctx context.Context, id string) (Document, err
 		&i.PurgeAfter,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ArchiveBatchID,
 	)
 	return i, err
 }
@@ -531,7 +532,7 @@ func (q *Queries) ListDocumentAccessLogs(ctx context.Context, arg ListDocumentAc
 }
 
 const listDocumentShareCandidates = `-- name: ListDocumentShareCandidates :many
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id
 FROM (
   SELECT DISTINCT ON (s.document_id) s.document_id, s.workspace_id, s.created_at
   FROM document_shares s
@@ -624,6 +625,7 @@ func (q *Queries) ListDocumentShareCandidates(ctx context.Context, arg ListDocum
 			&i.Document.PurgeAfter,
 			&i.Document.CreatedAt,
 			&i.Document.UpdatedAt,
+			&i.Document.ArchiveBatchID,
 		); err != nil {
 			return nil, err
 		}
@@ -688,7 +690,7 @@ func (q *Queries) ListLiveDocumentShareLinks(ctx context.Context, arg ListLiveDo
 }
 
 const lockDocumentByID = `-- name: LockDocumentByID :one
-SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at
+SELECT id, organization_id, workspace_id, parent_id, kind, title, icon, visibility, content, content_text, search_text, content_bytes, current_version, file_version_id, revision, position, owner_kind, owner_id, acl_owner_id, source_document_id, source_version_id, source_revision, source_format, source_engine, target_format, source_checksum_sha256, conversion_reason, created_by, created_by_kind, updated_by, updated_by_kind, content_saved_at, last_version_at, archived_at, archived_by, purge_after, created_at, updated_at, archive_batch_id
 FROM documents
 WHERE id = $1
 FOR UPDATE
@@ -739,6 +741,7 @@ func (q *Queries) LockDocumentByID(ctx context.Context, id string) (Document, er
 		&i.PurgeAfter,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ArchiveBatchID,
 	)
 	return i, err
 }
