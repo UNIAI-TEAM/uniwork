@@ -349,7 +349,12 @@ func pathParamSDI(path string) any {
 		}{}
 	case "token":
 		return struct {
-			Token string `path:"token" description:"Token lời mời" example:"inv_01J8X4TOKEN"`
+			Token string `path:"token" description:"Token lời mời hoặc token liên kết công khai tài liệu" example:"inv_01J8X4TOKEN"`
+		}{}
+	case "token,assetID":
+		return struct {
+			Token   string `path:"token" description:"Token liên kết công khai tài liệu" example:"pU7c9jIcDtOFv3S9yKtRsQdLYh1vWnJm2Xk4aB6eZ0g"`
+			AssetID string `path:"assetID" description:"ULID asset nhúng trong trang" example:"01J8X4AST0N1P2Q3R4S5T6U7V8"`
 		}{}
 	case "documentID":
 		return struct {
@@ -364,6 +369,16 @@ func pathParamSDI(path string) any {
 		return struct {
 			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 			AssetID    string `path:"assetID" description:"ULID asset nhúng trong trang" example:"01J8X4AST0N1P2Q3R4S5T6U7V8"`
+		}{}
+	case "documentID,shareID":
+		return struct {
+			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+			ShareID    string `path:"shareID" description:"ULID grant chia sẻ" example:"01J8X4SHAREN1P2Q3R4S5T6U7"`
+		}{}
+	case "documentID,linkID":
+		return struct {
+			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+			LinkID     string `path:"linkID" description:"ULID liên kết công khai" example:"01J8X4LINK0N1P2Q3R4S5T6U7"`
 		}{}
 	default:
 		return nil

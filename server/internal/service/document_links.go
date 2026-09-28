@@ -351,22 +351,36 @@ func (s *DocumentService) OpenPublicDocumentFile(ctx context.Context, token stri
 	return f, nil
 }
 
+// PublicDocumentAsset is the anonymous asset read: the opened bytes plus the
+// document's organization, so the HTTP layer can evaluate the organization's
+// `documents` feature flag on the asset route exactly like the public view
+// and the file download (Advisor decision 2026-09-28, G1-05b). No extra
+// query, no view count, no access-log row rides on this.
+type PublicDocumentAsset struct {
+	OrganizationID string
+	Reader         files.Reader
+}
+
 // OpenPublicDocumentAsset streams one page asset behind a link. The asset
 // must belong to the link's document.
-func (s *DocumentService) OpenPublicDocumentAsset(ctx context.Context, token, assetID string, rng DocumentByteRange) (files.Reader, error) {
+func (s *DocumentService) OpenPublicDocumentAsset(ctx context.Context, token, assetID string, rng DocumentByteRange) (PublicDocumentAsset, error) {
 	pub, err := s.resolvePublicLink(ctx, token)
 	if err != nil {
-		return files.Reader{}, err
+		return PublicDocumentAsset{}, err
 	}
 	a, err := s.q.GetDocumentAsset(ctx, db.GetDocumentAssetParams{
 		ID: assetID, OrganizationID: pub.Document.OrganizationID,
 		WorkspaceID: pub.Document.WorkspaceID, DocumentID: pub.Document.ID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return files.Reader{}, ErrNotFound
+		return PublicDocumentAsset{}, ErrNotFound
 	}
 	if err != nil {
-		return files.Reader{}, err
+		return PublicDocumentAsset{}, err
 	}
-	return s.openDocumentBytes(ctx, pub.Document, a.FileID, rng)
+	r, err := s.openDocumentBytes(ctx, pub.Document, a.FileID, rng)
+	if err != nil {
+		return PublicDocumentAsset{}, err
+	}
+	return PublicDocumentAsset{OrganizationID: pub.Document.OrganizationID, Reader: r}, nil
 }

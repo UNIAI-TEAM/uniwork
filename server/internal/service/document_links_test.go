@@ -374,8 +374,11 @@ func TestDocumentPublicLink(t *testing.T) {
 			t.Fatal(err)
 		}
 		pubAsset, err := f.svc.OpenPublicDocumentAsset(f.ctx, plPage.Token, asset.ID, DocumentByteRange{})
-		if err != nil || !bytes.Equal(readAll(t, pubAsset), testPNG) {
+		if err != nil || !bytes.Equal(readAll(t, pubAsset.Reader), testPNG) {
 			t.Fatalf("public asset: %v", err)
+		}
+		if pubAsset.OrganizationID != tn.orgID {
+			t.Fatalf("public asset org = %q, want %q", pubAsset.OrganizationID, tn.orgID)
 		}
 		if err := f.svc.RevokeDocumentLink(f.ctx, mgr, fd.ID, pl.Link.ID); err != nil {
 			t.Fatal(err)

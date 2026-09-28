@@ -9,15 +9,31 @@ import (
 	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
 
-// tag: documents — C-01 §5 + §14; UNI-679, G1-05a. Every route sits behind
-// the `documents` flag (default off -> 404 feature_disabled). The byte routes
-// also serve HEAD; the api wrapper has no Head method, so HEAD is bound on
-// the inner chi router and catalogued by hand, like the files proxy.
+// tag: documents — C-01 §5 + §14; UNI-679, G1-05a/G1-05b. Authenticated
+// routes sit behind the `documents` flag (default off -> 404
+// feature_disabled). The byte routes also serve HEAD; the api wrapper has no
+// Head method, so HEAD is bound on the inner chi router and catalogued by
+// hand, like the files proxy. The public link routes (registerPublicDocuments)
+// are unauthenticated and evaluate the flag at the document's own
+// organization inside the handler.
 //
 //	POST   /api/v1/workspaces/{workspaceID}/documents
 //	POST   /api/v1/workspaces/{workspaceID}/documents/files
+//	GET    /api/v1/workspaces/{workspaceID}/documents              (G1-05b)
+//	GET    /api/v1/workspaces/{workspaceID}/documents/recent       (G1-05b)
+//	GET    /api/v1/workspaces/{workspaceID}/documents/shared-with-me (G1-05b)
+//	GET    /api/v1/workspaces/{workspaceID}/documents/tree         (G1-05b)
 //	GET    /api/v1/documents/{documentID}
 //	PATCH  /api/v1/documents/{documentID}
+//	POST   /api/v1/documents/{documentID}/move                    (G1-05b)
+//	POST   /api/v1/documents/{documentID}/archive                 (G1-05b)
+//	POST   /api/v1/documents/{documentID}/restore                 (G1-05b)
+//	GET    /api/v1/documents/{documentID}/shares                  (G1-05b)
+//	POST   /api/v1/documents/{documentID}/shares                  (G1-05b)
+//	DELETE /api/v1/documents/{documentID}/shares/{shareID}        (G1-05b)
+//	POST   /api/v1/documents/{documentID}/links                   (G1-05b)
+//	DELETE /api/v1/documents/{documentID}/links/{linkID}          (G1-05b)
+//	GET    /api/v1/documents/{documentID}/access-logs             (G1-05b)
 //	GET    /api/v1/documents/{documentID}/download          (?meta=1 | bytes; HEAD)
 //	POST   /api/v1/documents/{documentID}/uploads
 //	POST   /api/v1/documents/{documentID}/versions/commit
@@ -27,6 +43,7 @@ import (
 //	POST   /api/v1/documents/{documentID}/versions/{versionNo}/restore
 //	POST   /api/v1/documents/{documentID}/assets
 //	GET    /api/v1/documents/{documentID}/assets/{assetID}  (HEAD)
+//	PUT    /api/v1/orgs/{orgID}/documents/settings                (G1-05b)
 func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	d := r.With(mw.RequireFeatureFlag(flags, "documents"))
 
@@ -155,6 +172,165 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	d.cat.add(http.MethodHead, joinRoute(d.prefix, "/documents/{documentID}/assets/{assetID}"), apiOp{
 		summary:     "Headers of a document asset",
 		description: "Như GET nhưng không có body: Content-Length, Content-Type, Accept-Ranges, Content-Range khi có Range. Kiểm quyền giống GET.",
+		tags:        []string{"documents"},
+	})
+
+	// ---- G1-05b (UNI-679, C-01 §5.1/§5.3/§5.4): collections, tree,
+	// lifecycle, sharing, access log and the org public-links switch. One
+	// contiguous block so the parallel comment/office lanes merge cleanly.
+	d.Get("/workspaces/{workspaceID}/documents", h.ListDocuments, apiOp{
+		summary:     "List documents",
+		description: "Danh sách tài liệu workspace, mới sửa trước. parent_id = một cấp cây theo position; q = tìm toàn workspace kèm snippet; kind/archived/updated_by/updated_from/updated_to là filter. Quyền được lọc trong query trước limit nên cursor ổn định; archived=1 chỉ manage.",
+		tags:        []string{"documents"},
+		sdi:         sdi.ListDocumentsSDI{},
+		sdo:         sdo.DocumentListSDO{},
+		auth:        true,
+	})
+	d.Get("/workspaces/{workspaceID}/documents/recent", h.ListRecentDocuments, apiOp{
+		summary:     "List recent documents",
+		description: "Tài liệu người dùng đã mở (access log) hoặc sửa gần đây, lọc quyền trước limit, cursor ổn định. Agent không có \"gần đây\" -> 403.",
+		tags:        []string{"documents"},
+		sdi:         sdi.ListRecentDocumentsSDI{},
+		sdo:         sdo.DocumentListSDO{},
+		auth:        true,
+	})
+	d.Get("/workspaces/{workspaceID}/documents/shared-with-me", h.ListSharedWithMe, apiOp{
+		summary:     "List documents shared with me",
+		description: "Tài liệu người gọi nhận qua share, gồm workspace khác trong tổ chức; một share đã thu hồi hoặc không còn hiệu lực sẽ biến mất. Workspace trên URL là ngữ cảnh thành viên, danh sách trải theo tổ chức.",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentListSDO{},
+		auth:        true,
+	})
+	d.Get("/workspaces/{workspaceID}/documents/tree", h.DocumentTree, apiOp{
+		summary:     "Read the document tree",
+		description: "Cây sidebar tối đa 5 cấp, chỉ metadata {id,title,icon,kind,position,children}; root chọn một nhánh. Node dưới tổ tiên không đọc được sẽ rời cây cùng tổ tiên; root không đọc được -> 404.",
+		tags:        []string{"documents"},
+		sdi:         sdi.DocumentTreeSDI{},
+		sdo:         sdo.DocumentTreeSDO{},
+		auth:        true,
+	})
+	d.Post("/documents/{documentID}/move", h.MoveDocument, apiOp{
+		summary:     "Move a document",
+		description: "Đổi cha/thứ tự trong cùng workspace. Kiểm edit cả nguồn lẫn đích; chu trình -> 422 document_cycle, quá 5 cấp -> 422 document_too_deep, khác workspace -> 422 cross_workspace_reference; tài liệu thuộc Work Product -> 409. Idempotency-Key replay an toàn.",
+		tags:        []string{"documents"},
+		sdi:         sdi.MoveDocumentSDI{},
+		sdo:         sdo.DocumentSDO{},
+		auth:        true,
+	})
+	d.Post("/documents/{documentID}/archive", h.ArchiveDocument, apiOp{
+		summary:     "Archive a document subtree",
+		description: "Đưa tài liệu và cả cây con vào thùng rác trong một transaction sau khi kiểm manage trên từng node sống; node restricted không manage được sẽ chặn cả lệnh. Idempotency-Key replay trả kết quả đã lưu.",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentArchiveSDO{},
+		auth:        true,
+	})
+	d.Post("/documents/{documentID}/restore", h.RestoreDocument, apiOp{
+		summary:     "Restore an archived document",
+		description: "Khôi phục đúng các node của một đợt archive (batch_id); node bị archive bởi đợt khác không tự sống lại. Idempotency-Key replay trả kết quả đã lưu.",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentArchiveSDO{},
+		auth:        true,
+	})
+	d.Get("/documents/{documentID}/shares", h.ListDocumentShares, apiOp{
+		summary:     "List document access",
+		description: "Người gọi luôn thấy my_level/via của mình; chỉ manage thấy acl_owner, danh sách grant sống (kèm effective_level) và liên kết công khai sống. Grant đã thu hồi không xuất hiện.",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentAccessSDO{},
+		auth:        true,
+	})
+	d.Post("/documents/{documentID}/shares", h.CreateDocumentShare, apiOp{
+		summary:     "Share a document",
+		description: "Cấp view/edit/manage cho user, workspace hoặc organization cùng tổ chức; principal ngoài tổ chức -> 422 principal_not_in_organization. Trùng principal sống thì grant cũ bị thu hồi và thay trong cùng transaction. Chỉ manage; tài liệu thuộc Work Product -> 409.",
+		tags:        []string{"documents"},
+		sdi:         sdi.ShareDocumentSDI{},
+		sdo:         sdo.DocumentShareSDO{},
+		status:      http.StatusCreated,
+		auth:        true,
+	})
+	d.Delete("/documents/{documentID}/shares/{shareID}", h.RevokeDocumentShare, apiOp{
+		summary:     "Revoke a document share",
+		description: "Thu hồi một grant đang sống (ghi revoked_at, giữ lịch sử). Chỉ manage; share không thuộc tài liệu -> 404.",
+		tags:        []string{"documents"},
+		sdo:         sdo.StatusSDO{},
+		auth:        true,
+	})
+	d.Post("/documents/{documentID}/links", h.CreateDocumentLink, apiOp{
+		summary:     "Create a public link",
+		description: "Liên kết xem ẩn danh: cần entitlement documents.public_links và công tắc tổ chức; tối đa 5 liên kết sống -> 422 document_link_limit. Token chỉ trả một lần cùng url trang chia sẻ; server chỉ giữ SHA-256.",
+		tags:        []string{"documents"},
+		sdi:         sdi.CreateDocumentLinkSDI{},
+		sdo:         sdo.DocumentLinkSDO{},
+		status:      http.StatusCreated,
+		auth:        true,
+	})
+	d.Delete("/documents/{documentID}/links/{linkID}", h.RevokeDocumentLink, apiOp{
+		summary:     "Revoke a public link",
+		description: "Thu hồi liên kết; lần đọc công khai kế tiếp bằng token đó là 404. Chỉ manage.",
+		tags:        []string{"documents"},
+		sdo:         sdo.StatusSDO{},
+		auth:        true,
+	})
+	d.Get("/documents/{documentID}/access-logs", h.ListDocumentAccessLogs, apiOp{
+		summary:     "List the document access log",
+		description: "Nhật ký truy cập mới nhất trước (view/download/export/link_view), lọc theo action, cursor ổn định; actor human/agent được resolve tên/avatar, anonymous không có block actor. Chỉ manage.",
+		tags:        []string{"documents"},
+		sdi:         sdi.ListDocumentAccessLogsSDI{},
+		sdo:         sdo.DocumentAccessLogListSDO{},
+		auth:        true,
+	})
+	d.Put("/orgs/{orgID}/documents/settings", h.SetDocumentSettings, apiOp{
+		summary:     "Set the organization public-link switch",
+		description: "Bật/tắt liên kết công khai cho tổ chức. Chỉ owner/admin tổ chức; tắt sẽ đóng mọi liên kết sống ngay lần đọc kế tiếp mà không thu hồi chúng.",
+		tags:        []string{"documents"},
+		sdi:         sdi.SetDocumentSettingsSDI{},
+		sdo:         sdo.DocumentSettingsSDO{},
+		auth:        true,
+	})
+}
+
+// registerPublicDocuments binds the anonymous link routes. They are NOT
+// behind RequireFeatureFlag: there is no caller organization to evaluate, so
+// the handler checks the flag on the document's own organization after the
+// token resolves. The IP-keyed limiter is the same middleware the other
+// public routes use. GET and HEAD share one handler; the api wrapper has no
+// Head method, so HEAD is catalogued by hand.
+//
+//	GET /api/v1/public/documents/{token}                  (JSON view)
+//	GET /api/v1/public/documents/{token}/download         (bytes; HEAD)
+//	GET /api/v1/public/documents/{token}/assets/{assetID} (bytes; HEAD)
+func registerPublicDocuments(r api, h Routes, limiter func(http.Handler) http.Handler) {
+	p := r.With(limiter)
+	p.Get("/public/documents/{token}", h.GetPublicDocument, apiOp{
+		summary:     "View a publicly shared document",
+		description: "Không cần đăng nhập: token là credential duy nhất. Trả title + content đã sanitize (page) hoặc download_url (file); link hết hạn/thu hồi, organization tắt liên kết hoặc feature flag documents của tổ chức tắt -> 404 giống hệt token lạ.",
+		tags:        []string{"documents"},
+		sdo:         sdo.PublicDocumentSDO{},
+		auth:        false,
+	})
+	p.Get("/public/documents/{token}/download", h.DownloadPublicDocument, apiOp{
+		summary:     "Download a publicly shared file",
+		description: "Stream byte của bản file hiện hành qua Go (không presign), hỗ trợ HEAD/Range (206/416), luôn Content-Disposition: attachment; mỗi lần đọc kiểm lại link, organization và flag.",
+		tags:        []string{"documents"},
+		produces:    "application/octet-stream",
+		auth:        false,
+	})
+	p.r.Head("/public/documents/{token}/download", h.DownloadPublicDocument)
+	p.cat.add(http.MethodHead, joinRoute(p.prefix, "/public/documents/{token}/download"), apiOp{
+		summary:     "Headers of a public file download",
+		description: "Như GET nhưng không có body: Content-Length, Content-Type, Accept-Ranges, Content-Range khi có Range. Kiểm link và flag giống GET.",
+		tags:        []string{"documents"},
+	})
+	p.Get("/public/documents/{token}/assets/{assetID}", h.GetPublicDocumentAsset, apiOp{
+		summary:     "Stream a publicly shared page asset",
+		description: "Asset của đúng tài liệu sau link; ảnh trong allowlist render inline, còn lại attachment. Hỗ trợ HEAD/Range; mỗi lần đọc kiểm lại link, organization và flag.",
+		tags:        []string{"documents"},
+		produces:    "application/octet-stream",
+		auth:        false,
+	})
+	p.r.Head("/public/documents/{token}/assets/{assetID}", h.GetPublicDocumentAsset)
+	p.cat.add(http.MethodHead, joinRoute(p.prefix, "/public/documents/{token}/assets/{assetID}"), apiOp{
+		summary:     "Headers of a public asset",
+		description: "Như GET nhưng không có body: Content-Length, Content-Type, Accept-Ranges, Content-Range khi có Range. Kiểm link và flag giống GET.",
 		tags:        []string{"documents"},
 	})
 }
