@@ -5,6 +5,7 @@ import { Check, Copy, Link2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { apiErrorMessage } from "@uniwork/core/api";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
+import { runtimeConfig } from "@uniwork/core/runtime-config";
 import {
   useCreateDocumentLink,
   useDocumentShares,
@@ -57,7 +58,9 @@ export function ShareLinksSection({ wsId, doc, onOpenSettings, locale }: ShareLi
       const envelope = await createLink.mutateAsync(
         Number.isFinite(days) ? Math.min(90, Math.max(1, days)) : undefined,
       );
-      setCreated({ url: envelope.url });
+      // The server may answer a path (`/share/{token}`); the one-time URL the
+      // user copies must work outside the app, so resolve it on the app origin.
+      setCreated({ url: new URL(envelope.url, runtimeConfig().appUrl).toString() });
     } catch (err) {
       const cls = classifyDocumentError(err);
       if (cls.code === "document_link_limit") {

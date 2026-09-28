@@ -129,7 +129,7 @@ function PublicDocumentBody({ token, document: doc }: { token: string; document:
   if (doc.kind === "page") {
     return (
       <article className="flex flex-col gap-4">
-        <h1 className="font-heading text-2xl font-semibold tracking-tight text-foreground">{title}</h1>
+        <h1 className="font-heading text-display-sm font-semibold text-foreground">{title}</h1>
         {doc.content ? (
           <PublicPageContent token={token} content={doc.content} />
         ) : (
@@ -142,7 +142,7 @@ function PublicDocumentBody({ token, document: doc }: { token: string; document:
   const href = doc.download_url ?? documentPublic.publicDocumentDownloadPath(token);
   return (
     <article className="flex flex-col gap-4">
-      <h1 className="font-heading text-2xl font-semibold tracking-tight text-foreground">{title}</h1>
+      <h1 className="font-heading text-display-sm font-semibold text-foreground">{title}</h1>
       <div className="flex flex-col gap-3 rounded-xl border border-border p-4">
         <div>
           <p className="text-body font-medium text-foreground">{t("documents.public.file_title")}</p>

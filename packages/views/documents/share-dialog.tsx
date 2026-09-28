@@ -141,7 +141,9 @@ export function ShareDialog({ open, onOpenChange, wsId, doc }: ShareDialogProps)
     setAddError(null);
     try {
       await share.mutateAsync({ principal_type: principalType, principal_id: principalId, level });
-      setPrincipalId("");
+      // The organization has one candidate, so it stays picked; user and
+      // workspace grants clear the choice for the next one.
+      setPrincipalId(principalType === "organization" ? doc.organization_id : "");
     } catch (err) {
       setAddError(apiErrorMessage(err) ?? t("documents.share.submit_failed"));
     }

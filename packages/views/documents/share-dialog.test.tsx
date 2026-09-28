@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
+import { configureRuntime, resetRuntimeConfig } from "@uniwork/core/runtime-config";
 import { DocumentSchema, type Document } from "@uniwork/core/types/document";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
@@ -197,6 +198,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  resetRuntimeConfig();
 });
 
 describe("ShareDialog", () => {
@@ -349,6 +351,47 @@ describe("ShareDialog", () => {
     expect(url).toHaveTextContent("https://app.uniwork.vn/share/raw-token");
     expect(screen.getByText(t("documents.share.link_url_once"))).toBeInTheDocument();
     expect(screen.getByText(t("documents.share.link_lost_hint"))).toBeInTheDocument();
+  });
+
+  it("resolves a path-only link URL on the app origin so the copy works outside the app", async () => {
+    configureRuntime({ appUrl: "https://app.uniwork.vn" });
+    serve({
+      createLink: () =>
+        Promise.resolve({
+          link: { id: "l9", view_count: 0, created_at: "2026-09-28T03:00:00Z" },
+          token: "raw-token",
+          url: "/share/raw-token",
+        }),
+    });
+    renderDialog();
+    await screen.findByText(t("documents.share.access_title"));
+
+    fireEvent.click(screen.getByRole("button", { name: t("documents.share.link_create") }));
+    const url = await screen.findByTestId("share-created-url");
+    expect(url).toHaveTextContent("https://app.uniwork.vn/share/raw-token");
+  });
+
+  it("keeps the organization picked after an organization grant", async () => {
+    const posts: any[] = [];
+    requestMock.mockImplementation((path: string, opts?: { method?: string; body?: any }) => {
+      if (path === "/api/v1/documents/d1/shares" && !opts?.method) return Promise.resolve(accessPayload);
+      if (path === "/api/v1/documents/d1/shares" && opts?.method === "POST") {
+        posts.push(opts.body);
+        return Promise.resolve({ share: { id: "s9", principal_id: opts.body.principal_id, level: opts.body.level } });
+      }
+      if (path.startsWith("/api/v1/orgs/acme/members")) return Promise.resolve(membersPayload);
+      if (path === `/api/v1/orgs/${ORG}/workspaces`) return Promise.resolve(workspacesPayload);
+      return Promise.resolve({});
+    });
+    renderDialog();
+    await screen.findByText(t("documents.share.access_title"));
+
+    await pickOption(t("documents.share.principal_label"), t("documents.share.principal_organization"));
+    fireEvent.click(screen.getByRole("button", { name: t("documents.share.submit") }));
+
+    await waitFor(() => expect(posts.length).toBe(1));
+    expect(posts[0]).toEqual({ principal_type: "organization", principal_id: ORG, level: "view" });
+    await waitFor(() => expect(screen.getByRole("button", { name: t("documents.share.submit") })).toBeEnabled());
   });
 
   it("explains the link limit without leaving the dialog", async () => {
