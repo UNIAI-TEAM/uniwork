@@ -7,11 +7,28 @@
 // service validates it as text and hands the exact bytes to the output
 // target) and the G2-05 pdf lane: open (probe → probe.json), serialize
 // (validated byte pass-through — the Documents commit path) and edit (the
-// real pdfium pipeline: ops.json edits → verified output bytes). XLSX
-// (G2-04) and asset operations register here when those lanes bind them;
-// until then the service answers unsupported_operation before a job exists.
+// real pdfium pipeline: ops.json edits → verified output bytes), and the
+// G2-04 xlsx lane: open, serialize and edit through the patched gateway plus
+// the per-job native recalc sidecar. Asset operations register here when
+// their lane binds them; until then the service answers unsupported_operation
+// before a job exists.
 
+import { createHash } from "node:crypto";
 import { readFile, rename, writeFile } from "node:fs/promises";
+import { pathToFileURL } from "node:url";
+import {
+  applyXlsxEditBytes,
+  bindXlsxGateway,
+  probeXlsx,
+  XlsxTypedError,
+  type XlsxGatewayFunctions,
+  type XlsxRecalcPort,
+} from "@uniwork/office-engine/xlsx";
+import {
+  createXlsxSidecar,
+  xlsxGatewayArtifactPath,
+  xlsxSidecarPath,
+} from "@uniwork/office-engine/xlsx/native";
 import type { HandlerOutcome, RunMessage } from "./protocol.ts";
 
 type Handler = (message: RunMessage) => Promise<HandlerOutcome>;
@@ -54,6 +71,128 @@ async function serializeText(message: RunMessage): Promise<HandlerOutcome> {
 function pdfFail(error: unknown, PdfTypedError: PdfModule["PdfTypedError"]): HandlerOutcome {
   if (error instanceof PdfTypedError) return { ok: false, code: error.code, reason: error.reason };
   throw error;
+}
+
+// ── XLSX (G2-04) ───────────────────────────────────────────────────────────
+//
+// The lane loads the patched upstream gateway artifact (dist/xlsx-gateway.mjs,
+// staged beside the bundle in the image / under UNIWORK_XLSX_ASSETS in dev)
+// and — for edit — the Rust recalc sidecar as a child process owned by this
+// worker. The sidecar stages its workbook copy inside the job temp dir and
+// dies with the worker, so no resident model or file survives a job.
+
+type XlsxGatewayBuild = { functions: XlsxGatewayFunctions; engineVersion: string };
+
+const xlsxGatewayCache = new Map<string, Promise<XlsxGatewayBuild>>();
+
+/** The engine build identity bound into each session — an identity stamp of
+ *  the loaded build (gateway module + sidecar) fixed at load time, so a
+ *  swapped bundle can never silently inherit a snapshot's stamp while the
+ *  old code keeps running. */
+function xlsxGateway(assetsDir?: string): Promise<XlsxGatewayBuild> {
+  const artifact = xlsxGatewayArtifactPath(assetsDir);
+  let cached = xlsxGatewayCache.get(artifact);
+  if (!cached) {
+    cached = (async () => {
+      const gatewaySha = createHash("sha256").update(await readFile(artifact)).digest("hex");
+      const functions = bindXlsxGateway((await import(pathToFileURL(artifact).href)) as never);
+      let sidecarSha = "no-sidecar";
+      try {
+        sidecarSha = createHash("sha256").update(await readFile(xlsxSidecarPath(assetsDir))).digest("hex");
+      } catch {
+        /* an unresolved or unreadable sidecar stamps as "no-sidecar" */
+      }
+      return { functions, engineVersion: `gw:${gatewaySha};sc:${sidecarSha}` };
+    })();
+    xlsxGatewayCache.set(artifact, cached);
+  }
+  return cached;
+}
+
+/** Lazy sidecar port: the binary is resolved only when the adapter actually
+    asks for recalculation, so formula-free edits never require it, and the
+    engine_incompatible refusal fires only on the path that truly needs the
+    native engine. Whatever is spawned still dies with the job via close(). */
+function xlsxRecalc(assetsDir: string | undefined, tempDir: string): XlsxRecalcPort {
+  let real: XlsxRecalcPort | undefined;
+  return {
+    async recalc(sourceBytes, edits, reads) {
+      if (!real) real = createXlsxSidecar({ binaryPath: xlsxSidecarPath(assetsDir), workDir: tempDir });
+      return real.recalc(sourceBytes, edits, reads);
+    },
+    async close() {
+      if (real) await real.close();
+    },
+  };
+}
+
+function xlsxFail(error: unknown): HandlerOutcome {
+  if (error instanceof XlsxTypedError) return { ok: false, code: error.code, reason: error.reason };
+  throw error;
+}
+
+/** open:xlsx — probe bytes into a document-model summary JSON. */
+async function openXlsx(message: RunMessage): Promise<HandlerOutcome> {
+  if (!message.inputPath) return { ok: false, code: "engine_result_invalid", reason: "input_required" };
+  const bytes = await readFile(message.inputPath);
+  try {
+    const { functions: engine } = await xlsxGateway(message.xlsxAssetsDir);
+    const probe = await probeXlsx(engine, bytes);
+    await writeOutput(message.outputPath, JSON.stringify({ document_model: probe }));
+    return { ok: true, warnings: [] };
+  } catch (error) {
+    return xlsxFail(error);
+  }
+}
+
+/** serialize:xlsx — the Documents commit path: bytes already carry saved
+    content; the service proves they parse, then passes them through. */
+async function serializeXlsx(message: RunMessage): Promise<HandlerOutcome> {
+  if (!message.inputPath) return { ok: false, code: "engine_result_invalid", reason: "input_required" };
+  const bytes = await readFile(message.inputPath);
+  try {
+    const { functions: engine } = await xlsxGateway(message.xlsxAssetsDir);
+    const probe = await probeXlsx(engine, bytes);
+    await writeOutput(message.outputPath, bytes);
+    const warnings =
+      probe.preservedParts.length > 0
+        ? [{ code: "parts_preserved_not_editable", detail: `${probe.preservedParts.length} package part(s) preserved verbatim (first: ${probe.preservedParts[0]})` }]
+        : [];
+    return { ok: true, warnings };
+  } catch (error) {
+    return xlsxFail(error);
+  }
+}
+
+/** edit:xlsx — ops.json edits → gateway assemble + native recalc <v> refresh
+    → verified output. The sidecar is created for the job and always killed
+    in finally: a crash, timeout or cancel can never leave it resident. */
+async function editXlsx(message: RunMessage): Promise<HandlerOutcome> {
+  if (!message.inputPath) return { ok: false, code: "engine_result_invalid", reason: "input_required" };
+  if (!message.payloadPath) return { ok: false, code: "engine_result_invalid", reason: "ops_payload_missing" };
+  const bytes = await readFile(message.inputPath);
+  let ops: unknown[];
+  try {
+    const payload: unknown = JSON.parse(await readFile(message.payloadPath, "utf8"));
+    if (typeof payload !== "object" || payload === null || !Array.isArray((payload as { edits?: unknown }).edits)) {
+      return { ok: false, code: "engine_result_invalid", reason: "ops_payload_invalid" };
+    }
+    ops = (payload as { edits: unknown[] }).edits;
+  } catch {
+    return { ok: false, code: "engine_result_invalid", reason: "ops_payload_invalid" };
+  }
+  let recalc: XlsxRecalcPort | undefined;
+  try {
+    const { functions: engine, engineVersion } = await xlsxGateway(message.xlsxAssetsDir);
+    recalc = xlsxRecalc(message.xlsxAssetsDir, message.tempDir);
+    const result = await applyXlsxEditBytes(engine, recalc, bytes, ops, engineVersion);
+    await writeOutput(message.outputPath, result.bytes);
+    return { ok: true, warnings: result.warnings };
+  } catch (error) {
+    return xlsxFail(error);
+  } finally {
+    if (recalc) await recalc.close().catch(() => {});
+  }
 }
 
 /** open:pdf — probe bytes into a document-model summary JSON. The output is
@@ -127,6 +266,9 @@ const HANDLERS: Record<string, Handler> = {
   "open:pdf": openPdf,
   "serialize:pdf": serializePdf,
   "edit:pdf": editPdf,
+  "open:xlsx": openXlsx,
+  "serialize:xlsx": serializeXlsx,
+  "edit:xlsx": editXlsx,
 };
 
 /** Keys ("operation:format") this build binds; capability rows read it. */

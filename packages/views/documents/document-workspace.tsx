@@ -1,0 +1,450 @@
+"use client";
+
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { ArrowLeft, Eye, FileWarning } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import { apiErrorMessage } from "@uniwork/core/api";
+import { useDocumentSave, useUploadDocumentAsset } from "@uniwork/core/documents/hooks";
+import type { DocumentSaveState } from "@uniwork/core/documents/save-state";
+import type { Document } from "@uniwork/core/types/document";
+import { Button } from "@uniwork/ui/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@uniwork/ui/components/ui/dialog";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { BreadcrumbHeader } from "../layout/breadcrumb-header";
+import { PAGE_GUTTER, PAGE_LEADING_ICON } from "../layout/page-header";
+import { Notice } from "../common/notice";
+import { leaveGuardAllows, registerLeaveGuard, useNavigation } from "../navigation";
+import type { DocumentAssetUploader } from "./document-asset-upload";
+import { DocumentConflictDialog } from "./conflict-dialog";
+import type { DocumentEditorHandle } from "./document-editor";
+import { DocumentFileView } from "./document-file-view";
+import { DocumentSaveIndicator } from "./document-save-indicator";
+
+/**
+ * The editor chunk. The document route must stay inside the bundle budget, so
+ * TipTap arrives through React.lazy from a shared view (never next/dynamic:
+ * packages/views has no framework router).
+ */
+const DocumentEditor = lazy(() =>
+  import("./document-editor").then((mod) => ({ default: mod.DocumentEditor })),
+);
+
+export interface DocumentWorkspaceProps {
+  wsId: string;
+  doc: Document;
+  /** The library list, the one breadcrumb ancestor we can point at today. */
+  libraryHref: string;
+  /**
+   * Re-read the document from the server (conflict resolution). The result is
+   * the query observer's snapshot: a refetch that fails resolves with the
+   * stale cache entry and `isError`, so the copy that comes back here can
+   * never be assumed fresh.
+   */
+  refetch: () => Promise<{ data?: Document | null; isError?: boolean }>;
+}
+
+/**
+ * One loaded document: header, save state, canvas, and the two dialogs that
+ * guard a user's unsaved bytes (version conflict, leaving the page).
+ *
+ * Save wiring is deliberately in this component rather than in the editor:
+ * `useDocumentSave` owns one machine per document, so switching documents
+ * unmounts a machine instead of re-pointing one at another document's
+ * revision. A callback from the previous document can therefore never write
+ * into the next one.
+ */
+export function DocumentWorkspace({ wsId, doc, libraryHref, refetch }: DocumentWorkspaceProps) {
+  const { t } = useTranslation();
+  const { push } = useNavigation();
+  const save = useDocumentSave(wsId, doc.id, doc.revision);
+  const uploadAsset = useUploadDocumentAsset(wsId, doc.id);
+  const state = save.state as DocumentSaveState;
+
+  const canEdit = doc.my_level === "edit" || doc.my_level === "manage";
+  const editorRef = useRef<DocumentEditorHandle>(null);
+  const lastLocalContentRef = useRef<unknown>(undefined);
+  const stateRef = useRef(state);
+  const [pendingUploads, setPendingUploads] = useState(0);
+  const pendingUploadsRef = useRef(0);
+  const [conflictOpen, setConflictOpen] = useState(false);
+  const [serverBase, setServerBase] = useState<{
+    revision: string;
+    updatedAt: string | null;
+    contentText: string | null;
+  } | null>(null);
+  const [keepMinePending, setKeepMinePending] = useState(false);
+  const [keepMineError, setKeepMineError] = useState(false);
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  const [leavePending, setLeavePending] = useState(false);
+  const leaveResolveRef = useRef<((allowed: boolean) => void) | null>(null);
+  const leaveDoneRef = useRef(false);
+
+  stateRef.current = state;
+  pendingUploadsRef.current = pendingUploads;
+  const dirty = state.dirty;
+  /**
+   * Unsaved means "bytes the server has not acknowledged": a draft, or an
+   * upload still in flight whose result has not reached the document yet. The
+   * indicator already refuses to call an in-flight upload saved; the guard has
+   * to use the same definition or the image is lost without a word.
+   */
+  const hasUnsavedWork = useCallback(
+    () => stateRef.current.dirty || pendingUploadsRef.current > 0,
+    [],
+  );
+
+  // The machine stops on a stale base; the dialog is the only way forward.
+  useEffect(() => {
+    if (state.phase === "conflict") setConflictOpen(true);
+  }, [state.phase]);
+
+  // Another writer (or a refetch) moved the base while we were clean: adopt it.
+  useEffect(() => {
+    if (!dirty) save.updateBase(doc.revision, doc);
+    // `save` is rebuilt on every state change on purpose: updateBase is a no-op
+    // unless the machine is clean, and a stale closure here would miss a base.
+  }, [doc.revision, doc, dirty, save]);
+
+  /* ---- leaving with unsaved changes (C-01 §7.3, FE design §5.4) ---- */
+
+  useEffect(() => {
+    const handler = (event: BeforeUnloadEvent) => {
+      // Best effort and a warning only: the 2 MiB page JSON cannot be promised
+      // over a keepalive body, so the guard is the in-app dialog, not this.
+      if (!hasUnsavedWork()) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [hasUnsavedWork]);
+
+  useEffect(
+    () =>
+      registerLeaveGuard(() => {
+        if (!hasUnsavedWork()) return Promise.resolve(true);
+        return new Promise<boolean>((resolve) => {
+          // A second guarded navigation while the dialog is open (double click,
+          // sidebar plus breadcrumb) must not swallow the first one.
+          leaveResolveRef.current?.(false);
+          leaveResolveRef.current = resolve;
+          leaveDoneRef.current = false;
+          setLeaveOpen(true);
+        });
+      }),
+    [hasUnsavedWork],
+  );
+
+  const finishLeave = useCallback((allowed: boolean) => {
+    const resolve = leaveResolveRef.current;
+    leaveResolveRef.current = null;
+    setLeaveOpen(false);
+    setLeavePending(false);
+    resolve?.(allowed);
+  }, []);
+
+  /**
+   * "Save and leave" waits for the whole write, uploads included: an image
+   * still going up is not saved work, and its node only exists in the document
+   * once the asset answers.
+   *
+   * The wait rides state transitions, it never re-sends: a write that failed
+   * for good ("error" / "unverifiable") is terminal for the attempt — flushing
+   * the same draft again would replay the same failing request in a loop — and
+   * a conflict hands the decision to the conflict dialog. A failed attempt
+   * leaves the dialog open with its buttons enabled, so the user can retry,
+   * discard or stay.
+   */
+  useEffect(() => {
+    if (!leavePending || leaveDoneRef.current) return;
+    if (pendingUploads > 0) return;
+    if (state.phase === "saving" || state.phase === "debouncing") return;
+    if (state.phase === "saved" && !state.dirty) {
+      leaveDoneRef.current = true;
+      finishLeave(true);
+      return;
+    }
+    if (state.phase === "error" || state.phase === "unverifiable") {
+      // Terminal for this attempt: stop waiting (the caption shows the
+      // failure); "save and leave" retries deliberately, one flush per click.
+      leaveDoneRef.current = true;
+      setLeavePending(false);
+      return;
+    }
+    if (state.phase === "conflict") {
+      // The base moved under the write: the conflict dialog owns the next
+      // step, and leaving stays refused until the user resolves it.
+      leaveDoneRef.current = true;
+      finishLeave(false);
+      setConflictOpen(true);
+      setServerBase(null);
+      return;
+    }
+    if (state.dirty) {
+      // A draft with no request in flight (it landed while an upload was
+      // settling): send it now. One flush per transition; a failure lands in
+      // the terminal branch above.
+      save.flush();
+      return;
+    }
+    leaveDoneRef.current = true;
+    setLeavePending(false);
+  }, [leavePending, pendingUploads, state.phase, state.dirty, save, finishLeave]);
+
+  const saveThenLeave = () => {
+    leaveDoneRef.current = false;
+    setLeavePending(true);
+    save.flush();
+  };
+
+  /** In-view navigation goes through the same guard the host adapter runs. */
+  const navigate = useCallback(
+    (href: string) => {
+      void leaveGuardAllows(href).then((allowed) => {
+        if (allowed) push(href);
+      });
+    },
+    [push],
+  );
+
+  /* ---- conflict resolution (C-01 §7.3, FE design §6.3) ---- */
+
+  /**
+   * Step one of "keep mine": read the server's CURRENT base and show it. The
+   * revision in the error is only what the failed save saw; the user has to
+   * see what they are about to write on top of before anything is committed.
+   *
+   * A refetch that fails resolves with the stale cached copy, not a rejection
+   * (TanStack), and a copy older than the conflict's `current_revision` is
+   * known to be stale — neither may be shown as "the newest server copy", so
+   * the dialog stays on step one with an error and waits for a retry.
+   */
+  const keepMine = () => {
+    setKeepMineError(false);
+    setKeepMinePending(true);
+    void refetch().then((fresh) => {
+      setKeepMinePending(false);
+      const next = fresh.data ?? null;
+      const current = Number(stateRef.current.errorFields?.current_revision ?? 0);
+      const revision = Number(next?.revision ?? Number.NaN);
+      if (!next || fresh.isError || !(revision >= current)) {
+        setKeepMineError(true);
+        return;
+      }
+      setServerBase({
+        revision: next.revision,
+        updatedAt: next.updated_at ?? null,
+        contentText: next.content_text ?? null,
+      });
+    });
+  };
+
+  /** Step two: commit the user's copy on the base they just saw. */
+  const confirmKeepMine = () => {
+    if (!serverBase) return;
+    save.conflictResolved(serverBase.revision, doc);
+    setConflictOpen(false);
+    setServerBase(null);
+    // The editor still shows the user's bytes; re-queue them so autosave
+    // commits on the base the dialog just showed. A writer landing in between
+    // brings the dialog straight back.
+    //
+    // The ack of that commit is the full server copy: patchDocument parses the
+    // response through DocumentSchema (requireVerifiableDocument's fallback is
+    // null, never a partial), the machine keeps it in `state.acked`,
+    // useDocumentSave writes it into the detail query, and the editor adopts
+    // `content` once clean — so what the screen displays after a successful
+    // commit is the server's own latest copy (FE design §6.3.2, second
+    // clause), not the rejected draft.
+    if (lastLocalContentRef.current !== undefined) {
+      save.edit({ content: lastLocalContentRef.current });
+    }
+  };
+
+  const loadServer = () => {
+    save.discardDraft();
+    setConflictOpen(false);
+    void refetch().then((fresh) => {
+      const next = fresh.data ?? doc;
+      editorRef.current?.adoptContent(next.content, next.revision);
+      save.updateBase(next.revision, next);
+    });
+  };
+
+  const uploader = useCallback<DocumentAssetUploader>(
+    async (file, uploadId) => {
+      const asset = await uploadAsset.mutateAsync({ file, idempotencyKey: uploadId });
+      return { assetId: asset.id, width: asset.width, height: asset.height };
+    },
+    [uploadAsset],
+  );
+
+  const handleAssetError = useCallback(
+    (error: unknown) => {
+      toast.error(apiErrorMessage(error) ?? t("documents.editor.asset_upload_failed"));
+    },
+    [t],
+  );
+
+  const handleContentError = useCallback(() => {
+    toast.error(t("documents.save.error"));
+  }, [t]);
+
+  const handleChange = useCallback(
+    (content: unknown) => {
+      lastLocalContentRef.current = content;
+      save.edit({ content });
+    },
+    [save],
+  );
+
+  /** One caption line: the wait, the two failures, or the plain unsaved remark. */
+  const leaveCaption = (() => {
+    if (leavePending) return t("documents.leave.waiting");
+    if (state.phase === "unverifiable") return t("documents.save.unverified");
+    if (state.phase === "error") return t("documents.save.error");
+    return t("documents.save.unsaved");
+  })();
+
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <BreadcrumbHeader
+        leading={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className={PAGE_LEADING_ICON}
+            aria-label={t("documents.detail.back_to_library")}
+            onClick={() => navigate(libraryHref)}
+          >
+            <ArrowLeft aria-hidden className="size-4" />
+          </Button>
+        }
+        segments={[{ href: libraryHref, label: t("documents.detail.breadcrumb_library") }]}
+        leaf={
+          <span className="truncate font-medium text-foreground">
+            {doc.title || t("documents.detail.untitled")}
+          </span>
+        }
+        actions={
+          <>
+            {doc.kind === "page" ? (
+              <DocumentSaveIndicator
+                state={state}
+                pendingUploads={pendingUploads}
+                readonly={!canEdit}
+                onRetry={save.retry}
+                onResolveConflict={() => setConflictOpen(true)}
+              />
+            ) : null}
+            {!canEdit ? (
+              <span className="flex items-center gap-1.5 text-caption text-muted-foreground">
+                <Eye aria-hidden className="size-3.5" />
+                {t("documents.detail.readonly_title")}
+              </span>
+            ) : null}
+          </>
+        }
+      />
+
+      {!canEdit ? (
+        <Notice tone="info" icon={Eye}>
+          {t("documents.detail.readonly_description")}
+        </Notice>
+      ) : null}
+
+      <div
+        className={
+          doc.kind === "page"
+            ? "min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-10 sm:py-8"
+            : `min-h-0 flex-1 overflow-y-auto py-4 ${PAGE_GUTTER}`
+        }
+      >
+        {doc.kind === "page" ? (
+          <Suspense
+            fallback={
+              <div className="mx-auto w-full max-w-3xl space-y-3" aria-busy>
+                <Skeleton className="h-8 w-2/3" />
+                <Skeleton className="h-40 w-full" />
+              </div>
+            }
+          >
+            <div className="mx-auto w-full max-w-3xl">
+              <DocumentEditor
+                ref={editorRef}
+                wsId={wsId}
+                documentId={doc.id}
+                initialContent={doc.content}
+                content={doc.content}
+                contentRevision={doc.revision}
+                dirty={dirty}
+                editable={canEdit}
+                onChange={handleChange}
+                onUploadAsset={uploader}
+                onAssetError={handleAssetError}
+                onPendingUploadsChange={setPendingUploads}
+                onContentError={handleContentError}
+              />
+            </div>
+          </Suspense>
+        ) : (
+          <DocumentFileView wsId={wsId} doc={doc} readonly={!canEdit} />
+        )}
+      </div>
+
+      <DocumentConflictDialog
+        open={conflictOpen}
+        onOpenChange={(next) => {
+          setConflictOpen(next);
+          if (!next) {
+            setServerBase(null);
+            setKeepMineError(false);
+          }
+        }}
+        mineRevision={state.revision}
+        serverRevision={String(state.errorFields?.current_revision ?? doc.revision)}
+        serverBase={serverBase}
+        pending={state.phase === "saving"}
+        keepMinePending={keepMinePending}
+        keepMineError={keepMineError}
+        onKeepMine={keepMine}
+        onConfirmKeepMine={confirmKeepMine}
+        onBackFromServerBase={() => setServerBase(null)}
+        onLoadServer={loadServer}
+      />
+
+      <Dialog open={leaveOpen} onOpenChange={(next) => (!next && !leavePending ? finishLeave(false) : undefined)}>
+        <DialogContent className="sm:max-w-md" showCloseButton={!leavePending} closeLabel={t("common.close")}>
+          <DialogHeader>
+            <DialogTitle>{t("documents.leave.title")}</DialogTitle>
+            <DialogDescription>{t("documents.leave.description")}</DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center gap-2 text-caption text-muted-foreground">
+            <FileWarning aria-hidden className="size-4" />
+            {leaveCaption}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" disabled={leavePending} onClick={() => finishLeave(false)}>
+              {t("documents.leave.stay")}
+            </Button>
+            <Button type="button" variant="ghost" disabled={leavePending} onClick={() => finishLeave(true)}>
+              {t("documents.leave.discard")}
+            </Button>
+            <Button type="button" disabled={leavePending} aria-busy={leavePending || undefined} onClick={saveThenLeave}>
+              {leavePending ? t("documents.leave.waiting") : t("documents.leave.save_and_leave")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

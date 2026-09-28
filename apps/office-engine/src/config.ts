@@ -54,6 +54,9 @@ export interface EngineServiceConfig {
   shutdownGraceMs: number;
   /** Per-job uid sandbox; see SandboxConfig. */
   sandbox: SandboxConfig;
+  /** Dir holding the patched xlsx-gateway bundle + Rust sidecar binary
+   *  (UNIWORK_XLSX_ASSETS). Undefined when the lane is not staged. */
+  xlsxAssetsDir?: string;
 }
 
 const MiB = 1024 * 1024;
@@ -176,5 +179,6 @@ export function loadConfig(env: Record<string, string | undefined>, defaults: { 
     faultOperations: env.OFFICE_ENGINE_FAULT_OPERATIONS === "1",
     shutdownGraceMs: positiveInt(env, "OFFICE_ENGINE_SHUTDOWN_GRACE_MS", 10_000, 120_000),
     sandbox: sandboxConfig(env, maxWorkers),
+    ...(env.UNIWORK_XLSX_ASSETS ? { xlsxAssetsDir: env.UNIWORK_XLSX_ASSETS } : {}),
   };
 }

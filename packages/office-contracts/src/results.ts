@@ -1,13 +1,13 @@
 import { z } from "zod";
-import { officeFormatSchema } from "./formats";
-import { engineOperationSchema } from "./operations";
-import { jobStateSchema } from "./job-states";
-import { engineErrorCodeSchema } from "./error-codes";
-import { evidenceLevelSchema, runtimeKindSchema } from "./capabilities";
-import { fidelityWarningSchema } from "./warnings";
-import { ENGINE_LIMITS } from "./limits";
-import { scanForLeaks } from "./leaks";
-import { EngineContractViolation } from "./errors";
+import { officeFormatSchema } from "./formats.ts";
+import { engineOperationSchema } from "./operations.ts";
+import { jobStateSchema } from "./job-states.ts";
+import { engineErrorCodeSchema } from "./error-codes.ts";
+import { evidenceLevelSchema, runtimeKindSchema } from "./capabilities.ts";
+import { fidelityWarningSchema } from "./warnings.ts";
+import { ENGINE_LIMITS } from "./limits.ts";
+import { scanForLeaks } from "./leaks.ts";
+import { EngineContractViolation } from "./errors.ts";
 
 // Wire result shapes (engine-contract.md §4). Every result is snake_case; the
 // internal job ledger row MAY carry authority fields, but what a browser or

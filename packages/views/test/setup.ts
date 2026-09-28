@@ -79,4 +79,15 @@ if (typeof document !== "undefined") {
 
   // jsdom: cmdk calls scrollIntoView when focusing CommandItems.
   Element.prototype.scrollIntoView ??= () => {};
+
+  // jsdom has no layout: ProseMirror's scroll-into-view and the floating
+  // toolbar both ask a Range for its client rects, and jsdom only implements
+  // them on Element. An empty list means "nothing measured", which is exactly
+  // what a layout-less DOM should answer.
+  const rangeProto = Range.prototype as Range & {
+    getClientRects?: () => DOMRectList;
+    getBoundingClientRect?: () => DOMRect;
+  };
+  rangeProto.getClientRects ??= () => ({ length: 0, item: () => null }) as unknown as DOMRectList;
+  rangeProto.getBoundingClientRect ??= () => new DOMRect();
 }

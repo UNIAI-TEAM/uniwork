@@ -1,9 +1,9 @@
-import { ENGINE_CONTRACT_VERSION, ENGINE_PROTOCOL_VERSION } from "./version";
-import { officeFormats, type OfficeFormat } from "./formats";
-import { engineOperations, type EngineOperation } from "./operations";
-import { ENGINE_LIMITS } from "./limits";
-import { EngineBoundaryError, EngineContractViolation } from "./errors";
-import { decodeStrictBase64, sha256Hex } from "./canonical-json";
+import { ENGINE_CONTRACT_VERSION, ENGINE_PROTOCOL_VERSION } from "./version.ts";
+import { officeFormats, type OfficeFormat } from "./formats.ts";
+import { engineOperations, type EngineOperation } from "./operations.ts";
+import { ENGINE_LIMITS } from "./limits.ts";
+import { EngineBoundaryError, EngineContractViolation } from "./errors.ts";
+import { decodeStrictBase64, sha256Hex } from "./canonical-json.ts";
 
 // Strict wire validation (engine-contract.md §5), ported from validateEnvelope
 // in engine-contract.mjs. Validation is async because measuring the input

@@ -1,5 +1,5 @@
-import { canonicalJson, sha256Hex } from "./canonical-json";
-import type { MeasuredInput, Sha256HexFn } from "./envelope";
+import { canonicalJson, sha256Hex } from "./canonical-json.ts";
+import type { MeasuredInput, Sha256HexFn } from "./envelope.ts";
 
 /**
  * Payload fingerprint: the identity of a job's RESULT-DECIDING inputs

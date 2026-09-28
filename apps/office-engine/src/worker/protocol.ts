@@ -14,6 +14,9 @@ export interface RunMessage {
       job dir; null for ops that carry none. Names are service-chosen. */
   payloadPath: string | null;
   tempDir: string;
+  /** Service-configured dir holding the patched xlsx-gateway bundle + the
+      Rust sidecar binary; the worker resolves it only inside xlsx handlers. */
+  xlsxAssetsDir?: string;
   sampleMs: number;
   /** V8 old-generation cap for the handler thread, in MiB. */
   heapMb: number;

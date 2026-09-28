@@ -19,6 +19,7 @@ Rules:
 | # | Patch | sha256 | Files | What it carries |
 | - | ----- | ------ | ----- | --------------- |
 | 0001 | `0001-g108-xlsx-frozen-engine.patch` | `E299A322443805E2F2EBD03B70A37CE44A44EBDE020A093A64F5C14695E0F27E` | `packages/xlsx-gateway/src/gateway/xlsx-styles.ts`, `xlsx-styles.dedupe.test.ts` (new), `apps/sheets/native/xlsx-engine/src/recalc.rs` | The frozen XLSX engine changes accepted in G0: the cellXfs dedupe fix so saving an already-styled cell does not grow `xl/styles.xml` (with its node:test regression), and the sidecar `normalize_for_ironcalc` normalization + tests that make unstyled packages recalculable. |
+| 0002 | `0002-xlsx-cross-sheet-formula-cache.patch` | `1CB36ED934F9492E7352963E63D2924514086D8C07E52781CEE65D2CEE0545E4` | `packages/xlsx-gateway/src/gateway/xlsx-gateway.ts` | G2-04 (UNI-687): the formulaValues pass previously skipped any sheet the cell edits never touched (`worksheetXmls` is seeded from edit/state sheet names only), so a cross-sheet formula dependent kept its stale cached `<v>` forever. The loop now lazy-loads an untouched formula sheet via `resolveWorksheetPath` and still skips one whose path cannot be resolved, preserving the old fail-soft behaviour. A lazily loaded sheet records its source XML in `lazilyLoadedXmls`; the write-back loop publishes it only when a pass actually changed the XML, so an unchanged dependent stays byte-identical and never enters `touchedEntries` — `assertOnlyTouchedEntriesChanged` covers it, and preservation surface stays maximal. |
 
 ## Provenance of 0001
 
