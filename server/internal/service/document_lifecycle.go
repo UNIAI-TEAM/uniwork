@@ -577,11 +577,11 @@ func (s *DocumentService) PurgeExpired(ctx context.Context, now time.Time) (Docu
 			if ctx.Err() != nil {
 				return rep, ctx.Err()
 			}
-			released, err := s.purgeOneDocument(ctx, d, now)
+			purged, released, err := s.purgeOneDocument(ctx, d, now)
 			if err != nil {
 				rep.Failed++
 				slog.Warn("documents purge: row failed, next sweep retries", "document", d.ID, "err", err)
-			} else {
+			} else if purged {
 				rep.Purged++
 				rep.Released += released
 			}
@@ -614,10 +614,11 @@ func (s *DocumentService) PurgeExpired(ctx context.Context, now time.Time) (Docu
 			if ctx.Err() != nil {
 				return rep, ctx.Err()
 			}
-			if err := s.purgeOneAsset(ctx, a); err != nil {
+			purged, err := s.purgeOneAsset(ctx, a)
+			if err != nil {
 				rep.Failed++
 				slog.Warn("documents purge: asset row failed, next sweep retries", "asset", a.ID, "err", err)
-			} else {
+			} else if purged {
 				rep.AssetsPurged++
 			}
 			afterAt = a.OrphanedAt
@@ -634,28 +635,28 @@ func (s *DocumentService) PurgeExpired(ctx context.Context, now time.Time) (Docu
 // (versions, assets, shares, links, access log, comments, favorites) and
 // releases its file references - all inside one transaction, so FileService
 // either sees the references gone or the document still holds them.
-func (s *DocumentService) purgeOneDocument(ctx context.Context, d db.ListDocumentsForPurgeRow, now time.Time) (int, error) {
+func (s *DocumentService) purgeOneDocument(ctx context.Context, d db.ListDocumentsForPurgeRow, now time.Time) (bool, int, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return 0, err
+		return false, 0, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := s.q.WithTx(tx)
 	doc, err := q.LockDocumentByID(ctx, d.ID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, nil
+		return false, 0, nil
 	}
 	if err != nil {
-		return 0, err
+		return false, 0, err
 	}
 	if !doc.ArchivedAt.Valid || !doc.PurgeAfter.Valid || !doc.PurgeAfter.Time.Before(now) {
-		return 0, nil // restored or re-archived later while the scan was in flight
+		return false, 0, nil // restored or re-archived later while the scan was in flight
 	}
 	fileIDs, err := q.ListDocumentFileIDs(ctx, db.ListDocumentFileIDsParams{
 		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
 	})
 	if err != nil {
-		return 0, err
+		return false, 0, err
 	}
 	// Everything the document gathered goes in the same transaction.
 	for _, del := range []func(context.Context) error{
@@ -689,17 +690,17 @@ func (s *DocumentService) purgeOneDocument(ctx context.Context, d db.ListDocumen
 		},
 	} {
 		if err := del(ctx); err != nil {
-			return 0, err
+			return false, 0, err
 		}
 	}
 	n, err := q.DeleteArchivedDocument(ctx, db.DeleteArchivedDocumentParams{
 		ID: doc.ID, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
 	})
 	if err != nil {
-		return 0, err
+		return false, 0, err
 	}
 	if n == 0 {
-		return 0, nil // restored between lock and delete
+		return false, 0, nil // restored between lock and delete
 	}
 	released := []files.FileID{}
 	for _, id := range fileIDs {
@@ -708,7 +709,7 @@ func (s *DocumentService) purgeOneDocument(ctx context.Context, d db.ListDocumen
 		}
 	}
 	if err := s.files.ReleaseInTx(ctx, q, released); err != nil {
-		return 0, err
+		return false, 0, err
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
 		OrganizationID: doc.OrganizationID,
@@ -721,61 +722,61 @@ func (s *DocumentService) purgeOneDocument(ctx context.Context, d db.ListDocumen
 	}, audit.Event{Topic: "document.deleted", Payload: map[string]string{
 		"document_id": doc.ID, "workspace_id": doc.WorkspaceID,
 	}}); err != nil {
-		return 0, err
+		return false, 0, err
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return 0, err
+		return false, 0, err
 	}
-	return len(released), nil
+	return true, len(released), nil
 }
 
 // purgeOneAsset removes one orphaned asset row past its grace and releases
 // the file it names. A version that still references it (a restore can bring
 // the reference back) keeps it.
-func (s *DocumentService) purgeOneAsset(ctx context.Context, a db.ListOrphanedDocumentAssetsRow) error {
+func (s *DocumentService) purgeOneAsset(ctx context.Context, a db.ListOrphanedDocumentAssetsRow) (bool, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := s.q.WithTx(tx)
 	doc, err := q.LockDocumentByID(ctx, a.DocumentID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil
+		return false, nil
 	}
 	if err != nil {
-		return err
+		return false, err
 	}
 	if doc.ArchivedAt.Valid {
-		return nil // the document's own purge takes the row with it
+		return false, nil // the document's own purge takes the row with it
 	}
 	held, err := q.DocumentAssetHeldByVersion(ctx, db.DocumentAssetHeldByVersionParams{
 		OrganizationID: a.OrganizationID, WorkspaceID: a.WorkspaceID, DocumentID: a.DocumentID, AssetID: pgtype.Text{String: a.ID, Valid: true},
 	})
 	if err != nil {
-		return err
+		return false, err
 	}
 	if held {
-		return nil
+		return false, nil
 	}
 	asset, err := q.GetDocumentAsset(ctx, db.GetDocumentAssetParams{
 		ID: a.ID, OrganizationID: a.OrganizationID, WorkspaceID: a.WorkspaceID, DocumentID: a.DocumentID,
 	})
 	if err != nil {
-		return err
+		return false, err
 	}
 	if !asset.OrphanedAt.Valid {
-		return nil // referenced again since the scan
+		return false, nil // referenced again since the scan
 	}
 	n, err := q.DeleteDocumentAsset(ctx, db.DeleteDocumentAssetParams{
 		ID: a.ID, OrganizationID: a.OrganizationID, WorkspaceID: a.WorkspaceID, DocumentID: a.DocumentID,
 	})
 	if err != nil || n == 0 {
-		return err
+		return false, err
 	}
 	if asset.FileID != "" {
 		if err := s.files.ReleaseInTx(ctx, q, []files.FileID{files.FileID(asset.FileID)}); err != nil {
-			return err
+			return false, err
 		}
 	}
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
@@ -787,9 +788,9 @@ func (s *DocumentService) purgeOneAsset(ctx context.Context, a db.ListOrphanedDo
 		ResourceID:     a.DocumentID,
 		Metadata:       map[string]any{"asset_id": a.ID, "file_id": asset.FileID},
 	}); err != nil {
-		return err
+		return false, err
 	}
-	return tx.Commit(ctx)
+	return true, tx.Commit(ctx)
 }
 
 // --- Version compaction -----------------------------------------------------

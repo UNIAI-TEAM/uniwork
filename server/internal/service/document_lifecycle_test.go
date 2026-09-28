@@ -6,6 +6,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -310,6 +311,82 @@ func TestDocumentPurge(t *testing.T) {
 		f.liveArchived(t, bad.ID)
 		if _, err := f.q.GetDocumentByID(f.ctx, good.ID); err == nil {
 			t.Fatal("good document survived behind the failing row")
+		}
+	})
+
+	t.Run("an orphaned asset past the grace releases, a held or young one stays", func(t *testing.T) {
+		spy := &releaseSpy{}
+		f.svc.SetFiles(spy)
+		d := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
+		asset := func(fileID string, orphanedDays int) string {
+			t.Helper()
+			id := util.NewID()
+			row := map[string]any{
+				"id": id, "organization_id": d.OrganizationID, "workspace_id": d.WorkspaceID,
+				"document_id": d.ID, "file_id": fileID, "mime_type": "image/png", "size_bytes": 10,
+				"created_by": d.CreatedBy, "created_by_kind": "human",
+			}
+			if orphanedDays > 0 {
+				row["orphaned_at"] = time.Now().Add(-time.Duration(orphanedDays) * 24 * time.Hour)
+			}
+			insertRow(t, f.ctx, f.pool, "document_assets", row)
+			return id
+		}
+		dead := asset("f-orph-dead", 8)
+		held := asset("f-orph-held", 8)
+		young := asset("f-orph-young", 1)
+		// A retained version still mentions the held asset - a restore could
+		// bring the reference back, so the sweep must leave it.
+		if _, err := f.pool.Exec(f.ctx, `INSERT INTO document_versions
+			(id, organization_id, workspace_id, document_id, version, kind, reason, content, created_by, created_by_kind)
+			VALUES ('01DVHELD0000000000000000', $1, $2, $3, 1, 'page', 'auto', $4, 'u', 'human')`,
+			d.OrganizationID, d.WorkspaceID, d.ID,
+			fmt.Sprintf(`{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"asset://%s"}]}]}`, held)); err != nil {
+			t.Fatal(err)
+		}
+
+		rep, err := f.svc.PurgeExpired(f.ctx, time.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		// The fixture's trash is shared with the earlier subtests, so the
+		// document half of the sweep can legitimately release other ids;
+		// the asset half must touch exactly the dead orphan.
+		var deadSeen, heldSeen, youngSeen int
+		for _, id := range spy.releasedIDs() {
+			switch id {
+			case "f-orph-dead":
+				deadSeen++
+			case "f-orph-held":
+				heldSeen++
+			case "f-orph-young":
+				youngSeen++
+			}
+		}
+		if rep.AssetsPurged != 1 || rep.Failed != 0 || deadSeen != 1 || heldSeen != 0 || youngSeen != 0 {
+			t.Fatalf("purge = %+v released %v, want the dead orphan released once and the held/young ones never", rep, spy.releasedIDs())
+		}
+		for _, id := range []string{held, young} {
+			var n int
+			if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM document_assets WHERE id = $1`, id).Scan(&n); err != nil || n != 1 {
+				t.Fatalf("asset %s gone (n=%d, err=%v)", id, n, err)
+			}
+		}
+		var n int
+		if err := f.pool.QueryRow(f.ctx, `SELECT count(*) FROM document_assets WHERE id = $1`, dead).Scan(&n); err != nil || n != 0 {
+			t.Fatalf("dead asset still present (n=%d, err=%v)", n, err)
+		}
+	})
+
+	t.Run("a cancelled context stops the sweep", func(t *testing.T) {
+		f.svc.SetFiles(&releaseSpy{})
+		ctx, cancel := context.WithCancel(f.ctx)
+		cancel()
+		if _, err := f.svc.PurgeExpired(ctx, time.Now()); !errors.Is(err, context.Canceled) {
+			t.Fatalf("PurgeExpired on a dead ctx = %v, want context.Canceled", err)
+		}
+		if _, err := f.svc.CompactVersions(ctx); !errors.Is(err, context.Canceled) {
+			t.Fatalf("CompactVersions on a dead ctx = %v, want context.Canceled", err)
 		}
 	})
 }

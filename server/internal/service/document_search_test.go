@@ -86,6 +86,46 @@ func TestDocumentSearch(t *testing.T) {
 		}
 	})
 
+	t.Run("an insert between pages does not shift the cursor", func(t *testing.T) {
+		// Keyset property OFFSET cannot give: a row inserted ahead of the
+		// cursor belongs to a page the reader already passed, so the next
+		// page still answers the row that was next in line - never a repeat.
+		// The query scopes the listing to this subtest's own documents.
+		base := time.Now().Add(-3 * time.Hour)
+		spec := func(at time.Time) treeDocSpec {
+			return treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
+				searchText: "cursor-shift", updatedAt: at}
+		}
+		d1 := f.treeDoc(t, tn, spec(base.Add(2*time.Minute)))
+		d2 := f.treeDoc(t, tn, spec(base.Add(time.Minute)))
+		d3 := f.treeDoc(t, tn, spec(base))
+		member := Human(tn.member.ID)
+
+		p1, err := f.svc.ListDocuments(f.ctx, member, tn.wsA, ListDocumentsInput{Query: "cursor-shift", Limit: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ids := listIDs(p1); len(ids) != 1 || ids[0] != d1.ID {
+			t.Fatalf("page 1 = %v, want [%s]", ids, d1.ID)
+		}
+		// The insert sorts ahead of the cursor (newest updated_at).
+		f.treeDoc(t, tn, spec(base.Add(3*time.Minute)))
+		p2, err := f.svc.ListDocuments(f.ctx, member, tn.wsA, ListDocumentsInput{Query: "cursor-shift", Limit: 1, Cursor: p1.NextCursor})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ids := listIDs(p2); len(ids) != 1 || ids[0] != d2.ID {
+			t.Fatalf("page 2 after insert = %v, want [%s] - the inserted row must not shift or repeat", ids, d2.ID)
+		}
+		p3, err := f.svc.ListDocuments(f.ctx, member, tn.wsA, ListDocumentsInput{Query: "cursor-shift", Limit: 1, Cursor: p2.NextCursor})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ids := listIDs(p3); len(ids) != 1 || ids[0] != d3.ID {
+			t.Fatalf("page 3 = %v, want [%s]", ids, d3.ID)
+		}
+	})
+
 	t.Run("owner-service documents never appear in free listings", func(t *testing.T) {
 		owned := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", createdBy: tn.aclOwner.ID, ownerID: "wp-search", title: "Sản phẩm sở hữu", searchText: "san pham so huu"})
 		for _, in := range []ListDocumentsInput{

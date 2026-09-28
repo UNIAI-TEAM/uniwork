@@ -180,10 +180,11 @@ func (w *DocumentWorkers) autoVersionPass(ctx context.Context) error {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			if err := w.svc.autoVersionOne(ctx, row.ID, row.OrganizationID, row.WorkspaceID, now); err != nil {
+			m, err := w.svc.autoVersionOne(ctx, row.ID, row.OrganizationID, row.WorkspaceID, now)
+			if err != nil {
 				failed++
 				slog.Warn("documents auto-version: page failed, next tick retries", "document", row.ID, "err", err)
-			} else {
+			} else if m {
 				made++
 			}
 			afterAt = row.ContentSavedAt
@@ -201,29 +202,30 @@ func (w *DocumentWorkers) autoVersionPass(ctx context.Context) error {
 
 // autoVersionOne snapshots one page under its row lock: every predicate of
 // the scan is re-evaluated there, so a save racing the tick moves the page
-// to the next pass instead of producing a stale snapshot.
-func (s *DocumentService) autoVersionOne(ctx context.Context, documentID, orgID, wsID string, now time.Time) error {
+// to the next pass instead of producing a stale snapshot. Returns made=false
+// when the re-check left nothing to do - skipped rows are not "made".
+func (s *DocumentService) autoVersionOne(ctx context.Context, documentID, orgID, wsID string, now time.Time) (bool, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := s.q.WithTx(tx)
 	doc, err := q.LockDocumentByID(ctx, documentID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil
+		return false, nil
 	}
 	if err != nil {
-		return err
+		return false, err
 	}
 	if doc.OrganizationID != orgID || doc.WorkspaceID != wsID {
-		return nil
+		return false, nil
 	}
 	quiet := now.Add(-documentAutoVersionQuiet)
 	if doc.Kind != DocumentKindPage || doc.ArchivedAt.Valid || !doc.ContentSavedAt.Valid ||
 		!doc.ContentSavedAt.Time.Before(quiet) ||
 		(doc.LastVersionAt.Valid && !doc.ContentSavedAt.Time.After(doc.LastVersionAt.Time)) {
-		return nil
+		return false, nil
 	}
 	raw := doc.Content
 	if len(raw) == 0 {
@@ -231,11 +233,11 @@ func (s *DocumentService) autoVersionOne(ctx context.Context, documentID, orgID,
 	}
 	content, _, err := document.Sanitize(raw)
 	if err != nil {
-		return documentServiceError(err)
+		return false, documentServiceError(err)
 	}
 	sys := audit.System("documents.autoversion")
 	if err := s.consumePageBytes(ctx, q, sys, doc, int64(len(content))); err != nil {
-		return err
+		return false, err
 	}
 	v, err := q.InsertDocumentVersion(ctx, db.InsertDocumentVersionParams{
 		ID:             util.NewID(),
@@ -251,7 +253,7 @@ func (s *DocumentService) autoVersionOne(ctx context.Context, documentID, orgID,
 		CreatedByKind:  string(sys.Kind),
 	})
 	if err != nil {
-		return err
+		return false, err
 	}
 	marked, err := q.MarkDocumentAutoVersioned(ctx, db.MarkDocumentAutoVersionedParams{
 		CurrentVersion:  v.Version,
@@ -264,10 +266,10 @@ func (s *DocumentService) autoVersionOne(ctx context.Context, documentID, orgID,
 	if errors.Is(err, pgx.ErrNoRows) {
 		// The row moved under us after all (should not happen under the row
 		// lock; guarded anyway): nothing was written.
-		return errors.New("documents: auto-version raced a save")
+		return false, errors.New("documents: auto-version raced a save")
 	}
 	if err != nil {
-		return err
+		return false, err
 	}
 	doc = marked
 	if err := auditRecorder.Record(ctx, q, audit.Entry{
@@ -282,7 +284,7 @@ func (s *DocumentService) autoVersionOne(ctx context.Context, documentID, orgID,
 		}),
 		Metadata: map[string]any{"content_saved_at": doc.ContentSavedAt.Time.Format(time.RFC3339Nano)},
 	}, versionCreatedEvent(doc, v)); err != nil {
-		return err
+		return false, err
 	}
-	return tx.Commit(ctx)
+	return true, tx.Commit(ctx)
 }

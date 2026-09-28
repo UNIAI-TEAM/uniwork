@@ -30,7 +30,7 @@ func TestDocumentWorkers(t *testing.T) {
 		now := time.Now()
 		doc := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
 			contentText: "nội dung", contentSavedAt: now.Add(-20 * time.Minute)})
-		if err := f.svc.autoVersionOne(f.ctx, doc.ID, tn.orgID, tn.wsA, now); err != nil {
+		if _, err := f.svc.autoVersionOne(f.ctx, doc.ID, tn.orgID, tn.wsA, now); err != nil {
 			t.Fatal(err)
 		}
 		if n := countVersions(t, f, doc.ID, "auto"); n != 1 {
@@ -44,7 +44,7 @@ func TestDocumentWorkers(t *testing.T) {
 		if !d.LastVersionAt.Valid {
 			t.Fatal("last_version_at not stamped")
 		}
-		if err := f.svc.autoVersionOne(f.ctx, doc.ID, tn.orgID, tn.wsA, now); err != nil {
+		if _, err := f.svc.autoVersionOne(f.ctx, doc.ID, tn.orgID, tn.wsA, now); err != nil {
 			t.Fatal(err)
 		}
 		if n := countVersions(t, f, doc.ID, "auto"); n != 1 {
@@ -56,7 +56,7 @@ func TestDocumentWorkers(t *testing.T) {
 		now := time.Now()
 		doc := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID,
 			contentText: "mới", contentSavedAt: now.Add(-time.Minute)})
-		if err := f.svc.autoVersionOne(f.ctx, doc.ID, tn.orgID, tn.wsA, now); err != nil {
+		if _, err := f.svc.autoVersionOne(f.ctx, doc.ID, tn.orgID, tn.wsA, now); err != nil {
 			t.Fatal(err)
 		}
 		if n := countVersions(t, f, doc.ID, "auto"); n != 0 {
