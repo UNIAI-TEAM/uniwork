@@ -342,6 +342,90 @@ func TestDocumentCommentHTTPLifecycle(t *testing.T) {
 	}
 }
 
+// TestDocumentCommentHTTPDocumentBinding pins the URL-to-row binding for the
+// six id-addressed comment routes: a comment that hangs on another document, a
+// document id from another tenant, and a document id that does not exist all
+// answer the same 404 an unknown comment answers - and nothing on the real
+// document moves. The service still authorizes against the comment's own
+// document; this test proves the HTTP route cannot name document A while
+// mutating a comment on document B.
+func TestDocumentCommentHTTPDocumentBinding(t *testing.T) {
+	w := newDocumentCollabWorld(t)
+	docA := w.createDoc(t, w.token, "Spec A", "workspace")
+	docB := w.createDoc(t, w.token, "Spec B", "workspace")
+	commentID := w.createComment(t, w.member, docB, "bình luận trên B", nil)
+
+	// A second tenant with its own org, workspace and document: its id is a
+	// real document that no one in this world can reach.
+	otherToken, _ := filesRegister(t, w.srv, "binding-other-tenant@example.com")
+	res, out := doJSON(t, w.srv, "POST", "/api/v1/orgs", otherToken, map[string]string{"name": "Other Org", "slug": "binding-other-org"})
+	if res.StatusCode != 201 {
+		t.Fatalf("create other org: %d %v", res.StatusCode, out)
+	}
+	otherOrgID := out["organization"].(map[string]any)["id"].(string)
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/orgs/"+otherOrgID+"/workspaces", otherToken, map[string]string{"name": "Other WS", "slug": "binding-other-ws"})
+	if res.StatusCode != 201 {
+		t.Fatalf("create other ws: %d %v", res.StatusCode, out)
+	}
+	otherWSID := out["workspace"].(map[string]any)["id"].(string)
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/workspaces/"+otherWSID+"/documents", otherToken, map[string]any{
+		"title": "Other Doc", "kind": "page", "visibility": "workspace",
+		"content": map[string]any{"type": "doc", "content": []any{map[string]any{"type": "paragraph"}}},
+	})
+	if res.StatusCode != 201 {
+		t.Fatalf("create other doc: %d %v", res.StatusCode, out)
+	}
+	otherDocID := out["document"].(map[string]any)["id"].(string)
+
+	for _, doc := range []struct{ label, id string }{
+		{"other-document", docA},
+		{"cross-tenant", otherDocID},
+		{"missing-document", "01J8X4DOC1N2P3Q4R5S6T7U8"},
+	} {
+		for _, tc := range []struct {
+			name   string
+			method string
+			suffix string
+			body   any
+		}{
+			{"patch", "PATCH", "/" + commentID, map[string]any{"body": "sai tài liệu"}},
+			{"delete", "DELETE", "/" + commentID, nil},
+			{"resolve", "POST", "/" + commentID + "/resolve", nil},
+			{"reopen", "DELETE", "/" + commentID + "/resolve", nil},
+			{"reaction-add", "POST", "/" + commentID + "/reactions", map[string]any{"emoji": "🚫"}},
+			{"reaction-remove", "DELETE", "/" + commentID + "/reactions", map[string]any{"emoji": "🚫"}},
+		} {
+			res, out := doJSON(t, w.srv, tc.method, w.commentsPath(doc.id)+tc.suffix, w.member, tc.body)
+			if code, class := errCodeClass(out); res.StatusCode != 404 || code != "not_found" || class != "missing" {
+				t.Fatalf("%s %s %s: %d code=%q class=%q, want 404 not_found/missing", doc.label, tc.method, tc.name, res.StatusCode, code, class)
+			}
+		}
+	}
+
+	// Nothing moved on the real document: the row is still there with its
+	// original body and revision, still open, and with no reactions.
+	rows := w.listComments(t, w.member, docB, 200)
+	if len(rows) != 1 {
+		t.Fatalf("thread on B changed: %v", rows)
+	}
+	row := rows[0].(map[string]any)
+	if row["id"] != commentID || row["body"] != "bình luận trên B" || row["revision"].(float64) != 1 {
+		t.Fatalf("comment on B mutated: %v", row)
+	}
+	if _, ok := row["resolved_at"]; ok {
+		t.Fatalf("comment on B resolved through a mismatched URL: %v", row)
+	}
+	if reactions := row["reactions"].([]any); len(reactions) != 0 {
+		t.Fatalf("reactions on B mutated through a mismatched URL: %v", reactions)
+	}
+
+	// The pair still works when the URL names the right document.
+	res, out = doJSON(t, w.srv, "PATCH", w.commentsPath(docB)+"/"+commentID, w.member, map[string]any{"body": "sửa đúng tài liệu"})
+	if res.StatusCode != 200 || out["comment"].(map[string]any)["revision"].(float64) != 2 {
+		t.Fatalf("same-document patch: %d %v", res.StatusCode, out)
+	}
+}
+
 func TestDocumentCommentHTTPPermissions(t *testing.T) {
 	w := newDocumentCollabWorld(t)
 	restricted := w.createDoc(t, w.token, "Bí mật", "restricted")

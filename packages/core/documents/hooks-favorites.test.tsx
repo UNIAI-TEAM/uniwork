@@ -87,4 +87,16 @@ describe("document favorite hooks", () => {
       );
     });
   });
+
+  it("a malformed unfavorite answer is not verifiable", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    const qc = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const wrapper = wrapperFor(qc);
+    const unfavorite = renderHook(() => useUnfavoriteDocument(), { wrapper });
+    await act(async () => {
+      await expect(unfavorite.result.current.mutateAsync("d1")).rejects.toBeInstanceOf(
+        DocumentNotVerifiableError,
+      );
+    });
+  });
 });

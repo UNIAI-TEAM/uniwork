@@ -6,7 +6,7 @@ import {
   unfavoriteDocument,
 } from "../api/endpoints/document-favorites";
 import { documentKeys } from "./keys";
-import { requireVerifiableFavorite } from "./verify";
+import { requireVerifiableFavorite, requireVerifiableStatus } from "./verify";
 
 // Document favorites hooks (G1-07, UNI-681; lane 07b). The list is
 // organization-scoped (the endpoint is), and every favorite/unfavorite
@@ -36,7 +36,8 @@ export function useFavoriteDocument() {
 export function useUnfavoriteDocument() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (documentId: string) => unfavoriteDocument(documentId),
+    mutationFn: async (documentId: string) =>
+      requireVerifiableStatus(await unfavoriteDocument(documentId)),
     onSuccess: () => qc.invalidateQueries({ queryKey: documentKeys.favoritesRoot }),
   });
 }

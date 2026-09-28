@@ -118,4 +118,33 @@ describe("document comment hooks", () => {
       ).rejects.toBeInstanceOf(DocumentNotVerifiableError);
     });
   });
+
+  it("a malformed delete or reaction answer is not verifiable", async () => {
+    const qc = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const wrapper = wrapperFor(qc);
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    const del = renderHook(() => useDeleteDocumentComment("w1", "d1"), { wrapper });
+    await act(async () => {
+      await expect(del.result.current.mutateAsync("c1")).rejects.toBeInstanceOf(
+        DocumentNotVerifiableError,
+      );
+    });
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ reaction: { nope: true } }));
+    const add = renderHook(() => useAddDocumentCommentReaction("w1", "d1"), { wrapper });
+    await act(async () => {
+      await expect(
+        add.result.current.mutateAsync({ commentId: "c1", emoji: "👍" }),
+      ).rejects.toBeInstanceOf(DocumentNotVerifiableError);
+    });
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    const remove = renderHook(() => useRemoveDocumentCommentReaction("w1", "d1"), { wrapper });
+    await act(async () => {
+      await expect(
+        remove.result.current.mutateAsync({ commentId: "c1", emoji: "👍" }),
+      ).rejects.toBeInstanceOf(DocumentNotVerifiableError);
+    });
+  });
 });

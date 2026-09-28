@@ -7,6 +7,7 @@ import {
   type DocumentUpload,
   type DocumentVersionResult,
 } from "../types/document";
+import type { CommentReaction } from "../types/task-collaboration";
 
 // Identity checks on mutation answers. An endpoint already returns null when
 // its schema rejects the payload, but these guards also prove the response
@@ -65,4 +66,21 @@ export function requireVerifiableFavorite(
 ): DocumentFavorite {
   if (!favorite || !favorite.document_id) throw new DocumentNotVerifiableError();
   return favorite;
+}
+
+/** Void mutations - comment delete, reaction removal, unfavorite - prove the
+ *  write with the `{status:"ok"}` envelope alone, so that envelope is what the
+ *  endpoint reports and the hook requires before invalidating anything. */
+export function requireVerifiableStatus(status: boolean): true {
+  if (!status) throw new DocumentNotVerifiableError();
+  return true;
+}
+
+/** A reaction answer must name its row and the comment it hangs on, the same
+ *  way a comment answer must name its document. */
+export function requireVerifiableReaction(
+  reaction: CommentReaction | null | undefined,
+): CommentReaction {
+  if (!reaction || !reaction.id || !reaction.comment_id) throw new DocumentNotVerifiableError();
+  return reaction;
 }

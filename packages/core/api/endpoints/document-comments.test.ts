@@ -103,12 +103,13 @@ describe("document comment endpoints", () => {
     expect(out?.revision).toBe(2);
   });
 
-  it("deleteDocumentComment DELETEs the comment route", async () => {
+  it("deleteDocumentComment DELETEs the comment route and proves the status", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
-    await deleteDocumentComment("d1", "c1");
+    const ok = await deleteDocumentComment("d1", "c1");
     const [url, init] = vi.mocked(fetch).mock.calls[0]!;
     expect(String(url)).toBe("http://api.test/api/v1/documents/d1/comments/c1");
     expect(init?.method).toBe("DELETE");
+    expect(ok).toBe(true);
   });
 
   it("resolve and reopen use the resolve route with POST and DELETE", async () => {
@@ -139,11 +140,12 @@ describe("document comment endpoints", () => {
     expect(reaction?.comment_id).toBe("c1");
 
     vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
-    await removeDocumentCommentReaction("d1", "c1", { emoji: "👍" });
+    const removed = await removeDocumentCommentReaction("d1", "c1", { emoji: "👍" });
     const [removeUrl, removeInit] = vi.mocked(fetch).mock.calls[1]!;
     expect(String(removeUrl)).toBe("http://api.test/api/v1/documents/d1/comments/c1/reactions");
     expect(removeInit?.method).toBe("DELETE");
     expect(JSON.parse(String(removeInit?.body))).toEqual({ emoji: "👍" });
+    expect(removed).toBe(true);
   });
 
   // ---- lenience + malformed responses -----------------------------------
@@ -177,14 +179,16 @@ describe("document comment endpoints", () => {
     }
   });
 
-  it("returns null for a malformed reaction and never throws on the void routes", async () => {
+  it("a malformed answer never reads as saved: reaction null, delete/remove unproven", async () => {
     for (const body of malformedBodies) {
       vi.mocked(fetch).mockResolvedValueOnce(json(body));
       await expect(addDocumentCommentReaction("d1", "c1", { emoji: "👍" })).resolves.toBeNull();
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(deleteDocumentComment("d1", "c1")).resolves.toBe(false);
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(
+        removeDocumentCommentReaction("d1", "c1", { emoji: "👍" }),
+      ).resolves.toBe(false);
     }
-    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
-    await expect(deleteDocumentComment("d1", "c1")).resolves.toBeUndefined();
-    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
-    await expect(removeDocumentCommentReaction("d1", "c1", { emoji: "👍" })).resolves.toBeUndefined();
   });
 });

@@ -18,11 +18,14 @@ import (
 // actor with service.Human from the auth middleware, hands the wire shape
 // straight to DocumentService and never queries the DB: the service decides
 // visibility and answers ErrNotFound/ErrForbidden, and mapServiceError turns
-// those into 404/403 without leaking whether an id exists. Bodies go through
-// decode() under the default 1 MiB cap. Create carries an optional
-// Idempotency-Key: the service replays the stored comment for the same
-// key+fingerprint and answers idempotency_payload_mismatch for a different
-// payload.
+// those into 404/403 without leaking whether an id exists. The id-addressed
+// routes bind {commentID} to the {documentID} the URL names before the service
+// sees the comment: the service authorizes a comment against its own document,
+// so without that check a comment on document B would answer - and mutate -
+// through a URL naming document A. Bodies go through decode() under the
+// default 1 MiB cap. Create carries an optional Idempotency-Key: the service
+// replays the stored comment for the same key+fingerprint and answers
+// idempotency_payload_mismatch for a different payload.
 
 // documentCommentDTO renders one row from a single-comment response. The
 // service returns the row without an author join, so the caller resolves the
@@ -98,6 +101,26 @@ func (h *handlers) respondDocumentComment(w http.ResponseWriter, r *http.Request
 	respondJSON(w, http.StatusOK, sdo.DocumentCommentSDO{Comment: documentCommentDTO(c, displayName, avatarURL, nil)})
 }
 
+// requireDocumentComment binds the {commentID} in the URL to the {documentID}
+// the route names before a mutation addresses the comment by bare id. The
+// service authorizes a comment against its own document, so without this check
+// a comment on document B would answer - and mutate - through a URL naming
+// document A, or through a document that does not exist at all. A comment that
+// hangs on another document answers the same 404 as an unknown id and never
+// reveals which document holds it.
+func (h *handlers) requireDocumentComment(w http.ResponseWriter, r *http.Request) bool {
+	c, err := h.Documents.GetDocumentComment(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "commentID"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return false
+	}
+	if c.DocumentID != chi.URLParam(r, "documentID") {
+		h.mapServiceError(w, service.ErrNotFound)
+		return false
+	}
+	return true
+}
+
 // listDocumentComments is GET /documents/{documentID}/comments: the thread for
 // a reader (view level), oldest first, with each comment's reactions.
 func (h *handlers) listDocumentComments(w http.ResponseWriter, r *http.Request) {
@@ -160,6 +183,9 @@ func (h *handlers) updateDocumentComment(w http.ResponseWriter, r *http.Request)
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
+	if !h.requireDocumentComment(w, r) {
+		return
+	}
 	c, err := h.Documents.UpdateDocumentComment(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "commentID"), service.UpdateCommentInput{Body: in.Body})
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -173,6 +199,9 @@ func (h *handlers) updateDocumentComment(w http.ResponseWriter, r *http.Request)
 func (h *handlers) deleteDocumentComment(w http.ResponseWriter, r *http.Request) {
 	if h.Documents == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
+		return
+	}
+	if !h.requireDocumentComment(w, r) {
 		return
 	}
 	if err := h.Documents.DeleteDocumentComment(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "commentID")); err != nil {
@@ -189,6 +218,9 @@ func (h *handlers) resolveDocumentComment(w http.ResponseWriter, r *http.Request
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
 		return
 	}
+	if !h.requireDocumentComment(w, r) {
+		return
+	}
 	c, err := h.Documents.ResolveDocumentComment(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "commentID"))
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -202,6 +234,9 @@ func (h *handlers) resolveDocumentComment(w http.ResponseWriter, r *http.Request
 func (h *handlers) reopenDocumentComment(w http.ResponseWriter, r *http.Request) {
 	if h.Documents == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
+		return
+	}
+	if !h.requireDocumentComment(w, r) {
 		return
 	}
 	c, err := h.Documents.UnresolveDocumentComment(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "commentID"))
@@ -223,6 +258,9 @@ func (h *handlers) addDocumentCommentReaction(w http.ResponseWriter, r *http.Req
 	if !decode(w, r, &in, maxJSONBody) {
 		return
 	}
+	if !h.requireDocumentComment(w, r) {
+		return
+	}
 	reaction, err := h.Documents.AddDocumentCommentReaction(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "commentID"), in.Emoji)
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -240,6 +278,9 @@ func (h *handlers) removeDocumentCommentReaction(w http.ResponseWriter, r *http.
 	}
 	var in sdi.ReactionSDI
 	if !decode(w, r, &in, maxJSONBody) {
+		return
+	}
+	if !h.requireDocumentComment(w, r) {
 		return
 	}
 	if err := h.Documents.RemoveDocumentCommentReaction(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "commentID"), in.Emoji); err != nil {

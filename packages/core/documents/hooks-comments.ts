@@ -13,7 +13,7 @@ import {
   type CreateDocumentCommentBody,
 } from "../api/endpoints/document-comments";
 import { documentKeys } from "./keys";
-import { requireVerifiableComment } from "./verify";
+import { requireVerifiableComment, requireVerifiableReaction, requireVerifiableStatus } from "./verify";
 
 // Document comment hooks (G1-07, UNI-681; lane 07b). One key per document
 // thread (documentKeys.comments) is what every mutation invalidates - the
@@ -21,6 +21,9 @@ import { requireVerifiableComment } from "./verify";
 // written in another session lands without refetching the document itself.
 // Mutations return the verified row; a malformed answer throws
 // DocumentNotVerifiableError and the composer keeps its draft and its key.
+// The void routes (delete, reaction removal) require the {status:"ok"} proof
+// before invalidating, and the reaction add requires its row identity, so a
+// half-written answer never reads as saved.
 
 export function useDocumentComments(
   wsId: string,
@@ -61,7 +64,8 @@ export function useUpdateDocumentComment(wsId: string, documentId: string) {
 export function useDeleteDocumentComment(wsId: string, documentId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (commentId: string) => deleteDocumentComment(documentId, commentId),
+    mutationFn: async (commentId: string) =>
+      requireVerifiableStatus(await deleteDocumentComment(documentId, commentId)),
     onSuccess: () => qc.invalidateQueries({ queryKey: documentKeys.comments(wsId, documentId) }),
   });
 }
@@ -88,7 +92,9 @@ export function useAddDocumentCommentReaction(wsId: string, documentId: string) 
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { commentId: string } & CommentReactionBody) =>
-      addDocumentCommentReaction(documentId, input.commentId, { emoji: input.emoji }),
+      requireVerifiableReaction(
+        await addDocumentCommentReaction(documentId, input.commentId, { emoji: input.emoji }),
+      ),
     onSuccess: () => qc.invalidateQueries({ queryKey: documentKeys.comments(wsId, documentId) }),
   });
 }
@@ -97,7 +103,9 @@ export function useRemoveDocumentCommentReaction(wsId: string, documentId: strin
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: { commentId: string } & CommentReactionBody) =>
-      removeDocumentCommentReaction(documentId, input.commentId, { emoji: input.emoji }),
+      requireVerifiableStatus(
+        await removeDocumentCommentReaction(documentId, input.commentId, { emoji: input.emoji }),
+      ),
     onSuccess: () => qc.invalidateQueries({ queryKey: documentKeys.comments(wsId, documentId) }),
   });
 }

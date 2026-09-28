@@ -21,6 +21,7 @@ const enc = encodeURIComponent;
 const CommentResponse = DocumentCommentEnvelopeSchema;
 const CommentListResponse = DocumentCommentListEnvelopeSchema;
 const ReactionResponse = z.object({ reaction: CommentReactionSchema });
+const StatusResponse = z.object({ status: z.string() });
 
 export interface CreateDocumentCommentBody {
   body: string;
@@ -96,9 +97,17 @@ export async function updateDocumentComment(
   })?.comment ?? null;
 }
 
-/** DELETE /api/v1/documents/{documentID}/comments/{commentID}. */
-export async function deleteDocumentComment(documentId: string, commentId: string): Promise<void> {
-  await request(commentPath(documentId, commentId), { method: "DELETE" });
+/** DELETE /api/v1/documents/{documentID}/comments/{commentID}. The server
+ *  proves the delete with {status:"ok"}; the endpoint returns whether that
+ *  envelope was proven, so a malformed answer never reads as a saved delete. */
+export async function deleteDocumentComment(
+  documentId: string,
+  commentId: string,
+): Promise<boolean> {
+  const raw = await request(commentPath(documentId, commentId), { method: "DELETE" });
+  return parseWithFallback<{ status: string }>(raw, StatusResponse, { status: "" }, {
+    endpoint: "DELETE /api/v1/documents/{id}/comments/{commentId}",
+  }).status === "ok";
 }
 
 /** POST .../comments/{commentID}/resolve - mark resolved (edit level). */
@@ -138,11 +147,18 @@ export async function addDocumentCommentReaction(
   })?.reaction ?? null;
 }
 
-/** DELETE .../comments/{commentID}/reactions - remove the caller's emoji. */
+/** DELETE .../comments/{commentID}/reactions - remove the caller's emoji.
+ *  Same {status:"ok"} proof as the comment delete. */
 export async function removeDocumentCommentReaction(
   documentId: string,
   commentId: string,
   body: CommentReactionBody,
-): Promise<void> {
-  await request(commentPath(documentId, commentId, "reactions"), { method: "DELETE", body });
+): Promise<boolean> {
+  const raw = await request(commentPath(documentId, commentId, "reactions"), {
+    method: "DELETE",
+    body,
+  });
+  return parseWithFallback<{ status: string }>(raw, StatusResponse, { status: "" }, {
+    endpoint: "DELETE /api/v1/documents/{id}/comments/{commentId}/reactions",
+  }).status === "ok";
 }

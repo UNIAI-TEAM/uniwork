@@ -54,12 +54,13 @@ describe("document favorite endpoints", () => {
     expect(out?.favorite_id).toBe("f1");
   });
 
-  it("unfavoriteDocument DELETEs the document route", async () => {
+  it("unfavoriteDocument DELETEs the document route and proves the status", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ status: "ok" }));
-    await unfavoriteDocument("d1");
+    const ok = await unfavoriteDocument("d1");
     const [url, init] = vi.mocked(fetch).mock.calls[0]!;
     expect(String(url)).toBe("http://api.test/api/v1/documents/d1/favorite");
     expect(init?.method).toBe("DELETE");
+    expect(ok).toBe(true);
   });
 
   it("degrades a malformed favorites list to []", async () => {
@@ -69,12 +70,12 @@ describe("document favorite endpoints", () => {
     }
   });
 
-  it("returns null for a malformed favorite and never throws on unfavorite", async () => {
+  it("a malformed favorite is null and a malformed unfavorite is unproven", async () => {
     for (const body of malformedBodies) {
       vi.mocked(fetch).mockResolvedValueOnce(json(body));
       await expect(favoriteDocument("d1")).resolves.toBeNull();
+      vi.mocked(fetch).mockResolvedValueOnce(json(body));
+      await expect(unfavoriteDocument("d1")).resolves.toBe(false);
     }
-    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
-    await expect(unfavoriteDocument("d1")).resolves.toBeUndefined();
   });
 });
