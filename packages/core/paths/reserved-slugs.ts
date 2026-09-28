@@ -29,6 +29,7 @@ export const RESERVED_SLUGS = [
   "register",
   "reset-password",
   "settings",
+  "share",
   "solutions",
   "static",
   "tasks",

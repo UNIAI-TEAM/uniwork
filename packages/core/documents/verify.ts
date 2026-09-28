@@ -1,7 +1,11 @@
 import {
   DocumentNotVerifiableError,
   type Document,
+  type DocumentArchive,
   type DocumentAsset,
+  type DocumentLinkEnvelope,
+  type DocumentSettings,
+  type DocumentShareEnvelope,
   type DocumentUpload,
   type DocumentVersionResult,
 } from "../types/document";
@@ -43,4 +47,38 @@ export function requireVerifiableAsset(asset: DocumentAsset | null | undefined):
     throw new DocumentNotVerifiableError();
   }
   return asset;
+}
+
+/** An archive/restore answer proves the write with the moved document and
+ *  its identity; the batch id and affected list are informative. */
+export function requireVerifiableArchive(res: DocumentArchive | null | undefined): DocumentArchive {
+  if (!res || !res.document?.id || !res.document?.revision) throw new DocumentNotVerifiableError();
+  return res;
+}
+
+/** A grant answer proves the write with the live share row. */
+export function requireVerifiableShare(
+  res: DocumentShareEnvelope | null | undefined,
+): DocumentShareEnvelope {
+  if (!res || !res.share?.id || !res.share?.principal_id || !res.share?.level) {
+    throw new DocumentNotVerifiableError();
+  }
+  return res;
+}
+
+/** A link answer proves the write only when the minted row, the raw token
+ *  (shown once) and the share path all arrived. */
+export function requireVerifiableLink(
+  res: DocumentLinkEnvelope | null | undefined,
+): DocumentLinkEnvelope {
+  if (!res || !res.link?.id || !res.token || !res.url) throw new DocumentNotVerifiableError();
+  return res;
+}
+
+/** A settings answer proves the write with the organization it belongs to. */
+export function requireVerifiableSettings(res: DocumentSettings | null | undefined): DocumentSettings {
+  if (!res || !res.organization_id || typeof res.public_links_enabled !== "boolean") {
+    throw new DocumentNotVerifiableError();
+  }
+  return res;
 }
