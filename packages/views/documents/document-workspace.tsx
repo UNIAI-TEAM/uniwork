@@ -19,6 +19,7 @@ import {
 } from "@uniwork/ui/components/ui/dialog";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
+import type { BreadcrumbSegment } from "../layout/breadcrumb-header";
 import { PAGE_GUTTER, PAGE_LEADING_ICON } from "../layout/page-header";
 import { Notice } from "../common/notice";
 import { leaveGuardAllows, registerLeaveGuard, useNavigation } from "../navigation";
@@ -43,6 +44,18 @@ export interface DocumentWorkspaceProps {
   /** The library list, the one breadcrumb ancestor we can point at today. */
   libraryHref: string;
   /**
+   * Builds the URL of another document in this workspace, for the breadcrumb
+   * ancestors. Absent, ancestors stay out of the chain: a link is never
+   * pointed at a URL that does not address the ancestor.
+   */
+  documentHref?: (documentId: string) => string;
+  /**
+   * Builds the URL of the Work Product that owns this document. Owned
+   * documents are not in the library at all (C-01 §13.5), so their chain
+   * starts at the owner page.
+   */
+  ownerHref?: (ownerId: string) => string;
+  /**
    * Re-read the document from the server (conflict resolution). The result is
    * the query observer's snapshot: a refetch that fails resolves with the
    * stale cache entry and `isError`, so the copy that comes back here can
@@ -61,7 +74,14 @@ export interface DocumentWorkspaceProps {
  * revision. A callback from the previous document can therefore never write
  * into the next one.
  */
-export function DocumentWorkspace({ wsId, doc, libraryHref, refetch }: DocumentWorkspaceProps) {
+export function DocumentWorkspace({
+  wsId,
+  doc,
+  libraryHref,
+  documentHref,
+  ownerHref,
+  refetch,
+}: DocumentWorkspaceProps) {
   const { t } = useTranslation();
   const { push } = useNavigation();
   const save = useDocumentSave(wsId, doc.id, doc.revision);
@@ -314,6 +334,31 @@ export function DocumentWorkspace({ wsId, doc, libraryHref, refetch }: DocumentW
     return t("documents.save.unsaved");
   })();
 
+  // Breadcrumbs (C-01 §7.1, FE design §4.1): the library, then every ancestor
+  // the server proved readable — `document.breadcrumbs` stops at the first
+  // ancestor the caller cannot read, and the client invents no link of its
+  // own. A Work Product owns its documents: they are not in the library, so
+  // their chain starts at the owner page instead.
+  const owned = Boolean(doc.owner_id);
+  const ownerCrumbHref = owned && doc.owner_id && ownerHref ? ownerHref(doc.owner_id) : null;
+  const ownerCrumb: BreadcrumbSegment[] = ownerCrumbHref
+    ? [{ href: ownerCrumbHref, label: t("documents.detail.breadcrumb_work_product") }]
+    : [];
+  const breadcrumbSegments: BreadcrumbSegment[] = owned
+    ? ownerCrumb
+    : [
+        { href: libraryHref, label: t("documents.detail.breadcrumb_library") },
+        ...(documentHref
+          ? (doc.breadcrumbs ?? [])
+              .filter((crumb) => crumb.id)
+              .map((crumb) => ({ href: documentHref(crumb.id), label: crumb.title }))
+          : []),
+      ];
+  const backHref = ownerCrumbHref ?? libraryHref;
+  const backLabel = ownerCrumbHref
+    ? t("documents.detail.back_to_owner")
+    : t("documents.detail.back_to_library");
+
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <BreadcrumbHeader
@@ -323,13 +368,13 @@ export function DocumentWorkspace({ wsId, doc, libraryHref, refetch }: DocumentW
             variant="ghost"
             size="icon-sm"
             className={PAGE_LEADING_ICON}
-            aria-label={t("documents.detail.back_to_library")}
-            onClick={() => navigate(libraryHref)}
+            aria-label={backLabel}
+            onClick={() => navigate(backHref)}
           >
             <ArrowLeft aria-hidden className="size-4" />
           </Button>
         }
-        segments={[{ href: libraryHref, label: t("documents.detail.breadcrumb_library") }]}
+        segments={breadcrumbSegments}
         leaf={
           <span className="truncate font-medium text-foreground">
             {doc.title || t("documents.detail.untitled")}

@@ -24,6 +24,8 @@ export default function DocumentDetailPage() {
         wsId={workspace.id}
         documentId={documentId}
         libraryHref={ws.documents()}
+        documentHref={(id) => ws.document(id)}
+        ownerHref={(id) => ws.project(id)}
         onBackToList={() => replace(ws.documents())}
       />
     </Suspense>
