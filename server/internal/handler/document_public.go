@@ -81,7 +81,9 @@ func (h *handlers) getPublicDocument(w http.ResponseWriter, r *http.Request) {
 
 // downloadPublicDocument is GET|HEAD /public/documents/{token}/download: the
 // current file version of a file document behind a live link, streamed with
-// Range support and always as an attachment.
+// Range support and always as an attachment. openPublicBytes gates the
+// organization's documents flag before it opens anything, so a denied read
+// leaves no log row behind.
 func (h *handlers) downloadPublicDocument(w http.ResponseWriter, r *http.Request) {
 	if h.Documents == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
@@ -92,16 +94,13 @@ func (h *handlers) downloadPublicDocument(w http.ResponseWriter, r *http.Request
 		return
 	}
 	defer b.closer.Close()
-	if !h.publicDocumentsEnabled(r, b.organizationID) {
-		respondError(w, http.StatusNotFound, "not_found", "not found")
-		return
-	}
 	h.serveDocumentFile(w, r, b.payload, b.rng, b.ranged)
 }
 
 // getPublicDocumentAsset is GET|HEAD /public/documents/{token}/assets/{assetID}:
 // one page asset behind a live link; images serve inline, everything else
-// downloads. The asset must belong to the link's document (service-checked).
+// downloads. The asset must belong to the link's document (service-checked)
+// and openPublicBytes gates the flag before the open.
 func (h *handlers) getPublicDocumentAsset(w http.ResponseWriter, r *http.Request) {
 	if h.Documents == nil {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
@@ -112,32 +111,26 @@ func (h *handlers) getPublicDocumentAsset(w http.ResponseWriter, r *http.Request
 		return
 	}
 	defer b.closer.Close()
-	if !h.publicDocumentsEnabled(r, b.organizationID) {
-		respondError(w, http.StatusNotFound, "not_found", "not found")
-		return
-	}
 	h.serveDocumentFile(w, r, b.payload, b.rng, b.ranged)
 }
 
 // publicByteRoute is one opened public byte stream plus what the response
-// writer needs: the payload, the closer, the effective Range window and the
-// document's organization for the flag gate.
+// writer needs: the payload, the closer and the effective Range window.
 type publicByteRoute struct {
-	payload        documentFilePayload
-	closer         io.Closer
-	rng            service.DocumentByteRange
-	ranged         bool
-	organizationID string
+	payload documentFilePayload
+	closer  io.Closer
+	rng     service.DocumentByteRange
+	ranged  bool
 }
 
 // openPublicBytes resolves the Range header into the service window and opens
 // the public bytes once (a suffix range costs a 1-byte probe to learn the
-// size first). assetID empty selects the file-download route. The caller owns
-// the returned closer.
+// size first). assetID empty selects the file-download route. The organization
+// documents flag is evaluated on a side-effect-free resolve before any byte
+// open: the open records the access-log row, and a denied read must leave no
+// view count and no log behind it (BE05B-03/BE05B-08). The caller owns the
+// returned closer.
 func (h *handlers) openPublicBytes(w http.ResponseWriter, r *http.Request, token, assetID string) (publicByteRoute, bool) {
-	// Gate the documents flag on the side-effect-free resolve before any byte
-	// open: the open records the access-log row, and a denied read must leave
-	// no view count and no log behind it (BE05B-03).
 	pub, err := h.Documents.ResolvePublicDocument(r.Context(), token)
 	if err != nil {
 		h.mapServiceError(w, err)
@@ -147,11 +140,11 @@ func (h *handlers) openPublicBytes(w http.ResponseWriter, r *http.Request, token
 		respondError(w, http.StatusNotFound, "not_found", "not found")
 		return publicByteRoute{}, false
 	}
-	open := func(rng service.DocumentByteRange) (documentFilePayload, io.Closer, string, error) {
+	open := func(rng service.DocumentByteRange) (documentFilePayload, io.Closer, error) {
 		if assetID != "" {
 			rd, err := h.Documents.OpenPublicDocumentAsset(r.Context(), token, assetID, rng)
 			if err != nil {
-				return documentFilePayload{}, nil, "", err
+				return documentFilePayload{}, nil, err
 			}
 			return documentFilePayload{
 				Body:        rd.Reader.Body,
@@ -160,11 +153,11 @@ func (h *handlers) openPublicBytes(w http.ResponseWriter, r *http.Request, token
 				Filename:    rd.Reader.File.Filename,
 				Disposition: storage.ContentDisposition(rd.Reader.File.ContentType, rd.Reader.File.Filename),
 				Checksum:    rd.Reader.File.ChecksumSHA256,
-			}, rd.Reader, rd.OrganizationID, nil
+			}, rd.Reader, nil
 		}
 		f, err := h.Documents.OpenPublicDocumentFile(r.Context(), token, rng)
 		if err != nil {
-			return documentFilePayload{}, nil, "", err
+			return documentFilePayload{}, nil, err
 		}
 		payload := documentFilePayload{
 			Body:        f.Reader.Body,
@@ -176,34 +169,29 @@ func (h *handlers) openPublicBytes(w http.ResponseWriter, r *http.Request, token
 		if f.Version.ChecksumSha256.Valid {
 			payload.Checksum = f.Version.ChecksumSha256.String
 		}
-		return payload, f.Reader, f.Document.OrganizationID, nil
+		return payload, f.Reader, nil
 	}
 
 	spec := parseDocumentRange(r)
 	rng := service.DocumentByteRange{Offset: spec.offset, Length: spec.length}
-	orgID := ""
 	if spec.suffix > 0 {
-		probe, closer, probeOrg, err := open(service.DocumentByteRange{Length: 1})
+		probe, closer, err := open(service.DocumentByteRange{Length: 1})
 		if err != nil {
 			h.mapServiceError(w, err)
 			return publicByteRoute{}, false
 		}
 		size := probe.SizeBytes
 		_ = closer.Close()
-		orgID = probeOrg
 		if spec.suffix >= size {
 			rng = service.DocumentByteRange{}
 		} else {
 			rng = service.DocumentByteRange{Offset: size - spec.suffix, Length: spec.suffix}
 		}
 	}
-	payload, closer, openOrg, err := open(rng)
+	payload, closer, err := open(rng)
 	if err != nil {
 		h.mapServiceError(w, err)
 		return publicByteRoute{}, false
 	}
-	if openOrg != "" {
-		orgID = openOrg
-	}
-	return publicByteRoute{payload: payload, closer: closer, rng: rng, ranged: spec.has, organizationID: orgID}, true
+	return publicByteRoute{payload: payload, closer: closer, rng: rng, ranged: spec.has}, true
 }

@@ -87,9 +87,18 @@ export async function listRecentDocuments(
 }
 
 /** GET /api/v1/workspaces/{workspaceID}/documents/shared-with-me — every
- *  workspace in the organization the caller receives a live share from. */
-export async function listSharedWithMe(wsId: string, signal?: AbortSignal): Promise<DocumentList> {
-  const raw = await request(`/api/v1/workspaces/${enc(wsId)}/documents/shared-with-me`, { signal });
+ *  workspace in the organization the caller receives a live share from.
+ *  Server-side keyset paging: `cursor` follows `next_cursor`, `limit` caps
+ *  the page (default 50, max 100), and a denied candidate never takes a slot. */
+export async function listSharedWithMe(
+  wsId: string,
+  opts?: Pick<ListDocumentsOpts, "cursor" | "limit">,
+  signal?: AbortSignal,
+): Promise<DocumentList> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(wsId)}/documents/shared-with-me${listQuery(opts)}`,
+    { signal },
+  );
   const parsed = parseWithFallback<DocumentList | null>(raw, DocumentListSchema, null, {
     endpoint: "GET /api/v1/workspaces/{ws}/documents/shared-with-me",
   });

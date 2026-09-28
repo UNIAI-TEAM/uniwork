@@ -196,8 +196,9 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	})
 	d.Get("/workspaces/{workspaceID}/documents/shared-with-me", h.ListSharedWithMe, apiOp{
 		summary:     "List documents shared with me",
-		description: "Tài liệu người gọi nhận qua share, gồm workspace khác trong tổ chức; một share đã thu hồi hoặc không còn hiệu lực sẽ biến mất. Workspace trên URL là ngữ cảnh thành viên, danh sách trải theo tổ chức.",
+		description: "Tài liệu người gọi nhận qua share, gồm workspace khác trong tổ chức; một share đã thu hồi hoặc không còn hiệu lực sẽ biến mất. Duyệt ứng viên bằng keyset và lọc quyền trước khi xếp trang nên ứng viên bị từ chối không chiếm suất; cursor ổn định như các list khác. Workspace trên URL là ngữ cảnh thành viên, danh sách trải theo tổ chức.",
 		tags:        []string{"documents"},
+		sdi:         sdi.ListSharedWithMeSDI{},
 		sdo:         sdo.DocumentListSDO{},
 		auth:        true,
 	})

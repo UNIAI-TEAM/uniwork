@@ -147,7 +147,26 @@ describe("documents collection hooks", () => {
     const { wrapper } = setup();
     const { result } = renderHook(() => useSharedWithMe("w1"), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data?.documents[0]?.my_level).toBe("view");
+    expect(result.current.data?.pages[0]?.documents[0]?.my_level).toBe("view");
+  });
+
+  it("useSharedWithMe follows next_cursor into a second page", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody([summary("d1")], "n1")));
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody([summary("d2")])));
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useSharedWithMe("w1"), { wrapper });
+    await waitFor(() => expect(result.current.hasNextPage).toBe(true));
+    await act(async () => {
+      await result.current.fetchNextPage();
+    });
+    await waitFor(() => expect(result.current.data?.pages.length).toBe(2));
+    expect(result.current.data?.pages[1]?.documents[0]?.id).toBe("d2");
+    expect(String(vi.mocked(fetch).mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/shared-with-me?limit=50",
+    );
+    expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/shared-with-me?cursor=n1&limit=50",
+    );
   });
 
   it("useMoveDocument writes the detail and invalidates the workspace root", async () => {

@@ -134,6 +134,16 @@ type ListRecentDocumentsSDI struct {
 	Limit  *int32  `query:"limit" description:"Kích thước trang, mặc định 50, tối đa 100" example:"10"`
 }
 
+// ListSharedWithMeSDI documents GET
+// /api/v1/workspaces/{workspaceID}/documents/shared-with-me: the shares the
+// caller receives across the organization, walked by keyset server-side so a
+// denied candidate never fills a page slot; pages follow the same opaque
+// cursor as the other lists.
+type ListSharedWithMeSDI struct {
+	Cursor *string `query:"cursor" description:"next_cursor của trang trước; bỏ trống = trang đầu" example:"eyJ0IjoiMjAyNi0wOS0yOFQxMDowMDowMFoiLCJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyJ9"`
+	Limit  *int32  `query:"limit" description:"Số tài liệu mỗi trang, mặc định 50, tối đa 100" example:"50"`
+}
+
 // DocumentTreeSDI documents GET /api/v1/workspaces/{workspaceID}/documents/tree:
 // the sidebar forest to five levels, metadata only. root names one branch; an
 // unreadable root is not found, its children are not leaked through it.
