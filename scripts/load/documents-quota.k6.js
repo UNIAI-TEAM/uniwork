@@ -4,7 +4,8 @@
 // entitlement snapshot (GET /orgs/{id}/billing), which also counts members,
 // workspaces and tasks, so the HTTP number is an upper bound; the query
 // alone is timed with EXPLAIN ANALYZE (scripts/load/README.md). Target: the
-// query < 50 ms.
+// query < 50 ms; that gate belongs to the EXPLAIN, so the HTTP threshold
+// here only catches a snapshot that regressed badly (QUOTA_HTTP_P95_MS).
 //
 //   BASE_URL=http://localhost:8080 k6 run scripts/load/documents-quota.k6.js
 import http from "k6/http";
@@ -19,7 +20,7 @@ export const options = {
   vus: VUS,
   duration: __ENV.DURATION || "1m",
   thresholds: {
-    "http_req_duration{name:storage_quota}": ["p(95)<50"],
+    "http_req_duration{name:storage_quota}": [`p(95)<${Number(__ENV.QUOTA_HTTP_P95_MS || 250)}`],
     "checks{name:storage_quota}": ["rate>0.999"],
   },
 };

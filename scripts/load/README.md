@@ -61,7 +61,7 @@ one IP and the run measures 429s).
 | --- | --- | --- |
 | `documents-autosave.k6.js` | 200 users of `perf-org-0`, one page each (created in `setup`) | 200 KiB PATCH every 2 s, p95 < 150 ms |
 | `documents-search.k6.js` | 20k pages in `perf-org-0` (`documents-seed.sql`) | `?q=` trigram search p95 < 200 ms |
-| `documents-quota.k6.js` | 100k pages in `perf-org-1` (`documents-seed.sql`) | `CountStorageBytesInOrganization` < 50 ms |
+| `documents-quota.k6.js` | 100k pages in `perf-org-1` (`documents-seed.sql`) | `CountStorageBytesInOrganization` < 50 ms (EXPLAIN); the HTTP snapshot threshold is a loose 250 ms guard |
 
 ```sh
 # fresh database, migrations applied, then:

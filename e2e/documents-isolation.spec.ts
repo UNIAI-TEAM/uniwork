@@ -65,49 +65,50 @@ test.beforeAll(async ({ browser }) => {
   }
 });
 
-test("another organization answers not found across read, history, comments and download", async ({ request }) => {
-  const h = authHeaders(m.bMember.token);
-  const read = await request.get(`${api}/api/v1/documents/${pageDocId}`, { headers: h });
-  expect(read.status()).toBe(404);
-  expect(((await read.json()) as { error: { code: string } }).error.code).toBe("not_found");
+// An id nobody holds. A hidden document must answer byte for byte like it, so
+// a 404 body (message, fields) never tells a stranger the id exists.
+const UNKNOWN_ID = "01JZZZZZZZZZZZZZZZZZZZZZZZ";
+const READ_PATHS = ["", "/versions", "/comments", "/download"];
 
-  const versions = await request.get(`${api}/api/v1/documents/${pageDocId}/versions`, { headers: h });
-  expect(versions.status()).toBe(404);
-  const comments = await request.get(`${api}/api/v1/documents/${pageDocId}/comments`, { headers: h });
-  expect(comments.status()).toBe(404);
-  const download = await request.get(`${api}/api/v1/documents/${pageDocId}/download`, { headers: h });
-  expect(download.status()).toBe(404);
+async function expectHiddenLikeUnknown(request: APIRequestContext, token: string, paths: string[]): Promise<void> {
+  const h = authHeaders(token);
+  for (const path of paths) {
+    const hidden = await request.get(`${api}/api/v1/documents/${pageDocId}${path}`, { headers: h });
+    const unknown = await request.get(`${api}/api/v1/documents/${UNKNOWN_ID}${path}`, { headers: h });
+    expect(hidden.status(), `GET ${path || "/"}`).toBe(404);
+    expect(unknown.status(), `GET ${path || "/"} (unknown id)`).toBe(404);
+    expect(await hidden.text(), `GET ${path || "/"} body`).toBe(await unknown.text());
+  }
+}
+
+async function expectWriteLikeUnknown(request: APIRequestContext, token: string): Promise<void> {
+  const h = authHeaders(token);
+  const data = { revision: "1", title: "hijacked" };
+  const hidden = await request.patch(`${api}/api/v1/documents/${pageDocId}`, { headers: h, data });
+  const unknown = await request.patch(`${api}/api/v1/documents/${UNKNOWN_ID}`, { headers: h, data });
+  expect(hidden.status()).toBe(404);
+  expect(await hidden.text()).toBe(await unknown.text());
+}
+
+test("another organization answers not found across read, history, comments and download", async ({ request }) => {
+  const read = await request.get(`${api}/api/v1/documents/${pageDocId}`, { headers: authHeaders(m.bMember.token) });
+  expect(((await read.json()) as { error: { code: string } }).error.code).toBe("not_found");
+  await expectHiddenLikeUnknown(request, m.bMember.token, READ_PATHS);
 
   // A write from the other tenant changes nothing.
-  const write = await request.patch(`${api}/api/v1/documents/${pageDocId}`, {
-    headers: h,
-    data: { revision: "1", title: "hijacked" },
-  });
-  expect(write.status()).toBe(404);
+  await expectWriteLikeUnknown(request, m.bMember.token);
   const asOwner = await request.get(`${api}/api/v1/documents/${pageDocId}`, { headers: authHeaders(m.aOwner.token) });
   expect(asOwner.status()).toBe(200);
   expect(((await asOwner.json()) as { document: { title: string } }).document.title).toBe(pageDocTitle);
 });
 
 test("an organization member outside the document workspace answers not found", async ({ request }) => {
-  const h = authHeaders(m.aOutside.token);
-  const read = await request.get(`${api}/api/v1/documents/${pageDocId}`, { headers: h });
-  expect(read.status()).toBe(404);
-  const versions = await request.get(`${api}/api/v1/documents/${pageDocId}/versions`, { headers: h });
-  expect(versions.status()).toBe(404);
-  const comments = await request.get(`${api}/api/v1/documents/${pageDocId}/comments`, { headers: h });
-  expect(comments.status()).toBe(404);
+  await expectHiddenLikeUnknown(request, m.aOutside.token, READ_PATHS);
 });
 
 test("an account in no organization answers not found", async ({ request }) => {
-  const h = authHeaders(m.publicUser.token);
-  const read = await request.get(`${api}/api/v1/documents/${pageDocId}`, { headers: h });
-  expect(read.status()).toBe(404);
-  const write = await request.patch(`${api}/api/v1/documents/${pageDocId}`, {
-    headers: h,
-    data: { revision: "1", title: "hijacked" },
-  });
-  expect(write.status()).toBe(404);
+  await expectHiddenLikeUnknown(request, m.publicUser.token, READ_PATHS);
+  await expectWriteLikeUnknown(request, m.publicUser.token);
 });
 
 test("a deactivated member is refused with member_deactivated", async ({ request }) => {
