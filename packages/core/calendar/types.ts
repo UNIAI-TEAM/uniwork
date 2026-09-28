@@ -1,4 +1,4 @@
-export type CalendarEventKind = "task" | "meeting";
+export type CalendarEventKind = "task" | "meeting" | "external";
 
 export type CalendarEvent = {
   id: string;
@@ -11,6 +11,8 @@ export type CalendarEvent = {
   status?: string;
   priority?: string;
   projectId?: string | null;
+  provider?: "google" | "outlook";
+  externalUrl?: string;
 };
 
 export type CalendarSidebarTask = {

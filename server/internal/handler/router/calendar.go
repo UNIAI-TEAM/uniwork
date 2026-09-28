@@ -1,6 +1,7 @@
 package router
 
 import (
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
 
@@ -30,4 +31,10 @@ func registerCalendar(r api, h Routes) {
 		tags:        []string{"calendar"},
 		auth:        true,
 	})
+	r.Get("/workspaces/{workspaceID}/calendar/connections", h.ListCalendarConnections, apiOp{summary: "List personal calendar connections", tags: []string{"calendar"}, sdo: sdo.CalendarConnectionListSDO{}, auth: true})
+	r.Get("/workspaces/{workspaceID}/calendar/connections/{provider}/start", h.StartCalendarConnection, apiOp{summary: "Start calendar OAuth", tags: []string{"calendar"}, sdo: sdo.CalendarOAuthStartSDO{}, auth: true})
+	r.Get("/calendar-connections/{provider}/callback", h.CompleteCalendarConnection, apiOp{summary: "Complete calendar OAuth", tags: []string{"calendar"}})
+	r.Get("/workspaces/{workspaceID}/calendar/connections/{provider}/calendars", h.ListExternalCalendars, apiOp{summary: "List provider calendars", tags: []string{"calendar"}, sdo: sdo.ExternalCalendarListSDO{}, auth: true})
+	r.Put("/workspaces/{workspaceID}/calendar/connections/{provider}/calendars", h.SelectExternalCalendars, apiOp{summary: "Select provider calendars", tags: []string{"calendar"}, sdi: sdi.CalendarSelectionSDI{}, auth: true})
+	r.Delete("/workspaces/{workspaceID}/calendar/connections/{provider}", h.DisconnectCalendarConnection, apiOp{summary: "Disconnect a calendar provider", tags: []string{"calendar"}, auth: true})
 }

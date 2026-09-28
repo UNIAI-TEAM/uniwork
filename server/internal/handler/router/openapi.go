@@ -127,6 +127,15 @@ func pathParamSDI(path string) any {
 		return struct {
 			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 		}{}
+	case "provider":
+		return struct {
+			Provider string `path:"provider" description:"Calendar provider: google hoặc outlook" example:"google"`
+		}{}
+	case "workspaceID,provider":
+		return struct {
+			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
+			Provider    string `path:"provider" description:"Calendar provider: google hoặc outlook" example:"google"`
+		}{}
 	case "conversationID":
 		return struct {
 			ConversationID string `path:"conversationID" description:"ULID hội thoại Ask UNI" example:"01K4AICONV000000000000001"`

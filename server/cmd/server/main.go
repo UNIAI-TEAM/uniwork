@@ -355,6 +355,16 @@ func main() {
 		log.Warn("email hub disabled", "err", err)
 	}
 	emailHubSvc := service.NewEmailHubService(q, wsSvc, emailHubBox)
+	var calendarBox *secretbox.Box
+	if key, err := secretbox.LoadKey("CALENDAR_CREDENTIAL_KEY"); err == nil {
+		calendarBox, err = secretbox.New(key)
+		if err != nil {
+			log.Warn("connected calendars disabled", "err", err)
+		}
+	} else if os.Getenv("CALENDAR_CREDENTIAL_KEY") != "" {
+		log.Warn("connected calendars disabled", "err", err)
+	}
+	calendarConnectionSvc := service.NewCalendarConnectionService(pool, q, wsSvc, calendarBox, cfg)
 	emailHubSvc.AI = gateway
 	emailHubSvc.Tasks = taskSvc
 	askUNI.SetEmailHub(emailHubSvc)
@@ -362,42 +372,43 @@ func main() {
 	go emailHubSvc.RunHubWatchers(runCtx)
 	h := handler.New(handler.Deps{
 		Cfg: cfg, Log: log, Minter: minter,
-		Auth:            authSvc,
-		Verification:    verification,
-		PasswordReset:   passwordReset,
-		GoogleAuth:      service.NewGoogleAuthService(q, authSvc),
-		Google:          google,
-		Organizations:   orgSvc,
-		OrgMembers:      orgMemberSvc,
-		People:          peopleSvc,
-		Departments:     service.NewDepartmentService(pool, q, orgSvc),
-		Workspaces:      wsSvc,
-		Onboarding:      service.NewOnboardingService(q, wsSvc, renderer, mailOutbox),
-		Tasks:           taskSvc,
-		Home:            service.NewHomeService(q, wsSvc),
-		Calendar:        service.NewCalendarService(q, wsSvc),
-		EmailHub:        emailHubSvc,
-		Agents:          agentSvc,
-		Actors:          actorSvc,
-		Audit:           auditSvc,
-		Billing:         billingSvc,
-		Notifications:   notifSvc,
-		AskUNI:          askUNI,
-		Meetings:        meetingSvc,
-		Chat:            chatSvc,
-		Hub:             hub,
-		Redis:           rdb,
-		FeatureFlags:    flags,
-		Bus:             bus,
-		Storage:         store,
-		FileAccess:      fileAccess,
-		MembershipCache: membershipCache,
-		HTTPMetrics:     httpMetrics,
-		WebVitals:       webVitals(reg),
-		Readiness:       readiness,
-		Admin:           adminSvc,
-		Version:         version,
-		Commit:          commit,
+		Auth:                authSvc,
+		Verification:        verification,
+		PasswordReset:       passwordReset,
+		GoogleAuth:          service.NewGoogleAuthService(q, authSvc),
+		Google:              google,
+		Organizations:       orgSvc,
+		OrgMembers:          orgMemberSvc,
+		People:              peopleSvc,
+		Departments:         service.NewDepartmentService(pool, q, orgSvc),
+		Workspaces:          wsSvc,
+		Onboarding:          service.NewOnboardingService(q, wsSvc, renderer, mailOutbox),
+		Tasks:               taskSvc,
+		Home:                service.NewHomeService(q, wsSvc),
+		Calendar:            service.NewCalendarService(q, wsSvc),
+		CalendarConnections: calendarConnectionSvc,
+		EmailHub:            emailHubSvc,
+		Agents:              agentSvc,
+		Actors:              actorSvc,
+		Audit:               auditSvc,
+		Billing:             billingSvc,
+		Notifications:       notifSvc,
+		AskUNI:              askUNI,
+		Meetings:            meetingSvc,
+		Chat:                chatSvc,
+		Hub:                 hub,
+		Redis:               rdb,
+		FeatureFlags:        flags,
+		Bus:                 bus,
+		Storage:             store,
+		FileAccess:          fileAccess,
+		MembershipCache:     membershipCache,
+		HTTPMetrics:         httpMetrics,
+		WebVitals:           webVitals(reg),
+		Readiness:           readiness,
+		Admin:               adminSvc,
+		Version:             version,
+		Commit:              commit,
 	})
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,

@@ -49,16 +49,18 @@ type CalendarSidebarMeeting struct {
 }
 
 type CalendarEvent struct {
-	ID        string
-	Kind      string
-	EntityID  string
-	Title     string
-	Start     string
-	End       *string
-	AllDay    bool
-	Status    *string
-	Priority  *string
-	ProjectID *string
+	ID          string
+	Kind        string
+	EntityID    string
+	Title       string
+	Start       string
+	End         *string
+	AllDay      bool
+	Status      *string
+	Priority    *string
+	ProjectID   *string
+	Provider    *string
+	ExternalURL *string
 }
 
 // ListEvents returns tasks and meetings in [from, to] (inclusive calendar

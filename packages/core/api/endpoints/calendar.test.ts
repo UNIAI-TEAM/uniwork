@@ -1,5 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fetchWorkspaceCalendarIcs, getCalendarSidebar, listCalendarEvents } from "./calendar";
+import {
+  fetchWorkspaceCalendarIcs,
+  getCalendarSidebar,
+  listCalendarConnections,
+  listCalendarEvents,
+  listExternalCalendars,
+  startCalendarConnection,
+} from "./calendar";
 
 vi.mock("../http", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../http")>();
@@ -107,5 +114,38 @@ describe("fetchWorkspaceCalendarIcs", () => {
     await expect(fetchWorkspaceCalendarIcs("ws1")).rejects.toMatchObject({
       message: "Invalid calendar export",
     });
+  });
+});
+
+describe("calendar connections", () => {
+  beforeEach(() => vi.mocked(request).mockReset());
+
+  it("degrades malformed connection and calendar responses", async () => {
+    vi.mocked(request)
+      .mockResolvedValueOnce({ connections: "bad" })
+      .mockResolvedValueOnce({ calendars: null })
+      .mockResolvedValueOnce({ authorization_url: "not-a-url" });
+    await expect(listCalendarConnections("ws1")).resolves.toEqual([]);
+    await expect(listExternalCalendars("ws1", "google")).resolves.toEqual([]);
+    await expect(startCalendarConnection("ws1", "google")).resolves.toBe("");
+  });
+
+  it("maps private provider selections", async () => {
+    vi.mocked(request).mockResolvedValue({
+      connections: [
+        {
+          provider: "google",
+          email: "me@example.com",
+          selected_calendar_ids: ["primary"],
+        },
+      ],
+    });
+    await expect(listCalendarConnections("ws1")).resolves.toEqual([
+      {
+        provider: "google",
+        email: "me@example.com",
+        selectedCalendarIds: ["primary"],
+      },
+    ]);
   });
 });

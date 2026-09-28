@@ -7,6 +7,8 @@ export function toFcEvent(ev: CalendarEvent) {
     start: ev.start,
     ...(ev.end !== undefined ? { end: ev.end } : {}),
     allDay: ev.allDay,
+    editable: ev.kind !== "external",
+    classNames: ev.kind === "external" ? ["calendar-external-event"] : [],
     extendedProps: { kind: ev.kind, entityId: ev.entityId },
   };
 }
