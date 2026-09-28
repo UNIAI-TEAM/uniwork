@@ -155,7 +155,9 @@ func TestDocumentOfficeQ7(t *testing.T) {
 			_, err := env.svc.CopyDocument(ctx, member, src.Document.ID, CopyDocumentInput{
 				Consent: "copy", JobID: row.ID, IdempotencyKey: util.NewID(),
 			})
-			wantCode(t, err, "conversion_not_accepted")
+			if ce := wantCode(t, err, "conversion_not_accepted"); ce.Fields["reason"] != "job_cancelled" {
+				t.Fatalf("cancelled accept reason = %v", ce.Fields["reason"])
+			}
 			if after := q7DocCount(t, env); after != before {
 				t.Fatal("a cancelled conversion created a document")
 			}
@@ -226,7 +228,9 @@ func TestDocumentOfficeQ7(t *testing.T) {
 			_, err = env.svc.CopyDocument(ctx, member, src.Document.ID, CopyDocumentInput{
 				Consent: "copy", JobID: row.ID, IdempotencyKey: util.NewID(),
 			})
-			wantCode(t, err, "conversion_not_accepted")
+			if ce := wantCode(t, err, "conversion_not_accepted"); ce.Fields["reason"] != "job_committed" {
+				t.Fatalf("spent accept reason = %v", ce.Fields["reason"])
+			}
 			if q7DocCount(t, env) != before {
 				t.Fatal("a spent conversion created a second copy")
 			}

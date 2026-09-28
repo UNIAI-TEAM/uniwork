@@ -123,7 +123,9 @@ func (s *DocumentService) acceptConversion(ctx context.Context, fs files.Service
 		claimedJob, err := claimOfficeJobOutputInTx(ctx, q, locked.OrganizationID, locked.WorkspaceID, job.ID, versionID,
 			pgtype.Timestamptz{Time: time.Now(), Valid: true})
 		if errors.Is(err, ErrOfficeJobNotCommittable) {
-			return errConversionNotAccepted("job_" + job.State)
+			// Name the state the job is in now, not the one read before the
+			// lock: a cancel or another accept may have won in between.
+			return errConversionNotAccepted(conversionJobState(ctx, q, job))
 		}
 		if err != nil {
 			return err
@@ -204,6 +206,20 @@ func (s *DocumentService) acceptConversion(ctx context.Context, fs files.Service
 		return DocumentFileResult{}, err
 	}
 	return res, nil
+}
+
+// conversionJobState is the refusal reason for a job whose claim matched
+// nothing, read inside the refusing transaction: job_committed once another
+// accept won, else job_<state>.
+func conversionJobState(ctx context.Context, q *db.Queries, job db.OfficeJob) string {
+	now, err := q.GetOfficeJob(ctx, db.GetOfficeJobParams{ID: job.ID, OrganizationID: job.OrganizationID, WorkspaceID: job.WorkspaceID})
+	if err != nil {
+		return "job_not_committable"
+	}
+	if now.CommittedVersionID.Valid {
+		return "job_committed"
+	}
+	return "job_" + now.State
 }
 
 // officeTargetMime is the storage content type of a Q7 conversion target.

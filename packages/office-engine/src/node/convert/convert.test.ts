@@ -157,3 +157,47 @@ describe("readBiff8Workbook refusals", () => {
     }
   });
 });
+
+describe("compound-file bounds (review BE-R1-01)", () => {
+  // Each case mutates F-LEGACY-XLS so one declared length lies; the reader
+  // must answer a typed refusal fast instead of allocating from the lie.
+  const u32 = (b: Uint8Array, at: number): number => new DataView(b.buffer, b.byteOffset).getUint32(at, true);
+  const setU32 = (b: Uint8Array, at: number, v: number): void => new DataView(b.buffer, b.byteOffset).setUint32(at, v, true);
+  const mutate = (edit: (b: Uint8Array, fatAt: (sector: number) => number) => void): Uint8Array => {
+    const bytes = new Uint8Array(fixture("sheets/legacy-xls.xls"));
+    const sectorSize = 1 << new DataView(bytes.buffer).getUint16(30, true);
+    const firstFat = u32(bytes, 76);
+    edit(bytes, (sector) => 512 + firstFat * sectorSize + sector * 4);
+    return bytes;
+  };
+  const refuses = (bytes: Uint8Array): void => {
+    const started = Date.now();
+    const error = expectTyped(() => convertLegacySpreadsheet(bytes));
+    expect(error.code).toBe("engine_result_invalid");
+    expect(error.reason).toBe("not_compound_file");
+    expect(Date.now() - started).toBeLessThan(2000);
+  };
+
+  it("refuses a FAT chain that loops on itself", () => {
+    refuses(mutate((b, fatAt) => setU32(b, fatAt(u32(b, 48)), u32(b, 48))));
+  });
+  it("refuses a two-sector FAT cycle", () => {
+    refuses(
+      mutate((b, fatAt) => {
+        const dir = u32(b, 48);
+        setU32(b, fatAt(dir), dir + 1);
+        setU32(b, fatAt(dir + 1), dir);
+      }),
+    );
+  });
+  it("refuses a chain that names a sector past the file", () => {
+    refuses(mutate((b, fatAt) => setU32(b, fatAt(u32(b, 48)), 0x00ffffff)));
+  });
+  it("refuses an oversized sector shift and a forged mini-stream cutoff", () => {
+    refuses(mutate((b) => new DataView(b.buffer).setUint16(30, 20, true)));
+    refuses(mutate((b) => setU32(b, 56, 0xffffffff)));
+  });
+  it("refuses a DIFAT count larger than the file", () => {
+    refuses(mutate((b) => setU32(b, 72, 0x7fffffff)));
+  });
+});
