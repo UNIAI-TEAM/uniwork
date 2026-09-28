@@ -151,15 +151,20 @@ const KNOWN_BYPASSES: ReadonlyArray<readonly [string, string]> = [
   ["noscript breakout", `<noscript><p title="</noscript><a href=${EVIL}/n>n</a>"></p></noscript>`],
 ];
 
+// The two seeded fuzz runs keep their full counts; they get their own budget
+// instead of the suite-wide testTimeout.
+const FUZZ_TIMEOUT_MS = 240_000;
+
 describe("final gate alone (no engine copy, no engine sweep)", () => {
   it.each(KNOWN_BYPASSES)("blocks the known bypass: %s", (_name, text) => {
     expect(liveHostile(text).length).toBeGreaterThan(0);
     expect(liveHostile(gateOnly(text))).toEqual([]);
   });
 
+  // Seeded fuzz, heavy on purpose: ~23 s locally, past the 60 s default on a CI runner.
   it("leaves no live hostile URL for 5000 raw random documents, both scripting flags", () => {
     expect(fuzzFailures(5000, FUZZ_SEED, (text) => liveHostile(gateOnly(text)))).toEqual([]);
-  });
+  }, FUZZ_TIMEOUT_MS);
 });
 
 describe("full preview pipeline: engine copy, then the gate", () => {
@@ -173,7 +178,7 @@ describe("engine copy alone (defence in depth under the gate, scripting off)", (
 
   it("leaves no live hostile URL for 20000 random foreign-content prefixes", () => {
     expect(fuzzFailures(20000, COPY_FUZZ_SEED, (text) => offOnly(copyOf(text)))).toEqual([]);
-  });
+  }, FUZZ_TIMEOUT_MS);
 
   // Excluded: the scripting-flag case (the engine does not parse), and data:
   // on SVG <use> - the engine has no element-level data rule; the gate owns it.
