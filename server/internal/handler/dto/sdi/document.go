@@ -104,3 +104,24 @@ type DownloadDocumentSDI struct {
 	Version *int32 `query:"version" description:"Số phiên bản file cần tải; bỏ trống = bản hiện hành" example:"2"`
 	Meta    *bool  `query:"meta" description:"1 = trả descriptor JSON thay vì stream byte" example:"true"`
 }
+
+// CreateDocumentCommentSDI is POST /api/v1/documents/{documentID}/comments
+// (+ Idempotency-Key header, G1-07): a threaded comment on a document. `type`
+// is on the wire for parity with task comments, but the document allowlist is
+// "comment" only, so a public client can never mint a system row; anything
+// else answers 400 invalid_request.
+type CreateDocumentCommentSDI struct {
+	Body     string  `json:"body" minLength:"1" description:"Nội dung bình luận" example:"Chỗ này cần số liệu Q3."`
+	ParentID *string `json:"parent_id" description:"ULID bình luận cha cùng tài liệu khi trả lời" example:"01J8X4CMTN1P2Q3R4S5T6U7V"`
+	Type     string  `json:"type" description:"Chỉ nhận comment; giá trị khác bị từ chối" example:"comment"`
+}
+
+// UpdateDocumentCommentSDI is the body of PATCH
+// /api/v1/documents/{documentID}/comments/{commentID}: the new body text of a
+// comment the caller wrote or manages.
+type UpdateDocumentCommentSDI struct {
+	Body string `json:"body" minLength:"1" description:"Nội dung mới" example:"Đã sửa sau review."`
+}
+
+// ReactionSDI is reused from task comments for the document reaction routes
+// (POST|DELETE /documents/{documentID}/comments/{commentID}/reactions).

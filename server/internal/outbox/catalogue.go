@@ -218,6 +218,13 @@ var catalogue = []EventDef{
 	// Pages (UNI-678): title, icon or visibility changed; ids only, no
 	// revision (ADR 0015). An autosave of the content emits nothing.
 	{Topic: "document.updated", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	// Tree and lifecycle (UNI-678, G1-04b): a move, an archive batch and its
+	// restore, and the retention purge. ids only - the archive batch id is
+	// an id like the others, not content.
+	{Topic: "document.moved", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.archived", Version: 1, Payload: []string{"document_id", "workspace_id", "archive_batch_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.restored", Version: 1, Payload: []string{"document_id", "workspace_id", "archive_batch_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "document.deleted", Version: 1, Payload: []string{"document_id", "workspace_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 
 	// Document comments (UNI-681): ids only, workspace scope like the task
 	// rows. A reader reached only through a share is caught by the

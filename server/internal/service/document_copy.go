@@ -137,7 +137,10 @@ func (s *DocumentService) CopyDocument(ctx context.Context, actor Actor, documen
 			return err
 		}
 		if in.ParentID != "" {
-			if err := s.requireParentInTx(ctx, q, actor, in.ParentID, locked.OrganizationID, locked.WorkspaceID); err != nil {
+			// Root (G1-04b) replaced requireParentInTx with lockPageParent:
+			// the parent must be a live page of the same tenant pair the caller
+			// may edit, with room for one more level (locked for the create).
+			if _, err := s.lockPageParent(ctx, q, actor, in.ParentID, locked.OrganizationID, locked.WorkspaceID); err != nil {
 				return err
 			}
 		}

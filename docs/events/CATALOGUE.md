@@ -145,6 +145,10 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `document.favorited` | 1 | `document_id`, `user_id`, `workspace_id` | — | user | outbox |
 | `document.unfavorited` | 1 | `document_id`, `user_id`, `workspace_id` | — | user | outbox |
 | `document.updated` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
+| `document.moved` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
+| `document.archived` | 1 | `document_id`, `workspace_id`, `archive_batch_id` | — | workspace | outbox |
+| `document.restored` | 1 | `document_id`, `workspace_id`, `archive_batch_id` | — | workspace | outbox |
+| `document.deleted` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
 | `email_hub.inbox_changed` | 1 | `account_id`, `user_id` | — | user | outbox |
 | `email_hub.new_mail` | 1 | `account_id`, `user_id`, `workspace_id` | — | user | outbox |
 | `people.exported` | 1 | `organization_id`, `user_id` | — | - | outbox |

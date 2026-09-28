@@ -9,3 +9,7 @@ export {
   elementText,
   EMU_PER_PX_96,
 } from "../../src/pptx";
+// G2-04 xlsx lane: the browser-safe adapter seam plus the node sidecar
+// client — both bundled for the node-platform replay driver.
+export { createXlsxAdapter, bindXlsxGateway } from "../../src/xlsx/index.ts";
+export { createXlsxSidecar } from "../../src/node/xlsx-sidecar.ts";

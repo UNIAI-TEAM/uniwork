@@ -11,6 +11,7 @@ describe("register-all-drafts", () => {
     clearRegisteredGlobalDrafts(adapter);
 
     expect(adapter.removeItem).toHaveBeenCalledWith("uniwork_task_comment_drafts");
+    expect(adapter.removeItem).toHaveBeenCalledWith("uniwork_document_comment_drafts");
     expect(adapter.removeItem).toHaveBeenCalledWith("uniwork_recent_tasks");
   });
 });

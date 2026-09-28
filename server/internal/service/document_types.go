@@ -1,6 +1,8 @@
 package service
 
 import (
+	"time"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/files"
@@ -77,9 +79,15 @@ type DocumentService struct {
 
 	// ownerLevel resolves the caller's level through the owning work
 	// product. nil means no owner service is wired: owned creates and
-	// owner-delegated levels then fail closed (C-01 §13.8).
+	// owner-delegated levels then fail closed (C-01 §13.8). ownerPurger is
+	// the §13.6 retention delegate the purge sweep calls first.
 	ownerLevel    OwnerLevelResolver
 	ownerLevelSet bool
+	ownerPurger   DocumentOwnerPurger
+
+	// clock is the service's time source; tests inject it so the retention
+	// and auto-version workers never wait for real time.
+	clock func() time.Time
 
 	// store is the G1-03 write side's own state (document_files.go):
 	// validation limits, spool directory, test seam.
@@ -87,8 +95,19 @@ type DocumentService struct {
 }
 
 func NewDocumentService(pool *pgxpool.Pool, q *db.Queries, orgs *OrganizationService, ws *WorkspaceService) *DocumentService {
-	return &DocumentService{pool: pool, q: q, orgs: orgs, ws: ws, accessMetrics: nopDocumentAccessMetrics{}}
+	return &DocumentService{pool: pool, q: q, orgs: orgs, ws: ws, accessMetrics: nopDocumentAccessMetrics{}, clock: time.Now}
 }
+
+// SetClock injects the time source (tests); nil resets to the wall clock.
+func (s *DocumentService) SetClock(now func() time.Time) {
+	if now == nil {
+		now = time.Now
+	}
+	s.clock = now
+}
+
+// now is the one place document code reads the time.
+func (s *DocumentService) now() time.Time { return s.clock() }
 
 // maxSearchContentRunes is the C-01 §3.7 search contract: the search column
 // folds title + content_text[:20k].

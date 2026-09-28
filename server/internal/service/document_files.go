@@ -285,10 +285,11 @@ type CreateFileDocumentInput struct {
 const idempotencyScopeDocumentFileCreate = "documents.files.create"
 
 // CreateFileDocument uploads the bytes (outside any transaction), checks
-// them, then in one transaction: membership and parent access again, claim,
-// quota, the document and its first version, audit and outbox. A failed
-// transaction leaves the file staged and unclaimed; FileService collects it
-// after the 24 hour claim window. Documents deletes nothing.
+// them, then in one transaction: membership again, the files claim, the
+// tree and parent locks with the parent check, quota, the document and its
+// first version, audit and outbox. A failed transaction leaves the file
+// staged and unclaimed; FileService collects it after the 24 hour claim
+// window. Documents deletes nothing.
 func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, workspaceID string, in CreateFileDocumentInput) (DocumentFileResult, error) {
 	fs, err := s.fileService()
 	if err != nil {
@@ -315,11 +316,6 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 	orgID, err := s.workspaceOrganization(ctx, ws.WorkspaceID)
 	if err != nil {
 		return DocumentFileResult{}, err
-	}
-	if in.ParentID != "" {
-		if _, _, err := s.authorizeDocument(ctx, actor, in.ParentID, DocumentLevelEdit); err != nil {
-			return DocumentFileResult{}, err
-		}
 	}
 	scope := documentScope(orgID, workspaceID)
 	up, _, err := s.uploadChecked(ctx, fs, actor, files.DocumentFile, scope,
@@ -349,11 +345,11 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 	if _, err := s.ws.RequireMemberQ(ctx, q, workspaceID, actor.ID); err != nil {
 		return DocumentFileResult{}, err
 	}
-	if in.ParentID != "" {
-		if err := s.requireParentInTx(ctx, q, actor, in.ParentID, orgID, workspaceID); err != nil {
-			return DocumentFileResult{}, err
-		}
-	}
+	// FS-C1 §5.4: the files rows lock before this module's own rows - the
+	// claim comes first, then the workspace tree lock and the parent row
+	// lock follow (the idempotency ledger claim still precedes everything,
+	// N-01). A retried key replays above without ever touching the parent:
+	// losing access to it after the commit does not strand the replay.
 	claimed, err := fs.ClaimInTx(ctx, q, files.ClaimInput{
 		Actor: actor, Purpose: files.DocumentFile, Scope: scope, FileIDs: []files.FileID{up.File.ID},
 	})
@@ -361,6 +357,23 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 		return DocumentFileResult{}, documentFileError(err)
 	}
 	file := claimed[0]
+	// A file create is a tree write like a page create (N-01): the workspace
+	// tree lock, then the parent row lock - an archive or move of the
+	// parent waits for this, so a new file can never slip under a subtree
+	// that just left.
+	if err := q.LockDocumentTree(ctx, workspaceID); err != nil {
+		return DocumentFileResult{}, err
+	}
+	visibility := documentVisibilityWorkspace
+	if in.ParentID != "" {
+		parent, err := s.lockPageParent(ctx, q, actor, in.ParentID, orgID, workspaceID)
+		if err != nil {
+			return DocumentFileResult{}, err
+		}
+		// A file child inherits its parent's visibility like a page child
+		// does: a restricted page never gains a workspace-visible file.
+		visibility = parent.Visibility
+	}
 	if err := s.consumeStorage(ctx, q, actor, orgID, workspaceID, file); err != nil {
 		return DocumentFileResult{}, err
 	}
@@ -372,7 +385,7 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 		ParentID:       nullText(in.ParentID),
 		Kind:           DocumentKindFile,
 		Title:          title,
-		Visibility:     "workspace",
+		Visibility:     visibility,
 		SearchText:     documentSearchText(title, ""),
 		CurrentVersion: 1,
 		FileVersionID:  pgtype.Text{String: versionID, Valid: true},
@@ -400,7 +413,7 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 		ResourceType:   "document",
 		ResourceID:     doc.ID,
 		Changes: audit.Diff(nil, map[string]any{
-			"title": doc.Title, "kind": doc.Kind, "version_id": version.ID, "file_id": string(file.ID),
+			"title": doc.Title, "kind": doc.Kind, "visibility": doc.Visibility, "version_id": version.ID, "file_id": string(file.ID),
 		}),
 	}, audit.Event{Topic: "document.created", Payload: map[string]string{
 		"document_id": doc.ID, "workspace_id": workspaceID,
@@ -449,26 +462,6 @@ func (s *DocumentService) replayCreatedFile(ctx context.Context, q *db.Queries, 
 	return res, nil
 }
 
-// requireParentInTx: the parent must be a live document of the same tenant
-// pair the caller may edit, seen through the transaction.
-func (s *DocumentService) requireParentInTx(ctx context.Context, q *db.Queries, actor Actor, parentID, orgID, workspaceID string) error {
-	parent, err := q.GetDocumentByID(ctx, parentID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ErrNotFound
-	}
-	if err != nil {
-		return err
-	}
-	if parent.OrganizationID != orgID || parent.WorkspaceID != workspaceID || parent.OwnerKind.Valid {
-		return ErrNotFound
-	}
-	access, err := s.effectiveLevel(ctx, q, actor, parent)
-	if err != nil {
-		return err
-	}
-	return decideDocumentAccess(parent, access, DocumentLevelEdit)
-}
-
 func (s *DocumentService) workspaceOrganization(ctx context.Context, workspaceID string) (string, error) {
 	w, err := s.q.GetWorkspaceByID(ctx, workspaceID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -481,10 +474,10 @@ func (s *DocumentService) workspaceOrganization(ctx context.Context, workspaceID
 }
 
 // consumeStorage meters a newly held file on storage.bytes inside the
-// caller's transaction (subscription lock, the same order everywhere:
-// document row -> files rows (ClaimInTx) -> subscription). The claim already
-// ended the upload reservation, so the file's bytes are the delta. Without a
-// wired EntitlementService there is no quota to enforce.
+// caller's transaction (the subscription lock always follows the files
+// claim). The claim already ended the upload reservation, so the file's
+// bytes are the delta. Without a wired EntitlementService there is no quota
+// to enforce.
 func (s *DocumentService) consumeStorage(ctx context.Context, q *db.Queries, actor Actor, orgID, workspaceID string, f files.File) error {
 	if s.entitlements == nil || f.SizeBytes == 0 {
 		return nil

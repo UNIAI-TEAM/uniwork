@@ -384,6 +384,7 @@ type Document struct {
 	PurgeAfter           pgtype.Timestamptz `json:"purge_after"`
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	ArchiveBatchID       pgtype.Text        `json:"archive_batch_id"`
 }
 
 type DocumentAccessLog struct {

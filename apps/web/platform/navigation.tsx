@@ -2,7 +2,8 @@
 
 import { Suspense, useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { NavigationProvider, type NavigationAdapter } from "@uniwork/views/navigation";
+import { NavigationProvider } from "@uniwork/views/navigation";
+import { createWebNavigationAdapter } from "./web-navigation-adapter";
 
 /**
  * The web half of the navigation adapter: the only place shared screens'
@@ -14,19 +15,9 @@ function NavigationProviderInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const adapter = useMemo<NavigationAdapter>(
-    () => ({
-      push: (path) => router.push(path),
-      replace: (path) => router.replace(path),
-      back: () => router.back(),
-      forward: () => router.forward(),
-      pathname,
-      searchParams: new URLSearchParams(searchParams.toString()),
-      getShareableUrl: (path) => (typeof window === "undefined" ? path : window.location.origin + path),
-      // router.prefetch is a no-op in dev by Next's design; in production it
-      // warms the RSC payload so the next push commits with no round-trip.
-      prefetch: (path) => router.prefetch(path),
-    }),
+  const adapter = useMemo(
+    () =>
+      createWebNavigationAdapter(router, pathname, new URLSearchParams(searchParams.toString())),
     [router, pathname, searchParams],
   );
 

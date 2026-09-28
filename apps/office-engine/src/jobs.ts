@@ -24,7 +24,15 @@ import { measureOutput, putOutput } from "./output.ts";
 import { WorkerSandbox } from "./sandbox.ts";
 import { Supervisor } from "./supervisor.ts";
 
-const WORKER_CODES: ReadonlySet<string> = new Set(["engine_result_invalid", "unsupported_operation", "engine_crashed"]);
+const WORKER_CODES: ReadonlySet<string> = new Set([
+  "engine_result_invalid",
+  "unsupported_operation",
+  "engine_crashed",
+  // A handler may honestly report its engine stack is not staged for the op
+  // (e.g. the XLSX Rust sidecar absent for a formula-bearing save) — a
+  // deployment/incompatibility failure, not an input fault.
+  "engine_incompatible",
+]);
 
 export interface Job {
   jobId: string;
@@ -223,6 +231,7 @@ export class JobManager {
         outputPath,
         payloadPath,
         tempDir: dir,
+        xlsxAssetsDir: this.config.xlsxAssetsDir,
         limits: job.limits,
         sampleMs: this.config.sampleMs,
         faults: this.config.faultOperations,

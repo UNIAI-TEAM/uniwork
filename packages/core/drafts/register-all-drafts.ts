@@ -11,6 +11,7 @@
  * here is the rediscovery this module exists to prevent.
  */
 import "../chat/composer-draft-store";
+import "../documents/comment-drafts";
 import "../tasks/stores/comment-draft-store";
 import "../tasks/stores/create-task-draft-store";
 import "../tasks/stores/recent-tasks-store";

@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { officeFormatSchema } from "./formats";
-import { engineErrorCodeSchema } from "./error-codes";
+import { officeFormatSchema } from "./formats.ts";
+import { engineErrorCodeSchema } from "./error-codes.ts";
 
 // P3 (docs/office/g1g2/port-items.md): a failed open of a Workspace file must
 // not land on a blank document. Upstream loadFile swaps the failed document

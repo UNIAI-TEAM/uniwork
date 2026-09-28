@@ -1,5 +1,5 @@
-import type { EngineErrorClass, EngineErrorCode } from "./error-codes";
-import { ENGINE_ERROR_CODES } from "./error-codes";
+import type { EngineErrorClass, EngineErrorCode } from "./error-codes.ts";
+import { ENGINE_ERROR_CODES } from "./error-codes.ts";
 
 // Public error body carried inside an error envelope (§4.7). `retryable` is a
 // table entry, not a client guess, and `fidelity_preserved` states the failure

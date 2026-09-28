@@ -532,6 +532,114 @@ func TestDocumentReferences(t *testing.T) {
 	})
 }
 
+// TestDocumentFileCreateTree (G1-04b, UNI-678 r2): a file create under a
+// parent is a tree write like a page create - the child inherits the
+// parent's visibility, a parent id outside the workspace answers not_found
+// without ever being locked, and a replayed key survives losing the parent
+// afterwards because the parent check lives inside the transaction behind
+// the ledger claim.
+func TestDocumentFileCreateTree(t *testing.T) {
+	env := newFakeDocStorageEnv(t)
+	ctx := context.Background()
+	member := human(env.tn.member)
+
+	t.Run("a file under a restricted page inherits its visibility", func(t *testing.T) {
+		parent := env.f.treeDoc(t, env.tn, treeDocSpec{ws: env.tn.wsA, visibility: "restricted", aclOwner: env.tn.member.ID, createdBy: env.tn.member.ID})
+		res, err := env.svc.CreateFileDocument(ctx, member, env.tn.wsA, CreateFileDocumentInput{
+			ParentID: parent.ID, Filename: "child.pdf", Body: bytes.NewReader(pdfBody("r2-restricted-child")), IdempotencyKey: util.NewID(),
+		})
+		mustf(t, err, "create under a restricted parent")
+		if res.Document.Visibility != "restricted" {
+			t.Fatalf("file visibility = %q, want the parent's restricted", res.Document.Visibility)
+		}
+		if res.Document.ParentID.String != parent.ID {
+			t.Fatalf("parent_id = %v, want %s", res.Document.ParentID, parent.ID)
+		}
+		// An ordinary member without a share cannot read the child.
+		_, err = env.svc.OpenDocumentFile(ctx, human(env.tn.creator), res.Document.ID, 0, DocumentByteRange{})
+		wantNotFound(t, err)
+	})
+
+	t.Run("a foreign-workspace parent id is not found", func(t *testing.T) {
+		parent := env.f.treeDoc(t, env.tn, treeDocSpec{ws: env.tn.wsB, visibility: "workspace", aclOwner: env.tn.aclOwner.ID, createdBy: env.tn.aclOwner.ID})
+		_, err := env.svc.CreateFileDocument(ctx, member, env.tn.wsA, CreateFileDocumentInput{
+			ParentID: parent.ID, Filename: "x.pdf", Body: bytes.NewReader(pdfBody("r2-foreign-parent")), IdempotencyKey: util.NewID(),
+		})
+		wantNotFound(t, err)
+	})
+
+	t.Run("a replayed create survives losing the parent", func(t *testing.T) {
+		parent := env.f.treeDoc(t, env.tn, treeDocSpec{ws: env.tn.wsA, visibility: "workspace", aclOwner: env.tn.member.ID, createdBy: env.tn.member.ID})
+		key := util.NewID()
+		in := func() CreateFileDocumentInput {
+			return CreateFileDocumentInput{ParentID: parent.ID, Title: "Lặp", Filename: "replay.pdf",
+				Body: bytes.NewReader(pdfBody("r2-replay-parent")), IdempotencyKey: key}
+		}
+		first, err := env.svc.CreateFileDocument(ctx, member, env.tn.wsA, in())
+		mustf(t, err, "create")
+		// The parent drops out of the caller's reach after the commit; the
+		// retried key still replays the committed child (R2-03).
+		if _, err := env.f.pool.Exec(ctx, `UPDATE documents SET visibility = 'restricted', acl_owner_id = $2 WHERE id = $1`, parent.ID, env.tn.wsAdmin.ID); err != nil {
+			t.Fatal(err)
+		}
+		again, err := env.svc.CreateFileDocument(ctx, member, env.tn.wsA, in())
+		mustf(t, err, "replay after losing the parent")
+		if again.Document.ID != first.Document.ID {
+			t.Fatalf("replay = %s, want %s", again.Document.ID, first.Document.ID)
+		}
+	})
+
+	t.Run("a create racing the parent's archive never orphans", func(t *testing.T) {
+		// R1-02: the workspace tree lock serializes the two - either the
+		// file lands first and joins the archive batch, or the archive
+		// lands first and the create finds the parent gone. A live file
+		// under an archived parent is the one impossible outcome.
+		for i := 0; i < 4; i++ {
+			parent := env.f.treeDoc(t, env.tn, treeDocSpec{ws: env.tn.wsA, visibility: "workspace", aclOwner: env.tn.member.ID, createdBy: env.tn.member.ID})
+			start := make(chan struct{})
+			var wg sync.WaitGroup
+			var createErr error
+			var createdID string
+			var batch string
+			wg.Add(2)
+			go func() {
+				defer wg.Done()
+				<-start
+				res, err := env.svc.CreateFileDocument(ctx, member, env.tn.wsA, CreateFileDocumentInput{
+					ParentID: parent.ID, Filename: "race.pdf", Body: bytes.NewReader(pdfBody("r2-race-" + util.NewID())), IdempotencyKey: util.NewID(),
+				})
+				if err == nil {
+					createdID = res.Document.ID
+				}
+				createErr = err
+			}()
+			go func() {
+				defer wg.Done()
+				<-start
+				res, err := env.svc.ArchiveDocument(ctx, member, parent.ID, ArchiveDocumentInput{})
+				if err == nil {
+					batch = res.BatchID
+				} else {
+					t.Errorf("archive %d: %v", i, err)
+				}
+			}()
+			close(start)
+			wg.Wait()
+			if p := env.doc(t, parent.ID); !p.ArchivedAt.Valid {
+				t.Fatalf("race %d: parent still live", i)
+			}
+			if createErr != nil {
+				wantNotFound(t, createErr)
+				continue
+			}
+			got := env.doc(t, createdID)
+			if !got.ArchivedAt.Valid || got.ArchiveBatchID.String != batch {
+				t.Fatalf("race %d: created file archived=%v batch=%q, want archived in %q", i, got.ArchivedAt.Valid, got.ArchiveBatchID.String, batch)
+			}
+		}
+	})
+}
+
 func (e *docStorageEnv) inTx(t *testing.T, fn func(q *db.Queries) error) error {
 	t.Helper()
 	ctx := context.Background()

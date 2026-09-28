@@ -207,6 +207,13 @@ export class DocumentSaveMachine {
     this.setState({ revision, acked: acked ?? this.state.acked });
   }
 
+  /** True once dispose() ran. A host that remounts (React StrictMode runs
+   *  mount → cleanup → mount in development) needs a live machine, not this
+   *  one. */
+  isDisposed(): boolean {
+    return this.disposed;
+  }
+
   /** Tear down on unmount: clears the quiet window, aborts the in-flight
    *  request and drops every later outcome — a transport that resolves
    *  anyway must not schedule a new save from a dead machine. */

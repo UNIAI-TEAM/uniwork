@@ -34,8 +34,17 @@ afterEach(async () => {
 });
 
 describe("handler table", () => {
-  it("binds md/html serialize and the pdf open/serialize/edit lane", () => {
-    expect([...BOUND_OPERATIONS].sort()).toEqual(["edit:pdf", "open:pdf", "serialize:html", "serialize:md", "serialize:pdf"]);
+  it("binds md/html serialize and the pdf + xlsx open/serialize/edit lanes", () => {
+    expect([...BOUND_OPERATIONS].sort()).toEqual([
+      "edit:pdf",
+      "edit:xlsx",
+      "open:pdf",
+      "open:xlsx",
+      "serialize:html",
+      "serialize:md",
+      "serialize:pdf",
+      "serialize:xlsx",
+    ]);
     expect(findHandler("serialize", "docx")).toBeUndefined();
     expect(findHandler("open", "md")).toBeUndefined();
   });
