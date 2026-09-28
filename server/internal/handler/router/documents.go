@@ -157,4 +157,62 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		description: "Như GET nhưng không có body: Content-Length, Content-Type, Accept-Ranges, Content-Range khi có Range. Kiểm quyền giống GET.",
 		tags:        []string{"documents"},
 	})
+	// Office (plan G2-07 / UNI-690; C-01 §6.2). The routes carry document
+	// authority: capability and job status need view, starting and cancelling
+	// a job need edit, and the client never learns an engine address - only
+	// the engine's pinned identity. Export/convert answer
+	// unsupported_operation until an engine lane binds a converter (Q7).
+	d.Get("/documents/{documentID}/office/capabilities", h.OfficeCapability, apiOp{
+		summary: "List the Office capabilities of a document",
+		description: "Hàng capability của engine cho định dạng của tài liệu, cộng hàng create_blank: supported = engine bind và đã có bằng chứng sản phẩm; " +
+			"false thì UI ẩn hành động. Cần quyền xem. Engine chưa cấu hình -> 503 office_not_configured.",
+		tags: []string{"documents"},
+		sdo:  sdo.OfficeCapabilitySDO{},
+		auth: true,
+	})
+	d.Post("/documents/{documentID}/office/jobs", h.StartOfficeJob, apiOp{
+		summary: "Start an Office job",
+		description: "Operation trong allowlist open|serialize|export|convert + Idempotency-Key. Base version/revision và định dạng lấy từ tài liệu, client không gửi version id. " +
+			"Version negotiation và operation gate chạy TRƯỚC khi ghi: engine/contract/protocol lệch pin -> 409 engine_incompatible|contract_mismatch|protocol_mismatch; " +
+			"thao tác chưa bind -> 501 unsupported_operation. Job completed chưa phải version: commit bằng /versions/commit với upload_id = output_file_id.",
+		tags:   []string{"documents"},
+		sdi:    sdi.StartOfficeJobSDI{},
+		sdo:    sdo.OfficeJobSDO{},
+		status: http.StatusCreated,
+		auth:   true,
+	})
+	d.Get("/documents/{documentID}/office/jobs/{jobID}", h.GetOfficeJob, apiOp{
+		summary:     "Get an Office job",
+		description: "Trạng thái job (accepted/running/completed/failed/timed_out/cancelled/crashed) kèm output file_id/checksum và lỗi có kiểu. Cần quyền xem; job của tài liệu khác -> 404.",
+		tags:        []string{"documents"},
+		sdo:         sdo.OfficeJobSDO{},
+		auth:        true,
+	})
+	d.Post("/documents/{documentID}/office/jobs/{jobID}/cancel", h.CancelOfficeJob, apiOp{
+		summary:     "Cancel an Office job",
+		description: "Chỉ người tạo job huỷ được. Cancel thắng cho tới khi output được claim vào một version; job đã kết thúc trả về trạng thái thật của nó. Cần quyền sửa.",
+		tags:        []string{"documents"},
+		sdo:         sdo.OfficeJobSDO{},
+		auth:        true,
+	})
+	d.Post("/workspaces/{workspaceID}/documents/files/blank", h.CreateBlankDocumentFile, apiOp{
+		summary: "Create a blank file document",
+		description: "Tạo tài liệu mới với bytes do engine sinh: server chọn seed, engine serialize, FileService xác minh, rồi đường create G1 tạo document + version 1. " +
+			"Chỉ định dạng có blank generator (md, html) được nhận; định dạng khác -> 501 unsupported_operation và KHÔNG tạo file Office rỗng. Idempotency-Key replay trả tài liệu đã tạo.",
+		tags:   []string{"documents"},
+		sdi:    sdi.CreateBlankDocumentFileSDI{},
+		sdo:    sdo.DocumentSDO{},
+		status: http.StatusCreated,
+		auth:   true,
+	})
+	d.Post("/documents/{documentID}/copies", h.CopyDocument, apiOp{
+		summary: "Copy a document",
+		description: "Bản sao standalone: consent phải là \"copy\" (thiếu -> 409 copy_consent_required). Cần quyền sửa nguồn. Bản sao giữ acl_owner_id/visibility/share của nguồn " +
+			"và ghi provenance (source_document_id/version/revision/checksum/format); bytes dùng lại đúng file_id nên không tính dung lượng lần hai. Tài liệu thuộc sở hữu C-14 -> 409 owner_requires_copy.",
+		tags:   []string{"documents"},
+		sdi:    sdi.CopyDocumentSDI{},
+		sdo:    sdo.DocumentSDO{},
+		status: http.StatusCreated,
+		auth:   true,
+	})
 }

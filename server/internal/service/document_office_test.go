@@ -713,3 +713,16 @@ func TestDocumentOfficeEngineDown(t *testing.T) {
 		t.Fatalf("redispatched job: %+v", done)
 	}
 }
+
+// mustGet reads a job row straight from the database, for assertions that a
+// late engine answer never rewrites a settled row.
+func (s *DocumentOfficeService) mustGet(t *testing.T, orgID, wsID, jobID string) db.OfficeJob {
+	t.Helper()
+	row, err := s.q.GetOfficeJob(context.Background(), db.GetOfficeJobParams{
+		ID: jobID, OrganizationID: orgID, WorkspaceID: wsID,
+	})
+	if err != nil {
+		t.Fatalf("get job %s: %v", jobID, err)
+	}
+	return row
+}
