@@ -38,9 +38,24 @@ export function DocumentFavoriteToggle({
   const known = favorites.isSuccess;
   const favorited = !!favorites.data?.some((f) => f.document_id === documentId);
   const pending = favorite.isPending || unfavorite.isPending;
-  const disabled = !orgId || !known || pending;
+  // An unreadable list is not "not favorited": the star says the state is
+  // unavailable and one click re-asks the server instead of guessing.
+  const unavailable = !orgId || favorites.isError;
+  // Unavailable is clickable ON PURPOSE: one click re-asks the server.
+  const busy = pending || (unavailable && favorites.isFetching);
+  const disabled = busy || (!unavailable && !known);
+
+  const label = unavailable
+    ? t("documents.comments.favorite_unavailable")
+    : favorited
+      ? t("documents.comments.favorite_remove")
+      : t("documents.comments.favorite_add");
 
   const toggle = () => {
+    if (unavailable) {
+      void favorites.refetch();
+      return;
+    }
     if (disabled) return;
     const fail = { onError: (err: unknown) => toastApiError(err, t("documents.comments.favorite_failed")) };
     if (favorited) unfavorite.mutate(documentId, fail);
@@ -54,12 +69,13 @@ export function DocumentFavoriteToggle({
       size="icon-sm"
       className={className}
       disabled={disabled}
-      aria-pressed={favorited}
-      aria-busy={pending || undefined}
-      aria-label={favorited ? t("documents.comments.favorite_remove") : t("documents.comments.favorite_add")}
+      aria-pressed={unavailable ? undefined : favorited}
+      aria-busy={busy || undefined}
+      aria-label={label}
+      title={label}
       onClick={toggle}
     >
-      <Star className={cn("size-4", favorited && "fill-current text-brand")} aria-hidden />
+      <Star className={cn("size-4", favorited && !unavailable && "fill-current text-brand")} aria-hidden />
     </Button>
   );
 }

@@ -6395,7 +6395,9 @@
       "comment_resolved_fold_close": "Collapse resolved replies",
       "comment_preview_empty": "This comment has no text",
       "thread_resolved_one": "Resolved · {{count}} thread",
-      "thread_resolved_other": "Resolved · {{count}} threads"
+      "thread_resolved_other": "Resolved · {{count}} threads",
+      "favorite_unavailable": "Favorite state is unavailable - try again",
+      "former_member": "Former member"
     }
   },
   "squads": {

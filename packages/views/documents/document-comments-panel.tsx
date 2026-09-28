@@ -229,7 +229,9 @@ function CommentsPane({
       testIdPrefix="document-comment"
       canModerate={canModerate}
       reactionsReadOnly={!canComment}
-      getActorName={(_type, id) => actorNames.get(id) ?? id}
+      // A reaction by someone who is no longer a member must not leak a raw
+      // ULID into the UI; the translated stand-in names the situation.
+      getActorName={(_type, id) => actorNames.get(id) ?? t("documents.comments.former_member")}
       replyComposer={
         canComment ? (
           <div data-testid={`document-reply-composer-${thread.root.id}`}>

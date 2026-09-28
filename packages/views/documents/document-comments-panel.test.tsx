@@ -773,4 +773,69 @@ describe("DocumentFavoriteToggle", () => {
       ).toBe(true),
     );
   });
+
+  it("says the state is unavailable and retries instead of guessing", async () => {
+    let fail = true;
+    installApi({
+      extra: (method, path) =>
+        method === "GET" && path === `/api/v1/orgs/${ORG}/documents/favorites`
+          ? fail
+            ? Promise.reject(new ApiError("boom", "internal", 500))
+            : Promise.resolve({ favorites: [{ document_id: DOC }] })
+          : undefined,
+    });
+    renderPanel();
+    await openPanel();
+
+    const star = await screen.findByRole("button", {
+      name: t("documents.comments.favorite_unavailable"),
+    });
+    expect(star).not.toBeDisabled();
+
+    fail = false;
+    fireEvent.click(star);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: t("documents.comments.favorite_remove") }),
+      ).toBeInTheDocument(),
+    );
+  });
+});
+
+describe("DocumentCommentsPanel accessibility", () => {
+  it("returns focus to the header trigger when the rail closes", async () => {
+    installApi();
+    renderPanel();
+    const trigger = screen.getByRole("button", { name: t("documents.comments.open") });
+    fireEvent.click(trigger);
+    await screen.findByTestId("document-comments-pane");
+
+    fireEvent.click(screen.getByRole("button", { name: t("documents.comments.close") }));
+    expect(screen.queryByTestId("document-comments-pane")).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it("never leaks a raw actor id when a reactor is unknown", async () => {
+    installApi({
+      comments: [
+        makeComment({
+          reactions: [
+            {
+              id: "r1",
+              comment_id: "c1",
+              actor_type: "member",
+              actor_id: "u9",
+              emoji: "👍",
+              created_at: "2026-09-28T03:01:00Z",
+            },
+          ],
+        }),
+      ],
+    });
+    renderPanel({ doc: makeDoc({ my_level: "view" }) });
+    await openPanel();
+
+    expect(await screen.findByLabelText(/👍 1: Cựu thành viên/)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/u9/)).toBeNull();
+  });
 });

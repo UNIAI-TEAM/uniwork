@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, use, useState, type ReactNode } from "react";
+import { createContext, use, useCallback, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { MessageSquare } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useFlag } from "@uniwork/core/feature-flags";
@@ -22,6 +22,8 @@ interface DocumentCommentsChrome {
   doc: Document;
   open: boolean;
   setOpen: (open: boolean) => void;
+  /** The header trigger; closing the panel hands focus back to it. */
+  triggerRef: RefObject<HTMLButtonElement | null>;
 }
 
 const DocumentCommentsChromeContext = createContext<DocumentCommentsChrome | null>(null);
@@ -35,9 +37,21 @@ export function DocumentCommentsProvider({
   doc: Document;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpenState] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // Closing from inside the panel must land focus back on the control that
+  // opened it (the Sheet path restores it on its own; the inline rail does
+  // not). Opening keeps the natural focus on the trigger.
+  const setOpen = useCallback((next: boolean) => {
+    setOpenState(next);
+    if (!next) triggerRef.current?.focus();
+  }, []);
+  const value = useMemo(
+    () => ({ wsId, doc, open, setOpen, triggerRef }),
+    [wsId, doc, open, setOpen],
+  );
   return (
-    <DocumentCommentsChromeContext.Provider value={{ wsId, doc, open, setOpen }}>
+    <DocumentCommentsChromeContext.Provider value={value}>
       {children}
     </DocumentCommentsChromeContext.Provider>
   );
@@ -67,6 +81,7 @@ export function DocumentCommentsHeaderActions() {
     <>
       <DocumentFavoriteToggle documentId={chrome.doc.id} orgId={orgId} />
       <Button
+        ref={chrome.triggerRef}
         type="button"
         variant="ghost"
         size="sm"

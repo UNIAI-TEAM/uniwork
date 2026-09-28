@@ -37,6 +37,7 @@ function pageDocument(over: Record<string, unknown> = {}): Document {
   return narrowDocument(DocumentSchema.parse({
     id: "d1",
     workspace_id: WS,
+    organization_id: "org1",
     kind: "page",
     title: "Kế hoạch Q3",
     content: {

@@ -6389,7 +6389,9 @@
       "comment_resolved_fold_close": "Thu gọn các trả lời đã xử lý",
       "comment_preview_empty": "Bình luận không có chữ",
       "thread_resolved_one": "Đã giải quyết · {{count}} luồng",
-      "thread_resolved_other": "Đã giải quyết · {{count}} luồng"
+      "thread_resolved_other": "Đã giải quyết · {{count}} luồng",
+      "favorite_unavailable": "Chưa đọc được trạng thái yêu thích - thử lại",
+      "former_member": "Cựu thành viên"
     }
   },
   "squads": {
