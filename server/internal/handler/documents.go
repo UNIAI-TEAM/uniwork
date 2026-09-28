@@ -13,7 +13,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
@@ -490,19 +489,12 @@ func (h *handlers) getDocumentAsset(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
 		return
 	}
-	rd, rng, ranged, err := h.openDocumentAssetRange(w, r)
-	if err != nil || rd == nil {
+	p, body, rng, ranged, err := h.openDocumentAssetRange(w, r)
+	if err != nil || body == nil {
 		return
 	}
-	defer rd.Close()
-	h.serveDocumentFile(w, r, documentFilePayload{
-		Body:        rd.Body,
-		SizeBytes:   rd.File.SizeBytes,
-		ContentType: rd.File.ContentType,
-		Filename:    rd.File.Filename,
-		Disposition: storage.ContentDisposition(rd.File.ContentType, rd.File.Filename),
-		Checksum:    rd.File.ChecksumSHA256,
-	}, rng, ranged)
+	defer body.Close()
+	h.serveDocumentFile(w, r, p, rng, ranged)
 }
 
 // downloadDocument is GET|HEAD /documents/{documentID}/download: meta=1
@@ -651,8 +643,10 @@ func (h *handlers) openDocumentFileRange(w http.ResponseWriter, r *http.Request,
 }
 
 // openDocumentAssetRange is openDocumentFileRange for the asset route: same
-// window math on OpenDocumentAsset.
-func (h *handlers) openDocumentAssetRange(w http.ResponseWriter, r *http.Request) (*files.Reader, service.DocumentByteRange, bool, error) {
+// window math on OpenDocumentAsset. It answers the payload and the closer
+// rather than the reader so the handler tier never names files.Reader
+// (TestFilesContractIsALeafCalledOnlyFromTheServiceTier).
+func (h *handlers) openDocumentAssetRange(w http.ResponseWriter, r *http.Request) (documentFilePayload, io.Closer, service.DocumentByteRange, bool, error) {
 	spec := parseDocumentRange(r)
 	actor := service.Human(middleware.UserID(r.Context()))
 	rng := service.DocumentByteRange{Offset: spec.offset, Length: spec.length}
@@ -660,7 +654,7 @@ func (h *handlers) openDocumentAssetRange(w http.ResponseWriter, r *http.Request
 		probe, err := h.Documents.OpenDocumentAsset(r.Context(), actor, chi.URLParam(r, "documentID"), chi.URLParam(r, "assetID"), service.DocumentByteRange{Length: 1})
 		if err != nil {
 			h.mapServiceError(w, err)
-			return nil, service.DocumentByteRange{}, false, err
+			return documentFilePayload{}, nil, service.DocumentByteRange{}, false, err
 		}
 		size := probe.File.SizeBytes
 		_ = probe.Close()
@@ -673,9 +667,16 @@ func (h *handlers) openDocumentAssetRange(w http.ResponseWriter, r *http.Request
 	rd, err := h.Documents.OpenDocumentAsset(r.Context(), actor, chi.URLParam(r, "documentID"), chi.URLParam(r, "assetID"), rng)
 	if err != nil {
 		h.mapServiceError(w, err)
-		return nil, service.DocumentByteRange{}, false, err
+		return documentFilePayload{}, nil, service.DocumentByteRange{}, false, err
 	}
-	return &rd, rng, spec.has, nil
+	return documentFilePayload{
+		Body:        rd.Body,
+		SizeBytes:   rd.File.SizeBytes,
+		ContentType: rd.File.ContentType,
+		Filename:    rd.File.Filename,
+		Disposition: storage.ContentDisposition(rd.File.ContentType, rd.File.Filename),
+		Checksum:    rd.File.ChecksumSHA256,
+	}, rd, rng, spec.has, nil
 }
 
 // documentFilePayload is the opened object plus the headers a document byte
