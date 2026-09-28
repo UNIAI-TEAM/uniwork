@@ -17,6 +17,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/emailhub"
 	"github.com/unicomhub/uniwork/server/internal/emailhub/imapclient"
 	"github.com/unicomhub/uniwork/server/internal/emailhub/smtpclient"
+	"github.com/unicomhub/uniwork/server/internal/storage"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	"github.com/unicomhub/uniwork/server/internal/util/secretbox"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -37,6 +38,7 @@ type EmailHubService struct {
 	q        *db.Queries
 	ws       *WorkspaceService
 	box      *secretbox.Box
+	store    storage.Storage
 	log      *slog.Logger
 	gov      *emailHubGovernor
 	hubWatch *emailHubHubWatcher
@@ -238,7 +240,10 @@ func (s *EmailHubService) GetThread(ctx context.Context, actor Actor, workspaceI
 	}
 	view.Attachments = attachments
 	if view.BodyCached && shouldInvalidateCachedBody(view) {
-		_ = s.q.InvalidateEmailHubThreadBody(ctx, threadID)
+		key, invErr := s.q.InvalidateEmailHubThreadBody(ctx, threadID)
+		if invErr == nil {
+			s.deleteEmailHubBodyObjects(ctx, []string{key})
+		}
 		view.BodyCached = false
 		view.BodyText = ""
 		view.BodyHTML = ""
@@ -246,8 +251,22 @@ func (s *EmailHubService) GetThread(ctx context.Context, actor Actor, workspaceI
 	if markRead {
 		view = s.markThreadReadIfNeeded(ctx, acc, row, view, attachments)
 	}
-	if !fetchBody || view.BodyCached {
+	if !fetchBody {
 		return view, nil
+	}
+	if view.BodyCached {
+		if err := s.hydrateThreadBodyFromObject(ctx, &view, row); err != nil {
+			s.log.Warn("email hub hydrate body failed", "thread_id", threadID, "err", err)
+		}
+		if view.BodyText != "" || view.BodyHTML != "" {
+			if markRead {
+				view = s.markThreadReadIfNeeded(ctx, acc, row, view, attachments)
+			}
+			return view, nil
+		}
+		if strings.TrimSpace(row.BodyObjectKey) == "" {
+			return view, nil
+		}
 	}
 	if !s.Enabled() {
 		return view, nil
@@ -401,9 +420,12 @@ func (s *EmailHubService) sendOutboundMail(
 	if err != nil {
 		return EmailHubThreadView{}, fmt.Errorf("%w: %w", errEmailHubSentNotCached, err)
 	}
-	updated, err := s.q.UpdateEmailHubThreadBody(ctx, db.UpdateEmailHubThreadBodyParams{
-		ID: row.ID, BodyText: pgtype.Text{String: body, Valid: true},
-		BodyHtml: pgtype.Text{String: bodyHTML, Valid: true},
+	if err := s.persistThreadBody(ctx, acc.ID, organizationID, row.ID, body, bodyHTML); err != nil {
+		s.log.Warn("email hub sent body cache failed", "thread_id", row.ID, "err", err)
+		return threadView(row), nil
+	}
+	updated, err := s.q.GetEmailHubThread(ctx, db.GetEmailHubThreadParams{
+		ID: row.ID, AccountID: acc.ID, OrganizationID: organizationID,
 	})
 	if err != nil {
 		return threadView(row), nil

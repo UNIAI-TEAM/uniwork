@@ -444,6 +444,7 @@ type EmailHubThread struct {
 	ImapLabels      []string           `json:"imap_labels"`
 	SnoozedUntil    pgtype.Timestamptz `json:"snoozed_until"`
 	ConversationKey string             `json:"conversation_key"`
+	BodyObjectKey   string             `json:"body_object_key"`
 }
 
 type EmailHubThreadAiSummary struct {

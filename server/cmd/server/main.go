@@ -355,6 +355,9 @@ func main() {
 		log.Warn("email hub disabled", "err", err)
 	}
 	emailHubSvc := service.NewEmailHubService(q, wsSvc, emailHubBox)
+	if store != nil {
+		emailHubSvc.SetObjectStorage(store)
+	}
 	var calendarBox *secretbox.Box
 	if key, err := secretbox.LoadKey("CALENDAR_CREDENTIAL_KEY"); err == nil {
 		calendarBox, err = secretbox.New(key)

@@ -31,6 +31,14 @@ import {
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 
+/** Bubble + toolbar row: in-flow on sm+ so hover reaches the bar across the gap. */
+export function chatMessageActionsRailClass(isOwn: boolean): string {
+  return cn(
+    "flex w-fit max-w-full items-start gap-1 sm:gap-2",
+    isOwn ? "flex-row-reverse self-end" : "flex-row self-start",
+  );
+}
+
 function MessageActionButton({
   label,
   onClick,
@@ -139,11 +147,10 @@ export function ChatMessageHoverActions({
   };
 
   return (
-    // Beside the bubble from sm (in the free lane of the column, so it never
-    // covers the message above); on a phone it sits over the bubble's top
-    // edge. Hidden until the message is hovered or holds focus — the buttons
-    // stay in the tab order, and focusing one reveals the bar.
-    // The toolbar is not a tab stop itself; its buttons are (roving tabindex).
+    // Desktop: sits in the actions rail beside the bubble (in flow) so moving
+    // the pointer into the bar keeps group/message hovered. Mobile: overlays
+    // the bubble top edge — absolute children do not widen the hover box.
+    // Hidden until hover/focus; buttons stay in the tab order (roving tabindex).
     <div
       ref={barRef}
       role="toolbar"
@@ -152,11 +159,12 @@ export function ChatMessageHoverActions({
       onKeyDown={onKeyDown}
       onFocusCapture={onFocusCapture}
       className={cn(
-        "pointer-events-none absolute z-10 flex items-center gap-0.5 rounded-lg border border-border bg-surface-raised p-0.5 opacity-0 shadow-[var(--menu-shadow)]",
+        "pointer-events-none z-10 flex shrink-0 items-center gap-0.5 rounded-lg border border-border bg-surface-raised p-0.5 opacity-0 shadow-[var(--menu-shadow)]",
         forceOpen && "pointer-events-auto opacity-100",
         "transition-opacity duration-(--duration-fast) group-focus-within/message:pointer-events-auto group-focus-within/message:opacity-100 group-hover/message:pointer-events-auto group-hover/message:opacity-100",
-        "-top-8 sm:top-0",
-        isOwn ? "right-0 sm:right-full sm:mr-2" : "left-0 sm:left-full sm:ml-2",
+        "max-sm:absolute max-sm:-top-2",
+        isOwn ? "max-sm:right-0" : "max-sm:left-0",
+        "sm:relative sm:top-auto sm:mt-0.5",
       )}
     >
       <TooltipProvider delay={300}>
