@@ -207,6 +207,7 @@ func (s *EmailHubService) syncAccountFolderSession(
 	if err := s.upsertThreadItems(ctx, acc, logicalFolder, result.Items); err != nil {
 		return state, 0, err
 	}
+	s.enforceEmailHubFolderRetention(ctx, acc, logicalFolder)
 
 	nextUID := cursor.LastUID
 	if result.HighestUID > nextUID {
@@ -509,6 +510,8 @@ func (s *EmailHubService) runWorkerBatch(ctx context.Context, reconcile bool) {
 			}
 			if syncErr != nil {
 				s.log.Warn("email hub worker sync failed", "account_id", acc.ID, "reconcile", reconcile, "err", syncErr)
+			} else {
+				s.enforceEmailHubAccountRetention(ctx, acc)
 			}
 		}()
 	}

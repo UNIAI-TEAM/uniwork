@@ -130,7 +130,7 @@ export function neededAssets(
 /**
  * Stage every needed asset, then publish once. Staging runs sequentially so a
  * failure stops further uploads; receipts already issued are left to the
- * host's staging expiry (FileService owns GC, ADR 0022) - the engine never
+ * host's staging expiry (FileService owns GC, ADR 0024) - the engine never
  * deletes bytes.
  */
 export async function saveWithAssets<R>(input: SaveWithAssetsInput<R>): Promise<{ result: R; report: AssetSaveReport }> {

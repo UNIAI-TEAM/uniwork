@@ -9,7 +9,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { ChatMessageBody } from "./chat-message-body";
 import { isChatMediaMessageBody } from "./chat-expression-utils";
-import { ChatMessageHoverActions } from "./chat-message-hover-actions";
+import { ChatMessageHoverActions, chatMessageActionsRailClass } from "./chat-message-hover-actions";
 import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
 import { formatMessageDateTime } from "./chat-message-time";
 import { ChatReplyQuote } from "./chat-reply-quote";
@@ -195,70 +195,72 @@ function ChatMessageRowImpl({
           </p>
         ) : null}
 
-        <ChatPriorityFlag priority={message.priority} />
+        <div className={chatMessageActionsRailClass(isOwn)}>
+          <div className="flex min-w-0 flex-col gap-1">
+            <ChatPriorityFlag priority={message.priority} />
 
-        <div
-          title={formatMessageDateTime(message.ts, i18n.language)}
-          className={cn(
-            "w-fit max-w-full",
-            // A sticker, GIF or image is the message itself: no bubble behind
-            // it, only the time under it — unless it answers another message.
-            isMedia && !replyToMessage
-              ? "p-0"
-              : cn("px-3 py-2", chatBubbleShape(isOwn, !compactTop), isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER),
-          )}
-        >
-          {replyToMessage && workspaceId && roomId ? (
-            <ChatReplyQuote
-              message={replyToMessage}
-              workspaceId={workspaceId}
-              roomId={roomId}
+            <div
+              title={formatMessageDateTime(message.ts, i18n.language)}
+              className={cn(
+                "w-fit max-w-full",
+                // A sticker, GIF or image is the message itself: no bubble behind
+                // it, only the time under it — unless it answers another message.
+                isMedia && !replyToMessage
+                  ? "p-0"
+                  : cn("px-3 py-2", chatBubbleShape(isOwn, !compactTop), isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER),
+              )}
+            >
+              {replyToMessage && workspaceId && roomId ? (
+                <ChatReplyQuote
+                  message={replyToMessage}
+                  workspaceId={workspaceId}
+                  roomId={roomId}
+                  isOwn={isOwn}
+                  onJump={onJumpToMessage}
+                />
+              ) : null}
+
+              <ChatMessageBody body={message.body} isOwn={isOwn} nameContext={nameContext} />
+              <ChatMessageMeta
+                message={message}
+                isOwn={isOwn}
+                showTime={lastOfRun}
+                showReadReceipt={showReadReceipt}
+              />
+            </div>
+
+            <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} />
+
+            <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} />
+
+            {workspaceId && !isPending ? (
+              <MessageTaskCard
+                workspaceId={workspaceId}
+                messageId={message.id}
+                className={cn(isOwn && "items-end self-end")}
+              />
+            ) : null}
+          </div>
+
+          {!isPending ? (
+            <ChatMessageHoverActions
+              message={message}
               isOwn={isOwn}
-              onJump={onJumpToMessage}
+              onReply={onReply}
+              onReact={onReact}
+              onThread={onThread}
+              onEdit={onEdit}
+              onPin={onPin}
+              onCopy={onCopy}
+              onDelete={onDelete}
+              onCreateTask={onCreateTask}
+              onLinkTask={onLinkTask}
+              onFollowUp={onFollowUp}
+              canEdit={canEdit}
+              forceOpen={reveal.open}
             />
           ) : null}
-
-          <ChatMessageBody body={message.body} isOwn={isOwn} nameContext={nameContext} />
-          <ChatMessageMeta
-            message={message}
-            isOwn={isOwn}
-            showTime={lastOfRun}
-            showReadReceipt={showReadReceipt}
-          />
         </div>
-
-        <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} />
-
-        <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} />
-
-        {workspaceId && !isPending ? (
-          <MessageTaskCard
-            workspaceId={workspaceId}
-            messageId={message.id}
-            className={cn(isOwn && "items-end self-end")}
-          />
-        ) : null}
-
-        {/* After the content in reading order (it is positioned over the
-            bubble's edge), so a screen reader meets the message first. */}
-        {!isPending ? (
-          <ChatMessageHoverActions
-            message={message}
-            isOwn={isOwn}
-            onReply={onReply}
-            onReact={onReact}
-            onThread={onThread}
-            onEdit={onEdit}
-            onPin={onPin}
-            onCopy={onCopy}
-            onDelete={onDelete}
-            onCreateTask={onCreateTask}
-            onLinkTask={onLinkTask}
-            onFollowUp={onFollowUp}
-            canEdit={canEdit}
-            forceOpen={reveal.open}
-          />
-        ) : null}
       </div>
     </article>
   );

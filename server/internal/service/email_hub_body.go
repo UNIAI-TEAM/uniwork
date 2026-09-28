@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/emailhub/imapclient"
+	"github.com/unicomhub/uniwork/server/internal/emailhub/retention"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -44,11 +45,7 @@ func (s *EmailHubService) cacheThreadBodyIMAP(
 		return imapclient.ThreadBody{}, ErrEmailHubBodySnippetPlaceholder
 	}
 	s.gov.clearBodyPrefetchDefer(row.ID)
-	_, err = s.q.UpdateEmailHubThreadBody(ctx, db.UpdateEmailHubThreadBodyParams{
-		ID: row.ID, BodyText: pgtype.Text{String: body.Text, Valid: body.Text != ""},
-		BodyHtml: pgtype.Text{String: body.HTML, Valid: body.HTML != ""},
-	})
-	if err != nil {
+	if err := s.persistThreadBody(ctx, row.AccountID, row.OrganizationID, row.ID, body.Text, body.HTML); err != nil {
 		return imapclient.ThreadBody{}, err
 	}
 	s.invalidateEmailHubThreadAiSummaries(ctx, row.ID)
@@ -76,10 +73,7 @@ func (s *EmailHubService) maybeCacheBodyFromSync(ctx context.Context, row db.Ema
 			return
 		}
 	}
-	if _, err := s.q.UpdateEmailHubThreadBody(ctx, db.UpdateEmailHubThreadBodyParams{
-		ID: row.ID, BodyText: pgtype.Text{String: text, Valid: text != ""},
-		BodyHtml: pgtype.Text{String: html, Valid: html != ""},
-	}); err != nil {
+	if err := s.persistThreadBody(ctx, row.AccountID, row.OrganizationID, row.ID, text, html); err != nil {
 		s.log.Warn("email hub sync body cache failed", "thread_id", row.ID, "err", err)
 		return
 	}
@@ -118,9 +112,32 @@ func (s *EmailHubService) scheduleBodyPrefetch(acc db.EmailHubAccount, folder st
 }
 
 func (s *EmailHubService) prefetchUncachedBodies(ctx context.Context, acc db.EmailHubAccount, folder string, limit int32) int {
-	rows, err := s.q.ListEmailHubThreadsPendingBody(ctx, db.ListEmailHubThreadsPendingBodyParams{
-		AccountID: acc.ID, OrganizationID: acc.OrganizationID, Folder: folder, Limit: limit,
-	})
+	lim := retention.FromEnv()
+	if lim.MaxBodyCachedPerFolder > 0 {
+		n, err := s.q.CountEmailHubThreadsBodyCached(ctx, db.CountEmailHubThreadsBodyCachedParams{
+			AccountID: acc.ID, OrganizationID: acc.OrganizationID, Folder: folder,
+		})
+		if err != nil {
+			s.log.Warn("email hub prefetch body count failed", "account_id", acc.ID, "err", err)
+			return 0
+		}
+		if n >= int64(lim.MaxBodyCachedPerFolder) {
+			return 0
+		}
+	}
+	var rows []db.EmailHubThread
+	var err error
+	if lim.PrefetchMaxAgeDays > 0 {
+		cutoff := time.Now().UTC().AddDate(0, 0, -lim.PrefetchMaxAgeDays)
+		rows, err = s.q.ListEmailHubThreadsPendingBodyRecent(ctx, db.ListEmailHubThreadsPendingBodyRecentParams{
+			AccountID: acc.ID, OrganizationID: acc.OrganizationID, Folder: folder,
+			SentAt: pgtype.Timestamptz{Time: cutoff, Valid: true}, Limit: limit,
+		})
+	} else {
+		rows, err = s.q.ListEmailHubThreadsPendingBody(ctx, db.ListEmailHubThreadsPendingBodyParams{
+			AccountID: acc.ID, OrganizationID: acc.OrganizationID, Folder: folder, Limit: limit,
+		})
+	}
 	if err != nil {
 		s.log.Warn("email hub prefetch list failed", "account_id", acc.ID, "err", err)
 		return 0

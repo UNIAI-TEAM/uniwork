@@ -1,6 +1,6 @@
 # Đối chiếu tài liệu G0 với hợp đồng FileService FS-C1
 
-> **Trạng thái:** ghi chú bổ sung, 2026-09-26 (UNI-657; phần tài liệu của UNI-748); có hiệu lực cùng ADR 0022
+> **Trạng thái:** ghi chú bổ sung, 2026-09-26 (UNI-657; phần tài liệu của UNI-748); có hiệu lực cùng ADR 0024
 > (accepted 2026-09-27). Không sửa bằng chứng G0.
 > **Cập nhật 2026-09-27:** UNI-748 (PR #133, merge vào nhánh G1-G2 ở `0fba24a0`) đã sửa trực tiếp
 > `engine-contract.md` §1/§8.3/§8.4/§11/§13 (kèm cập nhật pin) và `login-sync-contract.md` §6. Các hàng
@@ -12,7 +12,7 @@
 Tài liệu G0 viết trước FS-C1 nên giao cho G1 một "orphan-object ledger" và một reconciler của riêng
 Documents. [FS-C1](../../superpowers/specs/2026-09-24-file-service-contract.md) §5.7 cấm đúng việc đó:
 module không xóa bytes, không gọi `internal/storage` cho file mới, không tự dựng cleanup worker hay
-ledger cho object. [ADR 0022](../../adr/0022-fileservice-so-huu-blob-intent-gc.md) (accepted 2026-09-27) ghi
+ledger cho object. [ADR 0024](../../adr/0024-fileservice-so-huu-blob-intent-gc.md) (accepted 2026-09-27) ghi
 quyết định ở tầng kiến trúc; ghi chú này chỉ ra từng câu G0 bị thay.
 
 `docs/office/g0/engine-contract.md`, `engine-contract-lab-runtime.md`, `engine-contract-adapter-checksum.md`
@@ -22,7 +22,7 @@ và các `RT02-*.json` được pin sha256 trong `evidence-register.json`/`modul
 
 ## Ai giữ việc gì sau FS-C1
 
-| Việc | Trước (G0) | Sau (FS-C1 + ADR 0022) |
+| Việc | Trước (G0) | Sau (FS-C1 + ADR 0024) |
 | --- | --- | --- |
 | Ghi ý định trước khi object tồn tại | Ledger của Go/Documents, trạng thái `intended/stored/committed/orphaned/deleted` | FileService: hàng `files` + upload session, trạng thái `pending/processing/ready/failed/deleting/deleted` |
 | Byte của upload người dùng | Documents dựng key, ghi object trước rồi ghi row | `files.Service.Upload` (stream, đo byte thật, checksum bắt buộc với purpose Documents) |
@@ -49,7 +49,7 @@ và các `RT02-*.json` được pin sha256 trong `evidence-register.json`/`modul
 | `handoff-map.md` §2 G1 (Receives, Acceptance criteria) | "the orphan-object ledger has a reconciler" | Đã sửa tại chỗ, trỏ về đây |
 | `m1-m2-estimate.md` R5, §3, §5, §6 | "orphan ledger + reconciler" | Đã sửa tại chỗ, trỏ về đây |
 | `runtime-conclusion.md`, `packaging-and-handoff.md` (bản sao ở thư mục này) | "Go owns … the orphan-object ledger" | Xem README của thư mục |
-| ADR 0021 QĐ3 và bảng "Lựa chọn kỹ thuật" | "Go sở hữu … sổ object mồ côi" | ADR 0022 (accepted 2026-09-27) thay phần này |
+| ADR 0021 QĐ3 và bảng "Lựa chọn kỹ thuật" | "Go sở hữu … sổ object mồ côi" | ADR 0024 (accepted 2026-09-27) thay phần này |
 | Spec G0 §9.2 bước 4 | "xử lý object mồ côi riêng" | Vẫn đúng: "riêng" nghĩa là ngoài transaction commit, do FileService |
 
 ## Mã lỗi `quota_exceeded`
@@ -63,5 +63,5 @@ model G0. `login-sync-contract.md` ghi đính chính tại §8.3. Harness G0 kh�
 
 - Change feed, cursor ký, retention và tombstone là của G5 (DOC-005 §9, bước 4 của §9.1), không phải G1.
   G1 chỉ nhận bước 1-3 (error class, cột fingerprint, bật mismatch). `handoff-map.md` §2 G1 đã sửa.
-- "Open decisions: none" cho G1 không còn đúng: U-2 (ADR 0022), U-3 (C-01 §14) và hình dạng API save
+- "Open decisions: none" cho G1 không còn đúng: U-2 (ADR 0024), U-3 (C-01 §14) và hình dạng API save
   (chốt trong C-01 §14) phải có câu trả lời trước G1-01/G1-03.

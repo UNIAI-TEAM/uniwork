@@ -168,6 +168,22 @@ type AuditRetentionPolicy struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
+type CalendarConnection struct {
+	ID                   string             `json:"id"`
+	OrganizationID       string             `json:"organization_id"`
+	WorkspaceID          string             `json:"workspace_id"`
+	UserID               string             `json:"user_id"`
+	Provider             string             `json:"provider"`
+	AccountEmail         string             `json:"account_email"`
+	AccessTokenEnc       string             `json:"access_token_enc"`
+	RefreshTokenEnc      string             `json:"refresh_token_enc"`
+	AccessTokenExpiresAt pgtype.Timestamptz `json:"access_token_expires_at"`
+	SelectedCalendarIds  []byte             `json:"selected_calendar_ids"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	DisconnectedAt       pgtype.Timestamptz `json:"disconnected_at"`
+}
+
 type ChatBlock struct {
 	ID             string             `json:"id"`
 	OrganizationID string             `json:"organization_id"`
@@ -594,6 +610,7 @@ type EmailHubThread struct {
 	ImapLabels      []string           `json:"imap_labels"`
 	SnoozedUntil    pgtype.Timestamptz `json:"snoozed_until"`
 	ConversationKey string             `json:"conversation_key"`
+	BodyObjectKey   string             `json:"body_object_key"`
 }
 
 type EmailHubThreadAiSummary struct {

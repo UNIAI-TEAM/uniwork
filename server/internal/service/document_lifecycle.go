@@ -31,7 +31,7 @@ import (
 //
 // Retention: a document purges after purge_after (30 days from archive), an
 // orphaned asset after 7 days. The delete and the FileService release share
-// one transaction (ADR 0022): FileService GC, not this code, removes bytes,
+// one transaction (ADR 0024): FileService GC, not this code, removes bytes,
 // so an object another holder still references is never touched.
 //
 // Owned documents never enter these paths through the public commands -

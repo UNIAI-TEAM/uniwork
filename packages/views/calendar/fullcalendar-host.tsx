@@ -79,6 +79,7 @@ export function FullCalendarHost(props: {
 }) {
   const { t } = useTranslation();
   const hostRef = useRef<HTMLDivElement>(null);
+  const pointerAnchorRef = useRef<HTMLSpanElement>(null);
   const [allDayExpanded, setAllDayExpanded] = useState(false);
   const eventsById = useMemo(
     () => new Map(props.events.map((ev) => [ev.id, ev])),
@@ -213,6 +214,18 @@ export function FullCalendarHost(props: {
     }
   };
 
+  const positionPointerAnchor = (event: MouseEvent | null | undefined) => {
+    const host = hostRef.current;
+    const anchor = pointerAnchorRef.current;
+    if (!host || !anchor || !event) return undefined;
+
+    const rect = host.getBoundingClientRect();
+    const x = Math.min(Math.max(event.clientX - rect.left, 0), rect.width);
+    const y = Math.min(Math.max(event.clientY - rect.top, 0), rect.height);
+    anchor.style.transform = `translate(${x}px, ${y}px)`;
+    return anchor;
+  };
+
   const handleDateClick = (info: DateClickArg) => {
     props.onSlotSelect?.(
       {
@@ -220,7 +233,9 @@ export function FullCalendarHost(props: {
         end: null,
         allDay: info.allDay,
       },
-      info.dayEl,
+      props.viewMode === "month"
+        ? info.dayEl
+        : (positionPointerAnchor(info.jsEvent) ?? info.dayEl),
     );
   };
 
@@ -243,9 +258,10 @@ export function FullCalendarHost(props: {
         ?? hostRef.current
         ?? undefined;
     } else {
-      source = eventTarget instanceof HTMLElement && eventTarget.isConnected
-        ? eventTarget
-        : (hostRef.current ?? undefined);
+      source = positionPointerAnchor(info.jsEvent)
+        ?? (eventTarget instanceof HTMLElement && eventTarget.isConnected
+          ? eventTarget
+          : (hostRef.current ?? undefined));
     }
 
     props.onSlotSelect?.(
@@ -265,6 +281,13 @@ export function FullCalendarHost(props: {
       lang={props.language}
       className={cn("uniwork-fc relative flex min-h-0 flex-1 flex-col", props.className)}
     >
+      {slotSelectEnabled ? (
+        <span
+          ref={pointerAnchorRef}
+          aria-hidden
+          className="calendar-slot-pointer-anchor pointer-events-none absolute left-0 top-0 size-px"
+        />
+      ) : null}
       {props.viewMode !== "month" && timeZoneLabel ? (
         <span
           className="pointer-events-none absolute left-2 top-2 z-10 text-caption tabular-nums text-muted-foreground"

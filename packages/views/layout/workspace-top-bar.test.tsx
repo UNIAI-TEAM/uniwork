@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
+import { useSearchStore } from "@uniwork/core/search";
 import type { User, Workspace } from "@uniwork/core/types";
 import { ThemeProvider } from "@uniwork/ui/components/common/theme-provider";
 import { SidebarProvider } from "@uniwork/ui/components/ui/sidebar";
@@ -82,7 +83,6 @@ describe("WorkspaceChrome", () => {
 describe("WorkspaceTopBar", () => {
   it("renders compact create with separate theme and language menus", () => {
     renderTopBar();
-    expect(screen.queryByRole("button", { name: /tìm kiếm/i })).toBeNull();
     const create = screen.getByRole("button", { name: /tạo việc/i });
     expect(create).toHaveTextContent("");
     expect(create).toHaveClass("h-8", "w-8");
@@ -90,5 +90,16 @@ describe("WorkspaceTopBar", () => {
     expect(screen.getByLabelText(/ngôn ngữ/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /tùy chọn/i })).toBeNull();
     expect(screen.getByRole("button", { name: /ẩn\/hiện thanh bên|toggle sidebar/i })).toBeInTheDocument();
+  });
+
+  it("puts the search trigger right after the sidebar toggle and opens the palette", () => {
+    useSearchStore.setState({ open: false });
+    renderTopBar();
+    const toggle = screen.getByRole("button", { name: /ẩn\/hiện thanh bên|toggle sidebar/i });
+    const search = screen.getByRole("button", { name: /tìm kiếm/i });
+    expect(toggle.nextElementSibling).toBe(search);
+    fireEvent.click(search);
+    expect(useSearchStore.getState().open).toBe(true);
+    useSearchStore.setState({ open: false });
   });
 });

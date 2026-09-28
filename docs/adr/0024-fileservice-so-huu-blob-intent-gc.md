@@ -1,6 +1,6 @@
-# 0022 — FileService sở hữu byte, ý định upload và dọn rác của Documents; Documents chỉ giữ `file_id`
+# 0024 — FileService sở hữu byte, ý định upload và dọn rác của Documents; Documents chỉ giữ `file_id`
 
-**Trạng thái:** accepted (2026-09-27, người dùng chấp nhận U-2 trong plan G1-G2) — thay phần "Go sở hữu … sổ object
+**Trạng thái:** accepted (2026-09-27, đánh số 0022 khi chấp nhận, đổi thành 0024 ngày 2026-09-29 vì develop đã dùng 0022 cho Email Hub; người dùng chấp nhận U-2 trong plan G1-G2) — thay phần "Go sở hữu … sổ object
 mồ côi" trong Quyết định 3 của [0021](0021-runtime-engine-office-da-dinh-dang.md); phần còn lại của 0021 giữ nguyên.
 **Issue:** UNI-657 (G1) · **Liên quan:** UNI-658 (G2), UNI-726/UNI-739 (FileService, FS-C1), UNI-748 (G0 chuyển sang
 FileService), UNI-668 (DOC-004).

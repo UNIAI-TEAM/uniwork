@@ -35,8 +35,11 @@ const (
 	ActionPeopleExported     = "people.exported"
 	ActionInvitationRevoked  = "invitation.revoked"
 
-	ActionWorkspaceCreated = "workspace.created"
-	ActionWorkspaceUpdated = "workspace.updated"
+	ActionWorkspaceCreated         = "workspace.created"
+	ActionWorkspaceUpdated         = "workspace.updated"
+	ActionCalendarConnected        = "calendar.connected"
+	ActionCalendarSelectionUpdated = "calendar.selection_updated"
+	ActionCalendarDisconnected     = "calendar.disconnected"
 
 	ActionWorkspaceMemberAdded       = "workspace_member.added"
 	ActionWorkspaceMemberRoleChanged = "workspace_member.role_changed"

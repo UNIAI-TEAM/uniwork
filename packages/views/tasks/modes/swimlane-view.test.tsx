@@ -106,8 +106,8 @@ describe("modes/SwimLaneView", () => {
 
     expect((await screen.findAllByText("Saturn")).length).toBeGreaterThan(0);
     expect(screen.getByText("1/2")).toBeInTheDocument();
-    // The cell wears the category's column fill; read it from the config so
-    // a palette change does not masquerade as a swimlane regression.
+    // Read the column fill from the config so a palette change does not
+    // masquerade as a swimlane regression.
     expect(screen.getByTestId("swimlane-status-todo")).toHaveClass(
       STATUS_CONFIG.todo.columnBg,
     );

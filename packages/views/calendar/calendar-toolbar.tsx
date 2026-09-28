@@ -20,6 +20,7 @@ import {
 } from "./calendar-view-mode";
 import { CalendarExportButton } from "./calendar-export-button";
 import { CalendarPeriodPicker } from "./calendar-period-picker";
+import { CalendarConnectionsDialog } from "./calendar-connections-dialog";
 
 const VIEW_MODES: CalendarViewMode[] = ["day", "work_week", "week", "month"];
 
@@ -127,6 +128,7 @@ export function CalendarToolbar({
         </ToggleGroup>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <CalendarConnectionsDialog workspaceId={workspaceId} />
         <Button
           type="button"
           size="icon-sm"

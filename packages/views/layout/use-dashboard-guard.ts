@@ -5,7 +5,7 @@ import { errorCode } from "@uniwork/core/api";
 import { useSession } from "@uniwork/core/auth";
 import { authStepPath, paths, pendingAuthStep } from "@uniwork/core/paths";
 import type { User, Workspace } from "@uniwork/core/types";
-import { useWorkspace } from "@uniwork/core/workspaces";
+import { rememberLastWorkspace, useWorkspace } from "@uniwork/core/workspaces";
 import { useNavigation } from "../navigation";
 import {
   MEMBER_DEACTIVATED,
@@ -58,6 +58,13 @@ export function useDashboardGuard(
   }, [status, user, error, workspace, workspaceLoading, replace, pathname]);
 
   const ready = status === "authed" && !!user && pendingAuthStep(user) === null && !!workspace;
+  const userId = ready ? user.id : null;
+  const orgSlugIn = ready ? workspace.organization_slug : null;
+  const wsSlugIn = ready ? workspace.slug : null;
+  useEffect(() => {
+    if (userId && orgSlugIn && wsSlugIn) rememberLastWorkspace(userId, { orgSlug: orgSlugIn, wsSlug: wsSlugIn });
+  }, [userId, orgSlugIn, wsSlugIn]);
+
   return {
     user: ready ? user : null,
     workspace: ready ? workspace : null,

@@ -30,26 +30,27 @@ type Deps struct {
 	GoogleAuth    *service.GoogleAuthService
 	// Google is nil when GOOGLE_CLIENT_ID/SECRET are unset: the start route
 	// answers 503 and /auth/providers reports google=false.
-	Google        GoogleExchanger
-	Organizations *service.OrganizationService
-	OrgMembers    *service.OrganizationMemberService
-	People        *service.PeopleService
-	Departments   *service.DepartmentService
-	Workspaces    *service.WorkspaceService
-	Onboarding    *service.OnboardingService
-	Tasks         *service.TaskService
-	Home          *service.HomeService
-	Calendar      *service.CalendarService
-	EmailHub      *service.EmailHubService
-	Agents        *service.AgentService
-	Actors        *service.ActorService
-	Audit         *service.AuditService
-	Billing       *service.BillingService
-	Notifications *notification.Service
-	AskUNI        *service.AskUNIService
-	Meetings      *service.MeetingService
-	Chat          *service.ChatService
-	Hub           *realtime.Hub
+	Google              GoogleExchanger
+	Organizations       *service.OrganizationService
+	OrgMembers          *service.OrganizationMemberService
+	People              *service.PeopleService
+	Departments         *service.DepartmentService
+	Workspaces          *service.WorkspaceService
+	Onboarding          *service.OnboardingService
+	Tasks               *service.TaskService
+	Home                *service.HomeService
+	Calendar            *service.CalendarService
+	CalendarConnections *service.CalendarConnectionService
+	EmailHub            *service.EmailHubService
+	Agents              *service.AgentService
+	Actors              *service.ActorService
+	Audit               *service.AuditService
+	Billing             *service.BillingService
+	Notifications       *notification.Service
+	AskUNI              *service.AskUNIService
+	Meetings            *service.MeetingService
+	Chat                *service.ChatService
+	Hub                 *realtime.Hub
 
 	// FileAccess is the FileService read path (T4); nil answers 501 on the
 	// file routes until the server wires it.
@@ -220,6 +221,12 @@ func New(d Deps) http.Handler {
 		ListCalendarEvents:            h.listCalendarEvents,
 		ListCalendarSidebar:           h.listCalendarSidebar,
 		WorkspaceCalendar:             h.workspaceCalendar,
+		ListCalendarConnections:       h.listCalendarConnections,
+		StartCalendarConnection:       h.startCalendarConnection,
+		CompleteCalendarConnection:    h.completeCalendarConnection,
+		ListExternalCalendars:         h.listExternalCalendars,
+		SelectExternalCalendars:       h.selectExternalCalendars,
+		DisconnectCalendarConnection:  h.disconnectCalendarConnection,
 		ListEmailHubAccounts:          h.listEmailHubAccounts,
 		GetEmailHubUnreadCount:        h.getEmailHubUnreadCount,
 		ConnectEmailHubAccount:        h.connectEmailHubAccount,

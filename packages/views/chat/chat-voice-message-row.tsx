@@ -13,7 +13,7 @@ import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
-import { ChatMessageHoverActions } from "./chat-message-hover-actions";
+import { ChatMessageHoverActions, chatMessageActionsRailClass } from "./chat-message-hover-actions";
 import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
 import { CHAT_BUBBLE_OTHER, CHAT_BUBBLE_OWN, ChatThreadRepliesLink, chatBubbleShape } from "./chat-message-row";
 import { initialOf } from "./chat-initials";
@@ -174,33 +174,37 @@ function ChatVoiceMessageRowImpl({
             {senderLabel}
           </p>
         ) : null}
-        <div
-          className={cn(
-            "min-w-48 px-3 py-2 text-foreground",
-            chatBubbleShape(isOwn, !compactTop),
-            isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER,
-          )}
-        >
-          <VoicePlayer workspaceId={workspaceId} roomId={roomId} message={message} />
-          <ChatMessageMeta message={message} isOwn={isOwn} showTime />
+        <div className={chatMessageActionsRailClass(isOwn)}>
+          <div className="flex min-w-0 flex-col gap-1">
+            <div
+              className={cn(
+                "min-w-48 px-3 py-2 text-foreground",
+                chatBubbleShape(isOwn, !compactTop),
+                isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER,
+              )}
+            >
+              <VoicePlayer workspaceId={workspaceId} roomId={roomId} message={message} />
+              <ChatMessageMeta message={message} isOwn={isOwn} showTime />
+            </div>
+            <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} />
+            <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} />
+          </div>
+          <ChatMessageHoverActions
+            message={message}
+            isOwn={isOwn}
+            onReply={onReply}
+            onReact={onReact}
+            onThread={onThread}
+            onPin={onPin}
+            onCopy={onCopy}
+            onDelete={onDelete}
+            onCreateTask={onCreateTask}
+            onLinkTask={onLinkTask}
+            onFollowUp={onFollowUp}
+            canEdit={false}
+            forceOpen={reveal.open}
+          />
         </div>
-        <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} />
-        <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} />
-        <ChatMessageHoverActions
-          message={message}
-          isOwn={isOwn}
-          onReply={onReply}
-          onReact={onReact}
-          onThread={onThread}
-          onPin={onPin}
-          onCopy={onCopy}
-          onDelete={onDelete}
-          onCreateTask={onCreateTask}
-          onLinkTask={onLinkTask}
-          onFollowUp={onFollowUp}
-          canEdit={false}
-          forceOpen={reveal.open}
-        />
       </div>
     </article>
   );

@@ -20,6 +20,7 @@ export {
   useRegister,
   useResendVerification,
   useResetPassword,
+  useKnownSession,
   useSession,
   useUploadAvatar,
   useVerifyEmail,

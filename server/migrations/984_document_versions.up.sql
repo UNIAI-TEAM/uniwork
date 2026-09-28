@@ -1,7 +1,7 @@
 -- Document versions (C-01 §3.2 + §14.2 + §14.3; UNI-675). A version is a
 -- named/auto/restore/upload snapshot: a page version carries its sanitized
 -- JSON, a file version points at its FileService `file_id` (no FK - the
--- blob, key and lifecycle belong to FileService, ADR 0022). mime_type,
+-- blob, key and lifecycle belong to FileService, ADR 0024). mime_type,
 -- size_bytes and checksum_sha256 are the snapshot taken at create time from
 -- the ready files row, never from the client. engine_* / contract_version /
 -- protocol_version record which build produced the bytes (NULL for pages

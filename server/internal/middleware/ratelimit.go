@@ -95,6 +95,25 @@ func RateLimit(rdb *redis.Client, limit int, window time.Duration, trustedProxie
 	}
 }
 
+// ExceptPaths applies m to every request except those whose path is exactly
+// one of paths, which go straight to the next handler.
+func ExceptPaths(m func(http.Handler) http.Handler, paths ...string) func(http.Handler) http.Handler {
+	skip := make(map[string]bool, len(paths))
+	for _, p := range paths {
+		skip[p] = true
+	}
+	return func(next http.Handler) http.Handler {
+		wrapped := m(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if skip[r.URL.Path] {
+				next.ServeHTTP(w, r)
+				return
+			}
+			wrapped.ServeHTTP(w, r)
+		})
+	}
+}
+
 // extractIP determines the client IP for rate limiting purposes.
 // It only honors X-Forwarded-For when RemoteAddr is from a trusted proxy.
 // ClientIP is the address a session records and the rate limiter keys on;

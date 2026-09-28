@@ -19,8 +19,23 @@ describe("toFcEvent", () => {
       start: "2026-09-10",
       end: "2026-09-11",
       allDay: true,
+      editable: true,
+      classNames: [],
       extendedProps: { kind: "task", entityId: "task-1" },
     });
+  });
+
+  it("makes external events read-only and tags them for styling", () => {
+    const fc = toFcEvent({
+      id: "x1",
+      kind: "external",
+      entityId: "google:abc",
+      title: "Lunch",
+      start: "2026-09-10T12:00:00Z",
+      allDay: false,
+    });
+    expect(fc.editable).toBe(false);
+    expect(fc.classNames).toEqual(["calendar-external-event"]);
   });
 
   it("omits end when the source has no end", () => {

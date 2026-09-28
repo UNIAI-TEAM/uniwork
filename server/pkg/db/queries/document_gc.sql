@@ -7,7 +7,7 @@
 -- owner-service document's retention is the owner's call through the §13.6
 -- seam (the public sweep must never delete what an owner still holds). The
 -- service deletes metadata and releases the file references in one
--- transaction; FileService GC owns the bytes (ADR 0022). after_* keysets
+-- transaction; FileService GC owns the bytes (ADR 0024). after_* keysets
 -- past the previous batch inside one pass so a row that keeps failing can
 -- never pin the sweep on the first page.
 -- name: ListDocumentsForPurge :many

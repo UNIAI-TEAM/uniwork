@@ -7,6 +7,7 @@ import type { Task } from "@uniwork/core/types";
 import { wrap } from "../../test/api-mock";
 import { BoardCardContent } from "./board-card";
 import { BoardView } from "./board-view";
+import { STATUS_CONFIG } from "./status-config";
 
 initI18n();
 
@@ -141,7 +142,7 @@ describe("Kanban three-dot button and the priority label", () => {
 });
 
 describe("Kanban column chrome", () => {
-  it("uses a quiet heading and a subtle status background", () => {
+  it("uses a quiet heading and the category's column wash", () => {
     const store = getTaskSurfaceViewStore("board-column-quiet-chrome");
     const { container } = render(
       wrap(
@@ -153,6 +154,8 @@ describe("Kanban column chrome", () => {
 
     expect(container.querySelector('[data-slot="status-pill"]')).toBeNull();
     expect(container.querySelector('[data-slot="status-heading"]')).not.toBeNull();
-    expect(screen.getByTestId("board-column-in_progress")).toHaveClass("bg-warning/5");
+    expect(screen.getByTestId("board-column-in_progress")).toHaveClass(
+      STATUS_CONFIG.in_progress.columnBg,
+    );
   });
 });

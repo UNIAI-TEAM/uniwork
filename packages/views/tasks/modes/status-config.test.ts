@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { tintForegroundClass } from "@uniwork/ui/components/common/icon-tile";
 import { STATUS_CONFIG, statusColumnBg } from "./status-config";
 
 describe("status-config", () => {
@@ -15,21 +16,18 @@ describe("status-config", () => {
       ].sort(),
     );
     expect(STATUS_CONFIG.blocked.tone).toBe("red");
-    expect(STATUS_CONFIG.done.tone).toBe("green");
+    expect(STATUS_CONFIG.done.tone).toBe("blue");
   });
 
-  it("falls back for unknown status strings", () => {
-    expect(statusColumnBg("todo")).toBe(STATUS_CONFIG.todo.columnBg);
-    expect(statusColumnBg("not-a-status")).toBe("bg-muted/20");
+  it("colours glyph and column from its tone, so they never disagree", () => {
+    for (const cfg of Object.values(STATUS_CONFIG)) {
+      expect(cfg.iconColor).toBe(tintForegroundClass[cfg.tone]);
+      expect(cfg.columnBg).toContain(`bg-tint-${cfg.tone}/`);
+    }
   });
 
-  it("uses semantic column backgrounds", () => {
-    expect(STATUS_CONFIG.backlog.columnBg).toBe("bg-muted/40");
-    expect(STATUS_CONFIG.todo.columnBg).toBe("bg-muted/40");
-    expect(STATUS_CONFIG.cancelled.columnBg).toBe("bg-muted/40");
-    expect(STATUS_CONFIG.in_progress.columnBg).toBe("bg-warning/5");
-    expect(STATUS_CONFIG.in_review.columnBg).toBe("bg-success/5");
-    expect(STATUS_CONFIG.done.columnBg).toBe("bg-info/5");
-    expect(STATUS_CONFIG.blocked.columnBg).toBe("bg-destructive/5");
+  it("falls back to the neutral plane for unknown status strings", () => {
+    expect(statusColumnBg("done")).toBe(STATUS_CONFIG.done.columnBg);
+    expect(statusColumnBg("not-a-status")).toBe("bg-muted/50 dark:bg-muted/20");
   });
 });

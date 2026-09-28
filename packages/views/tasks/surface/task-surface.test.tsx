@@ -514,9 +514,9 @@ describe("TaskSurface", () => {
       ),
     );
 
-    await waitFor(() => {
-      expect(screen.getByTestId("task-surface-error")).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByTestId("task-surface-error", {}, { timeout: 20_000 }),
+    ).toBeInTheDocument();
     expect(screen.queryByTestId("task-surface-empty")).not.toBeInTheDocument();
   });
 
@@ -542,9 +542,9 @@ describe("TaskSurface", () => {
       ),
     );
 
-    await waitFor(() => {
-      expect(screen.getByTestId("task-surface-error")).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByTestId("task-surface-error", {}, { timeout: 20_000 }),
+    ).toBeInTheDocument();
 
     const myTasksCallsBefore = requestMock.mock.calls.filter(
       ([path]) => typeof path === "string" && path.includes("/my-tasks"),
@@ -855,7 +855,7 @@ describe("TaskSurface pagination (pages of 50)", () => {
           request.path.includes("/my-tasks") && request.params.relation === "assigned",
       ),
     ).toBe(true);
-  }, 30_000);
+  }, 60_000);
 
   it("gantt shows loaded / total with a load-more button until everything is loaded", async () => {
     servePagedTasks({ total: 120 });

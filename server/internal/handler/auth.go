@@ -174,6 +174,8 @@ func (h *handlers) mapServiceError(w http.ResponseWriter, err error) {
 		respondError(w, 400, "invalid_token", "invalid or expired token")
 	case errors.Is(err, service.ErrEmailHubNotConfigured):
 		respondError(w, http.StatusServiceUnavailable, "email_hub_not_configured", "Email Hub is not configured")
+	case errors.Is(err, service.ErrCalendarProviderNotConfigured):
+		respondError(w, http.StatusServiceUnavailable, "calendar_provider_not_configured", "Calendar provider is not configured")
 	default:
 		h.Log.Error("internal", "err", err)
 		respondError(w, 500, "internal", "internal error")

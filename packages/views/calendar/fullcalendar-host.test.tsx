@@ -33,7 +33,12 @@ type CapturedFcProps = {
   eventClick?: (arg: { event: { id: string }; el?: HTMLElement }) => void;
   eventDrop?: (arg: DropResizeArg) => void | Promise<void>;
   eventResize?: (arg: DropResizeArg) => void | Promise<void>;
-  dateClick?: (arg: { date: Date; allDay: boolean; dayEl: HTMLElement }) => void;
+  dateClick?: (arg: {
+    date: Date;
+    allDay: boolean;
+    dayEl: HTMLElement;
+    jsEvent: MouseEvent;
+  }) => void;
   select?: (arg: {
     start: Date;
     end: Date;
@@ -481,7 +486,12 @@ describe("FullCalendarHost", () => {
     expect(captured.selectMirror).toBe(true);
     const start = new Date("2026-09-10T00:00:00");
     const dayEl = document.createElement("td");
-    captured.dateClick?.({ date: start, allDay: true, dayEl });
+    captured.dateClick?.({
+      date: start,
+      allDay: true,
+      dayEl,
+      jsEvent: new MouseEvent("click"),
+    });
     expect(onSlotSelect).toHaveBeenCalledWith(
       {
         start,
@@ -490,6 +500,44 @@ describe("FullCalendarHost", () => {
       },
       dayEl,
     );
+  });
+
+  it("anchors a time-grid click at the pointer position", () => {
+    const onSlotSelect = vi.fn();
+    render(
+      <FullCalendarHost
+        events={[sample]}
+        initialDate="2026-09-28"
+        viewMode="work_week"
+        onDatesSet={vi.fn()}
+        onEventClick={vi.fn()}
+        onSlotSelect={onSlotSelect}
+      />,
+    );
+    const grid = screen.getByTestId("calendar-grid");
+    vi.spyOn(grid, "getBoundingClientRect").mockReturnValue({
+      x: 100,
+      y: 50,
+      left: 100,
+      top: 50,
+      right: 600,
+      bottom: 650,
+      width: 500,
+      height: 600,
+      toJSON: () => ({}),
+    });
+    const start = new Date("2026-09-29T08:30:00");
+    const dayEl = document.createElement("td");
+    captured.dateClick?.({
+      date: start,
+      allDay: false,
+      dayEl,
+      jsEvent: new MouseEvent("click", { clientX: 350, clientY: 225 }),
+    });
+
+    const [, anchor] = onSlotSelect.mock.calls[0] as [unknown, HTMLElement];
+    expect(anchor).toHaveClass("calendar-slot-pointer-anchor");
+    expect(anchor).toHaveStyle({ transform: "translate(250px, 175px)" });
   });
 
   it("anchors a month range selection to a stable day element", () => {

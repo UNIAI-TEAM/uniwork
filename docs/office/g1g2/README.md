@@ -34,7 +34,7 @@ lại giữ nguyên văn, kể cả câu đã lỗi thời (bảng dưới nói 
 
 - "Candidate for M; canonical files stay read-only": các file G0 đã tích hợp vào develop ở `c6b567f0` (PR #130).
 - "Go owns … the orphan-object ledger", "G1 (store, … orphan ledger and reconciler)", "store and ledger exist
-  before the engine writes": theo FS-C1 §5.7 và ADR 0022 (accepted 2026-09-27), blob, intent upload và
+  before the engine writes": theo FS-C1 §5.7 và ADR 0024 (accepted 2026-09-27), blob, intent upload và
   GC thuộc FileService. Documents chỉ giữ `file_id`, gọi `ClaimInTx`/`ReleaseInTx` và cung cấp
   `ReferenceProvider`. Chi tiết: [fs-c1-alignment.md](fs-c1-alignment.md).
 - "Proposed layout (owner G2 UNI-658)": layout là quyết định U-1 của người dùng

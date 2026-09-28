@@ -26,6 +26,18 @@ const meetingEvent: CalendarEvent = {
   allDay: false,
 };
 
+const externalEvent: CalendarEvent = {
+  id: "google:primary:event-1",
+  kind: "external",
+  entityId: "primary:event-1",
+  title: "Customer call",
+  start: "2026-09-10T15:00:00Z",
+  end: "2026-09-10T15:30:00Z",
+  allDay: false,
+  provider: "google",
+  externalUrl: "https://calendar.google.com/calendar/event?eid=event-1",
+};
+
 const calendarEventsRefetch = vi.hoisted(() => vi.fn());
 const useCalendarEventsMock = vi.hoisted(() =>
   vi.fn((..._args: unknown[]) => ({
@@ -54,6 +66,9 @@ const calendarSidebarQuery = vi.hoisted(() => ({
 vi.mock("@uniwork/core/calendar", () => ({
   useCalendarEvents: useCalendarEventsMock,
   useCalendarSidebar: () => calendarSidebarQuery,
+  useCalendarConnections: () => ({ data: [], isPending: false }),
+  useExternalCalendars: () => ({ data: [], refetch: vi.fn() }),
+  calendarKeys: { connections: (workspaceId: string) => ["calendar", workspaceId, "connections"] },
 }));
 
 const hostProps = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
@@ -124,6 +139,7 @@ describe("CalendarPageView", () => {
     calendarSidebarQuery.isError = false;
     calendarEventsRefetch.mockClear();
     calendarSidebarQuery.refetch.mockClear();
+	vi.restoreAllMocks();
   });
 
   it("shows the calendar title and month grid", () => {
@@ -287,6 +303,19 @@ describe("CalendarPageView", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Mở cuộc họp toàn trang" }));
     expect(onOpenMeeting).toHaveBeenCalledWith("meeting-1");
+  });
+
+  it("opens a connected provider event without replacing the calendar", () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    render(wrap(<CalendarPageView workspaceId="ws1" onOpenTask={() => {}} onOpenMeeting={() => {}} />));
+
+    act(() => {
+      const onEventClick = hostProps.current.onEventClick as (event: CalendarEvent) => void;
+      onEventClick(externalEvent);
+    });
+
+    expect(open).toHaveBeenCalledWith(externalEvent.externalUrl, "_blank", "noopener,noreferrer");
+    expect(screen.getByTestId("calendar-grid")).toBeInTheDocument();
   });
 
   it("restores focus after closing a meeting detail panel", () => {

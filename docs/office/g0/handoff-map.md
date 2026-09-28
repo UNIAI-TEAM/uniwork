@@ -70,7 +70,7 @@ before anyone plans them. (An earlier draft of this map claimed the same negativ
 | The change-feed contract, **for reference only**: identity by account/org/workspace/document, cursor, pagination, retention, full resync, tombstone. Building it is G5 UNI-660 (DOC-005 section 9, step 4 of 9.1), not G1 (corrected 2026-09-26) | same, section 5 |
 | One error table for the client (`errorClass`, 422/409 kept) | same, section 4 and 4.1 |
 | The mandatory-case evidence: 17 accepted cases, 4 of them with real durable draft bytes | register gate `G0-DOC005-MANDATORY`; `login-sync-contract.md` section 8 |
-| Storage ownership: Go owns auth/ACL/quota/idempotency/version/audit/outbox commit; bytes, upload intent and GC belong to FileService (FS-C1; ADR 0022, accepted 2026-09-27) - Documents keeps `file_id`, calls `ClaimInTx`/`ReleaseInTx` in its own transaction and provides a `ReferenceProvider`; the engine owns no business table. The earlier "Go owns the orphan-object ledger" is replaced (corrected 2026-09-26) | `docs/office/g1g2/runtime-conclusion.md` section 1; `docs/office/g0/engine-contract.md` sections 9-11 as corrected by `docs/office/g1g2/fs-c1-alignment.md` |
+| Storage ownership: Go owns auth/ACL/quota/idempotency/version/audit/outbox commit; bytes, upload intent and GC belong to FileService (FS-C1; ADR 0024, accepted 2026-09-27) - Documents keeps `file_id`, calls `ClaimInTx`/`ReleaseInTx` in its own transaction and provides a `ReferenceProvider`; the engine owns no business table. The earlier "Go owns the orphan-object ledger" is replaced (corrected 2026-09-26) | `docs/office/g1g2/runtime-conclusion.md` section 1; `docs/office/g0/engine-contract.md` sections 9-11 as corrected by `docs/office/g1g2/fs-c1-alignment.md` |
 | Rollout order steps 1-3 (errorClass, payload fingerprint migration, mismatch switch) | `login-sync-contract.md` section 9.1 |
 | Provenance record shape for the Q7 conversion copy (source id + sha256 on the new OOXML file) - implemented in G1/G2, contract in DOC-005 | `docs/office/g1g2/q7-blocker.md` owner section; plan 5.4 |
 
@@ -80,10 +80,14 @@ not a hit; the version commit, `ClaimInTx` and the audit/outbox rows share one t
 holds a `file_id` has a `ReferenceProvider` that sees old versions, soft deletes and retention holds (FS-C1
 sections 5-6). This replaces the earlier criterion "the orphan-object ledger has a reconciler"
 (`docs/office/g1g2/fs-c1-alignment.md`). Nothing in the engine writes a business table. Open decisions
-(corrected 2026-09-26; this line used to say "none"): ADR 0022 acceptance (U-2); the C-01 section 14
+(corrected 2026-09-26; this line used to say "none"): ADR 0024 acceptance (U-2); the C-01 section 14
 amendment, including the one save API shape (U-3); the package layout (U-1). See plan
 `docs/superpowers/plans/2026-09-18-documents-office-g1-g2.md` section 1.3. The DOC-005 ordering and the
 additive, flag-gated rollout of section 9.1 steps 1-3 stay fixed.
+
+Cập nhật 2026-09-27 (UNI-748): "orphan-object ledger + reconciler" ở hai dòng trên nay đọc theo
+`docs/office/g0/engine-contract.md` §8.3 — object lifecycle thuộc FileService (FS-C1); G1/G2 code theo hợp
+đồng đó và đăng ký `ReferenceProvider`, không dựng ledger riêng.
 
 Cập nhật 2026-09-27 (UNI-748): "orphan-object ledger + reconciler" ở hai dòng trên nay đọc theo
 `docs/office/g0/engine-contract.md` §8.3 — object lifecycle thuộc FileService (FS-C1); G1/G2 code theo hợp

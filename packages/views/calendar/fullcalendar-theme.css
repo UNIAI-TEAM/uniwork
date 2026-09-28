@@ -21,6 +21,12 @@
   --fc-highlight-color: var(--accent);
 }
 
+.uniwork-fc .fc-event.calendar-external-event {
+  border-color: var(--surface-border);
+  background: var(--surface-hover);
+  color: var(--foreground);
+}
+
 .uniwork-fc .fc {
   color: var(--foreground);
   font-size: var(--text-body);

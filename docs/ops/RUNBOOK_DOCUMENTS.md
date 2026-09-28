@@ -1,8 +1,8 @@
 # Runbook — Documents (trang, tệp, phiên bản, worker)
 
-> **Trạng thái:** in-progress · **Cập nhật:** 2026-09-29 · **Thành phần:** `DocumentService`, `DocumentWorkers` (auto-version / purge / compact) trong tiến trình API, byte qua `FileService` · **Liên quan:** C-01 §6.3/§14, ADR 0022, `docs/ops/RUNBOOK_FILE_GC.md`, `docs/ops/RUNBOOK_OFFICE_ENGINE.md`, `docs/ops/RUNBOOK_OUTBOX.md`
+> **Trạng thái:** in-progress · **Cập nhật:** 2026-09-29 · **Thành phần:** `DocumentService`, `DocumentWorkers` (auto-version / purge / compact) trong tiến trình API, byte qua `FileService` · **Liên quan:** C-01 §6.3/§14, ADR 0024, `docs/ops/RUNBOOK_FILE_GC.md`, `docs/ops/RUNBOOK_OFFICE_ENGINE.md`, `docs/ops/RUNBOOK_OUTBOX.md`
 
-Documents không giữ byte: mọi tệp nằm ở FileService (ADR 0022). Vì vậy
+Documents không giữ byte: mọi tệp nằm ở FileService (ADR 0024). Vì vậy
 orphan backlog và delete-failure **không có metric riêng ở đây** — chúng là số
 của FileService GC (`file_jobs`, báo cáo `FileGCReport`, xem
 [`RUNBOOK_FILE_GC.md`](RUNBOOK_FILE_GC.md)); Documents chỉ giữ metadata,

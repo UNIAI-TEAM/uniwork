@@ -852,7 +852,7 @@ Ba việc xảy ra sau ngày duyệt 2026-09-08:
 1. **FileService (UNI-726) thành pipeline file chung** (2026-09-24). Hợp đồng
    [FS-C1](2026-09-24-file-service-contract.md) cấm module tự giữ key/URL, tự xóa byte hay tự dựng ledger/cleanup
    (§5.2, §5.7), và đặt policy purpose `document_file`/`document_asset`: 50 MiB / 10 MiB, checksum bắt buộc,
-   **đọc bằng proxy** (§3). ADR 0022 (accepted 2026-09-27) ghi quyết định kiến trúc tương ứng.
+   **đọc bằng proxy** (§3). ADR 0024 (accepted 2026-09-27) ghi quyết định kiến trúc tương ứng.
 2. **DOC-005 được nghiệm thu ở mức G0** (`docs/office/g0/login-sync-contract.md`, Advisor g118, 2026-09-25): bảng lỗi
    §4, thứ tự kiểm ở commit §3, fingerprint idempotency §3.1, provenance bản sao §7.1.
 3. **G0 = GO** (2026-09-25, ADR 0021): Office sáu định dạng dùng kho này, nên version cần metadata engine và bản sao

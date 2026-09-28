@@ -5,7 +5,7 @@
 > **Cập nhật 2026-09-22:** bổ sung nhóm FE/BE/Engine/QA/DevOps, đợt chạy song song và hợp đồng bàn giao; chưa khởi chạy implementation.
 > **Cập nhật 2026-09-24:** Documents lưu bytes qua FileService (UNI-726) theo hợp đồng FS-C1: bỏ ledger `document_objects` riêng, version/asset giữ `file_id`, cleanup chỉ qua FileService. G1-03 code bằng fake từ Gate A0 của FileService, không chờ FileService implement xong; chỉ nghiệm thu H1 chờ FileService Gate C.
 > **Cập nhật 2026-09-26 (sau G0 = GO):** baseline chuyển sang develop `c6b567f0` (PR #130 đã merge G0), migration mới nhất 217; tick H0 theo bằng chứng (§1.2); layout package là quyết định chờ người dùng U-1 (§1.3, §3.2); bổ sung các việc G2 còn thiếu (Q7, P3/P5, `host:slides-edit-transform`, guard test ADR 0021, clean build, đo tài nguyên); thống nhất tên lỗi idempotency và hình dạng API save; ước lượng đối chiếu với `m1-m2-estimate.md` (§8.4). Vẫn chưa khởi chạy implementation.
-> **Cập nhật 2026-09-27:** người dùng trả lời U-1..U-4 (cả bốn theo khuyến nghị, §1.3) và ra lệnh triển khai; FileService (PR #133) đã merge vào nhánh gốc ở `0fba24a0`. ADR 0022 accepted, C-01 §14 có hiệu lực.
+> **Cập nhật 2026-09-27:** người dùng trả lời U-1..U-4 (cả bốn theo khuyến nghị, §1.3) và ra lệnh triển khai; FileService (PR #133) đã merge vào nhánh gốc ở `0fba24a0`. ADR 0024 accepted, C-01 §14 có hiệu lực.
 
 **Issue tài liệu:** UNI-657. **Roadmap:** C-01, phase C.
 **Nhóm triển khai:** G1 UNI-657 và G2 UNI-658, cùng parent UNI-437.
@@ -53,7 +53,7 @@ service/engine thật.
 - FileService: [spec](../specs/2026-09-22-shared-file-service-design.md),
   [plan](2026-09-22-shared-file-service.md) và [hợp đồng FS-C1](../specs/2026-09-24-file-service-contract.md)
   (UNI-726). Documents là một bên tiêu thụ; plan này không tự dựng pipeline file.
-  Quyền sở hữu blob/intent/GC được ghi trong ADR 0022 (accepted 2026-09-27).
+  Quyền sở hữu blob/intent/GC được ghi trong ADR 0024 (accepted 2026-09-27).
   Tại baseline, develop **chưa** có `server/internal/files`: code FS-C1 T1a (UNI-739)
   nằm trên nhánh `feature/UNI-739-fs-c1-contract` (đầu nhánh `5fececa8` lúc đọc ngày
   2026-09-26, chưa phải bản cuối). Theo Advisor FileService, T1a merge cục bộ vào
@@ -88,7 +88,7 @@ vẫn kiểm được.
   là proven (sáu hàng `E-*-CYCLE`) hoặc blocker kèm tên test:
   `fixtures/manifest.json`, `capabilities.json`, `capability-matrix.md`, `module-runtime-map.json`, ADR 0021.
 - [x] G0 hoàn tất thay thế các mệnh đề cũ trái phạm vi mới trong C-01/ADR: ADR 0021 thay 0018;
-  C-01 có luật HTML (2026-09-25) và §14 theo FS-C1 (người dùng duyệt U-3, 2026-09-27); ADR 0022
+  C-01 có luật HTML (2026-09-25) và §14 theo FS-C1 (người dùng duyệt U-3, 2026-09-27); ADR 0024
   thay phần "sổ object mồ côi" của ADR 0021 QĐ3 (người dùng chấp nhận U-2, 2026-09-27).
 - [x] G0 docs khớp FS-C1 (phần tài liệu của UNI-748): UNI-748 (PR #133, merge vào nhánh này ở
   `0fba24a0`) sửa `engine-contract.md` §1/§8.3/§8.4/§11/§13 và `login-sync-contract.md`; ghi chú
@@ -106,12 +106,12 @@ desktop, và register vẫn liệt kê các giới hạn ở `decision.limits` /
 | Mã | Quyết định | Khuyến nghị | Chặn task |
 | --- | --- | --- | --- |
 | U-1 | Layout package/thư mục cho G2 và Documents: layout của plan (§3.2) hay layout đề xuất ở G0 (`engine-contract.md` §15) | Giữ layout của plan; lý do ở §3.2 | G2-01, G1-01 (tên file Go) |
-| U-2 | Chấp nhận ADR 0022: FileService sở hữu blob, intent và GC của Documents; thay một phần QĐ3 ADR 0021 | Chấp nhận | G1-03, G1-04b, G2-02 |
+| U-2 | Chấp nhận ADR 0024: FileService sở hữu blob, intent và GC của Documents; thay một phần QĐ3 ADR 0021 | Chấp nhận | G1-03, G1-04b, G2-02 |
 | U-3 | Duyệt amendment C-01 §14: `file_id`, đọc bằng proxy, `ReleaseInTx`, cột còn thiếu, bảng lỗi DOC-005, một hình dạng API save | Duyệt | G1-01, G1-03, G1-05 |
 | U-4 | Codec ảnh cho PDF trên web: codec Node an toàn ở G2-05, hay để host desktop (G4) và web từ chối thao tác sửa ảnh có sẵn | Codec Node ở G2-05 (giữ capability web theo Q1-B) | G2-05 |
 
 **Trả lời của người dùng ngày 2026-09-27, cả bốn theo khuyến nghị:** U-1 giữ layout của plan (§3.2);
-U-2 chấp nhận ADR 0022; U-3 duyệt C-01 §14; U-4 codec Node ở G2-05. Không còn task nào bị chặn bởi U-1..U-4.
+U-2 chấp nhận ADR 0024; U-3 duyệt C-01 §14; U-4 codec Node ở G2-05. Không còn task nào bị chặn bởi U-1..U-4.
 
 ### 1.4 Giới hạn G0 còn mở và chủ của chúng
 
@@ -1387,7 +1387,7 @@ Sàn này **chưa gồm** ba phần mà DOC-006 không tách riêng cho G1/G2: (
 56 hàng capability bị chặn (R1, toàn M1 28 / 50,4 / 84 EW, chia G2/G3 chưa có tỷ lệ);
 (2) UI thư viện, comments, panels G1-06..08 (R2 là tích hợp editor từng định dạng, không phải
 thư viện); (3) phần Q7/Q8 của G1/G2 trong R9. R5 của DOC-006 còn tính "orphan ledger + reconciler";
-theo ADR 0022 (accepted 2026-09-27) việc đó thuộc FileService, nên R5 hơi cao ở phần đó, nhưng G1 thêm
+theo ADR 0024 (accepted 2026-09-27) việc đó thuộc FileService, nên R5 hơi cao ở phần đó, nhưng G1 thêm
 `ReferenceProvider` và test hai lớp FS-C1 §8.1. Sprint đầu của G1 thay các tỷ lệ này bằng
 số đo (rows/sprint, EW theo task) như `m1-m2-estimate.md` §2 yêu cầu. Đây không phải lịch
 cam kết cho 16 task hoặc thời gian chạy agent.

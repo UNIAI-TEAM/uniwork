@@ -12,6 +12,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	authpkg "github.com/unicomhub/uniwork/server/internal/auth"
+	"github.com/unicomhub/uniwork/server/internal/config"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
@@ -28,15 +29,31 @@ import (
 // action can only sit there with a written reason, which is the thing a
 // reviewer reads instead of guessing why coverage has a hole.
 var actionsWithoutCommands = map[string]string{
-	audit.ActionOrganizationUpdated:  "no organization rename command exists yet",
-	audit.ActionMemberRemoved:        "deactivation replaced removal by an admin; leaving writes member.left",
-	audit.ActionAuditExportRequested: "covered by the audit service's own tests",
-	audit.ActionAuditExported:        "covered by the audit export consumer's own tests",
-	audit.ActionAuditRetentionSet:    "covered by the audit service's own tests",
+	audit.ActionCalendarConnected:        "requires a live provider authorization-code exchange; transaction is reviewed in CalendarConnectionService.Complete",
+	audit.ActionCalendarSelectionUpdated: "requires a provider calendar-list response; transaction is reviewed in CalendarConnectionService.Select",
+	audit.ActionOrganizationUpdated:      "no organization rename command exists yet",
+	audit.ActionMemberRemoved:            "deactivation replaced removal by an admin; leaving writes member.left",
+	audit.ActionAuditExportRequested:     "covered by the audit service's own tests",
+	audit.ActionAuditExported:            "covered by the audit export consumer's own tests",
+	audit.ActionAuditRetentionSet:        "covered by the audit service's own tests",
 }
 
 func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 	cases := map[string]func(t *testing.T, f *auditFixture){
+		audit.ActionCalendarDisconnected: func(t *testing.T, f *auditFixture) {
+			workspace := f.build(t)
+			if _, err := f.pool.Exec(f.ctx, `INSERT INTO calendar_connections (
+				id, organization_id, workspace_id, user_id, provider, account_email,
+				access_token_enc, refresh_token_enc, access_token_expires_at
+			) VALUES ('audit-calendar-connection', $1, $2, $3, 'google',
+				'audit-owner@example.com', 'access', 'refresh', now())`, f.orgID, workspace.ID, f.owner.ID); err != nil {
+				t.Fatal(err)
+			}
+			svc := NewCalendarConnectionService(f.pool, f.q, f.ws, nil, config.Config{})
+			if err := svc.Disconnect(f.ctx, workspace.ID, f.owner.ID, "google"); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionOrganizationCreated: func(t *testing.T, f *auditFixture) { f.build(t) },
 		audit.ActionMemberJoined:        func(t *testing.T, f *auditFixture) { f.build(t) },
 		audit.ActionWorkspaceCreated:    func(t *testing.T, f *auditFixture) { f.build(t) },
