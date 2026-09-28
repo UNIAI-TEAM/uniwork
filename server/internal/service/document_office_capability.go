@@ -7,12 +7,15 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"io"
 	"path"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/files"
@@ -282,6 +285,10 @@ func (s *DocumentOfficeService) CreateBlankFile(ctx context.Context, actor Actor
 	if err != nil {
 		return DocumentFileResult{}, err
 	}
+	// A retried key is answered before the engine runs again.
+	if res, ok, err := s.replayBlank(ctx, actor, orgID, ws.WorkspaceID, in, title, filename); ok || err != nil {
+		return res, err
+	}
 	res, err := office.Negotiate(ctx, s.engine, format)
 	if err != nil {
 		return DocumentFileResult{}, err
@@ -383,7 +390,41 @@ func (s *DocumentOfficeService) CreateBlankFile(ctx context.Context, actor Actor
 	return s.documents.CreateFileDocument(ctx, actor, ws.WorkspaceID, CreateFileDocumentInput{
 		ParentID: in.ParentID, Title: title, Filename: filename,
 		Body: bytes.NewReader(body), IdempotencyKey: in.IdempotencyKey,
+		engine: officeEngineInfo(),
 	})
+}
+
+// replayBlank answers a blank-create key that already holds a result without
+// a second engine run. The create's own fingerprint covers the engine's
+// bytes, which do not exist yet, so the stored document stands in for it: a
+// different title, parent or format under the same key is a payload
+// mismatch, never someone else's document.
+func (s *DocumentOfficeService) replayBlank(ctx context.Context, actor Actor, orgID, workspaceID string, in BlankFileInput, title, filename string) (DocumentFileResult, bool, error) {
+	key := strings.TrimSpace(in.IdempotencyKey)
+	if key == "" {
+		return DocumentFileResult{}, false, nil
+	}
+	stored, err := PeekIdempotent(ctx, s.q, orgID, workspaceID, idempotencyScopeDocumentFileCreate, key, actor.ID, IdempotencyOptions{})
+	if err != nil {
+		return DocumentFileResult{}, false, NormalizeIdempotencyError(err)
+	}
+	if stored == nil {
+		return DocumentFileResult{}, false, nil
+	}
+	prev, err := decodeDocumentFileResult(stored.Body)
+	if err != nil {
+		return DocumentFileResult{}, false, err
+	}
+	want := title
+	if want == "" {
+		want = strings.TrimSpace(files.SanitizeFilename(filename))
+	}
+	if prev.Document.Title != want || prev.Document.ParentID.String != in.ParentID ||
+		!strings.EqualFold(path.Ext(prev.File.Filename), path.Ext(filename)) {
+		return DocumentFileResult{}, false, errIdempotencyPayloadMismatch()
+	}
+	res, err := s.documents.replayCreatedFile(ctx, s.q, actor, stored.Body)
+	return res, true, err
 }
 
 func blankFailure(js office.JobStatus) error {
@@ -441,8 +482,13 @@ func blankSeedFor(format office.Format, title string) ([]byte, string, bool) {
 // version id or a format it could get wrong. Operation is the wire string;
 // the service parses it against the allowlist.
 type OfficeJobRequest struct {
-	Operation        string
-	BaseRevision     int64 // 0 = the document's current revision
+	Operation string
+	// Format, when set, must equal the document's format; it never picks one.
+	Format string
+	// BaseRevision is the revision the caller saw; HasBaseRevision tells an
+	// explicit 0 from "the document's current revision".
+	BaseRevision     int64
+	HasBaseRevision  bool
 	IdempotencyKey   string
 	DocumentModelRef string
 	Deadline         time.Duration
@@ -467,11 +513,36 @@ func (s *DocumentOfficeService) StartOfficeJobForDocument(ctx context.Context, a
 	if !ok {
 		return db.OfficeJob{}, ErrOfficeJobInvalid
 	}
+	// A retried key replays its own job: once its output is committed the
+	// document has moved on, so the base comes from the row, not from the
+	// document as it is now. A changed payload still fails the fingerprint.
+	if existing, err := s.q.GetOfficeJobByIdempotencyKey(ctx, db.GetOfficeJobByIdempotencyKeyParams{
+		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, IdempotencyKey: strings.TrimSpace(req.IdempotencyKey),
+	}); err == nil && existing.DocumentID == doc.ID {
+		if req.Format != "" && req.Format != existing.Format {
+			return db.OfficeJob{}, ErrOfficeJobInvalid
+		}
+		revision := existing.BaseRevision
+		if req.HasBaseRevision {
+			revision = req.BaseRevision
+		}
+		return s.StartOfficeJob(ctx, actor, OfficeJobInput{
+			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
+			BaseVersionID: existing.BaseVersionID, BaseRevision: revision,
+			Operation: operation, Format: office.Format(existing.Format), IdempotencyKey: req.IdempotencyKey,
+			Deadline: req.Deadline, DocumentModelRef: req.DocumentModelRef,
+		})
+	} else if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return db.OfficeJob{}, err
+	}
 	format, err := s.formatForVersion(ctx, doc, nil)
 	if err != nil {
 		return db.OfficeJob{}, err
 	}
-	if req.BaseRevision != 0 && req.BaseRevision != doc.Revision {
+	if req.Format != "" && req.Format != string(format) {
+		return db.OfficeJob{}, ErrOfficeJobInvalid
+	}
+	if req.HasBaseRevision && req.BaseRevision != doc.Revision {
 		return db.OfficeJob{}, officeErr("base_version_mismatch", "revision")
 	}
 	if !doc.FileVersionID.Valid || doc.FileVersionID.String == "" {
@@ -515,12 +586,14 @@ func (s *DocumentOfficeService) CancelOfficeJobForDocument(ctx context.Context, 
 	if err != nil {
 		return db.OfficeJob{}, err
 	}
-	row, err := s.CancelOfficeJob(ctx, actor, doc.OrganizationID, doc.WorkspaceID, jobID)
+	// The job must belong to this document before anything is cancelled: a
+	// job id of another document is not found here and stays live.
+	row, err := s.get(ctx, doc.OrganizationID, doc.WorkspaceID, jobID)
 	if err != nil {
 		return db.OfficeJob{}, err
 	}
 	if row.DocumentID != doc.ID {
 		return db.OfficeJob{}, ErrNotFound
 	}
-	return row, nil
+	return s.CancelOfficeJob(ctx, actor, doc.OrganizationID, doc.WorkspaceID, jobID)
 }

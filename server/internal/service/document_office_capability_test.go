@@ -271,9 +271,10 @@ func TestDocumentOfficeBlankCreateWaitsForTheEngine(t *testing.T) {
 		err error
 	}
 	done := make(chan outcome, 1)
+	key := util.NewID()
 	go func() {
 		res, err := svc.CreateBlankFile(ctx, f.actor, f.ws, BlankFileInput{
-			Format: string(office.FormatMD), Title: "Trong", IdempotencyKey: util.NewID(),
+			Format: string(office.FormatMD), Title: "Trong", IdempotencyKey: key,
 		})
 		done <- outcome{res, err}
 	}()
@@ -295,6 +296,7 @@ func TestDocumentOfficeBlankCreateWaitsForTheEngine(t *testing.T) {
 		t.Fatal("no engine job was submitted")
 	}
 	eng.finish(t, jobID, []byte("# Trong\n"), "text/markdown; charset=utf-8")
+	var created DocumentFileResult
 	select {
 	case out := <-done:
 		if out.err != nil {
@@ -303,11 +305,39 @@ func TestDocumentOfficeBlankCreateWaitsForTheEngine(t *testing.T) {
 		if out.res.Document.Title != "Trong" || out.res.Document.Kind != DocumentKindFile {
 			t.Fatalf("blank document = %+v", out.res.Document)
 		}
+		created = out.res
 	case <-time.After(20 * time.Second):
 		t.Fatal("blank create did not settle after the engine completed")
 	}
 	if after := f.documentCount(t); after != before+1 {
 		t.Fatalf("blank create wrote %d documents, want 1", after-before)
+	}
+	// The first version carries the engine that produced its bytes.
+	want := officeEngineInfo()
+	if v := created.Version; v.EngineName.String != want.Name || v.EngineVersion.String != want.Version ||
+		v.ContractVersion.String != want.ContractVersion || v.ProtocolVersion.String != want.ProtocolVersion {
+		t.Fatalf("blank version provenance = %+v", v)
+	}
+	// A retried key answers the same document without a second engine run;
+	// the same key with another title is a payload mismatch.
+	again, err := svc.CreateBlankFile(ctx, f.actor, f.ws, BlankFileInput{Format: string(office.FormatMD), Title: "Trong", IdempotencyKey: key})
+	if err != nil || again.Document.ID != created.Document.ID {
+		t.Fatalf("blank replay: %+v %v", again.Document, err)
+	}
+	if _, err := svc.CreateBlankFile(ctx, f.actor, f.ws, BlankFileInput{Format: string(office.FormatMD), Title: "Khac", IdempotencyKey: key}); err == nil {
+		t.Fatal("blank replay with another title was accepted")
+	}
+	if _, err := svc.CreateBlankFile(ctx, f.actor, f.ws, BlankFileInput{Format: string(office.FormatHTML), Title: "Trong", IdempotencyKey: key}); err == nil {
+		t.Fatal("blank replay with another format was accepted")
+	}
+	eng.mu.Lock()
+	submitted := len(eng.jobs)
+	eng.mu.Unlock()
+	if submitted != 1 {
+		t.Fatalf("blank replay ran the engine again: %d jobs", submitted)
+	}
+	if after := f.documentCount(t); after != before+1 {
+		t.Fatalf("blank replay wrote %d documents, want 1", after-before)
 	}
 }
 

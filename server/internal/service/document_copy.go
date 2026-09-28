@@ -136,6 +136,12 @@ func (s *DocumentService) CopyDocument(ctx context.Context, actor Actor, documen
 			res, err = replayWithAccess(replay.Body, lockedAccess)
 			return err
 		}
+		if locked.FileVersionID.String != current.ID {
+			// A version landed between the read and the lock: the file, the
+			// source version and the source revision must describe one
+			// snapshot, so the caller retries against the new version.
+			return errDocumentVersionConflict(locked.Revision)
+		}
 		if in.ParentID != "" {
 			if err := s.requireParentInTx(ctx, q, actor, in.ParentID, locked.OrganizationID, locked.WorkspaceID); err != nil {
 				return err

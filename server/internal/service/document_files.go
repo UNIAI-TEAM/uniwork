@@ -280,6 +280,9 @@ type CreateFileDocumentInput struct {
 	Filename       string
 	Body           io.Reader
 	IdempotencyKey string
+	// engine is the provenance of bytes the Office engine produced (blank
+	// create); set only inside the service, never from a request.
+	engine DocumentEngineInfo
 }
 
 const idempotencyScopeDocumentFileCreate = "documents.files.create"
@@ -388,7 +391,7 @@ func (s *DocumentService) CreateFileDocument(ctx context.Context, actor Actor, w
 	if err != nil {
 		return DocumentFileResult{}, err
 	}
-	version, err := q.InsertDocumentVersion(ctx, fileVersionParams(doc, versionID, 1, "upload", actor, file, DocumentEngineInfo{}, pgtype.Int4{}))
+	version, err := q.InsertDocumentVersion(ctx, fileVersionParams(doc, versionID, 1, "upload", actor, file, in.engine, pgtype.Int4{}))
 	if err != nil {
 		return DocumentFileResult{}, err
 	}
