@@ -5,6 +5,7 @@ import * as auth from "../api/endpoints/auth";
 import { getAccessToken, subscribe as subscribeToToken } from "../api/session";
 import { setCurrentWorkspace } from "../platform/workspace-storage";
 import type { User } from "../types/user";
+import { syncSessionHint } from "./session-hint";
 
 export type SessionStatus = "loading" | "authed" | "anon";
 
@@ -91,6 +92,10 @@ subscribeToToken(() => {
   if (getAccessToken() === null && useAuthStore.getState().status === "authed") {
     clearSession(false);
   }
+});
+
+useAuthStore.subscribe((state, prev) => {
+  if (state.status !== prev.status) syncSessionHint(state.status);
 });
 
 /** Test seam: drop module state so cases cannot leak into each other. */

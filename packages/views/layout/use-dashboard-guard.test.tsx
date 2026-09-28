@@ -79,4 +79,16 @@ describe("useDashboardGuard", () => {
     expect(result.current.user?.id).toBe("u1");
     expect(adapter.replace).not.toHaveBeenCalled();
   });
+
+  it("remembers the workspace once the user is inside it", async () => {
+    localStorage.clear();
+    useAuthStore.getState().setUser(user);
+    requestMock.mockResolvedValue({ workspace });
+    const { result } = renderGuard(nav());
+    await waitFor(() => expect(result.current.workspace?.id).toBe("ws1"));
+    expect(JSON.parse(localStorage.getItem("uniwork_last_workspace:u1") ?? "null")).toEqual({
+      orgSlug: "acme",
+      wsSlug: "team",
+    });
+  });
 });

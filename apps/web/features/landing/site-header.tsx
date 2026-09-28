@@ -3,7 +3,9 @@ import { ArrowRight, ChevronDown, Menu, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useKnownSession } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
+import { useHomeDestination } from "@uniwork/core/workspaces";
 import { LocaleMenu, ThemeMenu } from "@uniwork/views/layout/preference-menus";
 import { Logo } from "@uniwork/ui/brand";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
@@ -32,6 +34,9 @@ export function SiteHeader() {
   const header = useRef<HTMLElement>(null);
   const mobileButton = useRef<HTMLButtonElement>(null);
   const groupButtons = useRef<Partial<Record<HeaderDirectoryKey, HTMLButtonElement | null>>>({});
+  const authed = useKnownSession().status === "authed";
+  // The picker is where a click lands while the workspace list is still loading.
+  const home = useHomeDestination() ?? paths.workspaces();
   const close = () => { setMobileOpen(false); setDirectory(null); };
   useEffect(() => {
     if (!mobileOpen && !directory) return;
@@ -70,8 +75,14 @@ export function SiteHeader() {
       </nav>
       <div className="header-actions">
         <div className="header-preferences"><ThemeMenu size="icon-lg" /><LocaleMenu size="icon-lg" /></div>
-        <Link href={paths.login()} className={cn(buttonVariants({ variant: "ghost", size: "lg" }), "header-login")}>{t("landing.nav.login")}</Link>
-        <Link href={paths.register()} className={cn(buttonVariants({ variant: "brand", size: "lg" }), "header-start")}>{t("landing.cta.start")}<ArrowRight aria-hidden /></Link>
+        {authed ? (
+          <Link href={home} className={cn(buttonVariants({ variant: "brand", size: "lg" }), "header-start")}>{t("landing.nav.home")}<ArrowRight aria-hidden /></Link>
+        ) : (
+          <>
+            <Link href={paths.login()} className={cn(buttonVariants({ variant: "ghost", size: "lg" }), "header-login")}>{t("landing.nav.login")}</Link>
+            <Link href={paths.register()} className={cn(buttonVariants({ variant: "brand", size: "lg" }), "header-start")}>{t("landing.cta.start")}<ArrowRight aria-hidden /></Link>
+          </>
+        )}
         <Button ref={mobileButton} className="header-mobile-toggle" variant="ghost" size="icon-lg" aria-label={t(mobileOpen ? "landing.nav.closeMenu" : "landing.nav.openMenu")} aria-expanded={mobileOpen} aria-controls="landing-mobile-menu" onClick={() => setMobileOpen(current => !current)}>{mobileOpen ? <X aria-hidden /> : <Menu aria-hidden />}</Button>
       </div>
     </Container>
@@ -79,8 +90,14 @@ export function SiteHeader() {
     {mobileOpen && <nav id="landing-mobile-menu" className="header-mobile-menu" aria-label={t("landing.nav.main")}>
       {GROUPS.map(group => <details key={group.key}><summary>{t(group.label)}<ChevronDown aria-hidden /></summary><HeaderDirectory kind={group.key} onNavigate={close} /></details>)}
       {LINKS.map(item => <Link className="mobile-route-link" key={item.to} href={item.to} onClick={close}>{t(item.label)}<ArrowRight aria-hidden /></Link>)}
-      <Link className="mobile-route-link" href={paths.login()} onClick={close}>{t("landing.nav.login")}</Link>
-      <Link href={paths.register()} onClick={close} className={cn(buttonVariants({ variant: "brand", size: "lg" }), "mobile-start")}>{t("landing.cta.start")}</Link>
+      {authed ? (
+        <Link href={home} onClick={close} className={cn(buttonVariants({ variant: "brand", size: "lg" }), "mobile-start")}>{t("landing.nav.home")}</Link>
+      ) : (
+        <>
+          <Link className="mobile-route-link" href={paths.login()} onClick={close}>{t("landing.nav.login")}</Link>
+          <Link href={paths.register()} onClick={close} className={cn(buttonVariants({ variant: "brand", size: "lg" }), "mobile-start")}>{t("landing.cta.start")}</Link>
+        </>
+      )}
     </nav>}
   </header>;
 }

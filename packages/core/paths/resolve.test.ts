@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { isReservedSlug, paths, pendingAuthStep, resolvePostAuthDestination, sanitizeNextUrl } from "./index";
+import {
+  isReservedSlug,
+  paths,
+  pendingAuthStep,
+  resolveHomeDestination,
+  resolvePostAuthDestination,
+  sanitizeNextUrl,
+} from "./index";
 import type { Workspace } from "../types";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 
@@ -33,6 +40,29 @@ describe("resolvePostAuthDestination", () => {
   });
   it("onboarded with no workspace → new workspace", () => {
     expect(resolvePostAuthDestination([], onboarded)).toBe("/workspaces/new");
+  });
+});
+
+describe("resolveHomeDestination", () => {
+  const list = [ws("unicom", "alpha"), ws("acme", "team")];
+  it("returns to the workspace the user was last in", () => {
+    expect(resolveHomeDestination(list, onboarded, { orgSlug: "acme", wsSlug: "team" })).toBe("/acme/team");
+  });
+  it("falls back to the first workspace on a first visit", () => {
+    expect(resolveHomeDestination(list, onboarded, null)).toBe("/unicom/alpha");
+  });
+  it("falls back to the first workspace when the last one is no longer theirs", () => {
+    expect(resolveHomeDestination(list, onboarded, { orgSlug: "gone", wsSlug: "team" })).toBe("/unicom/alpha");
+  });
+  it("matches the organization too, since workspace slugs repeat across organizations", () => {
+    expect(resolveHomeDestination(list, onboarded, { orgSlug: "unicom", wsSlug: "team" })).toBe("/unicom/alpha");
+  });
+  it("sends a user with a pending gate to that gate", () => {
+    expect(resolveHomeDestination(list, unverified, { orgSlug: "acme", wsSlug: "team" })).toBe("/verify");
+    expect(resolveHomeDestination(list, verified, null)).toBe("/onboarding");
+  });
+  it("onboarded with no workspace → new workspace", () => {
+    expect(resolveHomeDestination([], onboarded, { orgSlug: "acme", wsSlug: "team" })).toBe("/workspaces/new");
   });
 });
 

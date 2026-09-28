@@ -4,10 +4,13 @@ import { useAuthStore } from "../auth/store";
 import * as auth from "../api/endpoints/auth";
 import { setSessionUser } from "../auth/hooks";
 import * as workspaces from "../api/endpoints/workspaces";
+import { resolveHomeDestination } from "../paths/resolve";
 import { workspaceKeys } from "./keys";
+import { readLastWorkspace } from "./last-workspace";
 
 export type { InviteResult } from "../api/endpoints/workspaces";
 export { workspaceKeys } from "./keys";
+export { rememberLastWorkspace } from "./last-workspace";
 
 export function slugify(name: string): string {
   return name
@@ -27,6 +30,14 @@ export function useWorkspaces() {
     queryFn: () => workspaces.list(),
     enabled: authed,
   });
+}
+
+/** The "Home" link for a signed-in user; null until the session and the workspace list are known. */
+export function useHomeDestination(): string | null {
+  const user = useAuthStore((s) => s.user);
+  const { data: list } = useWorkspaces();
+  if (!user || !list) return null;
+  return resolveHomeDestination(list, user, readLastWorkspace(user.id));
 }
 
 export function useWorkspace(orgSlug: string, wsSlug: string) {
