@@ -15,7 +15,7 @@ import {
   type EngineErrorCode,
   type JobState,
 } from "@uniwork/office-contracts";
-import { createJobDir, INPUT_NAME, OUTPUT_NAME, removeJobDir } from "./cleanup.ts";
+import { createJobDir, INPUT_NAME, OPS_NAME, OUTPUT_NAME, removeJobDir } from "./cleanup.ts";
 import type { EngineServiceConfig } from "./config.ts";
 import { checkLive, GrantLedger, type ServiceGrant } from "./grants.ts";
 import { LIMIT_OUTCOMES, resolveLimits, type EffectiveLimits } from "./limits.ts";
@@ -44,6 +44,9 @@ export interface Job {
   limits: EffectiveLimits;
   grant: ServiceGrant;
   input: Uint8Array | null;
+  /** Validated envelope payload extras (edits[] for edit/open); serialized
+      into ops.json inside the job dir so the worker IPC carries only paths. */
+  payload: Record<string, unknown> | null;
   controller: AbortController;
 }
 
@@ -53,6 +56,7 @@ export interface SubmitRequest {
   requestId: string;
   deadlineMs: number | null;
   input: Uint8Array | null;
+  payload?: Record<string, unknown> | null;
 }
 
 export class JobManager {
@@ -122,6 +126,7 @@ export class JobManager {
       limits: resolveLimits(this.config.limits, grant, req.deadlineMs, now),
       grant,
       input: req.input,
+      payload: req.payload ?? null,
       controller: new AbortController(),
     };
     this.jobs.set(job.jobId, job);
@@ -194,7 +199,10 @@ export class JobManager {
       dir = await createJobDir(this.config.tempRoot);
       const inputPath = job.input ? join(dir, INPUT_NAME) : null;
       if (inputPath && job.input) await writeFile(inputPath, job.input);
+      const payloadPath = job.payload ? join(dir, OPS_NAME) : null;
+      if (payloadPath) await writeFile(payloadPath, JSON.stringify(job.payload));
       job.input = null;
+      job.payload = null;
       // Hand the dir to the slot uid before the worker spawns; from then on the
       // worker owns exactly this 0700 dir and nothing else on the filesystem.
       if (identity) await this.sandbox.adopt(dir, identity);
@@ -205,6 +213,7 @@ export class JobManager {
         format: job.format,
         inputPath,
         outputPath,
+        payloadPath,
         tempDir: dir,
         limits: job.limits,
         sampleMs: this.config.sampleMs,

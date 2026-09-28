@@ -138,12 +138,23 @@ async function submit(req: IncomingMessage, res: ServerResponse, deps: ServerDep
     config.outputOrigins,
   );
   const fingerprint = await payloadFingerprint(env, { inputs: validated.inputs, hash: nodeSha256Hex });
+  // Only worker-relevant payload fields cross into the job dir: edits[] and
+  // locale. Byte/checksum fields already became `input`; refs stay on the wire.
+  const edits = payload.edits;
+  const jobPayload =
+    edits !== undefined || payload.locale !== undefined
+      ? {
+          ...(edits !== undefined ? { edits } : {}),
+          ...(payload.locale !== undefined ? { locale: payload.locale } : {}),
+        }
+      : null;
   const { job, replay } = deps.jobs.submit({
     grant,
     fingerprint,
     requestId: env.request_id as string,
     deadlineMs: validated.deadlineMs,
     input: validated.inputs?.bytes ?? null,
+    payload: jobPayload,
   });
   send(res, replay ? 200 : 202, { ...jobView(job), replay, payload_fingerprint: fingerprint });
 }

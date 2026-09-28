@@ -9,3 +9,4 @@ server
 apps/web
 e2e
 docs
+!docs/office/g0/fixtures/files/pdf

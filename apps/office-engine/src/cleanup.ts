@@ -12,6 +12,7 @@ const JOB_DIR_PREFIX = "uw-office-job-";
 /** Fixed names inside a job dir: the handler never sees a caller's filename. */
 export const INPUT_NAME = "input.bin";
 export const OUTPUT_NAME = "output.bin";
+export const OPS_NAME = "ops.json";
 
 export async function createJobDir(tempRoot: string): Promise<string> {
   await mkdir(tempRoot, { recursive: true });

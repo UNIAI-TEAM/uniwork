@@ -105,8 +105,10 @@ export function sha256(bytes: Uint8Array): string {
 }
 
 export interface JobSpec {
-  text: string;
-  format?: "md" | "html" | "docx";
+  /** Text input (utf8) — or pass `bytes` for binary formats like pdf. */
+  text?: string;
+  bytes?: Uint8Array;
+  format?: "md" | "html" | "docx" | "pdf";
   operation?: string;
   deadlineMs?: number;
   grant?: Partial<ServiceGrant>;
@@ -147,7 +149,7 @@ export function makeGrant(target: TargetServer, overrides: Partial<ServiceGrant>
 }
 
 export function makeJob(target: TargetServer, spec: JobSpec): { grant: ServiceGrant; token: string; envelope: Record<string, unknown> } {
-  const bytes = Buffer.from(spec.text, "utf8");
+  const bytes = spec.bytes ? Buffer.from(spec.bytes) : Buffer.from(spec.text ?? "", "utf8");
   const format = spec.format ?? "md";
   const operation = spec.operation ?? "serialize";
   const grant = makeGrant(target, {

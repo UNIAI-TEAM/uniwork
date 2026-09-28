@@ -16,7 +16,8 @@
     "./desktop": "./src/desktop/index.ts",
     "./markdown": "./src/markdown/index.ts",
     "./html": "./src/html/index.ts",
-    "./assets": "./src/assets/index.ts"
+    "./assets": "./src/assets/index.ts",
+    "./pdf": "./src/pdf/index.ts"
   },
   "dependencies": {
     "@uniwork/office-contracts": "workspace:*",

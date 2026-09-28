@@ -45,6 +45,7 @@ async function selfTest(config: EngineServiceConfig, sandbox: WorkerSandbox): Pr
       format: "none",
       inputPath: null,
       outputPath: dir + "/self-test.out",
+      payloadPath: null,
       tempDir: dir,
       limits: resolveLimits({ ...config.limits, maxJobMs: Math.min(config.limits.maxJobMs, 30_000) }, SELF_TEST_GRANT, null, Date.now()),
       sampleMs: config.sampleMs,

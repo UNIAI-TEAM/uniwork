@@ -15,6 +15,7 @@ export interface WorkerRun {
   operation: string;
   format: string;
   inputPath: string | null;
+  payloadPath: string | null;
   outputPath: string;
   tempDir: string;
   limits: EffectiveLimits;
@@ -156,6 +157,7 @@ export class Supervisor {
         format: job.format,
         inputPath: job.inputPath,
         outputPath: job.outputPath,
+        payloadPath: job.payloadPath,
         tempDir: job.tempDir,
         sampleMs: job.sampleMs,
         heapMb: job.limits.heapMb,

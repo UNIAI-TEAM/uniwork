@@ -21,6 +21,7 @@ beforeEach(async () => {
     format: "md",
     inputPath: join(dir, "input.bin"),
     outputPath: join(dir, "output.bin"),
+    payloadPath: null,
     tempDir: dir,
     sampleMs: 50,
     heapMb: 64,
@@ -33,8 +34,8 @@ afterEach(async () => {
 });
 
 describe("handler table", () => {
-  it("binds only md/html serialize", () => {
-    expect([...BOUND_OPERATIONS].sort()).toEqual(["serialize:html", "serialize:md"]);
+  it("binds md/html serialize and the pdf open/serialize/edit lane", () => {
+    expect([...BOUND_OPERATIONS].sort()).toEqual(["edit:pdf", "open:pdf", "serialize:html", "serialize:md", "serialize:pdf"]);
     expect(findHandler("serialize", "docx")).toBeUndefined();
     expect(findHandler("open", "md")).toBeUndefined();
   });

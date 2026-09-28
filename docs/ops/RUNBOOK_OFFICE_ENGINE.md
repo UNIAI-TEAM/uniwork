@@ -52,6 +52,7 @@ only to an origin listed in `OFFICE_ENGINE_OUTPUT_ORIGINS`. The service never fe
 | `OFFICE_ENGINE_FAULT_OPERATIONS` | `0` | Test-only fault operations. Never `1` outside a test run |
 | `OFFICE_ENGINE_SANDBOX` | `auto` (`required` in the image) | Per-job uid sandbox: `auto` engages on Linux + uid 0, `required` refuses to start without it, `off` is for dev debugging |
 | `OFFICE_ENGINE_WORKER_UID_BASE` / `_GID_BASE` | `60100` | Start of the per-slot worker uid/gid pool (`maxWorkers` entries, 1000..65533) |
+| `UNIWORK_PDF_ASSETS` | `/app/pdf-assets` in the image | Directory holding `pdfium.wasm`, `harfbuzz-subset.wasm` and `fonts/` (bundled OFL Noto Sans). Set by the Dockerfile; unset in dev, where assets resolve package-relative |
 
 **Every limit default is provisional** (acceptance-thresholds T-2: not a budget until `n >= 5` on the target machine
 class). Measured so far: see `reports/g2-02-engine-service/limits-measurement.md` in the run folder. XLSX (G2-04)
@@ -171,6 +172,23 @@ with no job running, capture `/metrics` and the logs and restart the container; 
   claimed (`ClaimOfficeJobOutputInTx` requires `completed`), and FileService collects it after its claim window.
 - `/v1/capability` needs only the service credential: it describes the build and touches no job, so there is no
   grant to present.
+
+## PDF lane (G2-05)
+
+- `edit:pdf` runs the real pipeline: `ops.json` (the envelope's validated `edits[]`, written by the service into the
+  job dir) drives annotation deletes → text edits → text inserts → image ops → pdf-lib page ops (rotation, metadata,
+  page delete/reorder) → save → read-back verification. A verify failure discards the output; the original bytes are
+  never written to the output target.
+- `serialize:pdf` validates committed bytes and passes them through unchanged (the Documents commit path);
+  `open:pdf` returns a probe JSON (`pageCount`, `hasTextLayer`, per-page empties, feature map with `ocr: false` +
+  reason). `convert`/`export` stay unbound; an `ocr` capability row answers `supported: false` (Q2-A).
+- Typed refusals keep the original: `not_a_pdf`, `encrypted_pdf`, `corrupt_pdf`, `bad_op:*` map to
+  `engine_result_invalid`; an op outside the bound vocabulary (annotation authoring, OCR, forms) is
+  `unsupported_operation`. Stale text edits are `edit_skipped` warnings, not job failures.
+- Assets are staged at build time into `/app/pdf-assets` (`pdfium.wasm`, `harfbuzz-subset.wasm`, OFL Noto fonts) and
+  reached via `UNIWORK_PDF_ASSETS`; in dev the package resolves them from `node_modules` + `assets/fonts`.
+- The pdfium wasm is a shared singleton with one linear heap: all pdfium access is serialized through a promise
+  chain inside the handler thread.
 
 ## Q7 conversions
 

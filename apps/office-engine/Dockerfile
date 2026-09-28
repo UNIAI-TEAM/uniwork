@@ -18,10 +18,19 @@ COPY packages/eslint-config/package.json packages/eslint-config/
 RUN pnpm install --frozen-lockfile --ignore-scripts --filter "@uniwork/office-engine-app..." --filter uniwork
 COPY packages/office-contracts packages/office-contracts
 COPY packages/office-engine/src packages/office-engine/src
+COPY packages/office-engine/assets packages/office-engine/assets
 COPY packages/tsconfig packages/tsconfig
 COPY apps/office-engine/src apps/office-engine/src
 COPY apps/office-engine/scripts apps/office-engine/scripts
 RUN node apps/office-engine/scripts/build.mjs
+# G2-05 pdf assets: the bundle ships no node_modules, so the wasm files and the
+# bundled OFL fonts are staged where UNIWORK_PDF_ASSETS points. Resolving the
+# wasm through the installed packages (not a .pnpm path literal) keeps the pin
+# honest — a bumped catalog version still resolves to the matching file.
+RUN mkdir -p /repo/pdf-assets/fonts && \
+    cp "$(node -p "require.resolve('@embedpdf/pdfium/pdfium.wasm', {paths:['/repo/packages/office-engine']})")" /repo/pdf-assets/pdfium.wasm && \
+    cp "$(node -p "require('node:path').join(require('node:path').dirname(require.resolve('harfbuzzjs', {paths:['/repo/packages/office-engine']})), 'harfbuzz-subset.wasm')")" /repo/pdf-assets/harfbuzz-subset.wasm && \
+    cp packages/office-engine/assets/fonts/NotoSans-Regular.ttf packages/office-engine/assets/fonts/NotoSans-Bold.ttf /repo/pdf-assets/fonts/
 
 # Test stage: the service suite on Linux, where the process-group, /proc and
 # job-tag paths of process-tree.ts actually run. Not part of the image:
@@ -33,6 +42,8 @@ COPY scripts/coverage-gate.ts scripts/vitest-pool.ts scripts/
 COPY apps/office-engine/test apps/office-engine/test
 # The Go-signed grant parity fixture (grants.test.ts).
 COPY server/internal/office/testdata server/internal/office/testdata
+# G2-05 pdf fixtures (pipeline.test.ts / pdf-jobs.test.ts read these bytes).
+COPY docs/office/g0/fixtures/files/pdf docs/office/g0/fixtures/files/pdf
 COPY apps/office-engine/vitest.config.ts apps/office-engine/tsconfig.json apps/office-engine/
 WORKDIR /repo/apps/office-engine
 ENV CI=1
@@ -43,9 +54,11 @@ ENV NODE_ENV=production \
     OFFICE_ENGINE_HOST=0.0.0.0 \
     OFFICE_ENGINE_PORT=8090 \
     OFFICE_ENGINE_TEMP_DIR=/tmp/uniwork-office-engine \
-    OFFICE_ENGINE_SANDBOX=required
+    OFFICE_ENGINE_SANDBOX=required \
+    UNIWORK_PDF_ASSETS=/app/pdf-assets
 WORKDIR /app
 COPY --from=build /repo/apps/office-engine/dist/ ./
+COPY --from=build /repo/pdf-assets /app/pdf-assets
 # The supervisor runs as uid 0 so it can drop each job's worker to its own
 # slot uid before the handler loads (G2-05 sandbox). Workers themselves are
 # unprivileged and own nothing but their 0700 job dir; the compose profile
