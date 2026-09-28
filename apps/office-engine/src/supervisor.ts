@@ -18,6 +18,8 @@ export interface WorkerRun {
   payloadPath: string | null;
   outputPath: string;
   tempDir: string;
+  /** Dir holding the xlsx gateway bundle + Rust sidecar (config.UNIWORK_XLSX_ASSETS). */
+  xlsxAssetsDir?: string;
   limits: EffectiveLimits;
   sampleMs: number;
   faults: boolean;
@@ -159,6 +161,7 @@ export class Supervisor {
         outputPath: job.outputPath,
         payloadPath: job.payloadPath,
         tempDir: job.tempDir,
+        ...(job.xlsxAssetsDir ? { xlsxAssetsDir: job.xlsxAssetsDir } : {}),
         sampleMs: job.sampleMs,
         heapMb: job.limits.heapMb,
         faults: job.faults,

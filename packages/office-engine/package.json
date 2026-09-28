@@ -17,7 +17,9 @@
     "./markdown": "./src/markdown/index.ts",
     "./html": "./src/html/index.ts",
     "./assets": "./src/assets/index.ts",
-    "./pdf": "./src/pdf/index.ts"
+    "./pdf": "./src/pdf/index.ts",
+    "./xlsx": "./src/xlsx/index.ts",
+    "./xlsx/native": "./src/node/xlsx.ts"
   },
   "dependencies": {
     "@uniwork/office-contracts": "workspace:*",

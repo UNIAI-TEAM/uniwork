@@ -221,6 +221,7 @@ export class JobManager {
         outputPath,
         payloadPath,
         tempDir: dir,
+        xlsxAssetsDir: this.config.xlsxAssetsDir,
         limits: job.limits,
         sampleMs: this.config.sampleMs,
         faults: this.config.faultOperations,

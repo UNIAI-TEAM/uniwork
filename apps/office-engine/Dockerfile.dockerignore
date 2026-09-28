@@ -10,3 +10,5 @@ apps/web
 e2e
 docs
 !docs/office/g0/fixtures/files/pdf
+!docs/office/g0/fixtures/files/sheets
+**/target
