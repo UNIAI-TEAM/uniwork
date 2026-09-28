@@ -211,6 +211,7 @@ export function saveDoc(m: Pdfium, doc: number): Uint8Array {
     if (!m._PDFiumExt_SaveAsCopy(doc, writer)) throw new Error("PDFium SaveAsCopy failed");
     const size = m._PDFiumExt_GetFileWriterSize(writer);
     const buf = m._malloc(size);
+    if (!buf) throw new PdfOpenError("heap");
     m._PDFiumExt_GetFileWriterData(writer, buf, size);
     const out = Uint8Array.from(m.HEAPU8.subarray(buf, buf + size));
     m._free(buf);
