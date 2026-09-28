@@ -76,12 +76,12 @@ type OfficeJobResultDTO struct {
 // OfficeJobFidelityDTO names what a conversion loses.
 type OfficeJobFidelityDTO struct {
 	Level string   `json:"level" description:"limited: bản sao mất một số hạng mục, liệt kê trong lost" example:"limited"`
-	Lost  []string `json:"lost" example:"cell_formatting"`
+	Lost  []string `json:"lost" description:"Các hạng mục bản sao không mang theo" example:"[\"cell_formatting\"]"`
 }
 
 // OfficeJobChangeListDTO is what the converted copy contains.
 type OfficeJobChangeListDTO struct {
-	Sheets     []string          `json:"sheets,omitempty" description:"xls -> xlsx: tên các sheet" example:"Sheet1"`
+	Sheets     []string          `json:"sheets,omitempty" description:"xls -> xlsx: tên các sheet" example:"[\"Sheet1\"]"`
 	Cells      map[string]string `json:"cells,omitempty" description:"xls -> xlsx: ô có giá trị, \"Sheet!A1\" -> văn bản hiển thị"`
-	Paragraphs []string          `json:"paragraphs,omitempty" description:"odt -> docx: văn bản các đoạn" example:"Tiêu đề"`
+	Paragraphs []string          `json:"paragraphs,omitempty" description:"odt -> docx: văn bản các đoạn" example:"[\"Tiêu đề\"]"`
 }
