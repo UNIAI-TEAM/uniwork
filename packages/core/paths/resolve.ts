@@ -32,6 +32,29 @@ export function resolvePostAuthDestination(workspaces: Workspace[], user: AuthGa
   return paths.newWorkspace();
 }
 
+export interface WorkspaceRef {
+  orgSlug: string;
+  wsSlug: string;
+}
+
+/**
+ * Where "Home" leads a signed-in user: the home screen of the workspace they
+ * were last in while they still belong to it, otherwise of the first one.
+ * Slugs repeat across organizations, so the match is on the pair.
+ */
+export function resolveHomeDestination(
+  workspaces: Workspace[],
+  user: AuthGateUser | null,
+  last: WorkspaceRef | null,
+): string {
+  const step = pendingAuthStep(user);
+  if (step) return authStepPath(step);
+  const target =
+    (last && workspaces.find((w) => w.organization_slug === last.orgSlug && w.slug === last.wsSlug)) ?? workspaces[0];
+  if (target) return paths.workspace(target.organization_slug, target.slug).root();
+  return paths.newWorkspace();
+}
+
 export function useHasOnboarded(): boolean {
   const { user } = useSession();
   return user?.onboarded_at != null;
