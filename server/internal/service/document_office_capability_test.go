@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -234,6 +235,34 @@ func TestDocumentOfficeBlankRefusals(t *testing.T) {
 	}
 	if after := f.documentCount(t); after != before {
 		t.Fatalf("refused blank creates wrote %d documents", after-before)
+	}
+}
+
+// The blank route shares the create key scope with the plain upload route: a
+// key a plain upload used is never replayed as an engine-made blank.
+func TestDocumentOfficeBlankRefusalsKeyOfAPlainUpload(t *testing.T) {
+	ctx := context.Background()
+	f := newOfficeFixture(t, "# seed\n")
+	eng := newScriptedEngine()
+	svc := f.service(eng)
+	key := util.NewID()
+	if _, err := f.docs.CreateFileDocument(ctx, f.actor, f.ws, CreateFileDocumentInput{
+		Title: "Trong", Filename: "tai-len.md", Body: strings.NewReader("arbitrary bytes\n"), IdempotencyKey: key,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	before := f.documentCount(t)
+	if res, err := svc.CreateBlankFile(ctx, f.actor, f.ws, BlankFileInput{Format: string(office.FormatMD), Title: "Trong", IdempotencyKey: key}); err == nil {
+		t.Fatalf("blank create replayed a plain upload: %+v", res.Document)
+	}
+	eng.mu.Lock()
+	submitted := len(eng.jobs)
+	eng.mu.Unlock()
+	if submitted != 0 {
+		t.Fatalf("blank create on a used key ran the engine: %d jobs", submitted)
+	}
+	if after := f.documentCount(t); after != before {
+		t.Fatalf("blank create on a used key wrote %d documents", after-before)
 	}
 }
 

@@ -419,7 +419,10 @@ func (s *DocumentOfficeService) replayBlank(ctx context.Context, actor Actor, or
 	if want == "" {
 		want = strings.TrimSpace(files.SanitizeFilename(filename))
 	}
-	if prev.Document.Title != want || prev.Document.ParentID.String != in.ParentID ||
+	// The key scope is shared with the plain upload route; only a result the
+	// blank path wrote carries the engine pin (a request can never set it).
+	if prev.Version.EngineName.String != officeEngineInfo().Name ||
+		prev.Document.Title != want || prev.Document.ParentID.String != in.ParentID ||
 		!strings.EqualFold(path.Ext(prev.File.Filename), path.Ext(filename)) {
 		return DocumentFileResult{}, false, errIdempotencyPayloadMismatch()
 	}
