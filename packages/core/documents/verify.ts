@@ -2,6 +2,8 @@ import {
   DocumentNotVerifiableError,
   type Document,
   type DocumentAsset,
+  type DocumentComment,
+  type DocumentFavorite,
   type DocumentUpload,
   type DocumentVersionResult,
 } from "../types/document";
@@ -43,4 +45,24 @@ export function requireVerifiableAsset(asset: DocumentAsset | null | undefined):
     throw new DocumentNotVerifiableError();
   }
   return asset;
+}
+
+/** A comment answer must name its row, its document and a body; a `{}` or a
+ *  half-populated answer never counts as a saved comment. */
+export function requireVerifiableComment(
+  comment: DocumentComment | null | undefined,
+): DocumentComment {
+  if (!comment || !comment.id || !comment.document_id || !comment.body) {
+    throw new DocumentNotVerifiableError();
+  }
+  return comment;
+}
+
+/** Favorites are idempotent, so the row identity is what proves the write:
+ *  without it the client cannot reconcile the list from the answer. */
+export function requireVerifiableFavorite(
+  favorite: DocumentFavorite | null | undefined,
+): DocumentFavorite {
+  if (!favorite || !favorite.document_id) throw new DocumentNotVerifiableError();
+  return favorite;
 }

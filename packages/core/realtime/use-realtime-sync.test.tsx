@@ -694,18 +694,62 @@ describe("useRealtimeSync", () => {
       expect(keysCalled(invalidate)).not.toContain(docRoot);
     });
 
-    it("leaves document.comment_added unwired - G1-07b owns the comment keys", () => {
+    // Comment frames change nothing but the thread: exactly the comment key of
+    // the document the frame names is invalidated, never the document root.
+    it.each([
+      "document.comment_added",
+      "document.comment_updated",
+      "document.comment_deleted",
+      "document.comment_resolved",
+      "document.comment_unresolved",
+      "document.comment_reaction_added",
+      "document.comment_reaction_removed",
+    ] as const)("invalidates only the comment key on %s", (type) => {
       vi.useFakeTimers();
       const { invalidate, client } = setup();
       client.emit({
-        type: "document.comment_added",
+        type,
         payload: { document_id: "d1", comment_id: "c1", workspace_id: "ws1" },
       } as WSMessage);
       act(() => {
         vi.advanceTimersByTime(250);
       });
-      expect(keysCalled(invalidate).filter((k) => k.startsWith('["documents"'))).toEqual([]);
+      const keys = keysCalled(invalidate);
+      expect(keys).toContain(JSON.stringify(["documents", "ws1", "doc", "d1", "comments"]));
+      expect(keys).not.toContain(docRoot);
+      vi.useRealTimers();
     });
+
+    it("ignores a comment frame stamped with another workspace", () => {
+      vi.useFakeTimers();
+      const { invalidate, client } = setup();
+      client.emit({
+        type: "document.comment_added",
+        payload: { document_id: "d1", comment_id: "c1", workspace_id: "ws2" },
+      } as WSMessage);
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(keysCalled(invalidate).filter((k) => k.startsWith('["documents"'))).toEqual([]);
+      vi.useRealTimers();
+    });
+
+    it.each(["document.favorited", "document.unfavorited"] as const)(
+      "refreshes the favorites prefix on %s",
+      (type) => {
+        vi.useFakeTimers();
+        const { invalidate, client } = setup();
+        client.emit({
+          type,
+          payload: { document_id: "d1", workspace_id: "ws1" },
+        } as WSMessage);
+        act(() => {
+          vi.advanceTimersByTime(250);
+        });
+        expect(keysCalled(invalidate)).toContain(JSON.stringify(["documents", "favorites"]));
+        vi.useRealTimers();
+      },
+    );
   });
 
   it("invalidates workspace keys and open chat timelines after a reconnect", () => {

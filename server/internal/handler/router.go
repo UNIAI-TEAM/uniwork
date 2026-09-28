@@ -501,6 +501,18 @@ func New(d Deps) http.Handler {
 		UploadDocumentAsset:    h.uploadDocumentAsset,
 		GetDocumentAsset:       h.getDocumentAsset,
 		DownloadDocument:       h.downloadDocument,
+
+		ListDocumentComments:          h.listDocumentComments,
+		CreateDocumentComment:         h.createDocumentComment,
+		UpdateDocumentComment:         h.updateDocumentComment,
+		DeleteDocumentComment:         h.deleteDocumentComment,
+		ResolveDocumentComment:        h.resolveDocumentComment,
+		ReopenDocumentComment:         h.reopenDocumentComment,
+		AddDocumentCommentReaction:    h.addDocumentCommentReaction,
+		RemoveDocumentCommentReaction: h.removeDocumentCommentReaction,
+		FavoriteDocument:              h.favoriteDocument,
+		UnfavoriteDocument:            h.unfavoriteDocument,
+		ListDocumentFavorites:         h.listDocumentFavorites,
 	})
 }
 
