@@ -3,11 +3,15 @@ package handler
 import (
 	"context"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/telemetry"
@@ -39,6 +43,51 @@ func TestRouterKeepsRemoteAddrDespiteForwardedHeaders(t *testing.T) {
 	}
 	if seen != "203.0.113.7:4242" {
 		t.Fatalf("RemoteAddr was rewritten to %q", seen)
+	}
+}
+
+// Kubelet probes must never wait on Redis: the global rate limiter sits in
+// front of every route, and when its Redis call stalls (pool exhausted,
+// server hung) a probe that waits past its 1s timeout gets the pod killed.
+// The fake server below accepts connections and never answers, so a probe
+// that reaches the limiter blocks until the client's read timeout.
+func TestProbesSkipTheGlobalRateLimiter(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	var held []net.Conn
+	var mu sync.Mutex
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			mu.Lock()
+			held = append(held, c)
+			mu.Unlock()
+		}
+	}()
+	t.Cleanup(func() {
+		mu.Lock()
+		defer mu.Unlock()
+		for _, c := range held {
+			_ = c.Close()
+		}
+	})
+	rdb := redis.NewClient(&redis.Options{Addr: ln.Addr().String(), ReadTimeout: 3 * time.Second, MaxRetries: -1})
+	t.Cleanup(func() { _ = rdb.Close() })
+
+	r := New(Deps{Redis: rdb})
+	for _, path := range []string{"/healthz", "/readyz"} {
+		start := time.Now()
+		rec := httptest.NewRecorder()
+		r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		if took := time.Since(start); took > 500*time.Millisecond {
+			t.Fatalf("%s waited %v on Redis; probes must not go through the rate limiter", path, took)
+		}
 	}
 }
 

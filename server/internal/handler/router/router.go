@@ -64,7 +64,9 @@ func New(d Deps, h Routes) http.Handler {
 		r.Use(d.HTTPMetrics.Middleware)
 	}
 	if d.Redis != nil {
-		r.Use(mw.RateLimit(d.Redis, 300, time.Minute, proxies))
+		// Probes skip it: kubelet gives up after its timeout, and a liveness
+		// probe stuck behind a stalled Redis call gets a healthy pod killed.
+		r.Use(mw.ExceptPaths(mw.RateLimit(d.Redis, 300, time.Minute, proxies), "/healthz", "/readyz"))
 	}
 	credentialLimit := mw.RateLimit(d.Redis, 60, time.Minute, proxies)
 	joinLimit := mw.RateLimit(d.Redis, 120, time.Minute, proxies)

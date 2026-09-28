@@ -152,7 +152,7 @@ func main() {
 	var broadcaster realtime.Broadcaster = hub
 	var relay *realtime.RedisRelay
 	if rdb != nil {
-		relay = realtime.NewRedisRelay(hub, rdb)
+		relay = realtime.NewRedisRelayWithClients(hub, rdb, realtime.NewRelayReadClient(rdb))
 		relay.Start(ctx)
 		broadcaster = realtime.NewDualWriteBroadcaster(hub, relay)
 	}

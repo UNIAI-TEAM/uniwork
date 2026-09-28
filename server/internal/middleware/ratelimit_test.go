@@ -13,6 +13,32 @@ var okHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 })
 
+func TestExceptPathsSkipsOnlyTheExactPaths(t *testing.T) {
+	var wrapped []string
+	block := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			wrapped = append(wrapped, r.URL.Path)
+			w.WriteHeader(http.StatusTooManyRequests)
+		})
+	}
+	h := ExceptPaths(block, "/healthz", "/readyz")(okHandler)
+	for path, want := range map[string]int{
+		"/healthz":           http.StatusOK,
+		"/readyz":            http.StatusOK,
+		"/healthz/extra":     http.StatusTooManyRequests,
+		"/api/v1/auth/login": http.StatusTooManyRequests,
+	} {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		if rec.Code != want {
+			t.Errorf("%s: status %d, want %d", path, rec.Code, want)
+		}
+	}
+	if len(wrapped) != 2 {
+		t.Fatalf("middleware saw %v, want only the two non-probe paths", wrapped)
+	}
+}
+
 func TestRateLimit_NilRedis(t *testing.T) {
 	mw := RateLimit(nil, 5, time.Minute, nil)
 	handler := mw(okHandler)
