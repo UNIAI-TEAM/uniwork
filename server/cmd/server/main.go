@@ -355,6 +355,9 @@ func main() {
 		log.Warn("email hub disabled", "err", err)
 	}
 	emailHubSvc := service.NewEmailHubService(q, wsSvc, emailHubBox)
+	if store != nil {
+		emailHubSvc.SetObjectStorage(store)
+	}
 	emailHubSvc.AI = gateway
 	emailHubSvc.Tasks = taskSvc
 	askUNI.SetEmailHub(emailHubSvc)

@@ -157,6 +157,28 @@ func (q *Queries) CountEmailHubThreads(ctx context.Context, arg CountEmailHubThr
 	return i, err
 }
 
+const countEmailHubThreadsBodyCached = `-- name: CountEmailHubThreadsBodyCached :one
+SELECT count(*)::bigint
+FROM email_hub_threads
+WHERE account_id = $1
+  AND organization_id = $2
+  AND folder = $3
+  AND body_cached = true
+`
+
+type CountEmailHubThreadsBodyCachedParams struct {
+	AccountID      string `json:"account_id"`
+	OrganizationID string `json:"organization_id"`
+	Folder         string `json:"folder"`
+}
+
+func (q *Queries) CountEmailHubThreadsBodyCached(ctx context.Context, arg CountEmailHubThreadsBodyCachedParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countEmailHubThreadsBodyCached, arg.AccountID, arg.OrganizationID, arg.Folder)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countEmailHubThreadsSearch = `-- name: CountEmailHubThreadsSearch :one
 SELECT count(*)::bigint AS total
 FROM email_hub_threads t
@@ -372,6 +394,16 @@ func (q *Queries) DeleteEmailHubAttachmentsForThread(ctx context.Context, thread
 	return err
 }
 
+const deleteEmailHubAttachmentsForThreads = `-- name: DeleteEmailHubAttachmentsForThreads :exec
+DELETE FROM email_hub_attachments
+WHERE thread_id = ANY($1::text[])
+`
+
+func (q *Queries) DeleteEmailHubAttachmentsForThreads(ctx context.Context, dollar_1 []string) error {
+	_, err := q.db.Exec(ctx, deleteEmailHubAttachmentsForThreads, dollar_1)
+	return err
+}
+
 const deleteEmailHubThread = `-- name: DeleteEmailHubThread :exec
 DELETE FROM email_hub_threads
 WHERE id = $1
@@ -407,6 +439,34 @@ WHERE thread_id = $1
 
 func (q *Queries) DeleteEmailHubThreadAiSummariesForThread(ctx context.Context, threadID string) error {
 	_, err := q.db.Exec(ctx, deleteEmailHubThreadAiSummariesForThread, threadID)
+	return err
+}
+
+const deleteEmailHubThreadAiSummariesForThreads = `-- name: DeleteEmailHubThreadAiSummariesForThreads :exec
+DELETE FROM email_hub_thread_ai_summaries
+WHERE thread_id = ANY($1::text[])
+`
+
+func (q *Queries) DeleteEmailHubThreadAiSummariesForThreads(ctx context.Context, dollar_1 []string) error {
+	_, err := q.db.Exec(ctx, deleteEmailHubThreadAiSummariesForThreads, dollar_1)
+	return err
+}
+
+const deleteEmailHubThreadsByIDs = `-- name: DeleteEmailHubThreadsByIDs :exec
+DELETE FROM email_hub_threads
+WHERE account_id = $1
+  AND organization_id = $2
+  AND id = ANY($3::text[])
+`
+
+type DeleteEmailHubThreadsByIDsParams struct {
+	AccountID      string   `json:"account_id"`
+	OrganizationID string   `json:"organization_id"`
+	ThreadIds      []string `json:"thread_ids"`
+}
+
+func (q *Queries) DeleteEmailHubThreadsByIDs(ctx context.Context, arg DeleteEmailHubThreadsByIDsParams) error {
+	_, err := q.db.Exec(ctx, deleteEmailHubThreadsByIDs, arg.AccountID, arg.OrganizationID, arg.ThreadIds)
 	return err
 }
 
@@ -481,6 +541,46 @@ type DisconnectEmailHubAccountParams struct {
 func (q *Queries) DisconnectEmailHubAccount(ctx context.Context, arg DisconnectEmailHubAccountParams) error {
 	_, err := q.db.Exec(ctx, disconnectEmailHubAccount, arg.ID, arg.UserID, arg.OrganizationID)
 	return err
+}
+
+const expireEmailHubThreadBodiesBefore = `-- name: ExpireEmailHubThreadBodiesBefore :many
+UPDATE email_hub_threads
+SET body_text = NULL,
+    body_html = NULL,
+    body_object_key = '',
+    body_cached = false,
+    synced_at = now()
+WHERE account_id = $1
+  AND organization_id = $2
+  AND body_cached = true
+  AND sent_at < $3
+RETURNING body_object_key
+`
+
+type ExpireEmailHubThreadBodiesBeforeParams struct {
+	AccountID      string             `json:"account_id"`
+	OrganizationID string             `json:"organization_id"`
+	SentAt         pgtype.Timestamptz `json:"sent_at"`
+}
+
+func (q *Queries) ExpireEmailHubThreadBodiesBefore(ctx context.Context, arg ExpireEmailHubThreadBodiesBeforeParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, expireEmailHubThreadBodiesBefore, arg.AccountID, arg.OrganizationID, arg.SentAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var body_object_key string
+		if err := rows.Scan(&body_object_key); err != nil {
+			return nil, err
+		}
+		items = append(items, body_object_key)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getEmailHubAccount = `-- name: GetEmailHubAccount :one
@@ -586,8 +686,29 @@ func (q *Queries) GetEmailHubAttachment(ctx context.Context, arg GetEmailHubAtta
 	return i, err
 }
 
+const getEmailHubBodyObjectKey = `-- name: GetEmailHubBodyObjectKey :one
+SELECT body_object_key
+FROM email_hub_threads
+WHERE id = $1
+  AND account_id = $2
+  AND organization_id = $3
+`
+
+type GetEmailHubBodyObjectKeyParams struct {
+	ID             string `json:"id"`
+	AccountID      string `json:"account_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+func (q *Queries) GetEmailHubBodyObjectKey(ctx context.Context, arg GetEmailHubBodyObjectKeyParams) (string, error) {
+	row := q.db.QueryRow(ctx, getEmailHubBodyObjectKey, arg.ID, arg.AccountID, arg.OrganizationID)
+	var body_object_key string
+	err := row.Scan(&body_object_key)
+	return body_object_key, err
+}
+
 const getEmailHubThread = `-- name: GetEmailHubThread :one
-SELECT id, account_id, organization_id, folder, imap_uid, message_id, subject, snippet, from_addr, from_name, to_addrs, sent_at, is_read, is_starred, has_attachments, body_text, body_html, body_cached, synced_at, imap_labels, snoozed_until, conversation_key
+SELECT id, account_id, organization_id, folder, imap_uid, message_id, subject, snippet, from_addr, from_name, to_addrs, sent_at, is_read, is_starred, has_attachments, body_text, body_html, body_cached, synced_at, imap_labels, snoozed_until, conversation_key, body_object_key
 FROM email_hub_threads
 WHERE id = $1
   AND account_id = $2
@@ -626,6 +747,7 @@ func (q *Queries) GetEmailHubThread(ctx context.Context, arg GetEmailHubThreadPa
 		&i.ImapLabels,
 		&i.SnoozedUntil,
 		&i.ConversationKey,
+		&i.BodyObjectKey,
 	)
 	return i, err
 }
@@ -672,6 +794,7 @@ const invalidateEmailHubEmptyBodies = `-- name: InvalidateEmailHubEmptyBodies :e
 UPDATE email_hub_threads
 SET body_text = NULL,
     body_html = NULL,
+    body_object_key = '',
     body_cached = false,
     synced_at = now()
 WHERE account_id = $1
@@ -679,6 +802,7 @@ WHERE account_id = $1
   AND body_cached = true
   AND COALESCE(body_html, '') = ''
   AND COALESCE(body_text, '') = ''
+  AND body_object_key = ''
 `
 
 type InvalidateEmailHubEmptyBodiesParams struct {
@@ -691,17 +815,60 @@ func (q *Queries) InvalidateEmailHubEmptyBodies(ctx context.Context, arg Invalid
 	return err
 }
 
-const invalidateEmailHubThreadBody = `-- name: InvalidateEmailHubThreadBody :exec
+const invalidateEmailHubThreadBodiesByIDs = `-- name: InvalidateEmailHubThreadBodiesByIDs :many
 UPDATE email_hub_threads
 SET body_text = NULL,
     body_html = NULL,
-    body_cached = false
-WHERE id = $1
+    body_object_key = '',
+    body_cached = false,
+    synced_at = now()
+WHERE account_id = $1
+  AND organization_id = $2
+  AND id = ANY($3::text[])
+RETURNING body_object_key
 `
 
-func (q *Queries) InvalidateEmailHubThreadBody(ctx context.Context, id string) error {
-	_, err := q.db.Exec(ctx, invalidateEmailHubThreadBody, id)
-	return err
+type InvalidateEmailHubThreadBodiesByIDsParams struct {
+	AccountID      string   `json:"account_id"`
+	OrganizationID string   `json:"organization_id"`
+	Column3        []string `json:"column_3"`
+}
+
+func (q *Queries) InvalidateEmailHubThreadBodiesByIDs(ctx context.Context, arg InvalidateEmailHubThreadBodiesByIDsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, invalidateEmailHubThreadBodiesByIDs, arg.AccountID, arg.OrganizationID, arg.Column3)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var body_object_key string
+		if err := rows.Scan(&body_object_key); err != nil {
+			return nil, err
+		}
+		items = append(items, body_object_key)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const invalidateEmailHubThreadBody = `-- name: InvalidateEmailHubThreadBody :one
+UPDATE email_hub_threads
+SET body_text = NULL,
+    body_html = NULL,
+    body_object_key = '',
+    body_cached = false
+WHERE id = $1
+RETURNING body_object_key
+`
+
+func (q *Queries) InvalidateEmailHubThreadBody(ctx context.Context, id string) (string, error) {
+	row := q.db.QueryRow(ctx, invalidateEmailHubThreadBody, id)
+	var body_object_key string
+	err := row.Scan(&body_object_key)
+	return body_object_key, err
 }
 
 const listDueEmailHubScheduledSends = `-- name: ListDueEmailHubScheduledSends :many
@@ -882,6 +1049,41 @@ func (q *Queries) ListEmailHubAttachments(ctx context.Context, arg ListEmailHubA
 	return items, nil
 }
 
+const listEmailHubBodyObjectKeysForThreads = `-- name: ListEmailHubBodyObjectKeysForThreads :many
+SELECT body_object_key
+FROM email_hub_threads
+WHERE account_id = $1
+  AND organization_id = $2
+  AND id = ANY($3::text[])
+  AND body_object_key <> ''
+`
+
+type ListEmailHubBodyObjectKeysForThreadsParams struct {
+	AccountID      string   `json:"account_id"`
+	OrganizationID string   `json:"organization_id"`
+	Column3        []string `json:"column_3"`
+}
+
+func (q *Queries) ListEmailHubBodyObjectKeysForThreads(ctx context.Context, arg ListEmailHubBodyObjectKeysForThreadsParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listEmailHubBodyObjectKeysForThreads, arg.AccountID, arg.OrganizationID, arg.Column3)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var body_object_key string
+		if err := rows.Scan(&body_object_key); err != nil {
+			return nil, err
+		}
+		items = append(items, body_object_key)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listEmailHubConversationMessageCounts = `-- name: ListEmailHubConversationMessageCounts :many
 SELECT
   conversation_key,
@@ -928,7 +1130,7 @@ func (q *Queries) ListEmailHubConversationMessageCounts(ctx context.Context, arg
 }
 
 const listEmailHubConversationMessages = `-- name: ListEmailHubConversationMessages :many
-SELECT id, account_id, organization_id, folder, imap_uid, message_id, subject, snippet, from_addr, from_name, to_addrs, sent_at, is_read, is_starred, has_attachments, body_text, body_html, body_cached, synced_at, imap_labels, snoozed_until, conversation_key
+SELECT id, account_id, organization_id, folder, imap_uid, message_id, subject, snippet, from_addr, from_name, to_addrs, sent_at, is_read, is_starred, has_attachments, body_text, body_html, body_cached, synced_at, imap_labels, snoozed_until, conversation_key, body_object_key
 FROM email_hub_threads
 WHERE account_id = $1
   AND organization_id = $2
@@ -982,6 +1184,7 @@ func (q *Queries) ListEmailHubConversationMessages(ctx context.Context, arg List
 			&i.ImapLabels,
 			&i.SnoozedUntil,
 			&i.ConversationKey,
+			&i.BodyObjectKey,
 		); err != nil {
 			return nil, err
 		}
@@ -1027,7 +1230,7 @@ func (q *Queries) ListEmailHubDistinctImapLabels(ctx context.Context, arg ListEm
 }
 
 const listEmailHubInboxConversationPage = `-- name: ListEmailHubInboxConversationPage :many
-SELECT t.id, t.account_id, t.organization_id, t.folder, t.imap_uid, t.message_id, t.subject, t.snippet, t.from_addr, t.from_name, t.to_addrs, t.sent_at, t.is_read, t.is_starred, t.has_attachments, t.body_text, t.body_html, t.body_cached, t.synced_at, t.imap_labels, t.snoozed_until, t.conversation_key
+SELECT t.id, t.account_id, t.organization_id, t.folder, t.imap_uid, t.message_id, t.subject, t.snippet, t.from_addr, t.from_name, t.to_addrs, t.sent_at, t.is_read, t.is_starred, t.has_attachments, t.body_text, t.body_html, t.body_cached, t.synced_at, t.imap_labels, t.snoozed_until, t.conversation_key, t.body_object_key
 FROM email_hub_threads t
 WHERE t.account_id = $1
   AND t.organization_id = $2
@@ -1151,6 +1354,7 @@ func (q *Queries) ListEmailHubInboxConversationPage(ctx context.Context, arg Lis
 			&i.ImapLabels,
 			&i.SnoozedUntil,
 			&i.ConversationKey,
+			&i.BodyObjectKey,
 		); err != nil {
 			return nil, err
 		}
@@ -1213,7 +1417,7 @@ func (q *Queries) ListEmailHubOpenScheduledSends(ctx context.Context, arg ListEm
 }
 
 const listEmailHubStarredThreads = `-- name: ListEmailHubStarredThreads :many
-SELECT id, account_id, organization_id, folder, imap_uid, message_id, subject, snippet, from_addr, from_name, to_addrs, sent_at, is_read, is_starred, has_attachments, body_text, body_html, body_cached, synced_at, imap_labels, snoozed_until, conversation_key
+SELECT id, account_id, organization_id, folder, imap_uid, message_id, subject, snippet, from_addr, from_name, to_addrs, sent_at, is_read, is_starred, has_attachments, body_text, body_html, body_cached, synced_at, imap_labels, snoozed_until, conversation_key, body_object_key
 FROM email_hub_threads
 WHERE account_id = $1
   AND organization_id = $2
@@ -1260,10 +1464,103 @@ func (q *Queries) ListEmailHubStarredThreads(ctx context.Context, arg ListEmailH
 			&i.ImapLabels,
 			&i.SnoozedUntil,
 			&i.ConversationKey,
+			&i.BodyObjectKey,
 		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEmailHubThreadIDsExcessBodyCache = `-- name: ListEmailHubThreadIDsExcessBodyCache :many
+SELECT id
+FROM email_hub_threads
+WHERE account_id = $1
+  AND organization_id = $2
+  AND folder = $3
+  AND body_cached = true
+ORDER BY sent_at ASC, id ASC
+OFFSET $4::int
+LIMIT $5::int
+`
+
+type ListEmailHubThreadIDsExcessBodyCacheParams struct {
+	AccountID      string `json:"account_id"`
+	OrganizationID string `json:"organization_id"`
+	Folder         string `json:"folder"`
+	KeepCount      int32  `json:"keep_count"`
+	BatchLimit     int32  `json:"batch_limit"`
+}
+
+func (q *Queries) ListEmailHubThreadIDsExcessBodyCache(ctx context.Context, arg ListEmailHubThreadIDsExcessBodyCacheParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listEmailHubThreadIDsExcessBodyCache,
+		arg.AccountID,
+		arg.OrganizationID,
+		arg.Folder,
+		arg.KeepCount,
+		arg.BatchLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEmailHubThreadIDsOverFolderCap = `-- name: ListEmailHubThreadIDsOverFolderCap :many
+SELECT id
+FROM email_hub_threads
+WHERE account_id = $1
+  AND organization_id = $2
+  AND folder = $3
+  AND NOT is_starred
+ORDER BY sent_at DESC, id DESC
+OFFSET $4::int
+LIMIT $5::int
+`
+
+type ListEmailHubThreadIDsOverFolderCapParams struct {
+	AccountID      string `json:"account_id"`
+	OrganizationID string `json:"organization_id"`
+	Folder         string `json:"folder"`
+	KeepCount      int32  `json:"keep_count"`
+	BatchLimit     int32  `json:"batch_limit"`
+}
+
+func (q *Queries) ListEmailHubThreadIDsOverFolderCap(ctx context.Context, arg ListEmailHubThreadIDsOverFolderCapParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listEmailHubThreadIDsOverFolderCap,
+		arg.AccountID,
+		arg.OrganizationID,
+		arg.Folder,
+		arg.KeepCount,
+		arg.BatchLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -1306,7 +1603,7 @@ func (q *Queries) ListEmailHubThreadUIDsByFolder(ctx context.Context, arg ListEm
 }
 
 const listEmailHubThreads = `-- name: ListEmailHubThreads :many
-SELECT id, account_id, organization_id, folder, imap_uid, message_id, subject, snippet, from_addr, from_name, to_addrs, sent_at, is_read, is_starred, has_attachments, body_text, body_html, body_cached, synced_at, imap_labels, snoozed_until, conversation_key
+SELECT id, account_id, organization_id, folder, imap_uid, message_id, subject, snippet, from_addr, from_name, to_addrs, sent_at, is_read, is_starred, has_attachments, body_text, body_html, body_cached, synced_at, imap_labels, snoozed_until, conversation_key, body_object_key
 FROM email_hub_threads
 WHERE account_id = $1
   AND organization_id = $2
@@ -1359,6 +1656,7 @@ func (q *Queries) ListEmailHubThreads(ctx context.Context, arg ListEmailHubThrea
 			&i.ImapLabels,
 			&i.SnoozedUntil,
 			&i.ConversationKey,
+			&i.BodyObjectKey,
 		); err != nil {
 			return nil, err
 		}
@@ -1371,7 +1669,7 @@ func (q *Queries) ListEmailHubThreads(ctx context.Context, arg ListEmailHubThrea
 }
 
 const listEmailHubThreadsPage = `-- name: ListEmailHubThreadsPage :many
-SELECT t.id, t.account_id, t.organization_id, t.folder, t.imap_uid, t.message_id, t.subject, t.snippet, t.from_addr, t.from_name, t.to_addrs, t.sent_at, t.is_read, t.is_starred, t.has_attachments, t.body_text, t.body_html, t.body_cached, t.synced_at, t.imap_labels, t.snoozed_until, t.conversation_key
+SELECT t.id, t.account_id, t.organization_id, t.folder, t.imap_uid, t.message_id, t.subject, t.snippet, t.from_addr, t.from_name, t.to_addrs, t.sent_at, t.is_read, t.is_starred, t.has_attachments, t.body_text, t.body_html, t.body_cached, t.synced_at, t.imap_labels, t.snoozed_until, t.conversation_key, t.body_object_key
 FROM email_hub_threads t
 WHERE t.account_id = $1
   AND t.organization_id = $2
@@ -1486,6 +1784,7 @@ func (q *Queries) ListEmailHubThreadsPage(ctx context.Context, arg ListEmailHubT
 			&i.ImapLabels,
 			&i.SnoozedUntil,
 			&i.ConversationKey,
+			&i.BodyObjectKey,
 		); err != nil {
 			return nil, err
 		}
@@ -1498,7 +1797,7 @@ func (q *Queries) ListEmailHubThreadsPage(ctx context.Context, arg ListEmailHubT
 }
 
 const listEmailHubThreadsPendingBody = `-- name: ListEmailHubThreadsPendingBody :many
-SELECT id, account_id, organization_id, folder, imap_uid, message_id, subject, snippet, from_addr, from_name, to_addrs, sent_at, is_read, is_starred, has_attachments, body_text, body_html, body_cached, synced_at, imap_labels, snoozed_until, conversation_key
+SELECT id, account_id, organization_id, folder, imap_uid, message_id, subject, snippet, from_addr, from_name, to_addrs, sent_at, is_read, is_starred, has_attachments, body_text, body_html, body_cached, synced_at, imap_labels, snoozed_until, conversation_key, body_object_key
 FROM email_hub_threads
 WHERE account_id = $1
   AND organization_id = $2
@@ -1552,6 +1851,77 @@ func (q *Queries) ListEmailHubThreadsPendingBody(ctx context.Context, arg ListEm
 			&i.ImapLabels,
 			&i.SnoozedUntil,
 			&i.ConversationKey,
+			&i.BodyObjectKey,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEmailHubThreadsPendingBodyRecent = `-- name: ListEmailHubThreadsPendingBodyRecent :many
+SELECT id, account_id, organization_id, folder, imap_uid, message_id, subject, snippet, from_addr, from_name, to_addrs, sent_at, is_read, is_starred, has_attachments, body_text, body_html, body_cached, synced_at, imap_labels, snoozed_until, conversation_key, body_object_key
+FROM email_hub_threads
+WHERE account_id = $1
+  AND organization_id = $2
+  AND folder = $3
+  AND NOT body_cached
+  AND sent_at >= $4
+ORDER BY sent_at DESC
+LIMIT $5
+`
+
+type ListEmailHubThreadsPendingBodyRecentParams struct {
+	AccountID      string             `json:"account_id"`
+	OrganizationID string             `json:"organization_id"`
+	Folder         string             `json:"folder"`
+	SentAt         pgtype.Timestamptz `json:"sent_at"`
+	Limit          int32              `json:"limit"`
+}
+
+func (q *Queries) ListEmailHubThreadsPendingBodyRecent(ctx context.Context, arg ListEmailHubThreadsPendingBodyRecentParams) ([]EmailHubThread, error) {
+	rows, err := q.db.Query(ctx, listEmailHubThreadsPendingBodyRecent,
+		arg.AccountID,
+		arg.OrganizationID,
+		arg.Folder,
+		arg.SentAt,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EmailHubThread{}
+	for rows.Next() {
+		var i EmailHubThread
+		if err := rows.Scan(
+			&i.ID,
+			&i.AccountID,
+			&i.OrganizationID,
+			&i.Folder,
+			&i.ImapUid,
+			&i.MessageID,
+			&i.Subject,
+			&i.Snippet,
+			&i.FromAddr,
+			&i.FromName,
+			&i.ToAddrs,
+			&i.SentAt,
+			&i.IsRead,
+			&i.IsStarred,
+			&i.HasAttachments,
+			&i.BodyText,
+			&i.BodyHtml,
+			&i.BodyCached,
+			&i.SyncedAt,
+			&i.ImapLabels,
+			&i.SnoozedUntil,
+			&i.ConversationKey,
+			&i.BodyObjectKey,
 		); err != nil {
 			return nil, err
 		}
@@ -1564,7 +1934,7 @@ func (q *Queries) ListEmailHubThreadsPendingBody(ctx context.Context, arg ListEm
 }
 
 const listEmailHubThreadsSearchPage = `-- name: ListEmailHubThreadsSearchPage :many
-SELECT t.id, t.account_id, t.organization_id, t.folder, t.imap_uid, t.message_id, t.subject, t.snippet, t.from_addr, t.from_name, t.to_addrs, t.sent_at, t.is_read, t.is_starred, t.has_attachments, t.body_text, t.body_html, t.body_cached, t.synced_at, t.imap_labels, t.snoozed_until, t.conversation_key
+SELECT t.id, t.account_id, t.organization_id, t.folder, t.imap_uid, t.message_id, t.subject, t.snippet, t.from_addr, t.from_name, t.to_addrs, t.sent_at, t.is_read, t.is_starred, t.has_attachments, t.body_text, t.body_html, t.body_cached, t.synced_at, t.imap_labels, t.snoozed_until, t.conversation_key, t.body_object_key
 FROM email_hub_threads t
 WHERE t.account_id = $1
   AND t.organization_id = $2
@@ -1651,6 +2021,7 @@ func (q *Queries) ListEmailHubThreadsSearchPage(ctx context.Context, arg ListEma
 			&i.ImapLabels,
 			&i.SnoozedUntil,
 			&i.ConversationKey,
+			&i.BodyObjectKey,
 		); err != nil {
 			return nil, err
 		}
@@ -1789,10 +2160,11 @@ const updateEmailHubThreadBody = `-- name: UpdateEmailHubThreadBody :one
 UPDATE email_hub_threads
 SET body_text = $2,
     body_html = $3,
+    body_object_key = '',
     body_cached = true,
     synced_at = now()
 WHERE id = $1
-RETURNING id, account_id, organization_id, folder, imap_uid, message_id, subject, snippet, from_addr, from_name, to_addrs, sent_at, is_read, is_starred, has_attachments, body_text, body_html, body_cached, synced_at, imap_labels, snoozed_until, conversation_key
+RETURNING id, account_id, organization_id, folder, imap_uid, message_id, subject, snippet, from_addr, from_name, to_addrs, sent_at, is_read, is_starred, has_attachments, body_text, body_html, body_cached, synced_at, imap_labels, snoozed_until, conversation_key, body_object_key
 `
 
 type UpdateEmailHubThreadBodyParams struct {
@@ -1827,6 +2199,54 @@ func (q *Queries) UpdateEmailHubThreadBody(ctx context.Context, arg UpdateEmailH
 		&i.ImapLabels,
 		&i.SnoozedUntil,
 		&i.ConversationKey,
+		&i.BodyObjectKey,
+	)
+	return i, err
+}
+
+const updateEmailHubThreadBodyObject = `-- name: UpdateEmailHubThreadBodyObject :one
+UPDATE email_hub_threads
+SET body_text = NULL,
+    body_html = NULL,
+    body_object_key = $2,
+    body_cached = true,
+    synced_at = now()
+WHERE id = $1
+RETURNING id, account_id, organization_id, folder, imap_uid, message_id, subject, snippet, from_addr, from_name, to_addrs, sent_at, is_read, is_starred, has_attachments, body_text, body_html, body_cached, synced_at, imap_labels, snoozed_until, conversation_key, body_object_key
+`
+
+type UpdateEmailHubThreadBodyObjectParams struct {
+	ID            string `json:"id"`
+	BodyObjectKey string `json:"body_object_key"`
+}
+
+func (q *Queries) UpdateEmailHubThreadBodyObject(ctx context.Context, arg UpdateEmailHubThreadBodyObjectParams) (EmailHubThread, error) {
+	row := q.db.QueryRow(ctx, updateEmailHubThreadBodyObject, arg.ID, arg.BodyObjectKey)
+	var i EmailHubThread
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.OrganizationID,
+		&i.Folder,
+		&i.ImapUid,
+		&i.MessageID,
+		&i.Subject,
+		&i.Snippet,
+		&i.FromAddr,
+		&i.FromName,
+		&i.ToAddrs,
+		&i.SentAt,
+		&i.IsRead,
+		&i.IsStarred,
+		&i.HasAttachments,
+		&i.BodyText,
+		&i.BodyHtml,
+		&i.BodyCached,
+		&i.SyncedAt,
+		&i.ImapLabels,
+		&i.SnoozedUntil,
+		&i.ConversationKey,
+		&i.BodyObjectKey,
 	)
 	return i, err
 }
@@ -1837,7 +2257,7 @@ SET is_read = $2, synced_at = now()
 WHERE id = $1
   AND account_id = $3
   AND organization_id = $4
-RETURNING id, account_id, organization_id, folder, imap_uid, message_id, subject, snippet, from_addr, from_name, to_addrs, sent_at, is_read, is_starred, has_attachments, body_text, body_html, body_cached, synced_at, imap_labels, snoozed_until, conversation_key
+RETURNING id, account_id, organization_id, folder, imap_uid, message_id, subject, snippet, from_addr, from_name, to_addrs, sent_at, is_read, is_starred, has_attachments, body_text, body_html, body_cached, synced_at, imap_labels, snoozed_until, conversation_key, body_object_key
 `
 
 type UpdateEmailHubThreadReadParams struct {
@@ -1878,6 +2298,7 @@ func (q *Queries) UpdateEmailHubThreadRead(ctx context.Context, arg UpdateEmailH
 		&i.ImapLabels,
 		&i.SnoozedUntil,
 		&i.ConversationKey,
+		&i.BodyObjectKey,
 	)
 	return i, err
 }
@@ -1889,7 +2310,7 @@ SET snoozed_until = $1::timestamptz,
 WHERE id = $2
   AND account_id = $3
   AND organization_id = $4
-RETURNING id, account_id, organization_id, folder, imap_uid, message_id, subject, snippet, from_addr, from_name, to_addrs, sent_at, is_read, is_starred, has_attachments, body_text, body_html, body_cached, synced_at, imap_labels, snoozed_until, conversation_key
+RETURNING id, account_id, organization_id, folder, imap_uid, message_id, subject, snippet, from_addr, from_name, to_addrs, sent_at, is_read, is_starred, has_attachments, body_text, body_html, body_cached, synced_at, imap_labels, snoozed_until, conversation_key, body_object_key
 `
 
 type UpdateEmailHubThreadSnoozeParams struct {
@@ -1930,6 +2351,7 @@ func (q *Queries) UpdateEmailHubThreadSnooze(ctx context.Context, arg UpdateEmai
 		&i.ImapLabels,
 		&i.SnoozedUntil,
 		&i.ConversationKey,
+		&i.BodyObjectKey,
 	)
 	return i, err
 }
@@ -1940,7 +2362,7 @@ SET is_starred = $2, synced_at = now()
 WHERE id = $1
   AND account_id = $3
   AND organization_id = $4
-RETURNING id, account_id, organization_id, folder, imap_uid, message_id, subject, snippet, from_addr, from_name, to_addrs, sent_at, is_read, is_starred, has_attachments, body_text, body_html, body_cached, synced_at, imap_labels, snoozed_until, conversation_key
+RETURNING id, account_id, organization_id, folder, imap_uid, message_id, subject, snippet, from_addr, from_name, to_addrs, sent_at, is_read, is_starred, has_attachments, body_text, body_html, body_cached, synced_at, imap_labels, snoozed_until, conversation_key, body_object_key
 `
 
 type UpdateEmailHubThreadStarredParams struct {
@@ -1981,6 +2403,7 @@ func (q *Queries) UpdateEmailHubThreadStarred(ctx context.Context, arg UpdateEma
 		&i.ImapLabels,
 		&i.SnoozedUntil,
 		&i.ConversationKey,
+		&i.BodyObjectKey,
 	)
 	return i, err
 }
@@ -2013,7 +2436,7 @@ ON CONFLICT (account_id, folder, imap_uid) DO UPDATE SET
     ELSE email_hub_threads.imap_labels
   END,
   synced_at = now()
-RETURNING id, account_id, organization_id, folder, imap_uid, message_id, subject, snippet, from_addr, from_name, to_addrs, sent_at, is_read, is_starred, has_attachments, body_text, body_html, body_cached, synced_at, imap_labels, snoozed_until, conversation_key
+RETURNING id, account_id, organization_id, folder, imap_uid, message_id, subject, snippet, from_addr, from_name, to_addrs, sent_at, is_read, is_starred, has_attachments, body_text, body_html, body_cached, synced_at, imap_labels, snoozed_until, conversation_key, body_object_key
 `
 
 type UpsertEmailHubThreadParams struct {
@@ -2080,6 +2503,7 @@ func (q *Queries) UpsertEmailHubThread(ctx context.Context, arg UpsertEmailHubTh
 		&i.ImapLabels,
 		&i.SnoozedUntil,
 		&i.ConversationKey,
+		&i.BodyObjectKey,
 	)
 	return i, err
 }

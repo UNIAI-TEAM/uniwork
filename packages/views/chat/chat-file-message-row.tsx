@@ -5,7 +5,7 @@ import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { ChatMessage } from "./chat-messages";
 import { ChatFileAttachment, chatFileIsEdgeToEdge } from "./chat-file-attachment";
-import { ChatMessageHoverActions } from "./chat-message-hover-actions";
+import { ChatMessageHoverActions, chatMessageActionsRailClass } from "./chat-message-hover-actions";
 import { ChatMessageA11yLabel, ChatMessageMeta, ChatReactionChips, chatMessageLabelId } from "./chat-message-parts";
 import { ChatReplyQuote } from "./chat-reply-quote";
 import { MessageTaskCard } from "./message-task-card";
@@ -101,53 +101,56 @@ function ChatFileMessageRowImpl({
               {senderLabel}
             </p>
           ) : null}
-          <div
-            className={cn(
-              "max-w-full overflow-hidden",
-              chatBubbleShape(isOwn, !compactTop),
-              isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER,
-              !edgeToEdge && "px-3 py-2",
-            )}
-          >
-            {replyToMessage ? (
-              <div className={cn(edgeToEdge ? "px-2 pt-2" : undefined)}>
-                <ChatReplyQuote
-                  message={replyToMessage}
-                  workspaceId={workspaceId}
-                  roomId={roomId}
-                  isOwn={isOwn}
-                  onJump={onJumpToMessage}
-                />
+          <div className={chatMessageActionsRailClass(isOwn)}>
+            <div className="flex min-w-0 flex-col gap-1">
+              <div
+                className={cn(
+                  "max-w-full overflow-hidden",
+                  chatBubbleShape(isOwn, !compactTop),
+                  isOwn ? CHAT_BUBBLE_OWN : CHAT_BUBBLE_OTHER,
+                  !edgeToEdge && "px-3 py-2",
+                )}
+              >
+                {replyToMessage ? (
+                  <div className={cn(edgeToEdge ? "px-2 pt-2" : undefined)}>
+                    <ChatReplyQuote
+                      message={replyToMessage}
+                      workspaceId={workspaceId}
+                      roomId={roomId}
+                      isOwn={isOwn}
+                      onJump={onJumpToMessage}
+                    />
+                  </div>
+                ) : null}
+                <ChatFileAttachment workspaceId={workspaceId} roomId={roomId} message={message} />
               </div>
-            ) : null}
-            <ChatFileAttachment workspaceId={workspaceId} roomId={roomId} message={message} />
+              <div className={cn(edgeToEdge ? "px-1" : undefined)}>
+                <ChatMessageMeta message={message} isOwn={isOwn} showTime />
+              </div>
+              <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} />
+              <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} />
+              <MessageTaskCard
+                workspaceId={workspaceId}
+                messageId={message.id}
+                className={cn(isOwn && "items-end self-end")}
+              />
+            </div>
+            <ChatMessageHoverActions
+              message={message}
+              isOwn={isOwn}
+              onReply={onReply}
+              onReact={onReact}
+              onThread={onThread}
+              onPin={onPin}
+              onCopy={onCopy}
+              onDelete={onDelete}
+              onCreateTask={onCreateTask}
+              onLinkTask={onLinkTask}
+              onFollowUp={onFollowUp}
+              canEdit={false}
+              forceOpen={reveal.open}
+            />
           </div>
-          <div className={cn(edgeToEdge ? "px-1" : undefined)}>
-            <ChatMessageMeta message={message} isOwn={isOwn} showTime />
-          </div>
-          <ChatReactionChips message={message} isOwn={isOwn} onToggleReaction={onToggleReaction} />
-          <ChatThreadRepliesLink message={message} isOwn={isOwn} onThread={onThread} />
-          <MessageTaskCard
-            workspaceId={workspaceId}
-            messageId={message.id}
-            className={cn(isOwn && "items-end self-end")}
-          />
-          {/* After the content in reading order; positioned over the bubble. */}
-          <ChatMessageHoverActions
-            message={message}
-            isOwn={isOwn}
-            onReply={onReply}
-            onReact={onReact}
-            onThread={onThread}
-            onPin={onPin}
-            onCopy={onCopy}
-            onDelete={onDelete}
-            onCreateTask={onCreateTask}
-            onLinkTask={onLinkTask}
-            onFollowUp={onFollowUp}
-            canEdit={false}
-            forceOpen={reveal.open}
-          />
         </div>
       </div>
     </article>
