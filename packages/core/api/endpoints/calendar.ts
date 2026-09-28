@@ -17,6 +17,8 @@ const CalendarEventItemSchema = z
     status: z.string().optional().nullable(),
     priority: z.string().optional().nullable(),
     project_id: z.string().optional().nullable(),
+    provider: z.enum(["google", "outlook"]).optional(),
+    external_url: z.string().optional(),
   })
   .transform(
     (e): CalendarEvent => ({
@@ -30,6 +32,8 @@ const CalendarEventItemSchema = z
       status: e.status ?? undefined,
       priority: e.priority ?? undefined,
       projectId: e.project_id ?? undefined,
+      provider: e.provider,
+      externalUrl: e.external_url,
     }),
   );
 
@@ -136,3 +140,112 @@ export async function fetchWorkspaceCalendarIcs(
 }
 
 export { WORKSPACE_ICS_FILENAME };
+
+export type CalendarProvider = "google" | "outlook";
+export type CalendarConnection = {
+  provider: CalendarProvider;
+  email: string;
+  selectedCalendarIds: string[];
+};
+export type ExternalCalendar = {
+  id: string;
+  name: string;
+  color?: string;
+  primary: boolean;
+  selected: boolean;
+  readOnly: boolean;
+};
+
+const ConnectionSchema = z
+  .object({
+    provider: z.enum(["google", "outlook"]),
+    email: z.string(),
+    selected_calendar_ids: z.array(z.string()).optional(),
+  })
+  .transform((value) => ({
+    provider: value.provider,
+    email: value.email,
+    selectedCalendarIds: value.selected_calendar_ids ?? [],
+  }));
+const ConnectionsSchema = z
+  .object({ connections: z.array(ConnectionSchema) })
+  .transform((value) => value.connections);
+const OAuthStartSchema = z
+  .object({ authorization_url: z.string().url() })
+  .transform((value) => value.authorization_url);
+const ExternalCalendarSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    color: z.string().optional(),
+    primary: z.boolean().optional(),
+    selected: z.boolean().optional(),
+    read_only: z.boolean().optional(),
+  })
+  .transform((value) => ({
+    id: value.id,
+    name: value.name,
+    color: value.color,
+    primary: value.primary ?? false,
+    selected: value.selected ?? false,
+    readOnly: value.read_only ?? false,
+  }));
+const ExternalCalendarsSchema = z
+  .object({ calendars: z.array(ExternalCalendarSchema) })
+  .transform((value) => value.calendars);
+
+export async function listCalendarConnections(
+  workspaceId: string,
+): Promise<CalendarConnection[]> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/calendar/connections`,
+  );
+  return parseWithFallback(raw, ConnectionsSchema, [], {
+    endpoint: "GET /api/v1/workspaces/{ws}/calendar/connections",
+  });
+}
+
+export async function startCalendarConnection(
+  workspaceId: string,
+  provider: CalendarProvider,
+): Promise<string> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/calendar/connections/${provider}/start`,
+  );
+  return parseWithFallback(raw, OAuthStartSchema, "", {
+    endpoint: "GET /api/v1/workspaces/{ws}/calendar/connections/{provider}/start",
+  });
+}
+
+export async function listExternalCalendars(
+  workspaceId: string,
+  provider: CalendarProvider,
+): Promise<ExternalCalendar[]> {
+  const raw = await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/calendar/connections/${provider}/calendars`,
+  );
+  return parseWithFallback(raw, ExternalCalendarsSchema, [], {
+    endpoint: "GET /api/v1/workspaces/{ws}/calendar/connections/{provider}/calendars",
+  });
+}
+
+export async function selectExternalCalendars(
+  workspaceId: string,
+  provider: CalendarProvider,
+  calendarIds: string[],
+): Promise<void> {
+  await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/calendar/connections/${provider}/calendars`,
+    { method: "PUT", body: { calendar_ids: calendarIds } },
+  );
+}
+
+export async function disconnectCalendarConnection(
+  workspaceId: string,
+  provider: CalendarProvider,
+): Promise<void> {
+  await request(
+    `/api/v1/workspaces/${enc(workspaceId)}/calendar/connections/${provider}`,
+    { method: "DELETE" },
+  );
+}

@@ -53,6 +53,14 @@ func (h *handlers) listCalendarEvents(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
+	if h.CalendarConnections != nil {
+		external, externalErr := h.CalendarConnections.Events(r.Context(), chi.URLParam(r, "workspaceID"), middleware.UserID(r.Context()), fromDate.Time, toDate.Time.AddDate(0, 0, 1))
+		if externalErr != nil {
+			h.Log.Warn("external calendar read failed", "workspace_id", chi.URLParam(r, "workspaceID"), "err", externalErr)
+		} else {
+			events = append(events, external...)
+		}
+	}
 	out := sdo.CalendarEventListSDO{Events: make([]sdo.CalendarEventSDO, 0, len(events))}
 	for _, e := range events {
 		out.Events = append(out.Events, toCalendarEventSDO(e))
@@ -152,15 +160,17 @@ func toCalendarSidebarTaskSDO(t service.CalendarSidebarTask) sdo.CalendarSidebar
 
 func toCalendarEventSDO(e service.CalendarEvent) sdo.CalendarEventSDO {
 	return sdo.CalendarEventSDO{
-		ID:        e.ID,
-		Kind:      e.Kind,
-		EntityID:  e.EntityID,
-		Title:     e.Title,
-		Start:     e.Start,
-		End:       e.End,
-		AllDay:    e.AllDay,
-		Status:    e.Status,
-		Priority:  e.Priority,
-		ProjectID: e.ProjectID,
+		ID:          e.ID,
+		Kind:        e.Kind,
+		EntityID:    e.EntityID,
+		Title:       e.Title,
+		Start:       e.Start,
+		End:         e.End,
+		AllDay:      e.AllDay,
+		Status:      e.Status,
+		Priority:    e.Priority,
+		ProjectID:   e.ProjectID,
+		Provider:    e.Provider,
+		ExternalURL: e.ExternalURL,
 	}
 }

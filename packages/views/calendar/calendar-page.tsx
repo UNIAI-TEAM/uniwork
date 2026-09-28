@@ -182,6 +182,12 @@ export function CalendarPageView({
       handleTaskOpen(event.entityId, source);
       return;
     }
+    if (event.kind === "external") {
+      if (event.externalUrl) {
+        window.open(event.externalUrl, "_blank", "noopener,noreferrer");
+      }
+      return;
+    }
     handleMeetingOpen(event.entityId, source);
   };
 

@@ -1,7 +1,13 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { getCalendarSidebar, listCalendarEvents } from "../api/endpoints/calendar";
+import {
+  getCalendarSidebar,
+  listCalendarConnections,
+  listCalendarEvents,
+  listExternalCalendars,
+} from "../api/endpoints/calendar";
+import type { CalendarProvider } from "../api/endpoints/calendar";
 import type { CalendarEvent, CalendarSidebar } from "./types";
 import { calendarKeys } from "./keys";
 
@@ -18,6 +24,26 @@ export function useCalendarSidebar(wsId: string) {
     queryKey: calendarKeys.sidebar(wsId),
     queryFn: () => getCalendarSidebar(wsId),
     enabled: Boolean(wsId),
+  });
+}
+
+export function useCalendarConnections(wsId: string) {
+  return useQuery({
+    queryKey: calendarKeys.connections(wsId),
+    queryFn: () => listCalendarConnections(wsId),
+    enabled: Boolean(wsId),
+  });
+}
+
+export function useExternalCalendars(
+  wsId: string,
+  provider: CalendarProvider,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: calendarKeys.providerCalendars(wsId, provider),
+    queryFn: () => listExternalCalendars(wsId, provider),
+    enabled: Boolean(wsId) && enabled,
   });
 }
 

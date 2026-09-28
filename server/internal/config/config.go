@@ -55,19 +55,21 @@ type Config struct {
 	// devVerificationCode is the raw DEV_VERIFICATION_CODE; read it through
 	// DevVerificationCode(), which applies the production and format guards.
 	devVerificationCode string
-	// APIPublicURL is the origin browsers reach this API on. It builds the
-	// Google redirect URI, which Google matches byte for byte.
-	APIPublicURL       string
-	GoogleClientID     string
-	GoogleClientSecret string
-	SMTPHost           string
-	SMTPPort           string
-	SMTPUsername       string
-	SMTPPassword       string
-	SMTPTLS            string
-	SMTPTLSInsecure    bool
-	SMTPEHLOName       string
-	MailFrom           string
+	// APIPublicURL is the origin browsers reach this API on. It builds OAuth
+	// redirect URIs, which providers match byte for byte.
+	APIPublicURL                  string
+	GoogleClientID                string
+	GoogleClientSecret            string
+	MicrosoftCalendarClientID     string
+	MicrosoftCalendarClientSecret string
+	SMTPHost                      string
+	SMTPPort                      string
+	SMTPUsername                  string
+	SMTPPassword                  string
+	SMTPTLS                       string
+	SMTPTLSInsecure               bool
+	SMTPEHLOName                  string
+	MailFrom                      string
 	// TenorAPIKey enables Tenor GIF search in chat; empty uses a small built-in catalog.
 	TenorAPIKey string
 	// VAPID keys enable Web Push (F-07). Both empty turns push off: the push
@@ -117,51 +119,57 @@ func (c Config) GoogleRedirectURL() string {
 	return strings.TrimRight(c.APIPublicURL, "/") + "/api/v1/auth/google/callback"
 }
 
+func (c Config) CalendarRedirectURL(provider string) string {
+	return strings.TrimRight(c.APIPublicURL, "/") + "/api/v1/calendar-connections/" + provider + "/callback"
+}
+
 func Load() (Config, error) {
 	c := Config{
-		Port:                      getenv("PORT", "8080"),
-		DatabaseURL:               os.Getenv("DATABASE_URL"),
-		RedisURL:                  os.Getenv("REDIS_URL"),
-		JWTSecret:                 os.Getenv("JWT_SECRET"),
-		AccessTokenTTL:            15 * time.Minute,
-		RefreshTokenTTL:           30 * 24 * time.Hour,
-		FrontendOrigin:            getenv("FRONTEND_ORIGIN", "http://localhost:3000"),
-		TrustedProxies:            os.Getenv("TRUSTED_PROXIES"),
-		LiveKitURL:                os.Getenv("LIVEKIT_URL"),
-		LiveKitAPIKey:             os.Getenv("LIVEKIT_API_KEY"),
-		LiveKitAPISecret:          os.Getenv("LIVEKIT_API_SECRET"),
-		LiveKitTokenTTL:           parseDuration(os.Getenv("LIVEKIT_TOKEN_TTL"), 30*time.Minute),
-		LiveKitEmptyTimeout:       parseDuration(os.Getenv("LIVEKIT_ROOM_EMPTY_TIMEOUT"), 0),
-		LiveKitDepartureTimeout:   parseDuration(os.Getenv("LIVEKIT_ROOM_DEPARTURE_TIMEOUT"), 20*time.Second),
-		MeetingProvider:           getenv("MEETING_PROVIDER", "livekit"),
-		BillingProvider:           getenv("BILLING_PROVIDER", "manual"),
-		MeetingWorkerTick:         parseDuration(os.Getenv("MEETING_WORKER_TICK"), time.Second),
-		MeetingOutboxBatch:        parseInt32(os.Getenv("MEETING_OUTBOX_BATCH"), 50),
-		MeetingWebhookBatch:       parseInt32(os.Getenv("MEETING_WEBHOOK_BATCH"), 50),
-		MeetingWebhookConcurrency: int(parseInt32(os.Getenv("MEETING_WEBHOOK_CONCURRENCY"), 8)),
-		AnthropicAPIKey:           os.Getenv("ANTHROPIC_API_KEY"),
-		AnthropicModel:            os.Getenv("ANTHROPIC_MODEL"),
-		LiveKitRecordingBucket:    os.Getenv("LIVEKIT_RECORDING_BUCKET"),
-		MeetingSTTAgentSecret:     os.Getenv("MEETING_STT_AGENT_SECRET"),
-		AppEnv:                    getenv("APP_ENV", "development"),
-		devVerificationCode:       os.Getenv("DEV_VERIFICATION_CODE"),
-		APIPublicURL:              getenv("API_PUBLIC_URL", "http://localhost:8080"),
-		GoogleClientID:            os.Getenv("GOOGLE_CLIENT_ID"),
-		GoogleClientSecret:        os.Getenv("GOOGLE_CLIENT_SECRET"),
-		SMTPHost:                  os.Getenv("SMTP_HOST"),
-		SMTPPort:                  getenv("SMTP_PORT", "25"),
-		SMTPUsername:              os.Getenv("SMTP_USERNAME"),
-		SMTPPassword:              os.Getenv("SMTP_PASSWORD"),
-		SMTPTLS:                   os.Getenv("SMTP_TLS"),
-		SMTPTLSInsecure:           strings.EqualFold(os.Getenv("SMTP_TLS_INSECURE"), "true"),
-		SMTPEHLOName:              os.Getenv("SMTP_EHLO_NAME"),
-		MailFrom:                  getenv("MAIL_FROM", "UniWork <noreply@unicomhub.com>"),
-		TenorAPIKey:               os.Getenv("TENOR_API_KEY"),
-		VAPIDPublicKey:            os.Getenv("VAPID_PUBLIC_KEY"),
-		VAPIDPrivateKey:           os.Getenv("VAPID_PRIVATE_KEY"),
-		VAPIDSubject:              os.Getenv("VAPID_SUBJECT"),
-		RUMSampleRate:             parseRatio(os.Getenv("RUM_SAMPLE_RATE"), 0.2),
-		AdminRateLimitPerMin:      int(parseInt32(os.Getenv("ADMIN_RATE_LIMIT_PER_MIN"), 60)),
+		Port:                          getenv("PORT", "8080"),
+		DatabaseURL:                   os.Getenv("DATABASE_URL"),
+		RedisURL:                      os.Getenv("REDIS_URL"),
+		JWTSecret:                     os.Getenv("JWT_SECRET"),
+		AccessTokenTTL:                15 * time.Minute,
+		RefreshTokenTTL:               30 * 24 * time.Hour,
+		FrontendOrigin:                getenv("FRONTEND_ORIGIN", "http://localhost:3000"),
+		TrustedProxies:                os.Getenv("TRUSTED_PROXIES"),
+		LiveKitURL:                    os.Getenv("LIVEKIT_URL"),
+		LiveKitAPIKey:                 os.Getenv("LIVEKIT_API_KEY"),
+		LiveKitAPISecret:              os.Getenv("LIVEKIT_API_SECRET"),
+		LiveKitTokenTTL:               parseDuration(os.Getenv("LIVEKIT_TOKEN_TTL"), 30*time.Minute),
+		LiveKitEmptyTimeout:           parseDuration(os.Getenv("LIVEKIT_ROOM_EMPTY_TIMEOUT"), 0),
+		LiveKitDepartureTimeout:       parseDuration(os.Getenv("LIVEKIT_ROOM_DEPARTURE_TIMEOUT"), 20*time.Second),
+		MeetingProvider:               getenv("MEETING_PROVIDER", "livekit"),
+		BillingProvider:               getenv("BILLING_PROVIDER", "manual"),
+		MeetingWorkerTick:             parseDuration(os.Getenv("MEETING_WORKER_TICK"), time.Second),
+		MeetingOutboxBatch:            parseInt32(os.Getenv("MEETING_OUTBOX_BATCH"), 50),
+		MeetingWebhookBatch:           parseInt32(os.Getenv("MEETING_WEBHOOK_BATCH"), 50),
+		MeetingWebhookConcurrency:     int(parseInt32(os.Getenv("MEETING_WEBHOOK_CONCURRENCY"), 8)),
+		AnthropicAPIKey:               os.Getenv("ANTHROPIC_API_KEY"),
+		AnthropicModel:                os.Getenv("ANTHROPIC_MODEL"),
+		LiveKitRecordingBucket:        os.Getenv("LIVEKIT_RECORDING_BUCKET"),
+		MeetingSTTAgentSecret:         os.Getenv("MEETING_STT_AGENT_SECRET"),
+		AppEnv:                        getenv("APP_ENV", "development"),
+		devVerificationCode:           os.Getenv("DEV_VERIFICATION_CODE"),
+		APIPublicURL:                  getenv("API_PUBLIC_URL", "http://localhost:8080"),
+		GoogleClientID:                os.Getenv("GOOGLE_CLIENT_ID"),
+		GoogleClientSecret:            os.Getenv("GOOGLE_CLIENT_SECRET"),
+		MicrosoftCalendarClientID:     os.Getenv("MICROSOFT_CALENDAR_CLIENT_ID"),
+		MicrosoftCalendarClientSecret: os.Getenv("MICROSOFT_CALENDAR_CLIENT_SECRET"),
+		SMTPHost:                      os.Getenv("SMTP_HOST"),
+		SMTPPort:                      getenv("SMTP_PORT", "25"),
+		SMTPUsername:                  os.Getenv("SMTP_USERNAME"),
+		SMTPPassword:                  os.Getenv("SMTP_PASSWORD"),
+		SMTPTLS:                       os.Getenv("SMTP_TLS"),
+		SMTPTLSInsecure:               strings.EqualFold(os.Getenv("SMTP_TLS_INSECURE"), "true"),
+		SMTPEHLOName:                  os.Getenv("SMTP_EHLO_NAME"),
+		MailFrom:                      getenv("MAIL_FROM", "UniWork <noreply@unicomhub.com>"),
+		TenorAPIKey:                   os.Getenv("TENOR_API_KEY"),
+		VAPIDPublicKey:                os.Getenv("VAPID_PUBLIC_KEY"),
+		VAPIDPrivateKey:               os.Getenv("VAPID_PRIVATE_KEY"),
+		VAPIDSubject:                  os.Getenv("VAPID_SUBJECT"),
+		RUMSampleRate:                 parseRatio(os.Getenv("RUM_SAMPLE_RATE"), 0.2),
+		AdminRateLimitPerMin:          int(parseInt32(os.Getenv("ADMIN_RATE_LIMIT_PER_MIN"), 60)),
 	}
 	if c.VAPIDSubject == "" {
 		c.VAPIDSubject = c.FrontendOrigin
