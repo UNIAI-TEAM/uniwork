@@ -1,6 +1,11 @@
+import { createHash } from "node:crypto";
 import { expect, it } from "vitest";
 import type { OfficeEngine } from "../src/index";
 import { HostCapabilityRefusal } from "@uniwork/office-contracts";
+
+/** sha256 of zero bytes: convert envelopes now carry the measured source
+    tuple, so a refusal test needs a valid one. */
+const EMPTY_SHA256 = createHash("sha256").digest("hex");
 
 // The shared adapter contract suite (task brief: "a shared adapter contract
 // suite"). Every runtime entry point runs it against ITS OWN transport wired
@@ -46,7 +51,13 @@ export function runOfficeEngineContractSuite(name: string, factory: () => Office
         operation: "convert",
         format: "docx",
         deadline_ms: 30000,
-        payload: { source_version_id: "V1", target_format: "pdf" },
+        payload: {
+          source_version_id: "V1",
+          target_format: "pdf",
+          input_bytes: "",
+          input_checksum: EMPTY_SHA256,
+          input_length: 0,
+        },
       }),
     ).rejects.toBeInstanceOf(HostCapabilityRefusal);
   });

@@ -32,6 +32,9 @@ interface UsageMessage {
 interface DoneMessage {
   type: "done";
   warnings: { code: string; detail?: string }[];
+  /** Optional operation result beyond the output bytes (e.g. a convert job's
+      fidelity + change list); absent for operations that carry none. */
+  result?: unknown;
 }
 
 interface FailMessage {
@@ -45,5 +48,5 @@ export type WorkerMessage = UsageMessage | DoneMessage | FailMessage;
 
 /** Handler-thread result posted to the worker's main thread. */
 export type HandlerOutcome =
-  | { ok: true; warnings: { code: string; detail?: string }[] }
+  | { ok: true; warnings: { code: string; detail?: string }[]; result?: unknown }
   | { ok: false; code: string; reason: string };

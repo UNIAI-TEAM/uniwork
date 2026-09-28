@@ -25,6 +25,10 @@ import {
   type XlsxRecalcPort,
 } from "@uniwork/office-engine/xlsx";
 import {
+  convertDocument,
+  ConvertTypedError,
+} from "@uniwork/office-engine/convert/native";
+import {
   createXlsxSidecar,
   xlsxGatewayArtifactPath,
   xlsxSidecarPath,
@@ -129,6 +133,56 @@ function xlsxRecalc(assetsDir: string | undefined, tempDir: string): XlsxRecalcP
 function xlsxFail(error: unknown): HandlerOutcome {
   if (error instanceof XlsxTypedError) return { ok: false, code: error.code, reason: error.reason };
   throw error;
+}
+
+// ── Q7 conversion (G2-07b) ─────────────────────────────────────────────────
+//
+// Legacy/ODF -> OOXML runs here, in the service, never in a browser bundle.
+// The job's payload names the target format; the converter names every
+// category it does not carry in the result's fidelity, and the job result
+// carries the change list (what the copy will contain) for the pre-accept
+// warning. The source bytes are never written back: the output is a new file.
+
+interface ConvertJobPayload {
+  readonly target_format?: unknown;
+  readonly source_version_id?: unknown;
+}
+
+async function convertLegacy(message: RunMessage): Promise<HandlerOutcome> {
+  if (!message.inputPath) return { ok: false, code: "engine_result_invalid", reason: "input_required" };
+  if (!message.payloadPath) return { ok: false, code: "engine_result_invalid", reason: "payload_required" };
+  let payload: ConvertJobPayload;
+  try {
+    payload = JSON.parse(await readFile(message.payloadPath, "utf8")) as ConvertJobPayload;
+  } catch {
+    return { ok: false, code: "engine_result_invalid", reason: "convert_payload_invalid" };
+  }
+  if (typeof payload.target_format !== "string" || payload.target_format === "") {
+    return { ok: false, code: "engine_result_invalid", reason: "target_format_required" };
+  }
+  const bytes = await readFile(message.inputPath);
+  try {
+    const converted = convertDocument(message.format, payload.target_format, bytes);
+    await writeOutput(message.outputPath, converted.bytes);
+    return {
+      ok: true,
+      warnings:
+        converted.fidelity.lost.length > 0
+          ? [{ code: "conversion_lossy", detail: `limited fidelity: ${converted.fidelity.lost.join(", ")}` }]
+          : [],
+      result: {
+        operation: message.operation,
+        source_format: converted.sourceFormat,
+        target_format: converted.targetFormat,
+        ...(typeof payload.source_version_id === "string" ? { source_version_id: payload.source_version_id } : {}),
+        fidelity: { level: converted.fidelity.level, lost: converted.fidelity.lost },
+        content: converted.content,
+      },
+    };
+  } catch (error) {
+    if (error instanceof ConvertTypedError) return { ok: false, code: error.code, reason: error.reason };
+    throw error;
+  }
 }
 
 /** open:xlsx — probe bytes into a document-model summary JSON. */
@@ -269,6 +323,8 @@ const HANDLERS: Record<string, Handler> = {
   "open:xlsx": openXlsx,
   "serialize:xlsx": serializeXlsx,
   "edit:xlsx": editXlsx,
+  "convert:xls": convertLegacy,
+  "convert:odt": convertLegacy,
 };
 
 /** Keys ("operation:format") this build binds; capability rows read it. */

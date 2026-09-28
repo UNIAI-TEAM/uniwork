@@ -1,7 +1,9 @@
 // Capability rows this service build reports. Honest by construction: a row
 // is supported only when a handler is bound, and even then its evidence stays
-// "pending" - the product claim (proven) belongs to the format lane's fixture
-// evidence, not to the fact that a handler exists.
+// "pending" unless the format lane has produced fixture evidence for it - the
+// product claim (proven) belongs to the lane's evidence, not to the fact that
+// a handler exists. G2-07b proves the Q7 converters, so the convert rows for
+// `xls` and `odt` are the only rows this file claims as proven operationally.
 
 import {
   ENGINE_VERSION_TRUSTED,
@@ -11,9 +13,12 @@ import {
 } from "@uniwork/office-contracts";
 import { BOUND_OPERATIONS } from "./worker/handlers.ts";
 
-/** Q7 (docs/office/g1g2/q7-blocker.md): no BIFF8/ODF/RTF/XLSB -> OOXML engine
- * is chosen. convert stays a named M1 blocker and answers 501. */
-export const Q7_BLOCKER = "docs/office/g1g2/q7-blocker.md";
+/** Source formats whose conversion is bound, and the target each produces
+    (docs/office/g1g2/q7-blocker.md closing test; G2-07b fixtures). */
+export const CONVERT_TARGETS: Partial<Record<OfficeFormat, "xlsx" | "docx">> = {
+  xls: "xlsx",
+  odt: "docx",
+};
 
 export function isBound(operation: string, format: string): boolean {
   return BOUND_OPERATIONS.includes(operation + ":" + format);
@@ -41,7 +46,25 @@ function capabilityRows(format: OfficeFormat): CapabilityEntry[] {
     .filter((op) => op !== "capability")
     .map((op): CapabilityEntry => {
       if (op === "convert") {
-        return { operation: op, supported: false, runtime: "none", evidence_level: "pending", reason: "Q7 blocker: " + Q7_BLOCKER };
+        const target = CONVERT_TARGETS[format];
+        if (target && isBound(op, format)) {
+          return {
+            operation: op,
+            supported: true,
+            runtime: "internal_service",
+            evidence_level: "proven",
+            reason: `Q7 converter bound: ${format} -> ${target} (docs/office/g1g2/q7-blocker.md closing test; G2-07b fixture evidence)`,
+          };
+        }
+        return {
+          operation: op,
+          supported: false,
+          runtime: "none",
+          evidence_level: "pending",
+          reason: target
+            ? `no ${format} -> ${target} converter is bound in this service build`
+            : `no Q7 converter is bound from ${format}`,
+        };
       }
       if (isBound(op, format)) {
         return {
