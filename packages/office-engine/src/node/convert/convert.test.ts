@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ConvertTypedError, convertDocument, convertLegacySpreadsheet, convertOdfText } from "./index.ts";
 import { BiffError, readBiff8Workbook } from "./biff8.ts";
+import { readCompoundStreams } from "./cfb.ts";
 import { readZip } from "./zip.ts";
 
 // The oracles are the frozen G0 fixtures themselves:
@@ -199,5 +200,65 @@ describe("compound-file bounds (review BE-R1-01)", () => {
   });
   it("refuses a DIFAT count larger than the file", () => {
     refuses(mutate((b) => setU32(b, 72, 0x7fffffff)));
+  });
+});
+
+describe("compound-file v4 layout (review BE-R2-01)", () => {
+  // MS-CFB v4 uses 4096-byte sectors and the header fills sector -1, so
+  // sector n starts at (n + 1) * 4096. Repack F-LEGACY-XLS's streams into a
+  // minimal v4 file (FAT at 0, directory at 1, streams after) and require the
+  // same conversion as the v3 original.
+  function toV4(streams: Map<string, Uint8Array>): Uint8Array {
+    const S = 4096;
+    const entries = [...streams.entries()];
+    const spans = entries.map(([, body]) => Math.max(1, Math.ceil(body.byteLength / S)));
+    const total = 2 + spans.reduce((n, k) => n + k, 0);
+    const out = new Uint8Array((total + 1) * S);
+    const view = new DataView(out.buffer);
+    out.set([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1], 0);
+    view.setUint16(24, 0x3e, true);
+    view.setUint16(26, 4, true);
+    view.setUint16(28, 0xfffe, true);
+    view.setUint16(30, 12, true);
+    view.setUint16(32, 6, true);
+    view.setUint32(40, 1, true); // directory sectors
+    view.setUint32(44, 1, true); // FAT sectors
+    view.setUint32(48, 1, true); // first directory sector
+    view.setUint32(56, 4096, true);
+    view.setUint32(60, 0xfffffffe, true); // no mini FAT
+    view.setUint32(68, 0xfffffffe, true); // no DIFAT sectors
+    for (let i = 0; i < 109; i++) view.setUint32(76 + i * 4, i === 0 ? 0 : 0xffffffff, true);
+    const fat = new DataView(out.buffer, S, S);
+    for (let i = 0; i < S / 4; i++) fat.setUint32(i * 4, 0xffffffff, true);
+    fat.setUint32(0, 0xfffffffd, true);
+    fat.setUint32(4, 0xfffffffe, true);
+    const dirEntry = (index: number, name: string, type: number, start: number, size: number): void => {
+      const at = 2 * S + index * 128;
+      for (let i = 0; i < name.length; i++) view.setUint16(at + i * 2, name.charCodeAt(i), true);
+      view.setUint16(at + 64, (name.length + 1) * 2, true);
+      out[at + 66] = type;
+      for (const field of [68, 72, 76]) view.setUint32(at + field, 0xffffffff, true);
+      view.setUint32(at + 116, start, true);
+      view.setBigUint64(at + 120, BigInt(size), true);
+    };
+    dirEntry(0, "Root Entry", 5, 0xfffffffe, 0);
+    let sector = 2;
+    entries.forEach(([name, body], index) => {
+      dirEntry(index + 1, name, 2, sector, body.byteLength);
+      out.set(body, (sector + 1) * S);
+      for (let k = 0; k < spans[index]!; k++) {
+        fat.setUint32((sector + k) * 4, k === spans[index]! - 1 ? 0xfffffffe : sector + k + 1, true);
+      }
+      sector += spans[index]!;
+    });
+    return out;
+  }
+
+  it("converts a v4 compound file exactly like its v3 original", () => {
+    const v3 = fixture("sheets/legacy-xls.xls");
+    const v4 = toV4(readCompoundStreams(v3));
+    expect(new DataView(v4.buffer).getUint16(30, true)).toBe(12);
+    const fromV4 = convertLegacySpreadsheet(v4);
+    expect(fromV4.content).toEqual(convertLegacySpreadsheet(v3).content);
   });
 });

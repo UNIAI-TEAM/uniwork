@@ -50,13 +50,15 @@ export function readCompoundStreams(bytes: Uint8Array): Map<string, Uint8Array> 
   const firstDirSector = view.getUint32(48, true);
   if (view.getUint32(56, true) !== MINI_STREAM_CUTOFF) throw new CfbError("implausible mini-stream cutoff");
   const firstMiniFat = view.getUint32(60, true);
-  // The sectors that can exist after the header; no chain may be longer.
-  const sectorCount = Math.floor((bytes.byteLength - 512) / sectorSize);
+  // The header fills sector -1: 512 bytes in v3, a whole 4096-byte sector in
+  // v4, so sector n starts at (n + 1) * sectorSize in both (MS-CFB 2.2).
+  // These are the sectors that can exist after it; no chain may be longer.
+  const sectorCount = Math.floor(bytes.byteLength / sectorSize) - 1;
 
   const fat = readFat(view, sectorSize, sectorCount);
   const chain = (start: number): number[] => walk(start, sectorCount, (sector) => fat[sector] ?? ENDOFCHAIN, "FAT");
   const sectorBytes = (sector: number): Uint8Array => {
-    const at = 512 + sector * sectorSize;
+    const at = (sector + 1) * sectorSize;
     return bytes.subarray(at, at + sectorSize);
   };
 
@@ -145,13 +147,13 @@ function readFat(view: DataView, sectorSize: number, sectorCount: number): Uint3
     if (difat >= sectorCount) throw new CfbError(`DIFAT sector ${difat} is past the file`);
     if (seen.has(difat)) throw new CfbError(`DIFAT chain loops at sector ${difat}`);
     seen.add(difat);
-    const dview = new DataView(view.buffer, view.byteOffset + 512 + difat * sectorSize, sectorSize);
+    const dview = new DataView(view.buffer, view.byteOffset + (difat + 1) * sectorSize, sectorSize);
     for (let j = 0; j < perSector; j++) addFatSector(dview.getUint32(j * 4, true));
     difat = dview.getUint32(perSector * 4, true);
   }
   const fat = new Uint32Array(fatSectors.length * (sectorSize / 4));
   fatSectors.forEach((sector, index) => {
-    const sview = new DataView(view.buffer, view.byteOffset + 512 + sector * sectorSize, sectorSize);
+    const sview = new DataView(view.buffer, view.byteOffset + (sector + 1) * sectorSize, sectorSize);
     for (let i = 0; i < sectorSize / 4; i++) fat[index * (sectorSize / 4) + i] = sview.getUint32(i * 4, true);
   });
   if (fat.length === 0) throw new CfbError("no FAT sectors");
