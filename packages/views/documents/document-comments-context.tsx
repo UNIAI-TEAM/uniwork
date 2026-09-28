@@ -70,6 +70,7 @@ export function DocumentCommentsHeaderActions() {
         type="button"
         variant="ghost"
         size="sm"
+        aria-label={t("documents.comments.open")}
         aria-expanded={chrome.open}
         aria-controls="document-comments-panel"
         onClick={() => chrome.setOpen(!chrome.open)}

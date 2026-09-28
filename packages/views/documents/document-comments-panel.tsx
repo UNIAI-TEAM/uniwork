@@ -56,6 +56,7 @@ function CommentComposerBox({
   onSubmit,
   compact = false,
   refocusAfterSend = false,
+  testId = "document-comment-composer",
 }: {
   wsId: string;
   doc: Document;
@@ -65,6 +66,7 @@ function CommentComposerBox({
   onSubmit: (body: string) => Promise<boolean>;
   compact?: boolean;
   refocusAfterSend?: boolean;
+  testId?: string;
 }) {
   const accountId = useAuthStore((s) => s.user?.id ?? "");
   const key = documentCommentDraftKey({
@@ -90,8 +92,8 @@ function CommentComposerBox({
       onSubmit={onSubmit}
       compact={compact}
       refocusAfterSend={refocusAfterSend}
-      testId="document-comment-composer"
-      shellTestId="document-comment-composer-shell"
+      testId={testId}
+      shellTestId={`${testId}-shell`}
       mentionMode="context"
       mentionContextItems={mentionItems}
     />
@@ -244,6 +246,7 @@ function CommentsPane({
               mentionItems={mentionItems}
               compact
               refocusAfterSend
+              testId="document-comment-reply-composer"
               onSubmit={(body) => submitComment(body, thread.root.id)}
             />
           </div>
