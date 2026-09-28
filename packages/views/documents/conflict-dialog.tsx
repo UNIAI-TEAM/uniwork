@@ -25,10 +25,18 @@ export interface DocumentConflictDialogProps {
   /**
    * The server's CURRENT base, read after the user asked to keep their copy.
    * Until this is set the dialog only offers the choice; the commit happens on
-   * the revision shown here, never on the number from the failed save.
+   * the revision shown here, never on the number from the failed save. The
+   * `contentText` excerpt is the plain text of that copy, so the user can see
+   * what they are about to write on top of.
    */
-  serverBase?: { revision: string; updatedAt: string | null } | null;
+  serverBase?: {
+    revision: string;
+    updatedAt: string | null;
+    contentText?: string | null;
+  } | null;
   keepMinePending?: boolean;
+  /** Reading the fresh base failed: stay on step one and let the user retry. */
+  keepMineError?: boolean;
   /** Read the server's current base and show it (step one). */
   onKeepMine: () => void;
   /** Commit the local copy on the base shown (step two). */
@@ -38,6 +46,27 @@ export interface DocumentConflictDialogProps {
   /** Drop the local copy and show the committed one. */
   onLoadServer: () => void;
   pending?: boolean;
+}
+
+/** Today is named by its clock; any other day carries the date too. Locale
+ *  comes from the active i18n language, like the file view's formatting. */
+function formatBaseTime(at: Date, locale: string): string {
+  const now = new Date();
+  const sameDay =
+    at.getFullYear() === now.getFullYear() &&
+    at.getMonth() === now.getMonth() &&
+    at.getDate() === now.getDate();
+  return new Intl.DateTimeFormat(
+    locale,
+    sameDay ? { hour: "2-digit", minute: "2-digit" } : { dateStyle: "medium", timeStyle: "short" },
+  ).format(at);
+}
+
+/** A bounded, read-only excerpt of the server copy's text. */
+function excerptOf(contentText: string | null | undefined): string {
+  const trimmed = contentText?.trim() ?? "";
+  if (!trimmed) return "";
+  return trimmed.length > 240 ? `${trimmed.slice(0, 240)}…` : trimmed;
 }
 
 /**
@@ -56,19 +85,19 @@ export function DocumentConflictDialog({
   serverRevision,
   serverBase,
   keepMinePending = false,
+  keepMineError = false,
   onKeepMine,
   onConfirmKeepMine,
   onBackFromServerBase,
   onLoadServer,
   pending = false,
 }: DocumentConflictDialogProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [confirmLoad, setConfirmLoad] = useState(false);
   const baseAt = serverBase?.updatedAt ? new Date(serverBase.updatedAt) : null;
   const baseTime =
-    baseAt && !Number.isNaN(baseAt.getTime())
-      ? new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(baseAt)
-      : "";
+    baseAt && !Number.isNaN(baseAt.getTime()) ? formatBaseTime(baseAt, i18n.language) : "";
+  const baseExcerpt = excerptOf(serverBase?.contentText);
 
   return (
     <>
@@ -97,8 +126,27 @@ export function DocumentConflictDialog({
                   time: baseTime,
                 })}
               </p>
+              {baseExcerpt ? (
+                <div className="mt-2 rounded-md border border-border bg-background px-2 py-1.5">
+                  <p className="text-caption font-medium text-muted-foreground">
+                    {t("documents.conflict.server_base_excerpt")}
+                  </p>
+                  <p
+                    className="mt-1 max-h-24 overflow-hidden text-caption whitespace-pre-wrap break-words text-foreground"
+                    data-testid="conflict-server-base-text"
+                  >
+                    {baseExcerpt}
+                  </p>
+                </div>
+              ) : null}
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={onBackFromServerBase}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={pending}
+                  onClick={onBackFromServerBase}
+                >
                   {t("documents.conflict.back")}
                 </Button>
                 <Button type="button" size="sm" disabled={pending} onClick={onConfirmKeepMine}>
@@ -108,6 +156,11 @@ export function DocumentConflictDialog({
             </div>
           ) : (
           <div className="flex flex-col gap-2">
+            {keepMineError ? (
+              <p role="alert" className="text-caption text-destructive">
+                {t("documents.conflict.keep_mine_error")}
+              </p>
+            ) : null}
             <Button
               type="button"
               variant="outline"

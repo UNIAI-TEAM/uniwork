@@ -174,9 +174,10 @@ describe("DocumentWorkspace autosave", () => {
       return Promise.resolve({});
     });
     // "Keep mine" reads the server's CURRENT base and shows it before anything
-    // is committed; the failed save only proved that the base moved.
+    // is committed; the failed save only proved that the base moved. The base
+    // carries its text excerpt and a locale-formatted date.
     const refetch = vi.fn(() =>
-      Promise.resolve({ data: pageDocument({ revision: "9", updated_at: "2026-09-28T03:30:00Z" }) }),
+      Promise.resolve({ data: pageDocument({ revision: "9", updated_at: "2020-01-05T03:30:00Z" }) }),
     );
     renderWorkspace({}, refetch);
     await findEditor();
@@ -194,8 +195,12 @@ describe("DocumentWorkspace autosave", () => {
     // is the label plus the hint.
     fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.conflict.keep_mine")) }));
 
-    // Step two shows the base the copy will be written on top of.
+    // Step two shows the base the copy will be written on top of: its
+    // revision, its text excerpt, and a date for a copy that is not today's.
     expect(await screen.findByTestId("conflict-server-base")).toHaveTextContent("9");
+    const base = screen.getByTestId("conflict-server-base");
+    expect(base).toHaveTextContent("Nội dung A");
+    expect(base).toHaveTextContent("2020");
     expect(refetch).toHaveBeenCalled();
     expect(patchCalls()).toHaveLength(1);
 
@@ -227,6 +232,129 @@ describe("DocumentWorkspace autosave", () => {
       await screen.findByRole("button", { name: t("documents.leave.discard") }),
     );
     await waitFor(() => expect(push).toHaveBeenCalledWith(LIBRARY));
+  });
+
+  it("stops a failed save-and-leave after one retry and re-enables the dialog", async () => {
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) =>
+      path === "/api/v1/documents/d1" && opts?.method === "PATCH"
+        ? Promise.reject(new ApiError("save_failed", "internal_error", 500))
+        : Promise.resolve({}),
+    );
+    renderWorkspace();
+    await findEditor();
+
+    pasteText("Chưa lưu được");
+
+    // The debounced autosave fails first; the draft and its key stay.
+    await waitFor(() => expect(patchCalls()).toHaveLength(1), { timeout: 8_000 });
+
+    fireEvent.click(screen.getByRole("button", { name: t("documents.detail.back_to_library") }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: t("documents.leave.save_and_leave") }),
+    );
+
+    // The attempt re-sends the kept draft once, then the failure is terminal:
+    // no unbounded PATCH loop and the user can act again (r2 FE review R2-1).
+    await waitFor(() => expect(patchCalls()).toHaveLength(2), { timeout: 8_000 });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: t("documents.leave.stay") })).toBeEnabled(),
+    );
+    expect(screen.getByRole("button", { name: t("documents.leave.discard") })).toBeEnabled();
+    expect(screen.getByRole("button", { name: t("documents.leave.save_and_leave") })).toBeEnabled();
+    expect(screen.getAllByText(t("documents.save.error")).length).toBeGreaterThan(0);
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(patchCalls()).toHaveLength(2);
+  });
+
+  it("keeps keep-mine on step one when the fresh base cannot be read", async () => {
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) =>
+      path === "/api/v1/documents/d1" && opts?.method === "PATCH"
+        ? Promise.reject(
+            new ApiError("conflict", "revision_conflict", 422, undefined, { current_revision: "9" }, "conflict"),
+          )
+        : Promise.resolve({}),
+    );
+    // TanStack resolves a failed refetch with the stale cache entry plus
+    // `isError`; that copy must never be named "the newest server copy".
+    const refetch = vi.fn(() =>
+      Promise.resolve({ data: pageDocument({ revision: "9" }), isError: true }),
+    );
+    renderWorkspace({}, refetch);
+    await findEditor();
+
+    pasteText("Bản của tôi");
+    await screen.findByText(t("documents.conflict.title"), {}, { timeout: 8_000 });
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.conflict.keep_mine")) }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      t("documents.conflict.keep_mine_error"),
+    );
+    expect(screen.queryByTestId("conflict-server-base")).toBeNull();
+
+    // The same choice is the retry; a second failure keeps step one.
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.conflict.keep_mine")) }));
+    await waitFor(() => expect(refetch).toHaveBeenCalledTimes(2));
+    expect(screen.queryByTestId("conflict-server-base")).toBeNull();
+    expect(screen.getByRole("alert")).toHaveTextContent(t("documents.conflict.keep_mine_error"));
+  });
+
+  it("refuses a server base older than the conflict revision", async () => {
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) =>
+      path === "/api/v1/documents/d1" && opts?.method === "PATCH"
+        ? Promise.reject(
+            new ApiError("conflict", "revision_conflict", 422, undefined, { current_revision: "9" }, "conflict"),
+          )
+        : Promise.resolve({}),
+    );
+    // A successful refetch can still be behind the revision the conflict
+    // named; committing on it would just conflict again.
+    const refetch = vi.fn(() => Promise.resolve({ data: pageDocument({ revision: "3" }) }));
+    renderWorkspace({}, refetch);
+    await findEditor();
+
+    pasteText("Bản của tôi");
+    await screen.findByText(t("documents.conflict.title"), {}, { timeout: 8_000 });
+    fireEvent.click(screen.getByRole("button", { name: new RegExp(t("documents.conflict.keep_mine")) }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      t("documents.conflict.keep_mine_error"),
+    );
+    expect(screen.queryByTestId("conflict-server-base")).toBeNull();
+  });
+
+  it("hands a save-and-leave conflict to the conflict dialog instead of waiting", async () => {
+    let patches = 0;
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === "/api/v1/documents/d1" && opts?.method === "PATCH") {
+        patches += 1;
+        if (patches === 1) return Promise.resolve({ document: pageDocument({ revision: "4" }) });
+        return Promise.reject(
+          new ApiError("conflict", "revision_conflict", 422, undefined, { current_revision: "9" }, "conflict"),
+        );
+      }
+      return Promise.resolve({});
+    });
+    const { push } = renderWorkspace();
+    await findEditor();
+
+    pasteText("Lần một");
+    await waitFor(() => expect(patchCalls()).toHaveLength(1), { timeout: 8_000 });
+    await waitFor(() => expect(screen.getByText(/^Đã lưu/)).toBeInTheDocument());
+
+    pasteText("Lần hai");
+    fireEvent.click(screen.getByRole("button", { name: t("documents.detail.back_to_library") }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: t("documents.leave.save_and_leave") }),
+    );
+
+    // The base moved under the write: the conflict dialog takes over and the
+    // page is not left with a save still owed.
+    expect(
+      await screen.findByText(t("documents.conflict.title"), {}, { timeout: 8_000 }),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText(t("documents.leave.title"))).toBeNull());
+    expect(push).not.toHaveBeenCalled();
   });
 
   it("does not let a page with an image still uploading leave silently", async () => {

@@ -42,8 +42,13 @@ export interface DocumentWorkspaceProps {
   doc: Document;
   /** The library list, the one breadcrumb ancestor we can point at today. */
   libraryHref: string;
-  /** Re-read the document from the server (conflict resolution). */
-  refetch: () => Promise<{ data?: Document | null }>;
+  /**
+   * Re-read the document from the server (conflict resolution). The result is
+   * the query observer's snapshot: a refetch that fails resolves with the
+   * stale cache entry and `isError`, so the copy that comes back here can
+   * never be assumed fresh.
+   */
+  refetch: () => Promise<{ data?: Document | null; isError?: boolean }>;
 }
 
 /**
@@ -70,10 +75,13 @@ export function DocumentWorkspace({ wsId, doc, libraryHref, refetch }: DocumentW
   const [pendingUploads, setPendingUploads] = useState(0);
   const pendingUploadsRef = useRef(0);
   const [conflictOpen, setConflictOpen] = useState(false);
-  const [serverBase, setServerBase] = useState<{ revision: string; updatedAt: string | null } | null>(
-    null,
-  );
+  const [serverBase, setServerBase] = useState<{
+    revision: string;
+    updatedAt: string | null;
+    contentText: string | null;
+  } | null>(null);
   const [keepMinePending, setKeepMinePending] = useState(false);
+  const [keepMineError, setKeepMineError] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [leavePending, setLeavePending] = useState(false);
   const leaveResolveRef = useRef<((allowed: boolean) => void) | null>(null);
@@ -146,8 +154,14 @@ export function DocumentWorkspace({ wsId, doc, libraryHref, refetch }: DocumentW
   /**
    * "Save and leave" waits for the whole write, uploads included: an image
    * still going up is not saved work, and its node only exists in the document
-   * once the asset answers. Conflict or a failed save keeps the user here with
-   * the indicator explaining why.
+   * once the asset answers.
+   *
+   * The wait rides state transitions, it never re-sends: a write that failed
+   * for good ("error" / "unverifiable") is terminal for the attempt — flushing
+   * the same draft again would replay the same failing request in a loop — and
+   * a conflict hands the decision to the conflict dialog. A failed attempt
+   * leaves the dialog open with its buttons enabled, so the user can retry,
+   * discard or stay.
    */
   useEffect(() => {
     if (!leavePending || leaveDoneRef.current) return;
@@ -158,18 +172,31 @@ export function DocumentWorkspace({ wsId, doc, libraryHref, refetch }: DocumentW
       finishLeave(true);
       return;
     }
+    if (state.phase === "error" || state.phase === "unverifiable") {
+      // Terminal for this attempt: stop waiting (the caption shows the
+      // failure); "save and leave" retries deliberately, one flush per click.
+      leaveDoneRef.current = true;
+      setLeavePending(false);
+      return;
+    }
+    if (state.phase === "conflict") {
+      // The base moved under the write: the conflict dialog owns the next
+      // step, and leaving stays refused until the user resolves it.
+      leaveDoneRef.current = true;
+      finishLeave(false);
+      setConflictOpen(true);
+      setServerBase(null);
+      return;
+    }
     if (state.dirty) {
-      // A draft with no request in flight (re-based after a conflict, or one
-      // that landed while an upload was settling): send it now.
+      // A draft with no request in flight (it landed while an upload was
+      // settling): send it now. One flush per transition; a failure lands in
+      // the terminal branch above.
       save.flush();
       return;
     }
     leaveDoneRef.current = true;
     setLeavePending(false);
-    if (state.phase === "conflict") {
-      setConflictOpen(true);
-      setServerBase(null);
-    }
   }, [leavePending, pendingUploads, state.phase, state.dirty, save, finishLeave]);
 
   const saveThenLeave = () => {
@@ -194,13 +221,29 @@ export function DocumentWorkspace({ wsId, doc, libraryHref, refetch }: DocumentW
    * Step one of "keep mine": read the server's CURRENT base and show it. The
    * revision in the error is only what the failed save saw; the user has to
    * see what they are about to write on top of before anything is committed.
+   *
+   * A refetch that fails resolves with the stale cached copy, not a rejection
+   * (TanStack), and a copy older than the conflict's `current_revision` is
+   * known to be stale — neither may be shown as "the newest server copy", so
+   * the dialog stays on step one with an error and waits for a retry.
    */
   const keepMine = () => {
+    setKeepMineError(false);
     setKeepMinePending(true);
     void refetch().then((fresh) => {
-      const next = fresh.data ?? doc;
-      setServerBase({ revision: next.revision, updatedAt: next.updated_at ?? null });
       setKeepMinePending(false);
+      const next = fresh.data ?? null;
+      const current = Number(stateRef.current.errorFields?.current_revision ?? 0);
+      const revision = Number(next?.revision ?? Number.NaN);
+      if (!next || fresh.isError || !(revision >= current)) {
+        setKeepMineError(true);
+        return;
+      }
+      setServerBase({
+        revision: next.revision,
+        updatedAt: next.updated_at ?? null,
+        contentText: next.content_text ?? null,
+      });
     });
   };
 
@@ -213,6 +256,14 @@ export function DocumentWorkspace({ wsId, doc, libraryHref, refetch }: DocumentW
     // The editor still shows the user's bytes; re-queue them so autosave
     // commits on the base the dialog just showed. A writer landing in between
     // brings the dialog straight back.
+    //
+    // The ack of that commit is the full server copy: patchDocument parses the
+    // response through DocumentSchema (requireVerifiableDocument's fallback is
+    // null, never a partial), the machine keeps it in `state.acked`,
+    // useDocumentSave writes it into the detail query, and the editor adopts
+    // `content` once clean — so what the screen displays after a successful
+    // commit is the server's own latest copy (FE design §6.3.2, second
+    // clause), not the rejected draft.
     if (lastLocalContentRef.current !== undefined) {
       save.edit({ content: lastLocalContentRef.current });
     }
@@ -254,6 +305,14 @@ export function DocumentWorkspace({ wsId, doc, libraryHref, refetch }: DocumentW
     },
     [save],
   );
+
+  /** One caption line: the wait, the two failures, or the plain unsaved remark. */
+  const leaveCaption = (() => {
+    if (leavePending) return t("documents.leave.waiting");
+    if (state.phase === "unverifiable") return t("documents.save.unverified");
+    if (state.phase === "error") return t("documents.save.error");
+    return t("documents.save.unsaved");
+  })();
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -346,13 +405,17 @@ export function DocumentWorkspace({ wsId, doc, libraryHref, refetch }: DocumentW
         open={conflictOpen}
         onOpenChange={(next) => {
           setConflictOpen(next);
-          if (!next) setServerBase(null);
+          if (!next) {
+            setServerBase(null);
+            setKeepMineError(false);
+          }
         }}
         mineRevision={state.revision}
         serverRevision={String(state.errorFields?.current_revision ?? doc.revision)}
         serverBase={serverBase}
         pending={state.phase === "saving"}
         keepMinePending={keepMinePending}
+        keepMineError={keepMineError}
         onKeepMine={keepMine}
         onConfirmKeepMine={confirmKeepMine}
         onBackFromServerBase={() => setServerBase(null)}
@@ -367,7 +430,7 @@ export function DocumentWorkspace({ wsId, doc, libraryHref, refetch }: DocumentW
           </DialogHeader>
           <div className="flex items-center gap-2 text-caption text-muted-foreground">
             <FileWarning aria-hidden className="size-4" />
-            {leavePending ? t("documents.leave.waiting") : t("documents.save.unsaved")}
+            {leaveCaption}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" disabled={leavePending} onClick={() => finishLeave(false)}>
