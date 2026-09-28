@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { toast } from "sonner";
 import { wrapWithNav } from "../test/api-mock";
@@ -10,15 +10,16 @@ let handRaised = false;
 const startRecording = vi.fn();
 const stopRecording = vi.fn();
 const toggles = vi.hoisted(() => ({ microphone: vi.fn(), camera: vi.fn(), screen_share: vi.fn() }));
+const shareErrors = vi.hoisted(() => ({ onDeviceError: null as null | ((error: Error) => void) }));
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@uniwork/ui/hooks/use-mobile", () => ({ useIsMobile: () => mobile, useIsCompact: () => mobile }));
 vi.mock("@livekit/components-react", () => ({
-  useTrackToggle: ({ source }: { source: keyof typeof toggles }) => ({
-    enabled: true,
-    pending: false,
-    toggle: toggles[source],
-  }),
+  useRoomContext: () => ({}),
+  useTrackToggle: ({ source, onDeviceError }: { source: keyof typeof toggles; onDeviceError?: (e: Error) => void }) => {
+    if (source === "screen_share") shareErrors.onDeviceError = onDeviceError ?? null;
+    return { enabled: true, pending: false, toggle: toggles[source] };
+  },
 }));
 vi.mock("@uniwork/core/meetings", () => ({
   useStartRecording: () => ({ mutate: startRecording, isPending: false }),
@@ -37,6 +38,19 @@ vi.mock("./use-meeting-signals", () => ({
 beforeAll(() => {
   initI18n();
 });
+
+beforeEach(() => {
+  Object.defineProperty(navigator, "mediaDevices", {
+    configurable: true,
+    value: { getDisplayMedia: vi.fn() },
+  });
+});
+
+function namedError(name: string, message = ""): Error {
+  const err = new Error(message);
+  err.name = name;
+  return err;
+}
 
 describe("MeetingControlBar", () => {
   it("names toggles by what they are and carries state in aria-pressed", () => {
@@ -76,7 +90,7 @@ describe("MeetingControlBar", () => {
     );
     expect(screen.getByRole("button", { name: "Thêm" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Ghi hình" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Chia sẻ" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /chia sẻ/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Giơ tay" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Mic", pressed: true })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Camera", pressed: true })).toBeInTheDocument();
@@ -192,7 +206,7 @@ describe("MeetingControlBar", () => {
       ),
     );
     fireEvent.click(screen.getByRole("button", { name: "Thêm" }));
-    expect(screen.getByRole("button", { name: "Chia sẻ" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Dừng chia sẻ" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Giơ tay" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Phụ đề" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Ghi hình" })).toBeInTheDocument();
@@ -263,5 +277,28 @@ describe("MeetingControlBar reactions", () => {
     expect(screen.getByRole("button", { name: "Thích" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Vỗ tay" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "👍" })).not.toBeInTheDocument();
+  });
+
+  it("names the share control by its next action and hides it where capture is impossible", () => {
+    mobile = false;
+    const { unmount } = render(wrapWithNav(<MeetingControlBar onLeave={() => {}} />));
+    expect(screen.getByRole("button", { name: "Dừng chia sẻ", pressed: true })).toBeInTheDocument();
+    unmount();
+
+    Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: {} });
+    render(wrapWithNav(<MeetingControlBar onLeave={() => {}} />));
+    expect(screen.queryByRole("button", { name: /chia sẻ/i })).not.toBeInTheDocument();
+  });
+
+  it("says why a share could not start, and stays quiet when the picker is closed", () => {
+    mobile = false;
+    vi.mocked(toast.error).mockClear();
+    render(wrapWithNav(<MeetingControlBar onLeave={() => {}} />));
+    shareErrors.onDeviceError?.(namedError("NotAllowedError", "Permission denied"));
+    expect(toast.error).not.toHaveBeenCalled();
+    shareErrors.onDeviceError?.(namedError("NotAllowedError", "Permission denied by system"));
+    expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/Cài đặt hệ thống/));
+    shareErrors.onDeviceError?.(namedError("NotReadableError"));
+    expect(toast.error).toHaveBeenLastCalledWith("Không bắt đầu chia sẻ màn hình được. Thử lại hoặc chọn cửa sổ khác.");
   });
 });

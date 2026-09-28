@@ -81,6 +81,10 @@ export function MeetingRoomView({
 }) {
   const { t } = useTranslation();
   const join = useJoinMeeting();
+  // A second mutation: a new mutate clears `data` until it settles, and the
+  // room renders from join.data — refreshing through `join` unmounted
+  // LiveKitRoom mid-call, which dropped any screen share.
+  const credentialRefresh = useJoinMeeting();
   // isLoading, not isPending: a disabled (guest) query reports pending forever.
   const { data: meeting, isLoading: meetingLoading } = useMeeting(meetingId, { enabled: !guestMode });
   const resolvedWorkspaceId = guestMode ? (workspaceId ?? "") : (workspaceId ?? meeting?.workspace_id ?? "");
@@ -107,7 +111,7 @@ export function MeetingRoomView({
     return isJoinAdmitted(initialJoinDecision) ? { audio: false, video: false } : null;
   });
   const mutateJoin = join.mutate;
-  const mutateJoinAsync = join.mutateAsync;
+  const mutateRefreshAsync = credentialRefresh.mutateAsync;
   const joinArgs = useMemo(() => {
     const base = joinBody ? { meetingId, ...joinBody } : { meetingId };
     if (invite) {
@@ -116,9 +120,31 @@ export function MeetingRoomView({
     return base;
   }, [meetingId, joinBody, invite]);
 
+  const [rejoining, setRejoining] = useState(false);
   const retryJoin = useCallback(() => {
     setMediaErrorKind(null);
+    setRejoining(false);
     mutateJoin(joinArgs);
+  }, [mutateJoin, joinArgs]);
+
+  // A dropped room re-joins in place: the last admitted credential keeps
+  // LiveKitRoom mounted while the new one is fetched, and the new token prop
+  // reconnects the same Room — no skeleton, and the stage, chat and panels
+  // keep their state. The rare identical token (two joins in one second)
+  // would not reconnect, so it remounts the room instead.
+  const [roomEpoch, setRoomEpoch] = useState(0);
+  const roomTokenRef = useRef<string | undefined>(undefined);
+  const lastAdmittedRef = useRef<JoinDecision | undefined>(undefined);
+  const rejoinAfterDrop = useCallback(() => {
+    setRejoining(true);
+    mutateJoin(joinArgs, {
+      onSuccess: (result) => {
+        if (result?.participant_token && result.participant_token === roomTokenRef.current) {
+          setRoomEpoch((n) => n + 1);
+        }
+      },
+      onSettled: () => setRejoining(false),
+    });
   }, [mutateJoin, joinArgs]);
 
   const requestAgain = useCallback(() => {
@@ -127,13 +153,13 @@ export function MeetingRoomView({
 
   const refreshLiveKitCredential = useCallback(async () => {
     try {
-      const result = await mutateJoinAsync(joinArgs);
+      const result = await mutateRefreshAsync(joinArgs);
       if (!result || !isJoinAdmitted(result) || !result.participant_token) return null;
       return { token: result.participant_token, expires_at: result.expires_at };
     } catch {
       return null;
     }
-  }, [mutateJoinAsync, joinArgs]);
+  }, [mutateRefreshAsync, joinArgs]);
 
   const handleStartMeeting = useCallback(() => {
     start.mutate(meetingId, { onSuccess: () => retryJoin() });
@@ -147,7 +173,12 @@ export function MeetingRoomView({
     retryJoin();
   }, [choice, retryJoin, initialJoinDecision]);
 
-  const decision = join.data ?? initialJoinDecision;
+  const settledDecision = join.data ?? initialJoinDecision;
+  if (isJoinAdmitted(settledDecision)) lastAdmittedRef.current = settledDecision;
+  // Only while that re-join is in flight: a superseded call never runs its
+  // onSettled, and the flag must not pin an old credential after it.
+  const holdLastAdmitted = rejoining && join.isPending && lastAdmittedRef.current;
+  const decision = holdLastAdmitted ? lastAdmittedRef.current : settledDecision;
   const admitted = isJoinAdmitted(decision);
   admittedRef.current = admitted;
 
@@ -274,9 +305,11 @@ export function MeetingRoomView({
     );
   }
 
+  roomTokenRef.current = decision.participant_token;
   return (
     <MeetingRoomShell testId="meeting-stage">
       <LiveKitRoom
+        key={roomEpoch}
         className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
         serverUrl={decision.server_url}
         token={decision.participant_token}
@@ -330,7 +363,7 @@ export function MeetingRoomView({
             return;
           }
           credentialRefreshAttempts.current += 1;
-          retryJoin();
+          rejoinAfterDrop();
         }}
       >
         <MeetingProactiveTokenRefresh
