@@ -1,3 +1,0 @@
-// Moved to packages/views/comments (G1-07c); this path is kept so the task
-// views' API and tests do not move.
-export { formatCommentDateTime, formatCommentTimeAgo } from "../../../comments/comment-time";

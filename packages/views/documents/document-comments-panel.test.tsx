@@ -591,14 +591,11 @@ describe("DocumentCommentsPanel mutations", () => {
   });
 
   it("edits the body and keeps the box open when the patch is refused", async () => {
-    let patchFails = true;
     installApi({
       comments: [makeComment({ author_id: ME })],
       extra: (method, path) =>
         method === "PATCH" && path.startsWith(`/api/v1/documents/${DOC}/comments/`)
-          ? patchFails
-            ? Promise.reject(new ApiError("unverifiable", "internal", 500))
-            : Promise.resolve({ comment: makeComment({ author_id: ME, body: "đã sửa" }) })
+          ? Promise.reject(new ApiError("unverifiable", "internal", 500))
           : undefined,
     });
     renderPanel();
