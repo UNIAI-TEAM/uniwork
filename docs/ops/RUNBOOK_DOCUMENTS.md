@@ -33,9 +33,13 @@ quyền, lịch sử và tham chiếu (`ReferenceProvider`).
   `uniwork_document_conflicts_total`; với tệp là route
   `POST /documents/{id}/uploads` + `POST /documents/{id}/versions/commit`.
 - **Storage không sẵn sàng.** Lệnh cần byte trả `storage_unavailable` (503):
-  tải lên, commit phiên bản tệp, tải về, ảnh trong trang; `outcome="unavailable"`
-  tăng. Thư viện, mở trang và lịch sử phiên bản đọc metadata trong Postgres nên
-  **vẫn chạy**; nếu chúng cũng lỗi thì là sự cố DB, không phải storage.
+  tải lên, commit phiên bản tệp, tải về, ảnh trong trang. Chỉ commit phiên bản
+  tệp có trong `uniwork_document_saves_total{kind="file",outcome="unavailable"}`;
+  tải lên (tệp, ảnh) và tải về **không** có save outcome, nên số đó bằng 0 không
+  loại trừ sự cố storage: xem tỉ lệ 5xx/503 theo route trong access log / metric
+  HTTP và [`RUNBOOK_FILE_GC.md`](RUNBOOK_FILE_GC.md) / `/readyz`. Thư viện, mở
+  trang và lịch sử phiên bản đọc metadata trong Postgres nên **vẫn chạy**; nếu
+  chúng cũng lỗi thì là sự cố DB, không phải storage.
   Đây là sự cố **FileService/backend byte**, không phải Documents.
 - **Purge lỗi.** Lỗi từng row: `uniwork_document_worker_sweeps_total{worker="purge",result="partial"}`
   và `uniwork_document_worker_rows_failed_total{worker="purge"}` tăng; cả lượt
