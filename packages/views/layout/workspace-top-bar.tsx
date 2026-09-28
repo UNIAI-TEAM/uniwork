@@ -31,7 +31,7 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { AskUniButton } from "../ai/ask-uni-button";
 import { AskUniPanel } from "../ai/ask-uni-panel";
 import { NotificationBell } from "../notifications/notification-bell";
-import { SearchCommand } from "../search";
+import { SearchCommand, SearchTrigger } from "../search";
 import { NewTaskDialog } from "../tasks/new-task-dialog";
 import { useNavigation } from "../navigation";
 import { GlobalShortcuts } from "./global-shortcuts";
@@ -128,6 +128,7 @@ export function WorkspaceTopBar({
       )}
     >
       <SidebarTrigger size="icon" />
+      <SearchTrigger />
       <div className="flex-1" />
       <AskUniButton />
       <NotificationBell />

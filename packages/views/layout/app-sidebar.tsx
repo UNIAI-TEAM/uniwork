@@ -51,7 +51,6 @@ import {
 } from "@uniwork/ui/components/ui/sidebar";
 import { UI_EASE_SETTLE, UI_MOTION_DURATION } from "@uniwork/ui/lib/motion";
 import { AppLink, useNavigation } from "../navigation";
-import { SearchTrigger } from "../search";
 import { useWorkspace } from "./workspace-context";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { moduleTone, type ModuleKey } from "./module-tones";
@@ -151,11 +150,6 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <WorkspaceSwitcher current={workspace} onNavigate={dismissSheet} />
-          </SidebarMenuItem>
-        </SidebarMenu>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SearchTrigger />
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>

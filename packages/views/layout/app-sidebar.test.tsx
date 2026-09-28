@@ -110,18 +110,15 @@ describe("AppSidebar", () => {
 
   it("keeps non-menu controls on the sidebar plane without removing keyboard focus", () => {
     renderSidebar("/acme/team/tasks");
-    const search = screen.getByRole("button", { name: /tìm kiếm/i });
     const workspaceButton = screen.getByRole("button", { name: /chuyển workspace/i });
     const accountButton = screen.getByRole("button", { name: /tài khoản$/ });
 
-    for (const button of [search, workspaceButton, accountButton]) {
+    for (const button of [workspaceButton, accountButton]) {
       expect(button).not.toHaveClass("ring-1");
       expect(button).not.toHaveClass("rounded-xl");
       expect(button.className).not.toMatch(/(?:^|\s)bg-surface(?:\/|\s)/);
       expect(button.className).toContain("focus-visible:ring-2");
     }
-    expect(search.querySelector("kbd")).not.toHaveClass("ring-1");
-    expect(search.querySelector("kbd")?.className).not.toContain("bg-muted");
     expect(workspaceButton.parentElement).not.toHaveClass("ring-1");
     expect(accountButton.parentElement).not.toHaveClass("ring-1");
   });
@@ -174,9 +171,9 @@ describe("AppSidebar", () => {
     expect(screen.getByRole("navigation", { name: "Điều hướng workspace" })).toBeInTheDocument();
   });
 
-  it("places the search trigger in the sidebar chrome", () => {
+  it("leaves the search trigger to the top bar", () => {
     renderSidebar("/acme/team/tasks");
-    expect(screen.getByRole("button", { name: /tìm kiếm/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /tìm kiếm/i })).toBeNull();
   });
 
   it("keeps log out behind the account menu rather than one click away in the chrome", async () => {
@@ -232,7 +229,6 @@ describe("AppSidebar", () => {
         </WorkspaceProvider>,
       ),
     );
-    expect(screen.getByRole("button", { name: /tìm kiếm/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Công việc" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Cuộc họp" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /tài khoản$/ })).toBeInTheDocument();
