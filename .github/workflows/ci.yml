@@ -1,10 +1,11 @@
 # Six jobs plus a secrets scan. `changes` decides whether the frontend half has anything to do;
 # the two frontend jobs are split so the jsdom test suite and the Next build
 # do not starve each other on a 4-vCPU runner; `backend-test` runs Go against
-# real Postgres and Redis services, sharded three ways because the suite is
-# serialised per database, and `backend` merges their coverage and carries the
-# status-check name; `e2e` builds the server and a production Next app against
-# the same services and runs the Playwright suite.
+# real Postgres, Redis and MinIO services, sharded three ways because the suite
+# is serialised per database, and `backend` merges their coverage and carries
+# the status-check name; `e2e` builds the server and a production Next app
+# against the same services plus MinIO for the file smoke tests, then runs the
+# Playwright suite.
 #
 # turbo.json lists this file in globalDependencies: the toolchain versions
 # pinned below are part of every task hash, so bumping Node can never replay
@@ -252,6 +253,26 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      # MinIO for internal/storage's integration test, pinned to the same
+      # image docker-compose.minio.yml uses. minio/minio and minio/mc are no
+      # longer published on Docker Hub, so this is Bitnami's frozen legacy
+      # build; MINIO_DEFAULT_BUCKETS creates the test bucket, and the only test
+      # that makes a bucket (the versioned contract case) makes its own.
+      minio:
+        image: bitnamilegacy/minio:2025.7.23
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+          # The image starts the server itself (a service container cannot
+          # take a command) and creates this bucket before it reports healthy.
+          MINIO_DEFAULT_BUCKETS: uniwork-test
+        ports:
+          - 9000:9000
+        options: >-
+          --health-cmd "curl -f http://localhost:9000/minio/health/live"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     env:
       # The Go suite truncates every table, so it owns this database outright.
       # Each shard runs in its own job, so each gets its own service container.
@@ -259,6 +280,14 @@ jobs:
       TEST_DATABASE_URL: postgres://uniwork:uniwork@localhost:5432/uniwork_test?sslmode=disable
       REDIS_TEST_URL: redis://localhost:6379/1
       JWT_SECRET: ci
+      # Storage config and integration tests. The integration test skips when
+      # MINIO_* is absent, so a fork without the service still gets a green Go
+      # suite; here the service above is real, which is the point.
+      MINIO_ENDPOINT: http://localhost:9000
+      MINIO_BUCKET: uniwork-test
+      MINIO_ACCESS_KEY_ID: minioadmin
+      MINIO_SECRET_ACCESS_KEY: minioadmin
+      MINIO_REGION: us-east-1
       # docs/engineering/GATE_LEVELS.md — at GATE_LEVEL=fast a PR buys latency
       # with the race detector; the push to develop that follows the merge
       # still runs it, so no unraced suite reaches develop. Above fast, and on
@@ -321,7 +350,8 @@ jobs:
         run: bash scripts/go-cover-floor.sh .go-tmp/cover-*.out
 
   # The Playwright specs CLAUDE.md calls a regression contract. Same shape as
-  # scripts/check.sh step 5–6: real Postgres + Redis, the server binary, a
+  # scripts/check.sh step 5–6: real Postgres + Redis + MinIO, the server
+  # binary, a
   # production Next build, then the suite against localhost. LiveKit and
   # SMTP stay unset — the specs are written for that (mail goes to the
   # `emails` outbox table, meetings run without a provider).
@@ -355,6 +385,23 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      # MinIO is the FileService destination of the server this job starts
+      # (STORAGE_BACKEND=minio): smoke and e2e run on the real adapter.
+      minio:
+        image: bitnamilegacy/minio:2025.7.23
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+          # The image starts the server itself (a service container cannot
+          # take a command) and creates this bucket before it reports healthy.
+          MINIO_DEFAULT_BUCKETS: uniwork-test
+        ports:
+          - 9000:9000
+        options: >-
+          --health-cmd "curl -f http://localhost:9000/minio/health/live"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     env:
       DATABASE_URL: postgres://uniwork:uniwork@localhost:5432/uniwork?sslmode=disable
       REDIS_URL: redis://localhost:6379/0
@@ -364,7 +411,17 @@ jobs:
       API_PUBLIC_URL: http://localhost:8080
       APP_ENV: development
       DEV_VERIFICATION_CODE: "123456"
-      STORAGE_BACKEND: local
+      # The server writes every new file to MinIO; a missing or broken group
+      # stops it at preflight, which the wait step below then reports.
+      STORAGE_BACKEND: minio
+      MINIO_ENDPOINT: http://localhost:9000
+      MINIO_BUCKET: uniwork-test
+      MINIO_ACCESS_KEY_ID: minioadmin
+      MINIO_SECRET_ACCESS_KEY: minioadmin
+      MINIO_REGION: us-east-1
+      # The pre-FileService destination stays readable during the cutover
+      # (plan §7 step 1): the Bước 0 recording spec seeds a legacy /uploads
+      # row there, and e2e/db.ts writes its object into this directory.
       LOCAL_UPLOAD_DIR: /tmp/uniwork-uploads
       NEXT_PUBLIC_API_URL: http://localhost:8080
       NEXT_PUBLIC_WS_URL: ws://localhost:8080
@@ -398,6 +455,8 @@ jobs:
           for i in $(seq 1 60); do curl -sf http://localhost:8080/healthz && break; sleep 1; done
           for i in $(seq 1 90); do curl -sf http://localhost:3000 > /dev/null && break; sleep 1; done
           curl -sf http://localhost:8080/healthz && curl -sf http://localhost:3000 > /dev/null
+          # Readiness includes the storage probe: MinIO must answer too.
+          curl -sf http://localhost:8080/readyz
       - run: pnpm --filter @uniwork/e2e exec playwright install --with-deps chromium
       - run: pnpm --filter @uniwork/e2e test
       - if: failure()

@@ -192,7 +192,10 @@ echo "✓ LiveKit ready (local Docker). API key: ${LIVEKIT_API_KEY}"
 echo "  Logs follow with make start / make dev (docker compose logs -f livekit)."
 
 if [ -n "${LIVEKIT_RECORDING_BUCKET:-}" ]; then
-  if [ "${STORAGE_BACKEND:-}" = "s3" ] && [ -f "docker-compose.minio.yml" ]; then
+  # Recordings land in the FileService bucket; start local MinIO when that
+  # bucket is MinIO on this machine (STORAGE_BACKEND unset means minio).
+  if [ "${STORAGE_BACKEND:-minio}" = "minio" ] && [ -f "docker-compose.minio.yml" ] \
+    && [[ "${MINIO_ENDPOINT:-}" =~ ^https?://(localhost|127\.0\.0\.1)(:|/|$) ]]; then
     echo "==> Ensuring MinIO for recordings (bucket ${LIVEKIT_RECORDING_BUCKET})..."
     docker compose -f docker-compose.minio.yml up -d minio
     docker compose -f docker-compose.minio.yml run --rm minio-init

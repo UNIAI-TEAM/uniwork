@@ -7,6 +7,11 @@
 // the current version and the input untouched, and that the runtime map cannot
 // claim a runtime it has not proven.
 //
+// (2026-09-27, UNI-748: the in-memory ledger these tests exercise stays the G0
+// proof model. Production object lifecycle is FileService per FS-C1 — intent +
+// file_id, ClaimInTx/ReleaseInTx, FileService T5 GC — and a FileService test is
+// not G0 acceptance.)
+//
 //   node --test scripts/office-g0/engine-contract.test.mjs
 
 import { test } from "node:test";

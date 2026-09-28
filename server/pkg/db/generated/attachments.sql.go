@@ -80,7 +80,7 @@ func (q *Queries) DeleteAttachment(ctx context.Context, arg DeleteAttachmentPara
 }
 
 const getAttachment = `-- name: GetAttachment :one
-SELECT id, organization_id, workspace_id, task_id, comment_id, uploader_type, uploader_id, object_key, object_url, filename, content_type, metadata, size_bytes, source_context_id, created_at, updated_at, expires_at
+SELECT id, organization_id, workspace_id, task_id, comment_id, uploader_type, uploader_id, object_key, object_url, filename, content_type, metadata, size_bytes, source_context_id, created_at, updated_at, expires_at, file_id, purpose
 FROM attachments
 WHERE id = $1
   AND organization_id = $2
@@ -114,12 +114,14 @@ func (q *Queries) GetAttachment(ctx context.Context, arg GetAttachmentParams) (A
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ExpiresAt,
+		&i.FileID,
+		&i.Purpose,
 	)
 	return i, err
 }
 
 const getAttachmentByID = `-- name: GetAttachmentByID :one
-SELECT id, organization_id, workspace_id, task_id, comment_id, uploader_type, uploader_id, object_key, object_url, filename, content_type, metadata, size_bytes, source_context_id, created_at, updated_at, expires_at
+SELECT id, organization_id, workspace_id, task_id, comment_id, uploader_type, uploader_id, object_key, object_url, filename, content_type, metadata, size_bytes, source_context_id, created_at, updated_at, expires_at, file_id, purpose
 FROM attachments
 WHERE id = $1
 `
@@ -145,6 +147,8 @@ func (q *Queries) GetAttachmentByID(ctx context.Context, id string) (Attachment,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ExpiresAt,
+		&i.FileID,
+		&i.Purpose,
 	)
 	return i, err
 }
@@ -154,13 +158,15 @@ const insertAttachment = `-- name: InsertAttachment :one
 INSERT INTO attachments (
   id, organization_id, workspace_id, task_id, comment_id,
   uploader_type, uploader_id, object_key, object_url,
-  filename, content_type, metadata, size_bytes, expires_at
+  filename, content_type, metadata, size_bytes, expires_at,
+  file_id, purpose
 ) VALUES (
   $1, $2, $3, $4, $5,
   $6, $7, $8, $9,
-  $10, $11, $12, $13, $14
+  $10, $11, $12, $13, $14,
+  $15, $16
 )
-RETURNING id, organization_id, workspace_id, task_id, comment_id, uploader_type, uploader_id, object_key, object_url, filename, content_type, metadata, size_bytes, source_context_id, created_at, updated_at, expires_at
+RETURNING id, organization_id, workspace_id, task_id, comment_id, uploader_type, uploader_id, object_key, object_url, filename, content_type, metadata, size_bytes, source_context_id, created_at, updated_at, expires_at, file_id, purpose
 `
 
 type InsertAttachmentParams struct {
@@ -171,13 +177,15 @@ type InsertAttachmentParams struct {
 	CommentID      pgtype.Text        `json:"comment_id"`
 	UploaderType   string             `json:"uploader_type"`
 	UploaderID     string             `json:"uploader_id"`
-	ObjectKey      string             `json:"object_key"`
+	ObjectKey      pgtype.Text        `json:"object_key"`
 	ObjectUrl      pgtype.Text        `json:"object_url"`
 	Filename       string             `json:"filename"`
 	ContentType    string             `json:"content_type"`
 	Metadata       []byte             `json:"metadata"`
 	SizeBytes      int64              `json:"size_bytes"`
 	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	FileID         pgtype.Text        `json:"file_id"`
+	Purpose        pgtype.Text        `json:"purpose"`
 }
 
 // Attachments on tasks (and optionally comments).
@@ -197,6 +205,8 @@ func (q *Queries) InsertAttachment(ctx context.Context, arg InsertAttachmentPara
 		arg.Metadata,
 		arg.SizeBytes,
 		arg.ExpiresAt,
+		arg.FileID,
+		arg.Purpose,
 	)
 	var i Attachment
 	err := row.Scan(
@@ -217,12 +227,186 @@ func (q *Queries) InsertAttachment(ctx context.Context, arg InsertAttachmentPara
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ExpiresAt,
+		&i.FileID,
+		&i.Purpose,
 	)
 	return i, err
 }
 
+const listAttachmentFileHolds = `-- name: ListAttachmentFileHolds :many
+SELECT a.id, a.file_id, a.purpose
+FROM attachments a
+WHERE a.file_id = ANY($1::text[])
+  AND (
+    (a.task_id IS NOT NULL AND EXISTS (
+      SELECT 1 FROM tasks t WHERE t.id = a.task_id))
+    OR (a.comment_id IS NOT NULL AND EXISTS (
+      SELECT 1 FROM task_comments c WHERE c.id = a.comment_id))
+    OR (a.expires_at IS NOT NULL AND a.expires_at > now())
+    OR EXISTS (
+      SELECT 1 FROM tasks t
+      WHERE t.organization_id = a.organization_id
+        AND t.workspace_id = a.workspace_id
+        AND t.description LIKE '%/attachments/' || a.id || '/%')
+    OR EXISTS (
+      SELECT 1 FROM task_comments c
+      WHERE c.organization_id = a.organization_id
+        AND c.workspace_id = a.workspace_id
+        AND c.body LIKE '%/attachments/' || a.id || '/%')
+  )
+`
+
+type ListAttachmentFileHoldsRow struct {
+	ID      string      `json:"id"`
+	FileID  pgtype.Text `json:"file_id"`
+	Purpose pgtype.Text `json:"purpose"`
+}
+
+// The reference-provider view: for the file ids a collector is considering,
+// which attachment rows still hold them. A row holds its file while it points
+// at a live task or comment, while its staging window is still open, or while
+// a live task description / comment body still embeds the row's attachment
+// URL — the embed survives unbinding, and its row is the only map from the
+// URL back to the file.
+func (q *Queries) ListAttachmentFileHolds(ctx context.Context, fileIds []string) ([]ListAttachmentFileHoldsRow, error) {
+	rows, err := q.db.Query(ctx, listAttachmentFileHolds, fileIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAttachmentFileHoldsRow{}
+	for rows.Next() {
+		var i ListAttachmentFileHoldsRow
+		if err := rows.Scan(&i.ID, &i.FileID, &i.Purpose); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAttachmentFileIDsByComment = `-- name: ListAttachmentFileIDsByComment :many
+SELECT file_id
+FROM attachments
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND comment_id = $3
+  AND file_id IS NOT NULL
+`
+
+type ListAttachmentFileIDsByCommentParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	CommentID      pgtype.Text `json:"comment_id"`
+}
+
+func (q *Queries) ListAttachmentFileIDsByComment(ctx context.Context, arg ListAttachmentFileIDsByCommentParams) ([]pgtype.Text, error) {
+	rows, err := q.db.Query(ctx, listAttachmentFileIDsByComment, arg.OrganizationID, arg.WorkspaceID, arg.CommentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.Text{}
+	for rows.Next() {
+		var file_id pgtype.Text
+		if err := rows.Scan(&file_id); err != nil {
+			return nil, err
+		}
+		items = append(items, file_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAttachmentFileIDsByTask = `-- name: ListAttachmentFileIDsByTask :many
+SELECT file_id
+FROM attachments
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND task_id = $3
+  AND file_id IS NOT NULL
+`
+
+type ListAttachmentFileIDsByTaskParams struct {
+	OrganizationID string      `json:"organization_id"`
+	WorkspaceID    string      `json:"workspace_id"`
+	TaskID         pgtype.Text `json:"task_id"`
+}
+
+// The file ids FileService may release when a task goes away: every file-
+// backed row still bound to it, regardless of which content references the
+// row had. Providers decide holds on their own; this is only the unlink list.
+func (q *Queries) ListAttachmentFileIDsByTask(ctx context.Context, arg ListAttachmentFileIDsByTaskParams) ([]pgtype.Text, error) {
+	rows, err := q.db.Query(ctx, listAttachmentFileIDsByTask, arg.OrganizationID, arg.WorkspaceID, arg.TaskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.Text{}
+	for rows.Next() {
+		var file_id pgtype.Text
+		if err := rows.Scan(&file_id); err != nil {
+			return nil, err
+		}
+		items = append(items, file_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAttachmentFileRefsByIDs = `-- name: ListAttachmentFileRefsByIDs :many
+SELECT id, file_id, purpose
+FROM attachments
+WHERE organization_id = $1
+  AND workspace_id = $2
+  AND file_id IS NOT NULL
+  AND id = ANY($3::text[])
+`
+
+type ListAttachmentFileRefsByIDsParams struct {
+	OrganizationID string   `json:"organization_id"`
+	WorkspaceID    string   `json:"workspace_id"`
+	AttachmentIds  []string `json:"attachment_ids"`
+}
+
+type ListAttachmentFileRefsByIDsRow struct {
+	ID      string      `json:"id"`
+	FileID  pgtype.Text `json:"file_id"`
+	Purpose pgtype.Text `json:"purpose"`
+}
+
+// FileService window: the file ids and upload purposes of rows that are being
+// bound, so task create can claim them grouped by purpose in the same
+// transaction. Legacy rows (file_id NULL) never reach FileService.
+func (q *Queries) ListAttachmentFileRefsByIDs(ctx context.Context, arg ListAttachmentFileRefsByIDsParams) ([]ListAttachmentFileRefsByIDsRow, error) {
+	rows, err := q.db.Query(ctx, listAttachmentFileRefsByIDs, arg.OrganizationID, arg.WorkspaceID, arg.AttachmentIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAttachmentFileRefsByIDsRow{}
+	for rows.Next() {
+		var i ListAttachmentFileRefsByIDsRow
+		if err := rows.Scan(&i.ID, &i.FileID, &i.Purpose); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAttachmentsByTask = `-- name: ListAttachmentsByTask :many
-SELECT id, organization_id, workspace_id, task_id, comment_id, uploader_type, uploader_id, object_key, object_url, filename, content_type, metadata, size_bytes, source_context_id, created_at, updated_at, expires_at
+SELECT id, organization_id, workspace_id, task_id, comment_id, uploader_type, uploader_id, object_key, object_url, filename, content_type, metadata, size_bytes, source_context_id, created_at, updated_at, expires_at, file_id, purpose
 FROM attachments
 WHERE organization_id = $1
   AND workspace_id = $2
@@ -263,6 +447,8 @@ func (q *Queries) ListAttachmentsByTask(ctx context.Context, arg ListAttachments
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.ExpiresAt,
+			&i.FileID,
+			&i.Purpose,
 		); err != nil {
 			return nil, err
 		}

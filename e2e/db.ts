@@ -1,3 +1,6 @@
+import { existsSync, readdirSync } from "node:fs";
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { Client } from "pg";
 
 /**
@@ -75,5 +78,149 @@ export async function assignWorkspaceTasksDueToday(email: string, orgSlug: strin
       [email, orgSlug, wsSlug],
     );
     return r.rows.map((row) => row.title);
+  });
+}
+
+/**
+ * Moves an organization's finished audit exports `hours` into the past, so a
+ * spec can watch the 24h download window lapse instead of waiting a day. The
+ * app reads `completed_at`, so this is the same state the clock would produce.
+ * Returns how many jobs moved.
+ */
+export async function backdateAuditExports(orgSlug: string, hours: number): Promise<number> {
+  return withClient(async (c) => {
+    const r = await c.query(
+      `UPDATE audit_exports ae
+          SET completed_at = ae.completed_at - make_interval(hours => $2::int),
+              expires_at = ae.expires_at - make_interval(hours => $2::int)
+         FROM organizations o
+        WHERE o.slug = $1 AND ae.organization_id = o.id AND ae.completed_at IS NOT NULL`,
+      [orgSlug, hours],
+    );
+    return r.rowCount ?? 0;
+  });
+}
+
+export interface ChatFileMessageRef {
+  roomId: string;
+  messageId: string;
+  filename: string;
+}
+
+/**
+ * The newest file message of a workspace, straight from the database: the ids
+ * an attacker would have to know to guess a download URL. Used by the
+ * two-organization case in files-chat.spec.ts to prove the ids alone are not
+ * enough.
+ */
+export async function latestChatFileMessage(orgSlug: string, wsSlug: string): Promise<ChatFileMessageRef> {
+  return withClient(async (c) => {
+    const r = await c.query<{ room_id: string; message_id: string; filename: string }>(
+      `SELECT m.room_id, m.id AS message_id, COALESCE(m.metadata->>'filename', '') AS filename
+         FROM chat_messages m
+         JOIN workspaces w ON w.id = m.workspace_id
+         JOIN organizations o ON o.id = w.organization_id
+        WHERE o.slug = $1 AND w.slug = $2 AND m.kind = 'file' AND m.deleted_at IS NULL
+        ORDER BY m.created_at DESC
+        LIMIT 1`,
+      [orgSlug, wsSlug],
+    );
+    const row = r.rows[0];
+    return row
+      ? { roomId: row.room_id, messageId: row.message_id, filename: row.filename }
+      : { roomId: "", messageId: "", filename: "" };
+  });
+}
+
+const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+/** ULID-shaped id, so seeded rows look like the ids the server mints. */
+function e2eUlid(): string {
+  let time = Date.now();
+  const stamp = Array.from({ length: 10 }, () => {
+    const char = CROCKFORD[time % 32];
+    time = Math.floor(time / 32);
+    return char;
+  })
+    .reverse()
+    .join("");
+  const random = Array.from({ length: 16 }, () => CROCKFORD[Math.floor(Math.random() * 32)]).join("");
+  return `${stamp}${random}`;
+}
+
+/** Repo root of the checkout under test (the e2e working directory is <root>/e2e). */
+function repoRoot(): string {
+  let dir = process.cwd();
+  for (let i = 0; i < 5; i += 1) {
+    if (existsSync(join(dir, "server")) && existsSync(join(dir, "packages"))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  throw new Error(`repo root not found above ${process.cwd()}`);
+}
+
+/**
+ * The app's local-storage directory. This process does not inherit the server's
+ * LOCAL_UPLOAD_DIR (the app reads it from .env.worktree), so a caller can pass
+ * E2E_UPLOAD_DIR; otherwise the single server/data/uploads-* directory of the
+ * checkout is used, which is what init-worktree-env.sh gives each worktree.
+ */
+function localUploadDir(): string {
+  const configured = process.env.E2E_UPLOAD_DIR ?? process.env.LOCAL_UPLOAD_DIR;
+  const root = repoRoot();
+  if (configured) {
+    // `make start` runs the server from <root>/server, so a relative
+    // LOCAL_UPLOAD_DIR (server/data/...) lands under server/server/data; a
+    // binary started from the repo root keeps it under server/data. Prefer the
+    // directory that exists, which is the one the app is writing to.
+    const candidates = isAbsolute(configured)
+      ? [configured]
+      : [resolve(join(root, "server"), configured), resolve(root, configured)];
+    return candidates.find((dir) => existsSync(dir)) ?? candidates[0];
+  }
+  // The dev server runs from <root>/server, so its relative LOCAL_UPLOAD_DIR
+  // (server/data/...) lands in server/server/data; a binary started from the
+  // repo root keeps it in server/data.
+  const dataDirs = [join(root, "server", "data"), join(root, "server", "server", "data")];
+  const candidates = dataDirs.flatMap((dataDir) =>
+    existsSync(dataDir)
+      ? readdirSync(dataDir, { withFileTypes: true })
+          .filter((entry) => entry.isDirectory() && entry.name.startsWith("uploads"))
+          .map((entry) => join(dataDir, entry.name))
+      : [],
+  );
+  if (candidates.length !== 1) {
+    throw new Error(
+      `expected exactly one uploads-* directory for the app under test, found ${candidates.length}: set E2E_UPLOAD_DIR`,
+    );
+  }
+  return candidates[0];
+}
+
+/** Writes the object a recording provider would have uploaded for `key`. */
+export async function writeLocalObject(key: string, body: Buffer): Promise<void> {
+  const target = join(localUploadDir(), key);
+  await mkdir(dirname(target), { recursive: true });
+  await writeFile(target, body);
+}
+
+/**
+ * Seeds the COMPLETE recording row a finished LiveKit egress leaves behind, so
+ * the playback paths run without an egress provider. Fixture setup only: it
+ * skips the recording command and its audit row on purpose.
+ */
+export async function seedCompletedMeetingRecording(meetingId: string, fileUrl: string): Promise<string> {
+  const id = e2eUlid();
+  return withClient(async (c) => {
+    const result = await c.query<{ id: string }>(
+      `INSERT INTO meeting_recordings (id, meeting_id, egress_id, status, file_url, started_by, started_at, ended_at)
+       SELECT $1, m.id, $3, 'COMPLETE', $4, m.host_user_id, now() - interval '5 minutes', now() - interval '1 minute'
+         FROM meetings m WHERE m.id = $2
+       RETURNING id`,
+      [id, meetingId, `e2e-egress-${id}`, fileUrl],
+    );
+    if (result.rowCount !== 1) throw new Error(`seedCompletedMeetingRecording: no meeting ${meetingId}`);
+    return result.rows[0].id;
   });
 }

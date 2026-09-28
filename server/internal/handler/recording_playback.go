@@ -43,12 +43,25 @@ func (h *handlers) streamRecordingObject(w http.ResponseWriter, r *http.Request,
 		respondError(w, http.StatusNotFound, "not_found", "recording file not found")
 		return
 	}
+	h.streamRecordingRange(w, r, size, recordingID, func(offset, length int64) (io.ReadCloser, error) {
+		return s3Store.GetReaderRange(r.Context(), key, offset, offset+length-1)
+	})
+}
+
+// streamRecordingRange serves one recording object with optional byte-range
+// support; open yields the window [offset, offset+length) — the S3 branch maps
+// it onto GetReaderRange, the FileService branch onto the service's Open. The
+// response shape is identical on both paths.
+func (h *handlers) streamRecordingRange(
+	w http.ResponseWriter, r *http.Request, size int64, recordingID string,
+	open func(offset, length int64) (io.ReadCloser, error),
+) {
 	start, end, ok := parseByteRange(r.Header.Get("Range"), size)
 	if !ok {
 		respondError(w, http.StatusRequestedRangeNotSatisfiable, "invalid_range", "invalid byte range")
 		return
 	}
-	reader, err := s3Store.GetReaderRange(r.Context(), key, start, end)
+	reader, err := open(start, end-start+1)
 	if err != nil {
 		h.Log.Error("recording read", "err", err, "recording_id", recordingID)
 		respondError(w, http.StatusNotFound, "not_found", "recording file not found")

@@ -290,7 +290,7 @@ func (q *Queries) ListMemberWorkspacesInOrg(ctx context.Context, arg ListMemberW
 
 const listOrganizationMembers = `-- name: ListOrganizationMembers :many
 SELECT m.organization_id, m.user_id, m.role, m.created_at, m.deactivated_at, m.deactivated_by, m.invited_by,
-       u.email, u.display_name, u.avatar_url
+       u.email, u.display_name, u.avatar_url, u.avatar_file_id
 FROM organization_members m JOIN users u ON u.id = m.user_id
 WHERE m.organization_id = $1
   AND (
@@ -323,6 +323,7 @@ type ListOrganizationMembersRow struct {
 	Email          string             `json:"email"`
 	DisplayName    string             `json:"display_name"`
 	AvatarUrl      pgtype.Text        `json:"avatar_url"`
+	AvatarFileID   pgtype.Text        `json:"avatar_file_id"`
 }
 
 // The directory's admin view: membership plus the identity columns, keyset
@@ -353,6 +354,7 @@ func (q *Queries) ListOrganizationMembers(ctx context.Context, arg ListOrganizat
 			&i.Email,
 			&i.DisplayName,
 			&i.AvatarUrl,
+			&i.AvatarFileID,
 		); err != nil {
 			return nil, err
 		}

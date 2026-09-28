@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"path"
 	"strings"
 	"unicode/utf8"
@@ -12,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
+	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -30,9 +32,12 @@ var supportedChatFileContentTypes = map[string]string{
 	"text/plain":      "txt",
 }
 
-// FileMessageInfo is private-object metadata for a stored chat file.
+// FileMessageInfo is private-object metadata for a stored chat file. FileID
+// is the FileService reference on rows written after the migration; ObjectKey
+// survives only on rows written before it.
 type FileMessageInfo struct {
 	Filename    string
+	FileID      string
 	ObjectKey   string
 	ContentType string
 	SizeBytes   int64
@@ -209,6 +214,55 @@ func (s *ChatService) CreateFileMessage(
 	return chatMessageRowFromDB(msg, prep.senderName), true, nil
 }
 
+// SendFileMessageInput is a chat file send on the FileService path: the bytes
+// go to FileService, which verifies size and type under the chat_attachment
+// policy; the service claims the file and writes the message in one
+// transaction. Selected when ChatService.files is wired (T7); the legacy
+// Prepare/Create pair stays for the unwired path until the module cutover.
+type SendFileMessageInput struct {
+	Filename         string
+	Body             io.Reader
+	ReplyToMessageID *string
+	ClientMsgID      string
+}
+
+// SendFileMessage uploads the file through FileService and commits claim +
+// message in one transaction. A replayed client_msg_id with the same file
+// returns the earlier message; a different command under the key is
+// idempotency_conflict.
+func (s *ChatService) SendFileMessage(
+	ctx context.Context,
+	userID, workspaceID, roomID string,
+	in SendFileMessageInput,
+) (ChatMessageRow, error) {
+	in.ClientMsgID = strings.TrimSpace(in.ClientMsgID)
+	in.Filename = sanitizeChatFilename(in.Filename)
+	if in.Body == nil {
+		return ChatMessageRow{}, Invalid("tệp là bắt buộc")
+	}
+	if err := validateClientMsgID(in.ClientMsgID); err != nil {
+		return ChatMessageRow{}, err
+	}
+	return s.sendChatMedia(ctx, userID, workspaceID, roomID, chatMediaCommand{
+		purpose:     files.ChatAttachment,
+		kind:        "file",
+		filename:    in.Filename,
+		body:        in.Body,
+		replyToID:   in.ReplyToMessageID,
+		clientMsgID: in.ClientMsgID,
+	})
+}
+
+// OpenChatFileMessage authorizes the read and opens the file bytes through
+// FileService. An empty Reader means a pre-migration row whose bytes still
+// sit behind the legacy storage object key.
+func (s *ChatService) OpenChatFileMessage(
+	ctx context.Context,
+	userID, workspaceID, roomID, messageID string,
+) (ChatMessageRow, files.Reader, error) {
+	return s.openChatMediaMessage(ctx, userID, workspaceID, roomID, messageID, "file")
+}
+
 // GetFileMessage authorizes room/message and returns private object metadata.
 func (s *ChatService) GetFileMessage(
 	ctx context.Context,
@@ -218,18 +272,22 @@ func (s *ChatService) GetFileMessage(
 	if err != nil {
 		return ChatMessageRow{}, err
 	}
-	if row.Kind != "file" || row.File == nil || row.File.ObjectKey == "" {
+	if row.Kind != "file" || row.File == nil || (row.File.ObjectKey == "" && row.File.FileID == "") {
 		return ChatMessageRow{}, ErrNotFound
 	}
 	return row, nil
 }
 
+// fileMessageFromMetadata reads rows written by either path: a post-migration
+// row references the file by file_id, a pre-migration row by object_key; both
+// carry the verified name/type/size snapshot.
 func fileMessageFromMetadata(kind string, raw []byte) *FileMessageInfo {
 	if kind != "file" || len(raw) == 0 {
 		return nil
 	}
 	var meta struct {
 		Filename    string `json:"filename"`
+		FileID      string `json:"file_id"`
 		ObjectKey   string `json:"object_key"`
 		ContentType string `json:"content_type"`
 		SizeBytes   int64  `json:"size_bytes"`
@@ -238,13 +296,15 @@ func fileMessageFromMetadata(kind string, raw []byte) *FileMessageInfo {
 		return nil
 	}
 	filename := sanitizeChatFilename(meta.Filename)
+	objectKey := strings.TrimSpace(meta.ObjectKey)
+	fileID := strings.TrimSpace(meta.FileID)
 	if validateFileMessageInput(PrepareFileMessageInput{
 		Filename: filename, ContentType: meta.ContentType, SizeBytes: meta.SizeBytes,
-	}) != nil || strings.TrimSpace(meta.ObjectKey) == "" {
+	}) != nil || (objectKey == "" && fileID == "") {
 		return nil
 	}
 	return &FileMessageInfo{
-		Filename: filename, ObjectKey: meta.ObjectKey,
+		Filename: filename, FileID: fileID, ObjectKey: objectKey,
 		ContentType: meta.ContentType, SizeBytes: meta.SizeBytes,
 	}
 }

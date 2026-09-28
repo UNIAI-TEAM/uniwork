@@ -24,6 +24,10 @@
 // storage, not ACL and not deployed fault coverage; no offline/self-contained
 // claim is made.
 //
+// (2026-09-27, UNI-748: the boundary's in-memory ledger stays the G0 proof
+// model; production object lifecycle is FileService per FS-C1 — intent +
+// file_id, ClaimInTx/ReleaseInTx, FileService T5 GC. See engine-contract.mjs.)
+//
 // Node 22 builtins only. The boundary and frozen launcher are imported. This
 // revision validates checksum/length before storage in the boundary; the launcher
 // stays unchanged. The harness boots/stops the host and proves port release.

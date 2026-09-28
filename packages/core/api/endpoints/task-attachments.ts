@@ -26,9 +26,11 @@ export async function listTaskAttachments(taskId: string): Promise<Attachment[]>
 export async function uploadTaskAttachment(
   taskId: string,
   file: File,
+  purpose?: string,
 ): Promise<Attachment | null> {
   const form = new FormData();
   form.append("file", file);
+  if (purpose) form.append("purpose", purpose);
   const raw = await request(`/api/v1/tasks/${enc(taskId)}/attachments`, {
     method: "POST",
     body: form,
@@ -41,9 +43,11 @@ export async function uploadTaskAttachment(
 export async function uploadWorkspaceAttachment(
   workspaceId: string,
   file: File,
+  purpose?: string,
 ): Promise<Attachment | null> {
   const form = new FormData();
   form.append("file", file);
+  if (purpose) form.append("purpose", purpose);
   const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/attachments`, {
     method: "POST",
     body: form,

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -186,7 +187,11 @@ func (h *handlers) listRecordings(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]sdo.RecordingDTO, 0, len(recs))
 	for _, rec := range recs {
-		if guestID != "" && !rec.FileUrl.Valid {
+		// Guests see a recording only once it has a file: legacy rows carry
+		// file_url when the egress finished; FS rows carry file_id but the
+		// object exists only once the row reached COMPLETE (UNI-746).
+		if guestID != "" && !rec.FileUrl.Valid &&
+			!(rec.Status == service.RecordingComplete && strings.TrimSpace(rec.FileID.String) != "") {
 			continue
 		}
 		out = append(out, toRecordingDTO(rec, guestID != ""))
@@ -195,8 +200,8 @@ func (h *handlers) listRecordings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handlers) getMeetingRecordingPlaybackURL(w http.ResponseWriter, r *http.Request) {
-	presigner, ok := h.Storage.(storage.DownloadPresigner)
-	if !ok {
+	presigner, presignOK := h.Storage.(storage.DownloadPresigner)
+	if !presignOK && !h.Meetings.FileServiceEnabled() {
 		respondError(w, http.StatusNotImplemented, "storage_unavailable", "file storage is not configured")
 		return
 	}
@@ -211,6 +216,24 @@ func (h *handlers) getMeetingRecordingPlaybackURL(w http.ResponseWriter, r *http
 	)
 	if err != nil {
 		h.mapServiceError(w, err)
+		return
+	}
+	if h.Meetings.FileServiceEnabled() && strings.TrimSpace(rec.FileID.String) != "" {
+		target, err := h.Meetings.ResolveMeetingRecordingPlaybackURL(
+			r.Context(), userID, guestID, meetingID, rec.ID,
+		)
+		if err != nil {
+			h.mapServiceError(w, err)
+			return
+		}
+		respondJSON(w, http.StatusOK, sdo.MeetingRecordingPlaybackSDO{
+			PlaybackURL: target.URL,
+			ExpiresAt:   target.ExpiresAt.Format(time.RFC3339),
+		})
+		return
+	}
+	if !presignOK {
+		respondError(w, http.StatusNotImplemented, "storage_unavailable", "file storage is not configured")
 		return
 	}
 	key := h.Storage.KeyFromURL(rec.FileUrl.String)
@@ -244,12 +267,31 @@ func (h *handlers) streamMeetingRecording(w http.ResponseWriter, r *http.Request
 		h.mapServiceError(w, err)
 		return
 	}
+	if h.Meetings.FileServiceEnabled() && strings.TrimSpace(rec.FileID.String) != "" {
+		h.streamMeetingRecordingFile(w, r, userID, guestID, meetingID, rec.ID)
+		return
+	}
 	key := h.Storage.KeyFromURL(rec.FileUrl.String)
 	if key == "" {
 		respondError(w, http.StatusNotFound, "not_found", "recording file not found")
 		return
 	}
 	h.streamRecordingObject(w, r, key, rec.ID)
+}
+
+// streamMeetingRecordingFile serves an FS-backed meeting recording: the
+// service authorizes and sizes the file, this route does the Range math, and
+// Open carries the byte window (UNI-746).
+func (h *handlers) streamMeetingRecordingFile(w http.ResponseWriter, r *http.Request, userID, guestID, meetingID, recordingID string) {
+	size, err := h.Meetings.MeetingRecordingFileSize(r.Context(), userID, guestID, meetingID, recordingID)
+	if err != nil {
+		h.Log.Error("recording head", "err", err, "recording_id", recordingID)
+		h.mapServiceError(w, err)
+		return
+	}
+	h.streamRecordingRange(w, r, size, recordingID, func(offset, length int64) (io.ReadCloser, error) {
+		return h.Meetings.OpenMeetingRecording(r.Context(), userID, guestID, meetingID, recordingID, offset, length)
+	})
 }
 
 func (h *handlers) meetingCalendar(w http.ResponseWriter, r *http.Request) {

@@ -591,6 +591,7 @@
         "expires": "Hết hạn",
         "format_jsonl": "JSON Lines",
         "create_failed": "Không tạo được bản xuất. Thử lại sau ít phút.",
+        "download_failed": "Không tải được bản xuất. Thử lại sau ít phút.",
         "load_error": "Không tải được danh sách bản xuất.",
         "history_label": "Các bản xuất gần đây",
         "error_range_too_large": "Khoảng thời gian quá lớn. Chia nhỏ rồi xuất lại.",

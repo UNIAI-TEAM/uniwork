@@ -1,8 +1,17 @@
 -- name: InsertChatVoiceRecording :one
 INSERT INTO chat_voice_recordings (
-  id, organization_id, workspace_id, room_id, call_id, egress_id, started_by
-) VALUES ($1, $2, $3, $4, $5, $6, $7)
+  id, organization_id, workspace_id, room_id, call_id, egress_id, started_by, file_id
+) VALUES ($1, $2, $3, $4, $5, $6, $7, sqlc.narg('file_id'))
 RETURNING *;
+
+-- name: GetChatVoiceRecordingByEgressID :one
+SELECT * FROM chat_voice_recordings WHERE egress_id = $1 ORDER BY started_at DESC LIMIT 1;
+
+-- name: ListChatVoiceRecordingFileHolds :many
+-- FS-C1 section 6: a live recording row holds its file.
+SELECT DISTINCT file_id
+FROM chat_voice_recordings
+WHERE file_id = ANY($1::text[]);
 
 -- name: GetActiveChatVoiceRecording :one
 SELECT * FROM chat_voice_recordings

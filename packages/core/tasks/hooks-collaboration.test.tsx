@@ -177,7 +177,9 @@ describe("task collaboration + attachment hooks", () => {
     invalidate.mockClear();
     const upload = renderHook(() => useUploadTaskAttachment("ws1", "t1"), { wrapper });
     await act(async () => {
-      await upload.result.current.mutateAsync(new File(["hi"], "a.txt", { type: "text/plain" }));
+      await upload.result.current.mutateAsync({
+        file: new File(["hi"], "a.txt", { type: "text/plain" }),
+      });
     });
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: taskKeys.attachments("ws1", "t1"),

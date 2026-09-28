@@ -22,6 +22,18 @@
 // real engines later; that wiring is not done here and these model tests do not
 // fulfil the task-4.4 acceptance.
 //
+// Object lifecycle note (2026-09-27, UNI-748): the in-memory ledger below
+// (createLedger, intended -> stored -> committed | orphaned -> deleted) is kept
+// as the G0 proof model of the ordering rules in DOC-004 §8. In production that
+// role belongs to FileService per FS-C1: intent is an upload session or
+// RegisterProviderOutput carrying a file_id, a version commit claims via
+// ClaimInTx inside the same transaction, purge/orphan release goes through
+// ReleaseInTx, and a single GC owner (FileService T5) re-checks every
+// ReferenceProvider before deleting bytes. There is no Documents-owned object
+// ledger in production, and a FileService test is NOT G0 acceptance: the cases
+// here keep proving the G0 contract, and the editor/fidelity evidence is
+// untouched.
+//
 // Node 22 built-ins only. No product imports, no third-party dependency.
 //
 //   node scripts/office-g0/engine-contract.mjs
@@ -543,7 +555,9 @@ export function validateEnvelope(envelope) {
  *   * DeleteObject SURFACES its error (server/internal/storage/storage.go's
  *     DeleteObject is exactly 'Delete with the error surfaced'), and
  *   * ObjectURL(key) is a pure function of configuration, so a ledger row can
- *     record the URL before the object exists.
+ *     record the URL before the object exists. (In production the pre-write
+ *     record is a FileService intent — upload session or RegisterProviderOutput
+ *     — keyed by file_id, not a URL.)
  * deleteFails lets a case make the reconciler fail and prove it retries instead of
  * pretending success.
  */
@@ -646,6 +660,13 @@ export function createFakeEngine({ now = () => 0 } = {}) {
  * survives a simulated process restart iff the caller keeps the same ledger
  * object. It records the intended object URL BEFORE the object exists and moves
  * through intended -> stored -> committed | orphaned -> deleted.
+ *
+ * Production replaces the object half of this model with FileService (FS-C1,
+ * 2026-09-27 / UNI-748): the recorded intent is an upload session or
+ * RegisterProviderOutput carrying a file_id, "committed" is ClaimInTx inside
+ * the version-commit transaction, and "orphaned -> deleted" is the FileService
+ * GC (T5) re-checking every ReferenceProvider first. The states stay here
+ * because they are the G0 proof model the DOC-004 §12.1 case table cites.
  */
 export function createLedger({ objectStore }) {
   const jobs = new Map();
@@ -1302,8 +1323,11 @@ export function createBoundary({ now = () => 0, engine, objectStore, documents, 
     }
 
     const outputKey = "office/jobs/" + job.job_id + "/" + accepted.format + ".out";
-    // Object is put BEFORE any DB commit. The ledger records the intended URL
-    // first, exactly as Storage.ObjectURL lets the media ledger do today.
+    // Object is put BEFORE any DB commit. The model ledger records the intent
+    // first — the role Storage.ObjectURL played for the old media ledger. In
+    // production (FS-C1) the equivalent is RegisterProviderOutput -> file_id at
+    // job start and ClaimInTx inside the commit transaction below; no URL or
+    // object key is persisted in business tables.
     book.record({ job_id: job.job_id, object_key: outputKey, object_state: "intended" });
     store.put(outputKey, bytes);
     job.output_key = outputKey;

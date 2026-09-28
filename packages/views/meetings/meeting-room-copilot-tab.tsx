@@ -82,7 +82,7 @@ export function MeetingRoomCopilotTab({
   const aiOn = caps?.ai_summary === true;
   // The live recording state is the stage header's REC badge; this panel
   // only offers a finished recording to play back.
-  const completedRecording = (recordings ?? []).find((r) => r.file_url);
+  const completedRecording = (recordings ?? []).find((r) => r.status === "COMPLETE");
   const panelBaseId = useId();
   const sectionPanelId = (id: CopilotSection) => `${panelBaseId}-section-${id}`;
 
@@ -315,7 +315,7 @@ export function MeetingRoomCopilotTab({
           </section>
         ) : null}
 
-        {completedRecording?.file_url ? (
+        {completedRecording ? (
           <section className="space-y-2">
             <Button type="button" variant="secondary" className="w-full" onClick={() => setPlaybackId(completedRecording.id)}>
               {t("meetings.recording_play")}

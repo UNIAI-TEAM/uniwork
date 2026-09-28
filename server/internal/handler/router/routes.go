@@ -255,6 +255,7 @@ type Routes struct {
 	ListAuditExports    http.HandlerFunc
 	CreateAuditExport   http.HandlerFunc
 	GetAuditExport      http.HandlerFunc
+	DownloadAuditExport http.HandlerFunc
 
 	ListMeetings                   http.HandlerFunc
 	CreateMeeting                  http.HandlerFunc
@@ -383,4 +384,9 @@ type Routes struct {
 	StreamChatVoiceRecording         http.HandlerFunc
 	SignalChatTyping                 http.HandlerFunc
 	SignalChatPresence               http.HandlerFunc
+
+	// FileService read path (T4): the caller's staged uploads and the
+	// ticketed proxy route (router/files.go).
+	ResolveWorkspaceFiles http.HandlerFunc
+	GetFileContent        http.HandlerFunc
 }

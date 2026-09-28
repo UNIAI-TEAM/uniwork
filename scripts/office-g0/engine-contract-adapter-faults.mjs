@@ -1,4 +1,6 @@
 // G0 only: real HTTP engine transport; reference auth/store/commit remain modeled.
+// (2026-09-27, UNI-748: the boundary's in-memory ledger stays the G0 proof model;
+// production object lifecycle is FileService per FS-C1 — see engine-contract.mjs.)
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
