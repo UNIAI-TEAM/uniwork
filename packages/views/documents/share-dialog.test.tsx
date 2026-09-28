@@ -349,6 +349,8 @@ describe("ShareDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: t("documents.share.link_create") }));
     const url = await screen.findByTestId("share-created-url");
     expect(url).toHaveTextContent("https://app.uniwork.vn/share/raw-token");
+    // The only chance to keep the URL takes focus, so it is never missed.
+    await waitFor(() => expect(screen.getByRole("button", { name: t("documents.share.link_copy") })).toHaveFocus());
     expect(screen.getByText(t("documents.share.link_url_once"))).toBeInTheDocument();
     expect(screen.getByText(t("documents.share.link_lost_hint"))).toBeInTheDocument();
   });

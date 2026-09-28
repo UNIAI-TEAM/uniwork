@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
+import { configureRuntime, resetRuntimeConfig } from "@uniwork/core/runtime-config";
 import { requestMock, wrap } from "../test/api-mock";
 import { PublicDocumentView } from "./public-document-view";
 
@@ -24,10 +25,12 @@ const pageBody = {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  resetRuntimeConfig();
 });
 
 describe("PublicDocumentView", () => {
   it("loads the token-scoped document and renders the sanitized JSON read-only", async () => {
+    configureRuntime({ apiUrl: "https://api.uniwork.test" });
     requestMock.mockReset();
     requestMock.mockImplementation((path: string) => {
       if (path === `/api/v1/public/documents/${TOKEN}`) return Promise.resolve(pageBody);
@@ -37,9 +40,10 @@ describe("PublicDocumentView", () => {
 
     expect(await screen.findByText("Kế hoạch Q4")).toBeInTheDocument();
     expect(await screen.findByText("Nội dung công khai")).toBeInTheDocument();
-    // The image resolves through the token route, never the authenticated one.
+    // The image resolves through the token route on the API origin, never the
+    // authenticated one and never this app's origin.
     const img = await screen.findByRole("img", { name: "Ảnh minh hoạ" });
-    expect(img).toHaveAttribute("src", `/api/v1/public/documents/${TOKEN}/assets/a1`);
+    expect(img).toHaveAttribute("src", `https://api.uniwork.test/api/v1/public/documents/${TOKEN}/assets/a1`);
     expect(screen.getByText(t("documents.public.shared_via"))).toBeInTheDocument();
   });
 
@@ -73,6 +77,7 @@ describe("PublicDocumentView", () => {
   });
 
   it("offers files as a download only, never an inline render", async () => {
+    configureRuntime({ apiUrl: "https://api.uniwork.test" });
     requestMock.mockReset();
     requestMock.mockImplementation((path: string) => {
       if (path === `/api/v1/public/documents/${TOKEN}`) {
@@ -80,7 +85,8 @@ describe("PublicDocumentView", () => {
           document: {
             title: "Tài liệu HTML",
             kind: "file",
-            download_url: `/api/v1/public/documents/${TOKEN}/download`,
+            // A payload-chosen URL is never used as the href.
+            download_url: "https://elsewhere.example/steal",
           },
         });
       }
@@ -90,7 +96,7 @@ describe("PublicDocumentView", () => {
 
     expect(await screen.findByText(t("documents.public.file_title"))).toBeInTheDocument();
     const link = screen.getByRole("link", { name: t("documents.public.file_download") });
-    expect(link).toHaveAttribute("href", `/api/v1/public/documents/${TOKEN}/download`);
+    expect(link).toHaveAttribute("href", `https://api.uniwork.test/api/v1/public/documents/${TOKEN}/download`);
     // HTML is never rendered from the app origin: there is no iframe or
     // inline viewer on this page.
     await waitFor(() => expect(document.querySelector("iframe")).toBeNull());

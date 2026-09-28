@@ -70,6 +70,7 @@ export function DocumentsSettings() {
 
   const linksKnown = settings.isSuccess && !!settings.data;
   const linksEnabled = settings.data?.public_links_enabled ?? false;
+  const busy = settings.isPending || setLinks.isPending;
 
   return (
     <SettingsTab title={t("title")} description={t("description")}>
@@ -125,10 +126,14 @@ export function DocumentsSettings() {
               <Switch
                 aria-label={t("links_toggle_label")}
                 checked={linksEnabled}
-                aria-busy={settings.isPending || setLinks.isPending || undefined}
+                aria-busy={busy || undefined}
+                aria-disabled={busy || undefined}
                 disabled={subscription.isLoading}
                 className="aria-busy:opacity-60 pointer-coarse:after:-inset-y-[13px]"
                 onCheckedChange={(next) => {
+                  // One write at a time, and never before the read settles; a
+                  // failed read stays writable on purpose (links_state_unknown).
+                  if (busy) return;
                   void setLinks.mutateAsync(next === true).catch(() => undefined);
                 }}
               />

@@ -146,7 +146,7 @@ export function DocumentDetailView({
             <DocumentActionsMenu
               wsId={wsId}
               doc={query.data}
-              documentHrefFor={documentHref ?? ((id) => `${libraryHref}/${id}`)}
+              documentHrefFor={documentHref}
               onArchived={onBackToList}
             />
           }

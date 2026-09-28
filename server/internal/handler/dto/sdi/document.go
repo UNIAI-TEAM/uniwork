@@ -125,7 +125,6 @@ type UpdateDocumentCommentSDI struct {
 
 // ReactionSDI is reused from task comments for the document reaction routes
 // (POST|DELETE /documents/{documentID}/comments/{commentID}/reactions).
-
 // --- G1-05b (UNI-679, C-01 §5.1/§5.3/§5.4) --------------------------------
 
 // ListDocumentsSDI documents the query params of GET

@@ -192,6 +192,11 @@ describe("documents-sharing endpoints", () => {
     await expect(setDocumentPublicLinks("o1", true)).resolves.toBeNull();
   });
 
+  it.each(malformedBodies)("getDocumentSettings degrades %#", async (body) => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    await expect(getDocumentSettings("o1")).resolves.toBeNull();
+  });
+
   it("a link answer without the token is not verifiable", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ link: link(), url: "/share/x" }));
     await expect(createDocumentLink("d1")).resolves.toBeNull();

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Copy, Link2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { apiErrorMessage } from "@uniwork/core/api";
@@ -43,10 +43,19 @@ export function ShareLinksSection({ wsId, doc, onOpenSettings, locale }: ShareLi
   const [created, setCreated] = useState<{ url: string } | null>(null);
   const [createError, setCreateError] = useState<{ text: string; settings?: boolean } | null>(null);
   const [copied, setCopied] = useState(false);
+  const copyRef = useRef<HTMLButtonElement>(null);
   const access = useDocumentShares(wsId, doc.id);
   const createLink = useCreateDocumentLink(wsId, doc.id);
   const revokeLink = useRevokeDocumentLink(wsId, doc.id);
   const links = access.data?.links ?? [];
+
+  // The raw URL is shown once: bring it into view and put focus on its copy
+  // action so the only chance to keep it is never below the fold.
+  useEffect(() => {
+    if (!created) return;
+    copyRef.current?.scrollIntoView?.({ block: "nearest" });
+    copyRef.current?.focus();
+  }, [created]);
   const now = Date.now();
 
   const submitCreate = async () => {
@@ -100,7 +109,7 @@ export function ShareLinksSection({ wsId, doc, onOpenSettings, locale }: ShareLi
           </p>
           <p className="text-caption text-muted-foreground">{t("documents.share.link_url_once")}</p>
           <div>
-            <Button type="button" variant="outline" size="sm" onClick={copy}>
+            <Button ref={copyRef} type="button" variant="default" size="sm" onClick={copy}>
               {copied ? <Check aria-hidden className="size-3.5" /> : <Copy aria-hidden className="size-3.5" />}
               {copied ? t("documents.share.link_copied") : t("documents.share.link_copy")}
             </Button>

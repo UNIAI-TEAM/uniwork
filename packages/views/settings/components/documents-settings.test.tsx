@@ -135,6 +135,38 @@ describe("DocumentsSettings", () => {
     await waitFor(() => expect(toggle).toHaveAttribute("aria-checked", "false"));
   });
 
+  it("sends one write at a time: a second flip while saving is ignored", async () => {
+    const puts: unknown[] = [];
+    let release: (value: unknown) => void = () => undefined;
+    requestMock.mockReset();
+    requestMock.mockImplementation((path: string, opts?: { method?: string; body?: unknown }) => {
+      if (path === "/api/v1/orgs/acme/members/me") return Promise.resolve({ role: "owner" });
+      if (path === `/api/v1/orgs/${ORG}/billing`) return Promise.resolve(subscription);
+      if (path === `/api/v1/orgs/${ORG}/documents/settings`) {
+        if (opts?.method === "PUT") {
+          puts.push(opts.body);
+          return new Promise((resolve) => {
+            release = resolve;
+          });
+        }
+        return Promise.resolve({ organization_id: ORG, public_links_enabled: true });
+      }
+      return Promise.resolve({});
+    });
+    renderTab();
+
+    const toggle = await screen.findByRole("switch", { name: t("settings.documents.links_toggle_label") });
+    await waitFor(() => expect(toggle).toHaveAttribute("aria-checked", "true"));
+    fireEvent.click(toggle);
+    await waitFor(() => expect(toggle).toHaveAttribute("aria-disabled", "true"));
+    fireEvent.click(toggle);
+    expect(puts).toHaveLength(1);
+
+    release({ organization_id: ORG, public_links_enabled: false });
+    await waitFor(() => expect(toggle).not.toHaveAttribute("aria-disabled"));
+    expect(puts).toHaveLength(1);
+  });
+
   it("tells a non-admin who can change it", async () => {
     serve({ role: "member" });
     renderTab();

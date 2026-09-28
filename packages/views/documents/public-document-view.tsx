@@ -8,11 +8,22 @@ import { Download, Link2, RotateCw, ShieldOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { documentPublic } from "@uniwork/core/api";
 import { usePublicDocument } from "@uniwork/core/documents/hooks-public";
+import { runtimeConfig } from "@uniwork/core/runtime-config";
 import type { PublicDocument } from "@uniwork/core/types/document";
 import { Button, ButtonLink } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { createPageDocumentExtensions } from "../editor/extensions";
 import { assetIdFromSrc } from "./document-asset";
+
+/**
+ * Native elements (img, a) cannot go through the transport, and the token
+ * routes live on the API origin, not this app's: resolve the path there. The
+ * server's `download_url` is ignored on purpose — the href is always the
+ * token-scoped route built here, never a URL the payload chose.
+ */
+function apiHref(path: string): string {
+  return `${runtimeConfig().apiUrl}${path}`;
+}
 
 export interface PublicDocumentViewProps {
   /** The link token from the URL; it is the only credential this view has. */
@@ -39,7 +50,7 @@ function publicImageExtension(token: string) {
     return (
       <NodeViewWrapper as="span" className="relative inline-block max-w-full align-bottom">
         <img
-          src={documentPublic.publicDocumentAssetPath(token, assetId)}
+          src={apiHref(documentPublic.publicDocumentAssetPath(token, assetId))}
           alt={alt}
           width={width ?? undefined}
           height={height ?? undefined}
@@ -139,7 +150,7 @@ function PublicDocumentBody({ token, document: doc }: { token: string; document:
     );
   }
 
-  const href = doc.download_url ?? documentPublic.publicDocumentDownloadPath(token);
+  const href = apiHref(documentPublic.publicDocumentDownloadPath(token));
   return (
     <article className="flex flex-col gap-4">
       <h1 className="font-heading text-display-sm font-semibold text-foreground">{title}</h1>
