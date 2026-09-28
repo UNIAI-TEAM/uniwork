@@ -2,6 +2,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createDocumentLink,
+  getDocumentSettings,
   getDocumentShares,
   listDocumentAccessLogs,
   revokeDocumentLink,
@@ -32,6 +33,19 @@ export function useDocumentShares(wsId: string, documentId: string, opts?: { ena
     queryKey: documentKeys.shares(wsId, documentId),
     queryFn: ({ signal }) => getDocumentShares(documentId, signal),
     enabled: (opts?.enabled ?? true) && !!wsId && !!documentId,
+  });
+}
+
+/**
+ * The organization public-links switch, readable by the same owners/admins
+ * who may change it (G1-08). Both the read and the write answer in the same
+ * cache entry, so the toggle reflects whichever landed last.
+ */
+export function useDocumentSettings(orgId: string, opts?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: documentKeys.settings(orgId),
+    queryFn: ({ signal }) => getDocumentSettings(orgId, signal),
+    enabled: (opts?.enabled ?? true) && !!orgId,
   });
 }
 

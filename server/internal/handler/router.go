@@ -545,6 +545,7 @@ func New(d Deps) http.Handler {
 		CreateDocumentLink:     h.createDocumentLink,
 		RevokeDocumentLink:     h.revokeDocumentLink,
 		ListDocumentAccessLogs: h.listDocumentAccessLogs,
+		GetDocumentSettings:    h.getDocumentSettings,
 		SetDocumentSettings:    h.setDocumentSettings,
 		GetPublicDocument:      h.getPublicDocument,
 		DownloadPublicDocument: h.downloadPublicDocument,

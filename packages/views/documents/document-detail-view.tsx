@@ -8,6 +8,7 @@ import { useFlag } from "@uniwork/core/feature-flags";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { CollectionPageState } from "../layout/collection-page";
+import { DocumentActionsMenu } from "./document-actions-menu";
 import { DocumentCommentsPanel } from "./document-comments-panel";
 import { DocumentCommentsProvider } from "./document-comments-context";
 import { DocumentWorkspace } from "./document-workspace";
@@ -141,6 +142,14 @@ export function DocumentDetailView({
           documentHref={documentHref}
           ownerHref={ownerHref}
           refetch={() => query.refetch()}
+          headerActions={
+            <DocumentActionsMenu
+              wsId={wsId}
+              doc={query.data}
+              documentHrefFor={documentHref}
+              onArchived={onBackToList}
+            />
+          }
         />
         <DocumentCommentsPanel />
       </div>

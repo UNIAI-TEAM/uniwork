@@ -495,6 +495,59 @@ func TestDocumentSettingsSwitch(t *testing.T) {
 	}
 }
 
+// TestDocumentSettingsRead covers GET /orgs/{orgID}/documents/settings: the
+// same owner/admin gate as the write, the untouched-organization default
+// (off, no row written) and the 404 for a non-member. The agent refusal is a
+// service-level concern (no agent bearer token exists) and lives in
+// TestDocumentSettingsRead (service).
+func TestDocumentSettingsRead(t *testing.T) {
+	w := newDocsWorld(t)
+	member, memberID := docsJoinWorkspace(t, w, "docs-settings-read-member@example.com")
+	ctx := context.Background()
+
+	// Untouched organization: the default is off, and the read wrote nothing.
+	res, out := doJSON(t, w.srv, "GET", "/api/v1/orgs/"+w.orgID+"/documents/settings", w.token, nil)
+	if res.StatusCode != 200 || out["public_links_enabled"] != false || out["organization_id"] != w.orgID {
+		t.Fatalf("default read: %d %v", res.StatusCode, out)
+	}
+	var rows int
+	if err := testPool.QueryRow(ctx, "SELECT count(*) FROM document_settings WHERE organization_id = $1", w.orgID).Scan(&rows); err != nil {
+		t.Fatal(err)
+	}
+	if rows != 0 {
+		t.Fatalf("a read wrote %d document_settings rows", rows)
+	}
+
+	// Owner flips it on; the read answers the stored value.
+	res, out = doJSON(t, w.srv, "PUT", "/api/v1/orgs/"+w.orgID+"/documents/settings", w.token,
+		map[string]any{"public_links_enabled": true})
+	if res.StatusCode != 200 {
+		t.Fatalf("owner switch: %d %v", res.StatusCode, out)
+	}
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/orgs/"+w.orgID+"/documents/settings", w.token, nil)
+	if res.StatusCode != 200 || out["public_links_enabled"] != true {
+		t.Fatalf("owner read after on: %d %v", res.StatusCode, out)
+	}
+
+	// An organization admin reads it too; a plain member is refused by name.
+	if _, err := testPool.Exec(ctx, `UPDATE organization_members SET role = 'admin' WHERE organization_id = $1 AND user_id = $2`, w.orgID, memberID); err != nil {
+		t.Fatal(err)
+	}
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/orgs/"+w.orgID+"/documents/settings", member, nil)
+	if res.StatusCode != 200 || out["public_links_enabled"] != true {
+		t.Fatalf("admin read: %d %v", res.StatusCode, out)
+	}
+	if _, err := testPool.Exec(ctx, `UPDATE organization_members SET role = 'member' WHERE organization_id = $1 AND user_id = $2`, w.orgID, memberID); err != nil {
+		t.Fatal(err)
+	}
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/orgs/"+w.orgID+"/documents/settings", member, nil)
+	wantErr(t, res, out, 403, "forbidden", "permission")
+
+	// A non-member learns nothing.
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/orgs/"+w.orgID+"/documents/settings", w.outsider, nil)
+	wantErr(t, res, out, 404, "not_found", "missing")
+}
+
 // TestDocuments05bFlagOff404 proves every authenticated 05b route answers the
 // flag gate (404 feature_disabled) before auth or service work when the
 // documents flag is off for the caller.
@@ -521,6 +574,7 @@ func TestDocuments05bFlagOff404(t *testing.T) {
 		{"POST", "/api/v1/documents/" + docID + "/links"},
 		{"DELETE", "/api/v1/documents/" + docID + "/links/" + linkID},
 		{"GET", "/api/v1/documents/" + docID + "/access-logs"},
+		{"GET", "/api/v1/orgs/" + orgID + "/documents/settings"},
 		{"PUT", "/api/v1/orgs/" + orgID + "/documents/settings"},
 	} {
 		res, out := doJSON(t, srv, tc.method, tc.path, token, map[string]any{})
@@ -618,7 +672,7 @@ func TestDocuments05bOpenAPI(t *testing.T) {
 		"/api/v1/documents/{documentID}/links":                      {"post"},
 		"/api/v1/documents/{documentID}/links/{linkID}":             {"delete"},
 		"/api/v1/documents/{documentID}/access-logs":                {"get"},
-		"/api/v1/orgs/{orgID}/documents/settings":                   {"put"},
+		"/api/v1/orgs/{orgID}/documents/settings":                   {"get", "put"},
 		"/api/v1/public/documents/{token}":                          {"get"},
 		"/api/v1/public/documents/{token}/download":                 {"get", "head"},
 		"/api/v1/public/documents/{token}/assets/{assetID}":         {"get", "head"},

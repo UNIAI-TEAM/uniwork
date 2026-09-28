@@ -10,6 +10,7 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
 	"github.com/unicomhub/uniwork/server/internal/service"
+	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
 // Organization document settings HTTP (C-01 §5.3; UNI-679, G1-05b). The
@@ -32,6 +33,26 @@ func (h *handlers) setDocumentSettings(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
+	respondDocumentSettings(w, set)
+}
+
+// getDocumentSettings is GET /orgs/{orgID}/documents/settings: the current
+// switch, readable by the same owners/admins who may change it. An untouched
+// organization answers the default (off) rather than 404.
+func (h *handlers) getDocumentSettings(w http.ResponseWriter, r *http.Request) {
+	if h.Documents == nil {
+		respondError(w, http.StatusNotImplemented, "storage_unavailable", "documents are not configured")
+		return
+	}
+	set, err := h.Documents.GetDocumentSettings(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "orgID"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondDocumentSettings(w, set)
+}
+
+func respondDocumentSettings(w http.ResponseWriter, set db.DocumentSetting) {
 	out := sdo.DocumentSettingsSDO{OrganizationID: set.OrganizationID, PublicLinksEnabled: set.PublicLinksEnabled}
 	if set.UpdatedBy != "" {
 		out.UpdatedBy = &set.UpdatedBy

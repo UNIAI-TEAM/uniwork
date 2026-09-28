@@ -147,3 +147,17 @@ export async function setDocumentPublicLinks(
     endpoint: "PUT /api/v1/orgs/{orgID}/documents/settings",
   });
 }
+
+/** GET /api/v1/orgs/{orgID}/documents/settings — the current switch, readable
+ *  by the same owners/admins who may change it (G1-08). An untouched
+ *  organization answers the default (off). Null cannot prove the read, so the
+ *  caller shows an unknown state rather than a fabricated value. */
+export async function getDocumentSettings(
+  orgId: string,
+  signal?: AbortSignal,
+): Promise<DocumentSettings | null> {
+  const raw = await request(`/api/v1/orgs/${enc(orgId)}/documents/settings`, { signal });
+  return parseWithFallback<DocumentSettings | null>(raw, DocumentSettingsSchema, null, {
+    endpoint: "GET /api/v1/orgs/{orgID}/documents/settings",
+  });
+}

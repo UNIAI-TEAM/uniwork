@@ -256,6 +256,35 @@ func (s *DocumentService) SetDocumentPublicLinks(ctx context.Context, actor Acto
 	return set, nil
 }
 
+// GetDocumentSettings reads the organization switch for public links. The
+// gate is the same one the write uses: a human organization owner/admin may
+// read it, anyone else is refused (members without the role 403, non-members
+// 404). An organization that never touched the switch has no row; it answers
+// the same default the public-link gate applies - off - without writing one.
+func (s *DocumentService) GetDocumentSettings(ctx context.Context, actor Actor, organizationID string) (db.DocumentSetting, error) {
+	if actor.Kind != audit.KindHuman {
+		return db.DocumentSetting{}, ErrForbidden
+	}
+	m, err := s.orgs.RequireMember(ctx, organizationID, actor.ID)
+	if err != nil {
+		if errors.Is(err, ErrForbidden) {
+			return db.DocumentSetting{}, ErrNotFound
+		}
+		return db.DocumentSetting{}, err
+	}
+	if m.Role != OrgRoleOwner && m.Role != OrgRoleAdmin {
+		return db.DocumentSetting{}, ErrForbidden
+	}
+	set, err := s.q.GetDocumentSettings(ctx, organizationID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.DocumentSetting{OrganizationID: organizationID, PublicLinksEnabled: false}, nil
+	}
+	if err != nil {
+		return db.DocumentSetting{}, err
+	}
+	return set, nil
+}
+
 // PublicDocument is what an anonymous link reader may see: the document row
 // (the handler renders title + sanitized content, or offers the download)
 // and the link that opened it.

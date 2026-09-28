@@ -3,6 +3,7 @@ import { configureRuntime, resetRuntimeConfig } from "../../runtime-config";
 import { setAccessToken } from "../session";
 import {
   createDocumentLink,
+  getDocumentSettings,
   getDocumentShares,
   listDocumentAccessLogs,
   revokeDocumentLink,
@@ -151,6 +152,17 @@ describe("documents-sharing endpoints", () => {
     expect(out?.public_links_enabled).toBe(true);
   });
 
+  it("getDocumentSettings reads the switch (G1-08)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ organization_id: "o1", public_links_enabled: false }),
+    );
+    const out = await getDocumentSettings("o1");
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/orgs/o1/documents/settings");
+    expect(init?.method ?? "GET").toBe("GET");
+    expect(out).toEqual({ organization_id: "o1", public_links_enabled: false });
+  });
+
   // ---- malformed responses: one per endpoint -----------------------------
 
   it.each(malformedBodies)("getDocumentShares degrades %#", async (body) => {
@@ -178,6 +190,11 @@ describe("documents-sharing endpoints", () => {
   it.each(malformedBodies)("setDocumentPublicLinks degrades %#", async (body) => {
     vi.mocked(fetch).mockResolvedValueOnce(json(body));
     await expect(setDocumentPublicLinks("o1", true)).resolves.toBeNull();
+  });
+
+  it.each(malformedBodies)("getDocumentSettings degrades %#", async (body) => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(body));
+    await expect(getDocumentSettings("o1")).resolves.toBeNull();
   });
 
   it("a link answer without the token is not verifiable", async () => {

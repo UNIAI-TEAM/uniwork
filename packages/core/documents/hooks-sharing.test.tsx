@@ -7,6 +7,7 @@ import { isDocumentNotVerifiable } from "../types/document";
 import {
   useCreateDocumentLink,
   useDocumentAccessLogs,
+  useDocumentSettings,
   useDocumentShares,
   useSetDocumentPublicLinks,
   useShareDocument,
@@ -166,5 +167,27 @@ describe("documents sharing hooks (G1-05b)", () => {
     await act(async () => {
       await expectNotVerifiable(() => second.result.current.mutateAsync(false));
     });
+  });
+
+  it("useDocumentSettings reads the switch into the same cache entry (G1-08)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ organization_id: "o1", public_links_enabled: false }),
+    );
+    const { qc, wrapper } = setup();
+    const { result } = renderHook(() => useDocumentSettings("o1"), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual({ organization_id: "o1", public_links_enabled: false });
+    expect(qc.getQueryData(documentKeys.settings("o1"))).toEqual({
+      organization_id: "o1",
+      public_links_enabled: false,
+    });
+
+    // A malformed answer resolves null: the caller keeps its unknown state
+    // instead of showing a fabricated switch position.
+    vi.mocked(fetch).mockResolvedValueOnce(json({ nope: true }));
+    const second = renderHook(() => useDocumentSettings("o2"), { wrapper });
+    await waitFor(() => expect(second.result.current.isSuccess).toBe(true));
+    expect(second.result.current.data).toBeNull();
   });
 });

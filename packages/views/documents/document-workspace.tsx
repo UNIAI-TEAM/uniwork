@@ -1,6 +1,6 @@
 "use client";
 
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, Eye, FileWarning } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -57,6 +57,11 @@ export interface DocumentWorkspaceProps {
    */
   ownerHref?: (ownerId: string) => string;
   /**
+   * Actions the detail host adds to the header (G1-08's menu). Rendered
+   * before the save indicator so the menu is the last, stable control.
+   */
+  headerActions?: ReactNode;
+  /**
    * Re-read the document from the server (conflict resolution). The result is
    * the query observer's snapshot: a refetch that fails resolves with the
    * stale cache entry and `isError`, so the copy that comes back here can
@@ -81,6 +86,7 @@ export function DocumentWorkspace({
   libraryHref,
   documentHref,
   ownerHref,
+  headerActions,
   refetch,
 }: DocumentWorkspaceProps) {
   const { t } = useTranslation();
@@ -388,6 +394,7 @@ export function DocumentWorkspace({
         }
         actions={
           <>
+            {headerActions}
             {doc.kind === "page" ? (
               <DocumentSaveIndicator
                 state={state}

@@ -23,6 +23,8 @@ export const paths = {
   invite: (token: string) => `/invite/${token}`,
   meetingInvite: (linkId: string) => `/invite/meeting/${linkId}`,
   meetingInviteRoom: (linkId: string) => `/invite/meeting/${linkId}/room`,
+  /** Anonymous document link (G1-08): outside the shell, token-only access. */
+  publicShare: (token: string) => `/share/${encodeURIComponent(token)}`,
   /**
    * Public marketing pages, one per team the product is sold to. The noun is
    * reserved so an organization can never take the subtree
@@ -103,6 +105,7 @@ export const GLOBAL_PREFIXES = [
   "/invitations",
   "/workspaces",
   "/invite/",
+  "/share/",
   "/admin",
   // Public marketing pages: without these the two-segment ones would read
   // as /[orgSlug]/[workspaceSlug] in RUM route patterns.
