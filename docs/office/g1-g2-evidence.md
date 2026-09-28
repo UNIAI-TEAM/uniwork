@@ -35,6 +35,15 @@ cho phan ky URL (backend MinIO cua suite nhan them bien nay trong
 `--add-host host.docker.internal:host-gateway` va `OFFICE_ENGINE_OUTPUT_ORIGINS` gom ca
 `http://host.docker.internal:9000` lan origin write-target cua test.
 
+Ghi chu write target (hai che do, hai lan chay): `officeBridge` giu mot origin cho ca tien trinh test
+(`sync.Once`), nen
+- hang **container that** (`TestDocumentOfficeJob`): dat `OFFICE_ENGINE_TEST_TARGET_ADDR=0.0.0.0:18297` va
+  `OFFICE_ENGINE_TEST_TARGET_ORIGIN=http://host.docker.internal:18297` (container voi tới duoc host);
+- **scripted engine** (`TestDocumentOfficeLifecycle`): KHONG dat hai bien tren, de bridge tu bind
+  `127.0.0.1:<port>` - PUT trong tien trinh Go khong với tới `host.docker.internal` tren host nay.
+Vi mot tien trinh test chi co mot origin, chay `TestDocumentOfficeJob` tach khoi nhom scripted bang hai lenh
+`go test -run` (xem acceptance packet).
+
 ## 3. Tung dinh dang (07a)
 
 | Format | Fixture | Engine op | Bind trong build | Bang chung | Ket qua |
