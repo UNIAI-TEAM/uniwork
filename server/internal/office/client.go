@@ -160,22 +160,26 @@ func (c *Client) Ready(ctx context.Context) (Readiness, error) {
 	return r, nil
 }
 
-// Capability reads the engine's capability rows for one format.
-func (c *Client) Capability(ctx context.Context, format Format) ([]CapabilityEntry, error) {
+// Capability reads the engine's capability answer for one format: the row set
+// and the engine identity Negotiate checks before any mutation.
+func (c *Client) Capability(ctx context.Context, format Format) (CapabilityResult, error) {
 	status, body, err := c.do(ctx, http.MethodGet, "/v1/capability?format="+url.QueryEscape(string(format)), "", nil)
 	if err != nil {
-		return nil, err
+		return CapabilityResult{}, err
 	}
 	if status != http.StatusOK {
-		return nil, decodeFailure(status, body)
+		return CapabilityResult{}, decodeFailure(status, body)
 	}
-	var out struct {
-		Capabilities []CapabilityEntry `json:"capabilities"`
-	}
+	var out CapabilityResult
 	if err := json.Unmarshal(body, &out); err != nil {
-		return nil, NewEngineError("engine_result_invalid", "capability_json")
+		return CapabilityResult{}, NewEngineError("engine_result_invalid", "capability_json")
 	}
-	return out.Capabilities, nil
+	if out.EngineVersion == "" && out.Capabilities == nil && out.Limits.MaxInputBytes == nil {
+		// Valid JSON that carries no identity and no rows at all is drift,
+		// not an empty capability set.
+		return CapabilityResult{}, NewEngineError("engine_result_invalid", "capability_empty")
+	}
+	return out, nil
 }
 
 // Submit sends one job. A 2xx answer is a job (new or replayed); anything

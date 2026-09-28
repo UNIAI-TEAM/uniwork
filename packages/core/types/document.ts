@@ -222,6 +222,196 @@ export function isDocumentNotVerifiable(err: unknown): err is DocumentNotVerifia
   return err instanceof DocumentNotVerifiableError;
 }
 
+// ---- G1-05b (UNI-679, C-01 §5.1/§5.3/§5.4) --------------------------------
+// Collections, tree, sharing, public links, access log and the organization
+// settings. Same leniency rules as above: server enums parse as z.string(),
+// the exported types narrow, and every list that cannot degrade safely has
+// its caller throw instead of rendering an empty page.
+
+export const DocumentSummarySchema = z.object({
+  id: z.string(),
+  organization_id: z.string().optional().default(""),
+  workspace_id: z.string(),
+  parent_id: z.string().nullable().optional(),
+  kind: z.string(),
+  title: z.string(),
+  icon: z.string().nullable().optional(),
+  visibility: z.string().optional().default("workspace"),
+  revision: z.string(),
+  current_version: z.number().optional().default(0),
+  position: z.number().optional().default(0),
+  snippet: z.string().nullable().optional(),
+  my_level: z.string().nullable().optional(),
+  via: z.string().nullable().optional(),
+  owner_kind: z.string().nullable().optional(),
+  owner_id: z.string().nullable().optional(),
+  archived_at: z.string().nullable().optional(),
+  created_by: z.string().optional().default(""),
+  created_by_kind: z.string().optional().default("human"),
+  updated_by: z.string().optional().default(""),
+  updated_by_kind: z.string().optional().default("human"),
+  created_at: z.string().optional().default(""),
+  updated_at: z.string().optional().default(""),
+});
+export type DocumentSummary = Omit<
+  z.infer<typeof DocumentSummarySchema>,
+  "kind" | "visibility" | "my_level" | "via" | "owner_kind"
+> & {
+  kind: DocumentKind;
+  visibility: DocumentVisibility;
+  my_level?: DocumentAccessLevel | null;
+  via?: DocumentAccessVia | null;
+  owner_kind?: DocumentOwnerKind | null;
+};
+
+export const DocumentListSchema = z.object({
+  documents: z.array(DocumentSummarySchema),
+  next_cursor: z.string().nullable().optional(),
+});
+export type DocumentList = z.infer<typeof DocumentListSchema>;
+
+/** Archive/restore answer: the moved document, its batch id and the ids that
+ *  actually changed. Restore only recovers nodes of its own batch. */
+export const DocumentArchiveSchema = z.object({
+  document: DocumentSchema,
+  batch_id: z.string().nullable().optional(),
+  affected: z.array(z.string()).optional().default([]),
+});
+export type DocumentArchive = Omit<z.infer<typeof DocumentArchiveSchema>, "document"> & {
+  document: Document;
+};
+
+/** One sidebar node; `children` recurse to five levels. */
+export interface DocumentTreeNode {
+  id: string;
+  parent_id?: string | null;
+  title: string;
+  icon?: string | null;
+  kind: DocumentKind;
+  position: number;
+  children: DocumentTreeNode[];
+}
+
+export const DocumentTreeNodeSchema: z.ZodType<DocumentTreeNode> = z.lazy(() =>
+  z.object({
+    id: z.string(),
+    parent_id: z.string().nullable().optional(),
+    title: z.string(),
+    icon: z.string().nullable().optional(),
+    kind: z.string(),
+    position: z.number().optional().default(0),
+    children: z.array(DocumentTreeNodeSchema).optional().default([]),
+  }),
+) as unknown as z.ZodType<DocumentTreeNode>;
+
+export const DocumentTreeSchema = z.object({ documents: z.array(DocumentTreeNodeSchema) });
+export type DocumentTree = z.infer<typeof DocumentTreeSchema>;
+
+export const DocumentPersonAccessSchema = z.object({
+  user_id: z.string(),
+  level: z.string(),
+  via: z.string().optional().default(""),
+});
+export type DocumentPersonAccess = Omit<z.infer<typeof DocumentPersonAccessSchema>, "level" | "via"> & {
+  level: DocumentAccessLevel;
+  via: DocumentAccessVia;
+};
+
+export const DocumentShareSchema = z.object({
+  id: z.string(),
+  principal_type: z.string(),
+  principal_id: z.string(),
+  level: z.string(),
+  active: z.boolean().optional().default(true),
+  effective_level: z.string().nullable().optional(),
+  effective_via: z.string().nullable().optional(),
+  granted_by: z.string().optional().default(""),
+  granted_by_kind: z.string().optional().default("human"),
+  created_at: z.string().optional().default(""),
+});
+export type DocumentShare = Omit<z.infer<typeof DocumentShareSchema>, "level" | "effective_level" | "effective_via"> & {
+  level: DocumentAccessLevel;
+  effective_level?: DocumentAccessLevel | null;
+  effective_via?: DocumentAccessVia | null;
+};
+
+export const DocumentLinkSchema = z.object({
+  id: z.string(),
+  expires_at: z.string().nullable().optional(),
+  view_count: z.number().optional().default(0),
+  created_by: z.string().optional().default(""),
+  created_by_kind: z.string().optional().default("human"),
+  created_at: z.string().optional().default(""),
+});
+export type DocumentLink = z.infer<typeof DocumentLinkSchema>;
+
+/** The access overview: my level always; grants/links/acl-owner only at manage. */
+export const DocumentAccessSchema = z.object({
+  my_level: z.string(),
+  via: z.string().optional().default(""),
+  acl_owner: DocumentPersonAccessSchema.nullable().optional(),
+  shares: z.array(DocumentShareSchema).optional(),
+  links: z.array(DocumentLinkSchema).optional(),
+});
+export type DocumentAccess = Omit<z.infer<typeof DocumentAccessSchema>, "my_level" | "via"> & {
+  my_level: DocumentAccessLevel;
+  via: DocumentAccessVia;
+};
+
+export const DocumentShareEnvelopeSchema = z.object({ share: DocumentShareSchema });
+export type DocumentShareEnvelope = { share: DocumentShare };
+
+/** A freshly minted link: the raw token rides this answer exactly once. */
+export const DocumentLinkEnvelopeSchema = z.object({
+  link: DocumentLinkSchema,
+  token: z.string(),
+  url: z.string(),
+});
+export type DocumentLinkEnvelope = { link: DocumentLink; token: string; url: string };
+
+export const DocumentAccessLogSchema = z.object({
+  id: z.string(),
+  action: z.string(),
+  via: z.string().optional().default(""),
+  version: z.number().nullable().optional(),
+  actor_kind: z.string(),
+  actor_id: z.string().nullable().optional(),
+  actor: ActorSchema.nullable().optional(),
+  share_link_id: z.string().nullable().optional(),
+  occurred_at: z.string().optional().default(""),
+});
+export type DocumentAccessLog = Omit<z.infer<typeof DocumentAccessLogSchema>, "action" | "via"> & {
+  action: string;
+  via: DocumentAccessVia;
+};
+
+export const DocumentAccessLogListSchema = z.object({
+  logs: z.array(DocumentAccessLogSchema),
+  next_cursor: z.string().nullable().optional(),
+});
+export type DocumentAccessLogList = z.infer<typeof DocumentAccessLogListSchema>;
+
+export const DocumentSettingsSchema = z.object({
+  organization_id: z.string(),
+  public_links_enabled: z.boolean(),
+  updated_by: z.string().nullable().optional(),
+  updated_by_kind: z.string().nullable().optional(),
+  updated_at: z.string().nullable().optional(),
+});
+export type DocumentSettings = z.infer<typeof DocumentSettingsSchema>;
+
+/** The anonymous view: title + kind, sanitized page content or a download path. */
+export const PublicDocumentSchema = z.object({
+  title: z.string(),
+  kind: z.string(),
+  content: DocumentContentSchema.optional(),
+  download_url: z.string().nullable().optional(),
+});
+export type PublicDocument = Omit<z.infer<typeof PublicDocumentSchema>, "kind"> & { kind: DocumentKind };
+
+export const PublicDocumentEnvelopeSchema = z.object({ document: PublicDocumentSchema });
+export type PublicDocumentEnvelope = { document: PublicDocument };
+
 // ---- Comments + favorites (G1-07; UNI-681 lane 07b) ----------------------
 // Document comments reuse the comment_reactions shape from types/
 // task-collaboration.ts (keyed by comment_id) and mirror the task comment

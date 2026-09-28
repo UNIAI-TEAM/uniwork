@@ -445,6 +445,7 @@ func main() {
 		Storage:         store,
 		FileAccess:      fileAccess,
 		Documents:       docSvc,
+		Office:          officeSvc,
 		MembershipCache: membershipCache,
 		HTTPMetrics:     httpMetrics,
 		WebVitals:       webVitals(reg),

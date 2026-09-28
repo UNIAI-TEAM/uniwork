@@ -264,6 +264,16 @@ type PublicDocument struct {
 	Link     db.DocumentShareLink
 }
 
+// ResolvePublicDocument is the side-effect-free public read: it runs every
+// liveness, tenant, switch and entitlement check resolvePublicLink runs and
+// returns what a public caller may see, without counting a view or writing an
+// access-log row. The HTTP layer uses it to evaluate the organization's
+// `documents` feature flag before any side effect; the side-effecting open
+// still re-resolves, so a revoke that lands in between still refuses the read.
+func (s *DocumentService) ResolvePublicDocument(ctx context.Context, token string) (PublicDocument, error) {
+	return s.resolvePublicLink(ctx, token)
+}
+
 // resolvePublicLink is the check every public read, asset and download makes
 // before anything else (C-01 §14.2): a live, unexpired link by token hash, a
 // live, unowned document of an active organization, and both public-link
@@ -351,22 +361,36 @@ func (s *DocumentService) OpenPublicDocumentFile(ctx context.Context, token stri
 	return f, nil
 }
 
+// PublicDocumentAsset is the anonymous asset read: the opened bytes plus the
+// document's organization, so the HTTP layer can evaluate the organization's
+// `documents` feature flag on the asset route exactly like the public view
+// and the file download (Advisor decision 2026-09-28, G1-05b). No extra
+// query, no view count, no access-log row rides on this.
+type PublicDocumentAsset struct {
+	OrganizationID string
+	Reader         files.Reader
+}
+
 // OpenPublicDocumentAsset streams one page asset behind a link. The asset
 // must belong to the link's document.
-func (s *DocumentService) OpenPublicDocumentAsset(ctx context.Context, token, assetID string, rng DocumentByteRange) (files.Reader, error) {
+func (s *DocumentService) OpenPublicDocumentAsset(ctx context.Context, token, assetID string, rng DocumentByteRange) (PublicDocumentAsset, error) {
 	pub, err := s.resolvePublicLink(ctx, token)
 	if err != nil {
-		return files.Reader{}, err
+		return PublicDocumentAsset{}, err
 	}
 	a, err := s.q.GetDocumentAsset(ctx, db.GetDocumentAssetParams{
 		ID: assetID, OrganizationID: pub.Document.OrganizationID,
 		WorkspaceID: pub.Document.WorkspaceID, DocumentID: pub.Document.ID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return files.Reader{}, ErrNotFound
+		return PublicDocumentAsset{}, ErrNotFound
 	}
 	if err != nil {
-		return files.Reader{}, err
+		return PublicDocumentAsset{}, err
 	}
-	return s.openDocumentBytes(ctx, pub.Document, a.FileID, rng)
+	r, err := s.openDocumentBytes(ctx, pub.Document, a.FileID, rng)
+	if err != nil {
+		return PublicDocumentAsset{}, err
+	}
+	return PublicDocumentAsset{OrganizationID: pub.Document.OrganizationID, Reader: r}, nil
 }

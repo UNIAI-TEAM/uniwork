@@ -88,6 +88,7 @@ const (
 	mimePDF  = "application/pdf"
 	mimeText = "text/plain"
 	mimeMD   = "text/markdown"
+	mimeHTML = "text/html"
 	mimeDOC  = "application/msword"
 	mimeXLS  = "application/vnd.ms-excel"
 	mimePPT  = "application/vnd.ms-powerpoint"
@@ -131,7 +132,9 @@ func ValidateFile(r io.ReaderAt, size int64, contentType string, limits FileLimi
 		return validatePDF(r, size)
 	case mimeDOC, mimeXLS, mimePPT:
 		return validateOLE(r, size, base)
-	case mimeText, mimeMD:
+	case mimeText, mimeMD, mimeHTML:
+		// HTML is text the editor opens as text; the preview sandbox (G2-06),
+		// not this validator, is what keeps a rendered HTML document safe.
 		return validateText(r, size, limits)
 	case mimePNG, mimeJPEG:
 		return validateImage(r, size, limits)

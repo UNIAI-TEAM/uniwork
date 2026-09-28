@@ -212,9 +212,12 @@ var (
 	// exportMIMETypes is what AuditExport writes today: NDJSON or CSV, or a
 	// zip of them. The text types need the .ndjson / .csv filename.
 	exportMIMETypes = []string{"application/x-ndjson", "text/csv", "application/zip"}
-	// documentMIMETypes is what a Document version may hold.
+	// documentMIMETypes is what a Document version may hold. text/html is in
+	// C-01 §5.5's file-document allowlist and is one of the six Office format
+	// lanes (G2-06/G2-07a); the preview sandbox, not this allowlist, is what
+	// keeps HTML safe to render.
 	documentMIMETypes = []string{
-		"application/pdf", "text/plain", "text/markdown",
+		"application/pdf", "text/plain", "text/markdown", "text/html",
 		"application/msword",
 		"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 		"application/vnd.ms-excel",

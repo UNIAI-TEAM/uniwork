@@ -51,8 +51,10 @@ func level(t *testing.T, f *docPermFixture, a Actor, d db.Document) DocumentLeve
 
 func TestDocumentShare(t *testing.T) {
 	f := newDocPermFixture(t)
-	tn := f.tenant(t, "share")
-	foreign := f.tenant(t, "sharex")
+	// "share" itself is a reserved slug since G1-05b (the public share page),
+	// so the tenant slugs must stay clear of it.
+	tn := f.tenant(t, "shr")
+	foreign := f.tenant(t, "shrx")
 	H := Human
 	mgr := H(tn.aclOwner.ID)
 
@@ -258,12 +260,12 @@ func TestDocumentShare(t *testing.T) {
 	})
 
 	t.Run("shared with me spans workspaces and follows revokes", func(t *testing.T) {
-		list, err := f.svc.ListSharedWithMe(f.ctx, tn.outsider.ID, tn.orgID)
+		page, err := f.svc.ListSharedWithMe(f.ctx, tn.outsider.ID, tn.orgID, SharedWithMeQuery{})
 		if err != nil {
 			t.Fatal(err)
 		}
 		ids := map[string]bool{}
-		for _, r := range list {
+		for _, r := range page.Items {
 			if r.Access.Via != DocumentViaShare {
 				t.Fatalf("non-share row: %+v", r.Access)
 			}
@@ -274,16 +276,16 @@ func TestDocumentShare(t *testing.T) {
 		}
 		// A workspace member reaching a document through membership is not
 		// "shared with me".
-		mine, err := f.svc.ListSharedWithMe(f.ctx, tn.member.ID, tn.orgID)
+		mine, err := f.svc.ListSharedWithMe(f.ctx, tn.member.ID, tn.orgID, SharedWithMeQuery{})
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, r := range mine {
+		for _, r := range mine.Items {
 			if r.Access.Via != DocumentViaShare {
 				t.Fatalf("member row: %+v", r)
 			}
 		}
-		if _, err := f.svc.ListSharedWithMe(f.ctx, foreign.owner.ID, tn.orgID); !errors.Is(err, ErrNotFound) {
+		if _, err := f.svc.ListSharedWithMe(f.ctx, foreign.owner.ID, tn.orgID, SharedWithMeQuery{}); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("other tenant: %v", err)
 		}
 	})
@@ -291,30 +293,55 @@ func TestDocumentShare(t *testing.T) {
 	t.Run("shares to workspaces the person is not in never crowd out theirs", func(t *testing.T) {
 		// BE 02b r1 F1: the candidate limit used to run before the
 		// workspace filter, so a page of other workspaces' shares hid the
-		// person's own. Fill a whole page of wsB shares, then share one
-		// newer document with the outsider directly.
+		// person's own. Fill a whole candidate page of wsB shares, then share
+		// one newer document with the outsider directly.
+		oldPage := sharedWithMeCandidatePage
+		sharedWithMeCandidatePage = 25
+		t.Cleanup(func() { sharedWithMeCandidatePage = oldPage })
+
 		cr := f.tenant(t, "swm")
-		for i := 0; i < maxSharedWithMe; i++ {
+		for i := 0; i < sharedWithMeCandidatePage; i++ {
 			d := f.doc(t, cr, docSpec{ws: cr.wsA, visibility: "workspace", aclOwner: cr.aclOwner.ID, createdBy: cr.aclOwner.ID})
 			f.share(t, d, DocumentPrincipalWorkspace, cr.wsB, DocumentLevelView, cr.aclOwner.ID)
 		}
 		direct := f.doc(t, cr, docSpec{ws: cr.wsA, visibility: "restricted", aclOwner: cr.aclOwner.ID, createdBy: cr.aclOwner.ID})
 		f.share(t, direct, DocumentPrincipalUser, cr.outsider.ID, DocumentLevelView, cr.aclOwner.ID)
 
-		list, err := f.svc.ListSharedWithMe(f.ctx, cr.outsider.ID, cr.orgID)
+		page, err := f.svc.ListSharedWithMe(f.ctx, cr.outsider.ID, cr.orgID, SharedWithMeQuery{})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(list) != 1 || list[0].Document.ID != direct.ID {
-			t.Fatalf("outsider list = %d rows, want only the direct share", len(list))
+		if len(page.Items) != 1 || page.Items[0].Document.ID != direct.ID {
+			t.Fatalf("outsider list = %d rows, want only the direct share", len(page.Items))
 		}
-		// The workspace B member reaches the workspace shares, capped.
-		bl, err := f.svc.ListSharedWithMe(f.ctx, cr.bMember.ID, cr.orgID)
-		if err != nil {
-			t.Fatal(err)
+		// The workspace B member reaches the workspace shares, walked in
+		// pages of 10 by the keyset cursor.
+		seen := map[string]bool{}
+		after := SharedWithMeQuery{Limit: 10}
+		for pages := 0; ; pages++ {
+			if pages > 10 {
+				t.Fatal("shared-with-me walk did not terminate")
+			}
+			p, err := f.svc.ListSharedWithMe(f.ctx, cr.bMember.ID, cr.orgID, after)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(p.Items) > 10 {
+				t.Fatalf("page %d = %d rows, over limit", pages, len(p.Items))
+			}
+			for _, r := range p.Items {
+				if seen[r.Document.ID] {
+					t.Fatalf("cursor repeated %s", r.Document.ID)
+				}
+				seen[r.Document.ID] = true
+			}
+			if p.NextID == "" {
+				break
+			}
+			after = SharedWithMeQuery{Limit: 10, AfterCreatedAt: p.NextCreatedAt, AfterID: p.NextID}
 		}
-		if len(bl) != maxSharedWithMe {
-			t.Fatalf("wsB member list = %d rows, want %d", len(bl), maxSharedWithMe)
+		if len(seen) != sharedWithMeCandidatePage {
+			t.Fatalf("wsB member walk saw %d rows, want %d", len(seen), sharedWithMeCandidatePage)
 		}
 	})
 

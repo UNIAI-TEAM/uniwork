@@ -477,9 +477,13 @@ WHERE organization_id = $1
   AND workspace_id = $2
   AND document_id = $3
   AND ($4::text IS NULL OR action = $4)
-  AND ($5::timestamptz IS NULL OR occurred_at < $5)
+  AND (
+    $5::timestamptz IS NULL
+    OR occurred_at < $5::timestamptz
+    OR (occurred_at = $5::timestamptz AND id < $6::text)
+  )
 ORDER BY occurred_at DESC, id DESC
-LIMIT $6
+LIMIT $7
 `
 
 type ListDocumentAccessLogsParams struct {
@@ -488,9 +492,14 @@ type ListDocumentAccessLogsParams struct {
 	DocumentID     string             `json:"document_id"`
 	Action         pgtype.Text        `json:"action"`
 	Before         pgtype.Timestamptz `json:"before"`
+	BeforeID       pgtype.Text        `json:"before_id"`
 	MaxRows        int32              `json:"max_rows"`
 }
 
+// Newest first, id descending as the tiebreak; (before, before_id) is the
+// keyset of the last row read, so equal timestamps cannot skip a row. A
+// caller that passes only before keeps the historical strict-inequality
+// behavior (rows at exactly that timestamp are excluded).
 func (q *Queries) ListDocumentAccessLogs(ctx context.Context, arg ListDocumentAccessLogsParams) ([]DocumentAccessLog, error) {
 	rows, err := q.db.Query(ctx, listDocumentAccessLogs,
 		arg.OrganizationID,
@@ -498,6 +507,7 @@ func (q *Queries) ListDocumentAccessLogs(ctx context.Context, arg ListDocumentAc
 		arg.DocumentID,
 		arg.Action,
 		arg.Before,
+		arg.BeforeID,
 		arg.MaxRows,
 	)
 	if err != nil {
@@ -532,7 +542,7 @@ func (q *Queries) ListDocumentAccessLogs(ctx context.Context, arg ListDocumentAc
 }
 
 const listDocumentShareCandidates = `-- name: ListDocumentShareCandidates :many
-SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id
+SELECT d.id, d.organization_id, d.workspace_id, d.parent_id, d.kind, d.title, d.icon, d.visibility, d.content, d.content_text, d.search_text, d.content_bytes, d.current_version, d.file_version_id, d.revision, d.position, d.owner_kind, d.owner_id, d.acl_owner_id, d.source_document_id, d.source_version_id, d.source_revision, d.source_format, d.source_engine, d.target_format, d.source_checksum_sha256, d.conversion_reason, d.created_by, d.created_by_kind, d.updated_by, d.updated_by_kind, d.content_saved_at, d.last_version_at, d.archived_at, d.archived_by, d.purge_after, d.created_at, d.updated_at, d.archive_batch_id, c.created_at
 FROM (
   SELECT DISTINCT ON (s.document_id) s.document_id, s.workspace_id, s.created_at
   FROM document_shares s
@@ -551,32 +561,43 @@ JOIN documents d
  AND d.id = c.document_id
 WHERE d.archived_at IS NULL
   AND d.owner_id IS NULL
+  AND (
+    $4::timestamptz IS NULL
+    OR c.created_at < $4::timestamptz
+    OR (c.created_at = $4::timestamptz AND d.id > $5::text)
+  )
 ORDER BY c.created_at DESC, d.id
-LIMIT $4
+LIMIT $6
 `
 
 type ListDocumentShareCandidatesParams struct {
-	OrganizationID string   `json:"organization_id"`
-	UserID         string   `json:"user_id"`
-	WorkspaceIds   []string `json:"workspace_ids"`
-	MaxRows        int32    `json:"max_rows"`
+	OrganizationID string             `json:"organization_id"`
+	UserID         string             `json:"user_id"`
+	WorkspaceIds   []string           `json:"workspace_ids"`
+	AfterCreatedAt pgtype.Timestamptz `json:"after_created_at"`
+	AfterID        pgtype.Text        `json:"after_id"`
+	MaxRows        int32              `json:"max_rows"`
 }
 
 type ListDocumentShareCandidatesRow struct {
-	Document Document `json:"document"`
+	Document  Document           `json:"document"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 // "Shared with me" candidates: live shares naming the person, the whole
 // organization, or one of the workspaces the service passes in (the ones the
 // person reaches through WorkspaceService; membership is never read in SQL).
 // The workspace filter runs before the limit so shares to workspaces the
-// person is not in cannot crowd theirs out; newest share first. The service
-// still runs effectiveLevel on every row.
+// person is not in cannot crowd theirs out; newest share first, id ascending
+// as the tiebreak, and (after_created_at, after_id) is the keyset that
+// continues the walk. The service still runs effectiveLevel on every row.
 func (q *Queries) ListDocumentShareCandidates(ctx context.Context, arg ListDocumentShareCandidatesParams) ([]ListDocumentShareCandidatesRow, error) {
 	rows, err := q.db.Query(ctx, listDocumentShareCandidates,
 		arg.OrganizationID,
 		arg.UserID,
 		arg.WorkspaceIds,
+		arg.AfterCreatedAt,
+		arg.AfterID,
 		arg.MaxRows,
 	)
 	if err != nil {
@@ -626,6 +647,7 @@ func (q *Queries) ListDocumentShareCandidates(ctx context.Context, arg ListDocum
 			&i.Document.CreatedAt,
 			&i.Document.UpdatedAt,
 			&i.Document.ArchiveBatchID,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}

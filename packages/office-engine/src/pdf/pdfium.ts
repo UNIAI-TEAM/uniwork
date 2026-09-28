@@ -1,9 +1,9 @@
 // PDFium WASM seam — ported from office-upstream apps/pdf/src/main/text-edit.ts
 // (module interface, loader, chain, withDocument, saveDoc) and wasm-path.ts.
-// Asset resolution is package-relative via createRequire — the engine runs
-// against real node_modules in both the workspace and the service image, so
-// a wasm file is always resolvable from the dependency that ships it. No
-// absolute dev paths, no process.resourcesPath (no Electron).
+// Asset resolution: $UNIWORK_PDF_ASSETS when the runtime image stages the
+// assets, the bundle-relative ./pdf-assets fallback when the job worker's env
+// whitelist hides the variable, and package-relative require.resolve in the
+// workspace/dev tree.
 
 import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -133,10 +133,20 @@ const req = () => createRequire(import.meta.url);
 
 /** Asset root the runtime image provides: the service bundle ships no
     node_modules, so the Dockerfile stages wasm + fonts here and sets the var.
-    Dev/tests resolve everything package-relative instead. */
+    Dev/tests resolve everything package-relative instead. The job worker's
+    env is a whitelist (apps/office-engine supervisor.ts), so the variable can
+    be absent inside a job even when the image set it: the bundle-relative
+    asset dir (dist/pdf-assets -> /app/pdf-assets) is the fallback. */
 function assetDir(): string | null {
   const dir = process.env.UNIWORK_PDF_ASSETS;
-  return dir && existsSync(dir) ? dir : null;
+  if (dir && existsSync(dir)) return dir;
+  try {
+    const beside = fileURLToPath(new URL("./pdf-assets", import.meta.url));
+    if (existsSync(beside)) return beside;
+  } catch {
+    /* not a file URL context: source checkouts use the package-relative paths */
+  }
+  return null;
 }
 
 function assetFile(name: string): string | null {

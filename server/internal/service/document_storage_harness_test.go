@@ -367,3 +367,14 @@ func auditFileDocument(t *testing.T, f *auditFixture) (*DocumentService, Documen
 	}
 	return svc, res
 }
+
+// officeJobRows counts the office_jobs rows of one document (G2-07a rows).
+func (e *docStorageEnv) officeJobRows(t *testing.T, documentID string) int {
+	t.Helper()
+	var n int
+	if err := e.f.pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM office_jobs WHERE document_id = $1`, documentID).Scan(&n); err != nil {
+		t.Fatalf("count office jobs: %v", err)
+	}
+	return n
+}

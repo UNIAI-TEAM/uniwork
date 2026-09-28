@@ -59,6 +59,11 @@ type Deps struct {
 	// 501 on the document routes until the server wires it.
 	Documents *service.DocumentService
 
+	// Office is the Office job service (G2-07, UNI-690); nil answers 503
+	// office_not_configured on the office routes, so Documents keeps working
+	// without an engine.
+	Office *service.DocumentOfficeService
+
 	// Redis is optional: nil disables the rate limiter and any other feature
 	// that needs shared state across instances.
 	Redis *redis.Client
@@ -488,19 +493,25 @@ func New(d Deps) http.Handler {
 		ResolveWorkspaceFiles: h.resolveWorkspaceFiles,
 		GetFileContent:        h.getFileContent,
 
-		CreateDocument:         h.createDocument,
-		CreateDocumentFile:     h.createDocumentFile,
-		GetDocument:            h.getDocument,
-		PatchDocument:          h.patchDocument,
-		UploadDocumentFile:     h.uploadDocumentFile,
-		CommitDocumentVersion:  h.commitDocumentVersion,
-		ListDocumentVersions:   h.listDocumentVersions,
-		CreateDocumentVersion:  h.createDocumentVersion,
-		GetDocumentVersion:     h.getDocumentVersion,
-		RestoreDocumentVersion: h.restoreDocumentVersion,
-		UploadDocumentAsset:    h.uploadDocumentAsset,
-		GetDocumentAsset:       h.getDocumentAsset,
-		DownloadDocument:       h.downloadDocument,
+		CreateDocument:          h.createDocument,
+		CreateDocumentFile:      h.createDocumentFile,
+		CreateBlankDocumentFile: h.createBlankDocumentFile,
+		StartOfficeJob:          h.startOfficeJob,
+		GetOfficeJob:            h.getOfficeJob,
+		CancelOfficeJob:         h.cancelOfficeJob,
+		OfficeCapability:        h.officeCapability,
+		CopyDocument:            h.copyDocument,
+		GetDocument:             h.getDocument,
+		PatchDocument:           h.patchDocument,
+		UploadDocumentFile:      h.uploadDocumentFile,
+		CommitDocumentVersion:   h.commitDocumentVersion,
+		ListDocumentVersions:    h.listDocumentVersions,
+		CreateDocumentVersion:   h.createDocumentVersion,
+		GetDocumentVersion:      h.getDocumentVersion,
+		RestoreDocumentVersion:  h.restoreDocumentVersion,
+		UploadDocumentAsset:     h.uploadDocumentAsset,
+		GetDocumentAsset:        h.getDocumentAsset,
+		DownloadDocument:        h.downloadDocument,
 
 		ListDocumentComments:          h.listDocumentComments,
 		CreateDocumentComment:         h.createDocumentComment,
@@ -513,6 +524,24 @@ func New(d Deps) http.Handler {
 		FavoriteDocument:              h.favoriteDocument,
 		UnfavoriteDocument:            h.unfavoriteDocument,
 		ListDocumentFavorites:         h.listDocumentFavorites,
+
+		ListDocuments:          h.listDocuments,
+		ListRecentDocuments:    h.listRecentDocuments,
+		ListSharedWithMe:       h.listSharedWithMe,
+		DocumentTree:           h.getDocumentTree,
+		MoveDocument:           h.moveDocument,
+		ArchiveDocument:        h.archiveDocument,
+		RestoreDocument:        h.restoreDocument,
+		ListDocumentShares:     h.listDocumentShares,
+		CreateDocumentShare:    h.createDocumentShare,
+		RevokeDocumentShare:    h.revokeDocumentShare,
+		CreateDocumentLink:     h.createDocumentLink,
+		RevokeDocumentLink:     h.revokeDocumentLink,
+		ListDocumentAccessLogs: h.listDocumentAccessLogs,
+		SetDocumentSettings:    h.setDocumentSettings,
+		GetPublicDocument:      h.getPublicDocument,
+		DownloadPublicDocument: h.downloadPublicDocument,
+		GetPublicDocumentAsset: h.getPublicDocumentAsset,
 	})
 }
 

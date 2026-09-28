@@ -125,3 +125,90 @@ type UpdateDocumentCommentSDI struct {
 
 // ReactionSDI is reused from task comments for the document reaction routes
 // (POST|DELETE /documents/{documentID}/comments/{commentID}/reactions).
+// --- G1-05b (UNI-679, C-01 §5.1/§5.3/§5.4) --------------------------------
+
+// ListDocumentsSDI documents the query params of GET
+// /api/v1/workspaces/{workspaceID}/documents (C-01 §5.1). parent_id lists one
+// level of the tree in position order; q searches the whole workspace and
+// returns a snippet; archived=1 switches to the manage-only trash view. The
+// permission filter runs inside the query, so cursor pages stay stable and
+// never fetch-then-filter.
+type ListDocumentsSDI struct {
+	ParentID    *string `query:"parent_id" description:"ULID trang cha; bỏ trống = danh sách phẳng toàn workspace, chuỗi rỗng = các tài liệu gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+	Query       *string `query:"q" description:"Tìm văn bản đã fold; kết quả kèm snippet ≤ 160 ký tự" example:"kế hoạch quý 4"`
+	Kind        *string `query:"kind" description:"Lọc page hoặc file" example:"page"`
+	Archived    *bool   `query:"archived" description:"1 = thùng rác (chỉ manage); bỏ trống = tài liệu sống" example:"false"`
+	UpdatedBy   *string `query:"updated_by" description:"Lọc theo ULID người sửa gần nhất" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	UpdatedFrom *string `query:"updated_from" description:"Mốc updated_at từ (RFC3339)" example:"2026-09-01T00:00:00Z"`
+	UpdatedTo   *string `query:"updated_to" description:"Mốc updated_at đến (RFC3339)" example:"2026-09-30T23:59:59Z"`
+	Cursor      *string `query:"cursor" description:"next_cursor của trang trước; bỏ trống = trang đầu" example:"eyJ0IjoiMjAyNi0wOS0yN1QwOTowMDowMFoiLCJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyJ9"`
+	Limit       *int32  `query:"limit" description:"Kích thước trang, mặc định 50, tối đa 100" example:"50"`
+}
+
+// ListRecentDocumentsSDI documents GET
+// /api/v1/workspaces/{workspaceID}/documents/recent: the documents the person
+// opened or edited recently (access log + updated_by). Only a human has a
+// "recent"; an agent gets 403.
+type ListRecentDocumentsSDI struct {
+	Cursor *string `query:"cursor" description:"next_cursor của trang trước" example:"eyJ0IjoiMjAyNi0wOS0yN1QwOTowMDowMFoiLCJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyJ9"`
+	Limit  *int32  `query:"limit" description:"Kích thước trang, mặc định 50, tối đa 100" example:"10"`
+}
+
+// ListSharedWithMeSDI documents GET
+// /api/v1/workspaces/{workspaceID}/documents/shared-with-me: the shares the
+// caller receives across the organization, walked by keyset server-side so a
+// denied candidate never fills a page slot; pages follow the same opaque
+// cursor as the other lists.
+type ListSharedWithMeSDI struct {
+	Cursor *string `query:"cursor" description:"next_cursor của trang trước; bỏ trống = trang đầu" example:"eyJ0IjoiMjAyNi0wOS0yOFQxMDowMDowMFoiLCJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyJ9"`
+	Limit  *int32  `query:"limit" description:"Số tài liệu mỗi trang, mặc định 50, tối đa 100" example:"50"`
+}
+
+// DocumentTreeSDI documents GET /api/v1/workspaces/{workspaceID}/documents/tree:
+// the sidebar forest to five levels, metadata only. root names one branch; an
+// unreadable root is not found, its children are not leaked through it.
+type DocumentTreeSDI struct {
+	Root *string `query:"root" description:"ULID gốc nhánh; bỏ trống = cả rừng tài liệu gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+}
+
+// MoveDocumentSDI is POST /api/v1/documents/{documentID}/move (C-01 §5.1):
+// re-parent/reorder one document. position is a fractional sibling index;
+// absent appends last. parent_id null (or absent) moves to the workspace root.
+// A stale revision, a cycle, a depth past five or a foreign parent is refused.
+type MoveDocumentSDI struct {
+	ParentID *string  `json:"parent_id" description:"ULID trang cha mới cùng workspace; null = về gốc" example:"01J8X4DOC0N1P2Q3R4S5T6U7W9"`
+	Position *float64 `json:"position" description:"Thứ tự giữa các sibling; bỏ trống = cuối danh sách" example:"1.5"`
+	Revision string   `json:"revision" description:"Revision nền dạng chuỗi thập phân" example:"41"`
+}
+
+// ShareDocumentSDI is POST /api/v1/documents/{documentID}/shares (C-01 §5.3).
+// A principal must belong to the document's organization; an existing live
+// grant for the same principal is revoked and replaced in one transaction.
+type ShareDocumentSDI struct {
+	PrincipalType string `json:"principal_type" description:"user, workspace hoặc organization" example:"user"`
+	PrincipalID   string `json:"principal_id" description:"ULID người/workspace, hoặc ULID tổ chức khi principal_type=organization" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	Level         string `json:"level" description:"view, edit hoặc manage" example:"view"`
+}
+
+// CreateDocumentLinkSDI is POST /api/v1/documents/{documentID}/links:
+// an anonymous view link. Requires the documents.public_links entitlement and
+// the organization switch; at most five live links per document.
+type CreateDocumentLinkSDI struct {
+	ExpiresInDays *int `json:"expires_in_days" description:"Số ngày hiệu lực 1–90; bỏ trống = 7" example:"7"`
+}
+
+// ListDocumentAccessLogsSDI documents GET
+// /api/v1/documents/{documentID}/access-logs (C-01 §5.4, manage only):
+// newest first, actor kinds human/agent/anonymous, optional action filter.
+type ListDocumentAccessLogsSDI struct {
+	Cursor *string `query:"cursor" description:"next_cursor của trang trước" example:"eyJ0IjoiMjAyNi0wOS0yN1QwOTowMDowMFoifQ"`
+	Limit  *int32  `query:"limit" description:"Kích thước trang, mặc định 50, tối đa 100" example:"50"`
+	Action *string `query:"action" description:"view, download, export hoặc link_view; bỏ trống = mọi hành động" example:"view"`
+}
+
+// SetDocumentSettingsSDI is PUT /api/v1/orgs/{orgID}/documents/settings:
+// the organization switch for public links. Turning it off closes every live
+// link on its next read without revoking it.
+type SetDocumentSettingsSDI struct {
+	PublicLinksEnabled bool `json:"public_links_enabled" description:"Bật/tắt liên kết công khai cho tổ chức" example:"true"`
+}

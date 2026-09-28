@@ -98,6 +98,7 @@ func New(d Deps, h Routes) http.Handler {
 			registerPublicMeetings(pub, h, credentialLimit, joinLimit, lobbyWSLimit)
 			registerConfig(pub, h, mw.RateLimit(d.Redis, 60, time.Minute, proxies))
 			registerFileContent(pub, h)
+			registerPublicDocuments(pub, h, mw.RateLimit(d.Redis, 60, time.Minute, proxies))
 		})
 		v1.Group(func(authed api) {
 			authed.Use(mw.RequireAuth(d.Minter))
