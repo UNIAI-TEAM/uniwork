@@ -30,6 +30,22 @@ services:
       dockerfile: apps/office-engine/Dockerfile
     image: uniwork-office-engine:dev
     init: true
+    # Sandbox (G2-05): the supervisor is uid 0 only so it can drop each worker
+    # to its own slot uid; every capability it does not need stays dropped.
+    # no-new-privileges also blocks a worker exec'ing a setuid helper.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      # setuid/setgid the worker at spawn; chown/chmod its job dir; signal and
+      # read files across uids (limits, cleanup, output hand-off).
+      - CHOWN
+      - SETUID
+      - SETGID
+      - KILL
+      - DAC_OVERRIDE
+      - FOWNER
     environment:
       OFFICE_ENGINE_SERVICE_TOKEN: ${OFFICE_ENGINE_SERVICE_TOKEN:-dev-only-office-engine-service-token-000001}
       OFFICE_ENGINE_GRANT_KEY: ${OFFICE_ENGINE_GRANT_KEY:-dev-only-office-engine-grant-key-00000000002}

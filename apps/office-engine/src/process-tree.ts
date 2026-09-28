@@ -3,15 +3,20 @@
 // handler spawned - goes with one signal; on Windows taskkill /T walks the
 // parent links.
 //
-// On Linux (the container) two more things hold the tree together:
+// On Linux (the container) three more things hold the tree together:
 //   * /proc is read for every thread's children, which lets the supervisor
 //     measure CPU (including reaped children) and memory of native
 //     descendants the worker itself cannot see;
 //   * every worker carries a job tag in its environment (JOB_TAG_ENV), which
 //     descendants inherit. killTree also kills every process whose
 //     environment carries the tag, so a descendant that called setsid() and
-//     was re-parented to init after the worker exited still dies with its job.
-// Windows (dev hosts only) has no such tag scan: a descendant that breaks
+//     was re-parented to init after the worker exited still dies with its job;
+//   * under the per-slot uid sandbox (sandbox.ts) the uid itself is the
+//     boundary: killTree also kills every process whose status carries the
+//     slot uid. That sweep stays reliable where the tag cannot - the environ
+//     of a different-uid process is ptrace-gated, and a hostile descendant
+//     could exec with a scrubbed environment; it cannot escape its uid.
+// Windows (dev hosts only) has no such sweeps: a descendant that breaks
 // away from the worker's job object can outlive it there. The image is Linux.
 
 import { spawnSync, type ChildProcess } from "node:child_process";
@@ -74,6 +79,31 @@ function tagged(tag: string): number[] {
   return out;
 }
 
+/** Processes whose status shows this real/effective/saved/fs uid (Linux only).
+ * The sandbox makes the uid itself the job boundary - one live slot, one uid -
+ * so this sweep catches descendants that environ can no longer see: other-uids'
+ * environ is ptrace-gated, and a hostile handler could exec a scrubbed env.
+ * Matching all four Uid fields also catches a setuid binary the worker ran:
+ * its real uid stays the slot uid, which is exactly what should be killed. */
+export function ownedBy(uid: number | undefined): number[] {
+  if (!hasProc || uid === undefined) return [];
+  const needle = "Uid:";
+  const out: number[] = [];
+  for (const name of readdirSync("/proc")) {
+    if (!/^\d+$/.test(name) || Number(name) === process.pid) continue;
+    try {
+      const status = readFileSync("/proc/" + name + "/status", "utf8");
+      const line = status.split("\n").find((l) => l.startsWith(needle));
+      if (line && line.slice(needle.length).trim().split(/\s+/).some((f) => Number(f) === uid)) {
+        out.push(Number(name));
+      }
+    } catch {
+      // Gone while we read it.
+    }
+  }
+  return out;
+}
+
 export interface TreeUsage {
   rssBytes: number;
   cpuMs: number;
@@ -82,11 +112,11 @@ export interface TreeUsage {
 /** CPU and RSS of the job's processes from /proc; null off Linux. CPU counts
  * each process's own time plus its reaped children's (cutime/cstime), so a
  * handler that runs many short-lived children cannot hide their CPU. */
-export function treeUsage(pid: number, tag = ""): TreeUsage | null {
+export function treeUsage(pid: number, tag = "", uid?: number): TreeUsage | null {
   if (!hasProc) return null;
   let rssBytes = 0;
   let cpuMs = 0;
-  for (const p of new Set([pid, ...descendants(pid), ...tagged(tag)])) {
+  for (const p of new Set([pid, ...descendants(pid), ...tagged(tag), ...ownedBy(uid)])) {
     try {
       const stat = readFileSync("/proc/" + p + "/stat", "utf8");
       // Fields after the ")" of the command name start at field 3 (state):
@@ -103,9 +133,9 @@ export function treeUsage(pid: number, tag = ""): TreeUsage | null {
   return { rssBytes, cpuMs };
 }
 
-/** Kill the worker, every descendant and every process carrying the job tag.
- * Safe to call more than once. */
-export function killTree(child: ChildProcess, tag = ""): void {
+/** Kill the worker, every descendant, every process carrying the job tag and
+ * every process running under the job's slot uid. Safe to call more than once. */
+export function killTree(child: ChildProcess, tag = "", uid?: number): void {
   const pid = child.pid;
   if (pid !== undefined) {
     if (process.platform === "win32") {
@@ -126,6 +156,7 @@ export function killTree(child: ChildProcess, tag = ""): void {
     }
   }
   for (const p of tagged(tag)) signal(p);
+  for (const p of ownedBy(uid)) signal(p);
 }
 
 function signal(pid: number): void {

@@ -16,13 +16,20 @@
     "./desktop": "./src/desktop/index.ts",
     "./markdown": "./src/markdown/index.ts",
     "./html": "./src/html/index.ts",
-    "./assets": "./src/assets/index.ts"
+    "./assets": "./src/assets/index.ts",
+    "./pdf": "./src/pdf/index.ts"
   },
   "dependencies": {
-    "@uniwork/office-contracts": "workspace:*"
+    "@uniwork/office-contracts": "workspace:*",
+    "@embedpdf/pdfium": "catalog:",
+    "pdf-lib": "catalog:",
+    "harfbuzzjs": "catalog:",
+    "pngjs": "catalog:",
+    "jpeg-js": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "@types/pngjs": "^6.0.5",
     "@uniwork/eslint-config": "workspace:*",
     "@uniwork/tsconfig": "workspace:*",
     "@vitest/coverage-v8": "catalog:",

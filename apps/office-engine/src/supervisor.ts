@@ -15,12 +15,17 @@ export interface WorkerRun {
   operation: string;
   format: string;
   inputPath: string | null;
+  payloadPath: string | null;
   outputPath: string;
   tempDir: string;
   limits: EffectiveLimits;
   sampleMs: number;
   faults: boolean;
   signal: AbortSignal;
+  /** Per-slot uid/gid the worker drops to at spawn (sandbox.ts). Undefined on
+   * hosts where the sandbox cannot engage - only POSIX fork honours it. */
+  uid?: number;
+  gid?: number;
 }
 
 export type WorkerResult =
@@ -44,7 +49,7 @@ function workerEnv(tempDir: string, tag: string): NodeJS.ProcessEnv {
 }
 
 export class Supervisor {
-  private readonly live = new Map<ChildProcess, string>();
+  private readonly live = new Map<ChildProcess, { tag: string; uid?: number }>();
 
   get running(): number {
     return this.live.size;
@@ -52,7 +57,7 @@ export class Supervisor {
 
   /** Kill every live tree now (shutdown path). */
   killAll(): void {
-    for (const [child, tag] of this.live) killTree(child, tag);
+    for (const [child, info] of this.live) killTree(child, info.tag, info.uid);
   }
 
   run(job: WorkerRun): Promise<WorkerResult> {
@@ -65,8 +70,13 @@ export class Supervisor {
         detached: process.platform !== "win32",
         stdio: ["ignore", "ignore", "ignore", "ipc"],
         serialization: "json",
+        // The uid/gid drop happens inside fork before Node loads: the handler
+        // never runs as the service uid. Group leadership (detached) is set
+        // before the drop, so killTree's process-group signal is unaffected.
+        uid: job.uid,
+        gid: job.gid,
       });
-      this.live.set(child, tag);
+      this.live.set(child, { tag, uid: job.uid });
       let result: WorkerResult | null = null;
       let exited = false;
       let reported = { rssBytes: 0, cpuMs: 0 };
@@ -83,7 +93,7 @@ export class Supervisor {
         clearInterval(sampler);
         clearTimeout(deadline);
         job.signal.removeEventListener("abort", onAbort);
-        killTree(child, tag);
+        killTree(child, tag, job.uid);
         // Bounded wait for the exit event: a tree that ignores SIGKILL does
         // not hold the job forever.
         setTimeout(() => {
@@ -105,7 +115,7 @@ export class Supervisor {
           settle({ kind: "limit", limit: "deadline" });
           return;
         }
-        const tree = child.pid === undefined ? null : treeUsage(child.pid, tag);
+        const tree = child.pid === undefined ? null : treeUsage(child.pid, tag, job.uid);
         check({
           rssBytes: Math.max(reported.rssBytes, tree?.rssBytes ?? 0),
           cpuMs: Math.max(reported.cpuMs, tree?.cpuMs ?? 0),
@@ -147,6 +157,7 @@ export class Supervisor {
         format: job.format,
         inputPath: job.inputPath,
         outputPath: job.outputPath,
+        payloadPath: job.payloadPath,
         tempDir: job.tempDir,
         sampleMs: job.sampleMs,
         heapMb: job.limits.heapMb,

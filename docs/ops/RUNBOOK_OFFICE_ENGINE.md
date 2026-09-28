@@ -50,6 +50,9 @@ only to an origin listed in `OFFICE_ENGINE_OUTPUT_ORIGINS`. The service never fe
 | `OFFICE_ENGINE_RETENTION_MS` / `_MAX_RETAINED_JOBS` | 15 min / 1024 | How long a settled job answers status |
 | `OFFICE_ENGINE_SHUTDOWN_GRACE_MS` | `10000` | Drain window on SIGTERM |
 | `OFFICE_ENGINE_FAULT_OPERATIONS` | `0` | Test-only fault operations. Never `1` outside a test run |
+| `OFFICE_ENGINE_SANDBOX` | `auto` (`required` in the image) | Per-job uid sandbox: `auto` engages on Linux + uid 0, `required` refuses to start without it, `off` is for dev debugging |
+| `OFFICE_ENGINE_WORKER_UID_BASE` / `_GID_BASE` | `60100` | Start of the per-slot worker uid/gid pool (`maxWorkers` entries, 1000..65533) |
+| `UNIWORK_PDF_ASSETS` | `/app/pdf-assets` in the image | Directory holding `pdfium.wasm`, `harfbuzz-subset.wasm` and `fonts/` (bundled OFL Noto Sans). Set by the Dockerfile; unset in dev, where assets resolve package-relative |
 
 **Every limit default is provisional** (acceptance-thresholds T-2: not a budget until `n >= 5` on the target machine
 class). Measured so far: see `reports/g2-02-engine-service/limits-measurement.md` in the run folder. XLSX (G2-04)
@@ -112,8 +115,10 @@ with the variables above exported (Node 22).
 | `501 unsupported_operation` | operation not bound in this build; `convert` always (Q7) | expected until the format lane binds it |
 
 Stuck processes: every job's tree is killed on every exit path. On Linux (the image) that is the worker's process
-group, every descendant found under `/proc/<pid>/task/*/children`, and every process whose environment carries the
-job's `UW_OFFICE_JOB_TAG` - the last one catches a descendant that called `setsid()` and outlived the worker. CPU is
+group, every descendant found under `/proc/<pid>/task/*/children`, every process whose environment carries the
+job's `UW_OFFICE_JOB_TAG`, and - under the sandbox - every process whose `/proc/*/status` carries the job's slot
+uid. The uid sweep is the reliable one under sandboxing (environ of a different uid is ptrace-gated and a hostile
+process could exec a scrubbed env; it cannot shed its uid); the tag scan still covers unsandboxed runs. CPU is
 measured over the same set including reaped children (`cutime`/`cstime`). If `docker top` shows worker processes
 with no job running, capture `/metrics` and the logs and restart the container; the service sweeps stale
 `uw-office-job-*` temp dirs on start.
@@ -129,12 +134,27 @@ with no job running, capture `/metrics` and the logs and restart the container; 
   execs with a scrubbed environment escapes it. It is enough for our own handlers, not for hostile native code.
   Scanning `/proc/*/environ` on every sample assumes the container's own PID namespace (a handful of processes); do
   not run the engine in the host PID namespace.
-- **Same uid.** Workers run as the service's uid. The compose profile runs the root filesystem read-only with a 512 MiB
+- **Per-slot uid sandbox (G2-05).** On Linux as uid 0 - the image runs the supervisor as root for exactly this - every
+  worker is forked under its own uid/gid from a fixed pool (`OFFICE_ENGINE_WORKER_UID_BASE`/`_GID_BASE` + worker slot,
+  one uid per `OFFICE_ENGINE_MAX_WORKERS` slot), and the job's temp dir is chowned to that uid with mode `0700` before
+  the spawn. The drop happens inside `fork()`, before Node or the handler loads. A compromised worker can then touch
+  only its own job dir: a sibling job's dir is another uid's `0700` dir, the temp root is the service uid's, the root
+  filesystem is read-only, and `no-new-privileges` blocks exec'ing a setuid helper. `OFFICE_ENGINE_SANDBOX=required`
+  (the image default) refuses to start where the drop cannot run; `auto` (the source default) engages only on
+  Linux + uid 0 and `off` exists for dev debugging. Windows dev hosts therefore run unsandboxed - cross-job reads are
+  possible there; production evidence comes from the container test stage. Two rules the deployment must keep: the
+  uid sweep in `killTree` assumes the pool is exclusive to one engine per kernel namespace (one engine per container;
+  never run two engines with overlapping `OFFICE_ENGINE_WORKER_UID_BASE` ranges on one PID namespace or they kill
+  each other's workers), and slot release is gated on the uid being dead - `release()` resweeps `/proc` and SIGKILLs
+  stragglers before the slot returns to the pool; a uid that still owns processes is quarantined (never reissued,
+  counted in `office_engine_quarantined_slots` on `/metrics`) rather than shared with the next job on that slot.
+- **Output integrity.** The job dir belongs to the worker uid, so the supervisor treats `output.bin` as hostile:
+  it opens it `O_NOFOLLOW` and requires a plain file with `nlink == 1` owned by the slot uid on the fd it streams —
+  a worker that repoints the output (symlink to a host file, hard link into another job) fails the job with
+  `engine_result_invalid` and nothing reaches the grant target.
+- **Tmpfs bound.** The compose profile runs the root filesystem read-only with a 512 MiB
   tmpfs on `/tmp` (the job temp root; tmpfs pages count against `mem_limit`, so tmpfs + workers x job RSS + the service
-  stay under the 2 GiB ceiling), so a worker can write nowhere else and all jobs together cannot fill more than the
-  tmpfs; but a compromised worker could read another concurrent job's temp dir. Before G2-04/G2-05 bind native
-  parsers on untrusted files, add a per-job sandbox (per-job uid, or a per-job-class container). Owner: G2-04/G2-05
-  with this runbook's owner.
+  stay under the 2 GiB ceiling), so all jobs together cannot fill more than the tmpfs.
 - The submit path parses and hashes the envelope on the service's event loop; a large input stalls other requests
   briefly (measured in `reports/g2-02-engine-service/limits-measurement.md`).
 
@@ -157,6 +177,23 @@ with no job running, capture `/metrics` and the logs and restart the container; 
   claimed (`ClaimOfficeJobOutputInTx` requires `completed`), and FileService collects it after its claim window.
 - `/v1/capability` needs only the service credential: it describes the build and touches no job, so there is no
   grant to present.
+
+## PDF lane (G2-05)
+
+- `edit:pdf` runs the real pipeline: `ops.json` (the envelope's validated `edits[]`, written by the service into the
+  job dir) drives annotation deletes → text edits → text inserts → image ops → pdf-lib page ops (rotation, metadata,
+  page delete/reorder) → save → read-back verification. A verify failure discards the output; the original bytes are
+  never written to the output target.
+- `serialize:pdf` validates committed bytes and passes them through unchanged (the Documents commit path);
+  `open:pdf` returns a probe JSON (`pageCount`, `hasTextLayer`, per-page empties, feature map with `ocr: false` +
+  reason). `convert`/`export` stay unbound; an `ocr` capability row answers `supported: false` (Q2-A).
+- Typed refusals keep the original: `not_a_pdf`, `encrypted_pdf`, `corrupt_pdf`, `bad_op:*` map to
+  `engine_result_invalid`; an op outside the bound vocabulary (annotation authoring, OCR, forms) is
+  `unsupported_operation`. Stale text edits are `edit_skipped` warnings, not job failures.
+- Assets are staged at build time into `/app/pdf-assets` (`pdfium.wasm`, `harfbuzz-subset.wasm`, OFL Noto fonts) and
+  reached via `UNIWORK_PDF_ASSETS`; in dev the package resolves them from `node_modules` + `assets/fonts`.
+- The pdfium wasm is a shared singleton with one linear heap: all pdfium access is serialized through a promise
+  chain inside the handler thread.
 
 ## Q7 conversions
 

@@ -10,6 +10,9 @@ export interface RunMessage {
   /** Inside the job's private temp dir; names chosen by the service, never by a user. */
   inputPath: string | null;
   outputPath: string;
+  /** Validated operation payload (edits[]) serialized by the service into the
+      job dir; null for ops that carry none. Names are service-chosen. */
+  payloadPath: string | null;
   tempDir: string;
   sampleMs: number;
   /** V8 old-generation cap for the handler thread, in MiB. */
