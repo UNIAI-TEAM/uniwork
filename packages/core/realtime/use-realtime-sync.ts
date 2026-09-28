@@ -10,6 +10,7 @@ import { aiKeys } from "../ai/hooks";
 import { auditKeys } from "../audit/hooks";
 import { billingKeys } from "../billing/hooks";
 import { chatKeys } from "../chat/hooks";
+import { documentKeys } from "../documents/keys";
 import { invalidateEmailHubThreadsForAccount, invalidateEmailHubUnread } from "../email-hub/hooks";
 import { homeKeys } from "../home/keys";
 import { meetingKeys } from "../meetings/hooks";
@@ -212,6 +213,25 @@ function keysFor(
       if (payload.meeting_id) push(meetingKeys.chat(payload.meeting_id));
       break;
     }
+    case "document.created":
+    case "document.updated":
+    case "document.version_created":
+    case "document.shared":
+    case "document.share_revoked":
+    case "document.link_created":
+    case "document.link_revoked":
+    case "document.favorited":
+    case "document.unfavorited": {
+      // Ids-only refetch: the workspace root is the prefix of every document
+      // key (list/tree roots, detail, versions, downloadMeta), so one
+      // invalidation covers the whole subtree. document.comment_* stays
+      // unwired - G1-07b owns the comment keys. The frame only marks queries
+      // stale; an in-flight draft lives in the save machine, not the cache
+      // (documents/save-state.ts keeps it through conflict/unverified).
+      if (payload.workspace_id && payload.workspace_id !== wsId) break;
+      push(documentKeys.workspace(wsId));
+      break;
+    }
     case "summary.created": {
       if (payload.meeting_id) {
         push(meetingKeys.summary(payload.meeting_id));
@@ -348,6 +368,9 @@ function allWorkspaceKeys(wsId: string) {
     meetingKeys.joinRequestsRoot,
     notificationKeys.lists(),
     notificationKeys.unreadCount(),
+    // Documents go stale while the socket is down; workspace root is the
+    // prefix of every document key.
+    documentKeys.workspace(wsId),
   ];
 }
 

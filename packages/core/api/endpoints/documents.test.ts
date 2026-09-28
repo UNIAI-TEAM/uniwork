@@ -174,6 +174,14 @@ describe("documents endpoints", () => {
     expect(String(url)).toBe("http://api.test/api/v1/documents/d1/versions/1/restore");
     expect(init?.method).toBe("POST");
     expect(out?.version.reason).toBe("restore");
+    // A page restore sends no body; a file restore carries the base revision.
+    expect(init?.body).toBeUndefined();
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({ document: docBody({ revision: "44" }), version: versionBody({ reason: "restore" }) }),
+    );
+    await restoreDocumentVersion("d1", 1, { baseRevision: "43" });
+    const [, initWithBase] = vi.mocked(fetch).mock.calls[1]!;
+    expect(JSON.parse(String(initWithBase?.body))).toEqual({ base_revision: "43" });
   });
 
   it("getDocumentDownloadMeta requests meta=1 and keeps version", async () => {

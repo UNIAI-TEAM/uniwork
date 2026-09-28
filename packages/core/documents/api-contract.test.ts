@@ -81,6 +81,9 @@ const SDI_JSON_SCHEMAS: Record<string, z.ZodType> = {
     .object({ upload_id: z.string(), base_revision: z.string() })
     .strict(),
   CreateDocumentVersionSDI: z.object({ label: z.string().optional() }).strict(),
+  // Restore's body is optional: pages send nothing, files carry the base the
+  // writer saw (the service checks base_revision unconditionally on files).
+  RestoreDocumentVersionSDI: z.object({ base_revision: z.string().optional() }).strict(),
 };
 
 // form/query samples only name declared wire keys (the Go test reads the

@@ -329,6 +329,7 @@ func main() {
 	// package (G1-07).
 	docSvc := service.NewDocumentService(pool, q, orgSvc, wsSvc)
 	docSvc.SetEntitlements(service.NewEntitlementService(pool, q))
+	docSvc.SetFiles(fileSvc)
 	notifConsumer.SetDocumentReaders(docSvc)
 	var pushSender notification.PushSender
 	if cfg.PushEnabled() {
@@ -432,6 +433,7 @@ func main() {
 		Bus:             bus,
 		Storage:         store,
 		FileAccess:      fileAccess,
+		Documents:       docSvc,
 		MembershipCache: membershipCache,
 		HTTPMetrics:     httpMetrics,
 		WebVitals:       webVitals(reg),

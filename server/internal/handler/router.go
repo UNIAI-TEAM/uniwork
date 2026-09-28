@@ -55,6 +55,10 @@ type Deps struct {
 	// file routes until the server wires it.
 	FileAccess *service.FileAccessService
 
+	// Documents is the C-01 document service (UNI-679, G1-05a); nil answers
+	// 501 on the document routes until the server wires it.
+	Documents *service.DocumentService
+
 	// Redis is optional: nil disables the rate limiter and any other feature
 	// that needs shared state across instances.
 	Redis *redis.Client
@@ -483,6 +487,20 @@ func New(d Deps) http.Handler {
 
 		ResolveWorkspaceFiles: h.resolveWorkspaceFiles,
 		GetFileContent:        h.getFileContent,
+
+		CreateDocument:         h.createDocument,
+		CreateDocumentFile:     h.createDocumentFile,
+		GetDocument:            h.getDocument,
+		PatchDocument:          h.patchDocument,
+		UploadDocumentFile:     h.uploadDocumentFile,
+		CommitDocumentVersion:  h.commitDocumentVersion,
+		ListDocumentVersions:   h.listDocumentVersions,
+		CreateDocumentVersion:  h.createDocumentVersion,
+		GetDocumentVersion:     h.getDocumentVersion,
+		RestoreDocumentVersion: h.restoreDocumentVersion,
+		UploadDocumentAsset:    h.uploadDocumentAsset,
+		GetDocumentAsset:       h.getDocumentAsset,
+		DownloadDocument:       h.downloadDocument,
 	})
 }
 

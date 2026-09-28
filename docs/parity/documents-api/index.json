@@ -121,10 +121,12 @@
       "name": "restore_document_version",
       "method": "POST",
       "path": "/api/v1/documents/{documentID}/versions/{versionNo}/restore",
-      "request_kind": "none",
+      "request_kind": "json",
       "response_kind": "json",
       "response": "restore-document-version.response.json",
-      "sdo": "DocumentVersionResultSDO"
+      "sdo": "DocumentVersionResultSDO",
+      "request": "restore-document-version.request.json",
+      "sdi": "RestoreDocumentVersionSDI"
     },
     {
       "name": "upload_document_asset",
@@ -145,14 +147,43 @@
       "response_kind": "stream"
     }
   ],
-  "error_classes": ["conflict", "gone", "quota", "permission", "missing", "incompatible", "session"],
+  "error_classes": [
+    "conflict",
+    "gone",
+    "quota",
+    "permission",
+    "missing",
+    "incompatible",
+    "session"
+  ],
   "error_samples": [
-    { "error_class": "conflict", "file": "error-conflict.json" },
-    { "error_class": "gone", "file": "error-gone.json" },
-    { "error_class": "quota", "file": "error-quota.json" },
-    { "error_class": "permission", "file": "error-permission.json" },
-    { "error_class": "missing", "file": "error-missing.json" },
-    { "error_class": "incompatible", "file": "error-incompatible.json" },
-    { "error_class": "session", "file": "error-session.json" }
+    {
+      "error_class": "conflict",
+      "file": "error-conflict.json"
+    },
+    {
+      "error_class": "gone",
+      "file": "error-gone.json"
+    },
+    {
+      "error_class": "quota",
+      "file": "error-quota.json"
+    },
+    {
+      "error_class": "permission",
+      "file": "error-permission.json"
+    },
+    {
+      "error_class": "missing",
+      "file": "error-missing.json"
+    },
+    {
+      "error_class": "incompatible",
+      "file": "error-incompatible.json"
+    },
+    {
+      "error_class": "session",
+      "file": "error-session.json"
+    }
   ]
 }

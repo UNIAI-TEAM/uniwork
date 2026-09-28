@@ -47,15 +47,16 @@ type documentsAPIIndex struct {
 }
 
 var documentsAPISDI = map[string]reflect.Type{
-	"CreateDocumentSDI":        reflect.TypeOf(sdi.CreateDocumentSDI{}),
-	"PatchDocumentSDI":         reflect.TypeOf(sdi.PatchDocumentSDI{}),
-	"CreateDocumentFileSDI":    reflect.TypeOf(sdi.CreateDocumentFileSDI{}),
-	"UploadDocumentFileSDI":    reflect.TypeOf(sdi.UploadDocumentFileSDI{}),
-	"CommitDocumentVersionSDI": reflect.TypeOf(sdi.CommitDocumentVersionSDI{}),
-	"CreateDocumentVersionSDI": reflect.TypeOf(sdi.CreateDocumentVersionSDI{}),
-	"UploadDocumentAssetSDI":   reflect.TypeOf(sdi.UploadDocumentAssetSDI{}),
-	"ListDocumentVersionsSDI":  reflect.TypeOf(sdi.ListDocumentVersionsSDI{}),
-	"DownloadDocumentSDI":      reflect.TypeOf(sdi.DownloadDocumentSDI{}),
+	"CreateDocumentSDI":         reflect.TypeOf(sdi.CreateDocumentSDI{}),
+	"PatchDocumentSDI":          reflect.TypeOf(sdi.PatchDocumentSDI{}),
+	"CreateDocumentFileSDI":     reflect.TypeOf(sdi.CreateDocumentFileSDI{}),
+	"UploadDocumentFileSDI":     reflect.TypeOf(sdi.UploadDocumentFileSDI{}),
+	"CommitDocumentVersionSDI":  reflect.TypeOf(sdi.CommitDocumentVersionSDI{}),
+	"CreateDocumentVersionSDI":  reflect.TypeOf(sdi.CreateDocumentVersionSDI{}),
+	"RestoreDocumentVersionSDI": reflect.TypeOf(sdi.RestoreDocumentVersionSDI{}),
+	"UploadDocumentAssetSDI":    reflect.TypeOf(sdi.UploadDocumentAssetSDI{}),
+	"ListDocumentVersionsSDI":   reflect.TypeOf(sdi.ListDocumentVersionsSDI{}),
+	"DownloadDocumentSDI":       reflect.TypeOf(sdi.DownloadDocumentSDI{}),
 }
 
 var documentsAPISDO = map[string]reflect.Type{
