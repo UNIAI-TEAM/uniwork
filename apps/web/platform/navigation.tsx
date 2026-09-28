@@ -2,7 +2,11 @@
 
 import { Suspense, useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { NavigationProvider, type NavigationAdapter } from "@uniwork/views/navigation";
+import {
+  leaveGuardAllows,
+  NavigationProvider,
+  type NavigationAdapter,
+} from "@uniwork/views/navigation";
 
 /**
  * The web half of the navigation adapter: the only place shared screens'
@@ -16,8 +20,20 @@ function NavigationProviderInner({ children }: { children: React.ReactNode }) {
 
   const adapter = useMemo<NavigationAdapter>(
     () => ({
-      push: (path) => router.push(path),
-      replace: (path) => router.replace(path),
+      // A screen that owns unsaved work can hold a navigation: the guard asks
+      // the user (save / wait / discard) before the route commits, and refuses
+      // the push when they choose to stay. Only the web host can do this,
+      // which is why the registry lives in views and the wait lives here.
+      push: (path) => {
+        void leaveGuardAllows(path).then((allowed) => {
+          if (allowed) router.push(path);
+        });
+      },
+      replace: (path) => {
+        void leaveGuardAllows(path).then((allowed) => {
+          if (allowed) router.replace(path);
+        });
+      },
       back: () => router.back(),
       forward: () => router.forward(),
       pathname,
