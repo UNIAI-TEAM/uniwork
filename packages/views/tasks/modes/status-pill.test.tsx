@@ -11,7 +11,7 @@ describe("StatusPill", () => {
   it("wears the category's solid tint with the label uppercase", () => {
     render(<StatusPill status="done" label="Xong" />);
     const pill = screen.getByText("Xong").closest('[data-slot="status-pill"]');
-    expect(pill).toHaveClass("bg-tint-green-solid", "text-on-solid", "uppercase");
+    expect(pill).toHaveClass("bg-tint-blue-solid", "text-on-solid", "uppercase");
     expect(pill?.querySelector("svg")).not.toBeNull();
   });
 
@@ -22,11 +22,11 @@ describe("StatusPill", () => {
 });
 
 describe("StatusIcon", () => {
-  it("ports the progress-ring geometry and semantic category colour", () => {
+  it("ports the progress-ring geometry and the category's tint", () => {
     const { container } = render(<StatusIcon status="blocked" />);
     const icon = container.querySelector('[data-slot="status-icon"]');
     expect(icon).toHaveAttribute("viewBox", "0 0 14 14");
-    expect(icon).toHaveClass("text-destructive");
+    expect(icon).toHaveClass("text-tint-red-foreground");
     expect(icon?.querySelector('circle[r="6"]')).not.toBeNull();
     expect(icon?.querySelector("line")).not.toBeNull();
   });

@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
-import { STATUS_CONFIG } from "./status-config";
+import { STATUS_CONFIG, statusColumnBg } from "./status-config";
 
 export function SwimlaneStatusHeader({
   statuses,
@@ -37,7 +37,7 @@ export function SwimlaneStatusHeader({
               data-testid={`swimlane-status-${status}`}
               className={cn(
                 "flex items-center justify-between rounded-xl px-3 py-2",
-                config?.columnBg ?? "bg-muted/40",
+                statusColumnBg(status),
               )}
             >
               <div className="flex min-w-0 items-center gap-2">

@@ -23,7 +23,7 @@ import {
   type BoardCardMeta,
 } from "./board-card";
 import { LoadMoreFooter } from "./load-more-footer";
-import { statusColumnBg, STATUS_CONFIG } from "./status-config";
+import { statusColumnBg } from "./status-config";
 import { StatusHeading } from "./status-pill";
 
 export const BOARD_COL_WIDTH = 280;
@@ -110,7 +110,6 @@ export const BoardColumn = memo(function BoardColumn({
   disableDragging?: boolean;
 }) {
   const status = group.kind === "status" ? group.status : undefined;
-  const cfg = status ? STATUS_CONFIG[status as TaskStatus] : null;
   const { setNodeRef, isOver } = useDroppable({ id: group.id });
   const viewStoreApi = useViewStoreApi();
   const { t } = useTranslation();
@@ -170,10 +169,7 @@ export const BoardColumn = memo(function BoardColumn({
     <div
       style={{ width: BOARD_COL_WIDTH }}
       data-testid={status ? `board-column-${status}` : `board-column-${group.id}`}
-      className={cn(
-        "flex shrink-0 flex-col rounded-xl p-2",
-        cfg?.columnBg ?? statusColumnBg(status ?? "") ?? "bg-muted/40",
-      )}
+      className={cn("flex shrink-0 flex-col rounded-xl p-2", statusColumnBg(status ?? ""))}
     >
       <div className="mb-2 flex items-center justify-between px-1.5">
         <div
