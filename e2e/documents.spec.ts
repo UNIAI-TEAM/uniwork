@@ -5,15 +5,17 @@ import { verifyEmail } from "./auth-nav";
 import { workspaceSeed, type WorkspaceSeed } from "./onboard";
 
 /**
- * Golden path of G1-06a on the H1 API: a page is created, typed into and read
- * back after a reload; a file document takes a new version through
+ * Golden paths of G1-06 (a + b) on the H1 API: a page is created, typed into
+ * and read back after a reload; a file document takes a new version through
  * `POST /uploads` + `POST /versions/commit` and downloads through the Go
- * proxy.
+ * proxy; the library lists what the server returns across its tabs, filters
+ * and tree, and opens documents from both list and tree.
  *
  * Needs a running app whose API has the `documents` flag ON
  * (`FF_DOCUMENTS=true` on the server), Postgres + Redis + MinIO up, and this
  * worktree's migrations applied. Runbook and the exact commands:
- * reports/g1-06a-page-editor/e2e-runbook.md in the run folder.
+ * reports/g1-06b-library-tree/e2e-runbook.md in the run folder (G1-06a's
+ * runbook still describes the shared env).
  */
 test.describe.configure({ timeout: 360_000 });
 
@@ -21,6 +23,7 @@ const stamp = Date.now();
 const pageSeed = workspaceSeed("documents", "page", stamp);
 const fileSeed = workspaceSeed("documents", "file", stamp);
 const officeSeed = workspaceSeed("documents", "office", stamp);
+const librarySeed = workspaceSeed("documents", "library", stamp);
 const SHOTS =
   process.env.DOCUMENT_SHOT_DIR ?? resolve(process.cwd(), "test-results", "documents-shots");
 const FIXTURE = resolve(process.cwd(), "fixtures", "parity-upload.txt");
@@ -78,9 +81,9 @@ test("a page is created, typed into, and survives a reload", async ({ page }) =>
   await onboard(page, pageSeed);
 
   await page.goto(`/${pageSeed.orgSlug}/${pageSeed.wsSlug}/documents`);
-  // The entry screen of G1-06a: create or upload, no library list yet.
-  await expect(page.getByRole("heading", { name: "Tài liệu", level: 1 })).toBeVisible();
-  await expect(page.getByText("Thư viện tài liệu chưa mở")).toBeVisible();
+  // The library shell: tabs and the real empty state, never fabricated rows.
+  await expect(page.getByRole("tab", { name: /Tất cả/ })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("Chưa có tài liệu")).toBeVisible();
   await shot(page, "documents-library-light-vi");
 
   await page
@@ -156,6 +159,66 @@ test("a file document takes a new version and downloads it", async ({ page }) =>
   expect((await download).suggestedFilename()).toBe("parity-upload.txt");
 });
 
+test("the library lists pages across its tabs and the tree opens one", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await onboard(page, librarySeed);
+
+  await page.goto(`/${librarySeed.orgSlug}/${librarySeed.wsSlug}/documents`);
+  await expect(page.getByText("Chưa có tài liệu")).toBeVisible({ timeout: 30_000 });
+
+  // Create one page; its editor opens on it.
+  await page.getByRole("button", { name: "Trang mới" }).first().click();
+  await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 60_000 });
+  await expect(page.getByRole("textbox", { name: "Nội dung tài liệu" })).toBeVisible({
+    timeout: 60_000,
+  });
+
+  // Back to the library: the list row and the tree both carry the new page,
+  // and the tab count is the server's own row count.
+  await page.goto(`/${librarySeed.orgSlug}/${librarySeed.wsSlug}/documents`);
+  const list = page.getByRole("list", { name: "Tài liệu" });
+  await expect(list.getByRole("button", { name: /Trang mới/ })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("treeitem", { name: /Trang mới/ })).toBeVisible();
+  await expect(page.getByRole("tab", { name: /Tất cả/ })).toContainText("1");
+
+  // The other tabs read their own endpoints (nothing is shared with anyone).
+  await page.getByRole("tab", { name: /Gần đây/ }).click();
+  await expect(page.getByRole("tab", { name: /Gần đây/ })).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("tab", { name: /Được chia sẻ với tôi/ }).click();
+  await expect(page.getByText("Chưa có tài liệu")).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("tab", { name: /Tất cả/ }).click();
+
+  // Filters are the server's: a file filter drops the page row.
+  await page.getByRole("combobox", { name: "Loại tài liệu" }).click();
+  await page.getByRole("option", { name: "Tệp" }).click();
+  await expect(page.getByText("Không có tài liệu khớp bộ lọc")).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Bỏ bộ lọc" }).click();
+  await expect(list.getByRole("button", { name: /Trang mới/ })).toBeVisible({ timeout: 30_000 });
+
+  // The tree opens the document.
+  await page.getByRole("treeitem", { name: /Trang mới/ }).click();
+  await expect(page).toHaveURL(DOCUMENT_URL, { timeout: 60_000 });
+
+  // Dark and mobile screenshots, then English, on the same library.
+  await page.goto(`/${librarySeed.orgSlug}/${librarySeed.wsSlug}/documents`);
+  await expect(list.getByRole("button", { name: /Trang mới/ })).toBeVisible({ timeout: 30_000 });
+  await page.evaluate(() => document.documentElement.classList.add("dark"));
+  await shot(page, "documents-library-dark-vi");
+  await page.evaluate(() => document.documentElement.classList.remove("dark"));
+
+  // Below xl the tree folds into a sheet; the trigger opens it.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Cây" }).click();
+  await expect(page.getByRole("treeitem", { name: /Trang mới/ })).toBeVisible({ timeout: 30_000 });
+  await shot(page, "documents-library-mobile-tree-vi");
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole("button", { name: "Ng\u00f4n ng\u1eef" }).click();
+  await page.getByRole("menuitemradio", { name: "English" }).click();
+  await expect(page.getByRole("tab", { name: /^All/ })).toBeVisible({ timeout: 30_000 });
+  await shot(page, "documents-library-light-en");
+});
+
 test("the library and the page editor never call the Office service", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await onboard(page, officeSeed);
@@ -166,7 +229,8 @@ test("the library and the page editor never call the Office service", async ({ p
   });
 
   await page.goto(`/${officeSeed.orgSlug}/${officeSeed.wsSlug}/documents`);
-  await expect(page.getByText("Thư viện tài liệu chưa mở")).toBeVisible();
+  await expect(page.getByRole("tab", { name: /Tất cả/ })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("Chưa có tài liệu")).toBeVisible();
 
   // This spec runs with the Office engine stopped; nothing above may depend on
   // it, and the page editor has to open without it.
