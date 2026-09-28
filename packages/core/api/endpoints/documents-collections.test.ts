@@ -106,6 +106,16 @@ describe("documents-collections endpoints", () => {
     expect(String(url)).toBe("http://api.test/api/v1/workspaces/w1/documents/recent?cursor=c9&limit=5");
   });
 
+  it("listSharedWithMe walks the cursor and the limit", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(listBody({ documents: [], next_cursor: "n2" })));
+    const out = await listSharedWithMe("w1", { cursor: "c9", limit: 5 });
+    const [url] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe(
+      "http://api.test/api/v1/workspaces/w1/documents/shared-with-me?cursor=c9&limit=5",
+    );
+    expect(out.next_cursor).toBe("n2");
+  });
+
   it("listSharedWithMe parses access fields per row", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json(listBody({ documents: [summary({ my_level: "view", via: "share" })] })),

@@ -43,8 +43,6 @@ import (
 //	POST   /api/v1/documents/{documentID}/versions/{versionNo}/restore
 //	POST   /api/v1/documents/{documentID}/assets
 //	GET    /api/v1/documents/{documentID}/assets/{assetID}  (HEAD)
-//	PUT    /api/v1/orgs/{orgID}/documents/settings                (G1-05b)
-//	GET    /api/v1/orgs/{orgID}/documents/settings                (G1-08)
 //
 //	GET    /api/v1/documents/{documentID}/comments
 //	POST   /api/v1/documents/{documentID}/comments
@@ -57,6 +55,8 @@ import (
 //	POST   /api/v1/documents/{documentID}/favorite
 //	DELETE /api/v1/documents/{documentID}/favorite
 //	GET    /api/v1/orgs/{orgID}/documents/favorites
+//	PUT    /api/v1/orgs/{orgID}/documents/settings                (G1-05b)
+//	GET    /api/v1/orgs/{orgID}/documents/settings                (G1-08)
 func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	d := r.With(mw.RequireFeatureFlag(flags, "documents"))
 
@@ -187,6 +187,152 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		description: "Như GET nhưng không có body: Content-Length, Content-Type, Accept-Ranges, Content-Range khi có Range. Kiểm quyền giống GET.",
 		tags:        []string{"documents"},
 	})
+	// Office (plan G2-07 / UNI-690; C-01 §6.2). The routes carry document
+	// authority: capability and job status need view, starting and cancelling
+	// a job need edit, and the client never learns an engine address - only
+	// the engine's pinned identity. Export/convert answer
+	// unsupported_operation until an engine lane binds a converter (Q7).
+	d.Get("/documents/{documentID}/office/capabilities", h.OfficeCapability, apiOp{
+		summary: "List the Office capabilities of a document",
+		description: "Hàng capability của engine cho định dạng của tài liệu, cộng hàng create_blank: supported = engine bind và đã có bằng chứng sản phẩm; " +
+			"false thì UI ẩn hành động. Cần quyền xem. Engine chưa cấu hình -> 503 office_not_configured.",
+		tags: []string{"documents"},
+		sdo:  sdo.OfficeCapabilitySDO{},
+		auth: true,
+	})
+	d.Post("/documents/{documentID}/office/jobs", h.StartOfficeJob, apiOp{
+		summary: "Start an Office job",
+		description: "Operation trong allowlist open|serialize|export|convert + Idempotency-Key. Base version/revision và định dạng lấy từ tài liệu, client không gửi version id. " +
+			"Version negotiation và operation gate chạy TRƯỚC khi ghi: engine/contract/protocol lệch pin -> 409 engine_incompatible|contract_mismatch|protocol_mismatch; " +
+			"thao tác chưa bind -> 501 unsupported_operation. Job completed chưa phải version: commit bằng /versions/commit với upload_id = output_file_id.",
+		tags:   []string{"documents"},
+		sdi:    sdi.StartOfficeJobSDI{},
+		sdo:    sdo.OfficeJobSDO{},
+		status: http.StatusCreated,
+		auth:   true,
+	})
+	d.Get("/documents/{documentID}/office/jobs/{jobID}", h.GetOfficeJob, apiOp{
+		summary:     "Get an Office job",
+		description: "Trạng thái job (accepted/running/completed/failed/timed_out/cancelled/crashed) kèm output file_id/checksum và lỗi có kiểu. Cần quyền xem; job của tài liệu khác -> 404.",
+		tags:        []string{"documents"},
+		sdo:         sdo.OfficeJobSDO{},
+		auth:        true,
+	})
+	d.Post("/documents/{documentID}/office/jobs/{jobID}/cancel", h.CancelOfficeJob, apiOp{
+		summary:     "Cancel an Office job",
+		description: "Chỉ người tạo job huỷ được. Cancel thắng cho tới khi output được claim vào một version; job đã kết thúc trả về trạng thái thật của nó. Cần quyền sửa.",
+		tags:        []string{"documents"},
+		sdo:         sdo.OfficeJobSDO{},
+		auth:        true,
+	})
+	d.Post("/workspaces/{workspaceID}/documents/files/blank", h.CreateBlankDocumentFile, apiOp{
+		summary: "Create a blank file document",
+		description: "Tạo tài liệu mới với bytes do engine sinh: server chọn seed, engine serialize, FileService xác minh, rồi đường create G1 tạo document + version 1. " +
+			"Chỉ định dạng có blank generator (md, html) được nhận; định dạng khác -> 501 unsupported_operation và KHÔNG tạo file Office rỗng. Idempotency-Key replay trả tài liệu đã tạo.",
+		tags:   []string{"documents"},
+		sdi:    sdi.CreateBlankDocumentFileSDI{},
+		sdo:    sdo.DocumentSDO{},
+		status: http.StatusCreated,
+		auth:   true,
+	})
+	d.Post("/documents/{documentID}/copies", h.CopyDocument, apiOp{
+		summary: "Copy a document",
+		description: "Bản sao standalone: consent phải là \"copy\" (thiếu -> 409 copy_consent_required). Cần quyền sửa nguồn. Bản sao giữ acl_owner_id/visibility/share của nguồn " +
+			"và ghi provenance (source_document_id/version/revision/checksum/format); bytes dùng lại đúng file_id nên không tính dung lượng lần hai. Tài liệu thuộc sở hữu C-14 -> 409 owner_requires_copy.",
+		tags:   []string{"documents"},
+		sdi:    sdi.CopyDocumentSDI{},
+		sdo:    sdo.DocumentSDO{},
+		status: http.StatusCreated,
+		auth:   true,
+	})
+
+	// Comments and favorites (G1-07, UNI-681; lane 07b). One contiguous,
+	// additive block: every route sits behind the same `documents` flag as
+	// the block above, reads need view, writes need edit (favorites: view,
+	// the caller's own bookmark), and comment edit/delete is author-or-manage
+	// in the service. G2-07a registers its office routes separately.
+	d.Get("/documents/{documentID}/comments", h.ListDocumentComments, apiOp{
+		summary:     "List document comments",
+		description: "Bình luận của tài liệu, cũ nhất trước, mỗi dòng kèm reactions. Cần quyền xem.",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentCommentListSDO{},
+		auth:        true,
+	})
+	d.Post("/documents/{documentID}/comments", h.CreateDocumentComment, apiOp{
+		summary: "Add a document comment",
+		description: "Thêm bình luận (hoặc trả lời qua parent_id cùng tài liệu) - cần quyền sửa. type chỉ nhận comment: client công khai không tạo được bình luận hệ thống. " +
+			"Idempotency-Key ràng create với fingerprint payload: replay trả lại bình luận đã tạo, payload khác cùng key -> 409 idempotency_payload_mismatch.",
+		tags: []string{"documents"},
+		sdi:  sdi.CreateDocumentCommentSDI{},
+		sdo:  sdo.DocumentCommentSDO{},
+		auth: true,
+	})
+	d.Patch("/documents/{documentID}/comments/{commentID}", h.UpdateDocumentComment, apiOp{
+		summary:     "Update a document comment",
+		description: "Sửa nội dung bình luận: tác giả hoặc người có quyền manage, và vẫn phải còn quyền sửa trên tài liệu.",
+		tags:        []string{"documents"},
+		sdi:         sdi.UpdateDocumentCommentSDI{},
+		sdo:         sdo.DocumentCommentSDO{},
+		auth:        true,
+	})
+	d.Delete("/documents/{documentID}/comments/{commentID}", h.DeleteDocumentComment, apiOp{
+		summary:     "Delete a document comment",
+		description: "Xóa bình luận kèm reactions của nó: tác giả hoặc người có quyền manage.",
+		tags:        []string{"documents"},
+		sdo:         sdo.StatusSDO{},
+		auth:        true,
+	})
+	d.Post("/documents/{documentID}/comments/{commentID}/resolve", h.ResolveDocumentComment, apiOp{
+		summary:     "Resolve a document comment",
+		description: "Đánh dấu bình luận đã giải quyết (cần quyền sửa; idempotent).",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentCommentSDO{},
+		auth:        true,
+	})
+	d.Delete("/documents/{documentID}/comments/{commentID}/resolve", h.ReopenDocumentComment, apiOp{
+		summary:     "Reopen a document comment",
+		description: "Bỏ đánh dấu giải quyết, mở lại bình luận (cần quyền sửa; idempotent).",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentCommentSDO{},
+		auth:        true,
+	})
+	d.Post("/documents/{documentID}/comments/{commentID}/reactions", h.AddDocumentCommentReaction, apiOp{
+		summary:     "Add a document comment reaction",
+		description: "Thêm emoji lên bình luận (cần quyền sửa; cùng emoji cùng người = một dòng).",
+		tags:        []string{"documents"},
+		sdi:         sdi.ReactionSDI{},
+		sdo:         sdo.CommentReactionSDO{},
+		auth:        true,
+	})
+	d.Delete("/documents/{documentID}/comments/{commentID}/reactions", h.RemoveDocumentCommentReaction, apiOp{
+		summary:     "Remove a document comment reaction",
+		description: "Gỡ emoji của chính người gọi khỏi bình luận (cần quyền sửa; idempotent).",
+		tags:        []string{"documents"},
+		sdi:         sdi.ReactionSDI{},
+		sdo:         sdo.StatusSDO{},
+		auth:        true,
+	})
+	d.Post("/documents/{documentID}/favorite", h.FavoriteDocument, apiOp{
+		summary:     "Favorite a document",
+		description: "Lưu tài liệu vào danh sách yêu thích của người gọi (cần quyền xem; idempotent - gọi lại trả về dòng đang có).",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentFavoriteSDO{},
+		auth:        true,
+	})
+	d.Delete("/documents/{documentID}/favorite", h.UnfavoriteDocument, apiOp{
+		summary:     "Unfavorite a document",
+		description: "Bỏ tài liệu khỏi danh sách yêu thích (cần quyền xem; idempotent - chưa lưu vẫn trả 200).",
+		tags:        []string{"documents"},
+		sdo:         sdo.StatusSDO{},
+		auth:        true,
+	})
+	d.Get("/orgs/{orgID}/documents/favorites", h.ListDocumentFavorites, apiOp{
+		summary:     "List my favorite documents",
+		description: "Tài liệu người gọi đã lưu trong một tổ chức, mới nhất trước; mỗi dòng kiểm lại quyền đọc hiện tại nên chia sẻ bị thu hồi tự rụng khỏi danh sách. Không phải thành viên -> 404.",
+		tags:        []string{"documents"},
+		sdo:         sdo.DocumentFavoriteListSDO{},
+		auth:        true,
+	})
 
 	// ---- G1-05b (UNI-679, C-01 §5.1/§5.3/§5.4): collections, tree,
 	// lifecycle, sharing, access log and the org public-links switch. One
@@ -209,8 +355,9 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 	})
 	d.Get("/workspaces/{workspaceID}/documents/shared-with-me", h.ListSharedWithMe, apiOp{
 		summary:     "List documents shared with me",
-		description: "Tài liệu người gọi nhận qua share, gồm workspace khác trong tổ chức; một share đã thu hồi hoặc không còn hiệu lực sẽ biến mất. Workspace trên URL là ngữ cảnh thành viên, danh sách trải theo tổ chức.",
+		description: "Tài liệu người gọi nhận qua share, gồm workspace khác trong tổ chức; một share đã thu hồi hoặc không còn hiệu lực sẽ biến mất. Duyệt ứng viên bằng keyset và lọc quyền trước khi xếp trang nên ứng viên bị từ chối không chiếm suất; cursor ổn định như các list khác. Workspace trên URL là ngữ cảnh thành viên, danh sách trải theo tổ chức.",
 		tags:        []string{"documents"},
+		sdi:         sdi.ListSharedWithMeSDI{},
 		sdo:         sdo.DocumentListSDO{},
 		auth:        true,
 	})
@@ -304,94 +451,6 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		tags:        []string{"documents"},
 		sdi:         sdi.SetDocumentSettingsSDI{},
 		sdo:         sdo.DocumentSettingsSDO{},
-		auth:        true,
-	})
-
-	// Comments and favorites (G1-07, UNI-681; lane 07b). One contiguous,
-	// additive block: every route sits behind the same `documents` flag as
-	// the block above, reads need view, writes need edit (favorites: view,
-	// the caller's own bookmark), and comment edit/delete is author-or-manage
-	// in the service. G2-07a registers its office routes separately.
-	d.Get("/documents/{documentID}/comments", h.ListDocumentComments, apiOp{
-		summary:     "List document comments",
-		description: "Bình luận của tài liệu, cũ nhất trước, mỗi dòng kèm reactions. Cần quyền xem.",
-		tags:        []string{"documents"},
-		sdo:         sdo.DocumentCommentListSDO{},
-		auth:        true,
-	})
-	d.Post("/documents/{documentID}/comments", h.CreateDocumentComment, apiOp{
-		summary: "Add a document comment",
-		description: "Thêm bình luận (hoặc trả lời qua parent_id cùng tài liệu) - cần quyền sửa. type chỉ nhận comment: client công khai không tạo được bình luận hệ thống. " +
-			"Idempotency-Key ràng create với fingerprint payload: replay trả lại bình luận đã tạo, payload khác cùng key -> 409 idempotency_payload_mismatch.",
-		tags: []string{"documents"},
-		sdi:  sdi.CreateDocumentCommentSDI{},
-		sdo:  sdo.DocumentCommentSDO{},
-		auth: true,
-	})
-	d.Patch("/documents/{documentID}/comments/{commentID}", h.UpdateDocumentComment, apiOp{
-		summary:     "Update a document comment",
-		description: "Sửa nội dung bình luận: tác giả hoặc người có quyền manage, và vẫn phải còn quyền sửa trên tài liệu.",
-		tags:        []string{"documents"},
-		sdi:         sdi.UpdateDocumentCommentSDI{},
-		sdo:         sdo.DocumentCommentSDO{},
-		auth:        true,
-	})
-	d.Delete("/documents/{documentID}/comments/{commentID}", h.DeleteDocumentComment, apiOp{
-		summary:     "Delete a document comment",
-		description: "Xóa bình luận kèm reactions của nó: tác giả hoặc người có quyền manage.",
-		tags:        []string{"documents"},
-		sdo:         sdo.StatusSDO{},
-		auth:        true,
-	})
-	d.Post("/documents/{documentID}/comments/{commentID}/resolve", h.ResolveDocumentComment, apiOp{
-		summary:     "Resolve a document comment",
-		description: "Đánh dấu bình luận đã giải quyết (cần quyền sửa; idempotent).",
-		tags:        []string{"documents"},
-		sdo:         sdo.DocumentCommentSDO{},
-		auth:        true,
-	})
-	d.Delete("/documents/{documentID}/comments/{commentID}/resolve", h.ReopenDocumentComment, apiOp{
-		summary:     "Reopen a document comment",
-		description: "Bỏ đánh dấu giải quyết, mở lại bình luận (cần quyền sửa; idempotent).",
-		tags:        []string{"documents"},
-		sdo:         sdo.DocumentCommentSDO{},
-		auth:        true,
-	})
-	d.Post("/documents/{documentID}/comments/{commentID}/reactions", h.AddDocumentCommentReaction, apiOp{
-		summary:     "Add a document comment reaction",
-		description: "Thêm emoji lên bình luận (cần quyền sửa; cùng emoji cùng người = một dòng).",
-		tags:        []string{"documents"},
-		sdi:         sdi.ReactionSDI{},
-		sdo:         sdo.CommentReactionSDO{},
-		auth:        true,
-	})
-	d.Delete("/documents/{documentID}/comments/{commentID}/reactions", h.RemoveDocumentCommentReaction, apiOp{
-		summary:     "Remove a document comment reaction",
-		description: "Gỡ emoji của chính người gọi khỏi bình luận (cần quyền sửa; idempotent).",
-		tags:        []string{"documents"},
-		sdi:         sdi.ReactionSDI{},
-		sdo:         sdo.StatusSDO{},
-		auth:        true,
-	})
-	d.Post("/documents/{documentID}/favorite", h.FavoriteDocument, apiOp{
-		summary:     "Favorite a document",
-		description: "Lưu tài liệu vào danh sách yêu thích của người gọi (cần quyền xem; idempotent - gọi lại trả về dòng đang có).",
-		tags:        []string{"documents"},
-		sdo:         sdo.DocumentFavoriteSDO{},
-		auth:        true,
-	})
-	d.Delete("/documents/{documentID}/favorite", h.UnfavoriteDocument, apiOp{
-		summary:     "Unfavorite a document",
-		description: "Bỏ tài liệu khỏi danh sách yêu thích (cần quyền xem; idempotent - chưa lưu vẫn trả 200).",
-		tags:        []string{"documents"},
-		sdo:         sdo.StatusSDO{},
-		auth:        true,
-	})
-	d.Get("/orgs/{orgID}/documents/favorites", h.ListDocumentFavorites, apiOp{
-		summary:     "List my favorite documents",
-		description: "Tài liệu người gọi đã lưu trong một tổ chức, mới nhất trước; mỗi dòng kiểm lại quyền đọc hiện tại nên chia sẻ bị thu hồi tự rụng khỏi danh sách. Không phải thành viên -> 404.",
-		tags:        []string{"documents"},
-		sdo:         sdo.DocumentFavoriteListSDO{},
 		auth:        true,
 	})
 }

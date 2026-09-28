@@ -365,6 +365,11 @@ func pathParamSDI(path string) any {
 			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 			VersionNo  int32  `path:"versionNo" description:"Số phiên bản (bắt đầu từ 1)" example:"2"`
 		}{}
+	case "documentID,jobID":
+		return struct {
+			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
+			JobID      string `path:"jobID" description:"ULID job Office" example:"01J8X4JOB0N1P2Q3R4S5T6U7V8"`
+		}{}
 	case "documentID,commentID":
 		return struct {
 			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`

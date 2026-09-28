@@ -105,6 +105,27 @@ type DownloadDocumentSDI struct {
 	Meta    *bool  `query:"meta" description:"1 = trả descriptor JSON thay vì stream byte" example:"true"`
 }
 
+// CreateDocumentCommentSDI is POST /api/v1/documents/{documentID}/comments
+// (+ Idempotency-Key header, G1-07): a threaded comment on a document. `type`
+// is on the wire for parity with task comments, but the document allowlist is
+// "comment" only, so a public client can never mint a system row; anything
+// else answers 400 invalid_request.
+type CreateDocumentCommentSDI struct {
+	Body     string  `json:"body" minLength:"1" description:"Nội dung bình luận" example:"Chỗ này cần số liệu Q3."`
+	ParentID *string `json:"parent_id" description:"ULID bình luận cha cùng tài liệu khi trả lời" example:"01J8X4CMTN1P2Q3R4S5T6U7V"`
+	Type     string  `json:"type" description:"Chỉ nhận comment; giá trị khác bị từ chối" example:"comment"`
+}
+
+// UpdateDocumentCommentSDI is the body of PATCH
+// /api/v1/documents/{documentID}/comments/{commentID}: the new body text of a
+// comment the caller wrote or manages.
+type UpdateDocumentCommentSDI struct {
+	Body string `json:"body" minLength:"1" description:"Nội dung mới" example:"Đã sửa sau review."`
+}
+
+// ReactionSDI is reused from task comments for the document reaction routes
+// (POST|DELETE /documents/{documentID}/comments/{commentID}/reactions).
+
 // --- G1-05b (UNI-679, C-01 §5.1/§5.3/§5.4) --------------------------------
 
 // ListDocumentsSDI documents the query params of GET
@@ -132,6 +153,16 @@ type ListDocumentsSDI struct {
 type ListRecentDocumentsSDI struct {
 	Cursor *string `query:"cursor" description:"next_cursor của trang trước" example:"eyJ0IjoiMjAyNi0wOS0yN1QwOTowMDowMFoiLCJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyJ9"`
 	Limit  *int32  `query:"limit" description:"Kích thước trang, mặc định 50, tối đa 100" example:"10"`
+}
+
+// ListSharedWithMeSDI documents GET
+// /api/v1/workspaces/{workspaceID}/documents/shared-with-me: the shares the
+// caller receives across the organization, walked by keyset server-side so a
+// denied candidate never fills a page slot; pages follow the same opaque
+// cursor as the other lists.
+type ListSharedWithMeSDI struct {
+	Cursor *string `query:"cursor" description:"next_cursor của trang trước; bỏ trống = trang đầu" example:"eyJ0IjoiMjAyNi0wOS0yOFQxMDowMDowMFoiLCJpZCI6IjAxSjhYNERPQzBOMVAyUTNSNFM1VDZVNyJ9"`
+	Limit  *int32  `query:"limit" description:"Số tài liệu mỗi trang, mặc định 50, tối đa 100" example:"50"`
 }
 
 // DocumentTreeSDI documents GET /api/v1/workspaces/{workspaceID}/documents/tree:
@@ -182,24 +213,3 @@ type ListDocumentAccessLogsSDI struct {
 type SetDocumentSettingsSDI struct {
 	PublicLinksEnabled bool `json:"public_links_enabled" description:"Bật/tắt liên kết công khai cho tổ chức" example:"true"`
 }
-
-// CreateDocumentCommentSDI is POST /api/v1/documents/{documentID}/comments
-// (+ Idempotency-Key header, G1-07): a threaded comment on a document. `type`
-// is on the wire for parity with task comments, but the document allowlist is
-// "comment" only, so a public client can never mint a system row; anything
-// else answers 400 invalid_request.
-type CreateDocumentCommentSDI struct {
-	Body     string  `json:"body" minLength:"1" description:"Nội dung bình luận" example:"Chỗ này cần số liệu Q3."`
-	ParentID *string `json:"parent_id" description:"ULID bình luận cha cùng tài liệu khi trả lời" example:"01J8X4CMTN1P2Q3R4S5T6U7V"`
-	Type     string  `json:"type" description:"Chỉ nhận comment; giá trị khác bị từ chối" example:"comment"`
-}
-
-// UpdateDocumentCommentSDI is the body of PATCH
-// /api/v1/documents/{documentID}/comments/{commentID}: the new body text of a
-// comment the caller wrote or manages.
-type UpdateDocumentCommentSDI struct {
-	Body string `json:"body" minLength:"1" description:"Nội dung mới" example:"Đã sửa sau review."`
-}
-
-// ReactionSDI is reused from task comments for the document reaction routes
-// (POST|DELETE /documents/{documentID}/comments/{commentID}/reactions).

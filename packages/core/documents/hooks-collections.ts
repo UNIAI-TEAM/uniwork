@@ -72,11 +72,15 @@ export function useRecentDocuments(wsId: string, opts?: { enabled?: boolean }) {
   });
 }
 
-/** Documents the caller received through a share, across the organization. */
+/** Documents the caller received through a share, across the organization.
+ *  Paged like the other lists: `next_cursor` drives the next page. */
 export function useSharedWithMe(wsId: string, opts?: { enabled?: boolean }) {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: documentKeys.sharedWithMe(wsId),
-    queryFn: ({ signal }) => listSharedWithMe(wsId, signal),
+    queryFn: ({ pageParam, signal }) =>
+      listSharedWithMe(wsId, { cursor: pageParam || undefined, limit: DOCUMENT_PAGE_SIZE }, signal),
+    initialPageParam: "",
+    getNextPageParam: (last) => last.next_cursor || undefined,
     enabled: (opts?.enabled ?? true) && !!wsId,
   });
 }

@@ -33,6 +33,7 @@ func Samples() []Sample {
 		{"pdf", "report.pdf", []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n"), "application/pdf"},
 		{"text", "notes.txt", []byte("Biên bản họp, không phải ảnh.\n"), "text/plain"},
 		{"markdown", "notes.md", []byte("# Biên bản\n\n- một\n- hai\n"), "text/markdown"},
+		{"html", "notes.html", []byte("<!doctype html>\n<html><body><p>Biên bản họp</p></body></html>\n"), "text/html"},
 		{"csv", "export.csv", []byte("id,tên\n1,Ánh\n2,Bình\n"), "text/csv"},
 		{"ndjson", "export.ndjson", []byte("{\"id\":\"1\",\"action\":\"task.created\"}\n{\"id\":\"2\",\"action\":\"task.updated\"}\n"), "application/x-ndjson"},
 		{"zip", "export.zip", zipSample("export.ndjson", "export.csv"), "application/zip"},

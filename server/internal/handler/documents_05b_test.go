@@ -221,9 +221,7 @@ func TestDocumentListSearchTree(t *testing.T) {
 		t.Fatalf("tree branch: %d %v", res.StatusCode, out)
 	}
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents/tree?root=01J8X4DOC0N1P2Q3R4S5T6U7", w.token, nil)
-	if code, _ := errCodeClass(out); res.StatusCode != 404 || code != "not_found" {
-		t.Fatalf("tree unknown root: %d code=%q", res.StatusCode, code)
-	}
+	wantErr(t, res, out, 404, "not_found", "missing")
 
 	// The archived view is manage-only; the plain list drops the trashed node.
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+beta+"/archive", w.token, nil)
@@ -329,17 +327,13 @@ func TestDocumentMove(t *testing.T) {
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+a+"/move", w.token, map[string]any{
 		"parent_id": c, "revision": "1",
 	})
-	if code, _ := errCodeClass(out); res.StatusCode != 422 || code != "document_cycle" {
-		t.Fatalf("cycle: %d code=%q", res.StatusCode, code)
-	}
+	wantErr(t, res, out, 422, "document_cycle", "")
 
 	// A stale revision is refused before any tree write.
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+b+"/move", w.token, map[string]any{
 		"parent_id": a, "revision": "99",
 	})
-	if code, _ := errCodeClass(out); res.StatusCode != 422 || code != "revision_conflict" {
-		t.Fatalf("stale move: %d code=%q", res.StatusCode, code)
-	}
+	wantErr(t, res, out, 422, "revision_conflict", "conflict")
 
 	// Cross-workspace move: a parent from another workspace in the same org.
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/orgs/"+w.orgID+"/workspaces", w.token,
@@ -357,9 +351,7 @@ func TestDocumentMove(t *testing.T) {
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+b+"/move", w.token, map[string]any{
 		"parent_id": foreign, "revision": "1",
 	})
-	if code, _ := errCodeClass(out); res.StatusCode != 422 || code != "cross_workspace_reference" {
-		t.Fatalf("cross workspace: %d code=%q (%v)", res.StatusCode, code, out)
-	}
+	wantErr(t, res, out, 422, "cross_workspace_reference", "")
 
 	// Idempotent replay of one move.
 	headers := map[string]string{"Idempotency-Key": "move-1"}
@@ -380,9 +372,7 @@ func TestDocumentMove(t *testing.T) {
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+a+"/move", w.outsider, map[string]any{
 		"parent_id": b, "revision": "1",
 	})
-	if code, _ := errCodeClass(out); res.StatusCode != 404 || code != "not_found" {
-		t.Fatalf("outsider move: %d code=%q", res.StatusCode, code)
-	}
+	wantErr(t, res, out, 404, "not_found", "missing")
 }
 
 func TestDocumentMoveDepthRefusedAtCreate(t *testing.T) {
@@ -466,15 +456,11 @@ func TestDocumentArchiveRestore(t *testing.T) {
 		t.Fatalf("share for archive test: %d %v", res.StatusCode, out)
 	}
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+root+"/archive", member, nil)
-	if code, _ := errCodeClass(out); res.StatusCode != 403 || code != "forbidden" {
-		t.Fatalf("view member archive: %d code=%q", res.StatusCode, code)
-	}
+	wantErr(t, res, out, 403, "forbidden", "permission")
 
 	// An outsider learns nothing.
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+root+"/archive", w.outsider, nil)
-	if code, _ := errCodeClass(out); res.StatusCode != 404 || code != "not_found" {
-		t.Fatalf("outsider archive: %d code=%q", res.StatusCode, code)
-	}
+	wantErr(t, res, out, 404, "not_found", "missing")
 }
 
 func anyToStrings(vals []any) []string {
@@ -497,14 +483,10 @@ func TestDocumentSettingsSwitch(t *testing.T) {
 	}
 	res, out = doJSON(t, w.srv, "PUT", "/api/v1/orgs/"+w.orgID+"/documents/settings", member,
 		map[string]any{"public_links_enabled": false})
-	if code, _ := errCodeClass(out); res.StatusCode != 403 || code != "forbidden" {
-		t.Fatalf("member switch: %d code=%q", res.StatusCode, code)
-	}
+	wantErr(t, res, out, 403, "forbidden", "permission")
 	res, out = doJSON(t, w.srv, "PUT", "/api/v1/orgs/"+w.orgID+"/documents/settings", w.outsider,
 		map[string]any{"public_links_enabled": true})
-	if res.StatusCode != 404 {
-		t.Fatalf("outsider switch: %d %v", res.StatusCode, out)
-	}
+	wantErr(t, res, out, 404, "not_found", "missing")
 	// Flip it back off; the response reflects the stored value.
 	res, out = doJSON(t, w.srv, "PUT", "/api/v1/orgs/"+w.orgID+"/documents/settings", w.token,
 		map[string]any{"public_links_enabled": false})
@@ -735,6 +717,27 @@ func TestDocuments05bOpenAPI(t *testing.T) {
 			t.Errorf("list spec missing query param %q", name)
 		}
 	}
+	// shared-with-me publishes its paging query params.
+	var swmOps map[string]struct {
+		Parameters []struct {
+			Name string `json:"name"`
+			In   string `json:"in"`
+		} `json:"parameters"`
+	}
+	if err := json.Unmarshal(spec.Paths["/api/v1/workspaces/{workspaceID}/documents/shared-with-me"], &swmOps); err != nil {
+		t.Fatal(err)
+	}
+	swm := map[string]bool{}
+	for _, param := range swmOps["get"].Parameters {
+		if param.In == "query" {
+			swm[param.Name] = true
+		}
+	}
+	for _, name := range []string{"cursor", "limit"} {
+		if !swm[name] {
+			t.Errorf("shared-with-me spec missing query param %q", name)
+		}
+	}
 	move := string(spec.Components.Schemas["SdiMoveDocumentSDI"])
 	if !strings.Contains(move, "01J8X4DOC0N1P2Q3R4S5T6U7W9") {
 		t.Errorf("move SDI example missing: %s", move)
@@ -767,6 +770,17 @@ func TestDocumentRecentCursorWalk(t *testing.T) {
 		res, out := doJSON(t, w.srv, "GET", path, w.token, nil)
 		if res.StatusCode != 200 {
 			t.Fatalf("recent page %d: %d %v", page, res.StatusCode, out)
+		}
+		if page == 0 {
+			// The first page must be exactly `limit` rows with a
+			// continuation cursor; a route ignoring limit would otherwise
+			// pass the seen-set walk below.
+			if ids := docIDs(t, out); len(ids) != 1 {
+				t.Fatalf("recent page 1 = %d rows, want 1", len(ids))
+			}
+			if next, _ := out["next_cursor"].(string); next == "" {
+				t.Fatalf("recent page 1 missing continuation cursor: %v", out)
+			}
 		}
 		for _, id := range docIDs(t, out) {
 			if seen[id] {
@@ -820,6 +834,10 @@ func TestDocument05bWritePermissionMatrix(t *testing.T) {
 	share(docView, viewerID, "view")
 	share(docEdit, editorID, "edit")
 	share(docManage, managerID, "manage")
+	// The viewer had real read access to the document whose archived view is
+	// checked below, so the trash assertion proves the manage-only rule, not
+	// the absence of any access.
+	share(docManage, viewerID, "view")
 
 	// View level: every 05b write is refused with the permission class.
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docView+"/move", viewer, map[string]any{"revision": "1"})
@@ -838,6 +856,20 @@ func TestDocument05bWritePermissionMatrix(t *testing.T) {
 	res, out = doJSON(t, w.srv, "DELETE", "/api/v1/documents/"+docView+"/links/01J8X4LINK0N1P2Q3R4S5T6U7", viewer, nil)
 	wantErr(t, res, out, 403, "forbidden", "permission")
 
+	// Live revoke targets on docEdit: a real share and a real link the editor
+	// must not be able to touch.
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docEdit+"/shares", w.token, map[string]any{
+		"principal_type": "user", "principal_id": viewerID, "level": "view"})
+	if res.StatusCode != 201 {
+		t.Fatalf("seed edit share: %d %v", res.StatusCode, out)
+	}
+	editShareID := out["share"].(map[string]any)["id"].(string)
+	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docEdit+"/links", w.token, map[string]any{})
+	if res.StatusCode != 201 {
+		t.Fatalf("seed edit link: %d %v", res.StatusCode, out)
+	}
+	editLinkID := out["link"].(map[string]any)["id"].(string)
+
 	// Edit level: move is allowed; access changes are not.
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docEdit+"/move", editor, map[string]any{"revision": "1"})
 	if res.StatusCode != 200 {
@@ -852,6 +884,30 @@ func TestDocument05bWritePermissionMatrix(t *testing.T) {
 	wantErr(t, res, out, 403, "forbidden", "permission")
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+docEdit+"/links", editor, map[string]any{})
 	wantErr(t, res, out, 403, "forbidden", "permission")
+	res, out = doJSON(t, w.srv, "DELETE", "/api/v1/documents/"+docEdit+"/shares/"+editShareID, editor, nil)
+	wantErr(t, res, out, 403, "forbidden", "permission")
+	res, out = doJSON(t, w.srv, "DELETE", "/api/v1/documents/"+docEdit+"/links/"+editLinkID, editor, nil)
+	wantErr(t, res, out, 403, "forbidden", "permission")
+
+	// The real targets survived the editor's refused revokes.
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+docEdit+"/shares", w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("edit overview: %d %v", res.StatusCode, out)
+	}
+	liveShare, liveLink := false, false
+	for _, sh := range out["shares"].([]any) {
+		if sh.(map[string]any)["id"] == editShareID && sh.(map[string]any)["active"] == true {
+			liveShare = true
+		}
+	}
+	for _, l := range out["links"].([]any) {
+		if l.(map[string]any)["id"] == editLinkID {
+			liveLink = true
+		}
+	}
+	if !liveShare || !liveLink {
+		t.Fatalf("editor revokes touched live targets: shares=%v links=%v", out["shares"], out["links"])
+	}
 
 	// Manage level: archive/restore, share and link management all work,
 	// and only manage sees the archived row in the trash view.

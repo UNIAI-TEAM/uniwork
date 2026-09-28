@@ -44,6 +44,10 @@ type OfficeEngine interface {
 	Status(ctx context.Context, jobID, grant string) (office.JobStatus, error)
 	Cancel(ctx context.Context, jobID, grant string) (office.JobStatus, error)
 	Ready(ctx context.Context) (office.Readiness, error)
+	// Capability reads the engine's identity and operation rows for one
+	// format. The service negotiates that identity and gates an operation on
+	// those rows before it mutates anything.
+	Capability(ctx context.Context, format office.Format) (office.CapabilityResult, error)
 }
 
 // OfficeMetrics is satisfied by metrics.Office.
@@ -213,9 +217,20 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 	} else if !errors.Is(err, pgx.ErrNoRows) {
 		return db.OfficeJob{}, err
 	}
-	input, err := s.loadBase(ctx, in)
+	input, format, err := s.loadBase(ctx, in)
 	if err != nil {
 		return db.OfficeJob{}, err
+	}
+	// Version negotiation and the operation gate run before any mutation: a
+	// build, contract or protocol outside the pin, or an operation this build
+	// does not bind for the format, is refused while no office_jobs row and no
+	// provider-output intent exist.
+	capability, err := office.Negotiate(ctx, s.engine, format)
+	if err != nil {
+		return db.OfficeJob{}, err
+	}
+	if !capability.Supports(in.Operation) {
+		return db.OfficeJob{}, officeErr("unsupported_operation", "not_bound")
 	}
 	fp := officeFingerprint(in, input.checksum, int64(len(input.bytes)))
 	scope := files.Scope{OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID}
@@ -259,35 +274,49 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 	return s.dispatch(ctx, row, in, input, out.WriteTarget)
 }
 
-// loadBase checks the document and its base version and reads the base bytes.
-func (s *DocumentOfficeService) loadBase(ctx context.Context, in OfficeJobInput) (officeInput, error) {
+// loadBase checks the document and its base version, resolves the format the
+// engine must work in, and reads the base bytes.
+func (s *DocumentOfficeService) loadBase(ctx context.Context, in OfficeJobInput) (officeInput, office.Format, error) {
 	doc, err := s.q.GetDocument(ctx, db.GetDocumentParams{ID: in.DocumentID, OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID})
 	if errors.Is(err, pgx.ErrNoRows) || (err == nil && doc.ArchivedAt.Valid) {
-		return officeInput{}, ErrNotFound
+		return officeInput{}, "", ErrNotFound
 	}
 	if err != nil {
-		return officeInput{}, err
+		return officeInput{}, "", err
 	}
 	if doc.Revision != in.BaseRevision {
-		return officeInput{}, officeErr("base_version_mismatch", "revision")
+		return officeInput{}, "", officeErr("base_version_mismatch", "revision")
 	}
 	ver, err := s.q.GetOfficeJobBaseVersion(ctx, db.GetOfficeJobBaseVersionParams{
 		ID: in.BaseVersionID, OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID, DocumentID: in.DocumentID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return officeInput{}, officeErr("base_version_mismatch", "version")
+		return officeInput{}, "", officeErr("base_version_mismatch", "version")
 	}
 	if err != nil {
-		return officeInput{}, err
+		return officeInput{}, "", err
 	}
 	if doc.FileVersionID.String != ver.ID {
-		return officeInput{}, officeErr("base_version_mismatch", "not_current")
+		return officeInput{}, "", officeErr("base_version_mismatch", "not_current")
 	}
 	if ver.Kind != "file" || !ver.FileID.Valid {
-		return officeInput{}, officeErr("unsupported_operation", "page_version")
+		return officeInput{}, "", officeErr("unsupported_operation", "page_version")
+	}
+	format, err := s.formatForVersion(ctx, doc, &ver)
+	if err != nil {
+		return officeInput{}, "", err
+	}
+	if format != in.Format {
+		// The job's format is the document's format: a mismatch is a caller
+		// error refused while nothing has been written.
+		return officeInput{}, "", officeErr("unsupported_operation", "format_mismatch")
 	}
 	scope := files.Scope{OrganizationID: in.OrganizationID, WorkspaceID: in.WorkspaceID}
-	return s.readBase(ctx, scope, files.FileID(ver.FileID.String), ver.ChecksumSha256)
+	input, err := s.readBase(ctx, scope, files.FileID(ver.FileID.String), ver.ChecksumSha256)
+	if err != nil {
+		return officeInput{}, "", err
+	}
+	return input, format, nil
 }
 
 func (s *DocumentOfficeService) afterInsertConflict(ctx context.Context, actor Actor, in OfficeJobInput, input officeInput, key, fp string) (db.OfficeJob, error) {
@@ -327,7 +356,7 @@ func (s *DocumentOfficeService) replay(ctx context.Context, actor Actor, row db.
 		return db.OfficeJob{}, officeErr("payload_fingerprint_mismatch", "")
 	}
 	if row.State == string(office.JobAccepted) && !row.DispatchedAt.Valid && s.now().Before(row.DeadlineAt.Time) {
-		input, err := s.loadBase(ctx, in)
+		input, _, err := s.loadBase(ctx, in)
 		if err != nil {
 			return row, err
 		}

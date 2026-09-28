@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -33,21 +35,15 @@ func TestDocumentSharesFlow(t *testing.T) {
 		t.Fatalf("pre-share shared-with-me: %d %v", res.StatusCode, out)
 	}
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+doc+"/shares", w.outsider, nil)
-	if code, _ := errCodeClass(out); res.StatusCode != 404 || code != "not_found" {
-		t.Fatalf("outsider shares: %d code=%q", res.StatusCode, code)
-	}
+	wantErr(t, res, out, 404, "not_found", "missing")
 
 	// A principal outside the organization and an unknown level are refused.
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+doc+"/shares", w.token, map[string]any{
 		"principal_type": "user", "principal_id": w.outsider, "level": "view"})
-	if code, _ := errCodeClass(out); res.StatusCode != 422 || code != "principal_not_in_organization" {
-		t.Fatalf("foreign principal: %d code=%q", res.StatusCode, code)
-	}
+	wantErr(t, res, out, 422, "principal_not_in_organization", "")
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+doc+"/shares", w.token, map[string]any{
 		"principal_type": "user", "principal_id": memberID, "level": "owner"})
-	if code, _ := errCodeClass(out); res.StatusCode != 400 || code != "invalid_request" {
-		t.Fatalf("bad level: %d code=%q", res.StatusCode, code)
-	}
+	wantErr(t, res, out, 400, "invalid_request", "")
 
 	// Grant view; the response carries the row.
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+doc+"/shares", w.token, map[string]any{
@@ -122,19 +118,13 @@ func TestDocumentSharesFlow(t *testing.T) {
 		t.Fatalf("revoke: %d %v", res.StatusCode, out)
 	}
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+doc, member, nil)
-	if code, _ := errCodeClass(out); res.StatusCode != 404 || code != "not_found" {
-		t.Fatalf("revoked read: %d code=%q", res.StatusCode, code)
-	}
+	wantErr(t, res, out, 404, "not_found", "missing")
 	res, out = doJSON(t, w.srv, "DELETE", "/api/v1/documents/"+doc+"/shares/"+shareID, w.token, nil)
-	if code, _ := errCodeClass(out); res.StatusCode != 404 || code != "not_found" {
-		t.Fatalf("double revoke: %d code=%q", res.StatusCode, code)
-	}
+	wantErr(t, res, out, 404, "not_found", "missing")
 
 	// shared-with-me is a workspace-gated read.
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/workspaces/"+w.wsID+"/documents/shared-with-me", w.outsider, nil)
-	if code, _ := errCodeClass(out); res.StatusCode != 403 || code != "forbidden" {
-		t.Fatalf("outsider shared-with-me: %d code=%q", res.StatusCode, code)
-	}
+	wantErr(t, res, out, 403, "forbidden", "permission")
 }
 
 func TestDocumentPublicLinks(t *testing.T) {
@@ -166,13 +156,17 @@ func TestDocumentPublicLinks(t *testing.T) {
 	wantErr(t, res, out, 404, "not_found", "missing")
 
 	// 404 parity: unknown, revoked, switch-off and flag-off must answer the
-	// same body and headers, so a public caller cannot tell them apart.
+	// same status, body and deterministic headers, so a public caller cannot
+	// tell them apart and a header added on one refusal path fails here. A
+	// fixed correlation id keeps the echoed provenance header deterministic
+	// instead of excluding it.
 	raw404 := func(method, path string) (string, string) {
 		t.Helper()
 		req, err := http.NewRequestWithContext(t.Context(), method, w.srv.URL+path, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
+		req.Header.Set("X-Correlation-ID", "test-correlation-05b")
 		resp, err := w.srv.Client().Do(req)
 		if err != nil {
 			t.Fatal(err)
@@ -182,7 +176,10 @@ func TestDocumentPublicLinks(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return string(body), resp.Header.Get("Content-Type") + "|" + resp.Header.Get("X-Content-Type-Options")
+		if resp.StatusCode != http.StatusNotFound {
+			t.Fatalf("%s %s: status %d, want 404", method, path, resp.StatusCode)
+		}
+		return string(body), stableHeaders(resp.Header)
 	}
 	same404 := func(name, body, headers, wantBody, wantHeaders string) {
 		t.Helper()
@@ -193,7 +190,9 @@ func TestDocumentPublicLinks(t *testing.T) {
 	}
 	unknownBody, unknownHeaders := raw404("GET", "/api/v1/public/documents/unknown-token")
 	unknownAssetBody, unknownAssetHeaders := raw404("GET", "/api/v1/public/documents/unknown-token/assets/01J8X4AST0N1P2Q3R4S5T6U7V8")
+	unknownAssetHeadBody, unknownAssetHeadHeaders := raw404("HEAD", "/api/v1/public/documents/unknown-token/assets/01J8X4AST0N1P2Q3R4S5T6U7V8")
 	unknownDownloadBody, unknownDownloadHeaders := raw404("GET", "/api/v1/public/documents/unknown-token/download")
+	unknownDownloadHeadBody, unknownDownloadHeadHeaders := raw404("HEAD", "/api/v1/public/documents/unknown-token/download")
 
 	// Create one page link and one file link.
 	res, out = doJSON(t, w.srv, "POST", "/api/v1/documents/"+page+"/links", w.token, map[string]any{"expires_in_days": 7})
@@ -248,10 +247,12 @@ func TestDocumentPublicLinks(t *testing.T) {
 	if res.StatusCode != 200 || len(raw) != 0 || res.Header.Get("Content-Length") == "" {
 		t.Fatalf("public head: %d len=%d", res.StatusCode, len(raw))
 	}
-	res, out = doJSON(t, w.srv, "GET", "/api/v1/public/documents/"+pageToken+"/download", "", nil)
-	if code, _ := errCodeClass(out); res.StatusCode != 404 || code != "not_found" {
-		t.Fatalf("page download through link: %d code=%q", res.StatusCode, code)
+	res, raw = doBytes(t, w.srv, "GET", downloadURL, "", "Range", "bytes=-4")
+	if res.StatusCode != 206 || len(raw) != 4 {
+		t.Fatalf("public suffix range: %d len=%d", res.StatusCode, len(raw))
 	}
+	res, out = doJSON(t, w.srv, "GET", "/api/v1/public/documents/"+pageToken+"/download", "", nil)
+	wantErr(t, res, out, 404, "not_found", "missing")
 
 	// A page asset streams anonymously through the link, by exact asset id.
 	res, raw = doMultipart(t, w.srv, "POST", "/api/v1/documents/"+page+"/assets", w.token, nil, "pic.png", docsPNG, nil)
@@ -326,6 +327,12 @@ func TestDocumentPublicLinks(t *testing.T) {
 	if res.StatusCode != 404 {
 		t.Fatalf("flag off download: %d", res.StatusCode)
 	}
+	flagDownloadBody, flagDownloadHeaders := raw404("GET", downloadURL)
+	same404("flag-off download", flagDownloadBody, flagDownloadHeaders, unknownDownloadBody, unknownDownloadHeaders)
+	res, _ = doBytes(t, w.srv, "GET", downloadURL, "", "Range", "bytes=-4")
+	if res.StatusCode != 404 {
+		t.Fatalf("flag off suffix-range download: %d", res.StatusCode)
+	}
 	res, _ = doBytes(t, w.srv, "GET", "/api/v1/public/documents/"+pageToken+"/assets/"+assetID, "")
 	if res.StatusCode != 404 {
 		t.Fatalf("flag off asset: %d", res.StatusCode)
@@ -336,6 +343,8 @@ func TestDocumentPublicLinks(t *testing.T) {
 	if res.StatusCode != 404 {
 		t.Fatalf("flag off asset HEAD: %d", res.StatusCode)
 	}
+	flagHeadBody, flagHeadHeaders := raw404("HEAD", "/api/v1/public/documents/"+pageToken+"/assets/"+assetID)
+	same404("flag-off asset HEAD", flagHeadBody, flagHeadHeaders, unknownAssetHeadBody, unknownAssetHeadHeaders)
 	if _, err := q.UpsertFlagOverride(t.Context(), db.UpsertFlagOverrideParams{
 		ID: util.NewID(), FlagKey: "documents", ScopeType: featureflags.ScopeOrganization,
 		ScopeID: w.orgID, Enabled: true, Note: "public flag test", CreatedBy: "test",
@@ -369,12 +378,20 @@ func TestDocumentPublicLinks(t *testing.T) {
 	if res.StatusCode != 404 {
 		t.Fatalf("switch off download: %d", res.StatusCode)
 	}
+	settingDownloadBody, settingDownloadHeaders := raw404("GET", downloadURL)
+	same404("switch-off download", settingDownloadBody, settingDownloadHeaders, unknownDownloadBody, unknownDownloadHeaders)
 	res, _ = doBytes(t, w.srv, "GET", "/api/v1/public/documents/"+pageToken+"/assets/"+assetID, "")
 	if res.StatusCode != 404 {
 		t.Fatalf("switch off asset: %d", res.StatusCode)
 	}
 	settingAssetBody, settingAssetHeaders := raw404("GET", "/api/v1/public/documents/"+pageToken+"/assets/"+assetID)
 	same404("switch-off asset", settingAssetBody, settingAssetHeaders, unknownAssetBody, unknownAssetHeaders)
+	res, _ = doBytes(t, w.srv, "HEAD", "/api/v1/public/documents/"+pageToken+"/assets/"+assetID, "")
+	if res.StatusCode != 404 {
+		t.Fatalf("switch off asset HEAD: %d", res.StatusCode)
+	}
+	settingHeadBody, settingHeadHeaders := raw404("HEAD", "/api/v1/public/documents/"+pageToken+"/assets/"+assetID)
+	same404("switch-off asset HEAD", settingHeadBody, settingHeadHeaders, unknownAssetHeadBody, unknownAssetHeadHeaders)
 	res, out = doJSON(t, w.srv, "PUT", "/api/v1/orgs/"+w.orgID+"/documents/settings", w.token, map[string]any{"public_links_enabled": true})
 	if res.StatusCode != 200 {
 		t.Fatalf("re-enable links: %d %v", res.StatusCode, out)
@@ -399,6 +416,8 @@ func TestDocumentPublicLinks(t *testing.T) {
 	if res.StatusCode != 404 {
 		t.Fatalf("revoked asset HEAD: %d", res.StatusCode)
 	}
+	revokedHeadBody, revokedHeadHeaders := raw404("HEAD", "/api/v1/public/documents/"+pageToken+"/assets/"+assetID)
+	same404("revoked asset HEAD", revokedHeadBody, revokedHeadHeaders, unknownAssetHeadBody, unknownAssetHeadHeaders)
 
 	// Five live links per document; the sixth is refused.
 	for i := 0; i < 5; i++ {
@@ -443,6 +462,12 @@ func TestDocumentPublicLinks(t *testing.T) {
 	}
 	revokedDownloadBody, revokedDownloadHeaders := raw404("GET", downloadURL)
 	same404("revoked download", revokedDownloadBody, revokedDownloadHeaders, unknownDownloadBody, unknownDownloadHeaders)
+	res, _ = doBytes(t, w.srv, "HEAD", downloadURL, "")
+	if res.StatusCode != 404 {
+		t.Fatalf("revoked download HEAD: %d", res.StatusCode)
+	}
+	revokedDownloadHeadBody, revokedDownloadHeadHeaders := raw404("HEAD", downloadURL)
+	same404("revoked download HEAD", revokedDownloadHeadBody, revokedDownloadHeadHeaders, unknownDownloadHeadBody, unknownDownloadHeadHeaders)
 }
 
 func TestDocumentAccessLog(t *testing.T) {
@@ -532,17 +557,11 @@ func TestDocumentAccessLog(t *testing.T) {
 
 	// Bad inputs and the manage gate.
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+doc+"/access-logs?action=delete", w.token, nil)
-	if code, _ := errCodeClass(out); res.StatusCode != 400 || code != "invalid_request" {
-		t.Fatalf("bad action: %d code=%q", res.StatusCode, code)
-	}
+	wantErr(t, res, out, 400, "invalid_request", "")
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+doc+"/access-logs?cursor=bm90LWpzb24", w.token, nil)
-	if code, _ := errCodeClass(out); res.StatusCode != 400 || code != "invalid_request" {
-		t.Fatalf("bad cursor: %d code=%q", res.StatusCode, code)
-	}
+	wantErr(t, res, out, 400, "invalid_request", "")
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+doc+"/access-logs", member, nil)
-	if code, _ := errCodeClass(out); res.StatusCode != 403 || code != "forbidden" {
-		t.Fatalf("view-level logs: %d code=%q", res.StatusCode, code)
-	}
+	wantErr(t, res, out, 403, "forbidden", "permission")
 	res, out = doJSON(t, w.srv, "GET", "/api/v1/documents/"+doc+"/access-logs", w.outsider, nil)
 	wantErr(t, res, out, 404, "not_found", "missing")
 
@@ -649,4 +668,29 @@ func docsCreateFileDoc(t *testing.T, w *docsWorld, filename string, body []byte)
 	}
 	doc := out["document"].(map[string]any)
 	return doc, doc["id"].(string)
+}
+
+// stableHeaders renders every response header except the wall-clock Date so
+// two refused responses can be compared byte for byte; a header added on one
+// refusal path (or a method) fails the comparison. The requests pin
+// X-Correlation-ID, so the echoed provenance header stays comparable.
+func stableHeaders(h http.Header) string {
+	names := make([]string, 0, len(h))
+	for name := range h {
+		if strings.EqualFold(name, "Date") {
+			continue
+		}
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	var b strings.Builder
+	for _, name := range names {
+		for _, v := range h.Values(name) {
+			b.WriteString(name)
+			b.WriteString(": ")
+			b.WriteString(v)
+			b.WriteString("\n")
+		}
+	}
+	return b.String()
 }

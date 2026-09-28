@@ -45,6 +45,7 @@
     "./documents/schema": "./documents/schema.ts",
     "./documents/hooks": "./documents/hooks.ts",
     "./documents/hooks-versions": "./documents/hooks-versions.ts",
+    "./documents/office-hooks": "./documents/office-hooks.ts",
     "./documents/hooks-collections": "./documents/hooks-collections.ts",
     "./documents/hooks-sharing": "./documents/hooks-sharing.ts",
     "./documents/hooks-copies": "./documents/hooks-copies.ts",

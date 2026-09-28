@@ -45,6 +45,11 @@ type scriptedEngine struct {
 	// means every output goes to the grant's URL (bridge or signed).
 	fake    *filesfake.Fake
 	cancels int
+	// bound overrides which operations the capability answer marks supported;
+	// engineVersion and capabilityErr drive the negotiation tests.
+	bound         map[office.Operation]bool
+	engineVersion string
+	capabilityErr error
 }
 
 func newScriptedEngine() *scriptedEngine {
@@ -154,6 +159,30 @@ func (e *scriptedEngine) Cancel(_ context.Context, jobID, _ string) (office.JobS
 
 func (e *scriptedEngine) Ready(context.Context) (office.Readiness, error) {
 	return office.Readiness{Status: "ready", QueueDepth: 3}, nil
+}
+
+// Capability answers the identity the service negotiates against and the
+// operations this double binds: open/edit/serialize (the ops the lifecycle
+// tests submit). A test that needs a refusal sets bound + capabilityErr.
+func (e *scriptedEngine) Capability(_ context.Context, format office.Format) (office.CapabilityResult, error) {
+	if e.capabilityErr != nil {
+		return office.CapabilityResult{}, e.capabilityErr
+	}
+	bound := e.bound
+	if bound == nil {
+		bound = map[office.Operation]bool{office.OperationOpen: true, office.OperationEdit: true, office.OperationSerialize: true}
+	}
+	rows := make([]office.CapabilityEntry, 0, len(bound))
+	for _, op := range []office.Operation{office.OperationCapability, office.OperationOpen, office.OperationEdit, office.OperationSerialize, office.OperationConvert, office.OperationExport} {
+		rows = append(rows, office.CapabilityEntry{
+			Operation: string(op), Supported: bound[op], Runtime: office.RuntimeInternalService, EvidenceLevel: office.EvidenceProven,
+		})
+	}
+	version := office.TrustedEngineVersion
+	if e.engineVersion != "" {
+		version = e.engineVersion
+	}
+	return office.CapabilityResult{EngineVersion: version, Format: format, Capabilities: rows}, nil
 }
 
 type countingMetrics struct {

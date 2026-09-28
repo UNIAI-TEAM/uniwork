@@ -640,12 +640,9 @@ func restartEngine(t *testing.T, container string, engine *office.Client) {
 	}
 }
 
-// Engine down: office jobs report a retryable error and stay retryable on the
-// same key, while the API's readiness and the Documents read paths (list and
-// download) never touch the engine.
-func TestDocumentOfficeEngineDown(t *testing.T) {
-	ctx := context.Background()
-	f := newOfficeFixture(t, "engine down\n")
+// deadEngine is a client pointed at a port nobody listens on.
+func deadEngine(t *testing.T) *office.Client {
+	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -656,14 +653,29 @@ func TestDocumentOfficeEngineDown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	svc := f.service(down)
+	return down
+}
+
+// Engine down: office jobs report a retryable error and stay retryable on the
+// same key, while the API's readiness and the Documents read paths (list and
+// download) never touch the engine. The recovery half needs a write target the
+// engine can reach, so it is TestDocumentOfficeJobRedispatchAfterEngineDown.
+func TestDocumentOfficeEngineDown(t *testing.T) {
+	ctx := context.Background()
+	f := newOfficeFixture(t, "engine down\n")
+	svc := f.service(deadEngine(t))
 
 	row, err := svc.StartOfficeJob(ctx, f.actor, f.input("k-down"))
 	if office.ErrorCode(err) != "engine_crashed" || !office.Retryable(err) {
 		t.Fatalf("engine down: %v", err)
 	}
-	if row.State != "accepted" || row.DispatchedAt.Valid {
-		t.Fatalf("row after refused dispatch: %+v", row)
+	// Negotiation runs before any mutation: a refused dispatch wrote no row
+	// and no provider-output intent, and the same key can start later.
+	if row.ID != "" {
+		t.Fatalf("engine down wrote a row: %+v", row)
+	}
+	if n := f.officeJobCount(t, f.doc); n != 0 {
+		t.Fatalf("engine down wrote %d job rows", n)
 	}
 	if _, err := svc.EngineReady(ctx); err == nil {
 		t.Fatal("engine readiness reported ready while down")
@@ -699,17 +711,37 @@ func TestDocumentOfficeEngineDown(t *testing.T) {
 	if n, err := none.ReconcileOfficeJobs(ctx); n != 0 || err != nil {
 		t.Fatalf("reconcile without engine: %d %v", n, err)
 	}
+}
 
-	// When the engine is back, the same key dispatches the same job.
-	if os.Getenv("OFFICE_ENGINE_TEST_URL") == "" {
-		return
+// When the engine is back, the key refused while it was down starts (and
+// completes) the job. It dispatches to the real engine, so it shares the
+// TestDocumentOfficeJob process and its container-facing write target.
+func TestDocumentOfficeJobRedispatchAfterEngineDown(t *testing.T) {
+	ctx := context.Background()
+	engine := realEngine(t)
+	f := newOfficeFixture(t, "engine down\n")
+	if _, err := f.service(deadEngine(t)).StartOfficeJob(ctx, f.actor, f.input("k-down")); office.ErrorCode(err) != "engine_crashed" {
+		t.Fatalf("engine down: %v", err)
 	}
-	up := f.service(realEngine(t))
+	up := f.service(engine)
 	again, err := up.StartOfficeJob(ctx, f.actor, f.input("k-down"))
-	if err != nil || again.ID != row.ID {
+	if err != nil || again.ID == "" {
 		t.Fatalf("redispatch: %+v %v", again, err)
 	}
-	if done := waitSettled(t, up, f, row.ID); done.State != "completed" {
+	if done := waitSettled(t, up, f, again.ID); done.State != "completed" {
 		t.Fatalf("redispatched job: %+v", done)
 	}
+}
+
+// mustGet reads a job row straight from the database, for assertions that a
+// late engine answer never rewrites a settled row.
+func (s *DocumentOfficeService) mustGet(t *testing.T, orgID, wsID, jobID string) db.OfficeJob {
+	t.Helper()
+	row, err := s.q.GetOfficeJob(context.Background(), db.GetOfficeJobParams{
+		ID: jobID, OrganizationID: orgID, WorkspaceID: wsID,
+	})
+	if err != nil {
+		t.Fatalf("get job %s: %v", jobID, err)
+	}
+	return row
 }
