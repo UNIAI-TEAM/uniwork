@@ -4,6 +4,7 @@ import {
   Bell,
   Building2,
   CreditCard,
+  FileText,
   Keyboard,
   Network,
   Plug,
@@ -19,6 +20,7 @@ import {
 import { Suspense, lazy, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuditPermissions, useBillingPermissions } from "@uniwork/core/permissions";
+import { useOrgMembership } from "@uniwork/core/organizations";
 import { useMyMembership } from "@uniwork/core/workspaces";
 import {
   Select,
@@ -48,6 +50,7 @@ const AiTab = lazy(() => import("./ai-tab").then((m) => ({ default: m.AiTab })))
 const AuditTab = lazy(() => import("./audit-tab").then((m) => ({ default: m.AuditTab })));
 const BillingTab = lazy(() => import("./billing-tab").then((m) => ({ default: m.BillingTab })));
 const DepartmentsTab = lazy(() => import("./departments-tab").then((m) => ({ default: m.DepartmentsTab })));
+const DocumentsTab = lazy(() => import("./documents-settings").then((m) => ({ default: m.DocumentsSettings })));
 const KeyboardShortcutsTab = lazy(() => import("./keyboard-shortcuts-tab").then((m) => ({ default: m.KeyboardShortcutsTab })));
 const IntegrationsTab = lazy(() => import("./integrations-tab").then((m) => ({ default: m.IntegrationsTab })));
 const MembersTab = lazy(() => import("./members-tab").then((m) => ({ default: m.MembersTab })));
@@ -56,7 +59,7 @@ const OrganizationTab = lazy(() => import("./organization-tab").then((m) => ({ d
 const PreferencesTab = lazy(() => import("./preferences-tab").then((m) => ({ default: m.PreferencesTab })));
 const WorkspaceTab = lazy(() => import("./workspace-tab").then((m) => ({ default: m.WorkspaceTab })));
 
-type Gate = "billing" | "audit" | "workspace_admin";
+type Gate = "billing" | "audit" | "workspace_admin" | "org_admin";
 
 interface TabDef {
   /** The `?tab=` value; links and e2e specs point at these, so they never change. */
@@ -95,6 +98,7 @@ const GROUPS: readonly { id: GroupId; tabs: readonly TabDef[] }[] = [
       { value: "organization", label: "organization", icon: Building2, Panel: OrganizationTab },
       { value: "departments", label: "departments", icon: Network, Panel: DepartmentsTab },
       { value: "billing", label: "billing", icon: CreditCard, Panel: BillingTab, gate: "billing" },
+      { value: "documents", label: "documents", icon: FileText, Panel: DocumentsTab, gate: "org_admin" },
       { value: "audit", label: "audit", icon: ScrollText, Panel: AuditTab, gate: "audit", wide: true },
     ],
   },
@@ -130,10 +134,12 @@ function useHiddenGates(): Set<Gate> {
   const billing = useBillingPermissions(workspace.organization_id);
   const audit = useAuditPermissions(workspace.organization_id);
   const me = useMyMembership(workspace.id);
+  const org = useOrgMembership(workspace.organization_slug);
   const hidden = new Set<Gate>();
   if (!billing.isLoading && !billing.canView.allowed) hidden.add("billing");
   if (!audit.isLoading && !audit.canRead.allowed) hidden.add("audit");
   if (!me.isLoading && me.data && !ADMIN_ROLES.has(me.data.role)) hidden.add("workspace_admin");
+  if (!org.isLoading && org.data && !ADMIN_ROLES.has(org.data.role)) hidden.add("org_admin");
   return hidden;
 }
 

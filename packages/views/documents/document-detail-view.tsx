@@ -8,6 +8,7 @@ import { useFlag } from "@uniwork/core/feature-flags";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { CollectionPageState } from "../layout/collection-page";
+import { DocumentActionsMenu } from "./document-actions-menu";
 import { DocumentWorkspace } from "./document-workspace";
 
 export interface DocumentDetailViewProps {
@@ -123,6 +124,14 @@ export function DocumentDetailView({
       doc={query.data}
       libraryHref={libraryHref}
       refetch={() => query.refetch()}
+      headerActions={
+        <DocumentActionsMenu
+          wsId={wsId}
+          doc={query.data}
+          documentHrefFor={(id) => `${libraryHref}/${id}`}
+          onArchived={onBackToList}
+        />
+      }
     />
   );
 }
