@@ -156,14 +156,17 @@ func TestDocumentPublicLinks(t *testing.T) {
 	wantErr(t, res, out, 404, "not_found", "missing")
 
 	// 404 parity: unknown, revoked, switch-off and flag-off must answer the
-	// same body and the same deterministic headers, so a public caller cannot
-	// tell them apart and a header added on one refusal path fails here.
+	// same status, body and deterministic headers, so a public caller cannot
+	// tell them apart and a header added on one refusal path fails here. A
+	// fixed correlation id keeps the echoed provenance header deterministic
+	// instead of excluding it.
 	raw404 := func(method, path string) (string, string) {
 		t.Helper()
 		req, err := http.NewRequestWithContext(t.Context(), method, w.srv.URL+path, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
+		req.Header.Set("X-Correlation-ID", "test-correlation-05b")
 		resp, err := w.srv.Client().Do(req)
 		if err != nil {
 			t.Fatal(err)
@@ -172,6 +175,9 @@ func TestDocumentPublicLinks(t *testing.T) {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			t.Fatal(err)
+		}
+		if resp.StatusCode != http.StatusNotFound {
+			t.Fatalf("%s %s: status %d, want 404", method, path, resp.StatusCode)
 		}
 		return string(body), stableHeaders(resp.Header)
 	}
@@ -664,13 +670,14 @@ func docsCreateFileDoc(t *testing.T, w *docsWorld, filename string, body []byte)
 	return doc, doc["id"].(string)
 }
 
-// stableHeaders renders every response header except the per-request Date and
-// X-Correlation-Id so two refused responses can be compared byte for byte; a
-// header added on one refusal path (or a method) fails the comparison.
+// stableHeaders renders every response header except the wall-clock Date so
+// two refused responses can be compared byte for byte; a header added on one
+// refusal path (or a method) fails the comparison. The requests pin
+// X-Correlation-ID, so the echoed provenance header stays comparable.
 func stableHeaders(h http.Header) string {
 	names := make([]string, 0, len(h))
 	for name := range h {
-		if strings.EqualFold(name, "Date") || strings.EqualFold(name, "X-Correlation-Id") {
+		if strings.EqualFold(name, "Date") {
 			continue
 		}
 		names = append(names, name)
