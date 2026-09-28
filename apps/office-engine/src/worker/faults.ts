@@ -64,7 +64,11 @@ export async function runFault(head: string, message: RunMessage): Promise<Handl
       return null;
     }
     case "heap": {
-      for (;;) held.push(new Array(1_000_000).fill({ grow: held.length }));
+      // Big holey steps: the cpu budget counts every near-limit GC round, so
+      // many small allocations let cpu_limit beat the V8 cap to the outcome
+      // (UNI-688). A ~64MB backing store per step needs only a couple of
+      // collections before the cap refuses.
+      for (;;) held.push(new Array(8_000_000));
     }
     case "temp": {
       const file = join(message.tempDir, "fill.bin");

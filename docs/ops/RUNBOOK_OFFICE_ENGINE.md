@@ -114,6 +114,14 @@ with the variables above exported (Node 22).
 | `cancelled` | Go cancelled before the job settled | none |
 | `501 unsupported_operation` | operation not bound in this build; `convert` always (Q7) | expected until the format lane binds it |
 
+The cpu budget counts the worker's whole tree from fork, including module
+loading — a handler graph that is heavy to evaluate can `cpu_limit` a job
+before the handler runs (UNI-688: the pdf import masked fault outcomes as
+`timed_out`). `src/worker/handlers.ts` therefore lazy-imports
+`@uniwork/office-engine/pdf` only for pdf ops, and limit errors carry
+`measured_cpu_ms` / `measured_rss_bytes` / `measured_temp_bytes` so a masked
+outcome shows what it actually consumed.
+
 Stuck processes: every job's tree is killed on every exit path. On Linux (the image) that is the worker's process
 group, every descendant found under `/proc/<pid>/task/*/children`, every process whose environment carries the
 job's `UW_OFFICE_JOB_TAG`, and - under the sandbox - every process whose `/proc/*/status` carries the job's slot

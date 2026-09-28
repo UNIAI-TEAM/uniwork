@@ -7,7 +7,7 @@ import { fork, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { dirBytes } from "./cleanup.ts";
 import type { EffectiveLimits, LimitKind } from "./limits.ts";
-import { JOB_TAG_ENV, killTree, treeUsage } from "./process-tree.ts";
+import { JOB_TAG_ENV, killTree, treeUsage, type TreeUsage } from "./process-tree.ts";
 import type { RunMessage, WorkerMessage } from "./worker/protocol.ts";
 
 export interface WorkerRun {
@@ -31,7 +31,11 @@ export interface WorkerRun {
 export type WorkerResult =
   | { kind: "done"; warnings: { code: string; detail?: string }[] }
   | { kind: "fail"; code: string; reason: string }
-  | { kind: "limit"; limit: LimitKind }
+  // A limit outcome carries the measurement that tripped it (or the last
+  // sample for the wall-clock deadline) so a masked fault outcome - a job
+  // that reads timed_out though the handler meant otherwise - diagnoses
+  // itself instead of looking like a flake.
+  | { kind: "limit"; limit: LimitKind; usage?: TreeUsage & { tempBytes?: number } }
   | { kind: "aborted" }
   | { kind: "crashed"; reason: string };
 
@@ -80,6 +84,7 @@ export class Supervisor {
       let result: WorkerResult | null = null;
       let exited = false;
       let reported = { rssBytes: 0, cpuMs: 0 };
+      let lastUsage: TreeUsage = reported;
       let sampling = false;
 
       const finish = () => {
@@ -103,16 +108,17 @@ export class Supervisor {
         finish();
       };
 
-      const check = (usage: { rssBytes: number; cpuMs: number }) => {
-        if (usage.cpuMs > job.limits.cpuMs) settle({ kind: "limit", limit: "cpu" });
-        else if (usage.rssBytes > job.limits.memoryBytes) settle({ kind: "limit", limit: "memory" });
+      const check = (usage: TreeUsage) => {
+        lastUsage = usage;
+        if (usage.cpuMs > job.limits.cpuMs) settle({ kind: "limit", limit: "cpu", usage });
+        else if (usage.rssBytes > job.limits.memoryBytes) settle({ kind: "limit", limit: "memory", usage });
       };
       const onAbort = () => settle({ kind: "aborted" });
 
-      const deadline = setTimeout(() => settle({ kind: "limit", limit: "deadline" }), Math.max(0, job.limits.deadlineAt - Date.now()));
+      const deadline = setTimeout(() => settle({ kind: "limit", limit: "deadline", usage: lastUsage }), Math.max(0, job.limits.deadlineAt - Date.now()));
       const sampler = setInterval(() => {
         if (Date.now() >= job.limits.deadlineAt) {
-          settle({ kind: "limit", limit: "deadline" });
+          settle({ kind: "limit", limit: "deadline", usage: lastUsage });
           return;
         }
         const tree = child.pid === undefined ? null : treeUsage(child.pid, tag, job.uid);
@@ -124,7 +130,7 @@ export class Supervisor {
         sampling = true;
         void dirBytes(job.tempDir, job.limits.tempBytes).then((bytes) => {
           sampling = false;
-          if (bytes > job.limits.tempBytes) settle({ kind: "limit", limit: "temp" });
+          if (bytes > job.limits.tempBytes) settle({ kind: "limit", limit: "temp", usage: { ...lastUsage, tempBytes: bytes } });
         });
       }, job.sampleMs);
 
