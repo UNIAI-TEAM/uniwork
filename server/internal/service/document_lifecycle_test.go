@@ -554,7 +554,7 @@ func TestDocumentCompaction(t *testing.T) {
 
 	t.Run("protected versions above the bound all stay and count the metric", func(t *testing.T) {
 		metrics := &countingAccessMetrics{}
-		f.svc.SetAccessMetrics(metrics)
+		f.svc.SetMetrics(metrics)
 		d := f.treeDoc(t, tn, treeDocSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
 		insertVersions(t, d, documentVersionKeep+2, "manual", "01DVCB")
 		rep, err := f.svc.CompactVersions(f.ctx)

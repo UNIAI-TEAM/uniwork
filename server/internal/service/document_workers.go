@@ -86,19 +86,25 @@ func (w *DocumentWorkers) Run(ctx context.Context) {
 		run  func(context.Context)
 	}{
 		{autoTick, func(ctx context.Context) {
+			started := time.Now()
 			err := w.autoVersionPass(ctx)
+			w.svc.recordDocumentSweep("autoversion", err, started)
 			if w.swept != nil {
 				w.swept("auto_version", err)
 			}
 		}},
 		{purgeTick, func(ctx context.Context) {
+			started := time.Now()
 			_, err := w.svc.PurgeExpired(ctx, w.clock()())
+			w.svc.recordDocumentSweep("purge", err, started)
 			if w.swept != nil {
 				w.swept("purge", err)
 			}
 		}},
 		{compactTick, func(ctx context.Context) {
+			started := time.Now()
 			_, err := w.svc.CompactVersions(ctx)
+			w.svc.recordDocumentSweep("compact", err, started)
 			if w.swept != nil {
 				w.swept("compact", err)
 			}

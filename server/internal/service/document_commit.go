@@ -213,6 +213,14 @@ func resolveUpload(ctx context.Context, fs files.Service, scope files.Scope, upl
 // CommitFileVersion is the file save path (see the file comment for the
 // order). The answer is the same on a replay of the same key and payload.
 func (s *DocumentService) CommitFileVersion(ctx context.Context, actor Actor, documentID string, in CommitFileVersionInput) (DocumentFileResult, error) {
+	started := time.Now()
+	res, err := s.commitFileVersion(ctx, actor, documentID, in)
+	s.recordDocumentSave(documentMetricKindFile, err, time.Since(started))
+	return res, err
+}
+
+// commitFileVersion is the command body; CommitFileVersion adds the save metrics.
+func (s *DocumentService) commitFileVersion(ctx context.Context, actor Actor, documentID string, in CommitFileVersionInput) (DocumentFileResult, error) {
 	fs, err := s.fileService()
 	if err != nil {
 		return DocumentFileResult{}, err

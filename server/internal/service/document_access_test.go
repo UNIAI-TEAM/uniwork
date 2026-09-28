@@ -18,18 +18,28 @@ import (
 type countingAccessMetrics struct {
 	failed            atomic.Int64
 	protectedOverflow atomic.Int64
+	saves             atomic.Int64
+	conflicts         atomic.Int64
+	quotaRejects      atomic.Int64
+	sweeps            atomic.Int64
 }
 
 func (c *countingAccessMetrics) IncDocumentAccessLogFailed() { c.failed.Add(1) }
 func (c *countingAccessMetrics) IncDocumentVersionsProtectedOverflow() {
 	c.protectedOverflow.Add(1)
 }
+func (c *countingAccessMetrics) ObserveDocumentSave(string, string, float64) { c.saves.Add(1) }
+func (c *countingAccessMetrics) IncDocumentConflict(string, string)          { c.conflicts.Add(1) }
+func (c *countingAccessMetrics) IncDocumentQuotaRejected(string)             { c.quotaRejects.Add(1) }
+func (c *countingAccessMetrics) ObserveDocumentWorkerSweep(string, string, float64) {
+	c.sweeps.Add(1)
+}
 
 func TestDocumentAccessLog(t *testing.T) {
 	f := newDocPermFixture(t)
 	tn := f.tenant(t, "alog")
 	metrics := &countingAccessMetrics{}
-	f.svc.SetAccessMetrics(metrics)
+	f.svc.SetMetrics(metrics)
 	d := f.doc(t, tn, docSpec{ws: tn.wsA, visibility: "workspace", aclOwner: tn.aclOwner.ID, createdBy: tn.aclOwner.ID})
 	member := Human(tn.member.ID)
 	list := func(t *testing.T) []db.DocumentAccessLog {

@@ -301,7 +301,7 @@ func main() {
 	documentSvc.SetFiles(fileSvc)
 	documentSvc.SetEntitlements(service.NewEntitlementService(pool, q))
 	if reg != nil {
-		documentSvc.SetAccessMetrics(reg.Documents)
+		documentSvc.SetMetrics(reg.Documents)
 	}
 	// The document maintenance worker (auto-version, purge, compaction -
 	// G1-04b) runs on the same service the routes use; it is awaited in the
