@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@uniwork/core/api";
@@ -73,7 +74,11 @@ function patchCalls(): PatchCall[] {
     .map(([, opts]) => opts as PatchCall);
 }
 
-function renderWorkspace(over: Record<string, unknown> = {}, refetch = vi.fn(() => Promise.resolve({}))) {
+function renderWorkspace(
+  over: Record<string, unknown> = {},
+  refetch = vi.fn(() => Promise.resolve({})),
+  strict = false,
+) {
   const push = vi.fn();
   const adapter: NavigationAdapter = {
     push,
@@ -83,18 +88,17 @@ function renderWorkspace(over: Record<string, unknown> = {}, refetch = vi.fn(() 
     searchParams: new URLSearchParams(),
     getShareableUrl: (path) => path,
   };
-  const result = render(
-    wrap(
-      <NavigationProvider value={adapter}>
-        <DocumentWorkspace
-          wsId={WS}
-          doc={pageDocument(over)}
-          libraryHref={LIBRARY}
-          refetch={refetch}
-        />
-      </NavigationProvider>,
-    ),
+  const tree = wrap(
+    <NavigationProvider value={adapter}>
+      <DocumentWorkspace
+        wsId={WS}
+        doc={pageDocument(over)}
+        libraryHref={LIBRARY}
+        refetch={refetch}
+      />
+    </NavigationProvider>,
   );
+  const result = render(strict ? <StrictMode>{tree}</StrictMode> : tree);
   return { push, refetch, ...result };
 }
 
@@ -252,6 +256,23 @@ describe("DocumentWorkspace autosave", () => {
     fireEvent.click(screen.getByRole("button", { name: t("documents.detail.back_to_library") }));
     expect(await screen.findByText(t("documents.leave.title"))).toBeInTheDocument();
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it("still saves after a StrictMode remount", async () => {
+    // React StrictMode runs mount -> cleanup -> mount in development. The
+    // cleanup used to dispose the one save machine the hook memoises, so every
+    // later edit was dropped and autosave was dead for the life of the screen.
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) =>
+      path === "/api/v1/documents/d1" && opts?.method === "PATCH"
+        ? Promise.resolve({ document: pageDocument({ revision: "4" }) })
+        : Promise.resolve({}),
+    );
+    renderWorkspace({}, vi.fn(() => Promise.resolve({})), true);
+    await findEditor();
+
+    pasteText("StrictMode");
+
+    await waitFor(() => expect(patchCalls()).toHaveLength(1), { timeout: 8_000 });
   });
 
   it("keeps a view-only page readable and out of the save loop", async () => {

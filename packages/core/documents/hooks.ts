@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createDocument,
@@ -176,21 +176,32 @@ export function useDocumentDownload(wsId: string, documentId: string) {
  */
 export function useDocumentSave(wsId: string, documentId: string, initialRevision: string) {
   const qc = useQueryClient();
-  const machine = useMemo(
+  // One machine per document: a revision prop change means the caller
+  // re-fetched (fresh mount), not that the live machine should rebase —
+  // updateBase handles in-place base moves.
+  const makeMachine = useCallback(
     () =>
       new DocumentSaveMachine({
         documentId,
         initialRevision,
         transport: createDocumentPatchTransport(patchDocument),
       }),
-    // One machine per document: a revision prop change means the caller
-    // re-fetched (fresh mount), not that the live machine should rebase —
-    // updateBase handles in-place base moves.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [wsId, documentId],
   );
+  const [machine, setMachine] = useState(makeMachine);
 
-  useEffect(() => () => machine.dispose(), [machine]);
+  useEffect(() => {
+    // React StrictMode mounts, cleans up and mounts again in development. The
+    // cleanup disposed the machine this component still holds, and a disposed
+    // machine ignores every later edit — autosave would be dead for the life
+    // of the screen. Replace it instead of handing the editor a dead one.
+    if (machine.isDisposed()) {
+      setMachine(makeMachine());
+      return;
+    }
+    return () => machine.dispose();
+  }, [machine, makeMachine]);
 
   const state = useSyncExternalStore(machine.subscribe.bind(machine), machine.getState.bind(machine));
 
