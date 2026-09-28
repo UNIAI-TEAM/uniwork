@@ -80,15 +80,12 @@ func (s *DocumentService) CopyDocument(ctx context.Context, actor Actor, documen
 			Msg: "chỉ tài liệu tệp được sao chép ở endpoint này", Fields: map[string]any{"reason": "page_copy_not_supported"}}
 	}
 	// §13.5: an owned (work-product) document copies only through the owner
-	// seam; with no delegation path the honest answer is owner_requires_copy.
+	// seam. This endpoint has no delegation path (C-14 is not implemented), so
+	// a caller who passed the edit gate is refused by name instead of getting
+	// a standalone copy that could not carry the owner - and never widens the
+	// audience. Authorization ran first, so an outsider still learns nothing.
 	if src.OwnerID.Valid {
-		level, err := s.ownerLevelResolve(ctx, actor, src.OwnerID.String)
-		if err != nil {
-			return DocumentFileResult{}, err
-		}
-		if level < DocumentLevelEdit {
-			return DocumentFileResult{}, errOwnerRequiresCopy()
-		}
+		return DocumentFileResult{}, errOwnerRequiresCopy()
 	}
 	current, err := s.currentFileVersion(ctx, s.q, src)
 	if err != nil {

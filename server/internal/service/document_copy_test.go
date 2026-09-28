@@ -128,6 +128,11 @@ func TestDocumentCopy(t *testing.T) {
 				src.Document.ID); err != nil {
 				t.Fatal(err)
 			}
+			// C-14 is not implemented: the strongest available seam grants
+			// edit, and the endpoint must still refuse to mint a standalone
+			// copy of an owned document.
+			env.svc.SetOwnerLevelResolver(fakeOwnerResolver{level: DocumentLevelEdit})
+			t.Cleanup(func() { env.svc.SetOwnerLevelResolver(nil) })
 			_, err := env.svc.CopyDocument(ctx, member, src.Document.ID, CopyDocumentInput{Consent: "copy", IdempotencyKey: util.NewID()})
 			if ce := wantCode(t, err, "owner_requires_copy"); ce.Status != 409 {
 				t.Fatalf("owned copy refusal = %+v", ce)
