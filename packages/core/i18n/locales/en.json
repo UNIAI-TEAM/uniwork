@@ -2658,7 +2658,27 @@
     "open_meeting_full_page": "Open meeting full page",
     "period_picker_label": "Choose display period, currently {{period}}",
     "export_ics": "Export ICS",
-    "export_ics_error": "Could not export the calendar."
+    "export_ics_error": "Could not export the calendar.",
+    "search_open": "Search tasks, events, or calendar commands",
+    "search_input_label": "Search calendar",
+    "search_placeholder": "Search tasks, events, commands…",
+    "search_up_next": "Up next",
+    "search_events": "Events",
+    "search_tasks": "Tasks",
+    "search_commands": "Calendar commands",
+    "search_empty": "No results found.",
+    "search_current": "Current",
+    "search_escape_hint": "Esc to close",
+    "search_task_due": "{{status}} · due {{due}}",
+    "search_today": "Go to today",
+    "search_previous": "Go to previous period",
+    "search_next": "Go to next period",
+    "search_view_day": "View by day",
+    "search_view_work_week": "View by work week",
+    "search_view_week": "View by week",
+    "search_view_month": "View by month",
+    "search_show_weekends": "Show weekends",
+    "search_hide_weekends": "Hide weekends"
   },
   "chat": {
     "message_list": {

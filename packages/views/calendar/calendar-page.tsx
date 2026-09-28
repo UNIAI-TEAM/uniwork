@@ -4,6 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { Calendar } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useCalendarEvents, useCalendarSidebar } from "@uniwork/core/calendar";
+import { useTasks } from "@uniwork/core/tasks";
 import {
   DEFAULT_CALENDAR_PREFERENCES,
   type CalendarPreferences,
@@ -19,11 +20,16 @@ import { PAGE_GUTTER } from "../layout/page-header";
 import { CalendarToolbar } from "./calendar-toolbar";
 import { CalendarMeetingPanel } from "./calendar-meeting-panel";
 import { CalendarTaskPanel } from "./calendar-task-panel";
-import { type CalendarViewMode, rangeForMode } from "./calendar-view-mode";
+import {
+  type CalendarViewMode,
+  rangeForMode,
+  shiftAnchor,
+} from "./calendar-view-mode";
 import { useCalendarMutations } from "./calendar-mutations";
 import { CreateFromSlot } from "./create-from-slot";
 import { CalendarSidebar, EMPTY_CALENDAR_SIDEBAR } from "./calendar-sidebar";
 import { FullCalendarHost, type CalendarSlot } from "./fullcalendar-host";
+import { CalendarFloatingSearch } from "./calendar-floating-search";
 import { NewMeetingDialog } from "../meetings/new-meeting-dialog";
 
 export function CalendarPageView({
@@ -73,8 +79,20 @@ export function CalendarPageView({
     mine,
   );
   const sidebarQuery = useCalendarSidebar(workspaceId);
+  const tasksQuery = useTasks(workspaceId);
   const sidebarSections = sidebarQuery.data ?? EMPTY_CALENDAR_SIDEBAR;
   const events = useMemo(() => data ?? [], [data]);
+  const searchableTasks = useMemo(
+    () =>
+      (tasksQuery.data ?? []).map((task) => ({
+        id: task.id,
+        identifier: task.identifier,
+        title: task.title,
+        status: task.status,
+        dueDate: task.due_date,
+      })),
+    [tasksQuery.data],
+  );
   const { applyDropPatch, applyExternalTaskDue } = useCalendarMutations(workspaceId);
 
   const handleAnchorDateChange = (next: Date) => {
@@ -96,6 +114,10 @@ export function CalendarPageView({
   const handleShowWeekendsChange = (next: boolean) => {
     setShowWeekends(next);
     onPreferencesChange?.({ viewMode, mine, showWeekends: next });
+  };
+
+  const handleRefresh = () => {
+    void Promise.all([refetch(), sidebarQuery.refetch(), tasksQuery.refetch()]);
   };
 
   /** FullCalendar fires datesSet on option churn; skip no-op range updates to avoid loops. */
@@ -183,7 +205,7 @@ export function CalendarPageView({
           onCreateMeeting={() => setCreateMeetingOpen(true)}
           onQuickCreate={handleQuickCreate}
         />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
           <CalendarToolbar
             anchorDate={anchorDate}
             mine={mine}
@@ -192,12 +214,12 @@ export function CalendarPageView({
             workspaceId={workspaceId}
             exportFrom={range.from}
             exportTo={range.to}
-            isRefreshing={isRefetching || sidebarQuery.isRefetching}
+            isRefreshing={
+              isRefetching || sidebarQuery.isRefetching || tasksQuery.isRefetching
+            }
             onAnchorDateChange={handleAnchorDateChange}
             onMineChange={handleMineChange}
-            onRefresh={() => {
-              void Promise.all([refetch(), sidebarQuery.refetch()]);
-            }}
+            onRefresh={handleRefresh}
             onShowWeekendsChange={handleShowWeekendsChange}
             onViewModeChange={handleViewModeChange}
           />
@@ -248,6 +270,25 @@ export function CalendarPageView({
               />
             </div>
           )}
+          <CalendarFloatingSearch
+            tasks={searchableTasks}
+            events={events}
+            viewMode={viewMode}
+            showWeekends={showWeekends}
+            viewerTimeZone={viewerTimeZone}
+            onOpenTask={handleTaskOpen}
+            onOpenEvent={handleEventClick}
+            onGoToday={() => handleAnchorDateChange(new Date())}
+            onPreviousPeriod={() =>
+              handleAnchorDateChange(shiftAnchor(viewMode, anchorDate, -1))
+            }
+            onNextPeriod={() =>
+              handleAnchorDateChange(shiftAnchor(viewMode, anchorDate, 1))
+            }
+            onRefresh={handleRefresh}
+            onShowWeekendsChange={handleShowWeekendsChange}
+            onViewModeChange={handleViewModeChange}
+          />
         </div>
         {openTaskId ? (
           <CalendarTaskPanel

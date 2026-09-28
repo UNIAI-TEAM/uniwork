@@ -2657,7 +2657,27 @@
     "open_meeting_full_page": "Mở cuộc họp toàn trang",
     "period_picker_label": "Chọn kỳ hiển thị, hiện tại {{period}}",
     "export_ics": "Xuất ICS",
-    "export_ics_error": "Không xuất được lịch."
+    "export_ics_error": "Không xuất được lịch.",
+    "search_open": "Tìm việc, sự kiện hoặc lệnh lịch",
+    "search_input_label": "Tìm trong lịch",
+    "search_placeholder": "Tìm việc, sự kiện, lệnh…",
+    "search_up_next": "Sắp tới",
+    "search_events": "Sự kiện",
+    "search_tasks": "Công việc",
+    "search_commands": "Lệnh lịch",
+    "search_empty": "Không tìm thấy kết quả.",
+    "search_current": "Hiện tại",
+    "search_escape_hint": "Esc để đóng",
+    "search_task_due": "{{status}} · hạn {{due}}",
+    "search_today": "Đi tới hôm nay",
+    "search_previous": "Đi tới kỳ trước",
+    "search_next": "Đi tới kỳ sau",
+    "search_view_day": "Xem theo ngày",
+    "search_view_work_week": "Xem theo tuần làm việc",
+    "search_view_week": "Xem theo tuần",
+    "search_view_month": "Xem theo tháng",
+    "search_show_weekends": "Hiện cuối tuần",
+    "search_hide_weekends": "Ẩn cuối tuần"
   },
   "chat": {
     "message_list": {
