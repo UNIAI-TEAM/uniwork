@@ -249,7 +249,7 @@ function TreeRowItem({
       aria-expanded={row.hasChildren ? expanded : undefined}
       aria-selected={focused}
       aria-busy={moving || undefined}
-      aria-keyshortcuts="Control+ArrowUp Control+ArrowDown Control+ArrowLeft Control+ArrowRight"
+      aria-keyshortcuts="Control+ArrowUp Control+ArrowDown Control+ArrowLeft Control+ArrowRight Meta+ArrowUp Meta+ArrowDown Meta+ArrowLeft Meta+ArrowRight"
       data-tree-node={row.node.id}
       tabIndex={tabbable ? 0 : -1}
       {...listeners}
@@ -432,6 +432,11 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, className }
       // the siblings, → becomes the previous sibling's last child, ← becomes
       // the next sibling of its parent.
       if ((event.ctrlKey || event.metaKey) && event.key.startsWith("Arrow")) {
+        // One move at a time, as on the drag path: a second one would race it.
+        if (movingId) {
+          event.preventDefault();
+          return;
+        }
         const siblings = siblingsOf(nodes, row.parentId);
         const siblingIndex = siblings.findIndex((sibling) => sibling.id === id);
         if (siblingIndex < 0) return;
@@ -454,7 +459,11 @@ export function DocumentTree({ wsId, rootId, onOpen, enabled = true, className }
           const parent = findTreeNode(nodes, row.parentId);
           if (!parent) return;
           event.preventDefault();
-          void moveTo(id, parent.parent_id ?? null, parent.position + 1);
+          // Midpoint to the parent's next sibling, so integer positions never tie.
+          const uncles = siblingsOf(nodes, parent.parent_id ?? null);
+          const next = uncles[uncles.findIndex((uncle) => uncle.id === parent.id) + 1];
+          const position = next ? (parent.position + next.position) / 2 : parent.position + 1;
+          void moveTo(id, parent.parent_id ?? null, position);
           return;
         }
         return;

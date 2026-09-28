@@ -366,6 +366,56 @@ describe("DocumentTree", () => {
     expect(revisionCalls).toBe(2);
   });
 
+  it("outdents between the parent and its next sibling", async () => {
+    const nested: DocumentTreeNode[] = [
+      node({ id: "a", title: "Cha", position: 0, children: [node({ id: "b", title: "Anh" })] }),
+      node({ id: "z", title: "Chú", position: 1 }),
+    ];
+    const bodies: unknown[] = [];
+    requestMock.mockImplementation((path: string, opts?: { method?: string; body?: unknown }) => {
+      if (path.startsWith(TREE_URL)) return Promise.resolve({ documents: nested });
+      if (path.endsWith("/move") && opts?.method === "POST") {
+        bodies.push(opts.body);
+        return Promise.resolve({ document: documentRow({ id: "b" }) });
+      }
+      if (path.startsWith("/api/v1/documents/")) return Promise.resolve({ document: documentRow({ id: "b" }) });
+      return Promise.resolve({});
+    });
+    renderTree();
+    fireEvent.click(await screen.findByRole("button", { name: t("documents.tree.expand", { title: "Cha" }) }));
+
+    fireEvent.keyDown(await screen.findByRole("treeitem", { name: /Anh/ }), { key: "ArrowLeft", ctrlKey: true });
+
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    // Chú sits at 1: position 1 would tie with it, the midpoint cannot.
+    expect(bodies[0]).toEqual({ parent_id: null, position: 0.5, revision: "3" });
+  });
+
+  it("ignores a second keyboard move while one is in flight", async () => {
+    let release: (value: unknown) => void = () => {};
+    requestMock.mockImplementation((path: string, opts?: { method?: string; body?: unknown }) => {
+      if (path.startsWith(TREE_URL)) return Promise.resolve({ documents: forest });
+      if (path.endsWith("/move") && opts?.method === "POST") {
+        return new Promise((resolve) => {
+          release = resolve;
+        });
+      }
+      if (path.startsWith("/api/v1/documents/")) return Promise.resolve({ document: documentRow({ id: "other1" }) });
+      return Promise.resolve({});
+    });
+    renderTree();
+    const other = await screen.findByRole("treeitem", { name: /Đích/ });
+    const moves = () => requestMock.mock.calls.filter(([path]) => String(path).endsWith("/move"));
+
+    fireEvent.keyDown(other, { key: "ArrowUp", ctrlKey: true });
+    await waitFor(() => expect(moves()).toHaveLength(1));
+    fireEvent.keyDown(screen.getByRole("treeitem", { name: /Đích/ }), { key: "ArrowUp", ctrlKey: true });
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(moves()).toHaveLength(1);
+    release({ document: documentRow({ id: "other1" }) });
+  });
+
   it("refuses a keyboard indent past five levels without a request", async () => {
     const deep: DocumentTreeNode[] = [
       node({
