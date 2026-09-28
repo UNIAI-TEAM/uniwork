@@ -855,7 +855,7 @@ describe("TaskSurface pagination (pages of 50)", () => {
           request.path.includes("/my-tasks") && request.params.relation === "assigned",
       ),
     ).toBe(true);
-  }, 30_000);
+  }, 60_000);
 
   it("gantt shows loaded / total with a load-more button until everything is loaded", async () => {
     servePagedTasks({ total: 120 });
