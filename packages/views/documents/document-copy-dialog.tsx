@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { apiErrorMessage } from "@uniwork/core/api";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
-import { useCopyDocument } from "@uniwork/core/documents/hooks-copies";
+import { useCopyDocument } from "@uniwork/core/documents/office-hooks";
 import type { Document } from "@uniwork/core/types/document";
 import { createSafeId } from "@uniwork/core/utils";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -57,7 +57,7 @@ export function DocumentCopyDialog({
   onUnavailable,
 }: DocumentCopyDialogProps) {
   const { t } = useTranslation();
-  const copy = useCopyDocument(wsId);
+  const copy = useCopyDocument(wsId, doc.id);
   const [title, setTitle] = useState("");
   const [consent, setConsent] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -78,8 +78,6 @@ export function DocumentCopyDialog({
     keyRef.current ??= createSafeId();
     try {
       const created = await copy.mutateAsync({
-        documentId: doc.id,
-        consent: "copy",
         title: title.trim() || undefined,
         idempotencyKey: keyRef.current,
       });
