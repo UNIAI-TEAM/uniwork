@@ -36,8 +36,8 @@ function renderHtml(preview?: IsolatedPreviewPort) {
   };
   const outcome: HtmlOpenOutcome = { outcome: "opened", document_id: "doc", document_model_ref: "model", warnings: [] };
   const coordinator = makeCoordinator();
-  render(<HtmlEditor documentKey="doc" editor={editor} open={{ open: vi.fn(async () => outcome) }} coordinator={coordinator} capability={{ format: "html", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} preview={preview} />);
-  return { editor, coordinator };
+  const rendered = render(<HtmlEditor documentKey="doc" editor={editor} open={{ open: vi.fn(async () => outcome) }} coordinator={coordinator} capability={{ format: "html", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} preview={preview} />);
+  return { editor, coordinator, ...rendered };
 }
 
 describe("HtmlEditor", () => {
@@ -59,5 +59,20 @@ describe("HtmlEditor", () => {
     renderHtml();
     await waitFor(() => expect(screen.getByTestId("html-source")).toBeInTheDocument());
     await waitFor(() => expect(screen.getByText("Preview unavailable")).toBeInTheDocument());
+  });
+
+  it("does not checkpoint during HTML IME composition and cancels and disposes on unmount", async () => {
+    const { editor, coordinator, unmount } = renderHtml();
+    await waitFor(() => expect(screen.getByTestId("html-source")).toBeInTheDocument());
+    const source = screen.getByTestId("html-source");
+    fireEvent.compositionStart(source);
+    fireEvent.change(source, { target: { value: "draft" } });
+    expect(coordinator.checkpoint).not.toHaveBeenCalled();
+    fireEvent.compositionEnd(source);
+    expect(coordinator.checkpoint).toHaveBeenCalledTimes(1);
+    unmount();
+    expect(editor.cancel).toHaveBeenCalledWith("document_changed");
+    expect(editor.dispose).toHaveBeenCalledTimes(1);
+    expect(coordinator.cancel).toHaveBeenCalledTimes(1);
   });
 });

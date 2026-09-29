@@ -68,6 +68,15 @@ describe("markdown engine", () => {
     expect(md.frontmatter(ref)).toEqual({ start: 0, end: source.indexOf("# ") });
   });
 
+  it("preserves GFM tables, fenced code, raw HTML blocks and comments when editing elsewhere", async () => {
+    const md = engine();
+    const source = "---\ntitle: Keep\n---\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n```ts\nconst value = \"keep\";\n```\n\n<div data-keep=\"yes\">raw</div>\n<!-- comment -->\n";
+    const ref = await openRef(md, utf8(source));
+    md.replaceText(ref, source + "edited elsewhere\n");
+    const out = await md.serialize({ document_model_ref: ref, format: "md" });
+    expect(new TextDecoder().decode(out.bytes)).toBe(source + "edited elsewhere\n");
+  });
+
   it("reports corrupted and oversized input as named open failures, never a blank", async () => {
     const md = engine();
     await expect(md.open({ bytes: new Uint8Array([0xc3, 0x28]), format: "md", document_id: "D1" })).resolves.toMatchObject({

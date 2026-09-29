@@ -21,7 +21,7 @@ function coordinator() {
   } satisfies MarkdownSaveCoordinator;
 }
 
-function renderEditor(options: { preview?: IsolatedPreviewPort; coordinator?: ReturnType<typeof coordinator>; permissions?: { canCopy?: boolean; canPaste?: boolean } } = {}) {
+function renderEditor(options: { preview?: IsolatedPreviewPort; coordinator?: ReturnType<typeof coordinator>; permissions?: { canCopy?: boolean; canPaste?: boolean }; assetFailures?: Readonly<Record<string, "ready" | "missing" | "unauthorised" | "failed" | boolean>> } = {}) {
   let text = "---\ntitle: Keep\n---\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\n```ts\nconst x = 1;\n```\n<!-- keep -->";
   const handle: MarkdownEditorHandle = {
     format: "md",
@@ -39,7 +39,7 @@ function renderEditor(options: { preview?: IsolatedPreviewPort; coordinator?: Re
   const outcome: MarkdownOpenOutcome = { outcome: "opened", document_id: "doc", document_model_ref: "model", warnings: [] };
   const saveCoordinator = options.coordinator ?? coordinator();
   const preview = options.preview;
-  const rendered = render(<MarkdownEditor documentKey="doc" editor={handle} open={{ open: vi.fn(async () => outcome) }} coordinator={saveCoordinator} capability={{ format: "md", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} permissions={options.permissions} preview={preview} />);
+  const rendered = render(<MarkdownEditor documentKey="doc" editor={handle} open={{ open: vi.fn(async () => outcome) }} coordinator={saveCoordinator} capability={{ format: "md", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} permissions={options.permissions} assetFailures={options.assetFailures} preview={preview} />);
   return { handle, saveCoordinator, ...rendered };
 }
 
@@ -95,5 +95,27 @@ describe("MarkdownEditor", () => {
     expect(screen.getByRole("button", { name: "Copy" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Paste" })).toBeDisabled();
     denied.unmount();
+  });
+
+  it("routes undo and redo to the engine and keeps source unchanged for the app save shortcut", async () => {
+    const { handle } = renderEditor();
+    await waitFor(() => expect(screen.getByTestId("md-source")).toBeInTheDocument());
+    const source = screen.getByTestId("md-source") as HTMLTextAreaElement;
+    const before = source.value;
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Redo" }));
+    expect(handle.undo).toHaveBeenCalledTimes(1);
+    expect(handle.redo).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(screen.getByTestId("md-editor"), { key: "s", ctrlKey: true });
+    expect(source.value).toBe(before);
+  });
+
+  it("blocks Save when the host reports a failed asset", async () => {
+    const { saveCoordinator } = renderEditor({ assetFailures: { "assets/bad.png": "failed" } });
+    await waitFor(() => expect(screen.getByTestId("md-source")).toBeInTheDocument());
+    expect(screen.getByTestId("md-save")).toBeDisabled();
+    expect(screen.getByRole("alert")).toHaveTextContent("This document cannot be saved until every asset is available.");
+    fireEvent.click(screen.getByTestId("md-save"));
+    expect(saveCoordinator.save).not.toHaveBeenCalled();
   });
 });
