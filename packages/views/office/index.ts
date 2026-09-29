@@ -13,6 +13,13 @@ export {
   type OfficeEditorRendererProps,
 } from "./editor-slot";
 export { SaveStatus, type OfficeSaveStatusKind, type SaveStatusProps } from "./save-status";
+export {
+  DraftRecoveryPrompt,
+  LeaveDialog,
+  type DraftRecoveryPromptProps,
+  type LeaveChoice,
+  type LeaveDialogProps,
+} from "./leave-dialog";
 export * from "./pptx";
 export { PdfEditor, PdfErrorState, PdfPagePanel, PdfToolbar, createPdfEditorLoader } from "./pdf";
 export type { PdfEditorProps, PdfEditorHandle, PdfOpenOutcome, PdfOpenFailure, PdfSaveCoordinator, PdfCapability } from "./pdf";

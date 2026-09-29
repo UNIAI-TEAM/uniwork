@@ -38,6 +38,19 @@ export const FORBIDDEN_BROWSER_SPECIFIERS = [
 export const BROWSER_SAFE_PACKAGES = new Set([
   "zod",
   "zustand",
+  // G3 web host: the platform shell is browser code and consumes the shared
+  // core/view/ui contracts. Their package exports keep Node-only code out of
+  // this graph; the checker treats the package boundary as the seam.
+  "react",
+  "react-i18next",
+  "@uniwork/core/office",
+  "@uniwork/core/office/save-coordinator",
+  "@uniwork/core/drafts/cleanup-registry",
+  "@uniwork/core/types/document",
+  "@uniwork/ui/components/ui/alert",
+  "@uniwork/views/navigation",
+  "@uniwork/views/office",
+  "@uniwork/views/office/leave-dialog",
   "@uniwork/office-contracts",
   "@uniwork/office-engine",
 ]);

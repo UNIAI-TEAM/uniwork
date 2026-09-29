@@ -126,8 +126,15 @@ function releaseDraftsNotOwnedBy(userId: string): void {
 // zustand calls listeners synchronously inside `set`, and React only schedules
 // its re-render from there, so the stores are released before the signed-in
 // screen can render them or accept a write.
-useAuthStore.subscribe((state) => {
-  if (state.status === "authed" && state.user) releaseDraftsNotOwnedBy(state.user.id);
+useAuthStore.subscribe((state, previous) => {
+  if (state.status === "authed" && state.user) {
+    if (previous.status === "authed" && previous.user?.id && previous.user.id !== state.user.id) {
+      // Account switches keep the previous user's ciphertext durable, but no
+      // decrypted Office model or object URL may survive into the next user.
+      clearRegisteredOfficeDraftMemory();
+    }
+    releaseDraftsNotOwnedBy(state.user.id);
+  }
 });
 
 /**
