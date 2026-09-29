@@ -123,6 +123,30 @@ describe("XlsxEditor", () => {
     expect(formula).toHaveValue("=A1+B1");
   });
 
+  it("routes cell selection and sheet focus through the host selection port", async () => {
+    const handle = editor();
+    renderEditor(opened(), { editor: handle });
+    await waitFor(() => expect(screen.getByTestId("xlsx-cell-Data-A1")).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId("xlsx-cell-Data-A1"));
+    expect(handle.selection?.setSelection).toHaveBeenCalledWith({ sheet: "Data", address: "A1" });
+    expect(screen.getByTestId("xlsx-selection")).toHaveTextContent("Data!A1");
+    fireEvent.click(screen.getByRole("tab", { name: "Summary" }));
+    expect(screen.getByRole("tab", { name: "Summary" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("marks results fresh only after a successful G2 recalc", async () => {
+    const run = vi.fn(async (_signal: AbortSignal, onProgress?: (progress: number) => void) => {
+      onProgress?.(100);
+      return { cells: [], cached: false };
+    });
+    const handle = editor({ recalculate: { run } });
+    renderEditor(opened(), { editor: handle });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Tính lại công thức" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Tính lại công thức" }));
+    await waitFor(() => expect(screen.getByText("Đã làm mới kết quả công thức.")).toBeInTheDocument());
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
   it("shows recalc progress, cancels it, and keeps the edited model without saving", async () => {
     let resolveRun: (() => void) | undefined;
     const run = vi.fn((_signal: AbortSignal, onProgress?: (progress: number) => void) => {

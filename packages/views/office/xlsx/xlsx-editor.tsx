@@ -94,6 +94,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   const [recalcFresh, setRecalcFresh] = useState(false);
   const disposedRef = useRef(false);
   const recalcAbortRef = useRef<AbortController | null>(null);
+  const sheetTabsRef = useRef<HTMLDivElement>(null);
 
   const readOnly = permissions.canEdit === false || (capability !== undefined && capability.status !== "available");
   const effectiveTitle = title ?? t("office.xlsx.title");
@@ -341,6 +342,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
             onRecalculate={recalculate}
             onCopy={() => void copy()}
             onPaste={() => void paste()}
+            onShowSheets={() => sheetTabsRef.current?.focus()}
             onSave={() => save("button")}
           />
           {recalcProgress !== null ? (
@@ -353,7 +355,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
           {recalcError ? <p className="border-b border-destructive/30 bg-destructive/10 px-3 py-1 text-caption text-destructive" role="alert" data-testid="xlsx-recalc-error">{recalcError}</p> : null}
           {recalcFresh ? <p className="sr-only" role="status">{t("office.xlsx.recalc.fresh")}</p> : null}
           <div className="flex min-h-0 flex-1 flex-col" data-testid="xlsx-canvas">
-            <div className="flex items-center gap-1 overflow-x-auto border-b border-border px-2 py-1" role="tablist" aria-label={t("office.xlsx.sheets.label")}>
+            <div ref={sheetTabsRef} tabIndex={-1} className="flex items-center gap-1 overflow-x-auto border-b border-border px-2 py-1" role="tablist" aria-label={t("office.xlsx.sheets.label")}>
               {sheets.map((sheet) => (
                 <button key={sheet.name} type="button" role="tab" aria-selected={sheet.name === activeSheetModel?.name} className="rounded px-3 py-1 text-label hover:bg-muted aria-selected:bg-muted" onClick={() => setActiveSheet(sheet.name)}>{sheet.name}</button>
               ))}

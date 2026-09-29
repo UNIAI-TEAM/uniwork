@@ -31,6 +31,7 @@ export interface XlsxToolbarProps {
   onRecalculate: () => void;
   onCopy: () => void;
   onPaste: () => void;
+  onShowSheets: () => void;
   onSave: () => void;
 }
 
@@ -77,6 +78,7 @@ export function XlsxToolbar({
   onRecalculate,
   onCopy,
   onPaste,
+  onShowSheets,
   onSave,
 }: XlsxToolbarProps) {
   const { t } = useTranslation();
@@ -101,9 +103,9 @@ export function XlsxToolbar({
         <Redo2 aria-hidden />
       </Button>
       <span className="mx-1 h-5 w-px bg-border" aria-hidden />
-      <CapabilityButton label={t("office.xlsx.commands.sheets")}>
+      <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.xlsx.commands.sheets")} onClick={onShowSheets}>
         <Grid3X3 aria-hidden />
-      </CapabilityButton>
+      </Button>
       <CapabilityButton label={t("office.xlsx.commands.numberFormat")} capability={{
         format: "xlsx",
         operation: "number_format",
