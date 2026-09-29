@@ -4,11 +4,7 @@ import type { ReactNode } from "react";
 import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { FilterDimension } from "@uniwork/core/tasks/stores/view-store-types";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@uniwork/ui/components/ui/avatar";
+import { ActorAvatar } from "@uniwork/ui/components/common/actor-avatar";
 import { PriorityFlag, StatusIcon } from "../modes/status-pill";
 
 export const SAVE_VIEW_CHIP_ICON =
@@ -90,19 +86,26 @@ export function SaveViewPriorityPreview({
 export function SaveViewActorPreview({
   actors,
 }: {
-  actors: Array<{ id: string; name: string; avatarUrl?: string }>;
+  actors: Array<{
+    id: string;
+    name: string;
+    avatarUrl?: string;
+    type?: "member" | "agent" | "squad";
+  }>;
 }) {
   return (
     <span className="flex items-center -space-x-1" aria-hidden>
       {actors.slice(0, 2).map((actor) => (
-        <Avatar key={actor.id} size="sm" className="size-4 ring-1 ring-border">
-          {actor.avatarUrl ? (
-            <AvatarImage src={actor.avatarUrl} alt="" />
-          ) : null}
-          <AvatarFallback className="text-caption">
-            {actor.name.trim().charAt(0).toUpperCase() || "?"}
-          </AvatarFallback>
-        </Avatar>
+        <ActorAvatar
+          key={actor.id}
+          name={actor.name}
+          initials={actor.name.trim().charAt(0).toUpperCase() || "?"}
+          avatarUrl={actor.avatarUrl}
+          isAgent={actor.type === "agent"}
+          isSquad={actor.type === "squad"}
+          size="xs"
+          className="ring-1 ring-border"
+        />
       ))}
     </span>
   );
