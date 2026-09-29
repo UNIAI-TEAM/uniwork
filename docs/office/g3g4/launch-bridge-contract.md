@@ -1,16 +1,22 @@
-# Office Launch Bridge contract (PROPOSED)
+# Office Launch Bridge contract
 
-**Revision:** 1.2 (2026-09-29)  
+**Revision:** 1.3 (2026-09-30)
 **Feature:** `g4-02a-auth-bridge-contract` / G4-05a (UNI-834)  
 **Decision gate:** G4-D4 (with G4-D1 identity values) - **decided 2026-09-29
 12:40 UTC+7** (`decisions/gates-2026-09-29.md`: launch-ticket TTL 120 s
 approved; launch commands audit transactionally with no outbox event;
 `office_launch_sessions` carries `organization_id` and is not tenant-exempt)  
-**Status:** PROPOSED; no route, service, migration or token minting is shipped
-by this document. Revision 1.2 folds the BE review round-1 findings that touch
-this document (the `device_revoked` exchange answer, the G2-wire descriptor
-fields, the `return_hint` value-set pointer). Remaining open items are listed
-with the lane's proposal under [G4-D4 open questions](#g4-d4-open-questions).
+**Status:** **CONTRACT r1.3 - published for G3-09 / 05b**. No route, service,
+migration or token minting is shipped by this document. This revision pins the
+05a values for client identity, clock skew, operation/version semantics,
+descriptor fields, anti-enumeration mapping, launch URL and receipt handoff.
+Questions 3 (persistence names/indexes/cleanup) and 7 (revocation) remain
+explicit 05b items; they are not silently decided here.
+
+Executable examples and refusal cases are kept in the companion vectors:
+[`launch-ticket.json`](vectors/launch-ticket.json),
+[`deep-link.json`](vectors/deep-link.json), and
+[`exchange.json`](vectors/exchange.json).
 
 The Bridge opens one selected Document in Office after a user deliberately
 starts the action in the authenticated web app. It hands off a narrow,
@@ -32,7 +38,7 @@ event payload. A copied ticket is useless without a live device session for
 the same account and deployment, and a copied login code is useless without
 the client verifier and exact redirect binding.
 
-## Proposed endpoint contract
+## Endpoint contract (published for 05a/05b)
 
 Paths are relative to the configured deployment API origin (`/api/v1`). DTO
 names are drafts only; 05b registers them with the existing `api` wrapper and
@@ -52,7 +58,7 @@ or arbitrary URL.
 | `version` | no | Positive historical version number; omitted means current. Historical versions are read-only. |
 | `deployment_id` | yes | Must equal the web session's configured deployment. |
 | `client_id` | yes | Allow-listed Office client ID; public identifier only. |
-| `return_hint` | no | Bounded enum/flag for the host; its value set is pinned with the G3-09 handoff (open question 8); never an arbitrary redirect or URL. |
+| `return_hint` | no | `office` (construct the approved deep link) or `none` (do not offer a handoff); never an arbitrary redirect or URL. |
 
 The path `documentID` is the only resource selector. The service resolves
 organization/workspace and the caller's effective ACL; it does not trust IDs
@@ -64,6 +70,7 @@ confirming a foreign Document.
 ```json
 {
   "launch_ticket": "<opaque single-use value>",
+  "launch_url": "uniwork-office://open?ticket=<percent-encoded-ticket>",
   "expires_at": "2026-09-29T10:02:00Z",
   "document_id": "01J8X4DOC0N1P2Q3R4S5T6U7",
   "operation": "edit",
@@ -72,7 +79,9 @@ confirming a foreign Document.
 ```
 
 The web host constructs the approved scheme/deep link from the opaque ticket
-and configured deployment profile. The URL carries no title, filename, path,
+and configured deployment profile. Its exact shape is
+`uniwork-office://open?ticket=<encodeURIComponent(launch_ticket)>`; the query
+contains exactly one `ticket` key. The URL carries no title, filename, path,
 bytes, storage URL, access token, refresh token, login code or arbitrary
 `server_url`. The ticket expires after 120 seconds (approved by G4-D4) and is
 single-use.
@@ -89,7 +98,7 @@ The recommended shape is:
 uniwork-office://open?ticket=<opaque-ticket>
 ```
 
-Only the ticket and a fixed operation marker may appear. The main process
+Only the ticket may appear. The main process
 resolves the deployment from its trusted profile, rejects an untrusted
 `server_url`, and checks the active account before calling exchange. Cold and
 warm starts target the same instance/namespace. If the ticket belongs to a
@@ -117,6 +126,7 @@ token.
 
 ```json
 {
+  "receipt_id": "01J8X4RECEIPT1P2Q3R4S5T6U7",
   "document": {
     "id": "01J8X4DOC0N1P2Q3R4S5T6U7",
     "organization_id": "01J8X4ORGN1P2Q3R4S5T6U7V8",
@@ -138,9 +148,11 @@ The descriptor is metadata and a first-party download route only. It contains
 no bytes, presigned storage URL, local path or secret. Exchange atomically
 marks the ticket redeemed and rechecks device status, account/deployment and
 Document ACL in that order. A successful exchange cannot be replayed to create
-a second open session; a lost response requires reconciliation by the same
-ticket and returns the original receipt only if the policy explicitly permits
-that safe, metadata-only lookup. Otherwise the host requests a new ticket.
+a second open session. `receipt_id` and `redeemed_at` are the only receipt
+fields G3-09 may retain; they contain no ticket, token or bytes. The 05a
+lost-response rule is **new ticket required**: the host must not retry a
+consumed ticket or infer success from a timeout; 05b may add a same-device
+metadata-only reconciliation only as an explicit contract revision.
 
 **Errors:** `invalid_request` 400; `unauthorized` 401 for a missing or invalid
 bearer token; the typed `device_revoked` (the only approved new class) for a
@@ -148,8 +160,8 @@ revoked or expired device session, rejected by the middleware before the
 handler; `forbidden` 403 for account/deployment/ACL mismatch; `not_found` 404
 for an unknown or already-consumed ticket where the policy requires
 anti-enumeration. No new typed ticket class is introduced this phase: the
-ticket policy keeps the existing 403/404 anti-enumeration classes (open
-question 6). No error response returns the Document title, filename,
+ticket policy keeps the existing 403/404 anti-enumeration classes. No error
+response returns the Document title, filename,
 organization or version to a caller who failed the checks.
 
 ### Desktop library path
@@ -235,49 +247,72 @@ a consumer appears later, the ids-only event must land in one change across
 * Wrong account, deployment or missing app state causes a login/profile error,
   never an automatic account switch or metadata preview. A late callback after
   account switch is discarded by the host generation.
-* If exchange or commit loses its response, the client reconciles with the
-  same idempotency/ticket receipt before retrying. It never blindly redeems a
-  consumed ticket or creates a second version.
+* If exchange loses its response, the client treats the result as unknown and
+  requests a new launch ticket; it never blindly redeems a consumed ticket.
+  Commit continues to use its existing idempotency receipt and never creates
+  a second version.
+
+## Operation and descriptor matrix (pinned for 05a)
+
+| Requested operation | Current version (`version = 0`) | Historical version (`version > 0`) | Descriptor operation |
+| --- | --- | --- | --- |
+| `view` | read-only open | read-only open | `view` |
+| `edit` | editable open when live ACL permits | **read-only** open; restore/copy is a separate ACL-checked command | `view` |
+
+The historical row is never upgraded to edit by the client or ticket. The
+descriptor field set is exactly the G2 wire vocabulary used above:
+`id`, `organization_id`, `workspace_id`, `title`, `kind`, `operation`,
+`version`, `revision`, `contract_version`, `protocol_version`, and
+`download_path`. `contract_version` is
+`uniwork-office-engine-contract/1`; `protocol_version` is the decimal string
+`"1"`; `download_path` is a first-party `/api/v1/documents/{id}/download`
+route and never a presigned URL.
 
 ## G4-D4 open questions
 
 Each item is annotated with its G4-D4 status (decision record
-`decisions/gates-2026-09-29.md`). Open items carry the lane's proposal; 05b
-pins the final value.
+`decisions/gates-2026-09-29.md`). Items 1, 2, 4, 6 and 8 are pinned above for
+05a. Items 3 and 7 remain explicit questions for 05b.
 
-1. **D1 identity - partly decided.** G4-D1 accepted the scheme/host/path,
+1. **D1 identity - resolved for 05a.** G4-D1 accepted the scheme/host/path,
    `uniwork-office://open` uses that scheme, and the appId/exe identity is
-   `com.uniwork.office`. **Open:** the final public `client_id`
-   (**proposal:** `uniwork-office`) and per-platform cold/warm-start
-   registration, including GenOffice coexistence.
-2. **TTL and replay receipt - TTL decided.** The 120 second default and
-   single-use redeem are approved. **Open:** maximum clock skew and whether a
-   lost exchange response may return a metadata-only receipt to the same
-   device session at 05b.
+   `com.uniwork.office`. The public client id is **`uniwork-office`**. The
+   primary process owns the single-instance lock, registers the scheme once,
+   and sends cold argv plus warm second-instance/open-url callbacks through
+   one handler. Per-platform installer registration and GenOffice coexistence
+   remain G4-07 concerns.
+2. **TTL and replay receipt - resolved for 05a.** The 120 second default and
+   single-use redeem are approved. The maximum accepted clock skew is **30
+   seconds**. A lost exchange response follows the **new ticket required**
+   rule; no replay or implicit receipt lookup is allowed. A future metadata-
+   only reconciliation requires a 05b contract revision.
 3. **Ticket persistence - decided.** The table carries `organization_id` with
    the Document scope and does not enter the account-level `tenantExemptTables`
    list. **Open:** final name, indexes and the cleanup policy (05b).
-4. **Operation/version semantics - open.** Confirm allowed operations, whether
-   historical versions can be opened in edit mode (this proposal says no, it
-   stays read-only), and the exact descriptor fields required by the engine
-   contract and G3-09. The descriptor reuses the G2 wire names where they
-   overlap (`contract_version` = `uniwork-office-engine-contract/1`,
-   `protocol_version` = the decimal string `"1"`); the remaining field set is
-   confirmed with G3-09.
+4. **Operation/version semantics - resolved for 05a.** The operation matrix
+   above is normative: `view` and `edit` are accepted; historical versions
+   are read-only even when `edit` was requested. The descriptor field set is
+   the G2 wire set listed above, with no bytes, local path, storage key or
+   secret. Restore/copy is outside the ticket and requires its own ACL check.
 5. **Audit/outbox - decided.** Transactional `audit.Recorder.Record` on the
    mutation transaction, ids/metadata only, no outbox event this phase; a later
    event must be ids-only, catalogue-backed and consumer-named.
-6. **Anti-enumeration - open (existing policy).** Keep the existing 403/404
-   Documents policy for unknown, foreign, expired and already-redeemed
-   tickets, consistently across web and desktop; 05b pins the exact mapping
-   (this proposal: 404 for unknown/already-consumed, 403 for
-   account/deployment/ACL mismatch, no metadata in either).
+6. **Anti-enumeration - resolved for 05a.** Preserve the existing Documents
+   mapping: `404 not_found` for unknown, expired or already-consumed tickets;
+   `403 forbidden` for account/deployment/ACL mismatch. Missing/invalid bearer
+   remains `401 unauthorized`, and a revoked device remains typed
+   `device_revoked`. None of these responses carries document metadata. The
+   desktop fake and consumer map the same reasons to typed outcomes without
+   making a second exchange call for a terminal ticket.
 7. **Revocation behavior - open.** Confirm whether a ticket can be explicitly
    revoked by logout/password reset, and the invalidation path/SLA for
    descriptors already downloaded (05b with the auth owner).
-8. **G3 consumer handoff - open.** Confirm the generated launch URL shape and
-   the receipt fields G3-09 needs before deep-link UI or host code (05b with
-   G3-09).
+8. **G3 consumer handoff - resolved for 05a.** G3-09 consumes the exact
+   `uniwork-office://open?ticket=<encodeURIComponent(ticket)>` URL and the
+   create response fields `launch_ticket`, `launch_url`, `expires_at`,
+   `document_id`, `operation`, and `version`. A successful exchange receipt
+   exposes only `receipt_id` and `redeemed_at` beside the descriptor; the
+   ticket itself is never renderer-visible, logged or included in diagnostics.
 
 ## Deferred implementation and verification
 

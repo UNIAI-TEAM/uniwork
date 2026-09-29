@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createDesktopHost, WINDOW_WEB_PREFERENCES } from "./index";
+import { FakeExchangePort, createLaunchBridge } from "./deep-links";
 
 const sender = { senderId: 1, frameId: 0, origin: "uniwork-office-app://app", expectedSenderId: 1, expectedFrameId: 0, expectedOrigin: "uniwork-office-app://app", sessionGeneration: "session_1234" };
 const windowPreferences = { sandbox: true, contextIsolation: true, nodeIntegration: false } as const;
@@ -40,5 +41,30 @@ describe("desktop host bootstrap", () => {
     const ipc = { call: vi.fn(), send: vi.fn(), subscribe: vi.fn(() => () => undefined) };
     const host = createDesktopHost({ window: { webContents: contents, webPreferences: windowPreferences, loadURL: vi.fn(), setUserDataDirectory: vi.fn() }, sender, engineIpc: ipc });
     expect(host.adapters?.transport.supports?.("open")).toBe(true);
+  });
+
+  it("registers the scheme and emits only the narrow launch event after exchange", async () => {
+    const ticket = `ticket_${"c".repeat(32)}`;
+    const exchange = new FakeExchangePort();
+    exchange.issueTicket({ ticket, accountId: "account-1", deploymentId: "production-eu", operation: "view" });
+    const bridge = createLaunchBridge({ exchange, trustedDeploymentId: "production-eu", getSession: () => ({ accountId: "account-1", deploymentId: "production-eu", deviceSessionId: "device-1" }) });
+    let second: ((argv: readonly unknown[]) => void) | undefined;
+    let open: ((event: { preventDefault(): void }, url: string) => void) | undefined;
+    const system = {
+      requestSingleInstanceLock: vi.fn(() => true),
+      registerProtocolClient: vi.fn(),
+      onSecondInstance: vi.fn((handler: (eventOrArgv: unknown, argv?: readonly unknown[]) => void) => { second = (argv) => handler(argv); }),
+      onOpenUrl: vi.fn((handler: (event: { preventDefault(): void }, url: string) => void) => { open = handler; }),
+    };
+    const send = vi.fn();
+    const contents = { on: vi.fn(), setWindowOpenHandler: vi.fn(), send };
+    const host = createDesktopHost({ window: { webContents: contents, webPreferences: windowPreferences, loadURL: vi.fn(), setUserDataDirectory: vi.fn() }, sender, deepLinks: { system, bridge } });
+    await host.start();
+    open?.({ preventDefault: vi.fn() }, `uniwork-office://open?ticket=${ticket}`);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(system.registerProtocolClient).toHaveBeenCalledWith("uniwork-office");
+    expect(send).toHaveBeenCalledWith("desktop:launch-requested", { documentId: "01J8X4DOC0N1P2Q3R4S5T6U7", operation: "view" });
+    expect(JSON.stringify(send.mock.calls)).not.toContain(ticket);
+    expect(second).toBeDefined();
   });
 });

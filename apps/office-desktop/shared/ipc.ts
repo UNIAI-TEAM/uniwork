@@ -12,6 +12,10 @@ export const DESKTOP_IPC_CHANNELS = [
   "desktop:auth-session",
 ] as const;
 export type DesktopIpcChannel = (typeof DESKTOP_IPC_CHANNELS)[number];
+/** Main-to-renderer events are a separate, equally narrow allowlist. Event
+ * payloads are parsed in main before send and again in preload. */
+export const DESKTOP_EVENTS = ["desktop:launch-requested"] as const;
+export type DesktopEvent = (typeof DESKTOP_EVENTS)[number];
 const sessionGenerationSchema = z.string().regex(/^[A-Za-z0-9_-]{8,128}$/, "invalid session generation");
 const opaqueHandleSchema = z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/, "invalid opaque handle");
 const operationSchema = z.enum(["capability", "open", "edit", "serialize", "cancel"]);
@@ -19,6 +23,9 @@ const originSchema = z.string().url().max(2048);
 const deploymentSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/, "invalid deployment");
 const clientIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/, "invalid client id");
 const attemptIdSchema = z.string().regex(/^attempt_[A-Za-z0-9_-]{32,160}$/, "invalid attempt id");
+const documentIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/, "invalid document id");
+export const launchRequestedEventSchema = z.object({ documentId: documentIdSchema, operation: z.enum(["view", "edit"]) }).strict();
+export type LaunchRequestedEvent = z.infer<typeof launchRequestedEventSchema>;
 export const desktopSessionMetadataSchema = z.object({
   status: z.enum(["signed-out", "pending", "signed-in"]),
   accountId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/).optional(),

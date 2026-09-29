@@ -14,3 +14,14 @@ it("uses context isolation's explicit main-world name", () => {
   exposePreloadBridge({ exposeInMainWorld }, { invoke: vi.fn() });
   expect(exposeInMainWorld).toHaveBeenCalledWith("uniworkOffice", expect.objectContaining({ channels: expect.any(Array) }));
 });
+
+it("accepts only the narrow launch event and never forwards a ticket", () => {
+  let listener: ((...args: unknown[]) => void) | undefined;
+  const bridge = createPreloadBridge({ invoke: vi.fn(), on: (_channel, next) => { listener = next; } });
+  const received: unknown[] = [];
+  bridge.onLaunchRequested((event) => received.push(event));
+  listener?.({}, { documentId: "doc-1", operation: "view", launch_ticket: "secret" });
+  listener?.({}, { documentId: "doc-1", operation: "view" });
+  expect(received).toEqual([{ documentId: "doc-1", operation: "view" }]);
+  expect(JSON.stringify(received)).not.toContain("secret");
+});

@@ -1,11 +1,16 @@
-import { DESKTOP_IPC_CHANNELS, type DesktopIpcChannel, type DesktopIpcRequest } from "../shared/ipc";
+import { DESKTOP_EVENTS, DESKTOP_IPC_CHANNELS, launchRequestedEventSchema, type DesktopIpcChannel, type DesktopIpcRequest, type LaunchRequestedEvent } from "../shared/ipc";
 
-export type IpcRendererAdapter = { invoke(channel: string, payload: unknown): Promise<unknown> };
+export type IpcRendererAdapter = {
+  invoke(channel: string, payload: unknown): Promise<unknown>;
+  on?(channel: string, listener: (...args: unknown[]) => void): void;
+  removeListener?(channel: string, listener: (...args: unknown[]) => void): void;
+};
 export type ContextBridgeAdapter = { exposeInMainWorld(name: string, value: unknown): void };
 
 export type DesktopRendererBridge = {
   call<C extends DesktopIpcChannel>(channel: C, payload: DesktopIpcRequest<C>): Promise<unknown>;
   channels: readonly DesktopIpcChannel[];
+  onLaunchRequested(listener: (event: LaunchRequestedEvent) => void): () => void;
 };
 
 export function createPreloadBridge(ipcRenderer: IpcRendererAdapter): DesktopRendererBridge {
@@ -14,6 +19,18 @@ export function createPreloadBridge(ipcRenderer: IpcRendererAdapter): DesktopRen
     call(channel, payload) {
       if (!(DESKTOP_IPC_CHANNELS as readonly string[]).includes(channel)) return Promise.reject(new Error("IPC channel is not allowlisted"));
       return ipcRenderer.invoke(channel, payload);
+    },
+    onLaunchRequested(listener) {
+      if (!ipcRenderer.on) return () => undefined;
+      const handler = (...args: unknown[]) => {
+        const payload = args.at(-1);
+        const parsed = launchRequestedEventSchema.safeParse(payload);
+        if (parsed.success) listener(parsed.data);
+      };
+      const eventChannel = "desktop:launch-requested";
+      if (!(DESKTOP_EVENTS as readonly string[]).includes(eventChannel)) return () => undefined;
+      ipcRenderer.on(eventChannel, handler);
+      return () => ipcRenderer.removeListener?.(eventChannel, handler);
     },
   };
 }
