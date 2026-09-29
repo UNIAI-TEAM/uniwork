@@ -3,16 +3,38 @@ import { isAllowedExternalUrl } from "./external-url";
 
 /** The closed desktop wire surface. Keep this module free of Electron and
  * main-process imports so preload and renderer can consume only contracts. */
-export const DESKTOP_IPC_CHANNELS = ["desktop:bootstrap", "desktop:engine-call", "desktop:open-external"] as const;
+export const DESKTOP_IPC_CHANNELS = [
+  "desktop:bootstrap",
+  "desktop:engine-call",
+  "desktop:open-external",
+  "desktop:auth-start",
+  "desktop:auth-cancel",
+  "desktop:auth-session",
+] as const;
 export type DesktopIpcChannel = (typeof DESKTOP_IPC_CHANNELS)[number];
 const sessionGenerationSchema = z.string().regex(/^[A-Za-z0-9_-]{8,128}$/, "invalid session generation");
 const opaqueHandleSchema = z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/, "invalid opaque handle");
 const operationSchema = z.enum(["capability", "open", "edit", "serialize", "cancel"]);
 const originSchema = z.string().url().max(2048);
+const deploymentSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/, "invalid deployment");
+const clientIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/, "invalid client id");
+const attemptIdSchema = z.string().regex(/^attempt_[A-Za-z0-9_-]{32,160}$/, "invalid attempt id");
+export const desktopSessionMetadataSchema = z.object({
+  status: z.enum(["signed-out", "pending", "signed-in"]),
+  accountId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/).optional(),
+  deploymentId: deploymentSchema.optional(),
+}).strict().superRefine((value, context) => {
+  if (value.status === "signed-in" && (!value.accountId || !value.deploymentId)) context.addIssue({ code: z.ZodIssueCode.custom, message: "signed-in metadata requires account and deployment" });
+  if (value.status !== "signed-in" && (value.accountId !== undefined || value.deploymentId !== undefined)) context.addIssue({ code: z.ZodIssueCode.custom, message: "signed-out/pending metadata cannot include account" });
+});
+export type DesktopSessionMetadata = z.infer<typeof desktopSessionMetadataSchema>;
 const requestSchemas = {
   "desktop:bootstrap": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:engine-call": z.object({ sessionGeneration: sessionGenerationSchema, operation: operationSchema, handle: opaqueHandleSchema, args: z.record(z.string(), z.unknown()).default({}) }).strict(),
   "desktop:open-external": z.object({ sessionGeneration: sessionGenerationSchema, url: z.string().url().max(2048) }).strict(),
+  "desktop:auth-start": z.object({ sessionGeneration: sessionGenerationSchema, clientId: clientIdSchema, deploymentId: deploymentSchema }).strict(),
+  "desktop:auth-cancel": z.object({ sessionGeneration: sessionGenerationSchema, attemptId: attemptIdSchema }).strict(),
+  "desktop:auth-session": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
 } as const;
 export type DesktopIpcRequest<C extends DesktopIpcChannel = DesktopIpcChannel> = z.infer<(typeof requestSchemas)[C]>;
 export type IpcSenderContext = { senderId: number; frameId: number; origin: string; expectedSenderId: number; expectedFrameId: number; expectedOrigin: string; sessionGeneration: string; allowedExternalHosts?: readonly string[] };

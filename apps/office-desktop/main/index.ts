@@ -1,8 +1,9 @@
 import { DESKTOP_IDENTITY } from "../shared/identity";
-import { createIpcDispatcher, type IpcHandler, type DesktopIpcChannel, type IpcSenderContext } from "./ipc";
+import { createAuthIpcHandlers, createIpcDispatcher, type IpcHandler, type DesktopIpcChannel, type IpcSenderContext } from "./ipc";
 import { installNavigationGuards, openApprovedExternal } from "./navigation";
 import { createDesktopRuntimeAdapters } from "./adapters";
 import type { HostIpcPort } from "@uniwork/office-contracts";
+import type { NativeLoginManager } from "./auth/manager";
 
 export const WINDOW_WEB_PREFERENCES = Object.freeze({
   sandbox: true,
@@ -25,6 +26,7 @@ export type DesktopHostOptions = {
   engineIpc?: HostIpcPort;
   allowedExternalHosts?: readonly string[];
   openSystemBrowser?: (url: string) => void;
+  authManager?: NativeLoginManager;
 };
 
 /** Bootstrap shared engine/runtime/navigation/transport through host seams.
@@ -40,7 +42,7 @@ export function createDesktopHost(options: DesktopHostOptions) {
   const openSystemBrowser = options.openSystemBrowser ?? (() => undefined);
   installNavigationGuards(options.window.webContents, allowedExternalHosts, openSystemBrowser);
   options.window.setUserDataDirectory(process.env.UNIWORK_OFFICE_USER_DATA ?? DESKTOP_IDENTITY.devNamespace);
-  const handlers = { ...options.handlers };
+  const handlers = { ...options.handlers, ...(options.authManager ? createAuthIpcHandlers(options.authManager) : {}) };
   handlers["desktop:open-external"] ??= (request) => {
     openApprovedExternal(request.url, allowedExternalHosts, openSystemBrowser);
     return { opened: true };
