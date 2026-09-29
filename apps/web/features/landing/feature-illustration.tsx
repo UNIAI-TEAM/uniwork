@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { FeaturePageKey } from "./feature-page-catalog";
 
 type Scene = "board" | "focus" | "schedule" | "thread" | "call" | "mail" | "document" | "library" | "flow" | "answer" | "team" | "roles" | "activity" | "overview";
-export const FEATURE_SCENES: Record<FeaturePageKey, readonly [Scene, Scene, Scene, Scene]> = {
+const FEATURE_SCENES: Record<FeaturePageKey, readonly [Scene, Scene, Scene, Scene]> = {
   dashboard: ["overview", "board", "schedule", "overview"],
   tasks: ["board", "board", "focus", "focus"],
   projects: ["overview", "overview", "board", "thread"],
