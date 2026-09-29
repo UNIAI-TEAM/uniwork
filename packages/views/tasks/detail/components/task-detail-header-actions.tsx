@@ -127,6 +127,7 @@ export function TaskDetailHeaderActions({
         size="icon-sm"
         aria-label={pinned ? t("tasks.detail.unpin") : t("tasks.detail.pin")}
         aria-disabled={pinPending || undefined}
+        className={pinned ? "text-foreground" : "text-muted-foreground"}
         onClick={togglePin}
       >
         {pinned ? <PinOff aria-hidden /> : <Pin aria-hidden />}
@@ -139,6 +140,7 @@ export function TaskDetailHeaderActions({
               type="button"
               variant="ghost"
               size="icon-sm"
+              className="text-muted-foreground"
               aria-label={t("tasks.detail.actions")}
             />
           }
