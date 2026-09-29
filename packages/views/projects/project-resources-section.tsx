@@ -11,7 +11,7 @@ import {
 } from "@uniwork/core/tasks";
 import type { ProjectResource } from "@uniwork/core/types/project";
 import { CapabilityDisabledControl } from "../common/capability-disabled-control";
-import { ProjectSidebarSection } from "./components/project-sidebar-section";
+import { SidebarSection } from "../common/sidebar-section";
 import { resourceDisplayLabel } from "./resource-display-label";
 
 /**
@@ -65,7 +65,7 @@ export function ProjectResourcesSection({
   };
 
   return (
-    <ProjectSidebarSection title={t("projects.resources.section_header")}>
+    <SidebarSection title={t("projects.resources.section_header")}>
       <div className="space-y-1.5 pl-2">
         {resources.length === 0 ? (
           <p className="text-caption text-muted-foreground">
@@ -100,7 +100,7 @@ export function ProjectResourcesSection({
           {t("projects.resources.add_local_directory")}
         </CapabilityDisabledControl>
       </div>
-    </ProjectSidebarSection>
+    </SidebarSection>
   );
 }
 

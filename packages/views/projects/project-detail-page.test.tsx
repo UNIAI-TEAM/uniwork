@@ -219,7 +219,7 @@ describe("ProjectDetailPage", () => {
     const status = inSidebar.getByRole("button", { name: "Trạng thái: Đang làm" });
     expect(status.querySelector("[data-slot='project-status-dot']")).not.toBeNull();
 
-    const startDate = inSidebar.getByRole("button", { name: "Ngày bắt đầu" });
+    const startDate = inSidebar.getByRole("button", { name: "Ngày bắt đầu: Chọn ngày" });
     expect(startDate).toHaveTextContent("Ngày bắt đầu");
     expect(startDate.className).not.toContain("border-input");
   });

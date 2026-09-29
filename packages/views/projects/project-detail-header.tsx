@@ -3,7 +3,7 @@
 import { useTranslation } from "react-i18next";
 import type { Project } from "@uniwork/core/types/project";
 import { ContentEditor, TitleEditor } from "../editor";
-import { ProjectSidebarSection } from "./components/project-sidebar-section";
+import { SidebarSection } from "../common/sidebar-section";
 import { ProjectIconField } from "./create-project-fields";
 import { useProjectFieldSave } from "./use-project-field-save";
 
@@ -56,7 +56,7 @@ export function ProjectDescriptionSection({
   const save = useProjectFieldSave(workspaceId, project);
 
   return (
-    <ProjectSidebarSection title={t("projects.detail.section_description")}>
+    <SidebarSection title={t("projects.detail.section_description")}>
       <div className="pl-2">
         <ContentEditor
           key={project.id}
@@ -74,6 +74,6 @@ export function ProjectDescriptionSection({
           {t("projects.detail.description_hint")}
         </p>
       </div>
-    </ProjectSidebarSection>
+    </SidebarSection>
   );
 }
