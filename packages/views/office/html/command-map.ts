@@ -7,6 +7,11 @@ export interface HtmlCommand {
   run(): void | Promise<void>;
 }
 
+export interface HtmlClipboardPermissions {
+  canCopy?: boolean;
+  canPaste?: boolean;
+}
+
 export function createHtmlCommandMap(options: {
   host: OfficeHost;
   onUndo(): void;
@@ -15,13 +20,14 @@ export function createHtmlCommandMap(options: {
   onCopy?(): void | Promise<void>;
   onPaste?(): void | Promise<void>;
   readOnly?: boolean;
+  permissions?: HtmlClipboardPermissions;
 }): HtmlCommand[] {
   const disabled = options.readOnly === true;
   return [
     { id: "undo", enabled: !disabled, run: options.onUndo },
     { id: "redo", enabled: !disabled, run: options.onRedo },
     { id: "save", enabled: !disabled, run: options.onSave },
-    { id: "copy", enabled: !disabled && Boolean(options.onCopy), run: () => options.onCopy?.() },
-    { id: "paste", enabled: !disabled && Boolean(options.onPaste), run: () => options.onPaste?.() },
+    { id: "copy", enabled: !disabled && options.permissions?.canCopy !== false && Boolean(options.onCopy), run: () => options.onCopy?.() },
+    { id: "paste", enabled: !disabled && options.permissions?.canPaste !== false && Boolean(options.onPaste), run: () => options.onPaste?.() },
   ];
 }

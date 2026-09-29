@@ -21,7 +21,7 @@ function coordinator() {
   } satisfies MarkdownSaveCoordinator;
 }
 
-function renderEditor(options: { preview?: IsolatedPreviewPort; coordinator?: ReturnType<typeof coordinator> } = {}) {
+function renderEditor(options: { preview?: IsolatedPreviewPort; coordinator?: ReturnType<typeof coordinator>; permissions?: { canCopy?: boolean; canPaste?: boolean } } = {}) {
   let text = "---\ntitle: Keep\n---\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\n```ts\nconst x = 1;\n```\n<!-- keep -->";
   const handle: MarkdownEditorHandle = {
     format: "md",
@@ -33,13 +33,14 @@ function renderEditor(options: { preview?: IsolatedPreviewPort; coordinator?: Re
     dispose: vi.fn(),
     cancel: vi.fn(),
     source: { getText: () => text, setText: (next) => { text = next; } },
+    clipboard: { writeText: vi.fn(async () => undefined), readText: vi.fn(async () => "pasted") },
     getAssetManifest: () => ({ entries: [{ key: "assets/logo.png", asset_id: "asset-logo" }] }),
   };
   const outcome: MarkdownOpenOutcome = { outcome: "opened", document_id: "doc", document_model_ref: "model", warnings: [] };
   const saveCoordinator = options.coordinator ?? coordinator();
   const preview = options.preview;
-  render(<MarkdownEditor documentKey="doc" editor={handle} open={{ open: vi.fn(async () => outcome) }} coordinator={saveCoordinator} capability={{ format: "md", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} preview={preview} />);
-  return { handle, saveCoordinator };
+  const rendered = render(<MarkdownEditor documentKey="doc" editor={handle} open={{ open: vi.fn(async () => outcome) }} coordinator={saveCoordinator} capability={{ format: "md", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} permissions={options.permissions} preview={preview} />);
+  return { handle, saveCoordinator, ...rendered };
 }
 
 describe("MarkdownEditor", () => {
@@ -75,5 +76,24 @@ describe("MarkdownEditor", () => {
     renderEditor({ preview: { mount } });
     await waitFor(() => expect(mount).toHaveBeenCalledTimes(1));
     expect((screen.getByTestId("md-source") as HTMLTextAreaElement).value).toContain("<!-- keep -->");
+  });
+
+  it("routes clipboard through the handle and respects denied permissions", async () => {
+    const { handle, unmount } = renderEditor();
+    await waitFor(() => expect(screen.getByTestId("md-source")).toBeInTheDocument());
+    const source = screen.getByTestId("md-source") as HTMLTextAreaElement;
+    source.focus();
+    source.setSelectionRange(0, 4);
+    fireEvent.keyDown(source, { key: "c", ctrlKey: true });
+    expect(handle.clipboard?.writeText).toHaveBeenCalledWith("---\n");
+    unmount();
+    expect(handle.cancel).toHaveBeenCalledWith("document_changed");
+    expect(handle.dispose).toHaveBeenCalled();
+
+    const denied = renderEditor({ permissions: { canCopy: false, canPaste: false } });
+    await waitFor(() => expect(screen.getByTestId("md-source")).toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Copy" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Paste" })).toBeDisabled();
+    denied.unmount();
   });
 });

@@ -32,7 +32,7 @@ export interface OfficePreviewPortOptions {
 
 export function createOfficePreviewPort(options: OfficePreviewPortOptions): IsolatedPreviewPort {
   return {
-    mount(input: PreviewMountOptions): Promise<HtmlPreviewSession> {
+    mount(input: PreviewMountInput): Promise<HtmlPreviewSession> {
       const text = input.format === "md" ? options.renderMarkdown?.(input.text) : input.text;
       if (text === undefined) return Promise.reject(new Error("preview runtime is unavailable for Markdown"));
       return mountHtmlPreview({

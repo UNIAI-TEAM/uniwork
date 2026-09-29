@@ -13,13 +13,24 @@ export interface SourceTextPort {
   subscribe?(listener: (text: string) => void): () => void;
 }
 
+export interface TextClipboardPort {
+  readText?(): Promise<string>;
+  writeText?(text: string): Promise<void>;
+}
+
 export type TextEditorHandle<TSnapshot = unknown> = EditorHandle<TSnapshot> & {
   source?: SourceTextPort;
+  clipboard?: TextClipboardPort;
   getText?(): string;
   setText?(text: string): void;
   getAssetManifest?(): AssetManifestLike | null;
   cancel?(reason?: string): Promise<void> | void;
 };
+
+export interface TextEditorPermissions {
+  canCopy?: boolean;
+  canPaste?: boolean;
+}
 
 export type TextOpenSuccess = Extract<OpenOutcome, { outcome: "opened" }>;
 export type TextOpenFailure = Extract<OpenOutcome, { outcome: "failed" }>;
@@ -70,6 +81,7 @@ export interface TextEditorProps<TSnapshot = unknown> {
   preview?: IsolatedPreviewPort;
   manifest?: AssetManifestLike | null;
   assetFailures?: Readonly<Record<string, AssetStatus | boolean>>;
+  permissions?: TextEditorPermissions;
   title?: string;
   className?: string;
   onOpen?: (outcome: TextOpenOutcome) => void;

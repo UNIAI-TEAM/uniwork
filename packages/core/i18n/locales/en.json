@@ -7033,7 +7033,7 @@
     "markdown": {
       "title": "Markdown document",
       "toolbar": { "label": "Markdown editing commands" },
-      "actions": { "undo": "Undo", "redo": "Redo", "save": "Save to UniWork", "saving": "Saving?", "retry": "Try again" },
+      "actions": { "undo": "Undo", "redo": "Redo", "copy": "Copy", "paste": "Paste", "save": "Save to UniWork", "saving": "Saving?", "retry": "Try again" },
       "state": { "opening": "Opening document?", "error": "Could not open document" },
       "source": { "label": "Markdown source" },
       "preview": { "label": "Preview", "loading": "Loading preview?", "unavailable": "Preview unavailable" },
@@ -7045,7 +7045,7 @@
     "html": {
       "title": "HTML document",
       "toolbar": { "label": "HTML editing commands" },
-      "actions": { "undo": "Undo", "redo": "Redo", "save": "Save to UniWork", "saving": "Saving?", "retry": "Try again" },
+      "actions": { "undo": "Undo", "redo": "Redo", "copy": "Copy", "paste": "Paste", "save": "Save to UniWork", "saving": "Saving?", "retry": "Try again" },
       "state": { "opening": "Opening document?", "error": "Could not open document" },
       "source": { "label": "HTML source" },
       "preview": { "label": "Isolated preview", "loading": "Loading preview?", "unavailable": "Preview unavailable" },

@@ -10,6 +10,7 @@ export function MarkdownEditor<TSnapshot = unknown>(props: MarkdownEditorProps<T
     ...props,
     format: "md",
     title: props.title ?? t("title"),
+    permissions: props.permissions,
     onOpen: props.onOpen ? (outcome) => {
       if (outcome.outcome === "opened" || outcome.format === "md") props.onOpen?.(outcome as Parameters<NonNullable<typeof props.onOpen>>[0]);
     } : undefined,

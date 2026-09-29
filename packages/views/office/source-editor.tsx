@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type CompositionEvent, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { Redo2, Undo2 } from "lucide-react";
+import { Clipboard, Copy, Redo2, Undo2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -17,6 +17,7 @@ import type {
   TextOpenOutcome,
   TextSaveCoordinator,
   TextViewState,
+  TextEditorPermissions,
 } from "./source-editor-types";
 
 export interface SourceEditorProps<TSnapshot = unknown> {
@@ -29,6 +30,7 @@ export interface SourceEditorProps<TSnapshot = unknown> {
   preview?: IsolatedPreviewPort;
   manifest?: AssetManifestLike | null;
   assetFailures?: Readonly<Record<string, AssetStatus | boolean>>;
+  permissions?: TextEditorPermissions;
   title: string;
   className?: string;
   onOpen?: (outcome: TextOpenOutcome) => void;
@@ -102,6 +104,7 @@ export function SourceEditor<TSnapshot = unknown>({
   preview,
   manifest: manifestProp,
   assetFailures,
+  permissions = {},
   title,
   className,
   onOpen,
@@ -125,12 +128,14 @@ export function SourceEditor<TSnapshot = unknown>({
   const openRef = useRef(open);
   const coordinatorRef = useRef(coordinator);
   const capabilityRef = useRef(capability);
+  const manifestPropRef = useRef(manifestProp);
   const onOpenRef = useRef(onOpen);
   const translateRef = useRef(t);
   editorRef.current = editor;
   openRef.current = open;
   coordinatorRef.current = coordinator;
   capabilityRef.current = capability;
+  manifestPropRef.current = manifestProp;
   onOpenRef.current = onOpen;
   translateRef.current = t;
   latestTextRef.current = text;
@@ -165,7 +170,7 @@ export function SourceEditor<TSnapshot = unknown>({
     setFailure(null);
     setPreviewState("idle");
     setText("");
-    setManifest(sourceManifest(activeEditor, manifestProp ?? null));
+    setManifest(sourceManifest(activeEditor, manifestPropRef.current ?? null));
 
     const run = async () => {
       if (activeCapability?.operation !== "serialize" || activeCapability.status !== "available" || !canWrite(activeEditor)) {
@@ -187,7 +192,7 @@ export function SourceEditor<TSnapshot = unknown>({
         await activeEditor.open();
         if (controller.signal.aborted || disposedRef.current) return;
         setText(sourceText(activeEditor, ""));
-        setManifest(sourceManifest(activeEditor, manifestProp ?? null));
+        setManifest(sourceManifest(activeEditor, manifestPropRef.current ?? null));
         setViewState("ready");
       } catch (error) {
         if (controller.signal.aborted || disposedRef.current) return;
@@ -207,7 +212,7 @@ export function SourceEditor<TSnapshot = unknown>({
     };
     // Callback and adapter objects are refs so shell identity churn cannot
     // restart a live document session.
-  }, [documentKey, format, manifestProp, retryToken, capability?.operation, capability?.status]);
+  }, [documentKey, format, retryToken, capability?.operation, capability?.status]);
 
   useEffect(() => {
     const container = previewContainerRef.current;
@@ -275,17 +280,51 @@ export function SourceEditor<TSnapshot = unknown>({
     markDirty();
     checkpoint();
   }, [checkpoint, markDirty]);
+  const copySelection = useCallback(async () => {
+    if (permissions.canCopy === false || !editorRef.current.clipboard?.writeText) return;
+    const area = textAreaRef.current;
+    const selected = area ? area.value.slice(area.selectionStart, area.selectionEnd) : "";
+    if (selected.length === 0) return;
+    await editorRef.current.clipboard.writeText(selected);
+  }, [permissions.canCopy]);
+  const pasteText = useCallback(async () => {
+    if (permissions.canPaste === false || !editorRef.current.clipboard?.readText) return;
+    const incoming = await editorRef.current.clipboard.readText();
+    const area = textAreaRef.current;
+    if (!area) return;
+    const start = area.selectionStart;
+    const end = area.selectionEnd;
+    const next = area.value.slice(0, start) + incoming + area.value.slice(end);
+    if (editorRef.current.source) editorRef.current.source.setText(next);
+    else editorRef.current.setText?.(next);
+    setText(next);
+    markDirty();
+    checkpoint();
+    requestAnimationFrame(() => {
+      area.selectionStart = area.selectionEnd = start + incoming.length;
+    });
+  }, [checkpoint, markDirty, permissions.canPaste]);
   const onKeyDown = useCallback((event: KeyboardEvent<HTMLElement>) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
       save("shortcut");
       return;
     }
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "c") {
+      if (permissions.canCopy === false) event.preventDefault();
+      else if (editorRef.current.clipboard?.writeText) { event.preventDefault(); void copySelection().catch(() => undefined); }
+      return;
+    }
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "v") {
+      if (permissions.canPaste === false) event.preventDefault();
+      else if (editorRef.current.clipboard?.readText) { event.preventDefault(); void pasteText().catch(() => undefined); }
+      return;
+    }
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z" && !event.nativeEvent.isComposing) {
       event.preventDefault();
       history(event.shiftKey ? "redo" : "undo");
     }
-  }, [history, save]);
+  }, [copySelection, history, pasteText, permissions.canCopy, permissions.canPaste, save]);
 
   return (
     <section className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-background", className)} data-testid={`${format}-editor`} data-document-key={documentKey} onKeyDown={onKeyDown} role="application" aria-label={title} tabIndex={0}>
@@ -300,6 +339,8 @@ export function SourceEditor<TSnapshot = unknown>({
           <div className="flex min-h-11 flex-wrap items-center gap-1 border-b border-border bg-muted/30 px-2 py-1" data-testid={`${format}-toolbar`} role="toolbar" aria-label={t("toolbar.label")}>
             <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.undo")} disabled={readOnly || saving} onClick={() => history("undo")}><Undo2 aria-hidden /></Button>
             <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.redo")} disabled={readOnly || saving} onClick={() => history("redo")}><Redo2 aria-hidden /></Button>
+            <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.copy")} disabled={readOnly || saving || permissions.canCopy === false || !editor.clipboard?.writeText} onClick={() => void copySelection().catch(() => undefined)}><Copy aria-hidden /></Button>
+            <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("actions.paste")} disabled={readOnly || saving || permissions.canPaste === false || !editor.clipboard?.readText} onClick={() => void pasteText().catch(() => undefined)}><Clipboard aria-hidden /></Button>
             <span className="min-w-0 flex-1" />
             <Button type="button" variant="brand" size="sm" data-testid={`${format}-save`} disabled={readOnly || saving || !dirty || blockedAsset} onClick={() => save("button")}>
               {saving ? t("actions.saving") : t("actions.save")}

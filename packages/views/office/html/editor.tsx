@@ -10,6 +10,7 @@ export function HtmlEditor<TSnapshot = unknown>(props: HtmlEditorProps<TSnapshot
     ...props,
     format: "html",
     title: props.title ?? t("title"),
+    permissions: props.permissions,
     onOpen: props.onOpen ? (outcome) => {
       if (outcome.outcome === "opened" || outcome.format === "html") props.onOpen?.(outcome as Parameters<NonNullable<typeof props.onOpen>>[0]);
     } : undefined,

@@ -7027,7 +7027,7 @@
     "markdown": {
       "title": "T?i li?u Markdown",
       "toolbar": { "label": "L?nh ch?nh s?a Markdown" },
-      "actions": { "undo": "Ho?n t?c", "redo": "L?m l?i", "save": "L?u l?n UniWork", "saving": "?ang l?u?", "retry": "Th? l?i" },
+      "actions": { "undo": "Ho?n t?c", "redo": "L?m l?i", "copy": "Sao ch?p", "paste": "Dán", "save": "L?u l?n UniWork", "saving": "?ang l?u?", "retry": "Th? l?i" },
       "state": { "opening": "?ang m? t?i li?u?", "error": "Kh?ng m? ???c t?i li?u" },
       "source": { "label": "M? ngu?n Markdown" },
       "preview": { "label": "Xem tr??c", "loading": "?ang t?i xem tr??c?", "unavailable": "Xem tr??c kh?ng kh? d?ng" },
@@ -7039,7 +7039,7 @@
     "html": {
       "title": "T?i li?u HTML",
       "toolbar": { "label": "L?nh ch?nh s?a HTML" },
-      "actions": { "undo": "Ho?n t?c", "redo": "L?m l?i", "save": "L?u l?n UniWork", "saving": "?ang l?u?", "retry": "Th? l?i" },
+      "actions": { "undo": "Ho?n t?c", "redo": "L?m l?i", "copy": "Sao ch?p", "paste": "Dán", "save": "L?u l?n UniWork", "saving": "?ang l?u?", "retry": "Th? l?i" },
       "state": { "opening": "?ang m? t?i li?u?", "error": "Kh?ng m? ???c t?i li?u" },
       "source": { "label": "M? ngu?n HTML" },
       "preview": { "label": "Xem tr??c c?ch ly", "loading": "?ang t?i xem tr??c?", "unavailable": "Xem tr??c kh?ng kh? d?ng" },

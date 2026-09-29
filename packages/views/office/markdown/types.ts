@@ -5,6 +5,8 @@ export type MarkdownEditorHandle<TSnapshot = unknown> = TextEditorHandle<TSnapsh
 export type MarkdownOpenOutcome = TextOpenSuccess | (TextOpenFailure & { format: "md" });
 export type MarkdownCapability = TextCapability & { format: "md" };
 export type MarkdownSaveCoordinator = TextSaveCoordinator;
+export type MarkdownOpenPort = import("../source-editor-types").TextOpenPort;
+export type MarkdownOpenPort = import("../source-editor-types").TextOpenPort;
 
 export interface MarkdownEditorProps<TSnapshot = unknown> {
   documentKey: string;
@@ -15,6 +17,7 @@ export interface MarkdownEditorProps<TSnapshot = unknown> {
   preview?: IsolatedPreviewPort;
   manifest?: AssetManifestLike | null;
   assetFailures?: Readonly<Record<string, AssetStatus | boolean>>;
+  permissions?: import("../source-editor-types").TextEditorPermissions;
   title?: string;
   className?: string;
   onOpen?: (outcome: MarkdownOpenOutcome) => void;

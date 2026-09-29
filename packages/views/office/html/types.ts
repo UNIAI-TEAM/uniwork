@@ -5,6 +5,8 @@ export type HtmlEditorHandle<TSnapshot = unknown> = TextEditorHandle<TSnapshot>;
 export type HtmlOpenOutcome = TextOpenSuccess | (TextOpenFailure & { format: "html" });
 export type HtmlCapability = TextCapability & { format: "html" };
 export type HtmlSaveCoordinator = TextSaveCoordinator;
+export type HtmlOpenPort = import("../source-editor-types").TextOpenPort;
+export type HtmlOpenPort = import("../source-editor-types").TextOpenPort;
 
 export interface HtmlEditorProps<TSnapshot = unknown> {
   documentKey: string;
@@ -15,6 +17,7 @@ export interface HtmlEditorProps<TSnapshot = unknown> {
   preview?: IsolatedPreviewPort;
   manifest?: AssetManifestLike | null;
   assetFailures?: Readonly<Record<string, AssetStatus | boolean>>;
+  permissions?: import("../source-editor-types").TextEditorPermissions;
   title?: string;
   className?: string;
   onOpen?: (outcome: HtmlOpenOutcome) => void;
