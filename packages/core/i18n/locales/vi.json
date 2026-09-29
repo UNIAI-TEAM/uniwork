@@ -7024,6 +7024,30 @@
         "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa XLSX."
       }
     },
+    "markdown": {
+      "title": "Tài liệu Markdown",
+      "toolbar": { "label": "Lệnh chỉnh sửa Markdown" },
+      "actions": { "undo": "Hoàn tác", "redo": "Làm lại", "copy": "Sao chép", "paste": "Dán", "save": "Lưu lên UniWork", "saving": "Đang lưu…", "retry": "Thử lại" },
+      "state": { "opening": "Đang mở tài liệu…", "error": "Không mở được tài liệu" },
+      "source": { "label": "Mã nguồn Markdown" },
+      "preview": { "label": "Xem trước", "loading": "Đang tải xem trước…", "unavailable": "Xem trước không khả dụng" },
+      "asset": { "label": "Tài sản", "empty": "Tài liệu không có asset", "ready": "Sẵn sàng", "missing": "Thiếu", "unauthorised": "Chưa được cấp quyền", "failed": "Lỗi", "saveBlocked": "Không thể lưu tài liệu cho đến khi mọi asset sẵn sàng." },
+      "saveState": { "ready": "Sẵn sàng", "dirty": "Có thay đổi chưa lưu", "saving": "Đang lưu…", "saved": "Đã lưu lên UniWork", "error": "Lưu cần xử lý", "conflict": "Xung đột phiên bản", "blocked": "Đã chặn lưu", "readonly": "Chỉ đọc", "incompatible": "Không thể chỉnh sửa" },
+      "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa Markdown.",
+      "errors": { "title": "Không mở được tài liệu Markdown này", "unknown": "Adapter Markdown trả về lỗi mở không xác định." }
+    },
+    "html": {
+      "title": "Tài liệu HTML",
+      "toolbar": { "label": "Lệnh chỉnh sửa HTML" },
+      "actions": { "undo": "Hoàn tác", "redo": "Làm lại", "copy": "Sao chép", "paste": "Dán", "save": "Lưu lên UniWork", "saving": "Đang lưu…", "retry": "Thử lại" },
+      "state": { "opening": "Đang mở tài liệu…", "error": "Không mở được tài liệu" },
+      "source": { "label": "Mã nguồn HTML" },
+      "preview": { "label": "Xem trước cách ly", "loading": "Đang tải xem trước…", "unavailable": "Xem trước không khả dụng" },
+      "asset": { "label": "Tài sản", "empty": "Tài liệu không có asset", "ready": "Sẵn sàng", "missing": "Thiếu", "unauthorised": "Chưa được cấp quyền", "failed": "Lỗi", "saveBlocked": "Không thể lưu tài liệu cho đến khi mọi asset sẵn sàng." },
+      "saveState": { "ready": "Sẵn sàng", "dirty": "Có thay đổi chưa lưu", "saving": "Đang lưu…", "saved": "Đã lưu lên UniWork", "error": "Lưu cần xử lý", "conflict": "Xung đột phiên bản", "blocked": "Đã chặn lưu", "readonly": "Chỉ đọc", "incompatible": "Không thể chỉnh sửa" },
+      "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa HTML.",
+      "errors": { "title": "Không mở được tài liệu HTML này", "unknown": "Adapter HTML trả về lỗi mở không xác định." }
+    },
     "pptx": {
       "toolbar_label": "Lệnh PowerPoint",
       "slide_rail_label": "Trang chiếu",

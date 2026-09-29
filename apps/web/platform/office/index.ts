@@ -25,3 +25,4 @@ export function createWebOfficeEngine(options: WebOfficeBoundaryOptions): Office
 }
 
 export type { OfficeEngine, HostIpcPort };
+export { createOfficePreviewPort, type OfficePreviewPortOptions } from "./preview-port";
