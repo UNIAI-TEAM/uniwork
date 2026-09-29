@@ -608,8 +608,7 @@ func (s *EmailHubService) Sync(
 	}
 	if synced {
 		s.emitInboxChanged(ctx, acc)
-		afterUnread := s.inboxUnreadForAccount(ctx, acc)
-		if newUnread > 0 || afterUnread > beforeUnread {
+		if newUnread > 0 || s.inboxUnreadForAccount(ctx, acc) > beforeUnread {
 			s.emitEmailHubNewMail(ctx, acc, workspaceID)
 		}
 	}

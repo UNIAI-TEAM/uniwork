@@ -29,6 +29,7 @@ export type EmailHubViewDetailPanelProps = {
   readableBody: boolean;
   bodyLoading: boolean;
   bodyLoadFailed: boolean;
+  onBodyRefetch: () => void;
   actions: EmailHubThreadActions;
   pending: EmailHubThreadPending;
   aiOpen: boolean;
@@ -78,6 +79,7 @@ export function EmailHubViewDetailPanel(props: EmailHubViewDetailPanelProps) {
         readableBody={props.readableBody}
         bodyLoading={props.bodyLoading}
         bodyLoadFailed={props.bodyLoadFailed}
+        onBodyRefetch={props.onBodyRefetch}
         actions={actions}
         pending={props.pending}
         aiOpen={props.aiOpen}
