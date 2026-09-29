@@ -2330,6 +2330,8 @@
     "guestAdmitted": "Guest admitted",
     "allGuestsAdmitted": "All guests admitted",
     "joinRequestsPendingTitle": "{{count}} join requests waiting",
+    "joinRequestToastTitle": "{{name}} is asking to join",
+    "joinRequestToastView": "View",
     "viewAllJoinRequestsCount": "View all ({{count}})",
     "waitingToJoin": "Waiting to join",
     "waitingToJoinHostHint": "Visible to hosts",

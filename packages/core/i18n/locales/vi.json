@@ -2329,6 +2329,8 @@
     "guestAdmitted": "Đã cho khách vào phòng",
     "allGuestsAdmitted": "Đã cho tất cả khách vào phòng",
     "joinRequestsPendingTitle": "{{count}} yêu cầu đang chờ",
+    "joinRequestToastTitle": "{{name}} đang xin vào phòng",
+    "joinRequestToastView": "Xem",
     "viewAllJoinRequestsCount": "Xem tất cả ({{count}})",
     "waitingToJoin": "Đang chờ vào phòng",
     "waitingToJoinHostHint": "Chỉ chủ trì mới thấy",

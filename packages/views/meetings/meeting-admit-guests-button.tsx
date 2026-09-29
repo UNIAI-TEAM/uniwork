@@ -10,6 +10,8 @@ import {
 } from "@uniwork/ui/components/ui/hover-card";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingWaitingToJoinCard } from "./meeting-waiting-to-join-card";
+import { useJoinRequestActions } from "./use-join-request-actions";
+import { useJoinRequestAlert } from "./use-join-request-alert";
 import { usePendingJoinRequests } from "./use-pending-join-requests";
 
 export function MeetingAdmitGuestsButton({
@@ -23,7 +25,10 @@ export function MeetingAdmitGuestsButton({
   className?: string;
 }) {
   const { t } = useTranslation();
-  const { count } = usePendingJoinRequests(meetingId);
+  const { pending, count } = usePendingJoinRequests(meetingId);
+  const { approveOne } = useJoinRequestActions(meetingId);
+  // The chip alone was easy to miss; a toast and a chime make a knock noticed.
+  useJoinRequestAlert({ pending, onApprove: approveOne, onOpenPeople });
 
   // The live region stays mounted across the count going back to zero, so a
   // host on a screen reader hears the next guest arrive instead of nothing.
