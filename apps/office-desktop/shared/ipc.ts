@@ -27,7 +27,30 @@ const attemptIdSchema = z.string().regex(/^attempt_[A-Za-z0-9_-]{32,160}$/, "inv
 const fileHandleSchema = z.string().regex(/^file_[A-Za-z0-9_-]{32,160}$/, "invalid file handle");
 const draftIdSchema = z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/, "invalid draft id");
 const IPC_FILE_MAX_BYTES = 192 * 1024 * 1024;
-const base64BytesSchema = z.string().regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/, "invalid byte encoding").max(IPC_FILE_MAX_BYTES);
+/**
+ * Validate the base64 wire value with a bounded linear scan.  A large
+ * Office document can contain hundreds of millions of base64 characters;
+ * the usual grouped RegExp backtracks deeply enough to overflow the V8
+ * stack long before the transport bound is reached.
+ */
+function isBase64Bytes(value: string): boolean {
+  if (value.length > IPC_FILE_MAX_BYTES || (value.length & 3) !== 0) return false;
+  let padding = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code === 61) {
+      padding += 1;
+      if (padding > 2 || index < value.length - 2) return false;
+      continue;
+    }
+    const alphaNumeric = (code >= 48 && code <= 57) || (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
+    if (padding > 0 || (!alphaNumeric && code !== 43 && code !== 47)) {
+      return false;
+    }
+  }
+  return true;
+}
+const base64BytesSchema = z.string().max(IPC_FILE_MAX_BYTES).refine(isBase64Bytes, "invalid byte encoding");
 export const desktopFileMetadataSchema = z.object({
   handle: fileHandleSchema,
   name: z.string().min(1).max(255),
@@ -119,7 +142,14 @@ export function validateIpcRequest<C extends DesktopIpcChannel>(channel: C | str
   if (sender.origin !== sender.expectedOrigin || !originSchema.safeParse(sender.origin).success) throw new IpcValidationError("origin", "IPC origin is not the application origin");
   const byteLimit = channel.startsWith("desktop:file-") || channel === "desktop:draft-checkpoint" ? IPC_FILE_MAX_BYTES : IPC_MAX_BYTES;
   if (sizeInBytes(payload, byteLimit) > byteLimit) throw new IpcValidationError("oversize", "IPC payload exceeds the byte limit");
-  const parsed = requestSchemas[channel].safeParse(payload);
+  let parsed: { success: boolean; data?: unknown };
+  try {
+    parsed = requestSchemas[channel].safeParse(payload);
+  } catch {
+    // Keep malformed or unexpectedly hostile values on the typed IPC error
+    // surface even if a dependency changes its parser implementation.
+    throw new IpcValidationError("schema", "IPC payload does not match the channel schema");
+  }
   if (!parsed.success) throw new IpcValidationError("schema", "IPC payload does not match the channel schema");
   if ((parsed.data as { sessionGeneration: string }).sessionGeneration !== sender.sessionGeneration) throw new IpcValidationError("session", "IPC session generation is stale");
   if (channel === "desktop:open-external" && !isAllowedExternalUrl((parsed.data as unknown as { url: string }).url, sender.allowedExternalHosts ?? [])) {

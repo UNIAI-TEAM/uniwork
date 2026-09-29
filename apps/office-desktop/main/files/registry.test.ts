@@ -34,6 +34,14 @@ describe("desktop local file handles", () => {
     await expect(fs.readFile(target, "utf8")).resolves.toBe("outside");
   });
 
+  it("refuses an ancestor symlink before opening the selected file", async () => {
+    const root = await tempRoot(); const escaped = join(root, "escaped"); const target = join(escaped, "target.txt");
+    await fs.mkdir(escaped, { recursive: true }); await fs.writeFile(target, "old");
+    const native = { lstat: (p: string) => fs.lstat(p), stat: (p: string) => fs.stat(p), realpath: (p: string) => fs.realpath(p), readFile: async (p: string) => new Uint8Array(await fs.readFile(p)), open: (p: string, f: string | number) => fs.open(p, f), rename: (from: string, to: string) => fs.rename(from, to), unlink: (p: string) => fs.unlink(p) } satisfies FileSystemPort;
+    const ancestorSymlinkFs = { ...native, lstat: async (p: string) => p === escaped ? ({ isSymbolicLink: () => true, isFile: () => false } as unknown as Stats) : native.lstat(p) } satisfies FileSystemPort;
+    await expect(new FileHandleRegistry({ sessionId: "s", fs: ancestorSymlinkFs }).openPath(target)).rejects.toMatchObject({ code: "symlink_refused" });
+  });
+
   it("refuses a locked target before atomic replacement", async () => {
     const root = await tempRoot(); const path = join(root, "locked.txt"); await fs.writeFile(path, "old");
     const native = { lstat: (p: string) => fs.lstat(p), stat: (p: string) => fs.stat(p), realpath: (p: string) => fs.realpath(p), readFile: async (p: string) => new Uint8Array(await fs.readFile(p)), open: (p: string, f: string | number) => fs.open(p, f), rename: (from: string, to: string) => fs.rename(from, to), unlink: (p: string) => fs.unlink(p) } satisfies FileSystemPort;

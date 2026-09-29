@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { promises as fs } from "node:fs";
 import { join } from "node:path";
 import { createDesktopDraftStore } from "./store";
@@ -58,13 +58,15 @@ describe("desktop protected drafts", () => {
     expect((await fs.readdir(rootPath)).some((entry) => entry.startsWith("uniwork-office-draft-"))).toBe(false);
   });
 
-  it("checkpoint scheduler does not touch target/upload seams", async () => {
-    const store = createDesktopDraftStore({ rootDirectory: await root(), keyStore: createFakeDraftKeyStore() });
-    const targetWrites: string[] = []; const uploadCalls = 0;
+  it("checkpoint scheduler writes only its durable draft row", async () => {
+    const rootPath = await root(); const targetPath = join(rootPath, "target.docx");
+    const writeFile = vi.spyOn(fs, "writeFile");
+    const store = createDesktopDraftStore({ rootDirectory: rootPath, keyStore: createFakeDraftKeyStore() });
     store.scheduleCheckpoint({ session, identity, draftId: "draft-1", generation: 1, plaintext: new TextEncoder().encode("local") }, true);
     await store.flushScheduled();
     expect((await store.list({ session, lookup: identity })).length).toBe(1);
-    expect(targetWrites).toEqual([]); expect(uploadCalls).toBe(0);
+    expect(writeFile.mock.calls.some(([path]) => String(path) === targetPath)).toBe(false);
+    writeFile.mockRestore();
   });
 
   it("returns locked rather than an empty draft for a corrupt record", async () => {

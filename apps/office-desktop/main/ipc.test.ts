@@ -20,6 +20,10 @@ describe("desktop IPC allowlist", () => {
     expect(() => validateIpcRequest("desktop:file-save", { sessionGeneration: "session_1234", handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", dataBase64: "x".repeat(100_000) }, context)).not.toThrow();
     expect(IPC_FILE_MAX_BYTES).toBeGreaterThan(IPC_MAX_BYTES);
   });
+  it("accepts realistic documents without regex stack overflow", () => {
+    const dataBase64 = Buffer.alloc(10 * 1024 * 1024).toString("base64");
+    expect(() => validateIpcRequest("desktop:file-save", { sessionGeneration: "session_1234", handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", dataBase64 }, context)).not.toThrow();
+  });
 
   it("sanitizes file handler errors and validates handler responses", async () => {
     const registry = { openPath: async () => { throw new LocalFileError("symlink_refused", "C:\\secret.txt"); }, save: async () => { throw new LocalFileError("external_modification", "C:\\secret.txt"); } } as unknown as FileHandleRegistry;
