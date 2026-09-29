@@ -1,6 +1,6 @@
 # UniWork Office G4 - Desktop, đăng nhập và Office Bridge
 
-> **Trạng thái:** in-progress - spec v1.2 để duyệt, ngày 2026-09-27; đã sửa theo hai lượt review và quyết định bỏ autosave của người dùng; chưa triển khai hoặc nghiệm thu sản phẩm.
+> **Trạng thái:** in-progress - spec v1.3 để duyệt, cập nhật 2026-09-29; đã reconcile baseline G1/G2 đã merge và handoff evidence, giữ quyết định bỏ autosave của người dùng; chưa triển khai hoặc nghiệm thu sản phẩm.
 
 **Issue tài liệu:** UNI-819, parent UNI-437. **Issue triển khai:** G4 UNI-636.
 **Roadmap:** C-16, liên quan C-01. **Spec đồng hành:** [G3 web editors](2026-09-27-office-g3-web-editors-design.md).
@@ -25,11 +25,12 @@ Baseline tài liệu là `develop` tại `c6b567f0`. Đã đọc [spec G0](2026-
 [FS-C1 v1](2026-09-24-file-service-contract.md), [handoff G0](../../office/g0/handoff-map.md)
 và [brand/integration](../../office/g0/uniwork-office-integration-brand.md).
 
-Các bổ sung G1/G2 tại commit `215b9527` trên `feature/UNI-657-documents-office-g1-g2`
-được dùng làm đầu vào: plan `docs/superpowers/plans/2026-09-18-documents-office-g1-g2.md`
-cập nhật 27/09, C-01 §14, ADR 0024 accepted và `docs/office/g1g2/fs-c1-alignment.md`.
-Chúng chưa nằm hết trong baseline checkout spec; phải tích hợp dependency trước
-implementation, không sao chép lại hoặc sửa nhánh đang chạy của G1/G2.
+Các bổ sung G1/G2 đã merge vào checkout này tại `469607fcd610498f7f7c93f56a9ca81cfbb0923f`.
+Đầu vào gồm plan `docs/superpowers/plans/2026-09-18-documents-office-g1-g2.md`, C-01 §14,
+ADR 0024, `docs/office/g1g2/fs-c1-alignment.md` và handoff/evidence trong
+`docs/office/g1g2/packaging-and-handoff.md` và `docs/office/g1-g2-evidence.md`.
+Dependency code/schema/API đã nằm trong baseline hiện tại; H4/full six-format acceptance
+chỉ được mở khi acceptance packet cuối xác nhận, không suy ra từ việc merge branch.
 
 U-1..U-4 ngày 27/09 đã duyệt: layout G1/G2, FileService giữ byte/intent/GC,
 C-01 §14 và codec ảnh Node cho PDF web. G4 tiêu thụ quyết định đó, không dựng đường

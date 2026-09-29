@@ -1,6 +1,6 @@
 # UniWork Office G3 - Editor sáu định dạng trên web
 
-> **Trạng thái:** in-progress - spec v1.2 để duyệt, ngày 2026-09-27; đã sửa theo hai lượt review và quyết định bỏ autosave của người dùng; chưa triển khai hoặc nghiệm thu sản phẩm.
+> **Trạng thái:** in-progress - spec v1.3 để duyệt, cập nhật 2026-09-29; đã reconcile baseline G1/G2 đã merge và handoff evidence, giữ quyết định bỏ autosave của người dùng; chưa triển khai hoặc nghiệm thu sản phẩm.
 
 **Issue tài liệu:** UNI-819, parent UNI-437. **Issue triển khai:** G3 UNI-659.
 **Roadmap:** C-01, liên quan C-15/C-16. **Spec đồng hành:** [G4 desktop](2026-09-27-office-g4-desktop-design.md).
@@ -25,14 +25,16 @@ là lệnh khởi chạy implementation. Các mục ghi **đề xuất** chưa p
 | [ADR 0021](../../adr/0021-runtime-engine-office-da-dinh-dang.md), [runtime map](../../office/g0/module-runtime-map.json) | Runtime theo thao tác, không suy từ phần mở rộng file |
 | [C-01 Documents](2026-09-08-documents-design.md), [DOC-005](../../office/g0/login-sync-contract.md) | Quyền, ownership, phiên bản, lỗi, nháp, bản sao |
 | [FS-C1 v1](2026-09-24-file-service-contract.md) | FileService sở hữu byte, upload intent, GC; Documents giữ `file_id` |
-| G1/G2 tại `215b9527`, nhánh `feature/UNI-657-documents-office-g1-g2` | Plan ngày 18/09 cập nhật 27/09, ADR 0024 accepted, C-01 §14 đã duyệt; chưa nằm hết trong baseline checkout này |
+| G1/G2 đã merge vào checkout này tại `469607fcd610498f7f7c93f56a9ca81cfbb0923f` | Plan ngày 18/09, ADR 0024, C-01 §14, FileService alignment và handoff G2-07; code/schema/API đã có trong baseline hiện tại, nhưng H4 vẫn chỉ được nhận khi có acceptance packet cuối |
 | [Handoff G0](../../office/g0/handoff-map.md), [pilot assertions](../../office/g0/pilot-handoff.md), [ngưỡng đo](../../office/g0/acceptance-thresholds.md) | Phân biệt bằng chứng lab, giới hạn còn mở và nghiệm thu sản phẩm |
 
 Đường dẫn G1/G2 ở revision trên: `docs/superpowers/plans/2026-09-18-documents-office-g1-g2.md`,
-`docs/adr/0024-fileservice-so-huu-blob-intent-gc.md`, `docs/office/g1g2/fs-c1-alignment.md`
-và `docs/office/g1g2/port-items.md`. Đây là đầu vào đã đọc, không phải file được tạo
-hoặc sao chép lại trong PR spec này. Khi tích hợp, phải đưa các dependency đã duyệt
-vào baseline trước; không làm theo bản C-01 cũ nếu thiếu §14.
+`docs/adr/0024-fileservice-so-huu-blob-intent-gc.md`, `docs/office/g1g2/fs-c1-alignment.md`,
+`docs/office/g1g2/packaging-and-handoff.md` và `docs/office/g1-g2-evidence.md`. Các file
+đã có trong checkout hiện tại là contract/handoff và bằng chứng provider, không phải
+bằng chứng G3 đã triển khai. Handoff hiện tại cho phép consumer dùng API/core/engine
+seam đã giao; H4/full six-format acceptance vẫn phải lấy từ acceptance packet cuối,
+không suy ra từ việc task G1/G2 đã merge.
 
 Các quyết định U-1..U-4 đã được người dùng duyệt ngày 27/09: giữ layout G1/G2,
 FileService giữ byte/intent/GC, C-01 §14 có hiệu lực, PDF web dùng codec ảnh Node
@@ -125,8 +127,10 @@ backend. Không hai nhánh cùng nhận quyền sửa lockfile, registry hoặc 
 
 Mục này là hợp đồng hành vi `Office Editor Host v1` đề xuất trong spec; không khai
 báo một protocol engine mới. G2 tiếp tục sở hữu `contract_version`, `protocol_version`
-và `engine_version` đã có. TypeScript names dưới đây là tên trách nhiệm, không phải
-cam kết symbol đã tồn tại. Wire JSON dùng snake_case theo `docs/conventions.md`.
+và `engine_version` đã có trong `@uniwork/office-contracts`/`@uniwork/office-engine`.
+Các TypeScript names dưới đây là tên trách nhiệm của G3/G4; symbol product-level còn
+phải được tạo hoặc map qua handoff, không được nhân đôi engine host-port/registry.
+Wire JSON dùng snake_case theo `docs/conventions.md`.
 
 ### 4.1 Identity, capability và host
 
@@ -219,7 +223,7 @@ HTTP status. Class định tuyến nhóm UI; code quyết định retry, conflic
 | `idempotency_payload_mismatch`, `idempotency_key_reuse` | C-01 §14.5; G1-03/05 | Dừng tự retry, giữ nháp, báo lỗi thao tác; không coi là lưu thành công |
 | `document_upload_invalid`, upload hết hạn | C-01 §14.5 bọc lỗi FS-C1; G1-03/05 | Giữ intent/nháp; đối chiếu kết quả cũ rồi yêu cầu người dùng lưu lại để upload mới |
 | `quota_exceeded` **403**, class `quota` | Entitlement repo + C-01 §14.5/FS-C1; G1-05 giữ HTTP 403, bổ sung class | `quota-blocked`, giữ nháp; không nhầm với thu quyền |
-| `file_too_large` 413 | FS-C1 và C-01 §5.5/§14.5; có trong FileService integration `215b9527`, G1-05 phát hành mapping Documents | Báo vượt trần file, giữ nháp; không retry cùng file tự động |
+| `file_too_large` 413 | FS-C1 và C-01 §5.5/§14.5; provider evidence và mapping Documents ở [G1-G2 evidence](../../office/g1-g2-evidence.md) | Báo vượt trần file, giữ nháp; không retry cùng file tự động |
 | `unauthorized` 401; `token_expired` 401 chỉ khi auth contract phát hành | `unauthorized` có ở middleware auth baseline; `token_expired` mới ở model DOC-005, chưa có ở server baseline. Chủ auth/G4 + G1-05 chốt mapping | Refresh theo auth transport hiện có có giới hạn; thất bại khóa editor/login lại, giữ nháp; không chờ mã lab mới xử lý 401 |
 | Mất `edit`, còn `view` | Quyền G1; state client G3/G4 | `readonly` cho byte đã commit; draft riêng `blocked`, không export/copy/clipboard payload nháp |
 | `forbidden` hoặc mất `view` | Repo/C-01, membership + Document ACL G1; G1-05 giữ envelope | `blocked`, ẩn nội dung/preview đã tải khỏi UI, dừng mutation, giữ nháp được bảo vệ |
@@ -408,7 +412,7 @@ Các mã dưới đây là requirement/test intent, chưa phải test đã tạo
 | G3-A11 | Hai theme, layout nhỏ/panel, keyboard/IME/vi-en | Canvas không 0 px; theme không đổi nội dung; contrast/focus và i18n parity đạt; nhãn trạng thái lưu dùng chung keys vi/en với G4 §7.2, phân biệt checkpoint/đích lưu/dirty N+1 |
 | G3-A12 | Fidelity và hiệu năng theo fixture/build | Object/part oracle, render diff, open/save/resource measurements; không gắn số đo lab thành SLA sản phẩm |
 
-P1..P4 được ghi ở G0 port-items tại `215b9527`. P2 cần fixture font nhúng không có
+P1..P4 được ghi ở G0 port-items tại [handoff copy](../../office/g1g2/port-items.md). P2 cần fixture font nhúng không có
 trong bundle/host (phối hợp DOC-002 UNI-666), để tránh test đạt nhờ fallback.
 PDF F1 thuộc G3 nếu root cause nằm ở editor; F2/save routing và codec thuộc G2.
 
