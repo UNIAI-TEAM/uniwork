@@ -1,0 +1,413 @@
+import { describe, expect, it, vi } from "vitest";
+import { createFakeOfficeTransport } from "./test-fakes";
+import { createOfficeSaveCoordinator } from "./save-coordinator";
+import type { DraftAdapter, EditorHandle, OfficeIdentity, OfficeSaveIntent, OfficeSaveReceipt, StableSnapshot } from "./host-contract";
+
+const identity: OfficeIdentity = {
+  deploymentId: "dep-1",
+  accountId: "acct-1",
+  organizationId: "org-1",
+  workspaceId: "ws-1",
+  documentId: "doc-1",
+  generation: 1,
+  baseVersionId: "version-1",
+  baseRevision: "9007199254740993",
+};
+
+const BASE_REVISION = 9007199254740993n;
+
+const capability = (status: "available" | "readonly" | "unavailable" | "unknown") => ({
+  format: "md" as const,
+  operation: "serialize",
+  host: "web",
+  engineBuild: "engine-1",
+  contractRevision: "office-editor-host/1",
+  status,
+  reason: status === "available" ? null : `provider says ${status}`,
+  fidelityWarnings: [],
+});
+
+function setup() {
+  let dirtyGeneration = 0;
+  let revisionNumber = BASE_REVISION;
+  let idSequence = 0;
+  const editor: EditorHandle<{ text: string }> = {
+    format: "md",
+    open: vi.fn(async () => undefined),
+    getDirtyGeneration: () => dirtyGeneration,
+    captureSnapshot: vi.fn(async () => ({ generation: dirtyGeneration, fingerprint: `fp-${dirtyGeneration}`, value: { text: `draft-${dirtyGeneration}` } })),
+    dispose: vi.fn(),
+  };
+  const persistedIntents: OfficeSaveIntent<{ text: string }>[] = [];
+  const clearedIntentIds: string[] = [];
+  const draft: DraftAdapter<{ text: string }> = {
+    checkpoint: vi.fn(async () => undefined),
+    recover: vi.fn(async () => null),
+    discard: vi.fn(async () => undefined),
+    persistIntent: vi.fn(async (intent: OfficeSaveIntent<{ text: string }>) => {
+      persistedIntents.push(intent);
+    }),
+    loadIntent: vi.fn(async () => null),
+    clearIntent: vi.fn(async (intentId: string) => {
+      clearedIntentIds.push(intentId);
+    }),
+  };
+  const transport = createFakeOfficeTransport<{ text: string }>();
+  transport.serializedOutput = { data: new Uint8Array([1, 2]), checksumSha256: "sha", sizeBytes: 2, format: "md" };
+  const receiptFor = (intent: OfficeSaveIntent<{ text: string }>): OfficeSaveReceipt => {
+    revisionNumber += 1n;
+    return {
+      intentId: intent.intentId,
+      idempotencyKey: intent.idempotencyKey,
+      documentId: intent.identity.documentId,
+      versionId: `version-${revisionNumber}`,
+      revision: revisionNumber.toString(),
+      checksumSha256: "sha",
+      sizeBytes: 2,
+      engineName: "genoffice",
+      engineVersion: "engine-1",
+      contractVersion: "contract-1",
+      protocolVersion: "1",
+    };
+  };
+  transport.commit = vi.fn(async ({ intent }: { intent: OfficeSaveIntent<{ text: string }> }) => {
+    transport.commitCalls += 1;
+    return receiptFor(intent);
+  });
+  const coordinator = createOfficeSaveCoordinator({
+    identity,
+    editor,
+    draft,
+    transport,
+    idFactory: (prefix) => `${prefix}-${++idSequence}`,
+    now: () => 100,
+    backoffMs: [0],
+  });
+  return {
+    editor,
+    draft,
+    transport,
+    coordinator,
+    persistedIntents,
+    clearedIntentIds,
+    receiptFor,
+    setDirty: (generation: number) => {
+      dirtyGeneration = generation;
+      coordinator.markDirty(generation);
+    },
+  };
+}
+
+type Harness = ReturnType<typeof setup>;
+
+const timeout = { code: "engine_timeout", error_class: "engine", status: 504, retryable: true };
+
+function saveNeverCommits(h: Harness): void {
+  h.transport.commit = vi.fn(async () => {
+    throw timeout;
+  });
+  h.transport.reconcile = vi.fn(async () => null);
+}
+
+describe("Office save coordinator", () => {
+  it("does not create cloud calls during ten minutes of idle time", async () => {
+    vi.useFakeTimers();
+    try {
+      const { setDirty, transport, coordinator } = setup();
+      setDirty(1);
+      await vi.advanceTimersByTimeAsync(600_000);
+      expect(transport.serializeCalls).toBe(0);
+      expect(transport.uploadCalls).toBe(0);
+      expect(transport.commitCalls).toBe(0);
+      expect(coordinator.getState().state).toBe("dirty");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("refuses Save from every entry point while saving and never queues", async () => {
+    const h = setup();
+    let resolveCommit: (() => void) | undefined;
+    h.transport.commit = vi.fn(({ intent }: { intent: OfficeSaveIntent<{ text: string }> }) => new Promise((resolve) => {
+      resolveCommit = () => resolve(h.receiptFor(intent));
+    }));
+    h.setDirty(1);
+    const first = h.coordinator.save("button");
+    await Promise.resolve();
+    await expect(h.coordinator.save("menu")).resolves.toEqual({ accepted: false, reason: "saving" });
+    await expect(h.coordinator.save("shortcut")).resolves.toEqual({ accepted: false, reason: "saving" });
+    await expect(h.coordinator.save("dialog")).resolves.toEqual({ accepted: false, reason: "saving" });
+    expect(h.persistedIntents).toHaveLength(1);
+    resolveCommit?.();
+    await first;
+    expect(vi.mocked(h.transport.commit)).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a synchronous double-click before snapshot capture resolves", async () => {
+    const h = setup();
+    let resolveSnapshot: ((snapshot: StableSnapshot<{ text: string }>) => void) | undefined;
+    h.editor.captureSnapshot = vi.fn(() => new Promise<StableSnapshot<{ text: string }>>((resolve) => {
+      resolveSnapshot = resolve;
+    }));
+    h.setDirty(1);
+    const first = h.coordinator.save("button");
+    await expect(h.coordinator.save("shortcut")).resolves.toEqual({ accepted: false, reason: "saving" });
+    resolveSnapshot?.({ generation: 1, fingerprint: "fp-1", value: { text: "draft-1" } });
+    await first;
+    expect(vi.mocked(h.transport.commit)).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps N+1 dirty after receipt N and advances the base revision as a string", async () => {
+    const h = setup();
+    let resolveCommit: (() => void) | undefined;
+    h.transport.commit = vi.fn(({ intent }: { intent: OfficeSaveIntent<{ text: string }> }) => new Promise((resolve) => {
+      resolveCommit = () => resolve(h.receiptFor(intent));
+    }));
+    h.setDirty(1);
+    const save = h.coordinator.save();
+    await vi.waitFor(() => expect(vi.mocked(h.transport.commit)).toHaveBeenCalledTimes(1));
+    h.setDirty(2);
+    resolveCommit?.();
+    const result = await save;
+    expect(result.accepted).toBe(true);
+    expect(h.coordinator.getState()).toMatchObject({ state: "dirty", dirtyGeneration: 2, lastSavedGeneration: 1 });
+    expect(h.coordinator.getState().identity.baseRevision).toBe((BASE_REVISION + 1n).toString());
+  });
+
+  it("reconciles a timeout after commit with the same durable intent", async () => {
+    const h = setup();
+    h.transport.commit = vi.fn(async () => {
+      throw timeout;
+    });
+    h.transport.reconcile = vi.fn(async ({ intent }: { intent: OfficeSaveIntent<{ text: string }> }) => h.receiptFor(intent));
+    h.setDirty(1);
+    const result = await h.coordinator.save();
+    expect(result.accepted).toBe(true);
+    expect(vi.mocked(h.transport.commit)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(h.transport.reconcile)).toHaveBeenCalledTimes(1);
+    expect(h.coordinator.getState().state).toBe("saved");
+  });
+
+  it("retries a timed-out intent with the same key and commits once", async () => {
+    const h = setup();
+    let attempts = 0;
+    h.transport.commit = vi.fn(async ({ intent }: { intent: OfficeSaveIntent<{ text: string }> }) => {
+      attempts += 1;
+      if (attempts === 1) throw timeout;
+      return h.receiptFor(intent);
+    });
+    h.transport.reconcile = vi.fn(async () => null);
+    h.setDirty(1);
+    const result = await h.coordinator.save();
+    expect(result.accepted).toBe(true);
+    expect(vi.mocked(h.transport.commit)).toHaveBeenCalledTimes(2);
+    expect(h.persistedIntents).toHaveLength(1);
+    expect(h.coordinator.getState().state).toBe("saved");
+  });
+
+  it("keeps an ambiguous pending intent when a newer edit arrives and replays its key", async () => {
+    const h = setup();
+    let allowCommit = false;
+    h.transport.commit = vi.fn(async ({ intent }: { intent: OfficeSaveIntent<{ text: string }> }) => {
+      if (!allowCommit) throw timeout;
+      return h.receiptFor(intent);
+    });
+    h.transport.reconcile = vi.fn(async () => null);
+    h.setDirty(1);
+    const first = await h.coordinator.save();
+    expect(first.accepted).toBe(false);
+    expect(h.coordinator.getState()).toMatchObject({ state: "error", activeIntentId: h.persistedIntents[0]?.intentId });
+    h.setDirty(2);
+    expect(h.coordinator.getState().state).toBe("error");
+    allowCommit = true;
+    const second = await h.coordinator.save("button");
+    expect(second.accepted).toBe(true);
+    expect(h.persistedIntents).toHaveLength(1);
+    expect(h.coordinator.getState()).toMatchObject({ state: "dirty", dirtyGeneration: 2, lastSavedGeneration: 1 });
+  });
+
+  it("reconciles an unresolved intent before a new Save can start", async () => {
+    const h = setup();
+    saveNeverCommits(h);
+    h.setDirty(1);
+    await h.coordinator.save();
+    expect(vi.mocked(h.transport.commit)).toHaveBeenCalledTimes(3);
+    const reconciled = h.receiptFor(h.persistedIntents[0]!);
+    h.transport.reconcile = vi.fn(async () => reconciled);
+    const result = await h.coordinator.save();
+    expect(result.accepted).toBe(true);
+    expect(vi.mocked(h.transport.commit)).toHaveBeenCalledTimes(3);
+    expect(h.coordinator.getState().state).toBe("saved");
+  });
+
+  it("keeps the base on a stale conflict, refuses Save in conflict after edits, and stops key reuse with another payload", async () => {
+    const conflict = setup();
+    conflict.transport.commit = vi.fn(async () => {
+      throw { code: "document_version_conflict", error_class: "conflict", status: 409 };
+    });
+    conflict.setDirty(1);
+    await conflict.coordinator.save();
+    expect(conflict.coordinator.getState()).toMatchObject({ state: "conflict", identity: { baseRevision: "9007199254740993" } });
+    conflict.setDirty(2);
+    expect(conflict.coordinator.getState().state).toBe("conflict");
+    await expect(conflict.coordinator.save("menu")).resolves.toEqual({ accepted: false, reason: "stale" });
+    expect(vi.mocked(conflict.transport.commit)).toHaveBeenCalledTimes(1);
+    expect(conflict.clearedIntentIds).toEqual([conflict.persistedIntents[0]?.intentId]);
+
+    const mismatch = setup();
+    mismatch.transport.commit = vi.fn(async () => {
+      throw { code: "idempotency_payload_mismatch", error_class: "conflict", status: 409 };
+    });
+    mismatch.setDirty(1);
+    await mismatch.coordinator.save();
+    expect(mismatch.coordinator.getState().state).toBe("error");
+    expect(vi.mocked(mismatch.transport.commit)).toHaveBeenCalledTimes(1);
+    await expect(mismatch.coordinator.save()).resolves.toEqual({ accepted: false, reason: "error" });
+    expect(vi.mocked(mismatch.transport.commit)).toHaveBeenCalledTimes(1);
+  });
+
+  it("saves newer content with a new key after a payload mismatch stopped the old intent", async () => {
+    const h = setup();
+    h.transport.commit = vi.fn(async () => {
+      throw { code: "payload_fingerprint_mismatch", error_class: "conflict", status: 409 };
+    });
+    h.setDirty(1);
+    await expect(h.coordinator.save()).resolves.toEqual({ accepted: false, reason: "error" });
+    expect(h.coordinator.getState()).toMatchObject({ state: "error", error: { code: "payload_fingerprint_mismatch" } });
+    expect(h.clearedIntentIds).toEqual([h.persistedIntents[0]?.intentId]);
+    // No new edit: the same bytes are not retried with a fresh key.
+    await expect(h.coordinator.save()).resolves.toEqual({ accepted: false, reason: "error" });
+    expect(vi.mocked(h.transport.commit)).toHaveBeenCalledTimes(1);
+    // A new edit mints a new intent and key; the stop error stays visible.
+    h.transport.commit = vi.fn(async ({ intent }: { intent: OfficeSaveIntent<{ text: string }> }) => h.receiptFor(intent));
+    h.setDirty(2);
+    expect(h.coordinator.getState().state).toBe("error");
+    const saved = await h.coordinator.save("button");
+    expect(saved.accepted).toBe(true);
+    expect(h.persistedIntents).toHaveLength(2);
+    expect(h.persistedIntents[1]?.idempotencyKey).not.toBe(h.persistedIntents[0]?.idempotencyKey);
+    expect(h.coordinator.getState().state).toBe("saved");
+  });
+
+  it("never enters saved on a malformed commit receipt without a matching commit", async () => {
+    const h = setup();
+    h.transport.commit = vi.fn(async () => ({ documentId: "doc-1", revision: "not-a-revision" }));
+    h.transport.reconcile = vi.fn(async () => null);
+    h.setDirty(1);
+    const result = await h.coordinator.save();
+    expect(result.accepted).toBe(false);
+    expect(h.coordinator.getState().state).toBe("error");
+    expect(h.coordinator.getState().activeIntentId).toBeTruthy();
+  });
+
+  it("treats a malformed commit receipt as ambiguous and reconciles it", async () => {
+    const h = setup();
+    h.transport.commit = vi.fn(async () => ({ documentId: "doc-1", revision: "not-a-revision" }));
+    h.transport.reconcile = vi.fn(async ({ intent }: { intent: OfficeSaveIntent<{ text: string }> }) => h.receiptFor(intent));
+    h.setDirty(1);
+    const result = await h.coordinator.save();
+    expect(result.accepted).toBe(true);
+    expect(h.coordinator.getState().state).toBe("saved");
+  });
+
+  it("keeps an ambiguous intent across setIdentity and reconciles it before a new key", async () => {
+    const h = setup();
+    saveNeverCommits(h);
+    h.setDirty(1);
+    await h.coordinator.save();
+    const oldIntent = h.persistedIntents[0]!;
+    h.coordinator.setIdentity({ ...identity, generation: 2 });
+    expect(h.coordinator.getState()).toMatchObject({
+      state: "blocked",
+      activeIntentId: oldIntent.intentId,
+      error: { code: "pending_intent_recovery" },
+    });
+    h.transport.commit = vi.fn(async ({ intent }: { intent: OfficeSaveIntent<{ text: string }> }) => h.receiptFor(intent));
+    h.setDirty(2);
+    const saved = await h.coordinator.save("button");
+    expect(saved.accepted).toBe(true);
+    expect(vi.mocked(h.transport.reconcile)).toHaveBeenCalledWith(expect.objectContaining({ intent: oldIntent }));
+    expect(h.clearedIntentIds).toContain(oldIntent.intentId);
+    expect(h.persistedIntents).toHaveLength(2);
+    expect(h.persistedIntents[1]?.idempotencyKey).not.toBe(oldIntent.idempotencyKey);
+    expect(h.coordinator.getState().state).toBe("saved");
+  });
+
+  it("settles a drifted intent that reconcile proves committed without saving again", async () => {
+    const h = setup();
+    saveNeverCommits(h);
+    h.setDirty(1);
+    await h.coordinator.save();
+    const oldIntent = h.persistedIntents[0]!;
+    h.coordinator.setIdentity({ ...identity, generation: 2 });
+    h.transport.reconcile = vi.fn(async ({ intent }: { intent: OfficeSaveIntent<{ text: string }> }) => h.receiptFor(intent));
+    h.setDirty(2);
+    await expect(h.coordinator.save("button")).resolves.toEqual({ accepted: false, reason: "error" });
+    expect(h.coordinator.getState().identity.baseRevision).toBe((BASE_REVISION + 1n).toString());
+    expect(h.clearedIntentIds).toContain(oldIntent.intentId);
+    expect(h.persistedIntents).toHaveLength(1);
+  });
+
+  it("blocks instead of minting a new key when the reconcile question fails", async () => {
+    const h = setup();
+    h.transport.commit = vi.fn(async () => {
+      throw timeout;
+    });
+    h.transport.reconcile = vi.fn(async () => {
+      throw { code: "storage_unavailable", error_class: "storage", status: 503 };
+    });
+    h.setDirty(1);
+    await expect(h.coordinator.save()).resolves.toEqual({ accepted: false, reason: "error" });
+    h.coordinator.setIdentity({ ...identity, generation: 2 });
+    h.setDirty(2);
+    await expect(h.coordinator.save("button")).resolves.toEqual({ accepted: false, reason: "blocked" });
+    expect(h.persistedIntents).toHaveLength(1);
+    expect(vi.mocked(h.transport.commit)).toHaveBeenCalledTimes(3);
+  });
+
+  it("settles a receipt that arrives after the generation changed and never replays it", async () => {
+    const h = setup();
+    let resolveCommit: (() => void) | undefined;
+    h.transport.commit = vi.fn(({ intent }: { intent: OfficeSaveIntent<{ text: string }> }) => new Promise((resolve) => {
+      resolveCommit = () => resolve(h.receiptFor(intent));
+    }));
+    h.setDirty(1);
+    const first = h.coordinator.save("button");
+    await vi.waitFor(() => expect(vi.mocked(h.transport.commit)).toHaveBeenCalledTimes(1));
+    h.coordinator.setIdentity({ ...identity, generation: 2 });
+    resolveCommit?.();
+    await expect(first).resolves.toEqual({ accepted: false, reason: "error" });
+    expect(h.coordinator.getState().error?.code).toBe("stale_generation");
+    // The server committed, so the document base advances; the session never turns saved.
+    expect(h.coordinator.getState().identity.baseRevision).toBe((BASE_REVISION + 1n).toString());
+    expect(h.clearedIntentIds).toEqual([h.persistedIntents[0]?.intentId]);
+    // No endless replay of the settled key.
+    await expect(h.coordinator.save()).resolves.toEqual({ accepted: false, reason: "error" });
+    expect(vi.mocked(h.transport.commit)).toHaveBeenCalledTimes(1);
+    // A new edit starts a fresh intent on the advanced base.
+    h.transport.commit = vi.fn(async ({ intent }: { intent: OfficeSaveIntent<{ text: string }> }) => h.receiptFor(intent));
+    h.setDirty(2);
+    const saved = await h.coordinator.save();
+    expect(saved.accepted).toBe(true);
+    expect(h.persistedIntents).toHaveLength(2);
+  });
+
+  it("publishes dirty after an identity change while a newer generation is unsaved", () => {
+    const h = setup();
+    h.setDirty(1);
+    h.coordinator.setIdentity({ ...identity, generation: 2 });
+    expect(h.coordinator.getState()).toMatchObject({ state: "dirty", dirtyGeneration: 1, lastSavedGeneration: 0 });
+  });
+
+  it("moves to readonly on a non-available capability and restores once available", async () => {
+    const h = setup();
+    h.coordinator.setCapability(capability("readonly"));
+    expect(h.coordinator.getState()).toMatchObject({ state: "readonly", error: { code: "capability_readonly", action: "read_only" } });
+    h.setDirty(1);
+    expect(h.coordinator.getState().state).toBe("readonly");
+    await expect(h.coordinator.save()).resolves.toEqual({ accepted: false, reason: "readonly" });
+    expect(vi.mocked(h.transport.commit)).not.toHaveBeenCalled();
+    h.coordinator.setCapability(capability("available"));
+    expect(h.coordinator.getState()).toMatchObject({ state: "dirty", error: null });
+  });
+});
