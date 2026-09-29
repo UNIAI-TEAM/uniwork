@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bot, Cog, Users } from "lucide-react";
 import { cn } from "@uniwork/ui/lib/utils";
 import {
@@ -26,7 +26,14 @@ interface ActorAvatarProps {
   isAgent?: boolean;
   isSystem?: boolean;
   isSquad?: boolean;
-  size?: AvatarSize;
+  /**
+   * A tier from the semantic scale, or `fluid`: no fixed diameter, the caller
+   * sizes the circle and its type through `className` (a stage tile that
+   * grows with its cell). Glyphs then scale with the circle.
+   */
+  size?: AvatarSize | "fluid";
+  /** Keep the initials up while the photo loads and fade the photo in over them. */
+  fadeIn?: boolean;
   className?: string;
   status?: ActorAvatarStatus;
 }
@@ -49,7 +56,10 @@ function statusDotSize(px: number): string {
  */
 function ActorAvatar({ status, ...props }: ActorAvatarProps) {
   if (!status) return <ActorAvatarCircle {...props} />;
-  const px = AVATAR_SIZE_PX[props.size ?? DEFAULT_AVATAR_SIZE];
+  const size = props.size ?? DEFAULT_AVATAR_SIZE;
+  // A fluid avatar has no fixed diameter; it is used large, so it takes the
+  // largest dot.
+  const px = size === "fluid" ? AVATAR_SIZE_PX.xl : AVATAR_SIZE_PX[size];
   return (
     <span className="relative inline-flex shrink-0">
       <ActorAvatarCircle {...props} />
@@ -76,15 +86,38 @@ function ActorAvatarCircle({
   isSystem,
   isSquad,
   size = DEFAULT_AVATAR_SIZE,
+  fadeIn = false,
   className,
 }: Omit<ActorAvatarProps, "status">) {
   const [imgError, setImgError] = useState(false);
-  const px = AVATAR_SIZE_PX[size];
+  // Which URL finished loading, not a flag: when the URL changes, the new
+  // photo starts hidden in the same render instead of one frame late.
+  const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
+  const loaded = Boolean(avatarUrl) && loadedSrc === avatarUrl;
+  const imgRef = useRef<HTMLImageElement>(null);
+  const fluid = size === "fluid";
+  const px = fluid ? null : AVATAR_SIZE_PX[size];
   const emoji = parseAvatarEmoji(avatarUrl);
 
   useEffect(() => {
     setImgError(false);
+    // A cached photo can finish before hydration, and then onLoad never fires.
+    const img = imgRef.current;
+    if (img?.complete && img.naturalWidth > 0) setLoadedSrc(avatarUrl ?? null);
   }, [avatarUrl]);
+
+  const glyph = (ratio: number) =>
+    px === null ? { width: `${ratio * 100}%`, height: `${ratio * 100}%` } : { width: px * ratio, height: px * ratio };
+  const photo = Boolean(avatarUrl) && !emoji && !imgError;
+  const fallback = isSystem ? (
+    <Cog style={glyph(0.55)} />
+  ) : isAgent ? (
+    <Bot style={glyph(0.55)} />
+  ) : isSquad ? (
+    <Users style={glyph(0.55)} />
+  ) : (
+    initials
+  );
 
   // Every actor — member, agent, squad, or system — renders as a circle. This
   // is the single source of truth for avatar shape; the upload editors mirror
@@ -94,40 +127,52 @@ function ActorAvatarCircle({
       data-slot="avatar"
       className={cn(
         "inline-flex shrink-0 items-center justify-center font-medium overflow-hidden",
-        (!avatarUrl || emoji || imgError) && "bg-muted text-muted-foreground",
+        fadeIn && "relative",
+        (!photo || fadeIn) && "bg-muted text-muted-foreground",
         className,
         // rounded-full stays last so a call-site `className` can never override
         // the circle — avatar shape is a hard invariant, not a per-site choice.
         "rounded-full"
       )}
-      style={{ width: px, height: px, fontSize: px * 0.45 }}
+      style={px === null ? undefined : { width: px, height: px, fontSize: px * 0.45 }}
     >
       {emoji ? (
         <span
           role="img"
           aria-label={name}
           className="select-none leading-none"
-          style={{ fontSize: px * 0.58 }}
+          style={{ fontSize: px === null ? "1.3em" : px * 0.58 }}
         >
           {emoji}
         </span>
-      ) : avatarUrl && !imgError ? (
+      ) : photo && !fadeIn ? (
         <img
-          src={avatarUrl}
+          src={avatarUrl ?? undefined}
           alt={name}
-          width={px}
-          height={px}
+          width={px ?? undefined}
+          height={px ?? undefined}
           className="h-full w-full object-cover"
           onError={() => setImgError(true)}
         />
-      ) : isSystem ? (
-        <Cog style={{ width: px * 0.55, height: px * 0.55 }} />
-      ) : isAgent ? (
-        <Bot style={{ width: px * 0.55, height: px * 0.55 }} />
-      ) : isSquad ? (
-        <Users style={{ width: px * 0.55, height: px * 0.55 }} />
+      ) : photo ? (
+        <>
+          <span aria-hidden className={cn("leading-none", loaded && "invisible")}>
+            {fallback}
+          </span>
+          <img
+            ref={imgRef}
+            src={avatarUrl ?? undefined}
+            alt={name}
+            className={cn(
+              "absolute inset-0 h-full w-full object-cover transition-opacity duration-standard motion-reduce:transition-none",
+              loaded ? "opacity-100" : "opacity-0"
+            )}
+            onLoad={() => setLoadedSrc(avatarUrl ?? null)}
+            onError={() => setImgError(true)}
+          />
+        </>
       ) : (
-        initials
+        fallback
       )}
     </div>
   );

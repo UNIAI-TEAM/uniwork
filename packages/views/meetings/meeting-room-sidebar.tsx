@@ -64,6 +64,7 @@ export function MeetingRoomSidebar({
   tab,
   onTabChange,
   chatUnread = 0,
+  tabsEnd,
 }: {
   meetingId?: string;
   meeting?: Meeting;
@@ -75,6 +76,8 @@ export function MeetingRoomSidebar({
   onTabChange: (tab: MeetingSidebarTab) => void;
   /** Messages from others that arrived while the chat was off screen. */
   chatUnread?: number;
+  /** Beside the tab row (the sheet's close button), so it never covers a tab. */
+  tabsEnd?: ReactNode;
 }) {
   const { t } = useTranslation();
   const baseId = useId();
@@ -138,27 +141,30 @@ export function MeetingRoomSidebar({
 
   return (
     <aside className={cn("flex min-h-0 min-w-0 w-full flex-col bg-surface", className)}>
-      <div className="relative z-10 shrink-0 px-2 pt-2 pb-0">
-        <MeetingUnderlineTabs
-          tabs={sidebarTabs}
-          value={activeTab}
-          onChange={onTabChange}
-          label={tabLabel}
-          panelId={panelId}
-          badge={(id) =>
-            id === "participants" && pendingJoinCount > 0 ? (
-              <MeetingUnderlineTabBadge
-                aria-label={t("meetings.joinRequestsPendingTitle", { count: pendingJoinCount })}
-              >
-                {pendingJoinCount > 9 ? "9+" : pendingJoinCount}
-              </MeetingUnderlineTabBadge>
-            ) : id === "chat" && chatUnread > 0 ? (
-              <MeetingUnderlineTabBadge aria-label={t("meetings.chatUnread", { count: chatUnread })}>
-                {chatUnread > 9 ? "9+" : chatUnread}
-              </MeetingUnderlineTabBadge>
-            ) : null
-          }
-        />
+      <div className="relative z-10 flex shrink-0 items-start gap-1 px-2 pt-2 pb-0">
+        <div className="min-w-0 flex-1">
+          <MeetingUnderlineTabs
+            tabs={sidebarTabs}
+            value={activeTab}
+            onChange={onTabChange}
+            label={tabLabel}
+            panelId={panelId}
+            badge={(id) =>
+              id === "participants" && pendingJoinCount > 0 ? (
+                <MeetingUnderlineTabBadge
+                  aria-label={t("meetings.joinRequestsPendingTitle", { count: pendingJoinCount })}
+                >
+                  {pendingJoinCount > 9 ? "9+" : pendingJoinCount}
+                </MeetingUnderlineTabBadge>
+              ) : id === "chat" && chatUnread > 0 ? (
+                <MeetingUnderlineTabBadge aria-label={t("meetings.chatUnread", { count: chatUnread })}>
+                  {chatUnread > 9 ? "9+" : chatUnread}
+                </MeetingUnderlineTabBadge>
+              ) : null
+            }
+          />
+        </div>
+        {tabsEnd}
       </div>
 
       <div

@@ -9,6 +9,7 @@ import type { MeetingJoinRequest } from "@uniwork/core/types";
 import { meetingLocale } from "./meeting-datetime";
 import { MeetingJoinRequestRow, requestDisplayName } from "./meeting-join-request-row";
 import { MeetingPersonAvatar } from "./meeting-person";
+import { useUserAvatarOf } from "./meeting-room-avatars";
 import { useJoinRequestActions } from "./use-join-request-actions";
 import { usePendingJoinRequests } from "./use-pending-join-requests";
 
@@ -108,6 +109,7 @@ function WaitingPeoplePreview({
   language: string;
 }) {
   const { t } = useTranslation();
+  const avatarOf = useUserAvatarOf();
   const names = pending.map(requestDisplayName);
   const nameList = new Intl.ListFormat(meetingLocale(language), {
     style: "long",
@@ -120,7 +122,13 @@ function WaitingPeoplePreview({
       {/* Avatars sit on the card, not on a muted panel: their own fill is muted. */}
       <AvatarGroup className="shrink-0 -space-x-1.5 *:data-[slot=avatar]:ring-popover">
         {shown.map((request) => (
-          <MeetingPersonAvatar key={request.id} name={requestDisplayName(request)} size="default" />
+          <MeetingPersonAvatar
+            key={request.id}
+            name={requestDisplayName(request)}
+            avatarUrl={avatarOf(request.requester_user_id)}
+            size="default"
+            tone="stage"
+          />
         ))}
         {overflow > 0 ? (
           <AvatarGroupCount className="size-8 text-caption ring-popover">

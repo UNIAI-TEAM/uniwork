@@ -34,6 +34,7 @@ import {
   type MediaDisconnectKind,
 } from "./room-disconnect";
 import { useFocusHeadingOnViewChange } from "./use-focus-heading-on-view-change";
+import { useInertOutside } from "./use-inert-outside";
 import { useLobbyJoinRetry } from "./use-lobby-join-retry";
 import { useWithdrawJoinRequestOnLeave } from "./use-withdraw-join-request";
 
@@ -44,8 +45,11 @@ function MeetingRoomShell({
   children: ReactNode;
   testId?: string;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useInertOutside(ref);
   return (
     <div
+      ref={ref}
       className="fixed inset-0 z-40 flex min-h-0 min-w-0 flex-col overflow-hidden bg-background"
       data-testid={testId}
     >

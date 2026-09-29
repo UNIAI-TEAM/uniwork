@@ -13,6 +13,7 @@ import { formatMessageDay, formatMessageTime, messageDayKey } from "../chat/chat
 import { senderNameClass } from "../chat/sender-colors";
 import { groupChatMessages, type MeetingChatGroup, type MeetingChatItem } from "./meeting-chat";
 import { MeetingPersonAvatar } from "./meeting-person";
+import { useRoomAvatarOf } from "./meeting-room-avatars";
 import { MeetingSectionError, MeetingSectionLoading } from "./meeting-section-state";
 import { useEphemeralMeetingRoomChat } from "./use-ephemeral-meeting-room-chat";
 import { usePersistedMeetingRoomChat } from "./use-persisted-meeting-room-chat";
@@ -69,6 +70,7 @@ function MeetingRoomChatView({
 }) {
   const { t, i18n } = useTranslation();
   const [draft, setDraft] = useState("");
+  const avatarOf = useRoomAvatarOf();
   const listRef = useRef<HTMLOListElement>(null);
   const sendLock = useRef(false);
   // Follow new messages only while the reader is at the bottom; someone who
@@ -151,7 +153,13 @@ function MeetingRoomChatView({
                 key={`${group.fromIdentity}-${group.items[0]?.id ?? ""}`}
                 className={cn("flex w-full gap-2", group.isLocal && "flex-row-reverse")}
               >
-                {group.isLocal ? null : <MeetingPersonAvatar name={group.fromName} className="mt-0.5" />}
+                {group.isLocal ? null : (
+                  <MeetingPersonAvatar
+                    name={group.fromName}
+                    avatarUrl={avatarOf(group.fromIdentity)}
+                    className="mt-0.5"
+                  />
+                )}
                 <div
                   className={cn(
                     "flex min-w-0 flex-1 flex-col gap-1",

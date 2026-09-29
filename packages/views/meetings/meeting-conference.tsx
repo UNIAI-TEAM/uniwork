@@ -10,7 +10,7 @@ import {
   type TrackReferenceOrPlaceholder,
 } from "@livekit/components-react";
 import { Track } from "livekit-client";
-import { CaptionsOff, ChevronLeft, ChevronRight } from "lucide-react";
+import { CaptionsOff, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Meeting } from "@uniwork/core/types";
 import { useMeetingCapabilities, useParticipants, useRecordings } from "@uniwork/core/meetings";
@@ -20,6 +20,7 @@ import { useMeetingPermissions } from "@uniwork/core/permissions";
 import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetHeader,
   SheetTitle,
@@ -55,9 +56,11 @@ import {
   ReactionAnnouncer,
   useMeetingChatUnread,
 } from "./meeting-room-announcers";
+import { MeetingRoomAvatarsProvider, useRoomAvatarOf } from "./meeting-room-avatars";
 import { MeetingScheduleBanner } from "./meeting-schedule-banner";
 import { guestIdentities, muteRequesterIdentities, participantRole } from "./meeting-signals";
 import { MeetingSignalsProvider } from "./use-meeting-signals";
+import { useStripPlacement } from "./use-strip-placement";
 
 export { tileGridClass, primaryGridClass } from "./conference-layout";
 
@@ -149,7 +152,12 @@ export function MeetingConference(props: {
   const guests = useMemo(() => guestIdentities(apiParticipants ?? []), [apiParticipants]);
   return (
     <MeetingSignalsProvider canHost={canHost.allowed} hostIdentities={hostIdentities}>
-      <ConferenceStage {...props} guests={guests} />
+      <MeetingRoomAvatarsProvider
+        participants={apiParticipants}
+        workspaceId={props.guestMode ? "" : (props.workspaceId ?? "")}
+      >
+        <ConferenceStage {...props} guests={guests} />
+      </MeetingRoomAvatarsProvider>
     </MeetingSignalsProvider>
   );
 }
@@ -251,8 +259,16 @@ function ConferenceStage({
   };
   const chatVisible = sidebarTab === "chat" && panelShown;
   const chatUnread = useMeetingChatUnread(resolvedMeetingId || undefined, chatVisible);
+  const avatarOf = useRoomAvatarOf();
 
-  const tile = (track: TrackReferenceOrPlaceholder, opts: { compact?: boolean; expanded?: boolean }) => {
+  const hasStrip = stage.thumbnails.length > 0 || stage.overflow > 0;
+  const presentationRef = useRef<HTMLDivElement>(null);
+  const stripSide = useStripPlacement(presentationRef, stage.layoutMode === "sidebar" && hasStrip);
+  const stripBeside = stripSide === "beside";
+  const tile = (
+    track: TrackReferenceOrPlaceholder,
+    opts: { compact?: boolean; expanded?: boolean; placement?: "cell" | "stage" },
+  ) => {
     const publication = isTrackReference(track) ? track.publication : undefined;
     return (
       <MeetingParticipantTile
@@ -265,11 +281,13 @@ function ConferenceStage({
         expanded={opts.expanded}
         canHost={canHost.allowed}
         roleChip={participantRole(track.participant, guests)}
+        avatarUrl={avatarOf(track.participant.identity)}
+        placement={opts.placement}
       />
     );
   };
 
-  const sidebar = (
+  const renderSidebar = (tabsEnd?: ReactNode) => (
     <MeetingRoomSidebar
       meetingId={resolvedMeetingId || undefined}
       meeting={meeting}
@@ -280,7 +298,19 @@ function ConferenceStage({
       onTabChange={setSidebarTab}
       chatUnread={chatUnread.unread}
       className="h-full w-full"
+      tabsEnd={tabsEnd}
     />
+  );
+  const sidebar = renderSidebar();
+  // The sheet's close button sits in the tab row: laid over it, it covered
+  // the last tab on a phone.
+  const sheetSidebar = renderSidebar(
+    <SheetClose
+      render={<Button type="button" variant="ghost" size="icon-sm" className="mt-0.5 shrink-0" />}
+    >
+      <X aria-hidden className="size-4" />
+      <span className="sr-only">{t("common.close")}</span>
+    </SheetClose>,
   );
 
   return (
@@ -339,24 +369,53 @@ function ConferenceStage({
               />
               <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
                 {stage.layoutMode === "sidebar" ? (
-                  // A phone has no width to spare beside a share: the strip runs under it.
-                  <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:gap-3">
-                    <div className="min-h-0 min-w-0 flex-1" data-lk-theme="default">
-                      {stage.primary.map((track) => tile(track, { expanded: true }))}
-                    </div>
-                    {stage.thumbnails.length > 0 || stage.overflow > 0 ? (
-                      <div
-                        className="flex shrink-0 gap-2 overflow-x-auto pb-1 sm:w-28 sm:flex-col sm:overflow-x-visible sm:overflow-y-auto sm:pb-0"
-                        data-testid="meeting-side-strip"
-                      >
-                        {stage.thumbnails.map((track) => (
-                          <div key={trackTileKey(track)} className="aspect-[4/3] w-24 shrink-0 sm:w-auto">
-                            {tile(track, { compact: true })}
-                          </div>
-                        ))}
-                        {stage.overflow > 0 ? <OverflowTile count={stage.overflow} className="w-24 sm:w-auto" /> : null}
+                  // The main tile and its strip are one group, centred together
+                  // with their tops aligned; the tile sizes itself from this
+                  // stage minus the strip's room. The strip goes beside or under
+                  // the tile by the stage's shape (see stripPlacement).
+                  <div
+                    ref={presentationRef}
+                    className={cn(
+                      "flex min-h-0 min-w-0 flex-1 items-center justify-center [container-type:size]",
+                      hasStrip &&
+                        (stripBeside ? "[--strip-reserve-x:7.75rem]" : "[--strip-reserve-y:5.25rem]"),
+                    )}
+                    data-testid="meeting-presentation"
+                    data-strip={hasStrip ? stripSide : undefined}
+                  >
+                    <div
+                      className={cn(
+                        "flex max-h-full min-h-0 max-w-full min-w-0 items-start",
+                        stripBeside ? "flex-row gap-3" : "flex-col gap-2",
+                      )}
+                    >
+                      <div className="shrink-0" data-lk-theme="default">
+                        {stage.primary.map((track) => tile(track, { expanded: true, placement: "stage" }))}
                       </div>
-                    ) : null}
+                      {hasStrip ? (
+                        <div
+                          className={cn(
+                            "flex shrink-0",
+                            stripBeside
+                              ? "max-h-[100cqh] w-28 flex-col gap-2 overflow-y-auto"
+                              : "max-w-full gap-2 overflow-x-auto pb-1",
+                          )}
+                          data-testid="meeting-side-strip"
+                        >
+                          {stage.thumbnails.map((track) => (
+                            <div
+                              key={trackTileKey(track)}
+                              className={cn("aspect-[4/3] shrink-0", stripBeside ? "w-full" : "w-24")}
+                            >
+                              {tile(track, { compact: true })}
+                            </div>
+                          ))}
+                          {stage.overflow > 0 ? (
+                            <OverflowTile count={stage.overflow} className={stripBeside ? "w-full" : "w-24"} />
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 ) : (
                   <>
@@ -448,11 +507,11 @@ function ConferenceStage({
 
       {compact ? (
         <Sheet open={sidebarSheetOpen} onOpenChange={setSidebarSheetOpen}>
-          <SheetContent side="right" className="w-[min(100%,22rem)] p-0" showCloseButton>
+          <SheetContent side="right" className="p-0 data-[side=right]:w-[min(100%,24rem)]" showCloseButton={false}>
             <SheetHeader className="sr-only">
               <SheetTitle>{t("meetings.roomPanel")}</SheetTitle>
             </SheetHeader>
-            {sidebarSheetOpen ? sidebar : null}
+            {sidebarSheetOpen ? sheetSidebar : null}
           </SheetContent>
         </Sheet>
       ) : null}
