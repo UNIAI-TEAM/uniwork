@@ -147,7 +147,7 @@ describe("meetings endpoints", () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(json({ meeting }))
       .mockResolvedValueOnce(json({ meeting: 1 }))
-      .mockResolvedValueOnce(json({ total: 3, scheduled: 1, in_progress: 1, ended: 1, canceled: 0 }))
+      .mockResolvedValueOnce(json({ total: 3, scheduled: 1, missed: 1, in_progress: 1, ended: 0, canceled: 0 }))
       .mockResolvedValueOnce(json({ total: "nope" }))
       .mockResolvedValueOnce(json({ activity: [{ id: "a1", event_type: "MEETING_CREATED", actor_id: "u1", occurred_at: meeting.starts_at }] }))
       .mockResolvedValueOnce(json({ activity: null }))
@@ -157,7 +157,7 @@ describe("meetings endpoints", () => {
       .mockResolvedValueOnce(json({ join_request: 1 }));
     expect((await updateMeeting("m1", { title: "Sync" }))?.id).toBe("m1");
     await expect(updateMeeting("m1", { title: "x" })).resolves.toBeNull();
-    expect((await getMeetingStatistics("ws1"))?.total).toBe(3);
+    expect(await getMeetingStatistics("ws1")).toMatchObject({ total: 3, scheduled: 1, missed: 1 });
     await expect(getMeetingStatistics("ws1")).resolves.toBeNull();
     expect(await listMeetingActivity("m1")).toHaveLength(1);
     await expect(listMeetingActivity("m1")).resolves.toEqual([]);

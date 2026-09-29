@@ -4,20 +4,25 @@ import type { MeetingStatistics } from "@uniwork/core/types/meeting";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
 
-/** Server statuses a chip filters on, in reading order; "" is every meeting. */
-export const MEETING_FILTERS = ["", "SCHEDULED", "IN_PROGRESS", "ENDED", "CANCELED"] as const;
+/**
+ * Statuses a chip filters on, in the order a meeting lives them; "" is every
+ * meeting. The last three are the ways a window closes: it ran, it passed
+ * without starting, or it was called off.
+ */
+export const MEETING_FILTERS = ["", "SCHEDULED", "IN_PROGRESS", "ENDED", "MISSED", "CANCELED"] as const;
 /** A toggle item needs a non-empty value; "all" stands in for "". */
 const ALL = "all";
 
 /**
- * The server filters on the stored status; the row badge shows the status as
- * the viewer's clock reads it (`displayMeetingStatus`). A stored SCHEDULED row
- * whose window passed is badged MISSED; a stored IN_PROGRESS row past its end
- * is badged OVERTIME. Each chip's label must cover every badge its rows can
- * wear — so the SCHEDULED chip reads "not started", not "scheduled".
+ * The badge each chip's rows can wear. The row badge shows the status as the
+ * viewer's clock reads it (`displayMeetingStatus`), and the server filters the
+ * same way for SCHEDULED: a stored SCHEDULED row whose window passed
+ * (ends_at < now) is served under MISSED, not SCHEDULED. A stored IN_PROGRESS
+ * row past its end is badged OVERTIME and stays under IN_PROGRESS.
  */
 export const MEETING_FILTER_SHOWS: Record<string, readonly string[]> = {
-  SCHEDULED: ["SCHEDULED", "MISSED"],
+  SCHEDULED: ["SCHEDULED"],
+  MISSED: ["MISSED"],
   IN_PROGRESS: ["IN_PROGRESS", "OVERTIME"],
   ENDED: ["ENDED"],
   CANCELED: ["CANCELED"],
@@ -28,6 +33,8 @@ function countFor(stats: MeetingStatistics | null | undefined, value: string): n
   switch (value) {
     case "SCHEDULED":
       return stats.scheduled;
+    case "MISSED":
+      return stats.missed;
     case "IN_PROGRESS":
       return stats.in_progress;
     case "ENDED":

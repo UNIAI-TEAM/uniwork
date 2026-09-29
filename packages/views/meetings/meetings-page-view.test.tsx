@@ -144,6 +144,13 @@ describe("MeetingsPageView URL state", () => {
     expect(adapter.replace).not.toHaveBeenCalled();
   });
 
+  it("asks the server for the missed meetings when the link says so", async () => {
+    renderPage(nav("status=MISSED"));
+    await screen.findByText("Retro");
+    expect(listCalls()[0]).toContain("status=MISSED");
+    expect(screen.getByRole("button", { name: /Không diễn ra/, pressed: true })).toBeInTheDocument();
+  });
+
   it("ignores a status the list does not know", async () => {
     renderPage(nav("status=BOGUS"));
     await screen.findByText("Retro");

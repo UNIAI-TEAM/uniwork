@@ -36,6 +36,48 @@ describe("MeetingFilters", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Đã hủy/ }));
     expect(onStatus).toHaveBeenCalledWith("CANCELED");
+
+    fireEvent.click(screen.getByRole("button", { name: /Không diễn ra/ }));
+    expect(onStatus).toHaveBeenCalledWith("MISSED");
+  });
+
+  it("gives missed meetings their own chip and count, apart from the ones not started", () => {
+    render(
+      <MeetingFilters
+        status=""
+        query=""
+        stats={{ total: 12, scheduled: 3, missed: 5, in_progress: 2, ended: 1, canceled: 1 }}
+        onStatus={() => {}}
+        onQuery={() => {}}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Chưa bắt đầu 3" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Không diễn ra 5" })).toBeInTheDocument();
+  });
+
+  it("lists the chips in the order a meeting lives them", () => {
+    render(<MeetingFilters status="" query="" stats={null} onStatus={() => {}} onQuery={() => {}} />);
+    expect(screen.getAllByRole("button").map((b) => b.textContent)).toEqual([
+      "Tất cả",
+      "Chưa bắt đầu",
+      "Đang diễn ra",
+      "Đã kết thúc",
+      "Không diễn ra",
+      "Đã hủy",
+    ]);
+  });
+
+  it("shows no missed count to a server that does not send one", () => {
+    render(
+      <MeetingFilters
+        status="MISSED"
+        query=""
+        stats={{ total: 10, scheduled: 3, in_progress: 2, ended: 4, canceled: 1 }}
+        onStatus={() => {}}
+        onQuery={() => {}}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Không diễn ra", pressed: true })).toBeInTheDocument();
   });
 
   it("goes back to all from a status", () => {
@@ -119,21 +161,34 @@ describe("MeetingFilters while searching", () => {
 });
 
 describe("chip and badge agreement", () => {
-  // The server filters by stored status; the row badge shows the status as the
-  // viewer's clock sees it. Every badge a chip's rows can carry must be one the
-  // chip's label covers, or the chip lies about what it lists.
+  // The server splits stored SCHEDULED rows on ends_at exactly where the badge
+  // does (MeetingService.ListFiltered, ends_at < now is MISSED), and matches
+  // every other chip on the stored status. Every badge a chip's rows can carry
+  // must be one the chip's label covers, or the chip lies about what it lists.
   const endsAt = "2026-09-03T10:00:00.000Z";
-  const clocks = [Date.parse("2026-09-03T09:00:00.000Z"), Date.parse("2026-09-03T11:00:00.000Z")];
+  const before = Date.parse("2026-09-03T09:00:00.000Z");
+  const atEnd = Date.parse(endsAt);
+  const after = Date.parse("2026-09-03T11:00:00.000Z");
+  // The rows each chip gets back from the server, as (stored status, clock) pairs.
+  const served: Record<string, Array<[string, number]>> = {
+    SCHEDULED: [["SCHEDULED", before], ["SCHEDULED", atEnd]],
+    MISSED: [["SCHEDULED", after]],
+    IN_PROGRESS: [["IN_PROGRESS", before], ["IN_PROGRESS", after]],
+    ENDED: [["ENDED", before], ["ENDED", after]],
+    CANCELED: [["CANCELED", before], ["CANCELED", after]],
+  };
 
-  it.each(Object.keys(MEETING_FILTER_SHOWS))("every row the %s chip lists wears a badge it covers", (status) => {
-    for (const now of clocks) {
-      expect(MEETING_FILTER_SHOWS[status]).toContain(displayMeetingStatus({ ends_at: endsAt, status }, now));
+  it("covers every chip", () => {
+    expect(Object.keys(served).sort()).toEqual(Object.keys(MEETING_FILTER_SHOWS).sort());
+  });
+
+  it.each(Object.keys(served))("every row the %s chip lists wears a badge it covers", (chip) => {
+    for (const [status, now] of served[chip] ?? []) {
+      expect(MEETING_FILTER_SHOWS[chip]).toContain(displayMeetingStatus({ ends_at: endsAt, status }, now));
     }
   });
 
-  it("does not call a chip that also lists missed meetings 'Đã lên lịch'", () => {
-    render(<MeetingFilters status="" query="" stats={null} onStatus={() => {}} onQuery={() => {}} />);
-    expect(MEETING_FILTER_SHOWS.SCHEDULED).toContain("MISSED");
-    expect(screen.queryByRole("button", { name: "Đã lên lịch" })).not.toBeInTheDocument();
+  it("keeps missed meetings out of the not-started chip", () => {
+    expect(MEETING_FILTER_SHOWS.SCHEDULED).not.toContain("MISSED");
   });
 });

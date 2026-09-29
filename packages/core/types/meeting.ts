@@ -94,7 +94,10 @@ export type MeetingInviteLink = z.infer<typeof InviteLinkSchema>;
 
 export const MeetingStatisticsSchema = z.object({
   total: z.number(),
+  /** Scheduled meetings that can still start (ends_at not yet passed). */
   scheduled: z.number(),
+  /** Scheduled meetings whose window passed without starting; absent from older servers. */
+  missed: z.number().optional(),
   in_progress: z.number(),
   ended: z.number(),
   canceled: z.number(),
