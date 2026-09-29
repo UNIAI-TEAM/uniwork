@@ -1,7 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import type { OfficeHost } from "@uniwork/core/office";
+import { EditorSlot } from "../editor-slot";
 import type { XlsxCellState, XlsxEditorHandle, XlsxOpenOutcome, XlsxSaveCoordinator, XlsxSelection, XlsxWorkbookSnapshot } from "./types";
 import { XlsxEditor } from "./xlsx-editor";
+import { createXlsxEditorLoader } from "./xlsx-editor-slot";
 
 function coordinator(overrides: Partial<XlsxSaveCoordinator> = {}): XlsxSaveCoordinator {
   const state = {
@@ -107,6 +110,20 @@ describe("XlsxEditor", () => {
     fireEvent.click(screen.getByTestId("xlsx-save"));
     expect(save).toHaveBeenCalledWith("button");
     expect(saveCoordinator).not.toHaveProperty("writeBytes");
+  });
+
+  it("mounts through the shared EditorSlot loader contract", async () => {
+    const handle = editor();
+    const host = {} as OfficeHost;
+    const saveCoordinator = coordinator();
+    const loadEditor = createXlsxEditorLoader({
+      documentKey: "doc-v1",
+      open: { open: vi.fn(async () => opened()) },
+      coordinator: saveCoordinator,
+    });
+    render(<EditorSlot format="xlsx" host={host} capability="available" openState="ready" editorHandle={handle} loadEditor={loadEditor} />);
+    await waitFor(() => expect(screen.getByTestId("xlsx-workbook-surface")).toBeInTheDocument());
+    expect(handle.open).toHaveBeenCalledTimes(1);
   });
 
   it("keeps formula text as a formula through the G2 edit operation and Ctrl+S", async () => {

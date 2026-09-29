@@ -1,69 +1,4 @@
 {
-  "office": {
-    "xlsx": {
-      "title": "Sổ tính XLSX",
-      "toolbar": { "label": "Lệnh chỉnh sửa XLSX" },
-      "actions": {
-        "undo": "Hoàn tác",
-        "redo": "Làm lại",
-        "save": "Lưu lên UniWork",
-        "saving": "Đang lưu…",
-        "retryOpen": "Thử mở lại",
-        "copy": "Sao chép ô đã chọn",
-        "paste": "Dán vào ô đã chọn",
-        "recalculate": "Tính lại công thức"
-      },
-      "commands": {
-        "sheets": "Trang tính",
-        "numberFormat": "Định dạng số (engine thiếu)",
-        "chart": "Biểu đồ (engine thiếu)"
-      },
-      "selection": {
-        "none": "Chưa chọn ô",
-        "range": "{{sheet}}!{{address}}"
-      },
-      "capabilityPending": "Tính năng XLSX này chưa có trong bản dựng engine hiện tại.",
-      "state": {
-        "opening": "Đang mở sổ tính…",
-        "error": "Không mở được sổ tính"
-      },
-      "saveState": {
-        "ready": "Sẵn sàng",
-        "dirty": "Có thay đổi chưa lưu",
-        "saving": "Đang lưu…",
-        "saved": "Đã lưu lên UniWork",
-        "error": "Lưu cần xử lý",
-        "conflict": "Xung đột phiên bản",
-        "blocked": "Đã chặn lưu",
-        "readonly": "Chỉ đọc",
-        "incompatible": "Không thể chỉnh sửa"
-      },
-      "surface": {
-        "ready": "Bề mặt sổ tính đã sẵn sàng cho adapter của host.",
-        "table": "Trang tính {{sheet}}"
-      },
-      "sheets": { "label": "Các trang tính trong sổ" },
-      "formula": { "label": "Công thức hoặc giá trị" },
-      "recalc": {
-        "progress": "Đang tính lại ({{progress}}%)",
-        "cancel": "Hủy tính lại",
-        "cancelled": "Đã hủy tính lại; các giá trị đang sửa vẫn được giữ.",
-        "fresh": "Đã làm mới kết quả công thức."
-      },
-      "errors": {
-        "title": "Không mở được sổ tính XLSX này",
-        "reason": "Lý do: {{reason}}",
-        "unknown": "Adapter XLSX trả về lỗi mở không xác định.",
-        "corrupted": "Gói sổ tính bị hỏng hoặc chưa đầy đủ.",
-        "password_cancelled": "Bạn đã hủy hộp thoại mật khẩu.",
-        "password_required": "Cần mật khẩu để mở sổ tính này.",
-        "unsupported_feature": "Engine hiện tại chưa hỗ trợ tính năng XLSX này.",
-        "not_office_file": "Tệp đã chọn không phải sổ tính OOXML XLSX.",
-        "engine_error": "Engine XLSX không thể mở sổ tính này.",
-        "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa XLSX."
-      }
-    }
-  },
   "common": {
     "save": "Lưu",
     "cancel": "Hủy",
@@ -6904,6 +6839,69 @@
     }
   },
   "office": {
+    "xlsx": {
+      "title": "Sổ tính XLSX",
+      "toolbar": { "label": "Lệnh chỉnh sửa XLSX" },
+      "actions": {
+        "undo": "Hoàn tác",
+        "redo": "Làm lại",
+        "save": "Lưu lên UniWork",
+        "saving": "Đang lưu…",
+        "retryOpen": "Thử mở lại",
+        "copy": "Sao chép ô đã chọn",
+        "paste": "Dán vào ô đã chọn",
+        "recalculate": "Tính lại công thức"
+      },
+      "commands": {
+        "sheets": "Trang tính",
+        "numberFormat": "Định dạng số (engine thiếu)",
+        "chart": "Biểu đồ (engine thiếu)"
+      },
+      "selection": {
+        "none": "Chưa chọn ô",
+        "range": "{{sheet}}!{{address}}"
+      },
+      "capabilityPending": "Tính năng XLSX này chưa có trong bản dựng engine hiện tại.",
+      "state": {
+        "opening": "Đang mở sổ tính…",
+        "error": "Không mở được sổ tính"
+      },
+      "saveState": {
+        "ready": "Sẵn sàng",
+        "dirty": "Có thay đổi chưa lưu",
+        "saving": "Đang lưu…",
+        "saved": "Đã lưu lên UniWork",
+        "error": "Lưu cần xử lý",
+        "conflict": "Xung đột phiên bản",
+        "blocked": "Đã chặn lưu",
+        "readonly": "Chỉ đọc",
+        "incompatible": "Không thể chỉnh sửa"
+      },
+      "surface": {
+        "ready": "Bề mặt sổ tính đã sẵn sàng cho adapter của host.",
+        "table": "Trang tính {{sheet}}"
+      },
+      "sheets": { "label": "Các trang tính trong sổ" },
+      "formula": { "label": "Công thức hoặc giá trị" },
+      "recalc": {
+        "progress": "Đang tính lại ({{progress}}%)",
+        "cancel": "Hủy tính lại",
+        "cancelled": "Đã hủy tính lại; các giá trị đang sửa vẫn được giữ.",
+        "fresh": "Đã làm mới kết quả công thức."
+      },
+      "errors": {
+        "title": "Không mở được sổ tính XLSX này",
+        "reason": "Lý do: {{reason}}",
+        "unknown": "Adapter XLSX trả về lỗi mở không xác định.",
+        "corrupted": "Gói sổ tính bị hỏng hoặc chưa đầy đủ.",
+        "password_cancelled": "Bạn đã hủy hộp thoại mật khẩu.",
+        "password_required": "Cần mật khẩu để mở sổ tính này.",
+        "unsupported_feature": "Engine hiện tại chưa hỗ trợ tính năng XLSX này.",
+        "not_office_file": "Tệp đã chọn không phải sổ tính OOXML XLSX.",
+        "engine_error": "Engine XLSX không thể mở sổ tính này.",
+        "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa XLSX."
+      }
+    },
     "title": "Office",
     "save": {
       "status": {

@@ -1,69 +1,4 @@
 {
-  "office": {
-    "xlsx": {
-      "title": "XLSX workbook",
-      "toolbar": { "label": "XLSX editing commands" },
-      "actions": {
-        "undo": "Undo",
-        "redo": "Redo",
-        "save": "Save to UniWork",
-        "saving": "Saving…",
-        "retryOpen": "Try opening again",
-        "copy": "Copy selected cell",
-        "paste": "Paste into selected cell",
-        "recalculate": "Recalculate formulas"
-      },
-      "commands": {
-        "sheets": "Sheets",
-        "numberFormat": "Number format (engine gap)",
-        "chart": "Chart (engine gap)"
-      },
-      "selection": {
-        "none": "No cell selected",
-        "range": "{{sheet}}!{{address}}"
-      },
-      "capabilityPending": "This XLSX capability is not available in this engine build.",
-      "state": {
-        "opening": "Opening workbook…",
-        "error": "Could not open workbook"
-      },
-      "saveState": {
-        "ready": "Ready",
-        "dirty": "Unsaved changes",
-        "saving": "Saving…",
-        "saved": "Saved to UniWork",
-        "error": "Save needs attention",
-        "conflict": "Version conflict",
-        "blocked": "Save blocked",
-        "readonly": "Read-only",
-        "incompatible": "Editing unavailable"
-      },
-      "surface": {
-        "ready": "Workbook surface is ready for the host adapter.",
-        "table": "{{sheet}} worksheet"
-      },
-      "sheets": { "label": "Workbook sheets" },
-      "formula": { "label": "Formula or value" },
-      "recalc": {
-        "progress": "Recalculating ({{progress}}%)",
-        "cancel": "Cancel recalculation",
-        "cancelled": "Recalculation cancelled; edited values were kept.",
-        "fresh": "Formula results refreshed."
-      },
-      "errors": {
-        "title": "This XLSX workbook could not be opened",
-        "reason": "Reason: {{reason}}",
-        "unknown": "The XLSX adapter returned an unknown open failure.",
-        "corrupted": "The workbook package is corrupt or incomplete.",
-        "password_cancelled": "The password prompt was cancelled.",
-        "password_required": "A password is required to open this workbook.",
-        "unsupported_feature": "This XLSX feature is not supported by the current engine.",
-        "not_office_file": "The selected file is not an OOXML XLSX workbook.",
-        "engine_error": "The XLSX engine could not open this workbook.",
-        "capabilityUnavailable": "XLSX editing is not available for this engine build."
-      }
-    }
-  },
   "common": {
     "save": "Save",
     "cancel": "Cancel",
@@ -6910,6 +6845,69 @@
     }
   },
   "office": {
+    "xlsx": {
+      "title": "XLSX workbook",
+      "toolbar": { "label": "XLSX editing commands" },
+      "actions": {
+        "undo": "Undo",
+        "redo": "Redo",
+        "save": "Save to UniWork",
+        "saving": "Saving…",
+        "retryOpen": "Try opening again",
+        "copy": "Copy selected cell",
+        "paste": "Paste into selected cell",
+        "recalculate": "Recalculate formulas"
+      },
+      "commands": {
+        "sheets": "Sheets",
+        "numberFormat": "Number format (engine gap)",
+        "chart": "Chart (engine gap)"
+      },
+      "selection": {
+        "none": "No cell selected",
+        "range": "{{sheet}}!{{address}}"
+      },
+      "capabilityPending": "This XLSX capability is not available in this engine build.",
+      "state": {
+        "opening": "Opening workbook…",
+        "error": "Could not open workbook"
+      },
+      "saveState": {
+        "ready": "Ready",
+        "dirty": "Unsaved changes",
+        "saving": "Saving…",
+        "saved": "Saved to UniWork",
+        "error": "Save needs attention",
+        "conflict": "Version conflict",
+        "blocked": "Save blocked",
+        "readonly": "Read-only",
+        "incompatible": "Editing unavailable"
+      },
+      "surface": {
+        "ready": "Workbook surface is ready for the host adapter.",
+        "table": "{{sheet}} worksheet"
+      },
+      "sheets": { "label": "Workbook sheets" },
+      "formula": { "label": "Formula or value" },
+      "recalc": {
+        "progress": "Recalculating ({{progress}}%)",
+        "cancel": "Cancel recalculation",
+        "cancelled": "Recalculation cancelled; edited values were kept.",
+        "fresh": "Formula results refreshed."
+      },
+      "errors": {
+        "title": "This XLSX workbook could not be opened",
+        "reason": "Reason: {{reason}}",
+        "unknown": "The XLSX adapter returned an unknown open failure.",
+        "corrupted": "The workbook package is corrupt or incomplete.",
+        "password_cancelled": "The password prompt was cancelled.",
+        "password_required": "A password is required to open this workbook.",
+        "unsupported_feature": "This XLSX feature is not supported by the current engine.",
+        "not_office_file": "The selected file is not an OOXML XLSX workbook.",
+        "engine_error": "The XLSX engine could not open this workbook.",
+        "capabilityUnavailable": "XLSX editing is not available for this engine build."
+      }
+    },
     "title": "Office",
     "save": {
       "status": {
