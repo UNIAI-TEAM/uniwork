@@ -115,10 +115,11 @@ export function createDraftKeyProvider(options: DraftKeyProviderOptions): DraftK
       if (input.liveAccess !== "edit") return { status: "blocked", reason: "edit_acl_missing" };
       const parsed = await unwrapEnvelope(options.port, input);
       if (parsed.status !== "unwrapped") return parsed;
+      let dataKey: CryptoKey | undefined;
       try {
         const cryptoObject = requireCrypto();
         const wrappingKey = await getWrappingKey();
-        const dataKey = await cryptoObject.subtle.unwrapKey(
+        dataKey = await cryptoObject.subtle.unwrapKey(
           "raw",
           bufferSource(parsed.wrappedKey),
           wrappingKey,
@@ -141,10 +142,11 @@ export function createDraftKeyProvider(options: DraftKeyProviderOptions): DraftK
         );
         const actualChecksum = await sha256Checksum(bytes);
         if (actualChecksum !== input.checksum) return { status: "locked", code: "draft_recovery_locked" };
-        memoryKeys.delete(dataKey);
         return { status: "recovered", plaintext: new Uint8Array(plaintext) };
       } catch {
         return { status: "locked", code: "draft_recovery_locked" };
+      } finally {
+        if (dataKey) memoryKeys.delete(dataKey);
       }
     },
 
@@ -261,29 +263,45 @@ function loadOrCreateWrappingKey(databaseName: string): Promise<CryptoKey> {
     const open = indexedDB.open(databaseName, 1);
     open.onupgradeneeded = () => open.result.createObjectStore(KEY_STORE);
     open.onerror = () => reject(new DraftRecoveryError("storage_unavailable", "could not open the draft key store"));
+    open.onblocked = () => reject(new DraftRecoveryError("storage_unavailable", "draft key store upgrade was blocked"));
     open.onsuccess = () => {
       const db = open.result;
-      const read = db.transaction(KEY_STORE, "readonly").objectStore(KEY_STORE).get(WRAPPING_KEY_ID);
-      read.onerror = () => reject(new DraftRecoveryError("storage_unavailable", "could not read the draft wrapping key"));
-      read.onsuccess = async () => {
-        if (read.result) {
-          resolve(read.result as CryptoKey);
+      // Generate outside the transaction, then atomically get-and-put-if-absent.
+      // Concurrent tabs therefore adopt the first durable key instead of
+      // retaining a key that lost the race to persist.
+      void requireCrypto().subtle.generateKey({ name: "AES-KW", length: 256 }, false, ["wrapKey", "unwrapKey"]).then((generated) => {
+        const transaction = db.transaction(KEY_STORE, "readwrite");
+        const store = transaction.objectStore(KEY_STORE);
+        const read = store.get(WRAPPING_KEY_ID);
+        let settled = false;
+        const finish = (key: CryptoKey) => {
+          if (settled) return;
+          settled = true;
+          resolve(key);
           db.close();
-          return;
-        }
-        try {
-          const generated = await requireCrypto().subtle.generateKey({ name: "AES-KW", length: 256 }, false, ["wrapKey", "unwrapKey"]);
-          const write = db.transaction(KEY_STORE, "readwrite").objectStore(KEY_STORE).put(generated, WRAPPING_KEY_ID);
-          write.onerror = () => reject(new DraftRecoveryError("storage_unavailable", "could not persist the draft wrapping key"));
-          write.onsuccess = () => {
-            resolve(generated as CryptoKey);
-            db.close();
-          };
-        } catch {
-          reject(new DraftRecoveryError("storage_unavailable", "WebCrypto could not create a wrapping key"));
+        };
+        const fail = (message: string) => {
+          if (settled) return;
+          settled = true;
+          reject(new DraftRecoveryError("storage_unavailable", message));
           db.close();
-        }
-      };
+        };
+        transaction.onerror = () => fail("could not persist the draft wrapping key");
+        transaction.onabort = () => fail("could not persist the draft wrapping key");
+        read.onerror = () => fail("could not read the draft wrapping key");
+        read.onsuccess = () => {
+          if (read.result) {
+            finish(read.result as CryptoKey);
+            return;
+          }
+          const write = store.put(generated, WRAPPING_KEY_ID);
+          write.onerror = () => fail("could not persist the draft wrapping key");
+          write.onsuccess = () => finish(generated as CryptoKey);
+        };
+      }).catch(() => {
+        db.close();
+        reject(new DraftRecoveryError("storage_unavailable", "WebCrypto could not create a wrapping key"));
+      });
     };
   });
 }

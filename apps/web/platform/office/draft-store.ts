@@ -100,7 +100,14 @@ export class BrowserDraftStore implements IndexedDbDraftStore {
     const result = await this.recoverInternal(request);
     if (result.status !== "recovered") return result;
     const record = await this.findRecord(request.session, request.lookup, request.currentBase);
-    if (!record || !record.wrappedKey) return { status: "locked", metadata: result.metadata, code: "draft_recovery_locked" };
+    if (
+      !record ||
+      !record.wrappedKey ||
+      record.generation !== result.metadata.generation ||
+      record.checksum !== result.metadata.checksum
+    ) {
+      return { status: "locked", metadata: result.metadata, code: "draft_recovery_locked" };
+    }
     return { ...result, wrappedKey: cloneBytes(record.wrappedKey) };
   }
 

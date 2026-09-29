@@ -12,11 +12,103 @@ const identity = {
 };
 const session = { sessionId: "session-a", deploymentId: "deployment-test", accountId: "account-a", generation: 1 };
 
+/** A small IndexedDB host double that serializes readwrite transactions. */
+class ConcurrentKeyDatabase {
+  value: CryptoKey | undefined;
+  tail = Promise.resolve();
+
+  readonly db = {
+    objectStoreNames: { contains: () => true },
+    createObjectStore: () => undefined,
+    transaction: (_name: string, mode: "readonly" | "readwrite") => new ConcurrentKeyTransaction(this, mode),
+    close: () => undefined,
+  };
+
+  open(): unknown {
+    const request: any = { result: this.db, error: null };
+    queueMicrotask(() => {
+      request.onupgradeneeded?.({ target: request });
+      request.onsuccess?.({ target: request });
+    });
+    return request;
+  }
+}
+
+class ConcurrentKeyTransaction {
+  private readonly ready: Promise<void>;
+  private release: (() => void) | undefined;
+  private wrote = false;
+
+  onerror: (() => void) | undefined;
+  onabort: (() => void) | undefined;
+
+  constructor(private readonly database: ConcurrentKeyDatabase, mode: "readonly" | "readwrite") {
+    if (mode === "readwrite") {
+      this.ready = database.tail;
+      database.tail = database.tail.then(
+        () =>
+          new Promise<void>((resolve) => {
+            this.release = resolve;
+          }),
+      );
+    } else {
+      this.ready = Promise.resolve();
+    }
+  }
+
+  objectStore(): { get: (key: string) => any; put: (value: CryptoKey, key: string) => any } {
+    return {
+      get: (_key: string) => this.request(() => this.database.value, false),
+      put: (value: CryptoKey, _key: string) => {
+        this.wrote = true;
+        return this.request(() => {
+          this.database.value = value;
+        }, true);
+      },
+    };
+  }
+
+  private request(run: () => unknown, write: boolean): any {
+    const request: any = { result: undefined, error: null };
+    void this.ready.then(() => {
+      queueMicrotask(() => {
+        try {
+          request.result = run();
+          request.onsuccess?.({ target: request });
+          if (!write) {
+            queueMicrotask(() => {
+              if (!this.wrote) this.finish();
+            });
+          }
+        } catch (error) {
+          request.error = error;
+          request.onerror?.({ target: request });
+          this.onerror?.();
+          this.finish();
+        }
+        if (write) this.finish();
+      });
+    });
+    return request;
+  }
+
+  private finish(): void {
+    const release = this.release;
+    this.release = undefined;
+    release?.();
+  }
+}
+
 async function wrappingKey(): Promise<CryptoKey> {
   return crypto.subtle.generateKey({ name: "AES-KW", length: 256 }, false, ["wrapKey", "unwrapKey"]);
 }
 
-afterEach(() => vi.restoreAllMocks());
+const originalIndexedDb = globalThis.indexedDB;
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  Object.defineProperty(globalThis, "indexedDB", { configurable: true, value: originalIndexedDb });
+});
 
 describe("browser draft key provider", () => {
   it("encrypts with a random per-draft key and recovers through the unwrap port", async () => {
@@ -69,5 +161,24 @@ describe("browser draft key provider", () => {
     const provider = createDraftKeyProvider({ port, wrappingKey: await wrappingKey() });
     const encrypted = await provider.encrypt({ identity, draftId: "draft-a", generation: 1, plaintext: new Uint8Array([1]) });
     await expect(provider.recover({ session: { ...session, generation: 0 }, identity, draftId: "draft-a", generation: 1, checksum: encrypted.checksum, ciphertext: encrypted.ciphertext, wrappedKey: encrypted.wrappedKey, liveAccess: "edit" })).rejects.toThrow("invalid draft session");
+  });
+
+  it("adopts the first wrapping key across two providers and after clearMemory", async () => {
+    const database = new ConcurrentKeyDatabase();
+    Object.defineProperty(globalThis, "indexedDB", { configurable: true, value: { open: () => database.open() } });
+    const port = createFakeDraftKeyUnwrapPort();
+    const providerA = createDraftKeyProvider({ port, databaseName: "concurrent-draft" });
+    const providerB = createDraftKeyProvider({ port, databaseName: "concurrent-draft" });
+    const encrypted = await Promise.all([
+      providerA.encrypt({ identity, draftId: "draft-a", generation: 1, plaintext: new TextEncoder().encode("secret") }),
+      providerB.encrypt({ identity, draftId: "draft-b", generation: 1, plaintext: new TextEncoder().encode("secret") }),
+    ]);
+
+    port.setResponse({ status: "unwrapped", wrappedKey: encrypted[0].wrappedKey });
+    const request = { session, identity, draftId: "draft-a", generation: 1, checksum: encrypted[0].checksum, ciphertext: encrypted[0].ciphertext, wrappedKey: encrypted[0].wrappedKey, liveAccess: "edit" as const };
+    expect([...await providerB.decrypt(request)]).toEqual([...new TextEncoder().encode("secret")]);
+
+    await providerB.clearMemory();
+    expect([...await providerB.decrypt(request)]).toEqual([...new TextEncoder().encode("secret")]);
   });
 });
