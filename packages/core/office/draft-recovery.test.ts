@@ -51,6 +51,9 @@ class InMemoryDraftRecoveryAdapter implements DraftRecoveryAdapter {
       this.failCheckpoint = false;
       throw new DraftRecoveryError("storage_unavailable", "draft store rejected the checkpoint");
     }
+    // Validate all snapshot invariants before replacing the durable row. A
+    // malformed checkpoint must not make the previous valid snapshot unreadable.
+    const candidateMetadata = metadataFromSnapshot(snapshot, 1_700_000_000_000);
     const previous = this.snapshots.get(snapshot.draftId);
     if (previous) {
       if (snapshot.generation < previous.generation) {
@@ -67,7 +70,7 @@ class InMemoryDraftRecoveryAdapter implements DraftRecoveryAdapter {
     // A Map replacement models the adapter's atomic transaction: no mutation
     // happens until all snapshot validation above succeeds.
     this.snapshots.set(snapshot.draftId, stored);
-    return { status: "stored", metadata: metadataFromSnapshot(stored, 1_700_000_000_000) };
+    return { status: "stored", metadata: candidateMetadata };
   }
 
   async list({ session, lookup }: DraftListRequest): Promise<readonly DraftMetadata[]> {

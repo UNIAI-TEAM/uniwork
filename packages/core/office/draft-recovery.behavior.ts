@@ -75,6 +75,22 @@ export async function runDraftRecoveryAdapterBehaviorSuite(
   assert(listed[0]?.byteLength === snapshotA.ciphertext.byteLength, "metadata reports ciphertext length only");
   passed.push("list is metadata-only");
 
+  await expectError(
+    () => adapter.checkpoint({ session: sessions.accountA, snapshot: { ...snapshotA, generation: 0 } }),
+    "invalid_snapshot",
+    "an invalid checkpoint is rejected before durable mutation",
+  );
+  const afterInvalidCheckpoint = await adapter.recover({
+    session: sessions.accountA,
+    lookup: identityLookup(identityA),
+    currentBase: baseA,
+    liveAccess: "edit",
+  });
+  assert(
+    afterInvalidCheckpoint.status === "recovered" && afterInvalidCheckpoint.metadata.generation === snapshotA.generation,
+    "an invalid checkpoint leaves the previous durable snapshot intact",
+  );
+
   const recovered = await adapter.recover({
     session: sessions.accountA,
     lookup: identityLookup(identityA),

@@ -85,7 +85,9 @@ device enrollment/recovery policy is needed.
 Each draft has a random data key. The backend returns an envelope for that
 draft only after checking the live session, deployment, account, scope, and
 edit ACL. The browser keeps a non-exportable wrapping key and asks to unwrap
-the draft key when it recovers a particular snapshot.
+the draft key when it recovers a particular snapshot. The draft ciphertext is
+authenticated with AEAD associated data containing the complete namespace and
+generation, so bytes cannot be replayed under another identity or snapshot.
 
 *Advantages:* least privilege and small blast radius; ACL checks happen at the
 exact recovery operation; deleting one draft can retire its key independently.
@@ -113,7 +115,9 @@ new key, because that would make old ciphertext look like an empty draft.
 
 The approved choice is **Option B**. Its bounded unwrap endpoint must bind the
 response to the session generation, deployment, account, organization,
-workspace, document, base pair, and requested draft generation. Option A
+workspace, document, base pair, and requested draft generation. The AEAD
+associated data must carry that same complete namespace and generation; a
+checksum alone is not an authorization or replay boundary. Option A
 remains an operational alternative if per-draft envelopes prove too
 expensive; Option C remains a fallback only when the product accepts a
 deliberate device-recovery ceremony and documents its loss semantics.
