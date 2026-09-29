@@ -7,6 +7,7 @@ import { AlertTriangle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@uniwork/ui/lib/utils";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { EngineBoundaryError } from "@uniwork/office-contracts";
 import { Notice } from "../../common/notice";
 import { PdfErrorState } from "./pdf-error-state";
 import { PdfPagePanel } from "./pdf-page-panel";
@@ -14,7 +15,10 @@ import { PdfToolbar } from "./pdf-toolbar";
 import type { PdfEditorProps, PdfOpenFailure, PdfOpenOutcome, PdfPage, PdfSelection, PdfSnapshot, PdfViewState } from "./types";
 
 function unexpectedFailure(documentId: string, error: unknown): PdfOpenFailure {
-  return { outcome: "failed", document_id: documentId, format: "pdf", failure_class: "engine_error", message: error instanceof Error ? error.message : String(error) };
+  if (error instanceof EngineBoundaryError) {
+    return { outcome: "failed", document_id: documentId, format: "pdf", failure_class: "engine_error", engine_error: error.code };
+  }
+  return { outcome: "failed", document_id: documentId, format: "pdf", failure_class: "engine_error" };
 }
 
 function isFailure(outcome: PdfOpenOutcome): outcome is PdfOpenFailure {

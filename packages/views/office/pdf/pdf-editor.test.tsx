@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { PdfEditor } from "./pdf-editor";
 import type { PdfEditorHandle, PdfOpenOutcome, PdfSaveCoordinator } from "./types";
+import { EngineBoundaryError } from "@uniwork/office-contracts";
 
 function coordinator(overrides: Partial<PdfSaveCoordinator> = {}): PdfSaveCoordinator {
   const state = {
@@ -52,7 +53,9 @@ describe("PdfEditor", () => {
   it("mounts the handle, renders pages, submits text/image/page edits, undo/redo, and routes Save via coordinator", async () => {
     const save = vi.fn(async () => ({ accepted: false as const, reason: "clean" as const }));
     const handle = editor({ selection: { getSelection: () => ({ page: 1, objectId: "text-1", kind: "text" as const }), subscribe: () => () => undefined } });
-    const { saveCoordinator } = renderEditor(opened(), { editor: handle, coordinator: coordinator({ save }) });
+    const saveCoordinator = coordinator({ save }) as PdfSaveCoordinator & { writeBytes: ReturnType<typeof vi.fn> };
+    saveCoordinator.writeBytes = vi.fn();
+    renderEditor(opened(), { editor: handle, coordinator: saveCoordinator });
     await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
     expect(screen.getByTestId("pdf-page-panel")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Chữ thay thế"), { target: { value: "Nội dung mới" } });
@@ -66,7 +69,33 @@ describe("PdfEditor", () => {
     fireEvent.keyDown(screen.getByTestId("pdf-editor"), { key: "s", ctrlKey: true });
     expect(save).toHaveBeenNthCalledWith(1, "button");
     expect(save).toHaveBeenNthCalledWith(2, "shortcut");
-    expect(saveCoordinator).not.toHaveProperty("writeBytes");
+    expect(saveCoordinator.writeBytes).not.toHaveBeenCalled();
+  });
+
+  it("selects pages and submits every page operation through the edit envelope", async () => {
+    const handle = editor();
+    renderEditor(opened(), { editor: handle });
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Trang 2" }));
+    expect(handle.selection?.setSelection).toHaveBeenCalledWith({ page: 2, objectId: null, kind: "page" });
+    expect(screen.getByTestId("pdf-selection")).toHaveTextContent("Trang 2");
+
+    fireEvent.click(screen.getByRole("button", { name: "Chèn trang" }));
+    fireEvent.click(screen.getByRole("button", { name: "Xóa trang" }));
+    fireEvent.click(screen.getByRole("button", { name: "Xoay trang" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sắp xếp lại trang" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tách trang" }));
+    fireEvent.click(screen.getByRole("button", { name: "Gộp trang" }));
+    expect(handle.edit).toHaveBeenCalledWith([{ op: "insert_page", target: { index: 2 } }]);
+    expect(handle.edit).toHaveBeenCalledWith([{ op: "delete_page", target: { page: 2 } }]);
+    expect(handle.edit).toHaveBeenCalledWith([{ op: "rotate_page", target: { page: 2 }, degrees: 90 }]);
+    expect(handle.edit).toHaveBeenCalledWith([{ op: "reorder_page", target: { page: 2 }, index: 0 }]);
+    expect(handle.edit).toHaveBeenCalledWith([{ op: "extract_page", target: { page: 2 } }]);
+    expect(handle.edit).toHaveBeenCalledWith([{ op: "merge_pages", target: { pages: [1, 2] } }]);
+    fireEvent.click(screen.getByRole("button", { name: "Đưa lên" }));
+    fireEvent.click(screen.getByRole("button", { name: "Tách" }));
+    expect(handle.edit).toHaveBeenCalledWith([{ op: "reorder_page", target: { page: 2 }, index: 0 }]);
+    expect(handle.edit).toHaveBeenCalledWith([{ op: "extract_page", target: { page: 2 } }]);
   });
 
   it("submits image replacement as an asset reference without decoding bytes", async () => {
@@ -105,12 +134,31 @@ describe("PdfEditor", () => {
   it.each([
     ["corrupted", "PDF bị hỏng"],
     ["unsupported_feature", "Engine chưa hỗ trợ"],
+    ["engine_error", "Engine PDF không thể mở tài liệu này."],
   ])("renders a typed %s error without a blank canvas or Save", async (failureClass, message) => {
     renderEditor({ outcome: "failed", document_id: "doc", format: "pdf", failure_class: failureClass as "corrupted" | "unsupported_feature", message });
     await waitFor(() => expect(screen.getByTestId("pdf-error-state")).toBeInTheDocument());
     expect(screen.getByRole("alert")).toHaveTextContent(message);
     expect(screen.queryByTestId("pdf-canvas")).not.toBeInTheDocument();
     expect(screen.queryByTestId("pdf-save")).not.toBeInTheDocument();
+  });
+
+  it("localizes thrown engine failures and never exposes an internal exception message", async () => {
+    const open = vi.fn(async () => { throw new EngineBoundaryError("engine_incompatible"); });
+    render(<PdfEditor documentKey="doc" editor={editor()} open={{ open }} coordinator={coordinator()} capability={capability} />);
+    await waitFor(() => expect(screen.getByTestId("pdf-error-state")).toBeInTheDocument());
+    expect(screen.getByRole("alert")).toHaveTextContent("Không mở được PDF này");
+    expect(screen.getByRole("alert")).not.toHaveTextContent("undefined");
+    expect(screen.queryByTestId("pdf-canvas")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("pdf-save")).not.toBeInTheDocument();
+  });
+
+  it("localizes a generic thrown open failure instead of rendering its raw message", async () => {
+    const open = vi.fn(async () => { throw new Error("socket exploded at C:/private/path"); });
+    render(<PdfEditor documentKey="doc" editor={editor()} open={{ open }} coordinator={coordinator()} capability={capability} />);
+    await waitFor(() => expect(screen.getByTestId("pdf-error-state")).toBeInTheDocument());
+    expect(screen.getByRole("alert")).toHaveTextContent("Không mở được PDF này");
+    expect(screen.getByRole("alert")).not.toHaveTextContent("C:/private/path");
   });
 
   it("surfaces missing embedded fonts and opens the next valid file without reloading", async () => {
