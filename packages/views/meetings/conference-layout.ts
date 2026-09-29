@@ -267,6 +267,26 @@ export function copilotPanelShown({
   return tab === "copilot" && (compact ? sheetOpen : pinned);
 }
 
+/** A camera frame's shape until its video reports its own. */
+export const DEFAULT_CAMERA_ASPECT = 16 / 9;
+/** How much narrower than its video a camera tile may get, cropping only the sides. */
+const MAX_SIDE_CROP = 1.3;
+
+/**
+ * Size of a camera tile inside a `container-type: size` cell. The tile is
+ * never wider than its video, so a wide window cannot crop a face top and
+ * bottom (UNI-846); in a tall cell it may be up to 1.3× narrower, a bounded
+ * side crop, instead of a full-height strip that shows a third of the frame.
+ */
+export function cameraTileSize(aspect: number): { width: string; height: string } {
+  const ar = Number.isFinite(aspect) && aspect > 0 ? aspect : DEFAULT_CAMERA_ASPECT;
+  const round = (n: number) => Number(n.toFixed(4));
+  return {
+    width: `min(100cqw, calc(100cqh * ${round(ar)}))`,
+    height: `min(100cqh, calc(100cqw * ${round(MAX_SIDE_CROP / ar)}))`,
+  };
+}
+
 export type TileRingTone = "hand" | "speaking" | "pinned" | "idle";
 
 /**

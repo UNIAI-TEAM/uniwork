@@ -17,7 +17,7 @@ import { useMeetingCapabilities, useParticipants, useRecordings } from "@uniwork
 import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
 import { useMeetingPermissions } from "@uniwork/core/permissions";
-import { Button } from "@uniwork/ui/components/ui/button";
+import { Button, buttonVariants } from "@uniwork/ui/components/ui/button";
 import {
   Sheet,
   SheetContent,
@@ -42,6 +42,7 @@ import { MeetingControlBar } from "./meeting-control-bar";
 import { MeetingStageFooter } from "./meeting-stage-footer";
 import { MeetingCameraBackgroundSync } from "./meeting-camera-background-sync";
 import { MeetingParticipantTile } from "./meeting-participant-tile";
+import { MeetingScreenShareWatcher } from "./meeting-screen-share-notices";
 import { MeetingStageHeader } from "./meeting-stage-header";
 import {
   MeetingRoomSidebar,
@@ -59,6 +60,10 @@ import { guestIdentities, muteRequesterIdentities, participantRole } from "./mee
 import { MeetingSignalsProvider } from "./use-meeting-signals";
 
 export { tileGridClass, primaryGridClass } from "./conference-layout";
+
+function sidebarRoomy(): boolean {
+  return typeof window === "undefined" || window.matchMedia("(min-width: 1280px)").matches;
+}
 
 /** The "+N" tile at the end of a strip; its count is read out as words. */
 function OverflowTile({ count, className }: { count: number; className?: string }) {
@@ -175,7 +180,9 @@ function ConferenceStage({
   const { t } = useTranslation();
   const compact = useIsCompact();
   const [sidebarSheetOpen, setSidebarSheetOpen] = useState(false);
-  const [sidebarPinned, setSidebarPinned] = useState(true);
+  // The panel starts docked only where the stage keeps room for its header;
+  // between lg and xl it squeezed the title to a few letters.
+  const [sidebarPinned, setSidebarPinned] = useState(sidebarRoomy);
   const [sidebarTab, setSidebarTab] = useState<MeetingSidebarTab>(guestMode ? "chat" : "copilot");
   const [page, setPage] = useState(0);
   const [captionsOn, setCaptionsOn] = useState(false);
@@ -329,18 +336,22 @@ function ConferenceStage({
               />
               <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
                 {stage.layoutMode === "sidebar" ? (
-                  <div className="flex min-h-0 min-w-0 flex-1 gap-2 sm:gap-3">
+                  // A phone has no width to spare beside a share: the strip runs under it.
+                  <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:gap-3">
                     <div className="min-h-0 min-w-0 flex-1" data-lk-theme="default">
                       {stage.primary.map((track) => tile(track, { expanded: true }))}
                     </div>
                     {stage.thumbnails.length > 0 || stage.overflow > 0 ? (
-                      <div className="flex w-24 shrink-0 flex-col gap-2 overflow-y-auto sm:w-28">
+                      <div
+                        className="flex shrink-0 gap-2 overflow-x-auto pb-1 sm:w-28 sm:flex-col sm:overflow-x-visible sm:overflow-y-auto sm:pb-0"
+                        data-testid="meeting-side-strip"
+                      >
                         {stage.thumbnails.map((track) => (
-                          <div key={trackTileKey(track)} className="aspect-[4/3] shrink-0">
+                          <div key={trackTileKey(track)} className="aspect-[4/3] w-24 shrink-0 sm:w-auto">
                             {tile(track, { compact: true })}
                           </div>
                         ))}
-                        {stage.overflow > 0 ? <OverflowTile count={stage.overflow} /> : null}
+                        {stage.overflow > 0 ? <OverflowTile count={stage.overflow} className="w-24 sm:w-auto" /> : null}
                       </div>
                     ) : null}
                   </div>
@@ -383,7 +394,7 @@ function ConferenceStage({
 
             <StartMediaButton
               label={t("meetings.allowMedia")}
-              className="absolute left-1/2 z-10 -translate-x-1/2 cursor-pointer rounded-lg bg-brand px-3 py-2 text-body text-brand-foreground"
+              className={cn(buttonVariants({ variant: "brand" }), "absolute left-1/2 z-10 -translate-x-1/2")}
               style={{ bottom: footerReserve + 16 }}
             />
           </div>
@@ -430,6 +441,7 @@ function ConferenceStage({
       </div>
 
       <MeetingCameraBackgroundSync />
+      <MeetingScreenShareWatcher />
 
       {compact ? (
         <Sheet open={sidebarSheetOpen} onOpenChange={setSidebarSheetOpen}>

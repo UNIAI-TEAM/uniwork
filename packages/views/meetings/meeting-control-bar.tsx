@@ -49,6 +49,7 @@ import { MeetingLeaveConfirmDialog } from "./meeting-leave-confirm-dialog";
 import { MeetingRecordConfirmDialog } from "./meeting-record-confirm-dialog";
 import { roomShortcutLabel, useRoomMediaShortcuts } from "./meeting-room-shortcuts";
 import { useMeetingSignals } from "./use-meeting-signals";
+import { useScreenShareControl } from "./use-screen-share-control";
 
 export function MeetingControlBar({
   className,
@@ -85,7 +86,7 @@ export function MeetingControlBar({
   const setControlBarAutoHide = useMeetingRoomPreferencesStore((s) => s.setControlBarAutoHide);
   const mic = useTrackToggle({ source: Track.Source.Microphone });
   const camera = useTrackToggle({ source: Track.Source.Camera });
-  const screen = useTrackToggle({ source: Track.Source.ScreenShare });
+  const screen = useScreenShareControl();
   const { handRaised, toggleHand } = useMeetingSignals();
   useRoomMediaShortcuts({
     onToggleMic: () => {
@@ -137,26 +138,17 @@ export function MeetingControlBar({
   };
 
   const shareControl = (inMenu: boolean) =>
-    inMenu ? (
-      <MenuControl
-        caption={t("meetings.share")}
-        pressed={screen.enabled}
-        disabled={screen.pending}
-        onClick={() => {
-          void screen.toggle();
-        }}
-      >
+    !screen.supported ? null : inMenu ? (
+      <MenuControl caption={screen.label} pressed={screen.enabled} disabled={screen.pending} onClick={screen.toggle}>
         <MonitorUp aria-hidden />
       </MenuControl>
     ) : (
       <IconControl
-        label={t("meetings.share")}
+        label={screen.label}
         pressed={screen.enabled}
         tone={screen.enabled ? "active" : undefined}
         disabled={screen.pending}
-        onClick={() => {
-          void screen.toggle();
-        }}
+        onClick={screen.toggle}
       >
         <MonitorUp aria-hidden />
       </IconControl>

@@ -145,10 +145,11 @@ export function MeetingStageHeader({
   return (
     <>
       <div
-        className="relative z-20 shrink-0 border-b border-meeting-bar-border bg-meeting-stage px-3 py-2 sm:px-4 sm:py-2.5 [@media(max-height:500px)]:py-1.5"
+        className="@container/stagehead relative z-20 shrink-0 border-b border-meeting-bar-border bg-meeting-stage px-3 py-2 sm:px-4 sm:py-2.5 [@media(max-height:500px)]:py-1.5"
         data-testid="meeting-stage-header"
       >
-        <div className="grid gap-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-x-3">
+        {/* Title and actions share a row only when the header has room; it narrows with the docked panel, not the window. */}
+        <div className="grid gap-1.5 @2xl/stagehead:grid-cols-[minmax(0,1fr)_auto] @2xl/stagehead:items-center @2xl/stagehead:gap-x-3">
           <div className="min-w-0">
             {meetingsHref && !guestMode ? (
               <nav
@@ -176,7 +177,8 @@ export function MeetingStageHeader({
                 {title}
               </h1>
               {scheduleRange && meeting ? (
-                <>
+                // The separator wraps with the time, never alone on a line.
+                <span className="flex min-w-0 items-baseline gap-x-2">
                   <span aria-hidden className="shrink-0 text-meeting-bar-muted-foreground">
                     ·
                   </span>
@@ -186,7 +188,7 @@ export function MeetingStageHeader({
                   >
                     {scheduleRange}
                   </time>
-                </>
+                </span>
               ) : null}
             </div>
             {description ? (
@@ -196,7 +198,7 @@ export function MeetingStageHeader({
             ) : null}
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5 sm:justify-end sm:gap-2">
+          <div className="flex flex-wrap items-center gap-1.5 @2xl/stagehead:justify-end sm:gap-2">
             <RecordingAnnouncer recording={recording} />
             {recording ? (
               <span

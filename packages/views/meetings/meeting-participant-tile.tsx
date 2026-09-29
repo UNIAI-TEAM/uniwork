@@ -23,7 +23,8 @@ import {
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
-import { tileRingTone, type TileRingTone } from "./conference-layout";
+import { cameraTileSize, DEFAULT_CAMERA_ASPECT, tileRingTone, type TileRingTone } from "./conference-layout";
+import { MeetingPresentingCard } from "./meeting-screen-share-notices";
 import { useParticipantSignal, useRequestMute } from "./use-meeting-signals";
 import { MeetingPersonAvatar } from "./meeting-person";
 import { MeetingRoleChip } from "./meeting-role-chip";
@@ -46,6 +47,26 @@ function displayName(participant: Participant): string {
 function hasPlayableVideo(track: TrackReferenceOrPlaceholder | undefined): boolean {
   if (!track || !isTrackReference(track)) return false;
   return Boolean(track.publication.track) && !track.publication.isMuted;
+}
+
+/** The playing video's width/height, following resolution changes; 16:9 until known. */
+function useVideoAspect(ref: RefObject<HTMLVideoElement | null>, active: boolean, trackSid: string | null): number {
+  const [aspect, setAspect] = useState(DEFAULT_CAMERA_ASPECT);
+  useEffect(() => {
+    const video = ref.current;
+    if (!active || !video) return;
+    const read = () => {
+      if (video.videoWidth > 0 && video.videoHeight > 0) setAspect(video.videoWidth / video.videoHeight);
+    };
+    read();
+    video.addEventListener("loadedmetadata", read);
+    video.addEventListener("resize", read);
+    return () => {
+      video.removeEventListener("loadedmetadata", read);
+      video.removeEventListener("resize", read);
+    };
+  }, [ref, active, trackSid]);
+  return aspect;
 }
 
 function StatusBadge({ className, ...props }: ComponentProps<"span">) {
@@ -287,8 +308,15 @@ function MeetingParticipantTileImpl({
   const touch = useTouchReveal(tileRef, menuOpen);
   const showActions = hovered || focused || menuOpen || touch.revealed;
   const ring = tileRingTone({ handRaised, speaking, pinned });
+  // A camera tile takes its video's shape (see cameraTileSize) and centres in
+  // its cell. A screen share letterboxes itself with contain.
+  const fitCamera = !compact && !isScreenShare;
+  const presenting = Boolean(isScreenShare && participant.isLocal);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoSid = track && isTrackReference(track) ? track.publication.trackSid : null;
+  const videoAspect = useVideoAspect(videoRef, fitCamera && showVideo, videoSid);
 
-  return (
+  const tile = (
     <div
       ref={tileRef}
       // Pointer (not mouse) events: a tap fires compatibility mouseenter with
@@ -310,6 +338,7 @@ function MeetingParticipantTileImpl({
         "group relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-muted",
         compact ? "aspect-[4/3] rounded-2xl" : "h-full rounded-3xl",
       )}
+      style={fitCamera ? cameraTileSize(videoAspect) : undefined}
       data-hand-raised={handRaised || undefined}
       data-pinned={pinned || undefined}
       data-speaking={speaking || undefined}
@@ -359,8 +388,11 @@ function MeetingParticipantTileImpl({
           {reaction.value}
         </span>
       ) : null}
-      {showVideo && isTrackReference(track) ? (
+      {presenting ? (
+        <MeetingPresentingCard compact={compact} />
+      ) : showVideo && isTrackReference(track) ? (
         <VideoTrack
+          ref={videoRef}
           trackRef={track}
           className={cn(
             "absolute inset-0 size-full",
@@ -398,6 +430,11 @@ function MeetingParticipantTileImpl({
         <span className="sr-only">{label}</span>
       )}
     </div>
+  );
+
+  if (!fitCamera) return tile;
+  return (
+    <div className="flex size-full min-h-0 min-w-0 items-center justify-center [container-type:size]">{tile}</div>
   );
 }
 

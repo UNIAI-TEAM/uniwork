@@ -12,6 +12,7 @@ import {
   splitTracksBySource,
   tileGridClass,
   tileRingTone,
+  cameraTileSize,
   trackHasVideo,
   trackTileKey,
 } from "./conference-layout";
@@ -277,5 +278,20 @@ describe("tileRingTone", () => {
   it("marks a pinned tile when nothing more urgent applies, else stays idle", () => {
     expect(tileRingTone({ handRaised: false, speaking: false, pinned: true })).toBe("pinned");
     expect(tileRingTone({ handRaised: false, speaking: false, pinned: false })).toBe("idle");
+  });
+});
+
+describe("cameraTileSize", () => {
+  it("never makes a tile wider than its video, and lets it narrow by at most 1.3×", () => {
+    expect(cameraTileSize(16 / 9)).toEqual({
+      width: "min(100cqw, calc(100cqh * 1.7778))",
+      height: "min(100cqh, calc(100cqw * 0.7313))",
+    });
+  });
+
+  it("follows a portrait camera and falls back to 16:9 without a size", () => {
+    expect(cameraTileSize(9 / 16).width).toBe("min(100cqw, calc(100cqh * 0.5625))");
+    expect(cameraTileSize(0)).toEqual(cameraTileSize(16 / 9));
+    expect(cameraTileSize(Number.NaN)).toEqual(cameraTileSize(16 / 9));
   });
 });
