@@ -7023,6 +7023,41 @@
         "engine_error": "Engine XLSX không thể mở sổ tính này.",
         "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa XLSX."
       }
+    },
+    "pptx": {
+      "toolbar_label": "Lệnh PowerPoint",
+      "slide_rail_label": "Trang chiếu",
+      "slide_label": "Trang chiếu {{index}}{{label}}",
+      "slide_number": "Trang chiếu {{index}}",
+      "slide_position": "Trang chiếu {{current}} / {{total}}",
+      "no_slides": "Chưa có trang chiếu",
+      "gesture_pending": "Đang áp dụng thay đổi trang chiếu…",
+      "snapshot": "Chụp snapshot",
+      "session_missing": "Phiên chỉnh sửa chưa sẵn sàng",
+      "session_missing_hint": "Mở lại tệp trước khi chỉnh sửa.",
+      "command_error_title": "Không thể áp dụng lệnh",
+      "command_error_hint": "Tài liệu chưa thay đổi. {{message}}",
+      "presenter_title": "Chế độ trình bày",
+      "close_presenter": "Đóng trình bày",
+      "canvas_label": "Vùng trang chiếu PowerPoint",
+      "commands": {
+        "open": "Mở",
+        "edit_text": "Văn bản",
+        "edit_shape_image": "Hình / ảnh",
+        "save": "Lưu",
+        "export_pdf": "Xuất PDF",
+        "speaker_notes": "Ghi chú diễn giả",
+        "masters_layouts": "Bố cục",
+        "animations": "Hoạt ảnh",
+        "charts": "Biểu đồ",
+        "tables": "Bảng",
+        "embedded_fonts": "Phông nhúng",
+        "render_fidelity": "Độ trung thực hiển thị",
+        "undo": "Hoàn tác",
+        "redo": "Làm lại",
+        "presenter": "Trình bày",
+        "fullscreen": "Toàn màn hình"
+      }
     }
   }
 }

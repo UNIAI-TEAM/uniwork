@@ -7029,6 +7029,41 @@
         "engine_error": "The XLSX engine could not open this workbook.",
         "capabilityUnavailable": "XLSX editing is not available for this engine build."
       }
+    },
+    "pptx": {
+      "toolbar_label": "PowerPoint commands",
+      "slide_rail_label": "Slides",
+      "slide_label": "Slide {{index}}{{label}}",
+      "slide_number": "Slide {{index}}",
+      "slide_position": "Slide {{current}} of {{total}}",
+      "no_slides": "No slides are available",
+      "gesture_pending": "Applying slide change…",
+      "snapshot": "Capture snapshot",
+      "session_missing": "Editor session is not ready",
+      "session_missing_hint": "Open the file again before editing.",
+      "command_error_title": "Command could not be applied",
+      "command_error_hint": "The document was not changed. {{message}}",
+      "presenter_title": "Presenter view",
+      "close_presenter": "Close presenter",
+      "canvas_label": "PowerPoint slide canvas",
+      "commands": {
+        "open": "Open",
+        "edit_text": "Text",
+        "edit_shape_image": "Shape / image",
+        "save": "Save",
+        "export_pdf": "Export PDF",
+        "speaker_notes": "Speaker notes",
+        "masters_layouts": "Layouts",
+        "animations": "Animations",
+        "charts": "Charts",
+        "tables": "Tables",
+        "embedded_fonts": "Embedded fonts",
+        "render_fidelity": "Render fidelity",
+        "undo": "Undo",
+        "redo": "Redo",
+        "presenter": "Presenter",
+        "fullscreen": "Fullscreen"
+      }
     }
   }
 }
