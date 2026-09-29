@@ -129,6 +129,26 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `department.created` | 1 | `organization_id`, `department_id` | — | organization | outbox |
 | `department.updated` | 1 | `organization_id`, `department_id` | — | organization | outbox |
 | `department.archived` | 1 | `organization_id`, `department_id` | — | organization | outbox |
+| `document.created` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
+| `document.version_created` | 1 | `document_id`, `version_id`, `workspace_id` | — | workspace | outbox |
+| `document.shared` | 1 | `document_id`, `workspace_id`, `share_id` | — | workspace | outbox |
+| `document.share_revoked` | 1 | `document_id`, `workspace_id`, `share_id` | — | workspace | outbox |
+| `document.link_created` | 1 | `document_id`, `workspace_id`, `link_id` | — | workspace | outbox |
+| `document.link_revoked` | 1 | `document_id`, `workspace_id`, `link_id` | — | workspace | outbox |
+| `document.comment_added` | 1 | `document_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
+| `document.comment_updated` | 1 | `document_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
+| `document.comment_deleted` | 1 | `document_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
+| `document.comment_resolved` | 1 | `document_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
+| `document.comment_unresolved` | 1 | `document_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
+| `document.comment_reaction_added` | 1 | `document_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
+| `document.comment_reaction_removed` | 1 | `document_id`, `comment_id`, `workspace_id` | — | workspace | outbox |
+| `document.favorited` | 1 | `document_id`, `user_id`, `workspace_id` | — | user | outbox |
+| `document.unfavorited` | 1 | `document_id`, `user_id`, `workspace_id` | — | user | outbox |
+| `document.updated` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
+| `document.moved` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
+| `document.archived` | 1 | `document_id`, `workspace_id`, `archive_batch_id` | — | workspace | outbox |
+| `document.restored` | 1 | `document_id`, `workspace_id`, `archive_batch_id` | — | workspace | outbox |
+| `document.deleted` | 1 | `document_id`, `workspace_id` | — | workspace | outbox |
 | `email_hub.inbox_changed` | 1 | `account_id`, `user_id` | — | user | outbox |
 | `email_hub.new_mail` | 1 | `account_id`, `user_id`, `workspace_id` | — | user | outbox |
 | `people.exported` | 1 | `organization_id`, `user_id` | — | - | outbox |

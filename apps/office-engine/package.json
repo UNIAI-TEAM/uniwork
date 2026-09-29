@@ -1,0 +1,30 @@
+{
+  "name": "@uniwork/office-engine-app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "UniWork Office engine service (G2-02): private HTTP service Go calls with a service credential and a per-job grant; bounded worker pool, per-job limits and process-tree ownership.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests=false --coverage",
+    "lint": "eslint . --max-warnings 0",
+    "build": "node scripts/build.mjs",
+    "start": "node dist/main.mjs"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@uniwork/office-contracts": "workspace:*",
+    "@uniwork/office-engine": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@uniwork/eslint-config": "workspace:*",
+    "@uniwork/tsconfig": "workspace:*",
+    "@vitest/coverage-v8": "catalog:",
+    "eslint": "^9.32.0",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

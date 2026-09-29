@@ -239,7 +239,7 @@ test('the frozen text spec is pinned BY NAME, so the image lane cannot outlive a
   );
   // The same helper still credits the REAL accepted spec, so the pin is a comparison and not a
   // free failure.
-  const repoRoot = discoverWorkspaceRoot(path.dirname(fileURLToPath(import.meta.url)));
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
   const accepted = fs.readFileSync(path.join(repoRoot, 'e2e', 'office-g0', FROZEN_TEXT_SPEC.name));
   const acceptedPath = scratch('accepted-copy.ts');
   fs.writeFileSync(acceptedPath, accepted);

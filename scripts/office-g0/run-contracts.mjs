@@ -55,7 +55,6 @@
 
 import crypto from "node:crypto";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -2698,8 +2697,17 @@ export const PLAN_CASE_IDS = [
  * Run every case against a fresh model in its own directory, so no case can see
  * another case's drafts, feed or sessions.
  */
+/**
+ * Default scratch root: inside this checkout, under the gitignored .go-tmp.
+ * A copied tree without the repo's own git metadata must not leak writes into
+ * the OS temp dir or into a parent checkout's lab; an explicit --work-dir or
+ * UNIWORK_G0_TMP still wins when a caller wants a different sandbox.
+ */
+export const DEFAULT_SCRATCH_ROOT = path.join(REPO_ROOT, ".go-tmp", "office-g0", "scratch");
+
 export function runAllCases({ workDir, idempotencyFingerprint = true, changeRetention = 2 } = {}) {
-  const root = workDir ?? process.env.UNIWORK_G0_TMP ?? os.tmpdir();
+  const root = workDir ?? process.env.UNIWORK_G0_TMP ?? DEFAULT_SCRATCH_ROOT;
+  fs.mkdirSync(root, { recursive: true });
   const runDir = fs.mkdtempSync(path.join(root, "office-g0-"));
   const results = [];
 
@@ -2773,7 +2781,14 @@ export function runAllCases({ workDir, idempotencyFingerprint = true, changeRete
   return { dir: runDir, results };
 }
 
+/**
+ * The checkout's own HEAD, or "unknown" when this copy has no git metadata of
+ * its own. Without the .git probe, `git rev-parse` in a copied tree walks up
+ * the directory chain into a parent checkout and records that repository's
+ * head — exactly the false provenance a clean-checkout run must not emit.
+ */
 function gitHead() {
+  if (!fs.existsSync(path.join(REPO_ROOT, ".git"))) return "unknown";
   const out = spawnSync("git", ["rev-parse", "HEAD"], { cwd: REPO_ROOT, encoding: "utf8" });
   return out.status === 0 ? out.stdout.trim() : "unknown";
 }

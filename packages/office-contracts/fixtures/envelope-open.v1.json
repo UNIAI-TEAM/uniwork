@@ -1,0 +1,28 @@
+{
+  "fixture": "uniwork-office-contract-fixture/envelope-open@1",
+  "description": "A schema-valid open envelope (bytes are base64 of the literal string \"hello\").",
+  "value": {
+    "request_id": "01J8Z2ABCDE00000000000000X",
+    "contract_version": "uniwork-office-engine-contract/1",
+    "protocol_version": 1,
+    "operation": "open",
+    "format": "docx",
+    "deadline_ms": 30000,
+    "client_engine_version": "genoffice@09485f88+uniwork-office.0",
+    "grant_id": "01J8Z1G000000000000000000",
+    "payload": {
+      "input_bytes": "aGVsbG8=",
+      "input_checksum": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+      "input_length": 5,
+      "base_revision": 12,
+      "base_version_id": "01J8Z0V0000000000000000A"
+    }
+  },
+  "expected": {
+    "valid": true,
+    "operation": "open",
+    "format": "docx",
+    "measured_checksum": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+    "measured_length": 5
+  }
+}

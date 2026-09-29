@@ -5,7 +5,9 @@
   ],
   "workspaces": {
     ".": {
-      "ignore": ["scripts/landing-film/**"],
+      "ignore": [
+        "scripts/landing-film/**"
+      ],
       "entry": [
         "scripts/**/*.mjs",
         "scripts/load/*.k6.js",
@@ -16,15 +18,36 @@
         "playwright-core",
         "k6",
         "sharp",
-        "jszip"
+        "jszip",
+        "esbuild"
       ]
     },
     "apps/web": {
       "ignore": [
-        "public/sw.js"
+        "public/sw.js",
+        "platform/office/**"
+      ],
+      "ignoreDependencies": [
+        "@uniwork/office-contracts"
       ]
     },
     "packages/*": {},
+    "packages/office-engine": {
+      "entry": [
+        "test/replay/g2-03-replay.mjs",
+        "test/replay/adapter-entry.ts",
+        "test/replay/g2-04-replay.mjs",
+        "test/replay/g2-06-replay.mjs"
+      ],
+      "ignoreDependencies": [
+        "harfbuzzjs"
+      ]
+    },
+    "packages/office-upstream": {
+      "ignore": [
+        "upstream/**"
+      ]
+    },
     "packages/views": {
       "ignoreExportsUsedInFile": true
     },

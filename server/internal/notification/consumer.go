@@ -44,6 +44,12 @@ func NewConsumer(pool *pgxpool.Pool, q *db.Queries, members MemberChecker) *Cons
 // SetMetrics attaches counters; called once from main.
 func (c *Consumer) SetMetrics(m Metrics) { c.metrics = m }
 
+// SetDocumentReaders wires the document permission port the document rules
+// filter recipients through. DocumentService satisfies it; the package
+// declares it here so notification never imports internal/service. Unwired,
+// the document rules deliver nothing rather than guessing.
+func (c *Consumer) SetDocumentReaders(d DocumentReadChecker) { c.env.docs = d }
+
 // Name identifies the consumer in dispatcher errors.
 func (*Consumer) Name() string { return "notification" }
 

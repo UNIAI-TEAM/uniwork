@@ -5,6 +5,7 @@ import {
   Calendar,
   CalendarDays,
   ChevronDown,
+  FileText,
   FolderKanban,
   House,
   Inbox,
@@ -20,6 +21,7 @@ import {
 import { motion, useReducedMotion } from "motion/react";
 import { useTranslation } from "react-i18next";
 import { useLogout } from "@uniwork/core/auth";
+import { useFlag } from "@uniwork/core/feature-flags";
 import { useEmailHubUnreadCount } from "@uniwork/core/email-hub/hooks";
 import { useUnreadCount } from "@uniwork/core/notifications";
 import { paths } from "@uniwork/core/paths";
@@ -57,7 +59,7 @@ import { moduleTone, type ModuleKey } from "./module-tones";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 
 interface NavItem {
-  key: "nav.home" | "nav.inbox" | "nav.email" | "nav.tasks" | "nav.my_tasks" | "nav.projects" | "nav.calendar" | "nav.meetings" | "nav.chat" | "nav.people";
+  key: "nav.home" | "nav.inbox" | "nav.email" | "nav.tasks" | "nav.my_tasks" | "nav.projects" | "nav.calendar" | "nav.meetings" | "nav.documents" | "nav.chat" | "nav.people";
   module: ModuleKey;
   href: string;
   icon: LucideIcon;
@@ -95,6 +97,9 @@ export function AppSidebar() {
   const sidebarScrollRef = useRef<HTMLDivElement>(null);
   const sidebarFadeStyle = useScrollFade(sidebarScrollRef, 24);
   const ws = paths.workspace(workspace.organization_slug, workspace.slug);
+  // Documents is feature-flagged: the nav entry appears only where the
+  // workspace has the module, so a hidden route is not advertised.
+  const documentsEnabled = useFlag("documents", false);
   const unread = useUnreadCount();
   const unreadHere = unread.data?.by_workspace[workspace.id] ?? 0;
   const emailUnread = useEmailHubUnreadCount(workspace.id);
@@ -132,6 +137,9 @@ export function AppSidebar() {
           badge: emailUnreadHere > 0 ? emailUnreadHere : undefined,
         },
         { key: "nav.meetings", module: "meetings", href: ws.meetings(), icon: CalendarDays },
+        ...(documentsEnabled
+          ? ([{ key: "nav.documents", module: "documents", href: ws.documents(), icon: FileText }] as NavItem[])
+          : []),
         { key: "nav.chat", module: "chat", href: ws.chat(), icon: MessageSquare },
         { key: "nav.people", module: "people", href: ws.people(), icon: Users },
       ],

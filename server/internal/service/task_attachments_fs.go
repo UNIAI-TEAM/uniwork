@@ -81,7 +81,7 @@ func errAttachmentNotAvailable() error {
 // contentType and size are the client's claims; FileService never trusts them,
 // so this path does not even read them.
 func (s *TaskService) uploadAttachmentFS(ctx context.Context, actor Actor, organizationID, workspaceID string, taskID *string, purpose files.UploadPurpose, filename string, r io.Reader) (db.Attachment, error) {
-	uploaderType := s.commentActorType(actor.Kind)
+	uploaderType := commentActorType(actor.Kind)
 	if uploaderType != "member" && uploaderType != "agent" {
 		return db.Attachment{}, ErrForbidden
 	}

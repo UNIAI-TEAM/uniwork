@@ -27,6 +27,8 @@ const ICONS: Record<NotificationKind, LucideIcon> = {
   audit_export_ready: FileDown,
   chat_follow_up: Bookmark,
   email_hub_new_mail: Mail,
+  document_commented: MessageSquare,
+  document_mentioned: AtSign,
 };
 
 /** One glyph per kind; an unknown kind from a newer server gets the bell. */

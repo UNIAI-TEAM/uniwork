@@ -6,7 +6,9 @@ const grep = (pattern) =>
   execSync(
     `grep -rnE -e ${JSON.stringify(pattern)} packages apps e2e ` +
       `--include='*.ts' --include='*.tsx' --include='*.css' --include='*.mdx' ` +
-      `| grep -v node_modules | grep -v '\\.next/' | grep -v tsbuildinfo | grep -v 'tokens.test.ts' || true`,
+      `| grep -v node_modules | grep -v '\\.next/' | grep -v tsbuildinfo | grep -v 'tokens.test.ts' ` +
+      // Vendored third-party engine source (G2-01): not UniWork UI, never styled with our tokens.
+      `| grep -v 'packages/office-upstream/upstream/' || true`,
     { encoding: "utf8" },
   ).trim();
 

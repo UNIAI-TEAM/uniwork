@@ -1,6 +1,6 @@
 # THRESHOLDS - DOC-006 plan item 6.2 (measured acceptance thresholds, g119 r2)
 
-> **Status:** candidate for M; canonical files stay read-only. Issue UNI-670 (DOC-006), plan
+> **Status:** integrated into develop at `c6b567f0` (PR #130, G0 = GO); this was the g119 r2 candidate. Issue UNI-670 (DOC-006), plan
 > `docs/superpowers/plans/2026-09-16-documents-office-g0.md` task 6, item 6.2.
 > Owned slice dir: `M/.uniwork-dev/orca-recovery-g119/doc006-handoff/r2/`. This is the **r2 refresh**:
 > the open budgets for XLSX/PPTX/PDF/Markdown/HTML that were `chua do` in the r1 version

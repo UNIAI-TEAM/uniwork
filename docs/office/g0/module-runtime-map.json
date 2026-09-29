@@ -9,7 +9,8 @@
  "contract_harness": "scripts/office-g0/engine-contract.mjs",
  "contract_doc_test": "scripts/office-g0/engine-contract.test.mjs",
  "wire_format": "snake_case",
- "status": "candidate-g119",
+ "status": "integrated-g0-go",
+ "status_note": "2026-09-26 (UNI-657 Advisor): the g119 candidate was accepted and integrated into develop at c6b567f0 (PR #130, G0 = GO). runtime_selection_verdict.chosen = true is authoritative for the six core open-edit-serialize-reopen cycles, each placed by an accepted E-*-CYCLE register row. What is still not accepted is DOC-003 as a whole task (every capability row beyond the six cycles), so the read_before_quoting line on DOC-003 and open item RT-01 mean the whole task, not the six cycles. engine-contract.md section 14 ('All runtime_chosen fields remain false') describes the pre-integration RT-02 state and is pinned; it is not edited. Ownership lines in g1_g2_handoff and ownership_map that give G1 an orphan ledger and reconciler are replaced by FileService FS-C1 (docs/office/g1g2/fs-c1-alignment.md; ADR 0024 proposed).",
  "read_before_quoting": [
   "This file is not proof that any engine executes in any runtime. Every row carries its own evidence_level and every format summary repeats its counts, so a claimed runtime cannot be read as proven by adjacency.",
   "The DOC-003 six-browser open/edit/save/reopen flows are still not accepted as a whole. UNI-667 owns them. Scoped subordinate cycles in scoped_editor_cycles are real and must not be denied, but they do not raise a preferred-runtime row to proven and do not set runtime_chosen. The 11-case adapter run is real DOC-003 engine-host behavior over loopback and the six canonical fault cases use real DOCX/HTTP engine behavior with modeled Go/storage/commit. Neither is product browser, production service, or placement proof; neither changes evidence_level or runtime_chosen.",
@@ -1177,7 +1178,7 @@
    "item": "DOC-003 six-browser flows",
    "owner": "UNI-667",
    "status": "pending",
-   "why": "the six whole-editor flows are not accepted. Scoped DOCX, PPTX, PDF, and XLSX cycles in scoped_editor_cycles do not close DOC-003."
+   "why": "DOC-003 as a whole task is not accepted: every capability row beyond the six core cycles stays blocked with its named test. The six core cycles themselves are accepted register rows (E-*-CYCLE) and set runtime_selection_verdict.chosen (updated 2026-09-26). Scoped DOCX, PPTX, PDF, and XLSX cycles in scoped_editor_cycles do not close DOC-003."
   },
   {
    "id": "RT-02",

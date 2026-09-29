@@ -3,6 +3,9 @@
 > **Trạng thái:** in-progress — bản 1a (phạm vi, yêu cầu FE, wireframe/state map,
 > brand, phạm vi pilot) viết ngày 2026-09-16 theo spec G0 đã chốt. Chưa triển khai
 > UI sản phẩm; bước 1b (ADR thay thế, C-01, roadmap, issue) còn mở.
+> **Cập nhật 2026-09-26:** 1b đã làm phần lớn: ADR 0021 thay 0018 (accepted 2026-09-25), C-01 có luật HTML
+> (2026-09-25) và dòng G1-G7 đã ghi vào issue (2026-09-26). Còn lại: C-01 §14 (amendment theo FileService, chờ
+> người dùng duyệt) và roadmap C-16. UI sản phẩm vẫn chưa triển khai; G3 UNI-659 nhận yêu cầu FE này.
 
 **Issue:** UNI-665 (DOC-001) · **Parent:** UNI-656 · **Roadmap:** C-01, liên quan C-15/C-16.
 **Spec nguồn:** `Documents + Office G0` — file nguồn nằm ở workspace tổng:

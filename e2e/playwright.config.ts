@@ -9,6 +9,8 @@ export default defineConfig({
   // The Office G0 lab specs need a prepared GenOffice source and a running lab host;
   // they run only through their own configs (playwright.office-g0*.config.ts).
   testIgnore: ["office-g0/**"],
+  // The documents flag defaults off; the suite turns it on in its own database.
+  globalSetup: "./documents-flag.setup.ts",
   timeout: 60_000,
   outputDir,
   // Local `make check` hits the same IP rate limits as CI; serial workers

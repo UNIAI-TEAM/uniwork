@@ -33,14 +33,17 @@ Product intent and design principles live in `PRODUCT.md`.
 - `apps/web/` — Next.js App Router. `apps/web/platform/` is the only place
   Next.js APIs (router, env) are touched.
 - `packages/core/` — headless logic: API endpoints, React Query hooks,
-  Zustand stores, realtime sync, permissions, paths, i18n. Four modules came
-  over with the port and no host reaches them yet: `packages/core/analytics/`,
-  `packages/core/diagnostics/`, `packages/core/modals/`,
-  `packages/core/navigation/`. They import each other, not the app (the
+  Zustand stores, realtime sync, permissions, paths, i18n. Four modules no
+  host reaches yet, all from the port: `packages/core/analytics/`,
+  `packages/core/diagnostics/`, `packages/core/modals/`, and
+  `packages/core/navigation/`. They import each
+  other, not the app (the
   shortcuts module left this list with F-09: ⌘J opens Ask UNI; feature-flags
   with F-11: `GET /api/v1/config` feeds `FeatureFlagsProvider`; inbox, labels,
   task-views and constants left when they were wired or removed — constants
-  with UNI-505 TipTap catalog). Wire one before relying on it;
+  with UNI-505 TipTap catalog; documents left with UNI-679 G1-05a: document.*
+  realtime events invalidate the workspace-scoped document keys). Wire one
+  before relying on it;
   `scripts/governance.test.mjs` recomputes the list and fails after
   2026-09-30 unless it is empty — wire or delete by then.
 - `packages/ui/` — atomic primitives (shadcn/Base UI registry) and design tokens.
@@ -198,6 +201,9 @@ Enforced by `server/migrations/lint_test.go` on every migration after `004`;
   (`server/migrations/embed.go`) applies files outside a transaction for
   exactly this reason.
 - Ids are ULIDs in `TEXT` columns (`util.NewID()`).
+- Migration prefixes stop at `998`; later files are `999<unix-ms>_name`, so
+  string order (sqlc) and numeric order (the runner) agree
+  (`TestMigrationPrefixesSortTheSameAsStringsAndNumbers`).
 - Attribution is a pair (ADR 0007): a table created after migration `065`
   that has `created_by` also has `created_by_kind` (`human` | `agent` |
   `system`), and `tasks`, `task_comments`, `meetings`, `chat_messages` carry

@@ -78,8 +78,18 @@ export function pinOf(pinnedDir) {
 
 export async function buildEngineBundle({ pinned, depsSource, entry, out, record, requireExport }) {
   if (fs.existsSync(out) || fs.existsSync(record)) throw new Error('refusing to overwrite an existing bundle or record: ' + out);
+  // esbuild is a repository devDependency (catalog-pinned since UNI-684): prefer
+  // the checkout's own lockfile; the deps-source's install is the legacy lab
+  // fallback only.
+  const repoRequire = createRequire(path.resolve(import.meta.dirname, '..', '..', 'package.json'));
   const sourceRequire = createRequire(path.join(depsSource, 'package.json'));
-  const { build } = sourceRequire('esbuild');
+  const { build } = (() => {
+    try {
+      return repoRequire('esbuild');
+    } catch {
+      return sourceRequire('esbuild');
+    }
+  })();
   const result = await build({
     absWorkingDir: depsSource,
     ...(entry

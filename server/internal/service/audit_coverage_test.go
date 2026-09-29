@@ -13,8 +13,10 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/audit"
 	authpkg "github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
+	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	"github.com/unicomhub/uniwork/server/internal/mail"
 	"github.com/unicomhub/uniwork/server/internal/testutil"
+	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
@@ -806,6 +808,299 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		// The only document write that exists in G1-01 is the owner seam: it
+		// runs inside the owner's transaction, so the coverage runs it inside
+		// one and commits before checking the row.
+		audit.ActionDocumentCreated: func(t *testing.T, f *auditFixture) {
+			w := f.build(t)
+			svc := NewDocumentService(f.pool, f.q, f.orgs, f.ws)
+			svc.SetOwnerLevelResolver(fakeOwnerResolver{level: DocumentLevelManage})
+			tx, err := f.pool.Begin(f.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = tx.Rollback(f.ctx) }()
+			if _, err := svc.CreateOwnedDocumentInTx(f.ctx, f.q.WithTx(tx), Human(f.owner.ID), OwnedDocumentInput{
+				OrganizationID: f.orgID,
+				WorkspaceID:    w.ID,
+				OwnerID:        "01WP0000000000000000000000",
+				Kind:           DocumentKindPage,
+				Title:          "Work product page",
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if err := tx.Commit(f.ctx); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentShared: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.ShareDocument(f.ctx, Human(f.owner.ID), docID, DocumentShareInput{
+				PrincipalType: DocumentPrincipalOrganization, PrincipalID: f.orgID, Level: DocumentLevelView,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentShareRevoked: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			sh, err := svc.ShareDocument(f.ctx, Human(f.owner.ID), docID, DocumentShareInput{
+				PrincipalType: DocumentPrincipalOrganization, PrincipalID: f.orgID, Level: DocumentLevelView,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.RevokeDocumentShare(f.ctx, Human(f.owner.ID), docID, sh.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentSettingsChanged: func(t *testing.T, f *auditFixture) {
+			svc, _ := f.document(t)
+			if _, err := svc.SetDocumentPublicLinks(f.ctx, Human(f.owner.ID), f.orgID, true); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentLinkCreated: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.SetDocumentPublicLinks(f.ctx, Human(f.owner.ID), f.orgID, true); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.CreateDocumentLink(f.ctx, Human(f.owner.ID), docID, 0); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentLinkRevoked: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.SetDocumentPublicLinks(f.ctx, Human(f.owner.ID), f.orgID, true); err != nil {
+				t.Fatal(err)
+			}
+			l, err := svc.CreateDocumentLink(f.ctx, Human(f.owner.ID), docID, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.RevokeDocumentLink(f.ctx, Human(f.owner.ID), docID, l.Link.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// G1-04a (UNI-678): a PATCH of the page; the audit row is metadata only.
+		audit.ActionDocumentUpdated: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.UpdateDocument(f.ctx, Human(f.owner.ID), docID, UpdateDocumentInput{Revision: 1, Title: strPtr("Đổi tên")}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		// G1-04b (UNI-678): the tree and lifecycle commands.
+		audit.ActionDocumentMoved: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.MoveDocument(f.ctx, Human(f.owner.ID), docID, MoveDocumentInput{ParentID: "", Revision: 1}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentArchived: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.ArchiveDocument(f.ctx, Human(f.owner.ID), docID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentRestored: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.ArchiveDocument(f.ctx, Human(f.owner.ID), docID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.RestoreDocument(f.ctx, Human(f.owner.ID), docID, ArchiveDocumentInput{}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentDeleted: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			svc.SetFiles(filesfake.New(filesfake.Options{}))
+			if _, err := f.pool.Exec(f.ctx,
+				`UPDATE documents SET archived_at = now() - interval '40 days', purge_after = now() - interval '10 days' WHERE id = $1`,
+				docID); err != nil {
+				t.Fatal(err)
+			}
+			rep, err := svc.PurgeExpired(f.ctx, time.Now())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rep.Purged != 1 {
+				t.Fatalf("purged %d, want 1", rep.Purged)
+			}
+		},
+		audit.ActionDocumentVersionsCompacted: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			svc.SetFiles(filesfake.New(filesfake.Options{}))
+			// keep+1 automatic versions: compaction drops the oldest one.
+			if _, err := f.pool.Exec(f.ctx, `INSERT INTO document_versions
+				(id, organization_id, workspace_id, document_id, version, kind, reason, content, created_by, created_by_kind)
+				SELECT '01DVC' || lpad(g::text, 23, '0'), $2, $3, $1, g, 'page', 'auto',
+				       '{"type":"doc","content":[]}', $4, 'human'
+				FROM generate_series(1, 501) g`, docID, f.orgID, f.workspace.ID, f.owner.ID); err != nil {
+				t.Fatal(err)
+			}
+			rep, err := svc.CompactVersions(f.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rep.VersionsDeleted != 1 {
+				t.Fatalf("compacted %d versions, want 1", rep.VersionsDeleted)
+			}
+		},
+		audit.ActionDocumentAssetPurged: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			// A recording spy, not filesfake: the synthetic asset's file_id
+			// exists in no registry and the spy only answers whether the
+			// seam was called inside the transaction.
+			svc.SetFiles(&releaseSpy{})
+			insertRow(t, f.ctx, f.pool, "document_assets", map[string]any{
+				"id": util.NewID(), "organization_id": f.orgID, "workspace_id": f.workspace.ID,
+				"document_id": docID, "file_id": util.NewID(), "mime_type": "image/png",
+				"size_bytes": 10, "created_by": f.owner.ID, "created_by_kind": "human",
+				"orphaned_at": time.Now().Add(-8 * 24 * time.Hour),
+			})
+			rep, err := svc.PurgeExpired(f.ctx, time.Now())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if rep.AssetsPurged != 1 {
+				t.Fatalf("assets purged %d, want 1", rep.AssetsPurged)
+			}
+		},
+		// G1-03: the file commands run on filesfake; the storage tests run
+		// the same commands on the real FileService.
+		audit.ActionDocumentVersionCreated: func(t *testing.T, f *auditFixture) {
+			svc, created := auditFileDocument(t, f)
+			up, err := svc.UploadDocumentFile(f.ctx, Human(f.owner.ID), created.Document.ID, DocumentUploadInput{
+				Filename: "v2.pdf", Body: bytes.NewReader(pdfBody("audit-v2")),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.CommitFileVersion(f.ctx, Human(f.owner.ID), created.Document.ID, CommitFileVersionInput{
+				UploadID: up.UploadID, BaseRevision: created.Document.Revision,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentVersionRestored: func(t *testing.T, f *auditFixture) {
+			svc, created := auditFileDocument(t, f)
+			up, err := svc.UploadDocumentFile(f.ctx, Human(f.owner.ID), created.Document.ID, DocumentUploadInput{
+				Filename: "v2.pdf", Body: bytes.NewReader(pdfBody("audit-restore-v2")),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			res, err := svc.CommitFileVersion(f.ctx, Human(f.owner.ID), created.Document.ID, CommitFileVersionInput{
+				UploadID: up.UploadID, BaseRevision: created.Document.Revision,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.RestoreFileVersion(f.ctx, Human(f.owner.ID), created.Document.ID, RestoreFileVersionInput{
+				Version: 1, BaseRevision: res.Document.Revision,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentAssetUploaded: func(t *testing.T, f *auditFixture) {
+			svc, _ := auditFileDocument(t, f)
+			page := baseDoc(map[string]any{
+				"id": util.NewID(), "organization_id": f.orgID, "workspace_id": f.workspace.ID,
+				"created_by": f.owner.ID, "updated_by": f.owner.ID,
+			})
+			insertRow(t, f.ctx, f.pool, "documents", page)
+			if _, err := svc.UploadDocumentAsset(f.ctx, Human(f.owner.ID), page["id"].(string), DocumentUploadInput{
+				Filename: "a.png", Body: bytes.NewReader(pngBody(t, 2, 2)),
+			}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentCommentAdded: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.AddDocumentComment(f.ctx, Human(f.owner.ID), docID, AddCommentInput{Body: "ghi chú tài liệu"}, ""); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentCommentUpdated: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			c, err := svc.AddDocumentComment(f.ctx, Human(f.owner.ID), docID, AddCommentInput{Body: "gốc"}, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.UpdateDocumentComment(f.ctx, Human(f.owner.ID), c.ID, UpdateCommentInput{Body: "sửa"}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentCommentDeleted: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			c, err := svc.AddDocumentComment(f.ctx, Human(f.owner.ID), docID, AddCommentInput{Body: "xóa"}, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.DeleteDocumentComment(f.ctx, Human(f.owner.ID), c.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentCommentResolved: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			c, err := svc.AddDocumentComment(f.ctx, Human(f.owner.ID), docID, AddCommentInput{Body: "resolve"}, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ResolveDocumentComment(f.ctx, Human(f.owner.ID), c.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentCommentUnresolved: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			c, err := svc.AddDocumentComment(f.ctx, Human(f.owner.ID), docID, AddCommentInput{Body: "unresolve"}, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.ResolveDocumentComment(f.ctx, Human(f.owner.ID), c.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.UnresolveDocumentComment(f.ctx, Human(f.owner.ID), c.ID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentCommentReactionAdded: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			c, err := svc.AddDocumentComment(f.ctx, Human(f.owner.ID), docID, AddCommentInput{Body: "react"}, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.AddDocumentCommentReaction(f.ctx, Human(f.owner.ID), c.ID, "👍"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentCommentReactionRemoved: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			c, err := svc.AddDocumentComment(f.ctx, Human(f.owner.ID), docID, AddCommentInput{Body: "react"}, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := svc.AddDocumentCommentReaction(f.ctx, Human(f.owner.ID), c.ID, "👍"); err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.RemoveDocumentCommentReaction(f.ctx, Human(f.owner.ID), c.ID, "👍"); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentFavorited: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.FavoriteDocument(f.ctx, Human(f.owner.ID), docID); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionDocumentUnfavorited: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			if _, err := svc.FavoriteDocument(f.ctx, Human(f.owner.ID), docID); err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.UnfavoriteDocument(f.ctx, Human(f.owner.ID), docID); err != nil {
+				t.Fatal(err)
+			}
+		},
 	}
 
 	for _, action := range auditActions() {
@@ -896,6 +1191,31 @@ func auditActions() []string {
 		audit.ActionAuditExported,
 		audit.ActionAuditRetentionSet,
 		audit.ActionSubscriptionChanged,
+		audit.ActionDocumentCreated,
+		audit.ActionDocumentShared,
+		audit.ActionDocumentShareRevoked,
+		audit.ActionDocumentLinkCreated,
+		audit.ActionDocumentLinkRevoked,
+		audit.ActionDocumentSettingsChanged,
+		audit.ActionDocumentUpdated,
+		audit.ActionDocumentVersionCreated,
+		audit.ActionDocumentVersionRestored,
+		audit.ActionDocumentAssetUploaded,
+		audit.ActionDocumentCommentAdded,
+		audit.ActionDocumentCommentUpdated,
+		audit.ActionDocumentCommentDeleted,
+		audit.ActionDocumentCommentResolved,
+		audit.ActionDocumentCommentUnresolved,
+		audit.ActionDocumentCommentReactionAdded,
+		audit.ActionDocumentCommentReactionRemoved,
+		audit.ActionDocumentFavorited,
+		audit.ActionDocumentUnfavorited,
+		audit.ActionDocumentMoved,
+		audit.ActionDocumentArchived,
+		audit.ActionDocumentRestored,
+		audit.ActionDocumentDeleted,
+		audit.ActionDocumentVersionsCompacted,
+		audit.ActionDocumentAssetPurged,
 	}
 }
 
@@ -1125,4 +1445,19 @@ func (f *auditFixture) wrote(t *testing.T, action string) bool {
 		}
 	}
 	return false
+}
+
+// document wires a DocumentService on the fixture's gates and inserts one
+// workspace-visible page the organization owner manages (ACL owner).
+func (f *auditFixture) document(t *testing.T) (*DocumentService, string) {
+	t.Helper()
+	w := f.build(t)
+	svc := NewDocumentService(f.pool, f.q, f.orgs, f.ws)
+	svc.SetEntitlements(NewEntitlementService(f.pool, f.q))
+	id := util.NewID()
+	insertRow(t, f.ctx, f.pool, "documents", baseDoc(map[string]any{
+		"id": id, "organization_id": f.orgID, "workspace_id": w.ID,
+		"acl_owner_id": f.owner.ID, "created_by": f.owner.ID, "updated_by": f.owner.ID,
+	}))
+	return svc, id
 }

@@ -1,0 +1,16 @@
+**/node_modules
+**/dist
+**/.turbo
+**/coverage
+.git
+.uniwork-dev
+server
+!server/internal/office/testdata
+apps/web
+e2e
+docs
+!docs/office/g0/source-manifest.json
+!docs/office/g0/fixtures/files/pdf
+!docs/office/g0/fixtures/files/sheets
+!docs/office/g0/fixtures/files/legacy
+**/target

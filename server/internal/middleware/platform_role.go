@@ -2,7 +2,10 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
+
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 )
 
 // PlatformRoleSource answers "which platform role does this user hold": ""
@@ -33,7 +36,7 @@ func RequirePlatformRole(src PlatformRoleSource, min string) func(http.Handler) 
 				if !mfa {
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(http.StatusForbidden)
-					_, _ = w.Write([]byte(`{"error":{"code":"mfa_required","message":"platform roles require two-factor authentication"}}`))
+					_ = json.NewEncoder(w).Encode(sdo.NewErrorSDO("mfa_required", "platform roles require two-factor authentication"))
 					return
 				}
 				role = got
@@ -42,7 +45,7 @@ func RequirePlatformRole(src PlatformRoleSource, min string) func(http.Handler) 
 			if min == "admin" && role != "admin" {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusForbidden)
-				_, _ = w.Write([]byte(`{"error":{"code":"platform_role_insufficient","message":"support role is read-only"}}`))
+				_ = json.NewEncoder(w).Encode(sdo.NewErrorSDO("platform_role_insufficient", "support role is read-only"))
 				return
 			}
 			next.ServeHTTP(w, r)

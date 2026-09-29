@@ -8,12 +8,14 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint . --max-warnings 0"
+    "lint": "eslint . --max-warnings 0",
+    "test": "vitest run --passWithNoTests=false --coverage"
   },
   "dependencies": {
-    "three": "catalog:",
     "@gsap/react": "catalog:",
     "@uniwork/core": "workspace:*",
+    "@uniwork/office-contracts": "workspace:*",
+    "@uniwork/office-engine": "workspace:*",
     "@uniwork/ui": "workspace:*",
     "@uniwork/views": "workspace:*",
     "gsap": "catalog:",
@@ -22,6 +24,7 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-i18next": "catalog:",
+    "three": "catalog:",
     "web-vitals": "^6.2.1"
   },
   "devDependencies": {
@@ -32,9 +35,12 @@
     "@types/react-dom": "catalog:",
     "@uniwork/eslint-config": "workspace:*",
     "@uniwork/tsconfig": "workspace:*",
+    "@vitest/coverage-v8": "catalog:",
     "eslint": "^9.32.0",
+    "jsdom": "catalog:",
     "postcss": "catalog:",
     "tailwindcss": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

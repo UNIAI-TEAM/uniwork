@@ -227,6 +227,13 @@ adapter boundary. G3 (UNI-659) and G4 (UNI-636) are **not** opened on unsettled
 assumptions: the per-capability runtime choice (DOC-004 4.1) and the final ADR
 (DOC-001 1b) are still open.
 
+**Update 2026-09-26 (UNI-657 Advisor).** The paragraph above predates three events: DOC-005 was accepted at G0
+level (Advisor g118, 2026-09-25; `login-sync-contract.md` section 8.6), ADR 0021 was accepted on 2026-09-25 as the
+final ADR of DOC-001 1b, and the DOC-004 runtime map was integrated with `runtime_selection_verdict.chosen: true`
+for the six core cycles. G1/G2 now start from the plan `docs/superpowers/plans/2026-09-18-documents-office-g1-g2.md`,
+which waits for the user's order and four user decisions (U-1..U-4). G3/G4 still consume only the proven cycles;
+every other operation keeps its blocker and named test.
+
 Whole-task status (ledger reconciliation 2026-09-25,
 `.uniwork-dev/orca-recovery-g50/integration-g118/LEDGER-RECONCILIATION-g118.md`):
 0 of 6 original plan tasks meets its whole acceptance line yet; the G0 GO is a gate

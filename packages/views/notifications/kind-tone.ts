@@ -21,6 +21,8 @@ const KIND_TONES: Record<NotificationKind, Tint> = {
   role_changed: moduleTone("people"),
   audit_export_ready: "gray",
   email_hub_new_mail: moduleTone("email"),
+  document_commented: moduleTone("documents"),
+  document_mentioned: moduleTone("documents"),
 };
 
 export function kindTone(kind: string): Tint {

@@ -122,7 +122,9 @@ func TestNewFileServiceRefusesBadWiring(t *testing.T) {
 // A refused purpose or scope leaves no row, no job and no object, and never
 // reads the body (plan T3: no side effect on a bad purpose).
 func TestUploadRefusalsBeforeTheBodyHaveNoSideEffect(t *testing.T) {
-	h := newFileHarness(t, localFileBackend(), nil)
+	// Every default purpose is open since G1-03; close DocumentFile here so
+	// the disabled-purpose refusal is still proven.
+	h := newFileHarness(t, localFileBackend(), registryWithDisabled(t, files.DocumentFile))
 	ctx := context.Background()
 	refusals := []struct {
 		purpose files.UploadPurpose

@@ -1,0 +1,5 @@
+{
+  "extends": "@uniwork/tsconfig/react-library.json",
+  "compilerOptions": { "allowImportingTsExtensions": true },
+  "include": ["."]
+}

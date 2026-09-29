@@ -25,11 +25,11 @@ là lệnh khởi chạy implementation. Các mục ghi **đề xuất** chưa p
 | [ADR 0021](../../adr/0021-runtime-engine-office-da-dinh-dang.md), [runtime map](../../office/g0/module-runtime-map.json) | Runtime theo thao tác, không suy từ phần mở rộng file |
 | [C-01 Documents](2026-09-08-documents-design.md), [DOC-005](../../office/g0/login-sync-contract.md) | Quyền, ownership, phiên bản, lỗi, nháp, bản sao |
 | [FS-C1 v1](2026-09-24-file-service-contract.md) | FileService sở hữu byte, upload intent, GC; Documents giữ `file_id` |
-| G1/G2 tại `215b9527`, nhánh `feature/UNI-657-documents-office-g1-g2` | Plan ngày 18/09 cập nhật 27/09, ADR 0022 accepted, C-01 §14 đã duyệt; chưa nằm hết trong baseline checkout này |
+| G1/G2 tại `215b9527`, nhánh `feature/UNI-657-documents-office-g1-g2` | Plan ngày 18/09 cập nhật 27/09, ADR 0024 accepted, C-01 §14 đã duyệt; chưa nằm hết trong baseline checkout này |
 | [Handoff G0](../../office/g0/handoff-map.md), [pilot assertions](../../office/g0/pilot-handoff.md), [ngưỡng đo](../../office/g0/acceptance-thresholds.md) | Phân biệt bằng chứng lab, giới hạn còn mở và nghiệm thu sản phẩm |
 
 Đường dẫn G1/G2 ở revision trên: `docs/superpowers/plans/2026-09-18-documents-office-g1-g2.md`,
-`docs/adr/0022-fileservice-so-huu-blob-intent-gc.md`, `docs/office/g1g2/fs-c1-alignment.md`
+`docs/adr/0024-fileservice-so-huu-blob-intent-gc.md`, `docs/office/g1g2/fs-c1-alignment.md`
 và `docs/office/g1g2/port-items.md`. Đây là đầu vào đã đọc, không phải file được tạo
 hoặc sao chép lại trong PR spec này. Khi tích hợp, phải đưa các dependency đã duyệt
 vào baseline trước; không làm theo bản C-01 cũ nếu thiếu §14.

@@ -109,7 +109,13 @@ func (s *OrganizationService) ListForUser(ctx context.Context, userID string) ([
 }
 
 func (s *OrganizationService) RequireMember(ctx context.Context, orgID, userID string) (db.OrganizationMember, error) {
-	m, err := s.q.GetOrganizationMember(ctx, db.GetOrganizationMemberParams{OrganizationID: orgID, UserID: userID})
+	return s.RequireMemberQ(ctx, s.q, orgID, userID)
+}
+
+// RequireMemberQ is RequireMember read through q, for a caller inside a
+// transaction (see WorkspaceService.RequireMemberQ). Same decision, same errors.
+func (s *OrganizationService) RequireMemberQ(ctx context.Context, q *db.Queries, orgID, userID string) (db.OrganizationMember, error) {
+	m, err := q.GetOrganizationMember(ctx, db.GetOrganizationMemberParams{OrganizationID: orgID, UserID: userID})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return db.OrganizationMember{}, ErrForbidden
 	}

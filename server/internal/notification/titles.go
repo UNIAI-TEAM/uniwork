@@ -20,6 +20,8 @@ var titles = map[string]map[string]string{
 		KindAuditExportReady:  "Bản xuất nhật ký của bạn đã sẵn sàng",
 		KindChatFollowUp:      "Bạn đã gắn Follow-up cho một tin nhắn",
 		KindEmailHubNewMail:   "Bạn có {{count}} thư chưa đọc · {{mailbox}}",
+		KindDocumentCommented: "{{actor}} đã bình luận trong “{{document}}”",
+		KindDocumentMentioned: "{{actor}} đã nhắc đến bạn trong “{{document}}”",
 	},
 	"en": {
 		KindTaskAssigned:      "{{actor}} assigned you “{{task}}”",
@@ -33,6 +35,8 @@ var titles = map[string]map[string]string{
 		KindAuditExportReady:  "Your audit export is ready",
 		KindChatFollowUp:      "You saved a follow-up on a message",
 		KindEmailHubNewMail:   "You have {{count}} unread message(s) · {{mailbox}}",
+		KindDocumentCommented: "{{actor}} commented on “{{document}}”",
+		KindDocumentMentioned: "{{actor}} mentioned you in “{{document}}”",
 	},
 }
 

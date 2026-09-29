@@ -33,6 +33,7 @@ func Samples() []Sample {
 		{"pdf", "report.pdf", []byte("%PDF-1.7\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n"), "application/pdf"},
 		{"text", "notes.txt", []byte("Biên bản họp, không phải ảnh.\n"), "text/plain"},
 		{"markdown", "notes.md", []byte("# Biên bản\n\n- một\n- hai\n"), "text/markdown"},
+		{"html", "notes.html", []byte("<!doctype html>\n<html><body><p>Biên bản họp</p></body></html>\n"), "text/html"},
 		{"csv", "export.csv", []byte("id,tên\n1,Ánh\n2,Bình\n"), "text/csv"},
 		{"ndjson", "export.ndjson", []byte("{\"id\":\"1\",\"action\":\"task.created\"}\n{\"id\":\"2\",\"action\":\"task.updated\"}\n"), "application/x-ndjson"},
 		{"zip", "export.zip", zipSample("export.ndjson", "export.csv"), "application/zip"},
@@ -42,6 +43,7 @@ func Samples() []Sample {
 		{"doc", "brief.doc", cfbSample(), "application/msword"},
 		{"xls", "sheet.xls", cfbSample(), "application/vnd.ms-excel"},
 		{"ppt", "deck.ppt", cfbSample(), "application/vnd.ms-powerpoint"},
+		{"odt", "notes.odt", odtSample(), "application/vnd.oasis.opendocument.text"},
 		{"webm", "voice.webm", webmSample(), "video/webm"},
 		{"ogg_opus", "voice.ogg", oggSample("OpusHead\x01\x01\x38\x01\x80\xbb\x00\x00\x00\x00\x00"), "audio/ogg"},
 		{"ogg_theora", "call.ogv", oggSample("\x80theora\x03\x02\x01"), "video/ogg"},
@@ -181,6 +183,33 @@ func streamedStoredZipSample(name string, body []byte) []byte {
 // main parts.
 func ooxmlSample(parts ...string) []byte {
 	return zipSample(append([]string{"[Content_Types].xml", "_rels/.rels"}, parts...)...)
+}
+
+// odtSample is a minimal ODF text package in the shape the detector proves:
+// the `mimetype` entry first and stored (its bytes bare after the local
+// header), then the manifest and the content part.
+func odtSample() []byte {
+	var buf bytes.Buffer
+	w := zip.NewWriter(&buf)
+	raw := func(name string, body []byte) {
+		f, err := w.CreateRaw(&zip.FileHeader{
+			Name: name, Method: zip.Store, CRC32: crc32.ChecksumIEEE(body),
+			CompressedSize64: uint64(len(body)), UncompressedSize64: uint64(len(body)),
+		})
+		if err != nil {
+			panic(err)
+		}
+		if _, err := f.Write(body); err != nil {
+			panic(err)
+		}
+	}
+	raw("mimetype", []byte("application/vnd.oasis.opendocument.text"))
+	raw("META-INF/manifest.xml", []byte(`<?xml version="1.0" encoding="UTF-8"?><manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3"><manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text"/><manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/></manifest:manifest>`))
+	raw("content.xml", []byte(`<?xml version="1.0" encoding="UTF-8"?><office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" office:version="1.3"><office:body><office:text><text:p>Biên bản họp</text:p></office:text></office:body></office:document-content>`))
+	if err := w.Close(); err != nil {
+		panic(err)
+	}
+	return buf.Bytes()
 }
 
 // cfbSample is an OLE compound file header followed by one empty sector. DOC,

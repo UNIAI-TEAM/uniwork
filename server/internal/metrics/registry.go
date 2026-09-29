@@ -28,6 +28,8 @@ type Registry struct {
 	Notifications *Notifications
 	AI            *AI
 	WebVitals     *WebVitals
+	Documents     *Documents
+	Office        *Office
 }
 
 func NewRegistry(opts RegistryOptions) *Registry {
@@ -48,6 +50,7 @@ func NewRegistry(opts RegistryOptions) *Registry {
 	if opts.Pool != nil {
 		reg.MustRegister(NewDBCollector(opts.Pool))
 		reg.MustRegister(NewMeetingLagCollector(opts.Pool))
+		reg.MustRegister(NewDocumentLagCollector(opts.Pool))
 		reg.MustRegister(NewOutboxLagCollector(opts.Pool))
 	}
 	if opts.Realtime != nil {
@@ -78,6 +81,11 @@ func NewRegistry(opts RegistryOptions) *Registry {
 	webVitals := NewWebVitals()
 	reg.MustRegister(webVitals.Collectors()...)
 
+	documentMetrics := NewDocuments()
+	reg.MustRegister(documentMetrics.Collectors()...)
+	officeMetrics := NewOffice()
+	reg.MustRegister(officeMetrics.Collectors()...)
+
 	return &Registry{
 		Gatherer:      reg,
 		HTTP:          httpMetrics,
@@ -87,6 +95,8 @@ func NewRegistry(opts RegistryOptions) *Registry {
 		Notifications: notificationMetrics,
 		AI:            aiMetrics,
 		WebVitals:     webVitals,
+		Documents:     documentMetrics,
+		Office:        officeMetrics,
 	}
 }
 

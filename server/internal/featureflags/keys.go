@@ -37,6 +37,7 @@ var catalogue = []Flag{
 	{Key: "meeting_ai_summary", Description: "Bật tóm tắt cuộc họp bằng AI theo tổ chức (pilot)", Default: false, Public: true, Owner: "meetings", ReviewAt: day(2026, 12, 5)},
 	{Key: "debug_trace_full_sampling", Description: "Lấy mẫu trace 100% cho tổ chức đang điều tra sự cố", Default: false, Public: false, Owner: "platform", ReviewAt: day(2026, 12, 5)},
 	{Key: "chat_work_hub", Description: "Kênh hạng nhất gắn Project, khám phá và tham gia (C-13)", Default: true, Public: true, Owner: "chat", ReviewAt: day(2026, 12, 31)},
+	{Key: "documents", Description: "Tài liệu trong workspace: page, tệp, phiên bản (UNI-679; route và UI theo sau)", Default: false, Public: true, Owner: "documents", ReviewAt: day(2026, 12, 31)},
 }
 
 // Catalogue returns a copy of the declared flags.

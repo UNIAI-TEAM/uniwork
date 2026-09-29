@@ -72,7 +72,12 @@ a shared package; there is no "small enough to duplicate".
   (`onboarded_at`, `accepted_at`) rather than booleans.
 - Ids are ULIDs stored as `TEXT` (`util.NewID()`), never UUID columns.
 - Migrations: `NNN_descriptive_name.up.sql` + `.down.sql`, both directions,
-  unique numeric prefix. From `005` on: **no `FOREIGN KEY` / `REFERENCES`**
+  unique numeric prefix. The three-digit space ends at `998`; every later
+  migration is `999<unix-milliseconds>_descriptive_name` (e.g.
+  `9991790517656310_idempotency_keys_payload_fingerprint`), because sqlc reads
+  the directory in string order and that shape sorts the same as strings and
+  as numbers. Never `999_` and never a bare four-digit prefix;
+  `TestMigrationPrefixesSortTheSameAsStringsAndNumbers` refuses both. From `005` on: **no `FOREIGN KEY` / `REFERENCES`**
   (relationships and dependent cleanup live in service code) and every index
   is `CREATE [UNIQUE] INDEX CONCURRENTLY` alone in its file.
   `server/migrations/lint_test.go` enforces both; `001`–`004` are frozen.
