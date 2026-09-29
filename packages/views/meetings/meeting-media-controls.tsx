@@ -39,7 +39,9 @@ export function useMediaDevices(): {
 
 /**
  * Toggle button: the name stays fixed, `aria-pressed` carries the state and
- * the tooltip names what a click will do.
+ * the tooltip names what a click will do. It speaks the room's control bar
+ * language (brand when on, solid red when off, 44px square), so the step
+ * before the room and the room itself read the same.
  */
 export function MeetingMediaToggle({
   on,
@@ -61,11 +63,11 @@ export function MeetingMediaToggle({
           <Button
             type="button"
             size="icon-lg"
-            variant={on ? "outline" : "destructive"}
+            variant={on ? "brand" : "destructiveSolid"}
             aria-label={label}
             aria-pressed={on}
             onClick={onClick}
-            className="rounded-full shadow-surface"
+            className="size-11 shrink-0 rounded-xl"
           />
         }
       >

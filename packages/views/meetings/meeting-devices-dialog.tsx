@@ -218,6 +218,22 @@ function MeetingDevicesPanel({ onReload }: { onReload: () => void }) {
             customBackgroundDataUrl={customBackgroundDataUrl}
             mirrorCamera={mirrorCamera}
           />
+          {/* Under the picture they change: the left column no longer ends
+              in a gap beside the longer device list. */}
+          <div className="min-w-0 space-y-4 pt-2">
+            <PreferenceSwitchField
+              label={t("meetings.deviceMirror")}
+              description={t("meetings.deviceMirrorHint")}
+              checked={mirrorCamera}
+              onCheckedChange={setMirrorCamera}
+            />
+            <PreferenceSwitchField
+              label={t("meetings.deviceExpandedLabels")}
+              description={t("meetings.deviceExpandedLabelsHint")}
+              checked={showExpandedLabels}
+              onCheckedChange={setShowExpandedLabels}
+            />
+          </div>
         </section>
 
         <section className="min-w-0 space-y-4">
@@ -271,20 +287,6 @@ function MeetingDevicesPanel({ onReload }: { onReload: () => void }) {
             />
           </FieldGroup>
 
-          <div className="min-w-0 space-y-4 border-t border-border pt-4">
-            <PreferenceSwitchField
-              label={t("meetings.deviceMirror")}
-              description={t("meetings.deviceMirrorHint")}
-              checked={mirrorCamera}
-              onCheckedChange={setMirrorCamera}
-            />
-            <PreferenceSwitchField
-              label={t("meetings.deviceExpandedLabels")}
-              description={t("meetings.deviceExpandedLabelsHint")}
-              checked={showExpandedLabels}
-              onCheckedChange={setShowExpandedLabels}
-            />
-          </div>
         </section>
       </div>
 

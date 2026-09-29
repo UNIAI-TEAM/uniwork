@@ -36,7 +36,8 @@ function prefersAutoFocus(): boolean {
 }
 
 // pb-16 keeps the placeholder text and actions clear of the overlaid mic/camera bar.
-const PREVIEW_CLASS = "aspect-video min-h-52 rounded-2xl pb-16 shadow-floating sm:min-h-60";
+// A ring, not a floating shadow: the member's pre-join draws the same edge.
+const PREVIEW_CLASS = "aspect-video min-h-52 rounded-2xl pb-16 sm:min-h-60";
 
 export function MeetingPublicInviteForm({
   title,
@@ -71,8 +72,10 @@ export function MeetingPublicInviteForm({
     (s: CameraPreviewStatus) => s === "live" && refresh(),
     [refresh],
   );
-  const showMicPicker = audio && mics.length > 0;
-  const showCameraPicker = video && cameras.length > 0;
+  // A device list stays once the browser has named the devices, as on the
+  // member's pre-join: turning the camera off does not hide which one it is.
+  const showMicPicker = mics.length > 0;
+  const showCameraPicker = cameras.length > 0;
 
   useEffect(() => {
     if (prefersAutoFocus()) nameRef.current?.focus();
@@ -103,8 +106,42 @@ export function MeetingPublicInviteForm({
 
   return (
     <MeetingInviteShell>
-      <div className="grid w-full gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:items-center lg:gap-12">
-        <section aria-label={t("meetings.devicePreviewTitle")} className="min-w-0">
+      {/* Three blocks in reading order — what, how you look, who you are — so a
+          phone shows the meeting first and the join button last. A wide
+          screen puts the preview on the left and the other two beside it. */}
+      <div className="grid w-full gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:grid-rows-[1fr_auto_auto_1fr] lg:gap-x-12 lg:gap-y-5">
+        <div className="mx-auto w-full max-w-md space-y-2 lg:col-start-2 lg:row-start-2 lg:mx-0 lg:max-w-none">
+          <p className="text-overline text-muted-foreground">
+            {t("meetings.publicInviteTitle")}
+          </p>
+          <h1 className="text-balance text-display-sm font-semibold tracking-tight text-foreground">{title}</h1>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-label text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5 tabular-nums">
+              <CalendarDays aria-hidden className="size-4 shrink-0" />
+              {formattedStart}
+            </span>
+          </div>
+          <div
+            className={cn(
+              "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-caption font-medium",
+              needsApproval ? "bg-info-soft text-info-soft-foreground" : "bg-success-soft text-success-soft-foreground",
+            )}
+          >
+            {needsApproval ? (
+              <ShieldCheck aria-hidden className="size-3.5 shrink-0" />
+            ) : (
+              <Zap aria-hidden className="size-3.5 shrink-0" />
+            )}
+            <span>{t("meetings.publicInviteAccessMode", { mode: accessModeLabel })}</span>
+          </div>
+          {/* Visible text, not a tooltip: a phone has no hover to reveal it. */}
+          <p className="text-pretty text-caption text-muted-foreground">{accessHint}</p>
+        </div>
+
+        <section
+          aria-label={t("meetings.devicePreviewTitle")}
+          className="min-w-0 lg:col-start-1 lg:row-span-4 lg:row-start-1 lg:self-center"
+        >
           <div className="relative">
             {video ? (
               <Suspense
@@ -167,36 +204,8 @@ export function MeetingPublicInviteForm({
         <form
           noValidate
           onSubmit={submit}
-          className="mx-auto flex w-full max-w-md flex-col gap-5 lg:mx-0 lg:max-w-none"
+          className="mx-auto flex w-full max-w-md flex-col gap-5 lg:col-start-2 lg:row-start-3 lg:mx-0 lg:max-w-none"
         >
-          <div className="space-y-2">
-            <p className="text-overline text-muted-foreground">
-              {t("meetings.publicInviteTitle")}
-            </p>
-            <h1 className="text-balance text-display-sm font-semibold tracking-tight text-foreground">{title}</h1>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-label text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5 tabular-nums">
-                <CalendarDays aria-hidden className="size-4 shrink-0" />
-                {formattedStart}
-              </span>
-            </div>
-            <div
-              className={cn(
-                "inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-caption font-medium",
-                needsApproval ? "bg-info-soft text-info-soft-foreground" : "bg-success-soft text-success-soft-foreground",
-              )}
-            >
-              {needsApproval ? (
-                <ShieldCheck aria-hidden className="size-3.5 shrink-0" />
-              ) : (
-                <Zap aria-hidden className="size-3.5 shrink-0" />
-              )}
-              <span>{t("meetings.publicInviteAccessMode", { mode: accessModeLabel })}</span>
-            </div>
-            {/* Visible text, not a tooltip: a phone has no hover to reveal it. */}
-            <p className="text-pretty text-caption text-muted-foreground">{accessHint}</p>
-          </div>
-
           <Field data-invalid={nameError || undefined}>
             <FieldLabel htmlFor="guest-display-name">{t("meetings.publicInviteDisplayName")}</FieldLabel>
             <Input
