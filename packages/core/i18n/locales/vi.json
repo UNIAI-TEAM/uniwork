@@ -2139,6 +2139,7 @@
     "publicInviteMissingSession": "Phiên tham gia đã hết hạn. Nhập tên và tham gia lại.",
     "publicInviteInvalidLink": "Liên kết mời không hợp lệ hoặc thiếu mã bí mật. Hãy mở đúng liên kết đầy đủ mà người chủ trì đã gửi.",
     "loginRequired": "Cần đăng nhập để tham gia cuộc họp này",
+    "inviteOnly": "Cuộc họp này chỉ dành cho người được mời",
     "joining": "Đang vào cuộc họp…",
     "connectionFailed": "Không kết nối được cuộc họp",
     "connectionFailedHint": "Có thể mạng hoặc trình duyệt đang chặn âm thanh và hình ảnh. Kiểm tra kết nối, cho phép camera và micro nếu được hỏi, rồi thử lại. Nếu vẫn không được, hãy nhờ người chủ trì khởi động lại cuộc họp.",

@@ -2140,6 +2140,7 @@
     "publicInviteMissingSession": "Your join session expired. Enter your name and join again.",
     "publicInviteInvalidLink": "This invite link is incomplete or invalid. Open the full link you received from the host.",
     "loginRequired": "Sign in to join this meeting",
+    "inviteOnly": "This meeting is for invited people only",
     "joining": "Joining meeting…",
     "connectionFailed": "Could not connect to the meeting",
     "connectionFailedHint": "Your network or browser may be blocking audio and video. Check your connection, allow camera and microphone if prompted, then try again. If it keeps failing, ask the host to restart the meeting.",

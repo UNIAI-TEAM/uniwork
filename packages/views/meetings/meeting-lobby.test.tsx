@@ -31,8 +31,12 @@ describe("lobbyMessage", () => {
     expect(lobbyMessage(t, undefined, new ApiError("x", "unauthorized", 401))).toBe(
       "meetings.loginRequired",
     );
+    // UNI-858: a signed-in member who was not invited must not be told to sign in.
     expect(lobbyMessage(t, undefined, new ApiError("x", "access_grant_not_found", 403))).toBe(
-      "meetings.loginRequired",
+      "meetings.inviteOnly",
+    );
+    expect(lobbyMessage(t, undefined, new ApiError("x", "access_grant_not_found", 403), true)).toBe(
+      "meetings.guestSessionExpired",
     );
     expect(lobbyMessage(t, undefined, new ApiError("x", "invite_link_invalid", 403))).toBe(
       "meetings.publicInviteInvalidLink",

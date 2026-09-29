@@ -46,8 +46,13 @@ export function lobbyMessage(
     if (error.code === "meeting_ended") return t("meetings.endedCannotJoin");
     if (error.code === "meeting_past_scheduled_end") return t("meetings.pastScheduledEnd");
     if (error.code === "meeting_canceled") return t("meetings.canceledCannotJoin");
-    if (error.code === "unauthorized" || error.code === "access_grant_not_found") {
+    if (error.code === "unauthorized") {
       return t(guestMode ? "meetings.guestSessionExpired" : "meetings.loginRequired");
+    }
+    // A signed-in member without a grant is not invited; signing in again
+    // would not help, so say who the meeting is for instead.
+    if (error.code === "access_grant_not_found") {
+      return t(guestMode ? "meetings.guestSessionExpired" : "meetings.inviteOnly");
     }
     if (error.code === "join_request_rejected") return t("meetings.joinRequestRejected");
     if (INVALID_LINK_CODES.has(error.code)) return t("meetings.publicInviteInvalidLink");
