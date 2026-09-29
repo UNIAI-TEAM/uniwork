@@ -410,4 +410,47 @@ describe("Office save coordinator", () => {
     h.coordinator.setCapability(capability("available"));
     expect(h.coordinator.getState()).toMatchObject({ state: "dirty", error: null });
   });
+
+  it("does not refuse the first edit of a document opened while another document's commit was in flight", async () => {
+    const h = setup();
+    let resolveCommit: (() => void) | undefined;
+    h.transport.commit = vi.fn(({ intent }: { intent: OfficeSaveIntent<{ text: string }> }) => new Promise((resolve) => {
+      resolveCommit = () => resolve(h.receiptFor(intent));
+    }));
+    h.setDirty(1);
+    const first = h.coordinator.save("button");
+    await vi.waitFor(() => expect(vi.mocked(h.transport.commit)).toHaveBeenCalledTimes(1));
+    // The session rebinds to another document; its generation counter restarts.
+    h.setDirty(0);
+    h.coordinator.setIdentity({ ...identity, documentId: "doc-2", baseVersionId: "version-b", generation: 1 });
+    resolveCommit?.();
+    await expect(first).resolves.toEqual({ accepted: false, reason: "error" });
+    expect(h.coordinator.getState().error?.code).toBe("stale_generation");
+    // The new document's first edit at generation 1 must not be refused by the
+    // old document's terminal generation.
+    h.transport.commit = vi.fn(async ({ intent }: { intent: OfficeSaveIntent<{ text: string }> }) => h.receiptFor(intent));
+    h.setDirty(1);
+    await expect(h.coordinator.save("button")).resolves.toMatchObject({ accepted: true });
+    expect(h.persistedIntents).toHaveLength(2);
+  });
+
+  it("applies a capability downgrade that arrives while a save is in flight", async () => {
+    const h = setup();
+    let resolveCommit: (() => void) | undefined;
+    h.transport.commit = vi.fn(({ intent }: { intent: OfficeSaveIntent<{ text: string }> }) => new Promise((resolve) => {
+      resolveCommit = () => resolve(h.receiptFor(intent));
+    }));
+    h.setDirty(1);
+    const first = h.coordinator.save("button");
+    await vi.waitFor(() => expect(vi.mocked(h.transport.commit)).toHaveBeenCalledTimes(1));
+    h.coordinator.setCapability(capability("unavailable"));
+    resolveCommit?.();
+    await expect(first).resolves.toMatchObject({ accepted: true });
+    expect(h.coordinator.getState()).toMatchObject({ state: "readonly", error: { code: "capability_unavailable" } });
+    h.transport.commit = vi.fn(async ({ intent }: { intent: OfficeSaveIntent<{ text: string }> }) => h.receiptFor(intent));
+    h.setDirty(2);
+    expect(h.coordinator.getState().state).toBe("readonly");
+    await expect(h.coordinator.save()).resolves.toEqual({ accepted: false, reason: "readonly" });
+    expect(vi.mocked(h.transport.commit)).toHaveBeenCalledTimes(0);
+  });
 });

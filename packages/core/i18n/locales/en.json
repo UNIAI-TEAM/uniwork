@@ -6843,5 +6843,119 @@
       "export_svg": "Download SVG",
       "export_source": "Download .mmd"
     }
+  },
+  "office": {
+    "docx": {
+      "title": "DOCX document",
+      "toolbar": { "label": "DOCX editing commands" },
+      "actions": {
+        "undo": "Undo",
+        "redo": "Redo",
+        "save": "Save to UniWork",
+        "saving": "Saving…",
+        "retryOpen": "Try opening again"
+      },
+      "commands": {
+        "bold": "Bold (pending)",
+        "italic": "Italic (pending)",
+        "table": "Table (pending)",
+        "image": "Image (pending)"
+      },
+      "selection": {
+        "none": "No selection",
+        "range": "Selection {{from}}–{{to}}"
+      },
+      "capabilityPending": "This DOCX capability is not available in this build.",
+      "state": {
+        "opening": "Opening document…",
+        "error": "Could not open document"
+      },
+      "saveState": {
+        "ready": "Ready",
+        "dirty": "Unsaved changes",
+        "saving": "Saving…",
+        "saved": "Saved to UniWork",
+        "error": "Save needs attention",
+        "conflict": "Version conflict",
+        "blocked": "Save blocked",
+        "readonly": "Read-only",
+        "incompatible": "Editing unavailable"
+      },
+      "surface": { "ready": "DOCX canvas is ready for the host renderer." },
+      "errors": {
+        "title": "This DOCX could not be opened",
+        "reason": "Reason: {{reason}}",
+        "unknown": "The DOCX adapter returned an unknown open failure.",
+        "corrupted": "The DOCX package is corrupt or incomplete.",
+        "password_cancelled": "The password prompt was cancelled.",
+        "password_required": "A password is required to open this document.",
+        "unsupported_feature": "This DOCX feature is not supported by the current engine.",
+        "not_office_file": "The selected file is not an OOXML DOCX document.",
+        "engine_error": "The DOCX engine could not open this document.",
+        "capabilityUnavailable": "DOCX editing is not available for this engine build.",
+        "wrong_password": "The password did not unlock this document.",
+        "io_error": "The document could not be read from storage.",
+        "too_large": "This document is too large to open here."
+      }
+    },
+    "title": "Office",
+    "save": {
+      "status": {
+        "checkpoint": "Draft kept on this device",
+        "saved-local": "Saved on this device",
+        "saved-cloud": "Saved to UniWork",
+        "not-sent": "Changes not sent",
+        "permission": "Editing permission required",
+        "conflict": "Save conflict",
+        "saving": "Saving…",
+        "ready": "Ready to save",
+        "error": "Save could not be confirmed"
+      },
+      "description": {
+        "checkpoint": "Your latest draft is available on this device.",
+        "saved-local": "The draft is stored locally until you send it.",
+        "saved-cloud": "All changes are saved to UniWork.",
+        "not-sent": "Save when you are ready to send these changes.",
+        "permission": "Keep the draft locally while access is resolved.",
+        "conflict": "The file changed elsewhere. Review the conflict before saving.",
+        "saving": "Saving your changes…",
+        "ready": "No unsaved changes.",
+        "error": "The document was kept. Try again."
+      },
+      "action": {
+        "checkpoint": "Send to UniWork",
+        "save_to_cloud": "Save to UniWork",
+        "send": "Send now",
+        "keep_draft": "Keep draft",
+        "review_conflict": "Review conflict",
+        "retry": "Try again",
+        "done": "Done"
+      },
+      "correlation": "Correlation id: {{id}}"
+    },
+    "saving": "Saving…",
+    "fullscreen": "Enter fullscreen",
+    "exit_fullscreen": "Exit fullscreen",
+    "panel": "Details",
+    "panel_open": "Open panel",
+    "panel_close": "Close panel",
+    "tabs": "Office views",
+    "editor": {
+      "canvas_label": "{{format}} editor",
+      "loading": "Loading editor…",
+      "capability_unknown": "Editor capability is being checked",
+      "capability_unavailable": "This editor is unavailable",
+      "capability_readonly": "This editor is read-only",
+      "capability_hint": "The editor will be available when the host reports a supported capability.",
+      "read_only_hint": "You can view this file, but changes cannot be saved here.",
+      "open_error": "The file could not be opened",
+      "open_error_hint": "The document was not changed. Try opening it again.",
+      "password_cancelled": "Password entry was cancelled",
+      "password_cancelled_hint": "The file remains closed. Enter the password to open it, or cancel to continue.",
+      "mobile_unsupported": "Editing is not supported on this screen size",
+      "editor_pending_title": "Editor is still loading",
+      "editor_pending": "{{format}} editing is not available yet.",
+      "retry": "Try again"
+    }
   }
 }

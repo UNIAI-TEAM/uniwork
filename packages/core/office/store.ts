@@ -35,8 +35,10 @@ const EMPTY_STATE = {
   saveState: "ready" as OfficeState,
 };
 
-/** States a new edit must not overwrite: the banner/problem stays visible. */
-const STICKY_STATES: readonly OfficeState[] = ["saving", "conflict", "blocked", "readonly", "incompatible"];
+/** States a new edit must not overwrite: the banner/problem stays visible.
+ *  `error` is included so a terminal/stop banner the coordinator keeps does not
+ *  diverge from the store on the next keystroke (G3-01-R3). */
+const STICKY_STATES: readonly OfficeState[] = ["saving", "conflict", "blocked", "readonly", "incompatible", "error"];
 
 export const useOfficeStore = create<OfficeSessionState>((set) => ({
   ...EMPTY_STATE,

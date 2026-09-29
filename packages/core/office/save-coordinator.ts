@@ -111,6 +111,7 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
   let pendingIntent: OfficeSaveIntent<TSnapshot> | null = null;
   let terminalGeneration: number | null = null;
   let capabilityStatus: OfficeCapabilityStatus | null = null;
+  let capabilityReason: string | null = null;
   const listeners = new Set<CoordinatorListener>();
   const now = options.now ?? (() => Date.now());
   const idFactory = options.idFactory ?? makeId;
@@ -165,6 +166,25 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
     };
   }
 
+  /** A status other than `available` blocks every Save; unknown is safe and
+   *  never grants editing. */
+  function capabilityBlocked(): boolean {
+    return capabilityStatus !== null && capabilityStatus !== "available";
+  }
+
+  function capabilityError(): OfficeErrorDispatch {
+    return {
+      state: "readonly",
+      code: `capability_${capabilityStatus ?? "unknown"}`,
+      errorClass: "unknown",
+      correlationId: null,
+      retryable: false,
+      ambiguous: false,
+      action: "read_only",
+      message: capabilityReason ?? "Office editing is not available for this format",
+    };
+  }
+
   function reasonFor(dispatch: OfficeErrorDispatch): SaveAttemptResult {
     if (dispatch.state === "blocked") return { accepted: false, reason: "blocked" };
     if (dispatch.state === "incompatible") return { accepted: false, reason: "incompatible" };
@@ -205,10 +225,12 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
   }
 
   /** An intent stops being pending only when its outcome is settled: a matching
-   *  receipt, a terminal refusal, or a reconcile that proved no commit. Terminal
-   *  outcomes also record their snapshot generation so a later Save without new
-   *  content cannot mint a replacement intent for the same bytes. */
-  function settlePending(intent: OfficeSaveIntent<TSnapshot>, kind: "saved" | "not_committed" | "terminal" | "conflict"): void {
+   *  receipt, a terminal refusal, a reconcile that proved no commit, or a commit
+   *  that landed for another document. Terminal outcomes also record their
+   *  snapshot generation so a later Save without new content cannot mint a
+   *  replacement intent for the same bytes; `released` records nothing because
+   *  the generation counters of another document are not comparable. */
+  function settlePending(intent: OfficeSaveIntent<TSnapshot>, kind: "saved" | "released" | "terminal" | "conflict"): void {
     if (pendingIntent?.intentId === intent.intentId) pendingIntent = null;
     if (kind === "saved") terminalGeneration = null;
     else if (kind === "terminal" || kind === "conflict") terminalGeneration = intent.snapshotGeneration;
@@ -226,6 +248,10 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
       identity = { ...identity, baseVersionId: receipt.versionId, baseRevision: receipt.revision };
       lastSavedGeneration = Math.max(lastSavedGeneration, intent.snapshotGeneration);
       settlePending(intent, "saved");
+      if (capabilityBlocked()) {
+        publish({ state: "readonly", activeIntentId: null, error: capabilityError() });
+        return { accepted: true, intentId: intent.intentId, receipt };
+      }
       publish({ state: dirtyGeneration > lastSavedGeneration ? "dirty" : "saved", activeIntentId: null, error: null });
       return { accepted: true, intentId: intent.intentId, receipt };
     }
@@ -233,8 +259,12 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
       // The commit is real and belongs to this document; keep the server base
       // even though the session moved on. The state still never turns `saved`.
       identity = { ...identity, baseVersionId: receipt.versionId, baseRevision: receipt.revision };
+      return failIntent(intent, staleGenerationDispatch());
     }
-    return failIntent(intent, staleGenerationDispatch());
+    // Another document's commit: settle it, but never record its generation -
+    // the current document's counter has nothing to do with it (G3-01-T1).
+    settlePending(intent, "released");
+    return saveError(staleGenerationDispatch());
   }
 
   async function runIntent(intent: OfficeSaveIntent<TSnapshot>): Promise<SaveAttemptResult> {
@@ -320,7 +350,7 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
     // The session moved on while the outcome was unknown and the reconcile
     // proved the old intent never committed. Settle it, then let the current
     // session start its own intent.
-    settlePending(intent, "not_committed");
+    settlePending(intent, "released");
     return await startNewIntent(snapshot);
   }
 
@@ -329,6 +359,12 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
     if (state.state === "saving") return { accepted: false, reason: "saving" };
     if (state.state === "readonly") return { accepted: false, reason: "readonly" };
     if (state.state === "incompatible") return { accepted: false, reason: "incompatible" };
+    // A capability that dropped while an earlier save was in flight is applied
+    // here even if the settle already published another state (G3-01-T2).
+    if (capabilityBlocked()) {
+      publish({ state: "readonly", error: capabilityError() });
+      return { accepted: false, reason: "readonly" };
+    }
 
     saveGate = true;
     try {
@@ -378,7 +414,7 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
         publish({ identity, state: "blocked", error: pendingRecoveryDispatch() });
         return;
       }
-      if (capabilityStatus !== null && capabilityStatus !== "available") {
+      if (capabilityBlocked()) {
         publish({ identity, state: "readonly" });
         return;
       }
@@ -386,24 +422,16 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
     },
     setCapability: (entry: OfficeCapabilityEntry): void => {
       capabilityStatus = entry.status;
+      capabilityReason = entry.reason ?? null;
+      // A save in flight owns the state until it settles; `complete()` (or the
+      // next `save()`) re-applies a non-available status, so the downgrade is
+      // never dropped (G3-01-T2).
       if (state.state === "saving") return;
       if (entry.status === "available") {
         if (state.state === "readonly") publish({ state: currentDirty() ? "dirty" : "ready", error: null });
         return;
       }
-      publish({
-        state: "readonly",
-        error: {
-          state: "readonly",
-          code: `capability_${entry.status}`,
-          errorClass: "unknown",
-          correlationId: null,
-          retryable: false,
-          ambiguous: false,
-          action: "read_only",
-          message: entry.reason ?? "Office editing is not available for this format",
-        },
-      });
+      publish({ state: "readonly", error: capabilityError() });
     },
     save,
     retry: (): Promise<SaveAttemptResult> => save("retry"),

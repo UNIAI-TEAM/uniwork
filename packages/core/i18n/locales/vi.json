@@ -6837,5 +6837,119 @@
       "export_svg": "Tải SVG",
       "export_source": "Tải .mmd"
     }
+  },
+  "office": {
+    "docx": {
+      "title": "Tài liệu DOCX",
+      "toolbar": { "label": "Lệnh chỉnh sửa DOCX" },
+      "actions": {
+        "undo": "Hoàn tác",
+        "redo": "Làm lại",
+        "save": "Lưu lên UniWork",
+        "saving": "Đang lưu…",
+        "retryOpen": "Thử mở lại"
+      },
+      "commands": {
+        "bold": "Đậm (đang chờ)",
+        "italic": "Nghiêng (đang chờ)",
+        "table": "Bảng (đang chờ)",
+        "image": "Ảnh (đang chờ)"
+      },
+      "selection": {
+        "none": "Chưa chọn",
+        "range": "Vùng chọn {{from}}–{{to}}"
+      },
+      "capabilityPending": "Tính năng DOCX này chưa có trong bản dựng hiện tại.",
+      "state": {
+        "opening": "Đang mở tài liệu…",
+        "error": "Không mở được tài liệu"
+      },
+      "saveState": {
+        "ready": "Sẵn sàng",
+        "dirty": "Có thay đổi chưa lưu",
+        "saving": "Đang lưu…",
+        "saved": "Đã lưu lên UniWork",
+        "error": "Lưu cần xử lý",
+        "conflict": "Xung đột phiên bản",
+        "blocked": "Đã chặn lưu",
+        "readonly": "Chỉ đọc",
+        "incompatible": "Không thể chỉnh sửa"
+      },
+      "surface": { "ready": "Canvas DOCX sẵn sàng cho bộ dựng của host." },
+      "errors": {
+        "title": "Không mở được DOCX này",
+        "reason": "Lý do: {{reason}}",
+        "unknown": "Bộ chuyển DOCX trả về lỗi mở không xác định.",
+        "corrupted": "Gói DOCX bị hỏng hoặc chưa đầy đủ.",
+        "password_cancelled": "Bạn đã hủy hộp thoại mật khẩu.",
+        "password_required": "Cần mật khẩu để mở tài liệu này.",
+        "unsupported_feature": "Engine hiện tại chưa hỗ trợ tính năng DOCX này.",
+        "not_office_file": "Tệp đã chọn không phải tài liệu OOXML DOCX.",
+        "engine_error": "Engine DOCX không thể mở tài liệu này.",
+        "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa DOCX.",
+        "wrong_password": "Mật khẩu không mở khóa được tài liệu này.",
+        "io_error": "Không thể đọc tài liệu từ bộ nhớ.",
+        "too_large": "Tài liệu này quá lớn để mở tại đây."
+      }
+    },
+    "title": "Office",
+    "save": {
+      "status": {
+        "checkpoint": "Đã giữ nháp trên thiết bị",
+        "saved-local": "Đã lưu trên máy",
+        "saved-cloud": "Đã lưu lên UniWork",
+        "not-sent": "Chưa gửi",
+        "permission": "Không có quyền sửa",
+        "conflict": "Xung đột khi lưu",
+        "saving": "Đang lưu…",
+        "ready": "Sẵn sàng lưu",
+        "error": "Chưa xác nhận được việc lưu"
+      },
+      "description": {
+        "checkpoint": "Bản nháp mới nhất có trên thiết bị này.",
+        "saved-local": "Bản nháp được lưu trên máy cho đến khi bạn gửi.",
+        "saved-cloud": "Mọi thay đổi đã được lưu lên UniWork.",
+        "not-sent": "Lưu khi bạn sẵn sàng gửi các thay đổi này.",
+        "permission": "Giữ bản nháp trên máy trong khi xử lý quyền.",
+        "conflict": "Tệp đã đổi ở nơi khác. Xem lại xung đột trước khi lưu.",
+        "saving": "Đang lưu thay đổi…",
+        "ready": "Không có thay đổi chưa lưu.",
+        "error": "Tài liệu vẫn được giữ. Thử lại."
+      },
+      "action": {
+        "checkpoint": "Gửi lên UniWork",
+        "save_to_cloud": "Lưu lên UniWork",
+        "send": "Gửi ngay",
+        "keep_draft": "Giữ bản nháp",
+        "review_conflict": "Xem xung đột",
+        "retry": "Thử lại",
+        "done": "Xong"
+      },
+      "correlation": "Mã tương quan: {{id}}"
+    },
+    "saving": "Đang lưu…",
+    "fullscreen": "Mở toàn màn hình",
+    "exit_fullscreen": "Thoát toàn màn hình",
+    "panel": "Chi tiết",
+    "panel_open": "Mở panel",
+    "panel_close": "Đóng panel",
+    "tabs": "Chế độ xem Office",
+    "editor": {
+      "canvas_label": "Trình soạn thảo {{format}}",
+      "loading": "Đang tải trình soạn thảo…",
+      "capability_unknown": "Đang kiểm tra khả năng trình soạn thảo",
+      "capability_unavailable": "Trình soạn thảo không khả dụng",
+      "capability_readonly": "Trình soạn thảo chỉ đọc",
+      "capability_hint": "Trình soạn thảo sẽ khả dụng khi host xác nhận capability được hỗ trợ.",
+      "read_only_hint": "Bạn có thể xem tệp này nhưng không thể lưu thay đổi tại đây.",
+      "open_error": "Không mở được tệp",
+      "open_error_hint": "Tài liệu chưa thay đổi. Thử mở lại.",
+      "password_cancelled": "Đã hủy nhập mật khẩu",
+      "password_cancelled_hint": "Tệp vẫn đang đóng. Nhập mật khẩu để mở hoặc hủy để tiếp tục.",
+      "mobile_unsupported": "Chưa hỗ trợ chỉnh sửa ở kích thước màn hình này",
+      "editor_pending_title": "Trình soạn thảo đang tải",
+      "editor_pending": "Chỉnh sửa {{format}} chưa khả dụng.",
+      "retry": "Thử lại"
+    }
   }
 }

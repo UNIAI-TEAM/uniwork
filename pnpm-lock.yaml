@@ -889,6 +889,9 @@ importers:
       '@uniwork/core':
         specifier: workspace:*
         version: link:../core
+      '@uniwork/office-contracts':
+        specifier: workspace:*
+        version: link:../office-contracts
       '@uniwork/ui':
         specifier: workspace:*
         version: link:../ui
