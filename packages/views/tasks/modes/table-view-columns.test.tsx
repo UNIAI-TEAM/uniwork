@@ -320,7 +320,7 @@ describe("bảng: cột thuộc tính, dự án, ngày bắt đầu, agent", () 
       name: "Dự án: Không có dự án",
     });
     fireEvent.click(trigger);
-    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Ra mắt" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ra mắt" }));
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/tasks/t1", {
         method: "PATCH",

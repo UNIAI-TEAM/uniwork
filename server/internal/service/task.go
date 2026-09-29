@@ -676,8 +676,10 @@ func (s *TaskService) Update(ctx context.Context, actor Actor, taskID string, in
 
 // updateTaskInTx applies fields and audit/outbox using q (caller owns the tx).
 func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor Actor, before db.Task, ws db.Workspace, in UpdateTaskInput) (db.Task, error) {
-	if in.Status != nil && !isBuiltInStatusKey(*in.Status) {
-		return db.Task{}, Invalid("status không hợp lệ")
+	if in.Status != nil && *in.Status != before.Status {
+		if err := requireOpenCatalogStatus(ctx, q, before.OrganizationID, before.WorkspaceID, *in.Status); err != nil {
+			return db.Task{}, err
+		}
 	}
 	if in.Priority != nil && !validPriority[*in.Priority] {
 		return db.Task{}, Invalid("priority không hợp lệ")
@@ -941,16 +943,22 @@ func normalizeCreateTaskStatus(
 	if status == "" {
 		status = "todo"
 	}
-	entry, err := q.GetTaskStatusByKey(ctx, db.GetTaskStatusByKeyParams{
-		OrganizationID: organizationID, WorkspaceID: workspaceID, Key: status,
-	})
-	if errors.Is(err, pgx.ErrNoRows) || (err == nil && entry.ArchivedAt.Valid) {
-		return "", Invalid("status không hợp lệ")
-	}
-	if err != nil {
+	if err := requireOpenCatalogStatus(ctx, q, organizationID, workspaceID, status); err != nil {
 		return "", err
 	}
 	return status, nil
+}
+
+// requireOpenCatalogStatus admits a key that the workspace catalog holds and
+// has not archived; an archived status only stays on tasks already in it.
+func requireOpenCatalogStatus(ctx context.Context, q *db.Queries, organizationID, workspaceID, key string) error {
+	entry, err := q.GetTaskStatusByKey(ctx, db.GetTaskStatusByKeyParams{
+		OrganizationID: organizationID, WorkspaceID: workspaceID, Key: key,
+	})
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && entry.ArchivedAt.Valid) {
+		return Invalid("status không hợp lệ")
+	}
+	return err
 }
 
 func normalizeParentTaskID(

@@ -15,12 +15,14 @@ import { AppLink } from "../../../navigation";
 import { toastApiError } from "../../../toast-api-error";
 import {
   AssigneePicker,
+  StatusOptionIcon,
   StatusPicker,
   labelChipClass,
+  useStatusCatalog,
   useWorkspaceAssigneeOptions,
   type AssigneeRef,
 } from "../../pickers";
-import { PriorityFlag, StatusIcon } from "../../modes/status-pill";
+import { PriorityFlag } from "../../modes/status-pill";
 import { TaskActorAvatar } from "./task-actor-avatar";
 
 function isClosed(status: string) {
@@ -61,6 +63,7 @@ export function SubtaskRow({
     [attachedQuery.data?.labels],
   );
   const { options: assigneeOptions } = useWorkspaceAssigneeOptions(workspaceId);
+  const statusOption = useStatusCatalog(workspaceId).optionOf(task.status);
   const assigneeValue: AssigneeRef | null = task.assignee_id
     ? {
         id: task.assignee_id,
@@ -126,14 +129,19 @@ export function SubtaskRow({
       </div>
 
       <StatusPicker
+        workspaceId={workspaceId}
         value={task.status}
         ariaLabel={t("tasks.status")}
-        valueLabel={t(`tasks.status_${task.status}`)}
+        valueLabel={statusOption.label}
+        searchPlaceholder={t("tasks.create.status_search_placeholder")}
+        noResultsLabel={t("tasks.create.options_no_results")}
         triggerClassName="size-5 p-0"
         align="start"
-        onChange={(status) => patch({ status })}
+        onChange={(status) => {
+          if (status !== task.status) patch({ status });
+        }}
       >
-        <StatusIcon status={task.status} className="size-[15px]" />
+        <StatusOptionIcon option={statusOption} className="size-[15px]" />
       </StatusPicker>
 
       <AppLink href={href} className="flex min-w-0 flex-1 items-center gap-2.5">

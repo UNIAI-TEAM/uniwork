@@ -5,11 +5,12 @@ import {
   CircleDot,
   ExternalLink,
   Link2,
+  SignalHigh,
   Trash2,
   UserRound,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { Task, TaskStatus } from "@uniwork/core/types";
+import { TASK_PRIORITIES, type Task, type TaskPriority } from "@uniwork/core/types";
 import {
   ContextMenuItem,
   ContextMenuRadioGroup,
@@ -28,8 +29,8 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
-import { StatusIcon } from "./modes/status-pill";
-import { useStatusOptions } from "./pickers";
+import { PriorityIcon } from "./icons/priority-icon";
+import { StatusOptionIcon, useStatusCatalog } from "./pickers";
 
 /**
  * The context menu and the dropdown are two Base UI namespaces with the same
@@ -102,23 +103,44 @@ export type RowActionModel = {
 
 function StatusRadioItems({
   parts: P,
+  workspaceId,
   value,
   onSelect,
 }: {
   parts: MenuParts;
-  value: TaskStatus;
-  onSelect: (status: TaskStatus) => void;
+  workspaceId: string;
+  value: string;
+  onSelect: (status: string) => void;
 }) {
-  const options = useStatusOptions((status) => <StatusIcon status={status} />);
+  const { options } = useStatusCatalog(workspaceId);
   return (
-    <P.RadioGroup
-      value={value}
-      onValueChange={(next) => onSelect(next as TaskStatus)}
-    >
+    <P.RadioGroup value={value} onValueChange={onSelect}>
       {options.map((option) => (
-        <P.RadioItem key={option.value} value={option.value} closeOnClick>
-          {option.icon}
+        <P.RadioItem key={option.key} value={option.key} closeOnClick>
+          <StatusOptionIcon option={option} />
           {option.label}
+        </P.RadioItem>
+      ))}
+    </P.RadioGroup>
+  );
+}
+
+function PriorityRadioItems({
+  parts: P,
+  value,
+  onSelect,
+}: {
+  parts: MenuParts;
+  value: TaskPriority;
+  onSelect: (priority: TaskPriority) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <P.RadioGroup value={value} onValueChange={(next) => onSelect(next as TaskPriority)}>
+      {TASK_PRIORITIES.map((priority) => (
+        <P.RadioItem key={priority} value={priority} closeOnClick>
+          <PriorityIcon priority={priority} />
+          {t(`tasks.priority_${priority}`)}
         </P.RadioItem>
       ))}
     </P.RadioGroup>
@@ -164,8 +186,22 @@ export function RowActionItems({
             <P.SubContent>
               <StatusRadioItems
                 parts={P}
+                workspaceId={task.workspace_id}
                 value={task.status}
                 onSelect={(status) => update({ status })}
+              />
+            </P.SubContent>
+          </P.Sub>
+          <P.Sub>
+            <P.SubTrigger>
+              <SignalHigh aria-hidden />
+              {t("tasks.row_actions.change_priority")}
+            </P.SubTrigger>
+            <P.SubContent>
+              <PriorityRadioItems
+                parts={P}
+                value={task.priority}
+                onSelect={(priority) => update({ priority })}
               />
             </P.SubContent>
           </P.Sub>

@@ -1,13 +1,9 @@
 "use client";
 
 import type { SyntheticEvent } from "react";
-import { CalendarDays, Flag, FolderKanban, UserRound } from "lucide-react";
+import { CalendarDays, FolderKanban, UserRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import {
-  type TaskLabel,
-  type TaskPriority,
-  type TaskStatus,
-} from "@uniwork/core/types";
+import { type TaskLabel, type TaskPriority } from "@uniwork/core/types";
 import type { TableRowLabel } from "@uniwork/core/api/endpoints/tasks-table";
 import {
   Avatar,
@@ -29,7 +25,6 @@ import {
   type MemberOption,
 } from "../pickers";
 import { EnumFieldPicker } from "../pickers/enum-field-picker";
-import { STATUS_CONFIG } from "./status-config";
 
 export type TableMember = MemberOption;
 
@@ -47,45 +42,28 @@ function initials(name: string) {
 }
 
 export function TableStatusCell({
+  workspaceId,
   value,
   onChange,
 }: {
-  value: TaskStatus;
-  onChange: (value: TaskStatus) => void;
+  workspaceId: string;
+  value: string;
+  onChange: (value: string) => void;
 }) {
   const { t } = useTranslation();
-  const color = STATUS_CONFIG[value]?.iconColor ?? "text-muted-foreground";
-
   return (
     <StatusPicker
+      workspaceId={workspaceId}
       value={value}
       onChange={onChange}
       ariaLabel={t("tasks.status")}
-      valueLabel={t(`tasks.status_${value}`)}
+      searchPlaceholder={t("tasks.create.status_search_placeholder")}
+      noResultsLabel={t("tasks.create.options_no_results")}
       onTriggerNavigationGuard={stopRowNavigation}
       triggerClassName="h-7 max-w-full justify-start gap-1.5 px-1.5 font-normal"
-      icon={(status) => (
-        <span
-          className={cn(
-            "size-2 rounded-full bg-current",
-            STATUS_CONFIG[status].iconColor,
-          )}
-        />
-      )}
-    >
-      <span className={cn("size-2 shrink-0 rounded-full bg-current", color)} />
-      <span className="truncate">{t(`tasks.status_${value}`)}</span>
-    </StatusPicker>
+    />
   );
 }
-
-const PRIORITY_COLOR: Record<TaskPriority, string> = {
-  none: "text-muted-foreground",
-  urgent: "text-destructive",
-  high: "text-warning",
-  medium: "text-info",
-  low: "text-muted-foreground",
-};
 
 export function TablePriorityCell({
   value,
@@ -100,19 +78,9 @@ export function TablePriorityCell({
       value={value}
       onChange={onChange}
       ariaLabel={t("tasks.priority")}
-      valueLabel={t(`tasks.priority_${value}`)}
       onTriggerNavigationGuard={stopRowNavigation}
       triggerClassName="h-7 max-w-full justify-start gap-1.5 px-1.5 font-normal"
-      icon={(priority) => (
-        <Flag className={cn("size-3.5", PRIORITY_COLOR[priority])} aria-hidden />
-      )}
-    >
-      <Flag
-        className={cn("size-3.5 shrink-0", PRIORITY_COLOR[value])}
-        aria-hidden
-      />
-      <span className="truncate">{t(`tasks.priority_${value}`)}</span>
-    </PriorityPicker>
+    />
   );
 }
 
@@ -245,6 +213,8 @@ export function TableProjectCell({
       }}
       ariaLabel={t("tasks.detail.prop_project")}
       valueLabel={title}
+      searchPlaceholder={t("tasks.create.project_search_placeholder")}
+      noResultsLabel={t("tasks.create.options_no_results")}
       onTriggerNavigationGuard={stopRowNavigation}
       triggerClassName="h-7 max-w-full justify-start gap-1.5 px-1.5 font-normal"
     >

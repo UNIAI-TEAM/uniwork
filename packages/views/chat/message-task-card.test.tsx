@@ -59,6 +59,7 @@ vi.mock("@uniwork/core/tasks", () => ({
   useUpdateTask: () => ({ mutate: vi.fn() }),
   useProjects: () => ({ data: { projects: [] } }),
   useAssigneeFrequency: () => ({ data: [] }),
+  useTaskStatuses: () => ({ data: undefined }),
 }));
 
 vi.mock("@uniwork/core/workspaces", () => ({

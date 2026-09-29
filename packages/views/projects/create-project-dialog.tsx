@@ -19,10 +19,8 @@ import { Input } from "@uniwork/ui/components/ui/input";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
 import { manualDialogContentClass } from "../tasks/create-task-dialog-classes";
 import type { AssigneeRef } from "../tasks/pickers/assignee-picker";
-import {
-  CreateTaskAssigneeField,
-  CreateTaskPriorityField,
-} from "../tasks/pickers/create-task-property-fields";
+import { CreateTaskAssigneeField } from "../tasks/pickers/create-task-property-fields";
+import { PriorityPicker } from "../tasks/pickers/priority-picker";
 import { useWorkspaceAssigneeOptions } from "../tasks/pickers/member-options";
 import {
   CreateProjectDateFields,
@@ -207,12 +205,11 @@ export function CreateProjectDialog({
               value={draft.status}
               onChange={(status) => update({ status })}
             />
-            <CreateTaskPriorityField
-              items={PROJECT_PRIORITY_ORDER.map((p) => ({
-                value: p,
-                label: t(`projects.priority.${p}`),
-              }))}
+            <PriorityPicker
+              appearance="pill"
+              order={PROJECT_PRIORITY_ORDER}
               value={draft.priority}
+              ariaLabel={t("projects.table.priority")}
               onChange={(priority) => update({ priority })}
             />
             <CreateTaskAssigneeField

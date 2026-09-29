@@ -2,18 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { Tag } from "lucide-react";
-import type { TaskLabel, TaskPriority } from "@uniwork/core/types";
-import { AgentBadge } from "../../agents/agent-badge";
+import type { TaskLabel } from "@uniwork/core/types";
 import { PillButton } from "../../common/pill-button";
-import { tintClass } from "@uniwork/ui/components/common/icon-tile";
 import {
   Avatar,
   AvatarFallback,
   AvatarImage,
 } from "@uniwork/ui/components/ui/avatar";
-import { PriorityIcon } from "../icons/priority-icon";
-import { StatusIcon } from "../icons/status-icon";
-import { priorityTone } from "../modes/priority-config";
 import {
   AssigneePicker,
   type AssigneeOption,
@@ -22,133 +17,8 @@ import {
 import { PickerEmpty, PickerItem, PropertyPicker } from "./property-picker";
 import { SEARCHABLE_OPTION_THRESHOLD } from "./searchable-option-picker";
 
-type StatusItem = { value: string; label: string; category: string };
-type OptionItem = { value: string; label: string };
-
 function initialOf(name: string): string {
   return name.trim().slice(0, 1).toUpperCase() || "?";
-}
-
-/** Create-task status field: StatusPicker + PillButton. */
-export function CreateTaskStatusField({
-  items,
-  value,
-  searchPlaceholder,
-  noResultsLabel,
-  onChange,
-}: {
-  items: StatusItem[];
-  value: string;
-  searchPlaceholder: string;
-  noResultsLabel: string;
-  onChange: (value: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const selected = items.find((item) => item.value === value) ?? items[0];
-  const filtered = useMemo(() => {
-    const q = query.trim().toLocaleLowerCase();
-    if (!q) return items;
-    return items.filter((item) => item.label.toLocaleLowerCase().includes(q));
-  }, [items, query]);
-  const searchable = items.length > SEARCHABLE_OPTION_THRESHOLD;
-
-  return (
-    <PropertyPicker
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) setQuery("");
-        setOpen(next);
-      }}
-      width="w-52"
-      align="start"
-      searchable={searchable}
-      searchPlaceholder={searchPlaceholder}
-      onSearchChange={setQuery}
-      triggerRender={<PillButton />}
-      trigger={
-        <>
-          <StatusIcon
-            status={value}
-            category={selected?.category}
-            className="size-3.5 shrink-0"
-          />
-          <span className="truncate">{selected?.label ?? value}</span>
-        </>
-      }
-    >
-      {filtered.map((item) => (
-        <PickerItem
-          key={item.value}
-          selected={item.value === value}
-          onClick={() => {
-            onChange(item.value);
-            setOpen(false);
-            setQuery("");
-          }}
-        >
-          <StatusIcon
-            status={item.value}
-            category={item.category}
-            className="size-3.5"
-          />
-          <span className="truncate">{item.label}</span>
-        </PickerItem>
-      ))}
-      {filtered.length === 0 ? <PickerEmpty>{noResultsLabel}</PickerEmpty> : null}
-    </PropertyPicker>
-  );
-}
-
-/** Create-task priority field: PriorityPicker + PillButton. */
-export function CreateTaskPriorityField({
-  items,
-  value,
-  onChange,
-}: {
-  items: OptionItem[];
-  value: TaskPriority;
-  onChange: (value: TaskPriority) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const selected = items.find((item) => item.value === value) ?? items[0];
-
-  return (
-    <PropertyPicker
-      open={open}
-      onOpenChange={setOpen}
-      width="w-44"
-      align="start"
-      triggerRender={<PillButton />}
-      trigger={
-        <>
-          <PriorityIcon priority={value} className="shrink-0" />
-          <span className="truncate">{selected?.label ?? value}</span>
-        </>
-      }
-    >
-      {items.map((item) => {
-        const priority = item.value as TaskPriority;
-        return (
-          <PickerItem
-            key={item.value}
-            selected={item.value === value}
-            onClick={() => {
-              onChange(priority);
-              setOpen(false);
-            }}
-          >
-            <span
-              className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-caption font-medium ${tintClass[priorityTone(priority)]}`}
-            >
-              <PriorityIcon priority={priority} className="size-3" inheritColor />
-              {item.label}
-            </span>
-          </PickerItem>
-        );
-      })}
-    </PropertyPicker>
-  );
 }
 
 /** Create-task assignee field: AssigneePicker + PillButton. */
