@@ -10,8 +10,10 @@ import type { EmailHubThread } from "@uniwork/core/types/email-hub";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
+import { useEmailHubConversationBodySlot } from "./email-hub-conversation-body-gate";
 import { emailHubLocale, formatEmailFullDate, senderDisplayName } from "./email-hub-format";
 import { emailHasRemoteContent } from "./email-hub-html";
+import { useEmailHubWhenVisible } from "./use-email-hub-when-visible";
 import { EmailHtmlFrame, EmailSenderAvatar } from "./email-hub-view-parts";
 
 function ConversationBodySkeleton() {
@@ -37,6 +39,7 @@ export function EmailHubConversationMessage({
   onAllowRemote,
   locale,
   showHeader = true,
+  bodyFetchPriority = false,
 }: {
   wsId: string;
   accountId: string;
@@ -46,18 +49,25 @@ export function EmailHubConversationMessage({
   onAllowRemote: () => void;
   locale: string;
   showHeader?: boolean;
+  /** Open thread in reading pane — fetch body immediately, not gated by viewport. */
+  bodyFetchPriority?: boolean;
 }) {
   const { t } = useTranslation();
+  const { ref: visibilityRef, visible } = useEmailHubWhenVisible();
   const override =
     detailOverride?.id === message.id && emailHubHasReadableBody(detailOverride) ? detailOverride : null;
   const needsBody = !emailHubHasReadableBody(override ?? message);
-  const lazy = useEmailHubThread(wsId, accountId, needsBody ? message.id : null, message);
+  const wantsFetch = needsBody && (bodyFetchPriority || visible);
+  const hasSlot = useEmailHubConversationBodySlot(wantsFetch && !bodyFetchPriority);
+  const mayFetchBody = wantsFetch && (bodyFetchPriority || hasSlot);
+  const lazy = useEmailHubThread(wsId, accountId, mayFetchBody ? message.id : null, message);
   const data =
     (lazy.data && emailHubHasReadableBody(lazy.data) ? lazy.data : null) ??
     override ??
     (emailHubHasReadableBody(message) ? message : lazy.data ?? message);
-  const bodyLoading = needsBody && (lazy.isBodyLoading || lazy.isFetching);
-  const bodyLoadFailed = needsBody && lazy.isBodyLoadFailed;
+  const bodyLoading = needsBody && mayFetchBody && (lazy.isBodyLoading || lazy.isFetching);
+  const bodyLoadFailed = needsBody && mayFetchBody && lazy.isBodyLoadFailed;
+  const bodyWaiting = needsBody && !mayFetchBody;
   const bodyHtml = emailHubHasReadableBody(data) ? data.body_html : undefined;
   const remoteBlocked = !!bodyHtml && !allowRemote && emailHasRemoteContent(bodyHtml);
   const outgoing = message.folder === "SENT" || message.folder === "DRAFTS";
@@ -67,6 +77,7 @@ export function EmailHubConversationMessage({
 
   return (
     <section
+      ref={visibilityRef}
       className={cn("space-y-3", showHeader && "rounded-lg border border-border bg-surface p-4 @2xl:p-5")}
       aria-label={displayName}
     >
@@ -116,7 +127,7 @@ export function EmailHubConversationMessage({
             {t("common.retry")}
           </Button>
         </div>
-      ) : needsBody ? (
+      ) : bodyWaiting || needsBody ? (
         <ConversationBodySkeleton />
       ) : (
         <p className="text-body text-muted-foreground">{t("email_hub.body_empty")}</p>

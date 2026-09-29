@@ -229,6 +229,7 @@ func New(d Deps) http.Handler {
 		DisconnectCalendarConnection:  h.disconnectCalendarConnection,
 		ListEmailHubAccounts:          h.listEmailHubAccounts,
 		GetEmailHubUnreadCount:        h.getEmailHubUnreadCount,
+		GetEmailHubSidebarCounts:      h.getEmailHubSidebarCounts,
 		ConnectEmailHubAccount:        h.connectEmailHubAccount,
 		DisconnectEmailHubAccount:     h.disconnectEmailHubAccount,
 		ListEmailHubImapLabels:        h.listEmailHubImapLabels,

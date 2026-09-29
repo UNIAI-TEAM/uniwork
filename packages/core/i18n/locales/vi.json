@@ -1042,6 +1042,7 @@
     "list_count": "{{count}} email · {{unread}} chưa đọc",
     "back_to_list": "Quay lại danh sách",
     "load_error": "Không tải được nội dung email.",
+    "body_refetch_from_mailbox": "Nội dung đầy đủ chưa có trong bộ nhớ đệm. Đang tải lại từ hộp thư…",
     "body_loading": "Đang tải nội dung đầy đủ…",
     "body_empty": "Email này không có nội dung văn bản.",
     "no_subject": "(Không có tiêu đề)",

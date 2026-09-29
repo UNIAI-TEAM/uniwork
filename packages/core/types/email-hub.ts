@@ -26,6 +26,11 @@ export const EmailHubUnreadSchema = z.object({
   unread: z.number().optional().default(0),
 });
 
+export const EmailHubSidebarCountsSchema = z.object({
+  inbox_unread: z.number().optional().default(0),
+  snoozed_total: z.number().optional().default(0),
+});
+
 export const EmailHubCountsSchema = z.object({
   total: z.number(),
   unread: z.number(),
@@ -111,5 +116,6 @@ export type EmailHubAccount = z.infer<typeof EmailHubAccountSchema>;
 export type EmailHubWatch = z.infer<typeof EmailHubWatchSchema>;
 export type EmailHubInboxWatch = z.infer<typeof EmailHubInboxWatchSchema>;
 export type EmailHubSync = z.infer<typeof EmailHubSyncSchema>;
+export type EmailHubSidebarCounts = z.infer<typeof EmailHubSidebarCountsSchema>;
 export type EmailHubThread = z.infer<typeof EmailHubThreadSchema>;
 export type EmailHubCounts = z.infer<typeof EmailHubCountsSchema>;

@@ -1043,6 +1043,7 @@
     "list_count": "{{count}} emails · {{unread}} unread",
     "back_to_list": "Back to list",
     "load_error": "Could not load this email.",
+    "body_refetch_from_mailbox": "Full content is not cached yet. Fetching from your mailbox…",
     "body_loading": "Loading full message…",
     "body_empty": "This email has no text content.",
     "no_subject": "(No subject)",

@@ -719,3 +719,23 @@ WHERE thread_id = $1;
 -- name: DeleteEmailHubThreadAiSummariesForAccount :exec
 DELETE FROM email_hub_thread_ai_summaries
 WHERE account_id = $1;
+
+-- name: EmailHubAccountSidebarCounts :one
+SELECT
+  (
+    SELECT count(*) FILTER (WHERE NOT t.is_read)::bigint
+    FROM email_hub_threads t
+    WHERE t.account_id = sqlc.arg('account_id')
+      AND t.organization_id = sqlc.arg('organization_id')
+      AND t.folder = 'INBOX'
+      AND (t.snoozed_until IS NULL OR t.snoozed_until <= now())
+  ) AS inbox_unread,
+  (
+    SELECT count(*)::bigint
+    FROM email_hub_threads t
+    WHERE t.account_id = sqlc.arg('account_id')
+      AND t.organization_id = sqlc.arg('organization_id')
+      AND t.folder = 'INBOX'
+      AND t.snoozed_until IS NOT NULL
+      AND t.snoozed_until > now()
+  ) AS snoozed_total;

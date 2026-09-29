@@ -11,7 +11,11 @@ import { auditKeys } from "../audit/hooks";
 import { billingKeys } from "../billing/hooks";
 import { chatKeys } from "../chat/hooks";
 import { documentKeys } from "../documents/keys";
-import { invalidateEmailHubThreadsForAccount, invalidateEmailHubUnread } from "../email-hub/hooks";
+import {
+  invalidateEmailHubReadingCachesForAccount,
+  invalidateEmailHubThreadsForAccount,
+  invalidateEmailHubUnread,
+} from "../email-hub/hooks";
 import { homeKeys } from "../home/keys";
 import { meetingKeys } from "../meetings/hooks";
 import { notificationKeys } from "../notifications/hooks";
@@ -436,7 +440,11 @@ export function useRealtimeSync(client: WSClient | null, wsId: string): void {
         payload.account_id
       ) {
         invalidateEmailHubThreadsForAccount(qc, wsId, payload.account_id);
+        invalidateEmailHubReadingCachesForAccount(qc, wsId, payload.account_id);
         invalidateEmailHubUnread(qc, wsId);
+        void qc.invalidateQueries({
+          queryKey: ["email-hub", wsId, "sidebar-counts", payload.account_id],
+        });
         return;
       }
       for (const queryKey of keysFor(wsId, eventType, payload, qc)) {

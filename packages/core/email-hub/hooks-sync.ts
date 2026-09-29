@@ -4,11 +4,13 @@ import * as api from "../api/endpoints/email-hub";
 import { invalidateEmailHubThreadsForAccount, invalidateEmailHubUnread } from "./query-cache";
 
 const emailHubLazySyncFolders = new Set(["SENT", "DRAFTS", "TRASH", "ARCHIVE", "SPAM"]);
-/** IMAP-heavy folders: one forced sync when cache is empty (skip soft sync on open). */
+/** IMAP-heavy folders: soft sync once when opened; force sync still when list is empty. */
 const emailHubHeavyLazySyncFolders = new Set(["ARCHIVE", "TRASH", "SPAM"]);
+/** Virtual list folders (no IMAP mailbox): refresh list + inbox sync for snooze wake-ups. */
+const emailHubVirtualRefreshFolders = new Set(["SNOOZED"]);
 
 export function emailHubLazySyncShowsSyncing(folder: string): boolean {
-  return emailHubLazySyncFolders.has(folder);
+  return emailHubLazySyncFolders.has(folder) || emailHubVirtualRefreshFolders.has(folder);
 }
 
 const emailHubFolderSyncInflight = new Set<string>();
@@ -59,14 +61,82 @@ export function useEmailHubLazyFolderSync(
   const qc = useQueryClient();
   const [syncing, setSyncing] = useState(false);
   const emptyForceKey = useRef("");
+  const heavyOpenKey = useRef("");
+  const virtualOpenKey = useRef("");
 
   useEffect(() => {
     emptyForceKey.current = "";
+    heavyOpenKey.current = "";
+    virtualOpenKey.current = "";
   }, [accountId, folder]);
 
   useEffect(() => {
-    if (!accountId || !emailHubLazySyncFolders.has(folder)) {
+    if (!accountId || !emailHubHeavyLazySyncFolders.has(folder) || opts.skip) {
+      return;
+    }
+    const token = `${accountId}:${folder}`;
+    if (heavyOpenKey.current === token) return;
+    heavyOpenKey.current = token;
+    let cancelled = false;
+    setSyncing(true);
+    runEmailHubFolderSync(
+      wsId,
+      accountId,
+      folder,
+      false,
+      () => invalidateEmailHubThreadsForAccount(qc, wsId, accountId),
+      () => {
+        if (!cancelled) setSyncing(false);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId, folder, opts.skip, qc, wsId]);
+
+  useEffect(() => {
+    if (!accountId || !emailHubVirtualRefreshFolders.has(folder) || opts.skip) {
+      return;
+    }
+    const token = `${accountId}:${folder}`;
+    if (virtualOpenKey.current === token) return;
+    virtualOpenKey.current = token;
+    let cancelled = false;
+    setSyncing(true);
+    void qc.invalidateQueries({
+      predicate: (q) =>
+        q.queryKey[0] === "email-hub" &&
+        q.queryKey[1] === wsId &&
+        q.queryKey[2] === "threads" &&
+        q.queryKey[3] === accountId &&
+        q.queryKey[4] === folder,
+      refetchType: "active",
+    });
+    runEmailHubFolderSync(
+      wsId,
+      accountId,
+      "INBOX",
+      false,
+      () => invalidateEmailHubThreadsForAccount(qc, wsId, accountId),
+      () => {
+        if (!cancelled) setSyncing(false);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId, folder, opts.skip, qc, wsId]);
+
+  useEffect(() => {
+    if (!accountId) {
       setSyncing(false);
+      return;
+    }
+    if (!emailHubLazySyncFolders.has(folder) && !emailHubVirtualRefreshFolders.has(folder)) {
+      setSyncing(false);
+      return;
+    }
+    if (!emailHubLazySyncFolders.has(folder)) {
       return;
     }
     if (emailHubHeavyLazySyncFolders.has(folder)) {
