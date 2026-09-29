@@ -7025,28 +7025,28 @@
       }
     },
     "markdown": {
-      "title": "T?i li?u Markdown",
-      "toolbar": { "label": "L?nh ch?nh s?a Markdown" },
-      "actions": { "undo": "Ho?n t?c", "redo": "L?m l?i", "copy": "Sao ch?p", "paste": "Dán", "save": "L?u l?n UniWork", "saving": "?ang l?u?", "retry": "Th? l?i" },
-      "state": { "opening": "?ang m? t?i li?u?", "error": "Kh?ng m? ???c t?i li?u" },
-      "source": { "label": "M? ngu?n Markdown" },
-      "preview": { "label": "Xem tr??c", "loading": "?ang t?i xem tr??c?", "unavailable": "Xem tr??c kh?ng kh? d?ng" },
-      "asset": { "label": "T?i s?n", "empty": "T?i li?u kh?ng c? asset", "ready": "S?n s?ng", "missing": "Thi?u", "unauthorised": "Ch?a ???c c?p quy?n", "failed": "L?i", "saveBlocked": "Kh?ng th? l?u t?i li?u cho ??n khi m?i asset s?n s?ng." },
-      "saveState": { "ready": "S?n s?ng", "dirty": "C? thay ??i ch?a l?u", "saving": "?ang l?u?", "saved": "?? l?u l?n UniWork", "error": "L?u c?n x? l?", "conflict": "Xung ??t phi?n b?n", "blocked": "?? ch?n l?u", "readonly": "Ch? ??c", "incompatible": "Kh?ng th? ch?nh s?a" },
-      "capabilityUnavailable": "B?n d?ng engine n?y ch?a h? tr? ch?nh s?a Markdown.",
-      "errors": { "title": "Kh?ng m? ???c t?i li?u Markdown n?y", "unknown": "Adapter Markdown tr? v? l?i m? kh?ng x?c ??nh." }
+      "title": "Tài liệu Markdown",
+      "toolbar": { "label": "Lệnh chỉnh sửa Markdown" },
+      "actions": { "undo": "Hoàn tác", "redo": "Làm lại", "copy": "Sao chép", "paste": "Dán", "save": "Lưu lên UniWork", "saving": "Đang lưu…", "retry": "Thử lại" },
+      "state": { "opening": "Đang mở tài liệu…", "error": "Không mở được tài liệu" },
+      "source": { "label": "Mã nguồn Markdown" },
+      "preview": { "label": "Xem trước", "loading": "Đang tải xem trước…", "unavailable": "Xem trước không khả dụng" },
+      "asset": { "label": "Tài sản", "empty": "Tài liệu không có asset", "ready": "Sẵn sàng", "missing": "Thiếu", "unauthorised": "Chưa được cấp quyền", "failed": "Lỗi", "saveBlocked": "Không thể lưu tài liệu cho đến khi mọi asset sẵn sàng." },
+      "saveState": { "ready": "Sẵn sàng", "dirty": "Có thay đổi chưa lưu", "saving": "Đang lưu…", "saved": "Đã lưu lên UniWork", "error": "Lưu cần xử lý", "conflict": "Xung đột phiên bản", "blocked": "Đã chặn lưu", "readonly": "Chỉ đọc", "incompatible": "Không thể chỉnh sửa" },
+      "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa Markdown.",
+      "errors": { "title": "Không mở được tài liệu Markdown này", "unknown": "Adapter Markdown trả về lỗi mở không xác định." }
     },
     "html": {
-      "title": "T?i li?u HTML",
-      "toolbar": { "label": "L?nh ch?nh s?a HTML" },
-      "actions": { "undo": "Ho?n t?c", "redo": "L?m l?i", "copy": "Sao ch?p", "paste": "Dán", "save": "L?u l?n UniWork", "saving": "?ang l?u?", "retry": "Th? l?i" },
-      "state": { "opening": "?ang m? t?i li?u?", "error": "Kh?ng m? ???c t?i li?u" },
-      "source": { "label": "M? ngu?n HTML" },
-      "preview": { "label": "Xem tr??c c?ch ly", "loading": "?ang t?i xem tr??c?", "unavailable": "Xem tr??c kh?ng kh? d?ng" },
-      "asset": { "label": "T?i s?n", "empty": "T?i li?u kh?ng c? asset", "ready": "S?n s?ng", "missing": "Thi?u", "unauthorised": "Ch?a ???c c?p quy?n", "failed": "L?i", "saveBlocked": "Kh?ng th? l?u t?i li?u cho ??n khi m?i asset s?n s?ng." },
-      "saveState": { "ready": "S?n s?ng", "dirty": "C? thay ??i ch?a l?u", "saving": "?ang l?u?", "saved": "?? l?u l?n UniWork", "error": "L?u c?n x? l?", "conflict": "Xung ??t phi?n b?n", "blocked": "?? ch?n l?u", "readonly": "Ch? ??c", "incompatible": "Kh?ng th? ch?nh s?a" },
-      "capabilityUnavailable": "B?n d?ng engine n?y ch?a h? tr? ch?nh s?a HTML.",
-      "errors": { "title": "Kh?ng m? ???c t?i li?u HTML n?y", "unknown": "Adapter HTML tr? v? l?i m? kh?ng x?c ??nh." }
+      "title": "Tài liệu HTML",
+      "toolbar": { "label": "Lệnh chỉnh sửa HTML" },
+      "actions": { "undo": "Hoàn tác", "redo": "Làm lại", "copy": "Sao chép", "paste": "Dán", "save": "Lưu lên UniWork", "saving": "Đang lưu…", "retry": "Thử lại" },
+      "state": { "opening": "Đang mở tài liệu…", "error": "Không mở được tài liệu" },
+      "source": { "label": "Mã nguồn HTML" },
+      "preview": { "label": "Xem trước cách ly", "loading": "Đang tải xem trước…", "unavailable": "Xem trước không khả dụng" },
+      "asset": { "label": "Tài sản", "empty": "Tài liệu không có asset", "ready": "Sẵn sàng", "missing": "Thiếu", "unauthorised": "Chưa được cấp quyền", "failed": "Lỗi", "saveBlocked": "Không thể lưu tài liệu cho đến khi mọi asset sẵn sàng." },
+      "saveState": { "ready": "Sẵn sàng", "dirty": "Có thay đổi chưa lưu", "saving": "Đang lưu…", "saved": "Đã lưu lên UniWork", "error": "Lưu cần xử lý", "conflict": "Xung đột phiên bản", "blocked": "Đã chặn lưu", "readonly": "Chỉ đọc", "incompatible": "Không thể chỉnh sửa" },
+      "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa HTML.",
+      "errors": { "title": "Không mở được tài liệu HTML này", "unknown": "Adapter HTML trả về lỗi mở không xác định." }
     },
     "pptx": {
       "toolbar_label": "Lệnh PowerPoint",

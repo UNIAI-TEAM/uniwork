@@ -24,4 +24,10 @@ describe("office asset manifest view boundary", () => {
     expect(hasFailedAsset(manifest, undefined)).toBe(true);
     expect(hasFailedAsset({ entries: [{ key: "assets/logo.png", asset_id: "asset-logo" }] }, undefined)).toBe(false);
   });
+
+  it("fails closed when a host failure key is unsafe", () => {
+    expect(hasFailedAsset({ entries: [{ key: "assets/logo.png", asset_id: "asset-logo" }] }, { "https://cdn.example/logo.png": "failed" })).toBe(true);
+    expect(hasFailedAsset({ entries: [{ key: "assets/logo.png", asset_id: "asset-logo" }] }, { "../escape": "missing" })).toBe(true);
+    expect(hasFailedAsset({ entries: [{ key: "assets/logo.png", asset_id: "asset-logo" }] }, { "": false })).toBe(false);
+  });
 });

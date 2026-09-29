@@ -77,6 +77,9 @@ export function hasFailedAsset(
   if (rows.some((row) => row.status !== "ready" || row.assetId === null)) return true;
   return Object.entries(failures ?? {}).some(([path, state]) => {
     const normalised = normaliseAssetPath(path);
-    return normalised !== null && (state === true || state === "missing" || state === "unauthorised" || state === "failed");
+    const failed = state === true || state === "missing" || state === "unauthorised" || state === "failed";
+    // A host failure key that cannot be represented as a safe relative path is
+    // itself a failed asset. Save must fail closed rather than ignore it.
+    return failed;
   });
 }

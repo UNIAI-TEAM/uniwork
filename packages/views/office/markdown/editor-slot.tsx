@@ -29,28 +29,30 @@ function MissingHandleState() {
 export function createMarkdownEditorLoader(config: MarkdownEditorSlotConfig): OfficeEditorLoader {
   return async (format) => {
     if (format !== "md") throw new Error(`Markdown loader cannot render ${format}`);
+    function MarkdownSlotEditor({ editorHandle }: OfficeEditorRendererProps) {
+      const { t } = useTranslation(undefined, { keyPrefix: "office.markdown" });
+      if (!editorHandle) return <MissingHandleState />;
+      return (
+        <SourceEditor
+          format="md"
+          documentKey={config.documentKey}
+          editor={editorHandle as MarkdownEditorHandle}
+          open={config.open}
+          coordinator={config.coordinator}
+          capability={config.capability}
+          preview={config.preview}
+          manifest={config.manifest}
+          assetFailures={config.assetFailures}
+          permissions={config.permissions}
+          title={config.title ?? t("title")}
+          onOpen={config.onOpen ? (outcome) => {
+            if (outcome.outcome === "opened" || outcome.format === "md") config.onOpen?.(outcome as MarkdownOpenOutcome);
+          } : undefined}
+        />
+      );
+    }
     return {
-      default: ({ editorHandle }: OfficeEditorRendererProps) => {
-        if (!editorHandle) return <MissingHandleState />;
-        return (
-          <SourceEditor
-            format="md"
-            documentKey={config.documentKey}
-            editor={editorHandle as MarkdownEditorHandle}
-            open={config.open}
-            coordinator={config.coordinator}
-            capability={config.capability}
-            preview={config.preview}
-            manifest={config.manifest}
-            assetFailures={config.assetFailures}
-            permissions={config.permissions}
-            title={config.title ?? "Markdown"}
-            onOpen={config.onOpen ? (outcome) => {
-              if (outcome.outcome === "opened" || outcome.format === "md") config.onOpen?.(outcome as MarkdownOpenOutcome);
-            } : undefined}
-          />
-        );
-      },
+      default: MarkdownSlotEditor,
     };
   };
 }

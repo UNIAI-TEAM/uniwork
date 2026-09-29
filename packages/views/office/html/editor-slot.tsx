@@ -29,28 +29,30 @@ function MissingHandleState() {
 export function createHtmlEditorLoader(config: HtmlEditorSlotConfig): OfficeEditorLoader {
   return async (format) => {
     if (format !== "html") throw new Error(`HTML loader cannot render ${format}`);
+    function HtmlSlotEditor({ editorHandle }: OfficeEditorRendererProps) {
+      const { t } = useTranslation(undefined, { keyPrefix: "office.html" });
+      if (!editorHandle) return <MissingHandleState />;
+      return (
+        <SourceEditor
+          format="html"
+          documentKey={config.documentKey}
+          editor={editorHandle as HtmlEditorHandle}
+          open={config.open}
+          coordinator={config.coordinator}
+          capability={config.capability}
+          preview={config.preview}
+          manifest={config.manifest}
+          assetFailures={config.assetFailures}
+          permissions={config.permissions}
+          title={config.title ?? t("title")}
+          onOpen={config.onOpen ? (outcome) => {
+            if (outcome.outcome === "opened" || outcome.format === "html") config.onOpen?.(outcome as HtmlOpenOutcome);
+          } : undefined}
+        />
+      );
+    }
     return {
-      default: ({ editorHandle }: OfficeEditorRendererProps) => {
-        if (!editorHandle) return <MissingHandleState />;
-        return (
-          <SourceEditor
-            format="html"
-            documentKey={config.documentKey}
-            editor={editorHandle as HtmlEditorHandle}
-            open={config.open}
-            coordinator={config.coordinator}
-            capability={config.capability}
-            preview={config.preview}
-            manifest={config.manifest}
-            assetFailures={config.assetFailures}
-            permissions={config.permissions}
-            title={config.title ?? "HTML"}
-            onOpen={config.onOpen ? (outcome) => {
-              if (outcome.outcome === "opened" || outcome.format === "html") config.onOpen?.(outcome as HtmlOpenOutcome);
-            } : undefined}
-          />
-        );
-      },
+      default: HtmlSlotEditor,
     };
   };
 }

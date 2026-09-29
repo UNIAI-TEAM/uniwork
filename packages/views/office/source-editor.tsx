@@ -231,6 +231,16 @@ export function SourceEditor<TSnapshot = unknown>({
           return;
         }
         previewSessionRef.current = session;
+        // Source edits may arrive while the initial mount opens its asset
+        // scope. Push the latest copy before marking the preview ready so the
+        // first visible frame cannot lag behind the textarea.
+        const update = session.update?.(latestTextRef.current, latestManifestRef.current);
+        if (update && typeof (update as Promise<void>).then === "function") await update;
+        if (!active || disposedRef.current) {
+          session.dispose();
+          previewSessionRef.current = null;
+          return;
+        }
         setPreviewState("ready");
       } catch {
         if (active) setPreviewState("unavailable");
@@ -277,6 +287,7 @@ export function SourceEditor<TSnapshot = unknown>({
   const history = useCallback((kind: "undo" | "redo") => {
     if (kind === "undo") editorRef.current.undo?.();
     else editorRef.current.redo?.();
+    setText(sourceText(editorRef.current, latestTextRef.current));
     markDirty();
     checkpoint();
   }, [checkpoint, markDirty]);

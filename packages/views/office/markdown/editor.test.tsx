@@ -78,6 +78,19 @@ describe("MarkdownEditor", () => {
     expect((screen.getByTestId("md-source") as HTMLTextAreaElement).value).toContain("<!-- keep -->");
   });
 
+  it("updates a preview session with edits made while the initial mount is pending", async () => {
+    type PendingSession = { update(text: string, manifest?: unknown): void; dispose(): void };
+    let resolveMount!: (session: PendingSession) => void;
+    const update = vi.fn();
+    const dispose = vi.fn();
+    const mount = vi.fn(() => new Promise<PendingSession>((resolve) => { resolveMount = resolve; }));
+    renderEditor({ preview: { mount } });
+    await waitFor(() => expect(mount).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByTestId("md-source"), { target: { value: "edited while mounting" } });
+    resolveMount({ update, dispose });
+    await waitFor(() => expect(update).toHaveBeenCalledWith("edited while mounting", expect.anything()));
+  });
+
   it("routes clipboard through the handle and respects denied permissions", async () => {
     const { handle, unmount } = renderEditor();
     await waitFor(() => expect(screen.getByTestId("md-source")).toBeInTheDocument());
@@ -102,10 +115,14 @@ describe("MarkdownEditor", () => {
     await waitFor(() => expect(screen.getByTestId("md-source")).toBeInTheDocument());
     const source = screen.getByTestId("md-source") as HTMLTextAreaElement;
     const before = source.value;
+    vi.mocked(handle.undo!).mockImplementation(() => { handle.source?.setText("undo result"); });
+    vi.mocked(handle.redo!).mockImplementation(() => { handle.source?.setText(before); });
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(source.value).toBe("undo result");
     fireEvent.click(screen.getByRole("button", { name: "Redo" }));
     expect(handle.undo).toHaveBeenCalledTimes(1);
     expect(handle.redo).toHaveBeenCalledTimes(1);
+    expect(source.value).toBe(before);
     fireEvent.keyDown(screen.getByTestId("md-editor"), { key: "s", ctrlKey: true });
     expect(source.value).toBe(before);
   });

@@ -1,8 +1,10 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
 import type { OfficeHost } from "@uniwork/core/office";
 import { EditorSlot, type OfficeEditorComponent } from "./editor-slot";
+import { createMarkdownEditorLoader } from "./markdown/editor-slot";
+import { createHtmlEditorLoader } from "./html/editor-slot";
 
 initI18n();
 
@@ -49,6 +51,17 @@ describe("EditorSlot", () => {
     );
     expect(await screen.findByTestId("mounted-editor")).toBeInTheDocument();
     expect(loadEditor).toHaveBeenCalledWith("md");
+  });
+
+  it("mounts the Markdown and HTML loaders through EditorSlot and shows a typed missing-handle state", async () => {
+    const markdownLoader = createMarkdownEditorLoader({ documentKey: "doc", open: {} as never, coordinator: {} as never });
+    render(<EditorSlot format="md" host={host} capability="available" openState="ready" loadEditor={markdownLoader} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Markdown adapter returned an unknown open failure");
+    cleanup();
+
+    const htmlLoader = createHtmlEditorLoader({ documentKey: "doc", open: {} as never, coordinator: {} as never });
+    render(<EditorSlot format="html" host={host} capability="available" openState="ready" loadEditor={htmlLoader} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("HTML adapter returned an unknown open failure");
   });
 
   it("distinguishes a pending format lane from mobile unsupported editing", () => {
