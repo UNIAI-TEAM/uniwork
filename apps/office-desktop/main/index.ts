@@ -4,6 +4,8 @@ import { installNavigationGuards, openApprovedExternal } from "./navigation";
 import { createDesktopRuntimeAdapters } from "./adapters";
 import type { HostIpcPort } from "@uniwork/office-contracts";
 import type { NativeLoginManager } from "./auth/manager";
+import { launchRequestedEventSchema } from "../shared/ipc";
+import { registerDeepLinkSystem, type DeepLinkRegistration, type DeepLinkSystem, type LaunchBridge } from "./deep-links";
 
 export const WINDOW_WEB_PREFERENCES = Object.freeze({
   sandbox: true,
@@ -12,7 +14,7 @@ export const WINDOW_WEB_PREFERENCES = Object.freeze({
 } as const);
 
 export type DesktopWindowAdapter = {
-  webContents: Parameters<typeof installNavigationGuards>[0];
+  webContents: Parameters<typeof installNavigationGuards>[0] & { send?(channel: string, payload: unknown): void };
   /** Native BrowserWindow construction must apply this exact policy. */
   webPreferences: typeof WINDOW_WEB_PREFERENCES;
   loadURL(url: string): Promise<void> | void;
@@ -30,6 +32,8 @@ export type DesktopHostOptions = {
   authManager?: NativeLoginManager;
   localFiles?: FileIpcOptions;
   drafts?: DraftIpcOptions;
+  /** Electron app seams for the single-instance launch protocol. */
+  deepLinks?: { system: DeepLinkSystem; bridge: LaunchBridge };
 };
 
 /** Bootstrap shared engine/runtime/navigation/transport through host seams.
@@ -57,14 +61,27 @@ export function createDesktopHost(options: DesktopHostOptions) {
     return { opened: true };
   };
   const dispatch = createIpcDispatcher(handlers, { ...options.sender, allowedExternalHosts });
+  let deepLinkRegistration: DeepLinkRegistration | undefined;
+  if (options.deepLinks) {
+    deepLinkRegistration = registerDeepLinkSystem(options.deepLinks.system, options.deepLinks.bridge);
+    options.deepLinks.bridge.subscribe((event) => {
+      // Validate in the main process immediately before crossing IPC. The
+      // event intentionally contains no ticket, account, title or descriptor.
+      const payload = launchRequestedEventSchema.parse(event);
+      options.window.webContents.send?.("desktop:launch-requested", payload);
+    });
+  }
   return {
     identity: DESKTOP_IDENTITY,
     webPreferences: WINDOW_WEB_PREFERENCES,
     openApprovedExternal: (url: string) => openApprovedExternal(url, allowedExternalHosts, openSystemBrowser),
     dispatch,
     adapters: options.engineIpc ? createDesktopRuntimeAdapters(options.engineIpc) : undefined,
+    deepLinkRegistration,
     async start(): Promise<void> {
+      if (deepLinkRegistration && !deepLinkRegistration.primary) return;
       await options.window.loadURL(`${DESKTOP_IDENTITY.origin}/index.html`);
+      if (deepLinkRegistration?.primary && options.deepLinks) await options.deepLinks.bridge.handleColdStart(process.argv);
     },
   };
 }

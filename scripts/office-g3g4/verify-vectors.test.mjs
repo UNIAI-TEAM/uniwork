@@ -12,6 +12,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const vectors = join(here, "..", "..", "docs", "office", "g3g4", "vectors");
 const pkce = JSON.parse(await readFile(join(vectors, "pkce-rfc7636.json"), "utf8"));
 const callbacks = JSON.parse(await readFile(join(vectors, "callback-rejections.json"), "utf8"));
+const launchTickets = JSON.parse(await readFile(join(vectors, "launch-ticket.json"), "utf8"));
+const deepLinks = JSON.parse(await readFile(join(vectors, "deep-link.json"), "utf8"));
+const exchanges = JSON.parse(await readFile(join(vectors, "exchange.json"), "utf8"));
 
 test("RFC 7636 appendix B S256 challenge is reproduced", () => {
   assert.equal(pkce.code_challenge_method, "S256");
@@ -47,4 +50,55 @@ test("every callback rejection vector is rejected at its documented layer", () =
     }
   }
   console.log(`verified RFC 7636 S256 vector and ${callbacks.length} callback rejection vectors`);
+});
+
+const ticketPattern = /^ticket_[A-Za-z0-9_-]{32,185}$/;
+const reasonForTicket = (ticket) => {
+  if (/^(?:code|state|attempt)[_-]/i.test(ticket) || /^fake-code-/i.test(ticket)) return "login_code";
+  if (ticket.length > 192) return "oversized_ticket";
+  return ticket.length >= 39 && ticketPattern.test(ticket) ? undefined : "invalid_ticket";
+};
+
+test("launch ticket vectors pin issuer, size and login-code separation", () => {
+  for (const vector of launchTickets.valid) assert.equal(reasonForTicket(vector.ticket), undefined, vector.id);
+  for (const vector of launchTickets.invalid) {
+    if (vector.ticket_length) {
+      assert.equal(vector.ticket_length, 193, vector.id);
+      continue;
+    }
+    assert.equal(reasonForTicket(vector.ticket), vector.expected_reason, vector.id);
+  }
+});
+
+test("deep-link vectors allow only one canonical ticket parameter", () => {
+  for (const vector of deepLinks.valid) {
+    const url = new URL(vector.url);
+    assert.equal(url.protocol, "uniwork-office:", vector.id);
+    assert.equal(url.hostname, "open", vector.id);
+    assert.equal(url.pathname === "" || url.pathname === "/", true, vector.id);
+    assert.equal([...url.searchParams.keys()].join(","), "ticket", vector.id);
+    assert.equal(url.searchParams.get("ticket"), vector.expected.ticket, vector.id);
+  }
+  for (const vector of deepLinks.invalid) {
+    const raw = vector.url;
+    let rejected = false;
+    try {
+      const url = new URL(raw);
+      const keys = [...url.searchParams.keys()];
+      rejected = url.protocol !== "uniwork-office:" || url.hostname !== "open" || (url.pathname !== "" && url.pathname !== "/") || keys.length !== 1 || keys[0] !== "ticket" || reasonForTicket(url.searchParams.get("ticket") ?? "") !== undefined;
+    } catch {
+      rejected = true;
+    }
+    assert.equal(rejected, true, vector.id);
+  }
+});
+
+test("exchange vectors keep the descriptor first-party and receipt-only", () => {
+  assert.equal(exchanges.request.client_id, "uniwork-office");
+  assert.equal(exchanges.valid_response.receipt_id.length > 0, true);
+  assert.match(exchanges.valid_response.document.download_path, /^\/api\/v1\/documents\/.+\/download$/);
+  for (const vector of exchanges.invalid) {
+    if (vector.response) assert.notEqual(vector.response.document?.download_path?.startsWith("/api/v1/documents/"), true, vector.id);
+    if (vector.request) assert.equal(vector.expected_reason, "invalid_request", vector.id);
+  }
 });
