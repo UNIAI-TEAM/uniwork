@@ -23,6 +23,7 @@ import {
 } from "@uniwork/ui/components/ui/sidebar";
 import { useStatusCatalog } from "../tasks/pickers/status-catalog";
 import { PinRow } from "./sidebar-pin-row";
+import { SidebarPinsRail } from "./sidebar-pins-rail";
 
 type WorkspacePaths = { task: (id: string) => string; project: (id: string) => string };
 
@@ -93,6 +94,15 @@ export function SidebarPins({
   if (local.length === 0) return null;
 
   return (
+    <>
+    <SidebarPinsRail
+      pins={local}
+      wsId={wsId}
+      hrefOf={(pin) => pinHref(ws, pin)}
+      pathname={pathname}
+      statuses={statuses}
+      onNavigate={onNavigate}
+    />
     <Collapsible defaultOpen>
       <SidebarGroup className="group/pinned py-1 group-data-[collapsible=icon]:hidden">
         <SidebarGroupLabel
@@ -145,5 +155,6 @@ export function SidebarPins({
         </CollapsibleContent>
       </SidebarGroup>
     </Collapsible>
+    </>
   );
 }

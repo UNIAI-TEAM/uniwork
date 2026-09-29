@@ -201,6 +201,8 @@
     "group_work": "Work",
     "group_communication": "Communication",
     "pinned": "Pinned",
+    "pinned_count_one": "Pinned: {{count}} item",
+    "pinned_count_other": "Pinned: {{count}} items",
     "pinned_unpin": "Unpin {{name}}",
     "account_named": "{{name}}, {{email}}: account",
     "skip_to_content": "Skip to main content",
