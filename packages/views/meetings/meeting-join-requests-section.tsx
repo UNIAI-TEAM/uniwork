@@ -26,22 +26,24 @@ export function MeetingJoinRequestsSection({ meetingId }: { meetingId: string })
     <section className="mb-4 shrink-0" aria-labelledby="waiting-admission-heading">
       <Collapsible open={open} onOpenChange={setOpen}>
         <div className="mb-2 flex items-center gap-2">
-          <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-1 py-1 text-left hover:bg-surface-hover">
-            <ChevronDown
-              aria-hidden
-              className={cn("size-4 shrink-0 text-muted-foreground transition-transform", !open && "-rotate-90")}
-            />
-            <h3 id="waiting-admission-heading" className="min-w-0 flex-1 truncate text-body font-medium text-foreground">
-              {t("meetings.waitingToBeAdmitted")}
-            </h3>
-            <span className="text-caption tabular-nums text-muted-foreground">{count}</span>
-          </CollapsibleTrigger>
+          {/* The heading wraps the toggle, never the reverse: a heading inside
+              a button stops being a heading for assistive tech. */}
+          <h3 id="waiting-admission-heading" className="min-w-0 flex-1 text-body font-medium text-foreground">
+            <CollapsibleTrigger className="flex min-h-9 w-full min-w-0 items-center gap-2 rounded-lg px-1 py-1 text-left hover:bg-surface-hover">
+              <ChevronDown
+                aria-hidden
+                className={cn("size-4 shrink-0 text-muted-foreground transition-transform", !open && "-rotate-90")}
+              />
+              <span className="min-w-0 flex-1 truncate">{t("meetings.waitingToBeAdmitted")}</span>
+              <span className="text-caption font-normal tabular-nums text-muted-foreground">{count}</span>
+            </CollapsibleTrigger>
+          </h3>
           {count > 1 ? (
             <Button
               type="button"
-              variant="ghost"
+              variant="successSolid"
               size="sm"
-              className="h-8 shrink-0 text-brand hover:text-brand"
+              className="h-8 shrink-0 rounded-full px-3"
               disabled={approving}
               onClick={() => void admitAll(pending)}
             >

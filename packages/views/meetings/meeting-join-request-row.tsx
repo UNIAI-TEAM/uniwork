@@ -34,14 +34,16 @@ export function MeetingJoinRequestRow({
 }) {
   const { t } = useTranslation();
   const name = requestDisplayName(request);
+  // A signed-in member is not a guest; only link guests are unconfirmed.
+  const kind = request.requester_user_id ? t("meetings.joinRequesterMember") : t("meetings.unconfirmedGuest");
 
   if (variant === "overlay") {
     return (
-      <div className="flex items-center gap-3 rounded-xl bg-surface-hover px-3 py-2.5">
+      <div className="flex items-center gap-3 rounded-xl bg-surface-hover px-3 py-2.5 [@media(max-height:500px)]:py-1.5">
         <MeetingPersonAvatar name={name} size="default" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-body font-medium text-foreground">{name}</p>
-          <p className="text-caption text-muted-foreground">{t("meetings.unconfirmedGuest")}</p>
+          <p className="text-caption text-muted-foreground [@media(max-height:500px)]:hidden">{kind}</p>
         </div>
       </div>
     );
@@ -82,12 +84,14 @@ export function MeetingJoinRequestRow({
       <MeetingPersonAvatar name={name} size="sm" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-body text-foreground">{name}</p>
+        <p className="truncate text-caption text-muted-foreground">{kind}</p>
       </div>
+      {/* Admitting looks the same everywhere: the green of the header chip. */}
       <Button
         type="button"
         size="sm"
-        variant="outline"
-        className={cn("h-8 shrink-0 rounded-lg px-3")}
+        variant="successSolid"
+        className={cn("h-8 shrink-0 rounded-full px-3")}
         disabled={approving}
         aria-label={t("meetings.approveName", { name })}
         onClick={onApprove}

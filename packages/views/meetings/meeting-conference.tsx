@@ -305,10 +305,13 @@ function ConferenceStage({
               onToggleSidebar={compact ? undefined : () => setSidebarPinned((v) => !v)}
               onOpenSidebar={compact ? () => setSidebarSheetOpen(true) : undefined}
               onOpenPeople={() => openSidebarTab("participants")}
+              peopleOpen={sidebarTab === "participants" && panelShown}
             />
             <div
               ref={stageContentRef}
-              className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-3 pt-3 pb-2 sm:px-4 sm:pb-2"
+              // `isolate` keeps the tiles' own z layers (ring, controls) inside the
+              // stage, so nothing here paints over what hangs from the header.
+              className="relative isolate flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-3 pt-3 pb-2 sm:px-4 sm:pb-2"
               data-testid="meeting-stage-content"
             >
               <MeetingConnectionNotice />

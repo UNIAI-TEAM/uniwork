@@ -32,8 +32,8 @@ describe("MeetingJoinRequestsSection", () => {
   it("lists waiting guests with admit all for hosts", async () => {
     render(wrapWithNav(<MeetingJoinRequestsSection meetingId="m1" />));
 
-    expect(await screen.findByText("Đang chờ được duyệt")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Duyệt tất cả" })).toBeInTheDocument();
+    expect(await screen.findByText("Đang chờ vào phòng")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cho tất cả vào" })).toBeInTheDocument();
     expect(screen.getByText("Guest One")).toBeInTheDocument();
     expect(screen.getByText("Guest Two")).toBeInTheDocument();
   });
@@ -41,7 +41,7 @@ describe("MeetingJoinRequestsSection", () => {
   it("approves a single guest from the people tab row", async () => {
     render(wrapWithNav(<MeetingJoinRequestsSection meetingId="m1" />));
 
-    fireEvent.click(await screen.findByRole("button", { name: "Duyệt Guest One" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Cho Guest One vào" }));
 
     await waitFor(() => {
       expect(requestMock).toHaveBeenCalledWith(
@@ -62,8 +62,8 @@ describe("MeetingJoinRequestsSection", () => {
     );
     render(wrapWithNav(<MeetingJoinRequestsSection meetingId="m1" />));
 
-    fireEvent.click(await screen.findByRole("button", { name: "Duyệt Guest One" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Duyệt Guest One" })).toBeDisabled());
-    expect(screen.getByRole("button", { name: "Duyệt Guest Two" })).toBeEnabled();
+    fireEvent.click(await screen.findByRole("button", { name: "Cho Guest One vào" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Cho Guest One vào" })).toBeDisabled());
+    expect(screen.getByRole("button", { name: "Cho Guest Two vào" })).toBeEnabled();
   });
 });
