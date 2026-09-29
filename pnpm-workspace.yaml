@@ -1,4 +1,5 @@
 packages:
+  # Web and desktop are first-class hosts; each app owns its platform graph.
   - "apps/*"
   - "packages/*"
   - "e2e"

@@ -62,6 +62,33 @@ test("fails when core office code imports an engine Node sidecar", () => {
   assert.ok(rules(result).includes("browser_isolation"));
 });
 
+test("fails when the desktop renderer imports Node/main code", () => {
+  const root = plant({
+    "apps/office-desktop/renderer/index.ts": 'import fs from "node:fs";\nexport const x = fs;\n',
+  });
+  const result = checkBoundaries(root);
+  assert.equal(result.ok, false);
+  assert.ok(rules(result).includes("desktop_renderer_isolation"));
+});
+
+test("fails when desktop graphs use bare privileged specifiers", () => {
+  for (const [rel, source, rule] of [
+    ["apps/office-desktop/renderer/index.ts", 'import fs from "fs";\nexport const x = fs;\n', "desktop_renderer_isolation"],
+    ["apps/office-desktop/renderer/index.ts", 'import { ipcRenderer } from "electron";\nexport const x = ipcRenderer;\n', "desktop_renderer_isolation"],
+    ["apps/office-desktop/preload/index.ts", 'import fs from "fs";\nexport const x = fs;\n', "desktop_preload_isolation"],
+    ["apps/office-desktop/renderer/index.ts", 'import { main } from "../main/index";\nexport const x = main;\n', "desktop_renderer_isolation"],
+    ["apps/office-desktop/preload/index.ts", 'import { main } from "../main/index";\nexport const x = main;\n', "desktop_preload_isolation"],
+  ]) {
+    const root = plant({
+      [rel]: source,
+      ...(source.includes("../main") ? { "apps/office-desktop/main/index.ts": "export const main = true;\n" } : {}),
+    });
+    const result = checkBoundaries(root);
+    assert.equal(result.ok, false);
+    assert.ok(rules(result).includes(rule), `${rel} should report ${rule}`);
+  }
+});
+
 test("fails on a TRANSITIVE browser -> node: import", () => {
   const root = plant({
     "packages/office-engine/src/browser/index.ts":

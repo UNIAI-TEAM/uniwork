@@ -67,7 +67,15 @@ export const OFFICE_TREE_ROOTS = [
   "packages/office-upstream",
   "apps/office-engine",
   "apps/web/platform/office",
+  "apps/office-desktop",
 ];
+
+/** Desktop renderer/preload are a second host boundary. Renderer code is
+ * browser code and may not resolve Node/Electron/main; preload may use the
+ * Electron bridge but must not import the main graph. Both graphs are chased
+ * transitively so a helper cannot smuggle privileged code across the seam. */
+export const DESKTOP_RENDERER_ROOTS = ["apps/office-desktop/renderer"];
+export const DESKTOP_PRELOAD_ROOTS = ["apps/office-desktop/preload"];
 
 const SOURCE_EXT = new Set([".ts", ".tsx", ".mts", ".js", ".mjs", ".jsx"]);
 
@@ -235,6 +243,53 @@ export function checkBoundaries(root, { requireUpstreamLicence = null } = {}) {
       }
     }
   }
+
+  function scanDesktopGraph(relRoots, rule, { renderer = false } = {}) {
+    const roots = relRoots.map((rel) => path.join(root, rel));
+    const graphQueue = [];
+    const graphSeen = new Set();
+    for (const entry of roots) {
+      if (!fs.existsSync(entry)) continue;
+      if (fs.statSync(entry).isFile()) graphQueue.push(entry);
+      else for (const f of walk(entry)) if (!isTestFile(f)) graphQueue.push(f);
+    }
+    while (graphQueue.length) {
+      const file = path.resolve(graphQueue.shift());
+      if (graphSeen.has(file) || !SOURCE_EXT.has(path.extname(file))) continue;
+      graphSeen.add(file);
+      const source = fs.readFileSync(file, "utf8");
+      for (const hit of unverifiableModuleCalls(source)) report(rule, path.relative(root, file), `unverifiable module access: ${hit}`);
+      for (const specifier of extractImportSpecifiers(source)) {
+        const isRelative = specifier.startsWith("./") || specifier.startsWith("../");
+        if (!isRelative) {
+          // Renderer/preload graphs use the same browser-safe package allowlist.
+          // A preload may import Electron's bridge primitives, but neither
+          // graph may smuggle Node built-ins or the desktop engine entry.
+          const preloadElectron = !renderer && specifier === "electron";
+          if (isForbiddenSpecifier(specifier) && !preloadElectron) {
+            report(rule, path.relative(root, file), `${renderer ? "renderer" : "preload"} resolves forbidden privileged specifier ${JSON.stringify(specifier)}`);
+            continue;
+          }
+          if (!preloadElectron && !isBrowserSafePackage(specifier)) {
+            report(rule, path.relative(root, file), `${renderer ? "renderer" : "preload"} resolves non-browser-safe specifier ${JSON.stringify(specifier)}`);
+            continue;
+          }
+        }
+        if (specifier.startsWith("./") || specifier.startsWith("../")) {
+          const resolved = resolveRelative(file, specifier);
+          if (!resolved) { report(rule, path.relative(root, file), `unresolvable specifier ${JSON.stringify(specifier)}`); continue; }
+          const relResolved = path.relative(root, resolved).replaceAll("\\", "/");
+          if (relResolved.startsWith("apps/office-desktop/main/") || relResolved.startsWith("apps/office-desktop/preload/")) {
+            if (renderer || relResolved.startsWith("apps/office-desktop/main/")) report(rule, path.relative(root, file), `imports privileged desktop graph ${JSON.stringify(specifier)}`);
+          }
+          if (!graphSeen.has(resolved) && resolved.startsWith(root + path.sep)) graphQueue.push(resolved);
+        }
+      }
+    }
+  }
+
+  scanDesktopGraph(DESKTOP_RENDERER_ROOTS, "desktop_renderer_isolation", { renderer: true });
+  scanDesktopGraph(DESKTOP_PRELOAD_ROOTS, "desktop_preload_isolation");
 
   // --- 2. No /ee ------------------------------------------------------------
   for (const rel of OFFICE_TREE_ROOTS) {

@@ -1,0 +1,9 @@
+{
+  "extends": "@uniwork/tsconfig/base.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "types": ["node", "vitest/globals"]
+  },
+  "include": ["main", "preload", "renderer", "shared", "test", "vitest.config.ts", "scripts"]
+}

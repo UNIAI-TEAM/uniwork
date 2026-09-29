@@ -36,6 +36,7 @@ số thứ tự không trùng và mỗi file có dòng Trạng thái.
 | [0022](0022-email-hub-cache-retention-trong-postgres.md) | Email Hub: retention cache Postgres (cap metadata, TTL body, prefetch); body offload object storage |
 | [0023](0023-file-theo-tenant-va-ngoai-le-avatar-ca-nhan.md) | FileService giữ `organization_id` cho file theo tenant; NULL chỉ là nhánh avatar cá nhân (purpose `user_avatar` + `user_id`), không phải public hay tenant mờ |
 | [0024](0024-fileservice-so-huu-blob-intent-gc.md) | FileService sở hữu byte, ý định upload và dọn rác của Documents; Documents chỉ giữ `file_id`, claim/release trong transaction của mình; thay phần "sổ object mồ côi" trong QĐ3 của 0021 |
+| [0025](0025-office-desktop-host.md) | Desktop host Electron tách main/preload/renderer, sandbox renderer và kiểm IPC allowlist có kiểu |
 
 ## Bản nháp
 

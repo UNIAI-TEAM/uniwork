@@ -1,0 +1,30 @@
+{
+  "name": "@uniwork/office-desktop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "UniWork Office unsigned development desktop host. Electron is an adapter around the shared Office engine and contracts.",
+  "main": "dist/main/index.mjs",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "package": "node scripts/package.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --max-warnings 0",
+    "test": "vitest run --passWithNoTests=false --coverage"
+  },
+  "dependencies": {
+    "@uniwork/office-contracts": "workspace:*",
+    "@uniwork/office-engine": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@uniwork/eslint-config": "workspace:*",
+    "@uniwork/tsconfig": "workspace:*",
+    "@vitest/coverage-v8": "catalog:",
+    "esbuild": "catalog:",
+    "eslint": "^9.32.0",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
