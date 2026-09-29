@@ -52,6 +52,16 @@ test("fails when core office code imports node or electron", () => {
   assert.ok(rules(result).includes("browser_isolation"));
 });
 
+test("fails when core office code imports an engine Node sidecar", () => {
+  const root = plant({
+    "packages/core/office/index.ts":
+      'import { recalculate } from "@uniwork/office-engine/xlsx/native";\nexport const x = recalculate;\n',
+  });
+  const result = checkBoundaries(root);
+  assert.equal(result.ok, false);
+  assert.ok(rules(result).includes("browser_isolation"));
+});
+
 test("fails on a TRANSITIVE browser -> node: import", () => {
   const root = plant({
     "packages/office-engine/src/browser/index.ts":

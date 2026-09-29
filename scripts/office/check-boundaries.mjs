@@ -41,6 +41,7 @@ export const BROWSER_SAFE_PACKAGES = new Set([
   "@uniwork/office-contracts",
   "@uniwork/office-engine",
 ]);
+const BROWSER_SAFE_ENGINE_SUBPATHS = new Set(["browser", "markdown", "html", "assets", "xlsx"]);
 
 /** Browser-scope roots, relative to the repo root. Every file under these
  * roots (plus relative-import closure) must stay free of forbidden specifiers. */
@@ -162,8 +163,11 @@ function isForbiddenSpecifier(specifier) {
 }
 
 function isBrowserSafePackage(specifier) {
-  return BROWSER_SAFE_PACKAGES.has(specifier)
-    || specifier.startsWith("@uniwork/office-engine/");
+  if (BROWSER_SAFE_PACKAGES.has(specifier)) return true;
+  const prefix = "@uniwork/office-engine/";
+  if (!specifier.startsWith(prefix)) return false;
+  const subpath = specifier.slice(prefix.length);
+  return BROWSER_SAFE_ENGINE_SUBPATHS.has(subpath);
 }
 
 /** A path segment exactly "ee" = the separately licensed upstream enterprise

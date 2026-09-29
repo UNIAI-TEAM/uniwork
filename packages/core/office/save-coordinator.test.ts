@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createFakeOfficeTransport } from "./test-fakes";
 import { createOfficeSaveCoordinator } from "./save-coordinator";
-import type { DraftAdapter, EditorHandle, OfficeIdentity, OfficeSaveIntent, OfficeSaveReceipt } from "./host-contract";
+import type { DraftAdapter, EditorHandle, OfficeIdentity, OfficeSaveIntent, OfficeSaveReceipt, StableSnapshot } from "./host-contract";
 
 const identity: OfficeIdentity = {
   deploymentId: "dep-1",
@@ -110,6 +110,20 @@ describe("Office save coordinator", () => {
     expect(transport.commit).toHaveBeenCalledTimes(1);
   });
 
+  it("refuses a synchronous double-click before snapshot capture resolves", async () => {
+    const { editor, setDirty, transport, coordinator } = setup();
+    let resolveSnapshot: ((snapshot: { generation: number; fingerprint: string; value: { text: string } }) => void) | undefined;
+    editor.captureSnapshot = vi.fn(() => new Promise<StableSnapshot<{ text: string }>>((resolve) => {
+      resolveSnapshot = resolve;
+    }));
+    setDirty(1);
+    const first = coordinator.save("button");
+    await expect(coordinator.save("shortcut")).resolves.toEqual({ accepted: false, reason: "saving" });
+    resolveSnapshot?.({ generation: 1, fingerprint: "fp-1", value: { text: "draft-1" } });
+    await first;
+    expect(transport.commit).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps N+1 dirty after receipt N and advances the base revision as a string", async () => {
     const { setDirty, transport, coordinator } = setup();
     let resolveCommit: (() => void) | undefined;
@@ -158,6 +172,27 @@ describe("Office save coordinator", () => {
     expect(transport.commit).toHaveBeenCalledTimes(2);
     expect(new Set(keys)).toEqual(new Set(["office-key-fixed"]));
     expect(coordinator.getState().state).toBe("saved");
+  });
+
+  it("keeps an ambiguous pending intent when a newer edit arrives", async () => {
+    const { setDirty, transport, coordinator } = setup();
+    const keys: string[] = [];
+    let allowCommit = false;
+    transport.commit = vi.fn(async ({ intent }: { intent: OfficeSaveIntent<{ text: string }> }) => {
+      keys.push(intent.idempotencyKey);
+      if (!allowCommit) throw { code: "engine_timeout", error_class: "engine", status: 504, retryable: true };
+      return receipt(intent);
+    });
+    transport.reconcile = vi.fn(async () => null);
+    setDirty(1);
+    const first = await coordinator.save();
+    expect(first.accepted).toBe(false);
+    setDirty(2);
+    allowCommit = true;
+    const second = await coordinator.save("button");
+    expect(second.accepted).toBe(true);
+    expect(new Set(keys)).toEqual(new Set(["office-key-fixed"]));
+    expect(coordinator.getState()).toMatchObject({ state: "dirty", dirtyGeneration: 2, lastSavedGeneration: 1 });
   });
 
   it("keeps the base on a stale conflict and stops key reuse with another payload", async () => {

@@ -86,6 +86,7 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
   const idFactory = options.idFactory ?? makeId;
   const maxAttempts = Math.max(1, Math.min(options.maxAttempts ?? 3, 5));
   const backoffMs = options.backoffMs ?? DEFAULT_BACKOFF_MS;
+  let saveGate = false;
 
   function publish(next: Partial<SaveCoordinatorState>): void {
     state = { ...state, ...next, identity: { ...identity }, dirtyGeneration, lastSavedGeneration };
@@ -199,41 +200,40 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
   }
 
   async function save(_entryPoint: OfficeSaveEntryPoint = "button"): Promise<SaveAttemptResult> {
-    if (inFlight) return { accepted: false, reason: "saving" };
+    if (inFlight || saveGate) return { accepted: false, reason: "saving" };
     if (state.state === "saving") return { accepted: false, reason: "saving" };
     if (state.state === "blocked") return { accepted: false, reason: "blocked" };
     if (state.state === "readonly") return { accepted: false, reason: "readonly" };
     if (state.state === "incompatible") return { accepted: false, reason: "incompatible" };
     if (!currentDirty()) return { accepted: false, reason: "clean" };
 
-    const snapshot = parseSnapshot(await options.editor.captureSnapshot());
-    if (!snapshot || snapshot.generation !== dirtyGeneration) return { accepted: false, reason: "invalid_snapshot" };
-    if (pendingIntent && pendingIntent.snapshotFingerprint === snapshot.fingerprint && state.error) {
-      const retry = startIntent(pendingIntent);
-      inFlight = retry;
-      try {
-        return await retry;
-      } finally {
-        if (inFlight === retry) inFlight = null;
-      }
-    }
-    const intent = parseIntent({
-      intentId: idFactory("office-intent"),
-      idempotencyKey: idFactory("office-key"),
-      identity,
-      snapshotGeneration: snapshot.generation,
-      snapshotFingerprint: snapshot.fingerprint,
-      snapshot: snapshot.value,
-      operation: "manual_save",
-      createdAt: now(),
-    });
-    if (!intent) return { accepted: false, reason: "invalid_snapshot" };
-    const request = startIntent(intent);
-    inFlight = request;
+    saveGate = true;
+    let request: Promise<SaveAttemptResult> | null = null;
     try {
+      const snapshot = parseSnapshot(await options.editor.captureSnapshot());
+      if (!snapshot || snapshot.generation !== dirtyGeneration) return { accepted: false, reason: "invalid_snapshot" };
+      if (pendingIntent && state.error) {
+        request = startIntent(pendingIntent);
+        inFlight = request;
+        return await request;
+      }
+      const intent = parseIntent({
+        intentId: idFactory("office-intent"),
+        idempotencyKey: idFactory("office-key"),
+        identity,
+        snapshotGeneration: snapshot.generation,
+        snapshotFingerprint: snapshot.fingerprint,
+        snapshot: snapshot.value,
+        operation: "manual_save",
+        createdAt: now(),
+      });
+      if (!intent) return { accepted: false, reason: "invalid_snapshot" };
+      request = startIntent(intent);
+      inFlight = request;
       return await request;
     } finally {
-      if (inFlight === request) inFlight = null;
+      saveGate = false;
+      if (request && inFlight === request) inFlight = null;
     }
   }
 
@@ -247,7 +247,7 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
       if (!Number.isSafeInteger(generation) || generation < 0) return;
       dirtyGeneration = Math.max(dirtyGeneration, generation);
       if (state.state !== "saving" && state.state !== "blocked" && state.state !== "readonly" && state.state !== "incompatible") {
-        publish({ state: "dirty", error: null });
+        publish({ state: "dirty", error: pendingIntent ? state.error : null });
       } else {
         publish({ dirtyGeneration });
       }
