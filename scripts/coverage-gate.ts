@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-export type CoverageThresholds = {
+type CoverageThresholds = {
   statements: number;
   branches: number;
   functions: number;
