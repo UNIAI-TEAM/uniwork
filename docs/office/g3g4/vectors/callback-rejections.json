@@ -1,0 +1,55 @@
+[
+  {
+    "id": "wrong-state",
+    "query": { "code": "opaque-code", "state": "state-other" },
+    "pending": { "state": "state-original", "redirect_uri": "uniwork-office://auth/callback", "deployment_id": "production-eu" },
+    "expected_error": "auth_code_invalid"
+  },
+  {
+    "id": "near-miss-redirect",
+    "query": { "code": "opaque-code", "state": "state-original" },
+    "pending": { "state": "state-original", "redirect_uri": "uniwork-office://auth/callback/", "deployment_id": "production-eu" },
+    "callback_redirect": "uniwork-office://auth/callback",
+    "expected_error": "auth_code_invalid"
+  },
+  {
+    "id": "wrong-deployment",
+    "query": { "code": "opaque-code", "state": "state-original" },
+    "pending": { "state": "state-original", "redirect_uri": "uniwork-office://auth/callback", "deployment_id": "production-eu" },
+    "callback_deployment": "staging",
+    "expected_error": "auth_code_invalid"
+  },
+  {
+    "id": "no-pending-attempt",
+    "query": { "code": "opaque-code", "state": "state-original" },
+    "pending": null,
+    "expected_error": "auth_code_invalid"
+  },
+  {
+    "id": "expired-attempt",
+    "query": { "code": "opaque-code", "state": "state-original" },
+    "pending": { "state": "state-original", "redirect_uri": "uniwork-office://auth/callback", "deployment_id": "production-eu", "expires_at": "2026-09-29T09:00:00Z" },
+    "now": "2026-09-29T09:01:00Z",
+    "expected_error": "auth_code_invalid"
+  },
+  {
+    "id": "replayed-code",
+    "query": { "code": "opaque-code", "state": "state-original" },
+    "pending": { "state": "state-original", "redirect_uri": "uniwork-office://auth/callback", "deployment_id": "production-eu" },
+    "code_redeemed": true,
+    "expected_error": "auth_code_invalid"
+  },
+  {
+    "id": "duplicate-query-code",
+    "query": { "code": ["opaque-code", "opaque-code-2"], "state": "state-original" },
+    "pending": { "state": "state-original", "redirect_uri": "uniwork-office://auth/callback", "deployment_id": "production-eu" },
+    "expected_error": "auth_code_invalid"
+  },
+  {
+    "id": "wrong-scheme",
+    "query": { "code": "opaque-code", "state": "state-original" },
+    "pending": { "state": "state-original", "redirect_uri": "uniwork-office://auth/callback", "deployment_id": "production-eu" },
+    "callback_redirect": "genoffice://auth/callback",
+    "expected_error": "auth_code_invalid"
+  }
+]
