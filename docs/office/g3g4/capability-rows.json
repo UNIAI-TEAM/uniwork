@@ -161,7 +161,7 @@
       "host": "web",
       "oracle": {
         "type": "receipt",
-        "assertion": "Assert account B cannot see A payload; A recovery uses live ACL/base, and a broken store never reports a saved draft."
+        "assertion": "Assert account B cannot see A payload; A recovery uses live ACL/base, and a broken store never deletes the draft and never reports it as saved."
       },
       "fixtures": [
         {
@@ -377,7 +377,7 @@
       "host": "web",
       "oracle": {
         "type": "render diff",
-        "assertion": "Assert the canvas remains nonzero; theme leaves document content unchanged; contrast/focus, i18n, and shared vi/en save-state keys meet parity."
+        "assertion": "Assert the canvas remains nonzero; theme leaves document content unchanged; contrast/focus, i18n, and shared vi/en save-state keys meet parity, and the labels distinguish checkpoint, save destination, and dirty N+1."
       },
       "fixtures": [
         {
