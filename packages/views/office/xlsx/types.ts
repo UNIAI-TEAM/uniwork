@@ -1,0 +1,121 @@
+import type {
+  EditorHandle,
+  OfficeCapabilityEntry,
+  OfficeState,
+  SaveAttemptResult,
+  SaveCoordinatorState,
+  StableSnapshot,
+} from "@uniwork/core/office";
+import type {
+  XlsxCellState,
+  XlsxRecalcCell,
+  XlsxRecalcResult,
+  XlsxWorkbookSnapshot,
+} from "@uniwork/office-engine/xlsx";
+
+/** A selection is a workbook location, rather than a DOM range. The host owns
+ * the selection so keyboard, mouse, and desktop hosts share one identity. */
+export interface XlsxSelection {
+  sheet: string;
+  address: string;
+  endAddress?: string;
+}
+
+export interface XlsxSelectionPort {
+  getSelection(): XlsxSelection | null;
+  setSelection?(selection: XlsxSelection): void;
+  subscribe?(listener: (selection: XlsxSelection | null) => void): () => void;
+}
+
+export interface XlsxClipboardPort {
+  readText?(): Promise<string>;
+  writeText?(text: string): Promise<void>;
+}
+
+/** The browser-safe G2 operation. The view never receives bytes or a Node
+ * binding; the host translates this wire operation to the public adapter. */
+export interface XlsxEditPort {
+  edit?(ops: readonly unknown[]): Promise<void> | void;
+}
+
+export interface XlsxRecalcController {
+  run(
+    signal: AbortSignal,
+    onProgress?: (progress: number) => void,
+  ): Promise<XlsxRecalcResult | void>;
+  cancel?(): Promise<void> | void;
+}
+
+export type XlsxEditorHandle<TSnapshot = XlsxWorkbookSnapshot> = EditorHandle<TSnapshot> &
+  XlsxEditPort & {
+    selection?: XlsxSelectionPort;
+    clipboard?: XlsxClipboardPort;
+    recalculate?: XlsxRecalcController;
+    /** The host may expose the adapter's browser-safe snapshot for rendering. */
+    getWorkbookSnapshot?(): XlsxWorkbookSnapshot | null;
+    cancel?: (reason?: string) => Promise<void> | void;
+  };
+
+export interface XlsxOpenSuccess {
+  outcome: "opened";
+  document_id: string;
+  document_model_ref: string;
+  warnings?: readonly string[];
+  snapshot?: XlsxWorkbookSnapshot;
+}
+
+export interface XlsxOpenFailure {
+  outcome: "failed";
+  document_id: string;
+  format: "xlsx";
+  failure_class: string;
+  message?: string;
+  engine_error?: string;
+}
+
+export type XlsxOpenOutcome = XlsxOpenSuccess | XlsxOpenFailure;
+
+export interface XlsxOpenPort {
+  open(signal?: AbortSignal): Promise<XlsxOpenOutcome>;
+}
+
+export interface XlsxSaveCoordinator {
+  getState(): SaveCoordinatorState;
+  subscribe(listener: (state: SaveCoordinatorState) => void): () => void;
+  save(entryPoint?: "button" | "menu" | "shortcut" | "dialog" | "retry"): Promise<SaveAttemptResult>;
+  cancel?(): Promise<void>;
+  markDirty?(generation: number): void;
+  checkpoint?(): Promise<void>;
+}
+
+export interface XlsxCapability extends OfficeCapabilityEntry {
+  operation: string;
+}
+
+export interface XlsxEditorPermissions {
+  canEdit?: boolean;
+  canCopy?: boolean;
+  canPaste?: boolean;
+}
+
+export interface XlsxEditorProps<TSnapshot = XlsxWorkbookSnapshot> {
+  /** Stable key from the editor slot. Changing it disposes the old session. */
+  documentKey: string;
+  editor: XlsxEditorHandle<TSnapshot>;
+  open: XlsxOpenPort;
+  coordinator: XlsxSaveCoordinator;
+  capability?: XlsxCapability;
+  permissions?: XlsxEditorPermissions;
+  title?: string;
+  className?: string;
+  onOpen?: (outcome: XlsxOpenOutcome) => void;
+  onSelectionChange?: (selection: XlsxSelection | null) => void;
+}
+
+export type XlsxViewState = "opening" | "ready" | "error";
+
+export interface XlsxSnapshot extends StableSnapshot<XlsxWorkbookSnapshot> {
+  value: XlsxWorkbookSnapshot;
+}
+
+export type { OfficeState, XlsxCellState, XlsxRecalcCell, XlsxWorkbookSnapshot };

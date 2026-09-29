@@ -36,16 +36,19 @@
     "./people/*": "./people/*.tsx",
     "./documents": "./documents/index.ts",
     "./documents/*": "./documents/*.tsx",
-    "./office/docx": "./office/docx/index.ts",
-    "./office/docx/types": "./office/docx/types.ts",
-    "./office/docx/*": "./office/docx/*.tsx",
+    "./office/xlsx": "./office/xlsx/index.ts",
+    "./office/xlsx/types": "./office/xlsx/types.ts",
+    "./office/xlsx/*": "./office/xlsx/*.tsx",
     "./office": "./office/index.ts",
     "./office/*": "./office/*.tsx",
     "./search": "./search/index.ts",
     "./navigation": "./navigation/index.ts",
     "./editor": "./editor/index.ts",
     "./common/*": "./common/*.tsx",
-    "./calendar/*": "./calendar/*.tsx"
+    "./calendar/*": "./calendar/*.tsx",
+    "./office/docx": "./office/docx/index.ts",
+    "./office/docx/types": "./office/docx/types.ts",
+    "./office/docx/*": "./office/docx/*.tsx"
   },
   "dependencies": {
     "@dnd-kit/core": "catalog:",
@@ -86,7 +89,7 @@
     "@tiptap/starter-kit": "catalog:",
     "@tiptap/suggestion": "catalog:",
     "@uniwork/core": "workspace:*",
-    "@uniwork/office-contracts": "workspace:*",
+    "@uniwork/office-engine": "workspace:*",
     "@uniwork/ui": "workspace:*",
     "date-fns": "catalog:",
     "hast-util-to-html": "^9.0.5",
@@ -103,7 +106,8 @@
     "react-virtuoso": "catalog:",
     "sonner": "catalog:",
     "zustand": "catalog:",
-    "motion": "^12.38.0"
+    "motion": "^12.38.0",
+    "@uniwork/office-contracts": "workspace:*"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "catalog:",
