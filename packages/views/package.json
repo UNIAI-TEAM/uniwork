@@ -84,6 +84,7 @@
     "@tiptap/starter-kit": "catalog:",
     "@tiptap/suggestion": "catalog:",
     "@uniwork/core": "workspace:*",
+    "@uniwork/office-contracts": "workspace:*",
     "@uniwork/ui": "workspace:*",
     "date-fns": "catalog:",
     "hast-util-to-html": "^9.0.5",

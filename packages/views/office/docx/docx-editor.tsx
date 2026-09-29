@@ -1,6 +1,6 @@
 "use client";
 
-/* eslint-disable jsx-a11y/no-noninteractive-element-interactions -- the editor application landmark captures the host Save shortcut */
+/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex -- the editor application landmark captures the host Save shortcut */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
@@ -52,8 +52,20 @@ export function DocxEditor<TSnapshot = unknown>({
   const [coordinatorState, setCoordinatorState] = useState(() => coordinator.getState());
   const [retryToken, setRetryToken] = useState(0);
   const disposedRef = useRef(false);
+  const editorRef = useRef(editor);
+  const openRef = useRef(open);
+  const coordinatorRef = useRef(coordinator);
+  const capabilityRef = useRef(capability);
+  const onOpenRef = useRef(onOpen);
+  const translateRef = useRef(t);
+  editorRef.current = editor;
+  openRef.current = open;
+  coordinatorRef.current = coordinator;
+  capabilityRef.current = capability;
+  onOpenRef.current = onOpen;
+  translateRef.current = t;
 
-  const readOnly = capability !== undefined && capability.status !== "available";
+  const readOnly = capability?.operation !== "serialize" || capability.status !== "available";
   const effectiveTitle = title ?? t("office.docx.title");
 
   useEffect(() => {
@@ -77,30 +89,36 @@ export function DocxEditor<TSnapshot = unknown>({
   }, [editor, onSelectionChange, documentKey]);
 
   useEffect(() => {
+    const activeEditor = editorRef.current;
+    const activeOpen = openRef.current;
+    const activeCoordinator = coordinatorRef.current;
+    const activeCapability = capabilityRef.current;
+    const activeOnOpen = onOpenRef.current;
+    const translate = translateRef.current;
     const controller = new AbortController();
     disposedRef.current = false;
     setViewState("opening");
     setFailure(null);
 
     const run = async () => {
-      if (readOnly) {
+      if (activeCapability?.operation !== "serialize" || activeCapability.status !== "available") {
         const blocked: DocxOpenFailure = {
           outcome: "failed",
           document_id: documentKey,
           format: "docx",
           failure_class: "unsupported_feature",
-          message: capability?.reason ?? t("office.docx.errors.capabilityUnavailable"),
+          message: activeCapability?.reason ?? translate("office.docx.errors.capabilityUnavailable"),
         };
         setFailure(blocked);
         setViewState("error");
-        onOpen?.(blocked);
+        activeOnOpen?.(blocked);
         return;
       }
 
       try {
-        const outcome = await open.open(controller.signal);
+        const outcome = await activeOpen.open(controller.signal);
         if (controller.signal.aborted || disposedRef.current) return;
-        onOpen?.(outcome);
+        activeOnOpen?.(outcome);
         if (isFailure(outcome)) {
           setFailure(outcome);
           setViewState("error");
@@ -108,7 +126,7 @@ export function DocxEditor<TSnapshot = unknown>({
         }
         // The host's EditorHandle owns session state. The public G2 open port
         // only supplies the typed outcome and model reference.
-        await editor.open();
+        await activeEditor.open();
         if (controller.signal.aborted || disposedRef.current) return;
         setViewState("ready");
       } catch (error) {
@@ -116,7 +134,7 @@ export function DocxEditor<TSnapshot = unknown>({
         const next = unexpectedFailure(documentKey, error);
         setFailure(next);
         setViewState("error");
-        onOpen?.(next);
+        activeOnOpen?.(next);
       }
     };
     void run();
@@ -124,15 +142,17 @@ export function DocxEditor<TSnapshot = unknown>({
     return () => {
       disposedRef.current = true;
       controller.abort();
-      void editor.cancel?.("document_changed");
-      void coordinator.cancel?.();
-      void editor.dispose();
+      void activeEditor.cancel?.("document_changed");
+      void activeCoordinator.cancel?.();
+      void activeEditor.dispose();
     };
-  }, [capability?.reason, documentKey, editor, open, readOnly, retryToken, t, coordinator, onOpen, capability]);
+    // The session is keyed by documentKey/retryToken. Callback and adapter
+    // objects are refs so a shell re-render cannot cancel an active document.
+  }, [documentKey, retryToken]);
 
-  const save = useCallback(() => {
+  const save = useCallback((entryPoint: "button" | "shortcut" = "button") => {
     if (viewState !== "ready" || readOnly) return;
-    void coordinator.save("button");
+    void coordinator.save(entryPoint);
   }, [coordinator, readOnly, viewState]);
 
   const markDirtyFromHandle = useCallback(() => {
@@ -152,7 +172,7 @@ export function DocxEditor<TSnapshot = unknown>({
   const keyboardHandler = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
-      save();
+      save("shortcut");
     }
   }, [save]);
 
@@ -162,7 +182,7 @@ export function DocxEditor<TSnapshot = unknown>({
   const saving = coordinatorState.state === "saving";
 
   return (
-    <div className={cn("flex min-h-0 flex-1 flex-col bg-background", className)} data-testid="docx-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" tabIndex={-1}>
+    <div className={cn("flex min-h-0 flex-1 flex-col bg-background", className)} data-testid="docx-editor" data-document-key={documentKey} onKeyDown={keyboardHandler} role="application" aria-label={effectiveTitle} tabIndex={0}>
       <header className="flex min-h-11 items-center justify-between gap-3 border-b border-border px-3 py-2">
         <h1 className="min-w-0 truncate text-title font-semibold">{effectiveTitle}</h1>
         <span className="text-caption text-muted-foreground" data-testid="docx-open-state">

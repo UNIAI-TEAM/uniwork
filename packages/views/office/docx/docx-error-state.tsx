@@ -10,12 +10,16 @@ const FAILURE_ICON = {
   corrupted: FileWarning,
   password_cancelled: LockKeyhole,
   password_required: LockKeyhole,
+  wrong_password: LockKeyhole,
+  engine_error: AlertTriangle,
   unsupported_feature: ShieldAlert,
   not_office_file: FileWarning,
+  io_error: AlertTriangle,
+  too_large: AlertTriangle,
 } as const;
 
-function failureKey(failureClass: string): keyof typeof FAILURE_ICON {
-  return failureClass in FAILURE_ICON ? (failureClass as keyof typeof FAILURE_ICON) : "corrupted";
+function failureKey(failureClass: string): keyof typeof FAILURE_ICON | null {
+  return failureClass in FAILURE_ICON ? (failureClass as keyof typeof FAILURE_ICON) : null;
 }
 
 export function DocxErrorState({
@@ -26,7 +30,7 @@ export function DocxErrorState({
   onRetry?: () => void;
 }) {
   const { t } = useTranslation();
-  const Icon = FAILURE_ICON[failureKey(failure.failure_class)] ?? AlertTriangle;
+  const Icon = FAILURE_ICON[failureKey(failure.failure_class) ?? "engine_error"] ?? AlertTriangle;
   const reason = failure.message ?? t(`office.docx.errors.${failure.failure_class}`, {
     defaultValue: t("office.docx.errors.unknown"),
   });
@@ -37,11 +41,11 @@ export function DocxErrorState({
         <div className="space-y-1">
           <p className="text-body font-semibold">{t("office.docx.errors.title")}</p>
           <p>{reason}</p>
-          <p className="text-caption text-destructive-soft-foreground/80">
+          <p className="text-caption text-destructive-soft-foreground">
             {t("office.docx.errors.reason", { reason: failure.failure_class })}
           </p>
           {failure.engine_error ? (
-            <p className="font-mono text-caption text-destructive-soft-foreground/80">{failure.engine_error}</p>
+            <p className="font-mono text-caption text-destructive-soft-foreground">{failure.engine_error}</p>
           ) : null}
           {onRetry ? (
             <Button type="button" variant="outline" size="sm" onClick={onRetry} className="mt-2">

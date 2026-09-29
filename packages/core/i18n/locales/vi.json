@@ -47,7 +47,10 @@
         "unsupported_feature": "Engine hiện tại chưa hỗ trợ tính năng DOCX này.",
         "not_office_file": "Tệp đã chọn không phải tài liệu OOXML DOCX.",
         "engine_error": "Engine DOCX không thể mở tài liệu này.",
-        "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa DOCX."
+        "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa DOCX.",
+        "wrong_password": "Mật khẩu không mở khóa được tài liệu này.",
+        "io_error": "Không thể đọc tài liệu từ bộ nhớ.",
+        "too_large": "Tài liệu này quá lớn để mở tại đây."
       }
     }
   },

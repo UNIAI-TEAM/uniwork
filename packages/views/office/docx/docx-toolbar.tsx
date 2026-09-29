@@ -43,6 +43,7 @@ export function DocxToolbar({
       className="flex min-h-11 flex-wrap items-center gap-1 border-b border-border bg-muted/30 px-2 py-1"
       data-testid="docx-toolbar"
       aria-label={t("office.docx.toolbar.label")}
+      role="toolbar"
     >
       <Button type="button" variant="toolbar" size="icon-sm" aria-label={t("office.docx.actions.undo")} disabled={blocked || !canUndo} onClick={onUndo}>
         <Undo2 aria-hidden />
@@ -73,7 +74,7 @@ export function DocxToolbar({
         aria-disabled={blocked || !dirty || undefined}
         disabled={blocked || !dirty}
         data-testid="docx-save"
-        onClick={onSave}
+        onClick={() => onSave()}
       >
         <Save aria-hidden />
         {saving ? t("office.docx.actions.saving") : t("office.docx.actions.save")}

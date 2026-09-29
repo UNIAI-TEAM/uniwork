@@ -47,7 +47,10 @@
         "unsupported_feature": "This DOCX feature is not supported by the current engine.",
         "not_office_file": "The selected file is not an OOXML DOCX document.",
         "engine_error": "The DOCX engine could not open this document.",
-        "capabilityUnavailable": "DOCX editing is not available for this engine build."
+        "capabilityUnavailable": "DOCX editing is not available for this engine build.",
+        "wrong_password": "The password did not unlock this document.",
+        "io_error": "The document could not be read from storage.",
+        "too_large": "This document is too large to open here."
       }
     }
   },

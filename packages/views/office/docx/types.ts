@@ -6,6 +6,7 @@ import type {
   SaveCoordinatorState,
   StableSnapshot,
 } from "@uniwork/core/office";
+import type { OpenFailureClass, OpenOutcome } from "@uniwork/office-contracts";
 
 /** A selection reported by the G3-01 host. The adapter owns the document
  * model; the view only keeps the identifier needed to label the active target. */
@@ -27,22 +28,14 @@ export type DocxEditorHandle<TSnapshot = unknown> = EditorHandle<TSnapshot> & {
   cancel?: (reason?: string) => Promise<void> | void;
 };
 
-export interface DocxOpenSuccess {
-  outcome: "opened";
-  document_id: string;
-  document_model_ref: string;
-  warnings?: readonly string[];
-}
-
-export interface DocxOpenFailure {
-  outcome: "failed";
-  document_id: string;
+/** The view consumes the published G2 wire shape instead of maintaining a
+ * second, subtly different open-result declaration. The intersections keep
+ * this format lane narrowed to DOCX while retaining contract additions. */
+export type DocxOpenSuccess = Extract<OpenOutcome, { outcome: "opened" }>;
+export type DocxOpenFailure = Extract<OpenOutcome, { outcome: "failed" }> & {
   format: "docx";
-  failure_class: string;
-  message?: string;
-  engine_error?: string;
-}
-
+  failure_class: OpenFailureClass;
+};
 export type DocxOpenOutcome = DocxOpenSuccess | DocxOpenFailure;
 
 export interface DocxOpenPort {
@@ -69,6 +62,8 @@ export interface DocxEditorProps<TSnapshot = unknown> {
   editor: DocxEditorHandle<TSnapshot>;
   open: DocxOpenPort;
   coordinator: DocxSaveCoordinator;
+  /** The host passes its serialize capability row. Missing or mismatched rows
+   * fail closed so a forgotten prop can never grant editing accidentally. */
   capability?: DocxCapability;
   title?: string;
   className?: string;
