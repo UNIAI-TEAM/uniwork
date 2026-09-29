@@ -2570,6 +2570,31 @@
     "clearFilters": "Clear filters",
     "noResults": "No meetings found",
     "noResultsHint": "Try another keyword or clear the filters.",
+    "showAll": "Show all meetings",
+    "filterCount_one": "{{count}} meeting",
+    "filterCount_other": "{{count}} meetings",
+    "statusEmpty": {
+      "SCHEDULED": {
+        "title": "No upcoming meetings",
+        "hint": "Scheduled meetings whose end time hasn't passed show up here."
+      },
+      "IN_PROGRESS": {
+        "title": "No meetings in progress",
+        "hint": "Meetings that have started and not yet ended show up here."
+      },
+      "ENDED": {
+        "title": "No ended meetings yet",
+        "hint": "Meetings that took place show up here, with their recording when there is one."
+      },
+      "MISSED": {
+        "title": "No missed meetings",
+        "hint": "Meetings whose end time passed before anyone started them show up here, to reschedule or cancel."
+      },
+      "CANCELED": {
+        "title": "No canceled meetings",
+        "hint": "Canceled meetings show up here."
+      }
+    },
     "connecting": "Connecting to the room…",
     "addNote": "Add a note",
     "publicInviteExpiredHint": "Ask the host for a new link.",

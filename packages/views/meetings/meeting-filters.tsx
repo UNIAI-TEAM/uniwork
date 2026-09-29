@@ -101,7 +101,15 @@ export function MeetingFilters({
           return (
             <ToggleGroupItem key={value || ALL} value={value || ALL} className={CHIP}>
               {label(value)}
-              {count ? <span className="text-caption font-normal tabular-nums">{count}</span> : null}
+              {count ? (
+                <>
+                  {/* The figure is for the eye; a screen reader hears what it counts. */}
+                  <span aria-hidden className="text-caption font-normal tabular-nums">
+                    {count}
+                  </span>
+                  <span className="sr-only"> {t("meetings.filterCount", { count })}</span>
+                </>
+              ) : null}
             </ToggleGroupItem>
           );
         })}

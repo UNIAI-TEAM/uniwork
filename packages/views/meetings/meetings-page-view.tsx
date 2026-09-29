@@ -2,7 +2,7 @@
 import { useDeferredValue, useEffect, useRef, useState } from "react";
 import { CalendarDays, Plus, SearchX, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useMeetingStatistics, useMeetings } from "@uniwork/core/meetings";
+import { nextMissedAt, useMeetingStatistics, useMeetings } from "@uniwork/core/meetings";
 import { useWorkspaceEvents } from "@uniwork/core/realtime";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -86,7 +86,7 @@ export function MeetingsPageView({
     sort: "starts_at",
     tz: timeZone,
   });
-  const { data: stats } = useMeetingStatistics(workspaceId);
+  const { data: stats, refetch: refetchStats } = useMeetingStatistics(workspaceId);
   const meetings = data?.meetings ?? [];
   const total = data?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -101,6 +101,22 @@ export function MeetingsPageView({
     write({ page: pages > 1 ? String(pages) : null });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `write` is rebuilt every render; the page and its bound decide
   }, [settled, total, page, pages]);
+
+  // A not-started row whose window closes while the list is open moves to the
+  // missed chip on the server (ends_at < now). Ask again just after, so the
+  // chip, its rows and the counts follow the badge that has just changed.
+  const missedAt = nextMissedAt(meetings);
+  useEffect(() => {
+    if (missedAt === null) return;
+    // A second of slack for the server's clock; setTimeout tops out near 24.8
+    // days, and the fetch it triggers arms the next wait.
+    const wait = Math.min(Math.max(missedAt - Date.now() + 1_000, 0), 2_147_483_647);
+    const timer = setTimeout(() => {
+      void refetch();
+      void refetchStats();
+    }, wait);
+    return () => clearTimeout(timer);
+  }, [missedAt, refetch, refetchStats]);
 
   const resetFilters = () => {
     setQuery("");
@@ -168,6 +184,21 @@ export function MeetingsPageView({
               />
             ) : data === undefined ? (
               <MeetingListSkeleton />
+            ) : meetings.length === 0 && status && !query.trim() ? (
+              // Only a chip narrows the list: say what the chip would hold, not that a search failed.
+              <CollectionPageState
+                icon={CalendarDays}
+                tone={moduleTone("meetings")}
+                role="status"
+                className="py-10"
+                title={t(`meetings.statusEmpty.${status}.title`)}
+                description={t(`meetings.statusEmpty.${status}.hint`)}
+                actions={
+                  <Button size="sm" variant="outline" onClick={resetFilters}>
+                    {t("meetings.showAll")}
+                  </Button>
+                }
+              />
             ) : meetings.length === 0 ? (
               <CollectionPageState
                 icon={SearchX}

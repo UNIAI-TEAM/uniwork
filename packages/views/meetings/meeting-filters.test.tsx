@@ -51,8 +51,9 @@ describe("MeetingFilters", () => {
         onQuery={() => {}}
       />,
     );
-    expect(screen.getByRole("button", { name: "Chưa bắt đầu 3" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Không diễn ra 5" })).toBeInTheDocument();
+    // The figure is for the eye; a screen reader hears what it counts.
+    expect(screen.getByRole("button", { name: "Chưa bắt đầu 3 cuộc họp" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Không diễn ra 5 cuộc họp" })).toBeInTheDocument();
   });
 
   it("lists the chips in the order a meeting lives them", () => {

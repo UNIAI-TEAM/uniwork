@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import type { User, Workspace } from "@uniwork/core/types";
@@ -155,6 +155,74 @@ describe("MeetingsPageView URL state", () => {
     renderPage(nav("status=BOGUS"));
     await screen.findByText("Retro");
     expect(listCalls()[0]).not.toContain("status=");
+  });
+});
+
+describe("MeetingsPageView empty chip", () => {
+  const emptyList = () =>
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.includes("/meetings?")) return Promise.resolve({ meetings: [], total: 0 });
+      if (p.endsWith("/members")) return Promise.resolve({ members: [] });
+      return Promise.resolve({});
+    });
+
+  it("says no meeting was missed, not that a search found nothing", async () => {
+    emptyList();
+    const adapter = nav("status=MISSED");
+    renderPage(adapter);
+    expect(await screen.findByText("Không có cuộc họp nào bị lỡ")).toBeInTheDocument();
+    expect(screen.queryByText("Không tìm thấy cuộc họp")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Xem tất cả cuộc họp" }));
+    expect(adapter.replace).toHaveBeenLastCalledWith("/org/team/meetings");
+  });
+
+  it("keeps the search wording while a search is part of the filter", async () => {
+    emptyList();
+    renderPage(nav("status=MISSED&q=retro"));
+    expect(await screen.findByText("Không tìm thấy cuộc họp")).toBeInTheDocument();
+  });
+});
+
+describe("MeetingsPageView when a window closes", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("asks again for the list and the counts once a not-started meeting turns missed", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const endsAt = new Date(Date.now() + 60_000).toISOString();
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.includes("/meetings?")) {
+        return Promise.resolve({
+          meetings: [
+            {
+              id: "m2",
+              workspace_id: "w1",
+              title: "Standup",
+              description: "",
+              starts_at: new Date(Date.now() - 60_000).toISOString(),
+              ends_at: endsAt,
+              room_name: "r",
+              created_by: "u-host",
+              status: "SCHEDULED",
+            },
+          ],
+          total: 1,
+        });
+      }
+      if (p.endsWith("/members")) return Promise.resolve({ members: [] });
+      return Promise.resolve({});
+    });
+    renderPage(nav("status=SCHEDULED"));
+    await screen.findByText("Standup");
+    const statsCalls = () => requestMock.mock.calls.filter((c) => String(c[0]).includes("meeting-statistics")).length;
+    const lists = listCalls().length;
+    const stats = statsCalls();
+    await vi.advanceTimersByTimeAsync(62_000);
+    await waitFor(() => expect(listCalls().length).toBeGreaterThan(lists));
+    expect(statsCalls()).toBeGreaterThan(stats);
   });
 });
 
