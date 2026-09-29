@@ -49,7 +49,7 @@ describe("LeaveDialog", () => {
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
   });
 
-  it("stays open when a second edit leaves the coordinator dirty after receipt", async () => {
+  it("stays open when Save is not confirmed", async () => {
     const onOpenChange = vi.fn();
     render(<LeaveDialog open onOpenChange={onOpenChange} onSave={async () => false} onKeepDraft={async () => true} onDiscard={async () => true} />);
     fireEvent.click(screen.getByRole("button", { name: "Save to UniWork" }));

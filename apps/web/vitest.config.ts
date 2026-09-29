@@ -28,8 +28,8 @@ export default defineConfig({
       provider: "v8",
       // Keep every browser Office source in the canonical gate; unit fakes are
       // test-only and are excluded by the test suffix below.
-      include: ["platform/office/**/*.ts"],
-      exclude: ["**/*.test.ts"],
+      include: ["platform/office/**/*.{ts,tsx}"],
+      exclude: ["**/*.test.{ts,tsx}"],
       reporter: ["text-summary"],
       // docs/engineering/GATE_LEVELS.md; the numbers only go up (ADR 0014).
       // Existing Office host files retain their historical floors. The two

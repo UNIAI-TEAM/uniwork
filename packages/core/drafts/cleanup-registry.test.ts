@@ -6,6 +6,7 @@ import {
   registerDraftCleanup,
 } from "./cleanup-registry";
 import { resetAuthStoreForTests, useAuthStore } from "../auth/store";
+import type { User } from "../types/user";
 
 beforeEach(() => {
   __clearDraftCleanupRegistryForTest();
@@ -37,7 +38,15 @@ describe("Office memory cleanup", () => {
     const clearMemory = vi.fn();
     registerOfficeDraftMemoryCleanup(clearMemory);
     vi.stubGlobal("localStorage", { getItem: vi.fn(() => null), setItem: vi.fn(), removeItem: vi.fn() });
-    const user = (id: string) => ({ id, email: `${id}@example.test`, display_name: id });
+    const user = (id: string): User => ({
+      id,
+      email: `${id}@example.test`,
+      display_name: id,
+      onboarded_at: null,
+      email_verified_at: null,
+      onboarding_questionnaire: {},
+      locale: "en",
+    });
     useAuthStore.setState({ status: "authed", user: user("account-a") });
     useAuthStore.setState({ status: "authed", user: user("account-b") });
     expect(clearMemory).toHaveBeenCalledTimes(1);

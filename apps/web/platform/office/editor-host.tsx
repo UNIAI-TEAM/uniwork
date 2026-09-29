@@ -200,7 +200,7 @@ export function OfficeEditorHost<TSnapshot = unknown>({
         breadcrumbs={breadcrumbs}
         editor={activeEditorView && effectiveCapability.status === "available" ? activeEditorView : (
           <Alert data-testid="office-host-unbound">
-            <AlertTitle>{!activeSession && !activeCapability ? t("office.editor.editor_pending_title") : t("office.editor.capability_unknown")}</AlertTitle>
+            <AlertTitle>{!activeSession && !activeCapability ? t("office.editor.capability_unavailable") : t("office.editor.capability_unknown")}</AlertTitle>
             <AlertDescription>{!activeSession && !activeCapability
               ? t("office.editor.editor_pending", { format: effectiveCapability.format })
               : t("office.editor.capability_hint")}</AlertDescription>
@@ -211,7 +211,7 @@ export function OfficeEditorHost<TSnapshot = unknown>({
         editorReady={Boolean(activeSession && !readonly && effectiveCapability.status === "available")}
         className="min-h-[20rem]"
       />
-      {activeSession && recovery && recovery.status !== "missing" ? (
+      {activeSession && !readonly && recovery && recovery.status !== "missing" ? (
         <DraftRecoveryPrompt
           open
           metadata={"metadata" in recovery ? recovery.metadata : null}

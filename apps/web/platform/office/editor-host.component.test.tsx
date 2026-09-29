@@ -11,6 +11,7 @@ import { OfficeEditorHost, type OfficeEditorHostProps } from "./editor-host";
 import type { OfficeEditorSession } from "./editor-host-core";
 
 initI18n();
+(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const capability: OfficeCapabilityEntry = {
   format: "docx",
@@ -107,7 +108,7 @@ function renderHost(session: OfficeEditorSession<unknown>) {
     readonly: false,
     session,
     capability,
-    editorView: React.createElement("div", { contentEditable: true, role: "textbox" }, "Editor"),
+    editorView: React.createElement("div", { contentEditable: true, role: "textbox", suppressContentEditableWarning: true }),
   };
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -140,7 +141,7 @@ describe("OfficeEditorHost composition", () => {
       }));
     });
     await settle();
-    expect(container.textContent).toContain("Editor is still loading");
+    expect(container.textContent).toContain("This editor is unavailable");
     expect(container.textContent).toContain("docx editing is not available yet.");
     root.unmount();
   });
@@ -170,6 +171,31 @@ describe("OfficeEditorHost composition", () => {
     await act(async () => { button("Keep draft on this device").click(); });
     await expect(firstLeave).resolves.toBe(true);
     expect(vi.mocked(session.checkpoint)).toHaveBeenCalledTimes(1);
+    rendered.root.unmount();
+  });
+
+  it("resolves the leave promise after Save is accepted and the coordinator is clean", async () => {
+    const { session, coordinator } = makeSession();
+    const rendered = renderHost(session);
+    const leave = leaveGuardAllows("/next");
+    await settle();
+    await act(async () => { button("Save to UniWork").click(); });
+    await expect(leave).resolves.toBe(true);
+    expect(vi.mocked(coordinator.save)).toHaveBeenCalledWith("dialog");
+    rendered.root.unmount();
+  });
+
+  it("keeps the leave promise open when durable Keep fails", async () => {
+    const { session } = makeSession();
+    vi.mocked(session.checkpoint).mockRejectedValueOnce(new Error("draft write failed"));
+    const rendered = renderHost(session);
+    const leave = leaveGuardAllows("/next");
+    await settle();
+    await act(async () => { button("Keep draft on this device").click(); });
+    await settle();
+    expect(document.querySelector('[role="alert"]')).toBeTruthy();
+    await act(async () => { button("Stay").click(); });
+    await expect(leave).resolves.toBe(false);
     rendered.root.unmount();
   });
 
