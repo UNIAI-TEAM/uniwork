@@ -56,7 +56,10 @@ function statusDotSize(px: number): string {
  */
 function ActorAvatar({ status, ...props }: ActorAvatarProps) {
   if (!status) return <ActorAvatarCircle {...props} />;
-  const px = AVATAR_SIZE_PX[props.size ?? DEFAULT_AVATAR_SIZE];
+  const size = props.size ?? DEFAULT_AVATAR_SIZE;
+  // A fluid avatar has no fixed diameter; it is used large, so it takes the
+  // largest dot.
+  const px = size === "fluid" ? AVATAR_SIZE_PX.xl : AVATAR_SIZE_PX[size];
   return (
     <span className="relative inline-flex shrink-0">
       <ActorAvatarCircle {...props} />
