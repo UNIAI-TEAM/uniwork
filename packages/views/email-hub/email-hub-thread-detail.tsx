@@ -30,6 +30,7 @@ interface EmailHubThreadDetailProps {
   readableBody: boolean;
   bodyLoading: boolean;
   bodyLoadFailed: boolean;
+  onBodyRefetch: () => void;
   actions: EmailHubThreadActions;
   pending: EmailHubThreadPending;
   aiOpen: boolean;
@@ -59,6 +60,7 @@ export function EmailHubThreadDetail({
   readableBody,
   bodyLoading,
   bodyLoadFailed,
+  onBodyRefetch,
   actions,
   pending,
   aiOpen,
@@ -91,7 +93,8 @@ export function EmailHubThreadDetail({
     headingRef.current?.focus({ preventScroll: true });
   }, [activeThread.id]);
 
-  const showPrimarySkeleton = !multiMessage && bodyLoading;
+  const showPrimarySkeleton = !multiMessage && (bodyLoading || (!readableBody && !bodyLoadFailed));
+  const showBodyLoadFailed = !multiMessage && bodyLoadFailed;
 
   return (
     <article className="flex h-full min-h-0 w-full min-w-0 flex-col" aria-labelledby="email-hub-thread-subject">
@@ -186,12 +189,20 @@ export function EmailHubThreadDetail({
             </div>
           ) : showPrimarySkeleton ? (
             <BodySkeleton />
+          ) : showBodyLoadFailed ? (
+            <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-4 py-10 text-center">
+              <p className="text-body text-muted-foreground">{t("email_hub.load_error")}</p>
+              <Button type="button" variant="outline" onClick={onBodyRefetch}>
+                <RefreshCw aria-hidden />
+                {t("common.retry")}
+              </Button>
+            </div>
           ) : (
             <EmailHubConversationMessage
               wsId={wsId}
               accountId={accountId}
               message={activeThread}
-              detailOverride={detailData}
+              detailOverride={readableBody ? detailData : null}
               allowRemote={allowRemote}
               onAllowRemote={() => {
                 setAllowRemoteImages(true);

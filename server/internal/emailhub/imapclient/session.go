@@ -30,12 +30,14 @@ func OpenSessionInteractive(c Credentials) (*Session, error) {
 }
 
 // OpenSessionIdle dials IMAP for long-lived IDLE watch without consuming a global work slot.
+// Read timeout is disabled: IDLE has no server traffic until mail arrives; the caller's
+// context bounds how long one watch round lasts (see emailHubWatchTimeout).
 func OpenSessionIdle(c Credentials) (*Session, error) {
 	cl, err := dial(c)
 	if err != nil {
 		return nil, err
 	}
-	cl.Timeout = imapClientTimeout
+	cl.Timeout = 0
 	return &Session{cl: cl, globalSlot: false}, nil
 }
 

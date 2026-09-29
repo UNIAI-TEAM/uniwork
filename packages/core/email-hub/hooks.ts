@@ -138,28 +138,31 @@ export function useEmailHubThread(
   wsId: string,
   accountId: string | null,
   threadId: string | null,
-  listHint?: EmailHubThread | null,
+  _listHint?: EmailHubThread | null,
 ) {
   const qc = useQueryClient();
+  void _listHint;
   const detail = useQuery({
     queryKey: threadDetailKey(wsId, accountId ?? "", threadId ?? ""),
     queryFn: ({ signal }): Promise<EmailHubThread | null> =>
       api.getEmailHubThread(wsId, accountId!, threadId!, true, true, signal),
     enabled: !!accountId && !!threadId,
-    placeholderData: listHint?.id === threadId ? listHint : undefined,
+    // List rows carry snippet-only metadata; never hydrate the detail cache from them.
+    placeholderData: (previous) => (previous?.id === threadId ? previous : undefined),
     staleTime: 30_000,
     refetchOnMount: "always",
-    retry: false,
+    retry: 2,
   });
   const data = detail.data?.id === threadId ? detail.data : undefined;
   useEffect(() => {
     if (!accountId || !threadId || !data?.is_read) return;
     patchEmailHubThreadInLists(qc, wsId, accountId, threadId, { is_read: true });
   }, [accountId, threadId, data?.is_read, qc, wsId]);
+  const awaitingBody = !!threadId && !emailHubHasReadableBody(data);
   const isBodyLoading =
-    !!threadId && !emailHubHasReadableBody(data) && (detail.isFetching || detail.isLoading);
+    awaitingBody && (detail.isFetching || detail.isLoading || detail.isPending);
   const isBodyLoadFailed =
-    !!threadId && !!data && !isBodyLoading && !emailHubHasReadableBody(data);
+    awaitingBody && !isBodyLoading && (detail.isFetched || detail.isError);
 
   return {
     ...detail,
@@ -177,14 +180,14 @@ export function prefetchEmailHubThread(
   wsId: string,
   accountId: string,
   threadId: string,
-  fetchBody = false,
+  fetchBody = true,
 ) {
   void qc.prefetchQuery({
     queryKey: threadDetailKey(wsId, accountId, threadId),
     queryFn: ({ signal }) =>
       api.getEmailHubThread(wsId, accountId, threadId, fetchBody, false, signal),
     staleTime: 0,
-    retry: false,
+    retry: 1,
   });
 }
 

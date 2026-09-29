@@ -376,6 +376,7 @@ export function EmailHubView() {
           readableBody={readableBody}
           bodyLoading={detail.isBodyLoading}
           bodyLoadFailed={detail.isBodyLoadFailed}
+          onBodyRefetch={() => void detail.refetch()}
           actions={actions}
           pending={threadActions.pending}
           aiOpen={aiOpen}
@@ -487,7 +488,7 @@ export function EmailHubView() {
           wsId={wsId}
           accountId={accountId}
           threadId={selectedId}
-          bodyReady={readableBody || !!activeThread?.snippet || !!activeThread?.subject}
+          bodyReady={readableBody}
           initialSummary={threadAiSummaries[selectedId]}
           onSummaryChange={handleThreadAiSummary}
         />
