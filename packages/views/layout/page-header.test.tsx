@@ -8,9 +8,20 @@ import {
   CollectionPageHeaderAction,
   CollectionPageHeaderLinkAction,
 } from "./collection-page";
+import { BreadcrumbHeader } from "./breadcrumb-header";
 import { CollapsedNavTrigger, PAGE_GUTTER, PageHeader } from "./page-header";
 
 initI18n();
+
+describe("BreadcrumbHeader actions", () => {
+  it("never shows a vertical scrollbar when a pressed button shifts by a pixel", () => {
+    const header = renderHeader(
+      <BreadcrumbHeader segments={[]} leaf="Dự án" actions={<button type="button">Ẩn</button>} />,
+    );
+    const actions = within(header).getByRole("button", { name: "Ẩn" }).parentElement;
+    expect(actions).toHaveClass("overflow-y-hidden", "sm:overflow-visible");
+  });
+});
 
 function renderHeader(
   ui: React.ReactElement,
@@ -45,6 +56,19 @@ describe("PageHeader title alignment", () => {
     const heading = within(header).getByRole("heading");
     expect(heading.textContent).toBe("Công việc");
     expect(heading.parentElement).toHaveClass("flex-1");
+  });
+
+  it("draws the header action like the toolbar buttons, without the input-weight edge", () => {
+    const header = renderHeader(
+      <CollectionPageHeader
+        icon={SquareCheckBig}
+        title="Dự án"
+        actions={<CollectionPageHeaderAction icon={Plus} label="Dự án mới" />}
+      />,
+    );
+    const action = within(header).getByRole("button", { name: "Dự án mới" });
+    expect(action.className).toContain("bg-surface-hover/60");
+    expect(action.className).not.toContain("border-input");
   });
 
   it("keeps an inline title packed against the nav trigger", () => {

@@ -5,7 +5,7 @@ import { getTaskSurfaceViewStore } from "@uniwork/core/tasks/stores/surface-view
 import type { User, Workspace } from "@uniwork/core/types";
 import { copyText } from "@uniwork/ui/lib/clipboard";
 import { requestMock, wrap } from "../../test/api-mock";
-import { chooseInSubmenu, chooseItem, type Via } from "../../test/menu-interactions";
+import { chooseAssignee, chooseInSubmenu, chooseItem, type Via } from "../../test/menu-interactions";
 import { WorkspaceProvider } from "../../layout/workspace-context";
 import { NavigationProvider, type NavigationAdapter } from "../../navigation";
 import { TaskSurface } from "../surface/task-surface";
@@ -181,7 +181,25 @@ describe("bảng: nút ba chấm trong cột __add không mở task", () => {
   it.each<Via>(["mouse", "keyboard"])("đổi người phụ trách (%s)", async (via) => {
     const { onOpenTask, row } = await renderTable();
     const menu = await openKebab(row);
-    await chooseInSubmenu(menu, "Đổi người phụ trách", "Bình Trần", via);
+    await chooseAssignee(menu, "Bình Trần", via);
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/tasks/t1",
+        expect.objectContaining({
+          method: "PATCH",
+          body: expect.objectContaining({ assignee_id: "u2", assignee_kind: "human" }),
+        }),
+      ),
+    );
+    expect(onOpenTask).not.toHaveBeenCalled();
+  });
+
+  it("middle-click lên một người trong picker không mở task", async () => {
+    const { onOpenTask, row } = await renderTable();
+    const menu = await openKebab(row);
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Đổi người phụ trách" }));
+    const option = await screen.findByRole("button", { name: "Bình Trần" });
+    fireEvent(option, new MouseEvent("auxclick", { bubbles: true, button: 1 }));
     expect(onOpenTask).not.toHaveBeenCalled();
   });
 

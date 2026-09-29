@@ -1,24 +1,22 @@
 "use client";
 
-import type { ReactNode, SyntheticEvent } from "react";
-import { useMemo, useState } from "react";
+import type { ReactElement, ReactNode, SyntheticEvent } from "react";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { UserMinus } from "lucide-react";
-import { AgentBadge } from "../../agents/agent-badge";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@uniwork/ui/components/ui/avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
-  Combobox,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxInput,
-  ComboboxItem,
-  ComboboxList,
-  ComboboxTrigger,
-} from "@uniwork/ui/components/ui/combobox";
+  ActorAvatar,
+  type ActorAvatarStatus,
+} from "@uniwork/ui/components/common/actor-avatar";
+import { foldedIncludes } from "../../chat/chat-search-fold";
+import {
+  PickerEmpty,
+  PickerItem,
+  PickerSection,
+  PropertyPicker,
+  type PickerAnchor,
+} from "./property-picker";
 import { usePickerTriggerLabel } from "./trigger-label";
 
 export type AssigneeKind = "human" | "agent";
@@ -30,23 +28,15 @@ export type AssigneeOption = {
   id: string;
   kind: AssigneeKind;
   name: string;
-  /** Shown next to the name in the list, e.g. an email. Agents rarely have one. */
+  /** Searchable alongside the name, e.g. an email. Not shown in the list. */
   secondaryLabel?: string;
   avatarUrl?: string;
+  /** Set when the option cannot take new work (e.g. a paused agent): the row
+   * stays listed and readable but cannot be picked. */
+  disabledReason?: string;
+  /** Dot on the avatar: presence for a member, lifecycle for an agent. */
+  status?: ActorAvatarStatus;
 };
-
-type AssigneeEntry = {
-  ref: AssigneeRef | null;
-  label: string;
-  secondaryLabel?: string;
-  avatarUrl?: string;
-};
-
-const UNASSIGNED_KEY = "__unassigned__";
-
-function entryKey(entry: AssigneeEntry): string {
-  return entry.ref ? `${entry.ref.kind}:${entry.ref.id}` : UNASSIGNED_KEY;
-}
 
 function refsEqual(a: AssigneeRef | null, b: AssigneeRef | null): boolean {
   if (a === b) return true;
@@ -58,67 +48,77 @@ function initialOf(name: string): string {
   return name.trim().slice(0, 1).toUpperCase() || "?";
 }
 
-/**
- * Below this many entries (including "unassigned") a search box only adds
- * friction — the whole list already fits without scrolling or scanning, so
- * we skip it entirely rather than show an input nobody needs to use.
- */
-const SEARCH_VISIBILITY_THRESHOLD = 8;
-
-function AssigneeRow({ entry }: { entry: AssigneeEntry }) {
+function matchesQuery(option: AssigneeOption, query: string): boolean {
   return (
-    <>
-      <Avatar size="sm" className="size-5">
-        {entry.avatarUrl ? <AvatarImage src={entry.avatarUrl} alt="" /> : null}
-        <AvatarFallback>
-          {entry.ref ? initialOf(entry.label) : <UserMinus className="size-3" aria-hidden />}
-        </AvatarFallback>
-      </Avatar>
-      <span className="min-w-0 flex-1 truncate">{entry.label}</span>
-      {entry.ref?.kind === "agent" ? <AgentBadge className="shrink-0" /> : null}
-      {entry.secondaryLabel ? (
-        <span className="shrink-0 truncate text-caption text-muted-foreground">
-          {entry.secondaryLabel}
-        </span>
-      ) : null}
-    </>
+    foldedIncludes(option.name, query) ||
+    (option.secondaryLabel ? foldedIncludes(option.secondaryLabel, query) : false)
+  );
+}
+
+function AssigneeSection({
+  label,
+  options,
+  value,
+  onSelect,
+}: {
+  label: string;
+  options: AssigneeOption[];
+  value: AssigneeRef | null;
+  onSelect: (ref: AssigneeRef) => void;
+}) {
+  if (options.length === 0) return null;
+  return (
+    <PickerSection label={label}>
+      {options.map((option) => {
+        const ref: AssigneeRef = { id: option.id, kind: option.kind };
+        return (
+          <PickerItem
+            key={`${option.kind}:${option.id}`}
+            selected={refsEqual(ref, value)}
+            disabled={option.disabledReason !== undefined}
+            disabledReason={option.disabledReason}
+            onClick={() => onSelect(ref)}
+          >
+            <span aria-hidden className="inline-flex shrink-0">
+              <ActorAvatar
+                name=""
+                initials={initialOf(option.name)}
+                avatarUrl={option.avatarUrl}
+                isAgent={option.kind === "agent"}
+                size="sm"
+                status={option.status}
+              />
+            </span>
+            <span className="min-w-0 truncate">{option.name}</span>
+            {option.status ? <span className="sr-only">{option.status.label}</span> : null}
+          </PickerItem>
+        );
+      })}
+    </PickerSection>
   );
 }
 
 /**
- * Shared trigger + searchable list picker for the assignee field (member or
- * agent). Callers own the trigger's visible content via `children` and the
+ * The one picker for "who owns this": task assignee (detail sidebar, subtask
+ * row, table cell, batch toolbar, create dialogs, chat) and project lead.
+ * Search on top, "unassigned" pinned first, then members and agents in their
+ * own groups. Callers own the trigger's content via `children` and the
  * offerable set via `options` — the table cell and batch toolbar pass human
- * members only, and keep doing exactly that; the sidebar passes members and
- * agents. Widening this component to *offer* agents everywhere is not this
- * task's call to make (see the assignee-picker report).
+ * members only.
  *
  * `onTriggerNavigationGuard` keeps every interaction with the picker from
- * reaching an enclosing row's navigation handler. It is forwarded to exactly
- * these event paths:
+ * reaching an enclosing row's navigation handler: trigger pointerdown, click
+ * and middle click (separate events — stopping one does not stop the others),
+ * and every click inside the portalled popup, which React still bubbles
+ * through the component tree to the row. Enter in the search box clicks the
+ * highlighted item, so it goes through the popup guard too.
  *
- * 1. Trigger `onPointerDown`.
- * 2. Trigger `onClick` — a separate event from pointerdown; stopping one does
- *    not stop the other, and nothing here calls `preventDefault()` on a plain
- *    click, so DataTable's `e.defaultPrevented` bail would not catch it.
- * 3. Trigger `onAuxClick` — middle click, which DataTable also forwards.
- * 4. Popup `onClick` — clicking any list item ("Unassigned" included), and
- *    Enter in the search box, which Base UI turns into `listItem.click()` on
- *    the highlighted item (`clickHighlightedItem`). The popup is portalled, so
- *    the item is not a DOM descendant of any row button and its role is
- *    `option`: table-view's `closest(...)` filter cannot see it, and React
- *    still bubbles the click through the component tree to the row. Base UI's
- *    `FloatingPortal` nests two `createPortal` roots (portal div inside
- *    `body`), so React dispatches that one native click twice — once per root
- *    listener; `stopPropagation` in the first dispatch also stops the native
- *    event, so the second never happens. Unlike `DropdownMenuContent`, the
- *    shared `ComboboxContent` does not stop clicks itself, so this picker has
- *    to.
- * 5. Popup `onAuxClick` — middle click inside the list.
+ * `disabled` never reaches a native `disabled` attribute: the trigger keeps
+ * `aria-disabled` and stays in the tab order, and the list is held closed.
  *
- * Like `EnumFieldPicker`'s, this prop is named for the job it does rather than
- * any one of the event/element combinations it covers; do not narrow it back
- * down.
+ * A row action opens it from a menu instead of a trigger: pass `open` /
+ * `onOpenChange` and an `anchor` (the menu button, or the pointer position of
+ * a right click); no trigger is rendered then.
  */
 export function AssigneePicker({
   value,
@@ -130,8 +130,13 @@ export function AssigneePicker({
   unassignedLabel,
   searchPlaceholder,
   noResultsLabel,
+  listMessage,
   onTriggerNavigationGuard,
   triggerClassName,
+  triggerRender,
+  open: controlledOpen,
+  onOpenChange,
+  anchor,
   align = "start",
   children,
 }: {
@@ -147,63 +152,58 @@ export function AssigneePicker({
   unassignedLabel: string;
   searchPlaceholder: string;
   noResultsLabel: string;
+  /** Shown under the list in place of the options, e.g. while they load. */
+  listMessage?: string;
   onTriggerNavigationGuard?: (event: SyntheticEvent) => void;
   triggerClassName?: string;
+  /** Replaces the default ghost button (e.g. a PillButton in a composer);
+   * the caller then owns its accessible name. */
+  triggerRender?: ReactElement;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  anchor?: PickerAnchor;
   align?: "start" | "center" | "end";
-  children: ReactNode;
+  children?: ReactNode;
 }) {
-  const entries = useMemo<AssigneeEntry[]>(
-    () => [
-      { ref: null, label: unassignedLabel },
-      ...options.map((option) => ({
-        ref: { id: option.id, kind: option.kind },
-        label: option.name,
-        secondaryLabel: option.secondaryLabel,
-        avatarUrl: option.avatarUrl,
-      })),
-    ],
-    [options, unassignedLabel],
-  );
-
-  const selected = useMemo(
-    () => entries.find((entry) => refsEqual(entry.ref, value)) ?? null,
-    [entries, value],
-  );
-
-  const showSearch = entries.length > SEARCH_VISIBILITY_THRESHOLD;
-
-  // `disabled` is deliberately not forwarded to Combobox's own `disabled`
-  // prop: that lands on the rendered native <button> as a real `disabled`
-  // attribute (removing it from the tab order), which is exactly what the
-  // project's accessibility contract forbids (aria-disabled, never
-  // `disabled`, on an interactive control that must stay reachable). Instead
-  // we hold `open` closed ourselves — Combobox opens on pointerdown, earlier
-  // than the click-time `aria-disabled` guard on `Button` would run.
-  const [open, setOpen] = useState(false);
+  const { t } = useTranslation();
+  const [internalOpen, setInternalOpen] = useState(false);
+  const [query, setQuery] = useState("");
   // A controlled close never fires onOpenChange, so disabling an open list
   // would leave `open` true and it would pop back when `disabled` clears.
   // Reset it during render, before anything commits.
-  if (disabled && open) setOpen(false);
+  if (disabled && internalOpen) setInternalOpen(false);
+  const open = controlledOpen ?? internalOpen;
   const triggerLabel = usePickerTriggerLabel(ariaLabel, valueLabel);
 
+  const matches = options.filter((option) => matchesQuery(option, query));
+  const members = matches.filter((option) => option.kind === "human");
+  const agents = matches.filter((option) => option.kind === "agent");
+
+  const handleOpenChange = (next: boolean) => {
+    if (disabled && next) return;
+    setInternalOpen(next);
+    onOpenChange?.(next);
+    if (!next) setQuery("");
+  };
+  const select = (ref: AssigneeRef | null) => {
+    onChange(ref);
+    handleOpenChange(false);
+  };
+
   return (
-    <Combobox
-      items={entries}
-      itemToStringLabel={(entry: AssigneeEntry) => entry.label}
-      itemToStringValue={(entry: AssigneeEntry) => entryKey(entry)}
-      isItemEqualToValue={(a: AssigneeEntry, b: AssigneeEntry) => entryKey(a) === entryKey(b)}
-      value={selected}
-      onValueChange={(entry: AssigneeEntry | null) => onChange(entry?.ref ?? null)}
+    <PropertyPicker
       open={disabled ? false : open}
-      onOpenChange={(next) => {
-        if (!disabled) setOpen(next);
-      }}
-    >
-      <ComboboxTrigger
-        onPointerDown={onTriggerNavigationGuard}
-        onClick={onTriggerNavigationGuard}
-        onAuxClick={onTriggerNavigationGuard}
-        render={
+      onOpenChange={handleOpenChange}
+      width="w-64"
+      align={align}
+      searchable
+      searchPlaceholder={searchPlaceholder}
+      searchAriaLabel={searchPlaceholder}
+      onSearchChange={setQuery}
+      popupEventGuard={onTriggerNavigationGuard}
+      anchor={anchor}
+      triggerRender={
+        triggerRender ?? (
           <Button
             type="button"
             variant="ghost"
@@ -211,33 +211,35 @@ export function AssigneePicker({
             className={triggerClassName}
             aria-disabled={disabled || undefined}
             aria-label={triggerLabel}
+            onPointerDown={onTriggerNavigationGuard}
+            onClick={onTriggerNavigationGuard}
+            onAuxClick={onTriggerNavigationGuard}
           />
-        }
-      >
-        {children}
-      </ComboboxTrigger>
-      <ComboboxContent
-        align={align}
-        onClick={onTriggerNavigationGuard}
-        onAuxClick={onTriggerNavigationGuard}
-        className="w-64"
-      >
-        {showSearch ? (
-          <ComboboxInput
-            placeholder={searchPlaceholder}
-            aria-label={searchPlaceholder}
-            showTrigger={false}
-          />
-        ) : null}
-        <ComboboxEmpty>{noResultsLabel}</ComboboxEmpty>
-        <ComboboxList>
-          {(entry: AssigneeEntry) => (
-            <ComboboxItem key={entryKey(entry)} value={entry}>
-              <AssigneeRow entry={entry} />
-            </ComboboxItem>
-          )}
-        </ComboboxList>
-      </ComboboxContent>
-    </Combobox>
+        )
+      }
+      trigger={children}
+    >
+      <PickerItem emptyValue selected={value == null} onClick={() => select(null)}>
+        <UserMinus className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+        <span className="truncate text-muted-foreground">{unassignedLabel}</span>
+      </PickerItem>
+      <AssigneeSection
+        label={t("tasks.create.assignee_members")}
+        options={members}
+        value={value}
+        onSelect={select}
+      />
+      <AssigneeSection
+        label={t("tasks.create.assignee_agents")}
+        options={agents}
+        value={value}
+        onSelect={select}
+      />
+      {listMessage ? (
+        <PickerEmpty>{listMessage}</PickerEmpty>
+      ) : matches.length === 0 && query ? (
+        <PickerEmpty>{noResultsLabel}</PickerEmpty>
+      ) : null}
+    </PropertyPicker>
   );
 }

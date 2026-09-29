@@ -33,6 +33,13 @@ func registerEmailHub(r api, h Routes) {
 		sdo:         sdo.EmailHubUnreadSDO{},
 		auth:        true,
 	})
+	r.Get("/workspaces/{workspaceID}/email-hub/sidebar-counts", h.GetEmailHubSidebarCounts, apiOp{
+		summary:     "Sidebar badge counts for one mailbox",
+		description: "Cached INBOX unread and snoozed thread totals for the connected account.",
+		tags:        []string{"email-hub"},
+		sdo:         sdo.EmailHubSidebarCountsSDO{},
+		auth:        true,
+	})
 	r.Post("/workspaces/{workspaceID}/email-hub/accounts", h.ConnectEmailHubAccount, apiOp{
 		summary:     "Connect IMAP mailbox",
 		description: "Verifies IMAP login with an App Password, stores encrypted credentials, and runs an initial INBOX sync.",

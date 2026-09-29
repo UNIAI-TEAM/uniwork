@@ -259,9 +259,6 @@ func (s *EmailHubService) GetThread(ctx context.Context, actor Actor, workspaceI
 			s.log.Warn("email hub hydrate body failed", "thread_id", threadID, "err", err)
 		}
 		if view.BodyText != "" || view.BodyHTML != "" {
-			if markRead {
-				view = s.markThreadReadIfNeeded(ctx, acc, row, view, attachments)
-			}
 			return view, nil
 		}
 		if strings.TrimSpace(row.BodyObjectKey) == "" {
@@ -608,8 +605,7 @@ func (s *EmailHubService) Sync(
 	}
 	if synced {
 		s.emitInboxChanged(ctx, acc)
-		afterUnread := s.inboxUnreadForAccount(ctx, acc)
-		if newUnread > 0 || afterUnread > beforeUnread {
+		if newUnread > 0 || s.inboxUnreadForAccount(ctx, acc) > beforeUnread {
 			s.emitEmailHubNewMail(ctx, acc, workspaceID)
 		}
 	}

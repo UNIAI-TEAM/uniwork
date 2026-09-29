@@ -10,9 +10,25 @@ import type { EmailHubThread } from "@uniwork/core/types/email-hub";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
+import { useEmailHubConversationBodySlot } from "./email-hub-conversation-body-gate";
 import { emailHubLocale, formatEmailFullDate, senderDisplayName } from "./email-hub-format";
 import { emailHasRemoteContent } from "./email-hub-html";
+import { useEmailHubWhenVisible } from "./use-email-hub-when-visible";
 import { EmailHtmlFrame, EmailSenderAvatar } from "./email-hub-view-parts";
+
+function ConversationBodySkeleton() {
+  const { t } = useTranslation();
+  return (
+    <div className="space-y-2" aria-busy="true">
+      <p className="text-caption text-muted-foreground" role="status">
+        {t("email_hub.body_loading")}
+      </p>
+      <Skeleton className="h-4 w-full" />
+      <Skeleton className="h-4 w-5/6" />
+      <Skeleton className="h-32 w-full" />
+    </div>
+  );
+}
 
 export function EmailHubConversationMessage({
   wsId,
@@ -23,6 +39,7 @@ export function EmailHubConversationMessage({
   onAllowRemote,
   locale,
   showHeader = true,
+  bodyFetchPriority = false,
 }: {
   wsId: string;
   accountId: string;
@@ -32,13 +49,25 @@ export function EmailHubConversationMessage({
   onAllowRemote: () => void;
   locale: string;
   showHeader?: boolean;
+  /** Open thread in reading pane — fetch body immediately, not gated by viewport. */
+  bodyFetchPriority?: boolean;
 }) {
   const { t } = useTranslation();
-  const useLazyBody = !detailOverride && !emailHubHasReadableBody(message);
-  const lazy = useEmailHubThread(wsId, accountId, useLazyBody ? message.id : null, message);
-  const data = detailOverride?.id === message.id ? detailOverride : lazy.data ?? message;
-  const bodyLoading = useLazyBody && (lazy.isBodyLoading || lazy.isFetching);
-  const bodyLoadFailed = useLazyBody && lazy.isBodyLoadFailed;
+  const { ref: visibilityRef, visible } = useEmailHubWhenVisible();
+  const override =
+    detailOverride?.id === message.id && emailHubHasReadableBody(detailOverride) ? detailOverride : null;
+  const needsBody = !emailHubHasReadableBody(override ?? message);
+  const wantsFetch = needsBody && (bodyFetchPriority || visible);
+  const hasSlot = useEmailHubConversationBodySlot(wantsFetch && !bodyFetchPriority);
+  const mayFetchBody = wantsFetch && (bodyFetchPriority || hasSlot);
+  const lazy = useEmailHubThread(wsId, accountId, mayFetchBody ? message.id : null, message);
+  const data =
+    (lazy.data && emailHubHasReadableBody(lazy.data) ? lazy.data : null) ??
+    override ??
+    (emailHubHasReadableBody(message) ? message : lazy.data ?? message);
+  const bodyLoading = needsBody && mayFetchBody && (lazy.isBodyLoading || lazy.isFetching);
+  const bodyLoadFailed = needsBody && mayFetchBody && lazy.isBodyLoadFailed;
+  const bodyWaiting = needsBody && !mayFetchBody;
   const bodyHtml = emailHubHasReadableBody(data) ? data.body_html : undefined;
   const remoteBlocked = !!bodyHtml && !allowRemote && emailHasRemoteContent(bodyHtml);
   const outgoing = message.folder === "SENT" || message.folder === "DRAFTS";
@@ -48,6 +77,7 @@ export function EmailHubConversationMessage({
 
   return (
     <section
+      ref={visibilityRef}
       className={cn("space-y-3", showHeader && "rounded-lg border border-border bg-surface p-4 @2xl:p-5")}
       aria-label={displayName}
     >
@@ -69,11 +99,7 @@ export function EmailHubConversationMessage({
       ) : null}
 
       {bodyLoading ? (
-        <div className="space-y-2" aria-busy="true">
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-5/6" />
-          <Skeleton className="h-32 w-full" />
-        </div>
+        <ConversationBodySkeleton />
       ) : bodyHtml ? (
         <div className="space-y-2">
           {remoteBlocked ? (
@@ -89,7 +115,7 @@ export function EmailHubConversationMessage({
             <EmailHtmlFrame html={bodyHtml} title={message.subject} allowRemote={allowRemote} />
           </div>
         </div>
-      ) : data.body_text?.trim() ? (
+      ) : emailHubHasReadableBody(data) && data.body_text?.trim() ? (
         <div className="rounded-lg border border-border bg-background px-4 py-3">
           <p className="max-w-[72ch] font-sans text-body leading-relaxed whitespace-pre-wrap">{data.body_text.trim()}</p>
         </div>
@@ -101,8 +127,10 @@ export function EmailHubConversationMessage({
             {t("common.retry")}
           </Button>
         </div>
+      ) : bodyWaiting || needsBody ? (
+        <ConversationBodySkeleton />
       ) : (
-        <p className="text-body text-muted-foreground">{data.snippet?.trim() || t("email_hub.body_empty")}</p>
+        <p className="text-body text-muted-foreground">{t("email_hub.body_empty")}</p>
       )}
     </section>
   );

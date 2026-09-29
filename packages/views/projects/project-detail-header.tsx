@@ -1,16 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { usePutProject } from "@uniwork/core/tasks";
 import type { Project } from "@uniwork/core/types/project";
-import { Input } from "@uniwork/ui/components/ui/input";
-import { Textarea } from "@uniwork/ui/components/ui/textarea";
+import { ContentEditor, TitleEditor } from "../editor";
+import { ProjectSidebarSection } from "./components/project-sidebar-section";
+import { ProjectIconField } from "./create-project-fields";
+import { useProjectFieldSave } from "./use-project-field-save";
 
-/**
- * Title + description editors for project detail. Plain Input/Textarea with
- * blur save via usePutProject — no rich text editor in this slice.
- */
+const DESCRIPTION_SAVE_DEBOUNCE_MS = 1500;
+
+/** Icon + title at the top of the project detail sidebar; the title saves on blur. */
 export function ProjectDetailHeader({
   workspaceId,
   project,
@@ -19,58 +18,62 @@ export function ProjectDetailHeader({
   project: Project;
 }) {
   const { t } = useTranslation();
-  const putProject = usePutProject(workspaceId);
-  const [title, setTitle] = useState(project.title);
-  const [description, setDescription] = useState(project.description);
-
-  useEffect(() => {
-    setTitle(project.title);
-    setDescription(project.description);
-  }, [project.id, project.revision, project.title, project.description]);
-
-  const saveField = useCallback(
-    (patch: { title?: string; description?: string }) => {
-      putProject.mutate({
-        projectId: project.id,
-        body: { ...patch, revision: project.revision },
-        ifMatch: String(project.revision),
-      });
-    },
-    [project.id, project.revision, putProject],
-  );
+  const save = useProjectFieldSave(workspaceId, project);
 
   return (
-    <div className="space-y-3">
-      <Input
-        aria-label={t("projects.detail.title_placeholder")}
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        onBlur={() => {
-          const trimmed = title.trim();
-          if (trimmed && trimmed !== project.title) {
-            saveField({ title: trimmed });
-          } else if (trimmed !== title) {
-            setTitle(project.title);
-          }
-        }}
+    <div>
+      <ProjectIconField
+        value={project.icon ?? undefined}
+        onChange={(icon) => save({ icon })}
+        className="text-display-sm"
+      />
+      <TitleEditor
+        key={`${project.id}:${project.title}`}
+        defaultValue={project.title}
         placeholder={t("projects.detail.title_placeholder")}
-        className="text-title font-semibold"
-      />
-      <Textarea
-        aria-label={t("projects.detail.description_placeholder")}
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        onBlur={() => {
-          if (description !== project.description) {
-            saveField({ description });
-          }
+        className="mt-2 w-full text-title-sm leading-snug font-semibold tracking-tight"
+        onBlur={(value) => {
+          const trimmed = value.trim();
+          if (trimmed && trimmed !== project.title) save({ title: trimmed });
         }}
-        placeholder={t("projects.detail.description_placeholder")}
-        rows={4}
       />
-      <p className="text-caption text-muted-foreground">
-        {t("projects.detail.description_hint")}
-      </p>
     </div>
+  );
+}
+
+/**
+ * Markdown description, saved on a debounce and flushed on unmount so leaving
+ * the page right after typing still saves.
+ */
+export function ProjectDescriptionSection({
+  workspaceId,
+  project,
+}: {
+  workspaceId: string;
+  project: Project;
+}) {
+  const { t } = useTranslation();
+  const save = useProjectFieldSave(workspaceId, project);
+
+  return (
+    <ProjectSidebarSection title={t("projects.detail.section_description")}>
+      <div className="pl-2">
+        <ContentEditor
+          key={project.id}
+          value={project.description}
+          ariaLabel={t("projects.detail.description_placeholder")}
+          placeholder={t("projects.detail.description_placeholder")}
+          onUpdate={(markdown) => {
+            if (markdown !== project.description) save({ description: markdown });
+          }}
+          debounceMs={DESCRIPTION_SAVE_DEBOUNCE_MS}
+          flushPendingOnUnmount
+          className="min-h-20"
+        />
+        <p className="mt-1 text-caption text-muted-foreground">
+          {t("projects.detail.description_hint")}
+        </p>
+      </div>
+    </ProjectSidebarSection>
   );
 }

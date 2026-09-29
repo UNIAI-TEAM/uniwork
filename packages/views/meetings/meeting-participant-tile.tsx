@@ -11,7 +11,19 @@ import {
 } from "@livekit/components-react";
 import type { Participant } from "livekit-client";
 import { ConnectionQuality, Track } from "livekit-client";
-import { Eye, EyeOff, Hand, MicOff, MoreVertical, Pin, PinOff, Volume2, WifiLow, WifiOff } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  Hand,
+  MicOff,
+  MonitorUp,
+  MoreVertical,
+  Pin,
+  PinOff,
+  Volume2,
+  WifiLow,
+  WifiOff,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
@@ -23,7 +35,15 @@ import {
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
-import { cameraTileSize, DEFAULT_CAMERA_ASPECT, tileRingTone, type TileRingTone } from "./conference-layout";
+import {
+  cameraTileSize,
+  DEFAULT_CAMERA_ASPECT,
+  screenShareTileSize,
+  stageFillSize,
+  tileControlButtons,
+  tileRingTone,
+  type TileRingTone,
+} from "./conference-layout";
 import { MeetingPresentingCard } from "./meeting-screen-share-notices";
 import { useParticipantSignal, useRequestMute } from "./use-meeting-signals";
 import { MeetingPersonAvatar } from "./meeting-person";
@@ -49,9 +69,24 @@ function hasPlayableVideo(track: TrackReferenceOrPlaceholder | undefined): boole
   return Boolean(track.publication.track) && !track.publication.isMuted;
 }
 
-/** The playing video's width/height, following resolution changes; 16:9 until known. */
-function useVideoAspect(ref: RefObject<HTMLVideoElement | null>, active: boolean, trackSid: string | null): number {
-  const [aspect, setAspect] = useState(DEFAULT_CAMERA_ASPECT);
+/**
+ * The playing video's width/height, following resolution changes. Until the
+ * element reports its own size it takes the publication's advertised size,
+ * so a 4:3 or ultrawide share opens in its shape instead of jumping from 16:9.
+ */
+function useVideoAspect(
+  ref: RefObject<HTMLVideoElement | null>,
+  active: boolean,
+  trackSid: string | null,
+  advertised: number | null,
+): number {
+  const [aspect, setAspect] = useState(advertised ?? DEFAULT_CAMERA_ASPECT);
+  useEffect(() => {
+    // Only until the element knows better: once it reports its own size, the
+    // advertised one (which can lag a rotation) must not override it.
+    const video = ref.current;
+    if (advertised && !(video && video.videoWidth > 0)) setAspect(advertised);
+  }, [ref, advertised, trackSid]);
   useEffect(() => {
     const video = ref.current;
     if (!active || !video) return;
@@ -141,6 +176,7 @@ function MeetingTileActions({
   compact,
   canHost,
   micMuted,
+  screenShare,
   visible,
   onMenuOpenChange,
   onPin,
@@ -151,6 +187,11 @@ function MeetingTileActions({
   compact: boolean;
   canHost: boolean;
   micMuted: boolean;
+  /**
+   * A shared screen offers neither pin nor "don't watch": both act on the
+   * person, so they moved the presenter's camera or hid the presentation.
+   */
+  screenShare: boolean;
   visible: boolean;
   onMenuOpenChange: (open: boolean) => void;
   onPin: () => void;
@@ -160,6 +201,7 @@ function MeetingTileActions({
   const toggleHidden = useMeetingViewSessionStore((s) => s.toggleHidden);
   const isHidden = useMeetingViewSessionStore((s) => s.isHidden(participant.identity));
   const showHostMute = canHost && !participant.isLocal && !micMuted;
+  if (screenShare && !showHostMute) return null;
 
   // The controls sit in a corner on their own chip, so the face stays visible
   // and the dark wash is only behind the buttons. A thumbnail is too narrow
@@ -175,7 +217,7 @@ function MeetingTileActions({
           : "pointer-events-none opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100",
       )}
     >
-      {!compact ? (
+      {!compact && !screenShare ? (
         <TileActionButton
           aria-label={pinned ? t("meetings.unpinFromScreen") : t("meetings.pinToScreen")}
           aria-pressed={pinned}
@@ -198,7 +240,9 @@ function MeetingTileActions({
         <DropdownMenuTrigger
           render={
             <TileActionButton
-              aria-label={t("meetings.participantActions", { name })}
+              aria-label={
+                screenShare ? t("meetings.screenActions", { name }) : t("meetings.participantActions", { name })
+              }
               className={cn("data-popup-open:bg-meeting-bar-chip-hover", compact && "size-7")}
             />
           }
@@ -206,14 +250,18 @@ function MeetingTileActions({
           <MoreVertical aria-hidden className={compact ? "size-3.5" : "size-4"} />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-44">
-          <DropdownMenuItem onClick={onPin}>
-            {pinned ? <PinOff aria-hidden className="size-4" /> : <Pin aria-hidden className="size-4" />}
-            {pinned ? t("meetings.unpinFromScreen") : t("meetings.pinToScreen")}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => toggleHidden(participant.identity)}>
-            {isHidden ? <Eye aria-hidden className="size-4" /> : <EyeOff aria-hidden className="size-4" />}
-            {isHidden ? t("meetings.watchParticipant") : t("meetings.dontWatch")}
-          </DropdownMenuItem>
+          {!screenShare ? (
+            <DropdownMenuItem onClick={onPin}>
+              {pinned ? <PinOff aria-hidden className="size-4" /> : <Pin aria-hidden className="size-4" />}
+              {pinned ? t("meetings.unpinFromScreen") : t("meetings.pinToScreen")}
+            </DropdownMenuItem>
+          ) : null}
+          {!screenShare ? (
+            <DropdownMenuItem onClick={() => toggleHidden(participant.identity)}>
+              {isHidden ? <Eye aria-hidden className="size-4" /> : <EyeOff aria-hidden className="size-4" />}
+              {isHidden ? t("meetings.watchParticipant") : t("meetings.dontWatch")}
+            </DropdownMenuItem>
+          ) : null}
           {showHostMute ? (
             <DropdownMenuItem onClick={() => requestMute(participant.identity)}>
               <MicOff aria-hidden className="size-4" />
@@ -263,6 +311,14 @@ type MeetingParticipantTileProps = {
   expanded?: boolean;
   canHost?: boolean;
   roleChip?: MeetingParticipantRole | null;
+  /** The person's photo, shown while their camera is off. */
+  avatarUrl?: string;
+  /**
+   * `cell`: the tile centres in its own grid cell. `stage`: it is the main
+   * tile of a presentation group and sizes itself from the stage, leaving the
+   * strip's room (see STRIP_RESERVE_X in conference-layout).
+   */
+  placement?: "cell" | "stage";
   /**
    * The media track and whether it plays, read by the parent at its render.
    * The publication object is mutated in place, so the memo compares these
@@ -279,6 +335,8 @@ function MeetingParticipantTileImpl({
   expanded = false,
   canHost = false,
   roleChip = null,
+  avatarUrl,
+  placement = "cell",
   videoOn,
 }: MeetingParticipantTileProps) {
   const { t } = useTranslation();
@@ -291,9 +349,18 @@ function MeetingParticipantTileImpl({
   const micMuted = useIsMuted({ participant, source: Track.Source.Microphone });
   const { handRaised, reaction } = useParticipantSignal(participant.identity);
   const name = displayName(participant);
-  const label = participant.isLocal ? t("meetings.youSuffix", { name }) : name;
-  const isScreenShare =
-    track && isTrackReference(track) && track.source === Track.Source.ScreenShare;
+  const isScreenShare = Boolean(
+    track && isTrackReference(track) && track.source === Track.Source.ScreenShare,
+  );
+  // A share says whose screen it is, so it never reads as a second camera
+  // tile of the same person; a thumbnail has room for "You" but not the name.
+  const label = isScreenShare
+    ? t("meetings.presentingName", { name })
+    : participant.isLocal
+      ? compact
+        ? t("meetings.you")
+        : t("meetings.youSuffix", { name })
+      : name;
   // Thumbnails play video too: adaptive stream subscribes them at the small
   // simulcast layer, so the avatar only stands in when the camera is off.
   const showVideo = videoOn ?? hasPlayableVideo(track);
@@ -307,14 +374,39 @@ function MeetingParticipantTileImpl({
   const [menuOpen, setMenuOpen] = useState(false);
   const touch = useTouchReveal(tileRef, menuOpen);
   const showActions = hovered || focused || menuOpen || touch.revealed;
-  const ring = tileRingTone({ handRaised, speaking, pinned });
-  // A camera tile takes its video's shape (see cameraTileSize) and centres in
-  // its cell. A screen share letterboxes itself with contain.
-  const fitCamera = !compact && !isScreenShare;
+  // Room the corner controls take: 2rem per button plus their padding and
+  // both insets. Exact, so a phone's tile keeps "quang (Bạn)" beside pin and
+  // menu, where a flat 8rem cut every name to one letter.
+  const hostMuteButton = canHost && !participant.isLocal && !micMuted;
+  const controlsRoomRem =
+    tileControlButtons({ screenShare: isScreenShare, hostMute: hostMuteButton }) * 2 + 1.5;
+  // Speaking and a raised hand belong to the person's camera tile; lit on the
+  // share as well, the presenter's voice flashed two tiles at once.
+  const ring = isScreenShare
+    ? tileRingTone({ handRaised: false, speaking: false, pinned: false })
+    : tileRingTone({ handRaised, speaking, pinned });
   const presenting = Boolean(isScreenShare && participant.isLocal);
+  // A shared screen keeps its corners: a big radius clipped the logo, menus
+  // or close button that usually sit there.
+  const radius = compact ? "rounded-2xl" : isScreenShare ? "rounded-xl" : "rounded-3xl";
+  // A tile takes its video's shape and centres in its cell: a camera may crop
+  // its sides a little (see cameraTileSize), a screen share never crops, so
+  // the frame hugs the shared screen whatever shape the cell takes.
+  const fitVideo = !compact && !presenting;
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoSid = track && isTrackReference(track) ? track.publication.trackSid : null;
-  const videoAspect = useVideoAspect(videoRef, fitCamera && showVideo, videoSid);
+  const dimensions = track && isTrackReference(track) ? track.publication.dimensions : undefined;
+  const advertisedAspect =
+    dimensions && dimensions.width > 0 && dimensions.height > 0 ? dimensions.width / dimensions.height : null;
+  const videoAspect = useVideoAspect(videoRef, fitVideo && showVideo, videoSid, advertisedAspect);
+  // A tile with no picture has no shape to keep: it fills its cell, so a
+  // phone's grid of camera-off tiles is not three short bands in tall cells.
+  const shaped = fitVideo && (showVideo || isScreenShare);
+  const tileStyle = shaped
+    ? (isScreenShare ? screenShareTileSize : cameraTileSize)(videoAspect, placement === "stage")
+    : placement === "stage"
+      ? stageFillSize()
+      : undefined;
 
   const tile = (
     <div
@@ -336,20 +428,17 @@ function MeetingParticipantTileImpl({
       }}
       className={cn(
         "group relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-muted",
-        compact ? "aspect-[4/3] rounded-2xl" : "h-full rounded-3xl",
+        radius,
+        compact ? "aspect-[4/3]" : placement === "cell" && (shaped ? "h-full" : "size-full"),
       )}
-      style={fitCamera ? cameraTileSize(videoAspect) : undefined}
+      style={tileStyle}
       data-hand-raised={handRaised || undefined}
       data-pinned={pinned || undefined}
       data-speaking={speaking || undefined}
     >
       <div
         aria-hidden
-        className={cn(
-          "pointer-events-none absolute inset-0 z-20",
-          compact ? "rounded-2xl" : "rounded-3xl",
-          RING[ring],
-        )}
+        className={cn("pointer-events-none absolute inset-0 z-20", radius, RING[ring])}
       />
       <MeetingTileActions
         participant={participant}
@@ -358,6 +447,7 @@ function MeetingParticipantTileImpl({
         compact={compact}
         canHost={canHost}
         micMuted={micMuted}
+        screenShare={isScreenShare}
         visible={showActions}
         onMenuOpenChange={setMenuOpen}
         onPin={handlePin}
@@ -400,16 +490,29 @@ function MeetingParticipantTileImpl({
             isLocalCamera && mirrorCamera && "scale-x-[-1]",
           )}
         />
+      ) : compact ? (
+        // The name chip owns the bottom band, so the face centres above it.
+        <div className="flex min-h-0 flex-1 items-center justify-center pb-5">
+          <MeetingPersonAvatar
+            name={name}
+            avatarUrl={avatarUrl}
+            size="lg"
+            tone="stage"
+            className="ring-2 ring-meeting-bar-border"
+          />
+        </div>
       ) : (
         <div className="flex min-h-0 flex-1 items-center justify-center">
           <MeetingPersonAvatar
             name={name}
-            size={compact ? "lg" : "xl"}
-            className="ring-2 ring-meeting-bar-border"
+            avatarUrl={avatarUrl}
+            size="stage"
+            // Grows with the tile (its cell is the size container) within bounds.
+            className="size-[clamp(3.5rem,24cqmin,9rem)] ring-2 ring-meeting-bar-border"
           />
         </div>
       )}
-      {showNameLabel ? (
+      {presenting ? null : showNameLabel ? (
         <span
           className={cn(
             "pointer-events-none absolute z-10 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-caption",
@@ -417,13 +520,18 @@ function MeetingParticipantTileImpl({
             // Leave the bottom-right corner to the tile controls.
             compact
               ? "bottom-1.5 left-1.5 max-w-[calc(100%-0.75rem)]"
-              : "bottom-2 left-2 max-w-[calc(100%-8rem)] sm:bottom-3 sm:left-3",
+              : "bottom-2 left-2 sm:bottom-3 sm:left-3",
+            // The corner controls only need room while they show (see
+            // controlsRoomRem); kept always, a phone's tile cut every name short.
+            !compact && !showActions && "max-w-[calc(100%-1rem)] sm:max-w-[calc(100%-1.5rem)]",
             // A thumbnail is too narrow for the name and the controls at once.
             compact && showActions && "opacity-0",
           )}
+          style={!compact && showActions ? { maxWidth: `calc(100% - ${controlsRoomRem}rem)` } : undefined}
         >
+          {isScreenShare ? <MonitorUp aria-hidden className="size-3.5 shrink-0" /> : null}
           <span className="min-w-0 truncate">{label}</span>
-          {roleChip ? <MeetingRoleChip role={roleChip} /> : null}
+          {roleChip && !isScreenShare ? <MeetingRoleChip role={roleChip} /> : null}
         </span>
       ) : (
         // The label is hidden for a clean full view; the name still reaches assistive tech.
@@ -432,7 +540,7 @@ function MeetingParticipantTileImpl({
     </div>
   );
 
-  if (!fitCamera) return tile;
+  if (!fitVideo || placement === "stage") return tile;
   return (
     <div className="flex size-full min-h-0 min-w-0 items-center justify-center [container-type:size]">{tile}</div>
   );
@@ -452,5 +560,7 @@ export const MeetingParticipantTile = memo(
     a.compact === b.compact &&
     a.expanded === b.expanded &&
     a.canHost === b.canHost &&
-    a.roleChip === b.roleChip,
+    a.roleChip === b.roleChip &&
+    a.avatarUrl === b.avatarUrl &&
+    a.placement === b.placement,
 );

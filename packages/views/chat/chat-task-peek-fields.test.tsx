@@ -8,6 +8,8 @@ import { ChatTaskAssigneeField, ChatTaskPeekFields } from "./chat-task-peek-fiel
 vi.mock("@uniwork/core/tasks", () => ({
   useUpdateTask: () => ({ mutate: vi.fn() }),
   useProjects: () => ({ data: { projects: [{ id: "p1", title: "Ra mắt" }] } }),
+  useAssigneeFrequency: () => ({ data: [] }),
+  useTaskStatuses: () => ({ data: undefined }),
 }));
 
 vi.mock("@uniwork/core/workspaces", () => ({
@@ -20,7 +22,7 @@ vi.mock("@uniwork/core/workspaces", () => ({
 
 vi.mock("@uniwork/core/agents", () => ({
   useWorkspaceAgents: () => ({
-    data: [{ id: "a1", name: "Trợ lý", avatar_url: undefined }],
+    data: [{ id: "a1", name: "Trợ lý", avatar_url: undefined, status: "active" }],
     isLoading: false,
     isError: false,
   }),
@@ -53,18 +55,21 @@ describe("ChatTaskPeekFields", () => {
 
   it("marks an agent assignee with the agent badge", () => {
     wrap(<ChatTaskPeekFields workspaceId="ws1" task={task} onPatch={vi.fn()} />);
-    const trigger = screen.getByRole("combobox", { name: "Người phụ trách: Trợ lý (Agent)" });
+    const trigger = screen.getByRole("button", { name: "Người phụ trách: Trợ lý (Agent)" });
     expect(within(trigger).getByText("Agent")).toBeInTheDocument();
   });
 });
 
 describe("ChatTaskAssigneeField", () => {
-  it("lists people and agents, with agents badged", () => {
+  it("lists people and agents in their own groups", () => {
     wrap(<ChatTaskAssigneeField workspaceId="ws1" value={null} onChange={vi.fn()} />);
-    fireEvent.click(screen.getByRole("combobox", { name: "Người phụ trách: Chưa giao" }));
-    const human = screen.getByRole("option", { name: /Lan/ });
-    const agent = screen.getByRole("option", { name: /Trợ lý/ });
-    expect(within(human).queryByText("Agent")).toBeNull();
-    expect(within(agent).getByText("Agent")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Người phụ trách: Chưa giao" }));
+    const human = screen.getByRole("button", { name: "Lan" });
+    const agent = screen.getByRole("button", { name: "Trợ lý Agent đang hoạt động" });
+    const membersGroup = screen.getByText("Thành viên").parentElement;
+    const agentsGroup = screen.getByText("Agent").parentElement;
+    expect(membersGroup).toContainElement(human);
+    expect(agentsGroup).toContainElement(agent);
+    expect(agentsGroup).not.toContainElement(human);
   });
 });

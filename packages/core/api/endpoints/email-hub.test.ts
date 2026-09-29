@@ -4,6 +4,7 @@ import { setAccessToken } from "../session";
 import {
   getEmailHubConversation,
   getEmailHubThread,
+  getEmailHubSidebarCounts,
   getEmailHubUnreadCount,
   listEmailHubAccounts,
   listEmailHubThreads,
@@ -54,6 +55,21 @@ describe("email hub endpoints", () => {
   it("listEmailHubAccounts degrades to empty list when malformed", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ accounts: [{ id: 1 }] }));
     await expect(listEmailHubAccounts("ws1")).resolves.toEqual({ accounts: [] });
+  });
+
+  it("getEmailHubSidebarCounts parses counts and degrades when malformed", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ inbox_unread: 2, snoozed_total: 1 }));
+    await expect(getEmailHubSidebarCounts("ws1", "acc1")).resolves.toEqual({
+      inbox_unread: 2,
+      snoozed_total: 1,
+    });
+    expect(String(vi.mocked(fetch).mock.calls.at(-1)![0])).toContain("sidebar-counts");
+
+    vi.mocked(fetch).mockResolvedValueOnce(json({ inbox_unread: "x" }));
+    await expect(getEmailHubSidebarCounts("ws1", "acc1")).resolves.toEqual({
+      inbox_unread: 0,
+      snoozed_total: 0,
+    });
   });
 
   it("getEmailHubUnreadCount parses count and degrades when malformed", async () => {

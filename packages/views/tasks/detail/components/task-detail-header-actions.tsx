@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { MoreHorizontal, Pin, PinOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -37,6 +37,7 @@ import {
   RowActionItems,
   type TaskUpdates,
 } from "../../row-actions-items";
+import { RowAssigneePicker } from "../../row-assignee-picker";
 import { TaskDetailThreadNav } from "./task-detail-thread-nav";
 
 export function TaskDetailHeaderActions({
@@ -58,6 +59,8 @@ export function TaskDetailHeaderActions({
   const remove = useDeleteTask(workspaceId);
   const put = usePutTask(workspaceId);
   const update = useUpdateTask(workspaceId);
+  const actionsTriggerRef = useRef<HTMLButtonElement>(null);
+  const [assigneeOpen, setAssigneeOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const pinned = (pins.data?.pins ?? []).some(
     (pin) => pin.item_type === "task" && pin.item_id === task.id,
@@ -124,6 +127,7 @@ export function TaskDetailHeaderActions({
         size="icon-sm"
         aria-label={pinned ? t("tasks.detail.unpin") : t("tasks.detail.pin")}
         aria-disabled={pinPending || undefined}
+        className={pinned ? "text-foreground" : "text-muted-foreground"}
         onClick={togglePin}
       >
         {pinned ? <PinOff aria-hidden /> : <Pin aria-hidden />}
@@ -132,9 +136,11 @@ export function TaskDetailHeaderActions({
         <DropdownMenuTrigger
           render={
             <Button
+              ref={actionsTriggerRef}
               type="button"
               variant="ghost"
               size="icon-sm"
+              className="text-muted-foreground"
               aria-label={t("tasks.detail.actions")}
             />
           }
@@ -157,9 +163,18 @@ export function TaskDetailHeaderActions({
               deleteDialogMounted: deleteOpen,
               deleteDialogClosed: () => {},
             }}
+            onOpenAssignee={() => setAssigneeOpen(true)}
           />
         </DropdownMenuContent>
       </DropdownMenu>
+      {assigneeOpen ? (
+        <RowAssigneePicker
+          task={task}
+          onUpdate={quickUpdate}
+          anchor={actionsTriggerRef}
+          onClose={() => setAssigneeOpen(false)}
+        />
+      ) : null}
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>

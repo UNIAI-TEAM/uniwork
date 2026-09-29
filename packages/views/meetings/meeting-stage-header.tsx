@@ -34,6 +34,7 @@ import {
   meetingLocale,
 } from "./meeting-datetime";
 import { MeetingPersonAvatar } from "./meeting-person";
+import { useRoomAvatarOf } from "./meeting-room-avatars";
 
 const URGENT_MS = 5 * 60_000;
 const HEADER_AVATARS = 4;
@@ -109,6 +110,7 @@ export function MeetingStageHeader({
   onToggleSidebar,
   onOpenSidebar,
   onOpenPeople,
+  peopleOpen = false,
 }: {
   meeting?: Meeting;
   meetingTitle?: string;
@@ -121,9 +123,12 @@ export function MeetingStageHeader({
   onToggleSidebar?: () => void;
   onOpenSidebar?: () => void;
   onOpenPeople?: () => void;
+  /** The people tab is on screen; the join-request panel steps aside. */
+  peopleOpen?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const participants = useParticipants();
+  const avatarOf = useRoomAvatarOf();
   const { canHost } = useMeetingPermissions(meeting ?? null, workspaceId ?? "");
   const start = useStartMeeting(workspaceId ?? "");
   const end = useEndMeeting(workspaceId ?? "");
@@ -139,7 +144,10 @@ export function MeetingStageHeader({
   const inProgress = meeting?.status === "IN_PROGRESS";
   const showHostActions = Boolean(workspaceId && canHost.allowed && !guestMode);
   const showInvite = Boolean(meeting?.id && showHostActions);
-  const avatarPeople = participants.slice(0, HEADER_AVATARS);
+  // Others first: your own face is the one you least need to find here.
+  const othersFirst = [...participants.filter((p) => !p.isLocal), ...participants.filter((p) => p.isLocal)];
+  const avatarPeople = othersFirst.slice(0, HEADER_AVATARS);
+  const peopleNames = othersFirst.map((p) => p.name || p.identity).join(", ");
   const overflowCount = Math.max(0, participants.length - HEADER_AVATARS);
 
   return (
@@ -173,7 +181,10 @@ export function MeetingStageHeader({
               </nav>
             ) : null}
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0 [@media(max-height:500px)]:flex-nowrap">
-              <h1 className="min-w-0 max-w-full truncate text-title-sm font-semibold text-meeting-bar-foreground">
+              <h1
+                data-stage-heading
+                className="min-w-0 max-w-full truncate text-title-sm font-semibold text-meeting-bar-foreground"
+              >
                 {title}
               </h1>
               {scheduleRange && meeting ? (
@@ -215,6 +226,46 @@ export function MeetingStageHeader({
 
             {meeting?.ends_at ? <RemainingTimeChip endsAt={meeting.ends_at} /> : null}
 
+            {avatarPeople.length > 0 ? (
+              // Who is here, next to the clock; a click opens the full list.
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="hidden h-8 gap-1.5 rounded-full px-1 hover:bg-meeting-bar-chip-hover aria-pressed:bg-meeting-bar-chip-bg sm:inline-flex"
+                // The visible "+N" leads the name, so voice control can say what it sees.
+                aria-label={
+                  overflowCount > 0
+                    ? t("meetings.roomPeopleViewMore", {
+                        count: participants.length,
+                        more: t("meetings.moreParticipantsShort", { count: overflowCount }),
+                      })
+                    : t("meetings.roomPeopleView", { count: participants.length })
+                }
+                aria-pressed={peopleOpen}
+                title={peopleNames}
+                onClick={onOpenPeople}
+              >
+                <span className="flex -space-x-2">
+                  {avatarPeople.map((p) => (
+                    <MeetingPersonAvatar
+                      key={p.identity}
+                      name={p.name || p.identity}
+                      avatarUrl={avatarOf(p.identity)}
+                      size="sm"
+                      tone="stage"
+                      className="ring-2 ring-meeting-stage"
+                    />
+                  ))}
+                </span>
+                {overflowCount > 0 ? (
+                  <span aria-hidden className="pr-1 text-caption tabular-nums text-meeting-bar-muted-foreground">
+                    {t("meetings.moreParticipantsShort", { count: overflowCount })}
+                  </span>
+                ) : null}
+              </Button>
+            ) : null}
+
             {showInvite ? (
               <Button
                 type="button"
@@ -255,28 +306,8 @@ export function MeetingStageHeader({
               </Button>
             ) : null}
 
-            {avatarPeople.length > 0 ? (
-              <div className="hidden items-center sm:flex" aria-hidden>
-                <div className="flex -space-x-2">
-                  {avatarPeople.map((p) => (
-                    <MeetingPersonAvatar
-                      key={p.identity}
-                      name={p.name || p.identity}
-                      size="sm"
-                      className="ring-2 ring-meeting-stage"
-                    />
-                  ))}
-                </div>
-                {overflowCount > 0 ? (
-                  <span className="ml-1.5 text-caption tabular-nums text-meeting-bar-muted-foreground">
-                    {t("meetings.moreParticipantsShort", { count: overflowCount })}
-                  </span>
-                ) : null}
-              </div>
-            ) : null}
-
             {showHostActions && meeting?.id ? (
-              <MeetingAdmitGuestsButton meetingId={meeting.id} onOpenPeople={onOpenPeople} />
+              <MeetingAdmitGuestsButton meetingId={meeting.id} onOpenPeople={onOpenPeople} peopleOpen={peopleOpen} />
             ) : null}
 
             {onOpenSidebar ? (

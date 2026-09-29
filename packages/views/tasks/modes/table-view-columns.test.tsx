@@ -320,7 +320,7 @@ describe("bảng: cột thuộc tính, dự án, ngày bắt đầu, agent", () 
       name: "Dự án: Không có dự án",
     });
     fireEvent.click(trigger);
-    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Ra mắt" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ra mắt" }));
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/tasks/t1", {
         method: "PATCH",
@@ -343,8 +343,8 @@ describe("bảng: cột thuộc tính, dự án, ngày bắt đầu, agent", () 
 
   it("giao cho agent gửi assignee_kind agent", async () => {
     const { row } = await renderTable();
-    fireEvent.click(within(cell(row, "assignee")).getByRole("combobox"));
-    fireEvent.click(await screen.findByRole("option", { name: /Trợ lý QA/ }));
+    fireEvent.click(within(cell(row, "assignee")).getByRole("button"));
+    fireEvent.click(await screen.findByRole("button", { name: /^Trợ lý QA/ }));
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/tasks/t1", {
         method: "PATCH",
@@ -416,8 +416,8 @@ describe("bảng: cột thuộc tính, dự án, ngày bắt đầu, agent", () 
       return base(path, init);
     });
     const { row } = await renderTable();
-    fireEvent.click(within(cell(row, "assignee")).getByRole("combobox"));
-    fireEvent.click(await screen.findByRole("option", { name: /Chưa giao/ }));
+    fireEvent.click(within(cell(row, "assignee")).getByRole("button"));
+    fireEvent.click(await screen.findByRole("button", { name: "Chưa giao" }));
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/tasks/t1", {
         method: "PATCH",

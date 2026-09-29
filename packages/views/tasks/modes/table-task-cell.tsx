@@ -121,6 +121,7 @@ export function TaskCellContent({
     case "status":
       return (
         <TableStatusCell
+          workspaceId={task.workspace_id}
           value={task.status}
           onChange={(status) => meta.updateTask(task.id, { status })}
         />

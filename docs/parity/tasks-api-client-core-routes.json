@@ -217,8 +217,8 @@
       "method": "GET",
       "source_path": "/api/assignee-frequency",
       "target_path": "/api/v1/workspaces/{workspaceID}/assignee-frequency",
-      "group": "stub",
-      "disposition": "stubbed"
+      "group": "tasks",
+      "disposition": "adapted"
     },
     {
       "method": "GET",

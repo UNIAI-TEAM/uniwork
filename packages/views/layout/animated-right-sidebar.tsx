@@ -40,6 +40,10 @@ export function useAnimatedRightSidebar(defaultOpen = true) {
   const [desktopVisualOpen, setDesktopVisualOpen] = useState(defaultOpen);
   const [motionEnabled, setMotionEnabled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Width the content keeps while the panel animates, so it clips instead of
+  // reflowing (and overflowing) at every intermediate width.
+  const [frozenWidth, setFrozenWidth] = useState<number | null>(null);
+  const openWidthRef = useRef<number | null>(null);
   const toggleTargetRef = useRef<boolean | null>(null);
   const settleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const toggleRafRef = useRef<number | null>(null);
@@ -64,6 +68,7 @@ export function useAnimatedRightSidebar(defaultOpen = true) {
   const beginDesktopToggle = useCallback((nextOpen: boolean) => {
     toggleTargetRef.current = nextOpen;
     setMotionEnabled(true);
+    setFrozenWidth(openWidthRef.current);
     setDesktopOpen(nextOpen);
     setDesktopVisualOpen(nextOpen);
 
@@ -72,6 +77,7 @@ export function useAnimatedRightSidebar(defaultOpen = true) {
       toggleTargetRef.current = null;
       settleTimeoutRef.current = null;
       setMotionEnabled(false);
+      setFrozenWidth(null);
     }, SIDEBAR_SETTLE_MS);
   }, []);
 
@@ -102,6 +108,7 @@ export function useAnimatedRightSidebar(defaultOpen = true) {
   const handleResize = useCallback((size: ResizablePanelSize) => {
     const nextOpen = size.asPercentage > 0 || size.inPixels > 0;
     if (toggleTargetRef.current === null) {
+      if (size.inPixels > 0) openWidthRef.current = size.inPixels;
       setDesktopOpen(nextOpen);
       setDesktopVisualOpen(nextOpen);
       return;
@@ -115,6 +122,7 @@ export function useAnimatedRightSidebar(defaultOpen = true) {
     open: isMobile ? mobileOpen : desktopOpen,
     desktopVisualOpen,
     motionEnabled,
+    frozenWidth,
     mobileOpen,
     setMobileOpen,
     toggle,
@@ -158,10 +166,12 @@ export function RightSidebarToggle({
 function AnimatedRightSidebar({
   open,
   motionEnabled,
+  frozenWidth,
   children,
 }: {
   open: boolean;
   motionEnabled: boolean;
+  frozenWidth: number | null;
   children: ReactNode;
 }) {
   const reduceMotion = useReducedMotion() ?? false;
@@ -180,11 +190,17 @@ function AnimatedRightSidebar({
           : { duration: 0 }
       }
       className={cn(
-        "h-full min-w-0 overflow-x-hidden",
+        "h-full min-w-0 overflow-hidden",
         !open && "pointer-events-none",
       )}
     >
-      {children}
+      <div
+        data-slot="right-sidebar-content"
+        className="h-full"
+        style={frozenWidth ? { width: frozenWidth } : undefined}
+      >
+        {children}
+      </div>
     </motion.div>
   );
 }
@@ -260,6 +276,7 @@ export function AnimatedRightSidebarLayout({
         <AnimatedRightSidebar
           open={controller.desktopVisualOpen}
           motionEnabled={controller.motionEnabled}
+          frozenWidth={controller.frozenWidth}
         >
           {sidebar}
         </AnimatedRightSidebar>

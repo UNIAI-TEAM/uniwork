@@ -1,9 +1,11 @@
-export { StatusPicker, useStatusOptions } from "./status-picker";
+export { StatusOptionIcon, StatusPicker } from "./status-picker";
+export { useStatusCatalog } from "./status-catalog";
 export {
   toMemberOptions,
   useWorkspaceAssigneeOptions,
   type MemberOption,
 } from "./member-options";
+export { useDecoratedAssigneeOptions } from "./assignee-option-decorations";
 export { PriorityPicker } from "./priority-picker";
 export {
   AssigneePicker,

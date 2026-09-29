@@ -88,6 +88,23 @@ export function invalidateEmailHubThreadsForAccount(qc: QueryClient, wsId: strin
   });
 }
 
+/** Refetch open thread detail + conversation when inbox changes (reading pane). */
+export function invalidateEmailHubReadingCachesForAccount(
+  qc: QueryClient,
+  wsId: string,
+  accountId: string,
+) {
+  void qc.invalidateQueries({
+    predicate: (q) =>
+      q.queryKey[0] === "email-hub" &&
+      q.queryKey[1] === wsId &&
+      q.queryKey[3] === accountId &&
+      (q.queryKey[2] === "conversation" ||
+        (q.queryKey[2] === "thread" && q.queryKey[5] === "detail")),
+    refetchType: "active",
+  });
+}
+
 export function patchEmailHubThreadInLists(
   qc: QueryClient,
   wsId: string,

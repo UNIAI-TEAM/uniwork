@@ -15,6 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
 } from "@uniwork/ui/components/ui/dropdown-menu";
+import { foldedIncludes } from "../../chat/chat-search-fold";
 import { useWorkspaceId } from "../../layout/workspace-context";
 import { actorChecked } from "./filter-counts";
 import { FILTER_ITEM_CLASS, HoverCheck } from "./hover-check";
@@ -70,23 +71,18 @@ export function FilterAssigneeOptions({
   const { data: members = [] } = useMembers(wsId);
   const { data: agents = [] } = useWorkspaceAgents(wsId);
 
-  const query = search.trim().toLowerCase();
-  const filteredMembers = members.filter((m) => {
-    const name = (m.display_name || m.email || "").toLowerCase();
-    return !query || name.includes(query);
-  });
-  const filteredAgents = agents.filter((a) => {
-    const name = (a.name || "").toLowerCase();
-    return !query || name.includes(query);
-  });
+  const query = search.trim();
+  const filteredMembers = members.filter(
+    (m) =>
+      foldedIncludes(m.display_name || "", query) || foldedIncludes(m.email || "", query),
+  );
+  const filteredAgents = agents.filter((a) => foldedIncludes(a.name || "", query));
 
-  const unassignedLabel = t("tasks.unassigned").toLowerCase();
   const showUnassignedRow =
     showNoAssignee &&
-    (!query ||
-      unassignedLabel.includes(query) ||
-      "unassigned".includes(query) ||
-      "no assignee".includes(query));
+    (foldedIncludes(t("tasks.unassigned"), query) ||
+      foldedIncludes("unassigned", query) ||
+      foldedIncludes("no assignee", query));
 
   return (
     <>

@@ -1,3 +1,4 @@
+import type { Agent } from "../types/agent";
 import type { Task } from "../types/task";
 import { ALLOW, deny, isAdminLike, type Decision, type PermissionContext } from "./types";
 
@@ -186,6 +187,23 @@ export function canDeleteTask(_task: Task | null, ctx: PermissionContext): Decis
  */
 export function canEditTask(_task: Task | null, ctx: PermissionContext): Decision {
   return requireWorkspaceMember(ctx) ?? ALLOW;
+}
+
+/**
+ * Give an agent new work (assign a task to it). Backend:
+ * TaskService.requireActiveAgent (server/internal/service/task.go), checked
+ * only when the assignee changes — a task keeps an agent paused after the fact.
+ * Membership is the caller's edit rule, not this one.
+ */
+export function canAssignAgent(agent: Pick<Agent, "status">): Decision {
+  switch (agent.status) {
+    case "active":
+      return ALLOW;
+    case "archived":
+      return deny("agent_archived", "This agent is archived and takes no new work.");
+    default:
+      return deny("agent_paused", "This agent is paused and takes no new work.");
+  }
 }
 
 // ---- Meetings -----------------------------------------------------------------

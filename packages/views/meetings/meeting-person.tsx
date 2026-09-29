@@ -21,11 +21,12 @@ export function personAvatarSrc(avatarUrl: unknown): string | undefined {
 
 /**
  * Size vocabulary mirrors the `Avatar` primitive (sm 24px, default 32px,
- * lg 40px) plus `xl` for stage tiles, mapped onto the semantic avatar scale.
+ * lg 40px) plus `xl` (56px) and `stage` (fluid, for a full stage tile),
+ * mapped onto the semantic avatar scale.
  */
-export type MeetingPersonAvatarSize = "sm" | "default" | "lg" | "xl";
+export type MeetingPersonAvatarSize = "sm" | "default" | "lg" | "xl" | "stage";
 
-const SIZE_TIER: Record<MeetingPersonAvatarSize, AvatarSize> = {
+const SIZE_TIER: Record<Exclude<MeetingPersonAvatarSize, "stage">, AvatarSize> = {
   sm: "md",
   default: "lg",
   lg: "xl",
@@ -33,24 +34,38 @@ const SIZE_TIER: Record<MeetingPersonAvatarSize, AvatarSize> = {
 };
 
 /**
+ * Initials on the dark stage. The stage tile and the default avatar fill are
+ * both `muted`, so a photo-less person read as a faint ring on an empty tile;
+ * a lighter chip fill keeps the disc visible against tile and stage alike.
+ */
+const STAGE_FALLBACK = "bg-meeting-bar-chip-hover text-meeting-bar-foreground";
+
+/**
  * The one avatar for a person anywhere in the meetings module: their photo when
  * an avatar URL is known, otherwise uppercase initials. Decorative — it always
  * sits next to the person's visible name, so it is hidden from assistive tech.
  *
  * `className` lands on the wrapper (rings, margins, positioning); size comes
- * from `size`, never from a `size-*` override.
+ * from `size`, never from a `size-*` override — except `stage`, which has no
+ * diameter of its own and fills the wrapper the caller sizes.
  */
 export function MeetingPersonAvatar({
   name,
   avatarUrl,
   size = "sm",
+  tone = "surface",
   className,
 }: {
   name: string;
   avatarUrl?: unknown;
   size?: MeetingPersonAvatarSize;
+  /** `stage` for the dark in-room chrome, where the default fill disappears. */
+  tone?: "surface" | "stage";
   className?: string;
 }) {
+  // `stage` grows with its tile: the caller sizes the wrapper in container
+  // units, the circle fills it, and the photo fades in over the initials.
+  const stage = size === "stage";
   return (
     <span
       data-slot="avatar"
@@ -61,7 +76,12 @@ export function MeetingPersonAvatar({
         name=""
         initials={initials(name)}
         avatarUrl={personAvatarSrc(avatarUrl)}
-        size={SIZE_TIER[size]}
+        size={stage ? "fluid" : SIZE_TIER[size]}
+        fadeIn={stage}
+        className={cn(
+          (tone === "stage" || stage) && STAGE_FALLBACK,
+          stage && "size-full text-avatar-stage",
+        )}
       />
     </span>
   );

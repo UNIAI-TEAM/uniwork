@@ -155,6 +155,15 @@ describe("TaskDetailSuitePage", () => {
 
   // `send` has a default chord, but the description editor has no `onSubmit`
   // (task-detail-editors.tsx), so the chord must not submit anything.
+  it("dims the pin and actions buttons like the other header actions", async () => {
+    render(shell(<TaskDetailSuitePage workspaceId="w1" taskId="t1" />));
+
+    const pin = await screen.findByRole("button", { name: "Ghim công việc" });
+    const actions = screen.getByRole("button", { name: "Thao tác công việc" });
+    expect(pin).toHaveClass("text-muted-foreground");
+    expect(actions).toHaveClass("text-muted-foreground");
+  });
+
   it("does not submit on primary+Enter in the description editor", async () => {
     configureShortcutPlatform("windows");
     useShortcutStore.getState().resetAll();

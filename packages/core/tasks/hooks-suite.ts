@@ -36,6 +36,18 @@ export function useMyTasks(
   });
 }
 
+/** Picker ranking; a few minutes stale is fine and saves a request per open. */
+const ASSIGNEE_FREQUENCY_STALE_MS = 5 * 60_000;
+
+export function useAssigneeFrequency(workspaceId: string) {
+  return useQuery({
+    queryKey: taskKeys.assigneeFrequency(workspaceId),
+    queryFn: () => suite.getAssigneeFrequency(workspaceId),
+    enabled: !!workspaceId,
+    staleTime: ASSIGNEE_FREQUENCY_STALE_MS,
+  });
+}
+
 /** Page size sent explicitly by the infinite task queries (server default 50, cap 200). */
 export const TASK_PAGE_SIZE = 50;
 

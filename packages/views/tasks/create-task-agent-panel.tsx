@@ -10,7 +10,6 @@ import { editorAttachmentPurpose } from "@uniwork/core/constants/upload";
 import { useShortcut } from "@uniwork/core/shortcuts";
 import { useProjects, useTasks, useUploadWorkspaceAttachment } from "@uniwork/core/tasks";
 import { useCreateTaskDraftStore, type CreateTaskDraft } from "@uniwork/core/tasks/stores/create-task-draft-store";
-import { TASK_PRIORITIES } from "@uniwork/core/types";
 import type { Agent } from "@uniwork/core/types/agent";
 import { FileUploadButton } from "@uniwork/ui/components/common/file-upload-button";
 import { Avatar, AvatarFallback, AvatarImage } from "@uniwork/ui/components/ui/avatar";
@@ -25,7 +24,7 @@ import { useOptionalWorkspace } from "../layout/workspace-context";
 import { CreateTaskSubmitButton } from "./create-task-submit-button";
 import { PriorityIcon } from "./icons/priority-icon";
 import { CreateTaskDateField } from "./pickers/create-task-overflow-fields";
-import { CreateTaskPriorityField } from "./pickers/create-task-property-fields";
+import { PriorityPicker } from "./pickers/priority-picker";
 import { CreateTaskProjectField } from "./pickers/create-task-project-fields";
 import { PickerEmpty, PickerItem, PickerSection, PropertyPicker } from "./pickers/property-picker";
 import { draftFromDefaults } from "./use-create-task-manual";
@@ -129,7 +128,6 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
   const agents = useMemo(() => (agentsQuery.data ?? []).filter((agent) => agent.status === "active"), [agentsQuery.data]);
   const selectedAgent = agents.find((agent) => agent.id === draft.agentId);
   const projectItems = useMemo(() => (projectsQuery.data?.projects ?? []).map((project) => ({ value: project.id, label: project.title })), [projectsQuery.data]);
-  const priorityItems = useMemo(() => TASK_PRIORITIES.map((priority) => ({ value: priority, label: t(`tasks.priority_${priority}`) })), [t]);
   const parent = (tasksQuery.data ?? []).find((task) => task.id === draft.parentTaskId);
 
   const updateDraft = useCallback((patch: Partial<CreateTaskDraft>) => {
@@ -225,7 +223,7 @@ export function CreateTaskAgentPanel({ workspaceId, carry, onClose, onSwitchMode
 
       <div className="flex shrink-0 flex-wrap items-center gap-1.5 px-4 pb-2">
         <CreateTaskProjectField items={projectItems} value={draft.projectId} noneLabel={t("tasks.create.project_none")} searchPlaceholder={t("tasks.create.project_search_placeholder")} noResultsLabel={t("tasks.create.options_no_results")} clearLabel={t("common.delete")} onChange={(projectId) => updateDraft({ projectId })} />
-        {showPriority ? <CreateTaskPriorityField items={priorityItems} value={(draft.priority ?? "none") as NonNullable<CreateTaskDraft["priority"]>} onChange={(priority) => updateDraft({ priority })} /> : null}
+        {showPriority ? <PriorityPicker appearance="pill" value={(draft.priority ?? "none") as NonNullable<CreateTaskDraft["priority"]>} ariaLabel={t("tasks.priority")} onChange={(priority) => updateDraft({ priority })} /> : null}
         {showDueDate ? <CreateTaskDateField value={draft.dueDate} label={t("tasks.dueDate")} kind="due" open={dueDateOpen} onOpenChange={setDueDateOpen} onChange={(dueDate) => updateDraft({ dueDate })} /> : null}
         {!showPriority || !showDueDate ? (
           <DropdownMenu>

@@ -158,6 +158,7 @@ export function BatchActionToolbar({
               </div>
 
               <BatchStatusPicker
+                workspaceId={workspaceId}
                 status={common.status}
                 disabled={loading}
                 onUpdate={(updates) => {
@@ -171,6 +172,7 @@ export function BatchActionToolbar({
                 onUpdate={(updates) => void handleBatchUpdate(updates)}
               />
               <BatchAssigneePicker
+                workspaceId={workspaceId}
                 assigneeId={common.assignee?.id ?? null}
                 mixed={common.assignee === null}
                 disabled={loading}

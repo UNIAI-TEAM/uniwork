@@ -159,6 +159,9 @@ func (s *EmailHubService) runHubWatchLoop(ctx context.Context, accountID string)
 			if ctx.Err() != nil {
 				return
 			}
+			if isEmailHubWatchRoundEnd(err) {
+				continue
+			}
 			s.log.Warn("email hub watcher idle failed", "account_id", accountID, "err", err)
 			continue
 		}
@@ -178,6 +181,11 @@ func (s *EmailHubService) runHubWatchLoop(ctx context.Context, accountID string)
 			}
 		}
 	}
+}
+
+// isEmailHubWatchRoundEnd reports the normal end of one IDLE round (timeout renews the watch).
+func isEmailHubWatchRoundEnd(err error) bool {
+	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
 }
 
 func (s *EmailHubService) waitInboxIDLE(ctx context.Context, acc db.EmailHubAccount) (bool, error) {

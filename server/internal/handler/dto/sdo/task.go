@@ -81,6 +81,18 @@ type TaskQueryPageSDO struct {
 	Offset int32     `json:"offset" example:"0"`
 }
 
+// AssigneeFrequencySDO is GET /api/v1/workspaces/{workspaceID}/assignee-frequency.
+type AssigneeFrequencySDO struct {
+	Items []AssigneeFrequencyDTO `json:"items"`
+}
+
+// AssigneeFrequencyDTO is one assignee the caller chose and how often.
+type AssigneeFrequencyDTO struct {
+	AssigneeKind string `json:"assignee_kind" description:"human hoặc agent" example:"human"`
+	AssigneeID   string `json:"assignee_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	Frequency    int64  `json:"frequency" description:"Số lần gán trong 90 ngày gần nhất" example:"3"`
+}
+
 // TaskGroupDTO is one bucket in a grouped list.
 type TaskGroupDTO struct {
 	Key   string    `json:"key" example:"todo"`

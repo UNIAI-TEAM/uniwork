@@ -79,9 +79,51 @@ describe("useAnimatedRightSidebar", () => {
   it("removes a visually collapsed sidebar from focus and the accessibility tree", () => {
     render(<Harness showLayout defaultOpen={false} />);
 
-    const hiddenSidebar = screen.getByText("sidebar").parentElement;
+    const hiddenSidebar = screen.getByText("sidebar").closest("[aria-hidden]");
     expect(hiddenSidebar).toHaveAttribute("aria-hidden", "true");
     expect(hiddenSidebar).toHaveAttribute("inert");
+  });
+
+  // The sidebar content scrolls itself; a wrapper that can also scroll flashes
+  // a second scrollbar while the panel width animates.
+  it("never lets the animated wrapper show a scrollbar of its own", () => {
+    render(<Harness showLayout />);
+
+    const wrapper = screen.getByText("sidebar").closest("[aria-hidden]");
+    expect(wrapper).toHaveClass("overflow-hidden");
+    expect(wrapper).not.toHaveClass("overflow-x-hidden");
+  });
+
+  it("keeps the sidebar content at its open width while the panel animates", () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    let controller: AnimatedRightSidebarController | null = null;
+    render(
+      <Harness
+        showLayout
+        onController={(c) => {
+          controller = c;
+        }}
+      />,
+    );
+    const frames = holdAnimationFrames();
+    const content = () =>
+      screen.getByText("sidebar").closest<HTMLElement>("[data-slot='right-sidebar-content']");
+
+    act(() => {
+      (controller as AnimatedRightSidebarController | null)?.handleResize({
+        asPercentage: 25,
+        inPixels: 320,
+      });
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Toggle properties" }));
+    act(() => frames.runPending());
+    expect(content()?.style.width).toBe("320px");
+
+    act(() => {
+      vi.runAllTimers();
+    });
+    expect(content()?.style.width).toBe("");
+    vi.useRealTimers();
   });
 
   it("a toggle whose frame lands after the page unmounted does not throw", () => {

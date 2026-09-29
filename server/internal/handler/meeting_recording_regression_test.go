@@ -306,6 +306,9 @@ func TestMeetingRecordingContentRangeS3LegacyBehavior(t *testing.T) {
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "SECRET")
 	t.Setenv("AWS_ENDPOINT_URL", s3.URL)
 	t.Setenv("S3_USE_PATH_STYLE", "1")
+	// make check loads .env; a non-empty prefix would prepend to keys while
+	// fakeS3Object serves the logical key only.
+	t.Setenv("S3_KEY_PREFIX", "")
 
 	store := storage.NewS3StorageFromEnv()
 	if store == nil {

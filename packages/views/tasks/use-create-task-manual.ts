@@ -11,7 +11,6 @@ import {
   useProjects,
   useTaskProperties,
   useTaskLabels,
-  useTaskStatuses,
   useTasks,
   useUploadWorkspaceAttachment,
   type CreateTaskBody,
@@ -21,7 +20,6 @@ import {
   type CreateTaskDraft,
   type CreateTaskSettings,
 } from "@uniwork/core/tasks/stores/create-task-draft-store";
-import { TASK_PRIORITIES, TASK_STATUSES } from "@uniwork/core/types";
 import { editorAttachmentPurpose } from "@uniwork/core/constants/upload";
 import { contentReferencesAttachment } from "@uniwork/core/types/attachment-url";
 import { createSafeId } from "@uniwork/core/utils";
@@ -135,7 +133,6 @@ export function useCreateTaskManualState({
   const uploadAttachment = useUploadWorkspaceAttachment(workspaceId);
   const { data: projectList } = useProjects(workspaceId);
   const { data: labelList } = useTaskLabels(workspaceId);
-  const { data: statusList } = useTaskStatuses(workspaceId);
   const { data: taskList } = useTasks(workspaceId);
   const { data: propertyList } = useTaskProperties(workspaceId);
   const assignees = useWorkspaceAssigneeOptions(workspaceId);
@@ -198,25 +195,6 @@ export function useCreateTaskManualState({
     persistDraft(workspaceId, next);
   };
 
-  const statusItems = useMemo(
-    () =>
-      statusList?.statuses.length
-        ? statusList.statuses.map((status) => ({
-            value: status.key,
-            label: status.name,
-            category: status.category,
-          }))
-        : TASK_STATUSES.map((status) => ({
-            value: status,
-            label: t(`tasks.status_${status}`),
-            category: status,
-          })),
-    [statusList, t],
-  );
-  const priorityItems = useMemo(
-    () => TASK_PRIORITIES.map((priority) => ({ value: priority, label: t(`tasks.priority_${priority}`) })),
-    [t],
-  );
   const projectItems = useMemo(
     () => (projectList?.projects ?? []).map((project) => ({ value: project.id, label: project.title })),
     [projectList],
@@ -400,8 +378,6 @@ export function useCreateTaskManualState({
         next.delete(key);
         return next;
       }),
-    statusItems,
-    priorityItems,
     projectItems,
     parentItems,
     maxSiblingStage,

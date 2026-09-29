@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useWorkspaceAgents } from "@uniwork/core/agents";
 import type { Agent, Member } from "@uniwork/core/types";
 import { useMembers } from "@uniwork/core/workspaces";
+import { useDecoratedAssigneeOptions } from "./assignee-option-decorations";
 import type { AssigneeOption } from "./assignee-picker";
 
 /** A workspace member as the task surfaces show it: id, readable name, avatar. */
@@ -60,10 +61,11 @@ export function useWorkspaceAssigneeOptions(
 ): WorkspaceAssigneeOptions {
   const members = useMembers(workspaceId);
   const agents = useWorkspaceAgents(workspaceId);
-  const options = useMemo(
+  const baseOptions = useMemo(
     () => toWorkspaceAssigneeOptions(toMemberOptions(members.data ?? []), agents.data ?? []),
     [agents.data, members.data],
   );
+  const options = useDecoratedAssigneeOptions(workspaceId, baseOptions);
   return {
     options,
     isLoading: members.isLoading || agents.isLoading,

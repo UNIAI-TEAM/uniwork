@@ -278,12 +278,82 @@ const MAX_SIDE_CROP = 1.3;
  * bottom (UNI-846); in a tall cell it may be up to 1.3× narrower, a bounded
  * side crop, instead of a full-height strip that shows a third of the frame.
  */
-export function cameraTileSize(aspect: number): { width: string; height: string } {
+export function cameraTileSize(aspect: number, besideStrip = false): { width: string; height: string } {
+  return videoTileSize(aspect, MAX_SIDE_CROP, besideStrip);
+}
+
+/**
+ * Size of a screen-share tile: exactly its video's shape, never cropped. The
+ * frame (ring, name, controls) then hugs the shared screen instead of the
+ * cell, which letterboxed it off-centre whenever the cell changed shape, as
+ * when the side panel opens.
+ */
+export function screenShareTileSize(aspect: number, besideStrip = false): { width: string; height: string } {
+  return videoTileSize(aspect, 1, besideStrip);
+}
+
+/**
+ * A presentation stage lays the main tile and its thumbnail strip out as one
+ * group, centred together, so the strip sits against the tile instead of the
+ * far edge of the stage. The tile is then sized from the whole stage (the
+ * size container) minus the strip's room, which the stage publishes in these
+ * two custom properties: a width beside the tile, a height under it.
+ */
+export const STRIP_RESERVE_X = "--strip-reserve-x";
+export const STRIP_RESERVE_Y = "--strip-reserve-y";
+function reserved(besideStrip: boolean): { w: string; h: string } {
+  if (!besideStrip) return { w: "100cqw", h: "100cqh" };
+  return {
+    w: `(100cqw - var(${STRIP_RESERVE_X}, 0px))`,
+    h: `(100cqh - var(${STRIP_RESERVE_Y}, 0px))`,
+  };
+}
+
+/**
+ * How many buttons a full tile's corner controls hold, mirroring what
+ * MeetingTileActions draws: a camera tile has pin + menu (+ host mute); a
+ * shared screen has no pin or watch toggle, so it shows host mute + menu only
+ * when the host can mute, and nothing otherwise.
+ */
+export function tileControlButtons({ screenShare, hostMute }: { screenShare: boolean; hostMute: boolean }): number {
+  if (screenShare) return hostMute ? 2 : 0;
+  return hostMute ? 3 : 2;
+}
+
+/** Room a strip takes beside the main tile (w-28 + gap-3) or under it (w-24 at 4:3 + pb-1 + gap-2), in rem. */
+export const STRIP_BESIDE_REM = 7.75;
+export const STRIP_BELOW_REM = 5.25;
+
+/**
+ * Where the thumbnail strip goes: whichever side leaves the bigger main tile
+ * for a 16:9 presentation in a stage of this size. Decided by the stage's own
+ * shape, not the viewport: a portrait tablet or a narrow stage beside the
+ * side panel wants the strip under the share, a wide one beside it.
+ */
+export function stripPlacement(width: number, height: number, remPx = 16): "beside" | "below" {
+  const ar = DEFAULT_CAMERA_ASPECT;
+  const besideWidth = Math.min(width - STRIP_BESIDE_REM * remPx, height * ar);
+  const belowWidth = Math.min(width, (height - STRIP_BELOW_REM * remPx) * ar);
+  return besideWidth > belowWidth ? "beside" : "below";
+}
+
+/** A tile with no video shape (the presenter's own card) fills the stage's room. */
+export function stageFillSize(): { width: string; height: string } {
+  const { w, h } = reserved(true);
+  return { width: `calc${w}`, height: `calc${h}` };
+}
+
+function videoTileSize(
+  aspect: number,
+  maxSideCrop: number,
+  besideStrip: boolean,
+): { width: string; height: string } {
   const ar = Number.isFinite(aspect) && aspect > 0 ? aspect : DEFAULT_CAMERA_ASPECT;
   const round = (n: number) => Number(n.toFixed(4));
+  const { w, h } = reserved(besideStrip);
   return {
-    width: `min(100cqw, calc(100cqh * ${round(ar)}))`,
-    height: `min(100cqh, calc(100cqw * ${round(MAX_SIDE_CROP / ar)}))`,
+    width: `min(${w}, calc(${h} * ${round(ar)}))`,
+    height: `min(${h}, calc(${w} * ${round(maxSideCrop / ar)}))`,
   };
 }
 

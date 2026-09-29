@@ -6,7 +6,6 @@ import {
   type Task,
   type TaskComment,
   type TaskPriority,
-  type TaskStatus,
 } from "../../types/task";
 import { request } from "../http";
 import { parseWithFallback } from "../schema";
@@ -19,7 +18,8 @@ const CommentResponse = z.object({ comment: TaskCommentSchema });
 export interface TaskPatch {
   title?: string;
   description?: string;
-  status?: TaskStatus;
+  /** Status catalogue key: a built-in or one of the workspace's own. */
+  status?: string;
   priority?: TaskPriority;
   position?: number;
   assignee_id?: string | null;

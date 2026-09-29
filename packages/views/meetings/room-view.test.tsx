@@ -210,3 +210,50 @@ describe("MeetingRoomView credential refresh", () => {
     expect(room.mounts).toBe(1);
   });
 });
+
+describe("MeetingRoomView lobby for a member", () => {
+  it("keeps the waiting lobby through a re-join and still withdraws the knock on leave", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let joins = 0;
+      requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+        if (path === "/api/v1/meetings/m1/join" && opts?.method === "POST") {
+          joins += 1;
+          // The first answer: waiting for approval. The backoff re-ask hangs.
+          return joins === 1
+            ? Promise.resolve({ decision: "WAITING_APPROVAL", join_request_id: "jr1", meeting_status: "IN_PROGRESS" })
+            : new Promise(() => {});
+        }
+        return Promise.resolve({});
+      });
+
+      const view = render(
+        wrapWithNav(
+          <MeetingRoomView
+            meetingId="m1"
+            workspaceId="w1"
+            meetingTitle="Standup"
+            initialChoice={{ audio: false, video: false }}
+            onLeave={() => {}}
+          />,
+        ),
+      );
+
+      const heading = await screen.findByRole("heading", { name: "Đang chờ người chủ trì cho bạn vào phòng" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(13_000);
+      });
+      expect(joins).toBe(2);
+      // Still the same lobby, not the "connecting" screen, and focus did not move.
+      expect(screen.getByRole("heading", { name: "Đang chờ người chủ trì cho bạn vào phòng" })).toBe(heading);
+
+      view.unmount();
+      await waitFor(() =>
+        expect(requestMock).toHaveBeenCalledWith("/api/v1/meeting-join-requests/jr1/cancel", expect.objectContaining({ method: "POST" })),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+

@@ -120,6 +120,27 @@ func (q *Queries) GetAgent(ctx context.Context, id string) (Agent, error) {
 	return i, err
 }
 
+const getAgentStatusInOrg = `-- name: GetAgentStatusInOrg :one
+SELECT status, archived_at FROM agents WHERE organization_id = $1 AND id = $2
+`
+
+type GetAgentStatusInOrgParams struct {
+	OrganizationID string `json:"organization_id"`
+	ID             string `json:"id"`
+}
+
+type GetAgentStatusInOrgRow struct {
+	Status     string             `json:"status"`
+	ArchivedAt pgtype.Timestamptz `json:"archived_at"`
+}
+
+func (q *Queries) GetAgentStatusInOrg(ctx context.Context, arg GetAgentStatusInOrgParams) (GetAgentStatusInOrgRow, error) {
+	row := q.db.QueryRow(ctx, getAgentStatusInOrg, arg.OrganizationID, arg.ID)
+	var i GetAgentStatusInOrgRow
+	err := row.Scan(&i.Status, &i.ArchivedAt)
+	return i, err
+}
+
 const getAgentsByIDs = `-- name: GetAgentsByIDs :many
 SELECT id, name, avatar_url, status FROM agents WHERE id = ANY($1::text[])
 `

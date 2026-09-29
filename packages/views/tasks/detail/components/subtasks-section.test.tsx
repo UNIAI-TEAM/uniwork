@@ -111,7 +111,7 @@ describe("TaskDetailSubtasksSection", () => {
     expect(screen.getByText("Giai đoạn 1")).toBeInTheDocument();
     expect(screen.getByText(/11.*9|Sep 11/)).toBeInTheDocument();
     expect(
-      screen.getByRole("combobox", { name: /người phụ trách.*Me/i }),
+      screen.getByRole("button", { name: /người phụ trách.*Me/i }),
     ).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Me" })).toHaveAttribute(
       "src",
@@ -195,7 +195,7 @@ describe("TaskDetailSubtasksSection", () => {
 
     expect(screen.getByText(/11.*9|Sep 11/)).toBeVisible();
     expect(
-      screen.getByRole("combobox", { name: /người phụ trách.*Me/i }),
+      screen.getByRole("button", { name: /người phụ trách.*Me/i }),
     ).toBeVisible();
     expect(
       screen.queryByRole("button", { name: "Thao tác sub-task" }),
@@ -210,7 +210,7 @@ describe("TaskDetailSubtasksSection", () => {
     expect(screen.getByRole("button", { name: "Trạng thái" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Độ ưu tiên" })).toBeInTheDocument();
     expect(
-      screen.getByRole("combobox", { name: /^Người nhận/ }),
+      screen.getByRole("button", { name: /^Người nhận/ }),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Hạn" })).toBeInTheDocument();
     expect(screen.getByTestId("batch-delete")).toBeInTheDocument();

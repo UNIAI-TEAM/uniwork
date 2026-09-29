@@ -4,6 +4,7 @@ import "@livekit/components-styles";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, CalendarX2, UserX } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { ApiError } from "@uniwork/core/api";
 import type { JoinMeetingBody } from "@uniwork/core/api/endpoints/meetings";
 import type { JoinDecision } from "@uniwork/core/types/meeting";
 import { isJoinAdmitted, useJoinMeeting, useMeeting, useStartMeeting } from "@uniwork/core/meetings";
@@ -32,7 +33,10 @@ import {
   shouldRefreshCredentialOnDisconnect,
   type MediaDisconnectKind,
 } from "./room-disconnect";
+import { useFocusHeadingOnViewChange } from "./use-focus-heading-on-view-change";
+import { useInertOutside } from "./use-inert-outside";
 import { useLobbyJoinRetry } from "./use-lobby-join-retry";
+import { useWithdrawJoinRequestOnLeave } from "./use-withdraw-join-request";
 
 function MeetingRoomShell({
   children,
@@ -41,8 +45,11 @@ function MeetingRoomShell({
   children: ReactNode;
   testId?: string;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useInertOutside(ref);
   return (
     <div
+      ref={ref}
       className="fixed inset-0 z-40 flex min-h-0 min-w-0 flex-col overflow-hidden bg-background"
       data-testid={testId}
     >
@@ -135,6 +142,7 @@ export function MeetingRoomView({
   const [roomEpoch, setRoomEpoch] = useState(0);
   const roomTokenRef = useRef<string | undefined>(undefined);
   const lastAdmittedRef = useRef<JoinDecision | undefined>(undefined);
+  const lastLobbyRef = useRef<JoinDecision | undefined>(undefined);
   const rejoinAfterDrop = useCallback(() => {
     setRejoining(true);
     mutateJoin(joinArgs, {
@@ -174,11 +182,26 @@ export function MeetingRoomView({
   }, [choice, retryJoin, initialJoinDecision]);
 
   const settledDecision = join.data ?? initialJoinDecision;
-  if (isJoinAdmitted(settledDecision)) lastAdmittedRef.current = settledDecision;
+  if (isJoinAdmitted(settledDecision)) {
+    lastAdmittedRef.current = settledDecision;
+    lastLobbyRef.current = undefined;
+  } else if (settledDecision) {
+    lastLobbyRef.current = settledDecision;
+  }
   // Only while that re-join is in flight: a superseded call never runs its
   // onSettled, and the flag must not pin an old credential after it.
   const holdLastAdmitted = rejoining && join.isPending && lastAdmittedRef.current;
-  const decision = holdLastAdmitted ? lastAdmittedRef.current : settledDecision;
+  // The lobby re-asks on every approval or refusal in this meeting (anyone's),
+  // on reconnect and on backoff, and a new mutate empties join.data until it
+  // settles. Keep the last lobby answer meanwhile, so the screen does not
+  // flash "connecting", focus does not jump back to the heading, and a leave
+  // mid-retry still withdraws the knock.
+  const holdLastLobby = !holdLastAdmitted && join.isPending && !join.error && !settledDecision && lastLobbyRef.current;
+  const decision = holdLastAdmitted
+    ? lastAdmittedRef.current
+    : holdLastLobby
+      ? lastLobbyRef.current
+      : settledDecision;
   const admitted = isJoinAdmitted(decision);
   admittedRef.current = admitted;
 
@@ -191,6 +214,22 @@ export function MeetingRoomView({
     hasJoinError: Boolean(join.error),
     onRetry: retryJoin,
   });
+
+  // Guests withdraw through the public invite flow, which owns their request.
+  const waitingRequestId =
+    !guestMode && !admitted && decision?.decision === "WAITING_APPROVAL" ? decision.join_request_id : undefined;
+  useWithdrawJoinRequestOnLeave(meetingId, waitingRequestId);
+
+  // Prejoin → lobby and one lobby state → another swap the whole screen;
+  // focus follows to the new heading so the change is heard (the guest
+  // invite page does the same). Entering the room itself is left alone.
+  const joinErrorCode = join.error instanceof ApiError ? join.error.code : join.error ? "error" : "";
+  const lobbyView = !choice
+    ? "prejoin"
+    : !admitted && (join.error || decision)
+      ? `lobby:${decision?.decision ?? ""}:${joinErrorCode}`
+      : "room";
+  useFocusHeadingOnViewChange(lobbyView, { selector: "[data-gate-heading]", fallback: null });
 
   useMeetingScheduleDeadline({
     endsAt: meeting?.ends_at,
@@ -222,6 +261,7 @@ export function MeetingRoomView({
           decision={decision?.decision}
           error={join.error}
           guestMode={guestMode}
+          meetingStatus={decision?.meeting_status ?? meeting?.status}
           onRequestAgain={requestAgain}
           requestingAgain={join.isPending}
           onRetry={retryJoin}
