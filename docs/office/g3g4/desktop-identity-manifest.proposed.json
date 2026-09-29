@@ -1,0 +1,58 @@
+{
+  "status": "proposed",
+  "proposal": "G4-D1 identity input; not an accepted decision",
+  "sourceRefs": [
+    "docs/office/g1g2/packaging-and-handoff.md §3",
+    "docs/superpowers/specs/2026-09-27-office-g4-desktop-design.md §8.1",
+    "docs/office/g0/module-runtime-map.json packaging_and_namespace"
+  ],
+  "owner": "G4-D1 (G4/G5/OPS)",
+  "product": "UniWork Office",
+  "appId": "com.uniwork.office",
+  "executable": "uniwork-office",
+  "artifactPrefix": "uniwork-office_<version>_<arch>",
+  "userScheme": "uniwork-office",
+  "authCallback": "uniwork-office://auth/callback",
+  "internalSchemes": {
+    "app": "uniwork-office-app",
+    "preview": "uniwork-office-preview",
+    "asset": "uniwork-office-asset"
+  },
+  "userDataNamespace": "uniwork-office",
+  "devNamespace": "uniwork-office-dev",
+  "channelNamespaces": {
+    "stable": "uniwork-office/stable",
+    "beta": "uniwork-office/beta",
+    "dev": "uniwork-office/dev"
+  },
+  "update": {
+    "owner": "UniWork",
+    "host": null,
+    "channel": null,
+    "status": "pending G4-D1/G4-D3",
+    "requirements": [
+      "publisher, app id, channel and artifact hash must be verified before install",
+      "no upstream feed, URL, publisher or binary fallback",
+      "unsigned development artifacts must be explicitly labelled"
+    ]
+  },
+  "coexistence": {
+    "mustShare": [],
+    "mustBeDistinct": [
+      "appId",
+      "userScheme",
+      "internalSchemes",
+      "userDataNamespace",
+      "devNamespace",
+      "controlChannel",
+      "updateFeed"
+    ],
+    "evidence": "pending G4-D1 install and deep-link checks"
+  },
+  "evidenceLevel": "pending",
+  "notes": [
+    "Values are proposed and may be revised only through the G4-D1 contract/consumer update.",
+    "The host must use the DOC-005 desktop login contract; opaque callbacks contain no token, file bytes, path or title.",
+    "Renderer origin and IPC permissions remain subject to G4-D2 security review."
+  ]
+}
