@@ -29,7 +29,7 @@ function Avatar({ person = "HA" }: { person?: string }) { return <span className
 function Field({ label, children }: { label: string; children: ReactNode }) { return <div className="action-field"><span>{label}</span><div>{children}</div></div>; }
 
 /** Illustrative controls are not interactive. Real controls live outside the film. */
-export function ProductPlayback({ featureKey }: { featureKey: PlaybackFeature }) {
+export function ProductPlayback({ featureKey, onExplore }: { featureKey: PlaybackFeature; onExplore?: () => void }) {
   const { t, i18n } = useTranslation();
   const host = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
@@ -71,7 +71,7 @@ export function ProductPlayback({ featureKey }: { featureKey: PlaybackFeature })
     return () => { observer.disconnect(); clearTimeout(timer); };
   }, [featureKey, step, i18n.language, surface]);
   return <div ref={host} className="product-playback" data-feature-preview={featureKey} data-step={step} data-beat-count={beatCount} data-running={running} data-reduced={reduced} data-pressing={pressing}>
-    <LovableFrame feature={featureKey} label={t(`landing.actionDemo.steps.${featureKey}${step}`)} completed={featureKey === "tasks" && step === 6} onSceneVisibilityChange={setSceneVisible} playback={{ running, reduced, pressing, control: <Button variant="ghost" size="icon" data-action="toggle-playback" onClick={toggle} aria-label={t(playing ? "landing.playback.pause" : "landing.playback.play")}>{playing ? <Pause aria-hidden /> : <Play aria-hidden />}</Button> }}>
+    <LovableFrame feature={featureKey} label={t(`landing.actionDemo.steps.${featureKey}${step}`)} completed={featureKey === "tasks" && step === 6} onSceneVisibilityChange={setSceneVisible} toolbarActions={onExplore && <Button variant="ghost" size="icon" data-action="toggle-presentation" onClick={onExplore} aria-label={t("landing.playback.explore")}><MousePointer2 aria-hidden /></Button>} playback={{ running, reduced, pressing, control: <Button variant="ghost" size="icon" data-action="toggle-playback" onClick={toggle} aria-label={t(playing ? "landing.playback.pause" : "landing.playback.play")}>{playing ? <Pause aria-hidden /> : <Play aria-hidden />}</Button> }}>
     <div ref={attachStage} className="action-stage demo-stage" data-scene-kind={featureKey} role="img" aria-label={t(`landing.actionDemo.steps.${featureKey}${step}`)}>
       {featureKey === "tasks" && <TaskScene step={step} />}
       {featureKey === "meetings" && <MeetingScene step={step} />}

@@ -39,9 +39,9 @@ async function settle(page: Page) {
   );
 }
 
-export async function auditText(page: Page) {
+export async function auditText(page: Page, rootSelector = "body") {
   await settle(page);
-  return page.evaluate(() => {
+  return page.evaluate((rootSelector) => {
     // Gộp màu bằng chính bộ vẽ của trình duyệt, không tự parse chuỗi. Token của
     // app ra `oklab(...)` (từ `bg-brand/5`) và nhiều nền là bán trong suốt — bóc
     // số bằng regex sẽ đọc `oklab(0.99 …)` thành RGB(1,0,0) tức gần như đen, rồi
@@ -139,7 +139,7 @@ export async function auditText(page: Page) {
 
     const fails: string[] = [];
     let checked = 0;
-    for (const el of Array.from(document.querySelectorAll<HTMLElement>("body *"))) {
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>(`${rootSelector} *`))) {
       const own = Array.from(el.childNodes)
         .filter((n) => n.nodeType === Node.TEXT_NODE)
         .map((n) => n.textContent ?? "")
@@ -168,5 +168,5 @@ export async function auditText(page: Page) {
       }
     }
     return { fails, checked, colorLevel4 };
-  });
+  }, rootSelector);
 }

@@ -3,7 +3,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { api } from "@uniwork/core";
 import { useAuthStore } from "@uniwork/core/auth";
-import { createBrowserCookieLocaleAdapter, type SupportedLocale } from "@uniwork/core/i18n";
+import { createBrowserCookieLocaleAdapter, initI18n, syncI18nResources, type SupportedLocale } from "@uniwork/core/i18n";
+import en from "@uniwork/core/i18n/locales/en.json";
 import { syncRequestLocale } from "@uniwork/core/i18n/sync-request-locale";
 import { LocaleAdapterProvider } from "@uniwork/core/i18n/react";
 
@@ -26,6 +27,7 @@ export function WebLocaleProvider({
   initialDictionary?: object;
   children: ReactNode;
 }) {
+  const englishDictionary = en;
   const [adapter] = useState(() => {
     const base = createBrowserCookieLocaleAdapter();
     return {
@@ -42,6 +44,15 @@ export function WebLocaleProvider({
     syncRequestLocale(initialLocale, initialDictionary);
     return initialLocale;
   });
+
+  // The mount initializer survives Fast Refresh. New JSON and request bundles
+  // must also update the live store and notify already mounted translations.
+  useEffect(() => {
+    syncI18nResources(initI18n(), {
+      en: englishDictionary,
+      vi: initialLocale === "vi" ? initialDictionary ?? null : null,
+    });
+  }, [englishDictionary, initialDictionary, initialLocale]);
 
   useEffect(() => {
     document.documentElement.lang = applied;
