@@ -16,6 +16,11 @@ SELECT * FROM meetings WHERE workspace_id = $1 ORDER BY created_at DESC, id DESC
 -- the viewer's today (the today param, a day in the tz zone) and after come first, soonest
 -- first; earlier days follow, most recent day first, each day by start time.
 -- The id tiebreak keeps LIMIT/OFFSET pages stable across equal start times.
+-- status filters on the status the viewer sees (displayMeetingStatus in
+-- packages/core/meetings/schedule.ts), not the stored one, for the one pair
+-- that differs: a SCHEDULED meeting whose window passed (ends_at < now) is
+-- MISSED, and status = 'SCHEDULED' lists only the ones that can still start.
+-- Every other value matches the stored status.
 SELECT sqlc.embed(meetings),
   EXISTS (
     SELECT 1 FROM meeting_recordings r
@@ -23,7 +28,10 @@ SELECT sqlc.embed(meetings),
   )::boolean AS has_playable_recording
 FROM meetings
 WHERE workspace_id = sqlc.arg('workspace_id')
-  AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'))
+  AND (sqlc.narg('status')::text IS NULL
+    OR (sqlc.narg('status') = 'MISSED' AND status = 'SCHEDULED' AND ends_at < sqlc.arg('now')::timestamptz)
+    OR (sqlc.narg('status') = 'SCHEDULED' AND status = 'SCHEDULED' AND ends_at >= sqlc.arg('now')::timestamptz)
+    OR (sqlc.narg('status') NOT IN ('SCHEDULED', 'MISSED') AND status = sqlc.narg('status')))
   AND (sqlc.narg('meeting_type')::text IS NULL OR meeting_type = sqlc.narg('meeting_type'))
   AND (sqlc.narg('host_user_id')::text IS NULL OR host_user_id = sqlc.narg('host_user_id'))
   AND (sqlc.narg('project_id')::text IS NULL OR project_id = sqlc.narg('project_id'))
@@ -45,7 +53,10 @@ LIMIT sqlc.arg('limit_n') OFFSET sqlc.arg('offset_n');
 -- name: CountMeetingsByWorkspaceFiltered :one
 SELECT count(*)::bigint FROM meetings
 WHERE workspace_id = sqlc.arg('workspace_id')
-  AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'))
+  AND (sqlc.narg('status')::text IS NULL
+    OR (sqlc.narg('status') = 'MISSED' AND status = 'SCHEDULED' AND ends_at < sqlc.arg('now')::timestamptz)
+    OR (sqlc.narg('status') = 'SCHEDULED' AND status = 'SCHEDULED' AND ends_at >= sqlc.arg('now')::timestamptz)
+    OR (sqlc.narg('status') NOT IN ('SCHEDULED', 'MISSED') AND status = sqlc.narg('status')))
   AND (sqlc.narg('meeting_type')::text IS NULL OR meeting_type = sqlc.narg('meeting_type'))
   AND (sqlc.narg('host_user_id')::text IS NULL OR host_user_id = sqlc.narg('host_user_id'))
   AND (sqlc.narg('project_id')::text IS NULL OR project_id = sqlc.narg('project_id'))
@@ -132,10 +143,11 @@ WHERE n.meeting_id = $1 ORDER BY n.created_at;
 -- name: MeetingWorkspaceStatistics :one
 SELECT
   count(*)::bigint AS total,
-  count(*) FILTER (WHERE status = 'SCHEDULED')::bigint AS scheduled,
+  count(*) FILTER (WHERE status = 'SCHEDULED' AND ends_at >= sqlc.arg('now')::timestamptz)::bigint AS scheduled,
+  count(*) FILTER (WHERE status = 'SCHEDULED' AND ends_at < sqlc.arg('now')::timestamptz)::bigint AS missed,
   count(*) FILTER (WHERE status = 'IN_PROGRESS')::bigint AS in_progress,
   count(*) FILTER (WHERE status = 'ENDED')::bigint AS ended,
   count(*) FILTER (WHERE status = 'CANCELED')::bigint AS canceled,
   count(*) FILTER (WHERE meeting_type = 'INSTANT')::bigint AS instant
 FROM meetings
-WHERE workspace_id = $1;
+WHERE workspace_id = sqlc.arg('workspace_id');

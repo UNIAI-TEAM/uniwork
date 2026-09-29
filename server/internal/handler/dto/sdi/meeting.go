@@ -16,7 +16,7 @@ type CreateMeetingSDI struct {
 
 // ListMeetingsSDI documents GET /api/v1/workspaces/{workspaceID}/meetings query params.
 type ListMeetingsSDI struct {
-	Status      string `query:"status" description:"Lọc theo status đã lưu; bỏ trống = mọi status" example:"SCHEDULED"`
+	Status      string `query:"status" enum:"SCHEDULED,MISSED,IN_PROGRESS,ENDED,CANCELED" description:"Lọc theo trạng thái người xem thấy: SCHEDULED = chưa bắt đầu và chưa qua giờ kết thúc (ends_at >= now); MISSED = SCHEDULED đã qua giờ kết thúc (ends_at < now); các giá trị khác khớp status đã lưu; bỏ trống = mọi status" example:"SCHEDULED"`
 	MeetingType string `query:"meeting_type" description:"SCHEDULED hoặc INSTANT; bỏ trống = cả hai" example:"SCHEDULED"`
 	HostUserID  string `query:"host_user_id" description:"Lọc theo ULID người chủ trì" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	ProjectID   string `query:"project_id" description:"Lọc theo ULID project" example:""`

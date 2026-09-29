@@ -146,7 +146,8 @@ type JoinRequestListSDO struct {
 
 type MeetingStatisticsSDO struct {
 	Total              int64   `json:"total"`
-	Scheduled          int64   `json:"scheduled"`
+	Scheduled          int64   `json:"scheduled" description:"Cuộc họp SCHEDULED chưa qua giờ kết thúc dự kiến (ends_at >= now)"`
+	Missed             int64   `json:"missed" description:"Cuộc họp SCHEDULED đã qua giờ kết thúc dự kiến mà chưa bắt đầu (ends_at < now)"`
 	InProgress         int64   `json:"in_progress"`
 	Ended              int64   `json:"ended"`
 	Canceled           int64   `json:"canceled"`
