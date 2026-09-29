@@ -111,3 +111,44 @@
   .final-showcase-section .final-actions .studio-button { transition: none; }
   .final-showcase-section .final-actions .studio-button:hover { transform: none; }
 }
+
+/* The chapter's final invitation is part of the page, rather than a separate boxed banner. */
+.marketing-site .final-section.final-compact-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 28px;
+  width: 100%;
+  margin: 0;
+  padding: 56px 24px 72px;
+  border: 0;
+  border-radius: 0;
+  background:
+    radial-gradient(ellipse at 18% 85%, color-mix(in srgb, var(--landing-cyan) 64%, transparent), transparent 58%),
+    radial-gradient(ellipse at 85% 78%, color-mix(in srgb, var(--landing-violet) 56%, transparent), transparent 58%),
+    var(--background);
+  color: var(--foreground);
+  text-align: center;
+}
+.final-compact-copy { display: flex; flex-direction: column; align-items: center; min-width: 0; max-width: 840px; }
+.final-chapter-mark { display: flex; margin-bottom: 24px; }
+.marketing-site .final-compact-copy h2 { max-width: 26ch; margin: 0; font-size: var(--text-hero); line-height: 1.2; }
+.final-compact-copy p { max-width: 54ch; margin: 20px auto 0; font-size: var(--text-body-lg); }
+.final-compact-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; }
+.final-compact-actions a { min-height: 52px; padding-inline: 24px; gap: 12px; font-size: var(--text-body); }
+.final-compact-actions svg { width: 18px; height: 18px; }
+.final-compact-demo { display: inline-flex; align-items: center; justify-content: center; color: var(--brand); border: 1px solid var(--brand); border-radius: 8px; }
+.final-compact-demo:hover { background: color-mix(in srgb, var(--brand) 8%, transparent); }
+@media (max-width: 1023px) {
+  .marketing-site .final-compact-copy h2 { font-size: var(--text-hero-sm); }
+}
+@media (max-width: 767px) {
+  .marketing-site .final-section.final-compact-section {
+    padding: 40px 20px 48px;
+    gap: 24px;
+  }
+  .marketing-site .final-compact-copy h2 { font-size: var(--text-hero-sm); }
+  .final-compact-copy p { font-size: var(--text-body); }
+  .final-compact-actions { width: 100%; max-width: 380px; }
+  .final-compact-actions a { flex: 1 1 150px; padding-inline: 16px; }
+}

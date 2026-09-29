@@ -1,11 +1,9 @@
 /**
  * The four platforms a buyer most often already owns, in the order the page
- * argues them: the office suite first because it is the one nearly everyone
- * has, then the three that each solved one side of the same problem.
+ * compares them: the office suite, then document/database and work platforms.
  *
- * All four share one neutral treatment. A vendor's own brand colour would read
- * as an endorsement badge, and a signal colour (warning, info) would claim a
- * state the page cannot back — signals report state, they never decorate.
+ * Original vendor icons identify comparison options alongside their names;
+ * the page describes documented capabilities without scores or endorsement.
  */
 export const PLATFORMS = {
   ms365: { ns: "landing.why.ms365" },
@@ -18,6 +16,3 @@ export type PlatformKey = keyof typeof PLATFORMS;
 
 /** Stable order for every list that renders all of them. */
 export const PLATFORM_KEYS = ["ms365", "notion", "clickup", "coda"] as const satisfies readonly PlatformKey[];
-
-/** Each platform carries the same five problems; see the i18n file. */
-export const PLATFORM_ISSUES = ["i1", "i2", "i3", "i4", "i5"] as const;
