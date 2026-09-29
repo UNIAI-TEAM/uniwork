@@ -191,7 +191,7 @@ beforeEach(() => {
 describe("RowActionsMenu: một danh sách, hai cách mở", () => {
   it("menu chuột phải và nút ba chấm hiện cùng hành động, đúng thứ tự", async () => {
     renderSurface();
-    const expected = ["Mở", "Sao chép liên kết", "Đổi trạng thái", "Đổi người phụ trách", "Xóa"];
+    const expected = ["Mở", "Sao chép liên kết", "Đổi trạng thái", "Đổi độ ưu tiên", "Đổi người phụ trách", "Xóa"];
 
     const contextMenu = await openContextMenu();
     expect(itemNames(contextMenu)).toEqual(expected);
@@ -214,7 +214,7 @@ describe("RowActionsMenu: một danh sách, hai cách mở", () => {
   it("ẩn Sao chép liên kết khi không có workspace", async () => {
     renderSurface({ withWorkspace: false });
     const menu = await openContextMenu();
-    expect(itemNames(menu)).toEqual(["Mở", "Đổi trạng thái", "Đổi người phụ trách", "Xóa"]);
+    expect(itemNames(menu)).toEqual(["Mở", "Đổi trạng thái", "Đổi độ ưu tiên", "Đổi người phụ trách", "Xóa"]);
   });
 
   it("ẩn đổi trạng thái, người phụ trách và xóa khi không có surface actions", async () => {
@@ -279,6 +279,20 @@ describe("RowActionsMenu: từng hành động", () => {
     expect(actions!.updateTask).toHaveBeenCalledWith(
       "t1",
       { status: "in_progress" },
+      expect.objectContaining({ onError: expect.any(Function) }),
+    );
+  });
+
+  it("đánh dấu độ ưu tiên hiện tại và đổi độ ưu tiên qua updateTask", async () => {
+    const { actions } = renderSurface();
+    const menu = await openContextMenu();
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Đổi độ ưu tiên" }));
+    const high = await screen.findByRole("menuitemradio", { name: "Cao" });
+    expect(high).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(high);
+    expect(actions!.updateTask).toHaveBeenCalledWith(
+      "t1",
+      { priority: "high" },
       expect.objectContaining({ onError: expect.any(Function) }),
     );
   });

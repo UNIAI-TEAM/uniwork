@@ -1561,6 +1561,7 @@
       "link_copied": "Link copied",
       "copy_link_failed": "Could not copy link",
       "change_status": "Change status",
+      "change_priority": "Change priority",
       "change_assignee": "Change assignee",
       "delete": "Delete",
       "delete_dialog_title": "Delete this task?",

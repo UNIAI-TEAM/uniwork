@@ -1560,6 +1560,7 @@
       "link_copied": "Đã sao chép liên kết",
       "copy_link_failed": "Không sao chép được liên kết",
       "change_status": "Đổi trạng thái",
+      "change_priority": "Đổi độ ưu tiên",
       "change_assignee": "Đổi người phụ trách",
       "delete": "Xóa",
       "delete_dialog_title": "Xóa task này?",
