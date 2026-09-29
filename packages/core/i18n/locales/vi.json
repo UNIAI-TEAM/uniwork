@@ -6839,6 +6839,59 @@
     }
   },
   "office": {
+    "docx": {
+      "title": "Tài liệu DOCX",
+      "toolbar": { "label": "Lệnh chỉnh sửa DOCX" },
+      "actions": {
+        "undo": "Hoàn tác",
+        "redo": "Làm lại",
+        "save": "Lưu lên UniWork",
+        "saving": "Đang lưu…",
+        "retryOpen": "Thử mở lại"
+      },
+      "commands": {
+        "bold": "Đậm (đang chờ)",
+        "italic": "Nghiêng (đang chờ)",
+        "table": "Bảng (đang chờ)",
+        "image": "Ảnh (đang chờ)"
+      },
+      "selection": {
+        "none": "Chưa chọn",
+        "range": "Vùng chọn {{from}}–{{to}}"
+      },
+      "capabilityPending": "Tính năng DOCX này chưa có trong bản dựng hiện tại.",
+      "state": {
+        "opening": "Đang mở tài liệu…",
+        "error": "Không mở được tài liệu"
+      },
+      "saveState": {
+        "ready": "Sẵn sàng",
+        "dirty": "Có thay đổi chưa lưu",
+        "saving": "Đang lưu…",
+        "saved": "Đã lưu lên UniWork",
+        "error": "Lưu cần xử lý",
+        "conflict": "Xung đột phiên bản",
+        "blocked": "Đã chặn lưu",
+        "readonly": "Chỉ đọc",
+        "incompatible": "Không thể chỉnh sửa"
+      },
+      "surface": { "ready": "Canvas DOCX sẵn sàng cho bộ dựng của host." },
+      "errors": {
+        "title": "Không mở được DOCX này",
+        "reason": "Lý do: {{reason}}",
+        "unknown": "Bộ chuyển DOCX trả về lỗi mở không xác định.",
+        "corrupted": "Gói DOCX bị hỏng hoặc chưa đầy đủ.",
+        "password_cancelled": "Bạn đã hủy hộp thoại mật khẩu.",
+        "password_required": "Cần mật khẩu để mở tài liệu này.",
+        "unsupported_feature": "Engine hiện tại chưa hỗ trợ tính năng DOCX này.",
+        "not_office_file": "Tệp đã chọn không phải tài liệu OOXML DOCX.",
+        "engine_error": "Engine DOCX không thể mở tài liệu này.",
+        "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa DOCX.",
+        "wrong_password": "Mật khẩu không mở khóa được tài liệu này.",
+        "io_error": "Không thể đọc tài liệu từ bộ nhớ.",
+        "too_large": "Tài liệu này quá lớn để mở tại đây."
+      }
+    },
     "title": "Office",
     "save": {
       "status": {
