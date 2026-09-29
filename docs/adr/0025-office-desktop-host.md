@@ -3,7 +3,8 @@
 **Trạng thái:** accepted (2026-09-29, G4-D2; UNI-830)
 **Issue:** UNI-830 · **Liên quan:** UNI-636, G4-01a, G4-02a
 **Nguồn:** [Office desktop specification](../superpowers/specs/2026-09-27-office-g4-desktop-design.md) §7;
-[G4-D1 identity manifest](../office/g3g4/desktop-identity-manifest.proposed.json);
+[G4-D1 decision record](../office/g3g4/decisions/gates-2026-09-29.md) and the
+[identity manifest input](../office/g3g4/desktop-identity-manifest.proposed.json);
 [engine runtime ADR](0021-runtime-engine-office-da-dinh-dang.md).
 
 ## Bối cảnh
@@ -35,7 +36,8 @@ Navigation and `window.open` are denied by default. External URLs require
 `https:` and an exact host allowlist before an injected system-browser adapter
 may open them.
 
-The accepted identity is `com.uniwork.office`, schemes `uniwork-office`,
+The identity fields used by this scaffold match the G4-D1 subset accepted in
+the decision record: `com.uniwork.office`, schemes `uniwork-office`,
 `uniwork-office-app`, `uniwork-office-preview`, and `uniwork-office-asset`,
 with user-data namespaces `uniwork-office` and `uniwork-office-dev`. The
 current build and package outputs are explicitly unsigned development

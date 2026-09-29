@@ -9,7 +9,7 @@ export default defineConfig({
     ...vitestPoolOptions(),
     coverage: {
       provider: "v8",
-      include: ["main/**/*.ts", "preload/**/*.ts", "renderer/**/*.ts"],
+      include: ["main/**/*.ts", "preload/**/*.ts", "renderer/**/*.ts", "shared/**/*.ts"],
       exclude: ["**/*.test.ts", "**/*.d.ts"],
       reporter: ["text-summary", "json-summary"],
       // The host is intentionally small and policy-heavy. These floors are

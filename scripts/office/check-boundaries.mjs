@@ -260,13 +260,20 @@ export function checkBoundaries(root, { requireUpstreamLicence = null } = {}) {
       const source = fs.readFileSync(file, "utf8");
       for (const hit of unverifiableModuleCalls(source)) report(rule, path.relative(root, file), `unverifiable module access: ${hit}`);
       for (const specifier of extractImportSpecifiers(source)) {
-        if (renderer && (isForbiddenSpecifier(specifier) || /^electron(\/|$)/.test(specifier))) {
-          report(rule, path.relative(root, file), `renderer resolves forbidden privileged specifier ${JSON.stringify(specifier)}`);
-          continue;
-        }
-        if (!renderer && /^node:/.test(specifier)) {
-          report(rule, path.relative(root, file), `preload resolves direct node specifier ${JSON.stringify(specifier)}`);
-          continue;
+        const isRelative = specifier.startsWith("./") || specifier.startsWith("../");
+        if (!isRelative) {
+          // Renderer/preload graphs use the same browser-safe package allowlist.
+          // A preload may import Electron's bridge primitives, but neither
+          // graph may smuggle Node built-ins or the desktop engine entry.
+          const preloadElectron = !renderer && specifier === "electron";
+          if (isForbiddenSpecifier(specifier) && !preloadElectron) {
+            report(rule, path.relative(root, file), `${renderer ? "renderer" : "preload"} resolves forbidden privileged specifier ${JSON.stringify(specifier)}`);
+            continue;
+          }
+          if (!preloadElectron && !isBrowserSafePackage(specifier)) {
+            report(rule, path.relative(root, file), `${renderer ? "renderer" : "preload"} resolves non-browser-safe specifier ${JSON.stringify(specifier)}`);
+            continue;
+          }
         }
         if (specifier.startsWith("./") || specifier.startsWith("../")) {
           const resolved = resolveRelative(file, specifier);

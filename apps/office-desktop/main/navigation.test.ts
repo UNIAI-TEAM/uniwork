@@ -4,6 +4,8 @@ import { decideNavigation, installNavigationGuards, isAllowedExternalUrl } from 
 describe("desktop navigation policy", () => {
   it("allows only internal app schemes", () => {
     expect(decideNavigation("uniwork-office-app://app/index.html").action).toBe("allow");
+    expect(decideNavigation("uniwork-office-preview://doc/1").action).toBe("deny");
+    expect(decideNavigation("uniwork-office-asset://asset/1").action).toBe("deny");
     expect(decideNavigation("file:///etc/passwd").action).toBe("deny");
   });
   it("requires https and an explicit host allowlist for external URLs", () => {
@@ -22,6 +24,9 @@ describe("desktop navigation policy", () => {
     listeners["will-navigate"]!({ preventDefault: () => prevented.push(true) }, "https://docs.uniwork.com/help");
     expect(prevented).toEqual([true]);
     expect(external).toHaveBeenCalledWith("https://docs.uniwork.com/help");
+    listeners["will-redirect"]!({ preventDefault: () => prevented.push(true) }, "file:///etc/passwd");
+    listeners["will-frame-navigate"]!({ preventDefault: () => prevented.push(true) }, "https://evil.example");
+    expect(prevented).toHaveLength(3);
     const handler = contents.setWindowOpenHandler.mock.calls[0]![0]!;
     expect(handler({ url: "https://evil.example" })).toEqual({ action: "deny" });
     expect(external).toHaveBeenCalledTimes(1);
