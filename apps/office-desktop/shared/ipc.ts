@@ -10,6 +10,11 @@ export const DESKTOP_IPC_CHANNELS = [
   "desktop:auth-start",
   "desktop:auth-cancel",
   "desktop:auth-session",
+  "desktop:file-pick-open",
+  "desktop:file-open",
+  "desktop:file-save",
+  "desktop:file-save-as",
+  "desktop:draft-checkpoint",
 ] as const;
 export type DesktopIpcChannel = (typeof DESKTOP_IPC_CHANNELS)[number];
 const sessionGenerationSchema = z.string().regex(/^[A-Za-z0-9_-]{8,128}$/, "invalid session generation");
@@ -19,6 +24,25 @@ const originSchema = z.string().url().max(2048);
 const deploymentSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/, "invalid deployment");
 const clientIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/, "invalid client id");
 const attemptIdSchema = z.string().regex(/^attempt_[A-Za-z0-9_-]{32,160}$/, "invalid attempt id");
+const fileHandleSchema = z.string().regex(/^file_[A-Za-z0-9_-]{32,160}$/, "invalid file handle");
+const draftIdSchema = z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/, "invalid draft id");
+const base64BytesSchema = z.string().regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/, "invalid byte encoding").max(64 * 1024 * 1024);
+export const desktopFileMetadataSchema = z.object({
+  handle: fileHandleSchema,
+  name: z.string().min(1).max(255),
+  byteLength: z.number().int().nonnegative(),
+  modifiedAtMs: z.number().finite().nonnegative(),
+  checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/),
+}).strict();
+export const desktopFileResponseSchema = z.object({ opened: z.boolean(), metadata: desktopFileMetadataSchema.optional() }).strict();
+export const desktopDraftResponseSchema = z.object({ stored: z.boolean(), generation: z.number().int().positive() }).strict();
+const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
+  "desktop:file-pick-open": desktopFileResponseSchema,
+  "desktop:file-open": desktopFileResponseSchema,
+  "desktop:file-save": desktopFileResponseSchema,
+  "desktop:file-save-as": desktopFileResponseSchema,
+  "desktop:draft-checkpoint": desktopDraftResponseSchema,
+};
 export const desktopSessionMetadataSchema = z.object({
   status: z.enum(["signed-out", "pending", "signed-in"]),
   accountId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/).optional(),
@@ -35,6 +59,11 @@ const requestSchemas = {
   "desktop:auth-start": z.object({ sessionGeneration: sessionGenerationSchema, clientId: clientIdSchema, deploymentId: deploymentSchema }).strict(),
   "desktop:auth-cancel": z.object({ sessionGeneration: sessionGenerationSchema, attemptId: attemptIdSchema }).strict(),
   "desktop:auth-session": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
+  "desktop:file-pick-open": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
+  "desktop:file-open": z.object({ sessionGeneration: sessionGenerationSchema, handle: fileHandleSchema }).strict(),
+  "desktop:file-save": z.object({ sessionGeneration: sessionGenerationSchema, handle: fileHandleSchema, dataBase64: base64BytesSchema }).strict(),
+  "desktop:file-save-as": z.object({ sessionGeneration: sessionGenerationSchema, handle: fileHandleSchema, dataBase64: base64BytesSchema }).strict(),
+  "desktop:draft-checkpoint": z.object({ sessionGeneration: sessionGenerationSchema, draftId: draftIdSchema, generation: z.number().int().positive(), dataBase64: base64BytesSchema }).strict(),
 } as const;
 export type DesktopIpcRequest<C extends DesktopIpcChannel = DesktopIpcChannel> = z.infer<(typeof requestSchemas)[C]>;
 export type IpcSenderContext = { senderId: number; frameId: number; origin: string; expectedSenderId: number; expectedFrameId: number; expectedOrigin: string; sessionGeneration: string; allowedExternalHosts?: readonly string[] };
@@ -91,6 +120,7 @@ export function validateIpcRequest<C extends DesktopIpcChannel>(channel: C | str
   if (channel === "desktop:open-external" && !isAllowedExternalUrl((parsed.data as unknown as { url: string }).url, sender.allowedExternalHosts ?? [])) {
     throw new IpcValidationError("external_url", "External URL is not approved by the HTTPS host allowlist");
   }
+  if (channel === "desktop:engine-call" && containsPathLikeValue((parsed.data as unknown as { args: unknown }).args)) throw new IpcValidationError("schema", "IPC payload contains a filesystem path");
   return parsed.data as DesktopIpcRequest<C>;
 }
 export type IpcHandler<C extends DesktopIpcChannel> = (request: DesktopIpcRequest<C>) => Promise<unknown> | unknown;
@@ -99,6 +129,14 @@ export function createIpcDispatcher(handlers: Partial<{ [C in DesktopIpcChannel]
     const request = validateIpcRequest(channel, payload, context);
     const handler = handlers[channel as DesktopIpcChannel];
     if (!handler) throw new IpcValidationError("unknown_channel", "IPC channel has no host implementation");
-    return handler(request as never);
+    const result = await handler(request as never);
+    const schema = responseSchemas[channel as DesktopIpcChannel];
+    return schema ? schema.parse(result) : result;
   };
+}
+
+function containsPathLikeValue(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(containsPathLikeValue);
+  if (!value || typeof value !== "object") return typeof value === "string" && (/^[A-Za-z]:[\\/]/.test(value) || value.startsWith("\\\\") || value.startsWith("/"));
+  return Object.entries(value).some(([key, child]) => /(?:^|_)(?:path|filepath|file_path)$/i.test(key) || containsPathLikeValue(child));
 }

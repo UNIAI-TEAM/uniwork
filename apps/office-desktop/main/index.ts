@@ -1,5 +1,5 @@
 import { DESKTOP_IDENTITY } from "../shared/identity";
-import { createAuthIpcHandlers, createIpcDispatcher, type IpcHandler, type DesktopIpcChannel, type IpcSenderContext } from "./ipc";
+import { createAuthIpcHandlers, createDraftIpcHandlers, createFileIpcHandlers, createIpcDispatcher, type DraftIpcOptions, type FileIpcOptions, type IpcHandler, type DesktopIpcChannel, type IpcSenderContext } from "./ipc";
 import { installNavigationGuards, openApprovedExternal } from "./navigation";
 import { createDesktopRuntimeAdapters } from "./adapters";
 import type { HostIpcPort } from "@uniwork/office-contracts";
@@ -17,6 +17,7 @@ export type DesktopWindowAdapter = {
   webPreferences: typeof WINDOW_WEB_PREFERENCES;
   loadURL(url: string): Promise<void> | void;
   setUserDataDirectory(path: string): void;
+  on?(event: "closed", listener: () => void): void;
 };
 
 export type DesktopHostOptions = {
@@ -27,6 +28,8 @@ export type DesktopHostOptions = {
   allowedExternalHosts?: readonly string[];
   openSystemBrowser?: (url: string) => void;
   authManager?: NativeLoginManager;
+  localFiles?: FileIpcOptions;
+  drafts?: DraftIpcOptions;
 };
 
 /** Bootstrap shared engine/runtime/navigation/transport through host seams.
@@ -41,8 +44,14 @@ export function createDesktopHost(options: DesktopHostOptions) {
   const allowedExternalHosts = options.allowedExternalHosts ?? [];
   const openSystemBrowser = options.openSystemBrowser ?? (() => undefined);
   installNavigationGuards(options.window.webContents, allowedExternalHosts, openSystemBrowser);
+  options.window.on?.("closed", () => options.localFiles?.registry.revokeSession());
   options.window.setUserDataDirectory(process.env.UNIWORK_OFFICE_USER_DATA ?? DESKTOP_IDENTITY.devNamespace);
-  const handlers = { ...options.handlers, ...(options.authManager ? createAuthIpcHandlers(options.authManager) : {}) };
+  const handlers = {
+    ...options.handlers,
+    ...(options.authManager ? createAuthIpcHandlers(options.authManager) : {}),
+    ...(options.localFiles ? createFileIpcHandlers(options.localFiles) : {}),
+    ...(options.drafts ? createDraftIpcHandlers(options.drafts) : {}),
+  };
   handlers["desktop:open-external"] ??= (request) => {
     openApprovedExternal(request.url, allowedExternalHosts, openSystemBrowser);
     return { opened: true };
