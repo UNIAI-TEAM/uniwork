@@ -106,6 +106,7 @@ type Routes struct {
 	BatchUpdateTasks      http.HandlerFunc
 	BatchDeleteTasks      http.HandlerFunc
 	ListMyTasks           http.HandlerFunc
+	GetAssigneeFrequency  http.HandlerFunc
 	ListTaskChildren      http.HandlerFunc
 	ListChildrenByParents http.HandlerFunc
 	ChildTaskProgress     http.HandlerFunc
@@ -158,6 +159,7 @@ type Routes struct {
 
 	ListEmailHubAccounts          http.HandlerFunc
 	GetEmailHubUnreadCount        http.HandlerFunc
+	GetEmailHubSidebarCounts      http.HandlerFunc
 	ConnectEmailHubAccount        http.HandlerFunc
 	DisconnectEmailHubAccount     http.HandlerFunc
 	ListEmailHubImapLabels        http.HandlerFunc

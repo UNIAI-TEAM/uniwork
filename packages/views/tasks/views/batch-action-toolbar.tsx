@@ -171,6 +171,7 @@ export function BatchActionToolbar({
                 onUpdate={(updates) => void handleBatchUpdate(updates)}
               />
               <BatchAssigneePicker
+                workspaceId={workspaceId}
                 assigneeId={common.assignee?.id ?? null}
                 mixed={common.assignee === null}
                 disabled={loading}

@@ -31,6 +31,12 @@ type EmailHubUnreadSDO struct {
 	Unread int64 `json:"unread" example:"3"`
 }
 
+// EmailHubSidebarCountsSDO is GET .../email-hub/sidebar-counts.
+type EmailHubSidebarCountsSDO struct {
+	InboxUnread  int64 `json:"inbox_unread" example:"3"`
+	SnoozedTotal int64 `json:"snoozed_total" example:"2"`
+}
+
 // EmailHubScheduledSendItemSDO is one open scheduled outbound message: pending
 // (waiting to go out) or failed (delivery gave up; retry or dismiss). The
 // failure reason is not exposed.

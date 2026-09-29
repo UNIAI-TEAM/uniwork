@@ -45,6 +45,24 @@ func (h *handlers) getEmailHubUnreadCount(w http.ResponseWriter, r *http.Request
 	respondJSON(w, http.StatusOK, sdo.EmailHubUnreadSDO{Unread: n})
 }
 
+func (h *handlers) getEmailHubSidebarCounts(w http.ResponseWriter, r *http.Request) {
+	accountID := r.URL.Query().Get("account_id")
+	if accountID == "" {
+		respondError(w, http.StatusBadRequest, "invalid_request", "account_id is required")
+		return
+	}
+	counts, err := h.EmailHub.SidebarCounts(
+		r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"), accountID,
+	)
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.EmailHubSidebarCountsSDO{
+		InboxUnread: counts.InboxUnread, SnoozedTotal: counts.SnoozedTotal,
+	})
+}
+
 func (h *handlers) listEmailHubAccounts(w http.ResponseWriter, r *http.Request) {
 	rows, err := h.EmailHub.ListAccounts(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "workspaceID"))
 	if err != nil {

@@ -259,9 +259,6 @@ func (s *EmailHubService) GetThread(ctx context.Context, actor Actor, workspaceI
 			s.log.Warn("email hub hydrate body failed", "thread_id", threadID, "err", err)
 		}
 		if view.BodyText != "" || view.BodyHTML != "" {
-			if markRead {
-				view = s.markThreadReadIfNeeded(ctx, acc, row, view, attachments)
-			}
 			return view, nil
 		}
 		if strings.TrimSpace(row.BodyObjectKey) == "" {

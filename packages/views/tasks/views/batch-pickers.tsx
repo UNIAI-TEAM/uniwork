@@ -11,6 +11,7 @@ import {
   AssigneePicker,
   PriorityPicker,
   StatusPicker,
+  useDecoratedAssigneeOptions,
   type AssigneeOption,
 } from "../pickers";
 
@@ -75,12 +76,14 @@ export function BatchPriorityPicker({
 }
 
 export function BatchAssigneePicker({
+  workspaceId,
   assigneeId,
   mixed,
   disabled,
   members,
   onUpdate,
 }: {
+  workspaceId: string;
   assigneeId: string | null;
   mixed?: boolean;
   disabled?: boolean;
@@ -96,11 +99,11 @@ export function BatchAssigneePicker({
   }, [assigneeId, members, mixed, t]);
   // Batch only ever offers human members (no agent assignment here — see
   // assignee-picker.tsx and the task-2 report for why that stays as-is).
-  const options: AssigneeOption[] = members.map((m) => ({
-    id: m.id,
-    kind: "human",
-    name: m.name,
-  }));
+  const baseOptions = useMemo<AssigneeOption[]>(
+    () => members.map((m) => ({ id: m.id, kind: "human", name: m.name })),
+    [members],
+  );
+  const options = useDecoratedAssigneeOptions(workspaceId, baseOptions);
 
   return (
     <AssigneePicker

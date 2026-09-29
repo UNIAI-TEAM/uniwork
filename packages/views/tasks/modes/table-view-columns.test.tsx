@@ -344,7 +344,7 @@ describe("bảng: cột thuộc tính, dự án, ngày bắt đầu, agent", () 
   it("giao cho agent gửi assignee_kind agent", async () => {
     const { row } = await renderTable();
     fireEvent.click(within(cell(row, "assignee")).getByRole("button"));
-    fireEvent.click(await screen.findByRole("button", { name: "Trợ lý QA" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Trợ lý QA/ }));
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/tasks/t1", {
         method: "PATCH",

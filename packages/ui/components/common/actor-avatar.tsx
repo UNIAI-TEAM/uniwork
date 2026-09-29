@@ -10,6 +10,15 @@ import {
 } from "@uniwork/ui/lib/avatar-size";
 import { parseAvatarEmoji } from "@uniwork/ui/lib/avatar-emoji";
 
+type ActorAvatarStatusTone = "success" | "warning" | "muted";
+
+/** A dot on the avatar's corner. `label` is the translated state (hover and
+ * screen readers); the caller decides what the tone means. */
+interface ActorAvatarStatus {
+  tone: ActorAvatarStatusTone;
+  label: string;
+}
+
 interface ActorAvatarProps {
   name: string;
   initials: string;
@@ -26,9 +35,47 @@ interface ActorAvatarProps {
   /** Keep the initials up while the photo loads and fade the photo in over them. */
   fadeIn?: boolean;
   className?: string;
+  status?: ActorAvatarStatus;
 }
 
-function ActorAvatar({
+const STATUS_TONE_CLASS: Record<ActorAvatarStatusTone, string> = {
+  success: "bg-success-solid",
+  warning: "bg-warning-solid",
+  muted: "bg-muted-foreground",
+};
+
+function statusDotSize(px: number): string {
+  if (px >= 40) return "size-3";
+  if (px >= 32) return "size-2.5";
+  return "size-2";
+}
+
+/**
+ * The dot's ring is cut from --row-fill when the host row publishes one, so it
+ * reads as a notch on a hovered or selected row instead of a white halo.
+ */
+function ActorAvatar({ status, ...props }: ActorAvatarProps) {
+  if (!status) return <ActorAvatarCircle {...props} />;
+  const px = AVATAR_SIZE_PX[props.size ?? DEFAULT_AVATAR_SIZE];
+  return (
+    <span className="relative inline-flex shrink-0">
+      <ActorAvatarCircle {...props} />
+      <span
+        aria-hidden
+        data-slot="avatar-status"
+        title={status.label}
+        className={cn(
+          "absolute -right-px -bottom-px rounded-full ring-2 ring-[var(--row-fill,var(--background))]",
+          STATUS_TONE_CLASS[status.tone],
+          statusDotSize(px),
+        )}
+      />
+      <span className="sr-only">{status.label}</span>
+    </span>
+  );
+}
+
+function ActorAvatarCircle({
   name,
   initials,
   avatarUrl,
@@ -38,7 +85,7 @@ function ActorAvatar({
   size = DEFAULT_AVATAR_SIZE,
   fadeIn = false,
   className,
-}: ActorAvatarProps) {
+}: Omit<ActorAvatarProps, "status">) {
   const [imgError, setImgError] = useState(false);
   // Which URL finished loading, not a flag: when the URL changes, the new
   // photo starts hidden in the same render instead of one frame late.
@@ -128,4 +175,4 @@ function ActorAvatar({
   );
 }
 
-export { ActorAvatar, type ActorAvatarProps };
+export { ActorAvatar, type ActorAvatarProps, type ActorAvatarStatus };

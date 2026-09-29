@@ -20,7 +20,7 @@ import {
 import { cn } from "@uniwork/ui/lib/utils";
 
 const HIGHLIGHT_CLASS = "bg-accent";
-const ITEM_SELECTOR = "button[data-picker-item]:not(:disabled)";
+const ITEM_SELECTOR = 'button[data-picker-item]:not([aria-disabled="true"])';
 const EMPTY_ITEM_ATTR = "data-picker-empty";
 
 export type PickerAnchor = ComponentProps<typeof PopoverContent>["anchor"];
@@ -201,6 +201,7 @@ export function PropertyPicker({
 export function PickerItem({
   selected,
   disabled,
+  disabledReason,
   onClick,
   hoverClassName,
   emptyValue = false,
@@ -208,19 +209,24 @@ export function PickerItem({
 }: {
   selected: boolean;
   disabled?: boolean;
+  /** Why the row cannot be picked: the hover tooltip and part of its name. */
+  disabledReason?: string;
   onClick: () => void;
   hoverClassName?: string;
   emptyValue?: boolean;
   children: ReactNode;
 }) {
+  // aria-disabled keeps the row readable and in the tab order; the click is
+  // refused here and keyboard navigation skips it (ITEM_SELECTOR).
   return (
     <button
       type="button"
       data-picker-item
       aria-pressed={selected}
       {...(emptyValue ? { [EMPTY_ITEM_ATTR]: "" } : {})}
-      disabled={disabled}
-      onClick={onClick}
+      aria-disabled={disabled || undefined}
+      title={disabled ? disabledReason : undefined}
+      onClick={disabled ? undefined : onClick}
       className={cn(
         "flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left text-body transition-colors",
         disabled
@@ -229,6 +235,7 @@ export function PickerItem({
       )}
     >
       <span className="flex min-w-0 flex-1 items-center gap-2">{children}</span>
+      {disabled && disabledReason ? <span className="sr-only">{disabledReason}</span> : null}
       <Check
         className={cn(
           "h-3.5 w-3.5 shrink-0 text-muted-foreground",

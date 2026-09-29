@@ -36,6 +36,7 @@ export const taskKeys = {
   childrenByParents: (wsId: string, parentHash: string) =>
     ["task-children-by-parents", wsId, parentHash] as const,
   childProgress: (wsId: string) => ["task-child-progress", wsId] as const,
+  assigneeFrequency: (wsId: string) => ["task-assignee-frequency", wsId] as const,
   tableRoot: (wsId: string) => ["tasks-table", wsId] as const,
   tableGroups: (wsId: string, filterHash: string) => ["tasks-table", wsId, "groups", filterHash] as const,
   /**

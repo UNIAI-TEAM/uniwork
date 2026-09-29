@@ -12,6 +12,7 @@ import {
   flushEmailHubListRefresh,
   invalidateEmailHubThreads,
   invalidateEmailHubUnread,
+  invalidateEmailHubReadingCachesForAccount,
   patchEmailHubThreadInLists,
   setEmailHubListRefreshPaused,
   threadDetailKey,
@@ -21,6 +22,7 @@ export {
   emailHubKeys,
   flushEmailHubListRefresh,
   invalidateEmailHubThreadsForAccount,
+  invalidateEmailHubReadingCachesForAccount,
   invalidateEmailHubUnread,
   patchEmailHubThreadInLists,
   setEmailHubListRefreshPaused,
@@ -56,6 +58,16 @@ export function useEmailHubUnreadCount(wsId: string) {
     queryKey: emailHubKeys.unread(wsId),
     queryFn: () => api.getEmailHubUnreadCount(wsId),
     staleTime: 30_000,
+  });
+}
+
+export function useEmailHubSidebarCounts(wsId: string, accountId: string | null) {
+  return useQuery({
+    queryKey: ["email-hub", wsId, "sidebar-counts", accountId ?? ""] as const,
+    queryFn: () => api.getEmailHubSidebarCounts(wsId, accountId!),
+    enabled: !!accountId,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -104,6 +116,20 @@ function emailHubBodyIsPlaceholder(
   const text = thread.body_text?.trim() ?? "";
   const snippet = thread.snippet?.trim() ?? "";
   return !!text && !!snippet && text === snippet;
+}
+
+/** Body was stripped from cache; a body fetch is in flight or pending. */
+export function emailHubBodyAwaitingMailboxRefetch(
+  thread:
+    | { body_html?: string; body_text?: string; snippet?: string; body_cached?: boolean }
+    | null
+    | undefined,
+  fetchActive: boolean,
+) {
+  if (!thread || emailHubHasReadableBody(thread)) return false;
+  if (thread.body_cached === true) return false;
+  const hasSnippet = !!thread.snippet?.trim();
+  return hasSnippet && fetchActive;
 }
 
 export function emailHubHasReadableBody(

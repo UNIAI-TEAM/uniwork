@@ -8,6 +8,7 @@ import { ChatTaskAssigneeField, ChatTaskPeekFields } from "./chat-task-peek-fiel
 vi.mock("@uniwork/core/tasks", () => ({
   useUpdateTask: () => ({ mutate: vi.fn() }),
   useProjects: () => ({ data: { projects: [{ id: "p1", title: "Ra mắt" }] } }),
+  useAssigneeFrequency: () => ({ data: [] }),
 }));
 
 vi.mock("@uniwork/core/workspaces", () => ({
@@ -20,7 +21,7 @@ vi.mock("@uniwork/core/workspaces", () => ({
 
 vi.mock("@uniwork/core/agents", () => ({
   useWorkspaceAgents: () => ({
-    data: [{ id: "a1", name: "Trợ lý", avatar_url: undefined }],
+    data: [{ id: "a1", name: "Trợ lý", avatar_url: undefined, status: "active" }],
     isLoading: false,
     isError: false,
   }),
@@ -63,7 +64,7 @@ describe("ChatTaskAssigneeField", () => {
     wrap(<ChatTaskAssigneeField workspaceId="ws1" value={null} onChange={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Người phụ trách: Chưa giao" }));
     const human = screen.getByRole("button", { name: "Lan" });
-    const agent = screen.getByRole("button", { name: "Trợ lý" });
+    const agent = screen.getByRole("button", { name: "Trợ lý Agent đang hoạt động" });
     const membersGroup = screen.getByText("Thành viên").parentElement;
     const agentsGroup = screen.getByText("Agent").parentElement;
     expect(membersGroup).toContainElement(human);

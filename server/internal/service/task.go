@@ -90,7 +90,10 @@ type UpdateTaskInput struct {
 
 // assigneeKind validates the assignee pair: humans and agents must already be
 // workspace members; squad assignees are refused until that directory exists.
-func (s *TaskService) assigneeKind(ctx context.Context, workspaceID string, assigneeID *string, kind string) (string, error) {
+// assigneeKind validates an assignee and returns its kind. requireActive is
+// false when the task already has this assignee, so a task keeps an agent that
+// was paused after it was assigned while other fields change.
+func (s *TaskService) assigneeKind(ctx context.Context, orgID, workspaceID string, assigneeID *string, kind string, requireActive bool) (string, error) {
 	if kind == "" {
 		kind = string(audit.KindHuman)
 	}
@@ -117,6 +120,11 @@ func (s *TaskService) assigneeKind(ctx context.Context, workspaceID string, assi
 			if _, err := s.ws.RequireAgentMember(ctx, workspaceID, *assigneeID); err != nil {
 				return "", coded(http.StatusUnprocessableEntity, "agent_not_member", "agent không phải thành viên workspace")
 			}
+			if requireActive {
+				if err := s.requireActiveAgent(ctx, orgID, *assigneeID); err != nil {
+					return "", err
+				}
+			}
 		}
 	default:
 		return "", Invalid("assignee_kind không hợp lệ")
@@ -125,6 +133,35 @@ func (s *TaskService) assigneeKind(ctx context.Context, workspaceID string, assi
 		kind = string(audit.KindHuman)
 	}
 	return kind, nil
+}
+
+// requireActiveAgent refuses new work for an agent that is paused or archived.
+func (s *TaskService) requireActiveAgent(ctx context.Context, orgID, agentID string) error {
+	agent, err := s.q.GetAgentStatusInOrg(ctx, db.GetAgentStatusInOrgParams{OrganizationID: orgID, ID: agentID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return coded(http.StatusUnprocessableEntity, "agent_not_member", "agent không phải thành viên workspace")
+	}
+	if err != nil {
+		return err
+	}
+	switch {
+	case agent.ArchivedAt.Valid || agent.Status == "archived":
+		return coded(http.StatusUnprocessableEntity, "agent_archived", "agent đã lưu trữ, không nhận việc mới")
+	case agent.Status != "active":
+		return coded(http.StatusUnprocessableEntity, "agent_paused", "agent đang tạm dừng, không nhận việc mới")
+	}
+	return nil
+}
+
+// keepsAssignee reports whether an update resends the task's current assignee.
+func keepsAssignee(before db.Task, assigneeID *string, kind string) bool {
+	if kind == "" {
+		kind = string(audit.KindHuman)
+	}
+	if assigneeID == nil {
+		return !before.AssigneeID.Valid
+	}
+	return before.AssigneeID.Valid && before.AssigneeID.String == *assigneeID && before.AssigneeKind == kind
 }
 
 func optText(s *string) pgtype.Text {
@@ -356,7 +393,7 @@ func (s *TaskService) createTaskInTx(ctx context.Context, q *db.Queries, actor A
 	if in.Stage != nil && *in.Stage < 1 {
 		return db.Task{}, Invalid("stage phải từ 1 trở lên")
 	}
-	assigneeKind, err := s.assigneeKind(ctx, workspaceID, in.AssigneeID, in.AssigneeKind)
+	assigneeKind, err := s.assigneeKind(ctx, ws.OrganizationID, workspaceID, in.AssigneeID, in.AssigneeKind, true)
 	if err != nil {
 		return db.Task{}, err
 	}
@@ -673,7 +710,8 @@ func (s *TaskService) updateTaskInTx(ctx context.Context, q *db.Queries, actor A
 	// would break silently the day one of them bumps conditionally.
 	revisionBefore := task.Revision - 1
 	if in.AssigneeID != nil {
-		kind, kerr := s.assigneeKind(ctx, before.WorkspaceID, *in.AssigneeID, in.AssigneeKind)
+		kind, kerr := s.assigneeKind(ctx, before.OrganizationID, before.WorkspaceID, *in.AssigneeID, in.AssigneeKind,
+			!keepsAssignee(before, *in.AssigneeID, in.AssigneeKind))
 		if kerr != nil {
 			return db.Task{}, kerr
 		}

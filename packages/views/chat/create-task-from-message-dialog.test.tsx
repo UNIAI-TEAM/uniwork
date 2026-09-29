@@ -17,6 +17,7 @@ vi.mock("@uniwork/core/chat", () => ({
 
 vi.mock("@uniwork/core/tasks", () => ({
   useProjects: () => ({ data: { projects: [] } }),
+  useAssigneeFrequency: () => ({ data: [] }),
 }));
 
 vi.mock("@uniwork/core/workspaces", () => ({
@@ -29,7 +30,7 @@ vi.mock("@uniwork/core/workspaces", () => ({
 
 vi.mock("@uniwork/core/agents", () => ({
   useWorkspaceAgents: () => ({
-    data: [{ id: "a1", name: "Trợ lý" }],
+    data: [{ id: "a1", name: "Trợ lý", status: "active" }],
     isLoading: false,
     isError: false,
   }),
@@ -103,7 +104,7 @@ describe("CreateTaskFromMessageDialog", () => {
     wrap(dialog);
     fireEvent.click(screen.getByRole("button", { name: /Người phụ trách/ }));
     const agentsGroup = screen.getByText("Agent").parentElement;
-    expect(agentsGroup).toContainElement(screen.getByRole("button", { name: "Trợ lý" }));
+    expect(agentsGroup).toContainElement(screen.getByRole("button", { name: "Trợ lý Agent đang hoạt động" }));
     expect(agentsGroup).not.toContainElement(screen.getByRole("button", { name: "Lan" }));
   });
 
