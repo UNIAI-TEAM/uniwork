@@ -1,7 +1,7 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { Client } from "pg";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import { createRecordingAccount } from "./meeting-recording-fixture";
 import { VI_LOCALE_STATE } from "./locale-state";
 
@@ -18,7 +18,11 @@ const suppliedDocumentUrl = process.env.OFFICE_DOCUMENT_URL;
 const suppliedFlagOffUrl = process.env.OFFICE_DOCUMENT_FLAG_OFF_URL;
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
 const baseUrl = process.env.E2E_BASE_URL ?? "http://localhost:3000";
-const fixturePath = resolve(process.cwd(), "docs/office/g0/fixtures/files/docs/docx-kitchen-sink.docx");
+// `pnpm --filter @uniwork/e2e test` runs with e2e/ as cwd while a root
+// Playwright invocation runs from the repository root; keep the fixture pin
+// stable for both supported local-stack entry points.
+const repoRoot = basename(process.cwd()).toLowerCase() === "e2e" ? resolve(process.cwd(), "..") : process.cwd();
+const fixturePath = resolve(repoRoot, "docs/office/g0/fixtures/files/docs/docx-kitchen-sink.docx");
 const viewports = [360, 375, 768, 1280] as const;
 
 interface OfficeFixture {
