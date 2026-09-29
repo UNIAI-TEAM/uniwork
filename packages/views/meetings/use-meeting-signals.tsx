@@ -4,6 +4,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -34,8 +35,11 @@ type SignalsApi = SignalsState & {
   toggleHand: () => void;
   react: (value: string) => void;
   /** Host asks `identity` to mute; their client mutes itself and may unmute again. */
-  requestMute: (identity: string) => void;
+  requestMute: (identity: string, name: string) => void;
 };
+
+/** The part of a received LiveKit data message the signals read. */
+type DataMessage = { payload: Uint8Array; from?: { identity: string } };
 
 const Ctx = createContext<SignalsApi | null>(null);
 
@@ -67,7 +71,7 @@ function createSignalsStore(): SignalsStore {
 }
 
 const StoreCtx = createContext<SignalsStore | null>(null);
-const RequestMuteCtx = createContext<(identity: string) => void>(() => {});
+const RequestMuteCtx = createContext<(identity: string, name: string) => void>(() => {});
 const fallbackStore = createSignalsStore();
 
 /** Client state for the room: lives only as long as the room is mounted. */
@@ -92,7 +96,7 @@ export function MeetingSignalsProvider({
   const canHostRef = useRef(canHost);
   canHostRef.current = canHost;
 
-  const { send } = useDataChannel(SIGNAL_TOPIC, (msg) => {
+  const onSignal = (msg: DataMessage) => {
     const signal = decodeSignal(msg.payload);
     const from = msg.from?.identity;
     if (!signal || !from) return;
@@ -103,23 +107,44 @@ export function MeetingSignalsProvider({
         mic.enabled
       ) {
         void mic.toggle(false);
-        // Muted by someone else: say so, or the viewer thinks the mic broke.
+        // Muted by someone else: say so, or the viewer thinks the mic broke,
+        // and put the way back on the notice itself. Top centre: the corner
+        // toaster sat on the side panel, away from where the viewer looks.
         // The toaster's own live region reads it out, each time.
-        toast.info(t("meetings.hostMutedYou"), { description: t("meetings.hostMutedYouHint") });
+        toast.info(t("meetings.hostMutedYou"), {
+          description: t("meetings.hostMutedYouHint"),
+          position: "top-center",
+          action: { label: t("meetings.micOn"), onClick: () => void mic.toggle(true) },
+        });
       }
       return;
     }
     setState((s) => reduceSignal(s, from, signal, Date.now()));
+  };
+  const onSignalRef = useRef(onSignal);
+  useLayoutEffect(() => {
+    onSignalRef.current = onSignal;
   });
+  // useDataChannel builds a new channel whenever its callback changes, and a
+  // channel's send throws until the hook has subscribed to it. One stable
+  // callback keeps one channel for the life of the room.
+  const handleMessage = useCallback((msg: DataMessage) => onSignalRef.current(msg), []);
+  const { send } = useDataChannel(SIGNAL_TOPIC, handleMessage);
 
   const publish = useCallback(
-    (signal: MeetingSignal) => {
-      if (signal.kind === "mute_request" && !canHostRef.current) return;
-      void send(encodeSignal(signal), { reliable: true, topic: SIGNAL_TOPIC });
+    (signal: MeetingSignal): Promise<void> | undefined => {
+      if (signal.kind === "mute_request" && !canHostRef.current) return undefined;
+      const sent = send(encodeSignal(signal), { reliable: true, topic: SIGNAL_TOPIC });
+      sent.catch(() => {
+        // A lost hand or reaction costs nobody anything; a mute the host
+        // believes was sent does.
+        if (signal.kind === "mute_request") toast.error(t("meetings.muteRequestFailed"));
+      });
       // LiveKit does not echo our own data messages: apply locally.
       if (signal.kind !== "mute_request") setState((s) => reduceSignal(s, localIdentity, signal, Date.now()));
+      return sent;
     },
-    [send, localIdentity],
+    [send, localIdentity, t],
   );
 
   // Reactions fade out on their own; run the sweep only while some exist.
@@ -139,11 +164,22 @@ export function MeetingSignalsProvider({
     store.set(state);
   }, [store, state]);
 
+  // Only a committed publish: a render React throws away (a suspended
+  // transition) holds a channel that was never subscribed.
   const publishRef = useRef(publish);
-  publishRef.current = publish;
+  useLayoutEffect(() => {
+    publishRef.current = publish;
+  });
   const requestMute = useCallback(
-    (identity: string) => publishRef.current({ kind: "mute_request", target: identity }),
-    [],
+    (identity: string, name: string) => {
+      // The host sees the mic badge flip too, but only once their client
+      // hears back; the toast says the request left, by name.
+      void publishRef.current({ kind: "mute_request", target: identity })?.then(
+        () => toast.success(t("meetings.mutedParticipant", { name })),
+        () => {},
+      );
+    },
+    [t],
   );
 
   const handRaised = state.hands.includes(localIdentity);
@@ -198,6 +234,6 @@ export function useParticipantSignal(identity: string): {
 }
 
 /** Stable host-mute action, for components that must not re-render on every signal. */
-export function useRequestMute(): (identity: string) => void {
+export function useRequestMute(): (identity: string, name: string) => void {
   return useContext(RequestMuteCtx);
 }

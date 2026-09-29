@@ -7,6 +7,7 @@ import {
   Captions,
   Circle,
   Hand,
+  Lock,
   Mic,
   MicOff,
   MonitorUp,
@@ -48,6 +49,7 @@ import { MEETING_DARK_BAR } from "./meeting-dark-bar";
 import { MeetingLeaveConfirmDialog } from "./meeting-leave-confirm-dialog";
 import { MeetingRecordConfirmDialog } from "./meeting-record-confirm-dialog";
 import { roomShortcutLabel, useRoomMediaShortcuts } from "./meeting-room-shortcuts";
+import { useOwnMicLock } from "./meeting-moderation";
 import { useMeetingSignals } from "./use-meeting-signals";
 import { useScreenShareControl } from "./use-screen-share-control";
 
@@ -85,21 +87,25 @@ export function MeetingControlBar({
   const controlBarAutoHide = useMeetingRoomPreferencesStore((s) => s.controlBarAutoHide);
   const setControlBarAutoHide = useMeetingRoomPreferencesStore((s) => s.setControlBarAutoHide);
   const mic = useTrackToggle({ source: Track.Source.Microphone });
+  const micLock = useOwnMicLock();
   const camera = useTrackToggle({ source: Track.Source.Camera });
   const screen = useScreenShareControl();
   const { handRaised, toggleHand } = useMeetingSignals();
   useRoomMediaShortcuts({
     onToggleMic: () => {
-      if (!mic.pending) void mic.toggle();
+      if (micLock.locked) micLock.explain();
+      else if (!mic.pending) void mic.toggle();
     },
     onToggleCamera: () => {
       if (!camera.pending) void camera.toggle();
     },
   });
-  const micTooltip = t("meetings.shortcutHint", {
-    action: mic.enabled ? t("meetings.micOff") : t("meetings.micOn"),
-    keys: roomShortcutLabel("D"),
-  });
+  const micTooltip = micLock.locked
+    ? t("meetings.micLockedYou")
+    : t("meetings.shortcutHint", {
+        action: mic.enabled ? t("meetings.micOff") : t("meetings.micOn"),
+        keys: roomShortcutLabel("D"),
+      });
   const cameraTooltip = t("meetings.shortcutHint", {
     action: camera.enabled ? t("meetings.cameraOff") : t("meetings.cameraOn"),
     keys: roomShortcutLabel("E"),
@@ -246,10 +252,12 @@ export function MeetingControlBar({
                 tone={mic.enabled ? "active" : "off"}
                 disabled={mic.pending}
                 onClick={() => {
-                  void mic.toggle();
+                  // Locked: say why instead of a toggle LiveKit refuses.
+                  if (micLock.locked) micLock.explain();
+                  else void mic.toggle();
                 }}
               >
-                {mic.enabled ? <Mic aria-hidden /> : <MicOff aria-hidden />}
+                {micLock.locked ? <Lock aria-hidden /> : mic.enabled ? <Mic aria-hidden /> : <MicOff aria-hidden />}
               </IconControl>
               <IconControl
                 label={t("meetings.camera")}
