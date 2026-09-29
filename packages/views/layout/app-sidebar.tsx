@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef } from "react";
+import { Fragment, useId, useRef } from "react";
 import {
   Calendar,
   CalendarDays,
@@ -57,6 +57,7 @@ import { useWorkspace } from "./workspace-context";
 import { IconTile } from "@uniwork/ui/components/common/icon-tile";
 import { moduleTone, type ModuleKey } from "./module-tones";
 import { WorkspaceSwitcher } from "./workspace-switcher";
+import { pinHref, SidebarPins, useSidebarPins } from "./sidebar-pins";
 
 interface NavItem {
   key: "nav.home" | "nav.inbox" | "nav.email" | "nav.tasks" | "nav.my_tasks" | "nav.projects" | "nav.calendar" | "nav.meetings" | "nav.documents" | "nav.chat" | "nav.people";
@@ -146,7 +147,11 @@ export function AppSidebar() {
     },
   ];
 
-  const isActive = (href: string, exact = false) => pathname === href || (!exact && pathname.startsWith(href + "/"));
+  const pins = useSidebarPins(workspace.id);
+  // An open pinned page is marked on its pin row, not also on its section.
+  const onPinnedPage = pins.some((pin) => pathname === pinHref(ws, pin));
+  const isActive = (href: string, exact = false) =>
+    !onPinnedPage && (pathname === href || (!exact && pathname.startsWith(href + "/")));
 
   const dismissSheet = () => {
     if (isCompact) setOpenMobile(false);
@@ -166,7 +171,8 @@ export function AppSidebar() {
         <nav aria-label={t("nav.workspace_group")} className="flex flex-col pt-1">
           {groups.map(({ id, label, items }) =>
             items.length === 0 ? null : (
-              <SidebarGroup key={id} className="py-1 group-data-[collapsible=icon]:px-0">
+              <Fragment key={id}>
+              <SidebarGroup className="py-1 group-data-[collapsible=icon]:px-0">
                 {/* The label names its list through `aria-labelledby`, and is
                     itself aria-hidden: read as text too, a screen reader said
                     "Làm việc" twice, and in the icon rail (where the label
@@ -232,6 +238,10 @@ export function AppSidebar() {
                   </SidebarMenu>
                 </SidebarGroupContent>
               </SidebarGroup>
+              {id === "lead" ? (
+                <SidebarPins wsId={workspace.id} ws={ws} pathname={pathname} onNavigate={dismissSheet} />
+              ) : null}
+              </Fragment>
             ),
           )}
         </nav>

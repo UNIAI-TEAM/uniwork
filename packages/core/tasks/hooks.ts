@@ -15,6 +15,7 @@ export type { CacheUpdateEvent, CacheUpdatePlan } from "./cache-coordinator";
 export * from "./hooks-suite";
 export * from "./hooks-catalog";
 export * from "./hooks-views";
+export * from "./hooks-pins";
 export * from "./hooks-projects";
 export * from "./hooks-collaboration";
 export * from "./hooks-attachments";

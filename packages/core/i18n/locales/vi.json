@@ -199,6 +199,8 @@
     "workspace_group": "Điều hướng workspace",
     "group_work": "Làm việc",
     "group_communication": "Trao đổi",
+    "pinned": "Đã ghim",
+    "pinned_unpin": "Bỏ ghim {{name}}",
     "account_named": "{{name}}, {{email}}: tài khoản",
     "skip_to_content": "Tới nội dung chính",
     "people": "Danh bạ",
@@ -4455,6 +4457,8 @@
     "detail": {
       "not_found": "Không tìm thấy dự án",
       "breadcrumb_fallback": "Dự án",
+      "pin": "Ghim dự án",
+      "unpin": "Bỏ ghim dự án",
       "title_placeholder": "Tiêu đề dự án",
       "section_properties": "Thuộc tính",
       "section_progress": "Tiến độ",

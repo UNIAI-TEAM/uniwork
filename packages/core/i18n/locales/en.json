@@ -200,6 +200,8 @@
     "workspace_group": "Workspace navigation",
     "group_work": "Work",
     "group_communication": "Communication",
+    "pinned": "Pinned",
+    "pinned_unpin": "Unpin {{name}}",
     "account_named": "{{name}}, {{email}}: account",
     "skip_to_content": "Skip to main content",
     "people": "People",
@@ -4460,6 +4462,8 @@
     "detail": {
       "not_found": "Project not found",
       "breadcrumb_fallback": "Projects",
+      "pin": "Pin project",
+      "unpin": "Unpin project",
       "title_placeholder": "Project title",
       "section_properties": "Properties",
       "section_progress": "Progress",

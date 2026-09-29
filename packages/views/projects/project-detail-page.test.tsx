@@ -299,4 +299,25 @@ describe("ProjectDetailPage", () => {
       });
     }, LONG);
   });
+
+  it("pins the project from the header and shows it pinned before the server answers", async () => {
+    const fallback = requestMock.getMockImplementation()!;
+    requestMock.mockImplementation((path: unknown, init?: { method?: string }) =>
+      String(path).endsWith("/pins") && init?.method === "POST"
+        ? new Promise(() => undefined)
+        : fallback(path, init),
+    );
+    render(
+      wrapWithNav(
+        <ProjectDetailPage workspaceId="w1" projectId="p1" onOpenTask={vi.fn()} onBack={vi.fn()} />,
+      ),
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Ghim dự án" }, LONG));
+    expect(await screen.findByRole("button", { name: "Bỏ ghim dự án" })).toBeInTheDocument();
+    const post = requestMock.mock.calls.find(
+      ([path, init]) => String(path) === "/api/v1/workspaces/w1/pins" && (init as { method?: string })?.method === "POST",
+    );
+    expect(post?.[1]).toMatchObject({ body: { item_type: "project", item_id: "p1" } });
+  });
 });
