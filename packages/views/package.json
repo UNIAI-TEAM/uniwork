@@ -48,7 +48,10 @@
     "./calendar/*": "./calendar/*.tsx",
     "./office/docx": "./office/docx/index.ts",
     "./office/docx/types": "./office/docx/types.ts",
-    "./office/docx/*": "./office/docx/*.tsx"
+    "./office/docx/*": "./office/docx/*.tsx",
+    "./office/pdf": "./office/pdf/index.ts",
+    "./office/pdf/types": "./office/pdf/types.ts",
+    "./office/pdf/*": "./office/pdf/*.tsx"
   },
   "dependencies": {
     "@dnd-kit/core": "catalog:",

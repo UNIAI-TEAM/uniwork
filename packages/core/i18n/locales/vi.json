@@ -7023,6 +7023,40 @@
         "engine_error": "Engine XLSX không thể mở sổ tính này.",
         "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa XLSX."
       }
+    },
+    "pdf": {
+      "title": "Tài liệu PDF",
+      "toolbar": { "label": "Lệnh chỉnh sửa PDF" },
+      "actions": {
+        "undo": "Hoàn tác", "redo": "Làm lại", "save": "Lưu lên UniWork", "saving": "Đang lưu…", "retryOpen": "Thử mở lại"
+      },
+      "commands": {
+        "editText": "Sửa chữ hiện có", "replaceImage": "Thay ảnh", "insertPage": "Chèn trang", "deletePage": "Xóa trang", "rotatePage": "Xoay trang", "reorderPage": "Sắp xếp lại trang", "extractPage": "Tách trang", "mergePages": "Gộp trang", "annotations": "Chú thích (tách biệt với sửa nội dung)"
+      },
+      "selection": { "none": "Chưa chọn trang", "page": "Trang {{page}}" },
+      "capabilityPending": "Tính năng PDF này chưa có trong bản dựng engine hiện tại.",
+      "state": { "opening": "Đang mở PDF…", "error": "Không mở được PDF" },
+      "saveState": {
+        "ready": "Sẵn sàng", "dirty": "Có thay đổi chưa lưu", "saving": "Đang lưu…", "saved": "Đã lưu lên UniWork",
+        "error": "Lưu cần xử lý", "conflict": "Xung đột phiên bản", "blocked": "Đã chặn lưu", "readonly": "Chỉ đọc", "incompatible": "Không thể chỉnh sửa"
+      },
+      "surface": { "ready": "Canvas PDF sẵn sàng cho bộ dựng của host.", "page": "Đang hiển thị trang {{page}} trên {{count}} trang" },
+      "pages": {
+        "label": "Các trang PDF", "title": "Trang", "page": "Trang {{page}}", "moveUp": "Đưa lên", "extract": "Tách", "empty": "Adapter chưa báo trang nào."
+      },
+      "edit": {
+        "textLabel": "Chữ thay thế", "textPlaceholder": "Nhập chữ thay thế", "applyText": "Áp dụng chữ",
+        "imageLabel": "Mã tài sản của provider", "imagePlaceholder": "Nhập mã tài sản của provider", "applyImage": "Thay ảnh"
+      },
+      "fonts": { "missing": "Thiếu font nhúng: {{fonts}}. Engine không âm thầm thay thế font này." },
+      "errors": {
+        "title": "Không mở được PDF này", "unknown": "Adapter PDF trả về lỗi mở không xác định.",
+        "corrupted": "PDF bị hỏng hoặc chưa đầy đủ.", "password_cancelled": "Bạn đã hủy hộp thoại mật khẩu.",
+        "password_required": "Cần mật khẩu để mở PDF này.", "wrong_password": "Mật khẩu không mở khóa được PDF này.",
+        "unsupported_feature": "Engine hiện tại chưa hỗ trợ tính năng PDF này.", "not_office_file": "Tệp đã chọn không phải tài liệu PDF.",
+        "engine_error": "Engine PDF không thể mở tài liệu này.", "io_error": "Không thể đọc PDF từ bộ nhớ.",
+        "too_large": "PDF này quá lớn để mở tại đây.", "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa PDF."
+      }
     }
   }
 }
