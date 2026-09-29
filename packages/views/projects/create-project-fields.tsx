@@ -27,12 +27,14 @@ const EmojiPicker = lazy(() =>
 
 export const DEFAULT_PROJECT_ICON = "📁";
 
-export function CreateProjectIconField({
+export function ProjectIconField({
   value,
   onChange,
+  className,
 }: {
   value: string | undefined;
   onChange: (icon: string) => void;
+  className?: string;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -44,7 +46,10 @@ export function CreateProjectIconField({
             type="button"
             aria-label={t("projects.create_dialog.icon_label")}
             title={t("projects.create_dialog.icon_label")}
-            className="-ml-1 cursor-pointer rounded-lg p-1 text-title leading-none transition-colors hover:bg-accent/60"
+            className={cn(
+              "-ml-1 cursor-pointer rounded-lg p-1 text-title leading-none transition-colors hover:bg-accent/60",
+              className,
+            )}
           />
         }
       >

@@ -24,8 +24,8 @@ import { PriorityPicker } from "../tasks/pickers/priority-picker";
 import { useWorkspaceAssigneeOptions } from "../tasks/pickers/member-options";
 import {
   CreateProjectDateFields,
-  CreateProjectIconField,
   CreateProjectStatusField,
+  ProjectIconField,
 } from "./create-project-fields";
 import { leadRefToProjectBody } from "./project-row-metrics";
 
@@ -168,7 +168,7 @@ export function CreateProjectDialog({
           </div>
 
           <div className="shrink-0 px-5 pb-2">
-            <CreateProjectIconField value={draft.icon} onChange={(icon) => update({ icon })} />
+            <ProjectIconField value={draft.icon} onChange={(icon) => update({ icon })} />
             <Input
               aria-label={t("projects.create_dialog.title_placeholder")}
               value={draft.title}

@@ -8,9 +8,20 @@ import {
   CollectionPageHeaderAction,
   CollectionPageHeaderLinkAction,
 } from "./collection-page";
+import { BreadcrumbHeader } from "./breadcrumb-header";
 import { CollapsedNavTrigger, PAGE_GUTTER, PageHeader } from "./page-header";
 
 initI18n();
+
+describe("BreadcrumbHeader actions", () => {
+  it("never shows a vertical scrollbar when a pressed button shifts by a pixel", () => {
+    const header = renderHeader(
+      <BreadcrumbHeader segments={[]} leaf="Dự án" actions={<button type="button">Ẩn</button>} />,
+    );
+    const actions = within(header).getByRole("button", { name: "Ẩn" }).parentElement;
+    expect(actions).toHaveClass("overflow-y-hidden", "sm:overflow-visible");
+  });
+});
 
 function renderHeader(
   ui: React.ReactElement,

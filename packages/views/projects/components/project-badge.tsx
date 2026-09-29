@@ -34,37 +34,62 @@ function asPriority(value: string): ProjectPriority {
     : "none";
 }
 
+/**
+ * Status dropdown. `badge` is the tinted pill of list rows and cards; `plain`
+ * is the dot + label of the detail sidebar.
+ */
 export function ProjectStatusBadge({
   project,
   onUpdate,
   triggerClassName,
   align = "end",
+  appearance = "badge",
 }: {
   project: Project;
   onUpdate: (patch: { status: ProjectStatus }) => void;
   triggerClassName?: string;
   align?: "start" | "end" | "center";
+  appearance?: "badge" | "plain";
 }) {
   const { t } = useTranslation();
   const status = asStatus(project.status);
   const cfg = PROJECT_STATUS_CONFIG[status];
+  const label = t(`projects.status.${status}`);
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <button
-            type="button"
-            className={cn(
-              "inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-caption font-medium transition-opacity hover:opacity-80",
-              cfg.badgeBg,
-              cfg.badgeText,
-              triggerClassName,
-            )}
-          />
+          appearance === "plain" ? (
+            <button
+              type="button"
+              aria-label={`${t("projects.table.status")}: ${label}`}
+              className={cn(
+                "-mx-1 inline-flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 text-caption transition-colors hover:bg-accent/30",
+                triggerClassName,
+              )}
+            />
+          ) : (
+            <button
+              type="button"
+              className={cn(
+                "inline-flex cursor-pointer items-center gap-1 rounded px-1.5 py-0.5 text-caption font-medium transition-opacity hover:opacity-80",
+                cfg.badgeBg,
+                cfg.badgeText,
+                triggerClassName,
+              )}
+            />
+          )
         }
       >
-        {t(`projects.status.${status}`)}
+        {appearance === "plain" ? (
+          <span
+            aria-hidden
+            data-slot="project-status-dot"
+            className={cn("size-2 shrink-0 rounded-full", cfg.dotColor)}
+          />
+        ) : null}
+        {label}
       </DropdownMenuTrigger>
       <DropdownMenuContent align={align} className="w-44">
         {PROJECT_STATUS_ORDER.map((s) => (

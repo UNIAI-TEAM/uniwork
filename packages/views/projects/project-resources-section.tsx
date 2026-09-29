@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, FolderGit, FolderOpen, Pencil, Trash2 } from "lucide-react";
+import { FolderGit, FolderOpen, Pencil, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import {
@@ -11,6 +11,7 @@ import {
 } from "@uniwork/core/tasks";
 import type { ProjectResource } from "@uniwork/core/types/project";
 import { CapabilityDisabledControl } from "../common/capability-disabled-control";
+import { ProjectSidebarSection } from "./components/project-sidebar-section";
 import { resourceDisplayLabel } from "./resource-display-label";
 
 /**
@@ -26,8 +27,6 @@ export function ProjectResourcesSection({
   projectId: string;
 }) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(true);
-
   const { data } = useProjectResources(workspaceId, projectId);
   const resources = data?.resources ?? [];
   const putResource = usePutProjectResource(workspaceId, projectId);
@@ -66,54 +65,42 @@ export function ProjectResourcesSection({
   };
 
   return (
-    <div>
-      <button
-        type="button"
-        className={`mb-2 flex w-full items-center gap-1 rounded-md px-2 py-1 text-caption font-medium transition-colors hover:bg-accent/70 ${open ? "" : "text-muted-foreground hover:text-foreground"}`}
-        onClick={() => setOpen(!open)}
-      >
-        {t("projects.resources.section_header")}
-        <ChevronRight
-          className={`!size-3 shrink-0 stroke-[2.5] text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`}
-        />
-      </button>
-      {open ? (
-        <div className="space-y-1.5 pl-2">
-          {resources.length === 0 ? (
-            <p className="text-caption text-muted-foreground">
-              {t("projects.resources.empty")}
-            </p>
-          ) : (
-            <div className="max-h-64 space-y-1.5 overflow-y-auto pr-1">
-              {resources.map((resource) => (
-                <ResourceRow
-                  key={resource.id}
-                  resource={resource}
-                  onRemove={() => void handleRemove(resource)}
-                  onRename={(label) => void handleRename(resource, label)}
-                />
-              ))}
-            </div>
-          )}
-          <CapabilityDisabledControl
-            capabilityKey="tasks.vcs"
-            label={t("projects.resources.add_github")}
-            testId="project-resources-add-github"
-          >
-            <FolderGit className="size-3" aria-hidden />
-            {t("projects.resources.add_github")}
-          </CapabilityDisabledControl>
-          <CapabilityDisabledControl
-            capabilityKey="tasks.local_workdir"
-            label={t("projects.resources.add_local_directory")}
-            testId="project-resources-add-local-directory"
-          >
-            <FolderOpen className="size-3" aria-hidden />
-            {t("projects.resources.add_local_directory")}
-          </CapabilityDisabledControl>
-        </div>
-      ) : null}
-    </div>
+    <ProjectSidebarSection title={t("projects.resources.section_header")}>
+      <div className="space-y-1.5 pl-2">
+        {resources.length === 0 ? (
+          <p className="text-caption text-muted-foreground">
+            {t("projects.resources.empty")}
+          </p>
+        ) : (
+          <div className="max-h-64 space-y-1.5 overflow-y-auto pr-1">
+            {resources.map((resource) => (
+              <ResourceRow
+                key={resource.id}
+                resource={resource}
+                onRemove={() => void handleRemove(resource)}
+                onRename={(label) => void handleRename(resource, label)}
+              />
+            ))}
+          </div>
+        )}
+        <CapabilityDisabledControl
+          capabilityKey="tasks.vcs"
+          label={t("projects.resources.add_github")}
+          testId="project-resources-add-github"
+        >
+          <FolderGit className="size-3" aria-hidden />
+          {t("projects.resources.add_github")}
+        </CapabilityDisabledControl>
+        <CapabilityDisabledControl
+          capabilityKey="tasks.local_workdir"
+          label={t("projects.resources.add_local_directory")}
+          testId="project-resources-add-local-directory"
+        >
+          <FolderOpen className="size-3" aria-hidden />
+          {t("projects.resources.add_local_directory")}
+        </CapabilityDisabledControl>
+      </div>
+    </ProjectSidebarSection>
   );
 }
 
