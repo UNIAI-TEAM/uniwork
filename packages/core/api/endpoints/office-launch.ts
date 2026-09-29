@@ -69,12 +69,13 @@ function redactLaunchSecrets(value: unknown): unknown {
   if (typeof value === "string") {
     return value
       .replace(/uniwork-office:\/\/open\?ticket=[^\s&"']+/g, "uniwork-office://open?ticket=[redacted]")
-      .replace(/ticket_[A-Za-z0-9_-]{32,185}/g, "[redacted]");
+      .replace(/ticket_[A-Za-z0-9_-]+/g, "[redacted]");
   }
   if (!value || typeof value !== "object") return value;
   return Object.fromEntries(Object.entries(value).map(([key, child]) => {
-    if (key === "launch_ticket" || key === "ticket" || key === "launch_url") return [key, "[redacted]"];
-    return [key, redactLaunchSecrets(child)];
+    const safeKey = redactLaunchSecrets(key) as string;
+    if (key === "launch_ticket" || key === "ticket" || key === "launch_url") return [safeKey, "[redacted]"];
+    return [safeKey, redactLaunchSecrets(child)];
   }));
 }
 
