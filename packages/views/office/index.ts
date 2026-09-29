@@ -13,3 +13,4 @@ export {
   type OfficeEditorRendererProps,
 } from "./editor-slot";
 export { SaveStatus, type OfficeSaveStatusKind, type SaveStatusProps } from "./save-status";
+export * from "./pptx";
