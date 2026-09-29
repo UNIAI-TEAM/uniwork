@@ -485,6 +485,52 @@ func TestGuestAutoAdmitViaInviteLink(t *testing.T) {
 	}
 }
 
+// A guest the host removed keeps their guest cookie; opening the same
+// auto-admit link again must not mint a fresh participant behind the host's
+// back (UNI-883). Only the host's own action brings them back.
+func TestRemovedGuestCannotRejoinViaInviteLink(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	ctx := context.Background()
+	m, err := s.CreateInstant(ctx, ua.ID, w.ID, "Guest removed")
+	if err != nil {
+		t.Fatal(err)
+	}
+	created, err := s.CreateInviteLink(ctx, ua.ID, m.ID, "guest", LinkAutoAdmit, time.Now().Add(time.Hour), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	guestID := util.NewID()
+	if _, err := s.q.CreateMeetingGuest(ctx, guestID); err != nil {
+		t.Fatal(err)
+	}
+	in := AdmissionContext{
+		MeetingID: m.ID, GuestID: guestID, DisplayName: "Guest Visitor",
+		InviteLinkID: created.Link.ID, InviteSecret: created.RawSecret,
+	}
+	dec, err := s.Evaluate(ctx, in)
+	if err != nil || dec.Decision != DecisionAdmit {
+		t.Fatalf("first admit: %+v err=%v", dec, err)
+	}
+	if err := s.RemoveParticipant(ctx, ua.ID, m.ID, dec.Participant.ID); err != nil {
+		t.Fatal("remove guest", err)
+	}
+
+	again, err := s.Evaluate(ctx, in)
+	var ce CodedError
+	if !errors.As(err, &ce) || ce.Code != "participant_removed" || again.Decision != DecisionDeny {
+		t.Fatalf("removed guest rejoined: %+v err=%v", again, err)
+	}
+	ps, err := s.q.ListMeetingParticipants(ctx, m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range ps {
+		if p.GuestID.String == guestID && p.Status == ParticipantActive {
+			t.Fatalf("removed guest has an active participant again: %+v", p)
+		}
+	}
+}
+
 func TestListJoinRequests(t *testing.T) {
 	s, ua, ub, w := meetingFixture(t)
 	addMember(t, s, w.ID, ub.ID)
