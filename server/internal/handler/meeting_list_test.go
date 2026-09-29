@@ -157,3 +157,78 @@ func TestMeetingListFlagsPlayableRecordings(t *testing.T) {
 		t.Fatalf("has_playable_recording = %v", got)
 	}
 }
+
+// A SCHEDULED meeting whose window has passed never happened: the client
+// badges it MISSED (displayMeetingStatus in packages/core/meetings/schedule.ts,
+// now > ends_at). The list filter and the chip counts split on that same
+// line, so "not started" never lists a meeting that can no longer start.
+func TestMeetingListSplitsMissedFromScheduled(t *testing.T) {
+	srv := newTestServer(t)
+	token, wsID := newListWorkspace(t, srv, "list-missed")
+
+	ctx := context.Background()
+	now := time.Now()
+	plan := []struct {
+		title, status string
+		end           time.Time
+	}{
+		{"upcoming", "SCHEDULED", now.Add(2 * time.Hour)},
+		{"running-late-start", "SCHEDULED", now.Add(10 * time.Minute)},
+		{"missed-today", "SCHEDULED", now.Add(-2 * time.Hour)},
+		{"missed-yesterday", "SCHEDULED", now.Add(-26 * time.Hour)},
+		{"overtime", "IN_PROGRESS", now.Add(-time.Hour)},
+		{"ended", "ENDED", now.Add(-3 * time.Hour)},
+		{"canceled", "CANCELED", now.Add(-4 * time.Hour)},
+	}
+	for _, p := range plan {
+		res, out := doJSON(t, srv, "POST", "/api/v1/workspaces/"+wsID+"/meetings", token, map[string]any{
+			"title":     p.title,
+			"starts_at": now.Add(24 * time.Hour).UTC().Format(time.RFC3339),
+			"ends_at":   now.Add(25 * time.Hour).UTC().Format(time.RFC3339),
+		})
+		if res.StatusCode != http.StatusOK && res.StatusCode != http.StatusCreated {
+			t.Fatalf("create %s: %d %v", p.title, res.StatusCode, out)
+		}
+		id := out["meeting"].(map[string]any)["id"].(string)
+		if _, err := testPool.Exec(ctx, `UPDATE meetings SET status = $2, starts_at = $3, ends_at = $4 WHERE id = $1`,
+			id, p.status, p.end.Add(-time.Hour), p.end); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	list := func(status string) ([]string, float64) {
+		t.Helper()
+		res, out := doJSON(t, srv, "GET", "/api/v1/workspaces/"+wsID+"/meetings?sort=starts_at&status="+status, token, nil)
+		if res.StatusCode != http.StatusOK {
+			t.Fatalf("list %s: %d %v", status, res.StatusCode, out)
+		}
+		var got []string
+		for _, m := range out["meetings"].([]any) {
+			got = append(got, m.(map[string]any)["title"].(string))
+		}
+		slices.Sort(got)
+		return got, out["total"].(float64)
+	}
+
+	if got, total := list("SCHEDULED"); !slices.Equal(got, []string{"running-late-start", "upcoming"}) || total != 2 {
+		t.Fatalf("SCHEDULED = %v (total %v), want the two whose window is still open", got, total)
+	}
+	if got, total := list("MISSED"); !slices.Equal(got, []string{"missed-today", "missed-yesterday"}) || total != 2 {
+		t.Fatalf("MISSED = %v (total %v), want the two scheduled meetings whose window passed", got, total)
+	}
+	// Overtime is still a meeting in progress; the stored-status chips keep it.
+	if got, _ := list("IN_PROGRESS"); !slices.Equal(got, []string{"overtime"}) {
+		t.Fatalf("IN_PROGRESS = %v", got)
+	}
+
+	res, out := doJSON(t, srv, "GET", "/api/v1/workspaces/"+wsID+"/meeting-statistics", token, nil)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("statistics: %d %v", res.StatusCode, out)
+	}
+	want := map[string]float64{"total": 7, "scheduled": 2, "missed": 2, "in_progress": 1, "ended": 1, "canceled": 1}
+	for k, v := range want {
+		if out[k] != v {
+			t.Fatalf("statistics[%s] = %v, want %v (all: %v)", k, out[k], v, out)
+		}
+	}
+}

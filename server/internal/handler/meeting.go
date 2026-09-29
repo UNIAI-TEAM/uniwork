@@ -228,7 +228,7 @@ func (h *handlers) meetingStatistics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respondJSON(w, 200, sdo.MeetingStatisticsSDO{
-		Total: st.Total, Scheduled: st.Scheduled, InProgress: st.InProgress, Ended: st.Ended,
+		Total: st.Total, Scheduled: st.Scheduled, Missed: st.Missed, InProgress: st.InProgress, Ended: st.Ended,
 		Canceled: st.Canceled, Instant: st.Instant,
 		InvPending: st.InvPending, InvAccepted: st.InvAccepted, InvDeclined: st.InvDeclined, InvTentative: st.InvTentative,
 		JoinTotal: st.JoinTotal, JoinApproved: st.JoinApproved, JoinRejected: st.JoinRejected,

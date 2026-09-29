@@ -86,18 +86,22 @@ func (q *Queries) CancelMeeting(ctx context.Context, arg CancelMeetingParams) (M
 const countMeetingsByWorkspaceFiltered = `-- name: CountMeetingsByWorkspaceFiltered :one
 SELECT count(*)::bigint FROM meetings
 WHERE workspace_id = $1
-  AND ($2::text IS NULL OR status = $2)
-  AND ($3::text IS NULL OR meeting_type = $3)
-  AND ($4::text IS NULL OR host_user_id = $4)
-  AND ($5::text IS NULL OR project_id = $5)
-  AND ($6::text IS NULL OR title ILIKE '%' || $6 || '%')
-  AND ($7::timestamptz IS NULL OR starts_at >= $7)
-  AND ($8::timestamptz IS NULL OR starts_at <= $8)
+  AND ($2::text IS NULL
+    OR ($2 = 'MISSED' AND status = 'SCHEDULED' AND ends_at < $3::timestamptz)
+    OR ($2 = 'SCHEDULED' AND status = 'SCHEDULED' AND ends_at >= $3::timestamptz)
+    OR ($2 NOT IN ('SCHEDULED', 'MISSED') AND status = $2))
+  AND ($4::text IS NULL OR meeting_type = $4)
+  AND ($5::text IS NULL OR host_user_id = $5)
+  AND ($6::text IS NULL OR project_id = $6)
+  AND ($7::text IS NULL OR title ILIKE '%' || $7 || '%')
+  AND ($8::timestamptz IS NULL OR starts_at >= $8)
+  AND ($9::timestamptz IS NULL OR starts_at <= $9)
 `
 
 type CountMeetingsByWorkspaceFilteredParams struct {
 	WorkspaceID string             `json:"workspace_id"`
 	Status      pgtype.Text        `json:"status"`
+	Now         pgtype.Timestamptz `json:"now"`
 	MeetingType pgtype.Text        `json:"meeting_type"`
 	HostUserID  pgtype.Text        `json:"host_user_id"`
 	ProjectID   pgtype.Text        `json:"project_id"`
@@ -110,6 +114,7 @@ func (q *Queries) CountMeetingsByWorkspaceFiltered(ctx context.Context, arg Coun
 	row := q.db.QueryRow(ctx, countMeetingsByWorkspaceFiltered,
 		arg.WorkspaceID,
 		arg.Status,
+		arg.Now,
 		arg.MeetingType,
 		arg.HostUserID,
 		arg.ProjectID,
@@ -433,29 +438,33 @@ SELECT meetings.id, meetings.workspace_id, meetings.title, meetings.description,
   )::boolean AS has_playable_recording
 FROM meetings
 WHERE workspace_id = $1
-  AND ($2::text IS NULL OR status = $2)
-  AND ($3::text IS NULL OR meeting_type = $3)
-  AND ($4::text IS NULL OR host_user_id = $4)
-  AND ($5::text IS NULL OR project_id = $5)
-  AND ($6::text IS NULL OR title ILIKE '%' || $6 || '%')
-  AND ($7::timestamptz IS NULL OR starts_at >= $7)
-  AND ($8::timestamptz IS NULL OR starts_at <= $8)
+  AND ($2::text IS NULL
+    OR ($2 = 'MISSED' AND status = 'SCHEDULED' AND ends_at < $3::timestamptz)
+    OR ($2 = 'SCHEDULED' AND status = 'SCHEDULED' AND ends_at >= $3::timestamptz)
+    OR ($2 NOT IN ('SCHEDULED', 'MISSED') AND status = $2))
+  AND ($4::text IS NULL OR meeting_type = $4)
+  AND ($5::text IS NULL OR host_user_id = $5)
+  AND ($6::text IS NULL OR project_id = $6)
+  AND ($7::text IS NULL OR title ILIKE '%' || $7 || '%')
+  AND ($8::timestamptz IS NULL OR starts_at >= $8)
+  AND ($9::timestamptz IS NULL OR starts_at <= $9)
 ORDER BY
-  CASE WHEN $9 = 'actual_start_at' THEN actual_start_at END DESC NULLS LAST,
-  CASE WHEN $9 = 'starts_at'
-    THEN (starts_at AT TIME ZONE $10::text)::date < $11::date END ASC,
-  CASE WHEN $9 = 'starts_at' AND (starts_at AT TIME ZONE $10::text)::date < $11::date
-    THEN (starts_at AT TIME ZONE $10::text)::date END DESC NULLS LAST,
-  CASE WHEN $9 = 'starts_at' THEN starts_at END ASC,
-  CASE WHEN $9 = 'starts_at' THEN id END ASC,
+  CASE WHEN $10 = 'actual_start_at' THEN actual_start_at END DESC NULLS LAST,
+  CASE WHEN $10 = 'starts_at'
+    THEN (starts_at AT TIME ZONE $11::text)::date < $12::date END ASC,
+  CASE WHEN $10 = 'starts_at' AND (starts_at AT TIME ZONE $11::text)::date < $12::date
+    THEN (starts_at AT TIME ZONE $11::text)::date END DESC NULLS LAST,
+  CASE WHEN $10 = 'starts_at' THEN starts_at END ASC,
+  CASE WHEN $10 = 'starts_at' THEN id END ASC,
   created_at DESC,
   id DESC
-LIMIT $13 OFFSET $12
+LIMIT $14 OFFSET $13
 `
 
 type ListMeetingsByWorkspaceFilteredParams struct {
 	WorkspaceID string             `json:"workspace_id"`
 	Status      pgtype.Text        `json:"status"`
+	Now         pgtype.Timestamptz `json:"now"`
 	MeetingType pgtype.Text        `json:"meeting_type"`
 	HostUserID  pgtype.Text        `json:"host_user_id"`
 	ProjectID   pgtype.Text        `json:"project_id"`
@@ -478,10 +487,16 @@ type ListMeetingsByWorkspaceFilteredRow struct {
 // the viewer's today (the today param, a day in the tz zone) and after come first, soonest
 // first; earlier days follow, most recent day first, each day by start time.
 // The id tiebreak keeps LIMIT/OFFSET pages stable across equal start times.
+// status filters on the status the viewer sees (displayMeetingStatus in
+// packages/core/meetings/schedule.ts), not the stored one, for the one pair
+// that differs: a SCHEDULED meeting whose window passed (ends_at < now) is
+// MISSED, and status = 'SCHEDULED' lists only the ones that can still start.
+// Every other value matches the stored status.
 func (q *Queries) ListMeetingsByWorkspaceFiltered(ctx context.Context, arg ListMeetingsByWorkspaceFilteredParams) ([]ListMeetingsByWorkspaceFilteredRow, error) {
 	rows, err := q.db.Query(ctx, listMeetingsByWorkspaceFiltered,
 		arg.WorkspaceID,
 		arg.Status,
+		arg.Now,
 		arg.MeetingType,
 		arg.HostUserID,
 		arg.ProjectID,
@@ -542,30 +557,38 @@ func (q *Queries) ListMeetingsByWorkspaceFiltered(ctx context.Context, arg ListM
 const meetingWorkspaceStatistics = `-- name: MeetingWorkspaceStatistics :one
 SELECT
   count(*)::bigint AS total,
-  count(*) FILTER (WHERE status = 'SCHEDULED')::bigint AS scheduled,
+  count(*) FILTER (WHERE status = 'SCHEDULED' AND ends_at >= $1::timestamptz)::bigint AS scheduled,
+  count(*) FILTER (WHERE status = 'SCHEDULED' AND ends_at < $1::timestamptz)::bigint AS missed,
   count(*) FILTER (WHERE status = 'IN_PROGRESS')::bigint AS in_progress,
   count(*) FILTER (WHERE status = 'ENDED')::bigint AS ended,
   count(*) FILTER (WHERE status = 'CANCELED')::bigint AS canceled,
   count(*) FILTER (WHERE meeting_type = 'INSTANT')::bigint AS instant
 FROM meetings
-WHERE workspace_id = $1
+WHERE workspace_id = $2
 `
+
+type MeetingWorkspaceStatisticsParams struct {
+	Now         pgtype.Timestamptz `json:"now"`
+	WorkspaceID string             `json:"workspace_id"`
+}
 
 type MeetingWorkspaceStatisticsRow struct {
 	Total      int64 `json:"total"`
 	Scheduled  int64 `json:"scheduled"`
+	Missed     int64 `json:"missed"`
 	InProgress int64 `json:"in_progress"`
 	Ended      int64 `json:"ended"`
 	Canceled   int64 `json:"canceled"`
 	Instant    int64 `json:"instant"`
 }
 
-func (q *Queries) MeetingWorkspaceStatistics(ctx context.Context, workspaceID string) (MeetingWorkspaceStatisticsRow, error) {
-	row := q.db.QueryRow(ctx, meetingWorkspaceStatistics, workspaceID)
+func (q *Queries) MeetingWorkspaceStatistics(ctx context.Context, arg MeetingWorkspaceStatisticsParams) (MeetingWorkspaceStatisticsRow, error) {
+	row := q.db.QueryRow(ctx, meetingWorkspaceStatistics, arg.Now, arg.WorkspaceID)
 	var i MeetingWorkspaceStatisticsRow
 	err := row.Scan(
 		&i.Total,
 		&i.Scheduled,
+		&i.Missed,
 		&i.InProgress,
 		&i.Ended,
 		&i.Canceled,

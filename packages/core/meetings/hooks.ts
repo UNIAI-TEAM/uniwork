@@ -19,6 +19,7 @@ export {
   isPastScheduledEnd,
   isScheduledMeetingLive,
   msUntilScheduledEnd,
+  nextMissedAt,
   SCHEDULE_WARN_1_MIN_MS,
   SCHEDULE_WARN_5_MIN_MS,
 } from "./schedule";

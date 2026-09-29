@@ -2574,6 +2574,31 @@
     "clearFilters": "Bỏ bộ lọc",
     "noResults": "Không tìm thấy cuộc họp",
     "noResultsHint": "Thử từ khoá khác hoặc bỏ bộ lọc.",
+    "showAll": "Xem tất cả cuộc họp",
+    "filterCount_one": "{{count}} cuộc họp",
+    "filterCount_other": "{{count}} cuộc họp",
+    "statusEmpty": {
+      "SCHEDULED": {
+        "title": "Không có cuộc họp nào sắp diễn ra",
+        "hint": "Cuộc họp đã lên lịch và chưa tới giờ kết thúc sẽ hiện ở đây."
+      },
+      "IN_PROGRESS": {
+        "title": "Không có cuộc họp nào đang diễn ra",
+        "hint": "Cuộc họp đã bắt đầu mà chưa kết thúc sẽ hiện ở đây."
+      },
+      "ENDED": {
+        "title": "Chưa có cuộc họp nào kết thúc",
+        "hint": "Cuộc họp đã diễn ra xong sẽ hiện ở đây, kèm bản ghi nếu có."
+      },
+      "MISSED": {
+        "title": "Không có cuộc họp nào bị lỡ",
+        "hint": "Cuộc họp qua giờ kết thúc mà chưa ai bắt đầu sẽ hiện ở đây để dời lịch hoặc hủy."
+      },
+      "CANCELED": {
+        "title": "Không có cuộc họp nào bị hủy",
+        "hint": "Cuộc họp đã hủy sẽ hiện ở đây."
+      }
+    },
     "connecting": "Đang kết nối vào phòng…",
     "addNote": "Thêm ghi chú",
     "publicInviteExpiredHint": "Hãy xin chủ trì gửi liên kết mới.",

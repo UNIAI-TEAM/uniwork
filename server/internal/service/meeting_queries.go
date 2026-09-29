@@ -211,6 +211,9 @@ func (s *MeetingService) recordConferenceEnsure(ctx context.Context, sessionID s
 }
 
 type MeetingListFilter struct {
+	// Status is the status the viewer sees, not the stored one: "SCHEDULED"
+	// is a scheduled meeting that can still start, "MISSED" one whose window
+	// passed without it starting (displayMeetingStatus on the client).
 	Status, MeetingType, HostUserID, ProjectID, Q string
 	From, To                                      *time.Time
 	Limit, Offset                                 int32
@@ -232,6 +235,9 @@ func (s *MeetingService) ListFiltered(ctx context.Context, userID, workspaceID s
 		WorkspaceID: workspaceID, Status: strText(f.Status), MeetingType: strText(f.MeetingType),
 		HostUserID: strText(f.HostUserID), ProjectID: strText(f.ProjectID), Q: strText(f.Q),
 		LimitN: f.Limit, OffsetN: f.Offset, Sort: f.Sort,
+		// One instant for the page and its count, so a meeting whose window
+		// closes between the two queries cannot be in one and not the other.
+		Now: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 	}
 	// The zone decides which calendar day "today" is and which day each
 	// meeting falls on, so the pages cut the same day groups the client draws.
@@ -255,7 +261,7 @@ func (s *MeetingService) ListFiltered(ctx context.Context, userID, workspaceID s
 	n, err := s.q.CountMeetingsByWorkspaceFiltered(ctx, db.CountMeetingsByWorkspaceFilteredParams{
 		WorkspaceID: workspaceID, Status: params.Status, MeetingType: params.MeetingType,
 		HostUserID: params.HostUserID, ProjectID: params.ProjectID, Q: params.Q,
-		FromAt: params.FromAt, ToAt: params.ToAt,
+		FromAt: params.FromAt, ToAt: params.ToAt, Now: params.Now,
 	})
 	return rows, n, err
 }
@@ -263,8 +269,12 @@ func (s *MeetingService) ListFiltered(ctx context.Context, userID, workspaceID s
 // WorkspaceMeetingStats is served as-is; the tags are the contract with
 // packages/core/types/meeting.ts (MeetingStatisticsSchema).
 type WorkspaceMeetingStats struct {
-	Total              int64   `json:"total"`
+	Total int64 `json:"total"`
+	// Scheduled counts the meetings that can still start; Missed the
+	// scheduled ones whose window passed. Together they are the stored
+	// SCHEDULED rows, and each matches its list filter.
 	Scheduled          int64   `json:"scheduled"`
+	Missed             int64   `json:"missed"`
 	InProgress         int64   `json:"in_progress"`
 	Ended              int64   `json:"ended"`
 	Canceled           int64   `json:"canceled"`
@@ -287,7 +297,9 @@ func (s *MeetingService) Statistics(ctx context.Context, userID, workspaceID str
 	if _, err := s.ws.RequireMember(ctx, workspaceID, userID); err != nil {
 		return WorkspaceMeetingStats{}, err
 	}
-	ms, err := s.q.MeetingWorkspaceStatistics(ctx, workspaceID)
+	ms, err := s.q.MeetingWorkspaceStatistics(ctx, db.MeetingWorkspaceStatisticsParams{
+		WorkspaceID: workspaceID, Now: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+	})
 	if err != nil {
 		return WorkspaceMeetingStats{}, err
 	}
@@ -295,7 +307,7 @@ func (s *MeetingService) Statistics(ctx context.Context, userID, workspaceID str
 	jr, _ := s.q.JoinRequestStats(ctx, workspaceID)
 	lk, _ := s.q.InviteLinkStats(ctx, workspaceID)
 	return WorkspaceMeetingStats{
-		Total: ms.Total, Scheduled: ms.Scheduled, InProgress: ms.InProgress, Ended: ms.Ended,
+		Total: ms.Total, Scheduled: ms.Scheduled, Missed: ms.Missed, InProgress: ms.InProgress, Ended: ms.Ended,
 		Canceled: ms.Canceled, Instant: ms.Instant,
 		InvPending: inv.Pending, InvAccepted: inv.Accepted, InvDeclined: inv.Declined, InvTentative: inv.Tentative,
 		JoinTotal: jr.Total, JoinApproved: jr.Approved, JoinRejected: jr.Rejected, AvgApprovalSeconds: jr.AvgApprovalSeconds,
