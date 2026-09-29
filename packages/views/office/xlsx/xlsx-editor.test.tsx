@@ -1,0 +1,192 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import type { XlsxCellState, XlsxEditorHandle, XlsxOpenOutcome, XlsxSaveCoordinator, XlsxSelection, XlsxWorkbookSnapshot } from "./types";
+import { XlsxEditor } from "./xlsx-editor";
+
+function coordinator(overrides: Partial<XlsxSaveCoordinator> = {}): XlsxSaveCoordinator {
+  const state = {
+    state: "dirty" as const,
+    identity: {
+      deploymentId: "dep",
+      accountId: "account",
+      organizationId: "org",
+      workspaceId: "workspace",
+      documentId: "doc",
+      generation: 1,
+      baseVersionId: "version",
+      baseRevision: "1",
+    },
+    dirtyGeneration: 1,
+    lastSavedGeneration: 0,
+    activeIntentId: null,
+    error: null,
+  };
+  return {
+    getState: () => state,
+    subscribe: () => () => undefined,
+    save: vi.fn(async () => ({ accepted: false as const, reason: "clean" as const })),
+    markDirty: vi.fn(),
+    ...overrides,
+  };
+}
+
+function workbook(): XlsxWorkbookSnapshot {
+  return {
+    revision: 1,
+    sheets: [
+      { id: "sheet-1", name: "Data", cells: {
+        A1: { value: 2 },
+        B1: { value: 3 },
+        C1: { value: 5, formula: "=SUM(A1:B1)" },
+      } satisfies Record<string, XlsxCellState> },
+      { id: "sheet-2", name: "Summary", cells: { A1: { value: 5, formula: "=Data!C1" } } },
+    ],
+  };
+}
+
+function editor(overrides: Partial<XlsxEditorHandle> = {}): XlsxEditorHandle {
+  let model = workbook();
+  const selection: XlsxSelection = { sheet: "Data", address: "C1" };
+  return {
+    format: "xlsx",
+    open: vi.fn(async () => undefined),
+    getDirtyGeneration: () => 2,
+    captureSnapshot: vi.fn(async () => ({ generation: 2, fingerprint: "fp", value: model })),
+    getWorkbookSnapshot: () => model,
+    edit: vi.fn((ops: readonly unknown[]) => {
+      const op = ops[0] as { target?: { sheet?: string; cell?: string }; text?: string };
+      if (op.target?.sheet && op.target.cell && typeof op.text === "string") {
+        const sheet = model.sheets.find((candidate) => candidate.name === op.target?.sheet);
+        if (sheet) {
+          const cells = { ...sheet.cells };
+          cells[op.target.cell] = op.text.startsWith("=") ? { value: null, formula: op.text } : { value: op.text };
+          model = { ...model, sheets: model.sheets.map((candidate) => candidate === sheet ? { ...candidate, cells } : candidate) };
+        }
+      }
+    }),
+    undo: vi.fn(),
+    redo: vi.fn(),
+    dispose: vi.fn(),
+    cancel: vi.fn(),
+    selection: {
+      getSelection: () => selection,
+      setSelection: vi.fn(),
+      subscribe: () => () => undefined,
+    },
+    clipboard: {
+      readText: vi.fn(async () => "=SUM(A1:B1)"),
+      writeText: vi.fn(async () => undefined),
+    },
+    ...overrides,
+  };
+}
+
+const opened = (documentId = "doc"): XlsxOpenOutcome => ({ outcome: "opened", document_id: documentId, document_model_ref: "model-1", snapshot: workbook() });
+
+function renderEditor(outcome: XlsxOpenOutcome, options?: { key?: string; open?: () => Promise<XlsxOpenOutcome>; coordinator?: XlsxSaveCoordinator; editor?: XlsxEditorHandle }) {
+  const handle = options?.editor ?? editor();
+  const saveCoordinator = options?.coordinator ?? coordinator();
+  const open = options?.open ?? vi.fn(async () => outcome);
+  const view = render(<XlsxEditor documentKey={options?.key ?? "doc-v1"} editor={handle} open={{ open }} coordinator={saveCoordinator} />);
+  return { handle, saveCoordinator, open, view };
+}
+
+describe("XlsxEditor", () => {
+  it("mounts the host handle, renders sheets/formula identity, and routes Save through the coordinator", async () => {
+    const save = vi.fn(async () => ({ accepted: false as const, reason: "clean" as const }));
+    const { handle, saveCoordinator } = renderEditor(opened(), { coordinator: coordinator({ save }) });
+    await waitFor(() => expect(screen.getByTestId("xlsx-workbook-surface")).toBeInTheDocument());
+    expect(handle.open).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("xlsx-cell-Data-C1")).toHaveTextContent("=SUM(A1:B1)");
+    expect(screen.getByTestId("xlsx-selection")).toHaveTextContent("Data!C1");
+
+    fireEvent.click(screen.getByRole("button", { name: "Làm lại" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hoàn tác" }));
+    expect(handle.redo).toHaveBeenCalledTimes(1);
+    expect(handle.undo).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByTestId("xlsx-save"));
+    expect(save).toHaveBeenCalledWith("button");
+    expect(saveCoordinator).not.toHaveProperty("writeBytes");
+  });
+
+  it("keeps formula text as a formula through the G2 edit operation and Ctrl+S", async () => {
+    const handle = editor();
+    const save = vi.fn(async () => ({ accepted: false as const, reason: "clean" as const }));
+    renderEditor(opened(), { editor: handle, coordinator: coordinator({ save }) });
+    await waitFor(() => expect(screen.getByTestId("xlsx-formula-bar")).toBeInTheDocument());
+    const formula = screen.getByTestId("xlsx-formula-bar");
+    fireEvent.change(formula, { target: { value: "=A1+B1" } });
+    fireEvent.keyDown(formula, { key: "Enter" });
+    expect(handle.edit).toHaveBeenCalledWith([{ op: "set_cell", target: { sheet: "Data", cell: "C1" }, text: "=A1+B1" }]);
+    fireEvent.keyDown(formula, { key: "s", ctrlKey: true });
+    expect(save).toHaveBeenCalledWith("shortcut");
+    expect(formula).toHaveValue("=A1+B1");
+  });
+
+  it("shows recalc progress, cancels it, and keeps the edited model without saving", async () => {
+    let resolveRun: (() => void) | undefined;
+    const run = vi.fn((_signal: AbortSignal, onProgress?: (progress: number) => void) => {
+      onProgress?.(35);
+      return new Promise<void>((resolve) => { resolveRun = resolve; });
+    });
+    const handle = editor({ recalculate: { run, cancel: vi.fn() } });
+    const save = vi.fn(async () => ({ accepted: false as const, reason: "clean" as const }));
+    renderEditor(opened(), { editor: handle, coordinator: coordinator({ save }) });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Tính lại công thức" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Tính lại công thức" }));
+    await waitFor(() => expect(screen.getByTestId("xlsx-recalc-progress")).toBeInTheDocument());
+    expect(screen.getByTestId("xlsx-recalc-progress")).toHaveTextContent("35%");
+    fireEvent.click(screen.getByTestId("xlsx-recalc-cancel"));
+    expect(handle.recalculate?.cancel).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("xlsx-recalc-error")).toHaveTextContent("Đã hủy");
+    expect(save).not.toHaveBeenCalled();
+    resolveRun?.();
+  });
+
+  it("does not mark a failed recalc fresh or save stale values", async () => {
+    const run = vi.fn(async () => { throw new Error("engine timeout"); });
+    const handle = editor({ recalculate: { run } });
+    const save = vi.fn(async () => ({ accepted: false as const, reason: "clean" as const }));
+    renderEditor(opened(), { editor: handle, coordinator: coordinator({ save }) });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Tính lại công thức" })).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Tính lại công thức" }));
+    await waitFor(() => expect(screen.getByTestId("xlsx-recalc-error")).toHaveTextContent("engine timeout"));
+    expect(screen.queryByText("Đã làm mới kết quả công thức.")).not.toBeInTheDocument();
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["not_office_file", "Tệp đã chọn"],
+    ["corrupted", "Gói sổ tính"],
+    ["unsupported_feature", "Engine hiện tại"],
+  ])("renders a typed %s error without a blank grid or Save", async (failureClass, message) => {
+    renderEditor({ outcome: "failed", document_id: "doc", format: "xlsx", failure_class: failureClass, message });
+    await waitFor(() => expect(screen.getByTestId("xlsx-error-state")).toBeInTheDocument());
+    expect(screen.getByRole("alert")).toHaveTextContent(message);
+    expect(screen.queryByTestId("xlsx-workbook-surface")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("xlsx-save")).not.toBeInTheDocument();
+  });
+
+  it("opens the next valid file after a failed open without reloading the app", async () => {
+    const open = vi.fn().mockResolvedValueOnce({ outcome: "failed", document_id: "bad", format: "xlsx", failure_class: "corrupted", message: "hỏng" } satisfies XlsxOpenOutcome).mockResolvedValueOnce(opened("good"));
+    const handle = editor();
+    const { view } = renderEditor({ outcome: "failed", document_id: "bad", format: "xlsx", failure_class: "corrupted", message: "hỏng" }, { open, editor: handle });
+    await waitFor(() => expect(screen.getByTestId("xlsx-error-state")).toBeInTheDocument());
+    view.rerender(<XlsxEditor documentKey="good" editor={handle} open={{ open }} coordinator={coordinator()} />);
+    await waitFor(() => expect(screen.getByTestId("xlsx-workbook-surface")).toBeInTheDocument());
+    expect(open).toHaveBeenCalledTimes(2);
+    expect(handle.open).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels and disposes an in-flight session", async () => {
+    let resolveOpen: ((outcome: XlsxOpenOutcome) => void) | undefined;
+    const open = vi.fn(() => new Promise<XlsxOpenOutcome>((resolve) => { resolveOpen = resolve; }));
+    const handle = editor();
+    const { view } = renderEditor(opened(), { open, editor: handle });
+    await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
+    view.unmount();
+    expect(handle.cancel).toHaveBeenCalledWith("document_changed");
+    expect(handle.dispose).toHaveBeenCalledTimes(1);
+    expect(resolveOpen).toBeDefined();
+  });
+});
