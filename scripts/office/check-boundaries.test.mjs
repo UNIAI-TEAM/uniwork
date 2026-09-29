@@ -62,6 +62,15 @@ test("fails when core office code imports an engine Node sidecar", () => {
   assert.ok(rules(result).includes("browser_isolation"));
 });
 
+test("fails when the desktop renderer imports Node/main code", () => {
+  const root = plant({
+    "apps/office-desktop/renderer/index.ts": 'import fs from "node:fs";\nexport const x = fs;\n',
+  });
+  const result = checkBoundaries(root);
+  assert.equal(result.ok, false);
+  assert.ok(rules(result).includes("desktop_renderer_isolation"));
+});
+
 test("fails on a TRANSITIVE browser -> node: import", () => {
   const root = plant({
     "packages/office-engine/src/browser/index.ts":

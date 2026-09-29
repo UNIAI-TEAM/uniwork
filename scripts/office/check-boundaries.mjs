@@ -67,7 +67,15 @@ export const OFFICE_TREE_ROOTS = [
   "packages/office-upstream",
   "apps/office-engine",
   "apps/web/platform/office",
+  "apps/office-desktop",
 ];
+
+/** Desktop renderer/preload are a second host boundary. Renderer code is
+ * browser code and may not resolve Node/Electron/main; preload may use the
+ * Electron bridge but must not import the main graph. Both graphs are chased
+ * transitively so a helper cannot smuggle privileged code across the seam. */
+export const DESKTOP_RENDERER_ROOTS = ["apps/office-desktop/renderer"];
+export const DESKTOP_PRELOAD_ROOTS = ["apps/office-desktop/preload"];
 
 const SOURCE_EXT = new Set([".ts", ".tsx", ".mts", ".js", ".mjs", ".jsx"]);
 
@@ -235,6 +243,46 @@ export function checkBoundaries(root, { requireUpstreamLicence = null } = {}) {
       }
     }
   }
+
+  function scanDesktopGraph(relRoots, rule, { renderer = false } = {}) {
+    const roots = relRoots.map((rel) => path.join(root, rel));
+    const graphQueue = [];
+    const graphSeen = new Set();
+    for (const entry of roots) {
+      if (!fs.existsSync(entry)) continue;
+      if (fs.statSync(entry).isFile()) graphQueue.push(entry);
+      else for (const f of walk(entry)) if (!isTestFile(f)) graphQueue.push(f);
+    }
+    while (graphQueue.length) {
+      const file = path.resolve(graphQueue.shift());
+      if (graphSeen.has(file) || !SOURCE_EXT.has(path.extname(file))) continue;
+      graphSeen.add(file);
+      const source = fs.readFileSync(file, "utf8");
+      for (const hit of unverifiableModuleCalls(source)) report(rule, path.relative(root, file), `unverifiable module access: ${hit}`);
+      for (const specifier of extractImportSpecifiers(source)) {
+        if (renderer && (isForbiddenSpecifier(specifier) || /^electron(\/|$)/.test(specifier))) {
+          report(rule, path.relative(root, file), `renderer resolves forbidden privileged specifier ${JSON.stringify(specifier)}`);
+          continue;
+        }
+        if (!renderer && /^node:/.test(specifier)) {
+          report(rule, path.relative(root, file), `preload resolves direct node specifier ${JSON.stringify(specifier)}`);
+          continue;
+        }
+        if (specifier.startsWith("./") || specifier.startsWith("../")) {
+          const resolved = resolveRelative(file, specifier);
+          if (!resolved) { report(rule, path.relative(root, file), `unresolvable specifier ${JSON.stringify(specifier)}`); continue; }
+          const relResolved = path.relative(root, resolved).replaceAll("\\", "/");
+          if (relResolved.startsWith("apps/office-desktop/main/") || relResolved.startsWith("apps/office-desktop/preload/")) {
+            if (renderer || relResolved.startsWith("apps/office-desktop/main/")) report(rule, path.relative(root, file), `imports privileged desktop graph ${JSON.stringify(specifier)}`);
+          }
+          if (!graphSeen.has(resolved) && resolved.startsWith(root + path.sep)) graphQueue.push(resolved);
+        }
+      }
+    }
+  }
+
+  scanDesktopGraph(DESKTOP_RENDERER_ROOTS, "desktop_renderer_isolation", { renderer: true });
+  scanDesktopGraph(DESKTOP_PRELOAD_ROOTS, "desktop_preload_isolation");
 
   // --- 2. No /ee ------------------------------------------------------------
   for (const rel of OFFICE_TREE_ROOTS) {

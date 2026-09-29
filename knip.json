@@ -31,6 +31,14 @@
         "@uniwork/office-contracts"
       ]
     },
+    "apps/office-desktop": {
+      "entry": [
+        "main/index.ts",
+        "preload/index.ts",
+        "renderer/index.ts",
+        "scripts/*.mjs"
+      ]
+    },
     "packages/*": {},
     "packages/office-engine": {
       "entry": [

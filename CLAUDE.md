@@ -32,6 +32,11 @@ Product intent and design principles live in `PRODUCT.md`.
   them the wrong way.
 - `apps/web/` — Next.js App Router. `apps/web/platform/` is the only place
   Next.js APIs (router, env) are touched.
+- `apps/office-desktop/` — the Electron desktop host. `apps/office-desktop/main/`
+  owns OS/window policy and IPC validation; `apps/office-desktop/preload/`
+  exposes the typed allowlist; `apps/office-desktop/renderer/`
+  is sandboxed browser code. Renderer/preload must not import the main graph;
+  the shared engine and contracts are injected through host adapters.
 - `packages/core/` — headless logic: API endpoints, React Query hooks,
   Zustand stores, realtime sync, permissions, paths, i18n. Five modules no
   host reaches yet, four from the port: `packages/core/analytics/`,
@@ -55,9 +60,11 @@ Product intent and design principles live in `PRODUCT.md`.
 
 Shared packages export raw `.ts` / `.tsx`, compiled by the consuming app.
 Dependency direction is `views -> core + ui`; `core` and `ui` stay independent.
-Web is the only host today; the adapters (`NavigationAdapter`,
-`StorageAdapter`, `CoreProvider`) exist so a desktop host can be added
-without rewriting `views`. Mobile is not a host of `views`: it will be a
+Web and `apps/office-desktop/` are the two hosts today. The adapters
+(`NavigationAdapter`, `StorageAdapter`, `CoreProvider`) keep views independent
+of either platform. Desktop commands are `pnpm --filter @uniwork/office-desktop
+build`, `test`, and `package`; `node scripts/office/check-boundaries.mjs` guards
+the renderer/preload graph and `pnpm knip` checks its real entries. Mobile is not a host of `views`: it will be a
 separate Expo / React Native app under apps/mobile that imports only types
 and pure functions from `packages/core/` (ADR 0011, mirrors the sibling
 `usf` repo); its rules land in its own CLAUDE.md when the app exists.
