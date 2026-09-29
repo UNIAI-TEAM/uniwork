@@ -41,6 +41,12 @@ const SIZE_TIER: Record<Exclude<MeetingPersonAvatarSize, "stage">, AvatarSize> =
 const STAGE_FALLBACK = "bg-meeting-bar-chip-hover text-meeting-bar-foreground";
 
 /**
+ * Initials on a light surface (the People tab): full-strength ink. The
+ * default muted-on-muted pair read as a faint letter in a faint disc.
+ */
+const SURFACE_FALLBACK = "text-foreground";
+
+/**
  * The one avatar for a person anywhere in the meetings module: their photo when
  * an avatar URL is known, otherwise uppercase initials. Decorative — it always
  * sits next to the person's visible name, so it is hidden from assistive tech.
@@ -79,7 +85,7 @@ export function MeetingPersonAvatar({
         size={stage ? "fluid" : SIZE_TIER[size]}
         fadeIn={stage}
         className={cn(
-          (tone === "stage" || stage) && STAGE_FALLBACK,
+          tone === "stage" || stage ? STAGE_FALLBACK : SURFACE_FALLBACK,
           stage && "size-full text-avatar-stage",
         )}
       />

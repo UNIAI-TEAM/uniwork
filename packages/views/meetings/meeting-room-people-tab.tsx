@@ -6,7 +6,7 @@ import type { Participant } from "livekit-client";
 import { ChevronDown, Hand, Plus, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Meeting } from "@uniwork/core/types";
-import { useParticipants, useRemoveParticipant, useSetParticipantPublish } from "@uniwork/core/meetings";
+import { useParticipants } from "@uniwork/core/meetings";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -16,20 +16,12 @@ import {
 } from "@uniwork/ui/components/ui/collapsible";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@uniwork/ui/components/ui/input-group";
 import { cn } from "@uniwork/ui/lib/utils";
-import { ConfirmDialog } from "../common/form-dialog";
-import { toastApiError } from "../toast-api-error";
 import { AddMeetingParticipantsDialog } from "./add-meeting-participants-dialog";
 import { MeetingJoinRequestsSection } from "./meeting-join-requests-section";
 import { MeetingParticipantRow } from "./meeting-participant-row";
 import { useRoomAvatarOf } from "./meeting-room-avatars";
 import { guestIdentities, PARTICIPANT_IDENTITY_PREFIX, participantRole } from "./meeting-signals";
 import { useMeetingSignals } from "./use-meeting-signals";
-
-function participantIdFromIdentity(identity: string): string | null {
-  return identity.startsWith(PARTICIPANT_IDENTITY_PREFIX)
-    ? identity.slice(PARTICIPANT_IDENTITY_PREFIX.length)
-    : null;
-}
 
 function displayName(participant: Participant): string {
   return participant.name || participant.identity;
@@ -69,12 +61,9 @@ export function MeetingRoomPeopleTab({
   const pinnedIdentity = useMeetingViewSessionStore((s) => s.pinnedIdentity);
   const avatarOf = useRoomAvatarOf();
   const { data: apiParticipants } = useParticipants(meetingId ?? "");
-  const remove = useRemoveParticipant(meetingId ?? "");
-  const setPublish = useSetParticipantPublish(meetingId ?? "");
   const [search, setSearch] = useState("");
   const [contributorsOpen, setContributorsOpen] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [removing, setRemoving] = useState<Participant | null>(null);
 
   const hostUserId = meeting?.host_user_id;
   const excludeUserIds = [
@@ -116,39 +105,6 @@ export function MeetingRoomPeopleTab({
     if (participant.isLocal && canHost) return t("meetings.meetingHost");
     if (hands.includes(participant.identity)) return t("meetings.handRaised");
     return undefined;
-  }
-
-  function handleRemove(participant: Participant) {
-    const participantId = participantMeta.get(participant.identity)?.participantId
-      ?? participantIdFromIdentity(participant.identity);
-    if (!participantId || !meetingId) return;
-    remove.mutate(participantId, {
-      onSuccess: () => setRemoving(null),
-      onError: (err) => toastApiError(err, t("common.error")),
-    });
-  }
-
-  function participantIdFor(participant: Participant): string | null {
-    return participantMeta.get(participant.identity)?.participantId
-      ?? participantIdFromIdentity(participant.identity);
-  }
-
-  function handleRevokeSpeaking(participant: Participant) {
-    const participantId = participantIdFor(participant);
-    if (!participantId) return;
-    setPublish.mutate(
-      { participantId, enabled: false },
-      { onError: (err) => toastApiError(err, t("common.error")) },
-    );
-  }
-
-  function handleAllowSpeaking(participant: Participant) {
-    const participantId = participantIdFor(participant);
-    if (!participantId) return;
-    setPublish.mutate(
-      { participantId, enabled: true },
-      { onError: (err) => toastApiError(err, t("common.error")) },
-    );
   }
 
   return (
@@ -219,21 +175,6 @@ export function MeetingRoomPeopleTab({
                     avatarUrl={avatarOf(participant.identity)}
                     canHost={canHost}
                     pinned={pinnedIdentity === participant.identity}
-                    onRemove={
-                      canHost && !participant.isLocal && meetingId
-                        ? () => setRemoving(participant)
-                        : undefined
-                    }
-                    onRevokeSpeaking={
-                      canHost && !participant.isLocal && meetingId
-                        ? () => handleRevokeSpeaking(participant)
-                        : undefined
-                    }
-                    onAllowSpeaking={
-                      canHost && !participant.isLocal && meetingId
-                        ? () => handleAllowSpeaking(participant)
-                        : undefined
-                    }
                   />
                 </li>
               ))}
@@ -242,15 +183,6 @@ export function MeetingRoomPeopleTab({
         </CollapsibleContent>
       </Collapsible>
 
-      <ConfirmDialog
-        open={removing !== null}
-        onOpenChange={(open) => !open && setRemoving(null)}
-        title={t("meetings.removeFromCallTitle", { name: removing ? displayName(removing) : "" })}
-        description={t("meetings.removeFromCallHint")}
-        confirmLabel={t("meetings.removeFromCall")}
-        pending={remove.isPending}
-        onConfirm={() => removing && handleRemove(removing)}
-      />
 
       {canHost && meetingId && workspaceId && !guestMode ? (
         <AddMeetingParticipantsDialog

@@ -142,3 +142,18 @@ export function muteRequesterIdentities(
 export function shouldHonorMuteRequest(from: string, allowedIdentities: readonly string[]): boolean {
   return allowedIdentities.includes(from);
 }
+
+// TrackSource.MICROPHONE in @livekit/protocol, which views does not import.
+const MICROPHONE_SOURCE = 2;
+
+/**
+ * Whether the host has locked this person's mic: their publish sources list
+ * everything but the microphone (an empty list allows every source). A role
+ * that never publishes (audience) is not "locked" — nobody can unlock it.
+ */
+export function micLockedNow(participant: {
+  permissions?: { canPublishSources?: readonly number[] } | null;
+}): boolean {
+  const sources = participant.permissions?.canPublishSources ?? [];
+  return sources.length > 0 && !sources.includes(MICROPHONE_SOURCE);
+}

@@ -130,14 +130,25 @@ func (a *LiveKitAdapter) RemoveParticipant(ctx context.Context, req RemoveProvid
 }
 
 func (a *LiveKitAdapter) UpdateParticipant(ctx context.Context, req UpdateProviderParticipantRequest) error {
-	perm := &livekit.ParticipantPermission{}
-	if req.CanPublish != nil {
-		perm.CanPublish = *req.CanPublish
-	}
 	_, err := a.client().UpdateParticipant(ctx, &livekit.UpdateParticipantRequest{
-		Room: req.RoomName, Identity: req.Identity, Permission: perm,
+		Room: req.RoomName, Identity: req.Identity, Permission: participantPermission(req.Permissions),
 	})
 	return err
+}
+
+// participantPermission is the full set LiveKit stores: a field left false
+// here is a grant taken away, not one left alone.
+func participantPermission(p MediaPermissions) *livekit.ParticipantPermission {
+	perm := &livekit.ParticipantPermission{
+		CanSubscribe: p.CanSubscribe, CanPublish: p.CanPublish, CanPublishData: p.CanPublishData,
+	}
+	// An empty source list means every source; a locked mic lists the rest.
+	if p.MicrophoneLocked {
+		perm.CanPublishSources = []livekit.TrackSource{
+			livekit.TrackSource_CAMERA, livekit.TrackSource_SCREEN_SHARE, livekit.TrackSource_SCREEN_SHARE_AUDIO,
+		}
+	}
+	return perm
 }
 
 func (a *LiveKitAdapter) EndSession(ctx context.Context, req EndProviderSessionRequest) error {

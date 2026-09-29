@@ -11,11 +11,16 @@ const startRecording = vi.fn();
 const stopRecording = vi.fn();
 const toggles = vi.hoisted(() => ({ microphone: vi.fn(), camera: vi.fn(), screen_share: vi.fn() }));
 const shareErrors = vi.hoisted(() => ({ onDeviceError: null as null | ((error: Error) => void) }));
+// The viewer's own publish permissions; `[1, 3, 4]` is the host's mic lock.
+const local = vi.hoisted(() => ({
+  participant: { permissions: { canPublish: true, canPublishSources: [] as number[] }, on: () => {}, off: () => {} },
+}));
 
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() } }));
 vi.mock("@uniwork/ui/hooks/use-mobile", () => ({ useIsMobile: () => mobile, useIsCompact: () => mobile }));
 vi.mock("@livekit/components-react", () => ({
   useRoomContext: () => ({}),
+  useLocalParticipant: () => ({ localParticipant: local.participant }),
   useTrackToggle: ({ source, onDeviceError }: { source: keyof typeof toggles; onDeviceError?: (e: Error) => void }) => {
     if (source === "screen_share") shareErrors.onDeviceError = onDeviceError ?? null;
     return { enabled: true, pending: false, toggle: toggles[source] };
@@ -264,6 +269,21 @@ describe("MeetingControlBar", () => {
     expect(onLeave).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Rời ngay" }));
     expect(onLeave).toHaveBeenCalledOnce();
+  });
+});
+
+describe("MeetingControlBar with a locked mic", () => {
+  it("says the host locked the mic instead of toggling it", () => {
+    local.participant.permissions.canPublishSources = [1, 3, 4];
+    try {
+      toggles.microphone.mockClear();
+      render(wrapWithNav(<MeetingControlBar onLeave={() => {}} />));
+      fireEvent.click(screen.getByRole("button", { name: "Mic, chủ trì đã khóa" }));
+      expect(toggles.microphone).not.toHaveBeenCalled();
+      expect(toast.info).toHaveBeenCalledWith("Chủ trì đã khóa mic của bạn", expect.anything());
+    } finally {
+      local.participant.permissions.canPublishSources = [];
+    }
   });
 });
 

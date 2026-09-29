@@ -59,6 +59,7 @@ import {
 import { MeetingRoomAvatarsProvider, useRoomAvatarOf } from "./meeting-room-avatars";
 import { MeetingScheduleBanner } from "./meeting-schedule-banner";
 import { guestIdentities, muteRequesterIdentities, participantRole } from "./meeting-signals";
+import { MeetingModerationProvider } from "./meeting-moderation";
 import { MeetingSignalsProvider } from "./use-meeting-signals";
 import { useStripPlacement } from "./use-strip-placement";
 
@@ -152,12 +153,14 @@ export function MeetingConference(props: {
   const guests = useMemo(() => guestIdentities(apiParticipants ?? []), [apiParticipants]);
   return (
     <MeetingSignalsProvider canHost={canHost.allowed} hostIdentities={hostIdentities}>
-      <MeetingRoomAvatarsProvider
-        participants={apiParticipants}
-        workspaceId={props.guestMode ? "" : (props.workspaceId ?? "")}
-      >
-        <ConferenceStage {...props} guests={guests} />
-      </MeetingRoomAvatarsProvider>
+      <MeetingModerationProvider meetingId={props.meetingId ?? props.meeting?.id} canHost={canHost.allowed && !props.guestMode}>
+        <MeetingRoomAvatarsProvider
+          participants={apiParticipants}
+          workspaceId={props.guestMode ? "" : (props.workspaceId ?? "")}
+        >
+          <ConferenceStage {...props} guests={guests} />
+        </MeetingRoomAvatarsProvider>
+      </MeetingModerationProvider>
     </MeetingSignalsProvider>
   );
 }

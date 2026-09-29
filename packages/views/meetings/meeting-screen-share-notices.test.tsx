@@ -4,7 +4,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { initI18n } from "@uniwork/core/i18n";
 import { toast } from "sonner";
 import { wrap } from "../test/api-mock";
-import { MeetingPresentingCard, MeetingScreenShareWatcher } from "./meeting-screen-share-notices";
+import { MeetingPresentingBar, MeetingPresentingCard, MeetingScreenShareWatcher } from "./meeting-screen-share-notices";
 import { markScreenShareStopByUser } from "./screen-share";
 
 type Handler = (...args: unknown[]) => void;
@@ -122,5 +122,33 @@ describe("MeetingPresentingCard", () => {
     expect(screen.getByText("Bạn đang trình bày cho mọi người")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Dừng trình bày" }));
     expect(fake.setScreenShareEnabled).toHaveBeenCalledWith(false);
+  });
+});
+
+describe("MeetingPresentingBar", () => {
+  it("says the preview is live, puts it away, and stops the share", () => {
+    const onHidePreview = vi.fn();
+    render(wrap(<MeetingPresentingBar onHidePreview={onHidePreview} />));
+    expect(screen.getByText("Bạn đang trình bày")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Ẩn bản xem trước" }));
+    expect(onHidePreview).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "Dừng trình bày" }));
+    expect(fake.setScreenShareEnabled).toHaveBeenCalledWith(false);
+  });
+
+  it("keeps a thumbnail to a label", () => {
+    render(wrap(<MeetingPresentingBar compact onHidePreview={() => {}} />));
+    expect(screen.getByText("Bạn đang trình bày")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+});
+
+describe("MeetingPresentingCard with a hidden preview", () => {
+  it("offers the preview back and says the room still sees the share", () => {
+    const onShowPreview = vi.fn();
+    render(wrap(<MeetingPresentingCard onShowPreview={onShowPreview} />));
+    expect(screen.getByText(/Bản xem trước chỉ ẩn trên máy bạn/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Hiện bản xem trước" }));
+    expect(onShowPreview).toHaveBeenCalledOnce();
   });
 });

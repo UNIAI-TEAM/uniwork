@@ -92,8 +92,8 @@ describe("MeetingRoomView media failures", () => {
     });
     expect(screen.getByTestId("conference")).toBeInTheDocument();
     expect(screen.queryByText("Không kết nối được cuộc họp")).not.toBeInTheDocument();
-    expect(screen.getByText(/Trình duyệt đang chặn micro/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Bật lại micro" })).toBeInTheDocument();
+    expect(screen.getByText(/Trình duyệt đang chặn mic/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Bật lại mic" })).toBeInTheDocument();
   });
 
   it("names a busy camera", () => {

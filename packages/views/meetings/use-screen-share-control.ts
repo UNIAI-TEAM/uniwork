@@ -17,6 +17,9 @@ export function useScreenShareControl() {
   const [supported] = useState(screenShareSupported);
   const screen = useTrackToggle({
     source: Track.Source.ScreenShare,
+    // The meeting's own tab is left out of the picker: shared, it would
+    // show itself, and a shared tab is what the presenter gets to preview.
+    captureOptions: { selfBrowserSurface: "exclude" },
     onDeviceError: (error) => {
       const key = screenShareErrorKey(error);
       if (key) toast.error(t(key));

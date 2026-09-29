@@ -45,12 +45,12 @@ describe("MeetingPreJoin", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "Standup" })).toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: "Micro", pressed: true })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Mic", pressed: true })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Camera", pressed: true })).toBeInTheDocument();
     expect(await screen.findByText("Built-in Mic")).toBeInTheDocument();
     expect(screen.getByText("FaceTime HD")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Micro", pressed: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Mic", pressed: true }));
     fireEvent.click(screen.getByRole("button", { name: "Camera", pressed: true }));
     fireEvent.click(screen.getByRole("button", { name: "Vào phòng họp" }));
 
@@ -107,7 +107,7 @@ describe("MeetingPreJoin", () => {
       },
     });
     render(wrapWithNav(<MeetingPreJoin meeting={meeting} onJoin={() => {}} onLeave={() => {}} />));
-    expect(await screen.findByText("Cho phép micro để chọn thiết bị")).toBeInTheDocument();
+    expect(await screen.findByText("Cho phép mic để chọn thiết bị")).toBeInTheDocument();
     expect(screen.getByText("Cho phép camera để chọn thiết bị")).toBeInTheDocument();
   });
 
@@ -130,11 +130,11 @@ describe("MeetingPreJoin", () => {
       value: { enumerateDevices, getUserMedia, addEventListener: vi.fn(), removeEventListener: vi.fn() },
     });
     render(wrapWithNav(<MeetingPreJoin meeting={meeting} onJoin={() => {}} onLeave={() => {}} />));
-    fireEvent.click(await screen.findByRole("button", { name: "Cho phép micro" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Cho phép mic" }));
     await waitFor(() => expect(getUserMedia).toHaveBeenCalledWith({ audio: true }));
     await waitFor(() => expect(stop).toHaveBeenCalled());
     expect(await screen.findByText("Built-in Mic")).toBeInTheDocument();
-    expect(screen.getByRole("meter", { name: "Mức âm thanh micro" })).toBeInTheDocument();
+    expect(screen.getByRole("meter", { name: "Mức âm thanh mic" })).toBeInTheDocument();
   });
 
   it("says how to unblock the microphone when the browser refuses", async () => {
@@ -148,7 +148,7 @@ describe("MeetingPreJoin", () => {
       },
     });
     render(wrapWithNav(<MeetingPreJoin meeting={meeting} onJoin={() => {}} onLeave={() => {}} />));
-    fireEvent.click(await screen.findByRole("button", { name: "Cho phép micro" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("Trình duyệt đang chặn micro");
+    fireEvent.click(await screen.findByRole("button", { name: "Cho phép mic" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Trình duyệt đang chặn mic");
   });
 });

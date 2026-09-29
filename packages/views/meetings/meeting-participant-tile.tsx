@@ -11,29 +11,10 @@ import {
 } from "@livekit/components-react";
 import type { Participant } from "livekit-client";
 import { ConnectionQuality, Track } from "livekit-client";
-import {
-  Eye,
-  EyeOff,
-  Hand,
-  MicOff,
-  MonitorUp,
-  MoreVertical,
-  Pin,
-  PinOff,
-  Volume2,
-  WifiLow,
-  WifiOff,
-} from "lucide-react";
+import { Hand, Lock, MicOff, MonitorUp, Volume2, WifiLow, WifiOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useMeetingRoomPreferencesStore } from "@uniwork/core/meetings/room-preferences";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
-import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
 import {
   cameraTileSize,
@@ -44,8 +25,11 @@ import {
   tileRingTone,
   type TileRingTone,
 } from "./conference-layout";
-import { MeetingPresentingCard } from "./meeting-screen-share-notices";
-import { useParticipantSignal, useRequestMute } from "./use-meeting-signals";
+import { MeetingPresentingBar, MeetingPresentingCard } from "./meeting-screen-share-notices";
+import { ownSharePreviewable } from "./screen-share";
+import { useParticipantSignal } from "./use-meeting-signals";
+import { MeetingTileActions } from "./meeting-tile-actions";
+import { useMicLocked } from "./meeting-moderation";
 import { MeetingPersonAvatar } from "./meeting-person";
 import { MeetingRoleChip } from "./meeting-role-chip";
 import type { MeetingParticipantRole } from "./meeting-signals";
@@ -114,8 +98,16 @@ function StatusBadge({ className, ...props }: ComponentProps<"span">) {
   );
 }
 
-function MicStatusBadge({ muted, speaking }: { muted: boolean; speaking: boolean }) {
+function MicStatusBadge({ muted, locked, speaking }: { muted: boolean; locked: boolean; speaking: boolean }) {
   const { t } = useTranslation();
+  // A lock outranks a mute: it says why the mic stays off, and who can lift it.
+  if (locked) {
+    return (
+      <StatusBadge aria-label={t("meetings.micLocked")} className="bg-warning-solid text-on-solid">
+        <Lock aria-hidden className="size-3.5" />
+      </StatusBadge>
+    );
+  }
   if (muted) {
     return (
       <StatusBadge aria-label={t("meetings.micIsOff")} className="bg-destructive-solid text-on-solid">
@@ -152,126 +144,6 @@ function ConnectionQualityBadge({ participant }: { participant: Participant }) {
     );
   }
   return null;
-}
-
-function TileActionButton({ className, ...props }: ComponentProps<typeof Button>) {
-  return (
-    <Button
-      type="button"
-      size="icon"
-      variant="ghost"
-      className={cn(
-        "size-8 rounded-full text-meeting-bar-foreground hover:bg-meeting-bar-chip-hover hover:text-meeting-bar-foreground",
-        className,
-      )}
-      {...props}
-    />
-  );
-}
-
-function MeetingTileActions({
-  participant,
-  name,
-  pinned,
-  compact,
-  canHost,
-  micMuted,
-  screenShare,
-  visible,
-  onMenuOpenChange,
-  onPin,
-}: {
-  participant: Participant;
-  name: string;
-  pinned: boolean;
-  compact: boolean;
-  canHost: boolean;
-  micMuted: boolean;
-  /**
-   * A shared screen offers neither pin nor "don't watch": both act on the
-   * person, so they moved the presenter's camera or hid the presentation.
-   */
-  screenShare: boolean;
-  visible: boolean;
-  onMenuOpenChange: (open: boolean) => void;
-  onPin: () => void;
-}) {
-  const { t } = useTranslation();
-  const requestMute = useRequestMute();
-  const toggleHidden = useMeetingViewSessionStore((s) => s.toggleHidden);
-  const isHidden = useMeetingViewSessionStore((s) => s.isHidden(participant.identity));
-  const showHostMute = canHost && !participant.isLocal && !micMuted;
-  if (screenShare && !showHostMute) return null;
-
-  // The controls sit in a corner on their own chip, so the face stays visible
-  // and the dark wash is only behind the buttons. A thumbnail is too narrow
-  // for three touch targets: it keeps the menu, which holds every action.
-  return (
-    <div
-      data-tile-controls
-      className={cn(
-        "absolute z-30 flex items-center gap-0.5 rounded-full bg-meeting-bar-bg p-0.5 ring-1 ring-meeting-bar-border transition-opacity duration-fast motion-reduce:transition-none",
-        compact ? "right-1 bottom-1" : "right-2 bottom-2 sm:right-3 sm:bottom-3",
-        visible
-          ? "pointer-events-auto opacity-100"
-          : "pointer-events-none opacity-0 group-focus-within:pointer-events-auto group-focus-within:opacity-100",
-      )}
-    >
-      {!compact && !screenShare ? (
-        <TileActionButton
-          aria-label={pinned ? t("meetings.unpinFromScreen") : t("meetings.pinToScreen")}
-          aria-pressed={pinned}
-          onClick={onPin}
-        >
-          {pinned ? <PinOff aria-hidden className="size-4" /> : <Pin aria-hidden className="size-4" />}
-        </TileActionButton>
-      ) : null}
-
-      {!compact && showHostMute ? (
-        <TileActionButton
-          aria-label={t("meetings.muteParticipant", { name })}
-          onClick={() => requestMute(participant.identity)}
-        >
-          <MicOff aria-hidden className="size-4" />
-        </TileActionButton>
-      ) : null}
-
-      <DropdownMenu onOpenChange={onMenuOpenChange}>
-        <DropdownMenuTrigger
-          render={
-            <TileActionButton
-              aria-label={
-                screenShare ? t("meetings.screenActions", { name }) : t("meetings.participantActions", { name })
-              }
-              className={cn("data-popup-open:bg-meeting-bar-chip-hover", compact && "size-7")}
-            />
-          }
-        >
-          <MoreVertical aria-hidden className={compact ? "size-3.5" : "size-4"} />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-44">
-          {!screenShare ? (
-            <DropdownMenuItem onClick={onPin}>
-              {pinned ? <PinOff aria-hidden className="size-4" /> : <Pin aria-hidden className="size-4" />}
-              {pinned ? t("meetings.unpinFromScreen") : t("meetings.pinToScreen")}
-            </DropdownMenuItem>
-          ) : null}
-          {!screenShare ? (
-            <DropdownMenuItem onClick={() => toggleHidden(participant.identity)}>
-              {isHidden ? <Eye aria-hidden className="size-4" /> : <EyeOff aria-hidden className="size-4" />}
-              {isHidden ? t("meetings.watchParticipant") : t("meetings.dontWatch")}
-            </DropdownMenuItem>
-          ) : null}
-          {showHostMute ? (
-            <DropdownMenuItem onClick={() => requestMute(participant.identity)}>
-              <MicOff aria-hidden className="size-4" />
-              {t("meetings.muteParticipant", { name })}
-            </DropdownMenuItem>
-          ) : null}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  );
 }
 
 /**
@@ -347,6 +219,7 @@ function MeetingParticipantTileImpl({
   const pinned = pinnedIdentity === participant.identity;
   const speaking = useIsSpeaking(participant);
   const micMuted = useIsMuted({ participant, source: Track.Source.Microphone });
+  const micLocked = useMicLocked(participant);
   const { handRaised, reaction } = useParticipantSignal(participant.identity);
   const name = displayName(participant);
   const isScreenShare = Boolean(
@@ -374,18 +247,35 @@ function MeetingParticipantTileImpl({
   const [menuOpen, setMenuOpen] = useState(false);
   const touch = useTouchReveal(tileRef, menuOpen);
   const showActions = hovered || focused || menuOpen || touch.revealed;
-  // Room the corner controls take: 2rem per button plus their padding and
+  // Room the corner controls take: one button width each (2rem, or 2.75rem
+  // on a coarse pointer, where buttons grow to 44px) plus their padding and
   // both insets. Exact, so a phone's tile keeps "quang (Bạn)" beside pin and
-  // menu, where a flat 8rem cut every name to one letter.
-  const hostMuteButton = canHost && !participant.isLocal && !micMuted;
-  const controlsRoomRem =
-    tileControlButtons({ screenShare: isScreenShare, hostMute: hostMuteButton }) * 2 + 1.5;
+  // menu, where a flat 8rem cut every name to one letter. The host's mute
+  // keeps its slot once the mic is off (see MeetingTileActions).
+  const hostMuteButton = canHost && !participant.isLocal;
+  // The quick mute is one slot on a fine pointer and none on a coarse one
+  // (the menu keeps it): three 44px buttons left a phone's tile no name.
+  const otherButtons =
+    tileControlButtons({ screenShare: isScreenShare, hostMute: hostMuteButton }) - (hostMuteButton ? 1 : 0);
+  const buttonCount = hostMuteButton ? `(${otherButtons} + var(--tile-mute-slot))` : `${otherButtons}`;
   // Speaking and a raised hand belong to the person's camera tile; lit on the
   // share as well, the presenter's voice flashed two tiles at once.
   const ring = isScreenShare
     ? tileRingTone({ handRaised: false, speaking: false, pinned: false })
     : tileRingTone({ handRaised, speaking, pinned });
-  const presenting = Boolean(isScreenShare && participant.isLocal);
+  // Your own share of a tab or window is drawn back to you; a whole screen
+  // stays a card, or it would show the meeting inside itself.
+  const ownShare = Boolean(isScreenShare && participant.isLocal);
+  const previewable =
+    ownShare && track !== undefined && isTrackReference(track) && ownSharePreviewable(track.publication.track?.mediaStreamTrack);
+  // The presenter may put the preview away (a busy screen, a slow machine);
+  // the choice follows the share across stage, grid and strip.
+  const shareSid = ownShare && track && isTrackReference(track) ? track.publication.trackSid : "";
+  const previewHidden = useMeetingViewSessionStore((s) => s.hiddenSharePreviews.includes(shareSid));
+  const setSharePreviewHidden = useMeetingViewSessionStore((s) => s.setSharePreviewHidden);
+  const setPreviewHidden = (hidden: boolean) => setSharePreviewHidden(shareSid, hidden);
+  const ownPreview = previewable && !previewHidden;
+  const presenting = ownShare && !ownPreview;
   // A shared screen keeps its corners: a big radius clipped the logo, menus
   // or close button that usually sit there.
   const radius = compact ? "rounded-2xl" : isScreenShare ? "rounded-xl" : "rounded-3xl";
@@ -428,6 +318,8 @@ function MeetingParticipantTileImpl({
       }}
       className={cn(
         "group relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-muted",
+        // One corner button's width, for the name chip's room beside them.
+        "[--tile-control:2rem] [--tile-mute-slot:1] pointer-coarse:[--tile-control:2.75rem] pointer-coarse:[--tile-mute-slot:0]",
         radius,
         compact ? "aspect-[4/3]" : placement === "cell" && (shaped ? "h-full" : "size-full"),
       )}
@@ -467,7 +359,7 @@ function MeetingParticipantTileImpl({
           </StatusBadge>
         ) : null}
         <ConnectionQualityBadge participant={participant} />
-        <MicStatusBadge muted={micMuted} speaking={speaking} />
+        <MicStatusBadge muted={micMuted} locked={micLocked} speaking={speaking} />
       </div>
       {reaction ? (
         <span
@@ -479,7 +371,10 @@ function MeetingParticipantTileImpl({
         </span>
       ) : null}
       {presenting ? (
-        <MeetingPresentingCard compact={compact} />
+        <MeetingPresentingCard
+          compact={compact}
+          onShowPreview={previewable ? () => setPreviewHidden(false) : undefined}
+        />
       ) : showVideo && isTrackReference(track) ? (
         <VideoTrack
           ref={videoRef}
@@ -512,7 +407,10 @@ function MeetingParticipantTileImpl({
           />
         </div>
       )}
-      {presenting ? null : showNameLabel ? (
+      {/* The presenter's own preview carries the bar in place of the name chip:
+          "X is presenting" about yourself says the same thing twice. */}
+      {ownPreview ? <MeetingPresentingBar compact={compact} onHidePreview={() => setPreviewHidden(true)} /> : null}
+      {presenting || ownPreview ? null : showNameLabel ? (
         <span
           className={cn(
             "pointer-events-none absolute z-10 inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-caption",
@@ -522,12 +420,17 @@ function MeetingParticipantTileImpl({
               ? "bottom-1.5 left-1.5 max-w-[calc(100%-0.75rem)]"
               : "bottom-2 left-2 sm:bottom-3 sm:left-3",
             // The corner controls only need room while they show (see
-            // controlsRoomRem); kept always, a phone's tile cut every name short.
+            // buttonCount); kept always, a phone's tile cut every name short.
             !compact && !showActions && "max-w-[calc(100%-1rem)] sm:max-w-[calc(100%-1.5rem)]",
             // A thumbnail is too narrow for the name and the controls at once.
-            compact && showActions && "opacity-0",
+            // A thumbnail keeps the name beside its one control, cut short.
+            compact && showActions && "max-w-[calc(100%-var(--tile-control)-1rem)]",
           )}
-          style={!compact && showActions ? { maxWidth: `calc(100% - ${controlsRoomRem}rem)` } : undefined}
+          style={
+            !compact && showActions
+              ? { maxWidth: `calc(100% - (${buttonCount} * var(--tile-control) + 1.5rem))` }
+              : undefined
+          }
         >
           {isScreenShare ? <MonitorUp aria-hidden className="size-3.5 shrink-0" /> : null}
           <span className="min-w-0 truncate">{label}</span>

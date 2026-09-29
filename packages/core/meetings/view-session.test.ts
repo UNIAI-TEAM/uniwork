@@ -24,4 +24,16 @@ describe("useMeetingViewSessionStore", () => {
       hiddenIdentities: [],
     });
   });
+
+  it("remembers a hidden share preview by share, not by tile", () => {
+    const store = useMeetingViewSessionStore.getState();
+    store.setSharePreviewHidden("TR_1", true);
+    store.setSharePreviewHidden("TR_1", true);
+    expect(useMeetingViewSessionStore.getState().hiddenSharePreviews).toEqual(["TR_1"]);
+    store.setSharePreviewHidden("TR_1", false);
+    expect(useMeetingViewSessionStore.getState().hiddenSharePreviews).toEqual([]);
+    store.setSharePreviewHidden("TR_2", true);
+    store.reset();
+    expect(useMeetingViewSessionStore.getState().hiddenSharePreviews).toEqual([]);
+  });
 });

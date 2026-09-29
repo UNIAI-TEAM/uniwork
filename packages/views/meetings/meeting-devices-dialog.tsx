@@ -207,8 +207,11 @@ function MeetingDevicesPanel({ onReload }: { onReload: () => void }) {
 
   return (
     <div className="min-w-0 space-y-6">
-      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-        <section className="min-w-0 space-y-2">
+      {/* Three blocks in the order that matters on a phone: the picture,
+          then the devices (what the dialog is for), then the switches. A
+          wide screen tucks the switches under the picture they change. */}
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:grid-rows-[auto_1fr]">
+        <section className="min-w-0 space-y-2 lg:col-start-1 lg:row-start-1">
           <h3 className="text-label text-foreground">{t("meetings.devicePreviewTitle")}</h3>
           <MeetingCameraPreview
             deviceId={cameras.activeDeviceId}
@@ -220,7 +223,7 @@ function MeetingDevicesPanel({ onReload }: { onReload: () => void }) {
           />
         </section>
 
-        <section className="min-w-0 space-y-4">
+        <section className="min-w-0 space-y-4 lg:col-start-2 lg:row-span-2 lg:row-start-1">
           <div className="flex min-w-0 items-center justify-between gap-2">
             <h3 className="text-label text-foreground">{t("meetings.deviceMediaTitle")}</h3>
             <Button
@@ -270,22 +273,22 @@ function MeetingDevicesPanel({ onReload }: { onReload: () => void }) {
               }}
             />
           </FieldGroup>
-
-          <div className="min-w-0 space-y-4 border-t border-border pt-4">
-            <PreferenceSwitchField
-              label={t("meetings.deviceMirror")}
-              description={t("meetings.deviceMirrorHint")}
-              checked={mirrorCamera}
-              onCheckedChange={setMirrorCamera}
-            />
-            <PreferenceSwitchField
-              label={t("meetings.deviceExpandedLabels")}
-              description={t("meetings.deviceExpandedLabelsHint")}
-              checked={showExpandedLabels}
-              onCheckedChange={setShowExpandedLabels}
-            />
-          </div>
         </section>
+
+        <div className="min-w-0 space-y-4 lg:col-start-1 lg:row-start-2">
+          <PreferenceSwitchField
+            label={t("meetings.deviceMirror")}
+            description={t("meetings.deviceMirrorHint")}
+            checked={mirrorCamera}
+            onCheckedChange={setMirrorCamera}
+          />
+          <PreferenceSwitchField
+            label={t("meetings.deviceExpandedLabels")}
+            description={t("meetings.deviceExpandedLabelsHint")}
+            checked={showExpandedLabels}
+            onCheckedChange={setShowExpandedLabels}
+          />
+        </div>
       </div>
 
       <section className="min-w-0 space-y-3 border-t border-border pt-4">
@@ -384,7 +387,10 @@ export function MeetingDevicesDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {trigger}
-      <DialogContent className="max-h-[min(92dvh,44rem)] overflow-x-hidden overflow-y-auto sm:max-w-3xl">
+      <DialogContent
+        className="max-h-[min(92dvh,44rem)] overflow-x-hidden overflow-y-auto sm:max-w-3xl"
+        closeLabel={t("common.close")}
+      >
         <DialogHeader className="pr-8">
           <DialogTitle>{t("meetings.devicesSettingsTitle")}</DialogTitle>
           <DialogDescription>{t("meetings.devicesSettingsDescription")}</DialogDescription>

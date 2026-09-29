@@ -66,12 +66,16 @@ export function MeetingPreJoin({
           {t("common.back")}
         </Button>
       </header>
-      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-stretch gap-6 px-4 pb-8 lg:flex-row lg:items-center lg:gap-8">
+      {/* Centred as one block, tops aligned: the card starts where the camera does. */}
+      <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col items-stretch gap-6 px-4 pb-8 lg:my-auto lg:flex-none lg:flex-row lg:items-start lg:gap-8">
+        {/* The camera frame is its own `dark` island; the toggles below keep
+            the page's tokens so they match the room's control bar exactly. */}
         <div className="w-full min-w-0 rounded-2xl bg-meeting-stage p-3 ring-1 ring-surface-border lg:flex-1">
           <MeetingCameraPreview
             active={video}
             deviceId={videoDeviceId || undefined}
-            className="aspect-video min-h-0 rounded-xl"
+            // The stage already draws the edge; a second ring framed a frame.
+            className="aspect-video min-h-0 rounded-xl ring-0"
             onStatusChange={onPreviewStatus}
             onRequestEnable={() => setVideo(true)}
             background={background}

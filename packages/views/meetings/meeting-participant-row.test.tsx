@@ -1,7 +1,7 @@
 "use client";
 
 import type { Participant } from "livekit-client";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { MeetingParticipantRow } from "./meeting-participant-row";
@@ -18,7 +18,7 @@ vi.mock("@livekit/components-react", () => ({
 }));
 
 vi.mock("./use-meeting-signals", () => ({
-  useMeetingSignals: () => ({ requestMute: vi.fn() }),
+  useRequestMute: () => vi.fn(),
 }));
 
 vi.mock("@uniwork/core/meetings/view-session", () => ({
@@ -35,25 +35,13 @@ function fakeParticipant(overrides: Partial<Participant> = {}): Participant {
     identity: "uw_participant_p1",
     name: "Guest One",
     isLocal: false,
+    on: vi.fn(),
+    off: vi.fn(),
     ...overrides,
   } as Participant;
 }
 
 describe("MeetingParticipantRow", () => {
-  it("calls onRevokeSpeaking when host chooses hard mute", () => {
-    const onRevokeSpeaking = vi.fn();
-    render(
-      <MeetingParticipantRow
-        participant={fakeParticipant()}
-        canHost
-        onRevokeSpeaking={onRevokeSpeaking}
-      />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: /Thao tác với Guest One/i }));
-    fireEvent.click(screen.getByRole("menuitem", { name: /Tắt quyền nói/i }));
-    expect(onRevokeSpeaking).toHaveBeenCalledOnce();
-  });
-
   it("renders uppercase initials, or the photo when an avatar URL is known", () => {
     const { container, rerender } = render(<MeetingParticipantRow participant={fakeParticipant()} />);
     expect(screen.getByText("GO")).toBeInTheDocument();

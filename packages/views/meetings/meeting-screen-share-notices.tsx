@@ -2,10 +2,11 @@
 import { useEffect } from "react";
 import { useLocalParticipant, useRoomContext } from "@livekit/components-react";
 import { ConnectionState, RoomEvent, Track, type TrackPublication } from "livekit-client";
-import { MonitorUp } from "lucide-react";
+import { Eye, EyeOff, MonitorUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { cn } from "@uniwork/ui/lib/utils";
 import { markScreenShareStopByUser, takeScreenShareStopByUser } from "./screen-share";
 
 /**
@@ -56,22 +57,36 @@ export function MeetingScreenShareWatcher() {
   return null;
 }
 
-/**
- * Stands in for the presenter's own screen share. Drawing it would show the
- * screen inside itself (and decode the stream just sent); the room sees the
- * real share, the presenter sees what is going on and how to end it.
- */
-export function MeetingPresentingCard({ compact = false }: { compact?: boolean }) {
+/** Ends the presenter's own share, marked as theirs so it is not announced. */
+function useStopPresenting() {
   const { t } = useTranslation();
   const room = useRoomContext();
   const { localParticipant } = useLocalParticipant();
-  const stop = () => {
+  return () => {
     markScreenShareStopByUser(room);
     localParticipant.setScreenShareEnabled(false).catch(() => {
       takeScreenShareStopByUser(room);
       toast.error(t("common.error"));
     });
   };
+}
+
+/**
+ * Stands in for the presenter's own share of a whole screen. Drawing it would
+ * show the screen inside itself (and decode the stream just sent); the room
+ * sees the real share, the presenter sees what is going on and how to end it.
+ * A shared tab or window is drawn instead, under MeetingPresentingBar, unless
+ * the presenter put that preview away (`onShowPreview` brings it back).
+ */
+export function MeetingPresentingCard({
+  compact = false,
+  onShowPreview,
+}: {
+  compact?: boolean;
+  onShowPreview?: () => void;
+}) {
+  const { t } = useTranslation();
+  const stop = useStopPresenting();
 
   if (compact) {
     return (
@@ -92,11 +107,72 @@ export function MeetingPresentingCard({ compact = false }: { compact?: boolean }
       </span>
       <div className="max-w-sm space-y-1">
         <p className="text-title-sm font-semibold text-meeting-bar-foreground">{t("meetings.presentingTitle")}</p>
-        <p className="text-body text-meeting-bar-muted-foreground">{t("meetings.presentingHint")}</p>
+        <p className="text-pretty text-body text-meeting-bar-muted-foreground">
+          {onShowPreview ? t("meetings.presentingPreviewHiddenHint") : t("meetings.presentingHint")}
+        </p>
       </div>
-      <Button type="button" variant="destructiveSolid" onClick={stop}>
-        {t("meetings.presentingStop")}
-      </Button>
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        {onShowPreview ? (
+          <Button type="button" variant="meetingChip" onClick={onShowPreview}>
+            <Eye aria-hidden />
+            {t("meetings.presentingShowPreview")}
+          </Button>
+        ) : null}
+        <Button type="button" variant="destructiveSolid" onClick={stop}>
+          {t("meetings.presentingStop")}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Sits on the presenter's preview of a shared tab or window, in the corner the
+ * name chip would take: the picture says what the room sees, the bar says it
+ * is live and how to end it, and it leaves the top of the shared page — where
+ * titles live — uncovered.
+ */
+export function MeetingPresentingBar({
+  compact = false,
+  onHidePreview,
+}: {
+  compact?: boolean;
+  onHidePreview: () => void;
+}) {
+  const { t } = useTranslation();
+  const stop = useStopPresenting();
+  return (
+    <div
+      className={cn(
+        "absolute z-10 flex items-center gap-1.5 rounded-full bg-meeting-bar-bg text-meeting-bar-foreground ring-1 ring-meeting-bar-border",
+        compact
+          ? "bottom-1.5 left-1.5 max-w-[calc(100%-0.75rem)] px-2 py-0.5"
+          : "bottom-2 left-2 max-w-[calc(100%-1rem)] py-1 pr-1 pl-3 sm:bottom-3 sm:left-3",
+      )}
+      data-testid="meeting-presenting-bar"
+    >
+      <MonitorUp aria-hidden className={cn("shrink-0 text-brand", compact ? "size-3.5" : "size-4")} />
+      <span className={cn("min-w-0 truncate", compact ? "text-caption" : "text-label")}>
+        {t("meetings.presentingShort")}
+      </span>
+      {compact ? null : (
+        <>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="meetingChip"
+            className="size-8 shrink-0 rounded-full border-transparent"
+            aria-label={t("meetings.presentingHidePreview")}
+            title={t("meetings.presentingHidePreview")}
+            onClick={onHidePreview}
+          >
+            <EyeOff aria-hidden />
+          </Button>
+          <Button type="button" size="sm" variant="destructiveSolid" className="shrink-0 rounded-full" onClick={stop}>
+            {t("meetings.presentingStop")}
+          </Button>
+        </>
+      )}
     </div>
   );
 }
