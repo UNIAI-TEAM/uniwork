@@ -4,6 +4,7 @@ import "@livekit/components-styles";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, CalendarX2, UserX } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { ApiError } from "@uniwork/core/api";
 import type { JoinMeetingBody } from "@uniwork/core/api/endpoints/meetings";
 import type { JoinDecision } from "@uniwork/core/types/meeting";
 import { isJoinAdmitted, useJoinMeeting, useMeeting, useStartMeeting } from "@uniwork/core/meetings";
@@ -32,7 +33,9 @@ import {
   shouldRefreshCredentialOnDisconnect,
   type MediaDisconnectKind,
 } from "./room-disconnect";
+import { useFocusHeadingOnViewChange } from "./use-focus-heading-on-view-change";
 import { useLobbyJoinRetry } from "./use-lobby-join-retry";
+import { useWithdrawJoinRequestOnLeave } from "./use-withdraw-join-request";
 
 function MeetingRoomShell({
   children,
@@ -192,6 +195,22 @@ export function MeetingRoomView({
     onRetry: retryJoin,
   });
 
+  // Guests withdraw through the public invite flow, which owns their request.
+  const waitingRequestId =
+    !guestMode && !admitted && decision?.decision === "WAITING_APPROVAL" ? decision.join_request_id : undefined;
+  useWithdrawJoinRequestOnLeave(meetingId, waitingRequestId);
+
+  // Prejoin → lobby and one lobby state → another swap the whole screen;
+  // focus follows to the new heading so the change is heard (the guest
+  // invite page does the same). Entering the room itself is left alone.
+  const joinErrorCode = join.error instanceof ApiError ? join.error.code : join.error ? "error" : "";
+  const lobbyView = !choice
+    ? "prejoin"
+    : !admitted && (join.error || decision)
+      ? `lobby:${decision?.decision ?? ""}:${joinErrorCode}`
+      : "room";
+  useFocusHeadingOnViewChange(lobbyView, { selector: "[data-gate-heading]", fallback: null });
+
   useMeetingScheduleDeadline({
     endsAt: meeting?.ends_at,
     status: meeting?.status,
@@ -222,6 +241,7 @@ export function MeetingRoomView({
           decision={decision?.decision}
           error={join.error}
           guestMode={guestMode}
+          meetingStatus={decision?.meeting_status ?? meeting?.status}
           onRequestAgain={requestAgain}
           requestingAgain={join.isPending}
           onRetry={retryJoin}

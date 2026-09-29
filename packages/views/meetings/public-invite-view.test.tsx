@@ -108,7 +108,7 @@ describe("MeetingPublicInviteView", () => {
 
     render(wrapWithNav(<MeetingPublicInviteView linkId="link-1" secret="sec-abc" />, fakeNav()));
 
-    expect(await screen.findByText("Khách chờ chủ trì duyệt trước khi vào phòng.")).toBeVisible();
+    expect(await screen.findByText("Khách chờ chủ trì cho vào phòng.")).toBeVisible();
   });
 
   it("joins as guest and navigates to the invite room", async () => {
@@ -361,11 +361,11 @@ describe("MeetingPublicInviteView", () => {
 
     // The waiting lobby keeps the invite chrome: logo, language switch, <main>.
     await screen.findByText("Người chủ trì sẽ đưa bạn vào cuộc họp. Trang này tự cập nhật.");
-    const waitingHeading = screen.getByRole("heading", { name: "Standup" });
+    const waitingHeading = screen.getByRole("heading", { name: "Đang chờ người chủ trì cho bạn vào phòng" });
     expect(screen.getByRole("main")).toContainElement(waitingHeading);
     expect(screen.getByRole("banner")).toBeInTheDocument();
     expect(waitingHeading).toHaveFocus();
-    expect(document.title).toBe("Đang chờ tham gia · Standup · UniWork");
+    expect(document.title).toBe("Đang chờ người chủ trì cho bạn vào phòng · Standup · UniWork");
 
     fireEvent.click(screen.getByRole("button", { name: "Quay lại" }));
 

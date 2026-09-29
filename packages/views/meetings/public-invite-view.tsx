@@ -36,42 +36,11 @@ import {
   resolveFailureState,
   type InviteViewState,
 } from "./public-invite-state";
+import { useFocusHeadingOnViewChange } from "./use-focus-heading-on-view-change";
 import { useLobbyJoinRetry } from "./use-lobby-join-retry";
 
 function meetingInviteLoginUrl(linkId: string): string {
   return `${paths.login()}?next=${encodeURIComponent(paths.meetingInvite(linkId))}&reason=meeting_invite`;
-}
-
-function waitingTitleKey(decision: string | undefined): string | undefined {
-  switch (decision) {
-    case "WAITING_APPROVAL":
-      return "meetings.waitingApprovalTitle";
-    case "WAITING_FOR_HOST":
-      return "meetings.waitingForHostTitle";
-    case "WAITING_FOR_PROVIDER":
-      return "meetings.waitingForProviderTitle";
-    default:
-      return undefined;
-  }
-}
-
-/**
- * Moves focus to the new screen's heading when the page swaps one screen for
- * another (form → lobby, lobby → form), as AuthShell does, so a screen reader
- * and a keyboard user land on what changed. Not on the first paint, and not
- * out of the loading skeleton, where the form focuses its own name field.
- */
-function useFocusHeadingOnViewChange(view: string) {
-  const previous = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    const before = previous.current;
-    previous.current = view;
-    if (before === undefined || before === view || before === "loading") return;
-    const target = document.querySelector<HTMLElement>("main h1") ?? document.querySelector<HTMLElement>("main");
-    if (!target) return;
-    if (!target.hasAttribute("tabindex")) target.tabIndex = -1;
-    target.focus();
-  }, [view]);
 }
 
 export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; secret: string }) {
@@ -94,6 +63,7 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
   const [accessMode, setAccessMode] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [lobbyDecision, setLobbyDecision] = useState<string | undefined>();
+  const [lobbyMeetingStatus, setLobbyMeetingStatus] = useState<string | undefined>();
   const [joinRequestId, setJoinRequestId] = useState<string | undefined>();
   // The last join failure, kept until the next answer: the mutation's own
   // error clears the moment a retry starts, which would flash the screen.
@@ -197,6 +167,7 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
           }
           setJoinFailure(undefined);
           setJoinRequestId(d.join_request_id);
+          setLobbyMeetingStatus(d.meeting_status);
           setLobbyDecision(d.decision);
         },
         onError: (err) => {
@@ -223,6 +194,7 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
     clearCachedJoinDecision(linkId);
     resetJoin();
     setLobbyDecision(undefined);
+    setLobbyMeetingStatus(undefined);
     setJoinRequestId(undefined);
     setJoinFailure(undefined);
   }, [joinRequestId, linkId, lobbyDecision, resetJoin]);
@@ -262,8 +234,8 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
   } else if (state !== "ok" && state !== "loading") {
     pageTitle = t(inviteStateCopy(state).title);
   } else if (inLobby) {
-    const waitingKey = joinFailure === undefined ? waitingTitleKey(lobbyDecision) : undefined;
-    pageTitle = waitingKey ? t(waitingKey) : lobbyMessage(t, lobbyDecision, joinFailure, true);
+    // The tab reads what the heading says, waiting or refused.
+    pageTitle = lobbyMessage(t, lobbyDecision, joinFailure, true);
   } else {
     pageTitle = t("meetings.publicInviteTitle");
   }
@@ -309,6 +281,7 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
           // The invite page is guest-facing for everyone: known refusals get
           // their own sentence, anything else a generic one, never raw server text.
           guestMode
+          meetingStatus={lobbyMeetingStatus}
           onRequestAgain={() => runJoin(undefined, true)}
           requestingAgain={joinPending}
           onRetry={() => runJoin()}

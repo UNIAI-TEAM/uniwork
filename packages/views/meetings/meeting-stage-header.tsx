@@ -109,6 +109,7 @@ export function MeetingStageHeader({
   onToggleSidebar,
   onOpenSidebar,
   onOpenPeople,
+  peopleOpen = false,
 }: {
   meeting?: Meeting;
   meetingTitle?: string;
@@ -121,6 +122,8 @@ export function MeetingStageHeader({
   onToggleSidebar?: () => void;
   onOpenSidebar?: () => void;
   onOpenPeople?: () => void;
+  /** The people tab is on screen; the join-request panel steps aside. */
+  peopleOpen?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const participants = useParticipants();
@@ -276,7 +279,7 @@ export function MeetingStageHeader({
             ) : null}
 
             {showHostActions && meeting?.id ? (
-              <MeetingAdmitGuestsButton meetingId={meeting.id} onOpenPeople={onOpenPeople} />
+              <MeetingAdmitGuestsButton meetingId={meeting.id} onOpenPeople={onOpenPeople} peopleOpen={peopleOpen} />
             ) : null}
 
             {onOpenSidebar ? (

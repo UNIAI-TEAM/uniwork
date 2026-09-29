@@ -15,10 +15,9 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ApiError, apiErrorMessage } from "@uniwork/core/api";
-import { IconTile, type IconTileTone } from "@uniwork/ui/components/common/icon-tile";
+import type { IconTileTone } from "@uniwork/ui/components/common/icon-tile";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Spinner } from "@uniwork/ui/components/ui/spinner";
-import { MeetingCanvas } from "./meeting-canvas";
 import { MeetingGateScreen } from "./meeting-gate-screen";
 
 const INVALID_LINK_CODES = new Set([
@@ -73,6 +72,50 @@ export function lobbyMessage(
   }
 }
 
+/**
+ * The line under a lobby title: what happens next, or what the person can do
+ * about it. Guests only get copy that does not assume a workspace account.
+ */
+export function lobbyHint(
+  t: (key: string) => string,
+  decision: string | undefined,
+  error: unknown,
+  { guestMode = false, meetingStatus }: { guestMode?: boolean; meetingStatus?: string } = {},
+): string | undefined {
+  if (error instanceof ApiError) {
+    switch (error.code) {
+      case "access_grant_not_found":
+        return guestMode ? undefined : t("meetings.inviteOnlyHint");
+      case "join_request_rejected":
+        return t("meetings.joinRequestRejectedHint");
+      case "meeting_ended":
+        return guestMode ? undefined : t("meetings.endedHint");
+      case "meeting_canceled":
+        return t("meetings.canceledHint");
+      case "meeting_past_scheduled_end":
+        return t("meetings.pastScheduledEndHint");
+      case "meeting_not_started":
+        return t("meetings.waitingForHostHint");
+      default:
+        return undefined;
+    }
+  }
+  if (error) return undefined;
+  switch (decision) {
+    case "WAITING_APPROVAL":
+      // Knocking before the host has opened the room: nobody can admit yet.
+      return meetingStatus === "SCHEDULED"
+        ? t("meetings.waitingApprovalNotStartedHint")
+        : t("meetings.waitingApprovalHint");
+    case "WAITING_FOR_HOST":
+      return t("meetings.waitingForHostHint");
+    case "WAITING_FOR_PROVIDER":
+      return t("meetings.waitingForProviderHint");
+    default:
+      return undefined;
+  }
+}
+
 type GateAction = "requestAgain" | "retry" | null;
 
 /** How a settled lobby state looks and what it lets you do next. */
@@ -85,6 +128,10 @@ function lobbyGate(decision: string | undefined, error: unknown): { icon: Lucide
       return { icon: Ban, tone: "muted", action: null };
     case "meeting_past_scheduled_end":
       return { icon: Clock, tone: "warning", action: null };
+    // The session closed between the prejoin and the join: a wait, not a
+    // fault. Nothing retries it by itself, so the retry stays.
+    case "meeting_not_started":
+      return { icon: Hourglass, tone: "info", action: "retry" };
     case "join_request_rejected":
       return { icon: UserX, tone: "destructive", action: "requestAgain" };
     case "unauthorized":
@@ -106,6 +153,7 @@ export function MeetingLobby({
   decision,
   error,
   guestMode = false,
+  meetingStatus,
   onRequestAgain,
   requestingAgain,
   onRetry,
@@ -119,6 +167,8 @@ export function MeetingLobby({
   error: unknown;
   /** Public invite flow: guest-safe copy only. */
   guestMode?: boolean;
+  /** The meeting's status, when known: a knock before the start reads differently. */
+  meetingStatus?: string;
   /** Files a new join request after the host declined the last one. */
   onRequestAgain?: () => void;
   requestingAgain?: boolean;
@@ -140,68 +190,39 @@ export function MeetingLobby({
   const showStart = Boolean(canStart && waitingForHost && onStart && !error);
   const message = lobbyMessage(t, decision, error, guestMode);
 
+  // A member's way out of the room lands on the meeting page; after the end
+  // that is where the notes are, so the button says so.
+  const endedForMember = !guestMode && error instanceof ApiError && error.code === "meeting_ended";
   const back = (
     <Button type="button" variant="outline" onClick={onLeave}>
       <ArrowLeft aria-hidden />
-      {t("common.back")}
+      {endedForMember ? t("meetings.backToMeeting") : t("common.back")}
     </Button>
   );
 
-  if (isWaitingScreen) {
-    const hint = waitingApproval
-      ? t("meetings.waitingApprovalHint")
-      : waitingForHost
-        ? t("meetings.waitingForHostHint")
-        : t("meetings.waitingForProviderHint");
-    const statusTitle = waitingApproval
-      ? t("meetings.waitingApprovalTitle")
-      : waitingForHost
-        ? t("meetings.waitingForHostTitle")
-        : t("meetings.waitingForProviderTitle");
-
-    return (
-      <MeetingCanvas className="overflow-y-auto">
-        <div className="m-auto flex w-full max-w-md flex-col items-center gap-5 px-6 py-12 text-center">
-          <IconTile icon={waitingApproval ? UserCheck : Hourglass} size="lg" tone="info" />
-          <div className="space-y-1.5">
-            <p className="text-overline text-muted-foreground">{statusTitle}</p>
-            {title ? (
-              <h1 className="line-clamp-2 text-balance text-title-lg font-semibold text-foreground">{title}</h1>
-            ) : null}
-          </div>
-          <div className="flex w-full items-start gap-3 rounded-xl border border-surface-border bg-surface px-4 py-3.5 text-left shadow-surface">
-            <Spinner className="mt-0.5 size-4 shrink-0 text-info motion-reduce:animate-none" />
-            <div className="min-w-0 flex-1">
-              <p role="status" className="text-pretty text-body font-medium text-foreground">
-                {message}
-              </p>
-              <p className="mt-1 text-pretty text-label text-muted-foreground">{hint}</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            {showStart ? (
-              <Button type="button" disabled={starting} aria-busy={starting || undefined} onClick={onStart}>
-                {starting ? <Spinner className="size-4 motion-reduce:animate-none" /> : null}
-                {t("meetings.start")}
-              </Button>
-            ) : null}
-            {back}
-          </div>
-        </div>
-      </MeetingCanvas>
-    );
-  }
-
-  const gate = lobbyGate(decision, error);
+  // Waiting and refused share one layout: the meeting's name small on top,
+  // the state as the heading, then what happens next. Moving from "waiting"
+  // to "declined" changes the words, not the page.
+  const gate = isWaitingScreen
+    ? { icon: waitingApproval ? UserCheck : Hourglass, tone: "info" as const, action: null }
+    : lobbyGate(decision, error);
   return (
     <MeetingGateScreen
       icon={gate.icon}
       tone={gate.tone}
       title={message}
+      description={lobbyHint(t, decision, error, { guestMode, meetingStatus })}
+      busy={isWaitingScreen}
       meetingTitle={title}
       alert={gate.tone === "destructive"}
       actions={
         <>
+          {showStart ? (
+            <Button type="button" disabled={starting} aria-busy={starting || undefined} onClick={onStart}>
+              {starting ? <Spinner className="size-4 motion-reduce:animate-none" /> : null}
+              {t("meetings.start")}
+            </Button>
+          ) : null}
           {gate.action === "requestAgain" && onRequestAgain ? (
             <Button type="button" disabled={requestingAgain} aria-busy={requestingAgain || undefined} onClick={onRequestAgain}>
               {t("meetings.requestAgain")}
