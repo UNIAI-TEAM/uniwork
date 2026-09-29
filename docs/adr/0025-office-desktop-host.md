@@ -3,7 +3,8 @@
 **Trạng thái:** accepted (2026-09-29, G4-D2; UNI-830)
 **Issue:** UNI-830 · **Liên quan:** UNI-636, G4-01a, G4-02a
 **Nguồn:** [Office desktop specification](../superpowers/specs/2026-09-27-office-g4-desktop-design.md) §7;
-[G4-D1 decision record](../office/g3g4/decisions/gates-2026-09-29.md) and the
+G4-D1/G4-D2 decided by the product owner on 2026-09-29 (Office G3-G4 run
+decision record; UNI-830 comment), and the
 [identity manifest input](../office/g3g4/desktop-identity-manifest.proposed.json);
 [engine runtime ADR](0021-runtime-engine-office-da-dinh-dang.md).
 
