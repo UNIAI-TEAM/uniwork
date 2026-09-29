@@ -75,8 +75,7 @@ export function hasFailedAsset(
 ): boolean {
   const rows = assetManifestRows(manifest);
   if (rows.some((row) => row.status !== "ready" || row.assetId === null)) return true;
-  return Object.entries(failures ?? {}).some(([path, state]) => {
-    const normalised = normaliseAssetPath(path);
+  return Object.entries(failures ?? {}).some(([, state]) => {
     const failed = state === true || state === "missing" || state === "unauthorised" || state === "failed";
     // A host failure key that cannot be represented as a safe relative path is
     // itself a failed asset. Save must fail closed rather than ignore it.

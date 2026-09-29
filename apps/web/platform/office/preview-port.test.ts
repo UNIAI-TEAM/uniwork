@@ -43,4 +43,16 @@ describe("createOfficePreviewPort", () => {
     expect(opened).toEqual([["assets/logo.png"]]);
     session.dispose();
   });
+
+  it("rejects an unsafe manifest path before opening an asset scope", async () => {
+    const open = async () => { throw new Error("asset scope must not open"); };
+    const port = createOfficePreviewPort({ scope: { document_id: "D1", job_id: "J1" }, proxy: { open } });
+    await expect(port.mount({
+      container: document.createElement("div"),
+      format: "html",
+      title: "HTML",
+      text: "<p>unsafe</p>",
+      manifest: { entries: [{ path: "../secret", assetId: "bad" }] },
+    })).rejects.toThrow("unsafe asset path");
+  });
 });
