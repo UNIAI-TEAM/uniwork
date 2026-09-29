@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
@@ -215,9 +215,11 @@ describe("ProjectsListPage", () => {
     fireEvent.change(await screen.findByLabelText("Tiêu đề dự án"), {
       target: { value: "  Ra mắt app  " },
     });
-    fireEvent.change(screen.getByLabelText("Thêm mô tả…"), {
-      target: { value: "Mục tiêu quý 4" },
+    fireEvent.input(await screen.findByRole("textbox", { name: "Thêm mô tả…" }), {
+      target: { innerHTML: "<p><strong>Mục tiêu</strong> quý 4</p>" },
     });
+    // ProseMirror reads the DOM change from a MutationObserver, a microtask later.
+    await act(async () => {});
     fireEvent.click(screen.getByRole("button", { name: "Tạo dự án" }));
 
     await waitFor(() => expect(adapter.push).toHaveBeenCalledWith("/acme/main/projects/p9"));
@@ -226,7 +228,7 @@ describe("ProjectsListPage", () => {
       method: "POST",
       body: {
         title: "Ra mắt app",
-        description: "Mục tiêu quý 4",
+        description: "**Mục tiêu** quý 4",
         status: "planned",
         priority: "none",
         lead_type: null,
