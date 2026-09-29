@@ -47,8 +47,11 @@ plaintext and no raw key.
 
 `DraftKeyStore` is deliberately separate from the refresh-token credential
 store. The real G4-D2 adapters are Windows DPAPI plus a restricted-ACL key file
-and macOS Keychain; this slice supplies only the port and an in-memory test
-fake. A missing key, bad tag, checksum mismatch or corrupt envelope is a typed
+and macOS Keychain; the proposed implementation library is Electron's
+`safeStorage` for DPAPI/Keychain wrapping, with `node:fs/promises` plus the OS
+ACL tooling for the Windows key-file permissions. This slice supplies only the
+port and an in-memory test fake; the library choice remains subject to the
+04b packaged-system review. A missing key, bad tag, checksum mismatch or corrupt envelope is a typed
 `draft_recovery_locked` outcome and never creates an empty replacement.
 
 The store implements the shared `DraftRecoveryAdapter`: metadata-only list,

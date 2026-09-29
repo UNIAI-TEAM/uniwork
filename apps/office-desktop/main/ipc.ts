@@ -7,7 +7,7 @@ import { desktopSessionMetadataSchema } from "../shared/ipc";
 import type { FileHandleRegistry } from "./files/registry";
 import { LocalFileError } from "./files/registry";
 import type { DesktopDraftStore } from "./drafts/store";
-import type { DraftIdentity, DraftSession } from "../../../packages/core/office/draft-recovery";
+import { DraftRecoveryError, type DraftIdentity, type DraftSession } from "../../../packages/core/office/draft-recovery";
 
 /** Handlers deliberately map the privileged manager to metadata-only values.
  * A token, code, verifier, or state cannot be returned across this boundary. */
@@ -35,7 +35,7 @@ export interface FileIpcOptions {
  * main and are the sole place a path enters this module. */
 export function createFileIpcHandlers(options: FileIpcOptions) {
   return {
-    "desktop:file-pick-open": async () => {
+    "desktop:file-pick-open": async (_request: Extract<import("../shared/ipc").DesktopIpcRequest, { sessionGeneration: string }>) => {
       if (!options.pickOpen) throw new FileIpcError("invalid_path");
       const path = await options.pickOpen();
       if (!path) return { opened: false };
@@ -62,8 +62,12 @@ export interface DraftIpcOptions {
 export function createDraftIpcHandlers(options: DraftIpcOptions) {
   return {
     "desktop:draft-checkpoint": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { draftId: string; generation: number; dataBase64: string }>) => {
-      const metadata = await options.store.checkpointPlaintext({ session: options.session, identity: options.identity, draftId: request.draftId, generation: request.generation, plaintext: decodeBytes(request.dataBase64) });
-      return { stored: true, generation: metadata.generation };
+      try {
+        const metadata = await options.store.checkpointPlaintext({ session: options.session, identity: options.identity, draftId: request.draftId, generation: request.generation, plaintext: decodeBytes(request.dataBase64) });
+        return { stored: true, generation: metadata.generation };
+      } catch (error) {
+        throw new DraftIpcError(error instanceof DraftRecoveryError ? error.code : "storage_unavailable");
+      }
     },
   };
 }
@@ -71,6 +75,11 @@ export function createDraftIpcHandlers(options: DraftIpcOptions) {
 class FileIpcError extends Error {
   readonly code: string;
   constructor(code: string) { super("local file operation refused"); this.name = "FileIpcError"; this.code = code; }
+}
+
+class DraftIpcError extends Error {
+  readonly code: string;
+  constructor(code: string) { super("draft operation refused"); this.name = "DraftIpcError"; this.code = code; }
 }
 
 async function safeFile<T>(operation: () => Promise<T>): Promise<T> {

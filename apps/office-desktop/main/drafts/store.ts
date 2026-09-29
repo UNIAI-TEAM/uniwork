@@ -141,7 +141,7 @@ export class DesktopDraftStore implements DraftRecoveryAdapter {
     if (recovered.status !== "recovered") return recovered;
     const row = await this.readRow(recovered.metadata.identity, recovered.metadata.draftId);
     if (!row) return { status: "missing" };
-    if (!row.encrypted || !row.nonce) return { status: "recovered", metadata: recovered.metadata, plaintext: cloneCiphertext(recovered.ciphertext) };
+    if (!row.encrypted || !row.nonce) return { status: "locked", metadata: recovered.metadata, code: "draft_recovery_locked" };
     try {
       const key = await this.options.keyStore.getOrCreate(namespaceFor(row.identity));
       const plaintext = decryptDraft(key, { nonce: Uint8Array.from(Buffer.from(row.nonce, "base64")), ciphertext: recovered.ciphertext }, row.identity, row.generation);

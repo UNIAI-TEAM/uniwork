@@ -29,6 +29,8 @@ describe("desktop protected drafts", () => {
     expect(decryptDraft(key, encrypted, identity, 1)).toEqual(plaintext);
     expect(() => decryptDraft(key, encrypted, { ...identity, accountId: "b" }, 1)).toThrow();
     expect(() => decryptDraft(key, encrypted, identity, 2)).toThrow();
+    expect(() => encryptDraft(new Uint8Array(4), plaintext, identity, 1)).toThrow();
+    expect(() => decryptDraft(key, { nonce: new Uint8Array(1), ciphertext: new Uint8Array(1) }, identity, 1)).toThrow();
   });
 
   it("round-trips encrypted plaintext and isolates account/base", async () => {
@@ -58,9 +60,11 @@ describe("desktop protected drafts", () => {
 
   it("checkpoint scheduler does not touch target/upload seams", async () => {
     const store = createDesktopDraftStore({ rootDirectory: await root(), keyStore: createFakeDraftKeyStore() });
+    const targetWrites: string[] = []; const uploadCalls = 0;
     store.scheduleCheckpoint({ session, identity, draftId: "draft-1", generation: 1, plaintext: new TextEncoder().encode("local") }, true);
     await store.flushScheduled();
     expect((await store.list({ session, lookup: identity })).length).toBe(1);
+    expect(targetWrites).toEqual([]); expect(uploadCalls).toBe(0);
   });
 
   it("returns locked rather than an empty draft for a corrupt record", async () => {
@@ -70,5 +74,12 @@ describe("desktop protected drafts", () => {
     await fs.writeFile(record, "not-json");
     await expect(store.recover({ session, lookup: identity, currentBase: identity.base, liveAccess: "edit" })).rejects.toMatchObject({ code: "draft_recovery_locked" });
     expect(DraftRecoveryError).toBeDefined();
+  });
+
+  it("does not treat an adapter ciphertext row as plaintext", async () => {
+    const store = createDesktopDraftStore({ rootDirectory: await root(), keyStore: createFakeDraftKeyStore() });
+    await store.checkpoint({ session, snapshot: { draftId: "raw", identity, generation: 1, checksum: "sha256:raw", ciphertext: new Uint8Array([1, 2, 3]) } });
+    const result = await store.recoverPlaintext({ session, lookup: identity, currentBase: identity.base, liveAccess: "edit" });
+    expect(result.status).toBe("locked");
   });
 });

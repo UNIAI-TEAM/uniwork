@@ -26,7 +26,8 @@ const clientIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/, "
 const attemptIdSchema = z.string().regex(/^attempt_[A-Za-z0-9_-]{32,160}$/, "invalid attempt id");
 const fileHandleSchema = z.string().regex(/^file_[A-Za-z0-9_-]{32,160}$/, "invalid file handle");
 const draftIdSchema = z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/, "invalid draft id");
-const base64BytesSchema = z.string().regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/, "invalid byte encoding").max(64 * 1024 * 1024);
+const IPC_FILE_MAX_BYTES = 192 * 1024 * 1024;
+const base64BytesSchema = z.string().regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/, "invalid byte encoding").max(IPC_FILE_MAX_BYTES);
 export const desktopFileMetadataSchema = z.object({
   handle: fileHandleSchema,
   name: z.string().min(1).max(255),
@@ -70,37 +71,40 @@ export type IpcSenderContext = { senderId: number; frameId: number; origin: stri
 export type IpcValidationErrorCode = "unknown_channel" | "oversize" | "sender" | "frame" | "origin" | "session" | "schema" | "external_url";
 export class IpcValidationError extends Error { readonly code: IpcValidationErrorCode; constructor(code: IpcValidationErrorCode, message: string) { super(message); this.name = "IpcValidationError"; this.code = code; } }
 export const IPC_MAX_BYTES = 64 * 1024;
+/** File/draft byte payloads are bounded separately so ordinary control IPC
+ * remains small while realistic Office documents can cross the typed seam. */
+export { IPC_FILE_MAX_BYTES };
 
 /** Measure the JSON wire representation without accepting values that
  * Electron's structured-clone transport can carry outside JSON. A bounded,
  * recursive walk rejects ArrayBuffer/Blob/Map/Set, class instances, cycles,
  * non-finite numbers and deeply nested values before schema parsing. */
-function sizeInBytes(value: unknown): number {
+function sizeInBytes(value: unknown, maxBytes = IPC_MAX_BYTES): number {
   const encoder = new TextEncoder();
   const seen = new Set<object>();
   const visit = (current: unknown, depth: number): number => {
-    if (depth > 256) return IPC_MAX_BYTES + 1;
+    if (depth > 256) return maxBytes + 1;
     if (current === null) return 4;
     switch (typeof current) {
       case "boolean": return current ? 4 : 5;
       case "string": return encoder.encode(JSON.stringify(current)).byteLength;
-      case "number": return Number.isFinite(current) ? encoder.encode(String(current)).byteLength : IPC_MAX_BYTES + 1;
+      case "number": return Number.isFinite(current) ? encoder.encode(String(current)).byteLength : maxBytes + 1;
       case "object": break;
-      default: return IPC_MAX_BYTES + 1;
+      default: return maxBytes + 1;
     }
-    if (seen.has(current)) return IPC_MAX_BYTES + 1;
+    if (seen.has(current)) return maxBytes + 1;
     seen.add(current);
     let total = Array.isArray(current) ? 2 : 2;
     if (Array.isArray(current)) {
       for (let index = 0; index < current.length; index += 1) {
         total += (index === 0 ? 0 : 1) + visit(current[index], depth + 1);
-        if (total > IPC_MAX_BYTES) return total;
+        if (total > maxBytes) return total;
       }
     } else {
-      if (Object.getPrototypeOf(current) !== Object.prototype && Object.getPrototypeOf(current) !== null) return IPC_MAX_BYTES + 1;
+      if (Object.getPrototypeOf(current) !== Object.prototype && Object.getPrototypeOf(current) !== null) return maxBytes + 1;
       for (const [key, child] of Object.entries(current)) {
         total += encoder.encode(JSON.stringify(key)).byteLength + 1 + visit(child, depth + 1);
-        if (total > IPC_MAX_BYTES) return total;
+        if (total > maxBytes) return total;
       }
     }
     return total;
@@ -113,7 +117,8 @@ export function validateIpcRequest<C extends DesktopIpcChannel>(channel: C | str
   if (sender.senderId !== sender.expectedSenderId) throw new IpcValidationError("sender", "IPC sender is not the bound webContents");
   if (sender.frameId !== sender.expectedFrameId) throw new IpcValidationError("frame", "IPC frame is not the bound frame");
   if (sender.origin !== sender.expectedOrigin || !originSchema.safeParse(sender.origin).success) throw new IpcValidationError("origin", "IPC origin is not the application origin");
-  if (sizeInBytes(payload) > IPC_MAX_BYTES) throw new IpcValidationError("oversize", "IPC payload exceeds the byte limit");
+  const byteLimit = channel.startsWith("desktop:file-") || channel === "desktop:draft-checkpoint" ? IPC_FILE_MAX_BYTES : IPC_MAX_BYTES;
+  if (sizeInBytes(payload, byteLimit) > byteLimit) throw new IpcValidationError("oversize", "IPC payload exceeds the byte limit");
   const parsed = requestSchemas[channel].safeParse(payload);
   if (!parsed.success) throw new IpcValidationError("schema", "IPC payload does not match the channel schema");
   if ((parsed.data as { sessionGeneration: string }).sessionGeneration !== sender.sessionGeneration) throw new IpcValidationError("session", "IPC session generation is stale");
@@ -131,7 +136,10 @@ export function createIpcDispatcher(handlers: Partial<{ [C in DesktopIpcChannel]
     if (!handler) throw new IpcValidationError("unknown_channel", "IPC channel has no host implementation");
     const result = await handler(request as never);
     const schema = responseSchemas[channel as DesktopIpcChannel];
-    return schema ? schema.parse(result) : result;
+    if (!schema) return result;
+    const parsed = schema.safeParse(result);
+    if (!parsed.success) throw new IpcValidationError("schema", "IPC response does not match the channel schema");
+    return parsed.data;
   };
 }
 

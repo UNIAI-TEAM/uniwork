@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { promises as fs, type Stats } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
-import { dirname, basename, isAbsolute, resolve, sep } from "node:path";
+import { dirname, basename, isAbsolute, resolve } from "node:path";
 
 export type LocalFileErrorCode =
   | "invalid_path"
@@ -102,8 +102,9 @@ export class FileHandleRegistry {
     this.assertActive();
     if (!isAbsolute(path)) throw new LocalFileError("invalid_path");
     const absolute = resolve(path);
-    if (!absolute || absolute === sep) throw new LocalFileError("invalid_path");
+    if (!absolute) throw new LocalFileError("invalid_path");
     const signature = await this.validateTarget(absolute, false);
+    this.assertSize(signature.signature.size);
     let bytes: Uint8Array;
     try { bytes = await this.fs.readFile(absolute); } catch { throw new LocalFileError("not_found"); }
     this.assertSize(bytes.byteLength);
@@ -120,7 +121,12 @@ export class FileHandleRegistry {
   async read(handle: string): Promise<Uint8Array> {
     const record = this.getRecord(handle);
     await this.validateCurrent(record, false);
-    try { const bytes = await this.fs.readFile(record.path); this.assertSize(bytes.byteLength); return new Uint8Array(bytes); }
+    try {
+      this.assertSize((await this.fs.stat(record.path)).size);
+      const bytes = await this.fs.readFile(record.path);
+      this.assertSize(bytes.byteLength);
+      return new Uint8Array(bytes);
+    }
     catch (error) { if (error instanceof LocalFileError) throw error; throw new LocalFileError("not_found"); }
   }
 
@@ -166,6 +172,7 @@ export class FileHandleRegistry {
 
   private async registerNew(path: string): Promise<OpenFileMetadata> {
     const signature = await this.validateTarget(path, false);
+    this.assertSize(signature.signature.size);
     const bytes = await this.fs.readFile(path);
     this.assertSize(bytes.byteLength);
     const handle = this.newHandle();
@@ -205,20 +212,20 @@ export class FileHandleRegistry {
 
   private async validateTarget(path: string, allowMissing: boolean, probeWrite = false): Promise<{ signature: FileSignature; modifiedAtMs: number }> {
     const absolute = resolve(path);
-    const parts = absolute.split(sep);
-    let current = parts[0] || sep;
-    for (const part of parts.slice(1, -1)) {
-      current = current === sep ? `${current}${part}` : `${current}${sep}${part}`;
-      try { if ((await this.fs.lstat(current)).isSymbolicLink()) throw new LocalFileError("symlink_refused"); } catch (error) {
+    let current = dirname(absolute);
+    while (current !== dirname(current)) {
+      try { if ((await this.fs.lstat(current)).isSymbolicLink()) throw new LocalFileError("symlink_refused"); }
+      catch (error) {
         if (error instanceof LocalFileError) throw error;
         if (!allowMissing) throw new LocalFileError("not_found");
         break;
       }
+      current = dirname(current);
     }
     let stat: Stats;
     try { stat = await this.fs.lstat(absolute); } catch { if (allowMissing) return { signature: { size: 0, modifiedNs: "0", ino: 0, dev: 0 }, modifiedAtMs: 0 }; throw new LocalFileError("not_found"); }
     if (stat.isSymbolicLink()) throw new LocalFileError("symlink_refused");
-    if (!stat.isFile() && !allowMissing) throw new LocalFileError("invalid_path");
+    if (!stat.isFile()) throw new LocalFileError("invalid_path");
     if (stat.isFile()) {
       try { await this.fs.open(absolute, probeWrite ? "r+" : "r").then((handle) => handle.close()); } catch { throw new LocalFileError("locked"); }
     }

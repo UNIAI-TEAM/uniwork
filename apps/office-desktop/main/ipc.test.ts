@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { createAuthIpcHandlers, DESKTOP_IPC_CHANNELS, desktopDraftResponseSchema, desktopFileMetadataSchema, desktopFileResponseSchema, desktopSessionMetadataSchema, IPC_MAX_BYTES, IpcValidationError, validateIpcRequest } from "./ipc";
+import { createAuthIpcHandlers, createDraftIpcHandlers, createFileIpcHandlers, createIpcDispatcher, DESKTOP_IPC_CHANNELS, desktopDraftResponseSchema, desktopFileMetadataSchema, desktopFileResponseSchema, desktopSessionMetadataSchema, IPC_MAX_BYTES, IPC_FILE_MAX_BYTES, IpcValidationError, validateIpcRequest } from "./ipc";
 import { NativeLoginManager } from "./auth/manager";
+import { LocalFileError, type FileHandleRegistry } from "./files/registry";
+import type { DesktopDraftStore } from "./drafts/store";
 
 const context = { senderId: 7, frameId: 0, origin: "uniwork-office-app://app", expectedSenderId: 7, expectedFrameId: 0, expectedOrigin: "uniwork-office-app://app", sessionGeneration: "session_1234", allowedExternalHosts: ["docs.uniwork.com"] };
 const valid = { sessionGeneration: "session_1234", operation: "capability", handle: "handle:1", args: {} } as const;
@@ -15,6 +17,23 @@ describe("desktop IPC allowlist", () => {
     expect(() => validateIpcRequest("desktop:file-save", { sessionGeneration: "session_1234", handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", dataBase64: "b2s=" }, context)).not.toThrow();
     expect(() => validateIpcRequest("desktop:file-save", { sessionGeneration: "session_1234", handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", path: "C:\\secret.txt", dataBase64: "b2s=" }, context)).toThrowError(IpcValidationError);
     expect(() => validateIpcRequest("desktop:engine-call", { ...valid, args: { path: "C:\\secret.txt" } }, context)).toThrowError(IpcValidationError);
+    expect(() => validateIpcRequest("desktop:file-save", { sessionGeneration: "session_1234", handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", dataBase64: "x".repeat(100_000) }, context)).not.toThrow();
+    expect(IPC_FILE_MAX_BYTES).toBeGreaterThan(IPC_MAX_BYTES);
+  });
+
+  it("sanitizes file handler errors and validates handler responses", async () => {
+    const registry = { openPath: async () => { throw new LocalFileError("symlink_refused", "C:\\secret.txt"); }, save: async () => { throw new LocalFileError("external_modification", "C:\\secret.txt"); } } as unknown as FileHandleRegistry;
+    const handlers = createFileIpcHandlers({ registry, pickOpen: async () => "C:\\secret.txt" });
+    await expect(handlers["desktop:file-pick-open"]({ sessionGeneration: "session_1234" })).rejects.toMatchObject({ code: "symlink_refused", message: "local file operation refused" });
+    await expect(handlers["desktop:file-save"]({ sessionGeneration: "session_1234", handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", dataBase64: "b2s=" })).rejects.toMatchObject({ code: "external_modification" });
+    const dispatcher = createIpcDispatcher({ "desktop:file-save": async () => ({ opened: true, path: "C:\\secret.txt" }) }, context);
+    await expect(dispatcher("desktop:file-save", { sessionGeneration: "session_1234", handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", dataBase64: "b2s=" })).rejects.toThrow(IpcValidationError);
+  });
+
+  it("binds draft checkpoint identity in main and does not expose draft errors", async () => {
+    const store = { checkpointPlaintext: async () => { throw new Error("/secret/key and plaintext"); } } as unknown as DesktopDraftStore;
+    const handlers = createDraftIpcHandlers({ store, session: { sessionId: "s", deploymentId: "dep", accountId: "a", generation: 1 }, identity: { deploymentId: "dep", accountId: "a", organizationId: "o", workspaceId: "w", documentId: "d", base: { revision: "1", version: "v" } } });
+    await expect(handlers["desktop:draft-checkpoint"]({ sessionGeneration: "session_1234", draftId: "draft", generation: 1, dataBase64: "b2s=" })).rejects.toMatchObject({ code: "storage_unavailable", message: "draft operation refused" });
   });
   it.each([
     ["unknown channel", "desktop:unknown", valid, "unknown_channel"],
