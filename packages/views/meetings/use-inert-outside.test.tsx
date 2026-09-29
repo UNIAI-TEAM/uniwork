@@ -21,6 +21,10 @@ function Page({ room }: { room: boolean }) {
       </nav>
       <main>
         <header data-testid="header" />
+        <div data-testid="welcome">
+          <p role="status" aria-live="polite" />
+          <button type="button">dismiss</button>
+        </div>
         {room ? <Layer /> : null}
       </main>
       <section aria-live="polite" data-testid="toasts" />
@@ -34,6 +38,8 @@ describe("useInertOutside", () => {
     const { getByTestId, rerender } = render(<Page room />);
     expect(getByTestId("nav").hasAttribute("inert")).toBe(true);
     expect(getByTestId("header").hasAttribute("inert")).toBe(true);
+    // A live region deep in the shell does not keep its branch reachable.
+    expect(getByTestId("welcome").hasAttribute("inert")).toBe(true);
     expect(getByTestId("layer").hasAttribute("inert")).toBe(false);
     expect(getByTestId("toasts").hasAttribute("inert")).toBe(false);
     expect(announcer.hasAttribute("inert")).toBe(false);

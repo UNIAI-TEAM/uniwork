@@ -40,6 +40,7 @@ import {
   DEFAULT_CAMERA_ASPECT,
   screenShareTileSize,
   stageFillSize,
+  tileControlButtons,
   tileRingTone,
   type TileRingTone,
 } from "./conference-layout";
@@ -81,8 +82,11 @@ function useVideoAspect(
 ): number {
   const [aspect, setAspect] = useState(advertised ?? DEFAULT_CAMERA_ASPECT);
   useEffect(() => {
-    if (advertised) setAspect(advertised);
-  }, [advertised, trackSid]);
+    // Only until the element knows better: once it reports its own size, the
+    // advertised one (which can lag a rotation) must not override it.
+    const video = ref.current;
+    if (advertised && !(video && video.videoWidth > 0)) setAspect(advertised);
+  }, [ref, advertised, trackSid]);
   useEffect(() => {
     const video = ref.current;
     if (!active || !video) return;
@@ -374,8 +378,8 @@ function MeetingParticipantTileImpl({
   // both insets. Exact, so a phone's tile keeps "quang (Bạn)" beside pin and
   // menu, where a flat 8rem cut every name to one letter.
   const hostMuteButton = canHost && !participant.isLocal && !micMuted;
-  const controlButtons = isScreenShare ? (hostMuteButton ? 1 : 0) : 2 + (hostMuteButton ? 1 : 0);
-  const controlsRoomRem = controlButtons * 2 + 1.5;
+  const controlsRoomRem =
+    tileControlButtons({ screenShare: isScreenShare, hostMute: hostMuteButton }) * 2 + 1.5;
   // Speaking and a raised hand belong to the person's camera tile; lit on the
   // share as well, the presenter's voice flashed two tiles at once.
   const ring = isScreenShare

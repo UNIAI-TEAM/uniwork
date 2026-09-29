@@ -10,7 +10,9 @@ function staysLive(el: HTMLElement): boolean {
   return (
     el.tagName.includes("-") ||
     el.matches("script, style, [aria-live], [data-sonner-toaster]") ||
-    el.querySelector("[aria-live], [data-sonner-toaster]") !== null
+    // Only the toast stack is spared from inside: any other live region deep in
+    // the shell (a welcome status) must not keep its whole branch tabbable.
+    el.querySelector("[data-sonner-toaster]") !== null
   );
 }
 

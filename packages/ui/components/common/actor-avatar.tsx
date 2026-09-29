@@ -40,7 +40,10 @@ function ActorAvatar({
   className,
 }: ActorAvatarProps) {
   const [imgError, setImgError] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  // Which URL finished loading, not a flag: when the URL changes, the new
+  // photo starts hidden in the same render instead of one frame late.
+  const [loadedSrc, setLoadedSrc] = useState<string | null>(null);
+  const loaded = Boolean(avatarUrl) && loadedSrc === avatarUrl;
   const imgRef = useRef<HTMLImageElement>(null);
   const fluid = size === "fluid";
   const px = fluid ? null : AVATAR_SIZE_PX[size];
@@ -50,7 +53,7 @@ function ActorAvatar({
     setImgError(false);
     // A cached photo can finish before hydration, and then onLoad never fires.
     const img = imgRef.current;
-    setLoaded(Boolean(img?.complete && img.naturalWidth > 0));
+    if (img?.complete && img.naturalWidth > 0) setLoadedSrc(avatarUrl ?? null);
   }, [avatarUrl]);
 
   const glyph = (ratio: number) =>
@@ -114,7 +117,7 @@ function ActorAvatar({
               "absolute inset-0 h-full w-full object-cover transition-opacity duration-standard motion-reduce:transition-none",
               loaded ? "opacity-100" : "opacity-0"
             )}
-            onLoad={() => setLoaded(true)}
+            onLoad={() => setLoadedSrc(avatarUrl ?? null)}
             onError={() => setImgError(true)}
           />
         </>

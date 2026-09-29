@@ -16,6 +16,7 @@ import {
   screenShareTileSize,
   stageFillSize,
   stripPlacement,
+  tileControlButtons,
   trackHasVideo,
   trackTileKey,
 } from "./conference-layout";
@@ -335,5 +336,14 @@ describe("stripPlacement", () => {
     // tips a borderline stage to a strip beside.
     expect(stripPlacement(600, 360, 16)).toBe("below");
     expect(stripPlacement(600, 360, 32)).toBe("beside");
+  });
+});
+
+describe("tileControlButtons", () => {
+  it("counts what a full tile's corner controls draw", () => {
+    expect(tileControlButtons({ screenShare: false, hostMute: false })).toBe(2); // pin + menu
+    expect(tileControlButtons({ screenShare: false, hostMute: true })).toBe(3); // + mute
+    expect(tileControlButtons({ screenShare: true, hostMute: true })).toBe(2); // mute + menu
+    expect(tileControlButtons({ screenShare: true, hostMute: false })).toBe(0); // no controls
   });
 });

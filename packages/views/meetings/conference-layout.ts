@@ -309,6 +309,17 @@ function reserved(besideStrip: boolean): { w: string; h: string } {
   };
 }
 
+/**
+ * How many buttons a full tile's corner controls hold, mirroring what
+ * MeetingTileActions draws: a camera tile has pin + menu (+ host mute); a
+ * shared screen has no pin or watch toggle, so it shows host mute + menu only
+ * when the host can mute, and nothing otherwise.
+ */
+export function tileControlButtons({ screenShare, hostMute }: { screenShare: boolean; hostMute: boolean }): number {
+  if (screenShare) return hostMute ? 2 : 0;
+  return hostMute ? 3 : 2;
+}
+
 /** Room a strip takes beside the main tile (w-28 + gap-3) or under it (w-24 at 4:3 + pb-1 + gap-2), in rem. */
 export const STRIP_BESIDE_REM = 7.75;
 export const STRIP_BELOW_REM = 5.25;
