@@ -62,4 +62,15 @@ describe("desktop IPC allowlist", () => {
     const rejecting = createAuthIpcHandlers({ ...manager, isBound: () => false } as unknown as NativeLoginManager);
     await expect(rejecting["desktop:auth-start"]({ sessionGeneration: "session_1234", clientId: "other", deploymentId: "staging" })).rejects.toThrow(/binding/);
   });
+  it("rejects token-shaped fields returned by an untrusted manager implementation", () => {
+    const leakyManager = {
+      isBound: () => true,
+      startLogin: async () => ({ status: "pending" as const, attemptId: "attempt_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", expiresAt: 123 }),
+      cancelLogin: () => ({ status: "signed-out" as const, accessToken: "opaque-test-value" }),
+      getMetadata: () => ({ status: "signed-out" as const, refreshToken: "opaque-test-value" }),
+    } as unknown as NativeLoginManager;
+    const handlers = createAuthIpcHandlers(leakyManager);
+    expect(() => handlers["desktop:auth-cancel"]({ sessionGeneration: "session_1234", attemptId: "attempt_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL" })).toThrow();
+    expect(() => handlers["desktop:auth-session"]({ sessionGeneration: "session_1234" })).toThrow();
+  });
 });

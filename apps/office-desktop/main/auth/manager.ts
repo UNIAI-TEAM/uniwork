@@ -35,9 +35,11 @@ export class NativeLoginManager {
   private metadata: LoginSessionMetadata = Object.freeze({ status: "signed-out" });
 
   constructor(options: LoginManagerOptions) {
-    this.options = options;
-    this.attempts = options.attempts ?? new LoginAttemptStore();
-    if ((options.redirectUri ?? DESKTOP_IDENTITY.authCallback) !== DESKTOP_IDENTITY.authCallback) throw new Error("Only the registered desktop callback is allowed");
+    const redirectUri = options.redirectUri ?? DESKTOP_IDENTITY.authCallback;
+    if (redirectUri !== DESKTOP_IDENTITY.authCallback) throw new Error("Only the registered desktop callback is allowed");
+    // Copy configuration so callers cannot mutate the identity binding after construction.
+    this.options = Object.freeze({ ...options, redirectUri: DESKTOP_IDENTITY.authCallback });
+    this.attempts = this.options.attempts ?? new LoginAttemptStore();
   }
 
   getMetadata(): LoginSessionMetadata { return this.metadata; }
