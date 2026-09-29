@@ -88,14 +88,18 @@ interface CollectionPageHeaderActionProps extends Omit<ComponentProps<typeof But
   label: string;
 }
 
-/** Responsive header action: icon-only below md, labelled above md. */
+/**
+ * Responsive header action: icon-only below md, labelled above md. Drawn as
+ * a toolbar button, like the filter and sort controls under it; `outline`
+ * carries the input-weight edge and outweighed the whole header.
+ */
 export function CollectionPageHeaderAction({
   icon,
   label,
   className,
   type = "button",
   size = "sm",
-  variant = "outline",
+  variant = "toolbar",
   ...props
 }: CollectionPageHeaderActionProps) {
   return (
@@ -130,7 +134,7 @@ export function CollectionPageHeaderLinkAction({
   label,
   className,
   size = "sm",
-  variant = "outline",
+  variant = "toolbar",
   ...props
 }: CollectionPageHeaderLinkActionProps) {
   return (
