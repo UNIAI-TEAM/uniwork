@@ -29,16 +29,19 @@ export function initI18n() {
       initAsync: false,
       react: { useSuspense: false },
     });
+  } else {
+    // The singleton survives Fast Refresh while JSON imports can change.
+    // Apply the current English copy before SSR and hydration translate it.
+    i18next.addResourceBundle("en", "translation", en, true, true);
   }
   return i18next;
 }
 
 /**
  * English is the default and the fallback, so it is the only dictionary in
- * the initial bundle; every other locale arrives on demand. Nothing is
- * translated on the server (`./server.ts` is the only entry a server component
- * may import, and it resolves the locale without rendering a string), so a
- * locale that lands a tick after the first paint cannot mismatch server HTML.
+ * the initial bundle; every other locale arrives on demand. The web host
+ * supplies the request dictionary before rendering client components on the
+ * server and during hydration, so both sides use the same copy.
  * Shipping every dictionary to every route instead would put the whole set in
  * the shared chunk — see scripts/bundle-budget.mjs.
  */
@@ -49,8 +52,8 @@ const loaders: Record<Exclude<SupportedLocale, "en">, () => Promise<{ default: o
 const loaded = new Set<string>(["en"]);
 
 export function registerLocaleBundle(locale: SupportedLocale, dict: object): void {
-  if (loaded.has(locale)) return;
   if (Object.keys(dict).length > 0) {
+    // Already loaded only skips fetching; a request can carry newer copy.
     i18next.addResourceBundle(locale, "translation", dict, true, true);
   }
   loaded.add(locale);

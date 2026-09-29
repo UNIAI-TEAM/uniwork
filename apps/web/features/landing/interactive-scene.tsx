@@ -33,7 +33,7 @@ export function InteractiveScene() {
         if (cancelled) return;
         const style = getComputedStyle(element);
         const colour = (name: string) => toSrgb(style.getPropertyValue(name).trim());
-        renderer.current = create(element, { brand: colour("--brand"), paper: colour("--landing-model-shell"), ink: colour("--landing-deep"), mint: colour("--landing-model-light") }, setSelected, setFailed);
+        renderer.current = create(element, { brand: colour("--brand"), paper: colour("--landing-model-shell"), ink: colour("--landing-deep"), mint: colour("--landing-model-light"), cyan: colour("--landing-close-light"), violet: colour("--landing-close-end"), pink: colour("--brand-accent") }, setSelected, setFailed);
         renderer.current.setState(state.current);
       }).catch(() => { if (!cancelled) setFailed(true); });
     }, { rootMargin: "200px" });

@@ -93,19 +93,19 @@ export function ProductPreview() {
       <WorkspaceNavigation mode={mode} onSelect={key => selectFeature(key)} />
       <div className="workspace-display">
         <div className="preview-window">
-          <div className="preview-topbar">
+          {!cinematic && <div className="preview-topbar">
             <div className="preview-brand"><Logo variant="lockup" size={24} /></div>
             {!cinematic && mode === "tasks" && <div className="preview-search"><Search aria-hidden /><Input type="search" aria-label={t("landing.demo.search")} placeholder={t("landing.demo.search")} value={query} onChange={event => setQuery(event.target.value)} /></div>}
             <span className="preview-illustration">{t("landing.studio.illustration")}</span>
             {!cinematic && <Button variant="ghost" size="icon" data-action="reset-preview" onClick={reset} aria-label={t("landing.demo.reset")}><RotateCcw aria-hidden /></Button>}
             {hasPlayback(mode) && <Button className="preview-presentation-toggle" variant="outline" size="sm" data-action="toggle-presentation" onClick={() => setWatch(value => !value)}>{t(watch ? "landing.playback.explore" : "landing.playback.watch")}</Button>}
-          </div>
+          </div>}
           <div className="workspace-app-body">
             {!cinematic && <WorkspaceAppNavigation mode={mode} onSelect={key => selectFeature(key)} />}
             <div className="preview-main" key={revision}>
               {PRODUCT_FEATURES.map(item => <TabsContent value={item.key} key={item.key} keepMounted>
                 <div className="manual-preview" hidden={cinematic && mode === item.key}>{manualPanel(item.key)}</div>
-                {cinematic && mode === item.key && (hasPlayback(item.key) ? <ProductPlayback featureKey={item.key} /> : <LovableReference feature={item.key} />)}
+                {cinematic && mode === item.key && (hasPlayback(item.key) ? <ProductPlayback featureKey={item.key} onExplore={() => setWatch(false)} /> : <LovableReference feature={item.key} />)}
               </TabsContent>)}
             </div>
           </div>
