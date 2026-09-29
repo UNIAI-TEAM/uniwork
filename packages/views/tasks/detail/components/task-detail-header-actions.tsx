@@ -39,6 +39,7 @@ import {
 } from "../../row-actions-items";
 import { RowAssigneePicker } from "../../row-assignee-picker";
 import { TaskDetailThreadNav } from "./task-detail-thread-nav";
+import { TaskParentPicker } from "./task-parent-picker";
 
 export function TaskDetailHeaderActions({
   workspaceId,
@@ -61,6 +62,7 @@ export function TaskDetailHeaderActions({
   const update = useUpdateTask(workspaceId);
   const actionsTriggerRef = useRef<HTMLButtonElement>(null);
   const [assigneeOpen, setAssigneeOpen] = useState(false);
+  const [parentOpen, setParentOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const pinned = (pins.data?.pins ?? []).some(
     (pin) => pin.item_type === "task" && pin.item_id === task.id,
@@ -164,6 +166,7 @@ export function TaskDetailHeaderActions({
               deleteDialogClosed: () => {},
             }}
             onOpenAssignee={() => setAssigneeOpen(true)}
+            onOpenParent={() => setParentOpen(true)}
           />
         </DropdownMenuContent>
       </DropdownMenu>
@@ -173,6 +176,14 @@ export function TaskDetailHeaderActions({
           onUpdate={quickUpdate}
           anchor={actionsTriggerRef}
           onClose={() => setAssigneeOpen(false)}
+        />
+      ) : null}
+      {parentOpen ? (
+        <TaskParentPicker
+          workspaceId={workspaceId}
+          task={task}
+          anchor={actionsTriggerRef}
+          onClose={() => setParentOpen(false)}
         />
       ) : null}
 

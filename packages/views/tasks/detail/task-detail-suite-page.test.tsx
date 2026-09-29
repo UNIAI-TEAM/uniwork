@@ -164,6 +164,34 @@ describe("TaskDetailSuitePage", () => {
     expect(actions).toHaveClass("text-muted-foreground");
   });
 
+  it("đặt công việc cha từ menu thao tác, có tìm kiếm", async () => {
+    const epic = { ...task, id: "t2", number: 2, identifier: "TEAM-2", title: "Epic" };
+    const other = { ...task, id: "t3", number: 3, identifier: "TEAM-3", title: "Khác" };
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p === "/api/v1/tasks/t1") return Promise.resolve({ task });
+      if (p === "/api/v1/workspaces/w1/tasks") {
+        return Promise.resolve({ tasks: [task, epic, other] });
+      }
+      return Promise.resolve({});
+    });
+    render(shell(<TaskDetailSuitePage workspaceId="w1" taskId="t1" />));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Thao tác công việc" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Đặt công việc cha…" }));
+    const search = await screen.findByRole("textbox", { name: "Tìm task cha" });
+    fireEvent.change(search, { target: { value: "epic" } });
+    expect(screen.queryByRole("button", { name: /TEAM-3/ })).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: /TEAM-2.*Epic/ }));
+
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/tasks/t1/parent",
+        expect.objectContaining({ method: "PUT", body: { parent_task_id: "t2" } }),
+      ),
+    );
+  });
+
   it("does not submit on primary+Enter in the description editor", async () => {
     configureShortcutPlatform("windows");
     useShortcutStore.getState().resetAll();

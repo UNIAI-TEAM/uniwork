@@ -1,8 +1,14 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
-import type { Task, TaskLabel, User, Workspace } from "@uniwork/core/types";
+import type {
+  Task,
+  TaskLabel,
+  TaskProperty,
+  User,
+  Workspace,
+} from "@uniwork/core/types";
 import { toast } from "sonner";
 import { WorkspaceProvider } from "../../../layout/workspace-context";
 import { wrapWithNav } from "../../../test/api-mock";
@@ -16,7 +22,12 @@ const putMutate = vi.hoisted(() => vi.fn());
 const updateMutate = vi.hoisted(() => vi.fn());
 const attachMutateAsync = vi.hoisted(() => vi.fn());
 const detachMutateAsync = vi.hoisted(() => vi.fn());
+const setPropertyMutate = vi.hoisted(() => vi.fn());
+const unsetPropertyMutate = vi.hoisted(() => vi.fn());
+const setParentMutate = vi.hoisted(() => vi.fn());
 const projectState = vi.hoisted(() => ({ available: false }));
+const propertyState = vi.hoisted(() => ({ catalog: [] as TaskProperty[] }));
+const parentState = vi.hoisted(() => ({ task: null as Task | null }));
 const labelState = vi.hoisted(() => ({
   catalog: [] as TaskLabel[],
   attached: [] as TaskLabel[],
@@ -46,14 +57,37 @@ function makeLabel(id: string, name: string, color: string): TaskLabel {
   };
 }
 
+function makeProperty(id: string, name: string, type: string): TaskProperty {
+  return {
+    id,
+    organization_id: "o1",
+    workspace_id: "w1",
+    name,
+    description: "",
+    type,
+    config: {},
+    position: 0,
+    usage_count: 0,
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: "2026-09-01T00:00:00Z",
+  } as TaskProperty;
+}
+
 vi.mock("@uniwork/core/tasks", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@uniwork/core/tasks")>();
   return {
     ...actual,
     usePutTask: () => ({ mutate: putMutate, isPending: false }),
     useUpdateTask: () => ({ mutate: updateMutate, isPending: false }),
+    useSetTaskPropertyValue: () => ({ mutate: setPropertyMutate, isPending: false }),
+    useUnsetTaskPropertyValue: () => ({ mutate: unsetPropertyMutate, isPending: false }),
+    useSetTaskParent: () => ({ mutate: setParentMutate, isPending: false }),
+    useTask: (id: string) => ({
+      data: parentState.task && parentState.task.id === id ? parentState.task : undefined,
+      isLoading: false,
+    }),
     useTaskProperties: () => ({
-      data: { properties: [], total: 0 },
+      data: { properties: propertyState.catalog, total: propertyState.catalog.length },
       isLoading: false,
       isError: false,
     }),
@@ -180,6 +214,11 @@ beforeEach(() => {
   setSessionUser(me);
   putMutate.mockReset();
   updateMutate.mockReset();
+  setPropertyMutate.mockReset();
+  unsetPropertyMutate.mockReset();
+  setParentMutate.mockReset();
+  propertyState.catalog = [];
+  parentState.task = null;
   attachMutateAsync.mockReset().mockResolvedValue(undefined);
   detachMutateAsync.mockReset().mockResolvedValue(undefined);
   vi.mocked(toast.error).mockReset();
@@ -189,10 +228,14 @@ beforeEach(() => {
   memberState.members = [];
 });
 
-function renderSidebar() {
+function renderSidebar(overrides: Partial<Task> = {}) {
   render(
     shell(
-      <TaskDetailPropertiesSidebar workspaceId="w1" task={task} onRefetch={() => {}} />,
+      <TaskDetailPropertiesSidebar
+        workspaceId="w1"
+        task={{ ...task, ...overrides }}
+        onRefetch={() => {}}
+      />,
     ),
   );
 }
@@ -317,12 +360,13 @@ describe("TaskDetailPropertiesSidebar", () => {
     expect(screen.queryByText("Stale name")).not.toBeInTheDocument();
   });
 
-  it("hiện tên dự án và đổi dự án bằng picker thay vì lộ id", async () => {
+  it("hiện tên dự án và đổi dự án bằng picker có tìm kiếm thay vì lộ id", async () => {
     projectState.available = true;
     renderSidebar();
 
     fireEvent.click(screen.getByRole("button", { name: /dự án: không có dự án/i }));
-    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Apollo" }));
+    expect(await screen.findByRole("textbox", { name: "Tìm dự án" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Apollo" }));
 
     await waitFor(() =>
       expect(updateMutate).toHaveBeenCalledWith(
@@ -333,26 +377,130 @@ describe("TaskDetailPropertiesSidebar", () => {
     expect(screen.queryByText("p1")).not.toBeInTheDocument();
   });
 
-  it("disables custom properties when the catalog is empty", () => {
-    render(
-      shell(
-        <TaskDetailPropertiesSidebar
-          workspaceId="w1"
-          task={task}
-          onRefetch={() => {}}
-        />,
-      ),
+  it("mỗi mục có tiêu đề thu gọn được", () => {
+    renderSidebar();
+    const properties = screen.getByRole("button", { name: "Thuộc tính" });
+    expect(properties).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "Chi tiết" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /thêm thuộc tính|add properties/i }),
+    fireEvent.click(properties);
+    expect(properties).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: /^Trạng thái: / })).not.toBeInTheDocument();
+  });
+
+  it("ẩn độ ưu tiên khi chưa đặt; menu thêm chỉ thêm đúng trường được chọn", async () => {
+    renderSidebar({ priority: "none" });
+    expect(screen.queryByRole("button", { name: /^Độ ưu tiên: / })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Ngày bắt đầu: / })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Thêm thuộc tính" }));
+    const items = await screen.findAllByRole("menuitem");
+    expect(items.map((item) => item.textContent)).toEqual([
+      "Độ ưu tiên",
+      "Ngày bắt đầu",
+      "Hạn",
+      "Nhãn",
+    ]);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Ngày bắt đầu" }));
+
+    expect(await screen.findByRole("button", { name: /^Ngày bắt đầu: / })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Hạn: / })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Độ ưu tiên: / })).not.toBeInTheDocument();
+    expect(await screen.findByText("Bỏ chọn ngày")).toBeInTheDocument();
+  });
+
+  it("sửa được ngày bắt đầu và gửi qua patch", async () => {
+    renderSidebar({ start_date: "2026-09-06" });
+    const trigger = screen.getByRole("button", { name: /^Ngày bắt đầu: / });
+    expect(trigger).not.toHaveAttribute("aria-disabled");
+    expect(trigger).toBeEnabled();
+
+    fireEvent.click(trigger);
+    fireEvent.click(await screen.findByText("Bỏ chọn ngày"));
+    expect(updateMutate).toHaveBeenCalledWith(
+      { taskId: "t1", patch: { start_date: null } },
+      expect.any(Object),
     );
-    const custom = screen.getByTestId("task-detail-custom-properties");
-    expect(custom).toHaveAttribute("aria-disabled", "true");
-    expect(custom).toHaveAttribute(
-      "title",
-      expect.stringMatching(/chưa sẵn sàng|not available|surface/i),
-    );
+  });
+
+  it("hạn là nút gọn có icon, quá hạn thì tô đỏ", () => {
+    renderSidebar({ due_date: "2020-01-02" });
+    const trigger = screen.getByRole("button", { name: /^Hạn: / });
+    expect(trigger.className).not.toMatch(/border-input/);
+    expect(trigger.querySelector("svg")).not.toBeNull();
+    expect(trigger.querySelector(".text-destructive")).not.toBeNull();
+  });
+
+  it("chi tiết hiện ngày ngắn, không kèm giờ", () => {
+    renderSidebar();
+    const details = screen.getByRole("button", { name: "Chi tiết" }).closest("section");
+    expect(details).not.toBeNull();
+    expect(within(details as HTMLElement).getAllByText(/^1 thg 9/)).toHaveLength(2);
+    expect(details?.textContent).not.toMatch(/\d{1,2}:\d{2}/);
+  });
+
+  describe("thuộc tính tùy chỉnh", () => {
+    const points = makeProperty("cp1", "Story points", "number");
+    const note = makeProperty("cp2", "Ghi chú", "text");
+
+    it("mỗi thuộc tính đã có giá trị là một hàng sửa được", () => {
+      propertyState.catalog = [points, note];
+      renderSidebar({ properties: { cp1: 3 } });
+      expect(screen.queryByText("Ghi chú")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Story points: 3" }));
+      const input = screen.getByRole("textbox", { name: "Story points: 3" });
+      fireEvent.change(input, { target: { value: "5" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+
+      expect(setPropertyMutate).toHaveBeenCalledWith(
+        { taskId: "t1", propertyId: "cp1", value: 5 },
+        expect.any(Object),
+      );
+    });
+
+    it("thuộc tính chưa có giá trị được thêm từ menu", async () => {
+      propertyState.catalog = [points];
+      renderSidebar();
+      expect(screen.queryByText("Story points")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Thêm thuộc tính" }));
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Story points" }));
+
+      expect(
+        await screen.findByRole("button", { name: /^Story points: / }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe("công việc cha", () => {
+    it("không có cha thì không hiện mục công việc cha", () => {
+      renderSidebar();
+      expect(screen.queryByRole("button", { name: "Công việc cha" })).not.toBeInTheDocument();
+      expect(screen.queryByText("Thêm công việc cha")).not.toBeInTheDocument();
+    });
+
+    it("có cha thì hiện dòng liên kết và gỡ được", () => {
+      parentState.task = { ...task, id: "t0", identifier: "TEAM-1", title: "Epic" };
+      renderSidebar({ parent_task_id: "t0" });
+
+      expect(screen.getByRole("button", { name: "Công việc cha" })).toHaveAttribute(
+        "aria-expanded",
+        "true",
+      );
+      expect(screen.getByRole("link", { name: /TEAM-1.*Epic/ })).toHaveAttribute(
+        "href",
+        expect.stringContaining("/tasks/t0"),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Bỏ công việc cha" }));
+      expect(setParentMutate).toHaveBeenCalledWith(
+        { taskId: "t1", body: { parent_task_id: null } },
+        expect.any(Object),
+      );
+    });
   });
 
   describe("nhãn", () => {

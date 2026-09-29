@@ -4,8 +4,8 @@ import { useState, type ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import { cn } from "@uniwork/ui/lib/utils";
 
-/** Collapsible titled section of the project detail sidebar. */
-export function ProjectSidebarSection({
+/** Collapsible titled section of a detail-page sidebar. */
+export function SidebarSection({
   title,
   children,
 }: {
