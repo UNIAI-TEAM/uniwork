@@ -12,6 +12,7 @@ import {
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingPersonAvatar } from "./meeting-person";
+import { useUserAvatarOf } from "./meeting-room-avatars";
 
 function requestDisplayName(request: MeetingJoinRequest): string {
   return request.display_name_snapshot || request.requester_user_id || "?";
@@ -34,13 +35,15 @@ export function MeetingJoinRequestRow({
 }) {
   const { t } = useTranslation();
   const name = requestDisplayName(request);
+  const avatarUrl = useUserAvatarOf()(request.requester_user_id);
   // A signed-in member is not a guest; only link guests are unconfirmed.
   const kind = request.requester_user_id ? t("meetings.joinRequesterMember") : t("meetings.unconfirmedGuest");
 
   if (variant === "overlay") {
     return (
       <div className="flex items-center gap-3 rounded-xl bg-surface-hover px-3 py-2.5 [@media(max-height:500px)]:py-1.5">
-        <MeetingPersonAvatar name={name} size="default" />
+        {/* The overlay sits on the dark notice, whose row fill is the default avatar fill. */}
+        <MeetingPersonAvatar name={name} avatarUrl={avatarUrl} size="default" tone="stage" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-body font-medium text-foreground">{name}</p>
           <p className="text-caption text-muted-foreground [@media(max-height:500px)]:hidden">{kind}</p>
@@ -81,7 +84,7 @@ export function MeetingJoinRequestRow({
 
   return (
     <div className="flex items-center gap-2 rounded-lg px-1 py-1.5 hover:bg-surface-hover">
-      <MeetingPersonAvatar name={name} size="sm" />
+      <MeetingPersonAvatar name={name} avatarUrl={avatarUrl} size="sm" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-body text-foreground">{name}</p>
         <p className="truncate text-caption text-muted-foreground">{kind}</p>

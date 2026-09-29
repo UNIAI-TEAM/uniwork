@@ -21,6 +21,7 @@ import { toastApiError } from "../toast-api-error";
 import { AddMeetingParticipantsDialog } from "./add-meeting-participants-dialog";
 import { MeetingJoinRequestsSection } from "./meeting-join-requests-section";
 import { MeetingParticipantRow } from "./meeting-participant-row";
+import { useRoomAvatarOf } from "./meeting-room-avatars";
 import { guestIdentities, PARTICIPANT_IDENTITY_PREFIX, participantRole } from "./meeting-signals";
 import { useMeetingSignals } from "./use-meeting-signals";
 
@@ -66,6 +67,7 @@ export function MeetingRoomPeopleTab({
   const liveParticipants = useLiveKitParticipants();
   const { hands } = useMeetingSignals();
   const pinnedIdentity = useMeetingViewSessionStore((s) => s.pinnedIdentity);
+  const avatarOf = useRoomAvatarOf();
   const { data: apiParticipants } = useParticipants(meetingId ?? "");
   const remove = useRemoveParticipant(meetingId ?? "");
   const setPublish = useSetParticipantPublish(meetingId ?? "");
@@ -214,6 +216,7 @@ export function MeetingRoomPeopleTab({
                     participant={participant}
                     subtitle={rowSubtitle(participant)}
                     roleChip={participantRole(participant, guests)}
+                    avatarUrl={avatarOf(participant.identity)}
                     canHost={canHost}
                     pinned={pinnedIdentity === participant.identity}
                     onRemove={
