@@ -99,7 +99,7 @@ describe("MeetingSignalsProvider", () => {
       new TextDecoder().decode(encodeSignal({ kind: "mute_request", target: "lan" })),
     ]);
     // The host hears back by name once the request has left.
-    expect(toast.success).toHaveBeenCalledWith("Đã tắt mic của Lan");
+    expect(toast.success).toHaveBeenCalledWith("Đã tắt mic của Lan", { position: "top-center" });
   });
 
   it("tells the viewer when the host muted them, instead of muting silently", () => {

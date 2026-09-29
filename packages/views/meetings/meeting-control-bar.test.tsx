@@ -278,7 +278,7 @@ describe("MeetingControlBar with a locked mic", () => {
     try {
       toggles.microphone.mockClear();
       render(wrapWithNav(<MeetingControlBar onLeave={() => {}} />));
-      fireEvent.click(screen.getByRole("button", { name: "Mic" }));
+      fireEvent.click(screen.getByRole("button", { name: "Mic, chủ trì đã khóa" }));
       expect(toggles.microphone).not.toHaveBeenCalled();
       expect(toast.info).toHaveBeenCalledWith("Chủ trì đã khóa mic của bạn", expect.anything());
     } finally {

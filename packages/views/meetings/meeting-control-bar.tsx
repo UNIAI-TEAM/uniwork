@@ -246,7 +246,9 @@ export function MeetingControlBar({
           <div className={cn(MEETING_DARK_BAR, "w-fit max-w-full")}>
             <div className="flex min-w-0 flex-1 items-center justify-center gap-1 sm:gap-1.5">
               <IconControl
-                label={t("meetings.mic")}
+                // The lock is part of the name: a tooltip and a passing toast
+                // never reach a screen reader that lands on the button later.
+                label={micLock.locked ? t("meetings.micLockedControl") : t("meetings.mic")}
                 tooltip={micTooltip}
                 pressed={mic.enabled}
                 tone={mic.enabled ? "active" : "off"}

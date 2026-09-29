@@ -175,7 +175,9 @@ export function MeetingSignalsProvider({
       // The host sees the mic badge flip too, but only once their client
       // hears back; the toast says the request left, by name.
       void publishRef.current({ kind: "mute_request", target: identity })?.then(
-        () => toast.success(t("meetings.mutedParticipant", { name })),
+        // Top centre, as the muted person's notice: the corner toaster sat
+        // on the side panel's question box.
+        () => toast.success(t("meetings.mutedParticipant", { name }), { position: "top-center" }),
         () => {},
       );
     },

@@ -61,9 +61,9 @@ export function MeetingTileActions({
   const requestMute = useRequestMute();
   const toggleHidden = useMeetingViewSessionStore((s) => s.toggleHidden);
   const isHidden = useMeetingViewSessionStore((s) => s.isHidden(participant.identity));
-  const showHostMute = canHost && !participant.isLocal && !micMuted;
+  const hostMuteSlot = canHost && !participant.isLocal;
   // A share offers only the host's actions on its presenter.
-  if (screenShare && !(canHost && !participant.isLocal)) return null;
+  if (screenShare && !hostMuteSlot) return null;
 
   // The controls sit in a corner on their own chip, so the face stays visible
   // and the dark wash is only behind the buttons. A thumbnail is too narrow
@@ -89,9 +89,16 @@ export function MeetingTileActions({
         </TileActionButton>
       ) : null}
 
-      {!compact && showHostMute ? (
+      {/* The slot outlives the mic: removed, the chip shrank and slid the pin
+          button under the pointer that had just clicked mute. `invisible`
+          takes it out of the tab order and the accessibility tree too. */}
+      {!compact && hostMuteSlot ? (
         <TileActionButton
           aria-label={t("meetings.muteParticipant", { name })}
+          disabled={micMuted}
+          // A coarse pointer leaves mute to the menu: at 44px, three buttons
+          // took the whole width of a phone's tile.
+          className={cn("pointer-coarse:hidden", micMuted && "invisible")}
           onClick={() => requestMute(participant.identity, name)}
         >
           <MicOff aria-hidden className="size-4" />

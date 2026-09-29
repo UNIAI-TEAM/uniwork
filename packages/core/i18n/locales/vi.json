@@ -2522,6 +2522,7 @@
     "lockMic": "Khóa mic của {{name}}",
     "unlockMic": "Mở khóa mic của {{name}}",
     "micLocked": "Chủ trì đã khóa mic",
+    "micLockedControl": "Mic, chủ trì đã khóa",
     "micLockedYou": "Chủ trì đã khóa mic của bạn",
     "micLockedYouHint": "Giơ tay nếu bạn cần nói.",
     "micUnlockedYou": "Chủ trì đã mở khóa mic của bạn",

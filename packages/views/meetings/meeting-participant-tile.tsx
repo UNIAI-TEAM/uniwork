@@ -247,12 +247,17 @@ function MeetingParticipantTileImpl({
   const [menuOpen, setMenuOpen] = useState(false);
   const touch = useTouchReveal(tileRef, menuOpen);
   const showActions = hovered || focused || menuOpen || touch.revealed;
-  // Room the corner controls take: 2rem per button plus their padding and
+  // Room the corner controls take: one button width each (2rem, or 2.75rem
+  // on a coarse pointer, where buttons grow to 44px) plus their padding and
   // both insets. Exact, so a phone's tile keeps "quang (Bạn)" beside pin and
-  // menu, where a flat 8rem cut every name to one letter.
-  const hostMuteButton = canHost && !participant.isLocal && !micMuted;
-  const controlsRoomRem =
-    tileControlButtons({ screenShare: isScreenShare, hostMute: hostMuteButton }) * 2 + 1.5;
+  // menu, where a flat 8rem cut every name to one letter. The host's mute
+  // keeps its slot once the mic is off (see MeetingTileActions).
+  const hostMuteButton = canHost && !participant.isLocal;
+  // The quick mute is one slot on a fine pointer and none on a coarse one
+  // (the menu keeps it): three 44px buttons left a phone's tile no name.
+  const otherButtons =
+    tileControlButtons({ screenShare: isScreenShare, hostMute: hostMuteButton }) - (hostMuteButton ? 1 : 0);
+  const buttonCount = hostMuteButton ? `(${otherButtons} + var(--tile-mute-slot))` : `${otherButtons}`;
   // Speaking and a raised hand belong to the person's camera tile; lit on the
   // share as well, the presenter's voice flashed two tiles at once.
   const ring = isScreenShare
@@ -309,6 +314,8 @@ function MeetingParticipantTileImpl({
       }}
       className={cn(
         "group relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-muted",
+        // One corner button's width, for the name chip's room beside them.
+        "[--tile-control:2rem] [--tile-mute-slot:1] pointer-coarse:[--tile-control:2.75rem] pointer-coarse:[--tile-mute-slot:0]",
         radius,
         compact ? "aspect-[4/3]" : placement === "cell" && (shaped ? "h-full" : "size-full"),
       )}
@@ -409,13 +416,17 @@ function MeetingParticipantTileImpl({
               ? "bottom-1.5 left-1.5 max-w-[calc(100%-0.75rem)]"
               : "bottom-2 left-2 sm:bottom-3 sm:left-3",
             // The corner controls only need room while they show (see
-            // controlsRoomRem); kept always, a phone's tile cut every name short.
+            // buttonCount); kept always, a phone's tile cut every name short.
             !compact && !showActions && "max-w-[calc(100%-1rem)] sm:max-w-[calc(100%-1.5rem)]",
             // A thumbnail is too narrow for the name and the controls at once.
             // A thumbnail keeps the name beside its one control, cut short.
             compact && showActions && "max-w-[calc(100%-2.75rem)]",
           )}
-          style={!compact && showActions ? { maxWidth: `calc(100% - ${controlsRoomRem}rem)` } : undefined}
+          style={
+            !compact && showActions
+              ? { maxWidth: `calc(100% - (${buttonCount} * var(--tile-control) + 1.5rem))` }
+              : undefined
+          }
         >
           {isScreenShare ? <MonitorUp aria-hidden className="size-3.5 shrink-0" /> : null}
           <span className="min-w-0 truncate">{label}</span>
