@@ -70,9 +70,6 @@ func registerTasksSuiteStubs(suite api, h Routes) {
 		"Returns 422 capability_unavailable with reason_code agent_runtime_missing.",
 	))
 
-	suite.Get("/workspaces/{workspaceID}/assignee-frequency", h.WorkManagementCapabilityStub, op(
-		"Assignee frequency (stub)", "Assignee frequency stub.",
-	))
 	suite.Get("/workspaces/{workspaceID}/tasks/limit-usage", h.WorkManagementCapabilityStub, op(
 		"Task limit usage (stub)", "Limit usage stub.",
 	))

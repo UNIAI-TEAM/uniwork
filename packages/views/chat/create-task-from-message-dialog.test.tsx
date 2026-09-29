@@ -17,6 +17,7 @@ vi.mock("@uniwork/core/chat", () => ({
 
 vi.mock("@uniwork/core/tasks", () => ({
   useProjects: () => ({ data: { projects: [] } }),
+  useAssigneeFrequency: () => ({ data: [] }),
 }));
 
 vi.mock("@uniwork/core/workspaces", () => ({

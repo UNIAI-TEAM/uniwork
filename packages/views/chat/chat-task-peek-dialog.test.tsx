@@ -17,6 +17,7 @@ vi.mock("@uniwork/core/tasks", () => ({
   useTask: () => ({ refetch: taskState.refetch, isFetching: false, ...taskState.current }),
   useUpdateTask: () => ({ mutate: taskState.mutate }),
   useProjects: () => ({ data: { projects: [] } }),
+  useAssigneeFrequency: () => ({ data: [] }),
 }));
 
 vi.mock("@uniwork/core/workspaces", () => ({

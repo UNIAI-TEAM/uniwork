@@ -42,6 +42,7 @@ import {
   AssigneePicker,
   LabelPicker,
   labelChipClass,
+  useDecoratedAssigneeOptions,
   useTaskLabelToggle,
   type AssigneeOption,
   type AssigneeRef,
@@ -115,7 +116,7 @@ export function TaskDetailPropertiesSidebar({
 
   // Members, then agents (ADR 0007 pair: id + kind travel together); the
   // table's assignee cell builds the same list.
-  const assigneeOptions: AssigneeOption[] = useMemo(
+  const baseAssigneeOptions: AssigneeOption[] = useMemo(
     () => [
       ...(members ?? []).map((m) => ({
         id: m.user_id,
@@ -132,6 +133,10 @@ export function TaskDetailPropertiesSidebar({
       })),
     ],
     [members, agents],
+  );
+  const assigneeOptions = useDecoratedAssigneeOptions(
+    workspaceId,
+    baseAssigneeOptions,
   );
   const assigneeValue: AssigneeRef | null = task.assignee_id
     ? { id: task.assignee_id, kind: task.assignee_kind === "agent" ? "agent" : "human" }

@@ -8,6 +8,7 @@ import { ChatTaskAssigneeField, ChatTaskPeekFields } from "./chat-task-peek-fiel
 vi.mock("@uniwork/core/tasks", () => ({
   useUpdateTask: () => ({ mutate: vi.fn() }),
   useProjects: () => ({ data: { projects: [{ id: "p1", title: "Ra mắt" }] } }),
+  useAssigneeFrequency: () => ({ data: [] }),
 }));
 
 vi.mock("@uniwork/core/workspaces", () => ({

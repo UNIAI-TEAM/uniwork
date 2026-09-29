@@ -43,7 +43,7 @@ import {
 } from "./table-view-model";
 import { useTableViewData } from "./use-table-view-data";
 import type { TableMember } from "./table-cell-editors";
-import type { AssigneeOption } from "../pickers";
+import { useDecoratedAssigneeOptions, type AssigneeOption } from "../pickers";
 
 const EMPTY_MEMBERS: TableMember[] = [];
 const EMPTY_PROJECTS: Project[] = [];
@@ -135,7 +135,7 @@ export function TableView({
     [propertyCatalog],
   );
   // Mirrors the properties sidebar: members first, then the workspace's agents.
-  const assigneeOptions = useMemo<AssigneeOption[]>(
+  const baseAssigneeOptions = useMemo<AssigneeOption[]>(
     () => [
       ...members.map((member) => ({
         id: member.id,
@@ -151,6 +151,10 @@ export function TableView({
       })),
     ],
     [agents, members],
+  );
+  const assigneeOptions = useDecoratedAssigneeOptions(
+    workspaceId,
+    baseAssigneeOptions,
   );
   const childProgressByTask = useMemo(
     () =>
