@@ -6,6 +6,9 @@ RETURNING *;
 -- name: GetAgent :one
 SELECT * FROM agents WHERE id = $1;
 
+-- name: GetAgentStatusInOrg :one
+SELECT status, archived_at FROM agents WHERE organization_id = $1 AND id = $2;
+
 -- name: GetAgentsByIDs :many
 SELECT id, name, avatar_url, status FROM agents WHERE id = ANY(sqlc.arg('ids')::text[]);
 

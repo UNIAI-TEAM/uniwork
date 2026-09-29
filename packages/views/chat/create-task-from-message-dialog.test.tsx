@@ -30,7 +30,7 @@ vi.mock("@uniwork/core/workspaces", () => ({
 
 vi.mock("@uniwork/core/agents", () => ({
   useWorkspaceAgents: () => ({
-    data: [{ id: "a1", name: "Trợ lý" }],
+    data: [{ id: "a1", name: "Trợ lý", status: "active" }],
     isLoading: false,
     isError: false,
   }),

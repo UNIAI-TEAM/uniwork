@@ -4,7 +4,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { requestMock } from "../../test/request-mock";
 import type { AssigneeOption } from "./assignee-picker";
-import { rankByFrequency } from "./assignee-option-decorations";
+import { markUnassignableAgents, rankByFrequency } from "./assignee-option-decorations";
 import { useWorkspaceAssigneeOptions } from "./member-options";
 
 const options: AssigneeOption[] = [
@@ -51,6 +51,34 @@ describe("rankByFrequency", () => {
   });
 });
 
+describe("markUnassignableAgents", () => {
+  const reason = (code: string) => `reason:${code}`;
+
+  it("gives paused and archived agents a reason and leaves the rest alone", () => {
+    const marked = markUnassignableAgents(
+      options,
+      [
+        { id: "a1", status: "paused" },
+        { id: "a2", status: "archived" },
+      ],
+      reason,
+    );
+
+    expect(marked.map((option) => option.disabledReason)).toEqual([
+      undefined,
+      undefined,
+      undefined,
+      "reason:agent_paused",
+      "reason:agent_archived",
+    ]);
+  });
+
+  it("does not touch a member that shares an agent's id", () => {
+    const marked = markUnassignableAgents(options, [{ id: "u1", status: "paused" }], reason);
+    expect(marked).toBe(options);
+  });
+});
+
 describe("useWorkspaceAssigneeOptions ranking", () => {
   const member = (id: string, name: string) => ({
     workspace_id: "w1",
@@ -60,12 +88,12 @@ describe("useWorkspaceAssigneeOptions ranking", () => {
     display_name: name,
   });
 
-  function serve(frequency: unknown) {
+  function serve(frequency: unknown, agents: unknown[] = []) {
     requestMock.mockImplementation((path: string) => {
       if (path.endsWith("/members")) {
         return Promise.resolve({ members: [member("u1", "An"), member("u2", "Bình")] });
       }
-      if (path.endsWith("/agents")) return Promise.resolve({ agents: [] });
+      if (path.endsWith("/agents")) return Promise.resolve({ agents });
       if (path.endsWith("/assignee-frequency")) return Promise.resolve(frequency);
       return Promise.reject(new Error(`unexpected ${path}`));
     });
@@ -96,5 +124,15 @@ describe("useWorkspaceAssigneeOptions ranking", () => {
       expect(requestMock).toHaveBeenCalledWith("/api/v1/workspaces/w1/assignee-frequency"),
     );
     expect(ids(result.current.options)).toEqual(["u1", "u2"]);
+  });
+
+  it("marks a paused agent as unable to take new work", async () => {
+    const agent = { id: "a1", organization_id: "o1", name: "QA", handle: "qa", status: "paused", owner_user_id: "u1" };
+    serve({ items: [] }, [agent]);
+    const { result } = renderHook(() => useWorkspaceAssigneeOptions("w1"), { wrapper });
+
+    await waitFor(() =>
+      expect(result.current.options.find((option) => option.id === "a1")?.disabledReason).toBeTruthy(),
+    );
   });
 });

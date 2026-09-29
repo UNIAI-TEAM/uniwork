@@ -32,6 +32,9 @@ export type AssigneeOption = {
   /** Searchable alongside the name, e.g. an email. Not shown in the list. */
   secondaryLabel?: string;
   avatarUrl?: string;
+  /** Set when the option cannot take new work (e.g. a paused agent): the row
+   * stays listed and readable but cannot be picked. */
+  disabledReason?: string;
 };
 
 function refsEqual(a: AssigneeRef | null, b: AssigneeRef | null): boolean {
@@ -71,6 +74,8 @@ function AssigneeSection({
           <PickerItem
             key={`${option.kind}:${option.id}`}
             selected={refsEqual(ref, value)}
+            disabled={option.disabledReason !== undefined}
+            disabledReason={option.disabledReason}
             onClick={() => onSelect(ref)}
           >
             <Avatar aria-hidden size="sm" className="size-5 shrink-0">

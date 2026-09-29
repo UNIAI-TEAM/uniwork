@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canAssignAgent,
   canChangeMemberRole,
   canChangeOrgRole,
   canCreateWorkspaceInOrg,
@@ -224,5 +225,16 @@ describe("Organization & People — mirror OrganizationMemberService and PeopleS
     expect(canExportPeople(owner).allowed).toBe(true);
     expect(canExportPeople(ctx({ orgRole: null })).reason).toBe("not_org_member");
     expect(canExportPeople(ctx({ userId: null, orgRole: "owner" })).reason).toBe("not_authenticated");
+  });
+});
+
+describe("canAssignAgent", () => {
+  it("lets only an active agent take new work", () => {
+    expect(canAssignAgent({ status: "active" })).toEqual({ allowed: true, reason: "allowed", message: "" });
+    expect(canAssignAgent({ status: "paused" }).reason).toBe("agent_paused");
+    expect(canAssignAgent({ status: "archived" }).reason).toBe("agent_archived");
+  });
+  it("treats a status it does not know as paused, like the server", () => {
+    expect(canAssignAgent({ status: "sleeping" as never }).reason).toBe("agent_paused");
   });
 });

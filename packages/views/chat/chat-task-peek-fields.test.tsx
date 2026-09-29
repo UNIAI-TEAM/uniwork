@@ -21,7 +21,7 @@ vi.mock("@uniwork/core/workspaces", () => ({
 
 vi.mock("@uniwork/core/agents", () => ({
   useWorkspaceAgents: () => ({
-    data: [{ id: "a1", name: "Trợ lý", avatar_url: undefined }],
+    data: [{ id: "a1", name: "Trợ lý", avatar_url: undefined, status: "active" }],
     isLoading: false,
     isError: false,
   }),
