@@ -137,9 +137,22 @@ describe("AppSidebar pinned items", () => {
     serve([pin("b", "task", "t1", 1)]);
     renderSidebar();
     await pinnedList();
-    const toggle = screen.getByRole("button", { name: /^Đã ghim/ });
+    const toggle = screen.getByRole("button", { name: "Đã ghim" });
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     fireEvent.click(toggle);
     await waitFor(() => expect(toggle).toHaveAttribute("aria-expanded", "false"));
+  });
+
+  it("keeps the pins one click away in the icon rail, behind a counted menu", async () => {
+    serve([pin("a", "project", "p1", 1), pin("b", "task", "t1", 2)]);
+    const nav = renderSidebar();
+    await pinnedList();
+    fireEvent.click(screen.getByRole("button", { name: "Đã ghim: 2 mục" }));
+    const project = await screen.findByRole("menuitem", { name: "Ra mắt" });
+    const task = await screen.findByRole("menuitem", { name: "Viết báo cáo" });
+    expect(screen.getAllByRole("menuitem")).toEqual([project, task]);
+    expect(task).toHaveAttribute("href", "/acme/team/tasks/t1");
+    fireEvent.click(task);
+    expect(nav.push).toHaveBeenCalledWith("/acme/team/tasks/t1");
   });
 });

@@ -102,10 +102,37 @@ export function PinSkeleton() {
   );
 }
 
+type PinItem =
+  | { state: "pending" }
+  | { state: "missing"; notFound: boolean }
+  | { state: "ready"; label: string; icon: React.ReactNode };
+
+/** A pinned task's or project's name and icon, from the item's own detail query. */
+export function usePinItem(pin: TaskPin, wsId: string, statuses: StatusCatalog): PinItem {
+  const isTask = pin.item_type === "task";
+  const taskQuery = useTask(isTask ? pin.item_id : "");
+  const projectQuery = useProject(wsId, pin.item_type === "project" ? pin.item_id : "");
+  const query = isTask ? taskQuery : projectQuery;
+  if (query.isPending) return { state: "pending" };
+  const notFound = query.error instanceof ApiError && query.error.status === 404;
+  if (isTask) {
+    const task = taskQuery.data;
+    if (!task) return { state: "missing", notFound };
+    return {
+      state: "ready",
+      label: task.title,
+      icon: <StatusOptionIcon option={statuses.optionOf(task.status)} className="size-3.5! shrink-0" />,
+    };
+  }
+  const project = projectQuery.data;
+  if (!project) return { state: "missing", notFound };
+  return { state: "ready", label: project.title, icon: <ProjectIcon project={project} size="sm" /> };
+}
+
 /**
- * One pinned task or project: its name and icon come from the item's own
- * detail query. An item the server no longer has (404) unpins itself; any
- * other failure only hides the row, so a transient error never drops a pin.
+ * One pinned task or project in the expanded sidebar. An item the server no
+ * longer has (404) unpins itself; any other failure only hides the row, so a
+ * transient error never drops a pin.
  */
 export function PinRow({
   pin,
@@ -124,34 +151,27 @@ export function PinRow({
   onUnpin: () => void;
   onNavigate: () => void;
 }) {
-  const isTask = pin.item_type === "task";
-  const taskQuery = useTask(isTask ? pin.item_id : "");
-  const projectQuery = useProject(wsId, pin.item_type === "project" ? pin.item_id : "");
-  const query = isTask ? taskQuery : projectQuery;
+  const item = usePinItem(pin, wsId, statuses);
+  const notFound = item.state === "missing" && item.notFound;
 
   const unpinned = useRef(false);
   useEffect(() => {
-    if (unpinned.current) return;
-    if (query.error instanceof ApiError && query.error.status === 404) {
-      unpinned.current = true;
-      onUnpin();
-    }
-  }, [query.error, onUnpin]);
+    if (unpinned.current || !notFound) return;
+    unpinned.current = true;
+    onUnpin();
+  }, [notFound, onUnpin]);
 
-  if (query.isPending) return <PinSkeleton />;
-  const shared = { pin, href, active: pathname === href, onUnpin, onNavigate };
-  if (isTask) {
-    const task = taskQuery.data;
-    if (!task) return null;
-    return (
-      <SortablePinItem
-        {...shared}
-        label={task.title}
-        icon={<StatusOptionIcon option={statuses.optionOf(task.status)} className="size-3.5! shrink-0" />}
-      />
-    );
-  }
-  const project = projectQuery.data;
-  if (!project) return null;
-  return <SortablePinItem {...shared} label={project.title} icon={<ProjectIcon project={project} size="sm" />} />;
+  if (item.state === "pending") return <PinSkeleton />;
+  if (item.state === "missing") return null;
+  return (
+    <SortablePinItem
+      pin={pin}
+      href={href}
+      active={pathname === href}
+      label={item.label}
+      icon={item.icon}
+      onUnpin={onUnpin}
+      onNavigate={onNavigate}
+    />
+  );
 }
