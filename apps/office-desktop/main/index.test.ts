@@ -41,4 +41,13 @@ describe("desktop host bootstrap", () => {
     const host = createDesktopHost({ window: { webContents: contents, webPreferences: windowPreferences, loadURL: vi.fn(), setUserDataDirectory: vi.fn() }, sender, engineIpc: ipc });
     expect(host.adapters?.transport.supports?.("open")).toBe(true);
   });
+  it("revokes local handles when the native window closes", () => {
+    const contents = { on: vi.fn(), setWindowOpenHandler: vi.fn() };
+    const revokeSession = vi.fn();
+    const on = vi.fn();
+    createDesktopHost({ window: { webContents: contents, webPreferences: windowPreferences, loadURL: vi.fn(), setUserDataDirectory: vi.fn(), on }, sender, localFiles: { registry: { revokeSession } } as never });
+    const closed = on.mock.calls.find(([event]) => event === "closed")?.[1] as (() => void) | undefined;
+    expect(closed).toBeTypeOf("function"); closed?.();
+    expect(revokeSession).toHaveBeenCalledOnce();
+  });
 });
