@@ -42,6 +42,16 @@ test("fails on a planted browser -> node: import", () => {
   assert.ok(rules(result).includes("browser_isolation"));
 });
 
+test("fails when core office code imports node or electron", () => {
+  const root = plant({
+    "packages/core/office/index.ts":
+      'import { ipcRenderer } from "electron";\nexport const x = ipcRenderer;\n',
+  });
+  const result = checkBoundaries(root);
+  assert.equal(result.ok, false);
+  assert.ok(rules(result).includes("browser_isolation"));
+});
+
 test("fails on a TRANSITIVE browser -> node: import", () => {
   const root = plant({
     "packages/office-engine/src/browser/index.ts":

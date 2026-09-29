@@ -14,7 +14,7 @@ const enc = encodeURIComponent;
 /** The engine operations the job route accepts. export and convert answer a
  *  typed unsupported_operation until an engine lane binds a converter (Q7). */
 export type OfficeOperation = "open" | "serialize" | "export" | "convert";
-export type OfficeFormat = "docx" | "xlsx" | "pptx" | "pdf" | "md" | "html";
+export type OfficeFormat = "docx" | "xlsx" | "pptx" | "pdf" | "md" | "html" | "xls" | "odt";
 
 export interface OfficeCapabilityRow {
   operation: string;
@@ -25,6 +25,7 @@ export interface OfficeCapabilityRow {
   /** The product rule: bound and proven. false means the UI hides the action. */
   supported: boolean;
   reason: string | null;
+  targetFormat: string | null;
 }
 
 export interface OfficeCapabilities {
@@ -41,6 +42,13 @@ export interface OfficeJobError {
   retryable: boolean;
 }
 
+export interface OfficeJobResult {
+  sourceFormat: string;
+  targetFormat: string;
+  fidelity: { level: string; lost: string[] };
+  content: { sheets: string[]; cells: Record<string, string>; paragraphs: string[] };
+}
+
 export interface OfficeJob {
   jobId: string;
   documentId: string;
@@ -52,6 +60,8 @@ export interface OfficeJob {
   outputFileId: string | null;
   outputChecksum: string | null;
   outputLength: number | null;
+  targetFormat: string | null;
+  result: OfficeJobResult | null;
   error: OfficeJobError | null;
   engineName: string;
   engineVersion: string;
@@ -91,6 +101,7 @@ export interface CopyDocumentBody {
   consent: "copy";
   title?: string;
   parent_id?: string;
+  job_id?: string;
 }
 
 const CapabilityRowSchema = z.object({
@@ -100,6 +111,7 @@ const CapabilityRowSchema = z.object({
   engine_bound: z.boolean(),
   supported: z.boolean(),
   reason: z.string().optional(),
+  target_format: z.string().optional().nullable(),
 });
 
 const CapabilitiesSchema = z.object({
@@ -116,6 +128,20 @@ const JobErrorSchema = z.object({
   retryable: z.boolean().optional(),
 });
 
+const JobResultSchema = z.object({
+  source_format: z.string(),
+  target_format: z.string(),
+  fidelity: z.object({
+    level: z.string(),
+    lost: z.array(z.string()).optional().default([]),
+  }),
+  content: z.object({
+    sheets: z.array(z.string()).optional().default([]),
+    cells: z.record(z.string(), z.string()).optional().default({}),
+    paragraphs: z.array(z.string()).optional().default([]),
+  }),
+});
+
 const JobSchema = z.object({
   job_id: z.string(),
   document_id: z.string(),
@@ -127,6 +153,8 @@ const JobSchema = z.object({
   output_file_id: z.string().optional().nullable(),
   output_checksum_sha256: z.string().optional().nullable(),
   output_length: z.number().optional().nullable(),
+  target_format: z.string().optional().nullable(),
+  result: JobResultSchema.optional().nullable(),
   error: JobErrorSchema.optional().nullable(),
   engine_name: z.string().optional(),
   engine_version: z.string().optional(),
@@ -166,6 +194,15 @@ function narrowJob(raw: unknown): OfficeJob | null {
     outputFileId: job.output_file_id ?? null,
     outputChecksum: job.output_checksum_sha256 ?? null,
     outputLength: job.output_length ?? null,
+    targetFormat: job.target_format ?? null,
+    result: job.result
+      ? {
+          sourceFormat: job.result.source_format,
+          targetFormat: job.result.target_format,
+          fidelity: job.result.fidelity,
+          content: job.result.content,
+        }
+      : null,
     error,
     engineName: job.engine_name ?? "",
     engineVersion: job.engine_version ?? "",
@@ -203,6 +240,7 @@ export async function getOfficeCapabilities(
       engineBound: row.engine_bound,
       supported: row.supported,
       reason: row.reason ?? null,
+      targetFormat: row.target_format ?? null,
     })),
   };
 }

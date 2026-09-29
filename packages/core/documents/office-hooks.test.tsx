@@ -6,6 +6,7 @@ import { setAccessToken } from "../api/session";
 import { configureRuntime, resetRuntimeConfig } from "../runtime-config";
 import {
   isLiveOfficeJob,
+  isCompletedOfficeConversion,
   officeKeys,
   useCreateBlankDocumentFile,
   useOfficeCapabilities,
@@ -66,6 +67,8 @@ const narrowJob = (state: OfficeJob["state"]): OfficeJob => ({
   outputFileId: null,
   outputChecksum: null,
   outputLength: null,
+  targetFormat: null,
+  result: null,
   error: null,
   engineName: "genoffice",
   engineVersion: "x",
@@ -116,6 +119,12 @@ describe("office hooks", () => {
     expect(isLiveOfficeJob(result.current.data)).toBe(false);
     expect(isLiveOfficeJob(narrowJob("running"))).toBe(true);
     expect(isLiveOfficeJob(narrowJob("timed_out"))).toBe(false);
+    expect(isCompletedOfficeConversion({ ...narrowJob("completed"), operation: "convert", targetFormat: "xlsx", result: {
+      sourceFormat: "xls",
+      targetFormat: "xlsx",
+      fidelity: { level: "limited", lost: [] },
+      content: { sheets: [], cells: {}, paragraphs: [] },
+    } })).toBe(true);
   });
 
   it("refuses an unverifiable blank create and never writes a fake document", async () => {

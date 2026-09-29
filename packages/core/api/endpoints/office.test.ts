@@ -138,6 +138,30 @@ describe("office endpoints", () => {
     expect(cancelled?.state).toBe("cancelled");
   });
 
+  it("keeps the Q7 target and result change list", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(jobBody({
+        format: "xls",
+        target_format: "xlsx",
+        result: {
+          source_format: "xls",
+          target_format: "xlsx",
+          fidelity: { level: "limited", lost: ["cell_formatting"] },
+          content: { sheets: ["Sheet1"], cells: { "Sheet1!A1": "value" }, paragraphs: [] },
+        },
+      })),
+    );
+    const job = await getOfficeJob("d1", "j1");
+    expect(job).toMatchObject({
+      targetFormat: "xlsx",
+      result: {
+        sourceFormat: "xls",
+        targetFormat: "xlsx",
+        fidelity: { level: "limited", lost: ["cell_formatting"] },
+      },
+    });
+  });
+
   it("createBlankDocumentFile and copyDocument return the created document", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody() }));
     const blank = await createBlankDocumentFile("w1", { format: "md", title: "Ghi chú" }, { idempotencyKey: "k" });
@@ -147,9 +171,17 @@ describe("office endpoints", () => {
     expect(blank?.id).toBe("d2");
 
     vi.mocked(fetch).mockResolvedValueOnce(json({ document: docBody({ id: "d3" }) }));
-    const copy = await copyDocument("d1", { consent: "copy" });
+    const copy = await copyDocument("d1", { consent: "copy", job_id: "j1" });
     expect(String(vi.mocked(fetch).mock.calls[1]![0])).toBe("http://api.test/api/v1/documents/d1/copies");
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[1]![1]?.body))).toEqual({ consent: "copy", job_id: "j1" });
     expect(copy?.id).toBe("d3");
+  });
+
+  it("rejects a malformed conversion result instead of exposing a partial job", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(jobBody({ result: { source_format: "xls", target_format: "xlsx" } })),
+    );
+    await expect(getOfficeJob("d1", "j1")).resolves.toBeNull();
   });
 
   it("every office answer degrades to null on a malformed body", async () => {
