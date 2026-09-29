@@ -7063,6 +7063,53 @@
         "redo": "Redo",
         "presenter": "Presenter",
         "fullscreen": "Fullscreen"
+        }
+      },
+    "pdf": {
+      "title": "PDF document",
+      "toolbar": { "label": "PDF editing commands" },
+      "actions": {
+        "undo": "Undo",
+        "redo": "Redo",
+        "save": "Save to UniWork",
+        "saving": "Saving…",
+        "retryOpen": "Try opening again"
+      },
+      "commands": {
+        "editText": "Edit existing text",
+        "replaceImage": "Replace image",
+        "insertPage": "Insert page",
+        "deletePage": "Delete page",
+        "rotatePage": "Rotate page",
+        "reorderPage": "Reorder page",
+        "extractPage": "Extract page",
+        "mergePages": "Merge pages",
+        "annotations": "Annotations (separate from content editing)"
+      },
+      "selection": { "none": "No page selected", "page": "Page {{page}}" },
+      "capabilityPending": "This PDF capability is not available in this engine build.",
+      "state": { "opening": "Opening PDF…", "error": "Could not open PDF" },
+      "saveState": {
+        "ready": "Ready", "dirty": "Unsaved changes", "saving": "Saving…", "saved": "Saved to UniWork",
+        "error": "Save needs attention", "conflict": "Version conflict", "blocked": "Save blocked",
+        "readonly": "Read-only", "incompatible": "Editing unavailable"
+      },
+      "surface": { "ready": "PDF canvas is ready for the host renderer.", "page": "Showing page {{page}} of {{count}}" },
+      "pages": {
+        "label": "PDF pages", "title": "Pages", "page": "Page {{page}}", "moveUp": "Move up", "extract": "Extract", "empty": "No pages reported by the adapter."
+      },
+      "edit": {
+        "textLabel": "Replacement text", "textPlaceholder": "Enter replacement text", "applyText": "Apply text",
+        "imageLabel": "Provider asset id", "imagePlaceholder": "Enter provider asset id", "applyImage": "Replace image"
+      },
+      "fonts": { "missing": "Missing embedded font face: {{fonts}}. The engine did not silently substitute it." },
+      "errors": {
+        "title": "This PDF could not be opened", "unknown": "The PDF adapter returned an unknown open failure.",
+        "corrupted": "The PDF is corrupt or incomplete.", "password_cancelled": "The password prompt was cancelled.",
+        "password_required": "A password is required to open this PDF.", "wrong_password": "The password did not unlock this PDF.",
+        "unsupported_feature": "This PDF feature is not supported by the current engine.", "not_office_file": "The selected file is not a PDF document.",
+        "engine_error": "The PDF engine could not open this document.", "io_error": "The PDF could not be read from storage.",
+        "too_large": "This PDF is too large to open here.", "capabilityUnavailable": "PDF editing is not available for this engine build.", "editFailed": "The PDF edit could not be applied. Try again."
       }
     }
   }
