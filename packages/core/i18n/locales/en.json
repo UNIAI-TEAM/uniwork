@@ -4402,7 +4402,7 @@
       "view_table": "Table",
       "view_cards": "Cards",
       "row_menu": "Project actions",
-      "open": "Open",
+      "open_in_new_tab": "Open in new tab",
       "pin": "Pin to sidebar",
       "unpin": "Unpin",
       "delete": "Delete",
@@ -4459,10 +4459,12 @@
     },
     "create_dialog": {
       "title": "New project",
-      "description": "Give the project a short title. You can edit details after creating it.",
+      "description": "Set the icon, title, description and properties of the new project.",
       "title_placeholder": "Project title",
-      "confirm": "Create",
-      "cancel": "Cancel"
+      "icon_label": "Choose icon",
+      "confirm": "Create project",
+      "toast_created": "Project created",
+      "toast_failed": "Couldn't create the project"
     },
     "toolbar": {
       "result_count_title": "Matching projects / all projects",
@@ -4471,6 +4473,7 @@
       "clear_filters": "Clear filters",
       "section_status": "Status",
       "section_priority": "Priority",
+      "section_lead": "Lead",
       "display": "Display",
       "sort_by": "Sort by",
       "direction_asc": "Ascending",

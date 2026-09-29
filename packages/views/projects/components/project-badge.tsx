@@ -20,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { cn } from "@uniwork/ui/lib/utils";
+import { PriorityIcon } from "../../tasks/icons/priority-icon";
 
 function asStatus(value: string): ProjectStatus {
   return (PROJECT_STATUS_ORDER as string[]).includes(value)
@@ -106,6 +107,7 @@ export function ProjectPriorityBadge({
           />
         }
       >
+        <PriorityIcon priority={priority} />
         <span className={cn("text-caption", cfg.color)}>
           {t(`projects.priority.${priority}`)}
         </span>
@@ -113,9 +115,8 @@ export function ProjectPriorityBadge({
       <DropdownMenuContent align={align} className="w-44">
         {PROJECT_PRIORITY_ORDER.map((p) => (
           <DropdownMenuItem key={p} onClick={() => onUpdate({ priority: p })}>
-            <span className={cn("text-caption", PROJECT_PRIORITY_CONFIG[p].color)}>
-              {t(`projects.priority.${p}`)}
-            </span>
+            <PriorityIcon priority={p} />
+            <span>{t(`projects.priority.${p}`)}</span>
             {p === priority ? <Check className="ml-auto size-3.5" /> : null}
           </DropdownMenuItem>
         ))}

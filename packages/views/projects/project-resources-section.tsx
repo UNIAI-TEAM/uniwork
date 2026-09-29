@@ -169,7 +169,7 @@ function ResourceRow({
               cancel();
             }
           }}
-          className="min-w-0 flex-1 rounded-sm border bg-transparent px-1 py-0.5 text-caption outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          className="min-w-0 flex-1 rounded-sm border border-input bg-transparent px-1 py-0.5 text-caption outline-none focus-visible:ring-1 focus-visible:ring-ring"
           aria-label={t("projects.resources.rename_label")}
         />
       ) : (

@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import { ChevronRight, UserMinus } from "lucide-react";
+import { useCallback, useState } from "react";
+import { ChevronRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { usePutProject } from "@uniwork/core/tasks";
 import type {
@@ -9,19 +9,13 @@ import type {
   ProjectPriority,
   ProjectStatus,
 } from "@uniwork/core/types/project";
-import { useMembers } from "@uniwork/core/workspaces";
-import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@uniwork/ui/components/ui/popover";
 import { DateField } from "../common/date-field";
+import { useWorkspaceAssigneeOptions } from "../tasks/pickers/member-options";
 import {
   ProjectPriorityBadge,
   ProjectStatusBadge,
 } from "./components/project-badge";
-import { resolveProjectLeadName } from "./project-row-metrics";
+import { ProjectLeadPicker } from "./components/project-lead-picker";
 
 function PropRow({
   label,
@@ -54,20 +48,8 @@ export function ProjectProperties({
 }) {
   const { t } = useTranslation();
   const putProject = usePutProject(workspaceId);
-  const { data: members } = useMembers(workspaceId);
+  const { options: leadOptions } = useWorkspaceAssigneeOptions(workspaceId);
   const [open, setOpen] = useState(true);
-  const [leadOpen, setLeadOpen] = useState(false);
-  const [leadFilter, setLeadFilter] = useState("");
-
-  const memberNames = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const m of members ?? []) {
-      map.set(m.user_id, m.display_name || m.email);
-    }
-    return map;
-  }, [members]);
-
-  const leadName = resolveProjectLeadName(project, memberNames);
 
   const save = useCallback(
     (patch: {
@@ -86,13 +68,6 @@ export function ProjectProperties({
     },
     [project.id, project.revision, putProject],
   );
-
-  const filteredMembers = (members ?? []).filter((m) => {
-    const q = leadFilter.trim().toLowerCase();
-    if (!q) return true;
-    const name = (m.display_name || m.email).toLowerCase();
-    return name.includes(q) || m.email.toLowerCase().includes(q);
-  });
 
   return (
     <div>
@@ -128,84 +103,17 @@ export function ProjectProperties({
             />
           </PropRow>
           <PropRow label={t("projects.table.lead")}>
-            <Popover
-              open={leadOpen}
-              onOpenChange={(v) => {
-                setLeadOpen(v);
-                if (!v) setLeadFilter("");
-              }}
-            >
-              <PopoverTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-auto px-1.5 py-0.5 text-caption font-normal"
-                  />
-                }
-              >
-                {leadName ? (
-                  <span>{leadName}</span>
-                ) : (
-                  <span className="text-muted-foreground">
-                    {t("projects.lead.no_lead")}
-                  </span>
-                )}
-              </PopoverTrigger>
-              <PopoverContent align="start" className="w-52 p-0">
-                <div className="border-b px-2 py-1.5">
-                  <input
-                    type="text"
-                    value={leadFilter}
-                    onChange={(e) => setLeadFilter(e.target.value)}
-                    placeholder={t("projects.lead.assign_placeholder")}
-                    className="w-full bg-transparent text-body outline-none placeholder:text-muted-foreground"
-                    aria-label={t("projects.lead.assign_placeholder")}
-                  />
-                </div>
-                <div className="max-h-60 overflow-y-auto p-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      save({ lead_type: null, lead_id: null });
-                      setLeadOpen(false);
-                    }}
-                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-body hover:bg-accent"
-                  >
-                    <UserMinus
-                      className="size-3.5 text-muted-foreground"
-                      aria-hidden
-                    />
-                    <span className="text-muted-foreground">
-                      {t("projects.lead.no_lead")}
-                    </span>
-                  </button>
-                  {filteredMembers.map((m) => (
-                    <button
-                      type="button"
-                      key={m.user_id}
-                      onClick={() => {
-                        save({ lead_type: "member", lead_id: m.user_id });
-                        setLeadOpen(false);
-                      }}
-                      className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-body hover:bg-accent"
-                    >
-                      <span>{m.display_name || m.email}</span>
-                    </button>
-                  ))}
-                  {filteredMembers.length === 0 && leadFilter ? (
-                    <div className="px-2 py-3 text-center text-body text-muted-foreground">
-                      {t("projects.lead.no_results")}
-                    </div>
-                  ) : null}
-                </div>
-              </PopoverContent>
-            </Popover>
+            <ProjectLeadPicker
+              project={project}
+              options={leadOptions}
+              onChange={save}
+              labelClassName="text-foreground"
+            />
           </PropRow>
           <PropRow label={t("projects.detail.prop_start_date")}>
             <DateField
               value={project.start_date ?? ""}
+              max={project.due_date ?? undefined}
               onChange={(value) =>
                 save({ start_date: value === "" ? null : value })
               }
@@ -214,6 +122,7 @@ export function ProjectProperties({
           <PropRow label={t("projects.detail.prop_due_date")}>
             <DateField
               value={project.due_date ?? ""}
+              min={project.start_date ?? undefined}
               onChange={(value) =>
                 save({ due_date: value === "" ? null : value })
               }

@@ -7,11 +7,19 @@ import type { Project } from "@uniwork/core/types/project";
 import { LIST_GRID_BOTTOM_CLEARANCE } from "@uniwork/ui/components/ui/list-grid";
 import { cn } from "@uniwork/ui/lib/utils";
 import { PAGE_GUTTER } from "../layout/page-header";
+import { resolveClickIntent } from "../navigation";
+import type { AssigneeOption } from "../tasks/pickers/assignee-picker";
 import { ProjectIcon } from "./components/project-icon";
 import { ProjectStatusBadge, ProjectPriorityBadge } from "./components/project-badge";
+import { ProjectLeadPicker } from "./components/project-lead-picker";
 import { ProjectProgressRing } from "./components/project-progress";
 import { ProjectRowActions } from "./components/project-row-actions";
-import { formatRelativeDate, getProjectTaskMetrics } from "./project-row-metrics";
+import {
+  formatRelativeDate,
+  getProjectTaskMetrics,
+  type OpenProject,
+  type ProjectRowPatch,
+} from "./project-row-metrics";
 
 function ProjectCard({
   workspaceId,
@@ -20,20 +28,20 @@ function ProjectCard({
   canDelete,
   onOpenProject,
   locale,
-  resolveLeadName,
+  leadOptions,
 }: {
   workspaceId: string;
   project: Project;
   pinned: boolean;
   canDelete: boolean;
-  onOpenProject: (projectId: string) => void;
+  onOpenProject: OpenProject;
   locale: string;
-  resolveLeadName: (project: Project) => string | null;
+  leadOptions: AssigneeOption[];
 }) {
   const { t } = useTranslation();
   const putProject = usePutProject(workspaceId);
   const handleUpdate = useCallback(
-    (patch: { status?: string; priority?: string }) =>
+    (patch: ProjectRowPatch) =>
       putProject.mutate({
         projectId: project.id,
         body: { ...patch, revision: project.revision },
@@ -50,7 +58,10 @@ function ProjectCard({
           <button
             type="button"
             className="flex min-w-0 flex-1 items-center gap-2 text-left"
-            onClick={() => onOpenProject(project.id)}
+            onClick={(e) => onOpenProject(project.id, resolveClickIntent(e))}
+            onAuxClick={(e) => {
+              if (e.button === 1) onOpenProject(project.id, "background-tab");
+            }}
           >
             <ProjectIcon project={project} size="sm" />
             <h3 className="truncate text-body font-medium">{project.title}</h3>
@@ -64,7 +75,7 @@ function ProjectCard({
           />
           <ProjectStatusBadge
             project={project}
-            onUpdate={(p) => handleUpdate(p)}
+            onUpdate={handleUpdate}
             triggerClassName="shrink-0"
           />
         </div>
@@ -80,14 +91,18 @@ function ProjectCard({
         )}
       </div>
 
-      <div className="mt-0 flex items-center justify-between border-t px-3 pb-3 pt-2">
-        <span className="max-w-[80px] truncate text-caption text-muted-foreground">
-          {resolveLeadName(project) ?? t("projects.lead.no_lead")}
-        </span>
-        <div className="flex items-center gap-2">
+      <div className="mt-0 flex items-center justify-between gap-2 border-t border-border px-3 pb-3 pt-2">
+        <ProjectLeadPicker
+          project={project}
+          options={leadOptions}
+          onChange={handleUpdate}
+          triggerClassName="-mx-1"
+          labelClassName="max-w-[96px]"
+        />
+        <div className="flex shrink-0 items-center gap-2">
           <ProjectPriorityBadge
             project={project}
-            onUpdate={(p) => handleUpdate(p)}
+            onUpdate={handleUpdate}
             align="start"
           />
           <span className="text-caption text-muted-foreground">
@@ -106,15 +121,15 @@ export function ProjectsListGrid({
   canDelete,
   onOpenProject,
   locale,
-  resolveLeadName,
+  leadOptions,
 }: {
   workspaceId: string;
   projects: Project[];
   pinnedIds: Set<string>;
   canDelete: boolean;
-  onOpenProject: (projectId: string) => void;
+  onOpenProject: OpenProject;
   locale: string;
-  resolveLeadName: (project: Project) => string | null;
+  leadOptions: AssigneeOption[];
 }) {
   return (
     <div className={cn("min-h-0 flex-1 overflow-y-auto pt-4", PAGE_GUTTER)}>
@@ -131,7 +146,7 @@ export function ProjectsListGrid({
             canDelete={canDelete}
             onOpenProject={onOpenProject}
             locale={locale}
-            resolveLeadName={resolveLeadName}
+            leadOptions={leadOptions}
           />
         ))}
       </div>

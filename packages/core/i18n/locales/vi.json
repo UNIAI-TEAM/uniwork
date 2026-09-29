@@ -4397,7 +4397,7 @@
       "view_table": "Bảng",
       "view_cards": "Thẻ",
       "row_menu": "Thao tác dự án",
-      "open": "Mở",
+      "open_in_new_tab": "Mở trong tab mới",
       "pin": "Ghim vào sidebar",
       "unpin": "Bỏ ghim",
       "delete": "Xóa",
@@ -4454,10 +4454,12 @@
     },
     "create_dialog": {
       "title": "Dự án mới",
-      "description": "Đặt tiêu đề ngắn. Bạn có thể chỉnh chi tiết sau khi tạo.",
+      "description": "Đặt biểu tượng, tiêu đề, mô tả và thuộc tính cho dự án mới.",
       "title_placeholder": "Tiêu đề dự án",
-      "confirm": "Tạo",
-      "cancel": "Hủy"
+      "icon_label": "Chọn biểu tượng",
+      "confirm": "Tạo dự án",
+      "toast_created": "Đã tạo dự án",
+      "toast_failed": "Không tạo được dự án"
     },
     "toolbar": {
       "result_count_title": "Dự án khớp / tất cả dự án",
@@ -4466,6 +4468,7 @@
       "clear_filters": "Xóa bộ lọc",
       "section_status": "Trạng thái",
       "section_priority": "Độ ưu tiên",
+      "section_lead": "Phụ trách",
       "display": "Hiển thị",
       "sort_by": "Sắp xếp theo",
       "direction_asc": "Tăng dần",
