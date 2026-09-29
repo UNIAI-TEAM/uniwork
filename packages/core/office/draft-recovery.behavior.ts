@@ -158,6 +158,24 @@ export async function runDraftRecoveryAdapterBehaviorSuite(
     liveAccess: "edit",
   });
   assert(conflict.status === "conflict", "revision or version drift returns conflict");
+
+  // Revision and version are an inseparable base pair. Check each half on its
+  // own so an adapter cannot accidentally compare only whichever field is
+  // most convenient for its host storage format.
+  const revisionOnlyDrift = await adapter.recover({
+    session: sessions.accountAAfterRestart,
+    lookup: identityLookup(identityA),
+    currentBase: { revision: "r-drift", version: baseA.version },
+    liveAccess: "edit",
+  });
+  assert(revisionOnlyDrift.status === "conflict", "revision-only drift returns conflict");
+  const versionOnlyDrift = await adapter.recover({
+    session: sessions.accountAAfterRestart,
+    lookup: identityLookup(identityA),
+    currentBase: { revision: baseA.revision, version: "v-drift" },
+    liveAccess: "edit",
+  });
+  assert(versionOnlyDrift.status === "conflict", "version-only drift returns conflict");
   passed.push("base drift returns conflict and keeps the draft");
 
   await expectStored(adapter, sessions.accountAAfterRestart, snapshotB);
