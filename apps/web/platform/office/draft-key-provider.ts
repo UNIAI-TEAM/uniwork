@@ -274,6 +274,7 @@ function loadOrCreateWrappingKey(databaseName: string): Promise<CryptoKey> {
         const store = transaction.objectStore(KEY_STORE);
         const read = store.get(WRAPPING_KEY_ID);
         let settled = false;
+        let durableKey: CryptoKey | undefined;
         const finish = (key: CryptoKey) => {
           if (settled) return;
           settled = true;
@@ -288,15 +289,20 @@ function loadOrCreateWrappingKey(databaseName: string): Promise<CryptoKey> {
         };
         transaction.onerror = () => fail("could not persist the draft wrapping key");
         transaction.onabort = () => fail("could not persist the draft wrapping key");
+        transaction.oncomplete = () => {
+          if (durableKey) finish(durableKey);
+        };
         read.onerror = () => fail("could not read the draft wrapping key");
         read.onsuccess = () => {
           if (read.result) {
-            finish(read.result as CryptoKey);
+            durableKey = read.result as CryptoKey;
             return;
           }
           const write = store.put(generated, WRAPPING_KEY_ID);
           write.onerror = () => fail("could not persist the draft wrapping key");
-          write.onsuccess = () => finish(generated as CryptoKey);
+          write.onsuccess = () => {
+            durableKey = generated as CryptoKey;
+          };
         };
       }).catch(() => {
         db.close();

@@ -41,6 +41,7 @@ class ConcurrentKeyTransaction {
 
   onerror: (() => void) | undefined;
   onabort: (() => void) | undefined;
+  oncomplete: (() => void) | undefined;
 
   constructor(private readonly database: ConcurrentKeyDatabase, mode: "readonly" | "readwrite") {
     if (mode === "readwrite") {
@@ -96,6 +97,7 @@ class ConcurrentKeyTransaction {
     const release = this.release;
     this.release = undefined;
     release?.();
+    this.oncomplete?.();
   }
 }
 
