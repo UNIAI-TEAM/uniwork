@@ -543,6 +543,44 @@ func (q *Queries) DisconnectEmailHubAccount(ctx context.Context, arg DisconnectE
 	return err
 }
 
+const emailHubAccountSidebarCounts = `-- name: EmailHubAccountSidebarCounts :one
+SELECT
+  (
+    SELECT count(*) FILTER (WHERE NOT t.is_read)::bigint
+    FROM email_hub_threads t
+    WHERE t.account_id = $1
+      AND t.organization_id = $2
+      AND t.folder = 'INBOX'
+      AND (t.snoozed_until IS NULL OR t.snoozed_until <= now())
+  ) AS inbox_unread,
+  (
+    SELECT count(*)::bigint
+    FROM email_hub_threads t
+    WHERE t.account_id = $1
+      AND t.organization_id = $2
+      AND t.folder = 'INBOX'
+      AND t.snoozed_until IS NOT NULL
+      AND t.snoozed_until > now()
+  ) AS snoozed_total
+`
+
+type EmailHubAccountSidebarCountsParams struct {
+	AccountID      string `json:"account_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+type EmailHubAccountSidebarCountsRow struct {
+	InboxUnread  int64 `json:"inbox_unread"`
+	SnoozedTotal int64 `json:"snoozed_total"`
+}
+
+func (q *Queries) EmailHubAccountSidebarCounts(ctx context.Context, arg EmailHubAccountSidebarCountsParams) (EmailHubAccountSidebarCountsRow, error) {
+	row := q.db.QueryRow(ctx, emailHubAccountSidebarCounts, arg.AccountID, arg.OrganizationID)
+	var i EmailHubAccountSidebarCountsRow
+	err := row.Scan(&i.InboxUnread, &i.SnoozedTotal)
+	return i, err
+}
+
 const expireEmailHubThreadBodiesBefore = `-- name: ExpireEmailHubThreadBodiesBefore :many
 UPDATE email_hub_threads
 SET body_text = NULL,

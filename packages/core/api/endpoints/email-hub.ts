@@ -3,6 +3,7 @@ import {
   EmailHubAccountListSchema,
   EmailHubAccountSchema,
   EmailHubSyncSchema,
+  EmailHubSidebarCountsSchema,
   EmailHubUnreadSchema,
   EmailHubConversationSchema,
   EmailHubThreadListSchema,
@@ -31,11 +32,20 @@ const EMPTY_WATCH: EmailHubWatch = { changed: false, synced: false, at: "" };
 const EMPTY_INBOX_WATCH: EmailHubInboxWatch = { subscribed: false };
 const EMPTY_SYNC: EmailHubSync = { synced: false };
 const EMPTY_UNREAD = { unread: 0 };
+const EMPTY_SIDEBAR_COUNTS = { inbox_unread: 0, snoozed_total: 0 };
 
 export async function getEmailHubUnreadCount(workspaceId: string) {
   const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/email-hub/unread-count`);
   return parseWithFallback(raw, EmailHubUnreadSchema, EMPTY_UNREAD, {
     endpoint: "GET /api/v1/workspaces/{ws}/email-hub/unread-count",
+  });
+}
+
+export async function getEmailHubSidebarCounts(workspaceId: string, accountId: string) {
+  const q = new URLSearchParams({ account_id: accountId });
+  const raw = await request(`/api/v1/workspaces/${enc(workspaceId)}/email-hub/sidebar-counts?${q}`);
+  return parseWithFallback(raw, EmailHubSidebarCountsSchema, EMPTY_SIDEBAR_COUNTS, {
+    endpoint: "GET /api/v1/workspaces/{ws}/email-hub/sidebar-counts",
   });
 }
 
