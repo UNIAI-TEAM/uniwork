@@ -6,7 +6,6 @@ export type MarkdownOpenOutcome = TextOpenSuccess | (TextOpenFailure & { format:
 export type MarkdownCapability = TextCapability & { format: "md" };
 export type MarkdownSaveCoordinator = TextSaveCoordinator;
 export type MarkdownOpenPort = import("../source-editor-types").TextOpenPort;
-export type MarkdownOpenPort = import("../source-editor-types").TextOpenPort;
 
 export interface MarkdownEditorProps<TSnapshot = unknown> {
   documentKey: string;

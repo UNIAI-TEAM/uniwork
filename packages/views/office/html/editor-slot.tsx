@@ -45,7 +45,9 @@ export function createHtmlEditorLoader(config: HtmlEditorSlotConfig): OfficeEdit
             assetFailures={config.assetFailures}
             permissions={config.permissions}
             title={config.title ?? "HTML"}
-            onOpen={config.onOpen}
+            onOpen={config.onOpen ? (outcome) => {
+              if (outcome.outcome === "opened" || outcome.format === "html") config.onOpen?.(outcome as HtmlOpenOutcome);
+            } : undefined}
           />
         );
       },

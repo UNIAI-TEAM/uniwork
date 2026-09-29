@@ -45,7 +45,9 @@ export function createMarkdownEditorLoader(config: MarkdownEditorSlotConfig): Of
             assetFailures={config.assetFailures}
             permissions={config.permissions}
             title={config.title ?? "Markdown"}
-            onOpen={config.onOpen}
+            onOpen={config.onOpen ? (outcome) => {
+              if (outcome.outcome === "opened" || outcome.format === "md") config.onOpen?.(outcome as MarkdownOpenOutcome);
+            } : undefined}
           />
         );
       },

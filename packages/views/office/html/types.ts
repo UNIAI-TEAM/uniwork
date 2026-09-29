@@ -6,7 +6,6 @@ export type HtmlOpenOutcome = TextOpenSuccess | (TextOpenFailure & { format: "ht
 export type HtmlCapability = TextCapability & { format: "html" };
 export type HtmlSaveCoordinator = TextSaveCoordinator;
 export type HtmlOpenPort = import("../source-editor-types").TextOpenPort;
-export type HtmlOpenPort = import("../source-editor-types").TextOpenPort;
 
 export interface HtmlEditorProps<TSnapshot = unknown> {
   documentKey: string;
