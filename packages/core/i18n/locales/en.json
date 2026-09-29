@@ -2325,7 +2325,7 @@
     "revokeLinkHint": "Anyone holding this link will no longer be able to join.",
     "revokeLinkConfirm": "Revoke link",
     "removeFromCallTitle": "Remove {{name}} from the meeting?",
-    "removeFromCallHint": "They leave the room now and can only rejoin if invited again.",
+    "removeFromCallHint": "They leave the room now and cannot rejoin this meeting.",
     "regenerateSummaryTitle": "Regenerate the summary?",
     "regenerateSummaryHint": "The current summary is replaced by a new one built from the transcript.",
     "regenerateSummaryConfirm": "Regenerate",
