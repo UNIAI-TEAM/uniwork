@@ -2,14 +2,16 @@
 
 import { useTranslation } from "react-i18next";
 import type { Agent, Member } from "@uniwork/core/types";
+import { shortDateFormat } from "../../../common/date-pill";
+import { PropRow } from "../../../common/prop-row";
+import { SidebarSection } from "../../../common/sidebar-section";
 import { TaskActorAvatar } from "./task-actor-avatar";
 
-function formatDate(value: string | undefined): string {
+function formatDate(value: string | undefined, locale: string): string {
   if (!value) return "—";
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString(locale, shortDateFormat(String(date.getFullYear())));
 }
 
 export function TaskDetailMetadata({
@@ -27,7 +29,7 @@ export function TaskDetailMetadata({
   createdAt?: string;
   updatedAt?: string;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const creator =
     creatorKind === "agent"
       ? agents?.find((agent) => agent.id === creatorId)
@@ -40,32 +42,19 @@ export function TaskDetailMetadata({
     creator && typeof creator.avatar_url === "string" ? creator.avatar_url : undefined;
 
   return (
-    <section className="mt-5 border-t border-border pt-4">
-      <h2 className="mb-2 text-caption font-medium text-muted-foreground">
-        {t("tasks.detail.section_details")}
-      </h2>
-      <dl className="space-y-2 text-caption">
-        <div className="grid grid-cols-[7rem_1fr] items-center gap-2">
-          <dt className="text-muted-foreground">{t("tasks.detail.creator")}</dt>
-          <dd className="flex min-w-0 items-center gap-2 text-foreground">
-            <TaskActorAvatar
-              name={creatorName}
-              avatarUrl={creatorAvatarUrl}
-              kind={creatorKind}
-            />
-            <span className="truncate">{creatorName}</span>
-          </dd>
-        </div>
-        {[
-          [t("tasks.detail.created_at"), formatDate(createdAt)],
-          [t("tasks.detail.updated_at"), formatDate(updatedAt)],
-        ].map(([label, value]) => (
-          <div key={label} className="grid grid-cols-[7rem_1fr] gap-2">
-            <dt className="text-muted-foreground">{label}</dt>
-            <dd className="truncate text-foreground">{value}</dd>
-          </div>
-        ))}
-      </dl>
-    </section>
+    <SidebarSection title={t("tasks.detail.section_details")}>
+      <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 pl-2">
+        <PropRow label={t("tasks.detail.creator")} interactive={false}>
+          <TaskActorAvatar name={creatorName} avatarUrl={creatorAvatarUrl} kind={creatorKind} />
+          <span className="truncate">{creatorName}</span>
+        </PropRow>
+        <PropRow label={t("tasks.detail.created_at")} interactive={false}>
+          <span className="truncate">{formatDate(createdAt, i18n.language)}</span>
+        </PropRow>
+        <PropRow label={t("tasks.detail.updated_at")} interactive={false}>
+          <span className="truncate">{formatDate(updatedAt, i18n.language)}</span>
+        </PropRow>
+      </div>
+    </SidebarSection>
   );
 }

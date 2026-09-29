@@ -3,6 +3,7 @@
 import type { ComponentType, ReactNode } from "react";
 import {
   CircleDot,
+  CornerLeftUp,
   ExternalLink,
   Link2,
   SignalHigh,
@@ -151,11 +152,14 @@ export function RowActionItems({
   parts: P,
   model,
   onOpenAssignee,
+  onOpenParent,
 }: {
   parts: MenuParts;
   model: RowActionModel;
   /** Opens the shared assignee picker after this menu closes. */
   onOpenAssignee: () => void;
+  /** Opens a parent-task picker after this menu closes; omitted, no item. */
+  onOpenParent?: () => void;
 }) {
   const { t } = useTranslation();
   const { task, update } = model;
@@ -212,6 +216,12 @@ export function RowActionItems({
             <UserRound aria-hidden />
             {t("tasks.row_actions.change_assignee")}
           </P.Item>
+          {onOpenParent ? (
+            <P.Item onClick={onOpenParent}>
+              <CornerLeftUp aria-hidden />
+              {t("tasks.row_actions.set_parent")}
+            </P.Item>
+          ) : null}
         </>
       ) : null}
       {model.requestDelete ? (
