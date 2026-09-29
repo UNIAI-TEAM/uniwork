@@ -97,7 +97,9 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   const recalcAbortRef = useRef<AbortController | null>(null);
   const sheetTabsRef = useRef<HTMLDivElement>(null);
   const translationRef = useRef(t);
+  const sessionPropsRef = useRef({ editor, open, coordinator, capability, onOpen });
   translationRef.current = t;
+  sessionPropsRef.current = { editor, open, coordinator, capability, onOpen };
 
   const readOnly = permissions.canEdit === false || (capability !== undefined && capability.status !== "available");
   const effectiveTitle = title ?? t("office.xlsx.title");
@@ -133,6 +135,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   }, [documentKey, editor, onSelectionChange]);
 
   useEffect(() => {
+    const session = sessionPropsRef.current;
     disposedRef.current = false;
 
     const run = async () => {
@@ -145,32 +148,32 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
       setRecalcError(null);
       setRecalcFresh(false);
 
-      if (capability !== undefined && capability.status !== "available") {
+      if (session.capability !== undefined && session.capability.status !== "available") {
         const blocked: XlsxOpenFailure = {
           outcome: "failed",
           document_id: documentKey,
           format: "xlsx",
           failure_class: "unsupported_feature",
-          message: capability.reason ?? translationRef.current("office.xlsx.errors.capabilityUnavailable"),
+          message: session.capability.reason ?? translationRef.current("office.xlsx.errors.capabilityUnavailable"),
         };
         setFailure(blocked);
         setViewState("error");
-        onOpen?.(blocked);
+        session.onOpen?.(blocked);
         if (openAbortRef.current === controller) openAbortRef.current = null;
         return;
       }
       try {
-        const outcome = await open.open(controller.signal);
+        const outcome = await session.open.open(controller.signal);
         if (controller.signal.aborted || disposedRef.current) return;
-        onOpen?.(outcome);
+        session.onOpen?.(outcome);
         if (isFailure(outcome)) {
           setFailure(outcome);
           setViewState("error");
           return;
         }
-        await editor.open();
+        await session.editor.open();
         if (controller.signal.aborted || disposedRef.current) return;
-        const openedSnapshot = snapshotForEditor(editor, outcome);
+        const openedSnapshot = snapshotForEditor(session.editor, outcome);
         setSnapshot(openedSnapshot);
         setActiveSheet(openedSnapshot?.sheets[0]?.name ?? null);
         setViewState("ready");
@@ -179,7 +182,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
         const next = unexpectedFailure(documentKey, error);
         setFailure(next);
         setViewState("error");
-        onOpen?.(next);
+        session.onOpen?.(next);
       } finally {
         if (openAbortRef.current === controller) openAbortRef.current = null;
       }
@@ -193,9 +196,9 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
       openAbortRef.current = null;
       recalcAbortRef.current?.abort();
       recalcAbortRef.current = null;
-      void editor.cancel?.("document_changed");
-      void coordinator.cancel?.();
-      void editor.dispose();
+      void session.editor.cancel?.("document_changed");
+      void session.coordinator.cancel?.();
+      void session.editor.dispose();
       openAttemptRef.current = null;
     };
   }, [documentKey]);
