@@ -14,3 +14,25 @@ export {
 } from "./editor-slot";
 export { SaveStatus, type OfficeSaveStatusKind, type SaveStatusProps } from "./save-status";
 export * from "./pptx";
+export * from "./markdown";
+export * from "./html";
+export { assetManifestRows, hasFailedAsset, normaliseAssetPath, type AssetManifestEntryLike, type AssetManifestLike, type AssetManifestRow, type AssetStatus } from "./asset-manifest";
+export { SourceEditor, type SourceEditorProps } from "./source-editor";
+export type {
+  IsolatedPreviewPort,
+  PreviewMountOptions,
+  PreviewSession,
+  SourceTextPort,
+  TextCapability,
+  TextEditorHandle,
+  TextOpenFailure,
+  TextOpenOutcome,
+  TextOpenPort,
+  TextOpenSuccess,
+  TextSaveCoordinator,
+} from "./source-editor-types";
+
+/** Format loaders are intentionally thin; the host still supplies open,
+ * coordinator and isolated preview ports through the editor props. */
+export const loadMarkdownEditor = () => import("./markdown").then((module) => ({ default: module.MarkdownEditor }));
+export const loadHtmlEditor = () => import("./html").then((module) => ({ default: module.HtmlEditor }));
