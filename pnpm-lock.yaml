@@ -418,6 +418,12 @@ importers:
       '@tanstack/react-query':
         specifier: 'catalog:'
         version: 5.102.3(react@19.2.3)
+      '@uniwork/office-contracts':
+        specifier: workspace:*
+        version: link:../office-contracts
+      '@uniwork/office-engine':
+        specifier: workspace:*
+        version: link:../office-engine
       i18next:
         specifier: 'catalog:'
         version: 26.4.0(typescript@5.9.3)

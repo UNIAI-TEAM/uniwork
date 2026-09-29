@@ -37,9 +37,11 @@ export const FORBIDDEN_BROWSER_SPECIFIERS = [
  * that itself pulls Node). */
 export const BROWSER_SAFE_PACKAGES = new Set([
   "zod",
+  "zustand",
   "@uniwork/office-contracts",
   "@uniwork/office-engine",
 ]);
+const BROWSER_SAFE_ENGINE_SUBPATHS = new Set(["browser", "markdown", "html", "assets", "xlsx"]);
 
 /** Browser-scope roots, relative to the repo root. Every file under these
  * roots (plus relative-import closure) must stay free of forbidden specifiers. */
@@ -54,6 +56,8 @@ export const BROWSER_SCOPE_ROOTS = [
   // G2-04: the browser-safe half of the xlsx lane. Its native sidecar lives
   // under src/node and stays out of this scope by construction.
   "packages/office-engine/src/xlsx",
+  "packages/core/office",
+  "apps/web/platform/office",
 ];
 
 /** Directories the /ee and licence checks scan. */
@@ -158,6 +162,14 @@ function isForbiddenSpecifier(specifier) {
   return FORBIDDEN_BROWSER_SPECIFIERS.some((re) => re.test(specifier));
 }
 
+function isBrowserSafePackage(specifier) {
+  if (BROWSER_SAFE_PACKAGES.has(specifier)) return true;
+  const prefix = "@uniwork/office-engine/";
+  if (!specifier.startsWith(prefix)) return false;
+  const subpath = specifier.slice(prefix.length);
+  return BROWSER_SAFE_ENGINE_SUBPATHS.has(subpath);
+}
+
 /** A path segment exactly "ee" = the separately licensed upstream enterprise
  * tree. Also catch specifiers that name /ee paths inside the office tree. */
 function hasEnterpriseSegment(relPath) {
@@ -218,7 +230,7 @@ export function checkBoundaries(root, { requireUpstreamLicence = null } = {}) {
           if (resolved.startsWith(root + path.sep)) queue.push(resolved);
           else report("browser_isolation", normalized, `resolves outside the checkout: ${resolved}`);
         }
-      } else if (!BROWSER_SAFE_PACKAGES.has(specifier)) {
+      } else if (!isBrowserSafePackage(specifier)) {
         report("browser_isolation", normalized, `resolves non-browser-safe specifier ${JSON.stringify(specifier)}`);
       }
     }

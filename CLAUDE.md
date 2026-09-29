@@ -36,8 +36,9 @@ Product intent and design principles live in `PRODUCT.md`.
   Zustand stores, realtime sync, permissions, paths, i18n. Five modules no
   host reaches yet, four from the port: `packages/core/analytics/`,
   `packages/core/diagnostics/`, `packages/core/modals/`, and
-  `packages/core/navigation/`, plus `packages/core/office/` (the G3-02
-  draft-recovery contract awaiting its host). The ported four import each
+  `packages/core/navigation/`, plus `packages/core/office/` (the G3 Office
+  host contract, save coordinator and draft-recovery contract, awaiting the
+  G3-03 web host). The ported four import each
   other, not the app (the
   shortcuts module left this list with F-09: ⌘J opens Ask UNI; feature-flags
   with F-11: `GET /api/v1/config` feeds `FeatureFlagsProvider`; inbox, labels,
@@ -46,7 +47,7 @@ Product intent and design principles live in `PRODUCT.md`.
   realtime events invalidate the workspace-scoped document keys). Wire one
   before relying on it;
   `scripts/governance.test.mjs` recomputes the list and fails after
-  2026-09-30 unless it is empty — wire or delete by then.
+  2026-10-31 unless it is empty — wire or delete by then.
 - `packages/ui/` — atomic primitives (shadcn/Base UI registry) and design tokens.
 - `packages/views/` — shared business screens and the navigation adapter.
 - `packages/tsconfig/`, `packages/eslint-config/` — shared config.
