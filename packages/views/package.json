@@ -39,6 +39,8 @@
     "./office/docx": "./office/docx/index.ts",
     "./office/docx/types": "./office/docx/types.ts",
     "./office/docx/*": "./office/docx/*.tsx",
+    "./office": "./office/index.ts",
+    "./office/*": "./office/*.tsx",
     "./search": "./search/index.ts",
     "./navigation": "./navigation/index.ts",
     "./editor": "./editor/index.ts",

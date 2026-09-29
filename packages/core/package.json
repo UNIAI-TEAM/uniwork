@@ -49,6 +49,7 @@
     "./documents/hooks-collections": "./documents/hooks-collections.ts",
     "./documents/hooks-sharing": "./documents/hooks-sharing.ts",
     "./documents/hooks-public": "./documents/hooks-public.ts",
+    "./office/draft-recovery": "./office/draft-recovery.ts",
     "./documents/keys": "./documents/keys.ts",
     "./documents/save-state": "./documents/save-state.ts",
     "./office": "./office/index.ts",

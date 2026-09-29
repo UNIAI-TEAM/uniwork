@@ -36,7 +36,9 @@ Product intent and design principles live in `PRODUCT.md`.
   Zustand stores, realtime sync, permissions, paths, i18n. Four modules no
   host reaches yet: `packages/core/analytics/`,
   `packages/core/diagnostics/`, `packages/core/modals/`, and
-  `packages/core/navigation/`. The ported four import each
+  `packages/core/navigation/`. The G3 Office host contract, save coordinator
+  and draft-recovery contract are consumed by `packages/views/office/`.
+  The ported four import each
   other, not the app (the
   shortcuts module left this list with F-09: ⌘J opens Ask UNI; feature-flags
   with F-11: `GET /api/v1/config` feeds `FeatureFlagsProvider`; inbox, labels,

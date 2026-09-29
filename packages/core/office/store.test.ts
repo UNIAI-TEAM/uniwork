@@ -35,9 +35,12 @@ describe("office session store", () => {
     useOfficeStore.getState().setSaveState("blocked");
     useOfficeStore.getState().setDirtyGeneration(4);
     expect(useOfficeStore.getState()).toMatchObject({ saveState: "blocked", dirtyGeneration: 4 });
-    useOfficeStore.getState().setSaveState("saved");
+    useOfficeStore.getState().setSaveState("error");
     useOfficeStore.getState().setDirtyGeneration(5);
-    expect(useOfficeStore.getState()).toMatchObject({ saveState: "dirty", dirtyGeneration: 5 });
+    expect(useOfficeStore.getState()).toMatchObject({ saveState: "error", dirtyGeneration: 5 });
+    useOfficeStore.getState().setSaveState("saved");
+    useOfficeStore.getState().setDirtyGeneration(6);
+    expect(useOfficeStore.getState()).toMatchObject({ saveState: "dirty", dirtyGeneration: 6 });
   });
 });
 
