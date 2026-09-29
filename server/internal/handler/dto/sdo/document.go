@@ -94,7 +94,7 @@ type DocumentVersionDTO struct {
 	EngineName      *string          `json:"engine_name,omitempty" description:"Engine đã sinh byte (Office); null với page và upload thẳng" example:"genoffice"`
 	EngineVersion   *string          `json:"engine_version,omitempty" example:"genoffice@1.4.2+uniwork-office.3"`
 	ContractVersion *string          `json:"contract_version,omitempty" example:"uniwork-office-engine-contract/1"`
-	ProtocolVersion *string          `json:"protocol_version,omitempty" example:"uniwork-office-protocol/1"`
+	ProtocolVersion *string          `json:"protocol_version,omitempty" description:"Phiên bản protocol engine G2 dạng chuỗi thập phân" example:"1"`
 	DownloadURL     *string          `json:"download_url,omitempty" description:"Route proxy tải blob phiên bản file" example:"/api/v1/documents/01J8X4DOC0N1P2Q3R4S5T6U7/download?version=3"`
 	CreatedBy       string           `json:"created_by" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	CreatedByKind   string           `json:"created_by_kind" description:"human, agent hoặc system" example:"human"`
