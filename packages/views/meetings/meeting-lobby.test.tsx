@@ -334,6 +334,40 @@ describe("MeetingLobby", () => {
     expect(screen.getByRole("button", { name: "Bắt đầu" })).toBeInTheDocument();
   });
 
+  it("says so when starting the meeting failed, and keeps the button to try again", () => {
+    render(
+      wrapWithNav(
+        <MeetingLobby
+          decision="WAITING_FOR_HOST"
+          error={undefined}
+          canStart
+          onStart={() => {}}
+          startError={new ApiError("boom", "internal", 500)}
+          onLeave={() => {}}
+        />,
+      ),
+    );
+    const failure = screen.getByText("Chưa bắt đầu được cuộc họp. Thử lại.");
+    expect(failure.closest("[aria-live]")).toHaveAttribute("aria-live", "assertive");
+    expect(screen.queryByText("boom")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Bắt đầu" })).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("keeps the start button focusable while the meeting is starting", () => {
+    const onStart = vi.fn();
+    render(
+      wrapWithNav(
+        <MeetingLobby decision="WAITING_FOR_HOST" error={undefined} canStart starting onStart={onStart} onLeave={() => {}} />,
+      ),
+    );
+    const button = screen.getByRole("button", { name: "Bắt đầu" });
+    expect(button).not.toBeDisabled();
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toHaveAttribute("aria-busy", "true");
+    fireEvent.click(button);
+    expect(onStart).not.toHaveBeenCalled();
+  });
+
   it("keeps the wait copy when the lobby cannot offer a start button", () => {
     render(wrapWithNav(<MeetingLobby decision="WAITING_FOR_HOST" error={undefined} canStart onLeave={() => {}} />));
     expect(screen.getByRole("heading", { name: "Đang chờ người chủ trì bắt đầu cuộc họp" })).toBeInTheDocument();

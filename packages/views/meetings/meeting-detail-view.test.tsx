@@ -502,6 +502,47 @@ describe("MeetingRoomView", () => {
     expect(screen.getByRole("button", { name: "Bắt đầu" })).toBeInTheDocument();
   });
 
+  it("tells the host when starting the meeting failed", async () => {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/me")) return Promise.resolve({ membership: { user_id: "u-host", role: "member", source: "membership" } });
+      if (p === "/api/v1/meetings/m1") return Promise.resolve({ meeting });
+      if (p.endsWith("/start")) return Promise.reject(new ApiError("boom", "internal", 500));
+      if (p.endsWith("/join")) {
+        return Promise.resolve({ decision: "WAITING_FOR_HOST", reason: "MEETING_NOT_STARTED", meeting_status: "SCHEDULED" });
+      }
+      return Promise.resolve({});
+    });
+    render(shell(<MeetingRoomView meetingId="m1" workspaceId="w1" onLeave={() => {}} />));
+    fireEvent.click(await screen.findByRole("button", { name: "Vào phòng họp" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Bắt đầu" }));
+    expect(await screen.findByText("Chưa bắt đầu được cuộc họp. Thử lại.")).toBeInTheDocument();
+  });
+
+  it("joins again when someone else started the meeting first", async () => {
+    let joins = 0;
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/me")) return Promise.resolve({ membership: { user_id: "u-host", role: "member", source: "membership" } });
+      if (p === "/api/v1/meetings/m1") return Promise.resolve({ meeting });
+      if (p.endsWith("/start")) return Promise.reject(new ApiError("already", "invalid_meeting_state", 409));
+      if (p.endsWith("/join")) {
+        joins += 1;
+        return Promise.resolve(
+          joins === 1
+            ? { decision: "WAITING_FOR_HOST", reason: "MEETING_NOT_STARTED", meeting_status: "SCHEDULED" }
+            : { decision: "ADMIT", participant_token: "tok", server_url: "wss://lk.test" },
+        );
+      }
+      return Promise.resolve({});
+    });
+    render(shell(<MeetingRoomView meetingId="m1" workspaceId="w1" onLeave={() => {}} />));
+    fireEvent.click(await screen.findByRole("button", { name: "Vào phòng họp" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Bắt đầu" }));
+    await screen.findByTestId("livekit-room");
+    expect(screen.queryByText("Chưa bắt đầu được cuộc họp. Thử lại.")).not.toBeInTheDocument();
+  });
+
   it("shows waiting-for-host and does not mount LiveKit when admission does not admit", async () => {
     requestMock.mockResolvedValue({ decision: "WAITING_FOR_HOST", reason: "MEETING_NOT_STARTED", meeting_status: "SCHEDULED" });
     render(shell(<MeetingRoomView meetingId="m1" onLeave={() => {}} />));

@@ -176,6 +176,7 @@ export function MeetingLobby({
   canStart,
   starting,
   onStart,
+  startError,
   onLeave,
 }: {
   title?: string;
@@ -194,6 +195,8 @@ export function MeetingLobby({
   canStart?: boolean;
   starting?: boolean;
   onStart?: () => void;
+  /** The last start attempt failed; the button stays so the host can try again. */
+  startError?: unknown;
   onLeave: () => void;
 }) {
   const { t } = useTranslation();
@@ -208,6 +211,12 @@ export function MeetingLobby({
   const starter = Boolean(canStart && onStart && !guestMode);
   const showStart = starter && waitingForHost && !error;
   const message = lobbyMessage(t, decision, error, { guestMode, canStart: starter });
+  // Server text for a failed start is not localised and names nothing the
+  // host can act on; the one thing to do is press Start again.
+  const startFailed = showStart && Boolean(startError);
+  const description = startFailed
+    ? t("meetings.startFailed")
+    : lobbyHint(t, decision, error, { guestMode, canStart: starter, meetingStatus });
 
   // A member's way out of the room lands on the meeting page; after the end
   // that is where the notes are, so the button says so.
@@ -232,14 +241,16 @@ export function MeetingLobby({
       icon={gate.icon}
       tone={gate.tone}
       title={message}
-      description={lobbyHint(t, decision, error, { guestMode, canStart: starter, meetingStatus })}
+      description={description}
       busy={isWaitingScreen && !showStart}
       meetingTitle={title}
-      alert={gate.tone === "destructive"}
+      alert={gate.tone === "destructive" || startFailed}
       actions={
         <>
           {showStart ? (
-            <Button type="button" disabled={starting} aria-busy={starting || undefined} onClick={onStart}>
+            // aria-disabled, not disabled: the host pressed this button, and
+            // `disabled` would drop their focus to the page body.
+            <Button type="button" aria-disabled={starting || undefined} aria-busy={starting || undefined} onClick={onStart}>
               {starting ? <Spinner className="size-4 motion-reduce:animate-none" /> : null}
               {t("meetings.start")}
             </Button>
