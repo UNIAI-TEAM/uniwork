@@ -1,14 +1,16 @@
 # Office Launch Bridge contract (PROPOSED)
 
-**Revision:** 1.1 (2026-09-29)  
+**Revision:** 1.2 (2026-09-29)  
 **Feature:** `g4-02a-auth-bridge-contract` / G4-05a (UNI-834)  
 **Decision gate:** G4-D4 (with G4-D1 identity values) - **decided 2026-09-29
 12:40 UTC+7** (`decisions/gates-2026-09-29.md`: launch-ticket TTL 120 s
 approved; launch commands audit transactionally with no outbox event;
 `office_launch_sessions` carries `organization_id` and is not tenant-exempt)  
 **Status:** PROPOSED; no route, service, migration or token minting is shipped
-by this document. Remaining open items are listed with the lane's proposal
-under [G4-D4 open questions](#g4-d4-open-questions).
+by this document. Revision 1.2 folds the BE review round-1 findings that touch
+this document (the `device_revoked` exchange answer, the G2-wire descriptor
+fields, the `return_hint` value-set pointer). Remaining open items are listed
+with the lane's proposal under [G4-D4 open questions](#g4-d4-open-questions).
 
 The Bridge opens one selected Document in Office after a user deliberately
 starts the action in the authenticated web app. It hands off a narrow,

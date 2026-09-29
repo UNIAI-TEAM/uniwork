@@ -1,17 +1,20 @@
 # Desktop authentication contract (PROPOSED)
 
-**Revision:** 1.1 (2026-09-29)  
+**Revision:** 1.2 (2026-09-29)  
 **Feature:** `g4-02a-auth-bridge-contract` (UNI-831)  
 **Decision gate:** G4-D4 - **decided 2026-09-29 12:40 UTC+7** (`decisions/gates-2026-09-29.md`: UNI-831 proposal approved, audit transactional)  
 **Status:** PROPOSED; this document is a design input, not a statement that the
-endpoints or migrations exist. Revision 1.1 applies the G4-D4 decision: PKCE
+endpoints or migrations exist. Revision 1.1 applied the G4-D4 decision (PKCE
 public client with main owning verifier/state; code TTL 120 s and pending
 attempt 10 min; access/refresh lifetimes per the current auth policy;
 `device_sessions` tenant-exempt and bound to the existing session family; every
 command audits transactionally with no outbox event; typed `device_revoked`;
-separate `/auth/desktop/devices`. What is still open inside the gate
-(rate-limit numbers, final `client_id`, consent CSRF details) is listed with the
-lane's proposal under [G4-D4 open questions](#g4-d4-open-questions).
+separate `/auth/desktop/devices`). Revision 1.2 folds the BE review round-1
+findings (refresh codes as unapproved proposals, the Redis-down stance, the
+past-tense audit action) and is the revision this lane hands in. What is still
+open inside the gate (rate-limit numbers, final `client_id`, consent CSRF
+details) is listed with the lane's proposal under
+[G4-D4 open questions](#g4-d4-open-questions).
 
 This contract covers the public-client login used by UniWork Office. It is
 deliberately limited to the wire contract and the security decisions needed by
