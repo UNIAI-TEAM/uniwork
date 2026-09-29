@@ -231,11 +231,10 @@ export function MeetingLobby({
   // Waiting and refused share one layout: the meeting's name small on top,
   // the state as the heading, then what happens next. Moving from "waiting"
   // to "declined" changes the words, not the page.
-  const gate = showStart
-    ? { icon: CalendarClock, tone: "info" as const, action: null }
-    : isWaitingScreen
-      ? { icon: waitingApproval ? UserCheck : Hourglass, tone: "info" as const, action: null }
-      : lobbyGate(decision, error);
+  let gate: { icon: LucideIcon; tone: IconTileTone; action: GateAction };
+  if (showStart) gate = { icon: CalendarClock, tone: "info", action: null };
+  else if (isWaitingScreen) gate = { icon: waitingApproval ? UserCheck : Hourglass, tone: "info", action: null };
+  else gate = lobbyGate(decision, error);
   return (
     <MeetingGateScreen
       icon={gate.icon}
