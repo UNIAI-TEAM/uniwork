@@ -54,6 +54,29 @@ describe("PptxEditor", () => {
     expect(screen.getByRole("button", { name: "Shape / image" })).toBeDisabled();
   });
 
+  it("surfaces a rejected transform as a typed command error", async () => {
+    const onTransform = vi.fn(async () => { throw new Error("transform refused"); });
+    render(
+      <PptxEditor
+        host={makeHost(vi.fn())}
+        editorHandle={handle()}
+        slides={[{ id: "s1" }]}
+        transformRequest={{ slideIndex: 0, sourceId: "shape-1", xPx: 24, yPx: 16, wPx: 320, hPx: 180, fitWidthPx: 960 }}
+        onTransform={onTransform}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Shape / image" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("transform refused"));
+    expect(onTransform).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the canvas keyboard path wired to slide selection", () => {
+    const onSlideSelect = vi.fn();
+    render(<PptxEditor host={makeHost(vi.fn())} editorHandle={handle()} slides={[{ id: "s1" }, { id: "s2" }]} onSlideSelect={onSlideSelect} />);
+    fireEvent.keyDown(screen.getByRole("application", { name: "PowerPoint slide canvas" }), { key: "ArrowDown" });
+    expect(onSlideSelect).toHaveBeenCalledWith(1);
+  });
+
   it("opens presenter mode over the selected slide without another editor", () => {
     const call = vi.fn();
     const view = render(<PptxEditor host={makeHost(call)} editorHandle={handle()} slides={[{ id: "s1", label: "Intro" }]} />);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { EditorHandle, OfficeCapabilityEntry, OfficeCapabilityStatus, OfficeHost } from "@uniwork/core/office";
 import { EditorSlot, type EditorOpenState, type OfficeEditorComponent, type OfficeEditorRendererProps } from "../editor-slot";
@@ -42,47 +42,18 @@ export function PptxEditorView({
   ...editorProps
 }: PptxEditorViewProps) {
   const [panelOpen, setPanelOpen] = useState(Boolean(panel));
-  const {
-    slides,
-    elements,
-    selectedIndex,
-    onSlideSelect,
-    onTransform,
-    transformRequest,
-    onTextEdit,
-    onOpen,
-    onCommandError,
-    onDirty,
-    onSnapshot,
-    capabilities,
-    className,
-  } = editorProps;
+  // EditorSlot keys its lazy component on the loader identity. Keep the
+  // renderer and loader stable while the host updates controlled selection,
+  // model arrays, callbacks, or shell state; the renderer reads the latest
+  // props so those updates rerender the existing editor session in place.
+  const latestEditorProps = useRef({ ...editorProps, saveCoordinator, fullscreen, onFullscreenChange });
+  latestEditorProps.current = { ...editorProps, saveCoordinator, fullscreen, onFullscreenChange };
   const FormatEditor = useMemo<OfficeEditorComponent>(() => {
     function PptxFormatEditor({ host: editorHost, editorHandle }: OfficeEditorRendererProps) {
-      return (
-        <PptxEditor
-          host={editorHost}
-          editorHandle={editorHandle}
-          slides={slides}
-          elements={elements}
-          selectedIndex={selectedIndex}
-          onSlideSelect={onSlideSelect}
-          onTransform={onTransform}
-          transformRequest={transformRequest}
-          onTextEdit={onTextEdit}
-          onOpen={onOpen}
-          onCommandError={onCommandError}
-          onDirty={onDirty}
-          onSnapshot={onSnapshot}
-          capabilities={capabilities}
-          className={className}
-          saveCoordinator={saveCoordinator}
-          includeSave={false}
-        />
-      );
+      return <PptxEditor host={editorHost} editorHandle={editorHandle} {...latestEditorProps.current} includeSave={false} />;
     }
     return PptxFormatEditor;
-  }, [capabilities, className, elements, onCommandError, onDirty, onOpen, onSnapshot, onSlideSelect, onTextEdit, onTransform, selectedIndex, slides, transformRequest, saveCoordinator]);
+  }, []);
   const loadEditor = useCallback(async () => ({ default: FormatEditor }), [FormatEditor]);
   const editor = (
     <EditorSlot

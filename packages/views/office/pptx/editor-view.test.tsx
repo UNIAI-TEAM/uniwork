@@ -37,7 +37,16 @@ describe("PptxEditorView", () => {
     };
     const view = render(<PptxEditorView {...props} />);
     await waitFor(() => expect(document.querySelector("[data-pptx-canvas]")).not.toBeNull());
-    view.rerender(<PptxEditorView {...props} fullscreen />);
+    view.rerender(
+      <PptxEditorView
+        {...props}
+        selectedIndex={1}
+        slides={[{ id: "s1", label: "Intro" }, { id: "s2", label: "Second" }]}
+        onSlideSelect={vi.fn()}
+        fullscreen
+      />,
+    );
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
     expect(editorHandle.dispose).not.toHaveBeenCalled();
   });
 });

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { EditorHandle, OfficeHost } from "@uniwork/core/office";
-import { HostCapabilityRefusal, type SlidesEditTransformRequest } from "@uniwork/office-contracts";
+import type { SlidesEditTransformRequest } from "@uniwork/office-contracts";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -32,6 +32,8 @@ export interface PptxEditorProps {
   onTextEdit?: (slideIndex: number) => Promise<unknown>;
   onOpen?: () => void;
   onCommandError?: (error: unknown) => void;
+  fullscreen?: boolean;
+  onFullscreenChange?: (fullscreen: boolean) => void;
   onDirty?: () => void;
   onSnapshot?: () => Promise<unknown>;
   saveCoordinator?: OfficeSaveCoordinatorLike;
@@ -65,6 +67,8 @@ export function PptxEditor({
   onTextEdit,
   onOpen,
   onCommandError,
+  fullscreen = false,
+  onFullscreenChange,
   onDirty,
   onSnapshot,
   saveCoordinator,
@@ -80,6 +84,7 @@ export function PptxEditor({
   const gestureRef = useRef<GestureState | null>(null);
   const historyQueue = useRef<"undo" | "redo" | null>(null);
   const presenterTriggerRef = useRef<HTMLElement | null>(null);
+  const editorRootRef = useRef<HTMLElement | null>(null);
   const selectedIndex = Math.min(Math.max(controlledIndex ?? internalIndex, 0), Math.max(slides.length - 1, 0));
   const effectiveCapabilities = useMemo(() => ({
     ...capabilities,
@@ -154,9 +159,6 @@ export function PptxEditor({
         : await host.ipc.call("host:slides-edit-transform", request);
       onDirty?.();
       return result;
-    } catch (error) {
-      if (error instanceof HostCapabilityRefusal) throw error;
-      throw error;
     } finally {
       finishGesture();
     }
@@ -195,10 +197,18 @@ export function PptxEditor({
       case "redo": requestHistory("redo"); break;
       case "save": save(); break;
       case "presenter": presenterTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setPresenterOpen(true); break;
-      case "fullscreen": void document.querySelector<HTMLElement>("[data-pptx-editor]")?.requestFullscreen?.(); break;
+      case "fullscreen": {
+        if (onFullscreenChange) {
+          onFullscreenChange(!fullscreen);
+          break;
+        }
+        const request = editorRootRef.current?.requestFullscreen?.();
+        if (request) void request.catch(reportCommandError);
+        break;
+      }
       default: break;
     }
-  }, [onOpen, requestHistory, runCommand, runTextEdit, runTransform, save, transformRequest]);
+  }, [fullscreen, onFullscreenChange, onOpen, reportCommandError, requestHistory, runCommand, runTextEdit, runTransform, save, transformRequest]);
 
   const onCanvasKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "PageDown" || event.key === "ArrowDown") { event.preventDefault(); selectSlide(selectedIndex + 1); }
@@ -208,7 +218,7 @@ export function PptxEditor({
   };
 
   return (
-    <section className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-muted/10", className)} data-pptx-editor data-gesture-pending={gesturePending}>
+    <section ref={editorRootRef} className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-muted/10", className)} data-pptx-editor data-gesture-pending={gesturePending}>
       <PptxToolbar commands={commands.filter((command) => command.id !== "save" || includeSave)} onCommand={onCommand} />
       {commandError ? <Alert className="m-2" variant="destructive" role="alert"><AlertTitle>{t("command_error_title")}</AlertTitle><AlertDescription>{t("command_error_hint", { message: commandError })}</AlertDescription></Alert> : null}
       <div className="flex min-h-0 flex-1 overflow-hidden">
