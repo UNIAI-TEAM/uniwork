@@ -9,12 +9,21 @@ import { MeetingJoinRequestNotice } from "./meeting-join-request-notice";
 import { useJoinRequestChime } from "./use-join-request-chime";
 import { usePendingJoinRequests } from "./use-pending-join-requests";
 
+function focusElement(target: HTMLElement | null): boolean {
+  if (!target) return false;
+  if (!target.hasAttribute("tabindex") && target.tabIndex < 0) target.tabIndex = -1;
+  target.focus();
+  return true;
+}
+
 /** Where focus goes when the panel closes and the chip is gone too. */
 function focusStageHeading() {
-  const heading = document.querySelector<HTMLElement>('[data-testid="meeting-stage-header"] h1');
-  if (!heading) return;
-  if (!heading.hasAttribute("tabindex")) heading.tabIndex = -1;
-  heading.focus();
+  focusElement(document.querySelector<HTMLElement>("[data-stage-heading]"));
+}
+
+/** The people tab's waiting list, when the panel handed over to it. */
+function focusWaitingList(): boolean {
+  return focusElement(document.querySelector<HTMLElement>("#waiting-admission-heading button"));
 }
 
 /**
@@ -52,15 +61,18 @@ export function MeetingAdmitGuestsButton({
 
   // The panel can vanish under the keyboard (hidden, the last person let in):
   // focus goes back to the chip, or to the stage heading if the chip went too.
+  // When "view all" handed over to the people tab, focus follows into its list
+  // (an already-open side panel does not move focus by itself).
   const wasVisible = useRef(panelVisible);
   useEffect(() => {
     const closed = wasVisible.current && !panelVisible;
     wasVisible.current = panelVisible;
     if (!closed || !focusInPanel.current) return;
     focusInPanel.current = false;
+    if (peopleOpen && focusWaitingList()) return;
     if (chipRef.current) chipRef.current.focus();
     else focusStageHeading();
-  }, [panelVisible]);
+  }, [panelVisible, peopleOpen]);
 
   // The live region stays mounted across the count going back to zero, so a
   // host on a screen reader hears the next guest arrive instead of nothing.
@@ -73,6 +85,8 @@ export function MeetingAdmitGuestsButton({
   if (count === 0) return announcement;
 
   const label = t("meetings.joinRequestsWaitingChip", { count });
+  // The name starts with what is on screen and adds what pressing does.
+  const accessibleName = t("meetings.joinRequestsWaitingChipAction", { count });
 
   return (
     <>
@@ -82,6 +96,7 @@ export function MeetingAdmitGuestsButton({
         type="button"
         size="sm"
         variant="successSolid"
+        aria-label={accessibleName}
         className={cn("h-8 gap-1.5 rounded-full px-3", className)}
         onClick={onOpenPeople}
       >

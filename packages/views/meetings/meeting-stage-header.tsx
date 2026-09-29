@@ -176,7 +176,10 @@ export function MeetingStageHeader({
               </nav>
             ) : null}
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0 [@media(max-height:500px)]:flex-nowrap">
-              <h1 className="min-w-0 max-w-full truncate text-title-sm font-semibold text-meeting-bar-foreground">
+              <h1
+                data-stage-heading
+                className="min-w-0 max-w-full truncate text-title-sm font-semibold text-meeting-bar-foreground"
+              >
                 {title}
               </h1>
               {scheduleRange && meeting ? (

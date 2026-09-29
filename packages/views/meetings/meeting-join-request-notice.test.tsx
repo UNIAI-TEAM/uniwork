@@ -29,9 +29,15 @@ function renderChip(pending: MeetingJoinRequest[], props: { peopleOpen?: boolean
     wrapWithNav(
       <QueryClientProvider client={client}>
         <div data-testid="meeting-stage-header">
-          <h1>Standup</h1>
+          <h1 data-stage-heading>Standup</h1>
           <MeetingAdmitGuestsButton meetingId="m1" {...p} />
         </div>
+        {/* Stand-in for the people tab's waiting list. */}
+        {p.peopleOpen ? (
+          <h3 id="waiting-admission-heading">
+            <button type="button">Đang chờ vào phòng</button>
+          </h3>
+        ) : null}
       </QueryClientProvider>,
     );
   const view = render(ui(props));
@@ -58,7 +64,7 @@ describe("join-request panel under the stage header", () => {
   it("states the count on the chip and shows the decision in a dark panel, with one chime", async () => {
     const { update } = renderChip([request("jr1", "kim kim")]);
 
-    expect(await screen.findByRole("button", { name: "1 người đang chờ" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "1 người đang chờ, xem danh sách" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cho kim kim vào" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Từ chối kim kim" })).toBeInTheDocument();
     expect(screen.getByTestId(PANEL)).toHaveClass("dark");
@@ -77,11 +83,11 @@ describe("join-request panel under the stage header", () => {
     fireEvent.click(hide);
 
     expect(screen.queryByTestId(PANEL)).not.toBeInTheDocument();
-    await waitFor(() => expect(screen.getByRole("button", { name: "1 người đang chờ" })).toHaveFocus());
+    await waitFor(() => expect(screen.getByRole("button", { name: "1 người đang chờ, xem danh sách" })).toHaveFocus());
 
     await update([request("jr1", "kim kim"), request("jr2", "lan")]);
     expect(await screen.findByTestId(PANEL)).toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: "2 người đang chờ" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "2 người đang chờ, xem danh sách" })).toBeInTheDocument();
     expect(playJoinRequestChime).toHaveBeenCalledTimes(2);
   });
 
@@ -95,12 +101,24 @@ describe("join-request panel under the stage header", () => {
 
   it("steps aside while the people tab is open and counts those knocks as seen", async () => {
     const { update } = renderChip([request("jr1", "kim kim")], { peopleOpen: true });
-    expect(await screen.findByRole("button", { name: "1 người đang chờ" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "1 người đang chờ, xem danh sách" })).toBeInTheDocument();
     expect(screen.queryByTestId(PANEL)).not.toBeInTheDocument();
 
     await update([request("jr1", "kim kim")], { peopleOpen: false });
-    await screen.findByRole("button", { name: "1 người đang chờ" });
+    await screen.findByRole("button", { name: "1 người đang chờ, xem danh sách" });
     expect(screen.queryByTestId(PANEL)).not.toBeInTheDocument();
+  });
+
+  it("follows view-all into the people tab's list", async () => {
+    const onOpenPeople = vi.fn();
+    const { update } = renderChip([request("jr1", "kim kim"), request("jr2", "lan")], { onOpenPeople });
+    const viewAll = await screen.findByRole("button", { name: "Xem tất cả (2)" });
+    act(() => viewAll.focus());
+    fireEvent.click(viewAll);
+    expect(onOpenPeople).toHaveBeenCalledOnce();
+
+    await update([request("jr1", "kim kim"), request("jr2", "lan")], { onOpenPeople, peopleOpen: true });
+    await waitFor(() => expect(screen.getByRole("button", { name: "Đang chờ vào phòng" })).toHaveFocus());
   });
 
   it("names the sound toggle once and reports its state with aria-pressed, remembered per browser", async () => {
@@ -113,7 +131,7 @@ describe("join-request panel under the stage header", () => {
     expect(window.localStorage.getItem(MUTE_KEY)).toBe("1");
 
     await update([request("jr1", "kim kim"), request("jr2", "lan")]);
-    await screen.findByRole("button", { name: "2 người đang chờ" });
+    await screen.findByRole("button", { name: "2 người đang chờ, xem danh sách" });
     expect(playJoinRequestChime).toHaveBeenCalledOnce();
   });
 

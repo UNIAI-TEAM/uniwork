@@ -51,7 +51,7 @@ describe("MeetingAdmitGuestsButton", () => {
 
     render(wrapWithNav(<MeetingAdmitGuestsButton meetingId="m1" />));
 
-    expect(await screen.findByRole("button", { name: "1 người đang chờ" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "1 người đang chờ, xem danh sách" })).toBeInTheDocument();
   });
 
   it("opens the people tab instead of admitting when the chip is pressed", async () => {
@@ -60,7 +60,7 @@ describe("MeetingAdmitGuestsButton", () => {
     const onOpenPeople = vi.fn();
     render(wrapWithNav(<MeetingAdmitGuestsButton meetingId="m1" onOpenPeople={onOpenPeople} />));
 
-    fireEvent.click(await screen.findByRole("button", { name: "1 người đang chờ" }));
+    fireEvent.click(await screen.findByRole("button", { name: "1 người đang chờ, xem danh sách" }));
 
     expect(onOpenPeople).toHaveBeenCalledOnce();
     expect(requestMock).not.toHaveBeenCalledWith(

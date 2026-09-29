@@ -2646,7 +2646,9 @@
     "pastScheduledEndHint": "The host can extend the meeting so people can join again.",
     "joinRequestChime": "Sound for join requests",
     "joinRequestsWaitingChip_one": "{{count}} person waiting",
-    "joinRequestsWaitingChip_other": "{{count}} people waiting"
+    "joinRequestsWaitingChip_other": "{{count}} people waiting",
+    "joinRequestsWaitingChipAction_one": "{{count}} person waiting, view the list",
+    "joinRequestsWaitingChipAction_other": "{{count}} people waiting, view the list"
   },
   "calendar": {
     "title": "Calendar",

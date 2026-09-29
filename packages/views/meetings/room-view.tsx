@@ -138,6 +138,7 @@ export function MeetingRoomView({
   const [roomEpoch, setRoomEpoch] = useState(0);
   const roomTokenRef = useRef<string | undefined>(undefined);
   const lastAdmittedRef = useRef<JoinDecision | undefined>(undefined);
+  const lastLobbyRef = useRef<JoinDecision | undefined>(undefined);
   const rejoinAfterDrop = useCallback(() => {
     setRejoining(true);
     mutateJoin(joinArgs, {
@@ -177,11 +178,26 @@ export function MeetingRoomView({
   }, [choice, retryJoin, initialJoinDecision]);
 
   const settledDecision = join.data ?? initialJoinDecision;
-  if (isJoinAdmitted(settledDecision)) lastAdmittedRef.current = settledDecision;
+  if (isJoinAdmitted(settledDecision)) {
+    lastAdmittedRef.current = settledDecision;
+    lastLobbyRef.current = undefined;
+  } else if (settledDecision) {
+    lastLobbyRef.current = settledDecision;
+  }
   // Only while that re-join is in flight: a superseded call never runs its
   // onSettled, and the flag must not pin an old credential after it.
   const holdLastAdmitted = rejoining && join.isPending && lastAdmittedRef.current;
-  const decision = holdLastAdmitted ? lastAdmittedRef.current : settledDecision;
+  // The lobby re-asks on every approval or refusal in this meeting (anyone's),
+  // on reconnect and on backoff, and a new mutate empties join.data until it
+  // settles. Keep the last lobby answer meanwhile, so the screen does not
+  // flash "connecting", focus does not jump back to the heading, and a leave
+  // mid-retry still withdraws the knock.
+  const holdLastLobby = !holdLastAdmitted && join.isPending && !join.error && !settledDecision && lastLobbyRef.current;
+  const decision = holdLastAdmitted
+    ? lastAdmittedRef.current
+    : holdLastLobby
+      ? lastLobbyRef.current
+      : settledDecision;
   const admitted = isJoinAdmitted(decision);
   admittedRef.current = admitted;
 

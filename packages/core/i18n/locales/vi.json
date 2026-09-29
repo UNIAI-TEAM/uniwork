@@ -2645,7 +2645,9 @@
     "pastScheduledEndHint": "Người chủ trì có thể gia hạn để mọi người vào tiếp.",
     "joinRequestChime": "Âm báo khi có người xin vào",
     "joinRequestsWaitingChip_one": "{{count}} người đang chờ",
-    "joinRequestsWaitingChip_other": "{{count}} người đang chờ"
+    "joinRequestsWaitingChip_other": "{{count}} người đang chờ",
+    "joinRequestsWaitingChipAction_one": "{{count}} người đang chờ, xem danh sách",
+    "joinRequestsWaitingChipAction_other": "{{count}} người đang chờ, xem danh sách"
   },
   "calendar": {
     "title": "Lịch",
