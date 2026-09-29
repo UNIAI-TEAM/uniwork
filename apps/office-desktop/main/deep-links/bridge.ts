@@ -1,7 +1,7 @@
 import type { DeviceBinding, ExchangeOutcome, ExchangePort, LaunchOperation, OfficeLaunchDescriptor } from "./exchange";
 import { launchUrlFromArgv, parseOfficeDeepLink, type DeepLinkRejectReason } from "./parser";
 
-export type LaunchBridgeRefusal =
+type LaunchBridgeRefusal =
   | DeepLinkRejectReason
   | "signed_out"
   | "deployment_mismatch"
@@ -14,12 +14,12 @@ export type LaunchBridgeRefusal =
   | "exchange_failed"
   | "duplicate_delivery";
 
-export type LaunchBridgeOutcome =
+type LaunchBridgeOutcome =
   | Readonly<{ status: "opened"; documentId: string; operation: LaunchOperation; descriptor: OfficeLaunchDescriptor; receiptId: string; redeemedAt: string }>
   | Readonly<{ status: "login_required"; reason: "signed_out" | "deployment_mismatch" | "account_mismatch" }>
   | Readonly<{ status: "refused"; reason: LaunchBridgeRefusal }>;
 
-export type LaunchRequestedEvent = Readonly<{ documentId: string; operation: LaunchOperation }>;
+type LaunchRequestedEvent = Readonly<{ documentId: string; operation: LaunchOperation }>;
 
 export type LaunchBridgeOptions = Readonly<{
   exchange: ExchangePort;
@@ -94,7 +94,14 @@ export function createLaunchBridge(options: LaunchBridgeOptions): LaunchBridge {
       receiptId: result.receiptId,
       redeemedAt: result.redeemedAt,
     };
-    for (const listener of listeners) listener({ documentId: opened.documentId, operation: opened.operation });
+    for (const listener of listeners) {
+      try {
+        listener({ documentId: opened.documentId, operation: opened.operation });
+      } catch {
+        // A renderer subscription cannot change the already-redeemed outcome
+        // or make a second exchange necessary.
+      }
+    }
     return opened;
   };
 

@@ -76,7 +76,7 @@ describe("Office launch endpoint contracts", () => {
   it("redacts launch values from compatibility warnings", async () => {
     const warn = vi.fn();
     setSchemaLogger({ debug: () => {}, info: () => {}, warn, error: () => {} });
-    vi.mocked(fetch).mockResolvedValueOnce(json({ launch_ticket: ticket, launch_url: `uniwork-office://open?ticket=${ticket}` }));
+    vi.mocked(fetch).mockResolvedValueOnce(json({ launch_ticket: ticket, launch_url: `uniwork-office://open?ticket=${ticket}`, deep_link: `uniwork-office://open?ticket=${ticket}`, nested: [ticket] }));
     await createOfficeLaunchSession(descriptor.id, { operation: "view", deployment_id: "production-eu", client_id: "uniwork-office" });
     expect(JSON.stringify(warn.mock.calls)).not.toContain(ticket);
   });

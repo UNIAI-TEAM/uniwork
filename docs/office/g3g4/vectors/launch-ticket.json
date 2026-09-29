@@ -14,7 +14,7 @@
   "invalid": [
     { "id": "login-code-prefix", "ticket": "code_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_-abcde", "expected_reason": "login_code" },
     { "id": "too-short", "ticket": "ticket_short", "expected_reason": "invalid_ticket" },
-    { "id": "unknown-prefix", "ticket": "state_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_-abcde", "expected_reason": "invalid_ticket" },
+    { "id": "login-state-prefix", "ticket": "state_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_-abcde", "expected_reason": "login_code" },
     { "id": "oversized", "ticket_length": 193, "expected_reason": "oversized_ticket" }
   ]
 }

@@ -1,14 +1,14 @@
 /** The only URL shape the Office host accepts. The ticket is deliberately
  * opaque and is the one value that ever crosses this parser boundary. */
-export const OFFICE_LAUNCH_SCHEME = "uniwork-office:";
-export const OFFICE_LAUNCH_HOST = "open";
-export const OFFICE_LAUNCH_PATH = "";
-export const LAUNCH_TICKET_MAX_LENGTH = 192;
-export const LAUNCH_TICKET_MIN_LENGTH = 39;
+const OFFICE_LAUNCH_SCHEME = "uniwork-office:";
+const OFFICE_LAUNCH_HOST = "open";
+const OFFICE_LAUNCH_PATH = "";
+const LAUNCH_TICKET_MAX_LENGTH = 192;
+const LAUNCH_TICKET_MIN_LENGTH = 39;
 
 /** The `ticket_` issuer marker separates launch capabilities from PKCE login
  * values (`code`, `state`, `attempt`) before any exchange can be attempted. */
-export const LAUNCH_TICKET_PATTERN = /^ticket_[A-Za-z0-9_-]{32,185}$/;
+const LAUNCH_TICKET_PATTERN = /^ticket_[A-Za-z0-9_-]{32,185}$/;
 
 export type DeepLinkRejectReason =
   | "malformed_url"

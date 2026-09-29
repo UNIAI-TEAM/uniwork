@@ -66,6 +66,11 @@ export type OfficeLaunchRequestOpts = Pick<RequestOpts, "signal" | "correlationI
 
 function redactLaunchSecrets(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(redactLaunchSecrets);
+  if (typeof value === "string") {
+    return value
+      .replace(/uniwork-office:\/\/open\?ticket=[^\s&"']+/g, "uniwork-office://open?ticket=[redacted]")
+      .replace(/ticket_[A-Za-z0-9_-]{32,185}/g, "[redacted]");
+  }
   if (!value || typeof value !== "object") return value;
   return Object.fromEntries(Object.entries(value).map(([key, child]) => {
     if (key === "launch_ticket" || key === "ticket" || key === "launch_url") return [key, "[redacted]"];

@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 export const LAUNCH_TICKET_TTL_MS = 120_000;
 /** Proposed 05a skew budget. 05b must use the same value in the server
  * expiry query and document the deployment clock source. */
-export const LAUNCH_CLOCK_SKEW_MS = 30_000;
+const LAUNCH_CLOCK_SKEW_MS = 30_000;
 
 export type LaunchOperation = "view" | "edit";
 
@@ -105,8 +105,6 @@ export class FakeExchangePort implements ExchangePort {
       workspace_id: "01J8X4WS0N1P2Q3R4S5T6U7V8",
       title: "Q4 plan",
       kind: "file",
-      operation: effectiveOperation,
-      version,
       revision: "41",
       contract_version: "uniwork-office-engine-contract/1",
       protocol_version: "1",
@@ -156,6 +154,6 @@ export class FakeExchangePort implements ExchangePort {
   }
 }
 
-export function makeTestTicket(): string {
+function makeTestTicket(): string {
   return `ticket_${randomBytes(32).toString("base64url")}`;
 }
