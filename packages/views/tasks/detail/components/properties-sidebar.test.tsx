@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
@@ -231,7 +231,7 @@ describe("TaskDetailPropertiesSidebar", () => {
   it("names each picker by its field and the value it shows", () => {
     renderSidebar();
     for (const field of ["Trạng thái", "Độ ưu tiên", "Người phụ trách"]) {
-      const trigger = screen.getByRole(field === "Người phụ trách" ? "combobox" : "button", {
+      const trigger = screen.getByRole("button", {
         name: new RegExp(`^${field}: `),
       });
       const visible = trigger.textContent?.trim() ?? "";
@@ -256,9 +256,8 @@ describe("TaskDetailPropertiesSidebar", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("combobox", { name: "Người phụ trách: Me" }));
-    const list = await screen.findByRole("listbox");
-    fireEvent.click(within(list).getByText("Chưa giao"));
+    fireEvent.click(screen.getByRole("button", { name: "Người phụ trách: Me" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Chưa giao" }));
 
     await waitFor(() => expect(updateMutate).toHaveBeenCalledTimes(1));
     expect(updateMutate.mock.calls[0]?.[0]).toEqual({

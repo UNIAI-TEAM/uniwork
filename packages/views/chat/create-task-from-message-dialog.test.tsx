@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import { WorkspaceProvider } from "../layout/workspace-context";
@@ -99,12 +99,12 @@ describe("CreateTaskFromMessageDialog", () => {
     expect(screen.getByRole("button", { name: "Tạo việc" })).toBeDisabled();
   });
 
-  it("offers agents as assignees, marked as agents", () => {
+  it("offers agents as assignees, grouped apart from people", () => {
     wrap(dialog);
-    fireEvent.click(screen.getByRole("combobox", { name: /Người phụ trách/ }));
-    const agent = screen.getByRole("option", { name: /Trợ lý/ });
-    expect(within(agent).getByText("Agent")).toBeInTheDocument();
-    expect(within(screen.getByRole("option", { name: /Lan/ })).queryByText("Agent")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Người phụ trách/ }));
+    const agentsGroup = screen.getByText("Agent").parentElement;
+    expect(agentsGroup).toContainElement(screen.getByRole("button", { name: "Trợ lý" }));
+    expect(agentsGroup).not.toContainElement(screen.getByRole("button", { name: "Lan" }));
   });
 
   it("offers to open the created task from the toast", async () => {

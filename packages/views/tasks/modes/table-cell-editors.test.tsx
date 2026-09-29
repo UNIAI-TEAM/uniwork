@@ -28,14 +28,14 @@ describe("table cell pickers: accessible name contains the visible value", () =>
 
   it("assignee", () => {
     render(<TableAssigneeCell assigneeId="u1" options={options} onChange={vi.fn()} />);
-    const trigger = screen.getByRole("combobox", { name: "Người phụ trách: An Nguyễn" });
+    const trigger = screen.getByRole("button", { name: "Người phụ trách: An Nguyễn" });
     expect(trigger).toHaveTextContent("An Nguyễn");
   });
 
   it("unassigned", () => {
     render(<TableAssigneeCell options={options} onChange={vi.fn()} />);
     expect(
-      screen.getByRole("combobox", { name: "Người phụ trách: Chưa giao" }),
+      screen.getByRole("button", { name: "Người phụ trách: Chưa giao" }),
     ).toHaveTextContent("Chưa giao");
   });
 
@@ -49,7 +49,7 @@ describe("table cell pickers: accessible name contains the visible value", () =>
         onChange={vi.fn()}
       />,
     );
-    const trigger = screen.getByRole("combobox", { name: /^Người phụ trách: Trợ lý QA / });
+    const trigger = screen.getByRole("button", { name: /^Người phụ trách: Trợ lý QA / });
     expect(trigger).toHaveTextContent("Agent");
     expect(trigger).toHaveAccessibleName("Người phụ trách: Trợ lý QA Agent");
   });

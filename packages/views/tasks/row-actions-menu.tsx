@@ -46,6 +46,8 @@ import {
   type RowActionModel,
   type TaskUpdates,
 } from "./row-actions-items";
+import type { PickerAnchor } from "./pickers/property-picker";
+import { pointAnchor, RowAssigneePicker } from "./row-assignee-picker";
 import { useTaskSurfaceActionsOptional } from "./surface/actions-context";
 
 /**
@@ -243,6 +245,9 @@ export function RowActionsContextMenu({
   className?: string;
   children: ReactNode;
 } & DataAttributes) {
+  // The picker opens where the right click landed, after the menu has closed.
+  const lastPointer = useRef({ x: 0, y: 0 });
+  const [assigneeAnchor, setAssigneeAnchor] = useState<PickerAnchor | null>(null);
   if (!model.hasAny) {
     return (
       <div ref={ref} style={style} className={className} {...dataAttributes}>
@@ -256,13 +261,30 @@ export function RowActionsContextMenu({
         ref={ref}
         style={style}
         className={className}
+        onContextMenu={(event) => {
+          lastPointer.current = { x: event.clientX, y: event.clientY };
+        }}
         {...dataAttributes}
       >
         {children}
         <RowEventBoundary className="contents">
           <ContextMenuContent className="min-w-48">
-            <RowActionItems parts={CONTEXT_PARTS} model={model} />
+            <RowActionItems
+              parts={CONTEXT_PARTS}
+              model={model}
+              onOpenAssignee={() =>
+                setAssigneeAnchor(pointAnchor(lastPointer.current.x, lastPointer.current.y))
+              }
+            />
           </ContextMenuContent>
+          {assigneeAnchor && model.update ? (
+            <RowAssigneePicker
+              task={model.task}
+              onUpdate={model.update}
+              anchor={assigneeAnchor}
+              onClose={() => setAssigneeAnchor(null)}
+            />
+          ) : null}
         </RowEventBoundary>
       </ContextMenuTrigger>
     </ContextMenu>
@@ -285,6 +307,8 @@ export function RowActionsDropdown({
   triggerClassName?: string;
 }) {
   const { t } = useTranslation();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const [assigneeOpen, setAssigneeOpen] = useState(false);
   if (!model.hasAny) return null;
   return (
     <RowEventBoundary className={cn("flex shrink-0 items-center", className)}>
@@ -292,6 +316,7 @@ export function RowActionsDropdown({
         <DropdownMenuTrigger
           render={
             <Button
+              ref={triggerRef}
               type="button"
               variant="ghost"
               size="icon-sm"
@@ -306,9 +331,21 @@ export function RowActionsDropdown({
           <MoreHorizontal aria-hidden />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-48">
-          <RowActionItems parts={DROPDOWN_PARTS} model={model} />
+          <RowActionItems
+            parts={DROPDOWN_PARTS}
+            model={model}
+            onOpenAssignee={() => setAssigneeOpen(true)}
+          />
         </DropdownMenuContent>
       </DropdownMenu>
+      {assigneeOpen && model.update ? (
+        <RowAssigneePicker
+          task={model.task}
+          onUpdate={model.update}
+          anchor={triggerRef}
+          onClose={() => setAssigneeOpen(false)}
+        />
+      ) : null}
     </RowEventBoundary>
   );
 }

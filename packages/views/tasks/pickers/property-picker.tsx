@@ -5,8 +5,10 @@ import {
   useEffect,
   useRef,
   useState,
+  type ComponentProps,
   type ReactElement,
   type ReactNode,
+  type SyntheticEvent,
 } from "react";
 import { Check } from "lucide-react";
 import { isImeComposing } from "@uniwork/core/utils";
@@ -20,6 +22,8 @@ import { cn } from "@uniwork/ui/lib/utils";
 const HIGHLIGHT_CLASS = "bg-accent";
 const ITEM_SELECTOR = "button[data-picker-item]:not(:disabled)";
 const EMPTY_ITEM_ATTR = "data-picker-empty";
+
+export type PickerAnchor = ComponentProps<typeof PopoverContent>["anchor"];
 
 const isEmptyItem = (el: HTMLButtonElement | undefined) =>
   el?.hasAttribute(EMPTY_ITEM_ATTR) === true;
@@ -48,9 +52,12 @@ export function PropertyPicker({
   header,
   children,
   footer,
+  popupEventGuard,
+  anchor,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  /** Ignored when `anchor` is set: the popup then has no trigger of its own. */
   trigger: ReactNode;
   triggerRender?: ReactElement;
   width?: string;
@@ -63,6 +70,13 @@ export function PropertyPicker({
   header?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
+  /** Runs on every click / middle click inside the popup. The popup is
+   *  portalled, so React still bubbles those clicks to an enclosing row
+   *  button; a picker rendered inside a clickable row stops them here. */
+  popupEventGuard?: (event: SyntheticEvent) => void;
+  /** Positions a controlled popup against something other than a trigger —
+   *  the menu button or pointer position a row action opened it from. */
+  anchor?: PickerAnchor;
 }) {
   const placeholder = searchPlaceholder ?? "";
   const filterAria = searchAriaLabel ?? searchPlaceholder ?? "";
@@ -139,13 +153,22 @@ export function PropertyPicker({
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger
-        className={triggerRender ? undefined : PICKER_TRIGGER_CLASS}
-        render={triggerRender}
+      {anchor === undefined ? (
+        <PopoverTrigger
+          className={triggerRender ? undefined : PICKER_TRIGGER_CLASS}
+          render={triggerRender}
+        >
+          {trigger}
+        </PopoverTrigger>
+      ) : null}
+      <PopoverContent
+        anchor={anchor}
+        align={align}
+        side={side}
+        className={cn(width, "gap-0 p-0")}
+        onClick={popupEventGuard}
+        onAuxClick={popupEventGuard}
       >
-        {trigger}
-      </PopoverTrigger>
-      <PopoverContent align={align} side={side} className={cn(width, "gap-0 p-0")}>
         {searchable ? (
           <div className="border-b border-surface-border/50 bg-surface-hover/20 px-2 py-1.5">
             <input

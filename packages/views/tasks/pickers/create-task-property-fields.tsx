@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Tag, UserMinus } from "lucide-react";
+import { Tag } from "lucide-react";
 import type { TaskLabel, TaskPriority } from "@uniwork/core/types";
 import { AgentBadge } from "../../agents/agent-badge";
 import { PillButton } from "../../common/pill-button";
@@ -14,13 +14,12 @@ import {
 import { PriorityIcon } from "../icons/priority-icon";
 import { StatusIcon } from "../icons/status-icon";
 import { priorityTone } from "../modes/priority-config";
-import type { AssigneeOption, AssigneeRef } from "./assignee-picker";
 import {
-  PickerEmpty,
-  PickerItem,
-  PickerSection,
-  PropertyPicker,
-} from "./property-picker";
+  AssigneePicker,
+  type AssigneeOption,
+  type AssigneeRef,
+} from "./assignee-picker";
+import { PickerEmpty, PickerItem, PropertyPicker } from "./property-picker";
 import { SEARCHABLE_OPTION_THRESHOLD } from "./searchable-option-picker";
 
 type StatusItem = { value: string; label: string; category: string };
@@ -28,12 +27,6 @@ type OptionItem = { value: string; label: string };
 
 function initialOf(name: string): string {
   return name.trim().slice(0, 1).toUpperCase() || "?";
-}
-
-function refsEqual(a: AssigneeRef | null, b: AssigneeRef | null): boolean {
-  if (a === b) return true;
-  if (!a || !b) return false;
-  return a.id === b.id && a.kind === b.kind;
 }
 
 /** Create-task status field: StatusPicker + PillButton. */
@@ -168,8 +161,6 @@ export function CreateTaskAssigneeField({
   searchPlaceholder,
   noResultsLabel,
   valueLabel,
-  membersLabel,
-  agentsLabel,
 }: {
   value: AssigneeRef | null;
   options: AssigneeOption[];
@@ -179,122 +170,34 @@ export function CreateTaskAssigneeField({
   searchPlaceholder: string;
   noResultsLabel: string;
   valueLabel: string;
-  membersLabel: string;
-  agentsLabel: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const selected = options.find((option) =>
-    refsEqual({ id: option.id, kind: option.kind }, value),
-  );
-  const filtered = useMemo(() => {
-    const q = query.trim().toLocaleLowerCase();
-    if (!q) return options;
-    return options.filter(
-      (option) =>
-        option.name.toLocaleLowerCase().includes(q) ||
-        option.secondaryLabel?.toLocaleLowerCase().includes(q),
-    );
-  }, [options, query]);
-  const members = filtered.filter((option) => option.kind === "human");
-  const agents = filtered.filter((option) => option.kind === "agent");
+  const selected = value
+    ? options.find((option) => option.id === value.id && option.kind === value.kind)
+    : undefined;
 
   return (
-    <PropertyPicker
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) setQuery("");
-        setOpen(next);
-      }}
-      width="w-64"
-      align="start"
-      searchable
+    <AssigneePicker
+      value={value}
+      options={options}
+      onChange={onChange}
+      ariaLabel={ariaLabel}
+      unassignedLabel={unassignedLabel}
       searchPlaceholder={searchPlaceholder}
-      searchAriaLabel={searchPlaceholder}
-      onSearchChange={setQuery}
+      noResultsLabel={noResultsLabel}
       triggerRender={<PillButton aria-label={ariaLabel} />}
-      trigger={
-        selected ? (
-          <>
-            <Avatar className="size-4">
-              {selected.avatarUrl ? <AvatarImage src={selected.avatarUrl} alt="" /> : null}
-              <AvatarFallback className="text-micro">{initialOf(selected.name)}</AvatarFallback>
-            </Avatar>
-            <span className="truncate">{valueLabel}</span>
-          </>
-        ) : (
-          <span className="truncate text-muted-foreground">{valueLabel}</span>
-        )
-      }
     >
-      <PickerItem
-        emptyValue
-        selected={value == null}
-        onClick={() => {
-          onChange(null);
-          setOpen(false);
-          setQuery("");
-        }}
-      >
-        <UserMinus className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-        <span className="truncate">{unassignedLabel}</span>
-      </PickerItem>
-      {members.length > 0 ? (
-        <PickerSection label={membersLabel}>
-          {members.map((option) => (
-            <AssigneePickerItem
-              key={`human:${option.id}`}
-              option={option}
-              selected={refsEqual({ id: option.id, kind: option.kind }, value)}
-              onSelect={(ref) => {
-                onChange(ref);
-                setOpen(false);
-                setQuery("");
-              }}
-            />
-          ))}
-        </PickerSection>
-      ) : null}
-      {agents.length > 0 ? (
-        <PickerSection label={agentsLabel}>
-          {agents.map((option) => (
-            <AssigneePickerItem
-              key={`agent:${option.id}`}
-              option={option}
-              selected={refsEqual({ id: option.id, kind: option.kind }, value)}
-              onSelect={(ref) => {
-                onChange(ref);
-                setOpen(false);
-                setQuery("");
-              }}
-            />
-          ))}
-        </PickerSection>
-      ) : null}
-      {filtered.length === 0 ? <PickerEmpty>{noResultsLabel}</PickerEmpty> : null}
-    </PropertyPicker>
-  );
-}
-
-function AssigneePickerItem({
-  option,
-  selected,
-  onSelect,
-}: {
-  option: AssigneeOption;
-  selected: boolean;
-  onSelect: (value: AssigneeRef) => void;
-}) {
-  const ref: AssigneeRef = { id: option.id, kind: option.kind };
-  return (
-    <PickerItem selected={selected} onClick={() => onSelect(ref)}>
-      <Avatar size="sm" className="size-5">
-        {option.avatarUrl ? <AvatarImage src={option.avatarUrl} alt="" /> : null}
-        <AvatarFallback>{initialOf(option.name)}</AvatarFallback>
-      </Avatar>
-      <span className="min-w-0 flex-1 truncate">{option.name}</span>
-      {option.kind === "agent" ? <AgentBadge className="shrink-0" /> : null}
-    </PickerItem>
+      {selected ? (
+        <>
+          <Avatar aria-hidden className="size-4">
+            {selected.avatarUrl ? <AvatarImage src={selected.avatarUrl} alt="" /> : null}
+            <AvatarFallback className="text-micro">{initialOf(selected.name)}</AvatarFallback>
+          </Avatar>
+          <span className="truncate">{valueLabel}</span>
+        </>
+      ) : (
+        <span className="truncate text-muted-foreground">{valueLabel}</span>
+      )}
+    </AssigneePicker>
   );
 }
 

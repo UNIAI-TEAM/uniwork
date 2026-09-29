@@ -7,7 +7,7 @@ import { ViewStoreProvider } from "@uniwork/core/tasks/stores/view-store-context
 import type { Task, User, Workspace } from "@uniwork/core/types";
 import { copyText } from "@uniwork/ui/lib/clipboard";
 import { requestMock, wrap } from "../test/api-mock";
-import { chooseInSubmenu, chooseItem, type Via } from "../test/menu-interactions";
+import { chooseAssignee, chooseInSubmenu, chooseItem, type Via } from "../test/menu-interactions";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import { NavigationProvider, type NavigationAdapter } from "../navigation";
 import { BoardView } from "./modes/board-view";
@@ -150,6 +150,8 @@ function renderSurface({
   return { ...result, actions, onOpenTask };
 }
 
+const ASSIGNEE_SEARCH = "Tìm thành viên hoặc agent";
+
 const rowText = (mode: Mode) => (mode === "list" ? "Suite row" : "Suite row");
 
 async function openContextMenu(mode: Mode = "list") {
@@ -281,16 +283,46 @@ describe("RowActionsMenu: từng hành động", () => {
     );
   });
 
-  it("menu con người phụ trách có Chưa giao ở đầu và gửi id cùng kind", async () => {
+  it("Đổi người phụ trách đóng menu, mở picker dùng chung và gửi id cùng kind", async () => {
     const { actions } = renderSurface();
     const menu = await openContextMenu();
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Đổi người phụ trách" }));
-    await screen.findByRole("menuitemradio", { name: "Bình Trần" });
-    const names = screen.getAllByRole("menuitemradio").map((el) => el.textContent?.trim());
-    expect(names).toEqual(["Chưa giao", "An Nguyễn", "Bình Trần"]);
-    expect(screen.getByRole("menuitemradio", { name: "An Nguyễn" })).toHaveAttribute("aria-checked", "true");
+    await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
+    expect(await screen.findByPlaceholderText(ASSIGNEE_SEARCH)).toBeInTheDocument();
+    await screen.findByRole("button", { name: "Bình Trần" });
+    expect(screen.getByRole("button", { name: "An Nguyễn" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Chưa giao" })).toHaveAttribute("aria-pressed", "false");
 
-    fireEvent.click(screen.getByRole("menuitemradio", { name: "Bình Trần" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bình Trần" }));
+    expect(actions!.updateTask).toHaveBeenCalledWith(
+      "t1",
+      { assignee_id: "u2", assignee_kind: "human" },
+      expect.anything(),
+    );
+    await waitFor(() => expect(screen.queryByPlaceholderText(ASSIGNEE_SEARCH)).toBeNull());
+  });
+
+  it("chọn Chưa giao gửi assignee_id null kèm kind", async () => {
+    const { actions } = renderSurface();
+    const menu = await openContextMenu();
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Đổi người phụ trách" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Chưa giao" }));
+    expect(actions!.updateTask).toHaveBeenCalledWith(
+      "t1",
+      { assignee_id: null, assignee_kind: "human" },
+      expect.anything(),
+    );
+  });
+
+  it("picker mở từ nút ba chấm cũng là picker dùng chung, tìm không dấu", async () => {
+    const { actions } = renderSurface();
+    const menu = await openKebab();
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Đổi người phụ trách" }));
+    const search = await screen.findByPlaceholderText(ASSIGNEE_SEARCH);
+    await screen.findByRole("button", { name: "Bình Trần" });
+    fireEvent.change(search, { target: { value: "binh tran" } });
+    expect(screen.queryByRole("button", { name: "An Nguyễn" })).toBeNull();
+    fireEvent.keyDown(search, { key: "Enter" });
     expect(actions!.updateTask).toHaveBeenCalledWith(
       "t1",
       { assignee_id: "u2", assignee_kind: "human" },
@@ -298,20 +330,18 @@ describe("RowActionsMenu: từng hành động", () => {
     );
   });
 
-  it("chọn Chưa giao gửi assignee_id null kèm kind", async () => {
+  it("Escape đóng picker mà không đổi gì", async () => {
     const { actions } = renderSurface();
     const menu = await openContextMenu();
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Đổi người phụ trách" }));
-    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Chưa giao" }));
-    expect(actions!.updateTask).toHaveBeenCalledWith(
-      "t1",
-      { assignee_id: null, assignee_kind: "human" },
-      expect.anything(),
-    );
+    const search = await screen.findByPlaceholderText(ASSIGNEE_SEARCH);
+    fireEvent.keyDown(search, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByPlaceholderText(ASSIGNEE_SEARCH)).toBeNull());
+    expect(actions!.updateTask).not.toHaveBeenCalled();
   });
 });
 
-describe("RowActionsMenu: menu con người phụ trách không nói sai", () => {
+describe("RowActionsMenu: picker người phụ trách không nói sai", () => {
   function membersRespond(respond: () => Promise<unknown>) {
     requestMock.mockImplementation(async (path: string) => {
       if (typeof path === "string" && path.includes("/members")) return respond();
@@ -319,59 +349,39 @@ describe("RowActionsMenu: menu con người phụ trách không nói sai", () =>
     });
   }
 
-  async function openAssigneeSubmenu() {
+  async function openAssigneePicker() {
     const menu = await openContextMenu();
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Đổi người phụ trách" }));
+    await screen.findByPlaceholderText(ASSIGNEE_SEARCH);
   }
 
-  it("đang tải thành viên thì hiện một mục bị vô hiệu, không giả như workspace trống", async () => {
+  it("đang tải thành viên thì nói đang tải, không giả như workspace trống", async () => {
     membersRespond(() => new Promise(() => {}));
     renderSurface();
-    await openAssigneeSubmenu();
-    const loading = await screen.findByRole("menuitem", { name: "Đang tải thành viên…" });
-    expect(loading).toHaveAttribute("aria-disabled", "true");
+    await openAssigneePicker();
+    expect(await screen.findByText("Đang tải thành viên…")).toBeInTheDocument();
     expect(screen.queryByText("Không tải được thành viên")).toBeNull();
+    expect(screen.queryByText("Không có ai khớp với tìm kiếm.")).toBeNull();
   });
 
-  it("tải thành viên lỗi thì hiện một mục lỗi bị vô hiệu", async () => {
+  it("tải thành viên lỗi thì nói lỗi", async () => {
     membersRespond(() => Promise.reject(new Error("boom")));
     renderSurface();
-    await openAssigneeSubmenu();
-    const failed = await screen.findByRole("menuitem", { name: "Không tải được thành viên" });
-    expect(failed).toHaveAttribute("aria-disabled", "true");
+    await openAssigneePicker();
+    expect(await screen.findByText("Không tải được thành viên")).toBeInTheDocument();
     expect(screen.queryByText("Đang tải thành viên…")).toBeNull();
   });
 
-  it("task giao cho agent hiện tên agent, được đánh dấu và bị vô hiệu", async () => {
+  it("task giao cho agent không đánh dấu Chưa giao hay một thành viên", async () => {
     sample.assignee_id = "a1";
     sample.assignee_kind = "agent";
     sample.assignee = { kind: "agent", id: "a1", display_name: "Trợ lý UNI" };
     try {
       renderSurface();
-      await openAssigneeSubmenu();
-      await screen.findByRole("menuitemradio", { name: "Bình Trần" });
-      const agent = screen.getByRole("menuitemradio", { name: "Trợ lý UNI" });
-      expect(agent).toHaveAttribute("aria-checked", "true");
-      expect(agent).toHaveAttribute("aria-disabled", "true");
-      expect(screen.getByRole("menuitemradio", { name: "Chưa giao" })).toHaveAttribute("aria-checked", "false");
-    } finally {
-      sample.assignee_id = "u1";
-      sample.assignee_kind = "human";
-      sample.assignee = { kind: "human", id: "u1", display_name: "An Nguyễn" };
-    }
-  });
-
-  it("agent không có assignee thì hiện nhãn Agent đã dịch, không phải id thô", async () => {
-    sample.assignee_id = "a1";
-    sample.assignee_kind = "agent";
-    sample.assignee = undefined;
-    try {
-      renderSurface();
-      await openAssigneeSubmenu();
-      await screen.findByRole("menuitemradio", { name: "Bình Trần" });
-      const agent = screen.getByRole("menuitemradio", { name: "Agent" });
-      expect(agent).toHaveAttribute("aria-checked", "true");
-      expect(screen.queryByText("a1")).toBeNull();
+      await openAssigneePicker();
+      await screen.findByRole("button", { name: "Bình Trần" });
+      expect(screen.getByRole("button", { name: "Chưa giao" })).toHaveAttribute("aria-pressed", "false");
+      expect(screen.getByRole("button", { name: "An Nguyễn" })).toHaveAttribute("aria-pressed", "false");
     } finally {
       sample.assignee_id = "u1";
       sample.assignee_kind = "human";
@@ -548,7 +558,7 @@ describe.each<Mode>(["list", "board"])("nổi bọt trên %s: hành động khô
     it.each<Via>(["mouse", "keyboard"])("đổi người phụ trách (%s)", async (via) => {
       const { onOpenTask, actions } = renderSurface({ mode });
       const menu = await open();
-      await chooseInSubmenu(menu, "Đổi người phụ trách", "Bình Trần", via);
+      await chooseAssignee(menu, "Bình Trần", via);
       expect(actions!.updateTask).toHaveBeenCalled();
       expect(onOpenTask).not.toHaveBeenCalled();
     });

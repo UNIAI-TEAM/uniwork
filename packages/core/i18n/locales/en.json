@@ -1563,8 +1563,7 @@
       "delete_success": "Task deleted",
       "delete_failed": "Could not delete task",
       "assignees_loading": "Loading members…",
-      "assignees_failed": "Could not load members",
-      "agent_assignee": "Agent"
+      "assignees_failed": "Could not load members"
     },
     "save_view": {
       "title": "Save as view",

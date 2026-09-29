@@ -34,6 +34,24 @@ export async function chooseItem(menu: HTMLElement, name: string, via: Via) {
   pressEnterOn(name);
 }
 
+/**
+ * Opens the shared assignee picker from a row menu and picks `option`, by a
+ * click or by typing into its search and pressing Enter. Clicks the search box
+ * first so a test also sees whether a click inside the picker reaches the row.
+ */
+export async function chooseAssignee(menu: HTMLElement, option: string, via: Via) {
+  await chooseItem(menu, "Đổi người phụ trách", via);
+  const search = await screen.findByPlaceholderText("Tìm thành viên hoặc agent");
+  const row = await screen.findByRole("button", { name: option });
+  fireEvent.click(search);
+  if (via === "mouse") {
+    fireEvent.click(row);
+    return;
+  }
+  fireEvent.change(search, { target: { value: option } });
+  fireEvent.keyDown(search, { key: "Enter" });
+}
+
 export async function chooseInSubmenu(
   menu: HTMLElement,
   trigger: string,

@@ -1562,8 +1562,7 @@
       "delete_success": "Đã xóa task",
       "delete_failed": "Không xóa được task",
       "assignees_loading": "Đang tải thành viên…",
-      "assignees_failed": "Không tải được thành viên",
-      "agent_assignee": "Agent"
+      "assignees_failed": "Không tải được thành viên"
     },
     "save_view": {
       "title": "Lưu thành chế độ xem",

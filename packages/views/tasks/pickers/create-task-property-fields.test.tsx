@@ -66,8 +66,6 @@ describe("CreateTaskPropertyFields", () => {
         searchPlaceholder="Tìm người phụ trách"
         noResultsLabel="Không có kết quả"
         valueLabel="Chưa giao"
-        membersLabel="Thành viên"
-        agentsLabel="Agent"
       />,
     );
 
@@ -92,8 +90,6 @@ describe("CreateTaskPropertyFields", () => {
         searchPlaceholder="Tìm người phụ trách"
         noResultsLabel="Không có kết quả"
         valueLabel="Agent 17"
-        membersLabel="Thành viên"
-        agentsLabel="Agent"
       />,
     );
 
