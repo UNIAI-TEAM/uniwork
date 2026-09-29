@@ -69,7 +69,18 @@ vi.mock("@uniwork/core/workspaces", async (importOriginal) => {
     await importOriginal<typeof import("@uniwork/core/workspaces")>();
   return {
     ...actual,
-    useMembers: () => ({ data: [] }),
+    useMembers: () => ({
+      data: [
+        {
+          workspace_id: "w1",
+          user_id: "member-1",
+          role: "member",
+          email: "vinh@example.com",
+          display_name: "Nguyen Ba Vinh",
+          avatar_url: "https://example.com/vinh.png",
+        },
+      ],
+    }),
   };
 });
 
@@ -101,11 +112,41 @@ function renderBar(
 
 describe("FilterChipsBar", () => {
   it("shows a chip for an active label filter", () => {
-    renderBar("chips-label", {}, { labelFilters: ["label-1"] });
+    renderBar(
+      "chips-label",
+      { onSave: vi.fn(), saveLabel: "Lưu view" },
+      { labelFilters: ["label-1"] },
+    );
 
-    expect(screen.getByTestId("tasks-filter-chips")).toBeInTheDocument();
+    expect(screen.getByTestId("tasks-filter-chips-surface")).toHaveClass(
+      "bg-muted/60",
+      "rounded-lg",
+    );
+    expect(screen.getByTestId("tasks-filter-actions")).toHaveClass("ml-auto");
+    expect(
+      screen.getByRole("button", { name: /xóa bộ lọc|clear filters/i }),
+    ).toHaveTextContent("");
+    const saveButton = screen.getByRole("button", { name: "Lưu view" });
+    expect(saveButton).toHaveTextContent("");
+    expect(saveButton).not.toHaveClass("border-input");
     expect(screen.getByText("Nhãn")).toBeInTheDocument();
     expect(screen.getByText("Bug")).toBeInTheDocument();
+  });
+
+  it("shows the selected account avatar at inline-chip size", () => {
+    renderBar(
+      "chips-member-avatar",
+      {},
+      { assigneeFilters: [{ type: "member", id: "member-1" }] },
+    );
+
+    const avatar = screen
+      .getByTestId("tasks-filter-chips")
+      .querySelector<HTMLElement>('[data-slot="avatar"]');
+    const image = avatar?.querySelector("img");
+
+    expect(avatar).toHaveStyle({ width: "16px", height: "16px" });
+    expect(image).toHaveAttribute("src", "https://example.com/vinh.png");
   });
 
   it("restores baseline statusFilters when removing the status chip", () => {

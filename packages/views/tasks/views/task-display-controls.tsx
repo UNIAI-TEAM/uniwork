@@ -1,27 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Filter,
-  Paperclip,
-  GitBranch,
-  MoreHorizontal,
-  SlidersHorizontal,
-} from "lucide-react";
+import { Filter, SlidersHorizontal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TableFacetsResult } from "@uniwork/core/api/endpoints/tasks-table";
-import { capabilityState } from "@uniwork/core/capabilities";
-import { usePublicConfig } from "@uniwork/core/feature-flags";
 import type { TaskDateFilter } from "@uniwork/core/tasks/stores/view-store-types";
 import type { TaskViewBaseline } from "@uniwork/core/tasks/views/baseline";
 import type { Task } from "@uniwork/core/types";
 import { Button } from "@uniwork/ui/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@uniwork/ui/components/ui/dropdown-menu";
 import {
   Popover,
   PopoverContent,
@@ -39,21 +25,17 @@ import { TaskFilterMenu } from "../filters/task-filter-menu";
 import { TaskDisplaySettings } from "./task-display-settings";
 import { TaskModeSwitcher } from "./task-mode-switcher";
 
-const EMPTY_CONFIG = {
-  flags: {},
-  rum_sample_rate: 0,
-  work_management_capabilities: {},
-} as const;
-
 export function ViewRefreshIndicator({ active }: { active: boolean }) {
   const { t } = useTranslation();
+
+  if (!active) return null;
+
   return (
-    <span className="flex w-4 shrink-0 items-center justify-center">
-      {active ? (
-        <span className="animate-in fade-in fill-mode-backwards [animation-delay:300ms]">
-          <Spinner className="size-3.5 text-muted-foreground" label={t("common.loading")} />
-        </span>
-      ) : null}
+    <span className="flex size-4 shrink-0 animate-in items-center justify-center fade-in fill-mode-backwards [animation-delay:300ms]">
+      <Spinner
+        className="size-3.5 text-muted-foreground"
+        label={t("common.loading")}
+      />
     </span>
   );
 }
@@ -90,22 +72,9 @@ export function TaskDisplayControls({
   onTableFacetChange?: (facet: TaskTableFacetSpec | null) => void;
 }) {
   const { t } = useTranslation();
-  const { data: publicConfig } = usePublicConfig();
-  const config = publicConfig ?? EMPTY_CONFIG;
-  const vcs = capabilityState(config, "tasks.vcs");
-  const attachments = capabilityState(config, "tasks.attachments");
   const [displayOpen, setDisplayOpen] = useState(false);
 
   const filterLabel = t("tasks.filters.add");
-  const unavailableActionReason = t("tasks.surface.action_unavailable");
-  const vcsReason =
-    vcs.status === "available"
-      ? unavailableActionReason
-      : t(vcs.explanation_key || "capabilities.unknown");
-  const attachmentsReason =
-    attachments.status === "available"
-      ? unavailableActionReason
-      : t(attachments.explanation_key || "capabilities.unknown");
   return (
     <div className="flex shrink-0 items-center gap-1">
       <TaskFilterMenu
@@ -169,31 +138,6 @@ export function TaskDisplayControls({
       </Popover>
 
       <TaskModeSwitcher modes={modes} />
-
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={t("tasks.surface.more_actions")}
-            />
-          }
-        >
-          <MoreHorizontal className="size-3.5" aria-hidden />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-52">
-          <DropdownMenuItem disabled title={vcsReason}>
-            <GitBranch className="size-3.5" aria-hidden />
-            {t("tasks.surface.vcs_chip_stub")}
-          </DropdownMenuItem>
-          <DropdownMenuItem disabled title={attachmentsReason}>
-            <Paperclip className="size-3.5" aria-hidden />
-            {t("tasks.header.attachments_unavailable")}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
 
       <ViewRefreshIndicator active={isRefreshing} />
     </div>
