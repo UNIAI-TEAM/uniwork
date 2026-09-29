@@ -28,7 +28,6 @@ function missingHandleFailure(documentKey: string): XlsxOpenFailure {
     document_id: documentKey,
     format: "xlsx",
     failure_class: "engine_error",
-    message: "The XLSX editor host did not provide an EditorHandle.",
   };
 }
 

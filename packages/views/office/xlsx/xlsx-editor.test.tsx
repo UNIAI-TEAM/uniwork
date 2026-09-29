@@ -131,6 +131,7 @@ describe("XlsxEditor", () => {
     const save = vi.fn(async () => ({ accepted: false as const, reason: "clean" as const }));
     renderEditor(opened(), { editor: handle, coordinator: coordinator({ save }) });
     await waitFor(() => expect(screen.getByTestId("xlsx-formula-bar")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("xlsx-selection")).toHaveTextContent("Data!C1"));
     const formula = screen.getByTestId("xlsx-formula-bar");
     fireEvent.change(formula, { target: { value: "=A1+B1" } });
     fireEvent.keyDown(formula, { key: "Enter" });
@@ -149,6 +150,55 @@ describe("XlsxEditor", () => {
     expect(screen.getByTestId("xlsx-selection")).toHaveTextContent("Data!A1");
     fireEvent.click(screen.getByRole("tab", { name: "Summary" }));
     expect(screen.getByRole("tab", { name: "Summary" })).toHaveAttribute("aria-selected", "true");
+    expect(handle.selection?.setSelection).toHaveBeenLastCalledWith({ sheet: "Summary", address: "A1" });
+    const formula = screen.getByTestId("xlsx-formula-bar");
+    fireEvent.change(formula, { target: { value: "hello" } });
+    fireEvent.keyDown(formula, { key: "Enter" });
+    expect(handle.edit).toHaveBeenLastCalledWith([{ op: "set_cell", target: { sheet: "Summary", cell: "A1" }, text: "hello" }]);
+  });
+
+  it("reopens a failed attempt without disposing or cancelling the live handle", async () => {
+    const handle = editor();
+    const open = vi.fn()
+      .mockResolvedValueOnce({ outcome: "failed", document_id: "doc", format: "xlsx", failure_class: "corrupted", message: "broken" } satisfies XlsxOpenOutcome)
+      .mockResolvedValueOnce(opened());
+    renderEditor({ outcome: "failed", document_id: "doc", format: "xlsx", failure_class: "corrupted", message: "broken" }, { editor: handle, open });
+    await waitFor(() => expect(screen.getByTestId("xlsx-error-state")).toBeInTheDocument());
+    const retryButton = screen.getByRole("alert").querySelector("button");
+    expect(retryButton).not.toBeNull();
+    fireEvent.click(retryButton!);
+    await waitFor(() => expect(screen.getByTestId("xlsx-workbook-surface")).toBeInTheDocument());
+    expect(open).toHaveBeenCalledTimes(2);
+    expect(handle.cancel).not.toHaveBeenCalled();
+    expect(handle.dispose).not.toHaveBeenCalled();
+  });
+
+  it("keeps the live session when unrelated props change", async () => {
+    const handle = editor();
+    const open = vi.fn(async () => opened());
+    const { view } = renderEditor(opened(), { editor: handle, open });
+    await waitFor(() => expect(screen.getByTestId("xlsx-workbook-surface")).toBeInTheDocument());
+    view.rerender(<XlsxEditor documentKey="doc-v1" editor={handle} open={{ open }} coordinator={coordinator()} title="Renamed" />);
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Renamed" })).toBeInTheDocument());
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(handle.cancel).not.toHaveBeenCalled();
+    expect(handle.dispose).not.toHaveBeenCalled();
+  });
+
+  it("renders used cells outside the initial viewport window", async () => {
+    const largeWorkbook: XlsxWorkbookSnapshot = {
+      revision: 1,
+      sheets: [{ id: "sheet-1", name: "Data", cells: {
+        A1: { value: 1 },
+        A25: { value: 25 },
+        N1: { value: 14 },
+      } }],
+    };
+    const handle = editor({ getWorkbookSnapshot: () => largeWorkbook });
+    renderEditor({ outcome: "opened", document_id: "doc", document_model_ref: "model", snapshot: largeWorkbook }, { editor: handle });
+    await waitFor(() => expect(screen.getByTestId("xlsx-workbook-surface")).toBeInTheDocument());
+    expect(screen.getByTestId("xlsx-cell-Data-A25")).toBeInTheDocument();
+    expect(screen.getByTestId("xlsx-cell-Data-N1")).toBeInTheDocument();
   });
 
   it("marks results fresh only after a successful G2 recalc", async () => {

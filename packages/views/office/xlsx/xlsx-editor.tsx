@@ -88,13 +88,16 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   const [selection, setSelection] = useState<XlsxSelection | null>(null);
   const [formulaDraft, setFormulaDraft] = useState("");
   const [coordinatorState, setCoordinatorState] = useState(() => coordinator.getState());
-  const [retryToken, setRetryToken] = useState(0);
   const [recalcProgress, setRecalcProgress] = useState<number | null>(null);
   const [recalcError, setRecalcError] = useState<string | null>(null);
   const [recalcFresh, setRecalcFresh] = useState(false);
   const disposedRef = useRef(false);
+  const openAttemptRef = useRef<(() => void) | null>(null);
+  const openAbortRef = useRef<AbortController | null>(null);
   const recalcAbortRef = useRef<AbortController | null>(null);
   const sheetTabsRef = useRef<HTMLDivElement>(null);
+  const translationRef = useRef(t);
+  translationRef.current = t;
 
   const readOnly = permissions.canEdit === false || (capability !== undefined && capability.status !== "available");
   const effectiveTitle = title ?? t("office.xlsx.title");
@@ -130,26 +133,30 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   }, [documentKey, editor, onSelectionChange]);
 
   useEffect(() => {
-    const controller = new AbortController();
     disposedRef.current = false;
-    setViewState("opening");
-    setFailure(null);
-    setSnapshot(null);
-    setRecalcError(null);
-    setRecalcFresh(false);
 
     const run = async () => {
+      openAbortRef.current?.abort();
+      const controller = new AbortController();
+      openAbortRef.current = controller;
+      setViewState("opening");
+      setFailure(null);
+      setSnapshot(null);
+      setRecalcError(null);
+      setRecalcFresh(false);
+
       if (capability !== undefined && capability.status !== "available") {
         const blocked: XlsxOpenFailure = {
           outcome: "failed",
           document_id: documentKey,
           format: "xlsx",
           failure_class: "unsupported_feature",
-          message: capability.reason ?? t("office.xlsx.errors.capabilityUnavailable"),
+          message: capability.reason ?? translationRef.current("office.xlsx.errors.capabilityUnavailable"),
         };
         setFailure(blocked);
         setViewState("error");
         onOpen?.(blocked);
+        if (openAbortRef.current === controller) openAbortRef.current = null;
         return;
       }
       try {
@@ -173,19 +180,25 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
         setFailure(next);
         setViewState("error");
         onOpen?.(next);
+      } finally {
+        if (openAbortRef.current === controller) openAbortRef.current = null;
       }
     };
+
+    openAttemptRef.current = () => { void run(); };
     void run();
     return () => {
       disposedRef.current = true;
-      controller.abort();
+      openAbortRef.current?.abort();
+      openAbortRef.current = null;
       recalcAbortRef.current?.abort();
       recalcAbortRef.current = null;
       void editor.cancel?.("document_changed");
       void coordinator.cancel?.();
       void editor.dispose();
+      openAttemptRef.current = null;
     };
-  }, [capability, coordinator, documentKey, editor, open, onOpen, retryToken, t]);
+  }, [documentKey]);
 
   useEffect(() => {
     setFormulaDraft(cellText(activeCell));
@@ -197,6 +210,22 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     editor.selection?.setSelection?.(next);
     onSelectionChange?.(next);
   }, [editor.selection, onSelectionChange]);
+
+  const selectSheet = useCallback((sheetName: string) => {
+    setActiveSheet(sheetName);
+    if (selection?.sheet === sheetName) return;
+    const sheet = snapshot?.sheets.find((candidate) => candidate.name === sheetName);
+    const firstAddress = sheet
+      ? Object.keys(sheet.cells)
+        .map((address) => ({ address, parts: addressParts(address) }))
+        .filter((cell): cell is { address: string; parts: { row: number; column: number } } => cell.parts !== null)
+        .sort((left, right) => left.parts.row - right.parts.row || left.parts.column - right.parts.column)[0]?.address
+      : undefined;
+    const next = { sheet: sheetName, address: firstAddress ?? "A1" };
+    setSelection(next);
+    onSelectionChange?.(next);
+    if (next) editor.selection?.setSelection?.(next);
+  }, [editor.selection, onSelectionChange, selection?.sheet, snapshot]);
 
   const markDirty = useCallback(() => {
     coordinator.markDirty?.(editor.getDirtyGeneration());
@@ -311,8 +340,8 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   const sheets = snapshot?.sheets ?? [];
   const cells = useMemo(() => activeSheetModel?.cells ?? {}, [activeSheetModel]);
   const visibleAddresses = useMemo(() => Object.keys(cells).map((address) => ({ address, parts: addressParts(address) })).filter((cell): cell is { address: string; parts: { row: number; column: number } } => cell.parts !== null), [cells]);
-  const maxRow = Math.min(visibleAddresses.reduce((max, cell) => Math.max(max, cell.parts.row), 0), 19);
-  const maxColumn = Math.min(visibleAddresses.reduce((max, cell) => Math.max(max, cell.parts.column), 0), 11);
+  const maxRow = visibleAddresses.reduce((max, cell) => Math.max(max, cell.parts.row), 0);
+  const maxColumn = visibleAddresses.reduce((max, cell) => Math.max(max, cell.parts.column), 0);
   const dirty = coordinatorState.state === "dirty" || coordinatorState.dirtyGeneration > coordinatorState.lastSavedGeneration;
   const saving = coordinatorState.state === "saving";
 
@@ -357,7 +386,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
           <div className="flex min-h-0 flex-1 flex-col" data-testid="xlsx-canvas">
             <div ref={sheetTabsRef} tabIndex={-1} className="flex items-center gap-1 overflow-x-auto border-b border-border px-2 py-1" role="tablist" aria-label={t("office.xlsx.sheets.label")}>
               {sheets.map((sheet) => (
-                <button key={sheet.name} type="button" role="tab" aria-selected={sheet.name === activeSheetModel?.name} className="rounded px-3 py-1 text-label hover:bg-muted aria-selected:bg-muted" onClick={() => setActiveSheet(sheet.name)}>{sheet.name}</button>
+                <button key={sheet.name} type="button" role="tab" aria-selected={sheet.name === activeSheetModel?.name} className="rounded px-3 py-1 text-label hover:bg-muted aria-selected:bg-muted" onClick={() => selectSheet(sheet.name)}>{sheet.name}</button>
               ))}
               {sheets.length === 0 ? <span className="px-2 text-caption text-muted-foreground">{t("office.xlsx.surface.ready")}</span> : null}
             </div>
@@ -376,7 +405,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
           </div>
         </>
       ) : viewState === "error" && failure ? (
-        <XlsxErrorState failure={failure} onRetry={() => setRetryToken((value) => value + 1)} />
+        <XlsxErrorState failure={failure} onRetry={() => openAttemptRef.current?.()} />
       ) : (
         <div className="flex min-h-64 flex-1 items-center justify-center text-body text-muted-foreground" role="status" data-testid="xlsx-opening">{t("office.xlsx.state.opening")}</div>
       )}
