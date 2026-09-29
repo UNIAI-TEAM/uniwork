@@ -41,9 +41,6 @@ export function DocxErrorState({
         <div className="space-y-1">
           <p className="text-body font-semibold">{t("office.docx.errors.title")}</p>
           <p>{reason}</p>
-          <p className="text-caption text-destructive-soft-foreground">
-            {t("office.docx.errors.reason", { reason: failure.failure_class })}
-          </p>
           {failure.engine_error ? (
             <p className="font-mono text-caption text-destructive-soft-foreground">{failure.engine_error}</p>
           ) : null}

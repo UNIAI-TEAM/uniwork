@@ -136,13 +136,90 @@ describe("DocxEditor", () => {
     expect(resolveOpen).toBeDefined();
   });
 
-  it("fails closed when the serialize capability is absent or unavailable", async () => {
+  it.each([
+    ["absent", undefined],
+    ["readonly", { status: "readonly" as const, operation: "serialize" }],
+    ["unavailable", { status: "unavailable" as const, operation: "serialize" }],
+    ["unknown", { status: "unknown" as const, operation: "serialize" }],
+    ["non-serialize", { status: "available" as const, operation: "open" }],
+  ])("fails closed for a %s capability row", async (_label, capabilityInput) => {
     const handle = editor();
     const open = vi.fn(async () => opened());
-    render(<DocxEditor documentKey="doc-v1" editor={handle} open={{ open }} coordinator={coordinator()} />);
+    const onOpen = vi.fn();
+    const capability = capabilityInput
+      ? {
+          format: "docx" as const,
+          operation: capabilityInput.operation,
+          host: "browser",
+          engineBuild: "test",
+          contractRevision: "test",
+          status: capabilityInput.status,
+          fidelityWarnings: [],
+        }
+      : undefined;
+    render(<DocxEditor documentKey="doc-v1" editor={handle} open={{ open }} coordinator={coordinator()} capability={capability} onOpen={onOpen} />);
     await waitFor(() => expect(screen.getByTestId("docx-error-state")).toBeInTheDocument());
     expect(open).not.toHaveBeenCalled();
     expect(handle.open).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("docx-save")).not.toBeInTheDocument();
+    expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({
+      outcome: "failed",
+      document_id: "doc-v1",
+      format: "docx",
+      failure_class: "unsupported_feature",
+    }));
+  });
+
+  it("does not expose a raw failure class token in the error state", async () => {
+    renderEditor({
+      outcome: "failed",
+      document_id: "doc",
+      format: "docx",
+      failure_class: "wrong_password",
+    });
+    await waitFor(() => expect(screen.getByTestId("docx-error-state")).toBeInTheDocument());
+    expect(screen.getByRole("alert")).not.toHaveTextContent("wrong_password");
+  });
+
+  it("starts opening when the serialize capability becomes available", async () => {
+    const handle = editor();
+    const open = vi.fn(async () => opened());
+    const view = render(<DocxEditor documentKey="doc-v1" editor={handle} open={{ open }} coordinator={coordinator()} />);
+    await waitFor(() => expect(screen.getByTestId("docx-error-state")).toBeInTheDocument());
+    expect(open).not.toHaveBeenCalled();
+
+    view.rerender(<DocxEditor
+      documentKey="doc-v1"
+      editor={handle}
+      open={{ open }}
+      coordinator={coordinator()}
+      capability={{ format: "docx", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }}
+    />);
+    await waitFor(() => expect(screen.getByTestId("docx-canvas")).toBeInTheDocument());
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(handle.open).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes an active session when serialize becomes readonly", async () => {
+    const handle = editor();
+    const open = vi.fn(async () => opened());
+    const coordinatorInstance = coordinator();
+    const available = { format: "docx" as const, operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available" as const, fidelityWarnings: [] };
+    const view = render(<DocxEditor documentKey="doc-v1" editor={handle} open={{ open }} coordinator={coordinatorInstance} capability={available} />);
+    await waitFor(() => expect(screen.getByTestId("docx-canvas")).toBeInTheDocument());
+
+    view.rerender(<DocxEditor
+      documentKey="doc-v1"
+      editor={handle}
+      open={{ open }}
+      coordinator={coordinatorInstance}
+      capability={{ ...available, status: "readonly" }}
+    />);
+    await waitFor(() => expect(screen.getByTestId("docx-error-state")).toBeInTheDocument());
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(handle.open).toHaveBeenCalledTimes(1);
+    expect(handle.cancel).toHaveBeenCalledWith("document_changed");
+    expect(handle.dispose).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("docx-save")).not.toBeInTheDocument();
   });
 

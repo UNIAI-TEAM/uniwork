@@ -1,59 +1,4 @@
 {
-  "office": {
-    "docx": {
-      "title": "DOCX document",
-      "toolbar": { "label": "DOCX editing commands" },
-      "actions": {
-        "undo": "Undo",
-        "redo": "Redo",
-        "save": "Save to UniWork",
-        "saving": "Saving…",
-        "retryOpen": "Try opening again"
-      },
-      "commands": {
-        "bold": "Bold (pending)",
-        "italic": "Italic (pending)",
-        "table": "Table (pending)",
-        "image": "Image (pending)"
-      },
-      "selection": {
-        "none": "No selection",
-        "range": "Selection {{from}}–{{to}}"
-      },
-      "capabilityPending": "This DOCX capability is not available in this build.",
-      "state": {
-        "opening": "Opening document…",
-        "error": "Could not open document"
-      },
-      "saveState": {
-        "ready": "Ready",
-        "dirty": "Unsaved changes",
-        "saving": "Saving…",
-        "saved": "Saved to UniWork",
-        "error": "Save needs attention",
-        "conflict": "Version conflict",
-        "blocked": "Save blocked",
-        "readonly": "Read-only",
-        "incompatible": "Editing unavailable"
-      },
-      "surface": { "ready": "DOCX canvas is ready for the host renderer." },
-      "errors": {
-        "title": "This DOCX could not be opened",
-        "reason": "Reason: {{reason}}",
-        "unknown": "The DOCX adapter returned an unknown open failure.",
-        "corrupted": "The DOCX package is corrupt or incomplete.",
-        "password_cancelled": "The password prompt was cancelled.",
-        "password_required": "A password is required to open this document.",
-        "unsupported_feature": "This DOCX feature is not supported by the current engine.",
-        "not_office_file": "The selected file is not an OOXML DOCX document.",
-        "engine_error": "The DOCX engine could not open this document.",
-        "capabilityUnavailable": "DOCX editing is not available for this engine build.",
-        "wrong_password": "The password did not unlock this document.",
-        "io_error": "The document could not be read from storage.",
-        "too_large": "This document is too large to open here."
-      }
-    }
-  },
   "common": {
     "save": "Save",
     "cancel": "Cancel",
@@ -6900,6 +6845,59 @@
     }
   },
   "office": {
+    "docx": {
+      "title": "DOCX document",
+      "toolbar": { "label": "DOCX editing commands" },
+      "actions": {
+        "undo": "Undo",
+        "redo": "Redo",
+        "save": "Save to UniWork",
+        "saving": "Saving…",
+        "retryOpen": "Try opening again"
+      },
+      "commands": {
+        "bold": "Bold (pending)",
+        "italic": "Italic (pending)",
+        "table": "Table (pending)",
+        "image": "Image (pending)"
+      },
+      "selection": {
+        "none": "No selection",
+        "range": "Selection {{from}}–{{to}}"
+      },
+      "capabilityPending": "This DOCX capability is not available in this build.",
+      "state": {
+        "opening": "Opening document…",
+        "error": "Could not open document"
+      },
+      "saveState": {
+        "ready": "Ready",
+        "dirty": "Unsaved changes",
+        "saving": "Saving…",
+        "saved": "Saved to UniWork",
+        "error": "Save needs attention",
+        "conflict": "Version conflict",
+        "blocked": "Save blocked",
+        "readonly": "Read-only",
+        "incompatible": "Editing unavailable"
+      },
+      "surface": { "ready": "DOCX canvas is ready for the host renderer." },
+      "errors": {
+        "title": "This DOCX could not be opened",
+        "reason": "Reason: {{reason}}",
+        "unknown": "The DOCX adapter returned an unknown open failure.",
+        "corrupted": "The DOCX package is corrupt or incomplete.",
+        "password_cancelled": "The password prompt was cancelled.",
+        "password_required": "A password is required to open this document.",
+        "unsupported_feature": "This DOCX feature is not supported by the current engine.",
+        "not_office_file": "The selected file is not an OOXML DOCX document.",
+        "engine_error": "The DOCX engine could not open this document.",
+        "capabilityUnavailable": "DOCX editing is not available for this engine build.",
+        "wrong_password": "The password did not unlock this document.",
+        "io_error": "The document could not be read from storage.",
+        "too_large": "This document is too large to open here."
+      }
+    },
     "title": "Office",
     "save": {
       "status": {

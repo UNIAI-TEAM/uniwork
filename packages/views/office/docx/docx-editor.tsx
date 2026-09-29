@@ -66,6 +66,10 @@ export function DocxEditor<TSnapshot = unknown>({
   translateRef.current = t;
 
   const readOnly = capability?.operation !== "serialize" || capability.status !== "available";
+  // Capability identity is semantic input to the session. Keep the object and
+  // callbacks in refs so shell identity churn does not restart an active open.
+  const capabilityStatus = capability?.status;
+  const capabilityOperation = capability?.operation;
   const effectiveTitle = title ?? t("office.docx.title");
 
   useEffect(() => {
@@ -148,7 +152,7 @@ export function DocxEditor<TSnapshot = unknown>({
     };
     // The session is keyed by documentKey/retryToken. Callback and adapter
     // objects are refs so a shell re-render cannot cancel an active document.
-  }, [documentKey, retryToken]);
+  }, [documentKey, retryToken, capabilityOperation, capabilityStatus]);
 
   const save = useCallback((entryPoint: "button" | "shortcut" = "button") => {
     if (viewState !== "ready" || readOnly) return;
