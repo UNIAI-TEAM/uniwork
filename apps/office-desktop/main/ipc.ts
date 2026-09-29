@@ -3,6 +3,7 @@
 export * from "../shared/ipc";
 
 import type { NativeLoginManager } from "./auth/manager";
+import { desktopSessionMetadataSchema } from "../shared/ipc";
 
 /** Handlers deliberately map the privileged manager to metadata-only values.
  * A token, code, verifier, or state cannot be returned across this boundary. */
@@ -14,9 +15,8 @@ export function createAuthIpcHandlers(manager: NativeLoginManager) {
       return { status: result.status, attemptId: result.attemptId, expiresAt: result.expiresAt };
     },
     "desktop:auth-cancel": (request: Extract<import("../shared/ipc").DesktopIpcRequest, { attemptId: string }>) => {
-      void request;
-      return manager.cancelLogin(request.attemptId);
+      return desktopSessionMetadataSchema.parse(manager.cancelLogin(request.attemptId));
     },
-    "desktop:auth-session": (_request: Extract<import("../shared/ipc").DesktopIpcRequest, { sessionGeneration: string }>) => manager.getMetadata(),
+    "desktop:auth-session": (_request: Extract<import("../shared/ipc").DesktopIpcRequest, { sessionGeneration: string }>) => desktopSessionMetadataSchema.parse(manager.getMetadata()),
   };
 }

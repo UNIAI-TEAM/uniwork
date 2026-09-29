@@ -31,6 +31,8 @@ describe("desktop auth transport and fake contract", () => {
     const callback = server.issueCallback({ state: current!.state, clientId: binding.clientId, deploymentId: binding.deploymentId, redirectUri: binding.redirectUri });
     await expect(manager.handleCallback(callback)).resolves.toMatchObject({ ok: true, metadata: { status: "signed-in", accountId: "account-1" } });
     await expect(manager.handleCallback(callback)).resolves.toEqual({ ok: false, reason: "no_attempt" });
+    expect(manager.getMetadata()).toMatchObject({ status: "signed-in", accountId: "account-1" });
+    expect(manager.cancelLogin("attempt_stale_abcdefghijklmnopqrstuvwxyz")).toMatchObject({ status: "signed-in", accountId: "account-1" });
     now += 1;
   });
   it("cancels before callback and never opens a credential-shaped IPC result", async () => {
@@ -39,6 +41,13 @@ describe("desktop auth transport and fake contract", () => {
     const start = await manager.startLogin();
     expect(manager.cancelLogin(start.attemptId)).toEqual({ status: "signed-out" });
     expect(manager.getCurrentAttempt(1_000)).toBeUndefined();
+  });
+  it("does not let a stale cancel id clear a newer pending attempt", async () => {
+    const server = new FakeAuthServer({ now: () => 1_000 });
+    const manager = new NativeLoginManager({ ...binding, browser: createSystemBrowserLauncher(() => { }), transport: createAllowlistedAuthTransport({ origin: "https://api.example.test", ...binding, server }), credentials: createInMemoryCredentialStore(), now: () => 1_000 });
+    const started = await manager.startLogin();
+    expect(manager.cancelLogin("attempt_stale_abcdefghijklmnopqrstuvwxyz")).toMatchObject({ status: "pending" });
+    expect(manager.getCurrentAttempt(1_000)?.attemptId).toBe(started.attemptId);
   });
   it("fails closed when the browser or exchange binding is invalid", async () => {
     const server = new FakeAuthServer({ now: () => 1_000 });

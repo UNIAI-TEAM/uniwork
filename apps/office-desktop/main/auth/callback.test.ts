@@ -37,4 +37,8 @@ describe("custom-scheme callback validator", () => {
     expect(events).toEqual([{ event: "auth_callback_rejected", reason: "no_attempt" }, { event: "auth_callback_rejected", attemptId: expect.any(String), reason: "expired" }]);
     expect(JSON.stringify(events)).not.toContain("secret");
   });
+  it("does not accept a manager override of the registered redirect", async () => {
+    const { NativeLoginManager } = await import("./manager");
+    expect(() => new NativeLoginManager({ clientId: config.clientId, deploymentId: config.deploymentId, redirectUri: `${config.redirectUri}/`, browser: { open: () => undefined }, transport: { start: async () => ({ authorizationUrl: "https://auth.invalid", attemptExpiresAt: "" }), exchange: async () => { throw new Error("unused"); } }, credentials: { save: () => undefined, get: () => undefined, clear: () => undefined } })).toThrow(/registered desktop callback/);
+  });
 });

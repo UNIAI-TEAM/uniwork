@@ -37,6 +37,7 @@ export class NativeLoginManager {
   constructor(options: LoginManagerOptions) {
     this.options = options;
     this.attempts = options.attempts ?? new LoginAttemptStore();
+    if ((options.redirectUri ?? DESKTOP_IDENTITY.authCallback) !== DESKTOP_IDENTITY.authCallback) throw new Error("Only the registered desktop callback is allowed");
   }
 
   getMetadata(): LoginSessionMetadata { return this.metadata; }
@@ -61,8 +62,8 @@ export class NativeLoginManager {
   }
 
   cancelLogin(attemptId?: string): LoginSessionMetadata {
-    this.attempts.cancel(attemptId);
-    this.setMetadata({ status: "signed-out" });
+    const cancelled = this.attempts.cancel(attemptId);
+    if (cancelled || (this.metadata.status === "pending" && !this.attempts.current(this.clock()))) this.setMetadata({ status: "signed-out" });
     return this.metadata;
   }
 
@@ -70,7 +71,7 @@ export class NativeLoginManager {
     const attempt = this.attempts.current(this.clock());
     const validation = validateCallback(callbackUrl, attempt, { now: this.clock(), expectedClientId: this.options.clientId, expectedDeploymentId: this.options.deploymentId, logger: (event) => this.options.logger?.({ event: event.event, ...(event.attemptId ? { attemptId: event.attemptId } : {}), reason: event.reason }) });
     if (!validation.ok) {
-      if (validation.reason === "expired" || validation.reason === "no_attempt" || validation.reason === "verifier_missing") this.setMetadata({ status: "signed-out" });
+      if (this.metadata.status === "pending" && (validation.reason === "expired" || validation.reason === "no_attempt" || validation.reason === "verifier_missing")) this.setMetadata({ status: "signed-out" });
       return validation;
     }
     const claimed = this.attempts.consume(validation.attemptId, this.clock());
