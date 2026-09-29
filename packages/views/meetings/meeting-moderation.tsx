@@ -160,7 +160,8 @@ export function MeetingModerationMenuItems({
   const moderation = useContext(ModerationCtx);
   const requestMute = useRequestMute();
   const locked = useMicLocked(participant);
-  if (!moderation || participant.isLocal) return null;
+  // No participant id, no row to act on: offer nothing rather than a confirm that cannot work.
+  if (!moderation || participant.isLocal || !participantIdFromIdentity(participant.identity)) return null;
   const name = displayName(participant);
   const canMute = !micMuted && !locked;
   return (
@@ -179,7 +180,7 @@ export function MeetingModerationMenuItems({
       <DropdownMenuSeparator />
       <DropdownMenuItem variant="destructive" onClick={() => moderation.askRemove(participant)}>
         <UserMinus aria-hidden className="size-4" />
-        {t("meetings.removeFromCall")}
+        {t("meetings.removeParticipant", { name })}
       </DropdownMenuItem>
     </>
   );

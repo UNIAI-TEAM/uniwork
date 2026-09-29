@@ -192,12 +192,15 @@ func conferenceSessionReady(sess db.MeetingConferenceSession) bool {
 	}
 }
 
+// lookupPrincipal returns the viewer's latest participant row in any status,
+// so callers can refuse a removed one. Guests included: an active-only lookup
+// let a removed guest open the same link again and get a fresh row (UNI-883).
 func (s *MeetingService) lookupPrincipal(ctx context.Context, meetingID string, in AdmissionContext) (db.MeetingParticipant, error) {
 	if in.UserID != "" {
 		return s.q.GetUserParticipantAnyStatus(ctx, db.GetUserParticipantAnyStatusParams{MeetingID: meetingID, UserID: strText(in.UserID)})
 	}
 	if in.GuestID != "" {
-		return s.q.GetActiveGuestParticipant(ctx, db.GetActiveGuestParticipantParams{MeetingID: meetingID, GuestID: strText(in.GuestID)})
+		return s.q.GetGuestParticipantAnyStatus(ctx, db.GetGuestParticipantAnyStatusParams{MeetingID: meetingID, GuestID: strText(in.GuestID)})
 	}
 	return db.MeetingParticipant{}, pgx.ErrNoRows
 }

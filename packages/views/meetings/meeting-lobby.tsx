@@ -69,6 +69,7 @@ export function lobbyMessage(
       return t(guestMode ? "meetings.guestSessionExpired" : "meetings.inviteOnly");
     }
     if (error.code === "join_request_rejected") return t("meetings.joinRequestRejected");
+    if (error.code === "participant_removed") return t("meetings.removedFromMeeting");
     if (INVALID_LINK_CODES.has(error.code)) return t("meetings.publicInviteInvalidLink");
     if (guestMode) return t("meetings.joinFailed");
     return apiErrorMessage(error) ?? t("common.error");
@@ -150,6 +151,9 @@ function lobbyGate(decision: string | undefined, error: unknown): { icon: Lucide
       return { icon: Hourglass, tone: "info", action: "retry" };
     case "join_request_rejected":
       return { icon: UserX, tone: "destructive", action: "requestAgain" };
+    // Removed by the host: final for this meeting, so no retry that cannot work.
+    case "participant_removed":
+      return { icon: UserX, tone: "destructive", action: null };
     case "unauthorized":
     case "access_grant_not_found":
       return { icon: Lock, tone: "muted", action: null };
@@ -218,13 +222,16 @@ export function MeetingLobby({
     ? t("meetings.startFailed")
     : lobbyHint(t, decision, error, { guestMode, canStart: starter, meetingStatus });
 
-  // A member's way out of the room lands on the meeting page; after the end
-  // that is where the notes are, so the button says so.
-  const endedForMember = !guestMode && error instanceof ApiError && error.code === "meeting_ended";
+  // A member's way out lands on the meeting page. After the end (that is where
+  // the notes are) or a removal (final for this call), the button says so.
+  const finalForMember =
+    !guestMode &&
+    error instanceof ApiError &&
+    (error.code === "meeting_ended" || error.code === "participant_removed");
   const back = (
     <Button type="button" variant="outline" onClick={onLeave}>
       <ArrowLeft aria-hidden />
-      {endedForMember ? t("meetings.backToMeeting") : t("common.back")}
+      {finalForMember ? t("meetings.backToMeeting") : t("common.back")}
     </Button>
   );
 

@@ -291,6 +291,29 @@ describe("MeetingLobby", () => {
     expect(region).not.toContainElement(screen.getByRole("button", { name: "Xin vào lại" }));
   });
 
+  it("tells a removed person they were removed, with no retry that cannot work", () => {
+    for (const guestMode of [false, true]) {
+      const onRetry = vi.fn();
+      const { unmount } = render(
+        wrapWithNav(
+          <MeetingLobby
+            guestMode={guestMode}
+            decision={undefined}
+            error={new ApiError("bạn đã bị gỡ khỏi cuộc họp", "participant_removed", 403)}
+            onRetry={onRetry}
+            onLeave={() => {}}
+          />,
+        ),
+      );
+      expect(screen.getByRole("heading", { name: "Người chủ trì đã mời bạn ra khỏi cuộc họp" })).toBeInTheDocument();
+      expect(screen.queryByText("bạn đã bị gỡ khỏi cuộc họp")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Thử lại" })).not.toBeInTheDocument();
+      // A member goes back to the meeting page, as from an ended call; a guest has none.
+      expect(screen.getByRole("button", { name: guestMode ? "Quay lại" : "Về trang cuộc họp" })).toBeInTheDocument();
+      unmount();
+    }
+  });
+
   it("offers a retry for a join that failed for an unknown reason", () => {
     const onRetry = vi.fn();
     render(

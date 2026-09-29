@@ -233,7 +233,12 @@ export function MeetingRoomView({
   // focus follows to the new heading so the change is heard (the guest
   // invite page does the same). Entering the room itself is left alone.
   const joinErrorCode = join.error instanceof ApiError ? join.error.code : join.error ? "error" : "";
-  const lobbyView = !choice
+  // Being removed, or the call closing around you, swaps the room for a
+  // screen that says why; focus moves there too instead of staying on a tile
+  // that no longer exists.
+  const lobbyView = closedReason
+    ? `closed:${closedReason}`
+    : !choice
     ? "prejoin"
     : !admitted && (join.error || decision)
       ? `lobby:${decision?.decision ?? ""}:${joinErrorCode}`

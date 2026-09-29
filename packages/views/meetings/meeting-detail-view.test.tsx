@@ -626,7 +626,10 @@ describe("MeetingRoomView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Vào phòng họp" }));
     await screen.findByTestId("livekit-room");
     act(() => lastDisconnected?.(DisconnectReason.PARTICIPANT_REMOVED));
-    expect(await screen.findByRole("heading", { name: "Người chủ trì đã mời bạn ra khỏi cuộc họp" })).toBeInTheDocument();
+    const heading = await screen.findByRole("heading", { name: "Người chủ trì đã mời bạn ra khỏi cuộc họp" });
+    // The room vanished under the pointer: focus lands on why, so a screen
+    // reader hears it instead of losing its place on a removed video tile.
+    await waitFor(() => expect(heading).toHaveFocus());
   });
 
   it("uses the guest prejoin choice when already admitted", async () => {
