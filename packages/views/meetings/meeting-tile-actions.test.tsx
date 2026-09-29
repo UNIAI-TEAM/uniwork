@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { Participant } from "livekit-client";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
@@ -47,5 +47,11 @@ describe("MeetingTileActions", () => {
     const mute = screen.getByLabelText("Tắt mic của Lan");
     expect(mute).not.toHaveClass("invisible");
     expect(mute).toBeEnabled();
+  });
+
+  it("hands focus to the menu when the quick mute is used", () => {
+    renderActions(false);
+    fireEvent.click(screen.getByLabelText("Tắt mic của Lan"));
+    expect(screen.getByRole("button", { name: /Thao tác với Lan/ })).toHaveFocus();
   });
 });

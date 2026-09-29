@@ -11,6 +11,7 @@ import {
   participantRole,
   reduceSignal,
   shouldHonorMuteRequest,
+  micLockedNow,
 } from "./meeting-signals";
 
 describe("meeting signals", () => {
@@ -90,5 +91,18 @@ describe("participant roles", () => {
     expect(participantRole({ identity: "agent-stt", isAgent: true }, guests)).toBe("agent");
     expect(participantRole({ identity: "uw_participant_p2", isAgent: false }, guests)).toBe("guest");
     expect(participantRole({ identity: "uw_participant_p1", isAgent: false }, guests)).toBeNull();
+  });
+});
+
+describe("micLockedNow", () => {
+  it("reads the host's lock from publish sources that leave the mic out", () => {
+    expect(micLockedNow({ permissions: { canPublishSources: [1, 3, 4] } })).toBe(true);
+    expect(micLockedNow({ permissions: { canPublishSources: [] } })).toBe(false);
+    expect(micLockedNow({ permissions: { canPublishSources: [1, 2] } })).toBe(false);
+    expect(micLockedNow({})).toBe(false);
+  });
+
+  it("does not call an audience member's mic locked: nobody could unlock it", () => {
+    expect(micLockedNow({ permissions: { canPublishSources: [] } })).toBe(false);
   });
 });

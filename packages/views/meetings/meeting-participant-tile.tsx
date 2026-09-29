@@ -268,8 +268,12 @@ function MeetingParticipantTileImpl({
   const ownShare = Boolean(isScreenShare && participant.isLocal);
   const previewable =
     ownShare && track !== undefined && isTrackReference(track) && ownSharePreviewable(track.publication.track?.mediaStreamTrack);
-  // The presenter may put the preview away (a busy screen, a slow machine).
-  const [previewHidden, setPreviewHidden] = useState(false);
+  // The presenter may put the preview away (a busy screen, a slow machine);
+  // the choice follows the share across stage, grid and strip.
+  const shareSid = ownShare && track && isTrackReference(track) ? track.publication.trackSid : "";
+  const previewHidden = useMeetingViewSessionStore((s) => s.hiddenSharePreviews.includes(shareSid));
+  const setSharePreviewHidden = useMeetingViewSessionStore((s) => s.setSharePreviewHidden);
+  const setPreviewHidden = (hidden: boolean) => setSharePreviewHidden(shareSid, hidden);
   const ownPreview = previewable && !previewHidden;
   const presenting = ownShare && !ownPreview;
   // A shared screen keeps its corners: a big radius clipped the logo, menus
@@ -420,7 +424,7 @@ function MeetingParticipantTileImpl({
             !compact && !showActions && "max-w-[calc(100%-1rem)] sm:max-w-[calc(100%-1.5rem)]",
             // A thumbnail is too narrow for the name and the controls at once.
             // A thumbnail keeps the name beside its one control, cut short.
-            compact && showActions && "max-w-[calc(100%-2.75rem)]",
+            compact && showActions && "max-w-[calc(100%-var(--tile-control)-1rem)]",
           )}
           style={
             !compact && showActions

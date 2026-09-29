@@ -10,7 +10,7 @@ import { useRemoveParticipant, useSetParticipantPublish } from "@uniwork/core/me
 import { DropdownMenuItem, DropdownMenuSeparator } from "@uniwork/ui/components/ui/dropdown-menu";
 import { ConfirmDialog } from "../common/form-dialog";
 import { toastApiError } from "../toast-api-error";
-import { PARTICIPANT_IDENTITY_PREFIX } from "./meeting-signals";
+import { micLockedNow, PARTICIPANT_IDENTITY_PREFIX } from "./meeting-signals";
 import { useRequestMute } from "./use-meeting-signals";
 
 function participantIdFromIdentity(identity: string): string | null {
@@ -94,21 +94,9 @@ export function MeetingModerationProvider({
 
 const MIC_LOCK_TOAST = "meeting-mic-lock";
 
-// TrackSource.MICROPHONE in @livekit/protocol, which views does not import.
-const MICROPHONE_SOURCE = 2;
-
-function micLockedNow(participant: Participant): boolean {
-  const permissions = participant.permissions;
-  if (!permissions) return false;
-  if (permissions.canPublish === false) return true;
-  // An empty list allows every source; the host's lock lists all but the mic.
-  const sources = permissions.canPublishSources ?? [];
-  return sources.length > 0 && !sources.includes(MICROPHONE_SOURCE);
-}
-
 /**
- * Whether this person's mic is locked (the host took the mic source away, or
- * all publishing). Unlike a muted mic, only the host can lift it.
+ * Whether this person's mic is locked (see micLockedNow). Unlike a muted mic,
+ * only the host can lift it.
  */
 export function useMicLocked(participant: Participant): boolean {
   const [locked, setLocked] = useState(() => micLockedNow(participant));

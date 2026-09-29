@@ -1,5 +1,5 @@
 "use client";
-import type { ComponentProps } from "react";
+import { useRef, type ComponentProps } from "react";
 import type { Participant } from "livekit-client";
 import { Eye, EyeOff, MicOff, MoreVertical, Pin, PinOff } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -62,6 +62,7 @@ export function MeetingTileActions({
   const toggleHidden = useMeetingViewSessionStore((s) => s.toggleHidden);
   const isHidden = useMeetingViewSessionStore((s) => s.isHidden(participant.identity));
   const hostMuteSlot = canHost && !participant.isLocal;
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
   // A share offers only the host's actions on its presenter.
   if (screenShare && !hostMuteSlot) return null;
 
@@ -99,7 +100,12 @@ export function MeetingTileActions({
           // A coarse pointer leaves mute to the menu: at 44px, three buttons
           // took the whole width of a phone's tile.
           className={cn("pointer-coarse:hidden", micMuted && "invisible")}
-          onClick={() => requestMute(participant.identity, name)}
+          onClick={() => {
+            requestMute(participant.identity, name);
+            // This button goes invisible once the mic is off; focus waits on
+            // the menu instead of falling to the page.
+            menuTriggerRef.current?.focus();
+          }}
         >
           <MicOff aria-hidden className="size-4" />
         </TileActionButton>
@@ -109,6 +115,7 @@ export function MeetingTileActions({
         <DropdownMenuTrigger
           render={
             <TileActionButton
+              ref={menuTriggerRef}
               aria-label={
                 screenShare ? t("meetings.screenActions", { name }) : t("meetings.participantActions", { name })
               }

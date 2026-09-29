@@ -21,6 +21,7 @@ import {
   expireReactions,
   forgetIdentity,
   initialSignalsState,
+  micLockedNow,
   reduceSignal,
   REACTION_TTL_MS,
   shouldHonorMuteRequest,
@@ -114,7 +115,14 @@ export function MeetingSignalsProvider({
         toast.info(t("meetings.hostMutedYou"), {
           description: t("meetings.hostMutedYouHint"),
           position: "top-center",
-          action: { label: t("meetings.micOn"), onClick: () => void mic.toggle(true) },
+          // A lock that lands while this notice is up refuses the mic; the
+          // lock's own notice says why, so the action just stands down.
+          action: {
+            label: t("meetings.micOn"),
+            onClick: () => {
+              if (!micLockedNow(localParticipant)) void mic.toggle(true);
+            },
+          },
         });
       }
       return;
