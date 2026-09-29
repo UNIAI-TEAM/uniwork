@@ -18,10 +18,22 @@
   "fixtureManifest": "docs/office/g0/fixtures/manifest.json",
   "fixtureManifestRevision": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
   "statusVocabulary": {
-    "not_run": "No run on the final lane revision has been recorded. This is the status for every row in this matrix.",
-    "blocked": "A dependency or decision gate prevents a valid run; record the owner and evidence path.",
+    "not_run": "No run on the final lane revision has been recorded. The status for every row unless a decision gate blocks it.",
+    "blocked": "A dependency or decision gate prevents a valid run; the row records blockedOwner and evidencePath.",
     "pass": "Reserved for a later evidence packet; no row in this matrix is marked pass."
   },
+  "genericNegativeCases": [
+    "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+    "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+    "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved.",
+    "The failure must not create a false saved state, committed version, or unbounded retry.",
+    "A retry may occur only for the explicitly requested intent after reconciliation.",
+    "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document.",
+    "A script/session probe or asset traversal outside the declared manifest must be denied without host privilege.",
+    "The baseline limitation must remain visible until the provider records a run on the final revision.",
+    "No baseline limitation may be changed to pass by documentation alone.",
+    "Wrong password and cancel must stay in open-error with no partial content and no Save intent."
+  ],
   "rowCounts": {
     "g3Acceptance": 12,
     "g4Acceptance": 16,
@@ -42,7 +54,7 @@
       "host": "web",
       "oracle": {
         "type": "receipt",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert server version and checksum, then confirm a fresh session sees the edit using the Section 5.2 assertions."
       },
       "fixtures": [
         {
@@ -95,7 +107,7 @@
       "host": "web",
       "oracle": {
         "type": "receipt",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert only a local checkpoint before explicit Save: no upload/commit/version/file/quota change, Save intent gating, N/N+1 receipt sequencing, idempotent retry, and stale-base conflict."
       },
       "fixtures": [
         {
@@ -122,7 +134,7 @@
       "host": "web",
       "oracle": {
         "type": "receipt",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert commit rejection leaves the server version unchanged, the draft scoped to its account, and blocked content without an export path."
       },
       "fixtures": [
         {
@@ -149,7 +161,7 @@
       "host": "web",
       "oracle": {
         "type": "receipt",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert account B cannot see A payload; A recovery uses live ACL/base, and a broken store never reports a saved draft."
       },
       "fixtures": [
         {
@@ -176,7 +188,7 @@
       "host": "web",
       "oracle": {
         "type": "object/part",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert PDF parse errors are typed vi/en and reopen remains possible; an adopted embedded font is not falsely reported missing."
       },
       "fixtures": [
         {
@@ -209,7 +221,7 @@
       "host": "web",
       "oracle": {
         "type": "object/part",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert corrupt, cancelled, or unsupported input stays bound to its document, never shows a blank/grid editor, disables Save and cloud write, and allows the next valid file to open."
       },
       "fixtures": [
         {
@@ -247,7 +259,7 @@
       "host": "web",
       "oracle": {
         "type": "object/part",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert the second PDF Save uses post-first-edit content, never stale state, and writes through Documents."
       },
       "fixtures": [
         {
@@ -274,7 +286,7 @@
       "host": "web",
       "oracle": {
         "type": "object/part",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert preview cannot read app session/API data, assets outside the manifest/scope, or privileged host state."
       },
       "fixtures": [
         {
@@ -306,7 +318,7 @@
       "host": "web",
       "oracle": {
         "type": "receipt",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert cancel creates nothing; accept records consent/provenance and preserves source/ACL; missing owner fails closed."
       },
       "fixtures": [
         {
@@ -338,7 +350,7 @@
       "host": "web",
       "oracle": {
         "type": "receipt",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert read-only or unknown capability cannot write; a version mismatch fails with an actionable error and no silent downgrade."
       },
       "fixtures": [
         {
@@ -365,7 +377,7 @@
       "host": "web",
       "oracle": {
         "type": "render diff",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert the canvas remains nonzero; theme leaves document content unchanged; contrast/focus, i18n, and shared vi/en save-state keys meet parity."
       },
       "fixtures": [
         {
@@ -398,7 +410,7 @@
       "host": "web",
       "oracle": {
         "type": "render diff",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert object/part, render-diff, open/save, and resource measurements by fixture/build; lab measurements remain distinct from product SLA."
       },
       "fixtures": [
         {
@@ -451,7 +463,7 @@
       "host": "desktop",
       "oracle": {
         "type": "receipt",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert login binds the correct account; the token remains in main/OS storage and the renderer never receives a refresh credential."
       },
       "fixtures": [
         {
@@ -479,7 +491,7 @@
       "host": "desktop",
       "oracle": {
         "type": "receipt",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert invalid, replayed, wrong-state, wrong-redirect, wrong-deployment, and expired callbacks reject before activation with no account swap or near-miss URI."
       },
       "fixtures": [
         {
@@ -506,7 +518,7 @@
       "host": "desktop",
       "oracle": {
         "type": "receipt",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert exactly one refresh logic wins; there is no plaintext fallback; revoked access is rejected on the next request."
       },
       "fixtures": [
         {
@@ -533,7 +545,7 @@
       "host": "desktop",
       "oracle": {
         "type": "receipt",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert cold/warm deep links open the correct app/account without pre-auth metadata leakage; a copied ticket cannot grant permission."
       },
       "fixtures": [
         {
@@ -560,7 +572,7 @@
       "host": "desktop",
       "oracle": {
         "type": "receipt",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert real cloud version/checksum and fresh reopen across six formats, with G3 oracle coverage; engine data never goes to an external provider."
       },
       "fixtures": [
         {
@@ -613,7 +625,7 @@
       "host": "desktop",
       "oracle": {
         "type": "receipt",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert only explicit Save writes; Save while N runs is gated; retry is idempotent, payload mismatch is rejected, and N/N+1 receipt sequencing holds."
       },
       "fixtures": [
         {
@@ -640,7 +652,7 @@
       "host": "desktop",
       "oracle": {
         "type": "receipt",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert a two-device same-base edit yields a 409 conflict with no overwrite or duplicate and preserves both versions."
       },
       "fixtures": [
         {
@@ -667,7 +679,7 @@
       "host": "desktop",
       "oracle": {
         "type": "receipt",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert revoke after download/upload before commit leaves the version unchanged and the blocked draft without an export path."
       },
       "fixtures": [
         {
@@ -694,7 +706,7 @@
       "host": "desktop",
       "oracle": {
         "type": "receipt",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert tenant/account switch and a late callback/job never cross metadata, payload, or receipt scopes; query/editor plaintext resets."
       },
       "fixtures": [
         {
@@ -721,7 +733,7 @@
       "host": "desktop",
       "oracle": {
         "type": "receipt",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert wrong-key, IO, and disk-full recovery preserves original bytes and account-scoped ACL/base; no draft is falsely saved."
       },
       "fixtures": [
         {
@@ -749,7 +761,7 @@
       "host": "desktop",
       "oracle": {
         "type": "object/part",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert a local copy survives external modification and failed cloud import; no arbitrary path is used, and only a new receipt creates cloud binding."
       },
       "fixtures": [
         {
@@ -776,7 +788,7 @@
       "host": "desktop",
       "oracle": {
         "type": "object/part",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert preview cannot escape the sandbox/manifest or access privileged host state."
       },
       "fixtures": [
         {
@@ -808,7 +820,7 @@
       "host": "desktop",
       "oracle": {
         "type": "receipt",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert the IPC boundary rejects misuse, the draft survives crash/race, the outcome resolves once, and the app reopens."
       },
       "fixtures": [
         {
@@ -836,7 +848,7 @@
       "host": "desktop",
       "oracle": {
         "type": "receipt",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert installer namespace, signature/feed, and engine compatibility are valid while a dirty draft survives upgrade/rollback and upstream coexistence."
       },
       "fixtures": [
         {
@@ -851,8 +863,11 @@
         "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
       ],
       "reviewer": "pending G4-D3",
-      "status": "not_run",
-      "source": "docs/superpowers/specs/2026-09-27-office-g4-desktop-design.md Section 9"
+      "status": "blocked",
+      "blockedOwner": "G4-07 / G7",
+      "evidencePath": "docs/office/g3g4/evidence-index.md",
+      "source": "docs/superpowers/specs/2026-09-27-office-g4-desktop-design.md Section 9",
+      "openReason": "G4-D3 (gates 2026-09-29): signed distribution and update feed are deferred to G7 with certificates; this release-side row stays blocked until then."
     },
     {
       "id": "G4-A15",
@@ -864,7 +879,7 @@
       "host": "desktop",
       "oracle": {
         "type": "receipt",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert the source is unchanged, consent/provenance/ACL are correct, and no free Document exists without an owner path."
       },
       "fixtures": [
         {
@@ -896,7 +911,7 @@
       "host": "desktop",
       "oracle": {
         "type": "render diff",
-        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+        "assertion": "Assert G3-equivalent behavior and shared vi/en save-state keys; theme leaves content unchanged, and OS/arch/build evidence is recorded."
       },
       "fixtures": [
         {
@@ -969,7 +984,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "A package that expands far beyond its declared size or nests parts beyond policy must be rejected before decode."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-04 / G4-06",
@@ -1013,7 +1029,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "A text edit must not alter the styles, numbering, or review marks of untouched runs."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-04 / G4-06",
@@ -1057,7 +1074,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "A table or image edit must not shift sibling cells, anchors, or surrounding text."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-04 / G4-06",
@@ -1106,7 +1124,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Save must not drop embedded fonts, equations, charts, or tracked changes reported at open."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-04 / G4-06",
@@ -1150,7 +1169,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document."
+        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document.",
+        "A missing or substituted font must be reported as a measured fidelity gap, not emitted as a clean pass."
       ],
       "baselineState": "not_bound",
       "baselineProviderOwner": "G2-07",
@@ -1187,7 +1207,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Creating a blank document must not overwrite an existing document or reuse its identity/version."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-04 / G4-06",
@@ -1224,7 +1245,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document."
+        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document.",
+        "A conversion that drops footnotes, comments, or equations must report the loss, not silently emit partial markdown."
       ],
       "baselineState": "not_bound",
       "baselineProviderOwner": "G2-07",
@@ -1273,7 +1295,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "List numbering and heading levels must not leak across list boundaries after edits."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-04 / G4-06",
@@ -1317,7 +1340,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Inserting or deleting content must not break footnote/endnote references or renumber the wrong notes."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-04 / G4-06",
@@ -1356,7 +1380,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Accepting or rejecting one revision must not alter unrelated revisions or lose authorship."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-04 / G4-06",
@@ -1395,7 +1420,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "An OMML equation must not be silently converted to an image or plain text on save."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-04 / G4-06",
@@ -1434,7 +1460,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "A TOC or field result must not be flattened to stale literal text after content changes."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-04 / G4-06",
@@ -1473,7 +1500,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "A chart's cached values must not diverge from its embedded workbook after an edit."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-04 / G4-06",
@@ -1512,7 +1540,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "A watermark must not become selectable body content that shifts pagination."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-04 / G4-06",
@@ -1556,7 +1585,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "An edit in one section must not reflow or repaginate other sections."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-04 / G4-06",
@@ -1595,7 +1625,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "A floated anchor must not detach from its paragraph when nearby content changes."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-04 / G4-06",
@@ -1634,7 +1665,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "A missing or unlicensed embedded font must not be substituted while the fidelity row is claimed as pass."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-04 / G4-06",
@@ -1673,7 +1705,8 @@
       ],
       "negativeCases": [
         "Wrong password and cancel must stay in open-error with no partial content and no Save intent.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Editing inside a permitted range must not lift protection flags or persist outside the range."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-04 / G4-06",
@@ -1722,7 +1755,8 @@
       ],
       "negativeCases": [
         "Wrong password and cancel must stay in open-error with no partial content and no Save intent.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Decrypted content must never be written back to plaintext on disk or into the local draft."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-04 / G4-06",
@@ -1835,7 +1869,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "A workbook whose declared sheet count or dimensions exceed policy must be rejected before load."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-05 / G4-06",
@@ -1894,7 +1929,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "A cell edit must not silently change adjacent formulas, merges, or number formats."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-05 / G4-06",
@@ -1938,7 +1974,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Save must not drop sheets, defined names, or conditional formats reported at open."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-05 / G4-06",
@@ -1982,7 +2019,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Cached values from the file must not be presented as recalculated results after a sidecar failure."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-05 / G4-06",
@@ -2026,7 +2064,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "A cross-sheet or defined-name reference must not fall back to a stale sheet index or hard-coded value."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-05 / G4-06",
@@ -2075,7 +2114,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Chart series must not silently track the wrong sheet range after row or column edits."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-05 / G4-06",
@@ -2119,7 +2159,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Conditional formats must not be evaluated on stale values or applied to untouched ranges."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-05 / G4-06",
@@ -2163,7 +2204,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Validation rules must not be dropped on save or bypassed through paste/fill."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-05 / G4-06",
@@ -2202,7 +2244,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "A pivot must not present cached totals as recalculated after source data changes."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-05 / G4-06",
@@ -2241,7 +2284,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Sheet or range protection must not be bypassed by paste, fill, or formula edits."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-05 / G4-06",
@@ -2285,7 +2329,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document."
+        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document.",
+        "The exported PDF must not show cached values that diverge from the engine recalculation."
       ],
       "baselineState": "not_bound",
       "baselineProviderOwner": "G2-07",
@@ -2324,7 +2369,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "A macro must never execute or prompt during open, preview, recalculation, or save."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-05 / G4-06",
@@ -2363,7 +2409,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "The sidecar must not execute workbook macros or fall back to an external engine call."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-05 / G4-06",
@@ -2407,7 +2454,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Embedded or external objects the engine cannot render must be reported, not silently dropped or executed."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-06 / G4-06",
@@ -2451,7 +2499,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "A text edit must not change master/theme fonts or silently overflow other placeholders."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-06 / G4-06",
@@ -2490,7 +2539,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "A shape or image edit must not detach from its slide coordinates or reorder unrelated objects."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-06 / G4-06",
@@ -2534,7 +2584,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Save must not drop speaker notes, transitions, or media relationships reported at open."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-06 / G4-06",
@@ -2573,7 +2624,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document."
+        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document.",
+        "Export must not flatten animation state into misleading static content without a recorded measurement."
       ],
       "baselineState": "not_bound",
       "baselineProviderOwner": "G2-07",
@@ -2612,7 +2664,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Speaker notes must not leak into slide output or be dropped on save."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-06 / G4-06",
@@ -2651,7 +2704,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "A slide edit must not write back into the shared master or layout."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-06 / G4-06",
@@ -2690,7 +2744,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Animation triggers must not execute external media or fire during preview without user action."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-06 / G4-06",
@@ -2729,7 +2784,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "An embedded chart's series must not diverge from its sheet after an edit or save."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-06 / G4-06",
@@ -2768,7 +2824,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Table merges and cell styles must not shift when a sibling row or column changes."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-06 / G4-06",
@@ -2807,7 +2864,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "A missing embedded font must not be substituted on save while the fidelity row is claimed as pass."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-06 / G4-06",
@@ -2895,7 +2953,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "A corrupt or truncated PDF must open as a typed error with no partial canvas."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-07 / G4-06",
@@ -2934,7 +2993,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "An in-place text edit must not reflow or corrupt other pages' content streams."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-07 / G4-06",
@@ -2973,7 +3033,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Replacing an image must not resize or detach surrounding objects or masks."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-07 / G4-06",
@@ -3012,7 +3073,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Save must not drop annotations or break existing signatures reported at open."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-07 / G4-06",
@@ -3051,7 +3113,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document."
+        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document.",
+        "Unbound constructs (forms, fields, annotations) must be reported, not silently dropped or rendered differently."
       ],
       "baselineState": "not_bound",
       "baselineProviderOwner": "G2-07",
@@ -3090,7 +3153,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Adding or removing an annotation must not flatten or mutate other annotations or page content."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-07 / G4-06",
@@ -3129,7 +3193,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Page operations must not delete, duplicate, or reorder the wrong pages or break internal links."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-07 / G4-06",
@@ -3173,7 +3238,8 @@
       ],
       "negativeCases": [
         "Wrong password and cancel must stay in open-error with no partial content and no Save intent.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "An unlocked session must not cache the password or apply it to another file."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-07 / G4-06",
@@ -3212,7 +3278,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "A corrupt file must fail with a typed error without crashing the host or leaving a locked handle."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-07 / G4-06",
@@ -3256,7 +3323,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "A file with invalid UTF-8, BOM, or mixed line endings must be reported or normalized explicitly, not shown garbled."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-08a / G4-06",
@@ -3300,7 +3368,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Save must not normalize or drop content the user did not edit."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-08a / G4-06",
@@ -3344,7 +3413,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Code fences and tables must not be re-flowed or mis-escaped on save."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-08a / G4-06",
@@ -3383,7 +3453,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Invalid YAML frontmatter must be surfaced, not silently dropped or rewritten."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-08a / G4-06",
@@ -3422,7 +3493,8 @@
       ],
       "negativeCases": [
         "A script/session probe or asset traversal outside the declared manifest must be denied without host privilege.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "A relative link outside the document's asset scope must not resolve or leak host paths."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-08a / G4-06",
@@ -3461,7 +3533,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document."
+        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document.",
+        "Code fences, tables, or inline HTML must not be silently dropped or executed during export."
       ],
       "baselineState": "not_bound",
       "baselineProviderOwner": "G2-07",
@@ -3500,7 +3573,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document."
+        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document.",
+        "Export must not execute raw HTML/script from the markdown or fetch remote assets."
       ],
       "baselineState": "not_bound",
       "baselineProviderOwner": "G2-07",
@@ -3539,7 +3613,8 @@
       ],
       "negativeCases": [
         "A script/session probe or asset traversal outside the declared manifest must be denied without host privilege.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Opening or previewing HTML must not execute scripts or fetch remote resources."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-08a / G4-06",
@@ -3583,7 +3658,8 @@
       ],
       "negativeCases": [
         "A script/session probe or asset traversal outside the declared manifest must be denied without host privilege.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Save must not inline or rewrite assets outside the declared manifest."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-08a / G4-06",
@@ -3622,7 +3698,8 @@
       ],
       "negativeCases": [
         "A script/session probe or asset traversal outside the declared manifest must be denied without host privilege.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Preview must not share cookies, storage, or origin with the app session."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-08a / G4-06",
@@ -3666,7 +3743,8 @@
       ],
       "negativeCases": [
         "A script/session probe or asset traversal outside the declared manifest must be denied without host privilege.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Single-file HTML asset URLs must not escape the manifest or fetch from the network."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-08a / G4-06",
@@ -3705,7 +3783,8 @@
       ],
       "negativeCases": [
         "A script/session probe or asset traversal outside the declared manifest must be denied without host privilege.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "Blocks must not be re-rendered with host fonts or leak styles into the editor chrome."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-08a / G4-06",
@@ -3744,7 +3823,8 @@
       ],
       "negativeCases": [
         "A script/session probe or asset traversal outside the declared manifest must be denied without host privilege.",
-        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document."
+        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document.",
+        "Export must not run page scripts or resolve remote resources."
       ],
       "baselineState": "not_bound",
       "baselineProviderOwner": "G2-07",
@@ -3783,7 +3863,8 @@
       ],
       "negativeCases": [
         "A script/session probe or asset traversal outside the declared manifest must be denied without host privilege.",
-        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document."
+        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document.",
+        "Conversion must not execute HTML script or silently drop table/image structure."
       ],
       "baselineState": "not_bound",
       "baselineProviderOwner": "G2-07",
@@ -3822,7 +3903,8 @@
       ],
       "negativeCases": [
         "A script/session probe or asset traversal outside the declared manifest must be denied without host privilege.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "DOM extraction must not capture app chrome, editor UI, or injected scripts."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-08a / G4-06",
@@ -3876,7 +3958,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "An unsupported format (ODT/ODS/XLSB/RTF) must fail with its typed reason and no silent conversion claim."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G3-09 / G4-06",
@@ -3969,7 +4052,8 @@
       ],
       "negativeCases": [
         "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
-        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version.",
+        "The engine must not call an external provider or execute outside the reviewed sandbox policy."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "G2-07",
@@ -4002,7 +4086,8 @@
       ],
       "negativeCases": [
         "The failure must not create a false saved state, committed version, or unbounded retry.",
-        "A retry may occur only for the explicitly requested intent after reconciliation."
+        "A retry may occur only for the explicitly requested intent after reconciliation.",
+        "An idle timer, blur, or reconnect must not convert the local checkpoint into a cloud write."
       ],
       "reviewer": "pending G3-D3",
       "status": "not_run",
@@ -4032,7 +4117,8 @@
       ],
       "negativeCases": [
         "The failure must not create a false saved state, committed version, or unbounded retry.",
-        "A retry may occur only for the explicitly requested intent after reconciliation."
+        "A retry may occur only for the explicitly requested intent after reconciliation.",
+        "Edits made while Save N runs (N+1) must not be discarded or submitted with N's payload."
       ],
       "reviewer": "pending G3-D3",
       "status": "not_run",
@@ -4062,7 +4148,8 @@
       ],
       "negativeCases": [
         "The failure must not create a false saved state, committed version, or unbounded retry.",
-        "A retry may occur only for the explicitly requested intent after reconciliation."
+        "A retry may occur only for the explicitly requested intent after reconciliation.",
+        "A duplicate Save click must not create a second version or re-upload identical bytes."
       ],
       "reviewer": "pending G3-D3",
       "status": "not_run",
@@ -4092,7 +4179,8 @@
       ],
       "negativeCases": [
         "The failure must not create a false saved state, committed version, or unbounded retry.",
-        "A retry may occur only for the explicitly requested intent after reconciliation."
+        "A retry may occur only for the explicitly requested intent after reconciliation.",
+        "A reconciling retry must not change the idempotency key or fork a second version from an unknown outcome."
       ],
       "reviewer": "pending G3-D3",
       "status": "not_run",
@@ -4122,7 +4210,8 @@
       ],
       "negativeCases": [
         "The failure must not create a false saved state, committed version, or unbounded retry.",
-        "A retry may occur only for the explicitly requested intent after reconciliation."
+        "A retry may occur only for the explicitly requested intent after reconciliation.",
+        "A payload change under the same key must be rejected as a typed error, not reconciled by overwriting the server base."
       ],
       "reviewer": "pending G3-D3",
       "status": "not_run",
@@ -4152,7 +4241,8 @@
       ],
       "negativeCases": [
         "The failure must not create a false saved state, committed version, or unbounded retry.",
-        "A retry may occur only for the explicitly requested intent after reconciliation."
+        "A retry may occur only for the explicitly requested intent after reconciliation.",
+        "A 413 on a large file must not loop retries or split the upload without consent; a 403 quota must keep its error class."
       ],
       "reviewer": "pending G3-D3",
       "status": "not_run",
@@ -4182,7 +4272,8 @@
       ],
       "negativeCases": [
         "The failure must not create a false saved state, committed version, or unbounded retry.",
-        "A retry may occur only for the explicitly requested intent after reconciliation."
+        "A retry may occur only for the explicitly requested intent after reconciliation.",
+        "A late response from the previous account must not be applied to the new scope or clear its lock state."
       ],
       "reviewer": "pending G3-D3",
       "status": "not_run",
@@ -4212,7 +4303,8 @@
       ],
       "negativeCases": [
         "The failure must not create a false saved state, committed version, or unbounded retry.",
-        "A retry may occur only for the explicitly requested intent after reconciliation."
+        "A retry may occur only for the explicitly requested intent after reconciliation.",
+        "The losing tab or device must not rebase or merge the binary automatically."
       ],
       "reviewer": "pending G3-D3",
       "status": "not_run",
@@ -4242,7 +4334,8 @@
       ],
       "negativeCases": [
         "The failure must not create a false saved state, committed version, or unbounded retry.",
-        "A retry may occur only for the explicitly requested intent after reconciliation."
+        "A retry may occur only for the explicitly requested intent after reconciliation.",
+        "A blocked draft must not be exported through copy, clipboard, or print."
       ],
       "reviewer": "pending G3-D3",
       "status": "not_run",
@@ -4272,7 +4365,8 @@
       ],
       "negativeCases": [
         "The failure must not create a false saved state, committed version, or unbounded retry.",
-        "A retry may occur only for the explicitly requested intent after reconciliation."
+        "A retry may occur only for the explicitly requested intent after reconciliation.",
+        "A corrupt local key must not silently re-register over the previous draft or surface another account's metadata."
       ],
       "reviewer": "pending G3-D3",
       "status": "not_run",
@@ -4302,7 +4396,8 @@
       ],
       "negativeCases": [
         "The failure must not create a false saved state, committed version, or unbounded retry.",
-        "A retry may occur only for the explicitly requested intent after reconciliation."
+        "A retry may occur only for the explicitly requested intent after reconciliation.",
+        "A failed local checkpoint must not silently degrade to memory-only editing without a warning."
       ],
       "reviewer": "pending G3-D3",
       "status": "not_run",
@@ -4332,7 +4427,8 @@
       ],
       "negativeCases": [
         "The failure must not create a false saved state, committed version, or unbounded retry.",
-        "A retry may occur only for the explicitly requested intent after reconciliation."
+        "A retry may occur only for the explicitly requested intent after reconciliation.",
+        "Stay-on-error must not auto-resolve to discard after a timeout or a second close action."
       ],
       "reviewer": "pending G3-D3",
       "status": "not_run",
@@ -4345,10 +4441,7 @@
       "title": "Local external edit/lock/symlink/disk full",
       "owner": "G4-04",
       "ownerTask": "G4-04",
-      "host": [
-        "web",
-        "desktop"
-      ],
+      "host": "desktop",
       "oracle": {
         "type": "object/part",
         "assertion": "Do not overwrite the wrong file or lose the old version; use OS-safe temp/replace."
@@ -4362,7 +4455,8 @@
       ],
       "negativeCases": [
         "The failure must not create a false saved state, committed version, or unbounded retry.",
-        "A retry may occur only for the explicitly requested intent after reconciliation."
+        "A retry may occur only for the explicitly requested intent after reconciliation.",
+        "A symlinked or locked target must not be replaced through the link, and a disk-full temp write must leave the original file intact."
       ],
       "reviewer": "pending G3-D3",
       "status": "not_run",
@@ -4392,7 +4486,8 @@
       ],
       "negativeCases": [
         "The failure must not create a false saved state, committed version, or unbounded retry.",
-        "A retry may occur only for the explicitly requested intent after reconciliation."
+        "A retry may occur only for the explicitly requested intent after reconciliation.",
+        "An incompatible engine or an old callback must not enable editing from a fallback path."
       ],
       "reviewer": "pending G3-D3",
       "status": "not_run",
@@ -4422,7 +4517,8 @@
       ],
       "negativeCases": [
         "The baseline limitation must remain visible until the provider records a run on the final revision.",
-        "No baseline limitation may be changed to pass by documentation alone."
+        "No baseline limitation may be changed to pass by documentation alone.",
+        "A merged code path or a client-only pass must not be cited to close the server-side limitation."
       ],
       "baselineState": "not_bound",
       "baselineProviderOwner": "G2-07 / G3-04",
@@ -4454,7 +4550,8 @@
       ],
       "negativeCases": [
         "The baseline limitation must remain visible until the provider records a run on the final revision.",
-        "No baseline limitation may be changed to pass by documentation alone."
+        "No baseline limitation may be changed to pass by documentation alone.",
+        "A client-only editor pass must not be cited to close the PPTX server-side limitation."
       ],
       "baselineState": "not_bound",
       "baselineProviderOwner": "G2-07 / G3-06",
@@ -4486,7 +4583,8 @@
       ],
       "negativeCases": [
         "The baseline limitation must remain visible until the provider records a run on the final revision.",
-        "No baseline limitation may be changed to pass by documentation alone."
+        "No baseline limitation may be changed to pass by documentation alone.",
+        "An unbound export must not be re-labelled as passed without a provider receipt on the final revision."
       ],
       "baselineState": "not_bound",
       "baselineProviderOwner": "G2-07",
@@ -4518,7 +4616,8 @@
       ],
       "negativeCases": [
         "The baseline limitation must remain visible until the provider records a run on the final revision.",
-        "No baseline limitation may be changed to pass by documentation alone."
+        "No baseline limitation may be changed to pass by documentation alone.",
+        "Conversions outside xls-to-xlsx and odt-to-docx must not be reported as bound by a client pass."
       ],
       "baselineState": "not_bound",
       "baselineProviderOwner": "G2-07",
@@ -4547,7 +4646,8 @@
       ],
       "negativeCases": [
         "The baseline limitation must remain visible until the provider records a run on the final revision.",
-        "No baseline limitation may be changed to pass by documentation alone."
+        "No baseline limitation may be changed to pass by documentation alone.",
+        "An unverified Safari pass must not be inferred from Chromium runs or a merged code path."
       ],
       "baselineState": "to_re_run",
       "baselineProviderOwner": "UNI-671",
