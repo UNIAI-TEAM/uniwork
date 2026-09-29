@@ -22,8 +22,8 @@ type OfficeLaunchDocumentDTO struct {
 	Operation       string `json:"operation" description:"Thao tác hiệu lực: view hoặc edit" example:"edit"`
 	Version         int32  `json:"version" description:"Version được chọn; 0 = hiện tại" example:"0"`
 	Revision        string `json:"revision" description:"Revision dạng chuỗi thập phân" example:"41"`
-	EngineContract  string `json:"engine_contract,omitempty" description:"Mã hợp đồng engine" example:"uniwork-office-engine-contract/1"`
-	ProtocolVersion string `json:"protocol_version,omitempty" description:"Phiên bản protocol Office" example:"uniwork-office-protocol/1"`
+	ContractVersion string `json:"contract_version,omitempty" description:"Mã hợp đồng engine theo wire G2" example:"uniwork-office-engine-contract/1"`
+	ProtocolVersion string `json:"protocol_version,omitempty" description:"Phiên bản protocol engine dạng chuỗi thập phân theo G2" example:"1"`
 	DownloadPath    string `json:"download_path" description:"Route tải first-party; không bao giờ là URL presigned" example:"/api/v1/documents/01J8X4DOC0N1P2Q3R4S5T6U7/download"`
 }
 

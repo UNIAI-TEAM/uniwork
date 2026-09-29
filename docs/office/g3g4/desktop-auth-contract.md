@@ -178,9 +178,13 @@ The main process sends the current refresh token from the secure store.
 `deployment_id` are required. The server hashes the token, checks device and
 session-family status, revokes the presented token, and atomically returns a
 new pair with the same device/session IDs. One refresh operation may be in
-flight per device session; a concurrent request receives 409
-`refresh_in_flight`, while replay/reuse receives 401 `refresh_reused` and
-revokes that device session/family according to the approved auth policy.
+flight per device session. The response codes for a concurrent request and for
+replay/reuse are **lane proposals, not yet approved**: 409 `refresh_in_flight`
+for a second in-flight request and 401 `refresh_reused` for replay/reuse (which
+also revokes that device session/family according to the approved auth policy).
+Neither code exists in the approved error-class table; under open questions 2
+and 7, 02b pins them (or the endpoint keeps the compatible `unauthorized`
+envelope) before any client depends on them.
 
 **Response:** `sdo.DesktopSessionSDO` with `account_id`, IDs, access token,
 `expires_in`, replacement refresh token and `refresh_rotates: true`. Raw refresh
@@ -284,7 +288,7 @@ anywhere in this table.
 
 | Command | Action / actor and resource | Scope | Transaction and failure semantics | Event |
 | --- | --- | --- | --- | --- |
-| Start attempt | `auth.desktop_start`; anonymous actor (`system` where required), resource `desktop_attempt:<id>` | Account unknown; `audit.NoOrganization` | Attempt creation and its audit row are one transaction. Rate-limit/config failure returns an error; no partial attempt. | None (G4-D4: no consumer). Attempt is not a business event. |
+| Start attempt | `auth.desktop_started`; anonymous actor (`system` where required), resource `desktop_attempt:<id>` | Account unknown; `audit.NoOrganization` | Attempt creation and its audit row are one transaction. Rate-limit/config failure returns an error; no partial attempt. | None (G4-D4: no consumer). Attempt is not a business event. |
 | Consent approve / code issue | `auth.desktop_consent_approved`; human account actor, resource user ID | Account; `NoOrganization` | Approval, code hash and audit are one transaction. CSRF/prefetch/replay failure writes no approval. | None; code is credential material. |
 | Exchange / device create | `auth.desktop_session_created`; human account actor, resource device-session ID | Account; `NoOrganization` | Code redeem, device row, refresh digest and audit are one transaction. Any failure rolls back all; no duplicate audit on replay. | None (G4-D4: no consumer); a future event must be ids-only and catalogue-backed. |
 | Refresh / rotate | `auth.desktop_token_rotated`; account actor, resource device-session ID | Account; `NoOrganization` | Presented digest revoke, replacement digest and audit are one transaction. Reuse/replay revokes per policy; no raw token in metadata. | None. Credential-only operation. |
@@ -309,8 +313,12 @@ stricter transactional policy in the Bridge contract.
 * Keep `unauthorized` response compatibility for existing web clients. Any
   new `error_class` is additive and requires malformed-response tests.
 * Rate-limit start, exchange and refresh independently; fail closed when
-  redirect/client/deployment configuration is missing or invalid. Every new
-  environment variable must be validated and represented in `.env.example`.
+  redirect/client/deployment configuration is missing or invalid. The existing
+  `middleware.RateLimit` fails open when Redis is absent or erroring (no Redis
+  = no limit); the lane proposes keeping that repo-wide availability trade-off
+  and stating it explicitly, and never letting G4-A02/A03 evidence claim limits
+  that a Redis-down deployment removes. Every new environment variable must be
+  validated and represented in `.env.example`.
 * Correlation IDs may be retained in audit/access logs, but secret query/body
   fields are redacted before logging, and the same redaction covers telemetry,
   crash dumps and diagnostics (spec §4.2). The callback response and all token
@@ -333,9 +341,12 @@ pins the final value.
    allowlist registration, including coexistence with GenOffice.
 2. **TTL and rotation - TTLs decided.** 120 seconds for codes and 10 minutes
    for pending attempts are approved; access/refresh lifetimes stay at the
-   current auth policy. **Open:** refresh grace window, reuse response and the
-   maximum device-session lifetime (02b names the implemented values within
-   that policy).
+   current auth policy. **Open:** refresh grace window, reuse response
+   (**proposal:** 409 `refresh_in_flight` for a second in-flight request and
+   401 `refresh_reused` for replay/reuse; neither code is in the approved
+   error-class table yet, so 02b pins or drops them) and the maximum
+   device-session lifetime (02b names the implemented values within that
+   policy).
 3. **Session-family relation - relation decided.** The device session is bound
    to the existing session family. **Open:** whether the token minter accepts a
    `device_session` claim directly or middleware resolves a separate binding,
@@ -362,7 +373,9 @@ pins the final value.
    `unauthorized`). **Open:** rate-limit numbers (**proposal:** the existing
    credential bucket for start and exchange, 60/min per IP as `credentialLimit`
    today, a 60/min per-device-session guard for refresh, `Retry-After` on every
-   429 and fail-closed config validation).
+   429 and fail-closed config validation) and the Redis-down behavior
+   (**proposal:** state and keep the existing repo-wide fail-open, never claim
+   limits that a Redis-down deployment removes).
 8. **Device management surface - decided.** The separate
    `/auth/desktop/devices` list/revoke surface is approved; a caller sees and
    revokes only its own devices. **Open:** pagination details and whether the
@@ -378,8 +391,10 @@ validation the documents state (exact challenge length and `S256`, device
 label 100 runes, platform/build 64 characters, `scope`/`operation`/`return_hint`
 enums) when 02b registers them. The RFC 7636 and callback rejection vectors in
 `docs/office/g3g4/vectors/` are executable with the repository's Node 22
-runtime and pin this revision's wire assumptions; the verifier is wired into
-`scripts/check.sh`, so the repository gate runs it.
+runtime and pin this revision's wire assumptions; each callback vector records
+the layer that rejects it (a `client` discard or the exchange's
+`auth_code_invalid`), and the verifier is wired into `scripts/check.sh`, so the
+repository gate runs it.
 
 Release items carried with the G4-D4 contract release:
 

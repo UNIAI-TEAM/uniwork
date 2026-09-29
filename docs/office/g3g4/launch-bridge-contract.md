@@ -50,7 +50,7 @@ or arbitrary URL.
 | `version` | no | Positive historical version number; omitted means current. Historical versions are read-only. |
 | `deployment_id` | yes | Must equal the web session's configured deployment. |
 | `client_id` | yes | Allow-listed Office client ID; public identifier only. |
-| `return_hint` | no | A bounded enum/flag for the host, never an arbitrary redirect or URL. |
+| `return_hint` | no | Bounded enum/flag for the host; its value set is pinned with the G3-09 handoff (open question 8); never an arbitrary redirect or URL. |
 
 The path `documentID` is the only resource selector. The service resolves
 organization/workspace and the caller's effective ACL; it does not trust IDs
@@ -124,8 +124,8 @@ token.
     "operation": "edit",
     "version": 0,
     "revision": "41",
-    "engine_contract": "uniwork-office-engine-contract/1",
-    "protocol_version": "uniwork-office-protocol/1",
+    "contract_version": "uniwork-office-engine-contract/1",
+    "protocol_version": "1",
     "download_path": "/api/v1/documents/01J8X4DOC0N1P2Q3R4S5T6U7/download"
   },
   "redeemed_at": "2026-09-29T10:01:02Z"
@@ -140,14 +140,15 @@ a second open session; a lost response requires reconciliation by the same
 ticket and returns the original receipt only if the policy explicitly permits
 that safe, metadata-only lookup. Otherwise the host requests a new ticket.
 
-**Errors:** `invalid_request` 400; `unauthorized` 401 for missing/invalid or
-revoked device session; `forbidden` 403 for account/deployment/ACL mismatch;
-`not_found` 404 for an unknown or already-consumed ticket where the policy
-requires anti-enumeration. No new typed ticket class is introduced this phase:
-the only approved new class is the auth side's `device_revoked`, and the ticket
-policy keeps the existing 403/404 anti-enumeration classes (open question 6).
-No error response returns the Document title, filename, organization or version
-to a caller who failed the checks.
+**Errors:** `invalid_request` 400; `unauthorized` 401 for a missing or invalid
+bearer token; the typed `device_revoked` (the only approved new class) for a
+revoked or expired device session, rejected by the middleware before the
+handler; `forbidden` 403 for account/deployment/ACL mismatch; `not_found` 404
+for an unknown or already-consumed ticket where the policy requires
+anti-enumeration. No new typed ticket class is introduced this phase: the
+ticket policy keeps the existing 403/404 anti-enumeration classes (open
+question 6). No error response returns the Document title, filename,
+organization or version to a caller who failed the checks.
 
 ### Desktop library path
 
@@ -257,7 +258,10 @@ pins the final value.
 4. **Operation/version semantics - open.** Confirm allowed operations, whether
    historical versions can be opened in edit mode (this proposal says no, it
    stays read-only), and the exact descriptor fields required by the engine
-   contract and G3-09.
+   contract and G3-09. The descriptor reuses the G2 wire names where they
+   overlap (`contract_version` = `uniwork-office-engine-contract/1`,
+   `protocol_version` = the decimal string `"1"`); the remaining field set is
+   confirmed with G3-09.
 5. **Audit/outbox - decided.** Transactional `audit.Recorder.Record` on the
    mutation transaction, ids/metadata only, no outbox event this phase; a later
    event must be ids-only, catalogue-backed and consumer-named.

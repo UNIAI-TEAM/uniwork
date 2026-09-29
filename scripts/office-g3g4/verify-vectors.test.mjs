@@ -22,7 +22,7 @@ test("RFC 7636 appendix B S256 challenge is reproduced", () => {
   assert.equal(actual, pkce.code_challenge);
 });
 
-test("every callback rejection vector is rejected with auth_code_invalid", () => {
+test("every callback rejection vector is rejected at its documented layer", () => {
   assert.equal(callbacks.length, 8, "callback vector set changed");
   const exactRedirect = "uniwork-office://auth/callback";
   const isSingleString = (value) => typeof value === "string" && value.length > 0;
@@ -38,7 +38,13 @@ test("every callback rejection vector is rejected with auth_code_invalid", () =>
       || vector.code_redeemed === true
       || (pending.expires_at && new Date(vector.now ?? new Date().toISOString()) >= new Date(pending.expires_at));
     assert.ok(rejected, `${vector.id}: vector was not rejected`);
-    assert.equal(vector.expected_error, "auth_code_invalid", `${vector.id}: expected_error`);
+    assert.equal(vector.expected_outcome, "rejected", `${vector.id}: expected_outcome`);
+    assert.ok(["client", "exchange"].includes(vector.rejected_at), `${vector.id}: rejected_at layer`);
+    if (vector.rejected_at === "exchange") {
+      assert.equal(vector.expected_error, "auth_code_invalid", `${vector.id}: exchange error`);
+    } else {
+      assert.equal(vector.expected_error, undefined, `${vector.id}: a client discard never produces a server error`);
+    }
   }
   console.log(`verified RFC 7636 S256 vector and ${callbacks.length} callback rejection vectors`);
 });
