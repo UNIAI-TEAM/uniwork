@@ -1,17 +1,18 @@
 # Browser Office draft keys and recovery
 
-> **Status: PROPOSED — pending user decision at G3-D1.** This document is a
-> decision package for UNI-821. It does not authorize a production key store,
-> an unlock endpoint, or an IndexedDB schema.
+> **Status: DECIDED — G3-D1 approved Option B by the user on 2026-09-29
+> (record: `office-g3g4/decisions/gates-2026-09-29.md`).** This document is
+> the decision package for UNI-821. It does not authorize a production key
+> store, an unlock endpoint, or an IndexedDB schema; those remain follow-up
+> work with the auth/session owner.
 
-## Decision requested
+## Decision
 
-Approve one of the three key-management options below for protected browser
-Office drafts. The recommendation is **Option B: a backend session-bound key
-envelope with a non-exportable WebCrypto wrapping key**, subject to the
-security and auth owners confirming the envelope API, rotation policy, and
-device/session revocation semantics. Until that decision is recorded with an
-owner, revision, and evidence, browser durable recovery remains blocked.
+The user approved **Option B: a backend session-bound key envelope with a
+non-exportable WebCrypto wrapping key** for protected browser Office drafts.
+The security and auth owners still need to specify the envelope API, rotation
+policy, and device/session revocation semantics before implementation. Until
+that follow-up is complete, browser durable recovery remains blocked.
 
 The host-neutral contract in
 `packages/core/office/draft-recovery.ts` is safe to implement before the gate:
@@ -110,17 +111,18 @@ new key, because that would make old ciphertext look like an empty draft.
 
 ### Recommendation and gate boundary
 
-Choose **Option B** if the auth owner can provide a bounded unwrap endpoint and
-evidence that its response is bound to the session generation, deployment,
-account, organization, workspace, document, base pair, and requested draft
-generation. Choose Option A if per-draft envelopes are operationally too
-expensive. Option C is a fallback only when the product accepts a deliberate
-device-recovery ceremony and documents its loss semantics.
+The approved choice is **Option B**. Its bounded unwrap endpoint must bind the
+response to the session generation, deployment, account, organization,
+workspace, document, base pair, and requested draft generation. Option A
+remains an operational alternative if per-draft envelopes prove too
+expensive; Option C remains a fallback only when the product accepts a
+deliberate device-recovery ceremony and documents its loss semantics.
 
-No option is a production default until G3-D1 is accepted. In particular,
-`localStorage`, a constant key in the bundle, an account id in a storage-key
-name, a raw key beside ciphertext, and plaintext JSON are all rejected under
-every option, including feature flags and test shortcuts.
+Option B is the approved design, but no production implementation is
+authorized until its follow-up endpoint and rotation semantics are reviewed.
+In particular, `localStorage`, a constant key in the bundle, an account id in
+a storage-key name, a raw key beside ciphertext, and plaintext JSON are all
+rejected, including behind feature flags and test shortcuts.
 
 ## Key lifetime, rotation, and loss
 
@@ -191,4 +193,3 @@ ambiguous lookup; locked/corrupt store; failed local checkpoint; and
 generation-bound deletion. It is not browser durability or cryptographic
 evidence. Those require the approved G3-D1 design, a real host store, and live
 ACL integration at H1.
-
