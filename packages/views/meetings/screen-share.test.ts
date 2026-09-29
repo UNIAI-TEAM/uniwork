@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { Room } from "livekit-client";
 import {
   markScreenShareStopByUser,
+  ownSharePreviewable,
   screenShareErrorKey,
   screenShareSupported,
   takeScreenShareStopByUser,
@@ -25,6 +26,21 @@ describe("screenShareSupported", () => {
     expect(screenShareSupported()).toBe(true);
     Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: {} });
     expect(screenShareSupported()).toBe(false);
+  });
+});
+
+describe("ownSharePreviewable", () => {
+  const track = (settings: Record<string, unknown>) => ({ getSettings: () => settings }) as unknown as MediaStreamTrack;
+
+  it("previews a shared tab or window, never a whole screen", () => {
+    expect(ownSharePreviewable(track({ displaySurface: "browser" }))).toBe(true);
+    expect(ownSharePreviewable(track({ displaySurface: "window" }))).toBe(true);
+    expect(ownSharePreviewable(track({ displaySurface: "monitor" }))).toBe(false);
+  });
+
+  it("stays safe when the browser does not say what was picked", () => {
+    expect(ownSharePreviewable(track({}))).toBe(false);
+    expect(ownSharePreviewable(undefined)).toBe(false);
   });
 });
 

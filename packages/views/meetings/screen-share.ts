@@ -28,6 +28,16 @@ export function screenShareErrorKey(error: Error): string | null {
   }
 }
 
+/**
+ * Whether the presenter may watch their own share. A tab or a window can be
+ * drawn back into the meeting; a whole screen would show the meeting inside
+ * itself. A browser that does not say what was picked gets the safe answer.
+ */
+export function ownSharePreviewable(track: MediaStreamTrack | undefined): boolean {
+  const surface = (track?.getSettings() as { displaySurface?: string } | undefined)?.displaySurface;
+  return surface === "browser" || surface === "window";
+}
+
 // Rooms whose next screen-share stop came from our own controls. A stop that
 // did not (the browser's own bar, the OS, a dropped connection) is announced.
 const stopsByUser = new WeakSet<Room>();
