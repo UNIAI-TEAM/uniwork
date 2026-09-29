@@ -13,6 +13,9 @@ import {
   tileGridClass,
   tileRingTone,
   cameraTileSize,
+  screenShareTileSize,
+  stageFillSize,
+  stripPlacement,
   trackHasVideo,
   trackTileKey,
 } from "./conference-layout";
@@ -293,5 +296,44 @@ describe("cameraTileSize", () => {
     expect(cameraTileSize(9 / 16).width).toBe("min(100cqw, calc(100cqh * 0.5625))");
     expect(cameraTileSize(0)).toEqual(cameraTileSize(16 / 9));
     expect(cameraTileSize(Number.NaN)).toEqual(cameraTileSize(16 / 9));
+  });
+});
+
+describe("screenShareTileSize", () => {
+  it("takes the shared screen's exact shape, with no side crop", () => {
+    expect(screenShareTileSize(16 / 10)).toEqual({
+      width: "min(100cqw, calc(100cqh * 1.6))",
+      height: "min(100cqh, calc(100cqw * 0.625))",
+    });
+    expect(screenShareTileSize(0)).toEqual(screenShareTileSize(16 / 9));
+  });
+});
+
+describe("tile sizes beside a presentation strip", () => {
+  it("leave the strip's room the stage publishes", () => {
+    expect(screenShareTileSize(2, true)).toEqual({
+      width: "min((100cqw - var(--strip-reserve-x, 0px)), calc((100cqh - var(--strip-reserve-y, 0px)) * 2))",
+      height: "min((100cqh - var(--strip-reserve-y, 0px)), calc((100cqw - var(--strip-reserve-x, 0px)) * 0.5))",
+    });
+    expect(stageFillSize()).toEqual({
+      width: "calc(100cqw - var(--strip-reserve-x, 0px))",
+      height: "calc(100cqh - var(--strip-reserve-y, 0px))",
+    });
+  });
+});
+
+describe("stripPlacement", () => {
+  it("puts the strip beside a wide stage and under a tall or narrow one", () => {
+    expect(stripPlacement(1870, 640)).toBe("beside"); // wide desktop, panel closed
+    expect(stripPlacement(740, 820)).toBe("below"); // portrait tablet
+    expect(stripPlacement(342, 600)).toBe("below"); // phone
+    expect(stripPlacement(660, 590)).toBe("below"); // narrow stage beside the side panel
+  });
+
+  it("measures the strip's room in the page's rem", () => {
+    // At 200% text a strip under a short stage eats more of its height, which
+    // tips a borderline stage to a strip beside.
+    expect(stripPlacement(600, 360, 16)).toBe("below");
+    expect(stripPlacement(600, 360, 32)).toBe("beside");
   });
 });
