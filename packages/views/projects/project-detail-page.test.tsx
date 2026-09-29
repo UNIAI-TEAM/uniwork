@@ -224,6 +224,24 @@ describe("ProjectDetailPage", () => {
     expect(startDate.className).not.toContain("border-input");
   });
 
+  it("runs the sidebar full height beside the breadcrumb header", async () => {
+    render(
+      wrapWithNav(
+        <ProjectDetailPage
+          workspaceId="w1"
+          projectId="p1"
+          onOpenTask={vi.fn()}
+          onBack={vi.fn()}
+        />,
+      ),
+    );
+
+    const sidebar = await screen.findByRole("complementary", { name: "Chi tiết dự án" }, LONG);
+    const layout = sidebar.closest("[data-right-sidebar-layout='true']");
+    expect(layout).not.toBeNull();
+    expect(layout).toContainElement(screen.getByRole("button", { name: "Quay lại" }));
+  });
+
   it("saves a renamed title on blur", async () => {
     render(
       wrapWithNav(

@@ -90,33 +90,10 @@ export function ProjectDetailPage({
     );
   }
 
+  // The breadcrumb lives in the content column so the sidebar runs the full
+  // page height beside it.
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <BreadcrumbHeader
-        leading={backLeading}
-        segments={
-          projectsHref
-            ? [
-                {
-                  href: projectsHref,
-                  label: t("projects.detail.breadcrumb_fallback"),
-                },
-              ]
-            : []
-        }
-        leaf={
-          <span className="truncate font-medium text-foreground">
-            {project.title}
-          </span>
-        }
-        actions={
-          <RightSidebarToggle
-            controller={sidebarController}
-            label={t("projects.detail.sidebar_toggle")}
-          />
-        }
-      />
-
       <AnimatedRightSidebarLayout
         controller={sidebarController}
         sidebarLabel={t("projects.detail.sidebar_toggle")}
@@ -125,6 +102,30 @@ export function ProjectDetailPage({
         sidebarMaxSize={420}
         main={
           <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            <BreadcrumbHeader
+              leading={backLeading}
+              segments={
+                projectsHref
+                  ? [
+                      {
+                        href: projectsHref,
+                        label: t("projects.detail.breadcrumb_fallback"),
+                      },
+                    ]
+                  : []
+              }
+              leaf={
+                <span className="truncate font-medium text-foreground">
+                  {project.title}
+                </span>
+              }
+              actions={
+                <RightSidebarToggle
+                  controller={sidebarController}
+                  label={t("projects.detail.sidebar_toggle")}
+                />
+              }
+            />
             <TaskSurface
               workspaceId={workspaceId}
               scope={{ type: "project", projectId }}
