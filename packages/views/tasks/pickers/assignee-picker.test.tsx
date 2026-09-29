@@ -280,3 +280,17 @@ describe("AssigneePicker — options that cannot take new work", () => {
     expect(await screen.findByRole("button", { name: /Trợ lý QA/ })).toHaveAttribute("aria-pressed", "true");
   });
 });
+
+describe("AssigneePicker — status dots", () => {
+  it("shows each option's status on its avatar", async () => {
+    renderPicker({
+      options: [
+        { id: "u1", kind: "human", name: "An Nguyễn", status: { tone: "success", label: "Đang trực tuyến" } },
+        { id: "a1", kind: "agent", name: "Trợ lý QA", status: { tone: "warning", label: "Đang tạm dừng" } },
+      ],
+    });
+    openPicker();
+    expect(await screen.findByRole("button", { name: /An Nguyễn.*Đang trực tuyến/ })).toBeInTheDocument();
+    expect(screen.getByTitle("Đang tạm dừng")).toHaveClass("bg-warning-solid");
+  });
+});

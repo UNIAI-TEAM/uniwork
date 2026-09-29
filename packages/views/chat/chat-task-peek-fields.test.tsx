@@ -64,7 +64,7 @@ describe("ChatTaskAssigneeField", () => {
     wrap(<ChatTaskAssigneeField workspaceId="ws1" value={null} onChange={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Người phụ trách: Chưa giao" }));
     const human = screen.getByRole("button", { name: "Lan" });
-    const agent = screen.getByRole("button", { name: "Trợ lý" });
+    const agent = screen.getByRole("button", { name: "Trợ lý Agent đang hoạt động" });
     const membersGroup = screen.getByText("Thành viên").parentElement;
     const agentsGroup = screen.getByText("Agent").parentElement;
     expect(membersGroup).toContainElement(human);

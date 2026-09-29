@@ -4,12 +4,11 @@ import type { ReactElement, ReactNode, SyntheticEvent } from "react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { UserMinus } from "lucide-react";
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@uniwork/ui/components/ui/avatar";
 import { Button } from "@uniwork/ui/components/ui/button";
+import {
+  ActorAvatar,
+  type ActorAvatarStatus,
+} from "@uniwork/ui/components/common/actor-avatar";
 import { foldedIncludes } from "../../chat/chat-search-fold";
 import {
   PickerEmpty,
@@ -35,6 +34,8 @@ export type AssigneeOption = {
   /** Set when the option cannot take new work (e.g. a paused agent): the row
    * stays listed and readable but cannot be picked. */
   disabledReason?: string;
+  /** Dot on the avatar: presence for a member, lifecycle for an agent. */
+  status?: ActorAvatarStatus;
 };
 
 function refsEqual(a: AssigneeRef | null, b: AssigneeRef | null): boolean {
@@ -78,11 +79,18 @@ function AssigneeSection({
             disabledReason={option.disabledReason}
             onClick={() => onSelect(ref)}
           >
-            <Avatar aria-hidden size="sm" className="size-5 shrink-0">
-              {option.avatarUrl ? <AvatarImage src={option.avatarUrl} alt="" /> : null}
-              <AvatarFallback className="text-micro">{initialOf(option.name)}</AvatarFallback>
-            </Avatar>
+            <span aria-hidden className="inline-flex shrink-0">
+              <ActorAvatar
+                name=""
+                initials={initialOf(option.name)}
+                avatarUrl={option.avatarUrl}
+                isAgent={option.kind === "agent"}
+                size="sm"
+                status={option.status}
+              />
+            </span>
             <span className="min-w-0 truncate">{option.name}</span>
+            {option.status ? <span className="sr-only">{option.status.label}</span> : null}
           </PickerItem>
         );
       })}

@@ -1,9 +1,12 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useWorkspaceAgents } from "@uniwork/core/agents";
+import { usePresenceStore } from "@uniwork/core/chat/presence-store";
+import { normalizeTypingUserId } from "@uniwork/core/chat/typing-user-id";
 import { canAssignAgent, type Decision } from "@uniwork/core/permissions";
 import { useAssigneeFrequency } from "@uniwork/core/tasks";
 import type { Agent, AssigneeFrequency } from "@uniwork/core/types";
+import type { ActorAvatarStatus } from "@uniwork/ui/components/common/actor-avatar";
 import type { AssigneeOption } from "./assignee-picker";
 
 const frequencyKey = (kind: string, id: string) => `${kind}:${id}`;
@@ -66,10 +69,47 @@ export function markUnassignableAgents(
   });
 }
 
+type AssigneeStatusLabels = Record<"online" | "agent_active" | "agent_paused" | "agent_archived", string>;
+
+function agentStatus(status: string, labels: AssigneeStatusLabels): ActorAvatarStatus {
+  switch (status) {
+    case "active":
+      return { tone: "success", label: labels.agent_active };
+    case "archived":
+      return { tone: "muted", label: labels.agent_archived };
+    default:
+      return { tone: "warning", label: labels.agent_paused };
+  }
+}
+
+/** Members get a dot only while online; every known agent shows its lifecycle. */
+export function withAssigneeStatus(
+  options: AssigneeOption[],
+  {
+    isOnline,
+    agents,
+    labels,
+  }: {
+    isOnline: (userId: string) => boolean;
+    agents: readonly Pick<Agent, "id" | "status">[] | undefined;
+    labels: AssigneeStatusLabels;
+  },
+): AssigneeOption[] {
+  const agentStatusById = new Map((agents ?? []).map((agent) => [agent.id, agent.status]));
+  return options.map((option) => {
+    if (option.kind === "human") {
+      return isOnline(option.id) ? { ...option, status: { tone: "success", label: labels.online } } : option;
+    }
+    const status = agentStatusById.get(option.id);
+    return status === undefined ? option : { ...option, status: agentStatus(status, labels) };
+  });
+}
+
 /**
  * Everything the shared assignee picker shows beyond the raw member/agent list.
  * Every surface that builds its own options passes them through here, so the
- * pickers agree on order and on which agents can take new work.
+ * pickers agree on order, on which agents can take new work, and on the
+ * status dots.
  */
 export function useDecoratedAssigneeOptions(
   workspaceId: string,
@@ -78,11 +118,23 @@ export function useDecoratedAssigneeOptions(
   const { t } = useTranslation();
   const frequency = useAssigneeFrequency(workspaceId);
   const agents = useWorkspaceAgents(workspaceId);
+  const onlineUserIds = usePresenceStore((state) => state.onlineUserIds);
   return useMemo(() => {
     const reasonFor = (reason: UnassignableReason) =>
       reason === "agent_archived"
         ? t("tasks.assignee_agent_archived")
         : t("tasks.assignee_agent_paused");
-    return markUnassignableAgents(rankByFrequency(options, frequency.data), agents.data, reasonFor);
-  }, [agents.data, frequency.data, options, t]);
+    const ranked = rankByFrequency(options, frequency.data);
+    const marked = markUnassignableAgents(ranked, agents.data, reasonFor);
+    return withAssigneeStatus(marked, {
+      isOnline: (userId) => Boolean(onlineUserIds[normalizeTypingUserId(userId)]),
+      agents: agents.data,
+      labels: {
+        online: t("tasks.assignee_status_online"),
+        agent_active: t("tasks.assignee_status_agent_active"),
+        agent_paused: t("tasks.assignee_status_agent_paused"),
+        agent_archived: t("tasks.assignee_status_agent_archived"),
+      },
+    });
+  }, [agents.data, frequency.data, onlineUserIds, options, t]);
 }

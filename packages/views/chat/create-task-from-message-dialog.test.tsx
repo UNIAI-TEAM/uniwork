@@ -104,7 +104,7 @@ describe("CreateTaskFromMessageDialog", () => {
     wrap(dialog);
     fireEvent.click(screen.getByRole("button", { name: /Người phụ trách/ }));
     const agentsGroup = screen.getByText("Agent").parentElement;
-    expect(agentsGroup).toContainElement(screen.getByRole("button", { name: "Trợ lý" }));
+    expect(agentsGroup).toContainElement(screen.getByRole("button", { name: "Trợ lý Agent đang hoạt động" }));
     expect(agentsGroup).not.toContainElement(screen.getByRole("button", { name: "Lan" }));
   });
 

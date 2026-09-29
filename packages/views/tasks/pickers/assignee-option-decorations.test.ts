@@ -4,7 +4,11 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { requestMock } from "../../test/request-mock";
 import type { AssigneeOption } from "./assignee-picker";
-import { markUnassignableAgents, rankByFrequency } from "./assignee-option-decorations";
+import {
+  markUnassignableAgents,
+  rankByFrequency,
+  withAssigneeStatus,
+} from "./assignee-option-decorations";
 import { useWorkspaceAssigneeOptions } from "./member-options";
 
 const options: AssigneeOption[] = [
@@ -76,6 +80,44 @@ describe("markUnassignableAgents", () => {
   it("does not touch a member that shares an agent's id", () => {
     const marked = markUnassignableAgents(options, [{ id: "u1", status: "paused" }], reason);
     expect(marked).toBe(options);
+  });
+});
+
+describe("withAssigneeStatus", () => {
+  const labels = {
+    online: "online",
+    agent_active: "active",
+    agent_paused: "paused",
+    agent_archived: "archived",
+  };
+
+  it("dots online members and every agent by its status", () => {
+    const withStatus = withAssigneeStatus(
+      [...options, { id: "a3", kind: "agent", name: "Agent 3" }],
+      {
+        isOnline: (id) => id === "u2",
+        agents: [
+          { id: "a1", status: "active" },
+          { id: "a2", status: "paused" },
+          { id: "a3", status: "archived" },
+        ],
+        labels,
+      },
+    );
+
+    expect(withStatus.map((option) => option.status)).toEqual([
+      undefined,
+      { tone: "success", label: "online" },
+      undefined,
+      { tone: "success", label: "active" },
+      { tone: "warning", label: "paused" },
+      { tone: "muted", label: "archived" },
+    ]);
+  });
+
+  it("leaves an agent it knows nothing about without a dot", () => {
+    const withStatus = withAssigneeStatus(options, { isOnline: () => false, agents: [], labels });
+    expect(withStatus.every((option) => option.status === undefined)).toBe(true);
   });
 });
 
