@@ -2,47 +2,44 @@
 
 import { useState, type ReactNode, type SyntheticEvent } from "react";
 import { Button } from "@uniwork/ui/components/ui/button";
+import { foldedIncludes } from "../../chat/chat-search-fold";
+import { PillButton } from "../../common/pill-button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@uniwork/ui/components/ui/dropdown-menu";
+  PickerEmpty,
+  PickerItem,
+  PropertyPicker,
+  type PickerAnchor,
+} from "./property-picker";
+import { SEARCHABLE_OPTION_THRESHOLD } from "./searchable-option-picker";
 import { usePickerTriggerLabel } from "./trigger-label";
 
-export type EnumOption = { value: string; label: string; icon?: ReactNode };
+export type EnumOption = {
+  value: string;
+  /** Searched, and the row's accessible name. */
+  label: string;
+  /** What the row shows; defaults to the label as text. */
+  content?: ReactNode;
+  hoverClassName?: string;
+};
 
 /**
- * Shared trigger + radio-group picker for finite, server-free enum fields
- * (status, priority). Callers own the trigger's visible content via
- * `children` and decide what happens on selection via `onChange`; the menu
- * itself closes on selection (Base UI's Menu.Root default) so no call site
- * needs to manage `open` state.
+ * Single-select picker over a finite list (status, priority, project), built
+ * on the PropertyPicker popover every property field shares. A list longer
+ * than SEARCHABLE_OPTION_THRESHOLD gets a pinned search box when the caller
+ * names it with `searchPlaceholder`.
  *
- * `onTriggerNavigationGuard` exists so a table cell can stop a row-level
- * navigation handler before it fires. It is named for the job, not the
- * mechanism, because that job needs two independent paths covered:
- *  - `DropdownMenuContent` already stops left-click (`onClick`) from
- *    bubbling out of the portalled menu, but NOT aux-click (middle click),
- *    so a middle-click on an open menu ITEM can still reach a row handler
- *    that reacts to aux-click. We forward the same callback to the content
- *    popup's `onAuxClick` to close that path.
- *  - The trigger button itself needs three events covered for a
- *    click/aux-click that lands on it directly, before the menu is even
- *    open — `onPointerDown` covers press-based row handlers, `onAuxClick`
- *    covers the middle-click case `DropdownMenuContent` doesn't apply to
- *    (it isn't inside the popup), and `onClick` covers plain left-click:
- *    `stopPropagation` on `pointerdown` does NOT stop the `click` event
- *    that follows it (they are separate events), and nothing else in this
- *    tree calls `preventDefault()` on that click, so a row's `onClick`
- *    handler that checks `e.defaultPrevented` (DataTable's does) still
- *    fires on a plain click of the trigger without this.
- * Losing any one of these makes clicking (or middle-clicking) a cell
- * picker navigate to the row instead of just opening/using the menu.
+ * `onTriggerNavigationGuard` keeps every interaction from reaching an
+ * enclosing row's navigation handler: trigger pointerdown, click and middle
+ * click (separate events — stopping one does not stop the others), and every
+ * click inside the portalled popup, which React still bubbles through the
+ * component tree to the row. Enter in the search box clicks the highlighted
+ * item, so it goes through the popup guard too.
  *
- * One callback, four event/element combinations. Do not narrow it back down
- * to a single event: each one was added for a reproduced navigation escape.
+ * `disabled` never reaches a native `disabled` attribute: the trigger keeps
+ * `aria-disabled` and stays in the tab order, and the list is held closed.
+ *
+ * A row action opens it from a menu instead of a trigger: pass `open` /
+ * `onOpenChange` and an `anchor`; no trigger is rendered then.
  */
 export function EnumFieldPicker({
   value,
@@ -51,9 +48,16 @@ export function EnumFieldPicker({
   disabled,
   ariaLabel,
   valueLabel,
+  searchPlaceholder,
+  noResultsLabel,
   onTriggerNavigationGuard,
   triggerClassName,
+  appearance = "ghost",
+  width = "w-52",
   align = "start",
+  open: controlledOpen,
+  onOpenChange,
+  anchor,
   children,
 }: {
   value: string | null;
@@ -65,67 +69,84 @@ export function EnumFieldPicker({
    * ("field: value") so the name contains what is visible; omit it only when
    * the trigger shows a fixed action label. */
   valueLabel?: string;
+  searchPlaceholder?: string;
+  noResultsLabel?: string;
   onTriggerNavigationGuard?: (event: SyntheticEvent) => void;
-  /** Additive: lets a call site match its own layout (table cell density,
-   * sidebar row width, ...) without every consumer sharing one trigger size. */
   triggerClassName?: string;
-  /** Additive: preserves each call site's existing menu alignment instead of
-   * forcing one on all three (batch pickers used "center" before this
-   * consolidation; table cell and sidebar used "start"). */
+  /** "pill" is the create-dialog / composer chrome, "ghost" everything else. */
+  appearance?: "ghost" | "pill";
+  width?: string;
   align?: "start" | "center" | "end";
-  children: ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  anchor?: PickerAnchor;
+  children?: ReactNode;
 }) {
-  // `disabled` stays off the trigger's own `disabled` prop: Base UI would put
-  // a native `disabled` on the button and drop it from the tab order. But
-  // MenuTrigger opens on mousedown and ignores `aria-disabled`
-  // (@base-ui/react 1.7.0 menu/trigger/MenuTrigger.js:161-163), so `open` is
-  // held closed here, as AssigneePicker does for its combobox.
-  const [open, setOpen] = useState(false);
-  // A controlled close never fires onOpenChange, so disabling an open menu
-  // would leave `open` true and the menu would pop back when `disabled`
-  // clears. Reset it during render, before anything commits.
-  if (disabled && open) setOpen(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  // A controlled close never fires onOpenChange, so disabling an open list
+  // would leave `open` true and it would pop back when `disabled` clears.
+  // Reset it during render, before anything commits.
+  if (disabled && internalOpen) setInternalOpen(false);
+  const open = controlledOpen ?? internalOpen;
   const triggerLabel = usePickerTriggerLabel(ariaLabel, valueLabel);
 
+  const searchable = Boolean(searchPlaceholder) && options.length > SEARCHABLE_OPTION_THRESHOLD;
+  const shown = searchable && query
+    ? options.filter((option) => foldedIncludes(option.label, query))
+    : options;
+
+  const handleOpenChange = (next: boolean) => {
+    if (disabled && next) return;
+    setInternalOpen(next);
+    onOpenChange?.(next);
+    if (!next) setQuery("");
+  };
+
+  const triggerProps = {
+    className: triggerClassName,
+    "aria-disabled": disabled || undefined,
+    "aria-label": triggerLabel,
+    onPointerDown: onTriggerNavigationGuard,
+    onClick: onTriggerNavigationGuard,
+    onAuxClick: onTriggerNavigationGuard,
+  };
+
   return (
-    <DropdownMenu
+    <PropertyPicker
       open={disabled ? false : open}
-      onOpenChange={(next) => {
-        if (!disabled) setOpen(next);
-      }}
+      onOpenChange={handleOpenChange}
+      width={width}
+      align={align}
+      searchable={searchable}
+      searchPlaceholder={searchPlaceholder}
+      searchAriaLabel={searchPlaceholder}
+      onSearchChange={setQuery}
+      popupEventGuard={onTriggerNavigationGuard}
+      anchor={anchor}
+      triggerRender={
+        appearance === "pill" ? (
+          <PillButton {...triggerProps} />
+        ) : (
+          <Button type="button" variant="ghost" size="sm" {...triggerProps} />
+        )
+      }
+      trigger={children}
     >
-      <DropdownMenuTrigger
-        onPointerDown={onTriggerNavigationGuard}
-        onClick={onTriggerNavigationGuard}
-        onAuxClick={onTriggerNavigationGuard}
-        render={
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className={triggerClassName}
-            aria-disabled={disabled || undefined}
-            aria-label={triggerLabel}
-          />
-        }
-      >
-        {children}
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align={align} onAuxClick={onTriggerNavigationGuard}>
-        <DropdownMenuRadioGroup
-          value={value ?? undefined}
-          onValueChange={(next) => {
-            if (next) onChange(next);
+      {shown.map((option) => (
+        <PickerItem
+          key={option.value}
+          selected={option.value === value}
+          hoverClassName={option.hoverClassName}
+          onClick={() => {
+            onChange(option.value);
+            handleOpenChange(false);
           }}
         >
-          {options.map((option) => (
-            <DropdownMenuRadioItem key={option.value} value={option.value}>
-              {option.icon}
-              {option.label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          {option.content ?? <span className="truncate">{option.label}</span>}
+        </PickerItem>
+      ))}
+      {shown.length === 0 && noResultsLabel ? <PickerEmpty>{noResultsLabel}</PickerEmpty> : null}
+    </PropertyPicker>
   );
 }

@@ -4,13 +4,11 @@ import { FolderKanban, UserRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TaskPatch } from "@uniwork/core/api/endpoints/tasks";
 import { useProjects } from "@uniwork/core/tasks";
-import type { ActorKind, Task, TaskPriority, TaskStatus } from "@uniwork/core/types";
+import type { ActorKind, Task, TaskPriority } from "@uniwork/core/types";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AgentBadge } from "../agents/agent-badge";
 import { DateField, dateOnlyToLocalDate } from "../common/date-field";
 import { TaskActorAvatar } from "../tasks/detail/components/task-actor-avatar";
-import { PriorityIcon } from "../tasks/icons/priority-icon";
-import { StatusIcon } from "../tasks/icons/status-icon";
 import {
   AssigneePicker,
   PriorityPicker,
@@ -60,6 +58,8 @@ export function ChatTaskProjectField({
       onChange={(next) => onChange(next === NONE ? "" : next)}
       ariaLabel={t("chat.link.project_label")}
       valueLabel={label}
+      searchPlaceholder={t("tasks.create.project_search_placeholder")}
+      noResultsLabel={t("tasks.create.options_no_results")}
       triggerClassName={chatTaskPillTrigger}
       align="start"
     >
@@ -165,9 +165,6 @@ export function ChatTaskPeekFields({
   const assigneeValue: AssigneeRef | null = task.assignee_id
     ? { id: task.assignee_id, kind: task.assignee_kind === "agent" ? "agent" : "human" }
     : null;
-  const statusLabel = t(`tasks.status_${task.status}`);
-  const priorityLabel = t(`tasks.priority_${task.priority}`);
-
   return (
     <div className="flex flex-wrap items-center gap-2" data-testid="chat-task-peek-fields">
       <ChatTaskProjectField
@@ -179,34 +176,27 @@ export function ChatTaskPeekFields({
       />
 
       <StatusPicker
-        value={task.status as TaskStatus}
+        workspaceId={workspaceId}
+        value={task.status}
         ariaLabel={t("tasks.status")}
-        valueLabel={statusLabel}
+        searchPlaceholder={t("tasks.create.status_search_placeholder")}
+        noResultsLabel={t("tasks.create.options_no_results")}
         triggerClassName={chatTaskPillTrigger}
         align="start"
-        icon={(status) => <StatusIcon status={status} className="size-3.5" />}
         onChange={(value) => {
           if (value !== task.status) patch({ status: value });
         }}
-      >
-        <StatusIcon status={task.status} className="size-3.5 shrink-0" />
-        <span className="truncate">{statusLabel}</span>
-      </StatusPicker>
+      />
 
       <PriorityPicker
         value={task.priority}
         ariaLabel={t("tasks.priority")}
-        valueLabel={priorityLabel}
         triggerClassName={chatTaskPillTrigger}
         align="start"
-        icon={(priority) => <PriorityIcon priority={priority} />}
         onChange={(value: TaskPriority) => {
           if (value !== task.priority) patch({ priority: value });
         }}
-      >
-        <PriorityIcon priority={task.priority} />
-        <span className="truncate">{priorityLabel}</span>
-      </PriorityPicker>
+      />
 
       <ChatTaskAssigneeField
         workspaceId={workspaceId}

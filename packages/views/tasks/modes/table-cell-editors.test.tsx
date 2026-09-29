@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
+import { requestMock, wrap } from "../../test/api-mock";
 import {
   TableAssigneeCell,
   TablePriorityCell,
@@ -15,7 +16,8 @@ const options = [{ id: "u1", kind: "human" as const, name: "An Nguyễn" }];
 
 describe("table cell pickers: accessible name contains the visible value", () => {
   it("status", () => {
-    render(<TableStatusCell value="in_progress" onChange={vi.fn()} />);
+    requestMock.mockReturnValue(new Promise(() => {}));
+    render(wrap(<TableStatusCell workspaceId="w1" value="in_progress" onChange={vi.fn()} />));
     const trigger = screen.getByRole("button", { name: "Trạng thái: Đang làm" });
     expect(trigger).toHaveTextContent("Đang làm");
   });

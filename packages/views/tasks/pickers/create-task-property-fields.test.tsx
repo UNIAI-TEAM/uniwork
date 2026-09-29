@@ -1,53 +1,47 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import {
-  CreateTaskAssigneeField,
-  CreateTaskPriorityField,
-  CreateTaskStatusField,
-} from "./create-task-property-fields";
+import { initI18n } from "@uniwork/core/i18n";
+import { requestMock, wrap } from "../../test/api-mock";
+import { CreateTaskAssigneeField } from "./create-task-property-fields";
+import { PriorityPicker } from "./priority-picker";
+import { StatusPicker } from "./status-picker";
+
+initI18n();
 
 describe("CreateTaskPropertyFields", () => {
-  it("StatusField uses PillButton chrome and icon+label options", () => {
+  it("the create dialog's status pill is the shared StatusPicker", () => {
+    requestMock.mockReturnValue(new Promise(() => {}));
     const onChange = vi.fn();
     render(
-      <CreateTaskStatusField
-        items={[
-          { value: "todo", label: "Cần làm", category: "todo" },
-          { value: "done", label: "Hoàn thành", category: "done" },
-        ]}
-        value="todo"
-        searchPlaceholder="Tìm trạng thái"
-        noResultsLabel="Không có kết quả"
-        onChange={onChange}
-      />,
+      wrap(
+        <StatusPicker
+          workspaceId="w1"
+          appearance="pill"
+          value="todo"
+          ariaLabel="Trạng thái"
+          onChange={onChange}
+        />,
+      ),
     );
 
-    const trigger = screen.getByRole("button", { name: /Cần làm/ });
+    const trigger = screen.getByRole("button", { name: "Trạng thái: Cần làm" });
     expect(trigger).toHaveClass("rounded-full");
     expect(trigger.querySelector('[data-slot="status-icon"]')).not.toBeNull();
 
     fireEvent.click(trigger);
-    fireEvent.click(screen.getByRole("button", { name: /Hoàn thành/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Hoàn thành" }));
     expect(onChange).toHaveBeenCalledWith("done");
   });
 
-  it("PriorityField lists icon badges and commits on click", () => {
+  it("the create dialog's priority pill is the shared PriorityPicker", () => {
     const onChange = vi.fn();
-    render(
-      <CreateTaskPriorityField
-        items={[
-          { value: "none", label: "Không ưu tiên" },
-          { value: "high", label: "Cao" },
-        ]}
-        value="none"
-        onChange={onChange}
-      />,
-    );
+    render(<PriorityPicker appearance="pill" value="none" ariaLabel="Độ ưu tiên" onChange={onChange} />);
 
-    const trigger = screen.getByRole("button", { name: /Không ưu tiên/ });
+    const trigger = screen.getByRole("button", { name: "Độ ưu tiên: Không ưu tiên" });
+    expect(trigger).toHaveClass("rounded-full");
     expect(trigger.querySelector('[data-slot="priority-icon"]')).not.toBeNull();
     fireEvent.click(trigger);
-    fireEvent.click(screen.getByRole("button", { name: /Cao/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Cao" }));
     expect(onChange).toHaveBeenCalledWith("high");
   });
 

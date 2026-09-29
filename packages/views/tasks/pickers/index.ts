@@ -1,4 +1,5 @@
-export { StatusPicker, useStatusOptions } from "./status-picker";
+export { StatusOptionIcon, StatusPicker } from "./status-picker";
+export { useStatusCatalog } from "./status-catalog";
 export {
   toMemberOptions,
   useWorkspaceAssigneeOptions,

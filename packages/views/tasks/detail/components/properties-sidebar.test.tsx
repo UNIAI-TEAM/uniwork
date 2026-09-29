@@ -212,7 +212,7 @@ describe("TaskDetailPropertiesSidebar", () => {
     const status = screen.getByLabelText(/trạng thái|status/i);
     fireEvent.click(status);
 
-    const option = await screen.findByRole("menuitemradio", {
+    const option = await screen.findByRole("button", {
       name: /đang làm|in progress/i,
     });
     fireEvent.click(option);

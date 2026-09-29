@@ -37,8 +37,8 @@ describe("CreateTaskDialog", () => {
       ),
     );
 
-    const status = screen.getByRole("button", { name: "Cần làm" });
-    const priority = screen.getByRole("button", { name: "Không ưu tiên" });
+    const status = screen.getByRole("button", { name: "Trạng thái: Cần làm" });
+    const priority = screen.getByRole("button", { name: "Độ ưu tiên: Không ưu tiên" });
 
     expect(status).toHaveClass("rounded-full");
     expect(priority).toHaveClass("rounded-full");

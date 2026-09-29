@@ -19,11 +19,10 @@ import {
 } from "../editor";
 import { CreateTaskManualOverflow } from "./create-task-manual-overflow";
 import { CreateTaskSubmitButton } from "./create-task-submit-button";
+import { PriorityPicker, StatusPicker } from "./pickers";
 import {
   CreateTaskAssigneeField,
   CreateTaskLabelField,
-  CreateTaskPriorityField,
-  CreateTaskStatusField,
 } from "./pickers/create-task-property-fields";
 import { CreateTaskProjectField } from "./pickers/create-task-project-fields";
 import { useCreateTaskManualState } from "./use-create-task-manual";
@@ -67,8 +66,6 @@ export function CreateTaskManualPanel({
     revealed,
     reveal,
     unreveal,
-    statusItems,
-    priorityItems,
     projectItems,
     parentItems,
     maxSiblingStage,
@@ -173,16 +170,19 @@ export function CreateTaskManualPanel({
           data-testid="create-task-property-toolbar"
           className="flex shrink-0 flex-wrap items-center gap-1.5 px-4 py-2"
         >
-          <CreateTaskStatusField
-            items={statusItems}
+          <StatusPicker
+            workspaceId={workspaceId}
+            appearance="pill"
             value={draft.status ?? "todo"}
+            ariaLabel={t("tasks.status")}
             searchPlaceholder={t("tasks.create.status_search_placeholder")}
             noResultsLabel={t("tasks.create.options_no_results")}
             onChange={(value) => updateDraft({ status: value })}
           />
-          <CreateTaskPriorityField
-            items={priorityItems}
+          <PriorityPicker
+            appearance="pill"
             value={(draft.priority ?? "none") as NonNullable<CreateTaskDraft["priority"]>}
+            ariaLabel={t("tasks.priority")}
             onChange={(value) => updateDraft({ priority: value })}
           />
           <CreateTaskAssigneeField
