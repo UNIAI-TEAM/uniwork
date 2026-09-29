@@ -43,14 +43,40 @@ The injected transport performs these steps:
 and draft recoverable and never enters `saved`. A timeout or ambiguous response
 reconciles the same intent before any new Save can start. A payload mismatch or
 key reuse with a different fingerprint stops retry. A 409 base conflict keeps
-the original base and the local snapshot.
+the original base and the local snapshot. The only Save action is
+`coordinator.save(entryPoint)`. `button`, `menu`, `shortcut`, and `dialog` all
+use that guard. While N is saving, every entry point returns `saving`; no N+1
+request is queued. Typing may advance the dirty generation while N runs. Receipt
+N advances the base but leaves the state `dirty` for N+1. A timer, idle period,
+blur, leave, reconnect, checkpoint, or logout never calls Save; checkpoint is a
+draft adapter operation only.
 
-The only Save action is `coordinator.save(entryPoint)`. `button`, `menu`,
-`shortcut`, and `dialog` all use that guard. While N is saving, every entry
-point returns `saving`; no N+1 request is queued. Typing may advance the dirty
-generation while N runs. Receipt N advances the base but leaves the state
-`dirty` for N+1. A timer, idle period, blur, leave, reconnect, checkpoint, or
-logout never calls Save; checkpoint is a draft adapter operation only.
+### Intent lifecycle and session changes
+
+- An intent stops being pending only when its outcome is settled: a matching
+  receipt (the base advances), a terminal refusal (`stop`, or
+  `stale_generation`), or a reconcile that answers "not committed". Terminal
+  outcomes clear the durable intent and refuse a replacement intent for the
+  same generation, so the same bytes are never retried under a fresh key.
+  `conflict` is settled the same way and stays `conflict`: every Save entry
+  point refuses until an explicit resolve exists.
+- An unresolved (ambiguous) intent survives a new edit and a `setIdentity`
+  change. The next Save reconciles it under its own identity and key first. If
+  the session moved on, the intent is settled only after that reconcile, and
+  only then does the current session mint its own intent. If the reconcile
+  question itself fails, the coordinator answers `blocked` and mints nothing.
+- A receipt that arrives after the generation changed is never `saved`; the
+  document base still advances when the document binding matches, because the
+  commit is real. The state stays a kept-draft error until a new edit starts a
+  fresh intent on the advanced base.
+- A `401` without a code (bodiless answer) is still dispatched as
+  `unauthorized` from the HTTP status alone; `token_expired` and
+  `draft_recovery_locked` remain model-only outcomes this lane does not claim
+  as HTTP.
+- The coordinator raises client-side codes when a seam answer is outside its
+  schema (`malformed_serialized_output`, `malformed_upload_receipt`,
+  `malformed_commit_receipt`) or when the session changes mid-save
+  (`stale_generation`). They are not provider error codes.
 
 ## State contract
 
@@ -60,10 +86,10 @@ logout never calls Save; checkpoint is a draft adapter operation only.
 | `dirty` | Current editor generation is newer than the saved generation. | Explicit Save creates one intent. |
 | `saving` | One intent is serializing, uploading, committing, or reconciling. | All Save entry points refuse; no queue. |
 | `saved` | Receipt matches identity and intent and no newer generation exists. | No cloud call until dirty. |
-| `error` | Outcome is known to be unsuccessful or malformed. | Retry only the same fingerprint/key or create a new intent after a new edit. |
-| `conflict` | Server rejected the intent because the base is stale. | Preserve local/server bases; resolve explicitly. |
-| `blocked` | Permission, quota, missing document, or recovery policy blocks the action. | Keep the protected draft; do not retry blindly. |
-| `readonly` | The current capability permits viewing but not editing. | Do not create an intent. |
+| `error` | Outcome is known to be unsuccessful or malformed. | A pending intent reconciles, then retries with the same fingerprint/key; a terminal stop creates a new intent only after a new edit. |
+| `conflict` | Server rejected the intent because the base is stale. | Preserve local/server bases; every Save refuses until an explicit resolve exists. |
+| `blocked` | Permission, quota, missing document, or recovery policy blocks the action. | Keep the protected draft; a later Save reconciles then replays the same intent/key; do not retry blindly in a loop. |
+| `readonly` | The current capability permits viewing but not editing. | Do not create an intent; the capability row that set it is the only way back to `dirty`/`ready`. |
 | `incompatible` | Engine, protocol, contract, or operation support is incompatible. | Read-only or recovery action only. |
 
 ## G3 §4.4 provider handoff matrix
@@ -103,7 +129,10 @@ never trigger an unbounded retry.
 
 Capability rows carry format, operation, host, engine build, contract revision,
 status, reason, and fidelity warnings. `unknown` is safe and does not grant
-editing. The current handoff proves the following provider facts:
+editing. The host feeds the coordinator the serialize row for its editor format
+(`toOfficeCapabilityEntry`); a status other than `available` moves the session
+to `readonly` and refuses Save, and a row that turns `available` restores
+`dirty`/`ready`. The current handoff proves the following provider facts:
 
 | Format / operation | Current provider evidence | G3/G4 implication |
 | --- | --- | --- |

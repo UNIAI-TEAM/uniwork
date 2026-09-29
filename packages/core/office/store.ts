@@ -35,6 +35,9 @@ const EMPTY_STATE = {
   saveState: "ready" as OfficeState,
 };
 
+/** States a new edit must not overwrite: the banner/problem stays visible. */
+const STICKY_STATES: readonly OfficeState[] = ["saving", "conflict", "blocked", "readonly", "incompatible"];
+
 export const useOfficeStore = create<OfficeSessionState>((set) => ({
   ...EMPTY_STATE,
   setTab: (tabId) => set({ tabId }),
@@ -42,11 +45,14 @@ export const useOfficeStore = create<OfficeSessionState>((set) => ({
   setIdentity: (identity) =>
     set({
       identity: identity ? { ...identity } : null,
-      dirtyGeneration: identity ? 0 : 0,
+      dirtyGeneration: 0,
       saveState: "ready",
     }),
   setDirtyGeneration: (dirtyGeneration) =>
-    set((state) => ({ dirtyGeneration, saveState: state.saveState === "saving" ? "saving" : "dirty" })),
+    set((state) => ({
+      dirtyGeneration,
+      saveState: STICKY_STATES.includes(state.saveState) ? state.saveState : "dirty",
+    })),
   setSaveState: (saveState) => set({ saveState }),
   reset: () => set({ ...EMPTY_STATE }),
 }));

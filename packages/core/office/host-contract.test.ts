@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { officeCapabilityEntrySchema, officeIdentitySchema, officeSaveIntentSchema, officeSaveReceiptSchema } from "./host-contract";
+import { officeCapabilityEntrySchema, officeIdentitySchema, officeSaveIntentSchema, officeSaveReceiptSchema, toOfficeCapabilityEntry } from "./host-contract";
+
+const metadata = { host: "web", engineBuild: "engine-1", contractRevision: "office-editor-host/1" };
 
 const identity = {
   deploymentId: "dep-1",
@@ -54,5 +56,31 @@ describe("Office Editor Host v1 contract", () => {
       contractVersion: "contract-1",
       protocolVersion: "1",
     }).revision).toBe("9007199254740994");
+  });
+
+  it("maps engine capability rows to product status without upgrading pending evidence", () => {
+    expect(toOfficeCapabilityEntry(
+      "md",
+      { operation: "serialize", supported: true, runtime: "browser", evidence_level: "proven" },
+      metadata,
+    )).toMatchObject({
+      format: "md",
+      operation: "serialize",
+      host: "web",
+      engineBuild: "engine-1",
+      status: "available",
+      reason: null,
+      fidelityWarnings: [],
+    });
+    expect(toOfficeCapabilityEntry(
+      "md",
+      { operation: "open", supported: true, runtime: "browser", evidence_level: "pending", reason: "adapter pending" },
+      metadata,
+    )).toMatchObject({ status: "readonly", reason: "adapter pending" });
+    expect(toOfficeCapabilityEntry(
+      "docx",
+      { operation: "export", supported: false, runtime: "internal_service", evidence_level: "pending" },
+      metadata,
+    )).toMatchObject({ status: "unavailable" });
   });
 });

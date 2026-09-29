@@ -48,7 +48,8 @@ export function isCompletedOfficeConversion(
   return job?.operation === "convert"
     && job.state === "completed"
     && job.targetFormat !== null
-    && job.result !== null;
+    && job.result !== null
+    && job.result.targetFormat === job.targetFormat;
 }
 
 /** The document's office capabilities (engine rows + create_blank). A null

@@ -125,6 +125,14 @@ describe("office hooks", () => {
       fidelity: { level: "limited", lost: [] },
       content: { sheets: [], cells: {}, paragraphs: [] },
     } })).toBe(true);
+    // A completed row whose result names another target format is not a
+    // finished conversion for this job.
+    expect(isCompletedOfficeConversion({ ...narrowJob("completed"), operation: "convert", targetFormat: "xlsx", result: {
+      sourceFormat: "xls",
+      targetFormat: "docx",
+      fidelity: { level: "limited", lost: [] },
+      content: { sheets: [], cells: {}, paragraphs: [] },
+    } })).toBe(false);
   });
 
   it("refuses an unverifiable blank create and never writes a fake document", async () => {

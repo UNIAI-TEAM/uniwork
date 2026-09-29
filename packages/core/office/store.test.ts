@@ -26,5 +26,18 @@ describe("office session store", () => {
     });
     expect("content" in useOfficeStore.getState()).toBe(false);
   });
+
+  it("keeps a conflict or blocked banner visible when a new edit arrives", () => {
+    useOfficeStore.getState().reset();
+    useOfficeStore.getState().setSaveState("conflict");
+    useOfficeStore.getState().setDirtyGeneration(3);
+    expect(useOfficeStore.getState()).toMatchObject({ saveState: "conflict", dirtyGeneration: 3 });
+    useOfficeStore.getState().setSaveState("blocked");
+    useOfficeStore.getState().setDirtyGeneration(4);
+    expect(useOfficeStore.getState()).toMatchObject({ saveState: "blocked", dirtyGeneration: 4 });
+    useOfficeStore.getState().setSaveState("saved");
+    useOfficeStore.getState().setDirtyGeneration(5);
+    expect(useOfficeStore.getState()).toMatchObject({ saveState: "dirty", dirtyGeneration: 5 });
+  });
 });
 

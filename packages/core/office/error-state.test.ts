@@ -40,5 +40,26 @@ describe("office error dispatch", () => {
       message: "Office save could not be confirmed",
     });
   });
+
+  it("falls back to the 401 baseline when a bodiless answer lost its code", () => {
+    expect(dispatchOfficeError({ status: 401 })).toMatchObject({ state: "blocked", action: "login" });
+    expect(dispatchOfficeError(new ApiError("irrelevant", "internal", 401))).toMatchObject({ state: "blocked", action: "login" });
+  });
+
+  it("maps upload checksum failures to reconcile and keeps pipeline guard codes typed", () => {
+    expect(dispatchOfficeError({ code: "upload_checksum_mismatch", error_class: "conflict", status: 409 })).toMatchObject({
+      state: "error",
+      action: "reconcile",
+      retryable: false,
+    });
+    expect(dispatchOfficeError({ code: "malformed_commit_receipt" })).toMatchObject({
+      state: "error",
+      action: "reconcile",
+      retryable: true,
+      ambiguous: true,
+    });
+    expect(dispatchOfficeError({ code: "malformed_serialized_output" })).toMatchObject({ state: "error", action: "retry", ambiguous: false });
+    expect(dispatchOfficeError({ code: "stale_generation" })).toMatchObject({ state: "error", action: "keep_draft" });
+  });
 });
 

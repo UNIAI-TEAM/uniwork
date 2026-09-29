@@ -53,6 +53,7 @@ const ERROR_RULES: Record<string, ErrorRule> = {
   idempotency_key_reuse: { state: "error", action: "stop", retryable: false },
   document_upload_invalid: { state: "error", action: "reconcile", retryable: false },
   upload_missing: { state: "error", action: "reconcile", retryable: false },
+  upload_checksum_mismatch: { state: "error", action: "reconcile", retryable: false },
   quota_exceeded: { state: "blocked", action: "keep_draft", retryable: false },
   upload_bounds: { state: "blocked", action: "keep_draft", retryable: false },
   file_too_large: { state: "blocked", action: "keep_draft", retryable: false },
@@ -72,6 +73,13 @@ const ERROR_RULES: Record<string, ErrorRule> = {
   engine_result_invalid: { state: "error", action: "retry", retryable: true },
   engine_checksum_mismatch: { state: "error", action: "retry", retryable: true },
   draft_recovery_locked: { state: "blocked", action: "keep_draft", retryable: false },
+  stale_generation: { state: "error", action: "keep_draft", retryable: false },
+  // Pipeline guard codes the coordinator raises itself when the transport
+  // answers outside the seam schemas. The commit step is ambiguous: the
+  // server may have committed before its answer was lost or garbled.
+  malformed_serialized_output: { state: "error", action: "retry", retryable: true },
+  malformed_upload_receipt: { state: "error", action: "retry", retryable: true },
+  malformed_commit_receipt: { state: "error", action: "reconcile", retryable: true, ambiguous: true },
 };
 
 const CLASS_TO_STATE: Record<OfficeErrorClass, OfficeState> = {
@@ -114,10 +122,12 @@ function normalizeClass(value: string | null): OfficeErrorClass {
 export function dispatchOfficeError(error: unknown): OfficeErrorDispatch {
   const parsed = readError(error);
   const code = parsed.code ?? (error instanceof Error && error.name === "AbortError" ? "request_aborted" : "office_unknown_error");
-  const rule = ERROR_RULES[code];
+  const status = parsed.status;
+  // A bodiless 401 defaults its code to "internal" (api/http.ts); the status is
+  // the only reliable signal left, and the doc maps it to the auth baseline.
+  const rule = ERROR_RULES[code] ?? (status === 401 ? ERROR_RULES.unauthorized : undefined);
   const errorClass = normalizeClass(parsed.errorClass);
   const inferred = rule?.state ?? CLASS_TO_STATE[errorClass];
-  const status = parsed.status;
   const ambiguous = rule?.ambiguous ?? (code === "request_aborted" || code === "network_error" || status === 408 || status === 504);
   return {
     state: inferred,

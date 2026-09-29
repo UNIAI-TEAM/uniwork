@@ -8,6 +8,8 @@ import {
   officeUploadReceiptSchema,
   type DraftAdapter,
   type EditorHandle,
+  type OfficeCapabilityEntry,
+  type OfficeCapabilityStatus,
   type OfficeIdentity,
   type OfficeSaveIntent,
   type OfficeSaveReceipt,
@@ -45,8 +47,17 @@ interface CoordinatorListener {
   (state: SaveCoordinatorState): void;
 }
 
+/** The three answers a reconcile can give: the provider holds the commit, it
+ *  proved the intent never committed, or the question itself failed. */
+type ReconcileAnswer =
+  | { status: "found"; receipt: OfficeSaveReceipt }
+  | { status: "not_found" }
+  | { status: "error"; dispatch: OfficeErrorDispatch };
+
 const DEFAULT_BACKOFF_MS = [250, 1000, 2000] as const;
 
+/** `dirtyGeneration` and `lastSavedGeneration` come from the host editor, so
+ *  these are counters, not payloads: they never leave the session. */
 function makeId(prefix: string): string {
   const uuid = globalThis.crypto?.randomUUID?.();
   return `${prefix}-${uuid ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`}`;
@@ -67,6 +78,24 @@ function sleep(delayMs: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
+/** Decimal-string comparison: revisions exceed Number.MAX_SAFE_INTEGER and are
+ *  never converted to a JavaScript number (G3 spec §4.4). */
+function decimalGreater(left: string, right: string): boolean {
+  const a = left.replace(/^0+(?=\d)/, "");
+  const b = right.replace(/^0+(?=\d)/, "");
+  if (a.length !== b.length) return a.length > b.length;
+  return a > b;
+}
+
+/** A response outside the seam schema. The code names the step so the error
+ *  table can decide between retry and reconcile. */
+function pipelineError(code: string): Error {
+  const error = new Error(code) as Error & { code: string; error_class: string };
+  error.code = code;
+  error.error_class = "engine";
+  return error;
+}
+
 export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorOptions<TSnapshot>) {
   let identity = officeIdentitySchema.parse(options.identity);
   let dirtyGeneration = options.editor.getDirtyGeneration();
@@ -80,7 +109,8 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
     error: null,
   };
   let pendingIntent: OfficeSaveIntent<TSnapshot> | null = null;
-  let inFlight: Promise<SaveAttemptResult> | null = null;
+  let terminalGeneration: number | null = null;
+  let capabilityStatus: OfficeCapabilityStatus | null = null;
   const listeners = new Set<CoordinatorListener>();
   const now = options.now ?? (() => Date.now());
   const idFactory = options.idFactory ?? makeId;
@@ -94,24 +124,58 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
   }
 
   function sameIdentity(left: OfficeIdentity, right: OfficeIdentity): boolean {
+    return sameDocument(left, right) && left.generation === right.generation;
+  }
+
+  function sameDocument(left: OfficeIdentity, right: OfficeIdentity): boolean {
     return left.deploymentId === right.deploymentId
       && left.accountId === right.accountId
       && left.organizationId === right.organizationId
       && left.workspaceId === right.workspaceId
-      && left.documentId === right.documentId
-      && left.generation === right.generation;
+      && left.documentId === right.documentId;
   }
 
   function currentDirty(): boolean {
     return dirtyGeneration > lastSavedGeneration;
   }
 
-  function saveError(dispatch: OfficeErrorDispatch): SaveAttemptResult {
-    publish({ state: dispatch.state, activeIntentId: pendingIntent?.intentId ?? null, error: dispatch });
+  function staleGenerationDispatch(): OfficeErrorDispatch {
+    return {
+      state: "error",
+      code: "stale_generation",
+      errorClass: "session",
+      correlationId: null,
+      retryable: false,
+      ambiguous: false,
+      action: "keep_draft",
+      message: "Office save could not be confirmed",
+    };
+  }
+
+  function pendingRecoveryDispatch(): OfficeErrorDispatch {
+    return {
+      state: "blocked",
+      code: "pending_intent_recovery",
+      errorClass: "session",
+      correlationId: null,
+      retryable: true,
+      ambiguous: true,
+      action: "keep_draft",
+      message: "Office save outcome is not confirmed yet",
+    };
+  }
+
+  function reasonFor(dispatch: OfficeErrorDispatch): SaveAttemptResult {
     if (dispatch.state === "blocked") return { accepted: false, reason: "blocked" };
     if (dispatch.state === "incompatible") return { accepted: false, reason: "incompatible" };
     if (dispatch.state === "conflict") return { accepted: false, reason: "stale" };
+    if (dispatch.state === "readonly") return { accepted: false, reason: "readonly" };
     return { accepted: false, reason: "error" };
+  }
+
+  function saveError(dispatch: OfficeErrorDispatch): SaveAttemptResult {
+    publish({ state: dispatch.state, activeIntentId: pendingIntent?.intentId ?? null, error: dispatch });
+    return reasonFor(dispatch);
   }
 
   function parseIntent(raw: unknown): OfficeSaveIntent<TSnapshot> | null {
@@ -124,34 +188,53 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
     if (!result.success) return null;
     const receipt = result.data;
     if (receipt.intentId !== intent.intentId || receipt.idempotencyKey !== intent.idempotencyKey) return null;
-    if (receipt.documentId !== intent.identity.documentId || receipt.revision.length === 0) return null;
+    if (receipt.documentId !== intent.identity.documentId) return null;
+    // A receipt that does not advance the base it was built on is not evidence
+    // of this commit and must never turn into `saved`.
+    if (!decimalGreater(receipt.revision, intent.identity.baseRevision)) return null;
     return receipt;
   }
 
-  async function reconcile(intent: OfficeSaveIntent<TSnapshot>): Promise<OfficeSaveReceipt | null> {
-    const raw = await options.transport.reconcile({ intent });
-    return parseReceipt(raw, intent);
+  async function answerReconcile(intent: OfficeSaveIntent<TSnapshot>): Promise<ReconcileAnswer> {
+    try {
+      const receipt = parseReceipt(await options.transport.reconcile({ intent }), intent);
+      return receipt ? { status: "found", receipt } : { status: "not_found" };
+    } catch (error) {
+      return { status: "error", dispatch: dispatchOfficeError(error) };
+    }
+  }
+
+  /** An intent stops being pending only when its outcome is settled: a matching
+   *  receipt, a terminal refusal, or a reconcile that proved no commit. Terminal
+   *  outcomes also record their snapshot generation so a later Save without new
+   *  content cannot mint a replacement intent for the same bytes. */
+  function settlePending(intent: OfficeSaveIntent<TSnapshot>, kind: "saved" | "not_committed" | "terminal" | "conflict"): void {
+    if (pendingIntent?.intentId === intent.intentId) pendingIntent = null;
+    if (kind === "saved") terminalGeneration = null;
+    else if (kind === "terminal" || kind === "conflict") terminalGeneration = intent.snapshotGeneration;
+    void options.draft.clearIntent(intent.intentId).catch(() => undefined);
+  }
+
+  function failIntent(intent: OfficeSaveIntent<TSnapshot>, dispatch: OfficeErrorDispatch): SaveAttemptResult {
+    if (dispatch.action === "stop" || dispatch.code === "stale_generation") settlePending(intent, "terminal");
+    else if (dispatch.action === "resolve_conflict") settlePending(intent, "conflict");
+    return saveError(dispatch);
   }
 
   function complete(intent: OfficeSaveIntent<TSnapshot>, receipt: OfficeSaveReceipt): SaveAttemptResult {
-    if (!sameIdentity(identity, intent.identity)) {
-      return saveError({
-        state: "error",
-        code: "stale_generation",
-        errorClass: "session",
-        correlationId: null,
-        retryable: false,
-        ambiguous: false,
-        action: "keep_draft",
-        message: "Office save could not be confirmed",
-      });
+    if (sameIdentity(identity, intent.identity)) {
+      identity = { ...identity, baseVersionId: receipt.versionId, baseRevision: receipt.revision };
+      lastSavedGeneration = Math.max(lastSavedGeneration, intent.snapshotGeneration);
+      settlePending(intent, "saved");
+      publish({ state: dirtyGeneration > lastSavedGeneration ? "dirty" : "saved", activeIntentId: null, error: null });
+      return { accepted: true, intentId: intent.intentId, receipt };
     }
-    identity = { ...identity, baseVersionId: receipt.versionId, baseRevision: receipt.revision };
-    lastSavedGeneration = intent.snapshotGeneration;
-    pendingIntent = null;
-    void options.draft.clearIntent(intent.intentId);
-    publish({ state: dirtyGeneration > lastSavedGeneration ? "dirty" : "saved", activeIntentId: null, error: null });
-    return { accepted: true, intentId: intent.intentId, receipt };
+    if (sameDocument(identity, intent.identity)) {
+      // The commit is real and belongs to this document; keep the server base
+      // even though the session moved on. The state still never turns `saved`.
+      identity = { ...identity, baseVersionId: receipt.versionId, baseRevision: receipt.revision };
+    }
+    return failIntent(intent, staleGenerationDispatch());
   }
 
   async function runIntent(intent: OfficeSaveIntent<TSnapshot>): Promise<SaveAttemptResult> {
@@ -161,26 +244,19 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
           intent,
           snapshot: { generation: intent.snapshotGeneration, fingerprint: intent.snapshotFingerprint, value: intent.snapshot },
         }));
-        if (!serialized.success) throw new Error("malformed_serialized_output");
+        if (!serialized.success) throw pipelineError("malformed_serialized_output");
         const uploaded = officeUploadReceiptSchema.safeParse(await options.transport.upload({ intent, output: serialized.data }));
-        if (!uploaded.success) throw new Error("malformed_upload_receipt");
-        const committedRaw = await options.transport.commit({ intent, upload: uploaded.data });
-        const receipt = parseReceipt(committedRaw, intent);
-        if (!receipt) throw new Error("malformed_commit_receipt");
+        if (!uploaded.success) throw pipelineError("malformed_upload_receipt");
+        const receipt = parseReceipt(await options.transport.commit({ intent, upload: uploaded.data }), intent);
+        if (!receipt) throw pipelineError("malformed_commit_receipt");
         return complete(intent, receipt);
       } catch (error) {
         const dispatch = dispatchOfficeError(error);
         if (dispatch.ambiguous) {
-          try {
-            const reconciled = await reconcile(intent);
-            if (reconciled) return complete(intent, reconciled);
-          } catch {
-            // The intent remains durable and will be reconciled by the next explicit retry.
-          }
+          const answer = await answerReconcile(intent);
+          if (answer.status === "found") return complete(intent, answer.receipt);
         }
-        if (!dispatch.retryable || attempt + 1 >= maxAttempts || dispatch.code.includes("payload") || dispatch.code.includes("key_reuse")) {
-          return saveError(dispatch);
-        }
+        if (!dispatch.retryable || attempt + 1 >= maxAttempts) return failIntent(intent, dispatch);
         publish({ state: "saving", activeIntentId: intent.intentId, error: dispatch });
         await sleep(backoffMs[Math.min(attempt, backoffMs.length - 1)] ?? 0);
       }
@@ -190,50 +266,82 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
 
   async function startIntent(intent: OfficeSaveIntent<TSnapshot>): Promise<SaveAttemptResult> {
     pendingIntent = intent;
+    terminalGeneration = null;
     publish({ state: "saving", activeIntentId: intent.intentId, error: null });
     try {
       await options.draft.persistIntent(intent);
     } catch (error) {
-      return saveError(dispatchOfficeError(error));
+      return failIntent(intent, dispatchOfficeError(error));
     }
-    return runIntent(intent);
+    return await runIntent(intent);
+  }
+
+  async function startNewIntent(snapshot: StableSnapshot<TSnapshot>): Promise<SaveAttemptResult> {
+    if (!currentDirty()) return { accepted: false, reason: "clean" };
+    // After a terminal refusal the same bytes are not retried with a fresh
+    // key: the error row allows a new intent only after a new edit.
+    if (terminalGeneration !== null && snapshot.generation <= terminalGeneration) return { accepted: false, reason: "error" };
+    const intent = parseIntent({
+      intentId: idFactory("office-intent"),
+      idempotencyKey: idFactory("office-key"),
+      identity,
+      snapshotGeneration: snapshot.generation,
+      snapshotFingerprint: snapshot.fingerprint,
+      snapshot: snapshot.value,
+      operation: "manual_save",
+      createdAt: now(),
+    });
+    if (!intent) return { accepted: false, reason: "invalid_snapshot" };
+    return await startIntent(intent);
+  }
+
+  /** An unresolved intent is never orphaned and never replayed into another
+   *  session: it is reconciled under its own identity first. */
+  async function recoverPendingSave(snapshot: StableSnapshot<TSnapshot>): Promise<SaveAttemptResult> {
+    const intent = pendingIntent;
+    if (!intent) return { accepted: false, reason: "clean" };
+    const answer = await answerReconcile(intent);
+    if (answer.status === "found") return complete(intent, answer.receipt);
+    if (answer.status === "error") {
+      return saveError({
+        state: "blocked",
+        code: "reconcile_unavailable",
+        errorClass: "storage",
+        correlationId: answer.dispatch.correlationId,
+        retryable: true,
+        ambiguous: true,
+        action: "keep_draft",
+        message: "Office save outcome is not confirmed yet",
+      });
+    }
+    if (sameIdentity(intent.identity, identity)) {
+      return await runIntent(intent);
+    }
+    // The session moved on while the outcome was unknown and the reconcile
+    // proved the old intent never committed. Settle it, then let the current
+    // session start its own intent.
+    settlePending(intent, "not_committed");
+    return await startNewIntent(snapshot);
   }
 
   async function save(_entryPoint: OfficeSaveEntryPoint = "button"): Promise<SaveAttemptResult> {
-    if (inFlight || saveGate) return { accepted: false, reason: "saving" };
+    if (saveGate) return { accepted: false, reason: "saving" };
     if (state.state === "saving") return { accepted: false, reason: "saving" };
-    if (state.state === "blocked") return { accepted: false, reason: "blocked" };
     if (state.state === "readonly") return { accepted: false, reason: "readonly" };
     if (state.state === "incompatible") return { accepted: false, reason: "incompatible" };
-    if (!currentDirty()) return { accepted: false, reason: "clean" };
 
     saveGate = true;
-    let request: Promise<SaveAttemptResult> | null = null;
     try {
       const snapshot = parseSnapshot(await options.editor.captureSnapshot());
       if (!snapshot || snapshot.generation !== dirtyGeneration) return { accepted: false, reason: "invalid_snapshot" };
-      if (pendingIntent && state.error) {
-        request = startIntent(pendingIntent);
-        inFlight = request;
-        return await request;
-      }
-      const intent = parseIntent({
-        intentId: idFactory("office-intent"),
-        idempotencyKey: idFactory("office-key"),
-        identity,
-        snapshotGeneration: snapshot.generation,
-        snapshotFingerprint: snapshot.fingerprint,
-        snapshot: snapshot.value,
-        operation: "manual_save",
-        createdAt: now(),
-      });
-      if (!intent) return { accepted: false, reason: "invalid_snapshot" };
-      request = startIntent(intent);
-      inFlight = request;
-      return await request;
+      if (pendingIntent) return await recoverPendingSave(snapshot);
+      if (state.state === "blocked") return { accepted: false, reason: "blocked" };
+      // `conflict` is explicit-only until a resolve API exists (handoff §7 has
+      // none): every Save entry point refuses it, whatever the dirty state.
+      if (state.state === "conflict") return { accepted: false, reason: "stale" };
+      return await startNewIntent(snapshot);
     } finally {
       saveGate = false;
-      if (request && inFlight === request) inFlight = null;
     }
   }
 
@@ -246,15 +354,56 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
     markDirty: (generation: number): void => {
       if (!Number.isSafeInteger(generation) || generation < 0) return;
       dirtyGeneration = Math.max(dirtyGeneration, generation);
-      if (state.state !== "saving" && state.state !== "blocked" && state.state !== "readonly" && state.state !== "incompatible") {
-        publish({ state: "dirty", error: pendingIntent ? state.error : null });
-      } else {
-        publish({ dirtyGeneration });
-      }
+      const sticky = state.state === "saving" || state.state === "blocked" || state.state === "readonly"
+        || state.state === "incompatible" || state.state === "conflict" || state.state === "error";
+      if (sticky) publish({ dirtyGeneration });
+      else publish({ state: "dirty", error: null });
     },
     setIdentity: (next: OfficeIdentity): void => {
-      identity = officeIdentitySchema.parse(next);
-      publish({ identity, state: state.state === "saving" ? "saving" : "ready", error: null });
+      const parsed = officeIdentitySchema.parse(next);
+      const documentChanged = !sameDocument(identity, parsed);
+      identity = parsed;
+      if (documentChanged) {
+        dirtyGeneration = options.editor.getDirtyGeneration();
+        lastSavedGeneration = dirtyGeneration;
+        terminalGeneration = null;
+      }
+      if (pendingIntent) {
+        if (sameIdentity(pendingIntent.identity, identity)) {
+          publish({ identity });
+          return;
+        }
+        // Keep the unresolved intent and its error: a new session must not
+        // mint an intent while an older outcome is still unknown.
+        publish({ identity, state: "blocked", error: pendingRecoveryDispatch() });
+        return;
+      }
+      if (capabilityStatus !== null && capabilityStatus !== "available") {
+        publish({ identity, state: "readonly" });
+        return;
+      }
+      publish({ identity, state: currentDirty() ? "dirty" : "ready", error: null });
+    },
+    setCapability: (entry: OfficeCapabilityEntry): void => {
+      capabilityStatus = entry.status;
+      if (state.state === "saving") return;
+      if (entry.status === "available") {
+        if (state.state === "readonly") publish({ state: currentDirty() ? "dirty" : "ready", error: null });
+        return;
+      }
+      publish({
+        state: "readonly",
+        error: {
+          state: "readonly",
+          code: `capability_${entry.status}`,
+          errorClass: "unknown",
+          correlationId: null,
+          retryable: false,
+          ambiguous: false,
+          action: "read_only",
+          message: entry.reason ?? "Office editing is not available for this format",
+        },
+      });
     },
     save,
     retry: (): Promise<SaveAttemptResult> => save("retry"),
@@ -262,7 +411,14 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
       const snapshot = parseSnapshot(await options.editor.captureSnapshot());
       if (snapshot) await options.draft.checkpoint(snapshot);
     },
-    reconcile: async (): Promise<OfficeSaveReceipt | null> => (pendingIntent ? reconcile(pendingIntent) : null),
+    reconcile: async (): Promise<OfficeSaveReceipt | null> => {
+      const intent = pendingIntent;
+      if (!intent) return null;
+      const answer = await answerReconcile(intent);
+      if (answer.status !== "found") return null;
+      const result = complete(intent, answer.receipt);
+      return result.accepted ? answer.receipt : null;
+    },
     cancel: async (): Promise<void> => {
       if (pendingIntent && options.transport.cancel) await options.transport.cancel({ intent: pendingIntent });
     },
