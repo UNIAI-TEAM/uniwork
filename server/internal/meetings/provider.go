@@ -62,10 +62,12 @@ type RemoveProviderParticipantRequest struct {
 	Identity string
 }
 
+// UpdateProviderParticipantRequest sets a participant's whole permission set:
+// providers replace it rather than merge, so every grant is spelled out.
 type UpdateProviderParticipantRequest struct {
-	RoomName   string
-	Identity   string
-	CanPublish *bool
+	RoomName    string
+	Identity    string
+	Permissions MediaPermissions
 }
 
 type EndProviderSessionRequest struct {

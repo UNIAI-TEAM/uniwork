@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/livekit/protocol/livekit"
 )
 
 func TestMintChatVoiceTokenDisablesDataChannel(t *testing.T) {
@@ -24,6 +25,27 @@ func TestMintChatVoiceTokenDisablesDataChannel(t *testing.T) {
 	}
 	if video["canPublishData"] != false {
 		t.Fatalf("canPublishData = %v, want false", video["canPublishData"])
+	}
+}
+
+func TestParticipantPermissionCarriesEveryGrant(t *testing.T) {
+	// UpdateParticipant replaces the permission set, so a field left out is a
+	// grant revoked: locking someone's mic must not also deafen them, nor take
+	// their camera or screen share.
+	got := participantPermission(MediaPermissions{CanSubscribe: true, CanPublish: true, CanPublishData: true, MicrophoneLocked: true})
+	if !got.CanPublish || !got.CanSubscribe || !got.CanPublishData {
+		t.Fatalf("permission = %+v", got)
+	}
+	for _, src := range got.CanPublishSources {
+		if src == livekit.TrackSource_MICROPHONE {
+			t.Fatalf("a locked mic still lists the microphone: %v", got.CanPublishSources)
+		}
+	}
+	if len(got.CanPublishSources) != 3 {
+		t.Fatalf("sources = %v, want camera and both share sources", got.CanPublishSources)
+	}
+	if open := participantPermission(MediaPermissions{CanPublish: true}); len(open.CanPublishSources) != 0 {
+		t.Fatalf("an unlocked mic restricts sources: %v", open.CanPublishSources)
 	}
 }
 

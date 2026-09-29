@@ -28,14 +28,18 @@ func TestSetParticipantPublish(t *testing.T) {
 	if err := s.SetParticipantPublish(ctx, ua.ID, m.ID, dec.Participant.ID, false); err != nil {
 		t.Fatal(err)
 	}
-	if fp.UpdateCalls != 1 || fp.LastUpdate.CanPublish == nil || *fp.LastUpdate.CanPublish {
+	// LiveKit replaces the whole permission set: locking the mic must keep the
+	// participant listening, on the data channel, and on camera.
+	revoked := meetings.MediaPermissions{CanSubscribe: true, CanPublish: true, CanPublishData: true, MicrophoneLocked: true}
+	if fp.UpdateCalls != 1 || fp.LastUpdate.Permissions != revoked {
 		t.Fatalf("expected revoke publish, got %+v", fp.LastUpdate)
 	}
 
 	if err := s.SetParticipantPublish(ctx, ua.ID, m.ID, dec.Participant.ID, true); err != nil {
 		t.Fatal(err)
 	}
-	if fp.UpdateCalls != 2 || fp.LastUpdate.CanPublish == nil || !*fp.LastUpdate.CanPublish {
+	granted := meetings.MediaPermissions{CanSubscribe: true, CanPublish: true, CanPublishData: true}
+	if fp.UpdateCalls != 2 || fp.LastUpdate.Permissions != granted {
 		t.Fatalf("expected grant publish, got %+v", fp.LastUpdate)
 	}
 
