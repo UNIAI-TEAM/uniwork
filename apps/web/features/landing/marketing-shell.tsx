@@ -31,12 +31,16 @@ import "./feature-visuals.css";
  * FINISH: The scoped implementation, evidence and review disposition are recorded in
  * docs/landing-feature-pages.md; the established global design system remains authoritative.
  */
-export function MarketingShell({ children }: { children: ReactNode }) {
+export function MarketingShell({ children, closingTitle, closingDemoHref }: {
+  children: ReactNode;
+  closingTitle?: string;
+  closingDemoHref?: string;
+}) {
   const { t } = useTranslation();
   return <div className={`landing-site marketing-site ${landingFont.variable}`} data-design-contract="uniwork-product-pages">
     <a className="landing-skip" href="#marketing-main">{t("landing.studio.skip")}</a>
     <SiteHeader />
-    <main id="marketing-main">{children}<FinalCta /></main>
+    <main id="marketing-main">{children}<FinalCta compact titleKey={closingTitle} demoHref={closingDemoHref} /></main>
     <SiteFooter />
   </div>;
 }

@@ -1,167 +1,31 @@
 "use client";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight, Play } from "lucide-react";
 import Link from "next/link";
-import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { paths } from "@uniwork/core/paths";
 import { buttonVariants } from "@uniwork/ui/components/ui/button";
-import { cn } from "@uniwork/ui/lib/utils";
-import { gsap, useGSAP } from "./animation/register-gsap";
-import { revealFrom, withMotionPreference } from "./animation/reveal";
 import { Faq } from "./faq";
-import { Container, EmphasisSection, Eyebrow, SectionTitle } from "./layout-primitives";
+import { ChapterHeading, ChapterHero, ChapterLink, ChapterScene } from "./marketing-chapters";
 import { MarketingShell } from "./marketing-shell";
 import { SOLUTIONS, type SolutionKey } from "./solutions";
-import { TrustBand } from "./trust-band";
 
-const SCENARIOS = ["s1", "s2", "s3"] as const;
-const REASONS = ["w1", "w2", "w3"] as const;
-/** Every department carries the same three questions; see the i18n file. */
-const FAQ_COUNT = 3;
+const EXAMPLES = {
+  product: [{ feature: "meetings", index: 0 }, { feature: "tasks", index: 2 }, { feature: "ask", index: 0 }],
+  operations: [{ feature: "organization", index: 2 }, { feature: "audit", index: 3 }, { feature: "ask", index: 3 }],
+} as const;
 
-/**
- * Both department pages are this component with a different namespace, so the
- * section order, the spacing and the alternating polarity cannot drift apart
- * as copy is added to one of them.
- */
+/** Department chapters demonstrate their routine without claiming autonomous execution. */
 export function SolutionPage({ solution }: { solution: SolutionKey }) {
+  const { t } = useTranslation();
   const { ns } = SOLUTIONS[solution];
-
-  return (
-    <MarketingShell>
-      <SolutionHero ns={ns} />
-      <TrustBand />
-      <Scenarios ns={ns} />
-      <Reasons ns={ns} />
-      <div className="marketing-questions"><Faq namespace={ns} count={FAQ_COUNT} title="landing.solutions.faqTitle" /></div>
-    </MarketingShell>
-  );
-}
-
-function SolutionHero({ ns }: { ns: string }) {
-  const { t } = useTranslation();
-  const root = useRef<HTMLElement>(null);
-  const copy = useRef<HTMLDivElement>(null);
-
-  useGSAP(
-    () =>
-      withMotionPreference(root.current, (motion) => {
-        const lines = copy.current ? Array.from(copy.current.children) : [];
-        if (!motion) {
-          gsap.set(lines, { clearProps: "all" });
-          return;
-        }
-        gsap.from(lines, { opacity: 0, y: 14, duration: 0.5, ease: "power2.out", stagger: 0.07 });
-      }),
-    { scope: root },
-  );
-
-  return (
-    <section ref={root} aria-labelledby="solution-title">
-      <Container className="pb-16 sm:pb-24">
-        <div ref={copy} className="max-w-3xl">
-          <Eyebrow className="text-brand">{t(`${ns}.name`)}</Eyebrow>
-          <h1 className="mt-3">
-            <span id="solution-title">{t(`${ns}.title`)}</span>
-          </h1>
-          <p className="mt-5 max-w-prose text-title-sm leading-relaxed text-pretty text-muted-foreground">{t(`${ns}.sub`)}</p>
-          <div className="mt-8 grid grid-cols-1 gap-3 min-[390px]:grid-cols-2 sm:flex sm:flex-wrap">
-            <Link
-              href={paths.register()}
-              className={cn(buttonVariants({ variant: "brand", size: "lg" }), "h-12 w-full px-5 text-body-lg sm:w-auto sm:px-6")}
-            >
-              {t("landing.cta.start")}
-              <ArrowRight />
-            </Link>
-            <Link
-              href={paths.root()}
-              className={cn(
-                buttonVariants({ variant: "outline", size: "lg" }),
-                "h-12 w-full px-5 text-body-lg sm:w-auto sm:px-6",
-              )}
-            >
-              {t("landing.solutions.back")}
-            </Link>
-          </div>
-        </div>
-      </Container>
+  return <MarketingShell closingTitle={`${ns}.finalTitle`} closingDemoHref={`${paths.feature(solution === "product" ? "tasks" : "organization")}#feature-preview`}><div className="chapter-world" data-solution={solution}>
+    <ChapterHero titleKey={`${ns}.title`} descriptionKey={`${ns}.sub`} visual={<ChapterScene featureKey={solution === "product" ? "projects" : "organization"} index={solution === "product" ? 1 : 2} />}>
+      <div className="marketing-actions"><Link href={paths.register()} className={buttonVariants({ variant: "brand", size: "lg" })}>{t("landing.cta.start")}<ArrowRight aria-hidden /></Link><a href="#solution-scenarios" className="chapter-link"><Play aria-hidden />{t("landing.chapters.solutions.examples")}</a></div><ChapterLink href={paths.solutions.root()} labelKey="landing.productPages.allSolutions" />
+    </ChapterHero>
+    <section id="solution-scenarios" className="chapter-width chapter-section"><ChapterHeading titleKey="landing.solutions.scenarios" descriptionKey={`landing.chapters.solutions.${solution}.scenarioDescription`} />
+      {EXAMPLES[solution].map(({ feature, index }, n) => <article className="chapter-row" key={feature}><div className="chapter-row-copy"><h2>{t(`${ns}.s${n + 1}Title`)}</h2><p>{t(`${ns}.s${n + 1}Desc`)}</p><ChapterLink href={paths.feature(feature)} labelKey="landing.productPages.solutionExplore" /></div><ChapterScene featureKey={feature} index={index} /></article>)}
     </section>
-  );
-}
-
-function Scenarios({ ns }: { ns: string }) {
-  const { t } = useTranslation();
-  const root = useRef<HTMLElement>(null);
-  const list = useRef<HTMLOListElement>(null);
-
-  useGSAP(
-    () =>
-      withMotionPreference(root.current, (motion) => {
-        const cells = list.current ? Array.from(list.current.children) : [];
-        if (!motion || !root.current) {
-          gsap.set(cells, { clearProps: "all" });
-          return;
-        }
-        revealFrom(cells, root.current, 0.06);
-      }),
-    { scope: root },
-  );
-
-  return (
-    <section ref={root} aria-labelledby="solution-scenarios-title" className="bg-background py-20 sm:py-28">
-      <Container>
-        <SectionTitle className="mt-0 max-w-3xl">
-          <span id="solution-scenarios-title">{t("landing.solutions.scenarios")}</span>
-        </SectionTitle>
-        <ol ref={list} className="mt-12 grid gap-px overflow-hidden rounded-lg border border-border bg-border lg:grid-cols-3">
-          {SCENARIOS.map((step, i) => (
-            <li key={step} className="bg-surface p-6 sm:p-8">
-              <span className="text-label font-semibold tabular-nums text-brand">
-                {String(i + 1).padStart(2, "0")}
-              </span>
-              <h3 className="mt-6 font-heading text-title font-bold leading-snug">{t(`${ns}.${step}Title`)}</h3>
-              <p className="mt-3 text-body leading-relaxed text-muted-foreground">{t(`${ns}.${step}Desc`)}</p>
-            </li>
-          ))}
-        </ol>
-      </Container>
-    </section>
-  );
-}
-
-function Reasons({ ns }: { ns: string }) {
-  const { t } = useTranslation();
-  const root = useRef<HTMLDivElement>(null);
-  const list = useRef<HTMLUListElement>(null);
-
-  useGSAP(
-    () =>
-      withMotionPreference(root.current, (motion) => {
-        const cells = list.current ? Array.from(list.current.children) : [];
-        if (!motion || !root.current) {
-          gsap.set(cells, { clearProps: "all" });
-          return;
-        }
-        revealFrom(cells, root.current, 0.06);
-      }),
-    { scope: root },
-  );
-
-  return (
-    <EmphasisSection>
-      <Container ref={root} className="grid gap-12 py-20 sm:py-28 lg:grid-cols-2 lg:gap-20">
-        <SectionTitle className="mt-0">{t("landing.solutions.why")}</SectionTitle>
-        <ul ref={list} className="grid gap-5">
-          {REASONS.map((reason) => (
-            <li key={reason} className="flex items-start gap-3 text-title-sm leading-relaxed">
-              <span className="mt-1 flex size-6 shrink-0 items-center justify-center rounded-full bg-brand/15 text-brand">
-                <Check className="size-3.5" />
-              </span>
-              {t(`${ns}.${reason}`)}
-            </li>
-          ))}
-        </ul>
-      </Container>
-    </EmphasisSection>
-  );
+    <section className="chapter-soft chapter-section"><div className="chapter-width"><ChapterHeading titleKey="landing.solutions.why" descriptionKey="landing.chapters.solutions.reasonsDescription" /><div className="chapter-evidence">{[1, 2, 3].map(n => <article key={n}><h3>{t(`landing.chapters.solutions.${solution}.reasonLabels.${n - 1}`)}</h3><p>{t(`${ns}.w${n}`)}</p></article>)}</div></div></section>
+    <div className="marketing-questions"><Faq namespace={ns} count={3} title="landing.solutions.faqTitle" /></div>
+  </div></MarketingShell>;
 }
