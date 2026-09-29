@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { EditorHandle, OfficeCapabilityEntry, OfficeCapabilityStatus, OfficeHost } from "@uniwork/core/office";
-import { EditorSlot, type EditorOpenState, type OfficeEditorComponent } from "../editor-slot";
+import { EditorSlot, type EditorOpenState, type OfficeEditorComponent, type OfficeEditorRendererProps } from "../editor-slot";
 import { OfficeShell, type OfficeSaveCoordinatorLike } from "../office-shell";
 import { PptxEditor, type PptxEditorProps } from "./pptx-editor";
 
@@ -42,15 +42,48 @@ export function PptxEditorView({
   ...editorProps
 }: PptxEditorViewProps) {
   const [panelOpen, setPanelOpen] = useState(Boolean(panel));
-  const FormatEditor: OfficeEditorComponent = ({ host, editorHandle }) => (
-    <PptxEditor
-      host={host}
-      editorHandle={editorHandle}
-      {...editorProps}
-      saveCoordinator={saveCoordinator}
-      includeSave={false}
-    />
-  );
+  const {
+    slides,
+    elements,
+    selectedIndex,
+    onSlideSelect,
+    onTransform,
+    transformRequest,
+    onTextEdit,
+    onOpen,
+    onCommandError,
+    onDirty,
+    onSnapshot,
+    capabilities,
+    className,
+  } = editorProps;
+  const FormatEditor = useMemo<OfficeEditorComponent>(() => {
+    function PptxFormatEditor({ host: editorHost, editorHandle }: OfficeEditorRendererProps) {
+      return (
+        <PptxEditor
+          host={editorHost}
+          editorHandle={editorHandle}
+          slides={slides}
+          elements={elements}
+          selectedIndex={selectedIndex}
+          onSlideSelect={onSlideSelect}
+          onTransform={onTransform}
+          transformRequest={transformRequest}
+          onTextEdit={onTextEdit}
+          onOpen={onOpen}
+          onCommandError={onCommandError}
+          onDirty={onDirty}
+          onSnapshot={onSnapshot}
+          capabilities={capabilities}
+          className={className}
+          saveCoordinator={saveCoordinator}
+          includeSave={false}
+        />
+      );
+    }
+    return PptxFormatEditor;
+  }, [capabilities, className, elements, onCommandError, onDirty, onOpen, onSnapshot, onSlideSelect, onTextEdit, onTransform, selectedIndex, slides, transformRequest, saveCoordinator]);
+  const loadEditor = useCallback(async () => ({ default: FormatEditor }), [FormatEditor]);
   const editor = (
     <EditorSlot
       format="pptx"
@@ -60,7 +93,7 @@ export function PptxEditorView({
       openState={openState}
       openError={openError}
       onRetry={onRetry}
-      loadEditor={async () => ({ default: FormatEditor })}
+      loadEditor={loadEditor}
     />
   );
   return (

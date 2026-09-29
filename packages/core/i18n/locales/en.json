@@ -6915,6 +6915,8 @@
         "snapshot": "Capture snapshot",
         "session_missing": "Editor session is not ready",
         "session_missing_hint": "Open the file again before editing.",
+        "command_error_title": "Command could not be applied",
+        "command_error_hint": "The document was not changed. {{message}}",
         "presenter_title": "Presenter view",
         "close_presenter": "Close presenter",
         "canvas_label": "PowerPoint slide canvas",

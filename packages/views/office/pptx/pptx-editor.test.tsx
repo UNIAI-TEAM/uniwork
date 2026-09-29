@@ -20,7 +20,15 @@ describe("PptxEditor", () => {
     let resolve!: (value: unknown) => void;
     const call = vi.fn(() => new Promise((done) => { resolve = done; }));
     const editorHandle = handle();
-    render(<PptxEditor host={makeHost(call)} editorHandle={editorHandle} slides={[{ id: "s1" }]} elements={[{ id: "shape-1", type: "shape" }]} />);
+    render(
+      <PptxEditor
+        host={makeHost(call)}
+        editorHandle={editorHandle}
+        slides={[{ id: "s1" }]}
+        elements={[{ id: "shape-1", type: "shape" }]}
+        transformRequest={{ slideIndex: 0, sourceId: "shape-1", xPx: 24, yPx: 16, wPx: 320, hPx: 180, fitWidthPx: 960 }}
+      />,
+    );
     fireEvent.click(screen.getByRole("button", { name: "Shape / image" }));
     await waitFor(() => expect(call).toHaveBeenCalledWith("host:slides-edit-transform", expect.objectContaining({ slideIndex: 0, sourceId: "shape-1" })));
     fireEvent.click(screen.getByRole("button", { name: "Undo" }));
@@ -37,6 +45,13 @@ describe("PptxEditor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(save).toHaveBeenCalledWith("button");
     expect(host.write.writeOutput).not.toHaveBeenCalled();
+  });
+
+  it("does not advertise edit commands without a bound host operation", () => {
+    render(<PptxEditor host={makeHost(vi.fn())} editorHandle={handle()} slides={[{ id: "s1" }]} />);
+    expect(screen.getByRole("button", { name: "Open" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Text" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Shape / image" })).toBeDisabled();
   });
 
   it("opens presenter mode over the selected slide without another editor", () => {

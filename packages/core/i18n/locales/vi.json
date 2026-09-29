@@ -6909,6 +6909,8 @@
         "snapshot": "Chụp snapshot",
         "session_missing": "Phiên chỉnh sửa chưa sẵn sàng",
         "session_missing_hint": "Mở lại tệp trước khi chỉnh sửa.",
+        "command_error_title": "Không thể áp dụng lệnh",
+        "command_error_hint": "Tài liệu chưa thay đổi. {{message}}",
         "presenter_title": "Chế độ trình bày",
         "close_presenter": "Đóng trình bày",
         "canvas_label": "Vùng trang chiếu PowerPoint",

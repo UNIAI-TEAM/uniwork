@@ -27,7 +27,11 @@ export interface PptxEditorProps {
   selectedIndex?: number;
   onSlideSelect?: (index: number) => void;
   onTransform?: (request: SlidesEditTransformRequest) => Promise<unknown>;
+  /** A real drag/resize request supplied by the host gesture surface. */
+  transformRequest?: SlidesEditTransformRequest | null;
   onTextEdit?: (slideIndex: number) => Promise<unknown>;
+  onOpen?: () => void;
+  onCommandError?: (error: unknown) => void;
   onDirty?: () => void;
   onSnapshot?: () => Promise<unknown>;
   saveCoordinator?: OfficeSaveCoordinatorLike;
@@ -57,7 +61,10 @@ export function PptxEditor({
   selectedIndex: controlledIndex,
   onSlideSelect,
   onTransform,
+  transformRequest = null,
   onTextEdit,
+  onOpen,
+  onCommandError,
   onDirty,
   onSnapshot,
   saveCoordinator,
@@ -69,11 +76,24 @@ export function PptxEditor({
   const [internalIndex, setInternalIndex] = useState(0);
   const [presenterOpen, setPresenterOpen] = useState(false);
   const [gesturePending, setGesturePending] = useState(false);
+  const [commandError, setCommandError] = useState<string | null>(null);
   const gestureRef = useRef<GestureState | null>(null);
   const historyQueue = useRef<"undo" | "redo" | null>(null);
   const presenterTriggerRef = useRef<HTMLElement | null>(null);
   const selectedIndex = Math.min(Math.max(controlledIndex ?? internalIndex, 0), Math.max(slides.length - 1, 0));
-  const commands = useMemo(() => createPptxCommandMap({ host, capabilities, includeSave: includeSave && Boolean(saveCoordinator), includePresentation: true }), [capabilities, host, includeSave, saveCoordinator]);
+  const effectiveCapabilities = useMemo(() => ({
+    ...capabilities,
+    open: onOpen
+      ? capabilities?.open ?? { status: "available" as const }
+      : { status: "unavailable" as const, reason: "Open is handled by the document shell" },
+    "edit-text": onTextEdit
+      ? capabilities?.["edit-text"] ?? { status: "available" as const }
+      : { status: "unavailable" as const, reason: "Text editing is not bound to this editor surface" },
+    "edit-shape-image": transformRequest
+      ? capabilities?.["edit-shape-image"] ?? { status: "available" as const }
+      : { status: "unavailable" as const, reason: "Select a real slide transform gesture to edit a shape or image" },
+  }), [capabilities, onOpen, onTextEdit, transformRequest]);
+  const commands = useMemo(() => createPptxCommandMap({ host, capabilities: effectiveCapabilities, includeSave: includeSave && Boolean(saveCoordinator), includePresentation: true }), [effectiveCapabilities, host, includeSave, saveCoordinator]);
 
   useEffect(() => {
     if (!editorHandle) return;
@@ -127,6 +147,7 @@ export function PptxEditor({
     const gesture = makeGesture();
     gestureRef.current = gesture;
     setGesturePending(true);
+    setCommandError(null);
     try {
       const result = onTransform
         ? await onTransform(request)
@@ -143,14 +164,21 @@ export function PptxEditor({
 
   const runTextEdit = useCallback(async () => {
     await waitForGesture();
-    if (onTextEdit) await onTextEdit(selectedIndex);
-    else {
-      // Text editing is a separate host channel. The renderer does not
-      // mutate a DOM label and call that a file edit.
-      await host.ipc.call("host:slides-edit-text", { slideIndex: selectedIndex, paragraphs: [{ runs: [{ text: "" }] }] });
-    }
+    if (!onTextEdit) return;
+    setCommandError(null);
+    await onTextEdit(selectedIndex);
     onDirty?.();
-  }, [host.ipc, onDirty, onTextEdit, selectedIndex, waitForGesture]);
+  }, [onDirty, onTextEdit, selectedIndex, waitForGesture]);
+
+  const reportCommandError = useCallback((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    setCommandError(message);
+    onCommandError?.(error);
+  }, [onCommandError]);
+
+  const runCommand = useCallback((operation: Promise<unknown>) => {
+    void operation.catch(reportCommandError);
+  }, [reportCommandError]);
 
   const save = useCallback(() => {
     if (saveCoordinator) void saveCoordinator.save("button");
@@ -159,9 +187,10 @@ export function PptxEditor({
   const onCommand = useCallback((id: PptxCommandId) => {
     switch (id) {
       case "edit-shape-image":
-        void runTransform({ slideIndex: selectedIndex, sourceId: elements[0]?.id ?? null, xPx: 0, yPx: 0, wPx: 320, hPx: 180, fitWidthPx: 960 });
+        if (transformRequest) runCommand(runTransform(transformRequest));
         break;
-      case "edit-text": void runTextEdit(); break;
+      case "edit-text": runCommand(runTextEdit()); break;
+      case "open": onOpen?.(); break;
       case "undo": requestHistory("undo"); break;
       case "redo": requestHistory("redo"); break;
       case "save": save(); break;
@@ -169,7 +198,7 @@ export function PptxEditor({
       case "fullscreen": void document.querySelector<HTMLElement>("[data-pptx-editor]")?.requestFullscreen?.(); break;
       default: break;
     }
-  }, [elements, requestHistory, runTextEdit, runTransform, save, selectedIndex]);
+  }, [onOpen, requestHistory, runCommand, runTextEdit, runTransform, save, transformRequest]);
 
   const onCanvasKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "PageDown" || event.key === "ArrowDown") { event.preventDefault(); selectSlide(selectedIndex + 1); }
@@ -181,6 +210,7 @@ export function PptxEditor({
   return (
     <section className={cn("flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-muted/10", className)} data-pptx-editor data-gesture-pending={gesturePending}>
       <PptxToolbar commands={commands.filter((command) => command.id !== "save" || includeSave)} onCommand={onCommand} />
+      {commandError ? <Alert className="m-2" variant="destructive" role="alert"><AlertTitle>{t("command_error_title")}</AlertTitle><AlertDescription>{t("command_error_hint", { message: commandError })}</AlertDescription></Alert> : null}
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <PptxSlideRail slides={slides} selectedIndex={selectedIndex} onSelect={selectSlide} />
         <div className="flex min-h-48 min-w-0 flex-1 flex-col p-3">

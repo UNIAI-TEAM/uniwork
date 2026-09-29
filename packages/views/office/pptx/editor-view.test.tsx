@@ -1,7 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n, setLocale } from "@uniwork/core/i18n";
-import type { OfficeHost } from "@uniwork/core/office";
+import type { EditorHandle, OfficeHost } from "@uniwork/core/office";
 import { PptxEditorView } from "./editor-view";
 
 initI18n();
@@ -15,5 +15,29 @@ describe("PptxEditorView", () => {
     expect(screen.getByText(title)).toBeInTheDocument();
     expect(screen.queryByTestId("pptx-canvas")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the lazy editor mounted when the shared shell rerenders", async () => {
+    const editorHandle = {
+      format: "pptx",
+      open: vi.fn(),
+      getDirtyGeneration: () => 1,
+      captureSnapshot: vi.fn(),
+      dispose: vi.fn(),
+    } as unknown as EditorHandle;
+    const saveCoordinator = { save: vi.fn(async () => undefined), getState: () => ({ state: "ready", error: null }) as never };
+    const props = {
+      title: "Deck",
+      host,
+      editorHandle,
+      capability: "available" as const,
+      openState: "ready" as const,
+      slides: [{ id: "s1", label: "Intro" }],
+      saveCoordinator,
+    };
+    const view = render(<PptxEditorView {...props} />);
+    await waitFor(() => expect(document.querySelector("[data-pptx-canvas]")).not.toBeNull());
+    view.rerender(<PptxEditorView {...props} fullscreen />);
+    expect(editorHandle.dispose).not.toHaveBeenCalled();
   });
 });
