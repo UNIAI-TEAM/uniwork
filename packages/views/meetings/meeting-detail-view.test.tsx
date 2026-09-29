@@ -484,6 +484,24 @@ describe("MeetingRoomView", () => {
     expect(lastLiveKitMedia).toEqual({ video: false, audio: true });
   });
 
+  it("tells the host their meeting has not started instead of asking them to wait for themselves", async () => {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      // A plain member who hosts this meeting: the start right comes from being its host.
+      if (p.endsWith("/me")) return Promise.resolve({ membership: { user_id: "u-host", role: "member", source: "membership" } });
+      if (p === "/api/v1/meetings/m1") return Promise.resolve({ meeting });
+      if (p.endsWith("/join")) {
+        return Promise.resolve({ decision: "WAITING_FOR_HOST", reason: "MEETING_NOT_STARTED", meeting_status: "SCHEDULED" });
+      }
+      return Promise.resolve({});
+    });
+    render(shell(<MeetingRoomView meetingId="m1" workspaceId="w1" onLeave={() => {}} />));
+    fireEvent.click(await screen.findByRole("button", { name: "Vào phòng họp" }));
+    expect(await screen.findByRole("heading", { name: "Cuộc họp chưa bắt đầu" })).toBeInTheDocument();
+    expect(screen.queryByText("Đang chờ người chủ trì bắt đầu cuộc họp")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Bắt đầu" })).toBeInTheDocument();
+  });
+
   it("shows waiting-for-host and does not mount LiveKit when admission does not admit", async () => {
     requestMock.mockResolvedValue({ decision: "WAITING_FOR_HOST", reason: "MEETING_NOT_STARTED", meeting_status: "SCHEDULED" });
     render(shell(<MeetingRoomView meetingId="m1" onLeave={() => {}} />));

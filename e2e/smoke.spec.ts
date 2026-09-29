@@ -58,7 +58,8 @@ test("register → workspace → task → meeting", async ({ page }) => {
   await expect(
     page
       .getByText("Phòng họp video chưa được thiết lập. Hãy báo quản trị viên workspace.")
-      .or(page.getByText("Đang chờ người chủ trì bắt đầu cuộc họp"))
+      // The smoke user hosts this meeting, so an unstarted room reads as theirs to start.
+      .or(page.getByRole("heading", { name: "Cuộc họp chưa bắt đầu" }))
       .or(page.locator("[data-lk-theme]")),
   ).toBeVisible({ timeout: 15_000 });
 });

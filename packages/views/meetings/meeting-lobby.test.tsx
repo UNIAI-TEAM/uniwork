@@ -35,7 +35,7 @@ describe("lobbyMessage", () => {
     expect(lobbyMessage(t, undefined, new ApiError("x", "access_grant_not_found", 403))).toBe(
       "meetings.inviteOnly",
     );
-    expect(lobbyMessage(t, undefined, new ApiError("x", "access_grant_not_found", 403), true)).toBe(
+    expect(lobbyMessage(t, undefined, new ApiError("x", "access_grant_not_found", 403), { guestMode: true })).toBe(
       "meetings.guestSessionExpired",
     );
     expect(lobbyMessage(t, undefined, new ApiError("x", "invite_link_invalid", 403))).toBe(
@@ -66,6 +66,17 @@ describe("lobbyMessage", () => {
     expect(lobbyMessage(t, "DENY", undefined)).toBe("meetings.denied");
     expect(lobbyMessage(t, "ADMIT", undefined)).toBe("common.error");
   });
+
+  it("never tells the person who can start the meeting to wait for the host", () => {
+    expect(lobbyMessage(t, "WAITING_FOR_HOST", undefined, { canStart: true })).toBe("meetings.hostNotStarted");
+    expect(lobbyMessage(t, undefined, new ApiError("x", "meeting_not_started", 409), { canStart: true })).toBe(
+      "meetings.roomNotOpen",
+    );
+    // Guests never host, whatever the caller passes.
+    expect(lobbyMessage(t, "WAITING_FOR_HOST", undefined, { guestMode: true, canStart: true })).toBe(
+      "meetings.waitingForHost",
+    );
+  });
 });
 
 describe("lobbyHint", () => {
@@ -86,6 +97,13 @@ describe("lobbyHint", () => {
       "meetings.pastScheduledEndHint",
     );
     expect(lobbyHint(t, undefined, new ApiError("x", "meeting_not_started", 403))).toBe("meetings.waitingForHostHint");
+  });
+
+  it("tells the person who can start the meeting what starting does", () => {
+    expect(lobbyHint(t, "WAITING_FOR_HOST", undefined, { canStart: true })).toBe("meetings.hostNotStartedHint");
+    expect(lobbyHint(t, undefined, new ApiError("x", "meeting_not_started", 409), { canStart: true })).toBe(
+      "meetings.roomNotOpenHint",
+    );
   });
 });
 
@@ -300,6 +318,25 @@ describe("MeetingLobby", () => {
       ),
     );
     expect(screen.queryByText(/deadlock/)).not.toBeInTheDocument();
+  });
+
+  it("shows the host a meeting to start, not a wait for themselves", () => {
+    render(
+      wrapWithNav(
+        <MeetingLobby title="Standup" decision="WAITING_FOR_HOST" error={undefined} canStart onStart={() => {}} onLeave={() => {}} />,
+      ),
+    );
+    expect(screen.getByRole("heading", { name: "Cuộc họp chưa bắt đầu" })).toBeInTheDocument();
+    expect(screen.getByText("Nhấn Bắt đầu để mở phòng cho mọi người vào họp.")).toBeInTheDocument();
+    expect(screen.queryByText(/Đang chờ người chủ trì/)).not.toBeInTheDocument();
+    // Nothing is pending on anyone else, so no "updates by itself" spinner.
+    expect(document.querySelector(".animate-spin")).toBeNull();
+    expect(screen.getByRole("button", { name: "Bắt đầu" })).toBeInTheDocument();
+  });
+
+  it("keeps the wait copy when the lobby cannot offer a start button", () => {
+    render(wrapWithNav(<MeetingLobby decision="WAITING_FOR_HOST" error={undefined} canStart onLeave={() => {}} />));
+    expect(screen.getByRole("heading", { name: "Đang chờ người chủ trì bắt đầu cuộc họp" })).toBeInTheDocument();
   });
 
   it("names the host wait for what it is", () => {
