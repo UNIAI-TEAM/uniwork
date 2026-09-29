@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
@@ -187,5 +187,35 @@ describe("ProjectDetailPage", () => {
     expect(await screen.findByText("Q3 launch", undefined, LONG)).toBeInTheDocument();
     expect(await screen.findByText("In-project task", undefined, LONG)).toBeInTheDocument();
     expect(screen.queryByText("Other-project task")).not.toBeInTheDocument();
+  });
+
+  it("edits the description as rich text and saves it as markdown", async () => {
+    render(
+      wrapWithNav(
+        <ProjectDetailPage
+          workspaceId="w1"
+          projectId="p1"
+          onOpenTask={vi.fn()}
+          onBack={vi.fn()}
+        />,
+      ),
+    );
+
+    const editor = await screen.findByRole("textbox", { name: "Thêm mô tả…" }, LONG);
+    await waitFor(() => expect(editor).toHaveTextContent("Ship projects suite"));
+    fireEvent.input(editor, {
+      target: { innerHTML: "<p>Ship <strong>projects</strong> suite</p>" },
+    });
+
+    await waitFor(() => {
+      const put = requestMock.mock.calls.find(
+        ([path, init]) =>
+          String(path).endsWith("/projects/p1") &&
+          (init as { method?: string } | undefined)?.method === "PUT",
+      );
+      expect(put?.[1]).toMatchObject({
+        body: { description: "Ship **projects** suite", revision: 1 },
+      });
+    }, LONG);
   });
 });

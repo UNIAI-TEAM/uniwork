@@ -16,7 +16,7 @@ import {
   DialogTitle,
 } from "@uniwork/ui/components/ui/dialog";
 import { Input } from "@uniwork/ui/components/ui/input";
-import { Textarea } from "@uniwork/ui/components/ui/textarea";
+import { ContentEditor } from "../editor";
 import { manualDialogContentClass } from "../tasks/create-task-dialog-classes";
 import type { AssigneeRef } from "../tasks/pickers/assignee-picker";
 import { CreateTaskAssigneeField } from "../tasks/pickers/create-task-property-fields";
@@ -182,19 +182,15 @@ export function CreateProjectDialog({
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5">
-            <Textarea
-              aria-label={t("projects.detail.description_placeholder")}
-              value={draft.description}
-              onChange={(event) => update({ description: event.target.value })}
-              onKeyDown={(event) => {
-                if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-                  event.preventDefault();
-                  void submit();
-                }
-              }}
-              placeholder={t("projects.detail.description_placeholder")}
-              className="min-h-20 flex-1 resize-none rounded-none border-0 bg-transparent px-0 shadow-none focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent"
-            />
+            <div className="min-h-20 flex-1">
+              <ContentEditor
+                defaultValue={draft.description}
+                ariaLabel={t("projects.detail.description_placeholder")}
+                placeholder={t("projects.detail.description_placeholder")}
+                onDocumentChange={(description) => update({ description })}
+                onSubmit={() => void submit()}
+              />
+            </div>
             <p className="mt-1 shrink-0 text-caption text-muted-foreground">
               {t("projects.detail.description_hint")}
             </p>

@@ -5,11 +5,14 @@ import { useTranslation } from "react-i18next";
 import { usePutProject } from "@uniwork/core/tasks";
 import type { Project } from "@uniwork/core/types/project";
 import { Input } from "@uniwork/ui/components/ui/input";
-import { Textarea } from "@uniwork/ui/components/ui/textarea";
+import { ContentEditor } from "../editor";
+
+const DESCRIPTION_SAVE_DEBOUNCE_MS = 1500;
 
 /**
- * Title + description editors for project detail. Plain Input/Textarea with
- * blur save via usePutProject — no rich text editor in this slice.
+ * Title + description editors for project detail. The title saves on blur;
+ * the description is a markdown ContentEditor saved on a debounce, flushed on
+ * unmount so leaving the page right after typing still saves.
  */
 export function ProjectDetailHeader({
   workspaceId,
@@ -21,12 +24,10 @@ export function ProjectDetailHeader({
   const { t } = useTranslation();
   const putProject = usePutProject(workspaceId);
   const [title, setTitle] = useState(project.title);
-  const [description, setDescription] = useState(project.description);
 
   useEffect(() => {
     setTitle(project.title);
-    setDescription(project.description);
-  }, [project.id, project.revision, project.title, project.description]);
+  }, [project.id, project.revision, project.title]);
 
   const saveField = useCallback(
     (patch: { title?: string; description?: string }) => {
@@ -56,17 +57,17 @@ export function ProjectDetailHeader({
         placeholder={t("projects.detail.title_placeholder")}
         className="text-title font-semibold"
       />
-      <Textarea
-        aria-label={t("projects.detail.description_placeholder")}
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        onBlur={() => {
-          if (description !== project.description) {
-            saveField({ description });
-          }
-        }}
+      <ContentEditor
+        key={project.id}
+        value={project.description}
+        ariaLabel={t("projects.detail.description_placeholder")}
         placeholder={t("projects.detail.description_placeholder")}
-        rows={4}
+        onUpdate={(markdown) => {
+          if (markdown !== project.description) saveField({ description: markdown });
+        }}
+        debounceMs={DESCRIPTION_SAVE_DEBOUNCE_MS}
+        flushPendingOnUnmount
+        className="min-h-20"
       />
       <p className="text-caption text-muted-foreground">
         {t("projects.detail.description_hint")}
