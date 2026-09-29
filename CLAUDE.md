@@ -47,7 +47,7 @@ Product intent and design principles live in `PRODUCT.md`.
   realtime events invalidate the workspace-scoped document keys). Wire one
   before relying on it;
   `scripts/governance.test.mjs` recomputes the list and fails after
-  2026-09-30 unless it is empty — wire or delete by then.
+  2026-10-31 unless it is empty — wire or delete by then.
 - `packages/ui/` — atomic primitives (shadcn/Base UI registry) and design tokens.
 - `packages/views/` — shared business screens and the navigation adapter.
 - `packages/tsconfig/`, `packages/eslint-config/` — shared config.
