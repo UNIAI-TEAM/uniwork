@@ -2,7 +2,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
-import { resetProjectViewStoreForTests } from "@uniwork/core/projects/stores/view-store";
+import {
+  resetProjectViewStoreForTests,
+  useProjectViewStore,
+} from "@uniwork/core/projects/stores/view-store";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import type { NavigationAdapter } from "../navigation";
@@ -232,6 +235,15 @@ describe("ProjectsListPage", () => {
         due_date: null,
       },
     });
+  });
+
+  it("draws cards with the panel hairline, not the text colour", async () => {
+    // A bare `border` takes currentColor: base.css sets no default colour.
+    useProjectViewStore.getState().setViewMode("comfortable");
+    renderPage();
+    const title = await screen.findByRole("heading", { name: "Q3 launch" });
+    const card = title.closest(".group\\/card");
+    expect(card).toHaveClass("border", "border-border");
   });
 
   it("sends one create request when submit fires twice before the reply", async () => {

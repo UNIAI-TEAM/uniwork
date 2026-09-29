@@ -47,6 +47,19 @@ describe("PageHeader title alignment", () => {
     expect(heading.parentElement).toHaveClass("flex-1");
   });
 
+  it("draws the header action like the toolbar buttons, without the input-weight edge", () => {
+    const header = renderHeader(
+      <CollectionPageHeader
+        icon={SquareCheckBig}
+        title="Dự án"
+        actions={<CollectionPageHeaderAction icon={Plus} label="Dự án mới" />}
+      />,
+    );
+    const action = within(header).getByRole("button", { name: "Dự án mới" });
+    expect(action.className).toContain("bg-surface-hover/60");
+    expect(action.className).not.toContain("border-input");
+  });
+
   it("keeps an inline title packed against the nav trigger", () => {
     const header = renderHeader(
       <PageHeader>
