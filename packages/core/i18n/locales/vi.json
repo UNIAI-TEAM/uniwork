@@ -7055,7 +7055,7 @@
         "password_required": "Cần mật khẩu để mở PDF này.", "wrong_password": "Mật khẩu không mở khóa được PDF này.",
         "unsupported_feature": "Engine hiện tại chưa hỗ trợ tính năng PDF này.", "not_office_file": "Tệp đã chọn không phải tài liệu PDF.",
         "engine_error": "Engine PDF không thể mở tài liệu này.", "io_error": "Không thể đọc PDF từ bộ nhớ.",
-        "too_large": "PDF này quá lớn để mở tại đây.", "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa PDF."
+        "too_large": "PDF này quá lớn để mở tại đây.", "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa PDF.", "editFailed": "Không thể áp dụng thay đổi PDF. Thử lại."
       }
     }
   }

@@ -7074,7 +7074,7 @@
         "password_required": "A password is required to open this PDF.", "wrong_password": "The password did not unlock this PDF.",
         "unsupported_feature": "This PDF feature is not supported by the current engine.", "not_office_file": "The selected file is not a PDF document.",
         "engine_error": "The PDF engine could not open this document.", "io_error": "The PDF could not be read from storage.",
-        "too_large": "This PDF is too large to open here.", "capabilityUnavailable": "PDF editing is not available for this engine build."
+        "too_large": "This PDF is too large to open here.", "capabilityUnavailable": "PDF editing is not available for this engine build.", "editFailed": "The PDF edit could not be applied. Try again."
       }
     }
   }

@@ -1,6 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import type { OfficeHost } from "@uniwork/core/office";
+import { setLocale } from "@uniwork/core/i18n";
+import { EditorSlot } from "../editor-slot";
 import { PdfEditor } from "./pdf-editor";
+import { createPdfEditorLoader } from "./pdf-editor-slot";
 import type { PdfEditorHandle, PdfOpenOutcome, PdfSaveCoordinator } from "./types";
 import { EngineBoundaryError } from "@uniwork/office-contracts";
 
@@ -50,7 +54,7 @@ function renderEditor(outcome: PdfOpenOutcome = opened(), options?: { editor?: P
 }
 
 describe("PdfEditor", () => {
-  it("mounts the handle, renders pages, submits text/image/page edits, undo/redo, and routes Save via coordinator", async () => {
+  it("mounts the handle, submits text edits, undo/redo, and routes Save via coordinator", async () => {
     const save = vi.fn(async () => ({ accepted: false as const, reason: "clean" as const }));
     const handle = editor({ selection: { getSelection: () => ({ page: 1, objectId: "text-1", kind: "text" as const }), subscribe: () => () => undefined } });
     const saveCoordinator = coordinator({ save }) as PdfSaveCoordinator & { writeBytes: ReturnType<typeof vi.fn> };
@@ -105,6 +109,43 @@ describe("PdfEditor", () => {
     fireEvent.change(screen.getByLabelText("Mã tài sản của provider"), { target: { value: "asset-42" } });
     fireEvent.click(screen.getAllByRole("button", { name: "Thay ảnh" })[1]!);
     expect(handle.edit).toHaveBeenCalledWith([{ op: "replace_image", target: { page: 2, objectId: "image-1" }, assetId: "asset-42" }]);
+  });
+
+  it("keeps the open session when the UI locale changes", async () => {
+    const handle = editor();
+    const open = vi.fn(async () => opened());
+    renderEditor(opened(), { editor: handle, open });
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    await setLocale("en");
+    await setLocale("vi");
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(handle.dispose).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a localized alert when an edit envelope is rejected", async () => {
+    const handle = editor({ edit: vi.fn(async () => { throw new EngineBoundaryError("engine_incompatible"); }) });
+    renderEditor(opened(), { editor: handle });
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    fireEvent.change(screen.getByLabelText("Chữ thay thế"), { target: { value: "Nội dung mới" } });
+    fireEvent.click(screen.getByRole("button", { name: "Áp dụng chữ" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Không thể áp dụng thay đổi PDF"));
+  });
+
+  it("mounts through the shared EditorSlot loader and handles a missing editor handle", async () => {
+    const host = {} as OfficeHost;
+    const saveCoordinator = coordinator();
+    const loadEditor = createPdfEditorLoader({
+      documentKey: "doc-v1",
+      open: { open: vi.fn(async () => opened()) },
+      coordinator: saveCoordinator,
+      capability,
+    });
+    const handle = editor();
+    render(<EditorSlot format="pdf" host={host} capability="available" openState="ready" editorHandle={handle} loadEditor={loadEditor} />);
+    await waitFor(() => expect(screen.getByTestId("pdf-canvas")).toBeInTheDocument());
+    expect(handle.open).toHaveBeenCalledTimes(1);
+    const second = render(<EditorSlot format="pdf" host={host} capability="available" openState="ready" editorHandle={null} loadEditor={loadEditor} />);
+    await waitFor(() => expect(second.getByTestId("pdf-error-state")).toBeInTheDocument());
   });
 
   it("keeps the edited model for Save N and submits the next edit for Save N+1", async () => {

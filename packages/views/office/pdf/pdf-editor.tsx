@@ -44,11 +44,14 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
   const coordinatorRef = useRef(coordinator);
   const capabilityRef = useRef(capability);
   const onOpenRef = useRef(onOpen);
+  const translateRef = useRef(t);
+  const [editFailure, setEditFailure] = useState(false);
   editorRef.current = editor;
   openRef.current = open;
   coordinatorRef.current = coordinator;
   capabilityRef.current = capability;
   onOpenRef.current = onOpen;
+  translateRef.current = t;
 
   const capabilityStatus = capability?.status;
   const capabilityOperation = capability?.operation;
@@ -83,16 +86,18 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
     const activeCoordinator = coordinatorRef.current;
     const activeCapability = capabilityRef.current;
     const activeOnOpen = onOpenRef.current;
+    const translate = translateRef.current;
     const controller = new AbortController();
     disposedRef.current = false;
     setViewState("opening");
     setFailure(null);
+    setEditFailure(false);
     setSnapshot(null);
     setFontReport(activeEditor.getFontReport?.() ?? null);
 
     const run = async () => {
       if (!activeCapability || (activeCapability.operation !== "open" && activeCapability.operation !== "serialize") || activeCapability.status === "unavailable" || activeCapability.status === "unknown") {
-        const blocked: PdfOpenFailure = { outcome: "failed", document_id: documentKey, format: "pdf", failure_class: "unsupported_feature", message: activeCapability?.reason ?? t("office.pdf.errors.capabilityUnavailable") };
+        const blocked: PdfOpenFailure = { outcome: "failed", document_id: documentKey, format: "pdf", failure_class: "unsupported_feature", message: activeCapability?.reason ?? translate("office.pdf.errors.capabilityUnavailable") };
         setFailure(blocked);
         setViewState("error");
         activeOnOpen?.(blocked);
@@ -129,7 +134,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
       void activeCoordinator.cancel?.();
       void activeEditor.dispose();
     };
-  }, [documentKey, retryToken, capabilityOperation, capabilityStatus, t]);
+  }, [documentKey, retryToken, capabilityOperation, capabilityStatus]);
 
   const refreshSnapshot = useCallback(() => {
     const next = editor.getPdfSnapshot?.();
@@ -144,8 +149,13 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
 
   const applyEdit = useCallback(async (operation: Parameters<NonNullable<typeof editor.edit>>[0][number]) => {
     if (readOnly || !editor.edit) return;
-    await editor.edit([operation]);
-    markDirty();
+    setEditFailure(false);
+    try {
+      await editor.edit([operation]);
+      markDirty();
+    } catch {
+      setEditFailure(true);
+    }
   }, [editor, markDirty, readOnly]);
 
   const selectPage = useCallback((page: number) => {
@@ -188,6 +198,7 @@ export function PdfEditor<TSnapshot = PdfSnapshot>({ documentKey, editor, open, 
           <div className="flex min-h-0 flex-1" data-testid="pdf-canvas">
             <PdfPagePanel pages={pages} selectedPage={selectedPage} disabled={readOnly} onSelect={selectPage} onReorder={(page, index) => void applyEdit({ op: "reorder_page", target: { page }, index })} onExtract={(page) => void applyEdit({ op: "extract_page", target: { page } })} />
             <div className="min-h-64 min-w-0 flex-1 overflow-auto bg-muted/20 p-4 sm:p-8">
+              {editFailure ? <Notice tone="destructive" icon={AlertTriangle} live="assertive" className="mb-3">{t("office.pdf.errors.editFailed")}</Notice> : null}
               {fontReport?.missing.length ? <div data-testid="pdf-font-warning"><Notice tone="warning" icon={AlertTriangle} live="polite" className="mb-3">{t("office.pdf.fonts.missing", { fonts: fontReport.missing.join(", ") })}</Notice></div> : null}
               <div className="mx-auto min-h-[24rem] w-full max-w-4xl rounded-lg border border-border bg-background p-8 shadow-sm" data-testid="pdf-document-surface"><p className="text-caption text-muted-foreground">{t("office.pdf.surface.ready")}</p><p className="mt-2 text-caption text-muted-foreground">{t("office.pdf.surface.page", { page: selectedPage ?? 1, count: pages.length })}</p></div>
               {selection?.kind === "text" && !readOnly ? <div className="mt-3 flex gap-2"><label htmlFor="pdf-text-edit" className="sr-only">{t("office.pdf.edit.textLabel")}</label><input id="pdf-text-edit" value={textDraft} onChange={(event) => setTextDraft(event.target.value)} className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1 text-caption" placeholder={t("office.pdf.edit.textPlaceholder")} /><Button type="button" variant="outline" size="sm" onClick={() => { if (selection.objectId) void applyEdit({ op: "replace_text", target: { page: selection.page, objectId: selection.objectId }, text: textDraft }); }}>{t("office.pdf.edit.applyText")}</Button></div> : null}
