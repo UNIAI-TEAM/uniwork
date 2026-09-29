@@ -4462,6 +4462,8 @@
       "breadcrumb_fallback": "Dự án",
       "title_placeholder": "Tiêu đề dự án",
       "section_properties": "Thuộc tính",
+      "section_progress": "Tiến độ",
+      "section_description": "Mô tả",
       "prop_start_date": "Ngày bắt đầu",
       "prop_due_date": "Ngày hết hạn",
       "description_placeholder": "Thêm mô tả…",

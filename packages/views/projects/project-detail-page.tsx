@@ -13,8 +13,8 @@ import {
 } from "../layout/animated-right-sidebar";
 import { PAGE_GUTTER, PAGE_LEADING_ICON } from "../layout/page-header";
 import { TaskSurface } from "../tasks/surface/task-surface";
-import { ProjectDetailHeader } from "./project-detail-header";
-import { ProjectProperties } from "./project-properties";
+import { ProjectDescriptionSection, ProjectDetailHeader } from "./project-detail-header";
+import { ProjectProgressSection, ProjectProperties } from "./project-properties";
 import { ProjectResourcesSection } from "./project-resources-section";
 
 const PROJECT_SURFACE_MODES = [
@@ -26,8 +26,9 @@ const PROJECT_SURFACE_MODES = [
 ] as const;
 
 /**
- * Project detail chrome: editable title/description + properties, resources
- * section, and a project-scoped TaskSurface (server filters by project_id).
+ * Project detail chrome: a project-scoped TaskSurface (server filters by
+ * project_id) beside the sidebar — icon + title, properties, progress,
+ * description, resources.
  */
 export function ProjectDetailPage({
   workspaceId,
@@ -141,6 +142,8 @@ export function ProjectDetailPage({
             <div className="space-y-5">
               <ProjectDetailHeader workspaceId={workspaceId} project={project} />
               <ProjectProperties workspaceId={workspaceId} project={project} />
+              <ProjectProgressSection project={project} />
+              <ProjectDescriptionSection workspaceId={workspaceId} project={project} />
               <ProjectResourcesSection
                 workspaceId={workspaceId}
                 projectId={projectId}

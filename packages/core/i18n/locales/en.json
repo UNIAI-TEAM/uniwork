@@ -4467,6 +4467,8 @@
       "breadcrumb_fallback": "Projects",
       "title_placeholder": "Project title",
       "section_properties": "Properties",
+      "section_progress": "Progress",
+      "section_description": "Description",
       "prop_start_date": "Start date",
       "prop_due_date": "Due date",
       "description_placeholder": "Add description…",

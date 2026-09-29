@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
@@ -158,7 +158,7 @@ describe("ProjectDetailPage", () => {
       ),
     );
 
-    expect(await screen.findByDisplayValue("Q3 launch", undefined, LONG)).toBeInTheDocument();
+    expect(await screen.findByText("In-project task", undefined, LONG)).toBeInTheDocument();
 
     await waitFor(() => {
       const queryCall = requestMock.mock.calls.find(
@@ -184,9 +184,72 @@ describe("ProjectDetailPage", () => {
       ),
     );
 
-    expect(await screen.findByText("Q3 launch", undefined, LONG)).toBeInTheDocument();
     expect(await screen.findByText("In-project task", undefined, LONG)).toBeInTheDocument();
     expect(screen.queryByText("Other-project task")).not.toBeInTheDocument();
+  });
+
+  it("lays the sidebar out like the reference: icon, title, sections in order", async () => {
+    render(
+      wrapWithNav(
+        <ProjectDetailPage
+          workspaceId="w1"
+          projectId="p1"
+          onOpenTask={vi.fn()}
+          onBack={vi.fn()}
+        />,
+      ),
+    );
+
+    const sidebar = await screen.findByRole("complementary", { name: "Chi tiết dự án" }, LONG);
+    const inSidebar = within(sidebar);
+
+    expect(inSidebar.getByRole("button", { name: "Chọn biểu tượng" })).toHaveTextContent("📁");
+    const title = await inSidebar.findByRole("textbox", { name: "Tiêu đề dự án" }, LONG);
+    await waitFor(() => expect(title).toHaveTextContent("Q3 launch"));
+
+    const sectionOrder = inSidebar
+      .getAllByRole("button", { expanded: true })
+      .map((button) => button.textContent);
+    expect(sectionOrder).toEqual(["Thuộc tính", "Tiến độ", "Mô tả", "Tài nguyên"]);
+
+    const progress = inSidebar.getByRole("progressbar", { name: "Tiến độ" });
+    expect(progress).toHaveAttribute("aria-valuenow", "0");
+    expect(inSidebar.getByText("0/1")).toBeInTheDocument();
+
+    const status = inSidebar.getByRole("button", { name: "Trạng thái: Đang làm" });
+    expect(status.querySelector("[data-slot='project-status-dot']")).not.toBeNull();
+
+    const startDate = inSidebar.getByRole("button", { name: "Ngày bắt đầu" });
+    expect(startDate).toHaveTextContent("Ngày bắt đầu");
+    expect(startDate.className).not.toContain("border-input");
+  });
+
+  it("saves a renamed title on blur", async () => {
+    render(
+      wrapWithNav(
+        <ProjectDetailPage
+          workspaceId="w1"
+          projectId="p1"
+          onOpenTask={vi.fn()}
+          onBack={vi.fn()}
+        />,
+      ),
+    );
+
+    const title = await screen.findByRole("textbox", { name: "Tiêu đề dự án" }, LONG);
+    await waitFor(() => expect(title).toHaveTextContent("Q3 launch"));
+    fireEvent.input(title, { target: { innerHTML: "<p>Q4 launch</p>" } });
+    await act(async () => {});
+    fireEvent.blur(title);
+
+    await waitFor(() => {
+      const put = requestMock.mock.calls.find(
+        ([path, init]) =>
+          String(path).endsWith("/projects/p1") &&
+          (init as { method?: string } | undefined)?.method === "PUT",
+      );
+      expect(put?.[1]).toMatchObject({ body: { title: "Q4 launch", revision: 1 } });
+    }, LONG);
   });
 
   it("edits the description as rich text and saves it as markdown", async () => {
