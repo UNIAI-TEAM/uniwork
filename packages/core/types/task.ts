@@ -131,6 +131,14 @@ export const ChildProgressSchema = z.object({
 });
 export type ChildProgress = z.infer<typeof ChildProgressSchema>;
 
+/** How often the caller put one assignee on a task (last 90 days). */
+export const AssigneeFrequencySchema = z.object({
+  assignee_kind: z.string(),
+  assignee_id: z.string(),
+  frequency: z.number(),
+});
+export type AssigneeFrequency = z.infer<typeof AssigneeFrequencySchema>;
+
 export const TaskQueryPageSchema = z.object({
   tasks: z.array(TaskSchema),
   total: z.number(),

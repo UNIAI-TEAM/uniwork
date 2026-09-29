@@ -135,6 +135,13 @@ func registerTasksSuite(r api, h Routes) {
 			sdo:         sdo.TaskQueryPageSDO{},
 			auth:        true,
 		})
+		suite.Get("/workspaces/{workspaceID}/assignee-frequency", h.GetAssigneeFrequency, apiOp{
+			summary:     "Assignee frequency",
+			description: "Người phụ trách mà người gọi hay chọn trong workspace (90 ngày gần nhất), nhiều nhất trước; dùng để sắp picker.",
+			tags:        []string{"tasks"},
+			sdo:         sdo.AssigneeFrequencySDO{},
+			auth:        true,
+		})
 		suite.Get("/tasks/{taskID}/children", h.ListTaskChildren, apiOp{
 			summary:     "List child tasks",
 			description: "Task con trực tiếp của một task.",

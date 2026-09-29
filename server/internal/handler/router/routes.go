@@ -106,6 +106,7 @@ type Routes struct {
 	BatchUpdateTasks      http.HandlerFunc
 	BatchDeleteTasks      http.HandlerFunc
 	ListMyTasks           http.HandlerFunc
+	GetAssigneeFrequency  http.HandlerFunc
 	ListTaskChildren      http.HandlerFunc
 	ListChildrenByParents http.HandlerFunc
 	ChildTaskProgress     http.HandlerFunc

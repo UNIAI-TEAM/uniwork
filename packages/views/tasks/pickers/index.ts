@@ -4,6 +4,7 @@ export {
   useWorkspaceAssigneeOptions,
   type MemberOption,
 } from "./member-options";
+export { useDecoratedAssigneeOptions } from "./assignee-option-decorations";
 export { PriorityPicker } from "./priority-picker";
 export {
   AssigneePicker,

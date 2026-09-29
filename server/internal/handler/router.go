@@ -215,6 +215,7 @@ func New(d Deps) http.Handler {
 		BatchUpdateTasks:              h.batchUpdateTasks,
 		BatchDeleteTasks:              h.batchDeleteTasks,
 		ListMyTasks:                   h.listMyTasks,
+		GetAssigneeFrequency:          h.getAssigneeFrequency,
 		GetHomeSummary:                h.getHomeSummary,
 		GetHomePreference:             h.getHomePreference,
 		PutHomePreference:             h.putHomePreference,

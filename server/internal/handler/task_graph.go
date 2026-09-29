@@ -38,6 +38,22 @@ func (h *handlers) listMyTasks(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (h *handlers) getAssigneeFrequency(w http.ResponseWriter, r *http.Request) {
+	rows, err := h.Tasks.AssigneeFrequency(r.Context(), service.Human(middleware.UserID(r.Context())),
+		chi.URLParam(r, "workspaceID"))
+	if err != nil {
+		h.mapServiceError(w, err)
+		return
+	}
+	items := make([]sdo.AssigneeFrequencyDTO, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, sdo.AssigneeFrequencyDTO{
+			AssigneeKind: row.Kind, AssigneeID: row.ID, Frequency: row.Frequency,
+		})
+	}
+	respondJSON(w, 200, sdo.AssigneeFrequencySDO{Items: items})
+}
+
 func (h *handlers) listTaskChildren(w http.ResponseWriter, r *http.Request) {
 	kids, err := h.Tasks.ListChildren(r.Context(), service.Human(middleware.UserID(r.Context())),
 		chi.URLParam(r, "taskID"))

@@ -243,3 +243,54 @@ describe("AssigneePicker", () => {
     expect(screen.queryByPlaceholderText("Tìm thành viên")).not.toBeInTheDocument();
   });
 });
+
+describe("AssigneePicker — options that cannot take new work", () => {
+  const withPaused: AssigneeOption[] = [
+    { id: "u1", kind: "human", name: "An Nguyễn" },
+    { id: "a1", kind: "agent", name: "Trợ lý QA", disabledReason: "Agent đang tạm dừng" },
+    { id: "a2", kind: "agent", name: "Trợ lý Dev" },
+  ];
+
+  it("keeps the row focusable but refuses the click, and says why", async () => {
+    const { onChange } = renderPicker({ options: withPaused });
+    openPicker();
+    const row = await screen.findByRole("button", { name: /Trợ lý QA/ });
+    expect(row).toHaveAttribute("aria-disabled", "true");
+    expect(row).not.toBeDisabled();
+    expect(row).toHaveAccessibleName(/Agent đang tạm dừng/);
+    fireEvent.click(row);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("skips the row when moving with the keyboard", async () => {
+    const { onChange } = renderPicker({ options: withPaused });
+    openPicker();
+    const search = await screen.findByPlaceholderText("Tìm thành viên");
+    // Chưa giao → An Nguyễn → (Trợ lý QA skipped) → Trợ lý Dev.
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    fireEvent.keyDown(search, { key: "Enter" });
+    expect(onChange).toHaveBeenCalledWith({ id: "a2", kind: "agent" });
+  });
+
+  it("still marks the current assignee when it can no longer take work", async () => {
+    renderPicker({ options: withPaused, value: { id: "a1", kind: "agent" } });
+    openPicker();
+    expect(await screen.findByRole("button", { name: /Trợ lý QA/ })).toHaveAttribute("aria-pressed", "true");
+  });
+});
+
+describe("AssigneePicker — status dots", () => {
+  it("shows each option's status on its avatar", async () => {
+    renderPicker({
+      options: [
+        { id: "u1", kind: "human", name: "An Nguyễn", status: { tone: "success", label: "Đang trực tuyến" } },
+        { id: "a1", kind: "agent", name: "Trợ lý QA", status: { tone: "warning", label: "Đang tạm dừng" } },
+      ],
+    });
+    openPicker();
+    expect(await screen.findByRole("button", { name: /An Nguyễn.*Đang trực tuyến/ })).toBeInTheDocument();
+    expect(screen.getByTitle("Đang tạm dừng")).toHaveClass("bg-warning-solid");
+  });
+});
