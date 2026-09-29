@@ -132,7 +132,9 @@ status, reason, and fidelity warnings. `unknown` is safe and does not grant
 editing. The host feeds the coordinator the serialize row for its editor format
 (`toOfficeCapabilityEntry`); a status other than `available` moves the session
 to `readonly` and refuses Save, and a row that turns `available` restores
-`dirty`/`ready`. The current handoff proves the following provider facts:
+`dirty`/`ready`. A downgrade that lands while a save is already in flight is
+applied when that save settles. The current handoff proves the following
+provider facts:
 
 | Format / operation | Current provider evidence | G3/G4 implication |
 | --- | --- | --- |
