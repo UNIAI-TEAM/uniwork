@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { ComponentType } from "react";
 import type { Document } from "@uniwork/core/types/document";
 import type { OfficeCapabilityEntry, OfficeHost, SaveCoordinatorState, StableSnapshot } from "@uniwork/core/office";
@@ -16,6 +16,12 @@ export interface OfficeEditorHostProps<TSnapshot = unknown> {
   document: Document;
   wsId: string;
   readonly: boolean;
+  /**
+   * The 0Xb format seam. A format adapter owns the engine-backed EditorHandle,
+   * the real save transport, and the editor view; this host then composes them
+   * with the shared coordinator and protected browser draft lifecycle.
+   */
+  formatAdapter?: OfficeFormatAdapter<TSnapshot>;
   session?: OfficeEditorSession<TSnapshot>;
   editorView?: ReactNode;
   host?: OfficeHost;
@@ -26,8 +32,27 @@ export interface OfficeEditorHostProps<TSnapshot = unknown> {
   className?: string;
 }
 
+export interface OfficeFormatAdapter<TSnapshot = unknown> {
+  session: OfficeEditorSession<TSnapshot>;
+  editorView: ReactNode;
+  capability: OfficeCapabilityEntry;
+  onRecoverSnapshot?: (snapshot: StableSnapshot<TSnapshot>) => Promise<void> | void;
+}
+
 function stateIsDirty(state: SaveCoordinatorState): boolean {
   return state.dirtyGeneration > state.lastSavedGeneration || state.state === "dirty" || state.state === "saving" || state.state === "error" || state.state === "conflict";
+}
+
+function documentFormat(document: Document): OfficeCapabilityEntry["format"] {
+  const filename = document.file?.filename.toLowerCase() ?? "";
+  const mime = document.file?.mime_type.toLowerCase() ?? "";
+  if (mime.includes("wordprocessingml.document") || filename.endsWith(".docx")) return "docx";
+  if (mime.includes("spreadsheetml.sheet") || filename.endsWith(".xlsx")) return "xlsx";
+  if (mime.includes("presentationml.presentation") || filename.endsWith(".pptx")) return "pptx";
+  if (mime === "application/pdf" || filename.endsWith(".pdf")) return "pdf";
+  if (mime === "text/markdown" || filename.endsWith(".md") || filename.endsWith(".markdown")) return "md";
+  if (mime === "text/html" || filename.endsWith(".html") || filename.endsWith(".htm")) return "html";
+  return "docx";
 }
 
 /** The platform-owned browser host. Consumers inject the engine/editor handle;
@@ -35,6 +60,7 @@ function stateIsDirty(state: SaveCoordinatorState): boolean {
 export function OfficeEditorHost<TSnapshot = unknown>({
   document,
   readonly,
+  formatAdapter,
   session,
   editorView,
   capability,
@@ -43,26 +69,55 @@ export function OfficeEditorHost<TSnapshot = unknown>({
   className,
 }: OfficeEditorHostProps<TSnapshot>) {
   const { t } = useTranslation();
-  const [coordinatorState, setCoordinatorState] = useState<SaveCoordinatorState | null>(() => session?.coordinator.getState() ?? null);
+  const activeSession = formatAdapter?.session ?? session;
+  const activeEditorView = formatAdapter?.editorView ?? editorView;
+  const activeCapability = formatAdapter?.capability ?? capability;
+  const activeRecoverSnapshot = formatAdapter?.onRecoverSnapshot ?? onRecoverSnapshot;
+  const [coordinatorState, setCoordinatorState] = useState<SaveCoordinatorState | null>(() => activeSession?.coordinator.getState() ?? null);
   const [leaveOpen, setLeaveOpen] = useState(false);
   const [recovery, setRecovery] = useState<OfficeRecoveryState<TSnapshot> | null>(null);
   const leaveResolver = useRef<((allowed: boolean) => void) | null>(null);
   const checkpointGeneration = useRef(0);
-  const recoveryRef = useRef(session);
-  recoveryRef.current = session;
+  const checkpointPending = useRef(0);
+  const recoveryRef = useRef(activeSession);
+  recoveryRef.current = activeSession;
+  const effectiveCapability = useMemo<OfficeCapabilityEntry>(() => activeCapability ?? ({
+    format: documentFormat(document),
+    operation: "open",
+    host: "web",
+    engineBuild: "unknown",
+    contractRevision: "unknown",
+    status: "unknown",
+    reason: t("office.editor.capability_hint"),
+    fidelityWarnings: [],
+  }), [activeCapability, document, t]);
 
   useEffect(() => {
-    if (!session) return;
-    setCoordinatorState(session.coordinator.getState());
-    return session.coordinator.subscribe(setCoordinatorState);
-  }, [session]);
+    activeSession?.coordinator.setCapability(effectiveCapability);
+  }, [activeSession, effectiveCapability]);
 
   useEffect(() => {
-    if (!session) return;
+    if (!activeSession) {
+      setCoordinatorState(null);
+      return;
+    }
+    setCoordinatorState(activeSession.coordinator.getState());
+    return activeSession.coordinator.subscribe(setCoordinatorState);
+  }, [activeSession]);
+
+  useEffect(() => {
+    if (!activeSession) {
+      setRecovery(null);
+      return;
+    }
     let active = true;
-    void session.recoverDraft().then((result) => { if (active && result.status !== "missing") setRecovery(result); });
+    setRecovery(null);
+    void activeSession.recoverDraft().then((result) => {
+      if (!active) return;
+      setRecovery(result.status === "missing" ? null : result);
+    });
     return () => { active = false; };
-  }, [session]);
+  }, [activeSession]);
 
   const dirty = Boolean(coordinatorState && stateIsDirty(coordinatorState));
   useEffect(() => {
@@ -76,16 +131,20 @@ export function OfficeEditorHost<TSnapshot = unknown>({
   }, [dirty]);
 
   useEffect(() => {
-    if (!session || readonly) return;
+    if (!activeSession || readonly) return;
     const timer = window.setInterval(() => {
-      const generation = session.editor.getDirtyGeneration();
-      if (generation <= checkpointGeneration.current) return;
-      checkpointGeneration.current = generation;
-      session.coordinator.markDirty(generation);
-      void session.checkpoint().catch(() => undefined);
+      const generation = activeSession.editor.getDirtyGeneration();
+      if (generation <= checkpointGeneration.current || generation <= checkpointPending.current) return;
+      checkpointPending.current = generation;
+      activeSession.coordinator.markDirty(generation);
+      void activeSession.checkpoint().then(() => {
+        checkpointGeneration.current = Math.max(checkpointGeneration.current, generation);
+      }).catch(() => undefined).finally(() => {
+        if (checkpointPending.current === generation) checkpointPending.current = 0;
+      });
     }, 2_000);
     return () => window.clearInterval(timer);
-  }, [readonly, session]);
+  }, [activeSession, readonly]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -106,31 +165,31 @@ export function OfficeEditorHost<TSnapshot = unknown>({
     setLeaveOpen(false);
   };
   const saveAndLeave = async () => {
-    if (!session) return false;
-    const result = await session.coordinator.save("dialog");
-    return Boolean(result.accepted) && !stateIsDirty(session.coordinator.getState());
+    if (!activeSession) return false;
+    const result = await activeSession.coordinator.save("dialog");
+    return Boolean(result.accepted) && !stateIsDirty(activeSession.coordinator.getState());
   };
   const keepDraftAndLeave = async () => {
-    if (!session) return false;
+    if (!activeSession) return false;
     try {
-      await session.checkpoint();
+      await activeSession.checkpoint();
       return true;
     } catch {
       return false;
     }
   };
   const discardAndLeave = async () => {
-    if (!session) return true;
+    if (!activeSession) return true;
     try {
-      await session.discardDraft();
+      await activeSession.discardDraft();
       return true;
     } catch {
       return false;
     }
   };
   const recoverDraft = async () => {
-    if (!session || recovery?.status !== "recovered") return false;
-    await onRecoverSnapshot?.(recovery.snapshot);
+    if (!activeSession || recovery?.status !== "recovered" || !activeRecoverSnapshot) return false;
+    await activeRecoverSnapshot(recovery.snapshot);
     return true;
   };
 
@@ -139,24 +198,27 @@ export function OfficeEditorHost<TSnapshot = unknown>({
       <OfficeShell
         title={document.title}
         breadcrumbs={breadcrumbs}
-        editor={editorView ?? (
+        editor={activeEditorView && effectiveCapability.status === "available" ? activeEditorView : (
           <Alert data-testid="office-host-unbound">
-            <AlertTitle>{t("office.editor.capability_unknown")}</AlertTitle>
-            <AlertDescription>{t("office.editor.capability_hint")}</AlertDescription>
+            <AlertTitle>{!activeSession && !activeCapability ? t("office.editor.editor_pending_title") : t("office.editor.capability_unknown")}</AlertTitle>
+            <AlertDescription>{!activeSession && !activeCapability
+              ? t("office.editor.editor_pending", { format: effectiveCapability.format })
+              : t("office.editor.capability_hint")}</AlertDescription>
           </Alert>
         )}
-        saveCoordinator={session?.coordinator}
+        saveCoordinator={activeSession?.coordinator}
         saveState={coordinatorState}
-        editorReady={Boolean(session && !readonly)}
+        editorReady={Boolean(activeSession && !readonly && effectiveCapability.status === "available")}
         className="min-h-[20rem]"
       />
-      {session && recovery && recovery.status !== "missing" ? (
+      {activeSession && recovery && recovery.status !== "missing" ? (
         <DraftRecoveryPrompt
           open
           metadata={"metadata" in recovery ? recovery.metadata : null}
           conflict={recovery.status === "conflict"}
+          recoverable={recovery.status === "recovered" && Boolean(activeRecoverSnapshot)}
           onRecover={recoverDraft}
-          onDiscard={async () => { const ok = await session.discardDraft(); if (ok) setRecovery(null); return ok; }}
+          onDiscard={async () => { const ok = await activeSession.discardDraft(); if (ok) setRecovery(null); return ok; }}
           onKeep={async () => true}
           onOpenChange={(open) => { if (!open) setRecovery(null); }}
         />

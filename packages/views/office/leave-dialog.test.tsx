@@ -78,4 +78,10 @@ describe("DraftRecoveryPrompt", () => {
     expect(screen.queryByRole("button", { name: "Recover draft" })).toBeNull();
     expect(screen.getByText("Draft conflict")).toBeInTheDocument();
   });
+
+  it("does not offer recovery when the draft is locked", () => {
+    render(<DraftRecoveryPrompt open recoverable={false} metadata={null} onRecover={async () => true} onDiscard={async () => true} onKeep={async () => true} onOpenChange={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Recover draft" })).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Keep draft" }).some((button) => button.getAttribute("data-slot") !== "dialog-close")).toBe(true);
+  });
 });

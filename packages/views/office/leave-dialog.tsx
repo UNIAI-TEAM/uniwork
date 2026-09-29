@@ -12,7 +12,7 @@ import {
 } from "@uniwork/ui/components/ui/dialog";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Alert, AlertDescription } from "@uniwork/ui/components/ui/alert";
-import type { DraftMetadata, DraftRecoveryError } from "@uniwork/core/office";
+import type { DraftMetadata } from "@uniwork/core/office";
 
 export type LeaveChoice = "save" | "keep" | "discard" | "stay";
 
@@ -33,14 +33,12 @@ export interface DraftRecoveryPromptProps {
   open: boolean;
   metadata?: DraftMetadata | null;
   conflict?: boolean;
+  /** Locked/blocked records may be kept or discarded, never applied. */
+  recoverable?: boolean;
   onRecover: () => Promise<boolean>;
   onDiscard: () => Promise<boolean>;
   onKeep: () => Promise<boolean>;
   onOpenChange: (open: boolean) => void;
-}
-
-function isDraftError(error: unknown): error is DraftRecoveryError {
-  return Boolean(error && typeof error === "object" && "code" in error);
 }
 
 /**
@@ -85,9 +83,9 @@ export function LeaveDialog({
       }
       onChoice?.(choice);
       onOpenChange(false);
-    } catch (cause) {
+    } catch {
       if (!mounted.current) return;
-      setError(isDraftError(cause) ? t("write_failed") : t("write_failed"));
+      setError(t("write_failed"));
     } finally {
       if (mounted.current) setPending(null);
     }
@@ -138,6 +136,7 @@ export function DraftRecoveryPrompt({
   open,
   metadata,
   conflict = false,
+  recoverable = true,
   onRecover,
   onDiscard,
   onKeep,
@@ -173,7 +172,7 @@ export function DraftRecoveryPrompt({
         </DialogHeader>
         {error ? <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert> : null}
         <DialogFooter className="sm:flex-col sm:items-stretch">
-          {!conflict ? (
+          {!conflict && recoverable ? (
             <Button type="button" onClick={() => void run("recover", onRecover)} disabled={Boolean(pending)}>
               {pending === "recover" ? t("working") : t("recover")}
             </Button>
