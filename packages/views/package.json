@@ -45,7 +45,10 @@
     "./navigation": "./navigation/index.ts",
     "./editor": "./editor/index.ts",
     "./common/*": "./common/*.tsx",
-    "./calendar/*": "./calendar/*.tsx"
+    "./calendar/*": "./calendar/*.tsx",
+    "./office/docx": "./office/docx/index.ts",
+    "./office/docx/types": "./office/docx/types.ts",
+    "./office/docx/*": "./office/docx/*.tsx"
   },
   "dependencies": {
     "@dnd-kit/core": "catalog:",
@@ -103,7 +106,8 @@
     "react-virtuoso": "catalog:",
     "sonner": "catalog:",
     "zustand": "catalog:",
-    "motion": "^12.38.0"
+    "motion": "^12.38.0",
+    "@uniwork/office-contracts": "workspace:*"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "catalog:",
