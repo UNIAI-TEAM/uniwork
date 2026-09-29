@@ -59,8 +59,12 @@ session/deployment/account binding, live edit check, complete base-pair
 comparison, ambiguous lookup, generation-bound compare-and-delete, and
 clear-memory separate from durable deletion. Atomic writes are temp-beside-row,
 `fsync`, then rename; an interrupted write therefore leaves the last confirmed
-row. A bounded `withPlaintextTemp` helper gives native adapters a restricted
-lifecycle temp and removes its directory in `finally`.
+row. All checkpoint and durable-delete transactions pass through one store
+mutation queue, so overlapping requests cannot let an older generation land
+after a newer one. Compare-and-delete refuses an ambiguous `draftId` rather
+than selecting an arbitrary document namespace. A bounded `withPlaintextTemp`
+helper gives native adapters a restricted lifecycle temp and removes its
+directory in `finally`.
 
 The 2-second scheduler accepts only a caller-marked stable plaintext snapshot.
 It calls the draft store only: no local target write, upload, commit, or cloud

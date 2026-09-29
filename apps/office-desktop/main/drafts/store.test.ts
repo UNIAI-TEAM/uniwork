@@ -46,6 +46,29 @@ describe("desktop protected drafts", () => {
     expect(conflict.status).toBe("conflict");
   });
 
+  it("serializes overlapping checkpoints so an older generation cannot win", async () => {
+    const store = createDesktopDraftStore({ rootDirectory: await root(), keyStore: createFakeDraftKeyStore(), randomBytes: (size) => new Uint8Array(size).fill(9) });
+    const older = store.checkpointPlaintext({ session, identity, draftId: "race", generation: 2, plaintext: new TextEncoder().encode("gen2") });
+    const newer = store.checkpointPlaintext({ session, identity, draftId: "race", generation: 3, plaintext: new TextEncoder().encode("gen3") });
+    await Promise.all([older, newer]);
+    const recovered = await store.recoverPlaintext({ session, lookup: { ...identity, draftId: "race" }, currentBase: identity.base, liveAccess: "edit" });
+    expect(recovered.status).toBe("recovered");
+    if (recovered.status === "recovered") {
+      expect(recovered.metadata.generation).toBe(3);
+      expect(new TextDecoder().decode(recovered.plaintext)).toBe("gen3");
+    }
+  });
+
+  it("refuses compare-and-delete when a draft id is ambiguous", async () => {
+    const store = createDesktopDraftStore({ rootDirectory: await root(), keyStore: createFakeDraftKeyStore() });
+    const otherIdentity: DraftIdentity = { ...identity, documentId: "other-doc" };
+    await store.checkpointPlaintext({ session, identity, draftId: "duplicate", generation: 1, plaintext: new TextEncoder().encode("one") });
+    await store.checkpointPlaintext({ session, identity: otherIdentity, draftId: "duplicate", generation: 1, plaintext: new TextEncoder().encode("two") });
+    await expect(store.deleteDurable({ session, draftId: "duplicate", generation: 1 })).rejects.toMatchObject({ code: "forbidden" });
+    expect((await store.list({ session, lookup: identity })).some((row) => row.draftId === "duplicate")).toBe(true);
+    expect((await store.list({ session, lookup: otherIdentity })).some((row) => row.draftId === "duplicate")).toBe(true);
+  });
+
   it("atomically preserves the previous row and cleans plaintext temps", async () => {
     const rootPath = await root(); const store = createDesktopDraftStore({ rootDirectory: rootPath, tempDirectory: rootPath, keyStore: createFakeDraftKeyStore() });
     await store.checkpointPlaintext({ session, identity, draftId: "draft-1", generation: 1, plaintext: new TextEncoder().encode("old") });

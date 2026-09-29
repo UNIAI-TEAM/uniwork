@@ -71,6 +71,9 @@ export class DesktopDraftStore implements DraftRecoveryAdapter {
   private locked = false;
   private failNext = false;
   private pending?: { input: PlaintextCheckpoint; timer: ReturnType<typeof setTimeout> };
+  /** Serialize read/validate/write/delete transactions so generations cannot
+   * regress when independent IPC invokes overlap. */
+  private mutationTail: Promise<void> = Promise.resolve();
 
   constructor(private readonly options: DesktopDraftStoreOptions) {
     if (!options.rootDirectory || !options.keyStore) throw new TypeError("draft store configuration is incomplete");
@@ -81,29 +84,33 @@ export class DesktopDraftStore implements DraftRecoveryAdapter {
 
   async checkpoint(request: DraftCheckpointRequest): Promise<CheckpointResult> {
     this.assertSession(request.session, request.snapshot.identity);
-    this.assertWritable();
-    const metadata = metadataFromSnapshot(request.snapshot, this.now());
-    const existing = await this.readRow(request.snapshot.identity, request.snapshot.draftId);
-    if (existing && existing.generation > metadata.generation) throw new DraftRecoveryError("generation_conflict", "draft generation is older than the confirmed snapshot");
-    if (existing && existing.generation === metadata.generation && existing.checksum === metadata.checksum) return { status: "unchanged", metadata: rowMetadata(existing) };
-    await this.writeRow(request.snapshot.identity, { version: 1, encrypted: false, draftId: request.snapshot.draftId, identity: request.snapshot.identity, generation: metadata.generation, checksum: metadata.checksum, byteLength: request.snapshot.ciphertext.byteLength, updatedAt: metadata.updatedAt, ciphertext: Buffer.from(request.snapshot.ciphertext).toString("base64") });
-    return { status: "stored", metadata };
+    return this.withMutationLock(async () => {
+      this.assertWritable();
+      const metadata = metadataFromSnapshot(request.snapshot, this.now());
+      const existing = await this.readRow(request.snapshot.identity, request.snapshot.draftId);
+      if (existing && existing.generation > metadata.generation) throw new DraftRecoveryError("generation_conflict", "draft generation is older than the confirmed snapshot");
+      if (existing && existing.generation === metadata.generation && existing.checksum === metadata.checksum) return { status: "unchanged", metadata: rowMetadata(existing) };
+      await this.writeRow(request.snapshot.identity, { version: 1, encrypted: false, draftId: request.snapshot.draftId, identity: request.snapshot.identity, generation: metadata.generation, checksum: metadata.checksum, byteLength: request.snapshot.ciphertext.byteLength, updatedAt: metadata.updatedAt, ciphertext: Buffer.from(request.snapshot.ciphertext).toString("base64") });
+      return { status: "stored", metadata };
+    });
   }
 
   async checkpointPlaintext(input: PlaintextCheckpoint): Promise<DraftMetadata> {
     this.assertSession(input.session, input.identity);
-    this.assertWritable();
-    if (input.plaintext.byteLength > this.maxPlaintextBytes) throw new DraftRecoveryError("quota_exceeded", "draft exceeds the local size limit");
-    if (!Number.isSafeInteger(input.generation) || input.generation < 1) throw new DraftRecoveryError("invalid_snapshot", "draft generation is invalid");
-    const old = await this.readRow(input.identity, input.draftId);
-    if (old && old.generation > input.generation) throw new DraftRecoveryError("generation_conflict", "draft generation is older than the confirmed snapshot");
-    const namespace = namespaceFor(input.identity);
-    let encrypted;
-    try { encrypted = encryptDraft(await this.options.keyStore.getOrCreate(namespace), input.plaintext, input.identity, input.generation, this.random); }
-    catch { throw new DraftRecoveryError("draft_recovery_locked", "draft key is unavailable"); }
-    const row: DurableRow = { version: 1, encrypted: true, draftId: input.draftId, identity: input.identity, generation: input.generation, checksum: encrypted.checksum, byteLength: encrypted.ciphertext.byteLength, updatedAt: this.now(), nonce: Buffer.from(encrypted.nonce).toString("base64"), ciphertext: Buffer.from(encrypted.ciphertext).toString("base64") };
-    await this.writeRow(input.identity, row);
-    return rowMetadata(row);
+    return this.withMutationLock(async () => {
+      this.assertWritable();
+      if (input.plaintext.byteLength > this.maxPlaintextBytes) throw new DraftRecoveryError("quota_exceeded", "draft exceeds the local size limit");
+      if (!Number.isSafeInteger(input.generation) || input.generation < 1) throw new DraftRecoveryError("invalid_snapshot", "draft generation is invalid");
+      const old = await this.readRow(input.identity, input.draftId);
+      if (old && old.generation > input.generation) throw new DraftRecoveryError("generation_conflict", "draft generation is older than the confirmed snapshot");
+      const namespace = namespaceFor(input.identity);
+      let encrypted;
+      try { encrypted = encryptDraft(await this.options.keyStore.getOrCreate(namespace), input.plaintext, input.identity, input.generation, this.random); }
+      catch { throw new DraftRecoveryError("draft_recovery_locked", "draft key is unavailable"); }
+      const row: DurableRow = { version: 1, encrypted: true, draftId: input.draftId, identity: input.identity, generation: input.generation, checksum: encrypted.checksum, byteLength: encrypted.ciphertext.byteLength, updatedAt: this.now(), nonce: Buffer.from(encrypted.nonce).toString("base64"), ciphertext: Buffer.from(encrypted.ciphertext).toString("base64") };
+      await this.writeRow(input.identity, row);
+      return rowMetadata(row);
+    });
   }
 
   async list(request: DraftListRequest): Promise<readonly DraftMetadata[]> {
@@ -152,14 +159,17 @@ export class DesktopDraftStore implements DraftRecoveryAdapter {
 
   async deleteDurable(request: DraftDeleteRequest): Promise<void> {
     this.assertActiveSession(request.session);
-    this.assertWritable();
-    const rows = await this.readAllRows();
-    const byId = rows.find((candidate) => candidate.draftId === request.draftId);
-    if (byId && (byId.identity.accountId !== request.session.accountId || byId.identity.deploymentId !== request.session.deploymentId)) throw new DraftRecoveryError("forbidden", "draft is outside the active session");
-    const row = byId;
-    if (!row) return;
-    if (row.generation !== request.generation) throw new DraftRecoveryError("generation_conflict", "draft generation changed");
-    await fs.unlink(fileFor(this.options.rootDirectory, row.identity, row.draftId)).catch(() => undefined);
+    await this.withMutationLock(async () => {
+      this.assertWritable();
+      const rows = await this.readAllRows();
+      const matches = rows.filter((candidate) => candidate.draftId === request.draftId);
+      if (matches.length > 1) throw new DraftRecoveryError("forbidden", "draft id is ambiguous");
+      const row = matches[0];
+      if (row && (row.identity.accountId !== request.session.accountId || row.identity.deploymentId !== request.session.deploymentId)) throw new DraftRecoveryError("forbidden", "draft is outside the active session");
+      if (!row) return;
+      if (row.generation !== request.generation) throw new DraftRecoveryError("generation_conflict", "draft generation changed");
+      await fs.unlink(fileFor(this.options.rootDirectory, row.identity, row.draftId)).catch(() => undefined);
+    });
   }
 
   clearMemory(): void { /* decrypted buffers are returned by value and never retained */ }
@@ -202,6 +212,14 @@ export class DesktopDraftStore implements DraftRecoveryAdapter {
     const active = this.activeGenerations.get(scope);
     if (active !== undefined && session.generation < active) throw new DraftRecoveryError("token_expired", "draft session generation is stale");
     this.activeGenerations.set(scope, Math.max(active ?? 0, session.generation));
+  }
+
+  private async withMutationLock<T>(operation: () => Promise<T>): Promise<T> {
+    const previous = this.mutationTail;
+    let release!: () => void;
+    this.mutationTail = new Promise<void>((resolve) => { release = resolve; });
+    await previous;
+    try { return await operation(); } finally { release(); }
   }
 
   private async readRow(identity: DraftIdentity, draftId: string): Promise<DurableRow | undefined> {
