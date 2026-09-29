@@ -135,10 +135,14 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   }, [documentKey, editor, onSelectionChange]);
 
   useEffect(() => {
-    const session = sessionPropsRef.current;
+    const cleanupSession = sessionPropsRef.current;
     disposedRef.current = false;
 
     const run = async () => {
+      // Retry must use the latest session ports. The effect intentionally only
+      // depends on documentKey, so a parent can refresh open/coordinator
+      // identities without tearing down an active edit session.
+      const session = sessionPropsRef.current;
       openAbortRef.current?.abort();
       const controller = new AbortController();
       openAbortRef.current = controller;
@@ -196,9 +200,9 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
       openAbortRef.current = null;
       recalcAbortRef.current?.abort();
       recalcAbortRef.current = null;
-      void session.editor.cancel?.("document_changed");
-      void session.coordinator.cancel?.();
-      void session.editor.dispose();
+      void cleanupSession.editor.cancel?.("document_changed");
+      void cleanupSession.coordinator.cancel?.();
+      void cleanupSession.editor.dispose();
       openAttemptRef.current = null;
     };
   }, [documentKey]);
