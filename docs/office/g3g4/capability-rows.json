@@ -1,0 +1,4615 @@
+{
+  "schemaVersion": 1,
+  "kind": "uniwork-office-g3g4-acceptance-matrix",
+  "featureId": "qa-acceptance-matrix",
+  "issue": "UNI-829",
+  "companionIssue": "UNI-837",
+  "plan": "docs/superpowers/plans/2026-09-27-office-g3-g4.md",
+  "planRevision": "904c473a284493f95ba3e82084e741c1d1656a10",
+  "inventory": {
+    "capabilityPath": "docs/office/g0/capabilities.json",
+    "matrixPath": "docs/office/g0/capability-matrix.md",
+    "revision": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+    "rowsFound": 95,
+    "q1BRowsFound": 72,
+    "q1BSelection": "rows where mustPort === true (the pinned inventory reports 72 pilot rows)",
+    "excludedRows": 23
+  },
+  "fixtureManifest": "docs/office/g0/fixtures/manifest.json",
+  "fixtureManifestRevision": "09485f884dc845cf3bf27fb7edfe489f9d457aad",
+  "statusVocabulary": {
+    "not_run": "No run on the final lane revision has been recorded. This is the status for every row in this matrix.",
+    "blocked": "A dependency or decision gate prevents a valid run; record the owner and evidence path.",
+    "pass": "Reserved for a later evidence packet; no row in this matrix is marked pass."
+  },
+  "rowCounts": {
+    "g3Acceptance": 12,
+    "g4Acceptance": 16,
+    "q1BCapabilities": 72,
+    "saveError": 14,
+    "baseline": 5,
+    "handoff": 1,
+    "total": 120
+  },
+  "rows": [
+    {
+      "id": "G3-A01",
+      "kind": "acceptance",
+      "scope": "G3",
+      "title": "Open, edit, save, and reopen six formats on the real stack",
+      "owner": "G3-10a",
+      "ownerTask": "G3-10a",
+      "host": "web",
+      "oracle": {
+        "type": "receipt",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-XLSX-VI",
+          "sha256": "940CDB88AB3738A2662422582E44FFABDE72E1BEAC7909AD16E09C5867D83F56",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-PPTX-STD",
+          "sha256": "FADDC03270215218E78720F1C8F6E3AA862891A432F71E7EC9F3D13EA7902048",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-PDF-TEXT",
+          "sha256": "22E3B04F3AD92C22EDF1D3A0E02E30F3B778B1834B1022788272A8009F162FA9",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-MD-VI",
+          "sha256": "F3678CA09470FEEEDE2439DB676F398E51EE1CF598BCA759F519E0D2D75B869E",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-HTML-VI",
+          "sha256": "3582DABEDD59ADD0224CC85ADC86BDBE1FF7D356F1B4E1F82FA37FD8DD79BE81",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "A stale receipt, version mismatch, or wrong-format result must not be reported as saved.",
+        "An open or reopen failure must not show a fabricated blank editor or hide the committed checksum.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g3-web-editors-design.md Section 7"
+    },
+    {
+      "id": "G3-A02",
+      "kind": "acceptance",
+      "scope": "G3",
+      "title": "Typing/idle, close, reconnect, N+1, every Save entry point, double click, two tabs, lost response",
+      "owner": "G3-10a",
+      "ownerTask": "G3-10a",
+      "host": "web",
+      "oracle": {
+        "type": "receipt",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "No idle or blur upload; Save N blocks a second intent; N receipt does not clear N+1; retrying the same intent is one version.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g3-web-editors-design.md Section 7"
+    },
+    {
+      "id": "G3-A03",
+      "kind": "acceptance",
+      "scope": "G3",
+      "title": "Permission or account changes between open, upload, and commit",
+      "owner": "G3-10a",
+      "ownerTask": "G3-10a",
+      "host": "web",
+      "oracle": {
+        "type": "receipt",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-XLSX-EDIT",
+          "sha256": "2C2D3A09543A0AB83E4449F7224C0B81810C1071DBB87BBC59F398B12DCEF687",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Commit is rejected without changing the server; the draft stays scoped to the correct account and blocked content cannot export.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g3-web-editors-design.md Section 7"
+    },
+    {
+      "id": "G3-A04",
+      "kind": "acceptance",
+      "scope": "G3",
+      "title": "Logout/login B/restart/login A, quota, and a broken draft store",
+      "owner": "G3-10a",
+      "ownerTask": "G3-10a",
+      "host": "web",
+      "oracle": {
+        "type": "receipt",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-VI",
+          "sha256": "EEF496600861F7AEAD5FACAF43384AB72339C442FE2D1F3596E36DD6E52E0AB7",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Account B cannot see A payload; recovery uses live ACL/base; a broken store never reports saved.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g3-web-editors-design.md Section 7"
+    },
+    {
+      "id": "G3-A05",
+      "kind": "acceptance",
+      "scope": "G3",
+      "title": "PDF parse failure and embedded font",
+      "owner": "G3-10a",
+      "ownerTask": "G3-10a",
+      "host": "web",
+      "oracle": {
+        "type": "object/part",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-PDF-CORRUPT",
+          "sha256": "070D35DB701F6CCB5ED5E15DE2048FE4AD6F4F97CCC7BDFD8687AF362377B6AB",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-DOCX-EMBEDDED-FONT",
+          "sha256": "C1F95746288C43DBD12B3F8CB2047FE0D695A2B0CD23B48878223B645283CB83",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "A corrupt PDF must show a typed vi/en error rather than blank content or a false success.",
+        "A missing embedded font must not silently fall back while claiming the fidelity row is complete.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g3-web-editors-design.md Section 7"
+    },
+    {
+      "id": "G3-A06",
+      "kind": "acceptance",
+      "scope": "G3",
+      "title": "DOCX corrupt/password cancel and XLSB parse failure",
+      "owner": "G3-10a",
+      "ownerTask": "G3-10a",
+      "host": "web",
+      "oracle": {
+        "type": "object/part",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-PWD-STANDARD",
+          "sha256": "D265DCF02F7D552486229B8C67A627EF3752FE6802B02FD2D2D485FCFBBAC5DE",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-XLSX-BASIC",
+          "sha256": "E76CC7C4435F55FCA7882EE22C2B99FC36B310BA04CB0C5C769E4E8095633AD2",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-UNSUPPORTED-XLSB",
+          "sha256": "D5F30AC2616646F1EBEA2828BECEF2C8FEC3003D715D7D781D372042E523F06E",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Corrupt, cancelled, or unsupported input must not produce a blank/grid editor or cloud write.",
+        "A password cancel or parse failure must stay attached to the document and must not report saved.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g3-web-editors-design.md Section 7"
+    },
+    {
+      "id": "G3-A07",
+      "kind": "acceptance",
+      "scope": "G3",
+      "title": "Edit a PDF and save twice in one session",
+      "owner": "G3-10a",
+      "ownerTask": "G3-10a",
+      "host": "web",
+      "oracle": {
+        "type": "object/part",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-PDF-TEXT",
+          "sha256": "22E3B04F3AD92C22EDF1D3A0E02E30F3B778B1834B1022788272A8009F162FA9",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "The second save includes the first edit and never overwrites with stale state; output uses Documents.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g3-web-editors-design.md Section 7"
+    },
+    {
+      "id": "G3-A08",
+      "kind": "acceptance",
+      "scope": "G3",
+      "title": "HTML script/session probe, asset traversal, and account change",
+      "owner": "G3-10a",
+      "ownerTask": "G3-10a",
+      "host": "web",
+      "oracle": {
+        "type": "object/part",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-HTML-SCRIPT",
+          "sha256": "E78E4BC08227013D403CF9D03E3525722E3D55075D010BC3F9165929BEC834A2",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-HTML-ASSET",
+          "sha256": "36EA1FD51144387BFCA2BDE62B93BADB26B48963385427E6AE745F5B14844455",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Preview cannot read app session/API or assets outside the manifest/scope.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g3-web-editors-design.md Section 7"
+    },
+    {
+      "id": "G3-A09",
+      "kind": "acceptance",
+      "scope": "G3",
+      "title": "Q7 conversion cancel/accept and Work Product",
+      "owner": "G3-10a",
+      "ownerTask": "G3-10a",
+      "host": "web",
+      "oracle": {
+        "type": "receipt",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-LEGACY-XLS",
+          "sha256": "2B5EC8298BACFFDCA61C50F6F7607DA0A4E63CF76FA011C62F203E6A66BC072A",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-UNSUPPORTED-ODT",
+          "sha256": "98329F94C061579B9C9752E56CC202F7ADCD9E0802FBD4C07E68F1519B42D0E7",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Cancel creates nothing; accept records consent/provenance and preserves source/ACL; missing owner fails closed.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g3-web-editors-design.md Section 7"
+    },
+    {
+      "id": "G3-A10",
+      "kind": "acceptance",
+      "scope": "G3",
+      "title": "Read-only, unknown capability, and engine version mismatch",
+      "owner": "G3-10a",
+      "ownerTask": "G3-10a",
+      "host": "web",
+      "oracle": {
+        "type": "receipt",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Write is never possible beyond capability/permission; version mismatch has an actionable error and no silent downgrade.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g3-web-editors-design.md Section 7"
+    },
+    {
+      "id": "G3-A11",
+      "kind": "acceptance",
+      "scope": "G3",
+      "title": "Two themes, small layouts, keyboard/IME, and vi/en labels",
+      "owner": "G3-10a",
+      "ownerTask": "G3-10a",
+      "host": "web",
+      "oracle": {
+        "type": "render diff",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-VI",
+          "sha256": "EEF496600861F7AEAD5FACAF43384AB72339C442FE2D1F3596E36DD6E52E0AB7",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-DOCX-THEME",
+          "sha256": "22B33733A9CC84EE0CB3DD712F2963FC261DC118614E8E9692CA625688054A61",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "A theme change must not alter document bytes/content; a small viewport must not collapse the canvas to zero.",
+        "Missing contrast/focus or a locale label mismatch must not be hidden by a fallback language.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g3-web-editors-design.md Section 7"
+    },
+    {
+      "id": "G3-A12",
+      "kind": "acceptance",
+      "scope": "G3",
+      "title": "Fidelity and performance by fixture/build",
+      "owner": "G3-10a",
+      "ownerTask": "G3-10a",
+      "host": "web",
+      "oracle": {
+        "type": "render diff",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-FR-JUSTIFY",
+          "sha256": "1A5ED11335BA94C727D07400F47533A8451E74C5AC5F35B3678B6F1C19736038",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-XLSX-KITCHEN",
+          "sha256": "BF69B9DBC4F6B8FC485BAF6255494ED490EE6C53A3051CB4CE6F967F34FE4BC6",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-PPTX-UNICODE",
+          "sha256": "37913C2BC018BB0F2A07BADE39539891C958FE66AF3FA32EAA480099DB17A15F",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-PDF-TEXT",
+          "sha256": "22E3B04F3AD92C22EDF1D3A0E02E30F3B778B1834B1022788272A8009F162FA9",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-MD-FULL",
+          "sha256": "7CC9530F628B38BF70FD350F7DB0342091796C743205A63962541ABB3754F828",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-HTML-VI",
+          "sha256": "3582DABEDD59ADD0224CC85ADC86BDBE1FF7D356F1B4E1F82FA37FD8DD79BE81",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "A render or object/part mismatch must remain measured and blocked rather than called pass.",
+        "A lab timing or resource sample must not be presented as a product SLA until G3-D3 signs.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g3-web-editors-design.md Section 7"
+    },
+    {
+      "id": "G4-A01",
+      "kind": "acceptance",
+      "scope": "G4",
+      "title": "PKCE vectors, MFA, and valid callback",
+      "owner": "G4-08a",
+      "ownerTask": "G4-08a",
+      "host": "desktop",
+      "oracle": {
+        "type": "receipt",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-SIMPLE",
+          "sha256": "640B513E1F7FDCE3CE7FBB18A123B5486541B7425CCBC02FB4859DE97BFF8D85",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Wrong-account or malformed PKCE data must not activate a session.",
+        "Refresh credentials must not reach the renderer or fall back to plaintext storage.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G4-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g4-desktop-design.md Section 9"
+    },
+    {
+      "id": "G4-A02",
+      "kind": "acceptance",
+      "scope": "G4",
+      "title": "Fake/replayed callback, wrong state/redirect/deployment, and TTL",
+      "owner": "G4-08a",
+      "ownerTask": "G4-08a",
+      "host": "desktop",
+      "oracle": {
+        "type": "receipt",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-SIMPLE",
+          "sha256": "640B513E1F7FDCE3CE7FBB18A123B5486541B7425CCBC02FB4859DE97BFF8D85",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Every invalid callback is rejected before activation with no account swap or near-miss URI.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G4-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g4-desktop-design.md Section 9"
+    },
+    {
+      "id": "G4-A03",
+      "kind": "acceptance",
+      "scope": "G4",
+      "title": "Refresh race, locked store, refresh reuse, and device revoke",
+      "owner": "G4-08a",
+      "ownerTask": "G4-08a",
+      "host": "desktop",
+      "oracle": {
+        "type": "receipt",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-SIMPLE",
+          "sha256": "640B513E1F7FDCE3CE7FBB18A123B5486541B7425CCBC02FB4859DE97BFF8D85",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Exactly one refresh wins; no plaintext fallback; revoked access is rejected on the next request.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G4-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g4-desktop-design.md Section 9"
+    },
+    {
+      "id": "G4-A04",
+      "kind": "acceptance",
+      "scope": "G4",
+      "title": "Deep-link cold/warm start, upstream coexistence, and copied ticket",
+      "owner": "G4-08a",
+      "ownerTask": "G4-08a",
+      "host": "desktop",
+      "oracle": {
+        "type": "receipt",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-SIMPLE",
+          "sha256": "640B513E1F7FDCE3CE7FBB18A123B5486541B7425CCBC02FB4859DE97BFF8D85",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Correct app/account opens without pre-auth metadata leakage; a ticket cannot grant permissions.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G4-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g4-desktop-design.md Section 9"
+    },
+    {
+      "id": "G4-A05",
+      "kind": "acceptance",
+      "scope": "G4",
+      "title": "Six-format open/edit/save/fresh reopen",
+      "owner": "G4-08a",
+      "ownerTask": "G4-08a",
+      "host": "desktop",
+      "oracle": {
+        "type": "receipt",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-XLSX-VI",
+          "sha256": "940CDB88AB3738A2662422582E44FFABDE72E1BEAC7909AD16E09C5867D83F56",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-PPTX-STD",
+          "sha256": "FADDC03270215218E78720F1C8F6E3AA862891A432F71E7EC9F3D13EA7902048",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-PDF-TEXT",
+          "sha256": "22E3B04F3AD92C22EDF1D3A0E02E30F3B778B1834B1022788272A8009F162FA9",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-MD-VI",
+          "sha256": "F3678CA09470FEEEDE2439DB676F398E51EE1CF598BCA759F519E0D2D75B869E",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-HTML-VI",
+          "sha256": "3582DABEDD59ADD0224CC85ADC86BDBE1FF7D356F1B4E1F82FA37FD8DD79BE81",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "A missing format, stale checksum, or failed fresh reopen must not be called accepted.",
+        "A desktop run must not use a fake/browser-only harness or an external engine provider.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G4-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g4-desktop-design.md Section 9"
+    },
+    {
+      "id": "G4-A06",
+      "kind": "acceptance",
+      "scope": "G4",
+      "title": "Desktop Save matrix: idle, tabs, reconnect, N+1, retry, response loss, and key mismatch",
+      "owner": "G4-08a",
+      "ownerTask": "G4-08a",
+      "host": "desktop",
+      "oracle": {
+        "type": "receipt",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Only explicit Save writes cloud/local target; Save N blocks; same intent is idempotent; N+1 is retained.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G4-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g4-desktop-design.md Section 9"
+    },
+    {
+      "id": "G4-A07",
+      "kind": "acceptance",
+      "scope": "G4",
+      "title": "Two devices edit the same base",
+      "owner": "G4-08a",
+      "ownerTask": "G4-08a",
+      "host": "desktop",
+      "oracle": {
+        "type": "receipt",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-XLSX-EDIT",
+          "sha256": "2C2D3A09543A0AB83E4449F7224C0B81810C1071DBB87BBC59F398B12DCEF687",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "409 conflict preserves both versions with no overwrite or duplicate.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G4-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g4-desktop-design.md Section 9"
+    },
+    {
+      "id": "G4-A08",
+      "kind": "acceptance",
+      "scope": "G4",
+      "title": "Revoke after download/upload and before commit",
+      "owner": "G4-08a",
+      "ownerTask": "G4-08a",
+      "host": "desktop",
+      "oracle": {
+        "type": "receipt",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Version does not change and a blocked draft has no export path.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G4-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g4-desktop-design.md Section 9"
+    },
+    {
+      "id": "G4-A09",
+      "kind": "acceptance",
+      "scope": "G4",
+      "title": "Tenant/account switch and a late callback/job",
+      "owner": "G4-08a",
+      "ownerTask": "G4-08a",
+      "host": "desktop",
+      "oracle": {
+        "type": "receipt",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-VI",
+          "sha256": "EEF496600861F7AEAD5FACAF43384AB72339C442FE2D1F3596E36DD6E52E0AB7",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "No metadata, payload, or receipt crosses scopes; query/editor plaintext is reset.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G4-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g4-desktop-design.md Section 9"
+    },
+    {
+      "id": "G4-A10",
+      "kind": "acceptance",
+      "scope": "G4",
+      "title": "Logout/restart/login A/B and wrong-key/IO/disk-full recovery",
+      "owner": "G4-08a",
+      "ownerTask": "G4-08a",
+      "host": "desktop",
+      "oracle": {
+        "type": "receipt",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-VI",
+          "sha256": "EEF496600861F7AEAD5FACAF43384AB72339C442FE2D1F3596E36DD6E52E0AB7",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Wrong-key, IO, or disk-full recovery must not overwrite original bytes or claim a saved draft.",
+        "Account B must not recover A payload; recovery must enforce live ACL/base.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G4-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g4-desktop-design.md Section 9"
+    },
+    {
+      "id": "G4-A11",
+      "kind": "acceptance",
+      "scope": "G4",
+      "title": "Local Save As, external modification, and failed cloud import",
+      "owner": "G4-08a",
+      "ownerTask": "G4-08a",
+      "host": "desktop",
+      "oracle": {
+        "type": "object/part",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-MD-VI",
+          "sha256": "F3678CA09470FEEEDE2439DB676F398E51EE1CF598BCA759F519E0D2D75B869E",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Local copy is not lost or overwritten; only a new receipt creates cloud binding.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G4-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g4-desktop-design.md Section 9"
+    },
+    {
+      "id": "G4-A12",
+      "kind": "acceptance",
+      "scope": "G4",
+      "title": "HTML session/API/local-file/IPC probes and asset traversal",
+      "owner": "G4-08a",
+      "ownerTask": "G4-08a",
+      "host": "desktop",
+      "oracle": {
+        "type": "object/part",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-HTML-SCRIPT",
+          "sha256": "E78E4BC08227013D403CF9D03E3525722E3D55075D010BC3F9165929BEC834A2",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-HTML-ASSET",
+          "sha256": "36EA1FD51144387BFCA2BDE62B93BADB26B48963385427E6AE745F5B14844455",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Preview stays within sandbox and manifest and has no privileged host access.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G4-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g4-desktop-design.md Section 9"
+    },
+    {
+      "id": "G4-A13",
+      "kind": "acceptance",
+      "scope": "G4",
+      "title": "Native IPC misuse, renderer crash, and cancel/complete race",
+      "owner": "G4-08a",
+      "ownerTask": "G4-08a",
+      "host": "desktop",
+      "oracle": {
+        "type": "receipt",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-SIMPLE",
+          "sha256": "640B513E1F7FDCE3CE7FBB18A123B5486541B7425CCBC02FB4859DE97BFF8D85",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or unauthorized IPC must be rejected without a document mutation.",
+        "A crash or cancel/complete race must not lose the draft or resolve the outcome twice.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G4-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g4-desktop-design.md Section 9"
+    },
+    {
+      "id": "G4-A14",
+      "kind": "acceptance",
+      "scope": "G4",
+      "title": "Install/upgrade/rollback with dirty draft and upstream coexistence",
+      "owner": "G4-08a",
+      "ownerTask": "G4-08a",
+      "host": "desktop",
+      "oracle": {
+        "type": "receipt",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-LARGE-DOCX",
+          "sha256": null,
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "A namespace, signature/feed, or engine compatibility mismatch must stop the update safely.",
+        "Upgrade, rollback, or uninstall must not silently delete a dirty draft or share upstream state.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G4-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g4-desktop-design.md Section 9"
+    },
+    {
+      "id": "G4-A15",
+      "kind": "acceptance",
+      "scope": "G4",
+      "title": "Q7 conversion cancel/accept and owning Document",
+      "owner": "G4-08a",
+      "ownerTask": "G4-08a",
+      "host": "desktop",
+      "oracle": {
+        "type": "receipt",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-LEGACY-XLS",
+          "sha256": "2B5EC8298BACFFDCA61C50F6F7607DA0A4E63CF76FA011C62F203E6A66BC072A",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-UNSUPPORTED-ODT",
+          "sha256": "98329F94C061579B9C9752E56CC202F7ADCD9E0802FBD4C07E68F1519B42D0E7",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Source is unchanged; consent/provenance/ACL are correct; no free Document appears without an owner path.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G4-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g4-desktop-design.md Section 9"
+    },
+    {
+      "id": "G4-A16",
+      "kind": "acceptance",
+      "scope": "G4",
+      "title": "vi/en, keyboard, native menu, theme, and OS matrix",
+      "owner": "G4-08a",
+      "ownerTask": "G4-08a",
+      "host": "desktop",
+      "oracle": {
+        "type": "render diff",
+        "assertion": "The acceptance condition in the referenced G3/G4 specification must be recorded with an artifact before any status can change."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-VI",
+          "sha256": "EEF496600861F7AEAD5FACAF43384AB72339C442FE2D1F3596E36DD6E52E0AB7",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "A locale, keyboard, or native-menu divergence from G3 must not be hidden by a host-specific fallback.",
+        "Theme or unsupported OS/arch must not alter file content or be reported as platform coverage.",
+        "Malformed response, stale callback, or incompatible engine must not report the wrong document as saved."
+      ],
+      "reviewer": "pending G4-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/specs/2026-09-27-office-g4-desktop-design.md Section 9"
+    },
+    {
+      "id": "CAP-docx-open",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "docx-open",
+      "family": "docx",
+      "format": "docx",
+      "operation": "open in editor",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-04 / G4-06",
+      "ownerTask": "G3-04 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "open in editor: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-SIMPLE",
+          "sha256": "640B513E1F7FDCE3CE7FBB18A123B5486541B7425CCBC02FB4859DE97BFF8D85",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-DOCX-VI",
+          "sha256": "EEF496600861F7AEAD5FACAF43384AB72339C442FE2D1F3596E36DD6E52E0AB7",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-LARGE-DOCX",
+          "sha256": null,
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-DOCX-EXPANSION",
+          "sha256": "3CC4DF2C6B7B2763F32549662E6DB8BCB5AA4A51E89DC6168E943BBA96AF28E0",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-DOCX-DEEP-NEST",
+          "sha256": "330FFD61178C67FAE0363DC7F2E2E1BF484CEB879B181F956976D539F80340AC",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-04 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-docx-edit-text",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "docx-edit-text",
+      "family": "docx",
+      "format": "docx",
+      "operation": "edit text",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-04 / G4-06",
+      "ownerTask": "G3-04 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "edit text: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-DOCX-VI",
+          "sha256": "EEF496600861F7AEAD5FACAF43384AB72339C442FE2D1F3596E36DD6E52E0AB7",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-04 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-docx-edit-table-image",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "docx-edit-table-image",
+      "family": "docx",
+      "format": "docx",
+      "operation": "edit table and image",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-04 / G4-06",
+      "ownerTask": "G3-04 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "edit table and image: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-TABLE-IMG",
+          "sha256": "A3C8BADFA6ECF153039E0F2ED3B333C17EE06BE5706099BE3AD0FFD9BBC33F0D",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-DOCX-LONGTABLE",
+          "sha256": "D16461F4026EFBF2F9C904DCDFE2FA289466718FC04621FCD816531E5FC79DE6",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-04 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-docx-save-docx",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "docx-save-docx",
+      "family": "docx",
+      "format": "docx",
+      "operation": "save docx",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-04 / G4-06",
+      "ownerTask": "G3-04 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "save docx: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-DOCX-TABLE-IMG",
+          "sha256": "A3C8BADFA6ECF153039E0F2ED3B333C17EE06BE5706099BE3AD0FFD9BBC33F0D",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-DOCX-THEME",
+          "sha256": "22B33733A9CC84EE0CB3DD712F2963FC261DC118614E8E9692CA625688054A61",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-04 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-docx-export-pdf",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "docx-export-pdf",
+      "family": "docx",
+      "format": "docx",
+      "operation": "export to pdf",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-04 / G4-06",
+      "ownerTask": "G3-04 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "extraction",
+        "assertion": "export to pdf: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-DOCX-FR-JUSTIFY",
+          "sha256": "1A5ED11335BA94C727D07400F47533A8451E74C5AC5F35B3678B6F1C19736038",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document."
+      ],
+      "baselineState": "not_bound",
+      "baselineProviderOwner": "G2-07",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-docx-create-blank",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "docx-create-blank",
+      "family": "docx",
+      "format": "docx",
+      "operation": "create blank document",
+      "tags": [],
+      "owner": "G3-04 / G4-06",
+      "ownerTask": "G3-04 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "create blank document: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-EMPTY",
+          "sha256": "C40276FA662645EA988FA246AF30F50B2A0991109576547D9B9A0DC884A34660",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-04 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-docx-convert-to-md",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "docx-convert-to-md",
+      "family": "docx",
+      "format": "docx",
+      "operation": "convert docx to md",
+      "tags": [],
+      "owner": "G3-04 / G4-06",
+      "ownerTask": "G3-04 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "extraction",
+        "assertion": "convert docx to md: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document."
+      ],
+      "baselineState": "not_bound",
+      "baselineProviderOwner": "G2-07",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 8",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-docx-content-headings-lists",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "docx-content-headings-lists",
+      "family": "docx",
+      "format": "docx",
+      "operation": "content: headings and list numbering",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-04 / G4-06",
+      "ownerTask": "G3-04 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "content: headings and list numbering: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-DOCX-NUMBERED-LIST",
+          "sha256": "7C2E2AA8532289F72D222A352238D9F543C6F90538301D3E45F744DCA7E0196A",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-DOCX-VI",
+          "sha256": "EEF496600861F7AEAD5FACAF43384AB72339C442FE2D1F3596E36DD6E52E0AB7",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-04 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-docx-content-footnotes",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "docx-content-footnotes",
+      "family": "docx",
+      "format": "docx",
+      "operation": "content: footnotes and endnotes",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-04 / G4-06",
+      "ownerTask": "G3-04 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "content: footnotes and endnotes: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-FOOTNOTES",
+          "sha256": "DCDAFB1A9348015613D53492714F827F2CD16BCD5392F8FCF0C1B31A738CD864",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-DOCX-VI",
+          "sha256": "EEF496600861F7AEAD5FACAF43384AB72339C442FE2D1F3596E36DD6E52E0AB7",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-04 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-docx-content-comments-revisions",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "docx-content-comments-revisions",
+      "family": "docx",
+      "format": "docx",
+      "operation": "content: comments and tracked changes",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-04 / G4-06",
+      "ownerTask": "G3-04 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "content: comments and tracked changes: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-REVISIONS",
+          "sha256": "2744D7F03B06493DC70A34EC69E9B1D015098B2E6C75E853FBBE62EC6DAE12C2",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-04 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-docx-content-equations",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "docx-content-equations",
+      "family": "docx",
+      "format": "docx",
+      "operation": "content: equations (OMML)",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-04 / G4-06",
+      "ownerTask": "G3-04 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "content: equations (OMML): compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-EQUATION",
+          "sha256": "3E5128D08372E1BADC3D2F4E89CDA7E3FCE40B37A6D4E9A24587BEA19C49AB06",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-04 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-docx-content-fields-toc",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "docx-content-fields-toc",
+      "family": "docx",
+      "format": "docx",
+      "operation": "content: fields and table of contents",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-04 / G4-06",
+      "ownerTask": "G3-04 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "content: fields and table of contents: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-TOC",
+          "sha256": "0EE1F665DCA7101A876A99AC47BED283277F21E864214C750687F9C192343378",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-04 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-docx-content-charts",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "docx-content-charts",
+      "family": "docx",
+      "format": "docx",
+      "operation": "content: charts",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-04 / G4-06",
+      "ownerTask": "G3-04 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "content: charts: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-CHART",
+          "sha256": "CA08FC5E6D940E3F2F163F35C00670DB132F2B4BA31529A5D162947509733A3A",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-04 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-docx-content-watermark",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "docx-content-watermark",
+      "family": "docx",
+      "format": "docx",
+      "operation": "content: watermark",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-04 / G4-06",
+      "ownerTask": "G3-04 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "content: watermark: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-WATERMARK",
+          "sha256": "C877C44680DED6964D7FD86CE6339AC7BA2FC099F1164E2C64A22A550E22FBE4",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-04 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-docx-content-sections-columns",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "docx-content-sections-columns",
+      "family": "docx",
+      "format": "docx",
+      "operation": "content: sections, columns and page colour",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-04 / G4-06",
+      "ownerTask": "G3-04 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "content: sections, columns and page colour: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-2COL",
+          "sha256": "DAAFEF71923CE2FF2710759B9CEE7DBC97E11499E5368DEA8E874645F0145C54",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-DOCX-THEME",
+          "sha256": "22B33733A9CC84EE0CB3DD712F2963FC261DC118614E8E9692CA625688054A61",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-04 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-docx-content-drawing-anchors",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "docx-content-drawing-anchors",
+      "family": "docx",
+      "format": "docx",
+      "operation": "content: float (captioned table); inline and page-anchor exist upstream but are not yet cased",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-04 / G4-06",
+      "ownerTask": "G3-04 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "content: float (captioned table); inline and page-anchor exist upstream but are not yet cased: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-CAPTABLE-FLOAT",
+          "sha256": "9252D1D6990A6A017540980882FFAE49BD476335040E46831E9E6766EDF8D6B6",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-04 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-docx-content-embedded-fonts",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "docx-content-embedded-fonts",
+      "family": "docx",
+      "format": "docx",
+      "operation": "content: embedded fonts",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-04 / G4-06",
+      "ownerTask": "G3-04 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "content: embedded fonts: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-EMBEDDED-FONT",
+          "sha256": "C1F95746288C43DBD12B3F8CB2047FE0D695A2B0CD23B48878223B645283CB83",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-04 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-docx-protection",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "docx-protection",
+      "family": "docx",
+      "format": "docx",
+      "operation": "edit protection with password",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-04 / G4-06",
+      "ownerTask": "G3-04 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "edit protection with password: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-PROTECTED",
+          "sha256": "4D693671597CDFF7EE3FD2F7F3CA55A48A0D574D851648E4D38F71216FBF9006",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Wrong password and cancel must stay in open-error with no partial content and no Save intent.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-04 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-docx-encrypted-open",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "docx-encrypted-open",
+      "family": "docx",
+      "format": "docx",
+      "operation": "open password-encrypted docx",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-04 / G4-06",
+      "ownerTask": "G3-04 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "open password-encrypted docx: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-PWD-STANDARD",
+          "sha256": "D265DCF02F7D552486229B8C67A627EF3752FE6802B02FD2D2D485FCFBBAC5DE",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-DOCX-PWD-AGILE",
+          "sha256": "0605624697328060FDC75CA9929EA20B9D63EBED9387FF1A97AAF9979757234A",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-DOCX-PWD-AGILE-PLAIN",
+          "sha256": "8C8212DB6E624BFC69286E94D09B7E68C753EE86B6826E51427A33C841F133D1",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Wrong password and cancel must stay in open-error with no partial content and no Save intent.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-04 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-docx-pagination-fidelity",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "docx-pagination-fidelity",
+      "family": "docx",
+      "format": "docx",
+      "operation": "pagination and layout fidelity",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-04 / G4-06",
+      "ownerTask": "G3-04 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "render diff",
+        "assertion": "pagination and layout fidelity: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-FR-JUSTIFY",
+          "sha256": "1A5ED11335BA94C727D07400F47533A8451E74C5AC5F35B3678B6F1C19736038",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-DOCX-LONGTABLE",
+          "sha256": "D16461F4026EFBF2F9C904DCDFE2FA289466718FC04621FCD816531E5FC79DE6",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-LARGE-DOCX",
+          "sha256": null,
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-DOCX-2COL",
+          "sha256": "DAAFEF71923CE2FF2710759B9CEE7DBC97E11499E5368DEA8E874645F0145C54",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Missing fonts, changed viewport, or a render mismatch must remain measured/blocked; it must not be called pass by fallback."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-04 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-xlsx-open",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "xlsx-open",
+      "family": "xlsx",
+      "format": "xlsx, xlsm, xls, csv",
+      "operation": "open in editor",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-05 / G4-06",
+      "ownerTask": "G3-05 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "open in editor: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-XLSX-BASIC",
+          "sha256": "E76CC7C4435F55FCA7882EE22C2B99FC36B310BA04CB0C5C769E4E8095633AD2",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-XLSX-KITCHEN",
+          "sha256": "BF69B9DBC4F6B8FC485BAF6255494ED490EE6C53A3051CB4CE6F967F34FE4BC6",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-XLSX-VI",
+          "sha256": "940CDB88AB3738A2662422582E44FFABDE72E1BEAC7909AD16E09C5867D83F56",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-LARGE-XLSX",
+          "sha256": null,
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-05 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-xlsx-edit-cells",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "xlsx-edit-cells",
+      "family": "xlsx",
+      "format": "xlsx",
+      "operation": "edit cells",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-05 / G4-06",
+      "ownerTask": "G3-05 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "edit cells: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-XLSX-EDIT",
+          "sha256": "2C2D3A09543A0AB83E4449F7224C0B81810C1071DBB87BBC59F398B12DCEF687",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-XLSX-VI",
+          "sha256": "940CDB88AB3738A2662422582E44FFABDE72E1BEAC7909AD16E09C5867D83F56",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-LARGE-XLSX",
+          "sha256": null,
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-XLSX-KITCHEN",
+          "sha256": "BF69B9DBC4F6B8FC485BAF6255494ED490EE6C53A3051CB4CE6F967F34FE4BC6",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-XLSX-SHEETS",
+          "sha256": "8ACC6D23D924ED8CD3AD97FC73DD7A374400A113F7A1A65A3FCA2015EDE0AE17",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-05 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-xlsx-save",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "xlsx-save",
+      "family": "xlsx",
+      "format": "xlsx, xlsm, csv",
+      "operation": "save",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-05 / G4-06",
+      "ownerTask": "G3-05 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "save: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-XLSX-EDIT",
+          "sha256": "2C2D3A09543A0AB83E4449F7224C0B81810C1071DBB87BBC59F398B12DCEF687",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-XLSX-STRUCT",
+          "sha256": "BBDE82788120B694540C330924D30C723F0BE22B86FABE25483774E958CA69E9",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-05 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-xlsx-recalculate",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "xlsx-recalculate",
+      "family": "xlsx",
+      "format": "xlsx, xlsm",
+      "operation": "recalculate formulas",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-05 / G4-06",
+      "ownerTask": "G3-05 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "recalculate formulas: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-XLSX-VI",
+          "sha256": "940CDB88AB3738A2662422582E44FFABDE72E1BEAC7909AD16E09C5867D83F56",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-XLSX-BASIC",
+          "sha256": "E76CC7C4435F55FCA7882EE22C2B99FC36B310BA04CB0C5C769E4E8095633AD2",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-05 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-xlsx-cross-sheet-formulas",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "xlsx-cross-sheet-formulas",
+      "family": "xlsx",
+      "format": "xlsx",
+      "operation": "cross-sheet and defined-name formulas",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-05 / G4-06",
+      "ownerTask": "G3-05 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "cross-sheet and defined-name formulas: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-XLSX-VI",
+          "sha256": "940CDB88AB3738A2662422582E44FFABDE72E1BEAC7909AD16E09C5867D83F56",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-XLSX-SHEETS",
+          "sha256": "8ACC6D23D924ED8CD3AD97FC73DD7A374400A113F7A1A65A3FCA2015EDE0AE17",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-05 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-xlsx-charts",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "xlsx-charts",
+      "family": "xlsx",
+      "format": "xlsx",
+      "operation": "charts",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-05 / G4-06",
+      "ownerTask": "G3-05 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "charts: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-XLSX-CHART",
+          "sha256": "BA50DCAB1FE11949556523E2E76B706515C00862A80A3E07858D77CEC6B4956A",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-XLSX-VI",
+          "sha256": "940CDB88AB3738A2662422582E44FFABDE72E1BEAC7909AD16E09C5867D83F56",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-XLSX-KITCHEN",
+          "sha256": "BF69B9DBC4F6B8FC485BAF6255494ED490EE6C53A3051CB4CE6F967F34FE4BC6",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-05 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-xlsx-conditional-formatting",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "xlsx-conditional-formatting",
+      "family": "xlsx",
+      "format": "xlsx",
+      "operation": "conditional formatting",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-05 / G4-06",
+      "ownerTask": "G3-05 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "conditional formatting: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-XLSX-STRUCT",
+          "sha256": "BBDE82788120B694540C330924D30C723F0BE22B86FABE25483774E958CA69E9",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-XLSX-KITCHEN",
+          "sha256": "BF69B9DBC4F6B8FC485BAF6255494ED490EE6C53A3051CB4CE6F967F34FE4BC6",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-05 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-xlsx-data-validation",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "xlsx-data-validation",
+      "family": "xlsx",
+      "format": "xlsx",
+      "operation": "data validation",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-05 / G4-06",
+      "ownerTask": "G3-05 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "data validation: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-XLSX-STRUCT",
+          "sha256": "BBDE82788120B694540C330924D30C723F0BE22B86FABE25483774E958CA69E9",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-XLSX-KITCHEN",
+          "sha256": "BF69B9DBC4F6B8FC485BAF6255494ED490EE6C53A3051CB4CE6F967F34FE4BC6",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-05 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-xlsx-pivot",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "xlsx-pivot",
+      "family": "xlsx",
+      "format": "xlsx",
+      "operation": "pivot tables",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-05 / G4-06",
+      "ownerTask": "G3-05 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "pivot tables: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-XLSX-PIVOT",
+          "sha256": "2F3ECD3D82567D4AFC4E392194FED06A4B634B5C4DE483B950F3ED5AC6DF1C82",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-05 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-xlsx-protection",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "xlsx-protection",
+      "family": "xlsx",
+      "format": "xlsx",
+      "operation": "sheet and range protection",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-05 / G4-06",
+      "ownerTask": "G3-05 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "sheet and range protection: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-XLSX-PROTECTED",
+          "sha256": "6AC87F1DF7AF916E4F0CED0A153F7A0A36A6EE4C5EDDA62BDB9CFF946E00643E",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-05 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-xlsx-export-pdf",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "xlsx-export-pdf",
+      "family": "xlsx",
+      "format": "xlsx, xlsm",
+      "operation": "export to pdf",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-05 / G4-06",
+      "ownerTask": "G3-05 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "extraction",
+        "assertion": "export to pdf: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-XLSX-BASIC",
+          "sha256": "E76CC7C4435F55FCA7882EE22C2B99FC36B310BA04CB0C5C769E4E8095633AD2",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-LARGE-XLSX",
+          "sha256": null,
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document."
+      ],
+      "baselineState": "not_bound",
+      "baselineProviderOwner": "G2-07",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-xlsx-macro-preserve-not-execute",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "xlsx-macro-preserve-not-execute",
+      "family": "xlsx",
+      "format": "xlsm",
+      "operation": "preserve macros without executing them",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-05 / G4-06",
+      "ownerTask": "G3-05 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "preserve macros without executing them: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-XLSX-MACRO",
+          "sha256": "EBC669740482A78B4B1E97276560CF21679DFA8967BC6B832B9C7E9F337D7EAA",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-05 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-xlsx-native-sidecar-build",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "xlsx-native-sidecar-build",
+      "family": "xlsx",
+      "format": "n/a",
+      "operation": "build the Rust recalculation sidecar",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-05 / G4-06",
+      "ownerTask": "G3-05 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "build the Rust recalculation sidecar: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-XLSX-BASIC",
+          "sha256": "E76CC7C4435F55FCA7882EE22C2B99FC36B310BA04CB0C5C769E4E8095633AD2",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-05 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-pptx-open",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "pptx-open",
+      "family": "pptx",
+      "format": "pptx",
+      "operation": "open in editor",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-06 / G4-06",
+      "ownerTask": "G3-06 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "open in editor: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-PPTX-STD",
+          "sha256": "FADDC03270215218E78720F1C8F6E3AA862891A432F71E7EC9F3D13EA7902048",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-PPTX-UNICODE",
+          "sha256": "37913C2BC018BB0F2A07BADE39539891C958FE66AF3FA32EAA480099DB17A15F",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-06 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-pptx-edit-text",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "pptx-edit-text",
+      "family": "pptx",
+      "format": "pptx",
+      "operation": "edit text",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-06 / G4-06",
+      "ownerTask": "G3-06 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "edit text: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-PPTX-STD",
+          "sha256": "FADDC03270215218E78720F1C8F6E3AA862891A432F71E7EC9F3D13EA7902048",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-PPTX-VI",
+          "sha256": "755BE7AE0F3BA1A1E22076F0731BF1E57FE73EC8E42E083C8B6228FBD5961223",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-06 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-pptx-edit-shape-image",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "pptx-edit-shape-image",
+      "family": "pptx",
+      "format": "pptx",
+      "operation": "edit shapes and images",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-06 / G4-06",
+      "ownerTask": "G3-06 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "edit shapes and images: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-PPTX-VI",
+          "sha256": "755BE7AE0F3BA1A1E22076F0731BF1E57FE73EC8E42E083C8B6228FBD5961223",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-06 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-pptx-save",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "pptx-save",
+      "family": "pptx",
+      "format": "pptx",
+      "operation": "save",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-06 / G4-06",
+      "ownerTask": "G3-06 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "save: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-PPTX-STD",
+          "sha256": "FADDC03270215218E78720F1C8F6E3AA862891A432F71E7EC9F3D13EA7902048",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-PPTX-VI",
+          "sha256": "755BE7AE0F3BA1A1E22076F0731BF1E57FE73EC8E42E083C8B6228FBD5961223",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-06 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-pptx-export-pdf",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "pptx-export-pdf",
+      "family": "pptx",
+      "format": "pptx",
+      "operation": "export to pdf",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-06 / G4-06",
+      "ownerTask": "G3-06 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "extraction",
+        "assertion": "export to pdf: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-PPTX-STD",
+          "sha256": "FADDC03270215218E78720F1C8F6E3AA862891A432F71E7EC9F3D13EA7902048",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document."
+      ],
+      "baselineState": "not_bound",
+      "baselineProviderOwner": "G2-07",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-pptx-notes",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "pptx-notes",
+      "family": "pptx",
+      "format": "pptx",
+      "operation": "speaker notes",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-06 / G4-06",
+      "ownerTask": "G3-06 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "speaker notes: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-PPTX-NOTES",
+          "sha256": "2D417DD379209D6035A678E1C606F161F08FDA6DA6F0C0EBD96F956A7896F7AB",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-06 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-pptx-masters-layouts",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "pptx-masters-layouts",
+      "family": "pptx",
+      "format": "pptx",
+      "operation": "masters and layouts",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-06 / G4-06",
+      "ownerTask": "G3-06 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "render diff",
+        "assertion": "masters and layouts: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-PPTX-STD",
+          "sha256": "FADDC03270215218E78720F1C8F6E3AA862891A432F71E7EC9F3D13EA7902048",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-06 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-pptx-animations",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "pptx-animations",
+      "family": "pptx",
+      "format": "pptx",
+      "operation": "animations and transitions",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-06 / G4-06",
+      "ownerTask": "G3-06 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "animations and transitions: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-PPTX-ANIM",
+          "sha256": "E1E7CC4B23F8B3D3AB79C7FCC63375FB3714104EE8D888C196BEFAAA97B28FFF",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-06 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-pptx-charts",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "pptx-charts",
+      "family": "pptx",
+      "format": "pptx",
+      "operation": "charts",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-06 / G4-06",
+      "ownerTask": "G3-06 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "charts: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-PPTX-CHART",
+          "sha256": "D942B8307E42F1A5CE8AD7B4BBE9C56AADBCC73C9F370D33C111DA25B0C515EA",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-06 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-pptx-tables",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "pptx-tables",
+      "family": "pptx",
+      "format": "pptx",
+      "operation": "tables",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-06 / G4-06",
+      "ownerTask": "G3-06 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "tables: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-PPTX-TABLE",
+          "sha256": "01A5471555F0519E084AF2B870FE0F0418BBE41510514345DD76ABC295CE2C22",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-06 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-pptx-embedded-fonts",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "pptx-embedded-fonts",
+      "family": "pptx",
+      "format": "pptx",
+      "operation": "embedded fonts",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-06 / G4-06",
+      "ownerTask": "G3-06 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "embedded fonts: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-PPTX-EMBEDDED-FONT",
+          "sha256": "F718635327C902B439C8717AE0A08F8C6516F8294BD74327BA4415CBCEB3C71F",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-06 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-pptx-render-fidelity",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "pptx-render-fidelity",
+      "family": "pptx",
+      "format": "pptx",
+      "operation": "render tree and text shaping fidelity",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-06 / G4-06",
+      "ownerTask": "G3-06 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "render diff",
+        "assertion": "render tree and text shaping fidelity: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-PPTX-UNICODE",
+          "sha256": "37913C2BC018BB0F2A07BADE39539891C958FE66AF3FA32EAA480099DB17A15F",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-PPTX-VI",
+          "sha256": "755BE7AE0F3BA1A1E22076F0731BF1E57FE73EC8E42E083C8B6228FBD5961223",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Missing fonts, changed viewport, or a render mismatch must remain measured/blocked; it must not be called pass by fallback."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-06 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-pdf-open-view",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "pdf-open-view",
+      "family": "pdf",
+      "format": "pdf",
+      "operation": "open and view",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-07 / G4-06",
+      "ownerTask": "G3-07 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "open and view: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-PDF-TEXT",
+          "sha256": "22E3B04F3AD92C22EDF1D3A0E02E30F3B778B1834B1022788272A8009F162FA9",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-PDF-CORRUPT",
+          "sha256": "070D35DB701F6CCB5ED5E15DE2048FE4AD6F4F97CCC7BDFD8687AF362377B6AB",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-07 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-pdf-edit-text-in-place",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "pdf-edit-text-in-place",
+      "family": "pdf",
+      "format": "pdf",
+      "operation": "edit existing text in the content stream",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-07 / G4-06",
+      "ownerTask": "G3-07 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "edit existing text in the content stream: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-PDF-TEXT",
+          "sha256": "22E3B04F3AD92C22EDF1D3A0E02E30F3B778B1834B1022788272A8009F162FA9",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-07 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-pdf-edit-image",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "pdf-edit-image",
+      "family": "pdf",
+      "format": "pdf",
+      "operation": "edit and replace images",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-07 / G4-06",
+      "ownerTask": "G3-07 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "edit and replace images: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-PDF-IMAGE",
+          "sha256": "A4A34DA5447E4529469D3C6A6D79F72507AAB5C77FA46502501C4320E75913AF",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-07 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-pdf-save",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "pdf-save",
+      "family": "pdf",
+      "format": "pdf",
+      "operation": "save",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-07 / G4-06",
+      "ownerTask": "G3-07 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "save: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-PDF-TEXT",
+          "sha256": "22E3B04F3AD92C22EDF1D3A0E02E30F3B778B1834B1022788272A8009F162FA9",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-07 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-pdf-export-docx",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "pdf-export-docx",
+      "family": "pdf",
+      "format": "pdf",
+      "operation": "convert to docx",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-07 / G4-06",
+      "ownerTask": "G3-07 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "extraction",
+        "assertion": "convert to docx: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-PDF-TEXT",
+          "sha256": "22E3B04F3AD92C22EDF1D3A0E02E30F3B778B1834B1022788272A8009F162FA9",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document."
+      ],
+      "baselineState": "not_bound",
+      "baselineProviderOwner": "G2-07",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 8",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-pdf-annotations-stamps",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "pdf-annotations-stamps",
+      "family": "pdf",
+      "format": "pdf",
+      "operation": "annotations, stamps and ink",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-07 / G4-06",
+      "ownerTask": "G3-07 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "annotations, stamps and ink: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-PDF-TEXT",
+          "sha256": "22E3B04F3AD92C22EDF1D3A0E02E30F3B778B1834B1022788272A8009F162FA9",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-07 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-pdf-page-ops",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "pdf-page-ops",
+      "family": "pdf",
+      "format": "pdf",
+      "operation": "page operations (insert, delete, rotate, reorder, extract, merge)",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-07 / G4-06",
+      "ownerTask": "G3-07 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "extraction",
+        "assertion": "page operations (insert, delete, rotate, reorder, extract, merge): compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-PDF-TEXT",
+          "sha256": "22E3B04F3AD92C22EDF1D3A0E02E30F3B778B1834B1022788272A8009F162FA9",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-07 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-pdf-password-open",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "pdf-password-open",
+      "family": "pdf",
+      "format": "pdf",
+      "operation": "open a password-protected pdf",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-07 / G4-06",
+      "ownerTask": "G3-07 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "open a password-protected pdf: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-PDF-PWD4SP",
+          "sha256": "D5A2E3FD2AAA7A94B7C2E1BB28F64C01D34CE416654B67D45A66E57C8BF6412D",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-PDF-CERT",
+          "sha256": "998E95A72DB2AE5C89DCEC07BE00530CC4AD75DF1AE82E27357F8CE735BE690F",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Wrong password and cancel must stay in open-error with no partial content and no Save intent.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-07 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-pdf-corrupt-handling",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "pdf-corrupt-handling",
+      "family": "pdf",
+      "format": "pdf",
+      "operation": "reject a corrupt file with a clear error",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-07 / G4-06",
+      "ownerTask": "G3-07 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "reject a corrupt file with a clear error: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-PDF-CORRUPT",
+          "sha256": "070D35DB701F6CCB5ED5E15DE2048FE4AD6F4F97CCC7BDFD8687AF362377B6AB",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-07 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-md-open",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "md-open",
+      "family": "md",
+      "format": "md, markdown",
+      "operation": "open in editor",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-08a / G4-06",
+      "ownerTask": "G3-08a / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "open in editor: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-MD-VI",
+          "sha256": "F3678CA09470FEEEDE2439DB676F398E51EE1CF598BCA759F519E0D2D75B869E",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-MD-FULL",
+          "sha256": "7CC9530F628B38BF70FD350F7DB0342091796C743205A63962541ABB3754F828",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-08a / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-md-save",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "md-save",
+      "family": "md",
+      "format": "md, markdown",
+      "operation": "save source",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-08a / G4-06",
+      "ownerTask": "G3-08a / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "save source: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-MD-VI",
+          "sha256": "F3678CA09470FEEEDE2439DB676F398E51EE1CF598BCA759F519E0D2D75B869E",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-MD-FULL",
+          "sha256": "7CC9530F628B38BF70FD350F7DB0342091796C743205A63962541ABB3754F828",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-08a / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-md-content-blocks",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "md-content-blocks",
+      "family": "md",
+      "format": "md",
+      "operation": "content: tables, code blocks, Unicode",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-08a / G4-06",
+      "ownerTask": "G3-08a / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "content: tables, code blocks, Unicode: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-MD-FULL",
+          "sha256": "7CC9530F628B38BF70FD350F7DB0342091796C743205A63962541ABB3754F828",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-MD-VI",
+          "sha256": "F3678CA09470FEEEDE2439DB676F398E51EE1CF598BCA759F519E0D2D75B869E",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-08a / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-md-content-frontmatter",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "md-content-frontmatter",
+      "family": "md",
+      "format": "md",
+      "operation": "content: YAML frontmatter",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-08a / G4-06",
+      "ownerTask": "G3-08a / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "content: YAML frontmatter: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-MD-FRONTMATTER",
+          "sha256": "6CB9E90E58B08B5B3B71E26227FFF85C30CBAFAA5BC0AB9AB7AA6A944835DE4C",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-08a / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-md-content-local-assets",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "md-content-local-assets",
+      "family": "md",
+      "format": "md",
+      "operation": "relative image and asset links",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-08a / G4-06",
+      "ownerTask": "G3-08a / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "relative image and asset links: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-MD-ASSET",
+          "sha256": "A8B64F39156E3A8D3E4D882D0DC9DFA2F1C50A5F3DCBA3A47946BB32100705C1",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "A script/session probe or asset traversal outside the declared manifest must be denied without host privilege.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-08a / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-md-export-docx",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "md-export-docx",
+      "family": "md",
+      "format": "md",
+      "operation": "export to docx",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-08a / G4-06",
+      "ownerTask": "G3-08a / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "extraction",
+        "assertion": "export to docx: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-MD-VI",
+          "sha256": "F3678CA09470FEEEDE2439DB676F398E51EE1CF598BCA759F519E0D2D75B869E",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document."
+      ],
+      "baselineState": "not_bound",
+      "baselineProviderOwner": "G2-07",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-md-export-pdf",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "md-export-pdf",
+      "family": "md",
+      "format": "md",
+      "operation": "export to pdf",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-08a / G4-06",
+      "ownerTask": "G3-08a / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "extraction",
+        "assertion": "export to pdf: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-MD-VI",
+          "sha256": "F3678CA09470FEEEDE2439DB676F398E51EE1CF598BCA759F519E0D2D75B869E",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document."
+      ],
+      "baselineState": "not_bound",
+      "baselineProviderOwner": "G2-07",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-html-open",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "html-open",
+      "family": "html",
+      "format": "html, htm",
+      "operation": "open in editor",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-08a / G4-06",
+      "ownerTask": "G3-08a / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "open in editor: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-HTML-VI",
+          "sha256": "3582DABEDD59ADD0224CC85ADC86BDBE1FF7D356F1B4E1F82FA37FD8DD79BE81",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "A script/session probe or asset traversal outside the declared manifest must be denied without host privilege.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-08a / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-html-save",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "html-save",
+      "family": "html",
+      "format": "html, htm",
+      "operation": "save source",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-08a / G4-06",
+      "ownerTask": "G3-08a / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "save source: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-HTML-VI",
+          "sha256": "3582DABEDD59ADD0224CC85ADC86BDBE1FF7D356F1B4E1F82FA37FD8DD79BE81",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-HTML-ASSET",
+          "sha256": "36EA1FD51144387BFCA2BDE62B93BADB26B48963385427E6AE745F5B14844455",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "A script/session probe or asset traversal outside the declared manifest must be denied without host privilege.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-08a / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-html-preview-isolation",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "html-preview-isolation",
+      "family": "html",
+      "format": "html, htm",
+      "operation": "isolated preview",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-08a / G4-06",
+      "ownerTask": "G3-08a / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "extraction",
+        "assertion": "isolated preview: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-HTML-SCRIPT",
+          "sha256": "E78E4BC08227013D403CF9D03E3525722E3D55075D010BC3F9165929BEC834A2",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "A script/session probe or asset traversal outside the declared manifest must be denied without host privilege.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-08a / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-html-content-assets",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "html-content-assets",
+      "family": "html",
+      "format": "html, htm",
+      "operation": "assets and single-file html",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-08a / G4-06",
+      "ownerTask": "G3-08a / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "assets and single-file html: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-HTML-ASSET",
+          "sha256": "36EA1FD51144387BFCA2BDE62B93BADB26B48963385427E6AE745F5B14844455",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-HTML-SINGLE",
+          "sha256": "AD36B1CFA0EA2831D335E219D3EE1D44C35267BD724B5886166AF3798F665392",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "A script/session probe or asset traversal outside the declared manifest must be denied without host privilege.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-08a / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-html-content-blocks",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "html-content-blocks",
+      "family": "html",
+      "format": "html, htm",
+      "operation": "content: text, image, background and float",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-08a / G4-06",
+      "ownerTask": "G3-08a / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "content: text, image, background and float: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-HTML-VI",
+          "sha256": "3582DABEDD59ADD0224CC85ADC86BDBE1FF7D356F1B4E1F82FA37FD8DD79BE81",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "A script/session probe or asset traversal outside the declared manifest must be denied without host privilege.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-08a / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-html-export-pdf",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "html-export-pdf",
+      "family": "html",
+      "format": "html, htm",
+      "operation": "export to pdf",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-08a / G4-06",
+      "ownerTask": "G3-08a / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "extraction",
+        "assertion": "export to pdf: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-HTML-VI",
+          "sha256": "3582DABEDD59ADD0224CC85ADC86BDBE1FF7D356F1B4E1F82FA37FD8DD79BE81",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "A script/session probe or asset traversal outside the declared manifest must be denied without host privilege.",
+        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document."
+      ],
+      "baselineState": "not_bound",
+      "baselineProviderOwner": "G2-07",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-html-export-docx",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "html-export-docx",
+      "family": "html",
+      "format": "html, htm",
+      "operation": "convert to docx",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-08a / G4-06",
+      "ownerTask": "G3-08a / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "extraction",
+        "assertion": "convert to docx: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-HTML-VI",
+          "sha256": "3582DABEDD59ADD0224CC85ADC86BDBE1FF7D356F1B4E1F82FA37FD8DD79BE81",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "A script/session probe or asset traversal outside the declared manifest must be denied without host privilege.",
+        "An unbound target or rejected fidelity consent must leave the source unchanged and create no output document."
+      ],
+      "baselineState": "not_bound",
+      "baselineProviderOwner": "G2-07",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 8",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-html2docx-browser-driver",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "html2docx-browser-driver",
+      "family": "html",
+      "format": "n/a",
+      "operation": "DOM extraction via a browser driver",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-08a / G4-06",
+      "ownerTask": "G3-08a / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "extraction",
+        "assertion": "DOM extraction via a browser driver: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-HTML-VI",
+          "sha256": "3582DABEDD59ADD0224CC85ADC86BDBE1FF7D356F1B4E1F82FA37FD8DD79BE81",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "A script/session probe or asset traversal outside the declared manifest must be denied without host privilege.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-08a / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-editor-open-unsupported",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "editor-open-unsupported",
+      "family": "legacy",
+      "format": "doc, rtf, odt, ppt, pps, odp, ods, xlsb, pages, key, numbers",
+      "operation": "open in an editor",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-09 / G4-06",
+      "ownerTask": "G3-09 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "open in an editor: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-UNSUPPORTED-ODT",
+          "sha256": "98329F94C061579B9C9752E56CC202F7ADCD9E0802FBD4C07E68F1519B42D0E7",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-UNSUPPORTED-ODS",
+          "sha256": "AA1AC1E479F84EEDD288684F46138602F8F0E15B56BE75109F199EEC3A95C96C",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-UNSUPPORTED-XLSB",
+          "sha256": "D5F30AC2616646F1EBEA2828BECEF2C8FEC3003D715D7D781D372042E523F06E",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-UNSUPPORTED-RTF",
+          "sha256": "BC20C769CEF47AA74A2B7D2587A23DF12F264CBEA533F0010B87AD8C81ED189A",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-09 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-editor-open-xls",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "editor-open-xls",
+      "family": "legacy",
+      "format": "xls",
+      "operation": "open in an editor",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-09 / G4-06",
+      "ownerTask": "G3-09 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "open in an editor: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-LEGACY-XLS",
+          "sha256": "2B5EC8298BACFFDCA61C50F6F7607DA0A4E63CF76FA011C62F203E6A66BC072A",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "An unsupported or unbound format must fail closed with its typed reason and zero mutation.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G3-09 / G4-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "CAP-office-engine-service-placement",
+      "kind": "capability",
+      "scope": "Q1-B",
+      "capabilityId": "office-engine-service-placement",
+      "family": "cross",
+      "format": "n/a",
+      "operation": "run an engine outside the browser or desktop host",
+      "tags": [
+        "Q1-B"
+      ],
+      "owner": "G3-01 / G4-06",
+      "ownerTask": "G3-01 / G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "run an engine outside the browser or desktop host: compare the fixture's declared before/after structure and content after a fresh reopen; no successful result is claimed until a run records the artifact and environment."
+      },
+      "fixtures": [
+        {
+          "id": "F-XLSX-BASIC",
+          "sha256": "E76CC7C4435F55FCA7882EE22C2B99FC36B310BA04CB0C5C769E4E8095633AD2",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-PDF-TEXT",
+          "sha256": "22E3B04F3AD92C22EDF1D3A0E02E30F3B778B1834B1022788272A8009F162FA9",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-LARGE-DOCX",
+          "sha256": null,
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-LARGE-XLSX",
+          "sha256": null,
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Malformed or truncated input must produce a typed error without an empty editor, fabricated result, or cloud write.",
+        "Revoked permission, stale base, or a mismatched payload must not produce a saved receipt or overwrite a committed version."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "G2-07",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 10",
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/office/g0/capabilities.json (mustPort=true) and docs/office/g0/capability-matrix.md"
+    },
+    {
+      "id": "SAVE-01",
+      "kind": "save_error",
+      "scope": "G3-G4",
+      "title": "Typing/idle 10 minutes, blur, or reconnect without Save",
+      "owner": "G3-01/02; G4-04/06",
+      "ownerTask": "G3-01/02; G4-04/06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Local checkpoint exists; cloud upload/commit/version/file/quota does not change."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "The failure must not create a false saved state, committed version, or unbounded retry.",
+        "A retry may occur only for the explicitly requested intent after reconciliation."
+      ],
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/plans/2026-09-27-office-g3-g4.md Section 7.2"
+    },
+    {
+      "id": "SAVE-02",
+      "kind": "save_error",
+      "scope": "G3-G4",
+      "title": "Save N, type N+1, and invoke each Save entry point",
+      "owner": "G3-01/03; G4-04/06",
+      "ownerTask": "G3-01/03; G4-04/06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Typing continues; a second Save is blocked without a queued command; N receipt leaves N+1 dirty."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "The failure must not create a false saved state, committed version, or unbounded retry.",
+        "A retry may occur only for the explicitly requested intent after reconciliation."
+      ],
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/plans/2026-09-27-office-g3-g4.md Section 7.2"
+    },
+    {
+      "id": "SAVE-03",
+      "kind": "save_error",
+      "scope": "G3-G4",
+      "title": "Double click or retry the same key/snapshot",
+      "owner": "G3-01; G4-06",
+      "ownerTask": "G3-01; G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "One logical version and no duplicate upload."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "The failure must not create a false saved state, committed version, or unbounded retry.",
+        "A retry may occur only for the explicitly requested intent after reconciliation."
+      ],
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/plans/2026-09-27-office-g3-g4.md Section 7.2"
+    },
+    {
+      "id": "SAVE-04",
+      "kind": "save_error",
+      "scope": "G3-G4",
+      "title": "Timeout after commit, lost response, cancel, or completion",
+      "owner": "G3-01; G4-06",
+      "ownerTask": "G3-01; G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Reconcile the same intent/receipt without changing key or creating a second version."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "The failure must not create a false saved state, committed version, or unbounded retry.",
+        "A retry may occur only for the explicitly requested intent after reconciliation."
+      ],
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/plans/2026-09-27-office-g3-g4.md Section 7.2"
+    },
+    {
+      "id": "SAVE-05",
+      "kind": "save_error",
+      "scope": "G3-G4",
+      "title": "Expired upload or same key with a different payload",
+      "owner": "G3-01; G4-06",
+      "ownerTask": "G3-01; G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Typed error retains draft and requires reconciliation before a new Save."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "The failure must not create a false saved state, committed version, or unbounded retry.",
+        "A retry may occur only for the explicitly requested intent after reconciliation."
+      ],
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/plans/2026-09-27-office-g3-g4.md Section 7.2"
+    },
+    {
+      "id": "SAVE-06",
+      "kind": "save_error",
+      "scope": "G3-G4",
+      "title": "Quota 403, file-too-large 413, storage 503, or engine down",
+      "owner": "G3-01/03; G4-06",
+      "ownerTask": "G3-01/03; G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Correct error class/action; server bytes are unchanged after failed commit."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "The failure must not create a false saved state, committed version, or unbounded retry.",
+        "A retry may occur only for the explicitly requested intent after reconciliation."
+      ],
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/plans/2026-09-27-office-g3-g4.md Section 7.2"
+    },
+    {
+      "id": "SAVE-07",
+      "kind": "save_error",
+      "scope": "G3-G4",
+      "title": "Unauthorized/refresh failure or account/deployment switch",
+      "owner": "G3-02/03; G4-02/03/04",
+      "ownerTask": "G3-02/03; G4-02/03/04",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Lock/login-required state; ciphertext remains and late response cannot cross scope."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "The failure must not create a false saved state, committed version, or unbounded retry.",
+        "A retry may occur only for the explicitly requested intent after reconciliation."
+      ],
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/plans/2026-09-27-office-g3-g4.md Section 7.2"
+    },
+    {
+      "id": "SAVE-08",
+      "kind": "save_error",
+      "scope": "G3-G4",
+      "title": "Two tabs/devices use the same base",
+      "owner": "G3-01; G4-06",
+      "ownerTask": "G3-01; G4-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "409 conflict preserves both versions; no binary rebase or silent overwrite."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "The failure must not create a false saved state, committed version, or unbounded retry.",
+        "A retry may occur only for the explicitly requested intent after reconciliation."
+      ],
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/plans/2026-09-27-office-g3-g4.md Section 7.2"
+    },
+    {
+      "id": "SAVE-09",
+      "kind": "save_error",
+      "scope": "G3-G4",
+      "title": "Revoke after upload and before commit",
+      "owner": "G3-01/02; G4-02/04/05/06",
+      "ownerTask": "G3-01/02; G4-02/04/05/06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Server rejects commit; blocked draft cannot export/copy/clipboard."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "The failure must not create a false saved state, committed version, or unbounded retry.",
+        "A retry may occur only for the explicitly requested intent after reconciliation."
+      ],
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/plans/2026-09-27-office-g3-g4.md Section 7.2"
+    },
+    {
+      "id": "SAVE-10",
+      "kind": "save_error",
+      "scope": "G3-G4",
+      "title": "Logout/restart/login A/B, changed base, or lost/corrupt key",
+      "owner": "G3-02; G4-04",
+      "ownerTask": "G3-02; G4-04",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Only correct A/live ACL/base recovers; old draft is not overwritten."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "The failure must not create a false saved state, committed version, or unbounded retry.",
+        "A retry may occur only for the explicitly requested intent after reconciliation."
+      ],
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/plans/2026-09-27-office-g3-g4.md Section 7.2"
+    },
+    {
+      "id": "SAVE-11",
+      "kind": "save_error",
+      "scope": "G3-G4",
+      "title": "Local checkpoint itself fails",
+      "owner": "G3-02/03; G4-04",
+      "ownerTask": "G3-02/03; G4-04",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Warn that edits are not protected; keep-draft/discard never claims success."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "The failure must not create a false saved state, committed version, or unbounded retry.",
+        "A retry may occur only for the explicitly requested intent after reconciliation."
+      ],
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/plans/2026-09-27-office-g3-g4.md Section 7.2"
+    },
+    {
+      "id": "SAVE-12",
+      "kind": "save_error",
+      "scope": "G3-G4",
+      "title": "Close/logout/update while dirty",
+      "owner": "G3-03; G4-04/07",
+      "ownerTask": "G3-03; G4-04/07",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Save/keep durable draft/discard/stay is explicit; error or N+1 prevents auto-close after Save."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "The failure must not create a false saved state, committed version, or unbounded retry.",
+        "A retry may occur only for the explicitly requested intent after reconciliation."
+      ],
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/plans/2026-09-27-office-g3-g4.md Section 7.2"
+    },
+    {
+      "id": "SAVE-13",
+      "kind": "save_error",
+      "scope": "G3-G4",
+      "title": "Local external edit/lock/symlink/disk full",
+      "owner": "G4-04",
+      "ownerTask": "G4-04",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "object/part",
+        "assertion": "Do not overwrite the wrong file or lose the old version; use OS-safe temp/replace."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "The failure must not create a false saved state, committed version, or unbounded retry.",
+        "A retry may occur only for the explicitly requested intent after reconciliation."
+      ],
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/plans/2026-09-27-office-g3-g4.md Section 7.2"
+    },
+    {
+      "id": "SAVE-14",
+      "kind": "save_error",
+      "scope": "G3-G4",
+      "title": "Malformed response, old callback, or incompatible engine",
+      "owner": "G3-01/03; G4-03/06",
+      "ownerTask": "G3-01/03; G4-03/06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Never report saved or update the wrong document; edit stays disabled without a proven fallback."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "The failure must not create a false saved state, committed version, or unbounded retry.",
+        "A retry may occur only for the explicitly requested intent after reconciliation."
+      ],
+      "reviewer": "pending G3-D3",
+      "status": "not_run",
+      "source": "docs/superpowers/plans/2026-09-27-office-g3-g4.md Section 7.2"
+    },
+    {
+      "id": "G1G2-DOCX-SERVER",
+      "kind": "baseline",
+      "scope": "G1-G2 handoff",
+      "title": "DOCX server-side editor operations remain not_bound; client editor must prove its own path",
+      "owner": "G2-07 / G3-04",
+      "ownerTask": "G2-07 / G3-04",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Re-run the cited baseline boundary and record the provider artifact; this row cannot be inferred from a merged code path."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-SIMPLE",
+          "sha256": "640B513E1F7FDCE3CE7FBB18A123B5486541B7425CCBC02FB4859DE97BFF8D85",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "The baseline limitation must remain visible until the provider records a run on the final revision.",
+        "No baseline limitation may be changed to pass by documentation alone."
+      ],
+      "baselineState": "not_bound",
+      "baselineProviderOwner": "G2-07 / G3-04",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10, Section 11",
+      "reviewer": "pending G3-D3",
+      "status": "not_run"
+    },
+    {
+      "id": "G1G2-PPTX-SERVER",
+      "kind": "baseline",
+      "scope": "G1-G2 handoff",
+      "title": "PPTX server-side editor operations remain not_bound; client editor must prove its own path",
+      "owner": "G2-07 / G3-06",
+      "ownerTask": "G2-07 / G3-06",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Re-run the cited baseline boundary and record the provider artifact; this row cannot be inferred from a merged code path."
+      },
+      "fixtures": [
+        {
+          "id": "F-PPTX-STD",
+          "sha256": "FADDC03270215218E78720F1C8F6E3AA862891A432F71E7EC9F3D13EA7902048",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "The baseline limitation must remain visible until the provider records a run on the final revision.",
+        "No baseline limitation may be changed to pass by documentation alone."
+      ],
+      "baselineState": "not_bound",
+      "baselineProviderOwner": "G2-07 / G3-06",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10, Section 11",
+      "reviewer": "pending G3-D3",
+      "status": "not_run"
+    },
+    {
+      "id": "G1G2-EXPORT",
+      "kind": "baseline",
+      "scope": "G1-G2 handoff",
+      "title": "Export is not_bound in the baseline and must be re-run per target format",
+      "owner": "G2-07",
+      "ownerTask": "G2-07",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Re-run the cited baseline boundary and record the provider artifact; this row cannot be inferred from a merged code path."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "The baseline limitation must remain visible until the provider records a run on the final revision.",
+        "No baseline limitation may be changed to pass by documentation alone."
+      ],
+      "baselineState": "not_bound",
+      "baselineProviderOwner": "G2-07",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10, Section 11",
+      "reviewer": "pending G3-D3",
+      "status": "not_run"
+    },
+    {
+      "id": "G1G2-CONVERSION-UNBOUND",
+      "kind": "baseline",
+      "scope": "G1-G2 handoff",
+      "title": "Conversions outside xls to xlsx and odt to docx remain not_bound",
+      "owner": "G2-07",
+      "ownerTask": "G2-07",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Re-run the cited baseline boundary and record the provider artifact; this row cannot be inferred from a merged code path."
+      },
+      "fixtures": [
+        {
+          "id": "F-UNSUPPORTED-ODT",
+          "sha256": "98329F94C061579B9C9752E56CC202F7ADCD9E0802FBD4C07E68F1519B42D0E7",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "The baseline limitation must remain visible until the provider records a run on the final revision.",
+        "No baseline limitation may be changed to pass by documentation alone."
+      ],
+      "baselineState": "not_bound",
+      "baselineProviderOwner": "G2-07",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10, Section 11",
+      "reviewer": "pending G3-D3",
+      "status": "not_run"
+    },
+    {
+      "id": "G1G2-SAFARI",
+      "kind": "baseline",
+      "scope": "G1-G2 handoff",
+      "title": "Mac/Safari browser row has not run and is owned by the platform provider",
+      "owner": "UNI-671",
+      "ownerTask": "UNI-671",
+      "host": "web",
+      "oracle": {
+        "type": "receipt",
+        "assertion": "Re-run the cited baseline boundary and record the provider artifact; this row cannot be inferred from a merged code path."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-SIMPLE",
+          "sha256": "640B513E1F7FDCE3CE7FBB18A123B5486541B7425CCBC02FB4859DE97BFF8D85",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "The baseline limitation must remain visible until the provider records a run on the final revision.",
+        "No baseline limitation may be changed to pass by documentation alone."
+      ],
+      "baselineState": "to_re_run",
+      "baselineProviderOwner": "UNI-671",
+      "baselineSource": "docs/office/g1-g2-evidence.md Section 6, Section 10, Section 11",
+      "reviewer": "pending G3-D3",
+      "status": "not_run"
+    },
+    {
+      "id": "H4-SIX-FORMAT",
+      "kind": "handoff",
+      "scope": "H4",
+      "title": "Full six-format acceptance on the real Go/DB/FileService/engine stack",
+      "owner": "G3-10c / G4-08c",
+      "ownerTask": "G3-10c / G4-08c",
+      "host": [
+        "web",
+        "desktop"
+      ],
+      "oracle": {
+        "type": "receipt",
+        "assertion": "H4 requires the six-format stack evidence and is a separate open row; this matrix does not infer it from G1/G2 merge evidence."
+      },
+      "fixtures": [
+        {
+          "id": "F-DOCX-KITCHEN",
+          "sha256": "F86C8D90B44A265945B4918DC1F857EBD835F28E3BDF3199F24E66F7FC8AB00B",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-XLSX-KITCHEN",
+          "sha256": "BF69B9DBC4F6B8FC485BAF6255494ED490EE6C53A3051CB4CE6F967F34FE4BC6",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-PPTX-STD",
+          "sha256": "FADDC03270215218E78720F1C8F6E3AA862891A432F71E7EC9F3D13EA7902048",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-PDF-TEXT",
+          "sha256": "22E3B04F3AD92C22EDF1D3A0E02E30F3B778B1834B1022788272A8009F162FA9",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-MD-FULL",
+          "sha256": "7CC9530F628B38BF70FD350F7DB0342091796C743205A63962541ABB3754F828",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        },
+        {
+          "id": "F-HTML-VI",
+          "sha256": "3582DABEDD59ADD0224CC85ADC86BDBE1FF7D356F1B4E1F82FA37FD8DD79BE81",
+          "manifestPath": "docs/office/g0/fixtures/manifest.json"
+        }
+      ],
+      "negativeCases": [
+        "Any missing format, host, or real-stack dependency keeps H4 open.",
+        "A browser-only or fake-provider run cannot close this row."
+      ],
+      "reviewer": "pending G3-D3 / G4-D3",
+      "status": "not_run",
+      "openReason": "Plan v1.2 Section 1 and Section 7.3 keep H4/full six-format acceptance separate from this matrix.",
+      "source": "docs/superpowers/plans/2026-09-27-office-g3-g4.md Section 1, Section 7.3"
+    }
+  ]
+}
