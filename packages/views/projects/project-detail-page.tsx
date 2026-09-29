@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useProject } from "@uniwork/core/tasks";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { PinToggleButton } from "../common/pin-toggle-button";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import {
   AnimatedRightSidebarLayout,
@@ -120,10 +121,19 @@ export function ProjectDetailPage({
                 </span>
               }
               actions={
-                <RightSidebarToggle
-                  controller={sidebarController}
-                  label={t("projects.detail.sidebar_toggle")}
-                />
+                <>
+                  <PinToggleButton
+                    workspaceId={workspaceId}
+                    itemType="project"
+                    itemId={projectId}
+                    pinLabel={t("projects.detail.pin")}
+                    unpinLabel={t("projects.detail.unpin")}
+                  />
+                  <RightSidebarToggle
+                    controller={sidebarController}
+                    label={t("projects.detail.sidebar_toggle")}
+                  />
+                </>
               }
             />
             <TaskSurface
