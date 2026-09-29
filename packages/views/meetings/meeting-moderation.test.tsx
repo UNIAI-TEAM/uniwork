@@ -80,9 +80,20 @@ describe("MeetingModerationMenuItems", () => {
 
   it("asks before removing someone", () => {
     renderMenu(person());
-    fireEvent.click(screen.getByRole("menuitem", { name: "Mời ra khỏi cuộc họp" }));
+    // Named like its siblings, so the item says who it acts on out of context.
+    fireEvent.click(screen.getByRole("menuitem", { name: "Mời Lan ra khỏi cuộc họp" }));
     expect(api.remove).not.toHaveBeenCalled();
     expect(screen.getByRole("alertdialog", { name: "Mời Lan ra khỏi cuộc họp?" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Mời ra khỏi cuộc họp" }));
+    expect(api.remove).toHaveBeenCalledWith("p1", expect.anything());
+  });
+
+  it("offers no host action it could not carry out", () => {
+    // Every UniWork seat joins as uw_participant_<id>; anything else in the
+    // room has no participant row to act on, so its confirm could never work.
+    renderMenu({ ...person(), identity: "EG_recorder" } as unknown as Participant);
+    expect(screen.queryByRole("menuitem", { name: /ra khỏi cuộc họp/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /mic/ })).not.toBeInTheDocument();
   });
 
   it("shows nothing to someone who cannot host", () => {

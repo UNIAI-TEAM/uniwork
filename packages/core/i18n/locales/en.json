@@ -2508,6 +2508,7 @@
     "dontWatch": "Don't watch",
     "watchParticipant": "Watch again",
     "removeFromCall": "Remove from the meeting",
+    "removeParticipant": "Remove {{name}} from the meeting",
     "participantActions": "Actions for {{name}}",
     "speaking": "Speaking",
     "closeSidebar": "Close side panel",

@@ -2507,6 +2507,7 @@
     "dontWatch": "Không theo dõi",
     "watchParticipant": "Theo dõi lại",
     "removeFromCall": "Mời ra khỏi cuộc họp",
+    "removeParticipant": "Mời {{name}} ra khỏi cuộc họp",
     "participantActions": "Thao tác với {{name}}",
     "speaking": "Đang nói",
     "closeSidebar": "Đóng bảng phụ",
