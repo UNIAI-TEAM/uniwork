@@ -235,7 +235,7 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
     pageTitle = t(inviteStateCopy(state).title);
   } else if (inLobby) {
     // The tab reads what the heading says, waiting or refused.
-    pageTitle = lobbyMessage(t, lobbyDecision, joinFailure, true);
+    pageTitle = lobbyMessage(t, lobbyDecision, joinFailure, { guestMode: true });
   } else {
     pageTitle = t("meetings.publicInviteTitle");
   }

@@ -2,6 +2,7 @@
 import {
   ArrowLeft,
   Ban,
+  CalendarClock,
   CalendarX2,
   Clock,
   Hourglass,
@@ -27,6 +28,17 @@ const INVALID_LINK_CODES = new Set([
   "invite_link_limit_reached",
 ]);
 
+interface LobbyAudience {
+  /** Public invite flow: guest-safe copy only. */
+  guestMode?: boolean;
+  /**
+   * The viewer may start the meeting (its host or a workspace admin) and the
+   * lobby offers them the button. They are the one everybody waits for, so
+   * the copy never asks them to wait for the host. Ignored for guests.
+   */
+  canStart?: boolean;
+}
+
 /**
  * The sentence a lobby shows for a decision or a join error. A guest never
  * sees infrastructure names or raw server text: they cannot act on either.
@@ -35,13 +47,16 @@ export function lobbyMessage(
   t: (key: string) => string,
   decision: string | undefined,
   error: unknown,
-  guestMode = false,
+  { guestMode = false, canStart = false }: LobbyAudience = {},
 ): string {
+  const starter = canStart && !guestMode;
   if (error instanceof ApiError) {
     if (error.code === "livekit_not_configured") {
       return t(guestMode ? "meetings.roomNotReady" : "meetings.notConfigured");
     }
-    if (error.code === "meeting_not_started") return t("meetings.waitingForHost");
+    if (error.code === "meeting_not_started") {
+      return t(starter ? "meetings.roomNotOpen" : "meetings.waitingForHost");
+    }
     if (error.code === "meeting_ended") return t("meetings.endedCannotJoin");
     if (error.code === "meeting_past_scheduled_end") return t("meetings.pastScheduledEnd");
     if (error.code === "meeting_canceled") return t("meetings.canceledCannotJoin");
@@ -60,7 +75,7 @@ export function lobbyMessage(
   }
   switch (decision) {
     case "WAITING_FOR_HOST":
-      return t("meetings.waitingForHost");
+      return t(starter ? "meetings.hostNotStarted" : "meetings.waitingForHost");
     case "WAITING_APPROVAL":
       return t("meetings.waitingApproval");
     case "WAITING_FOR_PROVIDER":
@@ -80,8 +95,9 @@ export function lobbyHint(
   t: (key: string) => string,
   decision: string | undefined,
   error: unknown,
-  { guestMode = false, meetingStatus }: { guestMode?: boolean; meetingStatus?: string } = {},
+  { guestMode = false, canStart = false, meetingStatus }: LobbyAudience & { meetingStatus?: string } = {},
 ): string | undefined {
+  const starter = canStart && !guestMode;
   if (error instanceof ApiError) {
     switch (error.code) {
       case "access_grant_not_found":
@@ -95,7 +111,7 @@ export function lobbyHint(
       case "meeting_past_scheduled_end":
         return t("meetings.pastScheduledEndHint");
       case "meeting_not_started":
-        return t("meetings.waitingForHostHint");
+        return t(starter ? "meetings.roomNotOpenHint" : "meetings.waitingForHostHint");
       default:
         return undefined;
     }
@@ -108,7 +124,7 @@ export function lobbyHint(
         ? t("meetings.waitingApprovalNotStartedHint")
         : t("meetings.waitingApprovalHint");
     case "WAITING_FOR_HOST":
-      return t("meetings.waitingForHostHint");
+      return t(starter ? "meetings.hostNotStartedHint" : "meetings.waitingForHostHint");
     case "WAITING_FOR_PROVIDER":
       return t("meetings.waitingForProviderHint");
     default:
@@ -160,6 +176,7 @@ export function MeetingLobby({
   canStart,
   starting,
   onStart,
+  startError,
   onLeave,
 }: {
   title?: string;
@@ -178,6 +195,8 @@ export function MeetingLobby({
   canStart?: boolean;
   starting?: boolean;
   onStart?: () => void;
+  /** The last start attempt failed; the button stays so the host can try again. */
+  startError?: unknown;
   onLeave: () => void;
 }) {
   const { t } = useTranslation();
@@ -187,8 +206,17 @@ export function MeetingLobby({
   // A join error is final for this attempt: never keep the "page updates by
   // itself" spinner up next to it.
   const isWaitingScreen = !error && (waitingApproval || waitingForHost || waitingForProvider);
-  const showStart = Boolean(canStart && waitingForHost && onStart && !error);
-  const message = lobbyMessage(t, decision, error, guestMode);
+  // Whoever can start the meeting is not waiting on anybody: they get the
+  // button, their own copy and no "page updates by itself" spinner.
+  const starter = Boolean(canStart && onStart && !guestMode);
+  const showStart = starter && waitingForHost && !error;
+  const message = lobbyMessage(t, decision, error, { guestMode, canStart: starter });
+  // Server text for a failed start is not localised and names nothing the
+  // host can act on; the one thing to do is press Start again.
+  const startFailed = showStart && Boolean(startError);
+  const description = startFailed
+    ? t("meetings.startFailed")
+    : lobbyHint(t, decision, error, { guestMode, canStart: starter, meetingStatus });
 
   // A member's way out of the room lands on the meeting page; after the end
   // that is where the notes are, so the button says so.
@@ -203,22 +231,25 @@ export function MeetingLobby({
   // Waiting and refused share one layout: the meeting's name small on top,
   // the state as the heading, then what happens next. Moving from "waiting"
   // to "declined" changes the words, not the page.
-  const gate = isWaitingScreen
-    ? { icon: waitingApproval ? UserCheck : Hourglass, tone: "info" as const, action: null }
-    : lobbyGate(decision, error);
+  let gate: { icon: LucideIcon; tone: IconTileTone; action: GateAction };
+  if (showStart) gate = { icon: CalendarClock, tone: "info", action: null };
+  else if (isWaitingScreen) gate = { icon: waitingApproval ? UserCheck : Hourglass, tone: "info", action: null };
+  else gate = lobbyGate(decision, error);
   return (
     <MeetingGateScreen
       icon={gate.icon}
       tone={gate.tone}
       title={message}
-      description={lobbyHint(t, decision, error, { guestMode, meetingStatus })}
-      busy={isWaitingScreen}
+      description={description}
+      busy={isWaitingScreen && !showStart}
       meetingTitle={title}
-      alert={gate.tone === "destructive"}
+      alert={gate.tone === "destructive" || startFailed}
       actions={
         <>
           {showStart ? (
-            <Button type="button" disabled={starting} aria-busy={starting || undefined} onClick={onStart}>
+            // aria-disabled, not disabled: the host pressed this button, and
+            // `disabled` would drop their focus to the page body.
+            <Button type="button" aria-disabled={starting || undefined} aria-busy={starting || undefined} onClick={onStart}>
               {starting ? <Spinner className="size-4 motion-reduce:animate-none" /> : null}
               {t("meetings.start")}
             </Button>

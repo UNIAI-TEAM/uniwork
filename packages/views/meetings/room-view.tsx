@@ -170,8 +170,17 @@ export function MeetingRoomView({
   }, [mutateRefreshAsync, joinArgs]);
 
   const handleStartMeeting = useCallback(() => {
-    start.mutate(meetingId, { onSuccess: () => retryJoin() });
+    start.mutate(meetingId, {
+      onSuccess: () => retryJoin(),
+      // Someone else (a co-host or an admin) started it first: the room is
+      // open, so join it rather than report a failure.
+      onError: (err) => {
+        if (err instanceof ApiError && err.code === "invalid_meeting_state") retryJoin();
+      },
+    });
   }, [start, meetingId, retryJoin]);
+  const startError =
+    start.error instanceof ApiError && start.error.code === "invalid_meeting_state" ? null : start.error;
 
   useEffect(() => {
     if (!choice) return;
@@ -266,8 +275,11 @@ export function MeetingRoomView({
           requestingAgain={join.isPending}
           onRetry={retryJoin}
           canStart={canHost.allowed}
-          starting={start.isPending}
+          // A started meeting still has the join to come; the button stays
+          // busy until the room answers, so it cannot be pressed twice.
+          starting={start.isPending || (start.isSuccess && join.isPending)}
           onStart={handleStartMeeting}
+          startError={startError}
           onLeave={onLeave}
         />
       </MeetingRoomShell>
