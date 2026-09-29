@@ -1,17 +1,10 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { MoreHorizontal, Pin, PinOff } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import {
-  useCreatePin,
-  useDeletePin,
-  useDeleteTask,
-  usePins,
-  usePutTask,
-  useUpdateTask,
-} from "@uniwork/core/tasks";
+import { useDeleteTask, usePutTask, useUpdateTask } from "@uniwork/core/tasks";
 import type { Task } from "@uniwork/core/types";
 import {
   AlertDialog,
@@ -30,6 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { copyText } from "@uniwork/ui/lib/clipboard";
+import { PinToggleButton } from "../../../common/pin-toggle-button";
 import { useNavigation } from "../../../navigation";
 import { toastApiError } from "../../../toast-api-error";
 import {
@@ -39,6 +33,7 @@ import {
 } from "../../row-actions-items";
 import { RowAssigneePicker } from "../../row-assignee-picker";
 import { TaskDetailThreadNav } from "./task-detail-thread-nav";
+import { TaskParentPicker } from "./task-parent-picker";
 
 export function TaskDetailHeaderActions({
   workspaceId,
@@ -53,28 +48,13 @@ export function TaskDetailHeaderActions({
 }) {
   const { t } = useTranslation();
   const navigation = useNavigation();
-  const pins = usePins(workspaceId);
-  const createPin = useCreatePin(workspaceId);
-  const deletePin = useDeletePin(workspaceId);
   const remove = useDeleteTask(workspaceId);
   const put = usePutTask(workspaceId);
   const update = useUpdateTask(workspaceId);
   const actionsTriggerRef = useRef<HTMLButtonElement>(null);
   const [assigneeOpen, setAssigneeOpen] = useState(false);
+  const [parentOpen, setParentOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const pinned = (pins.data?.pins ?? []).some(
-    (pin) => pin.item_type === "task" && pin.item_id === task.id,
-  );
-  const pinPending = createPin.isPending || deletePin.isPending;
-
-  const togglePin = () => {
-    if (pinPending) return;
-    const mutation = pinned
-      ? deletePin.mutateAsync({ itemType: "task", itemId: task.id })
-      : createPin.mutateAsync({ item_type: "task", item_id: task.id });
-    void mutation.catch((err: unknown) => toastApiError(err, t("common.error")));
-  };
-
   const copyLink = () => {
     const url = navigation.getShareableUrl(
       navigation.pathname || tasksHref.replace(/\/tasks$/, `/tasks/${task.id}`),
@@ -121,16 +101,13 @@ export function TaskDetailHeaderActions({
   return (
     <>
       <TaskDetailThreadNav workspaceId={workspaceId} taskId={task.id} />
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        aria-label={pinned ? t("tasks.detail.unpin") : t("tasks.detail.pin")}
-        aria-disabled={pinPending || undefined}
-        onClick={togglePin}
-      >
-        {pinned ? <PinOff aria-hidden /> : <Pin aria-hidden />}
-      </Button>
+      <PinToggleButton
+        workspaceId={workspaceId}
+        itemType="task"
+        itemId={task.id}
+        pinLabel={t("tasks.detail.pin")}
+        unpinLabel={t("tasks.detail.unpin")}
+      />
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger
           render={
@@ -139,6 +116,7 @@ export function TaskDetailHeaderActions({
               type="button"
               variant="ghost"
               size="icon-sm"
+              className="text-muted-foreground"
               aria-label={t("tasks.detail.actions")}
             />
           }
@@ -162,6 +140,7 @@ export function TaskDetailHeaderActions({
               deleteDialogClosed: () => {},
             }}
             onOpenAssignee={() => setAssigneeOpen(true)}
+            onOpenParent={() => setParentOpen(true)}
           />
         </DropdownMenuContent>
       </DropdownMenu>
@@ -171,6 +150,14 @@ export function TaskDetailHeaderActions({
           onUpdate={quickUpdate}
           anchor={actionsTriggerRef}
           onClose={() => setAssigneeOpen(false)}
+        />
+      ) : null}
+      {parentOpen ? (
+        <TaskParentPicker
+          workspaceId={workspaceId}
+          task={task}
+          anchor={actionsTriggerRef}
+          onClose={() => setParentOpen(false)}
         />
       ) : null}
 

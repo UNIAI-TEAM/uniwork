@@ -85,10 +85,69 @@ Sources: `apps/web/features/landing/feature-page.tsx`, `feature-illustration.tsx
 `feature-visuals.css` and `marketing-pages.css`; `marketing-shell.tsx` imports the
 scoped styles. Other marketing surfaces keep their own composition.
 
+## Related feature previews (2026-09-29)
+
+Up to three related feature links follow the full preview on each feature route.
+The section has one translated illustrative-data disclosure beside its heading.
+Each link contains a cropped authored `FeatureIllustration` above a caption with
+the feature icon, name, existing description and route arrow. Planned wording in
+those descriptions remains visible; thumbnails make no new availability claim.
+
+The previews identify their subjects through interface content. Projects uses its
+portfolio variant instead of the dashboard overview; focused work keeps task
+properties and a checklist. Document-related links show a library and a compact
+three-node request, review and handoff flow. The flow keeps all three nodes visible
+together, with connectors anchored to their nodes and the context icon in normal
+flow. Board, focused-work and project statuses use existing translated labels.
+
+Related links sit directly on the chapter ground. Their cropped media use the
+existing feature tonal surfaces, paper windows and restrained shadow; the crop
+height is 224px on desktop and 200px below 768px. The grid wraps to available width
+and becomes one column on narrow screens. The whole captioned preview is a route
+link; its decorative inner interface contains no controls. A 4px window lift on
+hover lasts 200ms and is removed under reduced motion. These measurements belong
+to this surface, not the global token scale.
+
+## Subpage closing (2026-09-29)
+
+`MarketingShell` closes each chapter with a full-width, unboxed centered invitation.
+The official shared Logo mark precedes the heading and existing short translated
+supporting sentence. Registration and an outlined demo link sit adjacent below the
+copy. Product and Operations solutions retain their contextual translated headings;
+other subpages use the general invitation. On feature pages the demo link returns
+to `#feature-preview` in the same chapter; elsewhere it opens the homepage platform
+demo.
+
+Cyan and violet tonal light blend into the page background in both themes. The
+heading uses the existing hero role (48px desktop), reducing to hero-sm (36px below
+1024px), with a 26ch maximum measure. The unplated Logo is 44px. Desktop padding is
+56px above, 24px at the sides and 72px below; below 768px it becomes 40px, 20px and
+48px. Both actions have a 52px minimum height. They remain adjacent when space
+permits and stack at 320px. The page-wide field, centered composition and local
+spacing are scoped to this chapter ending; they introduce no global tokens.
+
+The homepage alone retains its existing blue/violet framed showcase with a white
+registration action and labelled static `TaskPoster`. Subpages already present
+their relevant preview before the invitation. No product availability, adoption
+evidence or offer changes with this refinement.
+
+Chapter-ending validation: the latest web TypeScript `noEmit` and scoped ESLint
+including `feature-illustration.tsx` passed. Six recaptured scenarios report zero
+horizontal overflow, no page errors and no CTA text-contrast failures in
+`.impeccable/review/chapter-ending/checks.json`. The initial fresh review requested
+containment, untranslated preview statuses and documentation fixes; the code fixes
+and this scoped documentation update have landed. All nine closing Playwright E2E
+scenarios passed, including Documents at 1510px in English/dark and 320px in
+Vietnamese/light. All 12 revised ending images were opened and confirmed valid.
+The same independent reviewer scored containment, translated preview statuses and
+scoped documentation as resolved, with no observed regression from the fix batch.
+The `ship` disposition applies only to those three fixes. These captures are QA
+evidence, not shipping assets or an approved comp.
+
 ## Validation and finish review
 
-The finish review is closed. A fresh reviewer initially requested fixes for
-repetitive examples and the missing directory disclosure. After one fix batch,
+The earlier feature-page finish review is closed. A fresh reviewer initially
+requested fixes for repetitive examples and the missing directory disclosure. After one fix batch,
 the same reviewer confirmed both resolved, all 36 recaptures valid, and no observed
 regression from those fixes. The `ship` disposition applies **only to those two
 prior findings**; it is not unconditional approval of the entire surface.

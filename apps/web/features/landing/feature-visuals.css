@@ -29,9 +29,28 @@
 .feature-demo-heading { display: flex; align-items: end; justify-content: space-between; gap: 32px; margin-bottom: 28px; }
 .feature-demo-heading > p { max-width: 54ch; font-size: var(--text-body); }
 .feature-world .feature-page-visual { background: linear-gradient(120deg, var(--feature-tone), var(--feature-secondary)); padding: 18px; }
-.feature-world .feature-page-related { background: transparent; border-top: 1px solid var(--border); border-radius: 0; }
-.feature-world .feature-page-related a { border-radius: 12px; transition: background .2s; }
-.feature-world .feature-page-related a:hover { background: var(--feature-tone); }
+.feature-world .feature-demo { padding-bottom: 48px; }
+.feature-world .feature-page-related { padding-block: 24px 32px; margin: 0 auto; background: transparent; border: 0; border-radius: 0; }
+.feature-world .feature-related-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; margin: 0; }
+.feature-related-heading > p { flex: none; font-size: var(--text-caption); }
+.feature-world .feature-related-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 28px; margin-top: 28px; }
+.feature-world .feature-page-related a { display: block; min-width: 0; padding: 0; border-radius: 12px; }
+.feature-world .feature-page-related a:hover { background: transparent; }
+.feature-related-preview { height: 224px; overflow: hidden; padding: 20px 20px 0; border-radius: 12px; background: linear-gradient(135deg, var(--feature-tone), var(--feature-secondary)); }
+.feature-related-preview .feature-art-window { box-shadow: 0 12px 28px color-mix(in srgb, var(--landing-deep) 15%, transparent); transition: translate .2s ease; }
+.feature-related-preview .feature-art-flow { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 0; }
+.feature-related-preview .feature-art-flow > div:not(.feature-art-flow-context) { position: relative; }
+.feature-related-preview .feature-art-flow-node { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; width: 100%; padding: 8px; }
+.feature-related-preview .feature-art-flow-node > svg { width: 18px; height: 18px; }
+.feature-related-preview .feature-art-flow-node > strong { font-size: var(--text-caption); }
+.feature-related-preview .feature-art-flow > div:not(.feature-art-flow-context) > svg { position: absolute; z-index: 1; right: -12px; top: 36px; width: 16px; height: 16px; rotate: none; }
+.feature-related-preview .feature-art-flow-context { grid-column: 1 / -1; padding-top: 8px; }
+.feature-page-related a:hover .feature-art-window { translate: 0 -4px; }
+.feature-related-caption { display: grid; grid-template-columns: 24px minmax(0, 1fr) 18px; align-items: start; gap: 12px; padding: 20px 4px 8px; }
+.feature-related-caption > svg { width: 22px; height: 22px; color: var(--feature-accent); }
+.feature-related-caption > svg:last-child { width: 18px; height: 18px; margin-top: 4px; }
+.feature-related-caption strong { font-size: var(--text-body-lg); }
+.feature-related-caption small { display: block; font-size: var(--text-body); }
 .feature-art { min-width: 0; color: var(--foreground); font-size: var(--text-caption); }
 .feature-art-window { width: 100%; min-width: 0; border-radius: 12px; overflow: hidden; background: var(--landing-paper); }
 .feature-art svg { width: 17px; height: 17px; flex-shrink: 0; }
@@ -251,6 +270,10 @@
   .feature-directory-visual section > div { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
 @media (max-width: 767px) {
+  .feature-world .feature-page-related { margin-inline: auto; padding-inline: var(--marketing-inline); padding-bottom: 16px; }
+  .feature-world .feature-related-heading { flex-direction: column; gap: 12px; }
+  .feature-world .feature-related-grid { gap: 24px; }
+  .feature-related-preview { height: 200px; padding: 16px 12px 0; }
   .feature-world .feature-page-hero { gap: 28px; padding-top: 12px; padding-bottom: 48px; }
   .feature-page-art > .feature-art { padding: 20px 12px; min-height: 0; }
   .feature-page-art > .feature-art .feature-art-window { transform: none; box-shadow: 0 14px 30px color-mix(in srgb,var(--landing-deep) 12%,transparent); animation: none; }
@@ -287,4 +310,8 @@
   .feature-directory-visual > section { padding-block: 32px; }
   .feature-directory-visual a > .feature-art { height: 280px; padding: 16px; }
   .feature-directory-caption { padding-inline: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .feature-related-preview .feature-art-window { transition: none; }
+  .feature-page-related a:hover .feature-art-window { translate: none; }
 }

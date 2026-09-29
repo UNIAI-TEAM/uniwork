@@ -57,7 +57,10 @@ export function BreadcrumbHeader({ segments, leaf, actions, leading, className }
         <span className="min-w-0 truncate">{leaf}</span>
       </div>
       {actions ? (
-        <div className="flex min-w-0 max-w-[58%] shrink-0 items-center justify-end gap-1 overflow-x-auto sm:max-w-none">
+        // Narrow screens scroll the actions sideways only: overflow-x-auto alone
+        // turns overflow-y to auto too, and a pressed button's 1px shift would
+        // then flash a scrollbar. From sm up the row is unbounded, so nothing clips.
+        <div className="flex min-w-0 max-w-[58%] shrink-0 items-center justify-end gap-1 overflow-x-auto overflow-y-hidden sm:max-w-none sm:overflow-visible">
           {actions}
         </div>
       ) : null}

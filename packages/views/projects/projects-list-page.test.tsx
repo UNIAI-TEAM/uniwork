@@ -1,8 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser, resetAuthStoreForTests } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
-import { resetProjectViewStoreForTests } from "@uniwork/core/projects/stores/view-store";
+import {
+  resetProjectViewStoreForTests,
+  useProjectViewStore,
+} from "@uniwork/core/projects/stores/view-store";
 import type { User, Workspace } from "@uniwork/core/types";
 import { WorkspaceProvider } from "../layout/workspace-context";
 import type { NavigationAdapter } from "../navigation";
@@ -212,9 +215,11 @@ describe("ProjectsListPage", () => {
     fireEvent.change(await screen.findByLabelText("Tiêu đề dự án"), {
       target: { value: "  Ra mắt app  " },
     });
-    fireEvent.change(screen.getByLabelText("Thêm mô tả…"), {
-      target: { value: "Mục tiêu quý 4" },
+    fireEvent.input(await screen.findByRole("textbox", { name: "Thêm mô tả…" }), {
+      target: { innerHTML: "<p><strong>Mục tiêu</strong> quý 4</p>" },
     });
+    // ProseMirror reads the DOM change from a MutationObserver, a microtask later.
+    await act(async () => {});
     fireEvent.click(screen.getByRole("button", { name: "Tạo dự án" }));
 
     await waitFor(() => expect(adapter.push).toHaveBeenCalledWith("/acme/main/projects/p9"));
@@ -223,7 +228,7 @@ describe("ProjectsListPage", () => {
       method: "POST",
       body: {
         title: "Ra mắt app",
-        description: "Mục tiêu quý 4",
+        description: "**Mục tiêu** quý 4",
         status: "planned",
         priority: "none",
         lead_type: null,
@@ -232,6 +237,15 @@ describe("ProjectsListPage", () => {
         due_date: null,
       },
     });
+  });
+
+  it("draws cards with the panel hairline, not the text colour", async () => {
+    // A bare `border` takes currentColor: base.css sets no default colour.
+    useProjectViewStore.getState().setViewMode("comfortable");
+    renderPage();
+    const title = await screen.findByRole("heading", { name: "Q3 launch" });
+    const card = title.closest(".group\\/card");
+    expect(card).toHaveClass("border", "border-border");
   });
 
   it("sends one create request when submit fires twice before the reply", async () => {

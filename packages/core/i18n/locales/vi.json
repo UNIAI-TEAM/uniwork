@@ -199,6 +199,10 @@
     "workspace_group": "Điều hướng workspace",
     "group_work": "Làm việc",
     "group_communication": "Trao đổi",
+    "pinned": "Đã ghim",
+    "pinned_count_one": "Đã ghim: {{count}} mục",
+    "pinned_count_other": "Đã ghim: {{count}} mục",
+    "pinned_unpin": "Bỏ ghim {{name}}",
     "account_named": "{{name}}, {{email}}: tài khoản",
     "skip_to_content": "Tới nội dung chính",
     "people": "Danh bạ",
@@ -1562,6 +1566,7 @@
       "change_status": "Đổi trạng thái",
       "change_priority": "Đổi độ ưu tiên",
       "change_assignee": "Đổi người phụ trách",
+      "set_parent": "Đặt công việc cha…",
       "delete": "Xóa",
       "delete_dialog_title": "Xóa task này?",
       "delete_dialog_desc": "“{{title}}” sẽ bị xóa vĩnh viễn. Không hoàn tác được.",
@@ -1779,8 +1784,6 @@
       "activity_more": "Xem thêm {{count}} hoạt động",
       "section_properties": "Thuộc tính",
       "section_parent": "Công việc cha",
-      "parent_add": "Thêm công việc cha",
-      "parent_change": "Đổi công việc cha",
       "parent_remove": "Bỏ công việc cha",
       "parent_none": "Không có công việc cha",
       "section_details": "Chi tiết",
@@ -1793,13 +1796,9 @@
       "prop_project_none": "Không có dự án",
       "prop_labels": "Nhãn",
       "prop_start_date": "Ngày bắt đầu",
-      "prop_stage": "Giai đoạn",
-      "prop_stage_none": "Chưa có giai đoạn",
-      "prop_custom": "Thuộc tính tùy chỉnh",
       "optional_properties": "Thêm thuộc tính",
       "add_label": "Thêm nhãn…",
       "remove_label": "Gỡ nhãn {{name}}",
-      "custom_properties_count": "{{count}} thuộc tính",
       "subtasks_progress": "{{done}}/{{total}}",
       "subtasks_progress_label": "Tiến độ sub-task",
       "subtask_display_settings": "Cột sub-task",
@@ -4470,8 +4469,12 @@
     "detail": {
       "not_found": "Không tìm thấy dự án",
       "breadcrumb_fallback": "Dự án",
+      "pin": "Ghim dự án",
+      "unpin": "Bỏ ghim dự án",
       "title_placeholder": "Tiêu đề dự án",
       "section_properties": "Thuộc tính",
+      "section_progress": "Tiến độ",
+      "section_description": "Mô tả",
       "prop_start_date": "Ngày bắt đầu",
       "prop_due_date": "Ngày hết hạn",
       "description_placeholder": "Thêm mô tả…",
@@ -6268,6 +6271,7 @@
       "cta": "Tạo workspace"
     },
     "final": {
+      "compactTitle": "Đưa công việc của nhóm về cùng một nơi.",
       "title": "Sẵn sàng cho đội của bạn",
       "sub": "Phân quyền hai tầng theo tổ chức và không gian làm việc. Tiếng Việt và tiếng Anh ngang nhau.",
       "primary": "Bắt đầu ngay",
@@ -6307,16 +6311,17 @@
       "faqTitle": "Câu hỏi của riêng nhóm này",
       "product": {
         "name": "Nhóm sản phẩm",
+        "finalTitle": "Cùng xây dựng sản phẩm, trong một workspace.",
         "metaTitle": "UniWork cho nhóm sản phẩm",
-        "metaDesc": "Từ cuộc họp tới việc đã giao, không mất ngữ cảnh ở giữa. Agent tham gia bảng việc như một thành viên.",
-        "title": "Từ cuộc họp tới việc đã giao, không mất gì ở giữa",
+        "metaDesc": "Kết nối cuộc họp, công việc và nguồn thông tin trong một workspace.",
+        "title": "Từ cuộc họp đến công việc. Giữ ngữ cảnh để đi tiếp.",
         "sub": "Nhóm sản phẩm sống bằng ngữ cảnh: vì sao làm việc này, ai đã quyết, và quyết lúc nào. UniWork giữ cả ba nằm cạnh chính công việc đó.",
         "s1Title": "Họp review sprint",
         "s1Desc": "Phòng họp nằm trong workspace, nên cuộc họp có chủ sở hữu và ở lại cùng bảng việc thay vì trôi vào một đường link.",
-        "s2Title": "Chẻ một quyết định thành việc",
-        "s2Desc": "Việc sinh ra ngay trong ngữ cảnh của cuộc trao đổi, giữ nguyên người quyết và thời điểm quyết.",
-        "s3Title": "Giao phần việc lặp cho agent",
-        "s3Desc": "Agent nhận việc trên cùng bảng, đứng tên trong lịch sử thay đổi, và mọi thứ nó làm đều lùi lại được.",
+        "s2Title": "Từ kết luận đến công việc cụ thể",
+        "s2Desc": "Người phụ trách tạo việc, giao trách nhiệm và giữ nội dung tham chiếu cạnh phần cần thực hiện. Cuộc họp chưa tự chuyển thành công việc.",
+        "s3Title": "Tìm lại nguồn cùng Hỏi UNI",
+        "s3Desc": "Hỏi về nội dung trong workspace được cấp quyền, rồi mở nguồn để kiểm tra. Hỏi UNI chỉ đọc và không tự cập nhật công việc.",
         "w1": "Bảng việc và phòng họp dùng chung một bộ quyền.",
         "w2": "Lịch sử thay đổi trên từng việc, không phân biệt người hay agent.",
         "w3": "Khách mời ngoài tổ chức vào họp qua đường link riêng, không cần tài khoản.",
@@ -6329,16 +6334,17 @@
       },
       "operations": {
         "name": "Nhóm vận hành",
+        "finalTitle": "Đưa công việc vận hành về cùng một nơi.",
         "metaTitle": "UniWork cho nhóm vận hành",
-        "metaDesc": "Quy trình chạy được là quy trình truy được. Hai tầng phân quyền, nhật ký chỉ ghi thêm, và mọi việc AI làm đều hoàn tác được.",
-        "title": "Quy trình chạy được là quy trình truy được",
-        "sub": "Nhóm vận hành không cần thêm một công cụ nữa. Cần một chỗ mà mỗi thay đổi đều có tên, có thời điểm, và có đường lùi.",
+        "metaDesc": "Phân quyền tổ chức và workspace, nhật ký hành động và Hỏi UNI theo quyền.",
+        "title": "Phân công rõ ràng. Tìm lại được dấu vết.",
+        "sub": "Đặt trách nhiệm, phạm vi truy cập và lịch sử cạnh công việc để nhóm phối hợp và rà soát khi cần.",
         "s1Title": "Giao việc xuyên phòng ban",
         "s1Desc": "Hai tầng thành viên theo tổ chức và theo workspace, nên một người có thể vào đúng phần việc của mình mà không thấy phần còn lại.",
         "s2Title": "Rà lại một sự cố",
         "s2Desc": "Nhật ký chỉ ghi thêm. Một dòng ghi sai được trả lời bằng một dòng khác, không ai xóa được lịch sử.",
-        "s3Title": "Để agent lo phần lặp lại",
-        "s3Desc": "Agent cập nhật trạng thái và tổng hợp tiến độ dưới tên riêng, và mỗi thao tác đều hoàn tác được.",
+        "s3Title": "Kiểm tra thông tin bằng Hỏi UNI",
+        "s3Desc": "Hỏi UNI đọc trong phạm vi được cấp quyền và trả lời cùng nguồn. Người dùng kiểm chứng và quyết định; AI tự thực thi vẫn là định hướng.",
         "w1": "Phân quyền hai tầng, agent nhận quyền theo đúng hai tầng đó.",
         "w2": "Thành viên bị vô hiệu hóa mất quyền ở cả hai tầng nhưng giữ nguyên dữ liệu đã tạo.",
         "w3": "Mỗi yêu cầu mang một mã tương quan đi suốt nhật ký và log hệ thống.",
@@ -6347,12 +6353,12 @@
         "q2": "Một người nghỉ việc thì dữ liệu của họ ra sao?",
         "a2": "Vô hiệu hóa thành viên đóng cả hai cổng vào, nhưng giữ nguyên mọi thứ họ từng tạo: việc, bình luận, lịch sử. Không có thao tác nào xóa người khỏi lịch sử.",
         "q3": "Có tự động hóa quy trình như một workflow engine không?",
-        "a3": "Chưa có. Hiện tự động hóa đi qua agent với một người xác nhận ở giữa, chứ không phải một luồng chạy ngầm."
+        "a3": "Chưa có workflow engine hoàn chỉnh. Hỏi UNI hiện chỉ đọc; nền tảng agent và tự động hóa cần được phân biệt với luồng tự thực thi."
       }
     },
     "why": {
       "metaTitle": "Vì sao UniWork",
-      "metaDesc": "Microsoft 365, Notion, ClickUp và Coda mạnh ở bốn phía khác nhau. Đây là khoảng trống giữa chúng, và chỗ UniWork đứng.",
+      "metaDesc": "Đối chiếu cách các nền tảng tổ chức công việc, tri thức, trao đổi và AI. Khám phá UniWork qua ví dụ sản phẩm và nguồn tham khảo.",
       "eyebrow": "Vì sao UniWork",
       "title": "Những vấn đề lớn của các nền tảng hiện tại",
       "sub": "Nhiều công cụ. Nhiều tính năng. Nhưng công việc vẫn bị phân mảnh.",
@@ -6435,6 +6441,106 @@
         "i5Title": "AI mạnh nhưng trong phạm vi hẹp",
         "i5Desc": "AI hữu ích trên tài liệu và bảng, nhưng chưa thực sự kết nối với toàn bộ bối cảnh công việc của tổ chức.",
         "summary": "Rất sáng tạo trong cách kết hợp tài liệu và dữ liệu, nhưng chưa đủ rộng và sâu để trở thành nền tảng vận hành toàn diện."
+      },
+      "redesign": {
+        "title": "Công việc liền mạch. Cả nhóm cùng bối cảnh.",
+        "description": "Dự án, trao đổi, tài liệu và AI có giá trị hơn khi cùng nối với công việc. Xem cách UniWork kết nối chúng, rồi đối chiếu với nền tảng nhóm đang dùng.",
+        "compareAction": "Xem so sánh",
+        "sceneCaption": "Cùng một dự án, từ trao đổi đến công việc.",
+        "comparisonTitle": "Cùng tiêu chí. Dễ đối chiếu.",
+        "comparisonDescription": "Chọn một nền tảng để xem cách tổ chức công việc, tri thức, trao đổi và AI bên cạnh UniWork.",
+        "choosePlatform": "Chọn nền tảng để so sánh",
+        "criteriaLabel": "Tiêu chí",
+        "tableCaption": "Đối chiếu {{platform}} và UniWork theo cùng tiêu chí",
+        "criteria": {
+          "work": "Tổ chức công việc",
+          "knowledge": "Tài liệu & tri thức",
+          "communication": "Trao đổi & cuộc họp",
+          "ai": "AI & bối cảnh",
+          "evaluate": "Điều nên thử với nhóm"
+        },
+        "platforms": {
+          "ms365": {
+            "summary": "Microsoft 365 kết hợp ứng dụng văn phòng, trao đổi và dịch vụ doanh nghiệp trong một hệ sinh thái.",
+            "work": "Planner cho kế hoạch và công việc; Teams, Loop và các ứng dụng hỗ trợ cộng tác.",
+            "knowledge": "Word, Excel, PowerPoint; lưu trữ và chia sẻ qua OneDrive, SharePoint.",
+            "communication": "Outlook cho email và lịch; Teams cho trao đổi, gọi và họp.",
+            "ai": "Copilot hỗ trợ nội dung công việc trong các ứng dụng; khả năng phụ thuộc gói và cấu hình.",
+            "evaluate": "Nhóm cần những ứng dụng và gói nào để đi từ trao đổi đến bàn giao?"
+          },
+          "notion": {
+            "summary": "Notion kết hợp tài liệu, cơ sở dữ liệu, dự án và AI trong một workspace linh hoạt.",
+            "work": "Dự án và công việc tổ chức bằng cơ sở dữ liệu, thuộc tính và các chế độ xem.",
+            "knowledge": "Docs, wiki và cơ sở dữ liệu làm nơi lưu trữ tri thức của nhóm.",
+            "communication": "Bình luận trong nội dung; Calendar và AI Meeting Notes hỗ trợ lịch và ghi chú họp.",
+            "ai": "Notion AI có agent và tìm kiếm trên các nguồn kết nối, với câu trả lời có trích dẫn.",
+            "evaluate": "Cấu trúc dữ liệu và kết nối nào phù hợp với quy trình hiện có của nhóm?"
+          },
+          "clickup": {
+            "summary": "ClickUp tập hợp quản lý công việc, Docs, Chat và Brain trong cùng một nền tảng.",
+            "work": "Tasks, dự án, nhiều chế độ xem, mục tiêu và dashboard.",
+            "knowledge": "Docs và wiki liên kết với công việc, hỗ trợ tổ chức tri thức.",
+            "communication": "Chat gắn với công việc; SyncUps và ghi chú AI hỗ trợ cộng tác.",
+            "ai": "Brain dùng ngữ cảnh Tasks, Docs, Chat và nguồn kết nối; có Super Agents.",
+            "evaluate": "Những chế độ xem, quyền và tự động hóa nào nhóm thực sự cần sử dụng?"
+          },
+          "coda": {
+            "summary": "Coda, nay là Superhuman Docs, kết hợp tài liệu, bảng dữ liệu và ứng dụng tùy chỉnh.",
+            "work": "Bảng, chế độ xem, nút và công thức tạo bộ theo dõi theo quy trình của nhóm.",
+            "knowledge": "Tài liệu tương tác kết hợp nội dung và bảng dữ liệu.",
+            "communication": "Cộng tác trong tài liệu; Packs kết nối các công cụ như Slack và Google Calendar.",
+            "ai": "AI hỗ trợ nội dung và dữ liệu; Packs đưa dữ liệu công cụ khác vào tài liệu.",
+            "evaluate": "Ai xây dựng và duy trì công thức, bảng và Packs khi quy trình thay đổi?"
+          }
+        },
+        "uniwork": {
+          "workStatus": "Nền tảng hiện có",
+          "work": "Công việc, dự án và cuộc họp trong phạm vi tổ chức và workspace.",
+          "knowledgeStatus": "Hiện có: rich text & tài nguyên dự án",
+          "knowledge": "Tài liệu độc lập thuộc định hướng phát triển; Work Products và phê duyệt đang phát triển.",
+          "communicationStatus": "Hiện có · cần cấu hình email",
+          "communication": "Trao đổi và họp trực tuyến trong workspace. Email Hub cần cấu hình dịch vụ.",
+          "aiStatus": "Hỏi UNI · cần cấu hình mô hình",
+          "ai": "Đọc và tìm kiếm theo quyền, có nguồn tham chiếu. Nhân sự AI tự chủ vẫn là định hướng.",
+          "evaluate": "Thử một dự án: giao việc, trao đổi, mở nguồn và bàn giao. Đối chiếu khả năng hiện có với nhu cầu của nhóm."
+        },
+        "methodology": "So sánh mô tả cách làm việc, không chấm điểm. Tính năng phụ thuộc gói và cấu hình. Logo dùng để nhận diện nền tảng được so sánh.",
+        "verifiedDate": "Đối chiếu nguồn:",
+        "productSource": "Tài liệu sản phẩm",
+        "contextSource": "AI & kết nối",
+        "proofTitle": "Một dự án. Thấy rõ các mối liên kết.",
+        "proofDescription": "Các ví dụ minh họa cùng một dự án ra mắt website: từ giao việc, tra cứu thông tin đến kết quả bàn giao.",
+        "proofs": {
+          "work": {
+            "title": "Trao đổi có nơi để tiếp tục.",
+            "description": "Thông tin cần làm theo công việc đến người phụ trách, thay vì nằm lại trong một cuộc trao đổi.",
+            "points": [
+              "Xác định người phụ trách và trạng thái.",
+              "Giữ tài liệu tham chiếu cạnh công việc."
+            ]
+          },
+          "ai": {
+            "title": "Hỏi về công việc. Mở nguồn để kiểm tra.",
+            "description": "Hỏi UNI đọc trong phạm vi bạn được phép xem. Câu trả lời đi cùng nguồn để nhóm kiểm chứng.",
+            "points": [
+              "Tìm nội dung trong đúng workspace.",
+              "Hỏi UNI chỉ đọc; quyết định vẫn thuộc về bạn."
+            ]
+          },
+          "output": {
+            "title": "Đầu ra gắn với công việc đã tạo ra nó.",
+            "description": "Work Products hướng tới kết nối phiên bản, người phụ trách và nội dung cần xem xét trước khi bàn giao.",
+            "points": [
+              "Nhận biết phiên bản và người phụ trách.",
+              "Giữ nguồn công việc cùng đầu ra."
+            ],
+            "status": "Đang phát triển. Hình minh họa thể hiện định hướng, không phải tính năng đã hoàn tất."
+          }
+        },
+        "decisionTitle": "Đánh giá bằng công việc của nhóm.",
+        "decisionDescription": "Dùng một quy trình quen thuộc để kiểm tra thông tin, quyền và cách bàn giao trước khi quyết định.",
+        "tryAction": "Khám phá công việc",
+        "closingTitle": "Kết nối công việc, theo cách của nhóm."
       }
     },
     "footer": {
@@ -6567,6 +6673,246 @@
       "time": "Thời điểm",
       "appendOnly": "Ghi nối tiếp. Không sửa lịch sử.",
       "conditionMet": "Điều kiện: status = done"
+    },
+    "chapters": {
+      "table": {
+        "subject": "Tiêu chí",
+        "current": "Nền tảng hiện có",
+        "confirm": "Điều cần kiểm tra"
+      },
+      "learn": {
+        "start": "Xem từng bước",
+        "navigation": "Các bước làm quen",
+        "phases": [
+          "Tạo workspace",
+          "Giao công việc",
+          "Kiểm tra nguồn"
+        ],
+        "points": [
+          [
+            "Mời đúng người vào tổ chức và workspace.",
+            "Kiểm tra vai trò trước khi chia sẻ nội dung."
+          ],
+          [
+            "Chọn người phụ trách, ưu tiên và trạng thái.",
+            "Giữ nội dung tham chiếu cạnh việc cần làm."
+          ],
+          [
+            "Đặt câu hỏi trong workspace được cấp quyền.",
+            "Mở nguồn tham chiếu trước khi dùng câu trả lời."
+          ]
+        ],
+        "libraryTitle": "Xem một ví dụ. Thử với việc của nhóm.",
+        "libraryDescription": "Chọn nội dung đang cần: giao việc, trao đổi, họp hay tìm thông tin. Mỗi trang có ví dụ và bản xem trước riêng.",
+        "guides": {
+          "tasks": "Từ danh sách đến người phụ trách.",
+          "chat": "Giữ trao đổi trong ngữ cảnh workspace.",
+          "meetings": "Lên lịch và vào phòng họp cùng nhóm.",
+          "ask": "Hỏi về công việc, mở nguồn để kiểm tra."
+        },
+        "closing": "Bắt đầu cùng nhóm, từ workspace đầu tiên."
+      },
+      "features": {
+        "browse": "Chọn nhóm tính năng",
+        "navigation": "Nhóm tính năng",
+        "closing": "Chọn việc cần làm. Kết nối phần còn lại.",
+        "status": {
+          "demo": "Có bản giới thiệu",
+          "partial": "Nền tảng ban đầu",
+          "planned": "Định hướng phát triển"
+        },
+        "groups": {
+          "work": "Từ góc nhìn chung đến từng công việc và nhịp làm việc hằng ngày.",
+          "communication": "Trao đổi, cuộc họp và email trong cùng bối cảnh công việc.",
+          "results": "Định hướng nối công việc với tài liệu, đầu ra và bước duyệt.",
+          "knowledge": "Định hướng tổ chức kiến thức để tìm lại theo nguồn và chủ đề.",
+          "ai": "Hỏi UNI theo quyền, nền tảng agent và định hướng tự động hóa.",
+          "organization": "Cấu trúc thành viên, phạm vi truy cập và lịch sử hành động."
+        }
+      },
+      "solutions": {
+        "choose": "So sánh nhu cầu nhóm",
+        "compareTitle": "Cùng nền tảng. Khác nhịp làm việc.",
+        "compareDescription": "Đối chiếu mục tiêu, hoạt động thường gặp và thông tin cần giữ trước khi chọn trang phù hợp.",
+        "criteria": {
+          "focus": "Mục tiêu",
+          "routine": "Hoạt động thường gặp",
+          "context": "Ngữ cảnh cần giữ"
+        },
+        "product": {
+          "focus": "Kết nối kế hoạch sản phẩm với việc nhóm đang thực hiện.",
+          "routine": "Review sprint, giao việc, trao đổi về thiết kế và nội dung.",
+          "context": "Phạm vi dự án, người phụ trách và nội dung cuộc họp.",
+          "scenarioDescription": "Ba tình huống từ cuộc họp đến công việc cụ thể và tìm lại nguồn thông tin.",
+          "reasonLabels": [
+            "Cùng phạm vi",
+            "Có lịch sử",
+            "Mời người cùng họp"
+          ]
+        },
+        "operations": {
+          "focus": "Phân công rõ và tìm lại dấu vết khi cần rà soát.",
+          "routine": "Giao việc theo workspace, rà lịch sử và kiểm tra thông tin.",
+          "context": "Vai trò, tác nhân, thời điểm và phạm vi của hành động.",
+          "scenarioDescription": "Ba tình huống để kiểm tra đúng người, đúng phạm vi và đúng nguồn.",
+          "reasonLabels": [
+            "Quyền ở hai cấp",
+            "Giữ dữ liệu đã tạo",
+            "Theo dõi yêu cầu"
+          ]
+        },
+        "examples": "Xem tình huống",
+        "reasonsDescription": "Các cơ chế hỗ trợ phối hợp, phân quyền và truy vết trong cùng workspace.",
+        "closing": "Đưa nhịp làm việc của nhóm vào UniWork."
+      },
+      "pricing": {
+        "viewPlan": "Xem gói Starter",
+        "checkTitle": "Rõ giai đoạn hiện tại. Rõ điều cần xác nhận.",
+        "checkDescription": "Đối chiếu gói hiện có, cấu hình AI và nhu cầu triển khai. Chưa có bảng giá thương mại hay hạn mức cố định được công bố.",
+        "enterpriseLink": "Xem nền tảng doanh nghiệp",
+        "closing": "Khám phá UniWork cùng Starter.",
+        "rows": [
+          {
+            "subject": "Gói hiện tại",
+            "current": "Starter miễn phí trong giai đoạn hiện tại.",
+            "confirm": "Các gói thương mại và hạn mức đang được hoàn thiện; chưa có cam kết miễn phí không giới hạn lâu dài."
+          },
+          {
+            "subject": "AI và tài nguyên",
+            "current": "Hỏi UNI đọc theo quyền; mô hình AI và dịch vụ cần cấu hình.",
+            "confirm": "Kiểm tra mô hình, token AI, lưu trữ và cấu hình họp theo nhu cầu sử dụng."
+          },
+          {
+            "subject": "Triển khai mở rộng",
+            "current": "Nền tảng tổ chức, workspace và nhật ký hành động.",
+            "confirm": "Gói Enterprise, SLA và điều kiện triển khai riêng chưa được công bố."
+          }
+        ]
+      },
+      "enterprise": {
+        "explore": "Xem phạm vi quản trị",
+        "structure": "Tách rõ cấu trúc, dấu vết và cấu hình. Kiểm tra từng lớp bằng nhu cầu thực tế của tổ chức.",
+        "closing": "Cùng nhóm kiểm tra nền tảng quản trị.",
+        "examples": [
+          "Đúng người. Đúng workspace.",
+          "Có tác nhân. Có thời điểm.",
+          "AI đọc trong phạm vi được phép."
+        ],
+        "exampleDescriptions": [
+          "Vai trò tổ chức và workspace được quản lý riêng. Đối chiếu quyền với nội dung nhóm cần chia sẻ.",
+          "Mở một bản ghi để xem hành động và phạm vi. Nhật ký ghi nối tiếp để giữ lịch sử.",
+          "Hỏi UNI chỉ đọc. Mô hình phụ thuộc cấu hình và câu trả lời có nguồn để kiểm tra."
+        ],
+        "rows": [
+          {
+            "subject": "Cấu trúc truy cập",
+            "current": "Thành viên và vai trò ở cấp tổ chức, workspace.",
+            "confirm": "Ai cần tham gia workspace nào, và với vai trò gì?"
+          },
+          {
+            "subject": "Dấu vết hành động",
+            "current": "Nhật ký phân biệt tác nhân, hành động và thời điểm.",
+            "confirm": "Nhóm cần kiểm tra hành động nào, trong phạm vi nào?"
+          },
+          {
+            "subject": "AI và triển khai",
+            "current": "Hỏi UNI đọc theo quyền; mô hình cần cấu hình.",
+            "confirm": "Xác nhận mô hình và dịch vụ triển khai. Enterprise và SLA chưa được công bố."
+          }
+        ]
+      },
+      "featureExamples": {
+        "dashboard": [
+          "Đọc bảng công việc",
+          "Đặt lịch cạnh tiến độ",
+          "Đi tiếp từ tổng quan"
+        ],
+        "tasks": [
+          "Chọn bảng hoặc danh sách",
+          "Rõ người phụ trách",
+          "Giữ trao đổi cạnh công việc"
+        ],
+        "projects": [
+          "Xem các dự án cạnh nhau",
+          "Mở công việc liên quan",
+          "Trao đổi cùng dự án"
+        ],
+        "today": [
+          "Tập trung vào việc của bạn",
+          "Tìm lại hoạt động",
+          "Xem nhịp làm việc sắp tới"
+        ],
+        "calendar": [
+          "Xem lịch theo tháng",
+          "Phân biệt các sự kiện",
+          "Định hướng lịch và cuộc họp"
+        ],
+        "workflows": [
+          "Nhìn thấy các bước xử lý",
+          "Đặt trách nhiệm cạnh mỗi bước",
+          "Đọc quy tắc minh họa"
+        ],
+        "meetings": [
+          "Chuẩn bị trước cuộc họp",
+          "Cùng xem nội dung trong phòng họp",
+          "Giữ nội dung để đi tiếp"
+        ],
+        "chat": [
+          "Trao đổi trong workspace",
+          "Đọc ngữ cảnh công việc",
+          "Minh họa bước chuyển sang công việc"
+        ],
+        "email": [
+          "Đọc nội dung thư",
+          "Tìm lại thư quan trọng",
+          "Kiểm tra cấu hình kết nối"
+        ],
+        "outputs": [
+          "Tìm đầu ra liên quan",
+          "Xem người phụ trách",
+          "Định hướng quản lý phiên bản"
+        ],
+        "documents": [
+          "Đọc nội dung tài liệu",
+          "Nối với việc cần xử lý",
+          "Định hướng cộng tác nội dung"
+        ],
+        "approvals": [
+          "Xem nội dung cần duyệt",
+          "Đặt phản hồi cạnh tài liệu",
+          "Định hướng bước bàn giao"
+        ],
+        "knowledge": [
+          "Tìm nội dung theo chủ đề",
+          "Quay lại tài liệu nguồn",
+          "Định hướng kết nối tri thức"
+        ],
+        "ask": [
+          "Hỏi trong đúng phạm vi",
+          "Mở nguồn để kiểm tra",
+          "Bạn giữ quyền quyết định"
+        ],
+        "agents": [
+          "Xem hồ sơ agent",
+          "Phân biệt người và agent",
+          "Hiểu phạm vi nền tảng"
+        ],
+        "automation": [
+          "Đọc điều kiện kích hoạt",
+          "Kiểm tra phạm vi áp dụng",
+          "Định hướng quy tắc tự động"
+        ],
+        "organization": [
+          "Quản lý thành viên",
+          "Phân biệt vai trò ở hai cấp",
+          "Giữ nội dung trong đúng phạm vi"
+        ],
+        "audit": [
+          "Tìm lại hành động",
+          "Nhận biết tác nhân",
+          "Đọc chi tiết bản ghi"
+        ]
+      }
     }
   },
   "documents": {

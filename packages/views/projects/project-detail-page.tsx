@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useProject } from "@uniwork/core/tasks";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
+import { PinToggleButton } from "../common/pin-toggle-button";
 import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import {
   AnimatedRightSidebarLayout,
@@ -13,8 +14,8 @@ import {
 } from "../layout/animated-right-sidebar";
 import { PAGE_GUTTER, PAGE_LEADING_ICON } from "../layout/page-header";
 import { TaskSurface } from "../tasks/surface/task-surface";
-import { ProjectDetailHeader } from "./project-detail-header";
-import { ProjectProperties } from "./project-properties";
+import { ProjectDescriptionSection, ProjectDetailHeader } from "./project-detail-header";
+import { ProjectProgressSection, ProjectProperties } from "./project-properties";
 import { ProjectResourcesSection } from "./project-resources-section";
 
 const PROJECT_SURFACE_MODES = [
@@ -26,8 +27,9 @@ const PROJECT_SURFACE_MODES = [
 ] as const;
 
 /**
- * Project detail chrome: editable title/description + properties, resources
- * section, and a project-scoped TaskSurface (server filters by project_id).
+ * Project detail chrome: a project-scoped TaskSurface (server filters by
+ * project_id) beside the sidebar — icon + title, properties, progress,
+ * description, resources.
  */
 export function ProjectDetailPage({
   workspaceId,
@@ -89,33 +91,10 @@ export function ProjectDetailPage({
     );
   }
 
+  // The breadcrumb lives in the content column so the sidebar runs the full
+  // page height beside it.
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <BreadcrumbHeader
-        leading={backLeading}
-        segments={
-          projectsHref
-            ? [
-                {
-                  href: projectsHref,
-                  label: t("projects.detail.breadcrumb_fallback"),
-                },
-              ]
-            : []
-        }
-        leaf={
-          <span className="truncate font-medium text-foreground">
-            {project.title}
-          </span>
-        }
-        actions={
-          <RightSidebarToggle
-            controller={sidebarController}
-            label={t("projects.detail.sidebar_toggle")}
-          />
-        }
-      />
-
       <AnimatedRightSidebarLayout
         controller={sidebarController}
         sidebarLabel={t("projects.detail.sidebar_toggle")}
@@ -124,6 +103,39 @@ export function ProjectDetailPage({
         sidebarMaxSize={420}
         main={
           <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+            <BreadcrumbHeader
+              leading={backLeading}
+              segments={
+                projectsHref
+                  ? [
+                      {
+                        href: projectsHref,
+                        label: t("projects.detail.breadcrumb_fallback"),
+                      },
+                    ]
+                  : []
+              }
+              leaf={
+                <span className="truncate font-medium text-foreground">
+                  {project.title}
+                </span>
+              }
+              actions={
+                <>
+                  <PinToggleButton
+                    workspaceId={workspaceId}
+                    itemType="project"
+                    itemId={projectId}
+                    pinLabel={t("projects.detail.pin")}
+                    unpinLabel={t("projects.detail.unpin")}
+                  />
+                  <RightSidebarToggle
+                    controller={sidebarController}
+                    label={t("projects.detail.sidebar_toggle")}
+                  />
+                </>
+              }
+            />
             <TaskSurface
               workspaceId={workspaceId}
               scope={{ type: "project", projectId }}
@@ -141,6 +153,8 @@ export function ProjectDetailPage({
             <div className="space-y-5">
               <ProjectDetailHeader workspaceId={workspaceId} project={project} />
               <ProjectProperties workspaceId={workspaceId} project={project} />
+              <ProjectProgressSection project={project} />
+              <ProjectDescriptionSection workspaceId={workspaceId} project={project} />
               <ProjectResourcesSection
                 workspaceId={workspaceId}
                 projectId={projectId}

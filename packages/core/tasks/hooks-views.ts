@@ -74,28 +74,3 @@ export function usePutTaskViewPreference(workspaceId: string) {
     onSuccess: () => void qc.invalidateQueries({ queryKey: taskKeys.viewPrefs(workspaceId) }),
   });
 }
-
-export function usePins(workspaceId: string, opts: { include?: string } = {}) {
-  return useQuery({
-    queryKey: taskKeys.pins(workspaceId),
-    queryFn: () => views.listPins(workspaceId, opts),
-    enabled: !!workspaceId,
-  });
-}
-
-export function useCreatePin(workspaceId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (body: views.CreatePinBody) => views.createPin(workspaceId, body),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: taskKeys.pins(workspaceId) }),
-  });
-}
-
-export function useDeletePin(workspaceId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ itemType, itemId }: { itemType: string; itemId: string }) =>
-      views.deletePin(workspaceId, itemType, itemId),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: taskKeys.pins(workspaceId) }),
-  });
-}

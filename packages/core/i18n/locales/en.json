@@ -200,6 +200,10 @@
     "workspace_group": "Workspace navigation",
     "group_work": "Work",
     "group_communication": "Communication",
+    "pinned": "Pinned",
+    "pinned_count_one": "Pinned: {{count}} item",
+    "pinned_count_other": "Pinned: {{count}} items",
+    "pinned_unpin": "Unpin {{name}}",
     "account_named": "{{name}}, {{email}}: account",
     "skip_to_content": "Skip to main content",
     "people": "People",
@@ -1563,6 +1567,7 @@
       "change_status": "Change status",
       "change_priority": "Change priority",
       "change_assignee": "Change assignee",
+      "set_parent": "Set parent task…",
       "delete": "Delete",
       "delete_dialog_title": "Delete this task?",
       "delete_dialog_desc": "“{{title}}” will be permanently deleted. This cannot be undone.",
@@ -1780,8 +1785,6 @@
       "activity_more": "Show {{count}} more activities",
       "section_properties": "Properties",
       "section_parent": "Parent task",
-      "parent_add": "Add parent task",
-      "parent_change": "Change parent task",
       "parent_remove": "Remove parent task",
       "parent_none": "No parent task",
       "section_details": "Details",
@@ -1794,13 +1797,9 @@
       "prop_project_none": "No project",
       "prop_labels": "Labels",
       "prop_start_date": "Start date",
-      "prop_stage": "Stage",
-      "prop_stage_none": "No stage",
-      "prop_custom": "Custom properties",
       "optional_properties": "Add properties",
       "add_label": "Add a label…",
       "remove_label": "Remove label {{name}}",
-      "custom_properties_count": "{{count}} properties",
       "subtasks_progress": "{{done}}/{{total}}",
       "subtasks_progress_label": "Child progress",
       "subtask_display_settings": "Sub-task columns",
@@ -4475,8 +4474,12 @@
     "detail": {
       "not_found": "Project not found",
       "breadcrumb_fallback": "Projects",
+      "pin": "Pin project",
+      "unpin": "Unpin project",
       "title_placeholder": "Project title",
       "section_properties": "Properties",
+      "section_progress": "Progress",
+      "section_description": "Description",
       "prop_start_date": "Start date",
       "prop_due_date": "Due date",
       "description_placeholder": "Add description…",
@@ -6274,6 +6277,7 @@
       "cta": "Create a workspace"
     },
     "final": {
+      "compactTitle": "Bring your team's work together.",
       "title": "Ready for your team",
       "sub": "Two membership tiers, with permissions per organization and per workspace. Vietnamese and English at parity.",
       "primary": "Get started",
@@ -6313,16 +6317,17 @@
       "faqTitle": "Questions this team asks",
       "product": {
         "name": "Product teams",
+        "finalTitle": "Build your product together, in one workspace.",
         "metaTitle": "UniWork for product teams",
-        "metaDesc": "From the meeting to the assigned task with no context lost in between. Agents join the board as members.",
-        "title": "From the meeting to the assigned task, losing nothing in between",
+        "metaDesc": "Connect meetings, tasks and information sources in one workspace.",
+        "title": "From meeting to work. Keep the context to continue.",
         "sub": "Product teams run on context: why this work, who decided, and when. UniWork keeps all three next to the work itself.",
         "s1Title": "Running a sprint review",
         "s1Desc": "The video room lives inside the workspace, so the meeting has an owner and stays with the board instead of drifting into a link.",
-        "s2Title": "Turning a decision into work",
-        "s2Desc": "Tasks are created in the context of the conversation, keeping who decided and when attached to them.",
-        "s3Title": "Handing repetitive work to an agent",
-        "s3Desc": "The agent picks up work on the same board, signs the change history, and everything it does can be rolled back.",
+        "s2Title": "Turn a conclusion into specific work",
+        "s2Desc": "A person creates the task, assigns responsibility and keeps reference material beside it. Meetings do not automatically become tasks.",
+        "s3Title": "Find the source with Ask UNI",
+        "s3Desc": "Ask about content within an authorized workspace, then open the sources to verify. Ask UNI is read-only and does not update work.",
         "w1": "The board and the meeting room share one set of permissions.",
         "w2": "A change history on every task, whether a person or an agent made the change.",
         "w3": "Guests outside the organization join a meeting by link, with no account needed.",
@@ -6335,16 +6340,17 @@
       },
       "operations": {
         "name": "Operations teams",
+        "finalTitle": "Bring daily operations into one place.",
         "metaTitle": "UniWork for operations teams",
-        "metaDesc": "A process you can run is a process you can trace. Two permission tiers, an append-only log, and agent work that rolls back.",
-        "title": "A process you can run is a process you can trace",
-        "sub": "Operations does not need one more tool. It needs one place where every change has a name, a timestamp, and a way back.",
+        "metaDesc": "Organization and workspace roles, action history and permission-aware Ask UNI.",
+        "title": "Clear assignments. A trace you can find.",
+        "sub": "Keep responsibilities, access scope and history beside the work so the team can coordinate and review when needed.",
         "s1Title": "Handing work across departments",
         "s1Desc": "Membership comes in two tiers, per organization and per workspace, so someone can reach their own work without seeing the rest.",
         "s2Title": "Reviewing an incident",
         "s2Desc": "The log only ever grows. A wrong entry is answered with another entry, and nobody can delete the history.",
-        "s3Title": "Letting an agent take the repetition",
-        "s3Desc": "The agent updates status and rolls up progress under its own name, and every action can be undone.",
+        "s3Title": "Verify information with Ask UNI",
+        "s3Desc": "Ask UNI reads within authorized access and answers with sources. People verify and decide; autonomous execution remains a direction.",
         "w1": "Two permission tiers, and agents inherit exactly those two.",
         "w2": "A deactivated member loses access at both tiers but keeps everything they created.",
         "w3": "Every request carries one correlation id through the log and the system trace.",
@@ -6353,12 +6359,12 @@
         "q2": "What happens to someone's data when they leave?",
         "a2": "Deactivating a member closes both gates but keeps everything they ever created: tasks, comments, history. Nothing removes a person from the record.",
         "q3": "Is there workflow automation like a workflow engine?",
-        "a3": "Not yet. Automation runs through agents with a person confirming in the middle, rather than as a background flow."
+        "a3": "A complete workflow engine is not available. Ask UNI is read-only; agent and automation foundations should be distinguished from autonomous execution."
       }
     },
     "why": {
       "metaTitle": "Why UniWork",
-      "metaDesc": "Microsoft 365, Notion, ClickUp and Coda are each strong on a different side. This is the gap between them, and where UniWork stands.",
+      "metaDesc": "Compare how platforms organize work, knowledge, communication and AI. Explore UniWork through product examples and source documentation.",
       "eyebrow": "Why UniWork",
       "title": "The big problems with today's platforms",
       "sub": "More tools. More features. And the work is still fragmented.",
@@ -6441,6 +6447,106 @@
         "i5Title": "Strong AI in a narrow range",
         "i5Desc": "The AI helps with documents and tables, but never really connects to the organisation's whole working context.",
         "summary": "Genuinely inventive in joining documents to data, but not broad or deep enough to run an organisation."
+      },
+      "redesign": {
+        "title": "Work flows together. So does your team’s context.",
+        "description": "Projects, conversations, documents and AI become more useful when they connect to the work. Explore how UniWork brings them together, then compare with your team’s platform.",
+        "compareAction": "Compare platforms",
+        "sceneCaption": "One project, from conversation to task.",
+        "comparisonTitle": "Shared criteria. Clearer comparisons.",
+        "comparisonDescription": "Choose a platform to compare how it organizes work, knowledge, communication and AI alongside UniWork.",
+        "choosePlatform": "Choose a platform to compare",
+        "criteriaLabel": "Criteria",
+        "tableCaption": "Compare {{platform}} and UniWork using the same criteria",
+        "criteria": {
+          "work": "Work organization",
+          "knowledge": "Documents & knowledge",
+          "communication": "Conversations & meetings",
+          "ai": "AI & context",
+          "evaluate": "What to test with your team"
+        },
+        "platforms": {
+          "ms365": {
+            "summary": "Microsoft 365 brings office applications, communication and business services into one ecosystem.",
+            "work": "Planner for plans and tasks; Teams, Loop and other applications support collaboration.",
+            "knowledge": "Word, Excel and PowerPoint; storage and sharing through OneDrive and SharePoint.",
+            "communication": "Outlook for email and calendars; Teams for messaging, calls and meetings.",
+            "ai": "Copilot supports work content across applications; capabilities depend on plan and configuration.",
+            "evaluate": "Which applications and plans does your team need to move from discussion to handoff?"
+          },
+          "notion": {
+            "summary": "Notion combines documents, databases, projects and AI in a flexible workspace.",
+            "work": "Projects and tasks organized through databases, properties and views.",
+            "knowledge": "Docs, wikis and databases provide a home for team knowledge.",
+            "communication": "Comments in content; Calendar and AI Meeting Notes support scheduling and meeting notes.",
+            "ai": "Notion AI offers agents and search across connected sources, with cited answers.",
+            "evaluate": "Which database structure and connections fit your team’s existing process?"
+          },
+          "clickup": {
+            "summary": "ClickUp brings work management, Docs, Chat and Brain into one platform.",
+            "work": "Tasks, projects, multiple views, goals and dashboards.",
+            "knowledge": "Docs and wikis link to tasks and organize shared knowledge.",
+            "communication": "Chat stays connected to work; SyncUps and AI notes support collaboration.",
+            "ai": "Brain uses Tasks, Docs, Chat and connected sources as context; Super Agents are available.",
+            "evaluate": "Which views, permissions and automations will your team actually use?"
+          },
+          "coda": {
+            "summary": "Coda, now Superhuman Docs, combines documents, data tables and custom applications.",
+            "work": "Tables, views, buttons and formulas build trackers around your team’s process.",
+            "knowledge": "Interactive documents combine written content with data tables.",
+            "communication": "Collaboration within documents; Packs connect tools such as Slack and Google Calendar.",
+            "ai": "AI supports content and data; Packs bring other tools’ data into documents.",
+            "evaluate": "Who builds and maintains formulas, tables and Packs as your process changes?"
+          }
+        },
+        "uniwork": {
+          "workStatus": "Current foundation",
+          "work": "Tasks, projects and meetings within organization and workspace boundaries.",
+          "knowledgeStatus": "Rich text & project resources available",
+          "knowledge": "Standalone Documents is a future direction; Work Products and approvals are in development.",
+          "communicationStatus": "Available · email configuration required",
+          "communication": "Chat and online meetings in the workspace. Email Hub requires service configuration.",
+          "aiStatus": "Ask UNI · model configuration required",
+          "ai": "Permission-aware reading and search with sources. An autonomous AI workforce remains a direction.",
+          "evaluate": "Try one project: assign work, discuss, open sources and hand off. Match current capabilities to your team’s needs."
+        },
+        "methodology": "This compares working approaches without scores. Features depend on plan and configuration. Logos identify the platforms being compared.",
+        "verifiedDate": "Sources checked:",
+        "productSource": "Product documentation",
+        "contextSource": "AI & connections",
+        "proofTitle": "One project. Visible connections.",
+        "proofDescription": "Illustrations follow the same website launch project, from assignment and information lookup to handoff.",
+        "proofs": {
+          "work": {
+            "title": "Give conversations a place to continue.",
+            "description": "Required context follows the task to its owner, instead of staying behind in a discussion.",
+            "points": [
+              "Identify the owner and status.",
+              "Keep reference material beside the task."
+            ]
+          },
+          "ai": {
+            "title": "Ask about the work. Check the sources.",
+            "description": "Ask UNI reads within your access permissions. Answers include sources your team can verify.",
+            "points": [
+              "Find content within the right workspace.",
+              "Ask UNI is read-only; you keep the decision."
+            ]
+          },
+          "output": {
+            "title": "Connect the output to the work behind it.",
+            "description": "Work Products aims to connect versions, owners and material to review before handoff.",
+            "points": [
+              "Identify the version and owner.",
+              "Keep source work connected to the output."
+            ],
+            "status": "In development. This illustration shows a direction, not a completed capability."
+          }
+        },
+        "decisionTitle": "Evaluate with your team’s own work.",
+        "decisionDescription": "Use a familiar process to check information, permissions and handoff before deciding.",
+        "tryAction": "Explore tasks",
+        "closingTitle": "Connect work, your team’s way."
       }
     },
     "footer": {
@@ -6573,6 +6679,246 @@
       "time": "Time",
       "appendOnly": "Append only. History is not editable.",
       "conditionMet": "Condition: status = done"
+    },
+    "chapters": {
+      "table": {
+        "subject": "Criteria",
+        "current": "Current foundation",
+        "confirm": "What to check"
+      },
+      "learn": {
+        "start": "Explore the steps",
+        "navigation": "Getting started steps",
+        "phases": [
+          "Create a workspace",
+          "Assign the work",
+          "Check the sources"
+        ],
+        "points": [
+          [
+            "Invite the right people to the organization and workspace.",
+            "Check roles before sharing content."
+          ],
+          [
+            "Choose an owner, priority and status.",
+            "Keep reference material beside the work."
+          ],
+          [
+            "Ask within an authorized workspace.",
+            "Open the sources before using an answer."
+          ]
+        ],
+        "libraryTitle": "See an example. Try your team’s work.",
+        "libraryDescription": "Choose what you need: assignments, conversations, meetings or finding information. Each chapter has examples and its own preview.",
+        "guides": {
+          "tasks": "From a list to an accountable owner.",
+          "chat": "Keep conversations in workspace context.",
+          "meetings": "Schedule and join a room with your team.",
+          "ask": "Ask about work and check the sources."
+        },
+        "closing": "Start together in your first workspace."
+      },
+      "features": {
+        "browse": "Choose a feature family",
+        "navigation": "Feature families",
+        "closing": "Choose the work. Connect the rest.",
+        "status": {
+          "demo": "Introduction available",
+          "partial": "Early foundation",
+          "planned": "Future direction"
+        },
+        "groups": {
+          "work": "From the shared view to individual tasks and the daily rhythm.",
+          "communication": "Conversations, meetings and email in the context of work.",
+          "results": "A direction connecting work to documents, outputs and review.",
+          "knowledge": "A direction for organizing knowledge by source and topic.",
+          "ai": "Permission-aware Ask UNI, agent foundations and automation direction.",
+          "organization": "Membership structure, access scope and action history."
+        }
+      },
+      "solutions": {
+        "choose": "Compare team needs",
+        "compareTitle": "One platform. Different working rhythms.",
+        "compareDescription": "Compare goals, recurring activity and the context to keep before choosing your team’s chapter.",
+        "criteria": {
+          "focus": "Goal",
+          "routine": "Recurring activity",
+          "context": "Context to keep"
+        },
+        "product": {
+          "focus": "Connect product plans to the work your team is doing.",
+          "routine": "Sprint reviews, task assignment, design and content discussion.",
+          "context": "Project scope, accountable owners and meeting material.",
+          "scenarioDescription": "Three moments from a meeting to specific work and finding the source again.",
+          "reasonLabels": [
+            "Shared scope",
+            "Visible history",
+            "Invite participants"
+          ]
+        },
+        "operations": {
+          "focus": "Make assignments clear and find the trail during review.",
+          "routine": "Assign by workspace, review history and verify information.",
+          "context": "Roles, actors, timestamps and the scope of an action.",
+          "scenarioDescription": "Three moments for checking the right person, scope and source.",
+          "reasonLabels": [
+            "Roles at two levels",
+            "Keep authored data",
+            "Trace requests"
+          ]
+        },
+        "examples": "See the scenarios",
+        "reasonsDescription": "Mechanisms that support coordination, access and traceability in one workspace.",
+        "closing": "Bring your team’s working rhythm to UniWork."
+      },
+      "pricing": {
+        "viewPlan": "See Starter",
+        "checkTitle": "Understand today. Confirm what comes next.",
+        "checkDescription": "Compare the current plan, AI configuration and deployment needs. Commercial pricing and fixed limits have not been published.",
+        "enterpriseLink": "Explore enterprise foundations",
+        "closing": "Explore UniWork with Starter.",
+        "rows": [
+          {
+            "subject": "Current plan",
+            "current": "Starter is free during the current stage.",
+            "confirm": "Commercial plans and limits are being finalized; this is not a long-term unlimited-free commitment."
+          },
+          {
+            "subject": "AI and resources",
+            "current": "Ask UNI reads within permissions; models and services require configuration.",
+            "confirm": "Check models, AI tokens, storage and meeting configuration against your needs."
+          },
+          {
+            "subject": "Larger deployments",
+            "current": "Organization, workspace and action-history foundations.",
+            "confirm": "Enterprise, SLA and private-deployment terms have not been published."
+          }
+        ]
+      },
+      "enterprise": {
+        "explore": "Explore governance scope",
+        "structure": "Separate structure, evidence and configuration. Check each layer against the organization’s actual needs.",
+        "closing": "Evaluate governance with your team.",
+        "examples": [
+          "The right person. The right workspace.",
+          "A named actor. A clear timestamp.",
+          "AI reads within authorized access."
+        ],
+        "exampleDescriptions": [
+          "Organization and workspace roles are managed separately. Match access to the content your team needs to share.",
+          "Open a record to inspect the action and scope. Append-only logs preserve history.",
+          "Ask UNI is read-only. Models depend on configuration and answers include sources to check."
+        ],
+        "rows": [
+          {
+            "subject": "Access structure",
+            "current": "Members and roles at organization and workspace levels.",
+            "confirm": "Who needs which workspace, and with what role?"
+          },
+          {
+            "subject": "Action evidence",
+            "current": "History distinguishes actors, actions and timestamps.",
+            "confirm": "Which actions should the team inspect, and within what scope?"
+          },
+          {
+            "subject": "AI and deployment",
+            "current": "Ask UNI reads within permissions; models require configuration.",
+            "confirm": "Confirm models and deployment services. Enterprise and SLA have not been published."
+          }
+        ]
+      },
+      "featureExamples": {
+        "dashboard": [
+          "Read the task board",
+          "Put schedules beside progress",
+          "Continue from the overview"
+        ],
+        "tasks": [
+          "Choose board or list",
+          "Make ownership clear",
+          "Keep discussion beside the work"
+        ],
+        "projects": [
+          "See projects together",
+          "Open the related work",
+          "Discuss in project context"
+        ],
+        "today": [
+          "Focus on your own work",
+          "Find recent activity",
+          "See the upcoming rhythm"
+        ],
+        "calendar": [
+          "See the month",
+          "Distinguish event types",
+          "A calendar and meeting direction"
+        ],
+        "workflows": [
+          "See processing steps",
+          "Place responsibility at each step",
+          "Read an illustrative rule"
+        ],
+        "meetings": [
+          "Prepare before the meeting",
+          "Share context in the room",
+          "Keep material for the next step"
+        ],
+        "chat": [
+          "Talk in the workspace",
+          "Read the work context",
+          "Illustrate the step into a task"
+        ],
+        "email": [
+          "Read the message",
+          "Return to important mail",
+          "Check connection configuration"
+        ],
+        "outputs": [
+          "Find related outputs",
+          "See the accountable owner",
+          "A version-management direction"
+        ],
+        "documents": [
+          "Read the document",
+          "Connect it to the work",
+          "A collaboration direction"
+        ],
+        "approvals": [
+          "See what needs review",
+          "Put feedback beside content",
+          "A handoff direction"
+        ],
+        "knowledge": [
+          "Find content by topic",
+          "Return to the source document",
+          "A connected-knowledge direction"
+        ],
+        "ask": [
+          "Ask within the right scope",
+          "Open sources to verify",
+          "Keep the decision"
+        ],
+        "agents": [
+          "Inspect an agent profile",
+          "Distinguish people and agents",
+          "Understand the foundations"
+        ],
+        "automation": [
+          "Read the trigger",
+          "Check the scope",
+          "An automation-rule direction"
+        ],
+        "organization": [
+          "Manage members",
+          "Separate roles at two levels",
+          "Keep content in its scope"
+        ],
+        "audit": [
+          "Find the action",
+          "Identify the actor",
+          "Read the record details"
+        ]
+      }
     }
   },
   "documents": {

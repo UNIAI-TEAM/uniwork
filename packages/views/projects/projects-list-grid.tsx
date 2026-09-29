@@ -52,7 +52,7 @@ function ProjectCard({
   const { totalCount } = getProjectTaskMetrics(project);
 
   return (
-    <div className="group/card group/row flex flex-col rounded-md border bg-card transition-colors hover:border-primary/50">
+    <div className="group/card group/row flex flex-col rounded-md border border-border bg-card transition-colors hover:border-primary/50">
       <div className="p-3 pb-2">
         <div className="flex items-center gap-2">
           <button
