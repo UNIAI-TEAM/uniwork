@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createAuthIpcHandlers, createDraftIpcHandlers, createFileIpcHandlers, createIpcDispatcher, DESKTOP_IPC_CHANNELS, desktopDiagnosticsResponseSchema, desktopDraftResponseSchema, desktopFileMetadataSchema, desktopFileResponseSchema, desktopSessionMetadataSchema, IPC_MAX_BYTES, IPC_FILE_MAX_BYTES, IpcValidationError, validateIpcRequest } from "./ipc";
+import { createAuthIpcHandlers, createDraftIpcHandlers, createFileIpcHandlers, createIpcDispatcher, DESKTOP_IPC_CHANNELS, desktopAuthConfigResponseSchema, desktopDiagnosticsResponseSchema, desktopDraftResponseSchema, desktopFileMetadataSchema, desktopFileResponseSchema, desktopSessionMetadataSchema, IPC_MAX_BYTES, IPC_FILE_MAX_BYTES, IpcValidationError, validateIpcRequest } from "./ipc";
 import { NativeLoginManager } from "./auth/manager";
 import { LocalFileError, type FileHandleRegistry } from "./files/registry";
 import type { DesktopDraftStore } from "./drafts/store";
@@ -9,7 +9,7 @@ const valid = { sessionGeneration: "session_1234", operation: "capability", hand
 
 describe("desktop IPC allowlist", () => {
   it("enumerates only opaque operations", () => {
-    expect(DESKTOP_IPC_CHANNELS).toEqual(["desktop:bootstrap", "desktop:engine-call", "desktop:open-external", "desktop:auth-start", "desktop:auth-cancel", "desktop:auth-session", "desktop:diagnostics", "desktop:file-pick-open", "desktop:file-open", "desktop:file-save", "desktop:file-save-as", "desktop:draft-checkpoint"]);
+    expect(DESKTOP_IPC_CHANNELS).toEqual(["desktop:bootstrap", "desktop:engine-call", "desktop:open-external", "desktop:auth-start", "desktop:auth-cancel", "desktop:auth-session", "desktop:auth-config", "desktop:auth-logout", "desktop:diagnostics", "desktop:file-pick-open", "desktop:file-open", "desktop:file-save", "desktop:file-save-as", "desktop:draft-checkpoint"]);
     expect(DESKTOP_IPC_CHANNELS.some((channel) => /fs|exec|http/i.test(channel))).toBe(false);
   });
   it("accepts a valid engine request", () => expect(validateIpcRequest("desktop:engine-call", valid, context)).toEqual(valid));
@@ -75,12 +75,15 @@ describe("desktop IPC allowlist", () => {
     expect(desktopFileMetadataSchema.parse({ handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", name: "x.txt", byteLength: 1, modifiedAtMs: 1, checksum: `sha256:${"a".repeat(64)}` })).toMatchObject({ name: "x.txt" });
     expect(desktopFileResponseSchema.parse({ opened: false })).toEqual({ opened: false });
     expect(desktopDraftResponseSchema.parse({ stored: true, generation: 1 })).toEqual({ stored: true, generation: 1 });
+    expect(desktopAuthConfigResponseSchema.parse({ clientId: "com.uniwork.office", deploymentId: "production-eu" })).toEqual({ clientId: "com.uniwork.office", deploymentId: "production-eu" });
     expect(desktopSessionMetadataSchema.parse({ status: "signed-out" })).toEqual({ status: "signed-out" });
     expect(desktopSessionMetadataSchema.parse({ status: "signed-in", accountId: "account-1", deploymentId: "production-eu" })).toMatchObject({ status: "signed-in" });
     expect(() => desktopSessionMetadataSchema.parse({ status: "signed-in", accessToken: "secret" })).toThrow();
     expect(validateIpcRequest("desktop:auth-start", { sessionGeneration: "session_1234", clientId: "com.uniwork.office", deploymentId: "production-eu" }, context)).toEqual({ sessionGeneration: "session_1234", clientId: "com.uniwork.office", deploymentId: "production-eu" });
     expect(validateIpcRequest("desktop:auth-cancel", { sessionGeneration: "session_1234", attemptId: "attempt_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL" }, context)).toMatchObject({ attemptId: expect.stringMatching(/^attempt_/) });
     expect(validateIpcRequest("desktop:auth-session", { sessionGeneration: "session_1234" }, context)).toEqual({ sessionGeneration: "session_1234" });
+    expect(validateIpcRequest("desktop:auth-config", { sessionGeneration: "session_1234" }, context)).toEqual({ sessionGeneration: "session_1234" });
+    expect(validateIpcRequest("desktop:auth-logout", { sessionGeneration: "session_1234", scope: "device" }, context)).toEqual({ sessionGeneration: "session_1234", scope: "device" });
     expect(() => validateIpcRequest("desktop:auth-start", { sessionGeneration: "session_1234", clientId: "com.uniwork.office", deploymentId: "production-eu", accessToken: "secret" }, context)).toThrowError(IpcValidationError);
     expect(() => validateIpcRequest("desktop:auth-cancel", { sessionGeneration: "session_1234", attemptId: "attempt_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", refreshToken: "secret" }, context)).toThrowError(IpcValidationError);
   });
@@ -91,11 +94,13 @@ describe("desktop IPC allowlist", () => {
     expect(desktopDiagnosticsResponseSchema.parse({ appId: "com.uniwork.office", appVersion: "0.0.0", engineVersion: "genoffice@09485f88+uniwork-office.0", contractVersion: "uniwork-office-engine-contract/1", protocolVersion: 1, channel: "dev", buildId: "unsigned-dev" })).not.toHaveProperty("content");
   });
   it("maps auth handlers to metadata-only responses", async () => {
-    const manager = { isBound: () => true, startLogin: async () => ({ status: "pending" as const, attemptId: "attempt_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", expiresAt: 123 }), cancelLogin: () => ({ status: "signed-out" as const }), getMetadata: () => ({ status: "signed-out" as const }) } as unknown as NativeLoginManager;
+    const manager = { isBound: () => true, getBinding: () => ({ clientId: "com.uniwork.office", deploymentId: "production-eu" }), startLogin: async () => ({ status: "pending" as const, attemptId: "attempt_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", expiresAt: 123 }), cancelLogin: () => ({ status: "signed-out" as const }), getMetadata: () => ({ status: "signed-out" as const }), logout: async () => ({ status: "signed-out" as const }) } as unknown as NativeLoginManager;
     const handlers = createAuthIpcHandlers(manager);
     await expect(handlers["desktop:auth-start"]({ sessionGeneration: "session_1234", clientId: "com.uniwork.office", deploymentId: "production-eu" })).resolves.toEqual({ status: "pending", attemptId: expect.stringMatching(/^attempt_/), expiresAt: 123 });
     expect(handlers["desktop:auth-cancel"]({ sessionGeneration: "session_1234", attemptId: "attempt_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL" })).toEqual({ status: "signed-out" });
     expect(handlers["desktop:auth-session"]({ sessionGeneration: "session_1234" })).toEqual({ status: "signed-out" });
+    expect(handlers["desktop:auth-config"]({ sessionGeneration: "session_1234" })).toEqual({ clientId: "com.uniwork.office", deploymentId: "production-eu" });
+    await expect(handlers["desktop:auth-logout"]({ sessionGeneration: "session_1234", scope: "device" })).resolves.toEqual({ status: "signed-out" });
     const rejecting = createAuthIpcHandlers({ ...manager, isBound: () => false } as unknown as NativeLoginManager);
     await expect(rejecting["desktop:auth-start"]({ sessionGeneration: "session_1234", clientId: "other", deploymentId: "staging" })).rejects.toThrow(/binding/);
   });

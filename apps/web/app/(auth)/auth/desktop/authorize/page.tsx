@@ -38,7 +38,7 @@ export default function DesktopAuthorizePage() {
 function isDesktopCallbackUrl(value: string): boolean {
   try {
     const url = new URL(value);
-    return url.protocol === "uniwork-office:" && url.hostname === "auth" && url.pathname === "/callback";
+    return ["uniwork-office:", "uniwork-office-dev:"].includes(url.protocol) && url.hostname === "auth" && url.pathname === "/callback";
   } catch {
     return false;
   }

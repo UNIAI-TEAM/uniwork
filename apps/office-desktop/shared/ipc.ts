@@ -10,6 +10,8 @@ export const DESKTOP_IPC_CHANNELS = [
   "desktop:auth-start",
   "desktop:auth-cancel",
   "desktop:auth-session",
+  "desktop:auth-config",
+  "desktop:auth-logout",
   "desktop:diagnostics",
   "desktop:file-pick-open",
   "desktop:file-open",
@@ -20,7 +22,7 @@ export const DESKTOP_IPC_CHANNELS = [
 export type DesktopIpcChannel = (typeof DESKTOP_IPC_CHANNELS)[number];
 /** Main-to-renderer events are a separate, equally narrow allowlist. Event
  * payloads are parsed in main before send and again in preload. */
-export const DESKTOP_EVENTS = ["desktop:launch-requested"] as const;
+export const DESKTOP_EVENTS = ["desktop:launch-requested", "desktop:auth-session-changed"] as const;
 const sessionGenerationSchema = z.string().regex(/^[A-Za-z0-9_-]{8,128}$/, "invalid session generation");
 const opaqueHandleSchema = z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/, "invalid opaque handle");
 const operationSchema = z.enum(["capability", "open", "edit", "serialize", "cancel"]);
@@ -76,6 +78,7 @@ export const desktopDiagnosticsResponseSchema = z.object({
   deploymentId: deploymentSchema.optional(),
   originHost: z.string().min(1).max(255).optional(),
 }).strict();
+export const desktopAuthConfigResponseSchema = z.object({ clientId: clientIdSchema, deploymentId: deploymentSchema }).strict();
 const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:file-pick-open": desktopFileResponseSchema,
   "desktop:file-open": desktopFileResponseSchema,
@@ -103,6 +106,8 @@ const requestSchemas = {
   "desktop:auth-start": z.object({ sessionGeneration: sessionGenerationSchema, clientId: clientIdSchema, deploymentId: deploymentSchema }).strict(),
   "desktop:auth-cancel": z.object({ sessionGeneration: sessionGenerationSchema, attemptId: attemptIdSchema }).strict(),
   "desktop:auth-session": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
+  "desktop:auth-config": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
+  "desktop:auth-logout": z.object({ sessionGeneration: sessionGenerationSchema, scope: z.enum(["device", "family"]).default("device") }).strict(),
   "desktop:diagnostics": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:file-pick-open": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:file-open": z.object({ sessionGeneration: sessionGenerationSchema, handle: fileHandleSchema }).strict(),

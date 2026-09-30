@@ -25,3 +25,14 @@ it("accepts only the narrow launch event and never forwards a ticket", () => {
   expect(received).toEqual([{ documentId: "doc-1", operation: "view" }]);
   expect(JSON.stringify(received)).not.toContain("secret");
 });
+
+it("forwards only metadata from auth session change events", () => {
+  let listener: ((...args: unknown[]) => void) | undefined;
+  const bridge = createPreloadBridge({ invoke: vi.fn(), on: (_channel, next) => { listener = next; } });
+  const received: unknown[] = [];
+  bridge.onSessionChanged((metadata) => received.push(metadata));
+  listener?.({}, { status: "signed-in", accountId: "account-1", deploymentId: "production-eu" });
+  listener?.({}, { status: "signed-out", accessToken: "secret" });
+  expect(received).toEqual([{ status: "signed-in", accountId: "account-1", deploymentId: "production-eu" }]);
+  expect(JSON.stringify(received)).not.toContain("secret");
+});

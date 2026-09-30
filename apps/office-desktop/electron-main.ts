@@ -6,7 +6,7 @@ import { existsSync } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST, getChannelIdentity } from "./shared/identity";
-import { DESKTOP_IPC_CHANNELS } from "./shared/ipc";
+import { DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema } from "./shared/ipc";
 import { createDesktopHost, WINDOW_WEB_PREFERENCES } from "./main/index";
 import { createLaunchBridge, type DeepLinkSystem } from "./main/deep-links/bridge";
 import { resolveDeploymentProfile, type DeploymentProfile } from "./shared/deployment";
@@ -20,6 +20,16 @@ const RENDERER_DIRECTORY = resolve(DIST_MAIN_DIRECTORY, "../renderer");
 const PRELOAD_PATH = resolve(DIST_MAIN_DIRECTORY, "../preload/index.cjs");
 const SESSION_GENERATION = "desktop-dev-session";
 const SMOKE_MODE = process.argv.includes("--office-desktop-smoke");
+
+// The renderer is loaded from the app's custom scheme. Mark it as a standard,
+// secure, CORS-enabled scheme before Electron is ready so its module script
+// can be fetched from the same origin in packaged builds.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: DESKTOP_IDENTITY.appScheme,
+    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true },
+  },
+]);
 
 function inside(directory: string, file: string): boolean {
   const root = resolve(directory);
@@ -89,6 +99,7 @@ async function startElectronHost(): Promise<void> {
   });
   const deploymentProfile = "kind" in deploymentResolution ? undefined : deploymentResolution;
   await app.whenReady();
+  let publishSessionMetadata: (metadata: unknown) => void = () => undefined;
   const authManager = deploymentProfile ? new NativeLoginManager({
     clientId: deploymentProfile.clientId,
     deploymentId: deploymentProfile.deploymentId,
@@ -97,6 +108,7 @@ async function startElectronHost(): Promise<void> {
     browser: createSystemBrowserLauncher((url) => shell.openExternal(url)),
     transport: createHttpAuthTransport(deploymentProfile),
     credentials: createSecureCredentialStore({ userDataDirectory: app.getPath("userData"), channel: DESKTOP_IDENTITY_MANIFEST.build.channel, deploymentId: deploymentProfile.deploymentId, safeStorage }),
+    onMetadata: (metadata) => publishSessionMetadata(metadata),
   }) : undefined;
   await authManager?.restore();
   installRendererProtocol();
@@ -108,6 +120,10 @@ async function startElectronHost(): Promise<void> {
       preload: PRELOAD_PATH,
     },
   });
+  publishSessionMetadata = (metadata) => {
+    const parsed = desktopSessionMetadataSchema.parse(metadata);
+    window.webContents.send?.("desktop:auth-session-changed", parsed);
+  };
   // Electron's main-frame invoke events use frame id 0. Keep this explicit so
   // the dispatcher binds the handler to the top-level window only.
   const frameId = 0;
