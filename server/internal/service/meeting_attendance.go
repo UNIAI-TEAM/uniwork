@@ -236,12 +236,8 @@ func (s *MeetingService) MarkAttendance(ctx context.Context, actorID, meetingID,
 
 // ClearAttendanceMark hands one person back to the automatic suggestion.
 func (s *MeetingService) ClearAttendanceMark(ctx context.Context, actorID, meetingID, participantID string) error {
-	m, err := s.attendanceMeeting(ctx, actorID, meetingID)
-	if err != nil {
+	if _, err := s.attendanceMeeting(ctx, actorID, meetingID); err != nil {
 		return err
-	}
-	if m.AttendanceFinalizedAt.Valid {
-		return errAttendanceFinalized()
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -249,6 +245,13 @@ func (s *MeetingService) ClearAttendanceMark(ctx context.Context, actorID, meeti
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	m, err := q.LockMeetingForAttendance(ctx, meetingID)
+	if err != nil {
+		return err
+	}
+	if m.AttendanceFinalizedAt.Valid {
+		return errAttendanceFinalized()
+	}
 	n, err := q.DeleteAttendanceMark(ctx, db.DeleteAttendanceMarkParams{MeetingID: meetingID, ParticipantID: participantID})
 	if err != nil {
 		return err
@@ -269,9 +272,6 @@ func (s *MeetingService) FinalizeAttendance(ctx context.Context, actorID, meetin
 	if err != nil {
 		return err
 	}
-	if m.AttendanceFinalizedAt.Valid {
-		return nil
-	}
 	orgID, err := s.organizationOf(ctx, m)
 	if err != nil {
 		return err
@@ -282,6 +282,12 @@ func (s *MeetingService) FinalizeAttendance(ctx context.Context, actorID, meetin
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	if m, err = q.LockMeetingForAttendance(ctx, meetingID); err != nil {
+		return err
+	}
+	if m.AttendanceFinalizedAt.Valid {
+		return nil
+	}
 	rep, err := s.attendanceReport(ctx, q, m)
 	if err != nil {
 		return err
@@ -309,12 +315,8 @@ func (s *MeetingService) FinalizeAttendance(ctx context.Context, actorID, meetin
 
 // ReopenAttendance drops the frozen AUTO rows; clerk marks stay.
 func (s *MeetingService) ReopenAttendance(ctx context.Context, actorID, meetingID string) error {
-	m, err := s.attendanceMeeting(ctx, actorID, meetingID)
-	if err != nil {
+	if _, err := s.attendanceMeeting(ctx, actorID, meetingID); err != nil {
 		return err
-	}
-	if !m.AttendanceFinalizedAt.Valid {
-		return nil
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -322,6 +324,13 @@ func (s *MeetingService) ReopenAttendance(ctx context.Context, actorID, meetingI
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	m, err := q.LockMeetingForAttendance(ctx, meetingID)
+	if err != nil {
+		return err
+	}
+	if !m.AttendanceFinalizedAt.Valid {
+		return nil
+	}
 	if err := q.DeleteAutoAttendanceMarks(ctx, m.ID); err != nil {
 		return err
 	}

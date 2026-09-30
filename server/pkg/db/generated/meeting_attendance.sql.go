@@ -145,6 +145,48 @@ func (q *Queries) ListAttendanceMarks(ctx context.Context, meetingID string) ([]
 	return items, nil
 }
 
+const lockMeetingForAttendance = `-- name: LockMeetingForAttendance :one
+SELECT id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by FROM meetings WHERE id = $1 FOR UPDATE
+`
+
+// Serializes finalize, reopen and clear on one meeting so each re-reads the
+// finalized flag under the lock instead of trusting a pre-transaction read.
+func (q *Queries) LockMeetingForAttendance(ctx context.Context, id string) (Meeting, error) {
+	row := q.db.QueryRow(ctx, lockMeetingForAttendance, id)
+	var i Meeting
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Description,
+		&i.StartsAt,
+		&i.EndsAt,
+		&i.RoomName,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.MeetingType,
+		&i.HostUserID,
+		&i.ActualStartAt,
+		&i.ActualEndAt,
+		&i.Timezone,
+		&i.AllowJoinRequest,
+		&i.PreferredProviderKey,
+		&i.Version,
+		&i.UpdatedBy,
+		&i.CanceledBy,
+		&i.CanceledAt,
+		&i.CancelReason,
+		&i.ProjectID,
+		&i.CreatedByKind,
+		&i.QuorumPercent,
+		&i.AttendanceFinalizedAt,
+		&i.AttendanceFinalizedBy,
+	)
+	return i, err
+}
+
 const setAttendanceFinalized = `-- name: SetAttendanceFinalized :one
 UPDATE meetings SET
   attendance_finalized_at = $1,

@@ -48,3 +48,8 @@ UPDATE meeting_participants SET
   is_secretary = COALESCE(sqlc.narg('is_secretary'), is_secretary)
 WHERE id = sqlc.arg('id') AND status = 'ACTIVE'
 RETURNING *;
+
+-- name: LockMeetingForAttendance :one
+-- Serializes finalize, reopen and clear on one meeting so each re-reads the
+-- finalized flag under the lock instead of trusting a pre-transaction read.
+SELECT * FROM meetings WHERE id = $1 FOR UPDATE;

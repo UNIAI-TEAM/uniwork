@@ -408,3 +408,31 @@ func TestUpdateMeetingQuorum(t *testing.T) {
 		t.Fatalf("clear quorum: %+v %v", up.QuorumPercent, err)
 	}
 }
+
+func TestConcurrentFinalizeWritesOnce(t *testing.T) {
+	s, ua, _, m, _ := governanceFixture(t)
+	ctx := context.Background()
+	// Host, secretary and an admin clicking at once. Kept under the test pool
+	// size: each command holds its transaction and s.record borrows a second
+	// connection, so more callers than connections starve the pool.
+	const n = 3
+	errs := make(chan error, n)
+	for i := 0; i < n; i++ {
+		go func() { errs <- s.FinalizeAttendance(ctx, ua.ID, m.ID) }()
+	}
+	for i := 0; i < n; i++ {
+		if err := <-errs; err != nil {
+			t.Fatal(err)
+		}
+	}
+	var audits, timeline int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = 'meeting.attendance_finalized' AND resource_id = $1`, m.ID).Scan(&audits); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM meeting_audit_logs WHERE event_type = 'ATTENDANCE_FINALIZED' AND meeting_id = $1`, m.ID).Scan(&timeline); err != nil {
+		t.Fatal(err)
+	}
+	if audits != 1 || timeline != 1 {
+		t.Fatalf("concurrent finalize wrote %d audit rows and %d timeline rows, want 1 and 1", audits, timeline)
+	}
+}
