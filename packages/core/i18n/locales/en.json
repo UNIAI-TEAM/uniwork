@@ -74,6 +74,21 @@
     "networkError": "Can't reach UniWork. Check your connection and try again.",
     "serverError": "UniWork is having trouble. Try again in a few minutes.",
     "tooManyAttempts": "Too many attempts. Wait a minute and try again.",
+    "desktop": {
+      "eyebrow": "Desktop sign-in",
+      "title": "Allow UniWork Office to sign in?",
+      "description": "Check the app and device details before continuing. This approval is valid for this device only.",
+      "app": "App",
+      "device": "Device",
+      "account": "Account",
+      "deployment": "Deployment",
+      "currentAccount": "Your signed-in account",
+      "build": "Build",
+      "unknown": "Not provided",
+      "loading": "Loading…",
+      "approve": "Allow desktop app",
+      "approving": "Allowing…"
+    },
     "forgot": {
       "title": "Forgot password",
       "subtitle": "Enter your account email and we will send a reset link.",
@@ -6943,6 +6958,29 @@
     "panel": "Details",
     "panel_open": "Open panel",
     "panel_close": "Close panel",
+    "leave": {
+      "title": "Leave this document?",
+      "description": "You have unsaved changes. Choose what to do before leaving.",
+      "clean_description": "You can stay in the document or continue.",
+      "save": "Save to UniWork",
+      "keep": "Keep draft on this device",
+      "discard": "Discard changes",
+      "stay": "Stay",
+      "working": "Working…",
+      "write_failed": "The action could not be confirmed. The document stays open."
+    },
+    "recovery": {
+      "title": "Draft found",
+      "description": "An encrypted draft for this document is available on this device.",
+      "conflict_title": "Draft conflict",
+      "conflict_description": "This draft belongs to an older document version and cannot be recovered automatically.",
+      "recover": "Recover draft",
+      "keep": "Keep draft",
+      "discard": "Discard draft",
+      "working": "Working…",
+      "write_failed": "The draft could not be updated.",
+      "updated": "Updated {{date}}"
+    },
     "tabs": "Office views",
     "editor": {
       "canvas_label": "{{format}} editor",

@@ -74,6 +74,21 @@
     "networkError": "Không kết nối được. Kiểm tra mạng rồi thử lại.",
     "serverError": "UniWork đang gặp sự cố. Thử lại sau ít phút.",
     "tooManyAttempts": "Thử quá nhiều lần. Chờ một phút rồi thử lại.",
+    "desktop": {
+      "eyebrow": "Đăng nhập desktop",
+      "title": "Cho phép UniWork Office đăng nhập?",
+      "description": "Kiểm tra thông tin ứng dụng và thiết bị trước khi tiếp tục. Phê duyệt này chỉ có hiệu lực trên thiết bị này.",
+      "app": "Ứng dụng",
+      "device": "Thiết bị",
+      "account": "Tài khoản",
+      "deployment": "Môi trường",
+      "currentAccount": "Tài khoản đang đăng nhập",
+      "build": "Bản dựng",
+      "unknown": "Chưa cung cấp",
+      "loading": "Đang tải…",
+      "approve": "Cho phép ứng dụng desktop",
+      "approving": "Đang cho phép…"
+    },
     "forgot": {
       "title": "Quên mật khẩu",
       "subtitle": "Nhập email tài khoản, chúng tôi sẽ gửi link đặt lại.",
@@ -6937,6 +6952,29 @@
     "panel": "Chi tiết",
     "panel_open": "Mở panel",
     "panel_close": "Đóng panel",
+    "leave": {
+      "title": "Rời tài liệu?",
+      "description": "Bạn có thay đổi chưa lưu. Chọn cách xử lý trước khi rời tài liệu.",
+      "clean_description": "Bạn có thể ở lại tài liệu hoặc tiếp tục.",
+      "save": "Lưu lên UniWork",
+      "keep": "Giữ nháp trên thiết bị",
+      "discard": "Bỏ thay đổi",
+      "stay": "Ở lại",
+      "working": "Đang xử lý…",
+      "write_failed": "Không thể xác nhận thao tác. Tài liệu vẫn mở."
+    },
+    "recovery": {
+      "title": "Tìm thấy bản nháp",
+      "description": "Có bản nháp được mã hóa trên thiết bị cho tài liệu này.",
+      "conflict_title": "Bản nháp xung đột",
+      "conflict_description": "Bản nháp thuộc phiên bản cũ của tài liệu. Không thể tự động khôi phục.",
+      "recover": "Khôi phục bản nháp",
+      "keep": "Giữ bản nháp",
+      "discard": "Bỏ bản nháp",
+      "working": "Đang xử lý…",
+      "write_failed": "Không thể cập nhật bản nháp.",
+      "updated": "Cập nhật {{date}}"
+    },
     "tabs": "Chế độ xem Office",
     "editor": {
       "canvas_label": "Trình soạn thảo {{format}}",

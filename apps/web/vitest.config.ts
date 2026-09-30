@@ -1,3 +1,4 @@
+import { transform } from "esbuild";
 import { defineConfig } from "vitest/config";
 import { coverageThresholds } from "../../scripts/coverage-gate";
 import { vitestPoolOptions } from "../../scripts/vitest-pool";
@@ -6,9 +7,17 @@ import { vitestPoolOptions } from "../../scripts/vitest-pool";
 // This single runner owns host-only platform code: the sandboxed HTML preview,
 // the protected Office draft store/key provider, and navigation adapter guards.
 export default defineConfig({
+  plugins: [{
+    name: "office-host-tsx",
+    enforce: "pre",
+    async transform(code, id) {
+      if (!id.endsWith(".tsx")) return null;
+      return transform(code, { loader: "tsx", jsx: "automatic", format: "esm", sourcemap: "inline", sourcefile: id });
+    },
+  }],
   test: {
     environment: "jsdom",
-    include: ["platform/**/*.test.ts"],
+    include: ["platform/**/*.test.{ts,tsx}"],
     ...vitestPoolOptions(),
     // The 20k-document DOM fuzz tests sit near 30 s under v8 coverage with
     // other files in parallel on this Windows checkout (measured 25-29 s in
@@ -19,8 +28,8 @@ export default defineConfig({
       provider: "v8",
       // Keep every browser Office source in the canonical gate; unit fakes are
       // test-only and are excluded by the test suffix below.
-      include: ["platform/office/**/*.ts"],
-      exclude: ["**/*.test.ts"],
+      include: ["platform/office/**/*.{ts,tsx}"],
+      exclude: ["**/*.test.{ts,tsx}"],
       reporter: ["text-summary"],
       // docs/engineering/GATE_LEVELS.md; the numbers only go up (ADR 0014).
       // Existing Office host files retain their historical floors. The two

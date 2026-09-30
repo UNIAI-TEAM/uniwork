@@ -1,6 +1,6 @@
 "use client";
 
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { ArrowLeft, Eye, FileWarning } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -68,6 +68,7 @@ export interface DocumentWorkspaceProps {
    * never be assumed fresh.
    */
   refetch: () => Promise<{ data?: Document | null; isError?: boolean }>;
+  officeEditorHost?: ComponentType<{ wsId: string; document: Document; readonly: boolean }>;
 }
 
 /**
@@ -88,6 +89,7 @@ export function DocumentWorkspace({
   ownerHref,
   headerActions,
   refetch,
+  officeEditorHost,
 }: DocumentWorkspaceProps) {
   const { t } = useTranslation();
   const { push } = useNavigation();
@@ -456,7 +458,7 @@ export function DocumentWorkspace({
             </div>
           </Suspense>
         ) : (
-          <DocumentFileView wsId={wsId} doc={doc} readonly={!canEdit} />
+          <DocumentFileView wsId={wsId} doc={doc} readonly={!canEdit} officeEditorHost={officeEditorHost} />
         )}
       </div>
 

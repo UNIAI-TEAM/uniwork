@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"log/slog"
 	"net"
 	"net/http"
@@ -25,6 +26,7 @@ type Deps struct {
 	Log           *slog.Logger
 	Minter        auth.TokenMinter
 	Auth          *service.AuthService
+	DesktopAuth   *service.DesktopAuthService
 	Verification  *service.VerificationService
 	PasswordReset *service.PasswordResetService
 	GoogleAuth    *service.GoogleAuthService
@@ -113,6 +115,12 @@ func New(d Deps) http.Handler {
 		HTTPMetrics:   d.HTTPMetrics,
 		PlatformRoles: platformRoles(d.Admin),
 		FeatureFlags:  d.FeatureFlags,
+		DeviceStatus: func(ctx context.Context, userID, sessionID string) error {
+			if d.DesktopAuth == nil {
+				return nil
+			}
+			return d.DesktopAuth.CheckDeviceSession(ctx, userID, sessionID)
+		},
 	}, rt.Routes{
 		Health: h.health,
 		Ready:  h.ready,
@@ -134,16 +142,24 @@ func New(d Deps) http.Handler {
 		AdminDeleteFlagOverride:    h.adminDeleteFlagOverride,
 		WS:                         h.ws,
 
-		Register:       h.register,
-		Login:          h.login,
-		ForgotPassword: h.forgotPassword,
-		ResetPassword:  h.resetPassword,
-		Refresh:        h.refresh,
-		Logout:         h.logout,
-		MFAVerify:      h.mfaVerify,
-		AuthProviders:  h.authProviders,
-		GoogleStart:    h.googleStart,
-		GoogleCallback: h.googleCallback,
+		Register:              h.register,
+		Login:                 h.login,
+		ForgotPassword:        h.forgotPassword,
+		ResetPassword:         h.resetPassword,
+		Refresh:               h.refresh,
+		Logout:                h.logout,
+		MFAVerify:             h.mfaVerify,
+		AuthProviders:         h.authProviders,
+		GoogleStart:           h.googleStart,
+		GoogleCallback:        h.googleCallback,
+		DesktopStart:          h.desktopStart,
+		DesktopConsent:        h.desktopConsent,
+		DesktopConsentCommand: h.desktopConsentCommand,
+		DesktopExchange:       h.desktopExchange,
+		DesktopRefresh:        h.desktopRefresh,
+		DesktopLogout:         h.desktopLogout,
+		DesktopDevices:        h.desktopDevices,
+		DesktopRevokeDevice:   h.desktopRevokeDevice,
 
 		Me:                  h.me,
 		PatchMe:             h.patchMe,

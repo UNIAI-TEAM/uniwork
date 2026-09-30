@@ -148,7 +148,11 @@ func (q *Queries) ListActiveSessionsForUser(ctx context.Context, userID string) 
 }
 
 const revokeAllRefreshTokensForUser = `-- name: RevokeAllRefreshTokensForUser :exec
-UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL
+WITH revoked AS (
+  UPDATE refresh_tokens SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL
+)
+UPDATE device_sessions SET revoked_at = COALESCE(device_sessions.revoked_at, now())
+WHERE device_sessions.user_id = $1 AND device_sessions.revoked_at IS NULL
 `
 
 func (q *Queries) RevokeAllRefreshTokensForUser(ctx context.Context, userID string) error {

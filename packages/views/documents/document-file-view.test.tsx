@@ -5,6 +5,11 @@ import { DocumentSchema, type Document } from "@uniwork/core/types/document";
 import { requestMock, wrap } from "../test/api-mock";
 import { DocumentFileView } from "./document-file-view";
 
+const featureFlagMock = vi.hoisted(() => ({
+  useFlag: vi.fn((_key: string, fallback: boolean) => fallback),
+}));
+vi.mock("@uniwork/core/feature-flags", () => featureFlagMock);
+
 const { t } = initI18n();
 
 const WS = "ws1";
@@ -88,6 +93,7 @@ afterEach(() => {
 
 beforeEach(() => {
   requestMock.mockReset();
+  featureFlagMock.useFlag.mockReset().mockImplementation((_key, fallback) => fallback);
 });
 
 describe("DocumentFileView", () => {
@@ -120,6 +126,20 @@ describe("DocumentFileView", () => {
 
     expect(screen.getByRole("button", { name: t("documents.file.download") })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: t("documents.file.new_version") })).toBeNull();
+  });
+
+  it("mounts the injected Office host only when the flag is enabled", async () => {
+    mockApi();
+    featureFlagMock.useFlag.mockReturnValue(true);
+    const officeHost = vi.fn(({ readonly: isReadonly }: { readonly: boolean }) => (
+      <div data-testid="office-host" data-readonly={String(isReadonly)}>Office host</div>
+    ));
+    render(wrap(<DocumentFileView wsId={WS} doc={fileDocument()} readonly officeEditorHost={officeHost} />));
+
+    expect(await screen.findByTestId("office-host")).toHaveAttribute("data-readonly", "true");
+    expect(officeHost).toHaveBeenCalled();
+    expect(officeHost.mock.calls[0]?.[0]).toEqual(expect.objectContaining({ wsId: WS, readonly: true }));
+    expect(screen.queryByText(t("documents.file.history_title"))).toBeNull();
   });
 
   it("stages a new version and commits it on the base it started from", async () => {

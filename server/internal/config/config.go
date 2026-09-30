@@ -15,7 +15,14 @@ type Config struct {
 	JWTSecret       string
 	AccessTokenTTL  time.Duration
 	RefreshTokenTTL time.Duration
-	FrontendOrigin  string
+	// Desktop auth is a public PKCE client. Redirects and deployments are
+	// explicit allowlists; an empty allowlist is rejected by Load.
+	DesktopAuthClientID      string
+	DesktopAuthRedirectURIs  []string
+	DesktopAuthDeploymentIDs []string
+	DesktopAuthCodeTTL       time.Duration
+	DesktopAuthAttemptTTL    time.Duration
+	FrontendOrigin           string
 	// SecureCookies is derived from FrontendOrigin's scheme: an https origin
 	// gets the Secure flag on the refresh cookie, a plain-http dev origin does
 	// not (browsers silently drop Secure cookies set over http, which would
@@ -131,6 +138,11 @@ func Load() (Config, error) {
 		JWTSecret:                     os.Getenv("JWT_SECRET"),
 		AccessTokenTTL:                15 * time.Minute,
 		RefreshTokenTTL:               30 * 24 * time.Hour,
+		DesktopAuthClientID:           getenv("DESKTOP_AUTH_CLIENT_ID", "uniwork-office"),
+		DesktopAuthRedirectURIs:       splitList(getenv("DESKTOP_AUTH_REDIRECT_URIS", "uniwork-office://auth/callback")),
+		DesktopAuthDeploymentIDs:      splitList(getenv("DESKTOP_AUTH_DEPLOYMENT_IDS", "default")),
+		DesktopAuthCodeTTL:            parseDuration(os.Getenv("DESKTOP_AUTH_CODE_TTL"), 120*time.Second),
+		DesktopAuthAttemptTTL:         parseDuration(os.Getenv("DESKTOP_AUTH_ATTEMPT_TTL"), 10*time.Minute),
 		FrontendOrigin:                getenv("FRONTEND_ORIGIN", "http://localhost:3000"),
 		TrustedProxies:                os.Getenv("TRUSTED_PROXIES"),
 		LiveKitURL:                    os.Getenv("LIVEKIT_URL"),
@@ -179,6 +191,15 @@ func Load() (Config, error) {
 	}
 	if c.JWTSecret == "" {
 		return c, fmt.Errorf("JWT_SECRET is required")
+	}
+	if strings.TrimSpace(c.DesktopAuthClientID) == "" || len(c.DesktopAuthRedirectURIs) == 0 || len(c.DesktopAuthDeploymentIDs) == 0 {
+		return c, fmt.Errorf("desktop auth client, redirect and deployment allowlists are required")
+	}
+	if c.DesktopAuthCodeTTL <= 0 || c.DesktopAuthCodeTTL > 10*time.Minute {
+		return c, fmt.Errorf("DESKTOP_AUTH_CODE_TTL must be between 1s and 10m")
+	}
+	if c.DesktopAuthAttemptTTL <= 0 || c.DesktopAuthAttemptTTL > time.Hour {
+		return c, fmt.Errorf("DESKTOP_AUTH_ATTEMPT_TTL must be between 1s and 1h")
 	}
 	u, err := url.Parse(c.FrontendOrigin)
 	if err != nil || u.Scheme == "" || u.Host == "" {
@@ -235,6 +256,17 @@ func parseInt32(raw string, fallback int32) int32 {
 		return fallback
 	}
 	return int32(n)
+}
+
+func splitList(raw string) []string {
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 func swaggerEnabled(frontendOrigin string) bool {
