@@ -4,15 +4,14 @@ Chromium writes PNGs at zlib's default level with no filter search, so every
 file it hands back is roughly a third larger than it needs to be. This pass is
 lossless for the icons and the favicon.
 
-The Open Graph card is the exception: 1200x630 of smooth gradient behind a flat
-white glyph is the worst case for PNG and the best case for JPEG. Measured on
-this artwork, q95 at 4:4:4 is 27% of the PNG, and the error is confined to the
-glyph's edges (max 21 of 255 there, max 4 across the gradient) - ringing that is
-invisible at the ~360px Slack and ~500px X render the card actually gets.
-4:2:0 would put that error on a white-on-cyan edge, which is exactly where
-chroma subsampling shows, so subsampling stays off.
+The link-preview cards take the same lossless pass. They were JPEG while the
+card was a gradient behind a glyph; the current cards are flat fields and type,
+where PNG is the smaller file as well as the exact one (measured 2026-09-30:
+~80 KB PNG against ~120 KB for JPEG q95 4:4:4), and there is no ringing
+around the headline for a thumbnail to magnify.
 """
 
+import glob
 import io
 import os
 import struct
@@ -32,9 +31,6 @@ PNGS = [
     os.path.join(PUBLIC, "icon-maskable-512.png"),
 ]
 ICO = os.path.join(APP, "favicon.ico")
-OG_PNG = os.path.join(APP, "opengraph-image.png")
-OG_JPG = os.path.join(APP, "opengraph-image.jpg")
-JPEG_QUALITY = 95
 
 
 def squeeze_png(path):
@@ -42,6 +38,19 @@ def squeeze_png(path):
     im = Image.open(path)
     im.load()
     im.save(path, "PNG", optimize=True, compress_level=9)
+    return before, os.path.getsize(path)
+
+
+def squeeze_card(path):
+    """The cards are opaque, so the alpha channel Chromium writes is dead weight.
+    Keep the re-encode only when it is smaller: on flat fields zlib's default
+    already does well, and PIL's optimize can come out a few percent larger."""
+    before = os.path.getsize(path)
+    buf = io.BytesIO()
+    Image.open(path).convert("RGB").save(buf, "PNG", optimize=True, compress_level=9)
+    if buf.tell() < before:
+        with open(path, "wb") as fh:
+            fh.write(buf.getvalue())
     return before, os.path.getsize(path)
 
 
@@ -80,14 +89,12 @@ def main():
         rows.append((os.path.relpath(p, ROOT),) + squeeze_png(p))
     rows.append((os.path.relpath(ICO, ROOT),) + squeeze_ico(ICO))
 
-    if os.path.exists(OG_PNG):
-        before = os.path.getsize(OG_PNG)
-        Image.open(OG_PNG).convert("RGB").save(
-            OG_JPG, "JPEG", quality=JPEG_QUALITY, optimize=True,
-            progressive=True, subsampling=0,
-        )
-        os.remove(OG_PNG)
-        rows.append((os.path.relpath(OG_JPG, ROOT), before, os.path.getsize(OG_JPG)))
+    # Every card build-assets.mjs just wrote: the root one Next serves by file
+    # convention, and the per-route ones (invites, shared documents).
+    cards = [os.path.join(APP, "opengraph-image.png")]
+    cards += sorted(glob.glob(os.path.join(PUBLIC, "brand", "og", "*.png")))
+    for og in cards:
+        rows.append((os.path.relpath(og, ROOT),) + squeeze_card(og))
 
     total_before = sum(r[1] for r in rows)
     total_after = sum(r[2] for r in rows)
