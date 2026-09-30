@@ -237,6 +237,11 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		auth:        true,
 	})
 	d.r.Head("/documents/{documentID}/office/jobs/{jobID}/output", h.GetOfficeJobOutput)
+	d.cat.add(http.MethodHead, joinRoute(d.prefix, "/documents/{documentID}/office/jobs/{jobID}/output"), apiOp{
+		summary:     "Headers of a completed Office job output",
+		description: "Like GET without a body: Content-Length and Content-Type only. Same document view check as GET.",
+		tags:        []string{"documents"},
+	})
 	d.Post("/documents/{documentID}/office/jobs/{jobID}/cancel", h.CancelOfficeJob, apiOp{
 		summary:     "Cancel an Office job",
 		description: "Chỉ người tạo job huỷ được. Cancel thắng cho tới khi output được claim vào một version; job đã kết thúc trả về trạng thái thật của nó. Cần quyền sửa.",
