@@ -274,8 +274,8 @@ route and never a presigned URL.
 ## G4-D4 open questions
 
 Each item is annotated with its G4-D4 status (decision record
-`decisions/gates-2026-09-29.md`). Items 1, 2, 4, 6 and 8 are pinned above for
-05a. Items 3 and 7 remain explicit questions for 05b.
+`decisions/gates-2026-09-29.md`). Items 1, 2, 4, 6 and 8 were pinned by 05a;
+items 3 and 7 are resolved by this r1.4 implementation.
 
 1. **D1 identity - resolved for 05a.** G4-D1 accepted the scheme/host/path,
    `uniwork-office://open` uses that scheme, and the appId/exe identity is
@@ -326,8 +326,9 @@ Each item is annotated with its G4-D4 status (decision record
 ## Implementation and verification
 
 05b registers the DTOs and routes, implements atomic hash/redeem/revoke,
-connects live ACL/device middleware, and adds tests for copied tickets, wrong
+connects live ACL/device middleware, and covers copied tickets, wrong
 account/deployment, expiry/replay, prefetch/CSRF, revoke after download and
-lost exchange response. It must also run the audit-coverage, events-catalogue,
-tenant guard and OpenAPI checks. The draft structs and JSON vectors in this
-revision are intentionally un-routed and do not alter generated OpenAPI.
+lost exchange response in the service, handler and desktop tests. It also
+runs the audit-coverage, events-catalogue, tenant guard and OpenAPI checks.
+The DTOs and JSON vectors in this revision are the routed wire contract and
+must stay aligned with the generated OpenAPI document.
