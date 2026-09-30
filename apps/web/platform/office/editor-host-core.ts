@@ -32,7 +32,7 @@ export interface BrowserOfficeDraftOptions<TSnapshot> {
 export interface BrowserOfficeDraftAdapter<TSnapshot> extends DraftAdapter<TSnapshot> {
   checkpointDurable(snapshot: StableSnapshot<TSnapshot>): Promise<void>;
   recoverDurable(): Promise<StableSnapshot<TSnapshot> | null>;
-  discardDurable(): Promise<boolean>;
+  discardDurable(generation?: number): Promise<boolean>;
   clearMemory(): Promise<void>;
   dispose(): Promise<void>;
   readonly draftStore: IndexedDbDraftStore;
@@ -160,12 +160,16 @@ export function createBrowserOfficeDraftAdapter<TSnapshot>(
     return decodeSnapshot<TSnapshot>(decrypted);
   };
 
-  const discardDurable = async (): Promise<boolean> => {
+  const discardDurable = async (generation?: number): Promise<boolean> => {
     // Keep the base out of the lookup so a changed-base draft can still be
     // explicitly discarded from the recovery conflict prompt.
     const records = await draftStore.list({ session, lookup: { ...lookupScope, draftId } });
     const target = [...records].sort((left, right) => right.generation - left.generation)[0];
     if (!target) return true;
+    // A confirmed Save only consumes the snapshot it serialized. If typing
+    // produced a newer checkpoint while that Save was in flight, retain it
+    // for recovery instead of deleting N+1 with N's cleanup.
+    if (generation !== undefined && target.generation !== generation) return false;
     await draftStore.deleteDurable({ session, draftId: target.draftId, generation: target.generation });
     return true;
   };
@@ -183,7 +187,7 @@ export function createBrowserOfficeDraftAdapter<TSnapshot>(
     checkpointDurable,
     recover: async () => recoverDurable(),
     recoverDurable,
-    discard: async () => { await discardDurable(); },
+    discard: async (_identity, generation) => { await discardDurable(generation); },
     discardDurable,
     persistIntent: async (intent) => { intents.set(intent.intentId, intent); },
     loadIntent: async (current) => [...intents.values()].find((intent) => intent.identity.documentId === current.documentId) ?? null,

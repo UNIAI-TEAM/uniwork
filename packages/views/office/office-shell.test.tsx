@@ -37,6 +37,13 @@ describe("OfficeShell", () => {
     expect(screen.getByTestId("canvas")).toBeInTheDocument();
   });
 
+  it("uses the scalar cloud-save translation for the toolbar control", () => {
+    render(<OfficeShell title="Document" editor={<div />} editorReady saveCoordinator={coordinator("ready")} />);
+    const save = screen.getByRole("button", { name: "Lưu lên UniWork" });
+    expect(save).toBeVisible();
+    expect(save).toHaveAttribute("aria-label", "Lưu lên UniWork");
+  });
+
   it("keeps the real G3-01 coordinator fake single-flight at the views seam", async () => {
     let releaseSnapshot: (() => void) | undefined;
     let releaseCommit: (() => void) | undefined;

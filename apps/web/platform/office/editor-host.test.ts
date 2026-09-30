@@ -70,6 +70,19 @@ describe("browser Office host draft adapter", () => {
     await adapter.dispose();
   });
 
+  it("does not delete a newer durable checkpoint when Save N settles", async () => {
+    const store = fakeStore();
+    vi.mocked(store.list).mockResolvedValue([
+      { draftId: "document", generation: 2, identity: identity as never, checksum: "sha256:2", byteLength: 3, updatedAt: 2 },
+    ] as never);
+    const adapter = createBrowserOfficeDraftAdapter({ identity, session, draftStore: store, keyProvider: fakeKeyProvider() });
+    await expect(adapter.discard(identity, 1)).resolves.toBeUndefined();
+    expect(store.deleteDurable).not.toHaveBeenCalled();
+    await expect(adapter.discard(identity, 2)).resolves.toBeUndefined();
+    expect(store.deleteDurable).toHaveBeenCalledWith({ session, draftId: "document", generation: 2 });
+    await adapter.dispose();
+  });
+
   it("checkpointing marks dirty but never uses coordinator upload or commit", async () => {
     const editor: EditorHandle<{ text: string }> = {
       format: "md",
