@@ -67,6 +67,10 @@ type Deps struct {
 	// without an engine.
 	Office *service.DocumentOfficeService
 
+	// Preview is the cookie-less, isolated-origin asset broker. Scope minting
+	// is authenticated; the byte route consumes only its opaque capability.
+	Preview *service.PreviewAssetService
+
 	// Redis is optional: nil disables the rate limiter and any other feature
 	// that needs shared state across instances.
 	Redis *redis.Client
@@ -535,6 +539,8 @@ func New(d Deps) http.Handler {
 		UploadDocumentAsset:     h.uploadDocumentAsset,
 		GetDocumentAsset:        h.getDocumentAsset,
 		DownloadDocument:        h.downloadDocument,
+		CreatePreviewScope:      h.createPreviewScope,
+		GetPreviewAsset:         h.getPreviewAsset,
 
 		ListDocumentComments:          h.listDocumentComments,
 		CreateDocumentComment:         h.createDocumentComment,

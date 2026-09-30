@@ -425,6 +425,8 @@ type Routes struct {
 	UploadDocumentAsset     http.HandlerFunc
 	GetDocumentAsset        http.HandlerFunc
 	DownloadDocument        http.HandlerFunc
+	CreatePreviewScope      http.HandlerFunc
+	GetPreviewAsset         http.HandlerFunc
 
 	// Document comments + favorites (G1-07, UNI-681; lane 07b).
 	ListDocumentComments          http.HandlerFunc

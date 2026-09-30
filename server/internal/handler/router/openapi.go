@@ -131,6 +131,11 @@ func pathParamSDI(path string) any {
 		return struct {
 			Provider string `path:"provider" description:"Calendar provider: google hoặc outlook" example:"google"`
 		}{}
+	case "capability,assetID":
+		return struct {
+			Capability string `path:"capability" description:"Opaque preview capability" example:"opaque-capability"`
+			AssetID    string `path:"assetID" description:"Opaque document asset id" example:"01J8X4AST0N1P2Q3R4S5T6U7V8"`
+		}{}
 	case "workspaceID,provider":
 		return struct {
 			WorkspaceID string `path:"workspaceID" description:"ULID workspace" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
