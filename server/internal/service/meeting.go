@@ -476,6 +476,7 @@ var meetingActionFor = map[string]string{
 	"host.transferred":      "meeting.host_transferred",
 	"participant.invited":   "meeting.participant_invited",
 	"participant.removed":   "meeting.participant_removed",
+	"participant.updated":   "meeting.participant_updated",
 	"invitation.responded":  "meeting.invitation_responded",
 	"join_request.created":  "meeting.join_requested",
 	"join_request.approved": "meeting.join_request_approved",

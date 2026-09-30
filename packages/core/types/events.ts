@@ -98,6 +98,7 @@ export const WS_EVENT_TYPES = [
   "organization.updated",
   "participant.invited",
   "participant.removed",
+  "participant.updated",
   "profile.updated",
   "quota.threshold",
   "recording.ready",

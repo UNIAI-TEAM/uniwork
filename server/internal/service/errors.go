@@ -117,3 +117,7 @@ func errInvalidState() error {
 func errNotHost() error {
 	return coded(http.StatusForbidden, "not_meeting_host", "chỉ chủ tọa hoặc quản trị workspace mới được thực hiện")
 }
+
+func errNotClerk() error {
+	return coded(http.StatusForbidden, "not_meeting_clerk", "chỉ chủ tọa, thư ký hoặc quản trị workspace mới được thực hiện")
+}

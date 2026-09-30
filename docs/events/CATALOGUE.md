@@ -154,6 +154,7 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `people.exported` | 1 | `organization_id`, `user_id` | — | - | outbox |
 | `participant.invited` | 1 | `meeting_id`, `version` | — | workspace | outbox |
 | `participant.removed` | 1 | `meeting_id`, `version` | — | workspace | outbox |
+| `participant.updated` | 1 | `meeting_id`, `version`, `participant_id` | — | workspace | outbox |
 | `provider.end_session` | 1 | `room_name` | — | - | outbox |
 | `provider.ensure_session` | 1 | `meeting_id`, `room_name`, `session_id` | — | - | outbox |
 | `provider.remove_participant` | 1 | `room_name`, `identity` | — | - | outbox |

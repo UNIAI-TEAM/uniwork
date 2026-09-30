@@ -189,6 +189,7 @@ var catalogue = []EventDef{
 	{Topic: "host.transferred", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "participant.invited", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "participant.removed", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "participant.updated", Version: 1, Payload: []string{"meeting_id", "version", "participant_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "invitation.responded", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "join_request.created", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "join_request.approved", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
