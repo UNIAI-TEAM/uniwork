@@ -1,6 +1,8 @@
 /** The only URL shape the Office host accepts. The ticket is deliberately
  * opaque and is the one value that ever crosses this parser boundary. */
-const OFFICE_LAUNCH_SCHEME = "uniwork-office:";
+import { DESKTOP_IDENTITY } from "../../shared/identity";
+
+const OFFICE_LAUNCH_SCHEME = `${DESKTOP_IDENTITY.userScheme}:`;
 const OFFICE_LAUNCH_HOST = "open";
 const OFFICE_LAUNCH_PATH = "";
 const LAUNCH_TICKET_MAX_LENGTH = 192;
@@ -72,7 +74,7 @@ export function parseOfficeDeepLink(value: unknown): DeepLinkParseResult {
  * are never returned to callers except as the parser's opaque ticket result. */
 export function launchUrlFromArgv(argv: readonly unknown[]): string | undefined {
   for (const argument of argv) {
-    if (typeof argument === "string" && argument.startsWith("uniwork-office://")) return argument;
+    if (typeof argument === "string" && argument.startsWith(`${DESKTOP_IDENTITY.userScheme}://`)) return argument;
   }
   return undefined;
 }

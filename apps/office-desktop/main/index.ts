@@ -1,11 +1,12 @@
 import { DESKTOP_IDENTITY } from "../shared/identity";
-import { createAuthIpcHandlers, createDraftIpcHandlers, createFileIpcHandlers, createIpcDispatcher, type DraftIpcOptions, type FileIpcOptions, type IpcHandler, type DesktopIpcChannel, type IpcSenderContext } from "./ipc";
+import { createAuthIpcHandlers, createDiagnosticsIpcHandler, createDraftIpcHandlers, createFileIpcHandlers, createIpcDispatcher, type DraftIpcOptions, type FileIpcOptions, type IpcHandler, type DesktopIpcChannel, type IpcSenderContext } from "./ipc";
 import { installNavigationGuards, openApprovedExternal } from "./navigation";
 import { createDesktopRuntimeAdapters } from "./adapters";
 import type { HostIpcPort } from "@uniwork/office-contracts";
 import type { NativeLoginManager } from "./auth/manager";
 import { launchRequestedEventSchema } from "../shared/ipc";
 import { registerDeepLinkSystem, type DeepLinkRegistration, type DeepLinkSystem, type LaunchBridge } from "./deep-links";
+import type { DeploymentProfile } from "../shared/deployment";
 
 export const WINDOW_WEB_PREFERENCES = Object.freeze({
   sandbox: true,
@@ -34,6 +35,9 @@ export type DesktopHostOptions = {
   drafts?: DraftIpcOptions;
   /** Electron app seams for the single-instance launch protocol. */
   deepLinks?: { system: DeepLinkSystem; bridge: LaunchBridge };
+  deploymentProfile?: DeploymentProfile;
+  /** Resolved by the Electron entry; never read from process.env here. */
+  userDataDirectory?: string;
 };
 
 /** Bootstrap shared engine/runtime/navigation/transport through host seams.
@@ -49,9 +53,10 @@ export function createDesktopHost(options: DesktopHostOptions) {
   const openSystemBrowser = options.openSystemBrowser ?? (() => undefined);
   installNavigationGuards(options.window.webContents, allowedExternalHosts, openSystemBrowser);
   options.window.on?.("closed", () => options.localFiles?.registry.revokeSession());
-  options.window.setUserDataDirectory(process.env.UNIWORK_OFFICE_USER_DATA ?? DESKTOP_IDENTITY.devNamespace);
+  options.window.setUserDataDirectory(options.userDataDirectory ?? DESKTOP_IDENTITY.userDataNamespace);
   const handlers = {
     ...options.handlers,
+    "desktop:diagnostics": createDiagnosticsIpcHandler(options.deploymentProfile),
     ...(options.authManager ? createAuthIpcHandlers(options.authManager) : {}),
     ...(options.localFiles ? createFileIpcHandlers(options.localFiles) : {}),
     ...(options.drafts ? createDraftIpcHandlers(options.drafts) : {}),

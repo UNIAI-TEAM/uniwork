@@ -5,7 +5,7 @@ import { vitestPoolOptions } from "../../scripts/vitest-pool";
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["{main,preload,renderer,test}/**/*.test.ts"],
+    include: ["{main,preload,renderer,shared,test}/**/*.test.ts"],
     ...vitestPoolOptions(),
     coverage: {
       provider: "v8",

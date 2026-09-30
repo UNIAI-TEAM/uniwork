@@ -1,3 +1,8 @@
+// The preload is an Electron-supplied bridge entry; it never imports the
+// privileged main graph. Electron remains a devDependency supplied by the
+// packaged runtime.
+// eslint-disable-next-line import-x/no-extraneous-dependencies
+import { contextBridge, ipcRenderer } from "electron";
 import { DESKTOP_EVENTS, DESKTOP_IPC_CHANNELS, launchRequestedEventSchema, type DesktopIpcChannel, type DesktopIpcRequest, type LaunchRequestedEvent } from "../shared/ipc";
 
 export type IpcRendererAdapter = {
@@ -38,3 +43,5 @@ export function createPreloadBridge(ipcRenderer: IpcRendererAdapter): DesktopRen
 export function exposePreloadBridge(contextBridge: ContextBridgeAdapter, ipcRenderer: IpcRendererAdapter): void {
   contextBridge.exposeInMainWorld("uniworkOffice", createPreloadBridge(ipcRenderer));
 }
+
+if (typeof process !== "undefined" && process.contextIsolated) exposePreloadBridge(contextBridge, ipcRenderer);
