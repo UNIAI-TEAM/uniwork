@@ -53,7 +53,7 @@ export function MeetingAttendanceRowItem({
         <MeetingPersonAvatar name={row.display_name} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-body text-foreground">{row.display_name}</p>
-          <p className="truncate text-caption text-muted-foreground">
+          <p className="text-caption text-muted-foreground">
             {row.in_room ? t("meetings.governance.inRoomNow") : joined}
             {row.source !== "MANUAL" ? ` · ${t("meetings.governance.sourceAuto")}` : null}
           </p>
@@ -75,7 +75,7 @@ export function MeetingAttendanceRowItem({
               <SelectTrigger
                 size="sm"
                 variant="subtle"
-                className="w-32"
+                className="w-36"
                 aria-label={t("meetings.governance.statusFor", { name: row.display_name })}
               >
                 <SelectValue>{t(`meetings.governance.status_${status}`)}</SelectValue>
