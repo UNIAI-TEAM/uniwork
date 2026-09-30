@@ -3,6 +3,7 @@ import { loadDictionary, type SupportedLocale } from "@uniwork/core/i18n/server"
 import { paths } from "@uniwork/core/paths";
 import type { FeaturePageKey } from "../features/landing/feature-page-catalog";
 import { resolveRequestLocale } from "./locale-server";
+import { shareMetadata } from "./share-metadata";
 
 type Copy = { title: string; description: string };
 type LandingDictionary = {
@@ -21,30 +22,33 @@ type MarketingPageKey = "home" | "features" | "solutions" | "learn" | "pricing" 
  * search snippet follow the same request locale the page renders in; a
  * Vietnamese title above an English page reads as a broken translation.
  */
-async function landingCopy(): Promise<LandingDictionary["landing"]> {
+async function landingCopy(): Promise<{ copy: LandingDictionary["landing"]; locale: SupportedLocale }> {
   const locale: SupportedLocale = await resolveRequestLocale();
   const dictionary = (await loadDictionary(locale)) as LandingDictionary;
-  return dictionary.landing;
+  return { copy: dictionary.landing, locale };
 }
 
-function page(copy: Copy, canonical: string): Metadata {
-  return { title: copy.title, description: copy.description, alternates: { canonical }, openGraph: { title: copy.title, description: copy.description, url: canonical } };
+async function page(pick: (copy: LandingDictionary["landing"]) => Copy, canonical: string): Promise<Metadata> {
+  const { copy, locale } = await landingCopy();
+  const { title, description } = pick(copy);
+  return shareMetadata({ title, description, url: canonical, locale });
 }
 
-export async function featureMetadata(key: FeaturePageKey): Promise<Metadata> {
-  return page((await landingCopy()).productPages.features[key], paths.feature(key));
+export function featureMetadata(key: FeaturePageKey): Promise<Metadata> {
+  return page((c) => c.productPages.features[key], paths.feature(key));
 }
 
-export async function marketingMetadata(key: MarketingPageKey, canonical: string): Promise<Metadata> {
-  return page((await landingCopy()).meta[key], canonical);
+export function marketingMetadata(key: MarketingPageKey, canonical: string): Promise<Metadata> {
+  return page((c) => c.meta[key], canonical);
 }
 
-export async function solutionMetadata(key: "product" | "operations"): Promise<Metadata> {
-  const copy = (await landingCopy()).solutions[key];
-  return page({ title: copy.metaTitle, description: copy.metaDesc }, `/solutions/${key}`);
+export function solutionMetadata(key: "product" | "operations"): Promise<Metadata> {
+  return page(
+    (c) => ({ title: c.solutions[key].metaTitle, description: c.solutions[key].metaDesc }),
+    `/solutions/${key}`,
+  );
 }
 
-export async function whyMetadata(): Promise<Metadata> {
-  const copy = (await landingCopy()).why;
-  return page({ title: copy.metaTitle, description: copy.metaDesc }, "/why-uniwork");
+export function whyMetadata(): Promise<Metadata> {
+  return page((c) => ({ title: c.why.metaTitle, description: c.why.metaDesc }), "/why-uniwork");
 }
