@@ -104,6 +104,17 @@ export interface CopyDocumentBody {
   job_id?: string;
 }
 
+export interface CreatePreviewScopeBody {
+  job_id: string;
+  assets: Array<{ key: string; asset_id: string }>;
+}
+
+export interface PreviewScope {
+  origin: string;
+  expiresAt: string;
+  assets: Array<{ key: string; assetId: string; url: string }>;
+}
+
 const CapabilityRowSchema = z.object({
   operation: z.string(),
   runtime: z.string(),
@@ -166,6 +177,12 @@ const JobSchema = z.object({
   updated_at: z.string().optional(),
 });
 
+const PreviewScopeSchema = z.object({
+  origin: z.string().url(),
+  expires_at: z.string(),
+  assets: z.array(z.object({ key: z.string(), asset_id: z.string(), url: z.string().url() })),
+});
+
 function idempotencyHeaders(opts?: OfficeRequestOpts): Record<string, string> | undefined {
   return opts?.idempotencyKey ? { "Idempotency-Key": opts.idempotencyKey } : undefined;
 }
@@ -212,6 +229,29 @@ function narrowJob(raw: unknown): OfficeJob | null {
     deadlineAt: job.deadline_at ?? "",
     createdAt: job.created_at ?? "",
     updatedAt: job.updated_at ?? "",
+  };
+}
+
+/** POST /api/v1/documents/{id}/preview/scopes. The response contains only
+ * opaque broker URLs; malformed responses fail closed to null. */
+export async function createPreviewScope(
+  documentId: string,
+  body: CreatePreviewScopeBody,
+  signal?: AbortSignal,
+): Promise<PreviewScope | null> {
+  const raw = await request(`/api/v1/documents/${enc(documentId)}/preview/scopes`, {
+    method: "POST",
+    body,
+    signal,
+  });
+  const parsed = parseWithFallback<z.infer<typeof PreviewScopeSchema> | null>(raw, PreviewScopeSchema, null, {
+    endpoint: "POST /api/v1/documents/{id}/preview/scopes",
+  });
+  if (!parsed) return null;
+  return {
+    origin: parsed.origin,
+    expiresAt: parsed.expires_at,
+    assets: parsed.assets.map((asset) => ({ key: asset.key, assetId: asset.asset_id, url: asset.url })),
   };
 }
 

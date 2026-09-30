@@ -338,6 +338,14 @@ func main() {
 	docSvc := service.NewDocumentService(pool, q, orgSvc, wsSvc)
 	docSvc.SetEntitlements(service.NewEntitlementService(pool, q))
 	docSvc.SetFiles(fileSvc)
+	previewSvc, previewErr := service.NewPreviewAssetService(service.PreviewAssetServiceOptions{
+		Documents: docSvc, Origin: cfg.PreviewOrigin, Secret: cfg.PreviewCapabilitySecret,
+		TTL: cfg.PreviewAssetTTL, MaxBytes: cfg.PreviewAssetMaxBytes,
+	})
+	if previewErr != nil {
+		log.Error("preview broker", "err", previewErr)
+		os.Exit(1)
+	}
 	notifConsumer.SetDocumentReaders(docSvc)
 	var pushSender notification.PushSender
 	if cfg.PushEnabled() {
@@ -462,6 +470,7 @@ func main() {
 		FileAccess:          fileAccess,
 		Documents:           docSvc,
 		Office:              officeSvc,
+		Preview:             previewSvc,
 		MembershipCache:     membershipCache,
 		HTTPMetrics:         httpMetrics,
 		WebVitals:           webVitals(reg),

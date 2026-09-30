@@ -23,6 +23,15 @@ type Config struct {
 	DesktopAuthCodeTTL       time.Duration
 	DesktopAuthAttemptTTL    time.Duration
 	FrontendOrigin           string
+	// PreviewOrigin is the separate, cookie-less origin used by isolated
+	// Markdown/HTML frames. It must never be the frontend origin.
+	PreviewOrigin string
+	// PreviewCapabilitySecret signs short-lived, document-bound asset scopes.
+	// It is deliberately separate from JWT_SECRET so a preview deployment can
+	// rotate its broker credentials without logging every user out.
+	PreviewCapabilitySecret string
+	PreviewAssetTTL         time.Duration
+	PreviewAssetMaxBytes    int64
 	// SecureCookies is derived from FrontendOrigin's scheme: an https origin
 	// gets the Secure flag on the refresh cookie, a plain-http dev origin does
 	// not (browsers silently drop Secure cookies set over http, which would
@@ -144,6 +153,10 @@ func Load() (Config, error) {
 		DesktopAuthCodeTTL:            parseDuration(os.Getenv("DESKTOP_AUTH_CODE_TTL"), 120*time.Second),
 		DesktopAuthAttemptTTL:         parseDuration(os.Getenv("DESKTOP_AUTH_ATTEMPT_TTL"), 10*time.Minute),
 		FrontendOrigin:                getenv("FRONTEND_ORIGIN", "http://localhost:3000"),
+		PreviewOrigin:                 os.Getenv("PREVIEW_ORIGIN"),
+		PreviewCapabilitySecret:       os.Getenv("PREVIEW_CAPABILITY_SECRET"),
+		PreviewAssetTTL:               parseRequiredDuration(os.Getenv("PREVIEW_ASSET_TTL")),
+		PreviewAssetMaxBytes:          parseRequiredInt64(os.Getenv("PREVIEW_ASSET_MAX_BYTES")),
 		TrustedProxies:                os.Getenv("TRUSTED_PROXIES"),
 		LiveKitURL:                    os.Getenv("LIVEKIT_URL"),
 		LiveKitAPIKey:                 os.Getenv("LIVEKIT_API_KEY"),
@@ -202,8 +215,24 @@ func Load() (Config, error) {
 		return c, fmt.Errorf("DESKTOP_AUTH_ATTEMPT_TTL must be between 1s and 1h")
 	}
 	u, err := url.Parse(c.FrontendOrigin)
-	if err != nil || u.Scheme == "" || u.Host == "" {
+	if err != nil || !isHTTPOrigin(u) {
 		return c, fmt.Errorf("FRONTEND_ORIGIN must be an absolute origin like https://app.example.com, got %q", c.FrontendOrigin)
+	}
+	p, err := url.Parse(c.PreviewOrigin)
+	if err != nil || !isHTTPOrigin(p) {
+		return c, fmt.Errorf("PREVIEW_ORIGIN must be an absolute http(s) origin, got %q", c.PreviewOrigin)
+	}
+	if strings.EqualFold(p.Scheme, u.Scheme) && strings.EqualFold(p.Host, u.Host) {
+		return c, fmt.Errorf("PREVIEW_ORIGIN must be different from FRONTEND_ORIGIN")
+	}
+	if len(strings.TrimSpace(c.PreviewCapabilitySecret)) < 32 {
+		return c, fmt.Errorf("PREVIEW_CAPABILITY_SECRET must be at least 32 characters")
+	}
+	if c.PreviewAssetTTL <= 0 || c.PreviewAssetTTL > time.Hour {
+		return c, fmt.Errorf("PREVIEW_ASSET_TTL must be between 1s and 1h")
+	}
+	if c.PreviewAssetMaxBytes <= 0 {
+		return c, fmt.Errorf("PREVIEW_ASSET_MAX_BYTES must be positive")
 	}
 	c.SecureCookies = strings.EqualFold(u.Scheme, "https")
 	if a, err := url.Parse(c.APIPublicURL); err != nil || a.Scheme == "" || a.Host == "" {
@@ -215,6 +244,10 @@ func Load() (Config, error) {
 	// localhost default is the only reliable local path.
 	c.EnableSwagger = swaggerEnabled(c.FrontendOrigin)
 	return c, nil
+}
+
+func isHTTPOrigin(u *url.URL) bool {
+	return u != nil && (strings.EqualFold(u.Scheme, "http") || strings.EqualFold(u.Scheme, "https")) && u.Host != "" && (u.Path == "" || u.Path == "/") && u.RawQuery == "" && u.Fragment == "" && u.User == nil
 }
 
 func getenv(k, def string) string {
@@ -233,6 +266,28 @@ func parseDuration(raw string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	return d
+}
+
+func parseRequiredDuration(raw string) time.Duration {
+	if strings.TrimSpace(raw) == "" {
+		return 0
+	}
+	d, err := time.ParseDuration(strings.TrimSpace(raw))
+	if err != nil || d <= 0 {
+		return 0
+	}
+	return d
+}
+
+func parseRequiredInt64(raw string) int64 {
+	if strings.TrimSpace(raw) == "" {
+		return 0
+	}
+	var n int64
+	if _, err := fmt.Sscan(strings.TrimSpace(raw), &n); err != nil || n <= 0 {
+		return 0
+	}
+	return n
 }
 
 func parseRatio(raw string, fallback float64) float64 {

@@ -181,6 +181,15 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		produces: "application/octet-stream",
 		auth:     true,
 	})
+	d.Post("/documents/{documentID}/preview/scopes", h.CreatePreviewScope, apiOp{
+		summary:     "Create an isolated preview asset scope",
+		description: "Mint a short-lived, document-bound capability for the separate preview origin. The frame receives no app cookie, bearer token or API bridge; only listed manifest asset ids are served.",
+		tags:        []string{"documents"},
+		sdi:         sdi.CreatePreviewScopeSDI{},
+		sdo:         sdo.PreviewScopeSDO{},
+		status:      http.StatusCreated,
+		auth:        true,
+	})
 	d.r.Head("/documents/{documentID}/assets/{assetID}", h.GetDocumentAsset)
 	d.cat.add(http.MethodHead, joinRoute(d.prefix, "/documents/{documentID}/assets/{assetID}"), apiOp{
 		summary:     "Headers of a document asset",

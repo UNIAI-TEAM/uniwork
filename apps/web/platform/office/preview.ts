@@ -56,6 +56,8 @@ export interface PreviewAssetScopeRequest {
   ttl_ms: number;
   /** Manifest keys the preview may load; nothing else is granted. */
   keys: readonly string[];
+  /** Optional manifest-key -> opaque Documents asset id mapping. */
+  asset_ids?: Readonly<Record<string, string>>;
 }
 
 export interface PreviewAssetScope {
@@ -234,11 +236,17 @@ export async function mountHtmlPreview(options: MountHtmlPreviewOptions): Promis
   const ttl_ms = options.scope.ttl_ms ?? DEFAULT_TTL_MS;
   let manifest = options.manifest;
   const openScope = async (keys: string[], requiredOrigin: string | null) => {
+    const assetIds = Object.fromEntries(
+      manifest.entries
+        .map((entry) => [entry.key, (entry as AssetManifestEntryWithID).asset_id])
+        .filter((entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].length > 0),
+    );
     const opened = await options.proxy.open({
       document_id: options.scope.document_id,
       job_id: options.scope.job_id,
       ttl_ms,
       keys,
+      ...(Object.keys(assetIds).length > 0 ? { asset_ids: assetIds } : {}),
     });
     try {
       const origin = checkAssetOrigin(opened.origin, appOrigin);
@@ -252,6 +260,10 @@ export async function mountHtmlPreview(options: MountHtmlPreviewOptions): Promis
       throw error;
     }
   };
+
+interface AssetManifestEntryWithID {
+  asset_id?: unknown;
+}
   let current = await openScope(manifest.entries.map((e) => e.key), null);
   const assetOrigin = current.origin;
   const csp = previewCsp(assetOrigin, capability);
