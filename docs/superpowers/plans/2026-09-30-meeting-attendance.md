@@ -3218,4 +3218,22 @@ git commit -m "test(e2e): secretary runs and finalizes attendance"
 
 ## Ghi chép thực thi
 
-(Điền trong lúc làm: sai khác so với plan, tên kiểu sqlc thực tế, test đỏ sẵn có.)
+Làm inline ngày 2026-09-30 trên `feature/UNI-892-…`; 12 task + một lượt sửa sau review toàn nhánh.
+
+**Sai khác so với plan**
+- Tên kiểu sqlc khớp đúng plan. Action audit của meeting giữ dạng chuỗi trong `meetingActionFor`, không thêm hằng số `audit.Action*` (theo mẫu có sẵn), nên test tự viết khẳng định dòng `audit_events` thay cho `audit_coverage_test`.
+- `canClerkMeeting` từ chối với lý do `not_resource_owner` (union `DecisionReason` không có `not_meeting_clerk`) và chặn người ngoài workspace trước.
+- Thêm test ngoài plan: webhook phát `attendance.updated`, người ngoài workspace đọc điểm danh, tab Người tham gia trong phòng (trước đó chưa có test), chọn trạng thái qua Select. Test Base UI Select phải `pointerDown` lên mục trước khi click.
+- Ảnh chụp cho thấy ô chọn cắt chữ "Vắng có phép" và dòng phụ mất chữ "Tự động": ô rộng `w-36`, dòng phụ cho xuống dòng.
+
+**Sửa sau review toàn nhánh**
+- Điểm danh cập nhật khi mời/gỡ/duyệt người vào phòng và khi đổi tỉ lệ (realtime + mutation).
+- Người xin vào phòng hiện ở cả chế độ Điểm danh.
+- Chốt/mở lại/xoá dấu khoá dòng `meetings` (`LockMeetingForAttendance`) và đọc lại cờ trong transaction — trước đó chủ trì và thư ký cùng bấm chốt ghi 3 dòng audit.
+- Dòng "Đã chốt lúc … bởi …" có ngày và người chốt (spec §7.2); ô lý do vắng có nhãn theo tên người, Enter để lưu.
+
+**Hoãn (minor)**: người vào sau khi chốt hiện là gợi ý; không xác nhận lại được gợi ý cùng giá trị thành MANUAL; "Đang trong phòng" giấu giờ vào; audit xoá dấu thiếu trạng thái cũ và sửa lý do không vào diff; mở lại không có mốc trên dòng thời gian; schema từng dòng quá chặt; sau khi họp kết thúc không sửa được standing/tỉ lệ.
+
+**Cần product quyết**: mốc tính "đến muộn" là `starts_at` theo spec — chủ trì bắt đầu muộn 20 phút thì mọi người đều bị gợi ý "đến muộn".
+
+**Môi trường**: `.env` máy này thiếu `STORAGE_BACKEND` nên server không khởi động với mặc định MinIO — chạy `make start` kèm `STORAGE_BACKEND=local LOCAL_UPLOAD_DIR=./data/uploads`. `scripts/governance.test.mjs` đỏ từ 2026-09-30 (module core chưa nối: analytics, diagnostics, modals, navigation) — không thuộc nhánh này. `make check` bước TS đỏ chập chờn khi tải cao (`office-engine` limits cpu, core `documents/hooks-collections`), chạy riêng đều xanh. Test đồng thời dùng 3 caller: `s.record` mượn thêm kết nối ngoài transaction nên số caller ≥ kích thước pool test sẽ treo — kiểu có sẵn ở mọi lệnh meeting.
