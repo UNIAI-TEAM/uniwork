@@ -288,6 +288,32 @@ func (q *Queries) ListMemberWorkspacesInOrg(ctx context.Context, arg ListMemberW
 	return items, nil
 }
 
+const listOrganizationIDsForMaintenance = `-- name: ListOrganizationIDsForMaintenance :many
+SELECT id FROM organizations ORDER BY id
+`
+
+// The maintenance worker enumerates tenant roots before asking for each
+// organization's workspace scopes; no business-table query is unscoped.
+func (q *Queries) ListOrganizationIDsForMaintenance(ctx context.Context) ([]string, error) {
+	rows, err := q.db.Query(ctx, listOrganizationIDsForMaintenance)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOrganizationMembers = `-- name: ListOrganizationMembers :many
 SELECT m.organization_id, m.user_id, m.role, m.created_at, m.deactivated_at, m.deactivated_by, m.invited_by,
        u.email, u.display_name, u.avatar_url, u.avatar_file_id

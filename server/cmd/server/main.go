@@ -308,6 +308,8 @@ func main() {
 	// G1-04b) runs on the same service the routes use; it is awaited in the
 	// shutdown sequence below, so a sweep never outlives the process.
 	docWorkers := documentSvc.NewDocumentWorkers()
+	officeLaunchSvc := service.NewOfficeLaunchService(documentSvc, cfg)
+	docWorkers.SetOfficeLaunchService(officeLaunchSvc)
 	officeSvc := service.NewDocumentOfficeService(service.DocumentOfficeOptions{
 		Pool: pool, Queries: q, Files: fileSvc, Engine: officeEngine, Documents: documentSvc, Metrics: officeMetrics,
 		MaxDeadline: officeCfg.MaxJobDeadline, ReconcileInterval: officeCfg.ReconcileInterval, Log: log,
@@ -469,6 +471,7 @@ func main() {
 		Storage:             store,
 		FileAccess:          fileAccess,
 		Documents:           docSvc,
+		OfficeLaunch:        officeLaunchSvc,
 		Office:              officeSvc,
 		Preview:             previewSvc,
 		MembershipCache:     membershipCache,

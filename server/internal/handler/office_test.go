@@ -92,6 +92,7 @@ func newHandlerStubEngine(t *testing.T) service.OfficeEngine {
 
 type officeWorld struct {
 	srv         *httptest.Server
+	q           *db.Queries
 	token       string
 	userID      string
 	orgID       string
@@ -128,7 +129,7 @@ func newOfficeWorld(t *testing.T, enableFlag bool) *officeWorld {
 		}
 	}
 
-	w := &officeWorld{srv: srv}
+	w := &officeWorld{srv: srv, q: q}
 	w.token, w.userID = filesRegister(t, srv, "office-owner@example.com")
 	res, out := doJSON(t, srv, "POST", "/api/v1/orgs", w.token, map[string]string{"name": "Office Org", "slug": "office-org"})
 	if res.StatusCode != 201 {

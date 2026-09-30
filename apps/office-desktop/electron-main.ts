@@ -8,7 +8,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST, getChannelIdentity } from "./shared/identity";
 import { DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema } from "./shared/ipc";
 import { createDesktopHost, WINDOW_WEB_PREFERENCES } from "./main/index";
-import { createLaunchBridge, type DeepLinkSystem } from "./main/deep-links/bridge";
+import { createHttpExchangePort, createLaunchBridge, type DeepLinkSystem } from "./main/deep-links";
 import { resolveDeploymentProfile, type DeploymentProfile } from "./shared/deployment";
 import { createSecureCredentialStore } from "./main/credentials/secure-store";
 import { createSystemBrowserLauncher } from "./main/auth/browser";
@@ -100,14 +100,23 @@ async function startElectronHost(): Promise<void> {
   const deploymentProfile = "kind" in deploymentResolution ? undefined : deploymentResolution;
   await app.whenReady();
   let publishSessionMetadata: (metadata: unknown) => void = () => undefined;
-  const authManager = deploymentProfile ? new NativeLoginManager({
+  // One profile-bound credential store is shared by login and launch exchange.
+  // The exchange adapter reads it only in the privileged main process; the
+  // renderer receives a receipt and descriptor, never the access token.
+  const credentials = deploymentProfile ? createSecureCredentialStore({
+    userDataDirectory: app.getPath("userData"),
+    channel: DESKTOP_IDENTITY_MANIFEST.build.channel,
+    deploymentId: deploymentProfile.deploymentId,
+    safeStorage,
+  }) : undefined;
+  const authManager = deploymentProfile && credentials ? new NativeLoginManager({
     clientId: deploymentProfile.clientId,
     deploymentId: deploymentProfile.deploymentId,
     redirectUri: getChannelIdentity(DESKTOP_IDENTITY_MANIFEST.build.channel).authCallback,
     allowLoopbackBrowserUrl: deploymentProfile.channel === "dev",
     browser: createSystemBrowserLauncher((url) => shell.openExternal(url)),
     transport: createHttpAuthTransport(deploymentProfile),
-    credentials: createSecureCredentialStore({ userDataDirectory: app.getPath("userData"), channel: DESKTOP_IDENTITY_MANIFEST.build.channel, deploymentId: deploymentProfile.deploymentId, safeStorage }),
+    credentials,
     onMetadata: (metadata) => publishSessionMetadata(metadata),
   }) : undefined;
   await authManager?.restore();
@@ -127,7 +136,23 @@ async function startElectronHost(): Promise<void> {
   // Electron's main-frame invoke events use frame id 0. Keep this explicit so
   // the dispatcher binds the handler to the top-level window only.
   const frameId = 0;
-  const launchBridge = createNoopLaunchBridge(deploymentProfile?.deploymentId ?? DESKTOP_IDENTITY.appId);
+  const launchBridge = deploymentProfile && credentials ? createLaunchBridge({
+    clientId: deploymentProfile.clientId,
+    trustedDeploymentId: deploymentProfile.deploymentId,
+    exchange: createHttpExchangePort({ profile: deploymentProfile, credentials }),
+    getSession: () => {
+      try {
+        // The production secure store is synchronous. Keep the interface
+        // defensive if a future store implementation is asynchronous: an
+        // unresolved credential read must prompt login, never race a ticket.
+        const current = credentials.get();
+        if (!current || typeof current !== "object" || "then" in current) return undefined;
+        return { accountId: current.accountId, deploymentId: deploymentProfile.deploymentId, deviceSessionId: current.deviceSessionId };
+      } catch {
+        return undefined;
+      }
+    },
+  }) : createNoopLaunchBridge(deploymentProfile?.deploymentId ?? DESKTOP_IDENTITY.appId);
   const host = createDesktopHost({
     window: {
       webContents: window.webContents,

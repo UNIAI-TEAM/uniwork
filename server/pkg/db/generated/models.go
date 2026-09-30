@@ -1214,6 +1214,26 @@ type OfficeJob struct {
 	Result             []byte             `json:"result"`
 }
 
+type OfficeLaunchSession struct {
+	ID              string             `json:"id"`
+	TicketHash      string             `json:"ticket_hash"`
+	AccountID       string             `json:"account_id"`
+	OrganizationID  string             `json:"organization_id"`
+	WorkspaceID     string             `json:"workspace_id"`
+	DocumentID      string             `json:"document_id"`
+	Operation       string             `json:"operation"`
+	Version         int32              `json:"version"`
+	ClientID        string             `json:"client_id"`
+	DeploymentID    string             `json:"deployment_id"`
+	DeviceSessionID pgtype.Text        `json:"device_session_id"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
+	RedeemedAt      pgtype.Timestamptz `json:"redeemed_at"`
+	RevokedAt       pgtype.Timestamptz `json:"revoked_at"`
+	CreatedBy       string             `json:"created_by"`
+	CreatedByKind   string             `json:"created_by_kind"`
+}
+
 type Organization struct {
 	ID              string             `json:"id"`
 	Slug            string             `json:"slug"`
