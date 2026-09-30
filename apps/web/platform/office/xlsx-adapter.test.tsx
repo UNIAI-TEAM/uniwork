@@ -54,7 +54,7 @@ function runtime(): XlsxSessionRuntime & { edits: unknown[][]; released: string[
   let current = workbook();
   const edits: unknown[][] = [];
   const released: string[] = [];
-  const cancelled: string[] = [];
+    const cancelled: string[] = [];
   return {
     edits,
     released,
@@ -62,10 +62,11 @@ function runtime(): XlsxSessionRuntime & { edits: unknown[][]; released: string[
     open: vi.fn(async ({ documentId }) => ({ outcome: "opened" as const, document_id: documentId, document_model_ref: "model-1", snapshot: current })),
     edit: vi.fn(async (_ref, ops) => {
       edits.push([...ops]);
-      const op = ops[0] as { target?: { sheet?: string; cell?: string }; text?: string };
-      if (op.target?.sheet === "Data" && op.target.cell && typeof op.text === "string") {
+      const op = ops[0] as { target?: { sheet?: string; cell?: string }; text?: string; attributes?: { value?: XlsxCellState["value"]; formula?: string } };
+      const text = op.attributes?.formula ?? (op.attributes?.value !== undefined ? String(op.attributes.value) : op.text);
+      if (op.target?.sheet === "Data" && op.target.cell && typeof text === "string") {
         const cellAddress = op.target.cell;
-        const nextCell: XlsxCellState = op.text.startsWith("=") ? { value: null, formula: op.text } : { value: op.text };
+        const nextCell: XlsxCellState = op.attributes?.formula !== undefined ? { value: null, formula: op.attributes.formula } : { value: op.attributes?.value ?? text };
         current = { ...current, sheets: current.sheets.map((sheet) => sheet.name === "Data" ? { ...sheet, cells: { ...sheet.cells, [cellAddress]: nextCell } } : sheet) };
       }
     }),

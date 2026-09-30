@@ -53,6 +53,8 @@ export type XlsxEditorHandle<TSnapshot = XlsxWorkbookSnapshot> = EditorHandle<TS
     recalculate?: XlsxRecalcController;
     /** The host may expose the adapter's browser-safe snapshot for rendering. */
     getWorkbookSnapshot?(): XlsxWorkbookSnapshot | null;
+    /** Notify the view when a host-side recovery replaces the live snapshot. */
+    subscribeSnapshot?(listener: (snapshot: XlsxWorkbookSnapshot) => void): () => void;
     cancel?: (reason?: string) => Promise<void> | void;
   };
 

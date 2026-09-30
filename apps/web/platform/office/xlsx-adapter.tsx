@@ -316,6 +316,12 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
   let disposed = false;
   let currentSnapshot: XlsxWorkbookSnapshot | null = null;
   let serialized: XlsxRuntimeSerializedOutput | null = null;
+  const snapshotListeners = new Set<(snapshot: XlsxWorkbookSnapshot) => void>();
+  const publishSnapshot = () => {
+    if (!currentSnapshot) return;
+    const value = cloneSnapshot(currentSnapshot);
+    for (const listener of snapshotListeners) listener(value);
+  };
 
   const editor: XlsxEditorHandle<XlsxWorkbookSnapshot> = {
     format: "xlsx",
@@ -335,6 +341,7 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
       modelRef = outcome.document_model_ref;
       currentSnapshot = cloneSnapshot(outcome.snapshot ?? options.runtime.snapshot(modelRef));
       generation = Math.max(1, options.identity.generation);
+      publishSnapshot();
     },
     getDirtyGeneration: () => generation,
     async captureSnapshot() {
@@ -349,6 +356,7 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
       modelRef = null;
       currentSnapshot = null;
       serialized = null;
+      snapshotListeners.clear();
     },
     async edit(operations) {
       if (!modelRef) throw new Error("xlsx_editor_not_open");
@@ -356,8 +364,13 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
       currentSnapshot = cloneSnapshot(options.runtime.snapshot(modelRef));
       generation += 1;
       serialized = null;
+      publishSnapshot();
     },
     getWorkbookSnapshot: () => currentSnapshot ? cloneSnapshot(currentSnapshot) : null,
+    subscribeSnapshot(listener) {
+      snapshotListeners.add(listener);
+      return () => snapshotListeners.delete(listener);
+    },
   };
 
   const recalculate: XlsxRecalcController | undefined = options.runtime.recalculate
@@ -370,6 +383,7 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
           if (disposed || !modelRef) throw new Error("xlsx_editor_disposed");
           currentSnapshot = cloneSnapshot(options.runtime.snapshot(modelRef));
           generation += 1;
+          publishSnapshot();
           return result;
         },
         async cancel() {
@@ -388,6 +402,7 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
         currentSnapshot = cloneSnapshot(options.runtime.snapshot(modelRef));
         generation = Math.max(generation, snapshot.generation);
         serialized = null;
+        publishSnapshot();
       }
     : undefined;
 

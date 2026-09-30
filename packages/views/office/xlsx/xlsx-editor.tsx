@@ -42,6 +42,15 @@ function cellText(cell: XlsxCellState | undefined): string {
   return cell.value === null ? "" : String(cell.value);
 }
 
+function cellEditOperation(sheet: string, address: string, text: string): { op: "set_cell"; target: { sheet: string; cell: string }; attributes: { value: XlsxCellState["value"] } | { formula: string } } {
+  if (text.startsWith("=")) return { op: "set_cell", target: { sheet, cell: address }, attributes: { formula: text } };
+  if (text === "") return { op: "set_cell", target: { sheet, cell: address }, attributes: { value: null } };
+  if (text === "TRUE" || text === "FALSE") return { op: "set_cell", target: { sheet, cell: address }, attributes: { value: text === "TRUE" } };
+  const number = Number(text);
+  if (text.trim() !== "" && Number.isFinite(number)) return { op: "set_cell", target: { sheet, cell: address }, attributes: { value: number } };
+  return { op: "set_cell", target: { sheet, cell: address }, attributes: { value: text } };
+}
+
 function addressParts(address: string): { row: number; column: number } | null {
   const match = /^([A-Za-z]{1,3})([1-9][0-9]*)$/.exec(address);
   if (!match) return null;
@@ -133,6 +142,15 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     emit(selectionPort.getSelection());
     return selectionPort.subscribe?.(emit);
   }, [documentKey, editor, onSelectionChange]);
+
+  useEffect(() => {
+    const subscribe = editor.subscribeSnapshot;
+    if (!subscribe) return undefined;
+    return subscribe((next) => {
+      setSnapshot(next);
+      setActiveSheet((current) => next.sheets.some((sheet) => sheet.name === current) ? current : next.sheets[0]?.name ?? null);
+    });
+  }, [editor]);
 
   useEffect(() => {
     const cleanupSession = sessionPropsRef.current;
@@ -242,7 +260,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
   const commitCell = useCallback(async () => {
     if (!canEdit || !selection || formulaDraft === cellText(activeCell)) return;
     const text = formulaDraft;
-    const op = { op: "set_cell", target: { sheet: selection.sheet, cell: selection.address }, text };
+    const op = cellEditOperation(selection.sheet, selection.address, text);
     await editor.edit?.([op]);
     markDirty();
     refreshSnapshot();
@@ -316,7 +334,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
     if (!selection || !canEdit || permissions.canPaste === false || !editor.clipboard?.readText) return;
     const text = await editor.clipboard.readText();
     setFormulaDraft(text);
-    const op = { op: "set_cell", target: { sheet: selection.sheet, cell: selection.address }, text };
+    const op = cellEditOperation(selection.sheet, selection.address, text);
     await editor.edit?.([op]);
     markDirty();
     refreshSnapshot();

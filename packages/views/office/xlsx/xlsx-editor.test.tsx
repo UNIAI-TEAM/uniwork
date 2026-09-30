@@ -135,10 +135,21 @@ describe("XlsxEditor", () => {
     const formula = screen.getByTestId("xlsx-formula-bar");
     fireEvent.change(formula, { target: { value: "=A1+B1" } });
     fireEvent.keyDown(formula, { key: "Enter" });
-    expect(handle.edit).toHaveBeenCalledWith([{ op: "set_cell", target: { sheet: "Data", cell: "C1" }, text: "=A1+B1" }]);
+    expect(handle.edit).toHaveBeenCalledWith([{ op: "set_cell", target: { sheet: "Data", cell: "C1" }, attributes: { formula: "=A1+B1" } }]);
     fireEvent.keyDown(formula, { key: "s", ctrlKey: true });
     expect(save).toHaveBeenCalledWith("shortcut");
     expect(formula).toHaveValue("=A1+B1");
+  });
+
+  it("sends numeric formula-bar input as a scalar value", async () => {
+    const handle = editor();
+    renderEditor(opened(), { editor: handle });
+    await waitFor(() => expect(screen.getByTestId("xlsx-formula-bar")).toBeInTheDocument());
+    const formula = screen.getByTestId("xlsx-formula-bar");
+    fireEvent.click(screen.getByTestId("xlsx-cell-Data-A1"));
+    fireEvent.change(formula, { target: { value: "2000000000" } });
+    fireEvent.keyDown(formula, { key: "Enter" });
+    expect(handle.edit).toHaveBeenLastCalledWith([{ op: "set_cell", target: { sheet: "Data", cell: "A1" }, attributes: { value: 2000000000 } }]);
   });
 
   it("routes cell selection and sheet focus through the host selection port", async () => {
@@ -154,7 +165,7 @@ describe("XlsxEditor", () => {
     const formula = screen.getByTestId("xlsx-formula-bar");
     fireEvent.change(formula, { target: { value: "hello" } });
     fireEvent.keyDown(formula, { key: "Enter" });
-    expect(handle.edit).toHaveBeenLastCalledWith([{ op: "set_cell", target: { sheet: "Summary", cell: "A1" }, text: "hello" }]);
+    expect(handle.edit).toHaveBeenLastCalledWith([{ op: "set_cell", target: { sheet: "Summary", cell: "A1" }, attributes: { value: "hello" } }]);
   });
 
   it("reopens a failed attempt without disposing or cancelling the live handle", async () => {

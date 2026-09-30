@@ -48,6 +48,36 @@ function applyEdits(base: XlsxWorkbookSnapshot, operations: readonly unknown[]):
   return { revision: base.revision + 1, sheets: next.sheets };
 }
 
+function snapshotsEqual(left: XlsxCellState | undefined, right: XlsxCellState | undefined): boolean {
+  if (left === right) return true;
+  if (!left || !right) return false;
+  return left.value === right.value && left.formula === right.formula && left.rawValue === right.rawValue;
+}
+
+/** Convert a recovered full snapshot back to the bounded public edit shape.
+ * The server edit job is the only serializer/recalc path, so restoring a
+ * draft must rebuild its queued edits before the next explicit Save. */
+function editsBetween(base: XlsxWorkbookSnapshot, next: XlsxWorkbookSnapshot): unknown[] {
+  const operations: unknown[] = [];
+  const baseSheets = new Map(base.sheets.map((sheet) => [sheet.name, sheet]));
+  for (const sheet of next.sheets) {
+    const previous = baseSheets.get(sheet.name);
+    const previousCells = previous?.cells ?? {};
+    for (const [address, cell] of Object.entries(sheet.cells)) {
+      if (snapshotsEqual(previousCells[address], cell)) continue;
+      operations.push({
+        op: "set_cell",
+        target: { sheet: sheet.name, cell: address },
+        attributes: cell.formula !== undefined ? { formula: cell.formula } : { value: cell.value },
+      });
+    }
+    for (const address of Object.keys(previousCells)) {
+      if (!(address in sheet.cells)) operations.push({ op: "clear_cell", target: { sheet: sheet.name, cell: address } });
+    }
+  }
+  return operations;
+}
+
 export interface WebXlsxRuntimeOptions { documentId: string; baseRevision: string; onBaseRevision?: (revision: string) => void; }
 
 export function createWebXlsxSessionRuntime(options: WebXlsxRuntimeOptions): XlsxSessionRuntime {
@@ -101,7 +131,11 @@ export function createWebXlsxSessionRuntime(options: WebXlsxRuntimeOptions): Xls
     },
     async edit(_ref, operations) { if (!snapshot) throw new Error("xlsx_runtime_not_open"); snapshot = applyEdits(snapshot, operations); pending.push(...operations); },
     snapshot() { if (!snapshot) throw new Error("xlsx_runtime_not_open"); return cloneSnapshot(snapshot); },
-    async restore(_ref, recovered) { snapshot = cloneSnapshot(recovered); },
+    async restore(_ref, recovered) {
+      if (!snapshot) throw new Error("xlsx_runtime_not_open");
+      pending = editsBetween(snapshot, recovered);
+      snapshot = cloneSnapshot(recovered);
+    },
     async serialize() { if (!snapshot) throw new Error("xlsx_runtime_not_open"); const output = await runServerEdit(pending); bytes = output; pending = []; return { bytes: output, checksum: await sha256(output) } satisfies XlsxRuntimeSerializedOutput; },
     async recalculate(_ref, signal, onProgress): Promise<XlsxRecalcResult> { if (!snapshot) throw new Error("xlsx_runtime_not_open"); onProgress?.(5); bytes = await runServerEdit(pending, signal); onProgress?.(100); return { cells: [], cached: false }; },
     async cancelRecalculate() { if (activeJob) await cancelOfficeJob(options.documentId, activeJob).catch(() => undefined); },
