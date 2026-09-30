@@ -71,11 +71,18 @@ async function runSmokeDiagnostics(window: BrowserWindow, deploymentProfile?: De
 }
 
 async function startElectronHost(): Promise<void> {
-  const configuredUserData = process.env.UNIWORK_OFFICE_USER_DATA;
-  const defaultUserData = join(app.getPath("appData"), DESKTOP_IDENTITY.devNamespace);
+  // A packaged app never accepts a runtime environment override for its data
+  // location. The smoke flag is an explicit local test seam and is the only
+  // packaged exception; production profile binding remains download-time.
+  const configuredUserData = (!app.isPackaged || SMOKE_MODE) ? process.env.UNIWORK_OFFICE_USER_DATA : undefined;
+  const defaultUserData = join(app.getPath("appData"), DESKTOP_IDENTITY.userDataNamespace);
   app.setPath("userData", configuredUserData ? resolve(configuredUserData) : defaultUserData);
   app.setAppUserModelId(DESKTOP_IDENTITY.appId);
-  const deploymentResolution = resolveDeploymentProfile({ userDataDirectory: app.getPath("userData"), buildChannel: DESKTOP_IDENTITY_MANIFEST.build.channel });
+  const deploymentResolution = resolveDeploymentProfile({
+    userDataDirectory: app.getPath("userData"),
+    buildChannel: DESKTOP_IDENTITY_MANIFEST.build.channel,
+    env: app.isPackaged && !SMOKE_MODE ? {} : process.env,
+  });
   const deploymentProfile = "kind" in deploymentResolution ? undefined : deploymentResolution;
   await app.whenReady();
   installRendererProtocol();
@@ -96,7 +103,7 @@ async function startElectronHost(): Promise<void> {
       webContents: window.webContents,
       webPreferences: WINDOW_WEB_PREFERENCES,
       loadURL: (url) => window.loadURL(url),
-      setUserDataDirectory: (value) => app.setPath("userData", value === DESKTOP_IDENTITY.devNamespace ? defaultUserData : resolve(value)),
+      setUserDataDirectory: (value) => app.setPath("userData", resolve(value)),
       on: (event, listener) => window.on(event, listener),
     },
     sender: {
@@ -110,6 +117,7 @@ async function startElectronHost(): Promise<void> {
     },
     deepLinks: { system: createDeepLinkSystem(), bridge: launchBridge },
     deploymentProfile,
+    userDataDirectory: app.getPath("userData"),
   });
 
   for (const channel of DESKTOP_IPC_CHANNELS) {

@@ -1,12 +1,6 @@
 !include LogicLib.nsh
 !include FileFunc.nsh
 
-; Beta and stable intentionally share APP_FILENAME/appId, so this keeps their
-; per-user install directory identical while the display name may change.
-!macro preInit
-  StrCpy $INSTDIR "$LOCALAPPDATA\Programs\${PRODUCT_FILENAME}"
-!macroend
-
 !pragma warning disable 6001
 Var UniWorkDeleteAppData
 !pragma warning enable 6001
@@ -34,12 +28,6 @@ Var UniWorkDeleteAppData
   DeleteRegKey HKCU "Software\Classes\@USER_SCHEME@"
   ${If} $UniWorkDeleteAppData == "1"
     SetShellVarContext current
-    RMDir /r "$APPDATA\${APP_FILENAME}"
-    !ifdef APP_PRODUCT_FILENAME
-      RMDir /r "$APPDATA\${APP_PRODUCT_FILENAME}"
-    !endif
-    !ifdef APP_PACKAGE_NAME
-      RMDir /r "$APPDATA\${APP_PACKAGE_NAME}"
-    !endif
+    RMDir /r "$APPDATA\@USER_DATA_NAMESPACE@"
   ${EndIf}
 !macroend

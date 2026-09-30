@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createDesktopHost, WINDOW_WEB_PREFERENCES } from "./index";
 import { FakeExchangePort, createLaunchBridge } from "./deep-links";
+import { DESKTOP_IDENTITY } from "../shared/identity";
 
 const sender = { senderId: 1, frameId: 0, origin: "uniwork-office-app://app", expectedSenderId: 1, expectedFrameId: 0, expectedOrigin: "uniwork-office-app://app", sessionGeneration: "session_1234" };
 const windowPreferences = { sandbox: true, contextIsolation: true, nodeIntegration: false } as const;
@@ -14,7 +15,7 @@ describe("desktop host bootstrap", () => {
     expect(WINDOW_WEB_PREFERENCES).toMatchObject({ sandbox: true, contextIsolation: true, nodeIntegration: false });
     await host.start();
     expect(loadURL).toHaveBeenCalledWith("uniwork-office-app://app/index.html");
-    expect(setUserDataDirectory).toHaveBeenCalledWith("uniwork-office-dev");
+    expect(setUserDataDirectory).toHaveBeenCalledWith(DESKTOP_IDENTITY.userDataNamespace);
     expect(host.identity.appId).toBe("com.uniwork.office");
   });
   it("rejects a native window seam that changes the secure preferences", () => {

@@ -1,4 +1,5 @@
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import process from "node:process";
@@ -14,9 +15,15 @@ const outputDirectory = resolve(process.env.OFFICE_DESKTOP_OUTPUT ?? join(appDir
 const buildIdentity = JSON.parse(await readFile(join(appDirectory, "dist", "build-identity.json"), "utf8"));
 const setup = resolve(process.env.OFFICE_DESKTOP_SETUP_EXE ?? join(outputDirectory, `${buildIdentity.artifactPrefix}_${buildIdentity.version}_unsigned_win32_x64-setup.exe`));
 const root = resolve(process.env.OFFICE_DESKTOP_INSTALL_SMOKE_ROOT ?? join("D:\\", ".uniwork-dev", "office-desktop-installer-smoke"));
+const useDefaultInstallDirectory = process.env.OFFICE_DESKTOP_INSTALL_SMOKE_DEFAULT === "1";
 await mkdir(root, { recursive: true });
 const work = await mkdtemp(join(root, "run-"));
-const installDir = join(work, "install");
+const defaultInstallDir = process.env.LOCALAPPDATA
+  ? join(process.env.LOCALAPPDATA, "Programs", buildIdentity.userDataNamespace)
+  : undefined;
+if (useDefaultInstallDirectory && !defaultInstallDir) throw new Error("default installer smoke requires LOCALAPPDATA");
+if (useDefaultInstallDirectory && existsSync(defaultInstallDir)) throw new Error(`default installer smoke refuses to overwrite an existing install: ${defaultInstallDir}`);
+const installDir = useDefaultInstallDirectory ? defaultInstallDir : join(work, "install");
 const userData = join(work, "user-data");
 const drafts = join(userData, "drafts");
 const schemeKey = `HKCU\\Software\\Classes\\${buildIdentity.userScheme}`;
@@ -54,7 +61,8 @@ try {
   await mkdir(drafts, { recursive: true });
   const sentinel = join(drafts, "keep-after-uninstall.txt");
   await writeFile(sentinel, "draft sentinel\n", "utf8");
-  await run(setup, ["/S", `/D=${installDir}`]);
+  const installArgs = useDefaultInstallDirectory ? ["/S"] : ["/S", `/D=${installDir}`];
+  await run(setup, installArgs);
   const executable = join(installDir, `${buildIdentity.executable}.exe`);
   await launchSmoke(executable);
   if (!(await registryExists())) throw new Error(`installed scheme was not registered: ${buildIdentity.userScheme}`);
@@ -67,5 +75,8 @@ try {
   try { await readFile(sentinel, "utf8"); } catch { throw new Error("uninstall deleted userData/drafts without an explicit opt-in"); }
   process.stdout.write(`desktop installer smoke: installed ${setup}, verified scheme/diagnostics, uninstalled, and preserved drafts\n`);
 } finally {
+  // The default-dir case intentionally targets a disposable, channel-derived
+  // path. Remove any empty remnants after the uninstaller has completed.
+  if (useDefaultInstallDirectory && defaultInstallDir) await rm(defaultInstallDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
   await rm(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
 }

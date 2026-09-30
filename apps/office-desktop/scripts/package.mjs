@@ -37,7 +37,10 @@ export function createPackagerConfig({ platform = "win32", arch = "x64", output 
     // from copying the workspace node_modules tree (including tests/fixtures)
     // into the asar; the generated package metadata has no runtime deps.
     files: ["dist/**", "identity.json", "package.json", "!node_modules/**", "!dist/**/*.map", "!dist/.build-metafile.json"],
-    extraMetadata: { version: buildVersion, dependencies: {}, devDependencies: {} },
+    // electron-builder derives the per-user NSIS install directory from the
+    // sanitized package name. Keep that name in the accepted channel profile
+    // so dev is isolated while beta and stable intentionally upgrade in place.
+    extraMetadata: { name: channelIdentity.userDataNamespace, version: buildVersion, dependencies: {}, devDependencies: {} },
     extraResources: [{ from: join(distDirectory, "release-inventory"), to: "release-inventory" }],
     asar: true,
     compression: "store",
@@ -148,7 +151,9 @@ async function prepareInstallerInclude(channelIdentity) {
   const source = join(appDirectory, "build", "installer.nsh");
   const generated = join(cacheRoot, `installer-${channelIdentity.userScheme}.nsh`);
   const template = await readFile(source, "utf8");
-  await writeFile(generated, template.replaceAll("@USER_SCHEME@", channelIdentity.userScheme), "utf8");
+  await writeFile(generated, template
+    .replaceAll("@USER_SCHEME@", channelIdentity.userScheme)
+    .replaceAll("@USER_DATA_NAMESPACE@", channelIdentity.userDataNamespace), "utf8");
   return generated;
 }
 

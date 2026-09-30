@@ -52,7 +52,8 @@ Windows x64 targets are a ZIP and an NSIS setup, for example
 `win.signAndEditExecutable: false`, `forceCodeSigning: false`, `publish: null`,
 and no publisher/feed keep signing and auto-update disabled. The NSIS setup is
 one-click, per-user (`perMachine: false`, no elevation), installs below
-`%LOCALAPPDATA%\Programs`, creates the manifest-named Start Menu shortcut,
+`%LOCALAPPDATA%\Programs\<userDataNamespace>` (the channel-derived manifest
+namespace), creates the manifest-named Start Menu shortcut,
 uninstaller, and Apps & features entry, and registers the manifest scheme for
 the current user. The uninstaller removes that scheme; it preserves user data
 and drafts unless the user explicitly confirms the delete-data option (silent
@@ -91,9 +92,11 @@ pnpm --filter @uniwork/office-desktop smoke:installer
 For dev/local smoke only, set `UNIWORK_OFFICE_DEPLOYMENT_ID` and
 `UNIWORK_OFFICE_API_ORIGIN` (HTTPS; HTTP is accepted only for localhost in
 dev). A beta build may omit them and resolve the installed/downloaded profile
-later. Invalid, partial, non-HTTPS, or channel-mismatched profiles fail with a
-typed refusal; a missing beta/stable profile is the `no_deployment_profile`
-state, never a production default.
+later. A packaged build ignores runtime environment overrides for its user-data
+directory and deployment origin; only an explicit `--office-desktop-smoke`
+launch enables those local test seams. Invalid, partial, non-HTTPS, or
+channel-mismatched profiles fail with a typed refusal; a missing beta/stable
+profile is the `no_deployment_profile` state, never a production default.
 
 `package.mjs` records an esbuild metafile and refuses every resolved input whose
 real path escapes the checkout. This catches sibling `../genoffice` material,
@@ -112,7 +115,11 @@ the unpacked executable with a D: user-data directory, waits for
 `ready-to-show`, checks diagnostics identity, and quits. The installer smoke
 installs the setup into a D: per-user directory, launches it, verifies scheme
 registration and diagnostics, uninstalls, verifies registry removal, and
-checks that a drafts sentinel remains.
+checks that a drafts sentinel remains. Set
+`OFFICE_DESKTOP_INSTALL_SMOKE_DEFAULT=1` for the companion disposable-profile
+run without `/D=`; it asserts the default
+`%LOCALAPPDATA%\Programs\<userDataNamespace>` directory and refuses to
+overwrite an existing installation.
 
 Unsigned Windows packages may trigger SmartScreen. Select **More info -> Run
 anyway** for this local artifact. If Windows marks a downloaded setup with a
@@ -121,7 +128,9 @@ file Properties **Unblock** checkbox). To upgrade, run the newer setup over the
 existing beta/stable install; the shared GUID/app id replaces the old shortcut
 and keeps user data. Uninstall removes the app and scheme but keeps drafts by
 default; use the explicit delete-data choice only when that data is no longer
-needed.
+needed. A portable ZIP has no uninstaller, so deleting its directory does not
+remove the current-user scheme registration; remove that registration manually
+or use the NSIS uninstaller.
 
 ## Release inventory
 

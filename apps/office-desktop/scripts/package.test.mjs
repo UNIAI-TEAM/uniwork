@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { assertBuildInputsInsideRepository, assertPackagedAsarContents, createPackagerConfig, validateMacTargets } from "./package.mjs";
-import { deriveBuildMetadata } from "./deployment-profile.mjs";
+import { deriveBuildMetadata, DeploymentProfileError, readDeploymentProfileFromEnv } from "./deployment-profile.mjs";
+import identity from "../identity.json" with { type: "json" };
 
 test("Windows x64 dev package is explicitly labelled and installs per-user", () => {
   const config = createPackagerConfig({ platform: "win32", arch: "x64", channel: "dev", version: "0.1.0-dev.42" });
@@ -18,6 +19,7 @@ test("Windows x64 dev package is explicitly labelled and installs per-user", () 
   assert.equal(config.nsis.createDesktopShortcut, false);
   assert.match(config.nsis.artifactName, /uniwork-office-test_0\.1\.0-dev\.42_unsigned_win32_x64-setup\.exe$/);
   assert.deepEqual(config.protocols[0].schemes, ["uniwork-office-dev"]);
+  assert.equal(config.extraMetadata.name, "uniwork-office-dev");
   assert.deepEqual(config.extraMetadata.dependencies, {});
   assert.ok(config.files.includes("!node_modules/**"));
   assert.ok(config.files.includes("!dist/**/*.map"));
@@ -30,9 +32,28 @@ test("beta and stable share install identity while dev is isolated", () => {
   assert.equal(beta.appId, stable.appId);
   assert.deepEqual(beta.protocols[0].schemes, stable.protocols[0].schemes);
   assert.equal(beta.executableName, stable.executableName);
+  assert.equal(beta.extraMetadata.name, "uniwork-office");
+  assert.equal(stable.extraMetadata.name, beta.extraMetadata.name);
   assert.match(beta.nsis.artifactName, /uniwork-office_0\.1\.0-beta\.7_unsigned_win32_x64-setup\.exe$/);
   assert.match(stable.nsis.artifactName, /uniwork-office_0\.1\.0_unsigned_win32_x64-setup\.exe$/);
   assert.throws(() => deriveBuildMetadata({ UNIWORK_OFFICE_CHANNEL: "stable" }, { channelProfiles: { stable: {}, beta: {}, dev: {} } }, "0.1.0"), /signing is disabled/);
+});
+
+test("download-time deployment env fallback is strict and typed", () => {
+  assert.equal(readDeploymentProfileFromEnv({ UNIWORK_OFFICE_CHANNEL: "beta" }, identity), undefined);
+  assert.equal(readDeploymentProfileFromEnv({ UNIWORK_OFFICE_CHANNEL: "dev" }, identity), undefined);
+  assert.throws(
+    () => readDeploymentProfileFromEnv({ UNIWORK_OFFICE_CHANNEL: "dev", UNIWORK_OFFICE_DEPLOYMENT_ID: "only-id" }, identity),
+    (error) => error instanceof DeploymentProfileError && error.code === "missing",
+  );
+  assert.throws(
+    () => readDeploymentProfileFromEnv({ UNIWORK_OFFICE_CHANNEL: "dev", UNIWORK_OFFICE_DEPLOYMENT_ID: "local", UNIWORK_OFFICE_API_ORIGIN: "http://evil.example.test" }, identity),
+    (error) => error instanceof DeploymentProfileError && error.code === "invalid-origin",
+  );
+  assert.throws(
+    () => readDeploymentProfileFromEnv({ UNIWORK_OFFICE_CHANNEL: "beta" }, identity, "0.1.0", { required: true }),
+    (error) => error instanceof DeploymentProfileError && error.code === "missing",
+  );
 });
 
 test("macOS arm64/x64 targets are config validated without a build", () => {
