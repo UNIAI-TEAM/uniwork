@@ -37,6 +37,11 @@ import {
   DialogTrigger,
 } from "@uniwork/ui/components/ui/dialog";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@uniwork/ui/components/ui/tooltip";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -106,25 +111,34 @@ export function CalendarConnectionsDialog({ workspaceId }: { workspaceId: string
   return (
     <>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogTrigger
-          render={
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="toolbar"
-              className="relative"
-              aria-label={t("calendar.connected_calendars")}
-            />
-          }
-        >
-          <Link2 aria-hidden className="size-4" />
-          {(connections.data?.length ?? 0) > 0 ? (
-            <span
-              aria-hidden
-              className="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-primary"
-            />
-          ) : null}
-        </DialogTrigger>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <DialogTrigger
+                render={
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="toolbar"
+                    className="relative"
+                    aria-label={t("calendar.connected_calendars")}
+                  />
+                }
+              >
+                <Link2 aria-hidden className="size-4" />
+                {(connections.data?.length ?? 0) > 0 ? (
+                  <span
+                    aria-hidden
+                    className="absolute right-0.5 top-0.5 size-1.5 rounded-full bg-primary"
+                  />
+                ) : null}
+              </DialogTrigger>
+            }
+          />
+          <TooltipContent side="bottom">
+            {t("calendar.connected_calendars")}
+          </TooltipContent>
+        </Tooltip>
         <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-hidden sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{t("calendar.connected_calendars")}</DialogTitle>

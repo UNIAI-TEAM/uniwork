@@ -423,7 +423,11 @@ describe("CalendarPageView", () => {
       true,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Tháng" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Kiểu hiển thị" }));
+    const monthOption = screen.getByRole("option", { name: "Tháng" });
+    fireEvent.pointerDown(monthOption, { pointerType: "mouse" });
+    fireEvent.pointerUp(monthOption, { pointerType: "mouse" });
+    fireEvent.click(monthOption);
     expect(onPreferencesChange).toHaveBeenLastCalledWith({
       viewMode: "month",
       mine: true,
@@ -478,7 +482,11 @@ describe("CalendarPageView", () => {
       ),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Ngày" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Kiểu hiển thị" }));
+    const dayOption = screen.getByRole("option", { name: "Ngày" });
+    fireEvent.pointerDown(dayOption, { pointerType: "mouse" });
+    fireEvent.pointerUp(dayOption, { pointerType: "mouse" });
+    fireEvent.click(dayOption);
 
     expect(useCalendarEventsMock).toHaveBeenLastCalledWith(
       "ws1",

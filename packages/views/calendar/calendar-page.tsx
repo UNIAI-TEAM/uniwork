@@ -16,7 +16,6 @@ import { cn } from "@uniwork/ui/lib/utils";
 import { format } from "date-fns";
 import { CollectionPageHeader, CollectionPageState } from "../layout/collection-page";
 import { moduleTone } from "../layout/module-tones";
-import { PAGE_GUTTER } from "../layout/page-header";
 import { CalendarToolbar } from "./calendar-toolbar";
 import { CalendarMeetingPanel } from "./calendar-meeting-panel";
 import { CalendarTaskPanel } from "./calendar-task-panel";
@@ -244,8 +243,7 @@ export function CalendarPageView({
           ) : (
             <div
               className={cn(
-                "flex min-h-0 flex-1 flex-col overflow-hidden py-4",
-                PAGE_GUTTER,
+                "flex min-h-0 flex-1 flex-col overflow-hidden",
                 isPending ? "opacity-70" : undefined,
               )}
               aria-busy={isPending}
@@ -253,7 +251,7 @@ export function CalendarPageView({
               {isPending ? (
                 <p className="sr-only">{t("calendar.loading")}</p>
               ) : null}
-              {isPending ? <Skeleton className="mb-4 h-8 w-full max-w-md" /> : null}
+              {isPending ? <Skeleton className="m-4 h-8 w-full max-w-md" /> : null}
               <FullCalendarHost
                 events={events}
                 initialDate={initialDate}

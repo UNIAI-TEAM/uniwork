@@ -331,10 +331,11 @@ export function FullCalendarHost(props: {
         slotMaxTime="24:00:00"
         scrollTime="00:00:00"
         hiddenDays={hiddenDays}
-        dayMaxEventRows={isTimeGrid ? (allDayExpanded ? false : 1) : undefined}
+        dayMaxEventRows={isTimeGrid ? (allDayExpanded ? false : 1) : 1}
         allDayText={isTimeGrid ? "" : undefined}
         headerToolbar={false}
         height="100%"
+        expandRows={!isTimeGrid}
         events={fcEvents}
         editable={editable}
         droppable={externalDropEnabled}

@@ -29,6 +29,7 @@ type CapturedFcProps = {
   selectable?: boolean;
   selectMirror?: boolean;
   height?: string | number;
+  expandRows?: boolean;
   datesSet?: (arg: { start: Date; end: Date }) => void;
   eventClick?: (arg: { event: { id: string }; el?: HTMLElement }) => void;
   eventDrop?: (arg: DropResizeArg) => void | Promise<void>;
@@ -159,6 +160,8 @@ describe("FullCalendarHost", () => {
     );
     expect(captured.locale?.code).toBe("en-gb");
     expect(captured.nowIndicator).toBe(false);
+    expect(captured.dayMaxEventRows).toBe(1);
+    expect(captured.expandRows).toBe(true);
     expect(screen.queryByText("GMT+7")).not.toBeInTheDocument();
   });
 

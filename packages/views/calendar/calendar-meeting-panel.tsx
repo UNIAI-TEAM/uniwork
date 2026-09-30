@@ -51,7 +51,7 @@ export function CalendarMeetingPanel({
     <aside
       ref={panelRef}
       aria-label={t("calendar.meeting_panel_label")}
-      className="absolute inset-y-0 right-0 z-40 flex min-h-0 w-[min(40rem,calc(100%-1rem))] shrink-0 flex-col overflow-hidden border-l border-border bg-background shadow-[var(--floating-shadow)] 2xl:relative 2xl:z-auto 2xl:w-[40rem] 2xl:shadow-none"
+      className="absolute inset-y-0 right-0 z-40 flex min-h-0 w-[min(40rem,calc(100%-1rem))] shrink-0 flex-col overflow-hidden border-l border-border bg-background shadow-[var(--floating-shadow)] 2xl:relative 2xl:z-auto 2xl:w-[32rem] 2xl:shadow-none"
     >
       <MeetingDetailView
         workspaceId={workspaceId}

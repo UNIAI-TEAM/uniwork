@@ -24,9 +24,9 @@ export const chatKeys = {
     ["chat", "followed-threads", wsId, unread] as const,
   messageLinks: (wsId: string, messageId: string) =>
     ["chat", "message-links", wsId, messageId] as const,
-  /** One room's timeline asks for the links of every loaded message at once. */
-  roomMessageLinks: (wsId: string, roomId: string, messageIds: string) =>
-    ["chat", "room-message-links", wsId, roomId, messageIds] as const,
+  /** Accumulated task/doc links for one room timeline (incremental fetch). */
+  roomMessageLinksRoom: (wsId: string, roomId: string) =>
+    ["chat", "room-message-links", wsId, roomId] as const,
   /** Prefix — any link change refreshes the batched room lookups. */
   roomMessageLinksRoot: (wsId: string) => ["chat", "room-message-links", wsId] as const,
   /** Prefix for all Follow-up list variants; invalidate with this key only. */
