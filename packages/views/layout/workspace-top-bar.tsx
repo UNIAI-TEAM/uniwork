@@ -33,6 +33,7 @@ import { AskUniPanel } from "../ai/ask-uni-panel";
 import { NotificationBell } from "../notifications/notification-bell";
 import { SearchCommand, SearchTrigger } from "../search";
 import { NewTaskDialog } from "../tasks/new-task-dialog";
+import { CreateTaskDraftTray } from "../tasks/create-task-draft-tray";
 import { useNavigation } from "../navigation";
 import { GlobalShortcuts } from "./global-shortcuts";
 import { PAGE_GUTTER } from "./page-header";
@@ -51,6 +52,7 @@ export function WorkspaceChrome({ children }: { children: ReactNode }) {
   // Stable, so the shortcut listener is not re-registered on every render.
   const openCreate = useCallback(() => setCreateOpen(true), []);
   const { pathname } = useNavigation();
+  const { workspace } = useWorkspace();
   const reduceMotion = useReducedMotion() ?? false;
   return (
     <>
@@ -81,6 +83,7 @@ export function WorkspaceChrome({ children }: { children: ReactNode }) {
           {children}
         </motion.div>
       </AnimatePresence>
+      <CreateTaskDraftTray workspaceId={workspace.id} onOpenDraft={openCreate} />
     </>
   );
 }

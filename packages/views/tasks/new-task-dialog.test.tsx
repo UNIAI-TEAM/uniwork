@@ -64,7 +64,12 @@ const workspace: Workspace = {
 describe("NewTaskDialog", () => {
   beforeEach(() => {
     setSessionUser(user);
-    useCreateTaskDraftStore.setState({ drafts: {}, settings: {}, ownerId: null });
+    useCreateTaskDraftStore.setState({
+      drafts: {},
+      activeDraftIds: {},
+      settings: {},
+      ownerId: null,
+    });
     toastSuccess.mockReset();
     toastError.mockReset();
     requestMock.mockReset();
@@ -107,6 +112,113 @@ describe("NewTaskDialog", () => {
     consoleError.mockRestore();
   });
 
+  it("saves the current task as a resumable draft and closes the composer", () => {
+    const onOpenChange = vi.fn();
+    render(
+      wrap(
+        <NewTaskDialog
+          workspaceId="ws1"
+          open
+          showTrigger={false}
+          onOpenChange={onOpenChange}
+        />,
+      ),
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Tiêu đề issue"), {
+      target: { value: "Rà soát hợp đồng" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Lưu bản nháp" }));
+
+    const drafts = useCreateTaskDraftStore.getState().draftsFor("ws1");
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0]?.title).toBe("Rà soát hợp đồng");
+    expect(useCreateTaskDraftStore.getState().draftFor("ws1")).toBeNull();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("asks before closing an unsaved task and discards it when confirmed", () => {
+    const onOpenChange = vi.fn();
+    render(
+      wrap(
+        <NewTaskDialog
+          workspaceId="ws1"
+          open
+          showTrigger={false}
+          onOpenChange={onOpenChange}
+        />,
+      ),
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Tiêu đề issue"), {
+      target: { value: "Chưa lưu" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
+
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
+    expect(screen.getByText("Lưu bản nháp?")).toBeInTheDocument();
+    expect(useCreateTaskDraftStore.getState().draftsFor("ws1")).toEqual([]);
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Xóa bản nháp" }));
+
+    expect(useCreateTaskDraftStore.getState().draftFor("ws1")).toBeNull();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("keeps the composer open when close confirmation is cancelled", () => {
+    const onOpenChange = vi.fn();
+    render(
+      wrap(
+        <NewTaskDialog
+          workspaceId="ws1"
+          open
+          showTrigger={false}
+          onOpenChange={onOpenChange}
+        />,
+      ),
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Tiêu đề issue"), {
+      target: { value: "Tiếp tục chỉnh sửa" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hủy" }));
+
+    expect(screen.queryByText("Lưu bản nháp?")).toBeNull();
+    expect(screen.getByPlaceholderText("Tiêu đề issue")).toHaveValue("Tiếp tục chỉnh sửa");
+    expect(useCreateTaskDraftStore.getState().draftFor("ws1")?.title).toBe(
+      "Tiếp tục chỉnh sửa",
+    );
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  it("saves an unsaved task from the close confirmation", () => {
+    const onOpenChange = vi.fn();
+    render(
+      wrap(
+        <NewTaskDialog
+          workspaceId="ws1"
+          open
+          showTrigger={false}
+          onOpenChange={onOpenChange}
+        />,
+      ),
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Tiêu đề issue"), {
+      target: { value: "Lưu khi đóng" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Đóng" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Lưu$/ }));
+
+    const drafts = useCreateTaskDraftStore.getState().draftsFor("ws1");
+    expect(drafts).toHaveLength(1);
+    expect(drafts[0]?.title).toBe("Lưu khi đóng");
+    expect(useCreateTaskDraftStore.getState().draftFor("ws1")).toBeNull();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
   it("does not mount agent trigger or squad assign chrome", () => {
     render(
       wrap(
@@ -130,6 +242,18 @@ describe("NewTaskDialog", () => {
       "font-semibold",
       "placeholder:font-semibold",
     );
+    expect(screen.getByText("Việc mới")).toHaveClass("font-normal", "text-muted-foreground");
+    expect(screen.getByText("Tạo thủ công")).toHaveClass("text-foreground");
+    for (const name of ["Mở rộng", "Lưu bản nháp", "Đóng"]) {
+      expect(screen.getByRole("button", { name })).toHaveClass(
+        "text-muted-foreground",
+        "hover:text-foreground",
+      );
+      expect(screen.getByRole("button", { name })).toHaveAttribute(
+        "data-slot",
+        "tooltip-trigger",
+      );
+    }
     expect(screen.getByRole("button", { name: "Chuyển sang agent" })).toHaveClass(
       "border-beam",
       "group",
