@@ -3,7 +3,7 @@
 // packaged runtime.
 // eslint-disable-next-line import-x/no-extraneous-dependencies
 import { contextBridge, ipcRenderer } from "electron";
-import { DESKTOP_EVENTS, DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema, launchRequestedEventSchema, type DesktopIpcChannel, type DesktopIpcRequest, type DesktopSessionMetadata, type LaunchRequestedEvent } from "../shared/ipc";
+import { DESKTOP_EVENTS, DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema, launchRequestedEventSchema, officeSaveRequestedEventSchema, type DesktopIpcChannel, type DesktopIpcRequest, type DesktopSessionMetadata, type LaunchRequestedEvent, type OfficeSaveRequestedEvent } from "../shared/ipc";
 
 export type IpcRendererAdapter = {
   invoke(channel: string, payload: unknown): Promise<unknown>;
@@ -16,6 +16,7 @@ export type DesktopRendererBridge = {
   call<C extends DesktopIpcChannel>(channel: C, payload: DesktopIpcRequest<C>): Promise<unknown>;
   channels: readonly DesktopIpcChannel[];
   onLaunchRequested(listener: (event: LaunchRequestedEvent) => void): () => void;
+  onOfficeSaveRequested(listener: (event: OfficeSaveRequestedEvent) => void): () => void;
   onSessionChanged(listener: (metadata: DesktopSessionMetadata) => void): () => void;
 };
 
@@ -45,6 +46,17 @@ export function createPreloadBridge(ipcRenderer: IpcRendererAdapter): DesktopRen
         if (parsed.success) listener(parsed.data);
       };
       const eventChannel = "desktop:auth-session-changed";
+      if (!(DESKTOP_EVENTS as readonly string[]).includes(eventChannel)) return () => undefined;
+      ipcRenderer.on(eventChannel, handler);
+      return () => ipcRenderer.removeListener?.(eventChannel, handler);
+    },
+    onOfficeSaveRequested(listener) {
+      if (!ipcRenderer.on) return () => undefined;
+      const handler = (...args: unknown[]) => {
+        const parsed = officeSaveRequestedEventSchema.safeParse(args.at(-1));
+        if (parsed.success) listener(parsed.data);
+      };
+      const eventChannel = "desktop:office-save-requested";
       if (!(DESKTOP_EVENTS as readonly string[]).includes(eventChannel)) return () => undefined;
       ipcRenderer.on(eventChannel, handler);
       return () => ipcRenderer.removeListener?.(eventChannel, handler);

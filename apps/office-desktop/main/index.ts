@@ -1,10 +1,10 @@
 import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST } from "../shared/identity";
-import { createAuthIpcHandlers, createDiagnosticsIpcHandler, createDraftIpcHandlers, createFileIpcHandlers, createIpcDispatcher, type DraftIpcOptions, type FileIpcOptions, type IpcHandler, type DesktopIpcChannel, type IpcSenderContext } from "./ipc";
+import { createAuthIpcHandlers, createDiagnosticsIpcHandler, createDraftIpcHandlers, createFileIpcHandlers, createOfficeIpcHandlers, createIpcDispatcher, type DesktopOfficeTransport, type DraftIpcOptions, type FileIpcOptions, type IpcHandler, type DesktopIpcChannel, type IpcSenderContext } from "./ipc";
 import { installNavigationGuards, openApprovedExternal } from "./navigation";
 import { createDesktopRuntimeAdapters } from "./adapters";
 import type { HostIpcPort } from "@uniwork/office-contracts";
 import type { NativeLoginManager } from "./auth/manager";
-import { launchRequestedEventSchema } from "../shared/ipc";
+import { launchRequestedEventSchema, officeSaveRequestedEventSchema } from "../shared/ipc";
 import { registerDeepLinkSystem, type DeepLinkRegistration, type DeepLinkSystem, type LaunchBridge } from "./deep-links";
 import type { DeploymentProfile } from "../shared/deployment";
 
@@ -21,6 +21,9 @@ export type DesktopWindowAdapter = {
   loadURL(url: string): Promise<void> | void;
   setUserDataDirectory(path: string): void;
   on?(event: "closed", listener: () => void): void;
+  /** Native application menu seam. The handler is injected by Electron's
+   * main entry and emits the same renderer Save action as Ctrl+S. */
+  onNativeSave?(listener: () => void): void;
 };
 
 export type DesktopHostOptions = {
@@ -33,11 +36,15 @@ export type DesktopHostOptions = {
   authManager?: NativeLoginManager;
   localFiles?: FileIpcOptions;
   drafts?: DraftIpcOptions;
+  /** Main-owned cloud Documents/Office transport. Renderer receives only
+   * validated metadata and bounded DOCX bytes. */
+  office?: { transport: DesktopOfficeTransport; isSignedIn?: () => boolean; onDocumentOpened?: (documentId: string) => void };
   /** Electron app seams for the single-instance launch protocol. */
   deepLinks?: { system: DeepLinkSystem; bridge: LaunchBridge };
   deploymentProfile?: DeploymentProfile;
   /** Resolved by the Electron entry; never read from process.env here. */
   userDataDirectory?: string;
+  activeDocumentId?: () => string | undefined;
 };
 
 function authCallbackFromArgv(argv: readonly unknown[]): string | undefined {
@@ -65,7 +72,12 @@ export function createDesktopHost(options: DesktopHostOptions) {
     ...(options.authManager ? createAuthIpcHandlers(options.authManager) : {}),
     ...(options.localFiles ? createFileIpcHandlers(options.localFiles) : {}),
     ...(options.drafts ? createDraftIpcHandlers(options.drafts) : {}),
+    ...(options.office ? createOfficeIpcHandlers(options.office) : {}),
   };
+  options.window.onNativeSave?.(() => {
+    const documentId = options.activeDocumentId?.();
+    if (documentId) options.window.webContents.send?.("desktop:office-save-requested", officeSaveRequestedEventSchema.parse({ documentId }));
+  });
   handlers["desktop:open-external"] ??= (request) => {
     openApprovedExternal(request.url, allowedExternalHosts, openSystemBrowser);
     return { opened: true };

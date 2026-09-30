@@ -1,7 +1,7 @@
 // Electron is supplied by electron-builder at runtime and intentionally stays
 // a devDependency; this is the only privileged entry module that imports it.
 // eslint-disable-next-line import-x/no-extraneous-dependencies
-import { app, BrowserWindow, ipcMain, net, protocol, safeStorage, shell } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, net, protocol, safeStorage, shell } from "electron";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -14,6 +14,7 @@ import { createSecureCredentialStore } from "./main/credentials/secure-store";
 import { createSystemBrowserLauncher } from "./main/auth/browser";
 import { NativeLoginManager } from "./main/auth/manager";
 import { createHttpAuthTransport } from "./main/transport/auth-transport";
+import { createHttpOfficeTransport } from "./main/transport/office-transport";
 
 const DIST_MAIN_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 const RENDERER_DIRECTORY = resolve(DIST_MAIN_DIRECTORY, "../renderer");
@@ -129,6 +130,9 @@ async function startElectronHost(): Promise<void> {
       preload: PRELOAD_PATH,
     },
   });
+  let nativeSaveListener: (() => void) | undefined;
+  let activeDocumentId: string | undefined;
+  Menu.setApplicationMenu(Menu.buildFromTemplate([{ label: "File", submenu: [{ label: "Save", accelerator: "CmdOrCtrl+S", click: () => nativeSaveListener?.() }] }]));
   publishSessionMetadata = (metadata) => {
     const parsed = desktopSessionMetadataSchema.parse(metadata);
     window.webContents.send?.("desktop:auth-session-changed", parsed);
@@ -160,6 +164,7 @@ async function startElectronHost(): Promise<void> {
       loadURL: (url) => window.loadURL(url),
       setUserDataDirectory: (value) => app.setPath("userData", resolve(value)),
       on: (event, listener) => window.on(event, listener),
+      onNativeSave: (listener) => { nativeSaveListener = listener; },
     },
     sender: {
       senderId: window.webContents.id,
@@ -174,6 +179,8 @@ async function startElectronHost(): Promise<void> {
     authManager,
     deploymentProfile,
     userDataDirectory: app.getPath("userData"),
+    ...(deploymentProfile && credentials ? { office: { transport: createHttpOfficeTransport({ profile: deploymentProfile, credentials }), isSignedIn: () => authManager?.getMetadata().status === "signed-in", onDocumentOpened: (documentId: string) => { activeDocumentId = documentId; } } } : {}),
+    activeDocumentId: () => activeDocumentId,
   });
 
   for (const channel of DESKTOP_IPC_CHANNELS) {
