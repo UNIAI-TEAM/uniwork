@@ -606,9 +606,17 @@ func sanitizeDesktopLabel(v string) string {
 }
 
 func sanitizeMetadata(v string) string {
-	v = strings.TrimSpace(v)
-	if len(v) > maxDesktopMetadataBytes {
-		v = v[:maxDesktopMetadataBytes]
+	v = strings.ToValidUTF8(strings.TrimSpace(v), "")
+	if len(v) <= maxDesktopMetadataBytes {
+		return v
 	}
-	return v
+	limit := 0
+	for _, r := range v {
+		runeBytes := utf8.RuneLen(r)
+		if limit+runeBytes > maxDesktopMetadataBytes {
+			break
+		}
+		limit += runeBytes
+	}
+	return v[:limit]
 }

@@ -5,8 +5,10 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/unicomhub/uniwork/server/internal/auth"
 	"github.com/unicomhub/uniwork/server/internal/config"
@@ -93,5 +95,19 @@ func TestDesktopAuthPKCEConsentExchangeAndReplay(t *testing.T) {
 	}
 	if err := svc.CheckDeviceSession(context.Background(), u.User.ID, sess.DeviceSessionID); !errors.Is(err, ErrDesktopDeviceRevoked) {
 		t.Fatalf("revoked device check: %v", err)
+	}
+}
+
+func TestSanitizeMetadataPreservesUTF8AtByteLimit(t *testing.T) {
+	input := strings.Repeat("a", 63) + "é"
+	got := sanitizeMetadata(input)
+	if !utf8.ValidString(got) {
+		t.Fatalf("sanitizeMetadata returned invalid UTF-8: %q", got)
+	}
+	if len(got) != 63 {
+		t.Fatalf("sanitized byte length = %d, want 63", len(got))
+	}
+	if got != strings.Repeat("a", 63) {
+		t.Fatalf("sanitized metadata = %q, want the complete rune prefix", got)
 	}
 }
