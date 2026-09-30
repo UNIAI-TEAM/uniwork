@@ -1,9 +1,12 @@
 -- name: CreateMeetingParticipant :one
+-- A guest starts as an observer on every path that creates one (invite link,
+-- join approval); a user starts as a member.
 INSERT INTO meeting_participants (
   id, meeting_id, principal_type, user_id, guest_id, display_name_snapshot, email_snapshot,
-  role, status, source_type, source_id, added_by
+  role, status, source_type, source_id, added_by, standing
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7, $8, 'ACTIVE', $9, $10, $11
+  $1, $2, $3, $4, $5, $6, $7, $8, 'ACTIVE', $9, $10, $11,
+  CASE WHEN $3 = 'GUEST' THEN 'OBSERVER' ELSE 'MEMBER' END
 )
 RETURNING *;
 
