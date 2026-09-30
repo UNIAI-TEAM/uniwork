@@ -9,6 +9,7 @@
     "build": "node scripts/build.mjs",
     "package": "node scripts/package.mjs",
     "smoke": "node scripts/launch-smoke.mjs",
+    "smoke:recovery-system": "node scripts/draft-system-smoke.mjs",
     "smoke:installer": "node scripts/installer-smoke.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",

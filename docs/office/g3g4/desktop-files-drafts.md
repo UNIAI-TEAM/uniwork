@@ -107,3 +107,7 @@ renderer exposes localized, non-exporting available/conflict/blocked/locked/
 unavailable states through its recovery element and status mapping. The editor
 host remains responsible for supplying the live document context and driving
 those states; the Electron bootstrap fails closed until it is attached.
+
+The Windows system smoke is runnable with `pnpm --filter @uniwork/office-desktop smoke:recovery-system`. It launches the real Electron binary with an isolated `userData` directory, exercises the DPAPI-backed `safeStorage` key adapter, verifies that the persisted file contains only the wrapped key (never the raw 256-bit key), checks the namespace directory ACL is restricted to the current Windows account, and deletes the key. The successful run is recorded in `D:/.Vietants_Project/uniwork-workspace/.uniwork-dev/office-g3g4/reports/g4-04b-desktop-recovery/windows-safe-storage-system.log`.
+
+The editor-driven AC-4 sequence (edit, kill, restart, offer recovery and restore) is deferred to G4-06a/G4-08 because this lane has no document editor host, seeded protected-draft seam, or packaged account-A/account-B visual harness. The packaged-dev visual leg is therefore not claimed as a pass here; the fail-closed `context: () => undefined` placeholder remains until that host context is supplied.

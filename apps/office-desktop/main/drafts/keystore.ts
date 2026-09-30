@@ -47,6 +47,12 @@ const nodeFileSystem: DraftKeyFileSystem = {
 };
 const execFileAsync = promisify(execFile);
 
+function currentWindowsAccount(): string {
+  const domain = process.env.USERDOMAIN?.trim();
+  const username = process.env.USERNAME?.trim();
+  return domain && username ? `${domain}\\${username}` : userInfo().username;
+}
+
 export interface DraftKeyStoreOptions {
   readonly userDataDirectory: string;
   readonly channel: "stable" | "beta" | "dev";
@@ -55,6 +61,8 @@ export interface DraftKeyStoreOptions {
   readonly fileSystem?: DraftKeyFileSystem;
   /** Injectable for system tests. Production uses chmod and the platform ACL. */
   readonly restrictFile?: (path: string) => Promise<void>;
+  /** Injectable directory ACL hook; omitted in production to use the platform ACL. */
+  readonly restrictDirectory?: (path: string) => Promise<void>;
   readonly randomBytes?: (size: number) => Uint8Array;
 }
 
@@ -76,11 +84,23 @@ export function createSafeStorageDraftKeyStore(options: DraftKeyStoreOptions) {
     // removed explicitly; execFile avoids shell interpolation of the path.
     if (process.platform === "win32") {
       try {
-        const account = userInfo().username;
-        await execFileAsync("icacls", [path, "/inheritance:r", "/grant:r", `${account}:(R,W)`]);
+        const account = currentWindowsAccount();
+        // Modify includes read/write/delete, which is required for atomic key
+        // rotation and explicit logout cleanup while still granting only the
+        // current account after inherited ACLs are removed.
+        await execFileAsync("icacls", [path, "/inheritance:r", "/grant:r", `${account}:(M)`]);
       } catch { throw new DraftKeyStoreError("unavailable", "draft key permissions could not be restricted"); }
     }
   });
+  const restrictDirectory = options.restrictDirectory ?? (options.restrictFile
+    ? async () => undefined
+    : async (path: string) => {
+      if (process.platform !== "win32") return;
+      try {
+        const account = currentWindowsAccount();
+        await execFileAsync("icacls", [path, "/inheritance:r", "/grant:r", `${account}:(M)`]);
+      } catch { throw new DraftKeyStoreError("unavailable", "draft key directory permissions could not be restricted"); }
+    });
 
   function ensureAvailable(): void {
     if (!options.safeStorage.isEncryptionAvailable()) throw new DraftKeyStoreError("locked", "draft key store is locked");
@@ -112,6 +132,7 @@ export function createSafeStorageDraftKeyStore(options: DraftKeyStoreOptions) {
     const temporary = `${path}.${process.pid}.${Date.now().toString(36)}.${Buffer.from(random(12)).toString("hex")}.tmp`;
     await fileSystem.mkdir(directory, { recursive: true, mode: 0o700 });
     await fileSystem.chmod(directory, 0o700);
+    await restrictDirectory(directory);
     let handle: { sync(): Promise<void>; close(): Promise<void> } | undefined;
     try {
       const wrapped = options.safeStorage.encryptString(Buffer.from(key).toString("base64url"));
