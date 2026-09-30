@@ -117,12 +117,22 @@ export function createBrowserOfficeDraftAdapter<TSnapshot>(
   const draftId = options.draftId ?? options.identity.documentId;
   const liveAccess = options.liveAccess ?? "edit";
   const intents = new Map<string, OfficeSaveIntent<TSnapshot>>();
+  // Checkpoints and Save cleanup share one serialized lane. A checkpoint can
+  // be in flight when Save settles (the host checkpoint timer is independent
+  // of the coordinator); without ordering, the late checkpoint can recreate
+  // the draft that Save just deleted and show recovery again after reload.
+  let draftOperationTail: Promise<void> = Promise.resolve();
+  const enqueueDraftOperation = <T>(operation: () => Promise<T>): Promise<T> => {
+    const result = draftOperationTail.then(operation);
+    draftOperationTail = result.then(() => undefined, () => undefined);
+    return result;
+  };
   const lookupScope = (() => {
     const { base: _base, ...scope } = identity;
     return scope;
   })();
 
-  const checkpointDurable = async (snapshot: StableSnapshot<TSnapshot>) => {
+  const checkpointDurable = (snapshot: StableSnapshot<TSnapshot>) => enqueueDraftOperation(async () => {
     if (!Number.isSafeInteger(snapshot.generation) || snapshot.generation < 1) {
       throw new DraftRecoveryErrorClass("invalid_snapshot", "draft generation must be positive");
     }
@@ -138,7 +148,7 @@ export function createBrowserOfficeDraftAdapter<TSnapshot>(
         ciphertext: encrypted.ciphertext,
       },
     });
-  };
+  });
 
   const recoverDurable = async (): Promise<StableSnapshot<TSnapshot> | null> => {
     // Omit the base from lookup so the adapter can classify an older draft as
@@ -160,7 +170,7 @@ export function createBrowserOfficeDraftAdapter<TSnapshot>(
     return decodeSnapshot<TSnapshot>(decrypted);
   };
 
-  const discardDurable = async (generation?: number): Promise<boolean> => {
+  const discardDurable = (generation?: number): Promise<boolean> => enqueueDraftOperation(async () => {
     // Keep the base out of the lookup so a changed-base draft can still be
     // explicitly discarded from the recovery conflict prompt.
     const records = await draftStore.list({ session, lookup: { ...lookupScope, draftId } });
@@ -172,7 +182,7 @@ export function createBrowserOfficeDraftAdapter<TSnapshot>(
     if (generation !== undefined && target.generation !== generation) return false;
     await draftStore.deleteDurable({ session, draftId: target.draftId, generation: target.generation });
     return true;
-  };
+  });
 
   const clearMemory = async () => {
     intents.clear();

@@ -83,6 +83,33 @@ describe("browser Office host draft adapter", () => {
     await adapter.dispose();
   });
 
+  it("does not let an in-flight checkpoint recreate a draft after Save discards it", async () => {
+    let releaseCheckpoint!: () => void;
+    let checkpointStarted!: () => void;
+    const started = new Promise<void>((resolve) => { checkpointStarted = resolve; });
+    const released = new Promise<void>((resolve) => { releaseCheckpoint = resolve; });
+    let record: { draftId: string; generation: number; identity: OfficeIdentity } | undefined;
+    const store = fakeStore();
+    vi.mocked(store.checkpointEncrypted).mockImplementation(async ({ snapshot }) => {
+      checkpointStarted();
+      await released;
+      record = { draftId: snapshot.draftId, generation: snapshot.generation, identity: identity as never };
+      return { status: "stored", metadata: {} } as never;
+    });
+    vi.mocked(store.list).mockImplementation(async () => (record ? [record as never] : []));
+    vi.mocked(store.deleteDurable).mockImplementation(async ({ generation }) => {
+      if (record?.generation === generation) record = undefined;
+    });
+    const adapter = createBrowserOfficeDraftAdapter({ identity, session, draftStore: store, keyProvider: fakeKeyProvider() });
+    const checkpoint = adapter.checkpointDurable({ generation: 1, fingerprint: "fp", value: { text: "draft" } });
+    await started;
+    const discard = adapter.discardDurable(1);
+    releaseCheckpoint();
+    await Promise.all([checkpoint, discard]);
+    expect(record).toBeUndefined();
+    await adapter.dispose();
+  });
+
   it("checkpointing marks dirty but never uses coordinator upload or commit", async () => {
     const editor: EditorHandle<{ text: string }> = {
       format: "md",
