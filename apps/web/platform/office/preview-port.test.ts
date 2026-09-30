@@ -80,4 +80,36 @@ describe("createOfficePreviewPort", () => {
     expect(session.iframe.getAttribute("csp")).toContain("script-src 'none'");
     session.dispose();
   });
+
+  it("normalises update manifests before reopening the broker scope", async () => {
+    const opened: Array<{ keys: string[]; asset_ids?: Record<string, string> }> = [];
+    const port = createOfficePreviewPort({
+      scope: { document_id: "D1", job_id: "J1" },
+      appOrigin: "http://localhost:3000",
+      proxy: {
+        open: async (request) => {
+          opened.push({ keys: [...request.keys], asset_ids: request.asset_ids ? { ...request.asset_ids } : undefined });
+          return {
+            origin: "https://preview-assets.example",
+            expires_at: Date.now() + 60_000,
+            urlFor: (key: string) => `https://preview-assets.example/${key}`,
+            revoke: () => undefined,
+          };
+        },
+      },
+    });
+    const session = await port.mount({
+      container: document.createElement("div"),
+      format: "html",
+      title: "HTML",
+      text: "<img src=\"assets/old.png\">",
+      manifest: { entries: [{ path: "assets/old.png", assetId: "asset-old" }] },
+    });
+    await session.update("<img src=\"assets/new.png\">", { entries: [{ path: "assets/new.png", assetId: "asset-new" }] } as never);
+    expect(opened).toEqual([
+      { keys: ["assets/old.png"], asset_ids: { "assets/old.png": "asset-old" } },
+      { keys: ["assets/new.png"], asset_ids: { "assets/new.png": "asset-new" } },
+    ]);
+    session.dispose();
+  });
 });

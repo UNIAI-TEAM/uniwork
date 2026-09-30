@@ -18,7 +18,7 @@ interface IsolatedPreviewPort {
 const PATH_SCHEME = /^[A-Za-z][A-Za-z0-9+.-]*:/;
 
 function canonicalPreviewPath(value: unknown): string {
-	if (typeof value !== "string" || value.length === 0 || value.length > 1024 || value.includes("\\") || value.startsWith("/") || value.startsWith("//") || PATH_SCHEME.test(value) || Array.from(value).some((char) => char.charCodeAt(0) < 0x20 || char.charCodeAt(0) === 0x7f)) {
+	if (typeof value !== "string" || value.length === 0 || value.length > 1024 || value.includes("\\") || value.includes(":") || value.startsWith("/") || value.startsWith("//") || PATH_SCHEME.test(value) || Array.from(value).some((char) => char.charCodeAt(0) < 0x20 || char.charCodeAt(0) === 0x7f)) {
     throw new Error("preview manifest contains an unsafe asset path");
   }
   const parts = value.split("/").filter((part) => part !== "" && part !== ".");
@@ -79,6 +79,7 @@ export interface OfficePreviewPortOptions {
 export function createHttpPreviewAssetProxy(documentId: string, signal?: AbortSignal): PreviewAssetProxy {
   return {
     async open(request) {
+      if (request.document_id !== documentId) throw new Error("preview unavailable: document scope mismatch");
       const assets = request.keys.map((key) => {
         const assetId = request.asset_ids?.[key];
         if (!assetId) throw new Error("preview unavailable: manifest asset id is missing");
@@ -109,7 +110,7 @@ export function createOfficePreviewPort(options: OfficePreviewPortOptions): Isol
     async mount(input: PreviewMountInput): Promise<HtmlPreviewSession> {
       const text = input.format === "md" ? options.renderMarkdown?.(input.text) : input.text;
       if (text === undefined) return Promise.reject(new Error("preview runtime is unavailable for Markdown"));
-      return mountHtmlPreview({
+      const session = await mountHtmlPreview({
         container: input.container,
         title: input.title,
         text,
@@ -125,6 +126,14 @@ export function createOfficePreviewPort(options: OfficePreviewPortOptions): Isol
         appOrigin: options.appOrigin,
         onEvent: input.onEvent,
       });
+      const update = session.update.bind(session);
+      return {
+        ...session,
+        async update(nextText: string, nextManifest?: AssetManifest) {
+          const normalized = nextManifest === undefined ? undefined : previewManifest(nextManifest, input.format);
+          return update(nextText, normalized);
+        },
+      };
     },
   };
 }
