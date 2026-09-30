@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"io"
+	"mime"
 	"net/http"
 	"strconv"
 	"strings"
@@ -79,7 +80,11 @@ func (h *handlers) getPreviewAsset(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = rd.Close() }()
 	header := w.Header()
-	header.Set("Content-Type", rd.File.ContentType)
+	contentType := rd.File.ContentType
+	if _, _, parseErr := mime.ParseMediaType(contentType); parseErr != nil || strings.ContainsAny(contentType, "\r\n") {
+		contentType = "application/octet-stream"
+	}
+	header.Set("Content-Type", contentType)
 	header.Set("Content-Length", strconv.FormatInt(max64(rd.File.SizeBytes, 0), 10))
 	header.Set("Content-Disposition", "inline")
 	header.Set("Cache-Control", "no-store")
