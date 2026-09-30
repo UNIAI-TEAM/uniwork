@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { promises as fs } from "node:fs";
 import { userInfo } from "node:os";
 import { promisify } from "node:util";
@@ -48,9 +48,12 @@ const nodeFileSystem: DraftKeyFileSystem = {
 const execFileAsync = promisify(execFile);
 
 function currentWindowsAccount(): string {
-  const domain = process.env.USERDOMAIN?.trim();
-  const username = process.env.USERNAME?.trim();
-  return domain && username ? `${domain}\\${username}` : userInfo().username;
+  if (process.platform !== "win32") return userInfo().username;
+  try {
+    const account = execFileSync("whoami.exe", { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], windowsHide: true }).trim();
+    if (/^[^\\/:\r\n]+\\[^\\/:\r\n]+$/.test(account)) return account;
+  } catch { /* map identity lookup failures to the typed ACL error below */ }
+  throw new DraftKeyStoreError("unavailable", "current Windows account could not be resolved");
 }
 
 export interface DraftKeyStoreOptions {
