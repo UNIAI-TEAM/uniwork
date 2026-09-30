@@ -28,7 +28,7 @@ describe("real desktop auth HTTP transport", () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const fetchImpl = async (url: string, init?: RequestInit) => {
       calls.push({ url, init });
-      if (url.endsWith("/devices")) return response({ devices: [{ id: "device-a", clientId: profile.clientId, deploymentId: profile.deploymentId, deviceLabel: "Office", platform: "win32", build: "dev", createdAt: "", lastUsedAt: "", expiresAt: "", revokedAt: null, current: true }] });
+      if (url.endsWith("/devices")) return response({ devices: [{ id: "device-a", client_id: profile.clientId, deployment_id: profile.deploymentId, device_label: "Office", platform: "win32", build: "dev", created_at: "2026-09-30T00:00:00Z", last_used_at: "2026-09-30T00:00:00Z", expires_at: "2026-10-30T00:00:00Z", revoked_at: null, current: true }] });
       if (init?.method === "DELETE") return response({});
       if (url.endsWith("/refresh")) return response({ account_id: "account-a", device_session_id: "device-a", session_id: "session-b", deployment_id: profile.deploymentId, access_token: "access-b", refresh_token: "refresh-b", expires_in: 900, refresh_expires_in: 1000 });
       return response({});
@@ -39,6 +39,21 @@ describe("real desktop auth HTTP transport", () => {
     await expect(transport.devices!("access-b")).resolves.toHaveLength(1);
     await expect(transport.revokeDevice!("device-a", "access-b")).resolves.toBeUndefined();
     expect(calls.slice(1).every((call) => (call.init?.headers as Record<string, string>).Authorization === "Bearer access-b")).toBe(true);
+  });
+  it("maps a revoked snake_case device and rejects malformed device rows", async () => {
+    const revokedTransport = createHttpAuthTransport(profile, async () => response({ devices: [{ id: "device-b", client_id: profile.clientId, deployment_id: profile.deploymentId, device_label: "Old laptop", platform: "darwin", build: "1.2.3", created_at: "2026-09-01T00:00:00Z", last_used_at: "2026-09-15T00:00:00Z", expires_at: "2026-10-01T00:00:00Z", revoked_at: "2026-09-20T00:00:00Z", current: false }] }));
+    await expect(revokedTransport.devices!("access-b")).resolves.toMatchObject([{ id: "device-b", clientId: profile.clientId, deploymentId: profile.deploymentId, deviceLabel: "Old laptop", revokedAt: "2026-09-20T00:00:00Z", current: false }]);
+
+    const malformedRows: readonly unknown[] = [
+      null,
+      { client_id: profile.clientId, deployment_id: profile.deploymentId, device_label: "Office", platform: "win32", build: "dev", created_at: "", last_used_at: "", expires_at: "", revoked_at: null, current: true },
+      { id: "device-a", client_id: profile.clientId, deployment_id: profile.deploymentId, device_label: "Office", platform: "win32", build: "dev", created_at: "", last_used_at: "", expires_at: "", revoked_at: 42, current: true },
+      { id: "device-a", client_id: profile.clientId, deployment_id: profile.deploymentId, device_label: "Office", platform: "win32", build: "dev", created_at: "", last_used_at: "", expires_at: "", revoked_at: null, current: "yes" },
+    ];
+    for (const row of malformedRows) {
+      const malformed = createHttpAuthTransport(profile, async () => response({ devices: [row] }));
+      await expect(malformed.devices!("access-b")).rejects.toMatchObject({ code: "malformed_response" });
+    }
   });
   it("maps malformed and network responses without exposing payloads", async () => {
     const malformed = createHttpAuthTransport(profile, async () => response({ account_id: "missing" }));

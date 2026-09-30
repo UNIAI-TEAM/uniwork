@@ -93,7 +93,7 @@ export function createHttpAuthTransport(profile: DeploymentProfile, fetchImpl: F
     async devices(accessToken: string) {
       const raw = await request<{ devices?: unknown }>("GET", "/auth/desktop/devices", undefined, undefined, accessToken);
       if (!Array.isArray(raw.devices)) throw new AuthTransportError("malformed_response");
-      return raw.devices as readonly DesktopDevice[];
+      return raw.devices.map(parseDevice);
     },
     async revokeDevice(deviceSessionId: string, accessToken: string) {
       if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(deviceSessionId)) throw new AuthTransportError("invalid_request");
@@ -106,6 +106,32 @@ function parseSession(raw: Record<string, unknown>, deploymentId: string): Deskt
   const strings = ["account_id", "device_session_id", "session_id", "deployment_id", "access_token", "refresh_token"];
   if (!strings.every((key) => typeof raw[key] === "string") || raw.deployment_id !== deploymentId || typeof raw.expires_in !== "number" || typeof raw.refresh_expires_in !== "number" || raw.expires_in <= 0 || raw.refresh_expires_in <= 0) throw new AuthTransportError("malformed_response");
   return { accountId: raw.account_id as string, deviceSessionId: raw.device_session_id as string, sessionId: raw.session_id as string, deploymentId: raw.deployment_id as string, accessToken: raw.access_token as string, refreshToken: raw.refresh_token as string, expiresIn: raw.expires_in as number, refreshExpiresIn: raw.refresh_expires_in as number, refreshRotates: raw.refresh_rotates === true };
+}
+
+/** Decode the Go server's snake_case DTO into the main-process transport
+ * shape. The production wire is strict and fail-closed on missing fields. */
+function parseDevice(raw: unknown): DesktopDevice {
+  if (!raw || typeof raw !== "object") throw new AuthTransportError("malformed_response");
+  const value = raw as Record<string, unknown>;
+  const stringField = (key: string): string | undefined => {
+    const candidate = value[key];
+    return typeof candidate === "string" ? candidate : undefined;
+  };
+  const id = stringField("id");
+  const clientId = stringField("client_id");
+  const deploymentId = stringField("deployment_id");
+  const deviceLabel = stringField("device_label");
+  const platform = stringField("platform");
+  const build = stringField("build");
+  const createdAt = stringField("created_at");
+  const lastUsedAt = stringField("last_used_at");
+  const expiresAt = stringField("expires_at");
+  const revoked = value.revoked_at;
+  const current = value.current;
+  if (!id || !clientId || !deploymentId || deviceLabel === undefined || platform === undefined || build === undefined || createdAt === undefined || lastUsedAt === undefined || expiresAt === undefined || (revoked !== null && typeof revoked !== "string") || typeof current !== "boolean") {
+    throw new AuthTransportError("malformed_response");
+  }
+  return { id, clientId, deploymentId, deviceLabel, platform, build, createdAt, lastUsedAt, expiresAt, revokedAt: revoked as string | null, current };
 }
 async function wireError(status: number, response: Response): Promise<AuthTransportError> {
   let code: unknown; try { const body = await response.json() as { error?: { code?: unknown } }; code = body.error?.code; } catch { /* no body */ }
