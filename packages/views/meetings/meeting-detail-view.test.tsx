@@ -433,6 +433,58 @@ describe("MeetingDetailView", () => {
   });
 });
 
+describe("MeetingDetailView › attendance", () => {
+  function respondWith(status: string) {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/me")) {
+        return Promise.resolve({ membership: { user_id: "u-host", role: "owner", source: "membership" } });
+      }
+      if (p.endsWith("/members")) {
+        return Promise.resolve({
+          members: [{ workspace_id: "w1", user_id: "u-host", role: "owner", email: "me@x.com", display_name: "Me" }],
+        });
+      }
+      if (p === "/api/v1/meetings/m1") return Promise.resolve({ meeting: { ...meeting, status } });
+      if (p.endsWith("/participants")) {
+        return Promise.resolve({
+          participants: [
+            { id: "p-host", meeting_id: "m1", principal_type: "USER", user_id: "u-host", display_name_snapshot: "Me", role: "HOST", status: "ACTIVE", standing: "MEMBER" },
+          ],
+        });
+      }
+      if (p.endsWith("/attendance")) {
+        return Promise.resolve({
+          summary: { members: 1, present: 1, late: 0, excused: 0, absent: 0 },
+          rows: [
+            { participant_id: "p-host", principal_type: "USER", user_id: "u-host", display_name: "Me", standing: "MEMBER", is_secretary: false, status: "PRESENT", source: "SUGGESTED", present_seconds: 60, session_count: 1 },
+          ],
+        });
+      }
+      if (p.endsWith("/notes")) return Promise.resolve({ notes: [] });
+      if (p.endsWith("/invitations")) return Promise.resolve({ invitations: [] });
+      if (p.endsWith("/join-requests")) return Promise.resolve({ join_requests: [] });
+      if (p.endsWith("/invite-links")) return Promise.resolve({ invite_links: [] });
+      if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
+      return Promise.resolve({});
+    });
+  }
+
+  it("lets the host run the roll once the meeting is live", async () => {
+    respondWith("IN_PROGRESS");
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    const card = await screen.findByRole("region", { name: "Điểm danh" });
+    expect(await within(card).findByRole("button", { name: "Chốt điểm danh" })).toBeInTheDocument();
+  });
+
+  it("has no roll before the meeting starts", async () => {
+    respondWith("SCHEDULED");
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    expect(await screen.findByRole("heading", { name: "Standup" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Điểm danh" })).not.toBeInTheDocument();
+  });
+});
+
 describe("MeetingsPageView", () => {
   it("shows status badges from the server list", async () => {
     requestMock.mockImplementation((path: unknown) => {

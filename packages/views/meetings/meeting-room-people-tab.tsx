@@ -7,6 +7,7 @@ import { ChevronDown, Hand, Plus, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Meeting, MeetingParticipant } from "@uniwork/core/types";
 import { useParticipants } from "@uniwork/core/meetings";
+import { useMeetingClerk } from "@uniwork/core/meetings/attendance";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -17,6 +18,7 @@ import {
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@uniwork/ui/components/ui/input-group";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AddMeetingParticipantsDialog } from "./add-meeting-participants-dialog";
+import { MeetingAttendancePanel } from "./meeting-attendance-panel";
 import { MeetingDutyMenuItems, dutyRole } from "./meeting-duty-menu-items";
 import { MeetingJoinRequestsSection } from "./meeting-join-requests-section";
 import { MeetingParticipantRow } from "./meeting-participant-row";
@@ -65,6 +67,8 @@ export function MeetingRoomPeopleTab({
   const [search, setSearch] = useState("");
   const [contributorsOpen, setContributorsOpen] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
+  const { isClerk } = useMeetingClerk(guestMode ? null : (meeting ?? null), workspaceId ?? "");
+  const [view, setView] = useState<"room" | "attendance">("room");
 
   const hostUserId = meeting?.host_user_id;
   const excludeUserIds = [
@@ -111,99 +115,128 @@ export function MeetingRoomPeopleTab({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {canHost && meetingId ? (
-        <MeetingJoinRequestsSection meetingId={meetingId} />
-      ) : null}
-
-      {canHost && meetingId && workspaceId && !guestMode ? (
-        <Button
-          type="button"
-          variant="brand"
-          className="mb-3 h-9 w-full shrink-0 rounded-xl"
-          onClick={() => setInviteOpen(true)}
+      {isClerk ? (
+        <div
+          role="group"
+          aria-label={t("meetings.governance.viewSwitch")}
+          className="mb-3 grid shrink-0 grid-cols-2 gap-1 rounded-xl bg-surface-hover p-1"
         >
-          <Plus aria-hidden className="size-4" />
-          {t("meetings.addPeople")}
-        </Button>
+          {(["room", "attendance"] as const).map((v) => (
+            <Button
+              key={v}
+              type="button"
+              size="sm"
+              variant={view === v ? "secondary" : "ghost"}
+              aria-pressed={view === v}
+              className="h-8 rounded-lg"
+              onClick={() => setView(v)}
+            >
+              {v === "room" ? t("meetings.governance.viewRoom") : t("meetings.governance.viewAttendance")}
+            </Button>
+          ))}
+        </div>
       ) : null}
+      {isClerk && view === "attendance" && meeting ? (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <MeetingAttendancePanel meeting={meeting} workspaceId={workspaceId ?? ""} canEdit density="room" />
+        </div>
+      ) : (
+        <>
+          {canHost && meetingId ? (
+            <MeetingJoinRequestsSection meetingId={meetingId} />
+          ) : null}
 
-      <InputGroup className="mb-4 h-9 shrink-0 rounded-xl bg-surface-hover">
-        <InputGroupAddon align="inline-start">
-          <Search aria-hidden className="size-4" />
-        </InputGroupAddon>
-        <InputGroupInput
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t("meetings.searchPeople")}
-          aria-label={t("meetings.searchPeople")}
-          className="bg-transparent"
-        />
-      </InputGroup>
+          {canHost && meetingId && workspaceId && !guestMode ? (
+            <Button
+              type="button"
+              variant="brand"
+              className="mb-3 h-9 w-full shrink-0 rounded-xl"
+              onClick={() => setInviteOpen(true)}
+            >
+              <Plus aria-hidden className="size-4" />
+              {t("meetings.addPeople")}
+            </Button>
+          ) : null}
 
-      {hands.length > 0 ? (
-        <p className="mb-3 flex shrink-0 items-center gap-1.5 rounded-xl bg-warning-soft px-3 py-2 text-label font-medium text-warning-soft-foreground">
-          <Hand aria-hidden className="size-3.5 shrink-0" />
-          {t("meetings.handsRaised", { count: hands.length })}
-        </p>
-      ) : null}
+          <InputGroup className="mb-4 h-9 shrink-0 rounded-xl bg-surface-hover">
+            <InputGroupAddon align="inline-start">
+              <Search aria-hidden className="size-4" />
+            </InputGroupAddon>
+            <InputGroupInput
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t("meetings.searchPeople")}
+              aria-label={t("meetings.searchPeople")}
+              className="bg-transparent"
+            />
+          </InputGroup>
 
-      <p className="mb-2 shrink-0 text-overline text-muted-foreground">
-        {t("meetings.inTheMeeting")}
-      </p>
-
-      <Collapsible open={contributorsOpen} onOpenChange={setContributorsOpen} className="min-h-0 flex-1">
-        <CollapsibleTrigger className="mb-2 flex w-full shrink-0 items-center gap-2 rounded-lg px-1 py-1 text-left text-body font-medium text-foreground hover:bg-surface-hover">
-          <ChevronDown
-            aria-hidden
-            className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-fast motion-reduce:transition-none", !contributorsOpen && "-rotate-90")}
-          />
-          <span className="min-w-0 flex-1">{t("meetings.contributors")}</span>
-          <span className="text-caption tabular-nums text-muted-foreground">{filtered.length}</span>
-        </CollapsibleTrigger>
-
-        <CollapsibleContent className="min-h-0 flex-1 overflow-y-auto">
-          {filtered.length === 0 ? (
-            <p className="px-2 py-4 text-center text-caption text-muted-foreground">
-              {needle ? t("meetings.noPeopleMatch") : t("meetings.noParticipantsYet")}
+          {hands.length > 0 ? (
+            <p className="mb-3 flex shrink-0 items-center gap-1.5 rounded-xl bg-warning-soft px-3 py-2 text-label font-medium text-warning-soft-foreground">
+              <Hand aria-hidden className="size-3.5 shrink-0" />
+              {t("meetings.handsRaised", { count: hands.length })}
             </p>
-          ) : (
-            <ul className="space-y-0.5 pb-2">
-              {filtered.map((participant) => {
-                const meta = participantMeta.get(participant.identity);
-                return (
-                  <li key={participant.identity}>
-                    <MeetingParticipantRow
-                      participant={participant}
-                      subtitle={rowSubtitle(participant)}
-                      // The guest chip wins: a guest is an observer unless promoted.
-                      roleChip={participantRole(participant, guests) ?? dutyRole(meta?.api)}
-                      avatarUrl={avatarOf(participant.identity)}
-                      canHost={canHost}
-                      pinned={pinnedIdentity === participant.identity}
-                      menuExtra={
-                        canHost && !guestMode && meetingId && meta && !meta.isHost ? (
-                          <MeetingDutyMenuItems meetingId={meetingId} participant={meta.api} />
-                        ) : null
-                      }
-                    />
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </CollapsibleContent>
-      </Collapsible>
+          ) : null}
+
+          <p className="mb-2 shrink-0 text-overline text-muted-foreground">
+            {t("meetings.inTheMeeting")}
+          </p>
+
+          <Collapsible open={contributorsOpen} onOpenChange={setContributorsOpen} className="min-h-0 flex-1">
+            <CollapsibleTrigger className="mb-2 flex w-full shrink-0 items-center gap-2 rounded-lg px-1 py-1 text-left text-body font-medium text-foreground hover:bg-surface-hover">
+              <ChevronDown
+                aria-hidden
+                className={cn("size-4 shrink-0 text-muted-foreground transition-transform duration-fast motion-reduce:transition-none", !contributorsOpen && "-rotate-90")}
+              />
+              <span className="min-w-0 flex-1">{t("meetings.contributors")}</span>
+              <span className="text-caption tabular-nums text-muted-foreground">{filtered.length}</span>
+            </CollapsibleTrigger>
+
+            <CollapsibleContent className="min-h-0 flex-1 overflow-y-auto">
+              {filtered.length === 0 ? (
+                <p className="px-2 py-4 text-center text-caption text-muted-foreground">
+                  {needle ? t("meetings.noPeopleMatch") : t("meetings.noParticipantsYet")}
+                </p>
+              ) : (
+                <ul className="space-y-0.5 pb-2">
+                  {filtered.map((participant) => {
+                    const meta = participantMeta.get(participant.identity);
+                    return (
+                      <li key={participant.identity}>
+                        <MeetingParticipantRow
+                          participant={participant}
+                          subtitle={rowSubtitle(participant)}
+                          // The guest chip wins: a guest is an observer unless promoted.
+                          roleChip={participantRole(participant, guests) ?? dutyRole(meta?.api)}
+                          avatarUrl={avatarOf(participant.identity)}
+                          canHost={canHost}
+                          pinned={pinnedIdentity === participant.identity}
+                          menuExtra={
+                            canHost && !guestMode && meetingId && meta && !meta.isHost ? (
+                              <MeetingDutyMenuItems meetingId={meetingId} participant={meta.api} />
+                            ) : null
+                          }
+                        />
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </CollapsibleContent>
+          </Collapsible>
 
 
-      {canHost && meetingId && workspaceId && !guestMode ? (
-        <AddMeetingParticipantsDialog
-          workspaceId={workspaceId}
-          meetingId={meetingId}
-          excludeUserIds={excludeUserIds}
-          open={inviteOpen}
-          onOpenChange={setInviteOpen}
-        />
-      ) : null}
+          {canHost && meetingId && workspaceId && !guestMode ? (
+            <AddMeetingParticipantsDialog
+              workspaceId={workspaceId}
+              meetingId={meetingId}
+              excludeUserIds={excludeUserIds}
+              open={inviteOpen}
+              onOpenChange={setInviteOpen}
+            />
+          ) : null}
+        </>
+      )}
     </div>
   );
 }

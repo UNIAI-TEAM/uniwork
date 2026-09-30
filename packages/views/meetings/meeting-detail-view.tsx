@@ -28,6 +28,7 @@ import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import { CollectionPageHeaderAction, CollectionPageState } from "../layout/collection-page";
 import { useWorkspace } from "../layout/workspace-context";
 import { MeetingActivityTimeline } from "./meeting-activity-timeline";
+import { MeetingAttendanceCard } from "./meeting-attendance-card";
 import { MeetingDetailAside, MeetingDetailRoster } from "./meeting-detail-aside";
 import { MeetingDetailHero } from "./meeting-detail-hero";
 import { MeetingEditDialog } from "./meeting-edit-dialog";
@@ -235,7 +236,7 @@ export function MeetingDetailView({
             </div>
             <div
               className={cn(
-                "order-2 min-w-0",
+                "order-2 flex min-w-0 flex-col gap-4",
                 layout === "page" && "lg:col-start-2 lg:row-start-1",
               )}
             >
@@ -245,6 +246,7 @@ export function MeetingDetailView({
                 invitations={invitations ?? []}
                 canHost={canHost.allowed}
               />
+              <MeetingAttendanceCard meeting={meeting} workspaceId={workspaceId} />
             </div>
             <aside
               className={cn(

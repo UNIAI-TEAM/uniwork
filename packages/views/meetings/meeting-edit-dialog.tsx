@@ -50,6 +50,7 @@ function meetingDraft(meeting: Meeting) {
     end: initialEnd.time,
     timezone,
     allowJoin: meeting.allow_join_request !== false,
+    quorum: meeting.quorum_percent ? String(meeting.quorum_percent) : "",
   };
 }
 
@@ -64,6 +65,7 @@ function meetingRevision(meeting: Meeting): string {
     meeting.timezone,
     meeting.allow_join_request,
     meeting.status,
+    meeting.quorum_percent,
   ]);
 }
 
@@ -89,7 +91,7 @@ export function MeetingEditDialog({
   // when the dialog opens, and a newer server copy is offered, not forced.
   const [seed, setSeed] = useState(() => ({ draft: meetingDraft(meeting), revision: meetingRevision(meeting) }));
   const [submitted, setSubmitted] = useState(false);
-  const { title, description, date, start, end, timezone, allowJoin } = draft;
+  const { title, description, date, start, end, timezone, allowJoin, quorum } = draft;
   const set = <K extends keyof typeof draft>(key: K) => (value: (typeof draft)[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }));
 
@@ -112,6 +114,11 @@ export function MeetingEditDialog({
   const problems = scheduleProblems({ date, start, end, timeZone: timezone, nowMs, checkPast: startTouched });
   const scheduleOk = inProgress || scheduleReady(date, problems);
   const showTitleError = titleMissing && submitted;
+  // Empty means "no minimum"; the server reads 0 as clearing it.
+  const quorumValue = quorum.trim() === "" ? 0 : Number(quorum);
+  const quorumInvalid =
+    quorum.trim() !== "" && (!Number.isInteger(quorumValue) || quorumValue < 1 || quorumValue > 100);
+  const showQuorumError = quorumInvalid && submitted;
   // The record may carry a zone the short list does not; keep it pickable.
   const zones: string[] = MEETING_TIMEZONES.includes(timezone as (typeof MEETING_TIMEZONES)[number])
     ? [...MEETING_TIMEZONES]
@@ -135,6 +142,10 @@ export function MeetingEditDialog({
               focusScheduleProblem(id, problems);
               return;
             }
+            if (quorumInvalid) {
+              document.getElementById(`${id}-quorum`)?.focus();
+              return;
+            }
             const slot = inProgress ? null : scheduleWindowIso(date, start, end, timezone);
             update.mutate(
               {
@@ -142,6 +153,7 @@ export function MeetingEditDialog({
                 description,
                 timezone,
                 allow_join_request: allowJoin,
+                quorum_percent: quorumValue,
                 ...(slot ? { starts_at: slot.starts_at, ends_at: slot.ends_at } : {}),
               },
               {
@@ -257,6 +269,23 @@ export function MeetingEditDialog({
                 />
               </div>
               <FieldDescription>{t("meetings.externalGuestLinkWhere")}</FieldDescription>
+              <Field data-invalid={showQuorumError || undefined}>
+                <FieldLabel htmlFor={`${id}-quorum`}>{t("meetings.quorumLabel")}</FieldLabel>
+                <Input
+                  id={`${id}-quorum`}
+                  inputMode="numeric"
+                  className="w-28"
+                  value={quorum}
+                  aria-invalid={showQuorumError || undefined}
+                  aria-describedby={showQuorumError ? `${id}-quorum-error` : `${id}-quorum-hint`}
+                  onChange={(e) => set("quorum")(e.target.value)}
+                />
+                {showQuorumError ? (
+                  <FieldError id={`${id}-quorum-error`}>{t("meetings.quorumInvalid")}</FieldError>
+                ) : (
+                  <FieldDescription id={`${id}-quorum-hint`}>{t("meetings.quorumHint")}</FieldDescription>
+                )}
+              </Field>
             </section>
           </FormDialogBody>
           <FormDialogFooter
