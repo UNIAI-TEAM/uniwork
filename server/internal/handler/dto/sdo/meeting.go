@@ -35,6 +35,7 @@ type MeetingDTO struct {
 	ActualStartAt    string `json:"actual_start_at,omitempty"`
 	ActualEndAt      string `json:"actual_end_at,omitempty"`
 	Version          int32  `json:"version"`
+	QuorumPercent    *int16 `json:"quorum_percent" description:"Tỉ lệ có mặt tối thiểu (%), null = không yêu cầu" example:"60"`
 }
 
 type NoteDTO struct {

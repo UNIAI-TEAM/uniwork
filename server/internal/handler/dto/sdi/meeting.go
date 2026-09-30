@@ -42,6 +42,7 @@ type PatchMeetingSDI struct {
 	Timezone         *string    `json:"timezone"`
 	AllowJoinRequest *bool      `json:"allow_join_request"`
 	ProjectID        *string    `json:"project_id"`
+	QuorumPercent    *int       `json:"quorum_percent" minimum:"0" maximum:"100" description:"Tỉ lệ có mặt tối thiểu (%); 0 = bỏ yêu cầu" example:"60"`
 }
 
 type CreateNoteSDI struct {

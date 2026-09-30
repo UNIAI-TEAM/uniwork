@@ -736,10 +736,15 @@ UPDATE meetings SET
   timezone    = COALESCE($5, timezone),
   allow_join_request = COALESCE($6, allow_join_request),
   project_id  = COALESCE($7, project_id),
-  updated_by  = $8,
+  quorum_percent = CASE
+    WHEN $8::smallint IS NULL THEN quorum_percent
+    WHEN $8::smallint = 0 THEN NULL
+    ELSE $8::smallint
+  END,
+  updated_by  = $9,
   updated_at  = now(),
   version     = version + 1
-WHERE id = $9 AND version = $10
+WHERE id = $10 AND version = $11
 RETURNING id, workspace_id, title, description, starts_at, ends_at, room_name, created_by, created_at, updated_at, status, meeting_type, host_user_id, actual_start_at, actual_end_at, timezone, allow_join_request, preferred_provider_key, version, updated_by, canceled_by, canceled_at, cancel_reason, project_id, created_by_kind, quorum_percent, attendance_finalized_at, attendance_finalized_by
 `
 
@@ -751,6 +756,7 @@ type UpdateMeetingParams struct {
 	Timezone         pgtype.Text        `json:"timezone"`
 	AllowJoinRequest pgtype.Bool        `json:"allow_join_request"`
 	ProjectID        pgtype.Text        `json:"project_id"`
+	QuorumPercent    pgtype.Int2        `json:"quorum_percent"`
 	UpdatedBy        pgtype.Text        `json:"updated_by"`
 	ID               string             `json:"id"`
 	Version          int32              `json:"version"`
@@ -765,6 +771,7 @@ func (q *Queries) UpdateMeeting(ctx context.Context, arg UpdateMeetingParams) (M
 		arg.Timezone,
 		arg.AllowJoinRequest,
 		arg.ProjectID,
+		arg.QuorumPercent,
 		arg.UpdatedBy,
 		arg.ID,
 		arg.Version,

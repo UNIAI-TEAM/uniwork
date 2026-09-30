@@ -384,3 +384,27 @@ func TestRoomSessionWebhooksRefreshAttendance(t *testing.T) {
 		t.Fatalf("after leave attendance.updated = %d, want 2", count())
 	}
 }
+
+func TestUpdateMeetingQuorum(t *testing.T) {
+	s, ua, _, m, _ := governanceFixture(t)
+	ctx := context.Background()
+	sixty, zero, bad, negative := 60, 0, 101, -1
+	up, err := s.Update(ctx, ua.ID, m.ID, UpdateMeetingInput{QuorumPercent: &sixty})
+	if err != nil || !up.QuorumPercent.Valid || up.QuorumPercent.Int16 != 60 {
+		t.Fatalf("set quorum: %+v %v", up.QuorumPercent, err)
+	}
+	for _, v := range []*int{&bad, &negative} {
+		if _, err := s.Update(ctx, ua.ID, m.ID, UpdateMeetingInput{QuorumPercent: v}); err == nil {
+			t.Fatalf("quorum %d accepted", *v)
+		}
+	}
+	title := "Giao ban tuần"
+	up, err = s.Update(ctx, ua.ID, m.ID, UpdateMeetingInput{Title: &title})
+	if err != nil || up.QuorumPercent.Int16 != 60 {
+		t.Fatalf("unrelated patch cleared quorum: %+v %v", up.QuorumPercent, err)
+	}
+	up, err = s.Update(ctx, ua.ID, m.ID, UpdateMeetingInput{QuorumPercent: &zero})
+	if err != nil || up.QuorumPercent.Valid {
+		t.Fatalf("clear quorum: %+v %v", up.QuorumPercent, err)
+	}
+}
