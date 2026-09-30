@@ -15,6 +15,71 @@ import { setAccessToken } from "../session";
 
 export { refreshSession } from "../http";
 
+const DesktopStartSchema = z.object({
+  authorization_url: z.string(),
+  attempt_expires_at: z.string(),
+});
+export type DesktopStart = z.infer<typeof DesktopStartSchema>;
+
+const DesktopConsentSchema = z.object({
+  attempt_id: z.string(),
+  account_id: z.string(),
+  client_id: z.string(),
+  deployment_id: z.string(),
+  redirect_uri: z.string(),
+  device_label: z.string(),
+  platform: z.string(),
+  build: z.string(),
+  csrf_token: z.string(),
+});
+export type DesktopConsent = z.infer<typeof DesktopConsentSchema>;
+
+const DesktopConsentResultSchema = z.object({
+  status: z.string(),
+  callback_url: z.string().optional(),
+});
+export type DesktopConsentResult = z.infer<typeof DesktopConsentResultSchema>;
+
+/** Starts a PKCE attempt; the server returns an opaque browser authorization URL. */
+export async function desktopStart(params: {
+  client_id: string;
+  code_challenge: string;
+  code_challenge_method: "S256";
+  state: string;
+  redirect_uri: string;
+  deployment_id: string;
+  device_label?: string;
+  platform?: string;
+  build?: string;
+}): Promise<DesktopStart | null> {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value) query.set(key, value);
+  }
+  const raw = await request(`/api/v1/auth/desktop/start?${query.toString()}`, { skipRefresh: true });
+  return parseWithFallback<DesktopStart | null>(raw, DesktopStartSchema, null, {
+    endpoint: "GET /api/v1/auth/desktop/start",
+  });
+}
+
+/** Reads the authenticated, non-approving consent details for a pending attempt. */
+export async function desktopConsent(attemptId: string): Promise<DesktopConsent | null> {
+  const raw = await request(`/api/v1/auth/desktop/authorize?attempt_id=${encodeURIComponent(attemptId)}`);
+  return parseWithFallback<DesktopConsent | null>(raw, DesktopConsentSchema, null, {
+    endpoint: "GET /api/v1/auth/desktop/authorize",
+  });
+}
+
+/** Approves or cancels an attempt; approval returns a callback URL for navigation. */
+export async function desktopConsentCommand(
+  body: { attempt_id: string; csrf_token: string; decision: "approve" | "cancel" },
+): Promise<DesktopConsentResult | null> {
+  const raw = await request("/api/v1/auth/desktop/authorize", { method: "POST", body });
+  return parseWithFallback<DesktopConsentResult | null>(raw, DesktopConsentResultSchema, null, {
+    endpoint: "POST /api/v1/auth/desktop/authorize",
+  });
+}
+
 const UserResponse = z.object({ user: UserSchema });
 
 const ProvidersSchema = z.object({ google: z.boolean().optional().default(false) });

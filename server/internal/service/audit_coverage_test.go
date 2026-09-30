@@ -29,13 +29,19 @@ import (
 // action can only sit there with a written reason, which is the thing a
 // reviewer reads instead of guessing why coverage has a hole.
 var actionsWithoutCommands = map[string]string{
-	audit.ActionCalendarConnected:        "requires a live provider authorization-code exchange; transaction is reviewed in CalendarConnectionService.Complete",
-	audit.ActionCalendarSelectionUpdated: "requires a provider calendar-list response; transaction is reviewed in CalendarConnectionService.Select",
-	audit.ActionOrganizationUpdated:      "no organization rename command exists yet",
-	audit.ActionMemberRemoved:            "deactivation replaced removal by an admin; leaving writes member.left",
-	audit.ActionAuditExportRequested:     "covered by the audit service's own tests",
-	audit.ActionAuditExported:            "covered by the audit export consumer's own tests",
-	audit.ActionAuditRetentionSet:        "covered by the audit service's own tests",
+	audit.ActionCalendarConnected:           "requires a live provider authorization-code exchange; transaction is reviewed in CalendarConnectionService.Complete",
+	audit.ActionCalendarSelectionUpdated:    "requires a provider calendar-list response; transaction is reviewed in CalendarConnectionService.Select",
+	audit.ActionOrganizationUpdated:         "no organization rename command exists yet",
+	audit.ActionMemberRemoved:               "deactivation replaced removal by an admin; leaving writes member.left",
+	audit.ActionAuditExportRequested:        "covered by the audit service's own tests",
+	audit.ActionAuditExported:               "covered by the audit export consumer's own tests",
+	audit.ActionAuditRetentionSet:           "covered by the audit service's own tests",
+	audit.ActionAuthDesktopStarted:          "covered by desktop_auth_test.go",
+	audit.ActionAuthDesktopConsentApproved:  "covered by desktop_auth_test.go",
+	audit.ActionAuthDesktopConsentCancelled: "covered by desktop_auth_test.go",
+	audit.ActionAuthDesktopSessionCreated:   "covered by desktop_auth_test.go",
+	audit.ActionAuthDesktopTokenRotated:     "covered by desktop_auth_test.go",
+	audit.ActionAuthDesktopSessionRevoked:   "covered by desktop_auth_test.go",
 }
 
 func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
@@ -1172,6 +1178,12 @@ func auditActions() []string {
 		audit.ActionAuthPasswordResetRequested,
 		audit.ActionAuthPasswordChanged,
 		audit.ActionAuthSessionRevoked,
+		audit.ActionAuthDesktopStarted,
+		audit.ActionAuthDesktopConsentApproved,
+		audit.ActionAuthDesktopConsentCancelled,
+		audit.ActionAuthDesktopSessionCreated,
+		audit.ActionAuthDesktopTokenRotated,
+		audit.ActionAuthDesktopSessionRevoked,
 		audit.ActionAuthMFAEnabled,
 		audit.ActionAuthMFADisabled,
 		audit.ActionUserDeleted,

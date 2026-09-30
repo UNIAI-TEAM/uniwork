@@ -50,3 +50,11 @@ type DesktopLogoutSDI struct {
 type RevokeDesktopDeviceSDI struct {
 	DeviceSessionID string `json:"device_session_id" minLength:"1" description:"ULID phiên thiết bị native cần thu hồi" example:"01J8X4DEVN1P2Q3R4S5T6U7V8"`
 }
+
+// DesktopConsentSDI is the same-site browser consent command. A GET never
+// approves; this body is accepted only by the POST command after login/MFA.
+type DesktopConsentSDI struct {
+	AttemptID string `json:"attempt_id" minLength:"1" description:"ULID pending desktop authorization attempt" example:"01J8X4ATTEMPT0000000000000"`
+	CSRFToken string `json:"csrf_token" minLength:"1" description:"Single-use same-site consent token" example:"csrf-token"`
+	Decision  string `json:"decision" description:"approve or cancel" example:"approve"`
+}

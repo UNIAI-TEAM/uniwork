@@ -184,6 +184,7 @@ func main() {
 	verification := service.NewVerificationService(q, renderer, mailOutbox, cfg.DevVerificationCode())
 	authSvc := service.NewAuthService(pool, q, minter, cfg.RefreshTokenTTL, verification)
 	authSvc.SetMail(renderer, mailOutbox)
+	desktopAuthSvc := service.NewDesktopAuthService(pool, q, minter, cfg)
 	passwordReset := service.NewPasswordResetService(pool, q, authSvc, renderer, mailOutbox)
 	var conference meetings.ConferenceProvider
 	if cfg.LiveKitURL != "" && cfg.LiveKitAPIKey != "" && cfg.LiveKitAPISecret != "" {
@@ -429,6 +430,7 @@ func main() {
 	h := handler.New(handler.Deps{
 		Cfg: cfg, Log: log, Minter: minter,
 		Auth:                authSvc,
+		DesktopAuth:         desktopAuthSvc,
 		Verification:        verification,
 		PasswordReset:       passwordReset,
 		GoogleAuth:          service.NewGoogleAuthService(q, authSvc),

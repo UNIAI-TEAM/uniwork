@@ -74,6 +74,21 @@
     "networkError": "Không kết nối được. Kiểm tra mạng rồi thử lại.",
     "serverError": "UniWork đang gặp sự cố. Thử lại sau ít phút.",
     "tooManyAttempts": "Thử quá nhiều lần. Chờ một phút rồi thử lại.",
+    "desktop": {
+      "eyebrow": "Đăng nhập desktop",
+      "title": "Cho phép UniWork Office đăng nhập?",
+      "description": "Kiểm tra thông tin ứng dụng và thiết bị trước khi tiếp tục. Phê duyệt này chỉ có hiệu lực trên thiết bị này.",
+      "app": "Ứng dụng",
+      "device": "Thiết bị",
+      "account": "Tài khoản",
+      "deployment": "Môi trường",
+      "currentAccount": "Tài khoản đang đăng nhập",
+      "build": "Bản dựng",
+      "unknown": "Chưa cung cấp",
+      "loading": "Đang tải…",
+      "approve": "Cho phép ứng dụng desktop",
+      "approving": "Đang cho phép…"
+    },
     "forgot": {
       "title": "Quên mật khẩu",
       "subtitle": "Nhập email tài khoản, chúng tôi sẽ gửi link đặt lại.",

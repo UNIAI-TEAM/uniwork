@@ -1,20 +1,9 @@
-# Desktop authentication contract (PROPOSED)
+# Desktop authentication contract (IMPLEMENTED)
 
-**Revision:** 1.2 (2026-09-29)  
+**Revision:** 1.3 (2026-09-30)
 **Feature:** `g4-02a-auth-bridge-contract` (UNI-831)  
 **Decision gate:** G4-D4 - **decided 2026-09-29 12:40 UTC+7** (`decisions/gates-2026-09-29.md`: UNI-831 proposal approved, audit transactional)  
-**Status:** PROPOSED; this document is a design input, not a statement that the
-endpoints or migrations exist. Revision 1.1 applied the G4-D4 decision (PKCE
-public client with main owning verifier/state; code TTL 120 s and pending
-attempt 10 min; access/refresh lifetimes per the current auth policy;
-`device_sessions` tenant-exempt and bound to the existing session family; every
-command audits transactionally with no outbox event; typed `device_revoked`;
-separate `/auth/desktop/devices`). Revision 1.2 folds the BE review round-1
-findings (refresh codes as unapproved proposals, the Redis-down stance, the
-past-tense audit action) and is the revision this lane hands in. What is still
-open inside the gate (rate-limit numbers, final `client_id`, consent CSRF
-details) is listed with the lane's proposal under
-[G4-D4 open questions](#g4-d4-open-questions).
+**Status:** IMPLEMENTED in the 02b server lane. Revision 1.3 records the shipped routes, migrations, transactional audit behavior, client allowlist and consent details. The native client remains a public PKCE client; host-side verifier/state ownership is unchanged.
 
 This contract covers the public-client login used by UniWork Office. It is
 deliberately limited to the wire contract and the security decisions needed by
@@ -38,7 +27,7 @@ production fakes are 02b/03b work and are out of scope for this revision.
 * Refresh tokens are returned to the main process over TLS and are stored only
   in the host secure store. They are never sent to the renderer, URL, logs or
   analytics. The existing web HttpOnly refresh-cookie flow remains unchanged.
-* The **approved defaults** (G4-D4, 2026-09-29) are a 120 second
+* The **implemented defaults** are a 120 second
   authorization-code TTL, a 10 minute client pending-attempt TTL, and a 120
   second launch-ticket TTL (the latter is specified in [the Bridge
   contract](launch-bridge-contract.md)). Access and refresh lifetimes remain
@@ -77,13 +66,13 @@ production fakes are 02b/03b work and are out of scope for this revision.
 8. Metadata and audit records contain IDs, action, outcome and bounded client
    metadata only. They never contain access/refresh tokens, authorization code,
    verifier, password, raw ticket or Document bytes, and the same values never
-   reach logs, telemetry, crash dumps or diagnostics (spec §4.2).
+   reach logs, telemetry, crash dumps or diagnostics (spec Â§4.2).
 
 ## Endpoint surface
 
 All paths are relative to the configured deployment API origin (`/api/v1`).
-The `client_id` is a public, allow-listed identifier; it is not a secret.
-The draft DTO names below are intentionally unregistered until 02b.
+The `client_id` is the implemented public identifier `uniwork-office`; it is allow-listed and is not a secret. The default deployment allowlist is `default`, and the exact callback allowlist is `uniwork-office://auth/callback`.
+The DTO names below are registered by the 02b server implementation.
 
 ### `GET /auth/desktop/start`
 
@@ -113,9 +102,7 @@ authorization attempt; it does not issue a code at this step.
 }
 ```
 
-The URL contains the allow-listed client, challenge, method, state and exact
-redirect. It never contains a verifier, token, password, launch ticket or
-arbitrary `next` URL. `attempt_expires_at` is informational; the client still
+The URL contains only the opaque pending attempt id. The server keeps challenge, state and redirect binding in the pending row; no verifier, token, password, launch ticket or arbitrary `next` URL is placed in the browser URL. `attempt_expires_at` is informational; the client still
 enforces its own 10 minute pending-attempt deadline.
 
 **Errors:** `invalid_request` (400) for malformed fields; `unauthorized` (401)
@@ -181,13 +168,9 @@ The main process sends the current refresh token from the secure store.
 `deployment_id` are required. The server hashes the token, checks device and
 session-family status, revokes the presented token, and atomically returns a
 new pair with the same device/session IDs. One refresh operation may be in
-flight per device session. The response codes for a concurrent request and for
-replay/reuse are **lane proposals, not yet approved**: 409 `refresh_in_flight`
-for a second in-flight request and 401 `refresh_reused` for replay/reuse (which
-also revokes that device session/family according to the approved auth policy).
-Neither code exists in the approved error-class table; under open questions 2
-and 7, 02b pins them (or the endpoint keeps the compatible `unauthorized`
-envelope) before any client depends on them.
+flight per device session. A row lock serializes concurrent requests; a
+replayed or mismatched token returns 401 `refresh_reused` and revokes that
+device session and its native family according to the approved auth policy.
 
 **Response:** `sdo.DesktopSessionSDO` with `account_id`, IDs, access token,
 `expires_in`, replacement refresh token and `refresh_rotates: true`. Raw refresh
@@ -231,8 +214,8 @@ device.
 
 ## Device-session model and existing sessions
 
-The proposed `device_sessions` identity-infrastructure row has these logical
-fields (migration names and exact indexes are 02b):
+The implemented `device_sessions` identity-infrastructure row has these logical
+fields (migration names and exact indexes are in the 02b migrations):
 
 | Field | Meaning and protection |
 | --- | --- |
@@ -248,9 +231,9 @@ fields (migration names and exact indexes are 02b):
 `device_sessions` is account identity infrastructure, not a tenant business
 table. It must not carry a fabricated `organization_id`, and it must not be
 used as a reason to skip `RequireMember` for workspace, organization or
-Document operations. If the table has no `organization_id`, 02b must add the
-exact table name and the rationale “account/session identity can span zero or
-many organizations; no single organization is correct” to
+Document operations. The migration adds the exact table name and the rationale
+â€œaccount/session identity can span zero or many organizations; no single
+organization is correctâ€ to
 `tenantExemptTables`, then pass `TestNewTablesCarryOrganizationID` and
 `TestTablesWithoutOrganizationIDAreTheKnownDebt`. The exemption is not to be
 widened to launch tickets or Document tables.
@@ -286,13 +269,14 @@ every credential command records through
 `audit.Recorder.Record(ctx, q, Entry)` on the same transaction as its mutation,
 ids/metadata only, and emits **no outbox event** because no consumer exists.
 The credential exception is explicit; it is not inherited from the best-effort
-`recordAuth` baseline. “No event” means no outbox row and no direct publish
+`recordAuth` baseline. â€œNo eventâ€ means no outbox row and no direct publish
 anywhere in this table.
 
 | Command | Action / actor and resource | Scope | Transaction and failure semantics | Event |
 | --- | --- | --- | --- | --- |
 | Start attempt | `auth.desktop_started`; anonymous actor (`system` where required), resource `desktop_attempt:<id>` | Account unknown; `audit.NoOrganization` | Attempt creation and its audit row are one transaction. Rate-limit/config failure returns an error; no partial attempt. | None (G4-D4: no consumer). Attempt is not a business event. |
 | Consent approve / code issue | `auth.desktop_consent_approved`; human account actor, resource user ID | Account; `NoOrganization` | Approval, code hash and audit are one transaction. CSRF/prefetch/replay failure writes no approval. | None; code is credential material. |
+| Consent cancel | `auth.desktop_consent_cancelled`; human account actor, resource user ID | Account; `NoOrganization` | Cancellation and audit are one transaction; invalid or expired CSRF cannot cancel. | None; no code is issued. |
 | Exchange / device create | `auth.desktop_session_created`; human account actor, resource device-session ID | Account; `NoOrganization` | Code redeem, device row, refresh digest and audit are one transaction. Any failure rolls back all; no duplicate audit on replay. | None (G4-D4: no consumer); a future event must be ids-only and catalogue-backed. |
 | Refresh / rotate | `auth.desktop_token_rotated`; account actor, resource device-session ID | Account; `NoOrganization` | Presented digest revoke, replacement digest and audit are one transaction. Reuse/replay revokes per policy; no raw token in metadata. | None. Credential-only operation. |
 | Logout device | `auth.desktop_session_revoked`; account actor, resource device-session ID | Account; `NoOrganization` | Device/family revoke and audit commit together. Idempotent repeat produces at most one audit row for the state transition. | None (G4-D4: no consumer). |
@@ -318,43 +302,35 @@ stricter transactional policy in the Bridge contract.
 * Rate-limit start, exchange and refresh independently; fail closed when
   redirect/client/deployment configuration is missing or invalid. The existing
   `middleware.RateLimit` fails open when Redis is absent or erroring (no Redis
-  = no limit); the lane proposes keeping that repo-wide availability trade-off
-  and stating it explicitly, and never letting G4-A02/A03 evidence claim limits
+  = no limit); this implementation keeps that repo-wide availability trade-off
+  and this contract states it explicitly; never let G4-A02/A03 evidence claim limits
   that a Redis-down deployment removes. Every new environment variable must be
   validated and represented in `.env.example`.
 * Correlation IDs may be retained in audit/access logs, but secret query/body
   fields are redacted before logging, and the same redaction covers telemetry,
-  crash dumps and diagnostics (spec §4.2). The callback response and all token
+  crash dumps and diagnostics (spec Â§4.2). The callback response and all token
   responses are `no-store`.
 * Do not introduce a second host auth transport, a password form in the
   renderer, a device-code fallback, a raw-token file fallback, or an
   organization ID invented for an account-level row.
 
-## G4-D4 open questions
+## G4-D4 implementation decisions
 
-Each item is annotated with its G4-D4 status (decision record
-`decisions/gates-2026-09-29.md`). Open items carry the lane's proposal; 02b
-pins the final value.
+Each item records the G4-D4 decision and the value implemented by this lane.
 
-1. **Identity and registration (D1/D4) - partly decided.** G4-D1 accepted the
-   appId `com.uniwork.office`, executable/scheme `uniwork-office`, callback
-   `uniwork-office://auth/callback` and internal schemes. **Open:** the final
-   public `client_id` value (**proposal:** `uniwork-office`, matching the
-   executable/scheme), the deployment identifiers and the per-platform
-   allowlist registration, including coexistence with GenOffice.
-2. **TTL and rotation - TTLs decided.** 120 seconds for codes and 10 minutes
-   for pending attempts are approved; access/refresh lifetimes stay at the
-   current auth policy. **Open:** refresh grace window, reuse response
-   (**proposal:** 409 `refresh_in_flight` for a second in-flight request and
-   401 `refresh_reused` for replay/reuse; neither code is in the approved
-   error-class table yet, so 02b pins or drops them) and the maximum
-   device-session lifetime (02b names the implemented values within that
-   policy).
-3. **Session-family relation - relation decided.** The device session is bound
-   to the existing session family. **Open:** whether the token minter accepts a
-   `device_session` claim directly or middleware resolves a separate binding,
-   plus the revoke-all/password-reset fan-out mechanics to native rows and the
-   cache invalidation SLA.
+1. **Identity and registration - implemented.** The public client is
+   `uniwork-office`, deployment `default`, and the exact callback allowlist is
+   `uniwork-office://auth/callback`; operators can provide deployment and
+   redirect lists through `DESKTOP_AUTH_DEPLOYMENT_IDS` and
+   `DESKTOP_AUTH_REDIRECT_URIS`.
+2. **TTL and rotation - implemented.** Codes expire after 120 seconds and
+   pending attempts after 10 minutes. Refresh is serialized by a row lock;
+   replay returns 401 `refresh_reused` and revokes the native device. Device
+   lifetime equals the configured web refresh lifetime.
+3. **Session-family relation - implemented.** The native device id is the JWT
+   session id and session-family id; middleware resolves that id against
+   `device_sessions` on every request. Revoke-all/password reset updates native
+   rows in the existing refresh-token transaction.
 4. **Audit exception - decided.** Every credential command uses a
    transaction-bound `audit.Recorder.Record` with `audit.NoOrganization` and no
    outbox event; the explicit credential exception is recorded in the audit
@@ -364,35 +340,30 @@ pins the final value.
    written above ("account/session identity can span zero or many
    organizations; no single organization is correct") and the exemption never
    widens to launch tickets or Document tables.
-6. **Consent and CSRF - open (details).** The approval POST is same-site,
-   single-use and CSRF-protected, and GET/prefetch cannot approve. **Open:**
-   exact token/field and the user-visible behavior when consent is canceled or
-   expires (**proposal:** a single-use token bound to the attempt and echoed in
-   a hidden field of the approve form, on top of the existing SameSite=Lax
-   session cookie, mirroring the `uniwork_oauth_state` pattern; cancel returns
-   to the app with a typed result and creates no code).
-7. **Errors and rate limits - error decided, limits open.** The typed
-   `device_revoked` class is approved (additive; other failures keep
-   `unauthorized`). **Open:** rate-limit numbers (**proposal:** the existing
-   credential bucket for start and exchange, 60/min per IP as `credentialLimit`
-   today, a 60/min per-device-session guard for refresh, `Retry-After` on every
-   429 and fail-closed config validation) and the Redis-down behavior
-   (**proposal:** state and keep the existing repo-wide fail-open, never claim
-   limits that a Redis-down deployment removes).
-8. **Device management surface - decided.** The separate
-   `/auth/desktop/devices` list/revoke surface is approved; a caller sees and
-   revokes only its own devices. **Open:** pagination details and whether the
-   current device may revoke itself through the list (02b).
+6. **Consent and CSRF - implemented.** Authenticated GET creates a random
+   CSRF token whose digest is bound to the attempt and account. POST requires
+   that token and an explicit `approve` or `cancel` decision; approval is the
+   only operation that creates a code. Cancel returns `status=cancelled` and
+   creates no code; expired or replayed attempts return the same invalid
+   consent class.
+7. **Errors and rate limits - implemented.** Start, exchange and refresh use
+   the existing 60/min credential bucket. `device_revoked` and `refresh_reused`
+   are additive session errors; all other bearer failures remain
+   `unauthorized`. Redis absence or failure retains the repository's existing
+   fail-open limiter behavior and is documented as such.
+8. **Device management surface - implemented.** `/auth/desktop/devices`
+   returns metadata for the caller's account only; DELETE is ownership-checked,
+   idempotent and permits revoking the current device. Pagination is reserved
+   until the list requires it.
 
-## Deferred implementation and verification
+## Remaining consumer work and verification
 
-02b/03b must add the server fake, route registration and OpenAPI operations
-from the DTO drafts, then test wrong verifier, expired/replayed code, exact
-redirect, consent CSRF/prefetch, refresh concurrency/reuse, secure-store
-failure and immediate revoke. The DTO drafts must also gain the bound and enum
-validation the documents state (exact challenge length and `S256`, device
-label 100 runes, platform/build 64 characters, `scope`/`operation`/`return_hint`
-enums) when 02b registers them. The RFC 7636 and callback rejection vectors in
+The 02b server now owns route registration, OpenAPI operations, persistence,
+CSRF consent, PKCE redemption, rotation/reuse detection, live revocation and
+malformed-response schemas. Native consumer secure-store failure handling and
+real-browser visual checks remain in G4-03b/Tester stages. The server tests cover
+wrong verifier, expired/replayed code, exact redirect binding, consent
+CSRF/prefetch behavior, refresh replay and immediate revoke. The RFC 7636 and callback rejection vectors in
 `docs/office/g3g4/vectors/` are executable with the repository's Node 22
 runtime and pin this revision's wire assumptions; each callback vector records
 the layer that rejects it (a `client` discard or the exchange's
@@ -401,9 +372,9 @@ repository gate runs it.
 
 Release items carried with the G4-D4 contract release:
 
-* Update `docs/office/g0/login-sync-contract.md` §2's endpoint list to state
+* Update `docs/office/g0/login-sync-contract.md` Â§2's endpoint list to state
   that the server receives and validates the client challenge/state and to
-  point at §2.2, syncing SDI/SDO/fake/tests in the same change (spec §4.1, plan
+  point at Â§2.2, syncing SDI/SDO/fake/tests in the same change (spec Â§4.1, plan
   G4-02); the old evidence model keeps its provenance.
 * Add the exact `device_sessions` name and rationale to `tenantExemptTables`
   and pass `TestNewTablesCarryOrganizationID` and

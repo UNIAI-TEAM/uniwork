@@ -13,6 +13,7 @@ type DesktopSessionSDO struct {
 	AccountID        string `json:"account_id" description:"ULID chủ tài khoản" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	DeviceSessionID  string `json:"device_session_id" description:"ULID phiên thiết bị native" example:"01J8X4DEVN1P2Q3R4S5T6U7V8"`
 	SessionID        string `json:"session_id" description:"ID thành viên session-family auth hiện có" example:"01J8X4SESSN1P2Q3R4S5T6U7V8"`
+	DeploymentID     string `json:"deployment_id" description:"Deployment binding" example:"default"`
 	AccessToken      string `json:"access_token" description:"Bearer access token; không bao giờ gửi tới renderer" example:"eyJhbGciOiJIUzI1NiJ9..."`
 	TokenType        string `json:"token_type" description:"Scheme ủy quyền" example:"Bearer"`
 	ExpiresIn        int32  `json:"expires_in" description:"Thời hạn access token tính bằng giây" example:"900"`
@@ -41,4 +42,25 @@ type DesktopDeviceDTO struct {
 type DesktopDeviceListSDO struct {
 	Devices    []DesktopDeviceDTO `json:"devices"`
 	NextCursor *string            `json:"next_cursor" description:"Con trỏ đục; null ở trang cuối" example:"eyJ2IjozfQ"`
+}
+
+// DesktopConsentSDO is rendered by the browser consent view. CSRFToken is
+// never logged or audited and is single-use for the approval command.
+type DesktopConsentSDO struct {
+	AttemptID    string `json:"attempt_id" description:"Pending attempt id" example:"01J8X4ATTEMPT0000000000000"`
+	AccountID    string `json:"account_id" description:"Signed-in account id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	ClientID     string `json:"client_id" description:"Public desktop client" example:"uniwork-office"`
+	DeploymentID string `json:"deployment_id" description:"Deployment binding" example:"default"`
+	RedirectURI  string `json:"redirect_uri" description:"Exact registered callback" example:"uniwork-office://auth/callback"`
+	DeviceLabel  string `json:"device_label" description:"Sanitized device label" example:"Mai laptop"`
+	Platform     string `json:"platform" description:"Desktop platform" example:"windows"`
+	Build        string `json:"build" description:"Desktop build" example:"1.0.0"`
+	CSRFToken    string `json:"csrf_token" description:"Single-use consent token" example:"csrf-token"`
+}
+
+// DesktopConsentResultSDO is returned after an explicit consent decision.
+// The callback URL is present only when the attempt was approved.
+type DesktopConsentResultSDO struct {
+	Status      string  `json:"status" description:"approved or cancelled" example:"approved"`
+	CallbackURL *string `json:"callback_url,omitempty" description:"Opaque one-time callback URL for the native client"`
 }
