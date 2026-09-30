@@ -186,7 +186,7 @@ describe("OfficeEditorHost composition", () => {
     const rendered = renderHost(session);
     const leave = leaveGuardAllows("/next");
     await settle();
-    await act(async () => { button("Save to UniWork").click(); });
+    await act(async () => { dialogButton("Save to UniWork").click(); });
     await expect(leave).resolves.toBe(true);
     expect(vi.mocked(coordinator.save)).toHaveBeenCalledWith("dialog");
     rendered.root.unmount();
@@ -226,7 +226,7 @@ describe("OfficeEditorHost composition", () => {
     const rendered = renderHost(session);
     const leave = leaveGuardAllows("/next");
     await settle();
-    await act(async () => { button("Save to UniWork").click(); });
+    await act(async () => { dialogButton("Save to UniWork").click(); });
     await settle();
     expect(document.querySelector('[role="alert"]')).toBeTruthy();
     await act(async () => { button("Stay").click(); });
