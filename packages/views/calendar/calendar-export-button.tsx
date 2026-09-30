@@ -9,6 +9,11 @@ import {
   fetchWorkspaceCalendarIcs,
 } from "@uniwork/core/api/endpoints/calendar";
 import { Button } from "@uniwork/ui/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@uniwork/ui/components/ui/tooltip";
 import { toastApiError } from "../toast-api-error";
 
 function downloadCalendar(filename: string, text: string) {
@@ -35,26 +40,32 @@ export function CalendarExportButton({
   const [pending, setPending] = useState(false);
 
   return (
-    <Button
-      type="button"
-      size="icon-sm"
-      variant="toolbar"
-      className={className}
-      aria-label={t("calendar.export_ics")}
-      title={t("calendar.export_ics")}
-      disabled={pending}
-      onClick={() => {
-        setPending(true);
-        void fetchWorkspaceCalendarIcs(workspaceId, { from, to })
-          .then((ics) => {
-            downloadCalendar(WORKSPACE_ICS_FILENAME, ics);
-            toast.success(t("calendar.export_ics"));
-          })
-          .catch((err) => toastApiError(err, t("calendar.export_ics_error")))
-          .finally(() => setPending(false));
-      }}
-    >
-      <Download aria-hidden className="size-4" />
-    </Button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="toolbar"
+            className={className}
+            aria-label={t("calendar.export_ics")}
+            disabled={pending}
+            onClick={() => {
+              setPending(true);
+              void fetchWorkspaceCalendarIcs(workspaceId, { from, to })
+                .then((ics) => {
+                  downloadCalendar(WORKSPACE_ICS_FILENAME, ics);
+                  toast.success(t("calendar.export_ics"));
+                })
+                .catch((err) => toastApiError(err, t("calendar.export_ics_error")))
+                .finally(() => setPending(false));
+            }}
+          >
+            <Download aria-hidden className="size-4" />
+          </Button>
+        }
+      />
+      <TooltipContent side="bottom">{t("calendar.export_ics")}</TooltipContent>
+    </Tooltip>
   );
 }

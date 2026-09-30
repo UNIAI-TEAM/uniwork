@@ -39,6 +39,7 @@ describe("CalendarExportButton", () => {
     expect(exportButton.textContent).toBe("");
     expect(exportButton).toHaveClass("border-transparent");
     expect(exportButton).not.toHaveClass("border-input");
+    expect(exportButton).toHaveAttribute("data-slot", "tooltip-trigger");
     fireEvent.click(exportButton);
 
     await waitFor(() => expect(anchors.at(-1)?.download).toBe("uniwork-calendar.ics"));

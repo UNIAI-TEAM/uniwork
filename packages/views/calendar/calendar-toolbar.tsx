@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight, RotateCw, Settings2 } from "lucide-react";
+import type { ReactElement } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -8,8 +9,19 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@uniwork/ui/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@uniwork/ui/components/ui/select";
 import { Switch } from "@uniwork/ui/components/ui/switch";
-import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@uniwork/ui/components/ui/tooltip";
 import { cn } from "@uniwork/ui/lib/utils";
 import { vi as viLocale, enUS } from "date-fns/locale";
 import { PAGE_GUTTER } from "../layout/page-header";
@@ -31,9 +43,14 @@ const VIEW_MODE_I18N: Record<CalendarViewMode, string> = {
   month: "calendar.view_month",
 };
 
-const SEGMENT =
-  "h-7 gap-1.5 rounded-md border border-transparent px-2.5 text-label font-medium text-muted-foreground pointer-coarse:h-10 " +
-  "hover:bg-transparent hover:text-foreground aria-pressed:border-transparent aria-pressed:bg-surface-hover aria-pressed:text-foreground aria-pressed:hover:bg-surface-hover";
+function ActionTooltip({ label, children }: { label: string; children: ReactElement }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger render={children} />
+      <TooltipContent side="bottom">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
 
 export function CalendarToolbar({
   anchorDate,
@@ -69,34 +86,42 @@ export function CalendarToolbar({
   const { t, i18n } = useTranslation();
   const locale = i18n.language === "vi" ? viLocale : enUS;
   const periodLabel = formatPeriodLabel(viewMode, anchorDate, locale);
+  const viewModeItems = VIEW_MODES.map((mode) => ({
+    value: mode,
+    label: t(VIEW_MODE_I18N[mode]),
+  }));
 
   return (
     <div
       className={cn(
-        "flex h-12 flex-nowrap items-center gap-2 overflow-x-auto border-b border-border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        "flex h-12 min-w-0 items-center gap-2 border-b border-border",
         PAGE_GUTTER,
         className,
       )}
     >
-      <div className="flex min-w-max items-center gap-2">
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="toolbar"
-          aria-label={t("calendar.prev_period")}
-          onClick={() => onAnchorDateChange(shiftAnchor(viewMode, anchorDate, -1))}
-        >
-          <ChevronLeft aria-hidden className="size-4" />
-        </Button>
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="toolbar"
-          aria-label={t("calendar.next_period")}
-          onClick={() => onAnchorDateChange(shiftAnchor(viewMode, anchorDate, 1))}
-        >
-          <ChevronRight aria-hidden className="size-4" />
-        </Button>
+      <div className="flex min-w-0 items-center gap-2">
+        <ActionTooltip label={t("calendar.prev_period")}>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="toolbar"
+            aria-label={t("calendar.prev_period")}
+            onClick={() => onAnchorDateChange(shiftAnchor(viewMode, anchorDate, -1))}
+          >
+            <ChevronLeft aria-hidden className="size-4" />
+          </Button>
+        </ActionTooltip>
+        <ActionTooltip label={t("calendar.next_period")}>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="toolbar"
+            aria-label={t("calendar.next_period")}
+            onClick={() => onAnchorDateChange(shiftAnchor(viewMode, anchorDate, 1))}
+          >
+            <ChevronRight aria-hidden className="size-4" />
+          </Button>
+        </ActionTooltip>
         <Button
           type="button"
           size="sm"
@@ -110,53 +135,67 @@ export function CalendarToolbar({
           periodLabel={periodLabel}
           onChange={onAnchorDateChange}
         />
-        <ToggleGroup
-          value={[viewMode]}
-          onValueChange={(v) => {
-            const next = v[0] as CalendarViewMode | undefined;
-            if (next) onViewModeChange(next);
-          }}
-          aria-label={t("calendar.view_mode")}
-          spacing={0.5}
-          className="shrink-0 rounded-lg bg-muted p-0.5 pointer-coarse:p-0.5"
+        <Select
+          value={viewMode}
+          onValueChange={(next) => onViewModeChange(next as CalendarViewMode)}
+          items={viewModeItems}
         >
-          {VIEW_MODES.map((mode) => (
-            <ToggleGroupItem key={mode} value={mode} className={SEGMENT}>
-              {t(VIEW_MODE_I18N[mode])}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
+          <SelectTrigger
+            size="sm"
+            variant="subtle"
+            aria-label={t("calendar.view_mode")}
+            className="w-32 shrink-0"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent align="end">
+            {viewModeItems.map((item) => (
+              <SelectItem key={item.value} value={item.value}>
+                {item.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-2">
         <CalendarConnectionsDialog workspaceId={workspaceId} />
-        <Button
-          type="button"
-          size="icon-sm"
-          variant="toolbar"
-          aria-label={t(isRefreshing ? "calendar.refreshing" : "calendar.refresh")}
-          aria-busy={isRefreshing || undefined}
-          aria-disabled={isRefreshing}
-          onClick={onRefresh}
-        >
-          <RotateCw
-            aria-hidden
-            className={cn("size-4", isRefreshing ? "motion-safe:animate-spin" : undefined)}
-          />
-        </Button>
+        <ActionTooltip label={t(isRefreshing ? "calendar.refreshing" : "calendar.refresh")}>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="toolbar"
+            aria-label={t(isRefreshing ? "calendar.refreshing" : "calendar.refresh")}
+            aria-busy={isRefreshing || undefined}
+            aria-disabled={isRefreshing}
+            onClick={onRefresh}
+          >
+            <RotateCw
+              aria-hidden
+              className={cn("size-4", isRefreshing ? "motion-safe:animate-spin" : undefined)}
+            />
+          </Button>
+        </ActionTooltip>
         <CalendarExportButton workspaceId={workspaceId} from={exportFrom} to={exportTo} />
         <Popover>
-          <PopoverTrigger
-            render={
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="toolbar"
-                aria-label={t("calendar.settings")}
-              >
-                <Settings2 aria-hidden className="size-4" />
-              </Button>
-            }
-          />
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <PopoverTrigger
+                  render={
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="toolbar"
+                      aria-label={t("calendar.settings")}
+                    >
+                      <Settings2 aria-hidden className="size-4" />
+                    </Button>
+                  }
+                />
+              }
+            />
+            <TooltipContent side="bottom">{t("calendar.settings")}</TooltipContent>
+          </Tooltip>
           <PopoverContent align="end" className="w-56">
             <label className="flex cursor-pointer items-center justify-between gap-3">
               <span className="text-body text-foreground">
@@ -170,10 +209,16 @@ export function CalendarToolbar({
             </label>
           </PopoverContent>
         </Popover>
-        <label className="flex cursor-pointer items-center gap-2">
-          <Switch checked={mine} onCheckedChange={onMineChange} />
-          <span className="text-body text-foreground">{t("calendar.mine")}</span>
-        </label>
+        <Button
+          type="button"
+          size="sm"
+          variant="toolbar"
+          aria-pressed={mine}
+          className="aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90"
+          onClick={() => onMineChange(!mine)}
+        >
+          {t("calendar.mine")}
+        </Button>
       </div>
     </div>
   );

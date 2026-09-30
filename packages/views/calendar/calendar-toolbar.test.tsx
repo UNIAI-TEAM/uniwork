@@ -33,8 +33,8 @@ describe("CalendarToolbar", () => {
     );
 
     const toolbar = container.firstElementChild;
-    expect(toolbar).toHaveClass("h-12", "flex-nowrap", "overflow-x-auto");
-    expect(toolbar).not.toHaveClass("flex-wrap", "py-3");
+    expect(toolbar).toHaveClass("h-12", "min-w-0");
+    expect(toolbar).not.toHaveClass("overflow-x-auto", "flex-wrap", "py-3");
 
     for (const name of ["Kỳ trước", "Kỳ sau", "Hôm nay", "Làm mới lịch", "Cài đặt lịch"]) {
       const control = screen.getByRole("button", { name });
@@ -42,10 +42,15 @@ describe("CalendarToolbar", () => {
       expect(control).not.toHaveClass("border-input");
     }
 
-    const selectedView = screen.getByRole("button", { name: "Tuần" });
-    expect(selectedView).toHaveClass("aria-pressed:border-transparent");
-    expect(selectedView).not.toHaveClass("aria-pressed:border-border");
-    expect(selectedView.className).not.toContain("aria-pressed:shadow-");
+    const viewSelect = screen.getByRole("combobox", { name: "Kiểu hiển thị" });
+    expect(viewSelect).toHaveTextContent("Tuần");
+
+    for (const name of ["Kỳ trước", "Kỳ sau", "Lịch đã kết nối", "Làm mới lịch", "Cài đặt lịch"]) {
+      expect(screen.getByRole("button", { name })).toHaveAttribute(
+        "data-slot",
+        "tooltip-trigger",
+      );
+    }
   });
 
   it("keeps text controls while icon actions navigate, switch views, and filter mine", () => {
@@ -75,10 +80,16 @@ describe("CalendarToolbar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Hôm nay" }));
     expect(onAnchorDateChange).toHaveBeenCalledTimes(3);
 
-    fireEvent.click(screen.getByRole("button", { name: "Ngày" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Kiểu hiển thị" }));
+    const dayOption = screen.getByRole("option", { name: "Ngày" });
+    fireEvent.pointerDown(dayOption, { pointerType: "mouse" });
+    fireEvent.pointerUp(dayOption, { pointerType: "mouse" });
+    fireEvent.click(dayOption);
     expect(onViewModeChange).toHaveBeenCalledWith("day");
 
-    fireEvent.click(screen.getByRole("switch", { name: "Của tôi" }));
+    const mineButton = screen.getByRole("button", { name: "Của tôi" });
+    expect(mineButton).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(mineButton);
     expect(onMineChange.mock.calls[0]?.[0]).toBe(true);
   });
 
