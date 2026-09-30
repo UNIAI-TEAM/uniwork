@@ -10,7 +10,7 @@
     "package": "node scripts/package.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
-    "test": "vitest run --passWithNoTests=false --coverage"
+    "test": "vitest run --passWithNoTests=false --coverage && node --test scripts/package.test.mjs scripts/release-inventory.test.mjs"
   },
   "dependencies": {
     "@uniwork/office-contracts": "workspace:*",
@@ -22,6 +22,8 @@
     "@uniwork/eslint-config": "workspace:*",
     "@uniwork/tsconfig": "workspace:*",
     "@vitest/coverage-v8": "catalog:",
+    "electron": "catalog:",
+    "electron-builder": "catalog:",
     "esbuild": "catalog:",
     "eslint": "^9.32.0",
     "typescript": "catalog:",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createAuthIpcHandlers, createDraftIpcHandlers, createFileIpcHandlers, createIpcDispatcher, DESKTOP_IPC_CHANNELS, desktopDraftResponseSchema, desktopFileMetadataSchema, desktopFileResponseSchema, desktopSessionMetadataSchema, IPC_MAX_BYTES, IPC_FILE_MAX_BYTES, IpcValidationError, validateIpcRequest } from "./ipc";
+import { createAuthIpcHandlers, createDraftIpcHandlers, createFileIpcHandlers, createIpcDispatcher, DESKTOP_IPC_CHANNELS, desktopDiagnosticsResponseSchema, desktopDraftResponseSchema, desktopFileMetadataSchema, desktopFileResponseSchema, desktopSessionMetadataSchema, IPC_MAX_BYTES, IPC_FILE_MAX_BYTES, IpcValidationError, validateIpcRequest } from "./ipc";
 import { NativeLoginManager } from "./auth/manager";
 import { LocalFileError, type FileHandleRegistry } from "./files/registry";
 import type { DesktopDraftStore } from "./drafts/store";
@@ -9,7 +9,7 @@ const valid = { sessionGeneration: "session_1234", operation: "capability", hand
 
 describe("desktop IPC allowlist", () => {
   it("enumerates only opaque operations", () => {
-    expect(DESKTOP_IPC_CHANNELS).toEqual(["desktop:bootstrap", "desktop:engine-call", "desktop:open-external", "desktop:auth-start", "desktop:auth-cancel", "desktop:auth-session", "desktop:file-pick-open", "desktop:file-open", "desktop:file-save", "desktop:file-save-as", "desktop:draft-checkpoint"]);
+    expect(DESKTOP_IPC_CHANNELS).toEqual(["desktop:bootstrap", "desktop:engine-call", "desktop:open-external", "desktop:auth-start", "desktop:auth-cancel", "desktop:auth-session", "desktop:diagnostics", "desktop:file-pick-open", "desktop:file-open", "desktop:file-save", "desktop:file-save-as", "desktop:draft-checkpoint"]);
     expect(DESKTOP_IPC_CHANNELS.some((channel) => /fs|exec|http/i.test(channel))).toBe(false);
   });
   it("accepts a valid engine request", () => expect(validateIpcRequest("desktop:engine-call", valid, context)).toEqual(valid));
@@ -83,6 +83,12 @@ describe("desktop IPC allowlist", () => {
     expect(validateIpcRequest("desktop:auth-session", { sessionGeneration: "session_1234" }, context)).toEqual({ sessionGeneration: "session_1234" });
     expect(() => validateIpcRequest("desktop:auth-start", { sessionGeneration: "session_1234", clientId: "com.uniwork.office", deploymentId: "production-eu", accessToken: "secret" }, context)).toThrowError(IpcValidationError);
     expect(() => validateIpcRequest("desktop:auth-cancel", { sessionGeneration: "session_1234", attemptId: "attempt_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", refreshToken: "secret" }, context)).toThrowError(IpcValidationError);
+  });
+  it("returns diagnostics without content or credential fields", async () => {
+    const dispatcher = createIpcDispatcher({ "desktop:diagnostics": () => ({ appId: "com.uniwork.office", appVersion: "0.0.0", engineVersion: "genoffice@09485f88+uniwork-office.0", contractVersion: "uniwork-office-engine-contract/1", protocolVersion: 1, channel: "dev", buildId: "unsigned-dev" }) }, context);
+    await expect(dispatcher("desktop:diagnostics", { sessionGeneration: "session_1234" })).resolves.toEqual(expect.objectContaining({ channel: "dev", buildId: "unsigned-dev" }));
+    await expect(dispatcher("desktop:diagnostics", { sessionGeneration: "session_1234", content: "secret" })).rejects.toThrowError(IpcValidationError);
+    expect(desktopDiagnosticsResponseSchema.parse({ appId: "com.uniwork.office", appVersion: "0.0.0", engineVersion: "genoffice@09485f88+uniwork-office.0", contractVersion: "uniwork-office-engine-contract/1", protocolVersion: 1, channel: "dev", buildId: "unsigned-dev" })).not.toHaveProperty("content");
   });
   it("maps auth handlers to metadata-only responses", async () => {
     const manager = { isBound: () => true, startLogin: async () => ({ status: "pending" as const, attemptId: "attempt_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", expiresAt: 123 }), cancelLogin: () => ({ status: "signed-out" as const }), getMetadata: () => ({ status: "signed-out" as const }) } as unknown as NativeLoginManager;

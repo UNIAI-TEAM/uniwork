@@ -8,6 +8,7 @@ import type { FileHandleRegistry } from "./files/registry";
 import { LocalFileError } from "./files/registry";
 import type { DesktopDraftStore } from "./drafts/store";
 import { DraftRecoveryError, type DraftIdentity, type DraftSession } from "../../../packages/core/office/draft-recovery";
+import { getDesktopDiagnostics } from "../shared/identity";
 
 /** Handlers deliberately map the privileged manager to metadata-only values.
  * A token, code, verifier, or state cannot be returned across this boundary. */
@@ -23,6 +24,13 @@ export function createAuthIpcHandlers(manager: NativeLoginManager) {
     },
     "desktop:auth-session": (_request: Extract<import("../shared/ipc").DesktopIpcRequest, { sessionGeneration: string }>) => desktopSessionMetadataSchema.parse(manager.getMetadata()),
   };
+}
+
+/** Diagnostics intentionally expose build/contract identity only.  The
+ * session generation is validated by the dispatcher; no document, account,
+ * token or path data crosses this narrow read channel. */
+export function createDiagnosticsIpcHandler() {
+  return (_request: Extract<import("../shared/ipc").DesktopIpcRequest, { sessionGeneration: string }>) => getDesktopDiagnostics();
 }
 
 export interface FileIpcOptions {

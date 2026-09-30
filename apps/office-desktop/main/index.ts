@@ -1,5 +1,5 @@
 import { DESKTOP_IDENTITY } from "../shared/identity";
-import { createAuthIpcHandlers, createDraftIpcHandlers, createFileIpcHandlers, createIpcDispatcher, type DraftIpcOptions, type FileIpcOptions, type IpcHandler, type DesktopIpcChannel, type IpcSenderContext } from "./ipc";
+import { createAuthIpcHandlers, createDiagnosticsIpcHandler, createDraftIpcHandlers, createFileIpcHandlers, createIpcDispatcher, type DraftIpcOptions, type FileIpcOptions, type IpcHandler, type DesktopIpcChannel, type IpcSenderContext } from "./ipc";
 import { installNavigationGuards, openApprovedExternal } from "./navigation";
 import { createDesktopRuntimeAdapters } from "./adapters";
 import type { HostIpcPort } from "@uniwork/office-contracts";
@@ -52,6 +52,7 @@ export function createDesktopHost(options: DesktopHostOptions) {
   options.window.setUserDataDirectory(process.env.UNIWORK_OFFICE_USER_DATA ?? DESKTOP_IDENTITY.devNamespace);
   const handlers = {
     ...options.handlers,
+    "desktop:diagnostics": createDiagnosticsIpcHandler(),
     ...(options.authManager ? createAuthIpcHandlers(options.authManager) : {}),
     ...(options.localFiles ? createFileIpcHandlers(options.localFiles) : {}),
     ...(options.drafts ? createDraftIpcHandlers(options.drafts) : {}),

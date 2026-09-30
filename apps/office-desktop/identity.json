@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "status": "accepted",
+  "decision": "G4-D1",
+  "product": "UniWork Office",
+  "appId": "com.uniwork.office",
+  "executable": "uniwork-office",
+  "artifactPrefix": "uniwork-office",
+  "userScheme": "uniwork-office",
+  "authCallback": "uniwork-office://auth/callback",
+  "internalSchemes": {
+    "app": "uniwork-office-app",
+    "preview": "uniwork-office-preview",
+    "asset": "uniwork-office-asset"
+  },
+  "userDataNamespace": "uniwork-office",
+  "devNamespace": "uniwork-office-dev",
+  "keyNamespace": "uniwork-office",
+  "channelNamespaces": {
+    "stable": "uniwork-office/stable",
+    "beta": "uniwork-office/beta",
+    "dev": "uniwork-office/dev"
+  },
+  "build": {
+    "channel": "dev",
+    "buildId": "unsigned-dev",
+    "appVersion": "0.0.0",
+    "platforms": {
+      "win32": ["x64"],
+      "darwin": ["arm64", "x64"]
+    }
+  },
+  "engine": {
+    "version": "genoffice@09485f88+uniwork-office.0",
+    "contractVersion": "uniwork-office-engine-contract/1",
+    "protocolVersion": 1
+  },
+  "update": {
+    "enabled": false,
+    "owner": "UniWork",
+    "publisher": null,
+    "feed": null,
+    "channel": "dev"
+  }
+}

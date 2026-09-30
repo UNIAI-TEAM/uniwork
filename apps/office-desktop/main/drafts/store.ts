@@ -22,6 +22,7 @@ import {
   type DraftSnapshot,
 } from "../../../../packages/core/office/draft-recovery";
 import { checksum, decryptDraft, encryptDraft } from "./crypto";
+import { DESKTOP_IDENTITY } from "../../shared/identity";
 
 export interface DraftKeyStore {
   /** A draft key is intentionally a separate port from refresh credentials. */
@@ -196,7 +197,7 @@ export class DesktopDraftStore implements DraftRecoveryAdapter {
   async withPlaintextTemp<T>(plaintext: Uint8Array, callback: (path: string) => Promise<T>): Promise<T> {
     if (plaintext.byteLength > this.maxPlaintextBytes) throw new DraftRecoveryError("quota_exceeded", "plaintext temp exceeds the local size limit");
     const root = this.options.tempDirectory ?? tmpdir();
-    const directory = await fs.mkdtemp(join(root, "uniwork-office-draft-"));
+    const directory = await fs.mkdtemp(join(root, `${DESKTOP_IDENTITY.devNamespace}-draft-`));
     const path = join(directory, "snapshot.bin");
     try { await fs.writeFile(path, plaintext, { mode: 0o600 }); return await callback(path); }
     finally { await fs.rm(directory, { recursive: true, force: true }).catch(() => undefined); }

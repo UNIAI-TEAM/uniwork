@@ -14,6 +14,9 @@ catalog:
   # Office build tooling (UNI-684): builds vendored engine source without the
   # prepared ../genoffice tree; also satisfies vite's esbuild peer range.
   esbuild: "0.28.2"
+  # Desktop packaging (UNI-836): packager is dev-only; production code never imports it.
+  electron: "44.5.0"
+  electron-builder: "26.15.3"
   zod: "^4.1.5"
   # Office engine PDF lane (UNI-688 / G2-05, Advisor-approved delta): pdfium WASM
   # (pin = vendored pdf2docx floor), pdf-lib serialize, hb-subset font subsetting,
