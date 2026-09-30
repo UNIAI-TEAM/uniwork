@@ -54,6 +54,41 @@ export interface XlsxWorkbookSnapshot {
   readonly sheets: readonly XlsxWorksheet[];
 }
 
+/**
+ * Runtime guard for the JSON snapshot crossing the service/browser boundary.
+ * The gateway is the producer, but this check keeps a malformed or future
+ * gateway result from becoming an unbounded/ambiguous document model in the
+ * web host. Keep the accepted values aligned with the wire CellState scalar
+ * type; formula and rawValue are optional strings/scalars respectively.
+ */
+export function isXlsxWorkbookSnapshot(value: unknown): value is XlsxWorkbookSnapshot {
+  if (!value || typeof value !== "object") return false;
+  const snapshot = value as { revision?: unknown; sheets?: unknown };
+  if (!Number.isSafeInteger(snapshot.revision) || (snapshot.revision as number) < 0 || !Array.isArray(snapshot.sheets)) {
+    return false;
+  }
+  const isScalar = (candidate: unknown): candidate is XlsxCellScalar =>
+    candidate === null ||
+    typeof candidate === "string" ||
+    typeof candidate === "boolean" ||
+    (typeof candidate === "number" && Number.isFinite(candidate));
+  return snapshot.sheets.length > 0 && snapshot.sheets.every((candidate) => {
+    if (!candidate || typeof candidate !== "object") return false;
+    const sheet = candidate as { id?: unknown; name?: unknown; cells?: unknown };
+    if (typeof sheet.id !== "string" || sheet.id.length === 0 || typeof sheet.name !== "string" || sheet.name.length === 0) {
+      return false;
+    }
+    if (!sheet.cells || typeof sheet.cells !== "object" || Array.isArray(sheet.cells)) return false;
+    return Object.values(sheet.cells as Record<string, unknown>).every((cell) => {
+      if (!cell || typeof cell !== "object") return false;
+      const state = cell as { value?: unknown; formula?: unknown; rawValue?: unknown };
+      if (!isScalar(state.value)) return false;
+      if (state.formula !== undefined && typeof state.formula !== "string") return false;
+      return state.rawValue === undefined || isScalar(state.rawValue);
+    });
+  });
+}
+
 /** Upstream ImportedXlsx (xlsx-gateway.ts:194). */
 export interface XlsxImported {
   readonly snapshot: XlsxWorkbookSnapshot;

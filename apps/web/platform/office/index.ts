@@ -39,4 +39,4 @@ export {
   type XlsxSaveTransportOptions,
 } from "./xlsx-adapter";
 export { XlsxOfficeEditorHost } from "./xlsx-office-host";
-export { createWebXlsxSessionRuntime, readXlsxDocumentBytes } from "./xlsx-runtime";
+export { createWebXlsxSessionRuntime } from "./xlsx-runtime";
