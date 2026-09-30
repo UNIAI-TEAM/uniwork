@@ -55,7 +55,7 @@ export function createHttpExchangePort(options: HttpExchangeOptions): ExchangePo
 
 function mapExchangeError(status: number): ExchangeOutcome {
   if (status === 401) return { kind: "refused", reason: "device_revoked" };
-  if (status === 403) return { kind: "login_required", reason: "account_mismatch" };
+  if (status === 403) return { kind: "refused", reason: "forbidden" };
   if (status === 404) return { kind: "refused", reason: "not_found" };
   return { kind: "refused", reason: "forbidden" };
 }
@@ -86,7 +86,8 @@ function parseExchange(raw: unknown): ExchangeOutcome | undefined {
   };
   const currentDownloadPath = `/api/v1/documents/${encodeURIComponent(descriptor.id)}/download`;
   const historicalDownloadPath = `${currentDownloadPath}?version=${descriptor.version}`;
-  if (descriptor.download_path !== currentDownloadPath && (descriptor.version <= 0 || descriptor.download_path !== historicalDownloadPath)) return undefined;
+  const expectedDownloadPath = descriptor.version > 0 ? historicalDownloadPath : currentDownloadPath;
+  if (descriptor.download_path !== expectedDownloadPath) return undefined;
   return { kind: "opened", descriptor, receiptId: root.receipt_id as string, redeemedAt: root.redeemed_at as string };
 }
 
