@@ -46,6 +46,10 @@ const (
 // the loops wait on.
 type DocumentWorkers struct {
 	svc *DocumentService
+	// officeLaunch is optional in tests and in deployments that have not
+	// enabled the desktop bridge. When wired, its retention sweep runs on the
+	// same hourly maintenance cadence as document purge.
+	officeLaunch *OfficeLaunchService
 	// AutoVersionTick, PurgeTick, CompactTick override the sweep cadences;
 	// zero keeps the defaults above.
 	AutoVersionTick time.Duration
@@ -64,6 +68,14 @@ type DocumentWorkers struct {
 // NewDocumentWorkers builds the maintenance worker for this service.
 func (s *DocumentService) NewDocumentWorkers() *DocumentWorkers {
 	return &DocumentWorkers{svc: s}
+}
+
+// SetOfficeLaunchService wires the tenant-scoped launch-session retention
+// sweep into the process maintenance worker.
+func (w *DocumentWorkers) SetOfficeLaunchService(launch *OfficeLaunchService) {
+	if w != nil {
+		w.officeLaunch = launch
+	}
 }
 
 // Run blocks until ctx ends, running each sweep on its own cadence. A first
@@ -96,6 +108,9 @@ func (w *DocumentWorkers) Run(ctx context.Context) {
 		{purgeTick, func(ctx context.Context) {
 			started := time.Now()
 			rep, err := w.svc.PurgeExpired(ctx, w.clock()())
+			if err == nil && w.officeLaunch != nil {
+				err = w.purgeOfficeLaunch(ctx)
+			}
 			w.svc.recordDocumentSweep("purge", rep.Failed, err, started)
 			if w.swept != nil {
 				w.swept("purge", err)
@@ -125,6 +140,25 @@ func (w *DocumentWorkers) Run(ctx context.Context) {
 		}(loop.tick, loop.run)
 	}
 	wg.Wait()
+}
+
+func (w *DocumentWorkers) purgeOfficeLaunch(ctx context.Context) error {
+	orgs, err := w.svc.q.ListOrganizationIDsForMaintenance(ctx)
+	if err != nil {
+		return err
+	}
+	for _, organizationID := range orgs {
+		workspaces, err := w.svc.q.ListWorkspacesInOrg(ctx, organizationID)
+		if err != nil {
+			return err
+		}
+		for _, workspace := range workspaces {
+			if _, err := w.officeLaunch.PurgeExpired(ctx, organizationID, workspace.ID); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (w *DocumentWorkers) clock() func() time.Time {

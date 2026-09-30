@@ -1,4 +1,5 @@
 import type { DeploymentProfile } from "../../shared/deployment";
+import { DESKTOP_IDENTITY_MANIFEST } from "../../shared/identity";
 import type { CredentialSession, CredentialStore } from "../auth/credentials";
 import type { DeviceBinding, ExchangeOutcome, ExchangePort, ExchangeRequest, OfficeLaunchDescriptor } from "./exchange";
 
@@ -66,9 +67,10 @@ function parseExchange(raw: unknown): ExchangeOutcome | undefined {
   if (!document || typeof document !== "object") return undefined;
   const d = document as Record<string, unknown>;
   const strings = ["id", "organization_id", "workspace_id", "title", "revision", "download_path"];
-  if (!strings.every((key) => typeof d[key] === "string" && (d[key] as string).length > 0)) return undefined;
-  if (d.kind !== "file" || (d.operation !== "view" && d.operation !== "edit") || !Number.isSafeInteger(d.version) || (d.version as number) < 0 || typeof d.contract_version !== "string" || typeof d.protocol_version !== "string") return undefined;
-  if (typeof root.receipt_id !== "string" || typeof root.redeemed_at !== "string") return undefined;
+  if (!strings.every((key) => typeof d[key] === "string" && (d[key] as string).length > 0 && (d[key] as string).length <= 512)) return undefined;
+  if (d.kind !== "file" || (d.operation !== "view" && d.operation !== "edit") || !Number.isSafeInteger(d.version) || (d.version as number) < 0) return undefined;
+  if (d.contract_version !== DESKTOP_IDENTITY_MANIFEST.engine.contractVersion || d.protocol_version !== `${DESKTOP_IDENTITY_MANIFEST.engine.protocolVersion}`) return undefined;
+  if (typeof root.receipt_id !== "string" || root.receipt_id.length === 0 || root.receipt_id.length > 128 || !isTimestamp(root.redeemed_at)) return undefined;
   const descriptor: OfficeLaunchDescriptor = {
     id: d.id as string,
     organization_id: d.organization_id as string,
@@ -84,6 +86,12 @@ function parseExchange(raw: unknown): ExchangeOutcome | undefined {
   };
   if (descriptor.download_path !== `/api/v1/documents/${encodeURIComponent(descriptor.id)}/download`) return undefined;
   return { kind: "opened", descriptor, receiptId: root.receipt_id as string, redeemedAt: root.redeemed_at as string };
+}
+
+function isTimestamp(value: unknown): value is string {
+  return typeof value === "string" && value.length <= 64 &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
+    !Number.isNaN(Date.parse(value));
 }
 
 export type { DeviceBinding };

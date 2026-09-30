@@ -37,4 +37,14 @@ describe("profile-bound Office launch exchange", () => {
     const fetchImpl = vi.fn(async () => response({ receipt_id: "r", document: { ...descriptor, download_path: "https://storage.example/signed" }, redeemed_at: "2026-10-01T00:00:00Z" }));
     await expect(createHttpExchangePort({ profile, credentials, fetchImpl }).exchange(request)).rejects.toThrow("exchange_failed");
   });
+
+  it("rejects an incompatible engine descriptor or malformed receipt", async () => {
+    const credentials = createInMemoryCredentialStore();
+    await credentials.save({ accountId: "account-a", deviceSessionId: "device-a", sessionId: "session-a", accessToken: "secret", refreshToken: "refresh", expiresIn: 900, refreshExpiresIn: 900 });
+    const fetchImpl = vi.fn(async () => response({
+      receipt_id: "", redeemed_at: "not-a-time",
+      document: { ...descriptor, contract_version: "future", protocol_version: "garbage" },
+    }));
+    await expect(createHttpExchangePort({ profile, credentials, fetchImpl }).exchange(request)).rejects.toThrow("exchange_failed");
+  });
 });
