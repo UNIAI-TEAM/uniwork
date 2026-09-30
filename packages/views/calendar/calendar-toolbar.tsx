@@ -73,12 +73,12 @@ export function CalendarToolbar({
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center gap-2 border-b border-border py-3",
+        "flex h-12 flex-nowrap items-center gap-2 overflow-x-auto border-b border-border [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         PAGE_GUTTER,
         className,
       )}
     >
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+      <div className="flex min-w-max items-center gap-2">
         <Button
           type="button"
           size="icon-sm"
@@ -127,7 +127,7 @@ export function CalendarToolbar({
           ))}
         </ToggleGroup>
       </div>
-      <div className="flex shrink-0 flex-wrap items-center gap-2">
+      <div className="ml-auto flex shrink-0 items-center gap-2">
         <CalendarConnectionsDialog workspaceId={workspaceId} />
         <Button
           type="button"

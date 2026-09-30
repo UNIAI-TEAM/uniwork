@@ -14,7 +14,7 @@ const noop = () => {};
 
 describe("CalendarToolbar", () => {
   it("keeps dense toolbar actions flat and the selected view edge-free", () => {
-    render(
+    const { container } = render(
       wrapWithNav(
         <CalendarToolbar
           anchorDate={anchor}
@@ -31,6 +31,10 @@ describe("CalendarToolbar", () => {
         />,
       ),
     );
+
+    const toolbar = container.firstElementChild;
+    expect(toolbar).toHaveClass("h-12", "flex-nowrap", "overflow-x-auto");
+    expect(toolbar).not.toHaveClass("flex-wrap", "py-3");
 
     for (const name of ["Kỳ trước", "Kỳ sau", "Hôm nay", "Làm mới lịch", "Cài đặt lịch"]) {
       const control = screen.getByRole("button", { name });
