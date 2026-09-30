@@ -68,7 +68,7 @@ export function createDesktopHost(options: DesktopHostOptions) {
   const dispatch = createIpcDispatcher(handlers, { ...options.sender, allowedExternalHosts });
   let deepLinkRegistration: DeepLinkRegistration | undefined;
   if (options.deepLinks) {
-    deepLinkRegistration = registerDeepLinkSystem(options.deepLinks.system, options.deepLinks.bridge);
+    deepLinkRegistration = registerDeepLinkSystem(options.deepLinks.system, options.deepLinks.bridge, options.authManager ? (url) => options.authManager!.handleCallback(url) : undefined);
     options.deepLinks.bridge.subscribe((event) => {
       // Validate in the main process immediately before crossing IPC. The
       // event intentionally contains no ticket, account, title or descriptor.

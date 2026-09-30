@@ -1,6 +1,6 @@
 import type { DeviceBinding, ExchangeOutcome, ExchangePort, LaunchOperation, OfficeLaunchDescriptor } from "./exchange";
 import { launchUrlFromArgv, parseOfficeDeepLink, type DeepLinkRejectReason } from "./parser";
-import { DESKTOP_IDENTITY } from "../../shared/identity";
+import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST } from "../../shared/identity";
 
 type LaunchBridgeRefusal =
   | DeepLinkRejectReason
@@ -139,7 +139,7 @@ export type DeepLinkRegistration = Readonly<{ primary: boolean; dispose(): void 
 /** Register the protocol only in the process that owns the lock. Electron's
  * second-instance and open-url callbacks feed the same bridge object as cold
  * argv, so there is one parser/exchange namespace. */
-export function registerDeepLinkSystem(system: DeepLinkSystem, bridge: LaunchBridge): DeepLinkRegistration {
+export function registerDeepLinkSystem(system: DeepLinkSystem, bridge: LaunchBridge, authCallback?: (url: string) => Promise<unknown> | unknown): DeepLinkRegistration {
   if (!system.requestSingleInstanceLock()) {
     system.quit?.();
     return { primary: false, dispose: () => undefined };
@@ -151,6 +151,11 @@ export function registerDeepLinkSystem(system: DeepLinkSystem, bridge: LaunchBri
   };
   const open = (event: { preventDefault(): void }, url: string) => {
     event.preventDefault();
+    const isAuthCallback = Object.values(DESKTOP_IDENTITY_MANIFEST.channelProfiles).some((profile) => url.startsWith(profile.authCallback));
+    if (authCallback && isAuthCallback) {
+      void authCallback(url);
+      return;
+    }
     void bridge.handleOpenUrl(url);
   };
   system.onSecondInstance(second);

@@ -1,5 +1,5 @@
 import { createCodeChallenge } from "../auth/pkce";
-import type { AuthServerContract, DesktopExchangeRequest, DesktopSessionResponse, DesktopStartRequest, DesktopStartResponse } from "./auth-transport";
+import { AuthTransportError, type AuthServerContract, type DesktopExchangeRequest, type DesktopRefreshRequest, type DesktopSessionResponse, type DesktopStartRequest, type DesktopStartResponse, type DesktopLogoutRequest } from "./auth-transport";
 
 type AuthorizationCode = Readonly<DesktopStartRequest & { code: string; accountId: string; issuedAt: number; expiresAt: number; used: boolean }>;
 export const FAKE_AUTH_CODE_TTL_MS = 120 * 1000;
@@ -15,6 +15,8 @@ export class FakeAuthServer implements AuthServerContract {
   private readonly now: () => number;
   private readonly accountId: string;
   private sequence = 0;
+  private readonly sessions = new Map<string, DesktopSessionResponse>();
+  private readonly revoked = new Set<string>();
 
   constructor(options: FakeAuthServerOptions = {}) {
     this.origin = options.origin ?? "https://fake-auth.invalid";
@@ -43,11 +45,26 @@ export class FakeAuthServer implements AuthServerContract {
     if (!candidate || candidate.used || candidate.expiresAt <= this.now()) throw new Error("auth_code_invalid");
     if (candidate.clientId !== request.clientId || candidate.deploymentId !== request.deploymentId || candidate.redirectUri !== request.redirectUri || createCodeChallenge(request.codeVerifier) !== candidate.codeChallenge) throw new Error("auth_code_invalid");
     this.codes.set(request.code, Object.freeze({ ...candidate, used: true }));
-    return { accountId: candidate.accountId, deviceSessionId: `device-${candidate.code}`, sessionId: `session-${candidate.code}`, deploymentId: candidate.deploymentId, accessToken: `fake-access-${candidate.code}`, refreshToken: `fake-refresh-${candidate.code}`, expiresIn: 900, refreshExpiresIn: 2_592_000 };
+    const session = { accountId: candidate.accountId, deviceSessionId: `device-${candidate.code}`, sessionId: `session-${candidate.code}`, deploymentId: candidate.deploymentId, accessToken: `fake-access-${candidate.code}`, refreshToken: `fake-refresh-${candidate.code}`, expiresIn: 900, refreshExpiresIn: 2_592_000, refreshRotates: true };
+    this.sessions.set(session.deviceSessionId, session);
+    return session;
+  }
+
+  async refresh(request: DesktopRefreshRequest): Promise<DesktopSessionResponse> {
+    const current = this.sessions.get(request.deviceSessionId);
+    if (!current || this.revoked.has(request.deviceSessionId)) throw new AuthTransportError("device_revoked", 401);
+    if (current.refreshToken !== request.refreshToken) { this.revoked.add(request.deviceSessionId); throw new AuthTransportError("refresh_reused", 401); }
+    const next = { ...current, accessToken: `fake-access-${++this.sequence}`, refreshToken: `fake-refresh-${this.sequence}` };
+    this.sessions.set(request.deviceSessionId, next);
+    return next;
+  }
+
+  async logout(request: DesktopLogoutRequest): Promise<void> {
+    this.revoked.add(request.deviceSessionId);
+    this.sessions.delete(request.deviceSessionId);
   }
 }
 
 function validateStart(request: DesktopStartRequest): void {
   if (!request.clientId || !request.deploymentId || request.codeChallengeMethod !== "S256" || !/^[A-Za-z0-9_-]{43}$/.test(request.codeChallenge) || !request.state || !request.redirectUri) throw new Error("invalid_request");
 }
-

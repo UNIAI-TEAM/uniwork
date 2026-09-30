@@ -62,4 +62,33 @@ describe("desktop auth transport and fake contract", () => {
     const callback = server.issueCallback({ state: current.state, clientId: binding.clientId, deploymentId: binding.deploymentId, redirectUri: binding.redirectUri });
     await expect(manager2.handleCallback(callback)).resolves.toEqual({ ok: false, reason: "exchange_failed" });
   });
+
+  it("serializes concurrent refresh calls and handles replay as login-required", async () => {
+    const now = 1_000;
+    const server = new FakeAuthServer({ now: () => now, accountId: "account-refresh" });
+    const transport = createAllowlistedAuthTransport({ origin: "https://api.example.test", ...binding, server });
+    const credentials = createInMemoryCredentialStore();
+    const manager = new NativeLoginManager({ ...binding, browser: createSystemBrowserLauncher(() => undefined), transport, credentials, now: () => now });
+    await manager.startLogin();
+    const current = manager.getCurrentAttempt(now)!;
+    await manager.handleCallback(server.issueCallback({ state: current.state, clientId: binding.clientId, deploymentId: binding.deploymentId, redirectUri: binding.redirectUri }));
+    const [first, second] = await Promise.all([manager.refreshSession(), manager.refreshSession()]);
+    expect(first).toEqual(second);
+    expect(first.status).toBe("signed-in");
+    const saved = await credentials.get();
+    await credentials.save({ ...saved!, refreshToken: "stale-refresh" });
+    await expect(manager.refreshSession()).resolves.toMatchObject({ status: "login-required" });
+  });
+
+  it("revokes the device server-side before clearing local credentials on logout", async () => {
+    const server = new FakeAuthServer({ now: () => 1_000 });
+    const transport = createAllowlistedAuthTransport({ origin: "https://api.example.test", ...binding, server });
+    const credentials = createInMemoryCredentialStore();
+    const manager = new NativeLoginManager({ ...binding, browser: createSystemBrowserLauncher(() => undefined), transport, credentials, now: () => 1_000 });
+    await manager.startLogin();
+    const current = manager.getCurrentAttempt(1_000)!;
+    await manager.handleCallback(server.issueCallback({ state: current.state, clientId: binding.clientId, deploymentId: binding.deploymentId, redirectUri: binding.redirectUri }));
+    await expect(manager.logout()).resolves.toEqual({ status: "signed-out" });
+    expect(await credentials.get()).toBeUndefined();
+  });
 });
