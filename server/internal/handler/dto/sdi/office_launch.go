@@ -14,7 +14,7 @@ type CreateOfficeLaunchSessionSDI struct {
 // ExchangeOfficeLaunchSessionSDI is POST /api/v1/office/sessions/exchange.
 // It is a desktop-main request authenticated by the device bearer session.
 type ExchangeOfficeLaunchSessionSDI struct {
-	LaunchTicket    string `json:"launch_ticket" minLength:"1" description:"Launch ticket đục dùng một lần; không phải code đăng nhập" example:"lt_opaque_ticket"`
+	LaunchTicket    string `json:"launch_ticket" minLength:"1" description:"Launch ticket đục dùng một lần; không phải code đăng nhập" example:"ticket_opaque_ticket"`
 	DeploymentID    string `json:"deployment_id" minLength:"1" description:"Mã deployment profile đã cấu hình" example:"production-eu"`
 	ClientID        string `json:"client_id" minLength:"1" description:"Mã client Office công khai nằm trong allowlist" example:"uniwork-office"`
 	DeviceSessionID string `json:"device_session_id" minLength:"1" description:"ULID phiên thiết bị native hiện tại" example:"01J8X4DEVN1P2Q3R4S5T6U7V8"`

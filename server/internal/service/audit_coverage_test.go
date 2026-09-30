@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/unicomhub/uniwork/server/internal/audit"
@@ -839,6 +840,39 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionOfficeLaunchSessionCreated: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			launch := NewOfficeLaunchService(svc, config.Config{DesktopAuthClientID: "uniwork-office", DesktopAuthDeploymentIDs: []string{"default"}})
+			if _, err := launch.Create(f.ctx, Human(f.owner.ID), OfficeLaunchCreateInput{DocumentID: docID, Operation: "view", DeploymentID: "default", ClientID: "uniwork-office"}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOfficeLaunchSessionRedeemed: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			launch := NewOfficeLaunchService(svc, config.Config{DesktopAuthClientID: "uniwork-office", DesktopAuthDeploymentIDs: []string{"default"}})
+			created, err := launch.Create(f.ctx, Human(f.owner.ID), OfficeLaunchCreateInput{DocumentID: docID, Operation: "view", DeploymentID: "default", ClientID: "uniwork-office"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			deviceID := util.NewID()
+			if _, err := f.q.CreateDeviceSession(f.ctx, db.CreateDeviceSessionParams{ID: deviceID, UserID: f.owner.ID, SessionFamilyID: deviceID, ClientID: "uniwork-office", DeploymentID: "default", RefreshTokenDigest: "audit-device", ExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true}, CreatedByKind: "human"}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := launch.Exchange(f.ctx, OfficeLaunchExchangeInput{Ticket: created.Ticket, AccountID: f.owner.ID, DeploymentID: "default", ClientID: "uniwork-office", DeviceSessionID: deviceID}); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOfficeLaunchSessionRevoked: func(t *testing.T, f *auditFixture) {
+			svc, docID := f.document(t)
+			launch := NewOfficeLaunchService(svc, config.Config{DesktopAuthClientID: "uniwork-office", DesktopAuthDeploymentIDs: []string{"default"}})
+			created, err := launch.Create(f.ctx, Human(f.owner.ID), OfficeLaunchCreateInput{DocumentID: docID, Operation: "view", DeploymentID: "default", ClientID: "uniwork-office"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := launch.Revoke(f.ctx, Human(f.owner.ID), created.SessionID); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionDocumentShared: func(t *testing.T, f *auditFixture) {
 			svc, docID := f.document(t)
 			if _, err := svc.ShareDocument(f.ctx, Human(f.owner.ID), docID, DocumentShareInput{
@@ -1204,6 +1238,9 @@ func auditActions() []string {
 		audit.ActionAuditRetentionSet,
 		audit.ActionSubscriptionChanged,
 		audit.ActionDocumentCreated,
+		audit.ActionOfficeLaunchSessionCreated,
+		audit.ActionOfficeLaunchSessionRedeemed,
+		audit.ActionOfficeLaunchSessionRevoked,
 		audit.ActionDocumentShared,
 		audit.ActionDocumentShareRevoked,
 		audit.ActionDocumentLinkCreated,

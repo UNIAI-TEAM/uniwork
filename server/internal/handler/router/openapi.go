@@ -408,6 +408,10 @@ func pathParamSDI(path string) any {
 			DocumentID string `path:"documentID" description:"ULID tài liệu" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 			LinkID     string `path:"linkID" description:"ULID liên kết công khai" example:"01J8X4LINK0N1P2Q3R4S5T6U7"`
 		}{}
+	case "launchSessionID":
+		return struct {
+			LaunchSessionID string `path:"launchSessionID" description:"ULID Office launch receipt" example:"01J8X4LAUNCHN1P2Q3R4S5T6U7V8"`
+		}{}
 	default:
 		return nil
 	}

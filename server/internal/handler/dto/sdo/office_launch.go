@@ -4,7 +4,8 @@ package sdo
 // The ticket is opaque and short-lived; no title, path, bytes or token is
 // embedded in it.
 type OfficeLaunchSessionSDO struct {
-	LaunchTicket string `json:"launch_ticket" description:"Ticket đục dùng một lần, chỉ trả về một lần" example:"lt_opaque_ticket"`
+	LaunchTicket string `json:"launch_ticket" description:"Ticket đục dùng một lần, chỉ trả về một lần" example:"ticket_opaque_ticket"`
+	LaunchURL    string `json:"launch_url" description:"Deep link exact-match chỉ chứa ticket" example:"uniwork-office://open?ticket=ticket_opaque_ticket"`
 	ExpiresAt    string `json:"expires_at" description:"Hạn ticket (RFC3339)" example:"2026-09-29T10:02:00Z"`
 	DocumentID   string `json:"document_id" description:"ULID tài liệu được chọn" example:"01J8X4DOC0N1P2Q3R4S5T6U7"`
 	Operation    string `json:"operation" description:"Thao tác hiệu lực: view hoặc edit" example:"edit"`
@@ -29,6 +30,7 @@ type OfficeLaunchDocumentDTO struct {
 
 // OfficeLaunchExchangeSDO is POST /api/v1/office/sessions/exchange.
 type OfficeLaunchExchangeSDO struct {
+	ReceiptID  string                  `json:"receipt_id" description:"ULID biên nhận redeem; không phải credential" example:"01J8X4RECEIPT1P2Q3R4S5T6U7"`
 	Document   OfficeLaunchDocumentDTO `json:"document"`
 	RedeemedAt string                  `json:"redeemed_at" description:"Thời điểm redeem nguyên tử (RFC3339)" example:"2026-09-29T10:01:02Z"`
 }

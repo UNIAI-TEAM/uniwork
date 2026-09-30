@@ -1,17 +1,17 @@
 # Office Launch Bridge contract
 
-**Revision:** 1.3 (2026-09-30)
+**Revision:** 1.4 (2026-10-01)
 **Feature:** `g4-02a-auth-bridge-contract` / G4-05a (UNI-834)  
 **Decision gate:** G4-D4 (with G4-D1 identity values) - **decided 2026-09-29
 12:40 UTC+7** (`decisions/gates-2026-09-29.md`: launch-ticket TTL 120 s
 approved; launch commands audit transactionally with no outbox event;
 `office_launch_sessions` carries `organization_id` and is not tenant-exempt)  
-**Status:** **CONTRACT r1.3 - published for G3-09 / 05b**. No route, service,
-migration or token minting is shipped by this document. This revision pins the
+**Status:** **CONTRACT r1.4 - published for G3-09 / 05b**. The launch-session route,
+service, migration and token minting are shipped in 05b. This revision pins the
 05a values for client identity, clock skew, operation/version semantics,
 descriptor fields, anti-enumeration mapping, launch URL and receipt handoff.
-Questions 3 (persistence names/indexes/cleanup) and 7 (revocation) remain
-explicit 05b items; they are not silently decided here.
+Questions 3 (persistence names/indexes/cleanup) and 7 (revocation) are resolved
+by the implemented values below.
 
 Executable examples and refusal cases are kept in the companion vectors:
 [`launch-ticket.json`](vectors/launch-ticket.json),
@@ -171,11 +171,14 @@ use a launch ticket. The host uses the device session and the normal Documents
 API directly. This prevents a stale ticket from becoming a second permission
 path.
 
-## Ticket data model (proposal)
+## Ticket data model (implemented)
 
-The future identity/capability row may be named `office_launch_sessions` (name,
-indexes and cleanup policy are pinned at 05b; G4-D4 approved that it carries
-`organization_id` with the Document scope and is not tenant-exempt). It stores:
+The identity/capability row is `office_launch_sessions`. `ticket_hash` has a
+unique concurrent index, and `(organization_id, workspace_id, document_id,
+created_at DESC)` is the tenant-scoped cleanup index. Expired or revoked rows
+are retained for 24 hours and then removed by the launch-session retention
+sweep. G4-D4 approved that it carries `organization_id` with the Document
+scope and is not tenant-exempt. It stores:
 
 | Field | Rule |
 | --- | --- |
@@ -286,9 +289,11 @@ Each item is annotated with its G4-D4 status (decision record
    seconds**. A lost exchange response follows the **new ticket required**
    rule; no replay or implicit receipt lookup is allowed. A future metadata-
    only reconciliation requires a 05b contract revision.
-3. **Ticket persistence - decided.** The table carries `organization_id` with
-   the Document scope and does not enter the account-level `tenantExemptTables`
-   list. **Open:** final name, indexes and the cleanup policy (05b).
+3. **Ticket persistence - resolved in r1.4.** The table is
+   `office_launch_sessions`; `ticket_hash` has a unique concurrent index,
+   `(organization_id, workspace_id, document_id, created_at DESC)` supports
+   tenant-scoped cleanup, and expired/revoked rows are retained for 24 hours
+   before the retention sweep removes them.
 4. **Operation/version semantics - resolved for 05a.** The operation matrix
    above is normative: `view` and `edit` are accepted; historical versions
    are read-only even when `edit` was requested. The descriptor field set is
@@ -304,9 +309,13 @@ Each item is annotated with its G4-D4 status (decision record
    `device_revoked`. None of these responses carries document metadata. The
    desktop fake and consumer map the same reasons to typed outcomes without
    making a second exchange call for a terminal ticket.
-7. **Revocation behavior - open.** Confirm whether a ticket can be explicitly
-   revoked by logout/password reset, and the invalidation path/SLA for
-   descriptors already downloaded (05b with the auth owner).
+7. **Revocation behavior - resolved in r1.4.** The ticket owner can
+   `DELETE /office/sessions/{launchSessionID}` before redeem; the mutation is
+   idempotent and writes one `office.launch_session_revoked` audit row. Device
+   logout/password reset does not revoke document tickets across tenants;
+   exchange and every download/range request re-check the live device session
+   and Document ACL, so a downloaded descriptor is never an authorization
+   grant. A revoked or expired ticket returns 404 and cannot be redeemed.
 8. **G3 consumer handoff - resolved for 05a.** G3-09 consumes the exact
    `uniwork-office://open?ticket=<encodeURIComponent(ticket)>` URL and the
    create response fields `launch_ticket`, `launch_url`, `expires_at`,
@@ -314,10 +323,10 @@ Each item is annotated with its G4-D4 status (decision record
    exposes only `receipt_id` and `redeemed_at` beside the descriptor; the
    ticket itself is never renderer-visible, logged or included in diagnostics.
 
-## Deferred implementation and verification
+## Implementation and verification
 
-05b must register the DTOs and routes, implement atomic hash/redeem/revoke,
-connect live ACL/device middleware, and add tests for copied tickets, wrong
+05b registers the DTOs and routes, implements atomic hash/redeem/revoke,
+connects live ACL/device middleware, and adds tests for copied tickets, wrong
 account/deployment, expiry/replay, prefetch/CSRF, revoke after download and
 lost exchange response. It must also run the audit-coverage, events-catalogue,
 tenant guard and OpenAPI checks. The draft structs and JSON vectors in this

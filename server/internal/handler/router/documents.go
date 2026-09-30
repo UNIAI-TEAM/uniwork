@@ -87,6 +87,11 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		sdo:         sdo.DocumentSDO{},
 		auth:        true,
 	})
+	d.Post("/documents/{documentID}/office/sessions", h.CreateOfficeLaunch, apiOp{
+		summary:     "Create an Office launch ticket",
+		description: "Explicit Document action: checks the live ACL, binds account/deployment/client/version and returns one opaque 120-second deep-link ticket. Historical versions are read-only.",
+		tags:        []string{"documents"}, sdi: sdi.CreateOfficeLaunchSessionSDI{}, sdo: sdo.OfficeLaunchSessionSDO{}, status: http.StatusCreated, auth: true,
+	})
 	d.Patch("/documents/{documentID}", h.PatchDocument, apiOp{
 		summary: "Update a document",
 		description: "Autosave/metadata của working copy. revision bắt buộc (chuỗi thập phân của base client thấy); base cũ -> 422 revision_conflict kèm fields.current_revision. " +
