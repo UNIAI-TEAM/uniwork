@@ -131,6 +131,12 @@ func (s *OfficeLaunchService) Create(ctx context.Context, actor Actor, in Office
 	if err != nil {
 		return OfficeLaunchSession{}, err
 	}
+	// The desktop bridge opens file bytes through the first-party download
+	// route. Page documents have no file version and must not mint a ticket
+	// whose descriptor the desktop consumer cannot safely open.
+	if doc.Kind != DocumentKindFile {
+		return OfficeLaunchSession{}, ErrNotFound
+	}
 	if operation == "edit" && !access.Level.AtLeast(DocumentLevelEdit) {
 		return OfficeLaunchSession{}, ErrForbidden
 	}

@@ -19,7 +19,7 @@ type OfficeLaunchDocumentDTO struct {
 	OrganizationID  string `json:"organization_id" description:"ULID tổ chức sở hữu" example:"01J8X4ORGN1P2Q3R4S5T6U7V8"`
 	WorkspaceID     string `json:"workspace_id" description:"ULID workspace sở hữu" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
 	Title           string `json:"title" description:"Tiêu đề tài liệu sau khi kiểm ACL" example:"Q4 plan"`
-	Kind            string `json:"kind" description:"page hoặc file" example:"file"`
+	Kind            string `json:"kind" description:"launch bridge chỉ nhận file" example:"file"`
 	Operation       string `json:"operation" description:"Thao tác hiệu lực: view hoặc edit" example:"edit"`
 	Version         int32  `json:"version" description:"Version được chọn; 0 = hiện tại" example:"0"`
 	Revision        string `json:"revision" description:"Revision dạng chuỗi thập phân" example:"41"`
