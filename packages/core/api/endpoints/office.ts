@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { DocumentEnvelopeSchema, type Document } from "../../types/document";
-import { request } from "../http";
+import { request, requestBlob } from "../http";
 import { parseWithFallback } from "../schema";
 
 // Office endpoints (plan G2-07 / UNI-690): capability, jobs, blank create and
@@ -13,7 +13,7 @@ const enc = encodeURIComponent;
 
 /** The engine operations the job route accepts. export and convert answer a
  *  typed unsupported_operation until an engine lane binds a converter (Q7). */
-export type OfficeOperation = "open" | "serialize" | "export" | "convert";
+export type OfficeOperation = "open" | "edit" | "serialize" | "export" | "convert";
 export type OfficeFormat = "docx" | "xlsx" | "pptx" | "pdf" | "md" | "html" | "xls" | "odt";
 
 export interface OfficeCapabilityRow {
@@ -87,7 +87,18 @@ export interface StartOfficeJobBody {
   base_revision?: string;
   /** The editor's document model reference (serialize). */
   document_model_ref?: string;
+  /** Format-specific edit operations; accepted only for operation=edit. */
+  edits?: OfficeEditOp[];
   target_format?: OfficeFormat;
+}
+
+export interface OfficeEditOp {
+  op: string;
+  target?: unknown;
+  text?: string;
+  style?: unknown;
+  range?: unknown;
+  attributes?: unknown;
 }
 
 export interface CreateBlankDocumentFileBody {
@@ -310,6 +321,16 @@ export async function getOfficeJob(
     signal,
   });
   return narrowJob(raw);
+}
+
+/** GET /api/v1/documents/{id}/office/jobs/{jobID}/output — read a completed
+ * staged engine output before the normal upload/commit coordinator claims it. */
+export async function downloadOfficeJobOutput(
+  documentId: string,
+  jobId: string,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  return requestBlob(`/api/v1/documents/${enc(documentId)}/office/jobs/${enc(jobId)}/output`, { signal });
 }
 
 /** POST /api/v1/documents/{id}/office/jobs/{jobID}/cancel. */

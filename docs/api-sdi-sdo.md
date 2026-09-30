@@ -86,6 +86,7 @@ Domain hiện có:
 | Workspace / members / invites | `dto/sdi/workspace.go` | `dto/sdo/workspace.go` |
 | Task / comments | `dto/sdi/task.go` | `dto/sdo/task.go` |
 | Meeting / notes / token | `dto/sdi/meeting.go` | `dto/sdo/meeting.go` |
+| Office engine jobs | `dto/sdi/office.go` | `dto/sdo/office.go` |
 
 Domain mới: tạo cặp `dto/sdi/{domain}.go` + `dto/sdo/{domain}.go`.
 Endpoint không body thì không cần SDI. SDO có thể dùng lại

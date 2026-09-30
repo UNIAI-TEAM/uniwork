@@ -56,6 +56,7 @@ func newHandlerStubEngine(t *testing.T) service.OfficeEngine {
 			"format": r.URL.Query().Get("format"),
 			"capabilities": []map[string]any{
 				{"operation": "open", "supported": true, "runtime": "internal_service", "evidence_level": "proven"},
+				{"operation": "edit", "supported": true, "runtime": "internal_service", "evidence_level": "proven"},
 				{"operation": "serialize", "supported": true, "runtime": "internal_service", "evidence_level": "proven"},
 				{"operation": "convert", "supported": false, "runtime": "none", "evidence_level": "pending", "reason": "Q7 blocker"},
 			},
@@ -201,6 +202,15 @@ func TestOfficeRoutesAuthority(t *testing.T) {
 			t.Fatalf("capability %s = %d %v", id, res.StatusCode, out)
 		}
 	}
+	// Edit uses the same service ACL gate; a non-member cannot probe whether
+	// this document is editable (or even whether it exists).
+	res, out := doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+docID+"/office/jobs", w.outsiderToken(t),
+		map[string]string{"Idempotency-Key": util.NewID()}, map[string]any{"operation": "edit", "edits": []map[string]any{{"op": "set_cell"}}})
+	if code, _ := errCodeClass(out); res.StatusCode != 404 && res.StatusCode != 403 {
+		t.Fatalf("outsider edit = %d %v", res.StatusCode, out)
+	} else if code != "not_found" && code != "forbidden" {
+		t.Fatalf("outsider edit code = %s", code)
+	}
 
 	// The capability answer names operations and the pinned engine id, and
 	// never an engine address or a storage key.
@@ -242,9 +252,35 @@ func TestOfficeJobRoutes(t *testing.T) {
 		t.Fatalf("stale base = %d %v", res.StatusCode, out)
 	}
 
+	// Edit accepts the format-specific operation list and keeps it inside the
+	// service-owned job path; the handler never writes a document directly.
+	res, raw := officeRaw(t, w.srv, "POST", "/api/v1/documents/"+docID+"/office/jobs", w.token,
+		[]byte(`{"operation":"edit","edits":[{"op":"set_cell","target":{"sheet":"Data","cell":"A1"},"attributes":{"value":7}}]}`),
+		map[string]string{"Idempotency-Key": util.NewID(), "Content-Type": "application/json"})
+	if res.StatusCode != 201 {
+		t.Fatalf("edit job = %d %s", res.StatusCode, raw)
+	}
+	var editJob struct {
+		JobID     string `json:"job_id"`
+		Operation string `json:"operation"`
+	}
+	if err := json.Unmarshal(raw, &editJob); err != nil || editJob.JobID == "" || editJob.Operation != "edit" {
+		t.Fatalf("edit job body = %s", raw)
+	}
+	if res, _ = officeRaw(t, w.srv, "POST", "/api/v1/documents/"+docID+"/office/jobs/"+editJob.JobID+"/cancel", w.token, nil, nil); res.StatusCode != 200 {
+		t.Fatalf("cancel edit job = %d", res.StatusCode)
+	}
+	// Edits are rejected on every other operation before the service starts a
+	// job, preventing an accidental payload from changing its fingerprint.
+	res, out = doJSONHeaders(t, w.srv, "POST", "/api/v1/documents/"+docID+"/office/jobs", w.token,
+		map[string]string{"Idempotency-Key": util.NewID()}, map[string]any{"operation": "serialize", "edits": []map[string]any{{"op": "set_cell"}}})
+	if code, _ := errCodeClass(out); res.StatusCode != 400 || code != "invalid_request" {
+		t.Fatalf("serialize edits = %d %v", res.StatusCode, out)
+	}
+
 	// A bound operation starts a job with an idempotency key; the answer is
 	// the job SDO (state accepted/running), never an engine address.
-	res, raw := officeRaw(t, w.srv, "POST", "/api/v1/documents/"+docID+"/office/jobs", w.token,
+	res, raw = officeRaw(t, w.srv, "POST", "/api/v1/documents/"+docID+"/office/jobs", w.token,
 		[]byte(`{"operation":"serialize"}`), map[string]string{"Idempotency-Key": util.NewID(), "Content-Type": "application/json"})
 	if res.StatusCode != 201 {
 		t.Fatalf("start job = %d %s", res.StatusCode, raw)

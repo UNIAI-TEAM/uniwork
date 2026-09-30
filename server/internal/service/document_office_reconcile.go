@@ -153,6 +153,13 @@ func (s *DocumentOfficeService) verifyOutput(ctx context.Context, row db.OfficeJ
 	case errors.As(err, &fe) && fe.Code == files.CodeNotReady && checksum != "":
 		// The engine says completed but the object is not there.
 		return s.settle(ctx, row, office.JobFailed, "object_missing", "output_not_written")
+	case errors.As(err, &fe) && fe.Code == files.CodeUploadCanceled:
+		// A provider-output session can be canceled concurrently with the
+		// engine's completed status.  Do not leak the FileService error as an
+		// unexplained HTTP 500 from a status poll: settle the job with the
+		// contract's retryable commit failure so the browser can surface a
+		// retryable Save outcome and a later intent can safely retry.
+		return s.settle(ctx, row, office.JobFailed, "commit_failed", "output_upload_canceled")
 	default:
 		return row, err
 	}

@@ -15,6 +15,7 @@ export type {
   XlsxRecalcController,
   XlsxSelection,
   XlsxSelectionPort,
+  XlsxSaveCoordinator,
   XlsxSnapshot,
   XlsxViewState,
 } from "./types";

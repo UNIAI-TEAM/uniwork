@@ -32,7 +32,7 @@ export interface BrowserOfficeDraftOptions<TSnapshot> {
 export interface BrowserOfficeDraftAdapter<TSnapshot> extends DraftAdapter<TSnapshot> {
   checkpointDurable(snapshot: StableSnapshot<TSnapshot>): Promise<void>;
   recoverDurable(): Promise<StableSnapshot<TSnapshot> | null>;
-  discardDurable(): Promise<boolean>;
+  discardDurable(generation?: number): Promise<boolean>;
   clearMemory(): Promise<void>;
   dispose(): Promise<void>;
   readonly draftStore: IndexedDbDraftStore;
@@ -111,18 +111,28 @@ export function createBrowserOfficeDraftAdapter<TSnapshot>(
   options: BrowserOfficeDraftOptions<TSnapshot>,
 ): BrowserOfficeDraftAdapter<TSnapshot> {
   const draftStore = options.draftStore ?? createDraftStore();
-  const keyProvider = options.keyProvider ?? createDraftKeyProvider({ port: { unwrap: async () => ({ status: "locked", code: "draft_recovery_locked" as const }) } });
+  const keyProvider = options.keyProvider ?? createDraftKeyProvider({});
   const session = toDraftSession(options.session);
   const identity = toDraftIdentity(options.identity);
   const draftId = options.draftId ?? options.identity.documentId;
   const liveAccess = options.liveAccess ?? "edit";
   const intents = new Map<string, OfficeSaveIntent<TSnapshot>>();
+  // Checkpoints and Save cleanup share one serialized lane. A checkpoint can
+  // be in flight when Save settles (the host checkpoint timer is independent
+  // of the coordinator); without ordering, the late checkpoint can recreate
+  // the draft that Save just deleted and show recovery again after reload.
+  let draftOperationTail: Promise<void> = Promise.resolve();
+  const enqueueDraftOperation = <T>(operation: () => Promise<T>): Promise<T> => {
+    const result = draftOperationTail.then(operation);
+    draftOperationTail = result.then(() => undefined, () => undefined);
+    return result;
+  };
   const lookupScope = (() => {
     const { base: _base, ...scope } = identity;
     return scope;
   })();
 
-  const checkpointDurable = async (snapshot: StableSnapshot<TSnapshot>) => {
+  const checkpointDurable = (snapshot: StableSnapshot<TSnapshot>) => enqueueDraftOperation(async () => {
     if (!Number.isSafeInteger(snapshot.generation) || snapshot.generation < 1) {
       throw new DraftRecoveryErrorClass("invalid_snapshot", "draft generation must be positive");
     }
@@ -138,7 +148,7 @@ export function createBrowserOfficeDraftAdapter<TSnapshot>(
         ciphertext: encrypted.ciphertext,
       },
     });
-  };
+  });
 
   const recoverDurable = async (): Promise<StableSnapshot<TSnapshot> | null> => {
     // Omit the base from lookup so the adapter can classify an older draft as
@@ -160,15 +170,19 @@ export function createBrowserOfficeDraftAdapter<TSnapshot>(
     return decodeSnapshot<TSnapshot>(decrypted);
   };
 
-  const discardDurable = async (): Promise<boolean> => {
+  const discardDurable = (generation?: number): Promise<boolean> => enqueueDraftOperation(async () => {
     // Keep the base out of the lookup so a changed-base draft can still be
     // explicitly discarded from the recovery conflict prompt.
     const records = await draftStore.list({ session, lookup: { ...lookupScope, draftId } });
     const target = [...records].sort((left, right) => right.generation - left.generation)[0];
     if (!target) return true;
+    // A confirmed Save only consumes the snapshot it serialized. If typing
+    // produced a newer checkpoint while that Save was in flight, retain it
+    // for recovery instead of deleting N+1 with N's cleanup.
+    if (generation !== undefined && target.generation !== generation) return false;
     await draftStore.deleteDurable({ session, draftId: target.draftId, generation: target.generation });
     return true;
-  };
+  });
 
   const clearMemory = async () => {
     intents.clear();
@@ -183,7 +197,7 @@ export function createBrowserOfficeDraftAdapter<TSnapshot>(
     checkpointDurable,
     recover: async () => recoverDurable(),
     recoverDurable,
-    discard: async () => { await discardDurable(); },
+    discard: async (_identity, generation) => { await discardDurable(generation); },
     discardDurable,
     persistIntent: async (intent) => { intents.set(intent.intentId, intent); },
     loadIntent: async (current) => [...intents.values()].find((intent) => intent.identity.documentId === current.documentId) ?? null,

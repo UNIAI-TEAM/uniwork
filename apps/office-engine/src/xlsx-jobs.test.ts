@@ -67,11 +67,15 @@ describe.skipIf(!existsSync(BUILT_GATEWAY) && !ENV_ASSETS)("xlsx jobs through th
     expect(done.body.state).toBe("completed");
     const probe = JSON.parse(h.target.uploads.at(-1)!.body.toString("utf8")) as {
       document_model: { sheetCount: number; sheetNames: string[]; formulaCellCount: number; preservedParts: string[] };
+      snapshot: { revision: number; sheets: { id: string; name: string; cells: Record<string, { value: unknown; formula?: string }> }[] };
     };
     expect(probe.document_model.sheetCount).toBe(2);
     expect(probe.document_model.sheetNames).toEqual(["Data", "PhuLuc"]);
     expect(probe.document_model.formulaCellCount).toBe(4);
     expect(probe.document_model.preservedParts.some((p) => /chart/.test(p))).toBe(true);
+    expect(probe.snapshot.sheets.map((sheet) => sheet.name)).toEqual(["Data", "PhuLuc"]);
+    const formulaCount = probe.snapshot.sheets.reduce((total, sheet) => total + Object.values(sheet.cells).filter((cell) => cell.formula !== undefined).length, 0);
+    expect(formulaCount).toBe(4);
   });
 
   it("serialize:xlsx passes committed bytes through with a preserved-parts warning", async () => {

@@ -46,6 +46,13 @@ export const BROWSER_SAFE_PACKAGES = new Set([
   "@uniwork/core/office",
   "@uniwork/core/api/endpoints/office",
   "@uniwork/core/office/save-coordinator",
+  "@uniwork/core/auth",
+  "@uniwork/core/api/endpoints/office",
+  // G3-05b: the XLSX adapter binds browser-safe HTTP document endpoints and
+  // the view component; these exports contain contracts/fetch wrappers only.
+  "@uniwork/core/api/endpoints/documents",
+  "@uniwork/core/api/endpoints/documents-versions",
+  "@uniwork/views/office/xlsx",
   "@uniwork/core/drafts/cleanup-registry",
   "@uniwork/core/types/document",
   "@uniwork/ui/components/ui/alert",
