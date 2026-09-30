@@ -46,6 +46,17 @@ describe("desktop protected drafts", () => {
     expect(conflict.status).toBe("conflict");
   });
 
+  it("fails closed on a lost key without replacing the confirmed ciphertext", async () => {
+    const keys = createFakeDraftKeyStore();
+    const store = createDesktopDraftStore({ rootDirectory: await root(), keyStore: keys });
+    const plaintext = new TextEncoder().encode("confirmed");
+    const first = await store.checkpointPlaintext({ session, identity, draftId: "lost-key", generation: 1, plaintext });
+    keys.clear();
+    await expect(store.checkpointPlaintext({ session, identity, draftId: "lost-key", generation: 2, plaintext: new TextEncoder().encode("replacement") })).rejects.toMatchObject({ code: "draft_recovery_locked" });
+    await expect(store.recoverPlaintext({ session, lookup: { ...identity, draftId: "lost-key" }, currentBase: identity.base, liveAccess: "edit" })).resolves.toMatchObject({ status: "locked", code: "draft_recovery_locked", metadata: { checksum: first.checksum } });
+    await expect(keys.get("missing-namespace")).resolves.toBeUndefined();
+  });
+
   it("serializes overlapping checkpoints so an older generation cannot win", async () => {
     const store = createDesktopDraftStore({ rootDirectory: await root(), keyStore: createFakeDraftKeyStore(), randomBytes: (size) => new Uint8Array(size).fill(9) });
     const older = store.checkpointPlaintext({ session, identity, draftId: "race", generation: 2, plaintext: new TextEncoder().encode("gen2") });

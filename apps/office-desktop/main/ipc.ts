@@ -73,8 +73,10 @@ async function runGuardedSave<T>(guard: OfficeSaveGuard | undefined, operation: 
 
 export interface DraftIpcOptions {
   readonly store: DesktopDraftStore;
-  readonly session: DraftSession;
-  readonly identity: DraftIdentity;
+  readonly session?: DraftSession;
+  readonly identity?: DraftIdentity;
+  /** Editor integration supplies a live pair once a document is opened. */
+  readonly context?: () => { readonly session: DraftSession; readonly identity: DraftIdentity } | undefined;
   /** The ACL is queried live for every recovery attempt; cached access is not
    * sufficient to unlock an account after logout or revocation. */
   readonly liveAccess?: () => Promise<"edit" | "none">;
@@ -84,10 +86,16 @@ export interface DraftIpcOptions {
 /** Checkpoint IPC binds account/deployment/document identity in main. The
  * renderer can provide only a draft id, generation and bytes. */
 export function createDraftIpcHandlers(options: DraftIpcOptions) {
+  const context = (): { readonly session: DraftSession; readonly identity: DraftIdentity } => {
+    const resolved = options.context?.() ?? (options.session && options.identity ? { session: options.session, identity: options.identity } : undefined);
+    if (!resolved) throw new DraftIpcError("token_expired");
+    return resolved;
+  };
   return {
     "desktop:draft-checkpoint": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { draftId: string; generation: number; dataBase64: string }>) => {
       try {
-        const metadata = await options.store.checkpointPlaintext({ session: options.session, identity: options.identity, draftId: request.draftId, generation: request.generation, plaintext: decodeBytes(request.dataBase64) });
+        const current = context();
+        const metadata = await options.store.checkpointPlaintext({ session: current.session, identity: current.identity, draftId: request.draftId, generation: request.generation, plaintext: decodeBytes(request.dataBase64) });
         return { stored: true, generation: metadata.generation };
       } catch (error) {
         throw new DraftIpcError(error instanceof DraftRecoveryError ? error.code : "storage_unavailable");
@@ -95,23 +103,25 @@ export function createDraftIpcHandlers(options: DraftIpcOptions) {
     },
     "desktop:draft-list": async (_request: Extract<import("../shared/ipc").DesktopIpcRequest, { sessionGeneration: string }>) => {
       try {
-        const drafts = await options.store.list({ session: options.session, lookup: {
-          deploymentId: options.identity.deploymentId,
-          accountId: options.identity.accountId,
-          organizationId: options.identity.organizationId,
-          workspaceId: options.identity.workspaceId,
-          documentId: options.identity.documentId,
+        const current = context();
+        const drafts = await options.store.list({ session: current.session, lookup: {
+          deploymentId: current.identity.deploymentId,
+          accountId: current.identity.accountId,
+          organizationId: current.identity.organizationId,
+          workspaceId: current.identity.workspaceId,
+          documentId: current.identity.documentId,
         } });
         return { drafts };
       } catch (error) { throw new DraftIpcError(error instanceof DraftRecoveryError ? error.code : "storage_unavailable"); }
     },
     "desktop:draft-recover": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { draftId: string; currentBase: { revision: string; version: string } }>) => {
       try {
+        const current = context();
         const currentBase = options.currentBase ?? request.currentBase;
         const liveAccess = await (options.liveAccess?.() ?? Promise.resolve<"edit" | "none">("none"));
         const result = await options.store.recoverPlaintext({
-          session: options.session,
-          lookup: { deploymentId: options.identity.deploymentId, accountId: options.identity.accountId, organizationId: options.identity.organizationId, workspaceId: options.identity.workspaceId, documentId: options.identity.documentId, draftId: request.draftId },
+          session: current.session,
+          lookup: { deploymentId: current.identity.deploymentId, accountId: current.identity.accountId, organizationId: current.identity.organizationId, workspaceId: current.identity.workspaceId, documentId: current.identity.documentId, draftId: request.draftId },
           currentBase,
           liveAccess,
         });
@@ -120,7 +130,8 @@ export function createDraftIpcHandlers(options: DraftIpcOptions) {
     },
     "desktop:draft-discard": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { draftId: string; generation: number }>) => {
       try {
-        await options.store.deleteDurable({ session: options.session, draftId: request.draftId, generation: request.generation });
+        const current = context();
+        await options.store.deleteDurable({ session: current.session, draftId: request.draftId, generation: request.generation });
         return { discarded: true };
       } catch (error) { throw new DraftIpcError(error instanceof DraftRecoveryError ? error.code : "storage_unavailable"); }
     },

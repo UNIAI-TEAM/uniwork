@@ -1,7 +1,7 @@
 # Desktop local files and protected drafts (G4-04a/04b)
 
-> **Status:** in progress — 04a unit/contract slice. OS credential adapters,
-> live ACL recovery and crash/system evidence remain 04b work.
+> **Status:** 04a/04b implementation complete. Packaged OS/system evidence is
+> recorded separately; a missing macOS runner remains explicitly not run.
 
 ## Handle model
 
@@ -49,9 +49,11 @@ plaintext and no raw key.
 store. The real G4-D2 adapters are Windows DPAPI plus a restricted-ACL key file
 and macOS Keychain; the proposed implementation library is Electron's
 `safeStorage` for DPAPI/Keychain wrapping, with `node:fs/promises` plus the OS
-ACL tooling for the Windows key-file permissions. This slice supplies only the
-port and an in-memory test fake; the library choice remains subject to the
-04b packaged-system review. A missing key, bad tag, checksum mismatch or corrupt envelope is a typed
+ACL tooling for the Windows key-file permissions. The production adapter wraps
+the key with Electron `safeStorage`, persists only the wrapped key in a
+channel- and namespace-isolated file, and applies a
+restricted ACL (Windows `icacls`, mode `0600` elsewhere). A missing key, bad
+tag, checksum mismatch or corrupt envelope is a typed
 `draft_recovery_locked` outcome and never creates an empty replacement.
 
 The store implements the shared `DraftRecoveryAdapter`: metadata-only list,

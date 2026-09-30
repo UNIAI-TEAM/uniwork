@@ -64,7 +64,10 @@ export function createDesktopHost(options: DesktopHostOptions) {
   const allowedExternalHosts = options.allowedExternalHosts ?? [];
   const openSystemBrowser = options.openSystemBrowser ?? (() => undefined);
   installNavigationGuards(options.window.webContents, allowedExternalHosts, openSystemBrowser);
-  options.window.on?.("closed", () => options.localFiles?.registry.revokeSession());
+  options.window.on?.("closed", () => {
+    options.localFiles?.registry.revokeSession();
+    options.drafts?.store.clearMemory();
+  });
   options.window.setUserDataDirectory(options.userDataDirectory ?? DESKTOP_IDENTITY.userDataNamespace);
   const handlers = {
     ...options.handlers,

@@ -1,7 +1,7 @@
 // Electron is supplied by electron-builder at runtime and intentionally stays
 // a devDependency; this is the only privileged entry module that imports it.
 // eslint-disable-next-line import-x/no-extraneous-dependencies
-import { app, BrowserWindow, ipcMain, net, protocol, safeStorage, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, net, protocol, safeStorage, shell } from "electron";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -15,6 +15,9 @@ import { createSystemBrowserLauncher } from "./main/auth/browser";
 import { NativeLoginManager } from "./main/auth/manager";
 import { createHttpAuthTransport } from "./main/transport/auth-transport";
 import { createSafeStorageDraftKeyStore } from "./main/drafts/keystore";
+import { createDesktopDraftStore } from "./main/drafts/store";
+import { FileHandleRegistry } from "./main/files/registry";
+import { createOfficeSaveGuard } from "../../packages/core/office/save-guard";
 
 const DIST_MAIN_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 const RENDERER_DIRECTORY = resolve(DIST_MAIN_DIRECTORY, "../renderer");
@@ -106,6 +109,9 @@ async function startElectronHost(): Promise<void> {
     keyNamespace: DESKTOP_IDENTITY.keyNamespace,
     safeStorage,
   });
+  const draftStore = createDesktopDraftStore({ rootDirectory: join(app.getPath("userData"), "drafts"), keyStore: draftKeyStore });
+  const saveGuard = createOfficeSaveGuard();
+  const fileRegistry = new FileHandleRegistry({ sessionId: SESSION_GENERATION });
   let publishSessionMetadata: (metadata: unknown) => void = () => undefined;
   const authManager = deploymentProfile ? new NativeLoginManager({
     clientId: deploymentProfile.clientId,
@@ -157,6 +163,19 @@ async function startElectronHost(): Promise<void> {
     deploymentProfile,
     userDataDirectory: app.getPath("userData"),
     draftKeyStore,
+    drafts: { store: draftStore, context: () => undefined },
+    localFiles: {
+      registry: fileRegistry,
+      saveGuard,
+      pickOpen: async () => {
+        const result = await dialog.showOpenDialog(window, { properties: ["openFile"] });
+        return result.canceled ? undefined : result.filePaths[0];
+      },
+      pickSaveAs: async () => {
+        const result = await dialog.showSaveDialog(window);
+        return result.canceled ? undefined : result.filePath;
+      },
+    },
   });
 
   for (const channel of DESKTOP_IPC_CHANNELS) {

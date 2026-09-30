@@ -64,7 +64,13 @@ export function assertRecoveryActionAllowed(result: RecoveryResult, _action: Rec
   }
 }
 
-/** Convenience recovery wrapper that keeps the identity/session pair in main. */
+/**
+ * Convenience metadata recovery wrapper that keeps the identity/session pair
+ * in main. `DraftRecoveryAdapter.recover` deliberately returns ciphertext;
+ * callers that need editor bytes must use the desktop store's
+ * `recoverPlaintext`, which is where key-loss is converted to the typed
+ * `draft_recovery_locked` state. This helper never grants export permission.
+ */
 export async function recoverDraft(options: {
   readonly adapter: DraftRecoveryAdapter;
   readonly session: DraftSession;

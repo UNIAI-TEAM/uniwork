@@ -3,6 +3,7 @@ import { createAuthIpcHandlers, createDraftIpcHandlers, createFileIpcHandlers, c
 import { NativeLoginManager } from "./auth/manager";
 import { LocalFileError, type FileHandleRegistry } from "./files/registry";
 import type { DesktopDraftStore } from "./drafts/store";
+import { createOfficeSaveGuard } from "../../../packages/core/office/save-guard";
 
 const context = { senderId: 7, frameId: 0, origin: "uniwork-office-app://app", expectedSenderId: 7, expectedFrameId: 0, expectedOrigin: "uniwork-office-app://app", sessionGeneration: "session_1234", allowedExternalHosts: ["docs.uniwork.com"] };
 const valid = { sessionGeneration: "session_1234", operation: "capability", handle: "handle:1", args: {} } as const;
@@ -32,6 +33,20 @@ describe("desktop IPC allowlist", () => {
     await expect(handlers["desktop:file-save"]({ sessionGeneration: "session_1234", handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", dataBase64: "b2s=" })).rejects.toMatchObject({ code: "external_modification" });
     const dispatcher = createIpcDispatcher({ "desktop:file-save": async () => ({ opened: true, path: "C:\\secret.txt" }) }, context);
     await expect(dispatcher("desktop:file-save", { sessionGeneration: "session_1234", handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", dataBase64: "b2s=" })).rejects.toThrow(IpcValidationError);
+  });
+  it("shares one non-queueing guard across local Save calls and releases it on failure", async () => {
+    const guard = createOfficeSaveGuard();
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => { release = resolve; });
+    const metadata = { handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", name: "x.txt", byteLength: 1, modifiedAtMs: 1, checksum: `sha256:${"a".repeat(64)}` };
+    const registry = { save: async () => { await pending; return metadata; } } as unknown as FileHandleRegistry;
+    const handlers = createFileIpcHandlers({ registry, saveGuard: guard });
+    const first = handlers["desktop:file-save"]({ sessionGeneration: "session_1234", handle: metadata.handle, dataBase64: "b2s=" });
+    expect(guard.busy).toBe(true);
+    await expect(handlers["desktop:file-save"]({ sessionGeneration: "session_1234", handle: metadata.handle, dataBase64: "b2s=" })).rejects.toMatchObject({ code: "saving" });
+    release();
+    await expect(first).resolves.toEqual({ opened: true, metadata });
+    expect(guard.busy).toBe(false);
   });
 
   it("binds draft checkpoint identity in main and does not expose draft errors", async () => {

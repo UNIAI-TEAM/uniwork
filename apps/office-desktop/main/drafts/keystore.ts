@@ -14,7 +14,7 @@ export interface DraftSafeStorage {
   decryptString(value: Uint8Array): string;
 }
 
-export type DraftKeyStoreErrorCode = "locked" | "missing" | "corrupt" | "unavailable";
+export type DraftKeyStoreErrorCode = "locked" | "corrupt" | "unavailable";
 
 export class DraftKeyStoreError extends Error {
   readonly code: DraftKeyStoreErrorCode;
@@ -68,7 +68,7 @@ export interface DraftKeyStoreOptions {
 export function createSafeStorageDraftKeyStore(options: DraftKeyStoreOptions) {
   const fileSystem = options.fileSystem ?? nodeFileSystem;
   const random = options.randomBytes ?? randomBytes;
-  const root = join(options.userDataDirectory, "draft-keys", options.channel, safeSegment(options.keyNamespace));
+  const root = join(options.userDataDirectory, "draft-keys", safeSegment(options.channel), safeSegment(options.keyNamespace));
   const fileFor = (namespace: string) => join(root, `${safeSegment(namespace)}.key`);
   const restrictFile = options.restrictFile ?? (async (path: string) => {
     await fileSystem.chmod(path, 0o600);
@@ -109,7 +109,7 @@ export function createSafeStorageDraftKeyStore(options: DraftKeyStoreOptions) {
   async function write(namespace: string, key: Uint8Array): Promise<void> {
     const path = fileFor(namespace);
     const directory = dirname(path);
-    const temporary = `${path}.${process.pid}.${Date.now().toString(36)}.tmp`;
+    const temporary = `${path}.${process.pid}.${Date.now().toString(36)}.${Buffer.from(random(12)).toString("hex")}.tmp`;
     await fileSystem.mkdir(directory, { recursive: true, mode: 0o700 });
     await fileSystem.chmod(directory, 0o700);
     let handle: { sync(): Promise<void>; close(): Promise<void> } | undefined;
@@ -121,7 +121,20 @@ export function createSafeStorageDraftKeyStore(options: DraftKeyStoreOptions) {
       await handle.sync();
       await handle.close();
       handle = undefined;
-      await fileSystem.rename(temporary, path);
+      try {
+        await fileSystem.rename(temporary, path);
+      } catch (error) {
+        // Another process may have created this namespace after our initial
+        // read. Preserve that winner and let getOrCreate read it back instead
+        // of replacing it or reporting a spurious store failure.
+        try {
+          await fileSystem.readFile(path);
+          await fileSystem.rm(temporary, { force: true });
+          return;
+        } catch {
+          throw error;
+        }
+      }
       await restrictFile(path);
     } catch (error) {
       if (handle) await handle.close().catch(() => undefined);

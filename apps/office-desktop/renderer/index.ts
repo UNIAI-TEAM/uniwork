@@ -61,7 +61,7 @@ function renderSignedIn(root: RendererRoot, documentLike: RendererDocument, meta
     session: metadata,
     registry: createShellButtonRegistry(documentLike, root, onLogout),
   });
-  if (recovery) renderDesktopRecoveryState(root, recovery);
+  renderDesktopRecoveryState(root, recovery ?? "none");
 }
 
 export async function mountDesktopRenderer(documentLike: RendererDocument, bridge: RendererBridge | undefined = typeof window !== "undefined" ? window.uniworkOffice : undefined): Promise<void> {
