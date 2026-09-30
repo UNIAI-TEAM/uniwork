@@ -255,7 +255,7 @@ describe("mountHtmlPreview", () => {
     const initial = {
       ...MANIFEST,
       entries: [{ ...MANIFEST.entries[0], asset_id: "asset-old" }],
-    } as AssetManifest;
+    } as unknown as AssetManifest;
     const proxy: PreviewAssetProxy = {
       async open(request) {
         opened.push(request);
