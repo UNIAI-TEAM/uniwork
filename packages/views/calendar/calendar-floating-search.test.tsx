@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import type { CalendarEvent } from "@uniwork/core/calendar/types";
 import { CalendarFloatingSearch } from "./calendar-floating-search";
@@ -51,6 +51,18 @@ function renderSearch() {
 }
 
 describe("CalendarFloatingSearch", () => {
+  // "Sắp tới" counts from today's midnight, so the fixtures above (a meeting on
+  // the 29th, a task due the 30th) only stay upcoming on a pinned clock; on the
+  // real one this test went red on 2026-09-30.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-28T12:00:00Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("mở panel hướng lên từ dock thu gọn và đưa focus vào ô tìm kiếm", () => {
     renderSearch();
 
