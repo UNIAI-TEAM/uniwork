@@ -11,6 +11,10 @@ func setRequired(t *testing.T) {
 	t.Setenv("JWT_SECRET", "s")
 	t.Setenv("PORT", "")
 	t.Setenv("TRUSTED_PROXIES", "")
+	t.Setenv("PREVIEW_ORIGIN", "http://localhost:3001")
+	t.Setenv("PREVIEW_CAPABILITY_SECRET", "preview-test-secret-that-is-at-least-32-chars")
+	t.Setenv("PREVIEW_ASSET_TTL", "10m")
+	t.Setenv("PREVIEW_ASSET_MAX_BYTES", "10485760")
 	// make check exports the app's .env; pin everything Load reads so a local
 	// value (API_PUBLIC_URL on another port, a dev code) cannot leak in.
 	for _, k := range []string{"APP_ENV", "DEV_VERIFICATION_CODE", "API_PUBLIC_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "SMTP_HOST", "SMTP_PORT", "MAIL_FROM"} {
@@ -47,6 +51,29 @@ func TestLoadRejectsRelativeFrontendOrigin(t *testing.T) {
 	t.Setenv("FRONTEND_ORIGIN", "app.example.com")
 	if _, err := Load(); err == nil {
 		t.Fatal("expected an error for an origin without a scheme")
+	}
+}
+
+func TestLoadRejectsMissingOrInvalidPreviewConfig(t *testing.T) {
+	cases := []struct {
+		name string
+		set  func(*testing.T)
+	}{
+		{"missing origin", func(t *testing.T) { t.Setenv("PREVIEW_ORIGIN", "") }},
+		{"same origin", func(t *testing.T) { t.Setenv("PREVIEW_ORIGIN", "http://localhost:3000") }},
+		{"wrong scheme", func(t *testing.T) { t.Setenv("PREVIEW_ORIGIN", "ftp://preview.example") }},
+		{"missing secret", func(t *testing.T) { t.Setenv("PREVIEW_CAPABILITY_SECRET", "") }},
+		{"invalid ttl", func(t *testing.T) { t.Setenv("PREVIEW_ASSET_TTL", "nonsense") }},
+		{"invalid max bytes", func(t *testing.T) { t.Setenv("PREVIEW_ASSET_MAX_BYTES", "0") }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setRequired(t)
+			tc.set(t)
+			if _, err := Load(); err == nil {
+				t.Fatal("expected preview configuration to fail closed")
+			}
+		})
 	}
 }
 

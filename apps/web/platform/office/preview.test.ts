@@ -105,6 +105,7 @@ describe("preview sandbox and policy", () => {
 
   it.each([
     ["the app origin", APP],
+    ["the app origin with a trailing slash", APP + "/"],
     ["plain http", "http://assets.example"],
     ["a path", PROXY_ORIGIN + "/s/1"],
     ["garbage", "not a url"],
@@ -247,6 +248,43 @@ describe("mountHtmlPreview", () => {
     expect(fake.opened).toHaveLength(2);
     session.dispose();
     expect(fake.revoked()).toBe(2);
+  });
+
+  it("uses the updated manifest ids when reopening a scope", async () => {
+    const opened: PreviewAssetScopeRequest[] = [];
+    const initial = {
+      ...MANIFEST,
+      entries: [{ ...MANIFEST.entries[0], asset_id: "asset-old" }],
+    } as unknown as AssetManifest;
+    const proxy: PreviewAssetProxy = {
+      async open(request) {
+        opened.push(request);
+        return {
+          origin: PROXY_ORIGIN,
+          expires_at: Date.now() + 60_000,
+          urlFor: (key) => PROXY_ORIGIN + "/" + encodeURIComponent(key),
+          revoke() {},
+        };
+      },
+    };
+    const container = document.createElement("div");
+    const session = await mountHtmlPreview({
+      container,
+      title: "X",
+      text: "<p>old</p>",
+      manifest: initial,
+      scope: { document_id: "D1", job_id: "J1" },
+      proxy,
+      appOrigin: APP,
+    });
+    const next = {
+      ...initial,
+      entries: [...initial.entries, { ...MANIFEST.entries[1], asset_id: "asset-new" }],
+    } as AssetManifest;
+    await session.update("<img src=\"js/app.js\">", next);
+    expect(opened[0]?.asset_ids).toEqual({ "img/a b.png": "asset-old" });
+    expect(opened[1]?.asset_ids).toEqual({ "img/a b.png": "asset-old", "js/app.js": "asset-new" });
+    session.dispose();
   });
 
   it("refuses a reopened scope on another origin and keeps the old grant", async () => {

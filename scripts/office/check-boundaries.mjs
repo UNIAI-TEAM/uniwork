@@ -44,6 +44,7 @@ export const BROWSER_SAFE_PACKAGES = new Set([
   "react",
   "react-i18next",
   "@uniwork/core/office",
+  "@uniwork/core/api/endpoints/office",
   "@uniwork/core/office/save-coordinator",
   "@uniwork/core/drafts/cleanup-registry",
   "@uniwork/core/types/document",
