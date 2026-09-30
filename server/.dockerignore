@@ -1,0 +1,23 @@
+# Build context for server/Dockerfile (context = server/). Files the binaries
+# never read are kept out so a test-only change does not produce a new image
+# digest and roll out uniwork-be for nothing.
+# Keep every //go:embed source: internal/mail/templates, migrations/*.sql,
+# internal/service/reserved_slugs.json.
+
+**/*_test.go
+**/testdata
+coverage.floor
+*.out
+sqlc.yaml
+
+# Local builds, caches and upload storage
+bin
+data
+internal/handler/data
+.go-cache
+.go-tmp
+*.exe
+
+# Secrets and local env
+**/.env
+**/.env.*

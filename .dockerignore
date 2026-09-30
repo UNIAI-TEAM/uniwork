@@ -1,0 +1,64 @@
+# Build context for apps/web/Dockerfile (context = repo root, `COPY . .`).
+# Anything here that changes between checkouts busts that layer and forces a
+# full `pnpm install` + `next build`, so the FE image gets a new digest and
+# rolls out even when no FE code changed.
+#
+# Keep: apps/, packages/, e2e/ (pnpm workspace members — `--frozen-lockfile`
+# needs every importer in pnpm-lock.yaml) and scripts/ (apps/web/vitest.config.ts
+# imports it, and `next build` typechecks every .ts under apps/web).
+
+# VCS and CI output
+.git
+.gitattributes
+.gitignore
+.gitleaks.toml
+.gitleaksignore
+.githooks
+.github
+target
+
+# Installed deps and build output
+**/node_modules
+**/.next
+**/.turbo
+**/dist
+**/*.tsbuildinfo
+**/coverage
+**/test-results
+**/playwright-report
+.pnpm-store
+package-lock.json
+
+# Not part of the FE image
+server
+docs
+deploy
+ci
+data
+lab
+runbooks
+Makefile
+GATE_LEVEL
+knip.json
+docker-compose*.yml
+egress.yaml
+livekit*.yaml*
+*.md
+
+# Secrets and local env
+**/.env
+**/.env.*
+*.local
+
+# Editor, agent and OS noise
+.agents
+.claude
+.codex
+.codegraph
+.cursor
+.idea
+.vscode
+.superpowers
+.impeccable
+.worktrees
+**/.DS_Store
