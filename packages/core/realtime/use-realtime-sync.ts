@@ -173,6 +173,8 @@ function keysFor(
       if (payload.meeting_id) {
         push(meetingKeys.activity(payload.meeting_id));
         push(meetingKeys.detail(payload.meeting_id));
+        // The quorum lives on the meeting; the roll shows whether it is met.
+        push(meetingKeys.attendance(payload.meeting_id));
       }
       pushCalendar();
       break;
@@ -186,6 +188,8 @@ function keysFor(
         push(meetingKeys.invitations(payload.meeting_id));
         push(meetingKeys.activity(payload.meeting_id));
         push(meetingKeys.detail(payload.meeting_id));
+        // A roster change moves someone onto or off the roll.
+        push(meetingKeys.attendance(payload.meeting_id));
       }
       pushCalendar();
       break;
@@ -219,6 +223,7 @@ function keysFor(
         push(meetingKeys.joinRequests(payload.meeting_id));
         push(meetingKeys.participants(payload.meeting_id));
         push(meetingKeys.activity(payload.meeting_id));
+        push(meetingKeys.attendance(payload.meeting_id));
       }
       break;
     }

@@ -15,7 +15,10 @@ vi.mock("./use-meeting-signals", () => ({
   useMeetingSignals: () => ({ hands: [] }),
   useRequestMute: () => vi.fn(),
 }));
-vi.mock("./meeting-room-avatars", () => ({ useRoomAvatarOf: () => () => undefined }));
+vi.mock("./meeting-room-avatars", () => ({
+  useRoomAvatarOf: () => () => undefined,
+  useUserAvatarOf: () => () => undefined,
+}));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 const me: User = {
@@ -57,7 +60,11 @@ beforeEach(() => {
         ],
       });
     }
-    if (p.endsWith("/join-requests")) return Promise.resolve({ join_requests: [] });
+    if (p.endsWith("/join-requests")) {
+      return Promise.resolve({
+        join_requests: [{ id: "jr1", meeting_id: "m1", display_name_snapshot: "Khách muộn", status: "PENDING" }],
+      });
+    }
     return Promise.resolve({});
   });
 });
@@ -70,6 +77,8 @@ describe("MeetingRoomPeopleTab", () => {
     fireEvent.click(roll);
     expect(roll).toHaveAttribute("aria-pressed", "true");
     expect(await screen.findByRole("button", { name: "Chốt điểm danh" })).toBeInTheDocument();
+    // Latecomers knock while the roll is being taken; they must stay in view.
+    expect(screen.getByText("Khách muộn")).toBeInTheDocument();
   });
 
   it("offers no roll to a guest", async () => {

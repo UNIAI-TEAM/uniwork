@@ -102,6 +102,7 @@ export function useUpdateMeeting(workspaceId: string, meetingId: string) {
       void qc.invalidateQueries({ queryKey: meetingKeys.list(workspaceId) });
       void qc.invalidateQueries({ queryKey: meetingKeys.detail(meetingId) });
       void qc.invalidateQueries({ queryKey: meetingKeys.activity(meetingId) });
+      void qc.invalidateQueries({ queryKey: meetingKeys.attendance(meetingId) });
     },
   });
 }
@@ -214,6 +215,7 @@ export function useApproveJoinRequest(meetingId: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: meetingKeys.joinRequests(meetingId) });
       void qc.invalidateQueries({ queryKey: meetingKeys.participants(meetingId) });
+      void qc.invalidateQueries({ queryKey: meetingKeys.attendance(meetingId) });
     },
   });
 }
@@ -253,6 +255,7 @@ export function useInviteParticipant(meetingId: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: meetingKeys.participants(meetingId) });
       void qc.invalidateQueries({ queryKey: meetingKeys.invitations(meetingId) });
+      void qc.invalidateQueries({ queryKey: meetingKeys.attendance(meetingId) });
     },
   });
 }
@@ -261,7 +264,10 @@ export function useRemoveParticipant(meetingId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (participantId: string) => meetings.removeParticipant(meetingId, participantId),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: meetingKeys.participants(meetingId) }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: meetingKeys.participants(meetingId) });
+      void qc.invalidateQueries({ queryKey: meetingKeys.attendance(meetingId) });
+    },
   });
 }
 

@@ -846,6 +846,13 @@ describe("useRealtimeSync › meeting attendance", () => {
     { type: "attendance.finalized", extra: [activity] },
     { type: "attendance.reopened", extra: [activity] },
     { type: "participant.updated", extra: [participants] },
+    // A roster change moves someone onto or off the roll.
+    { type: "participant.invited", extra: [participants] },
+    { type: "participant.removed", extra: [participants] },
+    { type: "invitation.responded", extra: [participants] },
+    { type: "join_request.approved", extra: [participants] },
+    // The quorum lives on the meeting.
+    { type: "meeting.updated", extra: [] as string[] },
   ])("refreshes the roll on $type", ({ type, extra }) => {
     vi.useFakeTimers();
     const { invalidate, client } = setup();

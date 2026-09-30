@@ -115,6 +115,8 @@ export function MeetingRoomPeopleTab({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {/* Above the view switch: latecomers knock while the roll is being taken. */}
+      {canHost && meetingId ? <MeetingJoinRequestsSection meetingId={meetingId} /> : null}
       {isClerk ? (
         <div
           role="group"
@@ -142,10 +144,6 @@ export function MeetingRoomPeopleTab({
         </div>
       ) : (
         <>
-          {canHost && meetingId ? (
-            <MeetingJoinRequestsSection meetingId={meetingId} />
-          ) : null}
-
           {canHost && meetingId && workspaceId && !guestMode ? (
             <Button
               type="button"
