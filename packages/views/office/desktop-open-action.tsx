@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { MonitorUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { OfficeSaveCoordinatorLike } from "./office-shell";
@@ -101,7 +101,7 @@ export function DesktopOpenAction({
     setCoordinatorState(saveCoordinator.getState());
     return saveCoordinator.subscribe(setCoordinatorState);
   }, [saveCoordinator]);
-  useEffect(() => setResolvedInstallers(installerURLs), [installerURLs.dev, installerURLs.beta, installerURLs.stable]);
+  useEffect(() => setResolvedInstallers(installerURLs), [installerURLs]);
 
   const openInstallPrompt = async (reason: "not-installed" | "expired" | "error") => {
     setInstallReason(reason);
@@ -166,7 +166,7 @@ export function DesktopOpenAction({
     else setError(t("version_unavailable"));
   };
 
-  const installProps = useMemo(() => ({ open: installOpen, channel, installers: resolvedInstallers, onOpenChange: setInstallOpen, onOpenAgain: () => { setInstallOpen(false); if (canOpenSaved) void startHandoff(savedVersion); }, reason: installReason }), [canOpenSaved, channel, installOpen, installReason, resolvedInstallers, savedVersion]);
+  const installProps = { open: installOpen, channel, installers: resolvedInstallers, onOpenChange: setInstallOpen, onOpenAgain: () => { setInstallOpen(false); if (canOpenSaved) void startHandoff(savedVersion); }, reason: installReason };
 
   return (
     <>

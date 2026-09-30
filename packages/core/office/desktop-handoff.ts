@@ -1,7 +1,9 @@
-import type { OfficeLaunchSessionResponse } from "../api/endpoints/office-launch";
-
 export type OfficeChannel = "dev" | "beta" | "stable";
 export type OfficeLaunchOutcome = "hidden" | "launched" | "not-installed" | "expired" | "error";
+export interface OfficeLaunchSessionLike {
+  launch_ticket: string;
+  launch_url?: string;
+}
 
 export function officeScheme(channel: OfficeChannel): "uniwork-office-dev" | "uniwork-office" {
   return channel === "dev" ? "uniwork-office-dev" : "uniwork-office";
@@ -18,7 +20,7 @@ export function buildOfficeDeepLink(ticket: string, channel: OfficeChannel = "st
   return `${officeScheme(channel)}://open?ticket=${encodeURIComponent(ticket)}`;
 }
 
-export function safeOfficeDeepLink(session: Pick<OfficeLaunchSessionResponse, "launch_ticket" | "launch_url">, channel: OfficeChannel): string {
+export function safeOfficeDeepLink(session: OfficeLaunchSessionLike, channel: OfficeChannel): string {
   const expected = buildOfficeDeepLink(session.launch_ticket, channel);
   return session.launch_url === expected ? session.launch_url : expected;
 }

@@ -40,7 +40,8 @@ export interface PublicConfig {
   flags: Record<string, boolean>;
   rum_sample_rate: number;
   work_management_capabilities: Record<string, CapabilityState>;
-  office_installer_urls: { dev: string; beta: string; stable: string };
+  /** Older config consumers may omit this optional rollout field. */
+  office_installer_urls?: { dev: string; beta: string; stable: string };
 }
 
 const EMPTY: PublicConfig = {
@@ -51,9 +52,9 @@ const EMPTY: PublicConfig = {
 export async function getPublicConfig(organizationId?: string): Promise<PublicConfig> {
   const qs = organizationId ? `?organization_id=${encodeURIComponent(organizationId)}` : "";
   const raw = await request(`/api/v1/config${qs}`, { skipRefresh: true });
-  const parsed = parseWithFallback<z.infer<typeof ConfigSchema> | null>(raw, ConfigSchema, null, { endpoint: "GET /api/v1/config" });
+  const parsed = parseWithFallback<PublicConfig | null>(raw, ConfigSchema, null, { endpoint: "GET /api/v1/config" });
   if (!parsed) return EMPTY;
-  const installer = parsed.office_installer_urls ?? {};
+  const installer = parsed.office_installer_urls ?? { dev: "", beta: "", stable: "" };
   return {
     flags: parsed.flags,
     rum_sample_rate: parsed.rum_sample_rate,

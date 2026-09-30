@@ -224,7 +224,7 @@ export function OfficeEditorHost<TSnapshot = unknown>({
             saveCoordinator={activeSession.coordinator}
             channel={officeChannel}
             installerURLs={installerURLs}
-            loadInstallerURLs={async () => (await getPublicConfig(document.organization_id)).office_installer_urls}
+            loadInstallerURLs={async () => (await getPublicConfig(document.organization_id)).office_installer_urls ?? { dev: "", beta: "", stable: "" }}
             launch={launchOfficeDeepLink}
           />
         ) : null}
