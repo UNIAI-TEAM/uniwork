@@ -66,9 +66,14 @@ export class NativeLoginManager {
       await this.options.browser.open(response.authorizationUrl);
       if (generation !== this.generation) throw new Error("login scope changed");
     } catch {
-      this.attempts.cancel(attempt.attemptId);
-      this.setMetadata({ status: "signed-out" });
-      this.options.logger?.({ event: "auth_browser_start_failed", attemptId: attempt.attemptId });
+      // A deployment/account switch can cancel this request while the start
+      // endpoint or browser is still in flight.  Its late failure must not
+      // overwrite the state of the new generation.
+      if (generation === this.generation) {
+        this.attempts.cancel(attempt.attemptId);
+        this.setMetadata({ status: "signed-out" });
+        this.options.logger?.({ event: "auth_browser_start_failed", attemptId: attempt.attemptId });
+      }
       throw new Error("Unable to open the system browser");
     }
     return { status: "pending", attemptId: attempt.attemptId, expiresAt: attempt.expiresAt };
@@ -107,6 +112,7 @@ export class NativeLoginManager {
       this.setMetadata({ status: "signed-in", accountId: session.accountId, deploymentId: session.deploymentId });
       return { ok: true, metadata: this.metadata };
     } catch (error) {
+      if (generation !== this.generation) return { ok: false, reason: "no_attempt" };
       this.setMetadata({ status: "signed-out" });
       if (error instanceof AuthTransportError && (error.code === "device_revoked" || error.code === "refresh_reused")) {
         this.setMetadata({ status: "login-required" });
@@ -145,6 +151,10 @@ export class NativeLoginManager {
         await this.options.credentials.save(toCredentialSession(next));
         this.setMetadata({ status: "signed-in", accountId: next.accountId, deploymentId: next.deploymentId });
       } catch (error) {
+        // The scope may have changed while the refresh request was pending.
+        // Do not clear the new account's credentials or replace its metadata
+        // with the old request's failure state.
+        if (generation !== this.generation) return this.metadata;
         await this.clearCredentials();
         if (error instanceof AuthTransportError && error.code === "device_revoked") this.setMetadata({ status: "login-required" });
         else if (error instanceof AuthTransportError && error.code === "refresh_reused") this.setMetadata({ status: "login-required" });
@@ -153,19 +163,31 @@ export class NativeLoginManager {
       }
       return this.metadata;
     };
-    this.refreshInFlight = run().finally(() => { this.refreshInFlight = undefined; });
-    return this.refreshInFlight;
+    const runPromise = run();
+    const tracked = runPromise.finally(() => {
+      // An account switch can start a replacement refresh before this old
+      // promise settles; only the owner may clear the in-flight slot.
+      if (this.refreshInFlight === tracked) this.refreshInFlight = undefined;
+    });
+    this.refreshInFlight = tracked;
+    return tracked;
   }
 
   async logout(scope: "device" | "family" = "device"): Promise<LoginSessionMetadata> {
     let current: CredentialSession | undefined;
     try { current = await this.options.credentials.get(); } catch { current = undefined; }
     try {
-      if (current && this.options.transport.logout) await this.options.transport.logout({ deviceSessionId: current.deviceSessionId, deploymentId: this.options.deploymentId, scope }, current.accessToken);
-    } finally {
-      await this.clearCredentials();
-      this.setMetadata({ status: "signed-out" });
+      if (current && this.options.transport.logout) {
+        await this.options.transport.logout({ deviceSessionId: current.deviceSessionId, deploymentId: this.options.deploymentId, scope }, current.accessToken);
+      }
+    } catch (error) {
+      // A timeout/network failure does not prove that the server revoked the
+      // device. Keep the usable pair so a retry can complete logout. The
+      // server-confirmed unauthorized case is terminal and must sign out.
+      if (!(error instanceof AuthTransportError) || error.code !== "unauthorized") throw error;
     }
+    await this.clearCredentials();
+    this.setMetadata({ status: "signed-out" });
     return this.metadata;
   }
 

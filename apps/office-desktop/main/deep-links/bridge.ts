@@ -136,6 +136,11 @@ export type DeepLinkSystem = Readonly<{
 
 export type DeepLinkRegistration = Readonly<{ primary: boolean; dispose(): void }>;
 
+function authCallbackFromArgv(argv: readonly unknown[]): string | undefined {
+  const callbacks = Object.values(DESKTOP_IDENTITY_MANIFEST.channelProfiles).map((profile) => profile.authCallback);
+  return argv.find((value): value is string => typeof value === "string" && callbacks.some((callback) => value.startsWith(callback)));
+}
+
 /** Register the protocol only in the process that owns the lock. Electron's
  * second-instance and open-url callbacks feed the same bridge object as cold
  * argv, so there is one parser/exchange namespace. */
@@ -147,6 +152,11 @@ export function registerDeepLinkSystem(system: DeepLinkSystem, bridge: LaunchBri
   system.registerProtocolClient(DESKTOP_IDENTITY.userScheme);
   const second = (eventOrArgv: unknown, maybeArgv?: readonly unknown[]) => {
     const argv = Array.isArray(maybeArgv) ? maybeArgv : Array.isArray(eventOrArgv) ? eventOrArgv : [];
+    const authUrl = authCallbackFromArgv(argv);
+    if (authCallback && authUrl) {
+      void authCallback(authUrl);
+      return;
+    }
     void bridge.handleSecondInstance(argv);
   };
   const open = (event: { preventDefault(): void }, url: string) => {

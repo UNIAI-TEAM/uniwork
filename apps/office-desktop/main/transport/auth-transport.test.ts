@@ -3,7 +3,7 @@ import { LoginAttemptStore } from "../auth/attempt-store";
 import { NativeLoginManager } from "../auth/manager";
 import { createInMemoryCredentialStore } from "../auth/credentials";
 import { createSystemBrowserLauncher } from "../auth/browser";
-import { createAllowlistedAuthTransport } from "./auth-transport";
+import { AuthTransportError, createAllowlistedAuthTransport } from "./auth-transport";
 import { FAKE_AUTH_CODE_TTL_MS, FakeAuthServer } from "./fake-auth-server";
 
 const binding = { clientId: "com.uniwork.office", deploymentId: "production-eu", redirectUri: "uniwork-office://auth/callback" };
@@ -90,6 +90,19 @@ describe("desktop auth transport and fake contract", () => {
     await manager.handleCallback(server.issueCallback({ state: current.state, clientId: binding.clientId, deploymentId: binding.deploymentId, redirectUri: binding.redirectUri }));
     await expect(manager.logout()).resolves.toEqual({ status: "signed-out" });
     expect(await credentials.get()).toBeUndefined();
+  });
+
+  it("retains credentials when logout cannot reach the server", async () => {
+    const server = new FakeAuthServer({ now: () => 1_000 });
+    const base = createAllowlistedAuthTransport({ origin: "https://api.example.test", ...binding, server });
+    const credentials = createInMemoryCredentialStore();
+    const manager = new NativeLoginManager({ ...binding, browser: createSystemBrowserLauncher(() => undefined), transport: { ...base, logout: async () => { throw new AuthTransportError("network"); } }, credentials, now: () => 1_000 });
+    await manager.startLogin();
+    const current = manager.getCurrentAttempt(1_000)!;
+    await manager.handleCallback(server.issueCallback({ state: current.state, clientId: binding.clientId, deploymentId: binding.deploymentId, redirectUri: binding.redirectUri }));
+    await expect(manager.logout()).rejects.toMatchObject({ code: "network" });
+    expect(await credentials.get()).toBeDefined();
+    expect(manager.getMetadata().status).toBe("signed-in");
   });
 
   it("bumps scope generation, clears old scope hooks, and drops a late exchange", async () => {

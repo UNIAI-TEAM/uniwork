@@ -1,4 +1,4 @@
-import { DESKTOP_IDENTITY } from "../shared/identity";
+import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST } from "../shared/identity";
 import { createAuthIpcHandlers, createDiagnosticsIpcHandler, createDraftIpcHandlers, createFileIpcHandlers, createIpcDispatcher, type DraftIpcOptions, type FileIpcOptions, type IpcHandler, type DesktopIpcChannel, type IpcSenderContext } from "./ipc";
 import { installNavigationGuards, openApprovedExternal } from "./navigation";
 import { createDesktopRuntimeAdapters } from "./adapters";
@@ -39,6 +39,11 @@ export type DesktopHostOptions = {
   /** Resolved by the Electron entry; never read from process.env here. */
   userDataDirectory?: string;
 };
+
+function authCallbackFromArgv(argv: readonly unknown[]): string | undefined {
+  const callbacks = Object.values(DESKTOP_IDENTITY_MANIFEST.channelProfiles).map((profile) => profile.authCallback);
+  return argv.find((value): value is string => typeof value === "string" && callbacks.some((callback) => value.startsWith(callback)));
+}
 
 /** Bootstrap shared engine/runtime/navigation/transport through host seams.
  * G4-03 (credentials), G4-04 (local I/O), and G4-05 (deep links) attach their
@@ -86,7 +91,15 @@ export function createDesktopHost(options: DesktopHostOptions) {
     async start(): Promise<void> {
       if (deepLinkRegistration && !deepLinkRegistration.primary) return;
       await options.window.loadURL(`${DESKTOP_IDENTITY.origin}/index.html`);
-      if (deepLinkRegistration?.primary && options.deepLinks) await options.deepLinks.bridge.handleColdStart(process.argv);
+      if (deepLinkRegistration?.primary && options.deepLinks) {
+        // A callback can be the first argv in a freshly launched process. It
+        // belongs to the login manager, while document tickets belong to the
+        // launch bridge; routing it here avoids treating auth state as a
+        // document ticket.
+        const authUrl = authCallbackFromArgv(process.argv);
+        if (authUrl && options.authManager) await options.authManager.handleCallback(authUrl);
+        else await options.deepLinks.bridge.handleColdStart(process.argv);
+      }
     },
   };
 }
