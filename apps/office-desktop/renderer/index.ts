@@ -21,6 +21,8 @@ type RendererDocument = {
 type RendererBridge = {
   call<C extends DesktopIpcChannel>(channel: C, payload: DesktopIpcRequest<C>): Promise<unknown>;
   onSessionChanged(listener: (metadata: DesktopSessionMetadata) => void): () => void;
+  /** Optional host-provided locale adapter; the shell has safe English copy. */
+  t?: (key: string) => string;
 };
 
 declare global {
@@ -56,12 +58,22 @@ function renderLogin(root: RendererRoot, documentLike: RendererDocument, state: 
 
 type SignedInMetadata = DesktopSessionMetadata & { status: "signed-in"; accountId: string; deploymentId: string };
 
-function renderSignedIn(root: RendererRoot, documentLike: RendererDocument, metadata: SignedInMetadata, onLogout: () => void, recovery?: DesktopRecoveryState): void {
+function renderSignedIn(root: RendererRoot, documentLike: RendererDocument, metadata: SignedInMetadata, onLogout: () => void, recovery?: DesktopRecoveryState, t?: (key: string) => string): void {
   renderDesktopShell(root, {
     session: metadata,
+    t,
     registry: createShellButtonRegistry(documentLike, root, onLogout),
   });
-  renderDesktopRecoveryState(root, recovery ?? "none");
+  const recoveryElement = documentLike.createElement?.("div");
+  if (recoveryElement && root.appendChild) {
+    recoveryElement.setAttribute("data-recovery-host", "true");
+    root.appendChild(recoveryElement);
+    renderDesktopRecoveryState(recoveryElement, recovery ?? "none", t);
+  } else {
+    // Minimal test/host adapters without child creation still receive a
+    // deterministic state, while real DOM hosts preserve shell controls.
+    renderDesktopRecoveryState(root, recovery ?? "none", t);
+  }
 }
 
 export async function mountDesktopRenderer(documentLike: RendererDocument, bridge: RendererBridge | undefined = typeof window !== "undefined" ? window.uniworkOffice : undefined): Promise<void> {
@@ -81,7 +93,7 @@ export async function mountDesktopRenderer(documentLike: RendererDocument, bridg
         void bridge.call("desktop:auth-logout", { sessionGeneration: SESSION_GENERATION, scope: "device" }).then((metadata) => {
           if (isSessionMetadata(metadata)) { currentMetadata = metadata; renderState(loginStateFromMetadata(metadata)); }
         }).catch(() => renderState("error"));
-      });
+      }, undefined, bridge.t);
       return;
     }
     renderLogin(root, documentLike, state, (action) => {

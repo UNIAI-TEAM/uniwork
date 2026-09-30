@@ -6979,7 +6979,12 @@
       "discard": "Discard draft",
       "working": "Working…",
       "write_failed": "The draft could not be updated.",
-      "updated": "Updated {{date}}"
+      "updated": "Updated {{date}}",
+      "available": "Draft ready to recover",
+      "conflict": "Draft belongs to another document version",
+      "blocked": "Draft recovery is blocked",
+      "locked": "Draft recovery is locked",
+      "unavailable": "Draft recovery is temporarily unavailable"
     },
     "tabs": "Office views",
     "editor": {

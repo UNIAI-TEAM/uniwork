@@ -1,7 +1,8 @@
 # Desktop local files and protected drafts (G4-04a/04b)
 
-> **Status:** 04a/04b implementation complete. Packaged OS/system evidence is
-> recorded separately; a missing macOS runner remains explicitly not run.
+> **Status:** 04a/04b host ports and blocked-state surface are implemented.
+> The editor-host recovery driver and packaged OS/system evidence are separate
+> stages; a missing macOS runner remains explicitly not run.
 
 ## Handle model
 
@@ -101,4 +102,8 @@ locked states have no export/copy/clipboard action. Close/logout/update use the
 same lifecycle coordinator: Save must return a confirmed receipt, keep draft
 must return a stored/unchanged checkpoint, discard is generation-bound, and
 stay leaves all bytes untouched. Packaged Q-DESKTOP-SYSTEM evidence is recorded
-per OS; a missing macOS runner is explicitly `not run`, never a pass.
+per OS; a missing macOS runner is explicitly `not run`, never a pass. The
+renderer exposes localized, non-exporting available/conflict/blocked/locked/
+unavailable states through its recovery element and status mapping. The editor
+host remains responsible for supplying the live document context and driving
+those states; the Electron bootstrap fails closed until it is attached.
