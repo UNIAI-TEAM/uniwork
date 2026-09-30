@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -43,6 +43,20 @@ describe("OS-backed credential store", () => {
       } });
       expect(() => failingStore.save({ ...session, accessToken: "new-access" })).toThrowError(CredentialStoreError);
       expect(store.get()).toEqual(original);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+  it("reports corrupt selectors and clears the active pair without touching other namespaces", async () => {
+    const root = temp();
+    try {
+      const store = createSecureCredentialStore({ userDataDirectory: root, channel: "dev", deploymentId: "deployment-a", safeStorage: fakeSafeStorage() });
+      await store.save(session);
+      const active = join(root, "credentials", "dev", "deployment-a", ".active");
+      writeFileSync(active, "missing-account", { mode: 0o600 });
+      const reloaded = createSecureCredentialStore({ userDataDirectory: root, channel: "dev", deploymentId: "deployment-a", safeStorage: fakeSafeStorage() });
+      expect(() => reloaded.get()).toThrowError(CredentialStoreError);
+      writeFileSync(active, "account-a", { mode: 0o600 });
+      await store.clear();
+      expect(store.get()).toBeUndefined();
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
 });

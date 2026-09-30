@@ -91,4 +91,24 @@ describe("desktop auth transport and fake contract", () => {
     await expect(manager.logout()).resolves.toEqual({ status: "signed-out" });
     expect(await credentials.get()).toBeUndefined();
   });
+
+  it("bumps scope generation, clears old scope hooks, and drops a late exchange", async () => {
+    let releaseExchange: (() => void) | undefined;
+    const exchangeReady = new Promise<void>((resolve) => { releaseExchange = resolve; });
+    const server = new FakeAuthServer({ now: () => 1_000 });
+    const base = createAllowlistedAuthTransport({ origin: "https://api.example.test", ...binding, server });
+    const exchange = async (request: Parameters<typeof base.exchange>[0]) => { await exchangeReady; return base.exchange(request); };
+    const events: string[] = [];
+    const manager = new NativeLoginManager({ ...binding, browser: createSystemBrowserLauncher(() => undefined), transport: { ...base, exchange }, credentials: createInMemoryCredentialStore(), now: () => 1_000, clearPlaintext: () => events.push("plaintext"), clearQueryCache: () => events.push("query"), onGenerationChange: () => events.push("generation") });
+    await manager.startLogin();
+    const current = manager.getCurrentAttempt(1_000)!;
+    const callback = manager.handleCallback(server.issueCallback({ state: current.state, clientId: binding.clientId, deploymentId: binding.deploymentId, redirectUri: binding.redirectUri }));
+    const before = manager.getGeneration();
+    await manager.switchScope({ accountId: "account-b", deploymentId: "deployment-b" });
+    expect(manager.getGeneration()).toBe(before + 1);
+    expect(events).toEqual(["plaintext", "query", "generation"]);
+    releaseExchange!();
+    await expect(callback).resolves.toEqual({ ok: false, reason: "no_attempt" });
+    expect(manager.getMetadata()).toEqual({ status: "signed-out" });
+  });
 });

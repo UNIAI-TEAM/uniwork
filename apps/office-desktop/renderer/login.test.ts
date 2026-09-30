@@ -6,7 +6,7 @@ function root() {
   return { node: { textContent: "", setAttribute: (name: string, value: string) => { attrs[name] = value; } }, attrs };
 }
 
-it.each(["signed-out", "pending", "error", "cancelled", "signed-in"] as const)("renders the %s state through t()", (state) => {
+it.each(["signed-out", "pending", "error", "cancelled", "signed-in", "locked", "login-required"] as const)("renders the %s state through t()", (state) => {
   const { node, attrs } = root();
   const t = vi.fn((key: string) => `translated:${key}`);
   renderLoginScreen(node, state, { t: t as never, registry: { button: vi.fn() } });
@@ -28,6 +28,8 @@ it("maps host metadata to a renderer state", () => {
   expect(loginStateFromMetadata({ status: "signed-out" })).toBe("signed-out");
   expect(loginStateFromMetadata({ status: "pending" })).toBe("pending");
   expect(loginStateFromMetadata({ status: "signed-in", accountId: "account-1", deploymentId: "production-eu" })).toBe("signed-in");
+  expect(loginStateFromMetadata({ status: "locked" })).toBe("locked");
+  expect(loginStateFromMetadata({ status: "login-required" })).toBe("login-required");
 });
 
 it("renders error and cancelled states when command ports fail or no attempt exists", async () => {
