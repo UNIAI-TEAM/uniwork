@@ -1,10 +1,12 @@
 "use client";
 
 import { FileWarning, FolderX, RotateCw, ShieldAlert, XCircle } from "lucide-react";
+import type { ComponentType } from "react";
 import { useTranslation } from "react-i18next";
 import { useDocument } from "@uniwork/core/documents/hooks";
 import { classifyDocumentError } from "@uniwork/core/documents/errors";
 import { useFlag } from "@uniwork/core/feature-flags";
+import type { Document } from "@uniwork/core/types/document";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { CollectionPageState } from "../layout/collection-page";
@@ -30,6 +32,7 @@ export interface DocumentDetailViewProps {
   ownerHref?: (ownerId: string) => string;
   /** Called when the caller should go back to the library. */
   onBackToList: () => void;
+  officeEditorHost?: ComponentType<{ wsId: string; document: Document; readonly: boolean }>;
 }
 
 /**
@@ -47,6 +50,7 @@ export function DocumentDetailView({
   documentHref,
   ownerHref,
   onBackToList,
+  officeEditorHost,
 }: DocumentDetailViewProps) {
   const { t } = useTranslation();
   const enabled = useFlag("documents", false);
@@ -142,6 +146,7 @@ export function DocumentDetailView({
           documentHref={documentHref}
           ownerHref={ownerHref}
           refetch={() => query.refetch()}
+          officeEditorHost={officeEditorHost}
           headerActions={
             <DocumentActionsMenu
               wsId={wsId}

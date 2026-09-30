@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ComponentType } from "react";
 import { Download, FileText, History, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ import {
   useDocumentVersions,
 } from "@uniwork/core/documents/hooks-versions";
 import type { Document, DocumentVersion } from "@uniwork/core/types/document";
+import { useFlag } from "@uniwork/core/feature-flags";
 import { createSafeId } from "@uniwork/core/utils";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
@@ -22,6 +23,9 @@ export interface DocumentFileViewProps {
   wsId: string;
   doc: Document;
   readonly: boolean;
+  /** Platform-only Office host injected by the web app. Views never import
+   * Next.js or a browser engine directly. */
+  officeEditorHost?: ComponentType<{ wsId: string; document: Document; readonly: boolean }>;
 }
 
 /** The version reason is a schema identifier; only its label is translated. */
@@ -76,7 +80,19 @@ function Fact({ label, value, mono }: { label: string; value: string; mono?: boo
  * cannot open anything is worse than saying the format is not editable here
  * yet.
  */
-export function DocumentFileView({ wsId, doc, readonly }: DocumentFileViewProps) {
+function officeFormat(doc: Document): string | null {
+  const filename = doc.file?.filename.toLowerCase() ?? "";
+  const mime = doc.file?.mime_type.toLowerCase() ?? "";
+  if (mime.includes("wordprocessingml.document") || filename.endsWith(".docx")) return "docx";
+  if (mime.includes("spreadsheetml.sheet") || filename.endsWith(".xlsx")) return "xlsx";
+  if (mime.includes("presentationml.presentation") || filename.endsWith(".pptx")) return "pptx";
+  if (mime === "application/pdf" || filename.endsWith(".pdf")) return "pdf";
+  if (mime === "text/markdown" || filename.endsWith(".md") || filename.endsWith(".markdown")) return "md";
+  if (mime === "text/html" || filename.endsWith(".html") || filename.endsWith(".htm")) return "html";
+  return null;
+}
+
+export function DocumentFileView({ wsId, doc, readonly, officeEditorHost: OfficeEditorHost }: DocumentFileViewProps) {
   const { t, i18n } = useTranslation();
   const file = doc.file;
   const versions = useDocumentVersions(wsId, doc.id);
@@ -86,6 +102,7 @@ export function DocumentFileView({ wsId, doc, readonly }: DocumentFileViewProps)
   const [dialogOpen, setDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
+  const officeEnabled = useFlag("office_engine", false);
   // One key per user intent: a retry of the same pick must replay the same
   // write, not mint a second version of one upload.
   const idempotencyKey = useRef<string | null>(null);
@@ -143,6 +160,10 @@ export function DocumentFileView({ wsId, doc, readonly }: DocumentFileViewProps)
         {t("documents.file.missing_file")}
       </Notice>
     );
+  }
+
+  if (officeEnabled && OfficeEditorHost && officeFormat(doc)) {
+    return <OfficeEditorHost wsId={wsId} document={doc} readonly={readonly} />;
   }
 
   const rows = versions.data?.pages.flatMap((page) => page.versions) ?? [];

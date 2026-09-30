@@ -10,6 +10,7 @@ vi.mock("../api/endpoints/auth", () => ({
 
 import * as auth from "../api/endpoints/auth";
 import { resetAuthStoreForTests, useAuthStore } from "../auth/store";
+import { registerOfficeDraftMemoryCleanup } from "../drafts/cleanup-registry";
 import { useCommentDraftStore } from "../tasks/stores/comment-draft-store";
 import type { User } from "../types/user";
 import { CoreProvider } from "./core-provider";
@@ -118,6 +119,22 @@ describe("CoreProvider", () => {
     // Null, not an empty persisted state: resetting memory writes through
     // `persist`, so storage must be cleared after the reset, not before it.
     expect(defaultStorage.getItem("uniwork_task_comment_drafts")).toBeNull();
+  });
+
+  it("clears Office decrypted memory on logout while durable state stays in the draft store", async () => {
+    const clearOfficeMemory = vi.fn();
+    const unregister = registerOfficeDraftMemoryCleanup(clearOfficeMemory);
+    useAuthStore.getState().setUser(user);
+    render(
+      <CoreProvider>
+        <div>app</div>
+      </CoreProvider>,
+    );
+
+    await useAuthStore.getState().logout();
+
+    expect(clearOfficeMemory).toHaveBeenCalledTimes(1);
+    unregister();
   });
 
   it("clears the query cache on logout even when callers use the auth store directly", async () => {

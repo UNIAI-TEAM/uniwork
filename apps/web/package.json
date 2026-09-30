@@ -36,6 +36,7 @@
     "@uniwork/eslint-config": "workspace:*",
     "@uniwork/tsconfig": "workspace:*",
     "@vitest/coverage-v8": "catalog:",
+    "esbuild": "catalog:",
     "eslint": "^9.32.0",
     "jsdom": "catalog:",
     "postcss": "catalog:",
