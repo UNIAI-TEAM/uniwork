@@ -190,6 +190,27 @@ function keysFor(
       pushCalendar();
       break;
     }
+    case "participant.updated": {
+      if (payload.meeting_id) {
+        push(meetingKeys.participants(payload.meeting_id));
+        push(meetingKeys.attendance(payload.meeting_id));
+      }
+      break;
+    }
+    case "attendance.marked":
+    case "attendance.updated": {
+      if (payload.meeting_id) push(meetingKeys.attendance(payload.meeting_id));
+      break;
+    }
+    case "attendance.finalized":
+    case "attendance.reopened": {
+      if (payload.meeting_id) {
+        push(meetingKeys.attendance(payload.meeting_id));
+        push(meetingKeys.activity(payload.meeting_id));
+        push(meetingKeys.detail(payload.meeting_id));
+      }
+      break;
+    }
     case "join_request.created":
     case "join_request.approved":
     case "join_request.rejected":

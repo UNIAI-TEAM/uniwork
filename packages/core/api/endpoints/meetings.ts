@@ -68,6 +68,8 @@ export interface UpdateMeetingBody {
   ends_at?: string;
   timezone?: string;
   allow_join_request?: boolean;
+  /** Minimum attendance 1–100; 0 clears it. */
+  quorum_percent?: number;
 }
 
 export interface MeetingListFilters {
