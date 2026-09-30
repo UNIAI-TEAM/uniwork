@@ -121,6 +121,7 @@ async function startElectronHost(): Promise<void> {
   // the dispatcher binds the handler to the top-level window only.
   const frameId = 0;
   const launchBridge = deploymentProfile && credentials ? createLaunchBridge({
+    clientId: deploymentProfile.clientId,
     trustedDeploymentId: deploymentProfile.deploymentId,
     exchange: createHttpExchangePort({ profile: deploymentProfile, credentials }),
     getSession: () => {
