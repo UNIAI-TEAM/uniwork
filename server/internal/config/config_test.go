@@ -11,6 +11,8 @@ func setRequired(t *testing.T) {
 	t.Setenv("JWT_SECRET", "s")
 	t.Setenv("PORT", "")
 	t.Setenv("TRUSTED_PROXIES", "")
+	// The preview cases compare against this origin; a worktree .env sets its own port.
+	t.Setenv("FRONTEND_ORIGIN", "http://localhost:3000")
 	t.Setenv("PREVIEW_ORIGIN", "http://localhost:3001")
 	t.Setenv("PREVIEW_CAPABILITY_SECRET", "preview-test-secret-that-is-at-least-32-chars")
 	t.Setenv("PREVIEW_ASSET_TTL", "10m")
