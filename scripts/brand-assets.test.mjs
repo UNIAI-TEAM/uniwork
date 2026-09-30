@@ -23,6 +23,33 @@ test("every raster asset was built from the SVG currently committed", () => {
   assert.deepEqual(stale, [], `run \`pnpm brand:build\`; stale:\n${stale.join("\n")}`);
 });
 
+// The link-preview cards are drawn by a template, not only from an SVG: edit
+// their copy or layout without re-running the build and the shipped cards
+// silently keep the old words.
+test("the link-preview cards were built from the template currently committed", () => {
+  const template = "scripts/brand/og-cards.mjs";
+  assert.equal(
+    lock.templates?.[template],
+    sha(read(template)),
+    `${template} changed; run \`BRAND_FONT_TTF=... pnpm brand:build\``,
+  );
+  const cards = Object.entries(lock.assets).filter(([, m]) => m.size === "1200x630").map(([a]) => a);
+  assert.equal(cards.length, 4, `expected the root, two invite and the shared-document cards, got ${cards}`);
+  // Every card is named by URL from the generated module; the root one's alt
+  // must also be the one the file convention serves on routes that set no image.
+  const generated = read("apps/web/platform/og-image.generated.ts");
+  for (const card of cards) {
+    const url = card === "apps/web/app/opengraph-image.png"
+      ? "/opengraph-image.png"
+      : card.replace("apps/web/public", "");
+    assert.ok(generated.includes(`"${url}?v=`), `${card} is not in og-image.generated.ts`);
+  }
+  assert.ok(
+    generated.includes(JSON.stringify(read("apps/web/app/opengraph-image.alt.txt"))),
+    "og-image.generated.ts and opengraph-image.alt.txt disagree; run the brand build",
+  );
+});
+
 test("every SVG source is recorded, and every recorded source exists", () => {
   const onDisk = fs
     .readdirSync(path.join(brand, "svg"))
@@ -90,7 +117,7 @@ test("every platform icon is opaque to its corners", () => {
 // Next wires these up by file convention. A rename is silent: no build error,
 // just a site that has no icon.
 test("the Next.js metadata files exist under app/", () => {
-  for (const f of ["icon.svg", "favicon.ico", "apple-icon.png", "opengraph-image.jpg",
+  for (const f of ["icon.svg", "favicon.ico", "apple-icon.png", "opengraph-image.png",
                    "opengraph-image.alt.txt", "manifest.ts"]) {
     assert.ok(fs.existsSync(path.join(root, "apps/web/app", f)), `apps/web/app/${f} is missing`);
   }

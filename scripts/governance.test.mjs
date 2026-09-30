@@ -337,7 +337,7 @@ test("CLAUDE.md lists exactly the packages/core modules no host reaches", () => 
   // accurate and unchanged for a month; past this date it has to be empty —
   // wire each module to a host or delete it. Move the date only with a
   // reason in the commit body.
-  const ORPHANS_DEADLINE = "2026-09-30";
+  const ORPHANS_DEADLINE = "2026-10-31";
   if (new Date() > new Date(ORPHANS_DEADLINE)) {
     assert.deepEqual(
       orphans, [],

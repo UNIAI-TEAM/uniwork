@@ -8,7 +8,7 @@ web
 
 ## Users
 
-Small-to-medium Vietnamese teams (10–1,000 people) running daily operations — tasks, projects, meetings, documents, communications. Team leads, PMs, operators, developers, HR/ops admins, in the workspace many hours a day. Web, tablet, mobile. UI in Vietnamese or English (full parity both; Myanmar/Khmer/Lao are roadmap-only, flag as beta).
+Small-to-medium teams anywhere (10–1,000 people) running daily operations — tasks, projects, meetings, documents, communications. Team leads, PMs, operators, developers, HR/ops admins, in the workspace many hours a day. Web, tablet, mobile. UniWork is a global product: English is the default language, Vietnamese ships at full parity, and Myanmar/Khmer/Lao are roadmap-only (flag as beta). No surface frames the product as built for one country's teams.
 
 ## Product Purpose
 
@@ -17,7 +17,7 @@ UniWork is an AI-native Work OS: humans and AI agents co-own tasks, co-attend me
 ## Positioning
 
 Agents are co-owners of the work, not a feature bolted onto it. Neighbouring
-products (Base.vn, Lark, Notion, Slack) attach AI as a button or a side panel
+products (ClickUp, Notion, Asana, Lark, Slack) attach AI as a button or a side panel
 next to work that remains entirely human-owned. UniWork's data model and
 permission model are built for an agent to own a task, attend a meeting and run
 a workflow as a peer — which is why every agent action carries visible
@@ -43,8 +43,11 @@ What exists and runs today:
   workspace and hands them a guide task.
 - Realtime through a WebSocket relay: events are `<entity>.<verb>` with id-only
   payloads that invalidate caches rather than carrying state.
-- Vietnamese and English at full parity. Myanmar, Khmer and Lao are roadmap
-  only and must be flagged beta wherever they appear.
+- English and Vietnamese at full parity. English is the default: a request
+  without a locale cookie renders English on web and server alike, so every
+  public surface (landing, link previews, email) meets a first-time visitor in
+  English. Myanmar, Khmer and Lao are roadmap only and must be flagged beta
+  wherever they appear.
 - Roadmap surfaces that do not run yet (Email Hub, Workflows, Documents, and
   the project views Timeline, Reports and Files) may appear in navigation and
   view tabs, but only locked and labelled "Sắp có" / "Coming soon": not
@@ -135,12 +138,14 @@ data to cite and none may be estimated.
 2. **The tool disappears into the work.** Success is a team coordinating people
    and agents without switching context — not time spent in UniWork, not
    features discovered.
-3. **Vietnamese is the first language, not a translation layer.** Copy is
-   written natively; parity with English is a floor, not the goal.
+3. **Every shipped language is first-class, not a translation layer.**
+   English is the default and the brand's voice worldwide; Vietnamese is
+   written natively, never translated word-by-word. Parity between them is a
+   floor, not the goal, and a language that cannot meet that bar ships as beta.
 4. **Legibility at a glance is the quality signal.** A person scanning a
    screen for two seconds should know what each thing is, what state it is in
    and what needs them; colour, density and grouping serve that, not taste.
 
 ## Accessibility & Inclusion
 
-WCAG AA (4.5:1 body text, 3:1 large text/UI components), verified in both modes. Full keyboard navigation for menus, dialogs, command palettes, task lists; focus indicators always visible. Errors inline and explicit, never color-only. Vietnamese + English copy parity; Vietnamese written natively, not translated word-by-word. Reduced-motion respected — all motion gates on `useReducedMotion` (sidebar is the reference pattern); motion 150–250ms, only to explain change, never decorative.
+WCAG AA (4.5:1 body text, 3:1 large text/UI components), verified in both modes. Full keyboard navigation for menus, dialogs, command palettes, task lists; focus indicators always visible. Errors inline and explicit, never color-only. English + Vietnamese copy parity; each written natively, not translated word-by-word. Reduced-motion respected — all motion gates on `useReducedMotion` (sidebar is the reference pattern); motion 150–250ms, only to explain change, never decorative.

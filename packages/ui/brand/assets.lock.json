@@ -44,15 +44,40 @@
       "size": "16/32/48",
       "sha": "80611b266107ae89"
     },
-    "apps/web/app/opengraph-image.jpg": {
-      "source": "lockup-horizontal-mono.svg",
+    "apps/web/app/opengraph-image.png": {
+      "source": "lockup-horizontal.svg",
       "size": "1200x630",
-      "sha": "0b0ed0acce0c3968"
+      "sha": "d3c438c124653e83",
+      "template": "scripts/brand/og-cards.mjs",
+      "card": "root",
+      "html": "1896c38701a64db4"
     },
-    "apps/web/app/icon.svg": {
-      "source": "mark-compact.svg",
-      "size": "vector",
-      "sha": "80611b266107ae89"
+    "apps/web/public/brand/og/meeting-invite.png": {
+      "source": "lockup-horizontal.svg",
+      "size": "1200x630",
+      "sha": "d3c438c124653e83",
+      "template": "scripts/brand/og-cards.mjs",
+      "card": "meetingInvite",
+      "html": "2f0f888b0005a2e1"
+    },
+    "apps/web/public/brand/og/workspace-invite.png": {
+      "source": "lockup-horizontal.svg",
+      "size": "1200x630",
+      "sha": "d3c438c124653e83",
+      "template": "scripts/brand/og-cards.mjs",
+      "card": "workspaceInvite",
+      "html": "24a581bd47b7a6cc"
+    },
+    "apps/web/public/brand/og/shared-document.png": {
+      "source": "lockup-horizontal.svg",
+      "size": "1200x630",
+      "sha": "d3c438c124653e83",
+      "template": "scripts/brand/og-cards.mjs",
+      "card": "sharedDocument",
+      "html": "3419801613f2bc5e"
     }
+  },
+  "templates": {
+    "scripts/brand/og-cards.mjs": "87a8ee752bf042e9"
   }
 }
