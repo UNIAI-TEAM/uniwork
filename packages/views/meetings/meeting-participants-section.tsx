@@ -11,6 +11,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@uniwork/ui/components/ui/dropdown-menu";
 import { ConfirmDialog } from "../common/form-dialog";
@@ -18,7 +19,9 @@ import { PanelCard } from "../common/panel-card";
 import { moduleTone } from "../layout/module-tones";
 import { toastApiError } from "../toast-api-error";
 import { AddMeetingParticipantsDialog } from "./add-meeting-participants-dialog";
+import { MeetingDutyMenuItems, dutyRole } from "./meeting-duty-menu-items";
 import { MeetingPersonAvatar } from "./meeting-person";
+import { MeetingRoleChip } from "./meeting-role-chip";
 import { MeetingRowsSkeleton, MeetingSectionError } from "./meeting-section-state";
 import { MeetingRsvpBadge } from "./meeting-status-badge";
 import { TransferHostDialog } from "./transfer-host-dialog";
@@ -120,15 +123,18 @@ export function MeetingParticipantsSection({
                 ? t("meetings.guest")
                 : member?.email;
             const offerHost = canTakeHost(p);
+            const duty = dutyRole(p);
             return (
               <li key={p.id} className="group flex min-w-0 items-center gap-3 px-4 py-2.5">
                 <MeetingPersonAvatar name={name} avatarUrl={member?.avatar_url} size="default" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-body font-medium text-foreground">{name}</div>
-                  {subtitle ? (
-                    <div className="flex min-w-0 items-center gap-1 text-caption text-muted-foreground">
+                  {/* The duty chip rides the second line so the name keeps the width. */}
+                  {subtitle || duty ? (
+                    <div className="flex min-w-0 items-center gap-1.5 text-caption text-muted-foreground">
+                      {duty ? <MeetingRoleChip role={duty} className="shrink-0" /> : null}
                       {isHost ? <Crown aria-hidden className="size-3 shrink-0" /> : null}
-                      <span className="truncate">{subtitle}</span>
+                      {subtitle ? <span className="truncate">{subtitle}</span> : null}
                     </div>
                   ) : null}
                 </div>
@@ -156,6 +162,8 @@ export function MeetingParticipantsSection({
                             {t("meetings.transferHostMenu")}
                           </DropdownMenuItem>
                         ) : null}
+                        <MeetingDutyMenuItems meetingId={meeting.id} participant={p} name={name} separatorBefore={offerHost} />
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem
                           variant="destructive"
                           disabled={remove.isPending && remove.variables === p.id}

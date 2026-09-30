@@ -286,6 +286,12 @@ type Routes struct {
 	RespondInvitation              http.HandlerFunc
 	RemoveParticipant              http.HandlerFunc
 	SetParticipantPublish          http.HandlerFunc
+	PatchParticipant               http.HandlerFunc
+	GetAttendance                  http.HandlerFunc
+	MarkAttendance                 http.HandlerFunc
+	ClearAttendanceMark            http.HandlerFunc
+	FinalizeAttendance             http.HandlerFunc
+	ReopenAttendance               http.HandlerFunc
 	ListInviteLinks                http.HandlerFunc
 	CreateInviteLink               http.HandlerFunc
 	RevokeInviteLink               http.HandlerFunc

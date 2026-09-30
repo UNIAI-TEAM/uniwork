@@ -486,11 +486,12 @@ func (q *Queries) CreateMeetingInvitation(ctx context.Context, arg CreateMeeting
 const createMeetingParticipant = `-- name: CreateMeetingParticipant :one
 INSERT INTO meeting_participants (
   id, meeting_id, principal_type, user_id, guest_id, display_name_snapshot, email_snapshot,
-  role, status, source_type, source_id, added_by
+  role, status, source_type, source_id, added_by, standing
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7, $8, 'ACTIVE', $9, $10, $11
+  $1, $2, $3, $4, $5, $6, $7, $8, 'ACTIVE', $9, $10, $11,
+  CASE WHEN $3 = 'GUEST' THEN 'OBSERVER' ELSE 'MEMBER' END
 )
-RETURNING id, meeting_id, principal_type, user_id, guest_id, display_name_snapshot, email_snapshot, role, status, source_type, source_id, added_by, added_at, removed_by, removed_at, remove_reason
+RETURNING id, meeting_id, principal_type, user_id, guest_id, display_name_snapshot, email_snapshot, role, status, source_type, source_id, added_by, added_at, removed_by, removed_at, remove_reason, standing, is_secretary
 `
 
 type CreateMeetingParticipantParams struct {
@@ -507,6 +508,8 @@ type CreateMeetingParticipantParams struct {
 	AddedBy             string      `json:"added_by"`
 }
 
+// A guest starts as an observer on every path that creates one (invite link,
+// join approval); a user starts as a member.
 func (q *Queries) CreateMeetingParticipant(ctx context.Context, arg CreateMeetingParticipantParams) (MeetingParticipant, error) {
 	row := q.db.QueryRow(ctx, createMeetingParticipant,
 		arg.ID,
@@ -539,6 +542,8 @@ func (q *Queries) CreateMeetingParticipant(ctx context.Context, arg CreateMeetin
 		&i.RemovedBy,
 		&i.RemovedAt,
 		&i.RemoveReason,
+		&i.Standing,
+		&i.IsSecretary,
 	)
 	return i, err
 }
@@ -625,7 +630,7 @@ func (q *Queries) ExpirePendingJoinRequests(ctx context.Context, meetingID strin
 }
 
 const getActiveGuestParticipant = `-- name: GetActiveGuestParticipant :one
-SELECT id, meeting_id, principal_type, user_id, guest_id, display_name_snapshot, email_snapshot, role, status, source_type, source_id, added_by, added_at, removed_by, removed_at, remove_reason FROM meeting_participants
+SELECT id, meeting_id, principal_type, user_id, guest_id, display_name_snapshot, email_snapshot, role, status, source_type, source_id, added_by, added_at, removed_by, removed_at, remove_reason, standing, is_secretary FROM meeting_participants
 WHERE meeting_id = $1 AND principal_type = 'GUEST' AND guest_id = $2 AND status = 'ACTIVE'
 `
 
@@ -654,12 +659,14 @@ func (q *Queries) GetActiveGuestParticipant(ctx context.Context, arg GetActiveGu
 		&i.RemovedBy,
 		&i.RemovedAt,
 		&i.RemoveReason,
+		&i.Standing,
+		&i.IsSecretary,
 	)
 	return i, err
 }
 
 const getActiveUserParticipant = `-- name: GetActiveUserParticipant :one
-SELECT id, meeting_id, principal_type, user_id, guest_id, display_name_snapshot, email_snapshot, role, status, source_type, source_id, added_by, added_at, removed_by, removed_at, remove_reason FROM meeting_participants
+SELECT id, meeting_id, principal_type, user_id, guest_id, display_name_snapshot, email_snapshot, role, status, source_type, source_id, added_by, added_at, removed_by, removed_at, remove_reason, standing, is_secretary FROM meeting_participants
 WHERE meeting_id = $1 AND principal_type = 'USER' AND user_id = $2 AND status = 'ACTIVE'
 `
 
@@ -688,6 +695,8 @@ func (q *Queries) GetActiveUserParticipant(ctx context.Context, arg GetActiveUse
 		&i.RemovedBy,
 		&i.RemovedAt,
 		&i.RemoveReason,
+		&i.Standing,
+		&i.IsSecretary,
 	)
 	return i, err
 }
@@ -717,7 +726,7 @@ func (q *Queries) GetConferenceSession(ctx context.Context, id string) (MeetingC
 }
 
 const getGuestParticipantAnyStatus = `-- name: GetGuestParticipantAnyStatus :one
-SELECT id, meeting_id, principal_type, user_id, guest_id, display_name_snapshot, email_snapshot, role, status, source_type, source_id, added_by, added_at, removed_by, removed_at, remove_reason FROM meeting_participants
+SELECT id, meeting_id, principal_type, user_id, guest_id, display_name_snapshot, email_snapshot, role, status, source_type, source_id, added_by, added_at, removed_by, removed_at, remove_reason, standing, is_secretary FROM meeting_participants
 WHERE meeting_id = $1 AND principal_type = 'GUEST' AND guest_id = $2
 ORDER BY added_at DESC
 LIMIT 1
@@ -748,6 +757,8 @@ func (q *Queries) GetGuestParticipantAnyStatus(ctx context.Context, arg GetGuest
 		&i.RemovedBy,
 		&i.RemovedAt,
 		&i.RemoveReason,
+		&i.Standing,
+		&i.IsSecretary,
 	)
 	return i, err
 }
@@ -918,7 +929,7 @@ func (q *Queries) GetMeetingInvitation(ctx context.Context, id string) (MeetingI
 }
 
 const getMeetingParticipant = `-- name: GetMeetingParticipant :one
-SELECT id, meeting_id, principal_type, user_id, guest_id, display_name_snapshot, email_snapshot, role, status, source_type, source_id, added_by, added_at, removed_by, removed_at, remove_reason FROM meeting_participants WHERE id = $1
+SELECT id, meeting_id, principal_type, user_id, guest_id, display_name_snapshot, email_snapshot, role, status, source_type, source_id, added_by, added_at, removed_by, removed_at, remove_reason, standing, is_secretary FROM meeting_participants WHERE id = $1
 `
 
 func (q *Queries) GetMeetingParticipant(ctx context.Context, id string) (MeetingParticipant, error) {
@@ -941,6 +952,8 @@ func (q *Queries) GetMeetingParticipant(ctx context.Context, id string) (Meeting
 		&i.RemovedBy,
 		&i.RemovedAt,
 		&i.RemoveReason,
+		&i.Standing,
+		&i.IsSecretary,
 	)
 	return i, err
 }
@@ -1057,7 +1070,7 @@ func (q *Queries) GetPendingJoinRequestForUser(ctx context.Context, arg GetPendi
 }
 
 const getUserParticipantAnyStatus = `-- name: GetUserParticipantAnyStatus :one
-SELECT id, meeting_id, principal_type, user_id, guest_id, display_name_snapshot, email_snapshot, role, status, source_type, source_id, added_by, added_at, removed_by, removed_at, remove_reason FROM meeting_participants
+SELECT id, meeting_id, principal_type, user_id, guest_id, display_name_snapshot, email_snapshot, role, status, source_type, source_id, added_by, added_at, removed_by, removed_at, remove_reason, standing, is_secretary FROM meeting_participants
 WHERE meeting_id = $1 AND principal_type = 'USER' AND user_id = $2
 ORDER BY added_at DESC
 LIMIT 1
@@ -1088,6 +1101,8 @@ func (q *Queries) GetUserParticipantAnyStatus(ctx context.Context, arg GetUserPa
 		&i.RemovedBy,
 		&i.RemovedAt,
 		&i.RemoveReason,
+		&i.Standing,
+		&i.IsSecretary,
 	)
 	return i, err
 }
@@ -1527,7 +1542,7 @@ func (q *Queries) ListMeetingInvitations(ctx context.Context, meetingID string) 
 }
 
 const listMeetingParticipants = `-- name: ListMeetingParticipants :many
-SELECT id, meeting_id, principal_type, user_id, guest_id, display_name_snapshot, email_snapshot, role, status, source_type, source_id, added_by, added_at, removed_by, removed_at, remove_reason FROM meeting_participants WHERE meeting_id = $1 ORDER BY added_at
+SELECT id, meeting_id, principal_type, user_id, guest_id, display_name_snapshot, email_snapshot, role, status, source_type, source_id, added_by, added_at, removed_by, removed_at, remove_reason, standing, is_secretary FROM meeting_participants WHERE meeting_id = $1 ORDER BY added_at
 `
 
 func (q *Queries) ListMeetingParticipants(ctx context.Context, meetingID string) ([]MeetingParticipant, error) {
@@ -1556,6 +1571,8 @@ func (q *Queries) ListMeetingParticipants(ctx context.Context, meetingID string)
 			&i.RemovedBy,
 			&i.RemovedAt,
 			&i.RemoveReason,
+			&i.Standing,
+			&i.IsSecretary,
 		); err != nil {
 			return nil, err
 		}
@@ -1893,7 +1910,7 @@ UPDATE meeting_participants SET
   removed_at = now(),
   remove_reason = $3
 WHERE id = $1 AND status = 'ACTIVE'
-RETURNING id, meeting_id, principal_type, user_id, guest_id, display_name_snapshot, email_snapshot, role, status, source_type, source_id, added_by, added_at, removed_by, removed_at, remove_reason
+RETURNING id, meeting_id, principal_type, user_id, guest_id, display_name_snapshot, email_snapshot, role, status, source_type, source_id, added_by, added_at, removed_by, removed_at, remove_reason, standing, is_secretary
 `
 
 type RemoveMeetingParticipantParams struct {
@@ -1922,6 +1939,8 @@ func (q *Queries) RemoveMeetingParticipant(ctx context.Context, arg RemoveMeetin
 		&i.RemovedBy,
 		&i.RemovedAt,
 		&i.RemoveReason,
+		&i.Standing,
+		&i.IsSecretary,
 	)
 	return i, err
 }

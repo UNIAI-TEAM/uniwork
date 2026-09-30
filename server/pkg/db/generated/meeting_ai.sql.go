@@ -339,7 +339,7 @@ func (q *Queries) ListMeetingRecordings(ctx context.Context, meetingID string) (
 }
 
 const listOverdueInProgressMeetings = `-- name: ListOverdueInProgressMeetings :many
-SELECT m.id, m.workspace_id, m.title, m.description, m.starts_at, m.ends_at, m.room_name, m.created_by, m.created_at, m.updated_at, m.status, m.meeting_type, m.host_user_id, m.actual_start_at, m.actual_end_at, m.timezone, m.allow_join_request, m.preferred_provider_key, m.version, m.updated_by, m.canceled_by, m.canceled_at, m.cancel_reason, m.project_id, m.created_by_kind FROM meetings m
+SELECT m.id, m.workspace_id, m.title, m.description, m.starts_at, m.ends_at, m.room_name, m.created_by, m.created_at, m.updated_at, m.status, m.meeting_type, m.host_user_id, m.actual_start_at, m.actual_end_at, m.timezone, m.allow_join_request, m.preferred_provider_key, m.version, m.updated_by, m.canceled_by, m.canceled_at, m.cancel_reason, m.project_id, m.created_by_kind, m.quorum_percent, m.attendance_finalized_at, m.attendance_finalized_by FROM meetings m
 WHERE m.status = 'IN_PROGRESS'
   AND m.ends_at < $1
   AND (
@@ -395,6 +395,9 @@ func (q *Queries) ListOverdueInProgressMeetings(ctx context.Context, arg ListOve
 			&i.CancelReason,
 			&i.ProjectID,
 			&i.CreatedByKind,
+			&i.QuorumPercent,
+			&i.AttendanceFinalizedAt,
+			&i.AttendanceFinalizedBy,
 		); err != nil {
 			return nil, err
 		}

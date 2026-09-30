@@ -76,6 +76,11 @@ UPDATE meetings SET
   timezone    = COALESCE(sqlc.narg('timezone'), timezone),
   allow_join_request = COALESCE(sqlc.narg('allow_join_request'), allow_join_request),
   project_id  = COALESCE(sqlc.narg('project_id'), project_id),
+  quorum_percent = CASE
+    WHEN sqlc.narg('quorum_percent')::smallint IS NULL THEN quorum_percent
+    WHEN sqlc.narg('quorum_percent')::smallint = 0 THEN NULL
+    ELSE sqlc.narg('quorum_percent')::smallint
+  END,
   updated_by  = sqlc.narg('updated_by'),
   updated_at  = now(),
   version     = version + 1

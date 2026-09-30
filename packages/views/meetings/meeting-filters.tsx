@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { MeetingStatistics } from "@uniwork/core/types/meeting";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
+import { MEETING_TOGGLE_CHIP } from "./meeting-toggle-chip";
 
 /**
  * Statuses a chip filters on, in the order a meeting lives them; "" is every
@@ -45,12 +46,6 @@ function countFor(stats: MeetingStatistics | null | undefined, value: string): n
       return undefined;
   }
 }
-
-// The inbox's category chip (notifications/inbox-toolbar.tsx): quiet at rest,
-// raised on the surface when pressed, 44px on a coarse pointer.
-const CHIP =
-  "h-8 shrink-0 gap-1.5 rounded-md border border-transparent px-2.5 text-label font-medium text-muted-foreground transition-colors duration-micro pointer-coarse:h-11 " +
-  "hover:bg-surface-hover hover:text-foreground aria-pressed:border-border aria-pressed:bg-surface aria-pressed:text-foreground aria-pressed:shadow-[var(--surface-shadow)]";
 
 export function MeetingFilters({
   status,
@@ -99,7 +94,7 @@ export function MeetingFilters({
         {MEETING_FILTERS.map((value) => {
           const count = showCounts ? countFor(stats, value) : undefined;
           return (
-            <ToggleGroupItem key={value || ALL} value={value || ALL} className={CHIP}>
+            <ToggleGroupItem key={value || ALL} value={value || ALL} className={MEETING_TOGGLE_CHIP}>
               {label(value)}
               {count ? (
                 <>

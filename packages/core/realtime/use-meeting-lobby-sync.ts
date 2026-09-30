@@ -28,6 +28,10 @@ export function useMeetingLobbySync(meetingId: string, enabled = true) {
     const offParticipantRemoved = client.on("participant.removed", (payload) => {
       invalidateIfMatch(payload, meetingKeys.participants(meetingId));
     });
+    // Guests see the secretary/observer chips change without a workspace socket.
+    const offParticipantUpdated = client.on("participant.updated", (payload) => {
+      invalidateIfMatch(payload, meetingKeys.participants(meetingId));
+    });
     // started/stopped drive the REC badge for guests, who have no workspace socket.
     const offRecording = (["recording.started", "recording.stopped", "recording.ready"] as const).map((event) =>
       client.on(event, (payload) => {
@@ -38,6 +42,7 @@ export function useMeetingLobbySync(meetingId: string, enabled = true) {
       offChat();
       offParticipantInvited();
       offParticipantRemoved();
+      offParticipantUpdated();
       for (const off of offRecording) off();
     };
   }, [enabled, lobby?.client, meetingId, qc]);

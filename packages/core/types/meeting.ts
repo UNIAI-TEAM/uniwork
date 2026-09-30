@@ -21,6 +21,8 @@ export const MeetingSchema = z.object({
   version: z.number().optional(),
   /** List rows only: a recording with a file exists, so the row can offer a rewatch. */
   has_playable_recording: z.boolean().optional(),
+  /** Minimum attendance (%); null or absent = none. */
+  quorum_percent: z.number().nullish(),
 });
 export type Meeting = z.infer<typeof MeetingSchema>;
 
@@ -58,6 +60,9 @@ export const ParticipantSchema = z.object({
   display_name_snapshot: z.string().optional(),
   role: z.string(),
   status: z.string(),
+  /** MEMBER votes and counts toward attendance; OBSERVER does neither. */
+  standing: z.string().optional(),
+  is_secretary: z.boolean().optional(),
 });
 export type MeetingParticipant = z.infer<typeof ParticipantSchema>;
 
@@ -184,3 +189,41 @@ export const MeetingCapabilitiesSchema = z.object({
   server_stt: z.boolean().optional(),
 });
 export type MeetingCapabilities = z.infer<typeof MeetingCapabilitiesSchema>;
+
+export type AttendanceStatus = "PRESENT" | "LATE" | "EXCUSED" | "ABSENT";
+export const ATTENDANCE_STATUSES: readonly AttendanceStatus[] = ["PRESENT", "LATE", "EXCUSED", "ABSENT"];
+
+export const AttendanceRowSchema = z.object({
+  participant_id: z.string(),
+  principal_type: z.string(),
+  user_id: z.string().optional(),
+  display_name: z.string(),
+  standing: z.string(),
+  is_secretary: z.boolean(),
+  status: z.string(),
+  /** AUTO | MANUAL | SUGGESTED (a suggestion not yet frozen by finalize). */
+  source: z.string(),
+  note: z.string().optional(),
+  first_joined_at: z.string().optional(),
+  last_left_at: z.string().optional(),
+  in_room: z.boolean().optional(),
+  present_seconds: z.number(),
+  session_count: z.number(),
+});
+export type MeetingAttendanceRow = z.infer<typeof AttendanceRowSchema>;
+
+export const MeetingAttendanceSchema = z.object({
+  finalized_at: z.string().optional(),
+  finalized_by: z.string().optional(),
+  quorum_percent: z.number().nullish(),
+  summary: z.object({
+    members: z.number(),
+    present: z.number(),
+    late: z.number(),
+    excused: z.number(),
+    absent: z.number(),
+    quorum_met: z.boolean().nullish(),
+  }),
+  rows: z.array(AttendanceRowSchema),
+});
+export type MeetingAttendance = z.infer<typeof MeetingAttendanceSchema>;

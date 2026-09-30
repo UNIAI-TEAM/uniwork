@@ -830,3 +830,38 @@ describe("useRealtimeSync › home summary", () => {
     expect(keysCalled(invalidate)).not.toContain(home);
   });
 });
+
+describe("useRealtimeSync › meeting attendance", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const attendance = JSON.stringify(["meeting-attendance", "m1"]);
+  const participants = JSON.stringify(["meeting-participants", "m1"]);
+  const activity = JSON.stringify(["meeting-activity", "m1"]);
+
+  it.each([
+    { type: "attendance.marked", extra: [] as string[] },
+    { type: "attendance.updated", extra: [] as string[] },
+    { type: "attendance.finalized", extra: [activity] },
+    { type: "attendance.reopened", extra: [activity] },
+    { type: "participant.updated", extra: [participants] },
+    // A roster change moves someone onto or off the roll.
+    { type: "participant.invited", extra: [participants] },
+    { type: "participant.removed", extra: [participants] },
+    { type: "invitation.responded", extra: [participants] },
+    { type: "join_request.approved", extra: [participants] },
+    // The quorum lives on the meeting.
+    { type: "meeting.updated", extra: [] as string[] },
+  ])("refreshes the roll on $type", ({ type, extra }) => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type, payload: { meeting_id: "m1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    const keys = keysCalled(invalidate);
+    expect(keys).toContain(attendance);
+    for (const k of extra) expect(keys).toContain(k);
+  });
+});

@@ -42,6 +42,7 @@ type PatchMeetingSDI struct {
 	Timezone         *string    `json:"timezone"`
 	AllowJoinRequest *bool      `json:"allow_join_request"`
 	ProjectID        *string    `json:"project_id"`
+	QuorumPercent    *int       `json:"quorum_percent" minimum:"0" maximum:"100" description:"Tỉ lệ có mặt tối thiểu (%); 0 = bỏ yêu cầu" example:"60"`
 }
 
 type CreateNoteSDI struct {
@@ -139,4 +140,16 @@ type SummaryTasksSDI struct {
 // AppendChatSDI is POST /api/v1/meetings/{meetingID}/chat.
 type AppendChatSDI struct {
 	Message string `json:"message" minLength:"1" description:"Nội dung tin nhắn (hỗ trợ xuống dòng)" example:"Chốt ship vào thứ Sáu.\nAi làm phần QA?"`
+}
+
+// PatchParticipantSDI sets who votes and who clerks (host/admin only).
+type PatchParticipantSDI struct {
+	Standing    *string `json:"standing" enum:"MEMBER,OBSERVER" description:"MEMBER = thành viên chính thức, OBSERVER = dự thính" example:"OBSERVER"`
+	IsSecretary *bool   `json:"is_secretary" description:"Giao/bỏ vai thư ký (chỉ tài khoản)" example:"true"`
+}
+
+// MarkAttendanceSDI is PUT /api/v1/meetings/{meetingID}/attendance/{participantID}.
+type MarkAttendanceSDI struct {
+	Status string `json:"status" enum:"PRESENT,LATE,EXCUSED,ABSENT" example:"EXCUSED"`
+	Note   string `json:"note" maxLength:"200" description:"Lý do vắng; chỉ lưu khi EXCUSED" example:"Đi công tác"`
 }

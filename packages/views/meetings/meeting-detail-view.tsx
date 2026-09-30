@@ -28,6 +28,7 @@ import { BreadcrumbHeader } from "../layout/breadcrumb-header";
 import { CollectionPageHeaderAction, CollectionPageState } from "../layout/collection-page";
 import { useWorkspace } from "../layout/workspace-context";
 import { MeetingActivityTimeline } from "./meeting-activity-timeline";
+import { MeetingAttendanceCard } from "./meeting-attendance-card";
 import { MeetingDetailAside, MeetingDetailRoster } from "./meeting-detail-aside";
 import { MeetingDetailHero } from "./meeting-detail-hero";
 import { MeetingEditDialog } from "./meeting-edit-dialog";
@@ -226,6 +227,10 @@ export function MeetingDetailView({
                   <MeetingSummaryPanel workspaceId={workspaceId} meeting={meeting} canHost={canHost.allowed} />
                 </div>
               ) : null}
+              {/* The roll is working space while the meeting runs, so it gets the wide column. */}
+              <div className="order-3 min-w-0 empty:hidden">
+                <MeetingAttendanceCard meeting={meeting} workspaceId={workspaceId} />
+              </div>
               <div className="order-3 min-w-0">
                 <MeetingNotesSection meetingId={meetingId} locked={closed} />
               </div>

@@ -12,10 +12,13 @@ export interface MeetingViewSessionState {
    * stage, grid and strip, and a new share starts with a new sid.
    */
   hiddenSharePreviews: string[];
+  /** The people tab's view for a clerk; kept while the sidebar closes and reopens. */
+  peopleView: "room" | "attendance";
   pinParticipant: (identity: string | null) => void;
   toggleHidden: (identity: string) => void;
   isHidden: (identity: string) => boolean;
   setSharePreviewHidden: (trackSid: string, hidden: boolean) => void;
+  setPeopleView: (view: "room" | "attendance") => void;
   reset: () => void;
 }
 
@@ -23,6 +26,7 @@ export const useMeetingViewSessionStore = create<MeetingViewSessionState>((set, 
   pinnedIdentity: null,
   hiddenIdentities: [],
   hiddenSharePreviews: [],
+  peopleView: "room",
   pinParticipant: (identity) => set({ pinnedIdentity: identity }),
   toggleHidden: (identity) =>
     set((s) => ({
@@ -39,5 +43,6 @@ export const useMeetingViewSessionStore = create<MeetingViewSessionState>((set, 
           : [...s.hiddenSharePreviews, trackSid]
         : s.hiddenSharePreviews.filter((sid) => sid !== trackSid),
     })),
-  reset: () => set({ pinnedIdentity: null, hiddenIdentities: [], hiddenSharePreviews: [] }),
+  setPeopleView: (view) => set({ peopleView: view }),
+  reset: () => set({ pinnedIdentity: null, hiddenIdentities: [], hiddenSharePreviews: [], peopleView: "room" }),
 }));

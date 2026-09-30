@@ -23,7 +23,7 @@ func rfc3339(t pgtype.Timestamptz) string {
 }
 
 func toMeetingDTO(m db.Meeting) sdo.MeetingDTO {
-	return sdo.MeetingDTO{
+	d := sdo.MeetingDTO{
 		ID: m.ID, WorkspaceID: m.WorkspaceID, Title: m.Title, Description: m.Description,
 		StartsAt: rfc3339(m.StartsAt), EndsAt: rfc3339(m.EndsAt),
 		RoomName: m.RoomName, CreatedBy: m.CreatedBy, CreatedAt: rfc3339(m.CreatedAt), Status: m.Status, MeetingType: m.MeetingType,
@@ -31,6 +31,11 @@ func toMeetingDTO(m db.Meeting) sdo.MeetingDTO {
 		ProjectID: m.ProjectID.String, ActualStartAt: rfc3339(m.ActualStartAt), ActualEndAt: rfc3339(m.ActualEndAt),
 		Version: m.Version,
 	}
+	if m.QuorumPercent.Valid {
+		v := m.QuorumPercent.Int16
+		d.QuorumPercent = &v
+	}
+	return d
 }
 
 func (h *handlers) listMeetings(w http.ResponseWriter, r *http.Request) {
@@ -127,6 +132,7 @@ func (h *handlers) updateMeeting(w http.ResponseWriter, r *http.Request) {
 		service.UpdateMeetingInput{
 			Title: in.Title, Description: in.Description, StartsAt: in.StartsAt, EndsAt: in.EndsAt,
 			Timezone: in.Timezone, AllowJoinRequest: in.AllowJoinRequest, ProjectID: in.ProjectID,
+			QuorumPercent: in.QuorumPercent,
 		})
 	if err != nil {
 		h.mapServiceError(w, err)

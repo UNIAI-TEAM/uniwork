@@ -77,6 +77,28 @@ func registerMeetings(r api, h Routes) {
 		summary: "Enable or revoke participant media publish (host)", tags: []string{"meetings"},
 		sdi: sdi.SetParticipantPublishSDI{}, sdo: sdo.StatusSDO{}, auth: true,
 	})
+	r.Patch("/meetings/{meetingID}/participants/{participantID}", h.PatchParticipant, apiOp{
+		summary: "Set a participant's standing or secretary role (host)", tags: []string{"meetings"},
+		sdi: sdi.PatchParticipantSDI{}, sdo: sdo.ParticipantSDO{}, auth: true,
+	})
+	r.Get("/meetings/{meetingID}/attendance", h.GetAttendance, apiOp{
+		summary: "Attendance roll: suggestions merged with clerk marks", tags: []string{"meetings"},
+		sdo: sdo.AttendanceSDO{}, auth: true,
+	})
+	r.Put("/meetings/{meetingID}/attendance/{participantID}", h.MarkAttendance, apiOp{
+		summary: "Mark one participant's attendance (clerk)", tags: []string{"meetings"},
+		sdi: sdi.MarkAttendanceSDI{}, sdo: sdo.StatusSDO{}, auth: true,
+	})
+	r.Delete("/meetings/{meetingID}/attendance/{participantID}", h.ClearAttendanceMark, apiOp{
+		summary: "Return a participant to the automatic suggestion (clerk)", tags: []string{"meetings"},
+		sdo: sdo.StatusSDO{}, auth: true,
+	})
+	r.Post("/meetings/{meetingID}/attendance/finalize", h.FinalizeAttendance, apiOp{
+		summary: "Finalize attendance (clerk)", tags: []string{"meetings"}, sdo: sdo.StatusSDO{}, auth: true,
+	})
+	r.Post("/meetings/{meetingID}/attendance/reopen", h.ReopenAttendance, apiOp{
+		summary: "Reopen finalized attendance (clerk)", tags: []string{"meetings"}, sdo: sdo.StatusSDO{}, auth: true,
+	})
 	r.Get("/meetings/{meetingID}/invite-links", h.ListInviteLinks, apiOp{
 		summary: "List invite links", tags: []string{"meetings"}, sdo: sdo.InviteLinkListSDO{}, auth: true,
 	})

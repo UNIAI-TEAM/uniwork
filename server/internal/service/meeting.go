@@ -327,6 +327,8 @@ type UpdateMeetingInput struct {
 	Timezone         *string
 	AllowJoinRequest *bool
 	ProjectID        *string
+	// QuorumPercent: 1–100 sets the minimum attendance, 0 clears it.
+	QuorumPercent *int
 }
 
 func (s *MeetingService) Update(ctx context.Context, userID, meetingID string, in UpdateMeetingInput) (db.Meeting, error) {
@@ -343,11 +345,17 @@ func (s *MeetingService) Update(ctx context.Context, userID, meetingID string, i
 	if in.Title != nil && strings.TrimSpace(*in.Title) == "" {
 		return db.Meeting{}, Invalid("tiêu đề không được để trống")
 	}
+	if in.QuorumPercent != nil && (*in.QuorumPercent < 0 || *in.QuorumPercent > 100) {
+		return db.Meeting{}, Invalid("tỉ lệ có mặt tối thiểu phải từ 1 đến 100")
+	}
 	params := db.UpdateMeetingParams{
 		ID: meetingID, Version: m.Version, Title: optText(in.Title), Description: optText(in.Description),
 		StartsAt: optTimestamptz(in.StartsAt), EndsAt: optTimestamptz(in.EndsAt),
 		Timezone: optText(in.Timezone), AllowJoinRequest: optBool(in.AllowJoinRequest),
 		ProjectID: optText(in.ProjectID), UpdatedBy: strText(userID),
+	}
+	if in.QuorumPercent != nil {
+		params.QuorumPercent = pgtype.Int2{Int16: int16(*in.QuorumPercent), Valid: true}
 	}
 	up, err := s.q.UpdateMeeting(ctx, params)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -361,8 +369,8 @@ func (s *MeetingService) Update(ctx context.Context, userID, meetingID string, i
 	}
 	_ = s.writeAudit(ctx, s.q, meetingID, "MEETING_UPDATED", userID, m.Status, up.Status, "{}")
 	s.record(ctx, s.q, up, audit.User(userID), "meeting.updated", nil, audit.Diff(
-		map[string]any{"title": m.Title, "starts_at": tsOrNil(m.StartsAt), "ends_at": tsOrNil(m.EndsAt)},
-		map[string]any{"title": up.Title, "starts_at": tsOrNil(up.StartsAt), "ends_at": tsOrNil(up.EndsAt)},
+		map[string]any{"title": m.Title, "starts_at": tsOrNil(m.StartsAt), "ends_at": tsOrNil(m.EndsAt), "quorum_percent": quorumOrNil(m.QuorumPercent)},
+		map[string]any{"title": up.Title, "starts_at": tsOrNil(up.StartsAt), "ends_at": tsOrNil(up.EndsAt), "quorum_percent": quorumOrNil(up.QuorumPercent)},
 	))
 	return up, nil
 }
@@ -476,6 +484,10 @@ var meetingActionFor = map[string]string{
 	"host.transferred":      "meeting.host_transferred",
 	"participant.invited":   "meeting.participant_invited",
 	"participant.removed":   "meeting.participant_removed",
+	"participant.updated":   "meeting.participant_updated",
+	"attendance.marked":     "meeting.attendance_marked",
+	"attendance.finalized":  "meeting.attendance_finalized",
+	"attendance.reopened":   "meeting.attendance_reopened",
 	"invitation.responded":  "meeting.invitation_responded",
 	"join_request.created":  "meeting.join_requested",
 	"join_request.approved": "meeting.join_request_approved",
@@ -522,4 +534,12 @@ func tsOrNil(t pgtype.Timestamptz) any {
 		return nil
 	}
 	return t.Time.UTC().Format(time.RFC3339)
+}
+
+// quorumOrNil normalizes the nullable quorum for an audit change entry.
+func quorumOrNil(q pgtype.Int2) any {
+	if !q.Valid {
+		return nil
+	}
+	return q.Int16
 }

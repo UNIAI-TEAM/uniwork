@@ -82,11 +82,13 @@ func (s *MeetingService) HandleProviderEvent(ctx context.Context, ev ProviderNeu
 		if _, err := s.q.GetOpenAttendance(ctx, pid); err == nil {
 			return nil
 		}
-		_, _ = s.q.OpenAttendanceSession(ctx, db.OpenAttendanceSessionParams{
+		if _, err := s.q.OpenAttendanceSession(ctx, db.OpenAttendanceSessionParams{
 			ID: util.NewID(), MeetingID: sess.MeetingID, ConferenceSessionID: sess.ID,
 			ParticipantID: pid, ProviderParticipantIdentity: ev.Identity,
 			ProviderEventID: strText(ev.ProviderEventID),
-		})
+		}); err == nil {
+			s.publishAttendanceChanged(ctx, sess.MeetingID)
+		}
 	case "conference.participant_left", "conference.participant_connection_aborted":
 		pid := strings.TrimPrefix(ev.Identity, "uw_participant_")
 		open, err := s.q.GetOpenAttendance(ctx, pid)
@@ -100,6 +102,7 @@ func (s *MeetingService) HandleProviderEvent(ctx context.Context, ev ProviderNeu
 		closed, err := s.q.CloseAttendanceSession(ctx, db.CloseAttendanceSessionParams{ID: open.ID, LeaveReason: strText(reason)})
 		if err == nil {
 			s.meterAttendance(ctx, sess.MeetingID, closed)
+			s.publishAttendanceChanged(ctx, sess.MeetingID)
 		}
 	}
 	return nil
@@ -330,4 +333,15 @@ func (s *MeetingService) MeetingCounts(ctx context.Context, userID, meetingID st
 		return db.MeetingListStatsRow{}, err
 	}
 	return s.q.MeetingListStats(ctx, meetingID)
+}
+
+// publishAttendanceChanged tells open attendance panels to refetch after a
+// webhook opened or closed a room session. Ephemeral: a lost frame only
+// delays the refresh until the next one.
+func (s *MeetingService) publishAttendanceChanged(ctx context.Context, meetingID string) {
+	m, err := s.q.GetMeeting(ctx, meetingID)
+	if err != nil {
+		return
+	}
+	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "attendance.updated", Payload: map[string]string{"meeting_id": meetingID}})
 }

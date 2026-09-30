@@ -39,6 +39,7 @@
     "./notifications": "./notifications/hooks.ts",
     "./notifications/push": "./notifications/push.ts",
     "./meetings": "./meetings/hooks.ts",
+    "./meetings/attendance": "./meetings/attendance-hooks.ts",
     "./meetings/recording-playback-cache": "./meetings/recording-playback-cache.ts",
     "./meetings/summary-task-items": "./meetings/summary-task-items.ts",
     "./documents": "./documents/hooks.ts",
