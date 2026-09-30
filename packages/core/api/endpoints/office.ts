@@ -13,7 +13,7 @@ const enc = encodeURIComponent;
 
 /** The engine operations the job route accepts. export and convert answer a
  *  typed unsupported_operation until an engine lane binds a converter (Q7). */
-export type OfficeOperation = "open" | "serialize" | "export" | "convert";
+export type OfficeOperation = "open" | "edit" | "serialize" | "export" | "convert";
 export type OfficeFormat = "docx" | "xlsx" | "pptx" | "pdf" | "md" | "html" | "xls" | "odt";
 
 export interface OfficeCapabilityRow {
@@ -87,7 +87,18 @@ export interface StartOfficeJobBody {
   base_revision?: string;
   /** The editor's document model reference (serialize). */
   document_model_ref?: string;
+  /** Format-specific edit operations; accepted only for operation=edit. */
+  edits?: OfficeEditOp[];
   target_format?: OfficeFormat;
+}
+
+export interface OfficeEditOp {
+  op: string;
+  target?: unknown;
+  text?: string;
+  style?: unknown;
+  range?: unknown;
+  attributes?: unknown;
 }
 
 export interface CreateBlankDocumentFileBody {

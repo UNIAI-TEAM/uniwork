@@ -124,6 +124,22 @@ describe("office endpoints", () => {
     expect(job?.outputFileId).toBe("f1");
   });
 
+  it("posts XLSX edit operations without narrowing their format-specific payloads", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(jobBody({ operation: "edit", format: "xlsx" })));
+    await startOfficeJob(
+      "d1",
+      { operation: "edit", format: "xlsx", base_revision: "41", edits: [{ op: "set_cell", target: { sheet: "Data", cell: "A1" }, attributes: { value: 7 } }] },
+      { idempotencyKey: "edit-key" },
+    );
+    const [, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(JSON.parse(String(init?.body))).toEqual({
+      operation: "edit",
+      format: "xlsx",
+      base_revision: "41",
+      edits: [{ op: "set_cell", target: { sheet: "Data", cell: "A1" }, attributes: { value: 7 } }],
+    });
+  });
+
   it("getOfficeJob and cancelOfficeJob hit the job routes and narrow a settled error", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
       json(jobBody({ state: "failed", output_file_id: null, error: { code: "engine_timeout", reason: "deadline_exceeded", kind: "deadline_exceeded", retryable: true } })),

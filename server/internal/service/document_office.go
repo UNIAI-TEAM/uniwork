@@ -108,6 +108,14 @@ var ErrOfficeJobNotCommittable = errors.New("office: job output is not committab
 // missing or oversized idempotency key.
 var ErrOfficeJobInvalid = errors.New("office_job_invalid")
 
+// The XLSX native recalc sidecar accepts at most this many edit operations per
+// request. Keep the server bound below the generic engine envelope bound so a
+// malformed or oversized request is rejected before a job/output row exists.
+const (
+	maxOfficeEditOps   = 10_000
+	maxOfficeEditsSize = 8 << 20
+)
+
 func NewDocumentOfficeService(o DocumentOfficeOptions) *DocumentOfficeService {
 	s := &DocumentOfficeService{
 		pool: o.Pool, q: o.Queries, files: o.Files, engine: o.Engine, documents: o.Documents, metrics: o.Metrics,
@@ -203,6 +211,9 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 	key := strings.TrimSpace(in.IdempotencyKey)
 	if !validOfficeOperation(in.Operation) || key == "" || len(key) > 128 {
 		return db.OfficeJob{}, ErrOfficeJobInvalid
+	}
+	if err := validateOfficeJobEdits(in.Operation, in.Edits); err != nil {
+		return db.OfficeJob{}, err
 	}
 	if err := s.authorize(ctx, actor, in.DocumentID, DocumentLevelEdit); err != nil {
 		return db.OfficeJob{}, err

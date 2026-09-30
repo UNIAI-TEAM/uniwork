@@ -84,8 +84,25 @@ func (h *handlers) startOfficeJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !service.ValidOfficeOperation(in.Operation) {
-		respondError(w, http.StatusBadRequest, "invalid_request", "operation must be open, serialize, export or convert")
+		respondError(w, http.StatusBadRequest, "invalid_request", "operation must be open, edit, serialize, export or convert")
 		return
+	}
+	if in.Operation != "edit" && in.Edits != nil {
+		respondError(w, http.StatusBadRequest, "invalid_request", "edits are only valid for operation edit")
+		return
+	}
+	var edits []service.OfficeEdit
+	if in.Edits != nil {
+		edits = make([]service.OfficeEdit, len(*in.Edits))
+	}
+	if in.Edits != nil {
+		for i, edit := range *in.Edits {
+			if strings.TrimSpace(edit.Op) == "" {
+				respondError(w, http.StatusBadRequest, "invalid_request", "edits[].op is required")
+				return
+			}
+			edits[i] = service.OfficeEdit{Op: edit.Op, Target: edit.Target, Text: edit.Text, Style: edit.Style, Range: edit.Range, Attributes: edit.Attributes}
+		}
 	}
 	var base int64
 	hasBase := in.BaseRevision != nil && strings.TrimSpace(*in.BaseRevision) != ""
@@ -100,7 +117,7 @@ func (h *handlers) startOfficeJob(w http.ResponseWriter, r *http.Request) {
 	row, err := h.Office.StartOfficeJobForDocument(r.Context(), service.Human(middleware.UserID(r.Context())), chi.URLParam(r, "documentID"), service.OfficeJobRequest{
 		Operation: in.Operation, Format: strings.TrimSpace(stringValue(in.Format)),
 		BaseRevision: base, HasBaseRevision: hasBase, IdempotencyKey: r.Header.Get("Idempotency-Key"),
-		DocumentModelRef: stringValue(in.ModelRef), Deadline: 0,
+		DocumentModelRef: stringValue(in.ModelRef), Edits: edits, Deadline: 0,
 		TargetFormat: strings.TrimSpace(stringValue(in.TargetFormat)),
 	})
 	if err != nil {

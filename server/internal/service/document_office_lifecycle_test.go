@@ -466,7 +466,10 @@ func TestDocumentOfficeLifecycle(t *testing.T) {
 			t.Fatal(err)
 		}
 		// A stranger never reaches a job: the document is not found for them.
-		if _, err := svc.StartOfficeJob(ctx, human(f.tn.bMember), f.input("k-acl-none")); !errors.Is(err, ErrNotFound) {
+		editInput := f.input("k-acl-none")
+		editInput.Operation = office.OperationEdit
+		editInput.Edits = []office.EditOp{{Op: "set_cell"}}
+		if _, err := svc.StartOfficeJob(ctx, human(f.tn.bMember), editInput); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("stranger submit: %v", err)
 		}
 		// A viewer may read a job's status but may neither submit nor cancel.
@@ -476,7 +479,10 @@ func TestDocumentOfficeLifecycle(t *testing.T) {
 		}
 		f.pf.share(t, docRow, DocumentPrincipalUser, f.tn.creator.ID, DocumentLevelView, f.tn.member.ID)
 		viewer := human(f.tn.creator)
-		if _, err := svc.StartOfficeJob(ctx, viewer, f.input("k-acl-view")); !errors.Is(err, ErrForbidden) {
+		viewerEdit := f.input("k-acl-view")
+		viewerEdit.Operation = office.OperationEdit
+		viewerEdit.Edits = []office.EditOp{{Op: "set_cell"}}
+		if _, err := svc.StartOfficeJob(ctx, viewer, viewerEdit); !errors.Is(err, ErrForbidden) {
 			t.Fatalf("viewer submit: %v", err)
 		}
 		row, err := svc.StartOfficeJob(ctx, f.actor, f.input("k-acl-edit"))
@@ -495,6 +501,31 @@ func TestDocumentOfficeLifecycle(t *testing.T) {
 		}
 		if _, err := svc.GetOfficeJob(ctx, agentActor(f.tn.agent), f.org, f.ws, row.ID); !errors.Is(err, ErrForbidden) {
 			t.Fatalf("agent status: %v", err)
+		}
+	})
+
+	t.Run("edit payloads are bounded and operation-scoped before storage", func(t *testing.T) {
+		f := newOfficeFixture(t, "edit validation\n")
+		svc := f.service(newScriptedEngine())
+		badOp := f.input("k-edit-empty-op")
+		badOp.Operation = office.OperationEdit
+		badOp.Edits = []office.EditOp{{}}
+		if _, err := svc.StartOfficeJob(ctx, f.actor, badOp); !errors.Is(err, ErrOfficeJobInvalid) {
+			t.Fatalf("empty edit op = %v", err)
+		}
+		wrongOperation := f.input("k-serialize-edits")
+		wrongOperation.Edits = []office.EditOp{{Op: "set_cell"}}
+		if _, err := svc.StartOfficeJob(ctx, f.actor, wrongOperation); !errors.Is(err, ErrOfficeJobInvalid) {
+			t.Fatalf("serialize edits = %v", err)
+		}
+		tooMany := f.input("k-edit-too-many")
+		tooMany.Operation = office.OperationEdit
+		tooMany.Edits = make([]office.EditOp, 10_001)
+		for i := range tooMany.Edits {
+			tooMany.Edits[i].Op = "set_cell"
+		}
+		if _, err := svc.StartOfficeJob(ctx, f.actor, tooMany); !errors.Is(err, ErrOfficeJobInvalid) {
+			t.Fatalf("too many edits = %v", err)
 		}
 	})
 

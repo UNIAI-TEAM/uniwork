@@ -26,3 +26,15 @@ export function createWebOfficeEngine(options: WebOfficeBoundaryOptions): Office
 
 export type { OfficeEngine, HostIpcPort };
 export { createOfficePreviewPort, type OfficePreviewPortOptions } from "./preview-port";
+export {
+  createXlsxFormatAdapter,
+  createXlsxDocumentsTransport,
+  createXlsxSaveTransport,
+  type XlsxDocumentsTransport,
+  type XlsxFormatAdapter,
+  type XlsxFormatAdapterOptions,
+  type XlsxRuntimeOpenResult,
+  type XlsxRuntimeSerializedOutput,
+  type XlsxSessionRuntime,
+  type XlsxSaveTransportOptions,
+} from "./xlsx-adapter";
