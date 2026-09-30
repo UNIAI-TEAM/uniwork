@@ -4,6 +4,10 @@ import { randomBytes } from "node:crypto";
 export function createFakeDraftKeyStore(): DraftKeyStore {
   const keys = new Map<string, Uint8Array>();
   return {
+    async get(namespace) {
+      const key = keys.get(namespace);
+      return key?.slice();
+    },
     async getOrCreate(namespace) {
       const existing = keys.get(namespace);
       if (existing) return existing.slice();

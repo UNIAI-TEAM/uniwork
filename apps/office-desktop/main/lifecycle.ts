@@ -32,7 +32,9 @@ export function createDesktopLifecycleCoordinator(options: DesktopLifecycleOptio
       inFlight = true;
       try {
         if (choice === "save") {
-          const result = await options.save();
+          let result: LifecycleSaveResult;
+          try { result = await options.save(); }
+          catch { return { status: "stay", reason, code: "save_failed" }; }
           if (!result.accepted) return { status: "stay", reason, code: result.reason === "saving" ? "save_in_progress" : "save_failed" };
         } else if (choice === "keep-draft") {
           try {

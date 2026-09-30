@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { createDesktopLifecycleCoordinator } from "./lifecycle";
+import { assertRecoveryActionAllowed, createDesktopLifecycleCoordinator, recoverDraft } from "./lifecycle";
 
 it("requires confirmed durability before allowing keep-draft close", async () => {
   const checkpoint = vi.fn(async () => ({ status: "stored" as const, metadata: {} as never }));
@@ -26,4 +26,17 @@ it("does not call save or discard for stay and clean lifecycle", async () => {
   await expect(lifecycle.resolve("update", true, "stay")).resolves.toEqual({ status: "stay", reason: "update" });
   expect(save).not.toHaveBeenCalled();
   expect(discard).not.toHaveBeenCalled();
+});
+
+it("maps a thrown Save to a typed stay result and blocks byte escape actions", async () => {
+  const lifecycle = createDesktopLifecycleCoordinator({ save: async () => { throw new Error("secret path"); }, checkpoint: async () => undefined, discard: async () => undefined });
+  await expect(lifecycle.resolve("close", true, "save")).resolves.toEqual({ status: "stay", reason: "close", code: "save_failed" });
+  expect(() => assertRecoveryActionAllowed({ status: "blocked", metadata: {} as never, reason: "edit_acl_missing" }, "clipboard")).toThrowError("draft operation refused");
+});
+
+it("passes the main-bound session and base pair through the shared recovery adapter", async () => {
+  const adapter = { recover: vi.fn(async () => ({ status: "missing" as const })) } as never;
+  const session = { sessionId: "session", deploymentId: "dep", accountId: "account", generation: 1 };
+  const lookup = { deploymentId: "dep", accountId: "account", organizationId: "org", workspaceId: "ws", documentId: "doc" };
+  await expect(recoverDraft({ adapter, session, lookup, currentBase: { revision: "1", version: "v1" }, liveAccess: "edit" })).resolves.toEqual({ status: "missing" });
 });

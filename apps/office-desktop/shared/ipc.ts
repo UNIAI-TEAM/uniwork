@@ -86,7 +86,6 @@ const draftMetadataSchema = z.object({
   byteLength: z.number().int().nonnegative(),
   updatedAt: z.number().int().nonnegative(),
 }).strict();
-export const desktopDraftMetadataSchema = draftMetadataSchema;
 export const desktopDraftListResponseSchema = z.object({ drafts: z.array(draftMetadataSchema) }).strict();
 export const desktopDraftRecoveryResponseSchema = z.discriminatedUnion("status", [
   z.object({ status: z.literal("recovered"), metadata: draftMetadataSchema, dataBase64: base64BytesSchema }).strict(),

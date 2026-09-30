@@ -34,7 +34,7 @@ export interface DraftKeyStore {
   /** Read-only lookup used during recovery. A missing key is distinct from a
    * first checkpoint, so an existing ciphertext can never trigger key
    * regeneration. */
-  get?(namespace: string): Promise<Uint8Array | undefined>;
+  get(namespace: string): Promise<Uint8Array | undefined>;
   delete?(namespace: string): Promise<void>;
 }
 
@@ -115,8 +115,8 @@ export class DesktopDraftStore implements DraftRecoveryAdapter {
       const namespace = namespaceFor(input.identity);
       let encrypted;
       try {
-        const existingKey = this.options.keyStore.get ? await this.options.keyStore.get(namespace) : undefined;
-        if (old && !existingKey && this.options.keyStore.get) throw new DraftRecoveryError("draft_recovery_locked", "draft key is unavailable");
+        const existingKey = await this.options.keyStore.get(namespace);
+        if (old && !existingKey) throw new DraftRecoveryError("draft_recovery_locked", "draft key is unavailable");
         encrypted = encryptDraft(existingKey ?? await this.options.keyStore.getOrCreate(namespace), input.plaintext, input.identity, input.generation, this.random);
       }
       catch { throw new DraftRecoveryError("draft_recovery_locked", "draft key is unavailable"); }
@@ -164,7 +164,7 @@ export class DesktopDraftStore implements DraftRecoveryAdapter {
     if (!row.encrypted || !row.nonce) return { status: "locked", metadata: recovered.metadata, code: "draft_recovery_locked" };
     try {
       const namespace = namespaceFor(row.identity);
-      const key = this.options.keyStore.get ? await this.options.keyStore.get(namespace) : await this.options.keyStore.getOrCreate(namespace);
+      const key = await this.options.keyStore.get(namespace);
       if (!key) return { status: "locked", metadata: recovered.metadata, code: "draft_recovery_locked" };
       const plaintext = decryptDraft(key, { nonce: Uint8Array.from(Buffer.from(row.nonce, "base64")), ciphertext: recovered.ciphertext }, row.identity, row.generation);
       if (plaintext.byteLength > this.maxPlaintextBytes) throw new Error("draft exceeds local limit");

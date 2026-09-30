@@ -7,6 +7,10 @@ import type { NativeLoginManager } from "./auth/manager";
 import { launchRequestedEventSchema } from "../shared/ipc";
 import { registerDeepLinkSystem, type DeepLinkRegistration, type DeepLinkSystem, type LaunchBridge } from "./deep-links";
 import type { DeploymentProfile } from "../shared/deployment";
+import { createDesktopLifecycleCoordinator, type DesktopLifecycleOptions } from "./lifecycle";
+import type { DraftKeyStore } from "./drafts/store";
+
+export { assertRecoveryActionAllowed, recoverDraft } from "./lifecycle";
 
 export const WINDOW_WEB_PREFERENCES = Object.freeze({
   sandbox: true,
@@ -38,6 +42,9 @@ export type DesktopHostOptions = {
   deploymentProfile?: DeploymentProfile;
   /** Resolved by the Electron entry; never read from process.env here. */
   userDataDirectory?: string;
+  /** Shared OS-backed draft key port. The document-specific store is attached
+   * by the editor host after a live account/base is known. */
+  draftKeyStore?: DraftKeyStore;
 };
 
 function authCallbackFromArgv(argv: readonly unknown[]): string | undefined {
@@ -88,6 +95,8 @@ export function createDesktopHost(options: DesktopHostOptions) {
     dispatch,
     adapters: options.engineIpc ? createDesktopRuntimeAdapters(options.engineIpc) : undefined,
     deepLinkRegistration,
+    draftKeyStore: options.draftKeyStore,
+    createLifecycleCoordinator: (lifecycle: DesktopLifecycleOptions) => createDesktopLifecycleCoordinator(lifecycle),
     async start(): Promise<void> {
       if (deepLinkRegistration && !deepLinkRegistration.primary) return;
       await options.window.loadURL(`${DESKTOP_IDENTITY.origin}/index.html`);

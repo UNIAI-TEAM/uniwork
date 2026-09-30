@@ -1,4 +1,4 @@
-import { renderDesktopShell } from "./shell";
+import { renderDesktopRecoveryState, renderDesktopShell, type DesktopRecoveryState } from "./shell";
 import { createLoginController, loginStateFromMetadata, renderLoginScreen, type LoginScreenState } from "./login";
 import { desktopAuthConfigResponseSchema, desktopSessionMetadataSchema, type DesktopIpcChannel, type DesktopIpcRequest, type DesktopSessionMetadata } from "../shared/ipc";
 
@@ -56,11 +56,12 @@ function renderLogin(root: RendererRoot, documentLike: RendererDocument, state: 
 
 type SignedInMetadata = DesktopSessionMetadata & { status: "signed-in"; accountId: string; deploymentId: string };
 
-function renderSignedIn(root: RendererRoot, documentLike: RendererDocument, metadata: SignedInMetadata, onLogout: () => void): void {
+function renderSignedIn(root: RendererRoot, documentLike: RendererDocument, metadata: SignedInMetadata, onLogout: () => void, recovery?: DesktopRecoveryState): void {
   renderDesktopShell(root, {
     session: metadata,
     registry: createShellButtonRegistry(documentLike, root, onLogout),
   });
+  if (recovery) renderDesktopRecoveryState(root, recovery);
 }
 
 export async function mountDesktopRenderer(documentLike: RendererDocument, bridge: RendererBridge | undefined = typeof window !== "undefined" ? window.uniworkOffice : undefined): Promise<void> {

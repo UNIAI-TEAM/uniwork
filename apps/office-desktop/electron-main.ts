@@ -14,6 +14,7 @@ import { createSecureCredentialStore } from "./main/credentials/secure-store";
 import { createSystemBrowserLauncher } from "./main/auth/browser";
 import { NativeLoginManager } from "./main/auth/manager";
 import { createHttpAuthTransport } from "./main/transport/auth-transport";
+import { createSafeStorageDraftKeyStore } from "./main/drafts/keystore";
 
 const DIST_MAIN_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 const RENDERER_DIRECTORY = resolve(DIST_MAIN_DIRECTORY, "../renderer");
@@ -99,6 +100,12 @@ async function startElectronHost(): Promise<void> {
   });
   const deploymentProfile = "kind" in deploymentResolution ? undefined : deploymentResolution;
   await app.whenReady();
+  const draftKeyStore = createSafeStorageDraftKeyStore({
+    userDataDirectory: app.getPath("userData"),
+    channel: DESKTOP_IDENTITY_MANIFEST.build.channel,
+    keyNamespace: DESKTOP_IDENTITY.keyNamespace,
+    safeStorage,
+  });
   let publishSessionMetadata: (metadata: unknown) => void = () => undefined;
   const authManager = deploymentProfile ? new NativeLoginManager({
     clientId: deploymentProfile.clientId,
@@ -149,6 +156,7 @@ async function startElectronHost(): Promise<void> {
     authManager,
     deploymentProfile,
     userDataDirectory: app.getPath("userData"),
+    draftKeyStore,
   });
 
   for (const channel of DESKTOP_IPC_CHANNELS) {
