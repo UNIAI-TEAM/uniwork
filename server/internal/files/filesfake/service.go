@@ -410,6 +410,13 @@ func (f *Fake) CompleteProviderOutput(_ context.Context, in files.CompleteOutput
 	case files.StatusDeleted:
 		return files.File{}, files.NotFound(in.FileID)
 	}
+	// Match the real FileService contract: once the provider upload session
+	// has been canceled, output completion must not resurrect the object. The
+	// reconciliation layer relies on this typed error to settle a completed
+	// office job as a retryable commit failure instead of leaking a raw 500.
+	if e.session == files.SessionCanceled {
+		return files.File{}, files.UploadCanceled(e.file.ID)
+	}
 	if f.storageDown {
 		return files.File{}, files.StorageUnavailable(errStorageDown)
 	}
