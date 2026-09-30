@@ -81,6 +81,7 @@
       "app": "Ứng dụng",
       "device": "Thiết bị",
       "account": "Tài khoản",
+      "deployment": "Môi trường",
       "currentAccount": "Tài khoản đang đăng nhập",
       "build": "Bản dựng",
       "unknown": "Chưa cung cấp",

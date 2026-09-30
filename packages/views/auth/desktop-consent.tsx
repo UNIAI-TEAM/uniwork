@@ -27,6 +27,7 @@ export function DesktopConsentView({ consent, onDecision }: { consent: DesktopCo
             <div><dt className="text-muted-foreground">{t("auth.desktop.app")}</dt><dd className="font-semibold">{consent.client_id}</dd></div>
             <div><dt className="text-muted-foreground">{t("auth.desktop.device")}</dt><dd className="font-semibold">{consent.device_label || consent.platform}</dd></div>
             <div><dt className="text-muted-foreground">{t("auth.desktop.account")}</dt><dd className="font-semibold">{consent.account_id}</dd></div>
+            <div><dt className="text-muted-foreground">{t("auth.desktop.deployment")}</dt><dd className="font-semibold">{consent.deployment_id}</dd></div>
             <div><dt className="text-muted-foreground">{t("auth.desktop.build")}</dt><dd className="font-semibold">{consent.build || t("auth.desktop.unknown")}</dd></div>
           </dl>
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">

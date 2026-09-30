@@ -81,6 +81,7 @@
       "app": "App",
       "device": "Device",
       "account": "Account",
+      "deployment": "Deployment",
       "currentAccount": "Your signed-in account",
       "build": "Build",
       "unknown": "Not provided",
