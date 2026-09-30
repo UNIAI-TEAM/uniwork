@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -191,5 +192,195 @@ func TestAttendanceNeedsWorkspaceMembership(t *testing.T) {
 	}
 	if _, err := s.Attendance(ctx, outsider.ID, m.ID); err != ErrForbidden {
 		t.Fatalf("outsider attendance: %v", err)
+	}
+}
+
+func TestMarkAttendanceRules(t *testing.T) {
+	s, ua, ub, m, memberPID := governanceFixture(t)
+	ctx := context.Background()
+	// Not a clerk.
+	if err := s.MarkAttendance(ctx, ub.ID, m.ID, memberPID, AttendancePresent, ""); !codedIs(err, "not_meeting_clerk") {
+		t.Fatalf("member marks: %v", err)
+	}
+	if err := s.MarkAttendance(ctx, ua.ID, m.ID, memberPID, "HERE", ""); err == nil {
+		t.Fatal("unknown status accepted")
+	}
+	if err := s.MarkAttendance(ctx, ua.ID, m.ID, memberPID, AttendanceExcused, strings.Repeat("ạ", 201)); err == nil {
+		t.Fatal("201-char note accepted")
+	}
+	if err := s.MarkAttendance(ctx, ua.ID, m.ID, "nope", AttendancePresent, ""); err != ErrNotFound {
+		t.Fatalf("unknown participant: %v", err)
+	}
+	if err := s.MarkAttendance(ctx, ua.ID, m.ID, memberPID, AttendanceExcused, " Đi công tác "); err != nil {
+		t.Fatal(err)
+	}
+	rep, _ := s.Attendance(ctx, ua.ID, m.ID)
+	r := rowFor(t, rep, memberPID)
+	if r.Status != AttendanceExcused || r.Source != AttendanceSourceManual || r.Note != "Đi công tác" {
+		t.Fatalf("excused row = %+v", r)
+	}
+	// The note belongs to EXCUSED only.
+	if err := s.MarkAttendance(ctx, ua.ID, m.ID, memberPID, AttendanceAbsent, "ghi chú"); err != nil {
+		t.Fatal(err)
+	}
+	rep, _ = s.Attendance(ctx, ua.ID, m.ID)
+	if r := rowFor(t, rep, memberPID); r.Note != "" || r.Status != AttendanceAbsent {
+		t.Fatalf("absent row = %+v", r)
+	}
+	// Clear returns to the suggestion.
+	if err := s.ClearAttendanceMark(ctx, ua.ID, m.ID, memberPID); err != nil {
+		t.Fatal(err)
+	}
+	rep, _ = s.Attendance(ctx, ua.ID, m.ID)
+	if r := rowFor(t, rep, memberPID); r.Source != AttendanceSourceSuggested {
+		t.Fatalf("after clear source = %s", r.Source)
+	}
+	var n int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = 'meeting.attendance_marked' AND resource_id = $1`, m.ID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 3 {
+		t.Fatalf("attendance_marked audit rows = %d, want 3 (two marks, one clear)", n)
+	}
+}
+
+func TestMarkAttendanceNeedsLiveOrEndedMeeting(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	ctx := context.Background()
+	start := time.Now().Add(time.Hour)
+	m, err := s.Create(ctx, ua.ID, w.ID, CreateMeetingInput{Title: "Sau", StartsAt: start, EndsAt: start.Add(time.Hour)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	host := hostParticipant(t, s, m.ID, ua.ID)
+	if err := s.MarkAttendance(ctx, ua.ID, m.ID, host.ID, AttendancePresent, ""); !codedIs(err, "invalid_meeting_state") {
+		t.Fatalf("scheduled meeting: %v", err)
+	}
+	if err := s.FinalizeAttendance(ctx, ua.ID, m.ID); !codedIs(err, "invalid_meeting_state") {
+		t.Fatalf("finalize scheduled: %v", err)
+	}
+}
+
+func TestFinalizeAndReopenAttendance(t *testing.T) {
+	s, ua, ub, m, memberPID := governanceFixture(t)
+	ctx := context.Background()
+	host := hostParticipant(t, s, m.ID, ua.ID)
+	seedSession(t, s, m.ID, host.ID, "0 minutes", "")
+	if err := s.MarkAttendance(ctx, ua.ID, m.ID, memberPID, AttendanceExcused, "ốm"); err != nil {
+		t.Fatal(err)
+	}
+	// A secretary can finalize.
+	yes := true
+	if _, err := s.UpdateParticipantDuties(ctx, ua.ID, m.ID, memberPID, ParticipantDutiesInput{IsSecretary: &yes}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.FinalizeAttendance(ctx, ub.ID, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	rep, _ := s.Attendance(ctx, ua.ID, m.ID)
+	if !rep.Meeting.AttendanceFinalizedAt.Valid || rep.Meeting.AttendanceFinalizedBy.String != ub.ID {
+		t.Fatalf("finalized = %v by %q", rep.Meeting.AttendanceFinalizedAt, rep.Meeting.AttendanceFinalizedBy.String)
+	}
+	if r := rowFor(t, rep, host.ID); r.Source != AttendanceSourceAuto || r.Status != AttendancePresent {
+		t.Fatalf("host snapshot = %+v", r)
+	}
+	// Twice is a no-op: one audit row for the finalize.
+	if err := s.FinalizeAttendance(ctx, ua.ID, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = 'meeting.attendance_finalized' AND resource_id = $1`, m.ID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("finalize audit rows = %d, want 1", n)
+	}
+	// The timeline carries the finalize.
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM meeting_audit_logs WHERE event_type = 'ATTENDANCE_FINALIZED' AND meeting_id = $1`, m.ID).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("timeline rows = %d, want 1", n)
+	}
+	// Finalized: clearing a mark is refused.
+	if err := s.ClearAttendanceMark(ctx, ua.ID, m.ID, memberPID); !codedIs(err, "attendance_finalized") {
+		t.Fatalf("clear after finalize: %v", err)
+	}
+	// Someone joining after finalize does not change the record.
+	guest := newGuestParticipant(t, s, m.ID)
+	seedSession(t, s, m.ID, guest.ID, "40 minutes", "")
+	rep, _ = s.Attendance(ctx, ua.ID, m.ID)
+	if r := rowFor(t, rep, guest.ID); r.Source != AttendanceSourceSuggested || !r.InRoom {
+		t.Fatalf("late joiner after finalize = %+v", r)
+	}
+	// Reopen drops AUTO rows, keeps MANUAL.
+	if err := s.ReopenAttendance(ctx, ua.ID, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	rep, _ = s.Attendance(ctx, ua.ID, m.ID)
+	if rep.Meeting.AttendanceFinalizedAt.Valid {
+		t.Fatal("still finalized after reopen")
+	}
+	if r := rowFor(t, rep, host.ID); r.Source != AttendanceSourceSuggested {
+		t.Fatalf("host after reopen = %s", r.Source)
+	}
+	if r := rowFor(t, rep, memberPID); r.Source != AttendanceSourceManual || r.Status != AttendanceExcused {
+		t.Fatalf("manual row after reopen = %+v", r)
+	}
+}
+
+func TestFinalizeWithNoMembers(t *testing.T) {
+	s, ua, _, m, memberPID := governanceFixture(t)
+	ctx := context.Background()
+	host := hostParticipant(t, s, m.ID, ua.ID)
+	observer := StandingObserver
+	for _, pid := range []string{host.ID, memberPID} {
+		if _, err := s.UpdateParticipantDuties(ctx, ua.ID, m.ID, pid, ParticipantDutiesInput{Standing: &observer}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.FinalizeAttendance(ctx, ua.ID, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	rep, _ := s.Attendance(ctx, ua.ID, m.ID)
+	if rep.Summary.Members != 0 || !rep.Meeting.AttendanceFinalizedAt.Valid {
+		t.Fatalf("no-member finalize: %+v", rep.Summary)
+	}
+}
+
+func TestRoomSessionWebhooksRefreshAttendance(t *testing.T) {
+	s, _, _, m, memberPID := governanceFixture(t)
+	ctx := context.Background()
+	pub := &capturePublisher{}
+	s.pub = pub
+	sess, err := s.q.GetOpenConferenceSession(ctx, m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := func() int {
+		n := 0
+		for _, ev := range pub.events {
+			if ev.Type == "attendance.updated" && ev.Payload["meeting_id"] == m.ID {
+				n++
+			}
+		}
+		return n
+	}
+	ev := ProviderNeutralEvent{
+		Type: "conference.participant_joined", RoomName: sess.ProviderRoomName,
+		Identity: "uw_participant_" + memberPID, ProviderEventID: "evt-att-join",
+	}
+	if err := s.HandleProviderEvent(ctx, ev); err != nil {
+		t.Fatal(err)
+	}
+	if count() != 1 {
+		t.Fatalf("after join attendance.updated = %d, want 1", count())
+	}
+	ev.Type, ev.ProviderEventID = "conference.participant_left", "evt-att-left"
+	if err := s.HandleProviderEvent(ctx, ev); err != nil {
+		t.Fatal(err)
+	}
+	if count() != 2 {
+		t.Fatalf("after leave attendance.updated = %d, want 2", count())
 	}
 }
