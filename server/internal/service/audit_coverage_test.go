@@ -841,14 +841,14 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			}
 		},
 		audit.ActionOfficeLaunchSessionCreated: func(t *testing.T, f *auditFixture) {
-			svc, docID := f.document(t)
+			svc, docID := f.fileDocument(t)
 			launch := NewOfficeLaunchService(svc, config.Config{DesktopAuthClientID: "uniwork-office", DesktopAuthDeploymentIDs: []string{"default"}})
 			if _, err := launch.Create(f.ctx, Human(f.owner.ID), OfficeLaunchCreateInput{DocumentID: docID, Operation: "view", DeploymentID: "default", ClientID: "uniwork-office"}); err != nil {
 				t.Fatal(err)
 			}
 		},
 		audit.ActionOfficeLaunchSessionRedeemed: func(t *testing.T, f *auditFixture) {
-			svc, docID := f.document(t)
+			svc, docID := f.fileDocument(t)
 			launch := NewOfficeLaunchService(svc, config.Config{DesktopAuthClientID: "uniwork-office", DesktopAuthDeploymentIDs: []string{"default"}})
 			created, err := launch.Create(f.ctx, Human(f.owner.ID), OfficeLaunchCreateInput{DocumentID: docID, Operation: "view", DeploymentID: "default", ClientID: "uniwork-office"})
 			if err != nil {
@@ -863,7 +863,7 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 			}
 		},
 		audit.ActionOfficeLaunchSessionRevoked: func(t *testing.T, f *auditFixture) {
-			svc, docID := f.document(t)
+			svc, docID := f.fileDocument(t)
 			launch := NewOfficeLaunchService(svc, config.Config{DesktopAuthClientID: "uniwork-office", DesktopAuthDeploymentIDs: []string{"default"}})
 			created, err := launch.Create(f.ctx, Human(f.owner.ID), OfficeLaunchCreateInput{DocumentID: docID, Operation: "view", DeploymentID: "default", ClientID: "uniwork-office"})
 			if err != nil {
@@ -1508,5 +1508,18 @@ func (f *auditFixture) document(t *testing.T) (*DocumentService, string) {
 		"id": id, "organization_id": f.orgID, "workspace_id": w.ID,
 		"acl_owner_id": f.owner.ID, "created_by": f.owner.ID, "updated_by": f.owner.ID,
 	}))
+	return svc, id
+}
+
+// fileDocument adapts the shared ACL fixture for commands whose contract is
+// restricted to file documents (the Office launch bridge never mints a ticket
+// for a page). It keeps the document ACL setup identical to document(), while
+// preserving the audit coverage test's single-purpose fixture.
+func (f *auditFixture) fileDocument(t *testing.T) (*DocumentService, string) {
+	t.Helper()
+	svc, id := f.document(t)
+	if _, err := f.pool.Exec(f.ctx, "UPDATE documents SET kind = 'file', content = NULL WHERE id = $1", id); err != nil {
+		t.Fatalf("make audit document a file: %v", err)
+	}
 	return svc, id
 }
