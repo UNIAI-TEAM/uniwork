@@ -56,6 +56,8 @@ export interface PreviewAssetScopeRequest {
   ttl_ms: number;
   /** Manifest keys the preview may load; nothing else is granted. */
   keys: readonly string[];
+  /** Optional manifest-key -> opaque Documents asset id mapping. */
+  asset_ids?: Readonly<Record<string, string>>;
 }
 
 export interface PreviewAssetScope {
@@ -104,15 +106,17 @@ const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
 /** Validate the proxy origin: absolute https (http only on loopback), bare origin, not the app. */
 export function checkAssetOrigin(origin: string, appOrigin: string): string {
   let url: URL;
+  let appUrl: URL;
   try {
     url = new URL(origin);
+    appUrl = new URL(appOrigin);
   } catch {
     throw new PreviewIsolationError("asset proxy origin is not an absolute URL");
   }
   const secure = url.protocol === "https:" || (url.protocol === "http:" && LOOPBACK.has(url.hostname));
   if (!secure) throw new PreviewIsolationError("asset proxy origin must be https");
   if (url.origin !== origin.replace(/\/$/, "")) throw new PreviewIsolationError("asset proxy origin must be a bare origin");
-  if (url.origin === appOrigin) throw new PreviewIsolationError("asset proxy must not share the app origin");
+  if (url.origin === appUrl.origin) throw new PreviewIsolationError("asset proxy must not share the app origin");
   return url.origin;
 }
 
@@ -233,12 +237,18 @@ export async function mountHtmlPreview(options: MountHtmlPreviewOptions): Promis
   const capability = options.capability;
   const ttl_ms = options.scope.ttl_ms ?? DEFAULT_TTL_MS;
   let manifest = options.manifest;
-  const openScope = async (keys: string[], requiredOrigin: string | null) => {
+  const openScope = async (scopeManifest: AssetManifest, keys: string[], requiredOrigin: string | null) => {
+    const assetIds = Object.fromEntries(
+      scopeManifest.entries
+        .map((entry) => [entry.key, (entry as AssetManifestEntryWithID).asset_id])
+        .filter((entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].length > 0),
+    );
     const opened = await options.proxy.open({
       document_id: options.scope.document_id,
       job_id: options.scope.job_id,
       ttl_ms,
       keys,
+      ...(Object.keys(assetIds).length > 0 ? { asset_ids: assetIds } : {}),
     });
     try {
       const origin = checkAssetOrigin(opened.origin, appOrigin);
@@ -252,7 +262,11 @@ export async function mountHtmlPreview(options: MountHtmlPreviewOptions): Promis
       throw error;
     }
   };
-  let current = await openScope(manifest.entries.map((e) => e.key), null);
+
+interface AssetManifestEntryWithID {
+  asset_id?: unknown;
+}
+  let current = await openScope(manifest, manifest.entries.map((e) => e.key), null);
   const assetOrigin = current.origin;
   const csp = previewCsp(assetOrigin, capability);
   const nonce = newNonce();
@@ -350,7 +364,7 @@ export async function mountHtmlPreview(options: MountHtmlPreviewOptions): Promis
       if (keys.some((key) => !current.granted.has(key))) {
         // New assets (e.g. an image dropped in while editing) need a grant:
         // reopen the scope with the new key set and retire the old one.
-        const reopened = await openScope(keys, assetOrigin);
+        const reopened = await openScope(target, keys, assetOrigin);
         // A newer update or a dispose overtook this one while it waited: its
         // grant is retired at once and it neither renders nor swaps scopes,
         // so text, manifest and grant always come from the same update.

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 
@@ -344,6 +345,46 @@ func (s *DocumentService) authorizeDocumentAsset(ctx context.Context, actor Acto
 		return db.Document{}, db.DocumentAsset{}, DocumentAccess{}, err
 	}
 	return doc, a, access, nil
+}
+
+// ValidatePreviewAssets authorizes every opaque asset id before a preview
+// capability is minted. It deliberately returns one not-found answer for a
+// foreign document, a missing asset and a non-member, so scope creation never
+// becomes an existence oracle. The broker calls this service method rather
+// than reading ACL tables in its handler.
+func (s *DocumentService) ValidatePreviewAssets(ctx context.Context, actor Actor, documentID string, assetIDs []string) error {
+	if documentID == "" || len(assetIDs) > 256 {
+		return ErrNotFound
+	}
+	if _, _, err := s.authorizeDocument(ctx, actor, documentID, DocumentLevelView); err != nil {
+		return ErrNotFound
+	}
+	seen := make(map[string]struct{}, len(assetIDs))
+	for _, assetID := range assetIDs {
+		if !validPreviewAssetID(assetID) {
+			return ErrNotFound
+		}
+		if _, ok := seen[assetID]; ok {
+			return ErrNotFound
+		}
+		seen[assetID] = struct{}{}
+		if _, _, _, err := s.authorizeDocumentAsset(ctx, actor, documentID, assetID, DocumentLevelView); err != nil {
+			return ErrNotFound
+		}
+	}
+	return nil
+}
+
+func validPreviewAssetID(value string) bool {
+	if value == "" || len(value) > 128 || value == "." || value == ".." || strings.ContainsAny(value, "/\\?#%:") {
+		return false
+	}
+	for _, r := range value {
+		if r < 0x21 || r == 0x7f {
+			return false
+		}
+	}
+	return true
 }
 
 // withDocumentMutation is the gate every document command runs through: one

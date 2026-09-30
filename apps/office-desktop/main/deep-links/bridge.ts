@@ -1,5 +1,6 @@
 import type { DeviceBinding, ExchangeOutcome, ExchangePort, LaunchOperation, OfficeLaunchDescriptor } from "./exchange";
 import { launchUrlFromArgv, parseOfficeDeepLink, type DeepLinkRejectReason } from "./parser";
+import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST } from "../../shared/identity";
 
 type LaunchBridgeRefusal =
   | DeepLinkRejectReason
@@ -41,7 +42,7 @@ export type LaunchBridge = Readonly<{
  * terminal sets prevent argv/open-url duplicate delivery from redeeming twice,
  * while account mismatch remains retryable after a deliberate login. */
 export function createLaunchBridge(options: LaunchBridgeOptions): LaunchBridge {
-  const clientId = options.clientId ?? "uniwork-office";
+  const clientId = options.clientId ?? DESKTOP_IDENTITY.executable;
   const terminalTickets = new Set<string>();
   const inFlightTickets = new Set<string>();
   const listeners = new Set<(event: LaunchRequestedEvent) => void>();
@@ -135,21 +136,36 @@ export type DeepLinkSystem = Readonly<{
 
 export type DeepLinkRegistration = Readonly<{ primary: boolean; dispose(): void }>;
 
+function authCallbackFromArgv(argv: readonly unknown[]): string | undefined {
+  const callbacks = Object.values(DESKTOP_IDENTITY_MANIFEST.channelProfiles).map((profile) => profile.authCallback);
+  return argv.find((value): value is string => typeof value === "string" && callbacks.some((callback) => value.startsWith(callback)));
+}
+
 /** Register the protocol only in the process that owns the lock. Electron's
  * second-instance and open-url callbacks feed the same bridge object as cold
  * argv, so there is one parser/exchange namespace. */
-export function registerDeepLinkSystem(system: DeepLinkSystem, bridge: LaunchBridge): DeepLinkRegistration {
+export function registerDeepLinkSystem(system: DeepLinkSystem, bridge: LaunchBridge, authCallback?: (url: string) => Promise<unknown> | unknown): DeepLinkRegistration {
   if (!system.requestSingleInstanceLock()) {
     system.quit?.();
     return { primary: false, dispose: () => undefined };
   }
-  system.registerProtocolClient("uniwork-office");
+  system.registerProtocolClient(DESKTOP_IDENTITY.userScheme);
   const second = (eventOrArgv: unknown, maybeArgv?: readonly unknown[]) => {
     const argv = Array.isArray(maybeArgv) ? maybeArgv : Array.isArray(eventOrArgv) ? eventOrArgv : [];
+    const authUrl = authCallbackFromArgv(argv);
+    if (authCallback && authUrl) {
+      void authCallback(authUrl);
+      return;
+    }
     void bridge.handleSecondInstance(argv);
   };
   const open = (event: { preventDefault(): void }, url: string) => {
     event.preventDefault();
+    const isAuthCallback = Object.values(DESKTOP_IDENTITY_MANIFEST.channelProfiles).some((profile) => url.startsWith(profile.authCallback));
+    if (authCallback && isAuthCallback) {
+      void authCallback(url);
+      return;
+    }
     void bridge.handleOpenUrl(url);
   };
   system.onSecondInstance(second);

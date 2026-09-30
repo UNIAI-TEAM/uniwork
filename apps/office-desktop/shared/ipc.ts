@@ -10,6 +10,7 @@ export const DESKTOP_IPC_CHANNELS = [
   "desktop:auth-start",
   "desktop:auth-cancel",
   "desktop:auth-session",
+  "desktop:diagnostics",
   "desktop:file-pick-open",
   "desktop:file-open",
   "desktop:file-save",
@@ -63,23 +64,36 @@ export const desktopFileMetadataSchema = z.object({
 }).strict();
 export const desktopFileResponseSchema = z.object({ opened: z.boolean(), metadata: desktopFileMetadataSchema.optional() }).strict();
 export const desktopDraftResponseSchema = z.object({ stored: z.boolean(), generation: z.number().int().positive() }).strict();
+export const desktopDiagnosticsResponseSchema = z.object({
+  name: z.string().min(1).optional(),
+  appId: z.string().min(1),
+  appVersion: z.string().regex(/^\d+\.\d+\.\d+(?:-(?:dev|beta)\.\d+)?$/),
+  engineVersion: z.string().min(1),
+  contractVersion: z.string().min(1),
+  protocolVersion: z.number().int().positive(),
+  channel: z.enum(["stable", "beta", "dev"]),
+  buildId: z.string().regex(/^[a-z0-9][a-z0-9-]+$/),
+  deploymentId: deploymentSchema.optional(),
+  originHost: z.string().min(1).max(255).optional(),
+}).strict();
 const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:file-pick-open": desktopFileResponseSchema,
   "desktop:file-open": desktopFileResponseSchema,
   "desktop:file-save": desktopFileResponseSchema,
   "desktop:file-save-as": desktopFileResponseSchema,
   "desktop:draft-checkpoint": desktopDraftResponseSchema,
+  "desktop:diagnostics": desktopDiagnosticsResponseSchema,
 };
 const documentIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/, "invalid document id");
 export const launchRequestedEventSchema = z.object({ documentId: documentIdSchema, operation: z.enum(["view", "edit"]) }).strict();
 export type LaunchRequestedEvent = z.infer<typeof launchRequestedEventSchema>;
 export const desktopSessionMetadataSchema = z.object({
-  status: z.enum(["signed-out", "pending", "signed-in"]),
+  status: z.enum(["signed-out", "pending", "signed-in", "locked", "login-required"]),
   accountId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/).optional(),
   deploymentId: deploymentSchema.optional(),
 }).strict().superRefine((value, context) => {
   if (value.status === "signed-in" && (!value.accountId || !value.deploymentId)) context.addIssue({ code: z.ZodIssueCode.custom, message: "signed-in metadata requires account and deployment" });
-  if (value.status !== "signed-in" && (value.accountId !== undefined || value.deploymentId !== undefined)) context.addIssue({ code: z.ZodIssueCode.custom, message: "signed-out/pending metadata cannot include account" });
+  if (value.status !== "signed-in" && (value.accountId !== undefined || value.deploymentId !== undefined)) context.addIssue({ code: z.ZodIssueCode.custom, message: "non-signed-in metadata cannot include account" });
 });
 export type DesktopSessionMetadata = z.infer<typeof desktopSessionMetadataSchema>;
 const requestSchemas = {
@@ -89,6 +103,7 @@ const requestSchemas = {
   "desktop:auth-start": z.object({ sessionGeneration: sessionGenerationSchema, clientId: clientIdSchema, deploymentId: deploymentSchema }).strict(),
   "desktop:auth-cancel": z.object({ sessionGeneration: sessionGenerationSchema, attemptId: attemptIdSchema }).strict(),
   "desktop:auth-session": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
+  "desktop:diagnostics": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:file-pick-open": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:file-open": z.object({ sessionGeneration: sessionGenerationSchema, handle: fileHandleSchema }).strict(),
   "desktop:file-save": z.object({ sessionGeneration: sessionGenerationSchema, handle: fileHandleSchema, dataBase64: base64BytesSchema }).strict(),

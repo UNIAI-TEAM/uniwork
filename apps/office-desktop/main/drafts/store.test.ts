@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { promises as fs } from "node:fs";
 import { join } from "node:path";
-import { createDesktopDraftStore } from "./store";
+import { createDesktopDraftStore, DRAFT_TEMP_PREFIX } from "./store";
 import { createFakeDraftKeyStore } from "./test-fake";
 import { checksum, decryptDraft, encryptDraft } from "./crypto";
 import { DraftRecoveryError, type DraftIdentity, type DraftSession } from "../../../../packages/core/office/draft-recovery";
@@ -78,6 +78,7 @@ describe("desktop protected drafts", () => {
     expect(recovered.status).toBe("recovered");
     if (recovered.status === "recovered") expect(new TextDecoder().decode(recovered.plaintext)).toBe("old");
     await store.withPlaintextTemp(new TextEncoder().encode("temporary"), async (path) => { expect(await fs.readFile(path, "utf8")).toBe("temporary"); return undefined; });
+    expect((await fs.readdir(rootPath)).some((entry) => entry.startsWith(DRAFT_TEMP_PREFIX))).toBe(false);
     expect((await fs.readdir(rootPath)).some((entry) => entry.startsWith("uniwork-office-draft-"))).toBe(false);
   });
 

@@ -286,6 +286,8 @@ const maxPreTenantMigrationPrefix = 65
 var tenantExemptTables = map[string]string{
 	"users":                     "identity, above every organization",
 	"refresh_tokens":            "session credential, keyed by user",
+	"desktop_auth_attempts":     "pending account authorization, before organization selection",
+	"device_sessions":           "account/session identity can span zero or many organizations; no single organization is correct",
 	"email_verification_codes":  "pre-registration, no organization yet",
 	"password_reset_tokens":     "credential recovery, keyed by user",
 	"organizations":             "the tenant itself",

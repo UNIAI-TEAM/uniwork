@@ -69,6 +69,23 @@ describe("launch bridge routing", () => {
     expect(exchange.calls).toBe(1);
   });
 
+  it("routes a Windows second-instance auth callback to the login manager", async () => {
+    const exchange = new FakeExchangePort();
+    const bridge = createLaunchBridge({ exchange, trustedDeploymentId: session.deploymentId, getSession: () => session });
+    const authCallback = vi.fn();
+    let second: ((eventOrArgv: unknown, argv?: readonly unknown[]) => void) | undefined;
+    const system = {
+      requestSingleInstanceLock: vi.fn(() => true), registerProtocolClient: vi.fn(),
+      onSecondInstance: vi.fn((handler: (eventOrArgv: unknown, argv?: readonly unknown[]) => void) => { second = handler; }),
+      onOpenUrl: vi.fn(),
+    };
+    registerDeepLinkSystem(system, bridge, authCallback);
+    second?.(["office.exe", "uniwork-office://auth/callback?code=code_abc&state=state_abc"]);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(authCallback).toHaveBeenCalledWith("uniwork-office://auth/callback?code=code_abc&state=state_abc");
+    expect(exchange.calls).toBe(0);
+  });
+
   it("quits a secondary process without registering a second protocol owner", () => {
     const exchange = new FakeExchangePort();
     const bridge = createLaunchBridge({ exchange, trustedDeploymentId: "production-eu", getSession: () => session });

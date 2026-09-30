@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST, type DesktopIdentityManifest } from "../../shared/identity";
 
 export const LAUNCH_TICKET_TTL_MS = 120_000;
 /** Proposed 05a skew budget. 05b must use the same value in the server
@@ -22,8 +23,8 @@ export type OfficeLaunchDescriptor = Readonly<{
   operation: LaunchOperation;
   version: number;
   revision: string;
-  contract_version: "uniwork-office-engine-contract/1";
-  protocol_version: "1";
+  contract_version: DesktopIdentityManifest["engine"]["contractVersion"];
+  protocol_version: `${DesktopIdentityManifest["engine"]["protocolVersion"]}`;
   download_path: string;
 }>;
 
@@ -77,7 +78,7 @@ export class FakeExchangePort implements ExchangePort {
 
   constructor(options: FakeExchangePortOptions = {}) {
     this.now = options.now ?? (() => Date.now());
-    this.clientId = options.clientId ?? "uniwork-office";
+    this.clientId = options.clientId ?? DESKTOP_IDENTITY.executable;
     this.clockSkewMs = options.clockSkewMs ?? LAUNCH_CLOCK_SKEW_MS;
     if (!Number.isInteger(this.clockSkewMs) || this.clockSkewMs < 0) throw new Error("Invalid launch clock skew");
   }
@@ -106,8 +107,8 @@ export class FakeExchangePort implements ExchangePort {
       title: "Q4 plan",
       kind: "file",
       revision: "41",
-      contract_version: "uniwork-office-engine-contract/1",
-      protocol_version: "1",
+      contract_version: DESKTOP_IDENTITY_MANIFEST.engine.contractVersion,
+      protocol_version: `${DESKTOP_IDENTITY_MANIFEST.engine.protocolVersion}`,
       download_path: "/api/v1/documents/01J8X4DOC0N1P2Q3R4S5T6U7/download",
       ...input.descriptor,
       // Callers may customize fixture metadata, but the fake owns the

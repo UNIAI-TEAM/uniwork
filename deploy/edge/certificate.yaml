@@ -7,6 +7,7 @@ spec:
   secretName: uniwork-tls
   dnsNames:
     - uniwork.unicomhub.com
+    - preview.unicomhub.com
   issuerRef:
     name: letsencrypt-http01
     kind: ClusterIssuer

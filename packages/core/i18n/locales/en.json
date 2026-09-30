@@ -74,6 +74,21 @@
     "networkError": "Can't reach UniWork. Check your connection and try again.",
     "serverError": "UniWork is having trouble. Try again in a few minutes.",
     "tooManyAttempts": "Too many attempts. Wait a minute and try again.",
+    "desktop": {
+      "eyebrow": "Desktop sign-in",
+      "title": "Allow UniWork Office to sign in?",
+      "description": "Check the app and device details before continuing. This approval is valid for this device only.",
+      "app": "App",
+      "device": "Device",
+      "account": "Account",
+      "deployment": "Deployment",
+      "currentAccount": "Your signed-in account",
+      "build": "Build",
+      "unknown": "Not provided",
+      "loading": "Loading…",
+      "approve": "Allow desktop app",
+      "approving": "Allowing…"
+    },
     "forgot": {
       "title": "Forgot password",
       "subtitle": "Enter your account email and we will send a reset link.",

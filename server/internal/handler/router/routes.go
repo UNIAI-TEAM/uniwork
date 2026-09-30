@@ -25,16 +25,24 @@ type Routes struct {
 	AdminSetFlagOverride       http.HandlerFunc
 	AdminDeleteFlagOverride    http.HandlerFunc
 
-	Register       http.HandlerFunc
-	Login          http.HandlerFunc
-	ForgotPassword http.HandlerFunc
-	ResetPassword  http.HandlerFunc
-	Refresh        http.HandlerFunc
-	Logout         http.HandlerFunc
-	MFAVerify      http.HandlerFunc
-	AuthProviders  http.HandlerFunc
-	GoogleStart    http.HandlerFunc
-	GoogleCallback http.HandlerFunc
+	Register              http.HandlerFunc
+	Login                 http.HandlerFunc
+	ForgotPassword        http.HandlerFunc
+	ResetPassword         http.HandlerFunc
+	Refresh               http.HandlerFunc
+	Logout                http.HandlerFunc
+	MFAVerify             http.HandlerFunc
+	AuthProviders         http.HandlerFunc
+	GoogleStart           http.HandlerFunc
+	GoogleCallback        http.HandlerFunc
+	DesktopStart          http.HandlerFunc
+	DesktopConsent        http.HandlerFunc
+	DesktopConsentCommand http.HandlerFunc
+	DesktopExchange       http.HandlerFunc
+	DesktopRefresh        http.HandlerFunc
+	DesktopLogout         http.HandlerFunc
+	DesktopDevices        http.HandlerFunc
+	DesktopRevokeDevice   http.HandlerFunc
 
 	Me                  http.HandlerFunc
 	PatchMe             http.HandlerFunc
@@ -418,6 +426,8 @@ type Routes struct {
 	UploadDocumentAsset     http.HandlerFunc
 	GetDocumentAsset        http.HandlerFunc
 	DownloadDocument        http.HandlerFunc
+	CreatePreviewScope      http.HandlerFunc
+	GetPreviewAsset         http.HandlerFunc
 
 	// Document comments + favorites (G1-07, UNI-681; lane 07b).
 	ListDocumentComments          http.HandlerFunc

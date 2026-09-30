@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
@@ -12,6 +13,59 @@ import (
 	"github.com/unicomhub/uniwork/server/internal/telemetry"
 	"github.com/unicomhub/uniwork/server/pkg/featureflag"
 )
+
+// RequireAuthWithDevice extends bearer validation with a live native-device
+// status check. Browser sessions are represented by the same sid namespace;
+// a checker returns nil for those rows and only rejects a known revoked device.
+func RequireAuthWithDevice(m auth.TokenMinter, check func(context.Context, string, string) error) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			h := r.Header.Get("Authorization")
+			token, ok := strings.CutPrefix(h, "Bearer ")
+			if !ok || token == "" {
+				writeUnauthorized(w, "missing bearer token")
+				return
+			}
+			uid, sid, err := m.ParseSession(token)
+			if err != nil {
+				writeUnauthorized(w, "invalid token")
+				return
+			}
+			if check != nil {
+				if err := check(r.Context(), uid, sid); err != nil {
+					if codedErrorCode(err) == "device_revoked" {
+						writeDeviceRevoked(w)
+						return
+					}
+					writeUnauthorized(w, "unauthorized")
+					return
+				}
+			}
+			platform, _, _ := ClientMetadataFromContext(r.Context())
+			telemetry.SetActor(r.Context(), uid, string(audit.KindHuman), platform)
+			ctx := context.WithValue(WithUserID(r.Context(), uid), sessionIDKey, sid)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+type errorCodeCarrier interface{ CodeValue() string }
+
+func codedErrorCode(err error) string {
+	var carrier errorCodeCarrier
+	if errors.As(err, &carrier) {
+		return carrier.CodeValue()
+	}
+	return ""
+}
+
+func writeDeviceRevoked(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusUnauthorized)
+	_ = json.NewEncoder(w).Encode(sdo.NewErrorSDO("device_revoked", "desktop device is no longer authorized"))
+}
 
 type ctxKey int
 

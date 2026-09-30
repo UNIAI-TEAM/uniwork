@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"log/slog"
 	"net"
 	"net/http"
@@ -25,6 +26,7 @@ type Deps struct {
 	Log           *slog.Logger
 	Minter        auth.TokenMinter
 	Auth          *service.AuthService
+	DesktopAuth   *service.DesktopAuthService
 	Verification  *service.VerificationService
 	PasswordReset *service.PasswordResetService
 	GoogleAuth    *service.GoogleAuthService
@@ -64,6 +66,10 @@ type Deps struct {
 	// office_not_configured on the office routes, so Documents keeps working
 	// without an engine.
 	Office *service.DocumentOfficeService
+
+	// Preview is the cookie-less, isolated-origin asset broker. Scope minting
+	// is authenticated; the byte route consumes only its opaque capability.
+	Preview *service.PreviewAssetService
 
 	// Redis is optional: nil disables the rate limiter and any other feature
 	// that needs shared state across instances.
@@ -113,6 +119,12 @@ func New(d Deps) http.Handler {
 		HTTPMetrics:   d.HTTPMetrics,
 		PlatformRoles: platformRoles(d.Admin),
 		FeatureFlags:  d.FeatureFlags,
+		DeviceStatus: func(ctx context.Context, userID, sessionID string) error {
+			if d.DesktopAuth == nil {
+				return nil
+			}
+			return d.DesktopAuth.CheckDeviceSession(ctx, userID, sessionID)
+		},
 	}, rt.Routes{
 		Health: h.health,
 		Ready:  h.ready,
@@ -134,16 +146,24 @@ func New(d Deps) http.Handler {
 		AdminDeleteFlagOverride:    h.adminDeleteFlagOverride,
 		WS:                         h.ws,
 
-		Register:       h.register,
-		Login:          h.login,
-		ForgotPassword: h.forgotPassword,
-		ResetPassword:  h.resetPassword,
-		Refresh:        h.refresh,
-		Logout:         h.logout,
-		MFAVerify:      h.mfaVerify,
-		AuthProviders:  h.authProviders,
-		GoogleStart:    h.googleStart,
-		GoogleCallback: h.googleCallback,
+		Register:              h.register,
+		Login:                 h.login,
+		ForgotPassword:        h.forgotPassword,
+		ResetPassword:         h.resetPassword,
+		Refresh:               h.refresh,
+		Logout:                h.logout,
+		MFAVerify:             h.mfaVerify,
+		AuthProviders:         h.authProviders,
+		GoogleStart:           h.googleStart,
+		GoogleCallback:        h.googleCallback,
+		DesktopStart:          h.desktopStart,
+		DesktopConsent:        h.desktopConsent,
+		DesktopConsentCommand: h.desktopConsentCommand,
+		DesktopExchange:       h.desktopExchange,
+		DesktopRefresh:        h.desktopRefresh,
+		DesktopLogout:         h.desktopLogout,
+		DesktopDevices:        h.desktopDevices,
+		DesktopRevokeDevice:   h.desktopRevokeDevice,
 
 		Me:                  h.me,
 		PatchMe:             h.patchMe,
@@ -520,6 +540,8 @@ func New(d Deps) http.Handler {
 		UploadDocumentAsset:     h.uploadDocumentAsset,
 		GetDocumentAsset:        h.getDocumentAsset,
 		DownloadDocument:        h.downloadDocument,
+		CreatePreviewScope:      h.createPreviewScope,
+		GetPreviewAsset:         h.getPreviewAsset,
 
 		ListDocumentComments:          h.listDocumentComments,
 		CreateDocumentComment:         h.createDocumentComment,

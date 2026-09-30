@@ -24,6 +24,8 @@ postgres_port=5432
 backend_port=$((18080 + offset))
 frontend_port=$((13000 + offset))
 frontend_origin="http://localhost:${frontend_port}"
+preview_port=$((frontend_port + 1))
+preview_origin="http://localhost:${preview_port}"
 metrics_port=$((19090 + offset))
 
 cat > "$ENV_FILE" <<EOF
@@ -43,6 +45,10 @@ PORT=${backend_port}
 JWT_SECRET=dev-secret-change-me
 FRONTEND_PORT=${frontend_port}
 FRONTEND_ORIGIN=${frontend_origin}
+PREVIEW_ORIGIN=${preview_origin}
+PREVIEW_CAPABILITY_SECRET=dev-preview-capability-secret-${slug}-32bytes
+PREVIEW_ASSET_TTL=10m
+PREVIEW_ASSET_MAX_BYTES=10485760
 METRICS_ADDR=127.0.0.1:${metrics_port}
 # Storage is chosen explicitly: an unset STORAGE_BACKEND means minio, and the
 # server refuses to start without the MINIO_* group. Switch to MinIO with

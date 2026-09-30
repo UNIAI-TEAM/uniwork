@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createDesktopHost, WINDOW_WEB_PREFERENCES } from "./index";
 import { FakeExchangePort, createLaunchBridge } from "./deep-links";
+import { DESKTOP_IDENTITY } from "../shared/identity";
 
 const sender = { senderId: 1, frameId: 0, origin: "uniwork-office-app://app", expectedSenderId: 1, expectedFrameId: 0, expectedOrigin: "uniwork-office-app://app", sessionGeneration: "session_1234" };
 const windowPreferences = { sandbox: true, contextIsolation: true, nodeIntegration: false } as const;
@@ -14,7 +15,7 @@ describe("desktop host bootstrap", () => {
     expect(WINDOW_WEB_PREFERENCES).toMatchObject({ sandbox: true, contextIsolation: true, nodeIntegration: false });
     await host.start();
     expect(loadURL).toHaveBeenCalledWith("uniwork-office-app://app/index.html");
-    expect(setUserDataDirectory).toHaveBeenCalledWith("uniwork-office-dev");
+    expect(setUserDataDirectory).toHaveBeenCalledWith(DESKTOP_IDENTITY.userDataNamespace);
     expect(host.identity.appId).toBe("com.uniwork.office");
   });
   it("rejects a native window seam that changes the secure preferences", () => {
@@ -75,5 +76,23 @@ describe("desktop host bootstrap", () => {
     expect(send).toHaveBeenCalledWith("desktop:launch-requested", { documentId: "01J8X4DOC0N1P2Q3R4S5T6U7", operation: "view" });
     expect(JSON.stringify(send.mock.calls)).not.toContain(ticket);
     expect(second).toBeDefined();
+  });
+
+  it("routes a cold-start auth callback to the manager instead of the launch bridge", async () => {
+    const originalArgv = process.argv;
+    process.argv = [...originalArgv, "uniwork-office://auth/callback?code=code_abc&state=state_abc"];
+    try {
+      const authCallback = vi.fn().mockResolvedValue({ ok: false, reason: "no_attempt" });
+      const coldStart = vi.fn();
+      const bridge = { handleColdStart: coldStart, handleSecondInstance: vi.fn(), handleOpenUrl: vi.fn(), subscribe: vi.fn(() => () => undefined) } as never;
+      const system = { requestSingleInstanceLock: vi.fn(() => true), registerProtocolClient: vi.fn(), onSecondInstance: vi.fn(), onOpenUrl: vi.fn() };
+      const contents = { on: vi.fn(), setWindowOpenHandler: vi.fn(), send: vi.fn() };
+      const host = createDesktopHost({ window: { webContents: contents, webPreferences: windowPreferences, loadURL: vi.fn(), setUserDataDirectory: vi.fn() }, sender, authManager: { handleCallback: authCallback } as never, deepLinks: { system, bridge } });
+      await host.start();
+      expect(authCallback).toHaveBeenCalledWith("uniwork-office://auth/callback?code=code_abc&state=state_abc");
+      expect(coldStart).not.toHaveBeenCalled();
+    } finally {
+      process.argv = originalArgv;
+    }
   });
 });

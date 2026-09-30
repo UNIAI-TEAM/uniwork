@@ -101,6 +101,10 @@ func (e CodedError) Error() string {
 
 func (e CodedError) Unwrap() error { return e.Err }
 
+// CodeValue lets transport middleware classify additive error codes without
+// importing the service package (which would invert the layer dependency).
+func (e CodedError) CodeValue() string { return e.Code }
+
 func coded(status int, code, msg string) error {
 	return CodedError{Code: code, Status: status, Msg: msg}
 }
