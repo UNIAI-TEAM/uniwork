@@ -12,7 +12,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@uniwork/ui/components/ui/dropdown-menu";
+import type { ScheduleDraft } from "../meetings/meeting-datetime";
 import { NewMeetingDialog } from "../meetings/new-meeting-dialog";
+import { useNow } from "../meetings/use-now";
 import { CreateTaskDialog } from "../tasks/create-task-dialog";
 import {
   meetingScheduleFromSlot,
@@ -53,14 +55,13 @@ export function CreateFromSlot({
   const { t, i18n } = useTranslation();
   const [taskOpen, setTaskOpen] = useState(false);
   const [meetingOpen, setMeetingOpen] = useState(false);
+  const [meetingSchedule, setMeetingSchedule] = useState<ScheduleDraft | undefined>();
   const taskDefaults = useMemo(
     () => (slot ? taskDefaultsFromSlot(slot) : undefined),
     [slot],
   );
-  const meetingSchedule = useMemo(
-    () => (slot ? meetingScheduleFromSlot(slot) : undefined),
-    [slot],
-  );
+  const nowMs = useNow();
+  const meetingPassed = slot ? meetingScheduleFromSlot(slot, nowMs) === null : false;
   const slotSummary = formatSlotSummary(
     slot,
     i18n.resolvedLanguage ?? i18n.language,
@@ -74,7 +75,11 @@ export function CreateFromSlot({
   };
 
   const pickMeeting = () => {
+    // The menu can sit open across a minute boundary; decide on the clock now.
+    const schedule = slot ? meetingScheduleFromSlot(slot, Date.now()) : undefined;
+    if (schedule === null) return;
     onOpenChange(false);
+    setMeetingSchedule(schedule);
     setMeetingOpen(true);
   };
 
@@ -110,14 +115,20 @@ export function CreateFromSlot({
               </span>
               <ChevronRight aria-hidden className="size-3.5 text-muted-foreground" />
             </DropdownMenuItem>
-            <DropdownMenuItem className="gap-2 px-2 py-2" onClick={pickMeeting}>
+            <DropdownMenuItem
+              className="gap-2 px-2 py-2"
+              disabled={meetingPassed}
+              onClick={pickMeeting}
+            >
               <Video aria-hidden className="size-4 text-muted-foreground" />
               <span className="min-w-0 flex-1">
                 <span className="block text-label font-medium">
                   {t("calendar.create_meeting")}
                 </span>
                 <span className="block truncate text-caption text-muted-foreground">
-                  {t("calendar.create_meeting_hint")}
+                  {meetingPassed
+                    ? t("calendar.create_meeting_past_hint")
+                    : t("calendar.create_meeting_hint")}
                 </span>
               </span>
               <ChevronRight aria-hidden className="size-3.5 text-muted-foreground" />

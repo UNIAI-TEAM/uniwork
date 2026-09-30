@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { wrap } from "../test/api-mock";
 import { CreateFromSlot } from "./create-from-slot";
@@ -24,8 +24,14 @@ vi.mock("../meetings/new-meeting-dialog", () => ({
 
 describe("CreateFromSlot", () => {
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-10T09:55:00"));
     taskDialogProps.current = {};
     meetingDialogProps.current = {};
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("opens an anchored creation menu with both item types", () => {
@@ -125,6 +131,68 @@ describe("CreateFromSlot", () => {
       start: "14:00",
       end: "15:00",
     });
+  });
+
+  it("starts a meeting on today's day cell at the next quarter hour", () => {
+    render(
+      wrap(
+        <CreateFromSlot
+          workspaceId="ws1"
+          open
+          onOpenChange={() => {}}
+          slot={{ start: new Date("2026-09-10T00:00:00"), end: null, allDay: true }}
+          anchor={document.body}
+        />,
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("menuitem", { name: /Cuộc họp mới/ }));
+    expect(meetingDialogProps.current.scheduleDefaults).toEqual({
+      date: "2026-09-10",
+      start: "10:00",
+      end: "11:00",
+    });
+  });
+
+  it("does not offer a meeting in a slot that has passed, but still offers a task", () => {
+    render(
+      wrap(
+        <CreateFromSlot
+          workspaceId="ws1"
+          open
+          onOpenChange={() => {}}
+          slot={{
+            start: new Date("2026-09-10T08:00:00"),
+            end: new Date("2026-09-10T09:00:00"),
+            allDay: false,
+          }}
+          anchor={document.body}
+        />,
+      ),
+    );
+
+    const meeting = screen.getByRole("menuitem", { name: /Cuộc họp mới/ });
+    expect(meeting).toHaveAttribute("aria-disabled", "true");
+    expect(meeting).toHaveTextContent("Không thể đặt cuộc họp vào thời gian đã qua");
+    fireEvent.click(meeting);
+    expect(screen.queryByTestId("create-meeting-dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Việc mới/ })).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("does not offer a meeting on a day that has passed", () => {
+    render(
+      wrap(
+        <CreateFromSlot
+          workspaceId="ws1"
+          open
+          onOpenChange={() => {}}
+          slot={{ start: new Date("2026-09-09T00:00:00"), end: null, allDay: true }}
+          anchor={document.body}
+        />,
+      ),
+    );
+
+    expect(screen.getByRole("menuitem", { name: /Cuộc họp mới/ })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("closes the composer with Escape", () => {
