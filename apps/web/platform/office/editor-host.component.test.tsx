@@ -123,6 +123,13 @@ function button(label: string): HTMLButtonElement {
   return found as HTMLButtonElement;
 }
 
+function dialogButton(label: string): HTMLButtonElement {
+  const dialog = document.querySelector('[role="dialog"]');
+  const found = Array.from(dialog?.querySelectorAll("button") ?? []).find((element) => element.textContent?.trim() === label);
+  if (!found) throw new Error(`dialog button not found: ${label}`);
+  return found as HTMLButtonElement;
+}
+
 async function settle(): Promise<void> {
   await act(async () => { await new Promise<void>((resolve) => setTimeout(resolve, 0)); });
 }
@@ -164,7 +171,7 @@ describe("OfficeEditorHost composition", () => {
     const rendered = renderHost(session);
     const firstLeave = leaveGuardAllows("/next");
     await settle();
-    await act(async () => { button("Save to UniWork").click(); });
+    await act(async () => { dialogButton("Save to UniWork").click(); });
     await settle();
     expect(document.querySelector('[role="alert"]')).toBeTruthy();
     expect(button("Keep draft on this device")).toBeTruthy();

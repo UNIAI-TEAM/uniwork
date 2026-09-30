@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/files"
 	"github.com/unicomhub/uniwork/server/internal/files/filesfake"
 	"github.com/unicomhub/uniwork/server/internal/office"
@@ -305,6 +306,32 @@ func TestDocumentOfficeLifecycle(t *testing.T) {
 		}
 		if _, err := svc.ClaimOfficeJobOutputInTx(ctx, f.q, f.org, f.ws, row.ID, util.NewID()); !errors.Is(err, ErrOfficeJobNotCommittable) {
 			t.Fatalf("cancelled output committable: %v", err)
+		}
+	})
+
+	t.Run("provider output cancellation settles as a retryable commit failure", func(t *testing.T) {
+		f := newOfficeFixture(t, "output cancellation\n")
+		eng := newScriptedEngine()
+		eng.fake = f.files.Fake
+		svc := f.service(eng)
+		row, err := svc.StartOfficeJob(ctx, f.actor, f.input("k-output-canceled"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		eng.finish(t, row.ID, body, "text/markdown")
+		if err := f.files.CancelUpload(ctx, files.CancelInput{
+			Actor:  audit.User(f.actor.ID),
+			Scope:  files.Scope{OrganizationID: f.org, WorkspaceID: f.ws},
+			FileID: files.FileID(row.OutputFileID.String),
+		}); err != nil {
+			t.Fatalf("cancel provider output: %v", err)
+		}
+		done, err := svc.GetOfficeJob(ctx, f.actor, f.org, f.ws, row.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if done.State != string(office.JobFailed) || done.ErrorCode.String != "commit_failed" || done.ErrorReason.String != "output_upload_canceled" {
+			t.Fatalf("canceled output job = %+v", done)
 		}
 	})
 

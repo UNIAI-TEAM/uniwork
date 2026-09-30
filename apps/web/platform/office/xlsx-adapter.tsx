@@ -340,7 +340,11 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
       if (!outcome.document_model_ref) throw new Error("xlsx_open_missing_model_ref");
       modelRef = outcome.document_model_ref;
       currentSnapshot = cloneSnapshot(outcome.snapshot ?? options.runtime.snapshot(modelRef));
-      generation = Math.max(1, options.identity.generation);
+      // Opening a workbook establishes the clean baseline.  The identity
+      // generation is the draft/auth session generation, not a content edit
+      // generation; using it here made the host's checkpoint timer treat an
+      // untouched open as dirty and persist a spurious recovery draft.
+      generation = 0;
       publishSnapshot();
     },
     getDirtyGeneration: () => generation,

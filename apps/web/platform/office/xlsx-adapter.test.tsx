@@ -109,11 +109,13 @@ describe("web XLSX format adapter", () => {
     const adapter = createXlsxFormatAdapter({ identity, session: { sessionId: "session", deploymentId: "dep", accountId: "acct", generation: 1 }, runtime: engine, documents: files, capability, draftStore: draftStore(), keyProvider: keyProvider() });
     const opened = await adapter.open.open();
     expect(opened).toMatchObject({ outcome: "opened", document_model_ref: "model-1" });
+    expect(adapter.editor.getDirtyGeneration()).toBe(0);
     await adapter.editor.recalculate?.run(new AbortController().signal);
-    expect(adapter.editor.getDirtyGeneration()).toBe(2);
+    expect(adapter.editor.getDirtyGeneration()).toBe(1);
     await adapter.editor.recalculate?.cancel?.();
     expect(engine.cancelled).toEqual(["model-1"]);
     await adapter.editor.edit?.([{ op: "set_cell", target: { sheet: "Data", cell: "A1" }, text: "7" }]);
+    expect(adapter.editor.getDirtyGeneration()).toBe(2);
     adapter.session.coordinator.markDirty(adapter.editor.getDirtyGeneration());
     const result = await adapter.session.coordinator.save("button");
     expect(result.accepted).toBe(true);
