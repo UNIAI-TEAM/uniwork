@@ -76,6 +76,22 @@ func (s *MeetingService) UpdateParticipantDuties(ctx context.Context, actorID, m
 	}
 	defer tx.Rollback(ctx)
 	q := s.q.WithTx(tx)
+	// Standing decides whom a finalized roll counts, so it is locked with the
+	// roll; the secretary duty only decides who may clerk, and stays open.
+	// Compare against the row as it stands under the meeting lock: the copy
+	// read before the transaction may predate a concurrent change.
+	if in.Standing != nil {
+		locked, err := q.LockMeetingForAttendance(ctx, meetingID)
+		if err != nil {
+			return db.MeetingParticipant{}, err
+		}
+		if p, err = q.GetMeetingParticipant(ctx, participantID); err != nil {
+			return db.MeetingParticipant{}, err
+		}
+		if locked.AttendanceFinalizedAt.Valid && *in.Standing != p.Standing {
+			return db.MeetingParticipant{}, errAttendanceFinalized()
+		}
+	}
 	params := db.UpdateParticipantDutiesParams{ID: participantID}
 	if in.Standing != nil {
 		params.Standing = pgtype.Text{String: *in.Standing, Valid: true}

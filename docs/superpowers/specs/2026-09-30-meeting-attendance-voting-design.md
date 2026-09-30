@@ -115,7 +115,9 @@ Với mỗi người tham gia `ACTIVE`:
 
 **Chốt** (`finalize`): trong một transaction, upsert một dòng `source='AUTO'` cho mọi
 người chưa có dòng, rồi set `attendance_finalized_*`. Sau khi chốt, lượt vào phòng mới
-không đổi trạng thái; API vẫn trả giờ vào thực tế để clerk tự sửa.
+không đổi trạng thái; API vẫn trả giờ vào thực tế. Bản đã chốt bị **khoá**: muốn sửa
+phải **Mở lại** trước (quyết định 2026-09-30 sau audit giao diện — "đã chốt bởi …" không
+được nằm trên số liệu đã đổi sau đó).
 **Mở lại** (`reopen`): xoá các dòng `source='AUTO'`, xoá `attendance_finalized_*`;
 dòng `MANUAL` giữ nguyên.
 
@@ -220,9 +222,9 @@ param mới `{motionID}` cần case trong `handler/router/openapi.go`. Checklist
 
 | Method + path | Quyền | Ghi chú |
 |---|---|---|
-| `PATCH /meetings/{meetingID}/participants/{participantID}` `{standing?, is_secretary?}` | chủ trì/admin | Khách + `is_secretary=true` → 422. |
+| `PATCH /meetings/{meetingID}/participants/{participantID}` `{standing?, is_secretary?}` | chủ trì/admin | Khách + `is_secretary=true` → 422. Đổi `standing` khi điểm danh đã chốt → 409 `attendance_finalized` (vai thư ký vẫn đổi được). |
 | `GET /meetings/{meetingID}/attendance` | thành viên workspace | §5.3 |
-| `PUT /meetings/{meetingID}/attendance/{participantID}` `{status, note}` | clerk | Meeting `IN_PROGRESS` hoặc `ENDED`, không thì 409 `invalid_state`. `note` chỉ lưu khi `EXCUSED`. |
+| `PUT /meetings/{meetingID}/attendance/{participantID}` `{status, note}` | clerk | Meeting `IN_PROGRESS` hoặc `ENDED`, không thì 409 `invalid_state`; đã chốt → 409 `attendance_finalized`. `note` chỉ lưu khi `EXCUSED`. |
 | `DELETE /meetings/{meetingID}/attendance/{participantID}` | clerk | Trả về gợi ý tự động; khi đã chốt → 409. |
 | `POST /meetings/{meetingID}/attendance/finalize` | clerk | Idempotent. |
 | `POST /meetings/{meetingID}/attendance/reopen` | clerk | |
@@ -439,7 +441,7 @@ trọn backend + web:
 - Gợi ý tự động: không vào → `ABSENT`; vào đúng mốc+10:00 → `PRESENT`; mốc+10:01 →
   `LATE`; họp tức thì dùng `actual_start_at`.
 - Dòng tay thắng gợi ý; chốt ghi snapshot đủ người; vào phòng sau chốt không đổi; mở lại
-  xoá `AUTO`, giữ `MANUAL`; `DELETE` khi đã chốt → 409.
+  xoá `AUTO`, giữ `MANUAL`; `PUT`/`DELETE` khi đã chốt → 409.
 - `present_seconds` cộng nhiều phiên, phiên mở tính tới now.
 - Quyền: thư ký được điểm danh/soạn/mở/đóng; thư ký không đổi `standing`, không giao thư
   ký, không `End`; khách không làm thư ký (422); không phải clerk → 403.

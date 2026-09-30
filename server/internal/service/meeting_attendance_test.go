@@ -302,9 +302,25 @@ func TestFinalizeAndReopenAttendance(t *testing.T) {
 	if n != 1 {
 		t.Fatalf("timeline rows = %d, want 1", n)
 	}
-	// Finalized: clearing a mark is refused.
+	// Finalized: the roll is locked until someone reopens it.
 	if err := s.ClearAttendanceMark(ctx, ua.ID, m.ID, memberPID); !codedIs(err, "attendance_finalized") {
 		t.Fatalf("clear after finalize: %v", err)
+	}
+	if err := s.MarkAttendance(ctx, ua.ID, m.ID, host.ID, AttendanceAbsent, ""); !codedIs(err, "attendance_finalized") {
+		t.Fatalf("mark after finalize: %v", err)
+	}
+	rep, _ = s.Attendance(ctx, ua.ID, m.ID)
+	if r := rowFor(t, rep, host.ID); r.Status != AttendancePresent {
+		t.Fatalf("refused mark changed the record: %+v", r)
+	}
+	// Standing decides who the counts are over, so it is locked too; the secretary duty is not.
+	observer := StandingObserver
+	if _, err := s.UpdateParticipantDuties(ctx, ua.ID, m.ID, memberPID, ParticipantDutiesInput{Standing: &observer}); !codedIs(err, "attendance_finalized") {
+		t.Fatalf("standing change after finalize: %v", err)
+	}
+	stillMember := StandingMember
+	if _, err := s.UpdateParticipantDuties(ctx, ua.ID, m.ID, memberPID, ParticipantDutiesInput{Standing: &stillMember}); err != nil {
+		t.Fatalf("unchanged standing after finalize: %v", err)
 	}
 	// Someone joining after finalize does not change the record.
 	guest := newGuestParticipant(t, s, m.ID)

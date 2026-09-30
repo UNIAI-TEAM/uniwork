@@ -178,8 +178,9 @@ func (s *MeetingService) attendanceMeeting(ctx context.Context, actorID, meeting
 	return m, nil
 }
 
-// MarkAttendance records a clerk's call for one person. Allowed after
-// finalize too: the record is corrected, and the audit row says who did it.
+// MarkAttendance records a clerk's call for one person. A finalized roll is
+// locked: correcting it means reopening first, so "finalized by" never sits
+// on numbers that changed after it.
 func (s *MeetingService) MarkAttendance(ctx context.Context, actorID, meetingID, participantID, status, note string) error {
 	if !validAttendanceStatus(status) {
 		return Invalid("trạng thái điểm danh không hợp lệ")
@@ -206,7 +207,21 @@ func (s *MeetingService) MarkAttendance(ctx context.Context, actorID, meetingID,
 	if err != nil {
 		return err
 	}
-	before, err := s.attendanceReport(ctx, s.q, m)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	q := s.q.WithTx(tx)
+	// The row lock orders this against finalize and reopen.
+	m, err = q.LockMeetingForAttendance(ctx, meetingID)
+	if err != nil {
+		return err
+	}
+	if m.AttendanceFinalizedAt.Valid {
+		return errAttendanceFinalized()
+	}
+	before, err := s.attendanceReport(ctx, q, m)
 	if err != nil {
 		return err
 	}
@@ -216,12 +231,6 @@ func (s *MeetingService) MarkAttendance(ctx context.Context, actorID, meetingID,
 			prev = r.Status
 		}
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-	q := s.q.WithTx(tx)
 	if _, err := q.UpsertAttendanceMark(ctx, db.UpsertAttendanceMarkParams{
 		ID: util.NewID(), OrganizationID: orgID, MeetingID: meetingID, ParticipantID: participantID,
 		Status: status, Note: note, MarkedBy: strText(actorID),
