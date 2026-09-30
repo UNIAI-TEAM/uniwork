@@ -49,8 +49,13 @@ export function MeetingAttendancePanel({
   const finalized = Boolean(data.finalized_at);
   const members = data.rows.filter((r) => r.standing === "MEMBER");
   const observers = data.rows.filter((r) => r.standing !== "MEMBER");
-  const timeOf = (iso: string) =>
-    new Intl.DateTimeFormat(i18n.language, { hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
+  // A roll read days later needs the date as well as the time.
+  const stampOf = (iso: string) =>
+    new Intl.DateTimeFormat(i18n.language, { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" }).format(
+      new Date(iso),
+    );
+  // The finalizer is usually on the roll; an admin who is not falls back to the time alone.
+  const finalizerName = data.rows.find((r) => r.user_id && r.user_id === data.finalized_by)?.display_name;
   const rowItem = (r: MeetingAttendanceRow) => (
     <MeetingAttendanceRowItem
       key={r.participant_id}
@@ -93,7 +98,9 @@ export function MeetingAttendancePanel({
       <div className="flex items-center justify-between gap-2 border-t border-border pt-3">
         {data.finalized_at ? (
           <p className="text-caption text-muted-foreground">
-            {t("meetings.governance.finalized", { time: timeOf(data.finalized_at) })}
+            {finalizerName
+              ? t("meetings.governance.finalizedBy", { time: stampOf(data.finalized_at), name: finalizerName })
+              : t("meetings.governance.finalized", { time: stampOf(data.finalized_at) })}
           </p>
         ) : (
           <span />

@@ -78,10 +78,13 @@ describe("MeetingAttendancePanel", () => {
   it("asks for a reason when someone is excused", async () => {
     attendance.rows = [row({ status: "EXCUSED", source: "MANUAL", note: "ốm" })];
     renderPanel(true);
-    const reason = (await screen.findByLabelText("Lý do vắng")) as HTMLInputElement;
+    // Each reason field names its person, so a screen reader can tell them apart.
+    const reason = (await screen.findByLabelText("Lý do vắng của An")) as HTMLInputElement;
     expect(reason.value).toBe("ốm");
+    reason.focus();
     fireEvent.change(reason, { target: { value: "Đi công tác" } });
-    fireEvent.blur(reason);
+    // Enter saves as well as leaving the field.
+    fireEvent.keyDown(reason, { key: "Enter" });
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/attendance/p1", {
         method: "PUT",
@@ -90,10 +93,13 @@ describe("MeetingAttendancePanel", () => {
     );
   });
 
-  it("is read-only without the clerk role and shows the finalized stamp", async () => {
+  it("is read-only without the clerk role and says when and by whom the roll was finalized", async () => {
     attendance.finalized_at = "2026-09-30T02:30:00Z";
+    attendance.finalized_by = "u1";
     renderPanel(false);
-    expect(await screen.findByText(/Đã chốt lúc/)).toBeInTheDocument();
+    const stamp = await screen.findByText(/Đã chốt lúc .* bởi An$/);
+    // A roll read days later needs the date, not just the time.
+    expect(stamp.textContent).toMatch(/30.09/);
     expect(screen.queryByRole("button", { name: "Chốt điểm danh" })).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     expect(screen.getAllByText("Có mặt").length).toBeGreaterThan(0);

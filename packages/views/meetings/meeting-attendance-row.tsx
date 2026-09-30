@@ -97,10 +97,13 @@ export function MeetingAttendanceRowItem({
         <Input
           value={note}
           maxLength={200}
-          aria-label={t("meetings.governance.excuseReason")}
+          aria-label={t("meetings.governance.excuseReasonFor", { name: row.display_name })}
           placeholder={t("meetings.governance.excuseReason")}
           className="h-8"
           onChange={(e) => setNote(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+          }}
           onBlur={() => {
             if (note.trim() !== (row.note ?? "")) onMark("EXCUSED", note.trim());
           }}
