@@ -48,3 +48,17 @@ func TestOfficeLaunchCreateRouteBindsTicketToDocumentAndHidesItFromNonMembers(t 
 		t.Fatal("non-member response echoed another account's launch ticket")
 	}
 }
+
+func TestOfficeLaunchCreateRouteNoneHintDoesNotOfferDeepLink(t *testing.T) {
+	w := newOfficeWorld(t, true)
+	documentID := w.createMarkdownFile(t, "# no handoff\n")
+	res, body := doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/sessions", w.token, map[string]any{
+		"operation": "view", "client_id": "uniwork-office", "deployment_id": "default", "return_hint": "none",
+	})
+	if res.StatusCode != 201 {
+		t.Fatalf("none-hint create = %d %v", res.StatusCode, body)
+	}
+	if _, ok := body["launch_url"]; ok {
+		t.Fatalf("none-hint response offered launch_url: %v", body)
+	}
+}

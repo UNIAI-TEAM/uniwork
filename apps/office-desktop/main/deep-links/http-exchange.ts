@@ -84,7 +84,9 @@ function parseExchange(raw: unknown): ExchangeOutcome | undefined {
     protocol_version: d.protocol_version as OfficeLaunchDescriptor["protocol_version"],
     download_path: d.download_path as string,
   };
-  if (descriptor.download_path !== `/api/v1/documents/${encodeURIComponent(descriptor.id)}/download`) return undefined;
+  const currentDownloadPath = `/api/v1/documents/${encodeURIComponent(descriptor.id)}/download`;
+  const historicalDownloadPath = `${currentDownloadPath}?version=${descriptor.version}`;
+  if (descriptor.download_path !== currentDownloadPath && (descriptor.version <= 0 || descriptor.download_path !== historicalDownloadPath)) return undefined;
   return { kind: "opened", descriptor, receiptId: root.receipt_id as string, redeemedAt: root.redeemed_at as string };
 }
 

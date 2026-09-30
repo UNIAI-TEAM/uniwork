@@ -78,6 +78,9 @@ confirming a foreign Document.
 }
 ```
 
+When `return_hint` is `none`, the server omits `launch_url`; the ticket and
+document binding are still returned for the caller's own controlled flow.
+
 The web host constructs the approved scheme/deep link from the opaque ticket
 and configured deployment profile. Its exact shape is
 `uniwork-office://open?ticket=<encodeURIComponent(launch_ticket)>`; the query
@@ -269,7 +272,8 @@ descriptor field set is exactly the G2 wire vocabulary used above:
 `download_path`. `contract_version` is
 `uniwork-office-engine-contract/1`; `protocol_version` is the decimal string
 `"1"`; `download_path` is a first-party `/api/v1/documents/{id}/download`
-route and never a presigned URL.
+route, with `?version=N` for a historical read-only version, and never a
+presigned URL.
 
 ## G4-D4 open questions
 

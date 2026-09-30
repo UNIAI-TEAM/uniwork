@@ -8,7 +8,7 @@ type CreateOfficeLaunchSessionSDI struct {
 	Version      *int32 `json:"version,omitempty" description:"Version lịch sử dương; bỏ trống = hiện tại" example:"3"`
 	DeploymentID string `json:"deployment_id" minLength:"1" description:"Mã deployment profile đã cấu hình" example:"production-eu"`
 	ClientID     string `json:"client_id" minLength:"1" description:"Mã client Office công khai nằm trong allowlist" example:"uniwork-office"`
-	ReturnHint   string `json:"return_hint,omitempty" description:"Gợi ý handoff có giới hạn cho host; không bao giờ là URL tùy ý" example:"open"`
+	ReturnHint   string `json:"return_hint,omitempty" description:"Handoff: office hoặc none (không offer)" example:"office"`
 }
 
 // ExchangeOfficeLaunchSessionSDI is POST /api/v1/office/sessions/exchange.

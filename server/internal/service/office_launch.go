@@ -86,6 +86,7 @@ type OfficeLaunchCreateInput struct {
 	Version      *int32
 	DeploymentID string
 	ClientID     string
+	ReturnHint   string
 }
 
 type OfficeLaunchSession struct {
@@ -113,6 +114,9 @@ type OfficeLaunchExchange struct {
 
 func (s *OfficeLaunchService) Create(ctx context.Context, actor Actor, in OfficeLaunchCreateInput) (OfficeLaunchSession, error) {
 	if s == nil || s.docs == nil || !validActor(actor) || !s.allowed(in.ClientID, in.DeploymentID) {
+		return OfficeLaunchSession{}, officeLaunchError(http.StatusBadRequest, "invalid_request", ErrOfficeLaunchInvalid)
+	}
+	if in.ReturnHint != "" && in.ReturnHint != "office" && in.ReturnHint != "none" {
 		return OfficeLaunchSession{}, officeLaunchError(http.StatusBadRequest, "invalid_request", ErrOfficeLaunchInvalid)
 	}
 	operation := strings.ToLower(strings.TrimSpace(in.Operation))

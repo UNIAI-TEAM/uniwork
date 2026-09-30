@@ -28,12 +28,16 @@ func (h *handlers) createOfficeLaunch(w http.ResponseWriter, r *http.Request) {
 	row, err := h.OfficeLaunch.Create(r.Context(), service.Human(middleware.UserID(r.Context())), service.OfficeLaunchCreateInput{
 		DocumentID: chi.URLParam(r, "documentID"), Operation: in.Operation, Version: in.Version,
 		DeploymentID: strings.TrimSpace(in.DeploymentID), ClientID: strings.TrimSpace(in.ClientID),
+		ReturnHint: strings.TrimSpace(in.ReturnHint),
 	})
 	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
-	launchURL := "uniwork-office://open?ticket=" + url.QueryEscape(row.Ticket)
+	launchURL := ""
+	if strings.TrimSpace(in.ReturnHint) != "none" {
+		launchURL = "uniwork-office://open?ticket=" + url.QueryEscape(row.Ticket)
+	}
 	respondOfficeJSON(w, http.StatusCreated, sdo.OfficeLaunchSessionSDO{
 		LaunchTicket: row.Ticket, LaunchURL: launchURL, ExpiresAt: row.ExpiresAt.UTC().Format(time.RFC3339),
 		DocumentID: row.DocumentID, Operation: row.Operation, Version: row.Version,
@@ -65,9 +69,17 @@ func (h *handlers) exchangeOfficeLaunch(w http.ResponseWriter, r *http.Request) 
 	revision := strconv.FormatInt(d.Revision, 10)
 	respondOfficeJSON(w, http.StatusOK, sdo.OfficeLaunchExchangeSDO{
 		ReceiptID:  res.Session.SessionID,
-		Document:   sdo.OfficeLaunchDocumentDTO{ID: d.ID, OrganizationID: d.OrganizationID, WorkspaceID: d.WorkspaceID, Title: d.Title, Kind: d.Kind, Operation: res.Session.Operation, Version: res.Session.Version, Revision: revision, ContractVersion: "uniwork-office-engine-contract/1", ProtocolVersion: "1", DownloadPath: "/api/v1/documents/" + url.PathEscape(d.ID) + "/download"},
+		Document:   sdo.OfficeLaunchDocumentDTO{ID: d.ID, OrganizationID: d.OrganizationID, WorkspaceID: d.WorkspaceID, Title: d.Title, Kind: d.Kind, Operation: res.Session.Operation, Version: res.Session.Version, Revision: revision, ContractVersion: "uniwork-office-engine-contract/1", ProtocolVersion: "1", DownloadPath: officeLaunchDownloadPath(d.ID, res.Session.Version)},
 		RedeemedAt: res.RedeemedAt.UTC().Format(time.RFC3339),
 	})
+}
+
+func officeLaunchDownloadPath(documentID string, version int32) string {
+	path := "/api/v1/documents/" + url.PathEscape(documentID) + "/download"
+	if version > 0 {
+		path += "?version=" + strconv.FormatInt(int64(version), 10)
+	}
+	return path
 }
 
 func (h *handlers) revokeOfficeLaunch(w http.ResponseWriter, r *http.Request) {

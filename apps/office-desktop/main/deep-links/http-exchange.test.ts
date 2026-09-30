@@ -47,4 +47,14 @@ describe("profile-bound Office launch exchange", () => {
     }));
     await expect(createHttpExchangePort({ profile, credentials, fetchImpl }).exchange(request)).rejects.toThrow("exchange_failed");
   });
+
+  it("accepts the first-party versioned download path for historical read-only opens", async () => {
+    const credentials = createInMemoryCredentialStore();
+    await credentials.save({ accountId: "account-a", deviceSessionId: "device-a", sessionId: "session-a", accessToken: "secret", refreshToken: "refresh", expiresIn: 900, refreshExpiresIn: 900 });
+    const fetchImpl = vi.fn(async () => response({
+      receipt_id: "01J8X4RECEIPT1P2Q3R4S5T6U7", redeemed_at: "2026-10-01T00:00:00Z",
+      document: { ...descriptor, operation: "view", version: 3, download_path: `${descriptor.download_path}?version=3` },
+    }));
+    await expect(createHttpExchangePort({ profile, credentials, fetchImpl }).exchange(request)).resolves.toMatchObject({ kind: "opened", descriptor: { version: 3 } });
+  });
 });
