@@ -14,9 +14,10 @@
  */
 import { createRequire } from "node:module";
 import { createHash } from "node:crypto";
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { ogCards } from "./og-cards.mjs";
 
 const require = createRequire(import.meta.url);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -29,6 +30,8 @@ const { chromium } = require(require.resolve("playwright-core", { paths: [path.d
 
 const read = (name) => readFileSync(path.join(SVG, name), "utf8");
 const sha = (s) => createHash("sha256").update(s).digest("hex").slice(0, 16);
+const LOCK = path.join(ROOT, "packages", "ui", "brand", "assets.lock.json");
+const OG_TEMPLATE = "scripts/brand/og-cards.mjs";
 
 /** [file, [{ out, size | width+height, source, transparent }]] */
 const PNGS = [
@@ -90,22 +93,6 @@ function ico(pngs) {
   return Buffer.concat([head, ...dir, ...pngs.map((p) => p.data)]);
 }
 
-function ogPage(lockup) {
-  // 1200x630 is the Open Graph card. White lockup on the brand gradient: the
-  // one place the gradient may fill a surface, because the surface IS the
-  // logo's own artwork rather than product chrome.
-  //
-  // The mono lockup, not the gradient one. Recolouring the gradient lockup to
-  // white leaves its depth crescent behind, and #0A34C4 at 45% over white is
-  // lavender.
-  return `<style>
-    html,body{margin:0}
-    .card{width:1200px;height:630px;display:grid;place-items:center;
-      background:linear-gradient(38deg,#0044E3 0%,#00B4FC 52%,#02DEF5 100%)}
-    svg{width:600px;height:auto;color:#fff}
-  </style><div class="card">${lockup}</div>`;
-}
-
 const browser = await chromium.launch();
 const page = await browser.newPage({ deviceScaleFactor: 1 });
 const lock = { generatedBy: "scripts/brand/build-assets.mjs", sources: {}, assets: {} };
@@ -143,24 +130,70 @@ lock.assets["apps/web/app/favicon.ico"] = {
   sha: sha(compact),
 };
 
-await page.setViewportSize({ width: 1200, height: 630 });
-await page.setContent(ogPage(read("lockup-horizontal-mono.svg")));
-const og = await page.screenshot();
-writeFileSync(path.join(APP, "opengraph-image.png"), og);
-written.push(["app/opengraph-image.png", og.length]);
-// squeeze.py re-encodes this one to JPEG and removes the PNG; the lock names
-// the file that actually ships.
-lock.assets["apps/web/app/opengraph-image.jpg"] = {
-  source: "lockup-horizontal-mono.svg",
-  size: "1200x630",
-  sha: sha(read("lockup-horizontal-mono.svg")),
-};
+// Link-preview cards. They set type, so they need the brand face; without it
+// (BRAND_FONT_TTF unset) the committed cards and their lock entries stand, and
+// the lock test flags them if the lockup or the template has moved since.
+const fontDir = process.env.BRAND_OG_FONT_DIR;
+if (fontDir) {
+  const fonts = Object.fromEntries(
+    [500, 600, 700, 800].map((w) => [w, readFileSync(path.join(fontDir, `${w}.ttf`))]),
+  );
+  const lockup = read("lockup-horizontal.svg");
+  await page.setViewportSize({ width: 1200, height: 630 });
+  const cards = ogCards({ root: ROOT, fonts, lockup });
+  const images = {};
+  for (const card of cards) {
+    const base = path.join(ROOT, ...card.out);
+    await page.setContent(card.html);
+    await page.evaluate(() => document.fonts.ready);
+    // A missing face falls back silently and ships a card in Times.
+    if (!(await page.evaluate(() => document.fonts.check("800 72px Brand")))) {
+      throw new Error(`${card.key}: brand font did not load`);
+    }
+    const png = await page.screenshot();
+    mkdirSync(path.dirname(base), { recursive: true });
+    writeFileSync(`${base}.png`, png);
+    written.push([path.relative(ROOT, `${base}.png`), png.length]);
+    // Two inputs: the lockup SVG (checked like every other raster) and the
+    // card's own HTML from the template, recorded per card.
+    lock.assets[path.relative(ROOT, `${base}.png`)] = {
+      source: "lockup-horizontal.svg",
+      size: "1200x630",
+      sha: sha(lockup),
+      template: OG_TEMPLATE,
+      card: card.key,
+      html: sha(card.html),
+    };
+    // Unfurlers cache an image by URL for weeks, so a changed card has to be a
+    // changed URL: the version is the card's own HTML.
+    const publicPath = card.key === "root"
+      ? "/opengraph-image.png"
+      : `/${path.relative(PUBLIC, `${base}.png`).split(path.sep).join("/")}`;
+    images[card.key] = { url: `${publicPath}?v=${sha(card.html).slice(0, 10)}`, alt: card.alt };
+  }
+  // The root card is also served by file convention, which reads its alt here.
+  writeFileSync(path.join(APP, "opengraph-image.alt.txt"), cards[0].alt);
+  lock.templates = { [OG_TEMPLATE]: sha(readFileSync(path.join(ROOT, OG_TEMPLATE), "utf8")) };
 
-lock.assets["apps/web/app/icon.svg"] = {
-  source: "mark-compact.svg",
-  size: "vector",
-  sha: sha(compact),
-};
+  // A segment that sets its own `openGraph` loses the card Next wires by file
+  // convention (and explicit images beat a segment's own file), so every page
+  // with its own preview copy names its card from here.
+  const entries = Object.entries(images)
+    .map(([key, { url, alt }]) =>
+      `  ${key}: { url: ${JSON.stringify(url)}, width: 1200, height: 630, alt: ${JSON.stringify(alt)} },`)
+    .join("\n");
+  writeFileSync(
+    path.join(ROOT, "apps", "web", "platform", "og-image.generated.ts"),
+    `// Generated by scripts/brand/build-assets.mjs. Do not edit.\nexport const OG_IMAGES = {\n${entries}\n} as const;\n`,
+  );
+} else if (existsSync(LOCK)) {
+  const previous = JSON.parse(readFileSync(LOCK, "utf8"));
+  for (const [asset, meta] of Object.entries(previous.assets)) {
+    if (meta.size === "1200x630") lock.assets[asset] = meta;
+  }
+  if (previous.templates) lock.templates = previous.templates;
+  console.log("link-preview cards: skipped (set BRAND_FONT_TTF)");
+}
 
 // Read the directory rather than list it: a hand-kept list silently omits any
 // new SVG, and the omission surfaces as a failing contract test, not here.
@@ -168,10 +201,7 @@ for (const name of readdirSync(SVG).filter((f) => f.endsWith(".svg")).sort()) {
   lock.sources[name] = sha(read(name));
 }
 
-writeFileSync(
-  path.join(ROOT, "packages", "ui", "brand", "assets.lock.json"),
-  JSON.stringify(lock, null, 2) + "\n",
-);
+writeFileSync(LOCK, JSON.stringify(lock, null, 2) + "\n");
 
 await browser.close();
 for (const [name, bytes] of written) console.log(`${name.padEnd(34)} ${bytes} bytes`);

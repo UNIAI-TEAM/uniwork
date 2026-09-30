@@ -512,6 +512,34 @@ Supporting content arrives once when its section enters at 88% of viewport heigh
 
 There is no scroll hijacking, pinning, page-edge signal or new page-wide loop. Reduced motion reverts scroll transforms and opacity, starts media paused and still permits explicit playback. ResizeObserver refreshes trigger positions after disclosure, locale or media height changes. This choreography is local to the public landing.
 
+### Link-preview cards
+
+The preview makes the same promise as the page it opens, and proves the product's one unique claim (a person and an AI teammate own the same work) with the product's own objects, not a logo on a gradient. Four 1200×630 PNG cards share one template, `../../scripts/brand/og-cards.mjs`: the root card (`app/opengraph-image.png`, "Your team. / One workspace.") and the meeting-invite, workspace-invite and shared-document cards in `public/brand/og/`. The file list, route wiring, cache-busting and rebuild steps live in `../../packages/ui/brand/README.md` ("Link previews"); this entry holds only the visual rules.
+
+This surface sits outside the Bright Studio page face on purpose. It is drawn in the identity world: Plus Jakarta Sans (the wordmark's face, static 500/600/700/800 instances so the optical corrections below stay pinned), the app's light-mode token values (brand `#0a52e6`, brand-subtle `#e4edff`, ink `#202020`, muted `#646464`, border `#e4e4e7`) rather than the landing `brand` slot, and English only, because a crawler sends no locale cookie. The values are copied into the template, not imported: a raster must not change when an app token is retuned. There is no dark variant.
+
+- **Frame:** a white ground. The shared lockup sits top-left at x72 / y64, 40px high. The copy column (600px wide, x72, 64px top and bottom insets) centres its text block vertically on the frame.
+- **Headline:** two lines of Plus Jakarta Sans 800 at 72px, 1.02 leading, -0.035em tracking, balanced wrapping. Line one is ink, line two is brand. A terminal full stop or comma is pulled in by -0.07em and the apostrophe by -0.05em / -0.03em, because at this size their own sidebearings read as a space.
+- **Subline:** 27px / 500, 1.4 leading, -0.005em, muted, 28px below the headline, at most 540px wide, `text-wrap: pretty`. Key phrases ("AI teammates", "your browser", "next steps", "No account") are joined with non-breaking spaces so a claim never splits over a line.
+- **Stage:** a pale cobalt panel (`#eef3ff`, 1px `#d9e4fb` border, 32px corners) from x712, running off the right and bottom edges. Its bottom band stays empty tint.
+- **Stack:** 424px wide from x744, vertically centred on the frame on the same axis as the copy column, 16px gaps; it never runs off the frame. It holds one hero card and two receding rows.
+- **Hero card:** the variant's own object on white, 1px border, 22px corners, 26px top / 28px side and bottom padding, with a two-part shadow: a 1px hairline plus a soft brand-tinted drop (`0 22px 44px -18px`, brand at 34%). Its header pairs a 48px module-tinted icon tile (13px corners, 26px lucide glyph) with a status pill (34px high, 17px / 700); there is no kind label, because the tinted tile says what the object is. A 32px / 800 title (-0.025em) follows, with an optional 21px / 500 muted line for a document. The owners row overlaps 50px circular initials avatars (-10px, 3px white ring, white 16px / 700 initials on solid person tints) with the agent avatar, then 22px names (bold ink, muted joiners) and, where a person and UNI share the object, a 17px / 700 "AI teammate" pill in brand on brand-subtle.
+- **Receding rows:** a single-row card inset 12px each side, 40px tile (11px corners), 21px / 700 title and a lighter shadow (`0 10px 24px -16px`, brand at 22%); then Ask UNI drawn as the product draws it, a 62px full-round prompt field with a 1.5px pale cobalt stroke, a brand Sparkles glyph, the 20px / 600 question and a 42px brand send button. The prompt field is not a labelled card.
+- **Agent avatar:** a brand-blue circle with a white lucide Sparkles, never a face or mascot. The UNI horse stays a landing illustration and does not appear here.
+- **Icons:** lucide glyphs read from the app's own `lucide-react`, inlined as SVG, so the card's icons are the product's.
+
+**Colour roles.** Module tints identify objects: tasks green (`#e6f7ee` / `#137046`), meetings violet (`#efedfd` / `#7612fa`), people pink (`#fff1fe` / `#b8107f`), documents orange (`#ffece5` / `#a84300`). Signals report state: "In progress", "Invitation" and "Shared" use the brand-subtle pill; "Live" uses the danger soft pill (`#fdecec` / `#ad1a1a`) with a 9px dot and appears only on the root card's meeting row. People use solid tints with white initials, because the pale tints read as bare text. The logo gradient stays inside the lockup and colours nothing else.
+
+**Truth rules.** Invite and share previews never name the meeting, workspace or document behind the secret link; they show a generic object ("Weekly product sync", "Product team", "Launch plan") because an unfurl prints the card to a whole channel. "Live" is never shown on an invitation: the meeting behind the link may be days away. Counts agree with the avatars drawn ("3 people & UNI" over three person avatars and one agent).
+
+**Accepted trade-off.** Square centre-crops (WhatsApp's small thumbnail, roughly x285–915) show headline fragments and half the stage. This is accepted: a 1.91:1 unfurl (X, Slack, LinkedIn, Telegram, iMessage) keeps the headline whole, and moving the proof into the centre square would put it on top of the copy column.
+
+**Format.** PNG, not JPEG: flat fields and type are smaller and exact in PNG (the shipped cards are 74–80 KB each).
+
+**The Proof, Not Poster Rule.** A link preview shows the product's own objects owning real-looking work, a person and UNI on the same record, never a logo on a gradient or a screenshot shrunk past legibility at a 500px unfurl.
+
+**The Secret Link Rule.** A preview for an invite or share link names nothing behind the link and claims no state the link cannot promise.
+
 ## Do's and Don'ts
 
 ### Do:
@@ -522,6 +550,7 @@ There is no scroll hijacking, pinning, page-edge signal or new page-wide loop. R
 - Do keep synthetic demo content, illustrative artwork and roadmap capabilities visibly identified.
 - Do preserve Vietnamese and English parity and complete diacritic coverage.
 - Do render the official shared Logo separately from generated imagery, with unchanged proportions and orientation.
+- Do build every link-preview card from `og-cards.mjs` so the four cards keep one layout: lockup, two-line ink/brand headline, muted subline, and one hero object with an owners row pairing a person and the Sparkles agent avatar.
 
 ### Don't:
 
@@ -530,3 +559,5 @@ There is no scroll hijacking, pinning, page-edge signal or new page-wide loop. R
 - Don't imply that WorkProducts or autonomous agent actions are shipped capabilities.
 - Don't replace the actual brand mark with a generated approximation.
 - Don't redraw or replace the approved horse with a procedural approximation; do not describe its 2.5D image animation as a matching 3D reconstruction.
+- Don't name the meeting, workspace or document behind an invite or share link in its preview, and don't show "Live" on an invitation.
+- Don't carry the logo gradient beyond the lockup on a link preview, or add a kind label above the hero card's title.
