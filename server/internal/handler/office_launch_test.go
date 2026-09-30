@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"net/url"
 	"strings"
@@ -60,5 +63,42 @@ func TestOfficeLaunchCreateRouteNoneHintDoesNotOfferDeepLink(t *testing.T) {
 	}
 	if _, ok := body["launch_url"]; ok {
 		t.Fatalf("none-hint response offered launch_url: %v", body)
+	}
+}
+
+func TestOfficeLaunchRevokeRouteHidesAnotherAccountsReceipt(t *testing.T) {
+	w := newOfficeWorld(t, true)
+	documentID := w.createMarkdownFile(t, "# revoke\n")
+	res, body := doJSON(t, w.srv, "POST", "/api/v1/documents/"+documentID+"/office/sessions", w.token, map[string]any{
+		"operation": "view", "client_id": "uniwork-office", "deployment_id": "default",
+	})
+	if res.StatusCode != 201 {
+		t.Fatalf("create launch = %d %v", res.StatusCode, body)
+	}
+	ticket, _ := body["launch_ticket"].(string)
+	if ticket == "" {
+		t.Fatal("create launch omitted ticket")
+	}
+	sum := sha256.Sum256([]byte(ticket))
+	row, err := w.q.GetOfficeLaunchSessionByHash(context.Background(), base64.RawURLEncoding.EncodeToString(sum[:]))
+	if err != nil {
+		t.Fatalf("look up launch receipt for test = %v", err)
+	}
+
+	// An account that did not mint the receipt must receive the same 404 as a
+	// random id; a 403 would reveal that the opaque id exists.
+	res, body = doJSON(t, w.srv, "DELETE", "/api/v1/office/sessions/"+row.ID, w.outsiderToken(t), nil)
+	if res.StatusCode != 404 {
+		t.Fatalf("cross-account revoke = %d %v", res.StatusCode, body)
+	}
+	res, body = doJSON(t, w.srv, "DELETE", "/api/v1/office/sessions/01J8X4NOTHINGATALL000000", w.outsiderToken(t), nil)
+	if res.StatusCode != 404 {
+		t.Fatalf("unknown revoke = %d %v", res.StatusCode, body)
+	}
+
+	// The owner can still cancel the untouched session after the probe.
+	res, body = doJSON(t, w.srv, "DELETE", "/api/v1/office/sessions/"+row.ID, w.token, nil)
+	if res.StatusCode != 200 {
+		t.Fatalf("owner revoke = %d %v", res.StatusCode, body)
 	}
 }

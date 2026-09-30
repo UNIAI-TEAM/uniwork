@@ -304,7 +304,11 @@ func (s *OfficeLaunchService) Revoke(ctx context.Context, actor Actor, sessionID
 		return err
 	}
 	if session.AccountID != actor.ID {
-		return ErrForbidden
+		// The session id is an opaque receipt identifier. Returning forbidden
+		// for an id owned by another account would let a caller distinguish an
+		// existing row from a random id, so preserve the anti-enumeration
+		// contract and make both cases indistinguishable.
+		return ErrNotFound
 	}
 	n, err := q.RevokeOfficeLaunchSession(ctx, db.RevokeOfficeLaunchSessionParams{ID: session.ID, AccountID: actor.ID, OrganizationID: session.OrganizationID, WorkspaceID: session.WorkspaceID})
 	if err != nil {
