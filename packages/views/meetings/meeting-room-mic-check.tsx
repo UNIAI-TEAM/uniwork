@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useReducedMotion } from "motion/react";
-import { Mic } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { cn } from "@uniwork/ui/lib/utils";
@@ -15,21 +15,35 @@ function audioContextCtor(): AudioContextCtor | null {
 }
 
 /**
- * Asks for the microphone on its own. With the camera off (or refused) the
- * preview never triggers a prompt, so the mic list would stay empty with no
- * way forward; this is that way. The stream is closed at once — it only
- * unlocks device labels, then `onGranted` re-lists them.
+ * Asks for one kind of device on its own. Until the browser grants access it
+ * lists devices without ids or labels, so a picker would stay empty with no
+ * way forward (with the camera off or refused the preview never prompts);
+ * this is that way. The stream is closed at once — it only unlocks device
+ * labels, then `onGranted` re-lists them. Stays in the tab order while it
+ * asks (`aria-disabled`), so a keyboard user keeps their place.
  */
-export function MeetingMicPermissionAction({ onGranted }: { onGranted: () => void }) {
-  const { t } = useTranslation();
+export function MeetingMediaPermissionAction({
+  kind = "audio",
+  label,
+  icon: Icon,
+  deniedMessage,
+  onGranted,
+}: {
+  kind?: "audio" | "video";
+  label: string;
+  icon?: LucideIcon;
+  deniedMessage: string;
+  onGranted: () => void;
+}) {
   const [state, setState] = useState<"idle" | "asking" | "denied">("idle");
   const md = typeof navigator === "undefined" ? undefined : navigator.mediaDevices;
   if (!md?.getUserMedia) return null;
 
   const ask = async () => {
+    if (state === "asking") return;
     setState("asking");
     try {
-      const stream = await md.getUserMedia({ audio: true });
+      const stream = await md.getUserMedia({ [kind]: true });
       for (const track of stream.getTracks()) track.stop();
       setState("idle");
       onGranted();
@@ -44,16 +58,16 @@ export function MeetingMicPermissionAction({ onGranted }: { onGranted: () => voi
         type="button"
         variant="outline"
         size="sm"
-        disabled={state === "asking"}
+        aria-disabled={state === "asking" || undefined}
         aria-busy={state === "asking" || undefined}
         onClick={() => void ask()}
       >
-        <Mic aria-hidden className="size-3.5" />
-        {t("meetings.micAllow")}
+        {Icon ? <Icon aria-hidden className="size-3.5" /> : null}
+        {label}
       </Button>
       {state === "denied" ? (
         <p role="alert" className="text-caption text-destructive">
-          {t("meetings.micAllowDenied")}
+          {deniedMessage}
         </p>
       ) : null}
     </div>
@@ -62,10 +76,21 @@ export function MeetingMicPermissionAction({ onGranted }: { onGranted: () => voi
 
 /**
  * A thin input-level bar, so the viewer can see the chosen microphone hears
- * them before joining. Reads a few times a second, not every frame, and
- * without an easing transition when reduced motion is asked for.
+ * them. Reads a few times a second, not every frame, and without an easing
+ * transition when reduced motion is asked for. Given `track` (the mic already
+ * published in a room) it listens to that one; a second capture of the same
+ * device can reconfigure it (Bluetooth headsets drop to call quality) under
+ * what everyone else hears.
  */
-export function MeetingMicLevel({ deviceId, className }: { deviceId?: string; className?: string }) {
+export function MeetingMicLevel({
+  deviceId,
+  track,
+  className,
+}: {
+  deviceId?: string;
+  track?: MediaStreamTrack;
+  className?: string;
+}) {
   const { t } = useTranslation();
   const reduceMotion = useReducedMotion() ?? false;
   const [level, setLevel] = useState(0);
@@ -73,20 +98,27 @@ export function MeetingMicLevel({ deviceId, className }: { deviceId?: string; cl
   useEffect(() => {
     const md = typeof navigator === "undefined" ? undefined : navigator.mediaDevices;
     const Ctor = audioContextCtor();
-    if (!md?.getUserMedia || !Ctor) return;
+    if (!Ctor || (!track && !md?.getUserMedia)) return;
     let cancelled = false;
-    let stream: MediaStream | null = null;
+    // Only a stream this meter opened is stopped on the way out; a borrowed
+    // track keeps playing to the room.
+    let owned: MediaStream | null = null;
     let ctx: AudioContext | null = null;
     let timer: ReturnType<typeof setInterval> | undefined;
 
-    void md
-      .getUserMedia({ audio: deviceId ? { deviceId: { exact: deviceId } } : true })
+    const source: Promise<MediaStream> = track
+      ? Promise.resolve(new MediaStream([track]))
+      : md!.getUserMedia({ audio: deviceId ? { deviceId: { exact: deviceId } } : true }).then((s) => {
+          owned = s;
+          return s;
+        });
+
+    void source
       .then((s) => {
         if (cancelled) {
-          for (const track of s.getTracks()) track.stop();
+          for (const t of owned?.getTracks() ?? []) t.stop();
           return;
         }
-        stream = s;
         ctx = new Ctor();
         // Opened straight from a link, the page has had no user gesture and
         // the context starts suspended: the analyser would read only silence.
@@ -108,11 +140,11 @@ export function MeetingMicLevel({ deviceId, className }: { deviceId?: string; cl
     return () => {
       cancelled = true;
       clearInterval(timer);
-      for (const track of stream?.getTracks() ?? []) track.stop();
+      for (const t of owned?.getTracks() ?? []) t.stop();
       void ctx?.close();
       setLevel(0);
     };
-  }, [deviceId]);
+  }, [deviceId, track]);
 
   return (
     <div
