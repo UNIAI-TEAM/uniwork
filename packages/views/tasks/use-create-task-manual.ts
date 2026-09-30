@@ -123,7 +123,7 @@ export function useCreateTaskManualState({
   workspaceId: string;
   defaults?: Partial<CreateTaskBody>;
   carry?: Record<string, unknown> | null;
-  onClose: () => void;
+  onClose: (reason?: "saved" | "submitted") => void;
   createAnother: boolean;
 }) {
   const { t } = useTranslation();
@@ -138,6 +138,7 @@ export function useCreateTaskManualState({
   const assignees = useWorkspaceAssigneeOptions(workspaceId);
   const draftFor = useCreateTaskDraftStore((state) => state.draftFor);
   const persistDraft = useCreateTaskDraftStore((state) => state.setDraft);
+  const persistSavedDraft = useCreateTaskDraftStore((state) => state.saveDraft);
   const settingsFor = useCreateTaskDraftStore((state) => state.settingsFor);
   const persistSettings = useCreateTaskDraftStore((state) => state.setSettings);
   const clearDraft = useCreateTaskDraftStore((state) => state.clearDraft);
@@ -289,7 +290,7 @@ export function useCreateTaskManualState({
         draftRef.current = next;
         setDraftState(next);
         setRevealed(initialRevealed(next));
-        if (!createAnother) onClose();
+        if (!createAnother) onClose("submitted");
       })
       .catch((error: unknown) => {
         toastCreateTaskError(
@@ -365,6 +366,12 @@ export function useCreateTaskManualState({
     updateDraft({ properties });
   };
 
+  const saveDraft = () => {
+    if (create.isPending || uploadCountRef.current > 0) return;
+    persistSavedDraft(workspaceId, draftRef.current);
+    onClose("saved");
+  };
+
   return {
     t,
     draft,
@@ -399,6 +406,7 @@ export function useCreateTaskManualState({
     })(),
     workspaceName: workspaceContext?.workspace.name ?? t("tasks.new"),
     submit,
+    saveDraft,
     uploadFile,
     setProperty,
     create,
