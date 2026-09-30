@@ -483,7 +483,7 @@ func (s *DesktopAuthService) CheckDeviceSession(ctx context.Context, userID, ses
 	if err != nil {
 		return err
 	}
-	if row.UserID != userID || row.RevokedAt.Valid || !row.ExpiresAt.Valid || !row.ExpiresAt.Time.After(s.now()) {
+	if row.UserID != userID || !s.deploymentAllowed(row.DeploymentID) || row.RevokedAt.Valid || !row.ExpiresAt.Valid || !row.ExpiresAt.Time.After(s.now()) {
 		return desktopDeviceRevoked()
 	}
 	return s.q.TouchDeviceSession(ctx, sessionID)
@@ -513,7 +513,7 @@ func (s *DesktopAuthService) validateStart(in DesktopStartInput) error {
 }
 
 func (s *DesktopAuthService) allowed(clientID, redirectURI, deploymentID string) bool {
-	if clientID != s.cfg.DesktopAuthClientID || deploymentID == "" {
+	if clientID != s.cfg.DesktopAuthClientID || !s.deploymentAllowed(deploymentID) {
 		return false
 	}
 	redirectOK, deploymentOK := false, false
@@ -530,6 +530,18 @@ func (s *DesktopAuthService) allowed(clientID, redirectURI, deploymentID string)
 		}
 	}
 	return redirectOK && deploymentOK
+}
+
+func (s *DesktopAuthService) deploymentAllowed(deploymentID string) bool {
+	if deploymentID == "" {
+		return false
+	}
+	for _, v := range s.cfg.DesktopAuthDeploymentIDs {
+		if v == deploymentID {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *DesktopAuthService) refreshTTL() time.Duration {

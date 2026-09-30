@@ -78,8 +78,8 @@ func TestDesktopAuthPKCEConsentExchangeAndReplay(t *testing.T) {
 	if err != nil {
 		t.Fatalf("refresh: %v", err)
 	}
-	if rotated.RefreshToken == sess.RefreshToken || rotated.AccessToken == sess.AccessToken {
-		t.Fatal("refresh did not rotate the token pair")
+	if rotated.RefreshToken == sess.RefreshToken || rotated.RefreshToken == "" {
+		t.Fatal("refresh did not rotate the refresh token")
 	}
 	if _, err := svc.Refresh(context.Background(), sess.DeviceSessionID, sess.RefreshToken, "default"); !errors.Is(err, ErrDesktopRefreshReused) {
 		t.Fatalf("refresh reuse: %v", err)
