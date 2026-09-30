@@ -19,6 +19,8 @@ const rootDirectory = resolve(appDirectory, "..", "..");
 const requireRoot = createRequire(join(rootDirectory, "package.json"));
 const requireApp = createRequire(join(appDirectory, "package.json"));
 const execFileAsync = promisify(execFile);
+const identityManifest = JSON.parse(await readFile(join(appDirectory, "identity.json"), "utf8"));
+const devIdentity = identityManifest.channelProfiles.dev;
 const esbuild = requireRoot("esbuild");
 const electronBinary = join(dirname(requireApp.resolve("electron/package.json")), "dist", "electron.exe");
 const smokeRoot = resolve(process.env.OFFICE_DESKTOP_SYSTEM_ROOT ?? join("D:\\", ".uniwork-dev", "office-desktop-system"));
@@ -40,13 +42,13 @@ try {
   const store = createSafeStorageDraftKeyStore({
     userDataDirectory: app.getPath("userData"),
     channel: "dev",
-    keyNamespace: "uniwork-office-dev",
+    keyNamespace: ${JSON.stringify(devIdentity.keyNamespace)},
     safeStorage,
   });
   const first = await store.getOrCreate("system-q8");
   const second = await store.get("system-q8");
   if (!second || Buffer.from(first).compare(Buffer.from(second)) !== 0) throw new Error("key_round_trip_failed");
-  const keyDirectory = join(app.getPath("userData"), "draft-keys", "dev", "uniwork-office-dev");
+  const keyDirectory = join(app.getPath("userData"), "draft-keys", "dev", ${JSON.stringify(devIdentity.keyNamespace)});
   const files = await readdir(keyDirectory);
   if (files.length !== 1 || !files[0].endsWith(".key")) throw new Error("key_file_missing");
   const wrapped = await readFile(join(keyDirectory, files[0]), "utf8");
@@ -83,7 +85,7 @@ try {
   });
   const result = JSON.parse(await readFile(resultFile, "utf8"));
   if (code !== 0 || !result.ok) throw new Error(`system smoke failed: ${result.error ?? stderr}`);
-  const keyDirectory = join(userData, "draft-keys", "dev", "uniwork-office-dev");
+  const keyDirectory = join(userData, "draft-keys", "dev", devIdentity.keyNamespace);
   const acl = (await execFileAsync("icacls", [keyDirectory])).stdout.toLowerCase();
   const domain = process.env.USERDOMAIN?.trim();
   const username = process.env.USERNAME?.trim();
