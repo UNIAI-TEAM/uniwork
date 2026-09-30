@@ -55,4 +55,29 @@ describe("createOfficePreviewPort", () => {
       manifest: { entries: [{ path: "../secret", assetId: "bad" }] },
     })).rejects.toThrow("unsafe asset path");
   });
+
+  it("forces the production port to keep document scripts disabled", async () => {
+    const port = createOfficePreviewPort({
+      scope: { document_id: "D1", job_id: "J1" },
+      capability: { scripts: true },
+      proxy: {
+        open: async () => ({
+          origin: "https://preview-assets.example",
+          expires_at: Date.now() + 60_000,
+          urlFor: () => null,
+          revoke: () => undefined,
+        }),
+      },
+    });
+    const session = await port.mount({
+      container: document.createElement("div"),
+      format: "html",
+      title: "HTML",
+      text: "<script>window.leak = document.cookie</script><p>safe</p>",
+      manifest: { entries: [] },
+    });
+    expect(session.iframe.getAttribute("sandbox")).toBe("");
+    expect(session.iframe.getAttribute("csp")).toContain("script-src 'none'");
+    session.dispose();
+  });
 });

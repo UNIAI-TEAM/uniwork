@@ -116,7 +116,11 @@ export function createOfficePreviewPort(options: OfficePreviewPortOptions): Isol
         manifest: previewManifest(input.manifest, input.format),
         scope: options.scope,
         proxy: options.proxy,
-        capability: options.capability,
+        // G3-D2 production Markdown/HTML previews are always inert. The
+        // lower-level isolation primitive still supports its explicit trusted
+        // script policy for existing host tests, but this production port
+        // never grants that capability to untrusted document content.
+        capability: options.capability?.scripts === true ? { scripts: false } : options.capability,
         color_scheme: options.color_scheme,
         appOrigin: options.appOrigin,
         onEvent: input.onEvent,
