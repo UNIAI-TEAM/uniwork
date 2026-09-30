@@ -44,7 +44,7 @@ describe("CalendarTaskPanel", () => {
 
     const panel = screen.getByRole("complementary", { name: "Chi tiết công việc" });
     expect(panel).toBeInTheDocument();
-    expect(panel).toHaveClass("2xl:w-[40rem]");
+    expect(panel).toHaveClass("2xl:w-[32rem]");
     expect(screen.getByTestId("task-detail-suite")).toHaveAttribute(
       "data-default-properties-open",
       "false",

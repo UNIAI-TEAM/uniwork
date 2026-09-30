@@ -38,7 +38,7 @@ describe("CalendarMeetingPanel", () => {
     );
 
     const panel = screen.getByRole("complementary", { name: "Chi tiết cuộc họp" });
-    expect(panel).toHaveClass("2xl:w-[40rem]");
+    expect(panel).toHaveClass("2xl:w-[32rem]");
     expect(detailProps.current.layout).toBe("panel");
     expect(detailProps.current.meetingId).toBe("meeting-1");
     expect(screen.getByRole("button", { name: "Đóng" })).toHaveFocus();

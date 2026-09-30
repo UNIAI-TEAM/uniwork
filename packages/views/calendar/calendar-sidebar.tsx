@@ -208,7 +208,7 @@ function SidebarSection({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="border-b border-border pb-2">
+    <Collapsible open={open} onOpenChange={setOpen} className="pb-1">
       <div className="flex items-center gap-1">
         <CollapsibleTrigger className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1 py-1.5 text-left hover:bg-surface-hover">
           <ChevronDown
@@ -307,7 +307,7 @@ export function CalendarSidebar({
       className="flex w-72 shrink-0 flex-col border-r border-border bg-background"
       aria-label={t("calendar.sidebar_label")}
     >
-      <div className="flex h-11 shrink-0 items-center justify-between border-b border-border px-3">
+      <div className="flex h-12 shrink-0 items-center justify-between border-b border-border px-4">
         <span className="truncate text-label font-medium text-foreground">
           {t("calendar.planner_title")}
         </span>
