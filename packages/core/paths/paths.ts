@@ -6,6 +6,8 @@ export const paths = {
   register: () => "/register",
   verify: () => "/verify",
   authCallback: () => "/auth/callback",
+  /** Consent page the desktop app's system-browser sign-in lands on (G4-02b). */
+  desktopAuthorize: () => "/auth/desktop/authorize",
   forgotPassword: () => "/forgot-password",
   resetPassword: (token?: string) =>
     token ? `/reset-password?token=${encodeURIComponent(token)}` : "/reset-password",
