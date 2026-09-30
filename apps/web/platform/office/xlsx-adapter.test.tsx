@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { OfficeCapabilityEntry, OfficeIdentity } from "@uniwork/core/office";
+import type { OfficeCapabilityEntry, OfficeIdentity, OfficeSerializedOutput, OfficeUploadReceipt } from "@uniwork/core/office";
 import type { DraftKeyProvider } from "./draft-key-provider";
 import type { IndexedDbDraftStore } from "./draft-store";
 import { createXlsxFormatAdapter, createXlsxSaveTransport, type XlsxDocumentsTransport, type XlsxSessionRuntime } from "./xlsx-adapter";
@@ -109,7 +109,8 @@ describe("web XLSX format adapter", () => {
     const opened = await adapter.open.open();
     expect(opened).toMatchObject({ outcome: "opened", document_model_ref: "model-1" });
     await adapter.editor.recalculate?.run(new AbortController().signal);
-    adapter.editor.recalculate?.cancel?.();
+    expect(adapter.editor.getDirtyGeneration()).toBe(2);
+    await adapter.editor.recalculate?.cancel?.();
     expect(engine.cancelled).toEqual(["model-1"]);
     await adapter.editor.edit?.([{ op: "set_cell", target: { sheet: "Data", cell: "A1" }, text: "7" }]);
     adapter.session.coordinator.markDirty(adapter.editor.getDirtyGeneration());
@@ -155,8 +156,47 @@ describe("web XLSX format adapter", () => {
     const files = documents();
     vi.spyOn(files, "upload").mockResolvedValueOnce({ upload_id: "upload-1", checksum_sha256: "other", size_bytes: 4, claim_expires_at: "2026-10-01T00:00:00Z" });
     const transport = createXlsxSaveTransport({ documents: files, documentId: "doc" });
-    const intent = { intentId: "intent-1", idempotencyKey: "key-1", identity, snapshotGeneration: 2, snapshotFingerprint: "fp", snapshot: workbook(), operation: "manual_save" as const, createdAt: 1 };
+    const intent = { intentId: "intent-1", idempotencyKey: "office-key-1", identity, snapshotGeneration: 2, snapshotFingerprint: "fp", snapshot: workbook(), operation: "manual_save" as const, createdAt: 1 };
     await expect(transport.upload({ intent, output: { data: new Uint8Array([1, 2, 3, 4]), checksumSha256: "sha256-output", sizeBytes: 4, format: "xlsx" } })).rejects.toThrow("upload_checksum_mismatch");
     expect(files.commit).not.toHaveBeenCalled();
+  });
+
+  it("preserves the native failure class and engine detail on open", async () => {
+    const engine = runtime();
+    engine.open = vi.fn(async ({ documentId }) => ({
+      outcome: "failed" as const,
+      document_id: documentId,
+      failure_class: "unsupported_feature",
+      engine_error: "sidecar_formula_error",
+      message: "native engine rejected workbook",
+    }));
+    const adapter = createXlsxFormatAdapter({ identity, session: { sessionId: "session", deploymentId: "dep", accountId: "acct", generation: 1 }, runtime: engine, documents: documents(), capability, draftStore: draftStore(), keyProvider: keyProvider() });
+    await expect(adapter.open.open()).resolves.toMatchObject({ outcome: "failed", failure_class: "unsupported_feature", engine_error: "sidecar_formula_error" });
+    await adapter.session.dispose();
+  });
+
+  it("releases a runtime model that finishes opening after dispose", async () => {
+    const engine = runtime();
+    type OpenResult = Awaited<ReturnType<XlsxSessionRuntime["open"]>>;
+    let finishOpen!: (value: OpenResult) => void;
+    engine.open = vi.fn(async () => new Promise<OpenResult>((resolve) => { finishOpen = resolve; }));
+    const adapter = createXlsxFormatAdapter({ identity, session: { sessionId: "session", deploymentId: "dep", accountId: "acct", generation: 1 }, runtime: engine, documents: documents(), capability, draftStore: draftStore(), keyProvider: keyProvider() });
+    const opening = adapter.open.open();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(engine.open).toHaveBeenCalledTimes(1);
+    await adapter.session.dispose();
+    finishOpen({ outcome: "opened", document_id: "doc", document_model_ref: "late-model", snapshot: workbook() });
+    await expect(opening).resolves.toMatchObject({ outcome: "failed", message: "xlsx_editor_disposed" });
+    expect(engine.released).toEqual(["late-model"]);
+  });
+
+  it("rejects a malformed commit receipt before reporting success", async () => {
+    const files = documents();
+    const intent = { intentId: "intent-1", idempotencyKey: "office-key-1", identity, snapshotGeneration: 2, snapshotFingerprint: "fp", snapshot: workbook(), operation: "manual_save" as const, createdAt: 1 };
+    const transport = createXlsxSaveTransport({ documents: files, documentId: "doc", serialize: async () => ({ bytes: new Uint8Array([1, 2, 3, 4]), checksum: "sha256-output" }) });
+    const output = await transport.serialize({ intent, snapshot: { generation: 2, fingerprint: "fp", value: workbook() } }) as OfficeSerializedOutput;
+    const upload = await transport.upload({ intent, output }) as OfficeUploadReceipt;
+    vi.spyOn(files, "commit").mockResolvedValueOnce({ document: { id: "doc", revision: "2" }, version: { id: "", checksum_sha256: "sha256-output", size_bytes: 4 } });
+    await expect(transport.commit({ intent, upload })).rejects.toThrow("malformed_commit_receipt");
   });
 });

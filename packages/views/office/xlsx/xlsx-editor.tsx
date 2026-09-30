@@ -280,6 +280,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
       });
       if (controller.signal.aborted || disposedRef.current) return;
       refreshSnapshot();
+      markDirty();
       setRecalcFresh(true);
       setRecalcProgress(100);
     } catch (error) {
@@ -293,7 +294,7 @@ export function XlsxEditor<TSnapshot = XlsxWorkbookSnapshot>({
       }
       recalcAbortRef.current = null;
     }
-  }, [readOnly, recalcController, recalcProgress, refreshSnapshot]);
+  }, [markDirty, readOnly, recalcController, recalcProgress, refreshSnapshot]);
 
   const cancelRecalculate = useCallback(() => {
     const controller = recalcAbortRef.current;

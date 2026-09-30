@@ -260,6 +260,18 @@ function stableJson(value: unknown): string {
   return `{${Object.keys(value as Record<string, unknown>).sort().map((key) => `${JSON.stringify(key)}:${stableJson((value as Record<string, unknown>)[key])}`).join(",")}}`;
 }
 
+interface XlsxRuntimeOpenError extends Error {
+  failureClass?: string;
+  engineError?: string;
+}
+
+function runtimeOpenError(outcome: XlsxRuntimeOpenResult): XlsxRuntimeOpenError {
+  const error = new Error(outcome.message ?? outcome.failure_class ?? outcome.engine_error ?? "xlsx_open_failed") as XlsxRuntimeOpenError;
+  error.failureClass = outcome.failure_class;
+  error.engineError = outcome.engine_error;
+  return error;
+}
+
 async function fingerprint(snapshot: XlsxWorkbookSnapshot): Promise<string> {
   const bytes = new TextEncoder().encode(stableJson(snapshot));
   const subtle = globalThis.crypto?.subtle;
@@ -306,9 +318,16 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
     async open() {
       if (disposed) throw new Error("xlsx_editor_disposed");
       if (modelRef) return;
-      if (!openedBytes) openedBytes = await options.documents.read();
-      const outcome = await options.runtime.open({ bytes: openedBytes, documentId: options.identity.documentId });
-      if (outcome.outcome !== "opened" || !outcome.document_model_ref) throw new Error(outcome.message ?? outcome.failure_class ?? "xlsx_open_failed");
+      const bytes = openedBytes ?? await options.documents.read();
+      if (disposed) throw new Error("xlsx_editor_disposed");
+      openedBytes = bytes;
+      const outcome = await options.runtime.open({ bytes, documentId: options.identity.documentId });
+      if (disposed) {
+        if (outcome.document_model_ref) await options.runtime.release(outcome.document_model_ref);
+        throw new Error("xlsx_editor_disposed");
+      }
+      if (outcome.outcome !== "opened") throw runtimeOpenError(outcome);
+      if (!outcome.document_model_ref) throw new Error("xlsx_open_missing_model_ref");
       modelRef = outcome.document_model_ref;
       currentSnapshot = cloneSnapshot(outcome.snapshot ?? options.runtime.snapshot(modelRef));
       generation = Math.max(1, options.identity.generation);
@@ -344,11 +363,13 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
           if (signal.aborted) throw new DOMException("recalculation cancelled", "AbortError");
           const result = await options.runtime.recalculate(modelRef, signal, onProgress);
           if (signal.aborted) throw new DOMException("recalculation cancelled", "AbortError");
+          if (disposed || !modelRef) throw new Error("xlsx_editor_disposed");
           currentSnapshot = cloneSnapshot(options.runtime.snapshot(modelRef));
+          generation += 1;
           return result;
         },
-        cancel() {
-          if (modelRef) void options.runtime.cancelRecalculate?.(modelRef);
+        async cancel() {
+          if (modelRef) await options.runtime.cancelRecalculate?.(modelRef);
         },
       }
     : undefined;
@@ -356,6 +377,7 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
 
   const onRecoverSnapshot = options.runtime.restore
     ? async (snapshot: StableSnapshot<XlsxWorkbookSnapshot>): Promise<void> => {
+        if (disposed) throw new Error("xlsx_editor_disposed");
         if (!modelRef) await editor.open();
         if (!modelRef || !options.runtime.restore) throw new Error("xlsx_editor_not_open");
         await options.runtime.restore(modelRef, cloneSnapshot(snapshot.value));
@@ -390,7 +412,15 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
         await editor.open();
         return { outcome: "opened", document_id: options.identity.documentId, document_model_ref: modelRef!, snapshot: editor.getWorkbookSnapshot?.() ?? undefined };
       } catch (error) {
-        return { outcome: "failed", document_id: options.identity.documentId, format: "xlsx", failure_class: "engine_error", message: error instanceof Error ? error.message : String(error) };
+        const typed = error as Partial<XlsxRuntimeOpenError>;
+        return {
+          outcome: "failed",
+          document_id: options.identity.documentId,
+          format: "xlsx",
+          failure_class: typed.failureClass ?? "engine_error",
+          ...(typed.engineError ? { engine_error: typed.engineError } : {}),
+          message: error instanceof Error ? error.message : String(error),
+        };
       }
     },
   };
