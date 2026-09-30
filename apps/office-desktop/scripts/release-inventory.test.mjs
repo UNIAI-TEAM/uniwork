@@ -16,7 +16,11 @@ test("release inventory copies provenance, notices, fonts and a clean ee scan", 
     assert.ok(result.inventory.patches.length >= 2);
     assert.ok(result.inventory.dependencies.some((dependency) => dependency.name === "electron"));
     assert.ok(result.inventory.fontRedistribution.length >= 1);
-    assert.match(await readFile(join(output, "THIRD-PARTY-NOTICES.txt"), "utf8"), /resolved pnpm dependency tree/);
+    const notices = await readFile(join(output, "THIRD-PARTY-NOTICES.txt"), "utf8");
+    assert.match(notices, /resolved production dependency tree/);
+    assert.doesNotMatch(notices, /UNKNOWN/);
+    assert.match(notices, /zod@/);
+    assert.match(notices, /MIT License|Copyright/);
     assert.match(await readFile(join(output, "LICENSE"), "utf8"), /Apache License/);
   } finally {
     await rm(output, { recursive: true, force: true });

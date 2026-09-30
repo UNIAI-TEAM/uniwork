@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST, desktopIdentityManifestSchema, getDesktopDiagnostics } from "../shared/identity";
+import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST, desktopIdentityManifestSchema, getChannelIdentity, getDesktopDiagnostics } from "../shared/identity";
 
 describe("accepted desktop identity", () => {
   it("keeps dev and stable namespaces separate", () => {
@@ -12,6 +12,8 @@ describe("accepted desktop identity", () => {
     expect(DESKTOP_IDENTITY_MANIFEST.channelNamespaces.dev).not.toBe(DESKTOP_IDENTITY_MANIFEST.channelNamespaces.stable);
     expect(DESKTOP_IDENTITY_MANIFEST.devNamespace).not.toBe(DESKTOP_IDENTITY_MANIFEST.userDataNamespace);
     expect(DESKTOP_IDENTITY.origin).toBe(`${DESKTOP_IDENTITY_MANIFEST.internalSchemes.app}://app`);
+    expect(getChannelIdentity("dev").userScheme).not.toBe(getChannelIdentity("stable").userScheme);
+    expect(getChannelIdentity("beta").userScheme).toBe(getChannelIdentity("stable").userScheme);
   });
 
   it("uses the same manifest values for host identity and diagnostics", () => {

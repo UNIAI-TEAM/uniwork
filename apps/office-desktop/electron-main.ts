@@ -1,0 +1,139 @@
+// Electron is supplied by electron-builder at runtime and intentionally stays
+// a devDependency; this is the only privileged entry module that imports it.
+// eslint-disable-next-line import-x/no-extraneous-dependencies
+import { app, BrowserWindow, ipcMain, net, protocol } from "electron";
+import { existsSync } from "node:fs";
+import { dirname, join, resolve, sep } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST } from "./shared/identity";
+import { DESKTOP_IPC_CHANNELS } from "./shared/ipc";
+import { createDesktopHost, WINDOW_WEB_PREFERENCES } from "./main/index";
+import { createLaunchBridge, type DeepLinkSystem } from "./main/deep-links/bridge";
+import { resolveDeploymentProfile, type DeploymentProfile } from "./shared/deployment";
+
+const DIST_MAIN_DIRECTORY = dirname(fileURLToPath(import.meta.url));
+const RENDERER_DIRECTORY = resolve(DIST_MAIN_DIRECTORY, "../renderer");
+const PRELOAD_PATH = resolve(DIST_MAIN_DIRECTORY, "../preload/index.cjs");
+const SESSION_GENERATION = "desktop-dev-session";
+const SMOKE_MODE = process.argv.includes("--office-desktop-smoke");
+
+function inside(directory: string, file: string): boolean {
+  const root = resolve(directory);
+  const candidate = resolve(file);
+  return candidate === root || candidate.startsWith(`${root}${sep}`);
+}
+
+function installRendererProtocol(): void {
+  protocol.handle(DESKTOP_IDENTITY.appScheme, (request) => {
+    const requestUrl = new URL(request.url);
+    const requestPath = decodeURIComponent(requestUrl.pathname === "/" ? "/index.html" : requestUrl.pathname);
+    const file = resolve(RENDERER_DIRECTORY, `.${requestPath}`);
+    if (!inside(RENDERER_DIRECTORY, file) || !existsSync(file)) return new Response("Not found", { status: 404 });
+    return net.fetch(pathToFileURL(file).toString());
+  });
+}
+
+function createDeepLinkSystem(): DeepLinkSystem {
+  return {
+    requestSingleInstanceLock: () => app.requestSingleInstanceLock(),
+    registerProtocolClient: (scheme) => {
+      if (process.platform === "win32" && app.isPackaged) app.setAsDefaultProtocolClient(scheme);
+      else if (process.argv[1]) app.setAsDefaultProtocolClient(scheme, process.execPath, [resolve(process.argv[1])]);
+      else app.setAsDefaultProtocolClient(scheme);
+    },
+    onSecondInstance: (listener) => {
+      app.on("second-instance", (event, argv) => listener(event, argv));
+    },
+    onOpenUrl: (listener) => {
+      app.on("open-url", (event, url) => listener(event, url));
+    },
+    quit: () => app.quit(),
+  };
+}
+
+function createNoopLaunchBridge(deploymentId: string) {
+  return createLaunchBridge({
+    trustedDeploymentId: deploymentId,
+    getSession: () => undefined,
+    exchange: { exchange: async () => ({ kind: "refused", reason: "not_found" as const }) },
+  });
+}
+
+async function runSmokeDiagnostics(window: BrowserWindow, deploymentProfile?: DeploymentProfile): Promise<void> {
+  const result = await window.webContents.executeJavaScript(
+    `window.uniworkOffice.call("desktop:diagnostics", ${JSON.stringify({ sessionGeneration: SESSION_GENERATION })})`,
+    true,
+  );
+  if (!result || result.appId !== DESKTOP_IDENTITY.appId || result.channel !== DESKTOP_IDENTITY_MANIFEST.build.channel || result.buildId !== DESKTOP_IDENTITY_MANIFEST.build.buildId || (deploymentProfile && (result.deploymentId !== deploymentProfile.deploymentId || result.originHost !== new URL(deploymentProfile.apiOrigin).host))) {
+    throw new Error("desktop launch smoke diagnostics did not match the accepted identity manifest");
+  }
+  process.stdout.write(`${JSON.stringify({ event: "office-desktop-smoke", readyToShow: true, diagnostics: result })}\n`);
+}
+
+async function startElectronHost(): Promise<void> {
+  const configuredUserData = process.env.UNIWORK_OFFICE_USER_DATA;
+  const defaultUserData = join(app.getPath("appData"), DESKTOP_IDENTITY.devNamespace);
+  app.setPath("userData", configuredUserData ? resolve(configuredUserData) : defaultUserData);
+  app.setAppUserModelId(DESKTOP_IDENTITY.appId);
+  const deploymentResolution = resolveDeploymentProfile({ userDataDirectory: app.getPath("userData"), buildChannel: DESKTOP_IDENTITY_MANIFEST.build.channel });
+  const deploymentProfile = "kind" in deploymentResolution ? undefined : deploymentResolution;
+  await app.whenReady();
+  installRendererProtocol();
+
+  const window = new BrowserWindow({
+    show: !SMOKE_MODE,
+    webPreferences: {
+      ...WINDOW_WEB_PREFERENCES,
+      preload: PRELOAD_PATH,
+    },
+  });
+  // Electron's main-frame invoke events use frame id 0. Keep this explicit so
+  // the dispatcher binds the handler to the top-level window only.
+  const frameId = 0;
+  const launchBridge = createNoopLaunchBridge(deploymentProfile?.deploymentId ?? DESKTOP_IDENTITY.appId);
+  const host = createDesktopHost({
+    window: {
+      webContents: window.webContents,
+      webPreferences: WINDOW_WEB_PREFERENCES,
+      loadURL: (url) => window.loadURL(url),
+      setUserDataDirectory: (value) => app.setPath("userData", value === DESKTOP_IDENTITY.devNamespace ? defaultUserData : resolve(value)),
+      on: (event, listener) => window.on(event, listener),
+    },
+    sender: {
+      senderId: window.webContents.id,
+      frameId,
+      origin: DESKTOP_IDENTITY.origin,
+      expectedSenderId: window.webContents.id,
+      expectedFrameId: frameId,
+      expectedOrigin: DESKTOP_IDENTITY.origin,
+      sessionGeneration: SESSION_GENERATION,
+    },
+    deepLinks: { system: createDeepLinkSystem(), bridge: launchBridge },
+    deploymentProfile,
+  });
+
+  for (const channel of DESKTOP_IPC_CHANNELS) {
+    ipcMain.handle(channel, (event, payload) => {
+      if (event.sender !== window.webContents) throw new Error("IPC sender is not the desktop window");
+      return host.dispatch(channel, payload);
+    });
+  }
+
+  window.once("ready-to-show", () => {
+    if (!SMOKE_MODE) {
+      window.show();
+      return;
+    }
+    void runSmokeDiagnostics(window, deploymentProfile).then(() => app.quit()).catch((error) => {
+      process.stderr.write(`office-desktop: launch smoke failed: ${error instanceof Error ? error.message : String(error)}\n`);
+      app.exit(1);
+    });
+  });
+  app.on("window-all-closed", () => app.quit());
+  await host.start();
+}
+
+void startElectronHost().catch((error) => {
+  process.stderr.write(`office-desktop: Electron bootstrap failed: ${error instanceof Error ? error.message : String(error)}\n`);
+  app.exit(1);
+});

@@ -5,5 +5,5 @@
     "noEmit": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["main", "preload", "renderer", "shared", "test", "vitest.config.ts", "scripts"]
+  "include": ["electron-main.ts", "main", "preload", "renderer", "shared", "test", "vitest.config.ts", "scripts"]
 }

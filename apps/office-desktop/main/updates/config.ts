@@ -9,7 +9,7 @@ const updateConfigSchema = z.object({
 }).strict();
 
 export type DesktopUpdateConfig = z.infer<typeof updateConfigSchema>;
-export type UpdateConfigErrorCode = "missing" | "invalid" | "wrong-channel";
+export type UpdateConfigErrorCode = "missing" | "invalid" | "wrong-channel" | "not-allowed-in-dev";
 
 export class UpdateConfigError extends Error {
   readonly code: UpdateConfigErrorCode;
@@ -36,7 +36,7 @@ export function parseUpdateConfig(value: unknown): DesktopUpdateConfig {
   const parsed = updateConfigSchema.safeParse(value);
   if (!parsed.success) throw new UpdateConfigError("invalid", "desktop update configuration is invalid");
   if (parsed.data.channel !== DESKTOP_IDENTITY_MANIFEST.build.channel) throw new UpdateConfigError("wrong-channel", "desktop update channel does not match the identity manifest");
-  if (parsed.data.enabled && (!parsed.data.feed || !parsed.data.publisher)) throw new UpdateConfigError("invalid", "enabled updates require a feed and publisher");
+  if (parsed.data.enabled) throw new UpdateConfigError("not-allowed-in-dev", "unsigned development builds cannot enable automatic updates");
   if (!parsed.data.enabled && (parsed.data.feed !== null || parsed.data.publisher !== null)) throw new UpdateConfigError("invalid", "disabled updates cannot carry a feed or publisher");
   return parsed.data;
 }

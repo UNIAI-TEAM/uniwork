@@ -32,11 +32,17 @@
       ]
     },
     "apps/office-desktop": {
+      "ignoreExportsUsedInFile": true,
       "entry": [
+        "electron-main.ts",
         "main/index.ts",
         "preload/index.ts",
         "renderer/index.ts",
         "scripts/*.mjs"
+      ],
+      "ignoreDependencies": [
+        "@electron/asar",
+        "app-builder-lib"
       ]
     },
     "packages/*": {},

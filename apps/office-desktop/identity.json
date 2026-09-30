@@ -21,6 +21,41 @@
     "beta": "uniwork-office/beta",
     "dev": "uniwork-office/dev"
   },
+  "channelProfiles": {
+    "stable": {
+      "product": "UniWork Office",
+      "appId": "com.uniwork.office",
+      "executable": "uniwork-office",
+      "userScheme": "uniwork-office",
+      "authCallback": "uniwork-office://auth/callback",
+      "userDataNamespace": "uniwork-office",
+      "devNamespace": "uniwork-office",
+      "keyNamespace": "uniwork-office",
+      "artifactPrefix": "uniwork-office"
+    },
+    "beta": {
+      "product": "UniWork Office (beta)",
+      "appId": "com.uniwork.office",
+      "executable": "uniwork-office",
+      "userScheme": "uniwork-office",
+      "authCallback": "uniwork-office://auth/callback",
+      "userDataNamespace": "uniwork-office",
+      "devNamespace": "uniwork-office",
+      "keyNamespace": "uniwork-office",
+      "artifactPrefix": "uniwork-office"
+    },
+    "dev": {
+      "product": "UniWork Office (test)",
+      "appId": "com.uniwork.office.dev",
+      "executable": "uniwork-office-test",
+      "userScheme": "uniwork-office-dev",
+      "authCallback": "uniwork-office-dev://auth/callback",
+      "userDataNamespace": "uniwork-office-dev",
+      "devNamespace": "uniwork-office-dev",
+      "keyNamespace": "uniwork-office-dev",
+      "artifactPrefix": "uniwork-office-test"
+    }
+  },
   "build": {
     "channel": "dev",
     "buildId": "unsigned-dev",

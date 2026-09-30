@@ -19,7 +19,8 @@ describe("desktop update configuration", () => {
     expect(() => parseUpdateConfig({ enabled: false, feed: null, publisher: null, channel: "stable" })).toThrowError(expect.objectContaining({ code: "wrong-channel" } satisfies Partial<UpdateConfigError>));
   });
 
-  it("requires feed and publisher before updates can ever be enabled", () => {
-    expect(() => parseUpdateConfig({ enabled: true, feed: null, publisher: null, channel: "dev" })).toThrowError(expect.objectContaining({ code: "invalid" } satisfies Partial<UpdateConfigError>));
+  it("refuses every enabled unsigned-dev configuration", () => {
+    expect(() => parseUpdateConfig({ enabled: true, feed: null, publisher: null, channel: "dev" })).toThrowError(expect.objectContaining({ code: "not-allowed-in-dev" } satisfies Partial<UpdateConfigError>));
+    expect(() => parseUpdateConfig({ enabled: true, feed: "https://upstream.example/feed", publisher: "upstream", channel: "dev" })).toThrowError(expect.objectContaining({ code: "not-allowed-in-dev" } satisfies Partial<UpdateConfigError>));
   });
 });

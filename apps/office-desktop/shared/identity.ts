@@ -1,8 +1,23 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import manifest from "../identity.json";
+import { deploymentOriginHost, type DeploymentProfile } from "./deployment";
 
 const channelSchema = z.enum(["stable", "beta", "dev"]);
 const architectureSchema = z.array(z.enum(["x64", "arm64"])).min(1);
+const channelIdentitySchema = z.object({
+  product: z.string().min(1),
+  appId: z.string().regex(/^[a-z0-9]+(?:\.[a-z0-9-]+)+$/),
+  executable: z.string().regex(/^[a-z][a-z0-9-]+$/),
+  userScheme: z.string().regex(/^[a-z][a-z0-9-]+$/),
+  authCallback: z.string().url(),
+  userDataNamespace: z.string().regex(/^[a-z][a-z0-9-]+$/),
+  devNamespace: z.string().regex(/^[a-z][a-z0-9-]+$/),
+  keyNamespace: z.string().regex(/^[a-z][a-z0-9-]+$/),
+  artifactPrefix: z.string().regex(/^[a-z][a-z0-9-]+$/),
+}).strict();
 
 export const desktopIdentityManifestSchema = z.object({
   schemaVersion: z.literal(1),
@@ -27,10 +42,11 @@ export const desktopIdentityManifestSchema = z.object({
     beta: z.string().min(1),
     dev: z.string().min(1),
   }).strict(),
+  channelProfiles: z.object({ stable: channelIdentitySchema, beta: channelIdentitySchema, dev: channelIdentitySchema }).strict(),
   build: z.object({
     channel: channelSchema,
     buildId: z.string().regex(/^[a-z0-9][a-z0-9-]+$/),
-    appVersion: z.string().regex(/^\d+\.\d+\.\d+$/),
+    appVersion: z.string().regex(/^\d+\.\d+\.\d+(?:-(?:dev|beta)\.\d+)?$/),
     platforms: z.object({
       win32: architectureSchema,
       darwin: architectureSchema,
@@ -51,7 +67,24 @@ export const desktopIdentityManifestSchema = z.object({
 }).strict();
 
 export type DesktopIdentityManifest = z.infer<typeof desktopIdentityManifestSchema>;
-export const DESKTOP_IDENTITY_MANIFEST = Object.freeze(desktopIdentityManifestSchema.parse(manifest));
+
+function packagedIdentityOverrides(): Partial<Pick<DesktopIdentityManifest, "product" | "appId" | "executable" | "artifactPrefix" | "userScheme" | "authCallback" | "userDataNamespace" | "devNamespace" | "keyNamespace">> & { build?: Partial<DesktopIdentityManifest["build"]>; update?: Partial<DesktopIdentityManifest["update"]> } {
+  // The build writes this profile beside dist/main/index.mjs. Source tests and
+  // non-packaged development keep the accepted manifest's dev projection.
+  try {
+    const profile = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../build-identity.json"), "utf8"));
+    const { product, appId, executable, artifactPrefix, userScheme, authCallback, userDataNamespace, devNamespace, keyNamespace } = profile;
+    return { product, appId, executable, artifactPrefix, userScheme, authCallback, userDataNamespace, devNamespace, keyNamespace, build: { channel: profile.channel, appVersion: profile.version, buildId: profile.buildId }, update: { channel: profile.channel } };
+  } catch { return {}; }
+}
+
+const overrides = packagedIdentityOverrides();
+export const DESKTOP_IDENTITY_MANIFEST = Object.freeze(desktopIdentityManifestSchema.parse({
+  ...manifest,
+  ...overrides,
+  build: { ...manifest.build, ...(overrides.build ?? {}) },
+  update: { ...manifest.update, ...(overrides.update ?? {}) },
+}));
 
 /** Shared identity projection used by main, navigation, deep links and tests. */
 export const DESKTOP_IDENTITY = Object.freeze({
@@ -68,7 +101,12 @@ export const DESKTOP_IDENTITY = Object.freeze({
   origin: `${DESKTOP_IDENTITY_MANIFEST.internalSchemes.app}://app`,
 } as const);
 
+export function getChannelIdentity(channel: DesktopIdentityManifest["build"]["channel"]): z.infer<typeof channelIdentitySchema> {
+  return DESKTOP_IDENTITY_MANIFEST.channelProfiles[channel];
+}
+
 export type DesktopDiagnostics = {
+  name: string;
   appId: string;
   appVersion: string;
   engineVersion: string;
@@ -76,10 +114,13 @@ export type DesktopDiagnostics = {
   protocolVersion: number;
   channel: DesktopIdentityManifest["build"]["channel"];
   buildId: string;
+  deploymentId?: string;
+  originHost?: string;
 };
 
-export function getDesktopDiagnostics(): DesktopDiagnostics {
+export function getDesktopDiagnostics(profile?: DeploymentProfile): DesktopDiagnostics {
   return {
+    name: DESKTOP_IDENTITY_MANIFEST.product,
     appId: DESKTOP_IDENTITY.appId,
     appVersion: DESKTOP_IDENTITY_MANIFEST.build.appVersion,
     engineVersion: DESKTOP_IDENTITY_MANIFEST.engine.version,
@@ -87,5 +128,6 @@ export function getDesktopDiagnostics(): DesktopDiagnostics {
     protocolVersion: DESKTOP_IDENTITY_MANIFEST.engine.protocolVersion,
     channel: DESKTOP_IDENTITY_MANIFEST.build.channel,
     buildId: DESKTOP_IDENTITY_MANIFEST.build.buildId,
+    ...(profile ? { deploymentId: profile.deploymentId, originHost: deploymentOriginHost(profile) } : {}),
   };
 }

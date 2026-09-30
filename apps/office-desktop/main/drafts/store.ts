@@ -22,7 +22,11 @@ import {
   type DraftSnapshot,
 } from "../../../../packages/core/office/draft-recovery";
 import { checksum, decryptDraft, encryptDraft } from "./crypto";
-import { DESKTOP_IDENTITY } from "../../shared/identity";
+import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST } from "../../shared/identity";
+
+/** Channel-isolated temp prefix and key namespace are both accepted identity
+ * values; drafts never fall back to an app-id literal. */
+export const DRAFT_TEMP_PREFIX = `${DESKTOP_IDENTITY_MANIFEST.channelNamespaces[DESKTOP_IDENTITY_MANIFEST.build.channel].replaceAll(/[^a-z0-9-]/gi, "-")}-draft-`;
 
 export interface DraftKeyStore {
   /** A draft key is intentionally a separate port from refresh credentials. */
@@ -197,7 +201,7 @@ export class DesktopDraftStore implements DraftRecoveryAdapter {
   async withPlaintextTemp<T>(plaintext: Uint8Array, callback: (path: string) => Promise<T>): Promise<T> {
     if (plaintext.byteLength > this.maxPlaintextBytes) throw new DraftRecoveryError("quota_exceeded", "plaintext temp exceeds the local size limit");
     const root = this.options.tempDirectory ?? tmpdir();
-    const directory = await fs.mkdtemp(join(root, `${DESKTOP_IDENTITY.devNamespace}-draft-`));
+    const directory = await fs.mkdtemp(join(root, DRAFT_TEMP_PREFIX));
     const path = join(directory, "snapshot.bin");
     try { await fs.writeFile(path, plaintext, { mode: 0o600 }); return await callback(path); }
     finally { await fs.rm(directory, { recursive: true, force: true }).catch(() => undefined); }
@@ -260,7 +264,7 @@ export class DesktopDraftStore implements DraftRecoveryAdapter {
 
 export function createDesktopDraftStore(options: DesktopDraftStoreOptions): DesktopDraftStore { return new DesktopDraftStore(options); }
 
-function namespaceFor(identity: DraftIdentity): string { return createHash("sha256").update(draftNamespace(identity)).digest("hex"); }
+function namespaceFor(identity: DraftIdentity): string { return createHash("sha256").update(`${DESKTOP_IDENTITY.keyNamespace}:${draftNamespace(identity)}`).digest("hex"); }
 function fileFor(root: string, identity: DraftIdentity, draftId: string): string { const draftHash = createHash("sha256").update(draftId).digest("hex"); return join(root, namespaceFor(identity), `${draftHash}.draft`); }
 function rowMetadata(row: DurableRow): DraftMetadata { return { draftId: row.draftId, identity: row.identity, generation: row.generation, checksum: row.checksum, byteLength: row.byteLength, updatedAt: row.updatedAt }; }
 function matchesLookup(row: DurableRow, lookup?: DraftLookup): boolean { if (!lookup) return true; return row.identity.deploymentId === lookup.deploymentId && row.identity.accountId === lookup.accountId && row.identity.organizationId === lookup.organizationId && row.identity.workspaceId === lookup.workspaceId && row.identity.documentId === lookup.documentId && (!lookup.draftId || row.draftId === lookup.draftId) && (!lookup.base || sameBase(row.identity.base, lookup.base)); }

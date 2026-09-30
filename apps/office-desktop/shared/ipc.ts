@@ -65,13 +65,16 @@ export const desktopFileMetadataSchema = z.object({
 export const desktopFileResponseSchema = z.object({ opened: z.boolean(), metadata: desktopFileMetadataSchema.optional() }).strict();
 export const desktopDraftResponseSchema = z.object({ stored: z.boolean(), generation: z.number().int().positive() }).strict();
 export const desktopDiagnosticsResponseSchema = z.object({
+  name: z.string().min(1).optional(),
   appId: z.string().min(1),
-  appVersion: z.string().regex(/^\d+\.\d+\.\d+$/),
+  appVersion: z.string().regex(/^\d+\.\d+\.\d+(?:-(?:dev|beta)\.\d+)?$/),
   engineVersion: z.string().min(1),
   contractVersion: z.string().min(1),
   protocolVersion: z.number().int().positive(),
   channel: z.enum(["stable", "beta", "dev"]),
   buildId: z.string().regex(/^[a-z0-9][a-z0-9-]+$/),
+  deploymentId: deploymentSchema.optional(),
+  originHost: z.string().min(1).max(255).optional(),
 }).strict();
 const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:file-pick-open": desktopFileResponseSchema,
