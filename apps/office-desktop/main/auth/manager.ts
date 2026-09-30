@@ -50,6 +50,7 @@ export class NativeLoginManager {
   }
 
   getMetadata(): LoginSessionMetadata { return this.metadata; }
+  getBinding(): Readonly<{ clientId: string; deploymentId: string }> { return { clientId: this.options.clientId, deploymentId: this.options.deploymentId }; }
   getGeneration(): number { return this.generation; }
   isBound(clientId: string, deploymentId: string): boolean { return clientId === this.options.clientId && deploymentId === this.options.deploymentId; }
   getCurrentAttempt(now = this.clock()): PendingLoginAttempt | undefined { return this.attempts.current(now); }

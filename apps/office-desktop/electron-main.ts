@@ -6,7 +6,7 @@ import { existsSync } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST, getChannelIdentity } from "./shared/identity";
-import { DESKTOP_IPC_CHANNELS } from "./shared/ipc";
+import { DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema } from "./shared/ipc";
 import { createDesktopHost, WINDOW_WEB_PREFERENCES } from "./main/index";
 import { createLaunchBridge, type DeepLinkSystem } from "./main/deep-links/bridge";
 import { resolveDeploymentProfile, type DeploymentProfile } from "./shared/deployment";
@@ -89,6 +89,7 @@ async function startElectronHost(): Promise<void> {
   });
   const deploymentProfile = "kind" in deploymentResolution ? undefined : deploymentResolution;
   await app.whenReady();
+  let publishSessionMetadata: (metadata: unknown) => void = () => undefined;
   const authManager = deploymentProfile ? new NativeLoginManager({
     clientId: deploymentProfile.clientId,
     deploymentId: deploymentProfile.deploymentId,
@@ -97,6 +98,7 @@ async function startElectronHost(): Promise<void> {
     browser: createSystemBrowserLauncher((url) => shell.openExternal(url)),
     transport: createHttpAuthTransport(deploymentProfile),
     credentials: createSecureCredentialStore({ userDataDirectory: app.getPath("userData"), channel: DESKTOP_IDENTITY_MANIFEST.build.channel, deploymentId: deploymentProfile.deploymentId, safeStorage }),
+    onMetadata: (metadata) => publishSessionMetadata(metadata),
   }) : undefined;
   await authManager?.restore();
   installRendererProtocol();
@@ -108,6 +110,10 @@ async function startElectronHost(): Promise<void> {
       preload: PRELOAD_PATH,
     },
   });
+  publishSessionMetadata = (metadata) => {
+    const parsed = desktopSessionMetadataSchema.parse(metadata);
+    window.webContents.send?.("desktop:auth-session-changed", parsed);
+  };
   // Electron's main-frame invoke events use frame id 0. Keep this explicit so
   // the dispatcher binds the handler to the top-level window only.
   const frameId = 0;

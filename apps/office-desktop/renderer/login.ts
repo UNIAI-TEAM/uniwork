@@ -3,7 +3,7 @@ import type { DesktopIpcChannel, DesktopIpcRequest, DesktopSessionMetadata } fro
 export type LoginScreenState = "signed-out" | "pending" | "error" | "cancelled" | "signed-in" | "locked" | "login-required";
 type LoginTextKey = "login.title" | "login.signedOut" | "login.pending" | "login.error" | "login.cancelled" | "login.signedIn" | "login.locked" | "login.required" | "login.start" | "login.cancel";
 type LoginText = (key: LoginTextKey) => string;
-type LoginPrimitiveRegistry = Readonly<{ button?: (props: Readonly<{ label: string; action: "start" | "cancel" }>) => unknown }>;
+type LoginPrimitiveRegistry = Readonly<{ button?: (props: Readonly<{ label: string; action: "start" | "cancel"; onClick?: () => void }>) => unknown }>;
 export type LoginRenderAdapter = Readonly<{ t?: LoginText; registry?: LoginPrimitiveRegistry }>;
 export type LoginRoot = { textContent: string | null; setAttribute(name: string, value: string): void };
 

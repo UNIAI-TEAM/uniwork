@@ -3,7 +3,7 @@
 export * from "../shared/ipc";
 
 import type { NativeLoginManager } from "./auth/manager";
-import { desktopSessionMetadataSchema } from "../shared/ipc";
+import { desktopAuthConfigResponseSchema, desktopSessionMetadataSchema } from "../shared/ipc";
 import type { FileHandleRegistry } from "./files/registry";
 import { LocalFileError } from "./files/registry";
 import type { DesktopDraftStore } from "./drafts/store";
@@ -24,6 +24,8 @@ export function createAuthIpcHandlers(manager: NativeLoginManager) {
       return desktopSessionMetadataSchema.parse(manager.cancelLogin(request.attemptId));
     },
     "desktop:auth-session": (_request: Extract<import("../shared/ipc").DesktopIpcRequest, { sessionGeneration: string }>) => desktopSessionMetadataSchema.parse(manager.getMetadata()),
+    "desktop:auth-config": (_request: Extract<import("../shared/ipc").DesktopIpcRequest, { sessionGeneration: string }>) => desktopAuthConfigResponseSchema.parse(manager.getBinding()),
+    "desktop:auth-logout": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { scope: "device" | "family" }>) => desktopSessionMetadataSchema.parse(await manager.logout(request.scope)),
   };
 }
 
