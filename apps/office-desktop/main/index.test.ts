@@ -77,4 +77,22 @@ describe("desktop host bootstrap", () => {
     expect(JSON.stringify(send.mock.calls)).not.toContain(ticket);
     expect(second).toBeDefined();
   });
+
+  it("routes a cold-start auth callback to the manager instead of the launch bridge", async () => {
+    const originalArgv = process.argv;
+    process.argv = [...originalArgv, "uniwork-office://auth/callback?code=code_abc&state=state_abc"];
+    try {
+      const authCallback = vi.fn().mockResolvedValue({ ok: false, reason: "no_attempt" });
+      const coldStart = vi.fn();
+      const bridge = { handleColdStart: coldStart, handleSecondInstance: vi.fn(), handleOpenUrl: vi.fn(), subscribe: vi.fn(() => () => undefined) } as never;
+      const system = { requestSingleInstanceLock: vi.fn(() => true), registerProtocolClient: vi.fn(), onSecondInstance: vi.fn(), onOpenUrl: vi.fn() };
+      const contents = { on: vi.fn(), setWindowOpenHandler: vi.fn(), send: vi.fn() };
+      const host = createDesktopHost({ window: { webContents: contents, webPreferences: windowPreferences, loadURL: vi.fn(), setUserDataDirectory: vi.fn() }, sender, authManager: { handleCallback: authCallback } as never, deepLinks: { system, bridge } });
+      await host.start();
+      expect(authCallback).toHaveBeenCalledWith("uniwork-office://auth/callback?code=code_abc&state=state_abc");
+      expect(coldStart).not.toHaveBeenCalled();
+    } finally {
+      process.argv = originalArgv;
+    }
+  });
 });

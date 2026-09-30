@@ -1,15 +1,19 @@
 // Electron is supplied by electron-builder at runtime and intentionally stays
 // a devDependency; this is the only privileged entry module that imports it.
 // eslint-disable-next-line import-x/no-extraneous-dependencies
-import { app, BrowserWindow, ipcMain, net, protocol } from "electron";
+import { app, BrowserWindow, ipcMain, net, protocol, safeStorage, shell } from "electron";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST } from "./shared/identity";
+import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST, getChannelIdentity } from "./shared/identity";
 import { DESKTOP_IPC_CHANNELS } from "./shared/ipc";
 import { createDesktopHost, WINDOW_WEB_PREFERENCES } from "./main/index";
 import { createLaunchBridge, type DeepLinkSystem } from "./main/deep-links/bridge";
 import { resolveDeploymentProfile, type DeploymentProfile } from "./shared/deployment";
+import { createSecureCredentialStore } from "./main/credentials/secure-store";
+import { createSystemBrowserLauncher } from "./main/auth/browser";
+import { NativeLoginManager } from "./main/auth/manager";
+import { createHttpAuthTransport } from "./main/transport/auth-transport";
 
 const DIST_MAIN_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 const RENDERER_DIRECTORY = resolve(DIST_MAIN_DIRECTORY, "../renderer");
@@ -85,6 +89,16 @@ async function startElectronHost(): Promise<void> {
   });
   const deploymentProfile = "kind" in deploymentResolution ? undefined : deploymentResolution;
   await app.whenReady();
+  const authManager = deploymentProfile ? new NativeLoginManager({
+    clientId: deploymentProfile.clientId,
+    deploymentId: deploymentProfile.deploymentId,
+    redirectUri: getChannelIdentity(DESKTOP_IDENTITY_MANIFEST.build.channel).authCallback,
+    allowLoopbackBrowserUrl: deploymentProfile.channel === "dev",
+    browser: createSystemBrowserLauncher((url) => shell.openExternal(url)),
+    transport: createHttpAuthTransport(deploymentProfile),
+    credentials: createSecureCredentialStore({ userDataDirectory: app.getPath("userData"), channel: DESKTOP_IDENTITY_MANIFEST.build.channel, deploymentId: deploymentProfile.deploymentId, safeStorage }),
+  }) : undefined;
+  await authManager?.restore();
   installRendererProtocol();
 
   const window = new BrowserWindow({
@@ -116,6 +130,7 @@ async function startElectronHost(): Promise<void> {
       sessionGeneration: SESSION_GENERATION,
     },
     deepLinks: { system: createDeepLinkSystem(), bridge: launchBridge },
+    authManager,
     deploymentProfile,
     userDataDirectory: app.getPath("userData"),
   });

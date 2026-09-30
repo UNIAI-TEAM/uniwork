@@ -1,7 +1,7 @@
 import type { DesktopIpcChannel, DesktopIpcRequest, DesktopSessionMetadata } from "../shared/ipc";
 
-export type LoginScreenState = "signed-out" | "pending" | "error" | "cancelled" | "signed-in";
-type LoginTextKey = "login.title" | "login.signedOut" | "login.pending" | "login.error" | "login.cancelled" | "login.signedIn" | "login.start" | "login.cancel";
+export type LoginScreenState = "signed-out" | "pending" | "error" | "cancelled" | "signed-in" | "locked" | "login-required";
+type LoginTextKey = "login.title" | "login.signedOut" | "login.pending" | "login.error" | "login.cancelled" | "login.signedIn" | "login.locked" | "login.required" | "login.start" | "login.cancel";
 type LoginText = (key: LoginTextKey) => string;
 type LoginPrimitiveRegistry = Readonly<{ button?: (props: Readonly<{ label: string; action: "start" | "cancel" }>) => unknown }>;
 export type LoginRenderAdapter = Readonly<{ t?: LoginText; registry?: LoginPrimitiveRegistry }>;
@@ -14,6 +14,8 @@ const defaultText: Record<LoginTextKey, string> = {
   "login.error": "Sign in could not be completed. Try again.",
   "login.cancelled": "Sign in was cancelled.",
   "login.signedIn": "You are signed in.",
+  "login.locked": "Secure credential storage is locked. Unlock it and try again.",
+  "login.required": "Please sign in again.",
   "login.start": "Start login",
   "login.cancel": "Cancel login",
 };
@@ -24,7 +26,7 @@ export function loginStateFromMetadata(metadata: DesktopSessionMetadata): LoginS
 
 export function renderLoginScreen(root: LoginRoot, state: LoginScreenState, adapter: LoginRenderAdapter = {}): void {
   const t = adapter.t ?? ((key: LoginTextKey) => defaultText[key]);
-  const messageKey: LoginTextKey = state === "signed-out" ? "login.signedOut" : state === "pending" ? "login.pending" : state === "error" ? "login.error" : state === "cancelled" ? "login.cancelled" : "login.signedIn";
+  const messageKey: LoginTextKey = state === "signed-out" ? "login.signedOut" : state === "pending" ? "login.pending" : state === "error" ? "login.error" : state === "cancelled" ? "login.cancelled" : state === "locked" ? "login.locked" : state === "login-required" ? "login.required" : "login.signedIn";
   const actionKey: LoginTextKey = state === "pending" ? "login.cancel" : "login.start";
   root.textContent = `${t("login.title")}\n${t(messageKey)}\n${t(actionKey)}`;
   root.setAttribute("data-login-state", state);

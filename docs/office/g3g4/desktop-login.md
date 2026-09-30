@@ -1,10 +1,10 @@
-# Office desktop login (G4-03a)
+# Office desktop login (G4-03a / G4-03b)
 
 This slice implements the public-client login contract from
 [`desktop-auth-contract.md`](desktop-auth-contract.md) through the point where
-the main process hands a successful exchange to a `CredentialStore` port. The
-fake server and in-memory store are test seams; no production auth endpoint or
-OS keychain is claimed by this document.
+the main process hands a successful exchange to the production secure-store
+and transport seams delivered by 03b. The fake server and in-memory store
+remain test seams.
 
 ## Flow
 
@@ -57,16 +57,37 @@ so a callback that arrives after the deadline is reported as `no_attempt` at the
 manager boundary; direct validator callers receive `expired` for a retained
 stale record. Both paths reject before exchange.
 
-## 03b open items
+## G4-03b: real credentials and transport
 
-* Select and document the Windows DPAPI / macOS Keychain library for the
-  `CredentialStore` port under G4-D2. Replace the in-memory fake only after the
-  library, ACL/namespace, and crash-recovery behavior are approved.
-* Add the real TLS HTTP client and endpoint configuration for G4-02b. Keep the
-  same path/method allowlist, exact redirect binding, code TTL, and typed error
-  behavior.
-* Add refresh single-flight, atomic token persistence, logout/device revoke,
-  account/deployment switch generation and query-cache clearing.
-* Run login/system-browser and OS secure-store evidence on packaged Windows
-  and macOS builds (Q-DESKTOP-SYSTEM). This 03a unit slice does not claim that
-  evidence.
+The 03b host uses Electron's built-in `safeStorage` seam. On Windows this is
+DPAPI and on macOS it is the Keychain; no native package is added. The
+encrypted payload is written below the channel/deployment/account namespace in
+the channel's Electron `userData` directory. A temporary file is fsync'd,
+chmod'd to owner-only access, and atomically renamed into place. A failed or
+locked safe store returns a typed `locked`, `unavailable`, or `corrupt` state;
+there is no plaintext file fallback. Draft keys remain a separate G4-04 store
+and are not deleted by logout.
+
+`createHttpAuthTransport(resolveDeploymentProfile())` is the only production
+HTTP seam. It constructs only the TLS `/api/v1/auth/desktop/start`,
+`/exchange`, `/refresh`, `/logout`, `/devices`, and device-revoke routes and
+validates the deployment/client binding before every request. The renderer has
+no URL proxy and never receives an Authorization header or token-shaped value.
+Wire errors are reduced to typed codes (`device_revoked`, `refresh_reused`,
+`unauthorized`, `rate_limited`, or `network`) without copying server messages
+into logs or IPC errors.
+
+The main manager restores metadata only after the secure store is available,
+persists the replacement pair before reporting `signed-in`, and serializes
+concurrent refresh calls per session. A refresh replay or device revocation
+clears the credential pair and reports `login-required`; a locked store reports
+`locked`. Logout revokes the device session server-side before clearing local
+credentials and leaves the independent draft key untouched. Account or
+deployment scope changes increment a generation, cancel pending callbacks,
+clear query/plaintext hooks, and discard late responses.
+
+The fake transport mirrors the same exchange/refresh/revoke wire and remains a
+test-only seam. Device-code fallback remains disabled. Packaged Windows and
+macOS login/secure-store evidence remains the Q-DESKTOP-SYSTEM stage; this
+document records the implementation and automated contract tests, not a claim
+that those OS runs were performed here.

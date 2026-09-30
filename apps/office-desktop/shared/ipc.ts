@@ -88,12 +88,12 @@ const documentIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/,
 export const launchRequestedEventSchema = z.object({ documentId: documentIdSchema, operation: z.enum(["view", "edit"]) }).strict();
 export type LaunchRequestedEvent = z.infer<typeof launchRequestedEventSchema>;
 export const desktopSessionMetadataSchema = z.object({
-  status: z.enum(["signed-out", "pending", "signed-in"]),
+  status: z.enum(["signed-out", "pending", "signed-in", "locked", "login-required"]),
   accountId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/).optional(),
   deploymentId: deploymentSchema.optional(),
 }).strict().superRefine((value, context) => {
   if (value.status === "signed-in" && (!value.accountId || !value.deploymentId)) context.addIssue({ code: z.ZodIssueCode.custom, message: "signed-in metadata requires account and deployment" });
-  if (value.status !== "signed-in" && (value.accountId !== undefined || value.deploymentId !== undefined)) context.addIssue({ code: z.ZodIssueCode.custom, message: "signed-out/pending metadata cannot include account" });
+  if (value.status !== "signed-in" && (value.accountId !== undefined || value.deploymentId !== undefined)) context.addIssue({ code: z.ZodIssueCode.custom, message: "non-signed-in metadata cannot include account" });
 });
 export type DesktopSessionMetadata = z.infer<typeof desktopSessionMetadataSchema>;
 const requestSchemas = {
