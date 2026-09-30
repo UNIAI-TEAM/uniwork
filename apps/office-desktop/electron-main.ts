@@ -21,6 +21,16 @@ const PRELOAD_PATH = resolve(DIST_MAIN_DIRECTORY, "../preload/index.cjs");
 const SESSION_GENERATION = "desktop-dev-session";
 const SMOKE_MODE = process.argv.includes("--office-desktop-smoke");
 
+// The renderer is loaded from the app's custom scheme. Mark it as a standard,
+// secure, CORS-enabled scheme before Electron is ready so its module script
+// can be fetched from the same origin in packaged builds.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: DESKTOP_IDENTITY.appScheme,
+    privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true },
+  },
+]);
+
 function inside(directory: string, file: string): boolean {
   const root = resolve(directory);
   const candidate = resolve(file);
