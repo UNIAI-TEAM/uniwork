@@ -112,6 +112,9 @@ func New(d Deps, h Routes) http.Handler {
 			registerFileContent(pub, h)
 			registerPublicDocuments(pub, h, mw.RateLimit(d.Redis, 60, time.Minute, proxies))
 		})
+		// Preview asset bytes are intentionally outside the app-authenticated
+		// group: the frame is credentialless and presents only its opaque scope.
+		registerPreview(v1, h)
 		v1.Group(func(authed api) {
 			if d.DeviceStatus != nil {
 				authed.Use(mw.RequireAuthWithDevice(d.Minter, d.DeviceStatus))
