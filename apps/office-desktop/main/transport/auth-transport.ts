@@ -109,25 +109,24 @@ function parseSession(raw: Record<string, unknown>, deploymentId: string): Deskt
 }
 
 /** Decode the Go server's snake_case DTO into the main-process transport
- * shape.  The camelCase aliases keep the contract fake useful while the
- * production wire remains strict and fail-closed on missing fields. */
+ * shape. The production wire is strict and fail-closed on missing fields. */
 function parseDevice(raw: unknown): DesktopDevice {
   if (!raw || typeof raw !== "object") throw new AuthTransportError("malformed_response");
   const value = raw as Record<string, unknown>;
-  const stringField = (camel: string, snake: string): string | undefined => {
-    const candidate = value[camel] ?? value[snake];
+  const stringField = (key: string): string | undefined => {
+    const candidate = value[key];
     return typeof candidate === "string" ? candidate : undefined;
   };
-  const id = stringField("id", "id");
-  const clientId = stringField("clientId", "client_id");
-  const deploymentId = stringField("deploymentId", "deployment_id");
-  const deviceLabel = stringField("deviceLabel", "device_label");
-  const platform = stringField("platform", "platform");
-  const build = stringField("build", "build");
-  const createdAt = stringField("createdAt", "created_at");
-  const lastUsedAt = stringField("lastUsedAt", "last_used_at");
-  const expiresAt = stringField("expiresAt", "expires_at");
-  const revoked = Object.hasOwn(value, "revokedAt") ? value.revokedAt : value.revoked_at;
+  const id = stringField("id");
+  const clientId = stringField("client_id");
+  const deploymentId = stringField("deployment_id");
+  const deviceLabel = stringField("device_label");
+  const platform = stringField("platform");
+  const build = stringField("build");
+  const createdAt = stringField("created_at");
+  const lastUsedAt = stringField("last_used_at");
+  const expiresAt = stringField("expires_at");
+  const revoked = value.revoked_at;
   const current = value.current;
   if (!id || !clientId || !deploymentId || deviceLabel === undefined || platform === undefined || build === undefined || createdAt === undefined || lastUsedAt === undefined || expiresAt === undefined || (revoked !== null && typeof revoked !== "string") || typeof current !== "boolean") {
     throw new AuthTransportError("malformed_response");
