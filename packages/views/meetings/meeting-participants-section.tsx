@@ -128,14 +128,13 @@ export function MeetingParticipantsSection({
               <li key={p.id} className="group flex min-w-0 items-center gap-3 px-4 py-2.5">
                 <MeetingPersonAvatar name={name} avatarUrl={member?.avatar_url} size="default" />
                 <div className="min-w-0 flex-1">
-                  <div className="flex min-w-0 items-center gap-1.5">
-                    <span className="truncate text-body font-medium text-foreground">{name}</span>
-                    {duty ? <MeetingRoleChip role={duty} /> : null}
-                  </div>
-                  {subtitle ? (
-                    <div className="flex min-w-0 items-center gap-1 text-caption text-muted-foreground">
+                  <div className="truncate text-body font-medium text-foreground">{name}</div>
+                  {/* The duty chip rides the second line so the name keeps the width. */}
+                  {subtitle || duty ? (
+                    <div className="flex min-w-0 items-center gap-1.5 text-caption text-muted-foreground">
+                      {duty ? <MeetingRoleChip role={duty} className="shrink-0" /> : null}
                       {isHost ? <Crown aria-hidden className="size-3 shrink-0" /> : null}
-                      <span className="truncate">{subtitle}</span>
+                      {subtitle ? <span className="truncate">{subtitle}</span> : null}
                     </div>
                   ) : null}
                 </div>
@@ -163,7 +162,7 @@ export function MeetingParticipantsSection({
                             {t("meetings.transferHostMenu")}
                           </DropdownMenuItem>
                         ) : null}
-                        <MeetingDutyMenuItems meetingId={meeting.id} participant={p} />
+                        <MeetingDutyMenuItems meetingId={meeting.id} participant={p} name={name} separatorBefore={offerHost} />
                         <DropdownMenuSeparator />
                         <DropdownMenuItem
                           variant="destructive"

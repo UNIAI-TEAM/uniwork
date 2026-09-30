@@ -16,6 +16,7 @@ import {
   CollapsibleTrigger,
 } from "@uniwork/ui/components/ui/collapsible";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@uniwork/ui/components/ui/input-group";
+import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AddMeetingParticipantsDialog } from "./add-meeting-participants-dialog";
 import { MeetingAttendancePanel } from "./meeting-attendance-panel";
@@ -25,6 +26,10 @@ import { MeetingParticipantRow } from "./meeting-participant-row";
 import { useRoomAvatarOf } from "./meeting-room-avatars";
 import { guestIdentities, PARTICIPANT_IDENTITY_PREFIX, participantRole } from "./meeting-signals";
 import { useMeetingSignals } from "./use-meeting-signals";
+import { MEETING_TOGGLE_CHIP } from "./meeting-toggle-chip";
+
+/** The pressed view lifts out of the track: the meeting list's filter chip, stretched to half the track. */
+const SEGMENT = `${MEETING_TOGGLE_CHIP} w-full rounded-lg hover:bg-transparent`;
 
 function displayName(participant: Participant): string {
   return participant.name || participant.identity;
@@ -68,7 +73,8 @@ export function MeetingRoomPeopleTab({
   const [contributorsOpen, setContributorsOpen] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
   const { isClerk } = useMeetingClerk(guestMode ? null : (meeting ?? null), workspaceId ?? "");
-  const [view, setView] = useState<"room" | "attendance">("room");
+  const view = useMeetingViewSessionStore((s) => s.peopleView);
+  const setView = useMeetingViewSessionStore((s) => s.setPeopleView);
 
   const hostUserId = meeting?.host_user_id;
   const excludeUserIds = [
@@ -118,29 +124,47 @@ export function MeetingRoomPeopleTab({
       {/* Above the view switch: latecomers knock while the roll is being taken. */}
       {canHost && meetingId ? <MeetingJoinRequestsSection meetingId={meetingId} /> : null}
       {isClerk ? (
-        <div
-          role="group"
+        <ToggleGroup
+          value={[view]}
+          onValueChange={(v) => {
+            // Pressing the view that is on would clear the group; one view is always shown.
+            const next = v[0];
+            if (next === "room" || next === "attendance") setView(next);
+          }}
           aria-label={t("meetings.governance.viewSwitch")}
-          className="mb-3 grid shrink-0 grid-cols-2 gap-1 rounded-xl bg-surface-hover p-1"
+          spacing={1}
+          className="mb-3 grid w-full shrink-0 grid-cols-2 rounded-xl bg-surface-hover p-1"
         >
-          {(["room", "attendance"] as const).map((v) => (
-            <Button
-              key={v}
-              type="button"
-              size="sm"
-              variant={view === v ? "secondary" : "ghost"}
-              aria-pressed={view === v}
-              className="h-8 rounded-lg"
-              onClick={() => setView(v)}
-            >
-              {v === "room" ? t("meetings.governance.viewRoom") : t("meetings.governance.viewAttendance")}
-            </Button>
-          ))}
-        </div>
+          <ToggleGroupItem value="room" className={SEGMENT}>
+            {t("meetings.governance.viewRoom")}
+          </ToggleGroupItem>
+          <ToggleGroupItem value="attendance" className={SEGMENT}>
+            {t("meetings.governance.viewAttendance")}
+          </ToggleGroupItem>
+        </ToggleGroup>
       ) : null}
+      {/* One search for both views: a long roll needs it as much as the room does. */}
+      <InputGroup className="mb-4 h-9 shrink-0 rounded-xl bg-surface-hover">
+        <InputGroupAddon align="inline-start">
+          <Search aria-hidden className="size-4" />
+        </InputGroupAddon>
+        <InputGroupInput
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t("meetings.searchPeople")}
+          aria-label={t("meetings.searchPeople")}
+          className="bg-transparent"
+        />
+      </InputGroup>
       {isClerk && view === "attendance" && meeting ? (
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <MeetingAttendancePanel meeting={meeting} workspaceId={workspaceId ?? ""} canEdit density="room" />
+          <MeetingAttendancePanel
+            meeting={meeting}
+            workspaceId={workspaceId ?? ""}
+            canEdit
+            density="room"
+            query={search}
+          />
         </div>
       ) : (
         <>
@@ -155,19 +179,6 @@ export function MeetingRoomPeopleTab({
               {t("meetings.addPeople")}
             </Button>
           ) : null}
-
-          <InputGroup className="mb-4 h-9 shrink-0 rounded-xl bg-surface-hover">
-            <InputGroupAddon align="inline-start">
-              <Search aria-hidden className="size-4" />
-            </InputGroupAddon>
-            <InputGroupInput
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={t("meetings.searchPeople")}
-              aria-label={t("meetings.searchPeople")}
-              className="bg-transparent"
-            />
-          </InputGroup>
 
           {hands.length > 0 ? (
             <p className="mb-3 flex shrink-0 items-center gap-1.5 rounded-xl bg-warning-soft px-3 py-2 text-label font-medium text-warning-soft-foreground">
@@ -211,7 +222,12 @@ export function MeetingRoomPeopleTab({
                           pinned={pinnedIdentity === participant.identity}
                           menuExtra={
                             canHost && !guestMode && meetingId && meta && !meta.isHost ? (
-                              <MeetingDutyMenuItems meetingId={meetingId} participant={meta.api} />
+                              <MeetingDutyMenuItems
+                                meetingId={meetingId}
+                                participant={meta.api}
+                                name={displayName(participant)}
+                                separatorBefore
+                              />
                             ) : null
                           }
                         />
@@ -222,7 +238,6 @@ export function MeetingRoomPeopleTab({
               )}
             </CollapsibleContent>
           </Collapsible>
-
 
           {canHost && meetingId && workspaceId && !guestMode ? (
             <AddMeetingParticipantsDialog

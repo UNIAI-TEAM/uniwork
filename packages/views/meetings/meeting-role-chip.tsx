@@ -28,8 +28,17 @@ export function MeetingRoleChip({
       : role === "observer"
         ? t("meetings.governance.standing_OBSERVER")
         : t("meetings.guest");
+  // The secretary holds a duty, so it is filled; standing and guest stay outlined.
   return (
-    <Badge variant="outline" className={cn(CHIP, className)}>
+    <Badge
+      variant="outline"
+      className={cn(
+        CHIP,
+        role === "secretary" && "border-transparent bg-brand-subtle text-brand-subtle-foreground",
+        role === "observer" && "text-muted-foreground",
+        className,
+      )}
+    >
       {label}
     </Badge>
   );

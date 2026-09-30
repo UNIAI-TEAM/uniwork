@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useUpdateMeetingParticipant } from "@uniwork/core/meetings/attendance";
 import type { MeetingParticipant } from "@uniwork/core/types";
-import { DropdownMenuItem } from "@uniwork/ui/components/ui/dropdown-menu";
+import { DropdownMenuItem, DropdownMenuSeparator } from "@uniwork/ui/components/ui/dropdown-menu";
 import { toastApiError } from "../toast-api-error";
 
 /** The chip a participant's duties earn beside their name; members carry none. */
@@ -17,34 +17,57 @@ export function dutyRole(
   return null;
 }
 
-/** Host/admin menu entries that set who votes and who clerks. */
+/**
+ * Host/admin menu entries that set who votes and who clerks, as their own
+ * group: the toast names the person and the role they now hold.
+ */
 export function MeetingDutyMenuItems({
   meetingId,
   participant,
+  name,
+  separatorBefore = false,
 }: {
   meetingId: string;
   participant: MeetingParticipant;
+  name: string;
+  /** Set when other entries come first in the menu. */
+  separatorBefore?: boolean;
 }) {
   const { t } = useTranslation();
   const update = useUpdateMeetingParticipant(meetingId);
   const observer = participant.standing === "OBSERVER";
   const secretary = participant.is_secretary === true;
-  const run = (patch: { standing?: "MEMBER" | "OBSERVER"; is_secretary?: boolean }) =>
-    update.mutate(
-      { participantId: participant.id, ...patch },
-      {
-        onSuccess: () => toast.success(t("meetings.governance.rolesUpdated")),
-        onError: (err) => toastApiError(err, t("common.error")),
-      },
+  // The menu closes on click and unmounts these items, which drops mutate()'s
+  // per-call callbacks; the promise still settles, so the toast hangs off it.
+  const run = (patch: { standing?: "MEMBER" | "OBSERVER"; is_secretary?: boolean }, done: string) => {
+    update.mutateAsync({ participantId: participant.id, ...patch }).then(
+      () => toast.success(t(done, { name })),
+      (err: unknown) => toastApiError(err, t("common.error")),
     );
+  };
   return (
     <>
-      <DropdownMenuItem disabled={update.isPending} onClick={() => run({ standing: observer ? "MEMBER" : "OBSERVER" })}>
+      {separatorBefore ? <DropdownMenuSeparator /> : null}
+      <DropdownMenuItem
+        disabled={update.isPending}
+        onClick={() =>
+          observer
+            ? run({ standing: "MEMBER" }, "meetings.governance.madeMember")
+            : run({ standing: "OBSERVER" }, "meetings.governance.madeObserver")
+        }
+      >
         {observer ? <UserCheck aria-hidden className="size-4" /> : <UserRound aria-hidden className="size-4" />}
         {observer ? t("meetings.governance.makeMember") : t("meetings.governance.makeObserver")}
       </DropdownMenuItem>
       {participant.principal_type === "USER" ? (
-        <DropdownMenuItem disabled={update.isPending} onClick={() => run({ is_secretary: !secretary })}>
+        <DropdownMenuItem
+          disabled={update.isPending}
+          onClick={() =>
+            secretary
+              ? run({ is_secretary: false }, "meetings.governance.secretaryRemoved")
+              : run({ is_secretary: true }, "meetings.governance.secretaryAssigned")
+          }
+        >
           <NotebookPen aria-hidden className="size-4" />
           {secretary ? t("meetings.governance.removeSecretary") : t("meetings.governance.assignSecretary")}
         </DropdownMenuItem>

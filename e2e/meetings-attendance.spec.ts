@@ -10,7 +10,7 @@ import {
 // Attendance without LiveKit: nobody's client opens a room session locally,
 // so the roll starts all-absent and the secretary marks people by hand - the
 // same path a real clerk uses. Needs `make start`.
-test("attendance: secretary marks, quorum warns, finalize shows on the timeline", async ({ page }) => {
+test("attendance: secretary marks, quorum warns, finalize locks and shows on the timeline", async ({ page }) => {
   // The first visit to a workspace route compiles it under `next dev`.
   test.slow();
   const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
@@ -51,16 +51,27 @@ test("attendance: secretary marks, quorum warns, finalize shows on the timeline"
   await page.goto(`/${host.orgSlug}/${host.wsSlug}/meetings/${meeting.id}`);
   // PanelCard is a <section aria-labelledby="attendance-heading">.
   const card = page.getByRole("region", { name: "Điểm danh" });
-  await expect(card.getByText("Chưa đủ tỉ lệ (cần 60%)")).toBeVisible({ timeout: 30_000 });
+  await expect(card.getByText("Chưa đủ tỉ lệ: cần 60%, còn thiếu 2 người")).toBeVisible({ timeout: 30_000 });
 
   for (const name of ["att-host", "att-member"]) {
+    // Base UI keeps a popup mounted while it animates out; open the next one only
+    // once the last has gone, or its options are the ones the locator finds.
+    await expect(page.locator('[role="listbox"]:visible')).toHaveCount(0);
     await card.getByRole("combobox", { name: `Trạng thái điểm danh của ${name}` }).click();
-    await page.getByRole("option", { name: "Có mặt" }).click();
+    await page.getByRole("option", { name: "Có mặt", exact: true }).filter({ visible: true }).click();
     await expect(card.getByRole("combobox", { name: `Trạng thái điểm danh của ${name}` })).toContainText("Có mặt");
   }
-  await expect(card.getByText("Đủ tỉ lệ có mặt")).toBeVisible();
+  await expect(card.getByText("Đủ tỉ lệ (cần 60%)")).toBeVisible();
   await card.getByRole("button", { name: "Chốt điểm danh" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Chốt điểm danh" }).click();
   await expect(card.getByText(/Đã chốt lúc/)).toBeVisible();
+  // Finalized means locked: no picker until someone reopens the roll.
+  await expect(card.getByRole("combobox")).toHaveCount(0);
+  const refused = await page.request.put(`${api}/api/v1/meetings/${meeting.id}/attendance/${memberPid}`, {
+    headers: memberAuth,
+    data: { status: "ABSENT" },
+  });
+  expect(refused.status(), "a finalized roll refuses marks until reopened").toBe(409);
   // exact: the toast says "Đã chốt điểm danh" too.
   await expect(page.getByText("đã chốt điểm danh", { exact: true })).toBeVisible();
 });

@@ -227,6 +227,10 @@ export function MeetingDetailView({
                   <MeetingSummaryPanel workspaceId={workspaceId} meeting={meeting} canHost={canHost.allowed} />
                 </div>
               ) : null}
+              {/* The roll is working space while the meeting runs, so it gets the wide column. */}
+              <div className="order-3 min-w-0 empty:hidden">
+                <MeetingAttendanceCard meeting={meeting} workspaceId={workspaceId} />
+              </div>
               <div className="order-3 min-w-0">
                 <MeetingNotesSection meetingId={meetingId} locked={closed} />
               </div>
@@ -236,7 +240,7 @@ export function MeetingDetailView({
             </div>
             <div
               className={cn(
-                "order-2 flex min-w-0 flex-col gap-4",
+                "order-2 min-w-0",
                 layout === "page" && "lg:col-start-2 lg:row-start-1",
               )}
             >
@@ -246,7 +250,6 @@ export function MeetingDetailView({
                 invitations={invitations ?? []}
                 canHost={canHost.allowed}
               />
-              <MeetingAttendanceCard meeting={meeting} workspaceId={workspaceId} />
             </div>
             <aside
               className={cn(

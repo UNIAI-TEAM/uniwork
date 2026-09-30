@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
+import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
 import type { Meeting, User } from "@uniwork/core/types";
 import { requestMock, wrapWithNav } from "../test/api-mock";
 import { MeetingRoomPeopleTab } from "./meeting-room-people-tab";
@@ -39,6 +40,7 @@ beforeAll(() => {
   initI18n();
 });
 beforeEach(() => {
+  useMeetingViewSessionStore.getState().reset();
   setSessionUser(me);
   requestMock.mockReset();
   requestMock.mockImplementation((path: unknown) => {
@@ -79,6 +81,14 @@ describe("MeetingRoomPeopleTab", () => {
     expect(await screen.findByRole("button", { name: "Chốt điểm danh" })).toBeInTheDocument();
     // Latecomers knock while the roll is being taken; they must stay in view.
     expect(screen.getByText("Khách muộn")).toBeInTheDocument();
+  });
+
+  it("keeps the clerk's view when the sidebar closes and reopens", async () => {
+    const view = render(wrapWithNav(<MeetingRoomPeopleTab meetingId="m1" meeting={meeting} workspaceId="w1" canHost />));
+    fireEvent.click(await screen.findByRole("button", { name: "Điểm danh" }));
+    view.unmount();
+    render(wrapWithNav(<MeetingRoomPeopleTab meetingId="m1" meeting={meeting} workspaceId="w1" canHost />));
+    expect(await screen.findByRole("button", { name: "Điểm danh" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("offers no roll to a guest", async () => {

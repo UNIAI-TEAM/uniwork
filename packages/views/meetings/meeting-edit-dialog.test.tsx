@@ -46,7 +46,7 @@ describe("MeetingEditDialog", () => {
   it("sends the quorum the host types", async () => {
     requestMock.mockResolvedValue({ meeting });
     const dialog = openDialog({ ...meeting, quorum_percent: 50 });
-    const input = within(dialog).getByLabelText("Tỉ lệ có mặt tối thiểu (%)") as HTMLInputElement;
+    const input = within(dialog).getByLabelText("Tỉ lệ có mặt tối thiểu") as HTMLInputElement;
     expect(input.value).toBe("50");
     fireEvent.change(input, { target: { value: "60" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Lưu thay đổi" }));
@@ -61,7 +61,7 @@ describe("MeetingEditDialog", () => {
   it("clears the quorum with 0 when the field is emptied", async () => {
     requestMock.mockResolvedValue({ meeting });
     const dialog = openDialog({ ...meeting, quorum_percent: 50 });
-    fireEvent.change(within(dialog).getByLabelText("Tỉ lệ có mặt tối thiểu (%)"), { target: { value: "" } });
+    fireEvent.change(within(dialog).getByLabelText("Tỉ lệ có mặt tối thiểu"), { target: { value: "" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Lưu thay đổi" }));
     await waitFor(() =>
       expect(requestMock).toHaveBeenCalledWith(
@@ -73,7 +73,7 @@ describe("MeetingEditDialog", () => {
 
   it("rejects a quorum outside 1–100 and keeps focus on it", () => {
     const dialog = openDialog();
-    const input = within(dialog).getByLabelText("Tỉ lệ có mặt tối thiểu (%)");
+    const input = within(dialog).getByLabelText("Tỉ lệ có mặt tối thiểu");
     fireEvent.change(input, { target: { value: "150" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Lưu thay đổi" }));
     expect(within(dialog).getByText("Nhập số nguyên từ 1 đến 100")).toBeInTheDocument();

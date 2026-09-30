@@ -14,6 +14,7 @@ import {
   FieldLabel,
 } from "@uniwork/ui/components/ui/field";
 import { Input } from "@uniwork/ui/components/ui/input";
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@uniwork/ui/components/ui/input-group";
 import { Select } from "@uniwork/ui/components/ui/select";
 import { Switch } from "@uniwork/ui/components/ui/switch";
 import { Textarea } from "@uniwork/ui/components/ui/textarea";
@@ -269,17 +270,30 @@ export function MeetingEditDialog({
                 />
               </div>
               <FieldDescription>{t("meetings.externalGuestLinkWhere")}</FieldDescription>
+            </section>
+
+            <section className="space-y-3" aria-labelledby={`${id}-formal`}>
+              <h3 id={`${id}-formal`} className="text-overline text-muted-foreground">
+                {t("meetings.editSectionFormal")}
+              </h3>
               <Field data-invalid={showQuorumError || undefined}>
                 <FieldLabel htmlFor={`${id}-quorum`}>{t("meetings.quorumLabel")}</FieldLabel>
-                <Input
-                  id={`${id}-quorum`}
-                  inputMode="numeric"
-                  className="w-28"
-                  value={quorum}
-                  aria-invalid={showQuorumError || undefined}
-                  aria-describedby={showQuorumError ? `${id}-quorum-error` : `${id}-quorum-hint`}
-                  onChange={(e) => set("quorum")(e.target.value)}
-                />
+                {/* Field stretches its direct children; the wrapper keeps a 1–100 box narrow. */}
+                <div>
+                  <InputGroup className="w-32">
+                    <InputGroupInput
+                      id={`${id}-quorum`}
+                      inputMode="numeric"
+                      value={quorum}
+                      aria-invalid={showQuorumError || undefined}
+                      aria-describedby={showQuorumError ? `${id}-quorum-error` : `${id}-quorum-hint`}
+                      onChange={(e) => set("quorum")(e.target.value)}
+                    />
+                    <InputGroupAddon align="inline-end">
+                      <InputGroupText>%</InputGroupText>
+                    </InputGroupAddon>
+                  </InputGroup>
+                </div>
                 {showQuorumError ? (
                   <FieldError id={`${id}-quorum-error`}>{t("meetings.quorumInvalid")}</FieldError>
                 ) : (
