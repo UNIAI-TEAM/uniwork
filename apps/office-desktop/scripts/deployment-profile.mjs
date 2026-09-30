@@ -28,7 +28,12 @@ export function readDeploymentProfileFromEnv(env = process.env, manifest = undef
   const deploymentId = env.UNIWORK_OFFICE_DEPLOYMENT_ID?.trim();
   const apiOrigin = env.UNIWORK_OFFICE_API_ORIGIN?.trim();
   if (!deploymentId && !apiOrigin) {
-    if (required || channel !== "dev") throw new DeploymentProfileError("missing", "UNIWORK_OFFICE_DEPLOYMENT_ID and UNIWORK_OFFICE_API_ORIGIN are required for this build");
+    // Deployment binding normally arrives at download/install time.  The
+    // build-time variables are an explicit fallback for local/dev builds and
+    // automated tests; a missing pair therefore remains a valid unresolved
+    // profile for beta as well.  Callers that truly require a build profile
+    // opt in with `required`.
+    if (required) throw new DeploymentProfileError("missing", "UNIWORK_OFFICE_DEPLOYMENT_ID and UNIWORK_OFFICE_API_ORIGIN are required for this build");
     return undefined;
   }
   if (!deploymentId || !apiOrigin) throw new DeploymentProfileError("missing", "UNIWORK_OFFICE_DEPLOYMENT_ID and UNIWORK_OFFICE_API_ORIGIN must be provided together");
