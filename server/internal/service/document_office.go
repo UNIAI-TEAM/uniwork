@@ -632,6 +632,37 @@ func (s *DocumentOfficeService) GetOfficeJob(ctx context.Context, actor Actor, o
 	return s.Refresh(ctx, row)
 }
 
+// OpenOfficeJobOutput opens the staged bytes of a completed office job for
+// the document owner/editor.  The output remains a FileService object and is
+// never committed by this read; the normal Documents coordinator still owns
+// upload+commit.  Keeping this read behind the document ACL prevents a job's
+// output_file_id from becoming a bearer capability.
+func (s *DocumentOfficeService) OpenOfficeJobOutput(ctx context.Context, actor Actor, documentID, jobID string) (files.Reader, error) {
+	if s.files == nil || s.documents == nil {
+		return files.Reader{}, office.ErrNotConfigured
+	}
+	doc, _, err := s.documents.authorizeDocument(ctx, actor, documentID, DocumentLevelView)
+	if err != nil {
+		return files.Reader{}, err
+	}
+	row, err := s.q.GetOfficeJob(ctx, db.GetOfficeJobParams{
+		ID: jobID, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) || row.DocumentID != documentID {
+		return files.Reader{}, ErrNotFound
+	}
+	if err != nil {
+		return files.Reader{}, err
+	}
+	if row.State != string(office.JobCompleted) || !row.OutputFileID.Valid || row.OutputFileID.String == "" {
+		return files.Reader{}, ErrOfficeJobNotCommittable
+	}
+	return s.files.Open(ctx, files.OpenInput{
+		Scope:  files.Scope{OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID},
+		FileID: files.FileID(row.OutputFileID.String),
+	})
+}
+
 // ClaimOfficeJobOutputInTx is the hand-off to the commit path (G1-03): inside
 // the commit transaction, mark the completed job committed to versionID and
 // get the job row back. Exactly one commit wins; a cancelled, failed or

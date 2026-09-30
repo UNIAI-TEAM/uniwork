@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { DocumentEnvelopeSchema, type Document } from "../../types/document";
-import { request } from "../http";
+import { request, requestBlob } from "../http";
 import { parseWithFallback } from "../schema";
 
 // Office endpoints (plan G2-07 / UNI-690): capability, jobs, blank create and
@@ -281,6 +281,16 @@ export async function getOfficeJob(
     signal,
   });
   return narrowJob(raw);
+}
+
+/** GET /api/v1/documents/{id}/office/jobs/{jobID}/output — read a completed
+ * staged engine output before the normal upload/commit coordinator claims it. */
+export async function downloadOfficeJobOutput(
+  documentId: string,
+  jobId: string,
+  signal?: AbortSignal,
+): Promise<Blob> {
+  return requestBlob(`/api/v1/documents/${enc(documentId)}/office/jobs/${enc(jobId)}/output`, { signal });
 }
 
 /** POST /api/v1/documents/{id}/office/jobs/{jobID}/cancel. */

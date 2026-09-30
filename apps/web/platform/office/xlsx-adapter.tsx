@@ -46,6 +46,8 @@ export interface XlsxSessionRuntime {
     onProgress?: (progress: number) => void,
   ): Promise<XlsxRecalcResult>;
   cancelRecalculate?(documentModelRef: string): Promise<void> | void;
+  /** Advance the server base after the coordinator commits a version. */
+  setBaseRevision?(revision: string): void;
   release(documentModelRef: string): Promise<void> | void;
 }
 
@@ -141,6 +143,7 @@ export interface XlsxSaveTransportOptions {
   engineVersion?: string;
   contractVersion?: string;
   protocolVersion?: string;
+  runtime?: XlsxSessionRuntime;
 }
 
 function bytesOf(value: unknown): Uint8Array {
@@ -220,6 +223,7 @@ export function createXlsxSaveTransport(options: XlsxSaveTransportOptions): Offi
       const sizeBytes = version.size_bytes ?? output.sizeBytes;
       if (checksum !== output.checksumSha256 || sizeBytes !== output.sizeBytes) throw new Error("commit_checksum_mismatch");
       outputs.delete(intent.intentId);
+      options.runtime?.setBaseRevision?.(result.document.revision);
       return {
         intentId: intent.intentId,
         idempotencyKey: intent.idempotencyKey,
@@ -393,6 +397,7 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
     engineVersion: options.capability.engineBuild,
     contractVersion: options.capability.contractRevision,
     protocolVersion: "1",
+    runtime: options.runtime,
     serialize: async () => {
       if (!modelRef) throw new Error("xlsx_editor_not_open");
       const out = await options.runtime.serialize(modelRef);

@@ -111,7 +111,7 @@ export function createBrowserOfficeDraftAdapter<TSnapshot>(
   options: BrowserOfficeDraftOptions<TSnapshot>,
 ): BrowserOfficeDraftAdapter<TSnapshot> {
   const draftStore = options.draftStore ?? createDraftStore();
-  const keyProvider = options.keyProvider ?? createDraftKeyProvider({ port: { unwrap: async () => ({ status: "locked", code: "draft_recovery_locked" as const }) } });
+  const keyProvider = options.keyProvider ?? createDraftKeyProvider({});
   const session = toDraftSession(options.session);
   const identity = toDraftIdentity(options.identity);
   const draftId = options.draftId ?? options.identity.documentId;

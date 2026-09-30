@@ -38,3 +38,5 @@ export {
   type XlsxSessionRuntime,
   type XlsxSaveTransportOptions,
 } from "./xlsx-adapter";
+export { XlsxOfficeEditorHost } from "./xlsx-office-host";
+export { createWebXlsxSessionRuntime, readXlsxDocumentBytes } from "./xlsx-runtime";

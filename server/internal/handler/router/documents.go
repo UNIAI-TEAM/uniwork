@@ -220,6 +220,14 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		sdo:         sdo.OfficeJobSDO{},
 		auth:        true,
 	})
+	d.Get("/documents/{documentID}/office/jobs/{jobID}/output", h.GetOfficeJobOutput, apiOp{
+		summary:     "Download a completed Office job output",
+		description: "Streams the staged output of a completed Office job for the document editor; the normal versions/commit route still owns persistence. Requires document view access.",
+		tags:        []string{"documents"},
+		produces:    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		auth:        true,
+	})
+	d.r.Head("/documents/{documentID}/office/jobs/{jobID}/output", h.GetOfficeJobOutput)
 	d.Post("/documents/{documentID}/office/jobs/{jobID}/cancel", h.CancelOfficeJob, apiOp{
 		summary:     "Cancel an Office job",
 		description: "Chỉ người tạo job huỷ được. Cancel thắng cho tới khi output được claim vào một version; job đã kết thúc trả về trạng thái thật của nó. Cần quyền sửa.",

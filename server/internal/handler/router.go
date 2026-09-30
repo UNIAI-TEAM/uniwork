@@ -505,6 +505,7 @@ func New(d Deps) http.Handler {
 		CreateBlankDocumentFile: h.createBlankDocumentFile,
 		StartOfficeJob:          h.startOfficeJob,
 		GetOfficeJob:            h.getOfficeJob,
+		GetOfficeJobOutput:      h.getOfficeJobOutput,
 		CancelOfficeJob:         h.cancelOfficeJob,
 		OfficeCapability:        h.officeCapability,
 		CopyDocument:            h.copyDocument,

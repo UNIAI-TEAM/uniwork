@@ -403,6 +403,7 @@ type Routes struct {
 	CreateBlankDocumentFile http.HandlerFunc
 	StartOfficeJob          http.HandlerFunc
 	GetOfficeJob            http.HandlerFunc
+	GetOfficeJobOutput      http.HandlerFunc
 	CancelOfficeJob         http.HandlerFunc
 	OfficeCapability        http.HandlerFunc
 	CopyDocument            http.HandlerFunc

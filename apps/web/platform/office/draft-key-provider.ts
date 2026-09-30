@@ -12,7 +12,10 @@ const KEY_STORE = "keys";
 const WRAPPING_KEY_ID = "wrapping-key";
 
 export interface DraftKeyProviderOptions {
-  readonly port: DraftKeyUnwrapPort;
+  /** Optional auth-owned unwrap service. When absent, the browser's durable
+   * AES-KW wrapping key unwraps the envelope locally after the draft store has
+   * already enforced the active session and edit ACL. */
+  readonly port?: DraftKeyUnwrapPort;
   readonly databaseName?: string;
   /** Test/host injection for a CryptoKey already held by the browser. */
   readonly wrappingKey?: CryptoKey;
@@ -113,7 +116,9 @@ export function createDraftKeyProvider(options: DraftKeyProviderOptions): DraftK
     async recover(input) {
       validateDecryptionInput(input);
       if (input.liveAccess !== "edit") return { status: "blocked", reason: "edit_acl_missing" };
-      const parsed = await unwrapEnvelope(options.port, input);
+      const parsed = options.port
+        ? await unwrapEnvelope(options.port, input)
+        : { status: "unwrapped" as const, wrappedKey: input.wrappedKey };
       if (parsed.status !== "unwrapped") return parsed;
       let dataKey: CryptoKey | undefined;
       try {
