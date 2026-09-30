@@ -18,6 +18,9 @@ export const DESKTOP_IPC_CHANNELS = [
   "desktop:file-save",
   "desktop:file-save-as",
   "desktop:draft-checkpoint",
+  "desktop:draft-list",
+  "desktop:draft-recover",
+  "desktop:draft-discard",
 ] as const;
 export type DesktopIpcChannel = (typeof DESKTOP_IPC_CHANNELS)[number];
 /** Main-to-renderer events are a separate, equally narrow allowlist. Event
@@ -66,6 +69,34 @@ export const desktopFileMetadataSchema = z.object({
 }).strict();
 export const desktopFileResponseSchema = z.object({ opened: z.boolean(), metadata: desktopFileMetadataSchema.optional() }).strict();
 export const desktopDraftResponseSchema = z.object({ stored: z.boolean(), generation: z.number().int().positive() }).strict();
+const draftBaseSchema = z.object({ revision: z.string().min(1), version: z.string().min(1) }).strict();
+const draftIdentitySchema = z.object({
+  deploymentId: deploymentSchema,
+  accountId: z.string().min(1),
+  organizationId: z.string().min(1),
+  workspaceId: z.string().min(1),
+  documentId: z.string().min(1),
+  base: draftBaseSchema,
+}).strict();
+const draftMetadataSchema = z.object({
+  draftId: draftIdSchema,
+  identity: draftIdentitySchema,
+  generation: z.number().int().positive(),
+  checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/),
+  byteLength: z.number().int().nonnegative(),
+  updatedAt: z.number().int().nonnegative(),
+}).strict();
+export const desktopDraftMetadataSchema = draftMetadataSchema;
+export const desktopDraftListResponseSchema = z.object({ drafts: z.array(draftMetadataSchema) }).strict();
+export const desktopDraftRecoveryResponseSchema = z.discriminatedUnion("status", [
+  z.object({ status: z.literal("recovered"), metadata: draftMetadataSchema, dataBase64: base64BytesSchema }).strict(),
+  z.object({ status: z.literal("missing") }).strict(),
+  z.object({ status: z.literal("ambiguous"), candidates: z.array(draftMetadataSchema) }).strict(),
+  z.object({ status: z.literal("conflict"), metadata: draftMetadataSchema, currentBase: draftBaseSchema, draftBase: draftBaseSchema }).strict(),
+  z.object({ status: z.literal("blocked"), metadata: draftMetadataSchema, reason: z.literal("edit_acl_missing") }).strict(),
+  z.object({ status: z.literal("locked"), metadata: draftMetadataSchema.optional(), code: z.literal("draft_recovery_locked") }).strict(),
+]);
+export const desktopDraftDiscardResponseSchema = z.object({ discarded: z.boolean() }).strict();
 export const desktopDiagnosticsResponseSchema = z.object({
   name: z.string().min(1).optional(),
   appId: z.string().min(1),
@@ -85,6 +116,9 @@ const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:file-save": desktopFileResponseSchema,
   "desktop:file-save-as": desktopFileResponseSchema,
   "desktop:draft-checkpoint": desktopDraftResponseSchema,
+  "desktop:draft-list": desktopDraftListResponseSchema,
+  "desktop:draft-recover": desktopDraftRecoveryResponseSchema,
+  "desktop:draft-discard": desktopDraftDiscardResponseSchema,
   "desktop:diagnostics": desktopDiagnosticsResponseSchema,
 };
 const documentIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/, "invalid document id");
@@ -114,6 +148,9 @@ const requestSchemas = {
   "desktop:file-save": z.object({ sessionGeneration: sessionGenerationSchema, handle: fileHandleSchema, dataBase64: base64BytesSchema }).strict(),
   "desktop:file-save-as": z.object({ sessionGeneration: sessionGenerationSchema, handle: fileHandleSchema, dataBase64: base64BytesSchema }).strict(),
   "desktop:draft-checkpoint": z.object({ sessionGeneration: sessionGenerationSchema, draftId: draftIdSchema, generation: z.number().int().positive(), dataBase64: base64BytesSchema }).strict(),
+  "desktop:draft-list": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
+  "desktop:draft-recover": z.object({ sessionGeneration: sessionGenerationSchema, draftId: draftIdSchema, currentBase: draftBaseSchema }).strict(),
+  "desktop:draft-discard": z.object({ sessionGeneration: sessionGenerationSchema, draftId: draftIdSchema, generation: z.number().int().positive() }).strict(),
 } as const;
 export type DesktopIpcRequest<C extends DesktopIpcChannel = DesktopIpcChannel> = z.infer<(typeof requestSchemas)[C]>;
 export type IpcSenderContext = { senderId: number; frameId: number; origin: string; expectedSenderId: number; expectedFrameId: number; expectedOrigin: string; sessionGeneration: string; allowedExternalHosts?: readonly string[] };

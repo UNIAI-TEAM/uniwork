@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { dispatchOfficeError, type OfficeErrorDispatch, type OfficeState } from "./error-state";
+import type { OfficeSaveGuard } from "./save-guard";
 import {
   officeIdentitySchema,
   officeSaveIntentSchema,
@@ -41,6 +42,8 @@ export interface SaveCoordinatorOptions<TSnapshot> {
   idFactory?: (prefix: string) => string;
   maxAttempts?: number;
   backoffMs?: readonly number[];
+  /** Shared with local-file Save so cloud and local entry points cannot race. */
+  saveGuard?: OfficeSaveGuard;
 }
 
 interface CoordinatorListener {
@@ -366,6 +369,9 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
       return { accepted: false, reason: "readonly" };
     }
 
+    const releaseExternal = options.saveGuard?.tryAcquire();
+    if (options.saveGuard && !releaseExternal) return { accepted: false, reason: "saving" };
+
     saveGate = true;
     try {
       const snapshot = parseSnapshot(await options.editor.captureSnapshot());
@@ -378,6 +384,7 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
       return await startNewIntent(snapshot);
     } finally {
       saveGate = false;
+      releaseExternal?.();
     }
   }
 

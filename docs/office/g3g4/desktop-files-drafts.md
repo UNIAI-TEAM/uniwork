@@ -1,4 +1,4 @@
-# Desktop local files and protected drafts (G4-04a)
+# Desktop local files and protected drafts (G4-04a/04b)
 
 > **Status:** in progress — 04a unit/contract slice. OS credential adapters,
 > live ACL recovery and crash/system evidence remain 04b work.
@@ -86,11 +86,17 @@ not-protected error and leaves the prior row unchanged.
 | session/account mismatch | `forbidden` / `token_expired` | no metadata or payload disclosure |
 | disk full/unavailable | `storage_unavailable` | last confirmed draft remains |
 
-## 04b open items
+## 04b lifecycle and recovery
 
 04b owns the shared Q8/system matrix: the real DPAPI/ACL and Keychain adapters,
 logout/restart/re-login live-session and ACL checks, account-B isolation in a
 packaged binary, disk-full/key-loss/corrupt recovery UI, crash recovery to the
-last confirmed checkpoint, and the single local/cloud Save guard. It must also
-run the filesystem/crash Q-DESKTOP-SYSTEM evidence on each supported OS. This
-04a unit slice does not claim those system or real-OS-store results.
+last confirmed checkpoint, and the single local/cloud Save guard. The typed
+`desktop:draft-list`, `desktop:draft-recover` and `desktop:draft-discard` IPC
+commands bind account/deployment/document identity in main; recover returns
+bytes only for a live edit ACL and a matching revision/version base. Blocked or
+locked states have no export/copy/clipboard action. Close/logout/update use the
+same lifecycle coordinator: Save must return a confirmed receipt, keep draft
+must return a stored/unchanged checkpoint, discard is generation-bound, and
+stay leaves all bytes untouched. Packaged Q-DESKTOP-SYSTEM evidence is recorded
+per OS; a missing macOS runner is explicitly `not run`, never a pass.

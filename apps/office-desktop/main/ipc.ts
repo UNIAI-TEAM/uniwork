@@ -10,6 +10,7 @@ import type { DesktopDraftStore } from "./drafts/store";
 import { DraftRecoveryError, type DraftIdentity, type DraftSession } from "../../../packages/core/office/draft-recovery";
 import { getDesktopDiagnostics } from "../shared/identity";
 import type { DeploymentProfile } from "../shared/deployment";
+import type { OfficeSaveGuard } from "../../../packages/core/office/save-guard";
 
 /** Handlers deliberately map the privileged manager to metadata-only values.
  * A token, code, verifier, or state cannot be returned across this boundary. */
@@ -40,6 +41,7 @@ export interface FileIpcOptions {
   readonly registry: FileHandleRegistry;
   readonly pickOpen?: () => Promise<string | undefined>;
   readonly pickSaveAs?: () => Promise<string | undefined>;
+  readonly saveGuard?: OfficeSaveGuard;
 }
 
 /** Only handle-based local-file commands are exposed. Picker callbacks run in
@@ -53,19 +55,30 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       return { opened: true, metadata: await safeFile(() => options.registry.openPath(path)) };
     },
     "desktop:file-open": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string }>) => ({ opened: true, metadata: await safeFile(() => options.registry.openPathFromHandle(request.handle)) }),
-    "desktop:file-save": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string; dataBase64: string }>) => ({ opened: true, metadata: await safeFile(() => options.registry.save(request.handle, decodeBytes(request.dataBase64))) }),
+    "desktop:file-save": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string; dataBase64: string }>) => ({ opened: true, metadata: await runGuardedSave(options.saveGuard, () => safeFile(() => options.registry.save(request.handle, decodeBytes(request.dataBase64)))) }),
     "desktop:file-save-as": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string; dataBase64: string }>) => {
       if (!options.pickSaveAs) throw new FileIpcError("invalid_path");
-      const metadata = await safeFile(() => options.registry.saveAs(request.handle, decodeBytes(request.dataBase64), { pick: options.pickSaveAs! }));
+      const metadata = await runGuardedSave(options.saveGuard, () => safeFile(() => options.registry.saveAs(request.handle, decodeBytes(request.dataBase64), { pick: options.pickSaveAs! })));
       return { opened: metadata !== undefined, ...(metadata ? { metadata } : {}) };
     },
   };
+}
+
+async function runGuardedSave<T>(guard: OfficeSaveGuard | undefined, operation: () => Promise<T>): Promise<T> {
+  const release = guard?.tryAcquire();
+  if (guard && !release) throw new FileIpcError("saving");
+  try { return await operation(); }
+  finally { release?.(); }
 }
 
 export interface DraftIpcOptions {
   readonly store: DesktopDraftStore;
   readonly session: DraftSession;
   readonly identity: DraftIdentity;
+  /** The ACL is queried live for every recovery attempt; cached access is not
+   * sufficient to unlock an account after logout or revocation. */
+  readonly liveAccess?: () => Promise<"edit" | "none">;
+  readonly currentBase?: DraftIdentity["base"];
 }
 
 /** Checkpoint IPC binds account/deployment/document identity in main. The
@@ -79,6 +92,37 @@ export function createDraftIpcHandlers(options: DraftIpcOptions) {
       } catch (error) {
         throw new DraftIpcError(error instanceof DraftRecoveryError ? error.code : "storage_unavailable");
       }
+    },
+    "desktop:draft-list": async (_request: Extract<import("../shared/ipc").DesktopIpcRequest, { sessionGeneration: string }>) => {
+      try {
+        const drafts = await options.store.list({ session: options.session, lookup: {
+          deploymentId: options.identity.deploymentId,
+          accountId: options.identity.accountId,
+          organizationId: options.identity.organizationId,
+          workspaceId: options.identity.workspaceId,
+          documentId: options.identity.documentId,
+        } });
+        return { drafts };
+      } catch (error) { throw new DraftIpcError(error instanceof DraftRecoveryError ? error.code : "storage_unavailable"); }
+    },
+    "desktop:draft-recover": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { draftId: string; currentBase: { revision: string; version: string } }>) => {
+      try {
+        const currentBase = options.currentBase ?? request.currentBase;
+        const liveAccess = await (options.liveAccess?.() ?? Promise.resolve<"edit" | "none">("none"));
+        const result = await options.store.recoverPlaintext({
+          session: options.session,
+          lookup: { deploymentId: options.identity.deploymentId, accountId: options.identity.accountId, organizationId: options.identity.organizationId, workspaceId: options.identity.workspaceId, documentId: options.identity.documentId, draftId: request.draftId },
+          currentBase,
+          liveAccess,
+        });
+        return result.status === "recovered" ? { status: result.status, metadata: result.metadata, dataBase64: Buffer.from(result.plaintext).toString("base64") } : result;
+      } catch (error) { throw new DraftIpcError(error instanceof DraftRecoveryError ? error.code : "storage_unavailable"); }
+    },
+    "desktop:draft-discard": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { draftId: string; generation: number }>) => {
+      try {
+        await options.store.deleteDurable({ session: options.session, draftId: request.draftId, generation: request.generation });
+        return { discarded: true };
+      } catch (error) { throw new DraftIpcError(error instanceof DraftRecoveryError ? error.code : "storage_unavailable"); }
     },
   };
 }

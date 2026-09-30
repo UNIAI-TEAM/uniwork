@@ -31,6 +31,10 @@ export const DRAFT_TEMP_PREFIX = `${DESKTOP_IDENTITY_MANIFEST.channelNamespaces[
 export interface DraftKeyStore {
   /** A draft key is intentionally a separate port from refresh credentials. */
   getOrCreate(namespace: string): Promise<Uint8Array>;
+  /** Read-only lookup used during recovery. A missing key is distinct from a
+   * first checkpoint, so an existing ciphertext can never trigger key
+   * regeneration. */
+  get?(namespace: string): Promise<Uint8Array | undefined>;
   delete?(namespace: string): Promise<void>;
 }
 
@@ -110,7 +114,11 @@ export class DesktopDraftStore implements DraftRecoveryAdapter {
       if (old && old.generation > input.generation) throw new DraftRecoveryError("generation_conflict", "draft generation is older than the confirmed snapshot");
       const namespace = namespaceFor(input.identity);
       let encrypted;
-      try { encrypted = encryptDraft(await this.options.keyStore.getOrCreate(namespace), input.plaintext, input.identity, input.generation, this.random); }
+      try {
+        const existingKey = this.options.keyStore.get ? await this.options.keyStore.get(namespace) : undefined;
+        if (old && !existingKey && this.options.keyStore.get) throw new DraftRecoveryError("draft_recovery_locked", "draft key is unavailable");
+        encrypted = encryptDraft(existingKey ?? await this.options.keyStore.getOrCreate(namespace), input.plaintext, input.identity, input.generation, this.random);
+      }
       catch { throw new DraftRecoveryError("draft_recovery_locked", "draft key is unavailable"); }
       const row: DurableRow = { version: 1, encrypted: true, draftId: input.draftId, identity: input.identity, generation: input.generation, checksum: encrypted.checksum, byteLength: encrypted.ciphertext.byteLength, updatedAt: this.now(), nonce: Buffer.from(encrypted.nonce).toString("base64"), ciphertext: Buffer.from(encrypted.ciphertext).toString("base64") };
       await this.writeRow(input.identity, row);
@@ -155,7 +163,9 @@ export class DesktopDraftStore implements DraftRecoveryAdapter {
     if (!row) return { status: "missing" };
     if (!row.encrypted || !row.nonce) return { status: "locked", metadata: recovered.metadata, code: "draft_recovery_locked" };
     try {
-      const key = await this.options.keyStore.getOrCreate(namespaceFor(row.identity));
+      const namespace = namespaceFor(row.identity);
+      const key = this.options.keyStore.get ? await this.options.keyStore.get(namespace) : await this.options.keyStore.getOrCreate(namespace);
+      if (!key) return { status: "locked", metadata: recovered.metadata, code: "draft_recovery_locked" };
       const plaintext = decryptDraft(key, { nonce: Uint8Array.from(Buffer.from(row.nonce, "base64")), ciphertext: recovered.ciphertext }, row.identity, row.generation);
       if (plaintext.byteLength > this.maxPlaintextBytes) throw new Error("draft exceeds local limit");
       return { status: "recovered", metadata: recovered.metadata, plaintext };
@@ -228,8 +238,17 @@ export class DesktopDraftStore implements DraftRecoveryAdapter {
   }
 
   private async readRow(identity: DraftIdentity, draftId: string): Promise<DurableRow | undefined> {
-    try { const raw = await fs.readFile(fileFor(this.options.rootDirectory, identity, draftId), "utf8"); const row = JSON.parse(raw) as DurableRow; return validRow(row) ? row : undefined; }
-    catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined; throw new DraftRecoveryError("storage_unavailable", "draft store could not be read"); }
+    try {
+      const raw = await fs.readFile(fileFor(this.options.rootDirectory, identity, draftId), "utf8");
+      const row = JSON.parse(raw) as DurableRow;
+      if (!validRow(row)) throw new DraftRecoveryError("draft_recovery_locked", "draft record is corrupt");
+      return row;
+    }
+    catch (error) {
+      if (error instanceof DraftRecoveryError) throw error;
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+      throw new DraftRecoveryError("storage_unavailable", "draft store could not be read");
+    }
   }
 
   private async readAllRows(): Promise<DurableRow[]> {
@@ -241,7 +260,11 @@ export class DesktopDraftStore implements DraftRecoveryAdapter {
         if (!namespace.isDirectory()) continue;
         for (const file of await fs.readdir(join(this.options.rootDirectory, namespace.name))) {
           if (!file.endsWith(".draft")) continue;
-          try { const row = JSON.parse(await fs.readFile(join(this.options.rootDirectory, namespace.name, file), "utf8")) as DurableRow; if (validRow(row)) rows.push(row); } catch { throw new DraftRecoveryError("draft_recovery_locked", "draft record is corrupt"); }
+          try {
+            const row = JSON.parse(await fs.readFile(join(this.options.rootDirectory, namespace.name, file), "utf8")) as DurableRow;
+            if (!validRow(row)) throw new Error("invalid draft record");
+            rows.push(row);
+          } catch { throw new DraftRecoveryError("draft_recovery_locked", "draft record is corrupt"); }
         }
       }
       return rows;
