@@ -22,5 +22,6 @@ func (h *handlers) config(w http.ResponseWriter, r *http.Request) {
 		Flags:                      featureflags.EvaluateFrontendPublicFlags(ctx, h.FeatureFlags),
 		RumSampleRate:              h.Cfg.RUMSampleRate,
 		WorkManagementCapabilities: workcapability.Catalogue(),
+		OfficeInstallerURLs:        sdo.OfficeInstallerURLsSDO{Dev: h.Cfg.OfficeInstallerDevURL, Beta: h.Cfg.OfficeInstallerBetaURL, Stable: h.Cfg.OfficeInstallerStableURL},
 	})
 }

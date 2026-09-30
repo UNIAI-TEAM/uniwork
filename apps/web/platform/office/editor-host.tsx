@@ -5,11 +5,13 @@ import type { ComponentType } from "react";
 import type { Document } from "@uniwork/core/types/document";
 import type { OfficeCapabilityEntry, OfficeHost, SaveCoordinatorState, StableSnapshot } from "@uniwork/core/office";
 import { registerLeaveGuard } from "@uniwork/views/navigation";
-import { OfficeShell } from "@uniwork/views/office";
+import { DesktopOpenAction, OfficeShell, type OfficeChannel, type OfficeInstallerURLs } from "@uniwork/views/office";
 import { DraftRecoveryPrompt, LeaveDialog } from "@uniwork/views/office/leave-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { useTranslation } from "react-i18next";
 import { createOfficeEditorSession, type OfficeEditorSession, type OfficeRecoveryState } from "./editor-host-core";
+import { getPublicConfig } from "@uniwork/core/api/endpoints/config";
+import { launchOfficeDeepLink } from "./desktop-handoff";
 export * from "./editor-host-core";
 
 export interface OfficeEditorHostProps<TSnapshot = unknown> {
@@ -30,6 +32,8 @@ export interface OfficeEditorHostProps<TSnapshot = unknown> {
   onRecoverSnapshot?: (snapshot: StableSnapshot<TSnapshot>) => Promise<void> | void;
   breadcrumbs?: { label: ReactNode; href?: string }[];
   className?: string;
+  officeChannel?: OfficeChannel;
+  installerURLs?: OfficeInstallerURLs;
 }
 
 export interface OfficeFormatAdapter<TSnapshot = unknown> {
@@ -67,6 +71,8 @@ export function OfficeEditorHost<TSnapshot = unknown>({
   onRecoverSnapshot,
   breadcrumbs = [],
   className,
+  officeChannel = "stable",
+  installerURLs = { dev: "", beta: "", stable: "" },
 }: OfficeEditorHostProps<TSnapshot>) {
   const { t } = useTranslation();
   const activeSession = formatAdapter?.session ?? session;
@@ -209,6 +215,19 @@ export function OfficeEditorHost<TSnapshot = unknown>({
         saveCoordinator={activeSession?.coordinator}
         saveState={coordinatorState}
         editorReady={Boolean(activeSession && !readonly && effectiveCapability.status === "available")}
+        desktopAction={activeSession && !readonly ? (
+          <DesktopOpenAction
+            documentId={document.id}
+            deploymentId={activeSession.coordinator.getState().identity.deploymentId}
+            savedVersion={document.current_version}
+            dirty={dirty}
+            saveCoordinator={activeSession.coordinator}
+            channel={officeChannel}
+            installerURLs={installerURLs}
+            loadInstallerURLs={async () => (await getPublicConfig(document.organization_id)).office_installer_urls}
+            launch={launchOfficeDeepLink}
+          />
+        ) : null}
         className="min-h-[20rem]"
       />
       {activeSession && !readonly && recovery && recovery.status !== "missing" ? (

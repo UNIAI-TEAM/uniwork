@@ -13,6 +13,8 @@ export {
   type OfficeEditorRendererProps,
 } from "./editor-slot";
 export { SaveStatus, type OfficeSaveStatusKind, type SaveStatusProps } from "./save-status";
+export { DesktopOpenAction, type DesktopOpenActionProps, type OfficeLaunchSessionFactory, type OfficeSaveOutcome } from "./desktop-open-action";
+export { OfficeInstallPrompt, type OfficeInstallPromptProps, type OfficeInstallChannel, type OfficeInstallerURLs } from "./install-prompt";
 export {
   DraftRecoveryPrompt,
   LeaveDialog,

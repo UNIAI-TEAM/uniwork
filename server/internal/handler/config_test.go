@@ -15,7 +15,12 @@ import (
 // GET /api/v1/config publishes work-management capabilities (stubs stay
 // unavailable) and no longer lists the removed parity flag.
 func TestConfigPublishesWorkManagementCapabilities(t *testing.T) {
-	h := New(Deps{Cfg: config.Config{FrontendOrigin: "http://localhost:3000"}, Log: slog.Default()})
+	h := New(Deps{Cfg: config.Config{
+		FrontendOrigin:           "http://localhost:3000",
+		OfficeInstallerDevURL:    "https://downloads.test/dev.exe",
+		OfficeInstallerBetaURL:   "https://downloads.test/beta.exe",
+		OfficeInstallerStableURL: "",
+	}, Log: slog.Default()})
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/config", nil)
 	h.ServeHTTP(rec, req)
@@ -25,6 +30,11 @@ func TestConfigPublishesWorkManagementCapabilities(t *testing.T) {
 	var out struct {
 		Flags                      map[string]bool                 `json:"flags"`
 		WorkManagementCapabilities map[string]workcapability.Entry `json:"work_management_capabilities"`
+		OfficeInstallerURLs        struct {
+			Dev    string `json:"dev"`
+			Beta   string `json:"beta"`
+			Stable string `json:"stable"`
+		} `json:"office_installer_urls"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatal(err)
@@ -47,5 +57,8 @@ func TestConfigPublishesWorkManagementCapabilities(t *testing.T) {
 		if !ok || got != entry {
 			t.Fatalf("%s = %+v, want %+v", key, got, entry)
 		}
+	}
+	if out.OfficeInstallerURLs.Dev != "https://downloads.test/dev.exe" || out.OfficeInstallerURLs.Beta != "https://downloads.test/beta.exe" || out.OfficeInstallerURLs.Stable != "" {
+		t.Fatalf("installer URLs = %+v, want configured per-channel values", out.OfficeInstallerURLs)
 	}
 }

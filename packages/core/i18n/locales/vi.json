@@ -6912,6 +6912,30 @@
       }
     },
     "title": "Office",
+    "desktop": {
+      "action": "Chỉnh sửa trên UniWork Office",
+      "working": "Đang chuẩn bị UniWork Office…",
+      "dirty_title": "Có thay đổi chưa lưu",
+      "dirty_description": "Chọn phiên bản đã lưu để mở trên UniWork Office.",
+      "save_then_open": "Lưu rồi mở",
+      "open_saved": "Mở bản đã lưu gần nhất",
+      "cancel": "Hủy",
+      "save_failed": "Lưu không thành công. Thay đổi vẫn còn trong trình soạn thảo.",
+      "save_unverified": "Chưa xác nhận được lần lưu nên UniWork Office chưa mở.",
+      "newer_changes": "Vẫn còn thay đổi mới chưa lưu. Hãy lưu lại trước khi mở UniWork Office.",
+      "version_unavailable": "Không có phiên bản đã lưu gần nhất.",
+      "ticket_failed": "Không thể chuẩn bị tài liệu trên UniWork Office. Trình soạn thảo và bản nháp vẫn nguyên vẹn.",
+      "install": {
+        "title": "Chưa có UniWork Office",
+        "not_installed": "Ứng dụng máy tính chưa phản hồi. Bạn có thể thử lại hoặc cài đúng kênh.",
+        "expired": "Lượt mở trên máy tính đã hết hạn. Hãy thử mở lại.",
+        "error": "Lượt mở trên máy tính chưa hoàn tất. Trình soạn thảo và bản nháp vẫn nguyên vẹn.",
+        "unavailable": "Liên kết cài đặt chưa khả dụng",
+        "open_again": "Mở lại",
+        "install": "Cài UniWork Office",
+        "close": "Đóng"
+      }
+    },
     "save": {
       "status": {
         "checkpoint": "Đã giữ nháp trên thiết bị",

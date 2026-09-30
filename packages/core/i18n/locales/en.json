@@ -6918,6 +6918,30 @@
       }
     },
     "title": "Office",
+    "desktop": {
+      "action": "Edit in UniWork Office",
+      "working": "Preparing UniWork Office…",
+      "dirty_title": "Unsaved changes",
+      "dirty_description": "Choose which committed version to open in UniWork Office.",
+      "save_then_open": "Save then open",
+      "open_saved": "Open last saved version",
+      "cancel": "Cancel",
+      "save_failed": "Save failed. Your changes remain in this editor.",
+      "save_unverified": "The save was not confirmed, so UniWork Office was not opened.",
+      "newer_changes": "New unsaved changes remain. Save again before opening UniWork Office.",
+      "version_unavailable": "The last committed version is unavailable.",
+      "ticket_failed": "UniWork Office could not prepare this document. Your editor and draft are unchanged.",
+      "install": {
+        "title": "UniWork Office is not available",
+        "not_installed": "The desktop app did not respond. You can try again or install the matching channel.",
+        "expired": "That desktop handoff expired. Try opening it again.",
+        "error": "The desktop handoff did not complete. Your editor and draft are unchanged.",
+        "unavailable": "Install link unavailable",
+        "open_again": "Open again",
+        "install": "Install UniWork Office",
+        "close": "Close"
+      }
+    },
     "save": {
       "status": {
         "checkpoint": "Draft kept on this device",

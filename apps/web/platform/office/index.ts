@@ -40,3 +40,13 @@ export {
 } from "./xlsx-adapter";
 export { XlsxOfficeEditorHost } from "./xlsx-office-host";
 export { createWebXlsxSessionRuntime } from "./xlsx-runtime";
+export {
+  buildOfficeDeepLink,
+  launchOfficeDeepLink,
+  officeClientId,
+  officeScheme,
+  safeOfficeDeepLink,
+  type DeepLinkLauncherOptions,
+  type OfficeChannel,
+  type OfficeLaunchOutcome,
+} from "./desktop-handoff";
