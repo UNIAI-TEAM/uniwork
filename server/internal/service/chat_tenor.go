@@ -22,8 +22,8 @@ type tenorRequest struct {
 }
 
 func (s *ChatService) fetchTenor(ctx context.Context, req tenorRequest) ([]ChatGifItem, error) {
-	apiKey := strings.TrimSpace(s.TenorAPIKey)
-	if apiKey == "" {
+	apiKey, apiBase, ok := s.chatMediaAPIKeyAndBase()
+	if !ok {
 		if len(req.fallback) == 0 {
 			return []ChatGifItem{}, nil
 		}
@@ -45,7 +45,7 @@ func (s *ChatService) fetchTenor(ctx context.Context, req tenorRequest) ([]ChatG
 	}
 
 	path := "/v2/" + req.endpoint
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, tenorAPIBase+path+"?"+params.Encode(), nil)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, apiBase+path+"?"+params.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}
