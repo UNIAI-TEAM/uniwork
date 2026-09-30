@@ -49,6 +49,21 @@ describe("desktop auth transport and fake contract", () => {
     expect(manager.cancelLogin("attempt_stale_abcdefghijklmnopqrstuvwxyz")).toMatchObject({ status: "pending" });
     expect(manager.getCurrentAttempt(1_000)?.attemptId).toBe(started.attemptId);
   });
+  it("does not let an earlier same-generation browser failure clear a newer attempt", async () => {
+    let rejectFirst: ((error: Error) => void) | undefined;
+    let opens = 0;
+    const firstOpen = new Promise<void>((_, reject) => { rejectFirst = reject; });
+    const server = new FakeAuthServer({ now: () => 1_000 });
+    const manager = new NativeLoginManager({ ...binding, browser: createSystemBrowserLauncher(() => { opens += 1; return opens === 1 ? firstOpen : undefined; }), transport: createAllowlistedAuthTransport({ origin: "https://api.example.test", ...binding, server }), credentials: createInMemoryCredentialStore(), now: () => 1_000 });
+    const first = manager.startLogin();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    const second = await manager.startLogin();
+    expect(second.status).toBe("pending");
+    rejectFirst!(new Error("browser unavailable"));
+    await expect(first).rejects.toThrow(/browser/);
+    expect(manager.getMetadata().status).toBe("pending");
+    expect(manager.getCurrentAttempt(1_000)?.attemptId).toBe(second.attemptId);
+  });
   it("fails closed when the browser or exchange binding is invalid", async () => {
     const server = new FakeAuthServer({ now: () => 1_000 });
     const transport = createAllowlistedAuthTransport({ origin: "https://api.example.test", ...binding, server });
@@ -103,6 +118,23 @@ describe("desktop auth transport and fake contract", () => {
     await expect(manager.logout()).rejects.toMatchObject({ code: "network" });
     expect(await credentials.get()).toBeDefined();
     expect(manager.getMetadata().status).toBe("signed-in");
+  });
+  it("does not let a logout completion after scope switch clear the new pair", async () => {
+    let releaseLogout: (() => void) | undefined;
+    const logoutReady = new Promise<void>((resolve) => { releaseLogout = resolve; });
+    const server = new FakeAuthServer({ now: () => 1_000 });
+    const base = createAllowlistedAuthTransport({ origin: "https://api.example.test", ...binding, server });
+    const credentials = createInMemoryCredentialStore();
+    const manager = new NativeLoginManager({ ...binding, browser: createSystemBrowserLauncher(() => undefined), transport: { ...base, logout: async () => { await logoutReady; } }, credentials, now: () => 1_000 });
+    await credentials.save({ accountId: "account-a", deviceSessionId: "device-a", sessionId: "session-a", accessToken: "access-a", refreshToken: "refresh-a", expiresIn: 900, refreshExpiresIn: 1000 });
+    await manager.restore();
+    const logout = manager.logout();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    await manager.switchScope({ accountId: "account-b", deploymentId: "deployment-b" });
+    await credentials.save({ accountId: "account-b", deviceSessionId: "device-b", sessionId: "session-b", accessToken: "access-b", refreshToken: "refresh-b", expiresIn: 900, refreshExpiresIn: 1000 });
+    releaseLogout!();
+    await logout;
+    expect((await credentials.get())?.accountId).toBe("account-b");
   });
 
   it("bumps scope generation, clears old scope hooks, and drops a late exchange", async () => {

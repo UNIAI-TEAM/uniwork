@@ -69,7 +69,8 @@ export class NativeLoginManager {
       // A deployment/account switch can cancel this request while the start
       // endpoint or browser is still in flight.  Its late failure must not
       // overwrite the state of the new generation.
-      if (generation === this.generation) {
+      const current = this.attempts.current(this.clock());
+      if (generation === this.generation && current?.attemptId === attempt.attemptId) {
         this.attempts.cancel(attempt.attemptId);
         this.setMetadata({ status: "signed-out" });
         this.options.logger?.({ event: "auth_browser_start_failed", attemptId: attempt.attemptId });
@@ -174,6 +175,7 @@ export class NativeLoginManager {
   }
 
   async logout(scope: "device" | "family" = "device"): Promise<LoginSessionMetadata> {
+    const generation = this.generation;
     let current: CredentialSession | undefined;
     try { current = await this.options.credentials.get(); } catch { current = undefined; }
     try {
@@ -181,11 +183,13 @@ export class NativeLoginManager {
         await this.options.transport.logout({ deviceSessionId: current.deviceSessionId, deploymentId: this.options.deploymentId, scope }, current.accessToken);
       }
     } catch (error) {
+      if (generation !== this.generation) return this.metadata;
       // A timeout/network failure does not prove that the server revoked the
       // device. Keep the usable pair so a retry can complete logout. The
       // server-confirmed unauthorized case is terminal and must sign out.
       if (!(error instanceof AuthTransportError) || error.code !== "unauthorized") throw error;
     }
+    if (generation !== this.generation) return this.metadata;
     await this.clearCredentials();
     this.setMetadata({ status: "signed-out" });
     return this.metadata;
