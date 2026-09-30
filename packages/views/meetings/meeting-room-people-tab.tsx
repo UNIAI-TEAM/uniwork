@@ -5,7 +5,7 @@ import { useParticipants as useLiveKitParticipants } from "@livekit/components-r
 import type { Participant } from "livekit-client";
 import { ChevronDown, Hand, Plus, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { Meeting } from "@uniwork/core/types";
+import type { Meeting, MeetingParticipant } from "@uniwork/core/types";
 import { useParticipants } from "@uniwork/core/meetings";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
 import { Button } from "@uniwork/ui/components/ui/button";
@@ -17,6 +17,7 @@ import {
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@uniwork/ui/components/ui/input-group";
 import { cn } from "@uniwork/ui/lib/utils";
 import { AddMeetingParticipantsDialog } from "./add-meeting-participants-dialog";
+import { MeetingDutyMenuItems, dutyRole } from "./meeting-duty-menu-items";
 import { MeetingJoinRequestsSection } from "./meeting-join-requests-section";
 import { MeetingParticipantRow } from "./meeting-participant-row";
 import { useRoomAvatarOf } from "./meeting-room-avatars";
@@ -79,7 +80,7 @@ export function MeetingRoomPeopleTab({
   const participantMeta = useMemo(() => {
     const byIdentity = new Map<
       string,
-      { participantId: string | null; isHost: boolean; userId: string | null }
+      { participantId: string | null; isHost: boolean; userId: string | null; api: MeetingParticipant }
     >();
     for (const p of apiParticipants ?? []) {
       const identity = `${PARTICIPANT_IDENTITY_PREFIX}${p.id}`;
@@ -87,6 +88,7 @@ export function MeetingRoomPeopleTab({
         participantId: p.id,
         isHost: p.user_id === hostUserId,
         userId: p.user_id ?? null,
+        api: p,
       });
     }
     return byIdentity;
@@ -166,18 +168,27 @@ export function MeetingRoomPeopleTab({
             </p>
           ) : (
             <ul className="space-y-0.5 pb-2">
-              {filtered.map((participant) => (
-                <li key={participant.identity}>
-                  <MeetingParticipantRow
-                    participant={participant}
-                    subtitle={rowSubtitle(participant)}
-                    roleChip={participantRole(participant, guests)}
-                    avatarUrl={avatarOf(participant.identity)}
-                    canHost={canHost}
-                    pinned={pinnedIdentity === participant.identity}
-                  />
-                </li>
-              ))}
+              {filtered.map((participant) => {
+                const meta = participantMeta.get(participant.identity);
+                return (
+                  <li key={participant.identity}>
+                    <MeetingParticipantRow
+                      participant={participant}
+                      subtitle={rowSubtitle(participant)}
+                      // The guest chip wins: a guest is an observer unless promoted.
+                      roleChip={participantRole(participant, guests) ?? dutyRole(meta?.api)}
+                      avatarUrl={avatarOf(participant.identity)}
+                      canHost={canHost}
+                      pinned={pinnedIdentity === participant.identity}
+                      menuExtra={
+                        canHost && !guestMode && meetingId && meta && !meta.isHost ? (
+                          <MeetingDutyMenuItems meetingId={meetingId} participant={meta.api} />
+                        ) : null
+                      }
+                    />
+                  </li>
+                );
+              })}
             </ul>
           )}
         </CollapsibleContent>

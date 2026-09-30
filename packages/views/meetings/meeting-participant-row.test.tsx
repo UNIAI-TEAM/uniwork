@@ -1,7 +1,7 @@
 "use client";
 
 import type { Participant } from "livekit-client";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import { MeetingParticipantRow } from "./meeting-participant-row";
@@ -80,5 +80,18 @@ describe("MeetingParticipantRow", () => {
 
     rerender(<MeetingParticipantRow participant={fakeParticipant()} />);
     expect(screen.queryByText("Agent")).not.toBeInTheDocument();
+  });
+
+  it("marks a secretary and an observer beside the name", () => {
+    const { rerender } = render(<MeetingParticipantRow participant={fakeParticipant()} roleChip="secretary" />);
+    expect(screen.getByText("Thư ký")).toBeInTheDocument();
+    rerender(<MeetingParticipantRow participant={fakeParticipant()} roleChip="observer" />);
+    expect(screen.getByText("Dự thính")).toBeInTheDocument();
+  });
+
+  it("appends the caller's extra menu entries", async () => {
+    render(<MeetingParticipantRow participant={fakeParticipant()} menuExtra={<li role="menuitem">Giao vai thư ký</li>} />);
+    fireEvent.click(screen.getByRole("button", { name: /Thao tác với Guest One/i }));
+    expect(await screen.findByRole("menuitem", { name: "Giao vai thư ký" })).toBeInTheDocument();
   });
 });

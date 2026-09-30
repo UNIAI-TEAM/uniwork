@@ -121,6 +121,42 @@ describe("MeetingParticipantsSection", () => {
     );
   });
 
+  it("labels secretaries and observers beside their names", async () => {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/participants")) {
+        return Promise.resolve({
+          participants: [
+            { id: "p-lan", meeting_id: "m1", principal_type: "USER", user_id: "u-lan", display_name_snapshot: "Lan Anh", role: "ATTENDEE", status: "ACTIVE", standing: "MEMBER", is_secretary: true },
+            { id: "p-tuan", meeting_id: "m1", principal_type: "USER", user_id: "u-tuan", display_name_snapshot: "Tuấn", role: "ATTENDEE", status: "ACTIVE", standing: "OBSERVER", is_secretary: false },
+          ],
+        });
+      }
+      if (p.endsWith("/members")) return Promise.resolve({ members: [] });
+      return Promise.resolve({});
+    });
+    renderSection();
+
+    const lan = (await screen.findByText("Lan Anh")).closest("li")!;
+    expect(within(lan).getByText("Thư ký")).toBeInTheDocument();
+    const tuan = screen.getByText("Tuấn").closest("li")!;
+    expect(within(tuan).getByText("Dự thính")).toBeInTheDocument();
+  });
+
+  it("sets roles from the row menu", async () => {
+    rosterRespond();
+    renderManaged();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Thao tác với Lan Anh" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Giao vai thư ký" }));
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith(
+        "/api/v1/meetings/m1/participants/p-lan",
+        expect.objectContaining({ method: "PATCH" }),
+      ),
+    );
+  });
+
   it("never offers the host role to a guest", async () => {
     rosterRespond();
     renderManaged();

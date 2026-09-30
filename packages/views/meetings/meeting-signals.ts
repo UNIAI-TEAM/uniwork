@@ -91,7 +91,7 @@ export function forgetIdentity(state: SignalsState, identity: string): SignalsSt
   return { ...state, hands: state.hands.filter((h) => h !== identity) };
 }
 
-export type MeetingParticipantRole = "agent" | "guest";
+export type MeetingParticipantRole = "agent" | "guest" | "secretary" | "observer";
 
 /** LiveKit identities of the meeting's guest participants (invite-link joiners). */
 export function guestIdentities(
