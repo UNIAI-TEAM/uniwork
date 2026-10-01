@@ -1,10 +1,5 @@
-// End-to-end exercise of the TipTap-backed DocxEditorHandle against a real
-// DocxAdapter (office-engine) and a tiny deterministic fake engine — the
-// "test harness" the brief asks this lane to ship, short of the web host's
-// documents-page wiring (G4-06a/AC-4). Covers: open renders real content,
-// bold/italic/underline, retyping a heading (remove+insert, never a silent
-// retype), typing a brand-new heading, and the save round trip reopening
-// with the edit present while the untouched paragraph stays byte-identical.
+// Handle regression tests with a real G2 adapter and deterministic fake engine.
+// Real OOXML serialization through the coordinator is in docx-roundtrip.test.ts.
 import { describe, expect, it, vi } from "vitest";
 import { createDocxAdapter, type DocxBlock, type DocxEngineFunctions, type DocxParsed, type DocxSaveBlock } from "@uniwork/office-engine/docx";
 import { createDocxTiptapHandle } from "./use-docx-tiptap-handle";

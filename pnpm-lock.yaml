@@ -1040,6 +1040,9 @@ importers:
       jsdom:
         specifier: 'catalog:'
         version: 26.1.0
+      jszip:
+        specifier: 'catalog:'
+        version: 3.10.1
       typescript:
         specifier: 'catalog:'
         version: 5.9.3

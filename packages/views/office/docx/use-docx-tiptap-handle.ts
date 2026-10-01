@@ -113,8 +113,11 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
     toggleItalic: () => tiptapEditor?.chain().focus().toggleMark("italic").run(),
     toggleUnderline: () => tiptapEditor?.chain().focus().toggleMark("underline").run(),
     setHeading: (level) => {
-      if (level === null) setBlockType("docParagraph", {});
-      else setBlockType("docHeading", { level });
+      if (level !== null && currentFormatState().headingLevel === level) return;
+      // The OOXML writer prioritizes an explicit paragraph style over the
+      // heading level. Drop the old style when changing the semantic type.
+      if (level === null) setBlockType("docParagraph", { styleId: null });
+      else setBlockType("docHeading", { level, styleId: null, outlineOnly: false });
     },
     toggleList: (kind) => {
       const state = currentFormatState();

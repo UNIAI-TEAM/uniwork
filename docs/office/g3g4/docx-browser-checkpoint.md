@@ -19,26 +19,39 @@ hand-edited, and no Node/Electron dependency required a stub.
 The hand-authored docxBlock node and duplicate StarterKit/history are removed.
 The surface now uses the vendored extensions, blocksToPmDoc and inline run
 conversion; heading/list commands target docHeading/docListItem/docParagraph.
-The G2 operation reconciler remains the save-plan boundary.
+The save bridge translates the vendored save plan to G2 operations in an
+isolated session. Capturing a local draft does not mutate the live G2 model.
 
 ## Verification on Node 22.23.2
 
-- The 35 DOCX regression cases pass with the vendored schema.
+- All 40 DOCX cases pass with the vendored schema, including the original 35.
 - Views typecheck passes.
 - Browser build, its input/external-import/locale test, vendor provenance and
   the existing Office boundary check pass.
 - Artifact: 1,030,468 bytes; gzip 341,702 bytes before web mounting. This is
   the renderer artifact size, not a web chunk delta or a fidelity measurement.
 
+## Real OOXML round trip
+
+`docx-roundtrip.test.ts` builds an OOXML ZIP and uses the vendored engine,
+TipTap handle, G2 adapter and G3 save coordinator. Both coordinator entry points
+(`button` and `shortcut`) serialize, upload and commit through in-memory cloud
+ports. Reopening the uploaded bytes confirms Heading 1 changed to Heading 2.
+The header, styles, referenced PNG and custom XML retain identical part bytes;
+the untouched paragraph retains its text. This caught and fixed a stale
+Heading1 style ID overriding the newly selected heading level during save.
+
+This is an integration harness, not a browser click/keyboard or server test.
+Evidence is in the lane report logs `ooxml-roundtrip-r4.log` (40/40),
+`ooxml-typecheck-r1.log` and `ooxml-lint-r2.log` under Node 22.23.2.
+
 ## Acceptance still outstanding
 
 This checkpoint does not establish full AC-2 through AC-6. Remaining work is
 complete page styling/layout and headers/footers, read-only equation interaction,
-save snapshot isolation and coordinator/upload/commit round trips, lazy web
+web UI save/upload/commit round trips, lazy web
 mount and measured chunk delta, G3-D3 comparison artifacts, remaining gates,
 FE and BE/security reviews, visual testing and independent final-SHA testing.
 
-The old Orca dispatch returned consumer_fenced after the model resume. No final
-worker_done is authorized on those stale IDs; the Advisor must rebind lifecycle
-authority before final settlement. Code work continues under the direct user
-instruction.
+The Advisor reattached the lead with task `task_d909342abdee` and dispatch
+`ctx_940d2c69abe1`; final settlement must use that active dispatch.
