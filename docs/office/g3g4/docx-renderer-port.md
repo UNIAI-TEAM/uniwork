@@ -192,6 +192,40 @@ checkpoint; the worker proceeds on this trimmed basis in the meantime since
 the alternative (vendoring a second i18n runtime or a second docx engine) is
 already ruled out by standing rules, not a judgment call.
 
+### 3c. Phase-1 close-out: the 15–20 guess list shrinks further, to zero for now
+
+Re-checking the guess list file-by-file surfaced two more exclusions:
+`paste-options.ts` and `trailing-table-exit.ts` both import `TRACK_IGNORE`
+from `revisions.ts` (1,145 lines, tracked-changes machinery, itself
+i18n-coupled and squarely `pending-04b` — comments/tracked changes stay a
+typed refusal per `docx-capability-map.md`). `vendor-upstream.mjs` copies
+whole files, not lines, so pulling in `TRACK_IGNORE` means pulling in
+`revisions.ts`, which is excluded on the same grounds as `extensions.ts`.
+Both drop from the list.
+
+Separately: phase 2's AC-2 core (text, bold/italic/underline, headings,
+lists, undo/redo) needs none of the remaining ~13 candidate files —
+TipTap/ProseMirror ship Bold/Italic/Underline marks and Heading/BulletList/
+OrderedList nodes plus undo/redo as stock, MIT-licensed extensions
+(`@tiptap/starter-kit` / `@tiptap/extensions`); genoffice's versions
+(`headings.ts`'s `docHeading` node, `direction.ts`'s RTL handling, CJK-tuned
+`case-transform.ts`) add DOCX/CJK fidelity we don't need for this slice's
+Vietnamese/Latin-script scope. Vendoring a file with no concrete caller yet
+is exactly the "don't design for hypothetical future requirements" the repo
+rules warn against, and dead vendored code is also a `knip` finding waiting
+to happen.
+
+**Decision**: phase 1 lands zero `vendor-upstream.mjs` `SELECTION` /
+`source-manifest.json` changes. `apps/docs/src/renderer/editor/` and
+`components/` stay design reference only. Phase 3 (read-only table/image/
+header-footer/page-geometry rendering) is where a genoffice pure-logic file
+(`table-sizing.ts`, `page-break.ts`, `dark-page.ts`, `shape-svg.ts`,
+`image-rotation.ts` are the live candidates — table math, page-break
+detection, shading-as-background-color, shape/image SVG rendering) may
+earn a real vendor-upstream selection, added then with its own `--check`
+run and its own justification, not guessed now. `vendor-upstream --check`
+stays green because nothing changed.
+
 ## 4. Open questions for the Advisor (go/no-go gate)
 
 1. Confirm the ~95-file/~40k-line vendored subset and the `@tiptap/*`
