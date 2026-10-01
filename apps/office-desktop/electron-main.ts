@@ -22,6 +22,29 @@ const PRELOAD_PATH = resolve(DIST_MAIN_DIRECTORY, "../preload/index.cjs");
 const SESSION_GENERATION = "desktop-dev-session";
 const SMOKE_MODE = process.argv.includes("--office-desktop-smoke");
 
+export const DESKTOP_TITLE_BAR_TOKENS = Object.freeze({
+  light: { color: "#FFFFFF", symbolColor: "#182230" },
+  dark: { color: "#172033", symbolColor: "#F4F7FB" },
+});
+
+export function createNativeMenuTemplate(channel: "dev" | "beta" | "stable", onSave: () => void, isMac = process.platform === "darwin") {
+  const fileLabel = isMac ? "Tệp" : "File";
+  const editLabel = isMac ? "Sửa" : "Edit";
+  const viewLabel = isMac ? "Xem" : "View";
+  const template: Electron.MenuItemConstructorOptions[] = [
+    { label: fileLabel, submenu: [{ label: "Lưu", accelerator: "CmdOrCtrl+S", click: onSave }, { role: "quit", label: "Thoát" }] },
+    { label: editLabel, submenu: [{ role: "undo", label: "Hoàn tác" }, { role: "redo", label: "Làm lại" }, { type: "separator" }, { role: "cut", label: "Cắt" }, { role: "copy", label: "Sao chép" }, { role: "paste", label: "Dán" }, { role: "selectAll", label: "Chọn tất cả" }] },
+  ];
+  if (channel === "dev") template.push({ label: viewLabel, submenu: [{ role: "reload", label: "Tải lại" }, { role: "toggleDevTools", label: "Công cụ phát triển" }] });
+  return template;
+}
+
+export function nativeWindowOptions(platform: NodeJS.Platform, dark = false): Pick<Electron.BrowserWindowConstructorOptions, "titleBarStyle" | "titleBarOverlay"> {
+  if (platform === "darwin") return {};
+  const colors = dark ? DESKTOP_TITLE_BAR_TOKENS.dark : DESKTOP_TITLE_BAR_TOKENS.light;
+  return { titleBarStyle: "hidden", titleBarOverlay: { color: colors.color, symbolColor: colors.symbolColor, height: 32 } };
+}
+
 // The renderer is loaded from the app's custom scheme. Mark it as a standard,
 // secure, CORS-enabled scheme before Electron is ready so its module script
 // can be fetched from the same origin in packaged builds.
@@ -129,17 +152,15 @@ async function startElectronHost(): Promise<void> {
       ...WINDOW_WEB_PREFERENCES,
       preload: PRELOAD_PATH,
     },
+    ...nativeWindowOptions(process.platform),
   });
+  if (process.platform !== "darwin") window.setMenuBarVisibility(false);
   let nativeSaveListener: (() => void) | undefined;
   let activeDocumentId: string | undefined;
   window.on("closed", () => { activeDocumentId = undefined; });
   // Keep the platform editing roles available (especially Cmd/C/X/V on
   // macOS) while adding the one desktop Save action owned by the host.
-  Menu.setApplicationMenu(Menu.buildFromTemplate([
-    { label: "File", submenu: [{ label: "Save", accelerator: "CmdOrCtrl+S", click: () => nativeSaveListener?.() }, { role: "quit" }] },
-    { label: "Edit", submenu: [{ role: "undo" }, { role: "redo" }, { type: "separator" }, { role: "cut" }, { role: "copy" }, { role: "paste" }, { role: "selectAll" }] },
-    { label: "View", submenu: [{ role: "reload" }, { role: "toggleDevTools" }] },
-  ]));
+  Menu.setApplicationMenu(Menu.buildFromTemplate(createNativeMenuTemplate(DESKTOP_IDENTITY_MANIFEST.build.channel, () => nativeSaveListener?.())));
   publishSessionMetadata = (metadata) => {
     const parsed = desktopSessionMetadataSchema.parse(metadata);
     window.webContents.send?.("desktop:auth-session-changed", parsed);
