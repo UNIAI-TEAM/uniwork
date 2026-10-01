@@ -4,8 +4,9 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { useMeetingLobbySync } from "./use-meeting-lobby-sync";
 
-/** The lobby socket surface the hook uses: `on(event, handler)` returning an unsubscribe. */
+/** The lobby socket surface the hook uses: `on(event, handler)` and `onReconnect(handler)`, each returning an unsubscribe. */
 const lobby = vi.hoisted(() => {
+  const RECONNECT = "__reconnect__";
   const handlers = new Map<string, Set<(payload: unknown) => void>>();
   return {
     client: {
@@ -17,6 +18,17 @@ const lobby = vi.hoisted(() => {
           set.delete(handler);
         };
       },
+      onReconnect(handler: () => void) {
+        const set = handlers.get(RECONNECT) ?? new Set<(payload: unknown) => void>();
+        set.add(handler);
+        handlers.set(RECONNECT, set);
+        return () => {
+          set.delete(handler);
+        };
+      },
+    },
+    reconnect() {
+      handlers.get(RECONNECT)?.forEach((h) => h(undefined));
     },
     emit(event: string, payload: unknown) {
       handlers.get(event)?.forEach((h) => h(payload));
@@ -68,6 +80,19 @@ describe("useMeetingLobbySync › motions (guests have no workspace socket)", ()
     const { invalidate } = setup();
     lobby.emit("motion.opened", { meeting_id: "m2", motion_id: "mo9" });
     expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it("refreshes the guest's in-room data after the lobby socket reconnects", () => {
+    const { invalidate } = setup();
+    lobby.reconnect();
+    expect(keysCalled(invalidate)).toEqual(
+      expect.arrayContaining([
+        JSON.stringify(["meeting-participants", "m1"]),
+        motions,
+        JSON.stringify(["meeting-chat", "m1"]),
+        JSON.stringify(["meeting-recordings", "m1"]),
+      ]),
+    );
   });
 
   it("drops every listener on unmount", () => {

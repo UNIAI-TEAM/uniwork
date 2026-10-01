@@ -15,10 +15,12 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@uniwork/ui/components/ui/collapsible";
 import { cn } from "@uniwork/ui/lib/utils";
 import { ConfirmDialog } from "../common/form-dialog";
+import { foldedIncludes } from "../common/search-fold";
 import { toastApiError } from "../toast-api-error";
 import { MeetingAttendanceAddedLater } from "./meeting-attendance-added-later";
 import { MeetingAttendanceRowItem } from "./meeting-attendance-row";
 import { MeetingAttendanceSummary } from "./meeting-attendance-summary";
+import { meetingLocale } from "./meeting-datetime";
 import { MeetingRowsSkeleton, MeetingSectionError } from "./meeting-section-state";
 import { useMemberIndex } from "./use-member-index";
 
@@ -54,10 +56,18 @@ export function MeetingAttendancePanel({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirm, setConfirm] = useState<"finalize" | "reopen">("finalize");
   const onError = (err: unknown) => toastApiError(err, t("common.error"));
+  // Same clock as every other time in Meetings: en-GB or vi-VN, 24-hour.
+  const locale = meetingLocale(i18n.language);
   const formatTime = useMemo(() => {
-    const f = new Intl.DateTimeFormat(i18n.language, { hour: "2-digit", minute: "2-digit" });
+    const f = new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" });
     return (iso: string) => f.format(new Date(iso));
-  }, [i18n.language]);
+  }, [locale]);
+  // A roll read days later needs the date too, with the month as a word so
+  // 10/1 cannot read as either day first or month first.
+  const stampOf = useMemo(() => {
+    const f = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" });
+    return (iso: string) => f.format(new Date(iso));
+  }, [locale]);
   // Finalize and reopen swap the footer button, and the dialog hands focus
   // back to a button that is about to go away; follow the swap to the new one.
   const footerAction = useRef<HTMLButtonElement>(null);
@@ -76,21 +86,15 @@ export function MeetingAttendancePanel({
   }
   const finalized = Boolean(data.finalized_at);
   const editable = canEdit && !finalized;
-  const needle = query.trim().toLocaleLowerCase(i18n.language);
-  const shown = needle
-    ? data.rows.filter((r) => r.display_name.toLocaleLowerCase(i18n.language).includes(needle))
-    : data.rows;
+  const needle = query.trim();
+  // Accent-insensitive, every word: "an nguyen" finds "Nguyễn Văn An".
+  const shown = needle ? data.rows.filter((r) => foldedIncludes(r.display_name, needle)) : data.rows;
   // A finalized roll is a snapshot: people added since have no mark and wait,
   // apart, for the roll to be reopened.
   const addedLater = finalized ? shown.filter((r) => r.joined_after_finalize) : [];
   const onRoll = finalized ? shown.filter((r) => !r.joined_after_finalize) : shown;
   const members = onRoll.filter((r) => r.standing === "MEMBER");
   const observers = onRoll.filter((r) => r.standing !== "MEMBER");
-  // A roll read days later needs the date as well as the time.
-  const stampOf = (iso: string) =>
-    new Intl.DateTimeFormat(i18n.language, { hour: "2-digit", minute: "2-digit", day: "numeric", month: "numeric" }).format(
-      new Date(iso),
-    );
   // The finalizer is usually on the roll; an admin who is not falls back to the time alone.
   const finalizerName = data.rows.find((r) => r.user_id && r.user_id === data.finalized_by)?.display_name;
   const rowItem = (r: MeetingAttendanceRow) => (
@@ -106,7 +110,12 @@ export function MeetingAttendancePanel({
           throw err;
         })
       }
-      onReset={() => clear.mutate(r.participant_id, { onError })}
+      onReset={() =>
+        clear.mutateAsync(r.participant_id).catch((err: unknown) => {
+          onError(err);
+          throw err;
+        })
+      }
     />
   );
   const runConfirmed = () => {

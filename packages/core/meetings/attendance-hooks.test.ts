@@ -127,6 +127,72 @@ describe("useMarkAttendance — optimistic, rolled back on refusal", () => {
   });
 });
 
+describe("useMarkAttendance — overlapping marks", () => {
+  beforeEach(() => {
+    setAccessToken("tok");
+    vi.stubGlobal("fetch", vi.fn());
+    configureRuntime({ apiUrl: "http://api.test" });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetRuntimeConfig();
+    setAccessToken(null);
+  });
+
+  /** Holds each PUT until the test answers it, keyed by participant. */
+  function heldPuts() {
+    const answers = new Map<string, (r: Response) => void>();
+    vi.mocked(fetch).mockImplementation((url) => {
+      const id = String(url).split("/attendance/")[1];
+      if (!id) return Promise.resolve(json(openRoll));
+      return new Promise<Response>((resolve) => answers.set(id, resolve));
+    });
+    return (id: string, r: Response) => answers.get(id)?.(r);
+  }
+
+  const roll = (qc: QueryClient) => qc.getQueryData<MeetingAttendance>(meetingKeys.attendance("m1"));
+  const stale = (qc: QueryClient) => qc.getQueryState(meetingKeys.attendance("m1"))?.isInvalidated;
+
+  it("leaves the roll alone until the last mark settles", async () => {
+    const answer = heldPuts();
+    const { qc, wrapper } = clientWithRoll();
+    const a = renderHook(() => useMarkAttendance("m1"), { wrapper }).result;
+    const b = renderHook(() => useMarkAttendance("m1"), { wrapper }).result;
+    act(() => a.current.mutate({ participantId: "p1", status: "EXCUSED", note: "ốm" }));
+    act(() => b.current.mutate({ participantId: "p2", status: "LATE" }));
+    await waitFor(() => expect(roll(qc)?.rows[1]?.status).toBe("LATE"));
+
+    answer("p1", json({ status: "ok" }));
+    await waitFor(() => expect(a.current.isSuccess).toBe(true));
+    // B is still in flight: no refetch that would drop its mark.
+    expect(stale(qc)).toBe(false);
+    expect(roll(qc)?.rows.map((r) => r.status)).toEqual(["EXCUSED", "LATE"]);
+
+    answer("p2", json({ status: "ok" }));
+    await waitFor(() => expect(b.current.isSuccess).toBe(true));
+    expect(stale(qc)).toBe(true);
+  });
+
+  it("does not undo a later mark when an earlier one is refused", async () => {
+    const answer = heldPuts();
+    const { qc, wrapper } = clientWithRoll();
+    const a = renderHook(() => useMarkAttendance("m1"), { wrapper }).result;
+    const b = renderHook(() => useMarkAttendance("m1"), { wrapper }).result;
+    act(() => a.current.mutate({ participantId: "p1", status: "ABSENT" }));
+    act(() => b.current.mutate({ participantId: "p2", status: "PRESENT" }));
+    await waitFor(() => expect(roll(qc)?.rows[1]?.status).toBe("PRESENT"));
+
+    answer("p1", json({ error: { code: "forbidden", message: "no" } }, 403));
+    await waitFor(() => expect(a.current.isError).toBe(true));
+    expect(roll(qc)?.rows[1]?.status).toBe("PRESENT");
+
+    answer("p2", json({ status: "ok" }));
+    await waitFor(() => expect(b.current.isSuccess).toBe(true));
+    // The last mark's refetch is what corrects the refused row.
+    expect(stale(qc)).toBe(true);
+  });
+});
+
 describe("useAttendanceFinalized", () => {
   it("reads the lock from the cached roll and stays quiet when disabled", () => {
     const { wrapper } = clientWithRoll({ ...openRoll, finalized_at: "2026-09-30T03:00:00Z" });

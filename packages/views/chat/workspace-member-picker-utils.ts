@@ -1,6 +1,6 @@
 import type { ChatContact } from "@uniwork/core/chat/contacts-store";
 import type { Member } from "@uniwork/core/types/workspace";
-import { foldedIncludes } from "./chat-search-fold";
+import { foldedIncludes } from "../common/search-fold";
 
 export function memberToChatContact(member: { user_id: string; email: string; display_name: string }): ChatContact {
   const name = member.display_name.trim();

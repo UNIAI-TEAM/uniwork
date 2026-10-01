@@ -52,7 +52,7 @@ describe("MeetingMotionFormDialog", () => {
     expect(screen.getByText("0/2000")).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Công khai" })).toBeChecked();
     expect(screen.getByRole("radio", { name: "Quá bán" })).toBeChecked();
-    expect(screen.getByRole("radio", { name: "Trên số có mặt" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Trên số tham dự" })).toBeChecked();
 
     const title = "Thông qua kế hoạch quý IV";
     fireEvent.change(screen.getByLabelText("Nội dung"), { target: { value: title } });

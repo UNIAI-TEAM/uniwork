@@ -18,6 +18,7 @@ import {
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@uniwork/ui/components/ui/input-group";
 import { ToggleGroup, ToggleGroupItem } from "@uniwork/ui/components/ui/toggle-group";
 import { cn } from "@uniwork/ui/lib/utils";
+import { foldedIncludes } from "../common/search-fold";
 import { AddMeetingParticipantsDialog } from "./add-meeting-participants-dialog";
 import { MeetingAttendancePanel } from "./meeting-attendance-panel";
 import { MeetingDutyMenuItems, dutyRole } from "./meeting-duty-menu-items";
@@ -108,10 +109,9 @@ export function MeetingRoomPeopleTab({
 
   const guests = useMemo(() => guestIdentities(apiParticipants ?? []), [apiParticipants]);
   const ordered = orderParticipants(liveParticipants, hands, pinnedIdentity);
-  const needle = search.trim().toLowerCase();
-  const filtered = needle
-    ? ordered.filter((p) => displayName(p).toLowerCase().includes(needle))
-    : ordered;
+  const needle = search.trim();
+  // Accent-insensitive, every word: "tuan" finds "Tuấn".
+  const filtered = needle ? ordered.filter((p) => foldedIncludes(displayName(p), needle)) : ordered;
 
   function rowSubtitle(participant: Participant): string | undefined {
     const meta = participantMeta.get(participant.identity);
@@ -217,8 +217,10 @@ export function MeetingRoomPeopleTab({
                         <MeetingParticipantRow
                           participant={participant}
                           subtitle={rowSubtitle(participant)}
-                          // The guest chip wins: a guest is an observer unless promoted.
-                          roleChip={participantRole(participant, guests) ?? dutyRole(meta?.api)}
+                          // Like the detail page: a guest keeps "Guest" and shows its
+                          // standing beside it; a plain member carries no chip.
+                          roleChip={participantRole(participant, guests)}
+                          dutyChip={dutyRole(meta?.api)}
                           avatarUrl={avatarOf(participant.identity)}
                           canHost={canHost}
                           removable={!meta?.isHost}

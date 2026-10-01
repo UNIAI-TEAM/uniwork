@@ -50,7 +50,9 @@ describe("MeetingAttendancePanel", () => {
   it("says the roll is open and how many members the quorum still needs", async () => {
     renderPanel(true);
     expect(await screen.findByText(/^Chưa chốt\. Dòng “Tự động” lấy theo lượt vào phòng/)).toBeInTheDocument();
-    expect(screen.getByText("Có mặt 1/2 · 50%")).toBeInTheDocument();
+    expect(screen.getByText("Tham dự 1/2 · 50%")).toBeInTheDocument();
+    // The "Có mặt" tile counts present alone; the broader figure says it counts late too.
+    expect(screen.getByText("2 thành viên · tham dự gồm cả đến muộn")).toBeInTheDocument();
     // 60% of 2 members is 1.2, so two must attend.
     expect(screen.getByText("Chưa đủ tỉ lệ: cần 60%, còn thiếu 1 người")).toBeInTheDocument();
     expect(screen.getByText("Dự thính (1)")).toBeInTheDocument();
@@ -152,8 +154,13 @@ describe("MeetingAttendancePanel", () => {
         body: { status: "EXCUSED", note: "Đi công tác" },
       }),
     );
-    // The save is confirmed where the clerk is looking.
+    // The save is confirmed where the clerk is looking, and the clerk stays there.
     expect(await screen.findByText("Đã lưu")).toBeInTheDocument();
+    expect(reason).toHaveFocus();
+    // Leaving the field afterwards does not send the same reason again.
+    fireEvent.blur(reason);
+    const puts = requestMock.mock.calls.filter(([, init]) => (init as { method?: string } | undefined)?.method === "PUT");
+    expect(puts).toHaveLength(1);
   });
 
   it("is read-only without the clerk role, shows reasons, and says when and by whom the roll was finalized", async () => {
@@ -162,8 +169,9 @@ describe("MeetingAttendancePanel", () => {
     attendance.rows = [...(attendance.rows as unknown[]), row({ participant_id: "p3", display_name: "Chi", status: "EXCUSED", note: "ốm" })];
     renderPanel(false);
     const stamp = await screen.findByText(/^Đã chốt lúc .* bởi An\.$/);
-    // A roll read days later needs the date, not just the time.
-    expect(stamp.textContent).toMatch(/30\/9/);
+    // A roll read days later needs the date, with the month as a word so day
+    // and month cannot swap.
+    expect(stamp.textContent).toMatch(/30 thg 9, 2026/);
     expect(screen.queryByRole("button", { name: "Chốt điểm danh" })).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     expect(screen.getByText("Lý do: ốm")).toBeInTheDocument();
@@ -201,7 +209,7 @@ describe("MeetingAttendancePanel", () => {
     expect(within(later).getByText("Dũng")).toBeInTheDocument();
     expect(within(later).getByText("Chưa được tính vào số liệu đã chốt. Mở lại điểm danh để tính.")).toBeInTheDocument();
     // The snapshot's own figures, not recounted with the newcomer.
-    expect(screen.getByText("Có mặt 1/2 · 50%")).toBeInTheDocument();
+    expect(screen.getByText("Tham dự 1/2 · 50%")).toBeInTheDocument();
     const binh = screen.getByText("Bình").closest("li")!;
     expect(within(binh).getByText("Đã gỡ")).toBeInTheDocument();
     expect(screen.getAllByText("Đã gỡ")).toHaveLength(1);
@@ -212,6 +220,35 @@ describe("MeetingAttendancePanel", () => {
     renderPanel(true);
     await screen.findByText("Dũng");
     expect(screen.queryByRole("region", { name: /Thêm sau khi chốt/ })).not.toBeInTheDocument();
+  });
+
+  it("finds a name typed without its accents, word by word", async () => {
+    attendance.rows = [
+      row({ display_name: "Nguyễn Văn An" }),
+      row({ participant_id: "p2", user_id: "u2", display_name: "Trần Tuấn", status: "ABSENT" }),
+    ];
+    renderPanel(true, "an nguyen");
+    expect(await screen.findByText("Nguyễn Văn An")).toBeInTheDocument();
+    expect(screen.queryByText("Trần Tuấn")).not.toBeInTheDocument();
+  });
+
+  it("hands focus to the row's picker once a reset takes it back to the suggestion", async () => {
+    requestMock.mockImplementation((path: unknown, init?: { method?: string }) => {
+      const p = String(path);
+      if (init?.method === "DELETE") {
+        attendance.rows = (attendance.rows as Record<string, unknown>[]).map((r) =>
+          p.endsWith(`/${String(r.participant_id)}`) ? { ...r, source: "SUGGESTED" } : r,
+        );
+      }
+      return Promise.resolve(p.endsWith("/attendance") ? attendance : { status: "ok" });
+    });
+    renderPanel(true);
+    const reset = await screen.findByRole("button", { name: "Trả Bình về gợi ý tự động" });
+    reset.focus();
+    fireEvent.click(reset);
+    const picker = screen.getByRole("combobox", { name: "Trạng thái điểm danh của Bình" });
+    await waitFor(() => expect(picker).toHaveFocus());
+    expect(screen.queryByRole("button", { name: "Trả Bình về gợi ý tự động" })).not.toBeInTheDocument();
   });
 
   it("narrows the roll by name and opens the observers when they match", async () => {

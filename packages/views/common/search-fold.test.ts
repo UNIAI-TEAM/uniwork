@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { foldedIncludes, foldVi } from "./chat-search-fold";
+import { foldedIncludes, foldVi } from "./search-fold";
 
 describe("foldVi", () => {
   it("strips Vietnamese marks and đ", () => {

@@ -36,7 +36,8 @@ export function MeetingAttendanceSummary({ attendance }: { attendance: MeetingAt
             {t("meetings.governance.quorumProgress", { attended: q.attended, members: q.members, percent: q.percent })}
           </p>
           <p className="text-caption text-muted-foreground tabular-nums">
-            {t("meetings.governance.membersTotal", { count: q.members })}
+            {/* The tile above counts "present" alone; say what the broader figure adds. */}
+            {`${t("meetings.governance.membersTotal", { count: q.members })} · ${t("meetings.governance.attendedIncludesLate")}`}
           </p>
         </div>
         <div aria-hidden className="relative h-1.5 rounded-full bg-muted">

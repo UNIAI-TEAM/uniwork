@@ -4,6 +4,7 @@ import { ApiError } from "@uniwork/core/api/http";
 import { initI18n } from "@uniwork/core/i18n";
 import type { Meeting } from "@uniwork/core/types";
 import { requestMock, wrapWithNav } from "../test/api-mock";
+import { MeetingDetailRoster } from "./meeting-detail-aside";
 import { MeetingParticipantsSection } from "./meeting-participants-section";
 
 beforeAll(() => {
@@ -228,6 +229,67 @@ describe("MeetingParticipantsSection", () => {
     expect(screen.queryByRole("menuitem", { name: "Giao vai thư ký" })).not.toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Gỡ" })).not.toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Chuyển chủ trì…" })).not.toBeInTheDocument();
+  });
+
+  it("never offers the host role to an account outside the workspace", async () => {
+    rosterRespond();
+    const roster = requestMock.getMockImplementation();
+    requestMock.mockImplementation((path: unknown, ...rest: unknown[]) =>
+      String(path).endsWith("/participants")
+        ? Promise.resolve({
+            participants: [
+              { id: "p-lan", meeting_id: "m1", principal_type: "USER", user_id: "u-lan", display_name_snapshot: "Lan Anh", role: "ATTENDEE", status: "ACTIVE" },
+              // Signed in, came by link: a USER the workspace does not list.
+              { id: "p-out", meeting_id: "m1", principal_type: "USER", user_id: "u-out", display_name_snapshot: "Đối tác", role: "ATTENDEE", status: "ACTIVE", standing: "OBSERVER" },
+            ],
+          })
+        : roster?.(path, ...rest),
+    );
+    renderManaged();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Thao tác với Đối tác" }));
+    expect(await screen.findByRole("menuitem", { name: "Gỡ" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Chuyển chủ trì…" })).not.toBeInTheDocument();
+  });
+
+  describe("after the meeting ends", () => {
+    function rosterAfter(status: Meeting["status"]) {
+      rosterRespond();
+      const roster = requestMock.getMockImplementation();
+      requestMock.mockImplementation((path: unknown, ...rest: unknown[]) =>
+        String(path).endsWith("/attendance")
+          ? Promise.resolve({ summary: { members: 1, present: 1, late: 0, excused: 0, absent: 0 }, rows: [] })
+          : roster?.(path, ...rest),
+      );
+      render(
+        wrapWithNav(
+          <MeetingDetailRoster workspaceId="w1" meeting={{ ...meeting, status }} invitations={[]} canHost />,
+        ),
+      );
+    }
+
+    it("still lets the host hand out the secretary role and standing, but not change who is on it", async () => {
+      rosterAfter("ENDED");
+      fireEvent.click(await screen.findByRole("button", { name: "Thao tác với Lan Anh" }));
+      expect(await screen.findByRole("menuitem", { name: "Giao vai thư ký" })).toBeInTheDocument();
+      expect(screen.getByRole("menuitem", { name: "Chuyển sang dự thính" })).toBeInTheDocument();
+      expect(screen.queryByRole("menuitem", { name: "Gỡ" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("menuitem", { name: "Chuyển chủ trì…" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Thêm người" })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("menuitem", { name: "Giao vai thư ký" }));
+      await waitFor(() =>
+        expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/participants/p-lan", {
+          method: "PATCH",
+          body: { is_secretary: true },
+        }),
+      );
+    });
+
+    it("offers nothing on a canceled meeting", async () => {
+      rosterAfter("CANCELED");
+      await screen.findByText("Lan Anh");
+      expect(screen.queryByRole("button", { name: "Thao tác với Lan Anh" })).not.toBeInTheDocument();
+    });
   });
 
   it("does not fetch the roll for a meeting that has not started", async () => {

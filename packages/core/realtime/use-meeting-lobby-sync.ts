@@ -55,7 +55,20 @@ export function useMeetingLobbySync(meetingId: string, enabled = true) {
         invalidateIfMatch(payload, meetingKeys.motions(meetingId));
       }),
     );
+    // A guest has no workspace socket to fall back on: whatever changed while
+    // the lobby socket was down refreshes once it is back.
+    const offReconnect = client.onReconnect(() => {
+      for (const key of [
+        meetingKeys.participants(meetingId),
+        meetingKeys.motions(meetingId),
+        meetingKeys.chat(meetingId),
+        meetingKeys.recordings(meetingId),
+      ]) {
+        void qc.invalidateQueries({ queryKey: key });
+      }
+    });
     return () => {
+      offReconnect();
       offChat();
       offParticipantInvited();
       offParticipantRemoved();
