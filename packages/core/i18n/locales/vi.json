@@ -7155,5 +7155,37 @@
         "too_large": "PDF này quá lớn để mở tại đây.", "capabilityUnavailable": "Bản dựng engine này chưa hỗ trợ chỉnh sửa PDF.", "editFailed": "Không thể áp dụng thay đổi PDF. Thử lại."
       }
     }
+  },
+  "officeDesktop": {
+    "login": {
+      "title": "UniWork Office",
+      "subtitle": "Đăng nhập để mở thư viện tài liệu của bạn.",
+      "signedOut": "Đăng nhập an toàn trong trình duyệt hệ thống.",
+      "pending": "Tiếp tục đăng nhập trong trình duyệt để hoàn tất.",
+      "error": "Không thể đăng nhập. Thử lại.",
+      "cancelled": "Đã hủy đăng nhập.",
+      "locked": "Kho lưu trữ thông tin đăng nhập đang bị khóa. Mở khóa và thử lại.",
+      "required": "Vui lòng đăng nhập lại.",
+      "start": "Đăng nhập bằng trình duyệt",
+      "cancel": "Hủy đăng nhập",
+      "signOut": "Đăng xuất"
+    },
+    "library": {
+      "pickerTitle": "Chọn môi trường, tài khoản, tổ chức và workspace",
+      "pickerChoose": "Mở tài liệu",
+      "deployments": "Môi trường",
+      "accounts": "Tài khoản",
+      "organizations": "Tổ chức",
+      "workspaces": "Workspace",
+      "title": "Tài liệu",
+      "list": "Tất cả",
+      "recent": "Gần đây",
+      "search": "Tìm kiếm",
+      "searchPlaceholder": "Tìm theo tiêu đề",
+      "download": "Tải xuống",
+      "open": "Mở",
+      "engineDown": "Trình soạn thảo không khả dụng; vẫn có thể tải xuống",
+      "empty": "Chưa có tài liệu"
+    }
   }
 }

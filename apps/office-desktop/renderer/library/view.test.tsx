@@ -1,0 +1,48 @@
+/** @vitest-environment jsdom */
+import { fireEvent, render, screen } from "@testing-library/react";
+import { expect, it, vi } from "vitest";
+import type { DesktopLibraryDocument } from "../../shared/ipc";
+import { LibraryView } from "./view";
+
+const row: DesktopLibraryDocument = {
+  id: "doc-1",
+  workspaceId: "ws",
+  title: "Plan.docx",
+  kind: "file",
+  format: "docx",
+  version: 1,
+  revision: "1",
+  updatedAt: "2026-09-30T00:00:00.000Z",
+  ownerKind: null,
+  canEdit: true,
+  downloadAvailable: true,
+};
+
+it("renders open/download actions and an engine-down status", () => {
+  const onOpen = vi.fn();
+  const onDownload = vi.fn();
+  render(<LibraryView mode="list" documents={[row]} engineAvailable={false} onOpen={onOpen} onDownload={onDownload} />);
+  expect(screen.getByRole("status")).toHaveTextContent("Trình soạn thảo không khả dụng");
+  fireEvent.click(screen.getByRole("button", { name: "Mở" }));
+  expect(onOpen).toHaveBeenCalledWith(row);
+  fireEvent.click(screen.getByRole("button", { name: "Tải xuống" }));
+  expect(onDownload).toHaveBeenCalledWith(row);
+});
+
+it("renders an empty state and fires mode changes", () => {
+  const onModeChange = vi.fn();
+  render(<LibraryView mode="recent" documents={[]} engineAvailable onModeChange={onModeChange} />);
+  expect(screen.getByText("Chưa có tài liệu")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Tất cả" }));
+  expect(onModeChange).toHaveBeenCalledWith("list");
+});
+
+it("preserves the typed query and submits it on search", () => {
+  const onSearch = vi.fn();
+  const { container } = render(<LibraryView mode="search" searchQuery="roadmap" documents={[]} engineAvailable onSearch={onSearch} />);
+  const input = screen.getByRole("searchbox", { name: "Tìm kiếm" });
+  expect(input).toHaveValue("roadmap");
+  fireEvent.change(input, { target: { value: "notes" } });
+  fireEvent.click(container.querySelector("button[type=submit]")!);
+  expect(onSearch).toHaveBeenCalledWith("notes");
+});

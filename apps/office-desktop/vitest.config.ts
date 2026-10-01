@@ -1,16 +1,22 @@
+import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 import { coverageThresholds } from "../../scripts/coverage-gate";
 import { vitestPoolOptions } from "../../scripts/vitest-pool";
 
 export default defineConfig({
+  plugins: [react()],
   test: {
+    // Main/preload/shared stay on node (fs, protocol handlers, no DOM); each
+    // renderer test file opts into jsdom with its own `@vitest-environment`
+    // docblock since it is a real browser UI needing React + Testing Library.
     environment: "node",
-    include: ["{main,preload,renderer,shared,test}/**/*.test.ts"],
+    setupFiles: ["./test/setup.ts"],
+    include: ["{main,preload,renderer,shared,test}/**/*.test.{ts,tsx}"],
     ...vitestPoolOptions(),
     coverage: {
       provider: "v8",
-      include: ["main/**/*.ts", "preload/**/*.ts", "renderer/**/*.ts", "shared/**/*.ts"],
-      exclude: ["**/*.test.ts", "**/*.d.ts"],
+      include: ["main/**/*.ts", "preload/**/*.ts", "renderer/**/*.{ts,tsx}", "shared/**/*.ts"],
+      exclude: ["**/*.test.{ts,tsx}", "**/*.d.ts"],
       reporter: ["text-summary", "json-summary"],
       // The host is intentionally small and policy-heavy. These floors are
       // the measured baseline for this scaffold and may only ratchet upward.

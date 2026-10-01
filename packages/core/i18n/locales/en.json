@@ -7174,5 +7174,37 @@
         "too_large": "This PDF is too large to open here.", "capabilityUnavailable": "PDF editing is not available for this engine build.", "editFailed": "The PDF edit could not be applied. Try again."
       }
     }
+  },
+  "officeDesktop": {
+    "login": {
+      "title": "UniWork Office",
+      "subtitle": "Sign in to open your document library.",
+      "signedOut": "Sign in securely in your system browser.",
+      "pending": "Continue in the system browser to finish sign in.",
+      "error": "Sign in could not be completed. Try again.",
+      "cancelled": "Sign in was cancelled.",
+      "locked": "Secure credential storage is locked. Unlock it and try again.",
+      "required": "Please sign in again.",
+      "start": "Sign in with browser",
+      "cancel": "Cancel login",
+      "signOut": "Sign out"
+    },
+    "library": {
+      "pickerTitle": "Choose a deployment, account, organization, and workspace",
+      "pickerChoose": "Open documents",
+      "deployments": "Deployments",
+      "accounts": "Accounts",
+      "organizations": "Organizations",
+      "workspaces": "Workspaces",
+      "title": "Documents",
+      "list": "All documents",
+      "recent": "Recent",
+      "search": "Search",
+      "searchPlaceholder": "Search by title",
+      "download": "Download",
+      "open": "Open",
+      "engineDown": "Editor unavailable; download remains available",
+      "empty": "No documents"
+    }
   }
 }

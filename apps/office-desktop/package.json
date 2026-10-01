@@ -15,12 +15,24 @@
     "test": "vitest run --passWithNoTests=false --coverage && node --test scripts/package.test.mjs scripts/release-inventory.test.mjs"
   },
   "dependencies": {
+    "@uniwork/core": "workspace:*",
     "@uniwork/office-contracts": "workspace:*",
     "@uniwork/office-engine": "workspace:*",
+    "@uniwork/ui": "workspace:*",
+    "i18next": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-i18next": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "catalog:",
+    "@testing-library/jest-dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
     "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
     "@uniwork/eslint-config": "workspace:*",
     "@uniwork/tsconfig": "workspace:*",
     "@vitest/coverage-v8": "catalog:",
@@ -28,6 +40,9 @@
     "electron-builder": "catalog:",
     "esbuild": "catalog:",
     "eslint": "^9.32.0",
+    "jsdom": "catalog:",
+    "postcss": "catalog:",
+    "tailwindcss": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

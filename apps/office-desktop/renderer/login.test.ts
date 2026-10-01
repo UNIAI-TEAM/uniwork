@@ -1,19 +1,5 @@
-import { expect, it, vi } from "vitest";
-import { createLoginController, loginStateFromMetadata, renderLoginScreen } from "./login";
-
-function root() {
-  const attrs: Record<string, string> = {};
-  return { node: { textContent: "", setAttribute: (name: string, value: string) => { attrs[name] = value; } }, attrs };
-}
-
-it.each(["signed-out", "pending", "error", "cancelled", "signed-in", "locked", "login-required"] as const)("renders the %s state through t()", (state) => {
-  const { node, attrs } = root();
-  const t = vi.fn((key: string) => `translated:${key}`);
-  renderLoginScreen(node, state, { t: t as never, registry: { button: vi.fn() } });
-  expect(node.textContent).toContain("translated:login.title");
-  expect(attrs["data-login-state"]).toBe(state);
-  expect(t).toHaveBeenCalled();
-});
+import { expect, it } from "vitest";
+import { createLoginController, loginStateFromMetadata } from "./login";
 
 it("uses only start/cancel IPC commands and exposes no secret fields", async () => {
   const calls: Array<{ channel: string; payload: unknown }> = [];
