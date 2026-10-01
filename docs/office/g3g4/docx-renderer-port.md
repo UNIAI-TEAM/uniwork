@@ -255,6 +255,30 @@ Advisor's instruction, any file that still needs `@genoffice/docx-engine`
 import line, and asked about individually rather than excluded by the
 earlier blanket rule — logged as the vendor selection is rebuilt.
 
+### 3e. Course correction II (Advisor directive): the docx-engine half was never forbidden
+
+The Advisor corrected 3d's remaining open item: `@genoffice/docx-engine` is
+**not** a second engine and is **not** excluded. The package is already
+vendored at `packages/office-upstream/upstream/packages/docx-engine`, and
+the G2 DOCX engine already wraps it —
+`packages/office-engine/src/docx/vendor.ts` calls its built
+`dist/docx-engine.mjs` `parseDocx`/`saveDocx` directly. Every genoffice
+editor file that imports `@genoffice/docx-engine` stays **in** the
+`vendor-upstream.mjs` selection; the import resolves to the vendored package
+through a `build-upstream.mjs` alias (same mechanism the patches/ series
+already uses), and the session/op-log bridges to `office-engine/src/docx` at
+the seam rather than being reimplemented.
+
+**Reworked decision (supersedes 3d's remaining caveat)**: no file is excluded
+for importing `@genoffice/docx-engine`. `editor/` is vendored whole
+(`extensions.ts` and every dependent, per 3d), with the docx-engine import
+aliased to the vendored package and genoffice's i18n import replaced by the
+`office.docx.editor.*` adapter (3d). `components/` stays design-reference
+only (unchanged). Phase 2 drops the hand-authored TipTap schema direction
+taken after `b997c3fa` — the TipTap schema/commands are the **vendored**
+`extensions.ts`, bridged to `office-engine/src/docx`'s `DocxParsed`/
+`DocxEdit` session at the integration seam, not rewritten from scratch.
+
 ## 4. Open questions for the Advisor (go/no-go gate)
 
 1. Confirm the ~95-file/~40k-line vendored subset and the `@tiptap/*`
