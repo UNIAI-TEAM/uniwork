@@ -207,7 +207,10 @@ func registerPublicMeetings(r api, h Routes, credentialLimit, joinLimit, lobbyWS
 		summary: "Send an in-room chat message (member or active guest)", tags: []string{"meetings"},
 		sdi: sdi.AppendChatSDI{}, sdo: sdo.MeetingChatMessageSDO{},
 	})
-	r.With(credentialLimit).Get("/meetings/{meetingID}/motions", h.ListMotions, apiOp{
+	// Every client refetches this after every ballot, and a formal meeting often
+	// sits behind one office NAT: it lives on the global per-IP budget only, not
+	// the 60/min credential one, or a refused refetch hides an open vote.
+	r.Get("/meetings/{meetingID}/motions", h.ListMotions, apiOp{
 		summary:     "List vote items (member or active guest)",
 		description: "Người không phải clerk không thấy DRAFT; result chỉ có khi CLOSED, voters chỉ khi CLOSED và công khai.",
 		tags:        []string{"meetings"},

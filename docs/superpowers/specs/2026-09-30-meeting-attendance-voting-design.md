@@ -243,7 +243,7 @@ param mới `{motionID}` cần case trong `handler/router/openapi.go`. Checklist
 
 | Method + path | Rate limit | Ghi chú |
 |---|---|---|
-| `GET /meetings/{meetingID}/motions` | `credentialLimit` | §5.4. Khách/người không phải clerk không thấy `DRAFT`. |
+| `GET /meetings/{meetingID}/motions` | chỉ giới hạn chung 300/phút/IP (cập nhật 2026-10-01: mọi client refetch sau mỗi phiếu; cả phòng sau một NAT vượt 60/phút và không thấy nội dung vừa mở) | §5.4. Khách/người không phải clerk không thấy `DRAFT`. |
 | `POST /meetings/{meetingID}/motions/{motionID}/ballot` `{choice}` | `joinLimit` | §3.6. |
 
 ### 5.3 `GET attendance` — dạng trả về
