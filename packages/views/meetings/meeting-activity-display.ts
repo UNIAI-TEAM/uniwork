@@ -47,6 +47,7 @@ export type ActivityKind =
   | "link"
   | "ai"
   | "recording"
+  | "governance"
   | "other";
 
 const KIND: Record<string, ActivityKind> = {
@@ -70,6 +71,9 @@ const KIND: Record<string, ActivityKind> = {
   TASKS_CREATED_FROM_SUMMARY: "ai",
   RECORDING_STARTED: "recording",
   RECORDING_STOPPED: "recording",
+  ATTENDANCE_FINALIZED: "governance",
+  MOTION_OPENED: "governance",
+  MOTION_CLOSED: "governance",
 };
 
 /** Which mark the event gets on the timeline rail. */
@@ -83,9 +87,36 @@ const EXTRA_LABELS: Record<string, string> = {
   TASKS_CREATED_FROM_SUMMARY: "meetings.activity_tasks_created",
   RECORDING_STARTED: "meetings.activity_recording_started",
   RECORDING_STOPPED: "meetings.activity_recording_stopped",
+  MOTION_OPENED: "meetings.activity_motion_opened",
+  MOTION_CLOSED: "meetings.activity_motion_closed",
 };
 
 /** i18n key of the sentence that follows the actor's name. */
 export function activityLabel(eventType: string): string {
   return EXTRA_LABELS[eventType] ?? activityLabelKey(eventType);
+}
+
+const MOTION_EVENTS = new Set(["MOTION_OPENED", "MOTION_CLOSED"]);
+const MOTION_OUTCOMES = new Set(["PASSED", "FAILED"]);
+
+/**
+ * The vote item a MOTION_* row is about, from the payload the server returns
+ * only for those two events. `vars.outcome`, when present, is the i18n key of
+ * the outcome; the caller translates it before interpolating. Null for other
+ * events or a payload without a title.
+ */
+export function activityMotionDetail(
+  item: MeetingActivityItem,
+): { key: string; vars: Record<string, string> } | null {
+  if (!MOTION_EVENTS.has(item.event_type)) return null;
+  const title = item.payload?.title?.trim();
+  if (!title) return null;
+  const outcome = item.payload?.outcome ?? "";
+  if (item.event_type === "MOTION_CLOSED" && MOTION_OUTCOMES.has(outcome)) {
+    return {
+      key: "meetings.governance.activityMotionDetailOutcome",
+      vars: { title, outcome: `meetings.governance.outcome_${outcome}` },
+    };
+  }
+  return { key: "meetings.governance.activityMotionDetail", vars: { title } };
 }
