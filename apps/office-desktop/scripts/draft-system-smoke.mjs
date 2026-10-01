@@ -46,8 +46,9 @@ const resultFile = join(userData, "result.json");
 const source = `
 import { app, safeStorage } from "electron";
 import { createSafeStorageDraftKeyStore } from "./main/drafts/keystore.ts";
+import { createDesktopDraftStore } from "./main/drafts/store.ts";
 import { execFile } from "node:child_process";
-import { readFile, readdir, writeFile } from "node:fs/promises";
+import { readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join, win32 as windowsPath } from "node:path";
 import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
@@ -102,7 +103,33 @@ try {
   await assertRestrictedAcl(join(keyDirectory, files[0]));
   await store.delete("system-q8");
   if (await store.get("system-q8") !== undefined) throw new Error("key_delete_failed");
-  await writeFile(resultFile, JSON.stringify({ ok: true, available: true }));
+  // Q8 system leg: real store + real OS key store on disk. Logout keeps the
+  // ciphertext and its key, recovery needs the live session/ACL/base, and a
+  // lost key is a typed locked state that never replaces the row.
+  const drafts = createDesktopDraftStore({ rootDirectory: join(app.getPath("userData"), "drafts"), keyStore: store });
+  const session = { sessionId: "system-q8", deploymentId: "system", accountId: "account-a", generation: 1 };
+  const identity = { deploymentId: "system", accountId: "account-a", organizationId: "local", workspaceId: "local", documentId: "local:system", base: { revision: "1", version: "sha256:".concat("a".repeat(64)) } };
+  const lookup = { deploymentId: identity.deploymentId, accountId: identity.accountId, organizationId: identity.organizationId, workspaceId: identity.workspaceId, documentId: identity.documentId, draftId: "local:system:1" };
+  await drafts.checkpointPlaintext({ session, identity, draftId: "local:system:1", generation: 1, plaintext: Buffer.from("protected system draft") });
+  if ((await drafts.list({ session, lookup })).length !== 1) throw new Error("q8_checkpoint_missing");
+  const draftRoot = join(app.getPath("userData"), "drafts");
+  const rowNamespaces = await readdir(draftRoot);
+  const rowDirectory = join(draftRoot, rowNamespaces[0]);
+  const rowFiles = await readdir(rowDirectory);
+  const rowFile = join(rowDirectory, rowFiles[0]);
+  const ciphertextBefore = await readFile(rowFile, "utf8");
+  if (ciphertextBefore.includes("protected system draft")) throw new Error("q8_plaintext_persisted");
+  const recovered = await drafts.recoverPlaintext({ session, lookup, currentBase: identity.base, liveAccess: "edit" });
+  if (recovered.status !== "recovered" || Buffer.from(recovered.plaintext).toString() !== "protected system draft") throw new Error("q8_recovery_failed");
+  const blocked = await drafts.recoverPlaintext({ session, lookup, currentBase: identity.base, liveAccess: "none" });
+  if (blocked.status !== "blocked") throw new Error("q8_acl_not_enforced");
+  const conflicted = await drafts.recoverPlaintext({ session, lookup, currentBase: { revision: "2", version: "sha256:".concat("b".repeat(64)) }, liveAccess: "edit" });
+  if (conflicted.status !== "conflict") throw new Error("q8_base_not_enforced");
+  for (const keyFile of await readdir(keyDirectory)) await rm(join(keyDirectory, keyFile), { force: true });
+  const locked = await drafts.recoverPlaintext({ session, lookup, currentBase: identity.base, liveAccess: "edit" });
+  if (locked.status !== "locked") throw new Error("q8_key_loss_not_locked");
+  if (await readFile(rowFile, "utf8") !== ciphertextBefore) throw new Error("q8_ciphertext_replaced");
+  await writeFile(resultFile, JSON.stringify({ ok: true, available: true, q8: ["checkpoint", "recovery", "acl", "conflict", "key-lost", "ciphertext-retained"] }));
   app.exit(0);
 } catch (error) {
   await writeFile(resultFile, JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }));
@@ -132,7 +159,7 @@ try {
   });
   const result = JSON.parse(await readFile(resultFile, "utf8"));
   if (code !== 0 || !result.ok) throw new Error(`system smoke failed: ${result.error ?? stderr}`);
-  process.stdout.write("desktop recovery system smoke: Windows safeStorage round trip, opaque key file, restricted ACL and delete verified\n");
+  process.stdout.write("desktop recovery system smoke: Windows safeStorage round trip, opaque key file, restricted ACL and delete verified; Q8 checkpoint/recovery/ACL/conflict/key-lost/ciphertext-retained verified\n");
 } finally {
   if (process.env.OFFICE_DESKTOP_SYSTEM_KEEP !== "1") await rm(userData, { recursive: true, force: true });
   else process.stdout.write(`desktop recovery system smoke kept artifacts at ${userData}\n`);
