@@ -20,7 +20,7 @@ import {
   type OpenOutcome,
 } from "@uniwork/office-contracts";
 import type { OoxmlCrypto } from "./engine";
-import type { DocxEngineFunctions, DocxParsed } from "./engine";
+import type { DocxBlock, DocxEngineFunctions, DocxParsed } from "./engine";
 import { DocxSessionModel, editableIndexes, visibleIndexes, type DocxEdit } from "./model";
 import { DocPasswordIntents } from "./password";
 import { inventoryDocxAssets, unsupportedDocxWarnings, type DocxAssetInventory } from "./assets";
@@ -392,6 +392,14 @@ export class DocxAdapter {
 
   isDirty(ref: string): boolean {
     return this.sessionOf(ref).model.isDirty;
+  }
+
+  /** Read-only block inventory for a rendering host — the model's own blocks,
+   * never a copy with inferred fields. A view binds an editing surface to
+   * this; it must never reach the session model directly (adapter.ts is the
+   * only seam between the engine and a host). */
+  blocksOf(ref: string): DocxBlock[] {
+    return this.sessionOf(ref).model.blocks;
   }
 }
 

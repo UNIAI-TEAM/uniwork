@@ -6867,8 +6867,14 @@
         "retryOpen": "Thử mở lại"
       },
       "commands": {
-        "bold": "Đậm (đang chờ)",
-        "italic": "Nghiêng (đang chờ)",
+        "bold": "Đậm",
+        "italic": "Nghiêng",
+        "underline": "Gạch chân",
+        "heading": "Kiểu đoạn văn",
+        "headingParagraph": "Văn bản thường",
+        "headingLevel": "Tiêu đề {{level}}",
+        "bulletList": "Danh sách dấu đầu dòng",
+        "orderedList": "Danh sách đánh số",
         "table": "Bảng (đang chờ)",
         "image": "Ảnh (đang chờ)"
       },
