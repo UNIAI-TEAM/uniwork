@@ -52,7 +52,7 @@ func (h *handlers) desktopConsent(w http.ResponseWriter, r *http.Request) {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, http.StatusOK, sdo.DesktopConsentSDO{AttemptID: consent.AttemptID, AccountID: consent.AccountID, AccountName: consent.AccountName, AccountEmail: consent.AccountEmail, ClientID: consent.ClientID, DeploymentID: consent.DeploymentID, RedirectURI: consent.RedirectURI, DeviceLabel: consent.DeviceLabel, Platform: consent.Platform, Build: consent.Build, CSRFToken: consent.CSRFToken})
+	respondJSON(w, http.StatusOK, sdo.DesktopConsentSDO{Status: consent.Status, AttemptID: consent.AttemptID, AccountID: consent.AccountID, AccountName: consent.AccountName, AccountEmail: consent.AccountEmail, ClientID: consent.ClientID, DeploymentID: consent.DeploymentID, RedirectURI: consent.RedirectURI, DeviceLabel: consent.DeviceLabel, Platform: consent.Platform, Build: consent.Build, CSRFToken: consent.CSRFToken})
 }
 
 func (h *handlers) desktopConsentCommand(w http.ResponseWriter, r *http.Request) {

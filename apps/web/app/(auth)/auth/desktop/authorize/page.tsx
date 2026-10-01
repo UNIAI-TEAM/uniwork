@@ -22,7 +22,15 @@ export default function DesktopAuthorizePage() {
     if (!attemptId) { setState("error"); return; }
     void api.auth.desktopConsent(attemptId)
       .then((value) => {
-        if (value) { setConsent(value); setState("pending"); }
+        if (value) {
+          setConsent(value);
+          const next = value.status ?? "pending";
+          setState(next === "approved" || next === "cancelled" || next === "expired" || next === "pending" ? next : "error");
+          // The server state controls approval; the same-tab callback is only
+          // a convenience for reopening the app after an approved reload.
+          const saved = sessionStorage.getItem(`desktop-callback:${attemptId}`);
+          if (next === "approved" && saved && isDesktopCallbackUrl(saved)) setCallbackUrl(saved);
+        }
         else { setConsent(null); setState("error"); }
       })
       .catch((error: unknown) => {
@@ -41,7 +49,7 @@ export default function DesktopAuthorizePage() {
     try {
     const result = await api.auth.desktopConsentCommand({ attempt_id: consent.attempt_id, csrf_token: consent.csrf_token, decision });
     if (!result) { setState("error"); return; }
-    if (decision === "approve" && result.status === "approved" && result.callback_url && isDesktopCallbackUrl(result.callback_url)) { setCallbackUrl(result.callback_url); setState("approved"); return; }
+    if (decision === "approve" && result.status === "approved" && result.callback_url && isDesktopCallbackUrl(result.callback_url)) { sessionStorage.setItem(`desktop-callback:${attemptId}`, result.callback_url); setCallbackUrl(result.callback_url); setState("approved"); return; }
     if (decision === "cancel" && result.status === "cancelled") { setState("cancelled"); return; }
     setState("error");
     } catch { setState("error"); }

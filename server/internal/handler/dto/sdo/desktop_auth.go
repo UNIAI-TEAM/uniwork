@@ -47,6 +47,7 @@ type DesktopDeviceListSDO struct {
 // DesktopConsentSDO is rendered by the browser consent view. CSRFToken is
 // never logged or audited and is single-use for the approval command.
 type DesktopConsentSDO struct {
+	Status       string `json:"status" description:"Consent state: pending, approved, cancelled or expired" example:"approved"`
 	AttemptID    string `json:"attempt_id" description:"Pending attempt id" example:"01J8X4ATTEMPT0000000000000"`
 	AccountID    string `json:"account_id" description:"Signed-in account id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	AccountName  string `json:"account_name" description:"Signed-in account display name" example:"Mai Nguyen"`
