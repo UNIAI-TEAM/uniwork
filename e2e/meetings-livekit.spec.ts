@@ -1,6 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { register, verifyEmail } from "./auth-nav";
-import { createInstantMeeting, createRecordingAccount, recordingContentUrl } from "./meeting-recording-fixture";
+import {
+  createInstantMeeting,
+  createRecordingAccount,
+  loginViaUi,
+  recordingContentUrl,
+} from "./meeting-recording-fixture";
 
 // LiveKit media smoke: requires LiveKit + E2E_LIVEKIT=1. Skipped in default CI
 // (meetings.spec.ts covers lifecycle without LiveKit).
@@ -37,6 +42,38 @@ test.describe("meeting livekit smoke", () => {
     await page.getByRole("button", { name: /Vào phòng|Tham gia/i }).last().click();
     await expect(page.getByTestId("meeting-stage")).toBeVisible({ timeout: 30_000 });
   });
+  test("a signed-in user from another organization joins through an invite link (UNI-901)", async ({ page }) => {
+    const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
+    const host = await createRecordingAccount(page, api, "lki-host");
+    const outsider = await createRecordingAccount(page, api, "lki-outsider");
+    const meeting = await createInstantMeeting(page, api, host.token, host.wsId, `Invite ${host.wsId}`);
+    const auth = { authorization: `Bearer ${host.token}`, "content-type": "application/json" };
+    // The host joins first so the room is live when the outsider arrives.
+    const joined = await page.request.post(`${api}/api/v1/meetings/${meeting.id}/join`, { headers: auth, data: {} });
+    expect(joined.ok(), `host join: HTTP ${joined.status()}`).toBeTruthy();
+    const linkRes = await page.request.post(`${api}/api/v1/meetings/${meeting.id}/invite-links`, {
+      headers: auth,
+      data: { name: "ext", access_mode: "AUTO_ADMIT", expires_at: new Date(Date.now() + 3_600_000).toISOString() },
+    });
+    expect(linkRes.ok(), `create link: HTTP ${linkRes.status()} ${await linkRes.text()}`).toBeTruthy();
+    const { invite_link: link } = (await linkRes.json()) as { invite_link: { id: string; secret: string } };
+
+    await loginViaUi(page, outsider.email);
+    // In-room reads are the participant's, not the workspace's: no 403 here.
+    const roster = page.waitForResponse(
+      (r) => r.url().endsWith(`/api/v1/meetings/${meeting.id}/participants`) && r.request().method() === "GET",
+      { timeout: 30_000 },
+    );
+    await page.goto(`/invite/meeting/${link.id}#secret=${link.secret}`);
+    await expect(page).toHaveURL(new RegExp(`/invite/meeting/${link.id}/room`), { timeout: 30_000 });
+    const prejoin = page.getByTestId("meeting-prejoin");
+    if (await prejoin.isVisible({ timeout: 5_000 }).catch(() => false)) {
+      await page.getByRole("button", { name: /Vào phòng|Tham gia/i }).last().click();
+    }
+    await expect(page.getByTestId("meeting-stage")).toBeVisible({ timeout: 30_000 });
+    expect((await roster).status()).toBe(200);
+  });
+
   /**
    * The real provider path: LiveKit Egress writes the MP4 into the recording
    * bucket, the signed egress_ended webhook completes the row, and playback
