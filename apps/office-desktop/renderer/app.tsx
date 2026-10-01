@@ -17,6 +17,10 @@ import { LibraryView } from "./library/view";
 import { createLoginController, loginStateFromMetadata, type LoginScreenState } from "./login";
 import { LoginScreen } from "./login-screen";
 import { SignedInShell } from "./signed-in-shell";
+import { Button } from "@uniwork/ui/components/ui/button";
+import { OfficeShell } from "@uniwork/views/office/office-shell";
+import { EditorSlot } from "@uniwork/views/office/editor-slot";
+import { createDesktopOfficeHost } from "./office/host";
 
 const SESSION_GENERATION = "desktop-dev-session";
 
@@ -42,13 +46,13 @@ function isLibraryContext(value: unknown): value is DesktopLibraryContextRespons
 /** Scope picked plus its workspace library, between sign-in and opening a
  * document. Kept separate from the DOCX host, which mounts once a document
  * is chosen. */
-function LibraryHost({ bridge, scope }: { bridge: RendererBridge; scope: Scope & { organizationId: string; workspaceId: string } }) {
+function LibraryHost({ bridge, scope, onOpen }: { bridge: RendererBridge; scope: Scope & { organizationId: string; workspaceId: string }; onOpen: (document: DesktopLibraryDocument) => void }) {
   const [mode, setMode] = useState<LibraryMode>("list");
   const [searchQuery, setSearchQuery] = useState("");
   const [result, setResult] = useState<{ documents: DesktopLibraryDocument[]; engineAvailable: boolean } | null>(null);
   const [error, setError] = useState(false);
   const [reload, setReload] = useState(0);
-  const scopeController = useMemo(() => createLibraryScopeController({ deploymentId: scope.deploymentId, accountId: scope.accountId, organizationId: scope.organizationId, workspaceId: scope.workspaceId, sessionGeneration: SESSION_GENERATION }), [scope]);
+  const scopeController = useMemo(() => createLibraryScopeController({ deploymentId: scope.deploymentId, accountId: scope.accountId, organizationId: scope.organizationId, workspaceId: scope.workspaceId, sessionGeneration: SESSION_GENERATION }), [scope.accountId, scope.deploymentId, scope.organizationId, scope.workspaceId]);
   const controller = useMemo(() => createLibraryController(bridge, scopeController), [bridge, scopeController]);
   const drawSequence = useRef(0);
 
@@ -81,9 +85,7 @@ function LibraryHost({ bridge, scope }: { bridge: RendererBridge; scope: Scope &
       onRetry={() => setReload((value) => value + 1)}
       onModeChange={setMode}
       onSearch={setSearchQuery}
-      onOpen={(document) => {
-        void bridge.call("desktop:office-open", { sessionGeneration: SESSION_GENERATION, workspaceId: scope.workspaceId, documentId: document.id, version: document.version });
-      }}
+      onOpen={onOpen}
       onDownload={(document) => {
         void bridge.call("desktop:library-download", { sessionGeneration: SESSION_GENERATION, workspaceId: scope.workspaceId, documentId: document.id, version: document.version });
       }}
@@ -91,8 +93,14 @@ function LibraryHost({ bridge, scope }: { bridge: RendererBridge; scope: Scope &
   );
 }
 
+function OpenDocument({ bridge, scope, document, onBack }: { bridge: RendererBridge; scope: Scope & { organizationId: string; workspaceId: string }; document: DesktopLibraryDocument; onBack: () => void }) {
+  const host = useMemo(() => createDesktopOfficeHost({ bridge, context: { sessionGeneration: SESSION_GENERATION, workspaceId: scope.workspaceId, documentId: document.id, version: document.version } }), [bridge, document.id, document.version, scope.workspaceId]);
+  return <OfficeShell title={document.title} breadcrumbs={[{ label: "Documents" }]} actions={<Button type="button" variant="outline" size="sm" onClick={onBack}>Back to library</Button>} editor={<EditorSlot format="docx" host={host as never} capability={{ format: "docx", operation: "open", host: "desktop", engineBuild: "desktop", contractRevision: "desktop/1", status: "available", fidelityWarnings: [] }} openState="ready" />} editorReady={false} />;
+}
+
 function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; metadata: SignedInMetadata; onLogout: () => void }) {
   const [scope, setScope] = useState<LibraryPickerSelection | null>(null);
+  const [openedDocument, setOpenedDocument] = useState<DesktopLibraryDocument | null>(null);
   const [context, setContext] = useState<DesktopLibraryContextResponse | null>(null);
   const [contextError, setContextError] = useState(false);
   const [contextReload, setContextReload] = useState(0);
@@ -112,7 +120,7 @@ function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; meta
   return (
     <SignedInShell onSignOut={onLogout} accountName={account?.name} workspaceName={workspace?.name}>
       {scope ? (
-        <LibraryHost bridge={bridge} scope={{ ...metadata, ...scope }} />
+        <div className="flex min-h-0 flex-1 flex-col overflow-auto"><LibraryHost bridge={bridge} scope={{ ...metadata, ...scope }} onOpen={(document) => { setOpenedDocument(document); void bridge.call("desktop:office-open", { sessionGeneration: SESSION_GENERATION, workspaceId: scope.workspaceId, documentId: document.id, version: document.version }); }} />{openedDocument ? <OpenDocument bridge={bridge} scope={{ ...metadata, ...scope }} document={openedDocument} onBack={() => setOpenedDocument(null)} /> : null}</div>
       ) : (
         <LibraryPicker context={context} error={contextError} onRetry={() => setContextReload((value) => value + 1)} onChoose={setScope} />
       )}

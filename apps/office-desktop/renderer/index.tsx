@@ -14,8 +14,7 @@ const root = document.getElementById("root");
 const bridge = window.uniworkOffice;
 
 if (root && bridge) {
-  void setLocale("vi").finally(() => {
-    document.documentElement.lang = "vi";
-    createRoot(root).render(<App bridge={bridge} />);
-  });
+  document.documentElement.lang = "vi";
+  createRoot(root).render(<App bridge={bridge} />);
+  void setLocale("vi");
 }

@@ -18,6 +18,7 @@
     "@uniwork/core": "workspace:*",
     "@uniwork/office-contracts": "workspace:*",
     "@uniwork/office-engine": "workspace:*",
+    "@uniwork/views": "workspace:*",
     "@uniwork/ui": "workspace:*",
     "i18next": "catalog:",
     "react": "catalog:",
