@@ -7202,6 +7202,7 @@
     "library": {
       "pickerTitle": "Choose a deployment, account, organization, and workspace",
       "pickerChoose": "Open documents",
+      "pickerRequired": "Choose: {{groups}}",
       "deployments": "Deployments",
       "accounts": "Accounts",
       "organizations": "Organizations",

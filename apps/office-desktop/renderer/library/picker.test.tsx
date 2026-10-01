@@ -1,5 +1,5 @@
-/** @vitest-environment jsdom */
-import { fireEvent, render, screen } from "@testing-library/react";
+﻿/** @vitest-environment jsdom */
+import { render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import type { DesktopLibraryContextResponse } from "../../shared/ipc";
 import { LibraryPicker } from "./picker";
@@ -17,24 +17,11 @@ it("shows a loading skeleton before context arrives", () => {
   expect(screen.queryByText("Default")).not.toBeInTheDocument();
 });
 
-it("requires one choice per group before the choose action is enabled", () => {
+it("preselects singleton groups and enables the choose action", () => {
   const onChoose = vi.fn();
   render(<LibraryPicker context={context} onChoose={onChoose} />);
   const choose = screen.getByRole("button", { name: "Mở tài liệu" });
-  expect(choose).toBeDisabled();
-
-  fireEvent.click(screen.getByRole("button", { name: "Default" }));
-  fireEvent.click(screen.getByRole("button", { name: "acc@example.com" }));
-  fireEvent.click(screen.getByRole("button", { name: "Acme" }));
-  expect(choose).toBeDisabled();
-  fireEvent.click(screen.getByRole("button", { name: "Team" }));
-
   expect(choose).toBeEnabled();
-  fireEvent.click(choose);
-  expect(onChoose).toHaveBeenCalledWith({
-    deploymentId: "default",
-    accountId: "acc-1",
-    organizationId: "org-1",
-    workspaceId: "ws-1",
-  });
+  choose.click();
+  expect(onChoose).toHaveBeenCalledWith({ deploymentId: "default", accountId: "acc-1", organizationId: "org-1", workspaceId: "ws-1" });
 });

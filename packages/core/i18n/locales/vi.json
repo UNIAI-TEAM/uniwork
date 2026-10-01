@@ -7183,6 +7183,7 @@
     "library": {
       "pickerTitle": "Chọn môi trường, tài khoản, tổ chức và workspace",
       "pickerChoose": "Mở tài liệu",
+      "pickerRequired": "Ch?n: {{groups}}",
       "deployments": "Môi trường",
       "accounts": "Tài khoản",
       "organizations": "Tổ chức",
