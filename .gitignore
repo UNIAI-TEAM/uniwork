@@ -11,6 +11,7 @@ server/bin/
 coverage/
 .go-cache/
 .go-tmp/
+packages/office-upstream/dist/
 test-results/
 playwright-report/
 

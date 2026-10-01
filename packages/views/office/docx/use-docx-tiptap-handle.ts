@@ -90,21 +90,24 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
   const formatListeners = new Set<(state: DocxFormatState) => void>();
   const currentFormatState = (): DocxFormatState => {
     if (!tiptapEditor) return { bold: false, italic: false, underline: false, headingLevel: null, listKind: null };
-    const attrs = tiptapEditor.state.selection.$from.parent.attrs as Partial<DocxBlockAttrs>;
+    const node = tiptapEditor.state.selection.$from.parent;
+    const attrs = node.attrs;
     return {
       bold: tiptapEditor.isActive("bold"),
       italic: tiptapEditor.isActive("italic"),
       underline: tiptapEditor.isActive("underline"),
-      headingLevel: attrs.blockKind === "heading" ? (attrs.level ?? 1) : null,
-      listKind: attrs.blockKind === "listItem" ? (attrs.list?.kind ?? "bullet") : null,
+      headingLevel: node.type.name === "docHeading" ? (attrs.level ?? 1) : null,
+      listKind: node.type.name === "docListItem" ? (attrs.kind ?? "bullet") : null,
     };
   };
   const emitFormatState = () => {
     const next = currentFormatState();
     for (const listener of formatListeners) listener(next);
   };
-  const setBlockAttrs = (patch: Partial<DocxBlockAttrs>) => {
-    tiptapEditor?.chain().focus().updateAttributes("docxBlock", patch).run();
+  const setBlockType = (type: string, patch: Record<string, unknown>) => {
+    if (!tiptapEditor) return;
+    const attrs = tiptapEditor.state.selection.$from.parent.attrs;
+    tiptapEditor.chain().focus().setNode(type, { ...attrs, ...patch }).run();
   };
   const commands: DocxFormatCommands = {
     getState: currentFormatState,
@@ -116,13 +119,13 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
     toggleItalic: () => tiptapEditor?.chain().focus().toggleMark("italic").run(),
     toggleUnderline: () => tiptapEditor?.chain().focus().toggleMark("underline").run(),
     setHeading: (level) => {
-      if (level === null) setBlockAttrs({ blockKind: "paragraph", level: null, list: null });
-      else setBlockAttrs({ blockKind: "heading", level, list: null });
+      if (level === null) setBlockType("docParagraph", {});
+      else setBlockType("docHeading", { level });
     },
     toggleList: (kind) => {
       const state = currentFormatState();
-      if (state.listKind === kind) setBlockAttrs({ blockKind: "paragraph", level: null, list: null });
-      else setBlockAttrs({ blockKind: "listItem", level: null, list: { kind, numId: nextListId(), ilvl: 0 } });
+      if (state.listKind === kind) setBlockType("docParagraph", {});
+      else setBlockType("docListItem", { kind, numId: nextListId(), ilvl: 0 });
     },
   };
 

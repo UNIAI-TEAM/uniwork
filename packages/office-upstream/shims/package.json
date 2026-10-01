@@ -1,8 +1,0 @@
-{
-  "name": "@uniwork/office-upstream-browser",
-  "private": true,
-  "type": "module",
-  "exports": {
-    "./docs-renderer-editor": "./docs-renderer-editor.ts"
-  }
-}

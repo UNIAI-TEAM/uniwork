@@ -42,15 +42,14 @@ describe("kindOf", () => {
 describe("blocksToDoc", () => {
   it("keeps only visible blocks, in order, and never touches hidden ones", () => {
     const doc = blocksToDoc(kitchenSink);
-    const content = doc.content as Array<{ attrs: { docxIndex: number | null; blockKind: string } }>;
+    const content = doc.content as Array<{ type: string; attrs: { docxIndex: number | null } }>;
     expect(content.map((n) => n.attrs.docxIndex)).toEqual([0, 1, 2, 3]);
-    expect(content.map((n) => n.attrs.blockKind)).toEqual(["heading", "paragraph", "other", "paragraph"]);
+    expect(content.map((n) => n.type)).toEqual(["docHeading", "docParagraph", "docTable", "docParagraph"]);
   });
 
-  it("marks a non-paragraph/heading/listItem block 'other' and gives it a placeholder label", () => {
+  it("renders a table with the vendored table node", () => {
     const doc = blocksToDoc(kitchenSink);
-    const content = doc.content as Array<{ attrs: { blockKind: string; placeholderLabel: string | null } }>;
-    expect(content[2]).toMatchObject({ attrs: { blockKind: "other", placeholderLabel: "[table]" } });
+    expect(doc.content?.[2]).toMatchObject({ type: "docTable", attrs: { docxIndex: 2 } });
   });
 });
 
@@ -94,10 +93,10 @@ describe("computeDesiredList", () => {
   it("restyles a heading into a plain paragraph as remove+insert, never a retype", () => {
     const editor = editorFrom(kitchenSink);
     const byIndex = new Map(kitchenSink.filter((b) => !b.hidden).map((b) => [b.docxIndex as number, b]));
-    editor.commands.updateAttributes("docxBlock", { blockKind: "paragraph", level: null, list: null });
+    editor.commands.setNode("docParagraph", { docxIndex: 0 });
     // The caret starts at doc start (inside the heading, docxIndex 0).
     const desired = computeDesiredList(editor.state.doc, byIndex);
-    expect(desired[0]).toEqual({ kind: "restyle", docxIndex: 0, block: { type: "paragraph", runs: [{ text: "Spec" }] } });
+    expect(desired[0]).toEqual({ kind: "restyle", docxIndex: 0, block: { type: "paragraph", runs: [{ text: "Spec" }], blockRevision: null, pPrChange: null } });
     editor.destroy();
   });
 

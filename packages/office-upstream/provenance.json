@@ -19,6 +19,8 @@
     "packages/pdf2docx",
     "packages/html2docx",
     "packages/font-metrics",
+    "packages/ui/src/wordart-presets.ts",
+    "packages/ui/src/shape-gallery.tsx",
     "packages/i18n",
     "packages/project-store",
     "apps/docs/src/main",
@@ -30,6 +32,8 @@
     "apps/docs/src/renderer/dom-range.ts",
     "apps/docs/src/renderer/phased-content.ts",
     "apps/docs/src/renderer/pagination-lines.ts",
+    "apps/docs/src/renderer/pagination-measure.ts",
+    "apps/docs/src/renderer/pagination-slices.ts",
     "apps/docs/src/renderer/pagination-types.ts",
     "apps/docs/src/renderer/pagination-sections.ts",
     "apps/docs/src/renderer/pagination.ts",
@@ -57,9 +61,9 @@
     "tsconfig.base.json",
     "vitest.config.ts"
   ],
-  "fileCount": 834,
+  "fileCount": 838,
   "integrity": {
-    "filesDigest": "866e55d8659ecdc02b7a5a81a990ea072d7de39c01d8997b5cc650e014b73eb4"
+    "filesDigest": "a159a4cba3d44c13a5fd2c4bbb921c6b25a4b466917c41867627df19b3d85352"
   },
   "files": [
     {
@@ -581,10 +585,24 @@
       "mode": "100644"
     },
     {
+      "path": "apps/docs/src/renderer/pagination-measure.ts",
+      "bytes": 25635,
+      "sha256": "C98B9D490A054F86C22233433FACA0483E8DFB3F5A4D0D2DE089BCFEF48781A2",
+      "blob": "f0d3863fec0c7f903edd73b21ba2dab6a0a85bf5",
+      "mode": "100644"
+    },
+    {
       "path": "apps/docs/src/renderer/pagination-sections.ts",
       "bytes": 32585,
       "sha256": "59BB6E76EDDDEF5A849D75C755B41F8FFCB213F15EB352B5C7113D652F38B494",
       "blob": "f3ef08234963da7fea4da81ce146a78721e37d2d",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/pagination-slices.ts",
+      "bytes": 88848,
+      "sha256": "8611458FF32A1BAD34FF354DF4B14DD62BED0D2AA1B26C2A7114D0C7E3C2B093",
+      "blob": "72c231b7d140828ecbebff4a8caf4a0c312f0fe0",
       "mode": "100644"
     },
     {
@@ -5534,6 +5552,20 @@
       "bytes": 156,
       "sha256": "4E19E07C1D033C237EB8AD0CF525C3769C0D4D64BF8615B3AA448F7E5871679A",
       "blob": "b31aa2a51f86a95aa5f989b9c40948b2ce9aac59",
+      "mode": "100644"
+    },
+    {
+      "path": "packages/ui/src/shape-gallery.tsx",
+      "bytes": 11821,
+      "sha256": "316B6D345E3AD1DA3CC3C14813AC9196A993D461CF12EC8B8C5D39E76BF41E95",
+      "blob": "5983009d01d71e870ab517ccf469966d23d32450",
+      "mode": "100644"
+    },
+    {
+      "path": "packages/ui/src/wordart-presets.ts",
+      "bytes": 3418,
+      "sha256": "5FF2E934A4A3893963F8464CCB869D3E762F324E854ED7D5762C986E079F94EB",
+      "blob": "3c8d26b443b6a6f0d7d5ac511ea221beec01a354",
       "mode": "100644"
     },
     {

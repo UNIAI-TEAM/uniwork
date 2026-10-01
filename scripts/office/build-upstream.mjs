@@ -57,16 +57,6 @@ export const BUNDLE_EXTERNALS = [
   'fsevents',
 ];
 
-const DOCX_BROWSER_LOCALE = '@uniwork/office-upstream/browser/locale';
-
-function applyDocxBrowserCompatibility(scratchUpstream) {
-  const extensionPath = path.join(scratchUpstream, 'apps', 'docs', 'src', 'renderer', 'editor', 'extensions.ts');
-  if (!fs.existsSync(extensionPath)) return;
-  const source = fs.readFileSync(extensionPath, 'utf8');
-  const rewritten = source.replace("from '../i18n/locale'", `from '${DOCX_BROWSER_LOCALE}'`);
-  if (rewritten !== source) fs.writeFileSync(extensionPath, rewritten);
-}
-
 export function parseArgs(argv) {
   const out = { out: null, skipInstall: false, withNative: false, json: false, keep: false, help: false };
   for (let i = 0; i < argv.length; i += 1) {
@@ -75,6 +65,7 @@ export function parseArgs(argv) {
     else if (a === '--skip-install') out.skipInstall = true;
     else if (a === '--with-native') out.withNative = true;
     else if (a === '--keep') out.keep = true;
+    else if (a === '--docx-browser') out.docxBrowser = true;
     else if (a === '--json') out.json = true;
     else if (a === '--help' || a === '-h') out.help = true;
     else throw new Error('unknown argument: ' + a);
@@ -276,7 +267,6 @@ export async function run({ out, skipInstall, withNative, keep }) {
     fs.rmSync(path.join(scratch, 'dist'), { recursive: true, force: true });
   }
   fs.cpSync(UPSTREAM_DIR, scratchUpstream, { recursive: true, dereference: false });
-  applyDocxBrowserCompatibility(scratchUpstream);
   record.steps.push({ step: 'copy', status: 'pass', detail: `${provenance.fileCount} files -> ${path.relative(REPO_ROOT, scratch)}` });
 
   for (const patchFile of fs.existsSync(PATCHES_DIR) ? fs.readdirSync(PATCHES_DIR).filter((f) => f.endsWith('.patch')).sort() : []) {
@@ -384,6 +374,11 @@ export async function buildAll(args) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  if (args.docxBrowser) {
+    const { buildDocxBrowser } = await import('./build-docx-browser.mjs');
+    console.log(JSON.stringify(await buildDocxBrowser()));
+    return;
+  }
   if (args.help) {
     console.log('usage: build-upstream.mjs [--out <dir>] [--skip-install] [--with-native] [--json]');
     return;
