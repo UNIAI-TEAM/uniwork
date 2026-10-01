@@ -1,6 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
-import { CheckCircle2, ChevronDown, FileAudio, History, ListChecks, Sparkles } from "lucide-react";
+import { ChevronDown, FileAudio, History, ListChecks, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { errorCode } from "@uniwork/core/api/http";
@@ -18,6 +18,7 @@ import {
   useRecordings,
   useTranscript,
 } from "@uniwork/core/meetings";
+import { useMeetingMotions } from "@uniwork/core/meetings/motions";
 import type { Meeting } from "@uniwork/core/types";
 import type { MeetingNote, MeetingSummary, MeetingTranscriptSegment } from "@uniwork/core/types/meeting";
 import { Badge } from "@uniwork/ui/components/ui/badge";
@@ -26,6 +27,7 @@ import { Checkbox } from "@uniwork/ui/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@uniwork/ui/components/ui/collapsible";
 import { cn } from "@uniwork/ui/lib/utils";
 import { MeetingAssigneeSelect } from "./meeting-assignee-select";
+import { MeetingDecisionsBlock } from "./meeting-decisions-block";
 import { MeetingRecordingDialog } from "./meeting-recording-dialog";
 import { PanelCard } from "../common/panel-card";
 import { MeetingSectionError, MeetingTextSkeleton } from "./meeting-section-state";
@@ -96,6 +98,9 @@ export function MeetingSummaryPanel({
   const [assigneeOverrides, setAssigneeOverrides] = useState<Record<number, string | undefined>>({});
   const [showTranscript, setShowTranscript] = useState(false);
   const { data: notes } = useNotes(meetingId);
+  const { data: motions } = useMeetingMotions(meetingId);
+  // Recorded results, not AI: shown, and summarisable, whether or not a summary exists.
+  const voted = useMemo(() => (motions ?? []).filter((m) => m.status === "CLOSED"), [motions]);
   const [playbackId, setPlaybackId] = useState<string | null>(null);
 
   const memberPreview = useMemo(
@@ -108,8 +113,8 @@ export function MeetingSummaryPanel({
   const decisions = summary?.decisions ?? [];
   const transcriptLines = transcript?.length ?? 0;
   const noteCount = notes?.length ?? 0;
-  // The server summarises the transcript and the notes, so either one is enough.
-  const hasSource = transcriptLines > 0 || noteCount > 0;
+  // The server summarises the transcript, the notes and the closed votes, so any one is enough.
+  const hasSource = transcriptLines > 0 || noteCount > 0 || voted.length > 0;
   const aiOn = caps?.ai_summary === true;
   const showGenerate = canHost && aiOn;
 
@@ -188,21 +193,7 @@ export function MeetingSummaryPanel({
           <div className="space-y-4">
             <SummaryAttribution summary={summary} transcript={transcript ?? []} notes={notes ?? []} />
             <p className="max-w-prose whitespace-pre-wrap text-pretty text-body text-foreground">{summary.summary}</p>
-            {decisions.length > 0 ? (
-              <div>
-                <h3 className="mb-2 text-overline text-muted-foreground">
-                  {t("meetings.decisions")}
-                </h3>
-                <ul className="space-y-1.5">
-                  {decisions.map((d, i) => (
-                    <li key={i} className="flex items-start gap-2 text-body text-foreground">
-                      <CheckCircle2 aria-hidden className="mt-0.5 size-4 shrink-0 text-success" />
-                      <span className="min-w-0">{d}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
+            <MeetingDecisionsBlock voted={voted} aiDecisions={decisions} />
             {actionItems.length > 0 ? (
               <div>
                 <h3 className="mb-2 text-overline text-muted-foreground">
@@ -288,6 +279,7 @@ export function MeetingSummaryPanel({
             {hasSource ? t("meetings.summaryEmpty") : t("meetings.transcriptEmpty")}
           </p>
         )}
+        {summary ? null : <MeetingDecisionsBlock voted={voted} aiDecisions={[]} />}
 
         <Collapsible open={showTranscript} onOpenChange={setShowTranscript}>
           <CollapsibleTrigger
