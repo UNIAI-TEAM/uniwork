@@ -42,6 +42,10 @@ export interface OfficeShellProps {
   saveState?: Pick<SaveCoordinatorState, "state" | "error"> | null;
   saveStatus?: OfficeSaveStatusKind | OfficeState;
   onSave?: () => void;
+  /** Host-specific destination label, e.g. a local file rather than cloud. */
+  saveLabel?: string;
+  /** Where a confirmed save lands; a local file must not read as a cloud receipt. */
+  saveDestination?: "cloud" | "local";
   editorReady?: boolean;
   className?: string;
 }
@@ -116,6 +120,8 @@ export function OfficeShell({
   saveState,
   saveStatus,
   onSave,
+  saveLabel: providedSaveLabel,
+  saveDestination = "cloud",
   editorReady = false,
   className,
 }: OfficeShellProps) {
@@ -129,7 +135,7 @@ export function OfficeShell({
   const isWideViewport = useMediaQuery("(min-width: 1024px)");
   const isDarkTheme = useDarkTheme();
   const effectiveSaving = coordinatorState?.state === "saving";
-  const saveLabel = t("save.action.save_to_cloud");
+  const saveLabel = providedSaveLabel ?? t("save.action.save_to_cloud");
   // Keep the control in the tab order while an intent is running so its
   // disabled state communicates the single coordinator guard.
   const canSave = editorReady && Boolean(saveCoordinator || onSave);
@@ -177,7 +183,7 @@ export function OfficeShell({
   }, [canSave, effectiveSaving, onSave, saveCoordinator]);
   const headerActions = (
     <div className="flex min-w-0 items-center gap-1">
-      <SaveStatus status={saveStatus} coordinatorState={coordinatorState} />
+      <SaveStatus status={saveStatus} coordinatorState={coordinatorState} destination={saveDestination} />
       {canSave ? (
         <Button size="sm" onClick={performSave} disabled={effectiveSaving} aria-label={saveLabel}>
           <Save aria-hidden />

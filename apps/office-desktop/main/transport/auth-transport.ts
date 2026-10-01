@@ -138,7 +138,7 @@ async function wireError(status: number, response: Response): Promise<AuthTransp
   if (code === "device_revoked" || code === "refresh_reused" || code === "unauthorized" || code === "rate_limited" || code === "invalid_request") return new AuthTransportError(code, status);
   return new AuthTransportError(status === 429 ? "rate_limited" : "unauthorized", status);
 }
-function assertOrigin(origin: string, allowDevHttp = false): void {
+export function assertOrigin(origin: string, allowDevHttp = false): void {
   const parsed = new URL(origin); const loopback = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "[::1]";
   if (parsed.protocol !== "https:" && !(allowDevHttp && parsed.protocol === "http:" && loopback)) throw new Error("Auth transport origin must use HTTPS");
   if (parsed.username || parsed.password || parsed.search || parsed.hash || (parsed.pathname !== "" && parsed.pathname !== "/")) throw new Error("Auth transport origin cannot contain credentials or path");

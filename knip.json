@@ -38,7 +38,8 @@
         "electron-main.ts",
         "main/index.ts",
         "preload/index.ts",
-        "renderer/index.ts",
+        "renderer/index.tsx",
+        "renderer/styles.css",
         "scripts/*.mjs"
       ],
       "ignoreDependencies": [

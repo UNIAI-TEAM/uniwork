@@ -60,7 +60,7 @@ export class NativeLoginManager {
     this.setMetadata({ status: "pending" });
     const generation = this.generation;
     try {
-      const response = await this.options.transport.start({ clientId: attempt.clientId, codeChallenge: attempt.codeChallenge, codeChallengeMethod: "S256", state: attempt.state, redirectUri: attempt.redirectUri, deploymentId: attempt.deploymentId });
+      const response = await this.options.transport.start({ clientId: attempt.clientId, codeChallenge: attempt.codeChallenge, codeChallengeMethod: "S256", state: attempt.state, redirectUri: attempt.redirectUri, deploymentId: attempt.deploymentId, deviceLabel: `UniWork Office (${process.platform})`, platform: process.platform, build: DESKTOP_IDENTITY_MANIFEST.build.buildId });
       const authorizationUrl = new URL(response.authorizationUrl);
       const loopback = authorizationUrl.hostname === "localhost" || authorizationUrl.hostname === "127.0.0.1" || authorizationUrl.hostname === "[::1]";
       if (authorizationUrl.protocol !== "https:" && !(this.options.allowLoopbackBrowserUrl && authorizationUrl.protocol === "http:" && loopback)) throw new Error("Authorization URL must use HTTPS");

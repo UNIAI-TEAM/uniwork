@@ -1,0 +1,17 @@
+@import "tailwindcss";
+@import "@uniwork/ui/styles/tokens.css";
+@import "@uniwork/ui/styles/base.css";
+
+/* Same dark-mode binding as the web host (ADR'd in apps/web/app/globals.css):
+   the `.dark` class on <html>, not prefers-color-scheme, so the renderer can
+   follow the OS theme explicitly instead of inheriting a media query. */
+@custom-variant dark (&:is(.dark *));
+
+/* Tailwind v4 does not scan workspace packages through the node_modules
+   symlink on its own; declare the sources this renderer actually uses. */
+@source "../../../packages/ui";
+@source "../../../packages/views";
+@source "./";
+
+.desktop-titlebar { -webkit-app-region: drag; user-select: none; }
+.desktop-titlebar button { -webkit-app-region: no-drag; }

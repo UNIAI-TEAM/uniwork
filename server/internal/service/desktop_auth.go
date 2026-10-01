@@ -96,8 +96,11 @@ type DesktopAttempt struct {
 }
 
 type DesktopConsent struct {
+	Status       string
 	AttemptID    string
 	AccountID    string
+	AccountName  string
+	AccountEmail string
 	ClientID     string
 	DeploymentID string
 	RedirectURI  string
@@ -171,21 +174,42 @@ func (s *DesktopAuthService) Consent(ctx context.Context, userID, attemptID stri
 	if strings.TrimSpace(userID) == "" || strings.TrimSpace(attemptID) == "" {
 		return DesktopConsent{}, desktopAuthCodeInvalid()
 	}
-	raw, err := randomToken(32)
-	if err != nil {
-		return DesktopConsent{}, err
-	}
-	row, err := s.q.SetDesktopAuthCSRF(ctx, db.SetDesktopAuthCSRFParams{
-		ID: attemptID, UserID: pgtype.Text{String: userID, Valid: true},
-		CsrfDigest: pgtype.Text{String: digest(raw), Valid: true},
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
+	row, err := s.q.GetDesktopAuthAttempt(ctx, attemptID)
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && row.UserID.Valid && row.UserID.String != userID) {
 		return DesktopConsent{}, desktopAuthCodeInvalid()
 	}
 	if err != nil {
 		return DesktopConsent{}, err
 	}
-	return DesktopConsent{AttemptID: row.ID, AccountID: userID, ClientID: row.ClientID, DeploymentID: row.DeploymentID,
+	status, raw := "pending", ""
+	if row.CancelledAt.Valid {
+		status = "cancelled"
+	} else if row.ApprovedAt.Valid || row.UsedAt.Valid {
+		status = "approved"
+	} else if !row.ExpiresAt.Time.After(s.now()) {
+		status = "expired"
+	} else {
+		raw, err = randomToken(32)
+		if err != nil {
+			return DesktopConsent{}, err
+		}
+		row, err = s.q.SetDesktopAuthCSRF(ctx, db.SetDesktopAuthCSRFParams{ID: attemptID, UserID: pgtype.Text{String: userID, Valid: true}, CsrfDigest: pgtype.Text{String: digest(raw), Valid: true}})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return DesktopConsent{}, desktopAuthCodeInvalid()
+		}
+		if err != nil {
+			return DesktopConsent{}, err
+		}
+		// A concurrent approval is authoritative even if the initial read was pending.
+		if row.ApprovedAt.Valid {
+			status, raw = "approved", ""
+		}
+	}
+	user, err := s.q.GetUserByID(ctx, userID)
+	if err != nil {
+		return DesktopConsent{}, err
+	}
+	return DesktopConsent{Status: status, AttemptID: row.ID, AccountID: userID, AccountName: user.DisplayName, AccountEmail: user.Email, ClientID: row.ClientID, DeploymentID: row.DeploymentID,
 		RedirectURI: row.RedirectUri, DeviceLabel: row.DeviceLabel, Platform: row.Platform,
 		Build: row.Build, CSRFToken: raw}, nil
 }

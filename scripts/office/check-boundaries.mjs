@@ -42,8 +42,25 @@ export const BROWSER_SAFE_PACKAGES = new Set([
   // core/view/ui contracts. Their package exports keep Node-only code out of
   // this graph; the checker treats the package boundary as the seam.
   "react",
+  "react-dom/client",
   "react-i18next",
   "@uniwork/core/office",
+  // G4-06a: the desktop renderer mounts React through packages/ui and the
+  // shared host-agnostic i18n singleton. Same package-boundary argument as
+  // the entries above - their exports contain no Node/Electron import.
+  "@uniwork/core/i18n",
+  "@uniwork/ui/brand",
+  "@uniwork/ui/components/ui/button",
+  "@uniwork/ui/components/ui/avatar",
+  "@uniwork/ui/components/ui/input",
+  "@uniwork/ui/components/ui/skeleton",
+  "@uniwork/ui/components/ui/radio-group",
+  "@uniwork/views/office/office-shell",
+  "@uniwork/views/office/editor-slot",
+  "@uniwork/views/office/docx",
+  "@uniwork/views/documents/document-type-icon",
+  "lucide-react",
+  "@uniwork/ui/lib/utils",
   "@uniwork/core/api/endpoints/office",
   "@uniwork/core/api/endpoints/config",
   "@uniwork/core/office/save-coordinator",

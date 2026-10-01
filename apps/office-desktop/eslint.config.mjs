@@ -1,7 +1,7 @@
-import baseConfig from "@uniwork/eslint-config/base";
+import reactConfig from "@uniwork/eslint-config/react";
 
 export default [
-  ...baseConfig,
+  ...reactConfig,
   {
     ignores: ["dist/**", "coverage/**"],
   },

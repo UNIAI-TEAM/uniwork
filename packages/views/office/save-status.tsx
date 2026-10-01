@@ -21,6 +21,8 @@ export type OfficeSaveStatusKind =
 export interface SaveStatusProps {
   status?: OfficeSaveStatusKind | OfficeState;
   coordinatorState?: Pick<SaveCoordinatorState, "state" | "error"> | null;
+  /** Where a confirmed save lands; a local file must not read as a cloud receipt. */
+  destination?: "cloud" | "local";
   correlationId?: string | null;
   onAction?: () => void;
   className?: string;
@@ -38,15 +40,18 @@ const COORDINATOR_STATUS: Record<OfficeState, OfficeSaveStatusKind> = {
   incompatible: "permission",
 };
 
-function normalizeStatus(status: SaveStatusProps["status"], coordinatorState: SaveStatusProps["coordinatorState"]): OfficeSaveStatusKind {
-  if (status === "ready") return "ready";
-  if (status && status in COORDINATOR_STATUS) return COORDINATOR_STATUS[status as OfficeState];
-  if (status) return status as OfficeSaveStatusKind;
-  if (coordinatorState?.state === "ready") return "ready";
-  if (coordinatorState) return COORDINATOR_STATUS[coordinatorState.state];
+function normalizeStatus(status: SaveStatusProps["status"], coordinatorState: SaveStatusProps["coordinatorState"], destination: "cloud" | "local" = "cloud"): OfficeSaveStatusKind {
+  let normalized: OfficeSaveStatusKind;
+  if (status === "ready") normalized = "ready";
+  else if (status && status in COORDINATOR_STATUS) normalized = COORDINATOR_STATUS[status as OfficeState];
+  else if (status) normalized = status as OfficeSaveStatusKind;
+  else if (coordinatorState?.state === "ready") normalized = "ready";
+  else if (coordinatorState) normalized = COORDINATOR_STATUS[coordinatorState.state];
   // A host that has not supplied state must not claim a cloud receipt. Keep
   // the chrome neutral until the coordinator reports where the draft lives.
-  return "ready";
+  else normalized = "ready";
+  if (destination === "local" && normalized === "saved-cloud") return "saved-local";
+  return normalized;
 }
 
 function actionKey(status: OfficeSaveStatusKind): string | null {
@@ -66,12 +71,13 @@ function actionKey(status: OfficeSaveStatusKind): string | null {
 export function SaveStatus({
   status,
   coordinatorState,
+  destination = "cloud",
   correlationId,
   onAction,
   className,
 }: SaveStatusProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.save" });
-  const normalized = normalizeStatus(status, coordinatorState);
+  const normalized = normalizeStatus(status, coordinatorState, destination);
   const errorCorrelation = coordinatorState?.error?.correlationId ?? null;
   const resolvedCorrelation = correlationId ?? errorCorrelation;
   const action = actionKey(normalized);

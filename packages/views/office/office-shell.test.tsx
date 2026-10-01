@@ -7,7 +7,7 @@ import { OfficeShell, type OfficeSaveCoordinatorLike } from "./office-shell";
 
 initI18n();
 
-function coordinator(state: "ready" | "saving"): OfficeSaveCoordinatorLike {
+function coordinator(state: "ready" | "saving" | "saved"): OfficeSaveCoordinatorLike {
   return {
     save: vi.fn(async () => ({ accepted: true })),
     getState: () => ({
@@ -42,6 +42,14 @@ describe("OfficeShell", () => {
     const save = screen.getByRole("button", { name: "Lưu lên UniWork" });
     expect(save).toBeVisible();
     expect(save).toHaveAttribute("aria-label", "Lưu lên UniWork");
+  });
+
+  it("labels a local save receipt on the machine instead of the cloud", () => {
+    const local = render(<OfficeShell title="Document" editor={<div />} editorReady saveCoordinator={coordinator("saved")} saveDestination="local" />);
+    expect(screen.getByTestId("office-save-saved-local")).toHaveTextContent("Đã lưu trên máy");
+    local.unmount();
+    render(<OfficeShell title="Document" editor={<div />} editorReady saveCoordinator={coordinator("saved")} />);
+    expect(screen.getByTestId("office-save-saved-cloud")).toHaveTextContent("Đã lưu lên UniWork");
   });
 
   it("keeps the real G3-01 coordinator fake single-flight at the views seam", async () => {

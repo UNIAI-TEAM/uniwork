@@ -9,6 +9,8 @@ initI18n();
 const consent = {
   attempt_id: "attempt_01",
   account_id: "account_01",
+  account_name: "Minh Nguyen",
+  account_email: "minh@example.com",
   client_id: "uniwork-office",
   deployment_id: "production-eu",
   redirect_uri: "uniwork-office://auth/callback",
@@ -30,8 +32,21 @@ describe("DesktopConsentView", () => {
     expect(screen.getByText("uniwork-office")).toBeInTheDocument();
     expect(screen.getByText("Minh's laptop")).toBeInTheDocument();
     expect(screen.getByText("production-eu")).toBeInTheDocument();
-    expect(screen.getByText("account_01")).toBeInTheDocument();
+    expect(screen.getByText("Minh Nguyen")).toBeInTheDocument();
+    expect(screen.getByText("minh@example.com")).toBeInTheDocument();
     expect(screen.getByText("1.2.3")).toBeInTheDocument();
+  });
+
+  it.each([
+    ["approved", "Allowed UniWork Office to sign in"],
+    ["cancelled", "Desktop sign-in was cancelled."],
+    ["error", "The desktop sign-in request could not be completed. Try again."],
+    ["expired", "This desktop sign-in request has expired."],
+  ] as const)("renders the %s result state", (state, expectedCopy) => {
+    render(wrap(<DesktopConsentView consent={null} state={state} onDecision={vi.fn(async () => {})} />));
+    expect(screen.getByRole("heading", { name: "Desktop sign-in result" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(expectedCopy);
+    expect(screen.queryByRole("button", { name: "Allow desktop app" })).not.toBeInTheDocument();
   });
 
   it("sends approve and cancel decisions", async () => {
