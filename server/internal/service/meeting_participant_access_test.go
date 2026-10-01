@@ -63,6 +63,105 @@ func TestGuestActiveParticipantCanReadMeetingRoomData(t *testing.T) {
 	}
 }
 
+// A signed-in user from another workspace who walked in through an invite
+// link is a participant like a guest is, not an outsider (UNI-901).
+func TestLinkAdmittedOutsiderUserCanReadMeetingRoomData(t *testing.T) {
+	s, ua, ub, w := meetingFixture(t)
+	ctx := context.Background()
+	m, err := s.CreateInstant(ctx, ua.ID, w.ID, "Outsider room")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.authorizeActiveParticipant(ctx, ub.ID, "", m.ID); err != ErrForbidden {
+		t.Fatalf("outsider before the link: %v", err)
+	}
+	created, err := s.CreateInviteLink(ctx, ua.ID, m.ID, "ext", LinkAutoAdmit, time.Now().Add(time.Hour), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dec, err := s.Evaluate(ctx, AdmissionContext{
+		MeetingID: m.ID, UserID: ub.ID,
+		InviteLinkID: created.Link.ID, InviteSecret: created.RawSecret,
+	})
+	if err != nil || dec.Decision != DecisionAdmit {
+		t.Fatalf("outsider via link: %+v err=%v", dec, err)
+	}
+
+	ps, err := s.ListParticipants(ctx, ub.ID, "", m.ID)
+	if err != nil || len(ps) < 2 {
+		t.Fatalf("outsider list participants: len=%d err=%v", len(ps), err)
+	}
+	if _, err := s.AppendChatMessage(ctx, ub.ID, "", m.ID, "from outside"); err != nil {
+		t.Fatalf("outsider append chat: %v", err)
+	}
+	msgs, err := s.ChatMessages(ctx, ub.ID, "", m.ID)
+	if err != nil || len(msgs) != 1 {
+		t.Fatalf("outsider list chat: len=%d err=%v", len(msgs), err)
+	}
+	// The participant row opens the room, never the workspace.
+	if _, err := s.Get(ctx, ub.ID, m.ID); err == nil {
+		t.Fatal("outsider read the meeting record")
+	}
+
+	if err := s.RemoveParticipant(ctx, ua.ID, m.ID, dec.Participant.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ChatMessages(ctx, ub.ID, "", m.ID); err != ErrForbidden {
+		t.Fatalf("removed outsider chat: %v", err)
+	}
+}
+
+// The same outsider admitted by a host who approved their link request.
+func TestApprovedLinkRequestOutsiderCanReadMeetingRoomData(t *testing.T) {
+	s, ua, ub, w := meetingFixture(t)
+	ctx := context.Background()
+	m, err := s.CreateInstant(ctx, ua.ID, w.ID, "Approval room")
+	if err != nil {
+		t.Fatal(err)
+	}
+	created, err := s.CreateInviteLink(ctx, ua.ID, m.ID, "ext", LinkRequestApproval, time.Now().Add(time.Hour), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dec, err := s.Evaluate(ctx, AdmissionContext{
+		MeetingID: m.ID, UserID: ub.ID,
+		InviteLinkID: created.Link.ID, InviteSecret: created.RawSecret,
+	})
+	if err != nil || dec.Decision != DecisionWaitingApproval {
+		t.Fatalf("outsider request via link: %+v err=%v", dec, err)
+	}
+	if _, err := s.ChatMessages(ctx, ub.ID, "", m.ID); err != ErrForbidden {
+		t.Fatalf("outsider before approval: %v", err)
+	}
+	if err := s.ApproveJoinRequest(ctx, ua.ID, dec.JoinRequestID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ChatMessages(ctx, ub.ID, "", m.ID); err != nil {
+		t.Fatalf("approved outsider chat: %v", err)
+	}
+}
+
+// Only the invite link stands in for membership. A row the person holds from
+// their time in the workspace (a direct invite, say) is not a way back in once
+// they have left it, been deactivated or seen their organization suspended.
+func TestLeftoverParticipantRowDoesNotOpenTheRoom(t *testing.T) {
+	s, ua, ub, w := meetingFixture(t)
+	ctx := context.Background()
+	m, err := s.CreateInstant(ctx, ua.ID, w.ID, "Former member")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.q.CreateMeetingParticipant(ctx, db.CreateMeetingParticipantParams{
+		ID: util.NewID(), MeetingID: m.ID, PrincipalType: PrincipalUser, UserID: strText(ub.ID),
+		DisplayNameSnapshot: "Former", Role: RoleAttendee, SourceType: GrantDirectInvite, AddedBy: ua.ID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ChatMessages(ctx, ub.ID, "", m.ID); err != ErrForbidden {
+		t.Fatalf("leftover direct-invite row: %v", err)
+	}
+}
+
 func TestGuestChatBeforeMeetingStart(t *testing.T) {
 	s, ua, _, w := meetingFixture(t)
 	ctx := context.Background()
