@@ -7,7 +7,12 @@ export const OfficeDesktopDownloadSchema = z.object({
   channel: z.enum(["stable", "beta", "dev"]), client_id: z.string().min(1), deployment_id: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/),
 }).superRefine((profile, context) => {
   for (const [key, value] of [["installer_url", profile.installer_url], ["server_origin", profile.server_origin]] as const) {
-    const url = new URL(value);
+    let url: URL;
+    try { url = new URL(value); }
+    catch {
+      context.addIssue({ code: "custom", path: [key], message: "invalid deployment URL" });
+      continue;
+    }
     const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
     if (url.username || url.password || url.search || url.hash || (url.protocol !== "https:" && !(profile.channel === "dev" && loopback && url.protocol === "http:")) || (key === "server_origin" && url.pathname !== "/")) {
       context.addIssue({ code: "custom", path: [key], message: "unsafe deployment URL" });

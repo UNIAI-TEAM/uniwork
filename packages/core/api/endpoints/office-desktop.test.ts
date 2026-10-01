@@ -18,6 +18,10 @@ describe("office desktop download endpoint", () => {
     request.mockResolvedValue({ installer_url: "javascript:alert(1)", server_origin: "https://api.test", channel: "stable", client_id: "uniwork-office", deployment_id: "default" });
     await expect(getOfficeDesktopDownload("org-1")).resolves.toBeNull();
   });
+  it.each(["installer_url", "server_origin"])("returns null for an unparseable %s in an otherwise complete response", async (field) => {
+    request.mockResolvedValue({ installer_url: "https://downloads.test/office.exe", server_origin: "https://api.test", channel: "stable", client_id: "uniwork-office", deployment_id: "default", [field]: "https://[broken" });
+    await expect(getOfficeDesktopDownload("org-1")).resolves.toBeNull();
+  });
   it("downloads the authenticated ZIP and refuses JSON masquerading as a bundle", async () => {
     const zip = new Blob(["fixture"], { type: "application/zip" });
     requestBlob.mockResolvedValueOnce(zip);
