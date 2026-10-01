@@ -226,6 +226,35 @@ earn a real vendor-upstream selection, added then with its own `--check`
 run and its own justification, not guessed now. `vendor-upstream --check`
 stays green because nothing changed.
 
+### 3d. Course correction (Advisor directive, post-3c)
+
+The Advisor overruled the 3c "zero selection" close-out for the i18n half of
+the coupling: genoffice's `../i18n/locale` import does **not** require
+vendoring genoffice's i18n runtime. Instead, the vendored `editor/` files
+get a thin translation adapter — new UniWork code, not vendored — that
+implements the same import surface genoffice's files call and delegates to
+our own i18next instance under `office.docx.editor.*`, with vi/en strings
+added to `packages/core/i18n/locales/`. That is not "a second i18n runtime"
+(section 1's objection was to porting genoffice's `strings*.ts`/`locale.tsx`
+*as the app's translation source*, not to any file that happens to import a
+translation hook).
+
+**Reworked decision**: vendor `editor/` **including `extensions.ts` and its
+dependents** through `vendor-upstream.mjs` `SELECTION`, as originally
+approved in section 2/the Advisor's go — `b997c3fa` (phase-1 "zero
+selection") is superseded. `components/` stays design-reference only (not
+vendored); the toolbar is rebuilt on `packages/ui` primitives per UI Rules,
+unchanged from 3b.
+
+The `@genoffice/docx-engine` half of the coupling (section 3b: genoffice's
+own parse/save engine and Block model, distinct from the vendored G2
+`DocxParsed`/`DocxEdit`) is **not** resolved by this directive — that import
+is still a second-engine problem, not a naming/translation one. Per the
+Advisor's instruction, any file that still needs `@genoffice/docx-engine`
+(or another forbidden import) after the i18n fix is named exactly, with its
+import line, and asked about individually rather than excluded by the
+earlier blanket rule — logged as the vendor selection is rebuilt.
+
 ## 4. Open questions for the Advisor (go/no-go gate)
 
 1. Confirm the ~95-file/~40k-line vendored subset and the `@tiptap/*`
