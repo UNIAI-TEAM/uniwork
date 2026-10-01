@@ -2,8 +2,8 @@ import { expect, it, vi } from "vitest";
 import { renderLibrary } from "./view";
 import type { DesktopLibraryDocument } from "../../shared/ipc";
 
-type Node = { textContent: string | null; attrs: Record<string, string>; children: Node[]; listeners: Array<() => void>; setAttribute(name: string, value: string): void; appendChild(child: Node): void; addEventListener(_type: string, listener: () => void): void };
-function domNode(): Node { return { textContent: "", attrs: {}, children: [], listeners: [], setAttribute(name, value) { this.attrs[name] = value; }, appendChild(child) { this.children.push(child); }, addEventListener(_type, listener) { this.listeners.push(listener); } }; }
+type Node = { textContent: string | null; value?: string; attrs: Record<string, string>; children: Node[]; listeners: Array<() => void>; listenerTypes: string[]; setAttribute(name: string, value: string): void; appendChild(child: Node): void; addEventListener(type: string, listener: () => void): void };
+function domNode(): Node { return { textContent: "", attrs: {}, children: [], listeners: [], listenerTypes: [], setAttribute(name, value) { this.attrs[name] = value; }, appendChild(child) { this.children.push(child); }, addEventListener(type, listener) { this.listenerTypes.push(type); this.listeners.push(listener); } }; }
 const doc = { createElement: () => domNode() };
 const row: DesktopLibraryDocument = { id: "doc-1", workspaceId: "ws", title: "Plan.docx", kind: "file", format: "docx", version: 1, revision: "1", updatedAt: "2026-09-30T00:00:00.000Z", ownerKind: null, canEdit: true, downloadAvailable: true };
 
@@ -29,4 +29,15 @@ it("renders a translated empty state and mode callback", () => {
   expect(root.children.at(-1)?.textContent).toBe("translated:empty");
   root.children[1]!.children[0]!.listeners[0]!();
   expect(onModeChange).toHaveBeenCalledWith("list");
+});
+
+it("preserves the search query and submits it after editing", () => {
+  const root = domNode();
+  const onSearch = vi.fn();
+  renderLibrary(root, doc, { mode: "search", searchQuery: "roadmap", documents: [], engineAvailable: true, onSearch });
+  const search = root.children[2]!;
+  expect(search.value).toBe("roadmap");
+  expect(search.listenerTypes).toContain("change");
+  search.listeners[0]!();
+  expect(onSearch).toHaveBeenCalledWith("roadmap");
 });

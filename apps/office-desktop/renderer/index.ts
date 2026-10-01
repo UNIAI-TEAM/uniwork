@@ -122,20 +122,35 @@ function renderSignedIn(root: RendererRoot, documentLike: RendererDocument, meta
   const controller = createLibraryController(bridge, scopes);
   let mode: LibraryMode = "list";
   let searchQuery = "";
+  let drawSequence = 0;
   const drawLibrary = async (): Promise<void> => {
+    const requestSequence = ++drawSequence;
     try {
       const result = mode === "list" ? await controller.list() : mode === "recent" ? await controller.recent() : searchQuery.trim() ? await controller.search(searchQuery.trim()) : { documents: [], nextCursor: null, engineAvailable: true, generation: scopes.getGeneration() };
+      // Mode changes and submitted searches can overlap. Only the most recent
+      // request is allowed to paint, otherwise a slower response can overwrite
+      // the user's newer mode/query with stale results.
+      if (requestSequence !== drawSequence) return;
       renderLibrary(libraryRoot as never, documentLike as never, {
         mode,
+        searchQuery,
         documents: result.documents,
         engineAvailable: result.engineAvailable,
         onModeChange: (next) => { mode = next; void drawLibrary(); },
-        onSearch: (query) => { searchQuery = query; if (query.trim()) void drawLibrary(); },
+        onSearch: (query) => { searchQuery = query; void drawLibrary(); },
         onOpen: (document) => { void bridge.call("desktop:office-open", { sessionGeneration: SESSION_GENERATION, workspaceId, documentId: document.id, version: document.version }); },
         onDownload: (document) => { void bridge.call("desktop:library-download", { sessionGeneration: SESSION_GENERATION, workspaceId, documentId: document.id, version: document.version }); },
       });
     } catch {
-      renderLibrary(libraryRoot as never, documentLike as never, { mode, documents: [], engineAvailable: false, onModeChange: (next) => { mode = next; void drawLibrary(); } });
+      if (requestSequence !== drawSequence) return;
+      renderLibrary(libraryRoot as never, documentLike as never, {
+        mode,
+        searchQuery,
+        documents: [],
+        engineAvailable: false,
+        onModeChange: (next) => { mode = next; void drawLibrary(); },
+        onSearch: (query) => { searchQuery = query; void drawLibrary(); },
+      });
     }
   };
   void drawLibrary();

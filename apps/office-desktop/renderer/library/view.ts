@@ -31,6 +31,7 @@ export function renderLibrary(
     mode: LibraryMode;
     documents: readonly DesktopLibraryDocument[];
     engineAvailable: boolean;
+    searchQuery?: string;
     onModeChange?: (mode: LibraryMode) => void;
     onSearch?: (query: string) => void;
     onOpen?: (document: DesktopLibraryDocument) => void;
@@ -58,12 +59,15 @@ export function renderLibrary(
   root.appendChild(nav);
   if (options.mode === "search") {
     const search = documentLike.createElement("input");
-    search.value = "";
+    // The renderer submits search changes on blur/change instead of on every
+    // keystroke. This lets the user finish typing without replacing the input
+    // node (and losing its focus) while an async result is loading.
+    search.value = options.searchQuery ?? "";
     search.textContent = "";
     search.setAttribute("type", "search");
     search.setAttribute("aria-label", t("search"));
     search.setAttribute("placeholder", t("search"));
-    search.addEventListener("input", () => options.onSearch?.(search.value ?? ""));
+    search.addEventListener("change", () => options.onSearch?.(search.value ?? ""));
     root.appendChild(search);
   }
   if (!options.engineAvailable) {
