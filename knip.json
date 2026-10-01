@@ -33,6 +33,9 @@
     },
     "apps/office-desktop": {
       "ignoreExportsUsedInFile": true,
+      "ignoreBinaries": [
+        "whoami.exe"
+      ],
       "entry": [
         "electron-main.ts",
         "main/index.ts",
