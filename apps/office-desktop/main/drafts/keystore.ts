@@ -47,11 +47,18 @@ const nodeFileSystem: DraftKeyFileSystem = {
 };
 const execFileAsync = promisify(execFile);
 
-export function windowsWhoamiPath(systemRoot = process.env.SystemRoot): string {
+export function windowsSystemPath(executable: string, systemRoot = process.env.SystemRoot): string {
   if (!systemRoot || !windowsPath.isAbsolute(systemRoot)) {
     throw new DraftKeyStoreError("unavailable", "Windows system root could not be resolved");
   }
-  return windowsPath.join(systemRoot, "System32", "whoami.exe");
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*\.exe$/i.test(executable)) {
+    throw new DraftKeyStoreError("unavailable", "Windows system executable could not be resolved");
+  }
+  return windowsPath.join(systemRoot, "System32", executable);
+}
+
+export function windowsWhoamiPath(systemRoot = process.env.SystemRoot): string {
+  return windowsSystemPath("whoami.exe", systemRoot);
 }
 
 function currentWindowsAccount(): string {
@@ -98,7 +105,7 @@ export function createSafeStorageDraftKeyStore(options: DraftKeyStoreOptions) {
         // Modify includes read/write/delete, which is required for atomic key
         // rotation and explicit logout cleanup while still granting only the
         // current account after inherited ACLs are removed.
-        await execFileAsync("icacls", [path, "/inheritance:r", "/grant:r", `${account}:(M)`]);
+        await execFileAsync(windowsSystemPath("icacls.exe"), [path, "/inheritance:r", "/remove:g", "*S-1-5-32-544", "/grant:r", `${account}:(M)`]);
       } catch { throw new DraftKeyStoreError("unavailable", "draft key permissions could not be restricted"); }
     }
   });
@@ -108,7 +115,7 @@ export function createSafeStorageDraftKeyStore(options: DraftKeyStoreOptions) {
       if (process.platform !== "win32") return;
       try {
         const account = currentWindowsAccount();
-        await execFileAsync("icacls", [path, "/inheritance:r", "/grant:r", `${account}:(M)`]);
+        await execFileAsync(windowsSystemPath("icacls.exe"), [path, "/inheritance:r", "/remove:g", "*S-1-5-32-544", "/grant:r", `${account}:(M)`]);
       } catch { throw new DraftKeyStoreError("unavailable", "draft key directory permissions could not be restricted"); }
     });
 

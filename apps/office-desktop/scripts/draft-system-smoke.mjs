@@ -21,11 +21,15 @@ const buildIdentity = await readFile(join(appDirectory, "dist", "build-identity.
   .catch(() => undefined);
 const runtimeIdentity = buildIdentity ?? identityManifest;
 const keyNamespace = runtimeIdentity.keyNamespace;
+function windowsSystemPath(executable) {
+  const systemRoot = process.env.SystemRoot ?? process.env.WINDIR;
+  if (!systemRoot || !windowsPath.isAbsolute(systemRoot)) throw new Error("Windows system root could not be resolved");
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*\.exe$/i.test(executable)) throw new Error("Windows system executable could not be resolved");
+  return windowsPath.join(systemRoot, "System32", executable);
+}
 function currentWindowsAccount() {
   try {
-    const systemRoot = process.env.SystemRoot ?? process.env.WINDIR;
-    if (!systemRoot || !windowsPath.isAbsolute(systemRoot)) throw new Error("Windows system root could not be resolved");
-    const account = execFileSync(join(systemRoot, "System32", "whoami.exe"), { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], windowsHide: true }).trim();
+    const account = execFileSync(windowsSystemPath("whoami.exe"), { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], windowsHide: true }).trim();
     if (/^[^\\/:\r\n]+\\[^\\/:\r\n]+$/.test(account)) return account;
   } catch { /* report a typed smoke failure below */ }
   throw new Error("current Windows account could not be resolved");
@@ -44,14 +48,20 @@ import { app, safeStorage } from "electron";
 import { createSafeStorageDraftKeyStore } from "./main/drafts/keystore.ts";
 import { execFile } from "node:child_process";
 import { readFile, readdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, win32 as windowsPath } from "node:path";
 import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 const resultFile = process.env.OFFICE_DESKTOP_SYSTEM_RESULT;
 const expectedAccount = ${JSON.stringify(expectedAccount)};
-const parseAcl = (text) => [...text.split(/\\r?\\n/).flatMap((line) => [...line.matchAll(/(?:^|\\s)([^:]+):\\(([^)]+)\\)/g)].map((match) => ({ principal: match[1].trim(), rights: match[2] })))];
+const windowsSystemPath = (executable) => {
+  const systemRoot = process.env.SystemRoot ?? process.env.WINDIR;
+  if (!systemRoot || !windowsPath.isAbsolute(systemRoot)) throw new Error("Windows system root could not be resolved");
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*\\.exe$/i.test(executable)) throw new Error("Windows system executable could not be resolved");
+  return windowsPath.join(systemRoot, "System32", executable);
+};
+const parseAcl = (text) => [...text.split(/\\r?\\n/).flatMap((line) => [...line.matchAll(/(?:^|\\s)([^:]+):((?:\\([^)]+\\))+)/g)].map((match) => ({ principal: match[1].trim(), rights: [...match[2].matchAll(/\\(([^)]+)\\)/g)].map((right) => right[1]).join(",") })))];
 const assertRestrictedAcl = async (path) => {
-  const text = (await execFileAsync("icacls", [path])).stdout;
+  const text = (await execFileAsync(windowsSystemPath("icacls.exe"), [path])).stdout;
   const entries = parseAcl(text);
   const accountEntries = entries.filter((entry) => entry.principal.toLowerCase() === expectedAccount.toLowerCase());
   const systemPrincipal = ["nt authority", "system"].join(String.fromCharCode(92));

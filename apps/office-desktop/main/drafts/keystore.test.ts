@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { createSafeStorageDraftKeyStore, DraftKeyStoreError, windowsWhoamiPath, type DraftKeyFileSystem, type DraftSafeStorage } from "./keystore";
+import { createSafeStorageDraftKeyStore, DraftKeyStoreError, windowsSystemPath, windowsWhoamiPath, type DraftKeyFileSystem, type DraftSafeStorage } from "./keystore";
 
 function fakeStore() {
   const files = new Map<string, Uint8Array>();
@@ -52,5 +52,7 @@ it("rejects an invalid key namespace without revealing path data", () => {
 it("resolves whoami through the absolute Windows System32 path", () => {
   expect(windowsWhoamiPath("C:\\Windows")).toBe("C:\\Windows\\System32\\whoami.exe");
   expect(windowsWhoamiPath("D:\\Windows")).toBe("D:\\Windows\\System32\\whoami.exe");
+  expect(windowsSystemPath("icacls.exe", "C:\\Windows")).toBe("C:\\Windows\\System32\\icacls.exe");
   expect(() => windowsWhoamiPath("Windows")).toThrowError(DraftKeyStoreError);
+  expect(() => windowsSystemPath("whoami", "C:\\Windows")).toThrowError(DraftKeyStoreError);
 });
