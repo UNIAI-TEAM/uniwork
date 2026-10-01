@@ -1,6 +1,6 @@
 # Meetings: Điểm danh và Biểu quyết cho họp chính thức
 
-> **Trạng thái:** in-progress — spec đã duyệt ngày 2026-09-30; đợt 1 đang triển khai trên nhánh `feature/UNI-892-…`.
+> **Trạng thái:** in-progress — spec đã duyệt ngày 2026-09-30; đợt 1 (Điểm danh, UNI-892) đã merge vào develop ngày 2026-09-30 qua PR #165; đợt 2 (Biểu quyết, UNI-893) triển khai trên nhánh `feature/UNI-893-meetings-bieu-quyet-cong-khai-kin-nguong`.
 
 **Issue:** UNI-891 (cha), UNI-892 (đợt 1 — Điểm danh), UNI-893 (đợt 2 — Biểu quyết).
 
