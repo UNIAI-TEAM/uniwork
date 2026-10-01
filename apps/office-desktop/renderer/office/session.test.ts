@@ -7,7 +7,11 @@ const opened = { dataBase64: "aGVsbG8=", checksum };
 
 it("sends the opened snapshot once through coordinator save and blocks a concurrent menu save", async () => {
   let complete!: (value: unknown) => void;
-  const call = vi.fn(() => new Promise((resolve) => { complete = resolve; }));
+  const call = vi.fn((channel: string) => {
+    if (channel === "desktop:draft-list") return Promise.resolve({ drafts: [] });
+    if (channel === "desktop:draft-discard") return Promise.resolve({ discarded: true });
+    return new Promise((resolve) => { complete = resolve; });
+  });
   const session = createByteDocumentSession({ call: call as never }, identity, opened);
   const first = session.coordinator.save("button");
   await vi.waitFor(() => expect(call).toHaveBeenCalledOnce());
@@ -54,6 +58,9 @@ it("reports a failed keep and refuses recovery when the store refuses", async ()
     throw Object.assign(new Error("draft operation refused"), { code: "storage_unavailable" });
   });
   const session = createByteDocumentSession(failing.bridge, identity, opened);
+  // A clean document has nothing to keep; only unsaved work asks for a write.
+  await expect(session.keepDraft()).resolves.toBe(true);
+  session.coordinator.markDirty(1);
   await expect(session.keepDraft()).resolves.toBe(false);
   await expect(session.recoverDraft(draft)).resolves.toBe(false);
   await expect(session.discardDraft()).resolves.toBe(true);
@@ -89,17 +96,26 @@ it("recovers the chosen draft into the editor bytes and discards only that row",
   expect(calls.find((call) => call.channel === "desktop:draft-discard")?.payload).toMatchObject({ draftId: "doc:v2:2", generation: 3 });
 });
 
-it("skips the cloud checkpoint for a local file but still offers keep", async () => {
+it("skips the cloud checkpoint for a local file and only keeps against a durable row", async () => {
   const handle = `file_${"x".repeat(40)}`;
+  const localIdentity = { ...identity, documentId: handle, baseRevision: "10", baseVersionId: checksum };
+  const localRow = { draftId: `${handle}:10`, identity: { deploymentId: "lane", accountId: "account", organizationId: "local", workspaceId: "local", documentId: handle, base: { revision: "10", version: checksum } }, generation: 1, checksum: `sha256:${"d".repeat(64)}`, byteLength: 5, updatedAt: 3 };
   const { bridge, calls } = bridgeWith(async (channel) => {
-    if (channel === "desktop:draft-list") return { drafts: [] };
+    if (channel === "desktop:draft-list") return { drafts: [localRow] };
     if (channel === "desktop:file-save") return { opened: true, metadata: { handle, name: "Local.docx", byteLength: 5, modifiedAtMs: 10, checksum } };
     return {};
   });
-  const session = createByteDocumentSession(bridge, { ...identity, documentId: handle, baseRevision: "0" }, { ...opened, localHandle: handle, canSave: false });
+  const session = createByteDocumentSession(bridge, localIdentity, { ...opened, localHandle: handle, canSave: false });
   expect(session.localHandle).toBe(handle);
   expect(session.canSave).toBe(false);
+  session.coordinator.markDirty(1);
   await expect(session.keepDraft()).resolves.toBe(true);
   expect(calls.some((call) => call.channel === "desktop:draft-checkpoint")).toBe(false);
   await expect(session.coordinator.save("button")).resolves.toMatchObject({ accepted: false, reason: "readonly" });
+
+  // Without a durable row for this base, a local keep must not claim success.
+  const empty = bridgeWith(async (channel) => (channel === "desktop:draft-list" ? { drafts: [] } : {}));
+  const bare = createByteDocumentSession(empty.bridge, localIdentity, { ...opened, localHandle: handle });
+  bare.coordinator.markDirty(1);
+  await expect(bare.keepDraft()).resolves.toBe(false);
 });

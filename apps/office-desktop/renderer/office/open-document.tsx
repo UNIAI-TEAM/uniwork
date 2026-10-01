@@ -7,20 +7,22 @@ import { DraftRecoveryPrompt } from "@uniwork/views/office/leave-dialog";
 import { RecoveryNotice, type DesktopRecoveryState } from "../recovery-status";
 import { Button } from "@uniwork/ui/components/ui/button";
 import type { OfficeHost, OfficeIdentity } from "@uniwork/core/office";
+import type { DesktopDraftMetadata } from "../../shared/ipc";
 import type { RendererBridge } from "../app";
 import type { ByteDocumentSession } from "./session";
 
 export function OpenByteDocument({ bridge, identity, session, title, onBack }: { bridge: RendererBridge; identity: OfficeIdentity; session: ByteDocumentSession; title: string; onBack: () => void }) {
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
-  const [recovery, setRecovery] = useState<{ conflict: boolean; recoverable: boolean } | null>(null);
+  const [offer, setOffer] = useState<{ metadata: DesktopDraftMetadata; conflict: boolean } | null>(null);
+  const [notice, setNotice] = useState<DesktopRecoveryState | null>(null);
   const [recovered, setRecovered] = useState(false);
-  useEffect(() => session.coordinator.subscribe(() => undefined), [session]);
+  useEffect(() => () => session.dispose(), [session]);
   useEffect(() => {
     let active = true;
     void session.listDrafts().then((view) => {
       if (!active) return;
-      if (view.status === "found") setRecovery({ conflict: view.conflict, recoverable: !view.conflict });
-      else if (view.status === "locked" || view.status === "blocked") setRecovery({ conflict: false, recoverable: false });
+      if (view.status === "found") setOffer({ metadata: view.metadata, conflict: view.conflict });
+      else if (view.status === "locked" || view.status === "blocked" || view.status === "unavailable") setNotice(view.status);
     });
     return () => { active = false; };
   }, [session]);
@@ -35,12 +37,11 @@ export function OpenByteDocument({ bridge, identity, session, title, onBack }: {
     return <DocxEditor documentKey={identity.documentId} title={title} editor={session.editor} coordinator={session.coordinator} capability={capability} open={{ open: async () => ({ outcome: "opened", document_id: identity.documentId, document_model_ref: identity.documentId, warnings: [] }) }} />;
   } }), [capability, identity.documentId, session, title]);
   useEffect(() => bridge.onOfficeSaveRequested?.((event) => { if (event.documentId === identity.documentId) void session.coordinator.save("menu"); }), [bridge, identity.documentId, session]);
-  const notice: DesktopRecoveryState | null = recovery ? (recovery.conflict ? "conflict" : recovery.recoverable ? null : "blocked") : null;
-  return <>{recovery ? <DraftRecoveryPrompt open metadata={null} conflict={recovery.conflict} recoverable={recovery.recoverable}
-    onOpenChange={(open) => { if (!open) setRecovery(null); }}
-    onRecover={async () => { const view = await session.listDrafts(); if (view.status !== "found") return false; const applied = await session.recoverDraft(view.metadata); setRecovered(applied); if (applied) setRecovery(null); return applied; }}
-    onKeep={async () => { setRecovery(null); return true; }}
-    onDiscard={async () => { const view = await session.listDrafts(); if (view.status === "found" && !(await session.discardDraft())) return false; setRecovery(null); return true; }} /> : null}
+  return <>{offer ? <DraftRecoveryPrompt open metadata={offer.metadata} conflict={offer.conflict} recoverable={!offer.conflict}
+    onOpenChange={(open) => { if (!open) setOffer(null); }}
+    onRecover={async () => { const applied = await session.recoverDraft(offer.metadata); setRecovered(applied); if (applied) setOffer(null); return applied; }}
+    onKeep={async () => { setOffer(null); return true; }}
+    onDiscard={async () => { if (!await session.discardDraft(offer.metadata)) return false; setOffer(null); return true; }} /> : null}
     <OfficeShell title={title} breadcrumbs={[{ label: t("title") }]} saveCoordinator={session.coordinator} editorReady={session.canSave}
       saveLabel={session.localHandle ? t("saveLocal") : undefined}
       saveDestination={session.localHandle ? "local" : "cloud"}

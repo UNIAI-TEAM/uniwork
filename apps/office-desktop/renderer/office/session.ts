@@ -25,7 +25,8 @@ export type DraftRecoveryView =
 
 /** Byte-preserving adapter until G3 supplies a content editing surface. It
  * owns the renderer half of the ONE 04b draft store: every checkpoint crosses
- * the typed IPC seam, so a crash recovers only the last confirmed row. */
+ * the typed IPC seam, a confirmed save consumes exactly the committed draft,
+ * and a crash recovers only the last confirmed row. */
 export function createByteDocumentSession(bridge: LibraryBridge, identity: OfficeIdentity, opened: OpenedBytes) {
   let generation = 0;
   let bytes = decode(opened.dataBase64);
@@ -33,36 +34,74 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
   let pendingIntent: OfficeSaveIntent<Uint8Array> | null = null;
   // One draft id per (document, base): a draft for an older base stays a
   // distinct row and is reported as a conflict instead of an ambiguity.
-  const draftId = `${identity.documentId}:${identity.baseVersionId}:${identity.baseRevision}`;
+  const draftIdFor = (versionId: string, revision: string) => `${identity.documentId}:${versionId}:${revision}`;
+  const currentDraftId = draftIdFor(identity.baseVersionId, identity.baseRevision);
   let generationFloor = 0;
-  let durableGeneration: number | null = null;
-  const loadFloor = async () => {
-    if (generationFloor > 0) return;
+  /** Draft rows this session wrote or read, so discard/commit can name the
+   * exact row generation instead of guessing one. */
+  const durableRows = new Map<string, number>();
+
+  const listRows = async (): Promise<readonly DesktopDraftMetadata[] | null> => {
+    try { return desktopDraftListResponseSchema.parse(await bridge.call("desktop:draft-list", { sessionGeneration: SESSION_GENERATION })).drafts; }
+    catch { return null; }
+  };
+  const recoverView = async (): Promise<DraftRecoveryView> => {
     try {
       const listed = desktopDraftListResponseSchema.parse(await bridge.call("desktop:draft-list", { sessionGeneration: SESSION_GENERATION }));
-      generationFloor = Math.max(0, ...listed.drafts.map((draft) => draft.generation));
-    } catch { generationFloor = 0; }
+      const rows = [...listed.drafts].sort((left, right) => right.updatedAt - left.updatedAt);
+      const newest = rows[0];
+      if (!newest) return { status: "none" };
+      const conflict = newest.identity.base.revision !== identity.baseRevision || newest.identity.base.version !== identity.baseVersionId;
+      generationFloor = Math.max(generationFloor, newest.generation);
+      for (const row of rows) durableRows.set(row.draftId, row.generation);
+      return { status: "found", metadata: newest, conflict };
+    } catch (error) {
+      const code = (error as { code?: string }).code;
+      if (code === "draft_recovery_locked") return { status: "locked" };
+      if (code === "token_expired") return { status: "blocked" };
+      return { status: "unavailable" };
+    }
   };
+  const discardRow = async (draftId: string, generation: number): Promise<boolean> => {
+    try {
+      desktopDraftDiscardResponseSchema.parse(await bridge.call("desktop:draft-discard", { sessionGeneration: SESSION_GENERATION, draftId, generation: Math.max(1, generation) }));
+      durableRows.delete(draftId);
+      return true;
+    } catch { return false; }
+  };
+
   const editor: EditorHandle<Uint8Array> = {
     format: "docx", open: async () => undefined,
     getDirtyGeneration: () => generation,
     captureSnapshot: async () => ({ generation, fingerprint: opened.checksum, checksumSha256: opened.checksum, sizeBytes: bytes.length, value: bytes.slice() }),
     dispose: () => { bytes = new Uint8Array(); checkpoint = null; pendingIntent = null; },
   };
-  // Cloud intent memory is session-scoped; the durable local checkpoint is
-  // written by main (local files) or by the checkpoint below (cloud drafts).
+  // Cloud intent memory is session-scoped; the durable checkpoint is written
+  // by main (local writes) or by the checkpoint below (cloud drafts).
   const draft: DraftAdapter<Uint8Array> = {
     checkpoint: async (snapshot) => {
       checkpoint = snapshot;
       if (opened.localHandle) return;
-      await loadFloor();
+      const rows = await listRows();
+      generationFloor = Math.max(generationFloor, ...(rows ?? []).map((row) => row.generation));
       const next = Math.max(1, generationFloor, snapshot.generation);
-      const result = desktopDraftResponseSchema.parse(await bridge.call("desktop:draft-checkpoint", { sessionGeneration: SESSION_GENERATION, draftId, generation: next, dataBase64: encode(snapshot.value) }));
+      const result = desktopDraftResponseSchema.parse(await bridge.call("desktop:draft-checkpoint", { sessionGeneration: SESSION_GENERATION, draftId: currentDraftId, generation: next, dataBase64: encode(snapshot.value) }));
       generationFloor = Math.max(generationFloor, result.generation);
-      durableGeneration = result.generation;
+      durableRows.set(currentDraftId, result.generation);
     },
     recover: async () => checkpoint,
-    discard: async () => { checkpoint = null; },
+    // Commit/discard consume only the committed draft: the row for the base the
+    // save landed on is deleted, every other base and the N+1 draft are kept.
+    discard: async (target) => {
+      checkpoint = null;
+      if (opened.localHandle) return;
+      const targetId = draftIdFor(target.baseVersionId, target.baseRevision);
+      const known = durableRows.get(targetId);
+      const row = (await listRows())?.find((candidate) => candidate.draftId === targetId);
+      const generation = row?.generation ?? known;
+      if (generation === undefined) return;
+      await discardRow(targetId, generation);
+    },
     persistIntent: async (intent) => { pendingIntent = intent; },
     loadIntent: async () => pendingIntent,
     clearIntent: async () => { pendingIntent = null; },
@@ -106,42 +145,34 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
       if (state.state === "ready" || state.state === "saved") { generation += 1; coordinator.markDirty(generation); }
       return coordinator.save(entryPoint);
     } },
-    /** The dialog's keep: a confirmed durable row, never an in-memory copy. */
+    /** The dialog's keep: a confirmed durable row, never an in-memory copy.
+     * For a local file main owns the rows (written before a write, consumed by
+     * a confirmed one), so a keep only confirms the current base already has a
+     * durable row - it never claims a write this session did not make. */
     async keepDraft(): Promise<boolean> {
+      const state = coordinator.getState();
+      if (state.state === "ready" || state.state === "saved") return true;
       const snapshot = await captured();
       if (!snapshot) return false;
+      if (opened.localHandle) {
+        const view = await recoverView();
+        return view.status === "found" && !view.conflict;
+      }
       try { await draft.checkpoint(snapshot); return true; } catch { return false; }
     },
-    /** Discard consumes only this document's draft row for this base. */
-    async discardDraft(): Promise<boolean> {
+    /** Discard consumes the chosen row when the caller names it (a conflict row
+     * is stored under its own older-base id) and otherwise the current base row. */
+    async discardDraft(metadata?: DesktopDraftMetadata): Promise<boolean> {
       checkpoint = null;
-      if (opened.localHandle && durableGeneration === null) return true;
-      await loadFloor();
-      const target = durableGeneration ?? generationFloor;
-      if (!target) return true;
-      try {
-        desktopDraftDiscardResponseSchema.parse(await bridge.call("desktop:draft-discard", { sessionGeneration: SESSION_GENERATION, draftId, generation: target }));
-        durableGeneration = null;
-        return true;
-      } catch { return false; }
+      const targetId = metadata?.draftId ?? currentDraftId;
+      if (metadata) return discardRow(metadata.draftId, metadata.generation);
+      const known = durableRows.get(targetId);
+      const row = (await listRows())?.find((candidate) => candidate.draftId === targetId);
+      if (!row) return known === undefined;
+      return discardRow(targetId, row.generation);
     },
     /** Lists this document's drafts and reports the newest one for its base. */
-    async listDrafts(): Promise<DraftRecoveryView> {
-      try {
-        const listed = desktopDraftListResponseSchema.parse(await bridge.call("desktop:draft-list", { sessionGeneration: SESSION_GENERATION }));
-        const rows = [...listed.drafts].sort((left, right) => right.updatedAt - left.updatedAt);
-        const newest = rows[0];
-        if (!newest) return { status: "none" };
-        const conflict = newest.identity.base.revision !== identity.baseRevision || newest.identity.base.version !== identity.baseVersionId;
-        generationFloor = Math.max(generationFloor, newest.generation);
-        return { status: "found", metadata: newest, conflict };
-      } catch (error) {
-        const code = (error as { code?: string }).code;
-        if (code === "draft_recovery_locked") return { status: "locked" };
-        if (code === "token_expired") return { status: "blocked" };
-        return { status: "unavailable" };
-      }
-    },
+    listDrafts: recoverView,
     /** Recover applies the chosen durable draft into the editor bytes. */
     async recoverDraft(metadata: DesktopDraftMetadata): Promise<boolean> {
       try {
@@ -150,12 +181,13 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
         bytes = decode(result.dataBase64);
         generation += 1;
         generationFloor = Math.max(generationFloor, result.metadata.generation);
-        durableGeneration = result.metadata.generation;
+        durableRows.set(result.metadata.draftId, result.metadata.generation);
         checkpoint = null;
         coordinator.markDirty(generation);
         return true;
       } catch { return false; }
     },
+    dispose: () => { void editor.dispose(); },
     get snapshotChecksum(): string { return opened.checksum; },
     get localHandle(): string | undefined { return opened.localHandle; },
     get canSave(): boolean { return opened.canSave !== false; },

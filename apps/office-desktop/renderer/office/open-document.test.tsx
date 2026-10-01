@@ -10,13 +10,17 @@ import type { RendererBridge } from "../app";
 const identity = { deploymentId: "lane", accountId: "account-1", organizationId: "org-1", workspaceId: "ws-1", documentId: "doc-1", generation: 1, baseRevision: "1", baseVersionId: "v1" };
 const checksum = `sha256:${"a".repeat(64)}`;
 const draft = { draftId: "doc-1:v1:1", identity: { deploymentId: "lane", accountId: "account-1", organizationId: "org-1", workspaceId: "ws-1", documentId: "doc-1", base: { revision: "1", version: "v1" } }, generation: 2, checksum: `sha256:${"c".repeat(64)}`, byteLength: 5, updatedAt: 9 };
+const olderDraft = { ...draft, draftId: "doc-1:v0:0", identity: { ...draft.identity, base: { revision: "0", version: "v0" } } };
 
-function mount(handler: (channel: string) => Promise<unknown>) {
-  const calls: string[] = [];
-  const bridge = { call: (async (channel: string) => { calls.push(channel); return handler(channel); }) as unknown as RendererBridge["call"] };
+function mount(handler: (channel: string, payload: unknown) => Promise<unknown>) {
+  const calls: Array<{ channel: string; payload: unknown }> = [];
+  const bridge = {
+    call: (async (channel: string, payload: unknown) => { calls.push({ channel, payload }); return handler(channel, payload); }) as RendererBridge["call"],
+    onSessionChanged: () => () => undefined,
+  } as RendererBridge;
   const session = createByteDocumentSession(bridge, identity, { dataBase64: "aGVsbG8=", checksum });
-  const view = render(<OpenByteDocument bridge={bridge} identity={identity} session={session} title="Plan.docx" onBack={() => undefined} />);
-  return { calls, session, view };
+  render(<OpenByteDocument bridge={bridge} identity={identity} session={session} title="Plan.docx" onBack={() => undefined} />);
+  return { calls, session };
 }
 
 it("offers a matching draft on the document screen and restores it", async () => {
@@ -27,23 +31,45 @@ it("offers a matching draft on the document screen and restores it", async () =>
   });
   expect(await screen.findByText(i18n.t("office.recovery.title"))).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: i18n.t("office.recovery.recover") }));
-  await waitFor(() => expect(calls).toContain("desktop:draft-recover"));
+  await waitFor(() => expect(calls.some((call) => call.channel === "desktop:draft-recover")).toBe(true));
   await waitFor(() => expect(screen.getByText(i18n.t("officeDesktop.library.draftRecovered"))).toBeInTheDocument());
   expect((await session.editor.captureSnapshot()).value).toEqual(Uint8Array.from([119, 111, 114, 108, 100]));
   expect(screen.queryByText(i18n.t("office.recovery.title"))).not.toBeInTheDocument();
 });
 
-it("labels a conflicting draft and can discard it", async () => {
-  const conflicting = { ...draft, identity: { ...draft.identity, base: { revision: "9", version: "v9" } } };
+it("labels a conflicting draft and discards exactly that older-base row", async () => {
   const { calls } = mount(async (channel) => {
-    if (channel === "desktop:draft-list") return { drafts: [conflicting] };
+    if (channel === "desktop:draft-list") return { drafts: [olderDraft] };
     if (channel === "desktop:draft-discard") return { discarded: true };
     return {};
   });
   expect(await screen.findByText(i18n.t("office.recovery.conflict_title"))).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: i18n.t("office.recovery.recover") })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: i18n.t("office.recovery.discard") }));
-  await waitFor(() => expect(calls).toContain("desktop:draft-discard"));
+  await waitFor(() => expect(calls.some((call) => call.channel === "desktop:draft-discard")).toBe(true));
+  expect(calls.find((call) => call.channel === "desktop:draft-discard")?.payload).toMatchObject({ draftId: olderDraft.draftId, generation: olderDraft.generation });
+});
+
+it("keeps a refused discard open instead of reporting a false success", async () => {
+  mount(async (channel) => {
+    if (channel === "desktop:draft-list") return { drafts: [olderDraft] };
+    if (channel === "desktop:draft-discard") throw Object.assign(new Error("draft operation refused"), { code: "storage_unavailable" });
+    return {};
+  });
+  expect(await screen.findByText(i18n.t("office.recovery.conflict_title"))).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("office.recovery.discard") }));
+  await waitFor(() => expect(screen.getByText(i18n.t("office.recovery.write_failed"))).toBeInTheDocument());
+  expect(screen.getByText(i18n.t("office.recovery.conflict_title"))).toBeInTheDocument();
+});
+
+it("renders the typed locked notice instead of a generic found-draft prompt", async () => {
+  mount(async (channel) => {
+    if (channel === "desktop:draft-list") throw Object.assign(new Error("draft operation refused"), { code: "draft_recovery_locked" });
+    return {};
+  });
+  await waitFor(() => expect(document.querySelector('[data-testid="office-recovery-locked"]')).not.toBeNull());
+  expect(screen.getByText(i18n.t("office.recovery.locked"))).toBeInTheDocument();
+  expect(screen.queryByText(i18n.t("office.recovery.title"))).not.toBeInTheDocument();
 });
 
 it("shows no recovery prompt when the store holds no draft for this document", async () => {

@@ -55,6 +55,20 @@ describe("desktop IPC allowlist", () => {
     expect(guard.busy).toBe(false);
   });
 
+  it("records a local open without a durable draft, and checkpoints only before a write", async () => {
+    const metadata = { handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", name: "x.docx", byteLength: 1, modifiedAtMs: 7, checksum: `sha256:${"a".repeat(64)}` };
+    const checkpoint = vi.fn(async () => undefined);
+    const onOpened = vi.fn();
+    const registry = { openPath: async () => metadata, openPathFromHandle: async () => metadata, read: async () => new Uint8Array([1]), save: async () => metadata } as unknown as FileHandleRegistry;
+    const handlers = createFileIpcHandlers({ registry, onOpened, checkpoint, pickOpen: async () => "C:\\x.docx", pickSaveAs: async () => "C:\\x.docx" });
+    await handlers["desktop:file-open"]({ sessionGeneration: "session_1234", handle: metadata.handle });
+    await handlers["desktop:file-pick-open"]({ sessionGeneration: "session_1234" });
+    expect(onOpened).toHaveBeenCalledTimes(2);
+    expect(checkpoint).not.toHaveBeenCalled();
+    await handlers["desktop:file-save"]({ sessionGeneration: "session_1234", handle: metadata.handle, dataBase64: "b2s=" });
+    expect(checkpoint).toHaveBeenCalledWith(metadata, expect.any(Uint8Array));
+  });
+
   it("binds draft checkpoint identity in main and does not expose draft errors", async () => {
     const store = { checkpointPlaintext: async () => { throw new Error("/secret/key and plaintext"); } } as unknown as DesktopDraftStore;
     const handlers = createDraftIpcHandlers({ store, session: { sessionId: "s", deploymentId: "dep", accountId: "a", generation: 1 }, identity: { deploymentId: "dep", accountId: "a", organizationId: "o", workspaceId: "w", documentId: "d", base: { revision: "1", version: "v" } } });

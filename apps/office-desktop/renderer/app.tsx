@@ -13,7 +13,7 @@ import type {
   DesktopLibraryDocument,
   DesktopSessionMetadata,
 } from "../shared/ipc";
-import { desktopFileResponseSchema, desktopDraftListResponseSchema, desktopOfficeOpenResponseSchema, desktopLibraryDownloadResponseSchema } from "../shared/ipc";
+import { desktopFileResponseSchema, desktopDraftDiscardResponseSchema, desktopDraftListResponseSchema, desktopOfficeOpenResponseSchema, desktopLibraryDownloadResponseSchema, type DesktopDraftMetadata } from "../shared/ipc";
 import { DraftRecoveryPrompt, LeaveDialog } from "@uniwork/views/office/leave-dialog";
 import { RecoveryNotice, type DesktopRecoveryState } from "./recovery-status";
 import { createLibraryController, createLibraryScopeController, type LibraryMode } from "./library/model";
@@ -121,7 +121,8 @@ function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; meta
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [leave, setLeave] = useState<{ requestId: string; reason: "close" | "logout" | "update" } | null>(null);
-  const [accountDraft, setAccountDraft] = useState(false);
+  const answeredLeave = useRef<string | null>(null);
+  const [accountDraft, setAccountDraft] = useState<DesktopDraftMetadata | null>(null);
   const [accountBlocked, setAccountBlocked] = useState<DesktopRecoveryState | null>(null);
   const [pendingLaunch, setPendingLaunch] = useState<{ documentId: string; operation: "view" | "edit"; version?: number } | null>(null);
   const [queuedFileOpen, setQueuedFileOpen] = useState<string | null>(null);
@@ -155,18 +156,34 @@ function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; meta
     // dialog and reports the outcome through the guarded IPC channels.
     return bridge.onLeaveRequested?.(setLeave);
   }, [bridge]);
-  useEffect(() => {
-    let active = true;
-    void bridge.call("desktop:draft-list", { sessionGeneration: SESSION_GENERATION }).then((raw) => {
-      if (!active) return;
-      try { setAccountDraft(desktopDraftListResponseSchema.parse(raw).drafts.length > 0); setAccountBlocked(null); } catch { setAccountDraft(false); }
-    }).catch((error: unknown) => {
-      if (!active) return;
+  const refreshAccountDrafts = async () => {
+    try {
+      const listed = desktopDraftListResponseSchema.parse(await bridge.call("desktop:draft-list", { sessionGeneration: SESSION_GENERATION }));
+      const newest = [...listed.drafts].sort((left, right) => right.updatedAt - left.updatedAt)[0] ?? null;
+      setAccountDraft(newest);
+      setAccountBlocked(null);
+    } catch (error) {
       // A locked or unavailable store is a typed blocked state, never a silent
       // empty list: the shared recovery vocabulary renders it.
       const code = (error as { code?: string } | null)?.code;
       setAccountBlocked(code === "draft_recovery_locked" ? "locked" : code === "storage_unavailable" ? "unavailable" : null);
-      setAccountDraft(false);
+      setAccountDraft(null);
+    }
+  };
+  useEffect(() => {
+    let active = true;
+    void bridge.call("desktop:draft-list", { sessionGeneration: SESSION_GENERATION }).then((raw) => {
+      if (!active) return;
+      try {
+        const newest = [...desktopDraftListResponseSchema.parse(raw).drafts].sort((left, right) => right.updatedAt - left.updatedAt)[0] ?? null;
+        setAccountDraft(newest);
+        setAccountBlocked(null);
+      } catch { setAccountDraft(null); }
+    }).catch((error: unknown) => {
+      if (!active) return;
+      const code = (error as { code?: string } | null)?.code;
+      setAccountBlocked(code === "draft_recovery_locked" ? "locked" : code === "storage_unavailable" ? "unavailable" : null);
+      setAccountDraft(null);
     });
     return () => { active = false; };
   }, [bridge]);
@@ -182,7 +199,10 @@ function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; meta
   const answerLeave = async (choice: "save" | "keep" | "discard" | "stay", proceeded: boolean) => {
     const request = leave;
     setLeave(null);
-    if (!request) return;
+    // One request id gets exactly one answer: the dialog also reports a close
+    // right after a choice, and a second contradictory reply must not be sent.
+    if (!request || answeredLeave.current === request.requestId) return;
+    answeredLeave.current = request.requestId;
     try { await bridge.call("desktop:leave-resolved", { sessionGeneration: SESSION_GENERATION, requestId: request.requestId, choice, proceeded }); } catch { /* main fails closed on timeout */ }
   };
   const acceptCloud = (raw: unknown, selected: LibraryPickerSelection, allowSave = true) => {
@@ -197,7 +217,10 @@ function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; meta
     if (!result.opened) return;
     if (!result.metadata || !result.dataBase64) throw new Error("invalid_file");
     if (!/\.docx$/i.test(result.metadata.name)) { setActionError(t("unsupported")); return; }
-    setOpened({ title: result.metadata.name, bytes: { dataBase64: result.dataBase64, checksum: result.metadata.checksum, localHandle: result.metadata.handle }, identity: { deploymentId: metadata.deploymentId, accountId: metadata.accountId, organizationId: "local", workspaceId: "local", documentId: result.metadata.handle, generation: 1, baseRevision: "0", baseVersionId: result.metadata.checksum } });
+    // The base pair must be the one main records for a local file
+    // (revision = file mtime, version = bytes checksum); a fabricated revision
+    // would make every local open look like a base conflict.
+    setOpened({ title: result.metadata.name, bytes: { dataBase64: result.dataBase64, checksum: result.metadata.checksum, localHandle: result.metadata.handle }, identity: { deploymentId: metadata.deploymentId, accountId: metadata.accountId, organizationId: "local", workspaceId: "local", documentId: result.metadata.handle, generation: 1, baseRevision: String(result.metadata.modifiedAtMs), baseVersionId: result.metadata.checksum } });
   };
   const perform = async (operation: () => Promise<void>) => {
     if (busy) return;
@@ -252,17 +275,16 @@ function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; meta
         <LibraryPicker context={context} error={contextError} onRetry={() => setContextReload((value) => value + 1)} onChoose={setScope} />
       )}</div>
       {accountBlocked ? <RecoveryNotice state={accountBlocked} className="p-4" /> : null}
-      {accountDraft && !opened ? <DraftRecoveryPrompt open metadata={null} recoverable={false}
-        onOpenChange={(open) => { if (!open) setAccountDraft(false); }}
+      {accountDraft && !opened ? <DraftRecoveryPrompt open metadata={accountDraft} recoverable={false}
+        onOpenChange={(open) => { if (!open) setAccountDraft(null); }}
         onRecover={async () => false}
-        onKeep={async () => { setAccountDraft(false); return true; }}
+        onKeep={async () => { setAccountDraft(null); return true; }}
         onDiscard={async () => {
-          try {
-            const listed = desktopDraftListResponseSchema.parse(await bridge.call("desktop:draft-list", { sessionGeneration: SESSION_GENERATION }));
-            const newest = [...listed.drafts].sort((left, right) => right.updatedAt - left.updatedAt)[0];
-            if (newest) await bridge.call("desktop:draft-discard", { sessionGeneration: SESSION_GENERATION, draftId: newest.draftId, generation: newest.generation });
-          } catch { return false; }
-          setAccountDraft(false);
+          // Consume exactly the offered row, never whichever row the list
+          // happens to return first at click time.
+          try { desktopDraftDiscardResponseSchema.parse(await bridge.call("desktop:draft-discard", { sessionGeneration: SESSION_GENERATION, draftId: accountDraft.draftId, generation: accountDraft.generation })); }
+          catch { return false; }
+          await refreshAccountDrafts();
           return true;
         }} /> : null}
       <LeaveDialog open={leave !== null} dirty={Boolean(session) && leaveDecisionDirty(session)}

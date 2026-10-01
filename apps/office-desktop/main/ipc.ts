@@ -124,6 +124,9 @@ export interface FileIpcOptions {
   readonly pickOpen?: () => Promise<string | undefined>;
   readonly pickSaveAs?: () => Promise<string | undefined>;
   readonly saveGuard?: OfficeSaveGuard;
+  /** A local open records the live draft context only; no durable row is
+   * written until a write is actually at risk. */
+  readonly onOpened?: (metadata: import("./files/registry").OpenFileMetadata) => void;
   readonly checkpoint?: (metadata: import("./files/registry").OpenFileMetadata, bytes: Uint8Array) => Promise<void>;
   /** Main-observed receipt for the leave decision's save choice. */
   readonly onSaveConfirmed?: (metadata: import("./files/registry").OpenFileMetadata) => void;
@@ -139,13 +142,13 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       if (!path) return { opened: false };
       const metadata = await safeFile(() => options.registry.openPath(path));
       const bytes = await safeFile(() => options.registry.read(metadata.handle));
-      await options.checkpoint?.(metadata, bytes);
+      options.onOpened?.(metadata);
       return { opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") };
     },
     "desktop:file-open": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string }>) => {
       const metadata = await safeFile(() => options.registry.openPathFromHandle(request.handle));
       const bytes = await safeFile(() => options.registry.read(request.handle));
-      await options.checkpoint?.(metadata, bytes);
+      options.onOpened?.(metadata);
       return { opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") };
     },
     "desktop:file-save": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string; dataBase64: string }>) => runGuardedSave(options.saveGuard, async () => {

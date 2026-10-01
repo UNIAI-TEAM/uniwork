@@ -18,7 +18,7 @@ import { createHttpOfficeTransport } from "./main/transport/office-transport";
 import { createSafeStorageDraftKeyStore } from "./main/drafts/keystore";
 import { createDesktopDraftStore } from "./main/drafts/store";
 import { FileHandleRegistry, type OpenFileMetadata } from "./main/files/registry";
-import { createProtectedFileCheckpoints, localDraftIdentity } from "./main/files/protected-files";
+import { createProtectedFileCheckpoints, discardProtectedCheckpoint, localDraftIdentity, type ProtectedCheckpointRef } from "./main/files/protected-files";
 import { createNativeInstaller, createNativeUpdateAction } from "./main/updates/native";
 import { createOfficeSaveGuard } from "../../packages/core/office/save-guard";
 import { createDesktopLeaveCoordinator } from "./main/leave";
@@ -196,10 +196,27 @@ async function startElectronHost(): Promise<void> {
   };
   const protectFile = createProtectedFileCheckpoints({ store: draftStore, scope: draftScope, identityFor: (handle) => fileRegistry.identityFor(handle) });
   let activeDocumentId: string | undefined;
-  const localCheckpoint = async (metadata: OpenFileMetadata, bytes: Uint8Array) => {
+  // The row a local write is protecting right now; a confirmed write consumes it.
+  const pendingLocalCheckpoints = new Map<string, ProtectedCheckpointRef>();
+  const setLocalDocument = (metadata: OpenFileMetadata) => {
     activeDocument = { kind: "local", identity: localDraftIdentity(draftScope(), fileRegistry.identityFor(metadata.handle), metadata) };
     activeDocumentId = metadata.handle;
-    await protectFile(metadata, bytes);
+  };
+  /** A local open only records the draft context; the durable row is written
+   * immediately before a write, so a plain open never offers a draft of the
+   * file's own unchanged bytes. */
+  const localOpenContext = (metadata: OpenFileMetadata) => { setLocalDocument(metadata); };
+  const localCheckpoint = async (metadata: OpenFileMetadata, bytes: Uint8Array) => {
+    setLocalDocument(metadata);
+    pendingLocalCheckpoints.set(metadata.handle, await protectFile(metadata, bytes));
+  };
+  /** After a confirmed write the pre-write checkpoint is obsolete: consume it so
+   * an identical-bytes draft never becomes a stale conflict on the next open. */
+  const consumeLocalCheckpoint = (metadata: OpenFileMetadata) => {
+    const ref = pendingLocalCheckpoints.get(metadata.handle);
+    if (!ref) return;
+    pendingLocalCheckpoints.delete(metadata.handle);
+    void discardProtectedCheckpoint(draftStore, draftScope(), ref).catch(() => undefined);
   };
   window.on("closed", () => { activeDocumentId = undefined; });
   publishSessionMetadata = (metadata) => {
@@ -257,15 +274,23 @@ async function startElectronHost(): Promise<void> {
     return { session: draftScope(), identity: active.identity };
   };
   /** A recovery is never granted from cached access: for a cloud document the
-   * live workspace list is re-read and the document's edit ACL re-checked. */
+   * live workspace list is re-read (bounded pagination) and the document's edit
+   * ACL re-checked, so a document beyond the first page is not failed closed. */
   const liveDraftAccess = async (): Promise<"edit" | "none"> => {
     const active = activeDocument;
     if (!active) return "none";
     if (active.kind === "local") return "edit";
     if (!officeTransport) return "none";
     try {
-      const page = await officeTransport.list({ workspaceId: active.identity.workspaceId, mode: "list" });
-      return page.documents.find((document) => document.id === active.identity.documentId)?.canEdit ? "edit" : "none";
+      let cursor: string | undefined;
+      for (let page = 0; page < 5; page += 1) {
+        const result = await officeTransport.list({ workspaceId: active.identity.workspaceId, mode: "list", ...(cursor ? { cursor } : {}) });
+        const document = result.documents.find((row) => row.id === active.identity.documentId);
+        if (document) return document.canEdit ? "edit" : "none";
+        if (!result.nextCursor) break;
+        cursor = result.nextCursor;
+      }
+      return "none";
     } catch { return "none"; }
   };
   // Main-side leave evidence: a save receipt is recorded only when main itself
@@ -273,6 +298,7 @@ async function startElectronHost(): Promise<void> {
   // for keep/discard. The renderer's `proceeded` is never trusted alone.
   let lastConfirmedSaveAt = 0;
   const noteConfirmedSave = () => { lastConfirmedSaveAt = Date.now(); };
+  const noteConfirmedLocalSave = (metadata: OpenFileMetadata) => { noteConfirmedSave(); consumeLocalCheckpoint(metadata); };
   const activeDrafts = async () => {
     const active = activeDocument;
     if (!active) return [];
@@ -323,7 +349,7 @@ async function startElectronHost(): Promise<void> {
     },
     deepLinks: { system: createDeepLinkSystem(), bridge: launchBridge },
     authManager,
-    localFiles: { registry: fileRegistry, saveGuard, checkpoint: localCheckpoint, onSaveConfirmed: noteConfirmedSave,
+    localFiles: { registry: fileRegistry, saveGuard, onOpened: localOpenContext, checkpoint: localCheckpoint, onSaveConfirmed: noteConfirmedLocalSave,
       pickOpen: async () => {
         const result = await dialog.showOpenDialog(window, { properties: ["openFile"], filters: [{ name: "Word", extensions: ["docx"] }, { name: "Files", extensions: ["*"] }] });
         return result.canceled ? undefined : result.filePaths[0];
@@ -389,7 +415,7 @@ async function startElectronHost(): Promise<void> {
     if (!payload || typeof payload !== "object" || !("path" in payload) || typeof payload.path !== "string" || !isAbsolute(payload.path)) throw new Error("invalid_file");
     const metadata = await fileRegistry.openEvent(payload.path);
     const bytes = await fileRegistry.read(metadata.handle);
-    await localCheckpoint(metadata, bytes);
+    localOpenContext(metadata);
     return desktopFileResponseSchema.parse({ opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") });
   });
   const announceFile = async (path: string) => {
