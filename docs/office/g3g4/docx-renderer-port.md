@@ -146,6 +146,52 @@ existing docx-engine/font-metrics entries.
   brief ("do not fork") — the editor surface built here is host-agnostic;
   g4-06a wires the adapter, not a second editor.
 
+## 3b. Correction (post-go, phase-1 file-by-file re-verification)
+
+The Advisor's go approved vendoring the ~95-file/~40k-line subset above. The
+worker's required file-by-file re-verification (the design doc's own
+section 2 instruction, since the single grep check was explicitly flagged as
+not to be trusted) found this estimate wrong in a load-bearing way:
+
+- 27 of `editor/`'s 57 files — including `extensions.ts` (5,925 lines, the
+  file that actually assembles the TipTap schema/commands) — import
+  genoffice's **own** i18n runtime (`../i18n/locale`) and/or
+  `@genoffice/docx-engine` (genoffice's own parse/save engine and Block
+  model — a different, incompatible model from the G2 `DocxParsed`/`DocxEdit`
+  this lane binds to). Vendoring them as-is means either vendoring
+  genoffice's i18n runtime as code (forbidden, section 1) or carrying a
+  second parse/save engine alongside G2 (forbidden, G2 already exists).
+  Several files outside `editor/` the design doc never selected
+  (`line-metrics.ts`, `font-list.ts`, `font-check.ts`, `note-format.ts`) are
+  also pulled in as siblings.
+- Only 30 of 57 `editor/` files are coupling-free, and `extensions.ts` (the
+  integration point) is not one of them — vendoring the clean 30 alone gives
+  no usable binding surface.
+
+**Correction**: `apps/docs/src/renderer/editor/` and `components/` are
+**design reference only** (read, never ported as code — the same treatment
+already given to genoffice's i18n, section 2), not a `vendor-upstream.mjs`
+selection. Vendor only the genuinely standalone pure-logic files the new
+binding code will import — roughly 15–20 files, low thousands of lines, not
+~40k (`headings.ts`, `column-layout.ts`, `page-break.ts`, `indent.ts`,
+`table-sizing.ts`, `para-border-merge.ts`, `move-block.ts`, `paste-text.ts`,
+`paste-web-html.ts`, `paste-options.ts`, `dark-page.ts`, `text-color.ts`,
+`shading-ink.ts`, `case-transform.ts`, `direction.ts`,
+`trailing-table-exit.ts` — exact list confirmed file-by-file at
+vendor-upstream time, not assumed from this list). The actual TipTap
+schema/commands binding `DocxParsed`/`DocxEdit` is **new UniWork code** in
+`packages/views/office/docx/`, following the pattern
+`packages/office-engine/src/docx/adapter.ts` already uses for the vendored
+`docx-engine`. `components/` (Ribbon, dialogs) is skipped entirely — coupled
+to genoffice's own CSS/i18n, and UI Rules require `packages/ui` primitives +
+Tailwind tokens instead, so it is rebuilt, not ported.
+
+This shrinks AC-1's vendored surface substantially versus section 2's
+estimate. Sent to the Advisor as a `decision_required` alongside this
+checkpoint; the worker proceeds on this trimmed basis in the meantime since
+the alternative (vendoring a second i18n runtime or a second docx engine) is
+already ruled out by standing rules, not a judgment call.
+
 ## 4. Open questions for the Advisor (go/no-go gate)
 
 1. Confirm the ~95-file/~40k-line vendored subset and the `@tiptap/*`
