@@ -8,7 +8,8 @@ export class RestartUpdateError extends Error {
 }
 
 export interface RestartUpdateOptions {
-  readonly drafts: Pick<DesktopDraftStore, "flushScheduled">;
+  readonly drafts: Pick<DesktopDraftStore, "flushScheduled"> & Partial<Pick<DesktopDraftStore, "prepareForRestart" | "cancelRestart" | "migrateFormat">>;
+  readonly targetDraftFormat?: 1 | 2;
   readonly confirmDrafts: () => Promise<boolean>;
   readonly restart: () => Promise<void>;
 }
@@ -16,8 +17,20 @@ export interface RestartUpdateOptions {
 /** The update boundary is deliberately ordered: durable checkpoint, explicit
  * confirmation, then restart. A storage error never proceeds to restart. */
 export async function restartToUpdate(options: RestartUpdateOptions): Promise<void> {
-  try { await options.drafts.flushScheduled(); }
+  try {
+    if (options.targetDraftFormat !== undefined) {
+      if (!options.drafts.migrateFormat) throw new Error("draft migration service is unavailable");
+      await options.drafts.migrateFormat(options.targetDraftFormat);
+    }
+    if (options.drafts.prepareForRestart) await options.drafts.prepareForRestart();
+    else await options.drafts.flushScheduled();
+  }
   catch (error) { throw new RestartUpdateError("checkpoint_failed", error instanceof Error ? error.message : "draft checkpoint failed"); }
-  if (!await options.confirmDrafts()) throw new RestartUpdateError("confirmation_required", "local drafts must be confirmed before restarting");
-  await options.restart();
+  try {
+    if (!await options.confirmDrafts()) throw new RestartUpdateError("confirmation_required", "local drafts must be confirmed before restarting");
+    await options.restart();
+  } catch (error) {
+    options.drafts.cancelRestart?.();
+    throw error;
+  }
 }

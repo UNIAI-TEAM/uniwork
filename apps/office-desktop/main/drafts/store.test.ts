@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { promises as fs } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { createDesktopDraftStore, DRAFT_TEMP_PREFIX } from "./store";
 import { createFakeDraftKeyStore } from "./test-fake";
 import { checksum, decryptDraft, encryptDraft } from "./crypto";
@@ -8,7 +8,7 @@ import { DraftRecoveryError, type DraftIdentity, type DraftSession } from "../..
 import { runDraftRecoveryAdapterBehaviorSuite, type DraftRecoveryBehaviorHarness } from "../../../../packages/core/office/draft-recovery.behavior";
 
 const roots: string[] = [];
-async function root(): Promise<string> { const path = join("D:\\", "uniwork-office-tests", `draft-${Date.now()}-${Math.random().toString(16).slice(2)}`); await fs.mkdir(path, { recursive: true }); roots.push(path); return path; }
+async function root(): Promise<string> { const path = resolve(".test-artifacts", `draft-${Date.now()}-${Math.random().toString(16).slice(2)}`); await fs.mkdir(path, { recursive: true }); roots.push(path); return path; }
 afterEach(async () => { while (roots.length) await fs.rm(roots.pop()!, { recursive: true, force: true }); });
 
 const identity: DraftIdentity = { deploymentId: "dep", accountId: "a", organizationId: "org", workspaceId: "ws", documentId: "doc", base: { revision: "r1", version: "v1" } };

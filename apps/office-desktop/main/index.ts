@@ -7,6 +7,7 @@ import type { NativeLoginManager } from "./auth/manager";
 import { launchRequestedEventSchema } from "../shared/ipc";
 import { registerDeepLinkSystem, type DeepLinkRegistration, type DeepLinkSystem, type LaunchBridge } from "./deep-links";
 import type { DeploymentProfile } from "../shared/deployment";
+import { DesktopUpdateClient, type DesktopUpdateClientOptions } from "./updates/client";
 
 export const WINDOW_WEB_PREFERENCES = Object.freeze({
   sandbox: true,
@@ -38,6 +39,8 @@ export type DesktopHostOptions = {
   deploymentProfile?: DeploymentProfile;
   /** Resolved by the Electron entry; never read from process.env here. */
   userDataDirectory?: string;
+  /** Main-only installed release policy. No renderer or feed can supply trust. */
+  updates?: DesktopUpdateClientOptions;
 };
 
 function authCallbackFromArgv(argv: readonly unknown[]): string | undefined {
@@ -82,6 +85,7 @@ export function createDesktopHost(options: DesktopHostOptions) {
     });
   }
   return {
+    updates: new DesktopUpdateClient(options.updates),
     identity: DESKTOP_IDENTITY,
     webPreferences: WINDOW_WEB_PREFERENCES,
     openApprovedExternal: (url: string) => openApprovedExternal(url, allowedExternalHosts, openSystemBrowser),

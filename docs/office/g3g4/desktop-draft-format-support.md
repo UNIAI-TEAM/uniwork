@@ -1,11 +1,17 @@
 # Desktop draft format support matrix
 
-The restart-to-update boundary flushes the local encrypted draft checkpoint and asks the user to confirm the checkpoint before restarting. An I/O failure aborts the update; it never falls through to restart.
+The real durable envelope contains version, encrypted, draftId, identity (including account, deployment and document base), generation, checksum, byteLength, updatedAt, nonce and ciphertext. It never stores a key or a plaintext copy. Version 2 adds the `uniwork-office-draft/2` format marker; the encryption, authenticated data and namespace derivation stay unchanged.
 
-| Existing format | New format | Migration / rollback rule |
-| --- | --- | --- |
-| v1 (G4-04) | v1 | Read and write in place. |
-| v1 | v2 | Add metadata only; preserve ciphertext, checksum, and the `uniwork-office` key namespace. |
-| v2 | v1 (rollback) | Read the legacy fields and preserve ciphertext; do not delete or re-encrypt. |
+| Reader / transition | Supported behavior |
+| --- | --- |
+| G4-04 legacy reader | Reads v1 only. Never point it directly at v2 rows. |
+| G4-07b reader | Reads v1 and v2; refuses corrupt/unsupported rows without hiding or deleting them. |
+| Upgrade v1 to v2 | `DesktopDraftStore.migrateFormat(2)` retains each source envelope and atomically changes metadata only. |
+| Rollback v2 to legacy v1 | Run `migrateFormat(1)` before restarting into a v1-only reader; removes the v2 marker and retains source ciphertext. |
+| Interrupted migration | The G4-07b reader can read the mixed v1/v2 store. Retry the same migration; exclusive retained copies are never overwritten. |
 
-Drafts are local encrypted checkpoints only. An update must never auto-save to the cloud or overwrite the original file. Recovery remains gated by the existing account, deployment, base revision, and edit-access checks.
+The checkpoint scheduler keeps one pending snapshot per document/draft, records background IO failures, and flushes all pending/in-flight writes. `prepareForRestart` verifies durable ciphertext hashes and seals writes across the confirmation dialog; cancellation reopens writes. A signed update descriptor selects the target draft format before checkpoint confirmation and installation.
+
+Beta and stable use the accepted shared `uniwork-office` key namespace; dev remains separate. Migration never changes identity, ciphertext, nonce, checksum, file namespace, or OS key namespace. Retained `.keep` envelopes are ciphertext backups, not automatically recovered older revisions. No update operation writes to cloud or the original Office file.
+
+Tests reopen the actual store after v1 to v2 and v2 to v1 conversions and recover the same plaintext with the same key store. They also exercise failed atomic replacement, unsupported formats, multi-document flushing, a background IO failure and confirmation cancellation. Full lane acceptance still requires native runtime integration and independent final-SHA verification.
