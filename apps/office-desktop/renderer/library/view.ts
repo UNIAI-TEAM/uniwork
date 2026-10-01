@@ -3,6 +3,7 @@ import { canDownloadDocument, type LibraryMode } from "./model";
 
 type ElementLike = {
   textContent: string | null;
+  value?: string;
   setAttribute(name: string, value: string): void;
   appendChild(child: unknown): unknown;
   addEventListener(type: string, listener: () => void): void;
@@ -31,6 +32,7 @@ export function renderLibrary(
     documents: readonly DesktopLibraryDocument[];
     engineAvailable: boolean;
     onModeChange?: (mode: LibraryMode) => void;
+    onSearch?: (query: string) => void;
     onOpen?: (document: DesktopLibraryDocument) => void;
     onDownload?: (document: DesktopLibraryDocument) => void;
     t?: LibraryViewText;
@@ -54,6 +56,16 @@ export function renderLibrary(
     nav.appendChild(button);
   }
   root.appendChild(nav);
+  if (options.mode === "search") {
+    const search = documentLike.createElement("input");
+    search.value = "";
+    search.textContent = "";
+    search.setAttribute("type", "search");
+    search.setAttribute("aria-label", t("search"));
+    search.setAttribute("placeholder", t("search"));
+    search.addEventListener("input", () => options.onSearch?.(search.value ?? ""));
+    root.appendChild(search);
+  }
   if (!options.engineAvailable) {
     const notice = documentLike.createElement("p");
     notice.textContent = t("engineDown");

@@ -25,18 +25,20 @@ export function createDesktopDocxEditor(options: {
   let dirty = false;
   let opened: DesktopOfficeOpenResponse | undefined;
   const request = <C extends DesktopIpcChannel>(channel: C, payload: DesktopIpcRequest<C>) => options.bridge.call(channel, payload);
+  const save = async (entryPoint: "button" | "menu" | "shortcut" = "button"): Promise<void> => {
+    if (!dirty || !opened) return;
+    await options.saveAction(entryPoint);
+    dirty = false;
+  };
+  const handleNativeSave = () => save("menu");
   return Object.freeze({
     async open() {
       opened = await request("desktop:office-open", { sessionGeneration: options.sessionGeneration, workspaceId: options.workspaceId, documentId: options.documentId, ...(options.version === undefined ? {} : { version: options.version }) }) as DesktopOfficeOpenResponse;
       return opened;
     },
     markDirty() { dirty = true; },
-    async save(entryPoint: "button" | "menu" | "shortcut" = "button") {
-      if (!dirty || !opened) return;
-      await options.saveAction(entryPoint);
-      dirty = false;
-    },
-    async handleNativeSave() { await this.save("menu"); },
+    save,
+    handleNativeSave,
     getDocumentId() { return options.documentId; },
     getDirty() { return dirty; },
   });

@@ -247,7 +247,9 @@ export function validateIpcRequest<C extends DesktopIpcChannel>(channel: C | str
   if (sender.senderId !== sender.expectedSenderId) throw new IpcValidationError("sender", "IPC sender is not the bound webContents");
   if (sender.frameId !== sender.expectedFrameId) throw new IpcValidationError("frame", "IPC frame is not the bound frame");
   if (sender.origin !== sender.expectedOrigin || !originSchema.safeParse(sender.origin).success) throw new IpcValidationError("origin", "IPC origin is not the application origin");
-  const byteLimit = channel.startsWith("desktop:file-") || channel === "desktop:draft-checkpoint" ? IPC_FILE_MAX_BYTES : IPC_MAX_BYTES;
+  // Office saves carry the serialized DOCX in the same bounded byte class as
+  // local-file and draft payloads. Keep control calls at the smaller limit.
+  const byteLimit = channel.startsWith("desktop:file-") || channel === "desktop:draft-checkpoint" || channel === "desktop:office-save" ? IPC_FILE_MAX_BYTES : IPC_MAX_BYTES;
   if (sizeInBytes(payload, byteLimit) > byteLimit) throw new IpcValidationError("oversize", "IPC payload exceeds the byte limit");
   let parsed: { success: boolean; data?: unknown };
   try {

@@ -132,7 +132,14 @@ async function startElectronHost(): Promise<void> {
   });
   let nativeSaveListener: (() => void) | undefined;
   let activeDocumentId: string | undefined;
-  Menu.setApplicationMenu(Menu.buildFromTemplate([{ label: "File", submenu: [{ label: "Save", accelerator: "CmdOrCtrl+S", click: () => nativeSaveListener?.() }] }]));
+  window.on("closed", () => { activeDocumentId = undefined; });
+  // Keep the platform editing roles available (especially Cmd/C/X/V on
+  // macOS) while adding the one desktop Save action owned by the host.
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    { label: "File", submenu: [{ label: "Save", accelerator: "CmdOrCtrl+S", click: () => nativeSaveListener?.() }, { role: "quit" }] },
+    { label: "Edit", submenu: [{ role: "undo" }, { role: "redo" }, { type: "separator" }, { role: "cut" }, { role: "copy" }, { role: "paste" }, { role: "selectAll" }] },
+    { label: "View", submenu: [{ role: "reload" }, { role: "toggleDevTools" }] },
+  ]));
   publishSessionMetadata = (metadata) => {
     const parsed = desktopSessionMetadataSchema.parse(metadata);
     window.webContents.send?.("desktop:auth-session-changed", parsed);

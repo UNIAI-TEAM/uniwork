@@ -3,12 +3,14 @@ import type { DeploymentProfile } from "../../shared/deployment";
 import type { DesktopLibraryDocument, DesktopLibraryResponse, DesktopLibraryDownloadResponse, DesktopOfficeOpenResponse, DesktopOfficeSaveResponse } from "../../shared/ipc";
 import type { CredentialStore } from "../auth/credentials";
 import type { DesktopOfficeTransport } from "../ipc";
+import { assertOrigin } from "./auth-transport";
 
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
 export function createHttpOfficeTransport(options: { profile: DeploymentProfile; credentials: CredentialStore; fetchImpl?: FetchLike }): DesktopOfficeTransport {
   const fetchImpl = options.fetchImpl ?? fetch;
+  assertOrigin(options.profile.apiOrigin, options.profile.channel === "dev");
   const origin = options.profile.apiOrigin.replace(/\/$/, "");
   async function authRequest(path: string, init: RequestInit = {}): Promise<Response> {
     const session = await options.credentials.get();
@@ -85,7 +87,8 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
       const version = result.version && typeof result.version === "object" ? result.version as Record<string, unknown> : {};
       const document = result.document && typeof result.document === "object" ? result.document as Record<string, unknown> : {};
       if (typeof version.id !== "string" || typeof document.revision !== "string") throw new Error("commit_invalid");
-      return { documentId: input.documentId, intentId: input.intentId, idempotencyKey: input.idempotencyKey, versionId: version.id, revision: document.revision, checksum: input.checksum };
+      const committedChecksum = typeof version.checksum_sha256 === "string" && /^sha256:[0-9a-f]{64}$/.test(version.checksum_sha256) ? version.checksum_sha256 : input.checksum;
+      return { documentId: input.documentId, intentId: input.intentId, idempotencyKey: input.idempotencyKey, versionId: version.id, revision: document.revision, checksum: committedChecksum };
     },
   });
 }

@@ -1,7 +1,7 @@
 import { renderDesktopShell } from "./shell";
 import { createLoginController, loginStateFromMetadata, renderLoginScreen, type LoginScreenState } from "./login";
-import { desktopAuthConfigResponseSchema, desktopSessionMetadataSchema, type DesktopIpcChannel, type DesktopIpcRequest, type DesktopSessionMetadata } from "../shared/ipc";
-import { createLibraryController, createLibraryScopeController } from "./library/model";
+import { desktopAuthConfigResponseSchema, desktopSessionMetadataSchema, type DesktopIpcChannel, type DesktopIpcRequest, type DesktopLibraryContextResponse, type DesktopSessionMetadata } from "../shared/ipc";
+import { createLibraryController, createLibraryScopeController, type LibraryMode } from "./library/model";
 import { renderLibrary } from "./library/view";
 
 const SESSION_GENERATION = "desktop-dev-session";
@@ -73,20 +73,44 @@ function renderSignedIn(root: RendererRoot, documentLike: RendererDocument, meta
   if ((!workspaceId || !organizationId) && documentLike.createElement && root.appendChild) {
     const picker = documentLike.createElement("section");
     if (!picker.appendChild) return;
-    picker.textContent = "Choose a workspace";
+    picker.textContent = "Choose a deployment, account, organization, and workspace";
     picker.setAttribute("data-desktop-library-picker", "true");
     root.appendChild(picker);
     void bridge.call("desktop:library-context", { sessionGeneration: SESSION_GENERATION }).then((raw) => {
-      const context = raw as { organizations?: Array<{ id: string; name: string }>; workspaces?: Array<{ id: string; name: string }> };
-      const org = context.organizations?.[0];
-      const workspace = context.workspaces?.[0];
-      if (!org || !workspace || !picker.appendChild || !documentLike.createElement) return;
-      picker.textContent = `${org.name} / ${workspace.name}`;
-      const choose = documentLike.createElement("button");
-      choose.textContent = "Open documents";
-      choose.setAttribute("type", "button");
-      choose.addEventListener("click", () => renderSignedIn(root, documentLike, { ...metadata, organizationId: org.id, workspaceId: workspace.id } as SignedInMetadata, onLogout, bridge));
-      picker.appendChild(choose);
+      const context = raw as DesktopLibraryContextResponse;
+      const append = picker.appendChild;
+      const createElement = documentLike.createElement;
+      if (!append || !createElement) return;
+      const selected: Partial<Record<keyof DesktopLibraryContextResponse, string>> = {};
+      const redrawPicker = () => {
+        picker.textContent = "Choose a deployment, account, organization, and workspace";
+        (Object.keys(selected) as Array<keyof DesktopLibraryContextResponse>).forEach((key) => {
+          if (selected[key]) picker.textContent += ` ${key}: ${selected[key]}`;
+        });
+        const groups: Array<keyof DesktopLibraryContextResponse> = ["deployments", "accounts", "organizations", "workspaces"];
+        for (const group of groups) {
+          const heading = createElement("p");
+          heading.textContent = group;
+          append.call(picker, heading);
+          for (const entry of context[group] ?? []) {
+            const option = createElement("button");
+            option.textContent = entry.name;
+            option.setAttribute("type", "button");
+            option.setAttribute("data-picker-kind", group);
+            option.setAttribute("data-picker-id", entry.id);
+            option.addEventListener("click", () => { selected[group] = entry.id; redrawPicker(); });
+            append.call(picker, option);
+          }
+        }
+        const ready = groups.every((group) => Boolean(selected[group]));
+        if (!ready) return;
+        const choose = createElement("button");
+        choose.textContent = "Open documents";
+        choose.setAttribute("type", "button");
+        choose.addEventListener("click", () => renderSignedIn(root, documentLike, { ...metadata, deploymentId: selected.deployments!, accountId: selected.accounts!, organizationId: selected.organizations!, workspaceId: selected.workspaces! }, onLogout, bridge));
+        append.call(picker, choose);
+      };
+      redrawPicker();
     }).catch(() => undefined);
     return;
   }
@@ -96,9 +120,25 @@ function renderSignedIn(root: RendererRoot, documentLike: RendererDocument, meta
   root.appendChild(libraryRoot);
   const scopes = createLibraryScopeController({ deploymentId: metadata.deploymentId, accountId: metadata.accountId, organizationId, workspaceId, sessionGeneration: SESSION_GENERATION });
   const controller = createLibraryController(bridge, scopes);
-  void controller.list().then((result) => {
-    renderLibrary(libraryRoot as never, documentLike as never, { mode: "list", documents: result.documents, engineAvailable: result.engineAvailable, onOpen: (document) => { void bridge.call("desktop:office-open", { sessionGeneration: SESSION_GENERATION, workspaceId, documentId: document.id }); }, onDownload: (document) => { void bridge.call("desktop:library-download", { sessionGeneration: SESSION_GENERATION, workspaceId, documentId: document.id, version: document.version }); } });
-  }).catch(() => renderLibrary(libraryRoot as never, documentLike as never, { mode: "list", documents: [], engineAvailable: false }));
+  let mode: LibraryMode = "list";
+  let searchQuery = "";
+  const drawLibrary = async (): Promise<void> => {
+    try {
+      const result = mode === "list" ? await controller.list() : mode === "recent" ? await controller.recent() : searchQuery.trim() ? await controller.search(searchQuery.trim()) : { documents: [], nextCursor: null, engineAvailable: true, generation: scopes.getGeneration() };
+      renderLibrary(libraryRoot as never, documentLike as never, {
+        mode,
+        documents: result.documents,
+        engineAvailable: result.engineAvailable,
+        onModeChange: (next) => { mode = next; void drawLibrary(); },
+        onSearch: (query) => { searchQuery = query; if (query.trim()) void drawLibrary(); },
+        onOpen: (document) => { void bridge.call("desktop:office-open", { sessionGeneration: SESSION_GENERATION, workspaceId, documentId: document.id, version: document.version }); },
+        onDownload: (document) => { void bridge.call("desktop:library-download", { sessionGeneration: SESSION_GENERATION, workspaceId, documentId: document.id, version: document.version }); },
+      });
+    } catch {
+      renderLibrary(libraryRoot as never, documentLike as never, { mode, documents: [], engineAvailable: false, onModeChange: (next) => { mode = next; void drawLibrary(); } });
+    }
+  };
+  void drawLibrary();
 }
 
 export async function mountDesktopRenderer(documentLike: RendererDocument, bridge: RendererBridge | undefined = typeof window !== "undefined" ? window.uniworkOffice : undefined): Promise<void> {

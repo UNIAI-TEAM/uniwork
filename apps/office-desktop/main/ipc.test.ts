@@ -23,6 +23,12 @@ describe("desktop IPC allowlist", () => {
   it("accepts realistic documents without regex stack overflow", () => {
     const dataBase64 = Buffer.alloc(10 * 1024 * 1024).toString("base64");
     expect(() => validateIpcRequest("desktop:file-save", { sessionGeneration: "session_1234", handle: "file_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", dataBase64 }, context)).not.toThrow();
+  }, 20_000);
+  it("allows DOCX save bytes above the control-message budget", () => {
+    const dataBase64 = Buffer.alloc(96 * 1024).toString("base64");
+    const request = { sessionGeneration: "session_1234", workspaceId: "ws-1", documentId: "doc-1", intentId: "intent-1", idempotencyKey: "key-1", baseVersionId: "version-1", baseRevision: "9", dataBase64, checksum: `sha256:${"a".repeat(64)}` };
+    expect(() => validateIpcRequest("desktop:office-save", request, context)).not.toThrow();
+    expect(() => validateIpcRequest("desktop:office-save", { ...request, dataBase64: "x".repeat(IPC_FILE_MAX_BYTES) }, context)).toThrowError(IpcValidationError);
   });
 
   it("sanitizes file handler errors and validates handler responses", async () => {
