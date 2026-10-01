@@ -16,6 +16,8 @@ export interface LibraryPickerSelection {
 
 export interface LibraryPickerProps {
   context: DesktopLibraryContextResponse | null;
+  error?: boolean;
+  onRetry?: () => void;
   onChoose: (selection: LibraryPickerSelection) => void;
 }
 
@@ -29,7 +31,7 @@ const GROUP_TO_KEY: Record<PickerGroup, keyof LibraryPickerSelection> = {
 /** The scope the brief requires before any library query runs: deployment,
  * account, organization, then workspace. Nothing here guesses a default --
  * metadata from a previous account never flashes through this screen. */
-export function LibraryPicker({ context, onChoose }: LibraryPickerProps) {
+export function LibraryPicker({ context, error = false, onRetry, onChoose }: LibraryPickerProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
   const [selected, setSelected] = useState<Partial<LibraryPickerSelection>>({});
   const ready = GROUPS.every((group) => Boolean(selected[GROUP_TO_KEY[group]]));
@@ -37,7 +39,12 @@ export function LibraryPicker({ context, onChoose }: LibraryPickerProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-6 p-6" data-desktop-library-picker="true">
       <h1 className="text-title font-semibold text-foreground">{t("pickerTitle")}</h1>
-      {!context ? (
+      {error ? (
+        <div className="flex flex-col gap-3" role="alert">
+          <p className="text-body text-muted-foreground">{t("contextError")}</p>
+          <Button type="button" variant="outline" onClick={onRetry}>{t("retry")}</Button>
+        </div>
+      ) : !context ? (
         <Skeleton className="h-40 w-full max-w-md" />
       ) : (
         <>
@@ -47,7 +54,7 @@ export function LibraryPicker({ context, onChoose }: LibraryPickerProps) {
               <section key={group} className="flex flex-col gap-2">
                 <h2 className="text-label font-medium text-muted-foreground">{t(group)}</h2>
                 <div className="flex flex-wrap gap-2">
-                  {context[group].map((entry) => (
+                  {(context[group] ?? []).map((entry) => (
                     <Button
                       key={entry.id}
                       type="button"

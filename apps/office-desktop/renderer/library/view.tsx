@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
+import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import type { DesktopLibraryDocument } from "../../shared/ipc";
 import { canDownloadDocument, type LibraryMode } from "./model";
@@ -10,6 +11,9 @@ export interface LibraryViewProps {
   mode: LibraryMode;
   documents: readonly DesktopLibraryDocument[];
   engineAvailable: boolean;
+  loading?: boolean;
+  error?: boolean;
+  onRetry?: () => void;
   searchQuery?: string;
   onModeChange?: (mode: LibraryMode) => void;
   onSearch?: (query: string) => void;
@@ -25,6 +29,9 @@ export function LibraryView({
   mode,
   documents,
   engineAvailable,
+  loading = false,
+  error = false,
+  onRetry,
   searchQuery = "",
   onModeChange,
   onSearch,
@@ -72,7 +79,14 @@ export function LibraryView({
           {t("engineDown")}
         </p>
       ) : null}
-      {documents.length === 0 ? (
+      {error ? (
+        <div className="flex flex-col gap-3" role="alert">
+          <p className="text-body text-muted-foreground">{t("error")}</p>
+          <Button type="button" variant="outline" onClick={onRetry}>{t("retry")}</Button>
+        </div>
+      ) : loading ? (
+        <Skeleton className="h-24 w-full" />
+      ) : documents.length === 0 ? (
         <p className="text-body text-muted-foreground">{t("empty")}</p>
       ) : (
         <ul aria-label={t("title")} className="flex flex-col gap-2">

@@ -1,4 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  desktopAuthConfigResponseSchema,
+  desktopLibraryContextResponseSchema,
+  desktopSessionMetadataSchema,
+} from "../shared/ipc";
 import type {
   DesktopIpcChannel,
   DesktopIpcRequest,
@@ -25,13 +30,13 @@ type SignedInMetadata = DesktopSessionMetadata & { status: "signed-in"; accountI
 type Scope = SignedInMetadata & { organizationId?: string; workspaceId?: string };
 
 function isSessionMetadata(value: unknown): value is DesktopSessionMetadata {
-  return typeof value === "object" && value !== null && "status" in value;
+  return desktopSessionMetadataSchema.safeParse(value).success;
 }
 function isAuthConfig(value: unknown): value is { clientId: string; deploymentId: string } {
-  return typeof value === "object" && value !== null && typeof (value as { clientId?: unknown }).clientId === "string";
+  return desktopAuthConfigResponseSchema.safeParse(value).success;
 }
 function isLibraryContext(value: unknown): value is DesktopLibraryContextResponse {
-  return typeof value === "object" && value !== null && Array.isArray((value as { deployments?: unknown }).deployments);
+  return desktopLibraryContextResponseSchema.safeParse(value).success;
 }
 
 /** Scope picked plus its workspace library, between sign-in and opening a
@@ -41,25 +46,29 @@ function LibraryHost({ bridge, scope }: { bridge: RendererBridge; scope: Scope &
   const [mode, setMode] = useState<LibraryMode>("list");
   const [searchQuery, setSearchQuery] = useState("");
   const [result, setResult] = useState<{ documents: DesktopLibraryDocument[]; engineAvailable: boolean } | null>(null);
-  const scopeController = useRef(createLibraryScopeController({ deploymentId: scope.deploymentId, accountId: scope.accountId, organizationId: scope.organizationId, workspaceId: scope.workspaceId, sessionGeneration: SESSION_GENERATION }));
-  const controller = useRef(createLibraryController(bridge, scopeController.current));
+  const [error, setError] = useState(false);
+  const [reload, setReload] = useState(0);
+  const scopeController = useMemo(() => createLibraryScopeController({ deploymentId: scope.deploymentId, accountId: scope.accountId, organizationId: scope.organizationId, workspaceId: scope.workspaceId, sessionGeneration: SESSION_GENERATION }), [scope]);
+  const controller = useMemo(() => createLibraryController(bridge, scopeController), [bridge, scopeController]);
   const drawSequence = useRef(0);
 
   useEffect(() => {
     let active = true;
     const requestSequence = ++drawSequence.current;
-    const run = mode === "list" ? controller.current.list() : mode === "recent" ? controller.current.recent() : searchQuery.trim() ? controller.current.search(searchQuery.trim()) : Promise.resolve({ documents: [], nextCursor: null, engineAvailable: true, generation: 0 });
+    const run = mode === "list" ? controller.list() : mode === "recent" ? controller.recent() : searchQuery.trim() ? controller.search(searchQuery.trim()) : Promise.resolve({ documents: [], nextCursor: null, engineAvailable: true, generation: 0 });
     void run
       .then((next) => {
         if (!active || requestSequence !== drawSequence.current) return;
         setResult({ documents: next.documents, engineAvailable: next.engineAvailable });
+        setError(false);
       })
       .catch(() => {
         if (!active || requestSequence !== drawSequence.current) return;
-        setResult({ documents: [], engineAvailable: false });
+        setResult(null);
+        setError(true);
       });
     return () => { active = false; };
-  }, [mode, searchQuery]);
+  }, [controller, mode, searchQuery, reload]);
 
   return (
     <LibraryView
@@ -67,6 +76,9 @@ function LibraryHost({ bridge, scope }: { bridge: RendererBridge; scope: Scope &
       searchQuery={searchQuery}
       documents={result?.documents ?? []}
       engineAvailable={result?.engineAvailable ?? true}
+      loading={result === null && !error}
+      error={error}
+      onRetry={() => setReload((value) => value + 1)}
       onModeChange={setMode}
       onSearch={setSearchQuery}
       onOpen={(document) => {
@@ -82,21 +94,25 @@ function LibraryHost({ bridge, scope }: { bridge: RendererBridge; scope: Scope &
 function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; metadata: SignedInMetadata; onLogout: () => void }) {
   const [scope, setScope] = useState<LibraryPickerSelection | null>(null);
   const [context, setContext] = useState<DesktopLibraryContextResponse | null>(null);
+  const [contextError, setContextError] = useState(false);
+  const [contextReload, setContextReload] = useState(0);
 
   useEffect(() => {
     let active = true;
+    setContextError(false);
     void bridge.call("desktop:library-context", { sessionGeneration: SESSION_GENERATION }).then((raw) => {
-      if (active && isLibraryContext(raw)) setContext(raw);
-    });
+      if (!active) return;
+      if (isLibraryContext(raw)) setContext(raw); else setContextError(true);
+    }).catch(() => { if (active) setContextError(true); });
     return () => { active = false; };
-  }, [bridge]);
+  }, [bridge, contextReload]);
 
   return (
     <SignedInShell onSignOut={onLogout}>
       {scope ? (
         <LibraryHost bridge={bridge} scope={{ ...metadata, ...scope }} />
       ) : (
-        <LibraryPicker context={context} onChoose={setScope} />
+        <LibraryPicker context={context} error={contextError} onRetry={() => setContextReload((value) => value + 1)} onChoose={setScope} />
       )}
     </SignedInShell>
   );
@@ -110,11 +126,19 @@ export function App({ bridge }: { bridge: RendererBridge }) {
   const [state, setState] = useState<LoginScreenState>("signed-out");
   const [metadata, setMetadata] = useState<DesktopSessionMetadata | undefined>(undefined);
   const controllerRef = useRef<ReturnType<typeof createLoginController> | undefined>(undefined);
+  const metadataRef = useRef<DesktopSessionMetadata | undefined>(undefined);
 
   useEffect(() => {
     const unsubscribe = bridge.onSessionChanged((next) => {
+      metadataRef.current = next;
       setMetadata(next);
       setState(loginStateFromMetadata(next));
+    });
+    const unsubscribeLaunch = bridge.onLaunchRequested?.((event) => {
+      const current = metadataRef.current;
+      const workspaceId = current?.status === "signed-in" ? current.workspaceId : undefined;
+      if (!workspaceId) return;
+      void bridge.call("desktop:office-open", { sessionGeneration: SESSION_GENERATION, workspaceId, documentId: event.documentId, ...(event.version === undefined ? {} : { version: event.version }) });
     });
     void (async () => {
       try {
@@ -124,12 +148,13 @@ export function App({ bridge }: { bridge: RendererBridge }) {
         const session = await bridge.call("desktop:auth-session", { sessionGeneration: SESSION_GENERATION });
         if (!isSessionMetadata(session)) throw new Error("invalid session metadata");
         setMetadata(session);
+        metadataRef.current = session;
         setState(loginStateFromMetadata(session));
       } catch {
         setState("error");
       }
     })();
-    return unsubscribe;
+    return () => { unsubscribe(); unsubscribeLaunch?.(); };
   }, [bridge]);
 
   if (state === "signed-in" && metadata?.status === "signed-in" && metadata.accountId && metadata.deploymentId) {
