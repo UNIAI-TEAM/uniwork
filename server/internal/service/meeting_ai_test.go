@@ -11,6 +11,7 @@ import (
 
 	"github.com/unicomhub/uniwork/server/internal/ai"
 	"github.com/unicomhub/uniwork/server/internal/ai/provider"
+	"github.com/unicomhub/uniwork/server/internal/audit"
 	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
@@ -375,6 +376,69 @@ func TestAutoEndOverdue(t *testing.T) {
 	}
 }
 
+// The scheduler ended the meeting, not the last host and not a person called
+// "system": audit_events and the outbox say system/meeting-auto-end, while
+// the meeting timeline keeps its historical "system" actor id
+// (TestAutoEndOverdue). A host's End stays a human act.
+func TestAutoEndOverdueAuditsSystemActor(t *testing.T) {
+	s, ua, _, w := meetingFixture(t)
+	ctx := context.Background()
+	past := time.Now().Add(-5 * time.Hour)
+	m, err := s.Create(ctx, ua.ID, w.ID, CreateMeetingInput{Title: "Old", StartsAt: past, EndsAt: past.Add(time.Hour)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.q.StartMeeting(ctx, db.StartMeetingParams{UpdatedBy: strText(ua.ID), ID: m.ID, Version: m.Version}); err != nil {
+		t.Fatal(err)
+	}
+	byHost, err := s.CreateInstant(ctx, ua.ID, w.ID, "Host ends")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n, err := s.AutoEndOverdue(ctx, time.Now()); err != nil || n != 1 {
+		t.Fatalf("auto-end: %d %v", n, err)
+	}
+	if _, err := s.End(ctx, ua.ID, byHost.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	var kind, actorID string
+	if err := s.pool.QueryRow(ctx,
+		`SELECT actor_kind, actor_id FROM audit_events WHERE action = 'meeting.ended' AND resource_id = $1`, m.ID,
+	).Scan(&kind, &actorID); err != nil {
+		t.Fatal(err)
+	}
+	if kind != string(audit.KindSystem) || actorID != "meeting-auto-end" {
+		t.Fatalf("auto-end audit actor = %s/%s, want system/meeting-auto-end", kind, actorID)
+	}
+	var outboxKind string
+	if err := s.pool.QueryRow(ctx,
+		`SELECT actor_kind FROM outbox_events WHERE topic = 'meeting.ended' AND payload::jsonb->>'meeting_id' = $1`, m.ID,
+	).Scan(&outboxKind); err != nil {
+		t.Fatal(err)
+	}
+	if outboxKind != string(audit.KindSystem) {
+		t.Fatalf("auto-end outbox actor_kind = %q, want system", outboxKind)
+	}
+	var timelineActor string
+	if err := s.pool.QueryRow(ctx,
+		`SELECT actor_id FROM meeting_audit_logs WHERE event_type = 'MEETING_AUTO_ENDED' AND meeting_id = $1`, m.ID,
+	).Scan(&timelineActor); err != nil {
+		t.Fatal(err)
+	}
+	if timelineActor != "system" {
+		t.Fatalf("timeline actor_id = %q, want system", timelineActor)
+	}
+
+	if err := s.pool.QueryRow(ctx,
+		`SELECT actor_kind, actor_id FROM audit_events WHERE action = 'meeting.ended' AND resource_id = $1`, byHost.ID,
+	).Scan(&kind, &actorID); err != nil {
+		t.Fatal(err)
+	}
+	if kind != string(audit.KindHuman) || actorID != ua.ID {
+		t.Fatalf("host end audit actor = %s/%s, want human/%s", kind, actorID, ua.ID)
+	}
+}
 func TestExtendEndsAtWhileInProgress(t *testing.T) {
 	s, ua, _, w := meetingFixture(t)
 	ctx := context.Background()

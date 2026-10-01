@@ -787,7 +787,7 @@ func (s *MeetingService) AutoEndOverdue(ctx context.Context, now time.Time) (int
 	}
 	n := 0
 	for _, m := range rows {
-		if _, err := s.endMeeting(ctx, m, "system", "MEETING_AUTO_ENDED"); err == nil {
+		if _, err := s.endMeeting(ctx, m, systemActorID, "MEETING_AUTO_ENDED"); err == nil {
 			n++
 			s.count("auto_ended")
 		}
@@ -809,7 +809,7 @@ func (s *MeetingService) endIfOverdueEmpty(ctx context.Context, meetingID string
 	if sess, err := s.q.GetOpenConferenceSession(ctx, meetingID); err == nil && sess.Status == "ACTIVE" {
 		return
 	}
-	if _, err := s.endMeeting(ctx, m, "system", "MEETING_AUTO_ENDED"); err == nil {
+	if _, err := s.endMeeting(ctx, m, systemActorID, "MEETING_AUTO_ENDED"); err == nil {
 		s.count("auto_ended")
 	}
 }

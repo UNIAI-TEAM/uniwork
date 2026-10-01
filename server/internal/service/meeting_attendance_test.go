@@ -6,6 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/unicomhub/uniwork/server/internal/meetings"
 	"github.com/unicomhub/uniwork/server/internal/util"
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
@@ -428,9 +431,9 @@ func TestUpdateMeetingQuorum(t *testing.T) {
 func TestConcurrentFinalizeWritesOnce(t *testing.T) {
 	s, ua, _, m, _ := governanceFixture(t)
 	ctx := context.Background()
-	// Host, secretary and an admin clicking at once. Kept under the test pool
-	// size: each command holds its transaction and s.record borrows a second
-	// connection, so more callers than connections starve the pool.
+	// Host, secretary and an admin clicking at once. s.record reads through
+	// the transaction's q, so each caller needs one connection
+	// (TestMeetingRecordOnOneConnectionPool).
 	const n = 3
 	errs := make(chan error, n)
 	for i := 0; i < n; i++ {
@@ -450,5 +453,44 @@ func TestConcurrentFinalizeWritesOnce(t *testing.T) {
 	}
 	if audits != 1 || timeline != 1 {
 		t.Fatalf("concurrent finalize wrote %d audit rows and %d timeline rows, want 1 and 1", audits, timeline)
+	}
+}
+
+// record reads the organization through the caller's q, so a meeting command
+// runs entirely on the one connection its transaction already holds. On a
+// one-connection pool, a lookup through s.q would wait for that connection
+// until the deadline and the command would fail instead of committing. This
+// is what lets N concurrent ballots run on N connections (spec §10.1 race).
+func TestMeetingRecordOnOneConnectionPool(t *testing.T) {
+	s, ua, _, m, _ := governanceFixture(t)
+	cfg := s.pool.Config().Copy()
+	cfg.MaxConns = 1
+	cfg.MinConns = 0
+	small, err := pgxpool.NewWithConfig(context.Background(), cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer small.Close()
+	one := NewMeetingService(small, db.New(small), s.ws, NopPublisher{}, &meetings.FakeProvider{}, s.rt)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := one.FinalizeAttendance(ctx, ua.ID, m.ID); err != nil {
+		t.Fatalf("finalize on a one-connection pool: %v", err)
+	}
+
+	bg := context.Background()
+	w, err := s.q.GetWorkspaceByID(bg, m.WorkspaceID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var orgID string
+	if err := s.pool.QueryRow(bg,
+		`SELECT organization_id FROM audit_events WHERE action = 'meeting.attendance_finalized' AND resource_id = $1`, m.ID,
+	).Scan(&orgID); err != nil {
+		t.Fatal(err)
+	}
+	if orgID != w.OrganizationID {
+		t.Fatalf("audit organization_id = %q, want %q", orgID, w.OrganizationID)
 	}
 }

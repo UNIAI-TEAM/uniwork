@@ -150,13 +150,19 @@ func (s *MeetingService) End(ctx context.Context, userID, meetingID string) (db.
 	return s.endMeeting(ctx, m, userID, "MEETING_ENDED")
 }
 
+// systemActorID is the actor id a scheduled job passes for a meeting command
+// nobody asked for. The meeting's own columns and timeline (updated_by,
+// meeting_audit_logs.actor_id) keep storing it verbatim; audit_events and the
+// outbox get audit.System instead, so "system" is never filed as a person.
+const systemActorID = "system"
+
 // endMeeting is the IN_PROGRESS → ENDED transition shared by End (host) and
 // AutoEndOverdue (system). eventType names the audit row.
 func (s *MeetingService) endMeeting(ctx context.Context, m db.Meeting, actorID, eventType string) (db.Meeting, error) {
-	// AutoEndOverdue passes no actor: the scheduler ended the meeting, and the
-	// audit row says so rather than blaming the last host.
+	// The scheduler (systemActorID, or no actor at all) ended the meeting, and
+	// the audit row says so rather than blaming the last host.
 	actor := audit.User(actorID)
-	if actorID == "" {
+	if actorID == "" || actorID == systemActorID {
 		actor = audit.System("meeting-auto-end")
 	}
 	if m.Status != MeetingInProgress {

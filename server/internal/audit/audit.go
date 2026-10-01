@@ -21,15 +21,22 @@ import (
 	db "github.com/unicomhub/uniwork/server/pkg/db/generated"
 )
 
-// Kind is who acted. The three values are fixed by ADR 0007: an agent is an
+// Kind is who acted. ADR 0007 fixes human, agent and system: an agent is an
 // actor in its own right, and "system" covers scheduled jobs and workers that
 // act with nobody's authority.
+//
+// Guest (ADR 0007 update 2026-10-01) is a meeting guest who joined by invite
+// link without an account — the first guest command audited is a ballot. It
+// only ever appears as an audit_events / outbox_events actor, never in a
+// business table's `_kind` column: those keep their CHECK of
+// human/agent/system, and a guest creates no row that has an author.
 type Kind string
 
 const (
 	KindHuman  Kind = "human"
 	KindAgent  Kind = "agent"
 	KindSystem Kind = "system"
+	KindGuest  Kind = "guest"
 )
 
 // Actor identifies who performed a command.
@@ -43,6 +50,10 @@ func User(id string) Actor { return Actor{Kind: KindHuman, ID: id} }
 
 // System is the actor for a worker or scheduled job; id is the job name.
 func System(job string) Actor { return Actor{Kind: KindSystem, ID: job} }
+
+// Guest is the actor for a meeting guest; id is the guest session id
+// (meeting_participants.guest_id), never a user id.
+func Guest(id string) Actor { return Actor{Kind: KindGuest, ID: id} }
 
 // Change is the before/after of one field. Nothing else of the row is stored:
 // a full snapshot would put PII in a table that can never be edited.

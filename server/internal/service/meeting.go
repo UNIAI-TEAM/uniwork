@@ -503,12 +503,21 @@ var meetingActionFor = map[string]string{
 // reach here, and they are the remaining work of migrating Meeting off its
 // own audit table.
 func (s *MeetingService) record(ctx context.Context, q *db.Queries, m db.Meeting, actor audit.Actor, topic string, payload map[string]string, changes map[string]audit.Change) {
+	s.recordResource(ctx, q, m, actor, topic, payload, changes, "meeting", m.ID)
+}
+
+// recordResource is record for a command whose audit row belongs to a
+// resource inside the meeting — a ballot is filed under its motion (spec
+// §6.1). Everything, the organization lookup included, goes through q: inside
+// a transaction that keeps the command on the one connection it already
+// holds, so N concurrent commands need N pool connections, not 2N.
+func (s *MeetingService) recordResource(ctx context.Context, q *db.Queries, m db.Meeting, actor audit.Actor, topic string, payload map[string]string, changes map[string]audit.Change, resourceType, resourceID string) {
 	action, ok := meetingActionFor[topic]
 	if !ok {
 		return
 	}
 	orgID := ""
-	if w, err := s.q.GetWorkspaceByID(ctx, m.WorkspaceID); err == nil {
+	if w, err := q.GetWorkspaceByID(ctx, m.WorkspaceID); err == nil {
 		orgID = w.OrganizationID
 	}
 	if payload == nil {
@@ -521,10 +530,10 @@ func (s *MeetingService) record(ctx context.Context, q *db.Queries, m db.Meeting
 		OrganizationID: orgID, WorkspaceID: m.WorkspaceID,
 		Actor:        actor,
 		Action:       action,
-		ResourceType: "meeting", ResourceID: m.ID,
+		ResourceType: resourceType, ResourceID: resourceID,
 		Changes: changes,
 	}, audit.Event{Topic: topic, Payload: payload, OrganizationID: orgID, WorkspaceID: m.WorkspaceID}); err != nil {
-		slog.Warn("audit: meeting command not recorded", "action", action, "meeting", m.ID, "err", err)
+		slog.Warn("audit: meeting command not recorded", "action", action, "meeting", m.ID, "resource", resourceType, "err", err)
 	}
 }
 

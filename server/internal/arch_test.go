@@ -140,10 +140,11 @@ func TestMemberProfilesWrittenInOnePlace(t *testing.T) {
 
 // An actor's kind is decided by the service layer (ADR 0007). A handler only
 // ever holds a signed-in person, so the only constructor it may call is
-// service.Human; building an agent or system actor anywhere else would let a
-// request claim to be an agent. Tests are exempt: they set up both kinds.
+// service.Human; building an agent, system or guest actor anywhere else would
+// let a request claim to be one. A guest handler passes the guest session id
+// to the service, which decides. Tests are exempt: they set up every kind.
 func TestActorConstructedOnlyInService(t *testing.T) {
-	construct := regexp.MustCompile(`audit\.(Actor\{|System\(|KindAgent|KindSystem)`)
+	construct := regexp.MustCompile(`audit\.(Actor\{|System\(|Guest\(|KindAgent|KindSystem|KindGuest)`)
 	err := filepath.WalkDir("..", func(path string, d os.DirEntry, err error) error {
 		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return err
