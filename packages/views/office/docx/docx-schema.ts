@@ -14,6 +14,7 @@
 // while going through starter-kit's own already-working resolution avoids it.
 import { Node, mergeAttributes } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
+import { editorExtensions } from "@uniwork/office-upstream/docs-renderer-editor";
 
 export type DocxBlockKind = "paragraph" | "heading" | "listItem" | "other";
 
@@ -115,28 +116,5 @@ export const DocxBlockNode = Node.create({
 });
 
 export function docxExtensions() {
-  return [
-    StarterKit.configure({
-      bold: {},
-      italic: {},
-      underline: {},
-      undoRedo: {},
-      dropcursor: false,
-      blockquote: false,
-      bulletList: false,
-      code: false,
-      codeBlock: false,
-      hardBreak: false,
-      heading: false,
-      horizontalRule: false,
-      link: false,
-      listItem: false,
-      listKeymap: false,
-      orderedList: false,
-      paragraph: false,
-      strike: false,
-      trailingNode: false,
-    }),
-    DocxBlockNode,
-  ];
+  return [...editorExtensions, StarterKit.configure({ undoRedo: {} })];
 }

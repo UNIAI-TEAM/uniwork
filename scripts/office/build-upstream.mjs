@@ -57,6 +57,16 @@ export const BUNDLE_EXTERNALS = [
   'fsevents',
 ];
 
+const DOCX_BROWSER_LOCALE = '@uniwork/office-upstream/browser/locale';
+
+function applyDocxBrowserCompatibility(scratchUpstream) {
+  const extensionPath = path.join(scratchUpstream, 'apps', 'docs', 'src', 'renderer', 'editor', 'extensions.ts');
+  if (!fs.existsSync(extensionPath)) return;
+  const source = fs.readFileSync(extensionPath, 'utf8');
+  const rewritten = source.replace("from '../i18n/locale'", `from '${DOCX_BROWSER_LOCALE}'`);
+  if (rewritten !== source) fs.writeFileSync(extensionPath, rewritten);
+}
+
 export function parseArgs(argv) {
   const out = { out: null, skipInstall: false, withNative: false, json: false, keep: false, help: false };
   for (let i = 0; i < argv.length; i += 1) {
@@ -266,6 +276,7 @@ export async function run({ out, skipInstall, withNative, keep }) {
     fs.rmSync(path.join(scratch, 'dist'), { recursive: true, force: true });
   }
   fs.cpSync(UPSTREAM_DIR, scratchUpstream, { recursive: true, dereference: false });
+  applyDocxBrowserCompatibility(scratchUpstream);
   record.steps.push({ step: 'copy', status: 'pass', detail: `${provenance.fileCount} files -> ${path.relative(REPO_ROOT, scratch)}` });
 
   for (const patchFile of fs.existsSync(PATCHES_DIR) ? fs.readdirSync(PATCHES_DIR).filter((f) => f.endsWith('.patch')).sort() : []) {

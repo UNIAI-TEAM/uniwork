@@ -912,6 +912,9 @@ importers:
       '@uniwork/office-engine':
         specifier: workspace:*
         version: link:../office-engine
+      '@uniwork/office-upstream':
+        specifier: workspace:*
+        version: link:../office-upstream
       '@uniwork/ui':
         specifier: workspace:*
         version: link:../ui
