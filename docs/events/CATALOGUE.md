@@ -159,6 +159,12 @@ khai nó, hoặc khi tập trường đổi. Mở thêm trường hay topic cầ
 | `attendance.finalized` | 1 | `meeting_id`, `version` | — | workspace | outbox |
 | `attendance.reopened` | 1 | `meeting_id`, `version` | — | workspace | outbox |
 | `attendance.updated` | 1 | `meeting_id` | — | workspace | ephemeral |
+| `motion.created` | 1 | `meeting_id`, `version`, `motion_id` | — | workspace | outbox |
+| `motion.updated` | 1 | `meeting_id`, `version`, `motion_id` | — | workspace | outbox |
+| `motion.deleted` | 1 | `meeting_id`, `version`, `motion_id` | — | workspace | outbox |
+| `motion.opened` | 1 | `meeting_id`, `version`, `motion_id` | — | workspace | outbox |
+| `motion.closed` | 1 | `meeting_id`, `version`, `motion_id` | — | workspace | outbox |
+| `motion.ballot_cast` | 1 | `meeting_id`, `version`, `motion_id` | — | workspace | outbox |
 | `provider.end_session` | 1 | `room_name` | — | - | outbox |
 | `provider.ensure_session` | 1 | `meeting_id`, `room_name`, `session_id` | — | - | outbox |
 | `provider.remove_participant` | 1 | `room_name`, `identity` | — | - | outbox |

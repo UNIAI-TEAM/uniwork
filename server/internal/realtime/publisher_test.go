@@ -229,3 +229,17 @@ func TestLobbyMirrorsRecordingState(t *testing.T) {
 		}
 	}
 }
+
+// Guests can be promoted to members and vote, and they only hear the meeting
+// scope: every motion change must be mirrored there or their Votes tab and
+// vote prompt never move.
+func TestLobbyMirrorsMotionEvents(t *testing.T) {
+	for _, typ := range []string{
+		"motion.created", "motion.updated", "motion.deleted",
+		"motion.opened", "motion.closed", "motion.ballot_cast",
+	} {
+		if _, ok := meetingLobbyEventTypes[typ]; !ok {
+			t.Errorf("%s is not mirrored to the meeting lobby scope", typ)
+		}
+	}
+}
