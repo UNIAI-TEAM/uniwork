@@ -69,6 +69,7 @@ export function MeetingStageFooter({
   stageContentRef,
   captionsOn,
   captions,
+  prompt,
   controlBar,
   className,
   onReserveHeightChange,
@@ -77,6 +78,11 @@ export function MeetingStageFooter({
   captionsOn: boolean;
   /** The captions overlay; it keeps its own state so its updates stay local. */
   captions?: ReactNode;
+  /**
+   * A card stacked above everything else (the vote prompt). It sits inside the
+   * measured stack, so the stage reserve grows with it and the tiles reflow once.
+   */
+  prompt?: ReactNode;
   controlBar: ReactNode;
   className?: string;
   onReserveHeightChange?: (heightPx: number) => void;
@@ -129,12 +135,17 @@ export function MeetingStageFooter({
 
     const dockHeight = dock.scrollHeight;
     let overhead = 0;
+    let rows = 0;
     for (const child of stack.children) {
       if (child === dock) continue;
-      overhead += (child as HTMLElement).getBoundingClientRect().height;
+      const height = (child as HTMLElement).getBoundingClientRect().height;
+      // An empty prompt slot (`empty:hidden`) stays in the DOM but takes no row and no gap.
+      if (height <= 0) continue;
+      overhead += height;
+      rows += 1;
     }
     const gapPx = Number.parseFloat(getComputedStyle(stack).rowGap) || 8;
-    const gaps = Math.max(0, stack.children.length - 1) * gapPx;
+    const gaps = rows * gapPx;
     const expandedContent = Math.max(overhead + gaps + dockHeight, MIN_DOCK_RESERVE_PX);
     const collapsedContent = Math.max(overhead + gaps, 0);
 
@@ -265,6 +276,11 @@ export function MeetingStageFooter({
         ref={measureRef}
         className="flex w-fit max-w-full flex-col items-center gap-2 sm:gap-2.5"
       >
+        {prompt ? (
+          // The footer lets clicks through to the stage; the card takes its own.
+          // `empty:hidden` drops the wrapper while the card renders nothing.
+          <div className="pointer-events-auto max-w-full empty:hidden">{prompt}</div>
+        ) : null}
         <MeetingHandsBanner />
         {captionsOn ? captions : null}
         <div

@@ -1,8 +1,11 @@
 "use client";
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
+import { useMeetingClerk } from "@uniwork/core/meetings/attendance";
+import { motionsTabState, useMeetingMotions } from "@uniwork/core/meetings/motions";
 import type { Meeting } from "@uniwork/core/types";
 import { cn } from "@uniwork/ui/lib/utils";
+import { MeetingMotionsList } from "./meeting-motions-list";
 import { MeetingRoomChatTab } from "./meeting-room-chat-tab";
 import { MeetingRoomCopilotTab } from "./meeting-room-copilot-tab";
 import { MeetingRoomFilesTab } from "./meeting-room-files-tab";
@@ -10,9 +13,9 @@ import { MeetingRoomPeopleTab } from "./meeting-room-people-tab";
 import { MeetingUnderlineTabBadge, MeetingUnderlineTabs } from "./meeting-underline-tabs";
 import { usePendingJoinRequests } from "./use-pending-join-requests";
 
-export type MeetingSidebarTab = "copilot" | "chat" | "participants" | "recordings";
+export type MeetingSidebarTab = "copilot" | "chat" | "participants" | "motions" | "recordings";
 
-const SIDEBAR_TABS: MeetingSidebarTab[] = ["copilot", "chat", "participants", "recordings"];
+const SIDEBAR_TABS: MeetingSidebarTab[] = ["copilot", "chat", "participants", "motions", "recordings"];
 
 const PANEL_CLASS = "mt-0 flex min-h-0 flex-1 flex-col overflow-hidden px-3 pt-2 pb-3";
 
@@ -84,6 +87,10 @@ export function MeetingRoomSidebar({
   const { count: pendingJoinCount } = usePendingJoinRequests(
     canHost && meetingId ? meetingId : undefined,
   );
+  // Guests (and invite-link outsiders) have no meeting row here: never clerks.
+  const { isClerk } = useMeetingClerk(guestMode ? null : (meeting ?? null), workspaceId ?? "");
+  const { data: motions } = useMeetingMotions(meetingId ?? "", Boolean(meetingId));
+  const motionsTab = motionsTabState(motions, isClerk);
 
   function tabLabel(id: MeetingSidebarTab): string {
     switch (id) {
@@ -93,15 +100,18 @@ export function MeetingRoomSidebar({
         return t("meetings.chat");
       case "participants":
         return t("meetings.people");
+      case "motions":
+        return t("meetings.governance.motionsTab");
       case "recordings":
         return t("meetings.recordingsTab");
     }
   }
 
   const panelId = (id: MeetingSidebarTab) => `${baseId}-panel-${id}`;
-  const sidebarTabs = guestMode
-    ? SIDEBAR_TABS.filter((id) => id !== "copilot")
-    : SIDEBAR_TABS;
+  // Clerks always see Votes; everyone else once something has been opened.
+  const sidebarTabs = SIDEBAR_TABS.filter(
+    (id) => !(guestMode && id === "copilot") && (id !== "motions" || motionsTab.visible),
+  );
   const activeTab = sidebarTabs.includes(tab) ? tab : (sidebarTabs[0] ?? "chat");
 
   function panelContent(id: MeetingSidebarTab): ReactNode {
@@ -128,6 +138,18 @@ export function MeetingRoomSidebar({
             guestMode={guestMode}
           />
         );
+      case "motions":
+        return meetingId ? (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <MeetingMotionsList
+              meeting={guestMode ? undefined : meeting}
+              meetingId={meetingId}
+              workspaceId={guestMode ? undefined : workspaceId}
+              canVote
+              density="room"
+            />
+          </div>
+        ) : null;
       case "recordings":
         return meetingId ? (
           <MeetingRoomFilesTab meetingId={meetingId} />
@@ -160,6 +182,9 @@ export function MeetingRoomSidebar({
                 <MeetingUnderlineTabBadge aria-label={t("meetings.chatUnread", { count: chatUnread })}>
                   {chatUnread > 9 ? "9+" : chatUnread}
                 </MeetingUnderlineTabBadge>
+              ) : id === "motions" && motionsTab.pending ? (
+                // At most one item is open at a time, so the count is always one.
+                <MeetingUnderlineTabBadge aria-label={t("meetings.governance.votePending")}>{1}</MeetingUnderlineTabBadge>
               ) : null
             }
           />
