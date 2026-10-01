@@ -12,6 +12,7 @@ import {
 } from "@uniwork/core/api/endpoints/meetings";
 import { useAuthStore } from "@uniwork/core/auth";
 import { paths } from "@uniwork/core/paths";
+import type { Meeting } from "@uniwork/core/types/meeting";
 import { useWorkspaces } from "@uniwork/core/workspaces";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { toast } from "sonner";
@@ -48,7 +49,7 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
   const nav = useNavigation();
   const authStatus = useAuthStore((s) => s.status);
   const user = useAuthStore((s) => s.user);
-  const { data: workspaces } = useWorkspaces();
+  const { data: workspaces, refetch: refetchWorkspaces } = useWorkspaces();
   const { mutate: mutateJoin, reset: resetJoin, isPending: joinPending } = useJoinMeeting();
   const joinOnce = useRef(false);
   const reasonHandled = useRef(false);
@@ -131,16 +132,32 @@ export function MeetingPublicInviteView({ linkId, secret }: { linkId: string; se
     async (decision: Parameters<typeof writeCachedJoinDecision>[1]) => {
       writeCachedJoinDecision(linkId, decision);
       if (!isGuest && user && meetingId) {
-        const meeting = await getMeeting(meetingId);
-        const ws = (workspaces ?? []).find((w) => w.id === meeting?.workspace_id);
-        if (ws) {
-          nav.push(paths.workspace(ws.organization_slug, ws.slug).room(meetingId));
-          return;
+        let meeting: Meeting | null = null;
+        try {
+          meeting = await getMeeting(meetingId);
+        } catch (err) {
+          // Only a member may read the meeting record: 403/404 is a signed-in
+          // visitor from another workspace, who enters like a guest (UNI-901).
+          // Any other failure is no answer, and must not pass for one.
+          if (!(err instanceof ApiError && (err.status === 403 || err.status === 404))) {
+            setJoinFailure(err);
+            return;
+          }
+        }
+        if (meeting) {
+          // A member is sent to the workspace room, so wait for a list that
+          // is still loading rather than read its absence as "not a member".
+          const list = workspaces ?? (await refetchWorkspaces()).data ?? [];
+          const ws = list.find((w) => w.id === meeting.workspace_id);
+          if (ws) {
+            nav.push(paths.workspace(ws.organization_slug, ws.slug).room(meetingId));
+            return;
+          }
         }
       }
       nav.push(paths.meetingInviteRoom(linkId));
     },
-    [isGuest, linkId, meetingId, nav, user, workspaces],
+    [isGuest, linkId, meetingId, nav, refetchWorkspaces, user, workspaces],
   );
 
   const runJoin = useCallback((choice?: PreJoinChoice, requestAgain = false) => {

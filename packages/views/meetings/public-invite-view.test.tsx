@@ -283,6 +283,102 @@ describe("MeetingPublicInviteView", () => {
     }
   });
 
+  it("takes a signed-in visitor from another workspace into the invite room (UNI-901)", async () => {
+    useAuthStore.setState({
+      status: "authed",
+      user: { id: "u1", email: "a@example.com", display_name: "An" } as never,
+    });
+    const adapter = fakeNav();
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === RESOLVE) return Promise.resolve(resolved());
+      if (path === "/api/v1/meetings/m1/join" && opts?.method === "POST") {
+        return Promise.resolve({
+          decision: "ADMIT",
+          participant_token: "tok",
+          server_url: "wss://lk.example",
+          provider: "livekit",
+        });
+      }
+      // The meeting record is the workspace's: an outsider is refused it.
+      if (path === "/api/v1/meetings/m1") {
+        return Promise.reject(new ApiError("forbidden", "forbidden", 403));
+      }
+      if (path === "/api/v1/workspaces") return Promise.resolve({ workspaces: [] });
+      return Promise.resolve(null);
+    });
+
+    render(wrapWithNav(<MeetingPublicInviteView linkId="link-1" secret="sec-abc" />, adapter));
+
+    await waitFor(() => {
+      expect(adapter.push).toHaveBeenCalledWith(paths.meetingInviteRoom("link-1"));
+    });
+  });
+
+  it("waits for a member's workspace list instead of dropping them in the guest room", async () => {
+    useAuthStore.setState({
+      status: "authed",
+      user: { id: "u1", email: "a@example.com", display_name: "An" } as never,
+    });
+    const adapter = fakeNav();
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === RESOLVE) return Promise.resolve(resolved());
+      if (path === "/api/v1/meetings/m1/join" && opts?.method === "POST") {
+        return Promise.resolve({ decision: "ADMIT", participant_token: "tok", server_url: "wss://lk", provider: "livekit" });
+      }
+      if (path === "/api/v1/meetings/m1") {
+        return Promise.resolve({
+          meeting: {
+            id: "m1", workspace_id: "ws1", title: "Standup", description: "",
+            starts_at: "2026-09-10T02:00:00Z", ends_at: "2026-09-10T03:00:00Z", room_name: "r", created_by: "u1",
+          },
+        });
+      }
+      if (path === "/api/v1/workspaces") {
+        // The list is still loading when the join lands.
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            resolve({
+              workspaces: [
+                { id: "ws1", slug: "team", name: "Team", organization_id: "o1", organization_slug: "acme", organization_name: "Acme" },
+              ],
+            });
+          }, 200);
+        });
+      }
+      return Promise.resolve(null);
+    });
+
+    render(wrapWithNav(<MeetingPublicInviteView linkId="link-1" secret="sec-abc" />, adapter));
+
+    await waitFor(() => {
+      expect(adapter.push).toHaveBeenCalledWith(paths.workspace("acme", "team").room("m1"));
+    });
+    expect(adapter.push).not.toHaveBeenCalledWith(paths.meetingInviteRoom("link-1"));
+  });
+
+  it("offers a retry when a signed-in visitor's meeting lookup fails on the network", async () => {
+    useAuthStore.setState({
+      status: "authed",
+      user: { id: "u1", email: "a@example.com", display_name: "An" } as never,
+    });
+    const adapter = fakeNav();
+    requestMock.mockImplementation((path: string, opts?: { method?: string }) => {
+      if (path === RESOLVE) return Promise.resolve(resolved());
+      if (path === "/api/v1/meetings/m1/join" && opts?.method === "POST") {
+        return Promise.resolve({ decision: "ADMIT", participant_token: "tok", server_url: "wss://lk", provider: "livekit" });
+      }
+      // A failed lookup is no answer: it must not pass for "not a member".
+      if (path === "/api/v1/meetings/m1") return Promise.reject(new TypeError("Failed to fetch"));
+      if (path === "/api/v1/workspaces") return Promise.resolve({ workspaces: [] });
+      return Promise.resolve(null);
+    });
+
+    render(wrapWithNav(<MeetingPublicInviteView linkId="link-1" secret="sec-abc" />, adapter));
+
+    expect(await screen.findByRole("button", { name: "Thử lại" })).toBeInTheDocument();
+    expect(adapter.push).not.toHaveBeenCalled();
+  });
+
   it("does not spin forever after a signed-in visitor's join fails", async () => {
     useAuthStore.setState({
       status: "authed",
