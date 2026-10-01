@@ -78,3 +78,6 @@ is the XLSX-lane frozen engine change set above, plus evidence that the other
 frozen changes were applied inside deleted lab trees (`bootstrap-source`,
 `engine-source` are not git checkouts and carry no patch manifest). The gap is
 recorded in the G2-01 acceptance packet; nothing was reinvented.
+
+Root scope: `scripts/office/build-upstream.mjs` already exists on the integration root (UNI-819) with the same silent-skip apply, and it builds every vendored-engine `dist/*.mjs` bundle the office-upstream package exports (docx/xlsx/pptx/pdf), so the root and every lane that rebuilds through it need this fix too. `scripts/office/build-docx-browser.mjs` is lane-local (g3-04c) and has no root copy.
+
