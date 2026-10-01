@@ -100,7 +100,11 @@ function toLibraryDocument(value: unknown, workspaceId: string): DesktopLibraryD
   const id = typeof row.id === "string" ? row.id : undefined;
   const title = typeof row.title === "string" && row.title.trim() ? row.title : undefined;
   const kind = row.kind === "file" ? "file" : undefined;
-  const filename = typeof file.filename === "string" ? file.filename : "";
+  // DocumentSummaryDTO (list/recent/search) never carries `file` - only the
+  // single-document GET (DocumentDTO) does. A list row's format is derived
+  // from the title's extension instead, same as the upload filename it was
+  // created from; a full `file` block (document open) still wins when present.
+  const filename = typeof file.filename === "string" ? file.filename : (title ?? "");
   const mimeType = typeof file.mime_type === "string" ? file.mime_type : "";
   const format = mimeType === DOCX_MIME || /\.docx$/i.test(filename) ? "docx" : undefined;
   if (!id || !title || !kind || !format) return undefined;
