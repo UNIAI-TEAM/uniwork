@@ -6929,7 +6929,7 @@
       "install": {
         "download_description": "Tải bộ cài dành cho trang UniWork của bạn. Giải nén ZIP rồi chạy bộ cài.",
         "download_failed": "Không thể tải bộ cài. Vui lòng thử lại.",
-        "downloading": "Đang tải...",
+        "downloading": "Đang tải…",
         "title": "Chưa có UniWork Office",
         "not_installed": "Ứng dụng máy tính chưa phản hồi. Bạn có thể thử lại hoặc cài đúng kênh.",
         "expired": "Lượt mở trên máy tính đã hết hạn. Hãy thử mở lại.",

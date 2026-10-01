@@ -6935,7 +6935,7 @@
       "install": {
         "download_description": "Download the installer for your UniWork site. Extract the ZIP, then run the installer.",
         "download_failed": "Download failed. Please try again.",
-        "downloading": "Downloading...",
+        "downloading": "Downloading…",
         "title": "UniWork Office is not available",
         "not_installed": "The desktop app did not respond. You can try again or install the matching channel.",
         "expired": "That desktop handoff expired. Try opening it again.",
