@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@uniwork/ui/components/ui/button";
 import { Input } from "@uniwork/ui/components/ui/input";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
-import { cn } from "@uniwork/ui/lib/utils";
+import { DocumentTypeIcon } from "@uniwork/views/documents/document-type-icon";
 import type { DesktopLibraryDocument } from "../../shared/ipc";
 import { canDownloadDocument, type LibraryMode } from "./model";
 
@@ -42,11 +42,12 @@ export function LibraryView({
   onCreate,
   onOpenLocal,
 }: LibraryViewProps) {
-  const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
+  const { t, i18n } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
   const [draftQuery, setDraftQuery] = useState(searchQuery);
+  const actions = <div className="flex flex-wrap justify-center gap-2"><Button type="button" onClick={onCreate}>{t("create")}</Button><Button type="button" variant="outline" onClick={onOpenLocal}>{t("openLocal")}</Button></div>;
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 p-6" data-desktop-library="true">
-      <div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-title font-semibold text-foreground">{t("title")}</h1><div className="flex flex-wrap gap-2"><Button type="button" onClick={onCreate}>{t("create")}</Button><Button type="button" variant="outline" onClick={onOpenLocal}>{t("openLocal")}</Button></div></div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-title font-semibold text-foreground">{t("title")}</h1>{documents.length > 0 || loading || error ? actions : null}</div>
       <nav aria-label={t("title")} className="flex gap-1">
         {MODES.map((candidate) => (
           <Button
@@ -91,20 +92,25 @@ export function LibraryView({
       ) : loading ? (
         <Skeleton className="h-24 w-full" />
       ) : documents.length === 0 ? (
-        <p className="text-body text-muted-foreground">{t("empty")}</p>
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 py-12 text-center" role="status">
+          <DocumentTypeIcon format="file" className="size-12 text-muted-foreground" />
+          <h2 className="text-title font-semibold">{t("empty")}</h2>
+          <p className="max-w-sm text-body text-muted-foreground">{t("emptyDescription")}</p>
+          {actions}
+        </div>
       ) : (
         <ul aria-label={t("title")} className="flex flex-col gap-2">
           {documents.map((document) => (
             <li
               key={document.id}
               data-document-id={document.id}
-              className={cn("flex items-center justify-between gap-3 rounded-lg border border-border bg-surface p-3")}
+              className="flex items-center justify-between gap-3 rounded-lg border border-border bg-surface p-3"
             >
-              <span className="min-w-0 truncate text-body text-foreground">{document.title}</span>
+              <button type="button" className="flex min-w-0 flex-1 items-center gap-3 rounded-control p-2 text-left hover:bg-muted" aria-label={t("open")} onClick={() => onOpen?.(document)}>
+                <DocumentTypeIcon format={document.format} className="size-8 shrink-0 text-primary" />
+                <span className="min-w-0 flex-1"><span className="block truncate text-body text-foreground">{document.title}</span><span className="mt-1 block text-caption text-muted-foreground">{document.ownerName || t("ownerUnknown")} · {t("updated", { time: new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium" }).format(new Date(document.updatedAt)) })}</span></span>
+              </button>
               <div className="flex shrink-0 gap-2">
-                <Button type="button" size="sm" onClick={() => onOpen?.(document)}>
-                  {t("open")}
-                </Button>
                 {canDownloadDocument(document, engineAvailable) ? (
                   <Button type="button" size="sm" variant="outline" onClick={() => onDownload?.(document)}>
                     {t("download")}

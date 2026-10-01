@@ -88,6 +88,7 @@ const libraryDocumentSchema = z.object({
   revision: z.string().regex(/^\d+$/),
   updatedAt: z.string().datetime({ offset: true }),
   ownerKind: z.string().nullable(),
+  ownerName: z.string().optional(),
   canEdit: z.boolean(),
   downloadAvailable: z.boolean(),
 }).strict();

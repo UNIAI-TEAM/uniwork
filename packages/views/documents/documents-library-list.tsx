@@ -146,7 +146,7 @@ export function DocumentsLibraryList({
                 "flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-accent/50",
               )}
             >
-              <span aria-hidden className="flex size-8 shrink-0 items-center justify-center text-muted-foreground">
+              <span className="flex size-8 shrink-0 items-center justify-center text-primary">
                 {doc.icon ? (
                   <span className="text-body leading-none">{doc.icon}</span>
                 ) : <DocumentTypeIcon format={doc.kind === "file" ? doc.title.split(".").at(-1) : "file"} className="size-4" />}

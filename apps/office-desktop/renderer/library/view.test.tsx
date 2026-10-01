@@ -31,7 +31,13 @@ it("renders open/download actions and an engine-down status", () => {
 
 it("renders an empty state and fires mode changes", () => {
   const onModeChange = vi.fn();
-  render(<LibraryView mode="recent" documents={[]} engineAvailable onModeChange={onModeChange} />);
+  const onCreate = vi.fn();
+  const onOpenLocal = vi.fn();
+  render(<LibraryView mode="recent" documents={[]} engineAvailable onModeChange={onModeChange} onCreate={onCreate} onOpenLocal={onOpenLocal} />);
+  fireEvent.click(screen.getByRole("button", { name: "Tài liệu mới" }));
+  fireEvent.click(screen.getByRole("button", { name: "Mở tệp trên máy" }));
+  expect(onCreate).toHaveBeenCalledOnce();
+  expect(onOpenLocal).toHaveBeenCalledOnce();
   expect(screen.getByText("Chưa có tài liệu")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Tất cả" }));
   expect(onModeChange).toHaveBeenCalledWith("list");
