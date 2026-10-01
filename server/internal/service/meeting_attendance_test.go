@@ -70,19 +70,32 @@ func TestSuggestAttendanceGraceBoundary(t *testing.T) {
 	}
 }
 
+// "Late" is measured from when the meeting could actually be joined: a host
+// who opens the room 20 minutes after the scheduled time does not make every
+// member late (spec §3.4, update 2026-10-01). Starting early never moves the
+// anchor before the scheduled time.
 func TestAttendanceAnchor(t *testing.T) {
 	sched := time.Date(2026, 9, 30, 9, 0, 0, 0, time.UTC)
-	actual := sched.Add(7 * time.Minute)
-	scheduled := db.Meeting{MeetingType: MeetingTypeScheduled}
-	scheduled.StartsAt.Time, scheduled.StartsAt.Valid = sched, true
-	scheduled.ActualStartAt.Time, scheduled.ActualStartAt.Valid = actual, true
-	if got := attendanceAnchor(scheduled); !got.Equal(sched) {
-		t.Fatalf("scheduled anchor = %v", got)
+	cases := []struct {
+		name   string
+		typ    string
+		actual *time.Time
+		want   time.Time
+	}{
+		{"scheduled, started 20 minutes late", MeetingTypeScheduled, ptrTime(sched.Add(20 * time.Minute)), sched.Add(20 * time.Minute)},
+		{"scheduled, started 5 minutes early", MeetingTypeScheduled, ptrTime(sched.Add(-5 * time.Minute)), sched},
+		{"scheduled, not started yet", MeetingTypeScheduled, nil, sched},
+		{"instant", MeetingTypeInstant, ptrTime(sched.Add(7 * time.Minute)), sched.Add(7 * time.Minute)},
 	}
-	instant := scheduled
-	instant.MeetingType = MeetingTypeInstant
-	if got := attendanceAnchor(instant); !got.Equal(actual) {
-		t.Fatalf("instant anchor = %v", got)
+	for _, c := range cases {
+		m := db.Meeting{MeetingType: c.typ}
+		m.StartsAt.Time, m.StartsAt.Valid = sched, true
+		if c.actual != nil {
+			m.ActualStartAt.Time, m.ActualStartAt.Valid = *c.actual, true
+		}
+		if got := attendanceAnchor(m); !got.Equal(c.want) {
+			t.Errorf("%s: anchor = %v, want %v", c.name, got, c.want)
+		}
 	}
 }
 

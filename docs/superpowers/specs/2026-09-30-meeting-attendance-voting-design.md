@@ -112,7 +112,9 @@ Với mỗi người tham gia `ACTIVE`:
    - `min(joined_at) > mốc + 10 phút` → `LATE`;
    - còn lại → `PRESENT`.
 
-   `mốc` = `starts_at` với họp lên lịch, `actual_start_at` với họp tức thì
+   `mốc` = thời điểm muộn hơn giữa `starts_at` và `actual_start_at` với họp lên lịch
+   (chủ trì mở phòng muộn thì không ai bị tính muộn theo giờ lịch; mở sớm thì mốc vẫn là
+   giờ lịch — cập nhật 2026-10-01), `actual_start_at` với họp tức thì
    (`meeting_type='INSTANT'`). Đúng 10:00 sau mốc vẫn là `PRESENT`. Hằng số
    `attendanceLateGrace = 10 * time.Minute`, không cấu hình.
 
