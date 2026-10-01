@@ -30,8 +30,8 @@ export function kindOf(block: DocxBlock): { blockKind: DocxBlockKind; level: num
   return { blockKind: block.type === "paragraph" ? "paragraph" : "other", level: null, list: null };
 }
 
-export function blocksToDoc(blocks: DocxBlock[]): JSONContent {
-  return blocksToPmDoc(blocks.filter((block) => !block.hidden && block.docxIndex !== null));
+export function blocksToDoc(blocks: DocxBlock[], sections?: unknown[], options?: { legacyTableIndent?: boolean }): JSONContent {
+  return blocksToPmDoc(blocks.filter((block) => !block.hidden && block.docxIndex !== null), sections, options);
 }
 
 export type DesiredItem =

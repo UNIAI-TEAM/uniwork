@@ -79,6 +79,10 @@ export const SELECTION = [
   'apps/docs/src/renderer/pagination-slices.ts',
   'apps/docs/src/renderer/pagination-types.ts',
   'apps/docs/src/renderer/pagination-sections.ts',
+  // G3-04c T-02: the variants/page-number module the pagination barrel and the
+  // HF gap strips need (effectiveHfRefs, hfVariantOf, pageNumbers,
+  // formatPageNumber). Pure module: docx-engine types + PageSlice only.
+  'apps/docs/src/renderer/pagination-hf.ts',
   'apps/docs/src/renderer/pagination.ts',
   'apps/docs/src/shared',
   'apps/sheets/src/main',

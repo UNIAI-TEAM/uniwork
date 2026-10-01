@@ -38,6 +38,7 @@
     "apps/docs/src/renderer/pagination-slices.ts",
     "apps/docs/src/renderer/pagination-types.ts",
     "apps/docs/src/renderer/pagination-sections.ts",
+    "apps/docs/src/renderer/pagination-hf.ts",
     "apps/docs/src/renderer/pagination.ts",
     "apps/docs/src/shared",
     "apps/sheets/src/main",
@@ -63,9 +64,9 @@
     "tsconfig.base.json",
     "vitest.config.ts"
   ],
-  "fileCount": 840,
+  "fileCount": 841,
   "integrity": {
-    "filesDigest": "1ac4479ddbea7f2c08cde96c51a0e3d1222b7eb3f5e9ed50a6a1d7e5e2bf2d8a"
+    "filesDigest": "7af0b415f18594aa035d061d38b6c83b15aeaa57a32120667bf4a4a85efd72cf"
   },
   "files": [
     {
@@ -577,6 +578,13 @@
       "bytes": 2429,
       "sha256": "265E38158353DBED1783850A64EB7A471D6F2B06CC441DFAC4E4824794B3F882",
       "blob": "40e734f7cfeb287ed897614314f2de2925f37023",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/pagination-hf.ts",
+      "bytes": 5641,
+      "sha256": "AC3B0768E2E3AEAF9C8915BEB1F0F0B2629701025EE7D8A88E2CA7C28DD047C5",
+      "blob": "747daf6d163f0c9bb33ccb5486b3478010bd7c46",
       "mode": "100644"
     },
     {

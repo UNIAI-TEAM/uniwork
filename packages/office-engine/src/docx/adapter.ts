@@ -409,6 +409,14 @@ export class DocxAdapter {
     const numbering = this.sessionOf(ref).model.parsed.numbering;
     return numbering instanceof Map ? numbering : new Map();
   }
+
+  /** The engine's parse handle for a rendering host: sections (derived by the
+   * engine's readSections) and the header/footer parts a pagination driver
+   * needs. The handle itself is the model's, never a copy with inferred
+   * fields. */
+  parsedOf(ref: string): DocxParsed {
+    return this.sessionOf(ref).model.parsed;
+  }
 }
 
 export function createDocxAdapter(deps: DocxAdapterDeps): DocxAdapter {

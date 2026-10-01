@@ -8,10 +8,11 @@
 import { Editor, type JSONContent } from "@tiptap/core";
 import { EditorContent } from "@tiptap/react";
 import { createElement, useEffect, useState, type ReactNode } from "react";
-import { installDocxRendererStyles } from "@uniwork/office-upstream/docs-renderer-editor";
+import { installDocxRendererStyles, pmDocOptions } from "@uniwork/office-upstream/docs-renderer-editor";
 import type { DocxAdapter } from "@uniwork/office-engine/docx";
 import type { StableSnapshot } from "@uniwork/core/office";
 import { blocksToDoc } from "./docx-doc-convert";
+import { attachDocxPagination, createDocxPaginationSpec, type DocxPaginationSpec } from "./docx-pagination";
 import { applyDocxSnapshot, encodeDocxSource, decodeDocxSource } from "./docx-save-bridge";
 import { docxExtensions, type DocxBlockAttrs } from "./docx-schema";
 import type { DocxEditorHandle, DocxFormatCommands, DocxFormatState, DocxOpenSuccess, DocxSelection, DocxSelectionPort } from "./types";
@@ -38,8 +39,15 @@ function useDarkSurface(): boolean {
   return dark;
 }
 
-function DocxRendererSurface({ editor }: { editor: Editor }): ReactNode {
+function DocxRendererSurface({ editor, pagination }: { editor: Editor; pagination: DocxPaginationSpec | null }): ReactNode {
   const dark = useDarkSurface();
+  // T-02: attach the pagination driver once the surface (and therefore the
+  // editor DOM inside .doc-zoom) is mounted; Strict Mode replays are safe.
+  useEffect(() => {
+    if (!pagination) return undefined;
+    const paginator = attachDocxPagination(editor, pagination);
+    return () => paginator.dispose();
+  }, [editor, pagination]);
   return createElement(
     "div",
     { className: "docx-surface flex min-h-0 min-w-0 flex-1", "data-testid": "docx-surface" },
@@ -52,7 +60,18 @@ function DocxRendererSurface({ editor }: { editor: Editor }): ReactNode {
         createElement(
           "div",
           { className: "doc-zoom view-print" },
-          createElement("div", { className: "page-wrap" }, createElement(EditorContent, { editor })),
+          createElement(
+            "div",
+            { className: "page-wrap" },
+            createElement(EditorContent, { editor }),
+            // First page's header/footer strips land here (no page gap above
+            // page 1); React owns the host, the paginator only its children.
+            createElement("div", {
+              className: "docx-page-hf-host",
+              "data-testid": "docx-page-hf-host",
+              style: { position: "absolute", inset: 0, pointerEvents: "none" },
+            }),
+          ),
         ),
       ),
     ),
@@ -101,6 +120,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
   let ref: string | null = null;
   let sourceBase64 = "";
   let openedOutcome: DocxOpenSuccess | null = null;
+  let paginationSpec: DocxPaginationSpec | null = null;
   let generation = 0;
   let disposed = false;
   const selectionListeners = new Set<(selection: DocxSelection | null) => void>();
@@ -198,9 +218,11 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
       openedOutcome = outcome;
       sourceBase64 = encodeDocxSource(bytes);
       installDocxRendererStyles();
+      const parsed = options.adapter.parsedOf(ref);
+      paginationSpec = createDocxPaginationSpec(parsed);
       tiptapEditor = new Editor({
         extensions: docxExtensions(options.adapter.numberingOf(ref)),
-        content: blocksToDoc(options.adapter.blocksOf(ref)),
+        content: blocksToDoc(options.adapter.blocksOf(ref), paginationSpec.sections, pmDocOptions(parsed as { compatibilityMode?: number })),
         editable: !options.readOnly,
         // Upstream's App marks the editor root `.doc-page`; the repackaged
         // vendored sheet keys the paper and its document rules on that class.
@@ -237,6 +259,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
       disposed = true;
       tiptapEditor?.destroy();
       tiptapEditor = null;
+      paginationSpec = null;
       if (ref) options.adapter.release(ref);
       ref = null;
       openedOutcome = null;
@@ -246,7 +269,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
     },
     renderSurface(): ReactNode {
       if (!tiptapEditor) return null;
-      return createElement(DocxRendererSurface, { editor: tiptapEditor });
+      return createElement(DocxRendererSurface, { editor: tiptapEditor, pagination: paginationSpec });
     },
     modelRef: () => ref,
     openOutcome: () => openedOutcome,
