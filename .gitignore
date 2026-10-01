@@ -53,3 +53,4 @@ server/internal/handler/data/
 .pnpm-store/
 .uniwork-dev/
 .uniwork-dev-run/
+apps/office-desktop/.test-artifacts/

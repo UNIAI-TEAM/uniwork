@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { promises as fs } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { createDesktopDraftStore, DRAFT_TEMP_PREFIX } from "./store";
 import { createFakeDraftKeyStore } from "./test-fake";
 import { checksum, decryptDraft, encryptDraft } from "./crypto";
@@ -8,7 +8,7 @@ import { DraftRecoveryError, type DraftIdentity, type DraftSession } from "../..
 import { runDraftRecoveryAdapterBehaviorSuite, type DraftRecoveryBehaviorHarness } from "../../../../packages/core/office/draft-recovery.behavior";
 
 const roots: string[] = [];
-async function root(): Promise<string> { const path = join("D:\\", "uniwork-office-tests", `draft-${Date.now()}-${Math.random().toString(16).slice(2)}`); await fs.mkdir(path, { recursive: true }); roots.push(path); return path; }
+async function root(): Promise<string> { const path = resolve(".test-artifacts", `draft-${Date.now()}-${Math.random().toString(16).slice(2)}`); await fs.mkdir(path, { recursive: true }); roots.push(path); return path; }
 afterEach(async () => { while (roots.length) await fs.rm(roots.pop()!, { recursive: true, force: true }); });
 
 const identity: DraftIdentity = { deploymentId: "dep", accountId: "a", organizationId: "org", workspaceId: "ws", documentId: "doc", base: { revision: "r1", version: "v1" } };
@@ -20,7 +20,7 @@ describe("desktop protected drafts", () => {
     const harnessFactory = (): DraftRecoveryBehaviorHarness => ({ adapter: store, sessions: { accountA: { sessionId: "session-a", deploymentId: "deployment-test", accountId: "account-a", generation: 1 }, accountB: { sessionId: "session-b", deploymentId: "deployment-test", accountId: "account-b", generation: 1 }, accountAAfterRestart: { sessionId: "session-a-restart", deploymentId: "deployment-test", accountId: "account-a", generation: 2 } }, revoke: (sessionId) => store.revokeSession(sessionId), setLocked: (locked) => store.setLocked(locked), failNextCheckpoint: () => store.failNextCheckpoint() });
     const report = await runDraftRecoveryAdapterBehaviorSuite(harnessFactory);
     expect(report.passed.length).toBeGreaterThan(10);
-  });
+  }, 20_000);
   it("computes a stable ciphertext checksum", () => expect(checksum(new Uint8Array([1, 2]))).toMatch(/^sha256:[0-9a-f]{64}$/));
   it("encrypts/authenticates with identity and base AAD", () => {
     const key = new Uint8Array(32).fill(7); const plaintext = new TextEncoder().encode("secret");

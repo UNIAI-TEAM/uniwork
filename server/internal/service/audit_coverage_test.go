@@ -840,6 +840,13 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 		},
+		audit.ActionOfficeDesktopDownloaded: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			svc := NewOfficeDesktopDownloadService(f.orgs, config.Config{APIPublicURL: "https://api.example.test", OfficeInstallerStableURL: "https://downloads.example.test/installer.exe", DesktopAuthClientID: "uniwork-office", DesktopAuthDeploymentIDs: []string{"default"}})
+			if _, err := svc.Get(f.ctx, f.owner.ID, f.orgID, "stable"); err != nil {
+				t.Fatal(err)
+			}
+		},
 		audit.ActionOfficeLaunchSessionCreated: func(t *testing.T, f *auditFixture) {
 			svc, docID := f.fileDocument(t)
 			launch := NewOfficeLaunchService(svc, config.Config{DesktopAuthClientID: "uniwork-office", DesktopAuthDeploymentIDs: []string{"default"}})
@@ -1241,6 +1248,7 @@ func auditActions() []string {
 		audit.ActionOfficeLaunchSessionCreated,
 		audit.ActionOfficeLaunchSessionRedeemed,
 		audit.ActionOfficeLaunchSessionRevoked,
+		audit.ActionOfficeDesktopDownloaded,
 		audit.ActionDocumentShared,
 		audit.ActionDocumentShareRevoked,
 		audit.ActionDocumentLinkCreated,

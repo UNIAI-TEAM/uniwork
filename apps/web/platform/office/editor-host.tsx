@@ -10,7 +10,7 @@ import { DraftRecoveryPrompt, LeaveDialog } from "@uniwork/views/office/leave-di
 import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/alert";
 import { useTranslation } from "react-i18next";
 import { createOfficeEditorSession, type OfficeEditorSession, type OfficeRecoveryState } from "./editor-host-core";
-import { getPublicConfig } from "@uniwork/core/api/endpoints/config";
+import { downloadOfficeDesktopBundle, getOfficeDesktopDownload } from "@uniwork/core/api/endpoints/office-desktop";
 import { listDocumentVersions } from "@uniwork/core/api/endpoints/documents-versions";
 import { launchOfficeDeepLink } from "./desktop-handoff";
 export * from "./editor-host-core";
@@ -238,7 +238,18 @@ export function OfficeEditorHost<TSnapshot = unknown>({
             }}
             channel={officeChannel}
             installerURLs={installerURLs}
-            loadInstallerURLs={async () => (await getPublicConfig(document.organization_id)).office_installer_urls ?? { dev: "", beta: "", stable: "" }}
+            loadInstallerURLs={async () => {
+              const profile = await getOfficeDesktopDownload(document.organization_id, officeChannel);
+              return { dev: "", beta: "", stable: "", ...(profile && profile.channel === officeChannel ? { [officeChannel]: profile.installer_url } : {}) };
+            }}
+            downloadInstaller={async () => {
+              const blob = await downloadOfficeDesktopBundle(document.organization_id, officeChannel);
+              const url = URL.createObjectURL(blob);
+              const link = window.document.createElement("a");
+              link.href = url; link.download = "UniWork-Office.zip";
+              window.document.body.append(link); link.click(); link.remove();
+              window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+            }}
             launch={launchOfficeDeepLink}
           />
         ) : null}

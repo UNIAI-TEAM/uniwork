@@ -17,6 +17,9 @@ import { createHttpAuthTransport } from "./main/transport/auth-transport";
 import { createHttpOfficeTransport } from "./main/transport/office-transport";
 import { FileHandleRegistry } from "./main/files/registry";
 import { createProtectedFileCheckpoints } from "./main/files/protected-files";
+import { createDesktopDraftStore } from "./main/drafts/store";
+import { createSecureDraftKeyStore } from "./main/drafts/secure-keys";
+import { createNativeInstaller, createNativeUpdateAction } from "./main/updates/native";
 
 const DIST_MAIN_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 const RENDERER_DIRECTORY = resolve(DIST_MAIN_DIRECTORY, "../renderer");
@@ -33,15 +36,17 @@ export const DESKTOP_TITLE_BAR_TOKENS = Object.freeze({
   dark: { color: "#111111", symbolColor: "#f8f9fa" },
 });
 
-export function createNativeMenuTemplate(channel: "dev" | "beta" | "stable", onSave: () => void, isMac = process.platform === "darwin") {
+export function createNativeMenuTemplate(channel: "dev" | "beta" | "stable", onSave: () => void, isMac = process.platform === "darwin", onCheckUpdates?: () => void) {
   const fileLabel = isMac ? "Tệp" : "File";
   const editLabel = isMac ? "Sửa" : "Edit";
   const viewLabel = isMac ? "Xem" : "View";
+  const helpLabel = isMac ? "Trợ giúp" : "Help";
   const template: Electron.MenuItemConstructorOptions[] = [
     { label: fileLabel, submenu: [{ label: "Lưu", accelerator: "CmdOrCtrl+S", click: onSave }, { role: "quit", label: "Thoát" }] },
     { label: editLabel, submenu: [{ role: "undo", label: "Hoàn tác" }, { role: "redo", label: "Làm lại" }, { type: "separator" }, { role: "cut", label: "Cắt" }, { role: "copy", label: "Sao chép" }, { role: "paste", label: "Dán" }, { role: "selectAll", label: "Chọn tất cả" }] },
   ];
   if (channel === "dev") template.push({ label: viewLabel, submenu: [{ role: "reload", label: "Tải lại" }, { role: "toggleDevTools", label: "Công cụ phát triển" }] });
+  if (onCheckUpdates) template.push({ label: helpLabel, submenu: [{ label: "Kiểm tra cập nhật…", click: onCheckUpdates }] });
   return template;
 }
 
@@ -123,6 +128,7 @@ async function startElectronHost(): Promise<void> {
   app.setPath("userData", configuredUserData ? resolve(configuredUserData) : defaultUserData);
   app.setAppUserModelId(DESKTOP_IDENTITY.appId);
   const deploymentResolution = resolveDeploymentProfile({
+    installedProfilePath: app.isPackaged ? join(process.resourcesPath, "deployment-profile.json") : undefined,
     userDataDirectory: app.getPath("userData"),
     buildChannel: DESKTOP_IDENTITY_MANIFEST.build.channel,
     env: app.isPackaged && !SMOKE_MODE ? {} : process.env,
@@ -171,9 +177,6 @@ async function startElectronHost(): Promise<void> {
   let activeDocumentId: string | undefined;
   const localCheckpoint: typeof protectFile = async (metadata, bytes) => { await protectFile(metadata, bytes); activeDocumentId = metadata.handle; };
   window.on("closed", () => { activeDocumentId = undefined; });
-  // Keep the platform editing roles available (especially Cmd/C/X/V on
-  // macOS) while adding the one desktop Save action owned by the host.
-  Menu.setApplicationMenu(Menu.buildFromTemplate(createNativeMenuTemplate(DESKTOP_IDENTITY_MANIFEST.build.channel, () => nativeSaveListener?.())));
   publishSessionMetadata = (metadata) => {
     const parsed = desktopSessionMetadataSchema.parse(metadata);
     if (parsed.status !== "signed-in") localRegistry.revoke();
@@ -199,6 +202,11 @@ async function startElectronHost(): Promise<void> {
       }
     },
   }) : createNoopLaunchBridge(deploymentProfile?.deploymentId ?? DESKTOP_IDENTITY.appId);
+  const draftStore = createDesktopDraftStore({
+    rootDirectory: join(app.getPath("userData"), "drafts"),
+    tempDirectory: join(app.getPath("userData"), "draft-temp"),
+    keyStore: createSecureDraftKeyStore(join(app.getPath("userData"), "draft-keys"), safeStorage),
+  });
   const host = createDesktopHost({
     handlers: { "desktop:window-theme": (request) => {
       if (process.platform !== "darwin") window.setTitleBarOverlay({ ...DESKTOP_TITLE_BAR_TOKENS[request.dark ? "dark" : "light"], height: 32 });
@@ -240,7 +248,36 @@ async function startElectronHost(): Promise<void> {
       if (session?.status !== "signed-in") throw new Error("login_required");
     } }), isSignedIn: () => authManager?.getMetadata().status === "signed-in", onDocumentOpened: (documentId: string) => { activeDocumentId = documentId; } } } : {}),
     activeDocumentId: () => activeDocumentId,
+    draftStore,
+    updates: {
+      restart: {
+        drafts: draftStore,
+        confirmDrafts: async () => (await dialog.showMessageBox(window, {
+          type: "question",
+          title: "Cập nhật UniWork Office",
+          message: "Bản nháp cục bộ đã được lưu. Đóng ứng dụng và mở bộ cài cập nhật?",
+          detail: "Bản nháp không được tự động gửi lên máy chủ hoặc ghi đè tệp gốc.",
+          buttons: ["Hủy", "Cập nhật"], defaultId: 0, cancelId: 0, noLink: true,
+        })).response === 1,
+        restart: async () => { app.quit(); },
+      },
+    },
   });
+  const update = createNativeUpdateAction({
+    client: host.updates,
+    install: createNativeInstaller({ directory: join(app.getPath("userData"), "updates"), platform: process.platform, openPath: (path) => shell.openPath(path) }),
+    report: async (code) => {
+      await dialog.showMessageBox(window, {
+        type: code === "auto_update_disabled" ? "info" : "error",
+        title: "Cập nhật UniWork Office",
+        message: code === "auto_update_disabled" ? "Bản dựng này chưa hỗ trợ cập nhật tự động." : "Không thể cập nhật. Ứng dụng vẫn đang mở.",
+        detail: `Mã: ${code}`, buttons: ["Đóng"],
+      });
+    },
+  });
+  // Keep the platform editing roles available (especially Cmd/C/X/V on
+  // macOS) while adding the desktop Save and update actions owned by the host.
+  Menu.setApplicationMenu(Menu.buildFromTemplate(createNativeMenuTemplate(DESKTOP_IDENTITY_MANIFEST.build.channel, () => nativeSaveListener?.(), process.platform === "darwin", () => { void update(); })));
 
   for (const channel of DESKTOP_IPC_CHANNELS) {
     ipcMain.handle(channel, (event, payload) => {
