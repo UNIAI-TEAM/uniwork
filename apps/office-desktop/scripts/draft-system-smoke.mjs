@@ -22,6 +22,9 @@ const buildIdentity = await readFile(join(appDirectory, "dist", "build-identity.
 const runtimeIdentity = buildIdentity ?? identityManifest;
 const keyNamespace = runtimeIdentity.keyNamespace;
 function windowsSystemPath(executable) {
+  // The smoke accepts the WINDIR fallback so it can still resolve on hosts that
+  // do not export SystemRoot; production (keystore.ts) intentionally resolves
+  // SystemRoot only and fails closed otherwise.
   const systemRoot = process.env.SystemRoot ?? process.env.WINDIR;
   if (!systemRoot || !windowsPath.isAbsolute(systemRoot)) throw new Error("Windows system root could not be resolved");
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]*\.exe$/i.test(executable)) throw new Error("Windows system executable could not be resolved");

@@ -75,5 +75,13 @@ it("resolves whoami through the absolute Windows System32 path", () => {
   expect(windowsWhoamiPath("D:\\Windows")).toBe("D:\\Windows\\System32\\whoami.exe");
   expect(windowsSystemPath("icacls.exe", "C:\\Windows")).toBe("C:\\Windows\\System32\\icacls.exe");
   expect(() => windowsWhoamiPath("Windows")).toThrowError(DraftKeyStoreError);
+  expect(() => windowsWhoamiPath("")).toThrowError(DraftKeyStoreError);
   expect(() => windowsSystemPath("whoami", "C:\\Windows")).toThrowError(DraftKeyStoreError);
+  const original = process.env.SystemRoot;
+  try {
+    delete process.env.SystemRoot;
+    expect(() => windowsWhoamiPath()).toThrowError(DraftKeyStoreError);
+  } finally {
+    if (original !== undefined) process.env.SystemRoot = original;
+  }
 });
