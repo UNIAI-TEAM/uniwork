@@ -33,7 +33,8 @@ it("renders an empty state and fires mode changes", () => {
   const onModeChange = vi.fn();
   const onCreate = vi.fn();
   const onOpenLocal = vi.fn();
-  render(<LibraryView mode="recent" documents={[]} engineAvailable onModeChange={onModeChange} onCreate={onCreate} onOpenLocal={onOpenLocal} />);
+  render(<LibraryView mode="recent" documents={[]} engineAvailable={false} onModeChange={onModeChange} onCreate={onCreate} onOpenLocal={onOpenLocal} />);
+  expect(screen.queryByText("Tr\u00ecnh so\u1ea1n th\u1ea3o kh\u00f4ng kh\u1ea3 d\u1ee5ng")).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Tài liệu mới" }));
   fireEvent.click(screen.getByRole("button", { name: "Mở tệp trên máy" }));
   expect(onCreate).toHaveBeenCalledOnce();

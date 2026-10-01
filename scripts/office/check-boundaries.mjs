@@ -51,6 +51,7 @@ export const BROWSER_SAFE_PACKAGES = new Set([
   "@uniwork/core/i18n",
   "@uniwork/ui/brand",
   "@uniwork/ui/components/ui/button",
+  "@uniwork/ui/components/ui/avatar",
   "@uniwork/ui/components/ui/input",
   "@uniwork/ui/components/ui/skeleton",
   "@uniwork/ui/components/ui/radio-group",

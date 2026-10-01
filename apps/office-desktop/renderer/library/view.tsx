@@ -79,7 +79,7 @@ export function LibraryView({
           <Button type="submit">{t("search")}</Button>
         </form>
       ) : null}
-      {!engineAvailable ? (
+      {!engineAvailable && documents.length > 0 ? (
         <p role="status" className="text-body text-muted-foreground">
           {t("engineDown")}
         </p>

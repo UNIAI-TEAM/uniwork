@@ -270,7 +270,6 @@
   },
   "settings": {
     "documents": {
-    "file_types": {"docx":"Word document","xlsx":"Excel spreadsheet","pptx":"PowerPoint presentation","pdf":"PDF document","md":"Markdown document","html":"HTML document","file":"File"},
       "title": "Documents",
       "description": "The organization's public links and storage usage.",
       "admin_only": "Only an organization owner or admin can change this setting.",
@@ -6335,6 +6334,7 @@
     }
   },
   "documents": {
+    "file_types": {"docx":"Word document","xlsx":"Excel spreadsheet","pptx":"PowerPoint presentation","pdf":"PDF document","md":"Markdown document","html":"HTML document","file":"File"},
     "page": {
       "title": "Documents",
       "new_page": "New page",
@@ -7198,8 +7198,7 @@
       "required": "Please sign in again.",
       "start": "Sign in with browser",
       "cancel": "Cancel login",
-      "signOut": "Sign out"
-,
+      "signOut": "Sign out",
       "libraryWorkspace": "Document library",
       "accountUnknown": "UniWork account",
       "switchWorkspace": "Switch workspace"
