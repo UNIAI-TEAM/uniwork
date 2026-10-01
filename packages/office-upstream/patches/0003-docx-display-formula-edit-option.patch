@@ -1,0 +1,42 @@
+--- a/apps/docs/src/renderer/editor/extensions.ts
++++ b/apps/docs/src/renderer/editor/extensions.ts
+@@ -3282,7 +3282,11 @@ export const ImageCopyExtension = Extension.create({
+   },
+ })
+ 
+-export const DocProtected = Node.create({
++/** The display-formula hover edit control (button click -> ai-docs-edit-inline-math)
++ *  is opt-out: a host without a consumer mounts DocProtected with
++ *  formulaLatexEdit:false and the wireFormulaLatexEdit control never enters the
++ *  DOM. The default keeps the app wiring. */
++export const DocProtected = Node.create<{ formulaLatexEdit?: boolean }>({
+   name: 'docProtected',
+   group: 'block',
+   atom: true,
+@@ -3290,6 +3294,9 @@ export const DocProtected = Node.create({
+   // switches it back on for whole-object movement.
+   draggable: true,
+   selectable: true,
++  addOptions() {
++    return { formulaLatexEdit: true }
++  },
+   addAttributes() {
+     return {
+       docxIndex: { default: null as number | null },
+@@ -3466,6 +3473,7 @@ export const DocProtected = Node.create({
+     return protectedDomSpec(node) as never
+   },
+   addNodeView() {
++    const formulaLatexEdit = this.options.formulaLatexEdit !== false
+     return ({ node, editor, getPos }) => {
+       let currentNode = node
+       const dom = buildProtectedDom(currentNode)
+@@ -3484,7 +3492,7 @@ export const DocProtected = Node.create({
+           editor.view,
+           textboxes ?? table ?? field ?? formula ?? chart,
+         ),
+-        wireFormulaLatexEdit(dom, getNode, pos),
++        formulaLatexEdit ? wireFormulaLatexEdit(dom, getNode, pos) : null,
+         table?.cleanup,
+         field?.cleanup,
+         formula?.cleanup,

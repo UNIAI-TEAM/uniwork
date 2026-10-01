@@ -20,6 +20,7 @@ Rules:
 | - | ----- | ------ | ----- | --------------- |
 | 0001 | `0001-g108-xlsx-frozen-engine.patch` | `E299A322443805E2F2EBD03B70A37CE44A44EBDE020A093A64F5C14695E0F27E` | `packages/xlsx-gateway/src/gateway/xlsx-styles.ts`, `xlsx-styles.dedupe.test.ts` (new), `apps/sheets/native/xlsx-engine/src/recalc.rs` | The frozen XLSX engine changes accepted in G0: the cellXfs dedupe fix so saving an already-styled cell does not grow `xl/styles.xml` (with its node:test regression), and the sidecar `normalize_for_ironcalc` normalization + tests that make unstyled packages recalculable. |
 | 0002 | `0002-xlsx-cross-sheet-formula-cache.patch` | `1CB36ED934F9492E7352963E63D2924514086D8C07E52781CEE65D2CEE0545E4` | `packages/xlsx-gateway/src/gateway/xlsx-gateway.ts` | G2-04 (UNI-687): the formulaValues pass previously skipped any sheet the cell edits never touched (`worksheetXmls` is seeded from edit/state sheet names only), so a cross-sheet formula dependent kept its stale cached `<v>` forever. The loop now lazy-loads an untouched formula sheet via `resolveWorksheetPath` and still skips one whose path cannot be resolved, preserving the old fail-soft behaviour. A lazily loaded sheet records its source XML in `lazilyLoadedXmls`; the write-back loop publishes it only when a pass actually changed the XML, so an unchanged dependent stays byte-identical and never enters `touchedEntries` — `assertOnlyTouchedEntriesChanged` covers it, and preservation surface stays maximal. |
+| 0003 | `0003-docx-display-formula-edit-option.patch` | `740AFAF428F73F7DF5BCDE74A4C1C76F4812477131D79643F3662D40EF65A6D2` | `apps/docs/src/renderer/editor/extensions.ts` | g3-04c T-03 (UNI-823): the display-formula hover control (`.doc-formula-edit`, click → `ai-docs-edit-inline-math`) becomes opt-out through `DocProtected`'s new `formulaLatexEdit` option. `addOptions()` defaults it to `true`, so the app wiring for the genoffice host is unchanged; a host without an event consumer mounts `DocProtected.configure({ formulaLatexEdit: false })` and `wireFormulaLatexEdit` never runs. The UniWork DOCX schema mounts it off. `scripts/office/build-docx-browser.mjs` applies the series to a scratch copy before bundling, so the DOCX browser artifact carries the same patch series as the rest of the vendored graph. |
 
 ## Provenance of 0001
 
@@ -45,6 +46,14 @@ The original `managed-engine-current.patch` was regenerated because its file
 boundaries are spliced (a `---` header glued to the previous file's last added
 line) and it is not `git apply`-clean; the regenerated patch is byte-identical
 in effect — it diffs the pinned blobs against the accepted applied tree.
+
+## Provenance of 0003
+
+Regenerated as a clean unified diff from the vendored `extensions.ts` blob at
+`09485f884dc845cf3bf27fb7edfe489f9d457aad` (the scratch patch repo used the
+same bytes; `git apply --check -p1` passes against `upstream/` today). The
+patch carries no upstream reformatting, only the three hunks above; the applied
+`b/` file is the only changed blob.
 
 ## Known gap (recorded, not worked around)
 

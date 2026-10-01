@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { buildDocxBrowser } from './build-docx-browser.mjs';
+import { PATCHES_DIR } from './build-upstream.mjs';
 import { PACKAGE_DIR } from './vendor-upstream.mjs';
 import { REPO_ROOT } from '../office-g0/paths.mjs';
 
@@ -10,6 +11,11 @@ test('DOCX browser entry bundles the real renderer with only shared browser impo
   const result = await buildDocxBrowser();
   assert.ok(result.bytes > 0);
   const record = JSON.parse(fs.readFileSync(path.join(PACKAGE_DIR, 'dist', 'docs-renderer-build.json'), 'utf8'));
+  // The browser artifact is a patched build: every series patch must apply to
+  // the scratch clone before the bundle resolves (SERIES.md + build-upstream).
+  const patchFiles = fs.readdirSync(PATCHES_DIR).filter((name) => name.endsWith('.patch')).sort();
+  assert.deepEqual(record.patchesApplied.map((entry) => entry.patch), patchFiles);
+  for (const entry of record.patchesApplied) assert.match(entry.sha256, /^[0-9A-F]{64}$/);
   for (const required of ['editor/extensions.ts', 'editor/convert.ts', 'src/wordart-presets.ts', 'src/shape-gallery.tsx']) {
     assert.ok(record.inputs.some(input => input.endsWith(required)), required);
   }
