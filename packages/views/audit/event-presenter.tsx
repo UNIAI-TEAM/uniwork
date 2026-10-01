@@ -16,6 +16,7 @@ import {
   ShieldAlert,
   Trash2,
   User,
+  UserRound,
   Webhook,
   type LucideIcon,
 } from "lucide-react";
@@ -70,7 +71,9 @@ export function ActionIcon({ action, className }: { action: string; className?: 
   );
 }
 
-const ACTOR_ICONS: Record<string, LucideIcon> = { human: User, agent: Bot, system: Cog };
+// A guest (someone in the meeting room without an account) only ever shows up
+// as the actor of a ballot; it gets its own glyph so it never reads as a member.
+const ACTOR_ICONS: Record<string, LucideIcon> = { human: User, agent: Bot, system: Cog, guest: UserRound };
 
 export function ActorIcon({ kind, className }: { kind: string; className?: string }) {
   const Icon = ACTOR_ICONS[kind] ?? User;
