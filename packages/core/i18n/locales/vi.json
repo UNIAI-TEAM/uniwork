@@ -87,7 +87,17 @@
       "unknown": "Chưa cung cấp",
       "loading": "Đang tải…",
       "approve": "Cho phép ứng dụng desktop",
-      "approving": "Đang cho phép…"
+      "approving": "Đang cho phép…",
+      "resultTitle": "K?t qu? ??ng nh?p desktop",
+      "approved": "?? cho ph?p UniWork Office ??ng nh?p",
+      "cancelledResult": "?? h?y ??ng nh?p desktop.",
+      "errorResult": "Kh?ng th? ho?n t?t y?u c?u ??ng nh?p desktop. H?y th? l?i.",
+      "expired": "Y?u c?u ??ng nh?p desktop n?y ?? h?t h?n.",
+      "openDesktop": "M? UniWork Office",
+      "closeTab": "B?n c? th? ??ng tab n?y.",
+      "accountUnknown": "Ch?a c? t?n t?i kho?n",
+      "emailUnknown": "Ch?a c? email",
+      "libraryWorkspace": "Th? vi?n t?i li?u"
     },
     "forgot": {
       "title": "Quên mật khẩu",

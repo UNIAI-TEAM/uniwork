@@ -98,6 +98,8 @@ type DesktopAttempt struct {
 type DesktopConsent struct {
 	AttemptID    string
 	AccountID    string
+	AccountName  string
+	AccountEmail string
 	ClientID     string
 	DeploymentID string
 	RedirectURI  string
@@ -185,7 +187,11 @@ func (s *DesktopAuthService) Consent(ctx context.Context, userID, attemptID stri
 	if err != nil {
 		return DesktopConsent{}, err
 	}
-	return DesktopConsent{AttemptID: row.ID, AccountID: userID, ClientID: row.ClientID, DeploymentID: row.DeploymentID,
+	user, err := s.q.GetUserByID(ctx, userID)
+	if err != nil {
+		return DesktopConsent{}, err
+	}
+	return DesktopConsent{AttemptID: row.ID, AccountID: userID, AccountName: user.DisplayName, AccountEmail: user.Email, ClientID: row.ClientID, DeploymentID: row.DeploymentID,
 		RedirectURI: row.RedirectUri, DeviceLabel: row.DeviceLabel, Platform: row.Platform,
 		Build: row.Build, CSRFToken: raw}, nil
 }

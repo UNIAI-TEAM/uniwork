@@ -11,7 +11,7 @@ export type DesktopConsentState = "pending" | "approved" | "cancelled" | "error"
 
 type DesktopConsentProps = {
   consent: DesktopConsent | null;
-  state: DesktopConsentState;
+  state?: DesktopConsentState;
   callbackUrl?: string;
   onDecision: (decision: "approve" | "cancel") => Promise<void>;
   onRetry: () => void;
@@ -19,7 +19,7 @@ type DesktopConsentProps = {
   onOpenDesktop: () => void;
 };
 
-export function DesktopConsentView({ consent, state, callbackUrl, onDecision, onRetry, onBack, onOpenDesktop }: DesktopConsentProps) {
+export function DesktopConsentView({ consent, state = "pending", callbackUrl, onDecision, onRetry = () => undefined, onBack = () => undefined, onOpenDesktop = () => undefined }: DesktopConsentProps) {
   const { t } = useTranslation();
   const [pending, setPending] = useState<"approve" | "cancel" | null>(null);
   async function decide(decision: "approve" | "cancel") {
@@ -39,7 +39,7 @@ export function DesktopConsentView({ consent, state, callbackUrl, onDecision, on
           {state === "pending" && consent ? <dl className="grid gap-3 rounded-xl border border-border/70 bg-surface p-4 text-body sm:grid-cols-2">
             <div><dt className="text-muted-foreground">{t("auth.desktop.app")}</dt><dd className="break-words font-semibold">{consent.client_id}</dd></div>
             <div><dt className="text-muted-foreground">{t("auth.desktop.device")}</dt><dd className="break-words font-semibold">{consent.device_label || consent.platform}</dd></div>
-            <div><dt className="text-muted-foreground">{t("auth.desktop.account")}</dt><dd className="break-words font-semibold">{consent.account_id}</dd></div>
+            <div><dt className="text-muted-foreground">{t("auth.desktop.account")}</dt><dd className="break-words font-semibold">{consent.account_name || t("auth.desktop.accountUnknown")}</dd><dd className="break-words text-caption text-muted-foreground">{consent.account_email || t("auth.desktop.emailUnknown")}</dd></div>
             <div><dt className="text-muted-foreground">{t("auth.desktop.deployment")}</dt><dd className="break-words font-semibold">{consent.deployment_id}</dd></div>
             <div><dt className="text-muted-foreground">{t("auth.desktop.build")}</dt><dd className="break-words font-semibold">{consent.build || t("auth.desktop.unknown")}</dd></div>
           </dl> : null}

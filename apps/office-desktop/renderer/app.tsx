@@ -107,8 +107,10 @@ function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; meta
     return () => { active = false; };
   }, [bridge, contextReload]);
 
+  const account = context?.accounts.find((entry) => entry.id === (scope?.accountId ?? metadata.accountId));
+  const workspace = context?.workspaces.find((entry) => entry.id === scope?.workspaceId);
   return (
-    <SignedInShell onSignOut={onLogout}>
+    <SignedInShell onSignOut={onLogout} accountName={account?.name} workspaceName={workspace?.name}>
       {scope ? (
         <LibraryHost bridge={bridge} scope={{ ...metadata, ...scope }} />
       ) : (

@@ -87,7 +87,17 @@
       "unknown": "Not provided",
       "loading": "Loading…",
       "approve": "Allow desktop app",
-      "approving": "Allowing…"
+      "approving": "Allowing…",
+      "resultTitle": "Desktop sign-in result",
+      "approved": "Allowed UniWork Office to sign in",
+      "cancelledResult": "Desktop sign-in was cancelled.",
+      "errorResult": "The desktop sign-in request could not be completed. Try again.",
+      "expired": "This desktop sign-in request has expired.",
+      "openDesktop": "Open UniWork Office",
+      "closeTab": "You can close this tab.",
+      "accountUnknown": "Account name unavailable",
+      "emailUnknown": "Email unavailable",
+      "libraryWorkspace": "Document library"
     },
     "forgot": {
       "title": "Forgot password",

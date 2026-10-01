@@ -49,6 +49,8 @@ type DesktopDeviceListSDO struct {
 type DesktopConsentSDO struct {
 	AttemptID    string `json:"attempt_id" description:"Pending attempt id" example:"01J8X4ATTEMPT0000000000000"`
 	AccountID    string `json:"account_id" description:"Signed-in account id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
+	AccountName  string `json:"account_name" description:"Signed-in account display name" example:"Mai Nguyen"`
+	AccountEmail string `json:"account_email" description:"Signed-in account email" example:"mai@example.com"`
 	ClientID     string `json:"client_id" description:"Public desktop client" example:"uniwork-office"`
 	DeploymentID string `json:"deployment_id" description:"Deployment binding" example:"default"`
 	RedirectURI  string `json:"redirect_uri" description:"Exact registered callback" example:"uniwork-office://auth/callback"`
