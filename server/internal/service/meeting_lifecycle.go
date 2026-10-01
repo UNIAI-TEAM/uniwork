@@ -183,6 +183,27 @@ func (s *MeetingService) endMeeting(ctx context.Context, m db.Meeting, actorID, 
 	if err != nil {
 		return db.Meeting{}, err
 	}
+	// Voting cannot outlive the meeting (spec §6.3): close and count every
+	// OPEN item in this same transaction. The version-CAS UPDATE above holds
+	// the meeting row, so taking the motion rows now keeps OpenMotion's
+	// meeting → motion lock order. A ballot that locked the motion first
+	// commits before FOR UPDATE returns the row, so its vote is counted; one
+	// that arrives later finds the motion CLOSED. A clerk closing the same
+	// item concurrently drops it from this list (status no longer OPEN).
+	// An auto-end leaves closed_by NULL: nobody closed the vote by hand.
+	closedBy := actorID
+	if actor.Kind == audit.KindSystem {
+		closedBy = ""
+	}
+	openMotions, err := q.ListOpenMeetingMotionsForUpdate(ctx, m.ID)
+	if err != nil {
+		return db.Meeting{}, err
+	}
+	for _, mo := range openMotions {
+		if _, err := s.closeMotionTx(ctx, q, ended, mo, actor, closedBy); err != nil {
+			return db.Meeting{}, err
+		}
+	}
 	_ = q.RevokeGrantsForMeeting(ctx, db.RevokeGrantsForMeetingParams{MeetingID: m.ID, RevokedBy: strText(actorID), RevokeReason: strText("meeting_ended")})
 	_ = q.ExpirePendingJoinRequests(ctx, m.ID)
 	if err := s.writeAudit(ctx, q, m.ID, eventType, actorID, MeetingInProgress, MeetingEnded, "{}"); err != nil {
