@@ -61,6 +61,13 @@ export const SELECTION = [
   'packages/project-store',
   'apps/docs/src/main',
   'apps/docs/src/renderer/editor',
+  // G3-04c T-01: the renderer stylesheet and its chrome-token source. The
+  // document surface classes (.doc-table, .doc-li, .page-dark, --doc-b-* /
+  // --dk-* consumers) live here; without it the surface renders plain. The
+  // browser artifact scopes the sheet under .docx-surface so the app-global
+  // rules (body/html/:root) cannot leak into the UniWork shell.
+  'apps/docs/src/renderer/styles.css',
+  'packages/ui/src/tokens.css',
   'apps/docs/src/renderer/line-metrics.ts',
   'apps/docs/src/renderer/font-list.ts',
   'apps/docs/src/renderer/font-check.ts',

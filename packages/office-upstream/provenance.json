@@ -25,6 +25,8 @@
     "packages/project-store",
     "apps/docs/src/main",
     "apps/docs/src/renderer/editor",
+    "apps/docs/src/renderer/styles.css",
+    "packages/ui/src/tokens.css",
     "apps/docs/src/renderer/line-metrics.ts",
     "apps/docs/src/renderer/font-list.ts",
     "apps/docs/src/renderer/font-check.ts",
@@ -61,9 +63,9 @@
     "tsconfig.base.json",
     "vitest.config.ts"
   ],
-  "fileCount": 838,
+  "fileCount": 840,
   "integrity": {
-    "filesDigest": "a159a4cba3d44c13a5fd2c4bbb921c6b25a4b466917c41867627df19b3d85352"
+    "filesDigest": "1ac4479ddbea7f2c08cde96c51a0e3d1222b7eb3f5e9ed50a6a1d7e5e2bf2d8a"
   },
   "files": [
     {
@@ -624,6 +626,13 @@
       "bytes": 4724,
       "sha256": "FBF808CE7F0F91D97C1095B15D03D4C91E135C1DCFB95B87131818FB65061562",
       "blob": "3dcb146cc58986b99d11fe0721f1e0305ff156a6",
+      "mode": "100644"
+    },
+    {
+      "path": "apps/docs/src/renderer/styles.css",
+      "bytes": 268295,
+      "sha256": "D4BEC6BD6C1D451178760FAB6F42DFC4BBACE61FCECE1CB8424DB5CDA89AC66A",
+      "blob": "a06c52d4855ba324f22d608c2ea2cd40085af31b",
       "mode": "100644"
     },
     {
@@ -5559,6 +5568,13 @@
       "bytes": 11821,
       "sha256": "316B6D345E3AD1DA3CC3C14813AC9196A993D461CF12EC8B8C5D39E76BF41E95",
       "blob": "5983009d01d71e870ab517ccf469966d23d32450",
+      "mode": "100644"
+    },
+    {
+      "path": "packages/ui/src/tokens.css",
+      "bytes": 5803,
+      "sha256": "A41E5C3B42996C8F297D83138AFE8AE6859B0E562B7CC6BC506EF911F45DC9E3",
+      "blob": "aef6ff5ed58f099d1879560f9017feea2ab475d6",
       "mode": "100644"
     },
     {

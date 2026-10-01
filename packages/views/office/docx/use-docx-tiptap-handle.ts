@@ -2,18 +2,62 @@
 
 // The concrete DocxEditorHandle: a headless TipTap Editor instance (no DOM
 // until renderSurface() mounts it — see the ordering note below) bound to
-// the G2 DocxAdapter. Host-agnostic: nothing here reaches `window`/`document`
-// except what TipTap's own DOM renderer needs once mounted, same as any
-// other React DOM content (desktop's Electron renderer is a DOM host too).
+// the G2 DocxAdapter. Host-agnostic: the only `document` use is the vendored
+// renderer stylesheet mount and the host theme class, both of which any DOM
+// host supplies (desktop's Electron renderer is a DOM host too).
 import { Editor, type JSONContent } from "@tiptap/core";
 import { EditorContent } from "@tiptap/react";
-import { createElement, type ReactNode } from "react";
+import { createElement, useEffect, useState, type ReactNode } from "react";
+import { installDocxRendererStyles } from "@uniwork/office-upstream/docs-renderer-editor";
 import type { DocxAdapter } from "@uniwork/office-engine/docx";
 import type { StableSnapshot } from "@uniwork/core/office";
 import { blocksToDoc } from "./docx-doc-convert";
 import { applyDocxSnapshot, encodeDocxSource, decodeDocxSource } from "./docx-save-bridge";
 import { docxExtensions, type DocxBlockAttrs } from "./docx-schema";
 import type { DocxEditorHandle, DocxFormatCommands, DocxFormatState, DocxOpenSuccess, DocxSelection, DocxSelectionPort } from "./types";
+
+/**
+ * G3-04c T-01 (UNI-823): the renderer sheet paints the document for a light UI
+ * by default; its `.page-dark` remaps (authored colour/shading twins, dark
+ * paper) switch on with the host theme. UniWork drives theming with the `dark`
+ * class (next-themes) on <html>, so the surface follows it and re-renders when
+ * the class flips.
+ */
+function useDarkSurface(): boolean {
+  const read = () => typeof document !== "undefined" && document.documentElement.classList.contains("dark");
+  const [dark, setDark] = useState(read);
+  useEffect(() => {
+    if (typeof document === "undefined" || typeof MutationObserver === "undefined") return undefined;
+    const root = document.documentElement;
+    const sync = () => setDark(root.classList.contains("dark"));
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(root, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
+  return dark;
+}
+
+function DocxRendererSurface({ editor }: { editor: Editor }): ReactNode {
+  const dark = useDarkSurface();
+  return createElement(
+    "div",
+    { className: "docx-surface flex min-h-0 min-w-0 flex-1", "data-testid": "docx-surface" },
+    createElement(
+      "div",
+      { className: dark ? "workspace page-dark" : "workspace" },
+      createElement(
+        "div",
+        { className: "editor-scroll min-h-0 min-w-0 flex-1", "data-testid": "docx-document-surface" },
+        createElement(
+          "div",
+          { className: "doc-zoom view-print" },
+          createElement("div", { className: "page-wrap" }, createElement(EditorContent, { editor })),
+        ),
+      ),
+    ),
+  );
+}
 
 function nextListId(): string {
   return "new-list-" + (globalThis.crypto?.randomUUID?.() ?? String(Date.now()) + Math.random().toString(36).slice(2));
@@ -153,10 +197,14 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
       ref = outcome.document_model_ref;
       openedOutcome = outcome;
       sourceBase64 = encodeDocxSource(bytes);
+      installDocxRendererStyles();
       tiptapEditor = new Editor({
         extensions: docxExtensions(options.adapter.numberingOf(ref)),
         content: blocksToDoc(options.adapter.blocksOf(ref)),
         editable: !options.readOnly,
+        // Upstream's App marks the editor root `.doc-page`; the repackaged
+        // vendored sheet keys the paper and its document rules on that class.
+        editorProps: { attributes: { class: "doc-page" } },
         onTransaction: ({ transaction }) => {
           if (transaction.docChanged) {
             generation += 1;
@@ -198,10 +246,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
     },
     renderSurface(): ReactNode {
       if (!tiptapEditor) return null;
-      return createElement(EditorContent, {
-        editor: tiptapEditor,
-        className: "docx-prose min-h-[24rem] w-full max-w-4xl focus:outline-none",
-      });
+      return createElement(DocxRendererSurface, { editor: tiptapEditor });
     },
     modelRef: () => ref,
     openOutcome: () => openedOutcome,

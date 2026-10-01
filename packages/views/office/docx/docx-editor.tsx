@@ -226,10 +226,12 @@ export function DocxEditor<TSnapshot = unknown>({
             format={formatState}
             commands={editor.commands}
           />
-          <div className="flex min-h-64 flex-1 items-start justify-center overflow-auto bg-muted/20 p-4 sm:p-8" data-testid="docx-canvas">
-            <div className="min-h-[24rem] w-full max-w-4xl rounded-lg border border-border bg-background p-8 shadow-sm" data-testid="docx-document-surface">
-              {editor.renderSurface ? editor.renderSurface() : <p className="text-caption text-muted-foreground">{t("office.docx.surface.ready")}</p>}
-            </div>
+          <div className="flex min-h-64 min-w-0 flex-1 flex-col" data-testid="docx-canvas">
+            {editor.renderSurface ? (
+              editor.renderSurface()
+            ) : (
+              <p className="p-8 text-caption text-muted-foreground">{t("office.docx.surface.ready")}</p>
+            )}
           </div>
         </>
       ) : viewState === "error" && failure ? (

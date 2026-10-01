@@ -24,6 +24,9 @@ export interface RendererParsed {
   [key: string]: unknown;
 }
 export const editorExtensions: Extensions;
+export const DOCX_RENDERER_STYLE_ELEMENT_ID: string;
+/** Mounts the vendored renderer stylesheet (scoped to `.docx-surface`) once per document. */
+export function installDocxRendererStyles(doc?: Document): void;
 export function blocksToPmDoc(blocks: RendererBlock[], sections?: unknown[], options?: { legacyTableIndent?: boolean }): JSONContent;
 export function pmDocOptions(parsed: { compatibilityMode?: number }): { legacyTableIndent?: boolean };
 export function inlineToRuns(content: JSONContent[]): RendererRun[];

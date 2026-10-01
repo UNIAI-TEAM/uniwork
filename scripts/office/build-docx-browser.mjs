@@ -3,9 +3,10 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { gzipSync } from 'node:zlib';
-import { build } from 'esbuild';
+import { build, transform } from 'esbuild';
 import { PACKAGE_DIR, UPSTREAM_DIR, checkVendored, loadManifest } from './vendor-upstream.mjs';
 import { PATCHES_DIR, sha256File } from './build-upstream.mjs';
+import { DOCX_RENDERER_STYLE_BANNER, buildDocxRendererStyleSheet } from './docx-renderer-styles.mjs';
 import { REPO_ROOT } from '../office-g0/paths.mjs';
 
 /** Scratch clone the patch series is applied to before bundling. */
@@ -40,6 +41,7 @@ export async function buildDocxBrowser() {
   const { scratchRoot, patchesApplied } = materializePatchedDocxPackage();
   const scratchUpstream = path.join(scratchRoot, 'upstream');
   const output = path.join(PACKAGE_DIR, 'dist', 'docs-renderer.mjs');
+  const styleInputs = [];
   const result = await build({
     absWorkingDir: REPO_ROOT,
     entryPoints: [path.join(scratchRoot, 'shims', 'docs-renderer-entry.ts')],
@@ -54,6 +56,37 @@ export async function buildDocxBrowser() {
     external: ['@tiptap/*', 'i18next', 'react', 'react/*'],
     nodePaths: [path.join(PACKAGE_DIR, 'node_modules')],
     plugins: [{
+      name: 'docx-renderer-styles',
+      setup(builder) {
+        // The shim imports the vendored sheet with a `?docx-sheet` marker; the
+        // plugin repackages the provenance-checked bytes for the surface root
+        // (docx-renderer-styles.mjs) and inlines the minified result as the
+        // module's default export, so one artifact carries markup + styling.
+        builder.onResolve({ filter: /[?]docx-sheet$/ }, (args) => ({
+          path: path.resolve(args.resolveDir, args.path.replace(/[?]docx-sheet$/, '')),
+          namespace: 'docx-renderer-sheet',
+        }));
+        builder.onLoad({ filter: /.*/, namespace: 'docx-renderer-sheet' }, async () => {
+          const tokensPath = path.join(scratchUpstream, 'packages', 'ui', 'src', 'tokens.css');
+          const stylesPath = path.join(scratchUpstream, 'apps', 'docs', 'src', 'renderer', 'styles.css');
+          const sheet = buildDocxRendererStyleSheet({
+            tokensCss: fs.readFileSync(tokensPath, 'utf8'),
+            stylesCss: fs.readFileSync(stylesPath, 'utf8'),
+          });
+          const minified = await transform(sheet, { loader: 'css', minify: true });
+          for (const file of [stylesPath, tokensPath]) {
+            styleInputs.push({
+              path: 'packages/office-upstream/upstream/' + path.relative(scratchUpstream, file).split(path.sep).join('/'),
+              sha256: sha256File(file),
+            });
+          }
+          return {
+            contents: `export default ${JSON.stringify(DOCX_RENDERER_STYLE_BANNER + minified.code)};`,
+            loader: 'js',
+          };
+        });
+      },
+    }, {
       name: 'docx-browser-compatibility',
       setup(builder) {
         // The locale seam and the UI shim stay UniWork files; every
@@ -85,8 +118,9 @@ export async function buildDocxBrowser() {
     gzipBytes: gzipSync(bytes).length,
     sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
     inputs: Object.keys(result.metafile.inputs),
+    styles: styleInputs,
     externalImports: imports.map((entry) => entry.path),
   };
   fs.writeFileSync(path.join(PACKAGE_DIR, 'dist', 'docs-renderer-build.json'), JSON.stringify(record, null, 2) + '\n');
-  return { bytes: record.bytes, gzipBytes: record.gzipBytes, sha256: record.sha256, inputs: record.inputs.length };
+  return { bytes: record.bytes, gzipBytes: record.gzipBytes, sha256: record.sha256, inputs: record.inputs.length, styles: record.styles };
 }
