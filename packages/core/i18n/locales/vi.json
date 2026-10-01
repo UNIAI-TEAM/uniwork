@@ -2865,6 +2865,7 @@
       "voteRecorded": "Đã ghi nhận phiếu",
       "votePromptHide": "Ẩn",
       "votePromptOpenTab": "Mở tab Biểu quyết",
+      "votePromptAnnounce": "Mời bỏ phiếu: {{title}}",
       "votePending": "Có nội dung đang chờ bạn bỏ phiếu",
       "votedDecisions": "Đã biểu quyết",
       "votedTally": "{{yes}} tán thành · {{no}} không tán thành · {{abstain}} không ý kiến",

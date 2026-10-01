@@ -45,12 +45,31 @@ beforeEach(() => {
 });
 
 describe("MeetingVotePrompt", () => {
+  it("keeps one status message mounted, so the card's arrival is announced", async () => {
+    // A live region inserted together with its content is not read out; the
+    // announcer exists before any vote is due and only its text changes.
+    motions = [];
+    renderPrompt();
+    await waitFor(() => expect(requestMock).toHaveBeenCalled());
+    const status = screen.getByRole("status");
+    expect(status).toBeEmptyDOMElement();
+    expect(screen.queryByTestId("meeting-vote-prompt")).not.toBeInTheDocument();
+  });
+
+  it("announces the item that needs a vote", async () => {
+    renderPrompt();
+    await screen.findByTestId("meeting-vote-prompt");
+    expect(screen.getByRole("status")).toHaveTextContent(`Mời bỏ phiếu: ${TITLE}`);
+  });
+
   it("appears as a named live region without taking focus", async () => {
     renderPrompt();
     const mic = screen.getByRole("button", { name: "Bật mic" });
     mic.focus();
     const region = await screen.findByRole("region", { name: "Mời bỏ phiếu" });
-    expect(region).toHaveAttribute("aria-live", "polite");
+    // Announced by the always-mounted status message, not by the region itself.
+    expect(region).not.toHaveAttribute("aria-live");
+    expect(screen.getByRole("status")).toHaveTextContent(`Mời bỏ phiếu: ${TITLE}`);
     expect(within(region).getByRole("radiogroup", { name: `Phiếu của bạn cho “${TITLE}”` })).toBeInTheDocument();
     expect(document.activeElement).toBe(mic);
   });

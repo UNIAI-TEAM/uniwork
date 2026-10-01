@@ -2866,6 +2866,7 @@
       "voteRecorded": "Vote recorded",
       "votePromptHide": "Hide",
       "votePromptOpenTab": "Open the Votes tab",
+      "votePromptAnnounce": "Your vote is needed: {{title}}",
       "votePending": "A vote is waiting for you",
       "votedDecisions": "Voted",
       "votedTally": "{{yes}} for · {{no}} against · {{abstain}} abstained",
