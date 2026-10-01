@@ -1,4 +1,3 @@
-import type { OfficeFormat } from "@uniwork/office-contracts";
 import type { DesktopIpcChannel, DesktopIpcRequest, DesktopOfficeOpenResponse } from "../../shared/ipc";
 import type { LibraryBridge } from "../library/model";
 
@@ -43,5 +42,3 @@ export function createDesktopDocxEditor(options: {
     getDirty() { return dirty; },
   });
 }
-
-export type { OfficeFormat };
