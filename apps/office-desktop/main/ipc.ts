@@ -190,6 +190,12 @@ export function createDraftIpcHandlers(options: DraftIpcOptions) {
     const configured = typeof options.currentBase === "function" ? options.currentBase() : options.currentBase;
     return configured ?? current.identity.base;
   };
+  const translateDraftError = (error: unknown): never => {
+    // A typed refusal from this boundary (no live session, malformed payload)
+    // must keep its own code instead of being flattened into storage failure.
+    if (error instanceof DraftIpcError) throw error;
+    throw new DraftIpcError(error instanceof DraftRecoveryError ? error.code : "storage_unavailable");
+  };
   return {
     "desktop:draft-checkpoint": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { draftId: string; generation: number; dataBase64: string }>) => {
       try {
@@ -197,7 +203,7 @@ export function createDraftIpcHandlers(options: DraftIpcOptions) {
         const metadata = await options.store.checkpointPlaintext({ session: current.session, identity: current.identity, draftId: request.draftId, generation: request.generation, plaintext: decodeBytes(request.dataBase64) });
         return { stored: true, generation: metadata.generation };
       } catch (error) {
-        throw new DraftIpcError(error instanceof DraftRecoveryError ? error.code : "storage_unavailable");
+        translateDraftError(error);
       }
     },
     "desktop:draft-list": async (_request: Extract<import("../shared/ipc").DesktopIpcRequest, { sessionGeneration: string }>) => {
@@ -220,7 +226,7 @@ export function createDraftIpcHandlers(options: DraftIpcOptions) {
           documentId: current.identity.documentId,
         } });
         return { drafts };
-      } catch (error) { throw new DraftIpcError(error instanceof DraftRecoveryError ? error.code : "storage_unavailable"); }
+      } catch (error) { translateDraftError(error); }
     },
     "desktop:draft-recover": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { draftId: string; currentBase: { revision: string; version: string } }>) => {
       try {
@@ -229,19 +235,21 @@ export function createDraftIpcHandlers(options: DraftIpcOptions) {
         const liveAccess = await (options.liveAccess?.() ?? Promise.resolve<"edit" | "none">("none"));
         const result = await options.store.recoverPlaintext({
           session: current.session,
-          lookup: { deploymentId: current.identity.deploymentId, accountId: current.identity.accountId, organizationId: current.identity.organizationId, workspaceId: current.identity.workspaceId, documentId: current.identity.documentId, draftId: request.draftId, base: currentBase },
+          // The base is deliberately NOT part of the lookup: a draft for a
+          // changed base must surface as an explicit conflict, not as missing.
+          lookup: { deploymentId: current.identity.deploymentId, accountId: current.identity.accountId, organizationId: current.identity.organizationId, workspaceId: current.identity.workspaceId, documentId: current.identity.documentId, draftId: request.draftId },
           currentBase,
           liveAccess,
         });
         return result.status === "recovered" ? { status: result.status, metadata: result.metadata, dataBase64: Buffer.from(result.plaintext).toString("base64") } : result;
-      } catch (error) { throw new DraftIpcError(error instanceof DraftRecoveryError ? error.code : "storage_unavailable"); }
+      } catch (error) { translateDraftError(error); }
     },
     "desktop:draft-discard": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { draftId: string; generation: number }>) => {
       try {
         const current = context();
         await options.store.deleteDurable({ session: current.session, draftId: request.draftId, generation: request.generation });
         return { discarded: true };
-      } catch (error) { throw new DraftIpcError(error instanceof DraftRecoveryError ? error.code : "storage_unavailable"); }
+      } catch (error) { translateDraftError(error); }
     },
   };
 }
