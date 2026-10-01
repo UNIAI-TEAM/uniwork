@@ -2,7 +2,7 @@ import type { JSONContent } from "@tiptap/core";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import type { DocxBlock, DocxGeneratedBlock, DocxRun } from "@uniwork/office-engine/docx";
 import { blocksToPmDoc, inlineToRuns as rendererInlineToRuns, pmNodeToGeneratedBlock } from "@uniwork/office-upstream/docs-renderer-editor";
-import type { DocxBlockAttrs, DocxBlockKind, DocxBlockList } from "./docx-schema";
+import type { DocxBlockKind, DocxBlockList } from "./docx-schema";
 
 export function inlineToRuns(node: PMNode): DocxRun[] {
   return rendererInlineToRuns(node.toJSON().content ?? []);
@@ -32,12 +32,6 @@ export function kindOf(block: DocxBlock): { blockKind: DocxBlockKind; level: num
 
 export function blocksToDoc(blocks: DocxBlock[]): JSONContent {
   return blocksToPmDoc(blocks.filter((block) => !block.hidden && block.docxIndex !== null));
-}
-
-export function buildGeneratedBlock(attrs: DocxBlockAttrs, runs: DocxRun[]): DocxGeneratedBlock {
-  if (attrs.blockKind === "heading") return { type: "heading", level: attrs.level ?? 1, runs };
-  if (attrs.blockKind === "listItem") return { type: "listItem", list: attrs.list ?? { kind: "bullet", numId: "0", ilvl: 0 }, runs };
-  return { type: "paragraph", runs };
 }
 
 export type DesiredItem =

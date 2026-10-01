@@ -316,8 +316,21 @@ images, headers/footers, page layout, equations — read-only), edit scope
 G3-D3 DOCX measurement (AC-5, its own later stage).
 
 **Shims added at the seam** (append as they land, file + reason):
-- _(none yet — to be filled in by the worker as Electron/Node-only imports
-  are found and shimmed)_
+- `packages/office-upstream/shims/docs-renderer/locale.ts` — the `../i18n/locale`
+  adapter: same import surface (`t`, `getLang`, `DATE_LOCALES`, `StringKey`),
+  delegates to our i18next under `office.docx.editor.*` (vi/en keys in
+  `packages/core/i18n/locales`). Replaces genoffice's i18n runtime per 3d.
+- `packages/office-upstream/shims/genoffice-ui.ts` — the `@genoffice/ui` alias
+  target: re-exports the pinned WordArt presets and shape-gallery clip helpers
+  the equation/shape renderers call. No branding code enters the graph.
+- `packages/office-upstream/shims/docs-renderer-entry.ts` — the esbuild entry
+  for the browser artifact (`scripts/office/build-docx-browser.mjs`): the
+  editor extensions, the PM<->Block converters and `parseDocx`/`saveDocx`.
+- `packages/office-upstream/shims/docs-renderer.d.ts` — the typed surface for
+  the generated `dist/docs-renderer.mjs` artifact.
+- **No Node/Electron-only import needed a shim.** The browser build fails on
+  any external other than `@tiptap/*`, `i18next`, `react`, and the vendored
+  closure was checked file-by-file for `node:*`/Electron (3f criteria).
 
 ## 4. Open questions for the Advisor (go/no-go gate)
 

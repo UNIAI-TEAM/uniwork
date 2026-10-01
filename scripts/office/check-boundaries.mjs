@@ -61,8 +61,16 @@ export const BROWSER_SAFE_PACKAGES = new Set([
   "@uniwork/views/office/leave-dialog",
   "@uniwork/office-contracts",
   "@uniwork/office-engine",
+  // G3-04c: the DOCX host is browser code. `next/dynamic` is the framework's
+  // client-only dynamic import (ssr:false keeps the DOCX graph out of the
+  // server build); the views subpath mirrors the xlsx entry above;
+  // docs-renderer-editor is the generated browser ESM artifact whose build
+  // rejects any non-browser external.
+  "next/dynamic",
+  "@uniwork/views/office/docx",
+  "@uniwork/office-upstream/docs-renderer-editor",
 ]);
-const BROWSER_SAFE_ENGINE_SUBPATHS = new Set(["browser", "markdown", "html", "assets", "xlsx"]);
+const BROWSER_SAFE_ENGINE_SUBPATHS = new Set(["browser", "markdown", "html", "assets", "xlsx", "docx"]);
 
 /** Browser-scope roots, relative to the repo root. Every file under these
  * roots (plus relative-import closure) must stay free of forbidden specifiers. */
