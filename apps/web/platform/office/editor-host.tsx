@@ -34,6 +34,7 @@ export interface OfficeEditorHostProps<TSnapshot = unknown> {
   className?: string;
   officeChannel?: OfficeChannel;
   installerURLs?: OfficeInstallerURLs;
+  officeDeploymentId?: string;
 }
 
 export interface OfficeFormatAdapter<TSnapshot = unknown> {
@@ -73,6 +74,7 @@ export function OfficeEditorHost<TSnapshot = unknown>({
   className,
   officeChannel = "stable",
   installerURLs = { dev: "", beta: "", stable: "" },
+  officeDeploymentId,
 }: OfficeEditorHostProps<TSnapshot>) {
   const { t } = useTranslation();
   const activeSession = formatAdapter?.session ?? session;
@@ -218,7 +220,7 @@ export function OfficeEditorHost<TSnapshot = unknown>({
         desktopAction={activeSession && !readonly ? (
           <DesktopOpenAction
             documentId={document.id}
-            deploymentId={activeSession.coordinator.getState().identity.deploymentId}
+            deploymentId={officeDeploymentId}
             savedVersion={document.current_version}
             dirty={dirty}
             saveCoordinator={activeSession.coordinator}

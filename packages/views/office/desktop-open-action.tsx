@@ -21,6 +21,8 @@ import {
 } from "@uniwork/ui/components/ui/dialog";
 import { OfficeInstallPrompt, type OfficeInstallerURLs } from "./install-prompt";
 
+const EMPTY_INSTALLER_URLS: OfficeInstallerURLs = Object.freeze({ dev: "", beta: "", stable: "" });
+
 export interface OfficeSaveOutcome {
   accepted?: boolean;
   version?: number;
@@ -34,7 +36,9 @@ export type OfficeLaunchSessionFactory = (
 
 export interface DesktopOpenActionProps {
   documentId: string;
-  deploymentId: string;
+  /** Undefined when the server config never advertised a deployment binding;
+   * the action then fails closed instead of guessing one. */
+  deploymentId: string | undefined;
   /** The selected version must be a server version ordinal, never a file id. */
   savedVersion: number | null;
   dirty?: boolean;
@@ -80,7 +84,7 @@ export function DesktopOpenAction({
   versionAfterSave,
   createSession = createOfficeLaunchSession,
   launch,
-  installerURLs = { dev: "", beta: "", stable: "" },
+  installerURLs = EMPTY_INSTALLER_URLS,
   loadInstallerURLs,
   className,
 }: DesktopOpenActionProps) {
@@ -113,6 +117,7 @@ export function DesktopOpenAction({
 
   const startHandoff = async (version: number) => {
     if (working || !Number.isSafeInteger(version) || version <= 0) return;
+    if (!deploymentId) { setError(t("ticket_failed")); return; }
     setWorking(true);
     setError(null);
     try {

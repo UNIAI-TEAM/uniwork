@@ -101,4 +101,12 @@ describe("DesktopOpenAction", () => {
     expect(await screen.findByText("The desktop handoff did not complete. Your editor and draft are unchanged.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open again" })).toBeInTheDocument();
   });
+
+  it("fails closed and never mints a ticket when no deployment id was advertised", async () => {
+    const createSession = vi.fn();
+    render(<DesktopOpenAction documentId="doc-1" deploymentId={undefined} savedVersion={2} createSession={createSession} />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit in UniWork Office" }));
+    expect(await screen.findByText("UniWork Office could not prepare this document. Your editor and draft are unchanged.")).toBeInTheDocument();
+    expect(createSession).not.toHaveBeenCalled();
+  });
 });

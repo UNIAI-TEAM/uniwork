@@ -34,6 +34,7 @@ const ConfigSchema = z.object({
   rum_sample_rate: z.number().min(0).max(1).catch(0),
   work_management_capabilities: z.record(z.string(), CapabilityEntrySchema).catch({}),
   office_installer_urls: OfficeInstallerURLsSchema.optional(),
+  office_deployment_id: z.string().trim().min(1).optional(),
 });
 
 export interface PublicConfig {
@@ -42,8 +43,12 @@ export interface PublicConfig {
   work_management_capabilities: Record<string, CapabilityState>;
   /** Older config consumers may omit this optional rollout field. */
   office_installer_urls?: { dev: string; beta: string; stable: string };
+  /** Server-selected deployment binding for Office launch tickets. */
+  office_deployment_id?: string;
 }
 
+// No guessed fallback here: an id the server never advertised must leave the
+// desktop open action closed, not send a possibly-wrong deployment binding.
 const EMPTY: PublicConfig = {
   flags: {}, rum_sample_rate: 0, work_management_capabilities: {},
   office_installer_urls: { dev: "", beta: "", stable: "" },
@@ -60,6 +65,7 @@ export async function getPublicConfig(organizationId?: string): Promise<PublicCo
     rum_sample_rate: parsed.rum_sample_rate,
     work_management_capabilities: parsed.work_management_capabilities,
     office_installer_urls: { dev: installer.dev ?? "", beta: installer.beta ?? "", stable: installer.stable ?? "" },
+    office_deployment_id: parsed.office_deployment_id,
   };
 }
 

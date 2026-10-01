@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/unicomhub/uniwork/server/internal/featureflags"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
@@ -18,10 +19,18 @@ import (
 func (h *handlers) config(w http.ResponseWriter, r *http.Request) {
 	ec := featureflag.EvalContext{UserID: middleware.UserID(r.Context()), OrganizationID: r.URL.Query().Get("organization_id")}
 	ctx := featureflag.WithEvalContext(r.Context(), ec)
+	deploymentID := "default"
+	for _, candidate := range h.Cfg.DesktopAuthDeploymentIDs {
+		if trimmed := strings.TrimSpace(candidate); trimmed != "" {
+			deploymentID = trimmed
+			break
+		}
+	}
 	respondJSON(w, 200, sdo.ConfigSDO{
 		Flags:                      featureflags.EvaluateFrontendPublicFlags(ctx, h.FeatureFlags),
 		RumSampleRate:              h.Cfg.RUMSampleRate,
 		WorkManagementCapabilities: workcapability.Catalogue(),
 		OfficeInstallerURLs:        sdo.OfficeInstallerURLsSDO{Dev: h.Cfg.OfficeInstallerDevURL, Beta: h.Cfg.OfficeInstallerBetaURL, Stable: h.Cfg.OfficeInstallerStableURL},
+		OfficeDeploymentID:         deploymentID,
 	})
 }

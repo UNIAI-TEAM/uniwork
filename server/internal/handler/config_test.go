@@ -35,6 +35,7 @@ func TestConfigPublishesWorkManagementCapabilities(t *testing.T) {
 			Beta   string `json:"beta"`
 			Stable string `json:"stable"`
 		} `json:"office_installer_urls"`
+		OfficeDeploymentID string `json:"office_deployment_id"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatal(err)
@@ -60,5 +61,8 @@ func TestConfigPublishesWorkManagementCapabilities(t *testing.T) {
 	}
 	if out.OfficeInstallerURLs.Dev != "https://downloads.test/dev.exe" || out.OfficeInstallerURLs.Beta != "https://downloads.test/beta.exe" || out.OfficeInstallerURLs.Stable != "" {
 		t.Fatalf("installer URLs = %+v, want configured per-channel values", out.OfficeInstallerURLs)
+	}
+	if out.OfficeDeploymentID != "default" {
+		t.Fatalf("office deployment id = %q, want default fallback", out.OfficeDeploymentID)
 	}
 }
