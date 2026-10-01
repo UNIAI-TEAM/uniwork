@@ -43,6 +43,8 @@ export interface OfficeShellProps {
   onSave?: () => void;
   /** Host-specific destination label, e.g. a local file rather than cloud. */
   saveLabel?: string;
+  /** Where a confirmed save lands; a local file must not read as a cloud receipt. */
+  saveDestination?: "cloud" | "local";
   editorReady?: boolean;
   className?: string;
 }
@@ -117,6 +119,7 @@ export function OfficeShell({
   saveStatus,
   onSave,
   saveLabel: providedSaveLabel,
+  saveDestination = "cloud",
   editorReady = false,
   className,
 }: OfficeShellProps) {
@@ -178,7 +181,7 @@ export function OfficeShell({
   }, [canSave, effectiveSaving, onSave, saveCoordinator]);
   const headerActions = (
     <div className="flex min-w-0 items-center gap-1">
-      <SaveStatus status={saveStatus} coordinatorState={coordinatorState} />
+      <SaveStatus status={saveStatus} coordinatorState={coordinatorState} destination={saveDestination} />
       {canSave ? (
         <Button size="sm" onClick={performSave} disabled={effectiveSaving} aria-label={saveLabel}>
           <Save aria-hidden />

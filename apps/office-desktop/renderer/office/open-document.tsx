@@ -24,6 +24,7 @@ export function OpenByteDocument({ bridge, identity, opened, title, onBack }: { 
   useEffect(() => bridge.onOfficeSaveRequested?.((event) => { if (event.documentId === identity.documentId) void session.coordinator.save("menu"); }), [bridge, identity.documentId, session]);
   return <OfficeShell title={title} breadcrumbs={[{ label: t("title") }]} saveCoordinator={session.coordinator} editorReady={opened.canSave !== false}
     saveLabel={opened.localHandle ? t("saveLocal") : undefined}
+    saveDestination={opened.localHandle ? "local" : "cloud"}
     actions={<Button type="button" variant="outline" onClick={onBack}>{t("back")}</Button>}
     editor={<><p role="status" className="mb-3 text-body text-muted-foreground">{t("contentPending")}</p><EditorSlot format="docx" host={host} editorHandle={session.editor} capability={capability} openState="ready" loadEditor={loadEditor} /></>} />;
 }
