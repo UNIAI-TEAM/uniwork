@@ -23,7 +23,7 @@ export const createOfficeLaunchSessionRequestSchema = z.object({
 
 export const officeLaunchSessionResponseSchema = z.object({
   launch_ticket: launchTicket,
-  launch_url: z.string().regex(/^uniwork-office:\/\/open\/??\?ticket=ticket_[A-Za-z0-9_-]{32,185}$/).optional(),
+  launch_url: z.string().regex(/^uniwork-office(?:-dev)?:\/\/open\?ticket=ticket_[A-Za-z0-9_-]{32,185}$/).optional(),
   expires_at: z.string().datetime({ offset: true }),
   document_id: id,
   operation,

@@ -28,6 +28,7 @@ export interface OfficeShellProps {
   editor: ReactNode;
   toolbar?: ReactNode;
   actions?: ReactNode;
+  desktopAction?: ReactNode;
   panel?: ReactNode;
   panelLabel?: string;
   panelOpen?: boolean;
@@ -101,6 +102,7 @@ export function OfficeShell({
   editor,
   toolbar,
   actions,
+  desktopAction,
   panel,
   panelLabel,
   panelOpen = false,
@@ -192,6 +194,7 @@ export function OfficeShell({
           {fullscreen ? <Minimize2 aria-hidden /> : <Expand aria-hidden />}
         </Button>
       ) : null}
+      {desktopAction}
       {actions}
     </div>
   );
