@@ -1,7 +1,9 @@
 /** @vitest-environment jsdom */
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { fireEvent } from "@testing-library/react";
+import i18n from "i18next";
 import { expect, it, vi } from "vitest";
+import { setLocale } from "@uniwork/core/i18n";
 import type { DesktopSessionMetadata } from "../shared/ipc";
 import { App, type RendererBridge } from "./app";
 
@@ -197,4 +199,53 @@ it("picks a scope, lists the workspace library, opens and downloads a document, 
   fireEvent.click(screen.getByRole("button", { name: "Đăng xuất" }));
   await waitFor(() => expect(container.querySelector("[data-login-state='signed-out']")).not.toBeNull());
   click.mockRestore();
+});
+
+const signedInCalls = (extra: (channel: string) => unknown) => vi.fn(async (channel: string) => {
+  if (channel === "desktop:auth-config") return { clientId: "uniwork-office-dev", deploymentId: "lane" };
+  if (channel === "desktop:auth-session") return { status: "signed-in", accountId: "account-1", deploymentId: "lane" };
+  if (channel === "desktop:library-context") return { deployments: [], accounts: [], organizations: [], workspaces: [] };
+  return extra(channel);
+}) as RendererBridge["call"];
+
+it("offers a found draft through the shared recovery prompt in vi and en", async () => {
+  const draft = { draftId: "local:abcdef:0123456789abcdef", identity: { deploymentId: "lane", accountId: "account-1", organizationId: "local", workspaceId: "local", documentId: "local:abcdef", base: { revision: "1", version: `sha256:${"a".repeat(64)}` } }, generation: 1, checksum: `sha256:${"c".repeat(64)}`, byteLength: 5, updatedAt: 1 };
+  const { bridge } = makeBridge(signedInCalls((channel) => (channel === "desktop:draft-list" ? { drafts: [draft] } : {})));
+  render(<App bridge={bridge} />);
+  await waitFor(() => expect(screen.getByText(i18n.t("office.recovery.title"))).toBeInTheDocument());
+  const vietnamese = i18n.t("office.recovery.title");
+  await act(async () => { await setLocale("en"); });
+  await waitFor(() => expect(screen.getByText(i18n.t("office.recovery.title"))).toBeInTheDocument());
+  expect(i18n.t("office.recovery.title")).not.toBe(vietnamese);
+  expect(screen.queryByRole("button", { name: /export/i })).toBeNull();
+  // The dialog's close affordance reuses the keep label, so both may match.
+  expect(screen.getAllByRole("button", { name: i18n.t("office.recovery.keep") }).length).toBeGreaterThan(0);
+});
+
+it("renders a locked draft store with the shared permission vocabulary and no export action", async () => {
+  const { bridge } = makeBridge(signedInCalls((channel) => {
+    if (channel === "desktop:draft-list") throw Object.assign(new Error("draft operation refused"), { code: "draft_recovery_locked" });
+    return {};
+  }));
+  render(<App bridge={bridge} />);
+  await waitFor(() => expect(document.querySelector('[data-testid="office-save-permission"]')).not.toBeNull());
+  expect(screen.getByText(i18n.t("office.save.status.permission"))).toBeInTheDocument();
+  await act(async () => { await setLocale("en"); });
+  await waitFor(() => expect(screen.getByText(i18n.t("office.save.status.permission"))).toBeInTheDocument());
+  expect(screen.queryByRole("button", { name: /export|clipboard/i })).toBeNull();
+});
+
+it("shows the shared leave dialog for a host leave request and answers through the typed channel", async () => {
+  const calls: Array<{ channel: string; payload: unknown }> = [];
+  let request: ((event: { requestId: string; reason: "close" | "logout" | "update" }) => void) | undefined;
+  const call = signedInCalls(() => ({}));
+  const { bridge } = makeBridge((async (channel: string, payload: unknown) => { calls.push({ channel, payload }); return call(channel, payload); }) as RendererBridge["call"]);
+  const live: RendererBridge = { ...bridge, onLeaveRequested: (listener) => { request = listener; return () => { request = undefined; }; } };
+  render(<App bridge={live} />);
+  await waitFor(() => expect(document.querySelector("[data-session-status='signed-in']")).not.toBeNull());
+  expect(screen.queryByText(i18n.t("office.leave.title"))).not.toBeInTheDocument();
+  act(() => request?.({ requestId: "leave-1", reason: "close" }));
+  await waitFor(() => expect(screen.getByText(i18n.t("office.leave.title"))).toBeInTheDocument());
+  fireEvent.click(screen.getByRole("button", { name: i18n.t("office.leave.keep") }));
+  await waitFor(() => expect(calls.find((entry) => entry.channel === "desktop:leave-resolved")?.payload).toMatchObject({ requestId: "leave-1", choice: "keep", proceeded: true }));
 });

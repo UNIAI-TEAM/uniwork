@@ -91,25 +91,55 @@ not-protected error and leaves the prior row unchanged.
 
 ## 04b lifecycle and recovery
 
-04b owns the shared Q8/system matrix: the real DPAPI/ACL and Keychain adapters,
-logout/restart/re-login live-session and ACL checks, account-B isolation in a
-packaged binary, disk-full/key-loss/corrupt recovery UI, crash recovery to the
-last confirmed checkpoint, and the single local/cloud Save guard. The typed
-`desktop:draft-list`, `desktop:draft-recover` and `desktop:draft-discard` IPC
-commands bind account/deployment/document identity in main; recover returns
-bytes only for a live edit ACL and a matching revision/version base. Blocked or
-locked states have no export/copy/clipboard action. Close/logout/update use the
-same lifecycle coordinator: Save must return a confirmed receipt, keep draft
-must return a stored/unchanged checkpoint, discard is generation-bound, and
-stay leaves all bytes untouched. Packaged Q-DESKTOP-SYSTEM evidence is recorded
-per OS; a missing macOS runner is explicitly `not run`, never a pass. The
-renderer exposes localized, non-exporting available/conflict/blocked/locked/
-unavailable states through its recovery element and status mapping. The editor
-host remains responsible for supplying the live document context and driving
-those states; the Electron bootstrap fails closed until it is attached.
+r4 status: the recovery / Save-guard / lifecycle behaviour now runs on the real
+G4-06a editor host (React renderer, OfficeShell/DocxEditor) with G4-07b merged.
+
+**One protected store, one key store.** `createDesktopDraftStore`
+(`userData/drafts`) with the AC-1 `createSafeStorageDraftKeyStore`
+(DPAPI/safeStorage-wrapped key file, restricted ACL) is the only draft store.
+Cloud drafts and local file checkpoints are rows in it:
+`createProtectedFileCheckpoints` writes a local snapshot under a path-free stable
+identity (`local:<sha256(canonical path)>`), one draft id per (file, base), and
+its generation floor is read from the durable row so a restart cannot regress a
+confirmed checkpoint. The G4-07b update restart flushes that one store, so local
+and cloud drafts are covered by the same durability pass.
+
+**Typed draft IPC.** `desktop:draft-checkpoint|list|recover|discard` bind
+account/deployment/document identity in main; `desktop:draft-list` also answers
+with the live account's own rows when no document is open (restart offer) and
+always filters by the live session. Recover returns bytes only for a live edit
+ACL and a matching revision/version base; a base mismatch is an explicit
+conflict and the draft stays. Blocked or locked states have no
+export/copy/clipboard action (`assertRecoveryActionAllowed`).
+
+**One leave decision (close/logout/update).** Two typed entries:
+`desktop:leave-requested` (main -> renderer event) and `desktop:leave-resolved`
+(renderer -> main channel), zod-validated in main and preload. Only one
+main-generated request id is outstanding at a time; stale, duplicate and busy
+answers are rejected. Main never trusts `proceeded=true` alone: `keep` requires a
+durable row main can see, `save` requires a main-observed receipt recorded by the
+guarded file/office save handlers after the request, and `discard` requires no
+row left for the live document. A timeout or a dead renderer means stay. The
+renderer renders the shared `views/office` LeaveDialog with `t()`; the 2 s tick
+is a local draft checkpoint only. The update restart uses the same dialog
+(reason `update`) instead of its native message box, runs its pre-flight flush
+before the decision, seals only afterwards (so keep/save can still write) and
+reopens writes if the install fails.
+
+**Recovery UI.** The account-level draft offer, the document-level
+`DraftRecoveryPrompt` (recover / keep / discard; recover only for a live ACL and
+a matching base) and the blocked/locked/unavailable states render through the
+shared registry primitives (`packages/views/office` leave-dialog and
+save-status) with `t()` in vi and en, styled like the G4-06a library/editor
+screens. A blocked draft exposes no export, copy or clipboard affordance.
 
 The Windows system smoke is runnable with `pnpm --filter @uniwork/office-desktop smoke:recovery-system`. It launches the real Electron binary with an isolated `userData` directory, exercises the DPAPI-backed `safeStorage` key adapter, verifies that the persisted file contains only the wrapped key (never the raw 256-bit key), checks the namespace directory ACL is restricted to the current Windows account, and deletes the key. The successful run is recorded in `D:/.Vietants_Project/uniwork-workspace/.uniwork-dev/office-g3g4/reports/g4-04b-desktop-recovery/windows-safe-storage-system.log`.
 
-The editor-driven AC-4 sequence (edit, kill, restart, offer recovery and restore) is deferred to G4-06a/G4-08 because this lane has no document editor host, seeded protected-draft seam, or packaged account-A/account-B visual harness. The packaged-dev visual leg is therefore not claimed as a pass here; the fail-closed `context: () => undefined` placeholder remains until that host context is supplied.
+The editor host context is now attached (r4): main owns the live document
+identity (local checkpoint or cloud open) and the leaving flow runs through the
+one save guard. The packaged-dev AC-4 visual sequence (edit -> kill -> restart ->
+offer/restore; logout -> login B -> login A; close with unsaved edits) is
+executed by the AC-4 visual Tester on the final SHA and recorded in the lane's
+acceptance packet; macOS runtime evidence remains `not run` (no macOS runner).
 
 The smoke resolves the Windows principal through `whoami.exe` (the inherited `USERDOMAIN`/`USERNAME` values are not trusted), and parses both the namespace directory and generated key-file ACLs. It rejects inherited or unexpected explicit principals; the Windows defaults permitted by the platform are the current account with Modify, `NT AUTHORITY\SYSTEM` with Full Control, and the per-session `NT AUTHORITY\LogonSessionId_*` read/execute entry. When `dist/build-identity.json` exists, the smoke uses that packaged channel projection; otherwise it uses the source manifest projection, matching the corresponding Electron host mode.

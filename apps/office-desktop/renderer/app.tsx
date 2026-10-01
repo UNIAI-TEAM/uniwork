@@ -15,6 +15,7 @@ import type {
 } from "../shared/ipc";
 import { desktopFileResponseSchema, desktopDraftListResponseSchema, desktopOfficeOpenResponseSchema, desktopLibraryDownloadResponseSchema } from "../shared/ipc";
 import { DraftRecoveryPrompt, LeaveDialog } from "@uniwork/views/office/leave-dialog";
+import { SaveStatus } from "@uniwork/views/office/save-status";
 import { createLibraryController, createLibraryScopeController, type LibraryMode } from "./library/model";
 import { LibraryPicker, type LibraryPickerSelection } from "./library/picker";
 import { LibraryView } from "./library/view";
@@ -121,6 +122,7 @@ function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; meta
   const [busy, setBusy] = useState(false);
   const [leave, setLeave] = useState<{ requestId: string; reason: "close" | "logout" | "update" } | null>(null);
   const [accountDraft, setAccountDraft] = useState(false);
+  const [accountBlocked, setAccountBlocked] = useState(false);
   const [pendingLaunch, setPendingLaunch] = useState<{ documentId: string; operation: "view" | "edit"; version?: number } | null>(null);
   const [queuedFileOpen, setQueuedFileOpen] = useState<string | null>(null);
   const openSequence = useRef(0);
@@ -157,8 +159,15 @@ function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; meta
     let active = true;
     void bridge.call("desktop:draft-list", { sessionGeneration: SESSION_GENERATION }).then((raw) => {
       if (!active) return;
-      try { setAccountDraft(desktopDraftListResponseSchema.parse(raw).drafts.length > 0); } catch { setAccountDraft(false); }
-    }).catch(() => { if (active) setAccountDraft(false); });
+      try { setAccountDraft(desktopDraftListResponseSchema.parse(raw).drafts.length > 0); setAccountBlocked(false); } catch { setAccountDraft(false); }
+    }).catch((error: unknown) => {
+      if (!active) return;
+      // A locked or unavailable store is a typed blocked state, never a silent
+      // empty list: the shared permission vocabulary renders it.
+      const code = (error as { code?: string } | null)?.code;
+      setAccountBlocked(code === "draft_recovery_locked" || code === "storage_unavailable");
+      setAccountDraft(false);
+    });
     return () => { active = false; };
   }, [bridge]);
   useEffect(() => {
@@ -242,6 +251,7 @@ function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; meta
       ) : (
         <LibraryPicker context={context} error={contextError} onRetry={() => setContextReload((value) => value + 1)} onChoose={setScope} />
       )}</div>
+      {accountBlocked ? <SaveStatus status="permission" className="p-4" /> : null}
       {accountDraft && !opened ? <DraftRecoveryPrompt open metadata={null} recoverable={false}
         onOpenChange={(open) => { if (!open) setAccountDraft(false); }}
         onRecover={async () => false}
