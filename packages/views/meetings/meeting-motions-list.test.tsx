@@ -132,6 +132,32 @@ describe("MeetingMotionsList", () => {
     );
   });
 
+  it("keeps the items on screen when a refetch is refused mid-vote", async () => {
+    // A ballot_cast refetch can be rate limited (429) while a vote is running;
+    // the clerk must keep the open item and its close button, not an error card.
+    motions = [motion({ status: "OPEN", roll_size: 3, cast_count: 1, opened_at: "2026-10-01T02:10:00Z" })];
+    renderList();
+    fireEvent.click(await screen.findByRole("button", { name: "Đóng biểu quyết" }));
+    const dialog = await screen.findByRole("alertdialog");
+    let refused = 0;
+    requestMock.mockImplementation((path: unknown, opts?: { method?: string }) => {
+      const p = String(path);
+      if (p.endsWith("/motions") && (opts?.method ?? "GET") === "GET") {
+        refused += 1;
+        return Promise.reject(Object.assign(new Error("too many requests"), { status: 429, code: "rate_limited" }));
+      }
+      if (p.endsWith("/close")) return Promise.reject(Object.assign(new Error("nope"), { status: 409, code: "x" }));
+      return Promise.resolve({ status: "ok" });
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Đóng biểu quyết" }));
+    await waitFor(() => expect(refused).toBeGreaterThan(0));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(screen.queryByText("Không tải được biểu quyết")).not.toBeInTheDocument();
+    expect(screen.getByText("Thông qua kế hoạch")).toBeInTheDocument();
+  });
+
   it("shows the error state instead of an empty list when the response drifts", async () => {
     motions = "nope";
     renderList();

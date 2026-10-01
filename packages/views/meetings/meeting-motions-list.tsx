@@ -43,7 +43,7 @@ export function MeetingMotionsList({
   density: "room" | "compact";
 }) {
   const { t } = useTranslation();
-  const { data: motions, isPending, isError, refetch } = useMeetingMotions(meetingId);
+  const { data: motions, isPending, refetch } = useMeetingMotions(meetingId);
   const { isClerk } = useMeetingClerk(meeting ?? null, workspaceId ?? "");
   const update = useUpdateMotion(meetingId);
   const remove = useDeleteMotion(meetingId);
@@ -59,7 +59,9 @@ export function MeetingMotionsList({
   const onError = (err: unknown) => toastApiError(err, t("common.error"));
 
   if (isPending) return <MeetingRowsSkeleton rows={2} className={density === "compact" ? "py-1" : undefined} />;
-  if (isError || !motions) {
+  // A refused refetch (a 429 while ballots stream in) keeps the cached list:
+  // only a first load with nothing to show is an error.
+  if (!motions) {
     return (
       <MeetingSectionError
         className={density === "compact" ? "m-4" : undefined}
