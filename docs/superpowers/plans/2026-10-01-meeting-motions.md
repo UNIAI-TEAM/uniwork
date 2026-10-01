@@ -10356,9 +10356,9 @@ Làm inline ngày 2026-10-01 trên `feature/UNI-893-meetings-bieu-quyet-cong-kha
 - Bộ đếm tiêu đề và `maxLength` tính theo UTF-16, server tính rune; không chuẩn hóa NFC.
 - Comment SQL cũ trên `CreateMeetingMotion` (vị trí không còn trùng được vì đã khóa meeting); `useCastBallot` invalidate `activity` không cần; nút "Gửi phiếu" bị khóa khi chưa chọn không có gợi ý.
 
-**Cần product quyết**
-- Người ngoài tổ chức vào họp bằng link mời khi đã đăng nhập là `principal_type=USER` nên mặc định `MEMBER` (spec D2 "tài khoản → thành viên"); họ vào danh sách cử tri nếu được điểm danh có mặt. Có muốn mặc định họ là dự thính không?
-- Mốc "đến muộn" vẫn là `starts_at` (câu hỏi còn treo từ đợt 1).
+**Cần product quyết** — đã chốt 2026-10-01 (user: "xử lý hai vấn đề đấy"), spec cập nhật theo:
+- Tài khoản ngoài workspace vào bằng link mời (tự vào hoặc được duyệt) → `OBSERVER` qua `settleAdmittedStanding` (`RequireMemberQ` trong transaction); thành viên workspace giữ `MEMBER`. Test `TestLinkAdmittedStanding`.
+- Mốc "đến muộn" của họp lên lịch = thời điểm muộn hơn giữa `starts_at` và `actual_start_at`; họp tức thì giữ `actual_start_at`. Test `TestAttendanceAnchor` (bảng 4 trường hợp).
 
 **Môi trường**
 - LiveKit local chạy và webhook `room_*` tới được backend (`host.docker.internal:8090`), nên cả hai test E2E chạy local: `E2E_LIVEKIT=1 … playwright test meetings-governance.spec.ts` → 2 passed.
