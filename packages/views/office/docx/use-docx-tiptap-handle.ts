@@ -5,12 +5,13 @@
 // the G2 DocxAdapter. Host-agnostic: nothing here reaches `window`/`document`
 // except what TipTap's own DOM renderer needs once mounted, same as any
 // other React DOM content (desktop's Electron renderer is a DOM host too).
-import { Editor } from "@tiptap/core";
+import { Editor, type JSONContent } from "@tiptap/core";
 import { EditorContent } from "@tiptap/react";
 import { createElement, type ReactNode } from "react";
 import type { DocxAdapter } from "@uniwork/office-engine/docx";
-import { blocksToDoc, computeDesiredList } from "./docx-doc-convert";
-import { reconcileDocxPlan } from "./docx-reconcile";
+import type { StableSnapshot } from "@uniwork/core/office";
+import { blocksToDoc } from "./docx-doc-convert";
+import { applyDocxSnapshot, encodeDocxSource, decodeDocxSource } from "./docx-save-bridge";
 import { docxExtensions, type DocxBlockAttrs } from "./docx-schema";
 import type { DocxEditorHandle, DocxFormatCommands, DocxFormatState, DocxSelection, DocxSelectionPort } from "./types";
 
@@ -19,9 +20,8 @@ function nextListId(): string {
 }
 
 export interface DocxTiptapSnapshot {
-  /** Fingerprint/draft-recovery payload only — the real save bytes come
-   * from the adapter's own plan via its serialize(), not from this value. */
-  doc: unknown;
+  doc: JSONContent;
+  sourceBase64: string;
 }
 
 export interface DocxOpenError extends Error {
@@ -38,15 +38,9 @@ export interface DocxTiptapHandleOptions {
 }
 
 export interface DocxTiptapHandle extends DocxEditorHandle<DocxTiptapSnapshot> {
-  /** The live session ref once open() has succeeded, for a host transport to
-   * call adapter.serialize({document_model_ref, format: "docx"}) with. */
   modelRef(): string | null;
-  /** The host transport calls this right after a successful adapter.serialize
-   * — the two-save rule rebased the model, so the live doc's docxIndex
-   * attrs and the pristine baseline both need to catch up. Resets the PM
-   * doc to the freshly-saved blocks (a known simplification: cursor and
-   * undo history restart at a save boundary). */
-  refreshAfterSave(): void;
+  serializeSnapshot(snapshot: StableSnapshot<DocxTiptapSnapshot>): Promise<{ bytes: Uint8Array; checksum: string; warnings?: unknown[] }>;
+  restoreSnapshot(snapshot: StableSnapshot<DocxTiptapSnapshot>): void;
 }
 
 async function fingerprintOf(value: unknown): Promise<string> {
@@ -60,7 +54,7 @@ async function fingerprintOf(value: unknown): Promise<string> {
 export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTiptapHandle {
   let tiptapEditor: Editor | null = null;
   let ref: string | null = null;
-  let pristineDocxIndexes: number[] = [];
+  let sourceBase64 = "";
   let generation = 0;
   let disposed = false;
   const selectionListeners = new Set<(selection: DocxSelection | null) => void>();
@@ -151,7 +145,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
         throw error;
       }
       ref = outcome.document_model_ref;
-      pristineDocxIndexes = options.adapter.visibleIndexes(ref);
+      sourceBase64 = encodeDocxSource(bytes);
       tiptapEditor = new Editor({
         extensions: docxExtensions(),
         content: blocksToDoc(options.adapter.blocksOf(ref)),
@@ -167,12 +161,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
     getDirtyGeneration: () => generation,
     async captureSnapshot() {
       if (!tiptapEditor || !ref) throw new Error("docx_snapshot_unavailable");
-      const liveRef = ref;
-      const blocks = options.adapter.blocksOf(liveRef);
-      const byIndex = new Map(blocks.filter((b) => !b.hidden && b.docxIndex !== null).map((b) => [b.docxIndex as number, b]));
-      const desired = computeDesiredList(tiptapEditor.state.doc, byIndex);
-      reconcileDocxPlan(options.adapter, liveRef, pristineDocxIndexes, desired);
-      const value: DocxTiptapSnapshot = { doc: tiptapEditor.getJSON() };
+      const value: DocxTiptapSnapshot = { doc: tiptapEditor.getJSON(), sourceBase64 };
       return { generation, fingerprint: await fingerprintOf(value), value };
     },
     undo() {
@@ -199,11 +188,23 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
       });
     },
     modelRef: () => ref,
-    refreshAfterSave() {
-      if (!tiptapEditor || !ref) return;
-      pristineDocxIndexes = options.adapter.visibleIndexes(ref);
-      tiptapEditor.commands.setContent(blocksToDoc(options.adapter.blocksOf(ref)));
-      generation = 0;
+    async serializeSnapshot(snapshot) {
+      if (disposed || options.readOnly) throw new Error("docx_save_unavailable");
+      const opened = await options.adapter.open({ bytes: decodeDocxSource(snapshot.value.sourceBase64), format: "docx", document_id: options.documentId });
+      if (opened.outcome !== "opened") throw new Error(opened.message ?? "docx_snapshot_open_failed");
+      const saveRef = opened.document_model_ref;
+      try {
+        applyDocxSnapshot(options.adapter, saveRef, snapshot.value.doc, options.adapter.blocksOf(saveRef));
+        return await options.adapter.serialize({ document_model_ref: saveRef, format: "docx" });
+      } finally {
+        options.adapter.release(saveRef);
+      }
+    },
+    restoreSnapshot(snapshot) {
+      if (!tiptapEditor || !ref || options.readOnly) throw new Error("docx_restore_unavailable");
+      if (snapshot.value.sourceBase64 !== sourceBase64) throw new Error("docx_draft_base_mismatch");
+      tiptapEditor.commands.setContent(snapshot.value.doc);
+      generation = Math.max(generation, snapshot.generation);
     },
   };
   return handle;

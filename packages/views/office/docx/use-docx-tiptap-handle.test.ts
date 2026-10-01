@@ -5,7 +5,7 @@
 // bold/italic/underline, retyping a heading (remove+insert, never a silent
 // retype), typing a brand-new heading, and the save round trip reopening
 // with the edit present while the untouched paragraph stays byte-identical.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createDocxAdapter, type DocxBlock, type DocxEngineFunctions, type DocxParsed, type DocxSaveBlock } from "@uniwork/office-engine/docx";
 import { createDocxTiptapHandle } from "./use-docx-tiptap-handle";
 
@@ -85,13 +85,12 @@ describe("createDocxTiptapHandle", () => {
   });
 
   it("restyling an existing heading saves as remove+insert, never a silent retype", async () => {
-    const { adapter, handle } = await openHandle();
+    const { handle } = await openHandle();
     const snapshotBefore = await handle.captureSnapshot();
     expect(snapshotBefore.generation).toBe(0); // nothing changed yet
     handle.commands?.setHeading(2); // the caret starts inside the heading block
-    await handle.captureSnapshot();
-    const ref = handle.modelRef() as string;
-    const saved = await adapter.serialize({ document_model_ref: ref, format: "docx" });
+    const snapshot = await handle.captureSnapshot();
+    const saved = await handle.serializeSnapshot(snapshot);
     const reparsed = JSON.parse(decoder.decode(saved.bytes.subarray(ZIP_MAGIC.length))) as {
       blocks: Array<{ type: string; level?: number; runs?: Array<{ text: string }> }>;
     };
@@ -116,6 +115,48 @@ describe("createDocxTiptapHandle", () => {
     expect(texts).toContain("ALPHA-EDITED");
     expect(texts).toContain("Spec"); // untouched heading survives byte-for-byte
     expect(texts).toContain("omega"); // untouched trailing paragraph survives
+    await handle.dispose();
+  });
+
+  it("captures repeated local draft snapshots without applying G2 edits", async () => {
+    const { adapter, handle } = await openHandle();
+    const edit = vi.spyOn(adapter, "edit");
+    handle.commands?.setHeading(2);
+    const first = await handle.captureSnapshot();
+    const second = await handle.captureSnapshot();
+    expect(edit).not.toHaveBeenCalled();
+    expect(second.fingerprint).toBe(first.fingerprint);
+    expect(adapter.blocksOf(handle.modelRef()!)[0]).toMatchObject({ type: "heading", level: 1 });
+    await handle.dispose();
+  });
+
+  it("serializes generation N while retaining N+1 and undo history", async () => {
+    const { adapter, handle } = await openHandle();
+    handle.commands?.setHeading(2);
+    const snapshot = await handle.captureSnapshot();
+    const saving = handle.serializeSnapshot(snapshot);
+    handle.commands?.setHeading(3);
+    const saved = await saving;
+    const reopened = await adapter.open({ bytes: saved.bytes, format: "docx", document_id: "verify-n" });
+    expect(reopened.outcome).toBe("opened");
+    if (reopened.outcome !== "opened") throw new Error("reopen_failed");
+    expect(adapter.blocksOf(reopened.document_model_ref)[0]).toMatchObject({ type: "heading", level: 2 });
+    expect(handle.commands?.getState().headingLevel).toBe(3);
+    expect(handle.getDirtyGeneration()).toBeGreaterThan(snapshot.generation);
+    handle.undo?.();
+    expect(handle.commands?.getState().headingLevel).not.toBe(3);
+    adapter.release(reopened.document_model_ref);
+    await handle.dispose();
+  });
+
+  it("retries the same snapshot without duplicating generated blocks", async () => {
+    const { handle } = await openHandle();
+    handle.commands?.setHeading(2);
+    const snapshot = await handle.captureSnapshot();
+    const first = await handle.serializeSnapshot(snapshot);
+    const second = await handle.serializeSnapshot(snapshot);
+    expect(second.bytes).toEqual(first.bytes);
+    expect(handle.commands?.getState().headingLevel).toBe(2);
     await handle.dispose();
   });
 });
