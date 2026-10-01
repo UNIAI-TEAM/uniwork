@@ -18,6 +18,12 @@ export const DOCX_BROWSER_SCRATCH = path.join(REPO_ROOT, '.go-tmp', 'docx-browse
  * bundle reads from. Mirrors build-upstream.mjs's patch step: the DOCX browser
  * artifact carries the same UniWork diffs as the rest of the vendored graph.
  */
+/** Symbols each DOCX patch must have introduced before the bundle may build. */
+const PATCHED_SYMBOLS = [
+  { patch: '0003', file: 'apps/docs/src/renderer/editor/extensions.ts', symbol: 'formulaLatexEdit' },
+  { patch: '0004', file: 'apps/docs/src/renderer/editor/hf-dom.ts', symbol: '.docx-surface' },
+];
+
 export function materializePatchedDocxPackage() {
   fs.rmSync(DOCX_BROWSER_SCRATCH, { recursive: true, force: true });
   fs.mkdirSync(DOCX_BROWSER_SCRATCH, { recursive: true });
@@ -31,17 +37,30 @@ export function materializePatchedDocxPackage() {
     // GIT_CEILING_DIRECTORIES: the scratch lives inside the lane worktree, and
     // git apply SILENTLY SKIPS patch paths that resolve outside the current
     // directory when it walks up to a repository root (exit 0, no change). The
-    // ceiling stops that walk at the scratch, so the apply is cwd-relative and
-    // a real failure exits non-zero again.
-    const applied = spawnSync('git', ['apply', '-p1', '--whitespace=nowarn', patchPath], {
-      cwd: path.join(DOCX_BROWSER_SCRATCH, 'upstream'),
-      encoding: 'utf8',
-      env: { ...process.env, GIT_CEILING_DIRECTORIES: DOCX_BROWSER_SCRATCH },
-    });
+    // ceiling stops that walk at the scratch, so the apply is cwd-relative.
+    const runApply = (extra) =>
+      spawnSync('git', ['apply', ...extra, '-p1', '--whitespace=nowarn', patchPath], {
+        cwd: path.join(DOCX_BROWSER_SCRATCH, 'upstream'),
+        encoding: 'utf8',
+        env: { ...process.env, GIT_CEILING_DIRECTORIES: DOCX_BROWSER_SCRATCH },
+      });
+    // Fail loudly on every degradation: --check rejects a patch that cannot
+    // land, and the reverse --check after applying rejects a no-op apply (the
+    // exact way a skip used to be recorded as applied).
+    const pre = runApply(['--check']);
+    if (pre.status !== 0) throw new Error(`patch ${patchFile}: ${(pre.stderr || pre.stdout || 'git apply --check failed').trim()}`);
+    const applied = runApply([]);
     if (applied.status !== 0) throw new Error(`patch ${patchFile}: ${(applied.stderr || applied.stdout || 'git apply failed').trim()}`);
+    const landed = runApply(['-R', '--check']);
+    if (landed.status !== 0) throw new Error(`patch ${patchFile}: did not change the tree (reverse check): ${(landed.stderr || 'git apply -R --check failed').trim()}`);
     patchesApplied.push({ patch: patchFile, sha256: sha256File(patchPath) });
   }
-  return { scratchRoot: DOCX_BROWSER_SCRATCH, patchesApplied };
+  // … and the patched symbols must be present in the scratch the bundle reads.
+  for (const { patch, file, symbol } of PATCHED_SYMBOLS) {
+    const body = fs.readFileSync(path.join(DOCX_BROWSER_SCRATCH, 'upstream', file), 'utf8');
+    if (!body.includes(symbol)) throw new Error(`patch ${patch}: ${file} does not carry "${symbol}" after apply`);
+  }
+  return { scratchRoot: DOCX_BROWSER_SCRATCH, patchesApplied, patchedSymbols: PATCHED_SYMBOLS.map(({ patch, file, symbol }) => ({ patch, file, symbol })) };
 }
 
 export async function buildDocxBrowser() {
@@ -120,9 +139,17 @@ export async function buildDocxBrowser() {
   const forbidden = imports.filter((entry) => !/^(@tiptap\/|i18next$|react(?:\/|$))/.test(entry.path));
   if (forbidden.length) throw new Error(`Unexpected browser imports: ${forbidden.map((entry) => entry.path).join(', ')}`);
   const bytes = fs.readFileSync(output);
+  // (c) the built artifact must really carry the patched symbols: a no-op
+  // series would otherwise ship a silently unpatched renderer.
+  const artifact = bytes.toString('utf8');
+  if (!artifact.includes('formulaLatexEdit')) throw new Error('built artifact does not carry patch 0003 symbol "formulaLatexEdit"');
+  if (!/querySelector\(["']\.docx-surface["']\)\s*\?\?\s*document\.body/.test(artifact)) {
+    throw new Error('built artifact does not carry the patch 0004 scoped hf-probe mount');
+  }
   const record = {
     kind: 'uniwork-docx-browser-build',
     patchesApplied,
+    patchedSymbols: PATCHED_SYMBOLS,
     bytes: bytes.length,
     gzipBytes: gzipSync(bytes).length,
     sha256: crypto.createHash('sha256').update(bytes).digest('hex'),

@@ -274,14 +274,22 @@ export async function run({ out, skipInstall, withNative, keep }) {
     // GIT_CEILING_DIRECTORIES: the scratch lives inside the lane worktree, and
     // git apply SILENTLY SKIPS patch paths that resolve outside the current
     // directory when it walks up to a repository root (exit 0, no change). The
-    // ceiling stops that walk at the scratch, so the apply is cwd-relative and
-    // a real failure exits non-zero again.
-    const applied = spawnSync('git', ['apply', '-p1', '--whitespace=nowarn', patchPath], {
-      cwd: scratchUpstream,
-      encoding: 'utf8',
-      env: { ...process.env, GIT_CEILING_DIRECTORIES: path.dirname(scratchUpstream) },
-    });
+    // ceiling stops that walk at the scratch, so the apply is cwd-relative.
+    const runApply = (extra) =>
+      spawnSync('git', ['apply', ...extra, '-p1', '--whitespace=nowarn', patchPath], {
+        cwd: scratchUpstream,
+        encoding: 'utf8',
+        env: { ...process.env, GIT_CEILING_DIRECTORIES: path.dirname(scratchUpstream) },
+      });
+    // Fail loudly on every degradation: --check rejects a patch that cannot
+    // land, and the reverse --check after applying rejects a no-op apply (the
+    // exact way a skip used to be recorded as applied).
+    const pre = runApply(['--check']);
+    if (pre.status !== 0) fail(record, 'patch:' + patchFile, (pre.stderr || pre.stdout || 'git apply --check failed').trim());
+    const applied = runApply([]);
     if (applied.status !== 0) fail(record, 'patch:' + patchFile, (applied.stderr || applied.stdout || 'git apply failed').trim());
+    const landed = runApply(['-R', '--check']);
+    if (landed.status !== 0) fail(record, 'patch:' + patchFile, 'patch did not change the tree (reverse check): ' + (landed.stderr || 'git apply -R --check failed').trim());
     record.patchesApplied.push({ patch: patchFile, sha256: sha256File(patchPath) });
   }
   record.steps.push({ step: 'patches', status: 'pass', detail: `${record.patchesApplied.length} applied` });
