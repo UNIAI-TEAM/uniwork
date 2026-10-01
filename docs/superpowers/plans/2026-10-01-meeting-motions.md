@@ -10342,11 +10342,19 @@ Làm inline ngày 2026-10-01 trên `feature/UNI-893-meetings-bieu-quyet-cong-kha
 - Task 12: plan ghi test "hides the votes tab from a guest…" xanh trước Step 5; thực tế đỏ (test chờ request `/motions` mà sidebar chưa gọi). Coi là RED hợp lệ, không đổi test.
 - Còn lại code khớp plan; không đổi tên, chữ ký hay nhãn nút nào.
 
-**Sửa sau review toàn nhánh**
-- (điền sau review)
+**Sửa sau review toàn nhánh** (reviewer độc lập: không Critical, 3 Important, 7 Minor)
+- Thêm index `meeting_motion_ballots (meeting_id, participant_id)` (migration `9991790740000009`): hai query đọc phiếu theo cuộc họp trước đây quét cả bảng ở mỗi lần tải danh sách.
+- Danh sách biểu quyết giữ dữ liệu đã có khi refetch lỗi (vd 429 do `credentialLimit` 60/phút/IP khi cả phòng refetch sau mỗi phiếu); chỉ lần tải đầu không có dữ liệu mới hiện thẻ lỗi. Giữ nguyên rate limit theo spec §5.2.
+- Thẻ mời bỏ phiếu được đọc to: một `role="status"` sống suốt phòng (portal vào body) đổi chữ thành "Mời bỏ phiếu: …"; thẻ bỏ `aria-live` để không đọc hai lần.
 
 **Hoãn (minor)**
 - Phòng họp giờ có 5 tab; trong dock rộng 22rem tab "Bản ghi" bị đẩy ra ngoài, phải cuộn ngang hàng tab mới thấy.
+- Prompt `@2` dặn AI ghi mỗi nội dung đã biểu quyết thành một quyết định, trong khi "Đã biểu quyết" đã liệt kê từ dữ liệu thật — có thể lặp hai lần dưới "Quyết định".
+- Nháp còn lại sau khi họp kết thúc vẫn hiện nút "Mở biểu quyết" bị khóa với gợi ý "khi cuộc họp đang diễn ra"; Update/Delete nhận họp ENDED/CANCELED trong khi Create từ chối.
+- `participant.removed` không invalidate danh sách biểu quyết: người bị gỡ còn thấy phiếu cũ tới sự kiện kế tiếp (gửi thì nhận toast 403).
+- Khách bị gỡ / người ngoài vào bằng link nhận 403 `forbidden` thay vì `not_on_roll`.
+- Bộ đếm tiêu đề và `maxLength` tính theo UTF-16, server tính rune; không chuẩn hóa NFC.
+- Comment SQL cũ trên `CreateMeetingMotion` (vị trí không còn trùng được vì đã khóa meeting); `useCastBallot` invalidate `activity` không cần; nút "Gửi phiếu" bị khóa khi chưa chọn không có gợi ý.
 
 **Cần product quyết**
 - Người ngoài tổ chức vào họp bằng link mời khi đã đăng nhập là `principal_type=USER` nên mặc định `MEMBER` (spec D2 "tài khoản → thành viên"); họ vào danh sách cử tri nếu được điểm danh có mặt. Có muốn mặc định họ là dự thính không?
@@ -10357,3 +10365,4 @@ Làm inline ngày 2026-10-01 trên `feature/UNI-893-meetings-bieu-quyet-cong-kha
 - `make start` vẫn cần `STORAGE_BACKEND=local LOCAL_UPLOAD_DIR=./data/uploads` trên máy này.
 - Toàn bộ `go test ./internal/service` mất ~7 phút (419s), gần trần 10 phút mặc định của `go test`.
 - Ảnh chụp (sáng/tối, phòng họp, trang chi tiết, 390px) không phát hiện lỗi hiển thị ngoài mục hoãn ở trên.
+- `make check`: lần đầu colima (Docker) chết giữa bước Go (Postgres/Redis mất) → `colima stop && colima start`. Lần hai mọi bước TS xanh trừ `office-engine/limits` (RSS dưới tải, chạy riêng 16/16 xanh — chập chờn đã biết); phần còn lại chạy tay: core 1589/1589, contract 113/113, `scripts/test-go.sh --race` xanh, coverage Go 68.5% → nâng `server/coverage.floor` 67 → 68.
