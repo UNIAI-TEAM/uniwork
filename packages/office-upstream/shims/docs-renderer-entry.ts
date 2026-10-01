@@ -8,6 +8,7 @@ export { parseDocx, saveDocx, readSections } from "../upstream/packages/docx-eng
 // gap itself; these are the vendored pure functions that loop calls.
 export {
   assignSections,
+  bumpLineSampleFontEpoch,
   effectiveBottomPx,
   effectiveHfRefs,
   effectiveTopPx,
@@ -30,6 +31,7 @@ export {
   setRowFills,
 } from "../upstream/apps/docs/src/renderer/editor/pagination-gaps";
 export {
+  bumpHfProbeFontEpoch,
   hfHasVisibleContent,
   hfReservedHeightPx,
   hfStripGeom,

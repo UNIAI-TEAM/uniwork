@@ -271,7 +271,16 @@ export async function run({ out, skipInstall, withNative, keep }) {
 
   for (const patchFile of fs.existsSync(PATCHES_DIR) ? fs.readdirSync(PATCHES_DIR).filter((f) => f.endsWith('.patch')).sort() : []) {
     const patchPath = path.join(PATCHES_DIR, patchFile);
-    const applied = spawnSync('git', ['apply', '-p1', '--whitespace=nowarn', patchPath], { cwd: scratchUpstream, encoding: 'utf8' });
+    // GIT_CEILING_DIRECTORIES: the scratch lives inside the lane worktree, and
+    // git apply SILENTLY SKIPS patch paths that resolve outside the current
+    // directory when it walks up to a repository root (exit 0, no change). The
+    // ceiling stops that walk at the scratch, so the apply is cwd-relative and
+    // a real failure exits non-zero again.
+    const applied = spawnSync('git', ['apply', '-p1', '--whitespace=nowarn', patchPath], {
+      cwd: scratchUpstream,
+      encoding: 'utf8',
+      env: { ...process.env, GIT_CEILING_DIRECTORIES: path.dirname(scratchUpstream) },
+    });
     if (applied.status !== 0) fail(record, 'patch:' + patchFile, (applied.stderr || applied.stdout || 'git apply failed').trim());
     record.patchesApplied.push({ patch: patchFile, sha256: sha256File(patchPath) });
   }

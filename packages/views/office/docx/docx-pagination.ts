@@ -14,6 +14,8 @@ import type { Editor } from "@tiptap/core";
 import {
   GAP_BAND,
   assignSections,
+  bumpHfProbeFontEpoch,
+  bumpLineSampleFontEpoch,
   effectiveBottomPx,
   effectiveHfRefs,
   effectiveTopPx,
@@ -62,7 +64,6 @@ export interface DocxPaginationSpec {
   sections: RendererSection[];
   /** Header/footer variants from the parse (`word/header*.xml` parts). */
   hfParts: Record<string, RendererHfPart> | undefined;
-  titlePg: boolean;
   evenAndOddHeaders: boolean;
   /** Document-level header/footer, the final section's fallback. */
   defaultHeader: RendererHeaderFooter | null;
@@ -72,11 +73,11 @@ export interface DocxPaginationSpec {
 /** The parse's header/footer part (`HfPartInfo` shape) as a strip value. */
 function hfFromPart(part: RendererHfPart | null | undefined): RendererHeaderFooter | null {
   if (!part) return null;
-  if (!part.text && !part.hasPageNumber && part.paras.length === 0 && !part.images?.length) return null;
+  if (!part.text && !part.hasPageNumber && (part.paras ?? []).length === 0 && !part.images?.length) return null;
   return {
     text: part.text,
     ...(part.hasPageNumber ? { pageNumber: true } : {}),
-    ...(part.paras.length > 0 ? { paras: part.paras } : {}),
+    ...((part.paras ?? []).length > 0 ? { paras: part.paras } : {}),
   };
 }
 
@@ -95,7 +96,6 @@ function documentHeaderFooter(text: unknown, paras: unknown, hasPageNumber: unkn
 export function createDocxPaginationSpec(parsed: unknown): DocxPaginationSpec {
   const doc = parsed as {
     hfParts?: Record<string, RendererHfPart>;
-    titlePg?: unknown;
     evenAndOddHeaders?: unknown;
     headerText?: unknown;
     headerParas?: unknown;
@@ -107,7 +107,6 @@ export function createDocxPaginationSpec(parsed: unknown): DocxPaginationSpec {
   return {
     sections: readSections(parsed as RendererParsed),
     hfParts: doc.hfParts,
-    titlePg: doc.titlePg === true,
     evenAndOddHeaders: doc.evenAndOddHeaders === true,
     defaultHeader: documentHeaderFooter(doc.headerText, doc.headerParas, doc.headerHasPageNumber),
     defaultFooter: documentHeaderFooter(doc.footerText, doc.footerParas, doc.footerHasPageNumber),
@@ -149,7 +148,14 @@ export function resolvePageHf(
 }
 
 const hfPieceKey = (piece: HfPiece): string =>
-  piece.value ? `${piece.value.text}|${piece.value.pageNumber ? 1 : 0}|${piece.value.paras?.length ?? 0}` : "";
+  piece.value
+    ? `${piece.value.text}|${piece.value.pageNumber ? 1 : 0}|${piece.value.paras?.length ?? 0}|img${piece.images?.length ?? 0}`
+    : "";
+
+/** Strip geometry baked into the widgets (D-05): a margin/headerDist change with
+ *  identical text must rebuild the strips, or the old inset survives. */
+const stripGeomKey = (settings: RendererSection["settings"]): string =>
+  `${settings.pageWidth}:${settings.pageHeight}:${settings.marginTop}:${settings.marginBottom}:${settings.marginLeft}:${settings.marginRight}:${settings.headerDist ?? ""}:${settings.footerDist ?? ""}`;
 
 /** Footer of one page and header of the next ride the gap between them. */
 function buildGapHfEls(
@@ -198,17 +204,142 @@ function buildGapHfEls(
   return els;
 }
 
-function posFromAnchor(editor: Editor, anchor: { node: Text | Element; charOffset: number }): number | undefined {
+function posFromAnchor(view: { posAtDOM(node: Node, offset: number): number }, anchor: { node: Text | Element; charOffset: number }): number | undefined {
   try {
     if (anchor.node instanceof Element) {
       const parent = anchor.node.parentNode;
       if (!parent) return undefined;
-      return editor.view.posAtDOM(parent, Array.prototype.indexOf.call(parent.childNodes, anchor.node));
+      return view.posAtDOM(parent, Array.prototype.indexOf.call(parent.childNodes, anchor.node));
     }
-    return editor.view.posAtDOM(anchor.node, Math.min(anchor.charOffset, anchor.node.length));
+    return view.posAtDOM(anchor.node, Math.min(anchor.charOffset, anchor.node.length));
   } catch {
     return undefined;
   }
+}
+
+/** One edge strip: its piece, the section geometry it paints against, its page number. */
+export interface PaginationEdgeHfStrip {
+  piece: HfPiece;
+  settings: RendererSection["settings"];
+  pageNo: string;
+}
+
+/**
+ * The wrap-edge strips (visual r1 / D-01): the top edge is page 1's header, the
+ * bottom edge is the LAST page's footer — `.page-hf-footer` anchors to the
+ * wrap bottom, which is the last page's paper bottom, and no gap exists below
+ * the last page.
+ */
+export interface PaginationEdgeHf {
+  header: PaginationEdgeHfStrip;
+  footer: PaginationEdgeHfStrip;
+  pageTotal: number;
+}
+
+/** The page turn map: gaps (with their per-page HF strips) and the page count. */
+export interface PaginationFrame {
+  pages: number;
+  nums: number[];
+  edgeHf: PaginationEdgeHf | null;
+  gaps: RendererPageGapSpec[];
+}
+
+/**
+ * Build the page-turn frame from the measured flow and its slices: one gap per
+ * page boundary carrying the previous page's footer and the next page's header
+ * (inline gaps for line-level cuts), plus the first page's strips (no gap
+ * widget sits above page 1). Pure apart from the optional view used to resolve
+ * inline cut positions — jsdom tests drive it directly.
+ */
+export function buildPaginationFrame(input: {
+  spec: DocxPaginationSpec;
+  live: RendererSection[];
+  blocks: RendererBlockBox[];
+  hfHeights: RendererSectionHfHeights[];
+  slices: RendererPageSlice[];
+  view?: { posAtDOM(node: Node, offset: number): number };
+  zoomFactor?: number;
+}): PaginationFrame {
+  const { spec, live, blocks, hfHeights, slices, view } = input;
+  const factor = input.zoomFactor ?? 1;
+  const pages = visiblePageCount(slices);
+  const nums = pageNumbers(slices, live);
+  const firsts = sectionFirstPages(slices);
+  const sectionIndexOf = (index: number): number => {
+    const item = slices[index];
+    return item ? Math.min(item.section, live.length - 1) : 0;
+  };
+  const pageNoTextOf = (index: number) => formatPageNumber(nums[index] ?? index + 1, live[sectionIndexOf(index)]?.pageNumberFmt);
+  const pieceOf = (index: number, kind: "header" | "footer"): HfPiece => {
+    const sectionIdx = sectionIndexOf(index);
+    const section = live[sectionIdx];
+    const variant = hfVariantOf(section?.titlePg, firsts[index] === true, spec.evenAndOddHeaders, nums[index] ?? index + 1);
+    return resolvePageHf(spec, sectionIdx, kind, variant, sectionIdx === live.length - 1);
+  };
+
+  const firstSection = live[sectionIndexOf(0)];
+  const lastIndex = slices.length - 1;
+  const lastSection = live[sectionIndexOf(lastIndex)];
+  const edgeHf: PaginationEdgeHf | null = firstSection && lastSection
+    ? {
+        header: { piece: pieceOf(0, "header"), settings: firstSection.settings, pageNo: pageNoTextOf(0) },
+        footer: { piece: pieceOf(lastIndex, "footer"), settings: lastSection.settings, pageNo: pageNoTextOf(lastIndex) },
+        pageTotal: pages,
+      }
+    : null;
+
+  const gaps: RendererPageGapSpec[] = [];
+  for (let k = 0; k + 1 < slices.length; k += 1) {
+    const slice = slices[k + 1];
+    const prevSlice = slices[k];
+    if (!slice || !prevSlice) continue;
+    const prevSec = live[Math.min(prevSlice.section, live.length - 1)];
+    const nextSec = live[Math.min(slice.section, live.length - 1)];
+    if (!prevSec || !nextSec) continue;
+    const hfOf = (index: number): RendererSectionHfHeights => {
+      const h = hfHeights[Math.min(slices[index]?.section ?? 0, hfHeights.length - 1)] ?? { headerPx: 0, footerPx: 0 };
+      return firsts[index] === true
+        ? { headerPx: h.firstHeaderPx ?? h.headerPx, footerPx: h.firstFooterPx ?? h.footerPx }
+        : h;
+    };
+    const metrics = {
+      marginTop: effectiveTopPx(nextSec.settings, hfOf(k + 1).headerPx),
+      marginBottom: effectiveBottomPx(prevSec.settings, hfOf(k).footerPx),
+      marginLeft: twipsToPx(nextSec.settings.marginLeft),
+      marginRight: twipsToPx(nextSec.settings.marginRight),
+      sectionMarginLeft: twipsToPx(nextSec.settings.marginLeft),
+      sectionMarginRight: twipsToPx(nextSec.settings.marginRight),
+      sectionMarginTop: twipsToPx(nextSec.settings.marginTop),
+    };
+    const hfEls = buildGapHfEls(spec, pieceOf(k, "footer"), pieceOf(k + 1, "header"), pageNoTextOf, k, k + 1, pages, prevSec.settings, nextSec.settings, metrics);
+    const hfKey = `${pageNoTextOf(k)}·${pageNoTextOf(k + 1)}·${pages}·${hfPieceKey(pieceOf(k, "footer"))}·${hfPieceKey(pieceOf(k + 1, "header"))}·${stripGeomKey(prevSec.settings)}:${stripGeomKey(nextSec.settings)}`;
+    const shared = {
+      boundaryY: slice.start,
+      metrics,
+      ...(hfEls.length > 0 ? { hfEls, hfKey } : {}),
+    };
+    const exact = blocks.findIndex((block) => block.el && Math.abs(block.top - slice.start) < 0.5);
+    const exactBlock = exact >= 0 ? blocks[exact] : undefined;
+    if (exactBlock?.el) {
+      gaps.push({
+        el: exactBlock.el,
+        ...shared,
+        ...(exactBlock.breakBefore || (exact > 0 && blocks[exact - 1]?.breakAfter) ? { suppressLeadMt: true } : {}),
+      });
+      continue;
+    }
+    const crossing = blocks.find((block) => block.el && block.top < slice.start && slice.start < block.top + block.height - 0.5);
+    const anchor = crossing?.el ? lineStartAnchor(crossing.el, slice.start - crossing.top, factor) ?? nextLineAnchor(crossing.el, slice.start - crossing.top, factor) : null;
+    const pos = anchor && view ? posFromAnchor(view, anchor) : undefined;
+    if (pos !== undefined) {
+      gaps.push({ pos, kind: "inline", ...shared });
+      continue;
+    }
+    const next = blocks.find((block) => block.el && block.top >= slice.start - 0.5);
+    if (next?.el) gaps.push({ el: next.el, ...shared });
+  }
+
+  return { pages, nums, edgeHf, gaps };
 }
 
 interface DocxPaginator {
@@ -222,6 +353,7 @@ interface DocxPaginator {
  * attach again after disposal (React Strict Mode replays effects).
  */
 export function attachDocxPagination(editor: Editor, spec: DocxPaginationSpec): DocxPaginator {
+  if (editor.isDestroyed) return { refresh: () => {}, dispose: () => {}, pageCount: () => 1 };
   let disposed = false;
   let raf = 0;
   let pages = 1;
@@ -257,83 +389,20 @@ export function attachDocxPagination(editor: Editor, spec: DocxPaginationSpec): 
     const out: { rowSplits?: unknown[] } = {};
     const slices = sliceWithLineSplit(blocks, sectionGeoms(live, hfHeights), measured.totalHeight, factor, undefined, out);
     if (slices.length === 0) return;
-    pages = visiblePageCount(slices);
-    const nums = pageNumbers(slices, live);
-    const firsts = sectionFirstPages(slices);
-    const sectionIndexOf = (index: number): number => {
-      const item = slices[index];
-      return item ? Math.min(item.section, live.length - 1) : 0;
-    };
-    const pageNoTextOf = (index: number) => formatPageNumber(nums[index] ?? index + 1, live[sectionIndexOf(index)]?.pageNumberFmt);
-    const pieceOf = (index: number, kind: "header" | "footer"): HfPiece => {
-      const sectionIdx = sectionIndexOf(index);
-      const section = live[sectionIdx];
-      const variant = hfVariantOf(section?.titlePg, firsts[index] === true, spec.evenAndOddHeaders, nums[index] ?? index + 1);
-      return resolvePageHf(spec, sectionIdx, kind, variant, sectionIdx === live.length - 1);
-    };
-
-    // The first page has no gap widget above it — mount its strips directly.
-    const firstSection = live[sectionIndexOf(0)];
-    const firstKey = `${pageNoTextOf(0)}|${pages}|h:${hfPieceKey(pieceOf(0, "header"))}|f:${hfPieceKey(pieceOf(0, "footer"))}`;
-    if (firstSection && firstKey !== hostKey) {
-      hostKey = firstKey;
-      mountFirstPageHf(wrap, firstSection.settings, pieceOf(0, "header"), pieceOf(0, "footer"), pageNoTextOf(0), pages);
-    }
-
-    const gaps: RendererPageGapSpec[] = [];
-    for (let k = 0; k + 1 < slices.length; k += 1) {
-      const slice = slices[k + 1];
-      const prevSlice = slices[k];
-      if (!slice || !prevSlice) continue;
-      const prevSec = live[Math.min(prevSlice.section, live.length - 1)];
-      const nextSec = live[Math.min(slice.section, live.length - 1)];
-      if (!prevSec || !nextSec) continue;
-      const hfOf = (index: number): RendererSectionHfHeights => {
-        const h = hfHeights[Math.min(slices[index]?.section ?? 0, hfHeights.length - 1)] ?? { headerPx: 0, footerPx: 0 };
-        return firsts[index] === true
-          ? { headerPx: h.firstHeaderPx ?? h.headerPx, footerPx: h.firstFooterPx ?? h.footerPx }
-          : h;
-      };
-      const metrics = {
-        marginTop: effectiveTopPx(nextSec.settings, hfOf(k + 1).headerPx),
-        marginBottom: effectiveBottomPx(prevSec.settings, hfOf(k).footerPx),
-        marginLeft: twipsToPx(nextSec.settings.marginLeft),
-        marginRight: twipsToPx(nextSec.settings.marginRight),
-        sectionMarginLeft: twipsToPx(nextSec.settings.marginLeft),
-        sectionMarginRight: twipsToPx(nextSec.settings.marginRight),
-        sectionMarginTop: twipsToPx(nextSec.settings.marginTop),
-      };
-      const hfEls = buildGapHfEls(spec, pieceOf(k, "footer"), pieceOf(k + 1, "header"), pageNoTextOf, k, k + 1, pages, prevSec.settings, nextSec.settings, metrics);
-      const hfKey = `${pageNoTextOf(k)}·${pageNoTextOf(k + 1)}·${pages}·${hfPieceKey(pieceOf(k, "footer"))}·${hfPieceKey(pieceOf(k + 1, "header"))}`;
-      const shared = {
-        boundaryY: slice.start,
-        metrics,
-        ...(hfEls.length > 0 ? { hfEls, hfKey } : {}),
-      };
-      const exact = blocks.findIndex((block) => block.el && Math.abs(block.top - slice.start) < 0.5);
-      const exactBlock = exact >= 0 ? blocks[exact] : undefined;
-      if (exactBlock?.el) {
-        gaps.push({
-          el: exactBlock.el,
-          ...shared,
-          ...(exactBlock.breakBefore || (exact > 0 && blocks[exact - 1]?.breakAfter) ? { suppressLeadMt: true } : {}),
-        });
-        continue;
+    const frame = buildPaginationFrame({ spec, live, blocks, hfHeights, slices, view: editor.view });
+    pages = frame.pages;
+    if (frame.edgeHf) {
+      const { header, footer, pageTotal } = frame.edgeHf;
+      const edgeKey = `h:${header.pageNo}|${hfPieceKey(header.piece)}|${stripGeomKey(header.settings)}|f:${footer.pageNo}|${hfPieceKey(footer.piece)}|${stripGeomKey(footer.settings)}|${pageTotal}`;
+      if (edgeKey !== hostKey) {
+        hostKey = edgeKey;
+        mountEdgeHf(wrap, header, footer, pageTotal);
       }
-      const crossing = blocks.find((block) => block.el && block.top < slice.start && slice.start < block.top + block.height - 0.5);
-      const anchor = crossing?.el ? lineStartAnchor(crossing.el, slice.start - crossing.top, factor) ?? nextLineAnchor(crossing.el, slice.start - crossing.top, factor) : null;
-      const pos = anchor ? posFromAnchor(editor, anchor) : undefined;
-      if (pos !== undefined) {
-        gaps.push({ pos, kind: "inline", ...shared });
-        continue;
-      }
-      const next = blocks.find((block) => block.el && block.top >= slice.start - 0.5);
-      if (next?.el) gaps.push({ el: next.el, ...shared });
     }
-    const nextKey = `${gaps.length}|${pages}|${slices.map((s: RendererPageSlice) => `${s.start}:${s.end}:${s.section}`).join("|")}`;
+    const nextKey = `${frame.gaps.length}|${pages}|${slices.map((s: RendererPageSlice) => `${s.start}:${s.end}:${s.section}`).join("|")}`;
     if (nextKey !== gapKey) {
       gapKey = nextKey;
-      setPageGaps(editor.view, gaps);
+      setPageGaps(editor.view, frame.gaps);
     }
     setRowFills(editor.view, resolveRowFills(blocks, out.rowSplits));
   };
@@ -363,7 +432,19 @@ export function attachDocxPagination(editor: Editor, spec: DocxPaginationSpec): 
   const observer = typeof ResizeObserver !== "undefined" && docZoom ? new ResizeObserver(refresh) : null;
   if (docZoom && observer) observer.observe(docZoom);
   const fonts = typeof document !== "undefined" ? document.fonts : undefined;
-  if (fonts) void fonts.ready.then(refresh, () => undefined);
+  // D-03: a face resolving after the first pass invalidates the line-sample and
+  // hf-probe caches keyed on their font epochs, so bump both before re-measuring
+  // (fonts.ready fires once; loadingdone covers later faces).
+  const onFontsSettled = () => {
+    if (disposed) return;
+    bumpHfProbeFontEpoch();
+    bumpLineSampleFontEpoch();
+    refresh();
+  };
+  if (fonts) {
+    void fonts.ready.then(onFontsSettled, () => undefined);
+    fonts.addEventListener?.("loadingdone", onFontsSettled);
+  }
   refresh();
 
   return {
@@ -375,6 +456,7 @@ export function attachDocxPagination(editor: Editor, spec: DocxPaginationSpec): 
       if (raf) cancelAnimationFrame(raf);
       editor.off("transaction", onTransaction);
       observer?.disconnect();
+      fonts?.removeEventListener?.("loadingdone", onFontsSettled);
       if (!editor.isDestroyed) setPageGaps(editor.view, []);
     },
   };
@@ -439,22 +521,41 @@ export function sectionHfHeights(spec: DocxPaginationSpec, sections: RendererSec
   });
 }
 
-/** Mount/refresh the first page's header and footer strips inside `.page-wrap`. */
-function mountFirstPageHf(
+/**
+ * Mount/refresh the wrap-edge strips inside `.page-wrap`: page 1's header on the
+ * top edge and the LAST page's footer on the bottom edge (D-01 — the bottom
+ * edge is the last page's paper bottom, so it carries that page's variant,
+ * number and section geometry).
+ */
+function mountEdgeHf(
   wrap: HTMLElement,
-  settings: RendererSection["settings"],
-  header: HfPiece,
-  footer: HfPiece,
-  pageNo: string,
+  header: PaginationEdgeHfStrip,
+  footer: PaginationEdgeHfStrip,
   pageTotal: number,
 ): void {
   const host = wrap.querySelector<HTMLElement>(":scope > .docx-page-hf-host");
   if (!host) return;
+  // F-1 (visual r1): the gap strips live inside the editor root and inherit the
+  // document typography; the edge strips are siblings of it, so mirror the
+  // editor root's computed font on the host (family + line metrics).
+  const editorRoot = wrap.querySelector<HTMLElement>(".doc-page");
+  if (editorRoot) {
+    const computed = getComputedStyle(editorRoot);
+    host.style.fontFamily = computed.fontFamily;
+    host.style.lineHeight = computed.lineHeight;
+  }
   host.replaceChildren();
-  const add = (kind: "header" | "footer", piece: HfPiece) => {
-    if (!piece.value || !hfHasVisibleContent(piece.value, piece.images)) return;
+  const add = (kind: "header" | "footer", strip: PaginationEdgeHfStrip) => {
+    if (!strip.piece.value || !hfHasVisibleContent(strip.piece.value, strip.piece.images)) return;
     host.appendChild(
-      makeGapHfEl({ kind, value: piece.value, images: piece.images, pageNo, pageTotal, geom: hfStripGeom(settings) }),
+      makeGapHfEl({
+        kind,
+        value: strip.piece.value,
+        images: strip.piece.images,
+        pageNo: strip.pageNo,
+        pageTotal,
+        geom: hfStripGeom(strip.settings),
+      }),
     );
   };
   add("header", header);

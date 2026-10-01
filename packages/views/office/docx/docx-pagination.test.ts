@@ -41,7 +41,6 @@ const section = (overrides: Partial<DocxPaginationSpec["sections"][number]> = {}
 const spec = (overrides: Partial<DocxPaginationSpec> = {}): DocxPaginationSpec => ({
   sections: [section()],
   hfParts: undefined,
-  titlePg: false,
   evenAndOddHeaders: false,
   defaultHeader: null,
   defaultFooter: null,
@@ -81,7 +80,6 @@ describe("createDocxPaginationSpec", () => {
   it("reads sections, hf parts, toggles and the document-level fallbacks", () => {
     const parsed = {
       blocks: [{ type: "paragraph", docxIndex: 0, runs: [{ text: "body" }] }],
-      titlePg: true,
       evenAndOddHeaders: true,
       hfParts: { "h1": { text: "H", hasPageNumber: false, paras: [] } },
       headerText: "Doc header",
@@ -94,7 +92,6 @@ describe("createDocxPaginationSpec", () => {
     const result = createDocxPaginationSpec(parsed);
     expect(result.sections).toHaveLength(1);
     expect(result.sections[0]?.settings.pageWidth).toBeGreaterThan(0);
-    expect(result.titlePg).toBe(true);
     expect(result.evenAndOddHeaders).toBe(true);
     expect(result.hfParts).toBe(parsed.hfParts);
     expect(result.defaultHeader).toMatchObject({ text: "Doc header", pageNumber: true });

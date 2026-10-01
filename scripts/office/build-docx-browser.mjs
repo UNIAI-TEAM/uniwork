@@ -28,7 +28,16 @@ export function materializePatchedDocxPackage() {
   const patchFiles = fs.existsSync(PATCHES_DIR) ? fs.readdirSync(PATCHES_DIR).filter((f) => f.endsWith('.patch')).sort() : [];
   for (const patchFile of patchFiles) {
     const patchPath = path.join(PATCHES_DIR, patchFile);
-    const applied = spawnSync('git', ['apply', '-p1', '--whitespace=nowarn', patchPath], { cwd: path.join(DOCX_BROWSER_SCRATCH, 'upstream'), encoding: 'utf8' });
+    // GIT_CEILING_DIRECTORIES: the scratch lives inside the lane worktree, and
+    // git apply SILENTLY SKIPS patch paths that resolve outside the current
+    // directory when it walks up to a repository root (exit 0, no change). The
+    // ceiling stops that walk at the scratch, so the apply is cwd-relative and
+    // a real failure exits non-zero again.
+    const applied = spawnSync('git', ['apply', '-p1', '--whitespace=nowarn', patchPath], {
+      cwd: path.join(DOCX_BROWSER_SCRATCH, 'upstream'),
+      encoding: 'utf8',
+      env: { ...process.env, GIT_CEILING_DIRECTORIES: DOCX_BROWSER_SCRATCH },
+    });
     if (applied.status !== 0) throw new Error(`patch ${patchFile}: ${(applied.stderr || applied.stdout || 'git apply failed').trim()}`);
     patchesApplied.push({ patch: patchFile, sha256: sha256File(patchPath) });
   }

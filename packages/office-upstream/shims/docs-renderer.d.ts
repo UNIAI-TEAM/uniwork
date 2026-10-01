@@ -169,3 +169,5 @@ export function makeGapHfEl(opts: { kind: "header" | "footer"; value: RendererHe
 export function hfStripGeom(set: RendererSectionSettings): RendererHfStripGeom;
 export function hfReservedHeightPx(kind: "header" | "footer", value: RendererHeaderFooter | null, contentWidthPx: number, images?: unknown[], geom?: unknown): number;
 export function hfHasVisibleContent(value: RendererHeaderFooter | null | undefined, images?: unknown[]): boolean;
+export function bumpHfProbeFontEpoch(): void;
+export function bumpLineSampleFontEpoch(): void;

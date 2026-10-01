@@ -412,9 +412,9 @@ export class DocxAdapter {
 
   /** The engine's parse handle for a rendering host: sections (derived by the
    * engine's readSections) and the header/footer parts a pagination driver
-   * needs. The handle itself is the model's, never a copy with inferred
-   * fields. */
-  parsedOf(ref: string): DocxParsed {
+   * needs. Read-only: the handle is the model's own object, never a copy with
+   * inferred fields, and stays behind the session ref. */
+  parsedOf(ref: string): Readonly<DocxParsed> {
     return this.sessionOf(ref).model.parsed;
   }
 }
