@@ -226,7 +226,7 @@ export function canHostMeeting(
   return canDeleteMeeting(meeting, ctx);
 }
 
-/** Runs attendance: host, workspace admin, or an active secretary (requireMeetingClerk). */
+/** Runs attendance and votes: host, workspace admin, or an active secretary (requireMeetingClerk). */
 export function canClerkMeeting(
   meeting: { host_user_id?: string } | null,
   participants: ReadonlyArray<{ user_id?: string; status: string; principal_type: string; is_secretary?: boolean }>,
@@ -240,7 +240,7 @@ export function canClerkMeeting(
     (p) => p.status === "ACTIVE" && p.principal_type === "USER" && p.user_id === ctx.userId && p.is_secretary === true,
   );
   if (secretary) return ALLOW;
-  return deny("not_resource_owner", "Only the host, a secretary or a workspace admin can run attendance.");
+  return deny("not_resource_owner", "Only the host, a secretary or a workspace admin can run attendance and votes.");
 }
 
 // ---- Comments (policy; not wired to Tasks UI yet) ---------------------------

@@ -31,4 +31,10 @@ describe("canClerkMeeting — mirrors MeetingService.requireMeetingClerk", () =>
   it("refuses without a workspace role", () => {
     expect(canClerkMeeting(meeting, [p({ user_id: "u1", is_secretary: true })], ctx("u1", null)).allowed).toBe(false);
   });
+
+  it("words the refusal for attendance and votes alike", () => {
+    expect(canClerkMeeting(meeting, [], ctx("u2")).message).toBe(
+      "Only the host, a secretary or a workspace admin can run attendance and votes.",
+    );
+  });
 });

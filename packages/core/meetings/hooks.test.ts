@@ -109,3 +109,10 @@ describe("upsertMeetingTranscriptSegment", () => {
     expect(upsertMeetingTranscriptSegment(undefined, saved).map((s) => s.id)).toEqual(["2"]);
   });
 });
+
+
+describe("meetingKeys.motions", () => {
+  it("is its own root, so a ballot does not refetch the meeting", () => {
+    expect(meetingKeys.motions("m1")).toEqual(["meeting-motions", "m1"]);
+  });
+});

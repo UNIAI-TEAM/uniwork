@@ -167,6 +167,28 @@ describe("meetings endpoints", () => {
     await expect(createJoinRequest("m1")).resolves.toBeNull();
   });
 
+  it("listMeetingActivity keeps a motion row's title and outcome", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json({
+        activity: [
+          {
+            id: "a2",
+            event_type: "MOTION_CLOSED",
+            actor_id: "u1",
+            from_state: "OPEN",
+            to_state: "PASSED",
+            occurred_at: meeting.starts_at,
+            payload: { title: "Thông qua kế hoạch quý IV", outcome: "PASSED" },
+          },
+          { id: "a1", event_type: "MEETING_STARTED", actor_id: "u1", occurred_at: meeting.starts_at },
+        ],
+      }),
+    );
+    const [closedRow, startedRow] = await listMeetingActivity("m1");
+    expect(closedRow?.payload).toEqual({ title: "Thông qua kế hoạch quý IV", outcome: "PASSED" });
+    expect(startedRow?.payload).toBeUndefined();
+  });
+
   it("extendMeeting returns the meeting or null on drift", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ meeting }));
     expect((await extendMeeting("m1"))?.id).toBe("m1");

@@ -129,6 +129,8 @@ export const ActivityItemSchema = z.object({
   from_state: z.string().optional(),
   to_state: z.string().optional(),
   occurred_at: z.string(),
+  /** MOTION_OPENED `{title}` and MOTION_CLOSED `{title, outcome}` only; absent elsewhere. */
+  payload: z.record(z.string(), z.string()).optional(),
 });
 export type MeetingActivityItem = z.infer<typeof ActivityItemSchema>;
 
@@ -227,3 +229,67 @@ export const MeetingAttendanceSchema = z.object({
   rows: z.array(AttendanceRowSchema),
 });
 export type MeetingAttendance = z.infer<typeof MeetingAttendanceSchema>;
+
+
+export type MotionStatus = "DRAFT" | "OPEN" | "CLOSED";
+export type BallotMode = "PUBLIC" | "SECRET";
+export type MotionThreshold = "MAJORITY" | "TWO_THIRDS";
+export type MotionBase = "PRESENT" | "ALL_MEMBERS";
+export type BallotChoice = "YES" | "NO" | "ABSTAIN";
+export type MotionOutcome = "PASSED" | "FAILED";
+export const BALLOT_CHOICES: readonly BallotChoice[] = ["YES", "NO", "ABSTAIN"];
+
+/**
+ * One item on a meeting's voting list (GET /meetings/{id}/motions). Enums stay
+ * z.string() so a newer server's value does not drop the whole list. `result`
+ * is null until CLOSED, even for the host; `voters` only on a closed public
+ * ballot; `my_ballot.choice` only once a public ballot is cast.
+ */
+export const MeetingMotionSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string().optional(),
+  position: z.number(),
+  ballot_mode: z.string(),
+  threshold: z.string(),
+  base: z.string(),
+  status: z.string(),
+  opened_at: z.string().nullish(),
+  closed_at: z.string().nullish(),
+  /** Members on the roll when voting opened; null while DRAFT. */
+  roll_size: z.number().nullish(),
+  total_members: z.number().nullish(),
+  cast_count: z.number().optional(),
+  result: z
+    .object({
+      yes: z.number(),
+      no: z.number(),
+      abstain: z.number(),
+      required: z.number(),
+      outcome: z.string(),
+    })
+    .nullish(),
+  voters: z
+    .object({
+      yes: z.array(z.string()),
+      no: z.array(z.string()),
+      abstain: z.array(z.string()),
+    })
+    .nullish(),
+  my_ballot: z
+    .object({
+      on_roll: z.boolean(),
+      cast: z.boolean(),
+      choice: z.string().nullish(),
+    })
+    .optional(),
+});
+export type MeetingMotion = z.infer<typeof MeetingMotionSchema>;
+
+export type MotionDraftInput = {
+  title: string;
+  description: string;
+  ballot_mode: BallotMode;
+  threshold: MotionThreshold;
+  base: MotionBase;
+};
