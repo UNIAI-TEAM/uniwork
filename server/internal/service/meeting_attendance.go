@@ -33,10 +33,16 @@ const (
 // as on time. Fixed by the spec, not configurable.
 const attendanceLateGrace = 10 * time.Minute
 
-// attendanceAnchor is the moment "late" is measured from: the scheduled start,
-// or the actual start for an instant meeting that had no schedule.
+// attendanceAnchor is the moment "late" is measured from: when the meeting
+// could actually be joined. For an instant meeting that is its actual start;
+// for a scheduled one the later of the scheduled and the actual start, so a
+// host who opens the room late does not make everyone late, and opening early
+// does not move the bar before the agreed time (spec §3.4, update 2026-10-01).
 func attendanceAnchor(m db.Meeting) time.Time {
-	if m.MeetingType == MeetingTypeInstant && m.ActualStartAt.Valid {
+	if !m.ActualStartAt.Valid {
+		return m.StartsAt.Time
+	}
+	if m.MeetingType == MeetingTypeInstant || m.ActualStartAt.Time.After(m.StartsAt.Time) {
 		return m.ActualStartAt.Time
 	}
 	return m.StartsAt.Time

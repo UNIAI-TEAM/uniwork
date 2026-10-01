@@ -1,6 +1,6 @@
 # Meetings: Điểm danh và Biểu quyết cho họp chính thức
 
-> **Trạng thái:** in-progress — spec đã duyệt ngày 2026-09-30; đợt 1 đang triển khai trên nhánh `feature/UNI-892-…`.
+> **Trạng thái:** in-progress — spec đã duyệt ngày 2026-09-30; đợt 1 (Điểm danh, UNI-892) đã merge vào develop ngày 2026-09-30 qua PR #165; đợt 2 (Biểu quyết, UNI-893) triển khai trên nhánh `feature/UNI-893-meetings-bieu-quyet-cong-khai-kin-nguong`.
 
 **Issue:** UNI-891 (cha), UNI-892 (đợt 1 — Điểm danh), UNI-893 (đợt 2 — Biểu quyết).
 
@@ -35,7 +35,7 @@ thật, không để AI tự suy ra.
 | # | Quyết định |
 |---|---|
 | D1 | Dùng cho họp chính thức (không phải poll nhanh kiểu Zoom). |
-| D2 | Người tham gia chia **Thành viên** (`MEMBER`: điểm danh, biểu quyết, tính tỉ lệ) và **Dự thính** (`OBSERVER`: ghi có mặt, không biểu quyết). Mặc định: tài khoản → thành viên, khách → dự thính. |
+| D2 | Người tham gia chia **Thành viên** (`MEMBER`: điểm danh, biểu quyết, tính tỉ lệ) và **Dự thính** (`OBSERVER`: ghi có mặt, không biểu quyết). Mặc định: tài khoản trong workspace → thành viên; khách và tài khoản ngoài workspace vào bằng link mời → dự thính (cập nhật 2026-10-01). |
 | D3 | Điểm danh tự điền gợi ý từ dữ liệu vào phòng; clerk sửa từng người rồi **Chốt**. |
 | D4 | Hai hình thức phiếu: **công khai** (lưu ai chọn gì) và **kín thật** (không lưu ai chọn gì). |
 | D5 | Ngưỡng cấu hình mỗi nội dung: quá bán hoặc 2/3, trên số có mặt hoặc tổng thành viên. Tỉ lệ có mặt tối thiểu của cuộc họp chỉ cảnh báo, không chặn. |
@@ -73,6 +73,9 @@ Không dùng lại cột `role`: nó quyết định quyền phát trên LiveKit
 
 Hai đường tạo khách phải ghi `standing='OBSERVER'` ngay khi insert:
 `materializeFromLink` và `ApproveJoinRequest` (`service/meeting_admission.go`).
+Cập nhật 2026-10-01: trên cùng hai đường, một **tài khoản** không phải thành viên workspace
+(quyết định qua `WorkspaceService.RequireMemberQ` trong transaction) cũng thành `OBSERVER`;
+chủ trì nâng lên thành viên nếu cần.
 
 ### 3.2 `meetings` — cột mới
 
@@ -109,7 +112,9 @@ Với mỗi người tham gia `ACTIVE`:
    - `min(joined_at) > mốc + 10 phút` → `LATE`;
    - còn lại → `PRESENT`.
 
-   `mốc` = `starts_at` với họp lên lịch, `actual_start_at` với họp tức thì
+   `mốc` = thời điểm muộn hơn giữa `starts_at` và `actual_start_at` với họp lên lịch
+   (chủ trì mở phòng muộn thì không ai bị tính muộn theo giờ lịch; mở sớm thì mốc vẫn là
+   giờ lịch — cập nhật 2026-10-01), `actual_start_at` với họp tức thì
    (`meeting_type='INSTANT'`). Đúng 10:00 sau mốc vẫn là `PRESENT`. Hằng số
    `attendanceLateGrace = 10 * time.Minute`, không cấu hình.
 
@@ -238,7 +243,7 @@ param mới `{motionID}` cần case trong `handler/router/openapi.go`. Checklist
 
 | Method + path | Rate limit | Ghi chú |
 |---|---|---|
-| `GET /meetings/{meetingID}/motions` | `credentialLimit` | §5.4. Khách/người không phải clerk không thấy `DRAFT`. |
+| `GET /meetings/{meetingID}/motions` | chỉ giới hạn chung 300/phút/IP (cập nhật 2026-10-01: mọi client refetch sau mỗi phiếu; cả phòng sau một NAT vượt 60/phút và không thấy nội dung vừa mở) | §5.4. Khách/người không phải clerk không thấy `DRAFT`. |
 | `POST /meetings/{meetingID}/motions/{motionID}/ballot` `{choice}` | `joinLimit` | §3.6. |
 
 ### 5.3 `GET attendance` — dạng trả về

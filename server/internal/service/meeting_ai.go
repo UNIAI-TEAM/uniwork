@@ -163,9 +163,10 @@ func (s *MeetingService) Summary(ctx context.Context, userID, meetingID string) 
 
 func (s *MeetingService) AIEnabled() bool { return s.AI.Enabled() }
 
-// Summarize gathers transcript + notes, asks the gateway (capability
-// meeting_summarization) and stores the result with the usage row that paid
-// for it. Any host/admin may re-run it; the latest row wins.
+// Summarize gathers transcript, notes, chat, the attendance report and the
+// closed votes, asks the gateway (capability meeting_summarization) and
+// stores the result with the usage row that paid for it. Any host/admin may
+// re-run it; the latest row wins.
 func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, locale string) (db.MeetingSummary, error) {
 	m, err := s.requireHostOrAdmin(ctx, userID, meetingID)
 	if err != nil {
@@ -183,6 +184,8 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	var segs []db.MeetingTranscriptSegment
 	var notes []db.ListMeetingNotesRow
 	var chat []db.MeetingChatMessage
+	var rep AttendanceReport
+	var closed []db.MeetingMotion
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		var err error
@@ -199,11 +202,23 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 		chat, err = s.q.ListMeetingChatMessages(gctx, db.ListMeetingChatMessagesParams{MeetingID: meetingID, Limit: chatLimit})
 		return err
 	})
+	g.Go(func() error {
+		var err error
+		rep, err = s.attendanceReport(gctx, s.q, m)
+		return err
+	})
+	g.Go(func() error {
+		var err error
+		closed, err = s.q.ListClosedMeetingMotions(gctx, meetingID)
+		return err
+	})
 	if err := g.Wait(); err != nil {
 		return db.MeetingSummary{}, err
 	}
-	if len(segs) == 0 && len(notes) == 0 && len(chat) == 0 {
-		return db.MeetingSummary{}, coded(http.StatusConflict, "nothing_to_summarize", "chưa có transcript hay ghi chú nào để tóm tắt")
+	// Attendance alone is not material (every meeting has a roll); a closed
+	// vote is: it is a decision the minutes must carry.
+	if len(segs) == 0 && len(notes) == 0 && len(chat) == 0 && len(closed) == 0 {
+		return db.MeetingSummary{}, coded(http.StatusConflict, "nothing_to_summarize", "chưa có transcript, ghi chú, chat hay kết quả biểu quyết nào để tóm tắt")
 	}
 	orgID, err := s.organizationOf(ctx, m)
 	if err != nil {
@@ -224,7 +239,11 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	resp, err := s.AI.Complete(ctx, ai.Request{
 		Actor: Human(userID), OrganizationID: orgID, WorkspaceID: m.WorkspaceID,
 		Capability: ai.CapMeetingSummarization, PromptID: ai.PromptMeetingSummary,
-		Vars: map[string]any{"title": m.Title, "agenda": m.Description, "locale": locale, "transcript": transcript, "notes": noteBodies, "chat": chatLines},
+		Vars: map[string]any{
+			"title": m.Title, "agenda": m.Description, "locale": locale,
+			"transcript": transcript, "notes": noteBodies, "chat": chatLines,
+			"attendance": summaryAttendanceFacts(m, rep), "motions": summaryMotionFacts(closed),
+		},
 	})
 	if err != nil {
 		s.count("summary_error")
@@ -253,6 +272,53 @@ func (s *MeetingService) Summarize(ctx context.Context, userID, meetingID, local
 	_ = s.writeAudit(ctx, s.q, meetingID, "SUMMARY_CREATED", userID, "", row.ID, "{}")
 	s.pub.Publish(ctx, m.WorkspaceID, Event{Type: "summary.created", Payload: map[string]string{"meeting_id": meetingID}})
 	return row, nil
+}
+
+// summaryAttendanceFacts turns the attendance report into prompt facts.
+// Members only: observers are neither counted nor named. nil when the
+// meeting has no members, so the prompt carries no empty attendance block.
+func summaryAttendanceFacts(m db.Meeting, rep AttendanceReport) *ai.AttendanceFacts {
+	if rep.Summary.Members == 0 {
+		return nil
+	}
+	f := &ai.AttendanceFacts{
+		Members: rep.Summary.Members, Present: rep.Summary.Present, Late: rep.Summary.Late,
+		Excused: rep.Summary.Excused, Absent: rep.Summary.Absent,
+		QuorumMet: rep.Summary.QuorumMet, Finalized: m.AttendanceFinalizedAt.Valid,
+		NamesByStatus: map[string][]string{},
+	}
+	if m.QuorumPercent.Valid {
+		f.QuorumPercent = int(m.QuorumPercent.Int16)
+	}
+	for _, r := range rep.Rows {
+		if r.Participant.Standing != StandingMember {
+			continue
+		}
+		// Same bucketing as attendanceReport's summary: anything else is absent.
+		status := r.Status
+		switch status {
+		case AttendancePresent, AttendanceLate, AttendanceExcused:
+		default:
+			status = AttendanceAbsent
+		}
+		f.NamesByStatus[status] = append(f.NamesByStatus[status], r.Participant.DisplayNameSnapshot)
+	}
+	return f
+}
+
+// summaryMotionFacts carries each closed vote's stored count and outcome.
+// Voter names are never read here, whatever the ballot mode.
+func summaryMotionFacts(closed []db.MeetingMotion) []ai.MotionFact {
+	out := make([]ai.MotionFact, 0, len(closed))
+	for _, mo := range closed {
+		d := motionDenominator(mo.Base, int(mo.RollSize.Int32), int(mo.TotalMembers.Int32))
+		out = append(out, ai.MotionFact{
+			Title: mo.Title, BallotMode: mo.BallotMode,
+			Yes: int(mo.YesCount), No: int(mo.NoCount), Abstain: int(mo.AbstainCount),
+			Required: requiredYes(mo.Threshold, d), Outcome: mo.Outcome.String,
+		})
+	}
+	return out
 }
 
 type SummaryTaskItem struct {
@@ -787,7 +853,7 @@ func (s *MeetingService) AutoEndOverdue(ctx context.Context, now time.Time) (int
 	}
 	n := 0
 	for _, m := range rows {
-		if _, err := s.endMeeting(ctx, m, "system", "MEETING_AUTO_ENDED"); err == nil {
+		if _, err := s.endMeeting(ctx, m, systemActorID, "MEETING_AUTO_ENDED"); err == nil {
 			n++
 			s.count("auto_ended")
 		}
@@ -809,7 +875,7 @@ func (s *MeetingService) endIfOverdueEmpty(ctx context.Context, meetingID string
 	if sess, err := s.q.GetOpenConferenceSession(ctx, meetingID); err == nil && sess.Status == "ACTIVE" {
 		return
 	}
-	if _, err := s.endMeeting(ctx, m, "system", "MEETING_AUTO_ENDED"); err == nil {
+	if _, err := s.endMeeting(ctx, m, systemActorID, "MEETING_AUTO_ENDED"); err == nil {
 		s.count("auto_ended")
 	}
 }

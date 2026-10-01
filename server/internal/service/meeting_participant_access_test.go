@@ -242,3 +242,57 @@ func TestAuthorizeActiveParticipant(t *testing.T) {
 		t.Fatalf("guest without participant row: %v", err)
 	}
 }
+
+// Spec D2 (update 2026-10-01): an account from outside the workspace that an
+// invite link admits only observes — it is not on a vote's roll or counted for
+// quorum — until the host makes it a member. A workspace member who uses the
+// same link is a member as always.
+func TestLinkAdmittedStanding(t *testing.T) {
+	cases := []struct {
+		name   string
+		member bool
+		mode   string
+		want   string
+	}{
+		{"outsider auto-admit", false, LinkAutoAdmit, StandingObserver},
+		{"outsider approved", false, LinkRequestApproval, StandingObserver},
+		{"member auto-admit", true, LinkAutoAdmit, StandingMember},
+		{"member approved", true, LinkRequestApproval, StandingMember},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			s, ua, ub, w := meetingFixture(t)
+			ctx := context.Background()
+			if c.member {
+				addMember(t, s, w.ID, ub.ID)
+			}
+			m, err := s.CreateInstant(ctx, ua.ID, w.ID, "Họp HĐQT")
+			if err != nil {
+				t.Fatal(err)
+			}
+			created, err := s.CreateInviteLink(ctx, ua.ID, m.ID, "ext", c.mode, time.Now().Add(time.Hour), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			dec, err := s.Evaluate(ctx, AdmissionContext{
+				MeetingID: m.ID, UserID: ub.ID,
+				InviteLinkID: created.Link.ID, InviteSecret: created.RawSecret,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if dec.Decision == DecisionWaitingApproval {
+				if err := s.ApproveJoinRequest(ctx, ua.ID, dec.JoinRequestID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			p, err := s.q.GetActiveUserParticipant(ctx, db.GetActiveUserParticipantParams{MeetingID: m.ID, UserID: strText(ub.ID)})
+			if err != nil {
+				t.Fatalf("participant row after admission (decision %s): %v", dec.Decision, err)
+			}
+			if p.Standing != c.want {
+				t.Fatalf("standing = %s, want %s", p.Standing, c.want)
+			}
+		})
+	}
+}

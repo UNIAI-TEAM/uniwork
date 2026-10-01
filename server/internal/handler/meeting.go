@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
@@ -243,6 +244,27 @@ func (h *handlers) meetingStatistics(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// activityPayloadEvents lists the timeline rows whose stored payload reaches
+// the client. Every other row keeps its payload server-side (MEETING_CREATED
+// stores meeting_type, for one); a new event opts in here deliberately.
+var activityPayloadEvents = map[string]struct{}{
+	"MOTION_OPENED": {},
+	"MOTION_CLOSED": {},
+}
+
+// activityPayload decodes an allowlisted row's payload; nil for any other
+// row, and for a payload that is not a flat string map.
+func activityPayload(a db.MeetingAuditLog) map[string]string {
+	if _, ok := activityPayloadEvents[a.EventType]; !ok {
+		return nil
+	}
+	var out map[string]string
+	if err := json.Unmarshal([]byte(a.Payload), &out); err != nil || len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 func (h *handlers) meetingActivity(w http.ResponseWriter, r *http.Request) {
 	items, err := h.Meetings.Activity(r.Context(), middleware.UserID(r.Context()), chi.URLParam(r, "meetingID"), 50, 0)
 	if err != nil {
@@ -254,6 +276,7 @@ func (h *handlers) meetingActivity(w http.ResponseWriter, r *http.Request) {
 		out = append(out, sdo.ActivityItemDTO{
 			ID: a.ID, EventType: a.EventType, ActorID: a.ActorID,
 			FromState: a.FromState.String, ToState: a.ToState.String, OccurredAt: rfc3339(a.OccurredAt),
+			Payload: activityPayload(a),
 		})
 	}
 	respondJSON(w, 200, map[string]any{"activity": out})

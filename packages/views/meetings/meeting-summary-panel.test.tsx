@@ -235,3 +235,66 @@ describe("summarySourceFacts", () => {
     expect(summarySourceFacts("2026-09-22T02:20:00Z", [], [note(null)])).toEqual({ kind: null, stale: false });
   });
 });
+
+describe("MeetingSummaryPanel › voted decisions", () => {
+  const closedMotion = {
+    id: "mo1",
+    title: "Thông qua kế hoạch quý IV",
+    description: "",
+    position: 1,
+    ballot_mode: "PUBLIC",
+    threshold: "MAJORITY",
+    base: "PRESENT",
+    status: "CLOSED",
+    roll_size: 4,
+    total_members: 5,
+    cast_count: 4,
+    result: { yes: 3, no: 1, abstain: 0, required: 3, outcome: "PASSED" },
+    voters: { yes: ["An", "Bình", "Chi"], no: ["Dũng"], abstain: [] },
+    my_ballot: { on_roll: true, cast: true, choice: "YES" },
+  };
+
+  function respond(motions: unknown[]) {
+    requestMock.mockImplementation((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith("/meeting-capabilities")) return Promise.resolve({ ai_summary: true });
+      if (p.endsWith("/summary")) return Promise.resolve({ summary: null });
+      if (p.endsWith("/transcript")) return Promise.resolve({ segments: [] });
+      if (p.endsWith("/notes")) return Promise.resolve({ notes: [] });
+      if (p.endsWith("/motions")) return Promise.resolve({ motions });
+      if (p.endsWith("/members")) return Promise.resolve({ members: [] });
+      if (p.endsWith("/recordings")) return Promise.resolve({ recordings: [] });
+      return Promise.resolve({});
+    });
+  }
+
+  it("shows what was voted even without an AI summary", async () => {
+    respond([closedMotion, { ...closedMotion, id: "mo2", title: "Chưa mở", position: 2, status: "DRAFT", result: null, voters: null }]);
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+
+    const panel = screen.getByTestId("meeting-summary-panel");
+    expect(await within(panel).findByText("Đã biểu quyết")).toBeInTheDocument();
+    expect(within(panel).getByRole("heading", { name: "Quyết định" })).toBeInTheDocument();
+    expect(within(panel).getByText("Thông qua kế hoạch quý IV")).toBeInTheDocument();
+    expect(within(panel).getByText("3 tán thành · 1 không tán thành · 0 không ý kiến")).toBeInTheDocument();
+    expect(within(panel).queryByText("Chưa mở")).not.toBeInTheDocument();
+  });
+
+  it("lets the host summarize a meeting whose only record is a vote", async () => {
+    respond([closedMotion]);
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+
+    const button = await screen.findByRole("button", { name: "Tạo tóm tắt" });
+    await waitFor(() => expect(button).toBeEnabled());
+    expect(screen.queryByText("Cần bản ghi lời thoại hoặc ghi chú để tạo tóm tắt.")).not.toBeInTheDocument();
+  });
+
+  it("still asks for a source when nothing has been voted", async () => {
+    respond([]);
+    render(wrapWithNav(<MeetingSummaryPanel workspaceId="w1" meeting={meeting} canHost />));
+
+    expect(await screen.findByText("Cần bản ghi lời thoại hoặc ghi chú để tạo tóm tắt.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tạo tóm tắt" })).toBeDisabled();
+    expect(screen.queryByText("Đã biểu quyết")).not.toBeInTheDocument();
+  });
+});

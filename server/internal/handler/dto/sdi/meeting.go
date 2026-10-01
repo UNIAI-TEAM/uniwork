@@ -153,3 +153,27 @@ type MarkAttendanceSDI struct {
 	Status string `json:"status" enum:"PRESENT,LATE,EXCUSED,ABSENT" example:"EXCUSED"`
 	Note   string `json:"note" maxLength:"200" description:"Lý do vắng; chỉ lưu khi EXCUSED" example:"Đi công tác"`
 }
+
+// CreateMotionSDI is POST /api/v1/meetings/{meetingID}/motions.
+type CreateMotionSDI struct {
+	Title       string `json:"title" minLength:"1" maxLength:"200" description:"Nội dung biểu quyết (đếm theo ký tự)" example:"Thông qua kế hoạch quý IV"`
+	Description string `json:"description" maxLength:"2000" description:"Mô tả thêm, không bắt buộc" example:""`
+	BallotMode  string `json:"ballot_mode" enum:"PUBLIC,SECRET" description:"PUBLIC = công khai, SECRET = bỏ phiếu kín" example:"SECRET"`
+	Threshold   string `json:"threshold" enum:"MAJORITY,TWO_THIRDS" description:"Ngưỡng thông qua" example:"MAJORITY"`
+	Base        string `json:"base" enum:"PRESENT,ALL_MEMBERS" description:"Mẫu số: số thành viên có mặt hoặc tổng thành viên" example:"PRESENT"`
+}
+
+// PatchMotionSDI is PATCH /api/v1/meetings/{meetingID}/motions/{motionID}; draft only.
+type PatchMotionSDI struct {
+	Title       *string `json:"title" minLength:"1" maxLength:"200" example:"Thông qua kế hoạch quý IV"`
+	Description *string `json:"description" maxLength:"2000" example:""`
+	BallotMode  *string `json:"ballot_mode" enum:"PUBLIC,SECRET" example:"PUBLIC"`
+	Threshold   *string `json:"threshold" enum:"MAJORITY,TWO_THIRDS" example:"TWO_THIRDS"`
+	Base        *string `json:"base" enum:"PRESENT,ALL_MEMBERS" example:"ALL_MEMBERS"`
+	Position    *int32  `json:"position" minimum:"1" description:"Đổi chỗ với nội dung đang ở vị trí này (cả hai phải còn nháp)" example:"1"`
+}
+
+// CastBallotSDI is POST /api/v1/meetings/{meetingID}/motions/{motionID}/ballot.
+type CastBallotSDI struct {
+	Choice string `json:"choice" enum:"YES,NO,ABSTAIN" description:"Không đổi được sau khi gửi" example:"YES"`
+}

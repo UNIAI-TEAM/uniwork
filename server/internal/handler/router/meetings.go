@@ -99,6 +99,31 @@ func registerMeetings(r api, h Routes) {
 	r.Post("/meetings/{meetingID}/attendance/reopen", h.ReopenAttendance, apiOp{
 		summary: "Reopen finalized attendance (clerk)", tags: []string{"meetings"}, sdo: sdo.StatusSDO{}, auth: true,
 	})
+	r.Post("/meetings/{meetingID}/motions", h.CreateMotion, apiOp{
+		summary:     "Draft a vote item (clerk)",
+		description: "Tạo nội dung ở trạng thái DRAFT, xếp cuối danh sách. Cuộc họp phải chưa kết thúc và chưa bị hủy.",
+		tags:        []string{"meetings"},
+		sdi:         sdi.CreateMotionSDI{},
+		sdo:         sdo.MotionSDO{},
+		auth:        true,
+	})
+	r.Patch("/meetings/{meetingID}/motions/{motionID}", h.UpdateMotion, apiOp{
+		summary: "Edit or reorder a draft vote item (clerk)", tags: []string{"meetings"},
+		sdi: sdi.PatchMotionSDI{}, sdo: sdo.MotionSDO{}, auth: true,
+	})
+	r.Delete("/meetings/{meetingID}/motions/{motionID}", h.DeleteMotion, apiOp{
+		summary: "Delete a draft vote item (clerk)", tags: []string{"meetings"}, sdo: sdo.StatusSDO{}, auth: true,
+	})
+	r.Post("/meetings/{meetingID}/motions/{motionID}/open", h.OpenMotion, apiOp{
+		summary:     "Open voting and snapshot the roll (clerk)",
+		description: "Chỉ khi cuộc họp đang diễn ra; mỗi lúc một nội dung. Cử tri = thành viên có mặt hoặc đến muộn lúc mở.",
+		tags:        []string{"meetings"},
+		sdo:         sdo.MotionSDO{},
+		auth:        true,
+	})
+	r.Post("/meetings/{meetingID}/motions/{motionID}/close", h.CloseMotion, apiOp{
+		summary: "Close voting and count the result (clerk)", tags: []string{"meetings"}, sdo: sdo.MotionSDO{}, auth: true,
+	})
 	r.Get("/meetings/{meetingID}/invite-links", h.ListInviteLinks, apiOp{
 		summary: "List invite links", tags: []string{"meetings"}, sdo: sdo.InviteLinkListSDO{}, auth: true,
 	})
@@ -181,6 +206,19 @@ func registerPublicMeetings(r api, h Routes, credentialLimit, joinLimit, lobbyWS
 	r.With(joinLimit).Post("/meetings/{meetingID}/chat", h.AppendChatMessage, apiOp{
 		summary: "Send an in-room chat message (member or active guest)", tags: []string{"meetings"},
 		sdi: sdi.AppendChatSDI{}, sdo: sdo.MeetingChatMessageSDO{},
+	})
+	// Every client refetches this after every ballot, and a formal meeting often
+	// sits behind one office NAT: it lives on the global per-IP budget only, not
+	// the 60/min credential one, or a refused refetch hides an open vote.
+	r.Get("/meetings/{meetingID}/motions", h.ListMotions, apiOp{
+		summary:     "List vote items (member or active guest)",
+		description: "Người không phải clerk không thấy DRAFT; result chỉ có khi CLOSED, voters chỉ khi CLOSED và công khai.",
+		tags:        []string{"meetings"},
+		sdo:         sdo.MotionListSDO{},
+	})
+	r.With(joinLimit).Post("/meetings/{meetingID}/motions/{motionID}/ballot", h.CastBallot, apiOp{
+		summary: "Cast a ballot (member or active guest on the roll)", tags: []string{"meetings"},
+		sdi: sdi.CastBallotSDI{}, sdo: sdo.StatusSDO{},
 	})
 	r.With(joinLimit).Post("/meetings/{meetingID}/transcript/agent", h.AppendAgentTranscript, apiOp{
 		summary: "Append transcript from LiveKit Agents worker (secret header)", tags: []string{"meetings"},

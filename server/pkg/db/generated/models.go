@@ -1049,6 +1049,45 @@ type MeetingJoinRequest struct {
 	ExpiresAt           pgtype.Timestamptz `json:"expires_at"`
 }
 
+type MeetingMotion struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	WorkspaceID    string             `json:"workspace_id"`
+	MeetingID      string             `json:"meeting_id"`
+	Title          string             `json:"title"`
+	Description    string             `json:"description"`
+	Position       int32              `json:"position"`
+	BallotMode     string             `json:"ballot_mode"`
+	Threshold      string             `json:"threshold"`
+	Base           string             `json:"base"`
+	Status         string             `json:"status"`
+	TotalMembers   pgtype.Int4        `json:"total_members"`
+	RollSize       pgtype.Int4        `json:"roll_size"`
+	YesCount       int32              `json:"yes_count"`
+	NoCount        int32              `json:"no_count"`
+	AbstainCount   int32              `json:"abstain_count"`
+	Outcome        pgtype.Text        `json:"outcome"`
+	OpenedAt       pgtype.Timestamptz `json:"opened_at"`
+	OpenedBy       pgtype.Text        `json:"opened_by"`
+	ClosedAt       pgtype.Timestamptz `json:"closed_at"`
+	ClosedBy       pgtype.Text        `json:"closed_by"`
+	CreatedBy      string             `json:"created_by"`
+	CreatedByKind  string             `json:"created_by_kind"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	Version        int32              `json:"version"`
+}
+
+type MeetingMotionBallot struct {
+	ID             string             `json:"id"`
+	OrganizationID string             `json:"organization_id"`
+	MeetingID      string             `json:"meeting_id"`
+	MotionID       string             `json:"motion_id"`
+	ParticipantID  string             `json:"participant_id"`
+	Choice         pgtype.Text        `json:"choice"`
+	CastAt         pgtype.Timestamptz `json:"cast_at"`
+}
+
 type MeetingNote struct {
 	ID        string             `json:"id"`
 	MeetingID string             `json:"meeting_id"`

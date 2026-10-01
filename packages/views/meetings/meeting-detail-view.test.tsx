@@ -113,6 +113,7 @@ describe("MeetingDetailView", () => {
       if (p.endsWith("/participants")) return Promise.resolve({ participants: [] });
       if (p.endsWith("/join-requests")) return Promise.resolve({ join_requests: [] });
       if (p.endsWith("/invite-links")) return Promise.resolve({ invite_links: [] });
+      if (p.endsWith("/motions")) return Promise.resolve({ motions: [] });
       if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
       return Promise.resolve({});
     });
@@ -140,6 +141,7 @@ describe("MeetingDetailView", () => {
       if (p.endsWith("/participants")) return Promise.resolve({ participants: [] });
       if (p.endsWith("/join-requests")) return Promise.resolve({ join_requests: [] });
       if (p.endsWith("/invite-links")) return Promise.resolve({ invite_links: [] });
+      if (p.endsWith("/motions")) return Promise.resolve({ motions: [] });
       if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
       return Promise.resolve({});
     });
@@ -187,6 +189,7 @@ describe("MeetingDetailView", () => {
       if (p.endsWith("/invitations")) return Promise.resolve({ invitations: [] });
       if (p.endsWith("/participants")) return Promise.resolve({ participants: [] });
       if (p.endsWith("/join-requests")) return Promise.resolve({ join_requests: [] });
+      if (p.endsWith("/motions")) return Promise.resolve({ motions: [] });
       if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
       return Promise.resolve({});
     });
@@ -232,6 +235,7 @@ describe("MeetingDetailView", () => {
           ],
         });
       }
+      if (p.endsWith("/motions")) return Promise.resolve({ motions: [] });
       if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
       return Promise.resolve({});
     });
@@ -301,6 +305,7 @@ describe("MeetingDetailView", () => {
       if (p.endsWith("/participants")) return Promise.resolve({ participants: [] });
       if (p.endsWith("/join-requests")) return Promise.resolve({ join_requests: [] });
       if (p.endsWith("/invite-links")) return Promise.resolve({ invite_links: [] });
+      if (p.endsWith("/motions")) return Promise.resolve({ motions: [] });
       if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
       return Promise.resolve({});
     });
@@ -332,6 +337,7 @@ describe("MeetingDetailView", () => {
         });
       }
       if (p.endsWith("/join-requests")) return Promise.resolve({ join_requests: [] });
+      if (p.endsWith("/motions")) return Promise.resolve({ motions: [] });
       if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
       return Promise.resolve({});
     });
@@ -420,6 +426,7 @@ describe("MeetingDetailView", () => {
       }
       if (p.endsWith("/join-requests")) return Promise.resolve({ join_requests: [] });
       if (p.endsWith("/invite-links")) return Promise.resolve({ invite_links: [] });
+      if (p.endsWith("/motions")) return Promise.resolve({ motions: [] });
       if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
       return Promise.resolve({});
     });
@@ -465,6 +472,7 @@ describe("MeetingDetailView › attendance", () => {
       if (p.endsWith("/invitations")) return Promise.resolve({ invitations: [] });
       if (p.endsWith("/join-requests")) return Promise.resolve({ join_requests: [] });
       if (p.endsWith("/invite-links")) return Promise.resolve({ invite_links: [] });
+      if (p.endsWith("/motions")) return Promise.resolve({ motions: [] });
       if (p.endsWith("/activity")) return Promise.resolve({ activity: [] });
       return Promise.resolve({});
     });
@@ -482,6 +490,15 @@ describe("MeetingDetailView › attendance", () => {
     render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
     expect(await screen.findByRole("heading", { name: "Standup" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Điểm danh" })).not.toBeInTheDocument();
+  });
+  it("gives the host the vote card to draft items before the meeting", async () => {
+    respondWith("SCHEDULED");
+    render(shell(<MeetingDetailView workspaceId="w1" meetingId="m1" onJoin={() => {}} onDeleted={() => {}} />));
+    const card = await screen.findByRole("region", { name: "Biểu quyết" });
+    expect(
+      await within(card).findByText("Chưa có nội dung biểu quyết. Soạn trước, mở từng nội dung khi đang họp."),
+    ).toBeInTheDocument();
+    expect(within(card).getByRole("button", { name: "Thêm nội dung" })).toBeInTheDocument();
   });
 });
 

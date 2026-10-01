@@ -195,6 +195,12 @@ var catalogue = []EventDef{
 	{Topic: "attendance.reopened", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	// A webhook opened or closed a room session; panels refetch the roll.
 	{Topic: "attendance.updated", Version: 1, Payload: []string{"meeting_id"}, Scope: ScopeWorkspace, Delivery: DeliveryEphemeral},
+	{Topic: "motion.created", Version: 1, Payload: []string{"meeting_id", "version", "motion_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "motion.updated", Version: 1, Payload: []string{"meeting_id", "version", "motion_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "motion.deleted", Version: 1, Payload: []string{"meeting_id", "version", "motion_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "motion.opened", Version: 1, Payload: []string{"meeting_id", "version", "motion_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "motion.closed", Version: 1, Payload: []string{"meeting_id", "version", "motion_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
+	{Topic: "motion.ballot_cast", Version: 1, Payload: []string{"meeting_id", "version", "motion_id"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "invitation.responded", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "join_request.created", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},
 	{Topic: "join_request.approved", Version: 1, Payload: []string{"meeting_id", "version"}, Scope: ScopeWorkspace, Delivery: DeliveryOutbox},

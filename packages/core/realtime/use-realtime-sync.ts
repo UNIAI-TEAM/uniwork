@@ -175,6 +175,8 @@ function keysFor(
         push(meetingKeys.detail(payload.meeting_id));
         // The quorum lives on the meeting; the roll shows whether it is met.
         push(meetingKeys.attendance(payload.meeting_id));
+        // Ending the meeting closes and counts every open motion.
+        if (type === "meeting.ended") push(meetingKeys.motions(payload.meeting_id));
       }
       pushCalendar();
       break;
@@ -198,6 +200,8 @@ function keysFor(
       if (payload.meeting_id) {
         push(meetingKeys.participants(payload.meeting_id));
         push(meetingKeys.attendance(payload.meeting_id));
+        // Standing decides who joins the next roll and what my_ballot says.
+        push(meetingKeys.motions(payload.meeting_id));
       }
       break;
     }
@@ -212,6 +216,22 @@ function keysFor(
         push(meetingKeys.attendance(payload.meeting_id));
         push(meetingKeys.activity(payload.meeting_id));
         push(meetingKeys.detail(payload.meeting_id));
+      }
+      break;
+    }
+    case "motion.created":
+    case "motion.updated":
+    case "motion.deleted":
+    case "motion.ballot_cast": {
+      if (payload.meeting_id) push(meetingKeys.motions(payload.meeting_id));
+      break;
+    }
+    case "motion.opened":
+    case "motion.closed": {
+      if (payload.meeting_id) {
+        push(meetingKeys.motions(payload.meeting_id));
+        // Opening and closing are timeline rows.
+        push(meetingKeys.activity(payload.meeting_id));
       }
       break;
     }

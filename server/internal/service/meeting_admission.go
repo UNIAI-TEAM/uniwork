@@ -297,11 +297,35 @@ func (s *MeetingService) materializeFromLink(ctx context.Context, q *db.Queries,
 	if err != nil {
 		return db.MeetingParticipant{}, err
 	}
+	if in.UserID != "" {
+		if p, err = s.settleAdmittedStanding(ctx, q, m, p); err != nil {
+			return db.MeetingParticipant{}, err
+		}
+	}
 	_, err = q.CreateAccessGrant(ctx, db.CreateAccessGrantParams{
 		ID: util.NewID(), MeetingID: m.ID, ParticipantID: p.ID,
 		SourceType: GrantInviteLink, SourceID: strText(linkID), GrantedBy: actorID(in),
 	})
 	return p, err
+}
+
+// settleAdmittedStanding makes an account from outside the workspace an
+// observer when an invite link or an approved join request brings it in (spec
+// D2, update 2026-10-01): it may sit in a formal meeting but is not on a vote's
+// roll or counted for quorum until the host makes it a member. A workspace
+// member keeps the MEMBER standing the row was created with. Membership is
+// decided by the workspace gate, through the caller's transaction.
+func (s *MeetingService) settleAdmittedStanding(ctx context.Context, q *db.Queries, m db.Meeting, p db.MeetingParticipant) (db.MeetingParticipant, error) {
+	_, err := s.ws.RequireMemberQ(ctx, q, m.WorkspaceID, p.UserID.String)
+	var ce CodedError
+	switch {
+	case err == nil:
+		return p, nil
+	case errors.Is(err, ErrForbidden), errors.As(err, &ce) && ce.Status == http.StatusForbidden:
+		return q.UpdateParticipantDuties(ctx, db.UpdateParticipantDutiesParams{Standing: strText(StandingObserver), ID: p.ID})
+	default:
+		return db.MeetingParticipant{}, err
+	}
 }
 
 func (s *MeetingService) ensureJoinRequest(ctx context.Context, m db.Meeting, in AdmissionContext) (db.MeetingJoinRequest, error) {
@@ -464,6 +488,9 @@ func (s *MeetingService) ApproveJoinRequest(ctx context.Context, actorID, reques
 				SourceID: strText(requestID), AddedBy: actorID,
 			})
 			if err != nil {
+				return err
+			}
+			if p, err = s.settleAdmittedStanding(ctx, q, m, p); err != nil {
 				return err
 			}
 		}

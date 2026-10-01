@@ -150,13 +150,19 @@ func (s *MeetingService) End(ctx context.Context, userID, meetingID string) (db.
 	return s.endMeeting(ctx, m, userID, "MEETING_ENDED")
 }
 
+// systemActorID is the actor id a scheduled job passes for a meeting command
+// nobody asked for. The meeting's own columns and timeline (updated_by,
+// meeting_audit_logs.actor_id) keep storing it verbatim; audit_events and the
+// outbox get audit.System instead, so "system" is never filed as a person.
+const systemActorID = "system"
+
 // endMeeting is the IN_PROGRESS → ENDED transition shared by End (host) and
 // AutoEndOverdue (system). eventType names the audit row.
 func (s *MeetingService) endMeeting(ctx context.Context, m db.Meeting, actorID, eventType string) (db.Meeting, error) {
-	// AutoEndOverdue passes no actor: the scheduler ended the meeting, and the
-	// audit row says so rather than blaming the last host.
+	// The scheduler (systemActorID, or no actor at all) ended the meeting, and
+	// the audit row says so rather than blaming the last host.
 	actor := audit.User(actorID)
-	if actorID == "" {
+	if actorID == "" || actorID == systemActorID {
 		actor = audit.System("meeting-auto-end")
 	}
 	if m.Status != MeetingInProgress {
@@ -176,6 +182,27 @@ func (s *MeetingService) endMeeting(ctx context.Context, m db.Meeting, actorID, 
 	}
 	if err != nil {
 		return db.Meeting{}, err
+	}
+	// Voting cannot outlive the meeting (spec §6.3): close and count every
+	// OPEN item in this same transaction. The version-CAS UPDATE above holds
+	// the meeting row, so taking the motion rows now keeps OpenMotion's
+	// meeting → motion lock order. A ballot that locked the motion first
+	// commits before FOR UPDATE returns the row, so its vote is counted; one
+	// that arrives later finds the motion CLOSED. A clerk closing the same
+	// item concurrently drops it from this list (status no longer OPEN).
+	// An auto-end leaves closed_by NULL: nobody closed the vote by hand.
+	closedBy := actorID
+	if actor.Kind == audit.KindSystem {
+		closedBy = ""
+	}
+	openMotions, err := q.ListOpenMeetingMotionsForUpdate(ctx, m.ID)
+	if err != nil {
+		return db.Meeting{}, err
+	}
+	for _, mo := range openMotions {
+		if _, err := s.closeMotionTx(ctx, q, ended, mo, actor, closedBy); err != nil {
+			return db.Meeting{}, err
+		}
 	}
 	_ = q.RevokeGrantsForMeeting(ctx, db.RevokeGrantsForMeetingParams{MeetingID: m.ID, RevokedBy: strText(actorID), RevokeReason: strText("meeting_ended")})
 	_ = q.ExpirePendingJoinRequests(ctx, m.ID)

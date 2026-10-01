@@ -1,7 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { render, renderHook, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
-import { ChangeSummary, changeEntries, shortId } from "./event-presenter";
+import { ActorIcon, ChangeSummary, changeEntries, shortId, useAuditLabels } from "./event-presenter";
 
 initI18n();
 
@@ -73,5 +73,16 @@ describe("event presenter", () => {
     render(<ChangeSummary event={{ resource_type: "task", changes: { role: "agent", priority: "urgent" } }} empty="—" />);
     expect(screen.getByText("Agent")).toBeInTheDocument();
     expect(screen.getByText("Khẩn cấp")).toBeInTheDocument();
+  });
+  it("gives a guest its own glyph and label, and names the meeting resources", () => {
+    // A guest who casts a ballot is the first guest the log ever records; it
+    // must not borrow the human glyph or fall through to "unknown".
+    const { container } = render(<ActorIcon kind="guest" />);
+    expect(container.querySelector("svg")).toHaveClass("lucide-user-round");
+
+    const { result } = renderHook(() => useAuditLabels());
+    expect(result.current.actorKind("guest")).toBe("Khách");
+    expect(result.current.resource("meeting")).toBe("Cuộc họp");
+    expect(result.current.resource("meeting_motion")).toBe("Nội dung biểu quyết");
   });
 });

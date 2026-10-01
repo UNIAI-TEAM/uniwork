@@ -1,6 +1,6 @@
 # Meetings — Điểm danh (đợt 1) Implementation Plan
 
-> **Trạng thái:** in-progress — UNI-892, nhánh `feature/UNI-892-meetings-diem-danh-thanh-vien-du-thinh-t`.
+> **Trạng thái:** shipped — UNI-892, PR #165 merge vào develop ngày 2026-09-30 (`4f3a60ca`).
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

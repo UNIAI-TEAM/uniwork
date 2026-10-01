@@ -43,6 +43,7 @@ export const meetingKeys = {
   summary: (meetingId: string) => ["meeting-summary", meetingId] as const,
   recordings: (meetingId: string) => ["meeting-recordings", meetingId] as const,
   attendance: (meetingId: string) => ["meeting-attendance", meetingId] as const,
+  motions: (meetingId: string) => ["meeting-motions", meetingId] as const,
 };
 
 export function splitMeetings(
@@ -172,7 +173,11 @@ export function useEndMeeting(workspaceId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (meetingId: string) => meetings.endMeeting(meetingId),
-    onSuccess: (_d, meetingId) => invalidateMeeting(qc, workspaceId, meetingId),
+    onSuccess: (_d, meetingId) => {
+      invalidateMeeting(qc, workspaceId, meetingId);
+      // Ending closes and counts every open motion (MeetingService.endMeeting).
+      void qc.invalidateQueries({ queryKey: meetingKeys.motions(meetingId) });
+    },
   });
 }
 

@@ -292,6 +292,13 @@ type Routes struct {
 	ClearAttendanceMark            http.HandlerFunc
 	FinalizeAttendance             http.HandlerFunc
 	ReopenAttendance               http.HandlerFunc
+	ListMotions                    http.HandlerFunc
+	CreateMotion                   http.HandlerFunc
+	UpdateMotion                   http.HandlerFunc
+	DeleteMotion                   http.HandlerFunc
+	OpenMotion                     http.HandlerFunc
+	CloseMotion                    http.HandlerFunc
+	CastBallot                     http.HandlerFunc
 	ListInviteLinks                http.HandlerFunc
 	CreateInviteLink               http.HandlerFunc
 	RevokeInviteLink               http.HandlerFunc

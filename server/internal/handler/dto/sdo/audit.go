@@ -9,7 +9,7 @@ type AuditEventDTO struct {
 	ID             string         `json:"id" description:"ULID bản ghi" example:"01J8X4AUDIT0N1P2Q3R4S5T6"`
 	OrganizationID string         `json:"organization_id" example:"01J8X4ORG0N1P2Q3R4S5T6U7"`
 	WorkspaceID    *string        `json:"workspace_id,omitempty" description:"Rỗng với sự kiện cấp tổ chức" example:"01J8X4WS0N1P2Q3R4S5T6U7V8"`
-	ActorKind      string         `json:"actor_kind" description:"human, agent hoặc system" example:"human"`
+	ActorKind      string         `json:"actor_kind" description:"human, agent, system hoặc guest (khách vào họp bằng link mời)" example:"human"`
 	ActorID        string         `json:"actor_id" example:"01J8X4K2M0N1P2Q3R4S5T6U7V8"`
 	Action         string         `json:"action" description:"Tên hành động dạng <thực thể>.<động từ>" example:"task.updated"`
 	ResourceType   string         `json:"resource_type" example:"task"`

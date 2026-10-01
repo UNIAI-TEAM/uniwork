@@ -5,6 +5,15 @@ import { useEffect } from "react";
 import { meetingKeys } from "../meetings/hooks";
 import { useOptionalMeetingLobbyWS } from "./meeting-lobby-provider";
 
+const MOTION_EVENTS = [
+  "motion.created",
+  "motion.updated",
+  "motion.deleted",
+  "motion.opened",
+  "motion.closed",
+  "motion.ballot_cast",
+] as const;
+
 /** Refreshes in-room data for guest lobby sockets (no workspace membership). */
 export function useMeetingLobbySync(meetingId: string, enabled = true) {
   const qc = useQueryClient();
@@ -28,14 +37,22 @@ export function useMeetingLobbySync(meetingId: string, enabled = true) {
     const offParticipantRemoved = client.on("participant.removed", (payload) => {
       invalidateIfMatch(payload, meetingKeys.participants(meetingId));
     });
-    // Guests see the secretary/observer chips change without a workspace socket.
+    // Guests see the secretary/observer chips change without a workspace socket;
+    // standing also decides who joins the next voting roll.
     const offParticipantUpdated = client.on("participant.updated", (payload) => {
       invalidateIfMatch(payload, meetingKeys.participants(meetingId));
+      invalidateIfMatch(payload, meetingKeys.motions(meetingId));
     });
     // started/stopped drive the REC badge for guests, who have no workspace socket.
     const offRecording = (["recording.started", "recording.stopped", "recording.ready"] as const).map((event) =>
       client.on(event, (payload) => {
         invalidateIfMatch(payload, meetingKeys.recordings(meetingId));
+      }),
+    );
+    // Guests vote too: their tab, badge and vote prompt follow these.
+    const offMotions = MOTION_EVENTS.map((event) =>
+      client.on(event, (payload) => {
+        invalidateIfMatch(payload, meetingKeys.motions(meetingId));
       }),
     );
     return () => {
@@ -44,6 +61,7 @@ export function useMeetingLobbySync(meetingId: string, enabled = true) {
       offParticipantRemoved();
       offParticipantUpdated();
       for (const off of offRecording) off();
+      for (const off of offMotions) off();
     };
   }, [enabled, lobby?.client, meetingId, qc]);
 }

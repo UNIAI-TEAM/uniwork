@@ -865,3 +865,47 @@ describe("useRealtimeSync › meeting attendance", () => {
     for (const k of extra) expect(keys).toContain(k);
   });
 });
+
+
+describe("useRealtimeSync › meeting motions", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const motions = JSON.stringify(["meeting-motions", "m1"]);
+  const activity = JSON.stringify(["meeting-activity", "m1"]);
+
+  it.each([
+    { type: "motion.created", extra: [] as string[] },
+    { type: "motion.updated", extra: [] as string[] },
+    { type: "motion.deleted", extra: [] as string[] },
+    { type: "motion.ballot_cast", extra: [] as string[] },
+    // Opening and closing are timeline rows.
+    { type: "motion.opened", extra: [activity] },
+    { type: "motion.closed", extra: [activity] },
+    // Standing decides who joins the next roll and what my_ballot says.
+    { type: "participant.updated", extra: [] as string[] },
+    // Ending the meeting closes and counts every open motion.
+    { type: "meeting.ended", extra: [] as string[] },
+  ])("refreshes the motion list on $type", ({ type, extra }) => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type, payload: { meeting_id: "m1", motion_id: "mo1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    const keys = keysCalled(invalidate);
+    expect(keys).toContain(motions);
+    for (const k of extra) expect(keys).toContain(k);
+  });
+
+  it("keeps the timeline still for a ballot", () => {
+    vi.useFakeTimers();
+    const { invalidate, client } = setup();
+    client.emit({ type: "motion.ballot_cast", payload: { meeting_id: "m1", motion_id: "mo1" } } as WSMessage);
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+    expect(keysCalled(invalidate)).not.toContain(activity);
+  });
+});

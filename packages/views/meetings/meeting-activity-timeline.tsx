@@ -17,6 +17,7 @@ import {
   DoorOpen,
   CalendarCheck,
   Sparkles,
+  Vote,
   type LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
@@ -29,7 +30,14 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@uniwork/ui
 import { cn } from "@uniwork/ui/lib/utils";
 import { PanelCard } from "../common/panel-card";
 import { moduleTone } from "../layout/module-tones";
-import { activityKind, activityLabel, activityStateChange, visibleActivity, type ActivityKind } from "./meeting-activity-display";
+import {
+  activityKind,
+  activityLabel,
+  activityMotionDetail,
+  activityStateChange,
+  visibleActivity,
+  type ActivityKind,
+} from "./meeting-activity-display";
 import { formatMeetingStart, meetingLocale } from "./meeting-datetime";
 import { initials, personAvatarSrc } from "./meeting-person";
 import { formatRelativeTime } from "./meeting-relative-time";
@@ -37,6 +45,8 @@ import { MeetingRowsSkeleton, MeetingSectionError } from "./meeting-section-stat
 import { useMemberIndex } from "./use-member-index";
 
 const VISIBLE_ACTIVITY_LIMIT = 5;
+/** Server automation (an automatic end and the votes it closes) writes this id rather than an empty one. */
+const SYSTEM_ACTOR_ID = "system";
 
 /** Rail mark per kind: the glyph says what happened, the signal says how it went. */
 const KIND_MARK: Record<ActivityKind, { icon: LucideIcon; tone: IconTileTone }> = {
@@ -53,6 +63,7 @@ const KIND_MARK: Record<ActivityKind, { icon: LucideIcon; tone: IconTileTone }> 
   link: { icon: Link2, tone: "muted" },
   ai: { icon: Sparkles, tone: "brand" },
   recording: { icon: CircleDot, tone: "muted" },
+  governance: { icon: Vote, tone: "brand" },
   other: { icon: ListChecks, tone: "muted" },
 };
 
@@ -112,10 +123,11 @@ export function MeetingActivityTimeline({
             <div className="px-4 py-4">
               <ol className="relative space-y-3.5 before:absolute before:bottom-3.5 before:left-3.5 before:top-3.5 before:w-px before:bg-border">
                 {visible.map((item) => {
-                  const system = !item.actor_id;
+                  const system = !item.actor_id || item.actor_id === SYSTEM_ACTOR_ID;
                   const member = system ? undefined : memberOf(item.actor_id);
                   const actor = system ? t("meetings.systemActor") : member?.display_name || t("meetings.formerMember");
                   const change = activityStateChange(item);
+                  const detail = activityMotionDetail(item);
                   const mark = KIND_MARK[activityKind(item.event_type)];
                   return (
                     <li key={item.id} className="relative flex min-w-0 items-start gap-3">
@@ -140,6 +152,14 @@ export function MeetingActivityTimeline({
                           <span className="font-medium">{actor}</span>
                           <span>{t(activityLabel(item.event_type))}</span>
                         </div>
+                        {detail ? (
+                          <p className="mt-0.5 min-w-0 break-words text-label text-foreground">
+                            {t(
+                              detail.key,
+                              detail.vars.outcome ? { ...detail.vars, outcome: t(detail.vars.outcome) } : detail.vars,
+                            )}
+                          </p>
+                        ) : null}
                         <p className="mt-0.5 flex flex-wrap gap-x-2 text-caption tabular-nums text-muted-foreground">
                           <time dateTime={item.occurred_at} title={formatMeetingStart(item.occurred_at, locale)}>
                             {formatRelativeTime(item.occurred_at, locale)}
