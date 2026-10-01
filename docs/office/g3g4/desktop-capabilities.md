@@ -1,23 +1,19 @@
-# UniWork Office desktop capability matrix
+﻿# Desktop Office capability matrix
 
-Revision: UNI-835 (G4-06a), DOCX first slice. Evidence is scoped to the
-desktop host and does not inherit a web capability result.
+Evidence for UNI-835 desktop library and DOCX slice. The desktop host exposes only the DOCX row as supported; every other format remains explicitly unsupported until its engine and acceptance evidence exist.
 
-| Format | Open | Edit | Serialize / Save | Download | Status | Evidence |
-| --- | --- | --- | --- | --- | --- | --- |
-| DOCX | supported | **blocked for AC-4 edit** | coordinator/transport seam is implemented; end-to-end content edit is blocked | supported with or without the engine | open/save host wiring is present; shared content surface is a G3 gap | `apps/office-desktop/renderer/office/host.ts`, `apps/office-desktop/renderer/office/editor.ts`, `apps/office-desktop/main/ipc.ts`, `packages/views/office/docx/` |
-| XLSX | not supported | not supported | not supported | not supported in this slice | explicitly unsupported | G4-06b |
-| PPTX | not supported | not supported | not supported | not supported in this slice | explicitly unsupported | G4-06b |
-| PDF | not supported | not supported | not supported | not supported in this slice | explicitly unsupported | G4-06b |
-| Markdown | not supported | not supported | not supported | not supported in this slice | explicitly unsupported | G4-06b |
-| HTML | not supported | not supported | not supported | not supported in this slice | explicitly unsupported | G4-06b (preview remains gated by G3-D2) |
+| Format | Open | Edit | Save | Status | Evidence |
+|---|---|---|---|---|---|
+| DOCX | yes | host seam only | typed office-save coordinator path | supported for library transport; content editing blocked on G3 editor surface | `apps/office-desktop/shared/ipc.ts`, `renderer/office/host.ts`, `renderer/office/editor.ts`, focused host tests |
+| XLSX | no | no | no | not supported | no desktop IPC or engine acceptance evidence |
+| PPTX | no | no | no | not supported | no desktop IPC or engine acceptance evidence |
+| PDF | no | no | no | not supported | no desktop IPC or engine acceptance evidence |
+| Markdown or HTML | no | no | no | not supported | desktop capability deliberately excludes browser source editors |
 
-The library filters `owner_kind=work_product` rows and scopes every query to
-the selected deployment/account/organization/workspace. Account or scope
-changes clear the query cache before a new render; generation checks discard
-late responses from the previous scope. If the engine is unavailable, committed
-DOCX rows remain visible and their permission-checked download action remains
-available. No local-file import, HTML preview process, Q7 consent, or other
-format capability is implied by this matrix.
+The desktop library filters to file DOCX rows and keeps download available when the engine is down. Work Product rows are excluded by the renderer model filter. Local file open uses an opaque main-process handle and bounded bytes; paths never cross the renderer boundary.
 
-AC-4 evidence: the desktop host can open committed DOCX bytes and constructs the shared save transport, but the shared DocxEditor currently has no content surface that can produce an edited snapshot. createDesktopOfficeHost.writeOutput fails closed until lane g3-04c-docx-renderer supplies that surface; this lane must record the edit step as blocked and must not claim that a changed document was saved and reopened.
+## Acceptance limitations
+
+The real AC-4 edit step is blocked: the shared DOCX editor content surface is owned by the G3 DOCX renderer lane and is not mounted in this slice. The desktop host and save coordinator seam are present and typed, so opening bytes and exercising Save transport can be tested independently, but this lane does not claim a visible text edit or reopen-after-edit pass.
+
+401 refresh remains a follow-up: `NativeLoginManager.refreshSession` is single-flight and covered by auth transport tests, but `office-transport.ts` still maps a 401 directly to `login_required`. Wiring the manager into that transport requires an injected refresh callback and a focused replay test; it must be completed before a production acceptance claim.
