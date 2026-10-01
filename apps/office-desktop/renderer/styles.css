@@ -12,3 +12,6 @@
 @source "../../../packages/ui";
 @source "../../../packages/views";
 @source "./";
+
+.desktop-titlebar { -webkit-app-region: drag; user-select: none; }
+.desktop-titlebar button { -webkit-app-region: no-drag; }

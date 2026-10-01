@@ -11,7 +11,7 @@ import type {
   DesktopLibraryDocument,
   DesktopSessionMetadata,
 } from "../shared/ipc";
-import { desktopFileResponseSchema, desktopLibraryCreateResponseSchema } from "../shared/ipc";
+import { desktopFileResponseSchema, desktopOfficeOpenResponseSchema } from "../shared/ipc";
 import { createLibraryController, createLibraryScopeController, type LibraryMode } from "./library/model";
 import { LibraryPicker, type LibraryPickerSelection } from "./library/picker";
 import { LibraryView } from "./library/view";
@@ -129,7 +129,7 @@ function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; meta
   const openCreated = async () => {
     if (!scope) return;
     const raw = await bridge.call("desktop:library-create", { sessionGeneration: SESSION_GENERATION, workspaceId: scope.workspaceId, title: "Untitled.docx" });
-    const created = desktopLibraryCreateResponseSchema.safeParse(raw);
+    const created = desktopOfficeOpenResponseSchema.safeParse(raw);
     if (created.success) setOpenedDocument(created.data.document);
   };
   const openLocal = async () => {

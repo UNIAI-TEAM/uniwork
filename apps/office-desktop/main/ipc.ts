@@ -3,7 +3,7 @@
 export * from "../shared/ipc";
 
 import type { NativeLoginManager } from "./auth/manager";
-import { desktopAuthConfigResponseSchema, desktopSessionMetadataSchema, desktopLibraryResponseSchema, desktopLibraryContextResponseSchema, desktopLibraryDownloadResponseSchema, desktopOfficeOpenResponseSchema, desktopLibraryCreateResponseSchema, desktopOfficeSaveResponseSchema, type DesktopLibraryResponse, type DesktopLibraryContextResponse, type DesktopLibraryDownloadResponse, type DesktopOfficeOpenResponse, type DesktopOfficeSaveResponse, type DesktopLibraryCreateResponse } from "../shared/ipc";
+import { desktopAuthConfigResponseSchema, desktopSessionMetadataSchema, desktopLibraryResponseSchema, desktopLibraryContextResponseSchema, desktopLibraryDownloadResponseSchema, desktopOfficeOpenResponseSchema, desktopOfficeSaveResponseSchema, type DesktopLibraryResponse, type DesktopLibraryContextResponse, type DesktopLibraryDownloadResponse, type DesktopOfficeOpenResponse, type DesktopOfficeSaveResponse, type DesktopLibraryCreateResponse } from "../shared/ipc";
 import type { FileHandleRegistry } from "./files/registry";
 import { LocalFileError } from "./files/registry";
 import type { DesktopDraftStore } from "./drafts/store";
@@ -55,7 +55,7 @@ export function createOfficeIpcHandlers(options: OfficeIpcOptions) {
     },
     "desktop:library-create": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { workspaceId: string; title: string }>) => {
       requireSession();
-      return desktopLibraryCreateResponseSchema.parse(await options.transport.create({ workspaceId: request.workspaceId, title: request.title }));
+      return desktopOfficeOpenResponseSchema.parse(await options.transport.create({ workspaceId: request.workspaceId, title: request.title }));
     },
     "desktop:library-download": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { workspaceId: string; documentId: string; version?: number }>) => {
       requireSession();

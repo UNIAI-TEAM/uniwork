@@ -26,7 +26,7 @@ export function LoginScreen({ state, onStart, onCancel }: LoginScreenProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.login" });
   const pending = state === "pending";
   return (
-    <div className="flex h-dvh min-h-0 items-center justify-center bg-background p-6" data-login-state={state}>
+    <div className="flex h-full min-h-0 items-center justify-center bg-background p-6" data-login-state={state}>
       <div className="flex w-full max-w-sm flex-col items-center gap-6 rounded-xl border border-border bg-surface p-8 text-center shadow-sm">
         <Logo variant="lockup" size={28} />
         <div className="flex flex-col gap-2">

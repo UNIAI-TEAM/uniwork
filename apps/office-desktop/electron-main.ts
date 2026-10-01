@@ -1,7 +1,7 @@
 // Electron is supplied by electron-builder at runtime and intentionally stays
 // a devDependency; this is the only privileged entry module that imports it.
 // eslint-disable-next-line import-x/no-extraneous-dependencies
-import { app, BrowserWindow, ipcMain, Menu, net, protocol, safeStorage, shell } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, nativeTheme, net, protocol, safeStorage, shell } from "electron";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -23,8 +23,10 @@ const SESSION_GENERATION = "desktop-dev-session";
 const SMOKE_MODE = process.argv.includes("--office-desktop-smoke");
 
 export const DESKTOP_TITLE_BAR_TOKENS = Object.freeze({
-  light: { color: "#FFFFFF", symbolColor: "#182230" },
-  dark: { color: "#172033", symbolColor: "#F4F7FB" },
+  // Electron requires literal colors. These mirror --background and
+  // --foreground in packages/ui/styles/tokens.css (:root and .dark).
+  light: { color: "#ffffff", symbolColor: "#202020" },
+  dark: { color: "#111111", symbolColor: "#f8f9fa" },
 });
 
 export function createNativeMenuTemplate(channel: "dev" | "beta" | "stable", onSave: () => void, isMac = process.platform === "darwin") {
@@ -152,7 +154,7 @@ async function startElectronHost(): Promise<void> {
       ...WINDOW_WEB_PREFERENCES,
       preload: PRELOAD_PATH,
     },
-    ...nativeWindowOptions(process.platform),
+    ...nativeWindowOptions(process.platform, nativeTheme.shouldUseDarkColors),
   });
   if (process.platform !== "darwin") window.setMenuBarVisibility(false);
   let nativeSaveListener: (() => void) | undefined;
@@ -186,6 +188,10 @@ async function startElectronHost(): Promise<void> {
     },
   }) : createNoopLaunchBridge(deploymentProfile?.deploymentId ?? DESKTOP_IDENTITY.appId);
   const host = createDesktopHost({
+    handlers: { "desktop:window-theme": (request) => {
+      if (process.platform !== "darwin") window.setTitleBarOverlay({ ...DESKTOP_TITLE_BAR_TOKENS[request.dark ? "dark" : "light"], height: 32 });
+      return { applied: true };
+    } },
     window: {
       webContents: window.webContents,
       webPreferences: WINDOW_WEB_PREFERENCES,

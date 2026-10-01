@@ -270,6 +270,7 @@
   },
   "settings": {
     "documents": {
+    "file_types": {"docx":"Word document","xlsx":"Excel spreadsheet","pptx":"PowerPoint presentation","pdf":"PDF document","md":"Markdown document","html":"HTML document","file":"File"},
       "title": "Documents",
       "description": "The organization's public links and storage usage.",
       "admin_only": "Only an organization owner or admin can change this setting.",
@@ -7197,7 +7198,10 @@
       "required": "Please sign in again.",
       "start": "Sign in with browser",
       "cancel": "Cancel login",
-      "signOut": "Sign out"
+      "signOut": "Sign out",
+      "libraryWorkspace": "Document library",
+      "accountUnknown": "UniWork account",
+      "switchWorkspace": "Switch workspace"
     },
     "library": {
       "pickerTitle": "Choose a deployment, account, organization, and workspace",
@@ -7219,7 +7223,18 @@
       "retry": "Retry",
       "create": "New document",
       "openLocal": "Open file on this device",
-      "empty": "No documents"
+      "empty": "No documents",
+      "contextError": "Workspaces could not be loaded.",
+      "emptyDescription": "Create a DOCX document or open an existing file on this device.",
+      "actionError": "The action could not be completed. Try again.",
+      "back": "Back to library",
+      "untitled": "Untitled.docx",
+      "saveLocal": "Save file",
+      "unsupported": "This format is not supported on desktop yet.",
+      "local": "Local file",
+      "ownerUnknown": "Workspace member",
+      "updated": "Updated {{time}}",
+      "contentPending": "DOCX content editing is not available yet. You can save and reopen the file."
     }
   }
 }

@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
-import { initI18n } from "@uniwork/core/i18n";
+import { initI18n, setLocale } from "@uniwork/core/i18n";
 import { App, type RendererBridge } from "./app";
+import { DesktopFrame } from "./desktop-frame";
 
 declare global {
   interface Window {
@@ -15,5 +16,5 @@ const bridge = window.uniworkOffice;
 
 if (root && bridge) {
   document.documentElement.lang = "vi";
-  createRoot(root).render(<App bridge={bridge} />);
+  void setLocale("vi").then(() => createRoot(root).render(<DesktopFrame bridge={bridge}><App bridge={bridge} /></DesktopFrame>));
 }

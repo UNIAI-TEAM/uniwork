@@ -13,6 +13,7 @@ export const DESKTOP_IPC_CHANNELS = [
   "desktop:auth-config",
   "desktop:auth-logout",
   "desktop:diagnostics",
+  "desktop:window-theme",
   "desktop:file-pick-open",
   "desktop:file-open",
   "desktop:file-save",
@@ -122,7 +123,6 @@ export const desktopOfficeOpenResponseSchema = z.object({
   checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/),
 }).strict();
 export type DesktopOfficeOpenResponse = z.infer<typeof desktopOfficeOpenResponseSchema>;
-export const desktopLibraryCreateResponseSchema = desktopOfficeOpenResponseSchema;
 export type DesktopLibraryCreateResponse = DesktopOfficeOpenResponse;
 export const desktopOfficeSaveResponseSchema = z.object({
   documentId: documentIdSchema,
@@ -153,11 +153,12 @@ const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:file-save-as": desktopFileResponseSchema,
   "desktop:draft-checkpoint": desktopDraftResponseSchema,
   "desktop:diagnostics": desktopDiagnosticsResponseSchema,
+  "desktop:window-theme": z.object({ applied: z.boolean() }).strict(),
   "desktop:library-list": desktopLibraryResponseSchema,
   "desktop:library-context": desktopLibraryContextResponseSchema,
   "desktop:library-recent": desktopLibraryResponseSchema,
   "desktop:library-search": desktopLibraryResponseSchema,
-  "desktop:library-create": desktopLibraryCreateResponseSchema,
+  "desktop:library-create": desktopOfficeOpenResponseSchema,
   "desktop:library-download": desktopLibraryDownloadResponseSchema,
   "desktop:office-open": desktopOfficeOpenResponseSchema,
   "desktop:office-save": desktopOfficeSaveResponseSchema,
@@ -187,6 +188,7 @@ const requestSchemas = {
   "desktop:auth-config": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:auth-logout": z.object({ sessionGeneration: sessionGenerationSchema, scope: z.enum(["device", "family"]).default("device") }).strict(),
   "desktop:diagnostics": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
+  "desktop:window-theme": z.object({ sessionGeneration: sessionGenerationSchema, dark: z.boolean() }).strict(),
   "desktop:file-pick-open": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:file-open": z.object({ sessionGeneration: sessionGenerationSchema, handle: fileHandleSchema }).strict(),
   "desktop:file-save": z.object({ sessionGeneration: sessionGenerationSchema, handle: fileHandleSchema, dataBase64: base64BytesSchema }).strict(),
