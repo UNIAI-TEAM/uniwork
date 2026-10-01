@@ -7271,7 +7271,8 @@
       "local": "Local file",
       "ownerUnknown": "Workspace member",
       "updated": "Updated {{time}}",
-      "contentPending": "DOCX content editing is not available yet. You can save and reopen the file."
+      "contentPending": "DOCX content editing is not available yet. You can save and reopen the file.",
+      "draftRecovered": "The selected draft was restored."
     }
   }
 }

@@ -36,3 +36,19 @@ it("forwards only metadata from auth session change events", () => {
   expect(received).toEqual([{ status: "signed-in", accountId: "account-1", deploymentId: "production-eu" }]);
   expect(JSON.stringify(received)).not.toContain("secret");
 });
+
+it("buffers a leave request that arrives before the renderer subscribes", () => {
+  let listener: ((...args: unknown[]) => void) | undefined;
+  const bridge = createPreloadBridge({ invoke: vi.fn(), on: (channel, next) => { if (channel === "desktop:leave-requested") listener = next; } });
+  listener?.({}, { requestId: "leave-1", reason: "close" });
+  const received: unknown[] = [];
+  const unsubscribe = bridge.onLeaveRequested((event) => received.push(event));
+  expect(received).toEqual([{ requestId: "leave-1", reason: "close" }]);
+  unsubscribe();
+  listener?.({}, { requestId: "leave-2", reason: "update" });
+  expect(received).toHaveLength(1);
+  listener?.({}, { requestId: "leave-3", reason: "not-a-reason" });
+  listener?.({}, { requestId: "leave-4", reason: "close", extra: "secret" });
+  expect(received).toHaveLength(1);
+  expect(JSON.stringify(received)).not.toContain("secret");
+});

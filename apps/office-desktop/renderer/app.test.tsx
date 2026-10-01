@@ -222,23 +222,23 @@ it("offers a found draft through the shared recovery prompt in vi and en", async
   expect(screen.getAllByRole("button", { name: i18n.t("office.recovery.keep") }).length).toBeGreaterThan(0);
 });
 
-it("renders a locked draft store with the shared permission vocabulary and no export action", async () => {
+it("renders a locked draft store with the shared recovery vocabulary and no export action", async () => {
   const { bridge } = makeBridge(signedInCalls((channel) => {
     if (channel === "desktop:draft-list") throw Object.assign(new Error("draft operation refused"), { code: "draft_recovery_locked" });
     return {};
   }));
   render(<App bridge={bridge} />);
-  await waitFor(() => expect(document.querySelector('[data-testid="office-save-permission"]')).not.toBeNull());
-  expect(screen.getByText(i18n.t("office.save.status.permission"))).toBeInTheDocument();
+  await waitFor(() => expect(document.querySelector('[data-testid="office-recovery-locked"]')).not.toBeNull());
+  expect(screen.getByText(i18n.t("office.recovery.locked"))).toBeInTheDocument();
   await act(async () => { await setLocale("en"); });
-  await waitFor(() => expect(screen.getByText(i18n.t("office.save.status.permission"))).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByText(i18n.t("office.recovery.locked"))).toBeInTheDocument());
   expect(screen.queryByRole("button", { name: /export|clipboard/i })).toBeNull();
 });
 
 it("shows the shared leave dialog for a host leave request and answers through the typed channel", async () => {
   const calls: Array<{ channel: string; payload: unknown }> = [];
   let request: ((event: { requestId: string; reason: "close" | "logout" | "update" }) => void) | undefined;
-  const call = signedInCalls(() => ({}));
+  const call = signedInCalls(() => ({})) as (channel: string, payload: unknown) => Promise<unknown>;
   const { bridge } = makeBridge((async (channel: string, payload: unknown) => { calls.push({ channel, payload }); return call(channel, payload); }) as RendererBridge["call"]);
   const live: RendererBridge = { ...bridge, onLeaveRequested: (listener) => { request = listener; return () => { request = undefined; }; } };
   render(<App bridge={live} />);

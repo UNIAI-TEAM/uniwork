@@ -7252,7 +7252,8 @@
       "local": "Tệp trên máy",
       "ownerUnknown": "Thành viên workspace",
       "updated": "Cập nhật {{time}}",
-      "contentPending": "Chỉnh sửa nội dung DOCX chưa khả dụng. Bạn có thể lưu và mở lại tệp."
+      "contentPending": "Chỉnh sửa nội dung DOCX chưa khả dụng. Bạn có thể lưu và mở lại tệp.",
+      "draftRecovered": "Đã khôi phục bản nháp đã chọn."
     }
   }
 }
