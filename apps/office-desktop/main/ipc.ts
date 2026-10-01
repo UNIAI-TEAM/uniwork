@@ -108,6 +108,7 @@ export interface FileIpcOptions {
   readonly registry: FileHandleRegistry;
   readonly pickOpen?: () => Promise<string | undefined>;
   readonly pickSaveAs?: () => Promise<string | undefined>;
+  readonly checkpoint?: (metadata: import("./files/registry").OpenFileMetadata, bytes: Uint8Array) => Promise<void>;
 }
 
 /** Only handle-based local-file commands are exposed. Picker callbacks run in
@@ -120,14 +121,23 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       if (!path) return { opened: false };
       const metadata = await safeFile(() => options.registry.openPath(path));
       const bytes = await safeFile(() => options.registry.read(metadata.handle));
+      await options.checkpoint?.(metadata, bytes);
       return { opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") };
     },
     "desktop:file-open": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string }>) => {
       const metadata = await safeFile(() => options.registry.openPathFromHandle(request.handle));
       const bytes = await safeFile(() => options.registry.read(request.handle));
+      await options.checkpoint?.(metadata, bytes);
       return { opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") };
     },
-    "desktop:file-save": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string; dataBase64: string }>) => ({ opened: true, metadata: await safeFile(() => options.registry.save(request.handle, decodeBytes(request.dataBase64))) }),
+    "desktop:file-save": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string; dataBase64: string }>) => {
+      const bytes = decodeBytes(request.dataBase64);
+      if (options.checkpoint) {
+        const metadata = await safeFile(() => options.registry.openPathFromHandle(request.handle));
+        await options.checkpoint(metadata, bytes);
+      }
+      return { opened: true, metadata: await safeFile(() => options.registry.save(request.handle, bytes)) };
+    },
     "desktop:file-save-as": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string; dataBase64: string }>) => {
       if (!options.pickSaveAs) throw new FileIpcError("invalid_path");
       const metadata = await safeFile(() => options.registry.saveAs(request.handle, decodeBytes(request.dataBase64), { pick: options.pickSaveAs! }));

@@ -4,6 +4,7 @@ import type { DesktopLibraryDocument, DesktopLibraryResponse, DesktopLibraryDown
 import type { CredentialStore } from "../auth/credentials";
 import type { DesktopOfficeTransport } from "../ipc";
 import { assertOrigin } from "./auth-transport";
+import { blankDocxBytes } from "../files/blank-docx";
 
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
@@ -61,16 +62,17 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
     async context() {
       const session = await options.credentials.get();
       if (!session) throw new Error("login_required");
-      const raw = await json("/orgs");
+      const [raw, profileRaw] = await Promise.all([json("/orgs"), json("/me")]);
+      const person = profileRaw && typeof profileRaw === "object" && "user" in profileRaw ? profileRaw.user as Record<string, unknown> : {};
       const body = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
       const entries = (value: unknown) => Array.isArray(value) ? value.map((item) => item && typeof item === "object" ? { id: String((item as Record<string, unknown>).id ?? ""), name: String((item as Record<string, unknown>).name ?? "") } : null).filter((item): item is { id: string; name: string } => !!item && item.id.length > 0 && item.name.length > 0) : [];
       const organizations = entries(body.organizations);
       const workspaceResults = await Promise.all(organizations.map(async (organization) => {
         const result = await json(`/orgs/${encodeURIComponent(organization.id)}/workspaces`);
         const rows = result && typeof result === "object" ? (result as Record<string, unknown>).workspaces : [];
-        return entries(rows);
+        return entries(rows).map((workspace) => ({ ...workspace, organizationId: organization.id }));
       }));
-      return { deployments: [{ id: options.profile.deploymentId, name: options.profile.deploymentId }], accounts: [{ id: session.accountId, name: session.accountId }], organizations, workspaces: workspaceResults.flat() };
+      return { deployments: [{ id: options.profile.deploymentId, name: new URL(options.profile.apiOrigin).host }], accounts: [{ id: session.accountId, name: typeof person.display_name === "string" && person.display_name ? person.display_name : "UniWork", ...(typeof person.email === "string" ? { email: person.email } : {}) }], organizations, workspaces: workspaceResults.flat() };
     },
     async list(input: { workspaceId: string; cursor?: string; mode: "list" | "recent" | "search"; query?: string }): Promise<DesktopLibraryResponse> {
       const endpoint = input.mode === "recent" ? "recent" : "";
@@ -78,18 +80,33 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
       if (input.query) params.set("q", input.query);
       if (input.cursor) params.set("cursor", input.cursor);
       params.set("limit", "50");
+      params.set("kind", "file");
       const query = params.toString();
       const raw = await json(`/workspaces/${encodeURIComponent(input.workspaceId)}/documents${endpoint ? `/${endpoint}` : ""}${query ? `?${query}` : ""}`);
       const body = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
       const rows = Array.isArray(body.documents) ? body.documents : [];
+      const memberRaw = rows.length ? await json(`/workspaces/${encodeURIComponent(input.workspaceId)}/members`).catch(() => null) : null;
+      const members = memberRaw && typeof memberRaw === "object" && "members" in memberRaw && Array.isArray(memberRaw.members) ? memberRaw.members : [];
+      const ownerNames = new Map<string, string>();
+      for (const member of members) if (member && typeof member === "object" && typeof member.user_id === "string" && typeof member.display_name === "string") ownerNames.set(member.user_id, member.display_name);
       const documents = rows.map((row) => toLibraryDocument(row, input.workspaceId)).filter((row): row is DesktopLibraryDocument => row !== undefined);
-      return { documents, nextCursor: typeof body.next_cursor === "string" ? body.next_cursor : null, engineAvailable: true };
+      for (const document of documents) {
+        const row = rows.find((candidate) => candidate && typeof candidate === "object" && "id" in candidate && candidate.id === document.id);
+        if (row && typeof row === "object" && "created_by" in row && typeof row.created_by === "string") document.ownerName = ownerNames.get(row.created_by);
+      }
+      const capabilities = documents[0] ? await json(`/documents/${encodeURIComponent(documents[0].id)}/office/capabilities`).catch(() => null) : null;
+      const operations = capabilities && typeof capabilities === "object" && "operations" in capabilities && Array.isArray(capabilities.operations) ? capabilities.operations : [];
+      const engineAvailable = operations.some((row: unknown) => !!row && typeof row === "object" && "operation" in row && row.operation === "open" && "supported" in row && row.supported === true);
+      return { documents, nextCursor: typeof body.next_cursor === "string" ? body.next_cursor : null, engineAvailable };
     },
     async create(input: { workspaceId: string; title: string }): Promise<DesktopLibraryCreateResponse> {
-      const raw = await json(`/workspaces/${encodeURIComponent(input.workspaceId)}/documents/files/blank`, {
+      const form = new FormData();
+      form.set("file", new Blob([blankDocxBytes() as BlobPart], { type: DOCX_MIME }), input.title);
+      form.set("title", input.title);
+      const raw = await json(`/workspaces/${encodeURIComponent(input.workspaceId)}/documents/files`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": `desktop-create-${crypto.randomUUID()}` },
-        body: JSON.stringify({ format: "docx", title: input.title }),
+        headers: { "Idempotency-Key": `desktop-create-${crypto.randomUUID()}` },
+        body: form,
       });
       const body = raw && typeof raw === "object" && "document" in raw ? (raw as { document: unknown }).document : raw;
       const document = toLibraryDocument(body, input.workspaceId);

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createHttpOfficeTransport } from "./office-transport";
+import { blankDocxBytes } from "../files/blank-docx";
 
 const profile = { deploymentId: "lane", apiOrigin: "http://127.0.0.1:8787", clientId: "uniwork-office-dev", channel: "dev" as const };
 const credentials = {
@@ -9,6 +10,28 @@ const credentials = {
 };
 
 describe("desktop office HTTP transport", () => {
+  it("creates a valid blank DOCX through file creation and opens the committed bytes without an engine", async () => {
+    const bytes = blankDocxBytes();
+    expect(Buffer.from(bytes).subarray(0, 4).toString("hex")).toBe("504b0304");
+    expect(Buffer.from(bytes).toString()).toContain("word/document.xml");
+    expect(Buffer.from(bytes).toString()).toContain("<w:p/>");
+    const fetchImpl = vi.fn(async (url: string, init?: RequestInit) => {
+      if (url.endsWith("/documents/files")) {
+        expect(init?.method).toBe("POST");
+        const form = init?.body as FormData;
+        expect(new Uint8Array(await (form.get("file") as Blob).arrayBuffer())).toEqual(bytes);
+        expect(new Headers(init?.headers).get("Idempotency-Key")).toMatch(/^desktop-create-/);
+        return new Response(JSON.stringify({ document: { id: "new-doc", kind: "file", title: "Blank.docx", current_version: 1, revision: "1", my_level: "manage" } }));
+      }
+      if (url.includes("/download")) return new Response(bytes as BodyInit, { headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document" } });
+      throw new Error("Unexpected engine call");
+    });
+    const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
+    const result = await transport.create({ workspaceId: "ws", title: "Blank.docx" });
+    expect(result.document).toMatchObject({ id: "new-doc", version: 1, canEdit: true });
+    expect(Buffer.from(result.dataBase64, "base64")).toEqual(Buffer.from(bytes));
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
   it("refreshes once across concurrent expired requests and replays with the rotated token", async () => {
     let session = credentials.get();
     let finishRefresh!: () => void;
@@ -59,14 +82,15 @@ describe("desktop office HTTP transport", () => {
       expect(input).toMatch(/^http:\/\/127\.0\.0\.1:8787\/api\/v1\//);
       expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer secret");
       if (input.endsWith("/orgs")) return new Response(JSON.stringify({ organizations: [{ id: "org-1", name: "Org" }] }), { status: 200 });
+      if (input.endsWith("/me")) return new Response(JSON.stringify({ user: { display_name: "Test User", email: "test@example.com" } }));
       if (input.endsWith("/orgs/org-1/workspaces")) return new Response(JSON.stringify({ workspaces: [{ id: "ws-1", name: "Workspace" }] }), { status: 200 });
       if (input.includes("/workspaces/ws-1/documents")) return new Response(JSON.stringify({ documents: [], next_cursor: null }), { status: 200 });
       return new Response(JSON.stringify({}), { status: 404 });
     });
     const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
     await expect(transport.context()).resolves.toMatchObject({ organizations: [{ id: "org-1" }], workspaces: [{ id: "ws-1" }] });
-    await expect(transport.list({ workspaceId: "ws-1", mode: "list" })).resolves.toMatchObject({ documents: [], nextCursor: null, engineAvailable: true });
-    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    await expect(transport.list({ workspaceId: "ws-1", mode: "list" })).resolves.toMatchObject({ documents: [], nextCursor: null, engineAvailable: false });
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
   });
 
   it("rejects an origin outside the deployment profile policy", () => {
@@ -103,7 +127,7 @@ describe("desktop office HTTP transport", () => {
     const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl });
     await expect(transport.list({ workspaceId: "ws-1", mode: "list" })).resolves.toMatchObject({
       documents: [{ id: "doc-1", workspaceId: "ws-1", title: "docx-simple.docx", kind: "file", format: "docx", canEdit: true }],
-      engineAvailable: true,
+      engineAvailable: false,
     });
   });
 

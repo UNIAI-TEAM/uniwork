@@ -1,12 +1,12 @@
 // Electron is supplied by electron-builder at runtime and intentionally stays
 // a devDependency; this is the only privileged entry module that imports it.
 // eslint-disable-next-line import-x/no-extraneous-dependencies
-import { app, BrowserWindow, ipcMain, Menu, nativeTheme, net, protocol, safeStorage, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, net, protocol, safeStorage, shell } from "electron";
 import { existsSync } from "node:fs";
-import { dirname, join, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST, getChannelIdentity } from "./shared/identity";
-import { DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema } from "./shared/ipc";
+import { DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema, desktopFileResponseSchema } from "./shared/ipc";
 import { createDesktopHost, WINDOW_WEB_PREFERENCES } from "./main/index";
 import { createHttpExchangePort, createLaunchBridge, type DeepLinkSystem } from "./main/deep-links";
 import { resolveDeploymentProfile, type DeploymentProfile } from "./shared/deployment";
@@ -15,12 +15,16 @@ import { createSystemBrowserLauncher } from "./main/auth/browser";
 import { NativeLoginManager } from "./main/auth/manager";
 import { createHttpAuthTransport } from "./main/transport/auth-transport";
 import { createHttpOfficeTransport } from "./main/transport/office-transport";
+import { FileHandleRegistry } from "./main/files/registry";
+import { createProtectedFileCheckpoints } from "./main/files/protected-files";
 
 const DIST_MAIN_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 const RENDERER_DIRECTORY = resolve(DIST_MAIN_DIRECTORY, "../renderer");
 const PRELOAD_PATH = resolve(DIST_MAIN_DIRECTORY, "../preload/index.cjs");
 const SESSION_GENERATION = "desktop-dev-session";
 const SMOKE_MODE = process.argv.includes("--office-desktop-smoke");
+const nativeFiles: string[] = [];
+app.on("open-file", (event, path) => { event.preventDefault(); nativeFiles.push(path); });
 
 export const DESKTOP_TITLE_BAR_TOKENS = Object.freeze({
   // Electron requires literal colors. These mirror --background and
@@ -158,13 +162,21 @@ async function startElectronHost(): Promise<void> {
   });
   if (process.platform !== "darwin") window.setMenuBarVisibility(false);
   let nativeSaveListener: (() => void) | undefined;
+  const localRegistry = new FileHandleRegistry({ sessionId: SESSION_GENERATION });
+  const protectFile = createProtectedFileCheckpoints(app.getPath("userData"), safeStorage, () => ({
+    accountId: authManager?.getMetadata().accountId ?? "local-device",
+    deploymentId: deploymentProfile?.deploymentId ?? "local-device",
+    generation: authManager?.getGeneration() ?? 1,
+  }));
   let activeDocumentId: string | undefined;
+  const localCheckpoint: typeof protectFile = async (metadata, bytes) => { await protectFile(metadata, bytes); activeDocumentId = metadata.handle; };
   window.on("closed", () => { activeDocumentId = undefined; });
   // Keep the platform editing roles available (especially Cmd/C/X/V on
   // macOS) while adding the one desktop Save action owned by the host.
   Menu.setApplicationMenu(Menu.buildFromTemplate(createNativeMenuTemplate(DESKTOP_IDENTITY_MANIFEST.build.channel, () => nativeSaveListener?.())));
   publishSessionMetadata = (metadata) => {
     const parsed = desktopSessionMetadataSchema.parse(metadata);
+    if (parsed.status !== "signed-in") localRegistry.revoke();
     window.webContents.send?.("desktop:auth-session-changed", parsed);
   };
   // Electron's main-frame invoke events use frame id 0. Keep this explicit so
@@ -211,6 +223,16 @@ async function startElectronHost(): Promise<void> {
     },
     deepLinks: { system: createDeepLinkSystem(), bridge: launchBridge },
     authManager,
+    localFiles: { registry: localRegistry, checkpoint: localCheckpoint,
+      pickOpen: async () => {
+        const result = await dialog.showOpenDialog(window, { properties: ["openFile"], filters: [{ name: "Word", extensions: ["docx"] }, { name: "Files", extensions: ["*"] }] });
+        return result.canceled ? undefined : result.filePaths[0];
+      },
+      pickSaveAs: async () => {
+        const result = await dialog.showSaveDialog(window, { filters: [{ name: "Word", extensions: ["docx"] }] });
+        return result.canceled ? undefined : result.filePath;
+      },
+    },
     deploymentProfile,
     userDataDirectory: app.getPath("userData"),
     ...(deploymentProfile && credentials ? { office: { transport: createHttpOfficeTransport({ profile: deploymentProfile, credentials, refreshSession: async () => {
@@ -226,6 +248,24 @@ async function startElectronHost(): Promise<void> {
       return host.dispatch(channel, payload);
     });
   }
+  ipcMain.handle("desktop:native-drop-open", async (event, payload: unknown) => {
+    if (event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) throw new Error("invalid_sender");
+    if (!payload || typeof payload !== "object" || !("path" in payload) || typeof payload.path !== "string" || !isAbsolute(payload.path)) throw new Error("invalid_file");
+    const metadata = await localRegistry.openEvent(payload.path);
+    const bytes = await localRegistry.read(metadata.handle);
+    await localCheckpoint(metadata, bytes);
+    return desktopFileResponseSchema.parse({ opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") });
+  });
+  const announceFile = async (path: string) => {
+    if (!isAbsolute(path) || !/\.docx$/i.test(path)) return;
+    try {
+      const metadata = await localRegistry.openEvent(path);
+      window.webContents.send("desktop:file-open-requested", { handle: metadata.handle });
+    } catch { /* Refused local files never cross the preload seam. */ }
+  };
+  app.on("second-instance", (_event, argv) => { for (const path of argv.filter((arg) => /\.docx$/i.test(arg))) void announceFile(path); });
+  app.on("open-file", (_event, path) => { if (!window.webContents.isLoading()) void announceFile(path); });
+  window.webContents.once("did-finish-load", () => { for (const path of [...nativeFiles.splice(0), ...process.argv.filter((arg) => /\.docx$/i.test(arg))]) void announceFile(path); });
 
   window.once("ready-to-show", () => {
     if (!SMOKE_MODE) {
