@@ -148,6 +148,7 @@ func New(d Deps, h Routes) http.Handler {
 			registerFiles(authed, h)
 			registerDocuments(authed, h, d.FeatureFlags)
 			registerOfficeLaunch(authed, h)
+			registerOfficeDesktopDownload(authed, h)
 			if d.PlatformRoles != nil {
 				adminLimit := mw.RateLimit(d.Redis, d.Cfg.AdminRateLimitPerMin, time.Minute, proxies)
 				registerAdmin(authed, h, adminLimit,

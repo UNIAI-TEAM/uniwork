@@ -10,6 +10,7 @@ type Routes struct {
 	WS     http.HandlerFunc
 
 	Config                     http.HandlerFunc
+	OfficeDesktopDownload      http.HandlerFunc
 	RUM                        http.HandlerFunc
 	AdminMe                    http.HandlerFunc
 	AdminListOrganizations     http.HandlerFunc

@@ -1,5 +1,15 @@
 package sdo
 
+// OfficeDesktopDownloadSDO is the non-secret deployment profile returned by
+// GET /api/v1/office/desktop/download.
+type OfficeDesktopDownloadSDO struct {
+	InstallerURL string `json:"installer_url" description:"Configured installer URL" example:"https://downloads.example/uniwork-office-beta.exe"`
+	ServerOrigin string `json:"server_origin" description:"API origin for desktop calls" example:"https://app.example.com"`
+	Channel      string `json:"channel" description:"Deployment channel" example:"stable"`
+	ClientID     string `json:"client_id" description:"Public desktop OAuth client id" example:"uniwork-office"`
+	DeploymentID string `json:"deployment_id" description:"Public deployment binding" example:"default"`
+}
+
 // SDO types for the Office surface (plan G2-07 / UNI-690). Revision stays a
 // decimal string on the wire (plan §3.3). The job payload never carries an
 // engine address, a storage key or a grant: only ids, the pinned engine

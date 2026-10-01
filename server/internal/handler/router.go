@@ -137,6 +137,7 @@ func New(d Deps) http.Handler {
 		Ready:  h.ready,
 
 		Config:                     h.config,
+		OfficeDesktopDownload:      h.officeDesktopDownload,
 		RUM:                        h.rum,
 		AdminMe:                    h.adminMe,
 		AdminListOrganizations:     h.adminListOrganizations,

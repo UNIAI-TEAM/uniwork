@@ -358,6 +358,27 @@ func (s *AuditService) DownloadExport(ctx context.Context, userID, orgID, export
 	}, nil
 }
 
+// RecordOfficeDesktopDownload gates the profile by organization membership and
+// records the download in the same transaction as the command.
+func (s *AuditService) RecordOfficeDesktopDownload(ctx context.Context, userID, orgID, channel, deploymentID string) error {
+	if _, err := s.orgs.RequireMember(ctx, orgID, userID); err != nil {
+		return err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	if err := auditRecorder.Record(ctx, s.q.WithTx(tx), audit.Entry{
+		OrganizationID: orgID, Actor: audit.User(userID), Action: audit.ActionOfficeDesktopDownloaded,
+		ResourceType: "office_desktop_download", ResourceID: deploymentID,
+		Metadata: map[string]any{"channel": channel, "deployment_id": deploymentID},
+	}); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 // viewsFor parses the JSON columns and drops the IP address for anyone but an
 // owner. Admins see who did what and when; the address is personal data under
 // Nghị định 13 and is not needed to answer that (OPEN_QUESTIONS A2).

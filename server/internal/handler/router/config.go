@@ -26,3 +26,11 @@ func registerConfig(r api, h Routes, rumLimit func(http.Handler) http.Handler) {
 		status:      204,
 	})
 }
+
+func registerOfficeDesktopDownload(r api, h Routes) {
+	r.Get("/office/desktop/download", h.OfficeDesktopDownload, apiOp{
+		summary:     "Get the Office desktop installer profile",
+		description: "Requires organization membership and returns a configured channel installer plus a non-secret deployment profile.",
+		tags:        []string{"meta"}, sdo: sdo.OfficeDesktopDownloadSDO{}, auth: true,
+	})
+}

@@ -11,6 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/a
 import { useTranslation } from "react-i18next";
 import { createOfficeEditorSession, type OfficeEditorSession, type OfficeRecoveryState } from "./editor-host-core";
 import { getPublicConfig } from "@uniwork/core/api/endpoints/config";
+import { getOfficeDesktopDownload } from "@uniwork/core/api/endpoints/office-desktop";
 import { listDocumentVersions } from "@uniwork/core/api/endpoints/documents-versions";
 import { launchOfficeDeepLink } from "./desktop-handoff";
 export * from "./editor-host-core";
@@ -238,7 +239,11 @@ export function OfficeEditorHost<TSnapshot = unknown>({
             }}
             channel={officeChannel}
             installerURLs={installerURLs}
-            loadInstallerURLs={async () => (await getPublicConfig(document.organization_id)).office_installer_urls ?? { dev: "", beta: "", stable: "" }}
+            loadInstallerURLs={async () => {
+              const profile = await getOfficeDesktopDownload(document.organization_id, officeChannel);
+              if (profile) return { dev: profile.installer_url, beta: profile.installer_url, stable: profile.installer_url };
+              return (await getPublicConfig(document.organization_id)).office_installer_urls ?? { dev: "", beta: "", stable: "" };
+            }}
             launch={launchOfficeDeepLink}
           />
         ) : null}
