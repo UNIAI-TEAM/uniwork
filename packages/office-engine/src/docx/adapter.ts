@@ -20,7 +20,7 @@ import {
   type OpenOutcome,
 } from "@uniwork/office-contracts";
 import type { OoxmlCrypto } from "./engine";
-import type { DocxBlock, DocxEngineFunctions, DocxParsed } from "./engine";
+import type { DocxBlock, DocxEngineFunctions, DocxNumberingDef, DocxParsed } from "./engine";
 import { DocxSessionModel, editableIndexes, visibleIndexes, type DocxEdit } from "./model";
 import { DocPasswordIntents } from "./password";
 import { inventoryDocxAssets, unsupportedDocxWarnings, type DocxAssetInventory } from "./assets";
@@ -400,6 +400,14 @@ export class DocxAdapter {
    * only seam between the engine and a host). */
   blocksOf(ref: string): DocxBlock[] {
     return this.sessionOf(ref).model.blocks;
+  }
+
+  /** Numbering definitions (numId -> def) of the open model, from the parse
+   * (word/numbering.xml). A renderer needs them to draw the document's real
+   * list markers/levels; empty when the parse carried none. */
+  numberingOf(ref: string): Map<string, DocxNumberingDef> {
+    const numbering = this.sessionOf(ref).model.parsed.numbering;
+    return numbering instanceof Map ? numbering : new Map();
   }
 }
 

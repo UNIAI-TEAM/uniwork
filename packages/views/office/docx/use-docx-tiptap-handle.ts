@@ -154,7 +154,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
       openedOutcome = outcome;
       sourceBase64 = encodeDocxSource(bytes);
       tiptapEditor = new Editor({
-        extensions: docxExtensions(),
+        extensions: docxExtensions(options.adapter.numberingOf(ref)),
         content: blocksToDoc(options.adapter.blocksOf(ref)),
         editable: !options.readOnly,
         onTransaction: ({ transaction }) => {
