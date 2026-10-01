@@ -63,6 +63,19 @@ async function openHandle(blocks: Array<Record<string, unknown>> = KITCHEN_SINK)
 }
 
 describe("createDocxTiptapHandle", () => {
+  it("publishes document changes immediately and stops publishing after unsubscribe", async () => {
+    const { handle } = await openHandle();
+    const dirty = vi.fn();
+    const unsubscribe = handle.subscribeDirty!(dirty);
+    handle.commands?.setHeading(2);
+    expect(dirty).toHaveBeenLastCalledWith(handle.getDirtyGeneration());
+    expect(handle.getDirtyGeneration()).toBeGreaterThan(0);
+    unsubscribe();
+    dirty.mockClear();
+    handle.commands?.setHeading(3);
+    expect(dirty).not.toHaveBeenCalled();
+    await handle.dispose();
+  });
   it("renders real content instead of a placeholder once opened", async () => {
     const { handle } = await openHandle();
     const node = handle.renderSurface?.();

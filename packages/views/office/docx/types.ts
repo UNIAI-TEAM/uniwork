@@ -56,6 +56,7 @@ export type DocxEditorHandle<TSnapshot = unknown> = EditorHandle<TSnapshot> & {
    * that stub the handle, which keeps rendering the host-shell placeholder. */
   renderSurface?: () => ReactNode;
   commands?: DocxFormatCommands;
+  subscribeDirty?: (listener: (generation: number) => void) => () => void;
 };
 
 /** The view consumes the published G2 wire shape instead of maintaining a
@@ -97,6 +98,8 @@ export interface DocxEditorProps<TSnapshot = unknown> {
   capability?: DocxCapability;
   title?: string;
   className?: string;
+  /** A host that owns the session disposes it when its adapter is released. */
+  manageSession?: boolean;
   onOpen?: (outcome: DocxOpenOutcome) => void;
   onSelectionChange?: (selection: DocxSelection | null) => void;
 }

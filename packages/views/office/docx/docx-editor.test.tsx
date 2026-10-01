@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { DocxEditor } from "./docx-editor";
 import type { DocxEditorHandle, DocxOpenFailure, DocxOpenOutcome, DocxSaveCoordinator } from "./types";
@@ -71,6 +72,30 @@ function renderEditor(outcome: DocxOpenOutcome, options?: { key?: string; open?:
 }
 
 describe("DocxEditor", () => {
+  it("leaves a host-owned session alive during Strict Mode replay and unmount", async () => {
+    const handle = editor();
+    const saveCoordinator = coordinator();
+    const open = { open: vi.fn(async () => opened()) };
+    const view = render(<StrictMode><DocxEditor documentKey="doc" editor={handle} open={open} coordinator={saveCoordinator} manageSession={false} capability={{ format: "docx", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} /></StrictMode>);
+    await waitFor(() => expect(screen.getByTestId("docx-canvas")).toBeInTheDocument());
+    expect(handle.dispose).not.toHaveBeenCalled();
+    expect(handle.cancel).not.toHaveBeenCalled();
+    view.unmount();
+    expect(handle.dispose).not.toHaveBeenCalled();
+  });
+
+  it("marks the coordinator dirty immediately on an editor change", async () => {
+    const handle = editor();
+    const saveCoordinator = coordinator();
+    let listener: ((generation: number) => void) | undefined;
+    const unsubscribe = vi.fn();
+    handle.subscribeDirty = (callback) => { listener = callback; return unsubscribe; };
+    const view = render(<DocxEditor documentKey="doc" editor={handle} open={{ open: async () => opened() }} coordinator={saveCoordinator} capability={{ format: "docx", operation: "serialize", host: "browser", engineBuild: "test", contractRevision: "test", status: "available", fidelityWarnings: [] }} />);
+    listener?.(7);
+    expect(saveCoordinator.markDirty).toHaveBeenCalledWith(7);
+    view.unmount();
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
   it("mounts the host handle, exposes selection and routes Save through the coordinator", async () => {
     const save = vi.fn(async () => ({ accepted: false as const, reason: "clean" as const }));
     const { handle, saveCoordinator } = renderEditor(opened(), { coordinator: coordinator({ save }) });

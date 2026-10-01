@@ -43,6 +43,7 @@ export function DocxEditor<TSnapshot = unknown>({
   capability,
   title,
   className,
+  manageSession = true,
   onOpen,
   onSelectionChange,
 }: DocxEditorProps<TSnapshot>) {
@@ -78,6 +79,8 @@ export function DocxEditor<TSnapshot = unknown>({
     setCoordinatorState(coordinator.getState());
     return coordinator.subscribe(setCoordinatorState);
   }, [coordinator, documentKey]);
+
+  useEffect(() => editor.subscribeDirty?.((generation) => coordinator.markDirty?.(generation)), [editor, coordinator]);
 
   useEffect(() => {
     const selectionPort = editor.selection;
@@ -158,13 +161,15 @@ export function DocxEditor<TSnapshot = unknown>({
     return () => {
       disposedRef.current = true;
       controller.abort();
-      void activeEditor.cancel?.("document_changed");
-      void activeCoordinator.cancel?.();
-      void activeEditor.dispose();
+      if (manageSession) {
+        void activeEditor.cancel?.("document_changed");
+        void activeCoordinator.cancel?.();
+        void activeEditor.dispose();
+      }
     };
     // The session is keyed by documentKey/retryToken. Callback and adapter
     // objects are refs so a shell re-render cannot cancel an active document.
-  }, [documentKey, retryToken, capabilityOperation, capabilityStatus]);
+  }, [documentKey, retryToken, capabilityOperation, capabilityStatus, manageSession]);
 
   const save = useCallback((entryPoint: "button" | "shortcut" = "button") => {
     if (viewState !== "ready" || readOnly) return;

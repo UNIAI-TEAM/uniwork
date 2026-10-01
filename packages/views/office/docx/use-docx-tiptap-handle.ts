@@ -13,7 +13,7 @@ import type { StableSnapshot } from "@uniwork/core/office";
 import { blocksToDoc } from "./docx-doc-convert";
 import { applyDocxSnapshot, encodeDocxSource, decodeDocxSource } from "./docx-save-bridge";
 import { docxExtensions, type DocxBlockAttrs } from "./docx-schema";
-import type { DocxEditorHandle, DocxFormatCommands, DocxFormatState, DocxSelection, DocxSelectionPort } from "./types";
+import type { DocxEditorHandle, DocxFormatCommands, DocxFormatState, DocxOpenSuccess, DocxSelection, DocxSelectionPort } from "./types";
 
 function nextListId(): string {
   return "new-list-" + (globalThis.crypto?.randomUUID?.() ?? String(Date.now()) + Math.random().toString(36).slice(2));
@@ -39,6 +39,7 @@ export interface DocxTiptapHandleOptions {
 
 export interface DocxTiptapHandle extends DocxEditorHandle<DocxTiptapSnapshot> {
   modelRef(): string | null;
+  openOutcome(): DocxOpenSuccess | null;
   serializeSnapshot(snapshot: StableSnapshot<DocxTiptapSnapshot>): Promise<{ bytes: Uint8Array; checksum: string; warnings?: unknown[] }>;
   restoreSnapshot(snapshot: StableSnapshot<DocxTiptapSnapshot>): void;
 }
@@ -55,9 +56,11 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
   let tiptapEditor: Editor | null = null;
   let ref: string | null = null;
   let sourceBase64 = "";
+  let openedOutcome: DocxOpenSuccess | null = null;
   let generation = 0;
   let disposed = false;
   const selectionListeners = new Set<(selection: DocxSelection | null) => void>();
+  const dirtyListeners = new Set<(generation: number) => void>();
 
   const currentSelection = (): DocxSelection | null => {
     if (!tiptapEditor) return null;
@@ -148,13 +151,17 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
         throw error;
       }
       ref = outcome.document_model_ref;
+      openedOutcome = outcome;
       sourceBase64 = encodeDocxSource(bytes);
       tiptapEditor = new Editor({
         extensions: docxExtensions(),
         content: blocksToDoc(options.adapter.blocksOf(ref)),
         editable: !options.readOnly,
         onTransaction: ({ transaction }) => {
-          if (transaction.docChanged) generation += 1;
+          if (transaction.docChanged) {
+            generation += 1;
+            for (const listener of dirtyListeners) listener(generation);
+          }
           emitSelection();
           emitFormatState();
         },
@@ -162,6 +169,10 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
       generation = 0;
     },
     getDirtyGeneration: () => generation,
+    subscribeDirty(listener) {
+      dirtyListeners.add(listener);
+      return () => dirtyListeners.delete(listener);
+    },
     async captureSnapshot() {
       if (!tiptapEditor || !ref) throw new Error("docx_snapshot_unavailable");
       const value: DocxTiptapSnapshot = { doc: tiptapEditor.getJSON(), sourceBase64 };
@@ -180,8 +191,10 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
       tiptapEditor = null;
       if (ref) options.adapter.release(ref);
       ref = null;
+      openedOutcome = null;
       selectionListeners.clear();
       formatListeners.clear();
+      dirtyListeners.clear();
     },
     renderSurface(): ReactNode {
       if (!tiptapEditor) return null;
@@ -191,6 +204,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
       });
     },
     modelRef: () => ref,
+    openOutcome: () => openedOutcome,
     async serializeSnapshot(snapshot) {
       if (disposed || options.readOnly) throw new Error("docx_save_unavailable");
       const opened = await options.adapter.open({ bytes: decodeDocxSource(snapshot.value.sourceBase64), format: "docx", document_id: options.documentId });
@@ -208,6 +222,7 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
       if (snapshot.value.sourceBase64 !== sourceBase64) throw new Error("docx_draft_base_mismatch");
       tiptapEditor.commands.setContent(snapshot.value.doc);
       generation = Math.max(generation, snapshot.generation);
+      for (const listener of dirtyListeners) listener(generation);
     },
   };
   return handle;

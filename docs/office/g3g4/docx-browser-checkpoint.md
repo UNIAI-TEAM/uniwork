@@ -45,6 +45,31 @@ This is an integration harness, not a browser click/keyboard or server test.
 Evidence is in the lane report logs `ooxml-roundtrip-r4.log` (40/40),
 `ooxml-typecheck-r1.log` and `ooxml-lint-r2.log` under Node 22.23.2.
 
+## Web integration checkpoint
+
+The documents route now selects a lazy DOCX host for DOCX files. The host
+negotiates open/edit/serialize capabilities for the current document before
+loading the browser adapter. It binds the vendored engine and shared TipTap
+view to the protected browser draft session and the existing Documents
+upload/version-commit endpoints. Upload and commit receipts must match the
+document, checksum and size; revision strings and idempotency keys are retained.
+
+Editor transactions publish dirty generations immediately. The host owns
+session disposal, so React Strict Mode effect replay leaves the active editor
+alive. Late responses from a replaced document are ignored; presentation-only
+title changes retain the editing session. G2 open warnings pass through intact.
+
+Focused evidence on Node 22.23.2: DOCX views 43/43, web host/transport plus
+XLSX/host regressions 25/25, web/views typecheck and focused lint. Logs:
+`web-docx-views-r2.log`, `web-docx-host-tests-r2.log`,
+`web-docx-typecheck-r3.log`, `web-docx-views-typecheck-r1.log`,
+`web-docx-host-lint-r4.log`, `web-docx-lint-r2.log`,
+`web-docx-views-lint-r1.log`.
+
+This checkpoint does not prove the real browser/server save interaction,
+page fidelity, read-only content viewing, web build or gzip delta. Those remain
+part of the acceptance work below.
+
 ## Acceptance still outstanding
 
 This checkpoint does not establish full AC-2 through AC-6. Remaining work is
