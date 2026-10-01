@@ -58,6 +58,7 @@ import {
 } from "./meeting-room-announcers";
 import { MeetingRoomAvatarsProvider, useRoomAvatarOf } from "./meeting-room-avatars";
 import { MeetingScheduleBanner } from "./meeting-schedule-banner";
+import { MeetingVotePrompt } from "./meeting-vote-prompt";
 import { guestIdentities, muteRequesterIdentities, participantRole } from "./meeting-signals";
 import { MeetingModerationProvider } from "./meeting-moderation";
 import { MeetingSignalsProvider } from "./use-meeting-signals";
@@ -467,6 +468,7 @@ function ConferenceStage({
           <MeetingStageFooter
             stageContentRef={stageContentRef}
             captionsOn={captionsOn}
+            prompt={resolvedMeetingId ? <MeetingVotePrompt meetingId={resolvedMeetingId} onOpenTab={() => openSidebarTab("motions")} /> : null}
             captions={
               <MeetingLiveCaptions
                 meetingId={resolvedMeetingId}
