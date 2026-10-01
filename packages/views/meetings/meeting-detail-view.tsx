@@ -33,6 +33,7 @@ import { MeetingDetailAside, MeetingDetailRoster } from "./meeting-detail-aside"
 import { MeetingDetailHero } from "./meeting-detail-hero";
 import { MeetingEditDialog } from "./meeting-edit-dialog";
 import { MeetingJoinRequestsPanel } from "./meeting-join-requests-panel";
+import { MeetingMotionsSection } from "./meeting-motions-section";
 import { MeetingNotesSection } from "./meeting-notes-section";
 import { MeetingDetailPageSkeleton } from "./meeting-page-skeletons";
 import { MeetingSummaryPanel } from "./meeting-summary-panel";
@@ -222,6 +223,10 @@ export function MeetingDetailView({
                   <MeetingJoinRequestsPanel meetingId={meetingId} compact />
                 </div>
               ) : null}
+              {/* Drafted before the meeting and run while it is live: the head of the working column. */}
+              <div className="order-3 min-w-0 empty:hidden">
+                <MeetingMotionsSection meeting={meeting} workspaceId={workspaceId} />
+              </div>
               {showSummary ? (
                 <div className="order-3 min-w-0">
                   <MeetingSummaryPanel workspaceId={workspaceId} meeting={meeting} canHost={canHost.allowed} />
