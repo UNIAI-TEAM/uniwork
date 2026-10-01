@@ -59,7 +59,9 @@ describe("DOCX equation surface (read-only lane)", () => {
       const mounted = docxExtensions().find((extension) => extension.name === "docProtected");
       expect(mounted?.options).toMatchObject({ formulaLatexEdit: false });
 
-      const view = render(handle.renderSurface() as ReactElement);
+      const surface = handle.renderSurface?.();
+      if (surface === null || surface === undefined) throw new Error("docx_surface_missing");
+      const view = render(surface as ReactElement);
       // The equation really rendered: the MathML host holds the parsed markup.
       expect(view.container.querySelector(".doc-formula-math")?.innerHTML).toContain("<math");
       // ... and the equation surface carries no enabled Edit affordance.
