@@ -37,7 +37,6 @@ var actionsWithoutCommands = map[string]string{
 	audit.ActionAuditExportRequested:        "covered by the audit service's own tests",
 	audit.ActionAuditExported:               "covered by the audit export consumer's own tests",
 	audit.ActionAuditRetentionSet:           "covered by the audit service's own tests",
-	audit.ActionOfficeDesktopDownloaded:     "covered by the authenticated desktop download handler route test",
 	audit.ActionAuthDesktopStarted:          "covered by desktop_auth_test.go",
 	audit.ActionAuthDesktopConsentApproved:  "covered by desktop_auth_test.go",
 	audit.ActionAuthDesktopConsentCancelled: "covered by desktop_auth_test.go",
@@ -838,6 +837,13 @@ func TestEveryAuditedCommandWritesItsRow(t *testing.T) {
 				t.Fatal(err)
 			}
 			if err := tx.Commit(f.ctx); err != nil {
+				t.Fatal(err)
+			}
+		},
+		audit.ActionOfficeDesktopDownloaded: func(t *testing.T, f *auditFixture) {
+			f.build(t)
+			svc := NewOfficeDesktopDownloadService(f.orgs, config.Config{APIPublicURL: "https://api.example.test", OfficeInstallerStableURL: "https://downloads.example.test/installer.exe", DesktopAuthClientID: "uniwork-office", DesktopAuthDeploymentIDs: []string{"default"}})
+			if _, err := svc.Get(f.ctx, f.owner.ID, f.orgID, "stable"); err != nil {
 				t.Fatal(err)
 			}
 		},

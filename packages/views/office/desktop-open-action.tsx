@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MonitorUp } from "lucide-react";
+import { Download, MonitorUp } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { OfficeSaveCoordinatorLike } from "./office-shell";
 import { buildOfficeDeepLink, officeClientId, safeOfficeDeepLink, type OfficeChannel, type OfficeLaunchOutcome } from "@uniwork/core/office";
@@ -52,6 +52,7 @@ export interface DesktopOpenActionProps {
   launch?: (url: string) => Promise<OfficeLaunchOutcome>;
   installerURLs?: OfficeInstallerURLs;
   loadInstallerURLs?: () => Promise<OfficeInstallerURLs>;
+  downloadInstaller?: () => Promise<void>;
   className?: string;
 }
 
@@ -86,6 +87,7 @@ export function DesktopOpenAction({
   launch,
   installerURLs = EMPTY_INSTALLER_URLS,
   loadInstallerURLs,
+  downloadInstaller,
   className,
 }: DesktopOpenActionProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.desktop" });
@@ -94,7 +96,7 @@ export function DesktopOpenAction({
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [installOpen, setInstallOpen] = useState(false);
-  const [installReason, setInstallReason] = useState<"not-installed" | "expired" | "error">("not-installed");
+  const [installReason, setInstallReason] = useState<"not-installed" | "expired" | "error" | "download">("not-installed");
   const [resolvedInstallers, setResolvedInstallers] = useState<OfficeInstallerURLs>(installerURLs);
   const currentlyDirty = dirty || stateDirty(coordinatorState);
   const canOpenSaved = savedVersion !== null && Number.isSafeInteger(savedVersion) && savedVersion > 0;
@@ -107,7 +109,7 @@ export function DesktopOpenAction({
   }, [saveCoordinator]);
   useEffect(() => setResolvedInstallers(installerURLs), [installerURLs]);
 
-  const openInstallPrompt = async (reason: "not-installed" | "expired" | "error") => {
+  const openInstallPrompt = async (reason: "not-installed" | "expired" | "error" | "download") => {
     setInstallReason(reason);
     if (loadInstallerURLs) {
       try { setResolvedInstallers(await loadInstallerURLs()); } catch { setResolvedInstallers({ dev: "", beta: "", stable: "" }); }
@@ -193,7 +195,8 @@ export function DesktopOpenAction({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <OfficeInstallPrompt {...installProps} />
+      <Button type="button" variant="ghost" onClick={() => void openInstallPrompt("download")}><Download aria-hidden />{t("download")}</Button>
+      <OfficeInstallPrompt {...installProps} onDownload={downloadInstaller} />
     </>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslation } from "react-i18next";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -21,7 +22,8 @@ export interface OfficeInstallPromptProps {
   installers: OfficeInstallerURLs;
   onOpenChange: (open: boolean) => void;
   onOpenAgain: () => void;
-  reason?: "not-installed" | "expired" | "error";
+  reason?: "not-installed" | "expired" | "error" | "download";
+  onDownload?: () => Promise<void>;
 }
 
 function validInstallerURL(value: string): boolean {
@@ -43,11 +45,19 @@ export function OfficeInstallPrompt({
   onOpenChange,
   onOpenAgain,
   reason = "not-installed",
+  onDownload,
 }: OfficeInstallPromptProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "office.desktop.install" });
   const installer = installers[channel];
   const canInstall = validInstallerURL(installer);
-  const reasonKey = reason === "expired" ? "expired" : reason === "error" ? "error" : "not_installed";
+  const [downloading, setDownloading] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const reasonKey = reason === "download" ? "download_description" : reason === "expired" ? "expired" : reason === "error" ? "error" : "not_installed";
+  const download = async () => {
+    if (!onDownload || downloading) return;
+    setDownloading(true); setFailed(false);
+    try { await onDownload(); } catch { setFailed(true); } finally { setDownloading(false); }
+  };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md" aria-describedby="office-install-description">
@@ -56,9 +66,10 @@ export function OfficeInstallPrompt({
           <DialogDescription id="office-install-description">{t(reasonKey)}</DialogDescription>
         </DialogHeader>
         {!canInstall ? <Alert role="status"><AlertDescription>{t("unavailable")}</AlertDescription></Alert> : null}
+        {failed ? <Alert variant="destructive" role="alert"><AlertDescription>{t("download_failed")}</AlertDescription></Alert> : null}
         <DialogFooter className="sm:flex-col sm:items-stretch">
-          <Button type="button" onClick={onOpenAgain}>{t("open_again")}</Button>
-          {canInstall ? (
+          {reason !== "download" ? <Button type="button" onClick={onOpenAgain}>{t("open_again")}</Button> : null}
+          {canInstall && onDownload ? <Button type="button" onClick={() => void download()} disabled={downloading}>{t(downloading ? "downloading" : "install")}</Button> : canInstall ? (
             <ButtonLink href={installer} target="_blank" rel="noreferrer" variant="outline">{t("install")}</ButtonLink>
           ) : null}
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>{t("close")}</Button>

@@ -73,7 +73,8 @@ type Deps struct {
 
 	// OfficeLaunch is the document-scoped single-use launch-ticket service.
 	// When omitted, New derives it from Documents and the deployment config.
-	OfficeLaunch *service.OfficeLaunchService
+	OfficeLaunch          *service.OfficeLaunchService
+	OfficeDesktopDownload *service.OfficeDesktopDownloadService
 
 	// Redis is optional: nil disables the rate limiter and any other feature
 	// that needs shared state across instances.
@@ -114,6 +115,9 @@ type handlers struct {
 // New builds the HTTP handler. Routes live in package router, split by
 // OpenAPI tag. This constructor only maps *handlers methods onto Routes.
 func New(d Deps) http.Handler {
+	if d.OfficeDesktopDownload == nil && d.Organizations != nil {
+		d.OfficeDesktopDownload = service.NewOfficeDesktopDownloadService(d.Organizations, d.Cfg)
+	}
 	if d.OfficeLaunch == nil && d.Documents != nil {
 		d.OfficeLaunch = service.NewOfficeLaunchService(d.Documents, d.Cfg)
 	}

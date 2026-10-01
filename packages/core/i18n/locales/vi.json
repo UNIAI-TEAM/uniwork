@@ -6925,7 +6925,11 @@
       "newer_changes": "Vẫn còn thay đổi mới chưa lưu. Hãy lưu lại trước khi mở UniWork Office.",
       "version_unavailable": "Không có phiên bản đã lưu gần nhất.",
       "ticket_failed": "Không thể chuẩn bị tài liệu trên UniWork Office. Trình soạn thảo và bản nháp vẫn nguyên vẹn.",
+      "download": "T?i UniWork Office",
       "install": {
+        "download_description": "T?i b? c?i d?nh cho trang UniWork c?a b?n. Gi?i n?n ZIP r?i ch?y b? c?i.",
+        "download_failed": "Kh?ng th? t?i b? c?i. Vui l?ng th? l?i.",
+        "downloading": "?ang t?i...",
         "title": "Chưa có UniWork Office",
         "not_installed": "Ứng dụng máy tính chưa phản hồi. Bạn có thể thử lại hoặc cài đúng kênh.",
         "expired": "Lượt mở trên máy tính đã hết hạn. Hãy thử mở lại.",

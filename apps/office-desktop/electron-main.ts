@@ -93,6 +93,7 @@ async function startElectronHost(): Promise<void> {
   app.setPath("userData", configuredUserData ? resolve(configuredUserData) : defaultUserData);
   app.setAppUserModelId(DESKTOP_IDENTITY.appId);
   const deploymentResolution = resolveDeploymentProfile({
+    installedProfilePath: app.isPackaged ? join(process.resourcesPath, "deployment-profile.json") : undefined,
     userDataDirectory: app.getPath("userData"),
     buildChannel: DESKTOP_IDENTITY_MANIFEST.build.channel,
     env: app.isPackaged && !SMOKE_MODE ? {} : process.env,

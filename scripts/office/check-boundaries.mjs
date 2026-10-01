@@ -46,6 +46,7 @@ export const BROWSER_SAFE_PACKAGES = new Set([
   "@uniwork/core/office",
   "@uniwork/core/api/endpoints/office",
   "@uniwork/core/api/endpoints/config",
+  "@uniwork/core/api/endpoints/office-desktop",
   "@uniwork/core/office/save-coordinator",
   "@uniwork/core/auth",
   "@uniwork/core/api/endpoints/office",

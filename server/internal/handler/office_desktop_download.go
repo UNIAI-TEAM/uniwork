@@ -4,50 +4,41 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdi"
 	"github.com/unicomhub/uniwork/server/internal/handler/dto/sdo"
 	"github.com/unicomhub/uniwork/server/internal/middleware"
 )
 
 func (h *handlers) officeDesktopDownload(w http.ResponseWriter, r *http.Request) {
-	orgID := strings.TrimSpace(r.URL.Query().Get("organization_id"))
-	if orgID == "" {
-		respondError(w, http.StatusBadRequest, "invalid_request", "organization_id is required")
-		return
-	}
-	channel := strings.TrimSpace(r.URL.Query().Get("channel"))
-	if channel == "" {
-		channel = "stable"
-	}
-	var installer string
-	switch channel {
-	case "dev":
-		installer = h.Cfg.OfficeInstallerDevURL
-	case "beta":
-		installer = h.Cfg.OfficeInstallerBetaURL
-	case "stable":
-		installer = h.Cfg.OfficeInstallerStableURL
-	default:
-		respondError(w, http.StatusBadRequest, "invalid_request", "channel must be stable, beta, or dev")
-		return
-	}
-	if installer == "" {
-		respondError(w, http.StatusNotFound, "installer_unavailable", "installer is not configured for this channel")
-		return
-	}
-	deploymentID := "default"
-	for _, candidate := range h.Cfg.DesktopAuthDeploymentIDs {
-		if value := strings.TrimSpace(candidate); value != "" {
-			deploymentID = value
-			break
-		}
-	}
-	if h.Audit == nil {
+	w.Header().Set("Cache-Control", "no-store")
+	if h.OfficeDesktopDownload == nil {
 		respondError(w, http.StatusServiceUnavailable, "office_download_unavailable", "desktop download profile is not configured")
 		return
 	}
-	if err := h.Audit.RecordOfficeDesktopDownload(r.Context(), middleware.UserID(r.Context()), orgID, channel, deploymentID); err != nil {
+	in := sdi.OfficeDesktopDownloadSDI{OrganizationID: strings.TrimSpace(r.URL.Query().Get("organization_id")), Channel: r.URL.Query().Get("channel"), Bundle: r.URL.Query().Get("bundle") == "true"}
+	out, err := h.OfficeDesktopDownload.Get(r.Context(), middleware.UserID(r.Context()), in.OrganizationID, in.Channel)
+	if err != nil {
 		h.mapServiceError(w, err)
 		return
 	}
-	respondJSON(w, http.StatusOK, sdo.OfficeDesktopDownloadSDO{InstallerURL: installer, ServerOrigin: strings.TrimRight(h.Cfg.APIPublicURL, "/"), Channel: channel, ClientID: h.Cfg.DesktopAuthClientID, DeploymentID: deploymentID})
+	if in.Bundle {
+		bundle, err := h.OfficeDesktopDownload.Bundle(r.Context(), out)
+		if err != nil {
+			h.mapServiceError(w, err)
+			return
+		}
+		defer func() {
+			if err := bundle.Close(); err != nil {
+				h.Log.Error("desktop bundle cleanup failed", "error", err)
+			}
+		}()
+		w.Header().Set("Content-Type", "application/zip")
+		w.Header().Set("Content-Disposition", `attachment; filename="UniWork-Office.zip"`)
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		if err := bundle.WriteZipTo(w); err != nil {
+			h.Log.Error("desktop bundle stream failed", "error", err)
+		}
+		return
+	}
+	respondJSON(w, http.StatusOK, sdo.OfficeDesktopDownloadSDO{InstallerURL: out.InstallerURL, ServerOrigin: out.ServerOrigin, Channel: out.Channel, ClientID: out.ClientID, DeploymentID: out.DeploymentID})
 }
