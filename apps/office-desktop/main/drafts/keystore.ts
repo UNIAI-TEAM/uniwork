@@ -3,7 +3,7 @@ import { execFile, execFileSync } from "node:child_process";
 import { promises as fs } from "node:fs";
 import { userInfo } from "node:os";
 import { promisify } from "node:util";
-import { dirname, isAbsolute, join } from "node:path";
+import { dirname, join, win32 as windowsPath } from "node:path";
 
 /** Electron's safeStorage is backed by Windows DPAPI and the macOS Keychain.
  * The adapter is deliberately tiny so the draft store never receives an
@@ -48,10 +48,10 @@ const nodeFileSystem: DraftKeyFileSystem = {
 const execFileAsync = promisify(execFile);
 
 export function windowsWhoamiPath(systemRoot = process.env.SystemRoot): string {
-  if (!systemRoot || !isAbsolute(systemRoot)) {
+  if (!systemRoot || !windowsPath.isAbsolute(systemRoot)) {
     throw new DraftKeyStoreError("unavailable", "Windows system root could not be resolved");
   }
-  return join(systemRoot, "System32", "whoami.exe");
+  return windowsPath.join(systemRoot, "System32", "whoami.exe");
 }
 
 function currentWindowsAccount(): string {
