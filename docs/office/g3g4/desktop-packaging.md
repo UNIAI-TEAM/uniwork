@@ -176,3 +176,13 @@ tests), package/inventory tests, `node scripts/office/check-boundaries.mjs`,
 `pnpm knip`, catalog and governance tests, and `pnpm audit --audit-level high`.
 The accepted artifacts are unsigned dev/beta evidence only and must not be
 described as a signed release or an enabled update channel.
+
+## Update and rollback (G4-07b)
+
+Configure `OFFICE_INSTALLER_DEV_URL`, `OFFICE_INSTALLER_BETA_URL`, and `OFFICE_INSTALLER_STABLE_URL` for the three deployment channels. The authenticated `GET /api/v1/office/desktop/download?organization_id=...&channel=...` route requires organization membership, returns the selected installer with the public API origin, channel, client id, and deployment id, and writes an audit row. The response contains no credentials, signing keys, or storage secrets. The web editor reuses the existing not-installed install prompt and fails closed when the selected channel has no installer.
+
+Unsigned automatic update is disabled until a real feed and signing publisher are approved. A feed item must use HTTPS and pass app id, channel, publisher, hash, signature, engine provider, and engine contract checks. Refusals are typed and stop the updater.
+
+Before restart-to-update, flush the local encrypted draft checkpoint and obtain explicit confirmation. Any checkpoint I/O failure aborts the restart. Draft checkpoints are local only and never auto-save to cloud or overwrite the original file. Migration and rollback preserve ciphertext, checksum, and key namespace; see `docs/office/g3g4/desktop-draft-format-support.md` for the v1/v2 matrix.
+
+Incident steps: capture the typed refusal and correlation id; verify the selected channel URL and certificate; verify the exact artifact hash and test-key signature; restore checkpoint storage before retrying; for rollback deploy the previous artifact and leave draft files in place, then verify recovery against the support matrix.
