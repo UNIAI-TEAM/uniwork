@@ -14,9 +14,9 @@ type DesktopConsentProps = {
   state?: DesktopConsentState;
   callbackUrl?: string;
   onDecision: (decision: "approve" | "cancel") => Promise<void>;
-  onRetry: () => void;
-  onBack: () => void;
-  onOpenDesktop: () => void;
+  onRetry?: () => void;
+  onBack?: () => void;
+  onOpenDesktop?: () => void;
 };
 
 export function DesktopConsentView({ consent, state = "pending", callbackUrl, onDecision, onRetry = () => undefined, onBack = () => undefined, onOpenDesktop = () => undefined }: DesktopConsentProps) {

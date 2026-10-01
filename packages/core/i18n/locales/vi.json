@@ -7198,6 +7198,8 @@
       "engineDown": "Trình soạn thảo không khả dụng; vẫn có thể tải xuống",
       "error": "Không tải được tài liệu.",
       "retry": "Thử lại",
+      "create": "Tài liệu mới",
+      "openLocal": "Mở tệp trên máy",
       "empty": "Chưa có tài liệu"
     }
   }

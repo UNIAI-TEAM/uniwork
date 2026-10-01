@@ -11,6 +11,7 @@ import type {
   DesktopLibraryDocument,
   DesktopSessionMetadata,
 } from "../shared/ipc";
+import { desktopFileResponseSchema, desktopLibraryCreateResponseSchema } from "../shared/ipc";
 import { createLibraryController, createLibraryScopeController, type LibraryMode } from "./library/model";
 import { LibraryPicker, type LibraryPickerSelection } from "./library/picker";
 import { LibraryView } from "./library/view";
@@ -46,7 +47,7 @@ function isLibraryContext(value: unknown): value is DesktopLibraryContextRespons
 /** Scope picked plus its workspace library, between sign-in and opening a
  * document. Kept separate from the DOCX host, which mounts once a document
  * is chosen. */
-function LibraryHost({ bridge, scope, onOpen }: { bridge: RendererBridge; scope: Scope & { organizationId: string; workspaceId: string }; onOpen: (document: DesktopLibraryDocument) => void }) {
+function LibraryHost({ bridge, scope, onOpen, onCreate, onOpenLocal }: { bridge: RendererBridge; scope: Scope & { organizationId: string; workspaceId: string }; onOpen: (document: DesktopLibraryDocument) => void; onCreate: () => void; onOpenLocal: () => void }) {
   const [mode, setMode] = useState<LibraryMode>("list");
   const [searchQuery, setSearchQuery] = useState("");
   const [result, setResult] = useState<{ documents: DesktopLibraryDocument[]; engineAvailable: boolean } | null>(null);
@@ -89,6 +90,8 @@ function LibraryHost({ bridge, scope, onOpen }: { bridge: RendererBridge; scope:
       onDownload={(document) => {
         void bridge.call("desktop:library-download", { sessionGeneration: SESSION_GENERATION, workspaceId: scope.workspaceId, documentId: document.id, version: document.version });
       }}
+      onCreate={onCreate}
+      onOpenLocal={onOpenLocal}
     />
   );
 }
@@ -101,6 +104,7 @@ function OpenDocument({ bridge, scope, document, onBack }: { bridge: RendererBri
 function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; metadata: SignedInMetadata; onLogout: () => void }) {
   const [scope, setScope] = useState<LibraryPickerSelection | null>(null);
   const [openedDocument, setOpenedDocument] = useState<DesktopLibraryDocument | null>(null);
+  const [localFile, setLocalFile] = useState<{ handle: string; name: string; dataBase64: string } | null>(null);
   const [context, setContext] = useState<DesktopLibraryContextResponse | null>(null);
   const [contextError, setContextError] = useState(false);
   const [contextReload, setContextReload] = useState(0);
@@ -122,10 +126,21 @@ function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; meta
 
   const account = context?.accounts.find((entry) => entry.id === (scope?.accountId ?? metadata.accountId));
   const workspace = context?.workspaces.find((entry) => entry.id === scope?.workspaceId);
+  const openCreated = async () => {
+    if (!scope) return;
+    const raw = await bridge.call("desktop:library-create", { sessionGeneration: SESSION_GENERATION, workspaceId: scope.workspaceId, title: "Untitled.docx" });
+    const created = desktopLibraryCreateResponseSchema.safeParse(raw);
+    if (created.success) setOpenedDocument(created.data.document);
+  };
+  const openLocal = async () => {
+    const raw = await bridge.call("desktop:file-pick-open", { sessionGeneration: SESSION_GENERATION });
+    const opened = desktopFileResponseSchema.safeParse(raw);
+    if (opened.success && opened.data.opened && opened.data.metadata && opened.data.dataBase64) setLocalFile({ handle: opened.data.metadata.handle, name: opened.data.metadata.name, dataBase64: opened.data.dataBase64 });
+  };
   return (
     <SignedInShell onSignOut={onLogout} accountName={account?.name} workspaceName={workspace?.name}>
       {scope ? (
-        <div className="flex min-h-0 flex-1 flex-col overflow-auto"><LibraryHost bridge={bridge} scope={{ ...metadata, ...scope }} onOpen={(document) => { setOpenedDocument(document); void bridge.call("desktop:office-open", { sessionGeneration: SESSION_GENERATION, workspaceId: scope.workspaceId, documentId: document.id, version: document.version }); }} />{openedDocument ? <OpenDocument bridge={bridge} scope={{ ...metadata, ...scope }} document={openedDocument} onBack={() => setOpenedDocument(null)} /> : null}</div>
+        <div className="flex min-h-0 flex-1 flex-col overflow-auto"><LibraryHost bridge={bridge} scope={{ ...metadata, ...scope }} onCreate={() => { void openCreated(); }} onOpenLocal={() => { void openLocal(); }} onOpen={(document) => { setOpenedDocument(document); void bridge.call("desktop:office-open", { sessionGeneration: SESSION_GENERATION, workspaceId: scope.workspaceId, documentId: document.id, version: document.version }); }} />{openedDocument ? <OpenDocument bridge={bridge} scope={{ ...metadata, ...scope }} document={openedDocument} onBack={() => setOpenedDocument(null)} /> : null}{localFile ? <div className="m-4 rounded-lg border border-border bg-surface p-4"><h2 className="text-title font-semibold">{localFile.name}</h2><p className="text-body text-muted-foreground">Local DOCX opened with a protected handle.</p><Button type="button" onClick={() => { void bridge.call("desktop:file-save", { sessionGeneration: SESSION_GENERATION, handle: localFile.handle, dataBase64: localFile.dataBase64 }); }}>Save local file</Button></div> : null}</div>
       ) : (
         <LibraryPicker context={context} error={contextError} onRetry={() => setContextReload((value) => value + 1)} onChoose={setScope} />
       )}

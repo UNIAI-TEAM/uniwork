@@ -7217,6 +7217,8 @@
       "engineDown": "Editor unavailable; download remains available",
       "error": "Documents could not be loaded.",
       "retry": "Retry",
+      "create": "New document",
+      "openLocal": "Open file on this device",
       "empty": "No documents"
     }
   }

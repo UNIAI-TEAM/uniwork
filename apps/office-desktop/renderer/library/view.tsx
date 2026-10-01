@@ -19,6 +19,8 @@ export interface LibraryViewProps {
   onSearch?: (query: string) => void;
   onOpen?: (document: DesktopLibraryDocument) => void;
   onDownload?: (document: DesktopLibraryDocument) => void;
+  onCreate?: () => void;
+  onOpenLocal?: () => void;
 }
 
 const MODES: readonly LibraryMode[] = ["list", "recent", "search"];
@@ -37,12 +39,14 @@ export function LibraryView({
   onSearch,
   onOpen,
   onDownload,
+  onCreate,
+  onOpenLocal,
 }: LibraryViewProps) {
   const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
   const [draftQuery, setDraftQuery] = useState(searchQuery);
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 p-6" data-desktop-library="true">
-      <h1 className="text-title font-semibold text-foreground">{t("title")}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-title font-semibold text-foreground">{t("title")}</h1><div className="flex flex-wrap gap-2"><Button type="button" onClick={onCreate}>{t("create")}</Button><Button type="button" variant="outline" onClick={onOpenLocal}>{t("openLocal")}</Button></div></div>
       <nav aria-label={t("title")} className="flex gap-1">
         {MODES.map((candidate) => (
           <Button

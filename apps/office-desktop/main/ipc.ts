@@ -3,7 +3,7 @@
 export * from "../shared/ipc";
 
 import type { NativeLoginManager } from "./auth/manager";
-import { desktopAuthConfigResponseSchema, desktopSessionMetadataSchema, desktopLibraryResponseSchema, desktopLibraryContextResponseSchema, desktopLibraryDownloadResponseSchema, desktopOfficeOpenResponseSchema, desktopOfficeSaveResponseSchema, type DesktopLibraryResponse, type DesktopLibraryContextResponse, type DesktopLibraryDownloadResponse, type DesktopOfficeOpenResponse, type DesktopOfficeSaveResponse } from "../shared/ipc";
+import { desktopAuthConfigResponseSchema, desktopSessionMetadataSchema, desktopLibraryResponseSchema, desktopLibraryContextResponseSchema, desktopLibraryDownloadResponseSchema, desktopOfficeOpenResponseSchema, desktopLibraryCreateResponseSchema, desktopOfficeSaveResponseSchema, type DesktopLibraryResponse, type DesktopLibraryContextResponse, type DesktopLibraryDownloadResponse, type DesktopOfficeOpenResponse, type DesktopOfficeSaveResponse, type DesktopLibraryCreateResponse } from "../shared/ipc";
 import type { FileHandleRegistry } from "./files/registry";
 import { LocalFileError } from "./files/registry";
 import type { DesktopDraftStore } from "./drafts/store";
@@ -18,6 +18,7 @@ export type DesktopOfficeTransport = Readonly<{
   context(): Promise<DesktopLibraryContextResponse>;
   list(input: { workspaceId: string; cursor?: string; mode: "list" | "recent" | "search"; query?: string }): Promise<DesktopLibraryResponse>;
   download(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopLibraryDownloadResponse>;
+  create(input: { workspaceId: string; title: string }): Promise<DesktopLibraryCreateResponse>;
   open(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopOfficeOpenResponse>;
   save(input: { workspaceId: string; documentId: string; intentId: string; idempotencyKey: string; baseVersionId: string; baseRevision: string; dataBase64: string; checksum: string }): Promise<DesktopOfficeSaveResponse>;
 }>;
@@ -51,6 +52,10 @@ export function createOfficeIpcHandlers(options: OfficeIpcOptions) {
     "desktop:library-search": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { workspaceId: string; query: string }>) => {
       requireSession();
       return desktopLibraryResponseSchema.parse(await options.transport.list({ workspaceId: request.workspaceId, cursor: (request as { cursor?: string }).cursor, mode: "search", query: request.query }));
+    },
+    "desktop:library-create": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { workspaceId: string; title: string }>) => {
+      requireSession();
+      return desktopLibraryCreateResponseSchema.parse(await options.transport.create({ workspaceId: request.workspaceId, title: request.title }));
     },
     "desktop:library-download": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { workspaceId: string; documentId: string; version?: number }>) => {
       requireSession();
@@ -113,9 +118,15 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
       if (!options.pickOpen) throw new FileIpcError("invalid_path");
       const path = await options.pickOpen();
       if (!path) return { opened: false };
-      return { opened: true, metadata: await safeFile(() => options.registry.openPath(path)) };
+      const metadata = await safeFile(() => options.registry.openPath(path));
+      const bytes = await safeFile(() => options.registry.read(metadata.handle));
+      return { opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") };
     },
-    "desktop:file-open": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string }>) => ({ opened: true, metadata: await safeFile(() => options.registry.openPathFromHandle(request.handle)) }),
+    "desktop:file-open": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string }>) => {
+      const metadata = await safeFile(() => options.registry.openPathFromHandle(request.handle));
+      const bytes = await safeFile(() => options.registry.read(request.handle));
+      return { opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") };
+    },
     "desktop:file-save": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string; dataBase64: string }>) => ({ opened: true, metadata: await safeFile(() => options.registry.save(request.handle, decodeBytes(request.dataBase64))) }),
     "desktop:file-save-as": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string; dataBase64: string }>) => {
       if (!options.pickSaveAs) throw new FileIpcError("invalid_path");

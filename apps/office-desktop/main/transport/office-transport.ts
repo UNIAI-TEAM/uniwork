@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { DeploymentProfile } from "../../shared/deployment";
-import type { DesktopLibraryDocument, DesktopLibraryResponse, DesktopLibraryDownloadResponse, DesktopOfficeOpenResponse, DesktopOfficeSaveResponse } from "../../shared/ipc";
+import type { DesktopLibraryDocument, DesktopLibraryResponse, DesktopLibraryDownloadResponse, DesktopLibraryCreateResponse, DesktopOfficeOpenResponse, DesktopOfficeSaveResponse } from "../../shared/ipc";
 import type { CredentialStore } from "../auth/credentials";
 import type { DesktopOfficeTransport } from "../ipc";
 import { assertOrigin } from "./auth-transport";
@@ -64,6 +64,18 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
       const rows = Array.isArray(body.documents) ? body.documents : [];
       const documents = rows.map((row) => toLibraryDocument(row, input.workspaceId)).filter((row): row is DesktopLibraryDocument => row !== undefined);
       return { documents, nextCursor: typeof body.next_cursor === "string" ? body.next_cursor : null, engineAvailable: true };
+    },
+    async create(input: { workspaceId: string; title: string }): Promise<DesktopLibraryCreateResponse> {
+      const raw = await json(`/workspaces/${encodeURIComponent(input.workspaceId)}/documents/files/blank`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": `desktop-create-${crypto.randomUUID()}` },
+        body: JSON.stringify({ format: "docx", title: input.title }),
+      });
+      const body = raw && typeof raw === "object" && "document" in raw ? (raw as { document: unknown }).document : raw;
+      const document = toLibraryDocument(body, input.workspaceId);
+      if (!document) throw new Error("document_invalid");
+      const downloaded = await download({ workspaceId: input.workspaceId, documentId: document.id, version: document.version });
+      return { document, dataBase64: downloaded.dataBase64, filename: downloaded.filename, mimeType: DOCX_MIME, checksum: downloaded.checksum };
     },
     download,
     async open(input: { workspaceId: string; documentId: string; version?: number }): Promise<DesktopOfficeOpenResponse> {

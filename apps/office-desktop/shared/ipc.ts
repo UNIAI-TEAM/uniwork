@@ -22,6 +22,7 @@ export const DESKTOP_IPC_CHANNELS = [
   "desktop:library-context",
   "desktop:library-recent",
   "desktop:library-search",
+  "desktop:library-create",
   "desktop:library-download",
   "desktop:office-open",
   "desktop:office-save",
@@ -72,7 +73,7 @@ export const desktopFileMetadataSchema = z.object({
   modifiedAtMs: z.number().finite().nonnegative(),
   checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/),
 }).strict();
-export const desktopFileResponseSchema = z.object({ opened: z.boolean(), metadata: desktopFileMetadataSchema.optional() }).strict();
+export const desktopFileResponseSchema = z.object({ opened: z.boolean(), metadata: desktopFileMetadataSchema.optional(), dataBase64: base64BytesSchema.optional() }).strict();
 export const desktopDraftResponseSchema = z.object({ stored: z.boolean(), generation: z.number().int().positive() }).strict();
 const documentKindSchema = z.literal("file");
 const documentFormatSchema = z.literal("docx");
@@ -121,6 +122,8 @@ export const desktopOfficeOpenResponseSchema = z.object({
   checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/),
 }).strict();
 export type DesktopOfficeOpenResponse = z.infer<typeof desktopOfficeOpenResponseSchema>;
+export const desktopLibraryCreateResponseSchema = desktopOfficeOpenResponseSchema;
+export type DesktopLibraryCreateResponse = DesktopOfficeOpenResponse;
 export const desktopOfficeSaveResponseSchema = z.object({
   documentId: documentIdSchema,
   intentId: z.string().min(1).max(160),
@@ -154,6 +157,7 @@ const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:library-context": desktopLibraryContextResponseSchema,
   "desktop:library-recent": desktopLibraryResponseSchema,
   "desktop:library-search": desktopLibraryResponseSchema,
+  "desktop:library-create": desktopLibraryCreateResponseSchema,
   "desktop:library-download": desktopLibraryDownloadResponseSchema,
   "desktop:office-open": desktopOfficeOpenResponseSchema,
   "desktop:office-save": desktopOfficeSaveResponseSchema,
@@ -192,6 +196,7 @@ const requestSchemas = {
   "desktop:library-context": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:library-recent": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, cursor: z.string().max(512).optional() }).strict(),
   "desktop:library-search": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, query: z.string().trim().min(1).max(256), cursor: z.string().max(512).optional() }).strict(),
+  "desktop:library-create": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, title: z.string().trim().min(1).max(255) }).strict(),
   "desktop:library-download": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, version: z.number().int().nonnegative().optional() }).strict(),
   "desktop:office-open": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, version: z.number().int().nonnegative().optional() }).strict(),
   "desktop:office-save": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, intentId: z.string().min(1).max(160), idempotencyKey: z.string().min(1).max(160), baseVersionId: z.string().min(1).max(160), baseRevision: z.string().regex(/^\d+$/), dataBase64: base64BytesSchema, checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/) }).strict(),

@@ -38,14 +38,14 @@ describe("DesktopConsentView", () => {
   });
 
   it.each([
-    ["approved", "Desktop sign-in complete"],
-    ["cancelled", "Desktop sign-in cancelled"],
-    ["error", "Desktop sign-in could not be completed"],
-    ["expired", "Desktop sign-in request expired"],
-  ] as const)("renders the %s result state", (state) => {
+    ["approved", "Allowed UniWork Office to sign in"],
+    ["cancelled", "Desktop sign-in was cancelled."],
+    ["error", "The desktop sign-in request could not be completed. Try again."],
+    ["expired", "This desktop sign-in request has expired."],
+  ] as const)("renders the %s result state", (state, expectedCopy) => {
     render(wrap(<DesktopConsentView consent={null} state={state} onDecision={vi.fn(async () => {})} />));
     expect(screen.getByRole("heading", { name: "Desktop sign-in result" })).toBeInTheDocument();
-    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(expectedCopy);
     expect(screen.queryByRole("button", { name: "Allow desktop app" })).not.toBeInTheDocument();
   });
 
