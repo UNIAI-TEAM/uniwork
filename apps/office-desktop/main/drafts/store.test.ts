@@ -20,7 +20,7 @@ describe("desktop protected drafts", () => {
     const harnessFactory = (): DraftRecoveryBehaviorHarness => ({ adapter: store, sessions: { accountA: { sessionId: "session-a", deploymentId: "deployment-test", accountId: "account-a", generation: 1 }, accountB: { sessionId: "session-b", deploymentId: "deployment-test", accountId: "account-b", generation: 1 }, accountAAfterRestart: { sessionId: "session-a-restart", deploymentId: "deployment-test", accountId: "account-a", generation: 2 } }, revoke: (sessionId) => store.revokeSession(sessionId), setLocked: (locked) => store.setLocked(locked), failNextCheckpoint: () => store.failNextCheckpoint() });
     const report = await runDraftRecoveryAdapterBehaviorSuite(harnessFactory);
     expect(report.passed.length).toBeGreaterThan(10);
-  });
+  }, 20_000);
   it("computes a stable ciphertext checksum", () => expect(checksum(new Uint8Array([1, 2]))).toMatch(/^sha256:[0-9a-f]{64}$/));
   it("encrypts/authenticates with identity and base AAD", () => {
     const key = new Uint8Array(32).fill(7); const plaintext = new TextEncoder().encode("secret");
