@@ -188,6 +188,32 @@ describe("MeetingAttendancePanel", () => {
     );
   });
 
+  it("keeps people added after finalizing apart and marks those removed since", async () => {
+    attendance.finalized_at = "2026-09-30T02:30:00Z";
+    attendance.summary = { members: 2, present: 1, late: 0, excused: 0, absent: 1, quorum_met: false };
+    attendance.rows = [
+      row({ source: "MANUAL" }),
+      row({ participant_id: "p2", user_id: "u2", display_name: "Bình", status: "ABSENT", source: "MANUAL", removed: true }),
+      row({ participant_id: "p4", user_id: "u4", display_name: "Dũng", source: "SUGGESTED", joined_after_finalize: true }),
+    ];
+    renderPanel(true);
+    const later = await screen.findByRole("region", { name: "Thêm sau khi chốt (1)" });
+    expect(within(later).getByText("Dũng")).toBeInTheDocument();
+    expect(within(later).getByText("Chưa được tính vào số liệu đã chốt. Mở lại điểm danh để tính.")).toBeInTheDocument();
+    // The snapshot's own figures, not recounted with the newcomer.
+    expect(screen.getByText("Có mặt 1/2 · 50%")).toBeInTheDocument();
+    const binh = screen.getByText("Bình").closest("li")!;
+    expect(within(binh).getByText("Đã gỡ")).toBeInTheDocument();
+    expect(screen.getAllByText("Đã gỡ")).toHaveLength(1);
+  });
+
+  it("shows nobody apart while the roll is open", async () => {
+    attendance.rows = [...(attendance.rows as unknown[]), row({ participant_id: "p4", display_name: "Dũng", joined_after_finalize: true })];
+    renderPanel(true);
+    await screen.findByText("Dũng");
+    expect(screen.queryByRole("region", { name: /Thêm sau khi chốt/ })).not.toBeInTheDocument();
+  });
+
   it("narrows the roll by name and opens the observers when they match", async () => {
     renderPanel(true, "khách");
     expect(await screen.findByText("Khách A")).toBeVisible();

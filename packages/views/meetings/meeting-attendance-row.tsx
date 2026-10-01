@@ -108,6 +108,12 @@ export function MeetingAttendanceRowItem({
         <div className="min-w-0">
           <p className="line-clamp-2 break-words text-body font-medium text-foreground">{row.display_name}</p>
           <p className="text-caption text-muted-foreground">
+            {/* Off the meeting now, still on the finalized roll: the chip says why the name is here. */}
+            {row.removed ? (
+              <ToneBadge tone="muted" className="mr-1.5 align-middle">
+                {t("meetings.governance.removedChip")}
+              </ToneBadge>
+            ) : null}
             {presence}
             {/* Kept whole: "Tự động" split across two lines reads as two words. */}
             {row.source !== "MANUAL" ? (
@@ -173,8 +179,13 @@ export function MeetingAttendanceRowItem({
           </div>
         ) : (
           <ToneBadge
-            // An observer's absence is not counted, so it does not ask to be noticed.
-            tone={status === "ABSENT" && row.standing !== "MEMBER" ? "muted" : ATTENDANCE_TONE[status]}
+            // Uncounted rows do not ask to be noticed: an observer's absence, or
+            // anyone added after finalize (not on the roll until it is reopened).
+            tone={
+              row.joined_after_finalize || (status === "ABSENT" && row.standing !== "MEMBER")
+                ? "muted"
+                : ATTENDANCE_TONE[status]
+            }
             className="shrink-0"
           >
             {label(status)}

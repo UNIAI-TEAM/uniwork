@@ -7,7 +7,7 @@ import { ChevronDown, Hand, Plus, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { Meeting, MeetingParticipant } from "@uniwork/core/types";
 import { useParticipants } from "@uniwork/core/meetings";
-import { useMeetingClerk } from "@uniwork/core/meetings/attendance";
+import { useAttendanceFinalized, useMeetingClerk } from "@uniwork/core/meetings/attendance";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
 import { Button } from "@uniwork/ui/components/ui/button";
 import {
@@ -73,6 +73,8 @@ export function MeetingRoomPeopleTab({
   const [contributorsOpen, setContributorsOpen] = useState(true);
   const [inviteOpen, setInviteOpen] = useState(false);
   const { isClerk } = useMeetingClerk(guestMode ? null : (meeting ?? null), workspaceId ?? "");
+  // Hosts and admins are clerks, so this is the roll the attendance view reads too.
+  const rollFinalized = useAttendanceFinalized(meetingId ?? "", Boolean(canHost && !guestMode && meetingId));
   const view = useMeetingViewSessionStore((s) => s.peopleView);
   const setView = useMeetingViewSessionStore((s) => s.setPeopleView);
 
@@ -219,14 +221,17 @@ export function MeetingRoomPeopleTab({
                           roleChip={participantRole(participant, guests) ?? dutyRole(meta?.api)}
                           avatarUrl={avatarOf(participant.identity)}
                           canHost={canHost}
+                          removable={!meta?.isHost}
                           pinned={pinnedIdentity === participant.identity}
                           menuExtra={
-                            canHost && !guestMode && meetingId && meta && !meta.isHost ? (
+                            canHost && !guestMode && meetingId && meta ? (
                               <MeetingDutyMenuItems
                                 meetingId={meetingId}
                                 participant={meta.api}
                                 name={displayName(participant)}
                                 separatorBefore
+                                rollFinalized={rollFinalized}
+                                standingOnly={meta.isHost}
                               />
                             ) : null
                           }

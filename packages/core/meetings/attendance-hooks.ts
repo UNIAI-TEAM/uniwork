@@ -7,7 +7,7 @@ import type { AttendanceStatus, Meeting, MeetingAttendance } from "../types/meet
 import { applyAttendanceMark } from "./attendance-roll";
 import { meetingKeys, useParticipants } from "./hooks";
 
-export { attendanceQuorum } from "./attendance-roll";
+export { attendanceQuorum, motionVoterCount } from "./attendance-roll";
 
 export function useMeetingAttendance(meetingId: string, enabled = true) {
   return useQuery({
@@ -15,6 +15,17 @@ export function useMeetingAttendance(meetingId: string, enabled = true) {
     queryFn: () => api.getMeetingAttendance(meetingId),
     enabled: enabled && Boolean(meetingId),
   });
+}
+
+/**
+ * Whether the roll is finalized, for screens that only need the lock (the duty
+ * menu). Reads the roll's own cache, so it costs nothing where the roll is
+ * already shown; pass enabled=false for viewers who are not clerks, and for a
+ * meeting that has not started, which has no roll to lock.
+ */
+export function useAttendanceFinalized(meetingId: string, enabled: boolean): boolean {
+  const { data } = useMeetingAttendance(meetingId, enabled);
+  return enabled && Boolean(data?.finalized_at);
 }
 
 function useAttendanceMutation<V>(meetingId: string, fn: (vars: V) => Promise<unknown>) {

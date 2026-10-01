@@ -21,13 +21,13 @@ beforeEach(() => {
 
 const base = { id: "p1", meeting_id: "m1", role: "ATTENDEE", status: "ACTIVE", display_name_snapshot: "An" };
 
-function open(participant: MeetingParticipant) {
+function open(participant: MeetingParticipant, extra: { rollFinalized?: boolean; standingOnly?: boolean } = {}) {
   render(
     wrapWithNav(
       <DropdownMenu defaultOpen>
         <DropdownMenuTrigger>menu</DropdownMenuTrigger>
         <DropdownMenuContent>
-          <MeetingDutyMenuItems meetingId="m1" participant={participant} name="An" />
+          <MeetingDutyMenuItems meetingId="m1" participant={participant} name="An" {...extra} />
         </DropdownMenuContent>
       </DropdownMenu>,
     ),
@@ -53,6 +53,37 @@ describe("MeetingDutyMenuItems", () => {
     open({ ...base, principal_type: "USER", standing: "OBSERVER", is_secretary: true });
     expect(screen.getByRole("menuitem", { name: "Bỏ vai thư ký" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Chuyển về thành viên" })).toBeInTheDocument();
+  });
+
+  it("locks standing on a finalized roll and says how to unlock it; the secretary role stays open", async () => {
+    open({ ...base, principal_type: "USER", standing: "MEMBER", is_secretary: false }, { rollFinalized: true });
+    const standing = screen.getByRole("menuitem", { name: "Chuyển sang dự thính" });
+    expect(standing).toHaveAttribute("aria-disabled", "true");
+    const hint = screen.getByText("Mở lại điểm danh để đổi tư cách");
+    expect(standing).toHaveAttribute("aria-describedby", hint.id);
+    fireEvent.click(standing);
+    const secretary = screen.getByRole("menuitem", { name: "Giao vai thư ký" });
+    expect(secretary).not.toHaveAttribute("aria-disabled");
+    fireEvent.click(secretary);
+    await waitFor(() =>
+      expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/participants/p1", {
+        method: "PATCH",
+        body: { is_secretary: true },
+      }),
+    );
+    expect(requestMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives the host row its standing both ways, never the secretary role", () => {
+    open({ ...base, principal_type: "USER", standing: "OBSERVER", is_secretary: false }, { standingOnly: true });
+    expect(screen.getByRole("menuitem", { name: "Chuyển về thành viên" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Giao vai thư ký" })).not.toBeInTheDocument();
+  });
+
+  it("lets the host row drop a secretary role it holds", () => {
+    open({ ...base, principal_type: "USER", standing: "MEMBER", is_secretary: true }, { standingOnly: true });
+    expect(screen.getByRole("menuitem", { name: "Chuyển sang dự thính" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Bỏ vai thư ký" })).toBeInTheDocument();
   });
 
   it("never offers the secretary role to a guest", () => {

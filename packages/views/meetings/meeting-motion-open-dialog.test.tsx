@@ -57,6 +57,16 @@ describe("MeetingMotionOpenDialog", () => {
     expect(within(dialog).queryByRole("status")).not.toBeInTheDocument();
   });
 
+  it("leaves out of the roll a finalized attendee who has since been removed", async () => {
+    attendance.finalized_at = "2026-10-01T02:30:00Z";
+    attendance.rows = [
+      { participant_id: "p9", principal_type: "USER", display_name: "Bình", standing: "MEMBER", is_secretary: false,
+        status: "PRESENT", source: "MANUAL", present_seconds: 0, session_count: 0, removed: true },
+    ];
+    renderDialog();
+    expect(await screen.findByText("1 thành viên có mặt sẽ được bỏ phiếu.")).toBeInTheDocument();
+  });
+
   it("warns when attendance is below the minimum, without blocking", async () => {
     attendance.quorum_percent = 80;
     attendance.summary = { members: 3, present: 1, late: 1, excused: 0, absent: 1, quorum_met: false };

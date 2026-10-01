@@ -1,14 +1,17 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { setSessionUser } from "@uniwork/core/auth";
 import { initI18n } from "@uniwork/core/i18n";
 import { useMeetingViewSessionStore } from "@uniwork/core/meetings/view-session";
 import type { Meeting, User } from "@uniwork/core/types";
 import { requestMock, wrapWithNav } from "../test/api-mock";
+import { MeetingModerationProvider } from "./meeting-moderation";
 import { MeetingRoomPeopleTab } from "./meeting-room-people-tab";
 
+const live = vi.hoisted(() => ({ participants: [] as unknown[] }));
+
 vi.mock("@livekit/components-react", () => ({
-  useParticipants: () => [],
+  useParticipants: () => live.participants,
   useIsSpeaking: () => false,
   useIsMuted: () => false,
 }));
@@ -40,6 +43,7 @@ beforeAll(() => {
   initI18n();
 });
 beforeEach(() => {
+  live.participants = [];
   useMeetingViewSessionStore.getState().reset();
   setSessionUser(me);
   requestMock.mockReset();
@@ -95,5 +99,64 @@ describe("MeetingRoomPeopleTab", () => {
     render(wrapWithNav(<MeetingRoomPeopleTab meetingId="m1" meeting={meeting} guestMode />));
     expect(await screen.findByText("Trong cuộc họp")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Điểm danh" })).not.toBeInTheDocument();
+  });
+
+  describe("the host's row", () => {
+    // The host as another person sees them in the room: an admin moderating.
+    const hostInRoom = {
+      identity: "uw_participant_p-host", name: "Chủ trì", isLocal: false, permissions: null, on: vi.fn(), off: vi.fn(),
+    };
+    const finalizedRoll = {
+      finalized_at: "2026-09-30T03:00:00Z",
+      summary: { members: 1, present: 1, late: 0, excused: 0, absent: 0 },
+      rows: [
+        { participant_id: "p-host", principal_type: "USER", display_name: "Chủ trì", standing: "MEMBER", is_secretary: false, status: "PRESENT", source: "AUTO", present_seconds: 60, session_count: 1 },
+      ],
+    };
+
+    function renderAsAdmin() {
+      setSessionUser({ ...me, id: "u-admin", display_name: "Admin" });
+      live.participants = [hostInRoom];
+      render(
+        wrapWithNav(
+          <MeetingModerationProvider meetingId="m1" canHost>
+            <MeetingRoomPeopleTab meetingId="m1" meeting={meeting} workspaceId="w1" canHost />
+          </MeetingModerationProvider>,
+        ),
+      );
+    }
+
+    it("offers its standing but never removing the host", async () => {
+      renderAsAdmin();
+      fireEvent.click(await screen.findByRole("button", { name: "Thao tác với Chủ trì" }));
+      expect(await screen.findByRole("menuitem", { name: "Chuyển sang dự thính" })).toBeInTheDocument();
+      expect(screen.getByRole("menuitem", { name: "Khóa mic của Chủ trì" })).toBeInTheDocument();
+      expect(screen.queryByRole("menuitem", { name: "Mời Chủ trì ra khỏi cuộc họp" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("menuitem", { name: "Giao vai thư ký" })).not.toBeInTheDocument();
+    });
+
+    it("locks the standing, with the reason, once the roll is finalized", async () => {
+      const base = requestMock.getMockImplementation();
+      requestMock.mockImplementation((path: unknown, ...rest: unknown[]) =>
+        String(path).endsWith("/attendance") ? Promise.resolve(finalizedRoll) : base?.(path, ...rest),
+      );
+      renderAsAdmin();
+      await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/attendance"));
+      fireEvent.click(await screen.findByRole("button", { name: "Thao tác với Chủ trì" }));
+      const standing = await screen.findByRole("menuitem", { name: "Chuyển sang dự thính" });
+      await waitFor(() => expect(standing).toHaveAttribute("aria-disabled", "true"));
+      expect(screen.getByText("Mở lại điểm danh để đổi tư cách")).toBeInTheDocument();
+    });
+  });
+
+  it("does not read the roll for a viewer who cannot host, nor for a guest", async () => {
+    live.participants = [];
+    const first = render(wrapWithNav(<MeetingRoomPeopleTab meetingId="m1" meeting={meeting} workspaceId="w1" />));
+    expect(await screen.findByText("Trong cuộc họp")).toBeInTheDocument();
+    first.unmount();
+    render(wrapWithNav(<MeetingRoomPeopleTab meetingId="m1" meeting={meeting} canHost guestMode />));
+    expect(await screen.findByText("Trong cuộc họp")).toBeInTheDocument();
+    await waitFor(() => expect(requestMock).toHaveBeenCalledWith("/api/v1/meetings/m1/participants"));
+    expect(requestMock).not.toHaveBeenCalledWith("/api/v1/meetings/m1/attendance");
   });
 });

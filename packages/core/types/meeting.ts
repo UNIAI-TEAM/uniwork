@@ -211,6 +211,16 @@ export const AttendanceRowSchema = z.object({
   in_room: z.boolean().optional(),
   present_seconds: z.number(),
   session_count: z.number(),
+  /**
+   * Finalized roll only: marked when finalized, no longer on the meeting. Still
+   * counted, because the finalized numbers are a snapshot. Older servers omit it.
+   */
+  removed: z.boolean().catch(false),
+  /**
+   * Finalized roll only: added after finalize, so it has no mark and is not
+   * counted until the roll is reopened. Older servers omit it.
+   */
+  joined_after_finalize: z.boolean().catch(false),
 });
 export type MeetingAttendanceRow = z.infer<typeof AttendanceRowSchema>;
 

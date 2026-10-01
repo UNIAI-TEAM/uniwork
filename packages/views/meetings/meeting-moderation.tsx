@@ -150,11 +150,14 @@ export function MeetingModerationMenuItems({
   participant,
   micMuted,
   separated = true,
+  removable = true,
 }: {
   participant: Participant;
   micMuted: boolean;
   /** False when nothing sits above these items (a share's menu). */
   separated?: boolean;
+  /** False on the meeting host's row: the host is never removed (the server answers 409). */
+  removable?: boolean;
 }) {
   const { t } = useTranslation();
   const moderation = useContext(ModerationCtx);
@@ -177,11 +180,15 @@ export function MeetingModerationMenuItems({
         {locked ? <LockOpen aria-hidden className="size-4" /> : <Lock aria-hidden className="size-4" />}
         {locked ? t("meetings.unlockMic", { name }) : t("meetings.lockMic", { name })}
       </DropdownMenuItem>
-      <DropdownMenuSeparator />
-      <DropdownMenuItem variant="destructive" onClick={() => moderation.askRemove(participant)}>
-        <UserMinus aria-hidden className="size-4" />
-        {t("meetings.removeParticipant", { name })}
-      </DropdownMenuItem>
+      {removable ? (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onClick={() => moderation.askRemove(participant)}>
+            <UserMinus aria-hidden className="size-4" />
+            {t("meetings.removeParticipant", { name })}
+          </DropdownMenuItem>
+        </>
+      ) : null}
     </>
   );
 }

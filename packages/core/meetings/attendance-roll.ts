@@ -1,4 +1,14 @@
-import type { AttendanceStatus, MeetingAttendance } from "../types/meeting";
+import type { AttendanceStatus, MeetingAttendance, MeetingAttendanceRow } from "../types/meeting";
+
+/**
+ * Whether a row counts toward the summary and the quorum. A finalized roll is a
+ * snapshot of its marks: someone added after finalize has no mark and waits for
+ * the roll to be reopened, while a marked person later removed still counts.
+ */
+export function countsOnRoll(roll: Pick<MeetingAttendance, "finalized_at">, row: MeetingAttendanceRow): boolean {
+  if (row.standing !== "MEMBER") return false;
+  return !(roll.finalized_at && row.joined_after_finalize);
+}
 
 /**
  * The roll after one clerk mark, counted the way MeetingService.attendanceReport
@@ -18,7 +28,7 @@ export function applyAttendanceMark(
   );
   const summary = { members: 0, present: 0, late: 0, excused: 0, absent: 0, quorum_met: null as boolean | null };
   for (const r of rows) {
-    if (r.standing !== "MEMBER") continue;
+    if (!countsOnRoll(roll, r)) continue;
     summary.members++;
     if (r.status === "PRESENT") summary.present++;
     else if (r.status === "LATE") summary.late++;
@@ -32,7 +42,10 @@ export function applyAttendanceMark(
   return { ...roll, rows, summary };
 }
 
-/** Where the roll stands against its minimum attendance, in people. */
+/**
+ * Where the roll stands against its minimum attendance, in people. Read from
+ * the summary, which already leaves out rows added after finalize.
+ */
 export function attendanceQuorum(roll: MeetingAttendance): {
   attended: number;
   members: number;
@@ -52,4 +65,17 @@ export function attendanceQuorum(roll: MeetingAttendance): {
     required,
     missing: Math.max(0, needed - attended),
   };
+}
+
+/**
+ * How many people a motion opened now would put on its voter roll, the way
+ * MeetingService.OpenMotion builds it: members attending, minus anyone the
+ * finalized snapshot still counts but who has since left the meeting.
+ */
+export function motionVoterCount(roll: MeetingAttendance): number {
+  const { present, late } = roll.summary;
+  const gone = roll.rows.filter(
+    (r) => r.removed && countsOnRoll(roll, r) && (r.status === "PRESENT" || r.status === "LATE"),
+  ).length;
+  return Math.max(0, present + late - gone);
 }

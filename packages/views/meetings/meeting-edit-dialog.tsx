@@ -120,6 +120,10 @@ export function MeetingEditDialog({
   const quorumInvalid =
     quorum.trim() !== "" && (!Number.isInteger(quorumValue) || quorumValue < 1 || quorumValue > 100);
   const showQuorumError = quorumInvalid && submitted;
+  // A finalized roll refuses any quorum change (409), so an untouched field is
+  // left out: editing only the title must still save after the roll is locked.
+  const seedQuorum = seed.draft.quorum.trim() === "" ? 0 : Number(seed.draft.quorum);
+  const quorumChanged = quorumValue !== seedQuorum;
   // The record may carry a zone the short list does not; keep it pickable.
   const zones: string[] = MEETING_TIMEZONES.includes(timezone as (typeof MEETING_TIMEZONES)[number])
     ? [...MEETING_TIMEZONES]
@@ -154,7 +158,7 @@ export function MeetingEditDialog({
                 description,
                 timezone,
                 allow_join_request: allowJoin,
-                quorum_percent: quorumValue,
+                ...(quorumChanged ? { quorum_percent: quorumValue } : {}),
                 ...(slot ? { starts_at: slot.starts_at, ends_at: slot.ends_at } : {}),
               },
               {

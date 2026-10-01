@@ -1,4 +1,5 @@
 "use client";
+import { useId } from "react";
 import { NotebookPen, UserCheck, UserRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -20,23 +21,36 @@ export function dutyRole(
 /**
  * Host/admin menu entries that set who votes and who clerks, as their own
  * group: the toast names the person and the role they now hold.
+ *
+ * A finalized roll locks standing (the server answers 409 until it is
+ * reopened), so the switch is disabled with the reason under it; the
+ * secretary role stays open. The host's own row gets only its standing, plus
+ * lifting a secretary role it should not hold.
  */
 export function MeetingDutyMenuItems({
   meetingId,
   participant,
   name,
   separatorBefore = false,
+  rollFinalized = false,
+  standingOnly = false,
 }: {
   meetingId: string;
   participant: MeetingParticipant;
   name: string;
   /** Set when other entries come first in the menu. */
   separatorBefore?: boolean;
+  /** The attendance roll is finalized; from the caller's useAttendanceFinalized. */
+  rollFinalized?: boolean;
+  /** The host's row: standing only, never handing it the secretary role. */
+  standingOnly?: boolean;
 }) {
   const { t } = useTranslation();
+  const hintId = useId();
   const update = useUpdateMeetingParticipant(meetingId);
   const observer = participant.standing === "OBSERVER";
   const secretary = participant.is_secretary === true;
+  const offerSecretary = participant.principal_type === "USER" && (!standingOnly || secretary);
   // The menu closes on click and unmounts these items, which drops mutate()'s
   // per-call callbacks; the promise still settles, so the toast hangs off it.
   const run = (patch: { standing?: "MEMBER" | "OBSERVER"; is_secretary?: boolean }, done: string) => {
@@ -49,7 +63,8 @@ export function MeetingDutyMenuItems({
     <>
       {separatorBefore ? <DropdownMenuSeparator /> : null}
       <DropdownMenuItem
-        disabled={update.isPending}
+        disabled={update.isPending || rollFinalized}
+        aria-describedby={rollFinalized ? hintId : undefined}
         onClick={() =>
           observer
             ? run({ standing: "MEMBER" }, "meetings.governance.madeMember")
@@ -59,7 +74,13 @@ export function MeetingDutyMenuItems({
         {observer ? <UserCheck aria-hidden className="size-4" /> : <UserRound aria-hidden className="size-4" />}
         {observer ? t("meetings.governance.makeMember") : t("meetings.governance.makeObserver")}
       </DropdownMenuItem>
-      {participant.principal_type === "USER" ? (
+      {rollFinalized ? (
+        // Outside the item: a disabled item is faded, and the reason must stay readable.
+        <p id={hintId} className="max-w-56 pr-1.5 pb-1 pl-7 text-caption text-muted-foreground">
+          {t("meetings.governance.standingLockedHint")}
+        </p>
+      ) : null}
+      {offerSecretary ? (
         <DropdownMenuItem
           disabled={update.isPending}
           onClick={() =>

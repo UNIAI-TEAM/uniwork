@@ -16,6 +16,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@uniwork/ui
 import { cn } from "@uniwork/ui/lib/utils";
 import { ConfirmDialog } from "../common/form-dialog";
 import { toastApiError } from "../toast-api-error";
+import { MeetingAttendanceAddedLater } from "./meeting-attendance-added-later";
 import { MeetingAttendanceRowItem } from "./meeting-attendance-row";
 import { MeetingAttendanceSummary } from "./meeting-attendance-summary";
 import { MeetingRowsSkeleton, MeetingSectionError } from "./meeting-section-state";
@@ -79,8 +80,12 @@ export function MeetingAttendancePanel({
   const shown = needle
     ? data.rows.filter((r) => r.display_name.toLocaleLowerCase(i18n.language).includes(needle))
     : data.rows;
-  const members = shown.filter((r) => r.standing === "MEMBER");
-  const observers = shown.filter((r) => r.standing !== "MEMBER");
+  // A finalized roll is a snapshot: people added since have no mark and wait,
+  // apart, for the roll to be reopened.
+  const addedLater = finalized ? shown.filter((r) => r.joined_after_finalize) : [];
+  const onRoll = finalized ? shown.filter((r) => !r.joined_after_finalize) : shown;
+  const members = onRoll.filter((r) => r.standing === "MEMBER");
+  const observers = onRoll.filter((r) => r.standing !== "MEMBER");
   // A roll read days later needs the date as well as the time.
   const stampOf = (iso: string) =>
     new Intl.DateTimeFormat(i18n.language, { hour: "2-digit", minute: "2-digit", day: "numeric", month: "numeric" }).format(
@@ -157,7 +162,7 @@ export function MeetingAttendancePanel({
         <ul className="-mx-2 divide-y divide-border">{members.map(rowItem)}</ul>
       ) : needle ? (
         // A search that only finds observers shows them below without a "no match" line above them.
-        observers.length === 0 ? (
+        observers.length === 0 && addedLater.length === 0 ? (
           <p className="py-3 text-center text-caption text-muted-foreground">{t("meetings.noPeopleMatch")}</p>
         ) : null
       ) : (
@@ -188,6 +193,9 @@ export function MeetingAttendancePanel({
             <ul className="-mx-2 divide-y divide-border">{observers.map(rowItem)}</ul>
           </CollapsibleContent>
         </Collapsible>
+      ) : null}
+      {addedLater.length > 0 ? (
+        <MeetingAttendanceAddedLater count={addedLater.length}>{addedLater.map(rowItem)}</MeetingAttendanceAddedLater>
       ) : null}
       {canEdit ? (
         <div className="flex justify-end border-t border-border pt-3">

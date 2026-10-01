@@ -2772,6 +2772,18 @@
       "draftNotice": "Not finalized — figures may still change.",
       "draftNoticeClerk": "Not finalized. “Auto” rows follow room sessions — pick a status to override, then finalize to lock the roll.",
       "lockedHint": "Reopen it to make changes.",
+      "addedAfterFinalize_one": "Added after finalizing ({{count}})",
+      "addedAfterFinalize_other": "Added after finalizing ({{count}})",
+      "addedAfterFinalizeHint": "Not counted in the finalized figures. Reopen the roll to count them.",
+      "removedChip": "Removed",
+      "standingLockedHint": "Reopen attendance to change standing",
+      "errors": {
+        "attendance_finalized": "Attendance is finalized. Reopen it and try again.",
+        "not_meeting_clerk": "Only the host, a secretary or a workspace admin can do this.",
+        "invalid_meeting_state": "The meeting's current state does not allow this.",
+        "guest_cannot_be_secretary": "Guests cannot be secretary.",
+        "secretary_not_workspace_member": "Only workspace members can be secretary."
+      },
       "inRoomSince": "In the room · joined {{time}}",
       "joinedBrief": "Joined {{time}} · under a minute",
       "excuseNote": "Reason: {{note}}",
