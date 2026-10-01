@@ -8,6 +8,7 @@ import { launchRequestedEventSchema } from "../shared/ipc";
 import { registerDeepLinkSystem, type DeepLinkRegistration, type DeepLinkSystem, type LaunchBridge } from "./deep-links";
 import type { DeploymentProfile } from "../shared/deployment";
 import { DesktopUpdateClient, type DesktopUpdateClientOptions } from "./updates/client";
+import type { DesktopDraftStore } from "./drafts/store";
 
 export const WINDOW_WEB_PREFERENCES = Object.freeze({
   sandbox: true,
@@ -34,6 +35,8 @@ export type DesktopHostOptions = {
   authManager?: NativeLoginManager;
   localFiles?: FileIpcOptions;
   drafts?: DraftIpcOptions;
+  /** One durable store shared by document IPC and native restart checkpoint. */
+  draftStore?: DesktopDraftStore;
   /** Electron app seams for the single-instance launch protocol. */
   deepLinks?: { system: DeepLinkSystem; bridge: LaunchBridge };
   deploymentProfile?: DeploymentProfile;
@@ -52,6 +55,9 @@ function authCallbackFromArgv(argv: readonly unknown[]): string | undefined {
  * G4-03 (credentials), G4-04 (local I/O), and G4-05 (deep links) attach their
  * handlers here; no renderer authority is added by those modules. */
 export function createDesktopHost(options: DesktopHostOptions) {
+  const draftStore = options.draftStore ?? options.drafts?.store;
+  if (options.drafts && draftStore !== options.drafts.store) throw new Error("desktop draft services must share one store");
+  if (options.updates?.restart && options.updates.restart.drafts !== draftStore) throw new Error("update checkpoint must use the desktop draft store");
   for (const key of ["sandbox", "contextIsolation", "nodeIntegration"] as const) {
     if (options.window.webPreferences[key] !== WINDOW_WEB_PREFERENCES[key]) {
       throw new Error(`Desktop window preference ${key} does not match the secure host policy`);

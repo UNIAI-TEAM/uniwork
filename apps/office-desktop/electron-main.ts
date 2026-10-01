@@ -1,7 +1,7 @@
 // Electron is supplied by electron-builder at runtime and intentionally stays
 // a devDependency; this is the only privileged entry module that imports it.
 // eslint-disable-next-line import-x/no-extraneous-dependencies
-import { app, BrowserWindow, ipcMain, net, protocol, safeStorage, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, safeStorage, shell } from "electron";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -14,6 +14,9 @@ import { createSecureCredentialStore } from "./main/credentials/secure-store";
 import { createSystemBrowserLauncher } from "./main/auth/browser";
 import { NativeLoginManager } from "./main/auth/manager";
 import { createHttpAuthTransport } from "./main/transport/auth-transport";
+import { createDesktopDraftStore } from "./main/drafts/store";
+import { createSecureDraftKeyStore } from "./main/drafts/secure-keys";
+import { createNativeInstaller, createNativeUpdateAction } from "./main/updates/native";
 
 const DIST_MAIN_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 const RENDERER_DIRECTORY = resolve(DIST_MAIN_DIRECTORY, "../renderer");
@@ -154,6 +157,11 @@ async function startElectronHost(): Promise<void> {
       }
     },
   }) : createNoopLaunchBridge(deploymentProfile?.deploymentId ?? DESKTOP_IDENTITY.appId);
+  const draftStore = createDesktopDraftStore({
+    rootDirectory: join(app.getPath("userData"), "drafts"),
+    tempDirectory: join(app.getPath("userData"), "draft-temp"),
+    keyStore: createSecureDraftKeyStore(join(app.getPath("userData"), "draft-keys"), safeStorage),
+  });
   const host = createDesktopHost({
     window: {
       webContents: window.webContents,
@@ -175,7 +183,38 @@ async function startElectronHost(): Promise<void> {
     authManager,
     deploymentProfile,
     userDataDirectory: app.getPath("userData"),
+    draftStore,
+    updates: {
+      restart: {
+        drafts: draftStore,
+        confirmDrafts: async () => (await dialog.showMessageBox(window, {
+          type: "question",
+          title: "Cập nhật UniWork Office",
+          message: "Bản nháp cục bộ đã được lưu. Đóng ứng dụng và mở bộ cài cập nhật?",
+          detail: "Bản nháp không được tự động gửi lên máy chủ hoặc ghi đè tệp gốc.",
+          buttons: ["Hủy", "Cập nhật"], defaultId: 0, cancelId: 0, noLink: true,
+        })).response === 1,
+        restart: async () => { app.quit(); },
+      },
+    },
   });
+  const update = createNativeUpdateAction({
+    client: host.updates,
+    install: createNativeInstaller({ directory: join(app.getPath("userData"), "updates"), platform: process.platform, openPath: (path) => shell.openPath(path) }),
+    report: async (code) => {
+      await dialog.showMessageBox(window, {
+        type: code === "auto_update_disabled" ? "info" : "error",
+        title: "Cập nhật UniWork Office",
+        message: code === "auto_update_disabled" ? "Bản dựng này chưa hỗ trợ cập nhật tự động." : "Không thể cập nhật. Ứng dụng vẫn đang mở.",
+        detail: `Mã: ${code}`, buttons: ["Đóng"],
+      });
+    },
+  });
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    ...(process.platform === "darwin" ? [{ role: "appMenu" as const }] : []),
+    { role: "fileMenu" }, { role: "editMenu" }, { role: "viewMenu" }, { role: "windowMenu" },
+    { role: "help", submenu: [{ label: "Kiểm tra cập nhật…", click: () => { void update(); } }] },
+  ]));
 
   for (const channel of DESKTOP_IPC_CHANNELS) {
     ipcMain.handle(channel, (event, payload) => {

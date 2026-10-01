@@ -41,7 +41,7 @@ export interface UpdateTrust {
 /** Fixed-order, versioned payload binds metadata and artifact digest together. */
 export function updateSigningPayload(release: Omit<UpdateRelease, "signature">): Buffer {
   return Buffer.from(JSON.stringify([
-    "uniwork-office-update/1", release.url, release.sha256, release.size,
+    `${DESKTOP_IDENTITY_MANIFEST.channelProfiles.stable.executable}-update/1`, release.url, release.sha256, release.size,
     release.publisher, release.appId, release.channel, release.engineVersion,
     release.contractVersion, release.protocolVersion, release.draftFormat,
   ]));

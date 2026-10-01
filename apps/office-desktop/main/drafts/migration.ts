@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { DESKTOP_IDENTITY_MANIFEST } from "../../shared/identity";
+
+const DRAFT_V2_FORMAT = `${DESKTOP_IDENTITY_MANIFEST.channelProfiles.stable.executable}-draft/2`;
 
 const identitySchema = z.object({
   deploymentId: z.string().min(1), accountId: z.string().min(1),
@@ -11,12 +14,12 @@ const envelopeSchema = z.object({
   generation: z.number().int().positive(), checksum: z.string().min(1),
   byteLength: z.number().int().nonnegative(), updatedAt: z.number().finite(),
   nonce: z.string().optional(), ciphertext: z.string(),
-  format: z.literal("uniwork-office-draft/2").optional(),
+  format: z.literal(DRAFT_V2_FORMAT).optional(),
 }).strict().superRefine((row, context) => {
   const bytes = Buffer.from(row.ciphertext, "base64");
   if (bytes.toString("base64") !== row.ciphertext || bytes.length !== row.byteLength) context.addIssue({ code: "custom", message: "invalid ciphertext encoding or length" });
   if (row.encrypted && (!row.nonce || Buffer.from(row.nonce, "base64").length !== 12 || bytes.length < 16)) context.addIssue({ code: "custom", message: "invalid authenticated envelope" });
-  if (row.version === 2 && row.format !== "uniwork-office-draft/2") context.addIssue({ code: "custom", message: "missing v2 format tag" });
+  if (row.version === 2 && row.format !== DRAFT_V2_FORMAT) context.addIssue({ code: "custom", message: "missing v2 format tag" });
   if (row.version === 1 && row.format !== undefined) context.addIssue({ code: "custom", message: "unexpected v2 format tag" });
 });
 export type DraftEnvelope = z.infer<typeof envelopeSchema>;
@@ -27,7 +30,7 @@ export function readDraftEnvelope(raw: unknown): DraftEnvelope { return envelope
 
 export function migrateDraftEnvelope(raw: unknown, targetVersion: 1 | 2): DraftEnvelope {
   const row = readDraftEnvelope(raw);
-  if (targetVersion === 2) return { ...row, version: 2, format: "uniwork-office-draft/2" };
+  if (targetVersion === 2) return { ...row, version: 2, format: DRAFT_V2_FORMAT };
   const { format: _format, ...legacy } = row;
   return { ...legacy, version: 1 };
 }
