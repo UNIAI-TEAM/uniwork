@@ -110,7 +110,12 @@ function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; meta
     setContextError(false);
     void bridge.call("desktop:library-context", { sessionGeneration: SESSION_GENERATION }).then((raw) => {
       if (!active) return;
-      if (isLibraryContext(raw)) setContext(raw); else setContextError(true);
+      if (isLibraryContext(raw)) {
+        setContext(raw);
+        if (["deployments", "accounts", "organizations", "workspaces"].every((group) => raw[group as keyof DesktopLibraryContextResponse].length === 1)) {
+          setScope({ deploymentId: raw.deployments[0]!.id, accountId: raw.accounts[0]!.id, organizationId: raw.organizations[0]!.id, workspaceId: raw.workspaces[0]!.id });
+        }
+      } else setContextError(true);
     }).catch(() => { if (active) setContextError(true); });
     return () => { active = false; };
   }, [bridge, contextReload]);

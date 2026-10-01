@@ -82,6 +82,21 @@ it("goes error when desktop:auth-config itself fails", async () => {
   await waitFor(() => expect(container.querySelector("[data-login-state='error']")).not.toBeNull());
 });
 
+it("shows a typed retryable list error when the library request rejects", async () => {
+  const { bridge } = makeBridge(vi.fn(async (channel: string) => {
+    if (channel === "desktop:auth-config") return { clientId: "uniwork-office-dev", deploymentId: "lane" };
+    if (channel === "desktop:auth-session") return { status: "signed-in", accountId: "account-1", deploymentId: "lane" };
+    if (channel === "desktop:library-context") return { deployments: [{ id: "default", name: "Default" }], accounts: [{ id: "account-1", name: "Me" }], organizations: [{ id: "org-1", name: "Acme" }], workspaces: [{ id: "ws-1", name: "Team" }] };
+    if (channel === "desktop:library-list") throw new Error("transport unavailable");
+    return {};
+  }) as RendererBridge["call"]);
+  render(<App bridge={bridge} />);
+  await waitFor(() => expect(screen.getByText("Tài liệu")).toBeInTheDocument());
+  expect(await screen.findByRole("alert")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
+  expect(screen.queryByText("Trình soạn thảo không khả dụng; vẫn có thể tải xuống")).not.toBeInTheDocument();
+});
+
 it("picks a scope, lists the workspace library, opens and downloads a document, then signs out", async () => {
   const calls: Array<{ channel: string; payload: unknown }> = [];
   const document = { id: "doc-1", workspaceId: "ws-1", title: "Plan.docx", kind: "file" as const, format: "docx" as const, version: 1, revision: "1", updatedAt: "2026-09-30T00:00:00.000Z", ownerKind: null, canEdit: true, downloadAvailable: true };
@@ -95,14 +110,6 @@ it("picks a scope, lists the workspace library, opens and downloads a document, 
     return {};
   }) as RendererBridge["call"]);
   const { container } = render(<App bridge={bridge} />);
-  await waitFor(() => expect(screen.getByRole("button", { name: "Default" })).toBeInTheDocument());
-
-  fireEvent.click(screen.getByRole("button", { name: "Default" }));
-  fireEvent.click(screen.getByRole("button", { name: "me" }));
-  fireEvent.click(screen.getByRole("button", { name: "Acme" }));
-  fireEvent.click(screen.getByRole("button", { name: "Team" }));
-  fireEvent.click(screen.getByRole("button", { name: "Mở tài liệu" }));
-
   await waitFor(() => expect(screen.getByText("Plan.docx")).toBeInTheDocument());
   fireEvent.click(screen.getByRole("button", { name: "Mở" }));
   fireEvent.click(screen.getByRole("button", { name: "Tải xuống" }));

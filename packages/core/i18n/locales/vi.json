@@ -7196,6 +7196,8 @@
       "download": "Tải xuống",
       "open": "Mở",
       "engineDown": "Trình soạn thảo không khả dụng; vẫn có thể tải xuống",
+      "error": "Không tải được tài liệu.",
+      "retry": "Thử lại",
       "empty": "Chưa có tài liệu"
     }
   }

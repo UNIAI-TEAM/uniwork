@@ -7215,6 +7215,8 @@
       "download": "Download",
       "open": "Open",
       "engineDown": "Editor unavailable; download remains available",
+      "error": "Documents could not be loaded.",
+      "retry": "Retry",
       "empty": "No documents"
     }
   }
