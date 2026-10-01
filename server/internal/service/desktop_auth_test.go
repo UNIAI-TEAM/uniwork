@@ -45,6 +45,10 @@ func TestDesktopAuthPKCEConsentExchangeAndReplay(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	reloaded, err := svc.Consent(context.Background(), u.User.ID, attempt.ID)
+	if err != nil || reloaded.Status != "approved" || reloaded.CSRFToken != "" {
+		t.Fatalf("approved consent reload returned state %q csrf present %t error %v", reloaded.Status, reloaded.CSRFToken != "", err)
+	}
 	sess, err := svc.Exchange(context.Background(), "uniwork-office", "bad-code", verifier, "uniwork-office://auth/callback", "default")
 	if !errors.Is(err, ErrDesktopAuthCodeInvalid) {
 		t.Fatalf("bad code: %v", err)

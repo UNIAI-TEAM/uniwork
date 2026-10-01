@@ -10,6 +10,7 @@ type Routes struct {
 	WS     http.HandlerFunc
 
 	Config                     http.HandlerFunc
+	OfficeDesktopDownload      http.HandlerFunc
 	RUM                        http.HandlerFunc
 	AdminMe                    http.HandlerFunc
 	AdminListOrganizations     http.HandlerFunc
@@ -411,8 +412,12 @@ type Routes struct {
 	CreateBlankDocumentFile http.HandlerFunc
 	StartOfficeJob          http.HandlerFunc
 	GetOfficeJob            http.HandlerFunc
+	GetOfficeJobOutput      http.HandlerFunc
 	CancelOfficeJob         http.HandlerFunc
 	OfficeCapability        http.HandlerFunc
+	CreateOfficeLaunch      http.HandlerFunc
+	ExchangeOfficeLaunch    http.HandlerFunc
+	RevokeOfficeLaunch      http.HandlerFunc
 	CopyDocument            http.HandlerFunc
 	GetDocument             http.HandlerFunc
 	PatchDocument           http.HandlerFunc

@@ -108,6 +108,14 @@ var ErrOfficeJobNotCommittable = errors.New("office: job output is not committab
 // missing or oversized idempotency key.
 var ErrOfficeJobInvalid = errors.New("office_job_invalid")
 
+// The XLSX native recalc sidecar accepts at most this many edit operations per
+// request. Keep the server bound below the generic engine envelope bound so a
+// malformed or oversized request is rejected before a job/output row exists.
+const (
+	maxOfficeEditOps   = 10_000
+	maxOfficeEditsSize = 8 << 20
+)
+
 func NewDocumentOfficeService(o DocumentOfficeOptions) *DocumentOfficeService {
 	s := &DocumentOfficeService{
 		pool: o.Pool, q: o.Queries, files: o.Files, engine: o.Engine, documents: o.Documents, metrics: o.Metrics,
@@ -203,6 +211,9 @@ func (s *DocumentOfficeService) StartOfficeJob(ctx context.Context, actor Actor,
 	key := strings.TrimSpace(in.IdempotencyKey)
 	if !validOfficeOperation(in.Operation) || key == "" || len(key) > 128 {
 		return db.OfficeJob{}, ErrOfficeJobInvalid
+	}
+	if err := validateOfficeJobEdits(in.Operation, in.Edits); err != nil {
+		return db.OfficeJob{}, err
 	}
 	if err := s.authorize(ctx, actor, in.DocumentID, DocumentLevelEdit); err != nil {
 		return db.OfficeJob{}, err
@@ -619,6 +630,37 @@ func (s *DocumentOfficeService) GetOfficeJob(ctx context.Context, actor Actor, o
 		return db.OfficeJob{}, err
 	}
 	return s.Refresh(ctx, row)
+}
+
+// OpenOfficeJobOutput opens the staged bytes of a completed office job for
+// the document owner/editor.  The output remains a FileService object and is
+// never committed by this read; the normal Documents coordinator still owns
+// upload+commit.  Keeping this read behind the document ACL prevents a job's
+// output_file_id from becoming a bearer capability.
+func (s *DocumentOfficeService) OpenOfficeJobOutput(ctx context.Context, actor Actor, documentID, jobID string) (files.Reader, error) {
+	if s.files == nil || s.documents == nil {
+		return files.Reader{}, office.ErrNotConfigured
+	}
+	doc, _, err := s.documents.authorizeDocument(ctx, actor, documentID, DocumentLevelView)
+	if err != nil {
+		return files.Reader{}, err
+	}
+	row, err := s.q.GetOfficeJob(ctx, db.GetOfficeJobParams{
+		ID: jobID, OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) || row.DocumentID != documentID {
+		return files.Reader{}, ErrNotFound
+	}
+	if err != nil {
+		return files.Reader{}, err
+	}
+	if row.State != string(office.JobCompleted) || !row.OutputFileID.Valid || row.OutputFileID.String == "" {
+		return files.Reader{}, ErrOfficeJobNotCommittable
+	}
+	return s.files.Open(ctx, files.OpenInput{
+		Scope:  files.Scope{OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID},
+		FileID: files.FileID(row.OutputFileID.String),
+	})
 }
 
 // ClaimOfficeJobOutputInTx is the hand-off to the commit path (G1-03): inside

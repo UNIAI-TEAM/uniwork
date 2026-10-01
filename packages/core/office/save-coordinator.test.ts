@@ -172,6 +172,16 @@ describe("Office save coordinator", () => {
     expect(result.accepted).toBe(true);
     expect(h.coordinator.getState()).toMatchObject({ state: "dirty", dirtyGeneration: 2, lastSavedGeneration: 1 });
     expect(h.coordinator.getState().identity.baseRevision).toBe((BASE_REVISION + 1n).toString());
+    expect(vi.mocked(h.draft.discard)).toHaveBeenCalledWith(identity, 1);
+  });
+
+  it("discards only the committed draft generation after Save", async () => {
+    const h = setup();
+    h.setDirty(1);
+    const result = await h.coordinator.save();
+    expect(result.accepted).toBe(true);
+    expect(vi.mocked(h.draft.discard)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(h.draft.discard)).toHaveBeenCalledWith(identity, 1);
   });
 
   it("reconciles a timeout after commit with the same durable intent", async () => {

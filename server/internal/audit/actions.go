@@ -169,6 +169,14 @@ const (
 	ActionDocumentVersionsCompacted = "document.versions_compacted"
 	ActionDocumentAssetPurged       = "document.asset_purged"
 
+	// Office launch tickets are document-scoped business capabilities. They
+	// intentionally have no outbox event; these rows are the durable audit
+	// trail for create, atomic redeem and explicit revoke.
+	ActionOfficeLaunchSessionCreated  = "office.launch_session_created"
+	ActionOfficeLaunchSessionRedeemed = "office.launch_session_redeemed"
+	ActionOfficeLaunchSessionRevoked  = "office.launch_session_revoked"
+	ActionOfficeDesktopDownloaded     = "office.desktop_downloaded"
+
 	// Platform admin (F-11). The actor is a platform_role holder, or "cli"
 	// for uniwork-admin; admin_actions carries the reason beside the row.
 	ActionOrganizationSuspended   = "organization.suspended"

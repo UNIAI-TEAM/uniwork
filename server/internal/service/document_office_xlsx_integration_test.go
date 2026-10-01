@@ -221,6 +221,9 @@ func TestDocumentOfficeXlsxIntegration(t *testing.T) {
 			if !rows[op].EngineBound {
 				t.Fatalf("xlsx %s is not engine-bound: %+v", op, rows[op])
 			}
+			if !rows[op].ProductSupported || rows[op].EvidenceLevel != string(office.EvidenceProven) {
+				t.Fatalf("xlsx %s is not product-supported with proven evidence: %+v", op, rows[op])
+			}
 		}
 		for _, op := range []string{"convert", "export"} {
 			if !rows[op].EngineBound && rows[op].ProductSupported {

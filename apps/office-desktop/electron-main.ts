@@ -1,29 +1,62 @@
 // Electron is supplied by electron-builder at runtime and intentionally stays
 // a devDependency; this is the only privileged entry module that imports it.
 // eslint-disable-next-line import-x/no-extraneous-dependencies
-import { app, BrowserWindow, dialog, ipcMain, net, protocol, safeStorage, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, net, protocol, safeStorage, shell } from "electron";
 import { existsSync } from "node:fs";
-import { dirname, join, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DESKTOP_IDENTITY, DESKTOP_IDENTITY_MANIFEST, getChannelIdentity } from "./shared/identity";
-import { DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema } from "./shared/ipc";
+import { DESKTOP_IPC_CHANNELS, desktopSessionMetadataSchema, desktopFileResponseSchema } from "./shared/ipc";
 import { createDesktopHost, WINDOW_WEB_PREFERENCES } from "./main/index";
-import { createLaunchBridge, type DeepLinkSystem } from "./main/deep-links/bridge";
+import { createHttpExchangePort, createLaunchBridge, type DeepLinkSystem } from "./main/deep-links";
 import { resolveDeploymentProfile, type DeploymentProfile } from "./shared/deployment";
 import { createSecureCredentialStore } from "./main/credentials/secure-store";
 import { createSystemBrowserLauncher } from "./main/auth/browser";
 import { NativeLoginManager } from "./main/auth/manager";
 import { createHttpAuthTransport } from "./main/transport/auth-transport";
+import { createHttpOfficeTransport } from "./main/transport/office-transport";
 import { createSafeStorageDraftKeyStore } from "./main/drafts/keystore";
 import { createDesktopDraftStore } from "./main/drafts/store";
-import { FileHandleRegistry } from "./main/files/registry";
+import { FileHandleRegistry, type OpenFileMetadata } from "./main/files/registry";
+import { createProtectedFileCheckpoints, localDraftIdentity } from "./main/files/protected-files";
+import { createNativeInstaller, createNativeUpdateAction } from "./main/updates/native";
 import { createOfficeSaveGuard } from "../../packages/core/office/save-guard";
+import type { DraftIdentity, DraftSession } from "../../packages/core/office/draft-recovery";
 
 const DIST_MAIN_DIRECTORY = dirname(fileURLToPath(import.meta.url));
 const RENDERER_DIRECTORY = resolve(DIST_MAIN_DIRECTORY, "../renderer");
 const PRELOAD_PATH = resolve(DIST_MAIN_DIRECTORY, "../preload/index.cjs");
 const SESSION_GENERATION = "desktop-dev-session";
 const SMOKE_MODE = process.argv.includes("--office-desktop-smoke");
+const nativeFiles: string[] = [];
+app.on("open-file", (event, path) => { event.preventDefault(); nativeFiles.push(path); });
+
+export const DESKTOP_TITLE_BAR_TOKENS = Object.freeze({
+  // Electron requires literal colors. These mirror --background and
+  // --foreground in packages/ui/styles/tokens.css (:root and .dark).
+  light: { color: "#ffffff", symbolColor: "#202020" },
+  dark: { color: "#111111", symbolColor: "#f8f9fa" },
+});
+
+export function createNativeMenuTemplate(channel: "dev" | "beta" | "stable", onSave: () => void, isMac = process.platform === "darwin", onCheckUpdates?: () => void) {
+  const fileLabel = isMac ? "Tệp" : "File";
+  const editLabel = isMac ? "Sửa" : "Edit";
+  const viewLabel = isMac ? "Xem" : "View";
+  const helpLabel = isMac ? "Trợ giúp" : "Help";
+  const template: Electron.MenuItemConstructorOptions[] = [
+    { label: fileLabel, submenu: [{ label: "Lưu", accelerator: "CmdOrCtrl+S", click: onSave }, { role: "quit", label: "Thoát" }] },
+    { label: editLabel, submenu: [{ role: "undo", label: "Hoàn tác" }, { role: "redo", label: "Làm lại" }, { type: "separator" }, { role: "cut", label: "Cắt" }, { role: "copy", label: "Sao chép" }, { role: "paste", label: "Dán" }, { role: "selectAll", label: "Chọn tất cả" }] },
+  ];
+  if (channel === "dev") template.push({ label: viewLabel, submenu: [{ role: "reload", label: "Tải lại" }, { role: "toggleDevTools", label: "Công cụ phát triển" }] });
+  if (onCheckUpdates) template.push({ label: helpLabel, submenu: [{ label: "Kiểm tra cập nhật…", click: onCheckUpdates }] });
+  return template;
+}
+
+export function nativeWindowOptions(platform: NodeJS.Platform, dark = false): Pick<Electron.BrowserWindowConstructorOptions, "titleBarStyle" | "titleBarOverlay"> {
+  if (platform === "darwin") return {};
+  const colors = dark ? DESKTOP_TITLE_BAR_TOKENS.dark : DESKTOP_TITLE_BAR_TOKENS.light;
+  return { titleBarStyle: "hidden", titleBarOverlay: { color: colors.color, symbolColor: colors.symbolColor, height: 32 } };
+}
 
 // The renderer is loaded from the app's custom scheme. Mark it as a standard,
 // secure, CORS-enabled scheme before Electron is ready so its module script
@@ -97,6 +130,7 @@ async function startElectronHost(): Promise<void> {
   app.setPath("userData", configuredUserData ? resolve(configuredUserData) : defaultUserData);
   app.setAppUserModelId(DESKTOP_IDENTITY.appId);
   const deploymentResolution = resolveDeploymentProfile({
+    installedProfilePath: app.isPackaged ? join(process.resourcesPath, "deployment-profile.json") : undefined,
     userDataDirectory: app.getPath("userData"),
     buildChannel: DESKTOP_IDENTITY_MANIFEST.build.channel,
     env: app.isPackaged && !SMOKE_MODE ? {} : process.env,
@@ -109,18 +143,31 @@ async function startElectronHost(): Promise<void> {
     keyNamespace: DESKTOP_IDENTITY.keyNamespace,
     safeStorage,
   });
-  const draftStore = createDesktopDraftStore({ rootDirectory: join(app.getPath("userData"), "drafts"), keyStore: draftKeyStore });
+  const draftStore = createDesktopDraftStore({
+    rootDirectory: join(app.getPath("userData"), "drafts"),
+    tempDirectory: join(app.getPath("userData"), "draft-temp"),
+    keyStore: draftKeyStore,
+  });
   const saveGuard = createOfficeSaveGuard();
   const fileRegistry = new FileHandleRegistry({ sessionId: SESSION_GENERATION });
   let publishSessionMetadata: (metadata: unknown) => void = () => undefined;
-  const authManager = deploymentProfile ? new NativeLoginManager({
+  // One profile-bound credential store is shared by login and launch exchange.
+  // The exchange adapter reads it only in the privileged main process; the
+  // renderer receives a receipt and descriptor, never the access token.
+  const credentials = deploymentProfile ? createSecureCredentialStore({
+    userDataDirectory: app.getPath("userData"),
+    channel: DESKTOP_IDENTITY_MANIFEST.build.channel,
+    deploymentId: deploymentProfile.deploymentId,
+    safeStorage,
+  }) : undefined;
+  const authManager = deploymentProfile && credentials ? new NativeLoginManager({
     clientId: deploymentProfile.clientId,
     deploymentId: deploymentProfile.deploymentId,
     redirectUri: getChannelIdentity(DESKTOP_IDENTITY_MANIFEST.build.channel).authCallback,
     allowLoopbackBrowserUrl: deploymentProfile.channel === "dev",
     browser: createSystemBrowserLauncher((url) => shell.openExternal(url)),
     transport: createHttpAuthTransport(deploymentProfile),
-    credentials: createSecureCredentialStore({ userDataDirectory: app.getPath("userData"), channel: DESKTOP_IDENTITY_MANIFEST.build.channel, deploymentId: deploymentProfile.deploymentId, safeStorage }),
+    credentials,
     onMetadata: (metadata) => publishSessionMetadata(metadata),
   }) : undefined;
   await authManager?.restore();
@@ -132,22 +179,105 @@ async function startElectronHost(): Promise<void> {
       ...WINDOW_WEB_PREFERENCES,
       preload: PRELOAD_PATH,
     },
+    ...nativeWindowOptions(process.platform, nativeTheme.shouldUseDarkColors),
   });
+  if (process.platform !== "darwin") window.setMenuBarVisibility(false);
+  let nativeSaveListener: (() => void) | undefined;
+  // The active draft identity is main-owned: it is set by a local open/save
+  // checkpoint or by a cloud document open, and cleared on logout. The draft
+  // IPC never accepts an identity from the renderer.
+  let activeDocument: { readonly kind: "local" | "cloud"; readonly identity: DraftIdentity } | undefined;
+  const draftScope = () => {
+    const metadata = authManager?.getMetadata();
+    const accountId = metadata?.status === "signed-in" && metadata.accountId ? metadata.accountId : "local-device";
+    return { sessionId: SESSION_GENERATION, accountId, deploymentId: deploymentProfile?.deploymentId ?? "local-device", generation: authManager?.getGeneration() ?? 1 };
+  };
+  const protectFile = createProtectedFileCheckpoints({ store: draftStore, scope: draftScope, identityFor: (handle) => fileRegistry.identityFor(handle) });
+  let activeDocumentId: string | undefined;
+  const localCheckpoint = async (metadata: OpenFileMetadata, bytes: Uint8Array) => {
+    activeDocument = { kind: "local", identity: localDraftIdentity(draftScope(), fileRegistry.identityFor(metadata.handle), metadata) };
+    activeDocumentId = metadata.handle;
+    await protectFile(metadata, bytes);
+  };
+  window.on("closed", () => { activeDocumentId = undefined; });
   publishSessionMetadata = (metadata) => {
     const parsed = desktopSessionMetadataSchema.parse(metadata);
+    // Logout keeps the ciphertext and its draft key, but the cloud document
+    // context dies with the session: no cloud checkpoint or recovery can be
+    // started for account A while B (or nobody) is signed in.
+    if (parsed.status !== "signed-in") { fileRegistry.revoke(); if (activeDocument?.kind === "cloud") activeDocument = undefined; }
     window.webContents.send?.("desktop:auth-session-changed", parsed);
   };
   // Electron's main-frame invoke events use frame id 0. Keep this explicit so
   // the dispatcher binds the handler to the top-level window only.
   const frameId = 0;
-  const launchBridge = createNoopLaunchBridge(deploymentProfile?.deploymentId ?? DESKTOP_IDENTITY.appId);
+  const launchBridge = deploymentProfile && credentials ? createLaunchBridge({
+    clientId: deploymentProfile.clientId,
+    trustedDeploymentId: deploymentProfile.deploymentId,
+    exchange: createHttpExchangePort({ profile: deploymentProfile, credentials }),
+    getSession: () => {
+      try {
+        // The production secure store is synchronous. Keep the interface
+        // defensive if a future store implementation is asynchronous: an
+        // unresolved credential read must prompt login, never race a ticket.
+        const current = credentials.get();
+        if (!current || typeof current !== "object" || "then" in current) return undefined;
+        return { accountId: current.accountId, deploymentId: deploymentProfile.deploymentId, deviceSessionId: current.deviceSessionId };
+      } catch {
+        return undefined;
+      }
+    },
+  }) : createNoopLaunchBridge(deploymentProfile?.deploymentId ?? DESKTOP_IDENTITY.appId);
+  const organizationByWorkspace = new Map<string, string>();
+  const officeTransport = deploymentProfile && credentials ? createHttpOfficeTransport({ profile: deploymentProfile, credentials, refreshSession: async () => {
+    const session = await authManager?.refreshSession();
+    if (session?.status !== "signed-in") throw new Error("login_required");
+  } }) : undefined;
+  // The library context is the only main-side source that maps a workspace id
+  // to its organization; caching it keeps a cloud draft identity resolvable
+  // without another renderer-supplied field.
+  const cachedOfficeTransport = officeTransport ? { ...officeTransport, context: async () => {
+    const context = await officeTransport.context();
+    for (const workspace of context.workspaces) if (workspace.organizationId) organizationByWorkspace.set(workspace.id, workspace.organizationId);
+    return context;
+  } } : undefined;
+  const cloudDraftIdentity = (document: { id: string; workspaceId: string; version: number; revision: string }): DraftIdentity | undefined => {
+    if (!deploymentProfile) return undefined;
+    const metadata = authManager?.getMetadata();
+    const organizationId = organizationByWorkspace.get(document.workspaceId);
+    if (metadata?.status !== "signed-in" || !metadata.accountId || !organizationId) return undefined;
+    return { deploymentId: deploymentProfile.deploymentId, accountId: metadata.accountId, organizationId, workspaceId: document.workspaceId, documentId: document.id, base: { version: String(document.version), revision: document.revision } };
+  };
+  const liveDraftContext = (): { session: DraftSession; identity: DraftIdentity } | undefined => {
+    const active = activeDocument;
+    if (!active) return undefined;
+    if (active.kind === "cloud" && authManager?.getMetadata().status !== "signed-in") return undefined;
+    return { session: draftScope(), identity: active.identity };
+  };
+  /** A recovery is never granted from cached access: for a cloud document the
+   * live workspace list is re-read and the document's edit ACL re-checked. */
+  const liveDraftAccess = async (): Promise<"edit" | "none"> => {
+    const active = activeDocument;
+    if (!active) return "none";
+    if (active.kind === "local") return "edit";
+    if (!officeTransport) return "none";
+    try {
+      const page = await officeTransport.list({ workspaceId: active.identity.workspaceId, mode: "list" });
+      return page.documents.find((document) => document.id === active.identity.documentId)?.canEdit ? "edit" : "none";
+    } catch { return "none"; }
+  };
   const host = createDesktopHost({
+    handlers: { "desktop:window-theme": (request) => {
+      if (process.platform !== "darwin") window.setTitleBarOverlay({ ...DESKTOP_TITLE_BAR_TOKENS[request.dark ? "dark" : "light"], height: 32 });
+      return { applied: true };
+    } },
     window: {
       webContents: window.webContents,
       webPreferences: WINDOW_WEB_PREFERENCES,
       loadURL: (url) => window.loadURL(url),
       setUserDataDirectory: (value) => app.setPath("userData", resolve(value)),
       on: (event, listener) => window.on(event, listener),
+      onNativeSave: (listener) => { nativeSaveListener = listener; },
     },
     sender: {
       senderId: window.webContents.id,
@@ -160,23 +290,63 @@ async function startElectronHost(): Promise<void> {
     },
     deepLinks: { system: createDeepLinkSystem(), bridge: launchBridge },
     authManager,
-    deploymentProfile,
-    userDataDirectory: app.getPath("userData"),
-    draftKeyStore,
-    drafts: { store: draftStore, context: () => undefined },
-    localFiles: {
-      registry: fileRegistry,
-      saveGuard,
+    localFiles: { registry: fileRegistry, saveGuard, checkpoint: localCheckpoint,
       pickOpen: async () => {
-        const result = await dialog.showOpenDialog(window, { properties: ["openFile"] });
+        const result = await dialog.showOpenDialog(window, { properties: ["openFile"], filters: [{ name: "Word", extensions: ["docx"] }, { name: "Files", extensions: ["*"] }] });
         return result.canceled ? undefined : result.filePaths[0];
       },
       pickSaveAs: async () => {
-        const result = await dialog.showSaveDialog(window);
+        const result = await dialog.showSaveDialog(window, { filters: [{ name: "Word", extensions: ["docx"] }] });
         return result.canceled ? undefined : result.filePath;
       },
     },
+    deploymentProfile,
+    userDataDirectory: app.getPath("userData"),
+    draftKeyStore,
+    drafts: {
+      store: draftStore,
+      context: liveDraftContext,
+      // Before a document is open (app start / restart) only the live
+      // account's own rows can be offered, filtered by the session in main.
+      accountSession: () => (authManager?.getMetadata().status === "signed-in" ? draftScope() : undefined),
+      liveAccess: liveDraftAccess,
+      currentBase: () => activeDocument?.identity.base,
+    },
+    ...(cachedOfficeTransport && deploymentProfile && credentials ? { office: { transport: cachedOfficeTransport, isSignedIn: () => authManager?.getMetadata().status === "signed-in", saveGuard, onDocumentOpened: (document: { id: string; workspaceId: string; version: number; revision: string }) => {
+      const identity = cloudDraftIdentity(document);
+      if (identity) { activeDocument = { kind: "cloud", identity }; activeDocumentId = document.id; }
+    } } } : {}),
+    activeDocumentId: () => activeDocumentId,
+    draftStore,
+    updates: {
+      restart: {
+        drafts: draftStore,
+        confirmDrafts: async () => (await dialog.showMessageBox(window, {
+          type: "question",
+          title: "Cập nhật UniWork Office",
+          message: "Bản nháp cục bộ đã được lưu. Đóng ứng dụng và mở bộ cài cập nhật?",
+          detail: "Bản nháp không được tự động gửi lên máy chủ hoặc ghi đè tệp gốc.",
+          buttons: ["Hủy", "Cập nhật"], defaultId: 0, cancelId: 0, noLink: true,
+        })).response === 1,
+        restart: async () => { app.quit(); },
+      },
+    },
   });
+  const update = createNativeUpdateAction({
+    client: host.updates,
+    install: createNativeInstaller({ directory: join(app.getPath("userData"), "updates"), platform: process.platform, openPath: (path) => shell.openPath(path) }),
+    report: async (code) => {
+      await dialog.showMessageBox(window, {
+        type: code === "auto_update_disabled" ? "info" : "error",
+        title: "Cập nhật UniWork Office",
+        message: code === "auto_update_disabled" ? "Bản dựng này chưa hỗ trợ cập nhật tự động." : "Không thể cập nhật. Ứng dụng vẫn đang mở.",
+        detail: `Mã: ${code}`, buttons: ["Đóng"],
+      });
+    },
+  });
+  // Keep the platform editing roles available (especially Cmd/C/X/V on
+  // macOS) while adding the desktop Save and update actions owned by the host.
+  Menu.setApplicationMenu(Menu.buildFromTemplate(createNativeMenuTemplate(DESKTOP_IDENTITY_MANIFEST.build.channel, () => nativeSaveListener?.(), process.platform === "darwin", () => { void update(); })));
 
   for (const channel of DESKTOP_IPC_CHANNELS) {
     ipcMain.handle(channel, (event, payload) => {
@@ -184,6 +354,24 @@ async function startElectronHost(): Promise<void> {
       return host.dispatch(channel, payload);
     });
   }
+  ipcMain.handle("desktop:native-drop-open", async (event, payload: unknown) => {
+    if (event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame) throw new Error("invalid_sender");
+    if (!payload || typeof payload !== "object" || !("path" in payload) || typeof payload.path !== "string" || !isAbsolute(payload.path)) throw new Error("invalid_file");
+    const metadata = await fileRegistry.openEvent(payload.path);
+    const bytes = await fileRegistry.read(metadata.handle);
+    await localCheckpoint(metadata, bytes);
+    return desktopFileResponseSchema.parse({ opened: true, metadata, dataBase64: Buffer.from(bytes).toString("base64") });
+  });
+  const announceFile = async (path: string) => {
+    if (!isAbsolute(path) || !/\.docx$/i.test(path)) return;
+    try {
+      const metadata = await fileRegistry.openEvent(path);
+      window.webContents.send("desktop:file-open-requested", { handle: metadata.handle });
+    } catch { /* Refused local files never cross the preload seam. */ }
+  };
+  app.on("second-instance", (_event, argv) => { for (const path of argv.filter((arg) => /\.docx$/i.test(arg))) void announceFile(path); });
+  app.on("open-file", (_event, path) => { if (!window.webContents.isLoading()) void announceFile(path); });
+  window.webContents.once("did-finish-load", () => { for (const path of [...nativeFiles.splice(0), ...process.argv.filter((arg) => /\.docx$/i.test(arg))]) void announceFile(path); });
 
   window.once("ready-to-show", () => {
     if (!SMOKE_MODE) {

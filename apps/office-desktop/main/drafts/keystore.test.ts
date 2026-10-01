@@ -42,6 +42,27 @@ it("fails closed while the OS store is locked and for corrupt ciphertext", async
   expect(keyPath).toBeDefined();
   fake.files.set(keyPath!, new Uint8Array([1, 2, 3]));
   await expect(store.get("namespace-a")).rejects.toMatchObject({ code: "corrupt" });
+  // A corrupt key is never replaced by freshly generated material.
+  await expect(store.getOrCreate("namespace-a")).rejects.toMatchObject({ code: "corrupt" });
+  expect(fake.files.get(keyPath!)).toEqual(new Uint8Array([1, 2, 3]));
+});
+
+it("refuses a plaintext safeStorage backend and creates no key material", async () => {
+  const fake = fakeStore();
+  const store = createSafeStorageDraftKeyStore({ userDataDirectory: "D:/test", channel: "dev", keyNamespace: "uniwork-office-dev", safeStorage: { ...fake.safeStorage, getSelectedStorageBackend: () => "basic_text" }, fileSystem: fake.fileSystem, restrictFile: async () => undefined });
+  await expect(store.getOrCreate("namespace-a")).rejects.toMatchObject({ code: "locked" });
+  expect(fake.files.size).toBe(0);
+});
+
+it("keeps one key across concurrent calls and independent store instances", async () => {
+  const fake = fakeStore();
+  const options = { userDataDirectory: "D:/test", channel: "dev", keyNamespace: "uniwork-office-dev", safeStorage: fake.safeStorage, fileSystem: fake.fileSystem, restrictFile: async () => undefined } as const;
+  const store = createSafeStorageDraftKeyStore(options);
+  const [first, second] = await Promise.all([store.getOrCreate("namespace-a"), store.getOrCreate("namespace-a")]);
+  expect(first).toHaveLength(32);
+  expect(first).toEqual(second);
+  await expect(createSafeStorageDraftKeyStore(options).getOrCreate("namespace-a")).resolves.toEqual(first);
+  await expect(store.getOrCreate("namespace-b")).resolves.not.toEqual(first);
 });
 
 it("rejects an invalid key namespace without revealing path data", () => {

@@ -233,24 +233,28 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
    *  snapshot generation so a later Save without new content cannot mint a
    *  replacement intent for the same bytes; `released` records nothing because
    *  the generation counters of another document are not comparable. */
-  function settlePending(intent: OfficeSaveIntent<TSnapshot>, kind: "saved" | "released" | "terminal" | "conflict"): void {
+  async function settlePending(intent: OfficeSaveIntent<TSnapshot>, kind: "saved" | "released" | "terminal" | "conflict"): Promise<void> {
     if (pendingIntent?.intentId === intent.intentId) pendingIntent = null;
     if (kind === "saved") terminalGeneration = null;
     else if (kind === "terminal" || kind === "conflict") terminalGeneration = intent.snapshotGeneration;
-    void options.draft.clearIntent(intent.intentId).catch(() => undefined);
+    const cleanup = [options.draft.clearIntent(intent.intentId).catch(() => undefined)];
+    if (kind === "saved") {
+      cleanup.push(options.draft.discard(intent.identity, intent.snapshotGeneration).catch(() => undefined));
+    }
+    await Promise.all(cleanup);
   }
 
-  function failIntent(intent: OfficeSaveIntent<TSnapshot>, dispatch: OfficeErrorDispatch): SaveAttemptResult {
-    if (dispatch.action === "stop" || dispatch.code === "stale_generation") settlePending(intent, "terminal");
-    else if (dispatch.action === "resolve_conflict") settlePending(intent, "conflict");
+  async function failIntent(intent: OfficeSaveIntent<TSnapshot>, dispatch: OfficeErrorDispatch): Promise<SaveAttemptResult> {
+    if (dispatch.action === "stop" || dispatch.code === "stale_generation") await settlePending(intent, "terminal");
+    else if (dispatch.action === "resolve_conflict") await settlePending(intent, "conflict");
     return saveError(dispatch);
   }
 
-  function complete(intent: OfficeSaveIntent<TSnapshot>, receipt: OfficeSaveReceipt): SaveAttemptResult {
+  async function complete(intent: OfficeSaveIntent<TSnapshot>, receipt: OfficeSaveReceipt): Promise<SaveAttemptResult> {
     if (sameIdentity(identity, intent.identity)) {
       identity = { ...identity, baseVersionId: receipt.versionId, baseRevision: receipt.revision };
       lastSavedGeneration = Math.max(lastSavedGeneration, intent.snapshotGeneration);
-      settlePending(intent, "saved");
+      await settlePending(intent, "saved");
       if (capabilityBlocked()) {
         publish({ state: "readonly", activeIntentId: null, error: capabilityError() });
         return { accepted: true, intentId: intent.intentId, receipt };
@@ -262,11 +266,11 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
       // The commit is real and belongs to this document; keep the server base
       // even though the session moved on. The state still never turns `saved`.
       identity = { ...identity, baseVersionId: receipt.versionId, baseRevision: receipt.revision };
-      return failIntent(intent, staleGenerationDispatch());
+      return await failIntent(intent, staleGenerationDispatch());
     }
     // Another document's commit: settle it, but never record its generation -
     // the current document's counter has nothing to do with it (G3-01-T1).
-    settlePending(intent, "released");
+    await settlePending(intent, "released");
     return saveError(staleGenerationDispatch());
   }
 
@@ -282,14 +286,14 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
         if (!uploaded.success) throw pipelineError("malformed_upload_receipt");
         const receipt = parseReceipt(await options.transport.commit({ intent, upload: uploaded.data }), intent);
         if (!receipt) throw pipelineError("malformed_commit_receipt");
-        return complete(intent, receipt);
+        return await complete(intent, receipt);
       } catch (error) {
         const dispatch = dispatchOfficeError(error);
         if (dispatch.ambiguous) {
           const answer = await answerReconcile(intent);
-          if (answer.status === "found") return complete(intent, answer.receipt);
+          if (answer.status === "found") return await complete(intent, answer.receipt);
         }
-        if (!dispatch.retryable || attempt + 1 >= maxAttempts) return failIntent(intent, dispatch);
+        if (!dispatch.retryable || attempt + 1 >= maxAttempts) return await failIntent(intent, dispatch);
         publish({ state: "saving", activeIntentId: intent.intentId, error: dispatch });
         await sleep(backoffMs[Math.min(attempt, backoffMs.length - 1)] ?? 0);
       }
@@ -304,7 +308,7 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
     try {
       await options.draft.persistIntent(intent);
     } catch (error) {
-      return failIntent(intent, dispatchOfficeError(error));
+      return await failIntent(intent, dispatchOfficeError(error));
     }
     return await runIntent(intent);
   }
@@ -334,7 +338,7 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
     const intent = pendingIntent;
     if (!intent) return { accepted: false, reason: "clean" };
     const answer = await answerReconcile(intent);
-    if (answer.status === "found") return complete(intent, answer.receipt);
+    if (answer.status === "found") return await complete(intent, answer.receipt);
     if (answer.status === "error") {
       return saveError({
         state: "blocked",
@@ -353,7 +357,7 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
     // The session moved on while the outcome was unknown and the reconcile
     // proved the old intent never committed. Settle it, then let the current
     // session start its own intent.
-    settlePending(intent, "released");
+    await settlePending(intent, "released");
     return await startNewIntent(snapshot);
   }
 
@@ -451,7 +455,7 @@ export function createOfficeSaveCoordinator<TSnapshot>(options: SaveCoordinatorO
       if (!intent) return null;
       const answer = await answerReconcile(intent);
       if (answer.status !== "found") return null;
-      const result = complete(intent, answer.receipt);
+      const result = await complete(intent, answer.receipt);
       return result.accepted ? answer.receipt : null;
     },
     cancel: async (): Promise<void> => {

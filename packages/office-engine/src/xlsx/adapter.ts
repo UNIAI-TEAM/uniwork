@@ -27,6 +27,7 @@ import {
 } from "@uniwork/office-contracts";
 import {
   XLSX_SIDECAR_PROTOCOL_VERSION,
+  isXlsxWorkbookSnapshot,
   type XlsxGatewayFunctions,
   type XlsxPackageEntry,
   type XlsxRecalcPort,
@@ -493,7 +494,15 @@ function toXlsxFailure(error: unknown): XlsxTypedError {
  * open:xlsx — probe bytes into a document-model summary the service stores as
  * probe.json. The output is the probe artifact, not the input.
  */
-export async function probeXlsx(engine: XlsxGatewayFunctions, bytes: Uint8Array): Promise<XlsxProbe> {
+export interface XlsxOpenModel {
+  readonly probe: XlsxProbe;
+  readonly snapshot: XlsxWorkbookSnapshot;
+}
+
+/** Open once through the G2 gateway and return both the capability probe and
+ * the exact gateway snapshot.  Consumers must not parse OOXML independently:
+ * this is the one model contract shared by service and browser hosts. */
+export async function openXlsxModel(engine: XlsxGatewayFunctions, bytes: Uint8Array): Promise<XlsxOpenModel> {
   const adapter = new XlsxAdapter({ engine });
   const outcome = await adapter.open({ bytes, format: "xlsx", document_id: "job" });
   if (outcome.outcome !== "opened") {
@@ -503,6 +512,9 @@ export async function probeXlsx(engine: XlsxGatewayFunctions, bytes: Uint8Array)
   try {
     const entries = await engine.inventory(bytes);
     const snapshot = adapter.snapshotOf(ref);
+    if (!isXlsxWorkbookSnapshot(snapshot)) {
+      throw new EngineBoundaryError("engine_result_invalid", { detail: "gateway returned an invalid xlsx workbook snapshot" });
+    }
     let cellCount = 0;
     let formulaCellCount = 0;
     for (const sheet of snapshot.sheets) {
@@ -512,16 +524,23 @@ export async function probeXlsx(engine: XlsxGatewayFunctions, bytes: Uint8Array)
       }
     }
     return {
-      format: "xlsx",
-      sheetCount: snapshot.sheets.length,
-      sheetNames: adapter.sheetNames(ref),
-      cellCount,
-      formulaCellCount,
-      preservedParts: preservedPartsOf(entries),
+      probe: {
+        format: "xlsx",
+        sheetCount: snapshot.sheets.length,
+        sheetNames: adapter.sheetNames(ref),
+        cellCount,
+        formulaCellCount,
+        preservedParts: preservedPartsOf(entries),
+      },
+      snapshot,
     };
   } finally {
     adapter.release(ref);
   }
+}
+
+export async function probeXlsx(engine: XlsxGatewayFunctions, bytes: Uint8Array): Promise<XlsxProbe> {
+  return (await openXlsxModel(engine, bytes)).probe;
 }
 
 /**

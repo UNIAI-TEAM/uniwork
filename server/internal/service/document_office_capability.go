@@ -532,7 +532,10 @@ type OfficeJobRequest struct {
 	HasBaseRevision  bool
 	IdempotencyKey   string
 	DocumentModelRef string
-	Deadline         time.Duration
+	// Edits are accepted only for operation=edit and are bounded before any
+	// output reservation or office_jobs insert.
+	Edits    []office.EditOp
+	Deadline time.Duration
 	// TargetFormat is a convert job's output format (xlsx for xls, docx for
 	// odt); any other operation must leave it empty.
 	TargetFormat string
@@ -557,6 +560,9 @@ func (s *DocumentOfficeService) StartOfficeJobForDocument(ctx context.Context, a
 	if !ok {
 		return db.OfficeJob{}, ErrOfficeJobInvalid
 	}
+	if err := validateOfficeJobEdits(operation, req.Edits); err != nil {
+		return db.OfficeJob{}, err
+	}
 	var target office.Format
 	if req.TargetFormat != "" {
 		if target, ok = parseOfficeFormat(req.TargetFormat); !ok {
@@ -580,7 +586,7 @@ func (s *DocumentOfficeService) StartOfficeJobForDocument(ctx context.Context, a
 			OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
 			BaseVersionID: existing.BaseVersionID, BaseRevision: revision,
 			Operation: operation, Format: office.Format(existing.Format), IdempotencyKey: req.IdempotencyKey,
-			Deadline: req.Deadline, DocumentModelRef: req.DocumentModelRef, TargetFormat: target,
+			Deadline: req.Deadline, DocumentModelRef: req.DocumentModelRef, Edits: req.Edits, TargetFormat: target,
 		})
 	} else if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return db.OfficeJob{}, err
@@ -602,8 +608,30 @@ func (s *DocumentOfficeService) StartOfficeJobForDocument(ctx context.Context, a
 		OrganizationID: doc.OrganizationID, WorkspaceID: doc.WorkspaceID, DocumentID: doc.ID,
 		BaseVersionID: doc.FileVersionID.String, BaseRevision: doc.Revision,
 		Operation: operation, Format: format, IdempotencyKey: req.IdempotencyKey,
-		Deadline: req.Deadline, DocumentModelRef: req.DocumentModelRef, TargetFormat: target,
+		Deadline: req.Deadline, DocumentModelRef: req.DocumentModelRef, Edits: req.Edits, TargetFormat: target,
 	})
+}
+
+func validateOfficeJobEdits(operation office.Operation, edits []office.EditOp) error {
+	if operation != office.OperationEdit && len(edits) > 0 {
+		return ErrOfficeJobInvalid
+	}
+	if len(edits) > maxOfficeEditOps {
+		return ErrOfficeJobInvalid
+	}
+	if len(edits) == 0 {
+		return nil
+	}
+	raw, err := json.Marshal(edits)
+	if err != nil || len(raw) > maxOfficeEditsSize {
+		return ErrOfficeJobInvalid
+	}
+	for _, edit := range edits {
+		if strings.TrimSpace(edit.Op) == "" {
+			return ErrOfficeJobInvalid
+		}
+	}
+	return nil
 }
 
 // OfficeJob answers one job of one document: a job id that belongs to another

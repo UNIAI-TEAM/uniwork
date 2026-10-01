@@ -23,7 +23,7 @@ export const createOfficeLaunchSessionRequestSchema = z.object({
 
 export const officeLaunchSessionResponseSchema = z.object({
   launch_ticket: launchTicket,
-  launch_url: z.string().regex(/^uniwork-office:\/\/open\/??\?ticket=ticket_[A-Za-z0-9_-]{32,185}$/),
+  launch_url: z.string().regex(/^uniwork-office(?:-dev)?:\/\/open\?ticket=ticket_[A-Za-z0-9_-]{32,185}$/).optional(),
   expires_at: z.string().datetime({ offset: true }),
   document_id: id,
   operation,
@@ -41,7 +41,7 @@ const officeLaunchDescriptorSchema = z.object({
   revision: z.string().min(1).max(128),
   contract_version: z.literal("uniwork-office-engine-contract/1"),
   protocol_version: z.literal("1"),
-  download_path: z.string().regex(/^\/api\/v1\/documents\/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}\/download$/),
+  download_path: z.string().regex(/^\/api\/v1\/documents\/[A-Za-z0-9][A-Za-z0-9._:-]{0,127}\/download(?:\?version=[1-9][0-9]*)?$/),
 }).strict();
 
 export const exchangeOfficeLaunchSessionRequestSchema = z.object({

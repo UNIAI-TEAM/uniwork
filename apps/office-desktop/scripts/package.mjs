@@ -51,6 +51,7 @@ export function createPackagerConfig({ platform = "win32", arch = "x64", output 
     electronVersion: electronPackage.version,
     publish: null,
     protocols: platform === "win32" ? [{ name: channelIdentity.product, schemes: [channelIdentity.userScheme] }] : undefined,
+    fileAssociations: [{ ext: "docx", name: "Word document", role: "Editor" }],
     win: platform === "win32" ? { target: [{ target: "zip", arch: [arch] }, { target: "nsis", arch: [arch] }], signAndEditExecutable: false } : undefined,
     nsis: platform === "win32" ? {
       artifactName: `${channelIdentity.artifactPrefix}_${buildVersion}_${artifactLabel}_${platform}_${arch}-setup.exe`,

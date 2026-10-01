@@ -11,7 +11,8 @@
       "entry": [
         "scripts/**/*.mjs",
         "scripts/load/*.k6.js",
-        "scripts/office-g0/*.ts"
+        "scripts/office-g0/*.ts",
+        "docs/office/g3g4/samples/web-launch-ticket.mjs"
       ],
       "ignoreDependencies": [
         "@playwright/test",
@@ -40,7 +41,8 @@
         "electron-main.ts",
         "main/index.ts",
         "preload/index.ts",
-        "renderer/index.ts",
+        "renderer/index.tsx",
+        "renderer/styles.css",
         "scripts/*.mjs"
       ],
       "ignoreDependencies": [

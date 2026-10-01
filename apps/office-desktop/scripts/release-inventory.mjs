@@ -59,6 +59,16 @@ function shippedPackageNames(metafile) {
   return names;
 }
 
+// Packages whose own package.json omits the "license" field even though the
+// package ships a licence file with an unambiguous identifier. Verified
+// against the file `licenseTextFor` below reads out of the same package.
+const KNOWN_LICENSE_OVERRIDES = {
+  // khroma@2.1.0: MIT per its repository's `license` file; the field is
+  // simply absent from package.json. Pulled in transitively through
+  // @uniwork/ui's markdown/diagram rendering.
+  khroma: "MIT",
+};
+
 function licenseTextFor(packageDirectory, privateWorkspace) {
   for (const file of ["LICENSE", "LICENSE.md", "LICENSE.txt", "NOTICE", "NOTICE.md", "NOTICE.txt"]) {
     try { return readFileSync(join(packageDirectory, file), "utf8").trim(); } catch { /* try the next conventional name */ }
@@ -106,7 +116,7 @@ function dependencyRowsFromPnpm({ metafile } = {}) {
       if (packageJson) {
         try {
           const metadata = JSON.parse(readFileSync(packageJson, "utf8"));
-          license = typeof metadata.license === "string" ? metadata.license : Array.isArray(metadata.licenses) ? metadata.licenses.map((item) => item.type ?? item).join(" OR ") : "UNKNOWN";
+          license = typeof metadata.license === "string" ? metadata.license : Array.isArray(metadata.licenses) ? metadata.licenses.map((item) => item.type ?? item).join(" OR ") : (KNOWN_LICENSE_OVERRIDES[name] ?? "UNKNOWN");
           privateWorkspace = metadata.private === true && name.startsWith("@uniwork/");
           if (privateWorkspace) license = "UNLICENSED (internal workspace)";
         } catch {

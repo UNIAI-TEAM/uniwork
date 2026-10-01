@@ -17,6 +17,11 @@ describe("desktop consent endpoint", () => {
     await expect(desktopConsent("a")).resolves.toBeNull();
   });
 
+  it("accepts a terminal server state with no CSRF and an email-less account", async () => {
+    requestMock.mockResolvedValue({ status: "approved", attempt_id: "a", account_id: "u", account_email: "", client_id: "uniwork-office", deployment_id: "default", redirect_uri: "uniwork-office://auth/callback", device_label: "Laptop", platform: "windows", build: "1", csrf_token: "" });
+    await expect(desktopConsent("a")).resolves.toMatchObject({ status: "approved", csrf_token: "", account_email: "" });
+  });
+
   it("posts the explicit decision and parses callback", async () => {
     requestMock.mockResolvedValue({ status: "ok", callback_url: "uniwork-office://auth/callback?code=x&state=y" });
     await expect(desktopConsentCommand({ attempt_id: "a", csrf_token: "csrf", decision: "approve" })).resolves.toMatchObject({ status: "ok" });

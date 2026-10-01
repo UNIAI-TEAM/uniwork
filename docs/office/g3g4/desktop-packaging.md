@@ -1,10 +1,11 @@
-# UniWork Office desktop packaging (G4-07a)
+# UniWork Office desktop packaging and updates (G4-07a/07b)
 
-Status: G4-07a unsigned development packaging. This runbook covers the
+Status: unsigned development packaging and local update verification. This runbook covers the
 reproducible Windows x64 ZIP and per-user NSIS installer, provenance inventory,
 identity manifest, diagnostics contract, deployment-profile seam, and update
-configuration validation. Signed update verification, rollback, notarization,
-and signed release installers remain 07b/07c work.
+configuration validation, test-key signature verification, restart checkpoints,
+and draft-format rollback. Production signed Windows/macOS artifacts,
+notarization and install/upgrade/uninstall qualification remain 07c/G7 work.
 
 ## Source of truth and identity
 
@@ -153,8 +154,10 @@ and scan are copied into the artifact at `resources/release-inventory/`.
 publisher, channel }` with a strict schema. Missing input, malformed values,
 and a channel different from the manifest are typed refusals. The only default
 is disabled; every `enabled: true` configuration is refused with
-`not-allowed-in-dev` until the signed update work in 07b/G7 provides a verified
-feed and publisher. There is no `electron-updater` dependency and no unsigned
+`not-allowed-in-dev`. G4-07b tests inject a local HTTPS feed, fixture CA and
+test publisher key into the main-only client; packaged code accepts none of
+these from the renderer, environment or downloaded feed. G7 must supply and
+approve production trust and release policy before enabling it. There is no `electron-updater` dependency and no unsigned
 automatic update fallback.
 
 ## Evidence and cleanup
@@ -176,3 +179,21 @@ tests), package/inventory tests, `node scripts/office/check-boundaries.mjs`,
 `pnpm knip`, catalog and governance tests, and `pnpm audit --audit-level high`.
 The accepted artifacts are unsigned dev/beta evidence only and must not be
 described as a signed release or an enabled update channel.
+
+## Update and rollback (G4-07b)
+
+Configure `OFFICE_INSTALLER_DEV_URL`, `OFFICE_INSTALLER_BETA_URL`, and `OFFICE_INSTALLER_STABLE_URL` for the three deployment channels. The authenticated `GET /api/v1/office/desktop/download?organization_id=...&channel=...` route requires organization membership, returns the selected installer with the public API origin, channel, client id, and deployment id, and writes an audit row. The response contains no credentials, signing keys, or storage secrets. The web editor reuses the existing not-installed install prompt and fails closed when the selected channel has no installer.
+
+The web **Download** action requests the same route with `bundle=true` using the current authenticated session. The server produces an `application/zip` containing `UniWork-Office-Setup` with the configured installer extension and `deployment-profile.json` (`deploymentId`, `apiOrigin`, `clientId`, `channel`). The installer fetch forwards no user credentials, refuses redirects and empty responses, and enforces a 512 MiB limit. Audit records download initiation before that fetch; they do not prove the client finished receiving or installed the bundle. Both responses use `Cache-Control: no-store`; the route is limited to ten requests per minute when the Redis limiter is configured.
+
+Extract both files together before starting the Windows installer. NSIS copies the adjacent profile to installed resources; packaged Electron resolves it there. macOS profile delivery is still a sidecar: place the validated `deployment-profile.json` in the accepted userData namespace before launching, or let deployment tooling provision it there. Signing that profile and qualifying platform installation are 07c work. Missing, malformed or mismatched API profiles leave the Download flow unavailable; it does not fall back to a public URL for another channel.
+
+Unsigned automatic update is disabled until a real feed and signing publisher are approved. Feed and artifact URLs must use verified HTTPS on the configured origin, without credentials or fragments; redirects are refused. The installed main-process policy pins the publisher key and an ordered list of accepted engine revisions. A feed cannot supply its own trust key. Ed25519 signatures bind artifact URL, SHA-256, size, publisher, app id, channel, engine version, contract version, protocol version and target draft format. Unknown or older engine revisions, incompatible contracts/protocols, wrong identity/publisher, invalid signatures and changed bytes are typed refusals. The local HTTPS fixture exercises acceptance, untrusted TLS, redirects and tampering without production keys.
+
+Before restart-to-update, flush the local encrypted draft checkpoint and obtain explicit confirmation. Any checkpoint I/O failure aborts the restart. Draft checkpoints are local only and never auto-save to cloud or overwrite the original file. Migration and rollback preserve ciphertext, checksum, and key namespace; see `docs/office/g3g4/desktop-draft-format-support.md` for the v1/v2 matrix.
+
+The native Help menu exposes **Kiểm tra cập nhật…**. Electron owns the client and the durable store under `userData/drafts`; document IPC and restart services must share the same store. Separate draft keys under `userData/draft-keys` are protected by OS `safeStorage`, with no plaintext fallback or replacement of corrupt keys. The updater drains pending checkpoints, migrates to the signed target draft format, seals writes, and shows a confirmation dialog whose default is Cancel. Cancel or an installer error reopens draft writes. After confirmation, verified installer bytes are written under `userData/updates`, flushed and hashed again before opening the Windows `.exe` or macOS `.pkg`/`.dmg`; only a successful OS open permits the app to quit. Opening a macOS disk image still requires the user to complete installation. The current unsigned build returns `auto_update_disabled` before network access; this menu does not enable the G7 signing/feed gate.
+
+For an update incident, record the typed refusal and build/channel diagnostics, then check the configured origin, certificate, pinned publisher policy and artifact hash. For `checkpoint_failed`, restore writable storage and inspect retained encrypted envelopes before retrying; do not delete drafts or regenerate their keys. Cancellation and install-open failure leave the current application running and allow draft writes again.
+
+Rollback of the draft format must happen while running a reader that supports both formats: `DesktopDraftStore.migrateFormat(1)` retains each source envelope and atomically writes v1 metadata before a v1-only reader can open it. A signed, compatible recovery release can request `draftFormat: 1` through the same checkpoint/confirmation path. This does not authorize an older engine: the ordinary updater still refuses engine downgrades. If no compatible recovery release is available, retain the existing build and encrypted backups for a controlled recovery; do not point an older binary at v2 or mixed rows. Verify document recovery with the existing OS keys before resuming normal work. `.keep` files are retained evidence, not automatically restored revisions; see the support matrix for interrupted migrations.

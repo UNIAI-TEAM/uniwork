@@ -87,6 +87,11 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		sdo:         sdo.DocumentSDO{},
 		auth:        true,
 	})
+	d.Post("/documents/{documentID}/office/sessions", h.CreateOfficeLaunch, apiOp{
+		summary:     "Create an Office launch ticket",
+		description: "Explicit Document action: checks the live ACL, binds account/deployment/client/version and returns one opaque 120-second deep-link ticket. Historical versions are read-only.",
+		tags:        []string{"documents"}, sdi: sdi.CreateOfficeLaunchSessionSDI{}, sdo: sdo.OfficeLaunchSessionSDO{}, status: http.StatusCreated, auth: true,
+	})
 	d.Patch("/documents/{documentID}", h.PatchDocument, apiOp{
 		summary: "Update a document",
 		description: "Autosave/metadata của working copy. revision bắt buộc (chuỗi thập phân của base client thấy); base cũ -> 422 revision_conflict kèm fields.current_revision. " +
@@ -228,6 +233,19 @@ func registerDocuments(r api, h Routes, flags *featureflag.Service) {
 		tags:        []string{"documents"},
 		sdo:         sdo.OfficeJobSDO{},
 		auth:        true,
+	})
+	d.Get("/documents/{documentID}/office/jobs/{jobID}/output", h.GetOfficeJobOutput, apiOp{
+		summary:     "Download a completed Office job output",
+		description: "Streams the staged output of a completed Office job for the document editor; the normal versions/commit route still owns persistence. Requires document view access.",
+		tags:        []string{"documents"},
+		produces:    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		auth:        true,
+	})
+	d.r.Head("/documents/{documentID}/office/jobs/{jobID}/output", h.GetOfficeJobOutput)
+	d.cat.add(http.MethodHead, joinRoute(d.prefix, "/documents/{documentID}/office/jobs/{jobID}/output"), apiOp{
+		summary:     "Headers of a completed Office job output",
+		description: "Like GET without a body: Content-Length and Content-Type only. Same document view check as GET.",
+		tags:        []string{"documents"},
 	})
 	d.Post("/documents/{documentID}/office/jobs/{jobID}/cancel", h.CancelOfficeJob, apiOp{
 		summary:     "Cancel an Office job",

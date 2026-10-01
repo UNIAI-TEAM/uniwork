@@ -52,3 +52,5 @@ server/internal/handler/data/
 .codex/
 .pnpm-store/
 .uniwork-dev/
+.uniwork-dev-run/
+apps/office-desktop/.test-artifacts/

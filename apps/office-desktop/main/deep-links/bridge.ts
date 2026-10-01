@@ -20,7 +20,7 @@ type LaunchBridgeOutcome =
   | Readonly<{ status: "login_required"; reason: "signed_out" | "deployment_mismatch" | "account_mismatch" }>
   | Readonly<{ status: "refused"; reason: LaunchBridgeRefusal }>;
 
-type LaunchRequestedEvent = Readonly<{ documentId: string; operation: LaunchOperation }>;
+type LaunchRequestedEvent = Readonly<{ documentId: string; operation: LaunchOperation; version?: number }>;
 
 export type LaunchBridgeOptions = Readonly<{
   exchange: ExchangePort;
@@ -97,7 +97,7 @@ export function createLaunchBridge(options: LaunchBridgeOptions): LaunchBridge {
     };
     for (const listener of listeners) {
       try {
-        listener({ documentId: opened.documentId, operation: opened.operation });
+      listener({ documentId: opened.documentId, operation: opened.operation, ...(opened.descriptor.version > 0 ? { version: opened.descriptor.version } : {}) });
       } catch {
         // A renderer subscription cannot change the already-redeemed outcome
         // or make a second exchange necessary.

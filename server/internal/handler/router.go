@@ -71,6 +71,11 @@ type Deps struct {
 	// is authenticated; the byte route consumes only its opaque capability.
 	Preview *service.PreviewAssetService
 
+	// OfficeLaunch is the document-scoped single-use launch-ticket service.
+	// When omitted, New derives it from Documents and the deployment config.
+	OfficeLaunch          *service.OfficeLaunchService
+	OfficeDesktopDownload *service.OfficeDesktopDownloadService
+
 	// Redis is optional: nil disables the rate limiter and any other feature
 	// that needs shared state across instances.
 	Redis *redis.Client
@@ -110,6 +115,12 @@ type handlers struct {
 // New builds the HTTP handler. Routes live in package router, split by
 // OpenAPI tag. This constructor only maps *handlers methods onto Routes.
 func New(d Deps) http.Handler {
+	if d.OfficeDesktopDownload == nil && d.Organizations != nil {
+		d.OfficeDesktopDownload = service.NewOfficeDesktopDownloadService(d.Organizations, d.Cfg)
+	}
+	if d.OfficeLaunch == nil && d.Documents != nil {
+		d.OfficeLaunch = service.NewOfficeLaunchService(d.Documents, d.Cfg)
+	}
 	h := &handlers{Deps: d, proxies: mw.ParseTrustedProxies(d.Cfg.TrustedProxies)}
 	return rt.New(rt.Deps{
 		Cfg:           d.Cfg,
@@ -130,6 +141,7 @@ func New(d Deps) http.Handler {
 		Ready:  h.ready,
 
 		Config:                     h.config,
+		OfficeDesktopDownload:      h.officeDesktopDownload,
 		RUM:                        h.rum,
 		AdminMe:                    h.adminMe,
 		AdminListOrganizations:     h.adminListOrganizations,
@@ -525,8 +537,12 @@ func New(d Deps) http.Handler {
 		CreateBlankDocumentFile: h.createBlankDocumentFile,
 		StartOfficeJob:          h.startOfficeJob,
 		GetOfficeJob:            h.getOfficeJob,
+		GetOfficeJobOutput:      h.getOfficeJobOutput,
 		CancelOfficeJob:         h.cancelOfficeJob,
 		OfficeCapability:        h.officeCapability,
+		CreateOfficeLaunch:      h.createOfficeLaunch,
+		ExchangeOfficeLaunch:    h.exchangeOfficeLaunch,
+		RevokeOfficeLaunch:      h.revokeOfficeLaunch,
 		CopyDocument:            h.copyDocument,
 		GetDocument:             h.getDocument,
 		PatchDocument:           h.patchDocument,

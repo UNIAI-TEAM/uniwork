@@ -1,5 +1,5 @@
 {
-  "extends": "@uniwork/tsconfig/base.json",
+  "extends": "@uniwork/tsconfig/react-library.json",
   "compilerOptions": {
     "allowImportingTsExtensions": true,
     "noEmit": true,

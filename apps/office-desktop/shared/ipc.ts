@@ -13,6 +13,7 @@ export const DESKTOP_IPC_CHANNELS = [
   "desktop:auth-config",
   "desktop:auth-logout",
   "desktop:diagnostics",
+  "desktop:window-theme",
   "desktop:file-pick-open",
   "desktop:file-open",
   "desktop:file-save",
@@ -21,11 +22,19 @@ export const DESKTOP_IPC_CHANNELS = [
   "desktop:draft-list",
   "desktop:draft-recover",
   "desktop:draft-discard",
+  "desktop:library-list",
+  "desktop:library-context",
+  "desktop:library-recent",
+  "desktop:library-search",
+  "desktop:library-create",
+  "desktop:library-download",
+  "desktop:office-open",
+  "desktop:office-save",
 ] as const;
 export type DesktopIpcChannel = (typeof DESKTOP_IPC_CHANNELS)[number];
 /** Main-to-renderer events are a separate, equally narrow allowlist. Event
  * payloads are parsed in main before send and again in preload. */
-export const DESKTOP_EVENTS = ["desktop:launch-requested", "desktop:auth-session-changed"] as const;
+export const DESKTOP_EVENTS = ["desktop:launch-requested", "desktop:auth-session-changed", "desktop:office-save-requested", "desktop:file-open-requested"] as const;
 const sessionGenerationSchema = z.string().regex(/^[A-Za-z0-9_-]{8,128}$/, "invalid session generation");
 const opaqueHandleSchema = z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/, "invalid opaque handle");
 const operationSchema = z.enum(["capability", "open", "edit", "serialize", "cancel"]);
@@ -34,6 +43,7 @@ const deploymentSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/, 
 const clientIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/, "invalid client id");
 const attemptIdSchema = z.string().regex(/^attempt_[A-Za-z0-9_-]{32,160}$/, "invalid attempt id");
 const fileHandleSchema = z.string().regex(/^file_[A-Za-z0-9_-]{32,160}$/, "invalid file handle");
+export const fileOpenRequestedSchema = z.object({ handle: fileHandleSchema }).strict();
 const draftIdSchema = z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/, "invalid draft id");
 const IPC_FILE_MAX_BYTES = 192 * 1024 * 1024;
 /**
@@ -60,6 +70,7 @@ function isBase64Bytes(value: string): boolean {
   return true;
 }
 const base64BytesSchema = z.string().max(IPC_FILE_MAX_BYTES).refine(isBase64Bytes, "invalid byte encoding");
+const documentIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/, "invalid document id");
 export const desktopFileMetadataSchema = z.object({
   handle: fileHandleSchema,
   name: z.string().min(1).max(255),
@@ -67,7 +78,7 @@ export const desktopFileMetadataSchema = z.object({
   modifiedAtMs: z.number().finite().nonnegative(),
   checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/),
 }).strict();
-export const desktopFileResponseSchema = z.object({ opened: z.boolean(), metadata: desktopFileMetadataSchema.optional() }).strict();
+export const desktopFileResponseSchema = z.object({ opened: z.boolean(), metadata: desktopFileMetadataSchema.optional(), dataBase64: base64BytesSchema.optional() }).strict();
 export const desktopDraftResponseSchema = z.object({ stored: z.boolean(), generation: z.number().int().positive() }).strict();
 const draftBaseSchema = z.object({ revision: z.string().min(1), version: z.string().min(1) }).strict();
 const draftIdentitySchema = z.object({
@@ -96,6 +107,64 @@ export const desktopDraftRecoveryResponseSchema = z.discriminatedUnion("status",
   z.object({ status: z.literal("locked"), metadata: draftMetadataSchema.optional(), code: z.literal("draft_recovery_locked") }).strict(),
 ]);
 export const desktopDraftDiscardResponseSchema = z.object({ discarded: z.boolean() }).strict();
+const documentKindSchema = z.literal("file");
+const documentFormatSchema = z.literal("docx");
+const libraryDocumentSchema = z.object({
+  id: documentIdSchema,
+  workspaceId: opaqueHandleSchema,
+  title: z.string().min(1).max(512),
+  kind: documentKindSchema,
+  format: documentFormatSchema,
+  version: z.number().int().nonnegative(),
+  revision: z.string().regex(/^\d+$/),
+  updatedAt: z.string().datetime({ offset: true }),
+  ownerKind: z.string().nullable(),
+  ownerName: z.string().optional(),
+  canEdit: z.boolean(),
+  downloadAvailable: z.boolean(),
+}).strict();
+export type DesktopLibraryDocument = z.infer<typeof libraryDocumentSchema>;
+export const desktopLibraryResponseSchema = z.object({
+  documents: z.array(libraryDocumentSchema),
+  nextCursor: z.string().nullable(),
+  engineAvailable: z.boolean(),
+}).strict();
+export type DesktopLibraryResponse = z.infer<typeof desktopLibraryResponseSchema>;
+const pickerEntrySchema = z.object({ id: opaqueHandleSchema, name: z.string().min(1).max(256), email: z.string().optional(), organizationId: opaqueHandleSchema.optional() }).strict();
+export const desktopLibraryContextResponseSchema = z.object({
+  deployments: z.array(pickerEntrySchema),
+  accounts: z.array(pickerEntrySchema),
+  organizations: z.array(pickerEntrySchema),
+  workspaces: z.array(pickerEntrySchema),
+}).strict();
+export type DesktopLibraryContextResponse = z.infer<typeof desktopLibraryContextResponseSchema>;
+export const desktopLibraryDownloadResponseSchema = z.object({
+  documentId: documentIdSchema,
+  version: z.number().int().nonnegative(),
+  filename: z.string().min(1).max(255),
+  mimeType: z.literal("application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+  dataBase64: base64BytesSchema,
+  checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/),
+}).strict();
+export type DesktopLibraryDownloadResponse = z.infer<typeof desktopLibraryDownloadResponseSchema>;
+export const desktopOfficeOpenResponseSchema = z.object({
+  document: libraryDocumentSchema,
+  dataBase64: base64BytesSchema,
+  filename: z.string().min(1).max(255),
+  mimeType: z.literal("application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+  checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/),
+}).strict();
+export type DesktopOfficeOpenResponse = z.infer<typeof desktopOfficeOpenResponseSchema>;
+export type DesktopLibraryCreateResponse = DesktopOfficeOpenResponse;
+export const desktopOfficeSaveResponseSchema = z.object({
+  documentId: documentIdSchema,
+  intentId: z.string().min(1).max(160),
+  idempotencyKey: z.string().min(1).max(160),
+  versionId: z.string().min(1).max(160),
+  revision: z.string().regex(/^\d+$/),
+  checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/),
+}).strict();
+export type DesktopOfficeSaveResponse = z.infer<typeof desktopOfficeSaveResponseSchema>;
 export const desktopDiagnosticsResponseSchema = z.object({
   name: z.string().min(1).optional(),
   appId: z.string().min(1),
@@ -119,17 +188,29 @@ const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:draft-recover": desktopDraftRecoveryResponseSchema,
   "desktop:draft-discard": desktopDraftDiscardResponseSchema,
   "desktop:diagnostics": desktopDiagnosticsResponseSchema,
+  "desktop:window-theme": z.object({ applied: z.boolean() }).strict(),
+  "desktop:library-list": desktopLibraryResponseSchema,
+  "desktop:library-context": desktopLibraryContextResponseSchema,
+  "desktop:library-recent": desktopLibraryResponseSchema,
+  "desktop:library-search": desktopLibraryResponseSchema,
+  "desktop:library-create": desktopOfficeOpenResponseSchema,
+  "desktop:library-download": desktopLibraryDownloadResponseSchema,
+  "desktop:office-open": desktopOfficeOpenResponseSchema,
+  "desktop:office-save": desktopOfficeSaveResponseSchema,
 };
-const documentIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/, "invalid document id");
-export const launchRequestedEventSchema = z.object({ documentId: documentIdSchema, operation: z.enum(["view", "edit"]) }).strict();
+export const launchRequestedEventSchema = z.object({ documentId: documentIdSchema, operation: z.enum(["view", "edit"]), version: z.number().int().nonnegative().optional() }).strict();
 export type LaunchRequestedEvent = z.infer<typeof launchRequestedEventSchema>;
+export const officeSaveRequestedEventSchema = z.object({ documentId: documentIdSchema }).strict();
+export type OfficeSaveRequestedEvent = z.infer<typeof officeSaveRequestedEventSchema>;
 export const desktopSessionMetadataSchema = z.object({
   status: z.enum(["signed-out", "pending", "signed-in", "locked", "login-required"]),
   accountId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/).optional(),
   deploymentId: deploymentSchema.optional(),
+  organizationId: opaqueHandleSchema.optional(),
+  workspaceId: opaqueHandleSchema.optional(),
 }).strict().superRefine((value, context) => {
   if (value.status === "signed-in" && (!value.accountId || !value.deploymentId)) context.addIssue({ code: z.ZodIssueCode.custom, message: "signed-in metadata requires account and deployment" });
-  if (value.status !== "signed-in" && (value.accountId !== undefined || value.deploymentId !== undefined)) context.addIssue({ code: z.ZodIssueCode.custom, message: "non-signed-in metadata cannot include account" });
+  if (value.status !== "signed-in" && (value.accountId !== undefined || value.deploymentId !== undefined || value.organizationId !== undefined || value.workspaceId !== undefined)) context.addIssue({ code: z.ZodIssueCode.custom, message: "non-signed-in metadata cannot include account" });
 });
 export type DesktopSessionMetadata = z.infer<typeof desktopSessionMetadataSchema>;
 const requestSchemas = {
@@ -142,6 +223,7 @@ const requestSchemas = {
   "desktop:auth-config": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:auth-logout": z.object({ sessionGeneration: sessionGenerationSchema, scope: z.enum(["device", "family"]).default("device") }).strict(),
   "desktop:diagnostics": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
+  "desktop:window-theme": z.object({ sessionGeneration: sessionGenerationSchema, dark: z.boolean() }).strict(),
   "desktop:file-pick-open": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:file-open": z.object({ sessionGeneration: sessionGenerationSchema, handle: fileHandleSchema }).strict(),
   "desktop:file-save": z.object({ sessionGeneration: sessionGenerationSchema, handle: fileHandleSchema, dataBase64: base64BytesSchema }).strict(),
@@ -150,6 +232,14 @@ const requestSchemas = {
   "desktop:draft-list": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
   "desktop:draft-recover": z.object({ sessionGeneration: sessionGenerationSchema, draftId: draftIdSchema, currentBase: draftBaseSchema }).strict(),
   "desktop:draft-discard": z.object({ sessionGeneration: sessionGenerationSchema, draftId: draftIdSchema, generation: z.number().int().positive() }).strict(),
+  "desktop:library-list": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, cursor: z.string().max(512).optional() }).strict(),
+  "desktop:library-context": z.object({ sessionGeneration: sessionGenerationSchema }).strict(),
+  "desktop:library-recent": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, cursor: z.string().max(512).optional() }).strict(),
+  "desktop:library-search": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, query: z.string().trim().min(1).max(256), cursor: z.string().max(512).optional() }).strict(),
+  "desktop:library-create": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, title: z.string().trim().min(1).max(255) }).strict(),
+  "desktop:library-download": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, version: z.number().int().nonnegative().optional() }).strict(),
+  "desktop:office-open": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, version: z.number().int().nonnegative().optional() }).strict(),
+  "desktop:office-save": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, intentId: z.string().min(1).max(160), idempotencyKey: z.string().min(1).max(160), baseVersionId: z.string().min(1).max(160), baseRevision: z.string().regex(/^\d+$/), dataBase64: base64BytesSchema, checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/) }).strict(),
 } as const;
 export type DesktopIpcRequest<C extends DesktopIpcChannel = DesktopIpcChannel> = z.infer<(typeof requestSchemas)[C]>;
 export type IpcSenderContext = { senderId: number; frameId: number; origin: string; expectedSenderId: number; expectedFrameId: number; expectedOrigin: string; sessionGeneration: string; allowedExternalHosts?: readonly string[] };
@@ -202,7 +292,9 @@ export function validateIpcRequest<C extends DesktopIpcChannel>(channel: C | str
   if (sender.senderId !== sender.expectedSenderId) throw new IpcValidationError("sender", "IPC sender is not the bound webContents");
   if (sender.frameId !== sender.expectedFrameId) throw new IpcValidationError("frame", "IPC frame is not the bound frame");
   if (sender.origin !== sender.expectedOrigin || !originSchema.safeParse(sender.origin).success) throw new IpcValidationError("origin", "IPC origin is not the application origin");
-  const byteLimit = channel.startsWith("desktop:file-") || channel === "desktop:draft-checkpoint" ? IPC_FILE_MAX_BYTES : IPC_MAX_BYTES;
+  // Office saves carry the serialized DOCX in the same bounded byte class as
+  // local-file and draft payloads. Keep control calls at the smaller limit.
+  const byteLimit = channel.startsWith("desktop:file-") || channel === "desktop:draft-checkpoint" || channel === "desktop:office-save" ? IPC_FILE_MAX_BYTES : IPC_MAX_BYTES;
   if (sizeInBytes(payload, byteLimit) > byteLimit) throw new IpcValidationError("oversize", "IPC payload exceeds the byte limit");
   let parsed: { success: boolean; data?: unknown };
   try {

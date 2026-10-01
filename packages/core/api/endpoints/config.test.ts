@@ -23,15 +23,38 @@ describe("config endpoints", () => {
       flags: { rum_sampling: true },
       rum_sample_rate: 0.2,
       work_management_capabilities: {},
+      office_installer_urls: { dev: "", beta: "", stable: "" },
     });
+    expect(cfg.office_deployment_id).toBeUndefined();
     expect(vi.mocked(fetch).mock.calls[0]?.[0]).toContain("/api/v1/config?organization_id=org1");
   });
 
   it("getPublicConfig degrades a malformed response to no flags and no sampling", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(json({ flags: "nope", rum_sample_rate: 7 }));
-    expect(await getPublicConfig()).toEqual({ flags: {}, rum_sample_rate: 0, work_management_capabilities: {} });
+    expect(await getPublicConfig()).toEqual({ flags: {}, rum_sample_rate: 0, work_management_capabilities: {}, office_installer_urls: { dev: "", beta: "", stable: "" } });
     vi.mocked(fetch).mockResolvedValueOnce(json([1, 2]));
-    expect(await getPublicConfig()).toEqual({ flags: {}, rum_sample_rate: 0, work_management_capabilities: {} });
+    expect(await getPublicConfig()).toEqual({ flags: {}, rum_sample_rate: 0, work_management_capabilities: {}, office_installer_urls: { dev: "", beta: "", stable: "" } });
+  });
+
+  it("getPublicConfig carries the default-config deployment id through unchanged", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0, office_deployment_id: "default" }));
+    expect((await getPublicConfig()).office_deployment_id).toBe("default");
+  });
+
+  it("getPublicConfig leaves the deployment id undefined when the server never advertises one (fail closed)", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0 }));
+    expect((await getPublicConfig()).office_deployment_id).toBeUndefined();
+    vi.mocked(fetch).mockResolvedValueOnce(json({ flags: {}, rum_sample_rate: 0, office_deployment_id: "   " }));
+    expect((await getPublicConfig()).office_deployment_id).toBeUndefined();
+  });
+
+  it("accepts deployment installer URLs per channel and rejects arbitrary protocols", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json({
+      flags: {}, rum_sample_rate: 0,
+      office_installer_urls: { dev: "https://downloads.test/dev.exe", beta: "https://downloads.test/beta.exe", stable: "javascript:alert(1)" },
+    }));
+    const cfg = await getPublicConfig();
+    expect(cfg.office_installer_urls).toEqual({ dev: "https://downloads.test/dev.exe", beta: "https://downloads.test/beta.exe", stable: "" });
   });
 
   it("degrades malformed capability entries to the unavailable fallback", async () => {

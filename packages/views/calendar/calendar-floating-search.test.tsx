@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { initI18n } from "@uniwork/core/i18n";
 import type { CalendarEvent } from "@uniwork/core/calendar/types";
 import { CalendarFloatingSearch } from "./calendar-floating-search";
@@ -51,6 +51,12 @@ function renderSearch() {
 }
 
 describe("CalendarFloatingSearch", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-28T00:00:00Z"));
+  });
+  afterEach(() => vi.useRealTimers());
+
   it("mở panel hướng lên từ dock thu gọn và đưa focus vào ô tìm kiếm", () => {
     renderSearch();
 

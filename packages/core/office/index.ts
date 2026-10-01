@@ -1,5 +1,6 @@
 export * from "./error-state";
 export * from "./host-contract";
+export * from "./desktop-handoff";
 export * from "./save-coordinator";
 export * from "./store";
 export * from "./draft-recovery";

@@ -12,6 +12,8 @@ export interface DraftSafeStorage {
   isEncryptionAvailable(): boolean;
   encryptString(value: string): Uint8Array;
   decryptString(value: Uint8Array): string;
+  /** Linux exposes a plaintext backend; a protected draft key must never use it. */
+  getSelectedStorageBackend?(): string;
 }
 
 export type DraftKeyStoreErrorCode = "locked" | "corrupt" | "unavailable";
@@ -121,6 +123,7 @@ export function createSafeStorageDraftKeyStore(options: DraftKeyStoreOptions) {
 
   function ensureAvailable(): void {
     if (!options.safeStorage.isEncryptionAvailable()) throw new DraftKeyStoreError("locked", "draft key store is locked");
+    if (options.safeStorage.getSelectedStorageBackend?.() === "basic_text") throw new DraftKeyStoreError("locked", "draft key store is locked");
   }
 
   async function read(namespace: string): Promise<Uint8Array | undefined> {

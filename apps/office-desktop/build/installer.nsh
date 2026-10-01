@@ -1,6 +1,15 @@
 !include LogicLib.nsh
 !include FileFunc.nsh
 
+; The authenticated download ZIP puts this public profile beside the installer.
+; Keep it outside app.asar so the main-process resolver can validate it on boot.
+!macro customInstall
+  IfFileExists "$EXEDIR\deployment-profile.json" 0 profile_done
+  CreateDirectory "$INSTDIR\resources"
+  CopyFiles /SILENT "$EXEDIR\deployment-profile.json" "$INSTDIR\resources\deployment-profile.json"
+  profile_done:
+!macroend
+
 !pragma warning disable 6001
 Var UniWorkDeleteAppData
 !pragma warning enable 6001

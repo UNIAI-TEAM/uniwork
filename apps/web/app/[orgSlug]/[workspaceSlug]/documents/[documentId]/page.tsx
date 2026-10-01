@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { paths } from "@uniwork/core/paths";
 import { useWorkspace } from "@uniwork/views/layout/workspace-context";
 import { useNavigation } from "@uniwork/views/navigation";
-import { OfficeEditorHost } from "@/platform/office/editor-host";
+import { XlsxOfficeEditorHost } from "@/platform/office/xlsx-office-host";
 
 // The detail view owns the lazy editor chunk; this route only reads params.
 const DocumentDetailView = lazy(() =>
@@ -30,7 +30,7 @@ export default function DocumentDetailPage() {
         // is a label rather than a guessed /projects/{work_product_id} URL
         // (FE r1 FE-02).
         onBackToList={() => replace(ws.documents())}
-        officeEditorHost={OfficeEditorHost}
+        officeEditorHost={XlsxOfficeEditorHost}
       />
     </Suspense>
   );

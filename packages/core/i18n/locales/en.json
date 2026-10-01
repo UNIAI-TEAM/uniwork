@@ -87,7 +87,17 @@
       "unknown": "Not provided",
       "loading": "Loading…",
       "approve": "Allow desktop app",
-      "approving": "Allowing…"
+      "approving": "Allowing…",
+      "resultTitle": "Desktop sign-in result",
+      "approved": "Allowed UniWork Office to sign in",
+      "cancelledResult": "Desktop sign-in was cancelled.",
+      "errorResult": "The desktop sign-in request could not be completed. Try again.",
+      "expired": "This desktop sign-in request has expired.",
+      "openDesktop": "Open UniWork Office",
+      "closeTab": "You can close this tab.",
+      "accountUnknown": "Account name unavailable",
+      "emailUnknown": "Email unavailable",
+      "libraryWorkspace": "Document library"
     },
     "forgot": {
       "title": "Forgot password",
@@ -6324,6 +6334,7 @@
     }
   },
   "documents": {
+    "file_types": {"docx":"Word document","xlsx":"Excel spreadsheet","pptx":"PowerPoint presentation","pdf":"PDF document","md":"Markdown document","html":"HTML document","file":"File"},
     "page": {
       "title": "Documents",
       "new_page": "New page",
@@ -6918,6 +6929,34 @@
       }
     },
     "title": "Office",
+    "desktop": {
+      "action": "Edit in UniWork Office",
+      "working": "Preparing UniWork Office…",
+      "dirty_title": "Unsaved changes",
+      "dirty_description": "Choose which committed version to open in UniWork Office.",
+      "save_then_open": "Save then open",
+      "open_saved": "Open last saved version",
+      "cancel": "Cancel",
+      "save_failed": "Save failed. Your changes remain in this editor.",
+      "save_unverified": "The save was not confirmed, so UniWork Office was not opened.",
+      "newer_changes": "New unsaved changes remain. Save again before opening UniWork Office.",
+      "version_unavailable": "The last committed version is unavailable.",
+      "ticket_failed": "UniWork Office could not prepare this document. Your editor and draft are unchanged.",
+      "download": "Download UniWork Office",
+      "install": {
+        "download_description": "Download the installer for your UniWork site. Extract the ZIP, then run the installer.",
+        "download_failed": "Download failed. Please try again.",
+        "downloading": "Downloading…",
+        "title": "UniWork Office is not available",
+        "not_installed": "The desktop app did not respond. You can try again or install the matching channel.",
+        "expired": "That desktop handoff expired. Try opening it again.",
+        "error": "The desktop handoff did not complete. Your editor and draft are unchanged.",
+        "unavailable": "Install link unavailable",
+        "open_again": "Open again",
+        "install": "Install UniWork Office",
+        "close": "Close"
+      }
+    },
     "save": {
       "status": {
         "checkpoint": "Draft kept on this device",
@@ -7178,6 +7217,61 @@
         "engine_error": "The PDF engine could not open this document.", "io_error": "The PDF could not be read from storage.",
         "too_large": "This PDF is too large to open here.", "capabilityUnavailable": "PDF editing is not available for this engine build.", "editFailed": "The PDF edit could not be applied. Try again."
       }
+    }
+  },
+  "officeDesktop": {
+    "login": {
+      "title": "UniWork Office",
+      "subtitle": "Sign in to open your document library.",
+      "signedOut": "Sign in securely in your system browser.",
+      "pending": "Continue in the system browser to finish sign in.",
+      "error": "Sign in could not be completed. Try again.",
+      "cancelled": "Sign in was cancelled.",
+      "expired": "The sign-in request expired. Try again.",
+      "locked": "Secure credential storage is locked. Unlock it and try again.",
+      "required": "Please sign in again.",
+      "start": "Sign in with browser",
+      "cancel": "Cancel login",
+      "signOut": "Sign out",
+      "libraryWorkspace": "Document library",
+      "accountUnknown": "UniWork account",
+      "switchWorkspace": "Switch workspace"
+    },
+    "library": {
+      "pickerTitle": "Choose a deployment, account, organization, and workspace",
+      "pickerChoose": "Open documents",
+      "pickerRequired": "Choose: {{groups}}",
+      "deployments": "Deployments",
+      "accounts": "Accounts",
+      "organizations": "Organizations",
+      "workspaces": "Workspaces",
+      "title": "Documents",
+      "list": "All documents",
+      "recent": "Recent",
+      "search": "Search",
+      "searchPlaceholder": "Search by title",
+      "download": "Download",
+      "open": "Open",
+      "engineDown": "Editor unavailable; download remains available",
+      "error": "Documents could not be loaded.",
+      "retry": "Retry",
+      "create": "New document",
+      "openLocal": "Open file on this device",
+      "empty": "No documents",
+      "contextError": "Workspaces could not be loaded.",
+      "emptyDescription": "Create a DOCX document or open an existing file on this device.",
+      "emptySearch": "No results",
+      "emptySearchDescription": "No documents match your search.",
+      "fileOpenQueued": "The file will open after you close the current document.",
+      "actionError": "The action could not be completed. Try again.",
+      "back": "Back to library",
+      "untitled": "Untitled.docx",
+      "saveLocal": "Save file",
+      "unsupported": "This format is not supported on desktop yet.",
+      "local": "Local file",
+      "ownerUnknown": "Workspace member",
+      "updated": "Updated {{time}}",
+      "contentPending": "DOCX content editing is not available yet. You can save and reopen the file."
     }
   }
 }

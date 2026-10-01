@@ -28,6 +28,7 @@ export interface OfficeShellProps {
   editor: ReactNode;
   toolbar?: ReactNode;
   actions?: ReactNode;
+  desktopAction?: ReactNode;
   panel?: ReactNode;
   panelLabel?: string;
   panelOpen?: boolean;
@@ -41,6 +42,10 @@ export interface OfficeShellProps {
   saveState?: Pick<SaveCoordinatorState, "state" | "error"> | null;
   saveStatus?: OfficeSaveStatusKind | OfficeState;
   onSave?: () => void;
+  /** Host-specific destination label, e.g. a local file rather than cloud. */
+  saveLabel?: string;
+  /** Where a confirmed save lands; a local file must not read as a cloud receipt. */
+  saveDestination?: "cloud" | "local";
   editorReady?: boolean;
   className?: string;
 }
@@ -101,6 +106,7 @@ export function OfficeShell({
   editor,
   toolbar,
   actions,
+  desktopAction,
   panel,
   panelLabel,
   panelOpen = false,
@@ -114,6 +120,8 @@ export function OfficeShell({
   saveState,
   saveStatus,
   onSave,
+  saveLabel: providedSaveLabel,
+  saveDestination = "cloud",
   editorReady = false,
   className,
 }: OfficeShellProps) {
@@ -127,6 +135,7 @@ export function OfficeShell({
   const isWideViewport = useMediaQuery("(min-width: 1024px)");
   const isDarkTheme = useDarkTheme();
   const effectiveSaving = coordinatorState?.state === "saving";
+  const saveLabel = providedSaveLabel ?? t("save.action.save_to_cloud");
   // Keep the control in the tab order while an intent is running so its
   // disabled state communicates the single coordinator guard.
   const canSave = editorReady && Boolean(saveCoordinator || onSave);
@@ -174,11 +183,11 @@ export function OfficeShell({
   }, [canSave, effectiveSaving, onSave, saveCoordinator]);
   const headerActions = (
     <div className="flex min-w-0 items-center gap-1">
-      <SaveStatus status={saveStatus} coordinatorState={coordinatorState} />
+      <SaveStatus status={saveStatus} coordinatorState={coordinatorState} destination={saveDestination} />
       {canSave ? (
-        <Button size="sm" onClick={performSave} disabled={effectiveSaving} aria-label={t("save")}>
+        <Button size="sm" onClick={performSave} disabled={effectiveSaving} aria-label={saveLabel}>
           <Save aria-hidden />
-          {t(effectiveSaving ? "saving" : "save")}
+          {effectiveSaving ? t("saving") : saveLabel}
         </Button>
       ) : null}
       {rightPanel ? (
@@ -191,6 +200,7 @@ export function OfficeShell({
           {fullscreen ? <Minimize2 aria-hidden /> : <Expand aria-hidden />}
         </Button>
       ) : null}
+      {desktopAction}
       {actions}
     </div>
   );

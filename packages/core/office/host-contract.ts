@@ -136,7 +136,10 @@ export type OfficeSaveReceipt = z.infer<typeof officeSaveReceiptSchema>;
 export interface DraftAdapter<TSnapshot = unknown> {
   checkpoint(snapshot: StableSnapshot<TSnapshot>): Promise<void>;
   recover(identity: OfficeIdentity): Promise<StableSnapshot<TSnapshot> | null>;
-  discard(identity: OfficeIdentity): Promise<void>;
+  /** Remove the durable draft consumed by an explicit discard or confirmed
+   * commit. When supplied, `generation` scopes cleanup to that exact
+   * snapshot so a newer N+1 draft cannot be deleted by Save N. */
+  discard(identity: OfficeIdentity, generation?: number): Promise<void>;
   persistIntent(intent: OfficeSaveIntent<TSnapshot>): Promise<void>;
   loadIntent(identity: OfficeIdentity): Promise<OfficeSaveIntent<TSnapshot> | null>;
   clearIntent(intentId: string): Promise<void>;

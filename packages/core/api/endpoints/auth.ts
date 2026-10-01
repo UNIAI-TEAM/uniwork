@@ -22,8 +22,11 @@ const DesktopStartSchema = z.object({
 export type DesktopStart = z.infer<typeof DesktopStartSchema>;
 
 const DesktopConsentSchema = z.object({
+  status: z.string().optional(),
   attempt_id: z.string(),
   account_id: z.string(),
+  account_name: z.string().optional(),
+  account_email: z.string().email().or(z.literal("")).optional(),
   client_id: z.string(),
   deployment_id: z.string(),
   redirect_uri: z.string(),

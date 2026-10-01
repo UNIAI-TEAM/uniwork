@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_office_launch_sessions_ticket_hash;

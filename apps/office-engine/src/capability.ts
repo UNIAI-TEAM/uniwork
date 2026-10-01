@@ -1,9 +1,8 @@
-// Capability rows this service build reports. Honest by construction: a row
-// is supported only when a handler is bound, and even then its evidence stays
-// "pending" unless the format lane has produced fixture evidence for it - the
-// product claim (proven) belongs to the lane's evidence, not to the fact that
-// a handler exists. G2-07b proves the Q7 converters, so the convert rows for
-// `xls` and `odt` are the only rows this file claims as proven operationally.
+// Capability rows this service build reports. Honest by construction: a row is
+// supported only when a handler is bound and the format lane has produced the
+// evidence required for a product claim. G2-07b proves the Q7 converters and
+// G3-05b proves the XLSX open/edit/serialize loop (including native recalc,
+// coordinator save/reopen, and the saved-package oracle).
 
 import {
   ENGINE_VERSION_TRUSTED,
@@ -18,6 +17,17 @@ import { BOUND_OPERATIONS } from "./worker/handlers.ts";
 const CONVERT_TARGETS: Partial<Record<OfficeFormat, "xlsx" | "docx">> = {
   xls: "xlsx",
   odt: "docx",
+};
+
+/** Bound operations with a completed format-lane product evidence packet.
+ *
+ * Keep this separate from `BOUND_OPERATIONS`: a handler being present is an
+ * engine fact, while `evidence_level=proven` is the product-facing contract
+ * consumed by the Documents capability endpoint. Other formats remain
+ * pending until their own real loop and oracle are complete.
+ */
+const PROVEN_BOUND_OPERATIONS: Partial<Record<OfficeFormat, ReadonlySet<string>>> = {
+  xlsx: new Set(["open", "edit", "serialize"]),
 };
 
 export function isBound(operation: string, format: string): boolean {
@@ -67,12 +77,15 @@ function capabilityRows(format: OfficeFormat): CapabilityEntry[] {
         };
       }
       if (isBound(op, format)) {
+        const proven = PROVEN_BOUND_OPERATIONS[format]?.has(op) === true;
         return {
           operation: op,
           supported: true,
           runtime: "internal_service",
-          evidence_level: "pending",
-          reason: "bound in the engine service; product evidence belongs to the format lane",
+          evidence_level: proven ? "proven" : "pending",
+          reason: proven
+            ? "G3-05b real-loop evidence: gateway snapshot open, native edit/recalc, coordinator save/reopen, and preserved-part oracle"
+            : "bound in the engine service; product evidence belongs to the format lane",
         };
       }
       return { operation: op, supported: false, runtime: "none", evidence_level: "pending", reason: "not bound in this service build" };

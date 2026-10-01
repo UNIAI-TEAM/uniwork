@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { File, FileText, FolderOpen, Search, ShieldAlert } from "lucide-react";
+import { FolderOpen, Search, ShieldAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { DocumentList } from "@uniwork/core/types/document";
 import { Badge } from "@uniwork/ui/components/ui/badge";
@@ -9,6 +9,7 @@ import { Button } from "@uniwork/ui/components/ui/button";
 import { Skeleton } from "@uniwork/ui/components/ui/skeleton";
 import { cn } from "@uniwork/ui/lib/utils";
 import { CollectionPageState } from "../layout/collection-page";
+import { DocumentTypeIcon } from "./document-type-icon";
 
 /** A list row as the wire schema parses it (server enums stay lenient). */
 export type DocumentLibraryRow = DocumentList["documents"][number];
@@ -145,14 +146,10 @@ export function DocumentsLibraryList({
                 "flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left transition-colors hover:bg-accent/50",
               )}
             >
-              <span aria-hidden className="flex size-8 shrink-0 items-center justify-center text-muted-foreground">
+              <span className="flex size-8 shrink-0 items-center justify-center text-primary">
                 {doc.icon ? (
                   <span className="text-body leading-none">{doc.icon}</span>
-                ) : doc.kind === "file" ? (
-                  <File className="size-4" />
-                ) : (
-                  <FileText className="size-4" />
-                )}
+                ) : <DocumentTypeIcon format={doc.kind === "file" ? doc.title.split(".").at(-1) : "file"} className="size-4" />}
               </span>
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-2">
