@@ -28,7 +28,15 @@ export function createHttpOfficeTransport(options: { profile: DeploymentProfile;
       const response = await fetchImpl(`${origin}/api/v1${path}`, { ...init, headers, cache: "no-store", redirect: "error" });
       if (response.ok) return response;
       if (response.status === 401 && attempt === 0) {
-        try { await refreshOnce(); continue; } catch { throw new Error("login_required"); }
+        try {
+          const current = await options.credentials.get();
+          if (!current || current.accountId !== session.accountId || current.deviceSessionId !== session.deviceSessionId) throw new Error("login_required");
+          // A concurrent request may already have rotated this expired token.
+          if (current.accessToken === session.accessToken) await refreshOnce();
+          const refreshed = await options.credentials.get();
+          if (!refreshed || refreshed.accountId !== session.accountId || refreshed.deviceSessionId !== session.deviceSessionId) throw new Error("login_required");
+          continue;
+        } catch { throw new Error("login_required"); }
       }
       throw new Error(response.status === 401 ? "login_required" : response.status === 403 ? "forbidden" : "office_request_failed");
     }

@@ -207,7 +207,10 @@ async function startElectronHost(): Promise<void> {
     authManager,
     deploymentProfile,
     userDataDirectory: app.getPath("userData"),
-    ...(deploymentProfile && credentials ? { office: { transport: createHttpOfficeTransport({ profile: deploymentProfile, credentials }), isSignedIn: () => authManager?.getMetadata().status === "signed-in", onDocumentOpened: (documentId: string) => { activeDocumentId = documentId; } } } : {}),
+    ...(deploymentProfile && credentials ? { office: { transport: createHttpOfficeTransport({ profile: deploymentProfile, credentials, refreshSession: async () => {
+      const session = await authManager?.refreshSession();
+      if (session?.status !== "signed-in") throw new Error("login_required");
+    } }), isSignedIn: () => authManager?.getMetadata().status === "signed-in", onDocumentOpened: (documentId: string) => { activeDocumentId = documentId; } } } : {}),
     activeDocumentId: () => activeDocumentId,
   });
 

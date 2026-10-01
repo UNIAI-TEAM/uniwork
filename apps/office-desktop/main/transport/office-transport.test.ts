@@ -9,6 +9,51 @@ const credentials = {
 };
 
 describe("desktop office HTTP transport", () => {
+  it("refreshes once across concurrent expired requests and replays with the rotated token", async () => {
+    let session = credentials.get();
+    let finishRefresh!: () => void;
+    const refreshSession = vi.fn(async () => {
+      await new Promise<void>((resolve) => { finishRefresh = resolve; });
+      session = { ...session, accessToken: "renewed" };
+    });
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => new Headers(init?.headers).get("Authorization") === "Bearer renewed"
+      ? new Response(JSON.stringify({ documents: [] })) : new Response(null, { status: 401 }));
+    const transport = createHttpOfficeTransport({ profile, credentials: { ...credentials, get: () => session }, fetchImpl, refreshSession });
+    const results = Promise.all([transport.list({ workspaceId: "ws", mode: "list" }), transport.list({ workspaceId: "ws", mode: "recent" })]);
+    await vi.waitFor(() => expect(refreshSession).toHaveBeenCalledTimes(1));
+    finishRefresh();
+    await expect(results).resolves.toHaveLength(2);
+    expect(refreshSession).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
+  });
+
+  it("reports login_required when refresh fails without replaying", async () => {
+    const fetchImpl = vi.fn(async () => new Response(null, { status: 401 }));
+    const refreshSession = vi.fn(async () => { throw new Error("revoked"); });
+    const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl, refreshSession });
+    await expect(transport.list({ workspaceId: "ws", mode: "list" })).rejects.toThrow("login_required");
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(refreshSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops after one replay if the replacement token also receives 401", async () => {
+    const fetchImpl = vi.fn(async () => new Response(null, { status: 401 }));
+    const refreshSession = vi.fn(async () => undefined);
+    const transport = createHttpOfficeTransport({ profile, credentials, fetchImpl, refreshSession });
+    await expect(transport.list({ workspaceId: "ws", mode: "list" })).rejects.toThrow("login_required");
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(refreshSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not replay a request into a different account after refresh", async () => {
+    let session = credentials.get();
+    const fetchImpl = vi.fn(async () => new Response(null, { status: 401 }));
+    const transport = createHttpOfficeTransport({ profile, credentials: { ...credentials, get: () => session }, fetchImpl,
+      refreshSession: async () => { session = { ...session, accountId: "other-account" }; } });
+    await expect(transport.list({ workspaceId: "ws", mode: "list" })).rejects.toThrow("login_required");
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it("uses only profile-bound routes and keeps bearer credentials in main", async () => {
     const fetchImpl = vi.fn(async (input: string, init?: RequestInit) => {
       expect(input).toMatch(/^http:\/\/127\.0\.0\.1:8787\/api\/v1\//);
