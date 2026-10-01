@@ -39,6 +39,28 @@ func (s *MeetingService) requireMeetingClerk(ctx context.Context, userID, meetin
 	return db.Meeting{}, errNotClerk()
 }
 
+// requireSecretaryEligible: a secretary clerks through the workspace gate
+// (requireMeetingClerk starts at authorize), so only a signed-in workspace
+// member can hold the duty. An account an invite link brought in from outside
+// the workspace would be appointed and then refused on every request. The
+// membership decision is RequireMember's, classified as
+// settleAdmittedStanding does: a 403 from the gate means "not a member".
+func (s *MeetingService) requireSecretaryEligible(ctx context.Context, m db.Meeting, p db.MeetingParticipant) error {
+	if p.PrincipalType != PrincipalUser {
+		return coded(http.StatusUnprocessableEntity, "guest_cannot_be_secretary", "khách không thể làm thư ký")
+	}
+	_, err := s.ws.RequireMember(ctx, m.WorkspaceID, p.UserID.String)
+	var ce CodedError
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, ErrForbidden), errors.As(err, &ce) && ce.Status == http.StatusForbidden:
+		return coded(http.StatusUnprocessableEntity, "secretary_not_workspace_member", "thư ký phải là thành viên workspace")
+	default:
+		return err
+	}
+}
+
 type ParticipantDutiesInput struct {
 	Standing    *string
 	IsSecretary *bool
@@ -67,8 +89,10 @@ func (s *MeetingService) UpdateParticipantDuties(ctx context.Context, actorID, m
 	if err != nil {
 		return db.MeetingParticipant{}, err
 	}
-	if in.IsSecretary != nil && *in.IsSecretary && p.PrincipalType != PrincipalUser {
-		return db.MeetingParticipant{}, coded(http.StatusUnprocessableEntity, "guest_cannot_be_secretary", "khách không thể làm thư ký")
+	if in.IsSecretary != nil && *in.IsSecretary {
+		if err := s.requireSecretaryEligible(ctx, m, p); err != nil {
+			return db.MeetingParticipant{}, err
+		}
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {

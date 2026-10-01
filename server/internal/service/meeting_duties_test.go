@@ -135,3 +135,58 @@ func TestUpdateParticipantDutiesAudits(t *testing.T) {
 		t.Fatalf("participant_updated audit rows = %d, want 1", n)
 	}
 }
+
+// A secretary clerks through the workspace gate, so an account from outside
+// the workspace (brought in by an invite link) cannot be appointed.
+func TestSecretaryMustBeWorkspaceMember(t *testing.T) {
+	s, ua, _, m, _ := governanceFixture(t)
+	ctx := context.Background()
+	outsider := workspaceUser(t, s, m.WorkspaceID, "outsider@example.com", "")
+	p, err := s.q.CreateMeetingParticipant(ctx, db.CreateMeetingParticipantParams{
+		ID: util.NewID(), MeetingID: m.ID, PrincipalType: PrincipalUser, UserID: strText(outsider.ID),
+		DisplayNameSnapshot: "Ngoài", Role: RoleAttendee, SourceType: GrantInviteLink, AddedBy: "system",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	yes := true
+	_, err = s.UpdateParticipantDuties(ctx, ua.ID, m.ID, p.ID, ParticipantDutiesInput{IsSecretary: &yes})
+	if !codedIs(err, "secretary_not_workspace_member") || codedStatus(err) != 422 {
+		t.Fatalf("outsider secretary: %v", err)
+	}
+	if got, _ := s.q.GetMeetingParticipant(ctx, p.ID); got.IsSecretary {
+		t.Fatal("refused appointment was written")
+	}
+	// Standing alone is still the host's call for that row.
+	member := StandingMember
+	if _, err := s.UpdateParticipantDuties(ctx, ua.ID, m.ID, p.ID, ParticipantDutiesInput{Standing: &member}); err != nil {
+		t.Fatalf("outsider standing: %v", err)
+	}
+}
+
+// The host's own row is not special: its standing moves both ways, and is
+// locked with the roll like everyone else's. The secretary duty is not.
+func TestHostRowStandingAndFinalizedDuties(t *testing.T) {
+	s, ua, _, m, memberPID := governanceFixture(t)
+	ctx := context.Background()
+	host := hostParticipant(t, s, m.ID, ua.ID)
+	observer, member := StandingObserver, StandingMember
+	p, err := s.UpdateParticipantDuties(ctx, ua.ID, m.ID, host.ID, ParticipantDutiesInput{Standing: &observer})
+	if err != nil || p.Standing != StandingObserver {
+		t.Fatalf("host to observer: %+v %v", p.Standing, err)
+	}
+	p, err = s.UpdateParticipantDuties(ctx, ua.ID, m.ID, host.ID, ParticipantDutiesInput{Standing: &member})
+	if err != nil || p.Standing != StandingMember {
+		t.Fatalf("host back to member: %+v %v", p.Standing, err)
+	}
+	if err := s.FinalizeAttendance(ctx, ua.ID, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.UpdateParticipantDuties(ctx, ua.ID, m.ID, host.ID, ParticipantDutiesInput{Standing: &observer}); !codedIs(err, "attendance_finalized") {
+		t.Fatalf("host standing on a finalized roll: %v", err)
+	}
+	yes := true
+	if p, err := s.UpdateParticipantDuties(ctx, ua.ID, m.ID, memberPID, ParticipantDutiesInput{IsSecretary: &yes}); err != nil || !p.IsSecretary {
+		t.Fatalf("secretary on a finalized roll: %+v %v", p.IsSecretary, err)
+	}
+}

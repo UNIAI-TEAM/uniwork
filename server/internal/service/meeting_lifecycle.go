@@ -204,6 +204,16 @@ func (s *MeetingService) endMeeting(ctx context.Context, m db.Meeting, actorID, 
 			return db.Meeting{}, err
 		}
 	}
+	// Nobody is in the room once the meeting has ended: close every open room
+	// session at the end time, in this transaction, so the attendance panel
+	// never shows someone "in the room" of an ended meeting while the
+	// provider's leave webhooks (or the stale sweep) catch up.
+	closedSessions, err := q.CloseOpenAttendanceForMeeting(ctx, db.CloseOpenAttendanceForMeetingParams{
+		MeetingID: m.ID, LeaveReason: strText(leaveReasonMeetingEnded), LeftAt: ended.ActualEndAt,
+	})
+	if err != nil {
+		return db.Meeting{}, err
+	}
 	_ = q.RevokeGrantsForMeeting(ctx, db.RevokeGrantsForMeetingParams{MeetingID: m.ID, RevokedBy: strText(actorID), RevokeReason: strText("meeting_ended")})
 	_ = q.ExpirePendingJoinRequests(ctx, m.ID)
 	if err := s.writeAudit(ctx, q, m.ID, eventType, actorID, MeetingInProgress, MeetingEnded, "{}"); err != nil {
@@ -223,6 +233,10 @@ func (s *MeetingService) endMeeting(ctx context.Context, m db.Meeting, actorID, 
 		return db.Meeting{}, err
 	}
 	s.count("ended")
+	if len(closedSessions) > 0 {
+		s.meterAttendanceSessions(ctx, m.ID, closedSessions)
+		s.publishAttendanceChanged(ctx, m.ID)
+	}
 	return ended, nil
 }
 

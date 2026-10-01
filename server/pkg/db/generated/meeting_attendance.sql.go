@@ -86,6 +86,23 @@ func (q *Queries) DeleteAutoAttendanceMarks(ctx context.Context, meetingID strin
 	return err
 }
 
+const deleteInactiveAttendanceMarks = `-- name: DeleteInactiveAttendanceMarks :execrows
+DELETE FROM meeting_attendance_marks mk
+USING meeting_participants p
+WHERE mk.participant_id = p.id AND mk.meeting_id = $1 AND p.status <> 'ACTIVE'
+`
+
+// Drops the marks of people who are no longer participants (removed or left
+// while the roll was open), so a finalized roll is exactly the people who
+// were on it when it was finalized.
+func (q *Queries) DeleteInactiveAttendanceMarks(ctx context.Context, meetingID string) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteInactiveAttendanceMarks, meetingID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const insertAutoAttendanceMark = `-- name: InsertAutoAttendanceMark :exec
 INSERT INTO meeting_attendance_marks (id, organization_id, meeting_id, participant_id, status, source)
 VALUES ($1, $2, $3, $4, $5, 'AUTO')

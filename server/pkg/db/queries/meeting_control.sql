@@ -292,17 +292,23 @@ UPDATE outbox_events SET
   updated_at = now()
 WHERE id = $1;
 
--- name: CloseOpenAttendanceForConference :exec
+-- name: CloseOpenAttendanceForConference :many
 UPDATE meeting_attendance_sessions SET
-  left_at = now(),
+  left_at = GREATEST(joined_at, now()),
   leave_reason = $2
-WHERE conference_session_id = $1 AND left_at IS NULL;
+WHERE conference_session_id = $1 AND left_at IS NULL
+RETURNING *;
 
--- name: CloseOpenAttendanceForMeeting :exec
+-- name: CloseOpenAttendanceForMeeting :many
+-- Closes every open room session of a meeting. left_at caps the close time —
+-- the meeting's actual_end_at once it has ended — so a late sweep never
+-- stretches a session past the end; NULL closes at now(). A session never
+-- closes before it opened.
 UPDATE meeting_attendance_sessions SET
-  left_at = now(),
-  leave_reason = $2
-WHERE meeting_id = $1 AND left_at IS NULL;
+  left_at = GREATEST(joined_at, LEAST(now(), COALESCE(sqlc.narg('left_at')::timestamptz, now()))),
+  leave_reason = sqlc.arg('leave_reason')
+WHERE meeting_id = sqlc.arg('meeting_id') AND left_at IS NULL
+RETURNING *;
 
 -- name: ListEndedMeetingsWithOpenAttendance :many
 SELECT DISTINCT m.id FROM meetings m
@@ -361,9 +367,17 @@ VALUES ($1, $2, $3)
 ON CONFLICT DO NOTHING;
 
 -- name: OpenAttendanceSession :one
+-- joined_at is the provider's event time when it sent one, never in the
+-- future; NULL means now().
 INSERT INTO meeting_attendance_sessions (
-  id, meeting_id, conference_session_id, participant_id, provider_participant_identity, joined_at, provider_event_id
-) VALUES ($1, $2, $3, $4, $5, now(), $6)
+  id, meeting_id, conference_session_id, participant_id, provider_participant_identity, joined_at, provider_event_id,
+  provider_participant_sid
+) VALUES (
+  sqlc.arg('id'), sqlc.arg('meeting_id'), sqlc.arg('conference_session_id'), sqlc.arg('participant_id'),
+  sqlc.arg('provider_participant_identity'),
+  LEAST(now(), COALESCE(sqlc.narg('joined_at')::timestamptz, now())),
+  sqlc.narg('provider_event_id'), sqlc.narg('provider_participant_sid')
+)
 ON CONFLICT (participant_id) WHERE left_at IS NULL DO UPDATE SET
   provider_event_id = COALESCE(meeting_attendance_sessions.provider_event_id, EXCLUDED.provider_event_id)
 RETURNING *;
@@ -391,17 +405,74 @@ WHERE m.status = 'IN_PROGRESS'
   )
 LIMIT $1;
 
--- name: GetOpenAttendance :one
+-- name: LockOpenAttendance :one
+-- The participant's open room session, locked so a join that replaces it and
+-- a leave that closes it take turns.
 SELECT * FROM meeting_attendance_sessions
 WHERE participant_id = $1 AND left_at IS NULL
 ORDER BY joined_at DESC
-LIMIT 1;
+LIMIT 1
+FOR UPDATE;
+
+-- name: LockRoomSessionsOfParticipant :exec
+-- Serializes the join and leave webhooks of one participant (across workers
+-- too): with no open session there is no row to lock, and two joins would
+-- otherwise both insert.
+SELECT pg_advisory_xact_lock(hashtextextended('meeting_attendance_sessions:' || sqlc.arg(participant_id)::text, 0));
+
+-- name: ShareLockMeetingStatus :one
+-- The meeting's status, share-locked so End (which updates the row, then
+-- closes every open room session) cannot interleave with a join: a join
+-- either commits before End's close or sees the meeting ENDED.
+SELECT status FROM meetings WHERE id = $1 FOR SHARE;
+
+-- name: AttendanceConnectionSeen :one
+-- Whether one provider connection (SID) of a participant already has a room
+-- session, open or closed: its join was handled, or its leave came first.
+SELECT EXISTS (
+  SELECT 1 FROM meeting_attendance_sessions
+  WHERE meeting_id = sqlc.arg('meeting_id') AND participant_id = sqlc.arg('participant_id')
+    AND provider_participant_sid = sqlc.arg('provider_participant_sid')
+)::bool;
+
+-- name: BackdateConnectionJoin :many
+-- A join that arrives after its connection's session was already recorded
+-- (its leave came first and wrote a zero-length session at the leave time)
+-- moves that session's start back to the join's time, so first-join and
+-- minutes present are right. A duplicate join (same time) changes nothing.
+UPDATE meeting_attendance_sessions SET joined_at = sqlc.arg('joined_at')::timestamptz
+WHERE meeting_id = sqlc.arg('meeting_id') AND participant_id = sqlc.arg('participant_id')
+  AND provider_participant_sid = sqlc.arg('provider_participant_sid')
+  AND joined_at > sqlc.arg('joined_at')::timestamptz
+RETURNING *;
+
+-- name: InsertClosedAttendanceSession :one
+-- A session known only after it ended: a leave that arrived before its own
+-- join (recorded so the late join opens nothing), or an older connection
+-- whose join arrived after the newer one's. Times are clamped like the open
+-- and close queries: never in the future, never closing before opening.
+INSERT INTO meeting_attendance_sessions (
+  id, meeting_id, conference_session_id, participant_id, provider_participant_identity,
+  joined_at, left_at, leave_reason, provider_event_id, provider_participant_sid
+) VALUES (
+  sqlc.arg('id'), sqlc.arg('meeting_id'), sqlc.arg('conference_session_id'), sqlc.arg('participant_id'),
+  sqlc.arg('provider_participant_identity'),
+  LEAST(now(), COALESCE(sqlc.narg('joined_at')::timestamptz, now())),
+  GREATEST(
+    LEAST(now(), COALESCE(sqlc.narg('joined_at')::timestamptz, now())),
+    LEAST(now(), COALESCE(sqlc.narg('left_at')::timestamptz, now()))
+  ),
+  sqlc.narg('leave_reason'), sqlc.narg('provider_event_id'), sqlc.narg('provider_participant_sid')
+)
+RETURNING *;
 
 -- name: CloseAttendanceSession :one
+-- left_at is the provider's event time when it sent one, clamped to
+-- [joined_at, now()]; NULL means now().
 UPDATE meeting_attendance_sessions SET
-  left_at = now(),
-  leave_reason = $2
-WHERE id = $1 AND left_at IS NULL
+  left_at = GREATEST(joined_at, LEAST(now(), COALESCE(sqlc.narg('left_at')::timestamptz, now()))),
+  leave_reason = sqlc.arg('leave_reason')
+WHERE id = sqlc.arg('id') AND left_at IS NULL
 RETURNING *;
 
 -- name: CountUniqueAttendees :one

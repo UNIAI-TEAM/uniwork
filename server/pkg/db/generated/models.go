@@ -951,6 +951,7 @@ type MeetingAttendanceSession struct {
 	LeftAt                      pgtype.Timestamptz `json:"left_at"`
 	LeaveReason                 pgtype.Text        `json:"leave_reason"`
 	ProviderEventID             pgtype.Text        `json:"provider_event_id"`
+	ProviderParticipantSid      pgtype.Text        `json:"provider_participant_sid"`
 }
 
 type MeetingAttendee struct {

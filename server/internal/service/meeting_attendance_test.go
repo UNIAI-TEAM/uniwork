@@ -342,7 +342,7 @@ func TestFinalizeAndReopenAttendance(t *testing.T) {
 	guest := newGuestParticipant(t, s, m.ID)
 	seedSession(t, s, m.ID, guest.ID, "40 minutes", "")
 	rep, _ = s.Attendance(ctx, ua.ID, m.ID)
-	if r := rowFor(t, rep, guest.ID); r.Source != AttendanceSourceSuggested || !r.InRoom {
+	if r := rowFor(t, rep, guest.ID); r.Source != AttendanceSourceSuggested || !r.InRoom || !r.JoinedAfterFinalize {
 		t.Fatalf("late joiner after finalize = %+v", r)
 	}
 	// Reopen drops AUTO rows, keeps MANUAL.

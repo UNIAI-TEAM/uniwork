@@ -69,6 +69,23 @@ type AttendanceRow struct {
 	InRoom         bool
 	PresentSeconds int64
 	SessionCount   int32
+	// Removed: listed only on a finalized roll — the person was marked, then
+	// removed or left the participant list; the snapshot still counts them.
+	Removed bool
+	// JoinedAfterFinalize: an active participant with no mark on a finalized
+	// roll (added after it was finalized). Shown with a suggestion, never
+	// counted, never on a vote's roll.
+	JoinedAfterFinalize bool
+}
+
+// counted: the row is one of the members the summary and quorum are over.
+func (r AttendanceRow) counted() bool {
+	return r.Participant.Standing == StandingMember && !r.JoinedAfterFinalize
+}
+
+// onRoll: the row may vote — a counted member who is still a participant.
+func (r AttendanceRow) onRoll() bool {
+	return r.counted() && !r.Removed
 }
 
 type AttendanceSummary struct {
@@ -94,6 +111,13 @@ func (s *MeetingService) Attendance(ctx context.Context, userID, meetingID strin
 
 // attendanceReport merges clerk marks over suggestions for every active
 // participant. Observers are listed but never counted.
+//
+// A finalized roll is a snapshot of its mark rows (finalize writes one for
+// everybody): the summary counts exactly the marked members, whatever has
+// happened to the participant list since, so inviting or removing someone
+// after finalizing cannot move the recorded numbers. Marked participants who
+// are no longer active stay listed (Removed); active ones without a mark
+// joined after the finalize and are listed but not counted.
 func (s *MeetingService) attendanceReport(ctx context.Context, q *db.Queries, m db.Meeting) (AttendanceReport, error) {
 	ps, err := q.ListMeetingParticipants(ctx, m.ID)
 	if err != nil {
@@ -116,17 +140,20 @@ func (s *MeetingService) attendanceReport(ctx context.Context, q *db.Queries, m 
 		byMark[mk.ParticipantID] = mk
 	}
 	anchor := attendanceAnchor(m)
+	finalized := m.AttendanceFinalizedAt.Valid
 	rep := AttendanceReport{Meeting: m, Rows: make([]AttendanceRow, 0, len(ps))}
 	for _, p := range ps {
-		if p.Status != ParticipantActive {
+		mk, marked := byMark[p.ID]
+		active := p.Status == ParticipantActive
+		if !active && !(finalized && marked) {
 			continue
 		}
-		row := AttendanceRow{Participant: p}
+		row := AttendanceRow{Participant: p, Removed: !active}
 		if t, ok := byTotals[p.ID]; ok {
 			row.FirstJoinedAt, row.LastLeftAt = t.FirstJoinedAt, t.LastLeftAt
 			row.InRoom, row.SessionCount, row.PresentSeconds = t.InRoom, t.SessionCount, t.PresentSeconds
 		}
-		if mk, ok := byMark[p.ID]; ok {
+		if marked {
 			row.Status, row.Source, row.Note = mk.Status, mk.Source, mk.Note
 		} else {
 			var first *time.Time
@@ -135,9 +162,10 @@ func (s *MeetingService) attendanceReport(ctx context.Context, q *db.Queries, m 
 				first = &f
 			}
 			row.Status, row.Source = suggestAttendance(anchor, first), AttendanceSourceSuggested
+			row.JoinedAfterFinalize = finalized
 		}
 		rep.Rows = append(rep.Rows, row)
-		if p.Standing != StandingMember {
+		if !row.counted() {
 			continue
 		}
 		rep.Summary.Members++
@@ -280,7 +308,8 @@ func (s *MeetingService) ClearAttendanceMark(ctx context.Context, actorID, meeti
 	return tx.Commit(ctx)
 }
 
-// FinalizeAttendance freezes the current suggestions into AUTO rows.
+// FinalizeAttendance freezes the current suggestions into AUTO rows, over the
+// participants who are active at that moment.
 // Idempotent: finalizing a finalized roll changes nothing and audits nothing.
 func (s *MeetingService) FinalizeAttendance(ctx context.Context, actorID, meetingID string) error {
 	m, err := s.attendanceMeeting(ctx, actorID, meetingID)
@@ -302,6 +331,13 @@ func (s *MeetingService) FinalizeAttendance(ctx context.Context, actorID, meetin
 	}
 	if m.AttendanceFinalizedAt.Valid {
 		return nil
+	}
+	// The snapshot is the people on the roll now. A clerk's mark outlives the
+	// person's removal (and survives a reopen), so drop the marks of anyone
+	// no longer a participant: otherwise they would come back, counted, on
+	// the finalized roll they were never on.
+	if _, err := q.DeleteInactiveAttendanceMarks(ctx, m.ID); err != nil {
+		return err
 	}
 	rep, err := s.attendanceReport(ctx, q, m)
 	if err != nil {

@@ -99,9 +99,16 @@ func (s *MeetingService) OpenMotion(ctx context.Context, actorID, meetingID, mot
 	if err != nil {
 		return db.MeetingMotion{}, err
 	}
-	roll := 0
+	// Total members and the roll are over the people still in the meeting:
+	// a finalized roll's snapshot keeps removed members in its own count, and
+	// lists those who joined after it uncounted — neither may vote here.
+	roll, totalMembers := 0, 0
 	for _, r := range rep.Rows {
-		if r.Participant.Standing != StandingMember || (r.Status != AttendancePresent && r.Status != AttendanceLate) {
+		if !r.onRoll() {
+			continue
+		}
+		totalMembers++
+		if r.Status != AttendancePresent && r.Status != AttendanceLate {
 			continue
 		}
 		if err := q.InsertMeetingMotionBallot(ctx, db.InsertMeetingMotionBallotParams{
@@ -112,7 +119,7 @@ func (s *MeetingService) OpenMotion(ctx context.Context, actorID, meetingID, mot
 		roll++
 	}
 	opened, err := q.OpenMeetingMotion(ctx, db.OpenMeetingMotionParams{
-		OpenedBy: strText(actorID), TotalMembers: int32(rep.Summary.Members), RollSize: int32(roll), ID: mo.ID,
+		OpenedBy: strText(actorID), TotalMembers: int32(totalMembers), RollSize: int32(roll), ID: mo.ID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return db.MeetingMotion{}, errMotionNotDraft()
@@ -131,7 +138,7 @@ func (s *MeetingService) OpenMotion(ctx context.Context, actorID, meetingID, mot
 		meetingRelatedPayload(m, map[string]string{"motion_id": mo.ID}),
 		audit.Diff(
 			map[string]any{"status": MotionDraft},
-			map[string]any{"status": MotionOpen, "roll_size": roll, "total_members": rep.Summary.Members},
+			map[string]any{"status": MotionOpen, "roll_size": roll, "total_members": totalMembers},
 		))
 	if err := tx.Commit(ctx); err != nil {
 		return db.MeetingMotion{}, err
