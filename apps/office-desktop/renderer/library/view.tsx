@@ -44,6 +44,7 @@ export function LibraryView({
 }: LibraryViewProps) {
   const { t, i18n } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
   const [draftQuery, setDraftQuery] = useState(searchQuery);
+  const searching = mode === "search" && searchQuery.trim() !== "";
   const actions = <div className="flex flex-wrap justify-center gap-2"><Button type="button" onClick={onCreate}>{t("create")}</Button><Button type="button" variant="outline" onClick={onOpenLocal}>{t("openLocal")}</Button></div>;
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4 p-6" data-desktop-library="true">
@@ -94,8 +95,8 @@ export function LibraryView({
       ) : documents.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 py-12 text-center" role="status">
           <DocumentTypeIcon format="file" className="size-12 text-muted-foreground" />
-          <h2 className="text-title font-semibold">{t("empty")}</h2>
-          <p className="max-w-sm text-body text-muted-foreground">{t("emptyDescription")}</p>
+          <h2 className="text-title font-semibold">{t(searching ? "emptySearch" : "empty")}</h2>
+          <p className="max-w-sm text-body text-muted-foreground">{t(searching ? "emptySearchDescription" : "emptyDescription")}</p>
           {actions}
         </div>
       ) : (

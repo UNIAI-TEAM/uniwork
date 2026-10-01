@@ -118,6 +118,7 @@ function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; meta
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [pendingLaunch, setPendingLaunch] = useState<{ documentId: string; operation: "view" | "edit"; version?: number } | null>(null);
+  const [queuedFileOpen, setQueuedFileOpen] = useState<string | null>(null);
   const openSequence = useRef(0);
   const actionRef = useRef({ scope, opened });
   actionRef.current = { scope, opened };
@@ -172,13 +173,21 @@ function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; meta
   useEffect(() => {
     const unsubscribe = bridge.onLaunchRequested?.(setPendingLaunch);
     const unsubscribeFile = bridge.onFileOpenRequested?.((event) => {
-      if (actionRef.current.opened) return;
+      if (actionRef.current.opened) { setQueuedFileOpen(event.handle); return; }
       void bridge.call("desktop:file-open", { sessionGeneration: SESSION_GENERATION, handle: event.handle }).then(acceptLocal).catch(() => setActionError(t("actionError")));
     });
     return () => { unsubscribe?.(); unsubscribeFile?.(); };
   // The subscriptions read live selection through actionRef and persist per account.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bridge, metadata.accountId]);
+  useEffect(() => {
+    if (opened || queuedFileOpen === null) return;
+    const handle = queuedFileOpen;
+    setQueuedFileOpen(null);
+    void bridge.call("desktop:file-open", { sessionGeneration: SESSION_GENERATION, handle }).then(acceptLocal).catch(() => setActionError(t("actionError")));
+  // A queued open waits for the current document to settle; acceptLocal writes state only.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bridge, opened, queuedFileOpen]);
   useEffect(() => {
     if (!pendingLaunch || !scope || opened) return;
     let active = true;
@@ -194,6 +203,7 @@ function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; meta
     <SignedInShell onSignOut={onLogout} accountName={account?.name} accountEmail={account?.email} workspaceName={workspace?.name} onSwitchWorkspace={() => { ++openSequence.current; setOpened(null); setScope(null); }}>
       <div className="flex min-h-0 flex-1 flex-col" aria-busy={busy} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = event.dataTransfer.files[0]; if (file && bridge.openDroppedFile && !opened) void perform(async () => acceptLocal(await bridge.openDroppedFile!(file))); }}>
       {actionError ? <p role="alert" className="p-4 text-destructive">{actionError}</p> : null}
+      {queuedFileOpen !== null ? <p role="status" className="px-4 pb-2 text-body text-muted-foreground">{t("fileOpenQueued")}</p> : null}
       {opened ? <OpenByteDocument bridge={bridge} identity={opened.identity} opened={opened.bytes} title={opened.title} onBack={() => setOpened(null)} /> : scope ? (
         <LibraryHost bridge={bridge} scope={{ ...metadata, ...scope }} onCreate={() => { void perform(openCreated); }} onOpenLocal={() => { void perform(openLocal); }} onOpen={(document) => { void perform(async () => acceptCloud(await bridge.call("desktop:office-open", { sessionGeneration: SESSION_GENERATION, workspaceId: scope.workspaceId, documentId: document.id, version: document.version }), scope)); }} />
       ) : (
@@ -214,7 +224,9 @@ export function App({ bridge }: { bridge: RendererBridge }) {
   const metadataRef = useRef<DesktopSessionMetadata | undefined>(undefined);
 
   useEffect(() => {
+    let unsubscribeController: (() => void) | undefined;
     const unsubscribe = bridge.onSessionChanged((next) => {
+      controllerRef.current?.clearExpiry();
       metadataRef.current = next;
       setMetadata(next);
       setState(loginStateFromMetadata(next));
@@ -224,6 +236,7 @@ export function App({ bridge }: { bridge: RendererBridge }) {
         const config = await bridge.call("desktop:auth-config", { sessionGeneration: SESSION_GENERATION });
         if (!isAuthConfig(config)) throw new Error("invalid auth config");
         controllerRef.current = createLoginController(bridge, SESSION_GENERATION, config.clientId, config.deploymentId);
+        unsubscribeController = controllerRef.current.subscribe(setState);
         const session = await bridge.call("desktop:auth-session", { sessionGeneration: SESSION_GENERATION });
         if (!isSessionMetadata(session)) throw new Error("invalid session metadata");
         setMetadata(session);
@@ -233,7 +246,7 @@ export function App({ bridge }: { bridge: RendererBridge }) {
         setState("error");
       }
     })();
-    return () => { unsubscribe(); };
+    return () => { unsubscribe(); unsubscribeController?.(); };
   }, [bridge]);
 
   if (state === "signed-in" && metadata?.status === "signed-in" && metadata.accountId && metadata.deploymentId) {

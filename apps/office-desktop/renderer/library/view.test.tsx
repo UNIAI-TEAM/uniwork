@@ -44,6 +44,13 @@ it("renders an empty state and fires mode changes", () => {
   expect(onModeChange).toHaveBeenCalledWith("list");
 });
 
+it("shows search-specific copy when a submitted query matches nothing", () => {
+  render(<LibraryView mode="search" searchQuery="zzz-no-such-doc" documents={[]} engineAvailable />);
+  expect(screen.getByText("Không tìm thấy kết quả")).toBeInTheDocument();
+  expect(screen.getByText("Không có tài liệu nào khớp từ khóa tìm kiếm.")).toBeInTheDocument();
+  expect(screen.queryByText("Chưa có tài liệu")).not.toBeInTheDocument();
+});
+
 it("preserves the typed query and submits it on search", () => {
   const onSearch = vi.fn();
   const { container } = render(<LibraryView mode="search" searchQuery="roadmap" documents={[]} engineAvailable onSearch={onSearch} />);

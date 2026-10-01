@@ -17,6 +17,7 @@ const MESSAGE_KEY: Record<LoginScreenState, string> = {
   "signed-in": "signedOut",
   locked: "locked",
   "login-required": "required",
+  expired: "expired",
 };
 
 /** The centred sign-in card shown before a workspace is reached. The desktop

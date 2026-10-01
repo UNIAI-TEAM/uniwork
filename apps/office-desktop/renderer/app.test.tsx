@@ -50,6 +50,22 @@ it("moves pending -> cancelled through the cancel action", async () => {
   await waitFor(() => expect(container.querySelector("[data-login-state='cancelled']")).not.toBeNull());
 });
 
+it("moves pending -> expired when the attempt passes its TTL and offers a retry", async () => {
+  const { bridge } = makeBridge(vi.fn(async (channel: string) => {
+    if (channel === "desktop:auth-config") return { clientId: "uniwork-office-dev", deploymentId: "lane" };
+    if (channel === "desktop:auth-start") return { status: "pending", attemptId: "attempt_abcdefghijklmnopqrstuvwxyzABCDEFGHIJKL", expiresAt: Date.now() + 30 };
+    return { status: "signed-out" };
+  }) as RendererBridge["call"]);
+  const { container } = render(<App bridge={bridge} />);
+  await waitFor(() => expect(container.querySelector("[data-login-state='signed-out']")).not.toBeNull());
+  fireEvent.click(screen.getByRole("button", { name: "Đăng nhập bằng trình duyệt" }));
+  await waitFor(() => expect(container.querySelector("[data-login-state='pending']")).not.toBeNull());
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 60)); });
+  await waitFor(() => expect(container.querySelector("[data-login-state='expired']")).not.toBeNull());
+  expect(screen.getByText("Yêu cầu đăng nhập đã hết hạn. Thử lại.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Đăng nhập bằng trình duyệt" })).toBeInTheDocument();
+});
+
 it("reflects a login-required push from the host without a user action", async () => {
   const { bridge, emit } = makeBridge(vi.fn(async (channel: string) =>
     channel === "desktop:auth-config" ? { clientId: "uniwork-office-dev", deploymentId: "lane" } : { status: "signed-out" },
@@ -112,6 +128,33 @@ it("shows a typed retryable list error when the library request rejects", async 
   expect(await screen.findByRole("alert")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Thử lại" })).toBeInTheDocument();
   expect(screen.queryByText("Trình soạn thảo không khả dụng; vẫn có thể tải xuống")).not.toBeInTheDocument();
+});
+
+it("queues a file-open request while a document is open and opens it once the document settles", async () => {
+  let fileOpen: ((event: { handle: string }) => void) | undefined;
+  const calls: string[] = [];
+  const document = { id: "doc-1", workspaceId: "ws-1", title: "Plan.docx", kind: "file" as const, format: "docx" as const, version: 1, revision: "1", updatedAt: "2026-09-30T00:00:00.000Z", ownerKind: null, canEdit: true, downloadAvailable: true };
+  const { bridge } = makeBridge(vi.fn(async (channel: string) => {
+    calls.push(channel);
+    if (channel === "desktop:auth-config") return { clientId: "uniwork-office-dev", deploymentId: "lane" };
+    if (channel === "desktop:auth-session") return { status: "signed-in", accountId: "account-1", deploymentId: "lane" };
+    if (channel === "desktop:library-context") return { deployments: [{ id: "default", name: "Default" }], accounts: [{ id: "account-1", name: "Me" }], organizations: [{ id: "org-1", name: "Acme" }], workspaces: [{ id: "ws-1", name: "Team" }] };
+    if (channel === "desktop:library-list") return { documents: [document], nextCursor: null, engineAvailable: true };
+    if (channel === "desktop:office-open") return { dataBase64: "aGVsbG8=", checksum: `sha256:${"a".repeat(64)}`, filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", document };
+    if (channel === "desktop:file-open") return { opened: true, metadata: { handle: "file_abcdefghijklmnopqrstuvwxyzABCDEF", name: "Local plan.docx", byteLength: 5, modifiedAtMs: 1, checksum: `sha256:${"b".repeat(64)}` }, dataBase64: "aGVsbG8=" };
+    return {};
+  }) as RendererBridge["call"]);
+  const liveBridge: RendererBridge = { ...bridge, onFileOpenRequested: (listener) => { fileOpen = listener; return () => { fileOpen = undefined; }; } };
+  render(<App bridge={liveBridge} />);
+  await screen.findByText("Plan.docx");
+  fireEvent.click(screen.getByRole("button", { name: "Mở" }));
+  await screen.findByRole("button", { name: "Về thư viện" });
+  act(() => fileOpen?.({ handle: "file_abcdefghijklmnopqrstuvwxyzABCDEF" }));
+  expect(await screen.findByText("Tệp sẽ mở sau khi bạn đóng tài liệu hiện tại.")).toBeInTheDocument();
+  expect(calls).not.toContain("desktop:file-open");
+  fireEvent.click(screen.getByRole("button", { name: "Về thư viện" }));
+  await waitFor(() => expect(calls).toContain("desktop:file-open"));
+  expect(await screen.findByText("Local plan.docx")).toBeInTheDocument();
 });
 
 it("picks a scope, lists the workspace library, opens and downloads a document, then signs out", async () => {
