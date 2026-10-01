@@ -7179,7 +7179,8 @@
       "required": "Đăng nhập lại để tiếp tục.",
       "start": "Đăng nhập bằng trình duyệt",
       "cancel": "Hủy đăng nhập",
-      "signOut": "Đăng xuất",
+      "signOut": "Đăng xuất"
+,
       "libraryWorkspace": "Thư viện tài liệu",
       "accountUnknown": "Tài khoản UniWork",
       "switchWorkspace": "Đổi workspace"

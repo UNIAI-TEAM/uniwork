@@ -1,5 +1,5 @@
 /** @vitest-environment jsdom */
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { fireEvent } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 import type { DesktopSessionMetadata } from "../shared/ipc";
@@ -82,6 +82,23 @@ it("goes error when desktop:auth-config itself fails", async () => {
   await waitFor(() => expect(container.querySelector("[data-login-state='error']")).not.toBeNull());
 });
 
+it("opens a launch ticket against the picked workspace when auth metadata has no workspace", async () => {
+  let launch: ((event: { documentId: string; operation: "view" | "edit"; version?: number }) => void) | undefined;
+  const call = vi.fn(async (channel: string) => {
+    if (channel === "desktop:auth-config") return { clientId: "uniwork-office-dev", deploymentId: "lane" };
+    if (channel === "desktop:auth-session") return { status: "signed-in", accountId: "account", deploymentId: "lane" };
+    if (channel === "desktop:library-context") return { deployments: [{ id: "lane", name: "Server" }], accounts: [{ id: "account", name: "A" }], organizations: [{ id: "org", name: "Org" }], workspaces: [{ id: "ws", name: "Workspace" }] };
+    if (channel === "desktop:library-list") return { documents: [], nextCursor: null, engineAvailable: true };
+    throw new Error("open test refusal");
+  });
+  const { bridge } = makeBridge(call as RendererBridge["call"]);
+  render(<App bridge={{ ...bridge, onLaunchRequested: (listener) => { launch = listener; return () => undefined; } }} />);
+  await screen.findByText("Chưa có tài liệu");
+  act(() => launch?.({ documentId: "ticket-document", version: 4, operation: "edit" }));
+  await waitFor(() => expect(call).toHaveBeenCalledWith("desktop:office-open", expect.objectContaining({ workspaceId: "ws", documentId: "ticket-document", version: 4 })));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Không thể thực hiện thao tác");
+});
+
 it("shows a typed retryable list error when the library request rejects", async () => {
   const { bridge } = makeBridge(vi.fn(async (channel: string) => {
     if (channel === "desktop:auth-config") return { clientId: "uniwork-office-dev", deploymentId: "lane" };
@@ -99,6 +116,11 @@ it("shows a typed retryable list error when the library request rejects", async 
 
 it("picks a scope, lists the workspace library, opens and downloads a document, then signs out", async () => {
   const calls: Array<{ channel: string; payload: unknown }> = [];
+  const download = vi.fn(() => "blob:download-test");
+  Object.defineProperty(URL, "createObjectURL", { configurable: true, value: download });
+  Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: vi.fn() });
+  const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+  let nativeSave: ((event: { documentId: string }) => void) | undefined;
   const document = { id: "doc-1", workspaceId: "ws-1", title: "Plan.docx", kind: "file" as const, format: "docx" as const, version: 1, revision: "1", updatedAt: "2026-09-30T00:00:00.000Z", ownerKind: null, canEdit: true, downloadAvailable: true };
   const { bridge } = makeBridge(vi.fn(async (channel: string, payload: unknown) => {
     calls.push({ channel, payload });
@@ -106,16 +128,30 @@ it("picks a scope, lists the workspace library, opens and downloads a document, 
     if (channel === "desktop:auth-session") return { status: "signed-in", accountId: "account-1", deploymentId: "lane" };
     if (channel === "desktop:library-context") return { deployments: [{ id: "default", name: "Default" }], accounts: [{ id: "account-1", name: "me" }], organizations: [{ id: "org-1", name: "Acme" }], workspaces: [{ id: "ws-1", name: "Team" }] };
     if (channel === "desktop:library-list") return { documents: [document], nextCursor: null, engineAvailable: true };
+    const bytes = { dataBase64: "aGVsbG8=", checksum: `sha256:${"a".repeat(64)}`, filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
+    if (channel === "desktop:library-download") return { ...bytes, documentId: document.id, version: 1 };
+    if (channel === "desktop:office-open") return { ...bytes, document };
+    if (channel === "desktop:office-save") { const request = payload as { intentId: string; idempotencyKey: string }; return { ...request, documentId: document.id, versionId: "v2", revision: "2", checksum: bytes.checksum }; }
     if (channel === "desktop:auth-logout") return { status: "signed-out" };
     return {};
   }) as RendererBridge["call"]);
-  const { container } = render(<App bridge={bridge} />);
+  const liveBridge = { ...bridge, onOfficeSaveRequested: (listener: typeof nativeSave) => { nativeSave = listener; return () => { nativeSave = undefined; }; } };
+  const { container } = render(<App bridge={liveBridge} />);
   await waitFor(() => expect(screen.getByText("Plan.docx")).toBeInTheDocument());
-  fireEvent.click(screen.getByRole("button", { name: "Mở" }));
   fireEvent.click(screen.getByRole("button", { name: "Tải xuống" }));
+  await waitFor(() => expect(download).toHaveBeenCalledOnce());
+  expect(click).toHaveBeenCalledOnce();
+  fireEvent.click(screen.getByRole("button", { name: "Mở" }));
   await waitFor(() => expect(calls.some((call) => call.channel === "desktop:office-open")).toBe(true));
   expect(calls.some((call) => call.channel === "desktop:library-download")).toBe(true);
+  await screen.findByRole("button", { name: "Về thư viện" });
+  await waitFor(() => expect(container.querySelector('[data-testid="docx-editor"]')).not.toBeNull());
+  expect(container.querySelector("[data-desktop-library]")).toBeNull();
+  act(() => nativeSave?.({ documentId: document.id }));
+  await waitFor(() => expect(calls.filter((call) => call.channel === "desktop:office-save")).toHaveLength(1));
+  expect(calls.find((call) => call.channel === "desktop:office-save")?.payload).toMatchObject({ dataBase64: "aGVsbG8=" });
 
   fireEvent.click(screen.getByRole("button", { name: "Đăng xuất" }));
   await waitFor(() => expect(container.querySelector("[data-login-state='signed-out']")).not.toBeNull());
+  click.mockRestore();
 });

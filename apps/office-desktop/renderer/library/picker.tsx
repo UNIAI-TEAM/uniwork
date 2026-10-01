@@ -46,6 +46,12 @@ export function LibraryPicker({ context, error = false, onRetry, onChoose }: Lib
   }, [context]);
   const ready = GROUPS.every((group) => Boolean(selected[GROUP_TO_KEY[group]]));
   const missing = GROUPS.filter((group) => !selected[GROUP_TO_KEY[group]]);
+  const choose = (group: PickerGroup, value: string) => {
+    if (group === "organizations") {
+      const workspaces = context?.workspaces.filter((workspace) => !workspace.organizationId || workspace.organizationId === value) ?? [];
+      setSelected((previous) => ({ ...previous, organizationId: value, workspaceId: workspaces.length === 1 ? workspaces[0]!.id : undefined }));
+    } else setSelected((previous) => ({ ...previous, [GROUP_TO_KEY[group]]: value }));
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center overflow-auto p-6" data-desktop-library-picker="true">
@@ -65,8 +71,8 @@ export function LibraryPicker({ context, error = false, onRetry, onChoose }: Lib
             return (
               <section key={group} className="flex flex-col gap-2">
                 <h2 className="text-label font-medium text-muted-foreground">{t(group)}</h2>
-                <RadioGroup value={selected[key] ?? ""} onValueChange={(value) => setSelected((previous) => ({ ...previous, [key]: value }))} aria-label={t(group)} className="grid gap-2 sm:grid-cols-2">
-                  {(context[group] ?? []).map((entry) => <label key={entry.id} className="flex min-h-11 items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2 text-body text-foreground"><RadioGroupItem value={entry.id} data-picker-kind={group} data-picker-id={entry.id} /> <span className="break-words">{entry.name}</span></label>)}
+                <RadioGroup value={selected[key] ?? ""} onValueChange={(value) => choose(group, value)} aria-label={t(group)} className="grid gap-2 sm:grid-cols-2">
+                  {(context[group] ?? []).filter((entry) => group !== "workspaces" || !entry.organizationId || entry.organizationId === selected.organizationId).map((entry) => <label key={entry.id} className="flex min-h-11 items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2 text-body text-foreground"><RadioGroupItem value={entry.id} data-picker-kind={group} data-picker-id={entry.id} /> <span className="break-words">{entry.name}{entry.email ? <span className="block text-caption text-muted-foreground">{entry.email}</span> : null}</span></label>)}
                 </RadioGroup>
               </section>
             );

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { OfficeIdentity } from "@uniwork/core/office";
 import {
   desktopAuthConfigResponseSchema,
   desktopLibraryContextResponseSchema,
@@ -11,17 +13,15 @@ import type {
   DesktopLibraryDocument,
   DesktopSessionMetadata,
 } from "../shared/ipc";
-import { desktopFileResponseSchema, desktopOfficeOpenResponseSchema } from "../shared/ipc";
+import { desktopFileResponseSchema, desktopOfficeOpenResponseSchema, desktopLibraryDownloadResponseSchema } from "../shared/ipc";
 import { createLibraryController, createLibraryScopeController, type LibraryMode } from "./library/model";
 import { LibraryPicker, type LibraryPickerSelection } from "./library/picker";
 import { LibraryView } from "./library/view";
 import { createLoginController, loginStateFromMetadata, type LoginScreenState } from "./login";
 import { LoginScreen } from "./login-screen";
 import { SignedInShell } from "./signed-in-shell";
-import { Button } from "@uniwork/ui/components/ui/button";
-import { OfficeShell } from "@uniwork/views/office/office-shell";
-import { EditorSlot } from "@uniwork/views/office/editor-slot";
-import { createDesktopOfficeHost } from "./office/host";
+import { OpenByteDocument } from "./office/open-document";
+import type { OpenedBytes } from "./office/session";
 
 const SESSION_GENERATION = "desktop-dev-session";
 
@@ -29,6 +29,9 @@ export type RendererBridge = Readonly<{
   call<C extends DesktopIpcChannel>(channel: C, payload: DesktopIpcRequest<C>): Promise<unknown>;
   onSessionChanged(listener: (metadata: DesktopSessionMetadata) => void): () => void;
   onLaunchRequested?(listener: (event: { documentId: string; operation: "view" | "edit"; version?: number }) => void): () => void;
+  onOfficeSaveRequested?(listener: (event: { documentId: string }) => void): () => void;
+  openDroppedFile?(file: File): Promise<unknown>;
+  onFileOpenRequested?(listener: (event: { handle: string }) => void): () => void;
 }>;
 
 type SignedInMetadata = DesktopSessionMetadata & { status: "signed-in"; accountId: string; deploymentId: string };
@@ -48,11 +51,13 @@ function isLibraryContext(value: unknown): value is DesktopLibraryContextRespons
  * document. Kept separate from the DOCX host, which mounts once a document
  * is chosen. */
 function LibraryHost({ bridge, scope, onOpen, onCreate, onOpenLocal }: { bridge: RendererBridge; scope: Scope & { organizationId: string; workspaceId: string }; onOpen: (document: DesktopLibraryDocument) => void; onCreate: () => void; onOpenLocal: () => void }) {
+  const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
   const [mode, setMode] = useState<LibraryMode>("list");
   const [searchQuery, setSearchQuery] = useState("");
   const [result, setResult] = useState<{ documents: DesktopLibraryDocument[]; engineAvailable: boolean } | null>(null);
   const [error, setError] = useState(false);
   const [reload, setReload] = useState(0);
+  const [downloadError, setDownloadError] = useState(false);
   const scopeController = useMemo(() => createLibraryScopeController({ deploymentId: scope.deploymentId, accountId: scope.accountId, organizationId: scope.organizationId, workspaceId: scope.workspaceId, sessionGeneration: SESSION_GENERATION }), [scope.accountId, scope.deploymentId, scope.organizationId, scope.workspaceId]);
   const controller = useMemo(() => createLibraryController(bridge, scopeController), [bridge, scopeController]);
   const drawSequence = useRef(0);
@@ -60,6 +65,8 @@ function LibraryHost({ bridge, scope, onOpen, onCreate, onOpenLocal }: { bridge:
   useEffect(() => {
     let active = true;
     const requestSequence = ++drawSequence.current;
+    setResult(null);
+    setError(false);
     const run = mode === "list" ? controller.list() : mode === "recent" ? controller.recent() : searchQuery.trim() ? controller.search(searchQuery.trim()) : Promise.resolve({ documents: [], nextCursor: null, engineAvailable: true, generation: 0 });
     void run
       .then((next) => {
@@ -76,7 +83,7 @@ function LibraryHost({ bridge, scope, onOpen, onCreate, onOpenLocal }: { bridge:
   }, [controller, mode, searchQuery, reload]);
 
   return (
-    <LibraryView
+    <>{downloadError ? <p role="alert" className="px-6 text-destructive">{t("actionError")}</p> : null}<LibraryView
       mode={mode}
       searchQuery={searchQuery}
       documents={result?.documents ?? []}
@@ -88,23 +95,32 @@ function LibraryHost({ bridge, scope, onOpen, onCreate, onOpenLocal }: { bridge:
       onSearch={setSearchQuery}
       onOpen={onOpen}
       onDownload={(document) => {
-        void bridge.call("desktop:library-download", { sessionGeneration: SESSION_GENERATION, workspaceId: scope.workspaceId, documentId: document.id, version: document.version });
+        setDownloadError(false);
+        void bridge.call("desktop:library-download", { sessionGeneration: SESSION_GENERATION, workspaceId: scope.workspaceId, documentId: document.id, version: document.version }).then((raw) => {
+          const result = desktopLibraryDownloadResponseSchema.parse(raw);
+          const bytes = Uint8Array.from(atob(result.dataBase64), (character) => character.charCodeAt(0));
+          const url = URL.createObjectURL(new Blob([bytes], { type: result.mimeType }));
+          const link = window.document.createElement("a"); link.href = url; link.download = result.filename;
+          window.document.body.append(link); link.click(); link.remove();
+          window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }).catch(() => setDownloadError(true));
       }}
       onCreate={onCreate}
       onOpenLocal={onOpenLocal}
-    />
+    /></>
   );
 }
 
-function OpenDocument({ bridge, scope, document, onBack }: { bridge: RendererBridge; scope: Scope & { organizationId: string; workspaceId: string }; document: DesktopLibraryDocument; onBack: () => void }) {
-  const host = useMemo(() => createDesktopOfficeHost({ bridge, context: { sessionGeneration: SESSION_GENERATION, workspaceId: scope.workspaceId, documentId: document.id, version: document.version } }), [bridge, document.id, document.version, scope.workspaceId]);
-  return <OfficeShell title={document.title} breadcrumbs={[{ label: "Documents" }]} actions={<Button type="button" variant="outline" size="sm" onClick={onBack}>Back to library</Button>} editor={<EditorSlot format="docx" host={host as never} capability={{ format: "docx", operation: "open", host: "desktop", engineBuild: "desktop", contractRevision: "desktop/1", status: "available", fidelityWarnings: [] }} openState="ready" />} editorReady={false} />;
-}
-
 function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; metadata: SignedInMetadata; onLogout: () => void }) {
+  const { t } = useTranslation(undefined, { keyPrefix: "officeDesktop.library" });
   const [scope, setScope] = useState<LibraryPickerSelection | null>(null);
-  const [openedDocument, setOpenedDocument] = useState<DesktopLibraryDocument | null>(null);
-  const [localFile, setLocalFile] = useState<{ handle: string; name: string; dataBase64: string } | null>(null);
+  const [opened, setOpened] = useState<{ identity: OfficeIdentity; bytes: OpenedBytes; title: string } | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [pendingLaunch, setPendingLaunch] = useState<{ documentId: string; operation: "view" | "edit"; version?: number } | null>(null);
+  const openSequence = useRef(0);
+  const actionRef = useRef({ scope, opened });
+  actionRef.current = { scope, opened };
   const [context, setContext] = useState<DesktopLibraryContextResponse | null>(null);
   const [contextError, setContextError] = useState(false);
   const [contextReload, setContextReload] = useState(0);
@@ -126,24 +142,63 @@ function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; meta
 
   const account = context?.accounts.find((entry) => entry.id === (scope?.accountId ?? metadata.accountId));
   const workspace = context?.workspaces.find((entry) => entry.id === scope?.workspaceId);
+  const acceptCloud = (raw: unknown, selected: LibraryPickerSelection, allowSave = true) => {
+    const current = actionRef.current.scope;
+    if (!current || current.workspaceId !== selected.workspaceId || current.accountId !== selected.accountId || current.deploymentId !== selected.deploymentId) return;
+    const result = desktopOfficeOpenResponseSchema.parse(raw);
+    if (result.document.workspaceId !== selected.workspaceId) throw new Error("workspace_mismatch");
+    setOpened({ title: result.document.title, bytes: { ...result, canSave: allowSave && result.document.canEdit }, identity: { ...selected, documentId: result.document.id, generation: 1, baseRevision: result.document.revision, baseVersionId: String(result.document.version) } });
+  };
+  const acceptLocal = (raw: unknown) => {
+    const result = desktopFileResponseSchema.parse(raw);
+    if (!result.opened) return;
+    if (!result.metadata || !result.dataBase64) throw new Error("invalid_file");
+    if (!/\.docx$/i.test(result.metadata.name)) { setActionError(t("unsupported")); return; }
+    setOpened({ title: result.metadata.name, bytes: { dataBase64: result.dataBase64, checksum: result.metadata.checksum, localHandle: result.metadata.handle }, identity: { deploymentId: metadata.deploymentId, accountId: metadata.accountId, organizationId: "local", workspaceId: "local", documentId: result.metadata.handle, generation: 1, baseRevision: "0", baseVersionId: result.metadata.checksum } });
+  };
+  const perform = async (operation: () => Promise<void>) => {
+    if (busy) return;
+    setBusy(true); setActionError(null);
+    try { await operation(); } catch { setActionError(t("actionError")); } finally { setBusy(false); }
+  };
   const openCreated = async () => {
     if (!scope) return;
-    const raw = await bridge.call("desktop:library-create", { sessionGeneration: SESSION_GENERATION, workspaceId: scope.workspaceId, title: "Untitled.docx" });
-    const created = desktopOfficeOpenResponseSchema.safeParse(raw);
-    if (created.success) setOpenedDocument(created.data.document);
+    acceptCloud(await bridge.call("desktop:library-create", { sessionGeneration: SESSION_GENERATION, workspaceId: scope.workspaceId, title: t("untitled") }), scope);
   };
   const openLocal = async () => {
     const raw = await bridge.call("desktop:file-pick-open", { sessionGeneration: SESSION_GENERATION });
-    const opened = desktopFileResponseSchema.safeParse(raw);
-    if (opened.success && opened.data.opened && opened.data.metadata && opened.data.dataBase64) setLocalFile({ handle: opened.data.metadata.handle, name: opened.data.metadata.name, dataBase64: opened.data.dataBase64 });
+    acceptLocal(raw);
   };
+  useEffect(() => {
+    const unsubscribe = bridge.onLaunchRequested?.(setPendingLaunch);
+    const unsubscribeFile = bridge.onFileOpenRequested?.((event) => {
+      if (actionRef.current.opened) return;
+      void bridge.call("desktop:file-open", { sessionGeneration: SESSION_GENERATION, handle: event.handle }).then(acceptLocal).catch(() => setActionError(t("actionError")));
+    });
+    return () => { unsubscribe?.(); unsubscribeFile?.(); };
+  // The subscriptions read live selection through actionRef and persist per account.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bridge, metadata.accountId]);
+  useEffect(() => {
+    if (!pendingLaunch || !scope || opened) return;
+    let active = true;
+    const sequence = ++openSequence.current;
+    void bridge.call("desktop:office-open", { sessionGeneration: SESSION_GENERATION, workspaceId: scope.workspaceId, documentId: pendingLaunch.documentId, ...(pendingLaunch.version === undefined ? {} : { version: pendingLaunch.version }) }).then((raw) => {
+      if (active && sequence === openSequence.current) { acceptCloud(raw, scope, pendingLaunch.operation === "edit"); setPendingLaunch(null); }
+    }).catch(() => { if (active) { setPendingLaunch(null); setActionError(t("actionError")); } });
+    return () => { active = false; };
+  // Selection and pending ticket determine the lifetime; acceptCloud writes state only.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bridge, pendingLaunch, scope, opened]);
   return (
-    <SignedInShell onSignOut={onLogout} accountName={account?.name} workspaceName={workspace?.name}>
-      {scope ? (
-        <div className="flex min-h-0 flex-1 flex-col overflow-auto"><LibraryHost bridge={bridge} scope={{ ...metadata, ...scope }} onCreate={() => { void openCreated(); }} onOpenLocal={() => { void openLocal(); }} onOpen={(document) => { setOpenedDocument(document); void bridge.call("desktop:office-open", { sessionGeneration: SESSION_GENERATION, workspaceId: scope.workspaceId, documentId: document.id, version: document.version }); }} />{openedDocument ? <OpenDocument bridge={bridge} scope={{ ...metadata, ...scope }} document={openedDocument} onBack={() => setOpenedDocument(null)} /> : null}{localFile ? <div className="m-4 rounded-lg border border-border bg-surface p-4"><h2 className="text-title font-semibold">{localFile.name}</h2><p className="text-body text-muted-foreground">Local DOCX opened with a protected handle.</p><Button type="button" onClick={() => { void bridge.call("desktop:file-save", { sessionGeneration: SESSION_GENERATION, handle: localFile.handle, dataBase64: localFile.dataBase64 }); }}>Save local file</Button></div> : null}</div>
+    <SignedInShell onSignOut={onLogout} accountName={account?.name} accountEmail={account?.email} workspaceName={workspace?.name} onSwitchWorkspace={() => { ++openSequence.current; setOpened(null); setScope(null); }}>
+      <div className="flex min-h-0 flex-1 flex-col" aria-busy={busy} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = event.dataTransfer.files[0]; if (file && bridge.openDroppedFile && !opened) void perform(async () => acceptLocal(await bridge.openDroppedFile!(file))); }}>
+      {actionError ? <p role="alert" className="p-4 text-destructive">{actionError}</p> : null}
+      {opened ? <OpenByteDocument bridge={bridge} identity={opened.identity} opened={opened.bytes} title={opened.title} onBack={() => setOpened(null)} /> : scope ? (
+        <LibraryHost bridge={bridge} scope={{ ...metadata, ...scope }} onCreate={() => { void perform(openCreated); }} onOpenLocal={() => { void perform(openLocal); }} onOpen={(document) => { void perform(async () => acceptCloud(await bridge.call("desktop:office-open", { sessionGeneration: SESSION_GENERATION, workspaceId: scope.workspaceId, documentId: document.id, version: document.version }), scope)); }} />
       ) : (
         <LibraryPicker context={context} error={contextError} onRetry={() => setContextReload((value) => value + 1)} onChoose={setScope} />
-      )}
+      )}</div>
     </SignedInShell>
   );
 }
@@ -164,12 +219,6 @@ export function App({ bridge }: { bridge: RendererBridge }) {
       setMetadata(next);
       setState(loginStateFromMetadata(next));
     });
-    const unsubscribeLaunch = bridge.onLaunchRequested?.((event) => {
-      const current = metadataRef.current;
-      const workspaceId = current?.status === "signed-in" ? current.workspaceId : undefined;
-      if (!workspaceId) return;
-      void bridge.call("desktop:office-open", { sessionGeneration: SESSION_GENERATION, workspaceId, documentId: event.documentId, ...(event.version === undefined ? {} : { version: event.version }) });
-    });
     void (async () => {
       try {
         const config = await bridge.call("desktop:auth-config", { sessionGeneration: SESSION_GENERATION });
@@ -184,12 +233,13 @@ export function App({ bridge }: { bridge: RendererBridge }) {
         setState("error");
       }
     })();
-    return () => { unsubscribe(); unsubscribeLaunch?.(); };
+    return () => { unsubscribe(); };
   }, [bridge]);
 
   if (state === "signed-in" && metadata?.status === "signed-in" && metadata.accountId && metadata.deploymentId) {
     return (
       <SignedIn
+        key={`${metadata.deploymentId}:${metadata.accountId}`}
         bridge={bridge}
         metadata={metadata as SignedInMetadata}
         onLogout={() => {
@@ -211,6 +261,7 @@ export function App({ bridge }: { bridge: RendererBridge }) {
     <LoginScreen
       state={state}
       onStart={() => {
+        if (!controllerRef.current) return;
         setState("pending");
         void controllerRef.current?.start().then(setState);
       }}

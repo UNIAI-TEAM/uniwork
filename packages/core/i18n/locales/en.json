@@ -7198,7 +7198,8 @@
       "required": "Please sign in again.",
       "start": "Sign in with browser",
       "cancel": "Cancel login",
-      "signOut": "Sign out",
+      "signOut": "Sign out"
+,
       "libraryWorkspace": "Document library",
       "accountUnknown": "UniWork account",
       "switchWorkspace": "Switch workspace"
