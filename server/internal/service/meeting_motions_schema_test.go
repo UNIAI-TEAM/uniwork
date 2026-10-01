@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -214,4 +215,20 @@ func TestMeetingMotionSchema(t *testing.T) {
 			t.Fatalf("DeleteMeetingMotionDraft on DRAFT = %d, %v; want 1 row", n, err)
 		}
 	})
+}
+
+// Every participant's GET /motions reads their ballots by meeting, and every
+// GET after a public vote closes reads the voters by meeting. Without an index
+// led by meeting_id both are full scans of a table shared by all tenants.
+func TestMeetingMotionBallotsIndexedByMeeting(t *testing.T) {
+	s, _, _, _, _ := governanceFixture(t)
+	var def string
+	if err := s.pool.QueryRow(context.Background(),
+		`SELECT indexdef FROM pg_indexes WHERE tablename = 'meeting_motion_ballots' AND indexname = 'idx_meeting_motion_ballots_meeting'`,
+	).Scan(&def); err != nil {
+		t.Fatalf("idx_meeting_motion_ballots_meeting: %v", err)
+	}
+	if !strings.Contains(def, "(meeting_id, participant_id)") {
+		t.Fatalf("index = %s, want (meeting_id, participant_id)", def)
+	}
 }
