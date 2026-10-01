@@ -26,7 +26,7 @@ const EMPTY_INSTALLER_URLS: OfficeInstallerURLs = Object.freeze({ dev: "", beta:
 export interface OfficeSaveOutcome {
   accepted?: boolean;
   version?: number;
-  receipt?: { version?: number };
+  receipt?: { version?: number; versionId?: string };
 }
 
 export type OfficeLaunchSessionFactory = (
@@ -47,7 +47,7 @@ export interface DesktopOpenActionProps {
   clientId?: string;
   /** Resolve the receipt to its committed version ordinal. Returning null
    * keeps the editor open because a ticket must never target an unproven one. */
-  versionAfterSave?: (outcome: OfficeSaveOutcome) => number | null;
+  versionAfterSave?: (outcome: OfficeSaveOutcome) => number | null | Promise<number | null>;
   createSession?: OfficeLaunchSessionFactory;
   launch?: (url: string) => Promise<OfficeLaunchOutcome>;
   installerURLs?: OfficeInstallerURLs;
@@ -153,7 +153,7 @@ export function DesktopOpenAction({
       if (!isAccepted(raw)) { setError(t("save_failed")); return; }
       const state = saveCoordinator.getState();
       if (stateDirty(state)) { setError(t("newer_changes")); return; }
-      const version = versionAfterSave?.(raw) ?? outcomeVersion(raw);
+      const version = await (versionAfterSave?.(raw) ?? outcomeVersion(raw));
       if (version === null) { setError(t("save_unverified")); return; }
       setChoiceOpen(false);
       await startHandoff(version);

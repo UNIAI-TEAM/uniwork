@@ -46,6 +46,26 @@ describe("DesktopOpenAction", () => {
     await waitFor(() => expect(createSession).toHaveBeenCalled());
   });
 
+  it("resolves a real save receipt version id before minting the ticket", async () => {
+    const save = vi.fn(async () => ({ accepted: true, receipt: {
+      intentId: "intent-1", idempotencyKey: "idem-1", documentId: "doc-1", versionId: "version-3",
+      revision: "3", checksumSha256: "a", sizeBytes: 1, engineName: "engine", engineVersion: "1",
+      contractVersion: "1", protocolVersion: "1",
+    } }));
+    const createSession = vi.fn(async (_id: string, body: { version: number }) => {
+      expect(body.version).toBe(3);
+      return { ...session, version: 3 };
+    });
+    const fake: OfficeSaveCoordinatorLike = {
+      save,
+      getState: () => ({ state: "saved", identity: {} as never, dirtyGeneration: 2, lastSavedGeneration: 2, activeIntentId: null, error: null }),
+    };
+    render(<DesktopOpenAction documentId="doc-1" deploymentId="dep" savedVersion={2} dirty saveCoordinator={fake} versionAfterSave={async (outcome) => outcome.receipt?.versionId === "version-3" ? 3 : null} createSession={createSession} launch={vi.fn(async () => "launched" as const)} />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit in UniWork Office" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save then open" }));
+    await waitFor(() => expect(createSession).toHaveBeenCalled());
+  });
+
   it("opens the last committed version or cancels without saving", async () => {
     const createSession = vi.fn(async (_id: string, body: { version: number }) => ({ ...session, version: body.version }));
     const save = vi.fn(async () => ({ accepted: true, receipt: { version: 3 } }));

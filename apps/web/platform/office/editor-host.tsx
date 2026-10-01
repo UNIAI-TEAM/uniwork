@@ -11,6 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from "@uniwork/ui/components/ui/a
 import { useTranslation } from "react-i18next";
 import { createOfficeEditorSession, type OfficeEditorSession, type OfficeRecoveryState } from "./editor-host-core";
 import { getPublicConfig } from "@uniwork/core/api/endpoints/config";
+import { listDocumentVersions } from "@uniwork/core/api/endpoints/documents-versions";
 import { launchOfficeDeepLink } from "./desktop-handoff";
 export * from "./editor-host-core";
 
@@ -224,6 +225,17 @@ export function OfficeEditorHost<TSnapshot = unknown>({
             savedVersion={document.current_version}
             dirty={dirty}
             saveCoordinator={activeSession.coordinator}
+            versionAfterSave={async (outcome) => {
+              const versionId = outcome.receipt?.versionId;
+              if (!versionId) return null;
+              try {
+                const page = await listDocumentVersions(document.id, { limit: 100 });
+                const committed = page.versions.find((version) => version.id === versionId);
+                return committed?.version ?? null;
+              } catch {
+                return null;
+              }
+            }}
             channel={officeChannel}
             installerURLs={installerURLs}
             loadInstallerURLs={async () => (await getPublicConfig(document.organization_id)).office_installer_urls ?? { dev: "", beta: "", stable: "" }}
