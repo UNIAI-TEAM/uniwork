@@ -279,6 +279,46 @@ taken after `b997c3fa` — the TipTap schema/commands are the **vendored**
 `extensions.ts`, bridged to `office-engine/src/docx`'s `DocxParsed`/
 `DocxEdit` session at the integration seam, not rewritten from scratch.
 
+### 3f. Final decision: full vendor rework, checked file-by-file, shims not stubs
+
+The Advisor resolved the 3e decision gate (vendor the ~35-40-file
+`extensions.ts` transitive closure vs. keep the worker's hand-authored,
+already-green TipTap binding): **proceed with the full vendor rework.**
+Every file in the closure is checked one at a time against three criteria
+(licence — Apache-2.0 at the pin, confirmed section 1; `/ee` exclusion;
+Electron/Node-only imports) before entering `vendor-upstream.mjs`
+`SELECTION`, with `--check` green after. A file with an Electron/Node-only
+dependency gets a small browser shim **at the seam** (not a vendored
+Electron/Node module) — every shim is listed here as it's added. Only a file
+that is **truly impossible** (cited by file + the exact import) comes back
+as a question; everything else proceeds without another round-trip.
+
+Equation/OMML (the runtime half of the `@genoffice/docx-engine` coupling
+flagged in 3e) is **not** stubbed — it renders **read-only**, consistent
+with the brief's render-scope line and `docx-capability-map.md`'s
+`CAP-docx-content-equations: pending-04b` (preservation/display, no edit
+control). A permanently-dead stub would be the "fake success" the repo
+rules forbid; read-only rendering is the honest shape for a
+`pending-04b` row.
+
+**Disposition of the worker's hand-authored implementation (commit
+`40bd4b54`)**: superseded as the schema source — the vendored
+`extensions.ts` is now the TipTap schema/commands, not a reimplementation.
+The session-bridge/reconcile work in that commit (`docx-doc-convert.ts`,
+`docx-reconcile.ts`, `use-docx-tiptap-handle.ts` binding to G2
+`DocxParsed`/`DocxEdit`) is likely still the right shape for the seam the
+vendored schema bridges through — reused where it fits, not thrown away
+wholesale; the worker decides file-by-file as it integrates.
+
+Acceptance for this slice is unchanged from the brief: render scope (tables,
+images, headers/footers, page layout, equations — read-only), edit scope
+(text/format/headings/lists/undo-redo, save round trip), web mount, and the
+G3-D3 DOCX measurement (AC-5, its own later stage).
+
+**Shims added at the seam** (append as they land, file + reason):
+- _(none yet — to be filled in by the worker as Electron/Node-only imports
+  are found and shimmed)_
+
 ## 4. Open questions for the Advisor (go/no-go gate)
 
 1. Confirm the ~95-file/~40k-line vendored subset and the `@tiptap/*`
