@@ -21,6 +21,8 @@ import { FileHandleRegistry, type OpenFileMetadata } from "./main/files/registry
 import { createProtectedFileCheckpoints, localDraftIdentity } from "./main/files/protected-files";
 import { createNativeInstaller, createNativeUpdateAction } from "./main/updates/native";
 import { createOfficeSaveGuard } from "../../packages/core/office/save-guard";
+import { createDesktopLeaveCoordinator } from "./main/leave";
+import { leaveRequestedEventSchema } from "./shared/ipc";
 import type { DraftIdentity, DraftSession } from "../../packages/core/office/draft-recovery";
 
 const DIST_MAIN_DIRECTORY = dirname(fileURLToPath(import.meta.url));
@@ -266,6 +268,37 @@ async function startElectronHost(): Promise<void> {
       return page.documents.find((document) => document.id === active.identity.documentId)?.canEdit ? "edit" : "none";
     } catch { return "none"; }
   };
+  // Main-side leave evidence: a save receipt is recorded only when main itself
+  // completed a guarded write, and the live document's draft rows are re-read
+  // for keep/discard. The renderer's `proceeded` is never trusted alone.
+  let lastConfirmedSaveAt = 0;
+  const noteConfirmedSave = () => { lastConfirmedSaveAt = Date.now(); };
+  const activeDrafts = async () => {
+    const active = activeDocument;
+    if (!active) return [];
+    try {
+      return await draftStore.list({ session: draftScope(), lookup: { deploymentId: active.identity.deploymentId, accountId: active.identity.accountId, organizationId: active.identity.organizationId, workspaceId: active.identity.workspaceId, documentId: active.identity.documentId, base: active.identity.base } });
+    } catch { return []; }
+  };
+  const leave = createDesktopLeaveCoordinator({
+    send: (request) => { window.webContents.send("desktop:leave-requested", leaveRequestedEventSchema.parse(request)); },
+    confirmKeep: async () => (await activeDrafts()).length > 0,
+    // A save choice needs a fresh main-observed receipt whenever the store holds
+    // unsaved evidence for the live document; with nothing to save, nothing to prove.
+    confirmSave: async (issuedAt) => activeDocument === undefined || (await activeDrafts()).length === 0 || lastConfirmedSaveAt >= issuedAt,
+    confirmDiscard: async () => (await activeDrafts()).length === 0,
+    timeoutMs: 60_000,
+  });
+  let closeApproved = false;
+  window.on("close", (event) => {
+    if (closeApproved || SMOKE_MODE) return;
+    event.preventDefault();
+    void leave.request("close").then((outcome) => {
+      if (!outcome.proceeded) return;
+      closeApproved = true;
+      window.close();
+    });
+  });
   const host = createDesktopHost({
     handlers: { "desktop:window-theme": (request) => {
       if (process.platform !== "darwin") window.setTitleBarOverlay({ ...DESKTOP_TITLE_BAR_TOKENS[request.dark ? "dark" : "light"], height: 32 });
@@ -290,7 +323,7 @@ async function startElectronHost(): Promise<void> {
     },
     deepLinks: { system: createDeepLinkSystem(), bridge: launchBridge },
     authManager,
-    localFiles: { registry: fileRegistry, saveGuard, checkpoint: localCheckpoint,
+    localFiles: { registry: fileRegistry, saveGuard, checkpoint: localCheckpoint, onSaveConfirmed: noteConfirmedSave,
       pickOpen: async () => {
         const result = await dialog.showOpenDialog(window, { properties: ["openFile"], filters: [{ name: "Word", extensions: ["docx"] }, { name: "Files", extensions: ["*"] }] });
         return result.canceled ? undefined : result.filePaths[0];
@@ -312,23 +345,20 @@ async function startElectronHost(): Promise<void> {
       liveAccess: liveDraftAccess,
       currentBase: () => activeDocument?.identity.base,
     },
-    ...(cachedOfficeTransport && deploymentProfile && credentials ? { office: { transport: cachedOfficeTransport, isSignedIn: () => authManager?.getMetadata().status === "signed-in", saveGuard, onDocumentOpened: (document: { id: string; workspaceId: string; version: number; revision: string }) => {
+    ...(cachedOfficeTransport && deploymentProfile && credentials ? { office: { transport: cachedOfficeTransport, isSignedIn: () => authManager?.getMetadata().status === "signed-in", saveGuard, onSaveConfirmed: noteConfirmedSave, onDocumentOpened: (document: { id: string; workspaceId: string; version: number; revision: string }) => {
       const identity = cloudDraftIdentity(document);
       if (identity) { activeDocument = { kind: "cloud", identity }; activeDocumentId = document.id; }
     } } } : {}),
     activeDocumentId: () => activeDocumentId,
     draftStore,
+    leave,
     updates: {
       restart: {
         drafts: draftStore,
-        confirmDrafts: async () => (await dialog.showMessageBox(window, {
-          type: "question",
-          title: "Cập nhật UniWork Office",
-          message: "Bản nháp cục bộ đã được lưu. Đóng ứng dụng và mở bộ cài cập nhật?",
-          detail: "Bản nháp không được tự động gửi lên máy chủ hoặc ghi đè tệp gốc.",
-          buttons: ["Hủy", "Cập nhật"], defaultId: 0, cancelId: 0, noLink: true,
-        })).response === 1,
-        restart: async () => { app.quit(); },
+        // The update restart uses the ONE leave dialog: save/keep/discard/stay
+        // decide first (so a keep can still write), then the durable flush runs.
+        confirmDrafts: async () => (await leave.request("update")).proceeded,
+        restart: async () => { closeApproved = true; app.quit(); },
       },
     },
   });

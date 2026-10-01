@@ -13,7 +13,8 @@ import type {
   DesktopLibraryDocument,
   DesktopSessionMetadata,
 } from "../shared/ipc";
-import { desktopFileResponseSchema, desktopOfficeOpenResponseSchema, desktopLibraryDownloadResponseSchema } from "../shared/ipc";
+import { desktopFileResponseSchema, desktopDraftListResponseSchema, desktopOfficeOpenResponseSchema, desktopLibraryDownloadResponseSchema } from "../shared/ipc";
+import { DraftRecoveryPrompt, LeaveDialog } from "@uniwork/views/office/leave-dialog";
 import { createLibraryController, createLibraryScopeController, type LibraryMode } from "./library/model";
 import { LibraryPicker, type LibraryPickerSelection } from "./library/picker";
 import { LibraryView } from "./library/view";
@@ -21,7 +22,7 @@ import { createLoginController, loginStateFromMetadata, type LoginScreenState } 
 import { LoginScreen } from "./login-screen";
 import { SignedInShell } from "./signed-in-shell";
 import { OpenByteDocument } from "./office/open-document";
-import type { OpenedBytes } from "./office/session";
+import { createByteDocumentSession, type ByteDocumentSession, type OpenedBytes } from "./office/session";
 
 const SESSION_GENERATION = "desktop-dev-session";
 
@@ -30,6 +31,7 @@ export type RendererBridge = Readonly<{
   onSessionChanged(listener: (metadata: DesktopSessionMetadata) => void): () => void;
   onLaunchRequested?(listener: (event: { documentId: string; operation: "view" | "edit"; version?: number }) => void): () => void;
   onOfficeSaveRequested?(listener: (event: { documentId: string }) => void): () => void;
+  onLeaveRequested?(listener: (event: { requestId: string; reason: "close" | "logout" | "update" }) => void): () => void;
   openDroppedFile?(file: File): Promise<unknown>;
   onFileOpenRequested?(listener: (event: { handle: string }) => void): () => void;
 }>;
@@ -117,6 +119,8 @@ function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; meta
   const [opened, setOpened] = useState<{ identity: OfficeIdentity; bytes: OpenedBytes; title: string } | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [leave, setLeave] = useState<{ requestId: string; reason: "close" | "logout" | "update" } | null>(null);
+  const [accountDraft, setAccountDraft] = useState(false);
   const [pendingLaunch, setPendingLaunch] = useState<{ documentId: string; operation: "view" | "edit"; version?: number } | null>(null);
   const [queuedFileOpen, setQueuedFileOpen] = useState<string | null>(null);
   const openSequence = useRef(0);
@@ -143,6 +147,35 @@ function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; meta
 
   const account = context?.accounts.find((entry) => entry.id === (scope?.accountId ?? metadata.accountId));
   const workspace = context?.workspaces.find((entry) => entry.id === scope?.workspaceId);
+  const session = useMemo(() => (opened ? createByteDocumentSession(bridge, opened.identity, opened.bytes) : null), [bridge, opened]);
+  useEffect(() => {
+    // Main owns the leave decision; this component renders the ONE shared
+    // dialog and reports the outcome through the guarded IPC channels.
+    return bridge.onLeaveRequested?.(setLeave);
+  }, [bridge]);
+  useEffect(() => {
+    let active = true;
+    void bridge.call("desktop:draft-list", { sessionGeneration: SESSION_GENERATION }).then((raw) => {
+      if (!active) return;
+      try { setAccountDraft(desktopDraftListResponseSchema.parse(raw).drafts.length > 0); } catch { setAccountDraft(false); }
+    }).catch(() => { if (active) setAccountDraft(false); });
+    return () => { active = false; };
+  }, [bridge]);
+  useEffect(() => {
+    // The 2 s tick is a LOCAL draft checkpoint only: it never uploads or
+    // commits, and it gives main durable evidence of unsaved work.
+    if (!session) return;
+    const timer = window.setInterval(() => {
+      if (session.coordinator.getState().state === "dirty") void session.keepDraft();
+    }, 2_000);
+    return () => window.clearInterval(timer);
+  }, [session]);
+  const answerLeave = async (choice: "save" | "keep" | "discard" | "stay", proceeded: boolean) => {
+    const request = leave;
+    setLeave(null);
+    if (!request) return;
+    try { await bridge.call("desktop:leave-resolved", { sessionGeneration: SESSION_GENERATION, requestId: request.requestId, choice, proceeded }); } catch { /* main fails closed on timeout */ }
+  };
   const acceptCloud = (raw: unknown, selected: LibraryPickerSelection, allowSave = true) => {
     const current = actionRef.current.scope;
     if (!current || current.workspaceId !== selected.workspaceId || current.accountId !== selected.accountId || current.deploymentId !== selected.deploymentId) return;
@@ -204,13 +237,50 @@ function SignedIn({ bridge, metadata, onLogout }: { bridge: RendererBridge; meta
       <div className="flex min-h-0 flex-1 flex-col" aria-busy={busy} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const file = event.dataTransfer.files[0]; if (file && bridge.openDroppedFile && !opened) void perform(async () => acceptLocal(await bridge.openDroppedFile!(file))); }}>
       {actionError ? <p role="alert" className="p-4 text-destructive">{actionError}</p> : null}
       {queuedFileOpen !== null ? <p role="status" className="px-4 pb-2 text-body text-muted-foreground">{t("fileOpenQueued")}</p> : null}
-      {opened ? <OpenByteDocument bridge={bridge} identity={opened.identity} opened={opened.bytes} title={opened.title} onBack={() => setOpened(null)} /> : scope ? (
+      {opened && session ? <OpenByteDocument bridge={bridge} identity={opened.identity} session={session} title={opened.title} onBack={() => setOpened(null)} /> : scope ? (
         <LibraryHost bridge={bridge} scope={{ ...metadata, ...scope }} onCreate={() => { void perform(openCreated); }} onOpenLocal={() => { void perform(openLocal); }} onOpen={(document) => { void perform(async () => acceptCloud(await bridge.call("desktop:office-open", { sessionGeneration: SESSION_GENERATION, workspaceId: scope.workspaceId, documentId: document.id, version: document.version }), scope)); }} />
       ) : (
         <LibraryPicker context={context} error={contextError} onRetry={() => setContextReload((value) => value + 1)} onChoose={setScope} />
       )}</div>
+      {accountDraft && !opened ? <DraftRecoveryPrompt open metadata={null} recoverable={false}
+        onOpenChange={(open) => { if (!open) setAccountDraft(false); }}
+        onRecover={async () => false}
+        onKeep={async () => { setAccountDraft(false); return true; }}
+        onDiscard={async () => {
+          try {
+            const listed = desktopDraftListResponseSchema.parse(await bridge.call("desktop:draft-list", { sessionGeneration: SESSION_GENERATION }));
+            const newest = [...listed.drafts].sort((left, right) => right.updatedAt - left.updatedAt)[0];
+            if (newest) await bridge.call("desktop:draft-discard", { sessionGeneration: SESSION_GENERATION, draftId: newest.draftId, generation: newest.generation });
+          } catch { return false; }
+          setAccountDraft(false);
+          return true;
+        }} /> : null}
+      <LeaveDialog open={leave !== null} dirty={Boolean(session) && leaveDecisionDirty(session)}
+        saving={leaveDecisionSaving(session)}
+        onOpenChange={(open) => { if (!open && leave) void answerLeave("stay", false); }}
+        onSave={async () => {
+          if (!session) return true;
+          const state = session.coordinator.getState();
+          // A clean document has nothing to write; leaving is not blocked by it.
+          if (state.state === "ready" || state.state === "saved") return true;
+          const result = await session.coordinator.save("dialog");
+          return result.accepted;
+        }}
+        onKeepDraft={async () => (session ? session.keepDraft() : true)}
+        onDiscard={async () => (session ? session.discardDraft() : true)}
+        onChoice={(choice) => { void answerLeave(choice, choice !== "stay"); }} />
     </SignedInShell>
   );
+}
+
+function leaveDecisionDirty(session: ByteDocumentSession | null): boolean {
+  if (!session) return false;
+  const state = session.coordinator.getState();
+  return state.state === "dirty" || state.state === "error" || state.state === "blocked" || state.state === "conflict";
+}
+
+function leaveDecisionSaving(session: ByteDocumentSession | null): boolean {
+  return session?.coordinator.getState().state === "saving";
 }
 
 /** Top-level renderer app: the auth state machine from `login.ts` decides

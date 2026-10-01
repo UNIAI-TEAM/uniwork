@@ -22,8 +22,11 @@ function fixture(confirm = true, openError = "") {
   const drafts = createDesktopDraftStore({ rootDirectory: directory, keyStore: createFakeDraftKeyStore() });
   const quit = vi.fn(async () => undefined);
   const confirmDrafts = vi.fn(async () => {
+    // The leave decision runs before the store is sealed, so the dialog's own
+    // keep write must still be open here (a distinct draft id, so the pending
+    // scheduled generation is not outrun).
     expect(await drafts.list({ session })).toHaveLength(1);
-    await expect(drafts.checkpointPlaintext({ ...input, generation: 2 })).rejects.toMatchObject({ code: "storage_unavailable" });
+    await expect(drafts.checkpointPlaintext({ ...input, draftId: "dialog-keep" })).resolves.toMatchObject({ generation: 1 });
     return confirm;
   });
   const client = new DesktopUpdateClient({

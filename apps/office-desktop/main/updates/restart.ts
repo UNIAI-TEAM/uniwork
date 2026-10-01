@@ -14,22 +14,31 @@ export interface RestartUpdateOptions {
   readonly restart: () => Promise<void>;
 }
 
-/** The update boundary is deliberately ordered: durable checkpoint, explicit
- * confirmation, then restart. A storage error never proceeds to restart. */
+/** The update boundary is deliberately ordered: the durable pre-flight flush
+ * (so a broken store is reported before the user is asked), the leave decision
+ * (so a Save/keep choice can still write), the sealing checkpoint, then the
+ * restart. A storage error never proceeds to restart. */
 export async function restartToUpdate(options: RestartUpdateOptions): Promise<void> {
   try {
     if (options.targetDraftFormat !== undefined) {
       if (!options.drafts.migrateFormat) throw new Error("draft migration service is unavailable");
       await options.drafts.migrateFormat(options.targetDraftFormat);
+    } else if (options.drafts.prepareForRestart) {
+      await options.drafts.flushScheduled();
     }
+    if (!await options.confirmDrafts()) throw new RestartUpdateError("confirmation_required", "local drafts must be confirmed before restarting");
     if (options.drafts.prepareForRestart) await options.drafts.prepareForRestart();
     else await options.drafts.flushScheduled();
   }
-  catch (error) { throw new RestartUpdateError("checkpoint_failed", error instanceof Error ? error.message : "draft checkpoint failed"); }
-  try {
-    if (!await options.confirmDrafts()) throw new RestartUpdateError("confirmation_required", "local drafts must be confirmed before restarting");
-    await options.restart();
-  } catch (error) {
+  catch (error) {
+    options.drafts.cancelRestart?.();
+    if (error instanceof RestartUpdateError) throw error;
+    throw new RestartUpdateError("checkpoint_failed", error instanceof Error ? error.message : "draft checkpoint failed");
+  }
+  try { await options.restart(); }
+  catch (error) {
+    // A failed install or quit reopens draft writes; the sealed store must
+    // never outlive the update attempt.
     options.drafts.cancelRestart?.();
     throw error;
   }

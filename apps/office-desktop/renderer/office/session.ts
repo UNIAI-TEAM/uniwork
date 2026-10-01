@@ -1,35 +1,76 @@
 import { createOfficeSaveCoordinator } from "@uniwork/core/office/save-coordinator";
 import type { DraftAdapter, EditorHandle, OfficeIdentity, OfficeSaveIntent, OfficeSaveTransport, StableSnapshot } from "@uniwork/core/office";
-import { desktopFileResponseSchema, desktopOfficeSaveResponseSchema } from "../../shared/ipc";
+import { desktopDraftDiscardResponseSchema, desktopDraftListResponseSchema, desktopDraftRecoveryResponseSchema, desktopDraftResponseSchema, desktopFileResponseSchema, desktopOfficeSaveResponseSchema, type DesktopDraftMetadata } from "../../shared/ipc";
 import type { LibraryBridge } from "../library/model";
 
 export type OpenedBytes = { dataBase64: string; checksum: string; localHandle?: string; canSave?: boolean };
 
-/** Byte-preserving adapter until G3 supplies a content editing surface. */
+const SESSION_GENERATION = "desktop-dev-session";
+
+function decode(value: string): Uint8Array {
+  const binary = atob(value);
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
+
+function encode(value: Uint8Array): string {
+  let binary = "";
+  for (let offset = 0; offset < value.length; offset += 0x8000) binary += String.fromCharCode(...value.subarray(offset, offset + 0x8000));
+  return btoa(binary);
+}
+
+export type DraftRecoveryView =
+  | { readonly status: "none" }
+  | { readonly status: "found"; readonly metadata: DesktopDraftMetadata; readonly conflict: boolean }
+  | { readonly status: "blocked" | "locked" | "unavailable" };
+
+/** Byte-preserving adapter until G3 supplies a content editing surface. It
+ * owns the renderer half of the ONE 04b draft store: every checkpoint crosses
+ * the typed IPC seam, so a crash recovers only the last confirmed row. */
 export function createByteDocumentSession(bridge: LibraryBridge, identity: OfficeIdentity, opened: OpenedBytes) {
   let generation = 0;
-  let bytes = Uint8Array.from(atob(opened.dataBase64), (character) => character.charCodeAt(0));
+  let bytes = decode(opened.dataBase64);
   let checkpoint: StableSnapshot<Uint8Array> | null = null;
   let pendingIntent: OfficeSaveIntent<Uint8Array> | null = null;
+  // One draft id per (document, base): a draft for an older base stays a
+  // distinct row and is reported as a conflict instead of an ambiguity.
+  const draftId = `${identity.documentId}:${identity.baseVersionId}:${identity.baseRevision}`;
+  let generationFloor = 0;
+  let durableGeneration: number | null = null;
+  const loadFloor = async () => {
+    if (generationFloor > 0) return;
+    try {
+      const listed = desktopDraftListResponseSchema.parse(await bridge.call("desktop:draft-list", { sessionGeneration: SESSION_GENERATION }));
+      generationFloor = Math.max(0, ...listed.drafts.map((draft) => draft.generation));
+    } catch { generationFloor = 0; }
+  };
   const editor: EditorHandle<Uint8Array> = {
     format: "docx", open: async () => undefined,
     getDirtyGeneration: () => generation,
     captureSnapshot: async () => ({ generation, fingerprint: opened.checksum, checksumSha256: opened.checksum, sizeBytes: bytes.length, value: bytes.slice() }),
     dispose: () => { bytes = new Uint8Array(); checkpoint = null; pendingIntent = null; },
   };
-  // Cloud intent memory is session-scoped. Local disk checkpoints are encrypted
-  // by main before file-save; G4-04 owns the broader recovery UI.
+  // Cloud intent memory is session-scoped; the durable local checkpoint is
+  // written by main (local files) or by the checkpoint below (cloud drafts).
   const draft: DraftAdapter<Uint8Array> = {
-    checkpoint: async (snapshot) => { checkpoint = snapshot; }, recover: async () => checkpoint,
-    discard: async () => { checkpoint = null; }, persistIntent: async (intent) => { pendingIntent = intent; },
-    loadIntent: async () => pendingIntent, clearIntent: async () => { pendingIntent = null; },
+    checkpoint: async (snapshot) => {
+      checkpoint = snapshot;
+      if (opened.localHandle) return;
+      await loadFloor();
+      const next = Math.max(1, generationFloor, snapshot.generation);
+      const result = desktopDraftResponseSchema.parse(await bridge.call("desktop:draft-checkpoint", { sessionGeneration: SESSION_GENERATION, draftId, generation: next, dataBase64: encode(snapshot.value) }));
+      generationFloor = Math.max(generationFloor, result.generation);
+      durableGeneration = result.generation;
+    },
+    recover: async () => checkpoint,
+    discard: async () => { checkpoint = null; },
+    persistIntent: async (intent) => { pendingIntent = intent; },
+    loadIntent: async () => pendingIntent,
+    clearIntent: async () => { pendingIntent = null; },
   };
   const outputs = new Map<string, { dataBase64: string; sizeBytes: number; checksum: string }>();
   const transport: OfficeSaveTransport<Uint8Array> = {
     serialize: async ({ intent, snapshot }) => {
-      let binary = "";
-      for (let offset = 0; offset < snapshot.value.length; offset += 0x8000) binary += String.fromCharCode(...snapshot.value.subarray(offset, offset + 0x8000));
-      outputs.set(intent.intentId, { dataBase64: btoa(binary), sizeBytes: snapshot.value.length, checksum: opened.checksum });
+      outputs.set(intent.intentId, { dataBase64: encode(snapshot.value), sizeBytes: snapshot.value.length, checksum: opened.checksum });
       return { data: snapshot.value, sizeBytes: snapshot.value.length, checksumSha256: opened.checksum, format: "docx" };
     },
     upload: async ({ intent, output }) => ({ uploadId: intent.intentId, sizeBytes: output.sizeBytes, checksumSha256: output.checksumSha256, claimExpiresAt: new Date(Date.now() + 60_000).toISOString() }),
@@ -38,11 +79,11 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
       if (!output) throw new Error("snapshot_missing");
       let versionId: string, revision: string, checksum: string;
       if (opened.localHandle) {
-        const result = desktopFileResponseSchema.parse(await bridge.call("desktop:file-save", { sessionGeneration: "desktop-dev-session", handle: opened.localHandle, dataBase64: output.dataBase64 }));
+        const result = desktopFileResponseSchema.parse(await bridge.call("desktop:file-save", { sessionGeneration: SESSION_GENERATION, handle: opened.localHandle, dataBase64: output.dataBase64 }));
         if (!result.opened || !result.metadata) throw new Error("save_unconfirmed");
         versionId = result.metadata.checksum; revision = (BigInt(intent.identity.baseRevision) + 1n).toString(); checksum = result.metadata.checksum;
       } else {
-        const result = desktopOfficeSaveResponseSchema.parse(await bridge.call("desktop:office-save", { sessionGeneration: "desktop-dev-session", workspaceId: identity.workspaceId, documentId: identity.documentId, intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, baseVersionId: intent.identity.baseVersionId, baseRevision: intent.identity.baseRevision, dataBase64: output.dataBase64, checksum: output.checksum }));
+        const result = desktopOfficeSaveResponseSchema.parse(await bridge.call("desktop:office-save", { sessionGeneration: SESSION_GENERATION, workspaceId: identity.workspaceId, documentId: identity.documentId, intentId: intent.intentId, idempotencyKey: intent.idempotencyKey, baseVersionId: intent.identity.baseVersionId, baseRevision: intent.identity.baseRevision, dataBase64: output.dataBase64, checksum: output.checksum }));
         versionId = result.versionId; revision = result.revision; checksum = result.checksum;
       }
       outputs.delete(intent.intentId);
@@ -52,11 +93,73 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
   };
   const coordinator = createOfficeSaveCoordinator({ identity, editor, draft, transport });
   if (opened.canSave === false) coordinator.setCapability({ format: "docx", operation: "serialize", host: "desktop", engineBuild: "byte-preserving", contractRevision: "office-editor-host/1", status: "readonly", fidelityWarnings: [] });
-  return { editor, coordinator: { ...coordinator, save: async (entryPoint?: Parameters<typeof coordinator.save>[0]) => {
-    // Explicit Save may write the opened bytes even before a content edit exists.
-    // Never mark dirty during an in-flight Save: the shared coordinator rejects it.
-    const state = coordinator.getState();
-    if (state.state === "ready" || state.state === "saved") { generation += 1; coordinator.markDirty(generation); }
-    return coordinator.save(entryPoint);
-  } } };
+  const captured = async (): Promise<StableSnapshot<Uint8Array> | null> => {
+    const snapshot = await editor.captureSnapshot();
+    return snapshot.generation === editor.getDirtyGeneration() ? snapshot : null;
+  };
+  return {
+    editor,
+    coordinator: { ...coordinator, save: async (entryPoint?: Parameters<typeof coordinator.save>[0]) => {
+      // Explicit Save may write the opened bytes even before a content edit exists.
+      // Never mark dirty during an in-flight Save: the shared coordinator rejects it.
+      const state = coordinator.getState();
+      if (state.state === "ready" || state.state === "saved") { generation += 1; coordinator.markDirty(generation); }
+      return coordinator.save(entryPoint);
+    } },
+    /** The dialog's keep: a confirmed durable row, never an in-memory copy. */
+    async keepDraft(): Promise<boolean> {
+      const snapshot = await captured();
+      if (!snapshot) return false;
+      try { await draft.checkpoint(snapshot); return true; } catch { return false; }
+    },
+    /** Discard consumes only this document's draft row for this base. */
+    async discardDraft(): Promise<boolean> {
+      checkpoint = null;
+      if (opened.localHandle && durableGeneration === null) return true;
+      await loadFloor();
+      const target = durableGeneration ?? generationFloor;
+      if (!target) return true;
+      try {
+        desktopDraftDiscardResponseSchema.parse(await bridge.call("desktop:draft-discard", { sessionGeneration: SESSION_GENERATION, draftId, generation: target }));
+        durableGeneration = null;
+        return true;
+      } catch { return false; }
+    },
+    /** Lists this document's drafts and reports the newest one for its base. */
+    async listDrafts(): Promise<DraftRecoveryView> {
+      try {
+        const listed = desktopDraftListResponseSchema.parse(await bridge.call("desktop:draft-list", { sessionGeneration: SESSION_GENERATION }));
+        const rows = [...listed.drafts].sort((left, right) => right.updatedAt - left.updatedAt);
+        const newest = rows[0];
+        if (!newest) return { status: "none" };
+        const conflict = newest.identity.base.revision !== identity.baseRevision || newest.identity.base.version !== identity.baseVersionId;
+        generationFloor = Math.max(generationFloor, newest.generation);
+        return { status: "found", metadata: newest, conflict };
+      } catch (error) {
+        const code = (error as { code?: string }).code;
+        if (code === "draft_recovery_locked") return { status: "locked" };
+        if (code === "token_expired") return { status: "blocked" };
+        return { status: "unavailable" };
+      }
+    },
+    /** Recover applies the chosen durable draft into the editor bytes. */
+    async recoverDraft(metadata: DesktopDraftMetadata): Promise<boolean> {
+      try {
+        const result = desktopDraftRecoveryResponseSchema.parse(await bridge.call("desktop:draft-recover", { sessionGeneration: SESSION_GENERATION, draftId: metadata.draftId, currentBase: { revision: identity.baseRevision, version: identity.baseVersionId } }));
+        if (result.status !== "recovered") return false;
+        bytes = decode(result.dataBase64);
+        generation += 1;
+        generationFloor = Math.max(generationFloor, result.metadata.generation);
+        durableGeneration = result.metadata.generation;
+        checkpoint = null;
+        coordinator.markDirty(generation);
+        return true;
+      } catch { return false; }
+    },
+    get snapshotChecksum(): string { return opened.checksum; },
+    get localHandle(): string | undefined { return opened.localHandle; },
+    get canSave(): boolean { return opened.canSave !== false; },
+  };
 }
+
+export type ByteDocumentSession = ReturnType<typeof createByteDocumentSession>;

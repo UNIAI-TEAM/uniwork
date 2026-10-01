@@ -33,6 +33,8 @@ export interface OfficeIpcOptions {
   /** One guard shared with local-file and lifecycle Save: a cloud Save in
    * flight blocks every entry point and N+1 is never queued. */
   readonly saveGuard?: OfficeSaveGuard;
+  /** Main-observed receipt for the leave decision's save choice. */
+  readonly onSaveConfirmed?: (documentId: string) => void;
 }
 
 /** Every cloud call is selected by a fixed channel-to-operation mapping. The
@@ -77,7 +79,11 @@ export function createOfficeIpcHandlers(options: OfficeIpcOptions) {
       requireSession();
       const release = options.saveGuard?.tryAcquire();
       if (options.saveGuard && !release) throw new OfficeIpcError("saving");
-      try { return desktopOfficeSaveResponseSchema.parse(await options.transport.save(request)); }
+      try {
+        const response = desktopOfficeSaveResponseSchema.parse(await options.transport.save(request));
+        options.onSaveConfirmed?.(response.documentId);
+        return response;
+      }
       finally { release?.(); }
     },
   };
@@ -119,6 +125,8 @@ export interface FileIpcOptions {
   readonly pickSaveAs?: () => Promise<string | undefined>;
   readonly saveGuard?: OfficeSaveGuard;
   readonly checkpoint?: (metadata: import("./files/registry").OpenFileMetadata, bytes: Uint8Array) => Promise<void>;
+  /** Main-observed receipt for the leave decision's save choice. */
+  readonly onSaveConfirmed?: (metadata: import("./files/registry").OpenFileMetadata) => void;
 }
 
 /** Only handle-based local-file commands are exposed. Picker callbacks run in
@@ -146,11 +154,14 @@ export function createFileIpcHandlers(options: FileIpcOptions) {
         const metadata = await safeFile(() => options.registry.openPathFromHandle(request.handle));
         await options.checkpoint(metadata, bytes);
       }
-      return { opened: true, metadata: await safeFile(() => options.registry.save(request.handle, bytes)) };
+      const metadata = await safeFile(() => options.registry.save(request.handle, bytes));
+      options.onSaveConfirmed?.(metadata);
+      return { opened: true, metadata };
     }),
     "desktop:file-save-as": async (request: Extract<import("../shared/ipc").DesktopIpcRequest, { handle: string; dataBase64: string }>) => {
       if (!options.pickSaveAs) throw new FileIpcError("invalid_path");
       const metadata = await runGuardedSave(options.saveGuard, () => safeFile(() => options.registry.saveAs(request.handle, decodeBytes(request.dataBase64), { pick: options.pickSaveAs! })));
+      if (metadata) options.onSaveConfirmed?.(metadata);
       return { opened: metadata !== undefined, ...(metadata ? { metadata } : {}) };
     },
   };

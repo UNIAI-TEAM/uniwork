@@ -30,11 +30,12 @@ export const DESKTOP_IPC_CHANNELS = [
   "desktop:library-download",
   "desktop:office-open",
   "desktop:office-save",
+  "desktop:leave-resolved",
 ] as const;
 export type DesktopIpcChannel = (typeof DESKTOP_IPC_CHANNELS)[number];
 /** Main-to-renderer events are a separate, equally narrow allowlist. Event
  * payloads are parsed in main before send and again in preload. */
-export const DESKTOP_EVENTS = ["desktop:launch-requested", "desktop:auth-session-changed", "desktop:office-save-requested", "desktop:file-open-requested"] as const;
+export const DESKTOP_EVENTS = ["desktop:launch-requested", "desktop:auth-session-changed", "desktop:office-save-requested", "desktop:file-open-requested", "desktop:leave-requested"] as const;
 const sessionGenerationSchema = z.string().regex(/^[A-Za-z0-9_-]{8,128}$/, "invalid session generation");
 const opaqueHandleSchema = z.string().regex(/^[A-Za-z0-9._:-]{1,160}$/, "invalid opaque handle");
 const operationSchema = z.enum(["capability", "open", "edit", "serialize", "cancel"]);
@@ -98,6 +99,7 @@ const draftMetadataSchema = z.object({
   updatedAt: z.number().int().nonnegative(),
 }).strict();
 export const desktopDraftListResponseSchema = z.object({ drafts: z.array(draftMetadataSchema) }).strict();
+export type DesktopDraftMetadata = z.infer<typeof draftMetadataSchema>;
 export const desktopDraftRecoveryResponseSchema = z.discriminatedUnion("status", [
   z.object({ status: z.literal("recovered"), metadata: draftMetadataSchema, dataBase64: base64BytesSchema }).strict(),
   z.object({ status: z.literal("missing") }).strict(),
@@ -165,6 +167,10 @@ export const desktopOfficeSaveResponseSchema = z.object({
   checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/),
 }).strict();
 export type DesktopOfficeSaveResponse = z.infer<typeof desktopOfficeSaveResponseSchema>;
+export const desktopLeaveResolvedResponseSchema = z.object({ resolved: z.boolean() }).strict();
+export type LeaveChoice = "save" | "keep" | "discard" | "stay";
+export const leaveRequestedEventSchema = z.object({ requestId: opaqueHandleSchema, reason: z.enum(["close", "logout", "update"]) }).strict();
+export type LeaveRequestedEvent = z.infer<typeof leaveRequestedEventSchema>;
 export const desktopDiagnosticsResponseSchema = z.object({
   name: z.string().min(1).optional(),
   appId: z.string().min(1),
@@ -197,6 +203,7 @@ const responseSchemas: Partial<Record<DesktopIpcChannel, z.ZodTypeAny>> = {
   "desktop:library-download": desktopLibraryDownloadResponseSchema,
   "desktop:office-open": desktopOfficeOpenResponseSchema,
   "desktop:office-save": desktopOfficeSaveResponseSchema,
+  "desktop:leave-resolved": desktopLeaveResolvedResponseSchema,
 };
 export const launchRequestedEventSchema = z.object({ documentId: documentIdSchema, operation: z.enum(["view", "edit"]), version: z.number().int().nonnegative().optional() }).strict();
 export type LaunchRequestedEvent = z.infer<typeof launchRequestedEventSchema>;
@@ -240,6 +247,7 @@ const requestSchemas = {
   "desktop:library-download": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, version: z.number().int().nonnegative().optional() }).strict(),
   "desktop:office-open": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, version: z.number().int().nonnegative().optional() }).strict(),
   "desktop:office-save": z.object({ sessionGeneration: sessionGenerationSchema, workspaceId: opaqueHandleSchema, documentId: documentIdSchema, intentId: z.string().min(1).max(160), idempotencyKey: z.string().min(1).max(160), baseVersionId: z.string().min(1).max(160), baseRevision: z.string().regex(/^\d+$/), dataBase64: base64BytesSchema, checksum: z.string().regex(/^sha256:[0-9a-f]{64}$/) }).strict(),
+  "desktop:leave-resolved": z.object({ sessionGeneration: sessionGenerationSchema, requestId: opaqueHandleSchema, choice: z.enum(["save", "keep", "discard", "stay"]), proceeded: z.boolean() }).strict(),
 } as const;
 export type DesktopIpcRequest<C extends DesktopIpcChannel = DesktopIpcChannel> = z.infer<(typeof requestSchemas)[C]>;
 export type IpcSenderContext = { senderId: number; frameId: number; origin: string; expectedSenderId: number; expectedFrameId: number; expectedOrigin: string; sessionGeneration: string; allowedExternalHosts?: readonly string[] };

@@ -5,10 +5,11 @@ import { createDesktopRuntimeAdapters } from "./adapters";
 import type { HostIpcPort } from "@uniwork/office-contracts";
 import type { OfficeSaveGuard } from "../../../packages/core/office/save-guard";
 import type { NativeLoginManager } from "./auth/manager";
-import { launchRequestedEventSchema, officeSaveRequestedEventSchema } from "../shared/ipc";
+import { launchRequestedEventSchema, desktopSessionMetadataSchema, officeSaveRequestedEventSchema } from "../shared/ipc";
 import { registerDeepLinkSystem, type DeepLinkRegistration, type DeepLinkSystem, type LaunchBridge } from "./deep-links";
 import type { DeploymentProfile } from "../shared/deployment";
 import { createDesktopLifecycleCoordinator, type DesktopLifecycleOptions } from "./lifecycle";
+import { createLeaveIpcHandler, type DesktopLeaveCoordinator } from "./leave";
 import { DesktopUpdateClient, type DesktopUpdateClientOptions } from "./updates/client";
 import type { DesktopDraftStore, DraftKeyStore } from "./drafts/store";
 
@@ -44,9 +45,11 @@ export type DesktopHostOptions = {
   drafts?: DraftIpcOptions;
   /** Main-owned cloud Documents/Office transport. Renderer receives only
    * validated metadata and bounded DOCX bytes. */
-  office?: { transport: DesktopOfficeTransport; isSignedIn?: () => boolean; onDocumentOpened?: (document: { id: string; workspaceId: string; version: number; revision: string }) => void; saveGuard?: OfficeSaveGuard };
+  office?: { transport: DesktopOfficeTransport; isSignedIn?: () => boolean; onDocumentOpened?: (document: { id: string; workspaceId: string; version: number; revision: string }) => void; saveGuard?: OfficeSaveGuard; onSaveConfirmed?: (documentId: string) => void };
   /** One durable store shared by document IPC and native restart checkpoint. */
   draftStore?: DesktopDraftStore;
+  /** One non-queueing leave decision used by close, logout and update. */
+  leave?: DesktopLeaveCoordinator;
   /** Electron app seams for the single-instance launch protocol. */
   deepLinks?: { system: DeepLinkSystem; bridge: LaunchBridge };
   deploymentProfile?: DeploymentProfile;
@@ -85,14 +88,26 @@ export function createDesktopHost(options: DesktopHostOptions) {
     options.drafts?.store.clearMemory();
   });
   options.window.setUserDataDirectory(options.userDataDirectory ?? DESKTOP_IDENTITY.userDataNamespace);
+  const authHandlers = options.authManager ? createAuthIpcHandlers(options.authManager) : undefined;
   const handlers = {
     ...options.handlers,
     "desktop:diagnostics": createDiagnosticsIpcHandler(options.deploymentProfile),
-    ...(options.authManager ? createAuthIpcHandlers(options.authManager) : {}),
+    ...(authHandlers ?? {}),
     ...(options.localFiles ? createFileIpcHandlers(options.localFiles) : {}),
     ...(options.drafts ? createDraftIpcHandlers(options.drafts) : {}),
     ...(options.office ? createOfficeIpcHandlers(options.office) : {}),
+    ...(options.leave ? createLeaveIpcHandler(options.leave) : {}),
   };
+  if (options.leave && options.authManager && authHandlers) {
+    // Logout is a leave action like close and update: the ONE dialog decides
+    // first, and only a proceeded answer drops the session. A refused or
+    // unanswered dialog keeps the current metadata.
+    handlers["desktop:auth-logout"] = async (request) => {
+      const outcome = await options.leave!.request("logout");
+      if (!outcome.proceeded) return desktopSessionMetadataSchema.parse(options.authManager!.getMetadata());
+      return authHandlers["desktop:auth-logout"](request);
+    };
+  }
   options.window.onNativeSave?.(() => {
     const documentId = options.activeDocumentId?.();
     if (documentId) options.window.webContents.send?.("desktop:office-save-requested", officeSaveRequestedEventSchema.parse({ documentId }));
