@@ -655,3 +655,30 @@ func TestMotionRollSurvivesRemovalAndDemotion(t *testing.T) {
 		t.Fatalf("after removal: roll %d outcome %s, want 2 FAILED", closed.RollSize.Int32, closed.Outcome.String)
 	}
 }
+
+// Tenant isolation (DoD): someone outside the meeting's workspace and
+// organization reads nothing and changes nothing on its votes.
+func TestMotionsRefuseAnotherOrganization(t *testing.T) {
+	s, ua, outsider, w := meetingFixture(t)
+	ctx := context.Background()
+	m, err := s.CreateInstant(ctx, ua.ID, w.ID, "Họp HĐQT")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mo, err := s.CreateMotion(ctx, ua.ID, m.ID, MotionInput{Title: "Ngân sách", BallotMode: BallotPublic, Threshold: ThresholdMajority, Base: BasePresent})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Motions(ctx, outsider.ID, "", m.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("outsider lists motions: %v", err)
+	}
+	if _, err := s.CreateMotion(ctx, outsider.ID, m.ID, MotionInput{Title: "x", BallotMode: BallotPublic, Threshold: ThresholdMajority, Base: BasePresent}); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("outsider creates a motion: %v", err)
+	}
+	if _, err := s.OpenMotion(ctx, outsider.ID, m.ID, mo.ID); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("outsider opens a motion: %v", err)
+	}
+	if err := s.CastBallot(ctx, outsider.ID, "", m.ID, mo.ID, ChoiceYes); !errors.Is(err, ErrForbidden) {
+		t.Fatalf("outsider casts a ballot: %v", err)
+	}
+}
