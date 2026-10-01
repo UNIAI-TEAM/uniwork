@@ -82,7 +82,7 @@ func BuildContext(sources []Source) (pack []Source, truncated bool) {
 func RenderSources(pack []Source) string {
 	var b strings.Builder
 	for _, s := range pack {
-		fmt.Fprintf(&b, "[%s] %s (%s)\n<untrusted source=\"%s\">\n%s\n</untrusted>\n\n", s.ID, s.Title, s.Kind, s.ID, s.Excerpt)
+		fmt.Fprintf(&b, "[%s] %s (%s)\n%s\n\n", s.ID, s.Title, s.Kind, untrusted(s.ID, "\n"+s.Excerpt+"\n"))
 	}
 	return b.String()
 }

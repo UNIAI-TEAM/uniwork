@@ -441,6 +441,36 @@ func TestUpdateMeetingQuorum(t *testing.T) {
 	}
 }
 
+// The edit dialog sends quorum_percent back with every save. A title-only
+// edit must not log "quorum_percent 60 → 60": the smallint column read as
+// int16 used to slip past audit.Diff's equality check.
+func TestUpdateMeetingUnchangedQuorumNotAudited(t *testing.T) {
+	s, ua, _, m, _ := governanceFixture(t)
+	ctx := context.Background()
+	sixty := 60
+	if _, err := s.Update(ctx, ua.ID, m.ID, UpdateMeetingInput{QuorumPercent: &sixty}); err != nil {
+		t.Fatal(err)
+	}
+	quorumChanges := func() int {
+		return countRows(t, s, `SELECT count(*) FROM audit_events
+			WHERE action = 'meeting.updated' AND resource_id = $1 AND changes::jsonb ? 'quorum_percent'`, m.ID)
+	}
+	if n := quorumChanges(); n != 1 {
+		t.Fatalf("setting the quorum logged %d quorum changes, want 1", n)
+	}
+	title := "Giao ban tuần (sửa)"
+	if _, err := s.Update(ctx, ua.ID, m.ID, UpdateMeetingInput{Title: &title, QuorumPercent: &sixty}); err != nil {
+		t.Fatal(err)
+	}
+	if n := quorumChanges(); n != 1 {
+		t.Fatalf("title-only edit logged a quorum change (%d entries)", n)
+	}
+	if n := countRows(t, s, `SELECT count(*) FROM audit_events
+		WHERE action = 'meeting.updated' AND resource_id = $1 AND changes::jsonb ? 'title'`, m.ID); n != 1 {
+		t.Fatalf("title change logged %d times, want 1", n)
+	}
+}
+
 func TestConcurrentFinalizeWritesOnce(t *testing.T) {
 	s, ua, _, m, _ := governanceFixture(t)
 	ctx := context.Background()

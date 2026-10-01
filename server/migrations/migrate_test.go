@@ -625,3 +625,105 @@ func TestSingleOwnerBackfillDemotesLaterOwners(t *testing.T) {
 		t.Fatal("expected the single-owner unique index to refuse a second owner")
 	}
 }
+
+// 9991790740000001 only made GUEST rows observers. The follow-up backfill
+// applies spec D2 to accounts admitted earlier: an outsider brought in by an
+// invite link or an approved join request becomes an OBSERVER, with
+// membership read the way GetWorkspaceAccess / RequireMemberQ read it, and a
+// finalized roll or a meeting whose standings someone already curated left as
+// it is.
+func TestOutsiderStandingBackfill(t *testing.T) {
+	const version = "9991790856153348"
+	pool := testPool(t)
+	ctx := context.Background()
+	lock, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := WaitAdvisoryLock(ctx, lock, 727273); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = lock.Exec(ctx, "SELECT pg_advisory_unlock($1)", 727273); lock.Release() })
+	if err := Up(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	for {
+		var applied bool
+		if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version LIKE $1 || '%')`, version).Scan(&applied); err != nil {
+			t.Fatal(err)
+		}
+		if !applied {
+			break
+		}
+		if err := Down(ctx, pool); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := pool.Exec(ctx, `TRUNCATE users, organizations, organization_members, workspaces, workspace_members,
+		meetings, meeting_participants, audit_events CASCADE`); err != nil {
+		t.Fatal(err)
+	}
+	// ws: the meeting's workspace. Users: host (workspace member), member
+	// (workspace member), orgadmin (organization admin, no workspace row),
+	// gone (workspace row kept but deactivated in the organization), out
+	// (no rows at all), other (member of another organization only).
+	_, err = pool.Exec(ctx, `
+		INSERT INTO users (id, email, display_name) VALUES
+		  ('U_HOST','host@example.com','Host'), ('U_MEMBER','member@example.com','Member'),
+		  ('U_ORGADMIN','orgadmin@example.com','Org admin'), ('U_GONE','gone@example.com','Gone'),
+		  ('U_OUT','out@example.com','Out'), ('U_OTHER','other@example.com','Other');
+		INSERT INTO organizations (id, slug, name, created_by) VALUES
+		  ('O_A','org-a','A','U_HOST'), ('O_B','org-b','B','U_OTHER');
+		INSERT INTO organization_members (organization_id, user_id, role, deactivated_at) VALUES
+		  ('O_A','U_HOST','owner',NULL), ('O_A','U_MEMBER','member',NULL),
+		  ('O_A','U_ORGADMIN','admin',NULL), ('O_A','U_GONE','member',now()),
+		  ('O_B','U_OTHER','owner',NULL);
+		INSERT INTO workspaces (id, slug, name, created_by, organization_id) VALUES
+		  ('W_A','ws-a','A','U_HOST','O_A'), ('W_B','ws-b','B','U_OTHER','O_B');
+		INSERT INTO workspace_members (workspace_id, user_id, role) VALUES
+		  ('W_A','U_HOST','owner'), ('W_A','U_MEMBER','member'), ('W_A','U_GONE','member'),
+		  ('W_B','U_OTHER','owner');
+		INSERT INTO meetings (id, workspace_id, title, starts_at, ends_at, room_name, created_by, host_user_id, attendance_finalized_at) VALUES
+		  ('M_OPEN','W_A','Open', now(), now() + interval '1 hour','r1','U_HOST','U_HOST',NULL),
+		  ('M_FINAL','W_A','Finalized', now(), now() + interval '1 hour','r2','U_HOST','U_HOST',now()),
+		  ('M_CURATED','W_A','Curated', now(), now() + interval '1 hour','r3','U_HOST','U_HOST',NULL);
+		INSERT INTO meeting_participants (id, meeting_id, principal_type, user_id, guest_id, source_type, status, standing, added_by) VALUES
+		  ('P_HOST','M_OPEN','USER','U_HOST',NULL,'CREATOR','ACTIVE','MEMBER','U_HOST'),
+		  ('P_MEMBER','M_OPEN','USER','U_MEMBER',NULL,'JOIN_APPROVAL','ACTIVE','MEMBER','U_HOST'),
+		  ('P_ORGADMIN','M_OPEN','USER','U_ORGADMIN',NULL,'INVITE_LINK','ACTIVE','MEMBER','U_ORGADMIN'),
+		  ('P_GONE','M_OPEN','USER','U_GONE',NULL,'INVITE_LINK','ACTIVE','MEMBER','U_GONE'),
+		  ('P_OUT_LINK','M_OPEN','USER','U_OUT',NULL,'INVITE_LINK','REMOVED','MEMBER','U_OUT'),
+		  ('P_OTHER_JOIN','M_OPEN','USER','U_OTHER',NULL,'JOIN_APPROVAL','ACTIVE','MEMBER','U_HOST'),
+		  ('P_OUT_INVITE','M_FINAL','USER','U_OUT',NULL,'INVITE','ACTIVE','MEMBER','U_HOST'),
+		  ('P_OUT_FINAL','M_FINAL','USER','U_OTHER',NULL,'INVITE_LINK','ACTIVE','MEMBER','U_OTHER'),
+		  ('P_OUT_CURATED','M_CURATED','USER','U_OUT',NULL,'INVITE_LINK','ACTIVE','MEMBER','U_OUT');
+		INSERT INTO audit_events (id, organization_id, workspace_id, actor_kind, actor_id, action, resource_type, resource_id, changes, correlation_id) VALUES
+		  ('A_PROMOTE','O_A','W_A','user','U_HOST','meeting.participant_updated','meeting','M_CURATED',
+		   '{"standing":{"from":"OBSERVER","to":"MEMBER"}}','corr-promote');`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Up(ctx, pool); err != nil {
+		t.Fatal("re-up:", err)
+	}
+	want := map[string]string{
+		"P_HOST":        "MEMBER",   // added by the host, never touched
+		"P_MEMBER":      "MEMBER",   // workspace member
+		"P_ORGADMIN":    "MEMBER",   // organization admin counts as a member of every workspace
+		"P_GONE":        "OBSERVER", // deactivated: the kept workspace row does not count
+		"P_OUT_LINK":    "OBSERVER", // outsider by link, whatever the row's status
+		"P_OTHER_JOIN":  "OBSERVER", // member of another organization only
+		"P_OUT_INVITE":  "MEMBER",   // invited directly by the host
+		"P_OUT_FINAL":   "MEMBER",   // finalized roll stays what was recorded
+		"P_OUT_CURATED": "MEMBER",   // someone already promoted a participant here
+	}
+	for id, standing := range want {
+		var got string
+		if err := pool.QueryRow(ctx, `SELECT standing FROM meeting_participants WHERE id = $1`, id).Scan(&got); err != nil {
+			t.Fatal(id, err)
+		}
+		if got != standing {
+			t.Errorf("%s standing = %s, want %s", id, got, standing)
+		}
+	}
+}
