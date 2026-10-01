@@ -52,3 +52,4 @@ server/internal/handler/data/
 .codex/
 .pnpm-store/
 .uniwork-dev/
+.uniwork-dev-run/
