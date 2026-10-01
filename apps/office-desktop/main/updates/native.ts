@@ -5,6 +5,13 @@ import type { DesktopUpdateClient } from "./client";
 import { RestartUpdateError } from "./restart";
 import { UpdateVerificationError, type UpdateRelease } from "./verifier";
 
+async function sweepInstallDirectories(root: string): Promise<void> {
+  for (const entry of await fs.readdir(root, { withFileTypes: true })) {
+    if (!entry.isDirectory() || !entry.name.startsWith("install-")) continue;
+    await fs.rm(join(root, entry.name), { recursive: true, force: true }).catch(() => undefined);
+  }
+}
+
 /** Only the client's verified bytes reach this main-process installer port. */
 export function createNativeInstaller(options: {
   directory: string;
@@ -16,6 +23,7 @@ export function createNativeInstaller(options: {
     const allowed = options.platform === "win32" ? [".exe"] : options.platform === "darwin" ? [".pkg", ".dmg"] : [];
     if (!allowed.includes(suffix)) throw new UpdateVerificationError("download_failed", "installer format is unsupported on this platform");
     await fs.mkdir(options.directory, { recursive: true });
+    await sweepInstallDirectories(options.directory);
     const directory = await fs.mkdtemp(join(options.directory, "install-"));
     const file = join(directory, `UniWork-Office-Setup${suffix}`);
     const handle = await fs.open(file, "wx", 0o600);

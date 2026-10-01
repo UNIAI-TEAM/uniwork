@@ -1,6 +1,6 @@
 import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { promises as fs } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { DESKTOP_IDENTITY_MANIFEST as identity } from "../../shared/identity";
 import { createDesktopDraftStore } from "../drafts/store";
@@ -88,5 +88,19 @@ describe("native update action with real verifier and draft store", () => {
     const openPath = vi.fn();
     await expect(createNativeInstaller({ directory: resolve(".test-artifacts", "native-tamper"), platform: "win32", openPath })(release, Buffer.from("tampered"))).rejects.toMatchObject({ code: "hash_mismatch" });
     expect(openPath).not.toHaveBeenCalled();
+  });
+  it("sweeps leftover installer directories before writing the next installer", async () => {
+    const directory = resolve(".test-artifacts", "native-sweep", crypto.randomUUID());
+    const stale = join(directory, "install-stale");
+    await fs.mkdir(stale, { recursive: true });
+    await fs.writeFile(join(stale, "UniWork-Office-Setup.exe"), "stale installer bytes");
+    const openPath = vi.fn(async () => "");
+    await createNativeInstaller({ directory, platform: "win32", openPath })(release, bytes);
+    await expect(fs.stat(stale)).rejects.toMatchObject({ code: "ENOENT" });
+    const remaining = (await fs.readdir(directory, { withFileTypes: true })).filter((entry) => entry.isDirectory());
+    expect(remaining).toHaveLength(1);
+    const [installDirectory] = remaining;
+    if (!installDirectory) throw new Error("expected one remaining installer directory");
+    expect(await fs.readFile(join(directory, installDirectory.name, "UniWork-Office-Setup.exe"))).toEqual(bytes);
   });
 });

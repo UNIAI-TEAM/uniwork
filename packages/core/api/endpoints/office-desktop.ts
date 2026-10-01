@@ -29,7 +29,7 @@ export async function getOfficeDesktopDownload(organizationId: string, channel: 
 }
 
 export async function downloadOfficeDesktopBundle(organizationId: string, channel: OfficeDesktopDownload["channel"]): Promise<Blob> {
-  const blob = await requestBlob(`/api/v1/office/desktop/download?organization_id=${encodeURIComponent(organizationId)}&channel=${channel}&bundle=true`);
+  const blob = await requestBlob(`/api/v1/office/desktop/download?organization_id=${encodeURIComponent(organizationId)}&channel=${encodeURIComponent(channel)}&bundle=true`);
   if (blob.type !== "application/zip") throw new Error("invalid desktop installer bundle response");
   return blob;
 }
