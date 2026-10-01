@@ -47,12 +47,15 @@ Evidence is in the lane report logs `ooxml-roundtrip-r4.log` (40/40),
 
 ## Web integration checkpoint
 
-The documents route now selects a lazy DOCX host for DOCX files. The host
-negotiates open/edit/serialize capabilities for the current document before
-loading the browser adapter. It binds the vendored engine and shared TipTap
-view to the protected browser draft session and the existing Documents
-upload/version-commit endpoints. Upload and commit receipts must match the
-document, checksum and size; revision strings and idempotency keys are retained.
+The documents route selects a lazy DOCX host for DOCX files. The host owns its
+client capability row (host `web`, `serialize`, engine build `09485f88`): the
+browser build is the binding fact for this seam, per host-contract "Capability
+and provider limits". The engine service's docx rows stay false and are
+recorded as `fidelityWarnings` only; they never gate the client editor. The
+host then binds the vendored engine and shared TipTap view to the protected
+browser draft session and the existing Documents upload/version-commit
+endpoints. Upload and commit receipts must match the document, checksum and
+size; revision strings and idempotency keys are retained.
 
 Editor transactions publish dirty generations immediately. The host owns
 session disposal, so React Strict Mode effect replay leaves the active editor

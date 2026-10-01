@@ -8,12 +8,16 @@ vi.mock("@uniwork/core/auth", () => ({ useSession: () => ({ user: { id: "account
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock("@uniwork/core/api/endpoints/office", () => ({ getOfficeCapabilities: mocks.capabilities }));
 vi.mock("./docx-adapter", () => ({ createDocxFormatAdapter: mocks.adapter }));
-vi.mock("./editor-host", () => ({ OfficeEditorHost: (props: { formatAdapter?: unknown; capability?: { status: string } }) => createElement("div", { "data-testid": "host", "data-bound": Boolean(props.formatAdapter), "data-capability": props.capability?.status ?? "unknown" }) }));
+vi.mock("./editor-host", () => ({ OfficeEditorHost: (props: { formatAdapter?: unknown; capability?: { status: string; fidelityWarnings?: string[] } }) => createElement("div", { "data-testid": "host", "data-bound": Boolean(props.formatAdapter), "data-capability": props.capability?.status ?? "unknown", "data-warnings": (props.capability?.fidelityWarnings ?? []).join("|") }) }));
 
 import { DocxOfficeEditorHost } from "./docx-office-host";
 
 const documentFor = (id: string) => ({ id, title: "Spec", organization_id: "org", workspace_id: "ws", revision: "1", file: { version_id: "version-1", filename: "spec.docx", mime_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" } }) as Document;
-const capabilitiesFor = (id: string, supported = true) => ({ documentId: id, format: "docx", engineVersion: "server-build", operations: ["open", "edit", "serialize"].map((operation) => ({ operation, supported })) });
+/** The engine service binds no docx handlers, so every docx row is unbound. */
+const unboundCapabilities = (id: string) => ({
+  documentId: id, format: "docx", engineVersion: "server-build",
+  operations: ["open", "edit", "serialize"].map((operation) => ({ operation, runtime: "none", evidenceLevel: "pending", engineBound: false, supported: false, reason: "not bound in this service build", targetFormat: null })),
+});
 let root: Root;
 let container: HTMLDivElement;
 
@@ -21,6 +25,7 @@ beforeEach(() => {
   mocks.capabilities.mockReset();
   mocks.adapter.mockReset();
   mocks.dispose.mockClear();
+  mocks.capabilities.mockResolvedValue(unboundCapabilities("doc-1"));
   mocks.adapter.mockReturnValue({ session: { dispose: mocks.dispose } });
   container = document.createElement("div");
   document.body.append(container);
@@ -42,42 +47,55 @@ async function mount(id = "doc-1", readonly = false) {
 }
 
 describe("DOCX web host", () => {
-  it("binds the lazy adapter only after capability negotiation and supplies the authenticated document identity", async () => {
-    mocks.capabilities.mockResolvedValue(capabilitiesFor("doc-1"));
+  it("binds the editor although every server docx row is unbound, and records the rows as fidelity warnings", async () => {
     await mount();
     expect(mocks.adapter).toHaveBeenCalledTimes(1);
     expect(mocks.adapter).toHaveBeenCalledWith(expect.objectContaining({
       identity: expect.objectContaining({ accountId: "account-1", organizationId: "org", workspaceId: "ws", documentId: "doc-1", baseVersionId: "version-1", baseRevision: "1" }),
-      capability: expect.objectContaining({ format: "docx", status: "available", reason: null }),
+      capability: expect.objectContaining({
+        format: "docx", operation: "serialize", host: "web", status: "available", reason: null,
+        fidelityWarnings: ["open: not bound in this service build", "edit: not bound in this service build", "serialize: not bound in this service build"],
+      }),
     }));
     expect(container.querySelector("[data-bound=true]")).not.toBeNull();
     await act(async () => root.unmount());
     expect(mocks.dispose).toHaveBeenCalledTimes(1);
   });
 
-  it.each(["unsupported", "wrong-document", "readonly"])("does not bind an editing adapter for %s", async (scenario) => {
-    mocks.capabilities.mockResolvedValue(capabilitiesFor(scenario === "wrong-document" ? "other-doc" : "doc-1", scenario !== "unsupported"));
-    await mount("doc-1", scenario === "readonly");
+  it("ignores a capability response for a replaced document and stays available", async () => {
+    mocks.capabilities.mockResolvedValue(unboundCapabilities("other-doc"));
+    await mount();
+    expect(mocks.adapter).toHaveBeenCalledTimes(1);
+    expect(container.querySelector("[data-bound=true]")).not.toBeNull();
+    expect(container.querySelector("[data-warnings='']")).not.toBeNull();
+  });
+
+  it("does not bind an editing adapter for a readonly document", async () => {
+    await mount("doc-1", true);
     expect(mocks.adapter).not.toHaveBeenCalled();
     expect(container.querySelector("[data-bound=false]")).not.toBeNull();
+    expect(container.querySelector("[data-capability=readonly]")).not.toBeNull();
+  });
+
+  it("fails closed when the browser engine module cannot load", async () => {
+    mocks.adapter.mockImplementation(() => { throw new Error("engine_load_failed"); });
+    await mount();
+    expect(container.querySelector("[data-bound=false]")).not.toBeNull();
+    expect(container.querySelector("[data-capability=unavailable]")).not.toBeNull();
   });
 
   it("keeps the editing session alive when the document title changes", async () => {
-    mocks.capabilities.mockResolvedValue(capabilitiesFor("doc-1"));
     await mount();
     await act(async () => root.render(createElement(DocxOfficeEditorHost, { document: { ...documentFor("doc-1"), title: "Renamed" }, wsId: "ws", readonly: false })));
     expect(mocks.adapter).toHaveBeenCalledTimes(1);
     expect(mocks.dispose).not.toHaveBeenCalled();
   });
 
-  it("ignores a capability response from a document that has already been replaced", async () => {
-    let resolveOld: ((value: ReturnType<typeof capabilitiesFor>) => void) | undefined;
-    mocks.capabilities.mockImplementationOnce(() => new Promise((resolve) => { resolveOld = resolve; }));
-    mocks.capabilities.mockResolvedValue(capabilitiesFor("doc-2"));
+  it("disposes the replaced document's adapter and binds the new document", async () => {
     await mount("doc-1");
     await mount("doc-2");
-    await act(async () => { resolveOld?.(capabilitiesFor("doc-1")); });
-    expect(mocks.adapter).toHaveBeenCalledTimes(1);
-    expect(mocks.adapter).toHaveBeenCalledWith(expect.objectContaining({ identity: expect.objectContaining({ documentId: "doc-2" }) }));
+    expect(mocks.dispose).toHaveBeenCalledTimes(1);
+    expect(mocks.adapter).toHaveBeenCalledTimes(2);
+    expect(mocks.adapter).toHaveBeenLastCalledWith(expect.objectContaining({ identity: expect.objectContaining({ documentId: "doc-2" }) }));
   });
 });

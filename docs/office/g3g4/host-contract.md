@@ -141,7 +141,7 @@ provider facts:
 | `md`, `html` serialize and blank | G1/G2 real-store round trip is recorded | Consumer integration may use the seam; H4 full product acceptance remains separate. |
 | `pdf` open/serialize | G1/G2 round trip is recorded; editor fidelity remains format-owned | Capability must carry the provider evidence level. |
 | `xlsx` | G2 adapter and Q7 handoff exist; full H4 matrix is not claimed by this lane | Do not infer full six-format acceptance from the package merge. |
-| `docx`, `pptx` server serialize | `unsupported_operation` with `not_bound` is recorded | Keep server capability false; client editor work remains format-lane owned. |
+| `docx`, `pptx` server serialize | `unsupported_operation` with `not_bound` is recorded | Keep server capability false; client editor work remains format-lane owned. The web DOCX host's client row is lane-owned (`operation: serialize`, `host: web`, engine build `09485f88`) and its evidence is the g3-04c AC-2..AC-4 browser round trip; server rows feed `fidelityWarnings` only. |
 | `xls` → `xlsx`, `odt` → `docx` convert | Q7 operation and result shape are handed off | Accept via `job_id` and result warning/content; do not commit conversion output through the source document version path. |
 | Export and other conversion pairs | `unsupported_operation` with a provider reason | Mark unavailable/pending; never claim H4. |
 
