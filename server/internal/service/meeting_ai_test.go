@@ -163,6 +163,144 @@ func TestSummarizeWithChatOnly(t *testing.T) {
 	}
 }
 
+// TestSummaryFactsFromAttendanceAndMotions: the prompt facts carry members
+// only and the stored count, with the required yes votes the UI shows.
+func TestSummaryFactsFromAttendanceAndMotions(t *testing.T) {
+	met := true
+	m := db.Meeting{
+		QuorumPercent:         pgtype.Int2{Int16: 50, Valid: true},
+		AttendanceFinalizedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+	}
+	row := func(name, standing, status string) AttendanceRow {
+		return AttendanceRow{Participant: db.MeetingParticipant{DisplayNameSnapshot: name, Standing: standing}, Status: status}
+	}
+	rep := AttendanceReport{
+		Rows: []AttendanceRow{
+			row("An", StandingMember, AttendancePresent),
+			row("Khách dự thính", StandingObserver, AttendancePresent),
+			row("Bình", StandingMember, AttendanceExcused),
+		},
+		Summary: AttendanceSummary{Members: 2, Present: 1, Excused: 1, QuorumMet: &met},
+	}
+	f := summaryAttendanceFacts(m, rep)
+	if f == nil || f.Members != 2 || f.Present != 1 || f.Excused != 1 || f.QuorumPercent != 50 ||
+		f.QuorumMet == nil || !*f.QuorumMet || !f.Finalized {
+		t.Fatalf("facts = %+v", f)
+	}
+	names := f.NamesByStatus
+	if len(names[AttendancePresent]) != 1 || names[AttendancePresent][0] != "An" ||
+		len(names[AttendanceExcused]) != 1 || names[AttendanceExcused][0] != "Bình" {
+		t.Fatalf("names = %v (observers must not be listed)", names)
+	}
+	if summaryAttendanceFacts(m, AttendanceReport{}) != nil {
+		t.Fatal("a meeting without members must give nil attendance facts")
+	}
+
+	closed := db.MeetingMotion{
+		Title: "Đổi giờ giao ban", BallotMode: BallotPublic, Threshold: ThresholdTwoThirds, Base: BaseAllMembers, Status: MotionClosed,
+		TotalMembers: pgtype.Int4{Int32: 4, Valid: true}, RollSize: pgtype.Int4{Int32: 3, Valid: true},
+		YesCount: 3, Outcome: pgtype.Text{String: OutcomePassed, Valid: true},
+	}
+	got := summaryMotionFacts([]db.MeetingMotion{closed})
+	// Two-thirds of all 4 members = ceil(8/3) = 3 yes votes.
+	want := ai.MotionFact{Title: "Đổi giờ giao ban", BallotMode: BallotPublic, Yes: 3, Required: 3, Outcome: OutcomePassed}
+	if len(got) != 1 || got[0] != want {
+		t.Fatalf("motion facts = %+v, want %+v", got, want)
+	}
+}
+
+// TestSummarizeWithClosedMotionOnly: a closed vote is enough material on its
+// own, and the prompt carries its counted result and the attendance, never
+// who chose what.
+func TestSummarizeWithClosedMotionOnly(t *testing.T) {
+	s, ua, ub, m, memberPID := governanceFixture(t)
+	ctx := context.Background()
+	fake := &provider.Fake{Reply: func(provider.CompletionRequest) provider.CompletionResponse {
+		return provider.CompletionResponse{Text: `{"summary":"Đã biểu quyết.","decisions":["Thông qua kế hoạch quý IV"],"action_items":[]}`, Model: "fake"}
+	}}
+	s.AI = ai.NewGateway(s.q, fake, NewAIQuota(s.ent), nil, ai.Options{})
+
+	// Distinctive names: either one inside the vote block would be a leak.
+	const hostName, voterName = "Lê Văn Chủ", "Trần Thị Bích"
+	host := hostParticipant(t, s, m.ID, ua.ID)
+	for pid, name := range map[string]string{host.ID: hostName, memberPID: voterName} {
+		if _, err := s.pool.Exec(ctx, `UPDATE meeting_participants SET display_name_snapshot = $1 WHERE id = $2`, name, pid); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE meetings SET quorum_percent = 60 WHERE id = $1`, m.ID); err != nil {
+		t.Fatal(err)
+	}
+	// Host on time, member 15 minutes late: both on the roll.
+	seedSession(t, s, m.ID, host.ID, "0 minutes", "")
+	seedSession(t, s, m.ID, memberPID, "15 minutes", "")
+
+	if _, err := s.CreateMotion(ctx, ua.ID, m.ID, MotionInput{Title: "Nháp chưa mở", BallotMode: BallotPublic, Threshold: ThresholdMajority, Base: BasePresent}); err != nil {
+		t.Fatal(err)
+	}
+	mo, err := s.CreateMotion(ctx, ua.ID, m.ID, MotionInput{Title: "Thông qua kế hoạch quý IV", BallotMode: BallotSecret, Threshold: ThresholdMajority, Base: BasePresent})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.OpenMotion(ctx, ua.ID, m.ID, mo.ID); err != nil {
+		t.Fatal(err)
+	}
+	// No transcript, notes or chat, and a vote still open is not material yet.
+	if _, err := s.Summarize(ctx, ua.ID, m.ID, "vi"); !codedIs(err, "nothing_to_summarize") {
+		t.Fatalf("open vote only: %v", err)
+	}
+	for _, uid := range []string{ua.ID, ub.ID} {
+		if err := s.CastBallot(ctx, uid, "", m.ID, mo.ID, ChoiceYes); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.CloseMotion(ctx, ua.ID, m.ID, mo.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	sum, err := s.Summarize(ctx, ua.ID, m.ID, "vi")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fake.Calls != 1 || sum.Summary != "Đã biểu quyết." {
+		t.Fatalf("calls=%d summary=%+v", fake.Calls, sum)
+	}
+	if ev, err := s.q.AiGetUsageEvent(ctx, sum.UsageEventID.String); err != nil || ev.PromptID != "meeting_summary@2" {
+		t.Fatalf("usage row: %+v %v", ev, err)
+	}
+	prompt := fake.Last.Messages[len(fake.Last.Messages)-1].Content
+	for _, want := range []string{
+		"Recorded attendance (system record — use exactly):\n",
+		"- Members: 2 (present 1, late 1, excused 0, absent 0)\n",
+		"- Minimum attendance: 60%, met\n",
+		"- Attendance finalized: no (provisional)\n",
+		`- Present: <untrusted source="attendance">` + hostName + "</untrusted>\n",
+		`- Late: <untrusted source="attendance">` + voterName + "</untrusted>\n",
+		"Recorded votes (system record — use exactly):\n",
+		"- Vote 1: PASSED · secret ballot · yes 2 · no 0 · abstain 0 · 2 yes votes required\n",
+		`  Title: <untrusted source="motions">Thông qua kế hoạch quý IV</untrusted>` + "\n",
+		"(no transcript captured)",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("prompt missing %q:\n%s", want, prompt)
+		}
+	}
+	if strings.Contains(prompt, "Nháp chưa mở") {
+		t.Fatalf("draft motion reached the prompt:\n%s", prompt)
+	}
+	start, end := strings.Index(prompt, "Recorded votes"), strings.Index(prompt, "\nTranscript:")
+	if start < 0 || end < start {
+		t.Fatalf("vote block not found:\n%s", prompt)
+	}
+	for _, name := range []string{hostName, voterName} {
+		if strings.Contains(prompt[start:end], name) {
+			t.Fatalf("vote block names %q:\n%s", name, prompt[start:end])
+		}
+	}
+	if !strings.Contains(fake.Last.System, "Never state or guess how any person voted") {
+		t.Fatalf("system prompt is not @2:\n%s", fake.Last.System)
+	}
+}
 func TestRecordingLifecycle(t *testing.T) {
 	s, ua, _, w := meetingFixture(t)
 	ctx := context.Background()

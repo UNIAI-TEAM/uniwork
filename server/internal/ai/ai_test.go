@@ -108,11 +108,28 @@ func TestSystemPromptsEndWithUntrustedFooter(t *testing.T) {
 // Golden files: a change to prompt wording shows up as a diff here, which is
 // the moment to bump Version instead.
 func TestPromptSnapshots(t *testing.T) {
+	quorumMet := true
 	fixtures := map[string]map[string]any{
+		// @1 stays registered for old usage rows. Its key is literal so moving
+		// PromptMeetingSummary to @2 cannot silently re-point this fixture.
+		"meeting_summary@1": {
+			"title": "Standup", "agenda": "Ship F-09", "locale": "vi",
+			"notes":      []string{"Ghi chú 1"},
+			"transcript": []TranscriptLine{{Speaker: "An", Text: "Chốt thứ Sáu"}},
+		},
 		PromptMeetingSummary: {
 			"title": "Standup", "agenda": "Ship F-09", "locale": "vi",
 			"notes":      []string{"Ghi chú 1"},
 			"transcript": []TranscriptLine{{Speaker: "An", Text: "Chốt thứ Sáu"}},
+			"attendance": &AttendanceFacts{
+				Members: 4, Present: 2, Late: 1, Excused: 1, Absent: 0,
+				QuorumPercent: 60, QuorumMet: &quorumMet, Finalized: true,
+				NamesByStatus: map[string][]string{"PRESENT": {"An", "Bình"}, "LATE": {"Chi"}, "EXCUSED": {"Dũng"}},
+			},
+			"motions": []MotionFact{
+				{Title: "Thông qua kế hoạch quý IV", BallotMode: "SECRET", Yes: 3, No: 0, Abstain: 0, Required: 2, Outcome: "PASSED"},
+				{Title: "Tăng ngân sách quảng cáo", BallotMode: "PUBLIC", Yes: 1, No: 1, Abstain: 1, Required: 3, Outcome: "FAILED"},
+			},
 		},
 		PromptCopilotAnswer: {
 			"question": "task nào quá hạn?", "locale": "vi", "today": "2026-09-06",
@@ -155,6 +172,51 @@ func TestPromptSnapshots(t *testing.T) {
 	}
 }
 
+// TestMeetingSummaryV2Facts: @2 renders the recorded facts as system lines,
+// renders exactly like @1 when there are none, and still reaches the fake
+// provider's meeting-summary branch (E2E runs on AI_PROVIDER=fake).
+func TestMeetingSummaryV2Facts(t *testing.T) {
+	v1, _ := LookupPrompt("meeting_summary@1")
+	v2, ok := LookupPrompt(PromptMeetingSummary)
+	if !ok || v2.Key() != "meeting_summary@2" {
+		t.Fatalf("PromptMeetingSummary = %q", PromptMeetingSummary)
+	}
+	// Summarize passes a typed nil when the meeting has no members.
+	base := map[string]any{"title": "Họp", "locale": "vi", "attendance": (*AttendanceFacts)(nil), "motions": []MotionFact{}}
+	if got, want := v2.Render(base), v1.Render(base); got != want {
+		t.Fatalf("no facts must render like @1:\n%s", got)
+	}
+	notMet := false
+	cases := []struct {
+		name string
+		vars map[string]any
+		want []string
+	}{
+		{"no minimum, provisional", map[string]any{"attendance": &AttendanceFacts{Members: 3, Present: 1, Absent: 2}},
+			[]string{"- Members: 3 (present 1, late 0, excused 0, absent 2)\n", "- Minimum attendance: not set\n", "- Attendance finalized: no (provisional)\n"}},
+		{"minimum not met", map[string]any{"attendance": &AttendanceFacts{Members: 4, Present: 1, QuorumPercent: 50, QuorumMet: &notMet}},
+			[]string{"- Minimum attendance: 50%, not met\n"}},
+		{"vote without voters", map[string]any{"motions": []MotionFact{{Title: "Phương án A", BallotMode: "PUBLIC", Outcome: "FAILED"}}},
+			[]string{"- Vote 1: FAILED · open ballot · yes 0 · no 0 · abstain 0 · no eligible voters\n", `  Title: <untrusted source="motions">Phương án A</untrusted>` + "\n"}},
+	}
+	for _, c := range cases {
+		out := v2.Render(c.vars)
+		for _, w := range c.want {
+			if !strings.Contains(out, w) {
+				t.Errorf("%s: missing %q in:\n%s", c.name, w, out)
+			}
+		}
+	}
+	for _, trigger := range []string{"You are UNI", "You catch a teammate up", "You summarize one email thread", "You summarize a completed voice call"} {
+		if strings.Contains(v2.System, trigger) {
+			t.Errorf("@2 system contains the fake-provider trigger %q", trigger)
+		}
+	}
+	resp := FakeReply(provider.CompletionRequest{System: v2.System, Messages: []provider.Message{{Role: "user", Content: v2.Render(base)}}})
+	if out, err := ParseSummaryJSON(resp.Text); err != nil || out.Summary != "Bản tóm tắt thử nghiệm." {
+		t.Fatalf("fake provider must answer @2 with a meeting summary: %+v %v (%s)", out, err, resp.Text)
+	}
+}
 func TestBuildContextBudget(t *testing.T) {
 	var many []Source
 	for i := 0; i < 30; i++ {
