@@ -35,7 +35,7 @@ thật, không để AI tự suy ra.
 | # | Quyết định |
 |---|---|
 | D1 | Dùng cho họp chính thức (không phải poll nhanh kiểu Zoom). |
-| D2 | Người tham gia chia **Thành viên** (`MEMBER`: điểm danh, biểu quyết, tính tỉ lệ) và **Dự thính** (`OBSERVER`: ghi có mặt, không biểu quyết). Mặc định: tài khoản → thành viên, khách → dự thính. |
+| D2 | Người tham gia chia **Thành viên** (`MEMBER`: điểm danh, biểu quyết, tính tỉ lệ) và **Dự thính** (`OBSERVER`: ghi có mặt, không biểu quyết). Mặc định: tài khoản trong workspace → thành viên; khách và tài khoản ngoài workspace vào bằng link mời → dự thính (cập nhật 2026-10-01). |
 | D3 | Điểm danh tự điền gợi ý từ dữ liệu vào phòng; clerk sửa từng người rồi **Chốt**. |
 | D4 | Hai hình thức phiếu: **công khai** (lưu ai chọn gì) và **kín thật** (không lưu ai chọn gì). |
 | D5 | Ngưỡng cấu hình mỗi nội dung: quá bán hoặc 2/3, trên số có mặt hoặc tổng thành viên. Tỉ lệ có mặt tối thiểu của cuộc họp chỉ cảnh báo, không chặn. |
@@ -73,6 +73,9 @@ Không dùng lại cột `role`: nó quyết định quyền phát trên LiveKit
 
 Hai đường tạo khách phải ghi `standing='OBSERVER'` ngay khi insert:
 `materializeFromLink` và `ApproveJoinRequest` (`service/meeting_admission.go`).
+Cập nhật 2026-10-01: trên cùng hai đường, một **tài khoản** không phải thành viên workspace
+(quyết định qua `WorkspaceService.RequireMemberQ` trong transaction) cũng thành `OBSERVER`;
+chủ trì nâng lên thành viên nếu cần.
 
 ### 3.2 `meetings` — cột mới
 
