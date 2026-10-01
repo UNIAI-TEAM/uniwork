@@ -8,19 +8,31 @@ import { assertOrigin } from "./auth-transport";
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
-export function createHttpOfficeTransport(options: { profile: DeploymentProfile; credentials: CredentialStore; fetchImpl?: FetchLike }): DesktopOfficeTransport {
+export function createHttpOfficeTransport(options: { profile: DeploymentProfile; credentials: CredentialStore; fetchImpl?: FetchLike; refreshSession?: () => Promise<void> }): DesktopOfficeTransport {
   const fetchImpl = options.fetchImpl ?? fetch;
   assertOrigin(options.profile.apiOrigin, options.profile.channel === "dev");
   const origin = options.profile.apiOrigin.replace(/\/$/, "");
+  let refreshInFlight: Promise<void> | undefined;
+  const refreshOnce = async () => {
+    if (!options.refreshSession) throw new Error("login_required");
+    if (!refreshInFlight) refreshInFlight = options.refreshSession().finally(() => { refreshInFlight = undefined; });
+    await refreshInFlight;
+  };
   async function authRequest(path: string, init: RequestInit = {}): Promise<Response> {
-    const session = await options.credentials.get();
-    if (!session || session.accountId.length === 0) throw new Error("login_required");
-    const headers = new Headers(init.headers);
-    headers.set("Accept", "application/json");
-    headers.set("Authorization", `Bearer ${session.accessToken}`);
-    const response = await fetchImpl(`${origin}/api/v1${path}`, { ...init, headers, cache: "no-store", redirect: "error" });
-    if (!response.ok) throw new Error(response.status === 401 ? "login_required" : response.status === 403 ? "forbidden" : "office_request_failed");
-    return response;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const session = await options.credentials.get();
+      if (!session || session.accountId.length === 0) throw new Error("login_required");
+      const headers = new Headers(init.headers);
+      headers.set("Accept", "application/json");
+      headers.set("Authorization", `Bearer ${session.accessToken}`);
+      const response = await fetchImpl(`${origin}/api/v1${path}`, { ...init, headers, cache: "no-store", redirect: "error" });
+      if (response.ok) return response;
+      if (response.status === 401 && attempt === 0) {
+        try { await refreshOnce(); continue; } catch { throw new Error("login_required"); }
+      }
+      throw new Error(response.status === 401 ? "login_required" : response.status === 403 ? "forbidden" : "office_request_failed");
+    }
+    throw new Error("office_request_failed");
   }
   async function json(path: string, init?: RequestInit): Promise<unknown> { return (await authRequest(path, init)).json(); }
   async function bytes(path: string): Promise<{ data: Uint8Array; filename: string; mimeType: string }> {
