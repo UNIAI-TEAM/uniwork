@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
 import { execFileSync, spawn } from "node:child_process";
 import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import process from "node:process";
 import { clearTimeout, setTimeout } from "node:timers";
 import { fileURLToPath } from "node:url";
@@ -23,7 +23,9 @@ const runtimeIdentity = buildIdentity ?? identityManifest;
 const keyNamespace = runtimeIdentity.keyNamespace;
 function currentWindowsAccount() {
   try {
-    const account = execFileSync("whoami.exe", { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], windowsHide: true }).trim();
+    const systemRoot = process.env.SystemRoot ?? process.env.WINDIR;
+    if (!systemRoot || !isAbsolute(systemRoot)) throw new Error("Windows system root could not be resolved");
+    const account = execFileSync(join(systemRoot, "System32", "whoami.exe"), { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], windowsHide: true }).trim();
     if (/^[^\\/:\r\n]+\\[^\\/:\r\n]+$/.test(account)) return account;
   } catch { /* report a typed smoke failure below */ }
   throw new Error("current Windows account could not be resolved");

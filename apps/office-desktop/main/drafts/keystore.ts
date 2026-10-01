@@ -3,7 +3,7 @@ import { execFile, execFileSync } from "node:child_process";
 import { promises as fs } from "node:fs";
 import { userInfo } from "node:os";
 import { promisify } from "node:util";
-import { dirname, join } from "node:path";
+import { dirname, isAbsolute, join } from "node:path";
 
 /** Electron's safeStorage is backed by Windows DPAPI and the macOS Keychain.
  * The adapter is deliberately tiny so the draft store never receives an
@@ -47,10 +47,17 @@ const nodeFileSystem: DraftKeyFileSystem = {
 };
 const execFileAsync = promisify(execFile);
 
+export function windowsWhoamiPath(systemRoot = process.env.SystemRoot): string {
+  if (!systemRoot || !isAbsolute(systemRoot)) {
+    throw new DraftKeyStoreError("unavailable", "Windows system root could not be resolved");
+  }
+  return join(systemRoot, "System32", "whoami.exe");
+}
+
 function currentWindowsAccount(): string {
   if (process.platform !== "win32") return userInfo().username;
   try {
-    const account = execFileSync("whoami.exe", { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], windowsHide: true }).trim();
+    const account = execFileSync(windowsWhoamiPath(), { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], windowsHide: true }).trim();
     if (/^[^\\/:\r\n]+\\[^\\/:\r\n]+$/.test(account)) return account;
   } catch { /* map identity lookup failures to the typed ACL error below */ }
   throw new DraftKeyStoreError("unavailable", "current Windows account could not be resolved");
