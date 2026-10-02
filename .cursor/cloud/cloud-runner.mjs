@@ -24,6 +24,7 @@
 // Exit codes: 0 pass, 1 tests failed, 2 blocked or runner error.
 
 import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 
@@ -195,9 +196,23 @@ function ensurePrompt(branch) {
   return oneCommandPrompt(`--branch ${branch} --provision-only`);
 }
 
-function testPrompt({ branch, sha, lane, commands }) {
-  const specB64 = Buffer.from(`${commands.join("\n")}\n`).toString("base64");
-  return oneCommandPrompt(`--branch ${branch} --sha ${sha} --lane ${lane} --spec-b64 ${specB64}`);
+// Publishes the spec as refs/test-specs/<lane>/<sha> (a one-file commit) so the
+// agent passes a short ref and a hash instead of retyping a long base64 string,
+// which a model can corrupt. Returns { ref, sha256 }.
+function publishSpec(lane, sha, commands) {
+  const text = `${commands.join("\n")}\n`;
+  const blob = execFileSync("git", ["hash-object", "-w", "--stdin"], { input: text, encoding: "utf8" }).trim();
+  const tree = execFileSync("git", ["mktree"], { input: `100644 blob ${blob}\tspec.txt\n`, encoding: "utf8" }).trim();
+  const commit = execFileSync("git", ["commit-tree", tree, "-m", `spec ${lane} ${sha}`],
+    { encoding: "utf8", env: { ...process.env, GIT_AUTHOR_NAME: "runner", GIT_AUTHOR_EMAIL: "runner@local",
+      GIT_COMMITTER_NAME: "runner", GIT_COMMITTER_EMAIL: "runner@local" } }).trim();
+  const ref = `refs/test-specs/${lane}/${sha}`;
+  git("push", "-q", "-f", "origin", `${commit}:${ref}`);
+  return { ref, sha256: createHash("sha256").update(text).digest("hex") };
+}
+
+function testPrompt({ branch, sha, lane, spec }) {
+  return oneCommandPrompt(`--branch ${branch} --sha ${sha} --lane ${lane} --spec-ref ${spec.ref} --spec-sha256 ${spec.sha256}`);
 }
 
 function extractReport(result) {
@@ -318,7 +333,8 @@ async function cmdTest(opts) {
   }
   let state = loadState(opts.shard);
   const lane = laneSlug(opts, branch);
-  const prompt = testPrompt({ branch, sha, lane, commands });
+  const spec = publishSpec(lane, sha, commands);
+  const prompt = testPrompt({ branch, sha, lane, spec });
   const before = (await agentAlive(state)) ? await costCents(state.agentId) : 0;
   let agentId;
   let runId;
@@ -337,6 +353,7 @@ async function cmdTest(opts) {
   const out = resolve(opts.out || join("reports", lane, `cloud-test-${sha}.md`));
   let logsDir = null;
   if (rep?.log_ref) logsDir = fetchLogs(rep.log_ref, out.replace(/\.md$/, ".logs"));
+  try { git("push", "-q", "origin", `:${spec.ref}`); } catch { /* best effort */ }
   const valid = rep && String(rep.sha ?? "").slice(0, 7) === sha.slice(0, 7);
   writeReport(out, {
     lane, sha, branch, agentId, runId, runStatus: run.status, durationMs: run.durationMs,
@@ -371,7 +388,7 @@ async function closeOne(shard, laneOpt) {
   }
   const lane = laneOpt ? (shard ? `${laneOpt}-${shard}` : laneOpt) : state?.lane;
   if (lane) {
-    const refs = git("ls-remote", "origin", `refs/test-results/${lane}/*`)
+    const refs = git("ls-remote", "origin", `refs/test-results/${lane}/*`, `refs/test-specs/${lane}/*`)
       .split("\n").map((l) => l.split(/\s+/)[1]).filter(Boolean);
     if (refs.length) git("push", "-q", "origin", ...refs.map((r) => `:${r}`));
     console.log(`deleted ${refs.length} results refs for ${lane}`);

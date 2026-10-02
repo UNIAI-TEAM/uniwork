@@ -3,14 +3,16 @@
 # one tool call (every agent step re-reads the whole conversation, which is
 # what a round costs). Run from the repository checkout:
 #
-#   run-tests.sh --branch B --sha S --lane L --spec-b64 X   # test round
+#   run-tests.sh --branch B --sha S --lane L --spec-ref R --spec-sha256 H  # test round
 #   run-tests.sh --branch B --provision-only                 # just prepare
 #
 # Checks out origin/B, provisions the VM on first use (install.sh), reinstalls
 # dependencies when the lockfiles change, starts the services, runs each spec
-# line (base64 of one shell command per line, '#' comments) from the repo
-# root, publishes the logs to refs/test-results/L/S and prints the report as
-# the last stdout line: one JSON object.
+# line (one shell command per line, '#' comments; fetched from the git ref R and
+# checked against sha256 H, so the agent never retypes the spec) from the repo
+# root without the agent's secrets in its environment, redacts secret values
+# from the logs, publishes them to refs/test-results/L/S and prints the report
+# as the last stdout line: one JSON object.
 set -uo pipefail
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -18,13 +20,14 @@ state=~/.uniwork-cloud/state
 results=/tmp/test-results
 mkdir -p "$state"
 
-branch="" sha="" lane="" spec_b64="" provision_only=false
+branch="" sha="" lane="" spec_ref="" spec_sha="" provision_only=false
 while [ $# -gt 0 ]; do
   case "$1" in
     --branch) branch=$2; shift 2 ;;
     --sha) sha=$2; shift 2 ;;
     --lane) lane=$2; shift 2 ;;
-    --spec-b64) spec_b64=$2; shift 2 ;;
+    --spec-ref) spec_ref=$2; shift 2 ;;
+    --spec-sha256) spec_sha=$2; shift 2 ;;
     --provision-only) provision_only=true; shift ;;
     *) echo "run-tests.sh: unknown argument $1" >&2; exit 2 ;;
   esac
@@ -92,6 +95,22 @@ start_seconds=$(( $(date +%s) - t0 ))
 
 if $provision_only; then report succeeded not_run ""; exit 0; fi
 
+spec_file=$(mktemp)
+if ! git fetch -q origin "$spec_ref" || ! git show FETCH_HEAD:spec.txt > "$spec_file" 2> /dev/null; then
+  notes="could not fetch spec $spec_ref"; report failed blocked ""; exit 0
+fi
+if [ "$(sha256sum "$spec_file" | cut -d' ' -f1)" != "$spec_sha" ]; then
+  notes="spec sha256 mismatch for $spec_ref"; report failed blocked ""; exit 0
+fi
+
+# The agent VM carries Cursor secrets (GH_TOKEN and every name listed in
+# CLOUD_AGENT_ALL_SECRET_NAMES). Test commands never see them; this script keeps
+# them for its own log push and scrubs their values from the logs.
+secret_names="GH_TOKEN GITHUB_TOKEN CURSOR_API_KEY ${CLOUD_AGENT_ALL_SECRET_NAMES:-}"
+secret_names=${secret_names//,/ }
+unset_args=()
+for s in $secret_names; do unset_args+=(-u "$s"); done
+
 rm -rf "$results" && mkdir -p "$results"
 n=0 any_fail=false
 while IFS= read -r cmd || [ -n "$cmd" ]; do
@@ -101,7 +120,7 @@ while IFS= read -r cmd || [ -n "$cmd" ]; do
   log="$results/$letter.log"
   echo "\$ $cmd" > "$log"
   t=$(date +%s)
-  (cd "$root" && bash -c "$cmd") >> "$log" 2>&1
+  (cd "$root" && env "${unset_args[@]}" bash -c "$cmd") >> "$log" 2>&1
   code=$?
   dur=$(( $(date +%s) - t ))
   result=pass; [ "$code" -eq 0 ] || { result=fail; any_fail=true; }
@@ -121,9 +140,22 @@ while IFS= read -r cmd || [ -n "$cmd" ]; do
       failures.push({ test: process.env.CMD, file: "", msg: `exit ${process.env.CODE}; ${lines.filter(Boolean).slice(-3).join(" | ").slice(0, 300)}` });
     console.log(JSON.stringify({ cmd: process.env.CMD, result: process.env.RESULT,
       duration_s: Number(process.env.DUR), exit_code: Number(process.env.CODE), failures }));' >> "$ran_file"
-done < <(printf '%s' "$spec_b64" | base64 -d)
+done < "$spec_file"
+rm -f "$spec_file"
 
 if [ "$n" -eq 0 ]; then notes="spec has no commands"; report failed blocked ""; exit 0; fi
+
+SECRET_NAMES=$secret_names RESULTS=$results node -e '
+  const fs = require("fs"); const path = require("path");
+  const values = process.env.SECRET_NAMES.split(/\s+/).filter(Boolean)
+    .map((n) => process.env[n]).filter((v) => v && v.length >= 8);
+  const tokenLike = /\b(gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|key_[A-Za-z0-9]{32,})\b/g;
+  for (const f of fs.readdirSync(process.env.RESULTS)) {
+    const p = path.join(process.env.RESULTS, f);
+    let s = fs.readFileSync(p, "utf8");
+    for (const v of values) s = s.split(v).join("[REDACTED]");
+    fs.writeFileSync(p, s.replace(tokenLike, "[REDACTED]"));
+  }'
 
 log_ref="refs/test-results/$lane/$head"
 origin=$(git remote get-url origin)
