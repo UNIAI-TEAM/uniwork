@@ -1,4 +1,5 @@
-import { Direction, KeyCode } from "@univerjs/core";
+import { Direction } from "@univerjs/core";
+import { KeyCode } from "@univerjs/ui";
 import type { LazyWorkbookState, UniverRuntime } from "../../upstream/apps/sheets/src/renderer/univer-state";
 import { canEditRange } from "./command-policy";
 

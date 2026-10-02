@@ -5,7 +5,7 @@ import { REPO_ROOT } from '../office-g0/paths.mjs';
 
 const renderer = path.join(REPO_ROOT, 'packages/office-upstream/shims/xlsx-renderer');
 const upstream = path.join(REPO_ROOT, 'packages/office-upstream/upstream');
-const source = fs.readFileSync(path.join(renderer, 'controller.ts'), 'utf8');
+const source = ['controller.ts', 'shifted-navigation.ts'].map(name=>fs.readFileSync(path.join(renderer,name),'utf8')).join('\n');
 const names = new Map();
 for (const match of source.matchAll(/import\s+(?:type\s+)?(\{[\s\S]*?\}|\w+)\s+from\s+"([^"]+)"/g)) {
   const members = match[1].replace(/[{}]/g, '').split(',').map((name) => name.trim().replace(/^type\s+/, '')).filter(Boolean);
@@ -33,10 +33,11 @@ const result = await build({
       if (args.path === 'locale') lines.push('export const t=(key)=>key;');
       if (args.path === '@univerjs/core') {
         lines.push('export const CellValueType={STRING:1,NUMBER:2,BOOLEAN:3};');
-        lines.push('export const Direction={UP:0,RIGHT:1,DOWN:2,LEFT:3}; export const KeyCode={TAB:9,ENTER:13};');
       }
       for (const name of exports) {
-        if (name === 'BooleanNumber') lines.push('export const BooleanNumber={TRUE:1,FALSE:0};');
+        if (name === 'Direction') lines.push('export const Direction={UP:0,RIGHT:1,DOWN:2,LEFT:3};');
+        else if (name === 'KeyCode') lines.push('export const KeyCode={TAB:9,ENTER:13};');
+        else if (name === 'BooleanNumber') lines.push('export const BooleanNumber={TRUE:1,FALSE:0};');
         else if (name === 'LocaleType') lines.push('export const LocaleType={EN_US:"enUS"};');
         else if (name === 'ThemeService' || name === 'SheetInterceptorService') lines.push(`export const ${name}='${name}';`);
         else if (name === 'createUniver') lines.push('export function createUniver(options){h().factoryOptions=options;return h().runtime;}');

@@ -127,6 +127,7 @@ try {
     const observation = await page.evaluate(text => ({ selection: window.selection,
       committed: window.edits.some(edit => String(edit.value) === text),
       focusInGrid: document.getElementById('grid').contains(document.activeElement),
+      nativeGridFocus: document.activeElement?.id==='__editor___INTERNAL_EDITOR__DOCS_NORMAL' && document.activeElement.isContentEditable,
       focus: document.activeElement?.outerHTML.slice(0,500) }), text);
     shiftedEdits.push({key,editingTarget,...observation});
     console.log(JSON.stringify({shiftedInlineEdit:shiftedEdits.at(-1)}));
@@ -135,6 +136,7 @@ try {
       assert.equal(observation.selection?.range.startRow,row,`${key} row`);
       assert.equal(observation.selection?.range.startColumn,column,`${key} column`);
       assert.ok(observation.focusInGrid, `${key} retains actual grid focus`);
+      assert.ok(observation.nativeGridFocus, `${key} retains the native grid input, excluding sidebar controls`);
     }
     await page.keyboard.press('Escape');
     await page.mouse.click(150,50);

@@ -103,11 +103,13 @@ test('shifted native inline keys commit before reverse navigation, serialize con
     const movement = mounted.events.filter(event=>event.id==='sheet.command.move-selection-enter-tab');
     assert.equal(movement.length,1);
     assert.equal(movement[0].params.keycode,9);
+    assert.equal(movement[0].params.direction,3);
     mounted.h.editing=true;
     mounted.workbook.endEditingAsync=async()=>{mounted.h.editing=false;return true;};
     mounted.key({key:'Enter'});
     await new Promise(resolve=>setImmediate(resolve));
     assert.equal(mounted.events.at(-1).params.keycode,13);
+    assert.equal(mounted.events.at(-1).params.direction,0);
     mounted.close();
     assert.equal(mounted.key({key:'Tab'}).prevented,undefined);
   } finally {mounted.close();}

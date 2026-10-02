@@ -117,6 +117,14 @@ try {
   await page.waitForTimeout(200);
   result.readonly = await page.evaluate(() => ({ grid: !!document.querySelector('[role="grid"]'), save: !!document.querySelector('button[aria-label="Save to UniWork"]'), alert: !!document.querySelector('[role="alert"]'), checkpoints: window.checkpoints }));
   if (!baseline) assert.ok(result.readonly.grid && !result.readonly.save && !result.readonly.alert && !result.readonly.checkpoints);
+  if (!baseline) {
+    const before = JSON.parse(fs.readFileSync(path.join(REPO_ROOT,'.go-tmp/uni824-r5/host-before/receipt.json'),'utf8'));
+    result.ordinaryHeightComparison = result.geometry.filter(row=>row.mode==='ready').map(row=>{
+      const old=before.geometry.find(prior=>prior.mode==='ready'&&prior.width===row.width&&prior.dark===row.dark);
+      assert.equal(row.header.height,old.header.height,`ordinary header height ${row.width}/${row.dark}`);
+      return {width:row.width,dark:row.dark,before:old.header.height,after:row.header.height};
+    });
+  }
   assert.deepEqual(result.errors, []);
   result.outcome = baseline ? 'baseline observed' : 'passed';
 } catch (error) { result.error = String(error.stack); throw error; }
