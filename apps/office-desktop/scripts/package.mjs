@@ -35,6 +35,14 @@ export function linuxPackagingMetadata(environment = process.env) {
   return { homepage, maintainer };
 }
 
+/** Linux installs the payload under /opt/<productName>. Use the space-free
+ * channel namespace so the generated Exec line never needs quoting; Ubuntu's
+ * xdg-open failed to launch the quoted space path (cloud round 3). The visible
+ * name stays the channel product through linux.desktop.entry.Name. */
+export function linuxProductName(channelIdentity) {
+  return channelIdentity.userDataNamespace;
+}
+
 export function platformArches(platform) {
   const arches = identity.build.platforms[platform];
   if (!Array.isArray(arches) || arches.length === 0) throw new Error(`unsupported desktop package platform: ${platform}`);
@@ -75,7 +83,7 @@ export function createPackagerConfig({ platform = "win32", arch = "x64", output 
   const packagingMetadata = linuxPackagingMetadata();
   return {
     appId: channelIdentity.appId,
-    productName: channelIdentity.product,
+    productName: platform === "linux" ? linuxProductName(channelIdentity) : channelIdentity.product,
     executableName: channelIdentity.executable,
     artifactName: `${artifactBase}.${platform === "win32" ? "zip" : platform === "darwin" ? "dmg" : "AppImage"}`,
     directories: { app: appDirectory, output },
@@ -133,6 +141,7 @@ export function createPackagerConfig({ platform = "win32", arch = "x64", output 
       synopsis: "UniWork Office",
       protocols,
       fileAssociations,
+      desktop: { entry: { Name: channelIdentity.product } },
     } : undefined,
     deb: platform === "linux" ? {
       artifactName: `${artifactBase}.deb`,
@@ -290,7 +299,7 @@ function sanitizedProductName(productName) {
 export async function prepareDebResources({ channelIdentity, cacheDirectory = cacheRoot }) {
   const substitute = (template) => template
     .replaceAll("@EXECUTABLE@", channelIdentity.executable)
-    .replaceAll("@SANITIZED_PRODUCT@", sanitizedProductName(channelIdentity.product))
+    .replaceAll("@SANITIZED_PRODUCT@", sanitizedProductName(linuxProductName(channelIdentity)))
     .replaceAll("@USER_SCHEME@", channelIdentity.userScheme);
   const directory = join(cacheDirectory, `deb-${channelIdentity.userScheme}`);
   await rm(directory, { recursive: true, force: true });

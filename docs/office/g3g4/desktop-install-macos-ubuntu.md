@@ -61,7 +61,8 @@ Extra `.deb` metadata is build-time configuration with accepted defaults:
   `/etc/os-release` and refuses anything that is not Ubuntu or Debian, an Ubuntu older than 22.04 or
   a Debian older than 11 (Electron 44 needs glibc 2.31). The refusal is bilingual (vi + en), exits
   non-zero so apt aborts, and copies no file.
-- The package installs the payload under `/opt/<product>`, links the executable into `/usr/bin`,
+- The package installs the payload under `/opt/<userDataNamespace>` (e.g. `/opt/uniwork-office-dev`; the
+  space-free path keeps the desktop `Exec` unquoted, which `xdg-open` handles reliably), links the executable into `/usr/bin`,
   installs icons under the `hicolor` theme, and ships a desktop entry whose `MimeType` registers the
   app scheme (`x-scheme-handler/…`) and the docx MIME. The post-install script refreshes
   `update-desktop-database`/`update-mime-database`, registers the scheme as a handler (the desktop

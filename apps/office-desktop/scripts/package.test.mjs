@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import process from "node:process";
@@ -109,6 +109,9 @@ test("Linux x64 dev package declares the deb and AppImage unsigned artifacts", (
   assert.match(config.deb.artifactName, /uniwork-office-test_0\.1\.0-dev\.42_unsigned_linux_x64\.deb$/);
   assert.match(config.appImage.artifactName, /uniwork-office-test_0\.1\.0-dev\.42_unsigned_linux_x64\.AppImage$/);
   assert.equal(config.deb.packageName, "uniwork-office-dev");
+  // The install path stays free of spaces so the desktop Exec needs no quoting.
+  assert.equal(config.productName, "uniwork-office-dev");
+  assert.equal(config.linux.desktop.entry.Name, "UniWork Office (test)");
   assert.ok(config.deb.depends.includes("libsecret-1-0"));
   assert.ok(config.deb.depends.includes("xdg-utils"));
   assert.equal(config.deb.maintainer, DEFAULT_LINUX_MAINTAINER);
@@ -165,7 +168,7 @@ test("Linux deb maintainer scripts are generated from the reviewed templates", a
     assert.ok(!preinst.includes("@EXECUTABLE@"));
     assert.ok(afterInstall.includes('EXECUTABLE="uniwork-office-test"'));
     assert.ok(afterInstall.includes("x-scheme-handler/uniwork-office-dev"));
-    assert.ok(afterInstall.includes("/opt/UniWork Office (test)"));
+    assert.ok(afterInstall.includes("/opt/uniwork-office-dev"));
     assert.ok(afterInstall.includes("update-desktop-database"));
     if (process.platform !== "win32") assert.ok((statSync(resources.afterInstall).mode & 0o111) !== 0, "maintainer scripts are executable");
     const config = createPackagerConfig({ platform: "linux", arch: "x64", channel: "dev", version: "0.1.0-dev.42", debResources: resources });
@@ -251,11 +254,14 @@ test("the Linux docker build uses only a digest-pinned builder image", () => {
   assert.equal(LINUX_BUILDER_IMAGE.endsWith(LINUX_BUILDER_DIGEST), true);
   assert.equal(dockerExecutable("win32"), "docker.exe");
   assert.equal(dockerExecutable("linux"), "docker");
-  const args = dockerRunArguments({ repository: "D:\\repo", output: "D:\\out", environment: {} });
+  const args = dockerRunArguments({ repository: "repo", output: "out", environment: {} });
   assert.ok(args.includes(LINUX_BUILDER_IMAGE));
   assert.ok(args.includes("linux/amd64"));
-  assert.ok(args.includes("D:/repo:/src:ro"));
-  assert.ok(args.includes("D:/out:/out"));
+  // Compare through the same resolve+separator normalization the script uses,
+  // so the assertion holds on Windows and POSIX hosts alike.
+  const mount = (value) => `${resolve(value).replaceAll("\\", "/")}:`;
+  assert.ok(args.includes(`${mount("repo")}/src:ro`));
+  assert.ok(args.includes(`${mount("out")}/out`));
   const script = args[args.length - 1];
   assert.ok(script.includes("package.mjs --platform linux --output /out"));
   assert.ok(script.includes("--exclude='*node_modules*'"));
