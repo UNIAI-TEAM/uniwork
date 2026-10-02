@@ -71,6 +71,7 @@ export function createPackagerConfig({ platform = "win32", arch = "x64", output 
   const buildVersion = version.includes("-") ? version : channel === "stable" ? version : `${version}-${channel}.0`;
   const artifactBase = `${channelIdentity.artifactPrefix}_${buildVersion}_${artifactLabel}_${platform}_${arch}`;
   const protocols = [{ name: channelIdentity.product, schemes: [channelIdentity.userScheme] }];
+  const fileAssociations = [{ ext: "docx", name: "Word document", role: "Editor", ...(platform === "linux" ? { mimeType: LINUX_DOCX_MIME } : {}) }];
   const packagingMetadata = linuxPackagingMetadata();
   return {
     appId: channelIdentity.appId,
@@ -96,11 +97,13 @@ export function createPackagerConfig({ platform = "win32", arch = "x64", output 
     electronVersion: electronPackage.version,
     publish: null,
     // The manifest user scheme is the app's deep-link handler on every host:
-    // Windows/Linux desktop MimeType and macOS CFBundleURLTypes.
-    protocols,
+    // Windows/Linux desktop MimeType and macOS CFBundleURLTypes. Linux keeps
+    // its copies under `linux` because electron-builder concatenates the
+    // top-level and platform lists (duplicate MimeType entries otherwise).
+    protocols: platform === "linux" ? undefined : protocols,
     // Windows keeps the original association (no mimeType key); Linux adds the
     // standard docx MIME so the desktop entry and mime package carry it.
-    fileAssociations: [{ ext: "docx", name: "Word document", role: "Editor", ...(platform === "linux" ? { mimeType: LINUX_DOCX_MIME } : {}) }],
+    fileAssociations: platform === "linux" ? undefined : fileAssociations,
     win: platform === "win32" ? { target: [{ target: "zip", arch: [arch] }, { target: "nsis", arch: [arch] }], signAndEditExecutable: false } : undefined,
     nsis: platform === "win32" ? {
       artifactName: `${artifactBase}-setup.exe`,
@@ -128,7 +131,8 @@ export function createPackagerConfig({ platform = "win32", arch = "x64", output 
       target: [{ target: "deb", arch: [arch] }, { target: "AppImage", arch: [arch] }],
       category: "Office",
       synopsis: "UniWork Office",
-      mimeTypes: [LINUX_DOCX_MIME],
+      protocols,
+      fileAssociations,
     } : undefined,
     deb: platform === "linux" ? {
       artifactName: `${artifactBase}.deb`,

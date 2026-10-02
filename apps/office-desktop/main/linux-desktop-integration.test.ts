@@ -67,10 +67,12 @@ describe("AppImage first-run scheme registration", () => {
     expect(result.registered).toBe(false);
   });
 
-  it("does not throw when the real xdg-mime is unavailable", () => {
+  it("does not throw when xdg-mime is unavailable, on any host", () => {
+    // The runner (Ubuntu) does have xdg-mime; the missing-binary path is
+    // injected so the assertion does not depend on the host tooling.
     const root = mkdtempSync(join(tmpdir(), "uniwork-appimage-"));
     try {
-      const result = registerAppImageScheme({ ...options, dataHomeDirectory: root });
+      const result = registerAppImageScheme({ ...options, dataHomeDirectory: root, run: () => false });
       expect(readFileSync(result.desktopFilePath, "utf8")).toContain("x-scheme-handler/uniwork-office-dev;");
       expect(result.registered).toBe(false);
     } finally { rmSync(root, { recursive: true, force: true }); }

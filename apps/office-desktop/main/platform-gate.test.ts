@@ -88,6 +88,9 @@ describe("startup platform gate", () => {
     expect(forcedGateFailure("linux_too_old", { platform: "win32", arch: "x64" }).messageEn).toContain("20.04");
     expect(forcedGateFailure("linux_unsupported_distribution", { platform: "win32", arch: "x64" }).messageEn).toContain("Fedora");
     expect(forcedGateFailure("anything-else", { platform: "win32", arch: "x64" }).code).toBe("forced");
+    // A forced failure for another platform never leaks this host's strings.
+    expect(forcedGateFailure("macos_too_old", { platform: "linux", arch: "x64", systemVersion: "6.12.94+" }).messageEn).toContain("12.7.6");
+    expect(forcedGateFailure("windows_too_old", { platform: "linux", arch: "x64", release: "6.12.94" }).messageEn).toContain("10.0.10240");
     const forced = evaluatePlatformGate({ platform: "linux", arch: "x64", osRelease: UBUNTU_24, forcedFailure: "windows_too_old" });
     expect(forced.ok).toBe(false);
     if (!forced.ok) expect(forced.failure.code).toBe("windows_too_old");

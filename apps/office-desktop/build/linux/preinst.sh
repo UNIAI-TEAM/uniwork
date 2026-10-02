@@ -1,8 +1,8 @@
 #!/bin/bash
 # Runs before dpkg copies any file. A refusal here aborts the install with a
 # non-zero exit code, so nothing is written and no half-installed package is
-# left behind. Placeholders (@EXECUTABLE@, @USER_SCHEME@) are substituted by
-# scripts/package.mjs; the substituted copy is what fpm embeds.
+# left behind. The at-placeholders are substituted by scripts/package.mjs; the
+# substituted copy is what fpm embeds.
 set -u
 
 OS_RELEASE_FILE="${UNIWORK_OS_RELEASE_FILE:-/etc/os-release}"

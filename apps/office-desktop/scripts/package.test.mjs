@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import process from "node:process";
 import { test } from "node:test";
 import { DEFAULT_LINUX_HOMEPAGE, DEFAULT_LINUX_MAINTAINER, LINUX_DOCX_MIME, assertBuildPlatformAllowed, assertBuildInputsInsideRepository, assertPackagedAsarContents, createPackagerConfig, linuxPackagingMetadata, locatePackagedAsar, nsisTestDefine, platformArches, prepareDebResources, validateLinuxTargets, validateMacTargets } from "./package.mjs";
-import { LINUX_BUILDER_DIGEST, LINUX_BUILDER_IMAGE, assertPinnedImage, dockerRunArguments } from "./package-linux-docker.mjs";
+import { LINUX_BUILDER_DIGEST, LINUX_BUILDER_IMAGE, assertPinnedImage, dockerExecutable, dockerRunArguments } from "./package-linux-docker.mjs";
 import { deriveBuildMetadata, DeploymentProfileError, readDeploymentProfileFromEnv } from "./deployment-profile.mjs";
 import identity from "../identity.json" with { type: "json" };
 import packageJson from "../package.json" with { type: "json" };
@@ -113,9 +113,14 @@ test("Linux x64 dev package declares the deb and AppImage unsigned artifacts", (
   assert.ok(config.deb.depends.includes("xdg-utils"));
   assert.equal(config.deb.maintainer, DEFAULT_LINUX_MAINTAINER);
   assert.ok(config.deb.fpm.includes(`--url=${DEFAULT_LINUX_HOMEPAGE}`));
-  assert.deepEqual(config.linux.mimeTypes, [LINUX_DOCX_MIME]);
-  assert.equal(config.fileAssociations[0].mimeType, LINUX_DOCX_MIME);
-  assert.deepEqual(config.protocols[0].schemes, ["uniwork-office-dev"]);
+  // The platform lists live under `linux`: electron-builder concatenates the
+  // top-level and platform-specific lists, so a top-level copy would duplicate
+  // every MimeType entry in the .desktop file.
+  assert.equal(config.protocols, undefined);
+  assert.equal(config.fileAssociations, undefined);
+  assert.deepEqual(config.linux.protocols[0].schemes, ["uniwork-office-dev"]);
+  assert.equal(config.linux.fileAssociations[0].mimeType, LINUX_DOCX_MIME);
+  assert.equal("mimeTypes" in config.linux, false, "the file association already supplies the docx MimeType");
   assert.equal(config.publish, null);
   assert.equal(config.extraMetadata.name, "uniwork-office-dev");
   assert.equal(validateLinuxTargets(config), true);
@@ -186,6 +191,21 @@ test("Linux packaging metadata follows the build-time env with the accepted defa
   }
 });
 
+test("generated maintainer scripts avoid electron-builder macro syntax", async () => {
+  // electron-builder expands every `${lettersOnly}` in a custom afterInstall
+  // file and throws "Macro NAME is not defined" for unknown names (FpmTarget
+  // writeConfigFile), so the shipped scripts must use "$VAR", never "${VAR}".
+  const directory = mkdtempSync(join(tmpdir(), "uniwork-deb-macro-"));
+  try {
+    const resources = await prepareDebResources({ channelIdentity: identity.channelProfiles.dev, cacheDirectory: directory });
+    for (const [name, file] of [["preinst.sh", resources.beforeInstall], ["after-install.sh", resources.afterInstall]]) {
+      const content = readFileSync(file, "utf8");
+      const macros = content.match(/\$\{[a-zA-Z]+\}/g) ?? [];
+      assert.deepEqual(macros, [], `${name} must not contain letter-only \${...} macro syntax: ${macros.join(", ")}`);
+    }
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
 test("the deb preinst refuses unsupported distributions and old Ubuntu", { skip: bash ? false : "bash is not available on this host" }, async () => {
   const directory = mkdtempSync(join(tmpdir(), "uniwork-deb-preinst-"));
   try {
@@ -229,6 +249,8 @@ test("the Linux docker build uses only a digest-pinned builder image", () => {
   assert.throws(() => assertPinnedImage("electronuserland/builder:20"), /pinned by tag and sha256 digest/);
   assert.equal(assertPinnedImage(LINUX_BUILDER_IMAGE), LINUX_BUILDER_IMAGE);
   assert.equal(LINUX_BUILDER_IMAGE.endsWith(LINUX_BUILDER_DIGEST), true);
+  assert.equal(dockerExecutable("win32"), "docker.exe");
+  assert.equal(dockerExecutable("linux"), "docker");
   const args = dockerRunArguments({ repository: "D:\\repo", output: "D:\\out", environment: {} });
   assert.ok(args.includes(LINUX_BUILDER_IMAGE));
   assert.ok(args.includes("linux/amd64"));

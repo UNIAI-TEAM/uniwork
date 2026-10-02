@@ -160,7 +160,12 @@ async function startElectronHost(): Promise<void> {
     forcedFailure: forcedPlatformGate(process.argv, { packaged: app.isPackaged, smokeMode: SMOKE_MODE }),
   });
   if (!gate.ok) {
-    dialog.showErrorBox("UniWork Office", `${gate.failure.messageVi}\n\n${gate.failure.messageEn}`);
+    const failure = gate.failure;
+    // The native error box needs the ready state on Linux (before it Electron
+    // only writes to stderr). Nothing is created or written here: the user-data
+    // path is never set and no window is made.
+    await app.whenReady();
+    dialog.showErrorBox("UniWork Office", `${failure.messageVi}\n\n${failure.messageEn}`);
     app.exit(1);
     return;
   }

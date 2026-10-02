@@ -108,11 +108,13 @@ function linuxGlibcTooOld(version: string): PlatformGateFailure {
 }
 
 /** The test seam produces the same failure object a real check would, so a
- * screenshot of the forced dialog shows the production message. */
+ * screenshot of the forced dialog shows the production message. A forced code
+ * for another platform uses canned values so it never leaks this host's kernel
+ * or release string into the message. */
 export function forcedGateFailure(code: string, input: PlatformGateInput): PlatformGateFailure {
-  if (code === "windows_too_old") return windowsTooOld(input.release ?? "10.0.10240");
-  if (code === "windows_not_64bit") return windowsNot64Bit(input.arch);
-  if (code === "macos_too_old") return macosTooOld(input.systemVersion ?? "12.7.6");
+  if (code === "windows_too_old") return windowsTooOld(input.platform === "win32" ? input.release ?? "10.0.10240" : "10.0.10240");
+  if (code === "windows_not_64bit") return windowsNot64Bit(input.platform === "win32" ? input.arch : "ia32");
+  if (code === "macos_too_old") return macosTooOld(input.platform === "darwin" ? input.systemVersion ?? "12.7.6" : "12.7.6");
   if (code === "linux_too_old") return linuxTooOld("Ubuntu", "20.04");
   if (code === "linux_glibc_too_old") return linuxGlibcTooOld("2.28");
   if (code === "linux_unsupported_distribution") return linuxTooOld("Fedora", "40");

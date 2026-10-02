@@ -25,9 +25,15 @@ export function assertPinnedImage(image = LINUX_BUILDER_IMAGE) {
   return image;
 }
 
+/** Windows resolves an extensionless spawn target only through cmd, so name the
+ * executable explicitly; `docker.exe` works from a plain spawnSync. */
+export function dockerExecutable(platform = process.platform) {
+  return platform === "win32" ? "docker.exe" : "docker";
+}
+
 export function verifyPinnedImage(image = LINUX_BUILDER_IMAGE) {
   assertPinnedImage(image);
-  const result = spawnSync("docker", ["manifest", "inspect", image], { stdio: ["ignore", "ignore", "inherit"], windowsHide: true });
+  const result = spawnSync(dockerExecutable(), ["manifest", "inspect", image], { stdio: ["ignore", "ignore", "inherit"], windowsHide: true });
   if (result.status !== 0) throw new Error(`docker manifest inspect failed for the pinned Linux builder image: ${image}`);
   return true;
 }
@@ -70,7 +76,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   try {
     verifyPinnedImage();
     mkdirSync(defaultOutput, { recursive: true });
-    const result = spawnSync("docker", dockerRunArguments(), { stdio: "inherit", windowsHide: true });
+    const result = spawnSync(dockerExecutable(), dockerRunArguments(), { stdio: "inherit", windowsHide: true });
     if (result.status !== 0) throw new Error(`Linux builder container exited with status ${String(result.status)}`);
     process.stdout.write(`office-desktop: Linux deb/AppImage artifacts written to ${defaultOutput}\n`);
   } catch (error) {
