@@ -147,6 +147,19 @@ async function runSmokeDiagnostics(window: BrowserWindow, deploymentProfile?: De
   process.stdout.write(`${JSON.stringify({ event: "office-desktop-smoke", readyToShow: true, diagnostics: result })}\n`);
 }
 
+/** Node exposes the runtime glibc through the diagnostic report header; absent
+ * on musl or when the report is unavailable, in which case the gate cannot
+ * refuse on glibc alone. */
+export function runtimeGlibcVersion(): string | undefined {
+  try {
+    const report = process.report?.getReport?.() as { header?: { glibcVersionRuntime?: unknown } } | undefined;
+    const value = report?.header?.glibcVersionRuntime;
+    return typeof value === "string" ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function startElectronHost(): Promise<void> {
   // Minimum OS/architecture check before anything else: a wrong-machine install
   // shows one native error box and exits before a user-data path is created or
@@ -157,6 +170,7 @@ async function startElectronHost(): Promise<void> {
     release: osRelease(),
     systemVersion: typeof process.getSystemVersion === "function" ? process.getSystemVersion() : undefined,
     osRelease: process.platform === "linux" ? readLinuxOsRelease() : undefined,
+    glibcVersion: process.platform === "linux" ? runtimeGlibcVersion() : undefined,
     forcedFailure: forcedPlatformGate(process.argv, { packaged: app.isPackaged, smokeMode: SMOKE_MODE }),
   });
   if (!gate.ok) {

@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import process from "node:process";
 import { test } from "node:test";
-import { DEFAULT_LINUX_HOMEPAGE, DEFAULT_LINUX_MAINTAINER, LINUX_DOCX_MIME, assertBuildPlatformAllowed, assertBuildInputsInsideRepository, assertPackagedAsarContents, createPackagerConfig, linuxPackagingMetadata, locatePackagedAsar, nsisTestDefine, platformArches, prepareDebResources, validateLinuxTargets, validateMacTargets } from "./package.mjs";
+import { DEFAULT_LINUX_HOMEPAGE, DEFAULT_LINUX_MAINTAINER, LINUX_DOCX_MIME, assertBuildPlatformAllowed, assertBuildInputsInsideRepository, assertPackagedAsarContents, createPackagerConfig, linuxPackagingMetadata, locatePackagedAsar, nsisTestDefine, platformArches, prepareDebResources, validateLinuxTargets, validateMacTarget, validateMacTargets } from "./package.mjs";
 import { LINUX_BUILDER_DIGEST, LINUX_BUILDER_IMAGE, assertPinnedImage, dockerExecutable, dockerRunArguments } from "./package-linux-docker.mjs";
 import { deriveBuildMetadata, DeploymentProfileError, readDeploymentProfileFromEnv } from "./deployment-profile.mjs";
 import identity from "../identity.json" with { type: "json" };
@@ -147,6 +147,10 @@ test("macOS config pins the Ventura floor, one architecture and the URL scheme",
   const intel = createPackagerConfig({ platform: "darwin", arch: "x64", channel: "dev", version: "0.1.0-dev.42" });
   assert.deepEqual(intel.mac.extendInfo.LSArchitecturePriority, ["x64"]);
   assert.match(intel.artifactName, /_unsigned_darwin_x64\.dmg$/);
+  // Each artifact declares exactly one architecture; the pair is planned together.
+  assert.equal(validateMacTarget(arm, "arm64"), true);
+  assert.equal(validateMacTarget(intel, "x64"), true);
+  assert.throws(() => validateMacTarget(arm, "x64"), /dmg target for x64/);
 });
 
 test("cross-platform builds are refused with an actionable error", () => {
@@ -164,15 +168,23 @@ test("Linux deb maintainer scripts are generated from the reviewed templates", a
     const resources = await prepareDebResources({ channelIdentity: identity.channelProfiles.dev, cacheDirectory: directory });
     const preinst = readFileSync(resources.beforeInstall, "utf8");
     const afterInstall = readFileSync(resources.afterInstall, "utf8");
+    const afterRemove = readFileSync(resources.afterRemove, "utf8");
     assert.ok(preinst.includes("UNIWORK_OS_RELEASE_FILE"));
     assert.ok(!preinst.includes("@EXECUTABLE@"));
     assert.ok(afterInstall.includes('EXECUTABLE="uniwork-office-test"'));
     assert.ok(afterInstall.includes("x-scheme-handler/uniwork-office-dev"));
     assert.ok(afterInstall.includes("/opt/uniwork-office-dev"));
     assert.ok(afterInstall.includes("update-desktop-database"));
-    if (process.platform !== "win32") assert.ok((statSync(resources.afterInstall).mode & 0o111) !== 0, "maintainer scripts are executable");
+    assert.ok(afterRemove.includes('EXECUTABLE="uniwork-office-test"'));
+    assert.ok(afterRemove.includes("update-alternatives --remove"));
+    assert.ok(afterRemove.includes('grep -v "^$SCHEME_HANDLER="'));
+    if (process.platform !== "win32") {
+      assert.ok((statSync(resources.afterInstall).mode & 0o111) !== 0, "maintainer scripts are executable");
+      assert.ok((statSync(resources.afterRemove).mode & 0o111) !== 0, "after-remove is executable");
+    }
     const config = createPackagerConfig({ platform: "linux", arch: "x64", channel: "dev", version: "0.1.0-dev.42", debResources: resources });
     assert.equal(config.deb.afterInstall, resources.afterInstall);
+    assert.equal(config.deb.afterRemove, resources.afterRemove);
     assert.deepEqual(config.deb.fpm, [`--url=${DEFAULT_LINUX_HOMEPAGE}`, `--before-install=${resources.beforeInstall}`]);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
@@ -201,7 +213,7 @@ test("generated maintainer scripts avoid electron-builder macro syntax", async (
   const directory = mkdtempSync(join(tmpdir(), "uniwork-deb-macro-"));
   try {
     const resources = await prepareDebResources({ channelIdentity: identity.channelProfiles.dev, cacheDirectory: directory });
-    for (const [name, file] of [["preinst.sh", resources.beforeInstall], ["after-install.sh", resources.afterInstall]]) {
+    for (const [name, file] of [["preinst.sh", resources.beforeInstall], ["after-install.sh", resources.afterInstall], ["after-remove.sh", resources.afterRemove]]) {
       const content = readFileSync(file, "utf8");
       const macros = content.match(/\$\{[a-zA-Z]+\}/g) ?? [];
       assert.deepEqual(macros, [], `${name} must not contain letter-only \${...} macro syntax: ${macros.join(", ")}`);

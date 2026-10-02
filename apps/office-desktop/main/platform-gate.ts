@@ -99,6 +99,14 @@ function linuxTooOld(identity: string, version: string): PlatformGateFailure {
   };
 }
 
+function linuxUnsupportedDistribution(identity: string, version: string): PlatformGateFailure {
+  return {
+    code: "linux_unsupported_distribution",
+    messageVi: `Gói .deb của UniWork Office chỉ hỗ trợ Ubuntu 22.04/24.04 và Debian 11 trở lên (x64). Máy này: ${identity} ${version}. Hãy dùng bản .AppImage.`,
+    messageEn: `The UniWork Office .deb supports Ubuntu 22.04/24.04 and Debian 11+ (x64) only. This machine reports ${identity} ${version}. Use the .AppImage instead.`,
+  };
+}
+
 function linuxGlibcTooOld(version: string): PlatformGateFailure {
   return {
     code: "linux_glibc_too_old",
@@ -117,7 +125,7 @@ export function forcedGateFailure(code: string, input: PlatformGateInput): Platf
   if (code === "macos_too_old") return macosTooOld(input.platform === "darwin" ? input.systemVersion ?? "12.7.6" : "12.7.6");
   if (code === "linux_too_old") return linuxTooOld("Ubuntu", "20.04");
   if (code === "linux_glibc_too_old") return linuxGlibcTooOld("2.28");
-  if (code === "linux_unsupported_distribution") return linuxTooOld("Fedora", "40");
+  if (code === "linux_unsupported_distribution") return linuxUnsupportedDistribution("Fedora", "40");
   return { code: "forced", messageVi: `Kiểm tra nền tảng (thử nghiệm): ${code}`, messageEn: `Platform gate test seam: ${code}` };
 }
 

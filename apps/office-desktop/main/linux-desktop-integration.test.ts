@@ -50,14 +50,14 @@ describe("AppImage first-run scheme registration", () => {
     expect(memory.files.get(result.desktopFilePath)).toContain("MimeType=x-scheme-handler/uniwork-office-dev;");
   });
 
-  it("leaves an identical entry alone but still re-registers", () => {
+  it("registers on the first run only, so a user-chosen handler survives", () => {
     const memory = memoryFileSystem();
     const run = vi.fn(() => true);
     registerAppImageScheme({ ...options, fileSystem: memory.fileSystem, run });
     const second = registerAppImageScheme({ ...options, fileSystem: memory.fileSystem, run });
     expect(second.written).toBe(false);
-    expect(second.registered).toBe(true);
-    expect(run).toHaveBeenCalledTimes(2);
+    expect(second.registered).toBe(false);
+    expect(run).toHaveBeenCalledTimes(1);
   });
 
   it("reports a refused registration without throwing", () => {

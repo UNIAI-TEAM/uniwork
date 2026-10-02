@@ -86,6 +86,7 @@ describe("startup platform gate", () => {
     expect(forcedGateFailure("windows_not_64bit", { platform: "linux", arch: "x64" }).code).toBe("windows_not_64bit");
     expect(forcedGateFailure("macos_too_old", { platform: "linux", arch: "x64" }).messageEn).toContain("macOS 13");
     expect(forcedGateFailure("linux_too_old", { platform: "win32", arch: "x64" }).messageEn).toContain("20.04");
+    expect(forcedGateFailure("linux_unsupported_distribution", { platform: "win32", arch: "x64" }).code).toBe("linux_unsupported_distribution");
     expect(forcedGateFailure("linux_unsupported_distribution", { platform: "win32", arch: "x64" }).messageEn).toContain("Fedora");
     expect(forcedGateFailure("anything-else", { platform: "win32", arch: "x64" }).code).toBe("forced");
     // A forced failure for another platform never leaks this host's strings.

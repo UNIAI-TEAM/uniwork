@@ -64,7 +64,9 @@ export function registerAppImageScheme(options: LinuxSchemeRegistrationOptions):
     fileSystem.writeFileSync(desktopFilePath, content, { mode: 0o644 });
     written = true;
   }
+  // First run only: once the entry exists, a deliberate user choice of another
+  // handler must survive the next launch.
   const run = options.run ?? runCommand;
-  const registered = run("xdg-mime", ["default", options.desktopFileName, `x-scheme-handler/${options.scheme}`]);
+  const registered = written ? run("xdg-mime", ["default", options.desktopFileName, `x-scheme-handler/${options.scheme}`]) : false;
   return { desktopFilePath, written, registered };
 }

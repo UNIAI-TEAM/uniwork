@@ -1,10 +1,12 @@
 # UniWork Office desktop - macOS and Ubuntu setup (G4-07e, UNI-920)
 
-Status: unsigned development installers. The Linux `.deb` and AppImage build, install and runtime
-behaviour are verified for real on Ubuntu 24.04 (runner evidence in the G4-07e acceptance packet).
-A real macOS `.dmg` build and install is **blocked: no Mac in this environment** (plan §8.3 - it is
-never simulated). Signing, notarization, update feeds and pilot distribution remain G4-07c/G7 work;
-G4-D3 is unchanged. The Windows ZIP + NSIS setup stays exactly as G4-07a describes.
+Status: unsigned development installers. On Ubuntu 24.04 (cloud runner) the Linux artifacts are built,
+the `.deb` installs and runs, its keyring refusal and the `apt remove` data preservation are exercised,
+and the AppImage first-run registration is checked - the G4-07e acceptance packet records exactly which
+rows passed and which remained open at hand-in. A real macOS `.dmg` build and install is **blocked: no
+Mac in this environment** (plan §8.3 - it is never simulated). Signing, notarization, update feeds and
+pilot distribution remain G4-07c/G7 work; G4-D3 is unchanged. The Windows ZIP + NSIS setup stays exactly
+as G4-07a describes.
 
 Spec: `docs/superpowers/specs/2026-10-02-office-desktop-cross-platform-setup.md` §2, §4. Packaging
 basics (identity, provenance inventory, Windows output) stay in `desktop-packaging.md`.
@@ -68,9 +70,9 @@ Extra `.deb` metadata is build-time configuration with accepted defaults:
   `update-desktop-database`/`update-mime-database`, registers the scheme as a handler (the desktop
   user via `xdg-mime` plus a system-wide `/etc/xdg/mimeapps.list` entry) and keeps the AppArmor
   profile handling for Ubuntu 24.04.
-- `apt remove` deletes `/opt/<product>` and the symlink only. User data under
-  `~/.config/<userDataNamespace>` (drafts, credential files) is kept, matching Windows
-  `deleteAppDataOnUninstall: false`.
+- `apt remove` deletes `/opt/<userDataNamespace>`, the `/usr/bin` symlink and the system-wide scheme
+  mapping the post-install script added. User data under `~/.config/<userDataNamespace>` (drafts,
+  credential files) is kept, matching Windows `deleteAppDataOnUninstall: false`.
 - Login credentials use Electron `safeStorage`, which needs a Secret Service keyring (gnome-keyring,
   the Ubuntu default, or KWallet). When the selected backend is `basic_text` the store refuses with
   a typed `keyring_required` error, the login card shows the gnome-keyring fix hint, and **no

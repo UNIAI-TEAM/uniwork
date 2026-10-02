@@ -158,7 +158,7 @@ export function createPackagerConfig({ platform = "win32", arch = "x64", output 
         `--url=${packagingMetadata.homepage}`,
         ...(debResources ? [`--before-install=${resolve(debResources.beforeInstall)}`] : []),
       ],
-      ...(debResources ? { afterInstall: resolve(debResources.afterInstall) } : {}),
+      ...(debResources ? { afterInstall: resolve(debResources.afterInstall), afterRemove: resolve(debResources.afterRemove) } : {}),
     } : undefined,
     appImage: platform === "linux" ? { artifactName: `${artifactBase}.AppImage` } : undefined,
   };
@@ -219,10 +219,19 @@ export function assertPackagedAsarContents(unpackedDirectory) {
   return files;
 }
 
+/** The two supported macOS architectures are planned together; each artifact
+ * build then declares exactly one of them. */
 export function validateMacTargets(config = { mac: { target: [{ target: "dmg", arch: ["arm64", "x64"] }] } }) {
   const targets = config.mac?.target ?? [];
   const architectures = new Set(targets.flatMap((target) => target.arch ?? []));
   if (!architectures.has("arm64") || !architectures.has("x64")) throw new Error("macOS config must declare arm64 and x64 targets");
+  return true;
+}
+
+export function validateMacTarget(config, arch) {
+  const targets = config.mac?.target ?? [];
+  const declaresDmg = targets.some((target) => target.target === "dmg" && (target.arch ?? []).includes(arch));
+  if (!declaresDmg) throw new Error(`macOS config must declare one dmg target for ${arch}`);
   return true;
 }
 
@@ -305,7 +314,7 @@ export async function prepareDebResources({ channelIdentity, cacheDirectory = ca
   await rm(directory, { recursive: true, force: true });
   await mkdir(directory, { recursive: true });
   const resources = { directory };
-  for (const [source, key] of [["preinst.sh", "beforeInstall"], ["after-install.sh", "afterInstall"]]) {
+  for (const [source, key] of [["preinst.sh", "beforeInstall"], ["after-install.sh", "afterInstall"], ["after-remove.sh", "afterRemove"]]) {
     const file = join(directory, source);
     await writeFile(file, substitute(await readFile(join(appDirectory, "build", "linux", source), "utf8")), "utf8");
     chmodSync(file, 0o755);
@@ -337,6 +346,7 @@ export async function packageDesktop({ platform = process.platform, arch, output
   readDeploymentProfileFromEnv(process.env, identity, packageJson.version);
   await mkdir(output, { recursive: true });
   const arches = arch ? [arch] : platformArches(platform);
+  if (platform === "darwin" && !arch) validateMacTargets({ mac: { target: [{ target: "dmg", arch: arches }] } });
   const resolvedLabel = artifactLabel ?? buildMetadata.artifactLabel;
   const { Arch, Platform, build } = await import("electron-builder");
   const artifacts = [];
@@ -355,7 +365,7 @@ export async function packageDesktop({ platform = process.platform, arch, output
         nsisInclude: platform === "win32" ? await prepareInstallerInclude(buildMetadata.identity, nsisTestDefine(process.env.UNIWORK_NSIS_TEST_GATE)) : undefined,
         debResources: platform === "linux" ? await prepareDebResources({ channelIdentity: buildMetadata.identity }) : undefined,
       });
-      if (platform === "darwin") validateMacTargets(config);
+      if (platform === "darwin") validateMacTarget(config, targetArch);
       if (platform === "linux") validateLinuxTargets(config);
       const targets = platform === "win32"
         ? Platform.WINDOWS.createTarget(["zip", "nsis"], Arch.x64)
