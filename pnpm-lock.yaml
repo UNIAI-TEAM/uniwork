@@ -1009,6 +1009,9 @@ importers:
       hast-util-to-html:
         specifier: ^9.0.5
         version: 9.0.5
+      jszip:
+        specifier: 'catalog:'
+        version: 3.10.1
       katex:
         specifier: 'catalog:'
         version: 0.16.47
@@ -1091,9 +1094,6 @@ importers:
       jsdom:
         specifier: 'catalog:'
         version: 26.1.0
-      jszip:
-        specifier: 'catalog:'
-        version: 3.10.1
       typescript:
         specifier: 'catalog:'
         version: 5.9.3

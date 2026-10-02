@@ -1,0 +1,6 @@
+{
+  "source": "office-g3g4/reports/g3-d3-docx-r2/fixtures/input/docx-pagination-hf.docx",
+  "sha256": "679319afd3f15a362c1a586834cc95a3a43f14f445500736c24d6842218127a1",
+  "sizeBytes": 38219,
+  "description": "synthetic, no PII, created for G3-D3 by UNI-823"
+}
