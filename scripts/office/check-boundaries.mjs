@@ -55,6 +55,10 @@ export const BROWSER_SAFE_PACKAGES = new Set([
   "@uniwork/ui/components/ui/input",
   "@uniwork/ui/components/ui/skeleton",
   "@uniwork/ui/components/ui/radio-group",
+  // UNI-917 desktop tab strip/library header
+  "@uniwork/views/layout/collection-page",
+  "@uniwork/ui/components/ui/dropdown-menu",
+  "@uniwork/ui/components/ui/popover",
   "@uniwork/views/office/office-shell",
   "@uniwork/views/office/editor-slot",
   "@uniwork/views/office/docx",

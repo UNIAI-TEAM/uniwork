@@ -89,6 +89,21 @@ test("fails when desktop graphs use bare privileged specifiers", () => {
   }
 });
 
+test("desktop tabs and library accept their UI exports and reject a native export", () => {
+  const renderer = "apps/office-desktop/renderer/index.ts";
+  const imports = [
+    "@uniwork/views/layout/collection-page",
+    "@uniwork/ui/components/ui/dropdown-menu",
+    "@uniwork/ui/components/ui/popover",
+  ].map((specifier) => `import ${JSON.stringify(specifier)};`).join("\n");
+  assert.equal(checkBoundaries(plant({ [renderer]: imports })).ok, true);
+  const rejected = checkBoundaries(plant({
+    [renderer]: `${imports}\nimport "@uniwork/office-engine/node";`,
+  }));
+  assert.equal(rejected.ok, false);
+  assert.ok(rules(rejected).includes("desktop_renderer_isolation"));
+});
+
 test("fails on a TRANSITIVE browser -> node: import", () => {
   const root = plant({
     "packages/office-engine/src/browser/index.ts":
