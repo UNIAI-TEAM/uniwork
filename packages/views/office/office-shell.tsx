@@ -214,9 +214,11 @@ export function OfficeShell({
       data-theme={isDarkTheme ? "dark" : "light"}
     >
       <BreadcrumbHeader segments={breadcrumbs} leaf={title} actions={headerActions} />
-      <div className={cn(PAGE_TOOLBAR, "border-b border-border bg-muted/20")}>
-        <div className="flex min-w-0 items-center gap-1 overflow-x-auto">{toolbar}</div>
-      </div>
+      {toolbar ? (
+        <div className={cn(PAGE_TOOLBAR, "border-b border-border bg-muted/20")}>
+          <div className="flex min-w-0 items-center gap-1 overflow-x-auto">{toolbar}</div>
+        </div>
+      ) : null}
       {tabs.length > 0 ? (
         <div role="tablist" aria-label={t("tabs")} className="flex min-h-10 shrink-0 items-end gap-1 border-b border-border px-4">
           {tabs.map((tab, index) => {
