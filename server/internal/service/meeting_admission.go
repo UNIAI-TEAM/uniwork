@@ -92,9 +92,31 @@ func (s *MeetingService) Evaluate(ctx context.Context, in AdmissionContext) (Adm
 	if err != nil {
 		return AdmissionDecision{}, err
 	}
+	// Standing first, before anything about the meeting is answered: a member
+	// of its workspace, the holder of one of its own invite links, or a
+	// principal it already knows. The status checks below would otherwise tell
+	// anyone holding an id - another organization included - whether the
+	// meeting exists, ended or was canceled (ADR 0008 isolation matrix).
+	member := false
 	if in.UserID != "" {
-		if _, err := s.ws.RequireMember(ctx, m.WorkspaceID, in.UserID); err != nil && in.InviteLinkID == "" {
+		_, err := s.ws.RequireMember(ctx, m.WorkspaceID, in.UserID)
+		if err != nil && in.InviteLinkID == "" {
 			return AdmissionDecision{Decision: DecisionDeny, Reason: "FORBIDDEN", Meeting: m}, err
+		}
+		member = err == nil
+	}
+	if !member {
+		if in.InviteLinkID != "" {
+			link, err := s.verifyInviteLink(ctx, s.q, in.InviteLinkID, in.InviteSecret)
+			if err != nil {
+				return AdmissionDecision{Decision: DecisionDeny, Reason: "INVITE_LINK_INVALID"}, err
+			}
+			if link.MeetingID != m.ID {
+				return AdmissionDecision{Decision: DecisionDeny, Reason: "INVITE_LINK_INVALID"},
+					coded(http.StatusNotFound, "invite_link_invalid", "liên kết không hợp lệ")
+			}
+		} else if _, err := s.lookupPrincipal(ctx, m.ID, in); err != nil {
+			return AdmissionDecision{Decision: DecisionDeny, Reason: "MEETING_NOT_FOUND"}, ErrNotFound
 		}
 	}
 	if m.Status == MeetingEnded {
@@ -382,6 +404,13 @@ func (s *MeetingService) ensureJoinRequestTx(ctx context.Context, q *db.Queries,
 }
 
 func (s *MeetingService) RequestJoin(ctx context.Context, in AdmissionContext) (db.MeetingJoinRequest, error) {
+	// A guest knocks through an invite link (Evaluate on POST /join), never by
+	// the bare meeting id: the id travels in URLs, and a knock puts a row in
+	// the host's queue and admits the knocker to the lobby socket. Only a
+	// member of the meeting's workspace may ask without a link.
+	if in.UserID == "" {
+		return db.MeetingJoinRequest{}, ErrNotFound
+	}
 	m, err := s.q.GetMeeting(ctx, in.MeetingID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return db.MeetingJoinRequest{}, ErrNotFound

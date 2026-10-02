@@ -46,7 +46,8 @@ func HandleMeetingLobbyWebSocket(
 	}
 	conn.SetReadLimit(inboundReadLimit)
 
-	guestID := meetings.GuestIDFromRequest(r, guestKey)
+	cookieGuest := meetings.GuestIDFromRequest(r, guestKey)
+	guestID := cookieGuest
 	userID := ""
 
 	if guestID == "" {
@@ -72,6 +73,20 @@ func HandleMeetingLobbyWebSocket(
 	}
 
 	ok, err := checker.AllowLobbyListen(r.Context(), meetingID, userID, guestID)
+	if err == nil && !ok && cookieGuest != "" && userID == "" {
+		// The uw_guest cookie lives 30 days on every path, so a person who
+		// once used a link signed out still carries it after signing in -
+		// and it names a guest this meeting may not know. Their client sends
+		// its own auth frame; decide on that before refusing.
+		uid, gid, errMsg, closed := firstMessageLobbyAuth(conn, guestKey, parse)
+		if closed {
+			return
+		}
+		if errMsg == "" && (uid != "" || gid != "") {
+			userID, guestID = uid, gid
+			ok, err = checker.AllowLobbyListen(r.Context(), meetingID, userID, guestID)
+		}
+	}
 	if err != nil {
 		writeWSAuthErrorAndClose(
 			conn,
