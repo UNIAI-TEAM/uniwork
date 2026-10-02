@@ -34,7 +34,7 @@ root=$(git rev-parse --show-toplevel)
 cd "$root"
 export PATH=/usr/local/go/bin:$HOME/go/bin:$PATH
 
-provisioned=false start_seconds=0 head="" notes=""
+provisioned=false fresh_install=false start_seconds=0 head="" notes=""
 ran_file=$(mktemp)
 
 report() { # stage_outcome test_verdict log_ref
@@ -67,9 +67,17 @@ if [ ! -f "$state/installed" ]; then
   if ! bash "$here/install.sh" > /tmp/runner-install.log 2>&1; then
     notes="install.sh failed: $(tail -3 /tmp/runner-install.log | tr '\n' ' ')"; report failed blocked ""; exit 0
   fi
-  touch "$state/installed"; provisioned=true
+  touch "$state/installed"; provisioned=true; fresh_install=true
   sha256sum pnpm-lock.yaml server/go.sum > "$state/locks"
-elif ! sha256sum -c --quiet "$state/locks" > /dev/null 2>&1; then
+  sha256sum "$here/provision.sh" > "$state/provision"
+elif ! sha256sum -c --quiet "$state/provision" > /dev/null 2>&1; then
+  # provision.sh changed on test/cursor-cloud-env: add the new stack to this warm VM.
+  if ! bash "$here/provision.sh" > /tmp/runner-provision.log 2>&1; then
+    notes="provision.sh failed: $(tail -3 /tmp/runner-provision.log | tr '\n' ' ')"; report failed blocked ""; exit 0
+  fi
+  sha256sum "$here/provision.sh" > "$state/provision"; provisioned=true
+fi
+if [ "$fresh_install" = false ] && ! sha256sum -c --quiet "$state/locks" > /dev/null 2>&1; then
   if ! { pnpm install --frozen-lockfile && (cd server && go mod download); } > /tmp/runner-deps.log 2>&1; then
     notes="dependency refresh failed: $(tail -3 /tmp/runner-deps.log | tr '\n' ' ')"; report failed blocked ""; exit 0
   fi
