@@ -2,7 +2,7 @@ import { createOfficeSaveCoordinator } from "@uniwork/core/office/save-coordinat
 import type { DraftAdapter, OfficeIdentity, OfficeSaveIntent, OfficeSaveTransport, StableSnapshot, SaveAttemptResult } from "@uniwork/core/office";
 import type { DocxEditorHandle } from "@uniwork/views/office/docx";
 import type { DesktopDocxSurface } from "./docx-surface";
-import { desktopDraftDiscardResponseSchema, desktopDraftListResponseSchema, desktopDraftRecoveryResponseSchema, desktopDraftResponseSchema, desktopFileResponseSchema, desktopOfficeSaveResponseSchema, type DesktopDraftMetadata } from "../../shared/ipc";
+import { desktopDraftDiscardResponseSchema, desktopDraftListResponseSchema, desktopDraftRecoveryResponseSchema, desktopDraftResponseSchema, desktopFileResponseSchema, desktopOfficeOpenResponseSchema, desktopOfficeSaveResponseSchema, type DesktopDraftMetadata } from "../../shared/ipc";
 import type { LibraryBridge } from "../library/model";
 
 export type OpenedBytes = { dataBase64: string; checksum: string; localHandle?: string; canSave?: boolean };
@@ -43,9 +43,10 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
   let localName: string | undefined;
   let saveAsRequested = false;
   let pickerCancelled = false;
-  let localContextError: unknown;
-  let localContextRefresh: Promise<void> | undefined;
-  let localSaveSettled: Promise<void> | undefined;
+  let contextError: unknown;
+  let contextRefresh: Promise<void> | undefined;
+  let saveSettled: Promise<void> | undefined;
+  let confirmedCloudBase: { revision: string; checksum: string } | undefined;
   let saveInProgress = false;
   let rebindingGeneration: number | null = null;
   let rawCoordinator!: ReturnType<typeof createOfficeSaveCoordinator<Uint8Array>>;
@@ -131,13 +132,13 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
   // seam for cloud and local work. Main also protects local pre-write bytes.
   const draft: DraftAdapter<Uint8Array> = {
     checkpoint: async (snapshot) => {
-      // A local receipt advances the draft base. Wait through the write and
+      // A receipt advances the draft base. Wait through the write and
       // read-only context refresh before assigning N+1 to that new base.
-      if (localSaveSettled) await localSaveSettled;
+      if (saveSettled) await saveSettled;
       if (disposed) throw new Error("docx_editor_disposed");
       // A snapshot that the completed Save already persisted needs no draft.
-      if (localHandle && snapshot.generation <= rawCoordinator.getState().lastSavedGeneration) return;
-      if (localContextError) await bindLocalContext();
+      if (snapshot.generation <= rawCoordinator.getState().lastSavedGeneration) return;
+      if (contextError) await bindDraftContext();
       const draftId = draftIdFor(currentIdentity());
       const rows = await listRows();
       generationFloor = Math.max(generationFloor, ...(rows ?? []).map((row) => row.generation));
@@ -215,14 +216,25 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
     if (generation > savedGeneration) rawCoordinator.markDirty(generation);
     publish();
   };
-  const bindLocalContext = (): Promise<void> => {
-    localContextRefresh ??= (async () => {
-      const handle = localHandle!;
-      const result = desktopFileResponseSchema.parse(await bridge.call("desktop:file-open", { sessionGeneration: SESSION_GENERATION, handle }));
-      if (disposed || !result.opened || result.metadata?.handle !== handle || localHandle !== handle) throw new Error("local_rebind_unconfirmed");
-      localContextError = undefined;
-    })().finally(() => { localContextRefresh = undefined; });
-    return localContextRefresh;
+  const bindDraftContext = (): Promise<void> => {
+    contextRefresh ??= (async () => {
+      if (localHandle) {
+        const handle = localHandle;
+        const result = desktopFileResponseSchema.parse(await bridge.call("desktop:file-open", { sessionGeneration: SESSION_GENERATION, handle }));
+        if (disposed || !result.opened || result.metadata?.handle !== handle || localHandle !== handle) throw new Error("local_rebind_unconfirmed");
+      } else {
+        const target = currentIdentity();
+        const confirmed = confirmedCloudBase;
+        const result = desktopOfficeOpenResponseSchema.parse(await bridge.call("desktop:office-open", { sessionGeneration: SESSION_GENERATION, workspaceId: target.workspaceId, documentId: target.documentId }));
+        if (disposed || !confirmed || currentIdentity().documentId !== target.documentId || result.document.id !== target.documentId || result.document.workspaceId !== target.workspaceId || !result.document.canEdit || result.document.revision !== confirmed.revision || result.checksum !== confirmed.checksum) throw new Error("cloud_rebind_unconfirmed");
+        // Main records the current numeric document version on this read-only
+        // open. Keep it for draft bases while retaining the opaque Save receipt.
+        // Downloaded bytes never replace this editor or its pending N+1 edits.
+        rawCoordinator.setIdentity({ ...target, baseVersionId: String(result.document.version), baseRevision: result.document.revision });
+      }
+      contextError = undefined;
+    })().finally(() => { contextRefresh = undefined; });
+    return contextRefresh;
   };
   const coordinator = {
     getState: () => rawCoordinator.getState(),
@@ -234,10 +246,10 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
       if (saveInProgress) return { accepted: false, reason: "saving" };
       if (!surface || disposed) return { accepted: false, reason: "readonly" };
       saveInProgress = true;
-      let releaseLocalSave: (() => void) | undefined;
-      if (localHandle) localSaveSettled = new Promise<void>((resolve) => { releaseLocalSave = resolve; });
+      let releaseSave!: () => void;
+      saveSettled = new Promise<void>((resolve) => { releaseSave = resolve; });
       try {
-      if (localContextError) await bindLocalContext();
+      if (contextError) await bindDraftContext();
       const result = await rawCoordinator.save(entryPoint);
       if (result.accepted) {
         const output = outputs.get(result.intentId);
@@ -249,10 +261,13 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
           // The file is already confirmed: retain that receipt and descriptor
           // even if the read-only context refresh fails. Draft writes then
           // refuse until a subsequent refresh succeeds.
-          await bindLocalContext().catch((error: unknown) => { localContextError = error; });
+          await bindDraftContext().catch((error: unknown) => { contextError = error; });
         } else if (output?.localBase) {
           rawCoordinator.setIdentity({ ...rawCoordinator.getState().identity, baseVersionId: output.localBase.versionId, baseRevision: output.localBase.revision });
-          await bindLocalContext().catch((error: unknown) => { localContextError = error; });
+          await bindDraftContext().catch((error: unknown) => { contextError = error; });
+        } else if (!localHandle && output) {
+          confirmedCloudBase = { revision: result.receipt.revision, checksum: output.checksum };
+          await bindDraftContext().catch((error: unknown) => { contextError = error; });
         }
         outputs.delete(result.intentId);
       }
@@ -260,7 +275,7 @@ export function createByteDocumentSession(bridge: LibraryBridge, identity: Offic
       } catch (error) {
         if (disposed) return { accepted: false, reason: "stale" };
         throw error;
-      } finally { saveInProgress = false; releaseLocalSave?.(); localSaveSettled = undefined; }
+      } finally { saveInProgress = false; releaseSave(); saveSettled = undefined; }
     },
   };
   if (opened.canSave === false) coordinator.setCapability({ format: "docx", operation: "serialize", host: "desktop", engineBuild: "09485f884dc845cf3bf27fb7edfe489f9d457aad", contractRevision: "office-editor-host/1", status: "readonly", fidelityWarnings: [] });
