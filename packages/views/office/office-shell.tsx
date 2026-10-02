@@ -182,8 +182,8 @@ export function OfficeShell({
     return () => window.removeEventListener("keydown", handleShortcut);
   }, [canSave, effectiveSaving, onSave, saveCoordinator]);
   const headerActions = (
-    <div className="flex min-w-0 items-center gap-1">
-      <SaveStatus status={saveStatus} coordinatorState={coordinatorState} destination={saveDestination} />
+    <div className="flex min-w-0 flex-wrap items-center gap-1 md:flex-nowrap">
+      <SaveStatus className="w-full md:w-auto" status={saveStatus} coordinatorState={coordinatorState} destination={saveDestination} />
       {canSave ? (
         <Button size="sm" onClick={performSave} disabled={effectiveSaving} aria-label={saveLabel}>
           <Save aria-hidden />
@@ -213,7 +213,13 @@ export function OfficeShell({
       data-fullscreen={fullscreen}
       data-theme={isDarkTheme ? "dark" : "light"}
     >
-      <BreadcrumbHeader segments={breadcrumbs} leaf={title} actions={headerActions} />
+      <BreadcrumbHeader
+        segments={breadcrumbs}
+        leaf={title}
+        actions={headerActions}
+        className="h-auto min-h-12 flex-wrap py-2 md:h-12 md:flex-nowrap md:py-0"
+        actionsClassName="w-full max-w-full justify-start overflow-visible md:w-auto md:justify-end md:overflow-x-auto"
+      />
       {toolbar ? (
         <div className={cn(PAGE_TOOLBAR, "border-b border-border bg-muted/20")}>
           <div className="flex min-w-0 items-center gap-1 overflow-x-auto">{toolbar}</div>
