@@ -6,6 +6,9 @@ import { expect, it, vi } from "vitest";
 import { setLocale } from "@uniwork/core/i18n";
 import type { DesktopSessionMetadata } from "../shared/ipc";
 import { App, type RendererBridge } from "./app";
+import { bytesChecksum, docxSource, installDocxGeometry } from "../test/docx-fixture";
+
+installDocxGeometry();
 
 function makeBridge(call: RendererBridge["call"]): { bridge: RendererBridge; emit: (metadata: DesktopSessionMetadata) => void } {
   let listener: ((metadata: DesktopSessionMetadata) => void) | undefined;
@@ -173,10 +176,10 @@ it("picks a scope, lists the workspace library, opens and downloads a document, 
     if (channel === "desktop:auth-session") return { status: "signed-in", accountId: "account-1", deploymentId: "lane" };
     if (channel === "desktop:library-context") return { deployments: [{ id: "default", name: "Default" }], accounts: [{ id: "account-1", name: "me" }], organizations: [{ id: "org-1", name: "Acme" }], workspaces: [{ id: "ws-1", name: "Team" }] };
     if (channel === "desktop:library-list") return { documents: [document], nextCursor: null, engineAvailable: true };
-    const bytes = { dataBase64: "aGVsbG8=", checksum: `sha256:${"a".repeat(64)}`, filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
+    const bytes = { dataBase64: Buffer.from(docxSource).toString("base64"), checksum: bytesChecksum(docxSource), filename: "Plan.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
     if (channel === "desktop:library-download") return { ...bytes, documentId: document.id, version: 1 };
     if (channel === "desktop:office-open") return { ...bytes, document };
-    if (channel === "desktop:office-save") { const request = payload as { intentId: string; idempotencyKey: string }; return { ...request, documentId: document.id, versionId: "v2", revision: "2", checksum: bytes.checksum }; }
+    if (channel === "desktop:office-save") { const request = payload as { intentId: string; idempotencyKey: string; checksum: string }; return { intentId: request.intentId, idempotencyKey: request.idempotencyKey, documentId: document.id, versionId: "v2", revision: "2", checksum: request.checksum }; }
     if (channel === "desktop:auth-logout") return { status: "signed-out" };
     return {};
   }) as RendererBridge["call"]);
@@ -190,11 +193,17 @@ it("picks a scope, lists the workspace library, opens and downloads a document, 
   await waitFor(() => expect(calls.some((call) => call.channel === "desktop:office-open")).toBe(true));
   expect(calls.some((call) => call.channel === "desktop:library-download")).toBe(true);
   await screen.findByRole("button", { name: "Về thư viện" });
-  await waitFor(() => expect(container.querySelector('[data-testid="docx-editor"]')).not.toBeNull());
+  await screen.findByTestId("docx-document-surface", {}, { timeout: 10000 });
   expect(container.querySelector("[data-desktop-library]")).toBeNull();
+  expect(calls.filter((call) => call.channel === "desktop:office-save")).toHaveLength(0);
+  const paragraph = container.querySelector('.ProseMirror p, .ProseMirror h1')!;
+  act(() => { paragraph.textContent = "Edited fixture"; fireEvent.input(paragraph); });
+  await waitFor(() => expect(container.querySelector('[data-testid="office-save-not-sent"]')).not.toBeNull());
   act(() => nativeSave?.({ documentId: document.id }));
   await waitFor(() => expect(calls.filter((call) => call.channel === "desktop:office-save")).toHaveLength(1));
-  expect(calls.find((call) => call.channel === "desktop:office-save")?.payload).toMatchObject({ dataBase64: "aGVsbG8=" });
+  const saved = calls.find((call) => call.channel === "desktop:office-save")!.payload as { dataBase64: string; checksum: string };
+  expect(saved.dataBase64).not.toBe(Buffer.from(docxSource).toString("base64"));
+  expect(saved.checksum).toBe(bytesChecksum(Buffer.from(saved.dataBase64, "base64")));
 
   fireEvent.click(screen.getByRole("button", { name: "Đăng xuất" }));
   await waitFor(() => expect(container.querySelector("[data-login-state='signed-out']")).not.toBeNull());
