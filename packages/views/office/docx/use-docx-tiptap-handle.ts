@@ -16,6 +16,7 @@ import type { DocxAdapter } from "@uniwork/office-engine/docx";
 import type { StableSnapshot } from "@uniwork/core/office";
 import { blocksToDoc } from "./docx-doc-convert";
 import { docxDocumentLang, installDocxDocumentStyles } from "./docx-doc-styles";
+import { prepareDocxHeadingStyles } from "./docx-heading-styles";
 import { DocxNoteAreas } from "./docx-note-areas";
 import { attachDocxPagination, createDocxPaginationSpec, type DocxPaginationSpec } from "./docx-pagination";
 import { applyDocxSnapshot, encodeDocxSource, decodeDocxSource } from "./docx-save-bridge";
@@ -288,8 +289,15 @@ export function createDocxTiptapHandle(options: DocxTiptapHandleOptions): DocxTi
       if (disposed || options.readOnly) throw new Error("docx_save_unavailable");
       const opened = await options.adapter.open({ bytes: decodeDocxSource(snapshot.value.sourceBase64), format: "docx", document_id: options.documentId });
       if (opened.outcome !== "opened") throw new Error(opened.message ?? "docx_snapshot_open_failed");
-      const saveRef = opened.document_model_ref;
+      let saveRef = opened.document_model_ref;
       try {
+        const styledSource = await prepareDocxHeadingStyles(options.adapter, saveRef, snapshot.value.doc);
+        if (styledSource) {
+          options.adapter.release(saveRef);
+          const prepared = await options.adapter.open({ bytes: styledSource, format: "docx", document_id: options.documentId });
+          if (prepared.outcome !== "opened") throw new Error(prepared.message ?? "docx_heading_styles_open_failed");
+          saveRef = prepared.document_model_ref;
+        }
         applyDocxSnapshot(options.adapter, saveRef, snapshot.value.doc, options.adapter.blocksOf(saveRef));
         return await options.adapter.serialize({ document_model_ref: saveRef, format: "docx" });
       } finally {
