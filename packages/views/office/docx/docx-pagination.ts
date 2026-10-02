@@ -53,18 +53,13 @@ export {
   buildPaginationFrame,
   docxPaperMinHeightPx,
   resolvePageHf,
-  sectionHfHeights,
   type DocxPaginationSpec,
-  type PaginationEdgeHf,
-  type PaginationFrame,
 } from "./docx-frame";
 export {
   colGeomsFor,
   docxColumnCss,
   docxColumnFlow,
   docxColumnMode,
-  docxDocumentVars,
-  type DocxColumnMode,
 } from "./docx-columns";
 export { docxBlockMeta, tableCutRow } from "./docx-block-meta";
 
