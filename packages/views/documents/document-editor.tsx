@@ -11,11 +11,14 @@ import {
 } from "react";
 import type { JSONContent } from "@tiptap/core";
 import { EditorContent, useEditor } from "@tiptap/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { useMembers } from "@uniwork/core/workspaces";
 import { sanitizePageContent } from "@uniwork/core/documents/schema";
 import { cn } from "@uniwork/ui/lib/utils";
 import { EditorBubbleMenu } from "../editor/bubble-menu";
 import { createPageDocumentExtensions } from "../editor/extensions";
+import { createMentionSuggestion } from "../editor/extensions/mention-suggestion";
 import {
   createDocumentAssetUploadExtension,
   type DocumentAssetUploader,
@@ -41,7 +44,7 @@ export interface DocumentEditorHandle {
    * discarded, or the user chose the server copy).
    */
   adoptContent: (content: unknown, revision: string) => void;
-  focus: () => void;
+  focus: (position?: "start" | "end") => void;
 }
 
 export interface DocumentEditorProps {
@@ -68,6 +71,7 @@ export interface DocumentEditorProps {
   onPendingUploadsChange?: (pending: number) => void;
   onContentError?: (error: unknown) => void;
   onReady?: () => void;
+  onFocusTitle?: () => void;
 }
 
 export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorProps>(
@@ -86,10 +90,20 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
       onPendingUploadsChange,
       onContentError,
       onReady,
+      onFocusTitle,
     },
     ref,
   ) {
     const { t } = useTranslation();
+    const queryClient = useQueryClient();
+    const members = useMembers(wsId);
+    const membersRef = useRef(members.data);
+    membersRef.current = members.data;
+    const translateRef = useRef(t);
+    translateRef.current = t;
+    const imageInputRef = useRef<HTMLInputElement>(null);
+    const focusTitleRef = useRef(onFocusTitle);
+    focusTitleRef.current = onFocusTitle;
     const onChangeRef = useRef(onChange);
     const onAssetErrorRef = useRef(onAssetError);
     const onContentErrorRef = useRef(onContentError);
@@ -122,7 +136,21 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
             onPendingChange: handlePendingChange,
             onError: (error) => onAssetErrorRef.current?.(error),
           }),
-          placeholder: t("documents.editor.placeholder"),
+          placeholder: ({ editor: instance }) => translateRef.current(instance.isEmpty
+            ? "documents.page_ui.empty_placeholder" : "documents.page_ui.line_placeholder"),
+          slash: { translate: (key, options) => translateRef.current(key, options), chooseImage: () => imageInputRef.current?.click() },
+          mention: {
+            ...createMentionSuggestion(queryClient, { mode: "context", getContextItems: () =>
+              (membersRef.current ?? []).map((member) => ({ id: member.user_id, label: member.display_name, type: "member" as const })) }),
+            // Both typed @ and the slash menu's @ use the page vocabulary.
+            allow: ({ editor: instance }) => instance.isEditable,
+            command: ({ editor: instance, range, props }) => {
+              instance.chain().focus().insertContentAt(range, [
+                { type: "mention", attrs: { id: props.id, label: props.label, kind: "user" } },
+                { type: "text", text: " " },
+              ]).run();
+            },
+          },
         }),
       // Built once per mount on purpose: Tiptap reads its extension set at
       // creation, like every other editor in this package.
@@ -148,13 +176,20 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
       },
       editorProps: {
         attributes: {
-          // outline-none kills the browser default; the ring below is the
-          // focus indicator (the caret alone is not one for keyboard users).
           class:
-            "rich-text-editor min-h-64 rounded-sm text-body outline-none focus-visible:ring-2 focus-visible:ring-ring/30",
+            "rich-text-editor document-page-prose min-h-64 text-body leading-relaxed",
           role: "textbox",
           "aria-multiline": "true",
           "aria-label": t("documents.editor.aria_label"),
+        },
+        handleKeyDown: (view, event) => {
+          if (!editable || event.isComposing || !focusTitleRef.current) return false;
+          if (event.key !== "ArrowUp" && event.key !== "Backspace") return false;
+          const { selection, doc: body } = view.state;
+          if (!selection.empty || selection.from !== 1 || !body.firstChild?.isTextblock || body.firstChild.content.size !== 0) return false;
+          event.preventDefault();
+          focusTitleRef.current();
+          return true;
         },
       },
     });
@@ -192,16 +227,31 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
           editor.commands.setContent(next as JSONContent, { emitUpdate: false });
           adoptedRevisionRef.current = revision;
         },
-        focus: () => editor?.commands.focus(),
+        focus: (position) => editor?.commands.focus(position),
       }),
       [editor],
     );
+
+    useEffect(() => {
+      if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr);
+    }, [editor, t]);
 
     if (!editor) return <div className="flex-1" data-testid="document-editor-loading" />;
 
     return (
       <div className="relative flex flex-1 flex-col" data-document-id={documentId} data-ws-id={wsId}>
         <EditorContent editor={editor} className="flex flex-1 flex-col" />
+        {editable ? <input ref={imageInputRef} type="file" accept="image/*" className="hidden"
+          aria-label={t("documents.page_ui.choose_image")} onChange={(event) => {
+            const files = Array.from(event.target.files ?? []);
+            event.target.value = "";
+            if (!files.length || !editor.isEditable) return;
+            // Run the existing paste asset handler, including its pending/save
+            // accounting and asset:// replacement, for the chosen local file.
+            const paste = new Event("paste", { bubbles: true, cancelable: true });
+            Object.defineProperty(paste, "clipboardData", { value: { files, getData: () => "" } });
+            editor.view.dom.dispatchEvent(paste);
+          }} /> : null}
         {editable ? <EditorBubbleMenu editor={editor} variant="page" /> : null}
         <span className="sr-only" role="status" aria-live="polite">
           {pendingUploads > 0 ? t("documents.save.asset_uploading") : ""}

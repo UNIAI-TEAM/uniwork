@@ -50,12 +50,12 @@ function pageDocument(over: Record<string, unknown> = {}): Document {
 
 /** The editor arrives through React.lazy; the first TipTap import is slow. */
 function findEditor() {
-  return screen.findByRole("textbox", {}, { timeout: 15_000 });
+  return screen.findByRole("textbox", { name: t("documents.editor.aria_label") }, { timeout: 15_000 });
 }
 
 /** Paste through the real ProseMirror handler, the way a user types text in. */
 function pasteText(text: string) {
-  const surface = screen.getByRole("textbox");
+  const surface = screen.getByRole("textbox", { name: t("documents.editor.aria_label") });
   const event = new Event("paste", { bubbles: true, cancelable: true });
   Object.defineProperty(event, "clipboardData", {
     value: { files: [], getData: (type: string) => (type === "text/plain" ? text : "") },
@@ -104,6 +104,42 @@ function renderWorkspace(
 
 beforeEach(() => {
   requestMock.mockReset();
+});
+
+describe("DocumentWorkspace note page UI", () => {
+  it("hands focus from title Enter to the body and back on empty first-line Backspace/ArrowUp", async () => {
+    renderWorkspace({ content: { type: "doc", content: [{ type: "paragraph" }] } });
+    const body = await findEditor();
+    const title = screen.getByRole("textbox", { name: t("documents.page_ui.title_label") });
+    fireEvent.keyDown(title, { key: "Enter" });
+    await waitFor(() => expect(body).toHaveFocus());
+    fireEvent.keyDown(body, { key: "Backspace" });
+    expect(title).toHaveFocus();
+    fireEvent.keyDown(title, { key: "Enter" });
+    await waitFor(() => expect(body).toHaveFocus());
+    fireEvent.keyDown(body, { key: "ArrowUp" });
+    expect(title).toHaveFocus();
+  });
+
+  it("opens the page listbox and Escape preserves the slash without producing a chat command", async () => {
+    renderWorkspace({ content: { type: "doc", content: [{ type: "paragraph" }] } });
+    const body = await findEditor();
+    fireEvent.keyDown(screen.getByRole("textbox", { name: t("documents.page_ui.title_label") }), { key: "Enter" });
+    pasteText("/");
+    expect(await screen.findByRole("listbox", { name: t("documents.page_ui.insert_block") })).toBeInTheDocument();
+    fireEvent.keyDown(body, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("listbox")).toBeNull());
+    expect(body).toHaveTextContent("/");
+    expect(body.querySelector("[data-type='slashCommand']")).toBeNull();
+  });
+
+  it("has a static title and no metadata controls in read-only mode", async () => {
+    renderWorkspace({ my_level: "view", icon: "📝" });
+    await findEditor();
+    expect(screen.getByRole("heading", { level: 1, name: "Kế hoạch Q3" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: t("documents.page_ui.title_label") })).toBeNull();
+    expect(screen.queryByRole("button", { name: t("documents.page_ui.change_icon") })).toBeNull();
+  });
 });
 
 describe("DocumentWorkspace autosave", () => {

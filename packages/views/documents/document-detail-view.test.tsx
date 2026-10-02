@@ -56,7 +56,7 @@ function pageDocument(over: Record<string, unknown> = {}): Document {
 
 /** The editor arrives through React.lazy; the first TipTap import is slow. */
 function findEditor() {
-  return screen.findByRole("textbox", {}, { timeout: 15_000 });
+  return screen.findByRole("textbox", { name: t("documents.editor.aria_label") }, { timeout: 15_000 });
 }
 
 function renderView(
@@ -277,7 +277,7 @@ describe("DocumentDetailView", () => {
     // The answer to the abandoned save arrives late; it must not be written
     // anywhere, and nothing may be sent for the new document.
     pendingPatch.resolve?.({ document: pageDocument({ revision: "4" }) });
-    await waitFor(() => expect(screen.getByRole("textbox")).toHaveTextContent("Nội dung B"), {
+    await waitFor(() => expect(screen.getByRole("textbox", { name: t("documents.editor.aria_label") })).toHaveTextContent("Nội dung B"), {
       timeout: 8_000,
     });
     expect(patches).toEqual(["/api/v1/documents/d1"]);

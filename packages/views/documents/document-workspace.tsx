@@ -29,6 +29,7 @@ import { DocumentConflictDialog } from "./conflict-dialog";
 import type { DocumentEditorHandle } from "./document-editor";
 import { DocumentFileView } from "./document-file-view";
 import { DocumentSaveIndicator } from "./document-save-indicator";
+import { DocumentPageHeader } from "./document-page-header";
 
 /**
  * The editor chunk. The document route must stay inside the bundle budget, so
@@ -99,6 +100,9 @@ export function DocumentWorkspace({
 
   const canEdit = doc.my_level === "edit" || doc.my_level === "manage";
   const editorRef = useRef<DocumentEditorHandle>(null);
+  const titleRef = useRef<HTMLTextAreaElement>(null);
+  const [pageTitle, setPageTitle] = useState(doc.title);
+  const [metadataPending, setMetadataPending] = useState(false);
   const lastLocalContentRef = useRef<unknown>(undefined);
   const stateRef = useRef(state);
   const [pendingUploads, setPendingUploads] = useState(0);
@@ -391,7 +395,7 @@ export function DocumentWorkspace({
         segments={breadcrumbSegments}
         leaf={
           <span className="truncate font-medium text-foreground">
-            {doc.title || t("documents.detail.untitled")}
+            {(doc.kind === "page" ? pageTitle : doc.title) || t("documents.detail.untitled")}
           </span>
         }
         actions={
@@ -399,7 +403,7 @@ export function DocumentWorkspace({
             {headerActions}
             {doc.kind === "page" ? (
               <DocumentSaveIndicator
-                state={state}
+                state={metadataPending ? { ...state, phase: "saving" } : state}
                 pendingUploads={pendingUploads}
                 readonly={!canEdit}
                 onRetry={save.retry}
@@ -426,16 +430,23 @@ export function DocumentWorkspace({
       <div
         className={
           doc.kind === "page"
-            ? "min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-10 sm:py-8"
+            ? `min-h-0 min-w-0 flex-1 overflow-y-auto bg-background pt-12 pb-32 md:pt-16 ${PAGE_GUTTER}`
             : `min-h-0 flex-1 overflow-y-auto py-4 ${PAGE_GUTTER}`
         }
       >
         {doc.kind === "page" ? (
+          <div className="mx-auto w-full min-w-0 max-w-3xl">
+            <DocumentPageHeader wsId={wsId} doc={doc} editable={canEdit} titleRef={titleRef}
+              onTitleChange={setPageTitle} onFocusBody={() => editorRef.current?.focus("start")}
+              canPersist={!dirty && state.phase !== "saving" && pendingUploads === 0}
+              getRevision={() => stateRef.current.revision}
+              onPendingChange={setMetadataPending} onSaved={(saved) => save.updateBase(saved.revision, saved)} />
           <Suspense
             fallback={
-              <div className="mx-auto w-full max-w-3xl space-y-3" aria-busy>
-                <Skeleton className="h-8 w-2/3" />
-                <Skeleton className="h-40 w-full" />
+              <div className="min-h-64 space-y-3" aria-busy>
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-5/6" />
+                <Skeleton className="h-4 w-2/3" />
               </div>
             }
           >
@@ -448,15 +459,21 @@ export function DocumentWorkspace({
                 content={doc.content}
                 contentRevision={doc.revision}
                 dirty={dirty}
-                editable={canEdit}
+                editable={canEdit && !metadataPending}
                 onChange={handleChange}
                 onUploadAsset={uploader}
                 onAssetError={handleAssetError}
                 onPendingUploadsChange={setPendingUploads}
                 onContentError={handleContentError}
+                onFocusTitle={() => { titleRef.current?.focus(); const input = titleRef.current;
+                  if (input) input.setSelectionRange(input.value.length, input.value.length); }}
               />
             </div>
           </Suspense>
+          {canEdit ? <Button type="button" variant="ghost" tabIndex={-1}
+            className="mt-4 h-32 w-full cursor-text hover:bg-transparent" aria-label={t("documents.page_ui.focus_end")}
+            onClick={() => editorRef.current?.focus("end")}><span className="sr-only">{t("documents.page_ui.focus_end")}</span></Button> : null}
+          </div>
         ) : (
           <DocumentFileView wsId={wsId} doc={doc} readonly={!canEdit} officeEditorHost={officeEditorHost} />
         )}

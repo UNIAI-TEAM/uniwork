@@ -33,7 +33,7 @@ import { Table } from "@tiptap/extension-table";
 import { TaskList } from "@tiptap/extension-list";
 import { Markdown } from "@tiptap/markdown";
 import { ReactNodeViewRenderer } from "@tiptap/react";
-import type { AnyExtension } from "@tiptap/core";
+import type { AnyExtension, Editor } from "@tiptap/core";
 import type { UploadResult } from "@uniwork/core/hooks/use-file-upload";
 import { shouldAutoLink } from "@uniwork/ui/markdown";
 import { escapeMarkdownLabel } from "../utils/escape-markdown-label";
@@ -59,6 +59,10 @@ import { ImageView } from "./image-view";
 import { BlockMathExtension, InlineMathExtension } from "./math";
 import { HighlightExtension } from "./highlight";
 import { codeLowlight } from "../syntax-highlight";
+import { createPageSlashExtension } from "./page-slash-extension";
+import type { PageTranslate } from "./page-blocks";
+import { createPagePlaceholder } from "./page-placeholder";
+import { PageTaskItem } from "./page-task-item";
 
 const LinkExtension = Link.extend({ inclusive: false }).configure({
   openOnClick: false,
@@ -329,11 +333,8 @@ export function createEditorExtensions(
 
 /**
  * Page mentions carry the contract's `kind` (user | task | document | meeting)
- * rather than the shared picker's `type`. The picker itself is not attached in
- * the page editor yet: it emits `type` nodes with no `kind`, which the server
- * sanitizer drops, so offering it would silently delete what the user picked.
- * The node type stays registered so mentions that arrive from the API render
- * as pills; kind-aware mention authoring lands with G1-07.
+ * rather than the shared picker's `type`. The page-specific insertion command
+ * maps a selected workspace member to `kind: user`, preserving the schema.
  */
 const PageMentionExtension = BaseMentionExtension.extend({
   addAttributes() {
@@ -352,7 +353,9 @@ export interface PageDocumentExtensionsOptions {
   /** Paste/drop handler turning image files into document assets. */
   assetUpload: AnyExtension;
   /** Placeholder text, or a getter — same contract as the Markdown flavor. */
-  placeholder?: string | (() => string);
+  placeholder?: string | ((props: { editor: Editor }) => string);
+  slash?: { translate: PageTranslate; chooseImage: () => void };
+  mention?: ReturnType<typeof createMentionSuggestion>;
 }
 
 /**
@@ -384,7 +387,7 @@ export function createPageDocumentExtensions(
     }),
     PatchedListItem,
     TaskList,
-    PatchedTaskItem,
+    PageTaskItem,
     CodeBlockExtension,
     LinkExtension.configure({ isAllowedUri: pageHrefAllowed }),
     options.image,
@@ -395,9 +398,10 @@ export function createPageDocumentExtensions(
     SuggestionTriggerArmingExtension,
     PageMentionExtension.configure({
       HTMLAttributes: { class: "mention" },
-      suggestion: { allow: () => false },
+      suggestion: options.mention ?? { allow: () => false },
     }),
-    Placeholder.configure({ placeholder: options.placeholder }),
+    ...(options.slash ? [createPageSlashExtension(options.slash)] : []),
+    createPagePlaceholder(options.placeholder),
     options.assetUpload,
   ];
 }
