@@ -1,6 +1,6 @@
 "use client";
 
-import { createElement, type ReactNode } from "react";
+import { createElement, useEffect, useState, type ReactNode } from "react";
 import { downloadDocumentFile, uploadDocumentFile } from "@uniwork/core/api/endpoints/documents";
 import { commitDocumentVersion } from "@uniwork/core/api/endpoints/documents-versions";
 import type {
@@ -13,7 +13,7 @@ import type {
   StableSnapshot,
 } from "@uniwork/core/office";
 import { createOfficeEditorSession, type OfficeEditorSession, type BrowserOfficeDraftOptions } from "./editor-host-core";
-import { XlsxEditor } from "@uniwork/views/office/xlsx";
+import { createXlsxModelHost, XlsxEditor, type XlsxModelHost } from "@uniwork/views/office/xlsx";
 import type {
   XlsxEditorHandle,
   XlsxOpenOutcome,
@@ -22,6 +22,7 @@ import type {
 } from "@uniwork/views/office/xlsx";
 import type {
   XlsxRecalcResult,
+  XlsxRenderModel,
   XlsxWorkbookSnapshot,
 } from "@uniwork/office-engine/xlsx";
 
@@ -56,6 +57,8 @@ export interface XlsxRuntimeOpenResult {
   document_id: string;
   document_model_ref?: string;
   snapshot?: XlsxWorkbookSnapshot;
+  /** G3-05c: the render model the vendored sheets renderer mounts. */
+  renderModel?: XlsxRenderModel;
   warnings?: readonly string[];
   failure_class?: string;
   message?: string;
@@ -284,6 +287,38 @@ async function fingerprint(snapshot: XlsxWorkbookSnapshot): Promise<string> {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+/** Content digest for the renderer's workbook identity (it only seeds the
+ *  Univer unit id); a host without WebCrypto falls back to a byte count. */
+async function digestHex(bytes: Uint8Array): Promise<string> {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) return `bytes-${bytes.byteLength}`;
+  const digest = await subtle.digest("SHA-256", bytes.slice().buffer);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/** The renderer host is only known after the async open; the view wrapper
+ *  below re-renders the editor when it lands (and drops it on dispose). */
+interface RenderModelRef {
+  current: XlsxModelHost | null;
+  listeners: Set<(host: XlsxModelHost | null) => void>;
+}
+
+interface XlsxEditorViewProps extends Omit<Parameters<typeof XlsxEditor>[0], "rendererHost"> {
+  modelRef: RenderModelRef;
+}
+
+function XlsxEditorView({ modelRef, ...editorProps }: XlsxEditorViewProps) {
+  const [host, setHost] = useState<XlsxModelHost | null>(modelRef.current);
+  useEffect(() => {
+    modelRef.listeners.add(setHost);
+    setHost(modelRef.current);
+    return () => {
+      modelRef.listeners.delete(setHost);
+    };
+  }, [modelRef]);
+  return createElement(XlsxEditor, { ...editorProps, ...(host ? { rendererHost: host } : {}) } as never);
+}
+
 export interface XlsxFormatAdapterOptions extends BrowserOfficeDraftOptions<XlsxWorkbookSnapshot> {
   identity: OfficeIdentity;
   runtime: XlsxSessionRuntime;
@@ -316,6 +351,11 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
   let disposed = false;
   let currentSnapshot: XlsxWorkbookSnapshot | null = null;
   let serialized: XlsxRuntimeSerializedOutput | null = null;
+  const renderModelRef: RenderModelRef = { current: null, listeners: new Set() };
+  const publishRenderModel = (host: XlsxModelHost | null) => {
+    renderModelRef.current = host;
+    for (const listener of renderModelRef.listeners) listener(host);
+  };
   const snapshotListeners = new Set<(snapshot: XlsxWorkbookSnapshot) => void>();
   const publishSnapshot = () => {
     if (!currentSnapshot) return;
@@ -339,6 +379,18 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
       if (outcome.outcome !== "opened") throw runtimeOpenError(outcome);
       if (!outcome.document_model_ref) throw new Error("xlsx_open_missing_model_ref");
       modelRef = outcome.document_model_ref;
+      // G3-05c: when the runtime carries the render model, the editor mounts
+      // the vendored grid for this document; otherwise it keeps the table.
+      publishRenderModel(
+        outcome.renderModel
+          ? createXlsxModelHost(outcome.renderModel, {
+              sessionId: modelRef,
+              name: options.title ?? options.identity.documentId,
+              sha256: await digestHex(bytes),
+              fileBytes: bytes.byteLength,
+            })
+          : null,
+      );
       currentSnapshot = cloneSnapshot(outcome.snapshot ?? options.runtime.snapshot(modelRef));
       // Opening a workbook establishes the clean baseline.  The identity
       // generation is the draft/auth session generation, not a content edit
@@ -360,6 +412,7 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
       modelRef = null;
       currentSnapshot = null;
       serialized = null;
+      publishRenderModel(null);
       snapshotListeners.clear();
     },
     async edit(operations) {
@@ -448,6 +501,16 @@ export function createXlsxFormatAdapter(options: XlsxFormatAdapterOptions): Xlsx
       }
     },
   };
-  const editorView = createElement(XlsxEditor, { documentKey: options.identity.documentId, editor, open, coordinator: session.coordinator as XlsxSaveCoordinator, title: options.title, capability: { ...options.capability, operation: "edit" }, permissions: { canEdit: !options.readonly && options.capability.status === "available" }, className: options.editorClassName });
+  const editorView = createElement(XlsxEditorView, {
+    modelRef: renderModelRef,
+    documentKey: options.identity.documentId,
+    editor,
+    open,
+    coordinator: session.coordinator as XlsxSaveCoordinator,
+    title: options.title,
+    capability: { ...options.capability, operation: "edit" },
+    permissions: { canEdit: !options.readonly && options.capability.status === "available" },
+    className: options.editorClassName,
+  } as never);
   return { session, editor, capability: options.capability, editorView, open, onRecoverSnapshot };
 }

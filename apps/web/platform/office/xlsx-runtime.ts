@@ -1,8 +1,15 @@
 "use client";
 
 import { cancelOfficeJob, downloadOfficeJobOutput, getOfficeJob, startOfficeJob, type OfficeEditOp } from "@uniwork/core/api/endpoints/office";
-import { isXlsxWorkbookSnapshot, type XlsxRecalcResult, type XlsxWorkbookSnapshot, type XlsxCellState } from "@uniwork/office-engine/xlsx";
+import { isXlsxWorkbookSnapshot, type XlsxRecalcResult, type XlsxRenderModel, type XlsxWorkbookSnapshot, type XlsxCellState } from "@uniwork/office-engine/xlsx";
 import type { XlsxRuntimeOpenResult, XlsxRuntimeSerializedOutput, XlsxSessionRuntime } from "./xlsx-adapter";
+
+/** Loose guard for the additive render_model the G3-05c open job carries. */
+function isRenderModel(value: unknown): value is XlsxRenderModel {
+  if (!value || typeof value !== "object") return false;
+  const sheets = (value as { sheets?: unknown }).sheets;
+  return Array.isArray(sheets) && (value as { styles?: unknown }).styles !== undefined;
+}
 
 const JOB_TIMEOUT_MS = 120_000;
 
@@ -102,7 +109,7 @@ export function createWebXlsxSessionRuntime(options: WebXlsxRuntimeOptions): Xls
     return job;
   }
 
-  async function openModel(signal?: AbortSignal): Promise<XlsxWorkbookSnapshot> {
+  async function openModel(signal?: AbortSignal): Promise<{ snapshot: XlsxWorkbookSnapshot; renderModel?: XlsxRenderModel }> {
     const started = await startOfficeJob(options.documentId, { operation: "open", format: "xlsx", base_revision: baseRevision }, { idempotencyKey: `xlsx-open-${globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`}`, signal });
     if (!started) throw new Error("office_open_job_malformed");
     activeJob = started.jobId;
@@ -112,7 +119,8 @@ export function createWebXlsxSessionRuntime(options: WebXlsxRuntimeOptions): Xls
     try { value = JSON.parse(raw); } catch { throw new Error("office_open_snapshot_invalid"); }
     const candidate = value && typeof value === "object" ? (value as { snapshot?: unknown }).snapshot : undefined;
     if (!isXlsxWorkbookSnapshot(candidate)) throw new Error("office_open_snapshot_invalid");
-    return candidate;
+    const renderModel = value && typeof value === "object" ? (value as { render_model?: unknown }).render_model : undefined;
+    return { snapshot: candidate, ...(isRenderModel(renderModel) ? { renderModel } : {}) };
   }
 
   async function runServerEdit(edits: readonly unknown[], signal?: AbortSignal): Promise<Uint8Array> {
@@ -126,8 +134,17 @@ export function createWebXlsxSessionRuntime(options: WebXlsxRuntimeOptions): Xls
   return {
     async open(input): Promise<XlsxRuntimeOpenResult> {
       if (disposed) throw new Error("xlsx_runtime_disposed");
-      try { snapshot = await openModel(); return { outcome: "opened", document_id: input.documentId, document_model_ref: `web-xlsx-${input.documentId}`, snapshot }; }
-      catch (error) { return { outcome: "failed", document_id: input.documentId, failure_class: "engine_error", message: error instanceof Error ? error.message : String(error) }; }
+      try {
+        const opened = await openModel();
+        snapshot = opened.snapshot;
+        return {
+          outcome: "opened",
+          document_id: input.documentId,
+          document_model_ref: `web-xlsx-${input.documentId}`,
+          snapshot,
+          ...(opened.renderModel === undefined ? {} : { renderModel: opened.renderModel }),
+        };
+      } catch (error) { return { outcome: "failed", document_id: input.documentId, failure_class: "engine_error", message: error instanceof Error ? error.message : String(error) }; }
     },
     async edit(_ref, operations) { if (!snapshot) throw new Error("xlsx_runtime_not_open"); snapshot = applyEdits(snapshot, operations); pending.push(...operations); },
     snapshot() { if (!snapshot) throw new Error("xlsx_runtime_not_open"); return cloneSnapshot(snapshot); },
