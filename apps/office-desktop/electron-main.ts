@@ -23,6 +23,7 @@ import { createProtectedFileCheckpoints, discardProtectedCheckpoint, localDraftI
 import { createNativeInstaller, createNativeUpdateAction } from "./main/updates/native";
 import { createOfficeSaveGuard } from "../../packages/core/office/save-guard";
 import { createDesktopLeaveCoordinator, isLeaveSaveConfirmed } from "./main/leave";
+import { installPrimaryCloseGuard } from "./main/close-guard";
 import { leaveRequestedEventSchema } from "./shared/ipc";
 import type { DraftIdentity, DraftMetadata, DraftSession } from "../../packages/core/office/draft-recovery";
 
@@ -317,15 +318,6 @@ async function startElectronHost(): Promise<void> {
     timeoutMs: 60_000,
   });
   let closeApproved = false;
-  window.on("close", (event) => {
-    if (closeApproved || SMOKE_MODE) return;
-    event.preventDefault();
-    void leave.request("close").then((outcome) => {
-      if (!outcome.proceeded) return;
-      closeApproved = true;
-      window.close();
-    });
-  });
   const host = createDesktopHost({
     handlers: { "desktop:window-theme": (request) => {
       if (process.platform !== "darwin") window.setTitleBarOverlay({ ...DESKTOP_TITLE_BAR_TOKENS[request.dark ? "dark" : "light"], height: 32 });
@@ -389,6 +381,14 @@ async function startElectronHost(): Promise<void> {
       },
     },
   });
+  // Lock registration can call app.quit synchronously. The losing process
+  // has no loaded renderer, so it must never intercept that quit with leave.
+  if (!installPrimaryCloseGuard(window, leave, {
+    primary: host.deepLinkRegistration?.primary !== false,
+    smoke: SMOKE_MODE,
+    isApproved: () => closeApproved,
+    approve: () => { closeApproved = true; },
+  })) return;
   const update = createNativeUpdateAction({
     client: host.updates,
     install: createNativeInstaller({ directory: join(app.getPath("userData"), "updates"), platform: process.platform, openPath: (path) => shell.openPath(path) }),
